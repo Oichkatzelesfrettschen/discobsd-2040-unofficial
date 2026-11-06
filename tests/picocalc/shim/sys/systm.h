@@ -5,6 +5,12 @@
 #include <stdio.h>
 #include <string.h>
 
+/*
+ * macOS's <string.h> defines bzero and bcopy as fortified macros; the
+ * kernel's argument order is what sd.c relies on, so these replace them.
+ */
+#undef	bzero
+#undef	bcopy
 #define	bzero(p, n)	memset((p), 0, (n))
 #define	bcopy(s, d, n)	memcpy((d), (s), (n))
 #define	splhigh()	0

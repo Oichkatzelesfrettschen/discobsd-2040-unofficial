@@ -333,10 +333,10 @@ Each change answers a finding in `docs/research/calculator-and-games-review.md`.
 
 ## Follow-ups
 
-- Add `libcalc` and `libbn` to `SUBDIR` in `lib/Makefile`, add `check-libcalc` and `check-libbn` to
-  `HOST_GATES`, the cross targets to the cross tier, and describe the gates in
-  `sys/arch/rp2040/doc/TESTING.md`. The root `Makefile` declares the two host gates and the inventory lists
-  their variants; the other wiring is open.
+- Add `libcalc` and `libbn` to `SUBDIR` in `lib/Makefile` with the first program that links them. The
+  gates already run in every tier: `check-libcalc` and `check-libbn` in `HOST_GATES` and the required ILP32
+  recipes, `check-libcalc-cross` and `check-libbn-cross` in the cross tier, and both qemu runs in
+  `check-qemu` (`sys/arch/rp2040/doc/TESTING.md`).
 - Run `calc_test` on the board under the hardware opt-in to measure which checks move under the ROM float
   routines (prediction in decision 23).
 - The reviewer's similarity checklist (section 6 of the specification) applies to `lib/libcalc` and

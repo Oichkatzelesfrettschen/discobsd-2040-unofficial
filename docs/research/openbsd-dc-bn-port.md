@@ -302,21 +302,17 @@ is rejected, naming `__aeabi_lmul` and `__aeabi_uldivmod`.
   of `run.sh`, diffed against the same corpus, settles it.
 - The differential corpus on the board image over the console.
 - `lib/libbn` is not listed in `lib/Makefile` `SUBDIR`, so `logged-build` does
-  not compile it; `check-libbn` is declared in the root `Makefile` and in the
-  execution inventory, but `HOST_GATES`, the cross tier and `TESTING.md` do
-  not list it yet.
+  not compile it until dc links it. Its gates run in every tier:
+  `check-libbn` in `HOST_GATES` and the required ILP32 recipes,
+  `check-libbn-cross` in the cross tier and the qemu run in `check-qemu`.
 - Any run or timing on the board.
 
 ## Remaining steps to port dc and bc
 
 1. Wire `lib/libbn` into the build: add `libbn` to `SUBDIR` in `lib/Makefile`
-   (after `libutil`); add a `check-libbn` target (`${MAKE} -C tests/libbn
-   check`) and `check-libbn-cross` to the root `Makefile`, `check-libbn` to
-   `HOST_GATES` beside `check-libc-casefold`, and the cross and qemu
-   targets to the cross tier, and describe the gate in
-   `sys/arch/rp2040/doc/TESTING.md`. The root `Makefile` already declares
-   `check-libbn`, and the test `Makefile` records `TEST_EXECUTION` receipts
-   for the variants in `tools/test-execution-inventory.json`.
+   (after `libutil`) in the same change that links dc against it. The gates
+   (`check-libbn`, `check-libbn-cross`, the qemu run) and their
+   `TESTING.md` row are in place.
 2. Replace `usr.bin/dc` with the OpenBSD sources under a new NOTICE entry
    (ISC, Otto Moerbeek, 2003) and apply the table above: one compatibility
    header, four deleted calls, `errc` and `asprintf` replacements, the

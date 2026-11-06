@@ -537,6 +537,14 @@ check-libcalc: check-python .WAIT symlinks
 check-libbn: check-python
 		${MAKE} -C tests/libbn check
 
+# Cortex-M0+ objects of the two libraries, each with its import allow-list
+# and a known-bad negative control.
+check-libcalc-cross: check-python .WAIT symlinks
+		${MAKE} -C tests/libcalc check-cross
+
+check-libbn-cross: check-python .WAIT symlinks
+		${MAKE} -C tests/libbn check-cross
+
 check-getwd-lifetime: check-python
 		${MAKE} -C tests/dirent_contracts check-getwd-lifetime
 
@@ -949,7 +957,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-umount-contracts check-backgammon-contracts \
 		check-touch-contracts check-printf-contracts \
 		check-recovery-utility-contracts check-timeout-contracts \
-		check-libc-tempfiles \
+		check-libc-tempfiles check-libcalc check-libbn \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
 		check-fgrep-capacity check-config-makefile check-swapram-evac \
@@ -982,6 +990,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
 		check-libc-runtime-limits-cross \
 		check-libc-difftime-cross \
 		check-dirent-contracts-cross check-getwd-lifetime-cross check-libc-output-cross check-board-libc-output check-libc-casefold-cross check-scandir-contracts-cross \
+		check-libcalc-cross check-libbn-cross \
 		check-cat-contracts-cross check-colrm-contracts-cross \
 		check-unifdef-contracts-cross \
 		check-find-contracts-cross \
@@ -1168,11 +1177,13 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 		${CROSS_COMPOSITION_GATES} .WAIT check-cross-kernel .WAIT \
 		check-cross-assembler
 
-# qemu-arm: the u-area exchange loop and the Smaller C suite executed
-# rather than only linked.
+# qemu-arm: the u-area exchange loop, the Smaller C suite and the libcalc
+# and libbn tests executed as Thumb-1 programs rather than only linked.
 check-qemu:	check-python .WAIT symlinks
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
+		REQUIRE_QEMU=1 ${MAKE} -C tests/libcalc check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C tests/libbn check-qemu
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.
@@ -1329,7 +1340,8 @@ installfs:
 
 .PHONY: check-getwd-lifetime check-getwd-lifetime-cross
 
-.PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn
+.PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn \
+	check-libcalc-cross check-libbn-cross
 
 .PHONY: check-libc-output check-libc-output-cross
 

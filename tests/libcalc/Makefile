@@ -151,7 +151,9 @@ calc_test_arm: calc_test.c complex_vectors.h ${LIBSRCS} ${HEADERS} ${QEMU_SUPPOR
 	    ${LIBSRCS} -lm -lc -lgcc
 
 check-qemu:
-.if empty(QEMU_ARM)
+.if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)
+	@echo "libcalc qemu: qemu-arm unavailable and REQUIRE_QEMU is set" >&2; exit 1
+.elif empty(QEMU_ARM)
 	@echo "SKIP libcalc qemu: qemu-arm unavailable; no ARM execution occurred"
 .else
 	@${MAKE} calc_test_arm

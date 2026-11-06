@@ -106,7 +106,9 @@ bn_test_arm: bn_test.c qemu_support.c ${SOURCE} ${HEADER}
 	    -lc -lgcc
 
 check-qemu: vectors.txt
-.if empty(QEMU_ARM)
+.if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)
+	@echo "libbn qemu: qemu-arm unavailable and REQUIRE_QEMU is set" >&2; exit 1
+.elif empty(QEMU_ARM)
 	@echo "SKIP libbn qemu: qemu-arm unavailable; no ARM execution occurred"
 .else
 	@${MAKE} bn_test_arm

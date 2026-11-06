@@ -408,9 +408,11 @@ def test_fkey_variants(prog):
         check(g.find(want), "%r did not select %r\n%s" % (seq, want, g.term.text()))
         g.kill()
     g = Calc(prog)
-    for ch in seqs[0]:  # one byte at a time with gaps
+    # One byte at a time with 10 ms gaps, a fifth of the 50 ms lone-Esc wait,
+    # so a loaded host's late wakeup still lands inside the window.
+    for ch in seqs[0]:
         os.write(g.fd, ch.encode())
-        time.sleep(0.03)
+        time.sleep(0.01)
     g.settle()
     check(g.find("calc: scientific calculator"), "F1 delivered one byte at a time")
     before = g.term.text()

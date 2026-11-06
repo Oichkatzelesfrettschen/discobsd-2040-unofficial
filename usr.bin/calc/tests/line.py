@@ -300,6 +300,8 @@ ALG = [
     err("pow(1e200,2.5)", "overflow"),
     err("1e200^2.5", "overflow"),
     err("todeg(1e308)", "overflow"),
+    err("tan(1e10)", "argument out of range"),
+    err("tan(-1e20)", "argument out of range"),
     num("(-1)^1025", -1.0),
     num("(-1)^2000", 1.0),
     num("pow(-1,1025)", -1.0),

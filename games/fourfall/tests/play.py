@@ -16,6 +16,7 @@ import re
 import select
 import signal
 import struct
+import subprocess
 import sys
 import termios
 import time
@@ -164,12 +165,23 @@ def run_in_own_group(prog, args, info_w):
 
 
 def proc_state(pid):
-    """The scheduler state letter of pid from /proc, or None."""
+    """The scheduler state letter of pid, or None.
+
+    Linux has /proc; macOS and the BSDs do not, and ps -o stat reports the
+    same letter (T for stopped) there.
+    """
     try:
         with open("/proc/%d/stat" % pid) as f:
             return f.read().rsplit(")", 1)[1].split()[0]
     except (OSError, IndexError):
+        pass
+    try:
+        out = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, check=False
+        ).stdout.strip()
+    except OSError:
         return None
+    return out[:1] or None
 
 
 def wait_state(pid, stopped, limit=3.0):

@@ -485,6 +485,13 @@ trig(int id, double x)
 		return sin(x);
 	if (id == F_COS)
 		return cos(x);
+	/*
+	 * lib/libm/tan.c converts the integral part of x * 4 / pi to an int to
+	 * pick the octant, which leaves the int range from 2^31 pi / 4 =
+	 * 1.6866e9; past that the target's tangent is meaningless.
+	 */
+	if (fabs(x) >= 1.6e9)
+		fail("argument out of range");
 	return tan(x);
 }
 

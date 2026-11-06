@@ -562,6 +562,13 @@ MUTANTS = [
         False,
     ),
     (
+        "tan-range-unchecked",
+        [('\tif (fabs(x) >= 1.6e9)\n\t\tfail("argument out of range");\n', "")],
+        ["alg"],
+        None,
+        False,
+    ),
+    (
         "negative-base-parity-dropped",
         [("b - 2.0 * floor(0.5 * b) != 0.0", "0")],
         ["alg"],

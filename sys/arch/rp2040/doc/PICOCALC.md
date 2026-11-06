@@ -41,9 +41,10 @@ name a file there, with a page for a PDF.
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
+| The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
 | The keyboard controller answers at 0x1F and its events type | board | not run |
-| The board runs from USB-C with no cells | board | not run; the AXP2101 power path supports it (below) |
+| The board runs from USB-C with no cells | board | observed by the owner: it stays off with no cells and runs with them (below) |
 | `psram.c`, `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, 40 random transfers, four injected faults, the four placements of the two register stages and nine mutants | host | observed by `check-psram-pio` (1,141 checks); the model's pad delays and the clock of the two register stages are assumptions |
 | PICO, PICO_UART and PICOCALC link unchanged by the PSRAM driver | build | observed: `size` equal to the kernels built before the driver existed; PICO and PICO_UART disassembly and read-only data equal except the version timestamp |
 | The Renode RP2040 model runs the PSRAM program | Renode | not run: the pinned model has PIO but no input synchronizer latency, the tree has no PSRAM peripheral, and `renode-test` cannot run on the build host (`docs/research/picocalc-psram.md`) |
@@ -84,7 +85,26 @@ connects VBUS to VSYS through the linear charger (AXP2101 datasheet 6.4,
 page 18), it runs from the higher of VBUS and the battery (6.5.1), and it
 starts the system when a good VBUS appears (6.5.3). The vendor assembly
 guide asks for a 5 V 2 A supply "to power and charge the product".
-A board booting with no 18650 cells installed settles the claim.
+
+The owner's PicoCalc stays off on USB-C with no 18650 cells installed and
+runs with cells, which contradicts the reading above. The keyboard
+firmware does not gate the Pico: its `setup()` raises PA13, the Pico
+enable, unconditionally (`picocalc_keyboard.ino`), so the inference is
+that no rail comes up at all, including DCDC1 (MCU_3V3) for the STM32.
+Two explanations fit, each with the measurement that separates them:
+
+- The USB-C receptacle lacks a 5.1 kOhm pull-down on each CC pin, so a
+  USB-C-to-C supply never switches VBUS on. A USB-A-to-C cable, which
+  carries VBUS unconditionally, powering a cell-less board confirms it.
+- The AXP2101 needs a power-key press or a battery to start, through
+  power-on defaults the board does not change. A cell-less board that
+  stays off on an A-to-C cable and starts after a press of the power key
+  confirms it.
+
+The Pico's own micro-USB port feeds the Pico module's VSYS through the
+module's Schottky diode; whether the mainboard's PICO_VSYS net, the STM32
+and the panel run from it is not measured. With cells installed, the
+micro-USB port is the console and BOOTSEL path.
 
 ## Display: ST7365P on SPI1
 
@@ -350,12 +370,21 @@ interface, plus a tile-blit operation that draws from a tile table the
 process passes; the text console restores itself from its cell store
 when a graphics client closes.
 
-The first item ships the tree's Plan 9 `bc` and `dc` (MIT license, already
-built for rp2040, in no profile) as a manifest closure. It changes the
-full manifest, which `docs/research/c17-shipped-resource-baseline.json`
-pins by hash and by packed program, so it lands with a re-recorded
-baseline from a distribution run and a `NOTICE` section for the Plan 9
-Foundation license.
+The first item ships OpenBSD `bc` and `dc` (ISC, Otto Moerbeek; the manual
+pages and `bc.library` under the Caldera license, `NOTICE` sections 16 and 3)
+as the `calc-bignum` manifest closure of the `picocalc` profile. They link
+`lib/libbn`, the tree's clean-room `BN_*` subset, in place of libcrypto; dc
+allocates its register stacks in 256-entry pages on first touch, because the
+extended table is 789,504 bytes against the 144 KB process window, and bc
+keeps a name table in place of a 65,536-entry hash table and reads its input
+with `getc` in place of libedit. `bc` is 31,176 bytes packed, `dc` 18,644 and
+`/usr/share/misc/bc.library` 5,125; the closure costs 59 blocks and the
+`picocalc` profile leaves 189 free (`PROFILES.md`). `bc` forks a child that
+runs dc's evaluator on a pipe, which needs the 39 KB bc image twice in swap:
+the arithmetic fits the 384 KB raw swap, and no board run has forked it.
+`tests/dcbc` (`check-dcbc`, and `check-qemu` for dc) is the host evidence,
+`tests/rp2040/dcbc_smoke/board_dcbc_smoke.py` the closed board script, and
+`docs/research/openbsd-dc-bn-port.md` the port record.
 
 ### Strict C17 for the remaining console files
 

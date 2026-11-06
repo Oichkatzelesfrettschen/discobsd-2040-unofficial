@@ -110,7 +110,7 @@ check-qemu: vectors.txt
 	@echo "SKIP libbn qemu: qemu-arm unavailable; no ARM execution occurred"
 .else
 	@${MAKE} bn_test_arm
-	${QEMU_ARM} ./bn_test_arm vectors.txt
+	${QEMU_ARM_RUN} ./bn_test_arm vectors.txt
 .endif
 
 clean:

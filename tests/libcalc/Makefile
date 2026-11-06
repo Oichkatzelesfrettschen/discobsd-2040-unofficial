@@ -155,7 +155,7 @@ check-qemu:
 	@echo "SKIP libcalc qemu: qemu-arm unavailable; no ARM execution occurred"
 .else
 	@${MAKE} calc_test_arm
-	${QEMU_ARM} ./calc_test_arm
+	${QEMU_ARM_RUN} ./calc_test_arm
 .endif
 
 clean:

@@ -11,7 +11,7 @@ SUBDIR          = adventure atc backgammon battlestar boggle btlgammon \
                   robots rogue sail snake trek \
                   banner aclock arithmetic bcd factor fish morse warp \
                   number ppt wump primes rain worm worms canfield \
-                  fifteen keen bubble fourfall gamebox
+                  fifteen keen bubble fourfall coil gamebox
 
 all:            $(SUBDIR)
 
@@ -26,7 +26,7 @@ $(SUBDIR):      FRC
 
 # gamebox cleans and rebuilds its three members. Complete sibling builds first
 # so an inherited -j setting cannot remove an object another make is writing.
-gamebox:        fifteen keen bubble fourfall
+gamebox:        fifteen keen bubble fourfall coil
 
 FRC:
 

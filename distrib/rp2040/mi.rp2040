@@ -456,8 +456,8 @@ link /usr/bin/vim
 target /usr/bin/stevie
 
 #
-# /usr/games/gamebox holds fifteen, keen, bubble and
-# fourfall, dispatched the same way as box, sysbox and textbox; the
+# /usr/games/gamebox holds fifteen, keen, bubble, fourfall
+# and coil, dispatched the same way as box, sysbox and textbox; the
 # names below are hard links. See games/gamebox/Makefile and
 # sys/arch/rp2040/doc/research/games.md.
 #
@@ -469,6 +469,8 @@ target /usr/games/gamebox
 link /usr/games/bubble
 target /usr/games/gamebox
 link /usr/games/fourfall
+target /usr/games/gamebox
+link /usr/games/coil
 target /usr/games/gamebox
 #endclosure games
 

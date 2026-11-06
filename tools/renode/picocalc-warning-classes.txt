@@ -1,0 +1,34 @@
+# Warning classes the PICOCALC boot produces beyond the ones warning-classes.txt
+# already allows for the PICO_UART boot.
+#
+# check-warnings.py reads this file first, so a pattern here wins over a
+# broader or tighter one of the same family in warning-classes.txt. The
+# ceilings sit at about twice what a passing run produced; Renode folds
+# repeats of one message into a single line with a count, so each ceiling is
+# a count of distinct lines.
+#
+# Format: CEILING  PATTERN, as in warning-classes.txt.
+
+# The PicoCalc console drives more pad registers than the UART0 console:
+# the I2C1 and SPI1 pins set input-enable and Schmitt bits that the pad
+# model decodes without behavior. Nothing reads them back.
+100     ^pads: Unhandled write to offset 0xN\. Unhandled bits: \[[0-9, ]+\] .*(IE|SCHMITT)
+
+# SSPICR (PL022 offset 0x20, datasheet 4.4.4) is not modeled: the driver
+# writes RORIC there after each drain to clear a receive overrun, and the
+# write reaches nothing. The model raises no overrun interrupt and the
+# driver reads none, so the lost write has no consequence.
+200     ^spi1: Unhandled write to offset 0xN, value 0xN\.
+
+# IC_FS_SPKLEN (DW_apb_i2c, datasheet 4.3.14.1) is not implemented. picokbd.c
+# programs it with a spike-filter length for the real bus; the I2C model has
+# no analog timing, so the value changes nothing. One write per i2c_setup().
+8       ^i2c1: Unhandled write to offset 0xN\. Unhandled bits: \[1-3, 5\] .*IC_FS_SPKLEN
+
+# The uartusb driver sets up the USB device controller at probe time; the
+# models decode the registers from the SVD without behavior and the page of
+# USB DPRAM at 0x5011204C does not exist. The PICOCALC console is the panel,
+# and no host attaches to the controller here, so the CDC-ACM device stays
+# unreachable. A boot that needed USB would fail instead of warning.
+40      ^sysbus: WriteDoubleWord of value 0xN to an unimplemented register USBCTRL_REGS:
+4       ^sysbus: WriteDoubleWord to non existing peripheral at 0x5011204C,

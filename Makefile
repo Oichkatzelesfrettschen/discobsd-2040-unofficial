@@ -1228,6 +1228,15 @@ check-qemu:	check-python .WAIT symlinks
 check-renode:
 		sh tools/renode/check-boot.sh
 
+# The PICOCALC kernel under Renode with the ST7365P panel and the keyboard
+# controller modeled: the boot banner, the panel's registers, a login and a
+# command typed through the I2C keyboard, all read back from the decoded
+# frame. Outside "check" for the reason check-renode is, and a separate
+# evidence class from the board: tools/renode/check-picocalc.sh names what
+# is missing.
+check-renode-picocalc:
+		sh tools/renode/check-picocalc.sh
+
 # The SRAM-resident board probes, flash-id and flash-semantics, built
 # against a Pico SDK that tools/pico-sdk/sdk-path.sh resolves. Outside
 # check for the reason check-renode is: it wants cmake and a fetched SDK.
@@ -1367,6 +1376,7 @@ installfs:
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
+		check-renode-picocalc \
 		check-host-package check-board-build check symlinks etc-distribution \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \
 		check-fs-profiles check-dd-contracts \

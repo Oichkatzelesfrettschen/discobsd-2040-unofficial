@@ -187,6 +187,7 @@ upload and hidden-file inclusion.
 | cross | `check-cross` | arm-none-eabi toolchain, capstone and pyelftools under `${PYTHON}`, a built tree | yes | yes |
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
 | renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | no: the models are a git clone and a dotnet build | no |
+| renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and flash image, `${PYTHON}` | no: the models are a git clone and a dotnet build | no |
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
@@ -1420,6 +1421,63 @@ threads enough that a race between them rarely fires: the suite passed
 against a model whose BUSY flag latched and hung every free-running boot.
 The measurement that decides it is a free-running `RunFor` with no tester
 attached, recorded in emulation.md.
+
+## Renode PicoCalc tier
+
+`check-renode-picocalc` runs tools/renode/check-picocalc.sh, which boots the
+PICOCALC kernel (`sys/arch/rp2040/compile/PICOCALC/unix.bin`) and the root
+image from the same Renode and the same boot ROM as the UART0 tier, with two
+models added: an ST7365P panel registered under SPI1 and the keyboard
+controller registered at I2C1 address 0x1f (tools/renode/picocalc/,
+tools/renode/picocalc.repl). It stands outside `check` for the reason the
+UART0 tier does and reports a missing emulator, model tree, kernel or image
+by name before it starts. It needs no Robot Framework and opens no network
+port: tools/renode/check-picocalc.py drives Renode through the console
+monitor on stdin, advances virtual time in half-second slices, dumps the
+panel model's frame after each slice, decodes the frame back into the
+console's 53x32 text with the kernel's own font table
+(tools/renode/picocalc_fb.py, which parses `dev/lcdfont.c`), and waits for the
+lines each stage expects. Virtual time is the budget; a wall-clock limit
+bounds a hung emulator.
+
+What a pass establishes, for this Renode build, these third-party models and
+this kernel: the PICOCALC console path runs from `st7365p_init()` through
+the first full-screen clear, the boot banner, fsck and the daemons to the
+`login:` prompt, with every panel byte accounted for (the init sequence
+arrives in the order `st7365p.c` sends it, MADCTL 0x48, COLMOD 0x66 and
+VSCRDEF 0/320/160 land, DISPON arrives, no command is unmodeled, no pixel
+lands outside the CASET/RASET window, no byte arrives with chip select
+high); the panel pixels are the cells `lcdterm.c` draws, decoded exactly
+against the font table; `picokbd.c` reads the firmware version at 0x1f over
+the DW_apb_i2c register interface and prints `firmware 1.6`; keys queued in
+the controller model's FIFO travel through register 0x09, the keymap and the
+tty, so `operator` logs in and `uname -sr` typed with a Backspace in it
+answers `DiscoBSD 2.7` on the panel. A warning-class check holds the log to
+tools/renode/warning-classes.txt plus picocalc-warning-classes.txt, and a
+decoder self-test calibrates the frame reader on a good frame, a
+reverse-video row and a corrupted cell before its verdict counts.
+
+What it does not establish: anything about the physical panel or the
+keyboard controller. The panel model keeps the graphics RAM as written and
+records MADCTL MX and BGR and the INVON polarity without applying them, so
+orientation, color order and polarity of a real panel remain board
+observations; the SPI clock is a duration on the PL022's busy flag, not an
+edge; the keyboard controller model has no 16 ms scan period, no hold-repeat
+events and no FIFO overflow interrupt, and it answers a read at once, so the
+2 ms write-to-read gap `picokbd.c` uses is not a test of the real STM32
+firmware; the AXP2101, backlight and PSRAM are not modeled; the USB device
+controller is a set of unimplemented registers, so `uartusb` probes and
+nothing attaches. The SPI path is only exercised through the one patched
+PL022 frame path; a pin-level SPI consumer such as PIO is untouched by it.
+Renode results stay a separate class from the board's: PICOCALC.md keeps its
+board rows `not run`.
+
+The tier depends on four corrections to the pinned models, carried as
+patches 0005 through 0008 under tools/renode/patches and described in
+docs/research/picocalc-emulation.md: the GPIO function table from GP9 up, the
+PL022 receive-FIFO status polarity, the PL022 burst start and stop, and frame
+delivery to a registered SPI device. check-picocalc.sh refuses a model build
+that predates 0008.
 
 ## Board tier
 

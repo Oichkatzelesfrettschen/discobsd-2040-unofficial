@@ -350,6 +350,9 @@ PLAY_MUTANTS = [
 ]
 
 
+PLAY_RUNS = 3
+
+
 def play_mutants(src):
     text = open(os.path.join(src, "fourfall.c")).read()
     gametty = os.path.join(src, "..", "gametty.h")
@@ -386,9 +389,17 @@ def play_mutants(src):
                 print("play mutant %-28s ERROR: compile\n%s" % (name, r.stderr))
                 failures += 1
                 continue
-            r = subprocess.run(
-                [sys.executable, play, exe] + cases, capture_output=True, text=True, timeout=300
-            )
+            # A timing mutant is visible only on a run where the host
+            # schedules the game inside the gap the case leaves; a run whose
+            # bytes arrive in one read cannot see it. A mutant survives only
+            # if every one of PLAY_RUNS runs passes; the unmutated program
+            # passes its single run in test-play.
+            for _ in range(PLAY_RUNS):
+                r = subprocess.run(
+                    [sys.executable, play, exe] + cases, capture_output=True, text=True, timeout=300
+                )
+                if r.returncode != 0:
+                    break
             if r.returncode == 0:
                 print("play mutant %-28s SURVIVED" % name)
                 failures += 1

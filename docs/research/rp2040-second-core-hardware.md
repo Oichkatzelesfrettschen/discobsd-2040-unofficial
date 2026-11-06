@@ -5,7 +5,7 @@ Drafted by an AI assistant (Claude) for owner review; every figure carries its e
 ## Result
 
 - Core 1 is idle hardware the port can launch with a six-word FIFO handshake (datasheet 2.8.2). It shares XIP flash with core 0, so it runs from SRAM or it stalls whenever core 0 erases or programs flash. Core 1 cannot hide flash-write latency: `flash_erase()` and `flash_program()` in `sys/arch/rp2040/dev/flash.c` take the shared XIP interface down for every reader.
-- The largest core-0 cost found is the packed-executable decoder, and single-core changes (a table CRC, a word-buffer bit reader) plausibly remove more than half of it. An instruction-level emulation of the shipped decoder and CRC (method and limits in "Method and evidence classes") costs 387 cycles per expanded byte on a Cortex-M0+: 54 percent in the bit reader `get_bits()`, 22 percent in the decoder state machine, 20 percent in the bit-serial CRC-32. That is 144 ms per pass for a 46,540-byte image at 125 MHz. `exec` runs two passes per stream and every swap-in of a packed process runs one more over its whole text, so the model puts exec of a 40 KB box in the hundreds of milliseconds, against "tens of milliseconds" in `sys/arch/rp2040/doc/STORAGE.md` and 7-22 ms in `docs/research/ram-compression.md`. The deviation is the finding; the board baseline below decides it.
+- The largest core-0 cost found is the packed-executable decoder, and single-core changes (a table CRC, a word-buffer bit reader) plausibly remove more than half of it. An instruction-level emulation of the shipped decoder and CRC (method and limits in "Method and evidence classes") costs 387 cycles per expanded byte on a Cortex-M0+: 54 percent in the bit reader `get_bits()`, 22 percent in the decoder state machine, 20 percent in the bit-serial CRC-32. That is 144 ms per pass for a 46,540-byte image at 125 MHz. The sample, packer, harness and model are in `docs/research/rp2040-second-core-emulation/`, and its `build.sh` rebuilds them from tree sources and reproduces these figures. `exec` runs two passes per stream and every swap-in of a packed process runs one more over its whole text, so the model puts exec of a 40 KB box in the hundreds of milliseconds, against "tens of milliseconds" in `sys/arch/rp2040/doc/STORAGE.md` and 7-22 ms in `docs/research/ram-compression.md`. The deviation is the finding; the board baseline below decides it.
 - A second core cannot shorten a serial decode that core 0 waits on. Offloading one stream to core 1 gains nothing unless core 0 has other work or the stream is split. Two measurements precede any core-1 design: the board cost of the decode, and the single-core ceiling (table CRC, a word-buffer bit reader, hardware divide). Core 1 earns its place after those, as a splitter of independent segments, as a display and I/O service on the PicoCalc, and as a diagnostic sentinel for the unexplained console wedge.
 - The port keeps nothing on core 1 today. `sys/arch/rp2040/dev/usb.c` states "core 1 is never launched" and relies on it. A core-1 design collides with five existing claims: the 8 KB USB transmit ring that fills SRAM4 and SRAM5, `AIRCR.SYSRESETREQ` as the reboot path (it resets only the requesting core, so core 1 survives a software reboot), the divider ownership gate, the MPU region that grants user mode only the divider, and a flash budget with about 22 KB left on PICO.
 
@@ -22,7 +22,7 @@ Each claim carries one class.
 - **Inferred:** derived from the above; the sentence names what would raise or lower the rating.
 - **Not run:** no board, Renode or hardware test was executed for this report.
 
-The emulation costs: ALU 1 cycle, LDR/STR 2, LDM/STM/PUSH/POP 1+N (+2 for POP into PC), branch taken 2 and not taken 1, BL/BX/BLX 3, MRS/MSR/DSB/ISB 4. It assumes instruction fetch hits the XIP cache (1 cycle, datasheet 2.6.3.1), no bus contention and no interrupt. Rating of the resulting cycle counts: medium, plus or minus 30 percent. A board timer measurement of the same call raises it; a deviation above 30 percent lowers it and becomes the finding. Calibration points: the hand count of the bit-serial CRC loop (9 cycles per bit, about 79 per byte) matches the model's 79.4; the decoder reproduces the input bytes and the zlib CRC-32 of the 46,540-byte sample. The sample is the flat image of a static newlib program linked for `-mcpu=cortex-m0plus` (text 40,708 bytes), packed with the vendored encoder at window 9 and lookahead 3, ratio 0.784. It stands in for a DiscoBSD a.out text stream; it is not one. The harness is in the appendix.
+The emulation costs: ALU 1 cycle, LDR/STR 2, LDM/STM/PUSH/POP 1+N (+2 for POP into PC), branch taken 2 and not taken 1, BL/BX/BLX 3, MRS/MSR/DSB/ISB 4. It assumes instruction fetch hits the XIP cache (1 cycle, datasheet 2.6.3.1), no bus contention and no interrupt. Rating of the resulting cycle counts: medium, plus or minus 30 percent. A board timer measurement of the same call raises it; a deviation above 30 percent lowers it and becomes the finding. Calibration points: the hand count of the bit-serial CRC loop (9 cycles per bit, about 79 per byte) matches the model's 79.4; the decoder reproduces the input bytes and the zlib CRC-32 of the 46,540-byte sample. The sample is the flat image of a static newlib program linked for `-mcpu=cortex-m0plus` (text 40,708 bytes), packed with the vendored encoder at window 9 and lookahead 3, ratio 0.784. It stands in for a DiscoBSD a.out text stream; it is not one. The appendix gives the recipe, the input hashes and the recorded run output; the files are in `docs/research/rp2040-second-core-emulation/`.
 
 ## Hardware, from the RP2040 datasheet
 
@@ -42,7 +42,7 @@ Thirty-two one-bit locks at SIO `SPINLOCK0`-`SPINLOCK31` (0x100 and up): a read 
 
 ### Divider and interpolators: per-core state
 
-Each core has its own 8-cycle signed and unsigned divider and two interpolators (2.3.1.5, lines 2121-2202; 2.3.1.6, lines 2203-2465). Divider result registers are writable so interrupt code can save and restore a division in flight; `DIV_CSR.DIRTY` marks one. Neither core can see the other's divider, so a core-1 image can divide without touching the state user processes rely on. Interpolator blend and clamp modes exist on INTERP0 only (2.3.1.6.2, 2.3.1.6.3).
+Each core has its own 8-cycle signed and unsigned divider and two interpolators (2.3.1.5, lines 2121-2202; 2.3.1.6, lines 2203-2465). Divider result registers are writable so interrupt code can save and restore a division in flight; `DIV_CSR.DIRTY` marks one. Neither core can see the other's divider, so a core-1 image can divide without touching the state user processes rely on. Blend mode exists on INTERP0 only (2.3.1.6.2) and clamp mode on INTERP1 only (2.3.1.6.3), each on lane 0 of its interpolator, so a routine that blends and clamps uses both interpolators of the core.
 
 ### NVIC, SysTick and the MPU: per core
 
@@ -130,11 +130,11 @@ Observed (source): `lib/libc/arm/gen/aeabi_div.S` implements `__aeabi_uidiv` and
 
 ### Divider
 
-Used today only by the ROM float provider (`lib/libc/arm/gen/rom_float_*.S`). The ownership argument in `float-libs.md` 4.1 is single-owner: no kernel, interrupt, NMI or callout code divides, and a process switch cannot land inside a healthy user instruction sequence, so a quotient read after the dividend write is never interleaved. The SDK shows the portable protocol for the case where interrupts divide: save the state when `DIV_CSR.DIRTY` is set, read the quotient last (`hardware_divider/divider.S`, `pico_divider/divider_hardware.S` with `PICO_DIVIDER_DISABLE_INTERRUPTS`). `__aeabi_idiv` and `__aeabi_uidiv` in libc can use the same grant under the same invariant, which turns every `/` and `%` in userland (decimal conversion in `_doprnt`, `awk`, `bc`, `dc`, `expr`) from 56-458 cycles into about 20-25. The kernel stays excluded by the existing gate. A core-1 image keeps its own divider and is not constrained by it.
+Used today only by the ROM float provider (`lib/libc/arm/gen/rom_float_*.S`). The ownership argument in `float-libs.md` 4.1 is single-owner: no kernel, interrupt, NMI or callout code divides, and a process switch cannot land inside a healthy user instruction sequence, so a quotient read after the dividend write is never interleaved. The SDK shows the portable protocol for the case where interrupts divide: save the state when `DIV_CSR.DIRTY` is set, read the quotient last (`hardware_divider/divider.S`, `pico_divider/divider_hardware.S` with `PICO_DIVIDER_DISABLE_INTERRUPTS`). `__aeabi_idiv` and `__aeabi_uidiv` in libc can use the same grant under the same invariant, which turns every `/` and `%` in userland (decimal conversion in `_doprnt`, `awk`, `bc`, `dc`, `expr`) from 56-458 cycles into about 20-25. The kernel stays excluded by the existing gate. A core-1 image keeps its own divider and is not constrained by it. The 20-25 cycle figure covers 32-bit `/` and `%` only; a 64-bit operand or a Q16.16 divide beyond the fast path of "Fixed-point arithmetic" below does not map onto one divider operation.
 
 ### Interpolators
 
-Two per core, user-closed by the MPU. They shift, mask and sign-extend an accumulator and add bases in one cycle, with blend (8-bit alpha between BASE0 and BASE1) and clamp modes (2.3.1.6.1-3). Cortex-M0+ has single-cycle shift, AND and add, so bit-field extraction gains nothing from them: the heatshrink bit reader, the CRC and the cell renderer's glyph bit tests do not need an interpolator. Where one wins is saturating or blending arithmetic in fixed point: clamping a Q16.16 coordinate to a range, linear interpolation between two samples (the datasheet's 2.3.1.6.4 use case), alpha blending two colors, and affine texture addressing (2.3.1.6.5). These matter for a future `/dev/lcdgfx` frame composer or game physics, kernel-side or behind a new MPU grant. The port uses none today.
+Two per core, user-closed by the MPU. They shift, mask and sign-extend an accumulator and add bases in one cycle. INTERP0 adds blend mode (8-bit alpha between BASE0 and BASE1, 2.3.1.6.2) and INTERP1 adds clamp mode (lane 0 held between BASE0 and BASE1, 2.3.1.6.3); the other interpolator of the pair has no such mode, so blend work is configured on INTERP0 and clamp work on INTERP1. Cortex-M0+ has single-cycle shift, AND and add, so bit-field extraction gains nothing from them: the heatshrink bit reader, the CRC and the cell renderer's glyph bit tests do not need an interpolator. Where one wins is saturating or blending arithmetic in fixed point: clamping a Q16.16 coordinate to a range (INTERP1 clamp), linear interpolation between two samples (the datasheet's 2.3.1.6.4 use case) and alpha blending two colors (INTERP0 blend), and affine texture addressing (2.3.1.6.5). These matter for a future `/dev/lcdgfx` frame composer or game physics, kernel-side or behind a new MPU grant. The port uses none today.
 
 ### Boot ROM routines
 
@@ -150,7 +150,7 @@ The ROM carries single-precision float on every revision, double from V2, bulk f
 
 ### Fixed-point arithmetic for `lib/libcalc` and game physics
 
-`lib/libcalc` is double-precision throughout (`mathematics.h`), and the ROM double add costs 91 cycles, multiply 155, divide 183 and sine 1,618 (`float-libs.md` 2.2, datasheet 2.8.3.2, documented). Q16.16 add and subtract are one instruction; a 32x32 to 64-bit multiply is a few-dozen-cycle software routine on Thumb-1 (no `UMULL`), so Q16.16 multiply costs less than a ROM double multiply but more than a native multiply; Q16.16 divide becomes a 64/32 division, which the hardware divider can supply for the quotient in about 8 cycles after a pre-shift limited to 32-bit operands. Where fixed point pays: bounded-range hot loops (screen coordinates, scroll and animation steps, PID terms, FFT butterflies with Q15 twiddles) where `libcalc` currently pays 91-183 cycles per double operation. `float-libs.md` section 4 already recommends hand-written Q16.16 for these cases; nothing in `games/` or `lib/libcalc` uses it yet (searched `fix16`, `Q16`, `fixed.point` in `games`, `lib`, `usr.bin`). The interpolator's blend and clamp are the two operations in that list that save instructions over plain Thumb-1.
+`lib/libcalc` is double-precision throughout (`mathematics.h`), and the ROM double add costs 91 cycles, multiply 155, divide 183 and sine 1,618 (`float-libs.md` 2.2, datasheet 2.8.3.2, documented). Q16.16 add and subtract are one instruction; a 32x32 to 64-bit multiply is a few-dozen-cycle software routine on Thumb-1 (no `UMULL`), so Q16.16 multiply costs less than a ROM double multiply but more than a native multiply; Q16.16 divide needs `(x << 16) / y`, a 48-bit dividend. The SIO divider takes a 32-bit dividend and a 32-bit divisor (`DIV_UDIVIDEND` and `DIV_SDIVIDEND` are bits 31:0, datasheet 2.3.1.5 and the SIO register table), so its 8 cycles apply only to a range-checked 32/32 fast path: when the raw numerator fits 16 bits signed (a magnitude below 0.5) the shifted dividend fits 32 bits and one hardware division gives the Q16.16 quotient. Outside that range the shift overflows: `1.0 / 2.0` is `(0x10000 << 16) / 0x20000`, whose true quotient 0x8000 becomes 0 once the dividend is truncated to 32 bits. The general case takes a data-dependent number of 32/32 steps (each step yields `32 - bitlength(divisor)` fractional bits) or a software 64/32 routine, so no figure near 8 cycles holds for it; its cost is not measured. Where fixed point pays: bounded-range hot loops (screen coordinates, scroll and animation steps, PID terms, FFT butterflies with Q15 twiddles) where `libcalc` currently pays 91-183 cycles per double operation. `float-libs.md` section 4 already recommends hand-written Q16.16 for these cases; nothing in `games/` or `lib/libcalc` uses it yet (searched `fix16`, `Q16`, `fixed.point` in `games`, `lib`, `usr.bin`). The interpolator's blend and clamp are the two operations in that list that save instructions over plain Thumb-1.
 
 ## The SDK's multicore patterns and what this kernel needs
 
@@ -174,7 +174,7 @@ Gain classes follow the evidence rules above. "Text/RAM" is kernel flash text, S
 
 | Workload | Where code runs | Handoff | Kernel changes | Text/RAM | Expected gain | Board measurement | Falsifier |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| CRC-32 of expanded bytes with a nibble table | core 0, `subr_crc32.c` | none | replace one function; same results as zlib | +64 B table, about +40 B text | inferred: 79 to about 25 cycles per byte, 14 percent of one pass | `time` of a packed exec before and after; or emulation | exec or swap-in time falls under 8 percent |
+| CRC-32 of expanded bytes with a nibble table | core 0, `subr_crc32.c` | none | replace one function; same results as zlib | +64 B table, about +40 B text | inferred: 79 to about 25 cycles per byte, 14 percent of one pass | `TIMERAWL` bracket of `hsx_expand()` before and after (Step 1); or emulation | exec or swap-in time falls under 8 percent |
 | CRC-32 through the DMA sniffer | DMA controller | descriptor plus completion poll | claim a channel; verify CALC and output flags against a zlib vector first | about +150 B text | inferred: removes the remaining 25 cycles per byte for words, needs word-aligned runs | same | sniffer result differs from zlib on a known vector (calibrate before trusting) |
 | Word-buffer bit reader for packed-executable decode | core 0, a port-owned decoder for the HSX streams | none | new decoder file; bit-identical output to the vendored decoder; the SwapRAM codec stays upstream | text about neutral | inferred: `get_bits` is 54 percent at 22.5 instructions per input bit; a 32-bit bit buffer plausibly halves total decode | emulation harness, then board | round-trip against the vendored encoder fails, or emulated gain under 1.5x |
 | Hardware divider in `__aeabi_idiv` family | user mode, libc | none | none (MPU grant exists); extend the divider-ownership gate to libc | smaller than the software loop | observed (emulated): 56-458 cycles to about 20-25 | `bc`, `awk` division loops | quotient wrong after a forced SysTick between operand write and read (the attended-hardware falsifier in `float-libs.md` 4.1) |
@@ -186,8 +186,8 @@ Gain classes follow the evidence rules above. "Text/RAM" is kernel flash text, S
 
 | Workload | Where code runs | Handoff | Kernel changes | Text/RAM | Expected gain | Board measurement | Falsifier |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Launch, reset and bring-up skeleton | core 1 in SRAM | FIFO words | `core1_launch()`, `core1_stop()`, `FRCE_OFF.PROC1` in `boot()`, panic and startup | about 300-500 B text, 2-3 KB SRAM | enabling step, no direct gain | counter in SRAM keeps advancing during a flash erase; stops after `reboot` | counter stalls during erase, or survives reboot |
-| Diagnostic sentinel for the console wedge | core 1, polled UART0 TX | heartbeat counter in SRAM written by core 0's `hardclock` | heartbeat store (4 bytes), launch | about 600 B image, 1 KB SRAM | diagnostic: prints core-0 state when the heartbeat stalls; targets the field wedge `invariant-map.md` section 3 leaves unexplained | induce a `PRIMASK` hang; sentinel reports within its timeout | sentinel silent during an induced hang, or it disturbs USB timing |
+| Launch, reset and bring-up skeleton | core 1 in SRAM | FIFO words | `core1_launch()`, `core1_stop()`, `FRCE_OFF.PROC1` in `boot()`, panic and startup | about 300-500 B text in flash, 2-3 KB SRAM | enabling step, no direct gain | counter in SRAM keeps advancing during a flash erase; stops after `reboot` | counter stalls during erase, or survives reboot |
+| Diagnostic sentinel for the console wedge | core 1, polled UART0 TX | heartbeat counter in SRAM written by core 0's `hardclock` | heartbeat store (4 bytes), launch | about 600 B image in SRAM and the same 600 B as its flash load image, 1 KB SRAM | diagnostic: prints core-0 state when the heartbeat stalls; targets the field wedge `invariant-map.md` section 3 leaves unexplained | induce a `PRIMASK` hang; sentinel reports within its timeout | sentinel silent during an induced hang, or it disturbs USB timing |
 | CRC stage of the packed decode, pipelined behind core 0 | core 1 | two 1 KB ring halves, FIFO tokens | change `hsx_expand()` consumer | about 300 B | at most the 20.5 percent CRC share, and tier 1's table CRC removes most of it | board exec time | gain under 8 percent once the table CRC is in |
 | Single-stream decode on core 1 while core 0 does other swap-in work | core 1 | descriptor plus completion | `swapin()`/`exec` dispatch | about 1.3 KB SRAM image | inferred: little, because the text stream is the critical path and core 0 has no other substantial work | swap-in time | gain under 10 percent |
 | PicoCalc renderer on core 1 (alternative to DMA) | core 1 with fonts in SRAM (855 B) | draw-command ring, single writer | move `lcdrender` consumer | about 2 KB SRAM | core 0 returned about 95 percent of render time, same as DMA | as the DMA row | DMA row already meets the goal; this costs a core |
@@ -205,137 +205,49 @@ Gain classes follow the evidence rules above. "Text/RAM" is kernel flash text, S
 
 Goal: decide with measurements whether any core-1 decode work is worth designing, using steps that each cost little and revert completely.
 
-**Step 1, board baseline of the decode cost (no core 1, no kernel change).** Stage the existing `tests/rp2040/exec_hsaout` test image, which carries raw and packed variants of the same program, with the repository's board opt-in, `STORAGE_STATS=yes`, and run `time` on the raw and packed executables. Prediction from the model: for a program near 40 KB the packed exec costs about 250 ms more than the raw, and one extra 125 ms per swap-in. Falsifier: a difference under 50 ms for a 40 KB text. Deviation rule: if the board contradicts the model, the model's cycle table (not the conclusion) is investigated first, by timing `hsx_expand()` with `TIMERAWL` around one call.
+**Step 1, board baseline of the decode cost (no core 1).** The shipped `time` prints elapsed time truncated to 100 ms (`usr.bin/time/time.c` line 61 divides `tv_usec` by 100000), so two runs that print the same tenth can differ by nearly 100 ms, which is larger than the 50 ms falsifier below; a single `time` of one exec cannot decide this step. The step has two measurements.
 
-**Step 2, core-1 bring-up microbenchmark as a standalone image loaded to SRAM.** A UF2 addressed to SRAM runs from the boot ROM without writing flash (datasheet 2.8.1 and 2.8.4: the USB boot interface loads "directly into SRAM and run[s]"), so the DiscoBSD flash content stays intact and the experiment reverts by power cycle. The image launches core 1 with the datasheet handshake, a vector table in SRAM and a stack in SRAM4, and measures: FIFO round-trip latency; SRAM-resident `hsx_expand()` over the same 36,509-byte stream (calibrating the 387 cycles per byte model against silicon, where Step 1 calibrates it inside the kernel); core 0's slowdown running the same decode while core 1 streams SRAM, with and without `BUS_PRIORITY.PROC0`; and a progress counter on core 1 while core 0 runs `connect_internal_flash`, `flash_exit_xip`, `flash_flush_cache` and `flash_enter_cmd_xip` with no erase or program, the non-destructive version of the XIP-down window. Predictions: handshake completes; decode within 30 percent of 387 cycles per byte; core-0 slowdown under 5 percent; the counter keeps advancing during the XIP-down window. Falsifiers: the handshake fails under boot ROM V3, decode deviates above 30 percent, core-0 slowdown above 10 percent, or the counter stalls (which would mean something core 1 touches reaches XIP). A `check` target and a PICO_UART bring-up follow only when this passes. Board execution requires the explicit opt-in.
+- Step 1a, repeated-exec timing (no kernel change). Install a program whose text is near 40 KB both raw and packed through the manifest `pack` entries the exec_hsaout test uses (`textcrc` is small and `bigtest` is packed only, so neither fits; pick the multicall box or build a 40 KB test program), then time a shell loop of 20 executions of each under `time`. The loop overhead (fork, wait, shell) is identical for both variants, and dividing the difference by 20 resolves it to 5 ms. Prediction from the model: for 40 KB of text the packed exec costs about 250 ms more than the raw per execution, so 5 s more over the loop; one extra 125 ms per swap-in. Falsifier: a per-exec difference under 50 ms for a 40 KB text (1.25 ms per KB of text).
+- Step 1b, direct bracket (diagnostic kernel change). A kernel built for this step reads `TIMERAWL` (the free-running microsecond counter, `machdep.c` `TIMER_TIMERAWL`, a 32-bit difference that survives wraparound) before and after each `hsx_expand()` call in `exec_hsaout_check()` and in the restoration `swapin()` runs, and accumulates the microseconds beside the `STORAGE_STATS` counters (`STORAGE_STATS=yes`, readable through `sysctl machdep.storage_stats`). This resolves single passes to 1 microsecond and compares directly with the model's 144 ms per 46,540 bytes. It is a diagnostic change reverted before any commit, so the earlier "no kernel change" constraint holds for Step 1a and not for Step 1b.
 
-**Step 3, only if Step 1 shows decode of 100 ms or more and Step 2 passes: in-kernel split decode on PICO_UART.** PICO_UART has the most free text and about 6.5 KB of free SRAM4 and SRAM5. Add the packer-side segment split and a kernel path that decodes segment 0 on core 0 and segment 1 on core 1, behind a compile-time option, and compare against the single-core table-CRC baseline from tier 1, not against today's code. The comparison to beat is the cheapest single-core change; a core-1 result that does not clear it by 1.5x does not ship. Rollback: remove the option and reflash.
+Deviation rule: if either measurement contradicts the model, the model's cycle table (not the conclusion) is investigated first, by comparing the Step 1b bracket with the model's cycles per expanded byte; and if the Step 1a difference and the Step 1b bracket disagree with each other, the loop overhead assumption is investigated before either is trusted. Both steps need the board and the owner's flash opt-in.
 
-Order of work after Step 1: tier-1 CRC table and bit reader first (largest gain, no new hardware state), then Step 2, then Step 3. A core-1 design measured against the unoptimized decoder would overstate its value by the factor the single-core changes remove.
+**Step 2, core-1 bring-up microbenchmark as a standalone image loaded to SRAM.** A UF2 addressed to SRAM runs from the boot ROM without writing flash (datasheet 2.8.1 and 2.8.4: the USB boot interface loads "directly into SRAM and run[s]"), so the DiscoBSD flash content stays intact and the experiment reverts by power cycle. The image launches core 1 with the datasheet handshake, a vector table in SRAM and a stack in SRAM4, and measures: FIFO round-trip latency; SRAM-resident `hsx_expand()` over the same 36,509-byte stream (calibrating the 387 cycles per byte model against silicon, where Step 1b calibrates it inside the kernel); core 0's slowdown running the same decode while core 1 streams SRAM, with and without `BUS_PRIORITY.PROC0`; and a progress counter on core 1 while core 0 runs `connect_internal_flash`, `flash_exit_xip`, `flash_flush_cache` and `flash_enter_cmd_xip` with no erase or program, the non-destructive version of the XIP-down window. Predictions: handshake completes; decode within 30 percent of 387 cycles per byte; core-0 slowdown under 5 percent; the counter keeps advancing during the XIP-down window. Falsifiers: the handshake fails under boot ROM V3, decode deviates above 30 percent, core-0 slowdown above 10 percent, or the counter stalls (which would mean something core 1 touches reaches XIP). A `check` target and a PICO_UART bring-up follow only when this passes. Board execution requires the explicit opt-in.
+
+**Step 3, only if Step 1b shows decode of 100 ms or more and Step 2 passes: in-kernel split decode on PICO_UART.** PICO_UART has the most free text and about 6.5 KB of free SRAM4 and SRAM5. Add the packer-side segment split and a kernel path that decodes segment 0 on core 0 and segment 1 on core 1, behind a compile-time option, and compare against the single-core table-CRC baseline from tier 1, not against today's code. The comparison to beat is the cheapest single-core change; a core-1 result that does not clear it by 1.5x does not ship. Rollback: remove the option and reflash.
+
+Order of work after Step 1b: tier-1 CRC table and bit reader first (largest gain, no new hardware state), then Step 2, then Step 3. A core-1 design measured against the unoptimized decoder would overstate its value by the factor the single-core changes remove.
 
 ## Open items
 
-- Not run: every board and Renode check. The emulated cycle counts are the only new numbers, rated medium.
+- Not run: every board and Renode check. The emulated cycle counts are the only new numbers, rated medium; `docs/research/rp2040-second-core-emulation/build.sh` reproduces them on the host and says nothing about silicon.
 - Not verified: W25Q16JV erase and program times and erase-suspend behavior (no chip datasheet in the repository); the free-SRAM figure for PICO_UART (derived from `kern.ldscript`, confirmed by the linked map); that `SYSRESETREQ` leaves core 1 running on this silicon (documented scope, no board capture); the DMA sniffer's flag combination for the zlib CRC (needs a known-vector check).
 - Decision for the owner: the HSX packed format is byte-compatible with upstream heatshrink and the vendored decoder is "byte-identical to upstream". A word-buffer bit reader for the packed-executable stream departs from that for the executable path only. Choose whether the port keeps the byte-identical rule or owns a faster decoder for the HSX streams; the SwapRAM codec is unaffected.
 - RP2350 boards (Pico 2) are outside this report: the repository holds no RP2350 datasheet, and their SIO, spinlocks and flash arbitration differ.
 
 ## Appendix: emulation harness
 
-Files and tool versions: `arm-none-eabi-gcc` 16.2.0, newlib 4.6.0.20260123 (sample program only), Unicorn 2.1.4, Capstone 5.0.7, Python 3 run with `-I`. The compile flags are the kernel's: `-DKERNEL -mcpu=cortex-m0plus -mthumb -ffreestanding -fno-builtin -fno-common -std=gnu17 -O -nostdinc` with `-I` for `sys`, `sys/arch`, `sys/arch/rp2040/include` (also exposed as `machine/`), `dhara/compat`, `heatshrink` and `heatshrink/compat`. The build links `harness.c`, `hsx_stream.c`, `hsx_decoder.c` and `subr_crc32.c` at 0x20000000 with the script `SECTIONS { . = 0x20000000; .text : { *(.text*) *(.rodata*) } .data : { *(.data*) } .bss : { *(.bss*) *(COMMON) } }`.
+The files are in `docs/research/rp2040-second-core-emulation/`; `PYTHON=python3 build.sh OUTDIR` rebuilds the workload from tree sources and fails on any difference from the recorded hashes (`SHA256SUMS`) or the recorded model output (`expected-output.txt`). A deliberate mutant of `sample.c` (one more `puts` call and an added term in the return value) makes it exit nonzero, which calibrates the comparison.
 
-`harness.c` supplies the compressed bytes at 0x30000000 and the output buffer at 0x30200000, plus `bzero`, `bcopy`, `memset`, `memcpy` and `memmove` as simple loops:
+- Toolchain: `arm-none-eabi-gcc` 16.2.0 with newlib 4.6.0.20260123 (sample program only), Unicorn 2.1.4, Capstone 5.0.7, Python run with `-I`, a host `cc` for the packer.
+- Sample: `sample.c` compiled and linked as `arm-none-eabi-gcc -mcpu=cortex-m0plus -mthumb -Os --specs=nosys.specs`, then `objcopy -O binary`, giving `sample.bin` of 46,540 bytes (text 40,708, data 1,736 in the ELF), SHA-256 `ea03fbc95db66673e7e21d271904d4978b29926f377cf0d8fc1d313d95fd435b`. A different compiler or newlib changes these bytes and with them the cycle count.
+- Packed stream: `encode.c` linked with the vendored `heatshrink_encoder.c` at window 9, lookahead 3 and the search index off (`-DHEATSHRINK_STATIC_WINDOW_BITS=9 -DHEATSHRINK_STATIC_LOOKAHEAD_BITS=3`), giving `sample.hs` of 36,509 bytes (ratio 0.784), SHA-256 `3330724f5e79ab9873647d3cf394ae32d02ef2d5c140ac8b1ebcfe9cc46114d8`.
+- Harness: `harness.c`, `hsx_stream.c`, `hsx_decoder.c` and `subr_crc32.c` compiled with `-DKERNEL -mcpu=cortex-m0plus -mthumb -ffreestanding -fno-builtin -fno-common -std=gnu17 -O -nostdinc` and the include paths `sys`, `sys/arch`, `sys/arch/rp2040/include` (as `machine/`), `sys/arch/rp2040/dhara/compat`, `sys/arch/rp2040/heatshrink` and its `compat`, linked at 0x20000000 by `harness.ld`. `harness.c` places the packed bytes at 0x30000000 and the output at 0x30200000 and supplies byte-loop `memset`, `memcpy`, `memmove`, `bzero` and `bcopy`.
+- Model: `cycles.py` hooks every instruction under Unicorn, classifies it with Capstone using the cost table in "Method and evidence classes", and charges a branch two cycles when the next executed address is not the fall-through address, otherwise one. It checks the output bytes and the zlib CRC-32 of the sample and prints the five costliest functions per entry point.
 
-    #include <machine/hsx_decoder.h>
-    #include <sys/exec_hsaout.h>
-    #define PK  ((const unsigned char *)0x30000000u)
-    #define OUT ((unsigned char *)0x30200000u)
-    static struct hsx_work w;
-    int fill(void *ctx, unsigned off, void *buf, unsigned len)
-    { unsigned char *d = buf; const unsigned char *s = PK + off;
-      (void)ctx; while (len--) *d++ = *s++; return 0; }
-    int run(unsigned clen, unsigned rlen, unsigned *crc)
-    { return hsx_expand(&w, fill, 0, 0, clen, OUT, rlen, crc); }
-    int run_discard(unsigned clen, unsigned rlen, unsigned *crc)
-    { return hsx_expand(&w, fill, 0, 0, clen, 0, rlen, crc); }
+Recorded output (`expected-output.txt`):
 
-The packed input comes from the vendored `heatshrink_encoder.c` built for the host with window 9, lookahead 3 and the search index off (the kernel's `hsx_decoder.h` and `heatshrink_config.h` values), fed the flat binary of the sample program. The cycle estimator `cycles.py` takes the linked ELF, the packed stream and the raw bytes; it prints, per function, cycles and share, and checks the output and the zlib CRC. It hooks every instruction in Unicorn, classifies it with Capstone using the cost table in "Method and evidence classes", and charges a branch two cycles when the next executed address is not the fall-through address, otherwise one. Run it as `python3 -I cycles.py harness.elf stream.hs image.bin` (the three inputs are the linked harness, the packed stream and the raw bytes).
+    run: ok=True raw=46540 packed=36509 cycles=18003905 cycles/rawbyte=386.8 ms@125MHz=144.03
+       get_bits                9732857 cycles  54.1%  6566460 instructions
+       hsx_decoder_poll        3902551 cycles  21.7%  2645663 instructions
+       crc32_update            3687316 cycles  20.5%  3262536 instructions
+       bcopy                    298584 cycles   1.7%  186097 instructions
+       fill                     293347 cycles   1.6%  183395 instructions
+    run_discard: ok=True raw=46540 packed=36509 cycles=18075599 cycles/rawbyte=388.4 ms@125MHz=144.60
+       get_bits                9733351 cycles  53.8%  6566720 instructions
+       hsx_decoder_poll        3949119 cycles  21.8%  2674997 instructions
+       crc32_update            3695740 cycles  20.4%  3266280 instructions
+       bcopy                    298584 cycles   1.7%  186097 instructions
+       fill                     293347 cycles   1.6%  183395 instructions
 
-    """Cortex-M0+ cycle estimate for a Thumb-1 function under Unicorn.
-
-    usage: cycles.py ELF PACKED RAW   (ELF exports run() and run_discard())
-    Costs: ALU 1, LDR/STR 2, LDM/STM/PUSH/POP 1+N (+2 for POP {pc}), B taken 2,
-    B not taken 1, BL/BX/BLX 3, MRS/MSR/DSB/ISB 4. Instruction fetch is assumed
-    to hit (1 cycle); there is no bus contention and no interrupt.
-    """
-    import bisect, os, subprocess, sys, tempfile, zlib
-    from capstone import CS_ARCH_ARM, CS_MODE_THUMB, Cs
-    from capstone.arm_const import ARM_OP_REG, ARM_REG_PC
-    from unicorn import UC_ARCH_ARM, UC_HOOK_CODE, UC_MODE_MCLASS, UC_MODE_THUMB, Uc
-    from unicorn.arm_const import (UC_ARM_REG_LR, UC_ARM_REG_R0, UC_ARM_REG_R1,
-                                   UC_ARM_REG_R2, UC_ARM_REG_SP)
-
-    elf, packed, raw = sys.argv[1:4]
-    syms = []
-    for line in subprocess.check_output(["arm-none-eabi-nm", "-n", elf], text=True).splitlines():
-        addr, kind, name = line.split()
-        if kind in "tT":
-            syms.append((int(addr, 16), name))
-    addrs = [a for a, _ in syms]
-    entry = {n: a for a, n in syms}
-    fd, tmp = tempfile.mkstemp()
-    os.close(fd)
-    subprocess.check_call(["arm-none-eabi-objcopy", "-O", "binary", elf, tmp])
-    img = open(tmp, "rb").read()
-    os.unlink(tmp)
-    pk, rw = open(packed, "rb").read(), open(raw, "rb").read()
-
-    cs = Cs(CS_ARCH_ARM, CS_MODE_THUMB)
-    cs.detail = True
-    cost_cache, func_cache = {}, {}
-
-    def cost(mu, pc, size):
-        """Cycles of the instruction at pc, or "b" for a branch resolved later."""
-        if pc in cost_cache:
-            return cost_cache[pc]
-        ins = next(iter(cs.disasm(bytes(mu.mem_read(pc, size)), pc)))
-        m = ins.mnemonic
-        if m.startswith(("ldm", "stm", "push", "pop")):
-            n = 1 + len(ins.operands) - (1 if m.startswith(("ldm", "stm")) else 0)
-            if m.startswith("pop") and any(o.type == ARM_OP_REG and o.reg == ARM_REG_PC
-                                           for o in ins.operands):
-                n += 2
-            c = n
-        elif m.startswith(("ldr", "str")):
-            c = 2
-        elif m in ("bl", "bx", "blx"):
-            c = 3
-        elif m.startswith("b") and m != "bics":
-            c = "b"
-        elif m in ("mrs", "msr", "dsb", "isb", "dmb"):
-            c = 4
-        else:
-            c = 1
-        cost_cache[pc] = c
-        return c
-
-    def run(fn, clen, rlen):
-        mu = Uc(UC_ARCH_ARM, UC_MODE_THUMB | UC_MODE_MCLASS)
-        mu.mem_map(0x20000000, 0x1000000)
-        mu.mem_map(0x30000000, 0x1000000)
-        mu.mem_write(0x20000000, img)
-        mu.mem_write(0x30000000, pk)
-        sentinel = 0x20F00000
-        for reg, val in ((UC_ARM_REG_SP, 0x200F0000), (UC_ARM_REG_LR, sentinel | 1),
-                         (UC_ARM_REG_R0, clen), (UC_ARM_REG_R1, rlen), (UC_ARM_REG_R2, 0x200E0000)):
-            mu.reg_write(reg, val)
-        per_func, prev = {}, [None]
-
-        def hook(_mu, addr, size, _ud):
-            if prev[0] is not None:
-                pa, psz, pcost = prev[0]
-                if pcost == "b":
-                    per_func[func_cache[pa]][0] += 2 if addr != pa + psz else 1
-            if addr not in func_cache:
-                func_cache[addr] = syms[bisect.bisect_right(addrs, addr) - 1][1]
-            slot = per_func.setdefault(func_cache[addr], [0, 0])
-            c = cost(mu, addr, size)
-            if c != "b":
-                slot[0] += c
-            slot[1] += 1
-            prev[0] = (addr, size, c)
-
-        mu.hook_add(UC_HOOK_CODE, hook)
-        mu.emu_start(entry[fn] | 1, sentinel, count=400_000_000)
-        crc = int.from_bytes(mu.mem_read(0x200E0000, 4), "little")
-        out = bytes(mu.mem_read(0x30200000, rlen))
-        return mu.reg_read(UC_ARM_REG_R0), crc, out, per_func
-
-    for fn in ("run", "run_discard"):
-        ret, crc, out, per_func = run(fn, len(pk), len(rw))
-        ok = ret == 0 and crc == zlib.crc32(rw) and (fn != "run" or out == rw)
-        total = sum(v[0] for v in per_func.values())
-        print(f"{fn}: ok={ok} raw={len(rw)} packed={len(pk)} cycles={total} "
-              f"cycles/rawbyte={total / len(rw):.1f} ms@125MHz={total / 125e3:.2f}")
-        for name, (c, i) in sorted(per_func.items(), key=lambda kv: -kv[1][0])[:5]:
-            print(f"   {name:20s} {c:10d} cycles {100 * c / total:5.1f}%  {i} instructions")
+The 8 KB comparison in the result table (420.6 cycles per byte for the first 8 KB, ratio 0.889) used the first 8,192 bytes of `sample.bin` packed with the same encoder; it is not part of the recorded run and reproduces by passing that prefix and its packed stream to `cycles.py`. The sample is a stand-in: input composition changes the cycles per byte, so the board comparison must use the same `sample.bin` and `sample.hs`, or the model must be rerun on the actual a.out text streams.

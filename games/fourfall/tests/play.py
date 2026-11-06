@@ -327,6 +327,11 @@ def status_line(g):
     return g.term.line(STATUS_ROW)
 
 
+def plain_stream(g):
+    """Everything the game wrote, with its escape sequences removed."""
+    return re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", g.term.raw.decode(errors="replace"))
+
+
 def cell(g, r, c):
     """The two terminal characters of board cell (r, c)."""
     return g.term.text(r, 3 + 2 * c, 4 + 2 * c)
@@ -350,9 +355,10 @@ def test_replay_one(prog):
     g.keys("lll ")
     check(b"~~" not in g.term.raw, "a flash drew before any row was cleared")
     g.keys("lllll ")
-    text = g.term.raw.decode(errors="replace")
-    plain = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", text)
+    g.wait_for(lambda: "score 564 lines 2 level 1" in plain_stream(g))
+    plain = plain_stream(g)
     check("score 564 lines 2 level 1" in plain, "REPLAY-1 status missing in stream")
+    g.wait_for(lambda: status_line(g) == "score 564 lines 2 level 1")
     check(status_line(g) == "score 564 lines 2 level 1", "REPLAY-1 screen: %r" % status_line(g))
     check(not g.term.lit(), "cleared rows left cells on the board")
     check(g.quit() == 0, "REPLAY-1 exit status %r" % g.status)
@@ -361,19 +367,23 @@ def test_replay_one(prog):
 def test_replay_two(prog):
     g = Game(prog, test="O")
     g.keys(" " * 12)
-    plain = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", g.term.raw.decode(errors="replace"))
+    g.wait_for(lambda: "GAME OVER" in plain_stream(g))
+    plain = plain_stream(g)
     check("score 264" in plain, "REPLAY-2 score 264 missing")
     check("GAME OVER" in plain, "REPLAY-2 GAME OVER missing")
     check(g.term.text(12, 10, 18) == "GAME OVER", "GAME OVER position: %r" % g.term.line(12))
     check(g.term.text(14, 6, 22) == "Enter  play again", "play-again line: %r" % g.term.line(14))
     check(g.term.text(15, 11, 17) == "q  quit", "quit line: %r" % g.term.line(15))
+    g.wait_for(lambda: status_line(g) == "score 264 lines 0 level 1")
     check(
         status_line(g) == "score 264 lines 0 level 1", "status after game over: %r" % status_line(g)
     )
     # moves after game over are ignored; Enter starts a new game
     g.keys("h")
+    g.wait_for(lambda: status_line(g) == "score 264 lines 0 level 1")
     check(status_line(g) == "score 264 lines 0 level 1", "key after game over changed the status")
     g.keys("\r")
+    g.wait_for(lambda: status_line(g) == "score 0 lines 0 level 1")
     check(status_line(g) == "score 0 lines 0 level 1", "new game status: %r" % status_line(g))
     check("GAME OVER" not in g.term.line(12), "overlay left after a new game")
     check(g.term.text(2, 30, 34) == "SCORE", "panel label lost after a new game")
@@ -385,18 +395,21 @@ def test_replay_two(prog):
 def test_rotation_arrows(prog):
     g = Game(prog, test="I")
     g.keys(ESC + b"[A" + b" ")  # Up arrow rotates clockwise, space drops
+    g.wait_for(lambda: status_line(g) == "score 40 lines 0 level 1")
     check(status_line(g) == "score 40 lines 0 level 1", "REPLAY-4: %r" % status_line(g))
     for r in (20, 21, 22, 23):
         check(cell(g, r, 6) == "[]", "REPLAY-4 cell row %d missing" % r)
     check(g.quit() == 0, "exit status %r" % g.status)
     g = Game(prog, test="I")
     g.keys("xz ")  # x clockwise, z back: flat again
+    g.wait_for(lambda: status_line(g) == "score 44 lines 0 level 1")
     check(status_line(g) == "score 44 lines 0 level 1", "x then z: %r" % status_line(g))
     check(g.quit() == 0, "exit status %r" % g.status)
     g = Game(prog, test="I")
     g.keys(ESC + b"[C" + ESC + b"[D" + ESC + b"[D" + ESC + b"[B")  # right, left, left, soft drop
     g.keys(" ")
     # soft drop 1, hard drop from row 1 covers 21 rows: 1 + 42
+    g.wait_for(lambda: status_line(g) == "score 43 lines 0 level 1")
     check(status_line(g) == "score 43 lines 0 level 1", "arrows: %r" % status_line(g))
     check(
         cell(g, 23, 3) == "[]"
@@ -411,8 +424,10 @@ def test_rotation_arrows(prog):
 def test_enter_keys(prog):
     g = Game(prog, test="I")
     g.keys("\r")  # Enter hard-drops (CR or LF arrives)
+    g.wait_for(lambda: status_line(g) == "score 44 lines 0 level 1")
     check(status_line(g) == "score 44 lines 0 level 1", "CR: %r" % status_line(g))
     g.keys("\n")
+    g.wait_for(lambda: status_line(g) == "score 86 lines 0 level 1")
     check(status_line(g) == "score 86 lines 0 level 1", "LF: %r" % status_line(g))
     g.keys("p")
     check(g.term.text(13, 12, 17) == "PAUSED", "pause")
@@ -439,6 +454,7 @@ def test_layout(prog):
     check(t.text(7, 30, 33) == "NEXT", "NEXT label")
     for r in range(16, 23):
         check(t.line(r)[29:].strip() != "", "help line %d empty" % r)
+    g.wait_for(lambda: status_line(g) == "score 0 lines 0 level 1")
     check(status_line(g) == "score 0 lines 0 level 1", "status line")
     # Queue O T O T ...: the T is first in the panel, the O second, each as
     # its glyph texture in its spawn orientation, two preview rows apiece.
@@ -703,6 +719,7 @@ def test_repaint(prog):
         all(t.grid[r] == before[r] for r in range(1, ROWS + 1) if r != STATUS_ROW),
         "Ctrl-L repaint differs from the screen before it",
     )
+    g.wait_for(lambda: status_line(g) == "score 2 lines 0 level 1")
     check(status_line(g) == "score 2 lines 0 level 1", "repaint status: %r" % status_line(g))
     g.keys("p")
     g.keys("\x0c")
@@ -811,6 +828,7 @@ def split_csi_case(prog, chunks, what, rotated):
             g.quit()
             continue
         g.keys(" ")
+        g.wait_for(lambda g=g: status_line(g) == "score 40 lines 0 level 1")
         check(status_line(g) == "score 40 lines 0 level 1", "%s: %r" % (what, status_line(g)))
         if rotated:
             for r in (20, 21, 22, 23):

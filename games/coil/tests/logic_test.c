@@ -123,6 +123,9 @@ chain_set(const char *s)
 	}
 }
 
+/* out holds CHAIN_STR_MAX bytes; every caller passes a have[1200]. */
+#define CHAIN_STR_MAX 1200
+
 static void
 chain_str(char *out)
 {
@@ -133,7 +136,8 @@ chain_str(char *out)
 		return;
 	}
 	for (k = 0; k < g.n; k++)
-		n += sprintf(out + n, "%s%d:%d", k ? "," : "", g.pos[k], g.col[k]);
+		n += snprintf(out + n, CHAIN_STR_MAX - (size_t)n, "%s%d:%d",
+		    k ? "," : "", g.pos[k], g.col[k]);
 }
 
 static void
@@ -177,7 +181,7 @@ v_pathcell(const char *line, const char *exp)
 	int i = kv_int(line, "idx", 0);
 	char have[32], want[32];
 
-	sprintf(have, "%d,%d", cl_path[i][0], cl_path[i][1]);
+	snprintf(have, sizeof have, "%d,%d", cl_path[i][0], cl_path[i][1]);
 	kv_str(exp, "xy", want, sizeof want);
 	vec(strcmp(have, want) == 0, have);
 }
@@ -190,7 +194,8 @@ v_ray(const char *line, const char *exp)
 
 	have[0] = 0;
 	for (t = 1; cl_ray_cell(kv_int(line, "dir", 0), t, &x, &y); t++)
-		n += sprintf(have + n, "%s%d,%d", t > 1 ? ";" : "", x, y);
+		n += snprintf(have + n, sizeof have - (size_t)n, "%s%d,%d",
+		    t > 1 ? ";" : "", x, y);
 	kv_str(exp, "cells", want, sizeof want);
 	vec(strcmp(have, want) == 0, have);
 }

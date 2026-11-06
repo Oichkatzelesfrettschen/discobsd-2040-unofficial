@@ -106,7 +106,18 @@ test-mutants:	require-python
 test-play-mutants: require-python
 		HOSTCC=${HOSTCC} ${PYTHON} tests/mutants.py --play .
 
+# The rule tests depend on GCC's -fwhole-program and GNU ld's section
+# collection to keep the collection's drawing functions out of the link, and
+# the imported sources use sprintf, which the macOS SDK marks deprecated; a
+# macOS host prints a SKIP and runs nothing, and the Linux hosts, including
+# the Linux CI job, carry this gate's evidence.
+HOST_OS!=	uname -s
+.if ${HOST_OS} == "Darwin"
+test:
+		@echo "SKIP puzzlebox host gate: needs GCC -fwhole-program and GNU ld; no execution occurred"
+.else
 test:		test-import test-logic test-mutants test-play test-play-mutants
+.endif
 
 .PHONY:		all clean install require-python test test-import test-logic \
 		test-play test-mutants test-play-mutants host-builds

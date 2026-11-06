@@ -158,7 +158,8 @@ v_neigh(const char *line)
 	qsort(got, (size_t)n, sizeof got[0], cmpint);
 	have[0] = 0;
 	for (i = 0; i < n; i++)
-		sprintf(have + strlen(have), "%s%d,%d", i ? ";" : "",
+		snprintf(have + strlen(have), sizeof have - strlen(have), "%s%d,%d",
+		    i ? ";" : "",
 		    got[i] / COLS, got[i] % COLS);
 	kv_str(line, "list", want, sizeof want);
 	vec(strcmp(want, have) == 0 && n == kv_int(line, "n", -1), have);
@@ -205,7 +206,7 @@ v_traj(const char *line)
 	{
 		char msg[64];
 
-		sprintf(msg, "trajectory cell %d len %d", cell, pathlen);
+		snprintf(msg, sizeof msg, "trajectory cell %d len %d", cell, pathlen);
 		vec(cell == want && (w < 0 || pathlen == w), msg);
 	}
 	aim = 0;

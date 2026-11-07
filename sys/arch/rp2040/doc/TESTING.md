@@ -186,8 +186,8 @@ upload and hidden-file inclusion.
 | shell conformance | `check-posix-sh` | Linux x86-64 with 32-bit libraries | yes | no: bin/sh keeps pointers in int and builds as a 32-bit binary |
 | cross | `check-cross` | arm-none-eabi toolchain, capstone and pyelftools under `${PYTHON}`, a built tree | yes | yes |
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
-| renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | no: the models are a git clone and a dotnet build | no |
-| renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and flash image, `${PYTHON}` | no: the models are a git clone and a dotnet build | no |
+| renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | yes: the `firmware/rp2040` job installs the pinned Renode release, then fetches and builds the models | no |
+| renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and flash image, `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
@@ -1394,14 +1394,30 @@ does not carry, and reports whichever is missing by name: the models
 `tools/renode/fetch-renode-rp2040.sh` clones and builds, a PICO_UART
 kernel, and a flash image.
 
-Nothing in this tree pins Renode itself, and the third-party models are
-built against whichever one is installed, so the gate names both before it
-runs anything: the emulator build it found and the commit the models are
-pinned at. A build other than the one it was last verified against is a
-note rather than a refusal, because a newer emulator is the ordinary case;
-what matters is that a gate which starts failing after a package upgrade
-says so instead of sending the reader into the kernel. It was last verified
-against Renode 1.17.0+20260907gitf1dd1b4af.
+The third-party models are built against whichever Renode is installed, so
+the gate names both before it runs anything: the emulator build it found and
+the commit the models are pinned at. On a developer host a build other than
+the one it was last verified against is a note rather than a refusal,
+because a newer emulator is the ordinary case; what matters is that a gate
+which starts failing after a package upgrade says so instead of sending the
+reader into the kernel. It was last verified against Renode
+1.17.0+20260907gitf1dd1b4af, recorded as `VERIFIED_RENODE` in check-boot.sh
+and check-picocalc.sh.
+
+Firmware CI pins that release. The `firmware/rp2040` job downloads the
+`renode-1.17.0.linux.tar.gz` asset of release v1.17.0 (`RENODE_VERSION` and
+`RENODE_SHA256` in .github/workflows/firmware.yml), checks its SHA-256,
+unpacks it under /opt/renode, where the models' Peripherals.csproj expects
+`bin/`, and installs the 9.0 dotnet SDK the fetch script retargets the models
+to. `tools/renode/check-renode-pin.sh` then fails the job when the unpacked
+build differs from `VERIFIED_RENODE`, when the two gate scripts name different
+builds, or when the build is not one of `RENODE_VERSION`, so the pin and the
+verified build move together. The models are fetched at the commit
+`fetch-renode-rp2040.sh` pins. Both Renode gates run in that job after the
+board-build tier, reuse its PICO_UART and PICOCALC kernels and flash image,
+and upload the Renode logs and UART0 transcripts as the `renode-results`
+artifact. The two gates still stand outside `check`: a local run names the
+missing emulator or models instead of failing.
 
 tools/renode/machine.resc builds the machine and stops there. boot.resc
 includes it and adds a socket console and a GDB server for a person;
@@ -1466,9 +1482,9 @@ image from the same Renode and the same boot ROM as the UART0 tier, with two
 models added: an ST7365P panel registered under SPI1 and the keyboard
 controller registered at I2C1 address 0x1f (tools/renode/picocalc/,
 tools/renode/picocalc.repl). It stands outside `check` for the reason the
-UART0 tier does and reports a missing emulator, model tree, kernel or image
-by name before it starts. It needs no Robot Framework and opens no network
-port: tools/renode/check-picocalc.py drives Renode through the console
+UART0 tier does, runs in the same CI job after it, and reports a missing
+emulator, model tree, kernel or image by name before it starts. It needs no
+Robot Framework and opens no network port: tools/renode/check-picocalc.py drives Renode through the console
 monitor on stdin, advances virtual time in half-second slices, dumps the
 panel model's frame after each slice, decodes the frame back into the
 console's 53x32 text with the kernel's own font table

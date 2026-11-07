@@ -1,23 +1,31 @@
 #!/usr/bin/env python3
 """Board test for a.out admission.
 
-usage: PYTHON board_aout_admission.py [unix.uf2,flash.uf2]
-Flashes the named images in one BOOTSEL visit when given, then logs in as
-operator on the USB console. Header-only images travel as uuencoded
-text; a truncated, an oversized and an even-entry image must be refused
-with distinct errors while the shell keeps running."""
+usage: DISCOBSD_BOARD_AOUT_ADMISSION=run PYTHON board_aout_admission.py [unix.uf2,flash.uf2]
+The script touches the board only when DISCOBSD_BOARD_AOUT_ADMISSION is
+exactly "run"; unset, empty and every other value exit without opening a port
+or calling picotool. With the variable set it flashes the named images in one
+BOOTSEL visit when given and otherwise reboots the board with
+"picotool reboot -f", then logs in as operator on the USB console.
+Header-only images travel as uuencoded text; a truncated, an oversized and an
+even-entry image must be refused with distinct errors while the shell keeps
+running."""
+
 import binascii
 import glob
+import os
 import re
 import struct
 import subprocess
 import sys
 import time
 
-import serial
+OPT_IN_VARIABLE = "DISCOBSD_BOARD_AOUT_ADMISSION"
+OPT_IN_VALUE = "run"
 
-ESC = re.compile(rb'\x1b\[[0-9;?]*[A-Za-z]|\r')
+ESC = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]|\r")
 s = None
+DECODE = "uudecode"
 
 
 def rd(t):
@@ -65,8 +73,7 @@ def run(c, wait=5):
     s.write(c.encode() + b"\r")
     out = rd(wait)
     return [
-        line for line in out.split("\n")[1:]
-        if line.strip() and not line.startswith("discobsd")
+        line for line in out.split("\n")[1:] if line.strip() and not line.startswith("discobsd")
     ]
 
 
@@ -77,18 +84,35 @@ def image(text, data, bss, entry):
 def put(name, blob):
     lines = ["begin 755 %s" % name]
     for i in range(0, len(blob), 45):
-        lines.append(binascii.b2a_uu(blob[i:i+45]).decode().rstrip("\n"))
+        lines.append(binascii.b2a_uu(blob[i : i + 45]).decode().rstrip("\n"))
     lines += ["`", "end"]
     run("rm -f /tmp/%s /tmp/%s.uu" % (name, name))
     for line in lines:
         run("echo '%s' >> /tmp/%s.uu" % (line.replace("'", "'\\''"), name), 1.5)
     return run("cd /tmp && %s /tmp/%s.uu; ls -l /tmp/%s" % (DECODE, name, name))
-boot(sys.argv[1] if len(sys.argv) > 1 else "")
-DECODE = "uudecode" if run("ls /usr/bin/uudecode") == ["/usr/bin/uudecode"] else "textbox uudecode"
-print("decoder:", DECODE)
-for name, blob in (("trunc", image(0x70e4, 0x96c, 0x1b10, 0x200001f5)),
-                   ("toobig", image(0x70e4, 0x96c, 0x100000, 0x200001f5)),
-                   ("badentry", image(0x70e4, 0x96c, 0x1b10, 0x200001f4))):
-    print(name, "->", put(name, blob))
-    print("%-8s -> %s" % (name, run("/tmp/%s; echo rc=$?" % name)))
-print("survive ->", run("echo alive; sh -c 'echo child-ok'; echo 3 4 | awk '{print $1*$2}'"))
+
+
+def main():
+    if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
+        print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
+        return 0
+    global DECODE, serial
+    import serial
+
+    boot(sys.argv[1] if len(sys.argv) > 1 else "")
+    have_uudecode = run("ls /usr/bin/uudecode") == ["/usr/bin/uudecode"]
+    DECODE = "uudecode" if have_uudecode else "textbox uudecode"
+    print("decoder:", DECODE)
+    for name, blob in (
+        ("trunc", image(0x70E4, 0x96C, 0x1B10, 0x200001F5)),
+        ("toobig", image(0x70E4, 0x96C, 0x100000, 0x200001F5)),
+        ("badentry", image(0x70E4, 0x96C, 0x1B10, 0x200001F4)),
+    ):
+        print(name, "->", put(name, blob))
+        print("%-8s -> %s" % (name, run("/tmp/%s; echo rc=$?" % name)))
+    print("survive ->", run("echo alive; sh -c 'echo child-ok'; echo 3 4 | awk '{print $1*$2}'"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

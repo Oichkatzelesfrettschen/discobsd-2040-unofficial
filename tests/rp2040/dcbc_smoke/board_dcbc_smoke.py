@@ -14,7 +14,9 @@ Checks, each with an exact expected line:
   - dc integer arithmetic and the 2^100 print
   - dc with the extended register option, one register named by -x
   - dc on the 2,001-digit factorial of 808 (the digit count)
+  - dc and bc remainder at a fractional scale (1.235 mod 1 at scale 2 is .005)
   - bc scale arithmetic, a recursive function and an array
+  - bc function whose only parameter is an array, called with an array argument
   - bc -l: pi to twenty places through the math library
   - the elapsed time of "2 1000 ^ p", reported and not asserted
 
@@ -48,13 +50,20 @@ CHECKS = (
         "dc -e '[lp li * sp li 1 + si li 809 >f]sf 1sp 1si lfx lp Z p'",
         ["2001"],
     ),
+    ("dc scaled remainder", "echo '2 k 1.235 1 % p' | dc", [".005"]),
     ("bc scale", "echo 'scale=5; 1/3' | bc", [".33333"]),
+    ("bc scaled remainder", "echo 'scale=2; 1.235%1' | bc", [".005"]),
     (
         "bc function",
         "printf 'define f(n) {\\n if (n<2) return (1)\\n return (n*f(n-1))\\n}\\nf(20)\\n' | bc",
         ["2432902008176640000"],
     ),
     ("bc array", "echo 'a[3]=5; a[3]*2' | bc", ["10"]),
+    (
+        "bc array argument",
+        "printf 'define f(a[]) { return a[0]; }\\nb[0]=7\\nf(b[])\\n' | bc",
+        ["7"],
+    ),
     ("bc -l pi", "echo 'scale=20; 4*a(1)' | bc -l", ["3.14159265358979323844"]),
     ("bc emit", "echo '1+2' | bc -c", [" 1 2+ps.", "q"]),
 )

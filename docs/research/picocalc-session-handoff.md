@@ -110,7 +110,7 @@ to the four kernels; it changes no root image.
 | qemu-user Thumb-1 | `check-qemu` | Cortex-M0+ code executes on the ARMv6-M model | CI |
 | qemu a.out loader | `bmake -C tests/qemu_aout check` | A DiscoBSD a.out runs its own libc and system calls | outside `check-qemu`; no fork, exec, signals, stat or tty ioctl |
 | Renode | `check-renode`, `check-renode-picocalc` | PICO_UART and PICOCALC boot to a shell against third-party peripheral models | outside `check`; no CI owner |
-| Bare Pico board | `discobsd-flash`, then `tests/rp2040` drivers | Behavior on the measured silicon | flash and boot of main observed 2026-11-06; the test programs not yet run |
+| Bare Pico board | `discobsd-flash`, then `tests/rp2040` drivers | Behavior on the measured silicon | flash and boot of main observed 2026-11-06; `divtest` run 2026-11-07; the remaining campaign steps blocked by a USB enumeration failure (see "Board runs") |
 | PicoCalc hardware | `PICOCALC.md`, "Board bring-up of the console" | Panel, keyboard, SD, PSRAM, power | not run: no PicoCalc has booted these kernels |
 
 The macOS host tier has a 1,080-second budget (PR #358); two play mutants
@@ -283,6 +283,59 @@ Observed on 2026-11-06, flashing main `df501d06` to the bare Pico:
   boot creates `/var/log/messages`, `/var/log/wtmp` and `/var/run/utmp`, one
   block each.
 - The board is left on that plain main image at `login:`.
+
+### Bare Pico campaign, 2026-11-07 (main `4bcdaad0`)
+
+Images, built from a clean tree with `IMAGE_WITH=calc-bignum` and
+`FS_INODES=144`: kernel `unix.uf2` SHA-256
+`85378d94d3d99f2eef6a5fa037bf7fa1a3ca8a6783747a5bd70a491ca391239b`; test root
+`flash.uf2` SHA-256
+`0bf515990bbd70d4c05811c0c070062b5797e8ad9d697c9ee13b68f7c63a03b9` (the full
+profile, `calc-bignum`, `divtest`, `fptest`, `romprobe`, `textcrc`,
+`/usr/bin/time`, and a raw copy of `textbox` as `/usr/rawbin/seq`; `fsutil`
+reports 99 free blocks and 38 free inodes, a booted `df` reads 96). Booted
+`kern.version`: `DiscoBSD 2.7 (PICO) #1 2291: Sat Nov  7 09:47:21 PST 2026`.
+
+- `/etc/rc` failed on the first test root (128 inodes) and left the board in a
+  root shell with no hostname: `fsck -p` exits 8 with "DIRECTORY CORRUPTED" on
+  `/usr/bin` and two unreferenced files. The directory's second block holds
+  `fptest` at inode 128. `sbin/fsck/setup.c` sets `imax` to
+  `(fs_isize - (SUPERB+1)) * INOPB`, which is 128 for the 128-inode image, and
+  `dircheck()` in `sbin/fsck/dir.c` and the pass-1 loop accept only inodes
+  below `imax`; `tools/fsutil/inode.c` and the kernel accept inode 128 (`ls -i`
+  prints it and `fptest` runs). The image's highest inode is therefore
+  invisible to `fsck`, which reports 104 files where `fsutil --check` counts
+  105. Confidence high for the off-by-one (inode, count and bound all read
+  directly); the shipped `full` image is exposed whenever `fsutil` hands out
+  inode 128, which the measured `full` image does not. The test root works
+  around it with `FS_INODES=144`; the defect stays in `fsck` and is not fixed
+  here.
+- `/usr/bin/time` is absent from every shipped profile, and the shell has no
+  `time` keyword, so the brief's `time` commands need the program staged.
+- `divtest`, three runs: the corpus is 141 values with 0 wrong; the SIGALRM
+  loop completes 3,000,000 divisions with 3 alarms delivered, 0 wrong in the
+  loop and 0 wrong in the handler; the padding probe gives 2000, 2000, 2000,
+  1998, 0, 0 and 0 wrong of 2000 for 0 through 6 padding branches, so the
+  smallest error-free padding is 4, equal to the shipped 4; `DIVTEST OK`, 3.4 s
+  real. The shipped wait of eight cycles has no slack on this board: six
+  cycles fail 1998 of 2000 probes. The alarm count deviates from the
+  interleave's design of 100 deliveries at 10 ms: `setitimer()` in
+  `sys/kern/kern_time.c` stores `ITIMER_REAL` in whole seconds and rounds a
+  sub-second interval up to one second, so the loop runs for 3 s and takes 3
+  deliveries. The interleave therefore covers 3 handler entries per run; a
+  child that signals the parent in a loop would raise the count.
+- Blocked: `board_dcbc_smoke.py` started with no image argument, so it ran
+  `picotool reboot -f` on the running kernel. The board then enumerated at
+  address assignment and failed every descriptor read (`vhci_hcd` error -110
+  on the config descriptor, then "unable to enumerate USB device"); no
+  2e8a:000a or 2e8a:0003 device has appeared since, and the stale USB/IP
+  import holds the device ("device busy" to a second import). Clearing the
+  stale port needs root (`detach` under the vhci_hcd platform device, then
+  `usbip attach`) or a physical replug; the session had neither. The dc and bc
+  steps, packed against raw exec, clock catch-up, the two reboot-driven
+  scripts, `fptest` and `romprobe` did not run, and the board was not
+  returned to the plain main image. Its flash holds the kernel and test root
+  named above.
 
 ## Open decisions and residuals
 

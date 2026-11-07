@@ -36,15 +36,15 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed, GCC 13.2.1 (Ubuntu `gcc-arm-none-eabi` 15:13.2.rel1-2, the Linux CI compiler) at `-Os`: text 109,406, data 368, bss 48,752; the flash image `check-kernel-headroom` measures is 109,520 of 130,816 bytes (`RP2040.ld` FLASH), 21,296 bytes of headroom; GCC 16.2.0 (local) gives text 108,942, flash image 109,056, headroom 21,760; no `psram` symbol in `unix.elf`; at `-O`, which preceded `-Os`, GCC 13.2.1 measured text 126,100 and 4,604 bytes of headroom; an earlier `-O` build measured the console alone at 118,268 text, 304 data and 45,888 bss, and the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,888) add 5,064 text to it |
-| PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of PICOCALC | build | observed, GCC 13.2.1 at `-Os`: text 111,564, data 424, bss 48,896; flash image 111,732 of 130,816 bytes, 19,084 bytes of headroom; GCC 16.2.0 (local) gives text 111,004, flash image 111,172, headroom 19,644; it exceeds PICOCALC by 2,158 text, 56 data and 144 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,120, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest; `psram_xfer.c` compiles at `-O` through `COMPILE_CYCLE_C` because its receive loop is cycle counted |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed, GCC 13.2.1 (Ubuntu `gcc-arm-none-eabi` 15:13.2.rel1-2, the Linux CI compiler) at `-Os`: text 111,551, data 368, bss 48,824 with the pixel device (Pixel device, below); the flash image `check-kernel-headroom` measures is 111,664 of 130,816 bytes (`RP2040.ld` FLASH), 19,152 bytes of headroom; before the pixel device the same compiler measured text 109,406, bss 48,752 and 21,296 bytes of headroom, and GCC 16.2.0 (local) text 108,942; no `psram` symbol in `unix.elf`; at `-O`, which preceded `-Os`, GCC 13.2.1 measured text 126,100 and 4,604 bytes of headroom; an earlier `-O` build measured the console alone at 118,268 text, 304 data and 45,888 bss, and the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,888) add 5,064 text to it |
+| PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of PICOCALC | build | observed, GCC 13.2.1 at `-Os`: text 113,709, data 424, bss 48,976 with the pixel device; flash image 113,880 of 130,816 bytes, 16,936 bytes of headroom; before the pixel device text 111,564, bss 48,896 and 19,084 bytes of headroom, and GCC 16.2.0 (local) text 111,004; before the pixel device it exceeded PICOCALC by 2,158 text, 56 data and 144 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,120, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest; `psram_xfer.c` compiles at `-O` through `COMPILE_CYCLE_C` because its receive loop is cycle counted |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | The console draws cell codes 0x80-0xff from a 128-glyph RAM bank, `ESC ( 0` maps 0x5f-0x7e onto bank codes 0x80-0x9f holding line-drawing shapes whose strokes meet the cell borders, and `LCDIOC_SETGLYPH` replaces a glyph and redraws the cells that show it | host | observed by `check-picocalc-host` against the model panel, which records the nine bank rows of every bank cell: shapes, joins, upload, redraw, rejection, raw-byte rule, resets; eight mutants fail it; the production `ioctl()` classifier copies the ten-byte payload under the same `PICOCALC_ENABLED` define as the PICOCALC kernels (`check-kernel`, one mutant) |
 | The tenth cell row of a bank glyph repeats its ninth, and `lcd_draw_cell()` clocks the bank rows to the panel | build | compiles and links into PICOCALC and PICOCALC_PSRAM; `st7365p.c` has no host model, so the repeated row and the pixels are read from the source, not run |
 | The bank on the panel: box drawing in `mc` or curses, a tile program, redraw after an upload | board | not run |
 | `/dev/lcdgfx` (character major 10, minor 1) takes the panel from the text console on open, refuses a second open with `EBUSY`, draws fills, pixels, lines, frames, circles, streamed windows in three formats, palette, scroll, scroll definition and color-format commands, rejects every out-of-range field without drawing, and on the last close restores COLMOD 0x66, VSCRDEF 0/320/160, the margin columns, the scroll start of the ring and every cell of the store | host | observed by `check-picocalc-host` (`lcdgfx_test`) against a model of the controller's write path and the real terminal: window, byte, scroll and format protocol checked on every call, fills and frames compared with their rectangles, lines with the ideal line, circles with their radius and symmetry, windows pixel by pixel in all three formats and in 2-, 130- and 520-byte writes, 51 range cases, the close restore compared with a text-only redraw of the same bytes; 37 mutants fail it (9 more fail `lcdterm_test` at the terminal) |
 | The ioctl classifier copies each `LCDG_*` payload (at most 12 bytes) into aligned kernel storage under `PICOCALC_ENABLED` and stages `LCDG_INFO` as zeroed output | host | observed by `check-kernel` (`fionread_test`, 605 checks, was 382): ownership, upper span edge, crossing span, provider error and reserved-bit cases for all eleven commands; four mutants (one per command family) fail it |
-| `lcdgfx.c` compiles into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their text, data and bss and differ from the earlier build only inside `version[]` | build | observed: PICOCALC text +2,408, bss +80; PICOCALC_PSRAM text +2,400, bss +72; PICO 107,720 / 248 / 39,848 and PICO_UART 96,250 / 192 / 14,832 unchanged, four bytes of `version[]` differing in each image (`objcopy -O binary`) |
+| `lcdgfx.c` compiles into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +2,145, bss +72; PICOCALC_PSRAM text +2,145, bss +80; PICO 95,403 / 248 / 39,848 and PICO_UART 85,618 / 192 / 14,832, 9 text bytes above the measurement before the pixel device, which was taken in a different build path, the offset `version[]` carries (not traced further); at `-O` under GCC 16.2 the PICO and PICO_UART images differed only inside `version[]` (`objcopy -O binary`) |
 | `st7365p.c` clocks the pixel primitives and `lcd_gfx_reset()` to the panel | build | compiles and links; `st7365p.c` has no host model, so the SPI bytes, the VSCRDEF value and the COLMOD 0x55 pixel format are read from the source and from the model's protocol, not run |
 | `/dev/lcdgfx` on the panel: the shapes appear, the timings match the research note's table, a killed program leaves the text visible | board | not run: `tests/rp2040/lcdgfxtest` is built by `check-board-build` and a board run is opt-in |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) under the PICOCALC definitions | build | observed by `check-console-c17-cross` (`TESTING.md`); `sys/sys/exec.h` no longer declares an empty struct and `sys/sys/inode.h` includes `uio.h` instead of forward-declaring `enum uio_rw`, and `struct exec_params` keeps its 284-byte layout; the objects still build under the kernel's GNU17 profile |
@@ -364,25 +364,28 @@ The decisions the research note left open:
   axis-parallel line, which is one window; a frame is four windows with no pixel
   drawn twice; a circle is the midpoint algorithm.
 
-Sizes, from `arm-none-eabi-size` on `unix.elf` after a clean `bmake all` in
-each `compile/<BOARD>` directory, arm-none-eabi-gcc from the build host and
-parent commit `89f6ece2` (the glyph bank):
+Sizes, from `arm-none-eabi-size` after a `bmake MACHINE=rp2040 kernel`,
+GCC 13.2.1 (the Linux CI compiler) at `-Os`, against main before the pixel
+device; headroom is what `check-kernel-headroom` measures against the
+130,816-byte FLASH region:
 
-| Kernel | Before (text / data / bss) | After (text / data / bss) | Delta |
+| Kernel | Before (text / data / bss) | After (text / data / bss) | Headroom after |
 | --- | --- | --- | --- |
-| PICOCALC | 124,308 / 368 / 48,752 | 126,716 / 368 / 48,832 | +2,408 text, +80 bss |
-| PICOCALC_PSRAM | 126,424 / 424 / 48,904 | 128,824 / 424 / 48,976 | +2,400 text, +72 bss |
-| PICO | 107,720 / 248 / 39,848 | 107,720 / 248 / 39,848 | none |
-| PICO_UART | 96,250 / 192 / 14,832 | 96,250 / 192 / 14,832 | none |
+| PICOCALC | 109,406 / 368 / 48,752 | 111,551 / 368 / 48,824 | 19,152 |
+| PICOCALC_PSRAM | 111,564 / 424 / 48,896 | 113,709 / 424 / 48,976 | 16,936 |
+| PICO | 95,394 / 248 / 39,848 | 95,403 / 248 / 39,848 | 35,420 |
+| PICO_UART | 85,609 / 192 / 14,832 | 85,618 / 192 / 14,832 | 45,260 |
 
-The text delta is `lcdgfx.o` 1,740 bytes (the ioctl dispatcher with the shape code
+At `-O` under GCC 16.2 the device cost 2,408 bytes of text on PICOCALC and
+2,400 on PICOCALC_PSRAM; at `-O` under GCC 13.2 PICOCALC_PSRAM did not fit
+the region. Per object, measured at `-O` under GCC 16.2, the text delta is
+`lcdgfx.o` 1,740 bytes (the ioctl dispatcher with the shape code
 1,132, the write path 304, open, close and three helpers 304), `sys_generic.o` +164 (eleven
 classifier cases), `lcdterm.o` +188 (gating, repaint, mode switch),
 `st7365p.o` +184 (the pixel primitives) and `lcdcons.o` +128 (the minor
 dispatch and `lcdcons_gfx()`). The bss delta is the 32-byte palette, the
 window and mode state, and `gfx_active`. The research note estimated 2.1 KB of
-text. PICOCALC_PSRAM keeps 1,992 bytes of flash headroom by the text column
-and 1,824 by the linked image.
+text.
 
 ## Keyboard: picokbd.c and picokbd_map.c
 

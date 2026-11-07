@@ -419,9 +419,9 @@ write, not clipped, and every field is unsigned so a negative value fails the
 same test; `LCDG_WINDOW` carries the palette indexes `fg` and `bg` that the
 1 bpp format draws with, in place of "the current foreground and background";
 `LCDG_SCRDEF` also moves the scroll start to the top of the scroll area; the
-palette is RGB565. Measured on the PICOCALC kernel: text +2,408 bytes (the
-estimate was about 2.1 KB), bss +80 bytes (estimate 0.1 KB); PICOCALC_PSRAM
-text +2,400 bytes (`sys/arch/rp2040/doc/PICOCALC.md`, Pixel device). The
+palette is RGB565. Measured on the PICOCALC kernel under GCC 13.2 at `-Os`:
+text +2,145 bytes (the estimate was about 2.1 KB), bss +72 bytes (estimate
+0.1 KB); PICOCALC_PSRAM text +2,145 bytes (`sys/arch/rp2040/doc/PICOCALC.md`, Pixel device). The
 board runs, the timing comparison and the kill test remain open;
 `tests/rp2040/lcdgfxtest` is the program for them.
 
@@ -500,8 +500,9 @@ new gate is needed. Board steps run only with the repository's exact opt-in.
   12.5 MHz and RGB666 deliberately.
 - Kernel flash headroom: the PICOCALC kernel links at 119,316 bytes of text
   against the 130,816-byte FLASH region of `conf/RP2040.ld`, leaving 11,500
-  bytes. The pixel device (item 8) cost 2,408 bytes of text there and 2,400
-  on PICOCALC_PSRAM, which keeps 1,992 bytes of the region; the tile atlas
+  bytes at `-O`. At `-Os` under GCC 13.2 the pixel device (item 8) costs
+  2,145 bytes of text on both PicoCalc kernels and PICOCALC_PSRAM keeps
+  16,936 bytes of the region (`PICOCALC.md`, Pixel device); the tile atlas
   (item 9) estimates about 0.5 KB of text and 4.2 KB of bss. Re-measure `size`
   on `unix` before committing the atlas.
 - Shipping `bc` and `dc` changes the full manifest, which

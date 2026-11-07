@@ -149,7 +149,8 @@ image_gen: objs/image_gen.o ${FS_OBJECTS}
 
 clean:
 	rm -f fsck_host image_gen fsck_mutant_*
-	rm -f objs/*.o mutant/*/*.c mutant/*/*.o work/*/*.img work/*/fsck.out
+	rm -f objs/*.o mutant/*/*.c mutant/*/*.o work/*/*.img work/*/fsck.out \
+	    work/check.log
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@for directory in objs machine mutant/* mutant work/* work; do \
 		if [ -d $$directory ]; then rmdir $$directory; fi; \

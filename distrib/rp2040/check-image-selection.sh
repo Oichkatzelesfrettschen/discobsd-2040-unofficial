@@ -74,6 +74,8 @@ refuse "closure gamebox is selected with none of its members" \
 refuse "takes closure or group names" "IMAGE_WITH=keen;true"
 accept IMAGE_WITHOUT="toolchain toolchainlib"
 accept BOARD=PICOCALC IMAGE_WITHOUT="calc-bignum calc"
+accept BOARD=PICOCALC IMAGE_WITHOUT=sdcard
+accept PROFILE=base IMAGE_WITH=sdcard
 accept PROFILE=base IMAGE_WITH="gamesdir puzzlebox lightup"
 members GAMEBOX_TOOLS "fifteen keen bubble fourfall coil"
 members GAMEBOX_TOOLS "fifteen bubble fourfall coil" IMAGE_WITHOUT=keen

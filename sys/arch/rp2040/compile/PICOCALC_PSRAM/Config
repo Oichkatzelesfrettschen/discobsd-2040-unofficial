@@ -45,14 +45,13 @@ options         "HALTREBOOT"                # If halted, press key to reboot
 options         CAPACITY_STATS              # fixed-table and u-area peaks
 
 # Root filesystem at /dev/fl0a, swap on /dev/fl1, the same layout as the
-# PICO board: the Pico module's own QSPI flash. The PicoCalc's SD socket
-# on SPI0 is not driven yet; see PICOCALC.md.
+# PICO board: the Pico module's own QSPI flash. The SD socket on SPI0 is
+# sd0 (see PICOCALC.md); a UFS partition on it mounts beside the root.
 config          unix    root on fl0a
                         swap on fl1
 
 options         "NFL=2"                     # fl0 root, fl1 swap.
-options         "NMOUNT=1"                  # One UFS root; fl1 is raw swap.
-options         SINGLE_UFS_ROOT             # Derive inode and root mount identity.
+options         "NMOUNT=2"                  # The flash root and one SD partition.
 options         LINEAR_INODE_CACHE           # Scan 24 entries; omit hash links.
 options         COMPACT_INODE_FIELDS         # Four bounded fields use 16 bits.
 options         COMPACT_SWAPMAP              # 16-bit entries cover 384 blocks.
@@ -72,6 +71,11 @@ options         "CONS_MINOR=0"
 # identifies itself at boot it replaces fl1 as the 8 MB swap device behind the
 # SWAPRAM tier; otherwise swap stays on fl1.
 device          psram
+
+# The SD card socket: SPI0 on GP16-GP19, card detect on GP22. A multi-mount
+# kernel keeps each inode's device and filesystem fields, so
+# SINGLE_UFS_ROOT (which needs NMOUNT=1) is not set.
+device          sd
 
 # The USB-C port reaches UART0 on GP0 and GP1 through a CH340C bridge
 # while DIP switch SW701 is in its default position; it is /dev/tty0.

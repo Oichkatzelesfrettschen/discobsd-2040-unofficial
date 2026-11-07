@@ -24,6 +24,7 @@
 #ifndef _PICOCALC_REG_H
 #define _PICOCALC_REG_H
 
+/* A host test predefines PC_REG32 to route the registers to a model. */
 #ifndef PC_REG32
 #define	PC_REG32(a)		(*(volatile u_int *)(a))
 #endif

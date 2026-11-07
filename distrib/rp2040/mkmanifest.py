@@ -900,6 +900,14 @@ def selftest(lines, appended, decl, selected_extra):
         "reject", "bc without its -l library", ["calc-bignum"],
         "needs /usr/share/misc/bc.library", removed="file /usr/share/misc/bc.library"))
     cases.append(new_case(
+        "reject", "sdcard without its whole-card block node", ["sdcard"],
+        "closure sdcard needs /dev/sd0, which this profile does not install",
+        removed="bdev /dev/sd0"))
+    cases.append(new_case(
+        "reject", "sdcard without its mount point", ["sdcard"],
+        "closure sdcard needs /mnt, which this profile does not install",
+        removed="dir /mnt"))
+    cases.append(new_case(
         "reject", "gamebox without its directory", ["games"],
         "needs directory /usr/games", removed="dir /usr/games"))
     cases.append(new_case(
@@ -961,6 +969,9 @@ def selftest(lines, appended, decl, selected_extra):
     cases.append(new_case(
         "accept", "picocalc with the arbitrary-precision calculator removed",
         decl.profiles["picocalc"], without_names=["calc-bignum"]))
+    cases.append(new_case(
+        "accept", "picocalc with the SD card nodes removed",
+        decl.profiles["picocalc"], without_names=["sdcard"]))
     failures = 0
     for case in cases:
         label = case["label"]

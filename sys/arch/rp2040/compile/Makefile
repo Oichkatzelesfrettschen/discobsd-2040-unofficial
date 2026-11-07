@@ -68,9 +68,22 @@ check-cache-footprint:
 		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
 		@set -e; for i in ${SUBDIR}; do \
 			nm_command=$$(${MAKE} -C $$i -V ARM_GCC_PREFIX)-nm; \
+			param=$$(${MAKE} -C $$i -V PARAM); \
+			layout=multi; \
+			case " $$param " in *" -DSINGLE_UFS_ROOT "*) layout=single;; esac; \
 			NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
-			    --elf $$i/unix.elf; \
+			    --elf $$i/unix.elf --layout $$layout; \
 		done
+		@# Calibration: each layout must reject the other kernel.
+		@set -e; nm_command=$$(${MAKE} -C PICO -V ARM_GCC_PREFIX)-nm; \
+		if NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
+		    --elf PICO/unix.elf --layout multi >/dev/null 2>&1; then \
+			echo "cache footprint verifier accepted PICO as multi-mount" >&2; exit 1; \
+		fi; \
+		if NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
+		    --elf PICOCALC/unix.elf --layout single >/dev/null 2>&1; then \
+			echo "cache footprint verifier accepted PICOCALC as single-root" >&2; exit 1; \
+		fi
 		${MAKE} -C "${CACHE_FOOTPRINT_TEST}" check \
 		    KERNEL_BUILD="${.CURDIR}/PICO"
 		${MAKE} -C "${EXEC_SPOOL_TEST}" check \

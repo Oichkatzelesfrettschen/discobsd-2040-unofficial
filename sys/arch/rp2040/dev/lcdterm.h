@@ -54,6 +54,9 @@ void	lcd_draw_cell(int prow, int col, int ch, unsigned attr);
 void	lcd_fill_cells(int prow, int col, int n, unsigned attr);
 void	lcd_set_top(int prow);
 
+/* Sound the bell for BEL (0x07): supplied by picoaudio.c or the host test. */
+void	lcd_bell(void);
+
 /*
  * Bytes the terminal answers with (cursor-position and device-attribute
  * reports), supplied by lcdcons.c, which feeds them to the tty input

@@ -1,9 +1,9 @@
 # Root filesystem profiles: what an image carries, and what that costs
 
 The 1536 KB Dhara root yields 988 blocks of 1024 bytes. The maintained
-`full` image leaves 240 blocks free; an image that keeps only the base system
-leaves 448. The default image excludes the PDP-11 emulator and V6 pack. An
-explicit `BUILD_PDP11_V6=yes` image adds both and leaves 71 blocks free with
+`full` image leaves 239 blocks free; an image that keeps only the base system
+leaves 447. The default image excludes the PDP-11 emulator and V6 pack. An
+explicit `BUILD_PDP11_V6=yes` image adds both and leaves 69 blocks free with
 the `full` profile. A named profile fixes the default content of an image, and
 the Make variables `IMAGE_WITH` and `IMAGE_WITHOUT` add and remove single
 closures or groups for one build. This document is the authority for the
@@ -11,7 +11,6 @@ closure markers in `distrib/rp2040/mi.rp2040`, the profile, group and
 multicall declarations in `distrib/rp2040/profiles`, the composer and checker
 `distrib/rp2040/mkmanifest.py`, the selection variables in
 `distrib/rp2040/Makefile.inc`, and the `check-fs-profiles` gate.
-
 
 ## What a profile selects
 
@@ -42,7 +41,12 @@ split, so a profile or command that named `games`, `puzzles`, `toolchain` or
 | `toolchain` | `as`, `ld`, `smlrc`, `cc` |
 | `calc-bignum` | `bc`, `dc` |
 
-The remaining closures stand alone: `coremark`, `calc` and `toolchainlib`.
+The remaining closures stand alone: `coremark`, `calc`, `toolchainlib` and
+`sdcard`. The `sdcard` closure carries the `/mnt` mount point and the device
+nodes of the PicoCalc's SD card (block major 5, raw major 11 in `conf.c`); the
+`picocalc` profile names it, `full` does not, and the PICO kernels have no
+driver behind those majors. Its `needs path` line holds the mount point and
+all six nodes, so a manifest block that loses one stops the build.
 `bmake MACHINE=rp2040 list-closures` prints every closure with its groups,
 dependencies, install paths and cost, and marks the ones the current
 `PROFILE`, `IMAGE_WITH` and `IMAGE_WITHOUT` keep.
@@ -101,11 +105,12 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 | `dc` | 21 | 1 | OpenBSD `dc` (18,644 bytes packed); PicoCalc only |
 | `calc-bignum` (`bc` + `dc`) | 60 | 3 | the three files above |
 | `calc` | 33 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
+| `sdcard` | 1 | 7 | `/mnt` and the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`; PicoCalc only |
 | `gamesdir` | 1 | 1 | `/usr/games` |
 | `games` group | 24 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall`, `coil` |
 | `puzzles` group with `gamesdir` | 37 | 2 | `puzzlebox` and hard links `flood`, `samegame`, `unruly`, `lightup` |
 | `games` and `puzzles` | 60 | 3 | both groups |
-| all maintained closures (`picocalc`) | 299 | 15 | |
+| all maintained closures (`picocalc`) | 300 | 22 | |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
@@ -117,10 +122,12 @@ no image holds one without the other; `/usr/lib/libc.a` alone installs at
 linked into itself and needs no `/usr/bin/dc`. The 60 blocks of the two
 together are one fewer than the sum of the rows (40 + 21), because entries
 that two closures add can share a directory block (inferred from the
-allocation unit, not traced block by block). The closure rows (`coremark`
-16, the toolchain with its library 133, `games` 24, `puzzles` beyond `games`
-36, `calc-bignum` 60, `calc` 33) sum to 302, three blocks more than the 299 of
-the image that holds every closure, for the same reason.
+allocation unit, not traced block by block). The `sdcard` closure needs no
+other closure: its seven inodes are `/mnt` and six device nodes, and its one
+block is the `/mnt` directory. The closure rows (`coremark` 16, the toolchain
+with its library 133, `games` 24, `puzzles` beyond `games` 36, `calc-bignum`
+60, `calc` 33, `sdcard` 1) sum to 303, three blocks more than the 300 of the
+image that holds every closure, for the same reason.
 
 The multicall members cost far less inside the full set than alone, because
 the binary, its directory and the libc linkage they share are paid once. The
@@ -145,10 +152,14 @@ The members and the two binaries account for the whole 60: the nine
 marginal figures sum to 41, `gamesdir` is 1, and the two binaries and their
 shared linkage are the remaining 18. Removing a member removes a hard link,
 which costs no inode, so the marginal inode figure is 0 for every row.
+The member figures were measured on the tree that split the closures and not
+repeated here: this branch changes no game, libc or startup source, and its
+only userland difference is `sbin/sysctl`.
 
 The two legacy rows are measured only in an image built with
 `BUILD_PDP11_V6=yes`; they are absent from the maintained manifest and
-profiles, and were not re-measured with the split closures.
+profiles. Their sum is the difference between the `base` profile with and
+without `BUILD_PDP11_V6=yes` on this tree (171 blocks, 3 inodes).
 `/usr/v6/root.rk` is 1024000 bytes of V6 pack and its closure costs 157 blocks, not
 1000: `add_file()` in `tools/fsutil/fsutil.c` leaves a block of zeros
 unmapped, and the kernel's `bmap()` reads an unmapped block as zeros, so
@@ -158,24 +169,25 @@ the pack's unused blocks occupy no flash.
 
 | Profile | Closures | Free blocks | Free inodes |
 | --- | --- | --- | --- |
-| `base` | none | 448 | 43 |
-| `benchmark` | `coremark` | 432 | 42 |
-| `games` | `games`, `puzzles` | 388 | 40 |
-| `developer` | `toolchain`, `toolchainlib` | 315 | 36 |
-| `full` | every closure except the PicoCalc's, including `puzzles` | 240 | 32 |
-| `picocalc` | `full` plus `calc-bignum` and `calc`, so also `puzzles` | 149 | 28 |
+| `base` | none | 447 | 43 |
+| `benchmark` | `coremark` | 431 | 42 |
+| `games` | `games`, `puzzles` | 387 | 40 |
+| `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
+| `full` | every closure except the PicoCalc's, including `puzzles` | 239 | 32 |
+| `picocalc` | `full` plus `calc-bignum`, `calc` and `sdcard`, so also `puzzles` | 147 | 21 |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
 distrib/rp2040/sdcard.img` on this tree, after a `distribution` build that
 links every multicall member; `full` and `picocalc` are the default images of
-`BOARD=PICO` and `BOARD=PICOCALC`. The `base`, `benchmark` and `developer`
-rows read one block above the values this document recorded before the split
-(447, 431 and 314); `games`, `full` and `picocalc` match theirs. The pre-split
-manifest, composed with the same `md.rp2040` over the same `DESTDIR`, also
-leaves 448 free blocks for `base`, so the one-block difference to the earlier
-rows does not come from the split; its source was not traced. Splitting the
-closures composes a byte-identical manifest for every profile.
+`BOARD=PICO` and `BOARD=PICOCALC`. The `base`, `benchmark`, `games`,
+`developer` and `full` rows read one block below the values this document
+recorded for main before this branch merged (448, 432, 388, 315 and 240):
+the base image of this tree holds 447 free blocks where main's held 448.
+`sbin/sysctl` is the only userland file this branch changes; the cause of the
+block was not traced. The `picocalc` row reads two blocks below main's 149,
+the one block of that difference plus the `sdcard` closure's block. The
+closure costs above are differences of images on one tree and equal main's.
 
 The opt-in option augments each profile with the emulator and guest pack. It
 does not add another maintained profile or change what `full` means:
@@ -184,15 +196,16 @@ does not add another maintained profile or change what `full` means:
 | --- | ---: | ---: |
 | `base` | 276 | 40 |
 | `benchmark` | 261 | 39 |
-| `games` | 218 | 37 |
+| `games` | 216 | 37 |
 | `developer` | 144 | 33 |
-| `full` | 71 | 29 |
+| `full` | 69 | 29 |
 
-The `games` and `full` rows of this table are derived: the earlier measured
-values (258 and 111 blocks, 38 and 30 inodes) less the 40 blocks and 1 inode
-that `puzzlebox` and the larger `gamebox` added to the `games` closure. They
-were not rebuilt with `BUILD_PDP11_V6=yes`, and none of the rows was
-re-measured after the closures split.
+Each row of this table comes from `bmake MACHINE=rp2040 BUILD_PDP11_V6=yes
+PROFILE=NAME fs` after a `BUILD_PDP11_V6=yes distribution` build, read with
+the same `fsutil --verbose` command. The base row sits 171 blocks and 3
+inodes below the maintained `base` row, which equals the two legacy rows
+together (14 + 157 blocks, 1 + 2 inodes); neither legacy closure builds
+alone, because `v6disk` reaches no profile without `pdp11`.
 
 ## Choosing what an image carries
 
@@ -222,6 +235,8 @@ and apply on top of whichever profile the board or `PROFILE` selects:
     bmake MACHINE=rp2040 PROFILE=base \
         IMAGE_WITH="gamesdir puzzlebox lightup" distribution # base plus one puzzle
     bmake MACHINE=rp2040 BOARD=PICOCALC IMAGE_WITHOUT=calc-bignum list-closures
+    bmake MACHINE=rp2040 BOARD=PICOCALC IMAGE_WITHOUT=sdcard distribution
+                                                             # picocalc, no SD nodes
 
 The two variables pass to `mkmanifest.py` as `--with` and `--without`, and
 the same selection reaches the games Makefiles as `GAMEBOX_TOOLS` and
@@ -324,6 +339,8 @@ back the member lists the games Makefiles receive.
 | `games` and `puzzles` with `pack /usr/games/puzzlebox` deleted | reject | hard link /usr/games/flood has no source |
 | `puzzles` without `gamesdir` | reject | closure puzzlebox needs closure gamesdir |
 | `toolchain` with `file /usr/lib/libc.a` deleted | reject | needs /usr/lib/libc.a |
+| `sdcard` with `bdev /dev/sd0` deleted | reject | closure sdcard needs /dev/sd0, which this profile does not install |
+| `sdcard` with `dir /mnt` deleted | reject | closure sdcard needs /mnt, which this profile does not install |
 | `games` with `dir /usr/games` deleted | reject | needs directory /usr/games |
 | `games` with `link /usr/games/keen` deleted | reject | multicall gamebox dispatches keen, which no link in this profile reaches |
 | `--with nosuch` | reject | --with names unknown closure or group nosuch |
@@ -339,6 +356,7 @@ back the member lists the games Makefiles receive.
 | `full` without `gamebox` and its five members | accept | composes; gamebox keeps nothing |
 | `base` with `gamesdir`, `puzzlebox`, `lightup` | accept | composes; puzzlebox keeps `lightup` |
 | `full` with `dc`; `base` with `as` and `ld` | accept | composes |
+| `picocalc` without `sdcard` | accept | composes |
 
 The declaration checks have their own cases, each fed as extra profile text:
 a group declared twice, a group that contains itself, a group named like a

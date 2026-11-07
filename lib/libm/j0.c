@@ -23,8 +23,8 @@
  *
  * y0(x) returns the value of Y0(x)
  * for positive real values of x.
- * For x<=0, error number EDOM is set and a
- * large negative value is returned.
+ * For x<0, error number EDOM is set; for x=0, a pole, ERANGE is set;
+ * either way -HUGE_VAL is returned.
  *
  * Calls sin, cos, sqrt, log, j0.
  *
@@ -174,7 +174,7 @@ y0(arg)
 
 	errno = 0;
 	if(arg <= 0.){
-		errno = EDOM;
+		errno = arg == 0. ? ERANGE : EDOM;
 		return(-HUGE_VAL);
 	}
 	if(arg > 8.){

@@ -23,8 +23,8 @@
  *
  * y1(x) returns the value of Y1(x)
  * for positive real values of x.
- * For x<=0, error number EDOM is set and a
- * large negative value is returned.
+ * For x<0, error number EDOM is set; for x=0, a pole, ERANGE is set;
+ * either way -HUGE_VAL is returned.
  *
  * Calls sin, cos, sqrt, log, j1.
  *
@@ -180,7 +180,7 @@ y1(arg)
 	errno = 0;
 	x = arg;
 	if(x <= 0.){
-		errno = EDOM;
+		errno = x == 0. ? ERANGE : EDOM;
 		return(-HUGE_VAL);
 	}
 	if(x > 8.){

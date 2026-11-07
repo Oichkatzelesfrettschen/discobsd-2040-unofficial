@@ -8,7 +8,15 @@ include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= ${DEFS}
 
-BASE_SRCS	= _setjmp.S aeabi_div.S htonl.S htons.S setjmp.S sigsetjmp.S
+# ARMv6-M has no divide instruction. The RP2040 helpers run on its SIO
+# divider, a block no other machine has; the Cortex-M4 machines divide with
+# SDIV and UDIV.
+.if ${MACHINE} == "rp2040"
+DIV_SRC		= aeabi_div.S
+.else
+DIV_SRC		= aeabi_div_idiv.S
+.endif
+BASE_SRCS	= _setjmp.S ${DIV_SRC} htonl.S htons.S setjmp.S sigsetjmp.S
 BASE_OBJS	= ${BASE_SRCS:.S=.o}
 ROM_FLOAT_OBJS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 			awk 'NF { print $$1 ".o" }' rom_float_members ; \

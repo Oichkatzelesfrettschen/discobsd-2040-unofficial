@@ -57,7 +57,9 @@ clock_catchup_tick(struct clock_catchup *c, unsigned int now_us)
 /*
  * Whole ticks lost to masking as of now_us. hw_pending is the SysTick
  * pending bit, which stands for one tick that will still be delivered.
- * Call with interrupts masked so no tick lands between the two reads.
+ * Call with interrupts masked so the handler cannot run and move the record;
+ * clock_catchup_sample() supplies both values in the order that keeps a
+ * boundary between the two reads from being counted twice.
  */
 static inline unsigned int
 clock_catchup_owed(struct clock_catchup *c, unsigned int now_us,
@@ -114,5 +116,27 @@ void clock_tick_stamp(void);
 /* clock.c: account the ticks lost to the masked window now closing. */
 void clock_catchup(void);
 #endif
+
+/*
+ * Read the timer, then the pending bit, and return the owed ticks. PRIMASK
+ * keeps the handler from running but not SysTick from becoming pending, so a
+ * boundary can fall between the two reads. Read in this order, that tick is
+ * set pending after the timer sample excluded it, and the result is at most
+ * one low. Read the other way, a clear pending bit followed by a timer
+ * sample past the boundary owes the tick that the hardware also delivers at
+ * unmask. The two reads are separate statements because C leaves the order
+ * of argument evaluation unspecified.
+ */
+static inline unsigned int
+clock_catchup_sample(struct clock_catchup *c, unsigned int (*read_timer)(void),
+    int (*read_pending)(void), unsigned int tick_us)
+{
+	unsigned int now;
+	int held;
+
+	now = read_timer();
+	held = read_pending();
+	return clock_catchup_owed(c, now, held, tick_us);
+}
 
 #endif /* !_RP2040_RP2040_CLOCK_CATCHUP_H_ */

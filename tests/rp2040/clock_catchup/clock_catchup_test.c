@@ -111,12 +111,52 @@ sim_unmask(struct sim *s)
 	}
 }
 
+/*
+ * The register reads clock_catchup_sample() makes, over the model. After
+ * the first of the two reads the model can run sample_gap_us more masked
+ * time, which puts a SysTick boundary between the reads whichever comes
+ * first.
+ */
+static struct sim *sampled;
+static uint32_t sample_gap_us;
+static int sample_reads;
+
+static void
+sample_read_done(void)
+{
+	if (++sample_reads == 1 && sample_gap_us != 0)
+		sim_advance(sampled, sample_gap_us, 1);
+}
+
+static unsigned int
+sim_read_timer(void)
+{
+	unsigned int now = sampled->now_us;
+
+	sample_read_done();
+	return now;
+}
+
+static int
+sim_read_pending(void)
+{
+	int pending = sampled->pending;
+
+	sample_read_done();
+	return pending;
+}
+
 /* clock_catchup() as clock.c wires it, over the model. */
 static void
 sim_catchup(struct sim *s)
 {
-	unsigned int owed = clock_catchup_owed(&s->cc, s->now_us, s->pending,
+	unsigned int owed;
+
+	sampled = s;
+	sample_reads = 0;
+	owed = clock_catchup_sample(&s->cc, sim_read_timer, sim_read_pending,
 	    TICK_US);
+	sample_gap_us = 0;
 
 	if (owed != 0)
 		clock_catchup_apply(owed, HZ, &s->lbolt, &s->seconds,
@@ -214,6 +254,36 @@ test_no_double_count(void)
 	}
 	require(sim_ticks(&s) == (long)s.boundaries,
 	    "alternating masked and live time counts every tick once");
+}
+
+/*
+ * A boundary between the timer and pending-bit reads: the window ends 1 us
+ * before a boundary with nothing pending, and the boundary passes between
+ * the two reads. The tick is either owed by catch-up or delivered at
+ * unmask, never both.
+ */
+static void
+test_boundary_between_samples(void)
+{
+	uint32_t phase;
+
+	for (phase = 0; phase < TICK_US; phase += 37) {
+		struct sim s;
+		uint32_t left = TICK_US - phase;
+
+		sim_init(&s, 1000U, phase);
+		sim_advance(&s, left - 1U, 1);
+		require(s.boundaries == 0 && s.pending == 0,
+		    "the window stops short of the boundary");
+		sample_gap_us = 2U;
+		sim_catchup(&s);
+		sim_unmask(&s);
+		require(s.boundaries == 1, "one boundary falls between the reads");
+		require(sim_ticks(&s) <= (long)s.boundaries,
+		    "a boundary between the reads is not counted twice");
+		require(sim_ticks(&s) + 1 >= (long)s.boundaries,
+		    "a boundary between the reads loses at most one tick");
+	}
 }
 
 static void
@@ -373,6 +443,7 @@ main(void)
 	test_erase_45ms_every_phase();
 	test_second_rollover();
 	test_no_double_count();
+	test_boundary_between_samples();
 	test_no_spurious_ticks();
 	test_timer_wrap();
 	test_late_handler();

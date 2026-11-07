@@ -94,11 +94,47 @@ check: aoutrun probe probe.sites seek.dat loop.lnk
 		echo "qemu a.out: oversized environment exited $$status, expected 71" >&2; exit 1; \
 	fi
 	grep -q 'overlap the image' envfull.err
+	@${MAKE} check-divider-mutants
 	@echo "qemu a.out: ok"
 .endif
 
+# The SIO divider model in aoutrun.c computes every division the probe and
+# the libc's decimal conversion make, so a wrong model changes the probe's
+# output or ends the run. Each mutant is the loader with one defect, built
+# and run through the probe; a mutant that reproduces probe.expected with
+# status 3 survives and fails the gate. The unmodified loader must reproduce
+# it first, so a probe that cannot run never counts as a rejection.
+check-divider-mutants: aoutrun probe probe.sites seek.dat loop.lnk
+	@set -eu; \
+	status=0; ${QEMU_ARM} -B ${GUEST_BASE} -cpu ${QEMU_ARM_CPU} ./aoutrun \
+	    probe.sites probe alpha beta > divider_baseline.out || status=$$?; \
+	if [ "$$status" -ne 3 ] || ! cmp -s probe.expected divider_baseline.out; then \
+		echo "divider mutants: the unmodified loader exited $$status or" \
+		    "differs from probe.expected; no mutant can be judged" >&2; exit 2; \
+	fi; \
+	for spec in \
+	    'quotient_is_remainder|s/sio_quotient = sio_dividend \/ value;/sio_quotient = sio_dividend % value;/' \
+	    'remainder_is_quotient|s/sio_remainder = sio_dividend % value;/sio_remainder = sio_dividend \/ value;/' \
+	    'divisor_store_unmodeled|s/offset == SIO_UDIVISOR)/offset == SIO_UDIVISOR + 4u)/' \
+	    'remainder_load_unmodeled|s/offset == SIO_REMAINDER/offset == SIO_REMAINDER + 4u/' \
+	    'dividend_ignored|s/sio_dividend = value;/sio_dividend = 1u;/'; do \
+		name=$${spec%%|*}; expr=$${spec#*|}; \
+		sed "$$expr" aoutrun.c > mutant_$$name.c; \
+		if cmp -s aoutrun.c mutant_$$name.c; then \
+			echo "mutant $$name: the defect did not change the loader" >&2; exit 2; \
+		fi; \
+		${QEMU_ARM_CC} ${LOADER_FLAGS} -o mutant_$$name mutant_$$name.c -lgcc; \
+		status=0; ${QEMU_ARM} -B ${GUEST_BASE} -cpu ${QEMU_ARM_CPU} \
+		    ./mutant_$$name probe.sites probe alpha beta \
+		    > mutant_$$name.out 2> /dev/null || status=$$?; \
+		if [ "$$status" -eq 3 ] && cmp -s probe.expected mutant_$$name.out; then \
+			echo "mutant $$name: SURVIVED" >&2; exit 1; \
+		fi; \
+		echo "mutant $$name: rejected"; \
+	done
+
 clean:
 	rm -f aoutrun probe probe.o probe.elf probe.sites probe.out seek.dat \
-	    loop.lnk errno.out brk.out env.out envfull.err
+	    loop.lnk errno.out brk.out env.out envfull.err divider_baseline.out mutant_*
 
-.PHONY: all check clean
+.PHONY: all check check-divider-mutants clean

@@ -18,6 +18,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+import test_execution  # noqa: E402
+
 TEST_DIRECTORY = "tests/libc_contracts"
 TIMEOUT_SECONDS = 20
 
@@ -30,6 +33,17 @@ def replace_once(source: str, old: str, new: str, label: str) -> str:
     if source.count(old) != 1:
         raise MutationError(f"{label}: expected one mutation site")
     return source.replace(old, new, 1)
+
+
+def run_executable(executable: Path) -> int:
+    """Run the contract test as an owned process group (tools/test_execution.py
+    run_owned), so a hang is stopped whole; a run past the deadline is reported
+    as -1, which counts as rejected. A SIGINT or SIGTERM of this script stops
+    the group before the script exits."""
+    returncode, timed_out = test_execution.run_owned(
+        [str(executable)], TIMEOUT_SECONDS, stdout=subprocess.DEVNULL
+    )
+    return -1 if timed_out else returncode
 
 
 def build_and_run(
@@ -90,15 +104,7 @@ def build_and_run(
         check=True,
         cwd=test_directory,
     )
-    try:
-        return subprocess.run(
-            [str(executable)],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            timeout=TIMEOUT_SECONDS,
-        ).returncode
-    except subprocess.TimeoutExpired:
-        return -1
+    return run_executable(executable)
 
 
 def main() -> int:
@@ -123,6 +129,10 @@ def main() -> int:
     atof_c = text("lib/libc/gen/atof.c")
     strtod_c = text("lib/libc/stdlib/strtod.c")
     exp_c = text("lib/libm/exp.c")
+    pow_c = text("lib/libm/pow.c")
+    j0_c = text("lib/libm/j0.c")
+    j1_c = text("lib/libm/j1.c")
+    jn_c = text("lib/libm/jn.c")
     mutations = {
         "ldexp-overflow-finite": {
             "lib/libc/gen/ldexp.c": replace_once(
@@ -178,6 +188,102 @@ def main() -> int:
                 "\t\treturn(HUGE_VAL);",
                 "\t\treturn(DBL_MAX);",
                 "exp-overflow-finite",
+            )
+        },
+        # C17 7.12.1p4: a pole is a range error. Each mutant reports the
+        # pole as a domain error.
+        "log-pole-domain": {
+            "lib/libm/log.c": replace_once(
+                log_c,
+                "errno = arg == 0. ? ERANGE : EDOM;",
+                "errno = EDOM;",
+                "log-pole-domain",
+            )
+        },
+        "y0-pole-domain": {
+            "lib/libm/j0.c": replace_once(
+                j0_c,
+                "errno = arg == 0. ? ERANGE : EDOM;",
+                "errno = EDOM;",
+                "y0-pole-domain",
+            )
+        },
+        "y1-pole-domain": {
+            "lib/libm/j1.c": replace_once(
+                j1_c,
+                "errno = x == 0. ? ERANGE : EDOM;",
+                "errno = EDOM;",
+                "y1-pole-domain",
+            )
+        },
+        "yn-pole-domain": {
+            "lib/libm/jn.c": replace_once(
+                jn_c,
+                "errno = x == 0 ? ERANGE : EDOM;",
+                "errno = EDOM;",
+                "yn-pole-domain",
+            )
+        },
+        "pow-pole-domain": {
+            "lib/libm/pow.c": replace_once(
+                pow_c,
+                "\t\t\tif(arg2 < 0.) {\n\t\t\t\terrno = ERANGE;\n",
+                "\t\t\tif(arg2 < 0.) {\n\t\t\t\tgoto domain;\n",
+                "pow-pole-domain",
+            )
+        },
+        "pow-zero-sign-ignored": {
+            "lib/libm/pow.c": replace_once(
+                pow_c,
+                "\t\t\tif(oddint(arg2) && 1. / arg1 < 0.)\n",
+                "\t\t\tif(0)\n",
+                "pow-zero-sign-ignored",
+            )
+        },
+        "pow-oddint-ignores-parity": {
+            "lib/libm/pow.c": replace_once(
+                pow_c,
+                "\treturn(floor(h) != h);\n",
+                "\treturn(1);\n",
+                "pow-oddint-ignores-parity",
+            )
+        },
+        "pow-zero-to-zero": {
+            "lib/libm/pow.c": replace_once(
+                pow_c,
+                "\t\t\tif(arg2 == 0.)\n\t\t\t\treturn(1.);\n",
+                "\t\t\tif(arg2 == 0.)\n\t\t\t\tgoto domain;\n",
+                "pow-zero-to-zero",
+            )
+        },
+        # exp: the reduction through arg * log2e alone, 5e-14 off near 706
+        # and an infinity one argument early at ln(DBL_MAX); an overflow
+        # guard under ln(DBL_MAX); an underflow guard above the results
+        # ldexp still represents. An overflow guard at 770 is not a mutant:
+        # ldexp returns the same HUGE_VAL and ERANGE for every argument
+        # between ln(DBL_MAX) and 770, so no observation separates the two.
+        "exp-imprecise-reduction": {
+            "lib/libm/exp.c": replace_once(
+                exp_c,
+                "\tent = floor(arg*log2e);\n\tfract = ((arg - ent*ln2hi) - ent*ln2lo)*log2e - 0.5;",
+                "\targ *= log2e;\n\tent = floor(arg);\n\tfract = (arg-ent) - 0.5;",
+                "exp-imprecise-reduction",
+            )
+        },
+        "exp-overflow-guard-low": {
+            "lib/libm/exp.c": replace_once(
+                exp_c,
+                "maxf	= 709.782712893384;",
+                "maxf	= 709.7;",
+                "exp-overflow-guard-low",
+            )
+        },
+        "exp-underflow-guard-high": {
+            "lib/libm/exp.c": replace_once(
+                exp_c,
+                "minf	= -745.14;",
+                "minf	= -709.0;",
+                "exp-underflow-guard-high",
             )
         },
         "finite-huge-val": {},

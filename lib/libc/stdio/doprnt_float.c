@@ -1,66 +1,13 @@
 /*
  * Floating point conversion for _doprnt, split from doprnt.c so that the
- * software double arithmetic it needs is linked only into programs that
- * print floats. See the note at __doprnt_cvt in doprnt.c.
+ * conversion code it needs is linked only into programs that print floats.
+ * The decimal conversions read the double's bits and use integer
+ * arithmetic alone, so they link no software floating point routine. See
+ * the note at __doprnt_cvt in doprnt.c.
  */
 
+#include <stddef.h>
 #include <string.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <float.h>
-#include <math.h>
-
-static unsigned char *
-cvtround (double fract, int *exp, unsigned char *start, unsigned char *end, unsigned char ch,
-	unsigned char *negp)
-{
-	double tmp;
-
-	if (fract) {
-		modf (fract * 10, &tmp);
-	} else {
-		tmp = ch - '0';
-	}
-	if (tmp > 4) {
-		for (;; --end) {
-			if (*end == '.') {
-				--end;
-			}
-			if (++*end <= '9') {
-				break;
-			}
-			*end = '0';
-			if (end == start) {
-				if (exp) {	/* e/E; increment exponent */
-					*end = '1';
-					++*exp;
-				} else {	/* f; add extra digit */
-					*--end = '1';
-					--start;
-				}
-				break;
-			}
-		}
-	} else if (*negp) {
-		/*
-		 * ``"%.3f", (double)-0.0004'' gives you a negative 0.
-		 */
-		for (;; --end) {
-			if (*end == '.') {
-				--end;
-			}
-			if (*end != '0') {
-				break;
-			}
-			if (end == start) {
-				*negp = 0;
-			}
-		}
-	}
-	return start;
-}
 
 static unsigned char *
 exponent (unsigned char *p, int exp, unsigned char fmtch)
@@ -193,146 +140,209 @@ hexcvt (double number, int prec, int sharpflag, unsigned char *negp,
 }
 
 /*
- * The f, e and E conversions. The result starts at startp + 1, or at startp
- * after an f conversion rounds up into a new leading digit, and the return
- * value is its length.
+ * Exact decimal digits of a double. A double is mant * 2^e2 with mant
+ * below 2^53, so its decimal expansion is finite and integer arithmetic
+ * produces every digit: no floating point operation rounds, and a tie
+ * between two candidate results is visible as a remainder of exactly one
+ * half. The value is held as the integer V = mant * 2^(e2 + 16 * fl) in
+ * 16-bit limbs, little end first, where fl is the fraction limb count, so
+ * the binary point sits between limb fl - 1 and limb fl. The integer part
+ * (limbs fl and up) converts by repeated short division by ten; each digit
+ * of the fraction (limbs below fl) is the carry out of limb fl - 1 when
+ * the fraction is multiplied by ten. No intermediate exceeds 32 bits.
+ * Largest finite value: e2 = 971, 1024 bits, 64 limbs. Smallest
+ * subnormal: e2 = -1074, a fraction of 1074 bits in 68 limbs.
+ */
+#define NLIMB	68
+
+struct dstream {
+	unsigned short v [NLIMB];
+	unsigned char *idig;	/* integer digits, most significant first */
+	int ni;			/* their count */
+	int k;			/* next integer digit to hand out */
+	int fl;			/* fraction limbs */
+};
+
+/*
+ * Load the value and convert its integer part, storing the digits at the
+ * end of the conversion buffer, below endp.
+ */
+static void
+dinit (struct dstream *d, double number, unsigned char *endp)
+{
+	unsigned long long bits;
+	unsigned long t, cur, rem;
+	unsigned short m [4];
+	unsigned char *p;
+	int e, e2, sh, i, top;
+
+	memcpy (&bits, &number, sizeof bits);
+	e = (int) ((bits >> 52) & 0x7ff);
+	m [0] = (unsigned short) bits;
+	m [1] = (unsigned short) (bits >> 16);
+	m [2] = (unsigned short) (bits >> 32);
+	m [3] = (unsigned short) (((bits >> 48) & 0xf) | (e ? 0x10 : 0));
+	e2 = (e ? e : 1) - 1075;
+
+	memset (d->v, 0, sizeof d->v);
+	d->fl = 0;
+	sh = e2;
+	if (e2 < 0) {
+		d->fl = (15 - e2) >> 4;
+		sh = 16 * d->fl + e2;
+	}
+	for (i = 0; i < 4; i++) {
+		t = (unsigned long) m [i] << (sh & 15);
+		d->v [(sh >> 4) + i] |= (unsigned short) t;
+		d->v [(sh >> 4) + i + 1] |= (unsigned short) (t >> 16);
+	}
+
+	p = endp;
+	for (top = NLIMB - 1; top >= d->fl && ! d->v [top]; --top)
+		continue;
+	while (top >= d->fl) {
+		rem = 0;
+		for (i = top; i >= d->fl; --i) {
+			cur = (rem << 16) | d->v [i];
+			d->v [i] = (unsigned short) (cur / 10);
+			rem = cur % 10;
+		}
+		*--p = (unsigned char) ('0' + rem);
+		while (top >= d->fl && ! d->v [top])
+			--top;
+	}
+	d->idig = p;
+	d->ni = (int) (endp - p);
+	d->k = 0;
+}
+
+/*
+ * The next digit of the integer part followed by the fraction, as a
+ * character; zeros once the fraction is exhausted.
  */
 static int
-decimal_cvt (double number, int prec, int sharpflag, unsigned char *negp,
-	unsigned char fmtch, unsigned char *startp, unsigned char *endp)
+dnext (struct dstream *d)
 {
-	unsigned char *p, *t;
-	double fract;
-	int expcnt;
-	double integer, tmp;
+	unsigned long carry, cur;
+	int i;
 
-	expcnt = 0;
-	fract = modf (number, &integer);
-
-	/*
-	 * get an extra slot for rounding
-	 */
-	t = ++startp;
-
-	/*
-	 * get integer portion of number; put into the end of the buffer; the
-	 * .01 is added for modf (356.0 / 10, &integer) returning .59999999...
-	 */
-	for (p = endp - 1; integer; ++expcnt) {
-		tmp = modf (integer / 10, &integer);
-		*p-- = (int) ((tmp + .01) * 10) + '0';
+	if (d->k < d->ni)
+		return d->idig [d->k++];
+	carry = 0;
+	for (i = 0; i < d->fl; i++) {
+		cur = (unsigned long) d->v [i] * 10 + carry;
+		d->v [i] = (unsigned short) cur;
+		carry = cur >> 16;
 	}
-	switch (fmtch) {
-	case 'f':
-		/* reverse integer into beginning of buffer */
-		if (expcnt) {
-			for (; ++p < endp; *t++ = *p);
-		} else {
-			*t++ = '0';
-		}
+	return (int) ('0' + carry);
+}
 
-		/*
-		 * if precision required or alternate flag set, add in a
-		 * decimal point.
-		 */
-		if (prec || sharpflag) {
+/* Whether any digit after the last one handed out is not zero. */
+static int
+drest (const struct dstream *d)
+{
+	int i;
+
+	for (i = d->k; i < d->ni; i++)
+		if (d->idig [i] != '0')
+			return 1;
+	for (i = 0; i < d->fl; i++)
+		if (d->v [i])
+			return 1;
+	return 0;
+}
+
+/*
+ * Round the digits written so far to nearest, ties to even, the default
+ * rounding direction of C17 F.3: the digit that follows decides, and when
+ * it is a five the remainder and the parity of the last kept digit do.
+ * last is the last kept digit; a carry out of the first digit returns 1.
+ */
+static int
+dround (struct dstream *d, unsigned char *first, unsigned char *last)
+{
+	int next = dnext (d);
+
+	if (next < '5' || (next == '5' && ! drest (d) && ! ((*last - '0') & 1)))
+		return 0;
+	for (; last >= first; --last) {
+		if (*last == '.')
+			continue;
+		if (*last != '9') {
+			++*last;
+			return 0;
+		}
+		*last = '0';
+	}
+	return 1;
+}
+
+/*
+ * The f, e and E conversions, correctly rounded for any precision the
+ * buffer holds. The result starts at startp + 1, or at startp after an f
+ * conversion rounds up into a new leading digit, and the return value is
+ * its length. A precision that exceeds the buffer, about 320 digits after
+ * the point under f and 320 significant digits under e, is cut to what fits
+ * and the difference is returned in *extrap for the caller to print as
+ * zeros after the digits (f) or before the exponent (e). The digits kept
+ * are those of the exact value rounded at the cut, far past the
+ * DECIMAL_DIG significant digits that C17 7.21.6.1p13 requires to be
+ * correctly rounded, except for an f conversion of a value under 1e-307.
+ */
+static int
+decimal_cvt (double number, int prec, int sharpflag, unsigned char fmtch,
+	unsigned char *startp, unsigned char *endp, int *extrap)
+{
+	struct dstream d;
+	unsigned char *first, *t;
+	int ex, room, ndig;
+	int c;
+
+	dinit (&d, number, endp);
+	first = t = startp + 1;
+	if (fmtch == 'f' || fmtch == 'F') {
+		/* ni digits, the point and prec digits, then a terminator */
+		ndig = d.ni ? d.ni : 1;
+		room = (int) (endp - first) - ndig - 1;
+		*extrap = prec > room ? prec - room : 0;
+		if (prec > room)
+			prec = room;
+		if (d.ni == 0)
+			*t++ = '0';
+		for (c = d.ni; c > 0; --c)
+			*t++ = (unsigned char) dnext (&d);
+		if (prec || sharpflag)
 			*t++ = '.';
+		while (prec-- > 0)
+			*t++ = (unsigned char) dnext (&d);
+		if (dround (&d, first, t[-1] == '.' ? t - 2 : t - 1))
+			*--first = '1';
+	} else {
+		/* d, the point, prec digits, and e, a sign, three digits */
+		room = (int) (endp - first) - 7;
+		*extrap = prec > room ? prec - room : 0;
+		if (prec > room)
+			prec = room;
+		ex = 0;
+		if (d.ni)
+			ex = d.ni - 1;
+		if (d.ni == 0 && drest (&d)) {
+			for (ex = -1; (c = dnext (&d)) == '0'; --ex)
+				continue;
+			*t++ = (unsigned char) c;
+		} else
+			*t++ = (unsigned char) dnext (&d);
+		if (prec || sharpflag)
+			*t++ = '.';
+		while (prec-- > 0)
+			*t++ = (unsigned char) dnext (&d);
+		if (dround (&d, first, t[-1] == '.' ? t - 2 : t - 1)) {
+			*first = '1';
+			++ex;
 		}
-
-		/*
-		 * if requires more precision and some fraction left
-		 */
-		if (fract) {
-			if (prec) {
-				do {
-					fract = modf (fract * 10, &tmp);
-					*t++ = (int)tmp + '0';
-				} while (--prec && fract);
-			}
-			if (fract) {
-				startp = cvtround (fract, 0, startp,
-					t - 1, '0', negp);
-			}
-		}
-		for (; prec--; *t++ = '0');
-		break;
-	case 'e':
-	case 'E':
-		if (expcnt) {
-			*t++ = *++p;
-			if (prec || sharpflag) {
-				*t++ = '.';
-			}
-
-			/*
-			 * if requires more precision and some integer left
-			 */
-			for (; prec && ++p < endp; --prec) {
-				*t++ = *p;
-			}
-
-			/*
-			 * if done precision and more of the integer component,
-			 * round using it; adjust fract so we don't re-round
-			 * later.
-			 */
-			if (! prec && ++p < endp) {
-				fract = 0;
-				startp = cvtround (0, &expcnt, startp,
-					t - 1, *p, negp);
-			}
-			/*
-			 * adjust expcnt for digit in front of decimal
-			 */
-			--expcnt;
-		}
-		/*
-		 * until first fractional digit, decrement exponent
-		 */
-		else if (fract) {
-			/*
-			 * adjust expcnt for digit in front of decimal
-			 */
-			for (expcnt = -1;; --expcnt) {
-				fract = modf (fract * 10, &tmp);
-				if (tmp) {
-					break;
-				}
-			}
-			*t++ = (int)tmp + '0';
-			if (prec || sharpflag) {
-				*t++ = '.';
-			}
-		} else {
-			*t++ = '0';
-			if (prec || sharpflag) {
-				*t++ = '.';
-			}
-		}
-		/*
-		 * if requires more precision and some fraction left
-		 */
-		if (fract) {
-			if (prec) {
-				do {
-					fract = modf (fract * 10, &tmp);
-					*t++ = (int)tmp + '0';
-				} while (--prec && fract);
-			}
-			if (fract) {
-				startp = cvtround (fract, &expcnt, startp,
-					t - 1, '0', negp);
-			}
-		}
-		/*
-		 * if requires more precision
-		 */
-		for (; prec--; *t++ = '0');
-
-		t = exponent (t, expcnt, fmtch);
-		break;
+		t = exponent (t, ex, fmtch);
 	}
-	return t - startp;
+	return (int) (t - first);
 }
 
 /*
@@ -341,81 +351,83 @@ decimal_cvt (double number, int prec, int sharpflag, unsigned char *negp,
  * P - 1 fraction digits; with X the exponent of that result, rounding
  * carry included, style f with precision P - 1 - X is used when
  * -4 <= X < P and style e otherwise. Both styles show the digits of the
- * one style e conversion, so the choice of style cannot change a digit.
+ * one style e conversion, so the choice of style cannot change a digit
+ * and the rounding of that conversion is the rounding of this one.
  * Unless the # flag is given, trailing zeros of the fraction go, and the
  * point goes with them when no fraction digit is left.
  *
- * The digit generators store at most DBL_DIG + 1 significant digits: the
- * DBL_DIG fraction digits doprnt.c passes for style e, plus the leading
- * one. The zeros that # requires beyond the digits placed in the buffer
- * are not stored: they are returned in *extrap for the caller to print
- * after the string (style f) or before the exponent (style e). Without #,
- * the zeros are trailing zeros of the fraction and *extrap is zero.
+ * The result is rearranged in place: the digits move together, then the
+ * point, the leading zeros or the exponent go around them. The zeros that
+ * # requires beyond the digits decimal_cvt stored are not stored: they
+ * are returned in *extrap for the caller to print after the string
+ * (style f) or before the exponent (style e). Without #, they are
+ * trailing zeros of the fraction and *extrap is zero.
  */
 static int
-general_cvt (double number, int prec, int sharpflag, unsigned char *negp,
-	unsigned char fmtch, unsigned char *startp, unsigned char *endp,
-	int *extrap)
+general_cvt (double number, int prec, int sharpflag, unsigned char fmtch,
+	unsigned char *startp, unsigned char *endp, int *extrap)
 {
-	unsigned char dig [DBL_DIG + 2];
-	unsigned char *p, *t, *end;
-	int nd, ndig, ex, exneg, i, len;
+	unsigned char *s, *p, *t;
+	int nd, ex, exneg, i, len, lost;
 
 	if (prec < 1)
 		prec = 1;
-	ndig = prec > DBL_DIG + 1 ? DBL_DIG + 1 : prec;
-	len = decimal_cvt (number, ndig - 1, 0, negp, fmtch - 2, startp, endp);
+	len = decimal_cvt (number, prec - 1, 0, fmtch - 2, startp, endp, &lost);
 
-	/* d[.ddd]e+XX: the digits, then the exponent */
-	p = startp + 1;
-	end = p + len;
-	nd = 0;
-	for (; *p != 'e' && *p != 'E'; ++p)
+	/* d[.ddd]e+XX: gather the digits, then read the exponent */
+	s = startp + 1;
+	nd = 1;
+	for (p = s + 1; *p != 'e' && *p != 'E'; ++p)
 		if (*p != '.')
-			dig [nd++] = *p;
+			s [nd++] = *p;
 	exneg = *++p == '-';
-	for (ex = 0, ++p; p < end; ++p)
+	for (ex = 0, ++p; p < s + len; ++p)
 		ex = ex * 10 + (*p - '0');
 	if (exneg)
 		ex = -ex;
 
 	/* trailing zeros of the fraction, unless # keeps them */
 	if (! sharpflag)
-		while (nd > 1 && dig [nd - 1] == '0')
+		while (nd > 1 && s [nd - 1] == '0')
 			--nd;
 
-	t = startp + 1;
 	*extrap = 0;
 	if (ex < -4 || ex >= prec) {
-		*t++ = dig [0];
-		if (nd > 1 || sharpflag)
-			*t++ = '.';
-		for (i = 1; i < nd; ++i)
-			*t++ = dig [i];
+		t = s + nd;
+		if (nd > 1 || sharpflag) {
+			memmove (s + 2, s + 1, (size_t) (nd - 1));
+			s [1] = '.';
+			++t;
+		}
 		if (sharpflag)
 			*extrap = prec - nd;
 		t = exponent (t, ex, fmtch - 2);
 	} else if (ex < 0) {
-		*t++ = '0';
-		*t++ = '.';
-		for (i = -ex - 1; i > 0; --i)
-			*t++ = '0';
-		for (i = 0; i < nd; ++i)
-			*t++ = dig [i];
+		memmove (s + 1 - ex, s, (size_t) nd);
+		s [0] = '0';
+		s [1] = '.';
+		for (i = 2; i < 1 - ex; ++i)
+			s [i] = '0';
+		t = s + 1 - ex + nd;
 		if (sharpflag)
 			*extrap = prec - nd;
 	} else {
 		/* ex + 1 integer digits, zero-filled past the digits generated */
-		for (i = 0; i <= ex; ++i)
-			*t++ = i < nd ? dig [i] : '0';
-		if (nd > ex + 1 || sharpflag)
-			*t++ = '.';
-		for (i = ex + 1; i < nd; ++i)
-			*t++ = dig [i];
+		for (i = nd; i <= ex; ++i)
+			s [i] = '0';
+		if (nd > ex + 1) {
+			memmove (s + ex + 2, s + ex + 1, (size_t) (nd - ex - 1));
+			s [ex + 1] = '.';
+			t = s + nd + 1;
+		} else {
+			t = s + ex + 1;
+			if (sharpflag)
+				*t++ = '.';
+		}
 		if (sharpflag)
 			*extrap = prec - (nd > ex + 1 ? nd : ex + 1);
 	}
-	return (int) (t - startp - 1);
+	return (int) (t - s);
 }
 
 int
@@ -426,8 +438,8 @@ __doprnt_cvt (double number, int prec, int sharpflag, unsigned char *negp,
 	if (fmtch == 'a' || fmtch == 'A')
 		return hexcvt (number, prec, sharpflag, negp, fmtch, startp);
 	if (fmtch == 'g' || fmtch == 'G')
-		return general_cvt (number, prec, sharpflag, negp, fmtch,
-			startp, endp, extrap);
-	return decimal_cvt (number, prec, sharpflag, negp, fmtch, startp,
-		endp);
+		return general_cvt (number, prec, sharpflag, fmtch, startp,
+			endp, extrap);
+	return decimal_cvt (number, prec, sharpflag, fmtch, startp, endp,
+		extrap);
 }

@@ -124,8 +124,10 @@ def flash_image_end(data: bytes, origin: int) -> int:
         raise InputError("program header table is truncated")
     ends: list[int] = []
     for index in range(phnum):
-        (kind, _offset, _vaddr, paddr, filesz, _memsz, _flags,
+        (kind, offset, _vaddr, paddr, filesz, _memsz, _flags,
          _align) = PHDR.unpack_from(data, phoff + index * phentsize)
+        if kind == PT_LOAD and filesz != 0 and offset + filesz > len(data):
+            raise InputError(f"segment {index} payload is truncated")
         if kind == PT_LOAD and filesz != 0 and origin <= paddr < XIP_END:
             ends.append(paddr + filesz)
     if not ends:
@@ -153,14 +155,20 @@ def measure(path: Path, origin: int, length: int) -> tuple[int, int]:
 
 def synthetic_elf(segments: list[tuple[int, int, int]], machine: int = EM_ARM,
                   ident_class: int = ELFCLASS32, ident_data: int = ELFDATA2LSB,
-                  truncate: int = 0) -> bytes:
-    """Build an ELF header and program headers: segments are (type, paddr, filesz)."""
+                  truncate: int = 0, payload: bool = True) -> bytes:
+    """Build an ELF header, program headers and, unless payload is false, the
+    file bytes each segment declares: segments are (type, paddr, filesz)."""
     ident = ELF_MAGIC + bytes([ident_class, ident_data, 1]) + bytes(9)
     header = EHDR.pack(ident, 2, machine, 1, 0, EHDR.size, 0, 0, EHDR.size,
                        PHDR.size, len(segments), 0, 0, 0)
-    table = b"".join(PHDR.pack(kind, 0, paddr, paddr, filesz, filesz, 5, 4)
-                     for kind, paddr, filesz in segments)
-    image = header + table
+    offset = EHDR.size + PHDR.size * len(segments)
+    entries = []
+    for kind, paddr, filesz in segments:
+        entries.append(PHDR.pack(kind, offset, paddr, paddr, filesz, filesz, 5, 4))
+        offset += filesz
+    image = header + b"".join(entries)
+    if payload:
+        image += bytes(sum(filesz for _kind, _paddr, filesz in segments))
     return image[:len(image) - truncate] if truncate else image
 
 
@@ -235,7 +243,9 @@ def self_test() -> None:
         ("big endian", synthetic_elf([text], ident_data=2)),
         ("x86 machine", synthetic_elf([text], machine=3)),
         ("no program headers", synthetic_elf([])),
-        ("truncated table", synthetic_elf([text, data], truncate=8)),
+        ("truncated table", synthetic_elf([text, data], truncate=8, payload=False)),
+        ("headers without payload", synthetic_elf([text, data], payload=False)),
+        ("truncated payload", synthetic_elf([text, data], truncate=1)),
         ("no flash segment", synthetic_elf([boot2, ram_only])),
     ):
         rejects(functools.partial(flash_image_end, blob, origin), label)

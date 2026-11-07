@@ -114,11 +114,16 @@ class GeneratedSyncTest(unittest.TestCase):
         template = (self.root / sync.CONF / "Makefile.rp2040").read_text()
         self.assertIn("COPTS?=\t\t-Os\n", template)
         self.assertIn("-fno-strict-aliasing", template)
-        self.assertIn("COMPILE_CYCLE_C=", template)
+        # The cycle-counted rule compiles at -O whatever COPTS says.
+        cycle = ("COMPILE_CYCLE_C=${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \\\n"
+                 "\t\t${CMACHFLAGS} -O ${DEFS} -c $<\n")
+        self.assertIn(cycle, template)
+        self.assertNotIn("COPTS", cycle)
         for board in sync.BOARDS:
             generated = (self.root / sync.COMPILE / board / "Makefile").read_text()
             self.assertIn("COPTS?=\t\t-Os\n", generated)
             self.assertIn("-fno-strict-aliasing", generated)
+            self.assertIn(cycle, generated)
 
     def test_psram_transfer_uses_cycle_counted_compile_rule(self):
         generated = (self.root / sync.COMPILE / "PICOCALC_PSRAM/Makefile").read_text()

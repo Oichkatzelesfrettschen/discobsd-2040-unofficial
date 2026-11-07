@@ -108,10 +108,14 @@ class LoggedGateTest(unittest.TestCase):
             "leader = int(sys.argv[1]); "
             "ready = pathlib.Path(sys.argv[2]); "
             "events = pathlib.Path(sys.argv[3]); "
+            "noted = set()\n"
             "\ndef note(name):\n"
+            "    noted.add(name)\n"
             "    with events.open('a', encoding='ascii') as handle:\n"
             "        handle.write(name + '\\n')\n"
             "\ndef stop(*_):\n"
+            "    if os.getppid() != leader and 'leader-exited' not in noted:\n"
+            "        note('leader-exited')\n"
             "    note('sigterm')\n"
             "    print('DESCENDANT-SHUTDOWN', flush=True)\n"
             "    os.close(1)\n"
@@ -120,7 +124,7 @@ class LoggedGateTest(unittest.TestCase):
             "\nsignal.signal(signal.SIGTERM, stop)\n"
             "ready.write_text('ready', encoding='ascii')\n"
             "while os.getppid() == leader: time.sleep(0.005)\n"
-            "note('leader-exited')\n"
+            "if 'leader-exited' not in noted: note('leader-exited')\n"
             "time.sleep(10)\n"
         )
         leader = (

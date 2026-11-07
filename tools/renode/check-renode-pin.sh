@@ -24,7 +24,13 @@ verified_in() {
 
 boot=$(verified_in check-boot.sh)
 picocalc=$(verified_in check-picocalc.sh)
-running=$("$RENODE" --version 2>/dev/null | sed -n 's/.*build: *//p' | head -1)
+# The launcher's own status decides first: in a pipeline it would be lost
+# behind the last command's.
+if ! version=$("$RENODE" --version 2>/dev/null); then
+	echo "check-renode-pin: $RENODE --version failed" >&2
+	exit 1
+fi
+running=$(printf '%s\n' "$version" | sed -n 's/.*build: *//p' | head -1)
 
 echo "check-renode-pin: check-boot.sh verified ${boot:-none}"
 echo "check-renode-pin: check-picocalc.sh verified ${picocalc:-none}"

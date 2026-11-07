@@ -110,6 +110,27 @@ class GeneratedSyncTest(unittest.TestCase):
             rule = "kern_time.o: $S/kern/kern_time.c\n\t${COMPILE_SIZE_C}\n"
             self.assertIn(rule, generated)
 
+    def test_kernel_optimization_and_aliasing_policy(self):
+        template = (self.root / sync.CONF / "Makefile.rp2040").read_text()
+        self.assertIn("COPTS?=\t\t-Os\n", template)
+        self.assertIn("-fno-strict-aliasing", template)
+        # The cycle-counted rule compiles at -O whatever COPTS says.
+        cycle = ("COMPILE_CYCLE_C=${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \\\n"
+                 "\t\t${CMACHFLAGS} -O ${DEFS} -c $<\n")
+        self.assertIn(cycle, template)
+        self.assertNotIn("COPTS", cycle)
+        for board in sync.BOARDS:
+            generated = (self.root / sync.COMPILE / board / "Makefile").read_text()
+            self.assertIn("COPTS?=\t\t-Os\n", generated)
+            self.assertIn("-fno-strict-aliasing", generated)
+            self.assertIn(cycle, generated)
+
+    def test_psram_transfer_uses_cycle_counted_compile_rule(self):
+        generated = (self.root / sync.COMPILE / "PICOCALC_PSRAM/Makefile").read_text()
+        rule = ("psram_xfer.o: $S/arch/rp2040/dev/psram_xfer.c\n"
+                "\t${COMPILE_CYCLE_C}\n")
+        self.assertIn(rule, generated)
+
     def test_board_file_list_is_a_real_input(self):
         path = self.root / sync.COMPILE / "PICO_UART/files.PICO_UART"
         path.write_text("rp2040/sync_fixture.c standard\n")

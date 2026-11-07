@@ -67,10 +67,16 @@ CWARNFLAGS=	-Wall -Wextra -Werror
 # STM32 tree too. Pin the standard the sources were written against.
 CSTDFLAGS=	-std=gnu17
 
-CMACHFLAGS=	-ffreestanding -fno-builtin -fno-common
+# The kernel carries 2.11BSD type punning: system call handlers read the
+# argument words of u.u_arg through a per-call struct, and buffer cache pages
+# are viewed as on-disk structures (struct dinode over b_addr). -Os, unlike
+# -O, enables -fstrict-aliasing, so the kernel opts out of it.
+CMACHFLAGS=	-ffreestanding -fno-builtin -fno-common -fno-strict-aliasing
 CMACHFLAGS+=	${MACHINE_ARCH_FLAGS}
 
-COPTS?=		-O
+# The FLASH region of RP2040.ld bounds the kernel image, so the kernel is
+# compiled for size.
+COPTS?=		-Os
 CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
 AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
@@ -91,6 +97,11 @@ PARAM+= -DSTORAGE_STATS
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
 COMPILE_SIZE_C=	${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} -Os ${DEFS} -c $<
+# Code whose instruction count is a design input compiles at -O whatever
+# COPTS says: psram_xfer.c drains a four-word PIO receive FIFO from a polling
+# loop that must outrun the state machine's fill rate.
+COMPILE_CYCLE_C=${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
+		${CMACHFLAGS} -O ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
 # PARAM reaches every object as -D flags, and .params holds the PARAM text
@@ -516,7 +527,7 @@ psram.o: $S/arch/rp2040/dev/psram.c
 	${COMPILE_C}
 
 psram_xfer.o: $S/arch/rp2040/dev/psram_xfer.c
-	${COMPILE_C}
+	${COMPILE_CYCLE_C}
 
 flash.o: $S/arch/rp2040/dev/flash.c
 	${COMPILE_C}

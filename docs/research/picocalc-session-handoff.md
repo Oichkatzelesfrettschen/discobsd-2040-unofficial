@@ -86,14 +86,33 @@ Build and test infrastructure:
 
 ## The board builds
 
-Kernel flash text from clean builds of #369's head `b56c6ede`, whose tree is
-main `37cef7bb`, against the 130,816-byte `RP2040.ld` budget:
+Kernel flash figures from clean builds of main `b783cd69` plus the `-Os`
+change, under the Linux CI compiler (Ubuntu 24.04 `gcc-arm-none-eabi`
+15:13.2.rel1-2, GCC 13.2.1), against the 130,816-byte `RP2040.ld` FLASH
+region. Flash image is the span `check-kernel-headroom` measures: `.text`
+plus the `.data` and `.ramfunc` initializers, without `.boot2`.
 
-| Board | Command | Kernel | Text | Root profile | Free blocks / inodes |
-| --- | --- | --- | ---: | --- | --- |
-| Raspberry Pi Pico | `bmake MACHINE=rp2040 distribution` | `PICO` (USB CDC) or `PICO_UART` | 107,680 / 96,210 | `full` | 239 / 32 |
-| ClockworkPi PicoCalc | `bmake MACHINE=rp2040 BOARD=PICOCALC distribution` | `PICOCALC` | 123,620 | `picocalc` | 147 / 21 |
-| PicoCalc with PSRAM swap | `bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution` | `PICOCALC_PSRAM` | 125,728 | `picocalc` | 147 / 21 |
+| Board | Command | Kernel | Text | Flash image | Headroom | Root profile | Free blocks / inodes |
+| --- | --- | --- | ---: | ---: | ---: | --- | --- |
+| Raspberry Pi Pico | `bmake MACHINE=rp2040 distribution` | `PICO` (USB CDC) or `PICO_UART` | 95,394 / 85,609 | 95,388 / 85,548 | 35,428 / 45,268 | `full` | 239 / 32 |
+| ClockworkPi PicoCalc | `bmake MACHINE=rp2040 BOARD=PICOCALC distribution` | `PICOCALC` | 109,406 | 109,520 | 21,296 | `picocalc` | 147 / 21 |
+| PicoCalc with PSRAM swap | `bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution` | `PICOCALC_PSRAM` | 111,564 | 111,732 | 19,084 | `picocalc` | 147 / 21 |
+
+The same sources at `-O`, which the kernels used before `-Os`, measured
+109,488 (PICO), 97,746 (PICO_UART), 126,100 (PICOCALC) and 128,296
+(PICOCALC_PSRAM) text bytes under GCC 13.2.1, and 107,768, 96,298, 124,356 and
+126,472 under the local GCC 16.2.0. With `/dev/lcdgfx` (PR #379) the `-O`
+PICOCALC_PSRAM kernel under GCC 13.2.1 loads 130,984 bytes into the
+130,816-byte region, 168 over, and `ld` accepts it because the `.ramfunc`
+initializers carry no region. Under `-Os` that kernel loads 113,868 bytes under
+GCC 13.2.1 and 113,276 under GCC 16.2.0.
+
+Local GCC 16.2.0 `-Os` text bytes, in the same board order: 94,878, 85,121,
+108,942 and 111,004. The Linux x86-64 build of Arm GNU Toolchain 15.3.Rel1
+(tarball SHA-256
+`563bebb2b97d53382b956d6ee1fe61e2cae26699901417234a37df505ef9b5fa`) gives
+95,422, 85,625, 109,446 and 111,556 at `-Os`. The macOS job installs the Darwin
+package of that release, which this table does not measure.
 
 Free blocks are image figures from `PROFILES.md` as re-measured in the #350
 merge; they sit one block below the figures #363 recorded for `base` through
@@ -110,7 +129,7 @@ to the four kernels; it changes no root image.
 | qemu-user Thumb-1 | `check-qemu` | Cortex-M0+ code executes on the ARMv6-M model | CI |
 | qemu a.out loader | `bmake -C tests/qemu_aout check` | A DiscoBSD a.out runs its own libc and system calls | outside `check-qemu`; no fork, exec, signals, stat or tty ioctl |
 | Renode | `check-renode`, `check-renode-picocalc` | PICO_UART and PICOCALC boot to a shell against third-party peripheral models | outside `check`; no CI owner |
-| Bare Pico board | `discobsd-flash`, then `tests/rp2040` drivers | Behavior on the measured silicon | flash and boot of main observed 2026-11-06; the test programs not yet run |
+| Bare Pico board | `discobsd-flash`, then `tests/rp2040` drivers | Behavior on the measured silicon | flash and boot of main observed 2026-11-06; campaign run 2026-11-07, see "Board runs" |
 | PicoCalc hardware | `PICOCALC.md`, "Board bring-up of the console" | Panel, keyboard, SD, PSRAM, power | not run: no PicoCalc has booted these kernels |
 
 The macOS host tier has a 1,080-second budget (PR #358); two play mutants
@@ -280,6 +299,137 @@ Observed on 2026-11-06, flashing main `df501d06` to the bare Pico:
   boot creates `/var/log/messages`, `/var/log/wtmp` and `/var/run/utmp`, one
   block each.
 - The board is left on that plain main image at `login:`.
+
+### Bare Pico campaign, 2026-11-07 (main `4bcdaad0`)
+
+Images, built from a clean tree with `IMAGE_WITH=calc-bignum` and
+`FS_INODES=144`: kernel `unix.uf2` SHA-256
+`85378d94d3d99f2eef6a5fa037bf7fa1a3ca8a6783747a5bd70a491ca391239b`; test root
+`flash.uf2` SHA-256
+`0bf515990bbd70d4c05811c0c070062b5797e8ad9d697c9ee13b68f7c63a03b9` (the full
+profile, `calc-bignum`, `divtest`, `fptest`, `romprobe`, `textcrc`,
+`/usr/bin/time`, and a raw copy of `textbox` as `/usr/rawbin/seq`; `fsutil`
+reports 99 free blocks and 38 free inodes, a booted `df` reads 96). Every
+step below ran on this pair; the booted `kern.version` is
+`DiscoBSD 2.7 (PICO) #1 2291: Sat Nov  7 09:47:21 PST 2026`. Console commands
+in the steps ran as `operator`.
+
+Setup findings:
+
+- `/etc/rc` failed on the first test root (128 inodes) and left the board in a
+  root shell with no hostname: `fsck -p` exits 8 with "DIRECTORY CORRUPTED" on
+  `/usr/bin` and two unreferenced files. The directory's second block holds
+  `fptest` at inode 128. `sbin/fsck/setup.c` sets `imax` to
+  `(fs_isize - (SUPERB+1)) * INOPB`, which is 128 for the 128-inode image, and
+  `dircheck()` in `sbin/fsck/dir.c` and the pass-1 loop accept only inodes
+  below `imax`; `tools/fsutil/inode.c` and the kernel accept inode 128 (`ls -i`
+  prints it and `fptest` runs). The image's highest inode is therefore
+  invisible to `fsck`, which reports 104 files where `fsutil --check` counts
+  105. Confidence high for the off-by-one (inode, count and bound all read
+  directly). The test root works around it with `FS_INODES=144`; the fix is
+  outside this note.
+- `/usr/bin/time` is absent from every shipped profile, and the shell has no
+  `time` keyword, so the brief's `time` commands need the program staged.
+- The tty echoes the shell prompt after every command, so a harness that
+  compares output lines has to drop the `operator@pico:~$ ` line; the three
+  scripts below do. `bc -c` ends its output without a newline, so a sentinel
+  echo needs a blank echo before it.
+- After review, the dc and bc script ends a command only at a complete,
+  newline-terminated sentinel line, and the clock script runs its workload
+  under `set -e`, keeps `dd`'s diagnostics and requires the records `dd` reports
+  out to match the bytes written. The recorded board runs used the earlier
+  forms of both; no run since exercised the new ones on the board.
+- The board's `sh -n` runs the script instead of parsing it, `tail -n 1` is
+  not accepted (`tail -1` is), and `bc FILE` goes on to read standard input.
+- The USB link wedged once after `picotool reboot -f` on the running kernel
+  (the board enumerated at address assignment and failed every descriptor
+  read), and once after a kernel-only `discobsd-flash` near the end of the
+  campaign. Each leaves the stale USB/IP import holding the device; the first
+  needed the owner and the second is open. The scripts now reboot only through
+  `discobsd-flash --bootsel` and `--eject`, which restarted the board
+  cleanly in the dc and bc, stack alignment and a.out admission runs.
+- Another session flashed the same board between 11:25 and 11:42 PST (a
+  kernel `#2295` and its own root for `board_large_mpu.py`); console lines
+  typed in that window landed in its shell. The steps below ran before and
+  after that window on the images above, restored by `discobsd-flash` with the
+  same two files.
+
+Steps:
+
+1. `divtest`, three runs, identical: the corpus is 141 values with 0 wrong;
+   the SIGALRM loop completes 3,000,000 divisions with 3 alarms delivered, 0
+   wrong in the loop and 0 wrong in the handler; the padding probe gives 2000,
+   2000, 2000, 1998, 0, 0 and 0 wrong of 2000 for 0 through 6 padding
+   branches, so the smallest error-free padding is 4, equal to the shipped 4;
+   `DIVTEST OK`, 3.4 s real. The shipped wait of eight cycles has no slack on
+   this board: six cycles fail 1998 of 2000 probes. The alarm count deviates
+   from the interleave's design of 100 deliveries at 10 ms: `setitimer()` in
+   `sys/kern/kern_time.c` stores `ITIMER_REAL` in whole seconds and rounds a
+   sub-second interval up to one second, so the loop runs for 3 s and takes 3
+   deliveries. The interleave covers 3 handler entries per run; a child that
+   signals the parent in a loop would raise the count.
+2. `board_dcbc_smoke.py`: all 15 checks pass, including the two added ones
+   (dc `2 k 1.235 1 % p` prints `.005`; `scale=2; 1.235%1` in bc prints
+   `.005`) and bc `f(a[])` called with an array, which prints `7`.
+   `2 1000 ^ p` prints in 2.6 s. The one-line form `define f(a[]) { return
+   a[0]; }` fails with "return unexpected", as does `define f(n) { return n;
+   }`: bc takes a newline after `{`, and the script's check uses that form.
+   The prediction (`.005` and an accepted array argument) holds; the one-line
+   spelling in the brief is not accepted.
+3. Packed against raw `seq`, 10 interleaved pairs of 20 execs under `time`:
+   packed 20.81 s (standard deviation 0.35), raw 20.05 s (0.25), so packed
+   costs 38 ms more per exec (standard error 7 ms). Prediction: about 25 ms.
+   The measurement is 1.9 standard errors above it and 2 below the 52 ms that
+   two decode passes at the 67.7 cycles per byte of PR #367 would give
+   (`docs/research/rp2040-second-core-hardware.md` counts two passes per
+   exec); neither value is excluded. Each exec costs about 1 s either way,
+   because a fork under the single-process window swaps the parent through the
+   raw swap partition.
+4. `board_clock_catchup.py` (shipped kernel): 24 passes of a 32 KB `dd` and
+   `sync` in 248.8 s move the host-minus-board offset from the interval
+   35080.864 .. 35080.989 s to 35081.263 .. 35081.325 s, and an equal idle wait
+   to 35081.305 .. 35081.377 s; 12 passes in 122.9 s move it from 35081.338 ..
+   35081.419 s to 35081.527 .. 35081.617 s and an idle wait to 35081.580 ..
+   35081.678 s. The excess over the idle control, 2 * second - first - third
+   with each bound propagated, is the interval +0.160 .. +0.481 s for 24
+   passes and -0.043 .. +0.316 s for 12. Prediction: near zero. Against the
+   8.45 and 4.22 s that 44 ms per sector erase would lose, the intervals sit
+   inside the tolerance of a tenth of that floor (0.845 and 0.422 s), so both
+   runs pass the final rule. The excess roughly doubles with the work, which
+   fits the host model's bound of one tick lost per masked window
+   (`check-clock-catchup`). The run summary printed at the time used the
+   midpoints (+0.321 and +0.137 s) against a 0.25 s absolute tolerance, which
+   failed the 24-pass run; the rule changed to the tenth-of-floor tolerance
+   after those two runs and then to the interval rule above after review, and
+   the verdicts above restate the saved offsets under the final rule. A kernel
+   built with the `if (owed != 0)` guard in `clock_catchup()` made false
+   (unix.uf2 SHA-256
+   `bbb82164070a0c7e6980f0d74900e431fba0cc2e288b8ede3655788c6494b38b`) lost
+   108 s to the 12-pass workload and 12.5 s to the idle control, 23 times the
+   44 ms floor. Under the final rule its baseline measurement has no common
+   point (35364.057 .. 35348.016 s), so the script ends inconclusive with exit
+   status 2 rather than reporting a failure; the clock moved 16 s during one
+   40-line date loop. The 44 ms per erase figure therefore understates the
+   loss without the catch-up. The final script was not rerun on the board
+   because the USB link wedged first.
+5. `board_stack_align.py`: 12 of 12 pass (awk `print 1+1` prints `2` at eight
+   environment lengths and `printf` prints `3 2.5 z` at four).
+   `board_aout_admission.py`: the truncated and the even-entry image return
+   status 127 with the shell's "not found" (`exec_aout_check()` returns
+   `ENOEXEC`, so the shell reads the header as a script), the oversized image
+   returns 126 "too big" (`ENOMEM`), and the shell then runs `echo`, a child
+   `sh` and `awk`. Two outcomes, not the three distinct errors the script's
+   description gave; the description now states the observed ones.
+6. `fptest` prints `FPTEST OK` in 0.1 s. `romprobe` prints the ROM header
+   (magic bytes `0x4d 0x75 0x01`, version 3), the function table at `0x7a`, the
+   data table at `0xc4`, the lookup at `0x1d`; the SF table at `0x1cc` with
+   `byte[-2]=0x20`, size 128, entries `0x2b45 0x2b41 0x2c0d 0x2cd9 0x2803
+   0x2803`; and the SD table at `0x24c` with `byte[-2]=0`, size 0, entries
+   `0x2e3d 0x2e31 0x2f99 0x30f5 0x3447 0x3447`.
+
+State at the end: the board holds the kernel and test root named above and
+does not enumerate (the second USB wedge). It has not been returned to the
+plain main image.
 
 ## Open decisions and residuals
 

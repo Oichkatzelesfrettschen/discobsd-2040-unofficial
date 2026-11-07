@@ -145,6 +145,19 @@ jobs:
             --idle-timeout-seconds 600 --timeout-seconds 1200 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build
 
+      # The linker refuses a kernel that overflows FLASH. This gate reports a
+      # kernel that links but has less than the margin of tools/
+      # check_kernel_headroom.py left, under the toolchain this job installs.
+      - name: Check the kernel flash headroom
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-kernel-headroom \
+            --log .build-logs/linux-kernel-headroom.log \
+            --status .build-logs/linux-kernel-headroom.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 check-kernel-headroom
+
       - name: Build the flash image
         timeout-minutes: 15
         run: |
@@ -541,6 +554,15 @@ jobs:
             --status .build-logs/macos-build.status.json \
             --idle-timeout-seconds 600 --timeout-seconds 1800 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build
+      - name: Check the kernel flash headroom
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label macos-kernel-headroom \
+            --log .build-logs/macos-kernel-headroom.log \
+            --status .build-logs/macos-kernel-headroom.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 check-kernel-headroom
       - name: Build the flash image
         timeout-minutes: 15
         run: |

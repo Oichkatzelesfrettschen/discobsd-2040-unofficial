@@ -262,13 +262,12 @@ simulator's pad delays at 3 ns each:
 | Clock duty | 241 of 244 cycles in initialization are 16 ns high and 16 ns low (50%); the 3 others are the stretched cycle between the output loop and the turnaround of a read, 16 ns high and 96 ns low |
 | Mutants | thirteen, each killed: SCK never rising, data changing in the rising cycle, CS left low, one wait clock short, one address nibble dropped, a 128-byte frame, a frame ignoring the 64-byte block, a word that no longer matches its comment, a turnaround one pass long, a block number multiplied before it is bounded, a length not bounded against the device end, a pad drive strength ORed into the reset field, a clock whose low phase is twice its high phase |
 
-Size, from `arm-none-eabi-size`: PICOCALC text 119,316, data 304, bss
+Size, from `arm-none-eabi-size`: PICOCALC text 118,268, data 304, bss
 45,888, equal to the kernel built from the commit before the driver; the
-PICOCALC_PSRAM kernel is text 121,432, data 360, bss 46,032. The driver
-accounts for 2,096 text bytes (121,412 with the PICOCALC name), and the
-longer name in `version` and `osversion` for 20 more. The text budget was
-3.5 KB. PICO (108,480 text, 248 data, 39,848 bss) and PICO_UART (96,062,
-192, 14,832) are unchanged, and their disassembly and read-only data differ
+PICOCALC_PSRAM kernel is text 120,384, data 360, bss 46,032. The driver
+accounts for 2,096 text bytes, and the longer name in `version` and
+`osversion` for 20 more. The text budget was 3.5 KB. PICO (107,432 text,
+248 data, 39,848 bss) and PICO_UART (95,970, 192, 14,832) are unchanged, and their disassembly and read-only data differ
 from the baseline only in the build timestamp string. The symbol sizes of
 PICOCALC_PSRAM equal those of the driver-bearing PICOCALC link except
 `version` and `osversion`.

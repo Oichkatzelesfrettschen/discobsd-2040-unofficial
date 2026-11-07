@@ -9,3 +9,4 @@ errno.out
 brk.out
 env.out
 envfull.err
+mutant_*

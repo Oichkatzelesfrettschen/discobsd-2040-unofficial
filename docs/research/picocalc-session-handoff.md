@@ -315,6 +315,11 @@ Setup findings:
   compares output lines has to drop the `operator@pico:~$ ` line; the three
   scripts below do. `bc -c` ends its output without a newline, so a sentinel
   echo needs a blank echo before it.
+- After review, the dc and bc script ends a command only at a complete,
+  newline-terminated sentinel line, and the clock script runs its workload
+  under `set -e`, keeps `dd`'s diagnostics and requires the records `dd` reports
+  out to match the bytes written. The recorded board runs used the earlier
+  forms of both; no run since exercised the new ones on the board.
 - The board's `sh -n` runs the script instead of parsing it, `tail -n 1` is
   not accepted (`tail -1` is), and `bc FILE` goes on to read standard input.
 - The USB link wedged once after `picotool reboot -f` on the running kernel
@@ -362,23 +367,32 @@ Steps:
    because a fork under the single-process window swaps the parent through the
    raw swap partition.
 4. `board_clock_catchup.py` (shipped kernel): 24 passes of a 32 KB `dd` and
-   `sync` in 248.8 s move the host-minus-board offset by +0.368 s, the idle
-   control by +0.047 s over 298 s, an excess of +0.321 s (bound width 0.125
-   s); 12 passes in 122.9 s move it +0.194 s against +0.057 s over 173 s, an
-   excess of +0.137 s (width 0.098 s). Prediction: near zero. The excess is
-   3.8 and 3.2 percent of the 8.45 and 4.22 s that 44 ms per sector erase
-   would lose and doubles with the work, which fits the host model's bound of
-   one tick lost per masked window (`check-clock-catchup`). A kernel built
-   with the `if (owed != 0)` guard in `clock_catchup()` made false (unix.uf2
-   SHA-256
+   `sync` in 248.8 s move the host-minus-board offset from the interval
+   35080.864 .. 35080.989 s to 35081.263 .. 35081.325 s, and an equal idle wait
+   to 35081.305 .. 35081.377 s; 12 passes in 122.9 s move it from 35081.338 ..
+   35081.419 s to 35081.527 .. 35081.617 s and an idle wait to 35081.580 ..
+   35081.678 s. The excess over the idle control, 2 * second - first - third
+   with each bound propagated, is the interval +0.160 .. +0.481 s for 24
+   passes and -0.043 .. +0.316 s for 12. Prediction: near zero. Against the
+   8.45 and 4.22 s that 44 ms per sector erase would lose, the intervals sit
+   inside the tolerance of a tenth of that floor (0.845 and 0.422 s), so both
+   runs pass the final rule. The excess roughly doubles with the work, which
+   fits the host model's bound of one tick lost per masked window
+   (`check-clock-catchup`). The run summary printed at the time used the
+   midpoints (+0.321 and +0.137 s) against a 0.25 s absolute tolerance, which
+   failed the 24-pass run; the rule changed to the tenth-of-floor tolerance
+   after those two runs and then to the interval rule above after review, and
+   the verdicts above restate the saved offsets under the final rule. A kernel
+   built with the `if (owed != 0)` guard in `clock_catchup()` made false
+   (unix.uf2 SHA-256
    `bbb82164070a0c7e6980f0d74900e431fba0cc2e288b8ede3655788c6494b38b`) lost
-   108 s to the 12-pass workload and 12.5 s to the idle control, an excess of
-   95.8 s, 23 times the 44 ms floor; the script failed it. The 44 ms per erase
-   figure therefore understates the loss without the catch-up. The script's
-   verdict threshold (a tenth of the floor) was fixed after the two shipped
-   runs, which used a 0.25 s absolute tolerance and failed the 24-pass run by
-   0.07 s; the final script was not rerun on the shipped kernel because the USB
-   link wedged first.
+   108 s to the 12-pass workload and 12.5 s to the idle control, 23 times the
+   44 ms floor. Under the final rule its baseline measurement has no common
+   point (35364.057 .. 35348.016 s), so the script ends inconclusive with exit
+   status 2 rather than reporting a failure; the clock moved 16 s during one
+   40-line date loop. The 44 ms per erase figure therefore understates the
+   loss without the catch-up. The final script was not rerun on the board
+   because the USB link wedged first.
 5. `board_stack_align.py`: 12 of 12 pass (awk `print 1+1` prints `2` at eight
    environment lengths and `printf` prints `3 2.5 z` at four).
    `board_aout_admission.py`: the truncated and the even-entry image return

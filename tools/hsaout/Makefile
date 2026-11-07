@@ -53,7 +53,7 @@ hsx_stream.o:	${KRP}/hsx_stream.c machine
 		$(CC) $(CFLAGS) -c -o $@ ${KRP}/hsx_stream.c
 
 hsx_decoder.o:	${KRP}/hsx_decoder.c machine
-		$(CC) $(HSFLAGS) -c -o $@ ${KRP}/hsx_decoder.c
+		$(CC) $(CFLAGS) -c -o $@ ${KRP}/hsx_decoder.c
 
 heatshrink_encoder.o: ${HS}/heatshrink_encoder.c
 		$(CC) $(HSFLAGS) -c -o $@ ${HS}/heatshrink_encoder.c

@@ -746,6 +746,13 @@ check-hsaout:
 		sh tools/verify_packed_root_configs.sh
 		${MAKE} -C tests/hsaout check
 
+# The port's heatshrink decoder against the vendored decoder over every
+# a.out in the distribution tree, random data, truncations and corrupted
+# streams, then mutants of the decoder and its stream loop that must each
+# fail the comparison.
+check-hsx-decoder:	check-python
+		${MAKE} -C tests/hsaout decoder
+
 check-config-makefile:
 		${MAKE} -C tools/config check
 
@@ -1232,7 +1239,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
 		check-kernel-printf-formats .WAIT check-tty-layout-cross .WAIT \
 		check-ptrace-libc-abi .WAIT \
-		check-hsaout .WAIT check-flash-swap .WAIT \
+		check-hsaout .WAIT check-hsx-decoder .WAIT check-flash-swap .WAIT \
 		check-rp2040-shutdown-cross .WAIT check-storage-counters
 
 check-cross-assembler:
@@ -1402,7 +1409,7 @@ installfs:
 		check-unifdef-contracts-cross check-libc-string-security \
 		check-libc-string-security-cross check-id-aliases \
 		check-find-contracts check-find-contracts-cross \
-		check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout \
+		check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout check-hsx-decoder \
 		check-config-makefile check-portable-utilities \
 		check-architecture-isolation legacy-non-arm-verify \
 		legacy-pdp11-v6-build legacy-pdp11-v6-install \

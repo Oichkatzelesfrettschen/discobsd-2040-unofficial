@@ -98,19 +98,21 @@ arch/rp2040/dhara/map.c			standard
 
 #
 # Compressed RAM tier in front of the flash swap unit, selected by
-# "options SWAPRAM" and sized by "options SWAPRAM_KB=N". heatshrink is
-# vendored third-party code under an ISC license, upstream commit
-# 7d419e1fa4830d0b919b9b6a91fe2fb786cf3280; see arch/rp2040/heatshrink/LICENSE.
+# "options SWAPRAM" and sized by "options SWAPRAM_KB=N". The encoder is
+# vendored heatshrink, third-party code under an ISC license, upstream
+# commit 7d419e1fa4830d0b919b9b6a91fe2fb786cf3280; see
+# arch/rp2040/heatshrink/LICENSE. The decoder is the port's own
+# (rp2040/hsx_decoder.c), shared with the packed executable loader; it is
+# listed under each option so that either one pulls it in.
 #
 arch/rp2040/rp2040/swapram.c		optional swapram
 arch/rp2040/rp2040/swapram_pool.c	optional swapram
 arch/rp2040/heatshrink/heatshrink_encoder.c	optional swapram
-arch/rp2040/heatshrink/heatshrink_decoder.c	optional swapram
+arch/rp2040/rp2040/hsx_decoder.c	optional swapram
 
 #
 # Packed a.out executables, selected by "options EXEC_HSAOUT": the loader,
-# the CRC, the stream expander and a second heatshrink decoder instance
-# compiled with the container's lookahead.
+# the CRC, the stream expander and the port's heatshrink decoder.
 #
 kern/subr_crc32.c			optional exec_hsaout
 arch/rp2040/rp2040/exec_hsaout.c	optional exec_hsaout

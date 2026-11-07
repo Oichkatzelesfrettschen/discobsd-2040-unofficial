@@ -25,6 +25,9 @@ CFLAGS=	-std=gnu17 -g -O2 -Wall -Wextra -Werror -idirafter . -I$(HS) $(HSOPTS)
 # without the attribute GCC 7 and later want, so that one warning is waived
 # for those two files alone. The kernel build never sees it: compile/PICO
 # sets CWARNFLAGS to -Wall, and -Wimplicit-fallthrough rides with -Wextra.
+# The kernel decodes with the port's own rp2040/hsx_decoder.c, which the
+# evacuation test links; the ratio test (swapram_test) keeps the vendored
+# decoder as its reference.
 HSFLAGS= $(CFLAGS) -Wno-implicit-fallthrough
 
 OBJS=	swapram_test.o swapram_pool.o heatshrink_encoder.o \
@@ -36,7 +39,7 @@ OBJS=	swapram_test.o swapram_pool.o heatshrink_encoder.o \
 # formats are written for the kernel's 32-bit size_t, so -Wformat is off
 # for those two objects alone.
 EVACOBJS= swapram_evac_test.o swapram_kern.o subr_rmap.o swapram_pool_k.o \
-	heatshrink_encoder.o heatshrink_decoder.o
+	heatshrink_encoder.o hsx_decoder.o
 # -Wno-deprecated-non-prototype: subr_rmap.c keeps its K&R definitions,
 # which clang 17 rejects under -Werror; gcc ignores an unknown -Wno- flag.
 KCFLAGS= -std=gnu17 -g -O2 -Wall -Wextra -Werror -Wno-deprecated-non-prototype -DSWAPRAM_KB=64 -Ishim -idirafter . -I$(HS) $(HSOPTS)
@@ -73,6 +76,9 @@ swapram_kern.o: ../../rp2040/swapram.c machine $(INC)/swapram.h \
 
 swapram_pool_k.o: ../../rp2040/swapram_pool.c machine $(INC)/swapram.h
 	$(CC) $(KCFLAGS) -c -o $@ ../../rp2040/swapram_pool.c
+
+hsx_decoder.o: ../../rp2040/hsx_decoder.c machine $(INC)/hsx_decoder.h
+	$(CC) $(KCFLAGS) -c -o $@ ../../rp2040/hsx_decoder.c
 
 subr_rmap.o: $(TOP)/sys/kern/subr_rmap.c
 	$(CC) $(KCFLAGS) -Wno-format -c -o $@ $(TOP)/sys/kern/subr_rmap.c

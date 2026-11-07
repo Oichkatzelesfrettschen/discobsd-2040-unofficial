@@ -90,11 +90,16 @@ capacity_refresh(enum capacity_kind kind)
 void
 capacity_stack_sample(void)
 {
+    /*
+     * The u-area occupies UAREA_BYTES from the address of u, and struct user
+     * is the first UAREA_STACK_OFFSET bytes of it. The offsets go through
+     * uintptr_t so that the compiler does not bound the walk by sizeof u.
+     */
     const uint32_t *const bottom =
-        (const uint32_t *)((const char *)&u + UAREA_STACK_OFFSET);
+        (const uint32_t *)((uintptr_t)&u + UAREA_STACK_OFFSET);
     const uint32_t *cursor = bottom;
     const uint32_t *const top =
-        (const uint32_t *)((const char *)&u + UAREA_BYTES);
+        (const uint32_t *)((uintptr_t)&u + UAREA_BYTES);
     uint16_t remaining;
     uint16_t touched;
 

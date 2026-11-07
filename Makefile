@@ -197,6 +197,37 @@ check-uf2-images: check-python
 
 .PHONY: check-uf2-validator check-uf2-images
 
+# The kernel flash image must leave KERNEL_HEADROOM_MARGIN bytes (default in
+# tools/check_kernel_headroom.py) of the FLASH region of RP2040.ld free in
+# every board kernel. check-kernel-headroom-validator calibrates the checker
+# on synthetic images; check-kernel-headroom applies it to each built kernel
+# and then requires a margin above the region length to fail with exit 1, so
+# a checker that accepts every kernel is reported.
+check-kernel-headroom-validator: check-python
+		${PYTHON} tools/check_kernel_headroom.py --self-test
+
+check-kernel-headroom: check-python
+.if ${MACHINE} == "rp2040"
+		@set -e; elfs=; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
+			elfs="$$elfs sys/arch/rp2040/compile/$$configuration/unix.elf"; \
+		done; \
+		${PYTHON} tools/check_kernel_headroom.py \
+		    ${KERNEL_HEADROOM_MARGIN:D--margin ${KERNEL_HEADROOM_MARGIN}} $$elfs; \
+		rc=0; \
+		${PYTHON} tools/check_kernel_headroom.py --margin 1000000 \
+		    sys/arch/rp2040/compile/PICO/unix.elf >/dev/null 2>&1 || rc=$$?; \
+		if [ "$$rc" -ne 1 ]; then \
+			echo "check-kernel-headroom: control margin gave exit $$rc, expected 1" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS kernel-headroom control: a margin above the region length is rejected"
+.else
+		@echo "check-kernel-headroom requires MACHINE=rp2040" >&2
+		@exit 2
+.endif
+
+.PHONY: check-kernel-headroom-validator check-kernel-headroom
+
 check-account-image:	check-python .WAIT ${FSIMG}
 .if ${MACHINE} == "rp2040"
 		${PYTHON} tools/check_rp2040_account_image.py ${FSUTIL} ${FSIMG}
@@ -1018,6 +1049,7 @@ check-elf2aout:	tools
 # include.
 HOST_GATES=	check-architecture-isolation \
 		check-agent-instructions check-uf2-validator \
+		check-kernel-headroom-validator \
 		check-run-logging check-battlestar-generation \
 		check-graft-cache-reader \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
@@ -1267,7 +1299,8 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-console-c17-cross .WAIT \
 		check-ptrace-libc-abi .WAIT \
 		check-hsaout .WAIT check-hsx-decoder .WAIT check-flash-swap .WAIT \
-		check-rp2040-shutdown-cross .WAIT check-storage-counters
+		check-rp2040-shutdown-cross .WAIT check-storage-counters .WAIT \
+		check-kernel-headroom
 
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test

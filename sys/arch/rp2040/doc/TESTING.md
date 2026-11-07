@@ -192,6 +192,7 @@ upload and hidden-file inclusion.
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
 | UF2 image pair (block magic, RP2040 family, 256-byte payloads, numbering, kernel bounds, exact root coverage) | `check-uf2-images` | `${PYTHON}`, built `unix.uf2` and the selected board's flash UF2 (`flash.uf2` for `BOARD=PICO`, `flash-${BOARD}.uf2` otherwise) | yes, after the flash build | yes, after the flash build |
+| kernel flash headroom (FLASH region of `RP2040.ld` less the loaded image, per board kernel) | `check-kernel-headroom` | `${PYTHON}`, built `unix.elf` for each of `MACHINE_KERNEL_CONFIGS` | yes, after the build | yes, after the build |
 | account image (root lock, operator empty password, exact named shadow offsets, privileged modes) | `check-account-image` | `${PYTHON}`, RP2040 `fsutil`, generated filesystem image | distribution and flash builds | not run on host-only targets |
 
 The account-image gate checks root and operator passwd records for LF
@@ -496,6 +497,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | gate | proves |
 | --- | --- |
 | `check-uf2-validator` | `tools/check_rp2040_uf2.py --self-test` accepts a valid two-block RP2040 UF2 image and rejects one mutation each of the start magic, end magic, family flag, family ID, payload size, block number, block total and address. `check-uf2-images` applies the same parser to each `sys/arch/rp2040/compile/<config>/unix.uf2` that `MACHINE_KERNEL_CONFIGS` names (PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM), each of which must be contiguous inside `[0x10000000, 0x10020000)`, and `distrib/rp2040/flash.uf2`, which must cover `[0x10020000, 0x101a0000)` exactly; it prints each image's blocks, interval and SHA-256. Both establish container structure, not the bytes the boot ROM programs or executes. |
+| `check-kernel-headroom-validator`, `check-kernel-headroom` | `tools/check_kernel_headroom.py --self-test` parses the `FLASH` entry of the MEMORY block (`128K - 256` is 130,816 bytes), computes the image end as the highest `PT_LOAD` load address plus file size inside the region, and accepts and rejects synthetic ELF images at headroom equal to the margin and one byte below it, at exact fill, at overflow, with a RAM segment and a below-origin `.boot2` segment that must not count, with segments in any order, and for a missing region, a duplicate region, an unsupported expression, a bad magic, an ELF64 file, a big-endian file, a non-ARM file, an absent or truncated program header table and an image with no flash segment. `check-kernel-headroom` then measures the `unix.elf` of PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM, fails any kernel whose headroom is below the margin (1,024 bytes by default, `KERNEL_HEADROOM_MARGIN` overrides it) and runs a control: a margin of 1,000,000 bytes against the PICO kernel must exit 1. The margin is 1.7 times the 592-byte difference that GCC 13.2 and GCC 16.2 produce for the `-Os` PICOCALC_PSRAM kernel with `/dev/lcdgfx`. `ld` bounds `.text` and `.data` by `FLASH` but not the `.ramfunc` initializers, whose `AT()` expression in `kern.ldscript` names no region, so a kernel can link with that load image past the region end; the measured span includes it. The gate establishes the room left under the toolchain of the job that runs it, in the Linux and macOS jobs of `firmware.yml` directly after the kernel build. Calibration on linked kernels: the GCC 13.2 `-O` PICOCALC_PSRAM kernel built with `/dev/lcdgfx` (headroom -168 bytes, accepted by `ld`) exits 1, and the same sources at `-Os` (16,948 bytes) exit 0. It measures bytes and executes nothing. |
 | `check-agent-instructions` | The repository has regular canonical and generated compatibility files; `.claude` is an actual directory, `.claude/CLAUDE.md` is byte-identical to `AGENTS.md`, and the canonical policy has literal references instead of active imports. Calibration exercises drift, malformed, cyclic, escaping and private-home imports, parent and file modes, staged/unstaged inversions and Git infrastructure errors. The gate verifies the chosen two-file contract, not actual client instruction loading. |
 | `check-battlestar-generation` | A three-job bmake fixture reproduces overlapping recipes when four side-effect outputs share one unordered generator, then proves that the production `.ORDER` declaration reduces the fixture to one invocation. A clean RP2040 integration build separately compiles the generated sources with warnings as errors. The gate validates build-graph serialization; it does not validate Battlestar gameplay or the external message text. |
 | `check-comment-hygiene`, `check-changed-comments` | The calibration gate exercises complete-file C comment recognition, selected-snapshot reads and changed-comment attribution. The enforcement gate compares explicit immutable commits and rejects four narrow forms of development narration in changed `.c` and `.h` comments. Linux firmware CI owns the immutable invocation; Linux and macOS host tiers own calibration. |
@@ -1722,6 +1724,19 @@ Clean parent and candidate distributions measured `kern_time.o` at 1,264 and
 1,180 text bytes. Each linked kernel lost 80 text bytes while retaining its
 data and BSS sizes. The compile-rule gate establishes generated-build routing;
 the clean link measurements establish the observed size offset.
+
+The kernel template compiles every RP2040 kernel object with `COPTS?= -Os`
+and `-fno-strict-aliasing`, and compiles `psram_xfer.c` at `-O` through
+`${COMPILE_CYCLE_C}`. `-Os` enables `-fstrict-aliasing`, which the kernel's
+`u.u_arg` and `b_addr` casts do not satisfy (`-Wstrict-aliasing=2` reports 183
+sites under GCC 13.2), so the kernel opts out. The PSRAM frame loop in
+`psram_frame()` drains the four-word PIO receive FIFO by polling, and its
+per-word cycle count is a design input: the receive path executes 27
+instructions per word at `-Os` and 22 at `-O` (GCC 13.2, disassembly of the
+`.ramfunc` section), so that file keeps `-O`.
+`check-config-generated-sync` regenerates all four Makefiles from the template
+and requires these flags and the `psram_xfer.o` rule. The gate establishes
+build routing; it executes no kernel code.
 
 `bmake MACHINE=rp2040 check-storage-counters` links PICO and PICO_UART with
 `STORAGE_STATS=no` and `STORAGE_STATS=yes`, checks absence/presence of the

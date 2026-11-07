@@ -29,16 +29,16 @@ class LoggedBuildCheckTest(unittest.TestCase):
         self.evidence_root = self.directory / "evidence"
         self.execution_lock = self.directory / "products.lock"
 
-    def run_sequence(self, make, timeout_seconds="2"):
+    def run_sequence(self, make, timeout_seconds="2", idle_seconds="1"):
         return subprocess.run(
-            self.sequence_command(make, timeout_seconds),
+            self.sequence_command(make, timeout_seconds, idle_seconds),
             text=True,
             capture_output=True,
             check=False,
             timeout=TEST_HELPER_TIMEOUT_SECONDS,
         )
 
-    def sequence_command(self, make, timeout_seconds="2"):
+    def sequence_command(self, make, timeout_seconds="2", idle_seconds="1"):
         return [
             sys.executable,
             str(SEQUENCE),
@@ -46,7 +46,7 @@ class LoggedBuildCheckTest(unittest.TestCase):
             "--evidence-root", str(self.evidence_root),
             "--execution-lock", str(self.execution_lock),
             "--heartbeat-seconds", "0.05",
-            "--idle-timeout-seconds", "1",
+            "--idle-timeout-seconds", idle_seconds,
             "--timeout-seconds", timeout_seconds,
             "--",
             str(make),
@@ -312,20 +312,24 @@ class LoggedBuildCheckTest(unittest.TestCase):
                     pass
 
     def test_total_deadline_includes_build_and_check(self):
+        # The build stage takes about a third of the total deadline, so the
+        # check stage's budget must be what remains: above zero and below
+        # the total. The margins hold under a loaded host, where launching
+        # the stages costs a sizable fraction of a second.
         make = self.directory / "slow-make"
         make.write_text(
             "#!/bin/sh\n"
             "set -eu\n"
             "last=\n"
             "for argument do last=$argument; done\n"
-            "if [ \"$last\" = build ]; then sleep 0.35; exit 0; fi\n"
+            "if [ \"$last\" = build ]; then sleep 1.0; exit 0; fi\n"
             "printf '%s\\n' CHECK-START\n"
             "sleep 60\n",
             encoding="ascii",
         )
         make.chmod(0o755)
 
-        result = self.run_sequence(make, timeout_seconds="0.55")
+        result = self.run_sequence(make, timeout_seconds="3.0", idle_seconds="30")
 
         self.assertEqual(result.returncode, 124, result.stdout + result.stderr)
         summary = json.loads(
@@ -340,7 +344,7 @@ class LoggedBuildCheckTest(unittest.TestCase):
         invocation = Path(summary["evidence_directory"])
         check = json.loads((invocation / "check.status.json").read_text())
         self.assertGreater(check["timeout_seconds"], 0)
-        self.assertLess(check["timeout_seconds"], 0.3)
+        self.assertLess(check["timeout_seconds"], 2.5)
 
     def test_exhausted_deadline_does_not_launch_check(self):
         args = sequence.parse_arguments(

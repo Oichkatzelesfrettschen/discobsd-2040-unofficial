@@ -17,6 +17,10 @@
  * offsets and result order. It does not establish the eight-cycle wait,
  * the divider's arithmetic or its overflow behavior, or the user MPU grant;
  * those need the board.
+ *
+ * Built with DIVIDER_NO_MODEL, the same program runs the Cortex-M4 helper
+ * (lib/libc/arm/gen/aeabi_div_idiv.S) as a Cortex-M4 program: no register
+ * block is armed or required, and any access to the SIO base faults.
  */
 
 typedef unsigned int u32;
@@ -345,10 +349,12 @@ main(void)
 		check_pair(a, 0u - b);
 		check_pair(0u - a, 0u - b);
 	}
+#ifndef DIVIDER_NO_MODEL
 	if (model_steps == 0u) {
 		put_text("the divider model never ran\n");
 		failures++;
 	}
+#endif
 	put_text("edge values=");
 	put_hex(edge_count);
 	put_text("comparisons=");
@@ -360,7 +366,9 @@ main(void)
 	put_text("failures=");
 	put_hex(failures);
 	put_text("\n");
+#ifndef DIVIDER_NO_MODEL
 	if (model_zero_divisors != 0u)
 		failures++;
+#endif
 	return failures != 0u;
 }

@@ -1313,7 +1313,12 @@ establishes the helpers' sign, zero-divisor, `INT_MIN`, register-preservation
 and operand/result-order behavior against the divider contract of datasheet
 2.3.1.5; it does not establish the eight-cycle wait, the divider's arithmetic
 or overflow behavior, or the user MPU grant, which only a board run shows
-(tests/rp2040/divtest). usr.bin/smlrc's suite compiles each test with the
+(tests/rp2040/divtest). `check-m4` in the same directory runs the machine's
+selected source for STM32 (`DIV_SRC` of lib/libc/arm/gen/Makefile, the
+SDIV/UDIV helpers in `aeabi_div_idiv.S`) as a Cortex-M4 program under
+`qemu-arm -cpu cortex-m4` with no divider model, against the same oracles,
+and requires the RP2040 SIO helper built for that CPU (which faults at
+0xd0000000) and a helper with a wrong remainder to fail. usr.bin/smlrc's suite compiles each test with the
 Thumb-1 back end, links it against a copy of the tree's libc with the
 Boot ROM float members and `aeabi_div.o` removed (qemu-arm maps no ROM at
 address 0x10 and no SIO block at 0xd0000000, so libgcc's soft-float and

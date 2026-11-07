@@ -707,8 +707,8 @@ test_gfx_mode(void)
 	reset();
 	out("before\r\n\033[31mred\033[0m");
 	lcdterm_cursor_show();
-	lcdterm_gfx(1);
 	ndraws = nfills = ntops = 0;
+	lcdterm_gfx(1);
 	expect_int("entering draws nothing", ndraws + nfills + ntops, 0);
 	out("during \033[2;1H\033[K\033[2J\033[1;1Hhidden");
 	for (i = 0; i < 40; i++) {

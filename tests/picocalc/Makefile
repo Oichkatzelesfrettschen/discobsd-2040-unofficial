@@ -17,11 +17,12 @@
 # uploads that skip the row check or the code check. A harness that passed
 # them would be checking nothing.
 #
-# Nine more mutants break the terminal's pixel mode: a terminal that draws
+# Ten more mutants break the terminal's pixel mode: a terminal that draws
 # cells, fills or scroll starts while a pixel program owns the panel, one
 # whose repaint skips the last row, the scroll start or the cursor, one
-# whose mode switch skips the repaint or the text configuration, and a fatal
-# path that does not leave the mode. lcdgfx_test drives the /dev/lcdgfx
+# whose mode switch skips the repaint or the text configuration, one that
+# repaints on entering the mode, and a fatal path that does not leave the
+# mode. lcdgfx_test drives the /dev/lcdgfx
 # driver (lcdgfx.c) and the real terminal against a model of the panel's
 # write path; thirty-seven mutants of lcdgfx.c and lcdterm.c must fail it:
 # a skipped exclusive open, restore, range check, window abandonment or
@@ -116,7 +117,7 @@ mutants: mutant-scroll mutant-region mutant-ctrl mutant-reverse-erase \
 	mutant-bank-code mutant-gfx-gate-cell mutant-gfx-gate-fill \
 	mutant-gfx-gate-top mutant-gfx-repaint-row mutant-gfx-repaint-top \
 	mutant-gfx-repaint-cursor mutant-gfx-leave-repaint \
-	mutant-gfx-leave-reset mutant-gfx-abort
+	mutant-gfx-leave-reset mutant-gfx-abort mutant-gfx-enter-draws
 
 mutant-scroll:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -209,6 +210,12 @@ mutant-gfx-leave-repaint:
 mutant-gfx-leave-reset:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
 	    '/^lcdterm_gfx/,/^}/s/lcd_gfx_reset();/(void)0;/'
+
+# Entering pixel mode must leave the panel to the pixel device: a repaint on
+# entry draws over what the program is about to show.
+mutant-gfx-enter-draws:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/^[[:space:]]*gfx_active = on;$$/gfx_active = on ? (lcdterm_repaint(), on) : 0;/'
 
 mutant-gfx-abort:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \

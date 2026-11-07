@@ -103,6 +103,10 @@ def main():
             "corrupt-output-initialization",
             "omitted-media-gone-case",
             "omitted-glyph-case",
+            "omitted-lcdg-draw-cases",
+            "omitted-lcdg-window-case",
+            "omitted-lcdg-control-cases",
+            "omitted-lcdg-info-case",
         ),
         required=True,
     )
@@ -169,7 +173,32 @@ def main():
     elif arguments.mutation == "omitted-glyph-case":
         source = replace_once(
             source,
-            "#ifdef PICOCALC_ENABLED\n    case LCDIOC_SETGLYPH:\n#endif\n",
+            "    case LCDIOC_SETGLYPH:\n",
+            "",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-lcdg-draw-cases":
+        source = replace_once(
+            source,
+            "    case LCDG_FILL:\n    case LCDG_PIXEL:\n    case LCDG_LINE:\n"
+            "    case LCDG_FRAME:\n    case LCDG_CIRCLE:\n",
+            "",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-lcdg-window-case":
+        source = replace_once(source, "    case LCDG_WINDOW:\n", "", arguments.mutation)
+    elif arguments.mutation == "omitted-lcdg-control-cases":
+        source = replace_once(
+            source,
+            "    case LCDG_PALETTE:\n    case LCDG_SCROLL:\n    case LCDG_SCRDEF:\n"
+            "    case LCDG_COLMOD:\n",
+            "",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-lcdg-info-case":
+        source = replace_once(
+            source,
+            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n#endif\n",
             "",
             arguments.mutation,
         )

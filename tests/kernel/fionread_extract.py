@@ -21,6 +21,7 @@ INCLUDES = """#include <sys/param.h>
 #include <sys/ioctl.h>
 #include <sys/swap.h>
 #include <sys/lcdcons.h>
+#include <sys/lcdgfx.h>
 #include <sys/kernel.h>
 #include <sys/systm.h>
 """

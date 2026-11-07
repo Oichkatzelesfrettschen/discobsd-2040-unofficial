@@ -14,6 +14,7 @@
 #include <sys/swap.h>
 #ifdef PICOCALC_ENABLED
 #include <sys/lcdcons.h>
+#include <sys/lcdgfx.h>
 #endif
 #include <sys/conf.h>
 #include <sys/uio.h>
@@ -265,6 +266,9 @@ ioctl(void)
     case DIOCGETMEDIASIZE:
     case DIOCGETPART:
     case DIOCMEDIAGONE:
+#ifdef PICOCALC_ENABLED
+    case LCDG_INFO:
+#endif
         bzero((caddr_t)&payload, sizeof payload);
         u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com,
             (caddr_t)&payload);
@@ -290,6 +294,16 @@ ioctl(void)
     case TFALLOC:
 #ifdef PICOCALC_ENABLED
     case LCDIOC_SETGLYPH:
+    case LCDG_FILL:
+    case LCDG_PIXEL:
+    case LCDG_LINE:
+    case LCDG_FRAME:
+    case LCDG_CIRCLE:
+    case LCDG_WINDOW:
+    case LCDG_PALETTE:
+    case LCDG_SCROLL:
+    case LCDG_SCRDEF:
+    case LCDG_COLMOD:
 #endif
         break;
     default:

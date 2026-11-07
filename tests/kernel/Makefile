@@ -369,7 +369,9 @@ FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width \
 				direct-output-pointer unconditional-output-publication \
 				short-output-copy omitted-output-publication \
 				corrupt-output-initialization omitted-media-gone-case \
-				omitted-glyph-case
+				omitted-glyph-case omitted-lcdg-draw-cases \
+				omitted-lcdg-window-case omitted-lcdg-control-cases \
+				omitted-lcdg-info-case
 FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/capacity.h \
 	${TOPSRC}/sys/sys/cdefs.h ${TOPSRC}/sys/sys/conf.h \
@@ -380,6 +382,7 @@ FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/file.h ${TOPSRC}/sys/sys/fs.h \
 	${TOPSRC}/sys/sys/inode.h ${TOPSRC}/sys/sys/ioctl.h \
 	${TOPSRC}/sys/sys/kernel.h ${TOPSRC}/sys/sys/lcdcons.h \
+	${TOPSRC}/sys/sys/lcdgfx.h \
 	${TOPSRC}/sys/sys/mount.h \
 	${TOPSRC}/sys/sys/param.h ${TOPSRC}/sys/sys/proc.h \
 	${TOPSRC}/sys/sys/resource.h ${TOPSRC}/sys/sys/select.h \
@@ -1261,6 +1264,10 @@ check-fionread-mutants: \
 			corrupt-output-initialization) expected='(unsigned char)unaligned[byte_index] == 0' ;; \
 			omitted-media-gone-case) expected='provider_data != unaligned' ;; \
 			omitted-glyph-case) expected='provider_data != unaligned' ;; \
+			omitted-lcdg-draw-cases) expected='provider_data != unaligned' ;; \
+			omitted-lcdg-window-case) expected='provider_data != unaligned' ;; \
+			omitted-lcdg-control-cases) expected='provider_data != unaligned' ;; \
+			omitted-lcdg-info-case) expected='provider_data != unaligned' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

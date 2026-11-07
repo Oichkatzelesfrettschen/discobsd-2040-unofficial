@@ -25,6 +25,30 @@ compile the classifier without the entry and keep their text byte for byte.
 The fixture builds `ioctl()` with the define and a mutant that omits the case
 fails it.
 
+The same define adds the ten input commands and the one output command of
+`/dev/lcdgfx` (`sys/sys/lcdgfx.h`):
+
+| Type | Command | Size |
+| --- | --- | --- |
+| `struct lcdg_rect` | `LCDG_FILL`, `LCDG_FRAME` | 10 |
+| `struct lcdg_pixel` | `LCDG_PIXEL` | 6 |
+| `struct lcdg_line` | `LCDG_LINE` | 10 |
+| `struct lcdg_circle` | `LCDG_CIRCLE` | 8 |
+| `struct lcdg_window` | `LCDG_WINDOW` | 12 |
+| `struct lcdg_palette` | `LCDG_PALETTE` | 4 |
+| `struct lcdg_scroll` | `LCDG_SCROLL` | 2 |
+| `struct lcdg_scrdef` | `LCDG_SCRDEF` | 4 |
+| `struct lcdg_colmod` | `LCDG_COLMOD` | 1 |
+| `struct lcdg_info` (output) | `LCDG_INFO` | 6 |
+
+The input commands copy into the aligned union, which the 16-byte
+`struct diskpart` already sizes and aligns for every one of them;
+`LCDG_INFO` joins the output-only list and receives zeroed storage. The
+fixture checks each command's ownership, upper span edge, crossing span,
+provider error and reserved-bit forwarding, and one mutant per command family
+(the five shapes, the window, the four panel controls, the output command)
+fails it.
+
 One automatic union owns the copied bytes. Its member types supply each
 provider's required alignment without a shared buffer or a maximum-size
 automatic array. The syscall copies `TFALLOC` output back only after provider

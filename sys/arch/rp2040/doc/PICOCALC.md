@@ -39,7 +39,7 @@ name a file there, with a page for a PDF.
 | PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed: text 123,332 of 130,816 bytes (`RP2040.ld` FLASH; 7,484 bytes of headroom), data 368, bss 47,600; no `psram` symbol in `unix.elf`; the console alone measured 118,268 text, 304 data and 45,888 bss, so the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,888) add 5,064 text, and 118,268 + 5,064 equals the merged build |
 | PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of PICOCALC | build | observed: text 125,448 of 130,816 bytes (5,368 bytes of headroom), data 424, bss 47,752; it exceeds PICOCALC by 2,116 text, 56 data and 152 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,068, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
-| `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
+| `picokbd.c`, `lcdcons.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) under the PICOCALC definitions | build | observed by `check-console-c17-cross` (`TESTING.md`); `sys/sys/exec.h` no longer declares an empty struct and `sys/sys/inode.h` includes `uio.h` instead of forward-declaring `enum uio_rw`, and `struct exec_params` keeps its 284-byte layout; the objects still build under the kernel's GNU17 profile |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
 | The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
@@ -621,12 +621,3 @@ the arithmetic fits the 384 KB raw swap, and no board run has forked it.
 `tests/dcbc` (`check-dcbc`, and `check-qemu` for dc) is the host evidence,
 `tests/rp2040/dcbc_smoke/board_dcbc_smoke.py` the closed board script, and
 `docs/research/openbsd-dc-bn-port.md` the port record.
-
-### Strict C17 for the remaining console files
-
-`sys/exec.h:51` declares an empty `struct {} aout;` inside a union, a GNU
-extension; nothing references the member. Removing it lets `picokbd.c`
-and `lcdcons.c`, and every other file that includes `sys/user.h`,
-compile with `-std=c17 -pedantic-errors`. It touches a header every
-kernel object includes, so it lands as its own change with the
-`check-c17-compile-profiles` gate moved to strict C17 for those files.

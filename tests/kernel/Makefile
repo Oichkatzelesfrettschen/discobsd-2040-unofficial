@@ -403,6 +403,17 @@ TTY_LAYOUT_CFLAGS=	-std=c17 -pedantic-errors -mcpu=cortex-m0plus \
 			-nostdinc -DKERNEL -I. -I${TOPSRC}/sys \
 			-I${TOPSRC}/sys/arch -I${PORT_INCLUDE} ${GATE_WARN}
 TTY_LAYOUT_BAD_OUTPUT=	tty_layout_contract_bad.out
+# The PicoCalc console files compile as strict ISO C17 under the PICOCALC
+# kernel's own definitions. exec_layout_contract.c holds the layout of
+# struct exec_params, which sys/sys/user.h pulls into every kernel object.
+CONSOLE_C17_SOURCES=	picokbd lcdcons
+CONSOLE_C17_DIR=	${TOPSRC}/sys/arch/rp2040/dev
+.if ${MACHINE:U} == "rp2040"
+CONSOLE_C17_PARAM!=	${MAKE} -C ${TOPSRC}/sys/arch/rp2040/compile/PICOCALC -v PARAM
+.else
+CONSOLE_C17_PARAM=
+.endif
+CONSOLE_C17_CFLAGS=	${TTY_LAYOUT_CFLAGS} ${CONSOLE_C17_PARAM}
 MEM_SPAN_SRC=		${TOPSRC}/sys/dev/mem.c
 MEM_SPAN_MACHDEP_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
 MEM_SPAN_FUNCTIONS=	mem_kernel_span_functions.c
@@ -808,6 +819,45 @@ check-tty-layout-cross: tty_layout_contract.o
 		exit 1; \
 	fi; \
 	echo "PASS tty layout rejects a 121-byte structure contract"
+
+check-console-c17-cross: ${MACHINE_STAMP}
+	@set -eu; \
+	for source in ${CONSOLE_C17_SOURCES}; do \
+		${GCCPREFIX}-gcc ${CONSOLE_C17_CFLAGS} -O -c -o /dev/null \
+		    ${CONSOLE_C17_DIR}/$$source.c; \
+		echo "PASS $$source.c compiles as strict C17"; \
+	done; \
+	${GCCPREFIX}-gcc ${TTY_LAYOUT_CFLAGS} -fsyntax-only \
+	    exec_layout_contract.c; \
+	echo "PASS struct exec_params layout contract under strict C17"; \
+	output=console_c17_bad.out; \
+	trap 'rm -f $$output' EXIT; \
+	if ${GCCPREFIX}-gcc ${TTY_LAYOUT_CFLAGS} \
+	    -DEXEC_LAYOUT_EXPECTED_SIZE=283 -fsyntax-only \
+	    exec_layout_contract.c >$$output 2>&1; then \
+		cat $$output >&2; \
+		echo "FAIL exec layout accepted a 283-byte structure contract" >&2; \
+		exit 1; \
+	fi; \
+	if ! grep -F "struct exec_params size changed" $$output >/dev/null; then \
+		cat $$output >&2; \
+		echo "FAIL exec layout rejection missed the size assertion" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS exec layout rejects a 283-byte structure contract"; \
+	if printf 'struct bad { struct { } empty; };\n' | \
+	    ${GCCPREFIX}-gcc ${CONSOLE_C17_CFLAGS} -fsyntax-only -x c - \
+	    >$$output 2>&1; then \
+		cat $$output >&2; \
+		echo "FAIL strict C17 flags accepted an empty struct" >&2; \
+		exit 1; \
+	fi; \
+	if ! grep -F "struct has no members" $$output >/dev/null; then \
+		cat $$output >&2; \
+		echo "FAIL empty struct rejection missed the diagnostic" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS strict C17 flags reject an empty struct"
 
 # The harness carries no kernel header, so it compiles without the renames
 # and reaches <setjmp.h>, <stdio.h> and <string.h> the way any host program
@@ -2918,4 +2968,4 @@ clean:
 	check-tty-local-mode-mutants check-tty-local-mode-ubsan-oracle \
 	check-tty-local-mode-ilp32-mutant \
 	check-tty-local-mode-sanitizer check-tty-layout-cross \
-	tty-layout-contract-force clean
+	check-console-c17-cross tty-layout-contract-force clean

@@ -1185,6 +1185,9 @@ check-kernel-ilp32:
 check-tty-layout-cross:
 		${MAKE} -C tests/kernel check-tty-layout-cross
 
+check-console-c17-cross:
+		${MAKE} -C tests/kernel check-console-c17-cross
+
 check-rp2040-shutdown:
 		${MAKE} -C tests/kernel check-shutdown
 
@@ -1244,6 +1247,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
 		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
 		check-kernel-printf-formats .WAIT check-tty-layout-cross .WAIT \
+		check-console-c17-cross .WAIT \
 		check-ptrace-libc-abi .WAIT \
 		check-hsaout .WAIT check-hsx-decoder .WAIT check-flash-swap .WAIT \
 		check-rp2040-shutdown-cross .WAIT check-storage-counters
@@ -1388,7 +1392,7 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
-		check-tty-layout-cross \
+		check-tty-layout-cross check-console-c17-cross \
 		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \

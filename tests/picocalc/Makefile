@@ -17,6 +17,12 @@
 # uploads that skip the row check or the code check. A harness that passed
 # them would be checking nothing.
 #
+# Nine more mutants break the terminal's pixel mode: a terminal that draws
+# cells, fills or scroll starts while a pixel program owns the panel, one
+# whose repaint skips the last row, the scroll start or the cursor, one
+# whose mode switch skips the repaint or the text configuration, and a fatal
+# path that does not leave the mode.
+#
 # kbdreq_test runs the keyboard-controller register mailbox against a
 # model of the vendor firmware's register handler; eight mutants of
 # picokbd_req.c and picokbd_req.h must fail it.
@@ -95,7 +101,10 @@ mutants: mutant-scroll mutant-region mutant-ctrl mutant-reverse-erase \
 	mutant-bright mutant-bell mutant-bell-any mutant-bank-store \
 	mutant-bank-redraw mutant-bank-ascii mutant-bank-c1 \
 	mutant-bank-acs-shift mutant-bank-ris mutant-bank-rows \
-	mutant-bank-code
+	mutant-bank-code mutant-gfx-gate-cell mutant-gfx-gate-fill \
+	mutant-gfx-gate-top mutant-gfx-repaint-row mutant-gfx-repaint-top \
+	mutant-gfx-repaint-cursor mutant-gfx-leave-repaint \
+	mutant-gfx-leave-reset mutant-gfx-abort
 
 mutant-scroll:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -156,6 +165,42 @@ mutant-bank-rows:
 mutant-bank-code:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
 	    '/^lcdterm_setglyph/,/^}/s/code >= LT_GLYPH_FIRST + LT_GLYPH_N/code > 0x1ff/'
+
+mutant-gfx-gate-cell:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^panel_cell/,/^}/s/if (!gfx_active)/if (1)/'
+
+mutant-gfx-gate-fill:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^panel_fill/,/^}/s/if (!gfx_active)/if (1)/'
+
+mutant-gfx-gate-top:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^panel_top/,/^}/s/if (!gfx_active)/if (1)/'
+
+mutant-gfx-repaint-row:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_repaint/,/^}/s/p < LT_ROWS; p++/p < LT_ROWS - 1; p++/'
+
+mutant-gfx-repaint-top:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_repaint/,/^}/s/lcd_set_top(top);/(void)top;/'
+
+mutant-gfx-repaint-cursor:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_repaint/,/^}/s/lcdterm_cursor_show();/(void)0;/'
+
+mutant-gfx-leave-repaint:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/lcdterm_repaint();/(void)0;/'
+
+mutant-gfx-leave-reset:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/lcd_gfx_reset();/(void)0;/'
+
+mutant-gfx-abort:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/'
 
 KBDREQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD}" "${DEV}" \
 		kbdreq_test.c
@@ -560,6 +605,10 @@ clean:
 	mutant-bell-any mutant-bank-store mutant-bank-redraw \
 	mutant-bank-ascii mutant-bank-c1 mutant-bank-acs-shift \
 	mutant-bank-ris mutant-bank-rows mutant-bank-code clean \
+	mutant-gfx-gate-cell mutant-gfx-gate-fill mutant-gfx-gate-top \
+	mutant-gfx-repaint-row mutant-gfx-repaint-top \
+	mutant-gfx-repaint-cursor mutant-gfx-leave-repaint \
+	mutant-gfx-leave-reset mutant-gfx-abort \
 	kbdreq-mutants kbdreq-mutant-write-bit kbdreq-mutant-echo \
 	kbdreq-mutant-retry kbdreq-mutant-expire-sent \
 	kbdreq-mutant-percent kbdreq-mutant-level kbdreq-mutant-off-floor \

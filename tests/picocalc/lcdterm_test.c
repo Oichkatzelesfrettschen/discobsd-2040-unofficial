@@ -26,6 +26,11 @@
  * update the terminal forgot to draw fails the same way a wrong store does.
  * A cell with a bank code (0x80-0xff) also records the nine glyph rows the
  * bank held when the cell was drawn, which is what st7365p.c would clock out.
+ * The pixel mode (lcdterm_gfx) is checked here at the terminal: the draw,
+ * fill and scroll primitives are counted so that a silent terminal is
+ * observable, and lcd_gfx_reset() records that the text configuration was
+ * restored. tests/picocalc/lcdgfx_test.c drives the /dev/lcdgfx driver
+ * against a model of the pixel primitives.
  */
 
 #include <stdio.h>
@@ -43,6 +48,8 @@ static char replies[64];
 static int nreplies;
 static int nbells;
 static int failures;
+static int ndraws, nfills, ntops;	/* Primitive calls, for a silent terminal. */
+static int nresets;			/* lcd_gfx_reset() calls. */
 
 void
 lcd_draw_cell(int prow, int col, int ch, unsigned attr)
@@ -53,6 +60,7 @@ lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 		fprintf(stderr, "draw outside panel: %d,%d\n", prow, col);
 		exit(2);
 	}
+	ndraws++;
 	panel_ch[prow][col] = (unsigned char)ch;
 	panel_at[prow][col] = (unsigned char)attr;
 	glyph = lcdterm_glyph(ch);
@@ -70,6 +78,7 @@ lcd_fill_cells(int prow, int col, int n, unsigned attr)
 		fprintf(stderr, "fill outside panel: %d,%d+%d\n", prow, col, n);
 		exit(2);
 	}
+	nfills++;
 	while (n-- > 0) {
 		panel_ch[prow][col] = ' ';
 		memset(panel_bits[prow][col], 0, LT_GLYPH_ROWS);
@@ -80,7 +89,14 @@ lcd_fill_cells(int prow, int col, int n, unsigned attr)
 void
 lcd_set_top(int prow)
 {
+	ntops++;
 	panel_top = prow;
+}
+
+void
+lcd_gfx_reset(void)
+{
+	nresets++;
 }
 
 void
@@ -191,6 +207,7 @@ reset(void)
 	lcdterm_init();
 	nreplies = 0;
 	nbells = 0;
+	ndraws = nfills = ntops = nresets = 0;
 }
 
 static void
@@ -674,6 +691,87 @@ test_glyph_bank(void)
 	expect_consistent("resets");
 }
 
+/*
+ * While a pixel program owns the panel the terminal keeps interpreting its
+ * input, so the store, the ring and the cursor stay current, but it calls no
+ * panel primitive. Leaving the mode puts the panel in the text
+ * configuration and repaints every cell and the scroll start from the
+ * store, so text written meanwhile appears.
+ */
+static void
+test_gfx_mode(void)
+{
+	char buf[16];
+	int i, row, col, p;
+
+	reset();
+	out("before\r\n\033[31mred\033[0m");
+	lcdterm_cursor_show();
+	lcdterm_gfx(1);
+	ndraws = nfills = ntops = 0;
+	expect_int("entering draws nothing", ndraws + nfills + ntops, 0);
+	out("during \033[2;1H\033[K\033[2J\033[1;1Hhidden");
+	for (i = 0; i < 40; i++) {
+		snprintf(buf, sizeof(buf), "line %d\r\n", i);
+		out(buf);
+	}
+	out("\033[5;5r\033[3;1H\033M\033[r\033[L\033[M\033[3@\033[2P");
+	out("\033(0q\033(B\033[?25l\033[?25h\033[7;9H");
+	lcdterm_cursor_show();
+	expect_int("no cell drawn while active", ndraws, 0);
+	expect_int("no fill while active", nfills, 0);
+	expect_int("no scroll start while active", ntops, 0);
+	expect_int("not yet restored", nresets, 0);
+	expect_line("the model panel still shows the text before", 0, "before");
+	expect_int("the store follows the text", lcdterm_cell(LT_ROWS - 2, 0), 'l');
+	lcdterm_cursor(&row, &col);
+	expect_int("the cursor moved in the store, row", row, 6);
+	expect_int("the cursor moved in the store, column", col, 8);
+
+	lcdterm_gfx(0);
+	expect_int("leaving restores the text configuration once", nresets, 1);
+	expect_int("leaving repaints every cell", ndraws >= LT_ROWS * LT_COLS, 1);
+	expect_int("leaving moves the scroll start to the ring top", panel_top,
+	    lcdterm_top());
+	expect_int("the ring advanced while active", lcdterm_top() != 0, 1);
+	p = (panel_top + row) % LT_ROWS;
+	expect_int("the cursor is drawn on the repainted panel",
+	    LT_ATTR_BG(panel_at[p][col]), 7);
+	out("\033[m");
+	expect_consistent("repaint after the mode");
+	expect_line("text written during the mode appears", LT_ROWS - 2, "line 39");
+
+	/* Text after the mode draws again. */
+	ndraws = 0;
+	out("x");
+	expect_int("drawing resumes", ndraws >= 1, 1);
+
+	/* A cell or a glyph upload during the mode shows up at the repaint. */
+	reset();
+	lcdterm_gfx(1);
+	expect_int("upload during the mode", lcdterm_setglyph(0xa5, tile_a), 0);
+	lcdterm_putc(0xa5);
+	expect_int("no draw for the glyph", ndraws, 0);
+	lcdterm_gfx(0);
+	expect_bits("the repaint draws the uploaded glyph", 0, 0, tile_a);
+
+	/* The fatal path ends the mode and draws the report on a text panel. */
+	reset();
+	out("keep");
+	lcdterm_gfx(1);
+	out("\033[2J\033[1;1Hnew");
+	lcdterm_abort();
+	expect_int("abort restores the text configuration", nresets, 1);
+	expect_line("abort repaints the store", 0, "new");
+	out("\033[m");
+	expect_consistent("abort during the mode");
+	ndraws = 0;
+	out("z");
+	expect_int("abort leaves the terminal drawing", ndraws >= 1, 1);
+	lcdterm_abort();
+	expect_int("abort in text mode does not restore", nresets, 1);
+}
+
 static void
 key(int state, int k, int app, int *ctrl, const char *want, const char *what)
 {
@@ -773,6 +871,7 @@ main(void)
 	test_bell();
 	test_line_drawing_shapes();
 	test_glyph_bank();
+	test_gfx_mode();
 	test_keymap();
 	if (failures != 0) {
 		fprintf(stderr, "lcdterm_test: %d failures\n", failures);

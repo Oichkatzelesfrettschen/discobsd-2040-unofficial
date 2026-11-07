@@ -30,6 +30,12 @@
  * select a glyph of the RAM bank that LCDIOC_SETGLYPH (sys/lcdcons.h)
  * rewrites: a text cell and a tile cell share the store, the attributes,
  * the scroll ring and the cursor.
+ *
+ * lcdterm_gfx(1) makes the terminal stop drawing so a pixel program can own
+ * the panel (see sys/lcdgfx.h); lcdterm_gfx(0) restores the text
+ * configuration and calls lcdterm_repaint(), which also runs after a fatal
+ * fault interrupted a pixel program. The caller of either holds the drawing
+ * flag of lcdcons.c.
  */
 
 #ifndef _LCDTERM_H
@@ -70,6 +76,27 @@ void	lcd_draw_cell(int prow, int col, int ch, unsigned attr);
 void	lcd_fill_cells(int prow, int col, int n, unsigned attr);
 void	lcd_set_top(int prow);
 
+/*
+ * Pixel-level panel primitives of the /dev/lcdgfx driver (lcdgfx.c), from
+ * the same source. lcd_gfx_window() selects the panel and opens a write
+ * window over columns x0..x1 and lines y0..y1; each lcd_gfx_byte() then
+ * sends one byte of pixel data in the current COLMOD format, and
+ * lcd_gfx_end() deselects the panel. lcd_gfx_scroll() programs VSCSAD,
+ * lcd_gfx_scrdef() VSCRDEF with `top` and `bottom` fixed lines, and
+ * lcd_gfx_colmod() COLMOD. lcd_gfx_reset() returns the panel to the text
+ * configuration: COLMOD 0x66, VSCRDEF 0/320/160 and the two pixel columns
+ * right of the last cell cleared. lcd_palette holds the console's sixteen
+ * colors, red, green and blue as 8-bit values.
+ */
+void	lcd_gfx_window(int x0, int y0, int x1, int y1);
+void	lcd_gfx_byte(unsigned b);
+void	lcd_gfx_end(void);
+void	lcd_gfx_scroll(int line);
+void	lcd_gfx_scrdef(int top, int bottom);
+void	lcd_gfx_colmod(unsigned fmt);
+void	lcd_gfx_reset(void);
+extern const unsigned char lcd_palette[16][3];
+
 /* Sound the bell for BEL (0x07): supplied by picoaudio.c or the host test. */
 void	lcd_bell(void);
 
@@ -82,6 +109,8 @@ void	lcdterm_reply(const char *s, int n);
 
 void	lcdterm_init(void);
 void	lcdterm_abort(void);
+void	lcdterm_repaint(void);
+void	lcdterm_gfx(int on);
 void	lcdterm_putc(int c);
 void	lcdterm_cursor_show(void);
 int	lcdterm_app_cursor(void);

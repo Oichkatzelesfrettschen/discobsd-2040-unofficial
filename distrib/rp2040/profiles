@@ -111,6 +111,13 @@ closure calc needs path /usr/bin/calc
 closure sdcard needs path /mnt /dev/sd0 /dev/sd0a /dev/sd0b /dev/rsd0 /dev/rsd0a /dev/rsd0b
 
 #
+# The PicoCalc's pixel device is minor 1 of character major 10, the console's
+# major, so only the PICOCALC kernels have a driver behind /dev/lcdgfx and
+# only the picocalc profile names the closure.
+#
+closure lcdgfx needs path /dev/lcdgfx
+
+#
 # Measured cost. Each line records the free blocks and free inodes an image
 # loses when it holds base plus the named closure or group plus the closures
 # that name needs, read from `fsutil --verbose --partition=1` on the built
@@ -132,6 +139,7 @@ cost dc 21 1
 cost calc-bignum 60 3
 cost calc 33 1
 cost sdcard 1 7
+cost lcdgfx 0 1
 cost gamesdir 1 1
 cost games 24 2
 cost puzzles 37 2
@@ -156,12 +164,13 @@ cost lightup 23 2
 # full       every closure a bare Raspberry Pi Pico ships; the image the
 #            PICO board builds by default
 # picocalc   full plus the ClockworkPi PicoCalc's own closures: the
-#            arbitrary-precision calculator, the scientific calculator and
-#            the SD card's device nodes; the PICOCALC board's default
+#            arbitrary-precision calculator, the scientific calculator, the
+#            SD card's device nodes and the pixel device node; the PICOCALC
+#            board's default
 #
 profile base
 profile benchmark coremark
 profile developer toolchain toolchainlib
 profile games games puzzles
 profile full coremark toolchain toolchainlib games puzzles
-profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard
+profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx

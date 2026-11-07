@@ -41,12 +41,15 @@ split, so a profile or command that named `games`, `puzzles`, `toolchain` or
 | `toolchain` | `as`, `ld`, `smlrc`, `cc` |
 | `calc-bignum` | `bc`, `dc` |
 
-The remaining closures stand alone: `coremark`, `calc`, `toolchainlib` and
-`sdcard`. The `sdcard` closure carries the `/mnt` mount point and the device
-nodes of the PicoCalc's SD card (block major 5, raw major 11 in `conf.c`); the
-`picocalc` profile names it, `full` does not, and the PICO kernels have no
-driver behind those majors. Its `needs path` line holds the mount point and
-all six nodes, so a manifest block that loses one stops the build.
+The remaining closures stand alone: `coremark`, `calc`, `toolchainlib`,
+`sdcard` and `lcdgfx`. The `sdcard` closure carries the `/mnt` mount point
+and the device nodes of the PicoCalc's SD card (block major 5, raw major 11 in
+`conf.c`); the `picocalc` profile names it, `full` does not, and the PICO
+kernels have no driver behind those majors. Its `needs path` line holds the
+mount point and all six nodes, so a manifest block that loses one stops the
+build. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
+console's character major 10, mode 666) that the PICOCALC kernels serve; the
+`picocalc` profile names it and no other does.
 `bmake MACHINE=rp2040 list-closures` prints every closure with its groups,
 dependencies, install paths and cost, and marks the ones the current
 `PROFILE`, `IMAGE_WITH` and `IMAGE_WITHOUT` keep.
@@ -106,11 +109,12 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 | `calc-bignum` (`bc` + `dc`) | 60 | 3 | the three files above |
 | `calc` | 33 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
 | `sdcard` | 1 | 7 | `/mnt` and the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`; PicoCalc only |
+| `lcdgfx` | 0 | 1 | the device node `/dev/lcdgfx` (character major 10, minor 1, mode 666); PicoCalc only |
 | `gamesdir` | 1 | 1 | `/usr/games` |
 | `games` group | 24 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall`, `coil` |
 | `puzzles` group with `gamesdir` | 37 | 2 | `puzzlebox` and hard links `flood`, `samegame`, `unruly`, `lightup` |
 | `games` and `puzzles` | 60 | 3 | both groups |
-| all maintained closures (`picocalc`) | 300 | 22 | |
+| all maintained closures (`picocalc`) | 300 | 23 | |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
@@ -174,7 +178,7 @@ the pack's unused blocks occupy no flash.
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's, including `puzzles` | 239 | 32 |
-| `picocalc` | `full` plus `calc-bignum`, `calc` and `sdcard`, so also `puzzles` | 147 | 21 |
+| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard` and `lcdgfx`, so also `puzzles` | 147 | 20 |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
@@ -188,6 +192,11 @@ the base image of this tree holds 447 free blocks where main's held 448.
 block was not traced. The `picocalc` row reads two blocks below main's 149,
 the one block of that difference plus the `sdcard` closure's block. The
 closure costs above are differences of images on one tree and equal main's.
+The `lcdgfx` cost is such a difference too: the `picocalc` image of this tree
+holds 148 free blocks and 21 free inodes when built with
+`IMAGE_WITHOUT=lcdgfx` and 148 and 20 as shipped, so the node costs one inode
+and no block. The
+`picocalc` row keeps its recorded 147 blocks and takes the inode.
 
 The opt-in option augments each profile with the emulator and guest pack. It
 does not add another maintained profile or change what `full` means:

@@ -36,12 +36,17 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed: text 124,284 of 130,816 bytes (`RP2040.ld` FLASH; 6,532 bytes of headroom), data 368, bss 48,752 with the glyph bank (Console, below), against 123,636, 368 and 47,600 before it; no `psram` symbol in `unix.elf`; an earlier build measured the console alone at 118,268 text, 304 data and 45,888 bss, and the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,888) add 5,064 text to it |
-| PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of PICOCALC | build | observed: text 126,400 of 130,816 bytes (4,416 bytes of headroom), data 424, bss 48,904 with the glyph bank, against 125,744, 424 and 47,752 before it; it exceeds PICOCALC by 2,116 text, 56 data and 152 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,068, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed: text 126,716 of 130,816 bytes (`RP2040.ld` FLASH; 4,100 bytes of headroom), data 368, bss 48,832 with the pixel device (Pixel device, below), against 124,308, 368 and 48,752 before it (origin/main `89f6ece2`, which holds the glyph bank); no `psram` symbol in `unix.elf`; an earlier build measured the console alone at 118,268 text, 304 data and 45,888 bss, and the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,888) add 5,064 text to it |
+| PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of PICOCALC | build | observed: text 128,824 of 130,816 bytes (1,992 bytes of headroom; the linked flash image holds 128,992 bytes, 1,824 free), data 424, bss 48,976 with the pixel device, against 126,424, 424 and 48,904 before it; it exceeds PICOCALC by 2,108 text, 56 data and 144 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,068, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | The console draws cell codes 0x80-0xff from a 128-glyph RAM bank, `ESC ( 0` maps 0x5f-0x7e onto bank codes 0x80-0x9f holding line-drawing shapes whose strokes meet the cell borders, and `LCDIOC_SETGLYPH` replaces a glyph and redraws the cells that show it | host | observed by `check-picocalc-host` against the model panel, which records the nine bank rows of every bank cell: shapes, joins, upload, redraw, rejection, raw-byte rule, resets; eight mutants fail it; the production `ioctl()` classifier copies the ten-byte payload under the same `PICOCALC_ENABLED` define as the PICOCALC kernels (`check-kernel`, one mutant) |
 | The tenth cell row of a bank glyph repeats its ninth, and `lcd_draw_cell()` clocks the bank rows to the panel | build | compiles and links into PICOCALC and PICOCALC_PSRAM; `st7365p.c` has no host model, so the repeated row and the pixels are read from the source, not run |
 | The bank on the panel: box drawing in `mc` or curses, a tile program, redraw after an upload | board | not run |
+| `/dev/lcdgfx` (character major 10, minor 1) takes the panel from the text console on open, refuses a second open with `EBUSY`, draws fills, pixels, lines, frames, circles, streamed windows in three formats, palette, scroll, scroll definition and color-format commands, rejects every out-of-range field without drawing, and on the last close restores COLMOD 0x66, VSCRDEF 0/320/160, the margin columns, the scroll start of the ring and every cell of the store | host | observed by `check-picocalc-host` (`lcdgfx_test`) against a model of the controller's write path and the real terminal: window, byte, scroll and format protocol checked on every call, fills and frames compared with their rectangles, lines with the ideal line, circles with their radius and symmetry, windows pixel by pixel in all three formats and in 2-, 130- and 520-byte writes, 51 range cases, the close restore compared with a text-only redraw of the same bytes; 37 mutants fail it (9 more fail `lcdterm_test` at the terminal) |
+| The ioctl classifier copies each `LCDG_*` payload (at most 12 bytes) into aligned kernel storage under `PICOCALC_ENABLED` and stages `LCDG_INFO` as zeroed output | host | observed by `check-kernel` (`fionread_test`, 605 checks, was 382): ownership, upper span edge, crossing span, provider error and reserved-bit cases for all eleven commands; four mutants (one per command family) fail it |
+| `lcdgfx.c` compiles into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their text, data and bss and differ from the earlier build only inside `version[]` | build | observed: PICOCALC text +2,408, bss +80; PICOCALC_PSRAM text +2,400, bss +72; PICO 107,720 / 248 / 39,848 and PICO_UART 96,250 / 192 / 14,832 unchanged, four bytes of `version[]` differing in each image (`objcopy -O binary`) |
+| `st7365p.c` clocks the pixel primitives and `lcd_gfx_reset()` to the panel | build | compiles and links; `st7365p.c` has no host model, so the SPI bytes, the VSCRDEF value and the COLMOD 0x55 pixel format are read from the source and from the model's protocol, not run |
+| `/dev/lcdgfx` on the panel: the shapes appear, the timings match the research note's table, a killed program leaves the text visible | board | not run |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
 | The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
@@ -297,6 +302,87 @@ the ioctl case and the bank branch of `lcd_draw_cell()`. Redrawing the cells
 of one code walks the 1,696-cell store and costs about 122 us of wire time per
 matching cell (about 207 ms when the whole screen shows it), at the priority of
 the caller.
+
+## Pixel device: lcdgfx.c
+
+`/dev/lcdgfx` is minor 1 of the console's character major 10 (`LCDGFX_MINOR` in
+`dev/lcdgfx.h`; `lcdcons.c` hands that minor to the driver in `lcdopen`,
+`lcdclose`, `lcdread`, `lcdwrite`, `lcdselect` and `lcdioctl`, so the
+`cdevsw` table and the major-number tests of `conf.c` stay as they were). A
+program opens `/dev/tty` for the keyboard and `/dev/lcdgfx` for the panel.
+`sys/sys/lcdgfx.h` is the user interface: eleven commands (`LCDG_FILL`,
+`PIXEL`, `LINE`, `FRAME`, `CIRCLE`, `WINDOW`, `PALETTE`, `SCROLL`, `SCRDEF`,
+`COLMOD`, `INFO`) of group `l`, numbers 16 to 26, each with a fixed payload of
+at most 12 bytes. The tile atlas commands are not part of this device.
+
+Opening takes the panel from the text console: `lcdcons_gfx(1)` takes the
+console's drawing flag, `lcdterm_gfx(1)` sets `gfx_active` so that `lcdterm.c`
+keeps updating its cell store, ring and cursor but calls none of
+`lcd_draw_cell`, `lcd_fill_cells` and `lcd_set_top`, and the driver programs
+scroll start 0, loads the 16-entry palette from the console's colors and
+assumes RGB666 with a 320-line scroll area. A second open fails with `EBUSY`
+before it touches the console; an open that finds the drawing flag held
+returns `EAGAIN` and leaves the device closed. The last close, which a
+process exit also performs, ends a window that still wants pixels and calls
+`lcdterm_gfx(0)`: `lcd_gfx_reset()` programs COLMOD 0x66, VSCRDEF 0/320/160
+and clears the two margin columns right of the last cell (the cell draws never
+reach them), then `lcdterm_repaint()` programs VSCSAD from the ring top, draws
+all 1,696 cells from the store (about 195 ms on the bus) and the cursor. Text
+written to the console meanwhile therefore appears at the close. A fatal fault
+runs the same restore: `lcdabandon()` ends the transfer when the device is
+open and `lcdterm_abort()` leaves the mode before the report draws.
+
+The decisions the research note left open:
+
+- Coordinates are rejected, not clipped. Every payload field is an unsigned
+  16-bit value, so a negative coordinate is a large one and fails the same
+  range test. A command whose point, corner, circle extent or window leaves the
+  320x320 panel returns `EINVAL` before the first panel write, which keeps
+  every command atomic and the driver free of clipping code; a program clips
+  its own shapes. The panel model fails the test on any window outside the
+  panel, so a skipped check cannot pass unnoticed.
+- `LCDG_WINDOW` carries the foreground and background palette indexes for the
+  1 bpp format (`fg`, `bg`; 11 bytes of payload, 12 with alignment), where the
+  note said "the current foreground and background". Formats: RGB565 (two
+  bytes per pixel, low byte first, even byte counts per `write(2)`), palette
+  index (one byte per pixel, high nibble ignored) and 1 bpp (most significant
+  bit first, rows padded to bytes).
+- The palette holds RGB565 entries (32 bytes), converted from the console's
+  8-bit table at every open and by `LCDG_PALETTE`; the panel keeps six bits per
+  component, so red and blue keep five bits and green six.
+- `LCDG_SCRDEF` also moves the scroll start to the first line of the scroll
+  area, and `LCDG_SCROLL` accepts lines inside the area the last definition
+  gave. A definition must leave at least one scroll line (top + bottom < 480);
+  the controller's own minimum scroll area was not checked, because the
+  specification PDF is not in the tree.
+- `LCDG_INFO` reports 320, 320, 0 tiles and 18 or 16 bits per pixel.
+- A window opened by `LCDG_WINDOW` keeps chip select low between `write(2)`
+  calls; any other command, and the close, ends it. Nothing else touches SPI1
+  while the device is open, because the terminal draws nothing and
+  `st7365p_abort()` ends the transfer on the fatal path.
+- Lines use Bresenham's algorithm with one panel window per pixel, except an
+  axis-parallel line, which is one window; a frame is four windows with no pixel
+  drawn twice; a circle is the midpoint algorithm.
+
+Sizes, from `arm-none-eabi-size` on `unix.elf` after a clean `bmake all` in
+each `compile/<BOARD>` directory, arm-none-eabi-gcc from the build host and
+parent commit `89f6ece2` (the glyph bank):
+
+| Kernel | Before (text / data / bss) | After (text / data / bss) | Delta |
+| --- | --- | --- | --- |
+| PICOCALC | 124,308 / 368 / 48,752 | 126,716 / 368 / 48,832 | +2,408 text, +80 bss |
+| PICOCALC_PSRAM | 126,424 / 424 / 48,904 | 128,824 / 424 / 48,976 | +2,400 text, +72 bss |
+| PICO | 107,720 / 248 / 39,848 | 107,720 / 248 / 39,848 | none |
+| PICO_UART | 96,250 / 192 / 14,832 | 96,250 / 192 / 14,832 | none |
+
+The text delta is `lcdgfx.o` 1,740 bytes (the ioctl dispatcher with the shape code
+1,132, the write path 304, open, close and three helpers 304), `sys_generic.o` +164 (eleven
+classifier cases), `lcdterm.o` +188 (gating, repaint, mode switch),
+`st7365p.o` +184 (the pixel primitives) and `lcdcons.o` +128 (the minor
+dispatch and `lcdcons_gfx()`). The bss delta is the 32-byte palette, the
+window and mode state, and `gfx_active`. The research note estimated 2.1 KB of
+text. PICOCALC_PSRAM keeps 1,992 bytes of flash headroom by the text column
+and 1,824 by the linked image.
 
 ## Keyboard: picokbd.c and picokbd_map.c
 
@@ -657,11 +743,11 @@ a decision on sample rate and format.
 `docs/research/picocalc-calculator-and-gui.md` surveys the calculators in
 this tree and in the other BSDs, the PicoMite firmware's math functions,
 and frame-buffer-less tile and sprite techniques, and orders an import
-plan with licenses and size estimates. The kernel side is a graphics
-ioctl set on the console device, modeled on RetroBSD's `gpanel`
-interface, plus a tile-blit operation that draws from a tile table the
-process passes; the text console restores itself from its cell store
-when a graphics client closes.
+plan with licenses and size estimates. The kernel side is `/dev/lcdgfx`
+(Pixel device, above), a pixel ioctl set modeled on RetroBSD's `gpanel`
+interface on a second minor of the console's major, plus a tile atlas that
+is not built; the text console restores itself from its cell store when the
+graphics client closes.
 
 The first item ships OpenBSD `bc` and `dc` (ISC, Otto Moerbeek; the manual
 pages and `bc.library` under the Caldera license, `NOTICE` sections 16 and 3)

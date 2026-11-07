@@ -410,6 +410,20 @@ Cost estimates for the kernel side:
 | Stack: a 64-byte chunk buffer for `uiomove` | 64 B of kernel stack on a 3 KB u-area |
 | `BOOT-MAP.md` region: kernel data and bss 106 KB, the document states 39,608 bytes used | headroom looks ample; measure with `size` on the real kernel |
 
+Implementation (staged plan item 8): the device landed for the subset of
+commands the plan names, without the tile atlas. Decisions the proposal left
+open: the device is minor 1 of the console's character major 10, which the
+console entry points hand to `lcdgfx.c`, so `conf.c` and its structural gate
+keep their tables; coordinates are rejected with `EINVAL` before any panel
+write, not clipped, and every field is unsigned so a negative value fails the
+same test; `LCDG_WINDOW` carries the palette indexes `fg` and `bg` that the
+1 bpp format draws with, in place of "the current foreground and background";
+`LCDG_SCRDEF` also moves the scroll start to the top of the scroll area; the
+palette is RGB565. Measured on the PICOCALC kernel: text +2,408 bytes (the
+estimate was about 2.1 KB), bss +80 bytes (estimate 0.1 KB); PICOCALC_PSRAM
+text +2,400 bytes (`sys/arch/rp2040/doc/PICOCALC.md`, Pixel device). The
+board runs, the timing comparison and the kill test remain open.
+
 Atlas in the kernel versus in user space: the bytes for a full-screen tile
 redraw are 1,600 for tile numbers against 204,800 for RGB565 pixels, a 128x
 difference in `write(2)` payload. Both paths remain bus bound (about 13 ms
@@ -485,9 +499,10 @@ new gate is needed. Board steps run only with the repository's exact opt-in.
   12.5 MHz and RGB666 deliberately.
 - Kernel flash headroom: the PICOCALC kernel links at 119,316 bytes of text
   against the 130,816-byte FLASH region of `conf/RP2040.ld`, leaving 11,500
-  bytes. The pixel device and tile atlas (items 8 and 9) estimate about
-  2.6 KB of text together, which fits; re-measure `size` on `unix` before
-  committing each.
+  bytes. The pixel device (item 8) cost 2,408 bytes of text there and 2,400
+  on PICOCALC_PSRAM, which keeps 1,992 bytes of the region; the tile atlas
+  (item 9) estimates about 0.5 KB of text and 4.2 KB of bss. Re-measure `size`
+  on `unix` before committing the atlas.
 - Shipping `bc` and `dc` changes the full manifest, which
   `docs/research/c17-shipped-resource-baseline.json` pins by hash and by
   packed program; item 1 therefore lands with a re-recorded baseline from a

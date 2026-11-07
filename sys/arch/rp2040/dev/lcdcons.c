@@ -48,6 +48,10 @@
  * A fatal kernel fault or a panic abandons the owner, which will never
  * resume: lcdabandon() ends the open panel transfer, resets the terminal
  * parser and frees the flag, so the report draws from a clean bus.
+ *
+ * Minor LCDGFX_MINOR of the same character major is /dev/lcdgfx (lcdgfx.c):
+ * the entry points below hand that minor to it, and lcdcons_gfx() switches
+ * the terminal between text and a pixel program under the drawing flag.
  */
 
 #include <sys/param.h>
@@ -65,6 +69,7 @@
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
 #include <rp2040/dev/lcdterm.h>
+#include <rp2040/dev/lcdgfx.h>
 
 #define	DEFER_RING	128		/* Power of two. */
 
@@ -148,7 +153,7 @@ lcdabandon(void)
 		 * scrolling region or unfinished escape would otherwise shape
 		 * or swallow the report.
 		 */
-		if (lcd_owned)
+		if (lcd_owned || lcdgfx_isopen())
 			st7365p_abort();
 		lcdterm_abort();
 	}
@@ -432,6 +437,8 @@ lcdopen(dev_t dev, int flag __unused, int mode __unused)
 {
 	struct tty *tp;
 
+	if (minor(dev) == LCDGFX_MINOR)
+		return lcdgfx_open();
 	if (minor(dev) >= LCDCONS_NTTY)
 		return ENXIO;
 	tp = &lcdttys[minor(dev)];
@@ -458,8 +465,11 @@ lcdopen(dev_t dev, int flag __unused, int mode __unused)
 int
 lcdclose(dev_t dev, int flag __unused, int mode __unused)
 {
-	struct tty *tp = &lcdttys[minor(dev)];
+	struct tty *tp;
 
+	if (minor(dev) == LCDGFX_MINOR)
+		return lcdgfx_close();
+	tp = &lcdttys[minor(dev)];
 	ttywflush(tp);
 	ttyclose(tp);
 	return 0;
@@ -468,18 +478,24 @@ lcdclose(dev_t dev, int flag __unused, int mode __unused)
 int
 lcdread(dev_t dev, struct uio *uio, int flag)
 {
+	if (minor(dev) == LCDGFX_MINOR)
+		return 0;		/* Write only: end of file. */
 	return ttread(&lcdttys[minor(dev)], uio, flag);
 }
 
 int
 lcdwrite(dev_t dev, struct uio *uio, int flag)
 {
+	if (minor(dev) == LCDGFX_MINOR)
+		return lcdgfx_write(uio);
 	return ttwrite(&lcdttys[minor(dev)], uio, flag);
 }
 
 int
 lcdselect(dev_t dev, int rw)
 {
+	if (minor(dev) == LCDGFX_MINOR)
+		return 1;		/* Always ready. */
 	return ttyselect(&lcdttys[minor(dev)], rw);
 }
 
@@ -508,12 +524,41 @@ lcd_setglyph(const struct lcd_glyph *g)
 	return error;
 }
 
+/*
+ * Hand the panel to /dev/lcdgfx (on) or take it back (off), under the
+ * drawing flag so that no renderer or kernel print draws a cell inside the
+ * panel transfers of the switch; what they defer drains at the release, into
+ * a terminal that is either silent (on) or repainted (off). Entering
+ * returns EAGAIN while the flag is held, which only an interrupt nested over
+ * a drawer can leave and a thread-mode caller cannot reach. Leaving cannot
+ * fail: a text console left blank is worse than a switch without the flag.
+ */
+int
+lcdcons_gfx(int on)
+{
+	int held;
+
+	if (!lcd_ready)
+		lcdcons_init();
+	held = lcd_acquire();
+	if (!held && on)
+		return EAGAIN;
+	lcdterm_gfx(on);
+	if (held) {
+		lcd_release();
+		reply_flush();
+	}
+	return 0;
+}
+
 int
 lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {
 	struct winsize *ws;
 	int error;
 
+	if (minor(dev) == LCDGFX_MINOR)
+		return lcdgfx_ioctl(cmd, addr);
 	if (cmd == LCDIOC_SETGLYPH)
 		return lcd_setglyph((struct lcd_glyph *)addr);
 

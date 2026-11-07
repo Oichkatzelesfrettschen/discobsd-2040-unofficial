@@ -21,7 +21,12 @@
 # cells, fills or scroll starts while a pixel program owns the panel, one
 # whose repaint skips the last row, the scroll start or the cursor, one
 # whose mode switch skips the repaint or the text configuration, and a fatal
-# path that does not leave the mode.
+# path that does not leave the mode. lcdgfx_test drives the /dev/lcdgfx
+# driver (lcdgfx.c) and the real terminal against a model of the panel's
+# write path; thirty-seven mutants of lcdgfx.c and lcdterm.c must fail it:
+# a skipped exclusive open, restore, range check, window abandonment or
+# scroll-start update, and wrong color widening, byte order, palette
+# handling, bit-row padding, line, circle and frame drawing.
 #
 # kbdreq_test runs the keyboard-controller register mailbox against a
 # model of the vendor firmware's register handler; eight mutants of
@@ -58,18 +63,25 @@ SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 
 all: check
 
-check: lcdterm_test kbdreq_test sdspi_test sdstrat_test picoaudio_test \
-	font-sync
+check: lcdterm_test lcdgfx_test kbdreq_test sdspi_test sdstrat_test \
+	picoaudio_test font-sync
 	./lcdterm_test
+	./lcdgfx_test
 	./kbdreq_test
 	./sdspi_test
 	./sdstrat_test
 	./picoaudio_test
-	${MAKE} mutants kbdreq-mutants sdspi-mutants sdstrat-mutants \
-	    picoaudio-mutants
+	${MAKE} mutants gfx-mutants kbdreq-mutants sdspi-mutants \
+	    sdstrat-mutants picoaudio-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
+
+lcdgfx_test: lcdgfx_test.c ${DEV}/lcdgfx.c ${DEV}/lcdgfx.h ${DEV}/lcdterm.c \
+	    ${DEV}/lcdterm.h ${DEV}/lcdfont.c ${DEV}/lcdfont.h \
+	    ${TOPSRC}/sys/sys/lcdgfx.h
+	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ lcdgfx_test.c ${DEV}/lcdgfx.c \
+	    ${DEV}/lcdterm.c ${DEV}/lcdfont.c
 
 kbdreq_test: kbdreq_test.c ${DEV}/picokbd_req.c ${DEV}/picokbd_req.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ kbdreq_test.c \
@@ -201,6 +213,198 @@ mutant-gfx-leave-reset:
 mutant-gfx-abort:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
 	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/'
+
+GFX_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
+		lcdgfx_test.c
+
+GFX_SRC=	lcdgfx.c lcdgfx.h lcdterm.c lcdterm.h lcdfont.c lcdfont.h
+
+gfx-mutants: \
+	gfx-mutant-exclusive-open \
+	gfx-mutant-no-restore \
+	gfx-mutant-coord-bound \
+	gfx-mutant-rect-order \
+	gfx-mutant-circle-right \
+	gfx-mutant-circle-left \
+	gfx-mutant-window-format \
+	gfx-mutant-window-extent \
+	gfx-mutant-window-gray \
+	gfx-mutant-palette-index \
+	gfx-mutant-scroll-range \
+	gfx-mutant-scrdef-sum \
+	gfx-mutant-scrdef-scroll \
+	gfx-mutant-colmod-565 \
+	gfx-mutant-colmod-any \
+	gfx-mutant-widen-red \
+	gfx-mutant-byte-order \
+	gfx-mutant-index-mask \
+	gfx-mutant-row-padding \
+	gfx-mutant-odd-write \
+	gfx-mutant-write-overrun \
+	gfx-mutant-ioctl-abandon \
+	gfx-mutant-close-abandon \
+	gfx-mutant-frame-overdraw \
+	gfx-mutant-circle-mirror \
+	gfx-mutant-circle-swap \
+	gfx-mutant-line-error \
+	gfx-mutant-line-fast-path \
+	gfx-mutant-palette-default \
+	gfx-mutant-open-format \
+	gfx-mutant-open-scroll \
+	gfx-mutant-info-bpp \
+	gfx-mutant-gate-cell \
+	gfx-mutant-enter-flag \
+	gfx-mutant-leave-repaint \
+	gfx-mutant-leave-reset \
+	gfx-mutant-abort-leave
+
+gfx-mutant-exclusive-open:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\tif (gfx_open)$$/\tif (0)/' ${GFX_SRC}
+
+gfx-mutant-no-restore:
+	${GFX_MUT} lcdgfx.c \
+	    's/return lcdcons_gfx(0);/return 0;/' ${GFX_SRC}
+
+gfx-mutant-coord-bound:
+	${GFX_MUT} lcdgfx.c \
+	    's/\*v++ >= LCDG_WIDTH/*v++ > LCDG_WIDTH/' ${GFX_SRC}
+
+gfx-mutant-rect-order:
+	${GFX_MUT} lcdgfx.c \
+	    's/ || rc->x0 > rc->x1//' ${GFX_SRC}
+
+gfx-mutant-circle-right:
+	${GFX_MUT} lcdgfx.c \
+	    's/ci->x + ci->r >= LCDG_WIDTH/ci->x + ci->r > LCDG_WIDTH/' ${GFX_SRC}
+
+gfx-mutant-circle-left:
+	${GFX_MUT} lcdgfx.c \
+	    's/ci->r > ci->x || //' ${GFX_SRC}
+
+gfx-mutant-window-format:
+	${GFX_MUT} lcdgfx.c \
+	    's/w->fmt > LCDG_WIN_BITS/w->fmt > 3/' ${GFX_SRC}
+
+gfx-mutant-window-extent:
+	${GFX_MUT} lcdgfx.c \
+	    's/w->x + w->w > LCDG_WIDTH/w->x + w->w > LCDG_WIDTH + 1/' ${GFX_SRC}
+
+gfx-mutant-window-gray:
+	${GFX_MUT} lcdgfx.c \
+	    's/w->fg >= LCDG_NPAL || //' ${GFX_SRC}
+
+gfx-mutant-palette-index:
+	${GFX_MUT} lcdgfx.c \
+	    's/pl->index >= LCDG_NPAL/pl->index > LCDG_NPAL/' ${GFX_SRC}
+
+gfx-mutant-scroll-range:
+	${GFX_MUT} lcdgfx.c \
+	    's/sc->line >= LCDG_RAM_LINES - scr_bottom/sc->line > LCDG_RAM_LINES - scr_bottom/' ${GFX_SRC}
+
+gfx-mutant-scrdef-sum:
+	${GFX_MUT} lcdgfx.c \
+	    's/sd->top + sd->bottom >= LCDG_RAM_LINES/sd->top + sd->bottom > LCDG_RAM_LINES/' ${GFX_SRC}
+
+gfx-mutant-scrdef-scroll:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\tlcd_gfx_scroll(scr_top);/\t\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-colmod-565:
+	${GFX_MUT} lcdgfx.c \
+	    's/ \&\& cm->fmt != LCDG_COLMOD_RGB565//' ${GFX_SRC}
+
+gfx-mutant-colmod-any:
+	${GFX_MUT} lcdgfx.c \
+	    's/if (cm->fmt != LCDG_COLMOD_RGB666 \&\& cm->fmt != LCDG_COLMOD_RGB565)/if (0)/' ${GFX_SRC}
+
+gfx-mutant-widen-red:
+	${GFX_MUT} lcdgfx.c \
+	    's/lcd_gfx_byte(r << 3 | r >> 2);/lcd_gfx_byte(r << 3);/' ${GFX_SRC}
+
+gfx-mutant-byte-order:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\tlcd_gfx_byte(c >> 8);/\t\tlcd_gfx_byte(c \& 0xff);/' ${GFX_SRC}
+
+gfx-mutant-index-mask:
+	${GFX_MUT} lcdgfx.c \
+	    's/gfx_pal\[v \& (LCDG_NPAL - 1)\]/gfx_pal[v % 17]/' ${GFX_SRC}
+
+gfx-mutant-row-padding:
+	${GFX_MUT} lcdgfx.c \
+	    's/win_col += 8;/win_col += 1;/' ${GFX_SRC}
+
+gfx-mutant-odd-write:
+	${GFX_MUT} lcdgfx.c \
+	    's/(uio->uio_resid \& 1) != 0/0/' ${GFX_SRC}
+
+gfx-mutant-write-overrun:
+	${GFX_MUT} lcdgfx.c \
+	    's/if (n > win_left)/if (0)/' ${GFX_SRC}
+
+gfx-mutant-ioctl-abandon:
+	${GFX_MUT} lcdgfx.c \
+	    '/^lcdgfx_ioctl/,/^}/s/^\twindow_end();/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-close-abandon:
+	${GFX_MUT} lcdgfx.c \
+	    '/^lcdgfx_close/,/^}/s/^\twindow_end();/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-frame-overdraw:
+	${GFX_MUT} lcdgfx.c \
+	    's/if (y1 - y0 > 1) {/if (y1 - y0 > 0) {/' ${GFX_SRC}
+
+gfx-mutant-circle-mirror:
+	${GFX_MUT} lcdgfx.c \
+	    's/(i \& 2 ? -dy : dy)/dy/' ${GFX_SRC}
+
+gfx-mutant-circle-swap:
+	${GFX_MUT} lcdgfx.c \
+	    's/dx = i \& 4 ? y : x;/dx = x;/' ${GFX_SRC}
+
+gfx-mutant-line-error:
+	${GFX_MUT} lcdgfx.c \
+	    's/e2 = 2 \* err;/e2 = err;/' ${GFX_SRC}
+
+gfx-mutant-line-fast-path:
+	${GFX_MUT} lcdgfx.c \
+	    's/if (x0 == x1 || y0 == y1) {/if (0) {/' ${GFX_SRC}
+
+gfx-mutant-palette-default:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\tgfx_pal\[i\] = rgb565(/\t\tgfx_pal[i] = 0 \& rgb565(/' ${GFX_SRC}
+
+gfx-mutant-open-format:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\tgfx_fmt = LCDG_COLMOD_RGB666;/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-open-scroll:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\tlcd_gfx_scroll(0);/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-info-bpp:
+	${GFX_MUT} lcdgfx.c \
+	    's/gfx_fmt == LCDG_COLMOD_RGB565 ? 16 : 18/18/' ${GFX_SRC}
+
+gfx-mutant-gate-cell:
+	${GFX_MUT} lcdterm.c \
+	    '/^panel_cell/,/^}/s/if (!gfx_active)/if (1)/' ${GFX_SRC}
+
+gfx-mutant-enter-flag:
+	${GFX_MUT} lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/gfx_active = on;/gfx_active = 0;/' ${GFX_SRC}
+
+gfx-mutant-leave-repaint:
+	${GFX_MUT} lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/lcdterm_repaint();/(void)0;/' ${GFX_SRC}
+
+gfx-mutant-leave-reset:
+	${GFX_MUT} lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/lcd_gfx_reset();/(void)0;/' ${GFX_SRC}
+
+gfx-mutant-abort-leave:
+	${GFX_MUT} lcdterm.c \
+	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/' ${GFX_SRC}
 
 KBDREQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD}" "${DEV}" \
 		kbdreq_test.c
@@ -597,7 +801,7 @@ picoaudio-mutant-busy-kept:
 	    's/bell_on = 0;$$/(void)0;/' picoaudio.c
 
 clean:
-	rm -f lcdterm_test kbdreq_test sdspi_test sdstrat_test \
+	rm -f lcdterm_test lcdgfx_test kbdreq_test sdspi_test sdstrat_test \
 	    picoaudio_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
@@ -684,3 +888,19 @@ clean:
 	picoaudio-mutant-slice-left-on \
 	picoaudio-mutant-override-kept \
 	picoaudio-mutant-busy-kept
+
+.PHONY: gfx-mutants gfx-mutant-exclusive-open gfx-mutant-no-restore \
+	gfx-mutant-coord-bound gfx-mutant-rect-order gfx-mutant-circle-right \
+	gfx-mutant-circle-left gfx-mutant-window-format \
+	gfx-mutant-window-extent gfx-mutant-window-gray \
+	gfx-mutant-palette-index gfx-mutant-scroll-range gfx-mutant-scrdef-sum \
+	gfx-mutant-scrdef-scroll gfx-mutant-colmod-565 gfx-mutant-colmod-any \
+	gfx-mutant-widen-red gfx-mutant-byte-order gfx-mutant-index-mask \
+	gfx-mutant-row-padding gfx-mutant-odd-write gfx-mutant-write-overrun \
+	gfx-mutant-ioctl-abandon gfx-mutant-close-abandon \
+	gfx-mutant-frame-overdraw gfx-mutant-circle-mirror \
+	gfx-mutant-circle-swap gfx-mutant-line-error gfx-mutant-line-fast-path \
+	gfx-mutant-palette-default gfx-mutant-open-format \
+	gfx-mutant-open-scroll gfx-mutant-info-bpp gfx-mutant-gate-cell \
+	gfx-mutant-enter-flag gfx-mutant-leave-repaint gfx-mutant-leave-reset \
+	gfx-mutant-abort-leave

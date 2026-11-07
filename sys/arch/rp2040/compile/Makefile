@@ -47,7 +47,9 @@ check-divider:
 		"${PYTHON}" "${DIVIDER_OWNERSHIP_VERIFIER}" \
 		    --elf PICO/unix.elf --dependency-directory PICO/.deps \
 		    --elf PICO_UART/unix.elf --dependency-directory PICO_UART/.deps \
-		    --elf PICOCALC/unix.elf --dependency-directory PICOCALC/.deps
+		    --elf PICOCALC/unix.elf --dependency-directory PICOCALC/.deps \
+		    --elf PICOCALC_PSRAM/unix.elf \
+		    --dependency-directory PICOCALC_PSRAM/.deps
 
 # Each kernel's PARAM decides whether vm_swap.o calls the SwapRAM tier and
 # how large its pool is; the verifier reads the linked kernel and the

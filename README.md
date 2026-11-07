@@ -372,7 +372,7 @@ Source tree
                     of the multicall executables box, sysbox, and adminbox.
     usr.bin         Multi-user utilities; textbox, utilbox, and grepbox fold
                     the smaller ones. usr.bin/smlrc is the native C compiler.
-    games           gamebox: fifteen, keen, bubble.
+    games           gamebox: fifteen, keen, bubble, fourfall, coil.
     lib             libc and crt0 for the target.
     sys/arch/rp2040 Kernel: boot2, machine-dependent code, USB CDC-ACM and
                     UART drivers, the Dhara flash layer, SwapRAM, the packed

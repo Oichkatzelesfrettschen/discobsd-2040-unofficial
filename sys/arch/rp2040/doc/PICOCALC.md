@@ -20,7 +20,10 @@ The PICOCALC configuration (`sys/arch/rp2040/compile/PICOCALC/Config`)
 runs DiscoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
 PicoCalc mainboard V2.0. Its console is the board's own 320x320 panel and
 keyboard. Root and swap stay on the Pico's QSPI flash, the same layout as
-the PICO board (`STORAGE.md`). This document is the authority for the pin
+the PICO board (`STORAGE.md`). The PICOCALC_PSRAM configuration
+(`sys/arch/rp2040/compile/PICOCALC_PSRAM/Config`) is the same kernel with the
+board's PSRAM driver linked in; swap moves to the PSRAM when it identifies
+itself at boot (below). This document is the authority for the pin
 map in `sys/arch/rp2040/dev/picocalc.h`, the console drivers' timing
 choices, and the evidence each driver has.
 
@@ -33,24 +36,31 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` | build | observed: text 124,268 of 130,816 bytes (`RP2040.ld` FLASH), bss 47,608; the console alone measured 119,316 and 45,888, so the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,776) add 4,952 |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed: text 123,220 of 130,816 bytes (`RP2040.ld` FLASH; 7,596 bytes of headroom), data 368, bss 47,608; no `psram` symbol in `unix.elf`; the console alone measured 118,268 text, 304 data and 45,888 bss, so the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,776) add 4,952 text, and 118,268 + 4,952 equals the merged build |
+| PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of PICOCALC | build | observed: text 125,328 of 130,816 bytes (5,488 bytes of headroom), data 424, bss 47,752; it exceeds PICOCALC by 2,108 text, 56 data and 144 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,068, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
+| The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
 | The keyboard controller answers at 0x1F and its events type | board | not run |
-| The board runs from USB-C with no cells | board | not run; the AXP2101 power path supports it (below) |
-| `machdep.picocalc.*` compiles into PICOCALC only; PICO and PICO_UART keep their text, data and bss sizes and differ from the earlier build only inside `version[]` and `osversion[]` | build | observed: PICOCALC text +916 bytes, bss +16 over 119,316 and 45,888; PICO 108,480 and PICO_UART 96,062 unchanged |
+| The board runs from USB-C with no cells | board | observed by the owner: it stays off with no cells and runs with them (below) |
+| `machdep.picocalc.*` compiles into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their text, data and bss sizes and differ from the earlier build only inside `version[]` and `osversion[]` | build | observed: PICOCALC text +916 bytes, bss +16 over 118,268 and 45,888; PICO 107,432 text, 248 data, 39,848 bss and PICO_UART 95,970, 192, 14,832 equal the sizes recorded when the PSRAM driver landed |
 | The register mailbox (`picokbd_req.c`) encodes reads and writes as the vendor firmware's `receiveEvent` decodes them, keeps a request off the key exchange, retries a faulted exchange three times, and drops a reply that outlives its deadline | host | observed by `check-picocalc-host` against a model of the firmware's register handler; eight mutants fail it |
 | BEL (0x07) reaches the bell primitive once per byte, from the ground state and inside a control sequence, and draws, moves and scrolls nothing; other controls stay silent | host | observed by `check-picocalc-host` against the model panel; two mutants fail it |
-| `picoaudio.c` compiles into PICOCALC only and keeps the PWM divider and wrap value inside their register fields | build | observed: PICOCALC text +260 bytes, bss +8 over the sysctl build; two `_Static_assert`s bound DIV.INT and TOP; PICO and PICO_UART unchanged |
+| `picoaudio.c` compiles into PICOCALC and PICOCALC_PSRAM only and keeps the PWM divider and wrap value inside their register fields | build | observed: PICOCALC text +260 bytes, bss +8 over the sysctl build; two `_Static_assert`s bound DIV.INT and TOP; PICO and PICO_UART unchanged |
 | The tone is audible on the speaker, 1 kHz for 100 ms at 25 percent duty, and the outputs stay low afterward | board | not run |
-| `sd.c` and `sdspi.c` compile into PICOCALC only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,776 bytes (2,771 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,696 over the audio build |
+| `sd.c` and `sdspi.c` compile into PICOCALC and PICOCALC_PSRAM only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,776 bytes (2,771 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,696 over the audio build |
 | The SD protocol layer frames commands, initializes SDSC version 1, SDSC version 2 and SDHC cards, decodes both CSD versions, addresses by byte or block, and fails with a bounded wait on an absent, stuck, unsupported or erroring card | host | observed by `check-picocalc-host` against a card model replaying recorded command transcripts; twenty mutants fail it |
 | `fsutil --repartition=fs=8m` and `fsutil --new --partition=1` make an image whose sector 0 holds the 0x55AA signature and one type 0xB7 entry at sector 2 in the 16-byte layout `sd.c` copies into `struct diskpart`, and `fsutil --check --partition=1` accepts it | host | observed on a scratch image; the kernel side of the parse is not run |
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
 | The SD socket's card-detect polarity, the fast clock at 12.5 MHz on this board's traces, and the busy times of real cards | board | not run |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
+| `psram.c`, `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, 40 random transfers, four injected faults, the four placements of the two register stages and nine mutants | host | observed by `check-psram-pio` (1,141 checks); the model's pad delays and the clock of the two register stages are assumptions |
+| PICO, PICO_UART and PICOCALC carry no PSRAM driver | build | observed: no `psram` symbol in the `unix.elf` of any of the three; PICO and PICO_UART sizes equal those recorded when the driver landed |
+| The Renode RP2040 model runs the PSRAM program | Renode | not run: the pinned model has PIO but no input synchronizer latency, the tree has no PSRAM peripheral, and `renode-test` cannot run on the build host (`docs/research/picocalc-psram.md`) |
+| The part answers Read ID 0x0D with a passing die, enters quad mode and returns what was written at 31.25 MHz | board | not run |
+| The kernel swaps to PSRAM and falls back to `fl1` when the part is absent | board | not run |
 
 ## Pin map
 
@@ -61,7 +71,7 @@ table and the sources that agree):
 | Function | Pins | Driver |
 | --- | --- | --- |
 | UART0 to the CH340C USB-serial bridge | GP0 TX, GP1 RX | `uart.c`, `/dev/tty0` |
-| PSRAM, ESP-PSRAM64H 8 MB | GP2-GP5 (SIO0-3), GP20 CS, GP21 SCK | none yet |
+| PSRAM, ESP-PSRAM64H 8 MB | GP2-GP5 (SIO0-3), GP20 CS, GP21 SCK | `psram.c`, `psram_xfer.c`, PIO0 state machine 0, block major 3 |
 | Keyboard controller, I2C1 at 0x1F | GP6 SDA, GP7 SCL | `picokbd.c` |
 | UART1, expansion header | GP8 TX, GP9 RX | none |
 | ST7365P panel, SPI1 | GP10 SCK, GP11 TX, GP12 RX, GP13 CS, GP14 D/C, GP15 reset | `st7365p.c` |
@@ -86,7 +96,26 @@ connects VBUS to VSYS through the linear charger (AXP2101 datasheet 6.4,
 page 18), it runs from the higher of VBUS and the battery (6.5.1), and it
 starts the system when a good VBUS appears (6.5.3). The vendor assembly
 guide asks for a 5 V 2 A supply "to power and charge the product".
-A board booting with no 18650 cells installed settles the claim.
+
+The owner's PicoCalc stays off on USB-C with no 18650 cells installed and
+runs with cells, which contradicts the reading above. The keyboard
+firmware does not gate the Pico: its `setup()` raises PA13, the Pico
+enable, unconditionally (`picocalc_keyboard.ino`), so the inference is
+that no rail comes up at all, including DCDC1 (MCU_3V3) for the STM32.
+Two explanations fit, each with the measurement that separates them:
+
+- The USB-C receptacle lacks a 5.1 kOhm pull-down on each CC pin, so a
+  USB-C-to-C supply never switches VBUS on. A USB-A-to-C cable, which
+  carries VBUS unconditionally, powering a cell-less board confirms it.
+- The AXP2101 needs a power-key press or a battery to start, through
+  power-on defaults the board does not change. A cell-less board that
+  stays off on an A-to-C cable and starts after a press of the power key
+  confirms it.
+
+The Pico's own micro-USB port feeds the Pico module's VSYS through the
+module's Schottky diode; whether the mainboard's PICO_VSYS net, the STM32
+and the panel run from it is not measured. With cells installed, the
+micro-USB port is the console and BOOTSEL path.
 
 ## Display: ST7365P on SPI1
 
@@ -351,7 +380,8 @@ cached for the old card must not reach the new one. The driver does not
 interpret the polarity; the first insertion on a board settles which
 level means present.
 
-`NMOUNT` is 2 and `SINGLE_UFS_ROOT` is unset in PICOCALC, because
+`NMOUNT` is 2 and `SINGLE_UFS_ROOT` is unset in PICOCALC and PICOCALC_PSRAM
+(the two Configs differ in the board line and `device psram` alone), because
 `sys/mount.h` requires `NMOUNT=1` with that option. Without it the kernel keeps
 `i_dev` and `i_fs` in each of the 24 inodes and the mount names, and the
 generic mount code replaces the single-root shortcuts; that, with the
@@ -401,10 +431,24 @@ it, so a closure that ships them waits on a board run.
 
     : "${PYTHON:?set PYTHON to the intended interpreter}"
     export PYTHON
-    bmake MACHINE=rp2040 kernel        # builds PICO, PICO_UART, PICOCALC
+    bmake MACHINE=rp2040 kernel        # PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM
 
 `sys/arch/rp2040/compile/PICOCALC/unix.uf2` holds the kernel; the root
 image is the same `distrib/rp2040/flash.uf2` the PICO board uses.
+`sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2` holds the same kernel with
+the PSRAM driver. A board is selected by name: `BOARD=PICOCALC` pairs the
+driverless kernel with the `picocalc` root profile, and `BOARD=PICOCALC_PSRAM`
+pairs the PSRAM kernel with the same profile.
+
+    bmake MACHINE=rp2040 BOARD=PICOCALC distribution        # no PSRAM driver
+    bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution  # PSRAM swap
+
+Each kernel boots either root. The PSRAM kernel is a separate configuration
+because config(8) writes a Makefile from one Config with no include
+directive: a make-level switch would need a second generated Makefile or a
+regeneration per build. `tools/config/check_generated_sync.py` requires the
+two Config files to differ in the board line and the `device psram` line
+alone.
 Flashing follows `distrib/rp2040/host/DEVELOPMENT.md` and needs the
 board in BOOTSEL mode; a board run is an explicit opt-in.
 
@@ -447,13 +491,28 @@ command overhead, and an on-board `mkfs`/`fdisk` closure.
 
 ### PSRAM as swap
 
-ESP-PSRAM64H, 8 MB, on GP2-GP5, GP20, GP21: not a hardware SPI pin set,
-so a PIO program drives it, quad mode after a one-time QPI enable. A
-`swap`-compatible block device ahead of `fl1` (as `SWAPRAM` sits ahead of
-it) would lift the 384 KB flash-swap ceiling and save flash wear. The
-vendor's helloworld uses `polpo/rp2040-psram` for the PIO program
-(license to be checked before porting). The pins are shared with the
-expansion header J703.
+The PICOCALC_PSRAM kernel carries the driver; PICOCALC does not. The
+ESP-PSRAM64H (8 MB) on GP2-GP5, GP20 and GP21 is not a hardware SPI pin
+set, so PIO0 state machine 0 clocks it; `docs/research/picocalc-psram.md`
+holds the datasheet pages, the program, the timing derivation and the
+evidence. `psramprobe()` runs from `config()`, before `init_main()` opens
+`swapdev`: it resets the part, reads its ID, requires manufacturer 0x0D and
+a passing known-good die, enters quad mode and writes and reads back a
+pattern. A part that passes becomes block device major 3 and replaces `fl1`
+as `swapdev`, so swap is 8 MB behind the SWAPRAM tier and the 384 KB flash
+swap region goes unused; a part that does not pass prints one `psram0:` line
+and leaves `swapdev` on `fl1`. SCK runs at 31.25 MHz (`PSRAM_CLKDIV` in
+`psram_pio.h`), a frame holds CS low for under 5 us against the 8 us tCEM,
+and interrupts are masked for that long per frame.
+
+Open for the board run: the read sampling margin depends on pad delays no
+datasheet gives and on whether the output and input register stages run on
+clk_sys or on the state machine cycle (a scope capture of SCK against a read
+data line decides both, and whether the clock can rise), whether the part ignores a serial command cut
+short, and how a module in the shared header J703 loads the lines. The owner
+chose replacing `fl1` over a second tier behind PSRAM, and chose the driver
+as a PicoCalc build option; the research note's swap integration table
+records the second-tier alternative.
 
 ### Battery, backlight and power-off
 
@@ -497,8 +556,8 @@ allocates its register stacks in 256-entry pages on first touch, because the
 extended table is 789,504 bytes against the 144 KB process window, and bc
 keeps a name table in place of a 65,536-entry hash table and reads its input
 with `getc` in place of libedit. `bc` is 31,176 bytes packed, `dc` 18,644 and
-`/usr/share/misc/bc.library` 5,125; the closure costs 59 blocks and the
-`picocalc` profile leaves 189 free (`PROFILES.md`). `bc` forks a child that
+`/usr/share/misc/bc.library` 5,125; the closure costs 60 blocks and the
+`picocalc` profile leaves 147 free (`PROFILES.md`). `bc` forks a child that
 runs dc's evaluator on a pipe, which needs the 39 KB bc image twice in swap:
 the arithmetic fits the 384 KB raw swap, and no board run has forked it.
 `tests/dcbc` (`check-dcbc`, and `check-qemu` for dc) is the host evidence,

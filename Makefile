@@ -735,11 +735,23 @@ check-architecture-isolation:
 check-fgrep-capacity:
 		${MAKE} -C usr.bin/fgrep test
 
+# The CRC-32 shared by the packed executable loader and the packer, against
+# zlib, with mutants of the table and the shifts that must each be rejected.
+check-crc32:	check-python
+		${MAKE} -C tests/crc32 check
+
 # The packed a.out container: the loader's stream loop and the packer
 # against header and stream corruption, truncation and forged lengths.
 check-hsaout:
 		sh tools/verify_packed_root_configs.sh
 		${MAKE} -C tests/hsaout check
+
+# The port's heatshrink decoder against the vendored decoder over every
+# a.out in the distribution tree, random data, truncations and corrupted
+# streams, then mutants of the decoder and its stream loop that must each
+# fail the comparison.
+check-hsx-decoder:	check-python
+		${MAKE} -C tests/hsaout decoder
 
 check-config-makefile:
 		${MAKE} -C tools/config check
@@ -927,6 +939,12 @@ check-usb-reset:
 check-picocalc-host:	check-python
 		${MAKE} -C tests/picocalc check
 
+# The PicoCalc PSRAM driver against a PIO simulator and a timing model of
+# the ESP-PSRAM64H, and calibrating mutants; tests/psram/Makefile
+# states each.
+check-psram-pio:	check-python
+		${MAKE} -C tests/psram check
+
 check-usb-line-coding:
 		${MAKE} -C tests/rp2040/usb_line_coding check
 
@@ -947,6 +965,9 @@ check-usb-get-descriptor:
 
 check-flash-device-bounds:
 		${MAKE} -C tests/rp2040/flash_device_bounds check
+
+check-clock-catchup:
+		${MAKE} -C tests/rp2040/clock_catchup check
 
 # tools/elf2aout over the layouts the ARM linker produces. The gate assembles
 # and links its own fixtures with the cross toolchain and reads
@@ -1003,7 +1024,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-libc-tempfiles check-libcalc check-libbn check-dcbc \
 		check-id-aliases check-tiny-utility-multicall \
 		check-portable-utilities \
-		check-fgrep-capacity check-config-makefile check-swapram-evac \
+		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
@@ -1011,12 +1032,12 @@ HOST_GATES=	check-architecture-isolation \
 		check-usb-standard-requests \
 		check-usb-set-configuration \
 		check-usb-set-address-interface check-usb-get-descriptor \
-		check-flash-device-bounds \
+		check-flash-device-bounds check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
-		check-fs-profiles check-picocalc-host
+		check-fs-profiles check-picocalc-host check-psram-pio
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
 		check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
@@ -1090,6 +1111,12 @@ check-fifteen-host:
 
 check-fourfall-host:
 		${MAKE} -C games/fourfall test
+
+check-coil-host:
+		${MAKE} -C games/coil test
+
+check-puzzlebox-host:
+		${MAKE} -C games/pzcommon test
 
 check-calc-host: check-python .WAIT symlinks
 		${MAKE} -C usr.bin/calc test
@@ -1212,7 +1239,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
 		check-kernel-printf-formats .WAIT check-tty-layout-cross .WAIT \
 		check-ptrace-libc-abi .WAIT \
-		check-hsaout .WAIT check-flash-swap .WAIT \
+		check-hsaout .WAIT check-hsx-decoder .WAIT check-flash-swap .WAIT \
 		check-rp2040-shutdown-cross .WAIT check-storage-counters
 
 check-cross-assembler:
@@ -1223,12 +1250,17 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 		${CROSS_COMPOSITION_GATES} .WAIT check-cross-kernel .WAIT \
 		check-cross-assembler
 
-# qemu-arm: the u-area exchange loop, the Smaller C suite, the libcalc and
-# libbn tests, the tree formatter's float conversions and math library returns
-# against newlib's, the calc line interface and the dc evaluator executed as
-# Thumb-1 programs rather than only linked.
+# qemu-arm: the u-area exchange loop, the AEABI division helpers over a
+# divider model, the Smaller C suite, the libcalc and libbn tests, the calc
+# line interface, the dc evaluator, the libc strtol/strtoul, random and
+# printf contracts and the tree formatter's float conversions and math
+# library returns executed as Thumb-1 programs rather than only linked.
+# tests/qemu_cpu_model first proves that the ARMv6-M CPU model the libc
+# contracts run on faults on Thumb-2 and unaligned accesses.
 check-qemu:	check-python .WAIT symlinks
+		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} -C tests/rp2040/uarea_exchange check
+		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libcalc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/calc check-qemu
@@ -1242,6 +1274,15 @@ check-qemu:	check-python .WAIT symlinks
 # image, and tools/renode/check-boot.sh names whichever is missing.
 check-renode:
 		sh tools/renode/check-boot.sh
+
+# The PICOCALC kernel under Renode with the ST7365P panel and the keyboard
+# controller modeled: the boot banner, the panel's registers, a login and a
+# command typed through the I2C keyboard, all read back from the decoded
+# frame. Outside "check" for the reason check-renode is, and a separate
+# evidence class from the board: tools/renode/check-picocalc.sh names what
+# is missing.
+check-renode-picocalc:
+		sh tools/renode/check-picocalc.sh
 
 # The SRAM-resident board probes, flash-id and flash-semantics, built
 # against a Pico SDK that tools/pico-sdk/sdk-path.sh resolves. Outside
@@ -1341,7 +1382,7 @@ installfs:
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \
@@ -1368,7 +1409,7 @@ installfs:
 		check-unifdef-contracts-cross check-libc-string-security \
 		check-libc-string-security-cross check-id-aliases \
 		check-find-contracts check-find-contracts-cross \
-		check-tiny-utility-multicall check-fgrep-capacity check-hsaout \
+		check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout check-hsx-decoder \
 		check-config-makefile check-portable-utilities \
 		check-architecture-isolation legacy-non-arm-verify \
 		legacy-pdp11-v6-build legacy-pdp11-v6-install \
@@ -1376,12 +1417,13 @@ installfs:
 		check-legacy-pdp11-v7-reference check-legacy-pdp11-v6 \
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
 		check-calc-host check-sh-editor check-tar-host \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
+		check-renode-picocalc \
 		check-host-package check-board-build check symlinks etc-distribution \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \
 		check-fs-profiles check-dd-contracts \

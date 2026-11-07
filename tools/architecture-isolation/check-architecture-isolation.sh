@@ -246,7 +246,8 @@ expect_equal "RP2040 architecture flags" \
 expect_equal "STM32 architecture flags" \
     "-mcpu=cortex-m4 -mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft" \
     "$(normalize_words "$("$make_command" -C "$source_root" MACHINE=stm32 -V MACHINE_ARCH_FLAGS)")"
-expect_equal "RP2040 kernel configurations" "PICO PICO_UART PICOCALC" \
+expect_equal "RP2040 kernel configurations" \
+    "PICO PICO_UART PICOCALC PICOCALC_PSRAM" \
     "$(normalize_words "$("$make_command" -C "$source_root" MACHINE=rp2040 -V MACHINE_KERNEL_CONFIGS)")"
 expect_equal "STM32 kernel configurations" \
     "F405WEACTCORE F411RENUCLEO F412GDISCO F412WEACTCORE F413HDISCO F446RENUCLEO F446WEACTCORE F469IDISCO F4DISCOVERY F4VEDEVEBOX" \
@@ -347,7 +348,7 @@ for machine_name in rp2040 stm32; do
 		generated_makefile_count=$((generated_makefile_count + 1))
 	done
 done
-expect_equal "generated ARM kernel Makefile count" "13" \
+expect_equal "generated ARM kernel Makefile count" "14" \
     "$generated_makefile_count"
 for registry_consumer in "$source_root/Makefile" \
     "$source_root/share/mk/sys.mk"

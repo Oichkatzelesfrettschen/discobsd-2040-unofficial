@@ -1,4 +1,5 @@
-"""Reject linked RP2040 kernel accesses to the per-core SIO divider."""
+"""Reject linked RP2040 kernel accesses to the per-core SIO divider and hold
+the userland division helpers to one atomic hardware-divider sequence."""
 
 from __future__ import annotations
 
@@ -845,6 +846,244 @@ class ImageAnalyzer:
         )
 
 
+HELPER_SYMBOLS = (
+    "__aeabi_idiv",
+    "__aeabi_idivmod",
+    "__aeabi_uidiv",
+    "__aeabi_uidivmod",
+)
+HELPER_SEQUENCE = (
+    ("store", 0x60),
+    ("store", 0x64),
+    ("load", 0x74),
+    ("load", 0x70),
+)
+HELPER_MINIMUM_WAIT_CYCLES = 8
+HELPER_ONE_CYCLE = frozenset(
+    {
+        "adds",
+        "ands",
+        "asrs",
+        "eors",
+        "lsls",
+        "lsrs",
+        "mov",
+        "movs",
+        "mvns",
+        "orrs",
+        "rsbs",
+        "subs",
+    }
+)
+HELPER_FORBIDDEN_IN_WINDOW = frozenset(
+    {
+        "bkpt",
+        "bl",
+        "blx",
+        "bx",
+        "cpsid",
+        "cpsie",
+        "mrs",
+        "msr",
+        "pop",
+        "push",
+        "sev",
+        "svc",
+        "udf",
+        "wfe",
+        "wfi",
+    }
+)
+
+
+def helper_instruction_cycles(
+    instruction: DecodedInstruction,
+    next_address: int,
+) -> int | None:
+    """Cortex-M0+ cycles of a window instruction, or None when not modeled.
+
+    The one-cycle table covers ALU, shift and register-move instructions
+    that leave the program counter alone; a branch counts two cycles only
+    when it is unconditional and targets the next instruction, which keeps
+    the window straight-line. nop is not modeled because the core may
+    discard it.
+    """
+    mnemonic = instruction.mnemonic
+    if mnemonic in HELPER_ONE_CYCLE:
+        first = instruction.operands[0] if instruction.operands else None
+        if (
+            first is not None
+            and first.type == ARM_OP_REG
+            and normalize_register(instruction.reg_name(first.reg)) == "pc"
+        ):
+            return None
+        return 1
+    if mnemonic in {"b", "b.n"} and instruction.operands:
+        operand = instruction.operands[0]
+        if operand.type == ARM_OP_IMM and operand.imm == next_address:
+            return 2
+    return None
+
+
+def helper_ends_path(instruction: DecodedInstruction) -> bool:
+    """True when execution cannot fall through to the next instruction."""
+    if instruction.mnemonic == "bx":
+        return True
+    if instruction.mnemonic in {"b", "b.n"} and instruction.operands:
+        return instruction.operands[0].imm != instruction.address + instruction.size
+    return False
+
+
+def helper_register_values(
+    instruction: DecodedInstruction,
+    values: dict[str, int | None],
+) -> None:
+    """Track constants built by movs and lsls so a base register resolves."""
+    mnemonic = instruction.mnemonic
+    operands = instruction.operands
+    destination = None
+    if operands and operands[0].type == ARM_OP_REG:
+        destination = normalize_register(instruction.reg_name(operands[0].reg))
+    result: int | None = None
+    if mnemonic in {"movs", "mov"} and len(operands) == 2:
+        if operands[1].type == ARM_OP_IMM:
+            result = operands[1].imm & WORD_MASK
+        elif operands[1].type == ARM_OP_REG:
+            result = values.get(
+                normalize_register(instruction.reg_name(operands[1].reg)) or ""
+            )
+    elif mnemonic == "lsls" and len(operands) == 3:
+        source = values.get(
+            normalize_register(instruction.reg_name(operands[1].reg)) or ""
+        )
+        if operands[2].type == ARM_OP_IMM and source is not None:
+            result = (source << operands[2].imm) & WORD_MASK
+    written = instruction.regs_access()[1]
+    for register_id in written:
+        register_name = normalize_register(instruction.reg_name(register_id))
+        if register_name in TRACKED_REGISTERS:
+            values[register_name] = None
+    if destination in TRACKED_REGISTERS and result is not None:
+        values[destination] = result
+
+
+def check_user_helper(object_path: Path) -> tuple[str, list[str]]:
+    """Check the userland division helpers in one relocatable object.
+
+    Each entry must run the divider as one straight-line window: the
+    dividend store, the divisor store, at least eight cycles of ALU work or
+    branches to the next instruction, the remainder load, then the quotient
+    load last, with no system call, call, breakpoint, push, pop or other
+    divider access in between. The window is atomic because the kernel
+    switches processes and delivers signals only on the return from a system
+    call or fault, and the kernel never touches the divider.
+    """
+    findings: list[str] = []
+    with object_path.open("rb") as stream:
+        elf: Any = ELFFile(stream)
+        text = elf.get_section_by_name(".text")
+        symbols = elf.get_section_by_name(".symtab")
+        if text is None or symbols is None:
+            raise ValueError(f"{object_path}: missing .text or .symtab")
+        text_index = elf.get_section_index(".text")
+        code = text.data()
+        entries = {
+            str(symbol.name): int(symbol["st_value"]) & ~1
+            for symbol in symbols.iter_symbols()
+            if symbol["st_info"]["type"] == "STT_FUNC"
+            and symbol["st_shndx"] == text_index
+        }
+        data_marks = [
+            symbol
+            for symbol in symbols.iter_symbols()
+            if symbol.name == "$d" and symbol["st_shndx"] == text_index
+        ]
+    for name in HELPER_SYMBOLS:
+        if name not in entries:
+            findings.append(f"{object_path}: missing helper {name}")
+    if data_marks:
+        findings.append(f"{object_path}: data inside the helper text")
+    decoder = Cs(CS_ARCH_ARM, CS_MODE_THUMB | CS_MODE_LITTLE_ENDIAN | CS_MODE_MCLASS)
+    decoder.detail = True
+    instructions = [
+        cast(DecodedInstruction, instruction) for instruction in decoder.disasm(code, 0)
+    ]
+    if sum(instruction.size for instruction in instructions) != len(code):
+        raise ValueError(f"{object_path}: Capstone did not decode the whole text")
+    starts = sorted({entries[name] for name in HELPER_SYMBOLS if name in entries})
+    bounds = starts + [len(code)]
+    accesses_total = 0
+    minimum_wait = None
+    for start, end in zip(bounds, bounds[1:], strict=False):
+        body = [item for item in instructions if start <= item.address < end]
+        values: dict[str, int | None] = {}
+        accesses: list[tuple[int, str, int]] = []
+        for index, instruction in enumerate(body):
+            mnemonic = instruction.mnemonic
+            memory = [op for op in instruction.operands if op.type == ARM_OP_MEM]
+            if memory and mnemonic.startswith(("ldr", "str")):
+                operand = memory[0]
+                base_name = normalize_register(instruction.reg_name(operand.mem.base))
+                base_value = None if operand.mem.index else values.get(base_name or "")
+                if base_value == SIO_BASE:
+                    kind = "store" if mnemonic.startswith("str") else "load"
+                    accesses.append((index, kind, operand.mem.disp))
+                else:
+                    findings.append(
+                        f"{object_path}:0x{instruction.address:x}: {mnemonic} "
+                        f"{instruction.op_str}: memory access whose base is "
+                        "not the SIO base"
+                    )
+            helper_register_values(instruction, values)
+            if helper_ends_path(instruction):
+                values.clear()
+        accesses_total += len(accesses)
+        shape = tuple((kind, offset) for _, kind, offset in accesses)
+        label = f"{object_path}:0x{start:x}"
+        if shape != HELPER_SEQUENCE:
+            findings.append(
+                f"{label}: divider accesses are "
+                f"{[(kind, hex(offset)) for kind, offset in shape]}, want "
+                f"{[(kind, hex(offset)) for kind, offset in HELPER_SEQUENCE]}"
+            )
+            continue
+        first, divisor_store, first_load, last = (item[0] for item in accesses)
+        wait = 0
+        for index in range(first, last + 1):
+            instruction = body[index]
+            if index in {first, divisor_store, first_load, last}:
+                continue
+            next_address = instruction.address + instruction.size
+            if instruction.mnemonic in HELPER_FORBIDDEN_IN_WINDOW:
+                findings.append(
+                    f"{label}: {instruction.mnemonic} {instruction.op_str} "
+                    f"at 0x{instruction.address:x} inside the divider window"
+                )
+                continue
+            cycles = helper_instruction_cycles(instruction, next_address)
+            if cycles is None:
+                findings.append(
+                    f"{label}: {instruction.mnemonic} {instruction.op_str} "
+                    f"at 0x{instruction.address:x} is not a straight-line "
+                    "window instruction"
+                )
+                continue
+            if divisor_store < index < first_load:
+                wait += cycles
+        if wait < HELPER_MINIMUM_WAIT_CYCLES:
+            findings.append(
+                f"{label}: {wait} cycles between the divisor store and the "
+                f"first result load, want at least {HELPER_MINIMUM_WAIT_CYCLES}"
+            )
+        minimum_wait = wait if minimum_wait is None else min(minimum_wait, wait)
+    summary = (
+        f"{object_path}: user_helper_entries={len(starts)} "
+        f"sio_accesses={accesses_total} min_wait_cycles={minimum_wait} "
+        f"user_helper_findings={len(findings)}"
+    )
+    return summary, findings
+
+
 def dependency_sources(dependency_directory: Path) -> set[Path]:
     if not dependency_directory.is_dir():
         raise ValueError(f"{dependency_directory}: missing dependency directory")
@@ -960,8 +1199,15 @@ def parse_arguments() -> argparse.Namespace:
         "--elf",
         action="append",
         type=Path,
-        required=True,
+        default=[],
         help="linked RP2040 ELF image; repeat for each configuration",
+    )
+    parser.add_argument(
+        "--user-helper",
+        action="append",
+        type=Path,
+        default=[],
+        help="relocatable object holding the userland division helpers",
     )
     parser.add_argument(
         "--dependency-directory",
@@ -975,6 +1221,12 @@ def parse_arguments() -> argparse.Namespace:
 
 def main() -> int:
     arguments = parse_arguments()
+    if not arguments.elf and not arguments.user_helper:
+        print(
+            "divider ownership verifier: give --elf or --user-helper",
+            file=sys.stderr,
+        )
+        return 2
     source_paths = set()
     for dependency_directory in arguments.dependency_directory:
         source_paths.update(dependency_sources(dependency_directory.resolve()))
@@ -1015,7 +1267,18 @@ def main() -> int:
     )
     for source_finding in source_findings:
         print(source_finding, file=sys.stderr)
-    if source_findings or any(result.findings for result in image_results):
+    helper_findings: list[str] = []
+    for helper_path in arguments.user_helper:
+        summary, findings = check_user_helper(helper_path.resolve())
+        print(summary)
+        helper_findings.extend(findings)
+    for helper_finding in helper_findings:
+        print(helper_finding, file=sys.stderr)
+    if (
+        source_findings
+        or helper_findings
+        or any(result.findings for result in image_results)
+    ):
         return 1
     return 0
 

@@ -315,10 +315,11 @@ the initialized data as two heatshrink streams. `a_text`, `a_data`,
 `a_bss` and `a_entry` keep the raw image's values, so the loader lays the
 process out from `struct exec` alone. Files:
 `sys/sys/exec_hsaout.h` (container, `hsx_check`), `sys/kern/subr_crc32.c`
-(tableless CRC-32), `sys/arch/rp2040/rp2040/hsx_stream.c` (the stream
-loop), `sys/arch/rp2040/rp2040/hsx_decoder.c` and
-`sys/arch/rp2040/include/hsx_decoder.h` (heatshrink built a second time
-with lookahead 3), `sys/arch/rp2040/rp2040/exec_hsaout.c` (loader).
+(CRC-32), `sys/arch/rp2040/rp2040/hsx_stream.c` (the stream loop),
+`sys/arch/rp2040/rp2040/hsx_decoder.c` and
+`sys/arch/rp2040/include/hsx_decoder.h` (the port's word-buffered
+heatshrink decoder, which replaced the vendored decoder built a second
+time with lookahead 3), `sys/arch/rp2040/rp2040/exec_hsaout.c` (loader).
 
 The checker recognizes the format by the flag and returns `EFTYPE` for
 every recognized-but-malformed container; the dispatcher passes `EFTYPE`

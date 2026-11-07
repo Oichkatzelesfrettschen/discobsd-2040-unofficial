@@ -49,6 +49,7 @@
 #define	PC_PADS_SCHMITT		(1UL << 1)
 #define	PC_PADS_PDE		(1UL << 2)
 #define	PC_PADS_PUE		(1UL << 3)
+#define	PC_PADS_DRIVE_MASK	(0x3UL << 4)	/* 2, 4, 8, 12 mA */
 #define	PC_PADS_IE		(1UL << 6)
 #define	PC_PADS_OD		(1UL << 7)
 
@@ -66,12 +67,22 @@ pc_unreset(u_int mask)
 		continue;
 }
 
-/* Route pin n to function f with the given pad bits, input enabled. */
+/*
+ * Route pin n to function f with the given pad bits, input enabled. The
+ * DRIVE field (PADS_BANK0 GPIOn bits 5:4, reset 0x1 for 4 mA) keeps its
+ * value when pad names no drive strength and takes the strength pad names
+ * otherwise, so a request for 8 mA (0x2) does not combine with the reset
+ * value into 12 mA (0x3). A pad word of 0 therefore cannot select 2 mA.
+ */
 static __inline void
 pc_pin(u_int n, u_int f, u_int pad)
 {
-	PC_REG32(PC_PADS_GPIO(n)) = (PC_REG32(PC_PADS_GPIO(n)) &
-	    ~(PC_PADS_OD | PC_PADS_PUE | PC_PADS_PDE)) | PC_PADS_IE | pad;
+	u_int clear = PC_PADS_OD | PC_PADS_PUE | PC_PADS_PDE;
+
+	if ((pad & PC_PADS_DRIVE_MASK) != 0)
+		clear |= PC_PADS_DRIVE_MASK;
+	PC_REG32(PC_PADS_GPIO(n)) = (PC_REG32(PC_PADS_GPIO(n)) & ~clear) |
+	    PC_PADS_IE | pad;
 	PC_REG32(PC_IO_BANK0_CTRL(n)) = f;
 }
 

@@ -17,38 +17,42 @@ import argparse
 import json
 import os
 import shlex
-import subprocess
 import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cases as case_module  # noqa: E402
+import procgroup  # noqa: E402
 
 
 def execute(command, case, timeout):
-    """Run one case; return (rc, stdout, stderr) or rc "timeout"."""
+    """Run one case; return (rc, stdout, stderr) or rc "timeout".
+
+    The program runs as a session leader (procgroup.run_group), so a timeout
+    also ends the dc that bc forks.
+    """
     env = dict(os.environ, LC_ALL="C")
     with tempfile.TemporaryDirectory(prefix="dcbc.") as work:
         for name, data in case["files"].items():
             with open(os.path.join(work, name), "wb") as handle:
                 handle.write(data)
-        try:
-            done = subprocess.run(
-                [os.path.basename(command[0])] + command[1:] + case["args"]
-                if len(command) == 1
-                else command + case["args"],
-                executable=command[0],
-                input=case["stdin"],
-                cwd=work,
-                env=env,
-                capture_output=True,
-                timeout=timeout,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            return "timeout", b"", b""
-    return done.returncode, done.stdout, done.stderr
+        argv = (
+            [os.path.basename(command[0])] + command[1:] + case["args"]
+            if len(command) == 1
+            else command + case["args"]
+        )
+        rc, out, err, timed_out = procgroup.run_group(
+            argv,
+            cwd=work,
+            env=env,
+            stdin_data=case["stdin"],
+            timeout=timeout,
+            executable=command[0],
+        )
+    if timed_out:
+        return "timeout", b"", b""
+    return rc, out, err
 
 
 def command_line(text):

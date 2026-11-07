@@ -1,12 +1,13 @@
 # Runs the u-area exchange loop of arch/rp2040/rp2040/locore.S under
-# qemu-arm and checks every exchanged byte. loop.S is cut from locore.S
+# qemu-arm on the ARMv6-M CPU model of tools/qemu-arm.mk and checks every
+# exchanged byte. loop.S is cut from locore.S
 # between its uarea-exchange markers at build time, so the harness
 # assembles the kernel's lines rather than a copy that could drift.
 TOPSRC!=cd ../../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
+include ${TOPSRC}/tools/qemu-arm.mk
 
 LOCORE=		${TOPSRC}/sys/arch/rp2040/rp2040/locore.S
-QEMU?=		qemu-arm
 
 loop.S: ${LOCORE}
 	sed -n '/uarea-exchange-begin/,/uarea-exchange-end/p' ${LOCORE} > $@
@@ -22,12 +23,11 @@ harness: harness.S loop.S
 # test exists to catch, so the run happens with cores/ as the working
 # directory and every dump lands there instead of in the source tree.
 check: harness
-	@if ! command -v ${QEMU} >/dev/null 2>&1; then \
-		echo "${QEMU} is required for the u-area exchange test" >&2; \
-		exit 2; \
-	fi
+.if empty(QEMU_ARM)
+	@echo "qemu-arm is required for the u-area exchange test" >&2; exit 2
+.endif
 	@mkdir -p cores
-	@cd cores && ${QEMU} ../harness || { \
+	@cd cores && ${QEMU_ARM_RUN} ../harness || { \
 		status=$$?; \
 		echo "u-area exchange failed: harness exit $$status" >&2; \
 		echo "1 byte mismatch, 2 pointer overrun, 128+n killed by signal n" >&2; \

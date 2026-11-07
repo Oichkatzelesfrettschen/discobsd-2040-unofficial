@@ -1,0 +1,4 @@
+lightup
+lightup-host
+*.o
+*.elf

@@ -1,0 +1,12 @@
+run: ok=True raw=46540 packed=36509 cycles=18003905 cycles/rawbyte=386.8 ms@125MHz=144.03
+   get_bits                9732857 cycles  54.1%  6566460 instructions
+   hsx_decoder_poll        3902551 cycles  21.7%  2645663 instructions
+   crc32_update            3687316 cycles  20.5%  3262536 instructions
+   bcopy                    298584 cycles   1.7%  186097 instructions
+   fill                     293347 cycles   1.6%  183395 instructions
+run_discard: ok=True raw=46540 packed=36509 cycles=18075599 cycles/rawbyte=388.4 ms@125MHz=144.60
+   get_bits                9733351 cycles  53.8%  6566720 instructions
+   hsx_decoder_poll        3949119 cycles  21.8%  2674997 instructions
+   crc32_update            3695740 cycles  20.4%  3266280 instructions
+   bcopy                    298584 cycles   1.7%  186097 instructions
+   fill                     293347 cycles   1.6%  183395 instructions

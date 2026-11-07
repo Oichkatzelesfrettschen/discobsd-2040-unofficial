@@ -1100,12 +1100,33 @@ bdiv(void)
 	free_number(b);
 }
 
+/*
+ * The remainder of a dividend by a divisor is dividend - divisor * q, with q
+ * the quotient truncated to bmachine.scale digits; POSIX bc gives it the
+ * scale max(scale + scale(divisor), scale(dividend)).  The integer remainder
+ * of the dividend at common scale cs plus bmachine.scale by the divisor at
+ * cs carries cs + bmachine.scale digits; the digits past the POSIX scale are
+ * zero, so remainder_rescale drops them exactly.
+ */
+static u_int
+remainder_scale(const struct number *dividend, const struct number *divisor)
+{
+	return max(dividend->scale, divisor->scale + bmachine.scale);
+}
+
+static void
+remainder_rescale(struct number *r, u_int from, u_int to)
+{
+	scale_number(r->number, (int)to - (int)from);
+	r->scale = to;
+}
+
 static void
 bmod(void)
 {
 	struct number	*a, *b;
 	struct number	*r;
-	u_int		scale;
+	u_int		scale, rscale;
 
 	a = pop_number();
 	if (a == NULL)
@@ -1118,7 +1139,8 @@ bmod(void)
 
 	r = new_number();
 	scale = max(a->scale, b->scale);
-	r->scale = max(b->scale, a->scale + bmachine.scale);
+	rscale = remainder_scale(b, a);
+	r->scale = rscale;
 
 	if (BN_is_zero(a->number))
 		warnx("remainder by zero");
@@ -1127,6 +1149,7 @@ bmod(void)
 		normalize(b, scale + bmachine.scale);
 
 		bn_check(BN_mod(r->number, b->number, a->number, bmachine.ctx));
+		remainder_rescale(r, scale + bmachine.scale, rscale);
 	}
 	push_number(r);
 	free_number(a);
@@ -1138,7 +1161,7 @@ bdivmod(void)
 {
 	struct number	*a, *b;
 	struct number	*rdiv, *rmod;
-	u_int		scale;
+	u_int		scale, rscale;
 
 	a = pop_number();
 	if (a == NULL)
@@ -1152,7 +1175,8 @@ bdivmod(void)
 	rdiv = new_number();
 	rmod = new_number();
 	rdiv->scale = bmachine.scale;
-	rmod->scale = max(b->scale, a->scale + bmachine.scale);
+	rscale = remainder_scale(b, a);
+	rmod->scale = rscale;
 	scale = max(a->scale, b->scale);
 
 	if (BN_is_zero(a->number))
@@ -1163,6 +1187,7 @@ bdivmod(void)
 
 		bn_check(BN_div(rdiv->number, rmod->number,
 		    b->number, a->number, bmachine.ctx));
+		remainder_rescale(rmod, scale + bmachine.scale, rscale);
 	}
 	push_number(rdiv);
 	push_number(rmod);

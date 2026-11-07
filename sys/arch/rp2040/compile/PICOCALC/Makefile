@@ -125,8 +125,8 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	lcdcons.o lcdrender.o lcdterm.o lcdfont.o st7365p.o picokbd.o \
 	picokbd_map.o picokbd_req.o picoaudio.o sd.o sdspi.o flash.o \
 	flash_swap.o error.o journal.o map.o swapram.o swapram_pool.o \
-	heatshrink_encoder.o heatshrink_decoder.o subr_crc32.o \
-	exec_hsaout.o hsx_stream.o hsx_decoder.o
+	heatshrink_encoder.o hsx_decoder.o subr_crc32.o exec_hsaout.o \
+	hsx_stream.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/errlist.c \
@@ -163,10 +163,9 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/rp2040/dhara/map.c $S/arch/rp2040/rp2040/swapram.c \
 	$S/arch/rp2040/rp2040/swapram_pool.c \
 	$S/arch/rp2040/heatshrink/heatshrink_encoder.c \
-	$S/arch/rp2040/heatshrink/heatshrink_decoder.c \
-	$S/kern/subr_crc32.c $S/arch/rp2040/rp2040/exec_hsaout.c \
-	$S/arch/rp2040/rp2040/hsx_stream.c \
-	$S/arch/rp2040/rp2040/hsx_decoder.c swapunix.c
+	$S/arch/rp2040/rp2040/hsx_decoder.c $S/kern/subr_crc32.c \
+	$S/arch/rp2040/rp2040/exec_hsaout.c \
+	$S/arch/rp2040/rp2040/hsx_stream.c swapunix.c
 
 # load lines for config "xxx" will be emitted as:
 # xxx: ${SYSTEM_DEP} swapxxx.o
@@ -537,7 +536,7 @@ swapram_pool.o: $S/arch/rp2040/rp2040/swapram_pool.c
 heatshrink_encoder.o: $S/arch/rp2040/heatshrink/heatshrink_encoder.c
 	${COMPILE_C}
 
-heatshrink_decoder.o: $S/arch/rp2040/heatshrink/heatshrink_decoder.c
+hsx_decoder.o: $S/arch/rp2040/rp2040/hsx_decoder.c
 	${COMPILE_C}
 
 subr_crc32.o: $S/kern/subr_crc32.c
@@ -547,9 +546,6 @@ exec_hsaout.o: $S/arch/rp2040/rp2040/exec_hsaout.c
 	${COMPILE_C}
 
 hsx_stream.o: $S/arch/rp2040/rp2040/hsx_stream.c
-	${COMPILE_C}
-
-hsx_decoder.o: $S/arch/rp2040/rp2040/hsx_decoder.c
 	${COMPILE_C}
 
 

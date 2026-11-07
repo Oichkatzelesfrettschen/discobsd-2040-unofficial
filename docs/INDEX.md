@@ -66,7 +66,7 @@ artifact points at.
 | `audit-response.md` | how each ranked audit item was resolved or deferred | `tests/rp2040/fptest/Makefile` |
 | `benchmarks.md` | the CoreMark port and its reporting contract | `benchmarks/Makefile`, `benchmarks/coremark/Makefile` |
 | `board-libc.md` | how the board-native link library is composed | `distrib/rp2040/mkboardlibc.py`, `boardlibc-members` |
-| `emulation.md` | the Renode flow that boots the kernel off the real boot ROM | `tools/renode/boot.resc`, `boot.robot` |
+| `emulation.md` | the Renode flow that boots the kernel off the real boot ROM | `tools/renode/boot.resc`, `check-boot.py` |
 | `float-libs.md` | the Boot ROM float provider contract, bit-exact | `tests/rp2040/fptest/fptest.c` |
 | `games.md` | what `gamebox` carries and why | `distrib/rp2040/mi.rp2040` |
 | `menu-shell.md` | the Rockbox-shaped menu shell and its line editing | `bin/sh/edit.c` |
@@ -91,8 +91,13 @@ Grouped by what they investigate.
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
 | `picocalc-calculator-and-gui.md` | the calculator and tile-graphics plan for the PicoCalc: sources and licenses mined from this tree, the other BSDs and the vendor firmware, size estimates and a staged import order |
+| `picocalc-psram.md` | the PicoCalc's ESP-PSRAM64H as swap: datasheet facts with pages, the 19-word PIO program and its timing derivation, the boot-time swap selection with `fl1` as fallback, the alternatives with costs, and the host evidence |
 | `picocalc-games-survey.md` | game sources surveyed for the PicoCalc with their licenses, the clean-room route for each excluded one, and the game plan |
 | `picocalc-renode-keyboard-registers.md` | the change that makes the Renode keyboard model condition backlight writes as the vendor firmware does, shipped as `picocalc-renode-keyboard-backlight.patch` because the model lives on another branch |
+| `rp2040-second-core.md` | how the port uses the RP2040's second core: big-lock SMP ruled out, DragonFly-style single-writer rings and MINIX-style supervision kept, three tiers and an ordered, falsifiable plan that fixes the single-core decoder first |
+| `rp2040-second-core-bsd-survey.md` | DragonFly LWKT and the MINIX 3 Reincarnation Server decomposed, multiprocessor and offload precedent across the BSD trees, and the candidate architecture with a falsifier per claim |
+| `rp2040-second-core-hardware.md` | core 1 launch, FIFOs, spinlocks, divider, interpolators and reset from the datasheet, the resources the port owns, and an emulated profile of the packed-executable decoder |
+| `rp2040-second-core-emulation/` | the sample program, host packer, decoder harness and Unicorn cycle model behind the 387 cycles per byte figure, with a build script that checks input hashes and recorded output |
 | `calculator-and-games-review.md` | advisory review of the calculator library, bignum library and fourfall before integration, with each finding's disposition |
 | `calculator-and-games-review-round2.md` | adjudication of the second Codex and Grok reviews of the same branch: 28 merged findings with verdicts and probes, 17 defects both missed, and the commit that resolves each |
 | `copy-reviews/` | the copying reviews of `lib/libcalc` and `games/fourfall` against their excluded references, with calibration and shingle numbers |
@@ -214,6 +219,7 @@ Grouped by what they investigate.
 | Document | Establishes |
 | --- | --- |
 | `arm-main-legacy-build-isolation.md` | the canonical ARM tuples, default-off legacy options, finite relocation proof, shared-artifact boundary, calibrated gates, and restoration criteria |
+| `qemu-thumb1-test-tier.md` | the qemu-user Thumb-1 test tier: gate inventory and ranking, the ARMv6-M CPU model, a DiscoBSD a.out loader prototype, and the whole-kernel QEMU options |
 | `retrobsd-port-scope.md` | the original scoping of a RetroBSD/DiscoBSD port to this chip |
 | `os-options.md` | the Unix-like systems that target the Pico, compared |
 | `dual-boot.md` | FUZIX and NuttX coexistence on one board |
@@ -242,6 +248,8 @@ names; a correction goes in a new document rather than in the ledger.
 | `audit-handbacks/step5-omagic-crosscheck-handback.md` | the OMAGIC candidate cross-check |
 | `audit-handbacks/step5-printf-float-handback.md` | printf floating conversion, its source and linkage |
 | `sixteen-bit-audit-response.md` | the 16-bit assumption audit ruled item by item: kernel items closed in `ce33939` with the `tsleep` bound gated since, the libtcl extent, cache, reference-count, separator, regexp and regsub defects, the `vmrate` counters and the `ps` UID width repaired with calibrated gates, retained narrow formats, and deferrals with their validation paths |
+| `picocalc-emulation.md` | the PicoCalc survey of emulators (Renode, rp2040js, QEMU), the Renode carrier model for the ST7365P panel and the keyboard controller, the four SPI-path corrections to the pinned RP2040 models, and the host-to-hardware test pipeline |
+| `picocalc-session-handoff.md` | the PicoCalc hand-off: what PRs #344, #345 and the test-pipeline PR put in the tree, the two board builds and what they share, every test stage from host to PicoCalc hardware with its state, and the ordered next work |
 | `renode-rp2040-upstream-reports.md` | two issue texts for matgla/Renode_RP2040 with their `git am` patch series and the board measurement behind them, unsent |
 
 ### Accounts, licensing and the host side

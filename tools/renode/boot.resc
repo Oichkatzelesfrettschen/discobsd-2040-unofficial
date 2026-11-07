@@ -2,8 +2,8 @@
 # a console to type at and a GDB server to attach to.
 #
 # machine.resc beside this file builds the machine and stops there; everything
-# below is the interactive part. tools/renode/boot.robot includes that same
-# machine.resc and attaches a terminal tester instead, so the machine a person
+# below is the interactive part. tools/renode/check-boot.py includes that same
+# machine.resc and captures UART0 to a file instead, so the machine a person
 # debugs and the machine the gate asserts on are one machine.
 #
 # Nothing shortcuts into the kernel's vector table the way Renode_RP2040's

@@ -1229,6 +1229,10 @@ class HarnessLaunchOwnershipTest(unittest.TestCase):
     def test_harness_launches_leave_no_group_after_driver_sigterm(self):
         for kind, relative in self.HARNESSES:
             with self.subTest(harness=kind):
+                # A group an earlier harness leaked is killed before its
+                # record is dropped, so the registered cleanup, which reads
+                # only the latest record, never strands it.
+                self.stop_group()
                 if self.group_file.exists():
                     self.group_file.unlink()
                 group, returncode = self.terminate_driver(kind, execution.ROOT / relative)

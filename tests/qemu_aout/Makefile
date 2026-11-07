@@ -102,9 +102,16 @@ check: aoutrun probe probe.sites seek.dat loop.lnk
 # the libc's decimal conversion make, so a wrong model changes the probe's
 # output or ends the run. Each mutant is the loader with one defect, built
 # and run through the probe; a mutant that reproduces probe.expected with
-# status 3 survives and fails the gate.
-check-divider-mutants:
+# status 3 survives and fails the gate. The unmodified loader must reproduce
+# it first, so a probe that cannot run never counts as a rejection.
+check-divider-mutants: aoutrun probe probe.sites seek.dat loop.lnk
 	@set -eu; \
+	status=0; ${QEMU_ARM} -B ${GUEST_BASE} -cpu ${QEMU_ARM_CPU} ./aoutrun \
+	    probe.sites probe alpha beta > divider_baseline.out || status=$$?; \
+	if [ "$$status" -ne 3 ] || ! cmp -s probe.expected divider_baseline.out; then \
+		echo "divider mutants: the unmodified loader exited $$status or" \
+		    "differs from probe.expected; no mutant can be judged" >&2; exit 2; \
+	fi; \
 	for spec in \
 	    'quotient_is_remainder|s/sio_quotient = sio_dividend \/ value;/sio_quotient = sio_dividend % value;/' \
 	    'remainder_is_quotient|s/sio_remainder = sio_dividend % value;/sio_remainder = sio_dividend \/ value;/' \
@@ -128,6 +135,6 @@ check-divider-mutants:
 
 clean:
 	rm -f aoutrun probe probe.o probe.elf probe.sites probe.out seek.dat \
-	    loop.lnk errno.out brk.out env.out envfull.err mutant_*
+	    loop.lnk errno.out brk.out env.out envfull.err divider_baseline.out mutant_*
 
 .PHONY: all check check-divider-mutants clean

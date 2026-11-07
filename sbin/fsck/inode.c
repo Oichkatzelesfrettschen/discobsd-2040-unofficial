@@ -256,10 +256,10 @@ allocino(request, type)
         request = ROOTINO;
     else if (getstate(request) != USTATE)
         return (0);
-    for (ino = request; ino < imax; ino++)
+    for (ino = request; ino <= imax; ino++)
         if (getstate(ino) == USTATE)
             break;
-    if (ino == imax)
+    if (ino > imax)
         return (0);
     switch (type & IFMT) {
     case IFDIR:

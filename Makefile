@@ -322,6 +322,16 @@ check-aout:
 check-fs-stress:
 		${MAKE} -C tests/fs_stress check
 
+# sbin/fsck on images whose highest-numbered inode is in use. The inode
+# list numbers inodes 1 through imax inclusive, and the gate builds fsck for
+# the host against the tree's headers at ILP32, checks images made by the
+# fsutil library in preen and repair mode, and requires eight mutants (seven sites or pairs and the whole set) that
+# restore the pre-change comparisons to fail. A host without ILP32 execution
+# records a skip receipt; REQUIRE_ILP32=yes and the detached aggregate
+# check-ilp32-execution make it a failure.
+check-fsck-inode-range:
+		${MAKE} -C tests/fsck_inode_range check
+
 # Kernel sources compiled from the tree and linked against a host harness,
 # so the gate measures the code the board runs.
 check-kernel:
@@ -1024,7 +1034,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-rmdir-contracts check-tee-contracts \
 		check-libtcl-contracts \
 		check-du-contracts check-resize-contracts \
-		check-aout check-kernel check-fs-stress \
+		check-aout check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts check-backgammon-contracts \
@@ -1221,8 +1231,8 @@ check-ilp32-execution: check-python
 
 check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-posix-sh check-kernel .WAIT check-kernel-ilp32 check-libc-sysctl \
-		check-dd-contracts check-umount-contracts check-backgammon-contracts \
-		check-libc-host-contracts check-scandir-contracts \
+		check-dd-contracts check-umount-contracts check-fsck-inode-range \
+		check-backgammon-contracts check-libc-host-contracts check-scandir-contracts \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
 		check-tar-host check-cpio-host \
 		check-libtcl-contracts check-printf-contracts \
@@ -1419,6 +1429,7 @@ installfs:
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \
+		check-fsck-inode-range \
 		check-libc-environment check-libc-sysctl check-umount-contracts \
 		check-touch-contracts check-printf-contracts \
 		check-printf-contracts-ilp32 check-printf-contracts-cross \

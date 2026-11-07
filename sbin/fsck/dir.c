@@ -82,7 +82,7 @@ dircheck(idesc, dp)
 
     size = DIRSIZ(dp);
     spaceleft = DIRBLKSIZ - (idesc->id_loc % DIRBLKSIZ);
-    if (dp->d_ino < imax &&
+    if (dp->d_ino <= imax &&
         dp->d_reclen != 0 &&
         dp->d_reclen <= spaceleft &&
         (dp->d_reclen & 0x3) == 0 &&
@@ -345,7 +345,7 @@ makeentry(parent, ino, name)
     DINODE *dp;
     struct inodesc idesc;
 
-    if (parent < ROOTINO || parent >= imax || ino < ROOTINO || ino >= imax)
+    if (parent < ROOTINO || parent > imax || ino < ROOTINO || ino > imax)
         return (0);
     bzero(&idesc, sizeof(struct inodesc));
     idesc.id_type = DATA;
@@ -442,7 +442,7 @@ linkup(orphan, pdir)
         idesc.id_func = findino;
         idesc.id_number = ROOTINO;
         (void)ckinode(dp, &idesc);
-        if (idesc.id_parent >= ROOTINO && idesc.id_parent < imax) {
+        if (idesc.id_parent >= ROOTINO && idesc.id_parent <= imax) {
             lfdir = idesc.id_parent;
         } else {
             pwarn("NO lost+found DIRECTORY");

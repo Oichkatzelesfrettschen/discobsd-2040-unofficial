@@ -109,8 +109,10 @@ trial merge into current main in a scratch worktree passes
 `check-config-generated-sync`. Two PRs that each add ledger rows, or one that
 adds a kernel config while another edits `files.rp2040`, merge without a
 textual conflict and still break those gates; a stale generated kernel
-Makefile is regenerated with `tools/config/config Config` in the compile
-directory after `bmake -j1 MACHINE=rp2040 config` builds the tool. Conflicts
+Makefile is regenerated in two steps, as `tools/config/check_generated_sync.py`
+does: `bmake -j1 MACHINE=rp2040 config` run inside `tools/config` builds the
+generator, then `../../../../../tools/config/config Config` run inside
+`sys/arch/rp2040/compile/BOARD` rewrites that board's `Makefile`. Conflicts
 are resolved by reading base, ours and theirs and writing one result that
 carries both sides' intent. PRs #358 through #367, except #365, which is
 still open, merged without any automated review; Codex reviewed them
@@ -162,7 +164,8 @@ machine (`aeabi_div_idiv.S`, from #362), harness children launched through
 `run_owned` under execution ownership (from #361, #365, #367), and divider
 emulation in the qemu a.out runner (from #362).
 
-1. Darwin `%g` exact-tie oracle, which fails the macOS job on `0438ea53`.
+1. Darwin `%g` exact-tie oracle, which failed the macOS job on `0438ea53`;
+   committed as `9986ce0a`, macOS job to confirm.
    `check-printf-g-mutants` rejects the known-good `doprnt.c` because Apple's
    libc keeps a trailing zero on an exact decimal tie (`% .10g` of
    59984446805000: the tree prints the C17 result ` 5.99844468e+13`, Apple
@@ -184,10 +187,11 @@ emulation in the qemu a.out runner (from #362).
    for a profile without games (from #363). Accept an empty map when the
    profile selects no member. Acceptance: the gate passes on `base` and still
    fails on a map that omits a selected member.
-5. Read the Codex reviews of #358, #359, #366 and #367 if they have landed
-   and add their reachable findings to this branch.
-6. Run the aggregate gates on the final head: `check-qemu`, `logged-build`,
-   `check-fs-profiles`, `check-config-generated-sync`, `check-divider` and
+5. The Codex reviews of #358, #359, #366 and #367 landed with no findings;
+   Codex posts a clean result as a PR comment, not a review.
+6. Run `bmake MACHINE=rp2040 logged-build` on the final head, then the
+   directly selected gates it prepares: `check-qemu`, `check-fs-profiles`,
+   `check-config-generated-sync`, `check-divider` and
    `tools/test_execution_test.py`. One SIGTERM ownership test in the last
    missed its 20 s bound once and did not reproduce in six reruns; record a
    recurrence with its load.

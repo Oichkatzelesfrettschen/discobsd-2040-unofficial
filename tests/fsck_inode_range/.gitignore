@@ -1,0 +1,7 @@
+fsck_host
+image_gen
+fsck_mutant_*
+objs/
+mutant/
+work/
+machine/

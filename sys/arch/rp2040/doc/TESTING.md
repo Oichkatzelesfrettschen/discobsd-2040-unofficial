@@ -193,6 +193,22 @@ upload and hidden-file inclusion.
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
 | UF2 image pair (block magic, RP2040 family, 256-byte payloads, numbering, kernel bounds, exact root coverage) | `check-uf2-images` | `${PYTHON}`, built `unix.uf2` and `flash.uf2` | yes, after the flash build | yes, after the flash build |
 | account image (root lock, operator empty password, exact named shadow offsets, privileged modes) | `check-account-image` | `${PYTHON}`, RP2040 `fsutil`, generated filesystem image | distribution and flash builds | not run on host-only targets |
+| STM32 build (ten Cortex-M4 kernels linked, userland and tools compiled) | `bmake MACHINE=stm32 build` | arm-none-eabi toolchain, host build tools | yes: the `firmware/stm32` job | no |
+
+The STM32 build is the only gate that compiles `sys/arch/stm32`. The
+`firmware/stm32` job runs `bmake MACHINE=stm32 build` from a clean checkout
+through `tools/run_logged_gate.py`, then fails on any `warning:` line and on a
+missing `unix.bin` in any of the ten kernel directories. The userland
+compiles with `-Wall -Wextra -Werror` (`WARNERR`, share/mk/warnings.mk) and
+the STM32 kernel Makefiles carry `-Wall -Werror`; `-Wextra` stays off the
+kernel because the STM32 driver sources and HAL carry unused-parameter and
+sign-compare diagnostics that no gate has yet cleared. The kernel links the
+libgcc of its CPU variant (`LDADD` in sys/arch/stm32/conf/Makefile.stm32),
+because kern_time.c divides 64-bit values and the compiler lowers those to
+`__aeabi_ldivmod`; the link rule no longer ignores a failed link. The job
+establishes compilation and linking. It executes no STM32 binary, so division
+behavior, the aeabi helper selection in lib/libc/arm/gen and every board claim
+remain unmeasured.
 
 The account-image gate checks root and operator passwd records for LF
 termination and a maximum of 255 bytes, including LF. The gate rejects NUL

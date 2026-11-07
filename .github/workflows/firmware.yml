@@ -346,6 +346,63 @@ jobs:
             distrib/rp2040/flash.uf2
           if-no-files-found: error
 
+  # The STM32 tree: the ten Cortex-M4 kernels, the userland and the tools,
+  # all through the machine registry's stm32 tuple. No gate runs these
+  # binaries; the job establishes that they compile and link, which is the
+  # evidence class that would have caught the unresolved __aeabi_ldivmod
+  # in the kernel link. Userland compiles with -Wall -Wextra -Werror
+  # (WARNERR in share/mk/warnings.mk) and the kernel Makefiles carry
+  # -Wall -Werror. A kernel link that fails stops the build, and any
+  # warning line in the log fails the job.
+  stm32:
+    name: stm32 kernels and userland
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the host toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bmake make build-essential \
+            gcc-arm-none-eabi binutils-arm-none-eabi \
+            byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
+            python3
+          echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
+      - name: Report the toolchain
+        run: |
+          cc --version | head -1
+          arm-none-eabi-gcc --version | head -1
+      - name: Build the STM32 kernels and the userland
+        timeout-minutes: 25
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-stm32-build \
+            --log .build-logs/linux-stm32-build.log \
+            --status .build-logs/linux-stm32-build.status.json \
+            --idle-timeout-seconds 600 --timeout-seconds 1200 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=stm32 build
+      - name: Assert the build is warning-free
+        run: |
+          total=$(grep -c 'warning:' .build-logs/linux-stm32-build.log || true)
+          echo "warning: lines in the build log: $total"
+          grep 'warning:' .build-logs/linux-stm32-build.log || true
+          test "$total" -eq 0
+      - name: Confirm every kernel linked
+        run: |
+          for kernel in sys/arch/stm32/compile/*/; do
+            test -s "${kernel}unix.bin" || { echo "no unix.bin in $kernel" >&2; exit 1; }
+          done
+          ls -l sys/arch/stm32/compile/*/unix.bin
+      - name: Retain build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stm32-build-logs
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
+
   # Every required ILP32 variant belongs to this provisioned job. Executable
   # receipts distinguish assertion results from optional local skips.
   posix-sh:

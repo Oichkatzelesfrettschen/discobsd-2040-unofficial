@@ -612,6 +612,12 @@ the arithmetic fits the 384 KB raw swap, and no board run has forked it.
 `tests/dcbc` (`check-dcbc`, and `check-qemu` for dc) is the host evidence,
 `tests/rp2040/dcbc_smoke/board_dcbc_smoke.py` the closed board script, and
 `docs/research/openbsd-dc-bn-port.md` the port record.
+`docs/research/c17-shipped-resource-baseline.json` records the manifest of
+commit `e7040aa1`, from before the `calc-bignum`, `calc`, `puzzles` and
+`sdcard` closures existed, so none of `bc`, `dc`, `bc.library`, `calc`,
+`puzzlebox` or the SD device nodes appears in its records; re-recording it
+from a distribution run is open work
+(`docs/research/picocalc-session-handoff.md`).
 
 ### Strict C17 for the remaining console files
 

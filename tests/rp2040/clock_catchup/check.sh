@@ -107,6 +107,8 @@ expect_mutant_rejected head-only-callout-decrement \
     's/p->c_time = t - (int)(owed - ahead);/p->c_time = t - (int)owed;/'
 expect_mutant_rejected unarmed-clock-counted \
     's/if (!c->armed)/if (0)/'
+expect_mutant_rejected pending-read-before-timer \
+    's/^[[:space:]]*held = read_pending();$//;s/now = read_timer();/held = read_pending(); now = read_timer();/'
 
 # Source wiring: the production paths reach the catch-up before the mask
 # lifts, and the tick handler feeds the record.

@@ -5,16 +5,22 @@ usage: procgroup.py --selftest WORKDIR
 bc forks a dc evaluator, so a case that exceeds its time bound leaves the
 fork running when only the direct child is killed: the fork is orphaned to
 init and keeps spinning after the gate has exited. run_group starts the
-command as the leader of a new session; on a timeout it sends SIGKILL to the
-whole process group before the leader is reaped, so the group id still names
-that group, then reaps the leader. processes_under reports every process whose
-executable lies under a directory, which is how mutate.py proves that no
-process of a mutant build survives its run.
+command through tools/test_execution.py run_bounded, which makes it the
+leader of a new session registered with the enclosing execution ownership
+(tools/run_logged_gate.py). A timeout, SIGINT or SIGTERM of the calling
+process sends SIGTERM and then SIGKILL to the whole process group before
+run_group returns or exits, so neither a grandchild nor the group of a
+cancelled gate outlives the case. processes_under reports every process
+whose executable lies under a directory, which is how mutate.py proves that
+no process of a mutant build survives its run.
 
 --selftest calibrates the scan against both launch methods: a shell that
 starts a copy of sleep in a build directory is run past its time bound once
 with the single-child kill that subprocess.run applies (the scan must find
-the orphan) and once through run_group (the scan must find nothing).
+the orphan) and once through run_group (the scan must find nothing). It
+then terminates a driver that is inside run_group with SIGTERM, once with
+the detached launch run_group replaced (the scan must find the orphan) and
+once with run_group itself (the scan must find nothing).
 """
 
 import argparse
@@ -23,7 +29,20 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
+
+TOOLS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "tools",
+)
+if TOOLS not in sys.path:
+    sys.path.insert(0, TOOLS)
+import test_execution  # noqa: E402
+
+# A case without a bound still ends: the longest hard bound the aggregate gate
+# allows a whole run.
+UNBOUNDED_SECONDS = test_execution.AGGREGATE_TIMEOUT_SECONDS
 
 
 def kill_group(pid):
@@ -35,33 +54,30 @@ def kill_group(pid):
 
 
 def run_group(command, cwd=None, env=None, stdin_data=None, timeout=None, executable=None):
-    """Run command as a session leader.
+    """Run command as an owned session leader.
 
     Return (returncode, stdout, stderr, timed_out) with bytes output. A
-    timeout kills the whole group, so a grandchild cannot outlive the case.
+    timeout kills the whole group, so a grandchild cannot outlive the case; a
+    SIGINT or SIGTERM of this process stops the group and raises SystemExit.
     """
-    proc = subprocess.Popen(
-        command,
-        executable=executable,
-        cwd=cwd,
-        env=env,
-        stdin=subprocess.PIPE if stdin_data is not None else subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=True,
-    )
-    timed_out = False
-    try:
-        out, err = proc.communicate(stdin_data, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        kill_group(proc.pid)
-        out, err = proc.communicate()
-    except BaseException:
-        kill_group(proc.pid)
-        proc.communicate()
-        raise
-    return proc.returncode, out, err, timed_out
+    with tempfile.TemporaryFile() as out_file, tempfile.TemporaryFile() as err_file:
+        with tempfile.TemporaryFile() as in_file:
+            if stdin_data is not None:
+                in_file.write(stdin_data)
+                in_file.seek(0)
+            returncode, timed_out = test_execution.run_owned(
+                command,
+                UNBOUNDED_SECONDS if timeout is None else timeout,
+                cwd=cwd,
+                env=env,
+                stdin=in_file if stdin_data is not None else subprocess.DEVNULL,
+                stdout=out_file,
+                stderr=err_file,
+                executable=executable,
+            )
+        out_file.seek(0)
+        err_file.seek(0)
+        return returncode, out_file.read(), err_file.read(), timed_out
 
 
 def processes_under(directory):
@@ -109,6 +125,59 @@ def _single_child_launch(command, timeout):
         pass
 
 
+def _legacy_detached_launch(command, timeout):
+    """The launch run_group used before run_bounded: a session outside the gate's ownership.
+
+    A timeout kills the group, but SIGTERM of this process ends it without
+    reaching any cleanup, so the detached group keeps running.
+    """
+    proc = subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    try:
+        proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        kill_group(proc.pid)
+        proc.communicate()
+
+
+def _driver(mode, command):
+    """Run command through the named launch method; the selftest terminates this process."""
+    if mode == "legacy":
+        _legacy_detached_launch(command, 60)
+    else:
+        run_group(command, timeout=60)
+    return 0
+
+
+def _terminated_driver_leaves(probe, mode, command):
+    """SIGTERM a driver that is inside a launch; return processes left under probe."""
+    driver = subprocess.Popen(
+        [sys.executable, "-I", os.path.abspath(__file__), "--driver", mode, "--", *command],
+        stdin=subprocess.DEVNULL,
+    )
+    try:
+        deadline = time.monotonic() + 10.0
+        while not processes_under(probe):
+            if time.monotonic() > deadline or driver.poll() is not None:
+                return None
+            time.sleep(0.02)
+        driver.send_signal(signal.SIGTERM)
+        driver.wait(timeout=10.0)
+        time.sleep(0.5)
+        return processes_under(probe)
+    finally:
+        if driver.poll() is None:
+            driver.kill()
+            driver.wait()
+        kill_processes_under(probe)
+        _wait_gone(probe)
+
+
 def selftest(work):
     probe = os.path.join(os.path.abspath(work), "leakprobe")
     shutil.rmtree(probe, ignore_errors=True)
@@ -141,14 +210,35 @@ def selftest(work):
     if not timed_out:
         print("FAIL dcbc process groups: the probe did not reach its time bound")
         return 1
-    print("PASS dcbc process groups: single-child kill leaves an orphan, run_group leaves none")
+
+    legacy_left = _terminated_driver_leaves(probe, "legacy", command)
+    if not legacy_left:
+        print("FAIL dcbc process groups: the scan missed the group that outlived a SIGTERM "
+              "of the detached launch")
+        return 1
+    owned_left = _terminated_driver_leaves(probe, "owned", command)
+    if owned_left is None:
+        print("FAIL dcbc process groups: the run_group driver never started its case")
+        return 1
+    if owned_left:
+        print("FAIL dcbc process groups: SIGTERM of the run_group caller left "
+              "%d process(es) running" % len(owned_left))
+        return 1
+    print("PASS dcbc process groups: single-child kill leaves an orphan, run_group leaves none, "
+          "and SIGTERM of the caller leaves none where the detached launch leaves one")
     return 0
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--selftest", metavar="WORKDIR", required=True)
+    parser.add_argument("--selftest", metavar="WORKDIR")
+    parser.add_argument("--driver", choices=("legacy", "owned"))
+    parser.add_argument("command", nargs="*")
     args = parser.parse_args()
+    if args.driver:
+        return _driver(args.driver, args.command)
+    if not args.selftest:
+        parser.error("--selftest WORKDIR is required")
     return selftest(args.selftest)
 
 

@@ -31,15 +31,19 @@
  * soft-float routine of the same operation. The libc glue then runs as it
  * does on the board; the arithmetic is libgcc's, not the mask ROM's.
  *
- * Integer division reaches the SIO hardware divider at 0xd0000000
- * (lib/libc/arm/gen/aeabi_div.S, RP2040 datasheet 2.3.1.5), which qemu-user
- * does not model. The loader leaves that page unmapped and serves the
- * resulting SIGSEGV: it decodes the faulting Thumb "str" or "ldr" with an
- * immediate offset, applies it to a model of the unsigned dividend, divisor,
- * quotient and remainder registers, and resumes after the instruction. The
- * model divides when a divisor register is written, so the library's wait
- * between the divisor write and the result reads is not exercised here;
- * tests/rp2040/divider_helpers owns that timing contract.
+ * Integer division reaches the RP2040 SIO divider: lib/libc/arm/gen/aeabi_div.S
+ * stores the dividend and divisor at SIO base 0xd0000000 + 0x60 and 0x64 and
+ * loads the quotient and remainder from + 0x70 and + 0x74 (datasheet 2.3.1.5).
+ * qemu-user maps no guest memory at or above 0x80000000 for an M-profile CPU,
+ * so those accesses raise SIGSEGV. The loader serves it like the svc sites: it
+ * decodes the faulting "str Rt, [Rn, #imm]" or "ldr Rt, [Rn, #imm]", takes the
+ * register block from its own state, starts the division when the divisor
+ * arrives, and resumes after the instruction. Only the unsigned dividend and
+ * divisor stores and the quotient and remainder loads are modeled; any other
+ * access to the SIO block ends the run, so a helper that strays outside the
+ * registers it documents fails. The arithmetic is libgcc's, not the divider's,
+ * and the model has no eight-cycle delay, so the cycle wait and the divider's
+ * overflow behavior remain board tests (tests/rp2040/divtest).
  *
  * The caller is a test: fork, exec, signals, pipes and the file system calls
  * whose structures differ between DiscoBSD and Linux are outside the served
@@ -429,75 +433,69 @@ on_sigill(int sig, void *info, void *vuc)
 	mc->pc = pc + 2u;
 }
 
-/* SIO divider registers (RP2040 datasheet 2.3.1.5). */
+/* RP2040 SIO divider registers (datasheet 2.3.1.5), byte offsets from SIO base. */
 #define SIO_BASE 0xd0000000u
-#define SIO_DIV_UDIVIDEND 0x60u
-#define SIO_DIV_UDIVISOR 0x64u
-#define SIO_DIV_QUOTIENT 0x70u
-#define SIO_DIV_REMAINDER 0x74u
+#define SIO_SIZE 4096u
+#define SIO_UDIVIDEND 0x60u
+#define SIO_UDIVISOR 0x64u
+#define SIO_QUOTIENT 0x70u
+#define SIO_REMAINDER 0x74u
+#define LOADER_EXIT_SEGV 139
 
-static u32 div_dividend, div_quotient, div_remainder;
+static u32 sio_dividend;
+static u32 sio_quotient;
+static u32 sio_remainder;
 
 /*
- * Writing the unsigned divisor starts the division; the library divides
- * magnitudes through the unsigned alias only, so the signed alias is not
- * modeled and an access to it ends the run. A zero divisor gives the
- * datasheet's all-ones quotient.
+ * Serve one access to the SIO block. The Thumb word store and word load with
+ * an immediate offset are "0110 0 imm5 Rn Rt" and "0110 1 imm5 Rn Rt"; the
+ * address is Rn + imm5 * 4 because qemu-user leaves sigcontext.fault_address
+ * zero. A zero divisor leaves the hardware's all-ones quotient and the
+ * dividend as the remainder, which the library helper never reads because it
+ * tests the divisor itself.
  */
-static void
-div_start(u32 divisor)
-{
-	if (divisor == 0) {
-		div_quotient = ~0u;
-		div_remainder = div_dividend;
-	} else {
-		div_quotient = div_dividend / divisor;
-		div_remainder = div_dividend % divisor;
-	}
-}
-
 static void
 on_sigsegv(int sig, void *info, void *vuc)
 {
 	struct lx_ucontext *uc = vuc;
 	struct lx_sigcontext *mc = &uc->mc;
 	u32 pc = mc->pc;
-	u32 ins = *(const u16 *)pc;
-	u32 rt = ins & 7u;
-	u32 reg;
+	u16 insn = *(const u16 *)pc;
+	u32 form = insn & 0xf800u;
+	u32 address, offset;
 
 	(void)sig;
 	(void)info;
-	/* STR (immediate) is 0110 0, LDR (immediate) is 0110 1; word offset. */
-	if ((ins & 0xf000u) != 0x6000u)
-		die("aoutrun: SIGSEGV outside the SIO divider\n", 139);
-	reg = (mc->r[(ins >> 3) & 7u] + ((ins >> 6) & 31u) * 4u) - SIO_BASE;
-	if (reg >= 0x1000u)
-		die("aoutrun: SIGSEGV outside the SIO divider\n", 139);
-	if ((ins & 0x0800u) == 0) {
-		u32 v = mc->r[rt];
+	if (form != 0x6000u && form != 0x6800u)
+		die("aoutrun: SIGSEGV is not a word access through ldr or str\n",
+		    LOADER_EXIT_SEGV);
+	address = mc->r[(insn >> 3) & 7u] + ((insn >> 6) & 0x1fu) * 4u;
+	if (address < SIO_BASE || address >= SIO_BASE + SIO_SIZE)
+		die("aoutrun: SIGSEGV outside the SIO block\n", LOADER_EXIT_SEGV);
+	offset = address - SIO_BASE;
+	if (form == 0x6000u) {
+		u32 value = mc->r[insn & 7u];
 
-		switch (reg) {
-		case SIO_DIV_UDIVIDEND:
-			div_dividend = v;
-			break;
-		case SIO_DIV_UDIVISOR:
-			div_start(v);
-			break;
-		default:
-			die("aoutrun: write to an unmodeled SIO register\n", 139);
+		if (offset == SIO_UDIVIDEND) {
+			sio_dividend = value;
+		} else if (offset == SIO_UDIVISOR) {
+			if (value == 0u) {
+				sio_quotient = 0xffffffffu;
+				sio_remainder = sio_dividend;
+			} else {
+				sio_quotient = sio_dividend / value;
+				sio_remainder = sio_dividend % value;
+			}
+		} else {
+			die("aoutrun: store to an unmodeled SIO register\n",
+			    LOADER_EXIT_SEGV);
 		}
+	} else if (offset == SIO_QUOTIENT) {
+		mc->r[insn & 7u] = sio_quotient;
+	} else if (offset == SIO_REMAINDER) {
+		mc->r[insn & 7u] = sio_remainder;
 	} else {
-		switch (reg) {
-		case SIO_DIV_QUOTIENT:
-			mc->r[rt] = div_quotient;
-			break;
-		case SIO_DIV_REMAINDER:
-			mc->r[rt] = div_remainder;
-			break;
-		default:
-			die("aoutrun: read of an unmodeled SIO register\n", 139);
-		}
+		die("aoutrun: load from an unmodeled SIO register\n", LOADER_EXIT_SEGV);
 	}
 	mc->pc = pc + 2u;
 }
@@ -714,7 +712,7 @@ loader_main(u32 *sp0)
 	char **uargv, **uenv;
 	char *ucp;
 	int uargc, envc = 0;
-	struct lx_ksigaction sa;
+	struct lx_ksigaction sa, sa_segv;
 	struct lx_stack ss;
 
 	if (argc < 3)
@@ -824,7 +822,7 @@ loader_main(u32 *sp0)
 	}
 	*(char ***)top = uargv;
 
-	/* Serve SIGILL on a stack of the loader's own. */
+	/* Serve SIGILL and SIGSEGV on a stack of the loader's own. */
 	ss.sp = altstack;
 	ss.flags = 0;
 	ss.size = sizeof altstack;
@@ -836,12 +834,13 @@ loader_main(u32 *sp0)
 	sa.mask[0] = sa.mask[1] = 0;
 	if (lx(L_SIGACTION, LX_SIGILL, (long)&sa, 0, 8, 0, 0) != 0)
 		die("aoutrun: sigaction failed\n", LOADER_EXIT_SETUP);
+	/* The SIO divider accesses fault into on_sigsegv. */
+	sa_segv = sa;
+	sa_segv.handler = (void *)on_sigsegv;
+	if (lx(L_SIGACTION, LX_SIGSEGV, (long)&sa_segv, 0, 8, 0, 0) != 0)
+		die("aoutrun: sigaction failed\n", LOADER_EXIT_SETUP);
 	/* The kernel's Thumb breakpoint is "udf #1", which is exit's number. */
 	if (lx(L_SIGACTION, LX_SIGTRAP, (long)&sa, 0, 8, 0, 0) != 0)
-		die("aoutrun: sigaction failed\n", LOADER_EXIT_SETUP);
-	/* The SIO divider page is unmapped; its accesses fault here. */
-	sa.handler = (void *)on_sigsegv;
-	if (lx(L_SIGACTION, LX_SIGSEGV, (long)&sa, 0, 8, 0, 0) != 0)
 		die("aoutrun: sigaction failed\n", LOADER_EXIT_SETUP);
 
 	entry = h.a_entry;

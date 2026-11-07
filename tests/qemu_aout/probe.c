@@ -149,6 +149,8 @@ main(int argc, char **argv)
 	volatile double d = 3.0;
 	volatile long long big = -5000000000LL;
 	volatile int num = 1000000, den = 7;
+	volatile unsigned int un = 4000000000u, ud = 7u;
+	volatile int sn = -7, sd = 2, imin = -2147483647 - 1;
 	char *heap;
 	int i;
 
@@ -164,6 +166,9 @@ main(int argc, char **argv)
 	for (i = 0; i < argc; i++)
 		printf("argv[%d]=%s\n", i, argv[i]);
 	printf("div %d %d %d\n", num / den, -num / den, num % den);
+	printf("div2 %u %u %d %d %d %d %d %d %d %d\n", un / ud, un % ud, sn / sd,
+	    sn % sd, sn / -sd, sn % -sd, -sn / -sd, -sn % -sd, imin / 3,
+	    imin % 3);
 	printf("float %d %d\n", (int)(a * b * 100), (int)(d / 7.0 * 1000));
 	printf("int64 %d\n", (int)((double)big / 3.0 / 1000000.0));
 	if (seek_probe() != 0)

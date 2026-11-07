@@ -7,18 +7,21 @@ the test once from the unmodified sources and requires a pass, then
 rewrites one fragment of hsx_decoder.c or hsx_stream.c per mutant (each
 fragment occurs exactly once), rebuilds, runs the test with -q -s, and
 requires a failure. A failure is a nonzero exit, a fault from a guard
-page, or a run that exceeds the time limit. Every child runs in its own
-process group, and the group is killed on a timeout.
+page, or a run that exceeds the time limit. Every child runs through
+tools/test_execution.py run_bounded, which owns its process group: a timeout
+or a SIGINT or SIGTERM of this script stops the whole group.
 
     hsx_decoder_mutants.py --cc cc --topsrc DIR [--images DIR]
 """
 
 import argparse
 import os
-import signal
 import subprocess
 import sys
 import tempfile
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools"))
+import test_execution  # noqa: E402
 
 DEC = "hsx_decoder.c"
 STR = "hsx_stream.c"
@@ -154,23 +157,15 @@ MUTANTS = (
 )
 
 
-def run(cmd, timeout, **kw):
-    """Run cmd in its own process group; kill the group on a timeout."""
-    proc = subprocess.Popen(
-        cmd,
-        start_new_session=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        **kw,
-    )
-    try:
-        out, _ = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
-        out, _ = proc.communicate()
-        return None, out
-    return proc.returncode, out
+def run(cmd, timeout):
+    """Run cmd as an owned process group; return (status, output), None on a timeout."""
+    with tempfile.TemporaryFile() as sink:
+        status, timed_out = test_execution.run_owned(
+            cmd, timeout, stdin=subprocess.DEVNULL, stdout=sink, stderr=subprocess.STDOUT
+        )
+        sink.seek(0)
+        out = sink.read().decode("utf-8", "replace")
+    return (None if timed_out else status), out
 
 
 def compile_obj(cc, flags, src, obj):

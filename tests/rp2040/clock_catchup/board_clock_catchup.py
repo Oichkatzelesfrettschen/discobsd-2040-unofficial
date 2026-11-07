@@ -5,8 +5,8 @@ usage: DISCOBSD_BOARD_CLOCK_CATCHUP=run PYTHON board_clock_catchup.py [unix.uf2,
 
 The script touches the board only when DISCOBSD_BOARD_CLOCK_CATCHUP is exactly
 "run"; unset, empty and every other value exit without opening a port or
-calling picotool. With the variable set it flashes the named images in one
-BOOTSEL visit when given and otherwise leaves the board running, then logs in
+calling discobsd-flash. With the variable set it flashes the named images with
+discobsd-flash when given and otherwise leaves the board running, then logs in
 as operator on the USB console.
 
 Claim under test (sys/arch/rp2040/rp2040/clock_catchup.h, called from
@@ -24,11 +24,15 @@ offset estimate, one interval per measurement. The offset starts from the
 image's last-update time, so the check compares offsets and never reads one
 absolute value. Three measurements run in order: a baseline; one after a
 dd-and-sync loop that rewrites a file on the flash root; and one after an idle
-wait as long as the loop, which gives the clock's drift without flash work. The
+wait as long as the loop, which gives the clock's drift without the loop. The
 workload's excess drift is the second offset change minus the third. A kernel
-without catch-up loses about 44 ms per sector erased; the workload writes
-enough 4 KB sectors that the loss exceeds the tolerance by a factor of at least
-four, and the script reports the check as inconclusive when it does not.
+without catch-up loses at least 44 ms per sector erased (the floor used here;
+a kernel with the catch-up call disabled lost 96 s to a 96-sector workload, 23
+times the floor); the check passes when the excess stays under a tenth of the
+floor, and reports itself inconclusive when
+the floor is under a second or the tenth is narrower than the bound width. The
+idle wait is not free of flash work: each fork under the single-process window
+swaps through the raw swap partition, so the control carries that residue.
 """
 
 import calendar
@@ -55,18 +59,36 @@ MONTHS = ("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec").split()
 SAMPLES = 40
 SETTLE_MARGIN = 0.060
 
-# The workload: 32 KB written per pass, at least four times the tolerance in
-# dropped ticks when none are counted back (see the module docstring).
+# The workload: 32 KB written per pass; 24 passes lose 8 s without catch-up.
 PASSES = 24
 WORKLOAD_BLOCKS = 32
 SECTOR_BYTES = 4096
 ERASE_MS = 44
-TOLERANCE_S = 0.250
+# The check passes when the excess drift stays under this fraction of the loss
+# a kernel without catch-up would show. The catch-up counts back the ticks
+# from the free-running timer and can lose at most one tick per masked window,
+# so a residue that grows with the flash work is expected; a missing catch-up
+# loses the whole ERASE_MS per sector.
+TOLERANCE_FRACTION = 0.10
+MIN_LOST_S = 1.0
 
 
 class Console:
     def __init__(self, serial_module, port):
+        self.serial = serial_module
         self.port = serial_module.Serial(port, 115200, timeout=0)
+
+    def reopen(self):
+        """Reopen the console after the board re-enumerates, which it can do twice."""
+        start = time.time()
+        while True:
+            time.sleep(2)
+            try:
+                self.port = self.serial.Serial(glob.glob(PORT_PATTERN)[0], 115200, timeout=0)
+                return
+            except (IndexError, self.serial.SerialException):
+                if time.time() - start > 60:
+                    raise
 
     def read(self, seconds, stop=None):
         """Read for up to SECONDS; return (text, [(arrival, line)...])."""
@@ -75,7 +97,11 @@ class Console:
         pending = b""
         start = time.time()
         while time.time() - start < seconds:
-            data = self.port.read(4096)
+            try:
+                data = self.port.read(4096)
+            except self.serial.SerialException:
+                self.reopen()
+                continue
             if not data:
                 time.sleep(0.005)
                 continue
@@ -95,13 +121,11 @@ class Console:
 
 
 def flash(images):
-    picotool = ("picotool",)
-    quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
-    subprocess.call([*picotool, "reboot", "-u", "-f"], **quiet)
-    time.sleep(3)
-    for image in images.split(","):
-        subprocess.check_call([*picotool, "load", image], stdout=subprocess.DEVNULL)
-    subprocess.check_call([*picotool, "reboot"], stdout=subprocess.DEVNULL)
+    subprocess.check_call(
+        ["discobsd-flash", *images.split(",")],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     time.sleep(4)
 
 
@@ -140,9 +164,9 @@ def measure_offset(console):
     only differences between measurements are meaningful.
     """
     _, stamped = console.run(
-        "for i in `seq 1 %d`; do date; done; echo OFFDONE" % SAMPLES,
-        wait=60,
-        stop="OFFDONE\n",
+        'for i in `seq 1 %d`; do date; done; echo OFF""DONE' % SAMPLES,
+        wait=300,
+        stop="\nOFFDONE\n",
     )
     low = -1e18
     high = 1e18
@@ -196,14 +220,16 @@ def main():
     )
     for line in script:
         console.run("echo '%s' >> /tmp/cc.sh" % line, wait=1.0)
-    # A dry pass of the script's own shell parse would hide a typo, so check it.
-    text, _ = console.run("sh -n /tmp/cc.sh; echo SYNTAX$?", wait=6, stop="SYNTAX0")
-    if "SYNTAX0" not in text:
-        print("workload script does not parse: %r" % text)
+    # The board's sh runs a script under "-n" instead of only parsing it, so
+    # the stored script is read back and compared line for line.
+    text, _ = console.run('cat /tmp/cc.sh; echo SCRIPT""END', wait=10, stop="\nSCRIPTEND\n")
+    stored = [line.strip() for line in text.split("\n")]
+    if any(line not in stored for line in script):
+        print("workload script was not stored intact: %r" % text[-300:])
         return 1
 
     start = time.time()
-    text, _ = console.run("sh /tmp/cc.sh 2>/dev/null | tail -n 1", wait=600, stop="WORKDONE\n")
+    text, _ = console.run("sh /tmp/cc.sh 2>/dev/null", wait=600, stop="WORKDONE\n")
     workload_s = time.time() - start
     if "WORKDONE" not in text:
         print("workload did not finish in 600 s: %r" % text[-200:])
@@ -237,11 +263,15 @@ def main():
         "offset change: workload %+.3f s, idle control %+.3f s over %.1f s,"
         " excess %+.3f s, bound width %.3f s" % (work_change, idle_change, idle_s, excess, width)
     )
-    if lost < 4 * TOLERANCE_S:
+    if lost < MIN_LOST_S or lost * TOLERANCE_FRACTION < width:
         print("clock catch-up: INCONCLUSIVE (workload too small to separate a missing catch-up)")
         return 1
-    ok = abs(excess) <= TOLERANCE_S
-    print("clock catch-up: %s (tolerance %.3f s)" % ("PASS" if ok else "FAIL", TOLERANCE_S))
+    tolerance = lost * TOLERANCE_FRACTION
+    ok = abs(excess) <= tolerance
+    print(
+        "clock catch-up: %s (excess %.1f%% of the loss without catch-up, tolerance %.3f s)"
+        % ("PASS" if ok else "FAIL", 100.0 * excess / lost, tolerance)
+    )
     return 0 if ok else 1
 
 

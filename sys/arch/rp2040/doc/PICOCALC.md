@@ -36,8 +36,8 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed: text 123,220 of 130,816 bytes (`RP2040.ld` FLASH; 7,596 bytes of headroom), data 368, bss 47,608; no `psram` symbol in `unix.elf`; the console alone measured 118,268 text, 304 data and 45,888 bss, so the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,776) add 4,952 text, and 118,268 + 4,952 equals the merged build |
-| PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of PICOCALC | build | observed: text 125,328 of 130,816 bytes (5,488 bytes of headroom), data 424, bss 47,752; it exceeds PICOCALC by 2,108 text, 56 data and 144 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,068, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed: text 123,332 of 130,816 bytes (`RP2040.ld` FLASH; 7,484 bytes of headroom), data 368, bss 47,600; no `psram` symbol in `unix.elf`; the console alone measured 118,268 text, 304 data and 45,888 bss, so the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,888) add 5,064 text, and 118,268 + 5,064 equals the merged build |
+| PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of PICOCALC | build | observed: text 125,448 of 130,816 bytes (5,368 bytes of headroom), data 424, bss 47,752; it exceeds PICOCALC by 2,116 text, 56 data and 152 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,068, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
@@ -50,7 +50,7 @@ name a file there, with a page for a PDF.
 | BEL (0x07) reaches the bell primitive once per byte, from the ground state and inside a control sequence, and draws, moves and scrolls nothing; other controls stay silent | host | observed by `check-picocalc-host` against the model panel; two mutants fail it |
 | `picoaudio.c` compiles into PICOCALC and PICOCALC_PSRAM only and keeps the PWM divider and wrap value inside their register fields | build | observed: PICOCALC text +260 bytes, bss +8 over the sysctl build; two `_Static_assert`s bound DIV.INT and TOP; PICO and PICO_UART unchanged |
 | The tone is audible on the speaker, 1 kHz for 100 ms at 25 percent duty, and the outputs stay low afterward | board | not run |
-| `sd.c` and `sdspi.c` compile into PICOCALC and PICOCALC_PSRAM only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,776 bytes (2,771 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,696 over the audio build |
+| `sd.c` and `sdspi.c` compile into PICOCALC and PICOCALC_PSRAM only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,888 bytes (2,887 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,688 over the audio build |
 | The SD protocol layer frames commands, initializes SDSC version 1, SDSC version 2 and SDHC cards, decodes both CSD versions, addresses by byte or block, and fails with a bounded wait on an absent, stuck, unsupported or erroring card | host | observed by `check-picocalc-host` against a card model replaying recorded command transcripts; twenty mutants fail it |
 | `fsutil --repartition=fs=8m` and `fsutil --new --partition=1` make an image whose sector 0 holds the 0x55AA signature and one type 0xB7 entry at sector 2 in the 16-byte layout `sd.c` copies into `struct diskpart`, and `fsutil --check --partition=1` accepts it | host | observed on a scratch image; the kernel side of the parse is not run |
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
@@ -354,7 +354,11 @@ its partitions. The partition table is read at the first open from sector 0
 (`fdisk` rewrites it and calls `DIOCREINIT`); an entry that reaches past
 the card's end is dropped. `DIOCREINIT` builds the new table apart and
 replaces the live one only after sector 0 reads, so a read error returns
-`EIO` and leaves the open partitions' mappings as they were. A transfer is any whole number of 512-byte
+`EIO` and leaves the open partitions' mappings as they were. It returns
+`EBUSY` while any block open holds a partition (a mount, or a descriptor on
+`sd0` to `sd0d`), because the buffers and inodes of that filesystem are
+addressed through the entries it would replace; the raw open `fdisk` makes
+does not count. It returns `EIO` once the card has been replaced. A transfer is any whole number of 512-byte
 sectors, and its start is a 1 KiB block number because `physio()` shifts the
 file offset right by `DEV_BSHIFT`, which drops the low ten offset bits. Raw
 I/O therefore works at 1 KiB-aligned offsets: `sdread` and `sdwrite` (the
@@ -365,7 +369,13 @@ before the last are not whole blocks, because a 512-byte transfer at offset
 multiple (`dd` defaults to 512-byte blocks and fails at its second read);
 the one-sector transfers `fdisk` makes at offset 0 reach sector 0. A request
 that crosses the partition end moves the sectors that fit and reports the
-rest in `b_resid`. Block and raw opens
+rest in `b_resid`. `physio()` advances the file offset by the count minus
+`b_resid` even when `B_ERROR` is set, so every outcome states the bytes that
+did not move: the whole count for a request refused before any card command
+(`ENXIO`, `EINVAL`, a replaced card), and for a transfer that stops on a
+card error or a replaced card, the failed sector and every sector after it
+plus any partition-end truncation. A retry then starts at the first sector
+that did not transfer. Block and raw opens
 are tracked apart so that closing `rsd0a` leaves a mounted `sd0a` open.
 `chrtoblk()` maps `rsd0` to `sd0`, so securelevel 1 guards a raw write to a
 mounted partition, and `isdisk(dev, IFCHR)` classifies major 11 as a disk, so
@@ -373,20 +383,28 @@ securelevel 2 refuses every write open of `rsd0`. The card is
 initialized at the first open and forgotten at the last close, which is how
 a replaced card gets a fresh initialization.
 
-The keyboard poll callout samples GP22 (`sd_detect_poll()`). A level that
-holds 50 ms counts as a change, and a change while any partition is open
-makes every transfer fail with `EIO` until the last close, because buffers
-cached for the old card must not reach the new one. The driver does not
-interpret the polarity; the first insertion on a board settles which
-level means present.
+The keyboard poll callout samples GP22 (`sd_detect_poll()`). The driver keeps
+the level the open card was accepted at (the committed level) and the level
+last seen (the candidate). A candidate that differs from the committed level
+and holds 50 ms counts as a change; a level that returns to the committed
+level sooner, or flickers (each change restarts the interval), changes
+nothing. A change while any partition is open makes every transfer fail with
+`EIO` until the last close, because buffers cached for the old card must not
+reach the new one. `sdstrategy()` reads that flag before every sector
+command, so a change that lands between two sectors of a request stops it
+there. Accepting an initialized card at the first open sets both levels to
+the pin's present level and clears the flag in one `splbio()` section, so
+the debounce of that card's own insertion does not expire against it. The
+driver does not interpret the polarity; the first insertion on a board
+settles which level means present.
 
 `NMOUNT` is 2 and `SINGLE_UFS_ROOT` is unset in PICOCALC and PICOCALC_PSRAM
 (the two Configs differ in the board line and `device psram` alone), because
 `sys/mount.h` requires `NMOUNT=1` with that option. Without it the kernel keeps
 `i_dev` and `i_fs` in each of the 24 inodes and the mount names, and the
 generic mount code replaces the single-root shortcuts; that, with the
-`conf.c` entries and the detect hook, is the roughly 1,005 of the 3,776 added
-text bytes that the two SD objects (2,771) do not account for; the figure is
+`conf.c` entries and the detect hook, is the roughly 1,001 of the 3,888 added
+text bytes that the two SD objects (2,887) do not account for; the figure is
 the difference of object sizes, not a separate build. Userland is
 still built with the PICO kernels' layout (`KERNEL_LAYOUT_CFLAGS` in
 `share/mk/sys.mk`), which is harmless for the shipped programs: `ps` reads

@@ -32,10 +32,21 @@
  * not switch processes inside a system call, and the callouts and
  * interrupts that run meanwhile never touch SPI0, which is why no lock
  * covers a transfer. The keyboard callout samples the card-detect pin
- * through sd_detect_poll(); a stable change marks the card replaced, which
- * fails every transfer with EIO until the last close, because blocks cached
- * for the old card must not reach the new one. The pin's polarity is not
+ * through sd_detect_poll() in the clock interrupt. It keeps the level the
+ * open card was accepted at (the committed level) and the level last seen
+ * (the candidate); a candidate that differs from the committed level and
+ * holds for SD_DET_DEBOUNCE_US marks the card replaced, which fails every
+ * transfer with EIO until the last close, because blocks cached for the old
+ * card must not reach the new one. A level that returns to the committed
+ * level before the interval ends changes nothing. The pin's polarity is not
  * interpreted: any stable change counts.
+ *
+ * Every blocking spl on the RP2040 is PRIMASK (machine/intr.h), and
+ * splsoftclock() blocks nothing, so the sections that must exclude the
+ * callout use splbio(). They are the acceptance of a card, which sets both
+ * levels and clears the replaced flag as one step, and the read of the
+ * flag, which sdstrategy() makes before every sector command. The flag is
+ * volatile so that the read in the sector loop is a load each time.
  *
  * The driver reads and writes one 512-byte sector per command (CMD17,
  * CMD24), and a transfer is any whole number of sectors. The request names
@@ -48,6 +59,13 @@
  * with EINVAL instead of transferring the wrong sector. A request that
  * crosses the end of its partition transfers the sectors that fit and
  * reports the rest in b_resid.
+ *
+ * physio() advances the file offset by the count minus b_resid whether or not
+ * B_ERROR is set, so b_resid names every byte that did not move on each
+ * outcome: the whole count for a request refused before any card command,
+ * and for a transfer that stops, the failed sector and every sector after it
+ * on top of any partition-end truncation. A retry then starts at the first
+ * byte that did not transfer.
  */
 
 #include <sys/param.h>
@@ -148,24 +166,65 @@ static struct diskpart sdpt[MAXPARTITIONS + 1];	/* [0] is the whole card. */
  */
 static u_int sd_open[2];
 #define	sd_openpart	(sd_open[0] | sd_open[1])
+#define	sd_blkopen	sd_open[1]
 #define	sd_kind(mode)	((mode) == S_IFBLK)
-static u_char det_level, det_unsettled, card_changed;
+
+/*
+ * Card-detect state. sd_detect_poll() writes all of it from the clock
+ * interrupt; sd_accept() and sdclose() write it from process context.
+ */
+static u_char det_level, det_cand;
+static volatile u_char card_changed;
 static u_int det_t0;
+
+static u_int
+sd_det_pin(void)
+{
+	return (PC_REG32(SIO_GPIO_IN) >> PICOCALC_SD_DET) & 1;
+}
 
 void
 sd_detect_poll(void)
 {
-	u_int level = (PC_REG32(SIO_GPIO_IN) >> PICOCALC_SD_DET) & 1;
+	u_int level = sd_det_pin();
 
-	if (level != det_level) {
-		det_level = level;
-		det_unsettled = 1;
+	if (level != det_cand) {
+		det_cand = level;
 		det_t0 = pc_micros();
-	} else if (det_unsettled &&
+	} else if (det_cand != det_level &&
 	    pc_micros() - det_t0 >= SD_DET_DEBOUNCE_US) {
-		det_unsettled = 0;
+		det_level = det_cand;
 		card_changed = 1;
 	}
+}
+
+/*
+ * Take the card just initialized as the baseline of change detection: the
+ * pin's present level becomes both the committed and the candidate level,
+ * and the replaced flag clears, in one step against the callout. A debounce
+ * that was running for this card's insertion ends here instead of expiring
+ * against it.
+ */
+static void
+sd_accept(void)
+{
+	int s = splbio();
+
+	det_level = sd_det_pin();
+	det_cand = det_level;
+	card_changed = 0;
+	splx(s);
+}
+
+/* The replaced flag, read once against the callout. */
+static int
+sd_replaced(void)
+{
+	int s = splbio();
+	int changed = card_changed;
+
+	splx(s);
+	return changed;
 }
 
 /*
@@ -211,9 +270,9 @@ sd_setup(void)
 {
 	int err = sdspi_init(&sdcard);
 
-	card_changed = 0;
 	if (err != SDE_OK)
 		return err == SDE_NOCARD ? ENODEV : EIO;
+	sd_accept();
 	printf("sd0: %s, %u kbytes\n", sdcard.type == SD_HC ? "SDHC/SDXC" :
 	    sdcard.type == SD_V2 ? "SD 2.0" : "SD 1.x", sdcard.nsectors / 2);
 	return sd_partitions();
@@ -231,7 +290,7 @@ sdopen(dev_t dev, int flag __unused, int mode)
 			sdcard.type = SD_NONE;
 			return error;
 		}
-	} else if (card_changed)
+	} else if (sd_replaced())
 		return EIO;
 	if (sdpt[part].dp_nsectors == 0)
 		return ENXIO;
@@ -266,7 +325,7 @@ sdstrategy(struct buf *bp)
 	struct diskpart *p;
 	u_int first, avail, blocks, sector, i, n;
 	u_char *addr = (u_char *)bp->b_addr;
-	int err = 0;
+	int changed;
 
 	/*
 	 * physio() subtracts b_resid from the count it saved, and a cached
@@ -277,11 +336,12 @@ sdstrategy(struct buf *bp)
 	if (sdunit(bp->b_dev) != 0 || part > MAXPARTITIONS ||
 	    (sd_openpart & (1U << part)) == 0) {
 		bp->b_error = ENXIO;
-		goto bad;
+		goto refused;
 	}
-	if (card_changed || (bp->b_bcount & (SD_SECTOR - 1)) != 0) {
-		bp->b_error = card_changed ? EIO : EINVAL;
-		goto bad;
+	changed = sd_replaced();
+	if (changed || (bp->b_bcount & (SD_SECTOR - 1)) != 0) {
+		bp->b_error = changed ? EIO : EINVAL;
+		goto refused;
 	}
 	p = &sdpt[part];
 	blocks = (p->dp_nsectors + 1) >> 1;	/* The last may hold one sector. */
@@ -293,7 +353,7 @@ sdstrategy(struct buf *bp)
 			return;
 		}
 		bp->b_error = EINVAL;
-		goto bad;
+		goto refused;
 	}
 	first = (u_int)bp->b_blkno * (DEV_BSIZE / SD_SECTOR);
 	avail = p->dp_nsectors - first;
@@ -303,16 +363,27 @@ sdstrategy(struct buf *bp)
 		n = avail;
 	}
 	sector = p->dp_offset + first;
-	for (i = 0; i < n && err == 0; i++, addr += SD_SECTOR)
-		err = (bp->b_flags & B_READ) ?
+	/*
+	 * The callout can declare the card replaced between two commands, so
+	 * the flag is read before each one; i counts the sectors that moved.
+	 */
+	for (i = 0; i < n; i++, addr += SD_SECTOR) {
+		if (sd_replaced() ||
+		    ((bp->b_flags & B_READ) ?
 		    sdspi_read(&sdcard, sector + i, addr) :
-		    sdspi_write(&sdcard, sector + i, addr);
-	if (err == 0) {
+		    sdspi_write(&sdcard, sector + i, addr)) != SDE_OK)
+			break;
+	}
+	if (i == n) {
 		biodone(bp);
 		return;
 	}
+	bp->b_resid += (n - i) * SD_SECTOR;
 	bp->b_error = EIO;
-bad:
+	goto failed;
+refused:
+	bp->b_resid = bp->b_bcount;
+failed:
 	bp->b_flags |= B_ERROR;
 	biodone(bp);
 }
@@ -366,7 +437,18 @@ sdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 		*(struct diskpart *)addr = sdpt[part];
 		return 0;
 	case DIOCREINIT:
-		/* Read the partition table again after fdisk rewrote it. */
+		/*
+		 * Read the partition table again after fdisk rewrote it. A block
+		 * open (a mount, or a descriptor on sd0a to sd0d) holds buffers
+		 * and inodes addressed through the current entries, so the table
+		 * stays while one exists; fdisk's raw open does not count. A
+		 * replaced card is not read: its sector 0 describes another
+		 * card than the open partitions.
+		 */
+		if (sd_blkopen != 0)
+			return EBUSY;
+		if (sd_replaced())
+			return EIO;
 		return sd_partitions();
 	}
 	return EINVAL;
@@ -382,7 +464,7 @@ sdprobe(struct conf_device *config __unused)
 	pc_pin(PICOCALC_SD_RX, PC_FUNC_SPI, PC_PADS_PUE);
 	pc_pin(PICOCALC_SD_DET, PC_FUNC_SIO, PC_PADS_PUE);
 	sd_speed(0);
-	det_level = (PC_REG32(SIO_GPIO_IN) >> PICOCALC_SD_DET) & 1;
+	det_cand = det_level = sd_det_pin();
 	printf("sd0: SPI0 on GP%d-GP%d, card detect GP%d\n", PICOCALC_SD_RX,
 	    PICOCALC_SD_TX, PICOCALC_SD_DET);
 	return 1;

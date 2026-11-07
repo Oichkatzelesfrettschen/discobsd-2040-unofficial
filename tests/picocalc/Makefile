@@ -23,8 +23,8 @@
 # sdstrat_test compiles the SD disk driver (sd.c) unchanged against the
 # kernel's buf.h and disk.h through the headers in shim/ and a card behind
 # fake sdspi calls, then drives sdopen, sdstrategy and sdsize with the
-# requests physio() and the buffer cache make; nineteen mutants of sd.c must
-# fail it.
+# requests physio() and the buffer cache make; thirty-seven mutants of sd.c
+# must fail it.
 #
 # picoaudio_test compiles the bell driver (picoaudio.c) unchanged against
 # the register model in regmodel.h, stops the tone at every counter phase
@@ -290,7 +290,25 @@ sdstrat-mutants: \
 	sdstrat-mutant-raw-write-unchecked \
 	sdstrat-mutant-raw-offset-unchecked \
 	sdstrat-mutant-raw-sector-granularity \
-	sdstrat-mutant-raw-segments-unchecked
+	sdstrat-mutant-raw-segments-unchecked \
+	sdstrat-mutant-reject-resid \
+	sdstrat-mutant-failure-resid \
+	sdstrat-mutant-failure-resid-off-by-one \
+	sdstrat-mutant-failure-resid-truncation \
+	sdstrat-mutant-sector-replaced \
+	sdstrat-mutant-replaced-errno \
+	sdstrat-mutant-reinit-held \
+	sdstrat-mutant-reinit-held-raw \
+	sdstrat-mutant-reinit-replaced \
+	sdstrat-mutant-debounce-latest \
+	sdstrat-mutant-debounce-interval \
+	sdstrat-mutant-debounce-boundary \
+	sdstrat-mutant-debounce-restart \
+	sdstrat-mutant-debounce-pending \
+	sdstrat-mutant-accept-candidate \
+	sdstrat-mutant-accept-committed \
+	sdstrat-mutant-accept-flag \
+	sdstrat-mutant-spl-dropped
 
 sdstrat-mutant-whole-block-only:
 	${SDSTRAT_MUT} sd.c \
@@ -310,7 +328,7 @@ sdstrat-mutant-truncation-clamp:
 
 sdstrat-mutant-eof-resid:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid = bp->b_bcount;/(void)0;/' sd.c
+	    's/^\t\t\tbp->b_resid = bp->b_bcount;/\t\t\t(void)0;/' sd.c
 
 sdstrat-mutant-eof-past:
 	${SDSTRAT_MUT} sd.c \
@@ -330,11 +348,11 @@ sdstrat-mutant-block-units:
 
 sdstrat-mutant-direction:
 	${SDSTRAT_MUT} sd.c \
-	    's/err = (bp->b_flags \& B_READ) ?/err = (bp->b_flags \& B_READ) == 0 ?/' sd.c
+	    's/((bp->b_flags \& B_READ) ?/((bp->b_flags \& B_READ) == 0 ?/' sd.c
 
 sdstrat-mutant-card-changed:
 	${SDSTRAT_MUT} sd.c \
-	    's/if (card_changed ||/if (/' sd.c
+	    's/changed = sd_replaced();/changed = 0;/' sd.c
 
 sdstrat-mutant-open-check:
 	${SDSTRAT_MUT} sd.c \
@@ -367,6 +385,79 @@ sdstrat-mutant-raw-sector-granularity:
 sdstrat-mutant-raw-segments-unchecked:
 	${SDSTRAT_MUT} sd.c \
 	    's/(uio->uio_iov\[i\].iov_len \& (DEV_BSIZE - 1)) != 0/0/' sd.c
+
+
+sdstrat-mutant-reject-resid:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\tbp->b_resid = bp->b_bcount;/\t(void)0;/' sd.c
+
+sdstrat-mutant-failure-resid:
+	${SDSTRAT_MUT} sd.c \
+	    's/bp->b_resid += (n - i) \* SD_SECTOR;/(void)0;/' sd.c
+
+sdstrat-mutant-failure-resid-off-by-one:
+	${SDSTRAT_MUT} sd.c \
+	    's/bp->b_resid += (n - i) \* SD_SECTOR;/bp->b_resid += (n - i - 1) * SD_SECTOR;/' sd.c
+
+sdstrat-mutant-failure-resid-truncation:
+	${SDSTRAT_MUT} sd.c \
+	    's/bp->b_resid += (n - i) \* SD_SECTOR;/bp->b_resid = (n - i) * SD_SECTOR;/' sd.c
+
+sdstrat-mutant-sector-replaced:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (sd_replaced() ||$$/if (0 ||/' sd.c
+
+sdstrat-mutant-replaced-errno:
+	${SDSTRAT_MUT} sd.c \
+	    's/bp->b_error = changed ? EIO : EINVAL;/bp->b_error = EINVAL;/' sd.c
+
+sdstrat-mutant-reinit-held:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (sd_blkopen != 0)/if (0)/' sd.c
+
+sdstrat-mutant-reinit-held-raw:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (sd_blkopen != 0)/if (sd_openpart != 0)/' sd.c
+
+sdstrat-mutant-reinit-replaced:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\t\tif (sd_replaced())$$/\t\tif (0)/' sd.c
+
+sdstrat-mutant-debounce-latest:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (level != det_cand) {/if (level != det_level) {/' sd.c
+
+sdstrat-mutant-debounce-interval:
+	${SDSTRAT_MUT} sd.c \
+	    's/pc_micros() - det_t0 >= SD_DET_DEBOUNCE_US/1/' sd.c
+
+sdstrat-mutant-debounce-boundary:
+	${SDSTRAT_MUT} sd.c \
+	    's/det_t0 >= SD_DET_DEBOUNCE_US/det_t0 > SD_DET_DEBOUNCE_US/' sd.c
+
+sdstrat-mutant-debounce-restart:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\t\tdet_t0 = pc_micros();/\t\t(void)0;/' sd.c
+
+sdstrat-mutant-debounce-pending:
+	${SDSTRAT_MUT} sd.c \
+	    's/else if (det_cand != det_level \&\&/else if (/' sd.c
+
+sdstrat-mutant-accept-candidate:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\tdet_cand = det_level;$$/\t(void)0;/' sd.c
+
+sdstrat-mutant-accept-committed:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\tdet_level = sd_det_pin();$$/\t(void)0;/' sd.c
+
+sdstrat-mutant-accept-flag:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\tcard_changed = 0;$$/\t(void)0;/' sd.c
+
+sdstrat-mutant-spl-dropped:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\tint s = splbio();$$/\tint s = 0;/' sd.c
 
 
 PICOAUDIO_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
@@ -456,7 +547,25 @@ clean:
 	sdstrat-mutant-raw-write-unchecked \
 	sdstrat-mutant-raw-offset-unchecked \
 	sdstrat-mutant-raw-sector-granularity \
-	sdstrat-mutant-raw-segments-unchecked
+	sdstrat-mutant-raw-segments-unchecked \
+	sdstrat-mutant-reject-resid \
+	sdstrat-mutant-failure-resid \
+	sdstrat-mutant-failure-resid-off-by-one \
+	sdstrat-mutant-failure-resid-truncation \
+	sdstrat-mutant-sector-replaced \
+	sdstrat-mutant-replaced-errno \
+	sdstrat-mutant-reinit-held \
+	sdstrat-mutant-reinit-held-raw \
+	sdstrat-mutant-reinit-replaced \
+	sdstrat-mutant-debounce-latest \
+	sdstrat-mutant-debounce-interval \
+	sdstrat-mutant-debounce-boundary \
+	sdstrat-mutant-debounce-restart \
+	sdstrat-mutant-debounce-pending \
+	sdstrat-mutant-accept-candidate \
+	sdstrat-mutant-accept-committed \
+	sdstrat-mutant-accept-flag \
+	sdstrat-mutant-spl-dropped
 
 .PHONY: picoaudio-mutants \
 	picoaudio-mutant-left-override \

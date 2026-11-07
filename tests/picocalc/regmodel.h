@@ -35,11 +35,37 @@ static int model_n;
 
 #define	MODEL_RESETS_DONE	(0x4000c000UL + 0x8)
 
+/*
+ * Interrupt mask. Every blocking spl on the RP2040 is PRIMASK, so the model
+ * is one flag: splhigh() and splbio() set it and return the previous value,
+ * splx() restores it. shim_spl_pin records the flag at the last read of the
+ * SIO input register, where the card-detect pin is sampled.
+ */
+int shim_spl;
+int shim_spl_pin = -1;
+
+int
+shim_splraise(void)
+{
+	int old = shim_spl;
+
+	shim_spl = 1;
+	return old;
+}
+
+void
+shim_splx(int s)
+{
+	shim_spl = s;
+}
+
 volatile unsigned *
 shim_reg(unsigned long addr)
 {
 	int i;
 
+	if (addr == 0xd0000004UL)
+		shim_spl_pin = shim_spl;
 	for (i = 0; i < model_n; i++)
 		if (model[i].addr == addr)
 			return &model[i].val;

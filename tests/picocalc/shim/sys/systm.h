@@ -13,8 +13,15 @@
 #undef	bcopy
 #define	bzero(p, n)	memset((p), 0, (n))
 #define	bcopy(s, d, n)	memcpy((d), (s), (n))
-#define	splhigh()	0
-#define	splx(s)		((void)(s))
+/*
+ * The spl calls go to the interrupt-mask model in regmodel.h, which counts
+ * nesting and records the level at which the card-detect pin is sampled.
+ */
+extern int shim_splraise(void);
+extern void shim_splx(int s);
+#define	splhigh()	shim_splraise()
+#define	splbio()	shim_splraise()
+#define	splx(s)		shim_splx(s)
 
 extern const char *panicstr;
 void timeout(void (*fn)(char *), char *arg, int ticks);

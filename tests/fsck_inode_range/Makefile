@@ -12,8 +12,8 @@ FSUTIL=		${TOPSRC}/tools/fsutil
 # ino_t, daddr_t, off_t and time_t are four bytes each. The tier therefore
 # builds fsck against the tree's own headers at ILP32, as tests/umount_contracts
 # does, and answers the few host services whose layouts differ through
-# fsck_glue.c (see fsck_glue.h). A host that cannot run ILP32 binaries skips,
-# and REQUIRE_ILP32=yes turns that skip into a failure.
+# fsck_glue.c (see fsck_glue.h). A host that cannot run ILP32 binaries records
+# a skip receipt, which REQUIRE_ILP32=yes turns into a failure.
 ILP32=		-m32
 ILP32_CC=	${HOSTCC}
 include ${TOPSRC}/tools/test-execution.mk
@@ -55,33 +55,28 @@ SCENARIOS.lfdir-lookup=		lf-last
 SCENARIOS.alloc-test=		free-last
 SCENARIOS.alloc-range=		free-last
 SCENARIOS.all-old=		file-last dir-last orphan-last free-last lf-last
-ALL_SCENARIOS=	file-last dir-last orphan-last free-last lf-last
 
-.if ${ILP32_OK} == "yes"
-check: check-program check-mutants
-.else
-check:
-	@echo "SKIP fsck_inode_range: ${HOSTCC} cannot compile and execute ILP32 binaries" >&2
-	@test "${REQUIRE_ILP32:Uno}" != yes
-.endif
-
-check-program: fsck_host image_gen
-	sh ${.CURDIR}/run.sh ./fsck_host ./image_gen work/program ${ALL_SCENARIOS}
-
-# Every mutant must fail each scenario named for it; a scenario that passes
-# on a mutant means the gate no longer decides that site. Running one
-# scenario at a time keeps a pass of an unrelated scenario from masking the
-# verdict.
-check-mutants: ${MUTANTS:S/^/fsck_mutant_/} image_gen
+MUTANT_SPECS=
 .for mutant in ${MUTANTS}
-.for scenario in ${SCENARIOS.${mutant}}
-	@if sh ${.CURDIR}/run.sh ./fsck_mutant_${mutant} ./image_gen \
-	    work/${mutant}-${scenario} ${scenario} >/dev/null 2>&1; then \
-		echo "mutant ${mutant} passes ${scenario}"; exit 1; \
-	fi
-	@echo "mutant ${mutant} fails ${scenario}"
+MUTANT_SPECS+=	${mutant}=${SCENARIOS.${mutant}:ts,}
 .endfor
-.endfor
+
+# check.sh decides the gate: the program passes every scenario, and each
+# mutant is rejected for each scenario named for it by run.sh exiting 1 with
+# that scenario's own verdict. A run that breaks (status 2) is an error, not
+# a rejection, so a mutant that does not build or execute cannot pass
+# calibration. The execution receipt binds the ILP32 fsck_host to the run;
+# an unavailable ILP32 runtime records a skip, which REQUIRE_ILP32=yes and
+# the detached aggregate turn into a failure.
+check:
+.if ${ILP32_OK} == "yes"
+	@${MAKE} fsck_host image_gen ${MUTANTS:S/^/fsck_mutant_/}
+	${TEST_EXECUTION} run fsck.inode-range.ilp32 -- \
+	    sh ${.CURDIR}/check.sh ${.CURDIR}/run.sh ./fsck_host ./image_gen \
+	    work . ${MUTANT_SPECS}
+.else
+	${TEST_EXECUTION} skip fsck.inode-range.ilp32 "fsck_inode_range: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
 
 ${MACHINE_STAMP}:
 	@mkdir -p machine
@@ -162,4 +157,4 @@ clean:
 
 all: check
 
-.PHONY: all check check-program check-mutants clean
+.PHONY: all check clean

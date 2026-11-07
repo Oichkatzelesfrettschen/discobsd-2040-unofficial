@@ -325,7 +325,8 @@ check-fs-stress:
 # the host against the tree's headers at ILP32, checks images made by the
 # fsutil library in preen and repair mode, and requires eight mutants (seven sites or pairs and the whole set) that
 # restore the pre-change comparisons to fail. A host without ILP32 execution
-# skips, and REQUIRE_ILP32=yes makes that skip a failure.
+# records a skip receipt; REQUIRE_ILP32=yes and the detached aggregate
+# check-ilp32-execution make it a failure.
 check-fsck-inode-range:
 		${MAKE} -C tests/fsck_inode_range check
 
@@ -1222,8 +1223,8 @@ check-ilp32-execution: check-python
 
 check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-posix-sh check-kernel .WAIT check-kernel-ilp32 check-libc-sysctl \
-		check-dd-contracts check-umount-contracts check-backgammon-contracts \
-		check-libc-host-contracts check-scandir-contracts \
+		check-dd-contracts check-umount-contracts check-fsck-inode-range \
+		check-backgammon-contracts check-libc-host-contracts check-scandir-contracts \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
 		check-tar-host check-cpio-host \
 		check-libtcl-contracts check-printf-contracts \

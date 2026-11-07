@@ -23,4 +23,3 @@ Paths are relative to the research worktree; `DS` denotes the supplied RP2040 da
 11. **Minor -- two citations need repair.** The SDK pin is at `fetch-pico-sdk.sh:22-23`, not lines 18-20. `DS:4703-4710` lists MPU features but does not establish every claimed architectural absence. Correction: cite the ARMv6-M feature/register specification for TrustZone, PSPLIM, bit-band, and fault-register absence.
 
 Verdict: The central LARGE-epoch defect survives the strongest local attack and is a release-blocking incompatibility between the dynamic 160 KiB process window and the static 144 KiB MPU grant. The exact “first push” wording fails, but the permission gap does not. The bus-master, ROM-write, reset, MPU, divider, and most usage-status claims survive; several feasibility and payoff rankings remain hypotheses rather than measurements. The target worktree remained at `37cef7bbd30df8a8ee24bcb35d2a057c7c60b98b` with an empty tracked diff.
-

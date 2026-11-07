@@ -39,4 +39,3 @@
    **Correction:** Use complete workspace-relative paths and ranges that cover every claimed value.
 
 The source survey’s core survives: the cited trees support the crunchgen size rationale and dispatch mechanism, symbol hiding, the unimplemented BSS-overlay proposal, FreeBSD’s static rescue configuration, NetBSD’s optional static PIE, RetroBSD’s fixed-address loading, and its vacuous flag extraction. The survey justifies investigating fixed-address libc beside multicall executables. The evidence does not yet show that this design beats ordinary PIC, nor does it establish comparative flash, SRAM, relocation, or execution costs.
-

@@ -15,4 +15,3 @@
 8. **Minor -- the 96--97% figure lacks its experimental conditions.** Evidence: Jelinek’s [prelink paper](https://people.redhat.com/jakub/prelink.pdf) reports 96.5% for one hot-cache, non-prelinked, lazy-binding run after symbol-lookup caching; the preceding run reports 98.3%. Correction: state the workload and conditions and avoid treating the ratio as a per-relocation or RP2040 estimate.
 
 **Verdict.** The Solaris archive-removal history, libc/kernel compatibility rationale, text-relocation costs, `-z text`, immediate versus lazy binding, `isaexec`, `dldump`, and illumos’s lack of MMU-less targets survive. The stream supplies useful mechanisms, but the false multicall inventory, optional-register PIC assumption, restricted amd64 bootstrap analogy, and incomplete relink evidence prevent it from showing that fixed-address XIP libc beats either current static boxes or a relocating PIC design. The read-only review took about 5 minutes 28 seconds.
-

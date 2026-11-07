@@ -1,2 +1,1 @@
 Codex (`gpt-daybreak-blue-latest`, high reasoning effort, codex-cli 0.167.0) adversarial reviews, one per stream, captured 2026-11-07 with local absolute paths reduced to repository-relative or archive-relative form. Each stream's resolution section records the verification behind its disposition.
-

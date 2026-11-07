@@ -13,4 +13,3 @@
 7. **Minor -- the Dhara estimate is high.** Claim: “about 30 to 35 KB logical” ([stream:28](streams/08-xip-libc-design.md:28)). Applying [`journal.c:475`](sys/arch/rp2040/dhara/journal.c:475) and [`map.c:95`](sys/arch/rp2040/dhara/map.c:95) gives `192 blocks -> 989 KiB` and `186 blocks -> 961 KiB`: a predicted 28 KiB loss. **Correction:** state 28 KiB as the formula result and confirm it with rebuilt `flashimg -c`.
 
 The fixed-address concept survives as a plausible investigation. The kernel measurement reproduces 108,726 occupied flash bytes and 22,090 bytes of headroom; the prototype address collides with Dhara; the 48 KiB MPU mapping is arithmetically valid; and every retained relink variant shows substantial partial-corpus savings. The stream does not yet establish a correct complete loader/heap design or demonstrate that fixed-address XIP beats either the current system or PIC with relocation.
-

@@ -17,4 +17,3 @@
 9. **Minor -- Four bFLT slots mean three libraries plus the executable.** Claim: “at most 4 libraries” (`stream:9`). Linux v5.17 defines four module slots at [`fs/binfmt_flat.c:72`](https://github.com/torvalds/linux/blob/v5.17/fs/binfmt_flat.c#L72), loads the executable as ID 0 at line 964, and iterates library IDs 3 through 1 at lines 1004-1010. **Correction:** say “the executable plus at most three shared libraries.”
 
 The stream retains useful prior art: standard PIC works on Cortex-M0, GCC reproducibly rejects FDPIC on Thumb-1, and the RP2040 cache size, hit latency, flush cost, and counters match the datasheet. The architectural comparison remains unearned: compiler overhead lacks retained evidence, Tock was classified incorrectly, fixed-address coverage remains partial, and the proposed board measurement cannot compare performance, storage, RAM, and loader cost together.
-

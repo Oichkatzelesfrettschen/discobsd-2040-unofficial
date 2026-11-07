@@ -26,7 +26,7 @@ int     mpid;           /* generic for unique process id's */
  */
 int
 newproc (isvfork)
-    int isvfork;
+    volatile int isvfork;       /* read after the setjmp below returns 0 */
 {
     register struct proc *child, *parent;
     register int n;

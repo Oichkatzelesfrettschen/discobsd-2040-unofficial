@@ -12,6 +12,9 @@
 #	make DESTDIR=/mnt distribution
 
 TOPSRC!=cd ..; pwd
+# The root Makefile passes its board's image path; a direct make here releases
+# the default one.
+FSIMG?=		${TOPSRC}/distrib/${MACHINE}/sdcard.img
 include ${TOPSRC}/share/mk/sys.mk
 
 DESTDIR=	/foobar
@@ -152,7 +155,7 @@ release-dirs:
 		mkdir -p $$dir; \
 		cp ${TOPSRC}/sys/arch/${MACHINE}/compile/$$dir/unix* $$dir; \
 	done
-	cp -f ${TOPSRC}/distrib/${MACHINE}/sdcard.img ${RELEASEDIR}/${MACHINE}
+	cp -f ${FSIMG} ${RELEASEDIR}/${MACHINE}
 	cp -f ${TOPSRC}/distrib/${MACHINE}/README.md ${RELEASEDIR}/${MACHINE}
 	cp -f ${TOPSRC}/distrib/notes/ANNOUNCEMENT.md ${RELEASEDIR}
 	cp -f ${TOPSRC}/README.md ${RELEASEDIR}

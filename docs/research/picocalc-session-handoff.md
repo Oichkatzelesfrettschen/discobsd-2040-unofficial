@@ -86,14 +86,33 @@ Build and test infrastructure:
 
 ## The board builds
 
-Kernel flash text from clean builds of #369's head `b56c6ede`, whose tree is
-main `37cef7bb`, against the 130,816-byte `RP2040.ld` budget:
+Kernel flash figures from clean builds of main `b783cd69` plus the `-Os`
+change, under the Linux CI compiler (Ubuntu 24.04 `gcc-arm-none-eabi`
+15:13.2.rel1-2, GCC 13.2.1), against the 130,816-byte `RP2040.ld` FLASH
+region. Flash image is the span `check-kernel-headroom` measures: `.text`
+plus the `.data` and `.ramfunc` initializers, without `.boot2`.
 
-| Board | Command | Kernel | Text | Root profile | Free blocks / inodes |
-| --- | --- | --- | ---: | --- | --- |
-| Raspberry Pi Pico | `bmake MACHINE=rp2040 distribution` | `PICO` (USB CDC) or `PICO_UART` | 107,680 / 96,210 | `full` | 239 / 32 |
-| ClockworkPi PicoCalc | `bmake MACHINE=rp2040 BOARD=PICOCALC distribution` | `PICOCALC` | 123,620 | `picocalc` | 147 / 21 |
-| PicoCalc with PSRAM swap | `bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution` | `PICOCALC_PSRAM` | 125,728 | `picocalc` | 147 / 21 |
+| Board | Command | Kernel | Text | Flash image | Headroom | Root profile | Free blocks / inodes |
+| --- | --- | --- | ---: | ---: | ---: | --- | --- |
+| Raspberry Pi Pico | `bmake MACHINE=rp2040 distribution` | `PICO` (USB CDC) or `PICO_UART` | 95,394 / 85,609 | 95,388 / 85,548 | 35,428 / 45,268 | `full` | 239 / 32 |
+| ClockworkPi PicoCalc | `bmake MACHINE=rp2040 BOARD=PICOCALC distribution` | `PICOCALC` | 109,406 | 109,520 | 21,296 | `picocalc` | 147 / 21 |
+| PicoCalc with PSRAM swap | `bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution` | `PICOCALC_PSRAM` | 111,564 | 111,732 | 19,084 | `picocalc` | 147 / 21 |
+
+The same sources at `-O`, which the kernels used before `-Os`, measured
+109,488 (PICO), 97,746 (PICO_UART), 126,100 (PICOCALC) and 128,296
+(PICOCALC_PSRAM) text bytes under GCC 13.2.1, and 107,768, 96,298, 124,356 and
+126,472 under the local GCC 16.2.0. With `/dev/lcdgfx` (PR #379) the `-O`
+PICOCALC_PSRAM kernel under GCC 13.2.1 loads 130,984 bytes into the
+130,816-byte region, 168 over, and `ld` accepts it because the `.ramfunc`
+initializers carry no region. Under `-Os` that kernel loads 113,868 bytes under
+GCC 13.2.1 and 113,276 under GCC 16.2.0.
+
+Local GCC 16.2.0 `-Os` text bytes, in the same board order: 94,878, 85,121,
+108,942 and 111,004. The Linux x86-64 build of Arm GNU Toolchain 15.3.Rel1
+(tarball SHA-256
+`563bebb2b97d53382b956d6ee1fe61e2cae26699901417234a37df505ef9b5fa`) gives
+95,422, 85,625, 109,446 and 111,556 at `-Os`. The macOS job installs the Darwin
+package of that release, which this table does not measure.
 
 Free blocks are image figures from `PROFILES.md` as re-measured in the #350
 merge; they sit one block below the figures #363 recorded for `base` through
@@ -243,14 +262,11 @@ Prerequisites: none.
 1. Re-record `docs/research/c17-shipped-resource-baseline.json`, which
    records commit `e7040aa1`, before the `calc-bignum`, `calc`, `puzzles` and
    `sdcard` closures.
-2. Separate per-board output paths for `sdcard.img` and `flash.uf2`, so a
-   PICOCALC build does not overwrite the PICO image.
-3. The `sys/exec.h:51` empty struct that keeps two console files off strict
-   C17.
-4. `tests/kernel/.gitignore` lacks the `publishat_beneath` products
-   (`publishat_beneath_functions.c`, `publishat_beneath_test32`,
-   `publishat_beneath_namei_test32` and the `*.mutant.c` and `*.mutant.test`
-   files), so a kernel-test run leaves 21 untracked files.
+
+The per-board image paths (`sdcard-BOARD.img`, `flash-BOARD.uf2` beside the
+PICO names), strict C17 for `picokbd.c` and `lcdcons.c`
+(`check-console-c17-cross`) and the `publishat_beneath` ignore entries are
+done.
 
 Done when each item is merged or carries a tracking issue.
 

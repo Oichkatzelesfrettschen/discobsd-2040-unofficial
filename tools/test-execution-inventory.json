@@ -80,6 +80,11 @@
       "kind": "recursive make"
     },
     {
+      "from": "check-fsck-inode-range",
+      "to": "tests/fsck_inode_range:check",
+      "kind": "recursive make"
+    },
+    {
       "from": "check-libc-ctime",
       "to": "tests/libc_contracts:check-ctime",
       "kind": "recursive make"
@@ -288,6 +293,7 @@
         "check-kernel-ilp32",
         "check-dd-contracts",
         "check-umount-contracts",
+        "check-fsck-inode-range",
         "check-backgammon-contracts",
         "check-libc-sysctl",
         "check-posix-sh",
@@ -334,6 +340,7 @@
         "check-kernel-ilp32",
         "check-dd-contracts",
         "check-umount-contracts",
+        "check-fsck-inode-range",
         "check-backgammon-contracts",
         "check-libc-sysctl",
         "check-posix-sh",
@@ -2649,6 +2656,36 @@
       "recipe": "${TEST_EXECUTION} run dd.tables.ilp32 -- ./dd_tables_test",
       "aliases": [
         "check-dd-contracts"
+      ]
+    },
+    {
+      "id": "fsck.inode-range.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/fsck_inode_range",
+      "makefile": "tests/fsck_inode_range/Makefile",
+      "target": "check",
+      "root_target": "check-fsck-inode-range",
+      "program": "sh",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "fsck_host",
+        "image_gen",
+        "fsck_mutant_pass1-loop",
+        "fsck_mutant_direntry",
+        "fsck_mutant_makeentry-ino",
+        "fsck_mutant_makeentry-parent",
+        "fsck_mutant_lfdir-lookup",
+        "fsck_mutant_alloc-test",
+        "fsck_mutant_alloc-range",
+        "fsck_mutant_all-old"
+      ],
+      "recipe": "${TEST_EXECUTION} run fsck.inode-range.ilp32 -- sh ${.CURDIR}/check.sh ${.CURDIR}/run.sh ./fsck_host ./image_gen work . ${MUTANT_SPECS}",
+      "script": "tests/fsck_inode_range/check.sh",
+      "subject": "tests/fsck_inode_range/fsck_host",
+      "aliases": [
+        "check-fsck-inode-range"
       ]
     },
     {

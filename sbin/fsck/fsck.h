@@ -167,7 +167,7 @@ extern char    *endpathname;
 
 extern daddr_t fsmin;                  /* block number of the first data block */
 extern daddr_t fsmax;                  /* number of blocks in the volume */
-extern ino_t   imax;                   /* number of inodes */
+extern ino_t   imax;                   /* inode count; highest inode number */
 extern ino_t   lastino;                /* hiwater mark of inodes */
 extern ino_t   lfdir;                  /* lost & found directory inode number */
 extern char    *lfname;                /* lost & found directory name */

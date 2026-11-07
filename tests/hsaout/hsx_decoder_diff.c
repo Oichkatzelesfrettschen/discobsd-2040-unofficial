@@ -317,12 +317,30 @@ memfill (void *ctx, unsigned off, void *buf, unsigned len)
     return 0;
 }
 
+/*
+ * A decoder whose history ring holds nonzero bytes, as a kernel ring holds
+ * whatever the previous image left in it. hsx_dec_init() sets only the
+ * scalar fields, so a decode that reads history before its first byte
+ * instead of producing zeros reads these bytes and differs from the
+ * reference, whatever memory the allocator returns.
+ */
+static struct hsx_dec *
+new_dec (void)
+{
+    struct hsx_dec *d = malloc (sizeof *d);
+
+    if (d == NULL)
+        abort ();
+    memset (d, 0x5a, sizeof *d);
+    return d;
+}
+
 /* Swap-style, one call: linear destination of rlen bytes. */
 static long
 new_swap (const unsigned char *in, unsigned clen, unsigned la,
     unsigned char *dst, unsigned rlen)
 {
-    struct hsx_dec *d = malloc (sizeof *d);
+    struct hsx_dec *d = new_dec ();
     long n;
 
     hsx_dec_init (d, la);
@@ -342,7 +360,7 @@ static long
 new_chunked (const unsigned char *in, unsigned clen, unsigned la,
     unsigned char *dst, unsigned rlen, int ring)
 {
-    struct hsx_dec *d = malloc (sizeof *d);
+    struct hsx_dec *d = new_dec ();
     unsigned used = 0, out = 0, cut, room, n, lim, r;
     unsigned char *base;
     unsigned mask;

@@ -184,7 +184,7 @@ Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
 distrib/rp2040/sdcard.img` on this tree, after a `distribution` build that
 links every multicall member; `full` and `picocalc` are the default images of
-`BOARD=PICO` and `BOARD=PICOCALC`. The `base`, `benchmark`, `games`,
+`BOARD=PICO` (`sdcard.img`) and `BOARD=PICOCALC` (`sdcard-PICOCALC.img`). The `base`, `benchmark`, `games`,
 `developer` and `full` rows read one block below the values this document
 recorded for main before this branch merged (448, 432, 388, 315 and 240):
 the base image of this tree holds 447 free blocks where main's held 448.
@@ -275,10 +275,13 @@ The maintained composed manifest lands at
 `distrib/rp2040/_manifest.<profile>`. The legacy option writes
 `distrib/rp2040/_manifest.<profile>.pdp11-v6`, which
 the image rule concatenates with `distrib/rp2040/md.rp2040` the way it
-always has. Two profiles built in turn overwrite one `sdcard.img`, so a
-build that keeps both images copies the first aside. The selection variables
-do not fork the output path: every image still lands at
-`distrib/rp2040/sdcard.img` and `flash.uf2`.
+always has. The output path follows `BOARD` alone (`BOARD_OUT_SUFFIX` in
+`distrib/rp2040/Makefile.inc`): `BOARD=PICO` writes `sdcard.img`, `flash.bin`
+and `flash.uf2`, and any other board writes `sdcard-${BOARD}.img`,
+`flash-${BOARD}.bin` and `flash-${BOARD}.uf2`. Two profiles built in turn for
+one board overwrite that board's image, so a build that keeps both copies the
+first aside; `PROFILE`, `IMAGE_WITH` and `IMAGE_WITHOUT` do not fork the
+output path.
 
 Set `PYTHON` before the build, as every Python tool in the tree requires:
 `distrib/rp2040/Makefile.inc` asks `mkmanifest.py` for the member lists while

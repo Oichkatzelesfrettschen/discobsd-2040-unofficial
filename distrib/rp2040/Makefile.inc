@@ -25,6 +25,19 @@ BOARD_PROFILE.PICOCALC=	picocalc
 BOARD_PROFILE.PICOCALC_PSRAM=	picocalc
 BOARD_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/${BOARD}/unix.uf2
 
+# Output paths. The PICO board keeps the bare names distrib/rp2040/sdcard.img,
+# flash.bin and flash.uf2 that the documentation, CI and discobsd-flash
+# invocations name; every other board writes sdcard-${BOARD}.img,
+# flash-${BOARD}.bin and flash-${BOARD}.uf2 beside them, so building one board
+# never replaces another board's image. The root Makefile reads FSIMG for the
+# image rule, check-account-image, installfs and cleanfs.
+.if ${BOARD} == "PICO"
+BOARD_OUT_SUFFIX=
+.else
+BOARD_OUT_SUFFIX=	-${BOARD}
+.endif
+FSIMG=		${TOPSRC}/distrib/${MACHINE}/sdcard${BOARD_OUT_SUFFIX}.img
+
 # The root filesystem profile. distrib/rp2040/mi.rp2040 brackets each
 # optional feature between "#closure NAME" and "#endclosure NAME",
 # distrib/rp2040/profiles declares which closures a profile keeps and what
@@ -121,15 +134,15 @@ INSTALL=	${TOOLBINDIR}/binstall -U
 # writes the whole 1536K region so stale journal blocks from an earlier
 # image cannot survive beside the new one.
 FLASHIMG=	${TOOLBINDIR}/flashimg
-FLASHBIN=	${TOPSRC}/distrib/${MACHINE}/flash.bin
-FLASHUF2=	${TOPSRC}/distrib/${MACHINE}/flash.uf2
+FLASHBIN=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}.bin
+FLASHUF2=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}.uf2
 # Where the region starts: FLASH_XIP_BASE + FLASH_FS_OFFSET in
 # sys/arch/rp2040/dev/flash.h, which flashimg also prints.
 FLASH_FS_ADDR=	0x10020000
 
 flash:		check-account-image .WAIT ${FLASHUF2}
 
-${FLASHBIN}:	${TOPSRC}/distrib/${MACHINE}/sdcard.img
+${FLASHBIN}:	${FSIMG}
 		${FLASHIMG} ${FSIMG} $@
 
 ${FLASHUF2}:	${FLASHBIN}
@@ -210,13 +223,12 @@ ${DESTDIR}/usr/bin/cc:	${TOPSRC}/distrib/rp2040/cc
 
 # lib/libc_aout installs its whole archive at the same path during the
 # build, so the trimmed one is copied over it right before the image is
-# made. The image path is spelled out because FSIMG is defined after this
-# file is included and an expanded dependency would be empty.
+# made.
 boardlibc-install:	${BOARDLIBC_WORK}/libc.a ${DESTDIR}/usr/lib/crt0.o \
 			${DESTDIR}/usr/bin/cc
 		${INSTALL} -d ${DESTDIR}/usr/lib
 		${INSTALL} ${BOARDLIBC_WORK}/libc.a ${DESTDIR}/usr/lib/libc.a
 
-${TOPSRC}/distrib/${MACHINE}/sdcard.img:	boardlibc-install
+${FSIMG}:	boardlibc-install
 
 .PHONY:		boardlibc-install

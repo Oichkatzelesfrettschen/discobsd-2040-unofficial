@@ -468,7 +468,7 @@ SHUTDOWN_MUTANTS=	unconditional_success missing_recount ignored_errors \
 RWUIO_SRC=	${TOPSRC}/sys/kern/sys_generic.c
 RWUIO_DEFS=	-include rwuio_setjmp.h
 RWUIO_JUMP=	rwuio_jump.c rwuio_jump.h
-RWUIO_MUTANTS=	removed_admission first_byte_only
+RWUIO_MUTANTS=	removed_admission first_byte_only read_target_readonly
 
 all: ${PROGS}
 

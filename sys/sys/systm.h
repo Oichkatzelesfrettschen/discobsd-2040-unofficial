@@ -154,6 +154,7 @@ void cnputc (char c);
 int cngetc (void);
 int baduaddr (caddr_t addr);        /* detect bad user address */
 int baduaddr_span (caddr_t addr, u_int nbytes); /* detect bad user span */
+int baduaddr_rspan (caddr_t addr, u_int nbytes); /* ... for reading only */
 int badkaddr (caddr_t addr);        /* detect bad kernel address */
 int badkaddr_span (caddr_t addr, u_int nbytes); /* detect bad kernel span */
 

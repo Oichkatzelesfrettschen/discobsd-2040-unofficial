@@ -550,7 +550,7 @@ when a graphics client closes.
 
 The first item ships OpenBSD `bc` and `dc` (ISC, Otto Moerbeek; the manual
 pages and `bc.library` under the Caldera license, `NOTICE` sections 16 and 3)
-as the `calc-bignum` manifest closure of the `picocalc` profile. They link
+as the `calc-bignum` closure group (`bc` and `dc`) of the `picocalc` profile. They link
 `lib/libbn`, the tree's clean-room `BN_*` subset, in place of libcrypto; dc
 allocates its register stacks in 256-entry pages on first touch, because the
 extended table is 789,504 bytes against the 144 KB process window, and bc

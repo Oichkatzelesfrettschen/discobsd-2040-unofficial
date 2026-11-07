@@ -2,21 +2,32 @@
 # Root filesystem profiles for the Raspberry Pi Pico.
 #
 # distrib/rp2040/mi.rp2040 brackets each optional feature between
-# "#closure NAME" and "#endclosure NAME". A profile names the closures it
-# keeps; distrib/rp2040/mkmanifest.py emits the base lines plus the lines
-# of the named closures and refuses a composition whose hard links, parent
-# directories or declared dependencies do not resolve. The Makefile
+# "#closure NAME" and "#endclosure NAME". A profile names the closures and
+# groups it keeps; distrib/rp2040/mkmanifest.py emits the base lines plus the
+# lines of the named closures and refuses a composition whose hard links,
+# parent directories or declared dependencies do not resolve. The Makefile
 # variable PROFILE selects one; when it is unset, BOARD picks the default
 # (distrib/rp2040/Makefile.inc): full for the PICO board, picocalc for the
-# PicoCalc, which names every closure.
+# PicoCalc, which names every closure. The Make variables IMAGE_WITH and
+# IMAGE_WITHOUT add and remove closures or groups for one build on top of
+# the selected profile.
 # sys/arch/rp2040/doc/PROFILES.md is the authority for the scheme and
 # carries the measured block cost of each closure.
 #
 # Grammar, one directive per line:
 #
-#   profile NAME [CLOSURE ...]          a selectable composition
+#   profile NAME [NAME ...]             a selectable composition
+#   group NAME NAME ...                 NAME stands for each listed closure
+#                                       or group wherever a closure name is
+#                                       taken (profile, IMAGE_WITH, needs)
 #   closure NAME needs closure OTHER    OTHER must be selected too
 #   closure NAME needs path PATH ...    PATH must reach the image
+#   multicall CLOSURE PATH NAME ...     CLOSURE installs the binary PATH that
+#                                       dispatches on the names listed; each
+#                                       NAME is a closure that links
+#                                       dirname(PATH)/NAME to PATH
+#   cost NAME BLOCKS INODES             the measured cost of a closure or
+#                                       group (see PROFILES.md for the method)
 #
 # A dependency is checked, never resolved: a profile that names a closure
 # without the closure it needs fails the build rather than gaining the
@@ -25,45 +36,114 @@
 #
 
 #
+# Groups. A group keeps its old meaning as a profile word: games is the
+# gamebox directory, binary and every game linked into it, puzzles is the
+# puzzlebox binary and every puzzle, toolchain is the compile chain without
+# its link library, calc-bignum is bc with its library and dc.
+#
+group games gamesdir gamebox fifteen keen bubble fourfall coil
+group puzzles puzzlebox flood samegame unruly lightup
+group toolchain as ld smlrc cc
+group calc-bignum bc dc
+
+#
 # Dependencies between closures.
 #
 # usr.bin/cc runs smlrc, as and ld over a source file and links the result
 # against /usr/lib/crt0.o and /usr/lib/libc.a, so a compiler without the
 # link library produces an a.out that no stage of the chain can finish.
 # The requirement runs both ways: the library is 55 KiB of flash that
-# nothing on the board reads once the compiler is gone.
+# nothing on the board reads once the compiler is gone. The assembler, the
+# linker and Smaller C each run on their own, so each is a closure that
+# needs nothing; the cc driver needs all three and the library.
 #
-closure toolchain needs closure toolchainlib
-closure toolchainlib needs closure toolchain
-closure toolchain needs path /usr/bin/cc /usr/bin/as /usr/bin/ld
-closure toolchain needs path /usr/libexec/smlrc
+closure cc needs closure as ld smlrc toolchainlib
+closure toolchainlib needs closure cc
+closure as needs path /usr/bin/as
+closure ld needs path /usr/bin/ld
+closure smlrc needs path /usr/libexec/smlrc
+closure cc needs path /usr/bin/cc /usr/bin/as /usr/bin/ld
+closure cc needs path /usr/libexec/smlrc
 closure toolchainlib needs path /usr/lib/libc.a /usr/lib/crt0.o
 
 #
 # games/gamebox dispatches on argv[0]; fifteen, keen, bubble, fourfall
 # and coil are hard links to it, and games/puzzlebox does the same for flood,
-# samegame, unruly and lightup; the manifest checker rejects a link whose
-# source the profile dropped. The puzzles closure carries puzzlebox and its
-# links and installs into /usr/games, which the games closure creates, so an
-# image that leaves the puzzles out keeps the games and one that keeps the
-# puzzles names both closures.
+# samegame, unruly and lightup. Each entry point is a closure of its own
+# carrying its link, and the multicall lines below name the members of each
+# binary: the games Makefiles link only the selected members into the
+# program, and the manifest checker rejects a link whose source the profile
+# dropped, a selected member whose binary is absent, and a binary with no
+# selected member. The puzzlebox closure installs into /usr/games, which the
+# gamesdir closure creates, so an image that leaves the games out keeps the
+# puzzles by keeping gamesdir and one that keeps the puzzles names both.
 #
-closure games needs path /usr/games/gamebox
-closure puzzles needs closure games
-closure puzzles needs path /usr/games/puzzlebox
+multicall gamebox /usr/games/gamebox fifteen keen bubble fourfall coil
+multicall puzzlebox /usr/games/puzzlebox flood samegame unruly lightup
+closure gamebox needs closure gamesdir
+closure gamebox needs path /usr/games/gamebox
+closure puzzlebox needs closure gamesdir
+closure puzzlebox needs path /usr/games/puzzlebox
 
 #
 # usr.bin/bc compiles its input to dc source and evaluates it with the dc
 # evaluator linked into bc itself, in a forked child, so bc needs no
-# /usr/bin/dc to run. bc -l first reads /usr/share/misc/bc.library. The
-# arbitrary-precision calculator ships bc, dc and the library together.
+# /usr/bin/dc to run, and dc needs nothing of bc. bc -l first reads
+# /usr/share/misc/bc.library. The arbitrary-precision calculator ships bc,
+# dc and the library together as the calc-bignum group; each is a closure
+# an image can keep alone.
 #
-closure calc-bignum needs path /usr/bin/bc /usr/bin/dc /usr/share/misc/bc.library
+closure bc needs path /usr/bin/bc /usr/share/misc/bc.library
+closure dc needs path /usr/bin/dc
 
 # usr.bin/calc, the scientific calculator with the F-key item bar sized for
 # the PicoCalc's 53 by 32 console, is one self-contained program.
 #
 closure calc needs path /usr/bin/calc
+
+#
+# The PicoCalc's SD card is block major 5 and raw major 11 of the PICOCALC
+# kernels (sys/arch/rp2040/rp2040/conf.c). The sdcard closure carries the
+# /mnt mount point and the nodes for the whole card and its first two
+# partitions; it needs no other closure, and the PICO board's kernel has no
+# driver behind those majors, so only the picocalc profile names it.
+#
+closure sdcard needs path /mnt /dev/sd0 /dev/sd0a /dev/sd0b /dev/rsd0 /dev/rsd0a /dev/rsd0b
+
+#
+# Measured cost. Each line records the free blocks and free inodes an image
+# loses when it holds base plus the named closure or group plus the closures
+# that name needs, read from `fsutil --verbose --partition=1` on the built
+# image; cc and toolchainlib carry one figure because each requires the
+# other. gamebox and puzzlebox have no line of their own: a binary with no
+# member is refused, so each is measured through a member or its group.
+# sys/arch/rp2040/doc/PROFILES.md holds the method, the marginal cost of
+# each multicall member inside the full set, and the profile totals.
+#
+cost coremark 16 1
+cost as 25 1
+cost ld 18 1
+cost smlrc 42 1
+cost cc 133 7
+cost toolchainlib 133 7
+cost toolchain 133 7
+cost bc 40 2
+cost dc 21 1
+cost calc-bignum 60 3
+cost calc 33 1
+cost sdcard 1 7
+cost gamesdir 1 1
+cost games 24 2
+cost puzzles 37 2
+cost fifteen 8 2
+cost keen 10 2
+cost bubble 10 2
+cost fourfall 15 2
+cost coil 8 2
+cost flood 18 2
+cost samegame 18 2
+cost unruly 21 2
+cost lightup 23 2
 
 #
 # The compositions.
@@ -72,7 +152,7 @@ closure calc needs path /usr/bin/calc
 # benchmark  base plus CoreMark, for a reported score on a bare board
 # developer  base plus the native compile chain and its link library
 # games      base plus gamebox and puzzlebox with their nine entry points
-#            (the games and puzzles closures)
+#            (the games and puzzles groups)
 # full       every closure a bare Raspberry Pi Pico ships; the image the
 #            PICO board builds by default
 # picocalc   full plus the ClockworkPi PicoCalc's own closures: the

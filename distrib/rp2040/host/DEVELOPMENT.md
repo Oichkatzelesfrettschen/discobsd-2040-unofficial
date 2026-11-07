@@ -97,7 +97,7 @@ the two-step form does not.
     discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2       # kernel only
     discobsd-flash distrib/rp2040/flash.uf2                   # root only
     discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2
-    discobsd-flash sys/arch/rp2040/compile/PICOCALC/unix.uf2 distrib/rp2040/flash.uf2
+    discobsd-flash sys/arch/rp2040/compile/PICOCALC/unix.uf2 distrib/rp2040/flash-PICOCALC.uf2
 
 Each kernel boots any root image, and each names its own console
 (`sys/arch/rp2040/doc/PICOCALC.md`). `BOARD=PICOCALC` builds the PicoCalc's
@@ -106,8 +106,11 @@ calculator to `full` (`sys/arch/rp2040/doc/PROFILES.md`):
 
     bmake MACHINE=rp2040 BOARD=PICOCALC flash
 
-`BOARD=PICOCALC_PSRAM` pairs the same root with the PicoCalc kernel that
-carries the PSRAM swap driver.
+`BOARD=PICO` writes `distrib/rp2040/flash.uf2`; any other board writes
+`distrib/rp2040/flash-${BOARD}.uf2` (and `sdcard-${BOARD}.img`), so the
+images of different boards coexist. `BOARD=PICOCALC_PSRAM` pairs the same
+root profile with the PicoCalc kernel that carries the PSRAM swap driver and
+writes `flash-PICOCALC_PSRAM.uf2`.
     discobsd-flash --bootsel      # for a copy by hand; then --eject
 
 `IMAGE_WITH` and `IMAGE_WITHOUT` add and remove closures for one build, for

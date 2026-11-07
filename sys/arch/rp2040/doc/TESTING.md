@@ -191,7 +191,7 @@ upload and hidden-file inclusion.
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
-| UF2 image pair (block magic, RP2040 family, 256-byte payloads, numbering, kernel bounds, exact root coverage) | `check-uf2-images` | `${PYTHON}`, built `unix.uf2` and `flash.uf2` | yes, after the flash build | yes, after the flash build |
+| UF2 image pair (block magic, RP2040 family, 256-byte payloads, numbering, kernel bounds, exact root coverage) | `check-uf2-images` | `${PYTHON}`, built `unix.uf2` and the selected board's flash UF2 (`flash.uf2` for `BOARD=PICO`, `flash-${BOARD}.uf2` otherwise) | yes, after the flash build | yes, after the flash build |
 | account image (root lock, operator empty password, exact named shadow offsets, privileged modes) | `check-account-image` | `${PYTHON}`, RP2040 `fsutil`, generated filesystem image | distribution and flash builds | not run on host-only targets |
 
 The account-image gate checks root and operator passwd records for LF

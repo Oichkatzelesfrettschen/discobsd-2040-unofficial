@@ -43,8 +43,9 @@ PARTITIONS!=	if [ ${U_KBYTES} -gt 0 ] ; then \
 			echo "fs=${FS_KBYTES}k" ; \
 		fi
 
-# SD card filesystem image for ${MACHINE}.
-FSIMG=		${TOPSRC}/distrib/${MACHINE}/sdcard.img
+# SD card filesystem image for ${MACHINE}. A machine whose images depend on a
+# board names the board's path from distrib/${MACHINE}/Makefile.inc.
+FSIMG?=		${TOPSRC}/distrib/${MACHINE}/sdcard.img
 
 # Set this to the device name for your SD card.  With this
 # enabled you can use "make installfs" to copy the sdcard.img
@@ -179,10 +180,11 @@ distribution:	build
 # check-uf2-validator calibrates the UF2 structure checker on synthetic
 # images; check-uf2-images applies it to each kernel and root pair that
 # discobsd-flash loads, so it follows `kernel` and `flash`. Every board
-# kernel in MACHINE_KERNEL_CONFIGS pairs with distrib/rp2040/flash.uf2: the
-# root occupies the same flash region on every board and every kernel boots
-# every profile's root, while BOARD (distrib/rp2040/Makefile.inc) picks the
-# profile an unset PROFILE builds.
+# kernel in MACHINE_KERNEL_CONFIGS pairs with ${FLASHUF2}: the root occupies
+# the same flash region on every board and every kernel boots every profile's
+# root, while BOARD (distrib/rp2040/Makefile.inc) picks the profile an unset
+# PROFILE builds and the file name: distrib/rp2040/flash.uf2 for PICO,
+# flash-${BOARD}.uf2 otherwise.
 check-uf2-validator: check-python
 		${PYTHON} tools/check_rp2040_uf2.py --self-test
 
@@ -190,7 +192,7 @@ check-uf2-images: check-python
 		@set -e; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
 			${PYTHON} tools/check_rp2040_uf2.py \
 			    sys/arch/rp2040/compile/$$configuration/unix.uf2 \
-			    distrib/rp2040/flash.uf2; \
+			    ${FLASHUF2}; \
 		done
 
 .PHONY: check-uf2-validator check-uf2-images
@@ -1334,7 +1336,8 @@ ${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home \
 		$(FSUTIL) --new --partition=3 --manifest=distrib/base/mi.home $@ distrib/home
 
 release:
-		${MAKE} -C etc MACHINE=${MACHINE} RELEASEDIR=${RELEASEDIR} release
+		${MAKE} -C etc MACHINE=${MACHINE} RELEASEDIR=${RELEASEDIR} \
+		    FSIMG=${FSIMG} release
 
 clean:
 		status=0; rm -f *~ include/machine || status=1; \

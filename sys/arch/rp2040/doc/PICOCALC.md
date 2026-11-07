@@ -481,7 +481,11 @@ route; they use only the disk ioctls the driver answers
     bmake MACHINE=rp2040 kernel        # PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM
 
 `sys/arch/rp2040/compile/PICOCALC/unix.uf2` holds the kernel; the root
-image is the same `distrib/rp2040/flash.uf2` the PICO board uses.
+image is any board's `flash*.uf2`, since every kernel boots every root.
+`BOARD=PICOCALC` builds the `picocalc` profile root as
+`distrib/rp2040/flash-PICOCALC.uf2`, and `BOARD=PICOCALC_PSRAM` builds
+`distrib/rp2040/flash-PICOCALC_PSRAM.uf2`; `distrib/rp2040/flash.uf2` is the
+PICO board's.
 `sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2` holds the same kernel with
 the PSRAM driver. A board is selected by name: `BOARD=PICOCALC` pairs the
 driverless kernel with the `picocalc` root profile, and `BOARD=PICOCALC_PSRAM`
@@ -489,6 +493,11 @@ pairs the PSRAM kernel with the same profile.
 
     bmake MACHINE=rp2040 BOARD=PICOCALC distribution        # no PSRAM driver
     bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution  # PSRAM swap
+
+Each board writes its own `sdcard-${BOARD}.img`, `flash-${BOARD}.bin` and
+`flash-${BOARD}.uf2` under `distrib/rp2040` (the bare `sdcard.img`,
+`flash.bin` and `flash.uf2` belong to `BOARD=PICO`), so the three boards'
+images coexist in one tree.
 
 Each kernel boots either root. The PSRAM kernel is a separate configuration
 because config(8) writes a Makefile from one Config with no include

@@ -29,7 +29,7 @@ this directory to byte-compile every script.
 | `aout_reachability.py` | reachability from the entry point, stored function pointers, and explicit linker roots, for one or more a.out/disassembly pairs | a.out binary + `objdump -d` text listing, per program | stdlib only |
 | `aout_program_inventory.py` | inventories every a.out/`.dis` pair under a tree: sizes, entry point, PRINTF_FLOAT and `__doprnt_cvt` linker-root status | repository or built-distribution tree root | stdlib only |
 | `aout_archive_section_filter.py` | reclassifies `aout_reachability.py` candidates as co-retained/discardable/unmapped against a static archive's section-level call graph | an `aout_reachability.py --output` JSON + a `.a` archive | pyelftools |
-| `linked_heatshrink_measure.py` | measures man-page compression ratio and corruption behavior through the exact heatshrink encoder/decoder linked into the kernel, run under emulation | kernel ELF + man1 page directory | pyelftools, unicorn |
+| `linked_heatshrink_measure.py` | measures man-page compression ratio and corruption behavior through the heatshrink encoder and the port decoder (`hsx_dec_run`, lookahead 8) linked into the kernel, run under emulation | kernel ELF + man1 page directory | pyelftools, unicorn |
 
 ## Verified runs
 

@@ -38,6 +38,7 @@ static unsigned char panel_at[LT_ROWS][LT_COLS];
 static int panel_top;
 static char replies[64];
 static int nreplies;
+static int nbells;
 static int failures;
 
 void
@@ -69,6 +70,12 @@ void
 lcd_set_top(int prow)
 {
 	panel_top = prow;
+}
+
+void
+lcd_bell(void)
+{
+	nbells++;
 }
 
 void
@@ -162,6 +169,7 @@ reset(void)
 	memset(panel_at, 0, sizeof(panel_at));
 	lcdterm_init();
 	nreplies = 0;
+	nbells = 0;
 }
 
 static void
@@ -426,6 +434,49 @@ key(int state, int k, int app, int *ctrl, const char *want, const char *what)
 	expect_bytes(what, buf, n, want);
 }
 
+/*
+ * BEL (0x07) reaches the bell primitive once per byte, from the ground
+ * state and inside a control sequence, and draws, moves and scrolls
+ * nothing; the other C0 controls the terminal ignores stay silent.
+ */
+static void
+test_bell(void)
+{
+	int row, col, i;
+
+	reset();
+	out("ab");
+	out("\a");
+	expect_int("one BEL rings once", nbells, 1);
+	lcdterm_cursor(&row, &col);
+	expect_int("BEL leaves the column", col, 2);
+	expect_int("BEL leaves the row", row, 0);
+	expect_line("BEL draws nothing", 0, "ab");
+	out("\a\a");
+	expect_int("BEL rings per byte", nbells, 3);
+
+	reset();
+	out("\033[3\aC");
+	expect_int("BEL inside a CSI rings", nbells, 1);
+	lcdterm_cursor(&row, &col);
+	expect_int("the CSI completes after the BEL", col, 3);
+
+	reset();
+	for (i = 0; i < 0x20; i++) {
+		if (i == 0x07 || i == '\b' || i == '\t' || i == '\n' ||
+		    i == '\v' || i == '\f' || i == '\r' || i == 0x1b ||
+		    i == 0x18 || i == 0x1a)
+			continue;
+		lcdterm_putc(i);
+	}
+	expect_int("other controls do not ring", nbells, 0);
+
+	reset();
+	out("\033[2;3H\a\033[6n");
+	expect_int("BEL leaves a following report intact", nreplies, 6);
+	expect_consistent("bell");
+}
+
 static void
 test_keymap(void)
 {
@@ -470,6 +521,7 @@ main(void)
 	test_save_restore_reports();
 	test_cursor_overlay();
 	test_review_cases();
+	test_bell();
 	test_keymap();
 	if (failures != 0) {
 		fprintf(stderr, "lcdterm_test: %d failures\n", failures);

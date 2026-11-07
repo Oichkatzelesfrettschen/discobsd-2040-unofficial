@@ -35,8 +35,9 @@
 #include <sys/errno.h>
 #include <machine/swapram.h>
 
+#include <machine/hsx_decoder.h>
+
 #include "heatshrink_encoder.h"
-#include "heatshrink_decoder.h"
 
 #define SR_DATA         SWAPRAM_DATA
 #define SR_STACK        SWAPRAM_STACK
@@ -161,8 +162,11 @@ static u_char sr_codec_owner;
 
 _Static_assert (sizeof (heatshrink_encoder) <= SWAPRAM_CODEC_WORK_BYTES,
     "SwapRAM encoder must fit the shared codec workspace");
-_Static_assert (sizeof (heatshrink_decoder) <= SWAPRAM_CODEC_WORK_BYTES,
+_Static_assert (sizeof (struct hsx_dec) <= SWAPRAM_CODEC_WORK_BYTES,
     "SwapRAM decoder must fit the shared codec workspace");
+_Static_assert (HEATSHRINK_STATIC_WINDOW_BITS == HSXD_WINDOW_BITS &&
+    HEATSHRINK_STATIC_LOOKAHEAD_BITS <= HSXD_LOOKAHEAD_MAX,
+    "the port decoder must implement the encoder's window and lookahead");
 
 void *
 swapram_codec_acquire (unsigned int owner)
@@ -318,90 +322,49 @@ done:
  * Expand clen bytes at pool offset off, refusing to produce more than
  * rlen. With dst set the bytes land there. With dst NULL they go through
  * the payload of the busy cache buffer bp a block at a time to the flash
- * blocks from blk, the path an evacuation takes. Returns the expanded
- * length, which the caller checks against the length swapout recorded.
+ * blocks from blk, the path an evacuation takes: the decoder runs into its
+ * own history ring in pieces that do not cross the ring end or the block
+ * end, and each piece is copied to the block. Returns the expanded length,
+ * which the caller checks against the length swapout recorded; a stream
+ * that ends early yields fewer bytes and no flash write for the partial
+ * block.
  */
 static int
 sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
     unsigned int rlen, size_t blk, struct buf *bp)
 {
-    heatshrink_decoder *decoder;
-    unsigned int in = 0, out = 0, moved = 0, fill = 0;
-    size_t n;
-    u_char *buf;
-    size_t room;
-    HSD_poll_res pres;
-    HSD_finish_res fres;
-    int result = -1;
-
-#define SR_ROOM() do { \
-        if (dst != NULL) { \
-            buf = (u_char *) dst + out; \
-            room = rlen - out; \
-        } else { \
-            buf = (u_char *) bp->b_addr + fill; \
-            room = DEV_BSIZE - fill; \
-            if (room > rlen - out) \
-                room = rlen - out; \
-        } \
-    } while (0)
-#define SR_TOOK(n) do { \
-        out += (n); \
-        if (dst == NULL) { \
-            fill += (n); \
-            if (fill == DEV_BSIZE || out == rlen) { \
-                swap_with_buf (bp, blk, (size_t) bp->b_addr, fill, \
-                    B_WRITE | B_SWAPIMAGE); \
-                blk += btod (fill); \
-                fill = 0; \
-            } \
-        } \
-    } while (0)
+    struct hsx_dec *decoder;
+    unsigned int out = 0, fill = 0, room, n, ring;
 
     decoder = swapram_codec_acquire (SWAPRAM_CODEC_DECODER);
-    heatshrink_decoder_reset (decoder);
-    while (in < clen && out < rlen) {
-        if (heatshrink_decoder_sink (decoder, sr_pool + off + in,
-            clen - in, &n) < 0)
-            goto done;
-        if (n == 0 && out == moved)
-            goto done;          /* neither side advanced: no termination */
-        in += n;
-        moved = out;
-        do {
-            if (out == rlen)
+    hsx_dec_init (decoder, HEATSHRINK_STATIC_LOOKAHEAD_BITS);
+    hsx_dec_input (decoder, sr_pool + off, clen);
+    if (dst != NULL) {
+        out = hsx_dec_run (decoder, (u_char *) dst, ~0U, rlen);
+    } else {
+        while (out < rlen) {
+            ring = out & (HSXD_WINDOW - 1);
+            room = rlen - out;
+            if (room > DEV_BSIZE - fill)
+                room = DEV_BSIZE - fill;
+            if (room > HSXD_WINDOW - ring)
+                room = HSXD_WINDOW - ring;
+            n = hsx_dec_run (decoder, decoder->win, HSXD_WINDOW - 1, room);
+            bcopy (decoder->win + ring, (u_char *) bp->b_addr + fill, n);
+            out += n;
+            fill += n;
+            if (fill == DEV_BSIZE || out == rlen) {
+                swap_with_buf (bp, blk, (size_t) bp->b_addr, fill,
+                    B_WRITE | B_SWAPIMAGE);
+                blk += btod (fill);
+                fill = 0;
+            }
+            if (n < room)
                 break;
-            SR_ROOM ();
-            pres = heatshrink_decoder_poll (decoder, buf, room, &n);
-            if (pres < 0)
-                goto done;
-            SR_TOOK (n);
-        } while (pres == HSDR_POLL_MORE);
+        }
     }
-    for (moved = out + 1; out < rlen; moved = out) {
-        if (out == moved)
-            goto done;          /* finish says more and poll yields none */
-        fres = heatshrink_decoder_finish (decoder);
-        if (fres < 0)
-            goto done;
-        if (fres == HSDR_FINISH_DONE)
-            break;
-        do {
-            if (out == rlen)
-                break;
-            SR_ROOM ();
-            pres = heatshrink_decoder_poll (decoder, buf, room, &n);
-            if (pres < 0)
-                goto done;
-            SR_TOOK (n);
-        } while (pres == HSDR_POLL_MORE);
-    }
-    result = (int) out;
-done:
-#undef SR_ROOM
-#undef SR_TOOK
     swapram_codec_release (SWAPRAM_CODEC_DECODER);
-    return result;
+    return (int) out;
 }
 
 /*

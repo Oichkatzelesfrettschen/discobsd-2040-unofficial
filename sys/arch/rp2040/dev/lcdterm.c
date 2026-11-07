@@ -744,8 +744,11 @@ control(int c)
 	case 0x1b:
 		state = ST_ESC;
 		break;
+	case '\a':
+		lcd_bell();
+		break;
 	default:
-		break;		/* BEL, SO, SI and the rest. */
+		break;		/* SO, SI and the rest. */
 	}
 }
 

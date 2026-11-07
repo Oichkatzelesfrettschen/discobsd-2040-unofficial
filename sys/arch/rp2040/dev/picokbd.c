@@ -59,11 +59,22 @@
 #include <sys/systm.h>
 #include <sys/user.h>
 #include <sys/proc.h>
+#include <sys/errno.h>
+#include <sys/file.h>
+#include <sys/inode.h>
+#include <sys/sysctl.h>
+
+#include <machine/cpu.h>
+#include <machine/picocalcvar.h>
 
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
 #include <rp2040/dev/picokbd_map.h>
+#include <rp2040/dev/picokbd_req.h>
 #include <rp2040/dev/lcdterm.h>
+#ifdef SD_ENABLED
+#include <rp2040/dev/sd.h>
+#endif
 
 #define	I2C1_BASE		0x40048000UL
 #define	IC_CON			0x00
@@ -131,6 +142,24 @@ static u_int kbd_errors;
 static char ring[KBD_RING];
 static u_int ring_head, ring_tail;
 
+/*
+ * The register request the write phase sends in place of the FIFO read
+ * (picokbd_req.h). rq_inflight marks an exchange that carries it, so the
+ * collect phase hands the reply to the mailbox instead of the key map.
+ */
+static struct kbdreq kbdq;
+static int rq_inflight;
+
+/* The exchange in flight was discarded: retry or fail its request. */
+static void
+exchange_lost(void)
+{
+	rq_inflight = 0;
+	kbdreq_abort(&kbdq);
+	if (kbdq.state == KR_FAILED)
+		wakeup((caddr_t)&kbdq);
+}
+
 /* Set or clear IC_ENABLE and wait for IC_ENABLE_STATUS; 0 on a timeout. */
 static int
 i2c_enable(int on)
@@ -181,6 +210,7 @@ i2c_restart(void)
 	phase = PH_WRITE;
 	stall = 0;
 	ctrl = 0;	/* The restart may have discarded a Ctrl release. */
+	exchange_lost();
 }
 
 /*
@@ -211,6 +241,7 @@ recover_begin(void)
 	phase = PH_WRITE;
 	stall = 0;
 	ctrl = 0;	/* The fault may have discarded a Ctrl release. */
+	exchange_lost();
 }
 
 static void
@@ -327,12 +358,17 @@ picokbd_init(void)
 
 /*
  * Advance the exchange of register reg by one phase. An abort restarts
- * the controller and reports STEP_DONE with phase back at PH_WRITE.
+ * the controller and reports STEP_DONE with phase back at PH_WRITE. The
+ * write phase sends a waiting register request instead of reg, except in
+ * the polled exchange, whose caller reads the reply itself; a collected
+ * request reply reports STEP_DONE.
  */
 static int
 kbd_step(int reg, int *state, int *key)
 {
 	u_int raw = I2C_REG(IC_RAW_INTR_STAT);
+	u_char out[2];
+	int n;
 
 	if (raw & IC_INTR_TX_ABRT) {
 		kbd_fault();
@@ -342,7 +378,14 @@ kbd_step(int reg, int *state, int *key)
 	switch (phase) {
 	case PH_WRITE:
 		(void)I2C_REG(IC_CLR_STOP_DET);
-		I2C_REG(IC_DATA_CMD) = (u_int)reg | IC_CMD_STOP;
+		n = sync_mode ? 0 : kbdreq_next(&kbdq, out);
+		rq_inflight = n > 0;
+		if (n == 2) {
+			I2C_REG(IC_DATA_CMD) = out[0];
+			I2C_REG(IC_DATA_CMD) = out[1] | IC_CMD_STOP;
+		} else
+			I2C_REG(IC_DATA_CMD) = (n == 1 ? out[0] : (u_int)reg) |
+			    IC_CMD_STOP;
 		phase = PH_READ;
 		return STEP_DONE;
 	case PH_READ:
@@ -359,6 +402,13 @@ kbd_step(int reg, int *state, int *key)
 		*state = (int)(I2C_REG(IC_DATA_CMD) & 0xff);
 		*key = (int)(I2C_REG(IC_DATA_CMD) & 0xff);
 		phase = PH_WRITE;
+		if (rq_inflight) {
+			rq_inflight = 0;
+			kbdreq_done(&kbdq, *state, *key);
+			if (!kbdreq_pending(&kbdq))
+				wakeup((caddr_t)&kbdq);
+			return STEP_DONE;
+		}
 		return (*state != 0 || *key != 0) ? STEP_EVENT : STEP_DONE;
 	}
 }
@@ -379,6 +429,9 @@ kbd_poll(caddr_t arg __unused)
 	char seq[PICOKBD_MAXSEQ];
 	int state, key, n, r;
 
+#ifdef SD_ENABLED
+	sd_detect_poll();
+#endif
 	if (recovering != REC_IDLE && !recover_step()) {
 		timeout(kbd_poll, (caddr_t)0, KBD_FAST_TICKS);
 		return;
@@ -507,4 +560,91 @@ u_int
 picokbd_errors(void)
 {
 	return kbd_errors;
+}
+
+#define	KBDREQ_TIMEOUT_TICKS	HZ	/* A reply takes three polls, ~50 ms. */
+
+static void
+kbdreq_timeout(caddr_t arg __unused)
+{
+	kbdreq_expire(&kbdq);
+	wakeup((caddr_t)&kbdq);
+}
+
+/*
+ * Exchange one controller register through the poller and sleep until the
+ * reply arrives. The caller sleeps uninterruptibly because the mailbox
+ * and the deadline callout belong to it until the request finishes; the
+ * KBDREQ_TIMEOUT_TICKS callout ends a request the poller never answers, so
+ * the wait is bounded. Returns 0 with the controller's value in *out, EIO
+ * after KBDREQ_TRIES faulted exchanges or ETIMEDOUT.
+ */
+static int
+picokbd_reg(int reg, int write, int val, int *out)
+{
+	int s, error;
+
+	picokbd_poll_start();
+	s = spltty();
+	while (kbdreq_submit(&kbdq, reg, write, val) < 0)
+		sleep((caddr_t)&kbdq, PRIBIO);
+	timeout(kbdreq_timeout, (caddr_t)0, KBDREQ_TIMEOUT_TICKS);
+	while (kbdreq_pending(&kbdq))
+		sleep((caddr_t)&kbdq, PRIBIO);
+	untimeout(kbdreq_timeout, (caddr_t)0);
+	error = kbdreq_finish(&kbdq, out);
+	wakeup((caddr_t)&kbdq);
+	splx(s);
+	return error == KRE_NONE ? 0 : error == KRE_TIMEOUT ? ETIMEDOUT : EIO;
+}
+
+/* Seconds the last power-off request set; the controller cannot report it. */
+static int poweroff_seconds;
+
+/*
+ * machdep.picocalc: the keyboard controller's battery, backlight and
+ * power-off registers. The syscall layer admits a write only from root
+ * (__sysctl in kern_sysctl.c).
+ */
+int
+picocalc_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
+    void *newp, size_t newlen)
+{
+	int v = 0, reg, error;
+
+	if (namelen != 1)
+		return ENOTDIR;
+	switch (name[0]) {
+	case CPU_PICOCALC_BATTERY:
+	case CPU_PICOCALC_CHARGING:
+		error = picokbd_reg(KBD_REG_BAT, 0, 0, &v);
+		if (error)
+			return error;
+		v = name[0] == CPU_PICOCALC_BATTERY ?
+		    kbdreq_battery_percent(v) : kbdreq_battery_charging(v);
+		return sysctl_rdint(oldp, oldlenp, newp, v);
+	case CPU_PICOCALC_LCD_BACKLIGHT:
+	case CPU_PICOCALC_KBD_BACKLIGHT:
+		reg = name[0] == CPU_PICOCALC_LCD_BACKLIGHT ?
+		    KBD_REG_BKL : KBD_REG_BK2;
+		error = oldp ? picokbd_reg(reg, 0, 0, &v) : 0;
+		if (error == 0)
+			error = sysctl_int(oldp, oldlenp, newp, newlen, &v);
+		if (error == 0 && newp != NULL)
+			error = picokbd_reg(reg, 1, kbdreq_level(v), &v);
+		return error;
+	case CPU_PICOCALC_POWEROFF:
+		v = poweroff_seconds;
+		error = sysctl_int(oldp, oldlenp, newp, newlen, &v);
+		if (error == 0 && newp != NULL) {
+			v = kbdreq_off_seconds(v);
+			sync();
+			error = picokbd_reg(KBD_REG_OFF, 1, v, &reg);
+			if (error == 0)
+				poweroff_seconds = v;
+		}
+		return error;
+	default:
+		return EOPNOTSUPP;
+	}
 }

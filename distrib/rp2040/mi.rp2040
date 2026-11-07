@@ -31,6 +31,9 @@ dir /sbin
 dir /tmp
 dir /usr
 dir /home
+#closure sdcard
+dir /mnt
+#endclosure sdcard
 dir /home/operator
 owner 2
 group 5
@@ -40,9 +43,9 @@ dir /usr/libexec
 #closure toolchainlib
 dir /usr/lib
 #endclosure toolchainlib
-#closure games
+#closure gamesdir
 dir /usr/games
-#endclosure games
+#endclosure gamesdir
 dir /usr/share
 dir /usr/share/misc
 dir /root
@@ -56,6 +59,33 @@ dir /var/run
 bdev /dev/swap
 major 4             # Virtual swap device, mapped to real swap partition
 minor 64
+
+#closure sdcard
+#
+# The PicoCalc's SD card: block major 5 and raw major 11 (rp2040/conf.c).
+# Minor 0 is the whole card, 1 to 4 the MBR partitions a to d. The root
+# has 128 inodes, so the image carries the whole card and the first two
+# partitions; mknod makes the other two.
+#
+bdev /dev/sd0
+major 5
+minor 0
+bdev /dev/sd0a
+major 5
+minor 1
+bdev /dev/sd0b
+major 5
+minor 2
+cdev /dev/rsd0
+major 11
+minor 0
+cdev /dev/rsd0a
+major 11
+minor 1
+cdev /dev/rsd0b
+major 11
+minor 2
+#endclosure sdcard
 
 #
 # Character devices.
@@ -184,10 +214,12 @@ pack /usr/bin/awk
 #closure coremark
 pack /usr/bin/coremark
 #endclosure coremark
-#closure calc-bignum
+#closure bc
 pack /usr/bin/bc
+#endclosure bc
+#closure dc
 pack /usr/bin/dc
-#endclosure calc-bignum
+#endclosure dc
 #closure calc
 pack /usr/bin/calc
 #endclosure calc
@@ -206,11 +238,15 @@ pack /usr/bin/utilbox
 pack /usr/bin/tail
 pack /usr/bin/tee
 pack /usr/bin/du
-#closure toolchain
+#closure as
 pack /usr/bin/as
+#endclosure as
+#closure ld
 pack /usr/bin/ld
+#endclosure ld
+#closure cc
 file /usr/bin/cc
-#endclosure toolchain
+#endclosure cc
 file /usr/bin/mputest
 
 #
@@ -227,15 +263,15 @@ pack /usr/bin/cpio
 pack /usr/sbin/update
 
 pack /usr/libexec/getty
-#closure toolchain
+#closure smlrc
 pack /usr/libexec/smlrc
-#endclosure toolchain
-#closure games
+#endclosure smlrc
+#closure gamebox
 pack /usr/games/gamebox
-#endclosure games
-#closure puzzles
+#endclosure gamebox
+#closure puzzlebox
 pack /usr/games/puzzlebox
-#endclosure puzzles
+#endclosure puzzlebox
 
 #
 # The native compile chain's library: cc (smlrc, as, ld) needs these to
@@ -256,9 +292,9 @@ file /usr/lib/crt0.o
 #
 default
 filemode 0444
-#closure calc-bignum
+#closure bc
 file /usr/share/misc/bc.library
-#endclosure calc-bignum
+#endclosure bc
 
 default
 filemode 0775
@@ -467,28 +503,42 @@ target /usr/bin/stevie
 # games/gamebox/Makefile, games/puzzlebox/Makefile and
 # sys/arch/rp2040/doc/research/games.md.
 #
-#closure games
+#closure fifteen
 link /usr/games/fifteen
 target /usr/games/gamebox
+#endclosure fifteen
+#closure keen
 link /usr/games/keen
 target /usr/games/gamebox
+#endclosure keen
+#closure bubble
 link /usr/games/bubble
 target /usr/games/gamebox
+#endclosure bubble
+#closure fourfall
 link /usr/games/fourfall
 target /usr/games/gamebox
+#endclosure fourfall
+#closure coil
 link /usr/games/coil
 target /usr/games/gamebox
-#endclosure games
-#closure puzzles
+#endclosure coil
+#closure flood
 link /usr/games/flood
 target /usr/games/puzzlebox
+#endclosure flood
+#closure samegame
 link /usr/games/samegame
 target /usr/games/puzzlebox
+#endclosure samegame
+#closure unruly
 link /usr/games/unruly
 target /usr/games/puzzlebox
+#endclosure unruly
+#closure lightup
 link /usr/games/lightup
 target /usr/games/puzzlebox
-#endclosure puzzles
+#endclosure lightup
 
 #
 # Files: /var

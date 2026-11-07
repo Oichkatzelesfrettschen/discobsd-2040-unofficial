@@ -39,6 +39,17 @@
 #include <rp2040/dev/picocalc.h>
 #endif
 
+#ifdef SD_ENABLED
+#ifndef PICOCALC_ENABLED
+#error "SD_ENABLED numbers cdevsw 11 after the PicoCalc console"
+#endif
+#include <rp2040/dev/sd.h>
+#endif
+
+#ifdef PSRAM_ENABLED
+#include <rp2040/dev/psram.h>
+#endif
+
 #ifdef SDIO_ENABLED
 #endif
 
@@ -114,13 +125,30 @@ const struct bdevsw bdevsw[] = {
 	{	/* 2 - sdramp */
 		NOBDEV
 	},
-	{	/* 3 - mrams */
+	{	/* 3 - psram, the PicoCalc's ESP-PSRAM64H */
+#ifdef PSRAM_ENABLED
+#if PSRAM_MAJOR != 3
+#error Wrong PSRAM_MAJOR value!
+#endif
+		psramopen,	psramclose,	psramstrategy,
+		psramsize,	noioctl,	0
+#else
 		NOBDEV
+#endif
 	},
 	{	/* 4 - swap */
 		swopen,		swclose,	swstrategy,
 		swsize,		swcioctl,	0
 	},
+#ifdef SD_ENABLED
+	{	/* 5 - sd, the PicoCalc's SD card on SPI0 */
+#if SD_BMAJOR != 5
+#error Wrong SD_BMAJOR value!
+#endif
+		sdopen,		sdclose,	sdstrategy,
+		sdsize,		sdioctl,	0
+	},
+#endif
 	/*
 	 * End the list with a blank entry.
 	 */
@@ -231,6 +259,16 @@ const struct cdevsw cdevsw[] = {
 		nostrategy,	lcdgetc,	lcdputc,
 	},
 #endif
+#ifdef SD_ENABLED
+	{	/* 11 - raw sd */
+#if SD_CMAJOR != 11
+#error Wrong SD_CMAJOR value!
+#endif
+		sdopen,		sdclose,	sdread,		sdwrite,
+		sdioctl,	nullstop,	0,		seltrue,
+		sdstrategy,	0,		0,
+	},
+#endif
 	/*
 	 * End the list with a blank entry.
 	 */
@@ -261,12 +299,20 @@ iskmemdev(dev_t dev)
 int
 isdisk(dev_t dev, int type)
 {
+#ifdef SD_ENABLED
+	/* openi() refuses a write open of rsd0 at securelevel 2. */
+	if (type == IFCHR)
+		return major(dev) == SD_CMAJOR;
+#endif
 	if (type != IFBLK)
 		return 0;
 
 	switch (major(dev)) {
 	case 0:				/* fl0, the onboard flash */
 	case 4:				/* sw */
+#ifdef SD_ENABLED
+	case SD_BMAJOR:			/* sd0, the SD card */
+#endif
 		return 1;
 	default:
 		return 0;
@@ -281,5 +327,9 @@ isdisk(dev_t dev, int type)
 int
 chrtoblk(dev_t dev __unused)
 {
+#ifdef SD_ENABLED
+	if (major(dev) == SD_CMAJOR)
+		return makedev(SD_BMAJOR, minor(dev));
+#endif
 	return NODEV;
 }

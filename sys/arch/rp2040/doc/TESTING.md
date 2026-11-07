@@ -1546,7 +1546,10 @@ reports the smallest error-free wait next to the shipped four branches; board
 execution needs the owner's explicit opt-in, and the wait result is the only
 evidence for the eight-cycle margin), sigtest (signal frames), streamtest (NSTATIC), stdiocap (syscall-sampled
 process-stack extent), tartest (the -Z filter
-across a pipe), romprobe (ROM table dump), textcrc (packed executable
+across a pipe), romprobe (ROM table dump), lcdgfxtest (the PicoCalc pixel
+device: each shape timed beside its bus-time prediction under both color
+formats, and with the argument `crash` a kill while the device is open to see
+the console text return; a board run needs the owner's opt-in), textcrc (packed executable
 text restoration), swapmaptest (the swap map read through sysctl(3), each
 free run held inside the device between SWAP_IMAGE_ALIGN and vm.nswap),
 epochtest, evactest, bigtest and hugetest (the

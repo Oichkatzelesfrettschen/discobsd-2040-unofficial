@@ -422,7 +422,8 @@ same test; `LCDG_WINDOW` carries the palette indexes `fg` and `bg` that the
 palette is RGB565. Measured on the PICOCALC kernel: text +2,408 bytes (the
 estimate was about 2.1 KB), bss +80 bytes (estimate 0.1 KB); PICOCALC_PSRAM
 text +2,400 bytes (`sys/arch/rp2040/doc/PICOCALC.md`, Pixel device). The
-board runs, the timing comparison and the kill test remain open.
+board runs, the timing comparison and the kill test remain open;
+`tests/rp2040/lcdgfxtest` is the program for them.
 
 Atlas in the kernel versus in user space: the bytes for a full-screen tile
 redraw are 1,600 for tile numbers against 204,800 for RGB565 pixels, a 128x

@@ -4,8 +4,9 @@
 # lib/elf32-arm.ld layout at 0x20000000, elf2aout) into the 144 KB user window,
 # serves its "svc #N" system calls from the Linux kernel and, when the
 # emulator gives the guest address 0, models the boot ROM float tables. This
-# directory is outside the root check-qemu until a gate adopts it; "check"
-# builds and runs the probe program and compares its output and exit status.
+# directory is part of the root check-qemu; "check" builds and runs the probe
+# program and compares its output and exit status. The SIO hardware divider
+# the libc division helpers drive is served by the loader's SIGSEGV handler.
 #
 # It needs the tree's libraries from "bmake MACHINE=rp2040 build" (lib/libc.a,
 # lib/crt0.o) and tools/bin/rp2040/elf2aout. REQUIRE_QEMU makes a missing
@@ -70,6 +71,12 @@ check: aoutrun probe probe.sites seek.dat loop.lnk
 		echo "qemu a.out: errno probe exited $$status, expected 6" >&2; exit 1; \
 	fi
 	diff errno.expected errno.out
+	@# Integer division reaches the loader's SIO divider model.
+	@status=0; ${RUN} div > div.out || status=$$?; \
+	if [ "$$status" -ne 9 ]; then \
+		echo "qemu a.out: div probe exited $$status, expected 9" >&2; exit 1; \
+	fi
+	diff div.expected div.out
 	@# brk() refuses a request outside the window, one near 2^32 included.
 	@status=0; ${RUN} brk > brk.out || status=$$?; \
 	if [ "$$status" -ne 7 ]; then \
@@ -99,6 +106,6 @@ check: aoutrun probe probe.sites seek.dat loop.lnk
 
 clean:
 	rm -f aoutrun probe probe.o probe.elf probe.sites probe.out seek.dat \
-	    loop.lnk errno.out brk.out env.out envfull.err
+	    loop.lnk errno.out brk.out div.out env.out envfull.err
 
 .PHONY: all check clean

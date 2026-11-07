@@ -108,6 +108,40 @@ env_probe(void)
 	return 8;
 }
 
+/*
+ * Integer division through the SIO divider model of aoutrun: signed and
+ * unsigned operands of every sign pairing, the INT_MIN by -1 wrap, a zero
+ * divisor (the helpers answer it in software) and operands above INT_MAX.
+ * div.expected holds the C99 truncating results.
+ */
+static int
+div_probe(void)
+{
+	static const int sn[] = { 7, -7, 7, -7, -2147483647 - 1, 0, 2147483647 };
+	static const int sd[] = { 2, 2, -2, -2, -1, 5, 1 };
+	static const unsigned un[] = { 4294967295u, 2147483648u, 12345u, 0u };
+	static const unsigned ud[] = { 2u, 3u, 100000u, 7u };
+	unsigned i;
+
+	for (i = 0; i < sizeof sn / sizeof sn[0]; i++) {
+		volatile int n = sn[i], d = sd[i];
+
+		printf("sdiv %d %d %d %d\n", n, d, n / d, n % d);
+	}
+	for (i = 0; i < sizeof un / sizeof un[0]; i++) {
+		volatile unsigned n = un[i], d = ud[i];
+
+		printf("udiv %u %u %u %u\n", n, d, n / d, n % d);
+	}
+	{
+		volatile int n = 9, z = 0;
+		volatile unsigned un0 = 9u, uz = 0u;
+
+		printf("zero %d %d %u %u\n", n / z, n % z, un0 / uz, un0 % uz);
+	}
+	return 9;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -124,6 +158,8 @@ main(int argc, char **argv)
 		return brk_probe();
 	if (argc == 2 && strcmp(argv[1], "env") == 0)
 		return env_probe();
+	if (argc == 2 && strcmp(argv[1], "div") == 0)
+		return div_probe();
 	printf("argc=%d\n", argc);
 	for (i = 0; i < argc; i++)
 		printf("argv[%d]=%s\n", i, argv[i]);

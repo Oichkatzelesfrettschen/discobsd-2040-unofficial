@@ -7,5 +7,6 @@ seek.dat
 loop.lnk
 errno.out
 brk.out
+div.out
 env.out
 envfull.err

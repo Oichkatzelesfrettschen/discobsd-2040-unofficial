@@ -1079,6 +1079,68 @@ test_media_gone_with_open_descriptor_defers_close(void)
 	HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
 }
 
+/*
+ * The flash driver's DIOCREINIT forgets the table so that the next
+ * transfer reads it again. The root filesystem on fl0a is addressed
+ * through that table, so the request is refused while any partition other
+ * than the whole-device node the caller holds is open.
+ */
+static void
+test_flash_reinit(void)
+{
+	struct node n;
+	unsigned calls;
+	int part;
+
+	boot_machine();
+	calls = fl_setup_calls;
+	/* The mounted root holds fl0a. */
+	HK_CHECK(flioctl(FL_WHOLE, DIOCREINIT, NULL, 0) == EBUSY);
+	HK_CHECK(fldrives[0].part[RAWPART].dp_nsectors == NDEVBLK * 2);
+	HK_CHECK(read_block(FL_ROOT) == 0);
+	HK_CHECK(fl_setup_calls == calls);
+	HK_CHECK(flioctl(FL_ROOT, DIOCREINIT, NULL, 0) == EBUSY);
+
+	/*
+	 * A block descriptor on any one partition holds it, with the root's
+	 * own hold released to isolate each.
+	 */
+	for (part = 1; part <= 4; part++) {
+		boot_machine();
+		fldrives[0].openpart = 0;
+		HK_CHECK(open_node(&n, IFBLK | 0600, makedev(0, part), FREAD) ==
+		    0);
+		HK_CHECK(flioctl(FL_WHOLE, DIOCREINIT, NULL, 0) == EBUSY);
+		close_node(&n);
+		/* Partition 1 is the mounted root, which closei() keeps open. */
+		if (part != 1)
+			HK_CHECK(flioctl(FL_WHOLE, DIOCREINIT, NULL, 0) == 0);
+	}
+}
+
+static void
+test_flash_reinit_whole_device_caller(void)
+{
+	unsigned calls;
+
+	boot_machine();
+	/* No filesystem on fl0: the root slot is released, as when fdisk is run
+	   with fl0a unmounted on a board that boots from elsewhere. */
+	fldrives[0].openpart = 1U << RAWPART;
+	calls = fl_setup_calls;
+	HK_CHECK(flioctl(FL_WHOLE, DIOCREINIT, NULL, 0) == 0);
+	HK_CHECK(fldrives[0].part[RAWPART].dp_nsectors == 0);
+	/* The next transfer reads the table again. */
+	fldrives[0].openpart = 0;
+	{
+		struct buf *bp = bread(FL_WHOLE, 4);
+
+		brelse(bp);
+	}
+	HK_CHECK(fl_setup_calls == calls + 1);
+	HK_CHECK(flioctl(FL_WHOLE, DIOCREINIT, NULL, 0) == 0);
+}
+
 int
 main(void)
 {
@@ -1095,5 +1157,7 @@ main(void)
 	test_driver_without_query_keeps_failure();
 	test_media_gone_with_open_file_is_busy();
 	test_media_gone_with_open_descriptor_defers_close();
+	test_flash_reinit();
+	test_flash_reinit_whole_device_caller();
 	return hk_verdict("ufs disk lifecycle");
 }

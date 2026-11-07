@@ -252,7 +252,8 @@ UFS_DISK_MOUNT_MUTANTS=	close-always mount-close-always gone-ignored \
 			gone-no-invalidate gone-inverted
 UFS_DISK_FIO_MUTANTS=
 UFS_DISK_CONF_MUTANTS=
-UFS_DISK_FLASH_MUTANTS=
+UFS_DISK_FLASH_MUTANTS=	reinit-unguarded reinit-counts-whole-device \
+			reinit-first-partition-only
 .if ${_HOST_OSNAME} == "Darwin"
 FUTIMES_LDFLAGS=	-Wl,-dead_strip
 .else

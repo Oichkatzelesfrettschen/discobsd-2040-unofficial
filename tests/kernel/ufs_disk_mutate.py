@@ -61,6 +61,22 @@ MUTATIONS = {
     # sys/kern/ufs_fio.c
     # sys/arch/rp2040/rp2040/conf.c
     # sys/arch/rp2040/dev/flash.c
+    "reinit-unguarded": (
+        "flash.c",
+        "		if ((fldrives[unit].openpart & ~(1U << RAWPART)) != 0)\n"
+        "			return EBUSY;\n",
+        "",
+    ),
+    "reinit-counts-whole-device": (
+        "flash.c",
+        "(fldrives[unit].openpart & ~(1U << RAWPART)) != 0",
+        "fldrives[unit].openpart != 0",
+    ),
+    "reinit-first-partition-only": (
+        "flash.c",
+        "(fldrives[unit].openpart & ~(1U << RAWPART)) != 0",
+        "(fldrives[unit].openpart & 2U) != 0",
+    ),
 }
 
 

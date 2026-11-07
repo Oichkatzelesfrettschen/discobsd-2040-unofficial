@@ -90,7 +90,11 @@ and every sector read back identical to `sdcard.img`.
 The kernel side, `dev/flash.c`: `fl0` is the Dhara region, minor numbers
 following the SD driver, partition table read from logical block 0,
 `fl0a` the root partition; `fl1`, minor 8, is the raw swap unit, the
-whole device with no partition table. Reads go through the XIP window;
+whole device with no partition table. `DIOCREINIT` on `fl0` forgets the table so the
+next transfer reads it again, and returns `EBUSY` while any partition other than the
+whole-device node is open: the mounted root `fl0a` always is, so the table of a running
+system changes only through `tools/fsutil --repartition` on the image. Reads go through
+the XIP window;
 erase and program go through the boot ROM from RAM-resident functions
 with interrupts masked, cache flushed afterwards.
 

@@ -782,8 +782,12 @@ check-battlestar-generation: check-python
 # dependency must build the image instead of accepting worktree residue. The
 # maps remain ignored build evidence. Map timestamps record successful a.out
 # conversion, which finishes after the linker writes the map.
+# The gate measures every member each box carries against the unfiltered
+# manifest, so it unsets the selection's member lists and builds the full
+# composition whatever PROFILE, IMAGE_WITH and IMAGE_WITHOUT keep.
 check-multicall-composition: check-python .WAIT symlinks .WAIT ${FSIMG}
 		@set -eu; \
+		unset GAMEBOX_TOOLS PUZZLEBOX_TOOLS; \
 		map_root=${TOPSRC}/.build-logs/multicall-link-maps; \
 		mkdir -p "$$map_root"; \
 		box_directories=$$(${PYTHON} tools/check_multicall_composition.py \
@@ -1316,12 +1320,25 @@ fs:		check-python .WAIT $(FSIMG)
 etc-distribution:
 		${MAKE} -C etc DESTDIR=${DESTDIR} distribution
 
+# The multicall games link only the members the image selection keeps
+# (GAMEBOX_TOOLS and PUZZLEBOX_TOOLS, distrib/rp2040/Makefile.inc), and an
+# image path after build names the selection again, so each image relinks
+# and restages both boxes: a gamebox staged by an earlier, narrower build
+# would otherwise ship without a member whose link the manifest installs.
+# The dispatch source is regenerated on every build and the member objects
+# stay, so an unchanged selection relinks in place.
+multicall-staging:
+		for box in games/gamebox games/puzzlebox; do \
+			${MAKE} -C ${TOPSRC}/$$box MACHINE=${MACHINE} \
+			    DESTDIR=${DESTDIR} install || exit 1; \
+		done
+
 # /etc/release names the build the root came from: the commit (with
 # -dirty when the tree had changes), the date, and the builder's host OS,
 # so a board answers "which firmware is this?" with "cat /etc/release".
 # A tree without git history says so rather than failing.
 ${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home \
-		etc-distribution
+		etc-distribution multicall-staging
 		rm -f $@ distrib/$(MACHINE)/_manifest
 		commit=`git -C ${TOPSRC} describe --always --dirty --tags 2>/dev/null || echo unknown`; \
 		printf 'DiscoBSD/${MACHINE} root built %s from %s on %s\n' \
@@ -1429,6 +1446,7 @@ installfs:
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc \
 		check-host-package check-board-build check symlinks etc-distribution \
+		multicall-staging \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \
 		check-fs-profiles check-dd-contracts \
 

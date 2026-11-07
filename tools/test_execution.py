@@ -238,7 +238,24 @@ def cleanup_allowances():
     return allowance, child_allowance
 
 
-def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
+def run_bounded(
+    command,
+    timeout_seconds,
+    *,
+    cwd=None,
+    env=None,
+    stdin=None,
+    stdout=None,
+    stderr=None,
+    executable=None,
+):
+    """Run command as an owned process group and return (status, termination).
+
+    stdin, stdout, stderr and executable go to subprocess.Popen unchanged, so
+    a harness that captures output or runs a program under another argv[0]
+    keeps its redirection while the launch stays under the tree's execution
+    ownership. A signal or timeout stops the whole group before this returns.
+    """
     previous_handlers = {}
     cleanup_seconds, child_cleanup_seconds = cleanup_allowances()
     child_environment = os.environ.copy() if env is None else env.copy()
@@ -383,7 +400,14 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
             )
         try:
             process = subprocess.Popen(
-                command, cwd=cwd, env=child_environment, start_new_session=True
+                command,
+                cwd=cwd,
+                env=child_environment,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
+                executable=executable,
+                start_new_session=True,
             )
         except BaseException:
             cancel_launch_reservations(
@@ -473,6 +497,24 @@ def run_bounded(command, timeout_seconds, *, cwd=None, env=None):
             signal.signal(number, handler)
         if execution_tree.temporary_directory is not None:
             execution_tree.temporary_directory.cleanup()
+
+
+def run_owned(command, timeout_seconds, **options):
+    """Run a harness child under run_bounded; return (returncode, timed_out).
+
+    A harness that launches mutant builds or evaluators calls this in place of
+    its own session launch. A SIGINT or SIGTERM of the caller stops the child
+    group and raises SystemExit with the signal status, and a group that
+    survives cleanup raises RuntimeError, so the harness cannot continue past a
+    cancellation or report a verdict while a child still runs. options are the
+    run_bounded keywords.
+    """
+    returncode, termination = run_bounded(command, timeout_seconds, **options)
+    if termination is not None and termination.startswith("signal_"):
+        raise SystemExit(returncode)
+    if termination == "cleanup_incomplete":
+        raise RuntimeError(f"process group outlived its cleanup: {command[0]}")
+    return returncode, termination == "hard_timeout"
 
 
 def inventory(path=INVENTORY):

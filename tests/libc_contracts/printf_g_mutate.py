@@ -12,13 +12,14 @@ that hangs counts as rejected.
 
 from __future__ import annotations
 
-import os
 import shlex
-import signal
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+import test_execution  # noqa: E402
 
 TIMEOUT_SECONDS = 120
 
@@ -34,17 +35,15 @@ def replace_once(source: str, old: str, new: str, label: str) -> str:
 
 
 def run_in_group(command: list[str], output: Path) -> int:
-    """Run command in its own process group with its output in `output`; a run
-    past the deadline is killed with its group and reported as -1, which counts
-    as rejected."""
+    """Run command as an owned process group (tools/test_execution.py run_owned)
+    with its output in `output`; a run past the deadline is stopped with its
+    group and reported as -1, which counts as rejected. A SIGINT or SIGTERM of
+    this script stops the group before the script exits."""
     with output.open("wb") as stream:
-        process = subprocess.Popen(command, stdout=stream, start_new_session=True)
-        try:
-            return process.wait(timeout=TIMEOUT_SECONDS)
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-            return -1
+        returncode, timed_out = test_execution.run_owned(
+            command, TIMEOUT_SECONDS, stdout=stream
+        )
+    return -1 if timed_out else returncode
 
 
 def build_and_run(

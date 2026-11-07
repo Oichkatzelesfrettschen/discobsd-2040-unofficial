@@ -1136,5 +1136,108 @@ class ExecutionTest(unittest.TestCase):
         self.assertIn("run libc.line-reading.native --", result.stdout)
 
 
+class HarnessLaunchOwnershipTest(unittest.TestCase):
+    """SIGTERM of a harness driver must leave no process group of its children.
+
+    Each mutation or case harness that starts children in a new session
+    launches them through test_execution.run_owned. The driver below imports a
+    harness by path and runs its launch function on a child that records its
+    process group and sleeps; the test terminates the driver and requires the
+    group to be gone. The legacy driver runs the detached launch the harnesses
+    used before (a bare Popen with start_new_session), which must leave the
+    group running, so a passing verdict is not an artifact of the probe.
+    """
+
+    DRIVER = (
+        "import importlib.util, pathlib, subprocess, sys\n"
+        "kind, path, child, out = sys.argv[1:5]\n"
+        "if kind == 'legacy':\n"
+        "    subprocess.Popen([child], start_new_session=True).wait(60)\n"
+        "    sys.exit(0)\n"
+        "spec = importlib.util.spec_from_file_location('harness', path)\n"
+        "module = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(module)\n"
+        "if kind == 'procgroup':\n"
+        "    module.run_group([child], timeout=60)\n"
+        "elif kind == 'hsx':\n"
+        "    module.run([child], 60)\n"
+        "elif kind == 'printf_g':\n"
+        "    module.run_in_group([child], pathlib.Path(out))\n"
+        "elif kind == 'huge_val':\n"
+        "    module.run_executable(pathlib.Path(child))\n"
+        "else:\n"
+        "    raise SystemExit('unknown harness ' + kind)\n"
+    )
+
+    HARNESSES = (
+        ("procgroup", "tests/dcbc/procgroup.py"),
+        ("hsx", "tests/hsaout/hsx_decoder_mutants.py"),
+        ("printf_g", "tests/libc_contracts/printf_g_mutate.py"),
+        ("huge_val", "tests/libc_contracts/huge_val_mutate.py"),
+    )
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-harness-launch-")
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+        self.child = self.directory / "child.sh"
+        self.child.write_text(
+            "#!/bin/sh\n"
+            'echo "$$" > "$0.group.tmp" && mv "$0.group.tmp" "$0.group"\n'
+            "exec sleep 300\n",
+            encoding="ascii",
+        )
+        self.child.chmod(0o755)
+        self.group_file = Path(str(self.child) + ".group")
+        self.addCleanup(self.stop_group)
+
+    def stop_group(self):
+        if self.group_file.is_file():
+            try:
+                os.killpg(int(self.group_file.read_text(encoding="ascii")), signal.SIGKILL)
+            except (ProcessLookupError, ValueError):
+                pass
+
+    def terminate_driver(self, kind, path):
+        driver = subprocess.Popen(
+            [sys.executable, "-I", "-c", self.DRIVER, kind, str(path), str(self.child),
+             str(self.directory / "out")],
+            stdin=subprocess.DEVNULL,
+        )
+        try:
+            deadline = time.monotonic() + 20.0
+            while not self.group_file.is_file():
+                self.assertIsNone(driver.poll(), f"{kind} driver exited before launching its child")
+                self.assertLess(time.monotonic(), deadline, f"{kind} child never started")
+                time.sleep(0.02)
+            group = int(self.group_file.read_text(encoding="ascii"))
+            driver.send_signal(signal.SIGTERM)
+            driver.wait(timeout=20.0)
+        finally:
+            if driver.poll() is None:
+                driver.kill()
+                driver.wait()
+        return group, driver.returncode
+
+    def test_legacy_detached_launch_survives_driver_termination(self):
+        group, _ = self.terminate_driver("legacy", Path("unused"))
+        self.assertTrue(
+            execution.process_group_exists(group),
+            "the calibration launch lost its group; the probe cannot see a leak",
+        )
+
+    def test_harness_launches_leave_no_group_after_driver_sigterm(self):
+        for kind, relative in self.HARNESSES:
+            with self.subTest(harness=kind):
+                if self.group_file.exists():
+                    self.group_file.unlink()
+                group, returncode = self.terminate_driver(kind, execution.ROOT / relative)
+                self.assertFalse(
+                    execution.process_group_exists(group),
+                    f"{relative} left process group {group} running after SIGTERM",
+                )
+                self.assertEqual(returncode, 128 + signal.SIGTERM)
+
+
 if __name__ == "__main__":
     unittest.main()

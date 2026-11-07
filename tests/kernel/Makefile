@@ -227,6 +227,30 @@ UFS_TOPOLOGY_MUTANTS=	omit-rename-acquisition \
 			release-before-source-lookup \
 			release-before-directory-checkpath allow-directory-link \
 			allow-directory-unlink
+
+# The block-device lifecycle of a mounted filesystem. The gate links the
+# kernel's mount, buffer-cache, inode and open/close sources at the target's
+# width in the PICOCALC configuration (two mounts, linear caches, an SD card)
+# and extracts the routing code of conf.c and the partition state of flash.c,
+# which cannot link whole; ufs_disk_extract.py states why. Function sections
+# let the gate link the entry points it drives without stubbing the rest of
+# each source. free() takes an inode and a block number in ufs_alloc.c and
+# would interpose on libc's, so every object compiles with the same rename.
+UFS_DISK_SOURCES=	ufs_mount ufs_fio ufs_bio ufs_inode ufs_subr ufs_bmap \
+			ufs_syscalls2 ufs_alloc sys_inode vfs_vnops
+UFS_DISK_DEFS=		-DNMOUNT=2 -DNFL=2 -DSD_ENABLED -DLINEAR_INODE_CACHE \
+			-DCOMPACT_INODE_FIELDS -DLINEAR_BUFFER_CACHE \
+			-Dfree=ufs_free -Dsetjmp=ufs_disk_setjmp
+UFS_DISK_CFLAGS=	-ffunction-sections -fdata-sections ${UFS_DISK_DEFS}
+UFS_DISK_FLAGS_vfs_vnops=	-Wno-clobbered
+UFS_DISK_OBJECTS=	${UFS_DISK_SOURCES:@s@ufs_disk_${s}.o@}
+UFS_DISK_CONF_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/conf.c
+UFS_DISK_FLASH_SRC=	${TOPSRC}/sys/arch/rp2040/dev/flash.c
+UFS_DISK_FLASH_HDR=	${TOPSRC}/sys/arch/rp2040/dev/flash.h
+UFS_DISK_MOUNT_MUTANTS=	close-always mount-close-always
+UFS_DISK_FIO_MUTANTS=
+UFS_DISK_CONF_MUTANTS=
+UFS_DISK_FLASH_MUTANTS=
 .if ${_HOST_OSNAME} == "Darwin"
 FUTIMES_LDFLAGS=	-Wl,-dead_strip
 .else
@@ -2016,6 +2040,137 @@ check-ufs-topology-mutants: \
 		echo "PASS UFS topology $$mutation mutation rejected"; \
 	done
 
+# Extracted routing code, then the sources and the gate. A mutated source
+# replaces the production one for one build of the gate: a kernel source as
+# its object, the extracted pieces through the include names the gate takes
+# from the command line.
+ufs_disk_conf_functions.c: ufs_disk_extract.py ${UFS_DISK_CONF_SRC}
+	${PYTHON} ufs_disk_extract.py conf --source ${UFS_DISK_CONF_SRC} \
+	    --output $@
+
+ufs_disk_flash_functions.c: ufs_disk_extract.py ${UFS_DISK_FLASH_SRC} \
+    ${UFS_DISK_FLASH_HDR}
+	${PYTHON} ufs_disk_extract.py flash --source ${UFS_DISK_FLASH_SRC} \
+	    --header ${UFS_DISK_FLASH_HDR} --output $@
+
+.for source in ${UFS_DISK_SOURCES}
+ufs_disk_${source}.o: ${TOPSRC}/sys/kern/${source}.c ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} \
+	    ${UFS_DISK_FLAGS_${source}} ${ILP32} -c -o $@ \
+	    ${TOPSRC}/sys/kern/${source}.c
+.endfor
+
+UFS_DISK_LINK=	hostkern_kern.c hostkern32.o
+
+ufs_disk_test: ufs_disk_test.c ${UFS_DISK_OBJECTS} \
+    ufs_disk_conf_functions.c ufs_disk_flash_functions.c \
+    ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c ${UFS_DISK_OBJECTS} \
+	    ${UFS_DISK_LINK}
+
+check-ufs-disk-ilp32: ufs_disk_test
+	${TEST_EXECUTION} run kernel.ufs-disk.ilp32 -- ./ufs_disk_test
+
+.for mutation in ${UFS_DISK_MOUNT_MUTANTS}
+ufs_disk_mount_${mutation}.mutant.c: ufs_disk_mutate.py \
+    ${TOPSRC}/sys/kern/ufs_mount.c
+	${PYTHON} ufs_disk_mutate.py --source ${TOPSRC}/sys/kern/ufs_mount.c \
+	    --output $@ --mutation ${mutation}
+
+ufs_disk_mount_${mutation}.mutant.test: ufs_disk_mount_${mutation}.mutant.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ufs_disk_flash_functions.c ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} ${ILP32} -c -o \
+	    ufs_disk_mount_${mutation}.mutant.o \
+	    ufs_disk_mount_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
+	    ufs_disk_mount_${mutation}.mutant.o \
+	    ${UFS_DISK_OBJECTS:Nufs_disk_ufs_mount.o} ${UFS_DISK_LINK}
+.endfor
+
+.for mutation in ${UFS_DISK_FIO_MUTANTS}
+ufs_disk_fio_${mutation}.mutant.c: ufs_disk_mutate.py \
+    ${TOPSRC}/sys/kern/ufs_fio.c
+	${PYTHON} ufs_disk_mutate.py --source ${TOPSRC}/sys/kern/ufs_fio.c \
+	    --output $@ --mutation ${mutation}
+
+ufs_disk_fio_${mutation}.mutant.test: ufs_disk_fio_${mutation}.mutant.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ufs_disk_flash_functions.c ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} ${ILP32} -c -o \
+	    ufs_disk_fio_${mutation}.mutant.o \
+	    ufs_disk_fio_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
+	    ufs_disk_fio_${mutation}.mutant.o \
+	    ${UFS_DISK_OBJECTS:Nufs_disk_ufs_fio.o} ${UFS_DISK_LINK}
+.endfor
+
+.for mutation in ${UFS_DISK_CONF_MUTANTS}
+ufs_disk_conf_${mutation}.mutant.c: ufs_disk_mutate.py ${UFS_DISK_CONF_SRC}
+	${PYTHON} ufs_disk_mutate.py --source ${UFS_DISK_CONF_SRC} \
+	    --output $@ --mutation ${mutation}
+
+ufs_disk_conf_${mutation}.mutant.functions.c: ufs_disk_extract.py \
+    ufs_disk_conf_${mutation}.mutant.c
+	${PYTHON} ufs_disk_extract.py conf \
+	    --source ufs_disk_conf_${mutation}.mutant.c --output $@
+
+ufs_disk_conf_${mutation}.mutant.test: \
+    ufs_disk_conf_${mutation}.mutant.functions.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_flash_functions.c \
+    ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    -DUFS_DISK_CONF_INCLUDE='"ufs_disk_conf_${mutation}.mutant.functions.c"' \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c ${UFS_DISK_OBJECTS} \
+	    ${UFS_DISK_LINK}
+.endfor
+
+.for mutation in ${UFS_DISK_FLASH_MUTANTS}
+ufs_disk_flash_${mutation}.mutant.c: ufs_disk_mutate.py ${UFS_DISK_FLASH_SRC}
+	${PYTHON} ufs_disk_mutate.py --source ${UFS_DISK_FLASH_SRC} \
+	    --output $@ --mutation ${mutation}
+
+ufs_disk_flash_${mutation}.mutant.functions.c: ufs_disk_extract.py \
+    ufs_disk_flash_${mutation}.mutant.c ${UFS_DISK_FLASH_HDR}
+	${PYTHON} ufs_disk_extract.py flash \
+	    --source ufs_disk_flash_${mutation}.mutant.c \
+	    --header ${UFS_DISK_FLASH_HDR} --output $@
+
+ufs_disk_flash_${mutation}.mutant.test: \
+    ufs_disk_flash_${mutation}.mutant.functions.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    -DUFS_DISK_FLASH_INCLUDE='"ufs_disk_flash_${mutation}.mutant.functions.c"' \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c ${UFS_DISK_OBJECTS} \
+	    ${UFS_DISK_LINK}
+.endfor
+
+UFS_DISK_MUTANT_TESTS=	\
+    ${UFS_DISK_MOUNT_MUTANTS:@m@ufs_disk_mount_${m}.mutant.test@} \
+    ${UFS_DISK_FIO_MUTANTS:@m@ufs_disk_fio_${m}.mutant.test@} \
+    ${UFS_DISK_CONF_MUTANTS:@m@ufs_disk_conf_${m}.mutant.test@} \
+    ${UFS_DISK_FLASH_MUTANTS:@m@ufs_disk_flash_${m}.mutant.test@}
+
+# A mutant must fail through the gate's own verdict, not by a crash, a hang
+# or a build error: the gate exits 1 after naming the failed checks.
+check-ufs-disk-mutants: ${UFS_DISK_MUTANT_TESTS}
+	@set -eu; for test in ${UFS_DISK_MUTANT_TESTS}; do \
+		output=$${test%.test}.out; \
+		if ./$$test >$$output 2>&1; then status=0; \
+		else status=$$?; fi; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "checks failed" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL ufs disk $$test mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS ufs disk $$test rejected"; \
+	done
+
 .for mutation in ${OPENAT_NAMEI_MUTANTS}
 openat_${mutation}.mutant.c: openat_mutate.py ${OPENAT_NAMEI_SRC}
 	${PYTHON} openat_mutate.py --source ${OPENAT_NAMEI_SRC} --output $@ \
@@ -2467,6 +2622,7 @@ check-ilp32:
 	    check-dirremove-ilp32 check-dirremove-mutants \
 	    check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
 	    check-ufs-topology-ilp32 check-ufs-topology-mutants \
+	    check-ufs-disk-ilp32 check-ufs-disk-mutants \
 	    capacity_test \
 	    check-capacity-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
@@ -2591,6 +2747,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.dirremove.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ufs-namespace.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ufs-topology.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.ufs-disk.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
@@ -2727,6 +2884,10 @@ clean:
 	    ufs_topology_test32
 	rm -f ufs_topology_*.mutant.c ufs_topology_*.mutant.o \
 	    ufs_topology_*.mutant.test ufs_topology_*.mutant.out
+	rm -f ufs_disk_*.o ufs_disk_test ufs_disk_conf_functions.c \
+	    ufs_disk_flash_functions.c ufs_disk_*.mutant.c \
+	    ufs_disk_*.mutant.functions.c ufs_disk_*.mutant.o \
+	    ufs_disk_*.mutant.test ufs_disk_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
 	rm -f machine/*.h ${MACHINE_STAMP}
@@ -2748,6 +2909,7 @@ clean:
 	check-dirremove-ilp32 check-dirremove-mutants \
 	check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
 	check-ufs-topology-ilp32 check-ufs-topology-mutants \
+	check-ufs-disk-ilp32 check-ufs-disk-mutants \
 	check-tty-local-mode-mutants check-tty-local-mode-ubsan-oracle \
 	check-tty-local-mode-ilp32-mutant \
 	check-tty-local-mode-sanitizer check-tty-layout-cross \

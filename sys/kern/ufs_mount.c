@@ -256,8 +256,10 @@ out:
     if (tp)
         brelse(tp);
     if (needclose) {
-        (*bdevsw[major(dev)].d_close)(dev,
-            ronly? FREAD : FREAD|FWRITE, S_IFBLK);
+        /* Last close only: a descriptor on dev keeps the driver open. */
+        if (iflush(dev) == 0)
+            (*bdevsw[major(dev)].d_close)(dev,
+                ronly? FREAD : FREAD|FWRITE, S_IFBLK);
         binval(dev);
     }
     u.u_error = error;
@@ -271,7 +273,7 @@ unmount1(caddr_t fname)
     register struct mount *mp;
     register struct inode *ip;
     register int error;
-    int aflag;
+    int aflag, nopen;
 
     error = getmdev(&dev, fname);
     if (error)
@@ -290,7 +292,8 @@ found:
         return (error);
     }
 
-    if (iflush(dev) < 0) {
+    nopen = iflush(dev);
+    if (nopen < 0) {
         mp->m_flags |= aflag;
         return (EBUSY);
     }
@@ -299,7 +302,13 @@ found:
     irele(ip);
     mp->m_inodp = 0;
     mp->m_dev = 0;
-    (*bdevsw[major(dev)].d_close)(dev, 0, S_IFBLK);
+    /*
+     * iflush() counted the open block-special inodes that name dev. A driver
+     * sees only the last close, the rule closei() applies, so a descriptor
+     * that is still open releases the device when it closes.
+     */
+    if (nopen == 0)
+        (*bdevsw[major(dev)].d_close)(dev, 0, S_IFBLK);
     binval(dev);
     return (0);
 }

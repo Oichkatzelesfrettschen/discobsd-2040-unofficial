@@ -51,6 +51,7 @@ name a file there, with a page for a PDF.
 | `picoaudio.c` compiles into PICOCALC and PICOCALC_PSRAM only and keeps the PWM divider and wrap value inside their register fields | build | observed: PICOCALC text +260 bytes, bss +8 over the sysctl build; two `_Static_assert`s bound DIV.INT and TOP; PICO and PICO_UART unchanged |
 | The tone is audible on the speaker, 1 kHz for 100 ms at 25 percent duty, and the outputs stay low afterward | board | not run |
 | `sd.c` and `sdspi.c` compile into PICOCALC and PICOCALC_PSRAM only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,888 bytes (2,887 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,688 over the audio build |
+| `umount` and a failed `mount` of `sd0a` close the partition only at the last close, and a block descriptor opened before the mount keeps reading after it | host | observed by `check-kernel-ilp32` (`kernel.ufs-disk.ilp32`) against the production `ufs_mount.c`, `sys_inode.c` and `ufs_inode.c` and a model of the driver's open mask; the parent revision fails 13 checks of the same gate, and two mutants fail it |
 | The SD protocol layer frames commands, initializes SDSC version 1, SDSC version 2 and SDHC cards, decodes both CSD versions, addresses by byte or block, and fails with a bounded wait on an absent, stuck, unsupported or erroring card | host | observed by `check-picocalc-host` against a card model replaying recorded command transcripts; twenty mutants fail it |
 | `fsutil --repartition=fs=8m` and `fsutil --new --partition=1` make an image whose sector 0 holds the 0x55AA signature and one type 0xB7 entry at sector 2 in the 16-byte layout `sd.c` copies into `struct diskpart`, and `fsutil --check --partition=1` accepts it | host | observed on a scratch image; the kernel side of the parse is not run |
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
@@ -376,7 +377,10 @@ did not move: the whole count for a request refused before any card command
 card error or a replaced card, the failed sector and every sector after it
 plus any partition-end truncation. A retry then starts at the first sector
 that did not transfer. Block and raw opens
-are tracked apart so that closing `rsd0a` leaves a mounted `sd0a` open.
+are tracked apart so that closing `rsd0a` leaves a mounted `sd0a` open. `umount` and a
+failed `mount` close the partition only when no block descriptor names it, the last-close
+rule of `closei()`, because the open state is a bit and one close drops it: a descriptor
+opened before the mount keeps reading after the unmount and closes the partition itself.
 `chrtoblk()` maps `rsd0` to `sd0`, so securelevel 1 guards a raw write to a
 mounted partition, and `isdisk(dev, IFCHR)` classifies major 11 as a disk, so
 securelevel 2 refuses every write open of `rsd0`. The card is

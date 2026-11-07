@@ -30,6 +30,10 @@ PicoCalc drivers:
   partitions `sd0a`/`sd0b` and the raw `rsd0*` nodes, card-change debounce by a
   committed and a candidate level, a per-sector replacement check, and
   `b_resid` reporting every unmoved byte.
+- Removable-media handling in the generic disk layer (PR #369, issue #368):
+  a mount on removed media is unmounted, write admission at securelevel 1
+  compares partition extents, a mount closes the device only at its last
+  close, and flash `DIOCREINIT` is refused under a mounted partition.
 - PSRAM swap through PIO as a separate opt-in kernel, `PICOCALC_PSRAM`
   (`psram.c`, `psram_xfer.c`; PR #348). The baseline `PICOCALC` kernel carries
   no PSRAM code; `check-config-generated-sync` holds the PSRAM Config to the
@@ -69,20 +73,20 @@ Build and test infrastructure:
 
 ## The board builds
 
-Kernel flash text from clean builds at main `df501d06`, against the
-130,816-byte `RP2040.ld` budget:
+Kernel flash text from clean builds of #369's head `b56c6ede`, whose tree is
+main `37cef7bb`, against the 130,816-byte `RP2040.ld` budget:
 
 | Board | Command | Kernel | Text | Root profile | Free blocks / inodes |
 | --- | --- | --- | ---: | --- | --- |
-| Raspberry Pi Pico | `bmake MACHINE=rp2040 distribution` | `PICO` (USB CDC) or `PICO_UART` | 107,432 / 95,970 | `full` | 239 / 32 |
-| ClockworkPi PicoCalc | `bmake MACHINE=rp2040 BOARD=PICOCALC distribution` | `PICOCALC` | 123,332 | `picocalc` | 147 / 21 |
-| PicoCalc with PSRAM swap | `bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution` | `PICOCALC_PSRAM` | 125,448 | `picocalc` | 147 / 21 |
+| Raspberry Pi Pico | `bmake MACHINE=rp2040 distribution` | `PICO` (USB CDC) or `PICO_UART` | 107,680 / 96,210 | `full` | 239 / 32 |
+| ClockworkPi PicoCalc | `bmake MACHINE=rp2040 BOARD=PICOCALC distribution` | `PICOCALC` | 123,620 | `picocalc` | 147 / 21 |
+| PicoCalc with PSRAM swap | `bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution` | `PICOCALC_PSRAM` | 125,728 | `picocalc` | 147 / 21 |
 
 Free blocks are image figures from `PROFILES.md` as re-measured in the #350
 merge; they sit one block below the figures #363 recorded for `base` through
 `full`, and the cause is not traced. A booted, logged-in board reads three
-fewer (see "Board runs"). PR #369, open, adds 288 bytes to PICOCALC (123,332
-to 123,620 in its size receipt at `b56c6ede`).
+fewer (see "Board runs"). PR #369 added 248, 240, 288 and 280 bytes of text
+to the four kernels; it changes no root image.
 
 ## Test pipeline
 
@@ -123,41 +127,19 @@ command: the checkout's default `gh` repository is `upstream`.
 
 ## Session plan
 
-The briefs below are ordered by dependency. The review-and-merge brief and
-the #365 brief run first because the later briefs build on main after both
-land; the bare Pico, pipeline and software briefs are independent of each
+The briefs below are ordered by dependency. The #365 brief runs first
+because the bare Pico and software briefs build on main after it lands; the bare Pico, pipeline and software briefs are independent of each
 other after that; the PicoCalc brief needs the PicoCalc attached. PR #343
 waits on an owner decision and belongs to no brief.
 
 Open every session with the same checks: `git fetch origin`, `git worktree
 list --porcelain` from the canonical checkout, the CI and review state of each
-open PR, and free space on `/tmp` (a 4 GB tmpfs that other sessions fill;
-route long output to files outside it).
-
-### Land the disk-detach fixes and this handoff (#369, #370)
-
-Prerequisites: none. Branches `kern/disk-detach-and-overlap` (#369, head
-`b56c6ede`) and `docs/session-handoff-refresh` (#370), each in its worktree
-under `~/worktrees/discobsd-2040-unofficial/`.
-
-1. Read #369's CI and reviews. The Copilot review exists and its thread is
-   resolved; the macOS job and a Codex review are outstanding. Fix any Codex
-   finding reachable through a documented interface in one push, then reply
-   to and resolve every thread.
-2. Run the trial merge of #369 into current main and its three gates, then
-   merge with a merge commit.
-3. Re-read this note's figures that #369 moves (the PICOCALC text in "The
-   board builds") and update #370 in the same push as any review fix; then
-   trial-merge and merge #370 by the same procedure.
-4. Remove each merged branch locally and remotely and its worktree without
-   `--force`; pull main in the canonical checkout.
-
-Done when both PRs are merged and their worktrees are gone. Close issue #368
-if the merge does not.
+open PR, and free space on `/tmp`, which other sessions' test runs fill; route long
+output to files outside it.
 
 ### Finish the review fixes on #365 (`printf`, libm and the review wave)
 
-Prerequisites: none. Merge main into the branch after #369 lands, by the
+Prerequisites: none. Merge main (`37cef7bb` or later) into the branch by the
 reconciliation rule above. Branch `libc/printf-libm-conformance`, head `0438ea53`, worktree
 `libc-conformance`. Done on the branch: STM32 division helpers selected per
 machine (`aeabi_div_idiv.S`, from #362), harness children launched through
@@ -299,6 +281,10 @@ Prerequisites: #365 merged (the `pow` item builds on its libm changes).
    (`lib/libm/pow.c`), which returns 0 with `EDOM`.
 4. The `sys/exec.h:51` empty struct that keeps two console files off strict
    C17.
+5. `tests/kernel/.gitignore` lacks the `publishat_beneath` products
+   (`publishat_beneath_functions.c`, `publishat_beneath_test32`,
+   `publishat_beneath_namei_test32` and the `*.mutant.c` and `*.mutant.test`
+   files), so a kernel-test run leaves 21 untracked files.
 
 Done when each item is merged or carries a tracking issue.
 

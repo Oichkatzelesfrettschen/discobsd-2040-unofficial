@@ -261,7 +261,11 @@ and draws `?`, as every byte above 0x7e did before the bank, which keeps the
 line-drawing codes reachable only through the escape and a UTF-8 continuation
 byte from drawing a box edge. The bank starts with the glyph of `?` in every
 code 0xa0-0xff, so text with such bytes looks as it did. The 0x7f byte is
-ignored as before.
+ignored as before. A bank code reaches the terminal only through a tty in
+RAW or LITOUT mode: `ttyoutput()` (`sys/kern/tty.c`) keeps the low seven bits
+of every other byte, so a program that draws codes 0xa0-0xff sets LITOUT
+(`TIOCLBIS` with `LLITOUT`) or RAW and restores its mode on exit; the
+`ESC ( 0` set sends seven-bit codes and needs neither.
 
 `LCDIOC_SETGLYPH` (`sys/sys/lcdcons.h`, `_IOW('l', 1, struct lcd_glyph)`) takes
 `{ u_char code; u_char rows[9]; }` on the console tty. It returns `EINVAL` for

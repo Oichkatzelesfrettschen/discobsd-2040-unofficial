@@ -21,6 +21,12 @@
  * 0x80-0x9f is a C1 control and draws '?'. The console's reset
  * (`ESC c`) restores the initial bank.
  *
+ * The tty output path keeps only the low seven bits of each byte unless the
+ * terminal is in RAW or LITOUT mode (ttyoutput() in sys/kern/tty.c), so a
+ * program that writes bank codes 0xa0-0xff sets LITOUT (TIOCLBIS with
+ * LLITOUT) or RAW first and restores its previous mode on exit. The DEC
+ * set through `ESC ( 0` uses seven-bit codes and needs neither.
+ *
  * The ioctl returns EINVAL for a code below 0x80 or a row with a bit set
  * in bits 1-0, EAGAIN when the panel is busy with another drawer, and
  * ENOTTY on a console that has no bank.

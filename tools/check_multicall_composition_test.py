@@ -50,6 +50,8 @@ def makefile_contract_failures(root):
         failures.append("hardcoded multicall relink denominator")
     if 'rm -f "${TOPSRC}/.build-logs/multicall-link-maps/sh.map"' not in makefile_text:
         failures.append("stale shell link map")
+    if "\t\t    --root-image ${FSIMG}\n" not in makefile_text:
+        failures.append("live root image not passed to the checker")
     if ('test -s "$$map_root/$$program.map"; \\\n'
             '\t\t\ttouch "$$map_root/$$program.map";' not in makefile_text):
         failures.append("missing map publication after a.out conversion")
@@ -71,6 +73,8 @@ def makefile_contract_calibration(root):
          "stale shell link map"),
         ('test -s "$$map_root/$$program.map";', "",
          "missing map publication after a.out conversion"),
+        (" \\\n\t\t    --root-image ${FSIMG}", "",
+         "live root image not passed to the checker"),
     )
     with tempfile.TemporaryDirectory() as temporary_name:
         fixture = Path(temporary_name)
@@ -236,6 +240,23 @@ def live_mode_calibration(root, document):
         require_error("box live hsaout measurement: expected", lambda:
                       composition.validate_document(fixture, document, maps))
         case_names.append("matching_sources_and_toolchain_reject_byte_drift")
+
+    with composition_fixture(root, document) as (fixture, maps, _, _, _, _):
+        board_image = fixture / "distrib/rp2040/sdcard-FIXTURE.img"
+        board_image.write_bytes(b"")
+        composition.validate_document(fixture, document, maps, board_image)
+        measured_path = composition.measure_root_image.call_args.args[1]
+        if measured_path != board_image:
+            raise AssertionError(
+                f"live root measurement read {measured_path}, not the board image"
+            )
+        composition.validate_document(fixture, document, maps)
+        default_path = composition.measure_root_image.call_args.args[1]
+        if default_path != fixture / "distrib/rp2040/sdcard.img":
+            raise AssertionError("default live root measurement lost the receipt path")
+        require_error("live root image", lambda: composition.validate_document(
+            fixture, document, maps, fixture / "distrib/rp2040/absent.img"))
+        case_names.append("live_mode_measures_the_named_board_image")
 
     with composition_fixture(root, document, drift=True) as (fixture, maps, _, _, build, _):
         output = io.StringIO()

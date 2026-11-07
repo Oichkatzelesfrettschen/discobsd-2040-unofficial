@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Restore the pre-change inode range tests of sbin/fsck, one site at a time.
+
+Each mutation rewrites a comparison against imax back to the form that
+excluded the highest inode, in a copy of the source file; the gate builds the
+copy and requires the scenarios named for that mutation to fail. A mutation
+that matches no line, or more than one, stops the run, so a source edit that
+moves a site cannot leave a mutant that silently equals the program.
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+Edit = tuple[str, str, str]  # (file name, text in the program, mutant text)
+
+SITES: dict[str, Edit] = {
+    "pass1-loop": (
+        "pass1.c",
+        "for (inumber = ROOTINO; inumber <= imax; inumber++) {",
+        "for (inumber = ROOTINO; inumber < imax; inumber++) {",
+    ),
+    "direntry": (
+        "dir.c",
+        "if (dp->d_ino <= imax &&",
+        "if (dp->d_ino < imax &&",
+    ),
+    "makeentry-ino": (
+        "dir.c",
+        "|| ino < ROOTINO || ino > imax)\n        return (0);",
+        "|| ino < ROOTINO || ino >= imax)\n        return (0);",
+    ),
+    "makeentry-parent": (
+        "dir.c",
+        "if (parent < ROOTINO || parent > imax ||",
+        "if (parent < ROOTINO || parent >= imax ||",
+    ),
+    "lfdir-lookup": (
+        "dir.c",
+        "idesc.id_parent >= ROOTINO && idesc.id_parent <= imax",
+        "idesc.id_parent >= ROOTINO && idesc.id_parent < imax",
+    ),
+    "alloc-test": (
+        "inode.c",
+        "    if (ino > imax)\n        return (0);",
+        "    if (ino == imax)\n        return (0);",
+    ),
+    "alloc-loop": (
+        "inode.c",
+        "for (ino = request; ino <= imax; ino++)",
+        "for (ino = request; ino < imax; ino++)",
+    ),
+}
+
+# The program before the change: every site restored at once.
+GROUPS: dict[str, tuple[str, ...]] = {
+    "alloc-range": ("alloc-loop", "alloc-test"),
+    "all-old": tuple(SITES),
+}
+
+
+def sites_of(mutation: str) -> tuple[str, ...]:
+    if mutation in GROUPS:
+        return GROUPS[mutation]
+    if mutation in SITES:
+        return (mutation,)
+    raise SystemExit(f"unknown mutation: {mutation}")
+
+
+def replace_once(text: str, old: str, new: str, site: str) -> str:
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"{site}: expected one source match, found {count}")
+    return text.replace(old, new)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source-dir", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--mutation", required=True)
+    parser.add_argument(
+        "--list-files",
+        action="store_true",
+        help="print the file names the mutation rewrites and stop",
+    )
+    arguments = parser.parse_args()
+
+    chosen = sites_of(arguments.mutation)
+    names = sorted({SITES[site][0] for site in chosen})
+    if arguments.list_files:
+        print(" ".join(names))
+        return
+    arguments.output_dir.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        text = (arguments.source_dir / name).read_text(encoding="utf-8")
+        for site in chosen:
+            file_name, old, new = SITES[site]
+            if file_name == name:
+                text = replace_once(text, old, new, site)
+        (arguments.output_dir / name).write_text(text, encoding="utf-8")
+
+
+if __name__ == "__main__":
+    main()

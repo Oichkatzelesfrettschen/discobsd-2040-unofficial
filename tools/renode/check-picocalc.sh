@@ -11,7 +11,13 @@
 # involved. It needs a PICOCALC kernel and a flash image in place of the
 # PICO_UART kernel.
 #
-# Usage: sh tools/renode/check-picocalc.sh
+# Usage: sh tools/renode/check-picocalc.sh [FLASH_IMAGE]
+#
+# FLASH_IMAGE is the root flash image to load at 0x10020000. It defaults to
+# distrib/rp2040/flash.bin, the PICO board's output; the root Makefile passes
+# ${FLASHBIN}, so BOARD=PICOCALC boots the PICOCALC kernel with the PICOCALC
+# profile's root (flash-PICOCALC.bin). Every kernel boots every board's root,
+# so any board's image is valid here.
 
 set -eu
 
@@ -27,7 +33,7 @@ TOP=$(cd "$SCRIPT_DIR/../.." && pwd)
 VENDOR="$SCRIPT_DIR/vendor/Renode_RP2040"
 RP2040_COMMIT=$(sed -n 's/^RP2040_COMMIT=//p' "$SCRIPT_DIR/fetch-renode-rp2040.sh")
 KERNEL="$TOP/sys/arch/rp2040/compile/PICOCALC/unix.bin"
-IMAGE="$TOP/distrib/rp2040/flash.bin"
+IMAGE=${1:-$TOP/distrib/rp2040/flash.bin}
 MODELS="$VENDOR/emulation/bin/Release/net8.0/Peripherals.dll"
 OUTPUT="$SCRIPT_DIR/vendor/results/picocalc"
 
@@ -61,7 +67,8 @@ grep -aq TransferFrame "$MODELS" ||
 [ -r "$KERNEL" ] ||
 	missing "no $KERNEL; run bmake MACHINE=rp2040 kernel"
 
-[ -r "$IMAGE" ] || missing "no $IMAGE; run bmake MACHINE=rp2040 flash"
+[ -r "$IMAGE" ] ||
+	missing "no $IMAGE; run bmake MACHINE=rp2040 flash (BOARD=<board> builds flash-<board>.bin)"
 
 mkdir -p "$OUTPUT"
 

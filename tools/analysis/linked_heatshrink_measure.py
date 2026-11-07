@@ -2,8 +2,8 @@
 """Measure man-page compression through the linked RP2040 codec.
 
 The harness loads the production kernel ELF into Unicorn, calls the linked
-heatshrink encoder and decoder through their ARM EABI entry points, and keeps
-all derived streams in host memory.  It neither compiles code nor writes the
+heatshrink encoder and the port decoder (hsx_dec_run) through their ARM EABI
+entry points, and keeps all derived streams in host memory.  It neither compiles code nor writes the
 source checkout.
 
 Inputs: the built kernel ELF at sys/arch/rp2040/compile/PICO/unix (produced
@@ -50,6 +50,7 @@ COUNT_ADDRESS = SCRATCH_BASE + 0x00302000
 STACK_TOP = SCRATCH_BASE + 0x007FF000
 RETURN_ADDRESS = SCRATCH_BASE + 0x007FE000
 TRANSFER_BUFFER_SIZE = 0x00080000
+DECODER_LOOKAHEAD = 8
 MAX_CALL_INSTRUCTIONS = 100_000_000
 
 ARGUMENT_REGISTERS = (UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3)
@@ -87,10 +88,8 @@ class LinkedCodec:
             "heatshrink_encoder_sink",
             "heatshrink_encoder_poll",
             "heatshrink_encoder_finish",
-            "heatshrink_decoder_reset",
-            "heatshrink_decoder_sink",
-            "heatshrink_decoder_poll",
-            "heatshrink_decoder_finish",
+            "hsx_dec_init",
+            "hsx_dec_run",
         )
         missing_symbols = [name for name in required_symbols if name not in self.symbols]
         if missing_symbols:
@@ -185,62 +184,29 @@ class LinkedCodec:
                 raise RuntimeError("encoder reported more output without producing bytes")
 
     def decode(self, encoded: bytes) -> bytes:
+        """Run the kernel's hsx_dec_run over the whole stream at lookahead 8.
+
+        struct hsx_dec (machine/hsx_decoder.h) begins with the input cursor
+        and the input end; hsx_dec_input is an inline function, so the
+        harness stores both words itself. The destination is linear
+        (mask ~0), the swap tier's convention for a buffer destination.
+        """
         if len(encoded) > TRANSFER_BUFFER_SIZE:
             raise ValueError("encoded stream exceeds emulated transfer buffer")
         self.emulator.mem_write(INPUT_ADDRESS, encoded)
-        self.call("heatshrink_decoder_reset", DECODER_ADDRESS)
-
-        input_offset = 0
-        decoded = bytearray()
-        while input_offset < len(encoded):
-            self.write_count()
-            result = self.call(
-                "heatshrink_decoder_sink",
-                DECODER_ADDRESS,
-                INPUT_ADDRESS + input_offset,
-                len(encoded) - input_offset,
-                COUNT_ADDRESS,
-            )
-            consumed = self.read_count()
-            if result not in (0, 1) or consumed == 0:
-                raise RuntimeError(
-                    f"decoder sink result={result:#x}, consumed={consumed}"
-                )
-            input_offset += consumed
-            self._poll_decoder(decoded)
-
-        while True:
-            finish_result = self.call("heatshrink_decoder_finish", DECODER_ADDRESS)
-            if finish_result == 0:
-                break
-            if finish_result != 1:
-                raise RuntimeError(f"decoder finish result={finish_result:#x}")
-            produced = self._poll_decoder(decoded)
-            if produced == 0:
-                raise RuntimeError("decoder requested finish polling without output")
-        return bytes(decoded)
-
-    def _poll_decoder(self, destination: bytearray) -> int:
-        total_produced = 0
-        while True:
-            self.write_count()
-            result = self.call(
-                "heatshrink_decoder_poll",
-                DECODER_ADDRESS,
-                OUTPUT_ADDRESS,
-                TRANSFER_BUFFER_SIZE,
-                COUNT_ADDRESS,
-            )
-            produced = self.read_count()
-            if result not in (0, 1):
-                raise RuntimeError(f"decoder poll result={result:#x}")
-            if produced:
-                destination.extend(self.emulator.mem_read(OUTPUT_ADDRESS, produced))
-                total_produced += produced
-            if result == 0:
-                return total_produced
-            if produced == 0:
-                raise RuntimeError("decoder reported more output without producing bytes")
+        self.call("hsx_dec_init", DECODER_ADDRESS, DECODER_LOOKAHEAD)
+        self.emulator.mem_write(
+            DECODER_ADDRESS,
+            struct.pack("<II", INPUT_ADDRESS, INPUT_ADDRESS + len(encoded)),
+        )
+        produced = self.call(
+            "hsx_dec_run",
+            DECODER_ADDRESS,
+            OUTPUT_ADDRESS,
+            0xFFFFFFFF,
+            TRANSFER_BUFFER_SIZE,
+        )
+        return bytes(self.emulator.mem_read(OUTPUT_ADDRESS, produced))
 
 
 def digest(payload: bytes) -> str:

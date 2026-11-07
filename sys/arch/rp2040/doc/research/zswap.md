@@ -33,7 +33,12 @@ heatshrink is vendored at upstream commit
 `7d419e1fa4830d0b919b9b6a91fe2fb786cf3280` (v0.4.1 plus one commit, the
 master branch head), ISC licensed, under `sys/arch/rp2040/heatshrink`.
 `heatshrink_encoder.c` and `heatshrink_decoder.c` are byte-identical to
-upstream; `heatshrink_config.h` is upstream's tuning point and carries the
+upstream. The kernel links the encoder; it decodes with the port's own
+`rp2040/hsx_decoder.c` (a 9-bit window, lookahead 1 to 8, shared with the
+packed executable loader), which accepts exactly the streams the vendored
+decoder accepts and yields the same bytes. The vendored decoder stays in the
+tree as the reference that `tests/hsaout/hsx_decoder_diff.c` compares
+against. `heatshrink_config.h` is upstream's tuning point and carries the
 port's values, and `heatshrink/compat` supplies the two standard headers a
 `-nostdinc` kernel lacks beyond the three `dhara/compat` already provides.
 
@@ -187,7 +192,7 @@ lands inside the USIZE bytes about to be copied.
 Deepest stack on the path, from `-fstack-usage`: `swapout` 56,
 `swapram_put` 64, `heatshrink_encoder_poll` 88, and the leaf calls under it
 at 24 or less, so about 250 bytes against 2,100 available. Swapin is
-shallower: `swapin` 48, `swapram_in` 96, `heatshrink_decoder_poll` 48.
+shallower: `swapin` 48, `swapram_in` 96, `sr_expand` 56, `hsx_dec_run` 72.
 
 Those numbers describe individual compiled functions and the manually
 inspected path in the initial study. They do not bound every reachable call,

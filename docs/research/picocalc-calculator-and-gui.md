@@ -332,6 +332,18 @@ measured PICOCALC kernel flash headroom of 11,500 bytes (130,816 - 119,316,
 `size` on the linked `unix`). A tile redraw costs one cell, 115 us. A full-screen update
 costs 1,696 cells = 195 ms.
 
+Implementation (staged plan item 6): the bank, the DEC set mapped onto bank
+codes 0x80-0x9f and `LCDIOC_SETGLYPH` landed as designed, with three
+decisions the proposal left open. A raw byte of 0x80-0x9f stays `?` (C1
+controls), so the line-drawing codes are reachable only through `ESC ( 0`
+and raw bytes 0xa0-0xff address the rest of the bank; the bank starts with
+`?` in those codes. The tenth cell row repeats the ninth so strokes join
+across cell rows. An upload redraws the visible cells that show the code.
+Measured on the PICOCALC kernel: text +648 bytes, bss +1,152 bytes
+(`sys/arch/rp2040/doc/PICOCALC.md`, Glyph bank), against the estimate of
+300-500 bytes of text; the shape table accounts for 288 of them. The
+`ESC ( 1` to `ESC ( 4` bank selectors are not implemented.
+
 Limits: two colors per cell, 6x10 granularity, no sub-cell sprite movement.
 That is the capability of a DOS text-mode game, enough for the calculator's
 keypad, bar graphs, a tile puzzle and a mosaic graph.

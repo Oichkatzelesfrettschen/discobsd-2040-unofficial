@@ -48,8 +48,7 @@ struct exec_params {
             int stoffset;       /* String table file pos */
             char str[STRLEN];
         } elf;
-        struct {
-        } aout;
+        /* An a.out image keeps no per-format state in this union. */
     };
 
     gid_t gid;

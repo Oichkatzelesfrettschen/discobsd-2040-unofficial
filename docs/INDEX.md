@@ -121,6 +121,7 @@ Grouped by what they investigate.
 | `rp2040-memory-wear-engineering-program.md` | the submitted SRAM and flash-wear audit turned into configuration-specific provenance, recovery, telemetry, SwapRAM, and durability gates |
 | `ram-compression.md` | the compression options against RAM and flash pressure, with measured costs |
 | `storage-techniques.md` | techniques from other small systems, and the SWAPRAM enable path |
+| `xip-shared-libc/` | a shared execute-in-place libc kept with the multicall boxes, measured against static linking and position-independent loading: 502 to 288 packed blocks over 28 executables, r9-relative libc data relocated by crt0, the LARGE-epoch MPU gap, the libc flash admission requirement, the `box` naming decision, nine adversarially reviewed research streams and a replayable relink harness |
 | `flash-storage-expectation-plan.md` | the storage expectation audit verified against source: per-request Dhara checkpoint padding as the cost driver, the `fs_fmod` gap in `sync()`, and a phased plan with gates and predictions |
 | `libc-size-audit.md` | where the C library's bytes go, across the shipped programs |
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |

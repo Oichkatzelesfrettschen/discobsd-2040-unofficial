@@ -24,6 +24,11 @@ kernel reads. `Makefile.inc` builds a 988 KiB filesystem inside the
 and stays outside both UF2 files. Loading only `flash.uf2` replaces the
 root filesystem; loading `unix.uf2` replaces the kernel.
 
+These names belong to `BOARD=PICO`, the default. Another board writes
+`sdcard-${BOARD}.img`, `flash-${BOARD}.bin` and `flash-${BOARD}.uf2` in the
+same directory (`BOARD=PICOCALC` gives `flash-PICOCALC.uf2`), so building one
+board leaves another board's images in place.
+
 ## Building
 
     : "${PYTHON:?set PYTHON to the intended interpreter}"

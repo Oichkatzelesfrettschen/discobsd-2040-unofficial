@@ -243,14 +243,11 @@ Prerequisites: none.
 1. Re-record `docs/research/c17-shipped-resource-baseline.json`, which
    records commit `e7040aa1`, before the `calc-bignum`, `calc`, `puzzles` and
    `sdcard` closures.
-2. Separate per-board output paths for `sdcard.img` and `flash.uf2`, so a
-   PICOCALC build does not overwrite the PICO image.
-3. The `sys/exec.h:51` empty struct that keeps two console files off strict
-   C17.
-4. `tests/kernel/.gitignore` lacks the `publishat_beneath` products
-   (`publishat_beneath_functions.c`, `publishat_beneath_test32`,
-   `publishat_beneath_namei_test32` and the `*.mutant.c` and `*.mutant.test`
-   files), so a kernel-test run leaves 21 untracked files.
+
+The per-board image paths (`sdcard-BOARD.img`, `flash-BOARD.uf2` beside the
+PICO names), strict C17 for `picokbd.c` and `lcdcons.c`
+(`check-console-c17-cross`) and the `publishat_beneath` ignore entries are
+done.
 
 Done when each item is merged or carries a tracking issue.
 

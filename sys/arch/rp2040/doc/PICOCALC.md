@@ -42,7 +42,7 @@ name a file there, with a page for a PDF.
 | The console draws cell codes 0x80-0xff from a 128-glyph RAM bank, `ESC ( 0` maps 0x5f-0x7e onto bank codes 0x80-0x9f holding line-drawing shapes whose strokes meet the cell borders, and `LCDIOC_SETGLYPH` replaces a glyph and redraws the cells that show it | host | observed by `check-picocalc-host` against the model panel, which records the nine bank rows of every bank cell: shapes, joins, upload, redraw, rejection, raw-byte rule, resets; eight mutants fail it; the production `ioctl()` classifier copies the ten-byte payload under the same `PICOCALC_ENABLED` define as the PICOCALC kernels (`check-kernel`, one mutant) |
 | The tenth cell row of a bank glyph repeats its ninth, and `lcd_draw_cell()` clocks the bank rows to the panel | build | compiles and links into PICOCALC and PICOCALC_PSRAM; `st7365p.c` has no host model, so the repeated row and the pixels are read from the source, not run |
 | The bank on the panel: box drawing in `mc` or curses, a tile program, redraw after an upload | board | not run |
-| `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
+| `picokbd.c`, `lcdcons.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) under the PICOCALC definitions | build | observed by `check-console-c17-cross` (`TESTING.md`); `sys/sys/exec.h` no longer declares an empty struct and `sys/sys/inode.h` includes `uio.h` instead of forward-declaring `enum uio_rw`, and `struct exec_params` keeps its 284-byte layout; the objects still build under the kernel's GNU17 profile |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
 | The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
@@ -547,7 +547,11 @@ route; they use only the disk ioctls the driver answers
     bmake MACHINE=rp2040 kernel        # PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM
 
 `sys/arch/rp2040/compile/PICOCALC/unix.uf2` holds the kernel; the root
-image is the same `distrib/rp2040/flash.uf2` the PICO board uses.
+image is any board's `flash*.uf2`, since every kernel boots every root.
+`BOARD=PICOCALC` builds the `picocalc` profile root as
+`distrib/rp2040/flash-PICOCALC.uf2`, and `BOARD=PICOCALC_PSRAM` builds
+`distrib/rp2040/flash-PICOCALC_PSRAM.uf2`; `distrib/rp2040/flash.uf2` is the
+PICO board's.
 `sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2` holds the same kernel with
 the PSRAM driver. A board is selected by name: `BOARD=PICOCALC` pairs the
 driverless kernel with the `picocalc` root profile, and `BOARD=PICOCALC_PSRAM`
@@ -555,6 +559,11 @@ pairs the PSRAM kernel with the same profile.
 
     bmake MACHINE=rp2040 BOARD=PICOCALC distribution        # no PSRAM driver
     bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution  # PSRAM swap
+
+Each board writes its own `sdcard-${BOARD}.img`, `flash-${BOARD}.bin` and
+`flash-${BOARD}.uf2` under `distrib/rp2040` (the bare `sdcard.img`,
+`flash.bin` and `flash.uf2` belong to `BOARD=PICO`), so the three boards'
+images coexist in one tree.
 
 Each kernel boots either root. The PSRAM kernel is a separate configuration
 because config(8) writes a Makefile from one Config with no include
@@ -684,12 +693,3 @@ commit `e7040aa1`, from before the `calc-bignum`, `calc`, `puzzles` and
 `puzzlebox` or the SD device nodes appears in its records; re-recording it
 from a distribution run is open work
 (`docs/research/picocalc-session-handoff.md`).
-
-### Strict C17 for the remaining console files
-
-`sys/exec.h:51` declares an empty `struct {} aout;` inside a union, a GNU
-extension; nothing references the member. Removing it lets `picokbd.c`
-and `lcdcons.c`, and every other file that includes `sys/user.h`,
-compile with `-std=c17 -pedantic-errors`. It touches a header every
-kernel object includes, so it lands as its own change with the
-`check-c17-compile-profiles` gate moved to strict C17 for those files.

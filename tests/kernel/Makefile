@@ -409,6 +409,27 @@ TTY_LAYOUT_CFLAGS=	-std=c17 -pedantic-errors -mcpu=cortex-m0plus \
 			-nostdinc -DKERNEL -I. -I${TOPSRC}/sys \
 			-I${TOPSRC}/sys/arch -I${PORT_INCLUDE} ${GATE_WARN}
 TTY_LAYOUT_BAD_OUTPUT=	tty_layout_contract_bad.out
+# The PicoCalc console files compile as strict ISO C17 under the PICOCALC
+# kernel's own definitions. exec_layout_contract.c holds the layout of
+# struct exec_params, which sys/sys/user.h pulls into every kernel object.
+#
+# The gate resolves <machine/*.h> through its own forwarding directory, which
+# carries the port's headers verbatim, so spltty(), splhigh() and splx() are
+# the PRIMASK operations of sys/arch/rp2040/include/intr.h. The host tier's
+# machine/ directory ends in hostintr.h, which redefines those macros as
+# counting shims, and a strict C17 compile through it would leave the real
+# interrupt operations in picokbd.c and lcdcons.c unchecked.
+CONSOLE_C17_SOURCES=	picokbd lcdcons
+CONSOLE_C17_DIR=	${TOPSRC}/sys/arch/rp2040/dev
+CONSOLE_C17_MACHINE=	c17-machine
+CONSOLE_C17_STAMP=	${CONSOLE_C17_MACHINE}/machine/.stamp
+CONSOLE_C17_BASE_CFLAGS=	${TTY_LAYOUT_CFLAGS:N-I.} -I${CONSOLE_C17_MACHINE}
+.if ${MACHINE:U} == "rp2040"
+CONSOLE_C17_PARAM!=	${MAKE} -C ${TOPSRC}/sys/arch/rp2040/compile/PICOCALC -v PARAM
+.else
+CONSOLE_C17_PARAM=
+.endif
+CONSOLE_C17_CFLAGS=	${CONSOLE_C17_BASE_CFLAGS} ${CONSOLE_C17_PARAM}
 MEM_SPAN_SRC=		${TOPSRC}/sys/dev/mem.c
 MEM_SPAN_MACHDEP_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
 MEM_SPAN_FUNCTIONS=	mem_kernel_span_functions.c
@@ -486,6 +507,16 @@ ${MACHINE_STAMP}: hostintr.h ${PORT_INCLUDE}
 		echo "#include <${MACHINE}/include/$$name>" > machine/$$name; \
 	done
 	@echo '#include "../hostintr.h"' >> machine/intr.h
+	@touch $@
+
+${CONSOLE_C17_STAMP}: ${PORT_INCLUDE}
+	@mkdir -p ${CONSOLE_C17_MACHINE}/machine
+	@rm -f ${CONSOLE_C17_MACHINE}/machine/*.h
+	@for header in ${PORT_INCLUDE}/*.h; do \
+		name=`basename $$header`; \
+		echo "#include <${MACHINE}/include/$$name>" \
+		    > ${CONSOLE_C17_MACHINE}/machine/$$name; \
+	done
 	@touch $@
 
 ${MEM_SPAN_FUNCTIONS}: mem_span_extract.py ${MEM_SPAN_MACHDEP_SRC}
@@ -814,6 +845,68 @@ check-tty-layout-cross: tty_layout_contract.o
 		exit 1; \
 	fi; \
 	echo "PASS tty layout rejects a 121-byte structure contract"
+
+# The interrupt probe preprocesses a console source and reads the final
+# definition of spltty(): the port's header defines it as arm_intr_disable(),
+# the host tier's hostintr.h as hk_intr_disable(). The calibration runs the
+# same probe through the host tier's include setup, which must report the
+# shim, so a probe that cannot tell the two apart fails the gate.
+check-console-c17-cross: ${CONSOLE_C17_STAMP} ${MACHINE_STAMP}
+	@set -eu; \
+	probe() { \
+		${GCCPREFIX}-gcc "$$@" -E -dM \
+		    ${CONSOLE_C17_DIR}/picokbd.c | \
+		    sed -n 's/^#define spltty() //p'; \
+	}; \
+	real=`probe ${CONSOLE_C17_CFLAGS}`; \
+	if [ "$$real" != "arm_intr_disable()" ]; then \
+		echo "FAIL console C17 gate sees spltty() as '$$real'," \
+		    "not the port's arm_intr_disable()" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS console C17 gate compiles against the port's own spltty()"; \
+	shim=`probe ${TTY_LAYOUT_CFLAGS} ${CONSOLE_C17_PARAM}`; \
+	if [ "$$shim" != "hk_intr_disable()" ]; then \
+		echo "FAIL interrupt probe misses the host shim ('$$shim')" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS interrupt probe tells the host shim from the port's spltty()"; \
+	for source in ${CONSOLE_C17_SOURCES}; do \
+		${GCCPREFIX}-gcc ${CONSOLE_C17_CFLAGS} -O -c -o /dev/null \
+		    ${CONSOLE_C17_DIR}/$$source.c; \
+		echo "PASS $$source.c compiles as strict C17"; \
+	done; \
+	${GCCPREFIX}-gcc ${CONSOLE_C17_BASE_CFLAGS} -fsyntax-only \
+	    exec_layout_contract.c; \
+	echo "PASS struct exec_params layout contract under strict C17"; \
+	output=console_c17_bad.out; \
+	trap 'rm -f $$output' EXIT; \
+	if ${GCCPREFIX}-gcc ${CONSOLE_C17_BASE_CFLAGS} \
+	    -DEXEC_LAYOUT_EXPECTED_SIZE=283 -fsyntax-only \
+	    exec_layout_contract.c >$$output 2>&1; then \
+		cat $$output >&2; \
+		echo "FAIL exec layout accepted a 283-byte structure contract" >&2; \
+		exit 1; \
+	fi; \
+	if ! grep -F "struct exec_params size changed" $$output >/dev/null; then \
+		cat $$output >&2; \
+		echo "FAIL exec layout rejection missed the size assertion" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS exec layout rejects a 283-byte structure contract"; \
+	if printf 'struct bad { struct { } empty; };\n' | \
+	    ${GCCPREFIX}-gcc ${CONSOLE_C17_CFLAGS} -fsyntax-only -x c - \
+	    >$$output 2>&1; then \
+		cat $$output >&2; \
+		echo "FAIL strict C17 flags accepted an empty struct" >&2; \
+		exit 1; \
+	fi; \
+	if ! grep -F "struct has no members" $$output >/dev/null; then \
+		cat $$output >&2; \
+		echo "FAIL empty struct rejection missed the diagnostic" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS strict C17 flags reject an empty struct"
 
 # The harness carries no kernel header, so it compiles without the renames
 # and reaches <setjmp.h>, <stdio.h> and <string.h> the way any host program
@@ -2904,6 +2997,11 @@ clean:
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
+	rm -f ${CONSOLE_C17_MACHINE}/machine/*.h ${CONSOLE_C17_STAMP}
+	@if [ -d ${CONSOLE_C17_MACHINE}/machine ]; then \
+		rmdir ${CONSOLE_C17_MACHINE}/machine; \
+	fi
+	@if [ -d ${CONSOLE_C17_MACHINE} ]; then rmdir ${CONSOLE_C17_MACHINE}; fi
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
@@ -2925,4 +3023,4 @@ clean:
 	check-tty-local-mode-mutants check-tty-local-mode-ubsan-oracle \
 	check-tty-local-mode-ilp32-mutant \
 	check-tty-local-mode-sanitizer check-tty-layout-cross \
-	tty-layout-contract-force clean
+	check-console-c17-cross tty-layout-contract-force clean

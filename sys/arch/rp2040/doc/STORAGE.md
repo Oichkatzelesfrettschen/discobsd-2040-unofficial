@@ -5,8 +5,11 @@ are bytes of the a.out as installed unless marked.
 
 ## The three costs, in order
 
-**Static libc, one copy per program.** No MMU means no shared library,
-so every a.out carries what it uses of libc. `cat` has 1.4 KB of its own
+**Static libc, one copy per program.** Every a.out links static libc and
+carries what it uses of it. The missing MMU does not force this: every
+process loads at the same window address, so a libc linked once at a fixed
+flash address could serve all of them. `docs/research/xip-shared-libc/`
+measures that design and the roadmap toward it. `cat` has 1.4 KB of its own
 code in a 17 KB file; `id` has 1.5 KB in 20 KB. Across the 29 programs
 in `/bin` the tree's own code is a fraction of the 528 KB installed.
 
@@ -28,8 +31,9 @@ before.
 | ps | 22,290 | 15,694 |
 | init | 23,968 | 17,372 |
 
-**The kernel region.** 512 KB was the STM32F407XE figure; the kernel is
-90 KB. The region is 128 KB, leaving 38 KB for growth, and the Dhara
+**The kernel region.** 512 KB was the STM32F407XE figure. The region is
+128 KB, of which boot2 takes 256 bytes; the PICO kernel measured 108,726
+bytes of text and data on 2026-11-07, leaving 22,090 bytes, and the Dhara
 region is 1536 KB, 989 KB of logical blocks; the 64 KB moved from the
 kernel region bought 39 KB of root because Dhara reserves its share of
 every erase block.
@@ -62,22 +66,25 @@ root: every installed executable is a packed a.out that exec expands, at
 a cost of tens of milliseconds per exec on the M0+ (see the packed a.out
 notes above).
 
-Executing userland in place from flash would free RAM rather than
-flash. An a.out linked at 0x20000000 cannot do it; a binary linked for
-a fixed flash address with its data in the user window could, at the
-cost of a new executable format, a loader that validates it, and a
-swapper that never restores flash text into the data window. It is
-not done.
+Executing userland in place from flash frees RAM and, for a shared
+library, flash. An a.out linked at 0x20000000 cannot do it; a binary
+linked for a fixed flash address with its data in the user window could,
+at the cost of a new executable format, a loader that validates it, and a
+swapper that never restores flash text into the data window. For libc
+alone, `docs/research/xip-shared-libc/` measures 502 packed blocks falling
+to 288 over 28 executables against a 28-block partition cost, with libc data
+relocated by crt0 so the loader and swapper stay unchanged. It is not
+built.
 
 The kernel itself compresses 35 percent, but it executes in place from
 flash and a compressed kernel would have to be copied to RAM, which
-costs 90 KB of the 264.
+costs the whole kernel, about 106 KB, of the 264.
 
 ## The layout
 
 | Region | Address | Size | Content |
 |---|---|---|---|
-| boot2 and kernel | 0x10000000 | 128 KB | 90 KB used |
+| boot2 and kernel | 0x10000000 | 128 KB | 106 KB used |
 | root, Dhara journal | 0x10020000 | 1536 KB | 989 KB of logical blocks |
 | swap, raw | 0x101a0000 | 384 KB | erase and program in place |
 

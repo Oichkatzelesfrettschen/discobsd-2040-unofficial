@@ -265,14 +265,16 @@ jobs:
       # The Renode tiers reuse the PICO_UART and PICOCALC kernels and the
       # flash image built above. Renode needs a dotnet runtime and the
       # fetched peripheral models are a dotnet build, so setup-dotnet
-      # provides the 9.0 SDK whose net9.0 target the fetch script retargets
-      # the models to. The Renode archive is unpacked under /opt/renode
+      # provides the 8.0 SDK for the net8.0 target the fetch script retargets
+      # the models to, the framework Renode.runtimeconfig.json names; models
+      # built for a newer framework fail to load when Renode runs on 8.0. The
+      # Renode archive is unpacked under /opt/renode
       # because Peripherals.csproj references /opt/renode/bin; the launcher
       # resolves bin/ beside itself, so the directory goes on PATH rather
       # than a symlink to the launcher.
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '8.0.x'
       - name: Install the pinned Renode release
         run: |
           archive="$RUNNER_TEMP/renode-$RENODE_VERSION.linux.tar.gz"

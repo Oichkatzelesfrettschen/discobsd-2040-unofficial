@@ -364,7 +364,7 @@ FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width \
 				unconditional-inout-publication omitted-inout-publication \
 				direct-output-pointer unconditional-output-publication \
 				short-output-copy omitted-output-publication \
-				corrupt-output-initialization
+				corrupt-output-initialization omitted-media-gone-case
 FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/capacity.h \
 	${TOPSRC}/sys/sys/cdefs.h ${TOPSRC}/sys/sys/conf.h \
@@ -1253,6 +1253,7 @@ check-fionread-mutants: \
 			short-output-copy) expected='copyout_bytes == cases[index].nbytes' ;; \
 			omitted-output-publication) expected='copyin_calls == 0 && copyout_calls == 1' ;; \
 			corrupt-output-initialization) expected='(unsigned char)unaligned[byte_index] == 0' ;; \
+			omitted-media-gone-case) expected='provider_data != unaligned' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

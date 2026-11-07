@@ -258,6 +258,7 @@ ioctl(void)
     case TIOCGWINSZ:
     case DIOCGETMEDIASIZE:
     case DIOCGETPART:
+    case DIOCMEDIAGONE:
         bzero((caddr_t)&payload, sizeof payload);
         u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com,
             (caddr_t)&payload);

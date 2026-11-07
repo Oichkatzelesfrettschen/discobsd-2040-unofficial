@@ -545,14 +545,18 @@ emit:
 			s = nbuf;
 #else
 			double d = va_arg (ap, double);
+			unsigned long long sbits;
 
 			hexfmt = (c == 'a' || c == 'A');
 
 			/*
-			 * don't do unrealistic precision; just pad it with
-			 * zeroes later, so buffer size stays rational. A
-			 * hexadecimal double has 13 fraction digits exactly;
-			 * an omitted precision under %a means all of them,
+			 * The l length modifier has no effect on a floating
+			 * conversion (C17 7.21.6.1p7), and an omitted precision is
+			 * six (p8). __doprnt_cvt cuts a precision the buffer cannot
+			 * hold to what fits and returns the rest as zeros in
+			 * extrazeros, printed after the digits or before the
+			 * exponent. A hexadecimal double has 13 fraction digits
+			 * exactly; an omitted precision under %a means all of them,
 			 * trailing zeros trimmed, which the converter does.
 			 */
 			if (hexfmt) {
@@ -560,42 +564,38 @@ emit:
 					extrazeros = dwidth - 13;
 					dwidth = 13;
 				}
-			} else if (c == 'g' || c == 'G') {
-				/*
-				 * The style %g picks depends on the whole
-				 * precision, so __doprnt_cvt takes it
-				 * uncapped and returns the zeros # needs
-				 * beyond the digits it stores.
-				 */
-				if (dwidth == -1)
-					dwidth = (sz == SZ_LONG ? DBL_DIG : FLT_DIG);
-			} else if (dwidth > DBL_DIG) {
-				extrazeros = dwidth - DBL_DIG;
-				dwidth = DBL_DIG;
-			} else if (dwidth == -1) {
-				dwidth = (sz == SZ_LONG ? DBL_DIG : FLT_DIG);
-			}
+			} else if (dwidth == -1)
+				dwidth = 6;
 			/*
-			 * softsign avoids negative 0 if d is < 0 and
-			 * no significant digits will be shown
+			 * C17 7.21.6.1p8: the sign of a negative value, zero
+			 * included, is printed whatever the digits that follow, so
+			 * the sign bit decides rather than the comparison d < 0.
 			 */
-			if (d < 0) {
+			memcpy (&sbits, &d, sizeof sbits);
+			if (sbits >> 63) {
 				neg = 1;
 				d = -d;
 			}
+			padding = zeroflag ? '0' : ' ';
 			/*
 			 * cvt may have to round up past the "start" of the
 			 * buffer, i.e. ``intf("%.2f", (double)9.999);'';
 			 * if the first char isn't NULL, it did.
 			 */
 			if (isnan (d) || isinf (d)) {
-				/* C17 7.21.6.1p8: inf and nan, upper case under A, E, F and G */
+				/*
+				 * C17 7.21.6.1p8: inf and nan, upper case under A, E, F
+				 * and G; the 0 flag does not pad them, and a NaN carries
+				 * no sign.
+				 */
 				strcpy ((char*)nbuf, isnan (d) ?
 				    (c < 'a' ? "NAN" : "nan") :
 				    (c < 'a' ? "INF" : "inf"));
 				size = 3;
 				extrazeros = 0;
 				padding = ' ';
+				if (isnan (d))
+					neg = 0;
 				s = nbuf;
 			} else if (__doprnt_cvt == 0) {
 				nbuf [0] = '?';

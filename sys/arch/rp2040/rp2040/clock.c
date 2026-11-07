@@ -32,6 +32,12 @@ timer_us(void)
 	return *(volatile u_int *)(TIMER_BASE + TIMER_TIMERAWL);
 }
 
+static int
+systick_pending(void)
+{
+	return (SCB_REG32(SCB_ICSR) & SCB_ICSR_PENDSTSET) != 0;
+}
+
 /*
  * Setup core timer for `hz' timer interrupts per second.
  *
@@ -74,8 +80,8 @@ clock_catchup(void)
 {
 	unsigned int owed;
 
-	owed = clock_catchup_owed(&clkcatch, timer_us(),
-	    (SCB_REG32(SCB_ICSR) & SCB_ICSR_PENDSTSET) != 0, CLOCK_TICK_US);
+	owed = clock_catchup_sample(&clkcatch, timer_us, systick_pending,
+	    CLOCK_TICK_US);
 	if (owed != 0)
 		clock_catchup_apply(owed, hz, &lbolt, &time.tv_sec, &calltodo);
 }

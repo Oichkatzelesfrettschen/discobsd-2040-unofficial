@@ -45,6 +45,19 @@ Programs and libraries:
   the POSIX remainder scale and a leading array argument (PR #361), shipped as
   the `calc-bignum` closure group of the `picocalc` profile.
 - `usr.bin/calc` and `lib/libcalc` (PR #345).
+- Conforming floating output and libm returns (PRs #353, #365). `%g` in
+  `lib/libc/stdio/doprnt_float.c` counts significant digits from the first
+  nonzero digit (C17 7.21.6.1p8), and `decimal_cvt()` generates the decimal
+  digits from the double's bits in exact integer arithmetic, so every digit
+  is correctly rounded with ties to even; the 0 flag pads with zeros under
+  every floating conversion, a negative zero keeps its sign, `l` leaves the
+  default precision at six, and `%F` prints. `include/math.h` defines
+  `HUGE_VAL`, `HUGE_VALF`, `HUGE_VALL` and `INFINITY` as infinities; `exp()`
+  overflows above ln(DBL_MAX) with `ERANGE` and reduces through a split
+  ln 2 (error 5e-16); `log(0)`, `y0(0)`, `y1(0)`, `yn(n, 0)` and
+  `pow(+-0, y<0)` report the pole as `ERANGE`, and `pow(+-0, y)` keeps the
+  zero's sign for odd integer `y` (F.10.4.4). `check-libc-printf-g` and
+  `check-libc-huge-val` hold each with a mutant (`TESTING.md`).
 - Games in `gamebox` (fifteen, keen, bubble, fourfall, coil) and puzzles in
   `puzzlebox` (flood, samegame, unruly, lightup) (PRs #345, #354).
 
@@ -118,18 +131,21 @@ does: `bmake -j1 MACHINE=rp2040 config` run inside `tools/config` builds the
 generator, then `../../../../../tools/config/config Config` run inside
 `sys/arch/rp2040/compile/BOARD` rewrites that board's `Makefile`. Conflicts
 are resolved by reading base, ours and theirs and writing one result that
-carries both sides' intent. PRs #358 through #367, except #365, which is
-still open, merged without any automated review; Codex reviewed them
-afterward, and #365 carries the fixes for their findings.
+carries both sides' intent. PRs #358 through #367, except #365, merged
+without any automated review; Codex reviewed them afterward, and #365 carries
+the fixes for their findings: STM32 division helpers selected per machine,
+harness children launched under execution ownership, divider emulation in
+the qemu a.out runner, the timer sampled before the SysTick pending bit in
+`clock.c`, the multicall games restaged for every image, and the full
+composition built by `check-multicall-composition`.
 
 Pass `-R Oichkatzelesfrettschen/discobsd-2040-unofficial` to every `gh`
 command: the checkout's default `gh` repository is `upstream`.
 
 ## Session plan
 
-The briefs below are ordered by dependency. The #365 brief runs first
-because the bare Pico and software briefs build on main after it lands; the bare Pico, pipeline and software briefs are independent of each
-other after that; the PicoCalc brief needs the PicoCalc attached. PR #343
+The briefs below are independent of each other, apart from the PicoCalc
+brief, which needs the PicoCalc attached; the PicoCalc brief needs the PicoCalc attached. PR #343
 waits on an owner decision and belongs to no brief.
 
 Open every session with the same checks: `git fetch origin`, `git worktree
@@ -137,56 +153,10 @@ list --porcelain` from the canonical checkout, the CI and review state of each
 open PR, and free space on `/tmp`, which other sessions' test runs fill; route long
 output to files outside it.
 
-### Finish the review fixes on #365 (`printf`, libm and the review wave)
-
-Prerequisites: none. Merge main (`37cef7bb` or later) into the branch by the
-reconciliation rule above. Branch `libc/printf-libm-conformance`, head `0438ea53`, worktree
-`libc-conformance`. Done on the branch: STM32 division helpers selected per
-machine (`aeabi_div_idiv.S`, from #362), harness children launched through
-`run_owned` under execution ownership (from #361, #365, #367), and divider
-emulation in the qemu a.out runner (from #362).
-
-1. Darwin `%g` exact-tie oracle, which failed the macOS job on `0438ea53`;
-   committed as `9986ce0a`, macOS job to confirm.
-   `check-printf-g-mutants` rejects the known-good `doprnt.c` because Apple's
-   libc keeps a trailing zero on an exact decimal tie (`% .10g` of
-   59984446805000: the tree prints the C17 result ` 5.99844468e+13`, Apple
-   prints ` 5.998444680e+13`). Exclude exact-tie cases from the host oracle
-   on darwin as the newlib oracle already does under qemu, and print the first
-   disagreement. Acceptance: the macOS job passes and a mutant that keeps the
-   trailing zero still fails on Linux.
-2. `sys/arch/rp2040/rp2040/clock.c` reads ICSR and TIMERAWL as unordered
-   call arguments, so catch-up can count a tick twice at a boundary (from
-   #360). Sequence the two reads and state the order's reason in the comment.
-   Acceptance: `tests/rp2040/clock_catchup/check.sh` with a boundary case
-   that fails on the unordered form.
-3. `fs` or `flash` after an `IMAGE_WITHOUT` distribution keeps a staged
-   `gamebox` or `puzzlebox` multicall binary that lacks a member the new
-   selection installs (from #363). Make the staged binary depend on the member
-   selection. Acceptance: two distributions with different selections in one
-   tree produce the second selection's members.
-4. `check-multicall-composition` requires a nonempty member map, which fails
-   for a profile without games (from #363). Accept an empty map when the
-   profile selects no member. Acceptance: the gate passes on `base` and still
-   fails on a map that omits a selected member.
-5. The Codex reviews of #358, #359, #366 and #367 landed with no findings;
-   Codex posts a clean result as a PR comment, not a review.
-6. Run `bmake MACHINE=rp2040 logged-build` on the final head, then the
-   directly selected gates it prepares: `check-qemu`, `check-fs-profiles`,
-   `check-config-generated-sync`, `check-divider` and
-   `tools/test_execution_test.py`. One SIGTERM ownership test in the last
-   missed its 20 s bound once and did not reproduce in six reruns; record a
-   recurrence with its load.
-7. Re-request the Codex and Copilot reviews, resolve their threads, trial
-   merge and merge. Then resolve the open threads on #360, #361, #362 and
-   #363, which each point at #365.
-
-Done when #365 is merged and the threads on #360 through #363 are resolved.
-
 ### Bare Pico campaign: the test programs on silicon
 
-Prerequisites: #365 merged, so the campaign measures main with the divider
-and harness fixes. The owner approved test flashes of the bare Pico on
+Prerequisites: none. #365 put the divider and harness fixes on main for
+the campaign to measure. The owner approved test flashes of the bare Pico on
 2026-11-06; flash nothing else without a new approval. Rebuild the test root
 from current main: stage the entries below in `distrib/rp2040/mi.rp2040`,
 build, flash, and revert the staging before any commit.
@@ -268,20 +238,16 @@ and a known-bad input.
 
 ### Software follow-ups
 
-Prerequisites: #365 merged (the `pow` item builds on its libm changes).
+Prerequisites: none.
 
 1. Re-record `docs/research/c17-shipped-resource-baseline.json`, which
    records commit `e7040aa1`, before the `calc-bignum`, `calc`, `puzzles` and
    `sdcard` closures.
 2. Separate per-board output paths for `sdcard.img` and `flash.uf2`, so a
    PICOCALC build does not overwrite the PICO image.
-3. `pow(-0, y)` for a negative odd integer `y` on the #365 branch returns
-   +infinity where C17 Annex F.10.4.4 gives -infinity. Main at `df501d06`
-   sends every zero base with a nonpositive exponent to the domain-error path
-   (`lib/libm/pow.c`), which returns 0 with `EDOM`.
-4. The `sys/exec.h:51` empty struct that keeps two console files off strict
+3. The `sys/exec.h:51` empty struct that keeps two console files off strict
    C17.
-5. `tests/kernel/.gitignore` lacks the `publishat_beneath` products
+4. `tests/kernel/.gitignore` lacks the `publishat_beneath` products
    (`publishat_beneath_functions.c`, `publishat_beneath_test32`,
    `publishat_beneath_namei_test32` and the `*.mutant.c` and `*.mutant.test`
    files), so a kernel-test run leaves 21 untracked files.
@@ -325,3 +291,12 @@ Observed on 2026-11-06, flashing main `df501d06` to the bare Pico:
 - libcalc's condition estimate is infinite when the inverse's 1-norm exceeds
   `DBL_MAX`.
 - `kilo`'s highlight test fails when `TMPDIR` is a long path.
+- Floating output past about 320 digits of precision prints the exact digits
+  and then zeros. The `%lg` width defect named by an earlier note does not
+  reproduce (`%10lg` and `%-10lg` of 3.5 pad to ten columns), so its failing
+  input stays unidentified.
+- `log` and the Bessel functions return `-HUGE_VAL` for a negative argument
+  where Annex F asks for a NaN; `pow` of a negative base and a non-integer
+  power returns 0 with `EDOM`; `pow(+-0, NaN)` returns 0 where Annex F gives
+  a NaN; `ldexp` flushes a result under 2^-1024 to zero, so `exp` returns
+  zero where the result is a subnormal under 2^-1024.

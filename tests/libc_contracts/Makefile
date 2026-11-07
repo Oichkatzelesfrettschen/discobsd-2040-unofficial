@@ -1396,10 +1396,10 @@ PRINTF_ORACLE_ARM_OBJS=	${PRINTF_ORACLE_MEMBERS:C/^/pg_arm_/:C/$/.o/} pg_arm_stu
 check-printf-g: printf_g_contract_test check-printf-g-mutants
 	${TEST_EXECUTION} run libc.printf-g.native -- ./printf_g_contract_test
 
-check-printf-g-mutants: ${PRINTF_ORACLE_OBJS:Npg_doprnt_float.o} printf_g_contract_test.c
+check-printf-g-mutants: ${PRINTF_ORACLE_OBJS:Npg_doprnt_float.o:Npg_doprnt.o} printf_g_contract_test.c
 	${PYTHON} ${.CURDIR}/printf_g_mutate.py ${TOPSRC} ${HOSTCC:Q} \
 	    ${PRINTF_ORACLE_CFLAGS:Q} printf_g_contract_test.c \
-	    ${PRINTF_ORACLE_OBJS:Npg_doprnt_float.o}
+	    ${PRINTF_ORACLE_OBJS:Npg_doprnt_float.o:Npg_doprnt.o}
 
 printf_g_contract_test: printf_g_contract_test.c ${PRINTF_ORACLE_OBJS}
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -o $@ printf_g_contract_test.c \
@@ -1441,6 +1441,7 @@ pg_arm_${_m}.o: ${TOPSRC}/lib/libc/gen/${_m}.c
 
 printf_g_contract_test_arm: printf_g_contract_test.c ${PRINTF_ORACLE_ARM_OBJS} ${QEMU_SUPPORT}
 	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -DPRINTF_G_ITERATIONS_DIVISOR=${PRINTF_G_ARM_DIVISOR} \
+	    -DHOST_G_TIE_BUG \
 	    -o $@ printf_g_contract_test.c ${PRINTF_ORACLE_ARM_OBJS} \
 	    ${QEMU_SUPPORT} -lm ${QEMU_ARM_LIBS}
 

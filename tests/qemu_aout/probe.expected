@@ -3,6 +3,7 @@ argv[0]=probe
 argv[1]=alpha
 argv[2]=beta
 div 142857 -142857 1
+div2 571428571 3 -3 -1 3 -1 -3 1 -715827882 -2
 float 337 428
 int64 -1666
 lseek set 4

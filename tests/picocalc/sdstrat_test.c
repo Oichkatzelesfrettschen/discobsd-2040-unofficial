@@ -938,6 +938,38 @@ main(void)
 	r = (struct req){ 3, B_READ, 0, 512 };
 	error_case("unopened partition", r, ENXIO);
 
+	/*
+	 * DIOCMEDIAGONE answers the removal flag: no while the card sits where
+	 * it was accepted, yes once the pin change has held the interval.
+	 */
+	{
+		int gone = -1;
+
+		check("media gone before the swap", sdioctl(1, DIOCMEDIAGONE,
+		    (caddr_t)&gone, 0), 0);
+		check("media present", gone, 0);
+		card_swap();
+		gone = -1;
+		check("media gone after the swap", sdioctl(1, DIOCMEDIAGONE,
+		    (caddr_t)&gone, 0), 0);
+		check("media removed", gone, 1);
+		gone = -1;
+		check("media gone, any partition", sdioctl(2, DIOCMEDIAGONE,
+		    (caddr_t)&gone, 0), 0);
+		check("media removed, partition 2", gone, 1);
+		check("media gone, unit 1", sdioctl(8, DIOCMEDIAGONE,
+		    (caddr_t)&gone, 0), ENXIO);
+		/* The flag clears with the last close, as the card is accepted. */
+		close_all();
+		check("open after the removal", sdopen(1, 0, S_IFCHR), 0);
+		gone = -1;
+		check("media gone after the reopen", sdioctl(1, DIOCMEDIAGONE,
+		    (caddr_t)&gone, 0), 0);
+		check("media present after the reopen", gone, 0);
+		check("reopen partition 2", sdopen(2, 0, S_IFCHR), 0);
+		check("reopen whole card", sdopen(0, 0, S_IFCHR), 0);
+	}
+
 	/* A card swap fails every transfer until the last close. */
 	card_swap();
 	r = (struct req){ 0, B_READ, 0, 512 };

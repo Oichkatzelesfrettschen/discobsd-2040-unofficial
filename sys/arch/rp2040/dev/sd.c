@@ -39,7 +39,9 @@
  * transfer with EIO until the last close, because blocks cached for the old
  * card must not reach the new one. A level that returns to the committed
  * level before the interval ends changes nothing. The pin's polarity is not
- * interpreted: any stable change counts.
+ * interpreted: any stable change counts. DIOCMEDIAGONE reports the flag to
+ * unmount(2), which then releases a mount whose write-back the card can no
+ * longer take.
  *
  * Every blocking spl on the RP2040 is PRIMASK (machine/intr.h), and
  * splsoftclock() blocks nothing, so the sections that must exclude the
@@ -435,6 +437,13 @@ sdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 		return 0;
 	case DIOCGETPART:
 		*(struct diskpart *)addr = sdpt[part];
+		return 0;
+	case DIOCMEDIAGONE:
+		/*
+		 * The removal flag the callout keeps: every transfer already
+		 * fails with EIO, so unmount(2) may drop what cannot be written.
+		 */
+		*(int *)addr = sd_replaced();
 		return 0;
 	case DIOCREINIT:
 		/*

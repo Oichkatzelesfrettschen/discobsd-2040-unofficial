@@ -285,6 +285,14 @@ disk_reset(struct fakedisk *d, int check_open, enum ioctl_mode mode)
 	d->part[0].dp_nsectors = NDEVBLK * 2;
 }
 
+static void
+disk_insert(struct fakedisk *d)
+{
+	d->generation++;
+	d->nwrites = 0;
+	d->replaced = 0;
+}
+
 static int
 disk_open(struct fakedisk *d, dev_t dev, int part_max)
 {
@@ -366,6 +374,11 @@ disk_ioctl(struct fakedisk *d, dev_t dev, u_int cmd, caddr_t addr,
 	switch (cmd) {
 	case DIOCGETPART:
 		*(struct diskpart *)addr = d->part[part];
+		return 0;
+	case DIOCMEDIAGONE:
+		if (d->mode != IOCTL_FULL)
+			return EINVAL;
+		*(int *)addr = d->replaced;
 		return 0;
 	}
 	return EINVAL;
@@ -680,6 +693,30 @@ must_mount(dev_t dev)
 	return mp;
 }
 
+static unsigned
+valid_buffers(dev_t dev)
+{
+	unsigned n = 0;
+	struct buf *bp;
+
+	for (bp = buf; bp < &buf[NBUF]; bp++)
+		if (bp->b_dev == dev && (bp->b_flags & B_INVAL) == 0)
+			n++;
+	return n;
+}
+
+static unsigned
+delayed_buffers(dev_t dev)
+{
+	unsigned n = 0;
+	struct buf *bp;
+
+	for (bp = buf; bp < &buf[NBUF]; bp++)
+		if (bp->b_dev == dev && (bp->b_flags & B_DELWRI) != 0)
+			n++;
+	return n;
+}
+
 #define SD_A	makedev(SD_BMAJOR, 1)
 #define SD_B	makedev(SD_BMAJOR, 2)
 #define SD_C	makedev(SD_BMAJOR, 3)
@@ -885,6 +922,163 @@ test_failed_mount_keeps_open_descriptor(void)
 	HK_CHECK(sd_disk.openmask == 0);
 }
 
+/*
+ * A card pulled under a read-write mount. The mount's superblock is marked
+ * modified (mountfs sets fs_fmod), so ufs_sync() writes it back, the card
+ * refuses, and unmount(2) sees an error. When the driver reports the media
+ * gone the unmount completes without write-back, closes the driver and
+ * leaves no buffer that could reach the next card.
+ */
+static void
+pull_card(void)
+{
+	sd_disk.replaced = 1;
+}
+
+static void
+test_media_gone_unmounts(void)
+{
+	struct mount *mp;
+	unsigned i;
+
+	boot_machine();
+	HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+	mp = must_mount(SD_A);
+	HK_CHECK(mp->m_filsys.fs_fmod == 1);
+	/* A cached clean block of the old card, not the superblock. */
+	HK_CHECK(read_blkno(SD_A, 3) == 0);
+	HK_CHECK(valid_buffers(SD_A) != 0);
+	pull_card();
+	HK_CHECK(do_umount("/dev/sd0a") == 0);
+	HK_CHECK(mount_of(SD_A) == NULL);
+	HK_CHECK(mount[1].m_inodp == NULL);
+	HK_CHECK(mount[1].m_write_error == 0);
+	HK_CHECK(sd_disk.nclose == 1);
+	HK_CHECK(sd_disk.openmask == 0);
+	HK_CHECK(valid_buffers(SD_A) == 0);
+	HK_CHECK(delayed_buffers(SD_A) == 0);
+
+	/* A replacement card, with its own filesystem, mounts and reads. */
+	disk_insert(&sd_disk);
+	write_super(sd_disk.blocks[1], 4242);
+	HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+	mp = must_mount(SD_A);
+	HK_CHECK(mp->m_filsys.fs_tfree == 4242);
+	HK_CHECK(mp->m_write_error == 0);
+	/* No write of the old mount reached the new card. */
+	for (i = 0; i < sd_disk.nwrites && i < NLOG; i++)
+		HK_CHECK(sd_disk.log[i].generation != sd_disk.generation);
+	HK_CHECK(sd_disk.nwrites == 0);
+	HK_CHECK(do_umount("/dev/sd0a") == 0);
+}
+
+static void
+test_media_gone_read_only(void)
+{
+	boot_machine();
+	HK_CHECK(do_mount("/dev/sd0a", "/mnt", MNT_RDONLY) == 0);
+	pull_card();
+	HK_CHECK(do_umount("/dev/sd0a") == 0);
+	HK_CHECK(sd_disk.nclose == 1);
+	HK_CHECK(sd_disk.openmask == 0);
+}
+
+static void
+test_media_gone_no_write_after_swap(void)
+{
+	struct buf *bp;
+
+	boot_machine();
+	HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+	/* A delayed write queued for the old card, then the card is pulled. */
+	bp = getblk(SD_A, 5);
+	bzero(bp->b_addr, DEV_BSIZE);
+	bdwrite(bp);
+	HK_CHECK(delayed_buffers(SD_A) == 1);
+	pull_card();
+	HK_CHECK(do_umount("/dev/sd0a") == 0);
+	HK_CHECK(delayed_buffers(SD_A) == 0);
+	disk_insert(&sd_disk);
+	/* Evicting every buffer must not push a stale block to the new card. */
+	bflush(SD_A);
+	HK_CHECK(sd_disk.nwrites == 0);
+}
+
+static void
+test_write_error_on_present_media_is_fatal(void)
+{
+	boot_machine();
+	HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+	sd_disk.fail_writes = 1;
+	HK_CHECK(do_umount("/dev/sd0a") == EIO);
+	HK_CHECK(mount_of(SD_A) != NULL);
+	HK_CHECK(sd_disk.nclose == 0);
+	/* The same error repeats, and clears once the writes succeed. */
+	HK_CHECK(do_umount("/dev/sd0a") == EIO);
+	sd_disk.fail_writes = 0;
+	must_mount(SD_A)->m_write_error = 0;
+	HK_CHECK(do_umount("/dev/sd0a") == 0);
+	HK_CHECK(sd_disk.nclose == 1);
+}
+
+static void
+test_driver_without_query_keeps_failure(void)
+{
+	enum ioctl_mode modes[2] = { IOCTL_EINVAL, IOCTL_EIO };
+	int i;
+
+	for (i = 0; i < 2; i++) {
+		boot_machine();
+		sd_disk.mode = modes[i];
+		HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+		pull_card();
+		HK_CHECK(do_umount("/dev/sd0a") == EIO);
+		HK_CHECK(mount_of(SD_A) != NULL);
+		HK_CHECK(sd_disk.nclose == 0);
+	}
+}
+
+static void
+test_media_gone_with_open_file_is_busy(void)
+{
+	struct inode *ip;
+
+	boot_machine();
+	HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+	/* A file of the mounted filesystem held open. */
+	ip = new_inode(IFREG | 0644, 0);
+	ip->i_dev = SD_A;
+	ip->i_fs = &must_mount(SD_A)->m_filsys;
+	ip->i_count = 1;
+	pull_card();
+	HK_CHECK(do_umount("/dev/sd0a") == EBUSY);
+	HK_CHECK(mount_of(SD_A) != NULL);
+	HK_CHECK(sd_disk.nclose == 0);
+	/* Once the file closes the unmount completes. */
+	ip->i_count = 0;
+	HK_CHECK(do_umount("/dev/sd0a") == 0);
+	HK_CHECK(sd_disk.nclose == 1);
+}
+
+static void
+test_media_gone_with_open_descriptor_defers_close(void)
+{
+	struct node n;
+
+	boot_machine();
+	HK_CHECK(open_node(&n, IFBLK | 0600, SD_A, FREAD) == 0);
+	HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+	pull_card();
+	HK_CHECK(do_umount("/dev/sd0a") == 0);
+	HK_CHECK(sd_disk.nclose == 0);
+	close_node(&n);
+	HK_CHECK(sd_disk.nclose == 1);
+	HK_CHECK(sd_disk.openmask == 0);
+	/* The last close cleared the removal state: a new card opens. */
+	disk_insert(&sd_disk);
+	HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+}
+
 int
 main(void)
 {
@@ -894,5 +1088,12 @@ main(void)
 	test_close_before_unmount();
 	test_failed_mount_closes_last_user();
 	test_failed_mount_keeps_open_descriptor();
+	test_media_gone_unmounts();
+	test_media_gone_read_only();
+	test_media_gone_no_write_after_swap();
+	test_write_error_on_present_media_is_fatal();
+	test_driver_without_query_keeps_failure();
+	test_media_gone_with_open_file_is_busy();
+	test_media_gone_with_open_descriptor_defers_close();
 	return hk_verdict("ufs disk lifecycle");
 }

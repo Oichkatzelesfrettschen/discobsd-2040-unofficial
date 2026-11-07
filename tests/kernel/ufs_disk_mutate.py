@@ -25,6 +25,39 @@ MUTATIONS = {
         "        (*bdevsw[major(dev)].d_close)(dev,\n"
         "            ronly? FREAD : FREAD|FWRITE, S_IFBLK);",
     ),
+    "gone-ignored": (
+        "ufs_mount.c",
+        "        if (! media_gone(dev)) {",
+        "        if (! media_gone(dev) || 1) {",
+    ),
+    "gone-assumed": (
+        "ufs_mount.c",
+        "        if (! media_gone(dev)) {",
+        "        if (0 && ! media_gone(dev)) {",
+    ),
+    "gone-keeps-error": (
+        "ufs_mount.c",
+        "        mp->m_write_error = 0;\n",
+        "",
+    ),
+    "gone-no-close": (
+        "ufs_mount.c",
+        "    if (nopen == 0)\n        (*bdevsw[major(dev)].d_close)(dev, 0, S_IFBLK);",
+        "    if (nopen == 0 && error == 0)\n"
+        "        (*bdevsw[major(dev)].d_close)(dev, 0, S_IFBLK);",
+    ),
+    "gone-no-invalidate": (
+        "ufs_mount.c",
+        "        (*bdevsw[major(dev)].d_close)(dev, 0, S_IFBLK);\n"
+        "    binval(dev);\n"
+        "    return (0);",
+        "        (*bdevsw[major(dev)].d_close)(dev, 0, S_IFBLK);\n    return (0);",
+    ),
+    "gone-inverted": (
+        "ufs_mount.c",
+        "    return (gone != 0);",
+        "    return (gone == 0);",
+    ),
     # sys/kern/ufs_fio.c
     # sys/arch/rp2040/rp2040/conf.c
     # sys/arch/rp2040/dev/flash.c

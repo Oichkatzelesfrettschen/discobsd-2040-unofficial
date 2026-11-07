@@ -247,7 +247,9 @@ UFS_DISK_OBJECTS=	${UFS_DISK_SOURCES:@s@ufs_disk_${s}.o@}
 UFS_DISK_CONF_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/conf.c
 UFS_DISK_FLASH_SRC=	${TOPSRC}/sys/arch/rp2040/dev/flash.c
 UFS_DISK_FLASH_HDR=	${TOPSRC}/sys/arch/rp2040/dev/flash.h
-UFS_DISK_MOUNT_MUTANTS=	close-always mount-close-always
+UFS_DISK_MOUNT_MUTANTS=	close-always mount-close-always gone-ignored \
+			gone-assumed gone-keeps-error gone-no-close \
+			gone-no-invalidate gone-inverted
 UFS_DISK_FIO_MUTANTS=
 UFS_DISK_CONF_MUTANTS=
 UFS_DISK_FLASH_MUTANTS=

@@ -237,6 +237,19 @@ main(void)
 	CALL(tree_yn(2, -3.0), -1, edom);
 	CALL(tree_pow(0.0, -1.0), 1, erange);
 	CALL(tree_pow(0.0, -2.5), 1, erange);
+	/* F.10.4.4: an odd integer power keeps the sign of the zero. */
+	CALL(tree_pow(-0.0, -1.0), -1, erange);
+	CALL(tree_pow(-0.0, -3.0), -1, erange);
+	CALL(tree_pow(-0.0, -2.0), 1, erange);
+	CALL(tree_pow(-0.0, -2.5), 1, erange);
+	CALL(tree_pow(-0.0, -1e300), 1, erange);
+	tree_errno = 0;
+	check(tree_pow(-0.0, 3.0) == 0.0 && 1.0 / tree_pow(-0.0, 3.0) < 0.0 &&
+	    tree_errno == 0, "pow(-0, 3) is -0 and leaves errno alone");
+	check(1.0 / tree_pow(-0.0, 2.0) > 0.0 && 1.0 / tree_pow(-0.0, 0.5) > 0.0 &&
+	    1.0 / tree_pow(-0.0, 1e300) > 0.0,
+	    "pow(-0, y) is +0 for y not an odd integer");
+	check(1.0 / tree_pow(0.0, 3.0) > 0.0, "pow(+0, 3) is +0");
 	tree_errno = 0;
 	check(tree_pow(0.0, 0.0) == 1.0 && tree_errno == 0,
 	    "pow(0, 0) is 1 and leaves errno alone");

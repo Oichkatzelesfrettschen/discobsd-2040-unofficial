@@ -227,10 +227,25 @@ def main() -> int:
         "pow-pole-domain": {
             "lib/libm/pow.c": replace_once(
                 pow_c,
-                "\t\t\tif(arg2 < 0.) {\n\t\t\t\terrno = ERANGE;\n"
-                "\t\t\t\treturn(HUGE_VAL);\n\t\t\t}\n",
-                "\t\t\tif(arg2 < 0.)\n\t\t\t\tgoto domain;\n",
+                "\t\t\tif(arg2 < 0.) {\n\t\t\t\terrno = ERANGE;\n",
+                "\t\t\tif(arg2 < 0.) {\n\t\t\t\tgoto domain;\n",
                 "pow-pole-domain",
+            )
+        },
+        "pow-zero-sign-ignored": {
+            "lib/libm/pow.c": replace_once(
+                pow_c,
+                "\t\t\tif(oddint(arg2) && 1. / arg1 < 0.)\n",
+                "\t\t\tif(0)\n",
+                "pow-zero-sign-ignored",
+            )
+        },
+        "pow-oddint-ignores-parity": {
+            "lib/libm/pow.c": replace_once(
+                pow_c,
+                "\treturn(floor(h) != h);\n",
+                "\treturn(1);\n",
+                "pow-oddint-ignores-parity",
             )
         },
         "pow-zero-to-zero": {

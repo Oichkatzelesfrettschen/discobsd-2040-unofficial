@@ -25,6 +25,11 @@
  * scroll advances top and moves the panel's hardware scroll start
  * instead of redrawing. The file includes no kernel header, so the host
  * test in tests/picocalc links it against recording primitives.
+ *
+ * Cell codes 0x20-0x7e are ASCII, drawn from lcdfont.c. Codes 0x80-0xff
+ * select a glyph of the RAM bank that LCDIOC_SETGLYPH (sys/lcdcons.h)
+ * rewrites: a text cell and a tile cell share the store, the attributes,
+ * the scroll ring and the cursor.
  */
 
 #ifndef _LCDTERM_H
@@ -49,6 +54,17 @@
 				    ((ul) ? LT_ATTR_UL : 0))
 #define	LT_ATTR_DEFAULT		LT_ATTR(7, 0, 0)
 
+/*
+ * Glyph bank: codes LT_GLYPH_FIRST to LT_GLYPH_FIRST + LT_GLYPH_N - 1, nine
+ * pixel rows each with the leftmost column in bit 7. The six cell columns
+ * occupy bits 7-2 (LT_GLYPH_MASK); a bank glyph's tenth cell row repeats its
+ * ninth, so a tile fills the cell and line drawing joins across rows.
+ */
+#define	LT_GLYPH_FIRST	0x80
+#define	LT_GLYPH_N	128
+#define	LT_GLYPH_ROWS	9
+#define	LT_GLYPH_MASK	0xfc
+
 /* Panel primitives, supplied by st7365p.c or by the host test. */
 void	lcd_draw_cell(int prow, int col, int ch, unsigned attr);
 void	lcd_fill_cells(int prow, int col, int n, unsigned attr);
@@ -69,6 +85,16 @@ void	lcdterm_abort(void);
 void	lcdterm_putc(int c);
 void	lcdterm_cursor_show(void);
 int	lcdterm_app_cursor(void);
+
+/*
+ * lcdterm_glyph() returns the LT_GLYPH_ROWS bytes of bank code, or NULL for
+ * a code outside the bank. lcdterm_setglyph() replaces one bank glyph and
+ * redraws the cells that show it; it returns -1 and changes nothing when
+ * code is outside the bank or a row sets a bit outside LT_GLYPH_MASK. The
+ * caller holds the drawing flag of lcdcons.c.
+ */
+const unsigned char *lcdterm_glyph(int code);
+int	lcdterm_setglyph(int code, const unsigned char *rows);
 
 /* Read access for the host test. */
 int	lcdterm_cell(int row, int col);

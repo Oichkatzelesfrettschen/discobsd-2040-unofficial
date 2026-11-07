@@ -36,9 +36,12 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed: text 123,332 of 130,816 bytes (`RP2040.ld` FLASH; 7,484 bytes of headroom), data 368, bss 47,600; no `psram` symbol in `unix.elf`; the console alone measured 118,268 text, 304 data and 45,888 bss, so the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,888) add 5,064 text, and 118,268 + 5,064 equals the merged build |
-| PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of PICOCALC | build | observed: text 125,448 of 130,816 bytes (5,368 bytes of headroom), data 424, bss 47,752; it exceeds PICOCALC by 2,116 text, 56 data and 152 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,068, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest |
+| PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed: text 124,284 of 130,816 bytes (`RP2040.ld` FLASH; 6,532 bytes of headroom), data 368, bss 48,752 with the glyph bank (Console, below), against 123,636, 368 and 47,600 before it; no `psram` symbol in `unix.elf`; an earlier build measured the console alone at 118,268 text, 304 data and 45,888 bss, and the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,888) add 5,064 text to it |
+| PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of PICOCALC | build | observed: text 126,400 of 130,816 bytes (4,416 bytes of headroom), data 424, bss 48,904 with the glyph bank, against 125,744, 424 and 47,752 before it; it exceeds PICOCALC by 2,116 text, 56 data and 152 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,068, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
+| The console draws cell codes 0x80-0xff from a 128-glyph RAM bank, `ESC ( 0` maps 0x5f-0x7e onto bank codes 0x80-0x9f holding line-drawing shapes whose strokes meet the cell borders, and `LCDIOC_SETGLYPH` replaces a glyph and redraws the cells that show it | host | observed by `check-picocalc-host` against the model panel, which records the nine bank rows of every bank cell: shapes, joins, upload, redraw, rejection, raw-byte rule, resets; eight mutants fail it; the production `ioctl()` classifier copies the ten-byte payload under the same `PICOCALC_ENABLED` define as the PICOCALC kernels (`check-kernel`, one mutant) |
+| The tenth cell row of a bank glyph repeats its ninth, and `lcd_draw_cell()` clocks the bank rows to the panel | build | compiles and links into PICOCALC and PICOCALC_PSRAM; `st7365p.c` has no host model, so the repeated row and the pixels are read from the source, not run |
+| The bank on the panel: box drawing in `mc` or curses, a tile program, redraw after an upload | board | not run |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 | build | fails in `sys/exec.h:51` (an empty struct, GNU C), reached through `sys/user.h`; they build under the kernel's GNU17 profile like every kernel file |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
 | The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
@@ -163,7 +166,8 @@ take the 53x32 size from `TIOCGWINSZ`, which the driver sets at open.
 (`usr.bin/login/login.c`), and a zero row or column count means the size is
 unknown, so the driver puts the panel's size in its place; a nonzero size
 a program sets is kept.
-The DEC line-drawing set maps to `+`, `-` and `|`. BEL calls `lcd_bell()`
+The DEC line-drawing set (`ESC ( 0`) draws real lines from the glyph bank
+(below). BEL calls `lcd_bell()`
 in `picoaudio.c`, which starts a short tone from the output path without
 waiting for it (Audio, below).
 
@@ -231,6 +235,68 @@ tty output, nor nested output can interrupt or abandon the panic message.
 Measured costs are owed to the board run. At 12.5 MHz a cell is 180 bytes
 of pixels plus an 11-byte window, about 122 us of wire time, which bounds
 output near 8,000 characters per second before CPU overhead.
+
+### Glyph bank
+
+The cell store is also a tile map. A cell code of 0x20-0x7e draws the ASCII
+glyph of `lcdfont.c`; a code of 0x80-0xff draws one of 128 glyphs from a RAM
+bank in `lcdterm.c`, nine rows of six pixels each, the leftmost column in
+bit 7, bits 1-0 zero. `lcd_draw_cell()` in `st7365p.c` asks `lcdterm_glyph()`
+for the rows and repeats the ninth as the tenth cell row (the underline
+still wins), so a tile fills its 6x10 cell and a vertical stroke on glyph
+rows 0 and 8 joins the cell above and below. Text and tiles share the
+attributes (16 foreground colors, 8 background), the scroll ring, the cursor
+and the model panel.
+
+`ESC ( 0` maps 0x5f-0x7e to bank codes 0x80-0x9f, so curses box drawing,
+which sends `l q k x m j t u v w n`, draws lines. The initial shapes are the
+32 DEC special graphics: blank, diamond, checkerboard, the six control
+symbols HT, FF, CR, LF, NL and VT, degree, plus-minus, the corners, crossing,
+tees, the five scan lines, vertical line, less-or-equal, greater-or-equal,
+pi, not-equal, pound and bullet. Strokes are one pixel wide, vertical in
+column 2 and horizontal in row 4, so any two glyphs that face each other
+across a cell border join. A raw byte of 0xa0-0xff draws its own bank code;
+a raw byte of 0x80-0x9f is a C1 control that the terminal does not interpret
+and draws `?`, as every byte above 0x7e did before the bank, which keeps the
+line-drawing codes reachable only through the escape and a UTF-8 continuation
+byte from drawing a box edge. The bank starts with the glyph of `?` in every
+code 0xa0-0xff, so text with such bytes looks as it did. The 0x7f byte is
+ignored as before. A bank code reaches the terminal only through a tty in
+RAW or LITOUT mode: `ttyoutput()` (`sys/kern/tty.c`) keeps the low seven bits
+of every other byte, so a program that draws codes 0xa0-0xff sets LITOUT
+(`TIOCLBIS` with `LLITOUT`) or RAW and restores its mode on exit; the
+`ESC ( 0` set sends seven-bit codes and needs neither.
+
+`LCDIOC_SETGLYPH` (`sys/sys/lcdcons.h`, `_IOW('l', 1, struct lcd_glyph)`) takes
+`{ u_char code; u_char rows[9]; }` on the console tty. It returns `EINVAL` for
+a code below 0x80 or a row with a bit set in bits 1-0, and changes nothing in
+that case; otherwise it replaces the glyph and redraws every visible cell
+that holds the code, so a tile set can be edited under a drawn screen. It
+takes the drawing flag first, so no draw reads a half-written glyph, and
+returns `EAGAIN` if the flag is held, which only an interrupt nested over a
+drawer can leave and a thread-mode caller cannot reach. `ESC c` restores the
+initial bank. The soft reset of termcap's `is` and `rs` (`ESC [ ! p`) and the
+fault path keep uploads, because the fault report is ASCII. The syscall
+classifier (`ioctl()` in `sys_generic.c`) copies the ten bytes into aligned
+kernel storage under `PICOCALC_ENABLED`, so the PICO and PICO_UART images are
+byte-identical to the build before the bank (`objcopy -O binary`) except for
+the timestamp inside `version[]`.
+
+| Kernel | Before (text / data / bss) | After (text / data / bss) | Delta |
+| --- | --- | --- | --- |
+| PICOCALC | 123,636 / 368 / 47,600 | 124,284 / 368 / 48,752 | +648 text, +1,152 bss |
+| PICOCALC_PSRAM | 125,744 / 424 / 47,752 | 126,400 / 424 / 48,904 | +656 text, +1,152 bss |
+| PICO | 107,696 / 248 / 39,848 | 107,696 / 248 / 39,848 | none |
+| PICO_UART | 96,226 / 192 / 14,832 | 96,226 / 192 / 14,832 | none |
+
+The sizes are `arm-none-eabi-size` on `unix.elf` after a clean `bmake all` in
+each `compile/<BOARD>` directory, with arm-none-eabi-gcc from the build host
+and parent commit `122ec634`. The bss delta is the 128x9 bank; the text delta
+holds the 288-byte shape table, the copy of defaults, `lcdterm_setglyph()`,
+the ioctl case and the bank branch of `lcd_draw_cell()`. Redrawing the cells
+of one code walks the 1,696-cell store and costs about 122 us of wire time per
+matching cell (about 207 ms when the whole screen shows it), at the priority of
+the caller.
 
 ## Keyboard: picokbd.c and picokbd_map.c
 

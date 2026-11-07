@@ -25,10 +25,14 @@
 #include <sys/uio.h>
 #include <sys/ioctl.h>
 #include <sys/swap.h>
+#include <sys/lcdcons.h>
 #include <sys/tty.h>
 #include <sys/kernel.h>
 #include <sys/syscall_dispatch.h>
 
+#ifndef PICOCALC_ENABLED
+#error "the classifier gate covers the PICOCALC kernels' LCDIOC_SETGLYPH entry"
+#endif
 #ifdef HK_ILP32
 _Static_assert(sizeof(off_t) == 4, "off_t is the target's four bytes");
 _Static_assert(sizeof(void *) == 4, "pointers are the target's four bytes");
@@ -580,9 +584,11 @@ input_ownership_cases(void)
 		{ TIOCSLTC, sizeof(struct ltchars), _Alignof(struct ltchars) },
 		{ TIOCSTI, sizeof(char), _Alignof(char) },
 		{ TIOCSWINSZ, sizeof(struct winsize), _Alignof(struct winsize) },
+		{ LCDIOC_SETGLYPH, sizeof(struct lcd_glyph),
+		    _Alignof(struct lcd_glyph) },
 	};
 	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
-	unsigned char original[sizeof(struct winsize)];
+	unsigned char original[sizeof(struct diskpart)];
 	u_int index;
 
 	for (index = 0; index < sizeof cases / sizeof cases[0]; index++) {
@@ -614,6 +620,66 @@ input_ownership_cases(void)
 	reset(DTYPE_INODE, IFREG, FREAD);
 	call_ioctl(FD, TIOCFLUSH, NULL);
 	HK_CHECK(u.u_error == EFAULT && provider_calls == 0);
+	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+}
+
+/*
+ * LCDIOC_SETGLYPH carries ten bytes, one more than the bank's code byte
+ * and nine rows; the syscall admits the whole span, copies it whole into
+ * aligned kernel storage and refuses a short span before dispatch.
+ */
+static void
+glyph_cases(void)
+{
+	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
+	unsigned char original[sizeof(struct lcd_glyph)];
+	u_int index;
+
+	_Static_assert(sizeof(struct lcd_glyph) == 10,
+	    "the glyph payload is the code byte and nine rows");
+	_Static_assert(sizeof(struct lcd_glyph) <= sizeof(struct diskpart),
+	    "the ownership cases stage glyph bytes in diskpart-sized buffers");
+
+	reset(DTYPE_INODE, IFREG, FWRITE);
+	store_user_bytes(unaligned, sizeof(struct lcd_glyph));
+	bcopy(unaligned, original, sizeof original);
+	provider_capture_bytes = sizeof original;
+	provider_succeeds_without_write = 1;
+	call_ioctl(FD, LCDIOC_SETGLYPH, unaligned);
+	HK_CHECK(u.u_error == 0 && provider_calls == 1);
+	HK_CHECK(provider_command == LCDIOC_SETGLYPH);
+	HK_CHECK(provider_data != unaligned);
+	HK_CHECK(copyin_calls == 1 && copyin_bytes == sizeof original);
+	HK_CHECK(copyout_calls == 0);
+	for (index = 0; index < sizeof original; index++)
+		HK_CHECK(provider_capture[index] == original[index]);
+
+	reset(DTYPE_INODE, IFREG, FWRITE);
+	call_ioctl(FD, LCDIOC_SETGLYPH,
+	    (caddr_t)(user_span_upper - sizeof(struct lcd_glyph) + 1));
+	HK_CHECK(u.u_error == EFAULT && provider_calls == 0);
+	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+
+	reset(DTYPE_INODE, IFREG, FWRITE);
+	provider_succeeds_without_write = 1;
+	call_ioctl(FD, LCDIOC_SETGLYPH,
+	    (caddr_t)(user_span_upper - sizeof(struct lcd_glyph)));
+	HK_CHECK(u.u_error == 0 && provider_calls == 1);
+	HK_CHECK(copyin_calls == 1 && copyin_bytes == sizeof original);
+
+	reset(DTYPE_INODE, IFREG, FWRITE);
+	store_user_bytes(unaligned, sizeof(struct lcd_glyph));
+	provider_error = EINVAL;
+	call_ioctl(FD, LCDIOC_SETGLYPH, unaligned);
+	HK_CHECK(u.u_error == EINVAL && provider_calls == 1);
+	HK_CHECK(copyout_calls == 0);
+
+	reset(DTYPE_INODE, IFREG, FWRITE);
+	store_user_bytes(unaligned, sizeof(struct lcd_glyph));
+	call_ioctl(FD, LCDIOC_SETGLYPH | (1U << 24), unaligned);
+	HK_CHECK(provider_calls == 1);
+	HK_CHECK(provider_command == (LCDIOC_SETGLYPH | (1U << 24)));
+	HK_CHECK(provider_data == unaligned);
 	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
 }
 
@@ -689,5 +755,6 @@ main(void)
 	output_ownership_cases();
 	input_ownership_cases();
 	inout_ownership_cases();
+	glyph_cases();
 	return hk_verdict("ioctl and FIONREAD admission");
 }

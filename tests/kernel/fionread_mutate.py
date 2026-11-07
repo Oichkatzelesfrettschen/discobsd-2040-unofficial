@@ -102,6 +102,7 @@ def main():
             "omitted-output-publication",
             "corrupt-output-initialization",
             "omitted-media-gone-case",
+            "omitted-glyph-case",
         ),
         required=True,
     )
@@ -163,6 +164,13 @@ def main():
             source,
             "    case DIOCGETPART:\n    case DIOCMEDIAGONE:\n",
             "    case DIOCGETPART:\n",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-glyph-case":
+        source = replace_once(
+            source,
+            "#ifdef PICOCALC_ENABLED\n    case LCDIOC_SETGLYPH:\n#endif\n",
+            "",
             arguments.mutation,
         )
     else:

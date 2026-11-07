@@ -132,3 +132,9 @@ for fn in flash_erase flash_program fl_raw flstrategy; do
 done
 echo "clock_catchup: PASS (flash paths call catch-up; wiring check rejects removal)"
 echo "clock_catchup: PASS (all mutations rejected)"
+
+# The decision logic of the two board scripts that read the host-board clock
+# and the dc and bc console, on synthetic input and a stub console.
+"${PYTHON:?set PYTHON to the intended interpreter}" \
+    "$topsrc/tests/rp2040/clock_catchup/test_board_scripts.py"
+echo "clock_catchup: PASS (board script logic: date parsing, offset bounds, verdicts, workload, framing)"

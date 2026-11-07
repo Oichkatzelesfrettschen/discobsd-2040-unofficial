@@ -1722,6 +1722,19 @@ Clean parent and candidate distributions measured `kern_time.o` at 1,264 and
 data and BSS sizes. The compile-rule gate establishes generated-build routing;
 the clean link measurements establish the observed size offset.
 
+The kernel template compiles every RP2040 kernel object with `COPTS?= -Os`
+and `-fno-strict-aliasing`, and compiles `psram_xfer.c` at `-O` through
+`${COMPILE_CYCLE_C}`. `-Os` enables `-fstrict-aliasing`, which the kernel's
+`u.u_arg` and `b_addr` casts do not satisfy (`-Wstrict-aliasing=2` reports 183
+sites under GCC 13.2), so the kernel opts out. The PSRAM frame loop in
+`psram_frame()` drains the four-word PIO receive FIFO by polling, and its
+per-word cycle count is a design input: the receive path executes 27
+instructions per word at `-Os` and 22 at `-O` (GCC 13.2, disassembly of the
+`.ramfunc` section), so that file keeps `-O`.
+`check-config-generated-sync` regenerates all four Makefiles from the template
+and requires these flags and the `psram_xfer.o` rule. The gate establishes
+build routing; it executes no kernel code.
+
 `bmake MACHINE=rp2040 check-storage-counters` links PICO and PICO_UART with
 `STORAGE_STATS=no` and `STORAGE_STATS=yes`, checks absence/presence of the
 instrumentation symbols, prints paired ELF sizes and restores the default

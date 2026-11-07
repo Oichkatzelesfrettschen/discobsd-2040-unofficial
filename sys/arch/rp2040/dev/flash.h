@@ -74,8 +74,9 @@
 #define	FLASH_BLOCK_ERASE_CMD	0xd8		/* Block erase, per SDK. */
 
 /*
- * The kernel occupies the low 128K; it measures 90K, so 38K remain
- * for growth. The filesystem starts above it. Keep in step with
+ * boot2 and the kernel occupy the low 128K, which conf/RP2040.ld
+ * enforces as the FLASH region; doc/STORAGE.md records the measured
+ * kernel size. The filesystem starts above it. Keep in step with
  * conf/RP2040.ld.
  */
 #define	FLASH_FS_OFFSET		(128UL * 1024)

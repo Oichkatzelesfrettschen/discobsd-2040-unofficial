@@ -24,6 +24,8 @@
  * vertical scroll maps it. Every check compares the model panel, which is
  * what the primitives drew, against the expected screen text, so a store
  * update the terminal forgot to draw fails the same way a wrong store does.
+ * A cell with a bank code (0x80-0xff) also records the nine glyph rows the
+ * bank held when the cell was drawn, which is what st7365p.c would clock out.
  */
 
 #include <stdio.h>
@@ -35,6 +37,7 @@
 
 static unsigned char panel_ch[LT_ROWS][LT_COLS];
 static unsigned char panel_at[LT_ROWS][LT_COLS];
+static unsigned char panel_bits[LT_ROWS][LT_COLS][LT_GLYPH_ROWS];
 static int panel_top;
 static char replies[64];
 static int nreplies;
@@ -44,12 +47,19 @@ static int failures;
 void
 lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 {
+	const unsigned char *glyph;
+
 	if (prow < 0 || prow >= LT_ROWS || col < 0 || col >= LT_COLS) {
 		fprintf(stderr, "draw outside panel: %d,%d\n", prow, col);
 		exit(2);
 	}
 	panel_ch[prow][col] = (unsigned char)ch;
 	panel_at[prow][col] = (unsigned char)attr;
+	glyph = lcdterm_glyph(ch);
+	if (glyph != NULL)
+		memcpy(panel_bits[prow][col], glyph, LT_GLYPH_ROWS);
+	else
+		memset(panel_bits[prow][col], 0, LT_GLYPH_ROWS);
 }
 
 void
@@ -62,6 +72,7 @@ lcd_fill_cells(int prow, int col, int n, unsigned attr)
 	}
 	while (n-- > 0) {
 		panel_ch[prow][col] = ' ';
+		memset(panel_bits[prow][col], 0, LT_GLYPH_ROWS);
 		panel_at[prow][col++] = (unsigned char)attr;
 	}
 }
@@ -146,6 +157,7 @@ expect_bytes(const char *what, const char *got, int n, const char *want)
 static void
 expect_consistent(const char *what)
 {
+	const unsigned char *glyph;
 	int r, c, p;
 
 	for (r = 0; r < LT_ROWS; r++) {
@@ -154,6 +166,14 @@ expect_consistent(const char *what)
 			if (lcdterm_cell(r, c) != panel_ch[p][c] ||
 			    lcdterm_attr(r, c) != panel_at[p][c]) {
 				fprintf(stderr, "FAIL %s: store and panel differ "
+				    "at %d,%d\n", what, r, c);
+				failures++;
+				return;
+			}
+			glyph = lcdterm_glyph(panel_ch[p][c]);
+			if (glyph != NULL && memcmp(glyph, panel_bits[p][c],
+			    LT_GLYPH_ROWS) != 0) {
+				fprintf(stderr, "FAIL %s: panel glyph is stale "
 				    "at %d,%d\n", what, r, c);
 				failures++;
 				return;
@@ -167,6 +187,7 @@ reset(void)
 {
 	memset(panel_ch, 0, sizeof(panel_ch));
 	memset(panel_at, 0, sizeof(panel_at));
+	memset(panel_bits, 0, sizeof(panel_bits));
 	lcdterm_init();
 	nreplies = 0;
 	nbells = 0;
@@ -335,7 +356,7 @@ test_attributes(void)
 	expect_int("bg blue", LT_ATTR_BG(a), 4);
 	expect_int("panel attr drawn", panel_at[(panel_top) % LT_ROWS][4], (int)a);
 	out("\033[0m\033(0lqk\033(B");
-	expect_line("line drawing", 0, "RVNUB+-+");
+	expect_line("line drawing", 0, "RVNUB\x8d\x92\x8c");
 
 	/* Bright foregrounds are palette 8-15; bright backgrounds fold to 0-7. */
 	out("\033[2;1H\033[90mG\033[97mW\033[0;101mX\033[0m");
@@ -402,7 +423,7 @@ test_review_cases(void)
 	/* G0 designation right after DECSTR selects line drawing. */
 	reset();
 	out("\033[!p\033(0q\033(B");
-	expect_line("ESC ( after CSI ! p", 0, "-");
+	expect_line("ESC ( after CSI ! p", 0, "\x92");
 
 	/* IND at a pending wrap indexes once and keeps the column. */
 	reset();
@@ -423,6 +444,234 @@ test_review_cases(void)
 	    LT_ATTR_DEFAULT);
 	expect_int("abort restores full-screen scroll", panel_top, 1);
 	expect_consistent("review cases");
+}
+
+/* The nine rows of a bank cell as the model panel recorded them. */
+static void
+expect_bits(const char *what, int r, int c, const unsigned char *want)
+{
+	int p = (panel_top + r) % LT_ROWS;
+
+	if (memcmp(panel_bits[p][c], want, LT_GLYPH_ROWS) != 0) {
+		fprintf(stderr, "FAIL %s: panel rows at %d,%d are "
+		    "%02x %02x %02x %02x %02x %02x %02x %02x %02x\n", what, r, c,
+		    panel_bits[p][c][0], panel_bits[p][c][1],
+		    panel_bits[p][c][2], panel_bits[p][c][3],
+		    panel_bits[p][c][4], panel_bits[p][c][5],
+		    panel_bits[p][c][6], panel_bits[p][c][7],
+		    panel_bits[p][c][8]);
+		failures++;
+	}
+}
+
+static const unsigned char tile_a[LT_GLYPH_ROWS] = {
+	0xfc, 0x84, 0x84, 0xb4, 0xb4, 0xb4, 0x84, 0x84, 0xfc
+};
+static const unsigned char tile_b[LT_GLYPH_ROWS] = {
+	0x00, 0x30, 0x48, 0x84, 0xfc, 0x84, 0x84, 0x00, 0xa8
+};
+
+/*
+ * The shapes of the DEC special graphics set that curses draws boxes with.
+ * Each stroke is a pixel wide, so a glyph is characterized by where it
+ * meets the cell border: the left and right edges on row 4, the top and
+ * bottom edges in column 2. Two neighbors join when their facing edges
+ * both carry a stroke, which is what makes a box read as lines.
+ */
+static void
+test_line_drawing_shapes(void)
+{
+	static const struct {
+		char final;
+		int left, right, up, down;
+		const char *name;
+	} box[] = {
+		{ 'j', 1, 0, 1, 0, "lower right" },
+		{ 'k', 1, 0, 0, 1, "upper right" },
+		{ 'l', 0, 1, 0, 1, "upper left" },
+		{ 'm', 0, 1, 1, 0, "lower left" },
+		{ 'n', 1, 1, 1, 1, "crossing" },
+		{ 'q', 1, 1, 0, 0, "horizontal" },
+		{ 't', 0, 1, 1, 1, "left tee" },
+		{ 'u', 1, 0, 1, 1, "right tee" },
+		{ 'v', 1, 1, 1, 0, "bottom tee" },
+		{ 'w', 1, 1, 0, 1, "top tee" },
+		{ 'x', 0, 0, 1, 1, "vertical" },
+	};
+	char buf[80];
+	size_t i;
+	int p;
+
+	reset();
+	for (i = 0; i < sizeof(box) / sizeof(box[0]); i++) {
+		snprintf(buf, sizeof(buf), "\033[%d;1H\033(0%c\033(B",
+		    (int)i + 1, box[i].final);
+		out(buf);
+		expect_int(box[i].name, lcdterm_cell((int)i, 0),
+		    LT_GLYPH_FIRST + box[i].final - 0x5f);
+		p = (panel_top + (int)i) % LT_ROWS;
+		snprintf(buf, sizeof(buf), "%s left edge", box[i].name);
+		expect_int(buf, (panel_bits[p][0][4] & 0x80) != 0, box[i].left);
+		snprintf(buf, sizeof(buf), "%s right edge", box[i].name);
+		expect_int(buf, (panel_bits[p][0][4] & 0x04) != 0, box[i].right);
+		snprintf(buf, sizeof(buf), "%s top edge", box[i].name);
+		expect_int(buf, (panel_bits[p][0][0] & 0x20) != 0, box[i].up);
+		snprintf(buf, sizeof(buf), "%s bottom edge", box[i].name);
+		expect_int(buf, (panel_bits[p][0][8] & 0x20) != 0, box[i].down);
+	}
+	expect_consistent("line drawing shapes");
+
+	/* An upper-left corner, a rule and an upper-right corner. */
+	reset();
+	out("\033(0lqk\033(B");
+	expect_int("corner meets rule", panel_bits[0][0][4] & 0x04, 0x04);
+	expect_int("rule meets corner", panel_bits[0][1][4] & 0x80, 0x80);
+	expect_int("rule spans the cell", panel_bits[0][1][4], 0xfc);
+}
+
+static void
+test_glyph_bank(void)
+{
+	static const unsigned char blank[LT_GLYPH_ROWS];
+	unsigned char bad[LT_GLYPH_ROWS], fill[LT_GLYPH_ROWS];
+	const unsigned char *g;
+	int i, j, row, col;
+
+	/* An uploaded glyph is printed by its code and recorded by the panel. */
+	reset();
+	expect_int("upload accepted", lcdterm_setglyph(0xa5, tile_a), 0);
+	lcdterm_putc(0xa5);
+	expect_int("code stored", lcdterm_cell(0, 0), 0xa5);
+	expect_bits("uploaded glyph drawn", 0, 0, tile_a);
+	g = lcdterm_glyph(0xa5);
+	expect_int("bank holds the rows", memcmp(g, tile_a, LT_GLYPH_ROWS), 0);
+	out("\033[3;5H");
+	lcdterm_putc(0xa5);
+	expect_bits("same glyph elsewhere", 2, 4, tile_a);
+	expect_consistent("glyph bank print");
+
+	/* Redefinition redraws the cells already showing the code. */
+	expect_int("redefinition accepted", lcdterm_setglyph(0xa5, tile_b), 0);
+	expect_bits("redefined glyph, first cell", 0, 0, tile_b);
+	expect_bits("redefined glyph, second cell", 2, 4, tile_b);
+	expect_consistent("glyph redefinition");
+	lcdterm_cursor(&row, &col);
+	expect_int("redefinition keeps the cursor row", row, 2);
+	expect_int("redefinition keeps the cursor column", col, 5);
+
+	/* A second code does not disturb the first. */
+	expect_int("second upload", lcdterm_setglyph(0xff, tile_a), 0);
+	lcdterm_putc(0xff);
+	expect_bits("second glyph", 2, 5, tile_a);
+	expect_bits("first glyph untouched", 0, 0, tile_b);
+	g = lcdterm_glyph(0xa6);
+	expect_int("untouched bank code is not the uploaded one",
+	    memcmp(g, tile_b, LT_GLYPH_ROWS) != 0, 1);
+	expect_int("the ASCII range has no bank entry",
+	    lcdterm_glyph('?') == NULL, 1);
+	expect_int("below the bank", lcdterm_glyph(0x7f) == NULL, 1);
+	expect_int("above the bank", lcdterm_glyph(0x100) == NULL, 1);
+
+	/* Uploaded glyphs scroll with the ring like any other cell. */
+	reset();
+	expect_int("upload before scroll", lcdterm_setglyph(0xb0, tile_a), 0);
+	out("\033[32;1H");
+	lcdterm_putc(0xb0);
+	for (i = 0; i < 3; i++)
+		out("\r\n");
+	expect_int("scrolled glyph code", lcdterm_cell(LT_ROWS - 4, 0), 0xb0);
+	expect_bits("scrolled glyph rows", LT_ROWS - 4, 0, tile_a);
+	expect_int("scroll moved the hardware start", panel_top, 3);
+	expect_consistent("glyph scroll");
+
+	/* The bounds of the bank are accepted. */
+	reset();
+	for (i = 0; i < LT_GLYPH_ROWS; i++)
+		fill[i] = LT_GLYPH_MASK;
+	expect_int("first bank code", lcdterm_setglyph(0x80, fill), 0);
+	expect_int("last bank code", lcdterm_setglyph(0xff, fill), 0);
+
+	/* Rejections change nothing. */
+	reset();
+	expect_int("setup upload", lcdterm_setglyph(0xc0, tile_a), 0);
+	for (i = 0; i < LT_GLYPH_ROWS; i++) {
+		for (j = 0; j < 2; j++) {
+			memcpy(bad, tile_b, LT_GLYPH_ROWS);
+			bad[i] |= (unsigned char)(1 << j);
+			expect_int("row bit outside the six columns",
+			    lcdterm_setglyph(0xc0, bad), -1);
+			expect_int("rejected rows leave the bank", memcmp(
+			    lcdterm_glyph(0xc0), tile_a, LT_GLYPH_ROWS), 0);
+		}
+	}
+	expect_int("code 0x7f", lcdterm_setglyph(0x7f, tile_b), -1);
+	expect_int("code 0x00", lcdterm_setglyph(0x00, tile_b), -1);
+	expect_int("code 0x41", lcdterm_setglyph('A', tile_b), -1);
+	expect_int("code 0x100", lcdterm_setglyph(0x100, tile_b), -1);
+	expect_int("code -1", lcdterm_setglyph(-1, tile_b), -1);
+	expect_int("the line-drawing code still serves", memcmp(
+	    lcdterm_glyph(0x8d), blank, LT_GLYPH_ROWS) != 0, 1);
+
+	/* A raw byte reaches the bank from 0xa0; C1 controls draw '?'. */
+	reset();
+	expect_int("upload for raw bytes", lcdterm_setglyph(0xa0, tile_a), 0);
+	out("\x80\x9f\xa0\xa1\xff\x7f");
+	expect_int("C1 0x80", lcdterm_cell(0, 0), '?');
+	expect_int("C1 0x9f", lcdterm_cell(0, 1), '?');
+	expect_int("raw 0xa0 is bank code 0xa0", lcdterm_cell(0, 2), 0xa0);
+	expect_int("raw 0xa1 is bank code 0xa1", lcdterm_cell(0, 3), 0xa1);
+	expect_int("raw 0xff is bank code 0xff", lcdterm_cell(0, 4), 0xff);
+	lcdterm_cursor(&row, &col);
+	expect_int("DEL draws nothing and does not advance", col, 5);
+	expect_bits("raw 0xa0 draws the upload", 0, 2, tile_a);
+	/* The default of every code the escape cannot reach is the '?' glyph. */
+	expect_int("unreached codes look like '?'", memcmp(
+	    lcdterm_glyph(0xa1), lcdterm_glyph(0xfe), LT_GLYPH_ROWS), 0);
+	expect_int("and are not blank", memcmp(
+	    lcdterm_glyph(0xa1), blank, LT_GLYPH_ROWS) != 0, 1);
+	expect_consistent("raw bytes");
+
+	/* The DEC set covers 0x5f-0x7e and nothing around it. */
+	reset();
+	out("\033(0^\x5f\x7e\x7f\033(B");
+	expect_int("0x5e is not graphics", lcdterm_cell(0, 0), '^');
+	expect_int("0x5f is bank code 0x80", lcdterm_cell(0, 1), 0x80);
+	expect_int("0x7e is bank code 0x9f", lcdterm_cell(0, 2), 0x9f);
+	lcdterm_cursor(&row, &col);
+	expect_int("DEL under graphics draws nothing", col, 3);
+	out("\033(0a\033(Ba");
+	expect_int("checkerboard under graphics", lcdterm_cell(0, 3), 0x82);
+	expect_int("ASCII after ESC ( B", lcdterm_cell(0, 4), 'a');
+
+	/* Uploading over a line-drawing code changes the box character. */
+	reset();
+	out("\033(0q\033(B");
+	expect_int("rule uploaded over", lcdterm_setglyph(0x92, tile_b), 0);
+	expect_bits("the rule cell follows the upload", 0, 0, tile_b);
+	expect_consistent("line drawing redefined");
+
+	/*
+	 * A soft reset keeps the bank; a full reset restores the defaults and
+	 * the fault path leaves it alone, because its report is ASCII.
+	 */
+	reset();
+	expect_int("upload before resets", lcdterm_setglyph(0x92, tile_a), 0);
+	expect_int("upload of a text code", lcdterm_setglyph(0xb7, tile_a), 0);
+	out("\033[!p");
+	expect_int("DECSTR keeps the line-drawing upload", memcmp(
+	    lcdterm_glyph(0x92), tile_a, LT_GLYPH_ROWS), 0);
+	lcdterm_abort();
+	expect_int("abort keeps the text-code upload", memcmp(
+	    lcdterm_glyph(0xb7), tile_a, LT_GLYPH_ROWS), 0);
+	out("\033c");
+	expect_int("RIS restores the line-drawing code", memcmp(
+	    lcdterm_glyph(0x92), tile_a, LT_GLYPH_ROWS) != 0, 1);
+	expect_int("RIS restores the text code", memcmp(
+	    lcdterm_glyph(0xb7), tile_a, LT_GLYPH_ROWS) != 0, 1);
+	expect_int("RIS restores the horizontal rule", lcdterm_glyph(0x92)[4], 0xfc);
+	expect_int("RIS restores the '?' glyph", memcmp(
+	    lcdterm_glyph(0xb7), lcdterm_glyph(0xfe), LT_GLYPH_ROWS), 0);
+	expect_consistent("resets");
 }
 
 static void
@@ -522,6 +771,8 @@ main(void)
 	test_cursor_overlay();
 	test_review_cases();
 	test_bell();
+	test_line_drawing_shapes();
+	test_glyph_bank();
 	test_keymap();
 	if (failures != 0) {
 		fprintf(stderr, "lcdterm_test: %d failures\n", failures);

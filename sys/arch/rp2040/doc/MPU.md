@@ -292,3 +292,35 @@ derives `p_ssize` from the stack pointer on entry -- and ARMv6-M supplies
 no fault address register, so a kernel that fenced the unused span could
 not tell a growing stack from a stray pointer, and could not resume the
 first. Narrowing waits on a core that reports the faulting address.
+
+## Known gap: the SwapRAM LARGE epoch
+
+The PICO configuration builds with `SWAPRAM` and `SWAPRAM_KB=16`
+(`sys/arch/rp2040/compile/PICO/Makefile`). A process admitted to the LARGE
+epoch (`P_LARGE`) holds the evacuated pool as extra window: `user_top()`
+returns `__user_data_end + SWAPRAM_BONUS` (`sys/arch/rp2040/rp2040/swapram.c`)
+and exec places the stack and argument area at `USER_TOP`
+(`sys/kern/exec_subr.c`). The map above grants unprivileged access only up to
+0x20024000 and is written once at startup, so a P_LARGE stack and argument
+area intersect 0x20024000 to 0x20028000, which no enabled region grants. The
+board transcript in the Evidence section shows the unprivileged probe at
+0x20024000 faulting with the map enabled. The board runs that exercised LARGE
+execution predate MPU initialization, and
+`tests/rp2040/swapram_large/bigtest.c` asserts nothing about the MPU, so no
+retained run contradicts the gap. The first denied access depends on the
+argument layout rather than on the first push.
+
+The repair enables a read-write region over the bonus interval only while
+the pool is evacuated and the LARGE epoch owns those bytes, and disables it
+with readback before the pool reopens. Its gate runs a LARGE image with the
+map enabled and records the kernel and executable hashes, the resident demand
+`exec_estab` computes, `P_LARGE`, the entry stack pointer, a live readback of
+the region registers (`machdep.mpu.enable` reports state cached at startup),
+and unprivileged reads and writes across the bonus interval, then probes the
+first byte past and the last byte inside every enabled span.
+`docs/research/xip-shared-libc/streams/07-rp2040-hardware.md` holds the
+derivation.
+
+The Renode transcript in the Evidence section reads `programmed=3` from an
+earlier three-region map; the board transcript and `mpu.c` program four. The
+transcript stays as captured until the next `check-renode` run replaces it.

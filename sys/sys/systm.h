@@ -170,6 +170,7 @@ void remque (void *element);
 void startup (void);                /* machine-dependent startup code */
 int chrtoblk (dev_t dev);           /* convert from character to block device number */
 int isdisk (dev_t dev, int type);   /* determine if a device is a disk */
+int blkoverlap (dev_t a, dev_t b);  /* do two block devices share storage */
 int iskmemdev (dev_t dev);          /* identify /dev/mem and /dev/kmem */
 void boot (dev_t dev, int howto);
 

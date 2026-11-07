@@ -8,6 +8,7 @@
 
 #include <sys/param.h>
 #include <sys/conf.h>
+#include <sys/disk.h>
 #include <sys/buf.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>
@@ -332,4 +333,47 @@ chrtoblk(dev_t dev __unused)
 		return makedev(SD_BMAJOR, minor(dev));
 #endif
 	return NODEV;
+}
+
+/*
+ * Routine to determine whether two block devices address the same storage.
+ *
+ * ufs_mountedon() asks it for the device of each mounted filesystem against
+ * the device of a write open. fl and sd number their minors with the unit in
+ * bits 3 and up and the partition in the low three, partition 0 being the
+ * whole unit, and each answers DIOCGETPART with the extent in 512-byte
+ * sectors that its strategy routine addresses. Two nodes of one unit share
+ * storage when those extents intersect, so a whole-device node overlaps
+ * every partition and MBR entries that overlap each other overlap as
+ * devices. A pair the driver cannot describe counts as overlapping. Every
+ * other pair is the same device or a different one.
+ */
+int
+blkoverlap(dev_t a, dev_t b)
+{
+	struct diskpart pa, pb;
+	int maj = major(a);
+
+	if (a == b)
+		return 1;
+	if (maj != major(b) || (minor(a) >> 3) != (minor(b) >> 3))
+		return 0;
+	switch (maj) {
+	case 0:				/* fl0, the onboard flash */
+#ifdef SD_ENABLED
+	case SD_BMAJOR:			/* sd0, the SD card */
+#endif
+		break;
+	default:
+		return 0;
+	}
+	if ((*bdevsw[maj].d_ioctl)(a, DIOCGETPART, (caddr_t)&pa, 0) != 0 ||
+	    (*bdevsw[maj].d_ioctl)(b, DIOCGETPART, (caddr_t)&pb, 0) != 0)
+		return 1;
+	if (pa.dp_nsectors == 0 || pb.dp_nsectors == 0)
+		return 0;
+	/* The later start lies inside the earlier extent; no sum can wrap. */
+	return pa.dp_offset <= pb.dp_offset ?
+	    pb.dp_offset - pa.dp_offset < pa.dp_nsectors :
+	    pa.dp_offset - pb.dp_offset < pb.dp_nsectors;
 }

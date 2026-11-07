@@ -34,13 +34,8 @@ ENDPOINT_SPAN = """    if (com & (IOC_IN | IOC_OUT)) {
 
         if (baduaddr(uap->cmarg) ||
             baduaddr(uap->cmarg + nbytes - 1)) {"""
-DIRECT_INPUT = (
-    "    u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com, "
-    "(caddr_t)&payload);"
-)
-DIRECT_INPUT_MUTANT = (
-    "    u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com, uap->cmarg);"
-)
+DIRECT_INPUT = "    u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com, (caddr_t)&payload);"
+DIRECT_INPUT_MUTANT = "    u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com, uap->cmarg);"
 COMPLETE_COPYIN = """    u.u_error = copyin(uap->cmarg, (caddr_t)&payload,
         (com >> 16) & IOCPARM_MASK);"""
 SHORT_COPYIN = """    u.u_error = copyin(uap->cmarg, (caddr_t)&payload, 1);"""
@@ -106,6 +101,7 @@ def main():
             "short-output-copy",
             "omitted-output-publication",
             "corrupt-output-initialization",
+            "omitted-media-gone-case",
         ),
         required=True,
     )
@@ -133,15 +129,11 @@ def main():
     elif arguments.mutation == "endpoint-span":
         source = replace_once(source, GEOMETRY, ENDPOINT_SPAN, arguments.mutation)
     elif arguments.mutation == "direct-input-pointer":
-        source = replace_once(
-            source, DIRECT_INPUT, DIRECT_INPUT_MUTANT, arguments.mutation
-        )
+        source = replace_once(source, DIRECT_INPUT, DIRECT_INPUT_MUTANT, arguments.mutation)
     elif arguments.mutation == "short-input-copy":
         source = replace_once(source, COMPLETE_COPYIN, SHORT_COPYIN, arguments.mutation)
     elif arguments.mutation == "masked-input-command":
-        source = replace_once(
-            source, CLASSIFICATION, MASKED_CLASSIFICATION, arguments.mutation
-        )
+        source = replace_once(source, CLASSIFICATION, MASKED_CLASSIFICATION, arguments.mutation)
     elif arguments.mutation == "unconditional-inout-publication":
         source = replace_once(
             source,
@@ -152,9 +144,7 @@ def main():
     elif arguments.mutation == "omitted-inout-publication":
         source = replace_once(source, INOUT_PUBLICATION, "", arguments.mutation)
     elif arguments.mutation == "direct-output-pointer":
-        source = replace_once(
-            source, OUTPUT_DISPATCH, DIRECT_OUTPUT_DISPATCH, arguments.mutation
-        )
+        source = replace_once(source, OUTPUT_DISPATCH, DIRECT_OUTPUT_DISPATCH, arguments.mutation)
     elif arguments.mutation == "unconditional-output-publication":
         source = replace_once(
             source,
@@ -168,6 +158,13 @@ def main():
         )
     elif arguments.mutation == "omitted-output-publication":
         source = replace_once(source, OUTPUT_PUBLICATION, "", arguments.mutation)
+    elif arguments.mutation == "omitted-media-gone-case":
+        source = replace_once(
+            source,
+            "    case DIOCGETPART:\n    case DIOCMEDIAGONE:\n",
+            "    case DIOCGETPART:\n",
+            arguments.mutation,
+        )
     else:
         source = replace_once(
             source,

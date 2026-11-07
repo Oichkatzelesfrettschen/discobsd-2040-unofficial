@@ -833,7 +833,16 @@ flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 		return 0;
 
 	case DIOCREINIT:
-		/* Forget the table so the next open rereads it. */
+		/*
+		 * Forget the table so the next transfer rereads it. A mounted
+		 * filesystem or a descriptor on a partition addresses its blocks
+		 * through the current entries, and flstrategy() would read the new
+		 * ones under it, so the request waits until no partition is open.
+		 * fl has no raw node: the whole-device node is the one fdisk opens
+		 * to rewrite the table, so its open does not hold the table.
+		 */
+		if ((fldrives[unit].openpart & ~(1U << RAWPART)) != 0)
+			return EBUSY;
 		fldrives[unit].part[RAWPART].dp_nsectors = 0;
 		return 0;
 	}

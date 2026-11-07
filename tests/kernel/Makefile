@@ -353,7 +353,11 @@ FIONREAD_INODE_SRC=	${TOPSRC}/sys/kern/sys_inode.c
 FIONREAD_IOCTL_FUNCTION=	fionread_ioctl_function.c
 FIONREAD_INODE_FUNCTION=	fionread_inode_function.c
 FIONREAD_CFLAGS=	-ffunction-sections -fdata-sections
-FIONREAD_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 \
+# sys_generic.c classifies LCDIOC_SETGLYPH only where PICOCALC_ENABLED is
+# defined, as in the PICOCALC and PICOCALC_PSRAM kernels; the PICO kernels
+# forward the command to the provider like any unknown one.
+FIONREAD_DEFS=	-DPICOCALC_ENABLED
+FIONREAD_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 ${FIONREAD_DEFS} \
 	-Wstrict-prototypes -Wold-style-definition
 FIONREAD_LDFLAGS=	${FILE_OWNER_LDFLAGS}
 FIONREAD_GENERIC_RENAMES=	-Dioctl=fionread_ioctl
@@ -364,7 +368,8 @@ FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width \
 				unconditional-inout-publication omitted-inout-publication \
 				direct-output-pointer unconditional-output-publication \
 				short-output-copy omitted-output-publication \
-				corrupt-output-initialization omitted-media-gone-case
+				corrupt-output-initialization omitted-media-gone-case \
+				omitted-glyph-case
 FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/capacity.h \
 	${TOPSRC}/sys/sys/cdefs.h ${TOPSRC}/sys/sys/conf.h \
@@ -374,7 +379,8 @@ FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/exec_elf.h ${TOPSRC}/sys/sys/fcntl.h \
 	${TOPSRC}/sys/sys/file.h ${TOPSRC}/sys/sys/fs.h \
 	${TOPSRC}/sys/sys/inode.h ${TOPSRC}/sys/sys/ioctl.h \
-	${TOPSRC}/sys/sys/kernel.h ${TOPSRC}/sys/sys/mount.h \
+	${TOPSRC}/sys/sys/kernel.h ${TOPSRC}/sys/sys/lcdcons.h \
+	${TOPSRC}/sys/sys/mount.h \
 	${TOPSRC}/sys/sys/param.h ${TOPSRC}/sys/sys/proc.h \
 	${TOPSRC}/sys/sys/resource.h ${TOPSRC}/sys/sys/select.h \
 	${TOPSRC}/sys/sys/signal.h ${TOPSRC}/sys/sys/stat.h \
@@ -1258,7 +1264,7 @@ fionread_inode.o: ${FIONREAD_INODE_FUNCTION} ${MACHINE_STAMP}
 
 fionread_test: fionread_test.c fionread_generic.o fionread_inode.o \
     hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${GATE_CFLAGS} -Dioctl=fionread_ioctl \
+	${HOST_CC} ${GATE_CFLAGS} ${FIONREAD_DEFS} -Dioctl=fionread_ioctl \
 	    ${FIONREAD_LDFLAGS} -o $@ fionread_test.c hostkern_kern.c \
 	    fionread_generic.o fionread_inode.o hostkern.o
 
@@ -1273,7 +1279,7 @@ fionread_inode32.o: ${FIONREAD_INODE_FUNCTION} ${MACHINE_STAMP}
 fionread_test32: fionread_test.c fionread_generic32.o fionread_inode32.o \
     hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -DHK_ILP32 \
-	    -Dioctl=fionread_ioctl ${FIONREAD_LDFLAGS} -o $@ \
+	    ${FIONREAD_DEFS} -Dioctl=fionread_ioctl ${FIONREAD_LDFLAGS} -o $@ \
 	    fionread_test.c hostkern_kern.c fionread_generic32.o \
 	    fionread_inode32.o hostkern32.o
 
@@ -1288,7 +1294,7 @@ fionread_test_sanitized: fionread_test.c ${FIONREAD_IOCTL_FUNCTION} \
 	    -c -o fionread_inode_sanitized.o ${FIONREAD_INODE_FUNCTION}
 	${HOST_CC} ${HARNESS_CFLAGS} ${KERNEL_SANITIZER_FLAGS} \
 	    -c -o fionread_hostkern_sanitized.o hostkern.c
-	${HOST_CC} ${GATE_CFLAGS} -Dioctl=fionread_ioctl \
+	${HOST_CC} ${GATE_CFLAGS} ${FIONREAD_DEFS} -Dioctl=fionread_ioctl \
 	    ${KERNEL_SANITIZER_FLAGS} ${FIONREAD_LDFLAGS} -o $@ \
 	    fionread_test.c hostkern_kern.c fionread_generic_sanitized.o \
 	    fionread_inode_sanitized.o fionread_hostkern_sanitized.o
@@ -1316,7 +1322,7 @@ fionread_${mutation}.mutant.test: fionread_${mutation}.mutant.c \
 	${HOST_CC} ${FIONREAD_C17_CFLAGS} ${FIONREAD_CFLAGS} \
 	    ${FIONREAD_GENERIC_RENAMES} -c \
 	    -o fionread_${mutation}.mutant.o fionread_${mutation}.mutant.c
-	${HOST_CC} ${GATE_CFLAGS} -Dioctl=fionread_ioctl \
+	${HOST_CC} ${GATE_CFLAGS} ${FIONREAD_DEFS} -Dioctl=fionread_ioctl \
 	    ${FIONREAD_LDFLAGS} -o $@ fionread_test.c hostkern_kern.c \
 	    fionread_${mutation}.mutant.o fionread_inode.o hostkern.o
 .endfor
@@ -1347,6 +1353,7 @@ check-fionread-mutants: \
 			omitted-output-publication) expected='copyin_calls == 0 && copyout_calls == 1' ;; \
 			corrupt-output-initialization) expected='(unsigned char)unaligned[byte_index] == 0' ;; \
 			omitted-media-gone-case) expected='provider_data != unaligned' ;; \
+			omitted-glyph-case) expected='provider_data != unaligned' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

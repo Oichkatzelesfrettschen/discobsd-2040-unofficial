@@ -16,6 +16,15 @@ before provider dispatch. The change covers these exact command values:
 | `struct winsize` | `TIOCSWINSZ` | 8 |
 | `off_t` | `TFALLOC` | 4 |
 
+The PICOCALC and PICOCALC_PSRAM kernels, which define `PICOCALC_ENABLED`, add
+one input command to the table: `LCDIOC_SETGLYPH`, a `struct lcd_glyph` of 10
+bytes (`sys/sys/lcdcons.h`) that the console driver validates and copies into
+its glyph bank. The classifier, the `ioctl_payload` union member and the
+header include sit under that define, so the PICO and PICO_UART kernels
+compile the classifier without the entry and keep their text byte for byte.
+The fixture builds `ioctl()` with the define and a mutant that omits the case
+fails it.
+
 One automatic union owns the copied bytes. Its member types supply each
 provider's required alignment without a shared buffer or a maximum-size
 automatic array. The syscall copies `TFALLOC` output back only after provider

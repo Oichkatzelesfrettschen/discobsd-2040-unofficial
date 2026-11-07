@@ -12,6 +12,9 @@
 #include <sys/ioctl.h>
 #include <sys/disk.h>
 #include <sys/swap.h>
+#ifdef PICOCALC_ENABLED
+#include <sys/lcdcons.h>
+#endif
 #include <sys/conf.h>
 #include <sys/uio.h>
 #include <sys/kernel.h>
@@ -196,6 +199,9 @@ ioctl(void)
         struct ltchars local_characters;
         struct winsize window;
         struct diskpart partition;
+#ifdef PICOCALC_ENABLED
+        struct lcd_glyph glyph;
+#endif
         char character;
     } payload;
     register struct file *fp;
@@ -282,6 +288,9 @@ ioctl(void)
     case TIOCSTI:
     case TIOCSWINSZ:
     case TFALLOC:
+#ifdef PICOCALC_ENABLED
+    case LCDIOC_SETGLYPH:
+#endif
         break;
     default:
         u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com, uap->cmarg);

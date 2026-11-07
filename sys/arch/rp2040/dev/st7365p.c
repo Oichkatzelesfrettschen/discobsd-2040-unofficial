@@ -194,6 +194,9 @@ put_pixel(const u_char *rgb)
 	spi_put(rgb[2]);
 }
 
+_Static_assert(LCDFONT_HEIGHT == LT_GLYPH_ROWS,
+    "a bank glyph and an ASCII glyph share the nine-row draw loop");
+
 void
 lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 {
@@ -204,17 +207,22 @@ lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 	u_int bits;
 	int row, px;
 
-	if (ch < LCDFONT_FIRST || ch >= LCDFONT_FIRST + LCDFONT_NCHARS)
-		ch = '?';
-	glyph = lcdfont[ch - LCDFONT_FIRST];
+	glyph = lcdterm_glyph(ch);
+	if (glyph == NULL) {
+		if (ch < LCDFONT_FIRST || ch >= LCDFONT_FIRST + LCDFONT_NCHARS)
+			ch = '?';
+		glyph = lcdfont[ch - LCDFONT_FIRST];
+	}
 
 	lcd_select();
 	lcd_window(x, y, x + LT_CELL_W - 1, y + LT_CELL_H - 1);
 	for (row = 0; row < LT_CELL_H; row++) {
 		if (row < LCDFONT_HEIGHT)
 			bits = glyph[row];
-		else
-			bits = (attr & LT_ATTR_UL) ? 0xfc : 0;
+		else if (attr & LT_ATTR_UL)
+			bits = 0xfc;
+		else	/* A bank glyph repeats its last row; see lcdterm.h. */
+			bits = ch >= LT_GLYPH_FIRST ? glyph[LCDFONT_HEIGHT - 1] : 0;
 		for (px = 0; px < LT_CELL_W; px++, bits <<= 1)
 			put_pixel((bits & 0x80) ? fg : bg);
 	}

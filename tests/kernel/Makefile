@@ -250,8 +250,9 @@ UFS_DISK_FLASH_HDR=	${TOPSRC}/sys/arch/rp2040/dev/flash.h
 UFS_DISK_MOUNT_MUTANTS=	close-always mount-close-always gone-ignored \
 			gone-assumed gone-keeps-error gone-no-close \
 			gone-no-invalidate gone-inverted
-UFS_DISK_FIO_MUTANTS=
-UFS_DISK_CONF_MUTANTS=
+UFS_DISK_FIO_MUTANTS=	exact-compare
+UFS_DISK_CONF_MUTANTS=	ignore-unit ignore-major touching start-only \
+			whole-device-disjoint failed-query-disjoint
 UFS_DISK_FLASH_MUTANTS=	reinit-unguarded reinit-counts-whole-device \
 			reinit-first-partition-only
 .if ${_HOST_OSNAME} == "Darwin"

@@ -59,7 +59,46 @@ MUTATIONS = {
         "    return (gone == 0);",
     ),
     # sys/kern/ufs_fio.c
+    "exact-compare": (
+        "ufs_fio.c",
+        "        if (blkoverlap(mp->m_dev, dev))",
+        "        if (mp->m_dev == dev)",
+    ),
     # sys/arch/rp2040/rp2040/conf.c
+    "ignore-unit": (
+        "conf.c",
+        "	if (maj != major(b) || (minor(a) >> 3) != (minor(b) >> 3))",
+        "	if (maj != major(b))",
+    ),
+    "ignore-major": (
+        "conf.c",
+        "	if (maj != major(b) || (minor(a) >> 3) != (minor(b) >> 3))",
+        "	if ((minor(a) >> 3) != (minor(b) >> 3))",
+    ),
+    "touching": (
+        "conf.c",
+        "	    pb.dp_offset - pa.dp_offset < pa.dp_nsectors :",
+        "	    pb.dp_offset - pa.dp_offset <= pa.dp_nsectors :",
+    ),
+    "start-only": (
+        "conf.c",
+        "	return pa.dp_offset <= pb.dp_offset ?\n"
+        "	    pb.dp_offset - pa.dp_offset < pa.dp_nsectors :\n"
+        "	    pa.dp_offset - pb.dp_offset < pb.dp_nsectors;",
+        "	return pa.dp_offset == pb.dp_offset;",
+    ),
+    "whole-device-disjoint": (
+        "conf.c",
+        "	if (pa.dp_nsectors == 0 || pb.dp_nsectors == 0)\n		return 0;",
+        "	if (pa.dp_nsectors == 0 || pb.dp_nsectors == 0 ||\n"
+        "	    (minor(a) & 7) == 0 || (minor(b) & 7) == 0)\n"
+        "		return 0;",
+    ),
+    "failed-query-disjoint": (
+        "conf.c",
+        "(caddr_t)&pb, 0) != 0)\n		return 1;",
+        "(caddr_t)&pb, 0) != 0)\n		return 0;",
+    ),
     # sys/arch/rp2040/dev/flash.c
     "reinit-unguarded": (
         "flash.c",

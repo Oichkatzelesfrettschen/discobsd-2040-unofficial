@@ -41,7 +41,7 @@
  * level before the interval ends changes nothing. The pin's polarity is not
  * interpreted: any stable change counts. DIOCMEDIAGONE reports the flag to
  * unmount(2), which then releases a mount whose write-back the card can no
- * longer take.
+ * longer take; DIOCGETPART reports the extents blkoverlap() in conf.c compares.
  *
  * Every blocking spl on the RP2040 is PRIMASK (machine/intr.h), and
  * splsoftclock() blocks nothing, so the sections that must exclude the

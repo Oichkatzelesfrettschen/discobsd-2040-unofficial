@@ -23,7 +23,7 @@
 # sdstrat_test compiles the SD disk driver (sd.c) unchanged against the
 # kernel's buf.h and disk.h through the headers in shim/ and a card behind
 # fake sdspi calls, then drives sdopen, sdstrategy and sdsize with the
-# requests physio() and the buffer cache make; thirty-nine mutants of sd.c
+# requests physio() and the buffer cache make; forty mutants of sd.c
 # must fail it.
 #
 # picoaudio_test compiles the bell driver (picoaudio.c) unchanged against
@@ -310,7 +310,8 @@ sdstrat-mutants: \
 	sdstrat-mutant-accept-flag \
 	sdstrat-mutant-spl-dropped \
 	sdstrat-mutant-media-gone-constant \
-	sdstrat-mutant-media-gone-inverted
+	sdstrat-mutant-media-gone-inverted \
+	sdstrat-mutant-getpart-whole
 
 sdstrat-mutant-whole-block-only:
 	${SDSTRAT_MUT} sd.c \
@@ -470,6 +471,10 @@ sdstrat-mutant-media-gone-inverted:
 	${SDSTRAT_MUT} sd.c \
 	    's/^\t\t\*(int \*)addr = sd_replaced();/\t\t*(int *)addr = !sd_replaced();/' sd.c
 
+sdstrat-mutant-getpart-whole:
+	${SDSTRAT_MUT} sd.c \
+	    's/\*(struct diskpart \*)addr = sdpt\[part\];/*(struct diskpart *)addr = sdpt[0];/' sd.c
+
 
 PICOAUDIO_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
 		picoaudio_test.c
@@ -578,7 +583,8 @@ clean:
 	sdstrat-mutant-accept-flag \
 	sdstrat-mutant-spl-dropped \
 	sdstrat-mutant-media-gone-constant \
-	sdstrat-mutant-media-gone-inverted
+	sdstrat-mutant-media-gone-inverted \
+	sdstrat-mutant-getpart-whole
 
 .PHONY: picoaudio-mutants \
 	picoaudio-mutant-left-override \

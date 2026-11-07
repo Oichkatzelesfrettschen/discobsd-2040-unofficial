@@ -55529,6 +55529,7 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
+            "shift-expression",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],

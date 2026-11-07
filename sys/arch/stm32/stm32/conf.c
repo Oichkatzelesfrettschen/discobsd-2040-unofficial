@@ -313,3 +313,13 @@ chrtoblk(dev_t dev __unused)
 {
 	return NODEV;
 }
+
+/*
+ * Routine to determine whether two block devices address the same storage.
+ * A minimal stub routine can always compare the device numbers.
+ */
+int
+blkoverlap(dev_t a, dev_t b)
+{
+	return a == b;
+}

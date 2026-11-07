@@ -1080,6 +1080,124 @@ test_media_gone_with_open_descriptor_defers_close(void)
 }
 
 /*
+ * Securelevel 1 refuses a write open of a device whose storage a mounted
+ * filesystem uses. The whole-device nodes and overlapping partitions share
+ * sectors with the mounted one even though their device numbers differ.
+ */
+static int
+try_open(dev_t dev, int mode, int flag)
+{
+	struct node n;
+	int error = open_node(&n, mode, dev, flag);
+
+	if (error == 0)
+		close_node(&n);
+	return error;
+}
+
+static void
+test_overlap_sd(void)
+{
+	boot_machine();
+	HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+	securelevel = 1;
+	/* Exact device: refused before and after. */
+	HK_CHECK(try_open(RSD_A, IFCHR | 0600, FWRITE) == EBUSY);
+	HK_CHECK(try_open(SD_A, IFBLK | 0600, FREAD) == EBUSY);
+	/* The whole card covers partition a. */
+	HK_CHECK(try_open(RSD_WHOLE, IFCHR | 0600, FWRITE) == EBUSY);
+	HK_CHECK(try_open(SD_WHOLE, IFBLK | 0600, FWRITE) == EBUSY);
+	/* A read-only raw open writes nothing. */
+	HK_CHECK(try_open(RSD_WHOLE, IFCHR | 0600, FREAD) == 0);
+	/* Partition c overlaps a, partition b only touches it. */
+	HK_CHECK(try_open(RSD_C, IFCHR | 0600, FWRITE) == EBUSY);
+	HK_CHECK(try_open(SD_C, IFBLK | 0600, FWRITE) == EBUSY);
+	HK_CHECK(try_open(RSD_B, IFCHR | 0600, FWRITE) == 0);
+	HK_CHECK(try_open(SD_B, IFBLK | 0600, FWRITE) == 0);
+	/* Securelevel 0 admits all of them. */
+	securelevel = 0;
+	HK_CHECK(try_open(RSD_WHOLE, IFCHR | 0600, FWRITE) == 0);
+	HK_CHECK(try_open(RSD_C, IFCHR | 0600, FWRITE) == 0);
+}
+
+static void
+test_overlap_sd_mbr_entries(void)
+{
+	boot_machine();
+	HK_CHECK(do_mount("/dev/sd0c", "/mnt", 0) == 0);
+	securelevel = 1;
+	/* c is mounted; a (sectors 2 to 61) and b (62 to 121) both overlap it. */
+	HK_CHECK(try_open(RSD_A, IFCHR | 0600, FWRITE) == EBUSY);
+	HK_CHECK(try_open(RSD_B, IFCHR | 0600, FWRITE) == EBUSY);
+	HK_CHECK(try_open(RSD_WHOLE, IFCHR | 0600, FWRITE) == EBUSY);
+	HK_CHECK(try_open(RSD_C, IFCHR | 0600, FWRITE) == EBUSY);
+	/* A partition table entry with no sectors holds no storage. */
+	HK_CHECK(try_open(makedev(SD_CMAJOR, 4), IFCHR | 0600, FWRITE) ==
+	    ENXIO);
+}
+
+static void
+test_overlap_flash(void)
+{
+	boot_machine();
+	securelevel = 1;
+	/* The root fl0a is mounted; fl0 covers it. */
+	HK_CHECK(try_open(FL_ROOT, IFBLK | 0600, FREAD) == EBUSY);
+	HK_CHECK(try_open(FL_WHOLE, IFBLK | 0600, FREAD) == EBUSY);
+	HK_CHECK(try_open(FL_WHOLE, IFBLK | 0600, FWRITE) == EBUSY);
+	/* fl1, the raw swap region, is another unit. */
+	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FWRITE) == 0);
+	/* Another partition of the table that does not overlap the root. */
+	fldrives[0].part[2].dp_offset = 102;
+	fldrives[0].part[2].dp_nsectors = 20;
+	HK_CHECK(try_open(makedev(0, 2), IFBLK | 0600, FWRITE) == 0);
+	fldrives[0].part[2].dp_offset = 100;
+	HK_CHECK(try_open(makedev(0, 2), IFBLK | 0600, FWRITE) == EBUSY);
+}
+
+static void
+test_overlap_unknown_major_is_exact(void)
+{
+	boot_machine();
+	HK_CHECK(do_mount("/dev/xd1", "/mnt", 0) == 0);
+	securelevel = 1;
+	HK_CHECK(try_open(makedev(XD_MAJOR, 1), IFBLK | 0600, FWRITE) == EBUSY);
+	HK_CHECK(try_open(makedev(XD_MAJOR, 0), IFBLK | 0600, FWRITE) == 0);
+	/* The same minor in a known major is a different device. */
+	HK_CHECK(try_open(SD_A, IFBLK | 0600, FWRITE) == 0);
+}
+
+static void
+test_overlap_other_unit_and_majors(void)
+{
+	boot_machine();
+	HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+	securelevel = 1;
+	/* sd unit 1 does not exist; fl0 and sd0 share no storage. */
+	HK_CHECK(try_open(makedev(SD_BMAJOR, 9), IFBLK | 0600, FWRITE) !=
+	    0);
+	HK_CHECK(blkoverlap(SD_A, FL_ROOT) == 0);
+	HK_CHECK(blkoverlap(FL_ROOT, SD_A) == 0);
+	HK_CHECK(blkoverlap(SD_A, SD_A) == 1);
+	HK_CHECK(blkoverlap(SD_WHOLE, SD_A) == 1);
+	HK_CHECK(blkoverlap(SD_A, SD_WHOLE) == 1);
+	HK_CHECK(blkoverlap(SD_A, SD_B) == 0);
+	HK_CHECK(blkoverlap(SD_B, SD_A) == 0);
+	HK_CHECK(blkoverlap(SD_A, SD_C) == 1);
+	HK_CHECK(blkoverlap(SD_C, SD_B) == 1);
+	HK_CHECK(blkoverlap(makedev(SD_BMAJOR, 1), makedev(SD_BMAJOR, 9)) == 0);
+	/* A node of the same unit that the driver cannot describe is refused. */
+	HK_CHECK(blkoverlap(SD_A, makedev(SD_BMAJOR, 5)) == 1);
+	HK_CHECK(try_open(makedev(SD_BMAJOR, 5), IFBLK | 0600, FWRITE) ==
+	    EBUSY);
+	/* Equal numbers overlap in every major, known or not. */
+	HK_CHECK(blkoverlap(makedev(XD_MAJOR, 3), makedev(XD_MAJOR, 3)) == 1);
+	HK_CHECK(blkoverlap(makedev(XD_MAJOR, 3), makedev(XD_MAJOR, 4)) == 0);
+	HK_CHECK(blkoverlap(makedev(9, 1), makedev(9, 1)) == 1);
+	HK_CHECK(blkoverlap(makedev(9, 1), makedev(9, 0)) == 0);
+}
+
+/*
  * The flash driver's DIOCREINIT forgets the table so that the next
  * transfer reads it again. The root filesystem on fl0a is addressed
  * through that table, so the request is refused while any partition other
@@ -1157,6 +1275,11 @@ main(void)
 	test_driver_without_query_keeps_failure();
 	test_media_gone_with_open_file_is_busy();
 	test_media_gone_with_open_descriptor_defers_close();
+	test_overlap_sd();
+	test_overlap_sd_mbr_entries();
+	test_overlap_flash();
+	test_overlap_unknown_major_is_exact();
+	test_overlap_other_unit_and_majors();
 	test_flash_reinit();
 	test_flash_reinit_whole_device_caller();
 	return hk_verdict("ufs disk lifecycle");

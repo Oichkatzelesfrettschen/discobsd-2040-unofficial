@@ -88,6 +88,8 @@ arch/rp2040/dev/lcdfont.c		optional picocalc
 arch/rp2040/dev/st7365p.c		optional picocalc
 arch/rp2040/dev/picokbd.c		optional picocalc
 arch/rp2040/dev/picokbd_map.c		optional picocalc
+arch/rp2040/dev/psram.c			optional psram
+arch/rp2040/dev/psram_xfer.c		optional psram
 arch/rp2040/dev/flash.c			standard
 arch/rp2040/dev/flash_swap.c		standard
 arch/rp2040/dhara/error.c		standard

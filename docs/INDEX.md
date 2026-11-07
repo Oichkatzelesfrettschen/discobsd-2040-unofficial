@@ -91,6 +91,7 @@ Grouped by what they investigate.
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
 | `picocalc-calculator-and-gui.md` | the calculator and tile-graphics plan for the PicoCalc: sources and licenses mined from this tree, the other BSDs and the vendor firmware, size estimates and a staged import order |
+| `picocalc-psram.md` | the PicoCalc's ESP-PSRAM64H as swap: datasheet facts with pages, the 19-word PIO program and its timing derivation, the boot-time swap selection with `fl1` as fallback, the alternatives with costs, and the host evidence |
 | `picocalc-games-survey.md` | game sources surveyed for the PicoCalc with their licenses, the clean-room route for each excluded one, and the game plan |
 | `rp2040-second-core.md` | how the port uses the RP2040's second core: big-lock SMP ruled out, DragonFly-style single-writer rings and MINIX-style supervision kept, three tiers and an ordered, falsifiable plan that fixes the single-core decoder first |
 | `rp2040-second-core-bsd-survey.md` | DragonFly LWKT and the MINIX 3 Reincarnation Server decomposed, multiprocessor and offload precedent across the BSD trees, and the candidate architecture with a falsifier per claim |

@@ -39,6 +39,9 @@
 #ifdef PICOCALC_ENABLED
 #include <rp2040/dev/picocalc.h>
 #endif
+#ifdef PSRAM_ENABLED
+#include <rp2040/dev/psram_xfer.h>
+#endif
 
 #define	MREG32(a)		(*(volatile u_int *)(a))
 
@@ -142,6 +145,10 @@ _Static_assert(sizeof(struct mapent) == 4,
     "compact RP2040 swap descriptors must remain four bytes");
 _Static_assert(FLASH_SWAP_BYTES / FLASH_UNIT_BYTES <= (u_short)-1,
     "RP2040 raw swap must fit compact descriptors");
+#ifdef PSRAM_ENABLED
+_Static_assert(PSRAM_BYTES / DEV_BSIZE <= (u_short)-1,
+    "PSRAM swap must fit compact descriptors");
+#endif
 #endif
 struct map	swapmap[1] = {
 	{ swapent,
@@ -241,6 +248,10 @@ swap_cursor_publish(size_t next)
 		index = 0;
 	else
 		index = (next - SWAP_IMAGE_ALIGN) / SWAP_IMAGE_ALIGN;
+#ifdef PSRAM_ENABLED
+	/* The sector index is one byte of the scratch word; PSRAM has more. */
+	index &= 0xff;
+#endif
 	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH0) = SWAP_CURSOR_TAG | index;
 }
 

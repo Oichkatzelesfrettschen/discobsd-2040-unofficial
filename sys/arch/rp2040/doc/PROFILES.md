@@ -106,12 +106,15 @@ were not rebuilt with `BUILD_PDP11_V6=yes`.
 
 `BOARD` picks the default profile. `distrib/rp2040/Makefile.inc` sets
 `BOARD?=PICO` and `PROFILE?=` the board's profile, `full` for the PICO board
-and `picocalc` for the PicoCalc, and refuses any other `BOARD`. Every kernel
+and `picocalc` for the PicoCalc and for `BOARD=PICOCALC_PSRAM` (the PicoCalc
+kernel with the PSRAM swap driver, `PICOCALC.md`), and refuses any other
+`BOARD`. Every kernel
 boots every profile's root, so the board choice decides what the image
 carries, not whether it boots:
 
     bmake MACHINE=rp2040 distribution              # full
     bmake MACHINE=rp2040 BOARD=PICOCALC distribution # picocalc
+    bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution # picocalc, PSRAM kernel
     bmake MACHINE=rp2040 PROFILE=base distribution # base
     bmake MACHINE=rp2040 PROFILE=base flash        # its UF2
     bmake MACHINE=rp2040 BUILD_PDP11_V6=yes \

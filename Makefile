@@ -939,6 +939,12 @@ check-usb-reset:
 check-picocalc-host:	check-python
 		${MAKE} -C tests/picocalc check
 
+# The PicoCalc PSRAM driver against a PIO simulator and a timing model of
+# the ESP-PSRAM64H, and calibrating mutants; tests/psram/Makefile
+# states each.
+check-psram-pio:	check-python
+		${MAKE} -C tests/psram check
+
 check-usb-line-coding:
 		${MAKE} -C tests/rp2040/usb_line_coding check
 
@@ -1028,7 +1034,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-usb-set-address-interface check-usb-get-descriptor \
 		check-flash-device-bounds check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
-		check-fs-profiles check-picocalc-host
+		check-fs-profiles check-picocalc-host check-psram-pio
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
@@ -1376,7 +1382,7 @@ installfs:
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

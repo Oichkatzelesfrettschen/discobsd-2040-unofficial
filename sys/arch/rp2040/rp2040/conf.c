@@ -39,6 +39,10 @@
 #include <rp2040/dev/picocalc.h>
 #endif
 
+#ifdef PSRAM_ENABLED
+#include <rp2040/dev/psram.h>
+#endif
+
 #ifdef SDIO_ENABLED
 #endif
 
@@ -114,8 +118,16 @@ const struct bdevsw bdevsw[] = {
 	{	/* 2 - sdramp */
 		NOBDEV
 	},
-	{	/* 3 - mrams */
+	{	/* 3 - psram, the PicoCalc's ESP-PSRAM64H */
+#ifdef PSRAM_ENABLED
+#if PSRAM_MAJOR != 3
+#error Wrong PSRAM_MAJOR value!
+#endif
+		psramopen,	psramclose,	psramstrategy,
+		psramsize,	noioctl,	0
+#else
 		NOBDEV
+#endif
 	},
 	{	/* 4 - swap */
 		swopen,		swclose,	swstrategy,

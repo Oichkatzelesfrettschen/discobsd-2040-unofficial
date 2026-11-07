@@ -1068,6 +1068,14 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
 		check-libc-string-security-cross \
 		check-stdio-bounds-cross check-elf2aout
 
+# No object of a shipped program defines a global symbol that lib/libc.a also
+# defines, because `ld --just-symbols` against a shared libc image rebinds such
+# a symbol to the libc address without a diagnostic. The gate reads the built
+# program objects, so it runs before the composition gates clean them.
+check-libc-export-namespace:
+		sh tools/verify_libc_export_namespace.sh --selftest ${TOPSRC:Q}
+		sh tools/verify_libc_export_namespace.sh ${TOPSRC:Q}
+
 # Composition gates clean and relink shared program directories, so the cross
 # graph runs them after the parallel read-only contract group.
 CROSS_COMPOSITION_GATES=	check-libc-array-memory-line-cross \
@@ -1255,7 +1263,8 @@ check-cross-assembler:
 		${MAKE} -C tests/rp2040/divider_ownership check
 
 check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
-		${CROSS_COMPOSITION_GATES} .WAIT check-cross-kernel .WAIT \
+		check-libc-export-namespace .WAIT ${CROSS_COMPOSITION_GATES} .WAIT \
+		check-cross-kernel .WAIT \
 		check-cross-assembler
 
 # qemu-arm: the u-area exchange loop, the AEABI division helpers over a
@@ -1404,7 +1413,7 @@ installfs:
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross \
 		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
-		check-rp2040-shutdown check-rp2040-shutdown-cross \
+		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \
 		check-libc-environment check-libc-sysctl check-umount-contracts \

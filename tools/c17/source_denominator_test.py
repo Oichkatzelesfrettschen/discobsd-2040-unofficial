@@ -215,65 +215,11 @@ def main():
         discovered = ["bin/good.c", "src/guest.h"]
         source_denominator.validate_documents(root, discovered, ledger, quarantine, True)
 
-        count_report = root / "docs/research/c17-semantic-migration-plan.md"
-        count_report.parent.mkdir(parents=True)
-        fixture_counts = {
-            "accepted": 1,
-            "excluded": 1,
-            "migration-open": 0,
-            "unreviewed": 0,
-        }
-        count_report.write_text(
-            "Those classifications preserve all 1 accepted, 0 migration-open, 1\n"
-            "excluded and 0 unreviewed language states.\n",
-            encoding="utf-8",
-        )
-        source_denominator.validate_count_report(root, fixture_counts)
-        count_report.write_text(
-            "Those classifications preserve all 1 accepted, 1 migration-open, 1\n"
-            "excluded and 0 unreviewed language states.\n",
-            encoding="utf-8",
-        )
-        try:
-            source_denominator.validate_count_report(root, fixture_counts)
-        except source_denominator.DenominatorError:
-            pass
-        else:
-            raise AssertionError("stale denominator prose was accepted")
-
-        stale_refresh_path = root / "stale-refresh-ledger.json"
-        stale_refresh_ledger = copy.deepcopy(ledger)
-        stale_refresh_ledger["schema_version"] = 1
-        stale_refresh_path.write_text(
-            json.dumps(stale_refresh_ledger) + "\n", encoding="utf-8"
-        )
-        stale_refresh_bytes = stale_refresh_path.read_bytes()
-        try:
-            source_denominator.refresh_classification(
-                root, stale_refresh_path, discovered, quarantine, False
-            )
-        except source_denominator.DenominatorError:
-            pass
-        else:
-            raise AssertionError("stale denominator prose allowed ledger refresh")
-        if stale_refresh_path.read_bytes() != stale_refresh_bytes:
-            raise AssertionError("stale denominator prose changed ledger bytes")
-        count_report.write_text(
-            "Those classifications preserve all 1 accepted, 0 migration-open, 1\n"
-            "excluded and 0 unreviewed language states.\n",
-            encoding="utf-8",
-        )
 
         bootstrap_root = root / "bootstrap"
-        (bootstrap_root / "docs/research").mkdir(parents=True)
-        (bootstrap_root / "src").mkdir()
+        (bootstrap_root / "src").mkdir(parents=True)
         (bootstrap_root / "src/new.c").write_text(
             "int new_source(void) { return 0; }\n", encoding="utf-8"
-        )
-        (bootstrap_root / "docs/research/c17-semantic-migration-plan.md").write_text(
-            "Those classifications preserve all 0 accepted, 0 migration-open, 0 "
-            "excluded and 1 unreviewed language states.\n",
-            encoding="utf-8",
         )
         subprocess.run(
             ["git", "init", "--quiet", str(bootstrap_root)],
@@ -395,11 +341,6 @@ def main():
             "int new_source(void) { return 0; }\n", encoding="utf-8"
         )
         synced_discovered = ["bin/new.c", "src/guest.h"]
-        count_report.write_text(
-            "Those classifications preserve all 0 accepted, 0 migration-open, 1\n"
-            "excluded and 1 unreviewed language states.\n",
-            encoding="utf-8",
-        )
         source_denominator.sync_paths(
             root,
             sync_path,

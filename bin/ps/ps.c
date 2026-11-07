@@ -96,7 +96,6 @@ char uflg;              /* -u: user name */
 char wflg;              /* -w[w]: wide terminal */
 char xflg;              /* -x: ALL processes, even those without ttys */
 char *tptr, *mytty;
-char *uname;
 int file;
 int nproc;
 int nchans;

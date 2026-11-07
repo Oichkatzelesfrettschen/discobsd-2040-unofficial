@@ -234,7 +234,7 @@ extern void prt(long t);
 extern void push(struct fileblk *af);
 extern int readc(void);
 extern int readvar(char **names);
-extern void rename(int f1, int f2);
+extern void sh_rename(int f1, int f2);
 extern void replace(char **a, char *v);
 extern void reset_dir(void);
 extern void restore(int last);
@@ -382,7 +382,7 @@ extern char                             mailpname[];
 
 /* transput */
 extern char                             tmpout[];
-extern char                             *tmpnam;
+extern char                             *sh_tmpnam;
 extern int                              serial;
 
 #define TMPNAM          7

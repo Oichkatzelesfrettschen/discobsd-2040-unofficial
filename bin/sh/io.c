@@ -106,7 +106,7 @@ chkopen(char *idf)
 }
 
 void
-rename(int f1, int f2)
+sh_rename(int f1, int f2)
 {
 #ifdef RES
 	if (f1 != f2)
@@ -150,7 +150,7 @@ tmpfil(struct tempblk *tb)
 	int fd;
 
 	itos(serial++);
-	movstr(numbuf, tmpnam);
+	movstr(numbuf, sh_tmpnam);
 	fd = create(tmpout);
 	pushtemp(fd,tb);
 	return(fd);
@@ -282,7 +282,7 @@ link_iodocs(struct ionod *i)
 		free(i->iolink);
 
 		itos(serial++);
-		movstr(numbuf, tmpnam);
+		movstr(numbuf, sh_tmpnam);
 		i->iolink = make(tmpout);
 		link(i->ioname, i->iolink);
 
@@ -324,7 +324,7 @@ restore(int last)
 	for (i = topfd - 1; i >= last; i--)
 	{
 		if ((dupfd = fdmap[i].dup_fd) > 0)
-			rename(dupfd, fdmap[i].org_fd);
+			sh_rename(dupfd, fdmap[i].org_fd);
 		else
 			close(fdmap[i].org_fd);
 	}

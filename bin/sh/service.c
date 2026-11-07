@@ -75,7 +75,7 @@ initio(struct ionod *iop, int save)
 			else
 				fd = create(ion);
 			if (fd >= 0)
-				rename(fd, ioufd);
+				sh_rename(fd, ioufd);
 		}
 
 		iop = iop->ionxt;

@@ -227,3 +227,4 @@ ufs_disk_*.mutant.c
 ufs_disk_*.mutant.functions.c
 ufs_disk_*.mutant.test
 ufs_disk_*.mutant.out
+c17-machine/

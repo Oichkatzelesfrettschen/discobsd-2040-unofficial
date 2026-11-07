@@ -781,7 +781,9 @@ check-battlestar-generation: check-python
 # Relink every shipped multicall executable through the shared map seam before
 # the finite ledger compares dispatch names, manifest links, libc members and
 # packed-root arithmetic. The gate opens the root image directly, so its
-# dependency must build the image instead of accepting worktree residue. The
+# dependency must build the image instead of accepting worktree residue, and
+# --root-image hands the checker the selected board's ${FSIMG}: the retained
+# receipt keeps the PICO path distrib/rp2040/sdcard.img as its identity. The
 # maps remain ignored build evidence. Map timestamps record successful a.out
 # conversion, which finishes after the linker writes the map.
 # The gate measures every member each box carries against the unfiltered
@@ -810,7 +812,8 @@ check-multicall-composition: check-python .WAIT symlinks .WAIT ${FSIMG}
 		test -s "${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
 		touch "${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
 		${PYTHON} tools/check_multicall_composition.py --root ${TOPSRC} \
-		    --map-root ${TOPSRC}/.build-logs/multicall-link-maps
+		    --map-root ${TOPSRC}/.build-logs/multicall-link-maps \
+		    --root-image ${FSIMG}
 		${PYTHON} tools/check_multicall_composition_test.py
 
 .PHONY: check-multicall-composition
@@ -1285,18 +1288,20 @@ check-qemu:	check-python .WAIT symlinks
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.
 # Not in "check": it wants an emulator, a fetched model tree and a built
-# image, and tools/renode/check-boot.sh names whichever is missing.
+# image, and tools/renode/check-boot.sh names whichever is missing. It loads
+# the selected board's root, ${FLASHBIN}: every kernel boots every root.
 check-renode:
-		sh tools/renode/check-boot.sh
+		sh tools/renode/check-boot.sh ${FLASHBIN}
 
 # The PICOCALC kernel under Renode with the ST7365P panel and the keyboard
 # controller modeled: the boot banner, the panel's registers, a login and a
 # command typed through the I2C keyboard, all read back from the decoded
 # frame. Outside "check" for the reason check-renode is, and a separate
 # evidence class from the board: tools/renode/check-picocalc.sh names what
-# is missing.
+# is missing. It loads ${FLASHBIN}, the selected board's root, so
+# BOARD=PICOCALC pairs the PICOCALC kernel with the PICOCALC profile's root.
 check-renode-picocalc:
-		sh tools/renode/check-picocalc.sh
+		sh tools/renode/check-picocalc.sh ${FLASHBIN}
 
 # The SRAM-resident board probes, flash-id and flash-semantics, built
 # against a Pico SDK that tools/pico-sdk/sdk-path.sh resolves. Outside

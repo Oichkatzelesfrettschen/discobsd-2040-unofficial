@@ -17,7 +17,9 @@ A verifier rejects COMMON and any allocatable writable NOBITS section outside
 the named overlay before the link. `tools/generate_multicall_bss_overlay.sh`
 emits one NOLOAD output section per applet at `__app_bss_start`, sizes
 `.app_bss_extent` to the largest member, and inserts the extent before ordinary
-`.bss`. Initialized data remains in independent `.data` input sections and
+`.bss`. A binary built with one applet (an image that keeps one game) has
+no sibling to fence, so the generator omits `NOCROSSREFS` for it. Initialized
+data remains in independent `.data` input sections and
 retains its bytes. The a.out loader sees one ordinary contiguous mutable image
 whose BSS size includes the maximum private extent plus shared BSS.
 

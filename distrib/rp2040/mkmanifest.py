@@ -25,6 +25,17 @@ composed manifest:
   dangling symlink    a "symlink" whose resolved target the image lacks
   unmet closure       a selected closure whose "needs closure" is absent
   unmet path          a selected closure whose "needs path" is absent
+  empty multicall     a selected multicall binary none of whose members is
+  unlinked member     a multicall member whose dispatch name has no link
+
+A profile names closures and groups; --with and --without add and remove
+names for one build (the Make variables IMAGE_WITH and IMAGE_WITHOUT) and
+are refused when a name is unknown or one closure is both added and
+removed. A dependency is checked, never resolved: removing a closure whose
+dependent stays selected fails with the dependent's "needs" message.
+--members prints the members of a multicall binary the selection keeps, which
+the games Makefiles take as the set to link into one program;
+--list-closures prints each closure, its groups, dependencies and cost.
 
 --selftest is the calibration: it feeds the same checker compositions
 that must be rejected and the declared profiles that must pass, so a
@@ -33,8 +44,10 @@ clean run. The root Makefile's check-fs-profiles runs both halves.
 """
 
 import argparse
+import copy
 import os
 import posixpath
+import re
 import sys
 
 MARK_OPEN = "#closure"
@@ -149,89 +162,308 @@ def read_marked(path):
     return lines, closures
 
 
+
+# A closure, group or multicall member name. The Make variables IMAGE_WITH
+# and IMAGE_WITHOUT reach the shell unquoted, so Makefile.inc holds them to
+# this alphabet too.
+NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
+
+
+class Declarations:
+    """Everything the profile files declare, merged across the files read."""
+
+    def __init__(self):
+        self.profiles = {}
+        self.order = []
+        self.needs_closure = {}
+        self.needs_path = {}
+        self.groups = {}
+        self.group_order = []
+        self.multicalls = {}
+        self.costs = {}
+        self.closures = []
+        self.texts = []
+
+    def copy(self):
+        return copy.deepcopy(self)
+
+
+def parse_name(word, where, what):
+    if NAME_PATTERN.match(word) is None:
+        raise ManifestError("%s: %s '%s' is not a name (letters, digits, - and _)"
+                            % (where, what, word))
+    return word
+
+
+def parse_declarations(decl, origin, text):
+    """Add the directives of one profile file to decl."""
+    decl.texts.append((origin, text))
+    for lineno, raw in enumerate(text.splitlines(), 1):
+        words = raw.split("#", 1)[0].split()
+        if not words:
+            continue
+        where = "%s:%d" % (origin, lineno)
+        if words[0] == "profile":
+            if len(words) < 2:
+                raise ManifestError("%s: profile takes a name" % where)
+            name = words[1]
+            if name in decl.profiles:
+                raise ManifestError("%s: profile %s is declared twice" % (where, name))
+            selected = []
+            for closure in words[2:]:
+                if closure in selected:
+                    raise ManifestError(
+                        "%s: profile %s names closure %s twice" % (where, name, closure)
+                    )
+                selected.append(closure)
+            decl.profiles[name] = selected
+            decl.order.append(name)
+        elif words[0] == "closure":
+            if len(words) < 5 or words[2] != "needs" or words[3] not in (
+                "closure",
+                "path",
+            ):
+                raise ManifestError(
+                    "%s: expected 'closure NAME needs closure|path ARG ...'" % where
+                )
+            name = words[1]
+            if words[3] == "closure":
+                decl.needs_closure.setdefault(name, []).extend(words[4:])
+            else:
+                for required in words[4:]:
+                    if not required.startswith("/"):
+                        raise ManifestError(
+                            "%s: %s is not an absolute path" % (where, required)
+                        )
+                decl.needs_path.setdefault(name, []).extend(words[4:])
+        elif words[0] == "group":
+            if len(words) < 3:
+                raise ManifestError("%s: expected 'group NAME MEMBER ...'" % where)
+            name = parse_name(words[1], where, "group")
+            if name in decl.groups:
+                raise ManifestError("%s: group %s is declared twice" % (where, name))
+            members = []
+            for member in words[2:]:
+                parse_name(member, where, "member")
+                if member in members:
+                    raise ManifestError("%s: group %s names %s twice" % (where, name, member))
+                members.append(member)
+            decl.groups[name] = members
+            decl.group_order.append(name)
+        elif words[0] == "multicall":
+            if len(words) < 4 or not words[2].startswith("/"):
+                raise ManifestError(
+                    "%s: expected 'multicall CLOSURE /PATH MEMBER ...'" % where
+                )
+            host = parse_name(words[1], where, "multicall closure")
+            if host in decl.multicalls:
+                raise ManifestError("%s: multicall %s is declared twice" % (where, host))
+            members = []
+            for member in words[3:]:
+                parse_name(member, where, "member")
+                if member in members:
+                    raise ManifestError(
+                        "%s: multicall %s names %s twice" % (where, host, member)
+                    )
+                members.append(member)
+            decl.multicalls[host] = (words[2], members)
+            # A dispatch name works only through its binary, so a member
+            # carries the host as a checked dependency.
+            for member in members:
+                needs = decl.needs_closure.setdefault(member, [])
+                if host not in needs:
+                    needs.append(host)
+        elif words[0] == "cost":
+            if len(words) != 4:
+                raise ManifestError("%s: expected 'cost NAME BLOCKS INODES'" % where)
+            name = parse_name(words[1], where, "cost target")
+            if name in decl.costs:
+                raise ManifestError("%s: cost of %s is declared twice" % (where, name))
+            try:
+                figures = (int(words[2]), int(words[3]))
+            except ValueError as error:
+                raise ManifestError("%s: cost figures are whole numbers" % where) from error
+            if min(figures) < 0:
+                raise ManifestError("%s: cost figures are not negative" % where)
+            decl.costs[name] = figures
+        else:
+            raise ManifestError("%s: unknown directive '%s'" % (where, words[0]))
+    return decl
+
+
 def read_profiles(paths):
     """Read and merge the profile and closure declaration files."""
-    profiles = {}
-    order = []
-    needs_closure = {}
-    needs_path = {}
+    decl = Declarations()
     for path in paths:
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
-        for lineno, raw in enumerate(text.splitlines(), 1):
-            words = raw.split("#", 1)[0].split()
-            if not words:
-                continue
-            where = "%s:%d" % (path, lineno)
-            if words[0] == "profile":
-                if len(words) < 2:
-                    raise ManifestError("%s: profile takes a name" % where)
-                name = words[1]
-                if name in profiles:
-                    raise ManifestError("%s: profile %s is declared twice" % (where, name))
-                selected = []
-                for closure in words[2:]:
-                    if closure in selected:
-                        raise ManifestError(
-                            "%s: profile %s names closure %s twice" % (where, name, closure)
-                        )
-                    selected.append(closure)
-                profiles[name] = selected
-                order.append(name)
-            elif words[0] == "closure":
-                if len(words) < 5 or words[2] != "needs" or words[3] not in (
-                    "closure",
-                    "path",
-                ):
-                    raise ManifestError(
-                        "%s: expected 'closure NAME needs closure|path ARG ...'" % where
-                    )
-                name = words[1]
-                if words[3] == "closure":
-                    needs_closure.setdefault(name, []).extend(words[4:])
-                else:
-                    for required in words[4:]:
-                        if not required.startswith("/"):
-                            raise ManifestError(
-                                "%s: %s is not an absolute path" % (where, required)
-                            )
-                    needs_path.setdefault(name, []).extend(words[4:])
-            else:
-                raise ManifestError("%s: unknown directive '%s'" % (where, words[0]))
-    if not profiles:
+        parse_declarations(decl, path, text)
+    if not decl.profiles:
         raise ManifestError("%s: no profile is declared" % ", ".join(paths))
-    return profiles, order, needs_closure, needs_path
+    return decl
 
 
-def check_declarations(profiles, needs_closure, needs_path, closures, selected_extra):
+def expand(decl, name, trail=()):
+    """Return the closures a closure or group name stands for, in order."""
+    if name in decl.groups:
+        if name in trail:
+            raise ManifestError(
+                "group %s contains itself (%s)" % (name, " > ".join(trail + (name,)))
+            )
+        leaves = []
+        for member in decl.groups[name]:
+            for leaf in expand(decl, member, trail + (name,)):
+                if leaf not in leaves:
+                    leaves.append(leaf)
+        return leaves
+    if name in decl.closures:
+        return [name]
+    raise ManifestError("unknown closure or group %s" % name)
+
+
+def expand_all(decl, names):
+    leaves = []
+    for name in names:
+        for leaf in expand(decl, name):
+            if leaf not in leaves:
+                leaves.append(leaf)
+    return leaves
+
+
+def groups_of(decl, closure):
+    """Return the groups, nested ones included, that stand for a closure."""
+    found = []
+    for name in decl.group_order:
+        try:
+            if closure in expand(decl, name):
+                found.append(name)
+        except ManifestError:
+            continue
+    return found
+
+
+def closure_entries(lines, closure):
+    return parse_entries([line for line in lines if line.closure == closure])
+
+
+def check_declarations(decl, lines, selected_extra):
     """Hold the profile file and the manifest markers to the same closure set."""
-    known = set(closures)
+    known = set(decl.closures)
     errors = []
     for closure in selected_extra:
         if closure not in known:
             errors.append(
                 "selected closure %s has no manifest block" % closure
             )
-    for name, selected in sorted(profiles.items()):
+    for name in decl.group_order:
+        if name in known:
+            errors.append("group %s is also a closure" % name)
+        for member in decl.groups[name]:
+            if member not in known and member not in decl.groups:
+                errors.append(
+                    "group %s names %s, which is neither a closure nor a group"
+                    % (name, member)
+                )
+        try:
+            expand(decl, name)
+        except ManifestError as error:
+            if "contains itself" in str(error):
+                errors.append(str(error))
+    resolvable = known | set(decl.groups)
+    reached = set()
+    for name, selected in sorted(decl.profiles.items()):
         for closure in selected:
-            if closure not in known:
+            if closure not in resolvable:
                 errors.append("profile %s names closure %s, which the manifest never opens"
                               % (name, closure))
-    for table in (needs_closure, needs_path):
+            else:
+                try:
+                    reached.update(expand(decl, closure))
+                except ManifestError:
+                    continue
+    for table in (decl.needs_closure, decl.needs_path):
         for name in sorted(table):
             if name not in known:
                 errors.append("closure %s carries a declaration and no manifest block" % name)
-    for name in sorted(needs_closure):
-        for other in needs_closure[name]:
-            if other not in known:
+    for name in sorted(decl.needs_closure):
+        for other in decl.needs_closure[name]:
+            if other not in resolvable:
                 errors.append("closure %s needs closure %s, which the manifest never opens"
                               % (name, other))
-    for closure in closures:
-        if closure not in selected_extra and not any(
-            closure in selected for selected in profiles.values()
-        ):
+    for name in sorted(decl.costs):
+        if name not in resolvable:
+            errors.append("cost names %s, which the manifest never opens" % name)
+    claimed = {}
+    for host, (path, members) in sorted(decl.multicalls.items()):
+        if host not in known:
+            errors.append("multicall %s names a closure the manifest never opens" % host)
+            continue
+        host_entries = closure_entries(lines, host)
+        if not any(entry.path == path and entry.kind in ("f", "p") for entry in host_entries):
+            errors.append("multicall %s: closure %s installs no file %s" % (host, host, path))
+        for member in members:
+            if member not in known:
+                errors.append("multicall %s: member %s is no closure" % (host, member))
+                continue
+            if member in claimed:
+                errors.append("multicall %s: member %s already belongs to %s"
+                              % (host, member, claimed[member]))
+            claimed[member] = host
+            link = posixpath.join(posixpath.dirname(path), member)
+            if not any(entry.path == link and entry.kind == "l" and entry.target == path
+                       for entry in closure_entries(lines, member)):
+                errors.append("multicall %s: closure %s installs no link %s to %s"
+                              % (host, member, link, path))
+    for closure in decl.closures:
+        if closure not in selected_extra and closure not in reached:
             errors.append("closure %s reaches no profile" % closure)
     return errors
+
+
+class SelectionError(ManifestError):
+    """A --with or --without list the selection cannot honor."""
+
+
+def select(decl, names, selected_extra=(), with_names=(), without_names=()):
+    """Apply per-build additions and removals to a profile's closure names.
+
+    Names may be closures or groups. An unknown name, and a closure that
+    one list adds and the other removes, are refused; dependencies are not
+    resolved here -- verify() decides them against the result.
+    """
+    chosen = expand_all(decl, names)
+    added = {}
+    removed = {}
+    for label, source, table in (("--with", with_names, added),
+                                 ("--without", without_names, removed)):
+        for name in source:
+            if name not in decl.closures and name not in decl.groups:
+                raise SelectionError(
+                    "%s names unknown closure or group %s; closures are %s, groups are %s"
+                    % (label, name, " ".join(decl.closures), " ".join(decl.group_order))
+                )
+            for leaf in expand(decl, name):
+                table.setdefault(leaf, name)
+    for leaf in sorted(set(added) & set(removed)):
+        raise SelectionError(
+            "closure %s is both added (as %s) and removed (as %s)"
+            % (leaf, added[leaf], removed[leaf])
+        )
+    selected = [closure for closure in chosen if closure not in removed]
+    for closure in list(added) + list(selected_extra):
+        if closure not in selected:
+            selected.append(closure)
+    return selected
+
+
+def selected_members(decl, selected, host):
+    """Return the members of a multicall binary the selection keeps."""
+    if host not in decl.multicalls:
+        raise ManifestError("no multicall closure %s is declared; declared: %s"
+                            % (host, " ".join(sorted(decl.multicalls)) or "none"))
+    if host not in selected:
+        return []
+    return [member for member in decl.multicalls[host][1] if member in selected]
 
 
 def compose(lines, selected):
@@ -293,7 +525,9 @@ def parse_entries(lines):
     return entries
 
 
-def verify(entries, selected, needs_closure, needs_path):
+
+
+def verify(entries, selected, decl):
     """Decide the composed manifest; return the reasons it cannot ship."""
     errors = []
     dirs = {"/"}
@@ -350,19 +584,55 @@ def verify(entries, selected, needs_closure, needs_path):
             )
     chosen = set(selected)
     for closure in selected:
-        for other in needs_closure.get(closure, []):
-            if other not in chosen:
+        for other in decl.needs_closure.get(closure, []):
+            if not set(expand(decl, other)) <= chosen:
                 errors.append(
                     "closure %s needs closure %s, which this profile does not select"
                     % (closure, other)
                 )
-        for required in needs_path.get(closure, []):
+        for required in decl.needs_path.get(closure, []):
             if required not in installed:
                 errors.append(
                     "closure %s needs %s, which this profile does not install"
                     % (closure, required)
                 )
+    for host, (path, members) in sorted(decl.multicalls.items()):
+        if host not in chosen:
+            continue
+        kept = [member for member in members if member in chosen]
+        if not kept:
+            errors.append(
+                "closure %s is selected with none of its members (%s); the binary "
+                "would dispatch nothing" % (host, " ".join(members))
+            )
+        linked = sorted(
+            posixpath.basename(entry.path)
+            for entry in entries
+            if entry.kind == "l" and entry.target == path
+        )
+        for member in kept:
+            if member not in linked:
+                errors.append(
+                    "multicall %s dispatches %s, which no link in this profile reaches"
+                    % (host, member)
+                )
+        for name in linked:
+            if name not in kept:
+                errors.append(
+                    "link %s reaches %s, which does not dispatch it in this profile"
+                    % (posixpath.join(posixpath.dirname(path), name), path)
+                )
     return errors
+
+
+def describe(profile, with_names, without_names):
+    """Name a profile and the per-build changes applied to it."""
+    parts = [profile]
+    if with_names:
+        parts.append("with " + " ".join(with_names))
+    if without_names:
+        parts.append("without " + " ".join(without_names))
+    return " ".join(parts)
 
 
 def report(profile, errors):
@@ -376,12 +646,27 @@ def report(profile, errors):
 
 
 def emit(lines, output):
-    """Write the composed manifest, replacing any earlier one atomically."""
+    """Write the composed manifest, replacing any earlier one atomically.
+
+    A file that already holds the same text keeps its modification time, so
+    a rule that recomposes on every invocation rebuilds what depends on the
+    manifest only when the selection changed it.
+    """
     body = "".join(line.text + "\n" for line in lines)
+    try:
+        with open(output, encoding="utf-8") as fh:
+            if fh.read() == body:
+                return
+    except OSError:
+        pass
     temporary = output + ".new"
     with open(temporary, "w", encoding="utf-8") as fh:
         fh.write(body)
     os.replace(temporary, output)
+
+
+
+
 
 
 def load(args):
@@ -405,51 +690,31 @@ def load(args):
                 "%s: closure markers belong in --manifest inputs" % extra
             )
         appended.extend(more)
-    profiles, order, needs_closure, needs_path = read_profiles(args.profiles)
+    decl = read_profiles(args.profiles)
+    decl.closures = closures
     selected_extra = []
     for closure in args.select_closure:
         if closure in selected_extra:
             raise ManifestError("--select-closure names %s twice" % closure)
         selected_extra.append(closure)
-    errors = check_declarations(
-        profiles, needs_closure, needs_path, closures, selected_extra
-    )
+    errors = check_declarations(decl, lines, selected_extra)
     if errors:
         raise ManifestError(
             "%s and %s disagree:\n  %s"
             % (", ".join(args.profiles), ", ".join(args.manifest), "\n  ".join(errors))
         )
-    return (
-        lines,
-        appended,
-        profiles,
-        order,
-        needs_closure,
-        needs_path,
-        selected_extra,
-    )
+    return lines, appended, decl, selected_extra
 
 
-def selected_closures(profile, profiles, selected_extra):
-    """Return one profile plus explicit opt-in closures without duplicates."""
-    selected = list(profiles[profile])
-    for closure in selected_extra:
-        if closure not in selected:
-            selected.append(closure)
-    return selected
-
-
-def run_profile(
-    profile, lines, appended, profiles, needs_closure, needs_path, selected_extra
-):
-    """Compose one declared profile and decide it; return (kept, errors)."""
-    selected = selected_closures(profile, profiles, selected_extra)
+def run_profile(profile, lines, appended, decl, selected_extra, with_names=(), without_names=()):
+    """Compose one declared profile and decide it; return (selected, kept, errors)."""
+    selected = select(decl, decl.profiles[profile], selected_extra, with_names, without_names)
     kept = compose(lines, selected)
-    errors = verify(parse_entries(kept + appended), selected, needs_closure, needs_path)
-    return kept, errors
+    errors = verify(parse_entries(kept + appended), selected, decl)
+    return selected, kept, errors
 
 
-def summarize(profile, kept, appended):
+def summarize(label, kept, appended):
     """Print what the composition installs, for the build log."""
     entries = parse_entries(kept + appended)
     counts = {}
@@ -458,7 +723,7 @@ def summarize(profile, kept, appended):
     print(
         "mkmanifest: profile %s: %d directories, %d files, %d devices, %d links, %d symlinks"
         % (
-            profile,
+            label,
             counts.get("d", 0),
             counts.get("f", 0) + counts.get("p", 0),
             counts.get("b", 0) + counts.get("c", 0),
@@ -466,6 +731,63 @@ def summarize(profile, kept, appended):
             counts.get("s", 0),
         )
     )
+
+
+def format_cost(decl, name):
+    figures = decl.costs.get(name)
+    if figures is None:
+        return "-", "-"
+    return str(figures[0]), str(figures[1])
+
+
+def list_closures(decl, lines, selected):
+    """Print every closure, group and profile with dependencies and cost.
+
+    The block and inode columns are the measured figures that `cost` lines
+    in the profile file record (the method and the table are in
+    sys/arch/rp2040/doc/PROFILES.md); the install column is computed from
+    the manifest. A dash marks a closure with no recorded measurement.
+    """
+    chosen = set(selected or [])
+    rows = [("", "closure", "groups", "needs closure", "blocks", "inodes", "installs")]
+    for closure in decl.closures:
+        entries = closure_entries(lines, closure)
+        installs = " ".join(
+            entry.path for entry in entries if entry.kind in ("d", "f", "p", "l", "s")
+        )
+        blocks, inodes = format_cost(decl, closure)
+        rows.append((
+            "*" if closure in chosen else "",
+            closure,
+            ",".join(groups_of(decl, closure)) or "-",
+            ",".join(decl.needs_closure.get(closure, [])) or "-",
+            blocks,
+            inodes,
+            installs or "-",
+        ))
+    widths = [max(len(row[col]) for row in rows) for col in range(6)]
+    for row in rows:
+        print("  ".join(cell.ljust(widths[col]) for col, cell in enumerate(row[:6]))
+              + "  " + row[6])
+    print()
+    print("groups (a group name stands for its members in a profile, --with and --without):")
+    for name in decl.group_order:
+        blocks, inodes = format_cost(decl, name)
+        print("  %-12s %s  [blocks %s, inodes %s]"
+              % (name, " ".join(decl.groups[name]), blocks, inodes))
+    print()
+    print("multicall binaries (the Make variable <HOST>_TOOLS carries the selected members):")
+    for host, (path, members) in decl.multicalls.items():
+        print("  %-12s %s: %s" % (host, path, " ".join(members)))
+    print()
+    print("profiles:")
+    for name in decl.order:
+        print("  %-12s %s" % (name, " ".join(decl.profiles[name]) or "(base only)"))
+    print()
+    print("* marks a closure the current profile and selection keep. Blocks and inodes are")
+    print("measured, not computed: the free counts an image of base plus the closure and the")
+    print("closures it needs loses (fsutil --verbose), recorded as cost lines in the profiles")
+    print("file; '-' marks a closure with no recorded measurement.")
 
 
 def drop(lines, text):
@@ -483,127 +805,186 @@ def drop(lines, text):
     return kept
 
 
-def selftest(
-    lines,
-    appended,
-    profiles,
-    needs_closure,
-    needs_path,
-    selected_extra,
-):
+
+
+def new_case(verdict, label, names, expected=None, removed=None, with_names=(),
+             without_names=(), needs_path=None, members=None):
+    return {
+        "verdict": verdict,
+        "label": label,
+        "names": list(names),
+        "expected": expected,
+        "removed": removed,
+        "with": list(with_names),
+        "without": list(without_names),
+        "needs_path": needs_path,
+        "members": members,
+    }
+
+
+def run_case(case, lines, appended, decl, selected_extra):
+    """Decide one calibration case; return (selected, reasons it cannot ship)."""
+    local = decl
+    if case["needs_path"]:
+        local = decl.copy()
+        for closure, paths in case["needs_path"].items():
+            local.needs_path.setdefault(closure, []).extend(paths)
+    try:
+        selected = select(
+            local, case["names"], selected_extra, case["with"], case["without"]
+        )
+    except ManifestError as error:
+        return None, [str(error)]
+    kept = compose(lines, selected)
+    if case["removed"]:
+        kept = drop(kept, case["removed"])
+    return selected, verify(parse_entries(kept + appended), selected, local)
+
+
+def declaration_cases():
+    """Declaration text that check_declarations must refuse, with the reason."""
+    return [
+        ("group declared twice", "group games keen\n", "group games is declared twice"),
+        ("group that contains itself",
+         "group loop-a loop-b\ngroup loop-b loop-a\n", "contains itself"),
+        ("group that shares a closure's name", "group keen fifteen\n",
+         "group keen is also a closure"),
+        ("group member that names nothing", "group ghosts nosuch\n",
+         "nosuch, which is neither a closure nor a group"),
+        ("cost of a closure no manifest opens", "cost nosuch 1 1\n",
+         "cost names nosuch, which the manifest never opens"),
+        ("dependency on a closure no manifest opens", "closure keen needs closure nosuch\n",
+         "needs closure nosuch, which the manifest never opens"),
+        ("multicall member without a link to its binary",
+         "multicall coremark /usr/bin/coremark keen\n",
+         "closure keen installs no link /usr/bin/keen to /usr/bin/coremark"),
+        ("multicall binary its closure never installs",
+         "multicall calc /usr/bin/nothere flood\n",
+         "closure calc installs no file /usr/bin/nothere"),
+        ("multicall member claimed by two binaries",
+         "multicall coremark /usr/bin/coremark keen\n",
+         "member keen already belongs to"),
+        ("profile line that names nothing", "profile ghostly nosuch\n",
+         "profile ghostly names closure nosuch, which the manifest never opens"),
+    ]
+
+
+def selftest(lines, appended, decl, selected_extra):
     """Calibrate the checker: every case below must land on its stated side."""
+    full = decl.profiles["full"]
     cases = []
-    for name in sorted(profiles):
-        cases.append(
-            (
-                "accept",
-                "declared profile %s" % name,
-                selected_closures(name, profiles, selected_extra),
-                None,
-                None,
-            )
-        )
-    cases.append(
-        (
-            "reject",
-            "compiler without its link library",
-            ["coremark", "toolchain", "games"],
-            None,
-            "needs closure toolchainlib",
-        )
-    )
-    cases.append(
-        (
-            "reject",
-            "link library without its compiler",
-            ["toolchainlib"],
-            None,
-            "needs closure toolchain",
-        )
-    )
-    cases.append(
-        (
-            "reject",
-            "gamebox entry points without gamebox",
-            ["games"],
-            "pack /usr/games/gamebox",
-            "hard link /usr/games/keen has no source",
-        )
-    )
-    cases.append(
-        (
-            "reject",
-            "puzzlebox entry points without puzzlebox",
-            ["games", "puzzles"],
-            "pack /usr/games/puzzlebox",
-            "hard link /usr/games/flood has no source",
-        )
-    )
-    cases.append(
-        (
-            "reject",
-            "puzzlebox without the games closure that creates its directory",
-            ["puzzles"],
-            None,
-            "needs closure games",
-        )
-    )
-    cases.append(
-        (
-            "reject",
-            "compiler without /usr/lib/libc.a",
-            ["toolchain", "toolchainlib"],
-            "file /usr/lib/libc.a",
-            "needs /usr/lib/libc.a",
-        )
-    )
-    cases.append(
-        (
-            "reject",
-            "calc-bignum without dc",
-            ["calc-bignum"],
-            "pack /usr/bin/dc",
-            "needs /usr/bin/dc",
-        )
-    )
-    cases.append(
-        (
-            "reject",
-            "bc without its -l library",
-            ["calc-bignum"],
-            "file /usr/share/misc/bc.library",
-            "needs /usr/share/misc/bc.library",
-        )
-    )
-    cases.append(
-        (
-            "reject",
-            "gamebox without its directory",
-            ["games"],
-            "dir /usr/games",
-            "needs directory /usr/games",
-        )
-    )
+    for name in sorted(decl.profiles):
+        cases.append(new_case("accept", "declared profile %s" % name, decl.profiles[name]))
+    cases.append(new_case(
+        "reject", "compiler without its link library",
+        ["coremark", "toolchain", "games"], "needs closure toolchainlib"))
+    cases.append(new_case(
+        "reject", "link library without its compiler", ["toolchainlib"],
+        "closure toolchainlib needs closure cc"))
+    cases.append(new_case(
+        "reject", "gamebox entry points without gamebox", ["games"],
+        "hard link /usr/games/keen has no source", removed="pack /usr/games/gamebox"))
+    cases.append(new_case(
+        "reject", "puzzlebox entry points without puzzlebox", ["games", "puzzles"],
+        "hard link /usr/games/flood has no source", removed="pack /usr/games/puzzlebox"))
+    cases.append(new_case(
+        "reject", "puzzlebox without the games directory it installs into", ["puzzles"],
+        "closure puzzlebox needs closure gamesdir"))
+    cases.append(new_case(
+        "reject", "compiler without /usr/lib/libc.a", ["toolchain", "toolchainlib"],
+        "needs /usr/lib/libc.a", removed="file /usr/lib/libc.a"))
+    cases.append(new_case(
+        "reject", "calc-bignum without dc", ["calc-bignum"],
+        "needs /usr/bin/dc", removed="pack /usr/bin/dc"))
+    cases.append(new_case(
+        "reject", "bc without its -l library", ["calc-bignum"],
+        "needs /usr/share/misc/bc.library", removed="file /usr/share/misc/bc.library"))
+    cases.append(new_case(
+        "reject", "gamebox without its directory", ["games"],
+        "needs directory /usr/games", removed="dir /usr/games"))
+    cases.append(new_case(
+        "reject", "gamebox entry point whose link the image drops",
+        ["games"], "multicall gamebox dispatches keen, which no link in this profile reaches",
+        removed="link /usr/games/keen"))
+    # Per-build selection: the Make variables IMAGE_WITH and IMAGE_WITHOUT.
+    cases.append(new_case(
+        "reject", "--with of an unknown name", full,
+        "--with names unknown closure or group nosuch", with_names=["nosuch"]))
+    cases.append(new_case(
+        "reject", "--without of an unknown name", full,
+        "--without names unknown closure or group nosuch", without_names=["nosuch"]))
+    cases.append(new_case(
+        "reject", "a closure both added and removed", full,
+        "closure calc is both added (as calc) and removed (as calc)",
+        with_names=["calc"], without_names=["calc"]))
+    cases.append(new_case(
+        "reject", "a group added while one of its members is removed", full,
+        "closure keen is both added (as games) and removed (as keen)",
+        with_names=["games"], without_names=["keen"]))
+    cases.append(new_case(
+        "reject", "toolchain removed while toolchainlib stays", full,
+        "closure toolchainlib needs closure cc, which this profile does not select",
+        without_names=["toolchain"]))
+    cases.append(new_case(
+        "reject", "gamebox removed while its members stay", full,
+        "closure keen needs closure gamebox, which this profile does not select",
+        without_names=["gamebox"]))
+    cases.append(new_case(
+        "reject", "every gamebox member removed while gamebox stays", full,
+        "closure gamebox is selected with none of its members",
+        without_names=["fifteen", "keen", "bubble", "fourfall", "coil"]))
+    cases.append(new_case(
+        "reject", "a member removed whose link another selected part needs",
+        decl.profiles["picocalc"],
+        "closure calc needs /usr/games/keen, which this profile does not install",
+        without_names=["keen"], needs_path={"calc": ["/usr/games/keen"]}))
+    cases.append(new_case(
+        "accept", "toolchain and toolchainlib removed together", full,
+        without_names=["toolchain", "toolchainlib"]))
+    cases.append(new_case(
+        "accept", "one gamebox member removed", full, without_names=["keen"],
+        members={"gamebox": ["fifteen", "bubble", "fourfall", "coil"],
+                 "puzzlebox": ["flood", "samegame", "unruly", "lightup"]}))
+    cases.append(new_case(
+        "accept", "puzzles kept and every gamebox member removed", full,
+        without_names=["gamebox", "fifteen", "keen", "bubble", "fourfall", "coil"],
+        members={"gamebox": [], "puzzlebox": ["flood", "samegame", "unruly", "lightup"]}))
+    cases.append(new_case(
+        "accept", "a single puzzle on the base system", [],
+        with_names=["gamesdir", "puzzlebox", "lightup"],
+        members={"gamebox": [], "puzzlebox": ["lightup"]}))
+    cases.append(new_case(
+        "accept", "dc without bc", full, with_names=["dc"]))
+    cases.append(new_case(
+        "accept", "assembler and linker without the compiler", [],
+        with_names=["as", "ld"]))
+    cases.append(new_case(
+        "accept", "picocalc with the arbitrary-precision calculator removed",
+        decl.profiles["picocalc"], without_names=["calc-bignum"]))
     failures = 0
-    for verdict, label, selected, removed, expected in cases:
-        selected = list(selected)
-        for closure in selected_extra:
-            if closure not in selected:
-                selected.append(closure)
-        kept = compose(lines, selected)
-        if removed:
-            kept = drop(kept, removed)
-        errors = verify(parse_entries(kept + appended), selected, needs_closure, needs_path)
-        if verdict == "accept":
+    for case in cases:
+        label = case["label"]
+        selected, errors = run_case(case, lines, appended, decl, selected_extra)
+        joined = "\n".join(errors)
+        if case["verdict"] == "accept":
             if errors:
                 failures += 1
                 print("selftest: %s must compose, and does not:" % label, file=sys.stderr)
                 for error in errors:
                     print("  %s" % error, file=sys.stderr)
+                continue
+            wrong = [
+                host for host, wanted in sorted((case["members"] or {}).items())
+                if selected_members(decl, selected, host) != wanted
+            ]
+            if wrong:
+                failures += 1
+                print("selftest: %s keeps the wrong members of %s" % (label, " ".join(wrong)),
+                      file=sys.stderr)
             else:
                 print("selftest: accept %s" % label)
         else:
-            joined = "\n".join(errors)
+            expected = case["expected"]
             if not errors:
                 failures += 1
                 print("selftest: %s must be rejected, and composed" % label, file=sys.stderr)
@@ -616,7 +997,25 @@ def selftest(
             else:
                 print("selftest: reject %s -- %s" % (label, expected))
 
-    selected = selected_closures("full", profiles, selected_extra)
+    for label, text, expected in declaration_cases():
+        mutated = decl.copy()
+        reasons = []
+        try:
+            parse_declarations(mutated, "selftest", text)
+            reasons = check_declarations(mutated, lines, selected_extra)
+        except ManifestError as error:
+            reasons = [str(error)]
+        if expected not in "\n".join(reasons):
+            failures += 1
+            print(
+                "selftest: %s must be refused for '%s':\n%s"
+                % (label, expected, "\n".join(reasons) or "declaration accepted"),
+                file=sys.stderr,
+            )
+        else:
+            print("selftest: reject %s -- %s" % (label, expected))
+
+    selected = select(decl, full, selected_extra)
     mode_cases = (
         (
             "passwd without setuid mode",
@@ -632,7 +1031,7 @@ def selftest(
     for label, removed_mode, expected_mode_error in mode_cases:
         bad_mode_lines = drop(lines, removed_mode)
         bad_mode_entries = parse_entries(compose(bad_mode_lines, selected) + appended)
-        mode_errors = verify(bad_mode_entries, selected, needs_closure, needs_path)
+        mode_errors = verify(bad_mode_entries, selected, decl)
         if expected_mode_error not in "\n".join(mode_errors):
             failures += 1
             print(
@@ -668,12 +1067,7 @@ def selftest(
             kept = compose(lines, selected)
             if removed:
                 kept = drop(kept, removed)
-            errors = verify(
-                parse_entries(kept + appended),
-                selected,
-                needs_closure,
-                needs_path,
-            )
+            errors = verify(parse_entries(kept + appended), selected, decl)
             joined = "\n".join(errors)
             if expected not in joined:
                 failures += 1
@@ -708,6 +1102,22 @@ def main():
         help="select an opt-in closure in addition to the named profile",
     )
     parser.add_argument(
+        "--with",
+        dest="with_names",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="add a closure or group to the profile for this build; repeatable",
+    )
+    parser.add_argument(
+        "--without",
+        dest="without_names",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="remove a closure or group from the profile for this build; repeatable",
+    )
+    parser.add_argument(
         "--append",
         action="append",
         default=[],
@@ -718,82 +1128,74 @@ def main():
     parser.add_argument("--check-all", action="store_true", help="decide every declared profile")
     parser.add_argument("--selftest", action="store_true", help="calibrate the checker")
     parser.add_argument("--list", action="store_true", help="print the declared profile names")
+    parser.add_argument(
+        "--list-closures",
+        action="store_true",
+        help="print each closure with its groups, dependencies, cost and install paths",
+    )
+    parser.add_argument(
+        "--members",
+        metavar="HOST",
+        help="print the members of multicall closure HOST that the profile keeps",
+    )
     args = parser.parse_args()
 
     try:
-        (
-            lines,
-            appended,
-            profiles,
-            order,
-            needs_closure,
-            needs_path,
-            selected_extra,
-        ) = load(args)
+        lines, appended, decl, selected_extra = load(args)
     except (OSError, ManifestError) as error:
         print("mkmanifest: %s" % error, file=sys.stderr)
         return 2
 
     if args.list:
-        for name in order:
-            print(" ".join([name] + profiles[name]))
+        for name in decl.order:
+            print(" ".join([name] + decl.profiles[name]))
         return 0
 
     try:
         if args.selftest:
-            return (
-                1
-                if selftest(
-                    lines,
-                    appended,
-                    profiles,
-                    needs_closure,
-                    needs_path,
-                    selected_extra,
-                )
-                else 0
-            )
+            return 1 if selftest(lines, appended, decl, selected_extra) else 0
 
         if args.check_all:
             failures = 0
-            for name in order:
-                kept, errors = run_profile(
-                    name,
-                    lines,
-                    appended,
-                    profiles,
-                    needs_closure,
-                    needs_path,
-                    selected_extra,
-                )
+            for name in decl.order:
+                _, kept, errors = run_profile(name, lines, appended, decl, selected_extra)
                 if report(name, errors):
                     summarize(name, kept, appended)
                 else:
                     failures += 1
             return 1 if failures else 0
 
-        if not args.profile:
-            print("mkmanifest: name a profile, --check-all, --selftest or --list", file=sys.stderr)
-            return 2
-        if args.profile not in profiles:
+        if args.profile and args.profile not in decl.profiles:
             print(
                 "mkmanifest: %s declares no profile %s; it declares %s"
-                % (", ".join(args.profiles), args.profile, " ".join(order)),
+                % (", ".join(args.profiles), args.profile, " ".join(decl.order)),
                 file=sys.stderr,
             )
             return 2
-        kept, errors = run_profile(
-            args.profile,
-            lines,
-            appended,
-            profiles,
-            needs_closure,
-            needs_path,
-            selected_extra,
+
+        if args.list_closures:
+            selected = None
+            if args.profile:
+                selected = select(decl, decl.profiles[args.profile], selected_extra,
+                                  args.with_names, args.without_names)
+            list_closures(decl, lines, selected)
+            return 0
+
+        if not args.profile:
+            print("mkmanifest: name a profile, --check-all, --selftest, --list "
+                  "or --list-closures", file=sys.stderr)
+            return 2
+        label = describe(args.profile, args.with_names, args.without_names)
+        selected, kept, errors = run_profile(
+            args.profile, lines, appended, decl, selected_extra,
+            args.with_names, args.without_names,
         )
-        if not report(args.profile, errors):
+        if args.members:
+            print(" ".join(selected_members(decl, selected, args.members)))
+            return 0
+        if not report(label, errors):
             return 1
-        summarize(args.profile, kept, appended)
+        summarize(label, kept, appended)
         if args.output:
             emit(kept, args.output)
     except (OSError, ManifestError) as error:

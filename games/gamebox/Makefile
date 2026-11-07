@@ -16,18 +16,40 @@ BINDIR=		/usr/games
 
 TOOLS=		fifteen keen bubble fourfall coil
 
+# The members linked into this build, in the order the dispatch table lists
+# them. GAMEBOX_TOOLS (set by distrib/rp2040/Makefile.inc from the image
+# selection, see sys/arch/rp2040/doc/PROFILES.md) narrows the build to the
+# members an image keeps; a build that leaves it unset links every tool, and
+# a selection that keeps none builds nothing. TOOLS stays the full set the
+# manifest links, which tools/check_multicall_composition.py reads.
+.if defined(GAMEBOX_TOOLS)
+MEMBERS=	${GAMEBOX_TOOLS}
+.else
+MEMBERS=	${TOOLS}
+.endif
+.for t in ${MEMBERS}
+.if empty(TOOLS:M${t})
+.error GAMEBOX_TOOLS names ${t}, which gamebox does not carry; it carries ${TOOLS}
+.endif
+.endfor
+
 # Dispatch names the manifest deliberately leaves unlinked; the multicall
 # composition gate (tools/check_multicall_composition.py) rejects any
 # other dispatch name that ships no link.
 UNSHIPPED_TOOLS=
 
-OBJS=		${TOOLS:S/$/.tool.o/}
+OBJS=		${MEMBERS:S/$/.tool.o/}
 PROG=		gamebox
 
+.if empty(MEMBERS)
+all:
+	@echo "gamebox: no member selected, nothing to build"
+.else
 all:		${PROG}
+.endif
 include ${TOPSRC}/share/mk/multicall-bss-overlay.mk
 
-.for t in ${TOOLS}
+.for t in ${MEMBERS}
 $t.tool.o:
 	${MAKE} -C ${TOPSRC}/games/$t MACHINE=${MACHINE} clean >/dev/null
 	${MAKE} -C ${TOPSRC}/games/$t MACHINE=${MACHINE} \
@@ -39,8 +61,11 @@ $t.tool.o:
 	rm -f $@.r
 .endfor
 
+# The table lists the selected members, which no file's age records, so the
+# source is regenerated on every build like the objects it names.
+.PHONY:		gamebox.c
 gamebox.c:	gamebox.c.in Makefile
-	decls=""; table=""; for t in ${TOOLS}; do \
+	decls=""; table=""; for t in ${MEMBERS}; do \
 		decls="$$decls\nint $${t}_main(int, char **);"; \
 		table="$$table\n\t{ \"$$t\", $${t}_main },"; done; \
 	sed -e "s|@DECLS@|$$decls|" -e "s|@TABLE@|$$table|" gamebox.c.in > $@
@@ -52,7 +77,9 @@ ${PROG}:	gamebox.o ${OBJS} ${MULTICALL_BSS_LDSCRIPT}
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 
 install:	all
+.if !empty(MEMBERS)
 	${INSTALL} -m 755 ${PROG} ${DESTDIR}${BINDIR}/${PROG}
+.endif
 
 clean:
 	rm -f *.o *.r *.elf ${PROG} gamebox.c

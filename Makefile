@@ -1158,7 +1158,10 @@ check-compress-host: check-python
 # that stopped deciding fails here rather than reporting a clean run.
 # tools/fsutil/fsutil.c's add_hardlink() only warns on a missing source and
 # leaves the exit status at 0, which is the image this gate keeps from
-# being written. sys/arch/rp2040/doc/PROFILES.md is the authority.
+# being written. check-image-selection.sh holds the Make variables
+# IMAGE_WITH and IMAGE_WITHOUT to the same standard: it refuses selections
+# that must fail, with the reason, and reads back the member lists the
+# games Makefiles receive. sys/arch/rp2040/doc/PROFILES.md is the authority.
 check-fs-profiles:	check-python .WAIT
 		${PYTHON} distrib/rp2040/mkmanifest.py --check-all \
 		    ${FS_CLOSURE_ARGS} ${FS_PROFILE_ARGS} ${FS_SELECT_ARGS} \
@@ -1166,6 +1169,7 @@ check-fs-profiles:	check-python .WAIT
 		${PYTHON} distrib/rp2040/mkmanifest.py --selftest \
 		    ${FS_CLOSURE_ARGS} ${FS_PROFILE_ARGS} ${FS_SELECT_ARGS} \
 		    --append=distrib/rp2040/md.rp2040
+		sh distrib/rp2040/check-image-selection.sh ${MAKE}
 
 check-host:	check-python .WAIT symlinks .WAIT ${HOST_GATES} ${HOST_PROGRAM_GATES}
 

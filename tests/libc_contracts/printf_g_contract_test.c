@@ -97,13 +97,24 @@ significant_digits(const char *text)
 }
 #endif
 
+/*
+ * The tree rounds a %g exact tie to even and removes the zero the result may
+ * end in, as C17 7.21.6.1p8 requires without the # flag. newlib and the
+ * macOS libc keep that zero ("%.2g" of 8050 is "8.0e+03"), so a run against
+ * either host cannot judge a %g tie: the Thumb-1 build defines
+ * HOST_G_TIE_BUG, and __APPLE__ defines it by default. The fixed vectors pin
+ * the ties against literals, and the Linux glibc run judges every tie.
+ */
+#if defined(__APPLE__) && !defined(HOST_G_TIE_BUG)
+#define HOST_G_TIE_BUG 1
+#endif
+
 #ifdef HOST_G_TIE_BUG
+static unsigned long tie_skipped;
+
 /*
  * Whether rounding the exact decimal digits of value to the precision of
- * format meets an exact tie. The tree rounds a tie to even and removes the
- * zero a %g result may end in; newlib keeps that zero ("%.2g" of 8050 is
- * "8.0e+03"), so the Thumb-1 run cannot judge a %g tie against it. The
- * fixed vectors pin the ties against literals. "%.60e" is exact for the
+ * format meets an exact tie. "%.60e" is exact for the
  * values drawn here: their binary expansions end well inside 60 digits.
  */
 static int
@@ -140,8 +151,10 @@ compare(const char *what, const char *format, double value)
 	char got[512], want[512];
 
 #ifdef HOST_G_TIE_BUG
-	if (host_cannot_judge(format, value))
+	if (host_cannot_judge(format, value)) {
+		tie_skipped++;
 		return;
+	}
 #endif
 	tree_snprintf(got, sizeof got, format, value);
 	snprintf(want, sizeof want, format, value);
@@ -613,6 +626,9 @@ main(void)
 #ifdef HOST_DIGITS_LIMITED
 	printf("host comparisons beyond %d significant digits skipped: %lu\n",
 	    DECIMAL_DIG_DOUBLE, host_skipped);
+#endif
+#ifdef HOST_G_TIE_BUG
+	printf("host comparisons at a %%g exact tie skipped: %lu\n", tie_skipped);
 #endif
 	printf("printf %%g contract tests passed (%lu comparisons)\n", compared);
 	return 0;

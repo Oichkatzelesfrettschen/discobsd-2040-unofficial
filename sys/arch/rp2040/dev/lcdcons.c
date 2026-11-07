@@ -58,6 +58,7 @@
 #include <sys/tty.h>
 #include <sys/systm.h>
 #include <sys/config.h>
+#include <sys/lcdcons.h>
 
 #include <machine/intr.h>
 
@@ -482,11 +483,39 @@ lcdselect(dev_t dev, int rw)
 	return ttyselect(&lcdttys[minor(dev)], rw);
 }
 
+_Static_assert(LCD_GLYPH_FIRST == LT_GLYPH_FIRST &&
+    LCD_GLYPH_ROWS == LT_GLYPH_ROWS &&
+    sizeof(((struct lcd_glyph *)0)->rows) == LT_GLYPH_ROWS,
+    "the user glyph layout is the terminal's bank layout");
+
+/*
+ * Replace one bank glyph. Every draw holds the drawing flag, so holding it
+ * keeps the glyph from changing under a cell being drawn and lets
+ * lcdterm_setglyph() redraw the cells that show it. The flag is held only
+ * by a drawer an interrupt nested over, which a thread-mode caller cannot
+ * be, so EAGAIN reports a condition the scheduler does not produce.
+ */
+static int
+lcd_setglyph(const struct lcd_glyph *g)
+{
+	int error;
+
+	if (!lcd_acquire())
+		return EAGAIN;
+	error = lcdterm_setglyph(g->code, g->rows) < 0 ? EINVAL : 0;
+	lcd_release();
+	reply_flush();
+	return error;
+}
+
 int
 lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {
 	struct winsize *ws;
 	int error;
+
+	if (cmd == LCDIOC_SETGLYPH)
+		return lcd_setglyph((struct lcd_glyph *)addr);
 
 	/*
 	 * A zero row or column count means the size is unknown, which

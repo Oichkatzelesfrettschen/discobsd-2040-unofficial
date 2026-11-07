@@ -10,7 +10,12 @@
 # the stored rather than the displayed background under reverse video, one
 # that maps SGR 90-97 onto the base colors, a keymap that ignores Ctrl,
 # a terminal that drops BEL, and one that rings on every other control
-# byte. A harness that passed them would be checking nothing.
+# byte. Eight more mutants break the glyph bank: an upload that does not
+# store, one that does not redraw the cells showing the code, a terminal that
+# prints bytes above 0x7e as '?', one that lets C1 bytes reach the bank, a
+# line-drawing map shifted by one code, a full reset that keeps uploads, and
+# uploads that skip the row check or the code check. A harness that passed
+# them would be checking nothing.
 #
 # kbdreq_test runs the keyboard-controller register mailbox against a
 # model of the vendor firmware's register handler; eight mutants of
@@ -43,7 +48,7 @@ SAN=		-fsanitize=address,undefined -fno-sanitize-recover=all
 KCSTD=		-std=gnu17 -Wall -Wextra -Werror \
 		-DBUS_KHZ=125000 -DCPU_KHZ=125000 \
 		-I${TOPSRC}/tests/picocalc/shim -I${TOPSRC}/sys/arch
-SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/picokbd_map.c
+SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 
 all: check
 
@@ -57,7 +62,7 @@ check: lcdterm_test kbdreq_test sdspi_test sdstrat_test picoaudio_test \
 	${MAKE} mutants kbdreq-mutants sdspi-mutants sdstrat-mutants \
 	    picoaudio-mutants
 
-lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/picokbd_map.h
+lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
 
 kbdreq_test: kbdreq_test.c ${DEV}/picokbd_req.c ${DEV}/picokbd_req.h
@@ -87,7 +92,10 @@ font-sync:
 # Each mutant is the shipped source with one line changed by sed; the
 # sed must change the file, and the test built from it must fail.
 mutants: mutant-scroll mutant-region mutant-ctrl mutant-reverse-erase \
-	mutant-bright mutant-bell mutant-bell-any
+	mutant-bright mutant-bell mutant-bell-any mutant-bank-store \
+	mutant-bank-redraw mutant-bank-ascii mutant-bank-c1 \
+	mutant-bank-acs-shift mutant-bank-ris mutant-bank-rows \
+	mutant-bank-code
 
 mutant-scroll:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -116,6 +124,38 @@ mutant-bell:
 mutant-bell-any:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
 	    's/break;\t\t\/\* SO, SI and the rest. \*\//lcd_bell(); break;/'
+
+mutant-bank-store:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/^\t\tg\[i\] = rows\[i\];/\t\t(void)g;/'
+
+mutant-bank-redraw:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_setglyph/,/^}/s/^\t\t\t\tdraw(r, c);/\t\t\t\t(void)r;/'
+
+mutant-bank-ascii:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/if (c < LT_C1_END)/if (c <= 0xff)/'
+
+mutant-bank-c1:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/if (c < LT_C1_END)/if (c < LT_GLYPH_FIRST)/'
+
+mutant-bank-acs-shift:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/(c - LT_ACS_FIRST);/(c - LT_ACS_FIRST + 1);/'
+
+mutant-bank-ris:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/^\t\tglyph_defaults();/\t\t(void)0;/'
+
+mutant-bank-rows:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/if ((rows\[i\] \& ~LT_GLYPH_MASK) != 0)/if (0)/'
+
+mutant-bank-code:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_setglyph/,/^}/s/code >= LT_GLYPH_FIRST + LT_GLYPH_N/code > 0x1ff/'
 
 KBDREQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD}" "${DEV}" \
 		kbdreq_test.c
@@ -517,7 +557,9 @@ clean:
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
-	mutant-bell-any clean \
+	mutant-bell-any mutant-bank-store mutant-bank-redraw \
+	mutant-bank-ascii mutant-bank-c1 mutant-bank-acs-shift \
+	mutant-bank-ris mutant-bank-rows mutant-bank-code clean \
 	kbdreq-mutants kbdreq-mutant-write-bit kbdreq-mutant-echo \
 	kbdreq-mutant-retry kbdreq-mutant-expire-sent \
 	kbdreq-mutant-percent kbdreq-mutant-level kbdreq-mutant-off-floor \

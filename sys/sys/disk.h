@@ -55,5 +55,13 @@ struct diskpart {                   /* the partition table */
 #define DIOCGETMEDIASIZE _IOR('d', 1, int)              /* get size in kbytes */
 #define DIOCREINIT       _IO ('d', 2)                   /* re-initialize device */
 #define DIOCGETPART      _IOR('d', 3, struct diskpart)  /* get partition */
+/*
+ * DIOCMEDIAGONE stores nonzero when the medium behind the device was removed
+ * or replaced, so that writes queued for it can never be delivered.
+ * unmount(2) asks after a failed write-back and, on a nonzero answer,
+ * releases the mount without it. A driver that does not implement the
+ * command (any errno) keeps a failed write-back fatal to unmount.
+ */
+#define DIOCMEDIAGONE    _IOR('d', 4, int)              /* media removed? */
 
 #endif /* _SYS_DISK_H_ */

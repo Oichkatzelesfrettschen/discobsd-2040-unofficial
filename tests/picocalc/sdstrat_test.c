@@ -938,6 +938,67 @@ main(void)
 	r = (struct req){ 3, B_READ, 0, 512 };
 	error_case("unopened partition", r, ENXIO);
 
+	/*
+	 * DIOCGETPART reports the extents blkoverlap() in conf.c compares: the
+	 * whole card for node 0, the table's entries for 1 and 2, nothing for an
+	 * unused entry, and ENXIO for a node the driver does not have.
+	 */
+	{
+		struct diskpart dp;
+
+		check("getpart whole card", sdioctl(0, DIOCGETPART, (caddr_t)&dp,
+		    0), 0);
+		check("whole card offset", dp.dp_offset, 0);
+		check("whole card sectors", dp.dp_nsectors, CARD_SECTORS);
+		check("getpart partition 1", sdioctl(1, DIOCGETPART, (caddr_t)&dp,
+		    0), 0);
+		check("partition 1 offset", dp.dp_offset, 8);
+		check("partition 1 sectors", dp.dp_nsectors, 33);
+		check("getpart partition 2", sdioctl(2, DIOCGETPART, (caddr_t)&dp,
+		    0), 0);
+		check("partition 2 offset", dp.dp_offset, 41);
+		check("partition 2 sectors", dp.dp_nsectors, 20);
+		check("getpart unused entry", sdioctl(3, DIOCGETPART, (caddr_t)&dp,
+		    0), 0);
+		check("unused entry sectors", dp.dp_nsectors, 0);
+		check("getpart beyond the table", sdioctl(5, DIOCGETPART,
+		    (caddr_t)&dp, 0), ENXIO);
+		check("getpart unit 1", sdioctl(8, DIOCGETPART, (caddr_t)&dp, 0),
+		    ENXIO);
+	}
+
+	/*
+	 * DIOCMEDIAGONE answers the removal flag: no while the card sits where
+	 * it was accepted, yes once the pin change has held the interval.
+	 */
+	{
+		int gone = -1;
+
+		check("media gone before the swap", sdioctl(1, DIOCMEDIAGONE,
+		    (caddr_t)&gone, 0), 0);
+		check("media present", gone, 0);
+		card_swap();
+		gone = -1;
+		check("media gone after the swap", sdioctl(1, DIOCMEDIAGONE,
+		    (caddr_t)&gone, 0), 0);
+		check("media removed", gone, 1);
+		gone = -1;
+		check("media gone, any partition", sdioctl(2, DIOCMEDIAGONE,
+		    (caddr_t)&gone, 0), 0);
+		check("media removed, partition 2", gone, 1);
+		check("media gone, unit 1", sdioctl(8, DIOCMEDIAGONE,
+		    (caddr_t)&gone, 0), ENXIO);
+		/* The flag clears with the last close, as the card is accepted. */
+		close_all();
+		check("open after the removal", sdopen(1, 0, S_IFCHR), 0);
+		gone = -1;
+		check("media gone after the reopen", sdioctl(1, DIOCMEDIAGONE,
+		    (caddr_t)&gone, 0), 0);
+		check("media present after the reopen", gone, 0);
+		check("reopen partition 2", sdopen(2, 0, S_IFCHR), 0);
+		check("reopen whole card", sdopen(0, 0, S_IFCHR), 0);
+	}
+
 	/* A card swap fails every transfer until the last close. */
 	card_swap();
 	r = (struct req){ 0, B_READ, 0, 512 };

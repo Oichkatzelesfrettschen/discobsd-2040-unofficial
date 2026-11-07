@@ -15,6 +15,7 @@
 #include <sys/conf.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <sys/disk.h>
 #include <sys/proc.h>
 
 /*
@@ -256,12 +257,30 @@ out:
     if (tp)
         brelse(tp);
     if (needclose) {
-        (*bdevsw[major(dev)].d_close)(dev,
-            ronly? FREAD : FREAD|FWRITE, S_IFBLK);
+        /* Last close only: a descriptor on dev keeps the driver open. */
+        if (iflush(dev) == 0)
+            (*bdevsw[major(dev)].d_close)(dev,
+                ronly? FREAD : FREAD|FWRITE, S_IFBLK);
         binval(dev);
     }
     u.u_error = error;
     return (0);
+}
+
+/*
+ * Ask the driver whether the medium behind dev is gone, so that the
+ * write-back unmount1() could not finish will never be delivered. A driver
+ * without DIOCMEDIAGONE, or one that fails it, answers no.
+ */
+static int
+media_gone(dev_t dev)
+{
+    int gone = 0;
+
+    if ((*bdevsw[major(dev)].d_ioctl)(dev, DIOCMEDIAGONE,
+        (caddr_t)&gone, 0) != 0)
+        return (0);
+    return (gone != 0);
 }
 
 static int
@@ -271,7 +290,7 @@ unmount1(caddr_t fname)
     register struct mount *mp;
     register struct inode *ip;
     register int error;
-    int aflag;
+    int aflag, nopen;
 
     error = getmdev(&dev, fname);
     if (error)
@@ -286,11 +305,22 @@ found:
     mp->m_flags &= ~MNT_ASYNC;  /* Don't want async when unmounting */
     error = ufs_sync(mp);
     if (error) {
-        mp->m_flags |= aflag;
-        return (error);
+        /*
+         * A write error on media that is still there stays fatal. Media
+         * that was removed cannot take the write-back; ufs_sync() has
+         * already dropped the buffers it failed to write, binval() below
+         * invalidates the rest, and the latched error describes writes
+         * nothing can deliver.
+         */
+        if (! media_gone(dev)) {
+            mp->m_flags |= aflag;
+            return (error);
+        }
+        mp->m_write_error = 0;
     }
 
-    if (iflush(dev) < 0) {
+    nopen = iflush(dev);
+    if (nopen < 0) {
         mp->m_flags |= aflag;
         return (EBUSY);
     }
@@ -299,7 +329,13 @@ found:
     irele(ip);
     mp->m_inodp = 0;
     mp->m_dev = 0;
-    (*bdevsw[major(dev)].d_close)(dev, 0, S_IFBLK);
+    /*
+     * iflush() counted the open block-special inodes that name dev. A driver
+     * sees only the last close, the rule closei() applies, so a descriptor
+     * that is still open releases the device when it closes.
+     */
+    if (nopen == 0)
+        (*bdevsw[major(dev)].d_close)(dev, 0, S_IFBLK);
     binval(dev);
     return (0);
 }

@@ -419,6 +419,7 @@ output_ownership_cases(void)
 		{ TIOCGWINSZ, sizeof(struct winsize), _Alignof(struct winsize) },
 		{ DIOCGETMEDIASIZE, sizeof(int), _Alignof(int) },
 		{ DIOCGETPART, sizeof(struct diskpart), _Alignof(struct diskpart) },
+		{ DIOCMEDIAGONE, sizeof(int), _Alignof(int) },
 	};
 	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
 	unsigned char expected[sizeof(struct diskpart)];

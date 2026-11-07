@@ -157,8 +157,9 @@ ufs_setattr(register struct inode *ip, register struct vattr *vap)
 }
 
 /*
- * Check that device is mounted somewhere.
- * Return EBUSY if mounted, 0 otherwise.
+ * Check that the storage of device is in use by a mounted filesystem.
+ * Return EBUSY if the device, or any device that overlaps it according to
+ * blkoverlap(), is mounted somewhere, 0 otherwise.
  */
 int
 ufs_mountedon(dev_t dev)
@@ -168,7 +169,7 @@ ufs_mountedon(dev_t dev)
     for (mp = mount; mp < &mount[NMOUNT]; mp++) {
         if (mp->m_inodp == NULL)
             continue;
-        if (mp->m_dev == dev)
+        if (blkoverlap(mp->m_dev, dev))
             return(EBUSY);
     }
     return(0);

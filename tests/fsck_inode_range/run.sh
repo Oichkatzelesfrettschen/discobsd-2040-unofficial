@@ -42,14 +42,52 @@ out=$work/fsck.out
 failed=0
 overall=0
 
+# run_bounded SECONDS COMMAND...: run the command and end it after SECONDS,
+# with status 124 as timeout(1) gives. Without timeout(1), a watcher in the
+# background sleeps and then ends the command by SIGTERM, leaving a marker
+# file so that a command that died of its own SIGTERM is not mistaken for a
+# timeout. The watcher publishes the process number of its sleep, which the
+# caller ends as soon as the command has returned, so that no process outlives
+# the call and the call does not wait out the limit.
+run_bounded() {
+	limit=$1
+	shift
+	if command -v timeout >/dev/null 2>&1; then
+		timeout "$limit" "$@"
+		return
+	fi
+	marker=$work/watchdog.$$.fired
+	sleeper=$work/watchdog.$$.sleep
+	rm -f "$marker" "$sleeper"
+	"$@" &
+	command_pid=$!
+	(
+		sleep "$limit" &
+		sleep_pid=$!
+		echo "$sleep_pid" >"$sleeper"
+		wait "$sleep_pid" || exit 0
+		: >"$marker"
+		kill "$command_pid" 2>/dev/null
+	) >/dev/null 2>&1 </dev/null &
+	watcher_pid=$!
+	bounded_status=0
+	wait "$command_pid" || bounded_status=$?
+	until [ -s "$sleeper" ]; do :; done
+	read -r sleep_pid <"$sleeper"
+	kill "$sleep_pid" 2>/dev/null || :
+	wait "$watcher_pid" 2>/dev/null || :
+	rm -f "$sleeper"
+	if [ -e "$marker" ]; then
+		rm -f "$marker"
+		bounded_status=124
+	fi
+	return "$bounded_status"
+}
+
 # fsck on a damaged image can loop; the bound ends the run, and check_run
 # reports the timeout as an execution error.
 run_fsck() {
-	if command -v timeout >/dev/null 2>&1; then
-		timeout 60 "$fsck" "$@"
-	else
-		"$fsck" "$@"
-	fi
+	run_bounded 60 "$fsck" "$@"
 }
 
 # lacks PATTERN: the report must not match the extended regular expression.
@@ -263,11 +301,7 @@ run_fsutil_clear() {
 # milliseconds. Both directories must then resolve under lost+found.
 run_fsutil_cycle() {
 	status=0
-	if command -v timeout >/dev/null 2>&1; then
-		timeout 10 "$gen" --fix "$img" >"$out" 2>&1 || status=$?
-	else
-		"$gen" --fix "$img" >"$out" 2>&1 || status=$?
-	fi
+	run_bounded 10 "$gen" --fix "$img" >"$out" 2>&1 || status=$?
 	case $status in
 	0) ;;
 	124)

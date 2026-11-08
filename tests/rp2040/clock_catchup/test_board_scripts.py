@@ -16,6 +16,7 @@ import importlib.util
 import os
 import random
 import re
+import statistics
 import sys
 import unittest
 
@@ -66,6 +67,18 @@ def stamped_lines(offset, delayed=None, seed=1, start=BASE, loss=0.0, profile=No
         shown = arrival + (delayed if delayed and index == delayed_index() else 0.0)
         extra = profile(index) if profile else loss * index
         out.append((shown, date_line(made - offset - extra)))
+    return out
+
+
+def cadence_lines(cadence, phase, lag=0.01, late=0.5):
+    """Steady board clock equal to host time: dates CADENCE seconds apart from
+    BASE rounded down plus PHASE, each arriving LAG late and line
+    delayed_index() LATE seconds later still."""
+    out = []
+    for index in range(clock.SAMPLES):
+        made = int(BASE) + phase + cadence * index
+        shown = made + lag + (late if index == delayed_index() else 0.0)
+        out.append((shown, date_line(made)))
     return out
 
 
@@ -144,6 +157,36 @@ class OffsetBounds(unittest.TestCase):
         self.assertGreaterEqual(caught.exception.loss, 18.0)
         self.assertLess(caught.exception.loss, 21.0)
         self.assertEqual(caught.exception.lines, clock.SAMPLES)
+
+    def test_a_steady_clock_with_a_slow_cadence_and_one_delay_is_not_lost(self):
+        # Dates 1.03 s apart walk the estimates up the quantization sawtooth;
+        # one line arrives 500 ms late. The board clock matches the host.
+        with self.assertRaises(clock.MeasurementError) as caught:
+            clock.offset_bounds(cadence_lines(1.03, 0.01))
+        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+
+    def test_the_slope_rule_alone_called_the_sawtooth_a_lost_clock(self):
+        # Calibration: without the quarter-minimum bound the median slope of
+        # the same steady input reads as more than MIN_LOST_S lost.
+        estimates = [a - clock.board_seconds(line) for a, line in cadence_lines(1.03, 0.01)]
+        count = len(estimates)
+        slope = statistics.median(
+            (estimates[j] - estimates[i]) / (j - i)
+            for i in range(count)
+            for j in range(i + 1, count)
+        )
+        self.assertGreater(slope * (count - 1), clock.MIN_LOST_S)
+
+    def test_no_steady_cadence_or_phase_reads_as_a_lost_clock(self):
+        for step in range(0, 61, 3):
+            for phase in (0.01, 0.25, 0.5, 0.75, 0.97):
+                cadence = 1.0 + step / 1000.0
+                try:
+                    clock.offset_bounds(cadence_lines(cadence, phase))
+                except clock.ClockLostTime:
+                    self.fail("cadence %.3f phase %.2f" % (cadence, phase))
+                except clock.MeasurementError:
+                    pass
 
     def test_a_clock_that_loses_time_and_regains_it_is_inconclusive(self):
         # Rising then falling by the same amount fails the non-decreasing test.

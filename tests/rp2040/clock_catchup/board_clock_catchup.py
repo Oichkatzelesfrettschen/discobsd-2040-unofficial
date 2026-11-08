@@ -40,8 +40,14 @@ is arrival - value, which lies in [offset, offset + 1 + SETTLE_MARGIN) for a
 steady clock. A losing clock raises the estimate across the loop, so
 loss_of_clock() reports a failure when at least LOSS_PAIR_FRACTION of the
 estimate pairs LOSS_PAIR_LAG lines apart are non-decreasing within the
-one-second quantization of date and the median pairwise slope times the loop
-length exceeds MIN_LOST_S. The report carries that loss and the line count. Any
+one-second quantization of date, the lowest estimate of the last quarter of
+the loop exceeds the lowest of the first quarter by more than 1 + SETTLE_MARGIN,
+and the median pairwise slope times the loop length exceeds MIN_LOST_S. The
+quarter-minimum rise is the bound a steady clock cannot pass: a delay only
+raises an estimate, so the minimum of a quarter holding one undelayed line lies
+in the steady band, while the median slope of a steady clock follows the rising
+edge of the quantization sawtooth and reaches a second within one loop. The
+report carries the median-slope loss and the line count. Any
 of the three measurements can show the loss, because the date loop is itself
 flash-backed work: every date forks, the fork swaps through the raw swap
 partition, and a kernel without catch-up loses the masked ticks of that swap.
@@ -99,10 +105,15 @@ MIN_LOST_S = 1.0
 # separate a slope of 0.25 s per line from the tolerance. The
 # rise is the Theil-Sen slope times the loop length, which a minority of delayed
 # lines cannot move; it must exceed MIN_LOST_S, the same floor below which the
-# workload verdict is also inconclusive. The estimates of a steady clock span
-# under 1 + SETTLE_MARGIN, so a steady clock's rise stays near zero.
+# workload verdict is also inconclusive. The undelayed estimates of a steady
+# clock lie in a band 1 + SETTLE_MARGIN wide, and a date cadence a little over
+# one second walks them up that band in a sawtooth whose Theil-Sen rise reaches
+# a second, so the rise also needs the lowest estimate of the last
+# 1/LOSS_QUARTER of the loop to clear the lowest of the first by the band
+# width, which no steady clock with an undelayed line in the first quarter does.
 LOSS_PAIR_FRACTION = 0.90
 LOSS_PAIR_LAG = 4
+LOSS_QUARTER = 4
 # Exit status of a run whose measurements cannot decide (0 passes, 1 fails).
 INCONCLUSIVE = 2
 
@@ -219,10 +230,13 @@ def loss_of_clock(estimates):
 
     ESTIMATES holds arrival - value per parsed line in order. A pair
     LOSS_PAIR_LAG lines apart is non-decreasing when the later estimate is no
-    more than the quantization of date (1 + SETTLE_MARGIN) below the earlier. The
-    loss is the median of the pairwise slopes times the number of intervals,
-    which tolerates a minority of delayed lines. A single step in the clock smaller than half the
-    loop moves the median little, so it reads as inconclusive.
+    more than the quantization of date (1 + SETTLE_MARGIN) below the earlier.
+    The lowest estimate of the last quarter must exceed the lowest of the first
+    quarter by more than that quantization, which a steady clock's sawtooth
+    cannot do. The loss is the median of the pairwise slopes times the number
+    of intervals, which tolerates a minority of delayed lines. A single step in
+    the clock smaller than half the loop moves the median little, so it reads
+    as inconclusive.
     """
     count = len(estimates)
     if count <= LOSS_PAIR_LAG:
@@ -231,6 +245,9 @@ def loss_of_clock(estimates):
     pairs = list(zip(estimates, estimates[LOSS_PAIR_LAG:]))
     steps = sum(1 for a, b in pairs if b >= a - quantum)
     if steps < LOSS_PAIR_FRACTION * len(pairs):
+        return None
+    window = max(LOSS_PAIR_LAG, count // LOSS_QUARTER)
+    if min(estimates[-window:]) - min(estimates[:window]) <= quantum:
         return None
     slope = statistics.median(
         (estimates[j] - estimates[i]) / (j - i) for i in range(count) for j in range(i + 1, count)

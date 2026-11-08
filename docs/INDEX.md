@@ -126,6 +126,7 @@ Grouped by what they investigate.
 | `libc-size-audit.md` | where the C library's bytes go, across the shipped programs |
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 144 KB process window |
+| `footprint-techniques.md` | flash and SRAM techniques ranked by measured payoff and mapped to this tree: XIP libc, multicall membership, alignment-hole packing, bounded scans, per-artifact flag experiments, and why kernel overlays and wholesale shared stacks do not pay |
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
 | `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
 | `c17-shipped-build-baseline.md` | configuration-specific shipped source membership, artifact-bound static resource receipts and the acceptance states left open |

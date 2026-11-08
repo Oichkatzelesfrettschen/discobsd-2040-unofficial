@@ -13,7 +13,12 @@
 # (renode_monitor.py), so no Robot harness, no virtual environment and no
 # listening socket are involved, the same way check-picocalc.sh runs.
 #
-# Usage: sh tools/renode/check-boot.sh
+# Usage: sh tools/renode/check-boot.sh [FLASH_IMAGE]
+#
+# FLASH_IMAGE is the root flash image to load at 0x10020000. It defaults to
+# distrib/rp2040/flash.bin, the PICO board's output; the root Makefile passes
+# ${FLASHBIN}, which names flash-${BOARD}.bin for every other board. Every
+# kernel boots every board's root, so any board's image is valid here.
 
 set -eu
 
@@ -29,8 +34,8 @@ TOP=$(cd "$SCRIPT_DIR/../.." && pwd)
 VENDOR="$SCRIPT_DIR/vendor/Renode_RP2040"
 RP2040_COMMIT=$(sed -n 's/^RP2040_COMMIT=//p' "$SCRIPT_DIR/fetch-renode-rp2040.sh")
 KERNEL="$TOP/sys/arch/rp2040/compile/PICO_UART/unix.bin"
-IMAGE="$TOP/distrib/rp2040/flash.bin"
-MODELS="$VENDOR/emulation/bin/Release/net9.0/Peripherals.dll"
+IMAGE=${1:-$TOP/distrib/rp2040/flash.bin}
+MODELS="$VENDOR/emulation/bin/Release/net8.0/Peripherals.dll"
 OUTPUT="$SCRIPT_DIR/vendor/results/boot"
 
 missing() {
@@ -42,11 +47,12 @@ command -v renode >/dev/null 2>&1 ||
 	missing "no renode in PATH; install Renode 1.17 or later"
 
 # Name what is about to run. The models are built against whichever Renode
-# is installed, and nothing in this tree pins that, so a gate that starts
-# failing after a package upgrade should say which emulator it used before
-# anyone goes looking in the kernel. VERIFIED_RENODE is the build this gate
-# was last checked against; a mismatch is a note, not a refusal, because a
-# newer Renode is the ordinary case and usually works.
+# is installed, so a gate that starts failing after a package upgrade should
+# say which emulator it used before anyone goes looking in the kernel.
+# VERIFIED_RENODE is the build this gate was last checked against; a
+# mismatch is a note, not a refusal, because a newer Renode is the ordinary
+# case and usually works. Firmware CI installs one pinned release and
+# fails on a mismatch through tools/renode/check-renode-pin.sh.
 VERIFIED_RENODE="1.17.0+20260907gitf1dd1b4af"
 RUNNING_RENODE=$(renode --version 2>/dev/null | sed -n 's/.*build: *//p' | head -1)
 echo "check-renode: Renode ${RUNNING_RENODE:-unknown}, models pinned at $RP2040_COMMIT"
@@ -65,7 +71,8 @@ fi
 [ -r "$KERNEL" ] ||
 	missing "no $KERNEL; run bmake MACHINE=rp2040 kernel"
 
-[ -r "$IMAGE" ] || missing "no $IMAGE; run bmake MACHINE=rp2040 flash"
+[ -r "$IMAGE" ] ||
+	missing "no $IMAGE; run bmake MACHINE=rp2040 flash (BOARD=<board> builds flash-<board>.bin)"
 
 mkdir -p "$OUTPUT"
 

@@ -12,14 +12,18 @@
 # project, better fetched than duplicated.
 #
 # The upstream project targets netstandard2.1 in its csproj, which predates
-# the .NET the installed Renode build (1.17.0, .NET 9.0.19) and the system
-# dotnet SDK actually ship: building unmodified fails with
+# the .NET the Renode 1.17.0 assemblies are built against: building
+# unmodified fails with
 #   CSC : error CS1705: Assembly 'Infrastructure' ... uses 'System.Runtime,
 #   Version=8.0.0.0' which has a higher version than referenced assembly
 #   'System.Runtime' with identity 'System.Runtime, Version=4.1.2.0'
-# Retargeting emulation/Peripherals.csproj to net9.0, and load_peripherals.py
-# to look under bin/Release/net9.0 instead of netstandard2.1, resolves this
-# without touching any peripheral model.
+# Retargeting emulation/Peripherals.csproj to net8.0, the framework
+# Renode.runtimeconfig.json names (with rollForward Major), and
+# load_peripherals.py to look under bin/Release/net8.0, resolves this without
+# touching any peripheral model. The models must not target a newer framework
+# than Renode runs on: a host with the .NET 8 runtime runs Renode on 8, which
+# cannot load a net9.0 assembly, while a host whose oldest runtime is newer
+# rolls Renode and the net8.0 models forward together.
 #
 # Usage: sh fetch-renode-rp2040.sh [dest-dir]
 # Default dest-dir is tools/renode/vendor/Renode_RP2040, ignored by git.
@@ -48,9 +52,9 @@ else
 	git -C "$DEST" checkout "$RP2040_COMMIT"
 fi
 
-sed -i 's#<TargetFramework>netstandard2\.1</TargetFramework>#<TargetFramework>net9.0</TargetFramework>#' \
+sed -i 's#<TargetFramework>netstandard2\.1</TargetFramework>#<TargetFramework>net8.0</TargetFramework>#' \
 	"$DEST/emulation/Peripherals.csproj"
-sed -i 's#"netstandard2\.1"#"net9.0"#' "$DEST/cores/load_peripherals.py"
+sed -i 's#"netstandard2\.1"#"net8.0"#' "$DEST/cores/load_peripherals.py"
 
 # Corrections this port carries against the pinned revision, applied in
 # filename order because 0002 rewrites lines 0001 introduces. Each is
@@ -78,4 +82,4 @@ done
 
 dotnet build "$DEST/emulation/Peripherals.csproj" -c Release
 
-echo "built: $DEST/emulation/bin/Release/net9.0/Peripherals.dll"
+echo "built: $DEST/emulation/bin/Release/net8.0/Peripherals.dll"

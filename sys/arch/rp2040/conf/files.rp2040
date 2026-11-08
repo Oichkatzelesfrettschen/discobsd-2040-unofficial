@@ -82,18 +82,20 @@ arch/rp2040/rp2040/systick.c		standard
 arch/rp2040/dev/uart.c			optional uart
 arch/rp2040/dev/usb.c			optional uartusb
 arch/rp2040/dev/lcdcons.c		optional picocalc
+arch/rp2040/dev/lcdgfx.c		optional picocalc
 arch/rp2040/dev/lcdrender.S		optional picocalc
 arch/rp2040/dev/lcdterm.c		optional picocalc
 arch/rp2040/dev/lcdfont.c		optional picocalc
 arch/rp2040/dev/st7365p.c		optional picocalc
 arch/rp2040/dev/picokbd.c		optional picocalc
 arch/rp2040/dev/picokbd_map.c		optional picocalc
+arch/rp2040/dev/picokbd_evq.c		optional picocalc
 arch/rp2040/dev/picokbd_req.c		optional picocalc
 arch/rp2040/dev/picoaudio.c		optional picocalc
 arch/rp2040/dev/sd.c			optional sd
 arch/rp2040/dev/sdspi.c			optional sd
 arch/rp2040/dev/psram.c			optional psram
-arch/rp2040/dev/psram_xfer.c		optional psram
+arch/rp2040/dev/psram_xfer.c		optional psram compile-with "${COMPILE_CYCLE_C}"
 arch/rp2040/dev/flash.c			standard
 arch/rp2040/dev/flash_swap.c		standard
 arch/rp2040/dhara/error.c		standard

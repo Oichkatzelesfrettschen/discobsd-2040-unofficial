@@ -10,11 +10,48 @@
 # the stored rather than the displayed background under reverse video, one
 # that maps SGR 90-97 onto the base colors, a keymap that ignores Ctrl,
 # a terminal that drops BEL, and one that rings on every other control
-# byte. A harness that passed them would be checking nothing.
+# byte. Eight more mutants break the glyph bank: an upload that does not
+# store, one that does not redraw the cells showing the code, a terminal that
+# prints bytes above 0x7e as '?', one that lets C1 bytes reach the bank, a
+# line-drawing map shifted by one code, a full reset that keeps uploads, and
+# uploads that skip the row check or the code check. A harness that passed
+# them would be checking nothing.
+#
+# Ten more mutants break the terminal's pixel mode: a terminal that draws
+# cells, fills or scroll starts while a pixel program owns the panel, one
+# whose repaint skips the last row, the scroll start or the cursor, one
+# whose mode switch skips the repaint or the text configuration, one that
+# repaints on entering the mode, and a fatal path that does not leave the
+# mode. lcdgfx_test drives the /dev/lcdgfx
+# driver (lcdgfx.c) and the real terminal against a model of the panel's
+# write path; sixty-one mutants of lcdgfx.c and lcdterm.c must fail it:
+# a skipped exclusive open, restore, range check, window abandonment or
+# scroll-start update, wrong color widening, byte order, palette
+# handling, bit-row padding, line, circle and frame drawing, and, for the
+# tile atlas, a moved upload or block bound, a wrong upload offset or clamp,
+# a tile number accepted past the atlas, tile pixel lines drawn tile by tile
+# instead of interleaved, wrong nibble order, palette index or line stride,
+# a block that does not advance its row, an upload or block that survives
+# another command, an atlas that survives an open and a wrong atlas size.
 #
 # kbdreq_test runs the keyboard-controller register mailbox against a
 # model of the vendor firmware's register handler; eight mutants of
 # picokbd_req.c and picokbd_req.h must fail it.
+#
+# kbdevq_test runs the raw key event queue (picokbd_evq.c) beside the key
+# translation: every state the controller reports must enter the queue in
+# order, a full queue drops its oldest event and counts the drop, nothing is
+# recorded outside a session, a session needs a readable descriptor in the
+# foreground group and in RAW or CBREAK mode, belongs to its process, ends
+# on close, on the process's exit, on request, on a change of foreground
+# group and on any change of the tty's mode word (a getpass-like ECHO
+# clear), and leaves the queue empty, and the translated bytes must equal
+# those of picokbd_translate() alone; forty-four mutants of picokbd_evq.c
+# and sixteen cut connections in the kernel glue (wiring.sh) must fail it.
+#
+# gametile_test runs the tile library (games/gametile.h) against a model of
+# the tile commands of /dev/lcdgfx; twenty-nine mutants of the header must
+# fail it.
 #
 # sdspi_test runs the SD card protocol layer against a card model that
 # replays recorded command transcripts; twenty mutants of sdspi.c must fail
@@ -43,26 +80,49 @@ SAN=		-fsanitize=address,undefined -fno-sanitize-recover=all
 KCSTD=		-std=gnu17 -Wall -Wextra -Werror \
 		-DBUS_KHZ=125000 -DCPU_KHZ=125000 \
 		-I${TOPSRC}/tests/picocalc/shim -I${TOPSRC}/sys/arch
-SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/picokbd_map.c
+SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 
 all: check
 
-check: lcdterm_test kbdreq_test sdspi_test sdstrat_test picoaudio_test \
-	font-sync
+check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
+	sdspi_test sdstrat_test picoaudio_test font-sync
 	./lcdterm_test
+	./lcdgfx_test
 	./kbdreq_test
+	./kbdevq_test
+	./gametile_test
 	./sdspi_test
 	./sdstrat_test
 	./picoaudio_test
-	${MAKE} mutants kbdreq-mutants sdspi-mutants sdstrat-mutants \
-	    picoaudio-mutants
+	${MAKE} mutants gfx-mutants kbdreq-mutants kbdevq-mutants \
+	    gametile-mutants sdspi-mutants sdstrat-mutants picoaudio-mutants
 
-lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/picokbd_map.h
+lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
+
+lcdgfx_test: lcdgfx_test.c ${DEV}/lcdgfx.c ${DEV}/lcdgfx.h ${DEV}/lcdterm.c \
+	    ${DEV}/lcdterm.h ${DEV}/lcdfont.c ${DEV}/lcdfont.h \
+	    ${TOPSRC}/sys/sys/lcdgfx.h
+	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ lcdgfx_test.c ${DEV}/lcdgfx.c \
+	    ${DEV}/lcdterm.c ${DEV}/lcdfont.c
 
 kbdreq_test: kbdreq_test.c ${DEV}/picokbd_req.c ${DEV}/picokbd_req.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ kbdreq_test.c \
 	    ${DEV}/picokbd_req.c
+
+# The raw key event queue compiles as strict ISO C17 against the public
+# console header; _DEFAULT_SOURCE supplies the BSD u_char the header uses.
+kbdevq_test: kbdevq_test.c ${DEV}/picokbd_evq.c ${DEV}/picokbd_evq.h \
+	    ${DEV}/picokbd_map.c ${DEV}/picokbd_map.h ${TOPSRC}/sys/sys/lcdcons.h
+	${HOST_CC} ${CSTD} -D_DEFAULT_SOURCE -DPICOKBD_EVQ_TEST ${SAN} -g \
+	    -I${TOPSRC}/tests/picocalc/shim -I${DEV} -o $@ kbdevq_test.c ${DEV}/picokbd_evq.c ${DEV}/picokbd_map.c
+
+# The tile library is a header of static functions, strict C17 like the games
+# that include it; the test binds its ioctl and write hooks to a model.
+gametile_test: gametile_test.c ${TOPSRC}/games/gametile.h \
+	    ${TOPSRC}/sys/sys/lcdgfx.h
+	${HOST_CC} ${CSTD} -D_DEFAULT_SOURCE ${SAN} -g -I${TOPSRC}/tests/picocalc/shim \
+	    -I${TOPSRC}/games -o $@ gametile_test.c
 
 sdspi_test: sdspi_test.c ${DEV}/sdspi.c ${DEV}/sdspi.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ sdspi_test.c \
@@ -87,7 +147,13 @@ font-sync:
 # Each mutant is the shipped source with one line changed by sed; the
 # sed must change the file, and the test built from it must fail.
 mutants: mutant-scroll mutant-region mutant-ctrl mutant-reverse-erase \
-	mutant-bright mutant-bell mutant-bell-any
+	mutant-bright mutant-bell mutant-bell-any mutant-bank-store \
+	mutant-bank-redraw mutant-bank-ascii mutant-bank-c1 \
+	mutant-bank-acs-shift mutant-bank-ris mutant-bank-rows \
+	mutant-bank-code mutant-gfx-gate-cell mutant-gfx-gate-fill \
+	mutant-gfx-gate-top mutant-gfx-repaint-row mutant-gfx-repaint-top \
+	mutant-gfx-repaint-cursor mutant-gfx-leave-repaint \
+	mutant-gfx-leave-reset mutant-gfx-abort mutant-gfx-enter-draws
 
 mutant-scroll:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -116,6 +182,788 @@ mutant-bell:
 mutant-bell-any:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
 	    's/break;\t\t\/\* SO, SI and the rest. \*\//lcd_bell(); break;/'
+
+mutant-bank-store:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/^\t\tg\[i\] = rows\[i\];/\t\t(void)g;/'
+
+mutant-bank-redraw:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_setglyph/,/^}/s/^\t\t\t\tdraw(r, c);/\t\t\t\t(void)r;/'
+
+mutant-bank-ascii:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/if (c < LT_C1_END)/if (c <= 0xff)/'
+
+mutant-bank-c1:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/if (c < LT_C1_END)/if (c < LT_GLYPH_FIRST)/'
+
+mutant-bank-acs-shift:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/(c - LT_ACS_FIRST);/(c - LT_ACS_FIRST + 1);/'
+
+mutant-bank-ris:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/^\t\tglyph_defaults();/\t\t(void)0;/'
+
+mutant-bank-rows:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/if ((rows\[i\] \& ~LT_GLYPH_MASK) != 0)/if (0)/'
+
+mutant-bank-code:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_setglyph/,/^}/s/code >= LT_GLYPH_FIRST + LT_GLYPH_N/code > 0x1ff/'
+
+mutant-gfx-gate-cell:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^panel_cell/,/^}/s/if (!gfx_active)/if (1)/'
+
+mutant-gfx-gate-fill:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^panel_fill/,/^}/s/if (!gfx_active)/if (1)/'
+
+mutant-gfx-gate-top:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^panel_top/,/^}/s/if (!gfx_active)/if (1)/'
+
+mutant-gfx-repaint-row:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_repaint/,/^}/s/p < LT_ROWS; p++/p < LT_ROWS - 1; p++/'
+
+mutant-gfx-repaint-top:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_repaint/,/^}/s/lcd_set_top(top);/(void)top;/'
+
+mutant-gfx-repaint-cursor:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_repaint/,/^}/s/lcdterm_cursor_show();/(void)0;/'
+
+mutant-gfx-leave-repaint:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/lcdterm_repaint();/(void)0;/'
+
+mutant-gfx-leave-reset:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/lcd_gfx_reset();/(void)0;/'
+
+# Entering pixel mode must leave the panel to the pixel device: a repaint on
+# entry draws over what the program is about to show.
+mutant-gfx-enter-draws:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/^[[:space:]]*gfx_active = on;$$/gfx_active = on ? (lcdterm_repaint(), on) : 0;/'
+
+mutant-gfx-abort:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/'
+
+KBDEVQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
+		"${CSTD} -D_DEFAULT_SOURCE -DPICOKBD_EVQ_TEST -I${TOPSRC}/tests/picocalc/shim" \
+		"${DEV}" kbdevq_test.c
+
+KBDEVQ_SRC=	picokbd_evq.c picokbd_evq.h picokbd_map.c picokbd_map.h
+
+kbdevq-mutants: \
+	kbdevq-mutant-drop-newest \
+	kbdevq-mutant-lost-uncounted \
+	kbdevq-mutant-lost-wraps \
+	kbdevq-mutant-lost-kept \
+	kbdevq-mutant-drain-limit \
+	kbdevq-mutant-release-dropped \
+	kbdevq-mutant-hold-dropped \
+	kbdevq-mutant-idle-queued \
+	kbdevq-mutant-key-masked \
+	kbdevq-mutant-translate-dropped \
+	kbdevq-mutant-drain-slot \
+	kbdevq-mutant-put-slot \
+	kbdevq-mutant-full-threshold \
+	kbdevq-mutant-put-ungated \
+	kbdevq-mutant-drain-unreadable \
+	kbdevq-mutant-drain-background \
+	kbdevq-mutant-drain-no-session \
+	kbdevq-mutant-start-unreadable \
+	kbdevq-mutant-start-background \
+	kbdevq-mutant-start-keeps-queue \
+	kbdevq-mutant-start-steals \
+	kbdevq-mutant-stop-any-file \
+	kbdevq-mutant-fileclose-ignored \
+	kbdevq-mutant-fileclose-any-file \
+	kbdevq-mutant-check-ignored \
+	kbdevq-mutant-check-always-ends \
+	kbdevq-mutant-end-keeps-queue \
+	kbdevq-mutant-end-keeps-drops \
+	kbdevq-mutant-end-keeps-bytes \
+	kbdevq-mutant-check-ignores-group \
+	kbdevq-mutant-check-ignores-mode \
+	kbdevq-mutant-mode-counts-line-discipline \
+	kbdevq-mutant-start-cooked \
+	kbdevq-mutant-start-raw-only \
+	kbdevq-mutant-start-no-snapshot \
+	kbdevq-mutant-modeset-ignored \
+	kbdevq-mutant-modeset-owner \
+	kbdevq-mutant-drain-any-process \
+	kbdevq-mutant-stop-any-process \
+	kbdevq-mutant-start-any-process \
+	kbdevq-mutant-procexit-ignored \
+	kbdevq-mutant-procexit-any-process \
+	kbdevq-mutant-owner-pid-ignored \
+	kbdevq-mutant-owner-proc-ignored \
+	kbdevq-mutant-wiring
+
+kbdevq-mutant-drop-newest:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/^\t\ttail++;$$/\t\treturn;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-uncounted:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/^\t\t\tlost++;$$/\t\t\t(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-wraps:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/if (lost < 255)/if (1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-kept:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_drain/,/^}/s/^\tlost = 0;$$/\t(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-drain-limit:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/n < LCD_KEYEV_N \&\& tail != head/n < LCD_KEYEV_N + 1 \&\& tail != head/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-release-dropped:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/^\t    state != PICOKBD_RELEASED)$$/\t    state != PICOKBD_PRESSED)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-hold-dropped:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/state != PICOKBD_HOLD \&\&/state != PICOKBD_PRESSED \&\&/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-idle-queued:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/^\t    state != PICOKBD_RELEASED)$$/\t    state > 3)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-key-masked:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/picokbd_evq_put(state, key);$$/picokbd_evq_put(state, key \& 0x7f);/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-translate-dropped:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/return picokbd_translate(state, key, appcursor, ctrl, out);/return (void)appcursor, (void)ctrl, (void)out, 0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-drain-slot:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/queue\[tail++ \& (LCD_KEYEV_QUEUE - 1)\]/queue[tail++ \& (LCD_KEYEV_QUEUE - 2)]/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-put-slot:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/head++ \& (LCD_KEYEV_QUEUE - 1)/head++ % (LCD_KEYEV_QUEUE - 1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-full-threshold:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/head - tail >= LCD_KEYEV_QUEUE/head - tail > LCD_KEYEV_QUEUE/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-put-ungated:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_put/,/^}/s/if (!active)/if (!active \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-drain-unreadable:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_drain/,/^}/s/if (!readable)/if (!readable \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-drain-background:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_drain/,/^}/s/pgrp == 0 || pgrp != tty_pgrp/0 \&\& (pgrp == 0 || pgrp != tty_pgrp)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-drain-no-session:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_drain/,/^}/s/if (!active)/if (!active \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-unreadable:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/if (!readable)/if (!readable \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-background:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/pgrp == 0 || pgrp != tty_pgrp/0 \&\& (pgrp == 0 || pgrp != tty_pgrp)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-keeps-queue:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/^\tsession_end();$$/\t(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-steals:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/owner != file || !is_owner(proc, pid)/(owner != file \&\& 0) || !is_owner(proc, pid)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-stop-any-file:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_stop/,/^}/s/owner != file || !is_owner(proc, pid)/(owner != file \&\& 0) || !is_owner(proc, pid)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-fileclose-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_fileclose/,/^}/s/session_end();/(void)file;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-fileclose-any-file:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_fileclose/,/^}/s/if (active \&\& owner == file)/if (active \&\& (owner == file || 1))/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-check-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_check/,/^}/s/session_end();/(void)tty_pgrp, (void)tty_flags;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-check-always-ends:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_check/,/^}/s/owner_pgrp != tty_pgrp ||/(owner_pgrp != tty_pgrp || 1) ||/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-end-keeps-queue:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^session_end/,/^}/s/^\thead = tail = 0;$$/\t(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-end-keeps-bytes:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^session_end/,/^}/s/queue\[i\].key = 0;/(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-end-keeps-drops:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^session_end/,/^}/s/^\tlost = 0;$$/\t(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-drain-any-process:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_drain/,/^}/s/if (!is_owner(proc, pid))/if (!is_owner(proc, pid) \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-stop-any-process:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_stop/,/^}/s/ || !is_owner(proc, pid))/ || (!is_owner(proc, pid) \&\& 0))/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-any-process:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/ || !is_owner(proc, pid))/ || (!is_owner(proc, pid) \&\& 0))/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-procexit-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_procexit/,/^}/s/session_end();/(void)proc, (void)pid;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-procexit-any-process:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_procexit/,/^}/s/if (active \&\& is_owner(proc, pid))/if (active \&\& (is_owner(proc, pid) || 1))/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-owner-pid-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/return owner_proc == proc \&\& owner_pid == pid;/return owner_proc == proc \&\& (owner_pid == pid || 1);/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-owner-proc-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/return owner_proc == proc \&\& owner_pid == pid;/return (owner_proc == proc || 1) \&\& owner_pid == pid;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-check-ignores-group:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_check/,/^}/s/owner_pgrp != tty_pgrp ||/(owner_pgrp != tty_pgrp \&\& 0) ||/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-check-ignores-mode:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_check/,/^}/s/owner_mode != mode_of(tty_flags)/(owner_mode != mode_of(tty_flags) \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-mode-counts-line-discipline:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^mode_of/,/^}/s/tty_flags \& ~(unsigned)PICOKBD_EVQ_VOLATILE/tty_flags/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-cooked:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/(tty_flags \& PICOKBD_EVQ_RAW_OR_CBREAK) == 0/(tty_flags \& PICOKBD_EVQ_RAW_OR_CBREAK) == 0 \&\& 0/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-raw-only:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/(tty_flags \& PICOKBD_EVQ_RAW_OR_CBREAK) == 0/(tty_flags \& 0x20U) == 0/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-no-snapshot:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/owner_mode = mode_of(tty_flags);/owner_mode = 0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-modeset-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_modeset/,/^}/s/session_end();/(void)proc, (void)pid;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-modeset-owner:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_modeset/,/^}/s/if (active \&\& !is_owner(proc, pid))/if (active \&\& (!is_owner(proc, pid) || 1))/' ${KBDEVQ_SRC}
+
+# The kernel glue that no host program runs (the poller, the console's
+# request handlers, the close hook in vn_closefile) is checked by reading
+# the function that must make each call; wiring.sh states the checks and
+# cuts each connection in turn to show that it rejects the cut.
+kbdevq-mutant-wiring:
+	@sh ./wiring.sh "${DEV}/picokbd.c" "${DEV}/lcdcons.c" \
+	    "${TOPSRC}/sys/kern/vfs_vnops.c" "${TOPSRC}/sys/kern/kern_exit.c" \
+	    "${TOPSRC}/sys/kern/exec_subr.c"
+	@sh ./wiring.sh -m "${DEV}/picokbd.c" "${DEV}/lcdcons.c" \
+	    "${TOPSRC}/sys/kern/vfs_vnops.c" "${TOPSRC}/sys/kern/kern_exit.c" \
+	    "${TOPSRC}/sys/kern/exec_subr.c"
+
+# The sanitizers are on for the mutants: a range check that forms an
+# overflowing sum is rejected by the test only because UBSan stops it.
+GAMETILE_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
+		"${CSTD} ${SAN} -D_DEFAULT_SOURCE -I${TOPSRC}/tests/picocalc/shim" \
+		"${TOPSRC}/games" gametile_test.c
+
+GAMETILE_SRC=	gametile.h
+
+gametile-mutants: \
+	gametile-mutant-run-crosses-row \
+	gametile-mutant-run-single \
+	gametile-mutant-run-bridges-gap \
+	gametile-mutant-mark-kept \
+	gametile-mutant-pending-uncounted \
+	gametile-mutant-pending-kept \
+	gametile-mutant-set-always-marks \
+	gametile-mutant-set-unmarked \
+	gametile-mutant-set-tile-range \
+	gametile-mutant-set-x-bound \
+	gametile-mutant-init-clean \
+	gametile-mutant-fill-range \
+	gametile-mutant-fill-tile-range \
+	gametile-mutant-short-write-accepted \
+	gametile-mutant-ioctl-failure-ignored \
+	gametile-mutant-window-height \
+	gametile-mutant-write-source \
+	gametile-mutant-load-last-tile \
+	gametile-mutant-load-high \
+	gametile-mutant-load-count-zero \
+	gametile-mutant-load-touch-missing \
+	gametile-mutant-touch-range \
+	gametile-mutant-load-bytes \
+	gametile-mutant-fill-column-sum \
+	gametile-mutant-fill-row-sum \
+	gametile-mutant-fill-origin-unchecked \
+	gametile-mutant-load-sum \
+	gametile-mutant-load-product \
+	gametile-mutant-touch-unchecked
+
+gametile-mutant-run-crosses-row:
+	${GAMETILE_MUT} gametile.h \
+	    's/x + run < GTILE_COLS \&\&$$/1 \&\&/' ${GAMETILE_SRC}
+
+gametile-mutant-run-single:
+	${GAMETILE_MUT} gametile.h \
+	    's/while (x + run < GTILE_COLS \&\&$$/while (0 \&\&/' ${GAMETILE_SRC}
+
+gametile-mutant-run-bridges-gap:
+	${GAMETILE_MUT} gametile.h \
+	    's/^\t\t\t    gtile_is_dirty(g, y \* GTILE_COLS + x + run))$$/\t\t\t    (gtile_is_dirty(g, y * GTILE_COLS + x + run) || gtile_is_dirty(g, y * GTILE_COLS + x + run + 1)))/' ${GAMETILE_SRC}
+
+gametile-mutant-mark-kept:
+	${GAMETILE_MUT} gametile.h \
+	    's/gtile_unmark(g, y \* GTILE_COLS + x + k);/(void)k;/' ${GAMETILE_SRC}
+
+gametile-mutant-pending-uncounted:
+	${GAMETILE_MUT} gametile.h \
+	    's/g->pending++;/(void)0;/' ${GAMETILE_SRC}
+
+gametile-mutant-pending-kept:
+	${GAMETILE_MUT} gametile.h \
+	    's/g->pending--;/(void)0;/' ${GAMETILE_SRC}
+
+gametile-mutant-set-always-marks:
+	${GAMETILE_MUT} gametile.h \
+	    's/if (g->shadow\[i\] != t) {/if (1) {/' ${GAMETILE_SRC}
+
+gametile-mutant-set-unmarked:
+	${GAMETILE_MUT} gametile.h \
+	    's/^\t\tgtile_mark(g, i);$$/\t\t(void)0;/' ${GAMETILE_SRC}
+
+gametile-mutant-set-tile-range:
+	${GAMETILE_MUT} gametile.h \
+	    '/^gtile_set/,/^}/s/^\t    t < 0 || t >= LCDG_ATLAS_N)$$/\t    t < 0)/' ${GAMETILE_SRC}
+
+gametile-mutant-set-x-bound:
+	${GAMETILE_MUT} gametile.h \
+	    's/x < 0 || x >= GTILE_COLS || y < 0 || y >= GTILE_ROWS ||$$/x < 0 || x > GTILE_COLS || y < 0 || y >= GTILE_ROWS ||/' ${GAMETILE_SRC}
+
+gametile-mutant-init-clean:
+	${GAMETILE_MUT} gametile.h \
+	    's/memset(g->dirty, 0xff, sizeof(g->dirty));$$/memset(g->dirty, 0, sizeof(g->dirty));/' ${GAMETILE_SRC}
+
+gametile-mutant-fill-range:
+	${GAMETILE_MUT} gametile.h \
+	    's/w > GTILE_COLS - x/w > GTILE_COLS - x + 1/' ${GAMETILE_SRC}
+
+gametile-mutant-fill-tile-range:
+	${GAMETILE_MUT} gametile.h \
+	    '/^gtile_fill/,/^}/s/^\t    t < 0 || t >= LCDG_ATLAS_N)$$/\t    t < 0)/' ${GAMETILE_SRC}
+
+gametile-mutant-short-write-accepted:
+	${GAMETILE_MUT} gametile.h \
+	    's/(size_t)run) != run)/(size_t)run) < 0)/' ${GAMETILE_SRC}
+
+gametile-mutant-ioctl-failure-ignored:
+	${GAMETILE_MUT} gametile.h \
+	    's/GTILE_IOCTL(g->fd, LCDG_TILEWIN, \&w) < 0)/GTILE_IOCTL(g->fd, LCDG_TILEWIN, \&w) < -1)/' ${GAMETILE_SRC}
+
+gametile-mutant-window-height:
+	${GAMETILE_MUT} gametile.h \
+	    's/w.th = 1;/w.th = 2;/' ${GAMETILE_SRC}
+
+gametile-mutant-write-source:
+	${GAMETILE_MUT} gametile.h \
+	    's/g->shadow + y \* GTILE_COLS + x,/g->shadow + x,/' ${GAMETILE_SRC}
+
+gametile-mutant-load-last-tile:
+	${GAMETILE_MUT} gametile.h \
+	    's/count <= LCDG_ATLAS_N - first;/count < LCDG_ATLAS_N - first;/' ${GAMETILE_SRC}
+
+gametile-mutant-load-high:
+	${GAMETILE_MUT} gametile.h \
+	    's/count <= LCDG_ATLAS_N - first;/count <= LCDG_ATLAS_N - first + 1;/' ${GAMETILE_SRC}
+
+gametile-mutant-load-count-zero:
+	${GAMETILE_MUT} gametile.h \
+	    's/ count >= 1 \&\&$$//' ${GAMETILE_SRC}
+
+gametile-mutant-load-touch-missing:
+	${GAMETILE_MUT} gametile.h \
+	    's/^\tgtile_touch_tiles(g, first, count);$$/\t(void)0;/' ${GAMETILE_SRC}
+
+gametile-mutant-touch-range:
+	${GAMETILE_MUT} gametile.h \
+	    's/g->shadow\[i\] - first < count/g->shadow[i] - first <= count/' ${GAMETILE_SRC}
+
+gametile-mutant-load-bytes:
+	${GAMETILE_MUT} gametile.h \
+	    's/n = count \* LCDG_TILE_BYTES;/n = count * 16;/' ${GAMETILE_SRC}
+
+gametile-mutant-fill-column-sum:
+	${GAMETILE_MUT} gametile.h \
+	    's/w > GTILE_COLS - x/x + w > GTILE_COLS/' ${GAMETILE_SRC}
+
+gametile-mutant-fill-row-sum:
+	${GAMETILE_MUT} gametile.h \
+	    's/h > GTILE_ROWS - y/y + h > GTILE_ROWS/' ${GAMETILE_SRC}
+
+gametile-mutant-fill-origin-unchecked:
+	${GAMETILE_MUT} gametile.h \
+	    's/x < 0 || x > GTILE_COLS || y < 0 || y > GTILE_ROWS ||$$/0 ||/' ${GAMETILE_SRC}
+
+gametile-mutant-load-sum:
+	${GAMETILE_MUT} gametile.h \
+	    's/count <= LCDG_ATLAS_N - first;/first + count <= LCDG_ATLAS_N;/' ${GAMETILE_SRC}
+
+gametile-mutant-load-product:
+	${GAMETILE_MUT} gametile.h \
+	    '/^gtile_load/,/^}/s/^\tif (!gtile_range_ok(first, count))$$/\tif ((n = count * LCDG_TILE_BYTES) < 0 || !gtile_range_ok(first, count))/' ${GAMETILE_SRC}
+
+gametile-mutant-touch-unchecked:
+	${GAMETILE_MUT} gametile.h \
+	    '/^gtile_touch_tiles/,/^}/s/^\tif (!gtile_range_ok(first, count))$$/\tif (0)/' ${GAMETILE_SRC}
+
+GFX_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
+		lcdgfx_test.c
+
+GFX_SRC=	lcdgfx.c lcdgfx.h lcdterm.c lcdterm.h lcdfont.c lcdfont.h
+
+gfx-mutants: \
+	gfx-mutant-exclusive-open \
+	gfx-mutant-no-restore \
+	gfx-mutant-coord-bound \
+	gfx-mutant-rect-order \
+	gfx-mutant-circle-right \
+	gfx-mutant-circle-left \
+	gfx-mutant-window-format \
+	gfx-mutant-window-extent \
+	gfx-mutant-window-gray \
+	gfx-mutant-palette-index \
+	gfx-mutant-scroll-range \
+	gfx-mutant-scrdef-sum \
+	gfx-mutant-scrdef-scroll \
+	gfx-mutant-colmod-565 \
+	gfx-mutant-colmod-any \
+	gfx-mutant-widen-red \
+	gfx-mutant-byte-order \
+	gfx-mutant-index-mask \
+	gfx-mutant-row-padding \
+	gfx-mutant-odd-write \
+	gfx-mutant-write-overrun \
+	gfx-mutant-ioctl-abandon \
+	gfx-mutant-close-abandon \
+	gfx-mutant-frame-overdraw \
+	gfx-mutant-circle-mirror \
+	gfx-mutant-circle-swap \
+	gfx-mutant-line-error \
+	gfx-mutant-line-fast-path \
+	gfx-mutant-palette-default \
+	gfx-mutant-open-format \
+	gfx-mutant-open-scroll \
+	gfx-mutant-info-bpp \
+	gfx-mutant-gate-cell \
+	gfx-mutant-enter-flag \
+	gfx-mutant-leave-repaint \
+	gfx-mutant-leave-reset \
+	gfx-mutant-abort-leave \
+	gfx-mutant-tileset-bound-high \
+	gfx-mutant-tileset-bound-low \
+	gfx-mutant-tileset-count-zero \
+	gfx-mutant-tileset-offset \
+	gfx-mutant-tileset-overrun \
+	gfx-mutant-tileset-abandon \
+	gfx-mutant-tilewin-right \
+	gfx-mutant-tilewin-bottom \
+	gfx-mutant-tilewin-width-zero \
+	gfx-mutant-tilewin-height-zero \
+	gfx-mutant-tilewin-abandon \
+	gfx-mutant-tilewin-restart \
+	gfx-mutant-tile-number-bound \
+	gfx-mutant-tile-number-continue \
+	gfx-mutant-tile-resid-clamp \
+	gfx-mutant-tile-excess \
+	gfx-mutant-tile-window-right \
+	gfx-mutant-tile-row-step \
+	gfx-mutant-tile-interleave \
+	gfx-mutant-tile-line-stride \
+	gfx-mutant-tile-nibble-order \
+	gfx-mutant-tile-palette-entry \
+	gfx-mutant-tile-open-clear \
+	gfx-mutant-info-tiles
+
+gfx-mutant-exclusive-open:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\tif (gfx_open)$$/\tif (0)/' ${GFX_SRC}
+
+gfx-mutant-no-restore:
+	${GFX_MUT} lcdgfx.c \
+	    's/return lcdcons_gfx(0);/return 0;/' ${GFX_SRC}
+
+gfx-mutant-coord-bound:
+	${GFX_MUT} lcdgfx.c \
+	    's/\*v++ >= LCDG_WIDTH/*v++ > LCDG_WIDTH/' ${GFX_SRC}
+
+gfx-mutant-rect-order:
+	${GFX_MUT} lcdgfx.c \
+	    's/ || rc->x0 > rc->x1//' ${GFX_SRC}
+
+gfx-mutant-circle-right:
+	${GFX_MUT} lcdgfx.c \
+	    's/ci->x + ci->r >= LCDG_WIDTH/ci->x + ci->r > LCDG_WIDTH/' ${GFX_SRC}
+
+gfx-mutant-circle-left:
+	${GFX_MUT} lcdgfx.c \
+	    's/ci->r > ci->x || //' ${GFX_SRC}
+
+gfx-mutant-window-format:
+	${GFX_MUT} lcdgfx.c \
+	    's/w->fmt > LCDG_WIN_BITS/w->fmt > 3/' ${GFX_SRC}
+
+gfx-mutant-window-extent:
+	${GFX_MUT} lcdgfx.c \
+	    's/w->x + w->w > LCDG_WIDTH/w->x + w->w > LCDG_WIDTH + 1/' ${GFX_SRC}
+
+gfx-mutant-window-gray:
+	${GFX_MUT} lcdgfx.c \
+	    's/w->fg >= LCDG_NPAL || //' ${GFX_SRC}
+
+gfx-mutant-palette-index:
+	${GFX_MUT} lcdgfx.c \
+	    's/pl->index >= LCDG_NPAL/pl->index > LCDG_NPAL/' ${GFX_SRC}
+
+gfx-mutant-scroll-range:
+	${GFX_MUT} lcdgfx.c \
+	    's/sc->line >= LCDG_RAM_LINES - scr_bottom/sc->line > LCDG_RAM_LINES - scr_bottom/' ${GFX_SRC}
+
+gfx-mutant-scrdef-sum:
+	${GFX_MUT} lcdgfx.c \
+	    's/sd->top + sd->bottom >= LCDG_RAM_LINES/sd->top + sd->bottom > LCDG_RAM_LINES/' ${GFX_SRC}
+
+gfx-mutant-scrdef-scroll:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\tlcd_gfx_scroll(scr_top);/\t\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-colmod-565:
+	${GFX_MUT} lcdgfx.c \
+	    's/ \&\& cm->fmt != LCDG_COLMOD_RGB565//' ${GFX_SRC}
+
+gfx-mutant-colmod-any:
+	${GFX_MUT} lcdgfx.c \
+	    's/if (cm->fmt != LCDG_COLMOD_RGB666 \&\& cm->fmt != LCDG_COLMOD_RGB565)/if (0)/' ${GFX_SRC}
+
+gfx-mutant-widen-red:
+	${GFX_MUT} lcdgfx.c \
+	    's/lcd_gfx_byte(r << 3 | r >> 2);/lcd_gfx_byte(r << 3);/' ${GFX_SRC}
+
+gfx-mutant-byte-order:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\tlcd_gfx_byte(c >> 8);/\t\tlcd_gfx_byte(c \& 0xff);/' ${GFX_SRC}
+
+gfx-mutant-index-mask:
+	${GFX_MUT} lcdgfx.c \
+	    's/gfx_pal\[v \& (LCDG_NPAL - 1)\]/gfx_pal[v % 17]/' ${GFX_SRC}
+
+gfx-mutant-row-padding:
+	${GFX_MUT} lcdgfx.c \
+	    's/win_col += 8;/win_col += 1;/' ${GFX_SRC}
+
+gfx-mutant-odd-write:
+	${GFX_MUT} lcdgfx.c \
+	    's/(uio->uio_resid \& 1) != 0/0/' ${GFX_SRC}
+
+gfx-mutant-write-overrun:
+	${GFX_MUT} lcdgfx.c \
+	    's/if (n > win_left)/if (0)/' ${GFX_SRC}
+
+gfx-mutant-ioctl-abandon:
+	${GFX_MUT} lcdgfx.c \
+	    '/^lcdgfx_ioctl/,/^}/s/^\twindow_end();/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-close-abandon:
+	${GFX_MUT} lcdgfx.c \
+	    '/^lcdgfx_close/,/^}/s/^\twindow_end();/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-frame-overdraw:
+	${GFX_MUT} lcdgfx.c \
+	    's/if (y1 - y0 > 1) {/if (y1 - y0 > 0) {/' ${GFX_SRC}
+
+gfx-mutant-circle-mirror:
+	${GFX_MUT} lcdgfx.c \
+	    's/(i \& 2 ? -dy : dy)/dy/' ${GFX_SRC}
+
+gfx-mutant-circle-swap:
+	${GFX_MUT} lcdgfx.c \
+	    's/dx = i \& 4 ? y : x;/dx = x;/' ${GFX_SRC}
+
+gfx-mutant-line-error:
+	${GFX_MUT} lcdgfx.c \
+	    's/e2 = 2 \* err;/e2 = err;/' ${GFX_SRC}
+
+gfx-mutant-line-fast-path:
+	${GFX_MUT} lcdgfx.c \
+	    's/if (x0 == x1 || y0 == y1) {/if (0) {/' ${GFX_SRC}
+
+gfx-mutant-palette-default:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\tgfx_pal\[i\] = rgb565(/\t\tgfx_pal[i] = 0 \& rgb565(/' ${GFX_SRC}
+
+gfx-mutant-open-format:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\tgfx_fmt = LCDG_COLMOD_RGB666;/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-open-scroll:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\tlcd_gfx_scroll(0);/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-info-bpp:
+	${GFX_MUT} lcdgfx.c \
+	    's/gfx_fmt == LCDG_COLMOD_RGB565 ? 16 : 18/18/' ${GFX_SRC}
+
+gfx-mutant-gate-cell:
+	${GFX_MUT} lcdterm.c \
+	    '/^panel_cell/,/^}/s/if (!gfx_active)/if (1)/' ${GFX_SRC}
+
+gfx-mutant-enter-flag:
+	${GFX_MUT} lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/gfx_active = on;/gfx_active = 0;/' ${GFX_SRC}
+
+gfx-mutant-leave-repaint:
+	${GFX_MUT} lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/lcdterm_repaint();/(void)0;/' ${GFX_SRC}
+
+gfx-mutant-leave-reset:
+	${GFX_MUT} lcdterm.c \
+	    '/^lcdterm_gfx/,/^}/s/lcd_gfx_reset();/(void)0;/' ${GFX_SRC}
+
+gfx-mutant-abort-leave:
+	${GFX_MUT} lcdterm.c \
+	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/' ${GFX_SRC}
+
+gfx-mutant-tileset-bound-high:
+	${GFX_MUT} lcdgfx.c \
+	    's/ts->first + ts->count > LCDG_ATLAS_N/ts->first + ts->count > LCDG_ATLAS_N + 1/' ${GFX_SRC}
+
+gfx-mutant-tileset-bound-low:
+	${GFX_MUT} lcdgfx.c \
+	    's/ts->first + ts->count > LCDG_ATLAS_N/ts->first + ts->count >= LCDG_ATLAS_N/' ${GFX_SRC}
+
+gfx-mutant-tileset-count-zero:
+	${GFX_MUT} lcdgfx.c \
+	    's/ts->count == 0 || //' ${GFX_SRC}
+
+gfx-mutant-tileset-offset:
+	${GFX_MUT} lcdgfx.c \
+	    's/tset_pos = ts->first \* LCDG_TILE_BYTES;/tset_pos = 0;/' ${GFX_SRC}
+
+gfx-mutant-tileset-overrun:
+	${GFX_MUT} lcdgfx.c \
+	    's/if (n > tset_left)/if (0)/' ${GFX_SRC}
+
+gfx-mutant-tileset-abandon:
+	${GFX_MUT} lcdgfx.c \
+	    '/^window_end/,/^}/s/^\ttset_left = 0;$$/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-tilewin-right:
+	${GFX_MUT} lcdgfx.c \
+	    's/tl->tx + tl->tw > LCDG_GRID/tl->tx + tl->tw > LCDG_GRID + 1/' ${GFX_SRC}
+
+gfx-mutant-tilewin-bottom:
+	${GFX_MUT} lcdgfx.c \
+	    's/tl->ty + tl->th > LCDG_GRID/tl->ty + tl->th > LCDG_GRID + 1/' ${GFX_SRC}
+
+gfx-mutant-tilewin-width-zero:
+	${GFX_MUT} lcdgfx.c \
+	    's/tl->tw == 0 || //' ${GFX_SRC}
+
+gfx-mutant-tilewin-height-zero:
+	${GFX_MUT} lcdgfx.c \
+	    's/ tl->th == 0 ||$$//' ${GFX_SRC}
+
+gfx-mutant-tilewin-abandon:
+	${GFX_MUT} lcdgfx.c \
+	    '/^window_end/,/^}/s/^\ttw_left = 0;$$/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-tilewin-restart:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\ttw_fill = 0;$$/\t\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-tile-number-bound:
+	${GFX_MUT} lcdgfx.c \
+	    's/tw_row\[i\] >= LCDG_ATLAS_N/tw_row[i] > LCDG_ATLAS_N/' ${GFX_SRC}
+
+gfx-mutant-tile-number-continue:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\t\t\ttw_left = 0;$$/\t\t\t\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-tile-resid-clamp:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\tif (n > uio->uio_resid)$$/\t\tif (0)/' ${GFX_SRC}
+
+gfx-mutant-tile-excess:
+	${GFX_MUT} lcdgfx.c \
+	    's/uio->uio_resid > 0 \&\& tw_left > 0/uio->uio_resid > 0/' ${GFX_SRC}
+
+gfx-mutant-tile-window-right:
+	${GFX_MUT} lcdgfx.c \
+	    's/(tw_x + tw_w) \* LCDG_TILE_W - 1/(tw_x + tw_w) * LCDG_TILE_W - 2/' ${GFX_SRC}
+
+gfx-mutant-tile-row-step:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\t\ttw_y++;$$/\t\t\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-tile-interleave:
+	${GFX_MUT} lcdgfx.c \
+	    '/^\tfor (line = 0; line < LCDG_TILE_H; line++) {$$/{s/line = 0; line < LCDG_TILE_H; line++/i = 0; i < tw_w; i++/;n;s/i = 0; i < tw_w; i++/line = 0; line < LCDG_TILE_H; line++/;}' ${GFX_SRC}
+
+gfx-mutant-tile-line-stride:
+	${GFX_MUT} lcdgfx.c \
+	    's/line \* 4/line * 3/' ${GFX_SRC}
+
+gfx-mutant-tile-nibble-order:
+	${GFX_MUT} lcdgfx.c \
+	    '/put_color(gfx_pal\[p\[b\] >> 4\]);/{s/>> 4/\& 15/;n;s/\& 15/>> 4/;}' ${GFX_SRC}
+
+gfx-mutant-tile-palette-entry:
+	${GFX_MUT} lcdgfx.c \
+	    's/gfx_pal\[p\[b\] >> 4\]/gfx_pal[(p[b] >> 4) \& 7]/' ${GFX_SRC}
+
+gfx-mutant-tile-open-clear:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\tbzero(atlas, sizeof(atlas));$$/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-info-tiles:
+	${GFX_MUT} lcdgfx.c \
+	    's/in->tiles = LCDG_ATLAS_N;/in->tiles = 0;/' ${GFX_SRC}
 
 KBDREQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD}" "${DEV}" \
 		kbdreq_test.c
@@ -512,12 +1360,18 @@ picoaudio-mutant-busy-kept:
 	    's/bell_on = 0;$$/(void)0;/' picoaudio.c
 
 clean:
-	rm -f lcdterm_test kbdreq_test sdspi_test sdstrat_test \
-	    picoaudio_test
+	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
+	    sdspi_test sdstrat_test picoaudio_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
-	mutant-bell-any clean \
+	mutant-bell-any mutant-bank-store mutant-bank-redraw \
+	mutant-bank-ascii mutant-bank-c1 mutant-bank-acs-shift \
+	mutant-bank-ris mutant-bank-rows mutant-bank-code clean \
+	mutant-gfx-gate-cell mutant-gfx-gate-fill mutant-gfx-gate-top \
+	mutant-gfx-repaint-row mutant-gfx-repaint-top \
+	mutant-gfx-repaint-cursor mutant-gfx-leave-repaint \
+	mutant-gfx-leave-reset mutant-gfx-abort \
 	kbdreq-mutants kbdreq-mutant-write-bit kbdreq-mutant-echo \
 	kbdreq-mutant-retry kbdreq-mutant-expire-sent \
 	kbdreq-mutant-percent kbdreq-mutant-level kbdreq-mutant-off-floor \
@@ -593,3 +1447,47 @@ clean:
 	picoaudio-mutant-slice-left-on \
 	picoaudio-mutant-override-kept \
 	picoaudio-mutant-busy-kept
+
+.PHONY: kbdevq-mutants kbdevq-mutant-check-ignores-group kbdevq-mutant-check-ignores-mode kbdevq-mutant-mode-counts-line-discipline kbdevq-mutant-start-cooked kbdevq-mutant-start-raw-only kbdevq-mutant-start-no-snapshot kbdevq-mutant-modeset-ignored kbdevq-mutant-modeset-owner kbdevq-mutant-drain-any-process kbdevq-mutant-stop-any-process kbdevq-mutant-start-any-process kbdevq-mutant-procexit-ignored kbdevq-mutant-procexit-any-process kbdevq-mutant-owner-pid-ignored kbdevq-mutant-owner-proc-ignored kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-check-ignored kbdevq-mutant-check-always-ends kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
+
+.PHONY: gametile-mutants gametile-mutant-fill-column-sum gametile-mutant-fill-row-sum gametile-mutant-fill-origin-unchecked gametile-mutant-load-sum gametile-mutant-load-product gametile-mutant-touch-unchecked gametile-mutant-run-crosses-row gametile-mutant-run-single gametile-mutant-run-bridges-gap gametile-mutant-mark-kept gametile-mutant-pending-uncounted gametile-mutant-pending-kept gametile-mutant-set-always-marks gametile-mutant-set-unmarked gametile-mutant-set-tile-range gametile-mutant-set-x-bound gametile-mutant-init-clean gametile-mutant-fill-range gametile-mutant-fill-tile-range gametile-mutant-short-write-accepted gametile-mutant-ioctl-failure-ignored gametile-mutant-window-height gametile-mutant-write-source gametile-mutant-load-last-tile gametile-mutant-load-high gametile-mutant-load-count-zero gametile-mutant-load-touch-missing gametile-mutant-touch-range gametile-mutant-load-bytes
+
+.PHONY: gfx-mutants gfx-mutant-exclusive-open gfx-mutant-no-restore \
+	gfx-mutant-coord-bound gfx-mutant-rect-order gfx-mutant-circle-right \
+	gfx-mutant-circle-left gfx-mutant-window-format \
+	gfx-mutant-window-extent gfx-mutant-window-gray \
+	gfx-mutant-palette-index gfx-mutant-scroll-range gfx-mutant-scrdef-sum \
+	gfx-mutant-scrdef-scroll gfx-mutant-colmod-565 gfx-mutant-colmod-any \
+	gfx-mutant-widen-red gfx-mutant-byte-order gfx-mutant-index-mask \
+	gfx-mutant-row-padding gfx-mutant-odd-write gfx-mutant-write-overrun \
+	gfx-mutant-ioctl-abandon gfx-mutant-close-abandon \
+	gfx-mutant-frame-overdraw gfx-mutant-circle-mirror \
+	gfx-mutant-circle-swap gfx-mutant-line-error gfx-mutant-line-fast-path \
+	gfx-mutant-palette-default gfx-mutant-open-format \
+	gfx-mutant-open-scroll gfx-mutant-info-bpp gfx-mutant-gate-cell \
+	gfx-mutant-enter-flag gfx-mutant-leave-repaint gfx-mutant-leave-reset \
+	gfx-mutant-abort-leave \
+	gfx-mutant-tileset-bound-high \
+	gfx-mutant-tileset-bound-low \
+	gfx-mutant-tileset-count-zero \
+	gfx-mutant-tileset-offset \
+	gfx-mutant-tileset-overrun \
+	gfx-mutant-tileset-abandon \
+	gfx-mutant-tilewin-right \
+	gfx-mutant-tilewin-bottom \
+	gfx-mutant-tilewin-width-zero \
+	gfx-mutant-tilewin-height-zero \
+	gfx-mutant-tilewin-abandon \
+	gfx-mutant-tilewin-restart \
+	gfx-mutant-tile-number-bound \
+	gfx-mutant-tile-number-continue \
+	gfx-mutant-tile-resid-clamp \
+	gfx-mutant-tile-excess \
+	gfx-mutant-tile-window-right \
+	gfx-mutant-tile-row-step \
+	gfx-mutant-tile-interleave \
+	gfx-mutant-tile-line-stride \
+	gfx-mutant-tile-nibble-order \
+	gfx-mutant-tile-palette-entry \
+	gfx-mutant-tile-open-clear \
+	gfx-mutant-info-tiles

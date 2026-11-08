@@ -947,6 +947,15 @@ def selftest(lines, appended, decl, selected_extra):
         "closure calc needs /usr/games/keen, which this profile does not install",
         without_names=["keen"], needs_path={"calc": ["/usr/games/keen"]}))
     cases.append(new_case(
+        "reject", "the pixel-device platformer on the PICO board's profile", full,
+        "closure ridge needs closure lcdgfx, which this profile does not select",
+        with_names=["ridge"]))
+    cases.append(new_case(
+        "reject", "the platformer kept without the pixel device node",
+        decl.profiles["picocalc"],
+        "closure ridge needs closure lcdgfx, which this profile does not select",
+        without_names=["lcdgfx"]))
+    cases.append(new_case(
         "accept", "toolchain and toolchainlib removed together", full,
         without_names=["toolchain", "toolchainlib"]))
     cases.append(new_case(
@@ -961,6 +970,16 @@ def selftest(lines, appended, decl, selected_extra):
         "accept", "a single puzzle on the base system", [],
         with_names=["gamesdir", "puzzlebox", "lightup"],
         members={"gamebox": [], "puzzlebox": ["lightup"]}))
+    cases.append(new_case(
+        "accept", "picocalc links the platformer into gamebox",
+        decl.profiles["picocalc"],
+        members={"gamebox": ["fifteen", "keen", "bubble", "fourfall", "coil", "ridge"],
+                 "puzzlebox": ["flood", "samegame", "unruly", "lightup"]}))
+    cases.append(new_case(
+        "accept", "picocalc without the platformer and the pixel device node",
+        decl.profiles["picocalc"], without_names=["ridge", "lcdgfx"],
+        members={"gamebox": ["fifteen", "keen", "bubble", "fourfall", "coil"],
+                 "puzzlebox": ["flood", "samegame", "unruly", "lightup"]}))
     cases.append(new_case(
         "accept", "dc without bc", full, with_names=["dc"]))
     cases.append(new_case(

@@ -22,8 +22,14 @@ struct  dirtemplate emptydir = { 0, DIRBLKSIZ };
  * 'xstr' is used to preprocess the sources.  The structure has two members
  * as 'char dot_name[2]' and 'char dotdot_name[6]' which is NOT the same as
  * 'char *'.
+ *
+ * The "." entry holds DIRSIZ of a one-character name: the eight-byte header
+ * of struct direct (four-byte d_ino, d_reclen, d_namlen) plus the name and
+ * its terminator padded to four bytes, twelve in all. The ".." entry starts
+ * at offset twelve and owns the rest of the block. The kernel's
+ * mastertemplate (sys/kern/ufs_syscalls.c) carries the same two lengths.
  */
-struct  dirtemplate dirhead = { 0, 8, 1, {'.'}, 0, DIRBLKSIZ - 8, 2,
+struct  dirtemplate dirhead = { 0, 12, 1, {'.'}, 0, DIRBLKSIZ - 12, 2,
                 {'.', '.' }};
 
 void
@@ -82,7 +88,7 @@ dircheck(idesc, dp)
 
     size = DIRSIZ(dp);
     spaceleft = DIRBLKSIZ - (idesc->id_loc % DIRBLKSIZ);
-    if (dp->d_ino < imax &&
+    if (dp->d_ino <= imax &&
         dp->d_reclen != 0 &&
         dp->d_reclen <= spaceleft &&
         (dp->d_reclen & 0x3) == 0 &&
@@ -211,9 +217,7 @@ direrr(ino, s)
 }
 
 void
-adjust(idesc, lcnt)
-    register struct inodesc *idesc;
-    short lcnt;
+adjust(register struct inodesc *idesc, short lcnt)
 {
     register DINODE *dp;
 
@@ -345,7 +349,7 @@ makeentry(parent, ino, name)
     DINODE *dp;
     struct inodesc idesc;
 
-    if (parent < ROOTINO || parent >= imax || ino < ROOTINO || ino >= imax)
+    if (parent < ROOTINO || parent > imax || ino < ROOTINO || ino > imax)
         return (0);
     bzero(&idesc, sizeof(struct inodesc));
     idesc.id_type = DATA;
@@ -442,7 +446,7 @@ linkup(orphan, pdir)
         idesc.id_func = findino;
         idesc.id_number = ROOTINO;
         (void)ckinode(dp, &idesc);
-        if (idesc.id_parent >= ROOTINO && idesc.id_parent < imax) {
+        if (idesc.id_parent >= ROOTINO && idesc.id_parent <= imax) {
             lfdir = idesc.id_parent;
         } else {
             pwarn("NO lost+found DIRECTORY");
@@ -533,7 +537,8 @@ linkup(orphan, pdir)
 }
 
 /*
- * allocate a new directory
+ * allocate a new directory; returns its inode number, or 0 when allocino()
+ * finds no free inode or block (the callers report the refusal)
  */
 int
 allocdir(parent, request)
@@ -545,6 +550,8 @@ allocdir(parent, request)
     int st;
 
     ino = allocino(request, IFDIR|0755);
+    if (ino == 0)
+        return (0);
     dirhead.dot_ino = ino;
     dirhead.dotdot_ino = parent;
     dp = ginode(ino);

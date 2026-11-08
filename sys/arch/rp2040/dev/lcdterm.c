@@ -33,8 +33,24 @@
  * reprograms the panel's scroll start, which costs one row of fill.
  * Scrolls confined to a region, and line insertion or deletion, move
  * the cell store and redraw the affected rows cell by cell.
+ *
+ * While a pixel program owns the panel (gfx_active, set by lcdterm_gfx())
+ * the terminal still interprets its input and updates the cell store, the
+ * ring and the cursor, and skips the three panel primitives; leaving that
+ * mode repaints from the store, so text written meanwhile appears.
+ *
+ * Cell codes 0x80-0xff address the glyph bank. The DEC line-drawing set
+ * (ESC ( 0) maps 0x5f-0x7e onto bank codes 0x80-0x9f, which hold the real
+ * graphics until a program replaces them with LCDIOC_SETGLYPH. A raw byte
+ * 0xa0-0xff is stored as its own bank code. A raw byte 0x80-0x9f is a C1
+ * control, which this terminal does not interpret; it draws as '?', so the
+ * line-drawing codes stay reachable only through the escape and a stray
+ * UTF-8 continuation byte cannot draw a box edge. The bank starts with '?'
+ * in every code the escape cannot reach, so text that carries bytes above
+ * 0x9f looks as it did before the bank existed.
  */
 
+#include "lcdfont.h"
 #include "lcdterm.h"
 
 #define	LT_NPARAM	8
@@ -59,6 +75,7 @@ static int sgr_fg, sgr_bg, sgr_bold, sgr_ul, sgr_rev;
 static unsigned cattr;		/* Attribute for cells written now. */
 
 static int autowrap, insertmode, cursor_on, appcursor, gfx;
+static int gfx_active;		/* A pixel program owns the panel. */
 
 static int cursor_drawn, cd_prow, cd_col;
 
@@ -70,22 +87,105 @@ static int nparam;
 static int priv;		/* '?' after the CSI. */
 static int inter;		/* '!' intermediate. */
 
+#define	LT_ACS_FIRST	0x5f		/* First code the DEC set replaces. */
+#define	LT_ACS_N	32		/* 0x5f through 0x7e. */
+#define	LT_C1_END	0xa0		/* Raw bytes below it are C1 controls. */
+
 /*
- * The DEC special graphics set replaces 0x5f-0x7e. The font carries only
- * ASCII, so each graphic maps to the ASCII character closest in shape:
- * corners, tees and the crossing become '+', the rules '-' and '|'.
+ * The DEC special graphics shapes, in the order of the codes they replace.
+ * One stroke is one pixel wide; vertical strokes sit in column 2 and
+ * horizontal strokes in row 4, so adjacent cells join. The box edges
+ * reach the cell borders: a stroke on glyph row 0 or 8 continues through
+ * the repeated tenth row.
  */
-static const char acs_map[32] = {
-	' ', '*', '#', 'H', 'F', 'C', 'L', '\'',	/* _ ` a b c d e f */
-	'#', 'N', 'V', '+', '+', '+', '+', '+',		/* g h i j k l m n */
-	'-', '-', '-', '-', '-', '+', '+', '+',		/* o p q r s t u v */
-	'+', '|', '<', '>', '*', '!', 'f', 'o',		/* w x y z { | } ~ */
+static const unsigned char dec_graphics[LT_ACS_N][LT_GLYPH_ROWS] = {
+	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },	/* 0x5f blank */
+	{ 0x00, 0x00, 0x30, 0x78, 0xfc, 0x78, 0x30, 0x00, 0x00 },	/* 0x60 diamond */
+	{ 0xa8, 0x54, 0xa8, 0x54, 0xa8, 0x54, 0xa8, 0x54, 0xa8 },	/* 0x61 checker */
+	{ 0xa0, 0xa0, 0xe0, 0xa0, 0xbc, 0x08, 0x08, 0x08, 0x08 },	/* 0x62 HT */
+	{ 0xe0, 0x80, 0xc0, 0x80, 0x9c, 0x10, 0x18, 0x10, 0x10 },	/* 0x63 FF */
+	{ 0xe0, 0x80, 0x80, 0x80, 0xf8, 0x14, 0x18, 0x14, 0x14 },	/* 0x64 CR */
+	{ 0x80, 0x80, 0x80, 0x80, 0xfc, 0x10, 0x18, 0x10, 0x10 },	/* 0x65 LF */
+	{ 0x00, 0x30, 0x48, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00 },	/* 0x66 degree */
+	{ 0x00, 0x20, 0x20, 0xf8, 0x20, 0x20, 0x00, 0xf8, 0x00 },	/* 0x67 plus-minus */
+	{ 0xa0, 0xe0, 0xe0, 0xa0, 0xb0, 0x10, 0x10, 0x10, 0x1c },	/* 0x68 NL */
+	{ 0xa0, 0xa0, 0xa0, 0xa0, 0x5c, 0x08, 0x08, 0x08, 0x08 },	/* 0x69 VT */
+	{ 0x20, 0x20, 0x20, 0x20, 0xe0, 0x00, 0x00, 0x00, 0x00 },	/* 0x6a lower-right corner */
+	{ 0x00, 0x00, 0x00, 0x00, 0xe0, 0x20, 0x20, 0x20, 0x20 },	/* 0x6b upper-right corner */
+	{ 0x00, 0x00, 0x00, 0x00, 0x3c, 0x20, 0x20, 0x20, 0x20 },	/* 0x6c upper-left corner */
+	{ 0x20, 0x20, 0x20, 0x20, 0x3c, 0x00, 0x00, 0x00, 0x00 },	/* 0x6d lower-left corner */
+	{ 0x20, 0x20, 0x20, 0x20, 0xfc, 0x20, 0x20, 0x20, 0x20 },	/* 0x6e crossing */
+	{ 0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },	/* 0x6f scan line 1 */
+	{ 0x00, 0x00, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },	/* 0x70 scan line 3 */
+	{ 0x00, 0x00, 0x00, 0x00, 0xfc, 0x00, 0x00, 0x00, 0x00 },	/* 0x71 horizontal line */
+	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfc, 0x00, 0x00 },	/* 0x72 scan line 7 */
+	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfc },	/* 0x73 scan line 9 */
+	{ 0x20, 0x20, 0x20, 0x20, 0x3c, 0x20, 0x20, 0x20, 0x20 },	/* 0x74 left tee */
+	{ 0x20, 0x20, 0x20, 0x20, 0xe0, 0x20, 0x20, 0x20, 0x20 },	/* 0x75 right tee */
+	{ 0x20, 0x20, 0x20, 0x20, 0xfc, 0x00, 0x00, 0x00, 0x00 },	/* 0x76 bottom tee */
+	{ 0x00, 0x00, 0x00, 0x00, 0xfc, 0x20, 0x20, 0x20, 0x20 },	/* 0x77 top tee */
+	{ 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20 },	/* 0x78 vertical line */
+	{ 0x00, 0x0c, 0x30, 0xc0, 0x30, 0x0c, 0x00, 0xfc, 0x00 },	/* 0x79 less or equal */
+	{ 0x00, 0xc0, 0x30, 0x0c, 0x30, 0xc0, 0x00, 0xfc, 0x00 },	/* 0x7a greater or equal */
+	{ 0x00, 0x00, 0xfc, 0x48, 0x48, 0x48, 0x48, 0x00, 0x00 },	/* 0x7b pi */
+	{ 0x00, 0x04, 0x08, 0xfc, 0x20, 0xfc, 0x80, 0x00, 0x00 },	/* 0x7c not equal */
+	{ 0x00, 0x30, 0x48, 0x40, 0xe0, 0x40, 0x40, 0xf8, 0x00 },	/* 0x7d pound sterling */
+	{ 0x00, 0x00, 0x00, 0x30, 0x30, 0x00, 0x00, 0x00, 0x00 },	/* 0x7e bullet */
 };
+
+/* The bank is RAM; lcdterm_init() and ESC c fill it. */
+static unsigned char glyph_bank[LT_GLYPH_N][LT_GLYPH_ROWS];
 
 static int
 phys(int r)
 {
 	return (top + r) % LT_ROWS;
+}
+
+/*
+ * The three panel primitives, skipped while gfx_active: the cell store,
+ * the ring and the cursor keep their state, and lcdterm_gfx(0) repaints
+ * the panel from them.
+ */
+static void
+panel_cell(int prow, int col, int ch, unsigned attr)
+{
+	if (!gfx_active)
+		lcd_draw_cell(prow, col, ch, attr);
+}
+
+static void
+panel_fill(int prow, int col, int n, unsigned attr)
+{
+	if (!gfx_active)
+		lcd_fill_cells(prow, col, n, attr);
+}
+
+static void
+panel_top(int prow)
+{
+	if (!gfx_active)
+		lcd_set_top(prow);
+}
+
+/* Bank codes 0-31 take the line-drawing shapes, the rest the '?' glyph. */
+static void
+glyph_defaults(void)
+{
+	int i, j;
+
+	for (i = 0; i < LT_GLYPH_N; i++)
+		for (j = 0; j < LT_GLYPH_ROWS; j++)
+			glyph_bank[i][j] = i < LT_ACS_N ? dec_graphics[i][j] :
+			    lcdfont['?' - LCDFONT_FIRST][j];
+}
+
+const unsigned char *
+lcdterm_glyph(int code)
+{
+	if (code < LT_GLYPH_FIRST || code >= LT_GLYPH_FIRST + LT_GLYPH_N)
+		return 0;
+	return glyph_bank[code - LT_GLYPH_FIRST];
 }
 
 static void
@@ -114,7 +214,7 @@ draw(int r, int c)
 {
 	int p = phys(r);
 
-	lcd_draw_cell(p, c, cells[p][c], attrs[p][c]);
+	panel_cell(p, c, cells[p][c], attrs[p][c]);
 }
 
 static void
@@ -130,7 +230,7 @@ static void
 cursor_hide(void)
 {
 	if (cursor_drawn) {
-		lcd_draw_cell(cd_prow, cd_col, cells[cd_prow][cd_col],
+		panel_cell(cd_prow, cd_col, cells[cd_prow][cd_col],
 		    attrs[cd_prow][cd_col]);
 		cursor_drawn = 0;
 	}
@@ -147,7 +247,7 @@ lcdterm_cursor_show(void)
 	p = phys(crow);
 	a = attrs[p][ccol];
 	inv = LT_ATTR(LT_ATTR_BG(a), LT_ATTR_FG(a) & 7, a & LT_ATTR_UL);
-	lcd_draw_cell(p, ccol, cells[p][ccol], inv);
+	panel_cell(p, ccol, cells[p][ccol], inv);
 	cursor_drawn = 1;
 	cd_prow = p;
 	cd_col = ccol;
@@ -172,7 +272,7 @@ erase_cells(int r, int c, int n)
 		cells[p][i] = ' ';
 		attrs[p][i] = (unsigned char)a;
 	}
-	lcd_fill_cells(p, c, n, a);
+	panel_fill(p, c, n, a);
 }
 
 static void
@@ -209,7 +309,7 @@ scroll_up(int t, int b, int n)
 		while (n-- > 0) {
 			erase_cells(0, 0, LT_COLS);
 			top = (top + 1) % LT_ROWS;
-			lcd_set_top(top);
+			panel_top(top);
 		}
 		return;
 	}
@@ -234,7 +334,7 @@ scroll_down(int t, int b, int n)
 		while (n-- > 0) {
 			erase_cells(LT_ROWS - 1, 0, LT_COLS);
 			top = (top + LT_ROWS - 1) % LT_ROWS;
-			lcd_set_top(top);
+			panel_top(top);
 		}
 		return;
 	}
@@ -609,7 +709,7 @@ full_reset(void)
 {
 	reset_modes();
 	top = 0;
-	lcd_set_top(0);
+	panel_top(0);
 	erase_rows(0, LT_ROWS - 1);
 	crow = ccol = 0;
 	state = ST_GROUND;
@@ -629,13 +729,52 @@ lcdterm_abort(void)
 	state = ST_GROUND;
 	cursor_drawn = 0;
 	reset_modes();
+	if (gfx_active)
+		lcdterm_gfx(0);
+	else
+		lcd_set_top(top);
+}
+
+/*
+ * Draw every cell of the store and the cursor on the panel, with the scroll
+ * start at the ring top, whatever the panel showed before. The caller holds
+ * the drawing flag of lcdcons.c.
+ */
+void
+lcdterm_repaint(void)
+{
+	int p, c;
+
+	cursor_drawn = 0;
 	lcd_set_top(top);
+	for (p = 0; p < LT_ROWS; p++)
+		for (c = 0; c < LT_COLS; c++)
+			lcd_draw_cell(p, c, cells[p][c], attrs[p][c]);
+	lcdterm_cursor_show();
+}
+
+/*
+ * Hand the panel to a pixel program (on) or take it back (off). Entering
+ * only stops the panel primitives; leaving returns the panel to the text
+ * configuration, which a pixel program may have changed, and repaints.
+ */
+void
+lcdterm_gfx(int on)
+{
+	cursor_drawn = 0;
+	gfx_active = on;
+	if (!on) {
+		lcd_gfx_reset();
+		lcdterm_repaint();
+	}
 }
 
 void
 lcdterm_init(void)
 {
 	cursor_drawn = 0;
+	gfx_active = 0;
+	glyph_defaults();
 	full_reset();
 }
 
@@ -680,6 +819,7 @@ esc_final(int c)
 		index_up();
 		break;
 	case 'c':
+		glyph_defaults();	/* RIS discards uploaded glyphs. */
 		full_reset();
 		break;
 	default:
@@ -795,11 +935,34 @@ lcdterm_putc(int c)
 	}
 	if (c == 0x7f)
 		return;
-	if (c > 0x7e)
-		c = '?';
-	else if (gfx && c >= 0x5f)
-		c = acs_map[c - 0x5f];
+	if (c >= LT_GLYPH_FIRST) {
+		if (c < LT_C1_END)
+			c = '?';
+	} else if (gfx && c >= LT_ACS_FIRST)
+		c = LT_GLYPH_FIRST + (c - LT_ACS_FIRST);
 	put_glyph(c);
+}
+
+int
+lcdterm_setglyph(int code, const unsigned char *rows)
+{
+	unsigned char *g;
+	int i, r, c;
+
+	if (code < LT_GLYPH_FIRST || code >= LT_GLYPH_FIRST + LT_GLYPH_N)
+		return -1;
+	for (i = 0; i < LT_GLYPH_ROWS; i++)
+		if ((rows[i] & ~LT_GLYPH_MASK) != 0)
+			return -1;
+	g = glyph_bank[code - LT_GLYPH_FIRST];
+	for (i = 0; i < LT_GLYPH_ROWS; i++)
+		g[i] = rows[i];
+	cursor_hide();
+	for (r = 0; r < LT_ROWS; r++)
+		for (c = 0; c < LT_COLS; c++)
+			if (cells[phys(r)][c] == code)
+				draw(r, c);
+	return 0;
 }
 
 int

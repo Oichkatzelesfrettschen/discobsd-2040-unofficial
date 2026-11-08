@@ -76,6 +76,13 @@ setup(dev)
     sblk.b_bno = SUPERB;
     sblk.b_size = SBSIZE;
 
+    /*
+     * The i-list holds fs_isize - (SUPERB+1) blocks of INOPB inodes each,
+     * numbered 1 through imax (sys/kern/ufs_alloc.c ialloc() scans blocks
+     * SUPERB+1 .. fs_isize-1 and itod(imax) is the last of them). Every
+     * range test on an inode number therefore reads ROOTINO <= ino <= imax,
+     * and the state and link-count maps below hold imax+1 entries.
+     */
     imax = ((ino_t)sblock.fs_isize - (SUPERB+1)) * INOPB;
     fsmin = (daddr_t)sblock.fs_isize;   /* first data blk num */
     fsmax = sblock.fs_fsize;        /* first invalid blk num */

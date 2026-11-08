@@ -67,19 +67,23 @@ CWARNFLAGS=	-Wall -Wextra -Werror
 # STM32 tree too. Pin the standard the sources were written against.
 CSTDFLAGS=	-std=gnu17
 
-CMACHFLAGS=	-ffreestanding -fno-builtin -fno-common
+# The kernel carries 2.11BSD type punning: system call handlers read the
+# argument words of u.u_arg through a per-call struct, and buffer cache pages
+# are viewed as on-disk structures (struct dinode over b_addr). -Os, unlike
+# -O, enables -fstrict-aliasing, so the kernel opts out of it.
+CMACHFLAGS=	-ffreestanding -fno-builtin -fno-common -fno-strict-aliasing
 CMACHFLAGS+=	${MACHINE_ARCH_FLAGS}
 
-COPTS?=		-O
+# The FLASH region of RP2040.ld bounds the kernel image, so the kernel is
+# compiled for size.
+COPTS?=		-Os
 CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
 AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack
 LDFLAGS+=	--warn-rwx-segments --fatal-warnings
 # Cortex-M0+ has no divide instruction, so the compiler emits calls to the
-# libgcc helpers __aeabi_idiv and friends. The Cortex-M4 targets divide in
-# hardware and never link against libgcc, which is why the STM32 Makefile
-# leaves LDADD empty.
+# libgcc helpers __aeabi_idiv and friends.
 LIBGCC!=	${CC} ${CMACHFLAGS} -print-libgcc-file-name
 LDADD=		${LIBGCC}
 
@@ -93,6 +97,11 @@ PARAM+= -DSTORAGE_STATS
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
 COMPILE_SIZE_C=	${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} -Os ${DEFS} -c $<
+# Code whose instruction count is a design input compiles at -O whatever
+# COPTS says: psram_xfer.c drains a four-word PIO receive FIFO from a polling
+# loop that must outrun the state machine's fill rate.
+COMPILE_CYCLE_C=${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
+		${CMACHFLAGS} -O ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
 # PARAM reaches every object as -D flags, and .params holds the PARAM text
@@ -123,11 +132,11 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	ufs_syscalls2.o vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o \
 	mem.o swap.o clock.o conf.o fault.o machdep.o shutdown_sync.o \
 	mpu.o sig_machdep.o syscall.o sysctl.o systick.o uart.o usb.o \
-	lcdcons.o lcdrender.o lcdterm.o lcdfont.o st7365p.o picokbd.o \
-	picokbd_map.o picokbd_req.o picoaudio.o sd.o sdspi.o psram.o \
-	psram_xfer.o flash.o flash_swap.o error.o journal.o map.o \
-	swapram.o swapram_pool.o heatshrink_encoder.o hsx_decoder.o \
-	subr_crc32.o exec_hsaout.o hsx_stream.o
+	lcdcons.o lcdgfx.o lcdrender.o lcdterm.o lcdfont.o st7365p.o \
+	picokbd.o picokbd_map.o picokbd_evq.o picokbd_req.o picoaudio.o \
+	sd.o sdspi.o psram.o psram_xfer.o flash.o flash_swap.o error.o \
+	journal.o map.o swapram.o swapram_pool.o heatshrink_encoder.o \
+	hsx_decoder.o subr_crc32.o exec_hsaout.o hsx_stream.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/errlist.c \
@@ -154,9 +163,10 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/rp2040/rp2040/syscall.c $S/arch/rp2040/rp2040/sysctl.c \
 	$S/arch/rp2040/rp2040/systick.c $S/arch/rp2040/dev/uart.c \
 	$S/arch/rp2040/dev/usb.c $S/arch/rp2040/dev/lcdcons.c \
-	$S/arch/rp2040/dev/lcdterm.c $S/arch/rp2040/dev/lcdfont.c \
-	$S/arch/rp2040/dev/st7365p.c $S/arch/rp2040/dev/picokbd.c \
-	$S/arch/rp2040/dev/picokbd_map.c \
+	$S/arch/rp2040/dev/lcdgfx.c $S/arch/rp2040/dev/lcdterm.c \
+	$S/arch/rp2040/dev/lcdfont.c $S/arch/rp2040/dev/st7365p.c \
+	$S/arch/rp2040/dev/picokbd.c $S/arch/rp2040/dev/picokbd_map.c \
+	$S/arch/rp2040/dev/picokbd_evq.c \
 	$S/arch/rp2040/dev/picokbd_req.c $S/arch/rp2040/dev/picoaudio.c \
 	$S/arch/rp2040/dev/sd.c $S/arch/rp2040/dev/sdspi.c \
 	$S/arch/rp2040/dev/psram.c $S/arch/rp2040/dev/psram_xfer.c \
@@ -484,6 +494,9 @@ usb.o: $S/arch/rp2040/dev/usb.c
 lcdcons.o: $S/arch/rp2040/dev/lcdcons.c
 	${COMPILE_C}
 
+lcdgfx.o: $S/arch/rp2040/dev/lcdgfx.c
+	${COMPILE_C}
+
 lcdrender.o: $S/arch/rp2040/dev/lcdrender.S
 	${COMPILE_S}
 
@@ -502,6 +515,9 @@ picokbd.o: $S/arch/rp2040/dev/picokbd.c
 picokbd_map.o: $S/arch/rp2040/dev/picokbd_map.c
 	${COMPILE_C}
 
+picokbd_evq.o: $S/arch/rp2040/dev/picokbd_evq.c
+	${COMPILE_C}
+
 picokbd_req.o: $S/arch/rp2040/dev/picokbd_req.c
 	${COMPILE_C}
 
@@ -518,7 +534,7 @@ psram.o: $S/arch/rp2040/dev/psram.c
 	${COMPILE_C}
 
 psram_xfer.o: $S/arch/rp2040/dev/psram_xfer.c
-	${COMPILE_C}
+	${COMPILE_CYCLE_C}
 
 flash.o: $S/arch/rp2040/dev/flash.c
 	${COMPILE_C}

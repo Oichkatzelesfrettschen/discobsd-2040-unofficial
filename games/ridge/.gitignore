@@ -1,0 +1,6 @@
+ridge
+*.o
+*.elf
+tests/logic_test
+tests/render_test
+__pycache__/

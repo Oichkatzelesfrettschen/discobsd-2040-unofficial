@@ -14,8 +14,8 @@ expr=$5
 # Each invocation owns its directory, so make -j runs mutants in parallel.
 work=$(mktemp -d "${TMPDIR:-/tmp}/picocalc-mutant.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-cp "$dev/lcdterm.c" "$dev/lcdterm.h" "$dev/picokbd_map.c" \
-    "$dev/picokbd_map.h" "$work/"
+cp "$dev/lcdterm.c" "$dev/lcdterm.h" "$dev/lcdfont.c" "$dev/lcdfont.h" \
+    "$dev/picokbd_map.c" "$dev/picokbd_map.h" "$work/"
 sed "$expr" "$dev/$file" >"$work/$file"
 if cmp -s "$dev/$file" "$work/$file"; then
 	echo "mutant.sh: '$expr' changed nothing in $file" >&2
@@ -23,7 +23,7 @@ if cmp -s "$dev/$file" "$work/$file"; then
 fi
 # shellcheck disable=SC2086
 "$cc" $cflags -I"$work" -o "$work/lcdterm_test" lcdterm_test.c \
-    "$work/lcdterm.c" "$work/picokbd_map.c"
+    "$work/lcdterm.c" "$work/lcdfont.c" "$work/picokbd_map.c"
 if "$work/lcdterm_test" >/dev/null 2>&1; then
 	echo "mutant.sh: test passed the mutant '$expr' of $file" >&2
 	exit 1

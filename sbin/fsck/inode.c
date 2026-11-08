@@ -124,10 +124,10 @@ ginode(inumber)
     iblk = itod(inumber);
     if (iblk < startib || iblk >= startib + NINOBLK) {
         if (inoblk.b_dirty) {
-            bwrite(&dfile, inobuf, startib, NINOBLK * DEV_BSIZE);
+            bwrite(&dfile, inobuf, startib, INOWINDOW(startib) * DEV_BSIZE);
             inoblk.b_dirty = 0;
         }
-        if (bread(&dfile, inobuf, iblk, NINOBLK * DEV_BSIZE))
+        if (bread(&dfile, inobuf, iblk, INOWINDOW(iblk) * DEV_BSIZE))
             return(NULL);
         startib = iblk;
     }
@@ -256,10 +256,10 @@ allocino(request, type)
         request = ROOTINO;
     else if (getstate(request) != USTATE)
         return (0);
-    for (ino = request; ino < imax; ino++)
+    for (ino = request; ino <= imax; ino++)
         if (getstate(ino) == USTATE)
             break;
-    if (ino == imax)
+    if (ino > imax)
         return (0);
     switch (type & IFMT) {
     case IFDIR:

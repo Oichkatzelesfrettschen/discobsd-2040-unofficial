@@ -5,16 +5,18 @@ usage: DISCOBSD_BOARD_DCBC=run PYTHON board_dcbc_smoke.py [unix.uf2,flash.uf2]
 
 The script touches the board only when DISCOBSD_BOARD_DCBC is exactly "run";
 unset, empty and every other value exit without opening a port or calling
-picotool. With the variable set it flashes the named images in one BOOTSEL
-visit when given, logs in as operator on the USB console, and runs the checks
-below. The image must carry the picocalc profile (dc, bc and
-/usr/share/misc/bc.library).
+discobsd-flash. With the variable set it flashes the named images with
+discobsd-flash when given, reboots the board through BOOTSEL otherwise, logs in
+as operator on the USB console, and runs the checks below. The image must carry
+the picocalc profile (dc, bc and /usr/share/misc/bc.library).
 
 Checks, each with an exact expected line:
   - dc integer arithmetic and the 2^100 print
   - dc with the extended register option, one register named by -x
   - dc on the 2,001-digit factorial of 808 (the digit count)
+  - dc and bc remainder at a fractional scale (1.235 mod 1 at scale 2 is .005)
   - bc scale arithmetic, a recursive function and an array
+  - bc function whose only parameter is an array, called with an array argument
   - bc -l: pi to twenty places through the math library
   - the elapsed time of "2 1000 ^ p", reported and not asserted
 
@@ -31,6 +33,10 @@ import sys
 import time
 
 ESC = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]|\r")
+# The sentinel line must arrive whole, newline included: a chunk that ends in
+# "ZD1" of "ZD12" would otherwise end the read and leave the rest for the next
+# command.
+SENTINEL = re.compile(r"^ZD(\d+)\n", re.M)
 PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
 OPT_IN_VARIABLE = "DISCOBSD_BOARD_DCBC"
 OPT_IN_VALUE = "run"
@@ -48,13 +54,20 @@ CHECKS = (
         "dc -e '[lp li * sp li 1 + si li 809 >f]sf 1sp 1si lfx lp Z p'",
         ["2001"],
     ),
+    ("dc scaled remainder", "echo '2 k 1.235 1 % p' | dc", [".005"]),
     ("bc scale", "echo 'scale=5; 1/3' | bc", [".33333"]),
+    ("bc scaled remainder", "echo 'scale=2; 1.235%1' | bc", [".005"]),
     (
         "bc function",
         "printf 'define f(n) {\\n if (n<2) return (1)\\n return (n*f(n-1))\\n}\\nf(20)\\n' | bc",
         ["2432902008176640000"],
     ),
     ("bc array", "echo 'a[3]=5; a[3]*2' | bc", ["10"]),
+    (
+        "bc array argument",
+        "printf 'define f(a[]) {\\n return (a[0])\\n}\\nb[0]=7\\nf(b[])\\n' | bc",
+        ["7"],
+    ),
     ("bc -l pi", "echo 'scale=20; 4*a(1)' | bc -l", ["3.14159265358979323844"]),
     ("bc emit", "echo '1+2' | bc -c", [" 1 2+ps.", "q"]),
 )
@@ -62,38 +75,67 @@ CHECKS = (
 
 class Console:
     def __init__(self, serial_module, port):
+        self.serial = serial_module
         self.port = serial_module.Serial(port, 115200, timeout=0)
 
-    def read(self, seconds):
+    def reopen(self):
+        """Reopen the console after the board re-enumerates, which it can do twice."""
+        start = time.time()
+        while True:
+            time.sleep(2)
+            try:
+                self.port = self.serial.Serial(glob.glob(PORT_PATTERN)[0], 115200, timeout=0)
+                return
+            except (IndexError, self.serial.SerialException):
+                if time.time() - start > 60:
+                    raise
+
+    def read(self, seconds, stop=None):
         buf = b""
+        text = ""
         start = time.time()
         while time.time() - start < seconds:
-            data = self.port.read(4096)
+            try:
+                data = self.port.read(4096)
+            except self.serial.SerialException:
+                self.reopen()
+                continue
             if data:
                 buf += data
+                text = ESC.sub(b"", buf).decode("latin1")
+                if stop and stop.search(text):
+                    break
             else:
                 time.sleep(0.05)
         return ESC.sub(b"", buf).decode("latin1")
 
-    def run(self, command, wait=8):
-        self.port.write(command.encode() + b"\r")
-        out = self.read(wait)
-        return [
-            line for line in out.split("\n")[1:] if line.strip() and not line.startswith("discobsd")
-        ]
+    def run(self, command, wait=40):
+        """Run COMMAND and return its output lines, ending at the sentinel line.
+
+        The shell echoes the typed line and redraws its prompt, so the text
+        between the first newline and the line "ZD<status>" is the output; a
+        blank echo first ends an output line that lacks its newline, as the
+        last line of "bc -c" does. A command that never prints the sentinel
+        returns a TIMEOUT line.
+        """
+        self.port.write(("%s; echo; echo ZD$?" % command).encode() + b"\r")
+        out = self.read(wait, SENTINEL)
+        match = SENTINEL.search(out)
+        if not match:
+            return ["TIMEOUT after %d s" % wait, *out[-300:].split("\n")]
+        return [line.rstrip() for line in out[: match.start()].split("\n")[1:] if line.strip()]
 
 
 def flash(images):
-    picotool = ("picotool",)
+    flasher = "discobsd-flash"
     quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if images:
-        subprocess.call([*picotool, "reboot", "-u", "-f"], **quiet)
-        time.sleep(3)
-        for image in images.split(","):
-            subprocess.check_call([*picotool, "load", image], stdout=subprocess.DEVNULL)
-        subprocess.check_call([*picotool, "reboot"], stdout=subprocess.DEVNULL)
+        subprocess.check_call([flasher, *images.split(",")], **quiet)
     else:
-        subprocess.call([*picotool, "reboot", "-f"], **quiet)
+        # Reboot through BOOTSEL: "picotool reboot -f" on a running kernel
+        # has left the USB link unable to enumerate.
+        subprocess.check_call([flasher, "--bootsel"], **quiet)
+        subprocess.check_call([flasher, "--eject"], **quiet)
     time.sleep(4)
 
 
@@ -127,10 +169,8 @@ def main():
         bad += not ok
         print("%s: %s %s" % (label, got, "ok" if ok else "WRONG, expected %s" % expected))
     start = time.time()
-    got = console.run("echo '2 1000 ^ p' | dc", wait=20)
-    print(
-        "2 1000 ^ p: %d lines in %.1f s including the settle wait" % (len(got), time.time() - start)
-    )
+    got = console.run("echo '2 1000 ^ p' | dc", wait=120)
+    print("2 1000 ^ p: %d lines in %.1f s" % (len(got), time.time() - start))
     print("dc and bc smoke: %s" % ("PASS" if bad == 0 else "FAIL (%d wrong)" % bad))
     return 1 if bad else 0
 

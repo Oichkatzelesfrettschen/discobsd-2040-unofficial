@@ -12,6 +12,9 @@
  * Data in icommon1 and icommon2 is read in from permanent inode on volume.
  */
 
+/* rdwri() takes an enum uio_rw, which ISO C cannot forward-declare. */
+#include "uio.h"
+
 /*
  * 28 of the di_addr address bytes are used; 7 addresses of 4
  * bytes each: 4 direct (4Kb directly accessible) and 3 indirect.
@@ -229,7 +232,6 @@ int closei (struct inode *ip, int flag);
 struct inode *namei (struct nameidata *ndp);
 struct inode *namei_at (struct nameidata *ndp, int dirfd);
 
-enum uio_rw;
 int rdwri (enum uio_rw rw, struct inode *ip, caddr_t base, int len,
     off_t offset, int ioflg, int *aresid);
 

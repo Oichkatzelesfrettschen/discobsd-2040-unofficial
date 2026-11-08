@@ -51,6 +51,13 @@ extern int verbose;
 #define KEEPON          004
 #define SKIP            002
 #define STOP            001
+#define INSERT          020 /* entry shrunk, 'inserted' goes after it */
+
+/* Bytes a directory entry with a name of namlen characters needs: the 8-byte
+ * header and the name with its terminator, rounded to 4, as DIRSIZ() in
+ * sys/sys/dir.h. */
+#define DIRENT_HEADER   8
+#define DIRENT_SIZE(namlen) ((DIRENT_HEADER + (namlen) + 1 + 3) & ~3u)
 
 #define outrange(fs,x)  ((x) < (fs)->isize || (x) >= (fs)->fsize)
 
@@ -87,9 +94,12 @@ static int              dup_blocks;         /* num of dup blks seen (per inode) 
 static char             *find_inode_name;   /* searching for this name */
 static unsigned         find_inode_result;  /* result of inode search */
 static unsigned         lost_inode;         /* lost file to reconnect */
+static fs_dirent_t      inserted;           /* entry to write after a shrunk one */
+static unsigned         scan_room;          /* bytes from the entry to its block end */
 
 static unsigned long    scan_filesize;      /* file size, decremented during scan */
 static unsigned         total_files;        /* number of files seen */
+static unsigned         used_blocks;        /* blocks held by allocated inodes */
 
 static void set_inode_state (unsigned inum, int s)
 {
@@ -328,6 +338,22 @@ static int pass1b (fs_inode_t *inode, unsigned blk, void *arg)
 }
 
 /*
+ * Write an entry back to the directory block at p. fs_dirent_pack() pads
+ * the name to a multiple of 4 and so writes no terminator when namlen is a
+ * multiple of 4; DIRSIZ() in sys/sys/dir.h reserves the terminator byte, and
+ * fsck rejects an entry whose name is not followed by NUL. The terminator is
+ * written when it lies inside the entry's record and the block.
+ */
+static void pack_entry (unsigned char *p, fs_dirent_t *dirp)
+{
+    unsigned char *nul = p + DIRENT_HEADER + dirp->namlen;
+
+    fs_dirent_pack (p, dirp);
+    if (nul < p + dirp->reclen && nul < &buf_data[BSDFS_BSIZE])
+        *nul = 0;
+}
+
+/*
  * Read directory, and for every entry call given function.
  * If function altered the contents of entry, then write it back.
  */
@@ -354,14 +380,17 @@ static int scan_directory (fs_inode_t *inode, unsigned blk, void *arg)
             break;
 
         /* For every directory entry, call handler. */
+        scan_room = &buf_data[BSDFS_BSIZE] - dirp;
         n = (*func) (inode->fs, &direntry);
 
         if (n & ALTERD) {
             if (buf_get (inode->fs, blk)) {
-                fs_dirent_pack (dirp, &direntry);
+                pack_entry (dirp, &direntry);
+                if (n & INSERT)
+                    pack_entry (dirp + direntry.reclen, &inserted);
                 buf_dirty = 1;
             } else
-                n &= ~ALTERD;
+                n &= ~(ALTERD | INSERT);
         }
         if (n & STOP)
             return n;
@@ -486,8 +515,10 @@ static int find_inode (fs_t *fs, fs_dirent_t *dirp)
     if (dirp->ino == 0)
         return KEEPON;
     if (strcmp (find_inode_name, dirp->name) == 0) {
+        /* The i-list numbers inodes 1 through (isize-1)*INOPB inclusive,
+         * the range ialloc() in sys/kern/ufs_alloc.c scans. */
         if (dirp->ino >= BSDFS_ROOT_INODE &&
-            dirp->ino < (fs->isize-1) * BSDFS_INODES_PER_BLOCK)
+            dirp->ino <= (fs->isize-1) * BSDFS_INODES_PER_BLOCK)
             find_inode_result = dirp->ino;
         return STOP;
     }
@@ -495,16 +526,42 @@ static int find_inode (fs_t *fs, fs_dirent_t *dirp)
 }
 
 /*
- * Find a free slot and make link to 'lost_inode'.
- * Create filename of a kind "#01234".
+ * Find room for a link to 'lost_inode' and make it. The name is of a kind
+ * "#01234". An empty entry takes the name when its record is large enough.
+ * Otherwise an entry whose record is longer than DIRENT_SIZE() of its own
+ * name gives the remainder to the new entry, as direnter() in
+ * sys/kern/ufs_namei.c does; a lost+found that fs_create wrote holds only
+ * "." and ".." with the rest of the block in the record of "..".
  */
 static int make_lost_entry (fs_t *fs, fs_dirent_t *dirp)
 {
-    if (dirp->ino)
+    char name [16];
+    unsigned namlen, used;
+
+    snprintf (name, sizeof(name), "#%05u", lost_inode);
+    namlen = strlen (name);
+    /* A record that runs past its block or breaks 4-byte alignment is
+     * damaged, and neither it nor its slack takes the new entry. */
+    if (dirp->reclen > scan_room || (dirp->reclen & 3))
         return KEEPON;
-    dirp->ino = lost_inode;
-    snprintf (dirp->name, sizeof(dirp->name), "#%05d", dirp->ino);
-    return ALTERD | STOP;
+    if (dirp->ino == 0) {
+        if (dirp->reclen < DIRENT_SIZE (namlen))
+            return KEEPON;
+        dirp->ino = lost_inode;
+        dirp->namlen = namlen;
+        strlcpy (dirp->name, name, sizeof(dirp->name));
+        return ALTERD | STOP;
+    }
+    used = DIRENT_SIZE (dirp->namlen);
+    if (dirp->reclen < used + DIRENT_SIZE (namlen))
+        return KEEPON;
+    memset (&inserted, 0, sizeof(inserted));
+    inserted.ino = lost_inode;
+    inserted.reclen = dirp->reclen - used;
+    inserted.namlen = namlen;
+    strlcpy (inserted.name, name, sizeof(inserted.name));
+    dirp->reclen = used;
+    return ALTERD | INSERT | STOP;
 }
 
 /*
@@ -624,7 +681,10 @@ static int pass4 (fs_inode_t *inode, unsigned blk, void *arg)
 }
 
 /*
- * Clear the inode, mark it's blocks as free.
+ * Clear the inode, mark its blocks as free and take them out of 'used_blocks',
+ * which phase 5 compares with the free list: a block that leaves the block
+ * map without leaving the count is in neither, and the shortfall goes
+ * unnoticed.
  */
 static void clear_inode (fs_t *fs, unsigned inum, char *msg)
 {
@@ -639,7 +699,7 @@ static void clear_inode (fs_t *fs, unsigned inum, char *msg)
     }
     if (fs->writable) {
         total_files--;
-        scan_inode (&inode, ADDR, pass4, 0);
+        scan_inode (&inode, ADDR, pass4, &used_blocks);
         fs_inode_clear (&inode);
         fs_inode_save (&inode, 1);
     }
@@ -773,6 +833,7 @@ static unsigned make_free_list (fs_t *fs)
     unsigned free_blocks, n;
 
     fs->nfree = 0;
+    fs->tfree = 0;      /* fs_block_free() counts every block it links */
     fs->flock = 0;
     fs->fmod = 0;
     fs->ilock = 0;
@@ -804,7 +865,7 @@ int fs_check (fs_t *fs)
     unsigned inum;
     unsigned block_map_size;        /* number of free blocks */
     unsigned free_blocks;           /* number of free blocks */
-    unsigned used_blocks;           /* number of blocks used */
+    unsigned free_inodes;           /* free inodes the i-list holds */
     unsigned last_allocated_inode;  /* hiwater mark of inodes */
 
     if (fs->isize >= fs->fsize) {
@@ -915,27 +976,52 @@ fatal:      if (block_map)
 
     printf ("** Phase 3 - Check Connectivity\n");
     for (inum = BSDFS_ROOT_INODE; inum <= last_allocated_inode; inum++) {
-        if (inode_state (inum) == DSTATE) {
-            unsigned ino;
+        /* Reconnect directories until inum is reached. Each pass reconnects
+         * one directory that phase 2 left unreached, and scan_pass2() marks
+         * it reached, so the passes for one inum are at most as many as there
+         * are directories; a reconnect that fails changes no state and ends
+         * them. A pass is needed more than once when inum leads into a loop
+         * of ".." entries: the directory the first pass reconnects is not
+         * inum, and nothing it holds names inum. */
+        while (inode_state (inum) == DSTATE) {
+            unsigned orphan = inum, parent, hops = 0;
 
+            /* Follow ".." through unreached directories to the topmost one,
+             * as pass3() in sbin/fsck does. Its ".." names a reached
+             * directory, or nothing, and it is the one to reconnect:
+             * phase 2 never visited its entries, so the rescan after the
+             * reconnect is what gives them their references. A chain that
+             * returns to inum is a loop with no topmost directory, and inum
+             * is reconnected as its head. A chain that enters a loop not
+             * holding inum ends after 'last_allocated_inode' steps, more
+             * than any chain of distinct directories holds, at a member of
+             * that loop. */
             find_inode_name = "..";
-            ino = inum;
-            do {
-                if (! fs_inode_get (fs, &inode, ino))
-                    break;
-                find_inode_result = 0;
-                scan_inode (&inode, DATA, scan_directory, find_inode);
-                if (find_inode_result == 0) {
-                    /* Parent link lost. */
-                    if (move_to_lost_found (&inode)) {
-                        thisname = pathp = pathname;
-                        *pathp++ = '?';
-                        scan_pass2 (fs, ino);
-                    }
+            for (;;) {
+                if (! fs_inode_get (fs, &inode, orphan)) {
+                    orphan = 0;
                     break;
                 }
-                ino = find_inode_result;
-            } while (inode_state (ino) == DSTATE);
+                find_inode_result = 0;
+                scan_inode (&inode, DATA, scan_directory, find_inode);
+                parent = find_inode_result;
+                if (parent == 0 || inode_state (parent) != DSTATE)
+                    break;
+                if (parent == inum) {
+                    orphan = inum;
+                    if (! fs_inode_get (fs, &inode, orphan))
+                        orphan = 0;
+                    break;
+                }
+                if (++hops > last_allocated_inode)
+                    break;
+                orphan = parent;
+            }
+            if (orphan == 0 || ! move_to_lost_found (&inode))
+                break;
+            thisname = pathp = pathname;
+            *pathp++ = '?';
+            scan_pass2 (fs, orphan);
         }
     }
 
@@ -989,6 +1075,14 @@ fatal:      if (block_map)
             printf ("%d BLK(S) MISSING\n", fs->fsize -
                 fs->isize - used_blocks - free_blocks);
             free_list_corrupted = 1;
+        } else if (free_blocks != fs->tfree) {
+            /* statfs() reports fs_tfree as the free blocks, and the kernel
+             * allocates from the list while trusting the count. */
+            printf ("FREE BLK COUNT WRONG IN SUPERBLOCK\n");
+            if (fs->writable) {
+                fs->tfree = free_blocks;
+                fs->modified = 1;
+            }
         }
     }
     if (free_list_corrupted) {
@@ -1000,6 +1094,18 @@ fatal:      if (block_map)
     if (free_list_corrupted) {
         printf ("** Phase 6 - Salvage Free List\n");
         free_blocks = make_free_list (fs);
+    }
+
+    /* Every inode of the i-list that phase 1 did not find allocated is free,
+     * and statfs() reports fs_tinode as that count; a cleared inode leaves
+     * total_files and must leave the superblock count as well. */
+    free_inodes = (fs->isize - 1) * BSDFS_INODES_PER_BLOCK - total_files;
+    if (fs->tinode != free_inodes) {
+        printf ("FREE INODE COUNT WRONG IN SUPERBLOCK\n");
+        if (fs->writable) {
+            fs->tinode = free_inodes;
+            fs->modified = 1;
+        }
     }
 
     printf ("%d files %d blocks %d free\n",

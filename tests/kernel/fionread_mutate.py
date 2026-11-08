@@ -102,6 +102,14 @@ def main():
             "omitted-output-publication",
             "corrupt-output-initialization",
             "omitted-media-gone-case",
+            "omitted-glyph-case",
+            "omitted-lcdg-draw-cases",
+            "omitted-lcdg-window-case",
+            "omitted-lcdg-control-cases",
+            "omitted-lcdg-info-case",
+            "omitted-lcdg-tile-cases",
+            "omitted-getkey-case",
+            "omitted-keyevs-case",
         ),
         required=True,
     )
@@ -163,6 +171,54 @@ def main():
             source,
             "    case DIOCGETPART:\n    case DIOCMEDIAGONE:\n",
             "    case DIOCGETPART:\n",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-glyph-case":
+        source = replace_once(
+            source,
+            "    case LCDIOC_SETGLYPH:\n",
+            "",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-lcdg-draw-cases":
+        source = replace_once(
+            source,
+            "    case LCDG_FILL:\n    case LCDG_PIXEL:\n    case LCDG_LINE:\n"
+            "    case LCDG_FRAME:\n    case LCDG_CIRCLE:\n",
+            "",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-lcdg-window-case":
+        source = replace_once(source, "    case LCDG_WINDOW:\n", "", arguments.mutation)
+    elif arguments.mutation == "omitted-lcdg-control-cases":
+        source = replace_once(
+            source,
+            "    case LCDG_PALETTE:\n    case LCDG_SCROLL:\n    case LCDG_SCRDEF:\n"
+            "    case LCDG_COLMOD:\n",
+            "",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-lcdg-info-case":
+        source = replace_once(
+            source,
+            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n    case LCDIOC_GETKEY:\n#endif\n",
+            "#ifdef PICOCALC_ENABLED\n    case LCDIOC_GETKEY:\n#endif\n",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-lcdg-tile-cases":
+        source = replace_once(
+            source,
+            "    case LCDG_TILESET:\n    case LCDG_TILEWIN:\n",
+            "",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-keyevs-case":
+        source = replace_once(source, "    case LCDIOC_KEYEVS:\n", "", arguments.mutation)
+    elif arguments.mutation == "omitted-getkey-case":
+        source = replace_once(
+            source,
+            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n    case LCDIOC_GETKEY:\n#endif\n",
+            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n#endif\n",
             arguments.mutation,
         )
     else:

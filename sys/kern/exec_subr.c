@@ -19,6 +19,11 @@
 #include <machine/debug.h>
 #include <machine/frame.h>
 
+#ifdef PICOCALC_ENABLED
+/* sys/arch/rp2040/dev/lcdcons.c */
+extern void lcdcons_procexit(const struct proc *p);
+#endif
+
 /* Stack alignment the ARM EABI hands _start. */
 #define STACKALIGN 8
 #define EXEC_SPOOL_BLOCK_NONE 0xffff
@@ -26,7 +31,10 @@
 static int
 exec_spool_reserve_flash (struct exec_params *epp)
 {
-    size_t addresses[3], blocks;
+    size_t blocks;
+#ifdef SWAP_IMAGE_ALIGN
+    size_t addresses[3];
+#endif
 
     blocks = btod (epp->spool.size);
 #ifdef SWAP_IMAGE_ALIGN
@@ -836,6 +844,10 @@ void exec_clear(struct exec_params *epp)
 
     execsigs (u.u_procp);
 
+#ifdef PICOCALC_ENABLED
+    /* The new image does not inherit a raw key event session. */
+    lcdcons_procexit(u.u_procp);
+#endif
     /*
      * Clear (close) files
      */

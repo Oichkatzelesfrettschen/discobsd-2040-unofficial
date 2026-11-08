@@ -16,6 +16,52 @@ before provider dispatch. The change covers these exact command values:
 | `struct winsize` | `TIOCSWINSZ` | 8 |
 | `off_t` | `TFALLOC` | 4 |
 
+The PICOCALC and PICOCALC_PSRAM kernels, which define `PICOCALC_ENABLED`, add
+one input command to the table: `LCDIOC_SETGLYPH`, a `struct lcd_glyph` of 10
+bytes (`sys/sys/lcdcons.h`) that the console driver validates and copies into
+its glyph bank. The classifier, the `ioctl_payload` union member and the
+header include sit under that define, so the PICO and PICO_UART kernels
+compile the classifier without the entry and keep their text byte for byte.
+The fixture builds `ioctl()` with the define and a mutant that omits the case
+fails it.
+
+The same define adds the twelve input commands and the one output command of
+`/dev/lcdgfx` (`sys/sys/lcdgfx.h`):
+
+| Type | Command | Size |
+| --- | --- | --- |
+| `struct lcdg_rect` | `LCDG_FILL`, `LCDG_FRAME` | 10 |
+| `struct lcdg_pixel` | `LCDG_PIXEL` | 6 |
+| `struct lcdg_line` | `LCDG_LINE` | 10 |
+| `struct lcdg_circle` | `LCDG_CIRCLE` | 8 |
+| `struct lcdg_window` | `LCDG_WINDOW` | 12 |
+| `struct lcdg_palette` | `LCDG_PALETTE` | 4 |
+| `struct lcdg_scroll` | `LCDG_SCROLL` | 2 |
+| `struct lcdg_scrdef` | `LCDG_SCRDEF` | 4 |
+| `struct lcdg_colmod` | `LCDG_COLMOD` | 1 |
+| `struct lcdg_tileset` | `LCDG_TILESET` | 2 |
+| `struct lcdg_tilewin` | `LCDG_TILEWIN` | 4 |
+| `struct lcdg_info` (output) | `LCDG_INFO` | 6 |
+
+The input commands copy into the aligned union, which the 16-byte
+`struct diskpart` already sizes and aligns for every one of them;
+`LCDG_INFO` joins the output-only list and receives zeroed storage. The
+fixture checks each command's ownership, upper span edge, crossing span,
+provider error and reserved-bit forwarding, and one mutant per command family
+(the five shapes, the window, the four panel controls, the output command)
+fails it, as does one that drops the two tile commands.
+
+The console's raw key event command, `LCDIOC_GETKEY` (`sys/sys/lcdcons.h`), is
+a 14-byte output record (`struct lcd_keyevs`) under the same define. It joins
+the output-only list with `LCDG_INFO`, receives zeroed storage and publishes
+its complete encoded width after provider success; a `_Static_assert` in
+`ioctl()` requires the union to hold it, and the fixture runs the same
+ownership, span, provider-error and reserved-bit cases on it. A mutant that
+drops its case fails the fixture. `LCDIOC_KEYEVS` (`_IOW('l', 3, int)`), which
+starts or ends the key event session, is a four-byte input in the aligned
+union; the driver decides the session by the descriptor's flags and process
+group, not by the payload, and a mutant that drops its case fails the fixture.
+
 One automatic union owns the copied bytes. Its member types supply each
 provider's required alignment without a shared buffer or a maximum-size
 automatic array. The syscall copies `TFALLOC` output back only after provider

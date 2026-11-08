@@ -4,7 +4,7 @@ import re
 import sys
 from pathlib import Path
 
-EXPECTED_JOBS = {"rp2040", "posix-sh", "rp2040-macos", "flash-id"}
+EXPECTED_JOBS = {"rp2040", "stm32", "posix-sh", "rp2040-macos", "flash-id"}
 EXPECTED_LABELS = {
     "linux-board-build",
     "linux-build",
@@ -13,14 +13,19 @@ EXPECTED_LABELS = {
     "linux-cross",
     "linux-flash",
     "linux-host",
+    "linux-kernel-headroom",
     "linux-lint",
     "linux-qemu",
+    "linux-renode",
+    "linux-renode-picocalc",
+    "linux-stm32-build",
     "linux-uf2",
     "macos-board-build",
     "macos-build",
     "macos-cross",
     "macos-flash",
     "macos-host",
+    "macos-kernel-headroom",
     "macos-lint",
     "macos-smaller-c",
     "macos-uf2",
@@ -43,14 +48,19 @@ EXPECTED_COMMANDS = {
     "linux-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
     "linux-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',
     "linux-host": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host',
+    "linux-kernel-headroom": "bmake MACHINE=rp2040 check-kernel-headroom",
     "linux-lint": "bmake MACHINE=rp2040 check-lint",
     "linux-qemu": "bmake MACHINE=rp2040 check-qemu",
+    "linux-renode": "bmake MACHINE=rp2040 check-renode",
+    "linux-renode-picocalc": "bmake MACHINE=rp2040 check-renode-picocalc",
+    "linux-stm32-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=stm32 build',
     "linux-uf2": "bmake MACHINE=rp2040 check-uf2-images",
     "macos-board-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build',
     "macos-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build',
     "macos-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
     "macos-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',
     "macos-host": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host',
+    "macos-kernel-headroom": "bmake MACHINE=rp2040 check-kernel-headroom",
     "macos-lint": "bmake MACHINE=rp2040 check-lint",
     "macos-smaller-c": "bmake -C usr.bin/smlrc test",
     "macos-uf2": "bmake MACHINE=rp2040 check-uf2-images",

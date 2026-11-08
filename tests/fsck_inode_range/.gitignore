@@ -1,0 +1,12 @@
+fsck_host
+image_gen
+fsck_mutant_*
+objs/
+mutant/
+work/
+machine/
+image_gen_mutant_*
+df_host
+mkfs_host
+df_mutant_*
+mkfs_mutant_*

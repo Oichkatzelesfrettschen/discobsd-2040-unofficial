@@ -88,6 +88,17 @@ check_call()
 	END { exit !(seen > 0 && !bad) }' "$1"
 }
 
+# The named function of file contains a line that is exactly the call.
+# usage: check_contains file function call
+check_contains()
+{
+	awk -v fn="$2" -v call="$3" '
+	$0 ~ "^" fn "\\(" { inside = 1; next }
+	inside && /^}/ { inside = 0 }
+	inside && $0 ~ "^[ \t]*" call ";$" { found = 1 }
+	END { exit !found }' "$1"
+}
+
 mkdir -p "$work/real"
 make_include_root "$work/real/inc" "$topsrc/sys/arch/rp2040/rp2040"
 compile_test "$work/real/test" "$work/real/inc"
@@ -131,4 +142,24 @@ for fn in flash_erase flash_program fl_raw flstrategy; do
 	fi
 done
 echo "clock_catchup: PASS (flash paths call catch-up; wiring check rejects removal)"
+
+# The ticks the catch-up restores also advance the monotonic clock that
+# orders ITIMER_REAL deadlines.
+clock_c=$topsrc/sys/arch/rp2040/rp2040/clock.c
+if ! check_contains "$clock_c" clock_catchup 'monoclock_advance\\(owed\\)'; then
+	echo "clock_catchup: FAIL: clock_catchup() leaves the monotonic clock behind" >&2
+	exit 1
+fi
+sed '/^[[:space:]]*monoclock_advance(owed);$/d' "$clock_c" >"$work/wiring/clock.c"
+if check_contains "$work/wiring/clock.c" clock_catchup 'monoclock_advance\\(owed\\)'; then
+	echo "clock_catchup: FAIL: wiring check accepted catch-up without monoclock_advance" >&2
+	exit 1
+fi
+echo "clock_catchup: PASS (catch-up advances the monotonic clock; wiring check rejects removal)"
 echo "clock_catchup: PASS (all mutations rejected)"
+
+# The decision logic of the two board scripts that read the host-board clock
+# and the dc and bc console, on synthetic input and a stub console.
+"${PYTHON:?set PYTHON to the intended interpreter}" \
+    "$topsrc/tests/rp2040/clock_catchup/test_board_scripts.py"
+echo "clock_catchup: PASS (board script logic: date parsing, offset bounds, verdicts, workload, framing)"

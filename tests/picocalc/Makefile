@@ -48,7 +48,7 @@
 # and six cut connections in the kernel glue (wiring.sh) must fail it.
 #
 # gametile_test runs the tile library (games/gametile.h) against a model of
-# the tile commands of /dev/lcdgfx; twenty-three mutants of the header must
+# the tile commands of /dev/lcdgfx; twenty-nine mutants of the header must
 # fail it.
 #
 # sdspi_test runs the SD card protocol layer against a card model that
@@ -422,7 +422,7 @@ kbdevq-mutant-wiring:
 # The sanitizers are on for the mutants: a range check that forms an
 # overflowing sum is rejected by the test only because UBSan stops it.
 GAMETILE_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
-		"${CSTD} -D_DEFAULT_SOURCE -I${TOPSRC}/tests/picocalc/shim" \
+		"${CSTD} ${SAN} -D_DEFAULT_SOURCE -I${TOPSRC}/tests/picocalc/shim" \
 		"${TOPSRC}/games" gametile_test.c
 
 GAMETILE_SRC=	gametile.h
@@ -450,7 +450,13 @@ gametile-mutants: \
 	gametile-mutant-load-count-zero \
 	gametile-mutant-load-touch-missing \
 	gametile-mutant-touch-range \
-	gametile-mutant-load-bytes
+	gametile-mutant-load-bytes \
+	gametile-mutant-fill-column-sum \
+	gametile-mutant-fill-row-sum \
+	gametile-mutant-fill-origin-unchecked \
+	gametile-mutant-load-sum \
+	gametile-mutant-load-product \
+	gametile-mutant-touch-unchecked
 
 gametile-mutant-run-crosses-row:
 	${GAMETILE_MUT} gametile.h \
@@ -486,7 +492,7 @@ gametile-mutant-set-unmarked:
 
 gametile-mutant-set-tile-range:
 	${GAMETILE_MUT} gametile.h \
-	    's/^\t    t < 0 || t >= LCDG_ATLAS_N)$$/\t    t < 0)/' ${GAMETILE_SRC}
+	    '/^gtile_set/,/^}/s/^\t    t < 0 || t >= LCDG_ATLAS_N)$$/\t    t < 0)/' ${GAMETILE_SRC}
 
 gametile-mutant-set-x-bound:
 	${GAMETILE_MUT} gametile.h \
@@ -498,11 +504,11 @@ gametile-mutant-init-clean:
 
 gametile-mutant-fill-range:
 	${GAMETILE_MUT} gametile.h \
-	    's/x + w > GTILE_COLS/x + w > GTILE_COLS + 1/' ${GAMETILE_SRC}
+	    's/w > GTILE_COLS - x/w > GTILE_COLS - x + 1/' ${GAMETILE_SRC}
 
 gametile-mutant-fill-tile-range:
 	${GAMETILE_MUT} gametile.h \
-	    's/y + h > GTILE_ROWS || t < 0 || t >= LCDG_ATLAS_N)/y + h > GTILE_ROWS || t < 0)/' ${GAMETILE_SRC}
+	    '/^gtile_fill/,/^}/s/^\t    t < 0 || t >= LCDG_ATLAS_N)$$/\t    t < 0)/' ${GAMETILE_SRC}
 
 gametile-mutant-short-write-accepted:
 	${GAMETILE_MUT} gametile.h \
@@ -522,15 +528,15 @@ gametile-mutant-write-source:
 
 gametile-mutant-load-last-tile:
 	${GAMETILE_MUT} gametile.h \
-	    's/first + count > LCDG_ATLAS_N)/first + count >= LCDG_ATLAS_N)/' ${GAMETILE_SRC}
+	    's/count <= LCDG_ATLAS_N - first;/count < LCDG_ATLAS_N - first;/' ${GAMETILE_SRC}
 
 gametile-mutant-load-high:
 	${GAMETILE_MUT} gametile.h \
-	    's/first + count > LCDG_ATLAS_N)/first + count > LCDG_ATLAS_N + 1)/' ${GAMETILE_SRC}
+	    's/count <= LCDG_ATLAS_N - first;/count <= LCDG_ATLAS_N - first + 1;/' ${GAMETILE_SRC}
 
 gametile-mutant-load-count-zero:
 	${GAMETILE_MUT} gametile.h \
-	    's/count < 1 || //' ${GAMETILE_SRC}
+	    's/ count >= 1 \&\&$$//' ${GAMETILE_SRC}
 
 gametile-mutant-load-touch-missing:
 	${GAMETILE_MUT} gametile.h \
@@ -538,11 +544,35 @@ gametile-mutant-load-touch-missing:
 
 gametile-mutant-touch-range:
 	${GAMETILE_MUT} gametile.h \
-	    's/g->shadow\[i\] < first + count/g->shadow[i] <= first + count/' ${GAMETILE_SRC}
+	    's/g->shadow\[i\] - first < count/g->shadow[i] - first <= count/' ${GAMETILE_SRC}
 
 gametile-mutant-load-bytes:
 	${GAMETILE_MUT} gametile.h \
-	    's/int n = count \* LCDG_TILE_BYTES;/int n = count * 16;/' ${GAMETILE_SRC}
+	    's/n = count \* LCDG_TILE_BYTES;/n = count * 16;/' ${GAMETILE_SRC}
+
+gametile-mutant-fill-column-sum:
+	${GAMETILE_MUT} gametile.h \
+	    's/w > GTILE_COLS - x/x + w > GTILE_COLS/' ${GAMETILE_SRC}
+
+gametile-mutant-fill-row-sum:
+	${GAMETILE_MUT} gametile.h \
+	    's/h > GTILE_ROWS - y/y + h > GTILE_ROWS/' ${GAMETILE_SRC}
+
+gametile-mutant-fill-origin-unchecked:
+	${GAMETILE_MUT} gametile.h \
+	    's/x < 0 || x > GTILE_COLS || y < 0 || y > GTILE_ROWS ||$$/0 ||/' ${GAMETILE_SRC}
+
+gametile-mutant-load-sum:
+	${GAMETILE_MUT} gametile.h \
+	    's/count <= LCDG_ATLAS_N - first;/first + count <= LCDG_ATLAS_N;/' ${GAMETILE_SRC}
+
+gametile-mutant-load-product:
+	${GAMETILE_MUT} gametile.h \
+	    '/^gtile_load/,/^}/s/^\tif (!gtile_range_ok(first, count))$$/\tif ((n = count * LCDG_TILE_BYTES) < 0 || !gtile_range_ok(first, count))/' ${GAMETILE_SRC}
+
+gametile-mutant-touch-unchecked:
+	${GAMETILE_MUT} gametile.h \
+	    '/^gtile_touch_tiles/,/^}/s/^\tif (!gtile_range_ok(first, count))$$/\tif (0)/' ${GAMETILE_SRC}
 
 GFX_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
 		lcdgfx_test.c
@@ -1341,7 +1371,7 @@ clean:
 
 .PHONY: kbdevq-mutants kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-foreground-ignored kbdevq-mutant-foreground-any-change kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
 
-.PHONY: gametile-mutants gametile-mutant-run-crosses-row gametile-mutant-run-single gametile-mutant-run-bridges-gap gametile-mutant-mark-kept gametile-mutant-pending-uncounted gametile-mutant-pending-kept gametile-mutant-set-always-marks gametile-mutant-set-unmarked gametile-mutant-set-tile-range gametile-mutant-set-x-bound gametile-mutant-init-clean gametile-mutant-fill-range gametile-mutant-fill-tile-range gametile-mutant-short-write-accepted gametile-mutant-ioctl-failure-ignored gametile-mutant-window-height gametile-mutant-write-source gametile-mutant-load-last-tile gametile-mutant-load-high gametile-mutant-load-count-zero gametile-mutant-load-touch-missing gametile-mutant-touch-range gametile-mutant-load-bytes
+.PHONY: gametile-mutants gametile-mutant-fill-column-sum gametile-mutant-fill-row-sum gametile-mutant-fill-origin-unchecked gametile-mutant-load-sum gametile-mutant-load-product gametile-mutant-touch-unchecked gametile-mutant-run-crosses-row gametile-mutant-run-single gametile-mutant-run-bridges-gap gametile-mutant-mark-kept gametile-mutant-pending-uncounted gametile-mutant-pending-kept gametile-mutant-set-always-marks gametile-mutant-set-unmarked gametile-mutant-set-tile-range gametile-mutant-set-x-bound gametile-mutant-init-clean gametile-mutant-fill-range gametile-mutant-fill-tile-range gametile-mutant-short-write-accepted gametile-mutant-ioctl-failure-ignored gametile-mutant-window-height gametile-mutant-write-source gametile-mutant-load-last-tile gametile-mutant-load-high gametile-mutant-load-count-zero gametile-mutant-load-touch-missing gametile-mutant-touch-range gametile-mutant-load-bytes
 
 .PHONY: gfx-mutants gfx-mutant-exclusive-open gfx-mutant-no-restore \
 	gfx-mutant-coord-bound gfx-mutant-rect-order gfx-mutant-circle-right \

@@ -131,19 +131,32 @@ gtile_set(struct gtile *g, int x, int y, int t)
 	return 0;
 }
 
-/* Show tile t over the w by h cells at (x, y); -1 if any cell or t is out of range. */
+/*
+ * Show tile t over the w by h cells at (x, y); -1 if any cell or t is out of
+ * range. The origin is bounded first and each extent is compared with the
+ * room left after it, so no sum of caller values is formed.
+ */
 static int
 gtile_fill(struct gtile *g, int x, int y, int w, int h, int t)
 {
 	int cx, cy;
 
-	if (w < 0 || h < 0 || x < 0 || y < 0 || x + w > GTILE_COLS ||
-	    y + h > GTILE_ROWS || t < 0 || t >= LCDG_ATLAS_N)
+	if (x < 0 || x > GTILE_COLS || y < 0 || y > GTILE_ROWS ||
+	    w < 0 || w > GTILE_COLS - x || h < 0 || h > GTILE_ROWS - y ||
+	    t < 0 || t >= LCDG_ATLAS_N)
 		return -1;
 	for (cy = y; cy < y + h; cy++)
 		for (cx = x; cx < x + w; cx++)
 			(void)gtile_set(g, cx, cy, t);
 	return 0;
+}
+
+/* Atlas tiles first .. first + count - 1 exist; no sum of caller values is formed. */
+static int
+gtile_range_ok(int first, int count)
+{
+	return first >= 0 && first < LCDG_ATLAS_N && count >= 1 &&
+	    count <= LCDG_ATLAS_N - first;
 }
 
 /* Mark the cells that show tiles first .. first + count - 1. */
@@ -152,8 +165,10 @@ gtile_touch_tiles(struct gtile *g, int first, int count)
 {
 	int i;
 
+	if (!gtile_range_ok(first, count))
+		return;
 	for (i = 0; i < GTILE_CELLS; i++)
-		if (g->shadow[i] >= first && g->shadow[i] < first + count)
+		if (g->shadow[i] >= first && g->shadow[i] - first < count)
 			gtile_mark(g, i);
 }
 
@@ -166,10 +181,11 @@ static int
 gtile_load(struct gtile *g, int first, int count, const unsigned char *data)
 {
 	struct lcdg_tileset ts;
-	int n = count * LCDG_TILE_BYTES;
+	int n;
 
-	if (first < 0 || count < 1 || first + count > LCDG_ATLAS_N)
+	if (!gtile_range_ok(first, count))
 		return -1;
+	n = count * LCDG_TILE_BYTES;
 	ts.first = (u_char)first;
 	ts.count = (u_char)count;
 	if (GTILE_IOCTL(g->fd, LCDG_TILESET, &ts) < 0)

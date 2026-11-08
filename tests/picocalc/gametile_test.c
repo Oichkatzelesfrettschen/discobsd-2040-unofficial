@@ -32,6 +32,7 @@
  * nothing with the library's.
  */
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -427,6 +428,74 @@ test_range(void)
 	expect("five rows, five windows", nwin, 5);
 	expect("an empty fill", gtile_fill(&g, 0, 0, 0, 0, 1), 0);
 	expect("an empty fill marks nothing", g.pending, 0);
+	expect("an empty fill at the far corner", gtile_fill(&g, 40, 40, 0, 0, 1), 0);
+	expect("an empty fill past the far corner", gtile_fill(&g, 41, 0, 0, 0, 1), -1);
+	expect("a fill of the whole grid", gtile_fill(&g, 0, 0, 40, 40, 2), 0);
+	expect("the whole grid is owed", g.pending, GTILE_CELLS);
+}
+
+/*
+ * Extents near the limits of int are refused without forming a sum that
+ * overflows; the sanitizers turn a signed overflow into a failure.
+ */
+static void
+test_int_limits(void)
+{
+	static struct gtile g;
+	unsigned char data[LCDG_TILE_BYTES];
+	static const int big[] = { INT_MAX, INT_MAX - 1, INT_MAX - 39, INT_MIN,
+	    INT_MIN + 1, 1 << 30, 0x7fffff, 129, 1000 };
+	unsigned i, j;
+
+	memset(data, 0, sizeof(data));
+	shadow_reset(&g);
+	flush_check("clean", &g);
+	nioctl = nwrite = 0;
+	for (i = 0; i < sizeof(big) / sizeof(big[0]); i++) {
+		int v = big[i];
+
+		expect("fill x", gtile_fill(&g, v, 0, 1, 1, 0), -1);
+		expect("fill y", gtile_fill(&g, 0, v, 1, 1, 0), -1);
+		expect("fill w", gtile_fill(&g, 0, 0, v, 1, 0), -1);
+		expect("fill h", gtile_fill(&g, 0, 0, 1, v, 0), -1);
+		expect("fill x and w", gtile_fill(&g, v, v, v, v, 0), -1);
+		expect("fill x, w at the edge", gtile_fill(&g, 39, 0, v, 1, 0), -1);
+		expect("fill y, h at the edge", gtile_fill(&g, 0, 39, 1, v, 0), -1);
+		expect("load first", gtile_load(&g, v, 1, data), -1);
+		expect("load count", gtile_load(&g, 0, v, data), -1);
+		expect("load count from 1", gtile_load(&g, 1, v, data), -1);
+		expect("load first and count", gtile_load(&g, v, v, data), -1);
+		expect("load count at the edge", gtile_load(&g, 127, v, data), -1);
+		for (j = 0; j < sizeof(big) / sizeof(big[0]); j++) {
+			expect("fill pair", gtile_fill(&g, v, big[j], big[j], v, 0), -1);
+			expect("load pair", gtile_load(&g, v, big[j], data), -1);
+		}
+	}
+	/* The product of count and 32 would wrap for a count of 2^27. */
+	expect("load count 2^27", gtile_load(&g, 0, 1 << 27, data), -1);
+	expect("load count 2^26 + 1", gtile_load(&g, 0, (1 << 26) + 1, data), -1);
+	expect("nothing was sent", nioctl + nwrite, 0);
+	expect("nothing was marked", g.pending, 0);
+	/* The marking helper refuses a range the atlas does not hold. */
+	expect("a cell showing tile 127", set(&g, 3, 3, 127), 0);
+	expect("one cell owed", g.pending, 1);
+	for (i = 0; i < sizeof(big) / sizeof(big[0]); i++) {
+		gtile_touch_tiles(&g, big[i], 1);
+		gtile_touch_tiles(&g, 0, big[i]);
+		gtile_touch_tiles(&g, big[i], big[i]);
+	}
+	gtile_touch_tiles(&g, 127, 2);
+	gtile_touch_tiles(&g, -1, 5);
+	gtile_touch_tiles(&g, 5, 0);
+	expect("a refused range marks nothing more", g.pending, 1);
+	flush_check("the owed cell", &g);
+	expect("set tile INT_MAX", gtile_set(&g, 0, 0, INT_MAX), -1);
+	expect("set tile INT_MIN", gtile_set(&g, 0, 0, INT_MIN), -1);
+	expect("set x INT_MAX", gtile_set(&g, INT_MAX, 0, 0), -1);
+	expect("set y INT_MIN", gtile_set(&g, 0, INT_MIN, 0), -1);
+	expect("get x INT_MAX", gtile_get(&g, INT_MAX, 0), -1);
+	expect("get y INT_MIN", gtile_get(&g, 0, INT_MIN), -1);
+	expect("a refused set marks nothing", g.pending, 0);
 }
 
 static void
@@ -529,6 +598,7 @@ main(void)
 	test_runs();
 	test_random();
 	test_range();
+	test_int_limits();
 	test_errors();
 	test_load();
 	if (failures != 0) {

@@ -38,6 +38,16 @@ static  int rts = TIOCM_RTS;
 int TTYHOG = TTYHOG_BYTES;
 
 /*
+ * TTHIWAT (sys/sys/tty.h) caps the speed table's high-water mark at three
+ * eighths of the clist pool. The table reaches 2000 bytes, more than the
+ * NCLIST * CBSIZE bytes a small pool holds, so an uncapped writer fills the
+ * pool before its mark and ttyinput() drops what arrives meanwhile; the cap
+ * keeps room for TTYHOG bytes of input with both ends of every queue's blocks
+ * partly used. An enum constant is an int, as the promoted tthiwat[] value is.
+ */
+enum { TTMAXHIWAT = NCLIST * CBSIZE * 3 / 8 };
+
+/*
  * A clist of n bytes spans at most (n + 3 * (CBSIZE - 1)) / CBSIZE blocks: a
  * consumed head and an unused tail can each waste CBSIZE - 1 bytes of a
  * block. ttwrite() stops at TTHIWAT and can pass it by one OBUFSIZ chunk, and

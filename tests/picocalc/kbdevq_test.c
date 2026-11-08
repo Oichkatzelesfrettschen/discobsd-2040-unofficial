@@ -58,18 +58,50 @@ unsigned picokbd_evq_residue(void);
 #define	PG		100
 #define	OTHER		200
 
+
+/*
+ * The calling process, as the kernel glue passes it: a proc entry and a pid.
+ * Two entries and two pids let a test swap either one (a slot reused by a new
+ * pid, a pid reused in another slot).
+ */
+static int proc_a, proc_b;
+#define	PID_A		10
+#define	PID_B		11
+static const void *cur_proc = &proc_a;
+static int cur_pid = PID_A;
+
+static void
+as_process(const void *proc, int pid)
+{
+	cur_proc = proc;
+	cur_pid = pid;
+}
+
 static int
 drain_as(struct lcd_keyevs *out, int pgrp, int tty_pgrp, int readable)
 {
-	return picokbd_evq_drain(out, pgrp, tty_pgrp, readable);
+	return picokbd_evq_drain(out, cur_proc, cur_pid, pgrp, tty_pgrp, readable);
 }
 
-/* A fresh session owned by file A in the foreground group. */
+static int
+start_f(const void *file, int pgrp, int tty_pgrp, int readable)
+{
+	return picokbd_evq_start(file, cur_proc, cur_pid, pgrp, tty_pgrp, readable);
+}
+
+static int
+stop_f(const void *file)
+{
+	return picokbd_evq_stop(file, cur_proc, cur_pid);
+}
+
+/* A fresh session owned by process A through file A in the foreground group. */
 static void
 begin(void)
 {
 	picokbd_evq_reset();
-	expect("session start", picokbd_evq_start(&file_a, PG, PG, 1), 0);
+	as_process(&proc_a, PID_A);
+	expect("session start", start_f(&file_a, PG, PG, 1), 0);
 }
 
 static unsigned rng_state = 1;
@@ -326,7 +358,7 @@ test_no_recording_outside_session(void)
 	expect("no key byte is kept without a session", picokbd_evq_residue(), 0);
 
 	/* Events from before a session are not in it. */
-	expect("start", picokbd_evq_start(&file_a, PG, PG, 1), 0);
+	expect("start", start_f(&file_a, PG, PG, 1), 0);
 	memset(&out, 0xee, sizeof(out));
 	expect("drain", drain_as(&out, PG, PG, 1), 0);
 	expect("a new session starts empty", out.n, 0);
@@ -336,7 +368,7 @@ test_no_recording_outside_session(void)
 	put_run(0, 5);
 	expect("a session holds its events", picokbd_evq_fill(), 5);
 	expect("and their bytes", picokbd_evq_residue() > 0, 1);
-	expect("stop", picokbd_evq_stop(&file_a), 0);
+	expect("stop", stop_f(&file_a), 0);
 	expect("the end empties the queue", picokbd_evq_fill(), 0);
 	expect("the end leaves no key byte in memory", picokbd_evq_residue(), 0);
 	put_run(100, 5);
@@ -344,14 +376,14 @@ test_no_recording_outside_session(void)
 	expect("an ended session keeps no byte", picokbd_evq_residue(), 0);
 	picokbd_event(PICOKBD_PRESSED, 'b', 0, &ctrl, seq);
 	expect("after the end", drain_as(&out, PG, PG, 1), EINVAL);
-	expect("start again", picokbd_evq_start(&file_a, PG, PG, 1), 0);
+	expect("start again", start_f(&file_a, PG, PG, 1), 0);
 	expect("drain again", drain_as(&out, PG, PG, 1), 0);
 	expect("the ended session left nothing", out.n, 0);
 
 	/* An overflowed session leaves no drop count behind either. */
 	put_run(0, 100);
-	expect("stop after overflow", picokbd_evq_stop(&file_a), 0);
-	expect("start after overflow", picokbd_evq_start(&file_b, PG, PG, 1), 0);
+	expect("stop after overflow", stop_f(&file_a), 0);
+	expect("start after overflow", start_f(&file_b, PG, PG, 1), 0);
 	memset(&out, 0xee, sizeof(out));
 	expect("drain after overflow", drain_as(&out, PG, PG, 1), 0);
 	expect("no events carried over", out.n, 0);
@@ -359,13 +391,13 @@ test_no_recording_outside_session(void)
 
 	/* Restarting by the owner empties the queue. */
 	put_run(0, 7);
-	expect("restart", picokbd_evq_start(&file_b, PG, PG, 1), 0);
+	expect("restart", start_f(&file_b, PG, PG, 1), 0);
 	expect("drain after restart", drain_as(&out, PG, PG, 1), 0);
 	expect("a restart empties the queue", out.n, 0);
 
 	/* Stopping with no session is not an error. */
 	picokbd_evq_reset();
-	expect("stop without session", picokbd_evq_stop(&file_a), 0);
+	expect("stop without session", stop_f(&file_a), 0);
 }
 
 /* Starting needs a readable descriptor in the foreground group. */
@@ -375,12 +407,12 @@ test_start_checks(void)
 	struct lcd_keyevs out;
 
 	picokbd_evq_reset();
-	expect("write-only start", picokbd_evq_start(&file_a, PG, PG, 0), EBADF);
+	expect("write-only start", start_f(&file_a, PG, PG, 0), EBADF);
 	put_run(0, 3);
 	expect("a refused start opens no session", drain_as(&out, PG, PG, 1), EINVAL);
-	expect("background start", picokbd_evq_start(&file_a, OTHER, PG, 1), EIO);
-	expect("no foreground group", picokbd_evq_start(&file_a, 0, 0, 1), EIO);
-	expect("no process group", picokbd_evq_start(&file_a, 0, PG, 1), EIO);
+	expect("background start", start_f(&file_a, OTHER, PG, 1), EIO);
+	expect("no foreground group", start_f(&file_a, 0, 0, 1), EIO);
+	expect("no process group", start_f(&file_a, 0, PG, 1), EIO);
 	put_run(0, 3);
 	expect("refused starts open no session", drain_as(&out, PG, PG, 1), EINVAL);
 
@@ -388,20 +420,20 @@ test_start_checks(void)
 	begin();
 	put_run(0, 3);
 	expect("write-only start over a session",
-	    picokbd_evq_start(&file_a, PG, PG, 0), EBADF);
+	    start_f(&file_a, PG, PG, 0), EBADF);
 	expect("background start over a session",
-	    picokbd_evq_start(&file_a, OTHER, PG, 1), EIO);
+	    start_f(&file_a, OTHER, PG, 1), EIO);
 	expect("the queue is intact", drain_run("intact", 0, 3), 0);
 
 	/* A second open file cannot take the session, or end it. */
 	put_run(10, 2);
-	expect("second owner", picokbd_evq_start(&file_b, PG, PG, 1), EBUSY);
-	expect("second owner's stop", picokbd_evq_stop(&file_b), EPERM);
+	expect("second owner", start_f(&file_b, PG, PG, 1), EBUSY);
+	expect("second owner's stop", stop_f(&file_b), EPERM);
 	expect("the owner's queue is intact", drain_run("owner", 10, 2), 0);
 	put_run(20, 1);
 	expect("still recording", drain_run("recording", 20, 1), 0);
-	expect("the owner stops", picokbd_evq_stop(&file_a), 0);
-	expect("the second file starts", picokbd_evq_start(&file_b, PG, PG, 1), 0);
+	expect("the owner stops", stop_f(&file_a), 0);
+	expect("the second file starts", start_f(&file_b, PG, PG, 1), 0);
 }
 
 /* A drain needs the readable descriptor and the foreground group, and leaves the queue alone when refused. */
@@ -429,7 +461,7 @@ test_drain_checks(void)
 
 	/* A foreground reader of any open file may drain. */
 	picokbd_evq_reset();
-	expect("start", picokbd_evq_start(&file_a, PG, PG, 1), 0);
+	expect("start", start_f(&file_a, PG, PG, 1), 0);
 	put_run(0, 2);
 	expect("another process of the group drains", drain_run("peer", 0, 2), 0);
 }
@@ -450,7 +482,7 @@ test_close(void)
 	put_run(10, 3);
 	expect("after the close", drain_as(&out, PG, PG, 1), EINVAL);
 	expect("nothing is recorded after the close", picokbd_evq_fill(), 0);
-	expect("restart", picokbd_evq_start(&file_b, PG, PG, 1), 0);
+	expect("restart", start_f(&file_b, PG, PG, 1), 0);
 	expect("restart drain", drain_as(&out, PG, PG, 1), 0);
 	expect("the closed session left nothing", out.n, 0);
 
@@ -458,6 +490,73 @@ test_close(void)
 	picokbd_evq_reset();
 	picokbd_evq_fileclose(&file_a);
 	expect("no session after a stray close", drain_as(&out, PG, PG, 1), EINVAL);
+}
+
+/*
+ * The session belongs to the process that started it. A parent shell holds
+ * the same open file, in the same foreground group, so neither the file nor
+ * the group identifies the owner.
+ */
+static void
+test_owner_process(void)
+{
+	struct lcd_keyevs out;
+
+	/* Another process sharing the file and the group is not the owner. */
+	begin();
+	put_run(0, 4);
+	as_process(&proc_b, PID_B);
+	memset(&out, 0xee, sizeof(out));
+	expect("peer drain", drain_as(&out, PG, PG, 1), EPERM);
+	expect("peer drain leaves out alone", out.n, 0xee);
+	expect("peer stop on the shared file", stop_f(&file_a), EPERM);
+	expect("peer start on the shared file", start_f(&file_a, PG, PG, 1), EBUSY);
+	picokbd_evq_fileclose(&file_b);
+	as_process(&proc_a, PID_A);
+	expect("the owner's queue is intact", drain_run("owner", 0, 4), 0);
+
+	/* The owner exits; its parent still holds the file and cannot read on. */
+	put_run(4, 3);
+	as_process(&proc_b, PID_B);
+	picokbd_evq_procexit(&proc_b, PID_B);
+	expect("a peer's exit does not end it", picokbd_evq_fill(), 3);
+	picokbd_evq_procexit(&proc_a, PID_A);
+	expect("the owner's exit empties the queue", picokbd_evq_fill(), 0);
+	expect("and clears its bytes", picokbd_evq_residue(), 0);
+	put_run(20, 3);
+	expect("the exited owner's session records nothing", picokbd_evq_fill(), 0);
+	expect("the parent finds no session", drain_as(&out, PG, PG, 1), EINVAL);
+	expect("the parent may start its own on the same file",
+	    start_f(&file_a, PG, PG, 1), 0);
+	expect("which starts empty", drain_run("parent", 0, 0), 0);
+
+	/* A slot reused by a new pid, or a pid reused in another slot, is not the owner. */
+	begin();
+	put_run(0, 3);
+	as_process(&proc_a, PID_B);
+	expect("same slot, new pid: drain", drain_as(&out, PG, PG, 1), EPERM);
+	expect("same slot, new pid: stop", stop_f(&file_a), EPERM);
+	picokbd_evq_procexit(&proc_a, PID_B);
+	as_process(&proc_b, PID_A);
+	expect("same pid, other slot: drain", drain_as(&out, PG, PG, 1), EPERM);
+	expect("same pid, other slot: stop", stop_f(&file_a), EPERM);
+	picokbd_evq_procexit(&proc_b, PID_A);
+	expect("the wrong identities ended nothing", picokbd_evq_fill(), 3);
+	as_process(&proc_a, PID_A);
+	expect("the owner still reads", drain_run("still", 0, 3), 0);
+
+	/* An ended session does not revive for a process that reuses the pid. */
+	picokbd_evq_procexit(&proc_a, PID_A);
+	as_process(&proc_a, PID_A);
+	put_run(0, 2);
+	expect("no revival of the owner's identity", drain_as(&out, PG, PG, 1), EINVAL);
+	expect("nothing recorded", picokbd_evq_fill(), 0);
+
+	/* The owner stops with its own request from its own process. */
+	begin();
+	put_run(0, 2);
+	expect("owner stop", stop_f(&file_a), 0);
+	expect("owner stop empties", picokbd_evq_fill(), 0);
 }
 
 /* The session ends when the tty's foreground group is no longer the owner's. */
@@ -482,7 +581,7 @@ test_foreground(void)
 	    drain_as(&out, PG, OTHER, 1), EIO);
 	expect("the new foreground group finds no session",
 	    drain_as(&out, OTHER, OTHER, 1), EINVAL);
-	expect("and may start its own", picokbd_evq_start(&file_b, OTHER, OTHER, 1), 0);
+	expect("and may start its own", start_f(&file_b, OTHER, OTHER, 1), 0);
 	memset(&out, 0xee, sizeof(out));
 	expect("its drain", drain_as(&out, OTHER, OTHER, 1), 0);
 	expect("starts empty", out.n, 0);
@@ -500,7 +599,7 @@ test_foreground(void)
 	begin();
 	put_run(0, 5);
 	expect("a start from the new group replaces a stale session",
-	    picokbd_evq_start(&file_b, OTHER, OTHER, 1), 0);
+	    start_f(&file_b, OTHER, OTHER, 1), 0);
 	memset(&out, 0xee, sizeof(out));
 	expect("new owner drains", drain_as(&out, OTHER, OTHER, 1), 0);
 	expect("replaced session is empty", out.n, 0);
@@ -587,7 +686,7 @@ test_overflow(void)
 	/* A reset ends the session and forgets events and drops. */
 	put_run(0, 100);
 	picokbd_evq_reset();
-	expect("reset ends the session", picokbd_evq_drain(&(struct lcd_keyevs){0}, PG, PG, 1), EINVAL);
+	expect("reset ends the session", drain_as(&(struct lcd_keyevs){0}, PG, PG, 1), EINVAL);
 	begin();
 	expect("reset emptied the queue and the count", drain_run("reset", 0, 0), 0);
 }
@@ -603,6 +702,7 @@ main(void)
 	test_start_checks();
 	test_drain_checks();
 	test_close();
+	test_owner_process();
 	test_foreground();
 	test_drain_limit();
 	test_overflow();

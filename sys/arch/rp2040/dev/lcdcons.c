@@ -548,6 +548,20 @@ lcdcons_fileclose(const struct file *fp)
 }
 
 /*
+ * A process exits or execs: the raw key event session it started ends, even
+ * when the console file it was started on stays open in a parent shell
+ * (kern_exit.c exit(), exec_subr.c exec_clear()).
+ */
+void
+lcdcons_procexit(const struct proc *p)
+{
+	int x = spltty();
+
+	picokbd_evq_procexit(p, p->p_pid);
+	splx(x);
+}
+
+/*
  * The open file the running ioctl(2) was made on. A driver gets only the
  * file's flags, but the session belongs to the open file, so the descriptor
  * is looked up from the system call's first argument and must carry the
@@ -582,10 +596,10 @@ lcd_keyevs(int flag, int on)
 		return EINVAL;
 	x = spltty();
 	if (on)
-		error = picokbd_evq_start(fp, u.u_procp->p_pgrp,
-		    lcdttys[0].t_pgrp, (flag & FREAD) != 0);
+		error = picokbd_evq_start(fp, u.u_procp, u.u_procp->p_pid,
+		    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, (flag & FREAD) != 0);
 	else
-		error = picokbd_evq_stop(fp);
+		error = picokbd_evq_stop(fp, u.u_procp, u.u_procp->p_pid);
 	splx(x);
 	return error;
 }
@@ -601,8 +615,8 @@ lcd_getkey(int flag, struct lcd_keyevs *out)
 	int x = spltty();
 	int error;
 
-	error = picokbd_evq_drain(out, u.u_procp->p_pgrp, lcdttys[0].t_pgrp,
-	    (flag & FREAD) != 0);
+	error = picokbd_evq_drain(out, u.u_procp, u.u_procp->p_pid,
+	    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, (flag & FREAD) != 0);
 	splx(x);
 	return error;
 }

@@ -44,24 +44,27 @@
  * clears ECHO, as the games do, and ignores or flushes the bytes.
  *
  * Keystrokes include passwords, so the driver records nothing until a
- * program asks. LCDIOC_KEYEVS with 1 starts a session on the console file
- * it is called on; with 0 it ends the session. Starting needs a descriptor
+ * program asks. LCDIOC_KEYEVS with 1 starts a session, owned by the calling
+ * process and the console file it is called on; with 0 the owner ends it.
+ * Only the owning process may drain or end it (EPERM for any other process,
+ * including one that shares the file, such as the parent shell). Starting needs a descriptor
  * open for reading (EBADF otherwise) and a process in the tty's foreground
  * process group (EIO otherwise, as a background read of the tty with SIGTTIN
  * ignored); it returns EBUSY while another open file owns a session. The
  * queue is empty when a session starts and when it ends. The session ends
- * when the owning open file is closed for the last time (process exit
- * closes it), when the owner ends it, and when the tty's foreground group
- * is no longer the group the owner started in; the driver records no event
- * after that.
+ * when the owning process exits or execs (a new program image does not
+ * inherit it), when the owning open file is closed for the last time, when
+ * the owner ends it, and when the tty's foreground group is no longer the
+ * group the owner started in; the driver records no event after that.
  *
  * LCDIOC_GETKEY removes up to LCD_KEYEV_N events, oldest first, into
  * ev[0 .. n - 1], and sets `lost` to the number dropped since the previous
  * call (255 at most); a program that sees lost nonzero rebuilds its key
  * state from what it reads next. It needs a descriptor open for reading
  * (EBADF) and a process in the foreground group (EIO), never stops the
- * caller with SIGTTIN, returns EINVAL when no session is active, and leaves
- * the queue untouched when it fails. n is zero when no event waits: the call
+ * caller with SIGTTIN, returns EINVAL when no session is active and EPERM to
+ * a process that does not own it, and leaves the queue untouched when it
+ * fails. n is zero when no event waits: the call
  * never blocks. The driver keeps the most recent LCD_KEYEV_QUEUE events;
  * when the queue is full the oldest is dropped and counted, so the newest
  * state always survives. Both commands apply to the console tty only.

@@ -42,10 +42,11 @@
 # translation: every state the controller reports must enter the queue in
 # order, a full queue drops its oldest event and counts the drop, nothing is
 # recorded outside a session, a session needs a readable descriptor in the
-# foreground group, ends on close, on request and on a change of foreground
-# group and leaves the queue empty, and the translated bytes must equal
-# those of picokbd_translate() alone; twenty-nine mutants of picokbd_evq.c
-# and six cut connections in the kernel glue (wiring.sh) must fail it.
+# foreground group and belongs to its process, ends on close, on the
+# process's exit, on request and on a change of foreground group and leaves
+# the queue empty, and the translated bytes must equal
+# those of picokbd_translate() alone; thirty-six mutants of picokbd_evq.c
+# and ten cut connections in the kernel glue (wiring.sh) must fail it.
 #
 # gametile_test runs the tile library (games/gametile.h) against a model of
 # the tile commands of /dev/lcdgfx; twenty-nine mutants of the header must
@@ -291,6 +292,13 @@ kbdevq-mutants: \
 	kbdevq-mutant-end-keeps-queue \
 	kbdevq-mutant-end-keeps-drops \
 	kbdevq-mutant-end-keeps-bytes \
+	kbdevq-mutant-drain-any-process \
+	kbdevq-mutant-stop-any-process \
+	kbdevq-mutant-start-any-process \
+	kbdevq-mutant-procexit-ignored \
+	kbdevq-mutant-procexit-any-process \
+	kbdevq-mutant-owner-pid-ignored \
+	kbdevq-mutant-owner-proc-ignored \
 	kbdevq-mutant-wiring
 
 kbdevq-mutant-drop-newest:
@@ -375,11 +383,11 @@ kbdevq-mutant-start-keeps-queue:
 
 kbdevq-mutant-start-steals:
 	${KBDEVQ_MUT} picokbd_evq.c \
-	    '/^picokbd_evq_start/,/^}/s/if (active \&\& owner != file)/if (active \&\& owner != file \&\& 0)/' ${KBDEVQ_SRC}
+	    '/^picokbd_evq_start/,/^}/s/owner != file || !is_owner(proc, pid)/(owner != file \&\& 0) || !is_owner(proc, pid)/' ${KBDEVQ_SRC}
 
 kbdevq-mutant-stop-any-file:
 	${KBDEVQ_MUT} picokbd_evq.c \
-	    '/^picokbd_evq_stop/,/^}/s/if (owner != file)/if (owner != file \&\& 0)/' ${KBDEVQ_SRC}
+	    '/^picokbd_evq_stop/,/^}/s/owner != file || !is_owner(proc, pid)/(owner != file \&\& 0) || !is_owner(proc, pid)/' ${KBDEVQ_SRC}
 
 kbdevq-mutant-fileclose-ignored:
 	${KBDEVQ_MUT} picokbd_evq.c \
@@ -409,15 +417,45 @@ kbdevq-mutant-end-keeps-drops:
 	${KBDEVQ_MUT} picokbd_evq.c \
 	    '/^session_end/,/^}/s/^\tlost = 0;$$/\t(void)0;/' ${KBDEVQ_SRC}
 
+kbdevq-mutant-drain-any-process:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_drain/,/^}/s/if (!is_owner(proc, pid))/if (!is_owner(proc, pid) \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-stop-any-process:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_stop/,/^}/s/ || !is_owner(proc, pid))/ || (!is_owner(proc, pid) \&\& 0))/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-any-process:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/ || !is_owner(proc, pid))/ || (!is_owner(proc, pid) \&\& 0))/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-procexit-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_procexit/,/^}/s/session_end();/(void)proc, (void)pid;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-procexit-any-process:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_procexit/,/^}/s/if (active \&\& is_owner(proc, pid))/if (active \&\& (is_owner(proc, pid) || 1))/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-owner-pid-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/return owner_proc == proc \&\& owner_pid == pid;/return owner_proc == proc \&\& (owner_pid == pid || 1);/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-owner-proc-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/return owner_proc == proc \&\& owner_pid == pid;/return (owner_proc == proc || 1) \&\& owner_pid == pid;/' ${KBDEVQ_SRC}
+
 # The kernel glue that no host program runs (the poller, the console's
 # request handlers, the close hook in vn_closefile) is checked by reading
 # the function that must make each call; wiring.sh states the checks and
 # cuts each connection in turn to show that it rejects the cut.
 kbdevq-mutant-wiring:
 	@sh ./wiring.sh "${DEV}/picokbd.c" "${DEV}/lcdcons.c" \
-	    "${TOPSRC}/sys/kern/vfs_vnops.c"
+	    "${TOPSRC}/sys/kern/vfs_vnops.c" "${TOPSRC}/sys/kern/kern_exit.c" \
+	    "${TOPSRC}/sys/kern/exec_subr.c"
 	@sh ./wiring.sh -m "${DEV}/picokbd.c" "${DEV}/lcdcons.c" \
-	    "${TOPSRC}/sys/kern/vfs_vnops.c"
+	    "${TOPSRC}/sys/kern/vfs_vnops.c" "${TOPSRC}/sys/kern/kern_exit.c" \
+	    "${TOPSRC}/sys/kern/exec_subr.c"
 
 # The sanitizers are on for the mutants: a range check that forms an
 # overflowing sum is rejected by the test only because UBSan stops it.
@@ -1369,7 +1407,7 @@ clean:
 	picoaudio-mutant-override-kept \
 	picoaudio-mutant-busy-kept
 
-.PHONY: kbdevq-mutants kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-foreground-ignored kbdevq-mutant-foreground-any-change kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
+.PHONY: kbdevq-mutants kbdevq-mutant-drain-any-process kbdevq-mutant-stop-any-process kbdevq-mutant-start-any-process kbdevq-mutant-procexit-ignored kbdevq-mutant-procexit-any-process kbdevq-mutant-owner-pid-ignored kbdevq-mutant-owner-proc-ignored kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-foreground-ignored kbdevq-mutant-foreground-any-change kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
 
 .PHONY: gametile-mutants gametile-mutant-fill-column-sum gametile-mutant-fill-row-sum gametile-mutant-fill-origin-unchecked gametile-mutant-load-sum gametile-mutant-load-product gametile-mutant-touch-unchecked gametile-mutant-run-crosses-row gametile-mutant-run-single gametile-mutant-run-bridges-gap gametile-mutant-mark-kept gametile-mutant-pending-uncounted gametile-mutant-pending-kept gametile-mutant-set-always-marks gametile-mutant-set-unmarked gametile-mutant-set-tile-range gametile-mutant-set-x-bound gametile-mutant-init-clean gametile-mutant-fill-range gametile-mutant-fill-tile-range gametile-mutant-short-write-accepted gametile-mutant-ioctl-failure-ignored gametile-mutant-window-height gametile-mutant-write-source gametile-mutant-load-last-tile gametile-mutant-load-high gametile-mutant-load-count-zero gametile-mutant-load-touch-missing gametile-mutant-touch-range gametile-mutant-load-bytes
 

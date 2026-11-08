@@ -92,6 +92,8 @@ void		lcdcons_input(const char *s, int n);
 int		lcdcons_pgrp(void);
 struct file;
 void		lcdcons_fileclose(const struct file *fp);
+struct proc;
+void		lcdcons_procexit(const struct proc *p);
 
 #endif /* KERNEL */
 

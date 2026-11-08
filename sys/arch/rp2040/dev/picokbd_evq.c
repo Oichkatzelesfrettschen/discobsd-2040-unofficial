@@ -37,6 +37,8 @@ static struct lcd_keyev queue[LCD_KEYEV_QUEUE];
 static unsigned head, tail;
 static unsigned lost;			/* Drops since the last drain, at most 255. */
 static const void *owner;		/* Open file that owns the session. */
+static const void *owner_proc;		/* Process that started it, with its pid. */
+static int owner_pid;
 static int owner_pgrp;			/* Its process group; the foreground group is required to equal it. */
 static int active;			/* A session is open; events are recorded. */
 
@@ -52,34 +54,46 @@ session_end(void)
 	}
 	active = 0;
 	owner = 0;
+	owner_proc = 0;
+	owner_pid = 0;
 	owner_pgrp = 0;
 	head = tail = 0;
 	lost = 0;
 }
 
+/* The caller is the process that started the session. */
+static int
+is_owner(const void *proc, int pid)
+{
+	return owner_proc == proc && owner_pid == pid;
+}
+
 int
-picokbd_evq_start(const void *file, int pgrp, int tty_pgrp, int readable)
+picokbd_evq_start(const void *file, const void *proc, int pid, int pgrp,
+    int tty_pgrp, int readable)
 {
 	if (!readable)
 		return EBADF;
 	if (pgrp == 0 || pgrp != tty_pgrp)
 		return EIO;
 	picokbd_evq_foreground(tty_pgrp);
-	if (active && owner != file)
+	if (active && (owner != file || !is_owner(proc, pid)))
 		return EBUSY;
 	session_end();
 	active = 1;
 	owner = file;
+	owner_proc = proc;
+	owner_pid = pid;
 	owner_pgrp = pgrp;
 	return 0;
 }
 
 int
-picokbd_evq_stop(const void *file)
+picokbd_evq_stop(const void *file, const void *proc, int pid)
 {
 	if (!active)
 		return 0;
-	if (owner != file)
+	if (owner != file || !is_owner(proc, pid))
 		return EPERM;
 	session_end();
 	return 0;
@@ -89,6 +103,13 @@ void
 picokbd_evq_fileclose(const void *file)
 {
 	if (active && owner == file)
+		session_end();
+}
+
+void
+picokbd_evq_procexit(const void *proc, int pid)
+{
+	if (active && is_owner(proc, pid))
 		session_end();
 }
 
@@ -120,7 +141,8 @@ picokbd_evq_put(int state, int key)
 }
 
 int
-picokbd_evq_drain(struct lcd_keyevs *out, int pgrp, int tty_pgrp, int readable)
+picokbd_evq_drain(struct lcd_keyevs *out, const void *proc, int pid, int pgrp,
+    int tty_pgrp, int readable)
 {
 	unsigned n = 0;
 
@@ -131,6 +153,8 @@ picokbd_evq_drain(struct lcd_keyevs *out, int pgrp, int tty_pgrp, int readable)
 	picokbd_evq_foreground(tty_pgrp);
 	if (!active)
 		return EINVAL;
+	if (!is_owner(proc, pid))
+		return EPERM;
 	while (n < LCD_KEYEV_N && tail != head)
 		out->ev[n++] = queue[tail++ & (LCD_KEYEV_QUEUE - 1)];
 	out->n = (unsigned char)n;

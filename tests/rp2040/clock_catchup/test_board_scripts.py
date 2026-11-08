@@ -52,8 +52,11 @@ def date_line(board_time):
     )
 
 
-def stamped_lines(offset, delayed=None, seed=1, start=BASE):
-    """Synthetic date loop: lines made at host time x carry floor(x - offset)."""
+def stamped_lines(offset, delayed=None, seed=1, start=BASE, loss=0.0, profile=None):
+    """Synthetic date loop: lines made at host time x carry floor(x - offset).
+
+    LOSS adds that many seconds of offset per line, a clock falling behind;
+    PROFILE, when given, maps the line index to the added offset instead."""
     rng = random.Random(seed)
     arrival = start
     out = []
@@ -61,7 +64,8 @@ def stamped_lines(offset, delayed=None, seed=1, start=BASE):
         arrival += rng.uniform(0.08, 0.2)
         made = arrival - rng.uniform(0.0, 0.03)
         shown = arrival + (delayed if delayed and index == delayed_index() else 0.0)
-        out.append((shown, date_line(made - offset)))
+        extra = profile(index) if profile else loss * index
+        out.append((shown, date_line(made - offset - extra)))
     return out
 
 
@@ -128,6 +132,40 @@ class OffsetBounds(unittest.TestCase):
             low = max(low, arrival - clock.SETTLE_MARGIN - value - 1)
             high = min(high, arrival - value)
         self.assertGreater(low, high)
+
+    def test_a_single_two_second_delay_is_not_a_lost_clock(self):
+        with self.assertRaises(clock.MeasurementError) as caught:
+            clock.offset_bounds(stamped_lines(0.4321, delayed=2.0))
+        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+
+    def test_a_clock_losing_half_a_second_per_line_is_reported(self):
+        with self.assertRaises(clock.ClockLostTime) as caught:
+            clock.offset_bounds(stamped_lines(0.4321, loss=0.5))
+        self.assertGreaterEqual(caught.exception.loss, 18.0)
+        self.assertLess(caught.exception.loss, 21.0)
+        self.assertEqual(caught.exception.lines, clock.SAMPLES)
+
+    def test_a_clock_that_loses_time_and_regains_it_is_inconclusive(self):
+        # Rising then falling by the same amount fails the non-decreasing test.
+        def triangle(index):
+            half = clock.SAMPLES // 2
+            return 0.5 * min(index, 2 * half - index)
+
+        with self.assertRaises(clock.MeasurementError) as caught:
+            clock.offset_bounds(stamped_lines(0.4321, profile=triangle))
+        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+
+    def test_the_old_rule_called_a_lost_clock_inconclusive(self):
+        # Calibration: the old rule raised MeasurementError for every empty
+        # interval. The losing clock's bounds are empty, so the old rule gave
+        # exit status 2 where the check now fails.
+        low, high = -1e18, 1e18
+        for arrival, line in stamped_lines(0.4321, loss=0.5):
+            value = clock.board_seconds(line)
+            low = max(low, arrival - clock.SETTLE_MARGIN - value - 1)
+            high = min(high, arrival - value)
+        self.assertGreater(low, high)
+        self.assertGreater(low - high, 18.0)
 
     def test_too_few_parsed_lines(self):
         with self.assertRaises(clock.MeasurementError):
@@ -225,7 +263,9 @@ class StubConsole:
     def run(self, command, wait=8, stop=None):
         self.commands.append(command)
         if command.startswith("for i in"):
-            return "", stamped_lines(self.offsets.pop(0))
+            entry = self.offsets.pop(0)
+            offset, loss = entry if isinstance(entry, tuple) else (entry, 0.0)
+            return "", stamped_lines(offset, loss=loss)
         if command.startswith("cat /tmp/cc.sh"):
             return "\n".join(clock.workload_script()) + "\nSCRIPTEND\n", []
         if command.startswith("sh /tmp/cc.sh"):
@@ -259,6 +299,18 @@ class EndToEnd(unittest.TestCase):
         status, _ = self.quiet(StubConsole([5.0, 15.0, 15.0], self.good))
         self.assertEqual(status, 1)
 
+    def test_clock_losing_time_inside_a_date_loop_fails(self):
+        # Each of the three measurements can show the loss.
+        for slot in range(3):
+            offsets = [5.0, 5.0, 5.0]
+            offsets[slot] = (5.0, 0.5)
+            console = StubConsole(offsets, self.good)
+            status, out = self.quiet(console)
+            self.assertEqual(status, 1, slot)
+            self.assertIn("FAIL", out)
+            self.assertIn("fell behind by", out)
+            self.assertIn("across %d date lines" % clock.SAMPLES, out)
+
     def test_borderline_clock_is_inconclusive(self):
         tolerance = clock.PASSES * clock.WORKLOAD_BLOCKS * 1024 // clock.SECTOR_BYTES
         tolerance *= clock.ERASE_MS / 1000.0 * clock.TOLERANCE_FRACTION
@@ -280,8 +332,9 @@ class EndToEnd(unittest.TestCase):
                     return "", stamped_lines(5.0, delayed=0.5)
                 return super().run(command, wait, stop)
 
-        with self.assertRaises(clock.MeasurementError):
+        with self.assertRaises(clock.MeasurementError) as caught:
             self.quiet(Delayed([], self.good))
+        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
 
 
 class StubSerialModule:

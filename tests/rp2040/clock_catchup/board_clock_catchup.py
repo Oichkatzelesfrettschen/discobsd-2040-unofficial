@@ -31,9 +31,21 @@ the excess is an interval. A kernel without catch-up loses at least 44 ms per
 sector erased (the floor used here; a kernel with the catch-up call disabled
 lost 96 s to a 96-sector workload, 23 times the floor). The check passes when
 the whole excess interval lies within a tenth of the floor, fails when it lies
-wholly outside, and is inconclusive otherwise (exit status 2). A measurement
-whose per-line bounds have no common point, a workload that did not write every
-block, and a floor under a second are also inconclusive. The idle wait is not
+wholly outside, and is inconclusive otherwise (exit status 2). A workload that
+did not write every block and a floor under a second are also inconclusive.
+A measurement whose per-line bounds have no common point has two causes: one
+sample delayed past SETTLE_MARGIN, which is inconclusive, or a board clock that
+fell behind during the loop, which is a failure. Per line the offset estimate
+is arrival - value, which lies in [offset, offset + 1 + SETTLE_MARGIN) for a
+steady clock. A losing clock raises the estimate across the loop, so
+loss_of_clock() reports a failure when at least LOSS_PAIR_FRACTION of the
+estimate pairs LOSS_PAIR_LAG lines apart are non-decreasing within the
+one-second quantization of date and the median pairwise slope times the loop
+length exceeds MIN_LOST_S. The report carries that loss and the line count. Any
+of the three measurements can show the loss, because the date loop is itself
+flash-backed work: every date forks, the fork swaps through the raw swap
+partition, and a kernel without catch-up loses the masked ticks of that swap.
+A lone delayed sample leaves the median slope flat and stays inconclusive. The idle wait is not
 free of flash work: each fork under the single-process window swaps through the
 raw swap partition, so the control carries that residue.
 
@@ -44,6 +56,7 @@ import calendar
 import glob
 import os
 import re
+import statistics
 import subprocess
 import sys
 import time
@@ -78,6 +91,18 @@ ERASE_MS = 44
 # loses the whole ERASE_MS per sector.
 TOLERANCE_FRACTION = 0.10
 MIN_LOST_S = 1.0
+# A board clock that fell behind across a date loop shows offset estimates that
+# rise: at least this fraction of the estimate pairs LOSS_PAIR_LAG lines apart
+# must not fall by more than the quantization of date (one second plus
+# SETTLE_MARGIN). Adjacent pairs cannot test this, because a clock moving less
+# than the quantization per line hides a fall inside the tolerance; four lines
+# separate a slope of 0.25 s per line from the tolerance. The
+# rise is the Theil-Sen slope times the loop length, which a minority of delayed
+# lines cannot move; it must exceed MIN_LOST_S, the same floor below which the
+# workload verdict is also inconclusive. The estimates of a steady clock span
+# under 1 + SETTLE_MARGIN, so a steady clock's rise stays near zero.
+LOSS_PAIR_FRACTION = 0.90
+LOSS_PAIR_LAG = 4
 # Exit status of a run whose measurements cannot decide (0 passes, 1 fails).
 INCONCLUSIVE = 2
 
@@ -172,24 +197,69 @@ class MeasurementError(Exception):
     """A measurement that cannot bound the offset; the check is inconclusive."""
 
 
+class ClockLostTime(MeasurementError):
+    """The board clock fell behind during a date loop; the check fails.
+
+    LOSS is the rise of the offset estimate across the loop in seconds, LINES
+    the number of parsed date lines and MEASUREMENT the name of the measurement
+    that showed it (set by measure_offset).
+    """
+
+    def __init__(self, loss, lines, measurement=None):
+        super().__init__(
+            "the board clock fell behind by %.3f s across %d date lines" % (loss, lines)
+        )
+        self.loss = loss
+        self.lines = lines
+        self.measurement = measurement
+
+
+def loss_of_clock(estimates):
+    """Return the seconds the clock fell behind across ESTIMATES, or None.
+
+    ESTIMATES holds arrival - value per parsed line in order. A pair
+    LOSS_PAIR_LAG lines apart is non-decreasing when the later estimate is no
+    more than the quantization of date (1 + SETTLE_MARGIN) below the earlier. The
+    loss is the median of the pairwise slopes times the number of intervals,
+    which tolerates a minority of delayed lines. A single step in the clock smaller than half the
+    loop moves the median little, so it reads as inconclusive.
+    """
+    count = len(estimates)
+    if count <= LOSS_PAIR_LAG:
+        return None
+    quantum = 1 + SETTLE_MARGIN
+    pairs = list(zip(estimates, estimates[LOSS_PAIR_LAG:]))
+    steps = sum(1 for a, b in pairs if b >= a - quantum)
+    if steps < LOSS_PAIR_FRACTION * len(pairs):
+        return None
+    slope = statistics.median(
+        (estimates[j] - estimates[i]) / (j - i) for i in range(count) for j in range(i + 1, count)
+    )
+    loss = slope * (count - 1)
+    return loss if loss > MIN_LOST_S else None
+
+
 def offset_bounds(stamped, samples=SAMPLES):
     """Return (low, high) bounds on host time minus board time, in seconds.
 
     STAMPED holds (arrival time, console line) pairs. The constant that
     converts the board's local zone to UTC stays in the value; only differences
     between measurements are meaningful. Raises MeasurementError when too few
-    lines parse or when the per-line bounds have no common point, which a
-    sample delayed beyond SETTLE_MARGIN or a clock that moved during the loop
-    produces.
+    lines parse. When the per-line bounds have no common point, which a sample
+    delayed beyond SETTLE_MARGIN or a clock that fell behind during the loop
+    produces, raises ClockLostTime for the second cause (see loss_of_clock)
+    and MeasurementError for the first.
     """
     low = -1e18
     high = 1e18
     used = 0
+    estimates = []
     for arrival, line in stamped:
         value = board_seconds(line)
         if value is None:
             continue
         used += 1
+        estimates.append(arrival - value)
         # The line was made at x in [arrival - margin, arrival]; the board's
         # time b has floor(b) == value, so b in [value, value + 1) and the
         # offset x - b lies in (x_low - value - 1, x_high - value].
@@ -198,20 +268,29 @@ def offset_bounds(stamped, samples=SAMPLES):
     if used < samples // 2:
         raise MeasurementError("only %d of %d date lines parsed" % (used, samples))
     if low > high:
+        loss = loss_of_clock(estimates)
+        if loss is not None:
+            raise ClockLostTime(loss, used)
         raise MeasurementError(
             "the bounds of %d date lines have no common point (%.3f .. %.3f s)" % (used, low, high)
         )
     return low, high
 
 
-def measure_offset(console):
-    """Run the stamped date loop on the board and bound the offset."""
+def measure_offset(console, name="measurement"):
+    """Run the stamped date loop on the board and bound the offset.
+
+    A ClockLostTime raised by the loop carries NAME as its measurement."""
     _, stamped = console.run(
         'for i in `seq 1 %d`; do date; done; echo OFF""DONE' % SAMPLES,
         wait=300,
         stop="\nOFFDONE\n",
     )
-    return offset_bounds(stamped)
+    try:
+        return offset_bounds(stamped)
+    except ClockLostTime as error:
+        error.measurement = name
+        raise
 
 
 def excess_interval(baseline, work, idle):
@@ -305,7 +384,18 @@ def main():
 
 
 def run_check(console):
-    baseline = measure_offset(console)
+    """Run the three measurements and the workload; return the exit status.
+
+    A clock that lost time during any date loop ends the run as a failure."""
+    try:
+        return run_measurements(console)
+    except ClockLostTime as error:
+        print("clock catch-up: FAIL (%s, in the %s measurement)" % (error, error.measurement))
+        return 1
+
+
+def run_measurements(console):
+    baseline = measure_offset(console, "baseline")
     print("offset 1 (baseline): %.3f .. %.3f s" % baseline)
 
     # The workload script travels as echo lines; the board's sh aborts a
@@ -330,12 +420,12 @@ def run_check(console):
         print("workload failed: %s: %r" % (reason, text[-300:]))
         return INCONCLUSIVE
     console.run("rm -f /tmp/cc.sh /tmp/cc.dat", wait=2)
-    after_work = measure_offset(console)
+    after_work = measure_offset(console, "after-workload")
     print("offset 2 (after workload, %.1f s): %.3f .. %.3f s" % ((workload_s, *after_work)))
 
     idle_start = time.time()
     time.sleep(workload_s)
-    after_idle = measure_offset(console)
+    after_idle = measure_offset(console, "after-idle")
     idle_s = time.time() - idle_start
     print("offset 3 (after idle, %.1f s): %.3f .. %.3f s" % ((idle_s, *after_idle)))
 

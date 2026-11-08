@@ -46,8 +46,8 @@ name a file there, with a page for a PDF.
 | The ioctl classifier copies each `LCDG_*` payload (at most 12 bytes) into aligned kernel storage under `PICOCALC_ENABLED` and stages `LCDG_INFO` and `LCDIOC_GETKEY` (14 bytes) as zeroed output, `LCDIOC_KEYEVS` as an integer input | host | observed by `check-kernel` (`fionread_test`, 688 checks, was 605): ownership, upper span edge, crossing span, provider error and reserved-bit cases for all thirteen `LCDG_*` commands, `LCDIOC_GETKEY` and `LCDIOC_KEYEVS`; seven mutants (one per command family, the tile commands and the two key commands included) fail it |
 | `LCDG_TILESET` stores tiles into a 128-tile atlas that is zero at every open, bounded by `first + count <= 128`; `LCDG_TILEWIN` draws a block of tile numbers as one panel window per tile row, with the eight pixel lines of every tile in the row interleaved, through the palette and COLMOD in force; a field out of range or a tile number of 128 or more draws nothing further | host | observed by `check-picocalc-host` (`lcdgfx_test`) against the model panel, which logs each window with its pixel count and stores each pixel at its raster position: 128 tiles uploaded in nine write sizes, blocks from one tile to the 40 by 40 grid (exactly one window of `tw * 8` by 8 per tile row, every pixel compared with a reference render), palette and COLMOD 0x55 draws, 20 rejected commands, upload bounds and abandonment, a copy fault resumed, and the zero atlas at open; 24 mutants fail it |
 | `games/gametile.h` sends one `LCDG_TILEWIN` per maximal run of changed tiles in a tile row, none for a clean tile, and leaves a failed run owed | host | observed by `check-picocalc-host` (`gametile_test`) against a model of the tile commands: 300 random rounds and scripted cases compared with runs counted by an independent loop; ranges near the limits of int are refused without an overflowing sum (`gtile_fill`, `gtile_load`, run under UBSan); 29 mutants fail it |
-| A raw key event session records nothing outside itself: `LCDIOC_KEYEVS` starts it only for a descriptor open for reading in the tty's foreground group, the queue is empty and its bytes cleared at its start and end, it ends on the owner's last close, on request and when the foreground group changes, and `LCDIOC_GETKEY` drains oldest first, six per call, from the readable foreground caller only, drops the oldest event when full and reports the drops; the xterm bytes the poller types are those of `picokbd_translate()` alone | host | observed by `check-picocalc-host` (`kbdevq_test`): write-only and background starts and drains refused with the queue and drop count intact, a second owner refused, nothing held and no key byte in memory outside a session, session end by close, request and foreground change, every state against every key, a 20,000-event run, overflow at 33, 40, 50 and 1,000 events, the count saturating at 255; 29 mutants of `picokbd_evq.c` fail it, and `wiring.sh` fails six cuts in the kernel glue it reads (the poller's `picokbd_event()` and foreground call, `lcdcons_fileclose()`, the `FREAD` and process-group arguments of both requests, the `vn_closefile()` hook); `kbd_poll()`, `lcd_ioctl_file()` and the close hook themselves run on no host |
-| The tile atlas and `LCDIOC_GETKEY` compile into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their text, data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +1,088, bss +4,256 (112,631 / 368 / 53,080); PICOCALC_PSRAM text +1,088, bss +4,248 (114,789 / 424 / 53,224); flash headroom 18,072 and 15,856 bytes; the kernel's data and bss end 62,424 bytes below the end of the RAM region (Tile atlas) |
+| A raw key event session records nothing outside itself: `LCDIOC_KEYEVS` starts it only for a descriptor open for reading in the tty's foreground group, the queue is empty and its bytes cleared at its start and end, it belongs to the process that started it and ends on that process's exit or exec, on the owner's last close, on request and when the foreground group changes, and `LCDIOC_GETKEY` drains oldest first, six per call, from the owning, readable, foreground caller only, drops the oldest event when full and reports the drops; the xterm bytes the poller types are those of `picokbd_translate()` alone | host | observed by `check-picocalc-host` (`kbdevq_test`): write-only, background and non-owner starts, drains and stops refused with the queue and drop count intact, a second owner refused, the owner's exit ending the session while another process holds the file, pid and slot reuse refused, nothing held and no key byte in memory outside a session, session end by close, exit, request and foreground change, every state against every key, a 20,000-event run, overflow at 33, 40, 50 and 1,000 events, the count saturating at 255; 36 mutants of `picokbd_evq.c` fail it, and `wiring.sh` fails ten cuts in the kernel glue it reads (the poller's `picokbd_event()` and foreground call, `lcdcons_fileclose()` and `lcdcons_procexit()`, the `FREAD`, process-group and pid arguments of both requests, the hooks in `vn_closefile()`, `exit()` and `exec_clear()`); `kbd_poll()`, `lcd_ioctl_file()` and the close hook themselves run on no host |
+| The tile atlas and `LCDIOC_GETKEY` compile into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their text, data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +1,248, bss +4,264 (112,791 / 368 / 53,088); PICOCALC_PSRAM text +1,248, bss +4,256 (114,949 / 424 / 53,232); flash headroom 17,912 and 15,696 bytes; the kernel's data and bss end 62,416 bytes below the end of the RAM region (Tile atlas) |
 | The tile atlas on the panel: the tiles appear, a 40-tile row costs 4.92 ms plus a window, a one-row vertical scroll step costs 4.9 ms, the raw key events arrive at the keyboard's rate | board | not run: `tests/rp2040/tiledemo` is built by `check-board-build` (text 7,379 bytes) and a board run is opt-in |
 | `lcdgfx.c` compiles into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +2,145, bss +72; PICOCALC_PSRAM text +2,145, bss +80; PICO 95,403 / 248 / 39,848 and PICO_UART 85,618 / 192 / 14,832, 9 text bytes above the measurement before the pixel device, which was taken in a different build path, the offset `version[]` carries (not traced further); at `-O` under GCC 16.2 the PICO and PICO_UART images differed only inside `version[]` (`objcopy -O binary`) |
 | `st7365p.c` clocks the pixel primitives and `lcd_gfx_reset()` to the panel | build | compiles and links; `st7365p.c` has no host model, so the SPI bytes, the VSCRDEF value and the COLMOD 0x55 pixel format are read from the source and from the model's protocol, not run |
@@ -440,22 +440,23 @@ the atlas and the raw key events (Keyboard, below); headroom is what
 
 | Kernel | Before (text / data / bss) | After (text / data / bss) | Headroom before | Headroom after |
 | --- | --- | --- | --- | --- |
-| PICOCALC | 111,543 / 368 / 48,824 | 112,631 / 368 / 53,080 | 19,160 | 18,072 |
-| PICOCALC_PSRAM | 113,701 / 424 / 48,976 | 114,789 / 424 / 53,224 | 16,944 | 15,856 |
+| PICOCALC | 111,543 / 368 / 48,824 | 112,791 / 368 / 53,088 | 19,160 | 17,912 |
+| PICOCALC_PSRAM | 113,701 / 424 / 48,976 | 114,949 / 424 / 53,232 | 16,944 | 15,696 |
 | PICO | 95,395 / 248 / 39,848 | 95,395 / 248 / 39,848 | 35,428 | 35,428 |
 | PICO_UART | 85,610 / 192 / 14,832 | 85,610 / 192 / 14,832 | 45,268 | 45,268 |
 
 The "before" column is main at the merge of the `-Os` headroom change, built in
 a scratch tree; its PICOCALC text is 8 bytes below the 111,551 the pixel
 device table records, the offset `version[]` carries between build paths. The
-change adds 1,088 bytes of text and 4,256 (PICOCALC) or 4,248 (PICOCALC_PSRAM)
+change adds 1,248 bytes of text and 4,264 (PICOCALC) or 4,256 (PICOCALC_PSRAM)
 of bss to each PicoCalc kernel. Per object: `lcdgfx.o` +440 text and +4,164
 bss (4,096 of atlas, a 40-byte row buffer, 28 bytes of stream state),
-`picokbd_evq.o` +392 text and +88 bss (the session and its checks), `lcdcons.o`
-+204 text (the two requests, the descriptor lookup and the close hook),
-`sys_generic.o` +36, `picokbd.o` +8 and `vfs_vnops.o` +4 text. The kernel's
-data and bss end 62,424 bytes below the end of the 106 KB RAM region on
-PICOCALC_PSRAM (0x2002f428 against 0x2003e800), so the bss addition leaves
+`picokbd_evq.o` +492 text and +96 bss (the session and its checks), `lcdcons.o`
++260 text (the two requests, the descriptor lookup and the close and exit hooks),
+`sys_generic.o` +36, `picokbd.o` +8 and `vfs_vnops.o`, `kern_exit.o` and
+`exec_subr.o` +4 text each. The kernel's
+data and bss end 62,416 bytes below the end of the 106 KB RAM region on
+PICOCALC_PSRAM (0x2002f430 against 0x2003e800), so the bss addition leaves
 the layout of `BOOT-MAP.md` intact. PICO and PICO_UART compile no PicoCalc
 file and keep their text, data and bss.
 
@@ -535,23 +536,31 @@ xterm termcap entry's `kh`, `@7`, `kI`, `kD`, `kP`, `kN` and `k1`-`k;`.
 
 Raw key events. Keystrokes include passwords, so the driver records
 nothing until a program asks. `LCDIOC_KEYEVS` (`_IOW('l', 3, int)`) with 1
-starts a session on the open console file it is called on and with 0 ends
-it; `LCDIOC_GETKEY` (`_IOR('l', 2, struct lcd_keyevs)`) then returns up to six
+starts a session owned by the calling process and the open console file it is
+called on, and with 0 the owner ends it; `LCDIOC_GETKEY` (`_IOR('l', 2, struct lcd_keyevs)`) then returns up to six
 `{ state, key }` events (`LCD_KEY_PRESSED`, `HOLD`, `RELEASED` and the
 controller's key byte) from a queue of 32 that `picokbd_evq.c` keeps. A start
 needs a descriptor open for reading (`EBADF` otherwise), a caller whose
 process group is the tty's foreground group (`EIO` otherwise, the answer
 `ttread()` gives a background reader that ignores `SIGTTIN`; the call never
 sends `SIGTTIN` or sleeps) and no other owner (`EBUSY`); a drain needs the
-same two properties, returns `EINVAL` without a session, and leaves the queue
-as it was when it fails. The queue is emptied and its bytes cleared when the
+same two properties, returns `EINVAL` without a session and `EPERM` to a
+process that is not the owner (a parent shell that shares the file included),
+and leaves the queue as it was when it fails. The queue is emptied and its bytes cleared when the
 session starts and when it ends, and `picokbd_event()` records only between
-the two. A session ends when its open file is closed for the last time (the
-hook is `lcdcons_fileclose()`, called from `vn_closefile()` under
-`PICOCALC_ENABLED`, because a character driver's close entry runs only when
-the whole device is closed and the console stays open; process exit closes
-through the same path), when the owner ends it, and when the tty's foreground
-group differs from the owner's. The foreground check is made before every
+the two. A session ends when its owning process exits or execs
+(`lcdcons_procexit()`, called from `exit()` before the files close and from
+`exec_clear()` after the exec commits, so a new image never inherits it), when
+its open file is closed for the last time (`lcdcons_fileclose()`, called from
+`vn_closefile()` under `PICOCALC_ENABLED`, because a character driver's close
+entry runs only when the whole device is closed and the console stays open),
+when the owner ends it, and when the tty's foreground group differs from the
+owner's. The exit hook is needed on its own: a program that starts a session
+on an inherited standard input shares the open file with its parent shell, so
+its death releases only one reference and the file close never runs, while
+`/bin/sh` keeps its commands in the shell's own foreground group. The owner is
+the pair of the process table entry and its pid, so a slot reused by a new pid
+and a pid reused in another slot are both strangers. The foreground check is made before every
 event the poller records and in every request, so no key is recorded or read
 after the change; it is a comparison, not a hook in `TIOCSPGRP`, because
 `TIOCSPGRP`, `setpgrp()` and the tty close all change one of the two groups
@@ -567,7 +576,7 @@ key state keeps the newest events and learns when to resynchronize. The
 ioctls do not block, run at `spltty()` against the poller's callout, and are
 classified in `ioctl()` (`LCDIOC_KEYEVS` as a four-byte input, `LCDIOC_GETKEY`
 as zeroed output). The polled `picokbd_getc()` of the console's fatal path does not
-queue. Cost: 392 bytes of text and 88 of bss in `picokbd_evq.o`, 204 of text
+queue. Cost: 492 bytes of text and 96 of bss in `picokbd_evq.o`, 260 of text
 in `lcdcons.o` (Tile atlas, above).
 
 The counts are programmed for 100 kHz, between the vendor helloworld's

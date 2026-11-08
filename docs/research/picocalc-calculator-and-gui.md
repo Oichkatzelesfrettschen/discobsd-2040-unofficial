@@ -465,20 +465,26 @@ returns up to six `{ state, key }` events from a 32-event queue
 `EBADF` and a background caller with `EIO` (never `SIGTTIN`), and leaves the
 queue alone when it refuses. An explicit start was chosen over enabling on
 the first drain because a drain stays free of side effects and a refused
-drain cannot create a session. The session ends when its open file is closed
-for the last time, which needs a hook in `vn_closefile()` because a character
-driver's close entry runs only when the device is closed everywhere; process
-exit passes through it. It also ends when the owner ends it and when the
-tty's foreground group differs from the owner's, a comparison the poller
-makes before each event and each request makes before it acts. The keyboard
+drain cannot create a session. The session belongs to the process that started it
+as well as to the open file: a program that starts one on an inherited
+standard input shares the file with its parent shell, whose reference keeps
+the file open after the program dies, and the shell's own foreground group
+never changes, so neither the file close nor the foreground check ends it.
+Only the owner (process entry and pid) may drain or end it. The session ends
+when the owner exits (a hook in `exit()` before the files close) or execs (in
+`exec_clear()`, after the exec commits), when the open file is closed for the
+last time (a hook in `vn_closefile()`, because a character driver's close
+entry runs only when the device is closed everywhere), when the owner ends it
+and when the tty's foreground group differs from the owner's, a comparison the
+poller makes before each event and each request makes before it acts. The keyboard
 poller fills the queue for every controller event before it translates the
 event to xterm bytes, so the translated path and the queue see the same
 events and neither waits on the other. A full queue drops its oldest event
 and counts the drop for the next call: a game that tracks held keys needs the
 newest state more than the oldest, and `lost` tells it to rebuild. The ioctls
 never block. The queue lives in its own file so that `picokbd_map.c` keeps
-no state. The text cost is 392 bytes in `picokbd_evq.o` with 88 bytes of bss,
-and 204 bytes in `lcdcons.o`. The board measurement of the event rate against
+no state. The text cost is 492 bytes in `picokbd_evq.o` with 96 bytes of bss,
+and 260 bytes in `lcdcons.o`. The board measurement of the event rate against
 the predicted 31 per second is open; `PICOCALC.md` (Keyboard) records that the
 poller runs 2 ms apart once an event arrives, so the exchange rate is higher
 than the 32 ms ceiling this note derived from the 16 ms idle poll.
@@ -561,10 +567,10 @@ new gate is needed. Board steps run only with the repository's exact opt-in.
   bytes at `-O`. At `-Os` under GCC 13.2 the pixel device (item 8) costs
   2,145 bytes of text on both PicoCalc kernels and PICOCALC_PSRAM keeps
   16,936 bytes of the region (`PICOCALC.md`, Pixel device); the tile atlas and
-  the raw key events (items 9 and 10) add 1,088 bytes of text and 4,256 bytes of
-  bss, leaving PICOCALC_PSRAM 15,856 bytes and PICOCALC 18,072 under the same
+  the raw key events (items 9 and 10) add 1,248 bytes of text and 4,264 bytes of
+  bss, leaving PICOCALC_PSRAM 15,696 bytes and PICOCALC 17,912 under the same
   compiler (`PICOCALC.md`, Tile atlas). The kernel data and bss end at
-  0x2002f428 on PICOCALC_PSRAM, 62,424 bytes below the 106 KB RAM region's
+  0x2002f430 on PICOCALC_PSRAM, 62,416 bytes below the 106 KB RAM region's
   end at 0x2003e800.
 - Shipping `bc` and `dc` changes the full manifest, which
   `docs/research/c17-shipped-resource-baseline.json` pins by hash and by

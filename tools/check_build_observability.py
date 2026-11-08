@@ -4,7 +4,7 @@ import re
 import sys
 from pathlib import Path
 
-EXPECTED_JOBS = {"rp2040", "posix-sh", "rp2040-macos", "flash-id"}
+EXPECTED_JOBS = {"rp2040", "stm32", "posix-sh", "rp2040-macos", "flash-id"}
 EXPECTED_LABELS = {
     "linux-board-build",
     "linux-build",
@@ -16,6 +16,9 @@ EXPECTED_LABELS = {
     "linux-kernel-headroom",
     "linux-lint",
     "linux-qemu",
+    "linux-renode",
+    "linux-renode-picocalc",
+    "linux-stm32-build",
     "linux-uf2",
     "macos-board-build",
     "macos-build",
@@ -48,6 +51,9 @@ EXPECTED_COMMANDS = {
     "linux-kernel-headroom": "bmake MACHINE=rp2040 check-kernel-headroom",
     "linux-lint": "bmake MACHINE=rp2040 check-lint",
     "linux-qemu": "bmake MACHINE=rp2040 check-qemu",
+    "linux-renode": "bmake MACHINE=rp2040 check-renode",
+    "linux-renode-picocalc": "bmake MACHINE=rp2040 check-renode-picocalc",
+    "linux-stm32-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=stm32 build',
     "linux-uf2": "bmake MACHINE=rp2040 check-uf2-images",
     "macos-board-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build',
     "macos-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build',

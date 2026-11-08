@@ -26,7 +26,10 @@
 static int
 exec_spool_reserve_flash (struct exec_params *epp)
 {
-    size_t addresses[3], blocks;
+    size_t blocks;
+#ifdef SWAP_IMAGE_ALIGN
+    size_t addresses[3];
+#endif
 
     blocks = btod (epp->spool.size);
 #ifdef SWAP_IMAGE_ALIGN

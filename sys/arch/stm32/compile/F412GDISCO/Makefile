@@ -51,7 +51,7 @@ include		${_confdir}/compiler.mk
 INCLUDES=	-nostdinc -I. -I$S -I$S/arch -I${_archdir}/include
 DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
-CWARNFLAGS=	-Wall
+CWARNFLAGS=	-Wall -Werror
 
 # DiscoBSD predates C23, where an empty parameter list means (void) rather
 # than an unspecified one. GCC 15 and later default to C23 and reject the
@@ -68,7 +68,11 @@ CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
 AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack
-LDADD=
+# The kernel divides 64-bit values (kern_time.c), and the compiler lowers
+# those to the libgcc helper __aeabi_ldivmod even where a 32-bit divide
+# is one instruction, so the kernel links the libgcc of this CPU variant.
+LIBGCC!=	${CC} ${CMACHFLAGS} -print-libgcc-file-name
+LDADD=		${LIBGCC}
 
 # compile rules: rules are named COMPILE_${SUFFIX}
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
@@ -130,7 +134,7 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 SYSTEM_OBJ=	locore0.o locore.o ${OBJS} ioconf.o
 SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ}
 SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
-SYSTEM_LD=	-@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
+SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
 SYSTEM_LD_TAIL=	${SIZE} $@; cp $@ $@.elf; \
 		${OBJCOPY} -O ihex $@ $@.hex; \

@@ -163,28 +163,34 @@ class Console:
         """Send "date" SAMPLES times; return [(sent, arrival, line)...].
 
         Each request is "date; echo PROBE<n>", N counting every request this
-        console has sent, and its date line is the last one before the line
-        PROBE<n>, so a late reply to an earlier request, of this probe or an
-        earlier one, is never taken for a later one. A request whose marker does not
-        arrive within WAIT seconds raises MeasurementError, because its reply
-        could still be attributed to the next send."""
+        console has sent. Its date line is the one line between the echo of
+        that command and the line PROBE<n>, so neither a late reply to an
+        earlier request nor any other stale date line is taken for it. A
+        request whose marker does not arrive within WAIT seconds, or whose
+        window holds no date line or more than one, raises MeasurementError,
+        because its reply cannot be attributed to its send."""
         probes = []
         for _ in range(samples):
             index = self.requests
             self.requests += 1
             marker = "PROBE%d" % index
+            command = 'date; echo PRO""BE%d' % index
             sent = host_now()
-            _, stamped = self.run(
-                'date; echo PRO""BE%d' % index, wait, stop=re.compile(r"^%s\n" % marker, re.M)
-            )
+            _, stamped = self.run(command, wait, stop=re.compile(r"^%s\n" % marker, re.M))
             lines = [line for _, line in stamped]
             if marker not in lines:
                 raise MeasurementError("probe request %d unanswered in %g s" % (index, wait))
-            before = stamped[: lines.index(marker)]
-            dated = [(arrival, line) for arrival, line in before if board_seconds(line) is not None]
-            if not dated:
-                raise MeasurementError("probe request %d returned no date line" % index)
-            arrival, line = dated[-1]
+            end = lines.index(marker)
+            echoes = [i for i, line in enumerate(lines[:end]) if line.endswith(command)]
+            if not echoes:
+                raise MeasurementError("probe request %d was not echoed" % index)
+            window = stamped[echoes[-1] + 1 : end]
+            dated = [(arrival, line) for arrival, line in window if board_seconds(line) is not None]
+            if len(dated) != 1:
+                raise MeasurementError(
+                    "probe request %d returned %d date lines, want one" % (index, len(dated))
+                )
+            arrival, line = dated[0]
             probes.append((sent, arrival, line))
         return probes
 
@@ -234,21 +240,26 @@ class EmptyBounds(MeasurementError):
     """The per-line bounds of a date loop have no common point."""
 
 
-class ClockLostTime(MeasurementError):
-    """The board clock fell behind during a measurement; the check fails.
+class ClockUnsteady(MeasurementError):
+    """The board clock fell behind or ran ahead during a measurement; the
+    check fails, since a catch-up that drops ticks or counts them twice both
+    break the claim.
 
-    LOSS is the least time in seconds the clock must have lost for the
-    request-bounded samples to have no common offset, LINES the number of
+    LOSS is the least time in seconds the clock must have moved off the host
+    for the request-bounded samples to have no common offset, BEHIND tells a
+    clock that fell behind from one that ran ahead, LINES is the number of
     parsed samples and MEASUREMENT the name of the measurement that showed it
     (set by measure_offset).
     """
 
-    def __init__(self, loss, lines, measurement=None):
+    def __init__(self, loss, lines, behind=True, measurement=None):
         super().__init__(
-            "the board clock fell behind by at least %.3f s across %d date lines" % (loss, lines)
+            "the board clock %s by at least %.3f s across %d date lines"
+            % ("fell behind" if behind else "ran ahead", loss, lines)
         )
         self.loss = loss
         self.lines = lines
+        self.behind = behind
         self.measurement = measurement
 
 
@@ -291,31 +302,37 @@ def probe_bounds(probes, samples=PROBE_SAMPLES):
     command left and ARRIVAL the time its date line came back. The line was
     made at x in [sent, arrival], so a steady clock's offset lies in
     (sent - value - 1, arrival - value] for every sample, however long the
-    console held the line. Raises ClockLostTime with the gap between the
-    bounds when they have no common point, and MeasurementError when too few
+    console held the line. Raises ClockUnsteady with the gap between the
+    bounds when they have no common point, BEHIND telling a clock that fell
+    behind from one that ran ahead, and MeasurementError when too few
     lines parse.
     """
     low = -1e18
     high = 1e18
+    low_at = high_at = 0
     used = 0
     for sent, arrival, line in probes:
         value = board_seconds(line)
         if value is None:
             continue
         used += 1
-        low = max(low, sent - value - 1)
-        high = min(high, arrival - value)
+        if sent - value - 1 > low:
+            low, low_at = sent - value - 1, used
+        if arrival - value < high:
+            high, high_at = arrival - value, used
     if used < samples // 2:
         raise MeasurementError("only %d of %d probe lines parsed" % (used, samples))
     if low > high:
-        raise ClockLostTime(low - high, used)
+        # host - board rises across the probe when the board falls behind, so
+        # the binding lower bound then comes from the later sample.
+        raise ClockUnsteady(low - high, used, behind=low_at > high_at)
     return low, high
 
 
 def measure_offset(console, name="measurement"):
     """Run the stamped date loop on the board and bound the offset.
 
-    A ClockLostTime raised by the loop carries NAME as its measurement."""
+    A ClockUnsteady raised by the loop carries NAME as its measurement."""
     _, stamped = console.run(
         'for i in `seq 1 %d`; do date; done; echo OFF""DONE' % SAMPLES,
         wait=300,
@@ -326,7 +343,7 @@ def measure_offset(console, name="measurement"):
     except EmptyBounds as empty:
         try:
             probe_bounds(console.probe(PROBE_SAMPLES))
-        except ClockLostTime as error:
+        except ClockUnsteady as error:
             error.measurement = name
             raise
         raise MeasurementError(
@@ -430,7 +447,7 @@ def run_check(console):
     A clock that lost time during any date loop ends the run as a failure."""
     try:
         return run_measurements(console)
-    except ClockLostTime as error:
+    except ClockUnsteady as error:
         print("clock catch-up: FAIL (%s, in the %s measurement)" % (error, error.measurement))
         return 1
 

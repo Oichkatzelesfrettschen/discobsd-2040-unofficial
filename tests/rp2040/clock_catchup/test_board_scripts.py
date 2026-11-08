@@ -179,7 +179,7 @@ class OffsetBounds(unittest.TestCase):
         ):
             with self.assertRaises(clock.EmptyBounds) as caught:
                 clock.offset_bounds(stamped)
-            self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+            self.assertNotIsInstance(caught.exception, clock.ClockUnsteady)
 
     def test_probe_of_a_steady_clock_holds_the_offset_whatever_the_delays(self):
         # Delays of up to five seconds, bursts of shared arrivals and slow
@@ -198,12 +198,23 @@ class OffsetBounds(unittest.TestCase):
                 self.assertGreaterEqual(high, 0.4321)
 
     def test_probe_of_a_losing_clock_fails_with_a_lower_bound_on_the_loss(self):
-        with self.assertRaises(clock.ClockLostTime) as caught:
+        with self.assertRaises(clock.ClockUnsteady) as caught:
             clock.probe_bounds(probe_lines(0.4321, loss=0.5))
         lost = 0.5 * (clock.PROBE_SAMPLES - 1)
         self.assertGreater(caught.exception.loss, 1.0)
         self.assertLessEqual(caught.exception.loss, lost)
         self.assertEqual(caught.exception.lines, clock.PROBE_SAMPLES)
+
+    def test_probe_of_a_gaining_clock_fails_as_running_ahead(self):
+        with self.assertRaises(clock.ClockUnsteady) as caught:
+            clock.probe_bounds(probe_lines(0.4321, loss=-0.5))
+        self.assertFalse(caught.exception.behind)
+        self.assertIn("ran ahead", str(caught.exception))
+
+    def test_probe_of_a_losing_clock_reports_falling_behind(self):
+        with self.assertRaises(clock.ClockUnsteady) as caught:
+            clock.probe_bounds(probe_lines(0.4321, loss=0.5))
+        self.assertTrue(caught.exception.behind)
 
     def test_the_settle_margin_cannot_bound_a_probe(self):
         # Calibration: bounding the probe samples by arrival and SETTLE_MARGIN
@@ -369,7 +380,7 @@ class EndToEnd(unittest.TestCase):
         console = StubConsole([5.0, (5.0, 0.5), 5.0], self.good)
         with self.assertRaises(clock.MeasurementError) as caught:
             self.quiet(console)
-        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+        self.assertNotIsInstance(caught.exception, clock.ClockUnsteady)
         self.assertIn("delayed", str(caught.exception))
 
     def test_borderline_clock_is_inconclusive(self):
@@ -395,7 +406,7 @@ class EndToEnd(unittest.TestCase):
 
         with self.assertRaises(clock.MeasurementError) as caught:
             self.quiet(Delayed([], self.good))
-        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+        self.assertNotIsInstance(caught.exception, clock.ClockUnsteady)
 
 
 class StubSerialModule:
@@ -459,7 +470,8 @@ class TimedSerialModule:
             self.requests += 1
             ready = clock.time.monotonic() + delay
             made = clock.host_now()
-            reply = "%s\r\nPROBE%d\r\n" % (date_line(made), index)
+            echo = "operator@pico:~$ %s\r\n" % text.rstrip("\r")
+            reply = echo + "%s\r\nPROBE%d\r\n" % (date_line(made), index)
             # Replies leave in order: one held back holds the later ones.
             if self.pending:
                 ready = max(ready, self.pending[-1][0])
@@ -490,7 +502,7 @@ class Probe(unittest.TestCase):
         # attributing them to later sends could fail a steady clock.
         with self.assertRaises(clock.MeasurementError) as caught:
             self.console([0.6] + [0.01] * 4).probe(5, wait=0.3)
-        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+        self.assertNotIsInstance(caught.exception, clock.ClockUnsteady)
         self.assertIn("unanswered", str(caught.exception))
 
     def test_a_late_reply_is_not_taken_for_the_next_request(self):
@@ -503,6 +515,30 @@ class Probe(unittest.TestCase):
         probes = console.probe(1, wait=0.5)
         self.assertNotEqual(probes[0][2], "Mon Jan  1 00:00:00 PST 2001")
         self.assertEqual(console.requests, 8)
+
+    def test_a_stale_date_line_ahead_of_the_echo_is_ignored(self):
+        # A date line left over from earlier output, with no marker, arrives
+        # first; only the line after this request's echo counts.
+        console = self.console([0.01])
+        console.port.pending.append((0.0, b"Mon Jan  1 00:00:00 PST 2001\r\n"))
+        probes = console.probe(1, wait=0.5)
+        self.assertNotEqual(probes[0][2], "Mon Jan  1 00:00:00 PST 2001")
+
+    def test_two_date_lines_in_one_window_stop_the_probe(self):
+        console = self.console([0.2])
+        original = console.port.write
+
+        def doubled(data):
+            original(data)
+            ready, reply = console.port.pending[-1]
+            extra = b"Mon Jan  1 00:00:00 PST 2001\r\n"
+            head, tail = reply.split(b"\r\n", 1)
+            console.port.pending[-1] = (ready, head + b"\r\n" + extra + tail)
+
+        console.port.write = doubled
+        with self.assertRaises(clock.MeasurementError) as caught:
+            console.probe(1, wait=0.5)
+        self.assertIn("want one", str(caught.exception))
 
     def test_markers_number_every_request_of_the_console(self):
         console = self.console([0.01] * 4)

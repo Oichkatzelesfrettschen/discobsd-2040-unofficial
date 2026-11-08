@@ -1314,7 +1314,9 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 # divider model, the Smaller C suite, the libcalc and libbn tests, the calc
 # line interface, the dc evaluator, the libc strtol/strtoul, random and
 # printf contracts and the tree formatter's float conversions and math
-# library returns executed as Thumb-1 programs rather than only linked.
+# library returns executed as Thumb-1 programs rather than only linked, and
+# a DiscoBSD a.out run through tests/qemu_aout's syscall loader with the
+# tree's libc, crt0 and boot ROM float glue.
 # tests/qemu_cpu_model first proves that the ARMv6-M CPU model the libc
 # contracts run on faults on Thumb-2 and unaligned accesses.
 check-qemu:	check-python .WAIT symlinks
@@ -1327,6 +1329,7 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libbn check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/dcbc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libc_contracts check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_aout check
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.

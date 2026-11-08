@@ -17,12 +17,19 @@ permissions:
 
 env:
   PICOTOOL_VERSION: '2.3.1'
+  # The Renode release the two Renode gates were verified against. The
+  # archive is the dotnet build with an /opt/renode/bin layout, the one
+  # tools/renode/fetch-renode-rp2040.sh builds the peripheral models
+  # against (RenodePath in the models' Peripherals.csproj). The digest is
+  # the SHA-256 the release page publishes for that archive.
+  RENODE_VERSION: '1.17.0'
+  RENODE_SHA256: 'd64cffde48e72064ba9e87ff34e186cb7aa8d8f296dec9bbbcd6a8b76ae7fd76'
 
 jobs:
   rp2040:
     name: rp2040 kernel, flash image and gates
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -268,6 +275,64 @@ jobs:
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build
 
+      # The Renode tiers reuse the PICO_UART and PICOCALC kernels and the
+      # flash image built above. Renode needs a dotnet runtime and the
+      # fetched peripheral models are a dotnet build, so setup-dotnet
+      # provides the 8.0 SDK for the net8.0 target the fetch script retargets
+      # the models to, the framework Renode.runtimeconfig.json names; models
+      # built for a newer framework fail to load when Renode runs on 8.0. The
+      # Renode archive is unpacked under /opt/renode
+      # because Peripherals.csproj references /opt/renode/bin; the launcher
+      # resolves bin/ beside itself, so the directory goes on PATH rather
+      # than a symlink to the launcher.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Install the pinned Renode release
+        run: |
+          archive="$RUNNER_TEMP/renode-$RENODE_VERSION.linux.tar.gz"
+          curl --fail --location --retry 3 --output "$archive" \
+            "https://github.com/renode/renode/releases/download/v$RENODE_VERSION/renode-$RENODE_VERSION.linux.tar.gz"
+          printf '%s  %s\n' "$RENODE_SHA256" "$archive" | sha256sum --check
+          sudo mkdir -p /opt/renode
+          sudo tar -xzf "$archive" --strip-components=1 -C /opt/renode
+          echo /opt/renode >> "$GITHUB_PATH"
+      # VERIFIED_RENODE in the two gate scripts names the build the gates
+      # were last checked against and only notes a mismatch; here a
+      # different build fails the job, so the pinned release and the
+      # recorded build cannot drift apart.
+      - name: Confirm the Renode build the gates were verified against
+        run: sh tools/renode/check-renode-pin.sh
+      - name: Fetch and build the Renode RP2040 models
+        timeout-minutes: 10
+        run: sh tools/renode/fetch-renode-rp2040.sh
+      - name: Run the Renode UART0 boot tier
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode \
+            --log .build-logs/linux-renode.log \
+            --status .build-logs/linux-renode.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-renode
+      - name: Run the Renode PicoCalc tier
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-picocalc \
+            --log .build-logs/linux-renode-picocalc.log \
+            --status .build-logs/linux-renode-picocalc.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-renode-picocalc
+      - name: Retain the Renode logs and transcripts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: renode-results
+          path: tools/renode/vendor/results/
+          include-hidden-files: true
+          if-no-files-found: warn
+
       - name: Confirm the images exist
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
@@ -295,6 +360,63 @@ jobs:
             sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2
             distrib/rp2040/flash.uf2
           if-no-files-found: error
+
+  # The STM32 tree: the ten Cortex-M4 kernels, the userland and the tools,
+  # all through the machine registry's stm32 tuple. No gate runs these
+  # binaries; the job establishes that they compile and link, which is the
+  # evidence class that would have caught the unresolved __aeabi_ldivmod
+  # in the kernel link. Userland compiles with -Wall -Wextra -Werror
+  # (WARNERR in share/mk/warnings.mk) and the kernel Makefiles carry
+  # -Wall -Werror. A kernel link that fails stops the build, and any
+  # warning line in the log fails the job.
+  stm32:
+    name: stm32 kernels and userland
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the host toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bmake make build-essential \
+            gcc-arm-none-eabi binutils-arm-none-eabi \
+            byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
+            python3
+          echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
+      - name: Report the toolchain
+        run: |
+          cc --version | head -1
+          arm-none-eabi-gcc --version | head -1
+      - name: Build the STM32 kernels and the userland
+        timeout-minutes: 25
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-stm32-build \
+            --log .build-logs/linux-stm32-build.log \
+            --status .build-logs/linux-stm32-build.status.json \
+            --idle-timeout-seconds 600 --timeout-seconds 1200 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=stm32 build
+      - name: Assert the build is warning-free
+        run: |
+          total=$(grep -c 'warning:' .build-logs/linux-stm32-build.log || true)
+          echo "warning: lines in the build log: $total"
+          grep 'warning:' .build-logs/linux-stm32-build.log || true
+          test "$total" -eq 0
+      - name: Confirm every kernel linked
+        run: |
+          for kernel in sys/arch/stm32/compile/*/; do
+            test -s "${kernel}unix.bin" || { echo "no unix.bin in $kernel" >&2; exit 1; }
+          done
+          ls -l sys/arch/stm32/compile/*/unix.bin
+      - name: Retain build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stm32-build-logs
+          path: .build-logs/
+          include-hidden-files: true
+          if-no-files-found: warn
 
   # Every required ILP32 variant belongs to this provisioned job. Executable
   # receipts distinguish assertion results from optional local skips.

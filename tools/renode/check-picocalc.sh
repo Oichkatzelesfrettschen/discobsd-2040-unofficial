@@ -34,7 +34,7 @@ VENDOR="$SCRIPT_DIR/vendor/Renode_RP2040"
 RP2040_COMMIT=$(sed -n 's/^RP2040_COMMIT=//p' "$SCRIPT_DIR/fetch-renode-rp2040.sh")
 KERNEL="$TOP/sys/arch/rp2040/compile/PICOCALC/unix.bin"
 IMAGE=${1:-$TOP/distrib/rp2040/flash.bin}
-MODELS="$VENDOR/emulation/bin/Release/net9.0/Peripherals.dll"
+MODELS="$VENDOR/emulation/bin/Release/net8.0/Peripherals.dll"
 OUTPUT="$SCRIPT_DIR/vendor/results/picocalc"
 
 missing() {

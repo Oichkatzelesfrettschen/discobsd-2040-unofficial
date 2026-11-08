@@ -494,6 +494,8 @@ link /usr/bin/uname
 target /usr/bin/utilbox
 link /usr/bin/md
 target /usr/bin/utilbox
+link /usr/bin/time
+target /usr/bin/utilbox
 link /usr/bin/true
 target /sbin/adminbox
 link /usr/bin/false

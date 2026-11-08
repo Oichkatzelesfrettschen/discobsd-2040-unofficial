@@ -72,6 +72,13 @@
  *   orphan-chain-cycle  orphan-cycle plus a third directory, at the lowest
  *                  inode, whose ".." names a member of the loop: its chain
  *                  enters the loop and never returns to it.
+ *   count-tfree    five files and a sound free list, with the superblock's
+ *                  free-block count one above the list it heads.
+ *   count-tinode   five files, with the superblock's free-inode count one
+ *                  below the inodes the i-list leaves unallocated.
+ *
+ * orphan-dir and orphan-deep print "PATH NUMBER" for each path below the
+ * directory they disconnect, before it loses its name.
  *
  * "--check IMAGE" prints fsutil's own consistency report for an image,
  * opened read-only, so a gate can compare fsutil's file count with fsck's.
@@ -242,6 +249,22 @@ number_of(fs_t *fs, const char *name)
 }
 
 /*
+ * Print "NAME NUMBER" on standard output for a path that is about to lose its
+ * way from /, so a gate can require the repair to give the same inode back
+ * under the reconnected name.
+ */
+static int
+record(fs_t *fs, const char *name)
+{
+	unsigned number = number_of(fs, name);
+
+	if (number == 0)
+		return 0;
+	printf("%s %u\n", name, number);
+	return 1;
+}
+
+/*
  * Remove the name and keep the inode allocated with its original link
  * count: the count is raised first, and the library's delete lowers it back.
  * The library leaves the lowered inode to its caller to save.
@@ -394,7 +417,8 @@ build(const char *layout, const char *path)
 	} else if (strcmp(layout, "orphan-dir") == 0) {
 		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||
 		    number_of(&fs, "/d00") != IMAGE_INODES - 10 ||
-		    !make_file(&fs, "/d00/inner") || !drop_name(&fs, "/d00"))
+		    !make_file(&fs, "/d00/inner") ||
+		    !record(&fs, "/d00/inner") || !drop_name(&fs, "/d00"))
 			return fail("cannot build", layout);
 	} else if (strcmp(layout, "orphan-nolf") == 0) {
 		if (!rename_to(&fs, "/lost+found", "/old-lf") ||
@@ -427,12 +451,22 @@ build(const char *layout, const char *path)
 		    (chain && !drop_name(&fs, "/d02")) ||
 		    (gap && !delete_file(&fs, "/pad")))
 			return fail("cannot build", layout);
+	} else if (strcmp(layout, "count-tfree") == 0 ||
+	    strcmp(layout, "count-tinode") == 0) {
+		if (!fill_files(&fs, 0, 4))
+			return fail("cannot build", layout);
+		if (strcmp(layout, "count-tfree") == 0)
+			fs.tfree++;
+		else
+			fs.tinode--;
 	} else if (strcmp(layout, "orphan-deep") == 0) {
 		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||
 		    number_of(&fs, "/d00") != IMAGE_INODES - 10 ||
 		    !make_dir_in(&fs, "/d00/sub", IMAGE_INODES - 10) ||
 		    number_of(&fs, "/d00/sub") >= IMAGE_INODES - 10 ||
-		    !make_file(&fs, "/d00/sub/inner") || !drop_name(&fs, "/d00"))
+		    !make_file(&fs, "/d00/sub/inner") ||
+		    !record(&fs, "/d00/sub") || !record(&fs, "/d00/sub/inner") ||
+		    !drop_name(&fs, "/d00"))
 			return fail("cannot build", layout);
 	} else {
 		if (!fill_files(&fs, 0, FREE_AT_START - 1) ||

@@ -154,6 +154,16 @@ SITES: dict[str, Edit] = {
         "    fs->tfree = 0;      /* fs_block_free() counts every block it links */\n",
         "",
     ),
+    "fsutil-tfree-count": (
+        "check.c",
+        "        } else if (free_blocks != fs->tfree) {\n",
+        "        } else if (0) {\n",
+    ),
+    "fsutil-tinode-count": (
+        "check.c",
+        "    if (fs->tinode != free_inodes) {\n",
+        "    if (0) {\n",
+    ),
     "fsutil-cycle-unbound": (
         "check.c",
         "if (++hops > last_allocated_inode)",

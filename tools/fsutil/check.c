@@ -865,6 +865,7 @@ int fs_check (fs_t *fs)
     unsigned inum;
     unsigned block_map_size;        /* number of free blocks */
     unsigned free_blocks;           /* number of free blocks */
+    unsigned free_inodes;           /* free inodes the i-list holds */
     unsigned last_allocated_inode;  /* hiwater mark of inodes */
 
     if (fs->isize >= fs->fsize) {
@@ -1074,6 +1075,14 @@ fatal:      if (block_map)
             printf ("%d BLK(S) MISSING\n", fs->fsize -
                 fs->isize - used_blocks - free_blocks);
             free_list_corrupted = 1;
+        } else if (free_blocks != fs->tfree) {
+            /* statfs() reports fs_tfree as the free blocks, and the kernel
+             * allocates from the list while trusting the count. */
+            printf ("FREE BLK COUNT WRONG IN SUPERBLOCK\n");
+            if (fs->writable) {
+                fs->tfree = free_blocks;
+                fs->modified = 1;
+            }
         }
     }
     if (free_list_corrupted) {
@@ -1085,6 +1094,18 @@ fatal:      if (block_map)
     if (free_list_corrupted) {
         printf ("** Phase 6 - Salvage Free List\n");
         free_blocks = make_free_list (fs);
+    }
+
+    /* Every inode of the i-list that phase 1 did not find allocated is free,
+     * and statfs() reports fs_tinode as that count; a cleared inode leaves
+     * total_files and must leave the superblock count as well. */
+    free_inodes = (fs->isize - 1) * BSDFS_INODES_PER_BLOCK - total_files;
+    if (fs->tinode != free_inodes) {
+        printf ("FREE INODE COUNT WRONG IN SUPERBLOCK\n");
+        if (fs->writable) {
+            fs->tinode = free_inodes;
+            fs->modified = 1;
+        }
     }
 
     printf ("%d files %d blocks %d free\n",

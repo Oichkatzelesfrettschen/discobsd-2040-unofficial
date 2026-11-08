@@ -110,18 +110,37 @@ run_repair() {
 }
 
 # second_run FILES: a preen run over the repaired image exits 0, reports no
-# damage, finds nothing unreferenced and counts FILES files.
+# damage, finds nothing unreferenced, repairs nothing (preen exits 0 after an
+# (ADJUSTED), (SALVAGED), (FIXED) or similar repair, so the report is checked
+# for those and the image for any changed byte) and counts FILES files.
 second_run() {
+	cp "$img" "$img.repaired" || error "$scenario: cannot copy $img"
 	check_run -p
 	[ "$status" -eq 0 ] || fail "preen after repair exit status $status, want 0"
 	lacks 'CORRUPTED|OUT OF RANGE|UNALLOCATED|INCONSISTENCY|bad inode'
 	lacks 'UNREF|BAD INODE NUMBER'
+	lacks 'ADJUSTED|SALVAGED|FIXED|CLEARED|RECONNECTED|CREATED|EXPANDED|IGNORED|SKIPPING'
 	has " $1 files, "
+	cmp -s "$img.repaired" "$img" || fail "the second preen run changed the image"
 }
 
 after_reconnect() {
 	has 'RECONNECT?  yes'
 	lacks 'NO lost\+found'
+	second_run "$files"
+}
+
+# A second inode window holds a dirty inode while lost+found is repaired, and
+# a later read of the first window evicts it: the repaired directory block
+# must not be overwritten by the evicted window's stale tail.
+run_tail_evict() {
+	set_expected_files
+	check_run -y
+	[ "$status" -eq 0 ] || fail "repair exit status $status, want 0"
+	has 'NOT MULTIPLE OF 1024'
+	has 'UNALLOCATED'
+	has 'LINK COUNT FILE'
+	lacks 'SORRY|CANNOT|bad inode'
 	second_run "$files"
 }
 
@@ -164,7 +183,7 @@ for scenario in "$@"; do
 	rm -f "$img"
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
-	    full-table | fsutil-lf-last) ;;
+	    full-table | fsutil-lf-last | tail-evict) ;;
 	*) error "unknown scenario $scenario" ;;
 	esac
 	case $scenario in
@@ -179,6 +198,7 @@ for scenario in "$@"; do
 	free-last) run_repair FILE after_create ;;
 	full-table) run_decline ;;
 	fsutil-lf-last) run_fsutil ;;
+	tail-evict) run_tail_evict ;;
 	esac
 	if [ "$failed" -eq 0 ]; then
 		printf 'ok %s\n' "$scenario"

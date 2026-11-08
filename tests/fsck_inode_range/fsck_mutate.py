@@ -68,6 +68,16 @@ SITES: dict[str, Edit] = {
         "    if (ino == 0)\n        return (0);\n    dirhead.dot_ino = ino;",
         "    dirhead.dot_ino = ino;",
     ),
+    "touch-superblock": (
+        "utilities.c",
+        "ckfini()\n{\n    flush(&dfile, &fileblk);",
+        "ckfini()\n{\n    sblock.fs_tinode++;\n    sbdirty();\n    flush(&dfile, &fileblk);",
+    ),
+    "adjust-noop": (
+        "dir.c",
+        "dp->di_nlink -= lcnt;",
+        "(void)lcnt;",
+    ),
     "window-flush": (
         "utilities.c",
         "bwrite(fcp, inobuf, startib, INOWINDOW(startib) * DEV_BSIZE);",

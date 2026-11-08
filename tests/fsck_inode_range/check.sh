@@ -26,7 +26,7 @@ workroot=$4
 mutant_dir=$5
 shift 5
 
-all_scenarios='file-last dir-last orphan-last free-last lf-last orphan-dir full-table fsutil-lf-last'
+all_scenarios='file-last dir-last orphan-last free-last lf-last orphan-dir full-table fsutil-lf-last tail-evict'
 log=$workroot/check.log
 mkdir -p "$workroot" || exit 2
 

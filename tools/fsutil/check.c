@@ -99,6 +99,7 @@ static unsigned         scan_room;          /* bytes from the entry to its block
 
 static unsigned long    scan_filesize;      /* file size, decremented during scan */
 static unsigned         total_files;        /* number of files seen */
+static unsigned         used_blocks;        /* blocks held by allocated inodes */
 
 static void set_inode_state (unsigned inum, int s)
 {
@@ -680,7 +681,10 @@ static int pass4 (fs_inode_t *inode, unsigned blk, void *arg)
 }
 
 /*
- * Clear the inode, mark it's blocks as free.
+ * Clear the inode, mark its blocks as free and take them out of 'used_blocks',
+ * which phase 5 compares with the free list: a block that leaves the block
+ * map without leaving the count is in neither, and the shortfall goes
+ * unnoticed.
  */
 static void clear_inode (fs_t *fs, unsigned inum, char *msg)
 {
@@ -695,7 +699,7 @@ static void clear_inode (fs_t *fs, unsigned inum, char *msg)
     }
     if (fs->writable) {
         total_files--;
-        scan_inode (&inode, ADDR, pass4, 0);
+        scan_inode (&inode, ADDR, pass4, &used_blocks);
         fs_inode_clear (&inode);
         fs_inode_save (&inode, 1);
     }
@@ -829,6 +833,7 @@ static unsigned make_free_list (fs_t *fs)
     unsigned free_blocks, n;
 
     fs->nfree = 0;
+    fs->tfree = 0;      /* fs_block_free() counts every block it links */
     fs->flock = 0;
     fs->fmod = 0;
     fs->ilock = 0;
@@ -860,7 +865,7 @@ int fs_check (fs_t *fs)
     unsigned inum;
     unsigned block_map_size;        /* number of free blocks */
     unsigned free_blocks;           /* number of free blocks */
-    unsigned used_blocks;           /* number of blocks used */
+    unsigned free_inodes;           /* free inodes the i-list holds */
     unsigned last_allocated_inode;  /* hiwater mark of inodes */
 
     if (fs->isize >= fs->fsize) {
@@ -971,27 +976,52 @@ fatal:      if (block_map)
 
     printf ("** Phase 3 - Check Connectivity\n");
     for (inum = BSDFS_ROOT_INODE; inum <= last_allocated_inode; inum++) {
-        if (inode_state (inum) == DSTATE) {
-            unsigned ino;
+        /* Reconnect directories until inum is reached. Each pass reconnects
+         * one directory that phase 2 left unreached, and scan_pass2() marks
+         * it reached, so the passes for one inum are at most as many as there
+         * are directories; a reconnect that fails changes no state and ends
+         * them. A pass is needed more than once when inum leads into a loop
+         * of ".." entries: the directory the first pass reconnects is not
+         * inum, and nothing it holds names inum. */
+        while (inode_state (inum) == DSTATE) {
+            unsigned orphan = inum, parent, hops = 0;
 
+            /* Follow ".." through unreached directories to the topmost one,
+             * as pass3() in sbin/fsck does. Its ".." names a reached
+             * directory, or nothing, and it is the one to reconnect:
+             * phase 2 never visited its entries, so the rescan after the
+             * reconnect is what gives them their references. A chain that
+             * returns to inum is a loop with no topmost directory, and inum
+             * is reconnected as its head. A chain that enters a loop not
+             * holding inum ends after 'last_allocated_inode' steps, more
+             * than any chain of distinct directories holds, at a member of
+             * that loop. */
             find_inode_name = "..";
-            ino = inum;
-            do {
-                if (! fs_inode_get (fs, &inode, ino))
-                    break;
-                find_inode_result = 0;
-                scan_inode (&inode, DATA, scan_directory, find_inode);
-                if (find_inode_result == 0) {
-                    /* Parent link lost. */
-                    if (move_to_lost_found (&inode)) {
-                        thisname = pathp = pathname;
-                        *pathp++ = '?';
-                        scan_pass2 (fs, ino);
-                    }
+            for (;;) {
+                if (! fs_inode_get (fs, &inode, orphan)) {
+                    orphan = 0;
                     break;
                 }
-                ino = find_inode_result;
-            } while (inode_state (ino) == DSTATE);
+                find_inode_result = 0;
+                scan_inode (&inode, DATA, scan_directory, find_inode);
+                parent = find_inode_result;
+                if (parent == 0 || inode_state (parent) != DSTATE)
+                    break;
+                if (parent == inum) {
+                    orphan = inum;
+                    if (! fs_inode_get (fs, &inode, orphan))
+                        orphan = 0;
+                    break;
+                }
+                if (++hops > last_allocated_inode)
+                    break;
+                orphan = parent;
+            }
+            if (orphan == 0 || ! move_to_lost_found (&inode))
+                break;
+            thisname = pathp = pathname;
+            *pathp++ = '?';
+            scan_pass2 (fs, orphan);
         }
     }
 
@@ -1045,6 +1075,14 @@ fatal:      if (block_map)
             printf ("%d BLK(S) MISSING\n", fs->fsize -
                 fs->isize - used_blocks - free_blocks);
             free_list_corrupted = 1;
+        } else if (free_blocks != fs->tfree) {
+            /* statfs() reports fs_tfree as the free blocks, and the kernel
+             * allocates from the list while trusting the count. */
+            printf ("FREE BLK COUNT WRONG IN SUPERBLOCK\n");
+            if (fs->writable) {
+                fs->tfree = free_blocks;
+                fs->modified = 1;
+            }
         }
     }
     if (free_list_corrupted) {
@@ -1056,6 +1094,18 @@ fatal:      if (block_map)
     if (free_list_corrupted) {
         printf ("** Phase 6 - Salvage Free List\n");
         free_blocks = make_free_list (fs);
+    }
+
+    /* Every inode of the i-list that phase 1 did not find allocated is free,
+     * and statfs() reports fs_tinode as that count; a cleared inode leaves
+     * total_files and must leave the superblock count as well. */
+    free_inodes = (fs->isize - 1) * BSDFS_INODES_PER_BLOCK - total_files;
+    if (fs->tinode != free_inodes) {
+        printf ("FREE INODE COUNT WRONG IN SUPERBLOCK\n");
+        if (fs->writable) {
+            fs->tinode = free_inodes;
+            fs->modified = 1;
+        }
     }
 
     printf ("%d files %d blocks %d free\n",

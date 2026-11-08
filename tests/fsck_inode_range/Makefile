@@ -76,7 +76,12 @@ SCENARIOS.pass3-cycle-once=	fsck-lf-cycle fsck-lf-cycle-gap fsck-lf-chain
 # check.c, which run.sh uses beside the unmutated fsck.
 FSUTIL_MUTANTS=	fsutil-find-inode fsutil-lost-entry-old fsutil-namlen-empty \
 		fsutil-namlen-split fsutil-split-off fsutil-split-trim \
-		fsutil-reclen-bound
+		fsutil-reclen-bound fsutil-reach-skip fsutil-no-rescan \
+		fsutil-dotdot-keep fsutil-chain-flat fsutil-clear-leak \
+		fsutil-tfree-keep fsutil-tfree-count fsutil-tinode-count \
+		fsutil-dir-one-block \
+		fsutil-cycle-unbound fsutil-cycle-noretry \
+		fsutil-cycle-open fsutil-cycle-unclosed
 SCENARIOS.fsutil-find-inode=	fsutil-lf-last fsutil-lf-hole
 SCENARIOS.fsutil-lost-entry-old=	fsutil-lf-last fsutil-lf-hole \
 				fsutil-lf-pristine
@@ -85,6 +90,20 @@ SCENARIOS.fsutil-namlen-split=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-split-off=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-split-trim=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-reclen-bound=	fsutil-lf-overrun
+SCENARIOS.fsutil-reach-skip=	fsutil-lf-dir fsutil-lf-deep
+SCENARIOS.fsutil-no-rescan=	fsutil-lf-dir fsutil-lf-deep
+SCENARIOS.fsutil-dotdot-keep=	fsutil-lf-dir fsutil-lf-deep
+SCENARIOS.fsutil-chain-flat=	fsutil-lf-deep
+SCENARIOS.fsutil-clear-leak=	fsutil-clear-blocks fsutil-lf-one-slot
+SCENARIOS.fsutil-tfree-keep=	fsutil-clear-blocks
+SCENARIOS.fsutil-tfree-count=	fsutil-count-tfree
+SCENARIOS.fsutil-tinode-count=	fsutil-count-tinode fsutil-clear-blocks \
+				fsutil-lf-one-slot
+SCENARIOS.fsutil-dir-one-block=	fsutil-lf-second
+SCENARIOS.fsutil-cycle-unbound=	fsutil-lf-chain
+SCENARIOS.fsutil-cycle-noretry=	fsutil-lf-chain
+SCENARIOS.fsutil-cycle-open=	fsutil-lf-gap fsutil-lf-chain
+SCENARIOS.fsutil-cycle-unclosed=	fsutil-lf-cycle fsutil-lf-gap fsutil-lf-chain
 
 # bin/df and sbin/mkfs are built from their own sources the same way; each
 # mutant is the program with one rewritten source file.

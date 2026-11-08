@@ -37,51 +37,22 @@ mkfs=$4
 work=$5
 shift 5
 
+[ -n "${PYTHON:-}" ] || error "PYTHON names no interpreter for bounded.py"
+here=$(cd "$(dirname "$0")" && pwd) || error "cannot resolve the directory of $0"
 mkdir -p "$work" || error "cannot create $work"
 out=$work/fsck.out
 failed=0
 overall=0
 
-# run_bounded SECONDS COMMAND...: run the command and end it after SECONDS,
-# with status 124 as timeout(1) gives. Without timeout(1), a watcher in the
-# background sleeps and then ends the command by SIGTERM, leaving a marker
-# file so that a command that died of its own SIGTERM is not mistaken for a
-# timeout. The watcher publishes the process number of its sleep, which the
-# caller ends as soon as the command has returned, so that no process outlives
-# the call and the call does not wait out the limit.
+# run_bounded SECONDS COMMAND...: run the command under bounded.py, which
+# starts it as its own process group through tools/test_execution.py and stops
+# the whole group on a timeout or on a SIGINT or SIGTERM of the run. The status
+# is the command's own, 128 plus the signal of a command that died of one, 124
+# for a timeout, as timeout(1) gives, 125 when the supervisor could not account
+# for the process group, and 126 or 127 for a command that could not be
+# started.
 run_bounded() {
-	limit=$1
-	shift
-	if command -v timeout >/dev/null 2>&1; then
-		timeout "$limit" "$@"
-		return
-	fi
-	marker=$work/watchdog.$$.fired
-	sleeper=$work/watchdog.$$.sleep
-	rm -f "$marker" "$sleeper"
-	"$@" &
-	command_pid=$!
-	(
-		sleep "$limit" &
-		sleep_pid=$!
-		echo "$sleep_pid" >"$sleeper"
-		wait "$sleep_pid" || exit 0
-		: >"$marker"
-		kill "$command_pid" 2>/dev/null
-	) >/dev/null 2>&1 </dev/null &
-	watcher_pid=$!
-	bounded_status=0
-	wait "$command_pid" || bounded_status=$?
-	until [ -s "$sleeper" ]; do :; done
-	read -r sleep_pid <"$sleeper"
-	kill "$sleep_pid" 2>/dev/null || :
-	wait "$watcher_pid" 2>/dev/null || :
-	rm -f "$sleeper"
-	if [ -e "$marker" ]; then
-		rm -f "$marker"
-		bounded_status=124
-	fi
-	return "$bounded_status"
+	"$PYTHON" "$here/bounded.py" "$@"
 }
 
 # fsck on a damaged image can loop; the bound ends the run, and check_run
@@ -114,13 +85,12 @@ fail() {
 check_run() {
 	status=0
 	run_fsck "$@" "$img" >"$out" 2>&1 || status=$?
-	# fsck exits 0, 2, 4 or 8; a timeout, a missing or unexecutable program
-	# and a death by signal say nothing about the scenario.
-	case $status in
-	124 | 126 | 127 | 1[3-9][0-9] | 2[0-9][0-9])
+	# fsck exits 0, 2, 4, 8 or 12. Every status from 124 up is a timeout, a
+	# timeout(1) or bounded.py failure, a missing or unexecutable program or
+	# a death by signal, and says nothing about the scenario.
+	if [ "$status" -ge 124 ]; then
 		error "$scenario: fsck did not run to an exit (status $status)"
-		;;
-	esac
+	fi
 }
 
 # Set $files to the number of files fsck reports after a clean pass: fsutil's
@@ -209,12 +179,13 @@ run_decline() {
 # ".." alone, so the entry is cut from the record of ".."); a second fsutil
 # report is then clean, and so is a preen run of the host fsck over the
 # repaired image, which leaves every byte as it found it.
-# lost_name sets ino to the inode fsutil reported unreferenced, name to the
-# lost+found path fsutil gives it ("#" and the number in five digits) and
-# found to the inode that path resolves to, empty when no entry has the name.
-# A lookup that does not run to its own exit 0 or 1 is an execution error.
+# lost_name KIND sets ino to the first inode fsutil reported unreferenced as
+# KIND (FILE or DIR), name to the lost+found path fsutil gives it ("#" and the
+# number in five digits) and found to the inode that path resolves to, empty
+# when no entry has the name. A lookup that does not run to its own exit 0 or
+# 1 is an execution error.
 lost_name() {
-	ino=$(sed -n 's/^UNREF FILE  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
+	ino=$(sed -n "s/^UNREF $1  *I=\\([0-9][0-9]*\\) .*/\\1/p" "$out" | sed 1q)
 	[ -n "$ino" ] || error "$scenario: no inode number in the UNREF report"
 	name=$(printf '/lost+found/#%05u' "$ino")
 	status=0
@@ -232,22 +203,170 @@ run_fsutil_overrun() {
 	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
 	has 'UNREF FILE'
 	has 'SORRY. NO SPACE IN lost+found DIRECTORY'
-	lost_name
+	lost_name FILE
 	[ -z "$found" ] || fail "$name resolves to $found in a damaged lost+found"
 }
 
+# run_fsutil KIND CHILD...: fsutil's repair reconnects the unreferenced KIND
+# (FILE or DIR) under lost+found. A reconnected directory names lost+found as
+# its parent, and every CHILD (a path below the reconnected name, such as
+# /inner) resolves through it to the inode the layout recorded for it below
+# /d00 before /d00 lost its name, so a repair that hands the name to another
+# inode fails.
 run_fsutil() {
+	kind=$1
+	shift
 	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
-	has 'UNREF FILE'
+	has "UNREF $kind"
 	lacks 'SORRY'
 	# fsutil names the reconnected file "#" and its inode number in five
 	# digits; fsck accepts an entry whose name is empty, so the name itself
 	# is checked through fsutil's lookup.
-	lost_name
+	lost_name "$kind"
 	[ "$found" = "$ino" ] ||
 	    fail "$name resolves to \"$found\", want $ino"
+	# A reconnected directory brings its subtree with it: the phase that
+	# reconnects it walks the entries phase 2 never reached, which is what
+	# gives them their references.
+	reconnected=$name
+	if [ "$kind" = DIR ]; then
+		lost_found=$("$gen" --lookup "$img" /lost+found) ||
+		    error "$scenario: no /lost+found in the repaired image"
+		status=0
+		parent=$("$gen" --lookup "$img" "$reconnected/.." 2>/dev/null) ||
+		    status=$?
+		[ "$status" -le 1 ] ||
+		    error "$scenario: $gen --lookup did not complete, status $status"
+		[ "$parent" = "$lost_found" ] ||
+		    fail "$reconnected/.. resolves to \"$parent\", want $lost_found"
+	fi
+	for child in "$@"; do
+		name=$reconnected$child
+		status=0
+		found=$("$gen" --lookup "$img" "$name" 2>/dev/null) || status=$?
+		[ "$status" -le 1 ] ||
+		    error "$scenario: $gen --lookup did not complete, status $status"
+		want=$(sed -n "s|^/d00$child \([0-9][0-9]*\)\$|\1|p" "$map")
+		[ -n "$want" ] || error "$scenario: the layout recorded no /d00$child"
+		[ "$found" = "$want" ] ||
+		    fail "$name resolves to \"$found\", want $want"
+	done
 	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
+	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING|WRONG'
+	set_expected_files
+	second_run "$files"
+}
+
+# inode_free: the superblock's free-inode count, which statfs() reports.
+inode_free() {
+	counts=$("$gen" --inodes "$img") || error "$scenario: $gen --inodes failed"
+	free=$(printf '%s\n' "$counts" | sed -n 's/^total [0-9]* used [0-9]* free \([0-9][0-9]*\)$/\1/p')
+	[ -n "$free" ] || error "$scenario: no free-inode count in \"$counts\""
+	printf '%s\n' "$free"
+}
+
+# run_fsutil_count MESSAGE: the superblock's count disagrees with what fsutil
+# traverses, and only the count; fsutil must report MESSAGE, store the
+# traversed count, and accept the image on the next check.
+run_fsutil_count() {
+	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
+	has "$1"
 	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING'
+	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
+	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING|WRONG'
+	set_expected_files
+	second_run "$files"
+}
+
+# run_fsutil_one_slot: two unreferenced files and room in lost+found for one.
+# fsutil reconnects one, reports no space for the other and clears it: the
+# reconnected file resolves under its "#" name, the cleared one does not, the
+# superblock gains the one free inode, and the next reports are clean.
+run_fsutil_one_slot() {
+	free_before=$(inode_free)
+	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
+	has 'SORRY. NO SPACE IN lost+found DIRECTORY'
+	listed=$(sed -n 's/^UNREF FILE  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
+	[ "$(printf '%s\n' "$listed" | wc -l)" -eq 2 ] ||
+	    fail "fsutil reported unreferenced files \"$listed\", want two"
+	resolved=0
+	for ino in $listed; do
+		name=$(printf '/lost+found/#%05u' "$ino")
+		status=0
+		found=$("$gen" --lookup "$img" "$name" 2>/dev/null) || status=$?
+		case $status in
+		0)
+			[ "$found" = "$ino" ] ||
+			    fail "$name resolves to \"$found\", want $ino"
+			resolved=$((resolved + 1))
+			;;
+		1) ;;
+		*) error "$scenario: $gen --lookup did not complete, status $status" ;;
+		esac
+	done
+	[ "$resolved" -eq 1 ] ||
+	    fail "$resolved of the unreferenced files resolve under lost+found, want one"
+	free_after=$(inode_free)
+	[ "$free_after" -eq $((free_before + 1)) ] ||
+	    fail "free inodes $free_before before the repair and $free_after after, want one more"
+	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
+	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING|WRONG'
+	set_expected_files
+	second_run "$files"
+}
+
+# With no lost+found to reconnect into, fsutil clears the unreferenced file.
+# The blocks it frees leave the block map, and the count phase 5 compares
+# with the free list must lose them too: an image that keeps the count makes
+# fsutil miss the shortfall, and the next fsck -p reports BLK(S) MISSING and
+# salvages the free list (a repair marker, and a changed image).
+run_fsutil_clear() {
+	free_before=$(inode_free)
+	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
+	has 'UNREF FILE'
+	has 'SORRY. NO lost+found DIRECTORY'
+	free_after=$(inode_free)
+	[ "$free_after" -eq $((free_before + 1)) ] ||
+	    fail "free inodes $free_before before the repair and $free_after after, want one more"
+	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
+	lacks 'UNREF|BAD|DUP|LINK COUNT|MISSING|WRONG'
+	set_expected_files
+	second_run "$files"
+}
+
+# run_fsutil_cycle COUNT: COUNT unreached directories, two or more of them
+# with ".." entries that name each other, lead the climb along ".." around a
+# loop with no topmost directory, so fsutil's repair must end the climb and
+# still reconnect every one of them. A repair that does not finish in the time
+# allowed fails the scenario; the limit is generous for a 128-kilobyte image,
+# which repairs in milliseconds. Every directory must then resolve under
+# lost+found.
+run_fsutil_cycle() {
+	status=0
+	run_bounded 10 "$gen" --fix "$img" >"$out" 2>&1 || status=$?
+	case $status in
+	0) ;;
+	124)
+		fail "$gen --fix did not finish in 10 seconds"
+		return
+		;;
+	*) error "$scenario: $gen --fix failed, status $status" ;;
+	esac
+	lacks 'SORRY'
+	listed=$(sed -n 's/^UNREF DIR  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
+	[ "$(printf '%s\n' "$listed" | wc -l)" -eq "$1" ] ||
+	    fail "fsutil reported unreferenced directories \"$listed\", want $1"
+	for ino in $listed; do
+		name=$(printf '/lost+found/#%05u' "$ino")
+		status=0
+		found=$("$gen" --lookup "$img" "$name" 2>/dev/null) || status=$?
+		[ "$status" -le 1 ] ||
+		    error "$scenario: $gen --lookup did not complete, status $status"
+		[ "$found" = "$ino" ] ||
+		    fail "$name resolves to \"$found\", want $ino"
+	done
+	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
+	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING|WRONG'
 	set_expected_files
 	second_run "$files"
 }
@@ -370,13 +489,16 @@ run_mkfs_ratio() {
 
 for scenario in "$@"; do
 	img=$work/$scenario.img
-	rm -f "$img"
+	map=$work/$scenario.map
+	rm -f "$img" "$map"
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
 	    full-table | fsck-lf-cycle | fsck-lf-cycle-gap | fsck-lf-chain | \
 	    fsck-dotdot-range | \
-	    fsutil-lf-last | fsutil-lf-hole | \
-	    fsutil-lf-pristine | fsutil-lf-overrun | \
+	    fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
+	    fsutil-lf-overrun | fsutil-lf-dir | fsutil-lf-deep | fsutil-lf-cycle | fsutil-lf-gap | fsutil-lf-chain | \
+	    fsutil-clear-blocks | fsutil-count-tfree | fsutil-count-tinode | \
+	    fsutil-lf-second | fsutil-lf-one-slot | \
 	    tail-evict | df-empty | df-full | \
 	    df-tail | df-mkfs | mkfs-ratio) ;;
 	*) error "unknown scenario $scenario" ;;
@@ -390,6 +512,16 @@ for scenario in "$@"; do
 	fsutil-lf-hole) layout=lf-hole-last ;;
 	fsutil-lf-overrun) layout=lf-overrun-last ;;
 	fsutil-lf-pristine) layout=orphan-last ;;
+	fsutil-lf-dir) layout=orphan-dir ;;
+	fsutil-lf-deep) layout=orphan-deep ;;
+	fsutil-lf-cycle) layout=orphan-cycle ;;
+	fsutil-lf-gap) layout=orphan-cycle-gap ;;
+	fsutil-lf-chain) layout=orphan-chain-cycle ;;
+	fsutil-clear-blocks) layout=orphan-nolf ;;
+	fsutil-count-tfree) layout=count-tfree ;;
+	fsutil-lf-second) layout=lf-second-block ;;
+	fsutil-lf-one-slot) layout=lf-one-slot ;;
+	fsutil-count-tinode) layout=count-tinode ;;
 	df-empty) layout=empty ;;
 	df-full) layout=file-last ;;
 	df-tail) layout=tail-evict ;;
@@ -397,7 +529,7 @@ for scenario in "$@"; do
 	*) layout=$scenario ;;
 	esac
 	if [ -n "$layout" ]; then
-		"$gen" "$layout" "$img" ||
+		"$gen" "$layout" "$img" >"$map" ||
 		    error "$scenario: image generation failed"
 	fi
 	case $scenario in
@@ -409,7 +541,16 @@ for scenario in "$@"; do
 	fsck-lf-cycle | fsck-lf-cycle-gap) run_cycle 2 closed ;;
 	fsck-lf-chain) run_cycle 3 reached ;;
 	fsck-dotdot-range) run_dotdot_range ;;
-	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil ;;
+	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil FILE ;;
+	fsutil-lf-dir) run_fsutil DIR /inner ;;
+	fsutil-lf-deep) run_fsutil DIR /sub /sub/inner ;;
+	fsutil-lf-cycle | fsutil-lf-gap) run_fsutil_cycle 2 ;;
+	fsutil-lf-chain) run_fsutil_cycle 3 ;;
+	fsutil-clear-blocks) run_fsutil_clear ;;
+	fsutil-lf-second) run_fsutil FILE ;;
+	fsutil-lf-one-slot) run_fsutil_one_slot ;;
+	fsutil-count-tfree) run_fsutil_count 'FREE BLK COUNT WRONG IN SUPERBLOCK' ;;
+	fsutil-count-tinode) run_fsutil_count 'FREE INODE COUNT WRONG IN SUPERBLOCK' ;;
 	fsutil-lf-overrun) run_fsutil_overrun ;;
 	tail-evict) run_tail_evict ;;
 	df-empty) run_df 32 3 29 ;;

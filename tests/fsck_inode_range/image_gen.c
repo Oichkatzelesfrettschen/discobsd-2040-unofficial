@@ -49,6 +49,17 @@
  *                  a middle inode; the directory loses its name in / but
  *                  keeps its link count and its ".." entry: fsck must
  *                  reconnect it into lost+found and repoint its "..".
+ *   orphan-deep    ten files, then a directory holding a subdirectory that holds
+ *                  a file; the outer directory loses its name in / but
+ *                  keeps its link count and its ".." entry. Its subdirectory
+ *                  has the lower inode number, so the connectivity phase
+ *                  meets it first and has to follow its ".." up to the
+ *                  directory it reconnects.
+ *   orphan-nolf    lost+found is renamed old-lf, five files are created and
+ *                  one loses its name but keeps its link count and its data
+ *                  block: with no lost+found to reconnect it into, the
+ *                  checker clears the file and must take its block out of
+ *                  the count it compares with the free list.
  *   orphan-cycle   two directories, each with ".." naming the other and
  *                  neither named from /; their link counts include the
  *                  ".." of the other. The ".." chain of either one loops.
@@ -65,6 +76,20 @@
  *                  inode number 0xff0000, far above N: it names no inode, so
  *                  the directory scan takes the entry for damage and merges
  *                  its slot into the record of ".".
+ *   lf-second-block  lost+found grown to two blocks by entries that leave
+ *                  the first without room for one more, then a file that
+ *                  loses its name: the reconnect must use the second block.
+ *   lf-one-slot    lost+found holds one block with room for exactly one more
+ *                  entry, and two files lose their names: the first reconnect
+ *                  fills the block, so the second finds no room and the
+ *                  checker clears that file.
+ *   count-tfree    five files and a sound free list, with the superblock's
+ *                  free-block count one above the list it heads.
+ *   count-tinode   five files, with the superblock's free-inode count one
+ *                  below the inodes the i-list leaves unallocated.
+ *
+ * orphan-dir and orphan-deep print "PATH NUMBER" for each path below the
+ * directory they disconnect, before it loses its name.
  *
  * "--check IMAGE" prints fsutil's own consistency report for an image,
  * opened read-only, so a gate can compare fsutil's file count with fsck's.
@@ -258,6 +283,22 @@ number_of(fs_t *fs, const char *name)
 }
 
 /*
+ * Print "NAME NUMBER" on standard output for a path that is about to lose its
+ * way from /, so a gate can require the repair to give the same inode back
+ * under the reconnected name.
+ */
+static int
+record(fs_t *fs, const char *name)
+{
+	unsigned number = number_of(fs, name);
+
+	if (number == 0)
+		return 0;
+	printf("%s %u\n", name, number);
+	return 1;
+}
+
+/*
  * Remove the name and keep the inode allocated with its original link
  * count: the count is raised first, and the library's delete lowers it back.
  * The library leaves the lowered inode to its caller to save.
@@ -310,6 +351,43 @@ make_empty_file(fs_t *fs, const char *name)
 	fs_file_t file;
 
 	return fs_file_create(fs, &file, name, 0644) && fs_file_close(&file);
+}
+
+/*
+ * Give lost+found sixteen-byte entries, each a name of six characters for one
+ * file /lost+found/x00000, until the directory holds BLOCKS blocks, or, when
+ * BLOCKS is 1, until COUNT entries stand behind "." and "..". The entry
+ * fsutil makes for an orphan, "#" and five digits, is sixteen bytes too, so
+ * a block these names filled has no room for it. The file's link count
+ * matches its names.
+ */
+static int
+fill_lost_found(fs_t *fs, unsigned blocks, unsigned count)
+{
+	fs_inode_t file, dir;
+	char name[32];
+	unsigned number, names = 1;
+
+	if (!make_file(fs, "/lost+found/x00000"))
+		return 0;
+	number = number_of(fs, "/lost+found/x00000");
+	for (;;) {
+		if (!fs_inode_lookup(fs, &dir, "/lost+found"))
+			return 0;
+		if (blocks == 1 ? names == count :
+		    dir.size >= blocks * BSDFS_BSIZE)
+			break;
+		if (dir.size > blocks * BSDFS_BSIZE || names >= 1000)
+			return 0;
+		snprintf(name, sizeof name, "/lost+found/x%05u", names);
+		if (!fs_inode_link(fs, &file, name, number))
+			return 0;
+		names++;
+	}
+	if (dir.size != blocks * BSDFS_BSIZE || !fs_inode_get(fs, &file, number))
+		return 0;
+	file.nlink = names;
+	return fs_inode_save(&file, 1);
 }
 
 /* Create /f<first> through /f<last>, one file each. */
@@ -410,7 +488,65 @@ build(const char *layout, const char *path)
 	} else if (strcmp(layout, "orphan-dir") == 0) {
 		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||
 		    number_of(&fs, "/d00") != IMAGE_INODES - 10 ||
-		    !make_file(&fs, "/d00/inner") || !drop_name(&fs, "/d00"))
+		    !make_file(&fs, "/d00/inner") ||
+		    !record(&fs, "/d00/inner") || !drop_name(&fs, "/d00"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "orphan-nolf") == 0) {
+		if (!rename_to(&fs, "/lost+found", "/old-lf") ||
+		    !fill_files(&fs, 0, 4) || !drop_name(&fs, "/f02"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "orphan-cycle") == 0 ||
+	    strcmp(layout, "orphan-cycle-gap") == 0 ||
+	    strcmp(layout, "orphan-chain-cycle") == 0) {
+		int gap = strcmp(layout, "orphan-cycle-gap") == 0;
+		int chain = strcmp(layout, "orphan-chain-cycle") == 0;
+		unsigned first, second, third = 0;
+
+		if ((gap && !make_empty_file(&fs, "/pad")) ||
+		    !make_dir(&fs, "/d00") || !make_dir(&fs, "/d01") ||
+		    (chain && !make_dir(&fs, "/d02")))
+			return fail("cannot build", layout);
+		first = number_of(&fs, "/d00");
+		second = number_of(&fs, "/d01");
+		if (chain)
+			third = number_of(&fs, "/d02");
+		/* Highest first: the padding file, then the loop, then the tail. */
+		if ((gap && (number_of(&fs, "/pad") != IMAGE_INODES ||
+		    first != IMAGE_INODES - 1 || second != IMAGE_INODES - 2)) ||
+		    (chain && (third == 0 || third > second)) ||
+		    first == 0 || second == 0 ||
+		    !point_dotdot(&fs, "/d00", second) ||
+		    !point_dotdot(&fs, "/d01", first) ||
+		    (chain && !point_dotdot(&fs, "/d02", first)) ||
+		    !drop_name(&fs, "/d00") || !drop_name(&fs, "/d01") ||
+		    (chain && !drop_name(&fs, "/d02")) ||
+		    (gap && !delete_file(&fs, "/pad")))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "lf-second-block") == 0) {
+		if (!fill_lost_found(&fs, 2, 0) || !make_file(&fs, "/f00") ||
+		    !drop_name(&fs, "/f00"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "lf-one-slot") == 0) {
+		/* 61 entries of 16 bytes behind "." and ".." leave 24 bytes. */
+		if (!fill_lost_found(&fs, 1, 61) || !fill_files(&fs, 0, 1) ||
+		    !drop_name(&fs, "/f00") || !drop_name(&fs, "/f01"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "count-tfree") == 0 ||
+	    strcmp(layout, "count-tinode") == 0) {
+		if (!fill_files(&fs, 0, 4))
+			return fail("cannot build", layout);
+		if (strcmp(layout, "count-tfree") == 0)
+			fs.tfree++;
+		else
+			fs.tinode--;
+	} else if (strcmp(layout, "orphan-deep") == 0) {
+		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||
+		    number_of(&fs, "/d00") != IMAGE_INODES - 10 ||
+		    !make_dir_in(&fs, "/d00/sub", IMAGE_INODES - 10) ||
+		    number_of(&fs, "/d00/sub") >= IMAGE_INODES - 10 ||
+		    !make_file(&fs, "/d00/sub/inner") ||
+		    !record(&fs, "/d00/sub") || !record(&fs, "/d00/sub/inner") ||
+		    !drop_name(&fs, "/d00"))
 			return fail("cannot build", layout);
 	} else if (strcmp(layout, "orphan-cycle") == 0 ||
 	    strcmp(layout, "orphan-cycle-gap") == 0 ||

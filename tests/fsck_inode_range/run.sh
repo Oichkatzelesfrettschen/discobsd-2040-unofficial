@@ -371,6 +371,69 @@ run_fsutil_cycle() {
 	second_run "$files"
 }
 
+# Unreached directories whose ".." entries lead round a cycle: the climb along
+# ".." in pass 3 never reaches a topmost directory, so fsck must end it. A
+# repair that does not finish in ten seconds fails the scenario (check_run
+# would report the timeout as an execution error, which says nothing about
+# the program); the bound is generous for a 128-kilobyte image, which repairs
+# in milliseconds. Every directory must then resolve under lost+found by the
+# name lftempname() in sbin/fsck/dir.c gives it, a "#" and the inode number
+# in as many digits as the inode count has (two for the 32-inode image), and
+# the repaired image must pass a preen run.
+# run_cycle COUNT closed|reached: COUNT directories are reconnected. For
+# "closed" (a cycle of two, the lowest inode among them), the climb from the
+# lowest stops where it closes the cycle, so the first directory reconnected
+# is not the lowest. For "reached" (a chain into a cycle that does not hold
+# the lowest inode, which only the imax bound ends), the lowest is reconnected
+# by its own later climb: the ascending loop has passed it by then, and the
+# directory the bound stopped at leads to it by no entry.
+run_cycle() {
+	status=0
+	run_bounded 10 "$fsck" -y "$img" >"$out" 2>&1 || status=$?
+	case $status in
+	0) ;;
+	124)
+		fail "fsck -y did not finish in 10 seconds"
+		return
+		;;
+	*) error "$scenario: fsck -y exited with status $status" ;;
+	esac
+	lacks 'SORRY|CANNOT|bad inode'
+	listed=$(sed -n 's/^UNREF DIR  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
+	[ "$(printf '%s\n' "$listed" | wc -l)" -eq "$1" ] ||
+	    fail "fsck reported unreferenced directories \"$listed\", want $1"
+	if [ "$2" = closed ]; then
+		lowest=$(printf '%s\n' "$listed" | sort -n | sed -n 1p)
+		first=$(printf '%s\n' "$listed" | sed -n 1p)
+		[ "$first" != "$lowest" ] ||
+		    fail "fsck reconnected inode $first first, the start of the climb, not the directory that closes the cycle"
+	fi
+	for ino in $listed; do
+		name=$(printf '/lost+found/#%02u' "$ino")
+		status=0
+		found=$("$gen" --lookup "$img" "$name" 2>/dev/null) || status=$?
+		[ "$status" -le 1 ] ||
+		    error "$scenario: $gen --lookup did not complete, status $status"
+		[ "$found" = "$ino" ] ||
+		    fail "$name resolves to \"$found\", want $ino"
+	done
+	set_expected_files
+	second_run "$files"
+}
+
+# One unreached directory whose ".." holds a number above imax. The directory
+# scan takes the entry for damage and merges its slot into the record of ".",
+# so pass 3 sees no parent and reconnects the directory, and pass 2 then finds
+# ".." missing and must lay it out in the remainder of the merged record: the
+# repaired block holds "." at its own size and ".." for the rest of the block,
+# so that a following read-only run and a preen run find nothing to repair.
+run_dotdot_range() {
+	run_cycle 1 plain
+	check_run -n
+	[ "$status" -eq 0 ] || fail "check after repair exit status $status, want 0"
+	lacks 'CORRUPTED|OUT OF RANGE|UNALLOCATED|INCONSISTENCY|bad inode|MISSING'
+}
+
 # Creating lost+found adds one directory to the count, and the directory
 # fsck writes must pass the next directory check.
 after_create() {
@@ -430,7 +493,9 @@ for scenario in "$@"; do
 	rm -f "$img" "$map"
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
-	    full-table | fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
+	    full-table | fsck-lf-cycle | fsck-lf-cycle-gap | fsck-lf-chain | \
+	    fsck-dotdot-range | \
+	    fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
 	    fsutil-lf-overrun | fsutil-lf-dir | fsutil-lf-deep | fsutil-lf-cycle | fsutil-lf-gap | fsutil-lf-chain | \
 	    fsutil-clear-blocks | fsutil-count-tfree | fsutil-count-tinode | \
 	    fsutil-lf-second | fsutil-lf-one-slot | \
@@ -439,6 +504,10 @@ for scenario in "$@"; do
 	*) error "unknown scenario $scenario" ;;
 	esac
 	case $scenario in
+	fsck-lf-cycle) layout=orphan-cycle ;;
+	fsck-lf-cycle-gap) layout=orphan-cycle-gap ;;
+	fsck-lf-chain) layout=orphan-chain-cycle ;;
+	fsck-dotdot-range) layout=orphan-dotdot-range ;;
 	fsutil-lf-last) layout=lf-last ;;
 	fsutil-lf-hole) layout=lf-hole-last ;;
 	fsutil-lf-overrun) layout=lf-overrun-last ;;
@@ -469,6 +538,9 @@ for scenario in "$@"; do
 	orphan-dir) run_repair DIR after_reconnect ;;
 	free-last) run_repair FILE after_create ;;
 	full-table) run_decline ;;
+	fsck-lf-cycle | fsck-lf-cycle-gap) run_cycle 2 closed ;;
+	fsck-lf-chain) run_cycle 3 reached ;;
+	fsck-dotdot-range) run_dotdot_range ;;
 	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil FILE ;;
 	fsutil-lf-dir) run_fsutil DIR /inner ;;
 	fsutil-lf-deep) run_fsutil DIR /sub /sub/inner ;;

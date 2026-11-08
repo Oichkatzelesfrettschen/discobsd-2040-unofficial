@@ -72,6 +72,10 @@
  *   orphan-chain-cycle  orphan-cycle plus a third directory, at the lowest
  *                  inode, whose ".." names a member of the loop: its chain
  *                  enters the loop and never returns to it.
+ *   orphan-dotdot-range  one directory, named from nowhere, whose ".." holds
+ *                  inode number 0xff0000, far above N: it names no inode, so
+ *                  the directory scan takes the entry for damage and merges
+ *                  its slot into the record of ".".
  *   lf-second-block  lost+found grown to two blocks by entries that leave
  *                  the first without room for one more, then a file that
  *                  loses its name: the reconnect must use the second block.
@@ -244,6 +248,29 @@ point_dotdot(fs_t *fs, const char *name, unsigned target)
 		return 0;
 	other.nlink++;
 	return fs_inode_save(&other, 1);
+}
+
+/*
+ * Make the ".." entry of directory name hold the number target, which need
+ * not name an inode, and count no reference for it.
+ */
+static int
+wild_dotdot(fs_t *fs, const char *name, unsigned target)
+{
+	fs_inode_t dir;
+	unsigned char block[BSDFS_BSIZE];
+	unsigned dotdot = 12;	/* "." takes 12 bytes, ".." starts behind it */
+
+	if (!fs_inode_lookup(fs, &dir, name))
+		return 0;
+	if (!fs_inode_read(&dir, 0, block, sizeof block))
+		return 0;
+	block[dotdot] = target & 0xff;
+	block[dotdot + 1] = (target >> 8) & 0xff;
+	block[dotdot + 2] = (target >> 16) & 0xff;
+	block[dotdot + 3] = target >> 24;
+	return fs_inode_write(&dir, 0, block, sizeof block) &&
+	    fs_inode_save(&dir, 1);
 }
 
 /* The inode number a path names, or 0. */
@@ -519,6 +546,11 @@ build(const char *layout, const char *path)
 		    number_of(&fs, "/d00/sub") >= IMAGE_INODES - 10 ||
 		    !make_file(&fs, "/d00/sub/inner") ||
 		    !record(&fs, "/d00/sub") || !record(&fs, "/d00/sub/inner") ||
+		    !drop_name(&fs, "/d00"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "orphan-dotdot-range") == 0) {
+		if (!make_dir(&fs, "/d00") ||
+		    !wild_dotdot(&fs, "/d00", 0xff0000) ||
 		    !drop_name(&fs, "/d00"))
 			return fail("cannot build", layout);
 	} else {

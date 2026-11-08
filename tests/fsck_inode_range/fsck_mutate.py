@@ -55,6 +55,26 @@ SITES: dict[str, Edit] = {
         "for (ino = request; ino <= imax; ino++)",
         "for (ino = request; ino < imax; ino++)",
     ),
+    "pass3-cycle-unbound": (
+        "pass3.c",
+        "idesc.id_parent != inumber && ++hops <= imax);",
+        "idesc.id_parent != inumber && ++hops > 0);",
+    ),
+    "pass3-cycle-open": (
+        "pass3.c",
+        "idesc.id_parent != inumber && ++hops <= imax);",
+        "++hops <= imax);",
+    ),
+    "pass2-dotdot-split": (
+        "pass2.c",
+        "        bzero((char *)dirp, proto.d_reclen);\n        dirp->d_reclen = proto.d_reclen;\n",
+        "        bzero((char *)dirp, n);\n        dirp->d_reclen = n;\n",
+    ),
+    "pass3-cycle-once": (
+        "pass3.c",
+        "            descend(&idesc, orphan);\n",
+        "            descend(&idesc, orphan);\n            break;\n",
+    ),
     "fsutil-find-inode": (
         "check.c",
         "dirp->ino <= (fs->isize-1) * BSDFS_INODES_PER_BLOCK)",

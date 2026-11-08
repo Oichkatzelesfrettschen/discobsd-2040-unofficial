@@ -145,8 +145,8 @@ chk1:
         idesc->id_entryno++;
         declncnt(dirp->d_ino);
         dirp = (DIRECT *)((char *)(dirp) + n);
-        bzero((char *)dirp, n);
-        dirp->d_reclen = n;
+        bzero((char *)dirp, proto.d_reclen);
+        dirp->d_reclen = proto.d_reclen;
     }
     if (dirp->d_ino != 0 && strcmp(dirp->d_name, "..") == 0) {
         if (dirp->d_ino != idesc->id_parent) {

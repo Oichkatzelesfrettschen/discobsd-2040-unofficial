@@ -55,6 +55,26 @@ SITES: dict[str, Edit] = {
         "for (ino = request; ino <= imax; ino++)",
         "for (ino = request; ino < imax; ino++)",
     ),
+    "pass3-cycle-unbound": (
+        "pass3.c",
+        "idesc.id_parent != inumber && ++hops <= imax);",
+        "idesc.id_parent != inumber && ++hops > 0);",
+    ),
+    "pass3-cycle-open": (
+        "pass3.c",
+        "idesc.id_parent != inumber && ++hops <= imax);",
+        "++hops <= imax);",
+    ),
+    "pass2-dotdot-split": (
+        "pass2.c",
+        "        bzero((char *)dirp, proto.d_reclen);\n        dirp->d_reclen = proto.d_reclen;\n",
+        "        bzero((char *)dirp, n);\n        dirp->d_reclen = n;\n",
+    ),
+    "pass3-cycle-once": (
+        "pass3.c",
+        "            descend(&idesc, orphan);\n",
+        "            descend(&idesc, orphan);\n            break;\n",
+    ),
     "fsutil-find-inode": (
         "check.c",
         "dirp->ino <= (fs->isize-1) * BSDFS_INODES_PER_BLOCK)",
@@ -124,6 +144,66 @@ SITES: dict[str, Edit] = {
         "    dirp->reclen = used;\n    return ALTERD | INSERT | STOP;",
         "    return ALTERD | INSERT | STOP;",
     ),
+    "fsutil-reach-skip": (
+        "check.c",
+        "            if (orphan == 0 || ! move_to_lost_found (&inode))\n",
+        "            if (orphan == 0 || parent != 0 || ! move_to_lost_found (&inode))\n",
+    ),
+    "fsutil-no-rescan": (
+        "check.c",
+        "            scan_pass2 (fs, orphan);\n",
+        "            (void) orphan;\n            break;\n",
+    ),
+    "fsutil-dotdot-keep": (
+        "check.c",
+        "        scan_inode (inode, DATA, scan_directory, dotdot_to_lost_found);\n",
+        "        (void) dotdot_to_lost_found;\n",
+    ),
+    "fsutil-chain-flat": (
+        "check.c",
+        "                if (parent == 0 || inode_state (parent) != DSTATE)\n",
+        "                if (parent == 0 || inode_state (parent) != DSTATE || 1)\n",
+    ),
+    "fsutil-clear-leak": (
+        "check.c",
+        "scan_inode (&inode, ADDR, pass4, &used_blocks);",
+        "scan_inode (&inode, ADDR, pass4, 0);",
+    ),
+    "fsutil-tfree-keep": (
+        "check.c",
+        "    fs->tfree = 0;      /* fs_block_free() counts every block it links */\n",
+        "",
+    ),
+    "fsutil-dir-one-block": (
+        "check.c",
+        "    return (scan_filesize > 0) ? KEEPON : STOP;\n",
+        "    return STOP;\n",
+    ),
+    "fsutil-tfree-count": (
+        "check.c",
+        "        } else if (free_blocks != fs->tfree) {\n",
+        "        } else if (0) {\n",
+    ),
+    "fsutil-tinode-count": (
+        "check.c",
+        "    if (fs->tinode != free_inodes) {\n",
+        "    if (0) {\n",
+    ),
+    "fsutil-cycle-unbound": (
+        "check.c",
+        "if (++hops > last_allocated_inode)",
+        "if (++hops == 0)",
+    ),
+    "fsutil-cycle-noclose": (
+        "check.c",
+        "                if (parent == inum) {\n",
+        "                if (parent == inum && 0) {\n",
+    ),
+    "fsutil-cycle-noretry": (
+        "check.c",
+        "            scan_pass2 (fs, orphan);\n",
+        "            scan_pass2 (fs, orphan);\n            break;\n",
+    ),
     "df-isize": (
         "df.c",
         "sfsp->f_files = (sblock.fs_isize - (SUPERB + 1)) * INOPB;",
@@ -187,6 +267,8 @@ RANGE_SITES = (
 GROUPS: dict[str, tuple[str, ...]] = {
     "alloc-range": ("alloc-loop", "alloc-test"),
     "inode-window": ("window-flush", "window-write", "window-read"),
+    "fsutil-cycle-open": ("fsutil-cycle-noclose", "fsutil-cycle-noretry"),
+    "fsutil-cycle-unclosed": ("fsutil-cycle-noclose", "fsutil-cycle-unbound"),
     "all-old": RANGE_SITES,
 }
 

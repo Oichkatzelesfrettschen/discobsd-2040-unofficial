@@ -72,13 +72,24 @@ refuse "closure calc is both added (as calc) and removed (as calc)" \
 refuse "closure gamebox is selected with none of its members" \
 	IMAGE_WITHOUT="fifteen keen bubble fourfall coil"
 refuse "takes closure or group names" "IMAGE_WITH=keen;true"
+refuse "closure ridge needs closure lcdgfx, which this profile does not select" \
+	IMAGE_WITH=ridge
+refuse "closure ridge needs closure lcdgfx, which this profile does not select" \
+	BOARD=PICOCALC IMAGE_WITHOUT=lcdgfx
+refuse "closure gamebox is selected with none of its members" \
+	BOARD=PICOCALC IMAGE_WITHOUT="fifteen keen bubble fourfall coil ridge"
 accept IMAGE_WITHOUT="toolchain toolchainlib"
 accept BOARD=PICOCALC IMAGE_WITHOUT="calc-bignum calc"
 accept BOARD=PICOCALC IMAGE_WITHOUT=sdcard
 accept PROFILE=base IMAGE_WITH=sdcard
 accept PROFILE=base IMAGE_WITH="gamesdir puzzlebox lightup"
+accept BOARD=PICOCALC IMAGE_WITHOUT="ridge lcdgfx"
+accept PROFILE=base IMAGE_WITH="gamesdir gamebox ridge lcdgfx"
 members GAMEBOX_TOOLS "fifteen keen bubble fourfall coil"
 members GAMEBOX_TOOLS "fifteen bubble fourfall coil" IMAGE_WITHOUT=keen
+members GAMEBOX_TOOLS "fifteen keen bubble fourfall coil ridge" BOARD=PICOCALC
+members GAMEBOX_TOOLS "fifteen keen bubble fourfall coil" BOARD=PICOCALC IMAGE_WITHOUT=ridge
+members GAMEBOX_TOOLS "ridge" PROFILE=base IMAGE_WITH="gamesdir gamebox ridge lcdgfx"
 members PUZZLEBOX_TOOLS "flood samegame unruly lightup"
 members PUZZLEBOX_TOOLS "lightup" PROFILE=base IMAGE_WITH="gamesdir puzzlebox lightup"
 members GAMEBOX_TOOLS "" PROFILE=base

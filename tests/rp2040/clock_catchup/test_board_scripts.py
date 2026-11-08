@@ -52,8 +52,11 @@ def date_line(board_time):
     )
 
 
-def stamped_lines(offset, delayed=None, seed=1, start=BASE):
-    """Synthetic date loop: lines made at host time x carry floor(x - offset)."""
+def stamped_lines(offset, delayed=None, seed=1, start=BASE, loss=0.0, profile=None):
+    """Synthetic date loop: lines made at host time x carry floor(x - offset).
+
+    LOSS adds that many seconds of offset per line, a clock falling behind;
+    PROFILE, when given, maps the line index to the added offset instead."""
     rng = random.Random(seed)
     arrival = start
     out = []
@@ -61,12 +64,45 @@ def stamped_lines(offset, delayed=None, seed=1, start=BASE):
         arrival += rng.uniform(0.08, 0.2)
         made = arrival - rng.uniform(0.0, 0.03)
         shown = arrival + (delayed if delayed and index == delayed_index() else 0.0)
-        out.append((shown, date_line(made - offset)))
+        extra = profile(index) if profile else loss * index
+        out.append((shown, date_line(made - offset - extra)))
     return out
+
+
+def buffered_lines(cadence=0.14, held=10, late=2.0, spread=0.0):
+    """Steady board clock equal to host time: the first lines arrive 5 ms after
+    they are made, the last HELD from LATE seconds after the last one, SPREAD
+    seconds apart (together when zero)."""
+    made = [BASE + cadence * index for index in range(clock.SAMPLES)]
+    first_held = clock.SAMPLES - held
+    burst = made[-1] + late
+    return [
+        (
+            burst + spread * (index - first_held) if index >= first_held else when + 0.005,
+            date_line(when),
+        )
+        for index, when in enumerate(made)
+    ]
 
 
 def delayed_index():
     return clock.SAMPLES // 2
+
+
+def probe_lines(offset, seed=1, loss=0.0, delay=None):
+    """Request-bounded samples: each "date" is sent, made after a random lag
+    and returned after a random delay; DELAY(index, rng) replaces the return
+    delay. LOSS adds that many seconds of offset per sample."""
+    rng = random.Random(seed)
+    sent = BASE
+    out = []
+    for index in range(clock.PROBE_SAMPLES):
+        sent += rng.uniform(0.5, 1.5)
+        made = sent + rng.uniform(0.05, 0.6)
+        back = delay(index, rng) if delay else rng.uniform(0.0, 0.05)
+        out.append((sent, made + back, date_line(made - offset - loss * index)))
+        sent = made + back
+    return out
 
 
 class DateParsing(unittest.TestCase):
@@ -128,6 +164,65 @@ class OffsetBounds(unittest.TestCase):
             low = max(low, arrival - clock.SETTLE_MARGIN - value - 1)
             high = min(high, arrival - value)
         self.assertGreater(low, high)
+
+    def test_a_delayed_or_losing_loop_gives_empty_bounds_but_no_verdict(self):
+        # Arrival times alone cannot separate the causes: a held-back tail of
+        # a steady clock and a clock losing half a second per line both empty
+        # the loop's bounds, and the loop raises neither as a lost clock.
+        for stamped in (
+            stamped_lines(0.4321, delayed=2.0),
+            buffered_lines(),
+            buffered_lines(spread=0.005),
+            buffered_lines(spread=0.04),
+            buffered_lines(held=25),
+            stamped_lines(0.4321, loss=0.5),
+        ):
+            with self.assertRaises(clock.EmptyBounds) as caught:
+                clock.offset_bounds(stamped)
+            self.assertNotIsInstance(caught.exception, clock.ClockUnsteady)
+
+    def test_probe_of_a_steady_clock_holds_the_offset_whatever_the_delays(self):
+        # Delays of up to five seconds, bursts of shared arrivals and slow
+        # drains: the true offset lies in every request-bounded interval.
+        shapes = (
+            None,
+            lambda index, rng: rng.uniform(0.0, 5.0),
+            lambda index, rng: 3.0 if index >= 30 else 0.01,
+            lambda index, rng: 0.0,
+            lambda index, rng: 4.0 - 0.1 * index if index < 40 else 0.0,
+        )
+        for seed in range(25):
+            for shape in shapes:
+                low, high = clock.probe_bounds(probe_lines(0.4321, seed=seed, delay=shape))
+                self.assertLessEqual(low, 0.4321)
+                self.assertGreaterEqual(high, 0.4321)
+
+    def test_probe_of_a_losing_clock_fails_with_a_lower_bound_on_the_loss(self):
+        with self.assertRaises(clock.ClockUnsteady) as caught:
+            clock.probe_bounds(probe_lines(0.4321, loss=0.5))
+        lost = 0.5 * (clock.PROBE_SAMPLES - 1)
+        self.assertGreater(caught.exception.loss, 1.0)
+        self.assertLessEqual(caught.exception.loss, lost)
+        self.assertEqual(caught.exception.lines, clock.PROBE_SAMPLES)
+
+    def test_probe_of_a_gaining_clock_fails_as_running_ahead(self):
+        with self.assertRaises(clock.ClockUnsteady) as caught:
+            clock.probe_bounds(probe_lines(0.4321, loss=-0.5))
+        self.assertFalse(caught.exception.behind)
+        self.assertIn("ran ahead", str(caught.exception))
+
+    def test_probe_of_a_losing_clock_reports_falling_behind(self):
+        with self.assertRaises(clock.ClockUnsteady) as caught:
+            clock.probe_bounds(probe_lines(0.4321, loss=0.5))
+        self.assertTrue(caught.exception.behind)
+
+    def test_the_settle_margin_cannot_bound_a_probe(self):
+        # Calibration: bounding the probe samples by arrival and SETTLE_MARGIN
+        # alone, as the loop does, empties the bounds of a steady clock whose
+        # replies were delayed.
+        probes = probe_lines(0.4321, delay=lambda index, rng: rng.uniform(0.0, 5.0))
+        with self.assertRaises(clock.EmptyBounds):
+            clock.offset_bounds([(arrival, line) for _, arrival, line in probes])
 
     def test_too_few_parsed_lines(self):
         with self.assertRaises(clock.MeasurementError):
@@ -217,15 +312,23 @@ class Workload(unittest.TestCase):
 class StubConsole:
     """A console whose answers come from a table; no serial port exists."""
 
-    def __init__(self, offsets, workload):
+    def __init__(self, offsets, workload, probe_loss=0.0):
         self.offsets = list(offsets)
         self.workload = workload
         self.commands = []
+        self.probe_loss = probe_loss
+        self.probes = 0
+
+    def probe(self, samples):
+        self.probes += 1
+        return probe_lines(5.0, loss=self.probe_loss)[:samples]
 
     def run(self, command, wait=8, stop=None):
         self.commands.append(command)
         if command.startswith("for i in"):
-            return "", stamped_lines(self.offsets.pop(0))
+            entry = self.offsets.pop(0)
+            offset, loss = entry if isinstance(entry, tuple) else (entry, 0.0)
+            return "", stamped_lines(offset, loss=loss)
         if command.startswith("cat /tmp/cc.sh"):
             return "\n".join(clock.workload_script()) + "\nSCRIPTEND\n", []
         if command.startswith("sh /tmp/cc.sh"):
@@ -259,6 +362,27 @@ class EndToEnd(unittest.TestCase):
         status, _ = self.quiet(StubConsole([5.0, 15.0, 15.0], self.good))
         self.assertEqual(status, 1)
 
+    def test_clock_losing_time_inside_a_date_loop_fails(self):
+        # Each of the three measurements can show the loss; the probe that
+        # follows the loop's empty bounds decides it.
+        for slot in range(3):
+            offsets = [5.0, 5.0, 5.0]
+            offsets[slot] = (5.0, 0.5)
+            console = StubConsole(offsets, self.good, probe_loss=0.5)
+            status, out = self.quiet(console)
+            self.assertEqual(status, 1, slot)
+            self.assertIn("FAIL", out)
+            self.assertIn("fell behind by at least", out)
+            self.assertIn("across %d date lines" % clock.PROBE_SAMPLES, out)
+            self.assertEqual(console.probes, 1)
+
+    def test_empty_loop_bounds_with_a_steady_probe_are_inconclusive(self):
+        console = StubConsole([5.0, (5.0, 0.5), 5.0], self.good)
+        with self.assertRaises(clock.MeasurementError) as caught:
+            self.quiet(console)
+        self.assertNotIsInstance(caught.exception, clock.ClockUnsteady)
+        self.assertIn("delayed", str(caught.exception))
+
     def test_borderline_clock_is_inconclusive(self):
         tolerance = clock.PASSES * clock.WORKLOAD_BLOCKS * 1024 // clock.SECTOR_BYTES
         tolerance *= clock.ERASE_MS / 1000.0 * clock.TOLERANCE_FRACTION
@@ -280,8 +404,9 @@ class EndToEnd(unittest.TestCase):
                     return "", stamped_lines(5.0, delayed=0.5)
                 return super().run(command, wait, stop)
 
-        with self.assertRaises(clock.MeasurementError):
+        with self.assertRaises(clock.MeasurementError) as caught:
             self.quiet(Delayed([], self.good))
+        self.assertNotIsInstance(caught.exception, clock.ClockUnsteady)
 
 
 class StubSerialModule:
@@ -299,6 +424,127 @@ class StubSerialModule:
 
         def read(self, _size):
             return StubSerialModule.Serial.chunks.pop(0) if StubSerialModule.Serial.chunks else b""
+
+
+class ArrivalStamps(unittest.TestCase):
+    def test_a_wall_clock_step_moves_no_arrival_stamp(self):
+        # The host wall clock jumps 3 s between two console reads; the stamps
+        # still differ by the monotonic time between them. Stamps taken from
+        # time.time() fail this check by the size of the step.
+        StubSerialModule.Serial.chunks = [b"a\n", b"b\n"]
+        console = clock.Console(StubSerialModule, "stub")
+        real = clock.time.time
+        first = console.read(1.0, stop="a")[1]
+        clock.time.time = lambda: real() + 3.0
+        try:
+            second = console.read(0.05)[1]
+        finally:
+            clock.time.time = real
+        self.assertEqual([line for _, line in first + second], ["a", "b"])
+        self.assertLess(second[0][0] - first[0][0], 1.0)
+
+
+class TimedSerialModule:
+    """A serial port that answers each probe request after a scripted delay.
+
+    DELAYS[n] is the seconds until the reply to request n is readable; a
+    reply carries a steady board clock's date line and the request's marker.
+    """
+
+    class SerialException(OSError):
+        pass
+
+    delays = []
+
+    class Serial:
+        def __init__(self, _port, _baud, timeout=0):
+            self.pending = []
+            self.requests = 0
+
+        def write(self, data):
+            text = data.decode()
+            if not text.startswith("date; echo"):
+                return
+            index = int(text.split("BE")[-1])
+            delay = TimedSerialModule.delays[self.requests]
+            self.requests += 1
+            ready = clock.time.monotonic() + delay
+            made = clock.host_now()
+            echo = "operator@pico:~$ %s\r\n" % text.rstrip("\r")
+            reply = echo + "%s\r\nPROBE%d\r\n" % (date_line(made), index)
+            # Replies leave in order: one held back holds the later ones.
+            if self.pending:
+                ready = max(ready, self.pending[-1][0])
+            self.pending.append((ready, reply.encode()))
+
+        def read(self, _size):
+            now = clock.time.monotonic()
+            out = b""
+            while self.pending and self.pending[0][0] <= now:
+                out += self.pending.pop(0)[1]
+            return out
+
+
+class Probe(unittest.TestCase):
+    def console(self, delays):
+        TimedSerialModule.delays = list(delays)
+        return clock.Console(TimedSerialModule, "stub")
+
+    def test_prompt_replies_give_one_sample_each(self):
+        probes = self.console([0.01] * 5).probe(5, wait=1.0)
+        self.assertEqual(len(probes), 5)
+        for sent, arrival, line in probes:
+            self.assertLessEqual(sent, arrival)
+            self.assertIsNotNone(clock.board_seconds(line))
+
+    def test_an_unanswered_request_stops_the_probe(self):
+        # The first reply is held past the wait and the rest queue behind it;
+        # attributing them to later sends could fail a steady clock.
+        with self.assertRaises(clock.MeasurementError) as caught:
+            self.console([0.6] + [0.01] * 4).probe(5, wait=0.3)
+        self.assertNotIsInstance(caught.exception, clock.ClockUnsteady)
+        self.assertIn("unanswered", str(caught.exception))
+
+    def test_a_late_reply_is_not_taken_for_the_next_request(self):
+        # A reply to a request of an earlier probe, with its marker, arrives
+        # ahead of the new request's own; the numbered marker skips it.
+        console = self.console([0.01])
+        console.requests = 7
+        stale = b"Mon Jan  1 00:00:00 PST 2001\r\nPROBE0\r\n"
+        console.port.pending.append((0.0, stale))
+        probes = console.probe(1, wait=0.5)
+        self.assertNotEqual(probes[0][2], "Mon Jan  1 00:00:00 PST 2001")
+        self.assertEqual(console.requests, 8)
+
+    def test_a_stale_date_line_ahead_of_the_echo_is_ignored(self):
+        # A date line left over from earlier output, with no marker, arrives
+        # first; only the line after this request's echo counts.
+        console = self.console([0.01])
+        console.port.pending.append((0.0, b"Mon Jan  1 00:00:00 PST 2001\r\n"))
+        probes = console.probe(1, wait=0.5)
+        self.assertNotEqual(probes[0][2], "Mon Jan  1 00:00:00 PST 2001")
+
+    def test_two_date_lines_in_one_window_stop_the_probe(self):
+        console = self.console([0.2])
+        original = console.port.write
+
+        def doubled(data):
+            original(data)
+            ready, reply = console.port.pending[-1]
+            extra = b"Mon Jan  1 00:00:00 PST 2001\r\n"
+            head, tail = reply.split(b"\r\n", 1)
+            console.port.pending[-1] = (ready, head + b"\r\n" + extra + tail)
+
+        console.port.write = doubled
+        with self.assertRaises(clock.MeasurementError) as caught:
+            console.probe(1, wait=0.5)
+        self.assertIn("want one", str(caught.exception))
+
+    def test_markers_number_every_request_of_the_console(self):
+        console = self.console([0.01] * 4)
+        console.probe(2, wait=0.5)
+        console.probe(2, wait=0.5)
+        self.assertEqual(console.requests, 4)
 
 
 class SentinelFraming(unittest.TestCase):
@@ -344,6 +590,103 @@ class SentinelFraming(unittest.TestCase):
         StubSerialModule.Serial.chunks = [b"cmd\r\nx\r\n"]
         console = dcbc.Console(StubSerialModule, "stub")
         self.assertTrue(console.run("cmd", wait=0.3)[0].startswith("TIMEOUT"))
+
+
+class LoginSerialModule:
+    """A console that stays silent for SILENT writes, then waits at login:.
+
+    Any line typed at login: is taken as a user name; "operator" logs in,
+    after a Password: prompt when PASSWORD is set, and an empty password is
+    accepted for operator only. The shell answers "echo SH""ELL" with SHELL.
+    """
+
+    class SerialException(OSError):
+        pass
+
+    silent = 0
+    password = False
+
+    class Serial:
+        def __init__(self, _port, _baud, timeout=0):
+            self.out = b""
+            self.writes = 0
+            self.state = "login"
+            self.user = None
+            self.lines = []
+
+        def write(self, data):
+            line = data.decode().rstrip("\r")
+            self.lines.append(line)
+            self.writes += 1
+            if self.writes <= LoginSerialModule.silent:
+                return
+            if self.state == "shell":
+                reply = "operator@pico:~$ %s\r\n" % line
+                if line == 'echo SH""ELL':
+                    reply += "SHELL\r\n"
+                self.out += (reply + "operator@pico:~$ ").encode()
+            elif self.state == "login":
+                self.user = line
+                if LoginSerialModule.password:
+                    self.state = "password"
+                    self.out += ("%s\r\nPassword:" % line).encode()
+                else:
+                    self.finish(line)
+            else:
+                self.out += b"\r\n"
+                self.finish(self.user if line == "" else None)
+
+        def finish(self, user):
+            if user == "operator":
+                self.state = "shell"
+                self.out += b"\r\noperator@pico:~$ "
+            else:
+                self.state = "login"
+                self.out += b"\r\nLogin incorrect\r\nlogin: "
+
+        def read(self, _size):
+            out, self.out = self.out, b""
+            return out
+
+
+class ReachShell(unittest.TestCase):
+    def console(self, silent=0, password=False, state="login"):
+        LoginSerialModule.silent = silent
+        LoginSerialModule.password = password
+        console = clock.Console(LoginSerialModule, "stub")
+        console.port.state = state
+        return console
+
+    def test_a_logged_in_shell_answers_at_once(self):
+        console = self.console(state="shell")
+        clock.reach_shell(console, seconds=1, wait=0.05)
+        self.assertEqual(console.port.lines, ['echo SH""ELL'])
+
+    def test_the_probe_line_taken_for_a_user_name_still_logs_in(self):
+        # At login: the first probe line becomes a user name and fails; the
+        # login: that follows gets operator.
+        console = self.console()
+        clock.reach_shell(console, seconds=1, wait=0.05)
+        self.assertEqual(console.port.state, "shell")
+        self.assertIn("operator", console.port.lines)
+
+    def test_a_password_prompt_gets_an_empty_password(self):
+        console = self.console(password=True)
+        clock.reach_shell(console, seconds=1, wait=0.05)
+        self.assertEqual(console.port.state, "shell")
+        self.assertEqual(console.port.lines[-1], 'echo SH""ELL')
+
+    def test_a_board_still_booting_is_waited_for(self):
+        console = self.console(silent=2)
+        clock.reach_shell(console, seconds=2, wait=0.05)
+        self.assertEqual(console.port.state, "shell")
+
+    def test_a_console_without_a_shell_is_inconclusive(self):
+        console = self.console(silent=10**6)
+        with self.assertRaises(clock.MeasurementError) as caught:
+            clock.reach_shell(console, seconds=1, wait=0.05)
+        self.assertNotIsInstance(caught.exception, clock.ClockUnsteady)
+        self.assertIn("no shell", str(caught.exception))
 
 
 if __name__ == "__main__":

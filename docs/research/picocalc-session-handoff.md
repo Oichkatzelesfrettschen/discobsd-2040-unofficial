@@ -59,7 +59,9 @@ Programs and libraries:
   zero's sign for odd integer `y` (F.10.4.4). `check-libc-printf-g` and
   `check-libc-huge-val` hold each with a mutant (`TESTING.md`).
 - Games in `gamebox` (fifteen, keen, bubble, fourfall, coil) and puzzles in
-  `puzzlebox` (flood, samegame, unruly, lightup) (PRs #345, #354).
+  `puzzlebox` (flood, samegame, unruly, lightup) (PRs #345, #354). `ridge`,
+  the tile platformer on `/dev/lcdgfx`, joins `gamebox` in the `picocalc`
+  profile only (`sys/arch/rp2040/doc/research/games.md`).
 
 Kernel speed and correctness on both boards:
 
@@ -439,7 +441,59 @@ Steps:
 
 State at the end: the board holds the kernel and test root named above and
 does not enumerate (the second USB wedge). It has not been returned to the
-plain main image.
+plain main image. The board was later recovered and is covered by the 2026-11-08 entry.
+
+### Bare Pico re-measure, 2026-11-08 (main `7d8d1bce`)
+
+**Scope.** This run measures the tree after the kernels moved to `-Os` (2fc33ee2) and the interval timer moved to tick resolution (PR #390). The owner approved it on 2026-11-08.
+
+**Images.** All were built from a clean worktree of `7d8d1bce`.
+
+| Image | Contents | `unix.uf2` SHA-256 | `flash.uf2` SHA-256 |
+|---|---|---|---|
+| Plain | kernel and full root | `75f84e68f328a2874c44c3d196dcdccfb80e04854b9a0697dbb39f04babf1dd8` | `804f51b257be39539b6ed420ea17b5e9a9f87ec636d2616ac9529c91e5027b45` |
+| Test root | `IMAGE_WITH=calc-bignum`, `FS_INODES=144`, plus `divtest`, `fptest`, `romprobe`, `textcrc` and a raw copy of `textbox` as `/usr/rawbin/seq`, staged under their own `default` section with `filemode 0755` | plain kernel | `c22e06ef4e651805b82cadd1b3c1eb443885356db7aec8698e78a03a245cc0a2` |
+| Calibration kernel | `if (0 && owed != 0)` in `clock_catchup()` | `040747daeebd22991efdc98a0df38e1cb78523feed004523228ae566520e46eb` | test root |
+
+- **Booted version:** `kern.version` is `DiscoBSD 2.7 (PICO) #1 2410: Sun Nov  8 08:43:29 PST 2026`.
+- **Test root space:** 108 free blocks and 39 free inodes, of which a booted `df` reads 105.
+- **Plain root after restore:** a booted `df` reads 238 free blocks, the image's 241 less the three first-boot log files.
+
+**Setup finding: a staging error made a boot loop.**
+- **Symptom:** a staging edit deleted both `filemode 0775` lines of `distrib/rp2040/mi.rp2040`, so every `/bin` and `/sbin` program shipped with mode `0644`. The board then re-enumerated about every 7.5 s and printed nothing on the console.
+- **Diagnosis:** a host Dhara decoder recovered both roots from their `flash.uf2`. It replays `tools/flashimg`'s vendored map in reverse and matches the source `sdcard.img` byte for byte. `fsutil --extract` diff of the two showed the mode change.
+- **Fix:** staging under its own `default` section with `filemode 0755` booted.
+- **Not a kernel defect:** a root whose `/sbin/init` cannot execute restarts by design.
+- **Reboot check:** the good root survived three consecutive `--bootsel`/`--eject` reboots with no loop.
+
+**Steps.** Console commands ran as `operator`.
+
+1. **Boot and capacity.**
+   - **Boot:** the board boots to `login:` over USB CDC; `kern.clockrate` gives hz 1000.
+   - **Kernel stack:** `sysctl kern.capacity` reads a stack peak of 1,736 of 2,048 bytes with 312 untouched and no saturation, on every boot of both kernels. The retained stdio workload record is 1,828.
+   - **Clists:** the first boot of the test root read a clist peak of 32 of 32 with 7 allocation failures. The four later boots read peaks of 19, 19, 8 and 8 with no failures.
+   - **Dropped console input:** a 120-character console line typed while the board was idle lost its last two characters (`?` and the carriage return). Clist exhaustion is the likely cause, not traced.
+2. **Interval timer (PR #390).**
+   - **Result:** three runs of `divtest` give `collision: 957441 / 958209 / 958049 divisions, 100 alarms, 0 wrong, 0 wrong in handler` and `DIVTEST OK` in 1.70, 1.71 and 1.70 s real.
+   - **Prediction:** 100 alarms in about 1.0e6 divisions.
+   - **Falsifiers:** 3,000,000 divisions with fewer than 100 alarms, or fewer than about 0.8e6 divisions at 100 alarms. Neither occurred.
+   - **Before the change:** on 2026-11-07 the same loop took 3 alarms in 3,000,000 divisions.
+   - **Divider padding:** the probe is unchanged. Padding 0 through 3 fails 2000 of 2000, and 4 through 6 fail 0, so the smallest error-free padding is 4, equal to the shipped value.
+   - **`/usr/bin/time`:** the runs exercise it as a `utilbox` member (PR #389) on the board.
+3. **Packed against raw `seq`.**
+   - **Method:** six interleaved pairs of 20 execs each under `time`. The seventh pair's console line lost characters, as in step 1.
+   - **Packed:** 26.14, 26.51, 26.42, 26.45, 26.59 and 26.95 s; mean 26.51 s, sd 0.26.
+   - **Raw:** 25.74, 27.41, 26.99, 26.74, 26.54 and 26.15 s; mean 26.60 s, sd 0.60.
+   - **System time:** packed stays at 6.8 s while raw ranges from 5.8 to 12.1 s.
+   - **Packed minus raw:** the paired difference is -4 ms per exec with a standard error of 13 ms.
+   - **Prediction failed:** the prediction was the 2026-11-07 38 ms within two standard errors. The result is about 2.8 combined standard errors from it, so the packed premium is not resolved at this sample size.
+   - **`-Os` cost:** both arms are about 30 percent slower than on 2026-11-07, at 1.33 s per exec against 1.02 s. The kernel's move to `-Os` lies between the two runs, so this is the measured cost of `-Os` on the fork, swap and exec path. The new timer adds one comparison per tick.
+4. **Clock catch-up, with the final script (`board_clock_catchup.py`).**
+   - **Shipped kernel:** 786,432 bytes were written in 287.5 s (at least 192 sectors erased, 8.45 s lost without catch-up). The excess over the 356.0 s idle control is +0.138 .. +0.547 s, inside the 0.845 s tolerance: PASS.
+   - **Calibration kernel:** INCONCLUSIVE (exit 2). Its baseline's 40 date lines have no common point (28963.970 .. 28945.557 s), because the clock lost about 18 s within the loop, as on 2026-11-07.
+   - **What the calibration shows:** the script rejects the known-bad kernel as not passing, but does not report it as failing. The script now classifies a measurement whose clock fell behind across the loop as FAIL (same branch as this note).
+
+**State at the end.** The board holds the plain images above and sits at `login:`.
 
 ## Open decisions and residuals
 

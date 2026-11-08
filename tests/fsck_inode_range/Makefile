@@ -50,7 +50,8 @@ CFLAGS.setup=	-Dreply=fsck_accept_image
 MUTANTS=	pass1-loop direntry makeentry-ino makeentry-parent \
 		lfdir-lookup alloc-test alloc-range all-old \
 		window-flush window-write inode-window dirhead allocdir-zero \
-		adjust-noop touch-superblock
+		adjust-noop touch-superblock pass3-cycle-unbound \
+		pass3-cycle-open pass3-cycle-once pass2-dotdot-split
 SCENARIOS.pass1-loop=		file-last dir-last
 SCENARIOS.direntry=		file-last
 SCENARIOS.makeentry-ino=	orphan-last
@@ -66,12 +67,21 @@ SCENARIOS.touch-superblock=	orphan-dir
 SCENARIOS.inode-window=		orphan-dir free-last tail-evict
 SCENARIOS.dirhead=		free-last
 SCENARIOS.allocdir-zero=	full-table
+SCENARIOS.pass3-cycle-unbound=	fsck-lf-chain
+SCENARIOS.pass3-cycle-open=	fsck-lf-cycle fsck-lf-cycle-gap
+SCENARIOS.pass2-dotdot-split=	fsck-dotdot-range
+SCENARIOS.pass3-cycle-once=	fsck-lf-cycle fsck-lf-cycle-gap fsck-lf-chain
 
 # A mutant of tools/fsutil is the image generator linked with a rewritten
 # check.c, which run.sh uses beside the unmutated fsck.
 FSUTIL_MUTANTS=	fsutil-find-inode fsutil-lost-entry-old fsutil-namlen-empty \
 		fsutil-namlen-split fsutil-split-off fsutil-split-trim \
-		fsutil-reclen-bound
+		fsutil-reclen-bound fsutil-reach-skip fsutil-no-rescan \
+		fsutil-dotdot-keep fsutil-chain-flat fsutil-clear-leak \
+		fsutil-tfree-keep fsutil-tfree-count fsutil-tinode-count \
+		fsutil-dir-one-block \
+		fsutil-cycle-unbound fsutil-cycle-noretry \
+		fsutil-cycle-open fsutil-cycle-unclosed
 SCENARIOS.fsutil-find-inode=	fsutil-lf-last fsutil-lf-hole
 SCENARIOS.fsutil-lost-entry-old=	fsutil-lf-last fsutil-lf-hole \
 				fsutil-lf-pristine
@@ -80,6 +90,20 @@ SCENARIOS.fsutil-namlen-split=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-split-off=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-split-trim=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-reclen-bound=	fsutil-lf-overrun
+SCENARIOS.fsutil-reach-skip=	fsutil-lf-dir fsutil-lf-deep
+SCENARIOS.fsutil-no-rescan=	fsutil-lf-dir fsutil-lf-deep
+SCENARIOS.fsutil-dotdot-keep=	fsutil-lf-dir fsutil-lf-deep
+SCENARIOS.fsutil-chain-flat=	fsutil-lf-deep
+SCENARIOS.fsutil-clear-leak=	fsutil-clear-blocks fsutil-lf-one-slot
+SCENARIOS.fsutil-tfree-keep=	fsutil-clear-blocks
+SCENARIOS.fsutil-tfree-count=	fsutil-count-tfree
+SCENARIOS.fsutil-tinode-count=	fsutil-count-tinode fsutil-clear-blocks \
+				fsutil-lf-one-slot
+SCENARIOS.fsutil-dir-one-block=	fsutil-lf-second
+SCENARIOS.fsutil-cycle-unbound=	fsutil-lf-chain
+SCENARIOS.fsutil-cycle-noretry=	fsutil-lf-chain
+SCENARIOS.fsutil-cycle-open=	fsutil-lf-gap fsutil-lf-chain
+SCENARIOS.fsutil-cycle-unclosed=	fsutil-lf-cycle fsutil-lf-gap fsutil-lf-chain
 
 # bin/df and sbin/mkfs are built from their own sources the same way; each
 # mutant is the program with one rewritten source file.
@@ -129,9 +153,14 @@ objs/${unit}.o: ${FSCK}/${unit}.c ${FSCK_HEADERS}
 	${HOSTCC} ${FSCK_CFLAGS} ${CFLAGS.${unit}} -c -o $@ ${FSCK}/${unit}.c
 .endfor
 
+# The tree's stdio.h redeclares fopen, fread, fprintf and the other names the
+# host compiler knows as builtins over the target's FILE; clang rejects that
+# under -Wbuiltin-requires-header unless the builtins are off, as they are for
+# every other unit that includes the tree's headers.
 objs/glue.o: fsck_glue.c fsck_glue.h ${MACHINE_STAMP}
 	@mkdir -p objs
-	${HOSTCC} -std=gnu17 ${ILP32} ${GATE_WARN} -I. -I${TOPSRC}/include \
+	${HOSTCC} -std=gnu17 ${ILP32} -fno-builtin ${GATE_WARN} -I. \
+	    -I${TOPSRC}/include \
 	    -c -o $@ fsck_glue.c
 
 # The host half carries no tree header and reaches the host's <stdio.h>.
@@ -146,7 +175,8 @@ fsck_host: ${BASE_OBJECTS}
 
 # A mutant is the program with the mutated files rebuilt from a rewritten
 # copy of the source and every other object shared. The mutated units are
-# pass1.c, dir.c and inode.c, none of which takes a per-unit definition.
+# pass1.c, pass2.c, pass3.c, dir.c, inode.c and utilities.c, none of which
+# takes a per-unit definition.
 .for mutant in ${MUTANTS}
 fsck_mutant_${mutant}: fsck_mutate.py ${BASE_OBJECTS}
 	@mkdir -p mutant/${mutant}

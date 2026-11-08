@@ -42,6 +42,7 @@ def build(work, suite, changes):
         "credentials": ["kern_prot.c", "kern_prot2.c", "kern_proc.c"],
         "bmap": ["ufs_bmap.c"],
         "synch": ["kern_synch.c", "vm_sched.c"],
+        "itimer": ["kern_clock.c", "kern_time.c", "kern_fork.c"],
     }[suite]
     # A header mutation copies every sys/sys header into the private include
     # directory, which -I lists ahead of the tree's sys directory, and mutates
@@ -97,6 +98,15 @@ def build(work, suite, changes):
             # HASH() folds a wait channel through int, narrower than a host
             # pointer; the target's pointers are int-sized.
             extra += ["-Wno-pointer-to-int-cast"]
+        elif name == "kern_fork.c":
+            # newproc()'s setjmp() resumes only the child; the gate follows
+            # the parent. fork() and vfork() move aside from libc's.
+            extra += [
+                "-include",
+                str(TESTS / "itimer_setjmp.h"),
+                "-Dfork=gate_fork",
+                "-Dvfork=gate_vfork",
+            ]
         elif name in ("kern_prot.c", "kern_prot2.c"):
             extra += ["-Wstrict-prototypes", "-Wold-style-definition"]
         obj = work / (name + ".o")
@@ -124,6 +134,7 @@ def build(work, suite, changes):
             "credentials": "cred_test.c",
             "bmap": "bmap_write_test.c",
             "synch": "synch_meter_test.c",
+            "itimer": "itimer_test.c",
         }[suite]
     )
     run(
@@ -150,6 +161,7 @@ def main():
         ("baseline-credentials", "credentials", {}, False),
         ("baseline-bmap", "bmap", {}, False),
         ("baseline-synch", "synch", {}, False),
+        ("baseline-itimer", "itimer", {}, False),
         (
             "discard-direct-init-error",
             "bmap",
@@ -205,9 +217,7 @@ def main():
             "io",
             {
                 "kern_time.c": (
-                    "        getitimer();\n"
-                    "        if (u.u_error)\n"
-                    "            return;",
+                    "        getitimer();\n        if (u.u_error)\n            return;",
                     "        getitimer();",
                 )
             },
@@ -390,8 +400,7 @@ def main():
             {
                 "kern_prot2.c": (
                     "u.u_groups[0] = requested_egid;",
-                    "u.u_groups[0] = requested_egid;\n"
-                    "    u.u_rgid = requested_egid;",
+                    "u.u_groups[0] = requested_egid;\n    u.u_rgid = requested_egid;",
                 )
             },
             True,
@@ -422,6 +431,156 @@ def main():
             "unbounded-sleep-timeout",
             "synch",
             {"kern_synch.c": ("if (timo > INT_MAX)", "if (0)")},
+            True,
+        ),
+        (
+            "real-due-test-non-strict",
+            "itimer",
+            {
+                "kern_clock.c": (
+                    "(monosec == realsec && monotick > realtick))",
+                    "(monosec == realsec && monotick >= realtick))",
+                )
+            },
+            True,
+        ),
+        (
+            "real-timer-due-non-strict",
+            "itimer",
+            {
+                "kern_clock.c": (
+                    "(p)->p_realtick < monotick))",
+                    "(p)->p_realtick <= monotick))",
+                )
+            },
+            True,
+        ),
+        (
+            "real-timer-adds-extra-tick",
+            "itimer",
+            {
+                "kern_time.c": (
+                    "            vticks += monotick;",
+                    "            vticks += monotick + 1;",
+                )
+            },
+            True,
+        ),
+        (
+            "real-timer-rounds-up-to-second",
+            "itimer",
+            {
+                "kern_time.c": (
+                    "    int t = (tv->tv_usec + usechz - 1) / usechz;",
+                    "    int t = tv->tv_usec ? hz : 0;",
+                )
+            },
+            True,
+        ),
+        (
+            "real-timer-skips-earliest-lowering",
+            "itimer",
+            {
+                "kern_time.c": (
+                    "            if (vsec < realsec || (vsec == realsec && vticks < realtick)) {",
+                    "            if (0) {",
+                )
+            },
+            True,
+        ),
+        (
+            "virtual-timer-rounds-up-to-second",
+            "itimer",
+            {
+                "kern_time.c": (
+                    "        t->it_value = vsec * hz + vticks;",
+                    "        t->it_value = vsec * hz + (vticks ? hz : 0);",
+                )
+            },
+            True,
+        ),
+        (
+            "real-readback-drops-ticks",
+            "itimer",
+            {
+                "kern_time.c": (
+                    "        aitv.it_value.tv_usec = ticks * usechz;",
+                    "        aitv.it_value.tv_usec = 0;",
+                )
+            },
+            True,
+        ),
+        (
+            "real-readback-due-reads-zero",
+            "itimer",
+            {"kern_time.c": ("                ticks = 1;\n", "                ticks = 0;\n")},
+            True,
+        ),
+        (
+            "periodic-rearms-from-now",
+            "itimer",
+            {
+                "kern_clock.c": (
+                    "            p->p_realtimer.it_value += p->p_realtimer.it_interval;\n"
+                    "            p->p_realtick += p->p_realitick;",
+                    "            p->p_realtimer.it_value = monosec +\n"
+                    "                p->p_realtimer.it_interval;\n"
+                    "            p->p_realtick = monotick + p->p_realitick;",
+                )
+            },
+            True,
+        ),
+        (
+            "hardclock-never-wakes-expiry-scan",
+            "itimer",
+            {"kern_clock.c": ("    if (REALDUE())\n        needsoft = 1;\n", "")},
+            True,
+        ),
+        (
+            "expiry-scan-forgets-later-timers",
+            "itimer",
+            {"kern_clock.c": ("    realsec = minsec;\n", "    realsec = LONG_MAX;\n")},
+            True,
+        ),
+        (
+            "monotonic-tick-does-not-carry",
+            "itimer",
+            {
+                "kern_clock.c": (
+                    "        monotick = 0;\n        ++monosec;\n",
+                    "        monotick = 0;\n",
+                )
+            },
+            True,
+        ),
+        (
+            "advance-does-not-carry-seconds",
+            "itimer",
+            {"kern_clock.c": ("    monosec += n / hz;\n", "")},
+            True,
+        ),
+        (
+            "fork-keeps-timer-interval",
+            "itimer",
+            {"kern_fork.c": ("    child->p_realtimer.it_interval = 0;\n", "")},
+            True,
+        ),
+        (
+            "fork-keeps-deadline-tick",
+            "itimer",
+            {"kern_fork.c": ("    child->p_realtick = 0;\n", "")},
+            True,
+        ),
+        (
+            "fork-keeps-interval-tick",
+            "itimer",
+            {"kern_fork.c": ("    child->p_realitick = 0;\n", "")},
+            True,
+        ),
+        (
+            "fork-keeps-timer-deadline",
+            "itimer",
+            {"kern_fork.c": ("    child->p_realtimer.it_value = 0;\n", "")},
             True,
         ),
         (

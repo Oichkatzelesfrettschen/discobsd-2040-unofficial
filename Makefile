@@ -356,8 +356,9 @@ check-fs-stress:
 # sbin/fsck on images whose highest-numbered inode is in use. The inode
 # list numbers inodes 1 through imax inclusive, and the gate builds fsck for
 # the host against the tree's headers at ILP32, checks images made by the
-# fsutil library in preen and repair mode, and requires eight mutants (seven sites or pairs and the whole set) that
-# restore the pre-change comparisons to fail. A host without ILP32 execution
+# fsutil library in preen and repair mode, and requires every mutant
+# tests/fsck_inode_range/Makefile registers, each an earlier or faulted form of
+# fsck, fsutil, df or mkfs, to fail the scenarios named for it. A host without ILP32 execution
 # records a skip receipt; REQUIRE_ILP32=yes and the detached aggregate
 # check-ilp32-execution make it a failure.
 check-fsck-inode-range:
@@ -687,6 +688,19 @@ check-tee-contracts:
 
 check-tee-contracts-cross:
 		${MAKE} -C tests/tee_contracts check-cross
+
+# usr.bin/time linked with sbin/utilbox's dispatcher and a wait3 shim, run
+# as "time" and as "utilbox time": the exit status of a normal exit, of a
+# signal death (128 plus the signal), of a missing program (127), of a
+# program without execute permission (126) and of a failed wait3 (125), and
+# the retry of an interrupted wait3. Mutants that drop the retry, restore
+# the shifted status or break the 127 or the 126 must fail under gcc and
+# clang.
+check-time-contracts:
+		${MAKE} -C tests/time_contracts check
+
+check-time-contracts-cross:
+		${MAKE} -C tests/time_contracts check-cross
 
 # lib/libtcl's own source under the address and undefined sanitizers, at the
 # byte extents and counters it once held in unsigned short: values, results,
@@ -1063,7 +1077,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
-		check-rmdir-contracts check-tee-contracts \
+		check-rmdir-contracts check-tee-contracts check-time-contracts \
 		check-libtcl-contracts \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress check-fsck-inode-range \
@@ -1088,8 +1102,8 @@ HOST_GATES=	check-architecture-isolation \
 		check-fs-profiles check-picocalc-host check-psram-pio
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
-		check-calc-host check-sh-editor \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
+		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
@@ -1111,6 +1125,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
 		check-find-contracts-cross \
 		check-backgammon-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
+		check-time-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross \
 		check-stdio-bounds-cross check-elf2aout
@@ -1165,6 +1180,9 @@ check-fourfall-host:
 
 check-coil-host:
 		${MAKE} -C games/coil test
+
+check-ridge-host: check-python
+		${MAKE} -C games/ridge test
 
 check-puzzlebox-host:
 		${MAKE} -C games/pzcommon test
@@ -1497,8 +1515,8 @@ installfs:
 		check-legacy-pdp11-v7-reference check-legacy-pdp11-v6 \
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
-		check-calc-host check-sh-editor check-tar-host \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
+		check-puzzlebox-host check-calc-host check-sh-editor check-tar-host \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \

@@ -2681,7 +2681,7 @@
         "fsck_mutant_alloc-range",
         "fsck_mutant_all-old"
       ],
-      "recipe": "${TEST_EXECUTION} run fsck.inode-range.ilp32 -- sh ${.CURDIR}/check.sh ${.CURDIR}/run.sh ./fsck_host ./image_gen work . ${MUTANT_SPECS}",
+      "recipe": "${TEST_EXECUTION} run fsck.inode-range.ilp32 -- sh ${.CURDIR}/check.sh ${.CURDIR}/run.sh ./fsck_host ./image_gen ./df_host ./mkfs_host work . ${MUTANT_SPECS}",
       "script": "tests/fsck_inode_range/check.sh",
       "subject": "tests/fsck_inode_range/fsck_host",
       "aliases": [

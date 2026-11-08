@@ -433,6 +433,84 @@ class ArrivalStamps(unittest.TestCase):
         self.assertLess(second[0][0] - first[0][0], 1.0)
 
 
+class TimedSerialModule:
+    """A serial port that answers each probe request after a scripted delay.
+
+    DELAYS[n] is the seconds until the reply to request n is readable; a
+    reply carries a steady board clock's date line and the request's marker.
+    """
+
+    class SerialException(OSError):
+        pass
+
+    delays = []
+
+    class Serial:
+        def __init__(self, _port, _baud, timeout=0):
+            self.pending = []
+            self.requests = 0
+
+        def write(self, data):
+            text = data.decode()
+            if not text.startswith("date; echo"):
+                return
+            index = int(text.split("BE")[-1])
+            delay = TimedSerialModule.delays[self.requests]
+            self.requests += 1
+            ready = clock.time.monotonic() + delay
+            made = clock.host_now()
+            reply = "%s\r\nPROBE%d\r\n" % (date_line(made), index)
+            # Replies leave in order: one held back holds the later ones.
+            if self.pending:
+                ready = max(ready, self.pending[-1][0])
+            self.pending.append((ready, reply.encode()))
+
+        def read(self, _size):
+            now = clock.time.monotonic()
+            out = b""
+            while self.pending and self.pending[0][0] <= now:
+                out += self.pending.pop(0)[1]
+            return out
+
+
+class Probe(unittest.TestCase):
+    def console(self, delays):
+        TimedSerialModule.delays = list(delays)
+        return clock.Console(TimedSerialModule, "stub")
+
+    def test_prompt_replies_give_one_sample_each(self):
+        probes = self.console([0.01] * 5).probe(5, wait=1.0)
+        self.assertEqual(len(probes), 5)
+        for sent, arrival, line in probes:
+            self.assertLessEqual(sent, arrival)
+            self.assertIsNotNone(clock.board_seconds(line))
+
+    def test_an_unanswered_request_stops_the_probe(self):
+        # The first reply is held past the wait and the rest queue behind it;
+        # attributing them to later sends could fail a steady clock.
+        with self.assertRaises(clock.MeasurementError) as caught:
+            self.console([0.6] + [0.01] * 4).probe(5, wait=0.3)
+        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+        self.assertIn("unanswered", str(caught.exception))
+
+    def test_a_late_reply_is_not_taken_for_the_next_request(self):
+        # A reply to a request of an earlier probe, with its marker, arrives
+        # ahead of the new request's own; the numbered marker skips it.
+        console = self.console([0.01])
+        console.requests = 7
+        stale = b"Mon Jan  1 00:00:00 PST 2001\r\nPROBE0\r\n"
+        console.port.pending.append((0.0, stale))
+        probes = console.probe(1, wait=0.5)
+        self.assertNotEqual(probes[0][2], "Mon Jan  1 00:00:00 PST 2001")
+        self.assertEqual(console.requests, 8)
+
+    def test_markers_number_every_request_of_the_console(self):
+        console = self.console([0.01] * 4)
+        console.probe(2, wait=0.5)
+        console.probe(2, wait=0.5)
+        self.assertEqual(console.requests, 4)
+
+
 class SentinelFraming(unittest.TestCase):
     OLD = re.compile(r"^ZD(\d+)$", re.M)
 

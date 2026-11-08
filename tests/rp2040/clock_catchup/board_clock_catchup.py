@@ -76,8 +76,6 @@ DATE_LINE = re.compile(
     r" +(\d{1,2}) (\d\d):(\d\d):(\d\d) [A-Z]{2,5} (\d{4})$"
 )
 MONTHS = ("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec").split()
-# A whole date line inside console text, which ends a probe read.
-DATE_LINE_ANYWHERE = re.compile(DATE_LINE.pattern[:-1] + r"\n", re.M)
 
 # Samples per offset measurement, and the time between a line's creation by
 # date(1) and its arrival on the host that the bound allows.
@@ -116,6 +114,7 @@ class Console:
     def __init__(self, serial_module, port):
         self.serial = serial_module
         self.port = serial_module.Serial(port, 115200, timeout=0)
+        self.requests = 0
 
     def reopen(self):
         """Reopen the console after the board re-enumerates, which it can do twice."""
@@ -163,16 +162,30 @@ class Console:
     def probe(self, samples, wait=10):
         """Send "date" SAMPLES times; return [(sent, arrival, line)...].
 
-        Each command waits for its date line before the next is sent, so a
-        line's arrival bounds only the command that produced it."""
+        Each request is "date; echo PROBE<n>", N counting every request this
+        console has sent, and its date line is the last one before the line
+        PROBE<n>, so a late reply to an earlier request, of this probe or an
+        earlier one, is never taken for a later one. A request whose marker does not
+        arrive within WAIT seconds raises MeasurementError, because its reply
+        could still be attributed to the next send."""
         probes = []
         for _ in range(samples):
+            index = self.requests
+            self.requests += 1
+            marker = "PROBE%d" % index
             sent = host_now()
-            _, stamped = self.run("date", wait, stop=DATE_LINE_ANYWHERE)
-            for arrival, line in stamped:
-                if board_seconds(line) is not None:
-                    probes.append((sent, arrival, line))
-                    break
+            _, stamped = self.run(
+                'date; echo PRO""BE%d' % index, wait, stop=re.compile(r"^%s\n" % marker, re.M)
+            )
+            lines = [line for _, line in stamped]
+            if marker not in lines:
+                raise MeasurementError("probe request %d unanswered in %g s" % (index, wait))
+            before = stamped[: lines.index(marker)]
+            dated = [(arrival, line) for arrival, line in before if board_seconds(line) is not None]
+            if not dated:
+                raise MeasurementError("probe request %d returned no date line" % index)
+            arrival, line = dated[-1]
+            probes.append((sent, arrival, line))
         return probes
 
 

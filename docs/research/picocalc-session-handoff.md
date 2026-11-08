@@ -96,8 +96,8 @@ plus the `.data` and `.ramfunc` initializers, without `.boot2`.
 | Board | Command | Kernel | Text | Flash image | Headroom | Root profile | Free blocks / inodes |
 | --- | --- | --- | ---: | ---: | ---: | --- | --- |
 | Raspberry Pi Pico | `bmake MACHINE=rp2040 distribution` | `PICO` (USB CDC) or `PICO_UART` | 95,403 / 85,618 | 95,396 / 85,556 | 35,420 / 45,260 | `full` | 239 / 32 |
-| ClockworkPi PicoCalc | `bmake MACHINE=rp2040 BOARD=PICOCALC distribution` | `PICOCALC` | 112,223 | 112,336 | 18,480 | `picocalc` | 147 / 20 |
-| PicoCalc with PSRAM swap | `bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution` | `PICOCALC_PSRAM` | 114,381 | 114,552 | 16,264 | `picocalc` | 147 / 20 |
+| ClockworkPi PicoCalc | `bmake MACHINE=rp2040 BOARD=PICOCALC distribution` | `PICOCALC` | 112,631 | 112,744 | 18,072 | `picocalc` | 147 / 20 |
+| PicoCalc with PSRAM swap | `bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution` | `PICOCALC_PSRAM` | 114,789 | 114,960 | 15,856 | `picocalc` | 147 / 20 |
 
 The PicoCalc rows include the tile atlas and the raw key events
 (`sys/arch/rp2040/doc/PICOCALC.md`, Tile atlas). Under GCC 13.2.1 at `-Os`,
@@ -106,17 +106,17 @@ built in a scratch copy of main:
 
 | Kernel | Before | After | Headroom before | Headroom after |
 | --- | --- | --- | ---: | ---: |
-| `PICOCALC` | 111,543 / 368 / 48,824 | 112,223 / 368 / 53,064 | 19,160 | 18,480 |
-| `PICOCALC_PSRAM` | 113,701 / 424 / 48,976 | 114,381 / 424 / 53,216 | 16,944 | 16,264 |
+| `PICOCALC` | 111,543 / 368 / 48,824 | 112,631 / 368 / 53,080 | 19,160 | 18,072 |
+| `PICOCALC_PSRAM` | 113,701 / 424 / 48,976 | 114,789 / 424 / 53,224 | 16,944 | 15,856 |
 | `PICO` | 95,395 / 248 / 39,848 | 95,395 / 248 / 39,848 | 35,428 | 35,428 |
 | `PICO_UART` | 85,610 / 192 / 14,832 | 85,610 / 192 / 14,832 | 45,268 | 45,268 |
 
-The change adds 680 bytes of text and 4,240 of bss to each PicoCalc kernel and
+The change adds 1,088 bytes of text and 4,256 (4,248 on PSRAM) of bss to each PicoCalc kernel and
 nothing to the Pico kernels. The before column is 8 bytes of text below the
 figures of the pixel-device paragraph that follows, the offset `version[]`
 carries between build paths; the before and after columns share one path. The
-PICOCALC_PSRAM kernel keeps 16,264 bytes of the region, above the 4,096-byte
-floor the tile work set, and the kernel's data and bss end 62,432 bytes below
+PICOCALC_PSRAM kernel keeps 15,856 bytes of the region, above the 4,096-byte
+floor the tile work set, and the kernel's data and bss end 62,424 bytes below
 the end of the RAM region.
 
 Before the pixel device, which adds 2,145 text bytes to each PicoCalc kernel

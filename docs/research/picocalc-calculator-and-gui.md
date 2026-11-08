@@ -447,28 +447,41 @@ structure holds the shadow map (1,600 bytes) and the bitmap of unsent tiles
 tiles in a row and never bridges a gap, because a tile on the bus (123 us)
 costs more than a window setup (7 us); the system-call overhead of a run is
 the unmeasured term that could move that rule. Measured on the PICOCALC
-kernel under GCC 13.2.1 at `-Os`: text +680 bytes in the linked image (the
-objects change by +684: `lcdgfx.o` +440, the key-event file +172 below, and
-36 each in the ioctl classifier and the console dispatch), bss +4,240 (4,164 in `lcdgfx.o`: 4,096 of atlas, a 40-byte row buffer
-and 28 bytes of stream state) against the estimate of about 0.5 KB of text and
+kernel under GCC 13.2.1 at `-Os`: the atlas costs 440 bytes of text and 4,164
+bytes of bss in `lcdgfx.o` (4,096 of atlas, a 40-byte row buffer and 28 bytes
+of stream state), against the estimate of about 0.5 KB of text and
 4.2 KB of bss (`sys/arch/rp2040/doc/PICOCALC.md`, Tile atlas). The board
 timings of the staged plan (40 tiles in 4.92 ms, a tile row of scroll in 4.9
 ms) remain open; `tests/rp2040/tiledemo` is the program for them.
 
-Implementation (staged plan item 10): `LCDIOC_GETKEY` on the console tty
+Implementation (staged plan item 10): the raw key events landed as an
+explicit session, because a queue that always records would keep the
+keystrokes of a password prompt for any later reader. `LCDIOC_KEYEVS` starts
+or ends a session on the open console file; recording starts only then, from
+a descriptor open for reading in the tty's foreground process group, and the
+queue is emptied and its bytes cleared at the start and the end. `LCDIOC_GETKEY`
 returns up to six `{ state, key }` events from a 32-event queue
-(`picokbd_evq.c`) that the keyboard poller fills for every controller event
-before it translates the event to xterm bytes, so the translated path and the
-queue see the same events and neither waits on the other. A full queue drops
-its oldest event and counts the drop for the next call: a game that tracks
-held keys needs the newest state more than the oldest, and `lost` tells it to
-rebuild. The ioctl never blocks. It lives in its own file, not in
-`picokbd_map.c`, so that `picokbd_map.c` keeps no state. The text cost is 172
-bytes in `picokbd_evq.o` and 76 bytes of bss. The board measurement of the
-event rate against the predicted 31 per second is open;
-`PICOCALC.md` (Keyboard) records that the poller runs 2 ms apart once an
-event arrives, so the exchange rate is higher than the 32 ms ceiling this note
-derived from the 16 ms idle poll.
+(`picokbd_evq.c`) to the same kind of caller, answers a write-only caller with
+`EBADF` and a background caller with `EIO` (never `SIGTTIN`), and leaves the
+queue alone when it refuses. An explicit start was chosen over enabling on
+the first drain because a drain stays free of side effects and a refused
+drain cannot create a session. The session ends when its open file is closed
+for the last time, which needs a hook in `vn_closefile()` because a character
+driver's close entry runs only when the device is closed everywhere; process
+exit passes through it. It also ends when the owner ends it and when the
+tty's foreground group differs from the owner's, a comparison the poller
+makes before each event and each request makes before it acts. The keyboard
+poller fills the queue for every controller event before it translates the
+event to xterm bytes, so the translated path and the queue see the same
+events and neither waits on the other. A full queue drops its oldest event
+and counts the drop for the next call: a game that tracks held keys needs the
+newest state more than the oldest, and `lost` tells it to rebuild. The ioctls
+never block. The queue lives in its own file so that `picokbd_map.c` keeps
+no state. The text cost is 392 bytes in `picokbd_evq.o` with 88 bytes of bss,
+and 204 bytes in `lcdcons.o`. The board measurement of the event rate against
+the predicted 31 per second is open; `PICOCALC.md` (Keyboard) records that the
+poller runs 2 ms apart once an event arrives, so the exchange rate is higher
+than the 32 ms ceiling this note derived from the 16 ms idle poll.
 
 Atlas in the kernel versus in user space: the bytes for a full-screen tile
 redraw are 1,600 for tile numbers against 204,800 for RGB565 pixels, a 128x
@@ -548,10 +561,10 @@ new gate is needed. Board steps run only with the repository's exact opt-in.
   bytes at `-O`. At `-Os` under GCC 13.2 the pixel device (item 8) costs
   2,145 bytes of text on both PicoCalc kernels and PICOCALC_PSRAM keeps
   16,936 bytes of the region (`PICOCALC.md`, Pixel device); the tile atlas and
-  the raw key events (items 9 and 10) add 680 bytes of text and 4,240 bytes of
-  bss, leaving PICOCALC_PSRAM 16,264 bytes and PICOCALC 18,480 under the same
+  the raw key events (items 9 and 10) add 1,088 bytes of text and 4,256 bytes of
+  bss, leaving PICOCALC_PSRAM 15,856 bytes and PICOCALC 18,072 under the same
   compiler (`PICOCALC.md`, Tile atlas). The kernel data and bss end at
-  0x2002f420 on PICOCALC_PSRAM, 62,432 bytes below the 106 KB RAM region's
+  0x2002f428 on PICOCALC_PSRAM, 62,424 bytes below the 106 KB RAM region's
   end at 0x2003e800.
 - Shipping `bc` and `dc` changes the full manifest, which
   `docs/research/c17-shipped-resource-baseline.json` pins by hash and by

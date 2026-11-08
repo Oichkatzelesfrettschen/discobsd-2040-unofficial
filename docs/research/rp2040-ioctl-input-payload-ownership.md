@@ -57,7 +57,10 @@ the output-only list with `LCDG_INFO`, receives zeroed storage and publishes
 its complete encoded width after provider success; a `_Static_assert` in
 `ioctl()` requires the union to hold it, and the fixture runs the same
 ownership, span, provider-error and reserved-bit cases on it. A mutant that
-drops its case fails the fixture.
+drops its case fails the fixture. `LCDIOC_KEYEVS` (`_IOW('l', 3, int)`), which
+starts or ends the key event session, is a four-byte input in the aligned
+union; the driver decides the session by the descriptor's flags and process
+group, not by the payload, and a mutant that drops its case fails the fixture.
 
 One automatic union owns the copied bytes. Its member types supply each
 provider's required alignment without a shared buffer or a maximum-size

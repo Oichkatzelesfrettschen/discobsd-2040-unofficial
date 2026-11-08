@@ -164,7 +164,7 @@ The `ridge` row is not part of the 60: it is measured on the `base` profile with
 `gamesdir`, `gamebox`, `ridge` and `lcdgfx` (the third inode is the device
 node) and, for the marginal figure, as the difference between the `picocalc`
 image built with `IMAGE_WITHOUT=ridge` (148 free blocks) and as shipped (140);
-`gamebox` grows from 21,660 to 30,005 packed bytes. The members and the two
+`gamebox` grows from 21,660 to 30,014 packed bytes. The members and the two
 binaries account for the whole 60: the nine
 marginal figures sum to 41, `gamesdir` is 1, and the two binaries and their
 shared linkage are the remaining 18. Removing a member removes a hard link,

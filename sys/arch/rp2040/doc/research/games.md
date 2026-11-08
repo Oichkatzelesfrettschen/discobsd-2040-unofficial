@@ -345,7 +345,9 @@ still moves one tick. The key state is kept per physical key, because a held
 printable key repeats as PRESSED events (`picokbd_map.h`): jump, drop, pause,
 quit and confirm fire on the first PRESSED of a key and not again until its
 RELEASED, and an action is held while any key that drives it is down (Space and
-Up both jump). Lost events clear every key's state. A life lost to a crawler respawns at the last checkpoint with 45 ticks of
+Up both jump). Lost events clear every key's state. A stomp needs the tick's move to have carried the box down from a bottom
+within 5 pixels of the crawler's top; `rg_tick()` records both before the move,
+because a floor landing in the same tick clears the velocity. A life lost to a crawler respawns at the last checkpoint with 45 ticks of
 grace, during which a crawler's touch does no harm (a stomp still scores); the
 grace ends only once no crawler touches the climber, which blinks while it
 lasts. Crawlers stand still while the climber is dying, so without grace a
@@ -400,11 +402,11 @@ corridor to have floor and three rows of headroom, so a jump clears or
 stomps it.
 
 Sizes, from `arm-none-eabi-size` and `ls` on the toolchain of this tree at
-`-Os`: `ridge.o` is 10,153 bytes of text and 11,452 of bss (the map and the
+`-Os`: `ridge.o` is 10,145 bytes of text and 11,452 of bss (the map and the
 game state, `struct rg_game`, 6,796 bytes; the view with its tile map,
 frame buffer and sprite signatures, 4,500); the standalone a.out is 10,876
-bytes (text 10,840, data 4, bss 11,468). Inside `gamebox` it adds 10,232 raw
-bytes (23,920 to 34,152) and 8,345 packed bytes (21,660 to 30,005). The survey's estimate was 5 to 6 KB
+bytes (text 10,832, data 4, bss 11,468). Inside `gamebox` it adds 10,224 raw
+bytes (23,920 to 34,144) and 8,354 packed bytes (21,660 to 30,014). The survey's estimate was 5 to 6 KB
 of engine text plus 4 KB of tile data; the tiles are generated, the sprites
 (1,632 bytes of strings) and the font (287 bytes) are the stored art, and
 the HUD, banners, compositing and front end made the code larger than the

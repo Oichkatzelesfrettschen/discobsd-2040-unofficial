@@ -400,7 +400,7 @@ scroll over mostly uniform rock and sky changes 68 to 134 tiles on average
 against 98 ms for a full 40 by 20 repaint. Four levels in a five-byte
 command format (470 bytes for all levels), tile art generated in
 code, the sprites composited into reserved atlas slots, held keys from the raw
-key events instead of an inferred release. `ridge.o` text is 10,153 bytes
+key events instead of an inferred release. `ridge.o` text is 10,145 bytes
 (estimate 5 to 6 KB of engine text and 4 KB of tile data), bss 11,452. The
 acceptance tests are the ones the row named in spirit: a golden table of jump
 arcs and a collision matrix (`tests/logic_test.c`) and a model-panel test of

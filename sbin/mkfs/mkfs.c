@@ -472,7 +472,8 @@ main (argc,argv)
 	filsys.fs.fs_swapsz = swapsz;
 	if (filsys.fs.fs_isize + filsys.fs.fs_swapsz >= filsys.fs.fs_fsize) {
 		printf ("%u/%u: bad ratio\n",
-                        filsys.fs.fs_fsize, filsys.fs.fs_isize-2);
+                        filsys.fs.fs_fsize,
+                        (unsigned)(filsys.fs.fs_isize-(SUPERB+1)));
 		exit (1);
 	}
 	time (&utime);

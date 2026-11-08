@@ -1,13 +1,17 @@
 #!/bin/sh
 # Run the host fsck over images whose highest-numbered inode is in use and
-# over images whose repair must survive a second run.
+# over images whose repair must survive a second run, and read the inode
+# counts of the same images through the host-built bin/df.
 #
-#   run.sh FSCK IMAGE_GEN WORKDIR SCENARIO...
+#   run.sh FSCK IMAGE_GEN DF MKFS WORKDIR SCENARIO...
 #
-# FSCK is the host-built sbin/fsck, IMAGE_GEN the generator of image_gen.c.
-# A scenario passes when fsck accepts the highest inode as it accepts every
-# other, or when the repair it makes leaves an image that a second preen run
-# accepts (the verdict text names the observable). Exit status:
+# FSCK is the host-built sbin/fsck, IMAGE_GEN the generator of image_gen.c,
+# DF the host-built raw-device path of bin/df (df_driver.c) and MKFS the
+# host-built sbin/mkfs. A scenario passes when fsck accepts the highest inode
+# as it accepts every other, when the repair it makes leaves an image that a
+# second preen run accepts, or when df reports the inode counts the kernel's
+# statfs() derives from the superblock (the verdict text names the
+# observable). Exit status:
 #   0  every scenario passed;
 #   1  at least one scenario failed an assertion; each prints
 #      "FAIL <scenario>: <reason>";
@@ -23,13 +27,15 @@ error() {
 	exit 2
 }
 
-if [ "$#" -lt 4 ]; then
-	error "usage: run.sh FSCK IMAGE_GEN WORKDIR SCENARIO..."
+if [ "$#" -lt 6 ]; then
+	error "usage: run.sh FSCK IMAGE_GEN DF MKFS WORKDIR SCENARIO..."
 fi
 fsck=$1
 gen=$2
-work=$3
-shift 3
+df=$3
+mkfs=$4
+work=$5
+shift 5
 
 mkdir -p "$work" || error "cannot create $work"
 out=$work/fsck.out
@@ -178,19 +184,66 @@ after_create() {
 	second_run $((files + 1))
 }
 
+# run_df TOTAL USED FREE: df -i over the image reports the counts the kernel's
+# statfs() derives from the superblock, which "image_gen --inodes" prints:
+# (isize - 1) * INOPB inodes, tinode of them free. TOTAL, USED and FREE name
+# the figures the layout is built to give, so the superblock reading is
+# checked against the layout as well as against df.
+run_df() {
+	counts=$("$gen" --inodes "$img") ||
+	    error "$scenario: $gen --inodes failed"
+	[ "$counts" = "total $1 used $2 free $3" ] ||
+	    fail "superblock says \"$counts\", want total $1 used $2 free $3"
+	"$df" "$img" >"$out" 2>&1 || error "$scenario: $df failed"
+	# The data line is the second: name, blocks, used, avail, capacity,
+	# iused, ifree, %iused. The name is cut to eleven characters and the
+	# mount point is empty.
+	row=$(sed -n 2p "$out")
+	rest=
+	read -r name blocks usedb availb capacity iused ifree percent rest <<EOF
+$row
+EOF
+	{ [ -n "$percent" ] && [ -z "$rest" ]; } ||
+	    error "$scenario: unexpected df report: $row"
+	# ino_t is four bytes, so a negative count prints as 2^32 less.
+	[ "$iused" = "$2" ] || fail "df reports $iused inodes used, want $2"
+	[ "$ifree" = "$3" ] || fail "df reports $ifree inodes free, want $3"
+	sum=$(awk -v a="$iused" -v b="$ifree" \
+	    'BEGIN { printf "%d", (a + b) % 4294967296 }')
+	[ "$sum" = "$1" ] || fail "df reports $sum inodes in all, want $1"
+}
+
+# mkfs gives up on a volume with no room for data and prints the volume size
+# in blocks and the inode blocks it asked for (isize - (SUPERB+1)); a
+# two-block volume at one inode per 512 bytes asks for one.
+run_mkfs_ratio() {
+	status=0
+	"$mkfs" -i 512 "$img" 2 >"$out" 2>&1 || status=$?
+	[ "$status" -eq 1 ] || fail "mkfs exit status $status, want 1"
+	has '2/1: bad ratio'
+}
+
 for scenario in "$@"; do
 	img=$work/$scenario.img
 	rm -f "$img"
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
-	    full-table | fsutil-lf-last | tail-evict) ;;
+	    full-table | fsutil-lf-last | tail-evict | df-empty | df-full | \
+	    df-tail | df-mkfs | mkfs-ratio) ;;
 	*) error "unknown scenario $scenario" ;;
 	esac
 	case $scenario in
 	fsutil-lf-last) layout=lf-slot-last ;;
+	df-empty) layout=empty ;;
+	df-full) layout=file-last ;;
+	df-tail) layout=tail-evict ;;
+	df-mkfs | mkfs-ratio) layout= ;;
 	*) layout=$scenario ;;
 	esac
-	"$gen" "$layout" "$img" || error "$scenario: image generation failed"
+	if [ -n "$layout" ]; then
+		"$gen" "$layout" "$img" ||
+		    error "$scenario: image generation failed"
+	fi
 	case $scenario in
 	file-last | dir-last) run_clean ;;
 	orphan-last | lf-last) run_repair FILE after_reconnect ;;
@@ -199,6 +252,15 @@ for scenario in "$@"; do
 	full-table) run_decline ;;
 	fsutil-lf-last) run_fsutil ;;
 	tail-evict) run_tail_evict ;;
+	df-empty) run_df 32 3 29 ;;
+	df-full) run_df 32 32 0 ;;
+	df-tail) run_df 96 37 59 ;;
+	df-mkfs)
+		"$mkfs" -i 4096 "$img" 128 >"$out" 2>&1 ||
+		    error "$scenario: $mkfs failed"
+		run_df 32 3 29
+		;;
+	mkfs-ratio) run_mkfs_ratio ;;
 	esac
 	if [ "$failed" -eq 0 ]; then
 		printf 'ok %s\n' "$scenario"

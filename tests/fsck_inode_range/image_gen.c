@@ -10,6 +10,9 @@
  * a root image made with FS_INODES equal to its file count does.
  *
  * Layouts (N is the inode count, IMAGE_INODES):
+ *   empty          a freshly formatted volume: inodes 1 through 3 (the
+ *                  legacy inode, / and lost+found) are in use, the rest are
+ *                  free.
  *   file-last      a regular file in / holds inode N; no inode is free.
  *   dir-last       an empty directory in / holds inode N; no inode is free.
  *   orphan-last    file-last, then the file at inode N loses its name but
@@ -45,6 +48,10 @@
  *
  * "--check IMAGE" prints fsutil's own consistency report for an image,
  * opened read-only, so a gate can compare fsutil's file count with fsck's.
+ * "--inodes IMAGE" prints the inode counts of the superblock the way the
+ * kernel's statfs() derives them (sys/kern/ufs_syscalls2.c): the i-list holds
+ * (isize - 1) * INOPB inodes, tinode of them are free and the rest are used,
+ * so a gate can compare the figures bin/df reports from the raw device.
  * "--fix IMAGE" opens the image for writing, as fsutil --check --fix does,
  * and lets fsutil repair what it reports.
  */
@@ -269,6 +276,8 @@ build(const char *layout, const char *path)
 	if (strcmp(layout, "tail-evict") == 0) {
 		if (!build_tail_evict(&fs))
 			return fail("cannot build", layout);
+	} else if (strcmp(layout, "empty") == 0) {
+		/* Nothing more. */
 	} else if (strcmp(layout, "dir-last") == 0) {
 		if (!make_dir(&fs, "/d00") ||
 		    number_of(&fs, "/d00") != IMAGE_INODES ||
@@ -329,6 +338,21 @@ check(const char *path, int writable)
 	return 0;
 }
 
+static int
+inodes(const char *path)
+{
+	fs_t fs;
+	unsigned total;
+
+	if (!fs_open(&fs, path, 0, 0))
+		return fail("cannot open", path);
+	total = (fs.isize - 1) * BSDFS_INODES_PER_BLOCK;
+	printf("total %u used %u free %u\n", total, total - fs.tinode,
+	    fs.tinode);
+	fs_close(&fs);
+	return 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -336,9 +360,12 @@ main(int argc, char **argv)
 		return check(argv[2], 0);
 	if (argc == 3 && strcmp(argv[1], "--fix") == 0)
 		return check(argv[2], 1);
+	if (argc == 3 && strcmp(argv[1], "--inodes") == 0)
+		return inodes(argv[2]);
 	if (argc == 3)
 		return build(argv[1], argv[2]);
 	fprintf(stderr,
-	    "usage: image_gen LAYOUT IMAGE | --check IMAGE | --fix IMAGE\n");
+	    "usage: image_gen LAYOUT IMAGE | --check IMAGE | --fix IMAGE |\n"
+	    "       --inodes IMAGE\n");
 	return 2;
 }

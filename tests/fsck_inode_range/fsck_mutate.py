@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Restore the pre-change code of sbin/fsck, one site at a time.
+"""Restore the pre-change code of the gate's programs, one site at a time.
+
+The programs are sbin/fsck, tools/fsutil, bin/df and sbin/mkfs.
 
 Each mutation rewrites a site back to the form it had before its fix, in a
 copy of the source file: a comparison against imax to the form that excluded
@@ -57,6 +59,16 @@ SITES: dict[str, Edit] = {
         "check.c",
         "dirp->ino <= (fs->isize-1) * BSDFS_INODES_PER_BLOCK)",
         "dirp->ino < (fs->isize-1) * BSDFS_INODES_PER_BLOCK)",
+    ),
+    "df-isize": (
+        "df.c",
+        "sfsp->f_files = (sblock.fs_isize - (SUPERB + 1)) * INOPB;",
+        "sfsp->f_files = (sblock.fs_isize - 2) * INOPB;",
+    ),
+    "mkfs-ratio": (
+        "mkfs.c",
+        "filsys.fs.fs_fsize,\n                        (unsigned)(filsys.fs.fs_isize-(SUPERB+1)));",
+        "filsys.fs.fs_fsize,\n                        filsys.fs.fs_isize-2);",
     ),
     "dirhead": (
         "dir.c",

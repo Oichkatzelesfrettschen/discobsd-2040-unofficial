@@ -7,6 +7,8 @@ include ${TOPSRC}/share/mk/sys.mk
 HOSTCC?=	cc
 FSCK=		${TOPSRC}/sbin/fsck
 FSUTIL=		${TOPSRC}/tools/fsutil
+DF=		${TOPSRC}/bin/df
+MKFS=		${TOPSRC}/sbin/mkfs
 
 # sbin/fsck reads the tree's struct dinode, struct direct and struct fs, whose
 # ino_t, daddr_t, off_t and time_t are four bytes each. The tier therefore
@@ -70,8 +72,15 @@ SCENARIOS.allocdir-zero=	full-table
 FSUTIL_MUTANTS=	fsutil-find-inode
 SCENARIOS.fsutil-find-inode=	fsutil-lf-last
 
+# bin/df and sbin/mkfs are built from their own sources the same way; each
+# mutant is the program with one rewritten source file.
+DF_MUTANTS=	df-isize
+SCENARIOS.df-isize=		df-empty df-full df-tail df-mkfs
+MKFS_MUTANTS=	mkfs-ratio
+SCENARIOS.mkfs-ratio=		mkfs-ratio
+
 MUTANT_SPECS=
-.for mutant in ${MUTANTS} ${FSUTIL_MUTANTS}
+.for mutant in ${MUTANTS} ${FSUTIL_MUTANTS} ${DF_MUTANTS} ${MKFS_MUTANTS}
 MUTANT_SPECS+=	${mutant}=${SCENARIOS.${mutant}:ts,}
 .endfor
 
@@ -84,11 +93,13 @@ MUTANT_SPECS+=	${mutant}=${SCENARIOS.${mutant}:ts,}
 # the detached aggregate turn into a failure.
 check:
 .if ${ILP32_OK} == "yes"
-	@${MAKE} fsck_host image_gen ${MUTANTS:S/^/fsck_mutant_/} \
-	    ${FSUTIL_MUTANTS:S/^/image_gen_mutant_/}
+	@${MAKE} fsck_host image_gen df_host mkfs_host \
+	    ${MUTANTS:S/^/fsck_mutant_/} \
+	    ${FSUTIL_MUTANTS:S/^/image_gen_mutant_/} \
+	    ${DF_MUTANTS:S/^/df_mutant_/} ${MKFS_MUTANTS:S/^/mkfs_mutant_/}
 	${TEST_EXECUTION} run fsck.inode-range.ilp32 -- \
 	    sh ${.CURDIR}/check.sh ${.CURDIR}/run.sh ./fsck_host ./image_gen \
-	    work . ${MUTANT_SPECS}
+	    ./df_host ./mkfs_host work . ${MUTANT_SPECS}
 .else
 	${TEST_EXECUTION} skip fsck.inode-range.ilp32 "fsck_inode_range: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
@@ -174,8 +185,61 @@ image_gen_mutant_${mutant}: fsck_mutate.py objs/image_gen.o ${FS_OBJECTS}
 	    ${FS_OBJECTS:Nobjs/fs_check.o} mutant/${mutant}/check.o
 .endfor
 
+# bin/df and sbin/mkfs are held to the warning set their own Makefiles build
+# them with. Both still define functions the old way, and df.c keeps a status
+# it never reads. Each is compiled at ILP32 against the tree's headers; the
+# renames move the host-visible effects (main, sync, errno and fprintf, whose
+# stderr is a FILE the host's libc does not own) onto df_driver.c, which
+# answers them, and sbin/mkfs links as the program it is.
+PROG_WARN=	-Wall -Werror -Wno-deprecated-non-prototype \
+		-Wno-unused-but-set-variable
+PROG_CFLAGS=	-std=gnu17 ${ILP32} -fno-builtin ${PROG_WARN} \
+		-I. -I${TOPSRC}/include
+DF_RENAMES=	-Dmain=df_main -Dsync=df_sync -Dfprintf=df_fprintf \
+		-Derrno=df_errno
+
+objs/df.o: ${DF}/df.c ${MACHINE_STAMP}
+	@mkdir -p objs
+	${HOSTCC} ${PROG_CFLAGS} ${DF_RENAMES} -c -o $@ ${DF}/df.c
+
+objs/df_driver.o: df_driver.c ${MACHINE_STAMP}
+	@mkdir -p objs
+	${HOSTCC} -std=gnu17 ${ILP32} -fno-builtin ${GATE_WARN} -I. \
+	    -I${TOPSRC}/include -c -o $@ df_driver.c
+
+df_host: objs/df.o objs/df_driver.o
+	${HOSTCC} ${ILP32} -o $@ objs/df.o objs/df_driver.o
+
+objs/mkfs.o: ${MKFS}/mkfs.c ${MACHINE_STAMP}
+	@mkdir -p objs
+	${HOSTCC} ${PROG_CFLAGS} -c -o $@ ${MKFS}/mkfs.c
+
+mkfs_host: objs/mkfs.o
+	${HOSTCC} ${ILP32} -o $@ objs/mkfs.o
+
+.for mutant in ${DF_MUTANTS}
+df_mutant_${mutant}: fsck_mutate.py objs/df_driver.o ${MACHINE_STAMP}
+	@mkdir -p mutant/${mutant}
+	${PYTHON} ${.CURDIR}/fsck_mutate.py --source-dir ${DF} \
+	    --output-dir mutant/${mutant} --mutation ${mutant}
+	${HOSTCC} ${PROG_CFLAGS} ${DF_RENAMES} -c -o mutant/${mutant}/df.o \
+	    mutant/${mutant}/df.c
+	${HOSTCC} ${ILP32} -o $@ mutant/${mutant}/df.o objs/df_driver.o
+.endfor
+
+.for mutant in ${MKFS_MUTANTS}
+mkfs_mutant_${mutant}: fsck_mutate.py ${MACHINE_STAMP}
+	@mkdir -p mutant/${mutant}
+	${PYTHON} ${.CURDIR}/fsck_mutate.py --source-dir ${MKFS} \
+	    --output-dir mutant/${mutant} --mutation ${mutant}
+	${HOSTCC} ${PROG_CFLAGS} -c -o mutant/${mutant}/mkfs.o \
+	    mutant/${mutant}/mkfs.c
+	${HOSTCC} ${ILP32} -o $@ mutant/${mutant}/mkfs.o
+.endfor
+
 clean:
-	rm -f fsck_host image_gen fsck_mutant_* image_gen_mutant_*
+	rm -f fsck_host image_gen df_host mkfs_host fsck_mutant_* \
+	    image_gen_mutant_* df_mutant_* mkfs_mutant_*
 	rm -f objs/*.o mutant/*/*.c mutant/*/*.o work/*/*.img work/*/*.img.repaired work/*/fsck.out \
 	    work/check.log
 	rm -f machine/*.h ${MACHINE_STAMP}

@@ -25,7 +25,7 @@ compile the classifier without the entry and keep their text byte for byte.
 The fixture builds `ioctl()` with the define and a mutant that omits the case
 fails it.
 
-The same define adds the ten input commands and the one output command of
+The same define adds the twelve input commands and the one output command of
 `/dev/lcdgfx` (`sys/sys/lcdgfx.h`):
 
 | Type | Command | Size |
@@ -39,6 +39,8 @@ The same define adds the ten input commands and the one output command of
 | `struct lcdg_scroll` | `LCDG_SCROLL` | 2 |
 | `struct lcdg_scrdef` | `LCDG_SCRDEF` | 4 |
 | `struct lcdg_colmod` | `LCDG_COLMOD` | 1 |
+| `struct lcdg_tileset` | `LCDG_TILESET` | 2 |
+| `struct lcdg_tilewin` | `LCDG_TILEWIN` | 4 |
 | `struct lcdg_info` (output) | `LCDG_INFO` | 6 |
 
 The input commands copy into the aligned union, which the 16-byte
@@ -47,7 +49,18 @@ The input commands copy into the aligned union, which the 16-byte
 fixture checks each command's ownership, upper span edge, crossing span,
 provider error and reserved-bit forwarding, and one mutant per command family
 (the five shapes, the window, the four panel controls, the output command)
-fails it.
+fails it, as does one that drops the two tile commands.
+
+The console's raw key event command, `LCDIOC_GETKEY` (`sys/sys/lcdcons.h`), is
+a 14-byte output record (`struct lcd_keyevs`) under the same define. It joins
+the output-only list with `LCDG_INFO`, receives zeroed storage and publishes
+its complete encoded width after provider success; a `_Static_assert` in
+`ioctl()` requires the union to hold it, and the fixture runs the same
+ownership, span, provider-error and reserved-bit cases on it. A mutant that
+drops its case fails the fixture. `LCDIOC_KEYEVS` (`_IOW('l', 3, int)`), which
+starts or ends the key event session, is a four-byte input in the aligned
+union; the driver decides the session by the descriptor's flags and process
+group, not by the payload, and a mutant that drops its case fails the fixture.
 
 One automatic union owns the copied bytes. Its member types supply each
 provider's required alignment without a shared buffer or a maximum-size

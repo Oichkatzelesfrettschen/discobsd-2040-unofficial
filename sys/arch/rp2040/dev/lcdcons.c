@@ -58,6 +58,7 @@
 #include <sys/conf.h>
 #include <sys/user.h>
 #include <sys/proc.h>
+#include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/systm.h>
@@ -70,6 +71,7 @@
 #include <rp2040/dev/picocalc_reg.h>
 #include <rp2040/dev/lcdterm.h>
 #include <rp2040/dev/lcdgfx.h>
+#include <rp2040/dev/picokbd_evq.h>
 
 #define	DEFER_RING	128		/* Power of two. */
 
@@ -524,6 +526,126 @@ lcd_setglyph(const struct lcd_glyph *g)
 	return error;
 }
 
+_Static_assert(PICOKBD_EVQ_RAW_OR_CBREAK == (RAW | CBREAK) &&
+    PICOKBD_EVQ_VOLATILE == (PENDIN | FLUSHO),
+    "the key event session compares the tty flag word the line discipline sets");
+
+/*
+ * Hold the raw key event session to the tty's present foreground group and
+ * mode word. kbd_poll() calls it before it records each event, and every
+ * request calls picokbd_evq_check() before it acts, so a change of either is
+ * seen before any key is recorded or served.
+ */
+void
+lcdcons_keycheck(void)
+{
+	picokbd_evq_check(lcdttys[0].t_pgrp, lcdttys[0].t_flags);
+}
+
+/*
+ * A mode-setting ioctl is about to run on the console tty: a process other
+ * than the session's owner ends the session even if it sets the flags it
+ * found (getpass() in an owner that already has RAW and no ECHO).
+ */
+static void
+lcd_modeset(void)
+{
+	int x = spltty();
+
+	picokbd_evq_modeset(u.u_procp, u.u_procp->p_pid);
+	splx(x);
+}
+
+/*
+ * The last close of an open file ends the raw key event session it owns
+ * (vn_closefile() calls this for every inode file). Process exit closes
+ * through the same path.
+ */
+void
+lcdcons_fileclose(const struct file *fp)
+{
+	int x = spltty();
+
+	picokbd_evq_fileclose(fp);
+	splx(x);
+}
+
+/*
+ * A process exits or execs: the raw key event session it started ends, even
+ * when the console file it was started on stays open in a parent shell
+ * (kern_exit.c exit(), exec_subr.c exec_clear()).
+ */
+void
+lcdcons_procexit(const struct proc *p)
+{
+	int x = spltty();
+
+	picokbd_evq_procexit(p, p->p_pid);
+	splx(x);
+}
+
+/*
+ * The open file the running ioctl(2) was made on. A driver gets only the
+ * file's flags, but the session belongs to the open file, so the descriptor
+ * is looked up from the system call's first argument and must carry the
+ * flags the driver was given; any other state fails closed.
+ */
+static const struct file *
+lcd_ioctl_file(int flag)
+{
+	int fd = u.u_arg[0];
+	const struct file *fp;
+
+	if (fd < 0 || fd >= NOFILE)
+		return NULL;
+	fp = u.u_ofile[fd];
+	if (fp == NULL || fp->f_flag != flag)
+		return NULL;
+	return fp;
+}
+
+/*
+ * LCDIOC_KEYEVS: start or end the raw key event session of this open file
+ * (picokbd_evq.h). The checks need the caller's process group and the
+ * tty's foreground group, which ttread() compares the same way.
+ */
+static int
+lcd_keyevs(int flag, int on)
+{
+	const struct file *fp = lcd_ioctl_file(flag);
+	int x, error;
+
+	if (fp == NULL || (on != 0 && on != 1))
+		return EINVAL;
+	x = spltty();
+	if (on)
+		error = picokbd_evq_start(fp, u.u_procp, u.u_procp->p_pid,
+		    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, lcdttys[0].t_flags,
+		    (flag & FREAD) != 0);
+	else
+		error = picokbd_evq_stop(fp, u.u_procp, u.u_procp->p_pid);
+	splx(x);
+	return error;
+}
+
+/*
+ * LCDIOC_GETKEY: remove the oldest raw key events. The poller queues them
+ * from the clock callout, so the drain runs at spltty() as lcdcons_input()
+ * does.
+ */
+static int
+lcd_getkey(int flag, struct lcd_keyevs *out)
+{
+	int x = spltty();
+	int error;
+
+	error = picokbd_evq_drain(out, u.u_procp, u.u_procp->p_pid,
+	    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, lcdttys[0].t_flags,
+	    (flag & FREAD) != 0);
+	splx(x);
+	return error;
+}
+
 /*
  * Hand the panel to /dev/lcdgfx (on) or take it back (off), under the
  * drawing flag so that no renderer or kernel print draws a cell inside the
@@ -561,6 +683,13 @@ lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 		return lcdgfx_ioctl(cmd, addr);
 	if (cmd == LCDIOC_SETGLYPH)
 		return lcd_setglyph((struct lcd_glyph *)addr);
+	if (cmd == LCDIOC_GETKEY)
+		return lcd_getkey(flag, (struct lcd_keyevs *)addr);
+	if (cmd == LCDIOC_KEYEVS)
+		return lcd_keyevs(flag, *(int *)addr);
+	if (cmd == TIOCSETP || cmd == TIOCSETN || cmd == TIOCLBIS ||
+	    cmd == TIOCLBIC || cmd == TIOCLSET)
+		lcd_modeset();
 
 	/*
 	 * A zero row or column count means the size is unknown, which

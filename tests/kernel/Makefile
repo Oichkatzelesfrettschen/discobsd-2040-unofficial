@@ -371,7 +371,8 @@ FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width \
 				corrupt-output-initialization omitted-media-gone-case \
 				omitted-glyph-case omitted-lcdg-draw-cases \
 				omitted-lcdg-window-case omitted-lcdg-control-cases \
-				omitted-lcdg-info-case
+				omitted-lcdg-info-case omitted-lcdg-tile-cases \
+				omitted-getkey-case omitted-keyevs-case
 FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/capacity.h \
 	${TOPSRC}/sys/sys/cdefs.h ${TOPSRC}/sys/sys/conf.h \
@@ -422,7 +423,7 @@ TTY_LAYOUT_BAD_OUTPUT=	tty_layout_contract_bad.out
 # machine/ directory ends in hostintr.h, which redefines those macros as
 # counting shims, and a strict C17 compile through it would leave the real
 # interrupt operations in picokbd.c and lcdcons.c unchecked.
-CONSOLE_C17_SOURCES=	picokbd lcdcons
+CONSOLE_C17_SOURCES=	picokbd lcdcons picokbd_evq
 CONSOLE_C17_DIR=	${TOPSRC}/sys/arch/rp2040/dev
 CONSOLE_C17_MACHINE=	c17-machine
 CONSOLE_C17_STAMP=	${CONSOLE_C17_MACHINE}/machine/.stamp
@@ -1361,6 +1362,9 @@ check-fionread-mutants: \
 			omitted-lcdg-window-case) expected='provider_data != unaligned' ;; \
 			omitted-lcdg-control-cases) expected='provider_data != unaligned' ;; \
 			omitted-lcdg-info-case) expected='provider_data != unaligned' ;; \
+			omitted-lcdg-tile-cases) expected='provider_data != unaligned' ;; \
+			omitted-getkey-case) expected='provider_data != unaligned' ;; \
+			omitted-keyevs-case) expected='provider_data != unaligned' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

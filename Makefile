@@ -688,6 +688,18 @@ check-tee-contracts:
 check-tee-contracts-cross:
 		${MAKE} -C tests/tee_contracts check-cross
 
+# usr.bin/time linked with sbin/utilbox's dispatcher and a wait3 shim, run
+# as "time" and as "utilbox time": the exit status of a normal exit, of a
+# signal death (128 plus the signal), of a missing program (127) and of a
+# failed wait3 (125), and the retry of an interrupted wait3. Mutants that
+# drop the retry, restore the shifted status or break the 127 must fail
+# under gcc and clang.
+check-time-contracts:
+		${MAKE} -C tests/time_contracts check
+
+check-time-contracts-cross:
+		${MAKE} -C tests/time_contracts check-cross
+
 # lib/libtcl's own source under the address and undefined sanitizers, at the
 # byte extents and counters it once held in unsigned short: values, results,
 # substituted words, expression operands, "end" indexes, regexp backtracking
@@ -1063,7 +1075,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
-		check-rmdir-contracts check-tee-contracts \
+		check-rmdir-contracts check-tee-contracts check-time-contracts \
 		check-libtcl-contracts \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress check-fsck-inode-range \
@@ -1111,6 +1123,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
 		check-find-contracts-cross \
 		check-backgammon-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
+		check-time-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross \
 		check-stdio-bounds-cross check-elf2aout

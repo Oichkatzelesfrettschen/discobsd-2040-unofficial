@@ -53,6 +53,11 @@ SITES: dict[str, Edit] = {
         "for (ino = request; ino <= imax; ino++)",
         "for (ino = request; ino < imax; ino++)",
     ),
+    "fsutil-find-inode": (
+        "check.c",
+        "dirp->ino <= (fs->isize-1) * BSDFS_INODES_PER_BLOCK)",
+        "dirp->ino < (fs->isize-1) * BSDFS_INODES_PER_BLOCK)",
+    ),
     "dirhead": (
         "dir.c",
         "struct  dirtemplate dirhead = { 0, 12, 1, {'.'}, 0, DIRBLKSIZ - 12, 2,",

@@ -24,6 +24,10 @@
  *   lf-last        lost+found is a new directory at inode N, the original
  *                  is renamed old-lf, and one file loses its name: fsck must
  *                  find lost+found at inode N and reconnect the orphan in it.
+ *   lf-slot-last   lf-last, with a second directory block in lost+found
+ *                  that holds one empty entry. tools/fsutil's checker
+ *                  reconnects an orphan only into an empty entry of
+ *                  lost+found, so it needs this block where fsck does not.
  *   orphan-dir     ten files, then a directory with a file inside it at
  *                  a middle inode; the directory loses its name in / but
  *                  keeps its link count and its ".." entry: fsck must
@@ -31,6 +35,8 @@
  *
  * "--check IMAGE" prints fsutil's own consistency report for an image,
  * opened read-only, so a gate can compare fsutil's file count with fsck's.
+ * "--fix IMAGE" opens the image for writing, as fsutil --check --fix does,
+ * and lets fsutil repair what it reports.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,6 +91,25 @@ make_dir(fs_t *fs, const char *name)
 		return 0;
 	parent.nlink++;
 	return fs_inode_save(&parent, 1);
+}
+
+/*
+ * Append a directory block that holds one empty entry spanning the block:
+ * inode 0, record length DIRBLKSIZ, no name.
+ */
+static int
+add_empty_block(fs_t *fs, const char *name)
+{
+	fs_inode_t dir;
+	unsigned char block[BSDFS_BSIZE];
+
+	memset(block, 0, sizeof block);
+	block[4] = BSDFS_BSIZE & 0xff;
+	block[5] = BSDFS_BSIZE >> 8;
+	if (!fs_inode_lookup(fs, &dir, name))
+		return 0;
+	return fs_inode_write(&dir, dir.size, block, sizeof block) &&
+	    fs_inode_save(&dir, 1);
 }
 
 /* The inode number a path names, or 0. */
@@ -174,10 +199,13 @@ build(const char *layout, const char *path)
 		    number_of(&fs, "/d00") != IMAGE_INODES ||
 		    !fill_files(&fs, 1, FREE_AT_START - 1))
 			return fail("cannot build", layout);
-	} else if (strcmp(layout, "lf-last") == 0) {
+	} else if (strcmp(layout, "lf-last") == 0 ||
+	    strcmp(layout, "lf-slot-last") == 0) {
 		if (!rename_to(&fs, "/lost+found", "/old-lf") ||
 		    !make_dir(&fs, "/lost+found") ||
 		    number_of(&fs, "/lost+found") != IMAGE_INODES ||
+		    (strcmp(layout, "lf-slot-last") == 0 &&
+		    !add_empty_block(&fs, "/lost+found")) ||
 		    !fill_files(&fs, 0, FREE_AT_START - 2) ||
 		    !drop_name(&fs, "/f05"))
 			return fail("cannot build", layout);
@@ -215,11 +243,11 @@ build(const char *layout, const char *path)
 }
 
 static int
-check(const char *path)
+check(const char *path, int writable)
 {
 	fs_t fs;
 
-	if (!fs_open(&fs, path, 0, 0))
+	if (!fs_open(&fs, path, writable, 0))
 		return fail("cannot open", path);
 	fs_check(&fs);
 	fs_close(&fs);
@@ -230,9 +258,12 @@ int
 main(int argc, char **argv)
 {
 	if (argc == 3 && strcmp(argv[1], "--check") == 0)
-		return check(argv[2]);
+		return check(argv[2], 0);
+	if (argc == 3 && strcmp(argv[1], "--fix") == 0)
+		return check(argv[2], 1);
 	if (argc == 3)
 		return build(argv[1], argv[2]);
-	fprintf(stderr, "usage: image_gen LAYOUT IMAGE | --check IMAGE\n");
+	fprintf(stderr,
+	    "usage: image_gen LAYOUT IMAGE | --check IMAGE | --fix IMAGE\n");
 	return 2;
 }

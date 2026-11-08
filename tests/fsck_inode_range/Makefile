@@ -61,8 +61,13 @@ SCENARIOS.inode-window=		orphan-dir free-last
 SCENARIOS.dirhead=		free-last
 SCENARIOS.allocdir-zero=	full-table
 
+# A mutant of tools/fsutil is the image generator linked with a rewritten
+# check.c, which run.sh uses beside the unmutated fsck.
+FSUTIL_MUTANTS=	fsutil-find-inode
+SCENARIOS.fsutil-find-inode=	fsutil-lf-last
+
 MUTANT_SPECS=
-.for mutant in ${MUTANTS}
+.for mutant in ${MUTANTS} ${FSUTIL_MUTANTS}
 MUTANT_SPECS+=	${mutant}=${SCENARIOS.${mutant}:ts,}
 .endfor
 
@@ -75,7 +80,8 @@ MUTANT_SPECS+=	${mutant}=${SCENARIOS.${mutant}:ts,}
 # the detached aggregate turn into a failure.
 check:
 .if ${ILP32_OK} == "yes"
-	@${MAKE} fsck_host image_gen ${MUTANTS:S/^/fsck_mutant_/}
+	@${MAKE} fsck_host image_gen ${MUTANTS:S/^/fsck_mutant_/} \
+	    ${FSUTIL_MUTANTS:S/^/image_gen_mutant_/}
 	${TEST_EXECUTION} run fsck.inode-range.ilp32 -- \
 	    sh ${.CURDIR}/check.sh ${.CURDIR}/run.sh ./fsck_host ./image_gen \
 	    work . ${MUTANT_SPECS}
@@ -152,8 +158,20 @@ objs/image_gen.o: image_gen.c
 image_gen: objs/image_gen.o ${FS_OBJECTS}
 	${HOSTCC} -o $@ objs/image_gen.o ${FS_OBJECTS}
 
+# The mutated check.c replaces the library's own object in the link.
+.for mutant in ${FSUTIL_MUTANTS}
+image_gen_mutant_${mutant}: fsck_mutate.py objs/image_gen.o ${FS_OBJECTS}
+	@mkdir -p mutant/${mutant}
+	${PYTHON} ${.CURDIR}/fsck_mutate.py --source-dir ${FSUTIL} \
+	    --output-dir mutant/${mutant} --mutation ${mutant}
+	${HOSTCC} -O -Wall -I${FSUTIL} -c -o mutant/${mutant}/check.o \
+	    mutant/${mutant}/check.c
+	${HOSTCC} -o $@ objs/image_gen.o \
+	    ${FS_OBJECTS:Nobjs/fs_check.o} mutant/${mutant}/check.o
+.endfor
+
 clean:
-	rm -f fsck_host image_gen fsck_mutant_*
+	rm -f fsck_host image_gen fsck_mutant_* image_gen_mutant_*
 	rm -f objs/*.o mutant/*/*.c mutant/*/*.o work/*/*.img work/*/fsck.out \
 	    work/check.log
 	rm -f machine/*.h ${MACHINE_STAMP}

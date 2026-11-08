@@ -140,6 +140,17 @@ run_decline() {
 	second_run $((files - 1))
 }
 
+# fsutil's own checker, over the image the generator wrote, reconnects the
+# orphan into lost+found at the highest inode instead of reporting that it
+# has no lost+found; a second fsutil report is then clean.
+run_fsutil() {
+	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
+	has 'UNREF FILE'
+	lacks 'SORRY'
+	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
+	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING'
+}
+
 # Creating lost+found adds one directory to the count, and the directory
 # fsck writes must pass the next directory check.
 after_create() {
@@ -153,16 +164,21 @@ for scenario in "$@"; do
 	rm -f "$img"
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
-	    full-table) ;;
+	    full-table | fsutil-lf-last) ;;
 	*) error "unknown scenario $scenario" ;;
 	esac
-	"$gen" "$scenario" "$img" || error "$scenario: image generation failed"
+	case $scenario in
+	fsutil-lf-last) layout=lf-slot-last ;;
+	*) layout=$scenario ;;
+	esac
+	"$gen" "$layout" "$img" || error "$scenario: image generation failed"
 	case $scenario in
 	file-last | dir-last) run_clean ;;
 	orphan-last | lf-last) run_repair FILE after_reconnect ;;
 	orphan-dir) run_repair DIR after_reconnect ;;
 	free-last) run_repair FILE after_create ;;
 	full-table) run_decline ;;
+	fsutil-lf-last) run_fsutil ;;
 	esac
 	if [ "$failed" -eq 0 ]; then
 		printf 'ok %s\n' "$scenario"

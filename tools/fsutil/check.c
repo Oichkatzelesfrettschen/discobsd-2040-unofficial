@@ -99,6 +99,7 @@ static unsigned         scan_room;          /* bytes from the entry to its block
 
 static unsigned long    scan_filesize;      /* file size, decremented during scan */
 static unsigned         total_files;        /* number of files seen */
+static unsigned         used_blocks;        /* blocks held by allocated inodes */
 
 static void set_inode_state (unsigned inum, int s)
 {
@@ -680,7 +681,10 @@ static int pass4 (fs_inode_t *inode, unsigned blk, void *arg)
 }
 
 /*
- * Clear the inode, mark it's blocks as free.
+ * Clear the inode, mark its blocks as free and take them out of 'used_blocks',
+ * which phase 5 compares with the free list: a block that leaves the block
+ * map without leaving the count is in neither, and the shortfall goes
+ * unnoticed.
  */
 static void clear_inode (fs_t *fs, unsigned inum, char *msg)
 {
@@ -695,7 +699,7 @@ static void clear_inode (fs_t *fs, unsigned inum, char *msg)
     }
     if (fs->writable) {
         total_files--;
-        scan_inode (&inode, ADDR, pass4, 0);
+        scan_inode (&inode, ADDR, pass4, &used_blocks);
         fs_inode_clear (&inode);
         fs_inode_save (&inode, 1);
     }
@@ -829,6 +833,7 @@ static unsigned make_free_list (fs_t *fs)
     unsigned free_blocks, n;
 
     fs->nfree = 0;
+    fs->tfree = 0;      /* fs_block_free() counts every block it links */
     fs->flock = 0;
     fs->fmod = 0;
     fs->ilock = 0;
@@ -860,7 +865,6 @@ int fs_check (fs_t *fs)
     unsigned inum;
     unsigned block_map_size;        /* number of free blocks */
     unsigned free_blocks;           /* number of free blocks */
-    unsigned used_blocks;           /* number of blocks used */
     unsigned last_allocated_inode;  /* hiwater mark of inodes */
 
     if (fs->isize >= fs->fsize) {

@@ -241,6 +241,21 @@ run_fsutil() {
 	second_run "$files"
 }
 
+# With no lost+found to reconnect into, fsutil clears the unreferenced file.
+# The blocks it frees leave the block map, and the count phase 5 compares
+# with the free list must lose them too: an image that keeps the count makes
+# fsutil miss the shortfall, and the next fsck -p reports BLK(S) MISSING and
+# salvages the free list (a repair marker, and a changed image).
+run_fsutil_clear() {
+	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
+	has 'UNREF FILE'
+	has 'SORRY. NO lost+found DIRECTORY'
+	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
+	lacks 'UNREF|BAD|DUP|LINK COUNT|MISSING'
+	set_expected_files
+	second_run "$files"
+}
+
 # Creating lost+found adds one directory to the count, and the directory
 # fsck writes must pass the next directory check.
 after_create() {
@@ -301,6 +316,7 @@ for scenario in "$@"; do
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
 	    full-table | fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
 	    fsutil-lf-overrun | fsutil-lf-dir | fsutil-lf-deep | \
+	    fsutil-clear-blocks | \
 	    tail-evict | df-empty | df-full | \
 	    df-tail | df-mkfs | mkfs-ratio) ;;
 	*) error "unknown scenario $scenario" ;;
@@ -312,6 +328,7 @@ for scenario in "$@"; do
 	fsutil-lf-pristine) layout=orphan-last ;;
 	fsutil-lf-dir) layout=orphan-dir ;;
 	fsutil-lf-deep) layout=orphan-deep ;;
+	fsutil-clear-blocks) layout=orphan-nolf ;;
 	df-empty) layout=empty ;;
 	df-full) layout=file-last ;;
 	df-tail) layout=tail-evict ;;
@@ -331,6 +348,7 @@ for scenario in "$@"; do
 	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil FILE ;;
 	fsutil-lf-dir) run_fsutil DIR /inner ;;
 	fsutil-lf-deep) run_fsutil DIR /sub /sub/inner ;;
+	fsutil-clear-blocks) run_fsutil_clear ;;
 	fsutil-lf-overrun) run_fsutil_overrun ;;
 	tail-evict) run_tail_evict ;;
 	df-empty) run_df 32 3 29 ;;

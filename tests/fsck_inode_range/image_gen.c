@@ -55,6 +55,11 @@
  *                  has the lower inode number, so the connectivity phase
  *                  meets it first and has to follow its ".." up to the
  *                  directory it reconnects.
+ *   orphan-nolf    lost+found is renamed old-lf, five files are created and
+ *                  one loses its name but keeps its link count and its data
+ *                  block: with no lost+found to reconnect it into, the
+ *                  checker clears the file and must take its block out of
+ *                  the count it compares with the free list.
  *
  * "--check IMAGE" prints fsutil's own consistency report for an image,
  * opened read-only, so a gate can compare fsutil's file count with fsck's.
@@ -350,6 +355,10 @@ build(const char *layout, const char *path)
 		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||
 		    number_of(&fs, "/d00") != IMAGE_INODES - 10 ||
 		    !make_file(&fs, "/d00/inner") || !drop_name(&fs, "/d00"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "orphan-nolf") == 0) {
+		if (!rename_to(&fs, "/lost+found", "/old-lf") ||
+		    !fill_files(&fs, 0, 4) || !drop_name(&fs, "/f02"))
 			return fail("cannot build", layout);
 	} else if (strcmp(layout, "orphan-deep") == 0) {
 		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||

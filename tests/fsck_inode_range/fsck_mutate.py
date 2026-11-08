@@ -144,6 +144,16 @@ SITES: dict[str, Edit] = {
         "                if (parent != 0 && inode_state (parent) == DSTATE) {\n",
         "                if (parent != 0 && inode_state (parent) == DSTATE && 0) {\n",
     ),
+    "fsutil-clear-leak": (
+        "check.c",
+        "scan_inode (&inode, ADDR, pass4, &used_blocks);",
+        "scan_inode (&inode, ADDR, pass4, 0);",
+    ),
+    "fsutil-tfree-keep": (
+        "check.c",
+        "    fs->tfree = 0;      /* fs_block_free() counts every block it links */\n",
+        "",
+    ),
     "df-isize": (
         "df.c",
         "sfsp->f_files = (sblock.fs_isize - (SUPERB + 1)) * INOPB;",

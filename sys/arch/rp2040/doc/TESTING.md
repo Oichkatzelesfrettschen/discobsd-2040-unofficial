@@ -186,14 +186,30 @@ upload and hidden-file inclusion.
 | shell conformance | `check-posix-sh` | Linux x86-64 with 32-bit libraries | yes | no: bin/sh keeps pointers in int and builds as a 32-bit binary |
 | cross | `check-cross` | arm-none-eabi toolchain, capstone and pyelftools under `${PYTHON}`, a built tree | yes | yes |
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
-| renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | no: the models are a git clone and a dotnet build | no |
-| renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | no: the models are a git clone and a dotnet build | no |
+| renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | yes: the `firmware/rp2040` job installs the pinned Renode release, then fetches and builds the models | no |
+| renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
 | UF2 image pair (block magic, RP2040 family, 256-byte payloads, numbering, kernel bounds, exact root coverage) | `check-uf2-images` | `${PYTHON}`, built `unix.uf2` and the selected board's flash UF2 (`flash.uf2` for `BOARD=PICO`, `flash-${BOARD}.uf2` otherwise) | yes, after the flash build | yes, after the flash build |
 | kernel flash headroom (FLASH region of `RP2040.ld` less the loaded image, per board kernel) | `check-kernel-headroom` | `${PYTHON}`, built `unix.elf` for each of `MACHINE_KERNEL_CONFIGS` | yes, after the build | yes, after the build |
 | account image (root lock, operator empty password, exact named shadow offsets, privileged modes) | `check-account-image` | `${PYTHON}`, RP2040 `fsutil`, generated filesystem image | distribution and flash builds | not run on host-only targets |
+| STM32 build (ten Cortex-M4 kernels linked, userland and tools compiled) | `bmake MACHINE=stm32 build` | arm-none-eabi toolchain, host build tools | yes: the `firmware/stm32` job | no |
+
+The STM32 build is the only gate that compiles `sys/arch/stm32`. The
+`firmware/stm32` job runs `bmake MACHINE=stm32 build` from a clean checkout
+through `tools/run_logged_gate.py`, then fails on any `warning:` line and on a
+missing `unix.bin` in any of the ten kernel directories. The userland
+compiles with `-Wall -Wextra -Werror` (`WARNERR`, share/mk/warnings.mk) and
+the STM32 kernel Makefiles carry `-Wall -Werror`; `-Wextra` stays off the
+kernel because the STM32 driver sources and HAL carry unused-parameter and
+sign-compare diagnostics that no gate has yet cleared. The kernel links the
+libgcc of its CPU variant (`LDADD` in sys/arch/stm32/conf/Makefile.stm32),
+because kern_time.c divides 64-bit values and the compiler lowers those to
+`__aeabi_ldivmod`; the link rule no longer ignores a failed link. The job
+establishes compilation and linking. It executes no STM32 binary, so division
+behavior, the aeabi helper selection in lib/libc/arm/gen and every board claim
+remain unmeasured.
 
 The account-image gate checks root and operator passwd records for LF
 termination and a maximum of 255 bytes, including LF. The gate rejects NUL
@@ -606,6 +622,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-qemu`: usr.bin/calc `check-qemu` | the line interface of `calc.c` and the `lib/libcalc` sources compiled for ARMv6-M against newlib (`-DCALC_NO_TTY`) and run under qemu-arm user mode on the same table; with `REQUIRE_QEMU=1` a missing emulator fails, otherwise the target prints `SKIP`. It executes Thumb-1 code with libgcc soft-float, not the DiscoBSD a.out, the boot ROM float routines or the tree libm. |
 | `check-qemu`: tests/libc_contracts `check-qemu` | the tree's `lib/libc/stdlib/strtol.c` and `strtoul.c` against `strtox_test.c`, `lib/libc/gen/random.c` against `random_contract_test.c`, and the tree's `doprnt.c`, `doprnt_llong.c`, `flsbuf.c`, `snprintf.c` and `vsnprintf.c` against `printf_contract_test.c`, each compiled for Cortex-M0+ with the target's unsigned `char` (the host variants force `-fsigned-char`) and run as a Thumb-1 program under qemu-arm on `QEMU_ARM_CPU` (`cortex-m0`). The tests are the host tests unchanged; the printf test links the tree's stdio over `qemu_stdio_shim.c` in place of newlib's, and `REQUIRE_QEMU=1` makes a missing emulator an error. A strtol overflow mutant, a random() increment mutant and a printf sign mutant are each rejected. It executes the tree's integer conversion, 32-bit generator and format code on ARMv6-M instructions through the Linux syscall seam, not the DiscoBSD a.out or its libc archive. The same target then runs `printf_g_contract_test.c` with the tree formatter built for ARMv6-M (`-mcpu=cortex-m0plus -mfloat-abi=soft -Os`) and linked against newlib, whose `snprintf` is the oracle, run under qemu-arm user mode on the same ARMv6-M CPU model on every eighth value of each `check-libc-printf-g` corpus (31,899 comparisons; the run skips a `%g` exact tie, where newlib keeps the trailing zero C17 removes, and the fixed vectors pin ties; the full corpus, 253,542 comparisons, passed once at divisor 1), then `huge_val_contract_test.c` in full (183 checks) with the tree libm, `ldexp`, `frexp`, `atof`, `strtod`, `isinf` and `isnan` built the same way; with `REQUIRE_QEMU=1` a missing emulator fails, otherwise the target prints `SKIP`. It executes Thumb-1 code with libgcc soft-float and newlib's `modf`, not the DiscoBSD a.out, the boot ROM float routines or the tree libm. |
 | `check-qemu`: tests/qemu_cpu_model `check` | a Thumb-1 control, a Thumb-2 `movw` and an unaligned word load run on `QEMU_ARM_CPU` and on qemu-arm's permissive `max` model: the model the tier uses exits 132 (SIGILL) on the first and 135 (SIGBUS) on the second while `max` accepts both, so a fault belongs to the CPU model. It establishes the emulator's ARMv6-M instruction and alignment contract for qemu-user, not RP2040 bus, MPU or peripheral behavior. |
+| `check-qemu`: tests/qemu_aout `check` | the tree's own OMAGIC a.out, linked from `lib/crt0.o`, `lib/libc.a` and `lib/elf32-arm.ld` and converted by `elf2aout`, loaded by `aoutrun` into the 144 KB window at 0x20000000 and run under qemu-arm on `QEMU_ARM_CPU` with `-B` giving the guest address 0 for the boot ROM float tables. The loader rewrites each `svc` site to an undefined instruction and answers the DiscoBSD call from the Linux kernel underneath, so `probe` compares its argument, stdio, heap, float and `lseek`/`fseek` output with `probe.expected`; the errno, `brk()` and oversized-environment probes each fix their own exit status and output. Integer division runs the libc `aeabi_div.S` helpers unchanged against the loader's SIO divider model, a SIGSEGV handler on the unmapped page at 0xd0000000 that serves the unsigned dividend, divisor, quotient and remainder registers; `div.expected` holds independent C99 results for signed and unsigned operands, `INT_MIN` by -1 and a zero divisor. A divider remainder mutant, a quotient mutant and a mutant that drops the word scaling of the register offset each fail the diff, and the loader without the handler dies on the first division with SIGSEGV. `REQUIRE_QEMU=1` makes a missing qemu-arm an error. It executes the shipped libc, crt0 and linker layout as Thumb-1 under the Linux syscall interface; the kernel, the MPU, the divider's eight-cycle timing (owned by `tests/rp2040/divider_helpers`) and the boot ROM's own float arithmetic (libgcc's soft-float answers instead) stay unexecuted. |
 | bin/sh/tests `test` | the line editor through a pipe; the exact `pwname.c` passwd lookup behind the prompt's `\u` under `-Wall -Wextra -Werror`: first, later and post-cross-buffer records, a name truncated to its buffer, and `"?"` with no partial name left behind for an absent uid, an unterminated last record or a missing file; empty, overflowing and non-digit uid fields never match. Mutants that drop the uid-digit requirement or the miss-path store each fail it |
 | bin/tar/tests/tartest.sh | the exact tar source built as strict C17 under address and undefined-behavior sanitizers with the target's 256-byte path limit, plus a native-`MAXPATHLEN` host build for the 256-byte ustar directory versus 257-byte metadata-stack boundary and a known-bad mutation calibrated to reproduce its sanitizer failure: ustar and v7 interoperability, plus LZW interoperability when the host provides `compress`, including filter drainage after 256 KiB of trailing decompressed output; byte-for-byte reproducible output; full-width names and link fields; valid UTF-8 filename create/list/extract and opaque non-control byte-name round trips where the filesystem permits them (a filesystem returning `EILSEQ` for invalid UTF-8 names reports the limitation explicitly); rejection of raw or UTF-8-encoded controls; rejection of absolute, dot-dot, dot and repeated-empty paths, pre-existing parent and final symlinks, an archive-created symlink followed by a descendant, dot-dot after a named symbolic-link target component, unsafe or pre-existing hard-link sources, existing regular outputs, unsupported types, nonregular data, malformed octal fields, truncated data and empty archives; special mode-bit stripping, noncontiguous restrictive-directory revisits, implicit-parent finalization and owner traversal under `umask 0777`; same-type and regular/symbolic-link last-entry-wins behavior plus regular-to-directory replacement; write-and-search-only extraction roots, nested traversal and explicit directory members plus named creation from a search-only root when the executing UID is non-privileged, with an explicit skip under privileged execution; refusal of absolute, missing, symlink-parent and failed-`-C` archive-creation inputs, with unsafe source rejection retaining a complete archive and status 1, trailing-slash normalization, harmless `.` component normalization before path-bound enforcement including bare and `./`-prefixed 255-byte ustar paths, explicit `-h` source-link traversal and current-directory copies; a confined relative symbolic-link target; 64 distinct multi-linked create identities with one data copy, restored link identity and complete `-l` reporting. The pre-change binary fails the same gate by accepting the dot-dot escape. `tar.c` asserts that a create-list node stays narrower than the header name field. Extraction retains device/inode provenance and directory metadata until completion; target `malloc` consumes 16 bytes per regular-file or symbolic-link record and 24 bytes per directory record. |
 | `check-tar-host`: bin/tar/tests/timestamp_identity_test.sh | The exact tar source compiles under strict C17 warnings with timestamp calls interposed. Immediately before timestamp publication, the fixture renames an extracted regular file or verified directory and creates a same-kind replacement at the original pathname. The moved descriptor-owned object must receive the archive timestamp while the replacement retains its timestamp and file contents. A warning-clean source mutation restores pathname `utimes(2)` and must fail because the moved object did not receive the timestamp. The gate establishes the two scheduled replacement cases; remaining create, link, removal, parent-relocation, persistence, and board behavior retain separate contracts. |
@@ -1413,14 +1430,30 @@ kernel, and a flash image. The root Makefile passes the selected board's
 `${FLASHBIN}` (`flash.bin` for `BOARD=PICO`, `flash-${BOARD}.bin`
 otherwise); every kernel boots every board's root.
 
-Nothing in this tree pins Renode itself, and the third-party models are
-built against whichever one is installed, so the gate names both before it
-runs anything: the emulator build it found and the commit the models are
-pinned at. A build other than the one it was last verified against is a
-note rather than a refusal, because a newer emulator is the ordinary case;
-what matters is that a gate which starts failing after a package upgrade
-says so instead of sending the reader into the kernel. It was last verified
-against Renode 1.17.0+20260907gitf1dd1b4af.
+The third-party models are built against whichever Renode is installed, so
+the gate names both before it runs anything: the emulator build it found and
+the commit the models are pinned at. On a developer host a build other than
+the one it was last verified against is a note rather than a refusal,
+because a newer emulator is the ordinary case; what matters is that a gate
+which starts failing after a package upgrade says so instead of sending the
+reader into the kernel. It was last verified against Renode
+1.17.0+20260907gitf1dd1b4af, recorded as `VERIFIED_RENODE` in check-boot.sh
+and check-picocalc.sh.
+
+Firmware CI pins that release. The `firmware/rp2040` job downloads the
+`renode-1.17.0.linux.tar.gz` asset of release v1.17.0 (`RENODE_VERSION` and
+`RENODE_SHA256` in .github/workflows/firmware.yml), checks its SHA-256,
+unpacks it under /opt/renode, where the models' Peripherals.csproj expects
+`bin/`, and installs the 9.0 dotnet SDK the fetch script retargets the models
+to. `tools/renode/check-renode-pin.sh` then fails the job when the unpacked
+build differs from `VERIFIED_RENODE`, when the two gate scripts name different
+builds, or when the build is not one of `RENODE_VERSION`, so the pin and the
+verified build move together. The models are fetched at the commit
+`fetch-renode-rp2040.sh` pins. Both Renode gates run in that job after the
+board-build tier, reuse its PICO_UART and PICOCALC kernels and flash image,
+and upload the Renode logs and UART0 transcripts as the `renode-results`
+artifact. The two gates still stand outside `check`: a local run names the
+missing emulator or models instead of failing.
 
 tools/renode/machine.resc builds the machine and stops there. boot.resc
 includes it and adds a socket console and a GDB server for a person;
@@ -1485,11 +1518,11 @@ image from the same Renode and the same boot ROM as the UART0 tier, with two
 models added: an ST7365P panel registered under SPI1 and the keyboard
 controller registered at I2C1 address 0x1f (tools/renode/picocalc/,
 tools/renode/picocalc.repl). It stands outside `check` for the reason the
-UART0 tier does and reports a missing emulator, model tree, kernel or image
-by name before it starts. The root image is the selected board's
-`${FLASHBIN}`, so `BOARD=PICOCALC` pairs the PICOCALC kernel with the
-PICOCALC profile's root (`flash-PICOCALC.bin`) while the default board keeps
-`flash.bin`. It needs no Robot Framework and opens no network
+UART0 tier does, runs in the same CI job after it, and reports a missing
+emulator, model tree, kernel or image by name before it starts. The root
+image is the selected board's `${FLASHBIN}`, so `BOARD=PICOCALC` pairs the
+PICOCALC kernel with the PICOCALC profile's root (`flash-PICOCALC.bin`) while
+the default board keeps `flash.bin`. It needs no Robot Framework and opens no network
 port: tools/renode/check-picocalc.py drives Renode through the console
 monitor on stdin, advances virtual time in half-second slices, dumps the
 panel model's frame after each slice, decodes the frame back into the

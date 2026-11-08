@@ -64,6 +64,12 @@ for mode in direct box; do
 		fail "$mode: missing program not named"
 	want_report "missing program"
 
+	: >"$scratch/not-executable"
+	chmod 644 "$scratch/not-executable"
+	run 126 "non-executable program" "$scratch/not-executable"
+	grep -q 'not-executable' "$scratch/err" ||
+		fail "$mode: non-executable program not named"
+
 	for pair in 2:130 3:131 9:137 15:143; do
 		signal=${pair%:*}
 		run "${pair#*:}" "signal $signal" "$dir/probe" signal "$signal"

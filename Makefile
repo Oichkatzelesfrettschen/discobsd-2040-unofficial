@@ -690,10 +690,11 @@ check-tee-contracts-cross:
 
 # usr.bin/time linked with sbin/utilbox's dispatcher and a wait3 shim, run
 # as "time" and as "utilbox time": the exit status of a normal exit, of a
-# signal death (128 plus the signal), of a missing program (127) and of a
-# failed wait3 (125), and the retry of an interrupted wait3. Mutants that
-# drop the retry, restore the shifted status or break the 127 must fail
-# under gcc and clang.
+# signal death (128 plus the signal), of a missing program (127), of a
+# program without execute permission (126) and of a failed wait3 (125), and
+# the retry of an interrupted wait3. Mutants that drop the retry, restore
+# the shifted status or break the 127 or the 126 must fail under gcc and
+# clang.
 check-time-contracts:
 		${MAKE} -C tests/time_contracts check
 

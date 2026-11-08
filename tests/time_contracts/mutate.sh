@@ -16,7 +16,8 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 mutants='
 no-eintr-retry|s/w < 0 \&\& errno != EINTR/w < 0/
 shift-status|s/return WIFSIGNALED(status) ? .*;/return status >> 8;/
-exec-failure-1|s/_exit(127)/_exit(1)/
+exec-failure-1|s/? 127 : 126/? 1 : 126/
+exec-failure-all-127|s/? 127 : 126/? 127 : 127/
 retry-any-error|s/if (w < 0 \&\& errno != EINTR) {/if (w < 0 \&\& errno != EINTR \&\& 0) {/
 '
 

@@ -34,27 +34,24 @@ lost 96 s to a 96-sector workload, 23 times the floor). The check passes when
 the whole excess interval lies within a tenth of the floor, fails when it lies
 wholly outside, and is inconclusive otherwise (exit status 2). A workload that
 did not write every block and a floor under a second are also inconclusive.
-A measurement whose per-line bounds have no common point has two causes: one
-sample delayed past SETTLE_MARGIN, which is inconclusive, or a board clock that
-fell behind during the loop, which is a failure. Per line the offset estimate
-is arrival - value, which lies in [offset, offset + 1 + SETTLE_MARGIN) for a
-steady clock. A losing clock raises the estimate across the loop, so
-loss_of_clock() reports a failure when at least LOSS_PAIR_FRACTION of the
-estimate pairs LOSS_PAIR_LAG lines apart are non-decreasing within the
-one-second quantization of date, the lowest estimate of the last quarter of
-the loop exceeds the lowest of the first quarter by more than 1 + SETTLE_MARGIN,
-and the median pairwise slope times the loop length exceeds MIN_LOST_S. The
-quarter-minimum rise is the bound a steady clock cannot pass: a delay only
-raises an estimate, so the minimum of a quarter holding one undelayed line lies
-in the steady band, while the median slope of a steady clock follows the rising
-edge of the quantization sawtooth and reaches a second within one loop. The
-report carries the median-slope loss and the line count. Any
-of the three measurements can show the loss, because the date loop is itself
-flash-backed work: every date forks, the fork swaps through the raw swap
-partition, and a kernel without catch-up loses the masked ticks of that swap.
-A lone delayed sample leaves the median slope flat and stays inconclusive. The idle wait is not
-free of flash work: each fork under the single-process window swaps through the
-raw swap partition, so the control carries that residue.
+A measurement whose per-line bounds have no common point has two causes: a
+line delayed past SETTLE_MARGIN, which is inconclusive, or a board clock that
+fell behind during the loop, which is a failure. Arrival times alone cannot
+tell them apart, because a console that holds lines back can give a steady
+clock any arrival pattern. The check therefore separates them with a probe
+whose bounds rest on no latency assumption: the host sends each "date" itself,
+so the line was made between the send and the arrival, and a steady clock's
+offset lies in every sample's interval (send - value - 1, arrival - value].
+probe_bounds() intersects PROBE_SAMPLES such intervals; when they have no
+common point, no steady clock can have produced them and the check fails,
+reporting the gap as the least time the clock lost. When they share a point,
+the loop's empty bounds came from a delayed line and the measurement is
+inconclusive. Any of the three measurements can show the loss, because the
+date loop is itself flash-backed work: every date forks, the fork swaps
+through the raw swap partition, and a kernel without catch-up loses the
+masked ticks of that swap; the probe forks one date per sample and loses the
+same way. The idle wait is not free of flash work for the same reason, so the
+control carries that residue.
 
 The decision logic is exercised on synthetic input by test_board_scripts.py.
 """
@@ -63,7 +60,6 @@ import calendar
 import glob
 import os
 import re
-import statistics
 import subprocess
 import sys
 import time
@@ -80,6 +76,8 @@ DATE_LINE = re.compile(
     r" +(\d{1,2}) (\d\d):(\d\d):(\d\d) [A-Z]{2,5} (\d{4})$"
 )
 MONTHS = ("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec").split()
+# A whole date line inside console text, which ends a probe read.
+DATE_LINE_ANYWHERE = re.compile(DATE_LINE.pattern[:-1] + r"\n", re.M)
 
 # Samples per offset measurement, and the time between a line's creation by
 # date(1) and its arrival on the host that the bound allows.
@@ -98,26 +96,8 @@ ERASE_MS = 44
 # loses the whole ERASE_MS per sector.
 TOLERANCE_FRACTION = 0.10
 MIN_LOST_S = 1.0
-# A board clock that fell behind across a date loop shows offset estimates that
-# rise: at least this fraction of the estimate pairs LOSS_PAIR_LAG lines apart
-# must not fall by more than the quantization of date (one second plus
-# SETTLE_MARGIN). Adjacent pairs cannot test this, because a clock moving less
-# than the quantization per line hides a fall inside the tolerance; four lines
-# separate a slope of 0.25 s per line from the tolerance. The
-# rise is the Theil-Sen slope times the loop length, which a minority of delayed
-# lines cannot move; it must exceed MIN_LOST_S, the same floor below which the
-# workload verdict is also inconclusive. The undelayed estimates of a steady
-# clock lie in a band 1 + SETTLE_MARGIN wide, and a date cadence a little over
-# one second walks them up that band in a sawtooth whose Theil-Sen rise reaches
-# a second, so the rise also needs the lowest estimate of the last
-# 1/LOSS_QUARTER of the loop to clear the lowest of the first by the band
-# width, which no steady clock with an undelayed line in the first quarter does.
-LOSS_PAIR_FRACTION = 0.90
-LOSS_PAIR_LAG = 4
-LOSS_QUARTER = 4
-# Consecutive date lines that arrive closer than this fraction of the loop's
-# median arrival gap left a buffer together rather than the board one by one.
-BURST_FRACTION = 0.25
+# Request-bounded samples taken when a loop's bounds have no common point.
+PROBE_SAMPLES = 40
 # Exit status of a run whose measurements cannot decide (0 passes, 1 fails).
 INCONCLUSIVE = 2
 
@@ -180,6 +160,21 @@ class Console:
         self.port.write(command.encode() + b"\r")
         return self.read(wait, stop)
 
+    def probe(self, samples, wait=10):
+        """Send "date" SAMPLES times; return [(sent, arrival, line)...].
+
+        Each command waits for its date line before the next is sent, so a
+        line's arrival bounds only the command that produced it."""
+        probes = []
+        for _ in range(samples):
+            sent = host_now()
+            _, stamped = self.run("date", wait, stop=DATE_LINE_ANYWHERE)
+            for arrival, line in stamped:
+                if board_seconds(line) is not None:
+                    probes.append((sent, arrival, line))
+                    break
+        return probes
+
 
 def flash(images):
     subprocess.check_call(
@@ -222,62 +217,26 @@ class MeasurementError(Exception):
     """A measurement that cannot bound the offset; the check is inconclusive."""
 
 
-class ClockLostTime(MeasurementError):
-    """The board clock fell behind during a date loop; the check fails.
+class EmptyBounds(MeasurementError):
+    """The per-line bounds of a date loop have no common point."""
 
-    LOSS is the rise of the offset estimate across the loop in seconds, LINES
-    the number of parsed date lines and MEASUREMENT the name of the measurement
-    that showed it (set by measure_offset).
+
+class ClockLostTime(MeasurementError):
+    """The board clock fell behind during a measurement; the check fails.
+
+    LOSS is the least time in seconds the clock must have lost for the
+    request-bounded samples to have no common offset, LINES the number of
+    parsed samples and MEASUREMENT the name of the measurement that showed it
+    (set by measure_offset).
     """
 
     def __init__(self, loss, lines, measurement=None):
         super().__init__(
-            "the board clock fell behind by %.3f s across %d date lines" % (loss, lines)
+            "the board clock fell behind by at least %.3f s across %d date lines" % (loss, lines)
         )
         self.loss = loss
         self.lines = lines
         self.measurement = measurement
-
-
-def loss_of_clock(estimates):
-    """Return the seconds the clock fell behind across ESTIMATES, or None.
-
-    ESTIMATES holds arrival - value per parsed line in order. A pair
-    LOSS_PAIR_LAG lines apart is non-decreasing when the later estimate is no
-    more than the quantization of date (1 + SETTLE_MARGIN) below the earlier.
-    The lowest estimate of the last quarter must exceed the lowest of the first
-    quarter by more than that quantization, which a steady clock's sawtooth
-    cannot do. The loss is the median of the pairwise slopes times the number
-    of intervals, which tolerates a minority of delayed lines. A single step in
-    the clock smaller than half the loop moves the median little, so it reads
-    as inconclusive.
-    """
-    count = len(estimates)
-    if count <= LOSS_PAIR_LAG:
-        return None
-    quantum = 1 + SETTLE_MARGIN
-    pairs = list(zip(estimates, estimates[LOSS_PAIR_LAG:]))
-    steps = sum(1 for a, b in pairs if b >= a - quantum)
-    if steps < LOSS_PAIR_FRACTION * len(pairs):
-        return None
-    window = max(LOSS_PAIR_LAG, count // LOSS_QUARTER)
-    if min(estimates[-window:]) - min(estimates[:window]) <= quantum:
-        return None
-    slope = statistics.median(
-        (estimates[j] - estimates[i]) / (j - i) for i in range(count) for j in range(i + 1, count)
-    )
-    loss = slope * (count - 1)
-    return loss if loss > MIN_LOST_S else None
-
-
-def buffered(arrivals):
-    """True when two consecutive ARRIVALS lie closer than BURST_FRACTION of the
-    median gap: the board forks one date per line and cannot make two lines
-    that close, so the pair drained from a buffer."""
-    gaps = [b - a for a, b in zip(arrivals, arrivals[1:])]
-    if not gaps:
-        return False
-    return min(gaps) < BURST_FRACTION * statistics.median(gaps)
 
 
 def offset_bounds(stamped, samples=SAMPLES):
@@ -286,27 +245,18 @@ def offset_bounds(stamped, samples=SAMPLES):
     STAMPED holds (arrival time, console line) pairs. The constant that
     converts the board's local zone to UTC stays in the value; only differences
     between measurements are meaningful. Raises MeasurementError when too few
-    lines parse. When the per-line bounds have no common point, which a sample
-    delayed beyond SETTLE_MARGIN or a clock that fell behind during the loop
-    produces, raises ClockLostTime for the second cause (see loss_of_clock)
-    and MeasurementError for the first. Date lines that arrive closer together
-    than BURST_FRACTION of the loop's median arrival gap came out of a buffer
-    faster than the board makes them, so their arrival stamps bound nothing
-    about when each was made; such a loop raises MeasurementError rather than
-    ClockLostTime, whether the burst came in one console read or several.
+    lines parse and EmptyBounds when the per-line bounds have no common point,
+    which a line delayed beyond SETTLE_MARGIN or a clock that fell behind
+    during the loop produces; probe_bounds() tells the two apart.
     """
     low = -1e18
     high = 1e18
     used = 0
-    estimates = []
-    arrivals = []
     for arrival, line in stamped:
         value = board_seconds(line)
         if value is None:
             continue
         used += 1
-        arrivals.append(arrival)
-        estimates.append(arrival - value)
         # The line was made at x in [arrival - margin, arrival]; the board's
         # time b has floor(b) == value, so b in [value, value + 1) and the
         # offset x - b lies in (x_low - value - 1, x_high - value].
@@ -315,12 +265,37 @@ def offset_bounds(stamped, samples=SAMPLES):
     if used < samples // 2:
         raise MeasurementError("only %d of %d date lines parsed" % (used, samples))
     if low > high:
-        loss = None if buffered(arrivals) else loss_of_clock(estimates)
-        if loss is not None:
-            raise ClockLostTime(loss, used)
-        raise MeasurementError(
+        raise EmptyBounds(
             "the bounds of %d date lines have no common point (%.3f .. %.3f s)" % (used, low, high)
         )
+    return low, high
+
+
+def probe_bounds(probes, samples=PROBE_SAMPLES):
+    """Return (low, high) offset bounds from request-bounded samples.
+
+    PROBES holds (sent, arrival, console line) triples, SENT the host time the
+    command left and ARRIVAL the time its date line came back. The line was
+    made at x in [sent, arrival], so a steady clock's offset lies in
+    (sent - value - 1, arrival - value] for every sample, however long the
+    console held the line. Raises ClockLostTime with the gap between the
+    bounds when they have no common point, and MeasurementError when too few
+    lines parse.
+    """
+    low = -1e18
+    high = 1e18
+    used = 0
+    for sent, arrival, line in probes:
+        value = board_seconds(line)
+        if value is None:
+            continue
+        used += 1
+        low = max(low, sent - value - 1)
+        high = min(high, arrival - value)
+    if used < samples // 2:
+        raise MeasurementError("only %d of %d probe lines parsed" % (used, samples))
+    if low > high:
+        raise ClockLostTime(low - high, used)
     return low, high
 
 
@@ -335,9 +310,15 @@ def measure_offset(console, name="measurement"):
     )
     try:
         return offset_bounds(stamped)
-    except ClockLostTime as error:
-        error.measurement = name
-        raise
+    except EmptyBounds as empty:
+        try:
+            probe_bounds(console.probe(PROBE_SAMPLES))
+        except ClockLostTime as error:
+            error.measurement = name
+            raise
+        raise MeasurementError(
+            "%s; the request-bounded probe shares an offset, so a line was delayed" % empty
+        ) from empty
 
 
 def excess_interval(baseline, work, idle):

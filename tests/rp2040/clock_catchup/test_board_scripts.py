@@ -16,7 +16,6 @@ import importlib.util
 import os
 import random
 import re
-import statistics
 import sys
 import unittest
 
@@ -70,18 +69,6 @@ def stamped_lines(offset, delayed=None, seed=1, start=BASE, loss=0.0, profile=No
     return out
 
 
-def cadence_lines(cadence, phase, lag=0.01, late=0.5):
-    """Steady board clock equal to host time: dates CADENCE seconds apart from
-    BASE rounded down plus PHASE, each arriving LAG late and line
-    delayed_index() LATE seconds later still."""
-    out = []
-    for index in range(clock.SAMPLES):
-        made = int(BASE) + phase + cadence * index
-        shown = made + lag + (late if index == delayed_index() else 0.0)
-        out.append((shown, date_line(made)))
-    return out
-
-
 def buffered_lines(cadence=0.14, held=10, late=2.0, spread=0.0):
     """Steady board clock equal to host time: the first lines arrive 5 ms after
     they are made, the last HELD from LATE seconds after the last one, SPREAD
@@ -100,6 +87,22 @@ def buffered_lines(cadence=0.14, held=10, late=2.0, spread=0.0):
 
 def delayed_index():
     return clock.SAMPLES // 2
+
+
+def probe_lines(offset, seed=1, loss=0.0, delay=None):
+    """Request-bounded samples: each "date" is sent, made after a random lag
+    and returned after a random delay; DELAY(index, rng) replaces the return
+    delay. LOSS adds that many seconds of offset per sample."""
+    rng = random.Random(seed)
+    sent = BASE
+    out = []
+    for index in range(clock.PROBE_SAMPLES):
+        sent += rng.uniform(0.5, 1.5)
+        made = sent + rng.uniform(0.05, 0.6)
+        back = delay(index, rng) if delay else rng.uniform(0.0, 0.05)
+        out.append((sent, made + back, date_line(made - offset - loss * index)))
+        sent = made + back
+    return out
 
 
 class DateParsing(unittest.TestCase):
@@ -162,92 +165,53 @@ class OffsetBounds(unittest.TestCase):
             high = min(high, arrival - value)
         self.assertGreater(low, high)
 
-    def test_a_single_two_second_delay_is_not_a_lost_clock(self):
-        with self.assertRaises(clock.MeasurementError) as caught:
-            clock.offset_bounds(stamped_lines(0.4321, delayed=2.0))
-        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+    def test_a_delayed_or_losing_loop_gives_empty_bounds_but_no_verdict(self):
+        # Arrival times alone cannot separate the causes: a held-back tail of
+        # a steady clock and a clock losing half a second per line both empty
+        # the loop's bounds, and the loop raises neither as a lost clock.
+        for stamped in (
+            stamped_lines(0.4321, delayed=2.0),
+            buffered_lines(),
+            buffered_lines(spread=0.005),
+            buffered_lines(spread=0.04),
+            buffered_lines(held=25),
+            stamped_lines(0.4321, loss=0.5),
+        ):
+            with self.assertRaises(clock.EmptyBounds) as caught:
+                clock.offset_bounds(stamped)
+            self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
 
-    def test_a_clock_losing_half_a_second_per_line_is_reported(self):
-        with self.assertRaises(clock.ClockLostTime) as caught:
-            clock.offset_bounds(stamped_lines(0.4321, loss=0.5))
-        self.assertGreaterEqual(caught.exception.loss, 18.0)
-        self.assertLess(caught.exception.loss, 21.0)
-        self.assertEqual(caught.exception.lines, clock.SAMPLES)
-
-    def test_a_steady_clock_with_a_slow_cadence_and_one_delay_is_not_lost(self):
-        # Dates 1.03 s apart walk the estimates up the quantization sawtooth;
-        # one line arrives 500 ms late. The board clock matches the host.
-        with self.assertRaises(clock.MeasurementError) as caught:
-            clock.offset_bounds(cadence_lines(1.03, 0.01))
-        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
-
-    def test_the_slope_rule_alone_called_the_sawtooth_a_lost_clock(self):
-        # Calibration: without the quarter-minimum bound the median slope of
-        # the same steady input reads as more than MIN_LOST_S lost.
-        estimates = [a - clock.board_seconds(line) for a, line in cadence_lines(1.03, 0.01)]
-        count = len(estimates)
-        slope = statistics.median(
-            (estimates[j] - estimates[i]) / (j - i)
-            for i in range(count)
-            for j in range(i + 1, count)
+    def test_probe_of_a_steady_clock_holds_the_offset_whatever_the_delays(self):
+        # Delays of up to five seconds, bursts of shared arrivals and slow
+        # drains: the true offset lies in every request-bounded interval.
+        shapes = (
+            None,
+            lambda index, rng: rng.uniform(0.0, 5.0),
+            lambda index, rng: 3.0 if index >= 30 else 0.01,
+            lambda index, rng: 0.0,
+            lambda index, rng: 4.0 - 0.1 * index if index < 40 else 0.0,
         )
-        self.assertGreater(slope * (count - 1), clock.MIN_LOST_S)
+        for seed in range(25):
+            for shape in shapes:
+                low, high = clock.probe_bounds(probe_lines(0.4321, seed=seed, delay=shape))
+                self.assertLessEqual(low, 0.4321)
+                self.assertGreaterEqual(high, 0.4321)
 
-    def test_no_steady_cadence_or_phase_reads_as_a_lost_clock(self):
-        for step in range(0, 61, 3):
-            for phase in (0.01, 0.25, 0.5, 0.75, 0.97):
-                cadence = 1.0 + step / 1000.0
-                try:
-                    clock.offset_bounds(cadence_lines(cadence, phase))
-                except clock.ClockLostTime:
-                    self.fail("cadence %.3f phase %.2f" % (cadence, phase))
-                except clock.MeasurementError:
-                    pass
+    def test_probe_of_a_losing_clock_fails_with_a_lower_bound_on_the_loss(self):
+        with self.assertRaises(clock.ClockLostTime) as caught:
+            clock.probe_bounds(probe_lines(0.4321, loss=0.5))
+        lost = 0.5 * (clock.PROBE_SAMPLES - 1)
+        self.assertGreater(caught.exception.loss, 1.0)
+        self.assertLessEqual(caught.exception.loss, lost)
+        self.assertEqual(caught.exception.lines, clock.PROBE_SAMPLES)
 
-    def test_lines_held_back_and_read_together_are_not_a_lost_clock(self):
-        # Dates 0.14 s apart from a steady clock; the console holds the last
-        # ten and delivers them in one read two seconds after the last.
-        stamped = buffered_lines()
-        with self.assertRaises(clock.MeasurementError) as caught:
-            clock.offset_bounds(stamped)
-        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
-
-    def test_held_back_lines_drained_over_several_reads_are_not_a_lost_clock(self):
-        # The same held-back tail, delivered 5 ms apart in separate reads: every
-        # arrival stamp is distinct, and the burst still proves the buffering.
-        stamped = buffered_lines(spread=0.005)
-        self.assertEqual(len({arrival for arrival, _ in stamped}), clock.SAMPLES)
-        with self.assertRaises(clock.MeasurementError) as caught:
-            clock.offset_bounds(stamped)
-        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
-
-    def test_the_held_back_lines_fool_the_loss_rule_alone(self):
-        # Calibration: the loss rule without the shared-arrival guard reports
-        # the held-back tail as a clock that fell behind.
-        estimates = [a - clock.board_seconds(line) for a, line in buffered_lines()]
-        self.assertIsNotNone(clock.loss_of_clock(estimates))
-
-    def test_a_clock_that_loses_time_and_regains_it_is_inconclusive(self):
-        # Rising then falling by the same amount fails the non-decreasing test.
-        def triangle(index):
-            half = clock.SAMPLES // 2
-            return 0.5 * min(index, 2 * half - index)
-
-        with self.assertRaises(clock.MeasurementError) as caught:
-            clock.offset_bounds(stamped_lines(0.4321, profile=triangle))
-        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
-
-    def test_the_old_rule_called_a_lost_clock_inconclusive(self):
-        # Calibration: the old rule raised MeasurementError for every empty
-        # interval. The losing clock's bounds are empty, so the old rule gave
-        # exit status 2 where the check now fails.
-        low, high = -1e18, 1e18
-        for arrival, line in stamped_lines(0.4321, loss=0.5):
-            value = clock.board_seconds(line)
-            low = max(low, arrival - clock.SETTLE_MARGIN - value - 1)
-            high = min(high, arrival - value)
-        self.assertGreater(low, high)
-        self.assertGreater(low - high, 18.0)
+    def test_the_settle_margin_cannot_bound_a_probe(self):
+        # Calibration: bounding the probe samples by arrival and SETTLE_MARGIN
+        # alone, as the loop does, empties the bounds of a steady clock whose
+        # replies were delayed.
+        probes = probe_lines(0.4321, delay=lambda index, rng: rng.uniform(0.0, 5.0))
+        with self.assertRaises(clock.EmptyBounds):
+            clock.offset_bounds([(arrival, line) for _, arrival, line in probes])
 
     def test_too_few_parsed_lines(self):
         with self.assertRaises(clock.MeasurementError):
@@ -337,10 +301,16 @@ class Workload(unittest.TestCase):
 class StubConsole:
     """A console whose answers come from a table; no serial port exists."""
 
-    def __init__(self, offsets, workload):
+    def __init__(self, offsets, workload, probe_loss=0.0):
         self.offsets = list(offsets)
         self.workload = workload
         self.commands = []
+        self.probe_loss = probe_loss
+        self.probes = 0
+
+    def probe(self, samples):
+        self.probes += 1
+        return probe_lines(5.0, loss=self.probe_loss)[:samples]
 
     def run(self, command, wait=8, stop=None):
         self.commands.append(command)
@@ -382,16 +352,25 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(status, 1)
 
     def test_clock_losing_time_inside_a_date_loop_fails(self):
-        # Each of the three measurements can show the loss.
+        # Each of the three measurements can show the loss; the probe that
+        # follows the loop's empty bounds decides it.
         for slot in range(3):
             offsets = [5.0, 5.0, 5.0]
             offsets[slot] = (5.0, 0.5)
-            console = StubConsole(offsets, self.good)
+            console = StubConsole(offsets, self.good, probe_loss=0.5)
             status, out = self.quiet(console)
             self.assertEqual(status, 1, slot)
             self.assertIn("FAIL", out)
-            self.assertIn("fell behind by", out)
-            self.assertIn("across %d date lines" % clock.SAMPLES, out)
+            self.assertIn("fell behind by at least", out)
+            self.assertIn("across %d date lines" % clock.PROBE_SAMPLES, out)
+            self.assertEqual(console.probes, 1)
+
+    def test_empty_loop_bounds_with_a_steady_probe_are_inconclusive(self):
+        console = StubConsole([5.0, (5.0, 0.5), 5.0], self.good)
+        with self.assertRaises(clock.MeasurementError) as caught:
+            self.quiet(console)
+        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+        self.assertIn("delayed", str(caught.exception))
 
     def test_borderline_clock_is_inconclusive(self):
         tolerance = clock.PASSES * clock.WORKLOAD_BLOCKS * 1024 // clock.SECTOR_BYTES

@@ -38,9 +38,7 @@ CFLAGS="-m32 -std=gnu89 -O1 -w -fcommon -include $SRCDIR/hostshim.h
 
 # blok.c defines global alloc() and free(); rename both so a libc
 # internal free() never lands in the shell's own arena walker.
-# The shell also owns a global variable named tmpnam; rename that host symbol
-# so glibc's link-warning section does not mistake it for tmpnam(3) use.
-CFLAGS="$CFLAGS -Dalloc=sh_alloc -Dfree=sh_free -Dtmpnam=sh_tmpnam"
+CFLAGS="$CFLAGS -Dalloc=sh_alloc -Dfree=sh_free"
 
 build()
 {

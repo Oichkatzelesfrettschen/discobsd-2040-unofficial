@@ -38,7 +38,7 @@ char			*pidadr;
 char			*cmdadr;
 
 /* transput */
-char 			*tmpnam;
+char 			*sh_tmpnam;
 int 			serial;
 int 			peekc;
 int 			peekn;

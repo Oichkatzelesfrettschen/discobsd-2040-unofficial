@@ -327,10 +327,12 @@ rules for `tests/render_test.c`, which binds the two device calls of
 foreground process group, and ignoring `SIGTTOU` so no tty call can stop it
 with the panel held), sets RAW without echo, starts the raw key
 session (`LCDIOC_KEYEVS`), runs a timed `select` loop that drops the
-bytes the tty also queues with `TIOCFLUSH` (a flush never waits, where a
-`read` of a tty another program had just set cooked would block until a
-line arrived), and on exit ends the session, restores the tty
-mode, flushes the queues and closes the device, which returns the panel to
+bytes the tty also queues with `TIOCFLUSH` after each successful key drain
+(a flush never waits, and a drain fails once another program has changed
+the mode or taken the foreground, so that program keeps its input), and on
+exit restores the tty mode and flushes the queues only if a last drain
+shows the session still holds the console, then ends the session and
+closes the device, which returns the panel to
 the text console. Without `/dev/lcdgfx` or without a key session it prints
 the reason and exits: the game has no text-terminal fallback, because the
 console cannot show it and the raw key events are what make held keys work.

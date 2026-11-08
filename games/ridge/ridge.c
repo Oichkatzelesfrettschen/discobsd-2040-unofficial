@@ -1678,6 +1678,9 @@ rg_draw(struct rg_view *v, const struct rg_game *g, int paused)
 #define RG_DEVICE	"/dev/lcdgfx"
 #define RG_CATCHUP	4		/* ticks run for one frame at most */
 
+/* rg_loop()'s status when the key session ended under it. */
+#define RG_REVOKED	3
+
 static volatile sig_atomic_t rg_got_signal;
 
 static void
@@ -1712,7 +1715,7 @@ static int
 rg_poll_keys(struct rg_keys *k)
 {
 	struct lcd_keyevs ev;
-	int i;
+	int i, in = FREAD;
 
 	do {
 		memset(&ev, 0, sizeof ev);
@@ -1723,32 +1726,57 @@ rg_poll_keys(struct rg_keys *k)
 		for (i = 0; i < ev.n; i++)
 			rg_key_event(k, ev.ev[i].state, ev.ev[i].key);
 	} while (ev.n == LCD_KEYEV_N);
+	/*
+	 * The drain succeeded, so the session still holds the console: the
+	 * bytes the RAW tty queued for the same keys are dropped. TIOCFLUSH
+	 * never waits, and ttyflush() leaves t_flags alone, so the flush does
+	 * not end the session.
+	 */
+	ioctl(0, TIOCFLUSH, &in);
 	return 0;
 }
 
 /*
- * Wait up to ms for console input and discard the bytes the tty queued. The
- * discard is TIOCFLUSH of the input queue, which never waits: a mode change
- * between select() and a read() could leave the tty cooked, and a read would
- * then block until a line arrived, so rg_poll_keys() would not see the ended
- * key session. ttyflush() leaves t_flags alone, so the session survives it.
+ * Whether the key session still holds the console. picokbd_evq_check()
+ * ends the session when the foreground group or the tty mode changes, and
+ * a drain then fails, so a drain that succeeds proves the console is still
+ * in the state ridge set. The events it removes are no longer needed.
+ */
+static int
+rg_owns_console(void)
+{
+	struct lcd_keyevs ev;
+
+	do {
+		memset(&ev, 0, sizeof ev);
+		if (ioctl(0, LCDIOC_GETKEY, &ev) < 0)
+			return 0;
+	} while (ev.n == LCD_KEYEV_N);
+	return 1;
+}
+
+/*
+ * Wait up to ms for console input. The bytes stay queued: rg_poll_keys()
+ * drops them once a drain has shown that the session still holds the
+ * console, so a program that took the console in between keeps its input.
  */
 static void
 rg_wait(int ms)
 {
 	fd_set fds;
 	struct timeval tv;
-	int in = FREAD;
 
 	FD_ZERO(&fds);
 	FD_SET(0, &fds);
 	tv.tv_sec = ms / 1000;
 	tv.tv_usec = (ms % 1000) * 1000;
-	if (select(1, &fds, 0, 0, &tv) > 0)
-		ioctl(0, TIOCFLUSH, &in);
+	(void)select(1, &fds, 0, 0, &tv);
 }
 
-/* The timed loop; returns 0 on a request to quit, 1 when a device call fails. */
+/*
+ * The timed loop; returns 0 on a request to quit, 1 when a device call fails
+ * and RG_REVOKED when the key session ended under it.
+ */
 static int
 rg_loop(struct rg_game *g, struct rg_view *v, struct rg_keys *k, int level)
 {
@@ -1771,10 +1799,8 @@ rg_loop(struct rg_game *g, struct rg_view *v, struct rg_keys *k, int level)
 		if (rg_draw(v, g, paused) < 0)
 			return 1;
 		rg_wait((int)(RG_TICK_MS - acc));
-		if (rg_poll_keys(k) < 0) {
-			rg_say("ridge: the key session ended\n");
-			return 1;
-		}
+		if (rg_poll_keys(k) < 0)
+			return RG_REVOKED;
 		if (k->pause) {
 			paused = !paused;
 			k->pause = 0;
@@ -1849,11 +1875,23 @@ main(int argc, char **argv)
 		return 1;
 	}
 	status = rg_view_init(&view, fd) < 0 ? 1 : rg_loop(&game, &view, &keys, level);
+	/*
+	 * The tty is restored and its queues dropped only while the session
+	 * still holds the console. A program that changed the mode or took the
+	 * foreground ended the session, and its mode and queues are its own.
+	 * Zero flushes both queues, so the key that quit the game never reaches
+	 * the shell. The panel is released in every case.
+	 */
+	if (status != RG_REVOKED && rg_owns_console()) {
+		ioctl(0, TIOCSETP, &saved);
+		ioctl(0, TIOCFLUSH, &off);
+	}
 	ioctl(0, LCDIOC_KEYEVS, &off);
-	ioctl(0, TIOCSETP, &saved);
-	/* Zero flushes both queues, so the key that quit the game never reaches the shell. */
-	ioctl(0, TIOCFLUSH, &off);
 	close(fd);
+	if (status == RG_REVOKED) {
+		rg_say("ridge: the key session ended\n");
+		return 1;
+	}
 	if (status == 1)
 		rg_say("ridge: a device call failed\n");
 	return status;

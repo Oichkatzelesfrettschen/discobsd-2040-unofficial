@@ -124,10 +124,10 @@ ginode(inumber)
     iblk = itod(inumber);
     if (iblk < startib || iblk >= startib + NINOBLK) {
         if (inoblk.b_dirty) {
-            bwrite(&dfile, inobuf, startib, NINOBLK * DEV_BSIZE);
+            bwrite(&dfile, inobuf, startib, INOWINDOW(startib) * DEV_BSIZE);
             inoblk.b_dirty = 0;
         }
-        if (bread(&dfile, inobuf, iblk, NINOBLK * DEV_BSIZE))
+        if (bread(&dfile, inobuf, iblk, INOWINDOW(iblk) * DEV_BSIZE))
             return(NULL);
         startib = iblk;
     }

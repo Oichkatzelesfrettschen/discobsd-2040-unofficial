@@ -1,11 +1,13 @@
 #!/bin/sh
-# Run the host fsck over images whose highest-numbered inode is in use.
+# Run the host fsck over images whose highest-numbered inode is in use and
+# over images whose repair must survive a second run.
 #
 #   run.sh FSCK IMAGE_GEN WORKDIR SCENARIO...
 #
 # FSCK is the host-built sbin/fsck, IMAGE_GEN the generator of image_gen.c.
 # A scenario passes when fsck accepts the highest inode as it accepts every
-# other (the verdict text names the observable). Exit status:
+# other, or when the repair it makes leaves an image that a second preen run
+# accepts (the verdict text names the observable). Exit status:
 #   0  every scenario passed;
 #   1  at least one scenario failed an assertion; each prints
 #      "FAIL <scenario>: <reason>";
@@ -95,42 +97,108 @@ run_clean() {
 	has " $files files, "
 }
 
-# A repair pass answers yes, and the image must then pass a preen run.
+# run_repair KIND AFTER: a repair pass answers yes to the unreferenced KIND
+# (FILE or DIR) it finds, AFTER inspects the result, and a following preen run
+# must find nothing left to do: second_run asserts that, expecting $1 files.
 run_repair() {
 	set_expected_files
 	check_run -y
 	[ "$status" -eq 0 ] || fail "repair exit status $status, want 0"
-	has 'UNREF FILE'
+	has "UNREF $1"
 	lacks 'SORRY|CANNOT|bad inode'
-	"$1"
+	"$2"
+}
+
+# second_run FILES: a preen run over the repaired image exits 0, reports no
+# damage, finds nothing unreferenced, repairs nothing (preen exits 0 after an
+# (ADJUSTED), (SALVAGED), (FIXED) or similar repair, so the report is checked
+# for those and the image for any changed byte) and counts FILES files.
+second_run() {
+	cp "$img" "$img.repaired" || error "$scenario: cannot copy $img"
+	check_run -p
+	[ "$status" -eq 0 ] || fail "preen after repair exit status $status, want 0"
+	lacks 'CORRUPTED|OUT OF RANGE|UNALLOCATED|INCONSISTENCY|bad inode'
+	lacks 'UNREF|BAD INODE NUMBER'
+	lacks 'ADJUSTED|SALVAGED|FIXED|CLEARED|RECONNECTED|CREATED|EXPANDED|IGNORED|SKIPPING'
+	has " $1 files, "
+	cmp -s "$img.repaired" "$img" || fail "the second preen run changed the image"
 }
 
 after_reconnect() {
 	has 'RECONNECT?  yes'
 	lacks 'NO lost\+found'
-	check_run -p
-	[ "$status" -eq 0 ] || fail "preen after repair exit status $status, want 0"
-	lacks 'CORRUPTED|OUT OF RANGE|UNALLOCATED|INCONSISTENCY|bad inode'
-	has " $files files, "
+	second_run "$files"
 }
 
+# A second inode window holds a dirty inode while lost+found is repaired, and
+# a later read of the first window evicts it: the repaired directory block
+# must not be overwritten by the evicted window's stale tail.
+run_tail_evict() {
+	set_expected_files
+	check_run -y
+	[ "$status" -eq 0 ] || fail "repair exit status $status, want 0"
+	has 'NOT MULTIPLE OF 1024'
+	has 'UNALLOCATED'
+	has 'LINK COUNT FILE'
+	lacks 'SORRY|CANNOT|bad inode'
+	second_run "$files"
+}
+
+# With every inode in use fsck cannot create lost+found: it reports the
+# refusal, clears the orphan it could not reconnect and leaves an image the
+# next preen run accepts with one file fewer.
+run_decline() {
+	set_expected_files
+	check_run -y
+	[ "$status" -eq 0 ] || fail "repair exit status $status, want 0"
+	has 'UNREF FILE'
+	has 'NO lost+found DIRECTORY'
+	has 'SORRY. CANNOT CREATE lost+found DIRECTORY'
+	has 'CLEAR?  yes'
+	lacks 'bad inode'
+	second_run $((files - 1))
+}
+
+# fsutil's own checker, over the image the generator wrote, reconnects the
+# orphan into lost+found at the highest inode instead of reporting that it
+# has no lost+found; a second fsutil report is then clean.
+run_fsutil() {
+	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
+	has 'UNREF FILE'
+	lacks 'SORRY'
+	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
+	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING'
+}
+
+# Creating lost+found adds one directory to the count, and the directory
+# fsck writes must pass the next directory check.
 after_create() {
 	has 'NO lost+found DIRECTORY'
 	has 'CREATE?  yes'
+	second_run $((files + 1))
 }
 
 for scenario in "$@"; do
 	img=$work/$scenario.img
 	rm -f "$img"
 	case $scenario in
-	file-last | dir-last | orphan-last | free-last | lf-last) ;;
+	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
+	    full-table | fsutil-lf-last | tail-evict) ;;
 	*) error "unknown scenario $scenario" ;;
 	esac
-	"$gen" "$scenario" "$img" || error "$scenario: image generation failed"
+	case $scenario in
+	fsutil-lf-last) layout=lf-slot-last ;;
+	*) layout=$scenario ;;
+	esac
+	"$gen" "$layout" "$img" || error "$scenario: image generation failed"
 	case $scenario in
 	file-last | dir-last) run_clean ;;
-	orphan-last | lf-last) run_repair after_reconnect ;;
-	free-last) run_repair after_create ;;
+	orphan-last | lf-last) run_repair FILE after_reconnect ;;
+	orphan-dir) run_repair DIR after_reconnect ;;
+	free-last) run_repair FILE after_create ;;
+	full-table) run_decline ;;
+	fsutil-lf-last) run_fsutil ;;
+	tail-evict) run_tail_evict ;;
 	esac
 	if [ "$failed" -eq 0 ]; then
 		printf 'ok %s\n' "$scenario"

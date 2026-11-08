@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Restore the pre-change inode range tests of sbin/fsck, one site at a time.
+"""Restore the pre-change code of sbin/fsck, one site at a time.
 
-Each mutation rewrites a comparison against imax back to the form that
-excluded the highest inode, in a copy of the source file; the gate builds the
-copy and requires the scenarios named for that mutation to fail. A mutation
-that matches no line, or more than one, stops the run, so a source edit that
-moves a site cannot leave a mutant that silently equals the program.
+Each mutation rewrites a site back to the form it had before its fix, in a
+copy of the source file: a comparison against imax to the form that excluded
+the highest inode, or a transfer of the inode window to the full NINOBLK
+blocks. The gate builds the copy and requires the scenarios named for that
+mutation to fail. A mutation that matches no line, or more than one, stops
+the run, so a source edit that moves a site cannot leave a mutant that
+silently equals the program.
 """
 
 from __future__ import annotations
@@ -51,12 +53,65 @@ SITES: dict[str, Edit] = {
         "for (ino = request; ino <= imax; ino++)",
         "for (ino = request; ino < imax; ino++)",
     ),
+    "fsutil-find-inode": (
+        "check.c",
+        "dirp->ino <= (fs->isize-1) * BSDFS_INODES_PER_BLOCK)",
+        "dirp->ino < (fs->isize-1) * BSDFS_INODES_PER_BLOCK)",
+    ),
+    "dirhead": (
+        "dir.c",
+        "struct  dirtemplate dirhead = { 0, 12, 1, {'.'}, 0, DIRBLKSIZ - 12, 2,",
+        "struct  dirtemplate dirhead = { 0, 8, 1, {'.'}, 0, DIRBLKSIZ - 8, 2,",
+    ),
+    "allocdir-zero": (
+        "dir.c",
+        "    if (ino == 0)\n        return (0);\n    dirhead.dot_ino = ino;",
+        "    dirhead.dot_ino = ino;",
+    ),
+    "touch-superblock": (
+        "utilities.c",
+        "ckfini()\n{\n    flush(&dfile, &fileblk);",
+        "ckfini()\n{\n    sblock.fs_tinode++;\n    sbdirty();\n    flush(&dfile, &fileblk);",
+    ),
+    "adjust-noop": (
+        "dir.c",
+        "dp->di_nlink -= lcnt;",
+        "(void)lcnt;",
+    ),
+    "window-flush": (
+        "utilities.c",
+        "bwrite(fcp, inobuf, startib, INOWINDOW(startib) * DEV_BSIZE);",
+        "bwrite(fcp, inobuf, startib, NINOBLK * DEV_BSIZE);",
+    ),
+    "window-write": (
+        "inode.c",
+        "bwrite(&dfile, inobuf, startib, INOWINDOW(startib) * DEV_BSIZE);",
+        "bwrite(&dfile, inobuf, startib, NINOBLK * DEV_BSIZE);",
+    ),
+    "window-read": (
+        "inode.c",
+        "if (bread(&dfile, inobuf, iblk, INOWINDOW(iblk) * DEV_BSIZE))",
+        "if (bread(&dfile, inobuf, iblk, NINOBLK * DEV_BSIZE))",
+    ),
 }
 
-# The program before the change: every site restored at once.
+RANGE_SITES = (
+    "pass1-loop",
+    "direntry",
+    "makeentry-ino",
+    "makeentry-parent",
+    "lfdir-lookup",
+    "alloc-test",
+    "alloc-loop",
+)
+
+# Several sites restored at once: the allocation test and loop together, the
+# inode window transfers together, and the inode range tests as they stood
+# before the highest inode was admitted.
 GROUPS: dict[str, tuple[str, ...]] = {
     "alloc-range": ("alloc-loop", "alloc-test"),
-    "all-old": tuple(SITES),
+    "inode-window": ("window-flush", "window-write", "window-read"),
+    "all-old": RANGE_SITES,
 }
 
 

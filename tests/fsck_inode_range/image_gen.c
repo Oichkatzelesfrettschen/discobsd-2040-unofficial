@@ -18,12 +18,35 @@
  *                  deleted and one other file loses its name: the only free
  *                  inode is N, and fsck must create lost+found there to
  *                  reconnect the orphan.
+ *   full-table     lost+found is renamed old-lf and one file loses its name,
+ *                  with every inode in use: fsck has no inode to create
+ *                  lost+found in and must decline.
  *   lf-last        lost+found is a new directory at inode N, the original
  *                  is renamed old-lf, and one file loses its name: fsck must
  *                  find lost+found at inode N and reconnect the orphan in it.
+ *   lf-slot-last   lf-last, with a second directory block in lost+found
+ *                  that holds one empty entry. tools/fsutil's checker
+ *                  reconnects an orphan only into an empty entry of
+ *                  lost+found, so it needs this block where fsck does not.
+ *   tail-evict     a 96-inode volume (six inode blocks, so fsck holds the
+ *                  inodes in two windows). A directory in lost+found whose
+ *                  inode is in the second window has a length that is not a
+ *                  multiple of 1024, which makes fsck dirty that window
+ *                  while it repairs lost+found, and lost+found holds an
+ *                  entry for an unallocated inode. A file in the first
+ *                  window has a link count of two for one name, so pass 4
+ *                  reads an inode of the first window while the second is
+ *                  still dirty: the repaired lost+found block must survive
+ *                  the write-back of the second window.
+ *   orphan-dir     ten files, then a directory with a file inside it at
+ *                  a middle inode; the directory loses its name in / but
+ *                  keeps its link count and its ".." entry: fsck must
+ *                  reconnect it into lost+found and repoint its "..".
  *
  * "--check IMAGE" prints fsutil's own consistency report for an image,
  * opened read-only, so a gate can compare fsutil's file count with fsck's.
+ * "--fix IMAGE" opens the image for writing, as fsutil --check --fix does,
+ * and lets fsutil repair what it reports.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +59,7 @@ int verbose;
 
 #define IMAGE_KBYTES	128
 #define IMAGE_INODES	32	/* two inode blocks: inodes 1 through 32 */
+#define TAIL_INODES	96	/* six inode blocks: inodes 1 through 96 */
 
 static int
 fail(const char *what, const char *name)
@@ -60,9 +84,9 @@ make_file(fs_t *fs, const char *name)
 	return fs_file_close(&file);
 }
 
-/* A directory below the root, linked back to it, as fsutil's manifest does. */
+/* A directory named by path, linked back to its parent inode. */
 static int
-make_dir(fs_t *fs, const char *name)
+make_dir_in(fs_t *fs, const char *name, unsigned parent_number)
 {
 	fs_inode_t dir, parent;
 	char dotdot[64];
@@ -72,12 +96,38 @@ make_dir(fs_t *fs, const char *name)
 	if (!fs_inode_save(&dir, 1))
 		return 0;
 	snprintf(dotdot, sizeof dotdot, "%s/..", name);
-	if (!fs_inode_link(fs, &dir, dotdot, BSDFS_ROOT_INODE))
+	if (!fs_inode_link(fs, &dir, dotdot, parent_number))
 		return 0;
-	if (!fs_inode_get(fs, &parent, BSDFS_ROOT_INODE))
+	if (!fs_inode_get(fs, &parent, parent_number))
 		return 0;
 	parent.nlink++;
 	return fs_inode_save(&parent, 1);
+}
+
+/* A directory below the root, linked back to it, as fsutil's manifest does. */
+static int
+make_dir(fs_t *fs, const char *name)
+{
+	return make_dir_in(fs, name, BSDFS_ROOT_INODE);
+}
+
+/*
+ * Append a directory block that holds one empty entry spanning the block:
+ * inode 0, record length DIRBLKSIZ, no name.
+ */
+static int
+add_empty_block(fs_t *fs, const char *name)
+{
+	fs_inode_t dir;
+	unsigned char block[BSDFS_BSIZE];
+
+	memset(block, 0, sizeof block);
+	block[4] = BSDFS_BSIZE & 0xff;
+	block[5] = BSDFS_BSIZE >> 8;
+	if (!fs_inode_lookup(fs, &dir, name))
+		return 0;
+	return fs_inode_write(&dir, dir.size, block, sizeof block) &&
+	    fs_inode_save(&dir, 1);
 }
 
 /* The inode number a path names, or 0. */
@@ -135,6 +185,15 @@ delete_file(fs_t *fs, const char *name)
 	return 1;
 }
 
+/* An empty regular file: no data block to leak when its inode is dropped. */
+static int
+make_empty_file(fs_t *fs, const char *name)
+{
+	fs_file_t file;
+
+	return fs_file_create(fs, &file, name, 0644) && fs_file_close(&file);
+}
+
 /* Create /f<first> through /f<last>, one file each. */
 static int
 fill_files(fs_t *fs, unsigned first, unsigned last)
@@ -150,6 +209,50 @@ fill_files(fs_t *fs, unsigned first, unsigned last)
 	return 1;
 }
 
+/*
+ * The tail-evict layout. tools/fsutil hands out inodes in batches of the 32
+ * lowest free numbers, highest first of each batch, so the first allocation
+ * of a 96-inode volume is inode 35 and the 33rd is inode 67. /w00 is the
+ * first (a low inode, link count raised by one), 31 fillers use up the rest
+ * of the batch, and the two that follow, /lost+found/sub and
+ * /lost+found/ghost, land in the inode block fsck loads as its second
+ * window: 66 and 67 in either order.
+ */
+static int
+build_tail_evict(fs_t *fs)
+{
+	fs_inode_t inode;
+	unsigned sub_number, ghost_number;
+
+	if (!make_file(fs, "/w00") || !fill_files(fs, 1, 31))
+		return 0;
+	if (!make_dir_in(fs, "/lost+found/sub", BSDFS_LOSTFOUND_INODE) ||
+	    !make_empty_file(fs, "/lost+found/ghost"))
+		return 0;
+	sub_number = number_of(fs, "/lost+found/sub");
+	ghost_number = number_of(fs, "/lost+found/ghost");
+	if (sub_number < 65 || ghost_number < 65)
+		return 0;
+	/* The directory's length stops being a multiple of DIRBLKSIZ. */
+	if (!fs_inode_get(fs, &inode, sub_number))
+		return 0;
+	inode.size = 1000;
+	if (!fs_inode_save(&inode, 1))
+		return 0;
+	/* The entry stays; the inode it names is freed without a trace. */
+	if (!fs_inode_get(fs, &inode, ghost_number))
+		return 0;
+	inode.mode = 0;
+	inode.nlink = 0;
+	if (!fs_inode_save(&inode, 1))
+		return 0;
+	/* A second link count for the first file, which has one name. */
+	if (!fs_inode_lookup(fs, &inode, "/w00") || inode.number >= 65)
+		return 0;
+	inode.nlink++;
+	return fs_inode_save(&inode, 1);
+}
+
 /* Inodes 1 through 3 belong to the format; the rest are free at the start. */
 #define FREE_AT_START	(IMAGE_INODES - BSDFS_LOSTFOUND_INODE)
 
@@ -159,20 +262,32 @@ build(const char *layout, const char *path)
 	fs_t fs;
 
 	memset(&fs, 0, sizeof fs);
-	if (!fs_create(&fs, path, IMAGE_KBYTES, 0, IMAGE_INODES))
+	if (!fs_create(&fs, path, IMAGE_KBYTES, 0,
+	    strcmp(layout, "tail-evict") == 0 ? TAIL_INODES : IMAGE_INODES))
 		return fail("cannot create", path);
 
-	if (strcmp(layout, "dir-last") == 0) {
+	if (strcmp(layout, "tail-evict") == 0) {
+		if (!build_tail_evict(&fs))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "dir-last") == 0) {
 		if (!make_dir(&fs, "/d00") ||
 		    number_of(&fs, "/d00") != IMAGE_INODES ||
 		    !fill_files(&fs, 1, FREE_AT_START - 1))
 			return fail("cannot build", layout);
-	} else if (strcmp(layout, "lf-last") == 0) {
+	} else if (strcmp(layout, "lf-last") == 0 ||
+	    strcmp(layout, "lf-slot-last") == 0) {
 		if (!rename_to(&fs, "/lost+found", "/old-lf") ||
 		    !make_dir(&fs, "/lost+found") ||
 		    number_of(&fs, "/lost+found") != IMAGE_INODES ||
+		    (strcmp(layout, "lf-slot-last") == 0 &&
+		    !add_empty_block(&fs, "/lost+found")) ||
 		    !fill_files(&fs, 0, FREE_AT_START - 2) ||
 		    !drop_name(&fs, "/f05"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "orphan-dir") == 0) {
+		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||
+		    number_of(&fs, "/d00") != IMAGE_INODES - 10 ||
+		    !make_file(&fs, "/d00/inner") || !drop_name(&fs, "/d00"))
 			return fail("cannot build", layout);
 	} else {
 		if (!fill_files(&fs, 0, FREE_AT_START - 1) ||
@@ -182,6 +297,10 @@ build(const char *layout, const char *path)
 			/* Nothing more. */
 		} else if (strcmp(layout, "orphan-last") == 0) {
 			if (!drop_name(&fs, "/f00"))
+				return fail("cannot build", layout);
+		} else if (strcmp(layout, "full-table") == 0) {
+			if (!rename_to(&fs, "/lost+found", "/old-lf") ||
+			    !drop_name(&fs, "/f05"))
 				return fail("cannot build", layout);
 		} else if (strcmp(layout, "free-last") == 0) {
 			if (!rename_to(&fs, "/lost+found", "/old-lf") ||
@@ -199,11 +318,11 @@ build(const char *layout, const char *path)
 }
 
 static int
-check(const char *path)
+check(const char *path, int writable)
 {
 	fs_t fs;
 
-	if (!fs_open(&fs, path, 0, 0))
+	if (!fs_open(&fs, path, writable, 0))
 		return fail("cannot open", path);
 	fs_check(&fs);
 	fs_close(&fs);
@@ -214,9 +333,12 @@ int
 main(int argc, char **argv)
 {
 	if (argc == 3 && strcmp(argv[1], "--check") == 0)
-		return check(argv[2]);
+		return check(argv[2], 0);
+	if (argc == 3 && strcmp(argv[1], "--fix") == 0)
+		return check(argv[2], 1);
 	if (argc == 3)
 		return build(argv[1], argv[2]);
-	fprintf(stderr, "usage: image_gen LAYOUT IMAGE | --check IMAGE\n");
+	fprintf(stderr,
+	    "usage: image_gen LAYOUT IMAGE | --check IMAGE | --fix IMAGE\n");
 	return 2;
 }

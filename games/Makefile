@@ -11,7 +11,7 @@ SUBDIR          = adventure atc backgammon battlestar boggle btlgammon \
                   robots rogue sail snake trek \
                   banner aclock arithmetic bcd factor fish morse warp \
                   number ppt wump primes rain worm worms canfield \
-                  fifteen keen bubble fourfall coil gamebox \
+                  fifteen keen bubble fourfall coil ridge gamebox \
                   pzcommon flood samegame unruly lightup puzzlebox
 
 all:            $(SUBDIR)
@@ -25,9 +25,9 @@ $(SUBDIR):      FRC
 # clean-then-build with lib/startup-arm never entered.
 .PHONY:	$(SUBDIR)
 
-# gamebox cleans and rebuilds its three members. Complete sibling builds first
+# gamebox cleans and rebuilds its members. Complete sibling builds first
 # so an inherited -j setting cannot remove an object another make is writing.
-gamebox:        fifteen keen bubble fourfall coil
+gamebox:        fifteen keen bubble fourfall coil ridge
 
 # The puzzles link the shared front end, and puzzlebox cleans and rebuilds
 # the puzzles and the shared object, so each waits for the step before it.

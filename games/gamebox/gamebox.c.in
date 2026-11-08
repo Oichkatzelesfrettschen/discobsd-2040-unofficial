@@ -1,6 +1,6 @@
 /*
  * One a.out for the games in games/fifteen, games/keen, games/bubble,
- * games/fourfall and games/coil, dispatched on the name it was invoked by. See
+ * games/fourfall, games/coil and games/ridge, dispatched on the name it was invoked by. See
  * sbin/box/box.c.in, whose generated copy this is: each tool's
  * globals are localized and its main renamed by
  * games/gamebox/Makefile, and the sources stay untouched.

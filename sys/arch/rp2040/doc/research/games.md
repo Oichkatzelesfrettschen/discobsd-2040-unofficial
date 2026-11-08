@@ -302,3 +302,125 @@ all four puzzles. The collection's `flood.c` defines a non-static
 `check_recursion_depth`, which the whole-program build makes local.
 Board behavior of all four puzzles, of coil and of the hexagonal bubble mode
 is unmeasured.
+
+## ridge, the pixel-device platformer
+
+`games/ridge` is a side-scrolling platformer for `/dev/lcdgfx`: a hooded
+climber crosses four levels (`FOOTFALL`, `SCREE`, `CHIMNEY`, `SUMMIT`), runs,
+jumps (a held key jumps higher), lands on rock and on one-way ledges,
+collects shards, lights checkpoint flags, stomps crawlers and reaches the
+cairn. Spikes, crawlers and pits cost a life; the third ends the game. Name,
+rules, levels, tile art and sprites are original to this port; the only
+borrowed idea is the dirty-tile refresh that `docs/research/picocalc-games-survey.md`
+records from the Keen Dreams refresh manager; no code, data or art comes
+from it.
+
+Structure. The one file `games/ridge/ridge.c` has three halves. The rules
+perform no I/O and read no clock: positions are sixteenths of a pixel, one
+`rg_tick()` runs per 33 ms, and the camera, scoring, level progress and the
+translation of raw key events into per-tick input live there.
+`RIDGE_LOGIC` compiles that half alone for `tests/logic_test.c`. The render
+half draws through `games/gametile.h`; `RIDGE_RENDER` compiles it with the
+rules for `tests/render_test.c`, which binds the two device calls of
+`gametile.h` to a model of `/dev/lcdgfx`. The front end opens
+`/dev/lcdgfx` and the console (refusing a start outside the console's
+foreground process group, and ignoring `SIGTTOU` so no tty call can stop it
+with the panel held), sets RAW without echo, starts the raw key
+session (`LCDIOC_KEYEVS`), runs a timed `select` loop that drops the
+bytes the tty also queues with `TIOCFLUSH` after each successful key drain
+(a flush never waits, and a drain fails once another program has changed
+the mode or taken the foreground, so that program keeps its input), and on
+exit restores the tty mode and flushes the queues only if a last drain
+shows the session still holds the console, then ends the session and
+closes the device, which returns the panel to
+the text console. Without `/dev/lcdgfx` or without a key session it prints
+the reason and exits: the game has no text-terminal fallback, because the
+console cannot show it and the raw key events are what make held keys work.
+
+Physics. The player's hit box is 10 by 14 pixels. Run speed is 2.5 pixels a
+tick reached in five ticks on the ground (six units a tick of acceleration
+in the air), gravity 0.75 pixel a tick squared with a fall cap of six pixels
+a tick, and a jump leaves at 8.25 pixels a tick, which rises 41.25 pixels
+(5.2 tiles) when the key stays down and 12 pixels when it is released at
+once (a press and release are two raw events, so the cut is exact).
+Movement splits into steps of at most four pixels, so no tick crosses a
+tile. Coyote time (a jump up to three ticks after leaving an edge) and a
+jump buffer (a press up to three ticks before landing) cover the keyboard's
+one event per 32 ms. A direction pressed and released between two ticks
+still moves one tick. The key state is kept per physical key, because a held
+printable key repeats as PRESSED events (`picokbd_map.h`): jump, drop, pause,
+quit and confirm fire on the first PRESSED of a key and not again until its
+RELEASED, and an action is held while any key that drives it is down (Space and
+Up both jump). Lost events clear every key's state. A stomp needs the tick's move to have carried the box down from a bottom
+within 5 pixels of the crawler's top; `rg_tick()` records both before the move,
+because a floor landing in the same tick clears the velocity. A life lost to a crawler respawns at the last checkpoint with 45 ticks of
+grace, during which a crawler's touch does no harm (a stomp still scores); the
+grace ends only once no crawler touches the climber, which blinks while it
+lasts. Crawlers stand still while the climber is dying, so without grace a
+crawler in the spawn box would kill it again at the first tick. The level-data
+rules also keep every checkpoint's spawn box outside every crawler's patrol.
+Level design keeps every gap at five columns or less (the jump crosses six)
+and every climb at four rows or less.
+
+Tiles and sprites. The atlas holds 57 static tiles (sixteen terrain and
+item tiles, then a 41-glyph 5 by 7 font for the HUD and banners), all
+generated in code and uploaded once, and 63 slots for sprites. A 16 by 16
+sprite covers at most 3 by 3 cells, so each of up to seven sprites (the
+player and six crawlers) owns nine slots; the renderer composites the
+sprite over the world tiles under it in user memory and uploads the nine
+tiles with one `LCDG_TILESET`, which costs no bus time. Two sprites whose
+3 by 3 boxes meet share cells; every sprite composites all the sprites whose
+boxes meet its own, the climber over the crawlers and a lower crawler over a
+higher one, and a shared cell shows the slot of the lowest-numbered sprite
+that covers it, which holds all of them. The allocation stays nine slots per
+sprite and seven sprites; a sprite's unused slots are the cells another
+sprite owns. A sprite whose position, frame, mirroring, camera column,
+twinkle phase, the map's change counter and the position, frame, mirroring and
+relative index of every neighbor match the previous frame uploads nothing, and
+the cells it covers keep their numbers, so `gtile_set()` marks nothing. The far ridge behind the
+action is a one-pixel contour, so an item or sprite cell loses at most a
+stroke of it and no tile needs a variant per background. World cells are
+chosen so that columns look alike: flat rock, the sky and the abyss are
+single tile numbers, and only edges (ledges, pits, pillars, the contour)
+change as the view moves.
+
+Scroll cost. The panel has hardware scroll in one direction only, so the
+camera moves by whole tile columns and the renderer sends only the cells
+whose tile number changed, one `LCDG_TILEWIN` per run. Computed on the host
+model for every one-column scroll of the four levels with the sprites out of
+view: the mean step changes 68 (`FOOTFALL`), 94, 85 and 134 (`SUMMIT`) tiles,
+the worst 85, 125, 102 and 166 tiles with 65, 109, 69 and 149 windows. At
+123 microseconds a tile and 7 a window (`docs/research/picocalc-calculator-and-gui.md`)
+the worst step is 21.5 ms of bus time. The camera follows with a dead zone,
+so a column scrolls at most once per 3.2 ticks at top speed. The first
+frame of a level repaints all 1,600 cells (about 197 ms predicted). System-call
+overhead per window (two calls) is unmeasured.
+
+Levels. A level is a list of five-byte commands (rock rectangle, ledge run,
+spike run, shard run, flag, goal, crawler corridor, start) decoded into a
+200 by 32 column-major map: 470 bytes of data for the four levels. The logic
+test proves each level completable by a weighted A* search over the player's
+inputs (a state that touches a spike or leaves through a pit is dropped) and
+replays the winning inputs through `rg_tick()`; the routes found take
+10, 14, 8 and 18 seconds against par times of 40, 60, 45 and 70, which feed
+the time bonus. Crawlers are not in the search; the level rules require each
+corridor to have floor and three rows of headroom, so a jump clears or
+stomps it.
+
+Sizes, from `arm-none-eabi-size` and `ls` on the toolchain of this tree at
+`-Os`: `ridge.o` is 10,145 bytes of text and 11,452 of bss (the map and the
+game state, `struct rg_game`, 6,796 bytes; the view with its tile map,
+frame buffer and sprite signatures, 4,500); the standalone a.out is 10,876
+bytes (text 10,832, data 4, bss 11,468). Inside `gamebox` it adds 10,224 raw
+bytes (23,920 to 34,144) and 8,354 packed bytes (21,660 to 30,014). The survey's estimate was 5 to 6 KB
+of engine text plus 4 KB of tile data; the tiles are generated, the sprites
+(1,632 bytes of strings) and the font (287 bytes) are the stored art, and
+the HUD, banners, compositing and front end made the code larger than the
+estimate.
+
+Open points. Board behavior is unmeasured: the bus time of a scroll step,
+the keyboard controller's repeat rate and whether a release event always
+follows a press (a lost event clears the held keys, and the next hold event
+sets them again), and the frame rate with all sprites in view. The game
+ends when `LCDIOC_GETKEY` fails, which happens when another process changes
+the tty mode.

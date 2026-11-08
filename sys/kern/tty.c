@@ -38,12 +38,15 @@ static  int rts = TIOCM_RTS;
 int TTYHOG = TTYHOG_BYTES;
 
 /*
- * ttwrite() stops at TTHIWAT and can pass it by one OBUFSIZ chunk plus a
- * partly filled block; what remains of the pool must hold a full raw queue,
- * TTYHOG_BYTES spread over the partly filled blocks of t_rawq and t_canq.
+ * A clist of n bytes spans at most (n + 3 * (CBSIZE - 1)) / CBSIZE blocks: a
+ * consumed head and an unused tail can each waste CBSIZE - 1 bytes of a
+ * block. ttwrite() stops at TTHIWAT and can pass it by one OBUFSIZ chunk, and
+ * t_rawq and t_canq together hold up to TTYHOG_BYTES, split between two
+ * queues with two wasted ends each; both worst cases must fit the pool.
  */
-_Static_assert((int)(NCLIST * CBSIZE) - TTMAXHIWAT - OBUFSIZ - (int)CBSIZE >=
-    TTYHOG_BYTES + 2 * (int)CBSIZE,
+#define CLIST_SPAN(n)   (((n) + 3 * ((int)CBSIZE - 1)) / (int)CBSIZE)
+#define INPUT_SPAN      ((TTYHOG_BYTES + 6 * ((int)CBSIZE - 1)) / (int)CBSIZE)
+_Static_assert(CLIST_SPAN(TTMAXHIWAT + OBUFSIZ) + INPUT_SPAN <= NCLIST,
     "the clist pool cannot hold a full output queue and TTYHOG of input");
 int TTYBLOCK = 128;
 int TTYUNBLOCK = 64;

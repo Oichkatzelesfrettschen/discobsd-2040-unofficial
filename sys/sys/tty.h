@@ -105,13 +105,14 @@ extern int q_to_b(register struct clist *q, char *cp, int cc);
 
 /*
  * The output high-water mark ttwrite() stops a writer at is the speed table's
- * value capped at half the clist pool. The table reaches 2000 bytes, more
- * than the NCLIST * CBSIZE bytes a small pool holds, so an uncapped writer
- * fills the pool before its mark and ttyinput() drops what arrives meanwhile;
- * the cap keeps room for TTYHOG bytes of input on the line (tty.c checks the
- * sum at compile time).
+ * value capped at three eighths of the clist pool. The table reaches 2000
+ * bytes, more than the NCLIST * CBSIZE bytes a small pool holds, so an
+ * uncapped writer fills the pool before its mark and ttyinput() drops what
+ * arrives meanwhile; the cap keeps room for TTYHOG bytes of input on the line
+ * with both ends of every queue's blocks partly used (tty.c checks the block
+ * count at compile time).
  */
-#define TTMAXHIWAT  ((int)(NCLIST * CBSIZE) / 2)
+enum { TTMAXHIWAT = NCLIST * CBSIZE * 3 / 8 };  /* an int, as tthiwat[] is */
 #define TTHIWAT(tp) (tthiwat[(tp)->t_ospeed&TTMASK] < TTMAXHIWAT ? \
                      tthiwat[(tp)->t_ospeed&TTMASK] : TTMAXHIWAT)
 #define TTLOWAT(tp) ttlowat[(tp)->t_ospeed&TTMASK]

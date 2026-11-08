@@ -133,9 +133,14 @@ objs/${unit}.o: ${FSCK}/${unit}.c ${FSCK_HEADERS}
 	${HOSTCC} ${FSCK_CFLAGS} ${CFLAGS.${unit}} -c -o $@ ${FSCK}/${unit}.c
 .endfor
 
+# The tree's stdio.h redeclares fopen, fread, fprintf and the other names the
+# host compiler knows as builtins over the target's FILE; clang rejects that
+# under -Wbuiltin-requires-header unless the builtins are off, as they are for
+# every other unit that includes the tree's headers.
 objs/glue.o: fsck_glue.c fsck_glue.h ${MACHINE_STAMP}
 	@mkdir -p objs
-	${HOSTCC} -std=gnu17 ${ILP32} ${GATE_WARN} -I. -I${TOPSRC}/include \
+	${HOSTCC} -std=gnu17 ${ILP32} -fno-builtin ${GATE_WARN} -I. \
+	    -I${TOPSRC}/include \
 	    -c -o $@ fsck_glue.c
 
 # The host half carries no tree header and reaches the host's <stdio.h>.

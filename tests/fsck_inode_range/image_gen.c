@@ -72,6 +72,13 @@
  *   orphan-chain-cycle  orphan-cycle plus a third directory, at the lowest
  *                  inode, whose ".." names a member of the loop: its chain
  *                  enters the loop and never returns to it.
+ *   lf-second-block  lost+found grown to two blocks by entries that leave
+ *                  the first without room for one more, then a file that
+ *                  loses its name: the reconnect must use the second block.
+ *   lf-one-slot    lost+found holds one block with room for exactly one more
+ *                  entry, and two files lose their names: the first reconnect
+ *                  fills the block, so the second finds no room and the
+ *                  checker clears that file.
  *   count-tfree    five files and a sound free list, with the superblock's
  *                  free-block count one above the list it heads.
  *   count-tinode   five files, with the superblock's free-inode count one
@@ -319,6 +326,43 @@ make_empty_file(fs_t *fs, const char *name)
 	return fs_file_create(fs, &file, name, 0644) && fs_file_close(&file);
 }
 
+/*
+ * Give lost+found sixteen-byte entries, each a name of six characters for one
+ * file /lost+found/x00000, until the directory holds BLOCKS blocks, or, when
+ * BLOCKS is 1, until COUNT entries stand behind "." and "..". The entry
+ * fsutil makes for an orphan, "#" and five digits, is sixteen bytes too, so
+ * a block these names filled has no room for it. The file's link count
+ * matches its names.
+ */
+static int
+fill_lost_found(fs_t *fs, unsigned blocks, unsigned count)
+{
+	fs_inode_t file, dir;
+	char name[32];
+	unsigned number, names = 1;
+
+	if (!make_file(fs, "/lost+found/x00000"))
+		return 0;
+	number = number_of(fs, "/lost+found/x00000");
+	for (;;) {
+		if (!fs_inode_lookup(fs, &dir, "/lost+found"))
+			return 0;
+		if (blocks == 1 ? names == count :
+		    dir.size >= blocks * BSDFS_BSIZE)
+			break;
+		if (dir.size > blocks * BSDFS_BSIZE || names >= 1000)
+			return 0;
+		snprintf(name, sizeof name, "/lost+found/x%05u", names);
+		if (!fs_inode_link(fs, &file, name, number))
+			return 0;
+		names++;
+	}
+	if (dir.size != blocks * BSDFS_BSIZE || !fs_inode_get(fs, &file, number))
+		return 0;
+	file.nlink = names;
+	return fs_inode_save(&file, 1);
+}
+
 /* Create /f<first> through /f<last>, one file each. */
 static int
 fill_files(fs_t *fs, unsigned first, unsigned last)
@@ -450,6 +494,15 @@ build(const char *layout, const char *path)
 		    !drop_name(&fs, "/d00") || !drop_name(&fs, "/d01") ||
 		    (chain && !drop_name(&fs, "/d02")) ||
 		    (gap && !delete_file(&fs, "/pad")))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "lf-second-block") == 0) {
+		if (!fill_lost_found(&fs, 2, 0) || !make_file(&fs, "/f00") ||
+		    !drop_name(&fs, "/f00"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "lf-one-slot") == 0) {
+		/* 61 entries of 16 bytes behind "." and ".." leave 24 bytes. */
+		if (!fill_lost_found(&fs, 1, 61) || !fill_files(&fs, 0, 1) ||
+		    !drop_name(&fs, "/f00") || !drop_name(&fs, "/f01"))
 			return fail("cannot build", layout);
 	} else if (strcmp(layout, "count-tfree") == 0 ||
 	    strcmp(layout, "count-tinode") == 0) {

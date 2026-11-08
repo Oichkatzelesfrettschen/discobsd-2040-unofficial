@@ -74,6 +74,7 @@ FSUTIL_MUTANTS=	fsutil-find-inode fsutil-lost-entry-old fsutil-namlen-empty \
 		fsutil-reclen-bound fsutil-reach-skip fsutil-no-rescan \
 		fsutil-dotdot-keep fsutil-chain-flat fsutil-clear-leak \
 		fsutil-tfree-keep fsutil-tfree-count fsutil-tinode-count \
+		fsutil-dir-one-block \
 		fsutil-cycle-unbound fsutil-cycle-noretry \
 		fsutil-cycle-open fsutil-cycle-unclosed
 SCENARIOS.fsutil-find-inode=	fsutil-lf-last fsutil-lf-hole
@@ -88,10 +89,12 @@ SCENARIOS.fsutil-reach-skip=	fsutil-lf-dir fsutil-lf-deep
 SCENARIOS.fsutil-no-rescan=	fsutil-lf-dir fsutil-lf-deep
 SCENARIOS.fsutil-dotdot-keep=	fsutil-lf-dir fsutil-lf-deep
 SCENARIOS.fsutil-chain-flat=	fsutil-lf-deep
-SCENARIOS.fsutil-clear-leak=	fsutil-clear-blocks
+SCENARIOS.fsutil-clear-leak=	fsutil-clear-blocks fsutil-lf-one-slot
 SCENARIOS.fsutil-tfree-keep=	fsutil-clear-blocks
 SCENARIOS.fsutil-tfree-count=	fsutil-count-tfree
-SCENARIOS.fsutil-tinode-count=	fsutil-count-tinode fsutil-clear-blocks
+SCENARIOS.fsutil-tinode-count=	fsutil-count-tinode fsutil-clear-blocks \
+				fsutil-lf-one-slot
+SCENARIOS.fsutil-dir-one-block=	fsutil-lf-second
 SCENARIOS.fsutil-cycle-unbound=	fsutil-lf-chain
 SCENARIOS.fsutil-cycle-noretry=	fsutil-lf-chain
 SCENARIOS.fsutil-cycle-open=	fsutil-lf-gap fsutil-lf-chain

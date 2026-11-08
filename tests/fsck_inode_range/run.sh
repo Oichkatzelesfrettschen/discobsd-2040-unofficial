@@ -277,6 +277,43 @@ run_fsutil_count() {
 	second_run "$files"
 }
 
+# run_fsutil_one_slot: two unreferenced files and room in lost+found for one.
+# fsutil reconnects one, reports no space for the other and clears it: the
+# reconnected file resolves under its "#" name, the cleared one does not, the
+# superblock gains the one free inode, and the next reports are clean.
+run_fsutil_one_slot() {
+	free_before=$(inode_free)
+	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
+	has 'SORRY. NO SPACE IN lost+found DIRECTORY'
+	listed=$(sed -n 's/^UNREF FILE  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
+	[ "$(printf '%s\n' "$listed" | wc -l)" -eq 2 ] ||
+	    fail "fsutil reported unreferenced files \"$listed\", want two"
+	resolved=0
+	for ino in $listed; do
+		name=$(printf '/lost+found/#%05u' "$ino")
+		status=0
+		found=$("$gen" --lookup "$img" "$name" 2>/dev/null) || status=$?
+		case $status in
+		0)
+			[ "$found" = "$ino" ] ||
+			    fail "$name resolves to \"$found\", want $ino"
+			resolved=$((resolved + 1))
+			;;
+		1) ;;
+		*) error "$scenario: $gen --lookup did not complete, status $status" ;;
+		esac
+	done
+	[ "$resolved" -eq 1 ] ||
+	    fail "$resolved of the unreferenced files resolve under lost+found, want one"
+	free_after=$(inode_free)
+	[ "$free_after" -eq $((free_before + 1)) ] ||
+	    fail "free inodes $free_before before the repair and $free_after after, want one more"
+	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
+	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING|WRONG'
+	set_expected_files
+	second_run "$files"
+}
+
 # With no lost+found to reconnect into, fsutil clears the unreferenced file.
 # The blocks it frees leave the block map, and the count phase 5 compares
 # with the free list must lose them too: an image that keeps the count makes
@@ -395,6 +432,7 @@ for scenario in "$@"; do
 	    full-table | fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
 	    fsutil-lf-overrun | fsutil-lf-dir | fsutil-lf-deep | fsutil-lf-cycle | fsutil-lf-gap | fsutil-lf-chain | \
 	    fsutil-clear-blocks | fsutil-count-tfree | fsutil-count-tinode | \
+	    fsutil-lf-second | fsutil-lf-one-slot | \
 	    tail-evict | df-empty | df-full | \
 	    df-tail | df-mkfs | mkfs-ratio) ;;
 	*) error "unknown scenario $scenario" ;;
@@ -411,6 +449,8 @@ for scenario in "$@"; do
 	fsutil-lf-chain) layout=orphan-chain-cycle ;;
 	fsutil-clear-blocks) layout=orphan-nolf ;;
 	fsutil-count-tfree) layout=count-tfree ;;
+	fsutil-lf-second) layout=lf-second-block ;;
+	fsutil-lf-one-slot) layout=lf-one-slot ;;
 	fsutil-count-tinode) layout=count-tinode ;;
 	df-empty) layout=empty ;;
 	df-full) layout=file-last ;;
@@ -434,6 +474,8 @@ for scenario in "$@"; do
 	fsutil-lf-cycle | fsutil-lf-gap) run_fsutil_cycle 2 ;;
 	fsutil-lf-chain) run_fsutil_cycle 3 ;;
 	fsutil-clear-blocks) run_fsutil_clear ;;
+	fsutil-lf-second) run_fsutil FILE ;;
+	fsutil-lf-one-slot) run_fsutil_one_slot ;;
 	fsutil-count-tfree) run_fsutil_count 'FREE BLK COUNT WRONG IN SUPERBLOCK' ;;
 	fsutil-count-tinode) run_fsutil_count 'FREE INODE COUNT WRONG IN SUPERBLOCK' ;;
 	fsutil-lf-overrun) run_fsutil_overrun ;;

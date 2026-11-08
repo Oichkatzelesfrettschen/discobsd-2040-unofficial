@@ -154,6 +154,11 @@ SITES: dict[str, Edit] = {
         "    fs->tfree = 0;      /* fs_block_free() counts every block it links */\n",
         "",
     ),
+    "fsutil-dir-one-block": (
+        "check.c",
+        "    return (scan_filesize > 0) ? KEEPON : STOP;\n",
+        "    return STOP;\n",
+    ),
     "fsutil-tfree-count": (
         "check.c",
         "        } else if (free_blocks != fs->tfree) {\n",

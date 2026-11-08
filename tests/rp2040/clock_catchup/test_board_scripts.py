@@ -592,5 +592,102 @@ class SentinelFraming(unittest.TestCase):
         self.assertTrue(console.run("cmd", wait=0.3)[0].startswith("TIMEOUT"))
 
 
+class LoginSerialModule:
+    """A console that stays silent for SILENT writes, then waits at login:.
+
+    Any line typed at login: is taken as a user name; "operator" logs in,
+    after a Password: prompt when PASSWORD is set, and an empty password is
+    accepted for operator only. The shell answers "echo SH""ELL" with SHELL.
+    """
+
+    class SerialException(OSError):
+        pass
+
+    silent = 0
+    password = False
+
+    class Serial:
+        def __init__(self, _port, _baud, timeout=0):
+            self.out = b""
+            self.writes = 0
+            self.state = "login"
+            self.user = None
+            self.lines = []
+
+        def write(self, data):
+            line = data.decode().rstrip("\r")
+            self.lines.append(line)
+            self.writes += 1
+            if self.writes <= LoginSerialModule.silent:
+                return
+            if self.state == "shell":
+                reply = "operator@pico:~$ %s\r\n" % line
+                if line == 'echo SH""ELL':
+                    reply += "SHELL\r\n"
+                self.out += (reply + "operator@pico:~$ ").encode()
+            elif self.state == "login":
+                self.user = line
+                if LoginSerialModule.password:
+                    self.state = "password"
+                    self.out += ("%s\r\nPassword:" % line).encode()
+                else:
+                    self.finish(line)
+            else:
+                self.out += b"\r\n"
+                self.finish(self.user if line == "" else None)
+
+        def finish(self, user):
+            if user == "operator":
+                self.state = "shell"
+                self.out += b"\r\noperator@pico:~$ "
+            else:
+                self.state = "login"
+                self.out += b"\r\nLogin incorrect\r\nlogin: "
+
+        def read(self, _size):
+            out, self.out = self.out, b""
+            return out
+
+
+class ReachShell(unittest.TestCase):
+    def console(self, silent=0, password=False, state="login"):
+        LoginSerialModule.silent = silent
+        LoginSerialModule.password = password
+        console = clock.Console(LoginSerialModule, "stub")
+        console.port.state = state
+        return console
+
+    def test_a_logged_in_shell_answers_at_once(self):
+        console = self.console(state="shell")
+        clock.reach_shell(console, seconds=1, wait=0.05)
+        self.assertEqual(console.port.lines, ['echo SH""ELL'])
+
+    def test_the_probe_line_taken_for_a_user_name_still_logs_in(self):
+        # At login: the first probe line becomes a user name and fails; the
+        # login: that follows gets operator.
+        console = self.console()
+        clock.reach_shell(console, seconds=1, wait=0.05)
+        self.assertEqual(console.port.state, "shell")
+        self.assertIn("operator", console.port.lines)
+
+    def test_a_password_prompt_gets_an_empty_password(self):
+        console = self.console(password=True)
+        clock.reach_shell(console, seconds=1, wait=0.05)
+        self.assertEqual(console.port.state, "shell")
+        self.assertEqual(console.port.lines[-1], 'echo SH""ELL')
+
+    def test_a_board_still_booting_is_waited_for(self):
+        console = self.console(silent=2)
+        clock.reach_shell(console, seconds=2, wait=0.05)
+        self.assertEqual(console.port.state, "shell")
+
+    def test_a_console_without_a_shell_is_inconclusive(self):
+        console = self.console(silent=10**6)
+        with self.assertRaises(clock.MeasurementError) as caught:
+            clock.reach_shell(console, seconds=1, wait=0.05)
+        self.assertNotIsInstance(caught.exception, clock.ClockUnsteady)
+        self.assertIn("no shell", str(caught.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

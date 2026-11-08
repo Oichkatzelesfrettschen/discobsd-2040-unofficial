@@ -247,7 +247,11 @@ ufs_df(file, maxwidth)
     sfsp->f_bavail = sblock.fs_tfree;
     if (sfsp->f_bavail < 0)
         sfsp->f_bavail = 0;
-    sfsp->f_files =  (sblock.fs_isize - 2) * INOPB;
+    /*
+     * The i-list holds the blocks after the superblock up to fs_isize, as
+     * statfs() in sys/kern/ufs_syscalls2.c counts them.
+     */
+    sfsp->f_files = (sblock.fs_isize - (SUPERB + 1)) * INOPB;
     sfsp->f_ffree = sblock.fs_tinode;
     sfsp->f_fsid[0] = 0;
     sfsp->f_fsid[1] = 0;

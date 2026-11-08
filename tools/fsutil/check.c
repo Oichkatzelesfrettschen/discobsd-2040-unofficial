@@ -51,6 +51,13 @@ extern int verbose;
 #define KEEPON          004
 #define SKIP            002
 #define STOP            001
+#define INSERT          020 /* entry shrunk, 'inserted' goes after it */
+
+/* Bytes a directory entry with a name of namlen characters needs: the 8-byte
+ * header and the name with its terminator, rounded to 4, as DIRSIZ() in
+ * sys/sys/dir.h. */
+#define DIRENT_HEADER   8
+#define DIRENT_SIZE(namlen) ((DIRENT_HEADER + (namlen) + 1 + 3) & ~3u)
 
 #define outrange(fs,x)  ((x) < (fs)->isize || (x) >= (fs)->fsize)
 
@@ -87,6 +94,8 @@ static int              dup_blocks;         /* num of dup blks seen (per inode) 
 static char             *find_inode_name;   /* searching for this name */
 static unsigned         find_inode_result;  /* result of inode search */
 static unsigned         lost_inode;         /* lost file to reconnect */
+static fs_dirent_t      inserted;           /* entry to write after a shrunk one */
+static unsigned         scan_room;          /* bytes from the entry to its block end */
 
 static unsigned long    scan_filesize;      /* file size, decremented during scan */
 static unsigned         total_files;        /* number of files seen */
@@ -328,6 +337,22 @@ static int pass1b (fs_inode_t *inode, unsigned blk, void *arg)
 }
 
 /*
+ * Write an entry back to the directory block at p. fs_dirent_pack() pads
+ * the name to a multiple of 4 and so writes no terminator when namlen is a
+ * multiple of 4; DIRSIZ() in sys/sys/dir.h reserves the terminator byte, and
+ * fsck rejects an entry whose name is not followed by NUL. The terminator is
+ * written when it lies inside the entry's record and the block.
+ */
+static void pack_entry (unsigned char *p, fs_dirent_t *dirp)
+{
+    unsigned char *nul = p + DIRENT_HEADER + dirp->namlen;
+
+    fs_dirent_pack (p, dirp);
+    if (nul < p + dirp->reclen && nul < &buf_data[BSDFS_BSIZE])
+        *nul = 0;
+}
+
+/*
  * Read directory, and for every entry call given function.
  * If function altered the contents of entry, then write it back.
  */
@@ -354,14 +379,17 @@ static int scan_directory (fs_inode_t *inode, unsigned blk, void *arg)
             break;
 
         /* For every directory entry, call handler. */
+        scan_room = &buf_data[BSDFS_BSIZE] - dirp;
         n = (*func) (inode->fs, &direntry);
 
         if (n & ALTERD) {
             if (buf_get (inode->fs, blk)) {
-                fs_dirent_pack (dirp, &direntry);
+                pack_entry (dirp, &direntry);
+                if (n & INSERT)
+                    pack_entry (dirp + direntry.reclen, &inserted);
                 buf_dirty = 1;
             } else
-                n &= ~ALTERD;
+                n &= ~(ALTERD | INSERT);
         }
         if (n & STOP)
             return n;
@@ -497,16 +525,42 @@ static int find_inode (fs_t *fs, fs_dirent_t *dirp)
 }
 
 /*
- * Find a free slot and make link to 'lost_inode'.
- * Create filename of a kind "#01234".
+ * Find room for a link to 'lost_inode' and make it. The name is of a kind
+ * "#01234". An empty entry takes the name when its record is large enough.
+ * Otherwise an entry whose record is longer than DIRENT_SIZE() of its own
+ * name gives the remainder to the new entry, as direnter() in
+ * sys/kern/ufs_namei.c does; a lost+found that fs_create wrote holds only
+ * "." and ".." with the rest of the block in the record of "..".
  */
 static int make_lost_entry (fs_t *fs, fs_dirent_t *dirp)
 {
-    if (dirp->ino)
+    char name [16];
+    unsigned namlen, used;
+
+    snprintf (name, sizeof(name), "#%05u", lost_inode);
+    namlen = strlen (name);
+    /* A record that runs past its block or breaks 4-byte alignment is
+     * damaged, and neither it nor its slack takes the new entry. */
+    if (dirp->reclen > scan_room || (dirp->reclen & 3))
         return KEEPON;
-    dirp->ino = lost_inode;
-    snprintf (dirp->name, sizeof(dirp->name), "#%05d", dirp->ino);
-    return ALTERD | STOP;
+    if (dirp->ino == 0) {
+        if (dirp->reclen < DIRENT_SIZE (namlen))
+            return KEEPON;
+        dirp->ino = lost_inode;
+        dirp->namlen = namlen;
+        strlcpy (dirp->name, name, sizeof(dirp->name));
+        return ALTERD | STOP;
+    }
+    used = DIRENT_SIZE (dirp->namlen);
+    if (dirp->reclen < used + DIRENT_SIZE (namlen))
+        return KEEPON;
+    memset (&inserted, 0, sizeof(inserted));
+    inserted.ino = lost_inode;
+    inserted.reclen = dirp->reclen - used;
+    inserted.namlen = namlen;
+    strlcpy (inserted.name, name, sizeof(inserted.name));
+    dirp->reclen = used;
+    return ALTERD | INSERT | STOP;
 }
 
 /*

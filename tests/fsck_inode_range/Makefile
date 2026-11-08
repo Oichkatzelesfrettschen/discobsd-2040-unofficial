@@ -47,7 +47,7 @@ CFLAGS.setup=	-Dreply=fsck_accept_image
 # fsck_mutate.py. The scenarios listed for a mutant must fail on it.
 MUTANTS=	pass1-loop direntry makeentry-ino makeentry-parent \
 		lfdir-lookup alloc-test alloc-range all-old \
-		window-flush inode-window
+		window-flush inode-window dirhead
 SCENARIOS.pass1-loop=		file-last dir-last
 SCENARIOS.direntry=		file-last
 SCENARIOS.makeentry-ino=	orphan-last
@@ -56,8 +56,9 @@ SCENARIOS.lfdir-lookup=		lf-last
 SCENARIOS.alloc-test=		free-last
 SCENARIOS.alloc-range=		free-last
 SCENARIOS.all-old=		file-last dir-last orphan-last free-last lf-last
-SCENARIOS.window-flush=		orphan-dir
-SCENARIOS.inode-window=		orphan-dir
+SCENARIOS.window-flush=		orphan-dir free-last
+SCENARIOS.inode-window=		orphan-dir free-last
+SCENARIOS.dirhead=		free-last
 
 MUTANT_SPECS=
 .for mutant in ${MUTANTS}

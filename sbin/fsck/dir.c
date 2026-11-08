@@ -22,8 +22,14 @@ struct  dirtemplate emptydir = { 0, DIRBLKSIZ };
  * 'xstr' is used to preprocess the sources.  The structure has two members
  * as 'char dot_name[2]' and 'char dotdot_name[6]' which is NOT the same as
  * 'char *'.
+ *
+ * The "." entry holds DIRSIZ of a one-character name: the eight-byte header
+ * of struct direct (four-byte d_ino, d_reclen, d_namlen) plus the name and
+ * its terminator padded to four bytes, twelve in all. The ".." entry starts
+ * at offset twelve and owns the rest of the block. The kernel's
+ * mastertemplate (sys/kern/ufs_syscalls.c) carries the same two lengths.
  */
-struct  dirtemplate dirhead = { 0, 8, 1, {'.'}, 0, DIRBLKSIZ - 8, 2,
+struct  dirtemplate dirhead = { 0, 12, 1, {'.'}, 0, DIRBLKSIZ - 12, 2,
                 {'.', '.' }};
 
 void

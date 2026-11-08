@@ -125,9 +125,12 @@ after_reconnect() {
 	second_run "$files"
 }
 
+# Creating lost+found adds one directory to the count, and the directory
+# fsck writes must pass the next directory check.
 after_create() {
 	has 'NO lost+found DIRECTORY'
 	has 'CREATE?  yes'
+	second_run $((files + 1))
 }
 
 for scenario in "$@"; do

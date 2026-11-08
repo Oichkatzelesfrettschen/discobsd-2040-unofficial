@@ -53,6 +53,11 @@ SITES: dict[str, Edit] = {
         "for (ino = request; ino <= imax; ino++)",
         "for (ino = request; ino < imax; ino++)",
     ),
+    "dirhead": (
+        "dir.c",
+        "struct  dirtemplate dirhead = { 0, 12, 1, {'.'}, 0, DIRBLKSIZ - 12, 2,",
+        "struct  dirtemplate dirhead = { 0, 8, 1, {'.'}, 0, DIRBLKSIZ - 8, 2,",
+    ),
     "window-flush": (
         "utilities.c",
         "bwrite(fcp, inobuf, startib, INOWINDOW(startib) * DEV_BSIZE);",

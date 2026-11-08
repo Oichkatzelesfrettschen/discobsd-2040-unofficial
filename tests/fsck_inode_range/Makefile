@@ -225,7 +225,8 @@ mkfs_host: objs/mkfs.o
 	${HOSTCC} ${ILP32} -o $@ objs/mkfs.o
 
 .for mutant in ${DF_MUTANTS}
-df_mutant_${mutant}: fsck_mutate.py objs/df_driver.o ${MACHINE_STAMP}
+df_mutant_${mutant}: fsck_mutate.py ${DF}/df.c objs/df_driver.o \
+	    ${MACHINE_STAMP}
 	@mkdir -p mutant/${mutant}
 	${PYTHON} ${.CURDIR}/fsck_mutate.py --source-dir ${DF} \
 	    --output-dir mutant/${mutant} --mutation ${mutant}
@@ -235,7 +236,7 @@ df_mutant_${mutant}: fsck_mutate.py objs/df_driver.o ${MACHINE_STAMP}
 .endfor
 
 .for mutant in ${MKFS_MUTANTS}
-mkfs_mutant_${mutant}: fsck_mutate.py ${MACHINE_STAMP}
+mkfs_mutant_${mutant}: fsck_mutate.py ${MKFS}/mkfs.c ${MACHINE_STAMP}
 	@mkdir -p mutant/${mutant}
 	${PYTHON} ${.CURDIR}/fsck_mutate.py --source-dir ${MKFS} \
 	    --output-dir mutant/${mutant} --mutation ${mutant}

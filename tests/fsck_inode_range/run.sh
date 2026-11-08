@@ -175,6 +175,15 @@ run_fsutil() {
 	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
 	has 'UNREF FILE'
 	lacks 'SORRY'
+	# fsutil names the reconnected file "#" and its inode number in five
+	# digits; fsck accepts an entry whose name is empty, so the name itself
+	# is checked through fsutil's lookup.
+	ino=$(sed -n 's/^UNREF FILE  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
+	[ -n "$ino" ] || error "$scenario: no inode number in the UNREF report"
+	name=$(printf '/lost+found/#%05u' "$ino")
+	found=$("$gen" --lookup "$img" "$name" 2>/dev/null) || found=
+	[ "$found" = "$ino" ] ||
+	    fail "$name resolves to \"$found\", want $ino"
 	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
 	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING'
 	set_expected_files
@@ -224,6 +233,12 @@ EOF
 run_mkfs_ratio() {
 	status=0
 	"$mkfs" -i 512 "$img" 2 >"$out" 2>&1 || status=$?
+	# Only a completed run counts as a verdict: 126, 127 and signal
+	# statuses mean the program never ran to its own exit.
+	case $status in
+	0 | 1) ;;
+	*) error "$scenario: $mkfs did not complete, status $status" ;;
+	esac
 	[ "$status" -eq 1 ] || fail "mkfs exit status $status, want 1"
 	has '2/1: bad ratio'
 }

@@ -54,6 +54,9 @@
  * so a gate can compare the figures bin/df reports from the raw device.
  * "--fix IMAGE" opens the image for writing, as fsutil --check --fix does,
  * and lets fsutil repair what it reports.
+ * "--lookup IMAGE PATH" prints the inode number PATH names, resolved through
+ * fsutil's own directory lookup, and exits 1 when no entry has that name, so
+ * a gate can require a repaired entry to carry the name it was given.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -364,6 +367,23 @@ inodes(const char *path)
 	return 0;
 }
 
+static int
+lookup(const char *path, const char *name)
+{
+	fs_t fs;
+	fs_inode_t inode;
+
+	if (!fs_open(&fs, path, 0, 0))
+		return fail("cannot open", path);
+	if (!fs_inode_lookup(&fs, &inode, name)) {
+		fs_close(&fs);
+		return fail("no entry", name);
+	}
+	printf("%u\n", inode.number);
+	fs_close(&fs);
+	return 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -373,10 +393,12 @@ main(int argc, char **argv)
 		return check(argv[2], 1);
 	if (argc == 3 && strcmp(argv[1], "--inodes") == 0)
 		return inodes(argv[2]);
+	if (argc == 4 && strcmp(argv[1], "--lookup") == 0)
+		return lookup(argv[2], argv[3]);
 	if (argc == 3)
 		return build(argv[1], argv[2]);
 	fprintf(stderr,
 	    "usage: image_gen LAYOUT IMAGE | --check IMAGE | --fix IMAGE |\n"
-	    "       --inodes IMAGE\n");
+	    "       --inodes IMAGE | --lookup IMAGE PATH\n");
 	return 2;
 }

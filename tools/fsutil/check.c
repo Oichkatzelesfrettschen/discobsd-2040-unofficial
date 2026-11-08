@@ -336,6 +336,22 @@ static int pass1b (fs_inode_t *inode, unsigned blk, void *arg)
 }
 
 /*
+ * Write an entry back to the directory block at p. fs_dirent_pack() pads
+ * the name to a multiple of 4 and so writes no terminator when namlen is a
+ * multiple of 4; DIRSIZ() in sys/sys/dir.h reserves the terminator byte, and
+ * fsck rejects an entry whose name is not followed by NUL. The terminator is
+ * written when it lies inside the entry's record and the block.
+ */
+static void pack_entry (unsigned char *p, fs_dirent_t *dirp)
+{
+    unsigned char *nul = p + DIRENT_HEADER + dirp->namlen;
+
+    fs_dirent_pack (p, dirp);
+    if (nul < p + dirp->reclen && nul < &buf_data[BSDFS_BSIZE])
+        *nul = 0;
+}
+
+/*
  * Read directory, and for every entry call given function.
  * If function altered the contents of entry, then write it back.
  */
@@ -366,9 +382,9 @@ static int scan_directory (fs_inode_t *inode, unsigned blk, void *arg)
 
         if (n & ALTERD) {
             if (buf_get (inode->fs, blk)) {
-                fs_dirent_pack (dirp, &direntry);
+                pack_entry (dirp, &direntry);
                 if (n & INSERT)
-                    fs_dirent_pack (dirp + direntry.reclen, &inserted);
+                    pack_entry (dirp + direntry.reclen, &inserted);
                 buf_dirty = 1;
             } else
                 n &= ~(ALTERD | INSERT);

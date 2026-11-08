@@ -176,7 +176,7 @@ image_gen_mutant_${mutant}: fsck_mutate.py objs/image_gen.o ${FS_OBJECTS}
 
 clean:
 	rm -f fsck_host image_gen fsck_mutant_* image_gen_mutant_*
-	rm -f objs/*.o mutant/*/*.c mutant/*/*.o work/*/*.img work/*/fsck.out \
+	rm -f objs/*.o mutant/*/*.c mutant/*/*.o work/*/*.img work/*/*.img.repaired work/*/fsck.out \
 	    work/check.log
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@for directory in objs machine mutant/* mutant work/* work; do \

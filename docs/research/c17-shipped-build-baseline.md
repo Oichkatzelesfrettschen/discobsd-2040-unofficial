@@ -76,8 +76,10 @@ The source companion projects the closure: `sources` maps each tracked path in
 any group's `tracked_sources` to its SHA-256, `artifact_sources` lists each
 group's sorted `tracked_sources`, and `closure_sha256` is the digest of the
 closure file the resource receipt binds as `execution.closure_sha256`;
-`tools/c17/project_source_baseline.py` performs that projection and reproduces
-the committed companion from its closure byte for byte.
+`tools/c17/project_source_baseline.py` performs that projection, taking each
+source hash from the capture's retained source snapshot after checking the
+snapshot's digest against the closure's `provenance.source_snapshot_sha256`,
+and reproduces the committed companion byte for byte.
 
 Runtime stack, heap and storage traffic remain unmeasured in the receipt.
 Physical-board execution remains outside the capture operation. The twelve-stage

@@ -1,8 +1,7 @@
 /*
- * One a.out for the usr.bin tools that share the most libc: expr, id,
- * more, uniq, head, tail, tr, wc, cmp, basename, env, printf, tee,
- * touch, xargs, du, tty, uname and md5, dispatched on the name it was
- * invoked by. See sbin/box/box.c.in, whose
+ * One a.out for the usr.bin tools that share the most libc, dispatched
+ * on the name it was invoked by. The member tools are the TOOLS
+ * variable of sbin/utilbox/Makefile. See sbin/box/box.c.in, whose
  * generated copy this is: each tool's globals are localized and its
  * main renamed by sbin/utilbox/Makefile, and the sources stay
  * untouched. passwd, shutdown, reboot and sysctl stay out; see

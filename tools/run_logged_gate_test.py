@@ -91,45 +91,76 @@ class LoggedGateTest(unittest.TestCase):
         self.assertIsNone(status["termination"])
 
     def test_silent_leader_exit_wakes_before_inherited_output_pipe_closes(self):
+        # The descendant holds the inherited output pipe open until the
+        # supervisor signals it, and records three events in order: the
+        # leader's exit (the descendant is reparented), the supervisor's
+        # SIGTERM and its own pipe close. The pipe therefore stays open
+        # after the leader exits, and the heartbeat, idle and hard deadlines
+        # lie far beyond the run, so the only event that can end the
+        # supervisor's wait is the leader exit itself. A supervisor that
+        # waits for the pipe or for a deadline never signals the descendant;
+        # the helper timeout then fails the run as a hang, and no elapsed
+        # time is compared.
         descendant_ready = self.directory / "descendant-ready"
-        descendant_terminated = self.directory / "descendant-terminated"
+        descendant_events = self.directory / "descendant-events"
         descendant = (
-            "import pathlib, signal, sys, time; "
-            "ready = pathlib.Path(sys.argv[1]); "
-            "terminated = pathlib.Path(sys.argv[2]); "
-            "signal.signal(signal.SIGTERM, lambda *_: "
-            "(print('DESCENDANT-SHUTDOWN', flush=True), "
-            "terminated.write_text('terminated', encoding='ascii'), sys.exit(0))); "
-            "ready.write_text('ready', encoding='ascii'); time.sleep(60)"
+            "import os, pathlib, signal, sys, time; "
+            "leader = int(sys.argv[1]); "
+            "ready = pathlib.Path(sys.argv[2]); "
+            "events = pathlib.Path(sys.argv[3]); "
+            "noted = set()\n"
+            "\ndef note(name):\n"
+            "    noted.add(name)\n"
+            "    with events.open('a', encoding='ascii') as handle:\n"
+            "        handle.write(name + '\\n')\n"
+            "\ndef stop(*_):\n"
+            "    if os.getppid() != leader and 'leader-exited' not in noted:\n"
+            "        note('leader-exited')\n"
+            "    note('sigterm')\n"
+            "    print('DESCENDANT-SHUTDOWN', flush=True)\n"
+            "    os.close(1)\n"
+            "    note('pipe-closed')\n"
+            "    sys.exit(0)\n"
+            "\nsignal.signal(signal.SIGTERM, stop)\n"
+            "ready.write_text('ready', encoding='ascii')\n"
+            "while os.getppid() == leader: time.sleep(0.005)\n"
+            "if 'leader-exited' not in noted: note('leader-exited')\n"
+            "time.sleep(10)\n"
         )
         leader = (
-            "import pathlib, subprocess, sys, time; "
+            "import os, pathlib, subprocess, sys, time; "
             "ready = pathlib.Path(sys.argv[2]); "
             "subprocess.Popen([sys.executable, '-c', sys.argv[1], "
-            "sys.argv[2], sys.argv[3]]); "
-            "deadline = time.monotonic() + 1; "
+            "str(os.getpid()), sys.argv[2], sys.argv[3]]); "
+            "deadline = time.monotonic() + 2; "
             "\nwhile not ready.exists() and time.monotonic() < deadline: "
             "time.sleep(0.01)"
         )
 
-        started = time.monotonic()
-        result = self.run_gate(
-            leader,
-            heartbeat="2",
-            idle="3",
-            timeout="4",
-            program_arguments=(
-                descendant,
-                descendant_ready,
-                descendant_terminated,
-            ),
-        )
-        elapsed = time.monotonic() - started
+        try:
+            result = self.run_gate(
+                leader,
+                heartbeat="600",
+                idle="600",
+                timeout="600",
+                program_arguments=(
+                    descendant,
+                    descendant_ready,
+                    descendant_events,
+                ),
+            )
+        except subprocess.TimeoutExpired:
+            self.fail(
+                "the supervisor never noticed the leader exit while the "
+                "descendant held the output pipe open"
+            )
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertLess(elapsed, 1)
         self.assertTrue(descendant_ready.is_file())
-        self.assertTrue(descendant_terminated.is_file())
+        self.assertEqual(
+            descendant_events.read_text(encoding="ascii").split(),
+            ["leader-exited", "sigterm", "pipe-closed"],
+        )
         self.assertIn(
             "DESCENDANT-SHUTDOWN", self.log.read_text(encoding="utf-8")
         )

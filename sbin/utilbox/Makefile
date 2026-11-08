@@ -30,7 +30,7 @@ OBJCOPY=	${C17_CAPTURE_PREFIX}${GCCPREFIX}-objcopy
 # Tools and where their objects live. A tool listed here still builds
 # on its own; the manifest decides which form ships.
 TOOLS=		expr id more uniq head tr wc cmp sort \
-		basename env printf touch xargs tty uname md5 resize md
+		basename env printf touch xargs tty uname md5 resize md time
 
 # Dispatch names the manifest deliberately leaves unlinked; the multicall
 # composition gate (tools/check_multicall_composition.py) rejects any

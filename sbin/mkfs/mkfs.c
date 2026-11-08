@@ -124,9 +124,7 @@ makedir (protodir, entries)
 }
 
 void
-rdfs (bno, bf)
-	daddr_t bno;
-	char *bf;
+rdfs (daddr_t bno, void *bf)
 {
 	int n;
 	off_t offset;
@@ -144,9 +142,7 @@ rdfs (bno, bf)
 }
 
 void
-wtfs (bno, bf)
-	daddr_t bno;
-	char *bf;
+wtfs (daddr_t bno, void *bf)
 {
 	int n;
 	off_t offset;

@@ -45,11 +45,13 @@ struct  proc {
             char    P_nice;         /* nice for cpu usage */
             char    P_slptime;      /* secs sleeping */
             char    P_ptracesig;    /* used between parent & traced child */
+            u_short P_realtick;     /* ITIMER_REAL deadline tick */
             struct proc *P_hash;    /* hashed based on p_pid */
             long    P_sigmask;      /* current signal mask */
             long    P_sigignore;    /* signals being ignored */
             long    P_sigcatch;     /* signals being caught by user */
             short   P_pgrp;         /* name of process group leader */
+            u_short P_realitick;    /* ITIMER_REAL interval ticks */
             struct  proc *P_link;   /* linked list of running processes */
             size_t  P_addr;         /* address of u. area */
             size_t  P_daddr;        /* address of data area */
@@ -59,7 +61,7 @@ struct  proc {
             size_t  P_tsize;        /* clean text at the start of data */
             struct  inode *P_tip;   /* executable the text is read from */
             caddr_t P_wchan;        /* event process is awaiting */
-            struct  k_itimerval P_realtimer;
+            struct  k_itimerval P_realtimer;    /* ITIMER_REAL, see below */
         } p_alive;
         struct {
             int P_xstat;            /* exit status for wait */
@@ -87,8 +89,17 @@ struct  proc {
 #define p_tsize         p_un.p_alive.P_tsize
 #define p_tip           p_un.p_alive.P_tip
 #define p_wchan         p_un.p_alive.P_wchan
+/*
+ * ITIMER_REAL counts ticks on the monotonic clock (monosec, monotick).
+ * p_realtimer.it_value is the deadline's second and p_realtick its tick;
+ * p_realtimer.it_interval is the interval's whole seconds and p_realitick
+ * its remaining ticks.  The timer is armed when (it_value | p_realtick) is
+ * nonzero: every deadline lies at least one tick past the clock's origin,
+ * so the pair (0, 0) never names a deadline.
+ */
 #define p_realtimer     p_un.p_alive.P_realtimer
-#define p_clktim        p_realtimer.it_value
+#define p_realtick      p_un.p_alive.P_realtick
+#define p_realitick     p_un.p_alive.P_realitick
 
 #define p_xstat         p_un.p_dead.P_xstat
 #define p_ru            p_un.p_dead.P_ru

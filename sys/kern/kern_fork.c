@@ -85,6 +85,9 @@ again:
     parent = u.u_procp;
     child->p_stat = SIDL;
     child->p_realtimer.it_value = 0;
+    child->p_realtimer.it_interval = 0;
+    child->p_realtick = 0;
+    child->p_realitick = 0;
     child->p_flag = SLOAD;
 #ifdef SWAPRAM
     swapram_inherit (child, parent);

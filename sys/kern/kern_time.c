@@ -170,6 +170,24 @@ adjtime()
         sizeof (struct timeval));
 }
 
+/*
+ * Round tv up to whole ticks.  Returns the seconds and stores the ticks
+ * past them, below hz, in *ticks.
+ */
+static long
+tvticks(struct timeval *tv, int *ticks)
+{
+    long sec = tv->tv_sec;
+    int t = (tv->tv_usec + usechz - 1) / usechz;
+
+    if (t >= hz) {
+        t -= hz;
+        sec++;
+    }
+    *ticks = t;
+    return sec;
+}
+
 void
 getitimer()
 {
@@ -184,19 +202,36 @@ getitimer()
         u.u_error = EINVAL;
         return;
     }
-    aitv.it_interval.tv_usec = 0;
-    aitv.it_value.tv_usec = 0;
     s = splclock();
     if (uap->which == ITIMER_REAL) {
         register struct proc *p = u.u_procp;
+        long sec = 0;
+        int ticks = 0;
 
         aitv.it_interval.tv_sec = p->p_realtimer.it_interval;
-        aitv.it_value.tv_sec = p->p_realtimer.it_value;
+        aitv.it_interval.tv_usec = p->p_realitick * usechz;
+        if ((p->p_realtimer.it_value | p->p_realtick) != 0) {
+            sec = p->p_realtimer.it_value - monosec;
+            ticks = p->p_realtick - monotick;
+            if (ticks < 0) {
+                ticks += hz;
+                sec--;
+            }
+            /* Due, with the expiry scan still pending: one tick left. */
+            if (sec < 0 || (sec == 0 && ticks == 0)) {
+                sec = 0;
+                ticks = 1;
+            }
+        }
+        aitv.it_value.tv_sec = sec;
+        aitv.it_value.tv_usec = ticks * usechz;
     } else {
         register struct k_itimerval *t = &u.u_timer[uap->which - 1];
 
         aitv.it_interval.tv_sec = t->it_interval / hz;
+        aitv.it_interval.tv_usec = (t->it_interval % hz) * usechz;
         aitv.it_value.tv_sec = t->it_value / hz;
+        aitv.it_value.tv_usec = (t->it_value % hz) * usechz;
     }
     splx(s);
     u.u_error = copyout ((caddr_t)&aitv, (caddr_t)uap->itv,
@@ -214,7 +249,8 @@ setitimer()
     register struct itimerval *aitvp;
     register struct timeval *tv;
     register int n;
-    long tick_limit;
+    long tick_limit, vsec, isec;
+    int vticks, iticks;
     int s;
 
     if (uap->which > ITIMER_PROF) {
@@ -245,25 +281,36 @@ setitimer()
             goto bad;
         tv = &aitv.it_value;
     } while (--n);
+    vsec = tvticks(&aitv.it_value, &vticks);
+    isec = tvticks(&aitv.it_interval, &iticks);
     s = splclock();
     if (uap->which == ITIMER_REAL) {
         register struct proc *p = u.u_procp;
 
-        p->p_realtimer.it_value = aitv.it_value.tv_sec;
-        if (aitv.it_value.tv_usec)
-            ++p->p_realtimer.it_value;
-        p->p_realtimer.it_interval = aitv.it_interval.tv_sec;
-        if (aitv.it_interval.tv_usec)
-            ++p->p_realtimer.it_interval;
+        p->p_realtimer.it_interval = isec;
+        p->p_realitick = iticks;
+        if ((vsec | vticks) == 0) {
+            p->p_realtimer.it_value = 0;
+            p->p_realtick = 0;
+        } else {
+            vticks += monotick;
+            vsec += monosec;
+            if (vticks >= hz) {
+                vticks -= hz;
+                vsec++;
+            }
+            p->p_realtimer.it_value = vsec;
+            p->p_realtick = vticks;
+            if (vsec < realsec || (vsec == realsec && vticks < realtick)) {
+                realsec = vsec;
+                realtick = vticks;
+            }
+        }
     } else {
         register struct k_itimerval *t = &u.u_timer[uap->which - 1];
 
-        t->it_value = aitv.it_value.tv_sec * hz;
-        if (aitv.it_value.tv_usec)
-            t->it_value += hz;
-        t->it_interval = aitv.it_interval.tv_sec * hz;
-        if (aitv.it_interval.tv_usec)
-            t->it_interval += hz;
+        t->it_value = vsec * hz + vticks;
+        t->it_interval = isec * hz + iticks;
     }
     splx(s);
     return;
@@ -273,9 +320,8 @@ bad:
 
 /*
  * Check that a proposed value to load into the .it_value or
- * .it_interval part of an interval timer is acceptable, and
- * fix it to have at least minimal value (i.e. if it is less
- * than the resolution of the clock, round it up.)
+ * .it_interval part of an interval timer is acceptable.  A caller that
+ * counts ticks rounds a nonzero value up to one tick (see tvticks()).
  */
 int
 itimerfix(tv)
@@ -284,8 +330,6 @@ itimerfix(tv)
     if (tv->tv_sec < 0 || tv->tv_sec > 100000000L ||
         tv->tv_usec < 0 || tv->tv_usec >= 1000000L)
         return (EINVAL);
-    if (tv->tv_sec == 0 && tv->tv_usec != 0 && tv->tv_usec < (1000/hz))
-        tv->tv_usec = 1000/hz;
     return (0);
 }
 

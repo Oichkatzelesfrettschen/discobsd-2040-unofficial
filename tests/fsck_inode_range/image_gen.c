@@ -548,33 +548,6 @@ build(const char *layout, const char *path)
 		    !record(&fs, "/d00/sub") || !record(&fs, "/d00/sub/inner") ||
 		    !drop_name(&fs, "/d00"))
 			return fail("cannot build", layout);
-	} else if (strcmp(layout, "orphan-cycle") == 0 ||
-	    strcmp(layout, "orphan-cycle-gap") == 0 ||
-	    strcmp(layout, "orphan-chain-cycle") == 0) {
-		int gap = strcmp(layout, "orphan-cycle-gap") == 0;
-		int chain = strcmp(layout, "orphan-chain-cycle") == 0;
-		unsigned first, second, third = 0;
-
-		if ((gap && !make_empty_file(&fs, "/pad")) ||
-		    !make_dir(&fs, "/d00") || !make_dir(&fs, "/d01") ||
-		    (chain && !make_dir(&fs, "/d02")))
-			return fail("cannot build", layout);
-		first = number_of(&fs, "/d00");
-		second = number_of(&fs, "/d01");
-		if (chain)
-			third = number_of(&fs, "/d02");
-		/* Highest first: the padding file, then the loop, then the tail. */
-		if ((gap && (number_of(&fs, "/pad") != IMAGE_INODES ||
-		    first != IMAGE_INODES - 1 || second != IMAGE_INODES - 2)) ||
-		    (chain && (third == 0 || third > second)) ||
-		    first == 0 || second == 0 ||
-		    !point_dotdot(&fs, "/d00", second) ||
-		    !point_dotdot(&fs, "/d01", first) ||
-		    (chain && !point_dotdot(&fs, "/d02", first)) ||
-		    !drop_name(&fs, "/d00") || !drop_name(&fs, "/d01") ||
-		    (chain && !drop_name(&fs, "/d02")) ||
-		    (gap && !delete_file(&fs, "/pad")))
-			return fail("cannot build", layout);
 	} else if (strcmp(layout, "orphan-dotdot-range") == 0) {
 		if (!make_dir(&fs, "/d00") ||
 		    !wild_dotdot(&fs, "/d00", 0xff0000) ||

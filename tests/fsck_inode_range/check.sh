@@ -30,7 +30,7 @@ workroot=$6
 mutant_dir=$7
 shift 7
 
-all_scenarios='file-last dir-last orphan-last free-last lf-last orphan-dir full-table fsck-lf-cycle fsck-lf-cycle-gap fsck-lf-chain fsutil-lf-last fsutil-lf-hole fsutil-lf-pristine fsutil-lf-overrun tail-evict df-empty df-full df-tail df-mkfs mkfs-ratio'
+all_scenarios='file-last dir-last orphan-last free-last lf-last orphan-dir full-table fsck-lf-cycle fsck-lf-cycle-gap fsck-lf-chain fsck-dotdot-range fsutil-lf-last fsutil-lf-hole fsutil-lf-pristine fsutil-lf-overrun tail-evict df-empty df-full df-tail df-mkfs mkfs-ratio'
 log=$workroot/check.log
 mkdir -p "$workroot" || exit 2
 

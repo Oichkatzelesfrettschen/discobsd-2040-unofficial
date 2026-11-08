@@ -302,6 +302,19 @@ run_cycle() {
 	second_run "$files"
 }
 
+# One unreached directory whose ".." holds a number above imax. The directory
+# scan takes the entry for damage and merges its slot into the record of ".",
+# so pass 3 sees no parent and reconnects the directory, and pass 2 then finds
+# ".." missing and must lay it out in the remainder of the merged record: the
+# repaired block holds "." at its own size and ".." for the rest of the block,
+# so that a following read-only run and a preen run find nothing to repair.
+run_dotdot_range() {
+	run_cycle 1 plain
+	check_run -n
+	[ "$status" -eq 0 ] || fail "check after repair exit status $status, want 0"
+	lacks 'CORRUPTED|OUT OF RANGE|UNALLOCATED|INCONSISTENCY|bad inode|MISSING'
+}
+
 # Creating lost+found adds one directory to the count, and the directory
 # fsck writes must pass the next directory check.
 after_create() {
@@ -361,6 +374,7 @@ for scenario in "$@"; do
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
 	    full-table | fsck-lf-cycle | fsck-lf-cycle-gap | fsck-lf-chain | \
+	    fsck-dotdot-range | \
 	    fsutil-lf-last | fsutil-lf-hole | \
 	    fsutil-lf-pristine | fsutil-lf-overrun | \
 	    tail-evict | df-empty | df-full | \
@@ -371,6 +385,7 @@ for scenario in "$@"; do
 	fsck-lf-cycle) layout=orphan-cycle ;;
 	fsck-lf-cycle-gap) layout=orphan-cycle-gap ;;
 	fsck-lf-chain) layout=orphan-chain-cycle ;;
+	fsck-dotdot-range) layout=orphan-dotdot-range ;;
 	fsutil-lf-last) layout=lf-last ;;
 	fsutil-lf-hole) layout=lf-hole-last ;;
 	fsutil-lf-overrun) layout=lf-overrun-last ;;
@@ -393,6 +408,7 @@ for scenario in "$@"; do
 	full-table) run_decline ;;
 	fsck-lf-cycle | fsck-lf-cycle-gap) run_cycle 2 closed ;;
 	fsck-lf-chain) run_cycle 3 reached ;;
+	fsck-dotdot-range) run_dotdot_range ;;
 	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil ;;
 	fsutil-lf-overrun) run_fsutil_overrun ;;
 	tail-evict) run_tail_evict ;;

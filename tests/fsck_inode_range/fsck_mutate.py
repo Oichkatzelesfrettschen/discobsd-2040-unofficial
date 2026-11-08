@@ -65,6 +65,11 @@ SITES: dict[str, Edit] = {
         "idesc.id_parent != inumber && ++hops <= imax);",
         "++hops <= imax);",
     ),
+    "pass2-dotdot-split": (
+        "pass2.c",
+        "        bzero((char *)dirp, proto.d_reclen);\n        dirp->d_reclen = proto.d_reclen;\n",
+        "        bzero((char *)dirp, n);\n        dirp->d_reclen = n;\n",
+    ),
     "pass3-cycle-once": (
         "pass3.c",
         "            descend(&idesc, orphan);\n",

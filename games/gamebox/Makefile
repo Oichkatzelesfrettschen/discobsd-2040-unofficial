@@ -1,6 +1,6 @@
 #
 # A multicall binary of the games in games/fifteen, games/keen,
-# games/bubble, games/fourfall and games/coil, dispatched on the name it
+# games/bubble, games/fourfall, games/coil and games/ridge, dispatched on the name it
 # was invoked by. See sbin/textbox/Makefile, whose pattern this copies: each tool's own
 # objects, already built in its directory, are combined with ld -r,
 # main is renamed to <tool>_main and every other global is made
@@ -14,7 +14,7 @@ include ${TOPSRC}/share/mk/sys.mk
 OBJCOPY=	${C17_CAPTURE_PREFIX}${GCCPREFIX}-objcopy
 BINDIR=		/usr/games
 
-TOOLS=		fifteen keen bubble fourfall coil
+TOOLS=		fifteen keen bubble fourfall coil ridge
 
 # The members linked into this build, in the order the dispatch table lists
 # them. GAMEBOX_TOOLS (set by distrib/rp2040/Makefile.inc from the image

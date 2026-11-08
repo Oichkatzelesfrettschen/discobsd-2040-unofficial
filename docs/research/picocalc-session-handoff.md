@@ -59,7 +59,9 @@ Programs and libraries:
   zero's sign for odd integer `y` (F.10.4.4). `check-libc-printf-g` and
   `check-libc-huge-val` hold each with a mutant (`TESTING.md`).
 - Games in `gamebox` (fifteen, keen, bubble, fourfall, coil) and puzzles in
-  `puzzlebox` (flood, samegame, unruly, lightup) (PRs #345, #354).
+  `puzzlebox` (flood, samegame, unruly, lightup) (PRs #345, #354). `ridge`,
+  the tile platformer on `/dev/lcdgfx`, joins `gamebox` in the `picocalc`
+  profile only (`sys/arch/rp2040/doc/research/games.md`).
 
 Kernel speed and correctness on both boards:
 

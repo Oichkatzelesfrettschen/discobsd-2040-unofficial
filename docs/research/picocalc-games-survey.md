@@ -392,6 +392,21 @@ times the combo, win at an empty path and loss at the last path cell. Original
 name, glyphs and levels. `coil.o` text 4,993, bss 4,890 (estimate 3.5-4.5 KB
 and 0.9 KB). 90 golden vectors, 200 random games, 13 pty cases.
 
+Row 7, `ridge`: built as a side scroller instead of the flip-screen rooms the
+row specified. The reason is the dirty-tile arithmetic of the GUI note: the
+renderer sends only the cells whose tile number changed, so a one-column
+scroll over mostly uniform rock and sky changes 68 to 134 tiles on average
+(21.5 ms of predicted bus time at worst, `games/ridge/tests/render_test.c`),
+against 98 ms for a full 40 by 20 repaint. Four levels in a five-byte
+command format (470 bytes for all levels), tile art generated in
+code, the sprites composited into reserved atlas slots, held keys from the raw
+key events instead of an inferred release. `ridge.o` text is 9,668 bytes
+(estimate 5 to 6 KB of engine text and 4 KB of tile data), bss 10,576. The
+acceptance tests are the ones the row named in spirit: a golden table of jump
+arcs and a collision matrix (`tests/logic_test.c`) and a model-panel test of
+the emitted tile commands (`tests/render_test.c`), plus a search that proves
+every level completable. Details: `sys/arch/rp2040/doc/research/games.md`.
+
 Row 2, the Tatham batch. Source: `puzzles-20260923.616da16`, tarball SHA-256
 `cc419c8060b4e22be398aa03e30651fbce146eee510645c303fb6f5f1b77b78e`
 (fetched 2026-11-06 from

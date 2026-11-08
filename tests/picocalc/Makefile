@@ -45,6 +45,10 @@
 # mutants of picokbd_evq.c and a poller that translates directly (wiring.sh)
 # must fail it.
 #
+# gametile_test runs the tile library (games/gametile.h) against a model of
+# the tile commands of /dev/lcdgfx; twenty-three mutants of the header must
+# fail it.
+#
 # sdspi_test runs the SD card protocol layer against a card model that
 # replays recorded command transcripts; twenty mutants of sdspi.c must fail
 # it.
@@ -76,17 +80,18 @@ SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 
 all: check
 
-check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test sdspi_test \
-	sdstrat_test picoaudio_test font-sync
+check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
+	sdspi_test sdstrat_test picoaudio_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./kbdreq_test
 	./kbdevq_test
+	./gametile_test
 	./sdspi_test
 	./sdstrat_test
 	./picoaudio_test
 	${MAKE} mutants gfx-mutants kbdreq-mutants kbdevq-mutants \
-	    sdspi-mutants sdstrat-mutants picoaudio-mutants
+	    gametile-mutants sdspi-mutants sdstrat-mutants picoaudio-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -107,6 +112,13 @@ kbdevq_test: kbdevq_test.c ${DEV}/picokbd_evq.c ${DEV}/picokbd_evq.h \
 	    ${DEV}/picokbd_map.c ${DEV}/picokbd_map.h ${TOPSRC}/sys/sys/lcdcons.h
 	${HOST_CC} ${CSTD} -D_DEFAULT_SOURCE ${SAN} -g -I${TOPSRC}/tests/picocalc/shim \
 	    -I${DEV} -o $@ kbdevq_test.c ${DEV}/picokbd_evq.c ${DEV}/picokbd_map.c
+
+# The tile library is a header of static functions, strict C17 like the games
+# that include it; the test binds its ioctl and write hooks to a model.
+gametile_test: gametile_test.c ${TOPSRC}/games/gametile.h \
+	    ${TOPSRC}/sys/sys/lcdgfx.h
+	${HOST_CC} ${CSTD} -D_DEFAULT_SOURCE ${SAN} -g -I${TOPSRC}/tests/picocalc/shim \
+	    -I${TOPSRC}/games -o $@ gametile_test.c
 
 sdspi_test: sdspi_test.c ${DEV}/sdspi.c ${DEV}/sdspi.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ sdspi_test.c \
@@ -322,6 +334,129 @@ kbdevq-mutant-full-threshold:
 kbdevq-mutant-wiring:
 	@sh ./wiring.sh "${DEV}/picokbd.c"
 	@sh ./wiring.sh -m "${DEV}/picokbd.c"
+
+GAMETILE_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
+		"${CSTD} -D_DEFAULT_SOURCE -I${TOPSRC}/tests/picocalc/shim" \
+		"${TOPSRC}/games" gametile_test.c
+
+GAMETILE_SRC=	gametile.h
+
+gametile-mutants: \
+	gametile-mutant-run-crosses-row \
+	gametile-mutant-run-single \
+	gametile-mutant-run-bridges-gap \
+	gametile-mutant-mark-kept \
+	gametile-mutant-pending-uncounted \
+	gametile-mutant-pending-kept \
+	gametile-mutant-set-always-marks \
+	gametile-mutant-set-unmarked \
+	gametile-mutant-set-tile-range \
+	gametile-mutant-set-x-bound \
+	gametile-mutant-init-clean \
+	gametile-mutant-fill-range \
+	gametile-mutant-fill-tile-range \
+	gametile-mutant-short-write-accepted \
+	gametile-mutant-ioctl-failure-ignored \
+	gametile-mutant-window-height \
+	gametile-mutant-write-source \
+	gametile-mutant-load-last-tile \
+	gametile-mutant-load-high \
+	gametile-mutant-load-count-zero \
+	gametile-mutant-load-touch-missing \
+	gametile-mutant-touch-range \
+	gametile-mutant-load-bytes
+
+gametile-mutant-run-crosses-row:
+	${GAMETILE_MUT} gametile.h \
+	    's/x + run < GTILE_COLS \&\&$$/1 \&\&/' ${GAMETILE_SRC}
+
+gametile-mutant-run-single:
+	${GAMETILE_MUT} gametile.h \
+	    's/while (x + run < GTILE_COLS \&\&$$/while (0 \&\&/' ${GAMETILE_SRC}
+
+gametile-mutant-run-bridges-gap:
+	${GAMETILE_MUT} gametile.h \
+	    's/^\t\t\t    gtile_is_dirty(g, y \* GTILE_COLS + x + run))$$/\t\t\t    (gtile_is_dirty(g, y * GTILE_COLS + x + run) || gtile_is_dirty(g, y * GTILE_COLS + x + run + 1)))/' ${GAMETILE_SRC}
+
+gametile-mutant-mark-kept:
+	${GAMETILE_MUT} gametile.h \
+	    's/gtile_unmark(g, y \* GTILE_COLS + x + k);/(void)k;/' ${GAMETILE_SRC}
+
+gametile-mutant-pending-uncounted:
+	${GAMETILE_MUT} gametile.h \
+	    's/g->pending++;/(void)0;/' ${GAMETILE_SRC}
+
+gametile-mutant-pending-kept:
+	${GAMETILE_MUT} gametile.h \
+	    's/g->pending--;/(void)0;/' ${GAMETILE_SRC}
+
+gametile-mutant-set-always-marks:
+	${GAMETILE_MUT} gametile.h \
+	    's/if (g->shadow\[i\] != t) {/if (1) {/' ${GAMETILE_SRC}
+
+gametile-mutant-set-unmarked:
+	${GAMETILE_MUT} gametile.h \
+	    's/^\t\tgtile_mark(g, i);$$/\t\t(void)0;/' ${GAMETILE_SRC}
+
+gametile-mutant-set-tile-range:
+	${GAMETILE_MUT} gametile.h \
+	    's/^\t    t < 0 || t >= LCDG_ATLAS_N)$$/\t    t < 0)/' ${GAMETILE_SRC}
+
+gametile-mutant-set-x-bound:
+	${GAMETILE_MUT} gametile.h \
+	    's/x < 0 || x >= GTILE_COLS || y < 0 || y >= GTILE_ROWS ||$$/x < 0 || x > GTILE_COLS || y < 0 || y >= GTILE_ROWS ||/' ${GAMETILE_SRC}
+
+gametile-mutant-init-clean:
+	${GAMETILE_MUT} gametile.h \
+	    's/memset(g->dirty, 0xff, sizeof(g->dirty));$$/memset(g->dirty, 0, sizeof(g->dirty));/' ${GAMETILE_SRC}
+
+gametile-mutant-fill-range:
+	${GAMETILE_MUT} gametile.h \
+	    's/x + w > GTILE_COLS/x + w > GTILE_COLS + 1/' ${GAMETILE_SRC}
+
+gametile-mutant-fill-tile-range:
+	${GAMETILE_MUT} gametile.h \
+	    's/y + h > GTILE_ROWS || t < 0 || t >= LCDG_ATLAS_N)/y + h > GTILE_ROWS || t < 0)/' ${GAMETILE_SRC}
+
+gametile-mutant-short-write-accepted:
+	${GAMETILE_MUT} gametile.h \
+	    's/(size_t)run) != run)/(size_t)run) < 0)/' ${GAMETILE_SRC}
+
+gametile-mutant-ioctl-failure-ignored:
+	${GAMETILE_MUT} gametile.h \
+	    's/GTILE_IOCTL(g->fd, LCDG_TILEWIN, \&w) < 0)/GTILE_IOCTL(g->fd, LCDG_TILEWIN, \&w) < -1)/' ${GAMETILE_SRC}
+
+gametile-mutant-window-height:
+	${GAMETILE_MUT} gametile.h \
+	    's/w.th = 1;/w.th = 2;/' ${GAMETILE_SRC}
+
+gametile-mutant-write-source:
+	${GAMETILE_MUT} gametile.h \
+	    's/g->shadow + y \* GTILE_COLS + x,/g->shadow + x,/' ${GAMETILE_SRC}
+
+gametile-mutant-load-last-tile:
+	${GAMETILE_MUT} gametile.h \
+	    's/first + count > LCDG_ATLAS_N)/first + count >= LCDG_ATLAS_N)/' ${GAMETILE_SRC}
+
+gametile-mutant-load-high:
+	${GAMETILE_MUT} gametile.h \
+	    's/first + count > LCDG_ATLAS_N)/first + count > LCDG_ATLAS_N + 1)/' ${GAMETILE_SRC}
+
+gametile-mutant-load-count-zero:
+	${GAMETILE_MUT} gametile.h \
+	    's/count < 1 || //' ${GAMETILE_SRC}
+
+gametile-mutant-load-touch-missing:
+	${GAMETILE_MUT} gametile.h \
+	    's/^\tgtile_touch_tiles(g, first, count);$$/\t(void)0;/' ${GAMETILE_SRC}
+
+gametile-mutant-touch-range:
+	${GAMETILE_MUT} gametile.h \
+	    's/g->shadow\[i\] < first + count/g->shadow[i] <= first + count/' ${GAMETILE_SRC}
+
+gametile-mutant-load-bytes:
+	${GAMETILE_MUT} gametile.h \
+	    's/int n = count \* LCDG_TILE_BYTES;/int n = count * 16;/' ${GAMETILE_SRC}
 
 GFX_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
 		lcdgfx_test.c
@@ -1030,7 +1165,7 @@ picoaudio-mutant-busy-kept:
 	    's/bell_on = 0;$$/(void)0;/' picoaudio.c
 
 clean:
-	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test \
+	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	    sdspi_test sdstrat_test picoaudio_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
@@ -1119,6 +1254,8 @@ clean:
 	picoaudio-mutant-busy-kept
 
 .PHONY: kbdevq-mutants kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
+
+.PHONY: gametile-mutants gametile-mutant-run-crosses-row gametile-mutant-run-single gametile-mutant-run-bridges-gap gametile-mutant-mark-kept gametile-mutant-pending-uncounted gametile-mutant-pending-kept gametile-mutant-set-always-marks gametile-mutant-set-unmarked gametile-mutant-set-tile-range gametile-mutant-set-x-bound gametile-mutant-init-clean gametile-mutant-fill-range gametile-mutant-fill-tile-range gametile-mutant-short-write-accepted gametile-mutant-ioctl-failure-ignored gametile-mutant-window-height gametile-mutant-write-source gametile-mutant-load-last-tile gametile-mutant-load-high gametile-mutant-load-count-zero gametile-mutant-load-touch-missing gametile-mutant-touch-range gametile-mutant-load-bytes
 
 .PHONY: gfx-mutants gfx-mutant-exclusive-open gfx-mutant-no-restore \
 	gfx-mutant-coord-bound gfx-mutant-rect-order gfx-mutant-circle-right \

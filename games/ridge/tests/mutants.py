@@ -182,7 +182,7 @@ LOGIC = [
     (
         "grace-ends-while-a-crawler-touches",
         "if (p->grace > 0 && (!touching || p->grace > 1))",
-        "if (p->grace > 0 && (touching || !touching))",
+        "if (p->grace > 0 && (!touching || p->grace > 0))",
     ),
     (
         "grace-never-runs-down",

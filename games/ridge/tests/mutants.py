@@ -174,6 +174,26 @@ LOGIC = [
         "\t\t\te->dir = -1;",
     ),
     ("enemy-faster", "#define RG_ESPD\t\t12", "#define RG_ESPD\t\t16"),
+    (
+        "respawn-grants-no-grace",
+        "\tg->p.grace = RG_GRACE;\n",
+        "",
+    ),
+    (
+        "grace-ends-while-a-crawler-touches",
+        "if (p->grace > 0 && (!touching || p->grace > 1))",
+        "if (p->grace > 0 && (touching || !touching))",
+    ),
+    (
+        "grace-never-runs-down",
+        "if (p->grace > 0 && (!touching || p->grace > 1))\n\t\tp->grace--;",
+        "if (touching < 0)\n\t\tp->grace--;",
+    ),
+    (
+        "grace-also-spares-stomped-crawlers",
+        "\t\tif (p->vy > 0 && prev_bottom <= e->y + RG_STOMP * RG_SUB) {",
+        "\t\tif (p->grace == 0 && p->vy > 0 && prev_bottom <= e->y + RG_STOMP * RG_SUB) {",
+    ),
     # Level flow.
     (
         "clock-never-runs",
@@ -217,11 +237,59 @@ LOGIC = [
     ),
     ("camera-moves-two-columns", "\t\tg->cam++;\n\telse if", "\t\tg->cam += 2;\n\telse if"),
     # Key events.
-    ("release-does-not-clear", "\t\tk->held &= ~bit;", "\t\t(void)bit;"),
+    (
+        "release-keeps-the-key-down",
+        "\t\tk->down &= ~(1U << slot);",
+        "\t\t(void)slot;",
+    ),
     (
         "hold-counts-as-a-press",
-        "\tif (state != LCD_KEY_PRESSED)\n\t\treturn;\n\tk->edge |= bit;",
-        "\tk->edge |= bit;",
+        "first = state == LCD_KEY_PRESSED && !(k->down >> slot & 1);",
+        "first = state != LCD_KEY_RELEASED && !(k->down >> slot & 1);",
+    ),
+    (
+        "repeated-press-is-a-new-edge",
+        "first = state == LCD_KEY_PRESSED && !(k->down >> slot & 1);",
+        "first = state == LCD_KEY_PRESSED;",
+    ),
+    (
+        "jump-edge-retriggers-on-repeat",
+        "\tif (!first)\n\t\treturn;\n\tk->edge |= rg_slot_bit[slot];",
+        "\tif (state == LCD_KEY_PRESSED)\n\t\tk->edge |= rg_slot_bit[slot];\n"
+        "\tif (!first)\n\t\treturn;\n\tk->edge |= rg_slot_bit[slot];",
+    ),
+    (
+        "pause-retriggers-on-repeat",
+        "\tif (!first)\n\t\treturn;\n\tk->edge |= rg_slot_bit[slot];",
+        "\tif (state == LCD_KEY_PRESSED && slot == RG_S_P)\n\t\tk->pause = 1;\n"
+        "\tif (!first)\n\t\treturn;\n\tk->edge |= rg_slot_bit[slot];",
+    ),
+    (
+        "quit-retriggers-on-repeat",
+        "\tif (!first)\n\t\treturn;\n\tk->edge |= rg_slot_bit[slot];",
+        "\tif (state == LCD_KEY_PRESSED && (slot == RG_S_Q || slot == RG_S_ESC))\n"
+        "\t\tk->quit = 1;\n"
+        "\tif (!first)\n\t\treturn;\n\tk->edge |= rg_slot_bit[slot];",
+    ),
+    (
+        "confirm-retriggers-on-repeat",
+        "\tif (!first)\n\t\treturn;\n\tk->edge |= rg_slot_bit[slot];",
+        "\tif (state == LCD_KEY_PRESSED && (slot == RG_S_ENTER || slot == RG_S_SPACE))\n"
+        "\t\tk->restart = 1;\n"
+        "\tif (!first)\n\t\treturn;\n\tk->edge |= rg_slot_bit[slot];",
+    ),
+    (
+        "releasing-one-alias-cuts-the-action",
+        "\tk->held = 0;\n\tfor (i = 0; i < RG_NSLOT; i++)\n\t\tif (k->down >> i & 1)\n"
+        "\t\t\tk->held |= rg_slot_bit[i];\n",
+        "\ti = 0;\n\t(void)i;\n\tif (state == LCD_KEY_RELEASED)\n"
+        "\t\tk->held &= ~rg_slot_bit[slot];\n"
+        "\telse\n\t\tk->held |= rg_slot_bit[slot];\n",
+    ),
+    (
+        "lost-events-keep-the-keys-down",
+        "\tk->held = 0;\n\tk->down = 0;\n",
+        "\tk->held = 0;\n",
     ),
     (
         "tap-is-lost",
@@ -239,11 +307,15 @@ LOGIC = [
         "\tif (key >= 'A' && key <= 'Z')\n\t\tkey += 'a' - 'A';\n",
         "",
     ),
-    ("space-does-not-jump", "\tcase 'k':\n\tcase ' ':\n", "\tcase 'k':\n"),
+    (
+        "space-does-not-jump",
+        "\tRG_K_JUMP, RG_K_DOWN, RG_K_DOWN, 0, 0, 0, 0",
+        "\t0, RG_K_DOWN, RG_K_DOWN, 0, 0, 0, 0",
+    ),
     (
         "escape-does-not-quit",
-        "else if (key == 'q' || key == 'Q' || key == LCD_KEY_ESC)",
-        "else if (key == 'q' || key == 'Q')",
+        "else if (slot == RG_S_Q || slot == RG_S_ESC)",
+        "else if (slot == RG_S_Q)",
     ),
     (
         "jump-press-edge-dropped",
@@ -278,6 +350,11 @@ LOGIC = [
     ),
     ("level3-ledge-missing", "\tLEDGE(32, 18, 8),\n", ""),
     ("level4-gap-too-wide", "\tGND(105, 20, 3),\n", ""),
+    (
+        "level4-patrol-reaches-the-checkpoint",
+        "\tCRAWL(39, 23, 44),\n\tFLAG(37, 23),",
+        "\tCRAWL(38, 23, 43),\n\tFLAG(37, 23),",
+    ),
     (
         "level4-spike-under-the-goal-approach",
         "\tGND(146, 18, 14),",
@@ -318,8 +395,49 @@ RENDER = [
     ),
     (
         "sprite-box-ignores-the-camera",
-        "bx = rg_fdiv8(spr[i].x - g->cam * RG_TW);",
-        "bx = rg_fdiv8(spr[i].x);",
+        "bxs[i] = rg_fdiv8(spr[i].x - g->cam * RG_TW);",
+        "bxs[i] = rg_fdiv8(spr[i].x);",
+    ),
+    (
+        "shared-tiles-take-only-the-owners-sprite",
+        "\t\tif (k == i || (rg_near(bxs[k], bx) && rg_near(bys[k], by)))",
+        "\t\tif (k == i)",
+    ),
+    (
+        "shared-tiles-replaced-by-the-later-sprite",
+        [
+            "\t\tif (k == i || (rg_near(bxs[k], bx) && rg_near(bys[k], by)))",
+            "\tfor (i = n - 1; i >= 0; i--)\n\t\tfor (cy = 0; cy < RG_BOX; cy++)",
+        ],
+        [
+            "\t\tif (k == i)",
+            "\tfor (i = 0; i < n; i++)\n\t\tfor (cy = 0; cy < RG_BOX; cy++)",
+        ],
+    ),
+    (
+        "z-order-puts-the-climber-below-the-crawlers",
+        "\tfor (k = n - 1; k >= 0; k--)\n\t\tif (k == i ||",
+        "\tfor (k = 0; k < n; k++)\n\t\tif (k == i ||",
+    ),
+    (
+        "signature-forgets-the-neighbors",
+        "\t\t\t\tnow.ov[now.nov].s = spr[k];\n",
+        "",
+    ),
+    (
+        "signature-forgets-the-neighbor-order",
+        "\t\t\t\tnow.ov[now.nov].rel = k - i;\n",
+        "",
+    ),
+    (
+        "crawler-boxes-never-meet",
+        "return a - b < RG_BOX && b - a < RG_BOX;",
+        "return a == b;",
+    ),
+    (
+        "grace-never-blinks",
+        "&& !(p->grace > 0 && (g->ticks >> 2 & 1))",
+        "",
     ),
     (
         "sprites-share-slots",
@@ -427,11 +545,16 @@ def render(src):
             return 1
         print("baseline: real sources pass")
         for name, old, new in RENDER:
-            if not mutlib._anchor_ok(name, text, old):
+            olds = old if isinstance(old, list) else [old]
+            news = new if isinstance(new, list) else [new]
+            if not all(mutlib._anchor_ok(name, text, o) for o in olds):
                 failures += 1
                 continue
+            mutant = text
+            for o, n in zip(olds, news):
+                mutant = mutant.replace(o, n)
             with open(mutated, "w") as f:
-                f.write(text.replace(old, new))
+                f.write(mutant)
             rc, out = build_run()
             if rc is None:
                 print("mutant %-44s ERROR: %s" % (name, out.strip()))

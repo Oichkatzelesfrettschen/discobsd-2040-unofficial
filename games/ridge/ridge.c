@@ -79,6 +79,7 @@
 #define RG_LIVES	3
 #define RG_READY_T	45
 #define RG_RESPAWN_T	20
+#define RG_GRACE	45		/* ticks a respawned player is safe from crawlers */
 #define RG_DYING_T	40
 #define RG_CLEAR_T	60
 #define RG_HOP		100
@@ -108,6 +109,7 @@ struct rg_player {
 	int vx, vy;
 	int face;			/* -1 or 1 */
 	int ground, coyote, jbuf, jumping, drop, anim;
+	int grace;			/* ticks left in which a crawler's touch does no harm */
 };
 
 struct rg_enemy {
@@ -243,8 +245,8 @@ static const struct rg_cmd rg_level4[] = {
 	GND(28, 22, 4),
 	SPIKE(29, 21, 2),
 	GND(37, 24, 8),
-	CRAWL(38, 23, 43),
-	FLAG(39, 23),
+	CRAWL(39, 23, 44),
+	FLAG(37, 23),
 	GND(50, 21, 3),
 	GND(57, 18, 3),
 	GND(63, 15, 3),
@@ -644,7 +646,7 @@ rg_enemies(struct rg_game *g)
 {
 	struct rg_player *p = &g->p;
 	struct rg_enemy *e;
-	int i, prev_bottom;
+	int i, prev_bottom, touching = 0;
 
 	for (i = 0; i < g->ne; i++) {
 		e = &g->en[i];
@@ -668,11 +670,16 @@ rg_enemies(struct rg_game *g)
 			p->vy = -RG_BOUNCE;
 			p->jumping = 0;
 			g->gen++;
+		} else if (p->grace > 0) {
+			touching = 1;
 		} else {
 			rg_die(g);
 			return;
 		}
 	}
+	/* The grace period ends only once the player stands clear of every crawler. */
+	if (p->grace > 0 && (!touching || p->grace > 1))
+		p->grace--;
 }
 
 /* Put the camera's left column where the dead zone keeps the player. */
@@ -707,6 +714,7 @@ rg_respawn(struct rg_game *g)
 	g->p.x = g->spawn_x;
 	g->p.y = g->spawn_y;
 	g->p.face = 1;
+	g->p.grace = RG_GRACE;
 	g->state = RG_READY;
 	g->timer = RG_RESPAWN_T;
 	rg_cam_snap(g);
@@ -776,34 +784,61 @@ rg_tick(struct rg_game *g, unsigned in)
 #define RG_K_JUMP	4U
 #define RG_K_DOWN	8U
 
+/*
+ * The keys the game reads, one slot each, with the action bit each drives.
+ * A held printable key repeats as PRESSED events, so an edge or a request
+ * fires on the first PRESSED of a slot and not again until its RELEASED.
+ */
+enum { RG_S_LEFT, RG_S_H, RG_S_RIGHT, RG_S_L, RG_S_UP, RG_S_K, RG_S_SPACE,
+    RG_S_DOWN, RG_S_J, RG_S_P, RG_S_Q, RG_S_ESC, RG_S_ENTER, RG_NSLOT };
+
+static const unsigned char rg_slot_bit[RG_NSLOT] = {
+	RG_K_LEFT, RG_K_LEFT, RG_K_RIGHT, RG_K_RIGHT, RG_K_JUMP, RG_K_JUMP,
+	RG_K_JUMP, RG_K_DOWN, RG_K_DOWN, 0, 0, 0, 0
+};
+
 struct rg_keys {
 	unsigned held;			/* RG_K_* bits of keys that are down */
 	unsigned edge;			/* bits pressed since the last tick */
+	unsigned down;			/* bit s: the key of slot s is down */
 	int pause, quit, restart;	/* requests the front end consumes */
 };
 
-/* The action bit of a key byte of the raw key session, or 0. */
-static unsigned
-rg_key_bit(int key)
+/* The slot of a key byte of the raw key session, or -1. */
+static int
+rg_key_slot(int key)
 {
 	if (key >= 'A' && key <= 'Z')
 		key += 'a' - 'A';
 	switch (key) {
 	case LCD_KEY_LEFT:
+		return RG_S_LEFT;
 	case 'h':
-		return RG_K_LEFT;
+		return RG_S_H;
 	case LCD_KEY_RIGHT:
+		return RG_S_RIGHT;
 	case 'l':
-		return RG_K_RIGHT;
+		return RG_S_L;
 	case LCD_KEY_UP:
+		return RG_S_UP;
 	case 'k':
+		return RG_S_K;
 	case ' ':
-		return RG_K_JUMP;
+		return RG_S_SPACE;
 	case LCD_KEY_DOWN:
+		return RG_S_DOWN;
 	case 'j':
-		return RG_K_DOWN;
+		return RG_S_J;
+	case 'p':
+		return RG_S_P;
+	case 'q':
+		return RG_S_Q;
+	case LCD_KEY_ESC:
+		return RG_S_ESC;
+	case LCD_KEY_ENTER:
+		return RG_S_ENTER;
 	default:
-		return 0;
+		return -1;
 	}
 }
 
@@ -811,31 +846,37 @@ rg_key_bit(int key)
 static void
 rg_key_event(struct rg_keys *k, int state, int key)
 {
-	unsigned bit = rg_key_bit(key);
+	int slot = rg_key_slot(key), first, i;
 
-	if (state == LCD_KEY_RELEASED) {
-		k->held &= ~bit;
+	if (slot < 0 || (state != LCD_KEY_PRESSED && state != LCD_KEY_HOLD &&
+	    state != LCD_KEY_RELEASED))
 		return;
-	}
-	if (state != LCD_KEY_PRESSED && state != LCD_KEY_HOLD)
+	first = state == LCD_KEY_PRESSED && !(k->down >> slot & 1);
+	if (state == LCD_KEY_RELEASED)
+		k->down &= ~(1U << slot);
+	else
+		k->down |= 1U << slot;
+	k->held = 0;
+	for (i = 0; i < RG_NSLOT; i++)
+		if (k->down >> i & 1)
+			k->held |= rg_slot_bit[i];
+	if (!first)
 		return;
-	k->held |= bit;
-	if (state != LCD_KEY_PRESSED)
-		return;
-	k->edge |= bit;
-	if (key == 'p' || key == 'P')
+	k->edge |= rg_slot_bit[slot];
+	if (slot == RG_S_P)
 		k->pause = 1;
-	else if (key == 'q' || key == 'Q' || key == LCD_KEY_ESC)
+	else if (slot == RG_S_Q || slot == RG_S_ESC)
 		k->quit = 1;
-	else if (key == LCD_KEY_ENTER || key == ' ')
+	else if (slot == RG_S_ENTER || slot == RG_S_SPACE)
 		k->restart = 1;
 }
 
-/* The driver dropped events: the held state is unknown until the next events rebuild it. */
+/* The driver dropped events: the key state is unknown until the next events rebuild it. */
 static void
 rg_keys_lost(struct rg_keys *k)
 {
 	k->held = 0;
+	k->down = 0;
 }
 
 /*
@@ -1307,8 +1348,24 @@ rg_base_tile(const struct rg_game *g, int wx, int wy)
 	}
 }
 
+struct rg_sprite {
+	int x, y, frame, flip;		/* top left in world pixels */
+};
+
+/* A sprite whose box meets another's, with its index relative to that one's. */
+struct rg_ovl {
+	struct rg_sprite s;
+	int rel;
+};
+
+/*
+ * What a sprite's atlas slots were composited from: the sprite, the camera
+ * column, the twinkle phase, the map's change counter and every sprite whose
+ * box meets this one's (they share cells, so their pixels are in the slots).
+ */
 struct rg_sig {
-	int x, y, frame, flip, cam, anim, live;
+	int x, y, frame, flip, cam, anim, live, nov;
+	struct rg_ovl ov[RG_NSPR - 1];
 	unsigned gen;
 };
 
@@ -1316,10 +1373,6 @@ struct rg_view {
 	struct gtile gt;
 	unsigned char fin[GTILE_CELLS];	/* tile number of every panel cell this frame */
 	struct rg_sig sig[RG_NSPR];
-};
-
-struct rg_sprite {
-	int x, y, frame, flip;		/* top left in world pixels */
 };
 
 static int
@@ -1368,7 +1421,7 @@ rg_sprites(const struct rg_game *g, struct rg_sprite *out)
 	int n = 0, i, sx;
 
 	sx = p->x / RG_SUB - 3 - g->cam * RG_TW;
-	if (sx > -16 && sx < RG_VIEW_W * RG_TW) {
+	if (sx > -16 && sx < RG_VIEW_W * RG_TW && !(p->grace > 0 && (g->ticks >> 2 & 1))) {
 		out[n].x = p->x / RG_SUB - 3;
 		out[n].y = p->y / RG_SUB - 2;
 		out[n].frame = !p->ground ? RG_F_JUMP :
@@ -1399,18 +1452,41 @@ rg_fdiv8(int v)
 	return v >= 0 ? v / RG_TW : -((-v + RG_TW - 1) / RG_TW);
 }
 
+/* Draw sprite s over buf, whose top left pixel is at (ox, oy) from the sprite's top left. */
+static void
+rg_blit(unsigned char buf[][RG_BOX * RG_TW], const struct rg_sprite *s, int ox, int oy)
+{
+	int x, y, c;
+
+	for (y = 0; y < 16; y++)
+		for (x = 0; x < 16; x++) {
+			c = rg_art_pal(rg_art[s->frame][y][s->flip ? 15 - x : x]);
+			if (c >= 0 && oy + y >= 0 && oy + y < RG_BOX * 8 &&
+			    ox + x >= 0 && ox + x < RG_BOX * 8)
+				buf[oy + y][ox + x] = (unsigned char)c;
+		}
+}
+
+/* Do two sprite boxes, given by one coordinate of their top left cells, share a cell? */
+static int
+rg_near(int a, int b)
+{
+	return a - b < RG_BOX && b - a < RG_BOX;
+}
+
 /*
- * Composite sprite s over the 3 by 3 cells it touches into tiles[0..8], row
- * by row from the top left cell; the cells' own world tiles stand under it.
- * bx, by is the top left cell in view coordinates.
+ * Composite the 3 by 3 cells of sprite i's box into tiles[0..8], row by row
+ * from the top left cell: the cells' world tiles, then every sprite whose
+ * box meets this one's, the highest index first, so the climber (index 0)
+ * lies over the crawlers and a lower crawler over a higher one. bxs and bys
+ * hold each sprite's top left cell in view coordinates.
  */
 static void
-rg_composite(const struct rg_game *g, const struct rg_sprite *s, int bx, int by,
-    unsigned char *tiles)
+rg_composite(const struct rg_game *g, const struct rg_sprite *spr, int n, int i,
+    const int *bxs, const int *bys, unsigned char *tiles)
 {
 	unsigned char buf[RG_BOX * RG_TW][RG_BOX * RG_TW], px[8][8];
-	int ox = s->x - g->cam * RG_TW - bx * RG_TW, oy = s->y - by * RG_TW;
-	int cx, cy, x, y, c;
+	int bx = bxs[i], by = bys[i], cx, cy, y, k;
 
 	for (cy = 0; cy < RG_BOX; cy++)
 		for (cx = 0; cx < RG_BOX; cx++) {
@@ -1423,13 +1499,10 @@ rg_composite(const struct rg_game *g, const struct rg_sprite *s, int bx, int by,
 			for (y = 0; y < 8; y++)
 				memcpy(&buf[cy * 8 + y][cx * 8], px[y], 8);
 		}
-	for (y = 0; y < 16; y++)
-		for (x = 0; x < 16; x++) {
-			c = rg_art_pal(rg_art[s->frame][y][s->flip ? 15 - x : x]);
-			if (c >= 0 && oy + y >= 0 && oy + y < RG_BOX * 8 &&
-			    ox + x >= 0 && ox + x < RG_BOX * 8)
-				buf[oy + y][ox + x] = (unsigned char)c;
-		}
+	for (k = n - 1; k >= 0; k--)
+		if (k == i || (rg_near(bxs[k], bx) && rg_near(bys[k], by)))
+			rg_blit(buf, &spr[k], spr[k].x - g->cam * RG_TW - bx * RG_TW,
+			    spr[k].y - by * RG_TW);
 	for (cy = 0; cy < RG_BOX; cy++)
 		for (cx = 0; cx < RG_BOX; cx++) {
 			for (y = 0; y < 8; y++)
@@ -1497,7 +1570,8 @@ rg_draw(struct rg_view *v, const struct rg_game *g, int paused)
 	struct rg_sprite spr[RG_NSPR];
 	unsigned char tiles[RG_BOX * RG_BOX * LCDG_TILE_BYTES];
 	char msg[32];
-	int x, y, i, n, cx, cy, bx, by, anim = (int)((g->ticks >> 3) & 1);
+	int bxs[RG_NSPR], bys[RG_NSPR];
+	int x, y, i, k, n, cx, cy, anim = (int)((g->ticks >> 3) & 1);
 
 	rg_hud(v, g);
 	for (y = 0; y < RG_VIEW_H; y++)
@@ -1505,6 +1579,10 @@ rg_draw(struct rg_view *v, const struct rg_game *g, int paused)
 			v->fin[(y + RG_HUD_ROWS) * GTILE_COLS + x] =
 			    (unsigned char)rg_base_tile(g, g->cam + x, y);
 	n = rg_sprites(g, spr);
+	for (i = 0; i < n; i++) {
+		bxs[i] = rg_fdiv8(spr[i].x - g->cam * RG_TW);
+		bys[i] = rg_fdiv8(spr[i].y);
+	}
 	for (i = 0; i < RG_NSPR; i++) {
 		struct rg_sig *sg = &v->sig[i];
 		struct rg_sig now;
@@ -1513,6 +1591,7 @@ rg_draw(struct rg_view *v, const struct rg_game *g, int paused)
 			sg->live = 0;
 			continue;
 		}
+		memset(&now, 0, sizeof now);
 		now.x = spr[i].x;
 		now.y = spr[i].y;
 		now.frame = spr[i].frame;
@@ -1521,22 +1600,28 @@ rg_draw(struct rg_view *v, const struct rg_game *g, int paused)
 		now.anim = anim;
 		now.live = 1;
 		now.gen = g->gen;
-		bx = rg_fdiv8(spr[i].x - g->cam * RG_TW);
-		by = rg_fdiv8(spr[i].y);
+		for (k = 0; k < n; k++)
+			if (k != i && rg_near(bxs[k], bxs[i]) && rg_near(bys[k], bys[i])) {
+				now.ov[now.nov].s = spr[k];
+				now.ov[now.nov].rel = k - i;
+				now.nov++;
+			}
 		if (!sg->live || memcmp(sg, &now, sizeof now) != 0) {
-			rg_composite(g, &spr[i], bx, by, tiles);
+			rg_composite(g, spr, n, i, bxs, bys, tiles);
 			if (gtile_load(&v->gt, RG_DYN + i * RG_BOX * RG_BOX, RG_BOX * RG_BOX,
 			    tiles) < 0)
 				return -1;
 			*sg = now;
 		}
+	}
+	/* A cell two boxes cover shows the slot of the lowest-numbered sprite: it holds both. */
+	for (i = n - 1; i >= 0; i--)
 		for (cy = 0; cy < RG_BOX; cy++)
 			for (cx = 0; cx < RG_BOX; cx++)
-				if (bx + cx >= 0 && bx + cx < RG_VIEW_W &&
-				    by + cy >= 0 && by + cy < RG_VIEW_H)
-					v->fin[(by + cy + RG_HUD_ROWS) * GTILE_COLS + bx + cx] =
+				if (bxs[i] + cx >= 0 && bxs[i] + cx < RG_VIEW_W &&
+				    bys[i] + cy >= 0 && bys[i] + cy < RG_VIEW_H)
+					v->fin[(bys[i] + cy + RG_HUD_ROWS) * GTILE_COLS + bxs[i] + cx] =
 					    (unsigned char)(RG_DYN + (i * RG_BOX + cy) * RG_BOX + cx);
-	}
 	if (paused) {
 		rg_banner(v, 14, "PAUSED");
 	} else if (g->state == RG_READY) {

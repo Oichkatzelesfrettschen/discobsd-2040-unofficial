@@ -454,6 +454,83 @@ test_enemies(void)
 	CHECK(G.state == RG_PLAY && G.score == 0, "a dead crawler does nothing");
 }
 
+/*
+ * A checkpoint inside a crawler's patrol: the crawler touches the spawn box
+ * when the player comes back, and it does not move while the player is dying
+ * or getting ready. The respawned player is safe from crawlers until the
+ * grace period ends with no crawler touching.
+ */
+static void
+test_respawn_grace(void)
+{
+	struct rg_enemy *e;
+	int t, lives;
+
+	arena(60);
+	G.ne = 1;
+	e = &G.en[0];
+	e->x0 = 39 * 128;
+	e->x1 = 45 * 128 - 12 * 16;
+	e->y = 24 * 128 - 8 * 16;
+	e->dir = 1;
+	e->alive = 1;
+	G.spawn_x = 41 * 128 - 16;
+	G.spawn_y = 24 * 128 - 224;
+	G.p.x = G.spawn_x;
+	G.p.y = G.spawn_y;
+	e->x = G.p.x - 8 * 16;
+	CHECK(G.p.grace == 0, "play begins without grace");
+	t = until(0, RG_DYING, 40);
+	CHECK(t > 0 && G.lives == RG_LIVES - 1, "a crawler's touch kills a player who has no grace: %d", t);
+	ticks(0, RG_DYING_T);
+	CHECK(G.state == RG_READY && G.p.grace == RG_GRACE, "respawn grants %d ticks of grace: state %d grace %d",
+	    RG_GRACE, G.state, G.p.grace);
+	ticks(0, RG_RESPAWN_T);
+	CHECK(G.state == RG_PLAY, "play resumes");
+	lives = G.lives;
+	for (t = 0; t < 40; t++) {
+		ticks(0, 1);
+		CHECK(G.state == RG_PLAY && G.lives == lives, "tick %d after the respawn: state %d lives %d", t,
+		    G.state, G.lives);
+	}
+	CHECK(G.p.grace > 0 && G.p.grace < RG_GRACE, "grace runs down while the crawler is clear: %d", G.p.grace);
+	/* The crawler comes back through the spawn box after the grace period: the touch kills. */
+	t = until(0, RG_DYING, 80);
+	CHECK(t > 0 && G.p.grace == 0, "grace is finite: died after %d more ticks, grace %d", t, G.p.grace);
+	/* A crawler that stays on the player holds the grace period open. */
+	arena(60);
+	G.ne = 1;
+	e = &G.en[0];
+	e->x0 = e->x1 = e->x = 10 * 128;
+	e->y = 24 * 128 - 8 * 16;
+	e->dir = 1;
+	e->alive = 1;
+	G.p.x = 10 * 128 + 8;
+	G.p.y = 24 * 128 - 224;
+	G.p.grace = RG_GRACE;
+	ticks(0, 3 * RG_GRACE);
+	CHECK(G.state == RG_PLAY && G.p.grace == 1, "grace waits while a crawler touches: state %d grace %d",
+	    G.state, G.p.grace);
+	ticks(RG_IN_RIGHT, 12);
+	CHECK(G.state == RG_PLAY && G.p.grace == 0, "grace ends once the player is clear: grace %d", G.p.grace);
+	G.p.x = 10 * 128 + 8;
+	ticks(0, 1);
+	CHECK(G.state == RG_DYING, "touching after the grace period kills");
+	/* A stomp still counts during the grace period. */
+	arena(60);
+	G.ne = 1;
+	e = &G.en[0];
+	e->x0 = e->x1 = e->x = 10 * 128;
+	e->y = 24 * 128 - 8 * 16;
+	e->dir = 1;
+	e->alive = 1;
+	G.p.x = 10 * 128 + 8;
+	G.p.y = e->y + 80 - 224;
+	G.p.grace = RG_GRACE;
+	ticks(0, 1);
+	CHECK(e->alive == 0 && G.score == 50, "a stomp during grace scores");
+}
+
 static void
 test_goal_and_progress(void)
 {
@@ -619,10 +696,22 @@ test_keys(void)
 	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_RIGHT);
 	in = rg_keys_input(&k);
 	CHECK(in == (RG_IN_LEFT | RG_IN_RIGHT), "both bits are passed on: %u", in);
-	/* Lost events clear the held state. */
+	/* Lost events clear the held state and the down state of every key. */
 	rg_keys_lost(&k);
 	in = rg_keys_input(&k);
 	CHECK(in == 0, "lost events clear the held keys: %u", in);
+	in = (unsigned)feed(&k, LCD_KEY_HOLD, LCD_KEY_UP);
+	CHECK(in == RG_IN_JUMP, "a hold event after lost events holds the key without a press: %u", in);
+	rg_key_event(&k, LCD_KEY_RELEASED, LCD_KEY_UP);
+	rg_keys_input(&k);
+	in = (unsigned)feed(&k, LCD_KEY_PRESSED, LCD_KEY_UP);
+	CHECK(in == (RG_IN_JUMP | RG_IN_JPRESS), "a press after a release is a new edge: %u", in);
+	rg_keys_lost(&k);
+	rg_keys_input(&k);
+	in = (unsigned)feed(&k, LCD_KEY_PRESSED, LCD_KEY_UP);
+	CHECK(in == (RG_IN_JUMP | RG_IN_JPRESS), "lost events forget that the key was down: %u", in);
+	rg_key_event(&k, LCD_KEY_RELEASED, LCD_KEY_UP);
+	rg_keys_input(&k);
 	/* An unknown state or key changes nothing. */
 	in = (unsigned)feed(&k, 9, LCD_KEY_LEFT);
 	CHECK(in == 0, "unknown state ignored");
@@ -630,6 +719,73 @@ test_keys(void)
 	CHECK(in == 0, "unmapped key ignored");
 	in = (unsigned)feed(&k, LCD_KEY_PRESSED, LCD_KEY_CTRL);
 	CHECK(in == 0, "a modifier key is ignored");
+	/* A held key repeats as PRESSED events: one edge until the release. */
+	memset(&k, 0, sizeof k);
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_UP);
+	in = rg_keys_input(&k);
+	CHECK(in == (RG_IN_JUMP | RG_IN_JPRESS), "first press of Up: %u", in);
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_UP);
+	in = rg_keys_input(&k);
+	CHECK(in == RG_IN_JUMP, "a repeated PRESSED of Up is no new jump edge: %u", in);
+	rg_key_event(&k, LCD_KEY_RELEASED, LCD_KEY_UP);
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_UP);
+	in = rg_keys_input(&k);
+	CHECK(in == (RG_IN_JUMP | RG_IN_JPRESS), "press after the release is an edge again: %u", in);
+	rg_key_event(&k, LCD_KEY_RELEASED, LCD_KEY_UP);
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_DOWN);
+	rg_keys_input(&k);
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_DOWN);
+	in = rg_keys_input(&k);
+	CHECK(in == 0, "a repeated PRESSED of Down is no new drop: %u", in);
+	rg_key_event(&k, LCD_KEY_RELEASED, LCD_KEY_DOWN);
+	memset(&k, 0, sizeof k);
+	rg_key_event(&k, LCD_KEY_PRESSED, 'p');
+	CHECK(k.pause == 1, "first p pauses");
+	k.pause = 0;
+	rg_key_event(&k, LCD_KEY_PRESSED, 'p');
+	rg_key_event(&k, LCD_KEY_PRESSED, 'P');
+	CHECK(k.pause == 0, "a held p does not toggle again");
+	rg_key_event(&k, LCD_KEY_RELEASED, 'p');
+	rg_key_event(&k, LCD_KEY_PRESSED, 'p');
+	CHECK(k.pause == 1, "p after its release toggles");
+	rg_key_event(&k, LCD_KEY_PRESSED, 'q');
+	k.quit = 0;
+	rg_key_event(&k, LCD_KEY_PRESSED, 'q');
+	CHECK(k.quit == 0, "a held q does not request quit twice");
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_ESC);
+	k.quit = 0;
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_ESC);
+	CHECK(k.quit == 0, "a held Esc does not request quit twice");
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_ENTER);
+	k.restart = 0;
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_ENTER);
+	CHECK(k.restart == 0, "a held Enter does not confirm twice");
+	rg_key_event(&k, LCD_KEY_RELEASED, LCD_KEY_ENTER);
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_ENTER);
+	CHECK(k.restart == 1, "Enter after its release confirms");
+	k.restart = 0;
+	rg_key_event(&k, LCD_KEY_PRESSED, ' ');
+	k.restart = 0;
+	rg_key_event(&k, LCD_KEY_PRESSED, ' ');
+	CHECK(k.restart == 0, "a held Space does not confirm twice");
+	/* Aliased keys: Space and Up both jump, and the jump lasts until both are up. */
+	memset(&k, 0, sizeof k);
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_UP);
+	rg_key_event(&k, LCD_KEY_PRESSED, ' ');
+	in = rg_keys_input(&k);
+	CHECK(in == (RG_IN_JUMP | RG_IN_JPRESS), "Up and Space together: %u", in);
+	rg_key_event(&k, LCD_KEY_RELEASED, ' ');
+	in = rg_keys_input(&k);
+	CHECK(in == RG_IN_JUMP, "releasing Space keeps the jump while Up is down: %u", in);
+	rg_key_event(&k, LCD_KEY_RELEASED, LCD_KEY_UP);
+	in = rg_keys_input(&k);
+	CHECK(in == 0, "the jump ends when the last alias is released: %u", in);
+	rg_key_event(&k, LCD_KEY_PRESSED, 'h');
+	rg_key_event(&k, LCD_KEY_PRESSED, LCD_KEY_LEFT);
+	rg_key_event(&k, LCD_KEY_RELEASED, LCD_KEY_LEFT);
+	rg_keys_input(&k);
+	in = rg_keys_input(&k);
+	CHECK(in == RG_IN_LEFT, "releasing Left keeps running left while h is down: %u", in);
 	/* Requests. */
 	memset(&k, 0, sizeof k);
 	rg_key_event(&k, LCD_KEY_PRESSED, 'p');
@@ -716,6 +872,25 @@ test_level_data(int lv)
 			    "level %d crawler %d needs headroom at column %d", lv + 1, i, x);
 		}
 	}
+	/*
+	 * A checkpoint's spawn box lies clear of every crawler patrol: the
+	 * crawler's hit box over its whole corridor, in the rows the box spans.
+	 */
+	for (x = 0; x < G.w; x++)
+		for (y = 0; y < RG_H; y++) {
+			int sx, sy;
+
+			if (G.map[x][y] != RG_FLAG)
+				continue;
+			sx = x * RG_T + (RG_T - RG_PW * RG_SUB) / 2;
+			sy = (y + 1) * RG_T - RG_PH * RG_SUB;
+			for (i = 0; i < G.ne; i++) {
+				e = &G.en[i];
+				CHECK(sx + RG_PW * RG_SUB <= e->x0 || sx >= e->x1 + RG_EW * RG_SUB ||
+				    sy + RG_PH * RG_SUB <= e->y || sy >= e->y + RG_EH * RG_SUB,
+				    "level %d: the checkpoint at column %d lies in crawler %d's patrol", lv + 1, x, i);
+			}
+		}
 	/* No view ever holds more crawlers than there are sprite slots after the player. */
 	for (cam = 0; cam + RG_VIEW_W <= G.w; cam++) {
 		n = 0;
@@ -1172,6 +1347,7 @@ main(void)
 	test_items_and_hazards();
 	test_flag_and_checkpoint();
 	test_enemies();
+	test_respawn_grace();
 	test_goal_and_progress();
 	test_camera();
 	test_keys();

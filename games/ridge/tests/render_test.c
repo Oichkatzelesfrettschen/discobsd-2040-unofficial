@@ -624,6 +624,223 @@ test_edge_sprite_uncovered(void)
 	    panel_px(d, 39 * 8 + 7, 16 + 23 * 8));
 }
 /*
+ * Boxes that share tiles: the climber at x 244 stands two pixels clear of a
+ * crawler at x 256, and the crawler's box covers two of the climber's cells.
+ * The shared tiles hold both sprites, so the climber's eye at (251, 198)
+ * stays white.
+ */
+static void
+test_shared_tiles_pixel(void)
+{
+	struct dev *d = &DA;
+	struct rg_enemy *e;
+
+	flat_level(100);
+	G.cam = 0;
+	G.p.x = 244 * RG_SUB;
+	G.p.y = 24 * RG_T - RG_PH * RG_SUB;
+	G.ne = 1;
+	e = &G.en[0];
+	e->x0 = e->x1 = e->x = 256 * RG_SUB;
+	e->y = 24 * RG_T - RG_EH * RG_SUB;
+	e->dir = 1;
+	e->alive = 1;
+	start_view(d, &V);
+	frame(d, &V, 0);
+	CHECK(panel_px(d, 251, 198) == P_WHITE, "the climber's eye in a tile the crawler's box shares: %d",
+	    panel_px(d, 251, 198));
+	CHECK(panel_px(d, 266, 203) == P_WHITE, "the crawler's eye: %d", panel_px(d, 266, 203));
+	/* The crawler's outline and body, in the cells it shares with the climber, are there too. */
+	CHECK(panel_px(d, 256, 202) == P_INK && panel_px(d, 259, 203) == P_LICHEN_D,
+	    "the crawler's pixels in a shared tile: %d %d", panel_px(d, 256, 202), panel_px(d, 259, 203));
+	CHECK(V.fin[(2 + 22) * 40 + 31] == RG_DYN + 1 && V.fin[(2 + 22) * 40 + 33] == RG_DYN + RG_BOX * RG_BOX + 2,
+	    "the shared cell shows the lower sprite's slot, the crawler's own cell its own: %d %d",
+	    V.fin[(2 + 22) * 40 + 31], V.fin[(2 + 22) * 40 + 33]);
+	/* The crawler walks away: the climber's cells stay right, and nothing is left of the crawler's. */
+	e->x0 = e->x1 = e->x = 300 * RG_SUB;
+	frame(d, &V, 0);
+	CHECK(panel_px(d, 251, 198) == P_WHITE, "the climber alone");
+	/* And back: moving only the crawler refreshes the climber's slots. */
+	e->x0 = e->x1 = e->x = 256 * RG_SUB;
+	frame(d, &V, 0);
+	CHECK(panel_px(d, 251, 198) == P_WHITE, "the climber with the crawler back");
+	start_view(&DB, &V2);
+	frame(&DB, &V2, 0);
+	CHECK(memcmp(DA.panel, DB.panel, sizeof DA.panel) == 0, "incremental and fresh panels agree");
+}
+
+/* A respawned climber blinks while its grace period runs: shown on two ticks in four. */
+static void
+test_grace_blink(void)
+{
+	struct dev *d = &DA;
+
+	flat_level(100);
+	G.cam = 0;
+	G.p.x = (80 + 3) * RG_SUB;
+	G.p.y = 24 * RG_T - RG_PH * RG_SUB;
+	G.p.grace = 5;
+	start_view(d, &V);
+	G.ticks = 0;
+	frame(d, &V, 0);
+	CHECK(panel_px(d, 90, 16 + 176 + 6) == P_WHITE, "the climber shows on tick 0 of its grace");
+	G.ticks = 4;
+	frame(d, &V, 0);
+	CHECK(panel_px(d, 90, 16 + 176 + 6) == P_SKY, "the climber is hidden on tick 4 of its grace: %d",
+	    panel_px(d, 90, 16 + 176 + 6));
+	G.p.grace = 0;
+	frame(d, &V, 0);
+	CHECK(panel_px(d, 90, 16 + 176 + 6) == P_WHITE, "no blink without grace");
+}
+
+/*
+ * Reference image of the world area: terrain, then each sprite in z-order
+ * (the highest index first, so the climber is on top), pixel by pixel.
+ */
+static unsigned char ref_img[RG_VIEW_H * 8][RG_VIEW_W * 8];
+
+static void
+ref_render(const struct rg_game *g, const struct rg_sprite *spr, int n)
+{
+	unsigned char px[8][8];
+	int cx, cy, x, y, k, c;
+
+	for (cy = 0; cy < RG_VIEW_H; cy++)
+		for (cx = 0; cx < RG_VIEW_W; cx++) {
+			rg_tile_px(rg_base_tile(g, g->cam + cx, cy), px);
+			for (y = 0; y < 8; y++)
+				memcpy(&ref_img[cy * 8 + y][cx * 8], px[y], 8);
+		}
+	for (k = n - 1; k >= 0; k--)
+		for (y = 0; y < 16; y++)
+			for (x = 0; x < 16; x++) {
+				int X = spr[k].x - g->cam * RG_TW + x, Y = spr[k].y + y;
+
+				c = rg_art_pal(rg_art[spr[k].frame][y][spr[k].flip ? 15 - x : x]);
+				if (c >= 0 && X >= 0 && X < RG_VIEW_W * 8 && Y >= 0 && Y < RG_VIEW_H * 8)
+					ref_img[Y][X] = (unsigned char)c;
+			}
+}
+
+/* Count the pixels of the world area of DA that differ from the reference image of G. */
+static int
+ref_diff(int *shared)
+{
+	struct rg_sprite spr[RG_NSPR];
+	int n = rg_sprites(&G, spr), i, x, y, bad = 0;
+
+	for (i = 1; i < n; i++)
+		if (rg_near(rg_fdiv8(spr[i].x - G.cam * RG_TW), rg_fdiv8(spr[0].x - G.cam * RG_TW)) &&
+		    rg_near(rg_fdiv8(spr[i].y), rg_fdiv8(spr[0].y)))
+			(*shared)++;
+	ref_render(&G, spr, n);
+	for (y = 0; y < RG_VIEW_H * 8; y++)
+		for (x = 0; x < RG_VIEW_W * 8; x++)
+			if (panel_px(&DA, x, y + 16) != ref_img[y][x])
+				bad++;
+	return bad;
+}
+
+/*
+ * Two crawlers in one slot's box change places in the sprite list while the
+ * sprite in the slot and its neighbor's pixels stay the same: only the
+ * neighbor's index relative to the slot's tells that the z-order flipped.
+ */
+static void
+test_overlap_swap(void)
+{
+	struct rg_enemy *e;
+	int i, shared = 0, bad;
+
+	flat_level(100);
+	G.cam = 0;
+	G.p.x = 10 * RG_SUB;
+	G.ne = 3;
+	for (i = 0; i < 3; i++) {
+		e = &G.en[i];
+		e->y = 24 * RG_T - RG_EH * RG_SUB;
+		e->alive = 1;
+	}
+	start_view(&DA, &V);
+	/* c1 is G at 206 facing left, c2 is F at 200 facing right, c3 is far away. */
+	G.en[0].x0 = G.en[0].x1 = G.en[0].x = 206 * RG_SUB;
+	G.en[0].dir = -1;
+	G.en[1].x0 = G.en[1].x1 = G.en[1].x = 200 * RG_SUB;
+	G.en[1].dir = 1;
+	G.en[2].x0 = G.en[2].x1 = G.en[2].x = 280 * RG_SUB;
+	G.en[2].dir = 1;
+	frame(&DA, &V, 0);
+	bad = ref_diff(&shared);
+	CHECK(bad == 0, "overlapping crawlers: %d pixels differ", bad);
+	/* c1 goes far away and c3 becomes G: slot 2 holds F again with G now below it. */
+	G.en[0].x0 = G.en[0].x1 = G.en[0].x = 280 * RG_SUB;
+	G.en[0].dir = 1;
+	G.en[2].x0 = G.en[2].x1 = G.en[2].x = 206 * RG_SUB;
+	G.en[2].dir = -1;
+	frame(&DA, &V, 0);
+	bad = ref_diff(&shared);
+	CHECK(bad == 0, "after G moves to a higher index: %d pixels differ", bad);
+}
+
+/*
+ * Random clusters of the climber and up to six crawlers, boxes meeting in
+ * every way, moved a few at a time between frames so that a still sprite
+ * has a moving neighbor: the panel equals the reference after every frame.
+ */
+static void
+test_overlap_random(void)
+{
+	struct dev *d = &DA;
+	int iter, i, bad, x, shared = 0, anchor;
+
+	flat_level(100);
+	for (x = 20; x < 30; x++)
+		G.map[x][21] = RG_LEDGE;
+	G.map[40][23] = RG_SHARD;
+	G.map[41][20] = RG_SPIKE;
+	G.cam = 3;
+	G.ne = RG_NSPR - 1;
+	G.p.x = 100 * RG_SUB;
+	G.p.y = 24 * RG_T - RG_PH * RG_SUB;
+	anchor = 100;
+	for (i = 0; i < G.ne; i++) {
+		G.en[i].x0 = G.en[i].x1 = G.en[i].x = (anchor + 6 * i) * RG_SUB;
+		G.en[i].y = 24 * RG_T - RG_EH * RG_SUB;
+		G.en[i].alive = 1;
+		G.en[i].dir = 1;
+	}
+	start_view(d, &V);
+	for (iter = 0; iter < 400; iter++) {
+		if (iter % 50 == 0)
+			anchor = 40 + (int)rnd(200);
+		if (rnd(2)) {
+			G.p.x = (anchor + (int)rnd(30) - 3) * RG_SUB;
+			G.p.y = (24 * 8 - RG_PH - (int)rnd(20)) * RG_SUB;
+			G.p.ground = (int)rnd(2);
+			G.p.vx = (int)rnd(3) * 8 - 8;
+			G.p.face = rnd(2) ? 1 : -1;
+			G.p.anim = (int)rnd(8);
+		}
+		for (i = 0; i < G.ne; i++)
+			if (rnd(2)) {
+				G.en[i].x0 = G.en[i].x1 = G.en[i].x = (anchor + (int)rnd(44) - 8) * RG_SUB;
+				G.en[i].y = (24 * 8 - RG_EH - (int)rnd(14)) * RG_SUB;
+				G.en[i].dir = rnd(2) ? 1 : -1;
+				G.en[i].alive = rnd(6) != 0;
+			}
+		G.p.grace = rnd(4) == 0 ? 1 : 0;
+		if (rnd(10) == 0)
+			G.ticks = (unsigned long)rnd(32);
+		if (rnd(10) == 0)
+			G.cam = 2 + (int)rnd(4);
+		frame(d, &V, 0);
+		bad = ref_diff(&shared);
+		CHECK(bad == 0, "random overlap frame %d: %d pixels differ from the reference", iter, bad);
+	}
+	CHECK(shared > 100, "the random frames put crawler boxes against the climber's: %d", shared);
+}
+
+/*
  * What a one-column scroll costs on every shipped level, with the sprites
  * out of view: the tiles and windows the far ridge, rock edges and ledges
  * change. The bound is the measured maximum (166 tiles on the last level)
@@ -729,6 +946,10 @@ main(void)
 	test_shard_frames();
 	test_two_sprites();
 	test_edge_sprite_uncovered();
+	test_grace_blink();
+	test_shared_tiles_pixel();
+	test_overlap_random();
+	test_overlap_swap();
 	test_scroll_budget();
 	test_play_matches_fresh();
 	printf("%d checks, %d failed\n", nchk, nbad);

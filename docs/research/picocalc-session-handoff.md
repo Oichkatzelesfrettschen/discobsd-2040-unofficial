@@ -86,19 +86,23 @@ Build and test infrastructure:
 
 ## The board builds
 
-Kernel flash figures from clean builds of main `b783cd69` plus the `-Os`
-change, under the Linux CI compiler (Ubuntu 24.04 `gcc-arm-none-eabi`
+Kernel flash figures from clean builds of main with the `-Os` change and the
+`/dev/lcdgfx` pixel device (PR #379), under the Linux CI compiler (Ubuntu 24.04 `gcc-arm-none-eabi`
 15:13.2.rel1-2, GCC 13.2.1), against the 130,816-byte `RP2040.ld` FLASH
 region. Flash image is the span `check-kernel-headroom` measures: `.text`
 plus the `.data` and `.ramfunc` initializers, without `.boot2`.
 
 | Board | Command | Kernel | Text | Flash image | Headroom | Root profile | Free blocks / inodes |
 | --- | --- | --- | ---: | ---: | ---: | --- | --- |
-| Raspberry Pi Pico | `bmake MACHINE=rp2040 distribution` | `PICO` (USB CDC) or `PICO_UART` | 95,394 / 85,609 | 95,388 / 85,548 | 35,428 / 45,268 | `full` | 239 / 32 |
-| ClockworkPi PicoCalc | `bmake MACHINE=rp2040 BOARD=PICOCALC distribution` | `PICOCALC` | 109,406 | 109,520 | 21,296 | `picocalc` | 147 / 21 |
-| PicoCalc with PSRAM swap | `bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution` | `PICOCALC_PSRAM` | 111,564 | 111,732 | 19,084 | `picocalc` | 147 / 21 |
+| Raspberry Pi Pico | `bmake MACHINE=rp2040 distribution` | `PICO` (USB CDC) or `PICO_UART` | 95,403 / 85,618 | 95,396 / 85,556 | 35,420 / 45,260 | `full` | 239 / 32 |
+| ClockworkPi PicoCalc | `bmake MACHINE=rp2040 BOARD=PICOCALC distribution` | `PICOCALC` | 111,551 | 111,664 | 19,152 | `picocalc` | 147 / 20 |
+| PicoCalc with PSRAM swap | `bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution` | `PICOCALC_PSRAM` | 113,709 | 113,880 | 16,936 | `picocalc` | 147 / 20 |
 
-The same sources at `-O`, which the kernels used before `-Os`, measured
+Before the pixel device, which adds 2,145 text bytes to each PicoCalc kernel
+and the `/dev/lcdgfx` node (one inode) to the `picocalc` profile, `-Os` under
+GCC 13.2.1 measured 109,406 (PICOCALC) and 111,564 (PICOCALC_PSRAM). The
+sources without the pixel device at `-O`, which the kernels used before
+`-Os`, measured
 109,488 (PICO), 97,746 (PICO_UART), 126,100 (PICOCALC) and 128,296
 (PICOCALC_PSRAM) text bytes under GCC 13.2.1, and 107,768, 96,298, 124,356 and
 126,472 under the local GCC 16.2.0. With `/dev/lcdgfx` (PR #379) the `-O`

@@ -34,6 +34,11 @@
  * Scrolls confined to a region, and line insertion or deletion, move
  * the cell store and redraw the affected rows cell by cell.
  *
+ * While a pixel program owns the panel (gfx_active, set by lcdterm_gfx())
+ * the terminal still interprets its input and updates the cell store, the
+ * ring and the cursor, and skips the three panel primitives; leaving that
+ * mode repaints from the store, so text written meanwhile appears.
+ *
  * Cell codes 0x80-0xff address the glyph bank. The DEC line-drawing set
  * (ESC ( 0) maps 0x5f-0x7e onto bank codes 0x80-0x9f, which hold the real
  * graphics until a program replaces them with LCDIOC_SETGLYPH. A raw byte
@@ -70,6 +75,7 @@ static int sgr_fg, sgr_bg, sgr_bold, sgr_ul, sgr_rev;
 static unsigned cattr;		/* Attribute for cells written now. */
 
 static int autowrap, insertmode, cursor_on, appcursor, gfx;
+static int gfx_active;		/* A pixel program owns the panel. */
 
 static int cursor_drawn, cd_prow, cd_col;
 
@@ -136,6 +142,32 @@ phys(int r)
 	return (top + r) % LT_ROWS;
 }
 
+/*
+ * The three panel primitives, skipped while gfx_active: the cell store,
+ * the ring and the cursor keep their state, and lcdterm_gfx(0) repaints
+ * the panel from them.
+ */
+static void
+panel_cell(int prow, int col, int ch, unsigned attr)
+{
+	if (!gfx_active)
+		lcd_draw_cell(prow, col, ch, attr);
+}
+
+static void
+panel_fill(int prow, int col, int n, unsigned attr)
+{
+	if (!gfx_active)
+		lcd_fill_cells(prow, col, n, attr);
+}
+
+static void
+panel_top(int prow)
+{
+	if (!gfx_active)
+		lcd_set_top(prow);
+}
+
 /* Bank codes 0-31 take the line-drawing shapes, the rest the '?' glyph. */
 static void
 glyph_defaults(void)
@@ -182,7 +214,7 @@ draw(int r, int c)
 {
 	int p = phys(r);
 
-	lcd_draw_cell(p, c, cells[p][c], attrs[p][c]);
+	panel_cell(p, c, cells[p][c], attrs[p][c]);
 }
 
 static void
@@ -198,7 +230,7 @@ static void
 cursor_hide(void)
 {
 	if (cursor_drawn) {
-		lcd_draw_cell(cd_prow, cd_col, cells[cd_prow][cd_col],
+		panel_cell(cd_prow, cd_col, cells[cd_prow][cd_col],
 		    attrs[cd_prow][cd_col]);
 		cursor_drawn = 0;
 	}
@@ -215,7 +247,7 @@ lcdterm_cursor_show(void)
 	p = phys(crow);
 	a = attrs[p][ccol];
 	inv = LT_ATTR(LT_ATTR_BG(a), LT_ATTR_FG(a) & 7, a & LT_ATTR_UL);
-	lcd_draw_cell(p, ccol, cells[p][ccol], inv);
+	panel_cell(p, ccol, cells[p][ccol], inv);
 	cursor_drawn = 1;
 	cd_prow = p;
 	cd_col = ccol;
@@ -240,7 +272,7 @@ erase_cells(int r, int c, int n)
 		cells[p][i] = ' ';
 		attrs[p][i] = (unsigned char)a;
 	}
-	lcd_fill_cells(p, c, n, a);
+	panel_fill(p, c, n, a);
 }
 
 static void
@@ -277,7 +309,7 @@ scroll_up(int t, int b, int n)
 		while (n-- > 0) {
 			erase_cells(0, 0, LT_COLS);
 			top = (top + 1) % LT_ROWS;
-			lcd_set_top(top);
+			panel_top(top);
 		}
 		return;
 	}
@@ -302,7 +334,7 @@ scroll_down(int t, int b, int n)
 		while (n-- > 0) {
 			erase_cells(LT_ROWS - 1, 0, LT_COLS);
 			top = (top + LT_ROWS - 1) % LT_ROWS;
-			lcd_set_top(top);
+			panel_top(top);
 		}
 		return;
 	}
@@ -677,7 +709,7 @@ full_reset(void)
 {
 	reset_modes();
 	top = 0;
-	lcd_set_top(0);
+	panel_top(0);
 	erase_rows(0, LT_ROWS - 1);
 	crow = ccol = 0;
 	state = ST_GROUND;
@@ -697,13 +729,51 @@ lcdterm_abort(void)
 	state = ST_GROUND;
 	cursor_drawn = 0;
 	reset_modes();
+	if (gfx_active)
+		lcdterm_gfx(0);
+	else
+		lcd_set_top(top);
+}
+
+/*
+ * Draw every cell of the store and the cursor on the panel, with the scroll
+ * start at the ring top, whatever the panel showed before. The caller holds
+ * the drawing flag of lcdcons.c.
+ */
+void
+lcdterm_repaint(void)
+{
+	int p, c;
+
+	cursor_drawn = 0;
 	lcd_set_top(top);
+	for (p = 0; p < LT_ROWS; p++)
+		for (c = 0; c < LT_COLS; c++)
+			lcd_draw_cell(p, c, cells[p][c], attrs[p][c]);
+	lcdterm_cursor_show();
+}
+
+/*
+ * Hand the panel to a pixel program (on) or take it back (off). Entering
+ * only stops the panel primitives; leaving returns the panel to the text
+ * configuration, which a pixel program may have changed, and repaints.
+ */
+void
+lcdterm_gfx(int on)
+{
+	cursor_drawn = 0;
+	gfx_active = on;
+	if (!on) {
+		lcd_gfx_reset();
+		lcdterm_repaint();
+	}
 }
 
 void
 lcdterm_init(void)
 {
 	cursor_drawn = 0;
+	gfx_active = 0;
 	glyph_defaults();
 	full_reset();
 }

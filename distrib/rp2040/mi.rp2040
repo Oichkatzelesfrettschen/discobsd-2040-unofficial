@@ -154,6 +154,19 @@ cdev /dev/tty0
 major 6
 minor 0
 
+#closure lcdgfx
+#
+# The PicoCalc's pixel device, minor 1 of the console's character major 10
+# (sys/arch/rp2040/rp2040/conf.c, sys/arch/rp2040/dev/lcdgfx.c). It takes
+# the panel from the text console while open, one program at a time, and
+# any user may open it as any user may write /dev/tty.
+#
+cdev /dev/lcdgfx
+major 10
+minor 1
+mode 666
+#endclosure lcdgfx
+
 
 #
 # Files: /root

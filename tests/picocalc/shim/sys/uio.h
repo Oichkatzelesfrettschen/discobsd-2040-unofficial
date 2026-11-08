@@ -32,4 +32,7 @@ struct uio {
 	enum uio_rw	uio_rw;
 };
 
+/* The copy loop of sys/kern/kern_subr.c; a test supplies the model. */
+int uiomove(caddr_t cp, u_int n, struct uio *uio);
+
 #endif

@@ -976,13 +976,17 @@ fatal:      if (block_map)
     printf ("** Phase 3 - Check Connectivity\n");
     for (inum = BSDFS_ROOT_INODE; inum <= last_allocated_inode; inum++) {
         if (inode_state (inum) == DSTATE) {
-            unsigned orphan = inum, parent;
+            unsigned orphan = inum, parent, hops = 0;
 
             /* Follow ".." through unreached directories to the topmost one,
              * as pass3() in sbin/fsck does. Its ".." names a reached
              * directory, or nothing, and it is the one to reconnect:
              * phase 2 never visited its entries, so the rescan after the
-             * reconnect is what gives them their references. */
+             * reconnect is what gives them their references. A ".." chain
+             * that loops through unreached directories ends after
+             * 'last_allocated_inode' steps, more than any chain of distinct
+             * directories holds, and reconnects the directory it stopped at;
+             * the others of the loop are met by later turns of this loop. */
             find_inode_name = "..";
             for (;;) {
                 if (! fs_inode_get (fs, &inode, orphan))
@@ -990,7 +994,8 @@ fatal:      if (block_map)
                 find_inode_result = 0;
                 scan_inode (&inode, DATA, scan_directory, find_inode);
                 parent = find_inode_result;
-                if (parent != 0 && inode_state (parent) == DSTATE) {
+                if (parent != 0 && inode_state (parent) == DSTATE &&
+                    ++hops <= last_allocated_inode) {
                     orphan = parent;
                     continue;
                 }

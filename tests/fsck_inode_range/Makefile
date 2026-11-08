@@ -73,7 +73,7 @@ FSUTIL_MUTANTS=	fsutil-find-inode fsutil-lost-entry-old fsutil-namlen-empty \
 		fsutil-namlen-split fsutil-split-off fsutil-split-trim \
 		fsutil-reclen-bound fsutil-reach-skip fsutil-no-rescan \
 		fsutil-dotdot-keep fsutil-chain-flat fsutil-clear-leak \
-		fsutil-tfree-keep
+		fsutil-tfree-keep fsutil-cycle-unbound
 SCENARIOS.fsutil-find-inode=	fsutil-lf-last fsutil-lf-hole
 SCENARIOS.fsutil-lost-entry-old=	fsutil-lf-last fsutil-lf-hole \
 				fsutil-lf-pristine
@@ -88,6 +88,7 @@ SCENARIOS.fsutil-dotdot-keep=	fsutil-lf-dir fsutil-lf-deep
 SCENARIOS.fsutil-chain-flat=	fsutil-lf-deep
 SCENARIOS.fsutil-clear-leak=	fsutil-clear-blocks
 SCENARIOS.fsutil-tfree-keep=	fsutil-clear-blocks
+SCENARIOS.fsutil-cycle-unbound=	fsutil-lf-cycle
 
 # bin/df and sbin/mkfs are built from their own sources the same way; each
 # mutant is the program with one rewritten source file.

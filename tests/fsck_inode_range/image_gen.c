@@ -60,6 +60,9 @@
  *                  block: with no lost+found to reconnect it into, the
  *                  checker clears the file and must take its block out of
  *                  the count it compares with the free list.
+ *   orphan-cycle   two directories, each with ".." naming the other and
+ *                  neither named from /; their link counts include the
+ *                  ".." of the other. The ".." chain of either one loops.
  *
  * "--check IMAGE" prints fsutil's own consistency report for an image,
  * opened read-only, so a gate can compare fsutil's file count with fsck's.
@@ -190,6 +193,34 @@ overrun_dotdot(fs_t *fs, const char *name)
 	block[dotdot + 5] = reclen >> 8;
 	return fs_inode_write(&dir, 0, block, sizeof block) &&
 	    fs_inode_save(&dir, 1);
+}
+
+/*
+ * Make the ".." entry of directory name, the second entry of its first
+ * block, name inode number target, and count the new reference in target.
+ */
+static int
+point_dotdot(fs_t *fs, const char *name, unsigned target)
+{
+	fs_inode_t dir, other;
+	unsigned char block[BSDFS_BSIZE];
+	unsigned dotdot = 12;	/* "." takes 12 bytes, ".." starts behind it */
+
+	if (!fs_inode_lookup(fs, &dir, name))
+		return 0;
+	if (!fs_inode_read(&dir, 0, block, sizeof block))
+		return 0;
+	block[dotdot] = target & 0xff;
+	block[dotdot + 1] = (target >> 8) & 0xff;
+	block[dotdot + 2] = (target >> 16) & 0xff;
+	block[dotdot + 3] = target >> 24;
+	if (!fs_inode_write(&dir, 0, block, sizeof block) ||
+	    !fs_inode_save(&dir, 1))
+		return 0;
+	if (!fs_inode_get(fs, &other, target))
+		return 0;
+	other.nlink++;
+	return fs_inode_save(&other, 1);
 }
 
 /* The inode number a path names, or 0. */
@@ -359,6 +390,18 @@ build(const char *layout, const char *path)
 	} else if (strcmp(layout, "orphan-nolf") == 0) {
 		if (!rename_to(&fs, "/lost+found", "/old-lf") ||
 		    !fill_files(&fs, 0, 4) || !drop_name(&fs, "/f02"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "orphan-cycle") == 0) {
+		unsigned first, second;
+
+		if (!make_dir(&fs, "/d00") || !make_dir(&fs, "/d01"))
+			return fail("cannot build", layout);
+		first = number_of(&fs, "/d00");
+		second = number_of(&fs, "/d01");
+		if (first == 0 || second == 0 ||
+		    !point_dotdot(&fs, "/d00", second) ||
+		    !point_dotdot(&fs, "/d01", first) ||
+		    !drop_name(&fs, "/d00") || !drop_name(&fs, "/d01"))
 			return fail("cannot build", layout);
 	} else if (strcmp(layout, "orphan-deep") == 0) {
 		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||

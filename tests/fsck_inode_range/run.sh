@@ -256,6 +256,45 @@ run_fsutil_clear() {
 	second_run "$files"
 }
 
+# Two unreached directories whose ".." entries name each other: the climb
+# along ".." never leaves the loop, so fsutil's repair must stop it by a step
+# bound. A repair that does not finish in the time allowed fails the scenario;
+# the bound is generous for a 128-kilobyte image, which repairs in
+# milliseconds. Both directories must then resolve under lost+found.
+run_fsutil_cycle() {
+	status=0
+	if command -v timeout >/dev/null 2>&1; then
+		timeout 10 "$gen" --fix "$img" >"$out" 2>&1 || status=$?
+	else
+		"$gen" --fix "$img" >"$out" 2>&1 || status=$?
+	fi
+	case $status in
+	0) ;;
+	124)
+		fail "$gen --fix did not finish in 10 seconds"
+		return
+		;;
+	*) error "$scenario: $gen --fix failed, status $status" ;;
+	esac
+	lacks 'SORRY'
+	listed=$(sed -n 's/^UNREF DIR  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
+	[ "$(printf '%s\n' "$listed" | wc -l)" -eq 2 ] ||
+	    fail "fsutil reported unreferenced directories \"$listed\", want two"
+	for ino in $listed; do
+		name=$(printf '/lost+found/#%05u' "$ino")
+		status=0
+		found=$("$gen" --lookup "$img" "$name" 2>/dev/null) || status=$?
+		[ "$status" -le 1 ] ||
+		    error "$scenario: $gen --lookup did not complete, status $status"
+		[ "$found" = "$ino" ] ||
+		    fail "$name resolves to \"$found\", want $ino"
+	done
+	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
+	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING'
+	set_expected_files
+	second_run "$files"
+}
+
 # Creating lost+found adds one directory to the count, and the directory
 # fsck writes must pass the next directory check.
 after_create() {
@@ -315,7 +354,7 @@ for scenario in "$@"; do
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
 	    full-table | fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
-	    fsutil-lf-overrun | fsutil-lf-dir | fsutil-lf-deep | \
+	    fsutil-lf-overrun | fsutil-lf-dir | fsutil-lf-deep | fsutil-lf-cycle | \
 	    fsutil-clear-blocks | \
 	    tail-evict | df-empty | df-full | \
 	    df-tail | df-mkfs | mkfs-ratio) ;;
@@ -328,6 +367,7 @@ for scenario in "$@"; do
 	fsutil-lf-pristine) layout=orphan-last ;;
 	fsutil-lf-dir) layout=orphan-dir ;;
 	fsutil-lf-deep) layout=orphan-deep ;;
+	fsutil-lf-cycle) layout=orphan-cycle ;;
 	fsutil-clear-blocks) layout=orphan-nolf ;;
 	df-empty) layout=empty ;;
 	df-full) layout=file-last ;;
@@ -348,6 +388,7 @@ for scenario in "$@"; do
 	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil FILE ;;
 	fsutil-lf-dir) run_fsutil DIR /inner ;;
 	fsutil-lf-deep) run_fsutil DIR /sub /sub/inner ;;
+	fsutil-lf-cycle) run_fsutil_cycle ;;
 	fsutil-clear-blocks) run_fsutil_clear ;;
 	fsutil-lf-overrun) run_fsutil_overrun ;;
 	tail-evict) run_tail_evict ;;

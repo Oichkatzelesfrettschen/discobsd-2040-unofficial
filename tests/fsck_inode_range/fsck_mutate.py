@@ -141,8 +141,8 @@ SITES: dict[str, Edit] = {
     ),
     "fsutil-chain-flat": (
         "check.c",
-        "                if (parent != 0 && inode_state (parent) == DSTATE) {\n",
-        "                if (parent != 0 && inode_state (parent) == DSTATE && 0) {\n",
+        "                if (parent != 0 && inode_state (parent) == DSTATE &&\n",
+        "                if (parent != 0 && inode_state (parent) == DSTATE && 0 &&\n",
     ),
     "fsutil-clear-leak": (
         "check.c",
@@ -153,6 +153,11 @@ SITES: dict[str, Edit] = {
         "check.c",
         "    fs->tfree = 0;      /* fs_block_free() counts every block it links */\n",
         "",
+    ),
+    "fsutil-cycle-unbound": (
+        "check.c",
+        "++hops <= last_allocated_inode) {",
+        "++hops > 0) {",
     ),
     "df-isize": (
         "df.c",

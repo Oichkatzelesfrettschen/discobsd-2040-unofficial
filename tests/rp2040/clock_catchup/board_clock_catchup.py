@@ -16,7 +16,8 @@ so the time of day does not fall behind the host while the root file system
 erases sectors. A sector erase masks interrupts for about 44 ms.
 
 Method. The board's time of day is read as the output of "date" in a loop,
-each line stamped with the host time of its arrival. A line was produced
+each line stamped with the host time of its arrival (host_now(), the monotonic
+clock anchored once to the wall clock). A line was produced
 between its arrival and a short settle margin earlier, and the board's integer
 second at that instant is the line's value, so every line bounds the
 host-minus-board offset to an interval. The intersection over the loop is the
@@ -31,11 +32,26 @@ the excess is an interval. A kernel without catch-up loses at least 44 ms per
 sector erased (the floor used here; a kernel with the catch-up call disabled
 lost 96 s to a 96-sector workload, 23 times the floor). The check passes when
 the whole excess interval lies within a tenth of the floor, fails when it lies
-wholly outside, and is inconclusive otherwise (exit status 2). A measurement
-whose per-line bounds have no common point, a workload that did not write every
-block, and a floor under a second are also inconclusive. The idle wait is not
-free of flash work: each fork under the single-process window swaps through the
-raw swap partition, so the control carries that residue.
+wholly outside, and is inconclusive otherwise (exit status 2). A workload that
+did not write every block and a floor under a second are also inconclusive.
+A measurement whose per-line bounds have no common point has two causes: a
+line delayed past SETTLE_MARGIN, which is inconclusive, or a board clock that
+fell behind during the loop, which is a failure. Arrival times alone cannot
+tell them apart, because a console that holds lines back can give a steady
+clock any arrival pattern. The check therefore separates them with a probe
+whose bounds rest on no latency assumption: the host sends each "date" itself,
+so the line was made between the send and the arrival, and a steady clock's
+offset lies in every sample's interval (send - value - 1, arrival - value].
+probe_bounds() intersects PROBE_SAMPLES such intervals; when they have no
+common point, no steady clock can have produced them and the check fails,
+reporting the gap as the least time the clock lost. When they share a point,
+the loop's empty bounds came from a delayed line and the measurement is
+inconclusive. Any of the three measurements can show the loss, because the
+date loop is itself flash-backed work: every date forks, the fork swaps
+through the raw swap partition, and a kernel without catch-up loses the
+masked ticks of that swap; the probe forks one date per sample and loses the
+same way. The idle wait is not free of flash work for the same reason, so the
+control carries that residue.
 
 The decision logic is exercised on synthetic input by test_board_scripts.py.
 """
@@ -78,25 +94,38 @@ ERASE_MS = 44
 # loses the whole ERASE_MS per sector.
 TOLERANCE_FRACTION = 0.10
 MIN_LOST_S = 1.0
+# Request-bounded samples taken when a loop's bounds have no common point.
+PROBE_SAMPLES = 40
 # Exit status of a run whose measurements cannot decide (0 passes, 1 fails).
 INCONCLUSIVE = 2
+
+# Arrival stamps come from the monotonic clock placed on the wall clock once,
+# so a host clock step during the run moves no stamp relative to another.
+WALL_ANCHOR = time.time()
+MONOTONIC_ANCHOR = time.monotonic()
+
+
+def host_now():
+    """Host time in seconds since the epoch, immune to wall-clock steps."""
+    return WALL_ANCHOR + (time.monotonic() - MONOTONIC_ANCHOR)
 
 
 class Console:
     def __init__(self, serial_module, port):
         self.serial = serial_module
         self.port = serial_module.Serial(port, 115200, timeout=0)
+        self.requests = 0
 
     def reopen(self):
         """Reopen the console after the board re-enumerates, which it can do twice."""
-        start = time.time()
+        start = time.monotonic()
         while True:
             time.sleep(2)
             try:
                 self.port = self.serial.Serial(glob.glob(PORT_PATTERN)[0], 115200, timeout=0)
                 return
             except (IndexError, self.serial.SerialException):
-                if time.time() - start > 60:
+                if time.monotonic() - start > 60:
                     raise
 
     def read(self, seconds, stop=None):
@@ -104,8 +133,8 @@ class Console:
         buf = b""
         stamped = []
         pending = b""
-        start = time.time()
-        while time.time() - start < seconds:
+        start = time.monotonic()
+        while time.monotonic() - start < seconds:
             try:
                 data = self.port.read(4096)
             except self.serial.SerialException:
@@ -114,7 +143,7 @@ class Console:
             if not data:
                 time.sleep(0.005)
                 continue
-            now = time.time()
+            now = host_now()
             buf += data
             pending += data
             while b"\n" in pending:
@@ -130,6 +159,41 @@ class Console:
         self.port.write(command.encode() + b"\r")
         return self.read(wait, stop)
 
+    def probe(self, samples, wait=10):
+        """Send "date" SAMPLES times; return [(sent, arrival, line)...].
+
+        Each request is "date; echo PROBE<n>", N counting every request this
+        console has sent. Its date line is the one line between the echo of
+        that command and the line PROBE<n>, so neither a late reply to an
+        earlier request nor any other stale date line is taken for it. A
+        request whose marker does not arrive within WAIT seconds, or whose
+        window holds no date line or more than one, raises MeasurementError,
+        because its reply cannot be attributed to its send."""
+        probes = []
+        for _ in range(samples):
+            index = self.requests
+            self.requests += 1
+            marker = "PROBE%d" % index
+            command = 'date; echo PRO""BE%d' % index
+            sent = host_now()
+            _, stamped = self.run(command, wait, stop=re.compile(r"^%s\n" % marker, re.M))
+            lines = [line for _, line in stamped]
+            if marker not in lines:
+                raise MeasurementError("probe request %d unanswered in %g s" % (index, wait))
+            end = lines.index(marker)
+            echoes = [i for i, line in enumerate(lines[:end]) if line.endswith(command)]
+            if not echoes:
+                raise MeasurementError("probe request %d was not echoed" % index)
+            window = stamped[echoes[-1] + 1 : end]
+            dated = [(arrival, line) for arrival, line in window if board_seconds(line) is not None]
+            if len(dated) != 1:
+                raise MeasurementError(
+                    "probe request %d returned %d date lines, want one" % (index, len(dated))
+                )
+            arrival, line = dated[0]
+            probes.append((sent, arrival, line))
+        return probes
+
 
 def flash(images):
     subprocess.check_call(
@@ -141,8 +205,8 @@ def flash(images):
 
 
 def open_console(serial_module, boot_wait):
-    start = time.time()
-    while time.time() - start < 30 and not glob.glob(PORT_PATTERN):
+    start = time.monotonic()
+    while time.monotonic() - start < 30 and not glob.glob(PORT_PATTERN):
         time.sleep(0.5)
     time.sleep(1)
     ports = glob.glob(PORT_PATTERN)
@@ -172,15 +236,42 @@ class MeasurementError(Exception):
     """A measurement that cannot bound the offset; the check is inconclusive."""
 
 
+class EmptyBounds(MeasurementError):
+    """The per-line bounds of a date loop have no common point."""
+
+
+class ClockUnsteady(MeasurementError):
+    """The board clock fell behind or ran ahead during a measurement; the
+    check fails, since a catch-up that drops ticks or counts them twice both
+    break the claim.
+
+    LOSS is the least time in seconds the clock must have moved off the host
+    for the request-bounded samples to have no common offset, BEHIND tells a
+    clock that fell behind from one that ran ahead, LINES is the number of
+    parsed samples and MEASUREMENT the name of the measurement that showed it
+    (set by measure_offset).
+    """
+
+    def __init__(self, loss, lines, behind=True, measurement=None):
+        super().__init__(
+            "the board clock %s by at least %.3f s across %d date lines"
+            % ("fell behind" if behind else "ran ahead", loss, lines)
+        )
+        self.loss = loss
+        self.lines = lines
+        self.behind = behind
+        self.measurement = measurement
+
+
 def offset_bounds(stamped, samples=SAMPLES):
     """Return (low, high) bounds on host time minus board time, in seconds.
 
     STAMPED holds (arrival time, console line) pairs. The constant that
     converts the board's local zone to UTC stays in the value; only differences
     between measurements are meaningful. Raises MeasurementError when too few
-    lines parse or when the per-line bounds have no common point, which a
-    sample delayed beyond SETTLE_MARGIN or a clock that moved during the loop
-    produces.
+    lines parse and EmptyBounds when the per-line bounds have no common point,
+    which a line delayed beyond SETTLE_MARGIN or a clock that fell behind
+    during the loop produces; probe_bounds() tells the two apart.
     """
     low = -1e18
     high = 1e18
@@ -198,20 +289,66 @@ def offset_bounds(stamped, samples=SAMPLES):
     if used < samples // 2:
         raise MeasurementError("only %d of %d date lines parsed" % (used, samples))
     if low > high:
-        raise MeasurementError(
+        raise EmptyBounds(
             "the bounds of %d date lines have no common point (%.3f .. %.3f s)" % (used, low, high)
         )
     return low, high
 
 
-def measure_offset(console):
-    """Run the stamped date loop on the board and bound the offset."""
+def probe_bounds(probes, samples=PROBE_SAMPLES):
+    """Return (low, high) offset bounds from request-bounded samples.
+
+    PROBES holds (sent, arrival, console line) triples, SENT the host time the
+    command left and ARRIVAL the time its date line came back. The line was
+    made at x in [sent, arrival], so a steady clock's offset lies in
+    (sent - value - 1, arrival - value] for every sample, however long the
+    console held the line. Raises ClockUnsteady with the gap between the
+    bounds when they have no common point, BEHIND telling a clock that fell
+    behind from one that ran ahead, and MeasurementError when too few
+    lines parse.
+    """
+    low = -1e18
+    high = 1e18
+    low_at = high_at = 0
+    used = 0
+    for sent, arrival, line in probes:
+        value = board_seconds(line)
+        if value is None:
+            continue
+        used += 1
+        if sent - value - 1 > low:
+            low, low_at = sent - value - 1, used
+        if arrival - value < high:
+            high, high_at = arrival - value, used
+    if used < samples // 2:
+        raise MeasurementError("only %d of %d probe lines parsed" % (used, samples))
+    if low > high:
+        # host - board rises across the probe when the board falls behind, so
+        # the binding lower bound then comes from the later sample.
+        raise ClockUnsteady(low - high, used, behind=low_at > high_at)
+    return low, high
+
+
+def measure_offset(console, name="measurement"):
+    """Run the stamped date loop on the board and bound the offset.
+
+    A ClockUnsteady raised by the loop carries NAME as its measurement."""
     _, stamped = console.run(
         'for i in `seq 1 %d`; do date; done; echo OFF""DONE' % SAMPLES,
         wait=300,
         stop="\nOFFDONE\n",
     )
-    return offset_bounds(stamped)
+    try:
+        return offset_bounds(stamped)
+    except EmptyBounds as empty:
+        try:
+            probe_bounds(console.probe(PROBE_SAMPLES))
+        except ClockUnsteady as error:
+            error.measurement = name
+            raise
+        raise MeasurementError(
+            "%s; the request-bounded probe shares an offset, so a line was delayed" % empty
+        ) from empty
 
 
 def excess_interval(baseline, work, idle):
@@ -305,7 +442,18 @@ def main():
 
 
 def run_check(console):
-    baseline = measure_offset(console)
+    """Run the three measurements and the workload; return the exit status.
+
+    A clock that lost time during any date loop ends the run as a failure."""
+    try:
+        return run_measurements(console)
+    except ClockUnsteady as error:
+        print("clock catch-up: FAIL (%s, in the %s measurement)" % (error, error.measurement))
+        return 1
+
+
+def run_measurements(console):
+    baseline = measure_offset(console, "baseline")
     print("offset 1 (baseline): %.3f .. %.3f s" % baseline)
 
     # The workload script travels as echo lines; the board's sh aborts a
@@ -322,21 +470,21 @@ def run_check(console):
         print("workload script was not stored intact: %r" % text[-300:])
         return 1
 
-    start = time.time()
+    start = time.monotonic()
     text, _ = console.run('sh /tmp/cc.sh; echo WORK""STATUS$?', wait=600, stop=WORKLOAD_STATUS)
-    workload_s = time.time() - start
+    workload_s = time.monotonic() - start
     reason = check_workload(text)
     if reason:
         print("workload failed: %s: %r" % (reason, text[-300:]))
         return INCONCLUSIVE
     console.run("rm -f /tmp/cc.sh /tmp/cc.dat", wait=2)
-    after_work = measure_offset(console)
+    after_work = measure_offset(console, "after-workload")
     print("offset 2 (after workload, %.1f s): %.3f .. %.3f s" % ((workload_s, *after_work)))
 
-    idle_start = time.time()
+    idle_start = time.monotonic()
     time.sleep(workload_s)
-    after_idle = measure_offset(console)
-    idle_s = time.time() - idle_start
+    after_idle = measure_offset(console, "after-idle")
+    idle_s = time.monotonic() - idle_start
     print("offset 3 (after idle, %.1f s): %.3f .. %.3f s" % ((idle_s, *after_idle)))
 
     # Between the first and the second measurement the workload ran; between

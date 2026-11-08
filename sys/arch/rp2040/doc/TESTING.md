@@ -1680,7 +1680,8 @@ research/ names them).
 ### Clock, compact credentials and synchronous writes
 
 `bmake MACHINE=rp2040 check-storage-correctness` links `kern_time.c`,
-`sys_inode.c`, `ufs_subr.c`, `ufs_syscalls2.c`, `kern_synch.c`, `vm_sched.c` and the credential
+`sys_inode.c`, `ufs_subr.c`, `ufs_syscalls2.c`, `kern_synch.c`, `vm_sched.c`,
+`kern_clock.c`, `kern_fork.c` and the credential
 sources against
 deterministic host I/O stubs. It checks the slew/step boundary, backward-step normalization,
 step overflow refusal, both fields of each interval timer, invalid timeval
@@ -1748,7 +1749,38 @@ allocations are reclaimed before pointer publication, busy parents are released,
 original errors survive cleanup and earlier valid ancestors remain intact.
 The fixture uses NSHIFT for depth boundaries and only index zero; its native
 daddr_t width is not evidence about the target's on-disk encoding.
-Thirty-one source mutations, among them bypassing interval-timer validation,
+A separate interval-timer fixture (`tests/kernel/itimer_test.c`) drives the
+production `hardclock()` tick by tick over four `struct proc` entries in
+`allproc` and records every `psignal()` with its tick, 2,455 assertions in all.
+`ITIMER_REAL` counts ticks on the monotonic clock (`monosec`, `monotick`),
+which `settimeofday()` and `adjtime()` leave alone. A one-shot at 1, 10, 500,
+999, 1,000 and 2,500 ms, started from five phases of the second, signals once,
+exactly the wait plus one tick after the call (the deadline is the wait past
+the clock and fires on the first tick strictly after it, so the real wait is
+never shorter than asked), with one softclock entry and one expiry scan in the
+whole interval. A 10 ms periodic timer delivers 99 signals in the
+first 1,000 ticks and the hundredth on tick 1,001, exactly ten ticks apart; a
+1 ms first period delivers 100 inside 1,000 ticks. The fixture covers
+`getitimer()` readback falling 1 ms per tick from the exact value set,
+re-arming earlier and later, cancelling the earliest timer, two processes
+expiring on one tick, a neighbor whose deadline is the scan tick staying
+unsignalled for one more tick, a
+`newproc()` child starting with all four timer fields clear, a 5,000-tick
+`monoclock_advance()` (the due timer fires on the next tick and a periodic
+timer delivers its missed periods one per tick, then returns to its phase),
+the 1e8 s limit round trip, and
+`ITIMER_VIRTUAL` and `ITIMER_PROF` storing `sec * hz + ceil(usec / usechz)`.
+The fixture runs at `hz` 1,000; the 100 Hz fixture above checks the stored
+representation at that rate. The host `setjmp()` stand-in follows the parent
+path of `newproc()` only; the child resume path, the swapout copy and a masked
+clock interrupt are outside it, and the call of `monoclock_advance()` from
+`clock_catchup()` is covered by the wiring check of `check-clock-catchup`.
+Forty-eight source mutations, seventeen of them interval-timer ones (a
+non-strict comparison in either due test, an extra tick, rounding to a second,
+skipping the earliest-deadline lowering, re-arming a periodic timer from the
+clock, a `hardclock()` that never wakes the expiry scan, an expiry scan that
+forgets later timers, missing carries in the monotonic clock and each of the
+four fork-cleared fields), among them bypassing interval-timer validation,
 continuing after an old-timer copyout failure, replacing the saved new-timer
 pointer after a successful old-timer copyout and making `getpgrp()` return
 the caller's process ID, bypassing each privileged credential transition,

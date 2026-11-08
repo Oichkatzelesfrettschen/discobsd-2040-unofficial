@@ -166,14 +166,19 @@ run_decline() {
 }
 
 # fsutil's own checker, over the image the generator wrote, reconnects the
-# orphan into lost+found at the highest inode instead of reporting that it
-# has no lost+found; a second fsutil report is then clean.
+# unreferenced file into lost+found instead of reporting that it has no
+# lost+found or no space in it (the lost+found of fs_create holds "." and
+# ".." alone, so the entry is cut from the record of ".."); a second fsutil
+# report is then clean, and so is a preen run of the host fsck over the
+# repaired image, which leaves every byte as it found it.
 run_fsutil() {
 	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
 	has 'UNREF FILE'
 	lacks 'SORRY'
 	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
 	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING'
+	set_expected_files
+	second_run "$files"
 }
 
 # Creating lost+found adds one directory to the count, and the directory
@@ -228,12 +233,15 @@ for scenario in "$@"; do
 	rm -f "$img"
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
-	    full-table | fsutil-lf-last | tail-evict | df-empty | df-full | \
+	    full-table | fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
+	    tail-evict | df-empty | df-full | \
 	    df-tail | df-mkfs | mkfs-ratio) ;;
 	*) error "unknown scenario $scenario" ;;
 	esac
 	case $scenario in
-	fsutil-lf-last) layout=lf-slot-last ;;
+	fsutil-lf-last) layout=lf-last ;;
+	fsutil-lf-hole) layout=lf-hole-last ;;
+	fsutil-lf-pristine) layout=orphan-last ;;
 	df-empty) layout=empty ;;
 	df-full) layout=file-last ;;
 	df-tail) layout=tail-evict ;;
@@ -250,7 +258,7 @@ for scenario in "$@"; do
 	orphan-dir) run_repair DIR after_reconnect ;;
 	free-last) run_repair FILE after_create ;;
 	full-table) run_decline ;;
-	fsutil-lf-last) run_fsutil ;;
+	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil ;;
 	tail-evict) run_tail_evict ;;
 	df-empty) run_df 32 3 29 ;;
 	df-full) run_df 32 32 0 ;;

@@ -27,10 +27,10 @@
  *   lf-last        lost+found is a new directory at inode N, the original
  *                  is renamed old-lf, and one file loses its name: fsck must
  *                  find lost+found at inode N and reconnect the orphan in it.
- *   lf-slot-last   lf-last, with a second directory block in lost+found
- *                  that holds one empty entry. tools/fsutil's checker
- *                  reconnects an orphan only into an empty entry of
- *                  lost+found, so it needs this block where fsck does not.
+ *   lf-hole-last   lf-last, with the slack of ".." in lost+found cut into
+ *                  an empty entry (inode 0, no name) behind it. tools/fsutil's
+ *                  checker reuses an empty entry before it cuts the slack of
+ *                  a live one, so this block is the one that reaches it.
  *   tail-evict     a 96-inode volume (six inode blocks, so fsck holds the
  *                  inodes in two windows). A directory in lost+found whose
  *                  inode is in the second window has a length that is not a
@@ -119,21 +119,32 @@ make_dir(fs_t *fs, const char *name)
 }
 
 /*
- * Append a directory block that holds one empty entry spanning the block:
- * inode 0, record length DIRBLKSIZ, no name.
+ * Turn the slack of the last entry of the first directory block into an
+ * empty entry: the record of ".." keeps its 12 bytes and the rest of the
+ * block becomes an entry with inode 0, no name and the remaining length.
  */
 static int
-add_empty_block(fs_t *fs, const char *name)
+add_empty_entry(fs_t *fs, const char *name)
 {
 	fs_inode_t dir;
 	unsigned char block[BSDFS_BSIZE];
+	unsigned dotdot = 12;	/* "." takes 12 bytes, ".." starts behind it */
+	unsigned hole = dotdot + 12;
 
-	memset(block, 0, sizeof block);
-	block[4] = BSDFS_BSIZE & 0xff;
-	block[5] = BSDFS_BSIZE >> 8;
 	if (!fs_inode_lookup(fs, &dir, name))
 		return 0;
-	return fs_inode_write(&dir, dir.size, block, sizeof block) &&
+	if (!fs_inode_read(&dir, 0, block, sizeof block))
+		return 0;
+	/* ".." must be the last entry, its record running to the block end. */
+	if (block[dotdot + 4] + (block[dotdot + 5] << 8) !=
+	    (int)(sizeof block - dotdot))
+		return 0;
+	block[dotdot + 4] = 12;
+	block[dotdot + 5] = 0;
+	memset(block + hole, 0, sizeof block - hole);
+	block[hole + 4] = (sizeof block - hole) & 0xff;
+	block[hole + 5] = (sizeof block - hole) >> 8;
+	return fs_inode_write(&dir, 0, block, sizeof block) &&
 	    fs_inode_save(&dir, 1);
 }
 
@@ -284,12 +295,12 @@ build(const char *layout, const char *path)
 		    !fill_files(&fs, 1, FREE_AT_START - 1))
 			return fail("cannot build", layout);
 	} else if (strcmp(layout, "lf-last") == 0 ||
-	    strcmp(layout, "lf-slot-last") == 0) {
+	    strcmp(layout, "lf-hole-last") == 0) {
 		if (!rename_to(&fs, "/lost+found", "/old-lf") ||
 		    !make_dir(&fs, "/lost+found") ||
 		    number_of(&fs, "/lost+found") != IMAGE_INODES ||
-		    (strcmp(layout, "lf-slot-last") == 0 &&
-		    !add_empty_block(&fs, "/lost+found")) ||
+		    (strcmp(layout, "lf-hole-last") == 0 &&
+		    !add_empty_entry(&fs, "/lost+found")) ||
 		    !fill_files(&fs, 0, FREE_AT_START - 2) ||
 		    !drop_name(&fs, "/f05"))
 			return fail("cannot build", layout);

@@ -60,6 +60,61 @@ SITES: dict[str, Edit] = {
         "dirp->ino <= (fs->isize-1) * BSDFS_INODES_PER_BLOCK)",
         "dirp->ino < (fs->isize-1) * BSDFS_INODES_PER_BLOCK)",
     ),
+    "fsutil-lost-entry-old": (
+        "check.c",
+        "static int make_lost_entry (fs_t *fs, fs_dirent_t *dirp)\n{\n"
+        "    char name [16];\n"
+        "    unsigned namlen, used;\n"
+        "\n"
+        '    snprintf (name, sizeof(name), "#%05u", lost_inode);\n'
+        "    namlen = strlen (name);\n"
+        "    if (dirp->ino == 0) {\n"
+        "        if (dirp->reclen < DIRENT_SIZE (namlen))\n"
+        "            return KEEPON;\n"
+        "        dirp->ino = lost_inode;\n"
+        "        dirp->namlen = namlen;\n"
+        "        strlcpy (dirp->name, name, sizeof(dirp->name));\n"
+        "        return ALTERD | STOP;\n"
+        "    }\n"
+        "    used = DIRENT_SIZE (dirp->namlen);\n"
+        "    if (dirp->reclen < used + DIRENT_SIZE (namlen))\n"
+        "        return KEEPON;\n"
+        "    memset (&inserted, 0, sizeof(inserted));\n"
+        "    inserted.ino = lost_inode;\n"
+        "    inserted.reclen = dirp->reclen - used;\n"
+        "    inserted.namlen = namlen;\n"
+        "    strlcpy (inserted.name, name, sizeof(inserted.name));\n"
+        "    dirp->reclen = used;\n"
+        "    return ALTERD | INSERT | STOP;\n"
+        "}",
+        "static int make_lost_entry (fs_t *fs, fs_dirent_t *dirp)\n{\n"
+        "    if (dirp->ino)\n"
+        "        return KEEPON;\n"
+        "    dirp->ino = lost_inode;\n"
+        '    snprintf (dirp->name, sizeof(dirp->name), "#%05d", dirp->ino);\n'
+        "    return ALTERD | STOP;\n"
+        "}",
+    ),
+    "fsutil-namlen-empty": (
+        "check.c",
+        "        dirp->namlen = namlen;\n",
+        "",
+    ),
+    "fsutil-namlen-split": (
+        "check.c",
+        "    inserted.namlen = namlen;\n",
+        "",
+    ),
+    "fsutil-split-off": (
+        "check.c",
+        "    if (dirp->reclen < used + DIRENT_SIZE (namlen))\n",
+        "    if (dirp->ino)\n",
+    ),
+    "fsutil-split-trim": (
+        "check.c",
+        "    dirp->reclen = used;\n    return ALTERD | INSERT | STOP;",
+        "    return ALTERD | INSERT | STOP;",
+    ),
     "df-isize": (
         "df.c",
         "sfsp->f_files = (sblock.fs_isize - (SUPERB + 1)) * INOPB;",

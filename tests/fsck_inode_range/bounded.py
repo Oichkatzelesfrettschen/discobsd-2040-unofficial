@@ -7,9 +7,10 @@ it as the leader of its own session and stops the whole group before
 returning, so neither a timeout nor a SIGINT or SIGTERM of this process
 leaves a child of the command running. The exit status is the command's own;
 128 plus the signal number when the command died of a signal; 124 when the
-bound ended it, as timeout(1) reports; 127 and 126 when the command is
-missing or cannot be executed, as sh(1) reports; and the signal status of
-this process when it was itself interrupted.
+bound ended it, as timeout(1) reports; 125 when the supervisor failed to
+account for the process group, as timeout(1) reports its own failure; 127
+and 126 when the command is missing or cannot be executed, as sh(1) reports;
+and the signal status of this process when it was itself interrupted.
 """
 
 import os
@@ -25,6 +26,7 @@ if TOOLS not in sys.path:
 import test_execution  # noqa: E402
 
 TIMEOUT_STATUS = 124
+SUPERVISOR_STATUS = 125
 NOT_EXECUTABLE_STATUS = 126
 NOT_FOUND_STATUS = 127
 
@@ -39,6 +41,11 @@ def main(argv):
     except FileNotFoundError as error:
         sys.stderr.write("bounded.py: %s\n" % error)
         return NOT_FOUND_STATUS
+    except (RuntimeError, ValueError, TimeoutError) as error:
+        # The supervisor could not account for the group or its ownership
+        # state: no verdict about the command exists.
+        sys.stderr.write("bounded.py: supervisor failed: %s\n" % error)
+        return SUPERVISOR_STATUS
     except OSError as error:
         sys.stderr.write("bounded.py: %s\n" % error)
         return NOT_EXECUTABLE_STATUS

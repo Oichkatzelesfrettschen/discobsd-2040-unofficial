@@ -48,8 +48,9 @@ overall=0
 # starts it as its own process group through tools/test_execution.py and stops
 # the whole group on a timeout or on a SIGINT or SIGTERM of the run. The status
 # is the command's own, 128 plus the signal of a command that died of one, 124
-# for a timeout, as timeout(1) gives, and 126 or 127 for a command that could
-# not be started.
+# for a timeout, as timeout(1) gives, 125 when the supervisor could not account
+# for the process group, and 126 or 127 for a command that could not be
+# started.
 run_bounded() {
 	"$PYTHON" "$here/bounded.py" "$@"
 }

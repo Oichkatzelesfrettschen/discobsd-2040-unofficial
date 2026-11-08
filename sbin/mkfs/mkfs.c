@@ -124,9 +124,7 @@ makedir (protodir, entries)
 }
 
 void
-rdfs (bno, bf)
-	daddr_t bno;
-	char *bf;
+rdfs (daddr_t bno, void *bf)
 {
 	int n;
 	off_t offset;
@@ -144,9 +142,7 @@ rdfs (bno, bf)
 }
 
 void
-wtfs (bno, bf)
-	daddr_t bno;
-	char *bf;
+wtfs (daddr_t bno, void *bf)
 {
 	int n;
 	off_t offset;
@@ -472,7 +468,8 @@ main (argc,argv)
 	filsys.fs.fs_swapsz = swapsz;
 	if (filsys.fs.fs_isize + filsys.fs.fs_swapsz >= filsys.fs.fs_fsize) {
 		printf ("%u/%u: bad ratio\n",
-                        filsys.fs.fs_fsize, filsys.fs.fs_isize-2);
+                        filsys.fs.fs_fsize,
+                        (unsigned)(filsys.fs.fs_isize-(SUPERB+1)));
 		exit (1);
 	}
 	time (&utime);

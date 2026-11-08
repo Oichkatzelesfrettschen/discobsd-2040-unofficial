@@ -43,8 +43,9 @@ PARTITIONS!=	if [ ${U_KBYTES} -gt 0 ] ; then \
 			echo "fs=${FS_KBYTES}k" ; \
 		fi
 
-# SD card filesystem image for ${MACHINE}.
-FSIMG=		${TOPSRC}/distrib/${MACHINE}/sdcard.img
+# SD card filesystem image for ${MACHINE}. A machine whose images depend on a
+# board names the board's path from distrib/${MACHINE}/Makefile.inc.
+FSIMG?=		${TOPSRC}/distrib/${MACHINE}/sdcard.img
 
 # Set this to the device name for your SD card.  With this
 # enabled you can use "make installfs" to copy the sdcard.img
@@ -179,10 +180,11 @@ distribution:	build
 # check-uf2-validator calibrates the UF2 structure checker on synthetic
 # images; check-uf2-images applies it to each kernel and root pair that
 # discobsd-flash loads, so it follows `kernel` and `flash`. Every board
-# kernel in MACHINE_KERNEL_CONFIGS pairs with distrib/rp2040/flash.uf2: the
-# root occupies the same flash region on every board and every kernel boots
-# every profile's root, while BOARD (distrib/rp2040/Makefile.inc) picks the
-# profile an unset PROFILE builds.
+# kernel in MACHINE_KERNEL_CONFIGS pairs with ${FLASHUF2}: the root occupies
+# the same flash region on every board and every kernel boots every profile's
+# root, while BOARD (distrib/rp2040/Makefile.inc) picks the profile an unset
+# PROFILE builds and the file name: distrib/rp2040/flash.uf2 for PICO,
+# flash-${BOARD}.uf2 otherwise.
 check-uf2-validator: check-python
 		${PYTHON} tools/check_rp2040_uf2.py --self-test
 
@@ -190,10 +192,41 @@ check-uf2-images: check-python
 		@set -e; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
 			${PYTHON} tools/check_rp2040_uf2.py \
 			    sys/arch/rp2040/compile/$$configuration/unix.uf2 \
-			    distrib/rp2040/flash.uf2; \
+			    ${FLASHUF2}; \
 		done
 
 .PHONY: check-uf2-validator check-uf2-images
+
+# The kernel flash image must leave KERNEL_HEADROOM_MARGIN bytes (default in
+# tools/check_kernel_headroom.py) of the FLASH region of RP2040.ld free in
+# every board kernel. check-kernel-headroom-validator calibrates the checker
+# on synthetic images; check-kernel-headroom applies it to each built kernel
+# and then requires a margin above the region length to fail with exit 1, so
+# a checker that accepts every kernel is reported.
+check-kernel-headroom-validator: check-python
+		${PYTHON} tools/check_kernel_headroom.py --self-test
+
+check-kernel-headroom: check-python
+.if ${MACHINE} == "rp2040"
+		@set -e; elfs=; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
+			elfs="$$elfs sys/arch/rp2040/compile/$$configuration/unix.elf"; \
+		done; \
+		${PYTHON} tools/check_kernel_headroom.py \
+		    ${KERNEL_HEADROOM_MARGIN:D--margin ${KERNEL_HEADROOM_MARGIN}} $$elfs; \
+		rc=0; \
+		${PYTHON} tools/check_kernel_headroom.py --margin 1000000 \
+		    sys/arch/rp2040/compile/PICO/unix.elf >/dev/null 2>&1 || rc=$$?; \
+		if [ "$$rc" -ne 1 ]; then \
+			echo "check-kernel-headroom: control margin gave exit $$rc, expected 1" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS kernel-headroom control: a margin above the region length is rejected"
+.else
+		@echo "check-kernel-headroom requires MACHINE=rp2040" >&2
+		@exit 2
+.endif
+
+.PHONY: check-kernel-headroom-validator check-kernel-headroom
 
 check-account-image:	check-python .WAIT ${FSIMG}
 .if ${MACHINE} == "rp2040"
@@ -319,6 +352,17 @@ check-aout:
 # tree's own consistency checker after each round.
 check-fs-stress:
 		${MAKE} -C tests/fs_stress check
+
+# sbin/fsck on images whose highest-numbered inode is in use. The inode
+# list numbers inodes 1 through imax inclusive, and the gate builds fsck for
+# the host against the tree's headers at ILP32, checks images made by the
+# fsutil library in preen and repair mode, and requires every mutant
+# tests/fsck_inode_range/Makefile registers, each an earlier or faulted form of
+# fsck, fsutil, df or mkfs, to fail the scenarios named for it. A host without ILP32 execution
+# records a skip receipt; REQUIRE_ILP32=yes and the detached aggregate
+# check-ilp32-execution make it a failure.
+check-fsck-inode-range:
+		${MAKE} -C tests/fsck_inode_range check
 
 # Kernel sources compiled from the tree and linked against a host harness,
 # so the gate measures the code the board runs.
@@ -645,6 +689,19 @@ check-tee-contracts:
 check-tee-contracts-cross:
 		${MAKE} -C tests/tee_contracts check-cross
 
+# usr.bin/time linked with sbin/utilbox's dispatcher and a wait3 shim, run
+# as "time" and as "utilbox time": the exit status of a normal exit, of a
+# signal death (128 plus the signal), of a missing program (127), of a
+# program without execute permission (126) and of a failed wait3 (125), and
+# the retry of an interrupted wait3. Mutants that drop the retry, restore
+# the shifted status or break the 127 or the 126 must fail under gcc and
+# clang.
+check-time-contracts:
+		${MAKE} -C tests/time_contracts check
+
+check-time-contracts-cross:
+		${MAKE} -C tests/time_contracts check-cross
+
 # lib/libtcl's own source under the address and undefined sanitizers, at the
 # byte extents and counters it once held in unsigned short: values, results,
 # substituted words, expression operands, "end" indexes, regexp backtracking
@@ -779,7 +836,9 @@ check-battlestar-generation: check-python
 # Relink every shipped multicall executable through the shared map seam before
 # the finite ledger compares dispatch names, manifest links, libc members and
 # packed-root arithmetic. The gate opens the root image directly, so its
-# dependency must build the image instead of accepting worktree residue. The
+# dependency must build the image instead of accepting worktree residue, and
+# --root-image hands the checker the selected board's ${FSIMG}: the retained
+# receipt keeps the PICO path distrib/rp2040/sdcard.img as its identity. The
 # maps remain ignored build evidence. Map timestamps record successful a.out
 # conversion, which finishes after the linker writes the map.
 # The gate measures every member each box carries against the unfiltered
@@ -808,7 +867,8 @@ check-multicall-composition: check-python .WAIT symlinks .WAIT ${FSIMG}
 		test -s "${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
 		touch "${TOPSRC}/.build-logs/multicall-link-maps/sh.map"
 		${PYTHON} tools/check_multicall_composition.py --root ${TOPSRC} \
-		    --map-root ${TOPSRC}/.build-logs/multicall-link-maps
+		    --map-root ${TOPSRC}/.build-logs/multicall-link-maps \
+		    --root-image ${FSIMG}
 		${PYTHON} tools/check_multicall_composition_test.py
 
 .PHONY: check-multicall-composition
@@ -1003,6 +1063,7 @@ check-elf2aout:	tools
 # include.
 HOST_GATES=	check-architecture-isolation \
 		check-agent-instructions check-uf2-validator \
+		check-kernel-headroom-validator \
 		check-run-logging check-battlestar-generation \
 		check-graft-cache-reader \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
@@ -1016,10 +1077,10 @@ HOST_GATES=	check-architecture-isolation \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
-		check-rmdir-contracts check-tee-contracts \
+		check-rmdir-contracts check-tee-contracts check-time-contracts \
 		check-libtcl-contracts \
 		check-du-contracts check-resize-contracts \
-		check-aout check-kernel check-fs-stress \
+		check-aout check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts check-backgammon-contracts \
@@ -1041,8 +1102,8 @@ HOST_GATES=	check-architecture-isolation \
 		check-fs-profiles check-picocalc-host check-psram-pio
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
-		check-calc-host check-sh-editor \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
+		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
@@ -1064,6 +1125,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
 		check-find-contracts-cross \
 		check-backgammon-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
+		check-time-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross \
 		check-stdio-bounds-cross check-elf2aout
@@ -1126,6 +1188,9 @@ check-fourfall-host:
 
 check-coil-host:
 		${MAKE} -C games/coil test
+
+check-ridge-host: check-python
+		${MAKE} -C games/ridge test
 
 check-puzzlebox-host:
 		${MAKE} -C games/pzcommon test
@@ -1195,6 +1260,9 @@ check-kernel-ilp32:
 check-tty-layout-cross:
 		${MAKE} -C tests/kernel check-tty-layout-cross
 
+check-console-c17-cross:
+		${MAKE} -C tests/kernel check-console-c17-cross
+
 check-rp2040-shutdown:
 		${MAKE} -C tests/kernel check-shutdown
 
@@ -1221,8 +1289,8 @@ check-ilp32-execution: check-python
 
 check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-posix-sh check-kernel .WAIT check-kernel-ilp32 check-libc-sysctl \
-		check-dd-contracts check-umount-contracts check-backgammon-contracts \
-		check-libc-host-contracts check-scandir-contracts \
+		check-dd-contracts check-umount-contracts check-fsck-inode-range \
+		check-backgammon-contracts check-libc-host-contracts check-scandir-contracts \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
 		check-tar-host check-cpio-host \
 		check-libtcl-contracts check-printf-contracts \
@@ -1254,9 +1322,11 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
 		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
 		check-kernel-printf-formats .WAIT check-tty-layout-cross .WAIT \
+		check-console-c17-cross .WAIT \
 		check-ptrace-libc-abi .WAIT \
 		check-hsaout .WAIT check-hsx-decoder .WAIT check-flash-swap .WAIT \
-		check-rp2040-shutdown-cross .WAIT check-storage-counters
+		check-rp2040-shutdown-cross .WAIT check-storage-counters .WAIT \
+		check-kernel-headroom
 
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test
@@ -1271,7 +1341,9 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 # divider model, the Smaller C suite, the libcalc and libbn tests, the calc
 # line interface, the dc evaluator, the libc strtol/strtoul, random and
 # printf contracts and the tree formatter's float conversions and math
-# library returns executed as Thumb-1 programs rather than only linked.
+# library returns executed as Thumb-1 programs rather than only linked, and
+# a DiscoBSD a.out run through tests/qemu_aout's syscall loader with the
+# tree's libc, crt0 and boot ROM float glue.
 # tests/qemu_cpu_model first proves that the ARMv6-M CPU model the libc
 # contracts run on faults on Thumb-2 and unaligned accesses.
 check-qemu:	check-python .WAIT symlinks
@@ -1284,22 +1356,25 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libbn check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/dcbc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libc_contracts check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_aout check
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.
 # Not in "check": it wants an emulator, a fetched model tree and a built
-# image, and tools/renode/check-boot.sh names whichever is missing.
+# image, and tools/renode/check-boot.sh names whichever is missing. It loads
+# the selected board's root, ${FLASHBIN}: every kernel boots every root.
 check-renode:
-		sh tools/renode/check-boot.sh
+		sh tools/renode/check-boot.sh ${FLASHBIN}
 
 # The PICOCALC kernel under Renode with the ST7365P panel and the keyboard
 # controller modeled: the boot banner, the panel's registers, a login and a
 # command typed through the I2C keyboard, all read back from the decoded
 # frame. Outside "check" for the reason check-renode is, and a separate
 # evidence class from the board: tools/renode/check-picocalc.sh names what
-# is missing.
+# is missing. It loads ${FLASHBIN}, the selected board's root, so
+# BOARD=PICOCALC pairs the PICOCALC kernel with the PICOCALC profile's root.
 check-renode-picocalc:
-		sh tools/renode/check-picocalc.sh
+		sh tools/renode/check-picocalc.sh ${FLASHBIN}
 
 # The SRAM-resident board probes, flash-id and flash-semantics, built
 # against a Pico SDK that tools/pico-sdk/sdk-path.sh resolves. Outside
@@ -1360,7 +1435,8 @@ ${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home \
 		$(FSUTIL) --new --partition=3 --manifest=distrib/base/mi.home $@ distrib/home
 
 release:
-		${MAKE} -C etc MACHINE=${MACHINE} RELEASEDIR=${RELEASEDIR} release
+		${MAKE} -C etc MACHINE=${MACHINE} RELEASEDIR=${RELEASEDIR} \
+		    FSIMG=${FSIMG} release
 
 clean:
 		status=0; rm -f *~ include/machine || status=1; \
@@ -1411,11 +1487,12 @@ installfs:
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
-		check-tty-layout-cross \
+		check-tty-layout-cross check-console-c17-cross \
 		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \
+		check-fsck-inode-range \
 		check-libc-environment check-libc-sysctl check-umount-contracts \
 		check-touch-contracts check-printf-contracts \
 		check-printf-contracts-ilp32 check-printf-contracts-cross \
@@ -1447,8 +1524,8 @@ installfs:
 		check-legacy-pdp11-v7-reference check-legacy-pdp11-v6 \
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
-		check-calc-host check-sh-editor check-tar-host \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
+		check-puzzlebox-host check-calc-host check-sh-editor check-tar-host \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \

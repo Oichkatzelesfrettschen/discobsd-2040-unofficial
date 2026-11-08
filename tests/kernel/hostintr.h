@@ -68,4 +68,10 @@ hk_intr_restore(int previous)
 
 #define	spl0()		hk_intr_enable()
 
+/*
+ * The port's BASEPRI() reads PRIMASK through arm_get_primask(); the stand-in
+ * answers from the level it carries.
+ */
+#define	arm_get_primask()	hk_ipl
+
 #endif /* HOSTINTR_H */

@@ -31,7 +31,7 @@ pass1()
     idesc.id_type = ADDR;
     idesc.id_func = pass1check;
     n_files = n_blks = n_free = 0;
-    for (inumber = ROOTINO; inumber < imax; inumber++) {
+    for (inumber = ROOTINO; inumber <= imax; inumber++) {
         dp = ginode(inumber);
         if (!ALLOC(dp)) {
             if (bcmp((char *)dp->di_addr, (char *)zino.di_addr,

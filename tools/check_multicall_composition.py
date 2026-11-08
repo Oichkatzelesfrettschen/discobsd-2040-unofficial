@@ -842,7 +842,16 @@ def validate_live_root_measurement(document, retained, measured, exact):
             require_equal(measured[field], retained[field], f"candidate live root {field}")
 
 
-def validate_root_measurement(root, document, candidate_receipt, live, exact):
+def validate_root_measurement(
+    root, document, candidate_receipt, live, exact, root_image=None
+):
+    """Measure the live root image; root_image overrides the receipt's path.
+
+    The retained receipt records the PICO board's distrib/rp2040/sdcard.img.
+    A build for another BOARD writes its own image (distrib/rp2040/Makefile.inc
+    FSIMG), which the caller names here so the receipt path stays the
+    historical identity and the measured file is the one the build produced.
+    """
     summary = document.get("root_measurement", {})
     expected_fields = {
         "fsutil_path",
@@ -860,7 +869,13 @@ def validate_root_measurement(root, document, candidate_receipt, live, exact):
     measured = None
     if live:
         image = candidate_receipt["root_image"]
-        measured = measure_root_image(fsutil_path, root / image["path"])
+        if root_image is None:
+            image_path = root / image["path"]
+        else:
+            image_path = root_image
+            if not image_path.is_file():
+                raise CompositionError(f"live root image {image_path} is missing")
+        measured = measure_root_image(fsutil_path, image_path)
         validate_live_root_measurement(document, image, measured, exact)
     manifest = candidate_receipt["manifest"]
     require_equal(
@@ -945,7 +960,7 @@ def validate_archive_summary(root, document, map_root, exact, live_boxes):
     return live_deltas
 
 
-def validate_document(root, document, map_root=None):
+def validate_document(root, document, map_root=None, root_image=None):
     if document.get("schema_version") != 1:
         raise CompositionError("unsupported composition schema")
     if document.get("profile_id") != "DPUCP-2024":
@@ -1098,6 +1113,7 @@ def validate_document(root, document, map_root=None):
         receipts["candidate"],
         map_root is not None,
         exact_measurement,
+        root_image,
     )
     if map_root is not None and changed_sources:
         print("multicall composition: live mode; changed retained sources: "
@@ -1140,6 +1156,10 @@ def parse_arguments():
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--ledger", type=Path)
     parser.add_argument("--map-root", type=Path)
+    parser.add_argument("--root-image", type=Path,
+                        help="live root image to measure in place of the "
+                        "retained receipt's distrib/rp2040/sdcard.img "
+                        "(the root Makefile passes ${FSIMG})")
     parser.add_argument("--capture-inventory", type=Path)
     parser.add_argument("--list-boxes", action="store_true",
                         help="print live multicall directories, one per line")
@@ -1165,7 +1185,7 @@ def main():
                 capture_inventory(document, arguments.map_root), encoding="utf-8"
             )
             return 0
-        validate_document(root, document, arguments.map_root)
+        validate_document(root, document, arguments.map_root, arguments.root_image)
     except CompositionError as error:
         print(f"multicall composition: {error}")
         return 1

@@ -47,8 +47,9 @@
  * The search index is off. It changes no output byte -- the sweep in
  * doc/research/zswap.md measures the same compressed length either way --
  * and it costs 2048 bytes of bss plus a 512-byte frame in do_indexing,
- * against a kernel stack of 2100 bytes: USIZE is 3072 and struct user takes
- * 972 of it. Dropping it costs 27 percent of encode time on the awk image.
+ * against a kernel stack of 2048 bytes: USIZE is 3072 and the first
+ * UAREA_STACK_OFFSET (1024) bytes hold struct user and its padding.
+ * Dropping it costs 27 percent of encode time on the awk image.
  */
 #ifndef HEATSHRINK_USE_INDEX
 #define HEATSHRINK_USE_INDEX 0

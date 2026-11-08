@@ -72,8 +72,9 @@ clock_tick_stamp(void)
 /*
  * Account the ticks lost while interrupts were masked. The caller holds
  * PRIMASK, which keeps SysTick from delivering between the pending-bit read
- * and the queue update. Callouts that become due run from softclock on the
- * tick after the window closes.
+ * and the queue update. Callouts and ITIMER_REAL deadlines that become due
+ * run from softclock on the tick after the window closes; the monotonic
+ * clock that orders the deadlines takes the owed ticks as well.
  */
 void
 clock_catchup(void)
@@ -82,6 +83,8 @@ clock_catchup(void)
 
 	owed = clock_catchup_sample(&clkcatch, timer_us, systick_pending,
 	    CLOCK_TICK_US);
-	if (owed != 0)
+	if (owed != 0) {
 		clock_catchup_apply(owed, hz, &lbolt, &time.tv_sec, &calltodo);
+		monoclock_advance(owed);
+	}
 }

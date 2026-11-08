@@ -67,8 +67,8 @@ closure cc needs path /usr/libexec/smlrc
 closure toolchainlib needs path /usr/lib/libc.a /usr/lib/crt0.o
 
 #
-# games/gamebox dispatches on argv[0]; fifteen, keen, bubble, fourfall
-# and coil are hard links to it, and games/puzzlebox does the same for flood,
+# games/gamebox dispatches on argv[0]; fifteen, keen, bubble, fourfall,
+# coil and ridge are hard links to it, and games/puzzlebox does the same for flood,
 # samegame, unruly and lightup. Each entry point is a closure of its own
 # carrying its link, and the multicall lines below name the members of each
 # binary: the games Makefiles link only the selected members into the
@@ -78,7 +78,7 @@ closure toolchainlib needs path /usr/lib/libc.a /usr/lib/crt0.o
 # gamesdir closure creates, so an image that leaves the games out keeps the
 # puzzles by keeping gamesdir and one that keeps the puzzles names both.
 #
-multicall gamebox /usr/games/gamebox fifteen keen bubble fourfall coil
+multicall gamebox /usr/games/gamebox fifteen keen bubble fourfall coil ridge
 multicall puzzlebox /usr/games/puzzlebox flood samegame unruly lightup
 closure gamebox needs closure gamesdir
 closure gamebox needs path /usr/games/gamebox
@@ -111,6 +111,21 @@ closure calc needs path /usr/bin/calc
 closure sdcard needs path /mnt /dev/sd0 /dev/sd0a /dev/sd0b /dev/rsd0 /dev/rsd0a /dev/rsd0b
 
 #
+# The PicoCalc's pixel device is minor 1 of character major 10, the console's
+# major, so only the PICOCALC kernels have a driver behind /dev/lcdgfx and
+# only the picocalc profile names the closure.
+#
+closure lcdgfx needs path /dev/lcdgfx
+
+#
+# games/ridge is a gamebox member that draws through /dev/lcdgfx (the tile
+# atlas and the raw key session of the PICOCALC kernels), so it is outside
+# the games group, whose closures the PICO board's image keeps, and it needs
+# the device node.
+#
+closure ridge needs closure lcdgfx
+
+#
 # Measured cost. Each line records the free blocks and free inodes an image
 # loses when it holds base plus the named closure or group plus the closures
 # that name needs, read from `fsutil --verbose --partition=1` on the built
@@ -132,6 +147,7 @@ cost dc 21 1
 cost calc-bignum 60 3
 cost calc 33 1
 cost sdcard 1 7
+cost lcdgfx 0 1
 cost gamesdir 1 1
 cost games 24 2
 cost puzzles 37 2
@@ -140,6 +156,7 @@ cost keen 10 2
 cost bubble 10 2
 cost fourfall 15 2
 cost coil 8 2
+cost ridge 11 3
 cost flood 18 2
 cost samegame 18 2
 cost unruly 21 2
@@ -156,12 +173,13 @@ cost lightup 23 2
 # full       every closure a bare Raspberry Pi Pico ships; the image the
 #            PICO board builds by default
 # picocalc   full plus the ClockworkPi PicoCalc's own closures: the
-#            arbitrary-precision calculator, the scientific calculator and
-#            the SD card's device nodes; the PICOCALC board's default
+#            arbitrary-precision calculator, the scientific calculator, the
+#            SD card's device nodes, the pixel device node and the platformer
+#            that draws on it; the PICOCALC board's default
 #
 profile base
 profile benchmark coremark
 profile developer toolchain toolchainlib
 profile games games puzzles
 profile full coremark toolchain toolchainlib games puzzles
-profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard
+profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge

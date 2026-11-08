@@ -25,10 +25,15 @@
 #include <sys/uio.h>
 #include <sys/ioctl.h>
 #include <sys/swap.h>
+#include <sys/lcdcons.h>
+#include <sys/lcdgfx.h>
 #include <sys/tty.h>
 #include <sys/kernel.h>
 #include <sys/syscall_dispatch.h>
 
+#ifndef PICOCALC_ENABLED
+#error "the classifier gate covers the PICOCALC kernels' LCDIOC_SETGLYPH entry"
+#endif
 #ifdef HK_ILP32
 _Static_assert(sizeof(off_t) == 4, "off_t is the target's four bytes");
 _Static_assert(sizeof(void *) == 4, "pointers are the target's four bytes");
@@ -420,6 +425,9 @@ output_ownership_cases(void)
 		{ DIOCGETMEDIASIZE, sizeof(int), _Alignof(int) },
 		{ DIOCGETPART, sizeof(struct diskpart), _Alignof(struct diskpart) },
 		{ DIOCMEDIAGONE, sizeof(int), _Alignof(int) },
+		{ LCDG_INFO, sizeof(struct lcdg_info), _Alignof(struct lcdg_info) },
+		{ LCDIOC_GETKEY, sizeof(struct lcd_keyevs),
+		    _Alignof(struct lcd_keyevs) },
 	};
 	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
 	unsigned char expected[sizeof(struct diskpart)];
@@ -580,9 +588,32 @@ input_ownership_cases(void)
 		{ TIOCSLTC, sizeof(struct ltchars), _Alignof(struct ltchars) },
 		{ TIOCSTI, sizeof(char), _Alignof(char) },
 		{ TIOCSWINSZ, sizeof(struct winsize), _Alignof(struct winsize) },
+		{ LCDIOC_SETGLYPH, sizeof(struct lcd_glyph),
+		    _Alignof(struct lcd_glyph) },
+		{ LCDG_FILL, sizeof(struct lcdg_rect), _Alignof(struct lcdg_rect) },
+		{ LCDG_PIXEL, sizeof(struct lcdg_pixel), _Alignof(struct lcdg_pixel) },
+		{ LCDG_LINE, sizeof(struct lcdg_line), _Alignof(struct lcdg_line) },
+		{ LCDG_FRAME, sizeof(struct lcdg_rect), _Alignof(struct lcdg_rect) },
+		{ LCDG_CIRCLE, sizeof(struct lcdg_circle),
+		    _Alignof(struct lcdg_circle) },
+		{ LCDG_WINDOW, sizeof(struct lcdg_window),
+		    _Alignof(struct lcdg_window) },
+		{ LCDG_PALETTE, sizeof(struct lcdg_palette),
+		    _Alignof(struct lcdg_palette) },
+		{ LCDG_SCROLL, sizeof(struct lcdg_scroll),
+		    _Alignof(struct lcdg_scroll) },
+		{ LCDG_SCRDEF, sizeof(struct lcdg_scrdef),
+		    _Alignof(struct lcdg_scrdef) },
+		{ LCDG_COLMOD, sizeof(struct lcdg_colmod),
+		    _Alignof(struct lcdg_colmod) },
+		{ LCDG_TILESET, sizeof(struct lcdg_tileset),
+		    _Alignof(struct lcdg_tileset) },
+		{ LCDG_TILEWIN, sizeof(struct lcdg_tilewin),
+		    _Alignof(struct lcdg_tilewin) },
+		{ LCDIOC_KEYEVS, sizeof(int), _Alignof(int) },
 	};
 	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
-	unsigned char original[sizeof(struct winsize)];
+	unsigned char original[sizeof(struct diskpart)];
 	u_int index;
 
 	for (index = 0; index < sizeof cases / sizeof cases[0]; index++) {
@@ -615,6 +646,149 @@ input_ownership_cases(void)
 	call_ioctl(FD, TIOCFLUSH, NULL);
 	HK_CHECK(u.u_error == EFAULT && provider_calls == 0);
 	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+}
+
+/*
+ * LCDIOC_SETGLYPH carries ten bytes, one more than the bank's code byte
+ * and nine rows; the syscall admits the whole span, copies it whole into
+ * aligned kernel storage and refuses a short span before dispatch.
+ */
+static void
+glyph_cases(void)
+{
+	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
+	unsigned char original[sizeof(struct lcd_glyph)];
+	u_int index;
+
+	_Static_assert(sizeof(struct lcd_glyph) == 10,
+	    "the glyph payload is the code byte and nine rows");
+	_Static_assert(sizeof(struct lcd_glyph) <= sizeof(struct diskpart),
+	    "the ownership cases stage glyph bytes in diskpart-sized buffers");
+
+	reset(DTYPE_INODE, IFREG, FWRITE);
+	store_user_bytes(unaligned, sizeof(struct lcd_glyph));
+	bcopy(unaligned, original, sizeof original);
+	provider_capture_bytes = sizeof original;
+	provider_succeeds_without_write = 1;
+	call_ioctl(FD, LCDIOC_SETGLYPH, unaligned);
+	HK_CHECK(u.u_error == 0 && provider_calls == 1);
+	HK_CHECK(provider_command == LCDIOC_SETGLYPH);
+	HK_CHECK(provider_data != unaligned);
+	HK_CHECK(copyin_calls == 1 && copyin_bytes == sizeof original);
+	HK_CHECK(copyout_calls == 0);
+	for (index = 0; index < sizeof original; index++)
+		HK_CHECK(provider_capture[index] == original[index]);
+
+	reset(DTYPE_INODE, IFREG, FWRITE);
+	call_ioctl(FD, LCDIOC_SETGLYPH,
+	    (caddr_t)(user_span_upper - sizeof(struct lcd_glyph) + 1));
+	HK_CHECK(u.u_error == EFAULT && provider_calls == 0);
+	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+
+	reset(DTYPE_INODE, IFREG, FWRITE);
+	provider_succeeds_without_write = 1;
+	call_ioctl(FD, LCDIOC_SETGLYPH,
+	    (caddr_t)(user_span_upper - sizeof(struct lcd_glyph)));
+	HK_CHECK(u.u_error == 0 && provider_calls == 1);
+	HK_CHECK(copyin_calls == 1 && copyin_bytes == sizeof original);
+
+	reset(DTYPE_INODE, IFREG, FWRITE);
+	store_user_bytes(unaligned, sizeof(struct lcd_glyph));
+	provider_error = EINVAL;
+	call_ioctl(FD, LCDIOC_SETGLYPH, unaligned);
+	HK_CHECK(u.u_error == EINVAL && provider_calls == 1);
+	HK_CHECK(copyout_calls == 0);
+
+	reset(DTYPE_INODE, IFREG, FWRITE);
+	store_user_bytes(unaligned, sizeof(struct lcd_glyph));
+	call_ioctl(FD, LCDIOC_SETGLYPH | (1U << 24), unaligned);
+	HK_CHECK(provider_calls == 1);
+	HK_CHECK(provider_command == (LCDIOC_SETGLYPH | (1U << 24)));
+	HK_CHECK(provider_data == unaligned);
+	HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+}
+
+/*
+ * The /dev/lcdgfx commands (sys/lcdgfx.h) carry at most twelve bytes, and the
+ * console's LCDIOC_GETKEY record (sys/lcdcons.h) fourteen, so each fits the
+ * union that already stages the 16-byte partition record. The
+ * ownership cases above copy each whole; these pin the edges per command:
+ * the span ends at the window edge, a crossing span is refused before
+ * dispatch, a provider error publishes nothing, and a reserved command bit
+ * reaches the provider unclassified.
+ */
+static void
+lcdg_cases(void)
+{
+	static const struct lcdg_case {
+		u_int command;
+		u_int nbytes;
+	} cases[] = {
+		{ LCDG_FILL, sizeof(struct lcdg_rect) },
+		{ LCDG_PIXEL, sizeof(struct lcdg_pixel) },
+		{ LCDG_LINE, sizeof(struct lcdg_line) },
+		{ LCDG_FRAME, sizeof(struct lcdg_rect) },
+		{ LCDG_CIRCLE, sizeof(struct lcdg_circle) },
+		{ LCDG_WINDOW, sizeof(struct lcdg_window) },
+		{ LCDG_PALETTE, sizeof(struct lcdg_palette) },
+		{ LCDG_SCROLL, sizeof(struct lcdg_scroll) },
+		{ LCDG_SCRDEF, sizeof(struct lcdg_scrdef) },
+		{ LCDG_COLMOD, sizeof(struct lcdg_colmod) },
+		{ LCDG_INFO, sizeof(struct lcdg_info) },
+		{ LCDG_TILESET, sizeof(struct lcdg_tileset) },
+		{ LCDG_TILEWIN, sizeof(struct lcdg_tilewin) },
+		{ LCDIOC_GETKEY, sizeof(struct lcd_keyevs) },
+		{ LCDIOC_KEYEVS, sizeof(int) },
+	};
+	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
+	u_int index;
+
+	_Static_assert(sizeof(struct lcdg_window) <= 12 &&
+	    sizeof(struct lcdg_rect) <= 12 && sizeof(struct lcdg_line) <= 12 &&
+	    sizeof(struct lcdg_circle) <= 12 && sizeof(struct lcdg_pixel) <= 12,
+	    "every payload is at most twelve bytes");
+	_Static_assert(sizeof(struct lcdg_window) <= sizeof(struct diskpart) &&
+	    sizeof(struct lcd_keyevs) <= sizeof(struct diskpart),
+	    "the ownership cases stage these payloads in diskpart-sized buffers");
+
+	for (index = 0; index < sizeof cases / sizeof cases[0]; index++) {
+		u_int command = cases[index].command;
+		u_int nbytes = cases[index].nbytes;
+		int output = (command & IOC_OUT) != 0;
+
+		HK_CHECK(((command >> 16) & IOCPARM_MASK) == nbytes);
+
+		/* A span that ends one byte past the process window. */
+		reset(DTYPE_INODE, IFREG, FREAD);
+		call_ioctl(FD, command, (caddr_t)(user_span_upper - nbytes + 1));
+		HK_CHECK(u.u_error == EFAULT && provider_calls == 0);
+		HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+
+		/* The last span that fits is admitted. */
+		reset(DTYPE_INODE, IFREG, FREAD);
+		provider_succeeds_without_write = 1;
+		call_ioctl(FD, command, (caddr_t)(user_span_upper - nbytes));
+		HK_CHECK(u.u_error == 0 && provider_calls == 1);
+		HK_CHECK(copyin_calls == (output ? 0 : 1));
+		HK_CHECK(copyout_calls == (output ? 1 : 0));
+
+		/* A provider error publishes nothing and copies nothing back. */
+		reset(DTYPE_INODE, IFREG, FREAD);
+		store_user_bytes(unaligned, nbytes);
+		provider_error = EINVAL;
+		call_ioctl(FD, command, unaligned);
+		HK_CHECK(u.u_error == EINVAL && provider_calls == 1);
+		HK_CHECK(copyout_calls == 0);
+
+		/* A reserved command bit is not the command: no staging. */
+		reset(DTYPE_INODE, IFREG, FREAD);
+		store_user_bytes(unaligned, nbytes);
+		call_ioctl(FD, command | (1U << 24), unaligned);
+		HK_CHECK(provider_calls == 1);
+		HK_CHECK(provider_command == (command | (1U << 24)));
+		HK_CHECK(provider_data == unaligned);
+		HK_CHECK(copyin_calls == 0 && copyout_calls == 0);
+	}
 }
 
 static void
@@ -689,5 +863,7 @@ main(void)
 	output_ownership_cases();
 	input_ownership_cases();
 	inout_ownership_cases();
+	glyph_cases();
+	lcdg_cases();
 	return hk_verdict("ioctl and FIONREAD admission");
 }

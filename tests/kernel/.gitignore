@@ -132,6 +132,14 @@ unlinkat_beneath_*.mutant.c
 unlinkat_beneath_*.mutant.o
 unlinkat_beneath_*.mutant.test
 unlinkat_beneath_*.mutant.out
+publishat_beneath_functions.c
+publishat_beneath_syscalls32.o
+publishat_beneath_test32
+publishat_beneath_namei_test32
+publishat_beneath_*.mutant.c
+publishat_beneath_*.mutant.o
+publishat_beneath_*.mutant.test
+publishat_beneath_*.mutant.out
 linkat_beneath_functions.c
 linkat_beneath_syscalls32.o
 linkat_beneath_test32
@@ -219,3 +227,4 @@ ufs_disk_*.mutant.c
 ufs_disk_*.mutant.functions.c
 ufs_disk_*.mutant.test
 ufs_disk_*.mutant.out
+c17-machine/

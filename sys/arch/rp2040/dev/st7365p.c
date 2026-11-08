@@ -16,7 +16,8 @@
 
 /*
  * The PicoCalc's 320x320 ST7365P panel on SPI1, driven write-only as the
- * three cell primitives lcdterm.c draws through.
+ * three cell primitives lcdterm.c draws through and the pixel primitives
+ * lcdgfx.c draws through.
  *
  * SPI1 is the RP2040's PL022 (datasheet 4.4) in Motorola mode 0 with
  * eight-bit frames. clk_peri runs at BUS_KHZ, 125 MHz, and a prescale of
@@ -91,7 +92,7 @@
  * Sixteen colors, R, G, B; the panel keeps the upper six bits of each.
  * 0-7 are the SGR 30-37 colors, 8-15 their bold variants.
  */
-static const u_char palette[16][3] = {
+const u_char lcd_palette[16][3] = {
 	{   0,   0,   0 }, { 205,   0,   0 }, {   0, 205,   0 },
 	{ 205, 205,   0 }, {  60,  90, 238 }, { 205,   0, 205 },
 	{   0, 205, 205 }, { 200, 200, 200 },
@@ -194,27 +195,35 @@ put_pixel(const u_char *rgb)
 	spi_put(rgb[2]);
 }
 
+_Static_assert(LCDFONT_HEIGHT == LT_GLYPH_ROWS,
+    "a bank glyph and an ASCII glyph share the nine-row draw loop");
+
 void
 lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 {
-	const u_char *fg = palette[LT_ATTR_FG(attr)];
-	const u_char *bg = palette[LT_ATTR_BG(attr)];
+	const u_char *fg = lcd_palette[LT_ATTR_FG(attr)];
+	const u_char *bg = lcd_palette[LT_ATTR_BG(attr)];
 	const u_char *glyph;
 	u_int x = (u_int)col * LT_CELL_W, y = (u_int)prow * LT_CELL_H;
 	u_int bits;
 	int row, px;
 
-	if (ch < LCDFONT_FIRST || ch >= LCDFONT_FIRST + LCDFONT_NCHARS)
-		ch = '?';
-	glyph = lcdfont[ch - LCDFONT_FIRST];
+	glyph = lcdterm_glyph(ch);
+	if (glyph == NULL) {
+		if (ch < LCDFONT_FIRST || ch >= LCDFONT_FIRST + LCDFONT_NCHARS)
+			ch = '?';
+		glyph = lcdfont[ch - LCDFONT_FIRST];
+	}
 
 	lcd_select();
 	lcd_window(x, y, x + LT_CELL_W - 1, y + LT_CELL_H - 1);
 	for (row = 0; row < LT_CELL_H; row++) {
 		if (row < LCDFONT_HEIGHT)
 			bits = glyph[row];
-		else
-			bits = (attr & LT_ATTR_UL) ? 0xfc : 0;
+		else if (attr & LT_ATTR_UL)
+			bits = 0xfc;
+		else	/* A bank glyph repeats its last row; see lcdterm.h. */
+			bits = ch >= LT_GLYPH_FIRST ? glyph[LCDFONT_HEIGHT - 1] : 0;
 		for (px = 0; px < LT_CELL_W; px++, bits <<= 1)
 			put_pixel((bits & 0x80) ? fg : bg);
 	}
@@ -224,7 +233,7 @@ lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 void
 lcd_fill_cells(int prow, int col, int n, unsigned attr)
 {
-	const u_char *bg = palette[LT_ATTR_BG(attr)];
+	const u_char *bg = lcd_palette[LT_ATTR_BG(attr)];
 	u_int x = (u_int)col * LT_CELL_W, y = (u_int)prow * LT_CELL_H;
 	u_int count = (u_int)n * LT_CELL_W * LT_CELL_H;
 
@@ -238,12 +247,91 @@ lcd_fill_cells(int prow, int col, int n, unsigned attr)
 }
 
 void
-lcd_set_top(int prow)
+lcd_gfx_scroll(int line)
 {
 	lcd_select();
 	lcd_command(CMD_VSCSAD);
-	put16((u_int)prow * LT_CELL_H);
+	put16((u_int)line);
 	lcd_deselect();
+}
+
+void
+lcd_set_top(int prow)
+{
+	lcd_gfx_scroll(prow * LT_CELL_H);
+}
+
+/*
+ * The pixel primitives of lcdgfx.c. A transfer is lcd_gfx_window(), the
+ * pixel bytes and lcd_gfx_end(); chip select stays low in between, so no
+ * other drawer may touch the panel meanwhile (lcdterm.c draws nothing while
+ * lcdgfx.c owns it, and st7365p_abort() ends a transfer a fault abandoned).
+ */
+void
+lcd_gfx_window(int x0, int y0, int x1, int y1)
+{
+	lcd_select();
+	lcd_window((u_int)x0, (u_int)y0, (u_int)x1, (u_int)y1);
+}
+
+void
+lcd_gfx_byte(unsigned b)
+{
+	spi_put(b);
+}
+
+void
+lcd_gfx_end(void)
+{
+	lcd_deselect();
+}
+
+/* VSCRDEF: a scroll area of the controller's lines that the fixed areas leave. */
+void
+lcd_gfx_scrdef(int top, int bottom)
+{
+	lcd_select();
+	lcd_command(CMD_VSCRDEF);
+	put16((u_int)top);
+	put16((u_int)(LCD_GRAM_LINES - top - bottom));
+	put16((u_int)bottom);
+	lcd_deselect();
+}
+
+void
+lcd_gfx_colmod(unsigned fmt)
+{
+	lcd_select();
+	lcd_command(CMD_COLMOD);
+	spi_put(fmt);
+	lcd_deselect();
+}
+
+/* The two columns right of the last cell, which no cell draw reaches. */
+static void
+clear_margin(void)
+{
+	int n;
+
+	lcd_select();
+	lcd_window(LT_COLS * LT_CELL_W, 0, 319, LCD_LINES - 1);
+	for (n = (320 - LT_COLS * LT_CELL_W) * LCD_LINES; n > 0; n--)
+		put_pixel(lcd_palette[0]);
+	lcd_deselect();
+}
+
+/*
+ * Return the panel to the configuration lcdterm.c draws in: RGB666, the
+ * 320-line scroll area with its 160-line bottom fixed area, and a margin a
+ * pixel program may have drawn on cleared. The scroll start is the
+ * caller's: lcdterm_repaint() sets it from the ring.
+ */
+void
+lcd_gfx_reset(void)
+{
+	lcd_gfx_colmod(COLMOD_RGB666);
+	lcd_gfx_scrdef(0, LCD_GRAM_LINES - LCD_LINES);
+	clear_margin();
 }
 
 /*
@@ -258,7 +346,6 @@ st7365p_init(void)
 {
 	const u_char *p = init_seq;
 	u_int n;
-	int x;
 
 	pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 | PC_RESET_SPI1);
 
@@ -300,11 +387,7 @@ st7365p_init(void)
 	lcd_deselect();
 
 	/* The two columns right of the last cell; lcdterm clears the cells. */
-	lcd_select();
-	lcd_window(LT_COLS * LT_CELL_W, 0, 319, LCD_LINES - 1);
-	for (x = (320 - LT_COLS * LT_CELL_W) * LCD_LINES; x > 0; x--)
-		put_pixel(palette[0]);
-	lcd_deselect();
+	clear_margin();
 }
 
 void

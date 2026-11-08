@@ -39,17 +39,8 @@ schedcpu (caddr_t arg __unused)
         if (p->p_time != 127)
             p->p_time++;
         /*
-         * this is where 2.11 does its real time alarms.  4.X uses
-         * timeouts, since it offers better than second resolution.
-         * Putting it here allows us to continue using use an int
-         * to store the number of ticks in the callout structure,
-         * since the kernel never has a timeout of greater than
-         * around 9 minutes.
+         * ITIMER_REAL alarms are delivered by realitexpire() in kern_clock.c.
          */
-        if (p->p_realtimer.it_value && !--p->p_realtimer.it_value) {
-            psignal(p, SIGALRM);
-            p->p_realtimer.it_value = p->p_realtimer.it_interval;
-        }
         if (p->p_stat == SSLEEP || p->p_stat == SSTOP)
             if (p->p_slptime != 127)
                 p->p_slptime++;

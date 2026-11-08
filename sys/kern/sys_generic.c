@@ -12,6 +12,10 @@
 #include <sys/ioctl.h>
 #include <sys/disk.h>
 #include <sys/swap.h>
+#ifdef PICOCALC_ENABLED
+#include <sys/lcdcons.h>
+#include <sys/lcdgfx.h>
+#endif
 #include <sys/conf.h>
 #include <sys/uio.h>
 #include <sys/kernel.h>
@@ -196,6 +200,9 @@ ioctl(void)
         struct ltchars local_characters;
         struct winsize window;
         struct diskpart partition;
+#ifdef PICOCALC_ENABLED
+        struct lcd_glyph glyph;
+#endif
         char character;
     } payload;
     register struct file *fp;
@@ -208,6 +215,10 @@ ioctl(void)
 
     _Static_assert(sizeof payload >= sizeof(struct diskpart),
         "ioctl storage must hold the largest accepted payload");
+#ifdef PICOCALC_ENABLED
+    _Static_assert(sizeof payload >= sizeof(struct lcd_keyevs),
+        "ioctl storage must hold the raw key event record");
+#endif
 
     uap = (struct a *)u.u_arg;
     fp = getf(uap->fdes);
@@ -259,6 +270,10 @@ ioctl(void)
     case DIOCGETMEDIASIZE:
     case DIOCGETPART:
     case DIOCMEDIAGONE:
+#ifdef PICOCALC_ENABLED
+    case LCDG_INFO:
+    case LCDIOC_GETKEY:
+#endif
         bzero((caddr_t)&payload, sizeof payload);
         u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com,
             (caddr_t)&payload);
@@ -282,6 +297,22 @@ ioctl(void)
     case TIOCSTI:
     case TIOCSWINSZ:
     case TFALLOC:
+#ifdef PICOCALC_ENABLED
+    case LCDIOC_SETGLYPH:
+    case LCDG_FILL:
+    case LCDG_PIXEL:
+    case LCDG_LINE:
+    case LCDG_FRAME:
+    case LCDG_CIRCLE:
+    case LCDG_WINDOW:
+    case LCDG_PALETTE:
+    case LCDG_SCROLL:
+    case LCDG_SCRDEF:
+    case LCDG_COLMOD:
+    case LCDG_TILESET:
+    case LCDG_TILEWIN:
+    case LCDIOC_KEYEVS:
+#endif
         break;
     default:
         u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com, uap->cmarg);

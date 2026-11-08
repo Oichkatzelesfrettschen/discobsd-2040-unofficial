@@ -26,7 +26,7 @@ int     mpid;           /* generic for unique process id's */
  */
 int
 newproc (isvfork)
-    int isvfork;
+    volatile int isvfork;       /* read after the setjmp below returns 0 */
 {
     register struct proc *child, *parent;
     register int n;
@@ -85,6 +85,9 @@ again:
     parent = u.u_procp;
     child->p_stat = SIDL;
     child->p_realtimer.it_value = 0;
+    child->p_realtimer.it_interval = 0;
+    child->p_realtick = 0;
+    child->p_realitick = 0;
     child->p_flag = SLOAD;
 #ifdef SWAPRAM
     swapram_inherit (child, parent);

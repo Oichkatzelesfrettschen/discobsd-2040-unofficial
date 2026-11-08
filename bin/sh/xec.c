@@ -1011,7 +1011,8 @@ execute(struct trenod *argt, volatile int exec_link, int errorflg, int *pf1, int
 
 					else if (comtype == FUNCTION)
 					{
-						struct namnod *n;
+						/* volatile: n is live across the setjmp below. */
+						struct namnod *volatile n;
 						short index;
 						jmp_buf function_context;
 						jmp_buf *previous_command_context;

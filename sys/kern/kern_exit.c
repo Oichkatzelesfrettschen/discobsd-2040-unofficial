@@ -18,6 +18,11 @@
 #include <sys/wait.h>
 #include <sys/kernel.h>
 
+#ifdef PICOCALC_ENABLED
+/* sys/arch/rp2040/dev/lcdcons.c */
+extern void lcdcons_procexit(const struct proc *p);
+#endif
+
 /*
  * Notify parent that vfork child is finished with parent's data.  Called
  * during exit/exec(getxfile).  The child
@@ -58,6 +63,10 @@ exit (rv)
     struct  proc **pp;
 
     p = u.u_procp;
+#ifdef PICOCALC_ENABLED
+    /* Before the files close: a shared console file outlives this process. */
+    lcdcons_procexit(p);
+#endif
     p->p_flag &= ~P_TRACED;
     p->p_sigignore = ~0;
     p->p_sig = 0;

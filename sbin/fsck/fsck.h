@@ -140,6 +140,13 @@ extern ino_t   zlnlist[MAXLNCNT];      /* zero link count table */
 extern ino_t   *zlnp;
 
 #define NINOBLK     4           /* number of blocks of inodes to read at once */
+/*
+ * Blocks of the inode window that starts at block (b): NINOBLK, cut short at
+ * fsmin so that the window never reaches the data blocks behind the i-list.
+ * A window written back past fsmin would replace a data block that fsck
+ * rewrote through fileblk with the copy read when the window was loaded.
+ */
+#define INOWINDOW(b)    (fsmin - (b) < NINOBLK ? fsmin - (b) : NINOBLK)
 
 extern char inobuf[NINOBLK*INOPB*sizeof (struct dinode)];   /* allocate now */
 extern daddr_t startib;
@@ -167,7 +174,7 @@ extern char    *endpathname;
 
 extern daddr_t fsmin;                  /* block number of the first data block */
 extern daddr_t fsmax;                  /* number of blocks in the volume */
-extern ino_t   imax;                   /* number of inodes */
+extern ino_t   imax;                   /* inode count; highest inode number */
 extern ino_t   lastino;                /* hiwater mark of inodes */
 extern ino_t   lfdir;                  /* lost & found directory inode number */
 extern char    *lfname;                /* lost & found directory name */

@@ -221,6 +221,37 @@ def open_console(serial_module, boot_wait):
     return console
 
 
+SHELL_READY = re.compile(r"^SHELL\n", re.M)
+ANY_PROMPT = re.compile(r"(login:|assword:|\$) *$")
+# The shell prompt is left out of SHELL_STOP because every echoed command
+# line starts with it; a login or password prompt ends the text while the
+# console waits for input.
+SHELL_STOP = re.compile(r"^SHELL\n|(login:|assword:) *$", re.M)
+
+
+def reach_shell(console, seconds=60, wait=4):
+    """Return once a shell answers on CONSOLE, logging in as operator with an
+    empty password when the console waits at login: or Password:.
+
+    A board still booting or sitting at login: turns every date request of
+    the baseline into a reply without a date line, so a console with no shell
+    after SECONDS, each reply awaited up to WAIT seconds, raises
+    MeasurementError naming that cause."""
+    start = time.monotonic()
+    text = ""
+    while time.monotonic() - start < seconds:
+        tail = text.rstrip()
+        if tail.endswith("login:"):
+            text, _ = console.run("operator", wait=wait, stop=ANY_PROMPT)
+        elif tail.endswith("assword:"):
+            text, _ = console.run("", wait=wait, stop=ANY_PROMPT)
+        else:
+            text, _ = console.run('echo SH""ELL', wait=wait, stop=SHELL_STOP)
+            if SHELL_READY.search(text):
+                return
+    raise MeasurementError("no shell answered on the console in %g s" % seconds)
+
+
 def board_seconds(line):
     """Seconds of the board's local date and time, read as if it were UTC."""
     match = DATE_LINE.match(line)
@@ -435,6 +466,7 @@ def main():
     console = open_console(serial, 25 if images else 3)
 
     try:
+        reach_shell(console)
         return run_check(console)
     except MeasurementError as error:
         print("clock catch-up: INCONCLUSIVE (%s)" % error)

@@ -42,14 +42,52 @@ out=$work/fsck.out
 failed=0
 overall=0
 
+# run_bounded SECONDS COMMAND...: run the command and end it after SECONDS,
+# with status 124 as timeout(1) gives. Without timeout(1), a watcher in the
+# background sleeps and then ends the command by SIGTERM, leaving a marker
+# file so that a command that died of its own SIGTERM is not mistaken for a
+# timeout. The watcher publishes the process number of its sleep, which the
+# caller ends as soon as the command has returned, so that no process outlives
+# the call and the call does not wait out the limit.
+run_bounded() {
+	limit=$1
+	shift
+	if command -v timeout >/dev/null 2>&1; then
+		timeout "$limit" "$@"
+		return
+	fi
+	marker=$work/watchdog.$$.fired
+	sleeper=$work/watchdog.$$.sleep
+	rm -f "$marker" "$sleeper"
+	"$@" &
+	command_pid=$!
+	(
+		sleep "$limit" &
+		sleep_pid=$!
+		echo "$sleep_pid" >"$sleeper"
+		wait "$sleep_pid" || exit 0
+		: >"$marker"
+		kill "$command_pid" 2>/dev/null
+	) >/dev/null 2>&1 </dev/null &
+	watcher_pid=$!
+	bounded_status=0
+	wait "$command_pid" || bounded_status=$?
+	until [ -s "$sleeper" ]; do :; done
+	read -r sleep_pid <"$sleeper"
+	kill "$sleep_pid" 2>/dev/null || :
+	wait "$watcher_pid" 2>/dev/null || :
+	rm -f "$sleeper"
+	if [ -e "$marker" ]; then
+		rm -f "$marker"
+		bounded_status=124
+	fi
+	return "$bounded_status"
+}
+
 # fsck on a damaged image can loop; the bound ends the run, and check_run
 # reports the timeout as an execution error.
 run_fsck() {
-	if command -v timeout >/dev/null 2>&1; then
-		timeout 60 "$fsck" "$@"
-	else
-		"$fsck" "$@"
-	fi
+	run_bounded 60 "$fsck" "$@"
 }
 
 # lacks PATTERN: the report must not match the extended regular expression.
@@ -214,6 +252,56 @@ run_fsutil() {
 	second_run "$files"
 }
 
+# Unreached directories whose ".." entries lead round a cycle: the climb along
+# ".." in pass 3 never reaches a topmost directory, so fsck must end it. A
+# repair that does not finish in ten seconds fails the scenario (check_run
+# would report the timeout as an execution error, which says nothing about
+# the program); the bound is generous for a 128-kilobyte image, which repairs
+# in milliseconds. Every directory must then resolve under lost+found by the
+# name lftempname() in sbin/fsck/dir.c gives it, a "#" and the inode number
+# in as many digits as the inode count has (two for the 32-inode image), and
+# the repaired image must pass a preen run.
+# run_cycle COUNT closed|reached: COUNT directories are reconnected. For
+# "closed" (a cycle of two, the lowest inode among them), the climb from the
+# lowest stops where it closes the cycle, so the first directory reconnected
+# is not the lowest. For "reached" (a chain into a cycle that does not hold
+# the lowest inode, which only the imax bound ends), the lowest is reconnected
+# by its own later climb: the ascending loop has passed it by then, and the
+# directory the bound stopped at leads to it by no entry.
+run_cycle() {
+	status=0
+	run_bounded 10 "$fsck" -y "$img" >"$out" 2>&1 || status=$?
+	case $status in
+	0) ;;
+	124)
+		fail "fsck -y did not finish in 10 seconds"
+		return
+		;;
+	*) error "$scenario: fsck -y exited with status $status" ;;
+	esac
+	lacks 'SORRY|CANNOT|bad inode'
+	listed=$(sed -n 's/^UNREF DIR  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
+	[ "$(printf '%s\n' "$listed" | wc -l)" -eq "$1" ] ||
+	    fail "fsck reported unreferenced directories \"$listed\", want $1"
+	if [ "$2" = closed ]; then
+		lowest=$(printf '%s\n' "$listed" | sort -n | sed -n 1p)
+		first=$(printf '%s\n' "$listed" | sed -n 1p)
+		[ "$first" != "$lowest" ] ||
+		    fail "fsck reconnected inode $first first, the start of the climb, not the directory that closes the cycle"
+	fi
+	for ino in $listed; do
+		name=$(printf '/lost+found/#%02u' "$ino")
+		status=0
+		found=$("$gen" --lookup "$img" "$name" 2>/dev/null) || status=$?
+		[ "$status" -le 1 ] ||
+		    error "$scenario: $gen --lookup did not complete, status $status"
+		[ "$found" = "$ino" ] ||
+		    fail "$name resolves to \"$found\", want $ino"
+	done
+	set_expected_files
+	second_run "$files"
+}
+
 # Creating lost+found adds one directory to the count, and the directory
 # fsck writes must pass the next directory check.
 after_create() {
@@ -272,13 +360,17 @@ for scenario in "$@"; do
 	rm -f "$img"
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
-	    full-table | fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
-	    fsutil-lf-overrun | \
+	    full-table | fsck-lf-cycle | fsck-lf-cycle-gap | fsck-lf-chain | \
+	    fsutil-lf-last | fsutil-lf-hole | \
+	    fsutil-lf-pristine | fsutil-lf-overrun | \
 	    tail-evict | df-empty | df-full | \
 	    df-tail | df-mkfs | mkfs-ratio) ;;
 	*) error "unknown scenario $scenario" ;;
 	esac
 	case $scenario in
+	fsck-lf-cycle) layout=orphan-cycle ;;
+	fsck-lf-cycle-gap) layout=orphan-cycle-gap ;;
+	fsck-lf-chain) layout=orphan-chain-cycle ;;
 	fsutil-lf-last) layout=lf-last ;;
 	fsutil-lf-hole) layout=lf-hole-last ;;
 	fsutil-lf-overrun) layout=lf-overrun-last ;;
@@ -299,6 +391,8 @@ for scenario in "$@"; do
 	orphan-dir) run_repair DIR after_reconnect ;;
 	free-last) run_repair FILE after_create ;;
 	full-table) run_decline ;;
+	fsck-lf-cycle | fsck-lf-cycle-gap) run_cycle 2 closed ;;
+	fsck-lf-chain) run_cycle 3 reached ;;
 	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil ;;
 	fsutil-lf-overrun) run_fsutil_overrun ;;
 	tail-evict) run_tail_evict ;;

@@ -50,7 +50,8 @@ CFLAGS.setup=	-Dreply=fsck_accept_image
 MUTANTS=	pass1-loop direntry makeentry-ino makeentry-parent \
 		lfdir-lookup alloc-test alloc-range all-old \
 		window-flush window-write inode-window dirhead allocdir-zero \
-		adjust-noop touch-superblock
+		adjust-noop touch-superblock pass3-cycle-unbound \
+		pass3-cycle-open pass3-cycle-once
 SCENARIOS.pass1-loop=		file-last dir-last
 SCENARIOS.direntry=		file-last
 SCENARIOS.makeentry-ino=	orphan-last
@@ -66,6 +67,9 @@ SCENARIOS.touch-superblock=	orphan-dir
 SCENARIOS.inode-window=		orphan-dir free-last tail-evict
 SCENARIOS.dirhead=		free-last
 SCENARIOS.allocdir-zero=	full-table
+SCENARIOS.pass3-cycle-unbound=	fsck-lf-chain
+SCENARIOS.pass3-cycle-open=	fsck-lf-cycle fsck-lf-cycle-gap
+SCENARIOS.pass3-cycle-once=	fsck-lf-cycle fsck-lf-cycle-gap fsck-lf-chain
 
 # A mutant of tools/fsutil is the image generator linked with a rewritten
 # check.c, which run.sh uses beside the unmutated fsck.
@@ -146,7 +150,8 @@ fsck_host: ${BASE_OBJECTS}
 
 # A mutant is the program with the mutated files rebuilt from a rewritten
 # copy of the source and every other object shared. The mutated units are
-# pass1.c, dir.c and inode.c, none of which takes a per-unit definition.
+# pass1.c, pass3.c, dir.c, inode.c and utilities.c, none of which takes a
+# per-unit definition.
 .for mutant in ${MUTANTS}
 fsck_mutant_${mutant}: fsck_mutate.py ${BASE_OBJECTS}
 	@mkdir -p mutant/${mutant}

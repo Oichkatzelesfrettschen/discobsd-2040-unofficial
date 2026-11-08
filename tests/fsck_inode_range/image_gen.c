@@ -49,6 +49,18 @@
  *                  a middle inode; the directory loses its name in / but
  *                  keeps its link count and its ".." entry: fsck must
  *                  reconnect it into lost+found and repoint its "..".
+ *   orphan-cycle   two directories, each with ".." naming the other and
+ *                  neither named from /; their link counts include the
+ *                  ".." of the other. The ".." chain of either one loops.
+ *   orphan-cycle-gap  orphan-cycle with the two directories at inodes N-2
+ *                  and N-1: a file takes inode N while they are made and is
+ *                  deleted afterwards, so the highest inode in use is N-1.
+ *                  The step bound of the climb is then odd, and a climb from
+ *                  the lower directory that stops at the bound ends on the
+ *                  higher one.
+ *   orphan-chain-cycle  orphan-cycle plus a third directory, at the lowest
+ *                  inode, whose ".." names a member of the loop: its chain
+ *                  enters the loop and never returns to it.
  *
  * "--check IMAGE" prints fsutil's own consistency report for an image,
  * opened read-only, so a gate can compare fsutil's file count with fsck's.
@@ -179,6 +191,34 @@ overrun_dotdot(fs_t *fs, const char *name)
 	block[dotdot + 5] = reclen >> 8;
 	return fs_inode_write(&dir, 0, block, sizeof block) &&
 	    fs_inode_save(&dir, 1);
+}
+
+/*
+ * Make the ".." entry of directory name, the second entry of its first
+ * block, name inode number target, and count the new reference in target.
+ */
+static int
+point_dotdot(fs_t *fs, const char *name, unsigned target)
+{
+	fs_inode_t dir, other;
+	unsigned char block[BSDFS_BSIZE];
+	unsigned dotdot = 12;	/* "." takes 12 bytes, ".." starts behind it */
+
+	if (!fs_inode_lookup(fs, &dir, name))
+		return 0;
+	if (!fs_inode_read(&dir, 0, block, sizeof block))
+		return 0;
+	block[dotdot] = target & 0xff;
+	block[dotdot + 1] = (target >> 8) & 0xff;
+	block[dotdot + 2] = (target >> 16) & 0xff;
+	block[dotdot + 3] = target >> 24;
+	if (!fs_inode_write(&dir, 0, block, sizeof block) ||
+	    !fs_inode_save(&dir, 1))
+		return 0;
+	if (!fs_inode_get(fs, &other, target))
+		return 0;
+	other.nlink++;
+	return fs_inode_save(&other, 1);
 }
 
 /* The inode number a path names, or 0. */
@@ -344,6 +384,33 @@ build(const char *layout, const char *path)
 		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||
 		    number_of(&fs, "/d00") != IMAGE_INODES - 10 ||
 		    !make_file(&fs, "/d00/inner") || !drop_name(&fs, "/d00"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "orphan-cycle") == 0 ||
+	    strcmp(layout, "orphan-cycle-gap") == 0 ||
+	    strcmp(layout, "orphan-chain-cycle") == 0) {
+		int gap = strcmp(layout, "orphan-cycle-gap") == 0;
+		int chain = strcmp(layout, "orphan-chain-cycle") == 0;
+		unsigned first, second, third = 0;
+
+		if ((gap && !make_empty_file(&fs, "/pad")) ||
+		    !make_dir(&fs, "/d00") || !make_dir(&fs, "/d01") ||
+		    (chain && !make_dir(&fs, "/d02")))
+			return fail("cannot build", layout);
+		first = number_of(&fs, "/d00");
+		second = number_of(&fs, "/d01");
+		if (chain)
+			third = number_of(&fs, "/d02");
+		/* Highest first: the padding file, then the loop, then the tail. */
+		if ((gap && (number_of(&fs, "/pad") != IMAGE_INODES ||
+		    first != IMAGE_INODES - 1 || second != IMAGE_INODES - 2)) ||
+		    (chain && (third == 0 || third > second)) ||
+		    first == 0 || second == 0 ||
+		    !point_dotdot(&fs, "/d00", second) ||
+		    !point_dotdot(&fs, "/d01", first) ||
+		    (chain && !point_dotdot(&fs, "/d02", first)) ||
+		    !drop_name(&fs, "/d00") || !drop_name(&fs, "/d01") ||
+		    (chain && !drop_name(&fs, "/d02")) ||
+		    (gap && !delete_file(&fs, "/pad")))
 			return fail("cannot build", layout);
 	} else {
 		if (!fill_files(&fs, 0, FREE_AT_START - 1) ||

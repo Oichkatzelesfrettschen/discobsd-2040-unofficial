@@ -56,10 +56,47 @@
  *
  * LCDG_COLMOD selects the pixel format the panel receives: 0x66 (RGB666,
  * three bytes per pixel) or 0x55 (RGB565, two bytes). The close restores
- * 0x66. LCDG_INFO reports the panel size, the atlas capacity in tiles (0:
- * the device has no tile atlas) and the bits per pixel of the current
- * format (18 or 16).
+ * 0x66. LCDG_INFO reports the panel size, the atlas capacity in tiles
+ * (LCDG_ATLAS_N) and the bits per pixel of the current format (18 or 16).
+ *
+ * The tile atlas holds LCDG_ATLAS_N tiles of 8x8 pixels, each pixel a palette
+ * index of four bits: a tile is LCDG_TILE_BYTES (32) bytes, its eight pixel
+ * lines top to bottom, each line four bytes, the leftmost pixel in the high
+ * nibble of the first byte. The atlas is zero (every pixel palette entry 0)
+ * at every open. The tile grid is LCDG_GRID columns and rows of tiles on the
+ * panel; tile (tx, ty) covers pixels 8 tx .. 8 tx + 7 and 8 ty .. 8 ty + 7.
+ *
+ * LCDG_TILESET stores tiles first .. first + count - 1 and requires count at
+ * least 1 and first + count at most LCDG_ATLAS_N. The following write(2)
+ * calls supply count * 32 bytes, tile by tile; each write(2) may end inside
+ * a tile, bytes beyond the last one are left unread, and the bytes that have
+ * arrived stay in the atlas if another command or the close abandons the
+ * upload. It draws nothing.
+ *
+ * LCDG_TILEWIN draws the tiles of a tw x th block whose top left tile is
+ * (tx, ty); tw and th are at least 1 and the block lies inside the grid. The
+ * following write(2) calls supply tw * th tile numbers, one byte each, row
+ * by row from the top left. Each row of tiles is complete once its tw numbers
+ * have arrived; the kernel then draws it as one panel window of tw * 8 by 8
+ * pixels in which the eight pixel lines of every tile of the row are
+ * interleaved (line 0 of each tile left to right, then line 1, and so on),
+ * through the palette in force at that moment. A tile number of
+ * LCDG_ATLAS_N or more fails the write(2) with EINVAL before its row is
+ * drawn, abandons the rest of the block and leaves the rows drawn so far on
+ * the panel. A write(2) beyond the last tile number transfers only the
+ * numbers that remain.
+ *
+ * The block form of a tile program is one LCDG_TILEWIN per run of changed
+ * tiles in a tile row (games/gametile.h). Either ioctl returns EINVAL,
+ * without drawing, for a field out of range. As with LCDG_WINDOW, every
+ * other command, a rejected one included, and the last close abandon a
+ * stream that still wants data.
  */
+#define LCDG_ATLAS_N		128
+#define LCDG_TILE_W		8
+#define LCDG_TILE_H		8
+#define LCDG_TILE_BYTES		32
+#define LCDG_GRID		40
 #define LCDG_WIDTH		320
 #define LCDG_HEIGHT		320
 #define LCDG_RAM_LINES		480	/* The controller's line count. */
@@ -123,6 +160,16 @@ struct lcdg_info {
 	u_char	tiles, bpp;
 };
 
+/* LCDG_TILESET: first + count <= LCDG_ATLAS_N, count >= 1. */
+struct lcdg_tileset {
+	u_char	first, count;
+};
+
+/* LCDG_TILEWIN: tw and th >= 1, tx + tw and ty + th <= LCDG_GRID. */
+struct lcdg_tilewin {
+	u_char	tx, ty, tw, th;
+};
+
 #define LCDG_FILL	_IOW('l', 16, struct lcdg_rect)
 #define LCDG_PIXEL	_IOW('l', 17, struct lcdg_pixel)
 #define LCDG_LINE	_IOW('l', 18, struct lcdg_line)
@@ -134,5 +181,7 @@ struct lcdg_info {
 #define LCDG_SCRDEF	_IOW('l', 24, struct lcdg_scrdef)
 #define LCDG_COLMOD	_IOW('l', 25, struct lcdg_colmod)
 #define LCDG_INFO	_IOR('l', 26, struct lcdg_info)
+#define LCDG_TILESET	_IOW('l', 27, struct lcdg_tileset)
+#define LCDG_TILEWIN	_IOW('l', 28, struct lcdg_tilewin)
 
 #endif /* _SYS_LCDGFX_H_ */

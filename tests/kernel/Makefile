@@ -371,7 +371,7 @@ FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width \
 				corrupt-output-initialization omitted-media-gone-case \
 				omitted-glyph-case omitted-lcdg-draw-cases \
 				omitted-lcdg-window-case omitted-lcdg-control-cases \
-				omitted-lcdg-info-case
+				omitted-lcdg-info-case omitted-lcdg-tile-cases
 FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/capacity.h \
 	${TOPSRC}/sys/sys/cdefs.h ${TOPSRC}/sys/sys/conf.h \
@@ -1361,6 +1361,7 @@ check-fionread-mutants: \
 			omitted-lcdg-window-case) expected='provider_data != unaligned' ;; \
 			omitted-lcdg-control-cases) expected='provider_data != unaligned' ;; \
 			omitted-lcdg-info-case) expected='provider_data != unaligned' ;; \
+			omitted-lcdg-tile-cases) expected='provider_data != unaligned' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

@@ -304,6 +304,8 @@ ioctl(void)
     case LCDG_SCROLL:
     case LCDG_SCRDEF:
     case LCDG_COLMOD:
+    case LCDG_TILESET:
+    case LCDG_TILEWIN:
 #endif
         break;
     default:

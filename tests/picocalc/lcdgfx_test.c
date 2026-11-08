@@ -31,6 +31,11 @@
  * issued inside an open window, a window left half-filled by anything but
  * an abandoned stream, and a scroll start outside the scroll area.
  *
+ * The model also logs every window with the pixel count it received, so a
+ * tile row is checked as one window of the right geometry; the pixel layer
+ * stores each pixel at the window's raster position, so a tile row that
+ * does not interleave its pixel lines lands in the wrong places.
+ *
  * The pixel layer is the oracle for the drawing commands: a fill is a
  * rectangle and a frame its outline, each pixel drawn once; a line is
  * checked against the ideal line (the major axis advances one pixel per
@@ -62,7 +67,8 @@ _Static_assert(sizeof(struct lcdg_rect) <= 12 && sizeof(struct lcdg_line) <= 12 
     sizeof(struct lcdg_pixel) <= 12 && sizeof(struct lcdg_circle) <= 12 &&
     sizeof(struct lcdg_window) <= 12 && sizeof(struct lcdg_palette) <= 12 &&
     sizeof(struct lcdg_scroll) <= 12 && sizeof(struct lcdg_scrdef) <= 12 &&
-    sizeof(struct lcdg_colmod) <= 12 && sizeof(struct lcdg_info) <= 12,
+    sizeof(struct lcdg_colmod) <= 12 && sizeof(struct lcdg_info) <= 12 &&
+    sizeof(struct lcdg_tileset) <= 12 && sizeof(struct lcdg_tilewin) <= 12,
     "every payload is at most twelve bytes");
 
 /* The model's palette stands in for the console's: distinct, so a swapped index shows. */
@@ -88,6 +94,13 @@ static int vscsad;
 static int nwindow, nscroll, nscrdef, ncolmod, nreset;
 static long npixels;			/* Pixels stored since the last clear. */
 static int win_open, wx0, wy0, wx1, wy1, wcx, wcy, wnb;
+#define	WLOG_MAX	64
+static struct {
+	int x0, y0, x1, y1;
+	long pixels;
+	int complete;
+} wlog[WLOG_MAX];
+static int wlog_n;			/* Windows logged since counters_clear(). */
 static unsigned wacc[3];
 static long win_pixels;			/* Pixels the last window received. */
 static int win_complete;		/* The last window received all of them. */
@@ -187,6 +200,15 @@ lcd_gfx_window(int x0, int y0, int x1, int y1)
 		    x0, y0, x1, y1);
 		exit(2);
 	}
+	if (wlog_n < WLOG_MAX) {
+		wlog[wlog_n].x0 = x0;
+		wlog[wlog_n].y0 = y0;
+		wlog[wlog_n].x1 = x1;
+		wlog[wlog_n].y1 = y1;
+		wlog[wlog_n].pixels = 0;
+		wlog[wlog_n].complete = 0;
+	}
+	wlog_n++;
 	win_open = 1;
 	wx0 = last_x0 = x0;
 	wy0 = last_y0 = y0;
@@ -242,6 +264,10 @@ lcd_gfx_end(void)
 	if (wnb != 0)
 		violation("window ended inside a pixel");
 	win_complete = wcy > wy1;
+	if (wlog_n >= 1 && wlog_n <= WLOG_MAX) {
+		wlog[wlog_n - 1].pixels = win_pixels;
+		wlog[wlog_n - 1].complete = win_complete;
+	}
 	win_open = 0;
 }
 
@@ -364,6 +390,7 @@ counters_clear(void)
 	ndraw = nfill = ntop = 0;
 	nwindow = nscroll = nscrdef = ncolmod = nreset = 0;
 	gfx_calls = 0;
+	wlog_n = 0;
 }
 
 /* A fresh device, terminal and model. */
@@ -492,6 +519,23 @@ colmod(int fmt)
 	struct lcdg_colmod c = { (u_char)fmt };
 
 	return ioc(LCDG_COLMOD, &c);
+}
+
+static int
+tileset(int first, int count)
+{
+	struct lcdg_tileset t = { (u_char)first, (u_char)count };
+
+	return ioc(LCDG_TILESET, &t);
+}
+
+static int
+tilewin(int tx, int ty, int tw, int th)
+{
+	struct lcdg_tilewin t = { (u_char)tx, (u_char)ty, (u_char)tw,
+	    (u_char)th };
+
+	return ioc(LCDG_TILEWIN, &t);
 }
 
 static int resid_after;		/* Bytes the last do_write() left unmoved. */
@@ -1164,7 +1208,7 @@ test_scroll_colmod_info(void)
 	expect_err("info", ioc(LCDG_INFO, &info), 0);
 	expect_int("info width", info.w, 320);
 	expect_int("info height", info.h, 320);
-	expect_int("info tiles", info.tiles, 0);
+	expect_int("info tiles", info.tiles, 128);
 	expect_int("info bits per pixel under RGB666", info.bpp, 18);
 	expect_err("colmod 0x55", colmod(0x55), 0);
 	expect_int("colmod programmed", panel_colmod, 0x55);
@@ -1286,6 +1330,609 @@ test_ranges(void)
 	lcdgfx_close();
 	no_violations("ranges");
 #undef	CASE
+}
+
+/*
+ * The tile atlas. The reference atlas and palette below are the test's own
+ * copy of what the driver must hold; a tile pixel is expected from them, not
+ * from the driver's arithmetic.
+ */
+static unsigned char ref_atlas[LCDG_ATLAS_N][LCDG_TILE_BYTES];
+static unsigned short ref_pal[LCDG_NPAL];
+static unsigned rng_state = 12345;
+
+static unsigned
+rnd(unsigned n)
+{
+	rng_state = rng_state * 1103515245U + 12345U;
+	return (rng_state >> 16) % n;
+}
+
+static void
+ref_pal_init(void)
+{
+	int i;
+
+	for (i = 0; i < LCDG_NPAL; i++)
+		ref_pal[i] = (unsigned short)rgb565(lcd_palette[i][0],
+		    lcd_palette[i][1], lcd_palette[i][2]);
+}
+
+static void
+ref_atlas_random(int first, int count)
+{
+	int t, b;
+
+	for (t = first; t < first + count; t++)
+		for (b = 0; b < LCDG_TILE_BYTES; b++)
+			ref_atlas[t][b] = (unsigned char)rnd(256);
+}
+
+/* The pixel tile t shows at column x, line y under the palette and format in force. */
+static unsigned
+ref_color(int t, int x, int y)
+{
+	unsigned char b = ref_atlas[t][y * 4 + x / 2];
+	unsigned idx = x % 2 == 0 ? b >> 4U : b & 15U;
+
+	return panel_colmod == 0x66 ? exp666(ref_pal[idx]) : exp565(ref_pal[idx]);
+}
+
+/* Pixels of the block that differ from the reference render of its numbers. */
+static int
+tile_block_bad(int tx, int ty, int tw, int th, const unsigned char *nums)
+{
+	int r, c, x, y, bad = 0;
+
+	for (r = 0; r < th; r++)
+		for (c = 0; c < tw; c++)
+			for (y = 0; y < 8; y++)
+				for (x = 0; x < 8; x++)
+					if (fb[(ty + r) * 8 + y][(tx + c) * 8 + x] !=
+					    ref_color(nums[r * tw + c], x, y))
+						bad++;
+	return bad;
+}
+
+/* Exactly one window per tile row, each tw * 8 by 8 and fully filled. */
+static void
+expect_tile_windows(const char *what, int tx, int ty, int tw, int th)
+{
+	int r, bad = 0;
+
+	expect_int(what, nwindow, th);
+	expect_int(what, wlog_n, th);
+	for (r = 0; r < th && r < WLOG_MAX; r++) {
+		if (wlog[r].x0 != tx * 8 || wlog[r].x1 != (tx + tw) * 8 - 1 ||
+		    wlog[r].y0 != (ty + r) * 8 || wlog[r].y1 != (ty + r) * 8 + 7 ||
+		    wlog[r].pixels != tw * 64 || wlog[r].complete != 1)
+			bad++;
+	}
+	expect_int("tile row windows have the row's geometry and pixels", bad, 0);
+}
+
+/* Draw a block from a list of numbers written in pieces of `step` bytes (0: one write). */
+static int
+draw_block(int tx, int ty, int tw, int th, const unsigned char *nums, int step)
+{
+	int total = tw * th, off, len, error;
+
+	error = tilewin(tx, ty, tw, th);
+	if (error != 0)
+		return error;
+	for (off = 0; off < total; off += len) {
+		len = step == 0 || total - off < step ? total - off : step;
+		error = do_write(nums + off, (size_t)len);
+		if (error != 0)
+			return error;
+	}
+	return 0;
+}
+
+/* Upload tiles first .. first + count - 1 from the reference in pieces of `step` bytes. */
+static int
+upload(int first, int count, int step)
+{
+	const unsigned char *data = &ref_atlas[first][0];
+	int total = count * LCDG_TILE_BYTES, off, len, error;
+
+	error = tileset(first, count);
+	if (error != 0)
+		return error;
+	for (off = 0; off < total; off += len) {
+		len = step == 0 || total - off < step ? total - off : step;
+		error = do_write(data + off, (size_t)len);
+		if (error != 0)
+			return error;
+	}
+	return 0;
+}
+
+/* Draw all 128 tiles in a 16 by 8 block and compare with the reference atlas. */
+static void
+check_atlas(const char *what)
+{
+	unsigned char nums[LCDG_ATLAS_N];
+	int i;
+
+	for (i = 0; i < LCDG_ATLAS_N; i++)
+		nums[i] = (unsigned char)i;
+	fb_clear();
+	counters_clear();
+	expect_err(what, draw_block(0, 0, 16, 8, nums, 0), 0);
+	expect_int(what, tile_block_bad(0, 0, 16, 8, nums), 0);
+	expect_tile_windows(what, 0, 0, 16, 8);
+}
+
+static void
+test_tile_upload_draw(void)
+{
+	unsigned char nums[LCDG_GRID * LCDG_GRID];
+	struct lcdg_info info;
+	static const int steps[] = { 0, 1, 7, 31, 32, 33, 64, 65, 1000 };
+	unsigned i, k;
+
+	reset();
+	open_ok("open");
+	ref_pal_init();
+	memset(ref_atlas, 0, sizeof(ref_atlas));
+	expect_err("info", ioc(LCDG_INFO, &info), 0);
+	expect_int("the atlas holds 128 tiles", info.tiles, 128);
+
+	/* The atlas starts all zero: every pixel is palette entry 0. */
+	for (i = 0; i < sizeof(nums); i++)
+		nums[i] = (unsigned char)(i % LCDG_ATLAS_N);
+	check_atlas("a fresh atlas is zero");
+
+	/* The whole atlas in one write, then drawn as blocks. */
+	ref_atlas_random(0, LCDG_ATLAS_N);
+	fb_clear();
+	counters_clear();
+	expect_err("upload 128 tiles", upload(0, LCDG_ATLAS_N, 0), 0);
+	expect_int("the upload is consumed", resid_after, 0);
+	expect_int("an upload draws no pixel", npixels, 0);
+	expect_int("an upload opens no window", nwindow, 0);
+	check_atlas("128 tiles uploaded in one write");
+
+	/* A 5 x 3 block: three windows, 320 pixels each. */
+	for (i = 0; i < 15; i++)
+		nums[i] = (unsigned char)rnd(LCDG_ATLAS_N);
+	fb_clear();
+	counters_clear();
+	expect_err("5x3 block", draw_block(7, 11, 5, 3, nums, 0), 0);
+	expect_tile_windows("5x3 block", 7, 11, 5, 3);
+	expect_int("5x3 pixels", tile_block_bad(7, 11, 5, 3, nums), 0);
+	expect_int("5x3 draws only its tiles", npixels, 5 * 3 * 64);
+	expect_int("5x3 leaves the rest", set_count(0, 0, PW - 1, PH - 1), 5 * 3 * 64);
+
+	/* The whole grid: 40 windows of 320 x 8. */
+	for (i = 0; i < LCDG_GRID * LCDG_GRID; i++)
+		nums[i] = (unsigned char)rnd(LCDG_ATLAS_N);
+	fb_clear();
+	counters_clear();
+	expect_err("full grid", draw_block(0, 0, 40, 40, nums, 0), 0);
+	expect_tile_windows("full grid", 0, 0, 40, 40);
+	expect_int("full grid pixels", tile_block_bad(0, 0, 40, 40, nums), 0);
+	expect_int("full grid covers the panel but the margin",
+	    set_count(0, 0, PW - 1, PH - 1), PW * PH);
+
+	/* One tile at each corner of the grid. */
+	for (i = 0; i < 4; i++) {
+		int tx = i & 1 ? 39 : 0, ty = i & 2 ? 39 : 0;
+
+		nums[0] = (unsigned char)(i * 37 + 5);
+		fb_clear();
+		counters_clear();
+		expect_err("corner tile", draw_block(tx, ty, 1, 1, nums, 0), 0);
+		expect_tile_windows("corner tile", tx, ty, 1, 1);
+		expect_int("corner tile pixels", tile_block_bad(tx, ty, 1, 1, nums), 0);
+	}
+
+	/* The result is independent of how the writes split the stream. */
+	for (k = 0; k < sizeof(steps) / sizeof(steps[0]); k++) {
+		for (i = 0; i < 6 * 4; i++)
+			nums[i] = (unsigned char)rnd(LCDG_ATLAS_N);
+		fb_clear();
+		counters_clear();
+		expect_err("split block", draw_block(3, 30, 6, 4, nums, steps[k]), 0);
+		expect_tile_windows("split block", 3, 30, 6, 4);
+		expect_int("split block pixels", tile_block_bad(3, 30, 6, 4, nums), 0);
+
+		memset(ref_atlas, 0, sizeof(ref_atlas));
+		ref_atlas_random(0, LCDG_ATLAS_N);
+		fb_clear();
+		expect_err("split upload", upload(0, LCDG_ATLAS_N, steps[k]), 0);
+		check_atlas("atlas uploaded in split writes");
+	}
+
+	/* A window is complete exactly when its tw-th number arrives. */
+	for (i = 0; i < 4 * 2; i++)
+		nums[i] = (unsigned char)(i + 1);
+	fb_clear();
+	counters_clear();
+	expect_err("4x2 block", tilewin(10, 10, 4, 2), 0);
+	expect_int("no window before data", nwindow, 0);
+	expect_err("three numbers", do_write(nums, 3), 0);
+	expect_int("three of four numbers draw nothing", nwindow, 0);
+	expect_err("fourth number", do_write(nums + 3, 1), 0);
+	expect_int("the row draws at its last number", nwindow, 1);
+	expect_err("first of the next row", do_write(nums + 4, 1), 0);
+	expect_int("the next row waits", nwindow, 1);
+	expect_err("rest", do_write(nums + 5, 3), 0);
+	expect_tile_windows("4x2 block", 10, 10, 4, 2);
+	expect_int("4x2 pixels", tile_block_bad(10, 10, 4, 2, nums), 0);
+	lcdgfx_close();
+	no_violations("tile upload and draw");
+}
+
+static void
+test_tile_palette(void)
+{
+	unsigned char nums[6];
+	int i;
+
+	reset();
+	open_ok("open");
+	ref_pal_init();
+	memset(ref_atlas, 0, sizeof(ref_atlas));
+	ref_atlas_random(0, 8);
+	expect_err("upload 8 tiles", upload(0, 8, 0), 0);
+	for (i = 0; i < 6; i++)
+		nums[i] = (unsigned char)(i + 1);
+
+	/* The palette in force when the row draws colors the tiles. */
+	fb_clear();
+	counters_clear();
+	expect_err("block", draw_block(0, 0, 3, 2, nums, 0), 0);
+	expect_int("default palette", tile_block_bad(0, 0, 3, 2, nums), 0);
+
+	for (i = 0; i < LCDG_NPAL; i++) {
+		expect_err("palette", palette(i, 255 - i * 9, i * 15, 40 + i * 3), 0);
+		ref_pal[i] = (unsigned short)rgb565(255U - (unsigned)i * 9,
+		    (unsigned)i * 15, 40U + (unsigned)i * 3);
+	}
+	fb_clear();
+	counters_clear();
+	expect_err("block after palette", draw_block(0, 0, 3, 2, nums, 0), 0);
+	expect_int("new palette applies to the stored tiles",
+	    tile_block_bad(0, 0, 3, 2, nums), 0);
+
+	/* One entry changed: only its pixels move. */
+	expect_err("one entry", palette(5, 1, 2, 3), 0);
+	ref_pal[5] = (unsigned short)rgb565(1, 2, 3);
+	fb_clear();
+	counters_clear();
+	expect_err("block after one entry", draw_block(0, 0, 3, 2, nums, 0), 0);
+	expect_int("one entry", tile_block_bad(0, 0, 3, 2, nums), 0);
+
+	/* Both nibbles of a byte select entries: high first. */
+	memset(ref_atlas[9], 0, LCDG_TILE_BYTES);
+	ref_atlas[9][0] = 0x3c;
+	ref_atlas[9][4] = 0xa5;
+	expect_err("upload tile 9", upload(9, 1, 0), 0);
+	nums[0] = 9;
+	fb_clear();
+	counters_clear();
+	expect_err("tile 9", draw_block(20, 20, 1, 1, nums, 0), 0);
+	expect_int("tile 9 pixel 0 is the high nibble",
+	    fb[160][160], exp666(ref_pal[3]));
+	expect_int("tile 9 pixel 1 is the low nibble",
+	    fb[160][161], exp666(ref_pal[12]));
+	expect_int("tile 9 line 1 pixel 0", fb[161][160], exp666(ref_pal[10]));
+	expect_int("tile 9 line 1 pixel 1", fb[161][161], exp666(ref_pal[5]));
+	expect_int("tile 9 line 0 pixel 7", fb[160][167], exp666(ref_pal[0]));
+	expect_int("tile 9 pixels", tile_block_bad(20, 20, 1, 1, nums), 0);
+
+	/* Under COLMOD 0x55 the same tiles go out as two-byte pixels. */
+	expect_err("colmod 0x55", colmod(0x55), 0);
+	fb_clear();
+	counters_clear();
+	expect_err("block in 565", draw_block(0, 0, 3, 2, nums, 0), 0);
+	expect_int("565 pixels", tile_block_bad(0, 0, 3, 2, nums), 0);
+	expect_int("565 window count", nwindow, 2);
+	lcdgfx_close();
+	no_violations("tile palette");
+}
+
+static void
+test_tile_ranges(void)
+{
+	struct {
+		const char *what;
+		int err;
+		int want;
+	} t[64];
+	int n = 0, i;
+	unsigned char nums[LCDG_GRID * LCDG_GRID];
+
+#define	CASE(text, expr, errno_want)	do { t[n].what = (text); \
+	t[n].err = (expr); t[n].want = (errno_want); n++; } while (0)
+
+	reset();
+	open_ok("open");
+	ref_pal_init();
+	memset(ref_atlas, 0, sizeof(ref_atlas));
+	ref_atlas_random(0, LCDG_ATLAS_N);
+	expect_err("upload", upload(0, LCDG_ATLAS_N, 0), 0);
+	memset(nums, 1, sizeof(nums));
+	fb_clear();
+	counters_clear();
+
+	CASE("tileset first 128", tileset(128, 1), EINVAL);
+	CASE("tileset first 127 count 2", tileset(127, 2), EINVAL);
+	CASE("tileset first 0 count 129", tileset(0, 129), EINVAL);
+	CASE("tileset count 0", tileset(0, 0), EINVAL);
+	CASE("tileset first 64 count 65", tileset(64, 65), EINVAL);
+	CASE("tileset first 200 count 100", tileset(200, 100), EINVAL);
+	CASE("tileset 255 255", tileset(255, 255), EINVAL);
+	CASE("tileset first 128 count 0", tileset(128, 0), EINVAL);
+	CASE("tilewin tw 0", tilewin(0, 0, 0, 1), EINVAL);
+	CASE("tilewin th 0", tilewin(0, 0, 1, 0), EINVAL);
+	CASE("tilewin tx 40", tilewin(40, 0, 1, 1), EINVAL);
+	CASE("tilewin ty 40", tilewin(0, 40, 1, 1), EINVAL);
+	CASE("tilewin tx + tw 41", tilewin(1, 0, 40, 1), EINVAL);
+	CASE("tilewin ty + th 41", tilewin(0, 1, 1, 40), EINVAL);
+	CASE("tilewin tw 41", tilewin(0, 0, 41, 1), EINVAL);
+	CASE("tilewin th 41", tilewin(0, 0, 1, 41), EINVAL);
+	CASE("tilewin tx 39 tw 2", tilewin(39, 0, 2, 1), EINVAL);
+	CASE("tilewin ty 39 th 2", tilewin(0, 39, 1, 2), EINVAL);
+	CASE("tilewin 255 255", tilewin(255, 255, 255, 255), EINVAL);
+	CASE("tilewin tw 255", tilewin(0, 0, 255, 1), EINVAL);
+	for (i = 0; i < n; i++) {
+		expect_err(t[i].what, t[i].err, t[i].want);
+		expect_err("write after a refused command", do_write(nums, 8), EINVAL);
+	}
+	expect_int("a refused command draws no pixel", npixels, 0);
+	expect_int("a refused command opens no window", nwindow, 0);
+	expect_int("a refused command opens no panel window", win_open, 0);
+	check_atlas("a refused upload leaves the atlas");
+	counters_clear();
+	fb_clear();
+
+	/* The edges that are valid. */
+	n = 0;
+	CASE("tileset the last tile", tileset(127, 1), 0);
+	CASE("tileset the first tile", tileset(0, 1), 0);
+	CASE("tileset all", tileset(0, 128), 0);
+	CASE("tilewin the last tile", tilewin(39, 39, 1, 1), 0);
+	CASE("tilewin the first tile", tilewin(0, 0, 1, 1), 0);
+	CASE("tilewin the full width", tilewin(0, 5, 40, 1), 0);
+	CASE("tilewin the full height", tilewin(5, 0, 1, 40), 0);
+	CASE("tilewin the whole grid", tilewin(0, 0, 40, 40), 0);
+	for (i = 0; i < n; i++)
+		expect_err(t[i].what, t[i].err, t[i].want);
+	lcdgfx_close();
+	no_violations("tile ranges");
+#undef	CASE
+}
+
+static void
+test_tile_upload_bounds(void)
+{
+	unsigned char data[LCDG_TILE_BYTES * 4 + 64];
+	unsigned char nums[2];
+	int i;
+
+	reset();
+	open_ok("open");
+	ref_pal_init();
+	memset(ref_atlas, 0, sizeof(ref_atlas));
+	ref_atlas_random(0, LCDG_ATLAS_N);
+	expect_err("upload all", upload(0, LCDG_ATLAS_N, 0), 0);
+	check_atlas("baseline");
+
+	/* Three tiles in the middle change; their neighbors do not. */
+	for (i = 0; i < 3 * LCDG_TILE_BYTES; i++)
+		data[i] = (unsigned char)rnd(256);
+	memcpy(ref_atlas[100], data, 3 * LCDG_TILE_BYTES);
+	expect_err("tileset 100..102", tileset(100, 3), 0);
+	expect_err("write", do_write(data, 3 * LCDG_TILE_BYTES), 0);
+	check_atlas("tiles 100..102 replaced");
+
+	/* More bytes than the upload wants: the excess stays unread. */
+	for (i = 0; i < (int)sizeof(data); i++)
+		data[i] = (unsigned char)rnd(256);
+	memcpy(ref_atlas[50], data, 2 * LCDG_TILE_BYTES);
+	expect_err("tileset 50..51", tileset(50, 2), 0);
+	expect_err("overlong write", do_write(data, 4 * LCDG_TILE_BYTES + 50), 0);
+	expect_int("the excess is not consumed", resid_after, 2 * LCDG_TILE_BYTES + 50);
+	check_atlas("an overlong write stops at the upload");
+	expect_err("write after the upload", do_write(data, 32), EINVAL);
+
+	/* The last tile: first 127, count 1. */
+	memcpy(ref_atlas[127], data + 10, LCDG_TILE_BYTES);
+	expect_err("tileset 127", tileset(127, 1), 0);
+	expect_err("write 127", do_write(data + 10, LCDG_TILE_BYTES + 5), 0);
+	expect_int("tile 127 leaves five bytes unread", resid_after, 5);
+	check_atlas("tile 127 replaced");
+
+	/* Another command abandons an upload; the bytes that arrived stay. */
+	memcpy(ref_atlas[20], data, LCDG_TILE_BYTES);
+	memcpy(ref_atlas[21], data + LCDG_TILE_BYTES, 8);
+	expect_err("tileset 20..22", tileset(20, 3), 0);
+	expect_err("a tile and a quarter", do_write(data, LCDG_TILE_BYTES + 8), 0);
+	expect_err("abandon by pixel", pixel(300, 300, 1), 0);
+	expect_err("write to the abandoned upload", do_write(data, 8), EINVAL);
+	check_atlas("an abandoned upload keeps what arrived");
+
+	/* A rejected command abandons it too. */
+	expect_err("tileset 30..31", tileset(30, 2), 0);
+	expect_err("abandon by a refused command", palette(16, 0, 0, 0), EINVAL);
+	expect_err("write to the abandoned upload again", do_write(data, 8), EINVAL);
+	check_atlas("a refused abandon keeps the atlas");
+
+	/* A tile window and an upload exclude each other. */
+	expect_err("tileset 40..41", tileset(40, 2), 0);
+	expect_err("tilewin takes over", tilewin(0, 0, 2, 1), 0);
+	nums[0] = 1;
+	nums[1] = 2;
+	fb_clear();
+	counters_clear();
+	expect_err("tile numbers", do_write(nums, 2), 0);
+	expect_int("the numbers draw a row", nwindow, 1);
+	check_atlas("the upload that tilewin abandoned stored nothing");
+	expect_err("tilewin 2", tilewin(0, 0, 2, 1), 0);
+	expect_err("tileset takes over", tileset(40, 1), 0);
+	counters_clear();
+	expect_err("data", do_write(data, 8), 0);
+	expect_int("the data go to the atlas, not the panel", nwindow, 0);
+	memcpy(ref_atlas[40], data, 8);
+	check_atlas("tileset abandoned the tile window");
+
+	/* A copy fault reports and keeps the upload for a retry. */
+	for (i = 0; i < 3 * LCDG_TILE_BYTES; i++)
+		data[i] = (unsigned char)rnd(256);
+	memcpy(ref_atlas[70], data, 3 * LCDG_TILE_BYTES);
+	expect_err("tileset 70..72", tileset(70, 3), 0);
+	uiomove_fail_after = 0;
+	expect_err("faulting write", do_write(data, 3 * LCDG_TILE_BYTES), EFAULT);
+	uiomove_fail_after = -1;
+	expect_err("retry", do_write(data, 3 * LCDG_TILE_BYTES), 0);
+	check_atlas("a faulted upload retries from its position");
+
+	/* Closing with an upload open abandons it; a reopen clears the atlas. */
+	expect_err("tileset 1", tileset(1, 1), 0);
+	lcdgfx_close();
+	open_ok("reopen");
+	expect_err("write after close", do_write(data, 8), EINVAL);
+	memset(ref_atlas, 0, sizeof(ref_atlas));
+	ref_pal_init();
+	check_atlas("the atlas is zero at every open");
+	lcdgfx_close();
+	no_violations("tile upload bounds");
+}
+
+static void
+test_tile_stream(void)
+{
+	unsigned char nums[LCDG_GRID * 4];
+	unsigned i;
+
+	reset();
+	open_ok("open");
+	ref_pal_init();
+	memset(ref_atlas, 0, sizeof(ref_atlas));
+	ref_atlas_random(0, LCDG_ATLAS_N);
+	expect_err("upload", upload(0, LCDG_ATLAS_N, 0), 0);
+	for (i = 0; i < sizeof(nums); i++)
+		nums[i] = (unsigned char)rnd(LCDG_ATLAS_N);
+
+	/* More numbers than the block wants: the excess stays unread. */
+	fb_clear();
+	counters_clear();
+	expect_err("2x2 block", tilewin(4, 4, 2, 2), 0);
+	expect_err("overlong write", do_write(nums, 40), 0);
+	expect_int("the excess is not consumed", resid_after, 36);
+	expect_tile_windows("2x2 block", 4, 4, 2, 2);
+	expect_int("2x2 pixels", tile_block_bad(4, 4, 2, 2, nums), 0);
+	expect_err("write after the block", do_write(nums, 2), EINVAL);
+	expect_int("no further window", nwindow, 2);
+
+	/* A tile number past the atlas: the rows before it stay, the stream ends. */
+	fb_clear();
+	counters_clear();
+	for (i = 0; i < 12; i++)
+		nums[i] = (unsigned char)i;
+	nums[7] = LCDG_ATLAS_N;
+	expect_err("4x3 block", tilewin(0, 0, 4, 3), 0);
+	expect_err("a bad number in row 1", do_write(nums, 12), EINVAL);
+	expect_int("row 0 was drawn, row 1 was not", nwindow, 1);
+	expect_int("row 0 pixels", tile_block_bad(0, 0, 4, 1, nums), 0);
+	expect_int("only row 0 is on the panel", npixels, 4 * 64);
+	expect_err("the stream is over", do_write(nums, 4), EINVAL);
+	expect_int("still one window", nwindow, 1);
+
+	/* A bad number in the first row draws nothing. */
+	fb_clear();
+	counters_clear();
+	nums[0] = 255;
+	expect_err("2x1 block", tilewin(0, 0, 2, 1), 0);
+	expect_err("a bad first number", do_write(nums, 2), EINVAL);
+	expect_int("no window", nwindow, 0);
+	expect_int("no pixel", npixels, 0);
+	nums[0] = 127;
+	nums[1] = 127;
+	expect_err("2x1 block again", tilewin(0, 0, 2, 1), 0);
+	expect_err("the largest tile number", do_write(nums, 2), 0);
+	expect_int("tile 127 draws", nwindow, 1);
+
+	/* A bad number split from the rest of its row across writes. */
+	fb_clear();
+	counters_clear();
+	nums[0] = 3;
+	nums[1] = 128;
+	expect_err("3x1 block", tilewin(0, 0, 3, 1), 0);
+	expect_err("good prefix", do_write(nums, 1), 0);
+	expect_err("bad middle", do_write(nums + 1, 1), EINVAL);
+	expect_err("the rest", do_write(nums + 2, 1), EINVAL);
+	expect_int("nothing drawn", nwindow, 0);
+
+	/* Another command abandons a block; so does the close. */
+	fb_clear();
+	counters_clear();
+	expect_err("2x2 block", tilewin(0, 0, 2, 2), 0);
+	expect_err("first row", do_write(nums + 8, 2), 0);
+	expect_int("one row drawn", nwindow, 1);
+	expect_err("abandon by palette", palette(1, 9, 9, 9), 0);
+	expect_err("write to the abandoned block", do_write(nums + 8, 2), EINVAL);
+	expect_int("the second row never draws", nwindow, 1);
+	expect_err("2x1 block", tilewin(0, 0, 2, 1), 0);
+	expect_err("abandon by a refused tilewin", tilewin(40, 0, 1, 1), EINVAL);
+	expect_err("write to the block a refusal abandoned", do_write(nums + 8, 2),
+	    EINVAL);
+	expect_err("2x1 block", tilewin(0, 0, 2, 1), 0);
+	lcdgfx_close();
+	open_ok("reopen");
+	expect_err("write after close", do_write(nums + 8, 2), EINVAL);
+
+	/* A block abandoned inside a row leaves no numbers to the next one. */
+	ref_pal_init();
+	memset(ref_atlas, 0, sizeof(ref_atlas));
+	ref_atlas_random(0, LCDG_ATLAS_N);
+	expect_err("upload", upload(0, LCDG_ATLAS_N, 0), 0);
+	for (i = 0; i < 4; i++)
+		nums[i] = (unsigned char)(i + 60);
+	fb_clear();
+	counters_clear();
+	expect_err("4x1 block", tilewin(2, 2, 4, 1), 0);
+	expect_err("two numbers", do_write(nums, 2), 0);
+	expect_err("4x1 block again", tilewin(2, 2, 4, 1), 0);
+	expect_int("a half row draws nothing", nwindow, 0);
+	expect_err("four numbers", do_write(nums, 4), 0);
+	expect_tile_windows("restarted block", 2, 2, 4, 1);
+	expect_int("restarted block pixels", tile_block_bad(2, 2, 4, 1, nums), 0);
+
+	/* A copy fault reports; the block resumes where it stopped. */
+	ref_pal_init();
+	memset(ref_atlas, 0, sizeof(ref_atlas));
+	ref_atlas_random(0, LCDG_ATLAS_N);
+	expect_err("upload", upload(0, LCDG_ATLAS_N, 0), 0);
+	for (i = 0; i < 12; i++)
+		nums[i] = (unsigned char)(i * 3);
+	fb_clear();
+	counters_clear();
+	expect_err("4x3 block", tilewin(10, 10, 4, 3), 0);
+	uiomove_fail_after = 1;
+	uiomove_calls = 0;
+	expect_err("faulting write", do_write(nums, 12), EFAULT);
+	uiomove_fail_after = -1;
+	expect_int("the first row was drawn before the fault", nwindow, 1);
+	expect_err("retry the rest", do_write(nums + 4, 8), 0);
+	expect_tile_windows("faulted block", 10, 10, 4, 3);
+	expect_int("faulted block pixels", tile_block_bad(10, 10, 4, 3, nums), 0);
+
+	/* A window stream is not a tile stream. */
+	expect_err("pixel window", window(0, 0, 8, 8, LCDG_WIN_INDEX, 0, 0), 0);
+	expect_err("tilewin takes over", tilewin(0, 0, 1, 1), 0);
+	expect_int("the pixel window was ended", win_open, 0);
+	expect_err("tile number", do_write(nums, 1), 0);
+	expect_err("tilewin again", tilewin(0, 0, 1, 1), 0);
+	expect_err("pixel window again", window(0, 0, 8, 8, LCDG_WIN_INDEX, 0, 0), 0);
+	counters_clear();
+	expect_err("index data", do_write(nums, 64), 0);
+	expect_int("pixel data draw into the pixel window", nwindow, 0);
+	lcdgfx_close();
+	no_violations("tile stream");
 }
 
 /*
@@ -1422,6 +2069,11 @@ main(void)
 	test_palette_default_and_reset();
 	test_scroll_colmod_info();
 	test_ranges();
+	test_tile_upload_draw();
+	test_tile_palette();
+	test_tile_ranges();
+	test_tile_upload_bounds();
+	test_tile_stream();
 	test_restore();
 	test_fatal_path();
 	if (failures != 0) {

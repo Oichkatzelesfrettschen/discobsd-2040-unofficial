@@ -24,10 +24,15 @@
 # repaints on entering the mode, and a fatal path that does not leave the
 # mode. lcdgfx_test drives the /dev/lcdgfx
 # driver (lcdgfx.c) and the real terminal against a model of the panel's
-# write path; thirty-seven mutants of lcdgfx.c and lcdterm.c must fail it:
+# write path; sixty-one mutants of lcdgfx.c and lcdterm.c must fail it:
 # a skipped exclusive open, restore, range check, window abandonment or
-# scroll-start update, and wrong color widening, byte order, palette
-# handling, bit-row padding, line, circle and frame drawing.
+# scroll-start update, wrong color widening, byte order, palette
+# handling, bit-row padding, line, circle and frame drawing, and, for the
+# tile atlas, a moved upload or block bound, a wrong upload offset or clamp,
+# a tile number accepted past the atlas, tile pixel lines drawn tile by tile
+# instead of interleaved, wrong nibble order, palette index or line stride,
+# a block that does not advance its row, an upload or block that survives
+# another command, an atlas that survives an open and a wrong atlas size.
 #
 # kbdreq_test runs the keyboard-controller register mailbox against a
 # model of the vendor firmware's register handler; eight mutants of
@@ -263,7 +268,31 @@ gfx-mutants: \
 	gfx-mutant-enter-flag \
 	gfx-mutant-leave-repaint \
 	gfx-mutant-leave-reset \
-	gfx-mutant-abort-leave
+	gfx-mutant-abort-leave \
+	gfx-mutant-tileset-bound-high \
+	gfx-mutant-tileset-bound-low \
+	gfx-mutant-tileset-count-zero \
+	gfx-mutant-tileset-offset \
+	gfx-mutant-tileset-overrun \
+	gfx-mutant-tileset-abandon \
+	gfx-mutant-tilewin-right \
+	gfx-mutant-tilewin-bottom \
+	gfx-mutant-tilewin-width-zero \
+	gfx-mutant-tilewin-height-zero \
+	gfx-mutant-tilewin-abandon \
+	gfx-mutant-tilewin-restart \
+	gfx-mutant-tile-number-bound \
+	gfx-mutant-tile-number-continue \
+	gfx-mutant-tile-resid-clamp \
+	gfx-mutant-tile-excess \
+	gfx-mutant-tile-window-right \
+	gfx-mutant-tile-row-step \
+	gfx-mutant-tile-interleave \
+	gfx-mutant-tile-line-stride \
+	gfx-mutant-tile-nibble-order \
+	gfx-mutant-tile-palette-entry \
+	gfx-mutant-tile-open-clear \
+	gfx-mutant-info-tiles
 
 gfx-mutant-exclusive-open:
 	${GFX_MUT} lcdgfx.c \
@@ -412,6 +441,102 @@ gfx-mutant-leave-reset:
 gfx-mutant-abort-leave:
 	${GFX_MUT} lcdterm.c \
 	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/' ${GFX_SRC}
+
+gfx-mutant-tileset-bound-high:
+	${GFX_MUT} lcdgfx.c \
+	    's/ts->first + ts->count > LCDG_ATLAS_N/ts->first + ts->count > LCDG_ATLAS_N + 1/' ${GFX_SRC}
+
+gfx-mutant-tileset-bound-low:
+	${GFX_MUT} lcdgfx.c \
+	    's/ts->first + ts->count > LCDG_ATLAS_N/ts->first + ts->count >= LCDG_ATLAS_N/' ${GFX_SRC}
+
+gfx-mutant-tileset-count-zero:
+	${GFX_MUT} lcdgfx.c \
+	    's/ts->count == 0 || //' ${GFX_SRC}
+
+gfx-mutant-tileset-offset:
+	${GFX_MUT} lcdgfx.c \
+	    's/tset_pos = ts->first \* LCDG_TILE_BYTES;/tset_pos = 0;/' ${GFX_SRC}
+
+gfx-mutant-tileset-overrun:
+	${GFX_MUT} lcdgfx.c \
+	    's/if (n > tset_left)/if (0)/' ${GFX_SRC}
+
+gfx-mutant-tileset-abandon:
+	${GFX_MUT} lcdgfx.c \
+	    '/^window_end/,/^}/s/^\ttset_left = 0;$$/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-tilewin-right:
+	${GFX_MUT} lcdgfx.c \
+	    's/tl->tx + tl->tw > LCDG_GRID/tl->tx + tl->tw > LCDG_GRID + 1/' ${GFX_SRC}
+
+gfx-mutant-tilewin-bottom:
+	${GFX_MUT} lcdgfx.c \
+	    's/tl->ty + tl->th > LCDG_GRID/tl->ty + tl->th > LCDG_GRID + 1/' ${GFX_SRC}
+
+gfx-mutant-tilewin-width-zero:
+	${GFX_MUT} lcdgfx.c \
+	    's/tl->tw == 0 || //' ${GFX_SRC}
+
+gfx-mutant-tilewin-height-zero:
+	${GFX_MUT} lcdgfx.c \
+	    's/ tl->th == 0 ||$$//' ${GFX_SRC}
+
+gfx-mutant-tilewin-abandon:
+	${GFX_MUT} lcdgfx.c \
+	    '/^window_end/,/^}/s/^\ttw_left = 0;$$/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-tilewin-restart:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\ttw_fill = 0;$$/\t\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-tile-number-bound:
+	${GFX_MUT} lcdgfx.c \
+	    's/tw_row\[i\] >= LCDG_ATLAS_N/tw_row[i] > LCDG_ATLAS_N/' ${GFX_SRC}
+
+gfx-mutant-tile-number-continue:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\t\t\ttw_left = 0;$$/\t\t\t\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-tile-resid-clamp:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\tif (n > uio->uio_resid)$$/\t\tif (0)/' ${GFX_SRC}
+
+gfx-mutant-tile-excess:
+	${GFX_MUT} lcdgfx.c \
+	    's/uio->uio_resid > 0 \&\& tw_left > 0/uio->uio_resid > 0/' ${GFX_SRC}
+
+gfx-mutant-tile-window-right:
+	${GFX_MUT} lcdgfx.c \
+	    's/(tw_x + tw_w) \* LCDG_TILE_W - 1/(tw_x + tw_w) * LCDG_TILE_W - 2/' ${GFX_SRC}
+
+gfx-mutant-tile-row-step:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\t\t\ttw_y++;$$/\t\t\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-tile-interleave:
+	${GFX_MUT} lcdgfx.c \
+	    '/^\tfor (line = 0; line < LCDG_TILE_H; line++) {$$/{s/line = 0; line < LCDG_TILE_H; line++/i = 0; i < tw_w; i++/;n;s/i = 0; i < tw_w; i++/line = 0; line < LCDG_TILE_H; line++/;}' ${GFX_SRC}
+
+gfx-mutant-tile-line-stride:
+	${GFX_MUT} lcdgfx.c \
+	    's/line \* 4/line * 3/' ${GFX_SRC}
+
+gfx-mutant-tile-nibble-order:
+	${GFX_MUT} lcdgfx.c \
+	    '/put_color(gfx_pal\[p\[b\] >> 4\]);/{s/>> 4/\& 15/;n;s/\& 15/>> 4/;}' ${GFX_SRC}
+
+gfx-mutant-tile-palette-entry:
+	${GFX_MUT} lcdgfx.c \
+	    's/gfx_pal\[p\[b\] >> 4\]/gfx_pal[(p[b] >> 4) \& 7]/' ${GFX_SRC}
+
+gfx-mutant-tile-open-clear:
+	${GFX_MUT} lcdgfx.c \
+	    's/^\tbzero(atlas, sizeof(atlas));$$/\t(void)0;/' ${GFX_SRC}
+
+gfx-mutant-info-tiles:
+	${GFX_MUT} lcdgfx.c \
+	    's/in->tiles = LCDG_ATLAS_N;/in->tiles = 0;/' ${GFX_SRC}
 
 KBDREQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD}" "${DEV}" \
 		kbdreq_test.c
@@ -910,4 +1035,28 @@ clean:
 	gfx-mutant-palette-default gfx-mutant-open-format \
 	gfx-mutant-open-scroll gfx-mutant-info-bpp gfx-mutant-gate-cell \
 	gfx-mutant-enter-flag gfx-mutant-leave-repaint gfx-mutant-leave-reset \
-	gfx-mutant-abort-leave
+	gfx-mutant-abort-leave \
+	gfx-mutant-tileset-bound-high \
+	gfx-mutant-tileset-bound-low \
+	gfx-mutant-tileset-count-zero \
+	gfx-mutant-tileset-offset \
+	gfx-mutant-tileset-overrun \
+	gfx-mutant-tileset-abandon \
+	gfx-mutant-tilewin-right \
+	gfx-mutant-tilewin-bottom \
+	gfx-mutant-tilewin-width-zero \
+	gfx-mutant-tilewin-height-zero \
+	gfx-mutant-tilewin-abandon \
+	gfx-mutant-tilewin-restart \
+	gfx-mutant-tile-number-bound \
+	gfx-mutant-tile-number-continue \
+	gfx-mutant-tile-resid-clamp \
+	gfx-mutant-tile-excess \
+	gfx-mutant-tile-window-right \
+	gfx-mutant-tile-row-step \
+	gfx-mutant-tile-interleave \
+	gfx-mutant-tile-line-stride \
+	gfx-mutant-tile-nibble-order \
+	gfx-mutant-tile-palette-entry \
+	gfx-mutant-tile-open-clear \
+	gfx-mutant-info-tiles

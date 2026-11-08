@@ -107,6 +107,7 @@ def main():
             "omitted-lcdg-window-case",
             "omitted-lcdg-control-cases",
             "omitted-lcdg-info-case",
+            "omitted-lcdg-tile-cases",
         ),
         required=True,
     )
@@ -199,6 +200,13 @@ def main():
         source = replace_once(
             source,
             "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n#endif\n",
+            "",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-lcdg-tile-cases":
+        source = replace_once(
+            source,
+            "    case LCDG_TILESET:\n    case LCDG_TILEWIN:\n",
             "",
             arguments.mutation,
         )

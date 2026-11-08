@@ -260,8 +260,11 @@ run_fsutil() {
 	if [ "$kind" = DIR ]; then
 		lost_found=$("$gen" --lookup "$img" /lost+found) ||
 		    error "$scenario: no /lost+found in the repaired image"
+		status=0
 		parent=$("$gen" --lookup "$img" "$reconnected/.." 2>/dev/null) ||
-		    parent=
+		    status=$?
+		[ "$status" -le 1 ] ||
+		    error "$scenario: $gen --lookup did not complete, status $status"
 		[ "$parent" = "$lost_found" ] ||
 		    fail "$reconnected/.. resolves to \"$parent\", want $lost_found"
 	fi

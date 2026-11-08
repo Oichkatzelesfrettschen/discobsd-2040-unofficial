@@ -578,6 +578,33 @@ test_respawn_grace(void)
 	CHECK(e->alive == 0 && G.score == 50, "a stomp during grace scores");
 }
 
+/*
+ * The clock counts 33 ms ticks; whole seconds are ticks * 33 / 1000. Thirty
+ * ticks are 990 ms, so a conversion that takes a second as 30 ticks pays a
+ * second early and gains one for every 30 seconds left.
+ */
+static void
+test_seconds_left(void)
+{
+	static const struct { int ticks; unsigned long secs; } t[] = {
+		{ 0, 0 }, { 30, 0 }, { 31, 1 }, { 60, 1 }, { 61, 2 },
+		{ 1090, 35 }, { 1091, 36 }, { 1121, 36 }, { 2121, 69 },
+	};
+	unsigned i;
+
+	for (i = 0; i < sizeof t / sizeof t[0]; i++) {
+		G.time_left = t[i].ticks;
+		CHECK(rg_seconds_left(&G) == t[i].secs, "%d ticks: %lu seconds, want %lu",
+		    t[i].ticks, rg_seconds_left(&G), t[i].secs);
+	}
+	/* 1,121 ticks clear with 36 seconds: 100 + 72 + 100 for no shards missed. */
+	arena(60);
+	G.time_left = 1121;
+	G.score = 0;
+	rg_win_level(&G);
+	CHECK(G.score == 272, "clear bonus at 1121 ticks: %lu, want 272", G.score);
+}
+
 static void
 test_goal_and_progress(void)
 {
@@ -586,11 +613,11 @@ test_goal_and_progress(void)
 	arena(60);
 	G.map[14][23] = RG_GOALBASE;
 	G.map[14][22] = RG_GOALTOP;
-	G.time_left = 300;	/* ten seconds */
+	G.time_left = 300;	/* 9.9 seconds */
 	ticks(RG_IN_RIGHT, 60);
 	CHECK(G.state == RG_CLEAR, "goal reached, state %d", G.state);
 	/* 100 for the level, 2 a second left, 100 for every shard taken (none here). */
-	CHECK(G.score == (unsigned long)(100 + 2 * (G.time_left / 30) + 100), "clear bonus: score %lu left %d",
+	CHECK(G.score == (unsigned long)(100 + 2 * (G.time_left * 33 / 1000) + 100), "clear bonus: score %lu left %d",
 	    G.score, G.time_left);
 	ticks(0, RG_CLEAR_T);
 	CHECK(G.state == RG_READY && G.level == 1, "next level, state %d level %d", G.state, G.level);
@@ -1437,6 +1464,7 @@ main(void)
 	test_flag_and_checkpoint();
 	test_enemies();
 	test_respawn_grace();
+	test_seconds_left();
 	test_goal_and_progress();
 	test_camera();
 	test_keys();

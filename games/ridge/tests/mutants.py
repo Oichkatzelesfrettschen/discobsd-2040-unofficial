@@ -175,6 +175,11 @@ LOGIC = [
     ),
     ("enemy-faster", "#define RG_ESPD\t\t12", "#define RG_ESPD\t\t16"),
     (
+        "second-is-thirty-ticks",
+        "\treturn (unsigned long)g->time_left * RG_TICK_MS / 1000;",
+        "\treturn (unsigned long)(g->time_left / (1000 / RG_TICK_MS));",
+    ),
+    (
         "respawn-grants-no-grace",
         "\tg->p.grace = RG_GRACE;\n",
         "",

@@ -598,11 +598,17 @@ rg_die(struct rg_game *g)
 	g->p.jumping = 0;
 }
 
+/* Whole seconds left on the level clock; a tick lasts RG_TICK_MS. */
+static unsigned long
+rg_seconds_left(const struct rg_game *g)
+{
+	return (unsigned long)g->time_left * RG_TICK_MS / 1000;
+}
+
 static void
 rg_win_level(struct rg_game *g)
 {
-	unsigned long bonus = RG_SCORE_CLEAR +
-	    RG_SCORE_SECOND * (unsigned long)(g->time_left / (1000 / RG_TICK_MS));
+	unsigned long bonus = RG_SCORE_CLEAR + RG_SCORE_SECOND * rg_seconds_left(g);
 
 	if (g->shards == g->nshards)
 		bonus += RG_SCORE_ALL;
@@ -1552,7 +1558,7 @@ rg_hud(struct rg_view *v, const struct rg_game *g)
 	rg_text(v, 1, 10, "/");
 	rg_number(v, 1, 11, (unsigned long)g->nshards, 2);
 	rg_text(v, 1, 16, "TIME");
-	rg_number(v, 1, 21, (unsigned long)(g->time_left / (1000 / RG_TICK_MS)), 3);
+	rg_number(v, 1, 21, rg_seconds_left(g), 3);
 	rg_text(v, 1, 26, rg_levels[g->level].name);
 }
 
@@ -1720,20 +1726,26 @@ rg_poll_keys(struct rg_keys *k)
 	return 0;
 }
 
-/* Wait up to ms for console input and discard the bytes the tty queued. */
+/*
+ * Wait up to ms for console input and discard the bytes the tty queued. The
+ * discard is TIOCFLUSH of the input queue, which never waits: a mode change
+ * between select() and a read() could leave the tty cooked, and a read would
+ * then block until a line arrived, so rg_poll_keys() would not see the ended
+ * key session. ttyflush() leaves t_flags alone, so the session survives it.
+ */
 static void
 rg_wait(int ms)
 {
 	fd_set fds;
 	struct timeval tv;
-	char junk[32];
+	int in = FREAD;
 
 	FD_ZERO(&fds);
 	FD_SET(0, &fds);
 	tv.tv_sec = ms / 1000;
 	tv.tv_usec = (ms % 1000) * 1000;
-	if (select(1, &fds, 0, 0, &tv) > 0 && read(0, junk, sizeof junk) < 0)
-		return;
+	if (select(1, &fds, 0, 0, &tv) > 0)
+		ioctl(0, TIOCFLUSH, &in);
 }
 
 /* The timed loop; returns 0 on a request to quit, 1 when a device call fails. */

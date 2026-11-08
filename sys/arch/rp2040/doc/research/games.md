@@ -324,8 +324,10 @@ half draws through `games/gametile.h`; `RIDGE_RENDER` compiles it with the
 rules for `tests/render_test.c`, which binds the two device calls of
 `gametile.h` to a model of `/dev/lcdgfx`. The front end opens
 `/dev/lcdgfx` and the console, sets RAW without echo, starts the raw key
-session (`LCDIOC_KEYEVS`), runs a timed `select` loop that discards the
-bytes the tty also queues, and on exit ends the session, restores the tty
+session (`LCDIOC_KEYEVS`), runs a timed `select` loop that drops the
+bytes the tty also queues with `TIOCFLUSH` (a flush never waits, where a
+`read` of a tty another program had just set cooked would block until a
+line arrived), and on exit ends the session, restores the tty
 mode, flushes the queues and closes the device, which returns the panel to
 the text console. Without `/dev/lcdgfx` or without a key session it prints
 the reason and exits: the game has no text-terminal fallback, because the

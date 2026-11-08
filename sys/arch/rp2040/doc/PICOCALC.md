@@ -776,9 +776,12 @@ the arithmetic fits the 384 KB raw swap, and no board run has forked it.
 `tests/dcbc` (`check-dcbc`, and `check-qemu` for dc) is the host evidence,
 `tests/rp2040/dcbc_smoke/board_dcbc_smoke.py` the closed board script, and
 `docs/research/openbsd-dc-bn-port.md` the port record.
-`docs/research/c17-shipped-resource-baseline.json` records the manifest of
-commit `e7040aa1`, from before the `calc-bignum`, `calc`, `puzzles` and
-`sdcard` closures existed, so none of `bc`, `dc`, `bc.library`, `calc`,
-`puzzlebox` or the SD device nodes appears in its records; re-recording it
-from a distribution run is open work
-(`docs/research/picocalc-session-handoff.md`).
+`docs/research/c17-shipped-resource-baseline.json` records the `full`
+profile image (`distrib/rp2040/sdcard.img`) and the `PICO` and `PICO_UART`
+kernels, as the C17 collector measures them from a clean distribution run
+(`docs/research/c17-shipped-build-baseline.md`). `bc`, `dc`, `bc.library`,
+`calc` and the SD device nodes belong to the `picocalc` profile, so none of
+them appears in that record, because the collector selects neither that
+profile nor the per-board `sdcard-BOARD.img` images. The record's kernel
+sizes come from the local GCC 16.2.0 and carry no flash-budget authority;
+`check-kernel-headroom` owns that figure.

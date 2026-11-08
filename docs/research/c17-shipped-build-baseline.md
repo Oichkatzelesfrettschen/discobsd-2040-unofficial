@@ -2,11 +2,18 @@
 
 Public-header and libc refactoring need a configuration-specific caller set and
 comparable artifact measurements. The retained baseline measures production
-source at `e7040aa1` with the opt-in capture adapter. The source companion
-identifies 580 tracked C/header paths by SHA-256 and records their membership in
-36 artifact groups: 32 packed programs, native libc, native crt0.o, PICO and
-PICO_UART. The complete command graph remains bound by its SHA-256 in that
-companion. Generated-input providers remain explicit in the closure output.
+source at `422bd00b` (`a40730d1` plus the puzzlebox generated-input
+providers) with the opt-in capture adapter, from a clean distribution
+of the `full` profile (`distrib/rp2040/sdcard.img`) built with GCC 16.2.0. The
+source companion identifies 604 tracked C/header paths by SHA-256 and records
+their membership in 37 artifact groups: 33 packed programs, native libc, native
+crt0.o, PICO and PICO_UART. The collector selects the `full` image and the PICO
+and PICO_UART kernels only. The `picocalc` profile (`bc`, `dc`, `calc`, the SD
+device nodes) and the per-board `sdcard-BOARD.img` images fall outside it. The
+kernel sizes come from the local compiler and carry no flash-budget authority;
+`check-kernel-headroom` owns that figure. The complete command graph remains
+bound by its SHA-256 in that companion. Generated-input providers remain
+explicit in the closure output.
 
 `c17-shipped-resource-baseline.json` retains the collector's complete static
 receipt. `c17-shipped-source-baseline.json` retains source membership and source
@@ -17,17 +24,17 @@ shipped C17 language acceptance nor whole-tree acceptance.
 
 | Surface | Observation |
 | --- | ---: |
-| PICO tracked C/header paths | 171 |
-| PICO_UART tracked C/header paths | 163 |
-| PICO loaded flash extent | 104,768 bytes |
-| PICO_UART loaded flash extent | 92,284 bytes |
-| PICO allocated kernel-region ELF sections | 32,216 bytes |
-| PICO_UART allocated kernel-region ELF sections | 15,336 bytes |
+| PICO tracked C/header paths | 173 |
+| PICO_UART tracked C/header paths | 162 |
+| PICO loaded flash extent | 95,076 bytes |
+| PICO_UART loaded flash extent | 85,264 bytes |
+| PICO allocated kernel-region ELF sections | 32,208 bytes |
+| PICO_UART allocated kernel-region ELF sections | 15,328 bytes |
 | PICO allocated scratch-region ELF sections | 8,192 bytes |
-| Root allocated data blocks | 692 |
-| Root free blocks | 287 |
-| Root free inodes | 33 |
-| Largest shipped loaded text/data/BSS | 75,412 bytes, smlrc |
+| Root allocated data blocks | 738 |
+| Root free blocks | 241 |
+| Root free inodes | 32 |
+| Largest shipped loaded text/data/BSS | 75,324 bytes, smlrc |
 
 Allocated ELF sections measure the named regions; fixed reservations and
 runtime use retain their own accounts. Loaded program occupancy excludes
@@ -35,9 +42,9 @@ runtime heap, stack and simultaneous scratch ownership. The retained two-slot
 inode reserve and stack-paint remainder provide observations for their original
 workloads, rather than an optimization budget.
 
-Two instrumented clean distributions produced identical static resource
-vectors and archive-member sets under the same measurement-tool hashes. That
-comparison checks the capture/collector integration. A subsequent implementation
+At `e7040aa1`, two instrumented clean distributions produced identical static
+resource vectors and archive-member sets under the same measurement-tool
+hashes. That comparison checks the capture/collector integration. A subsequent implementation
 change must compare its own clean parent and candidate receipts. The retained
 uninstrumented parent artifacts lack the complete command graph required for
 accepted dependency attribution and remain outside that paired claim.
@@ -58,12 +65,17 @@ commands. A resource receipt can be checked independently with:
     --candidate docs/research/c17-shipped-resource-baseline.json
 ```
 
-The retained schema-1 receipt preserves its numeric and libc/native archive
-projection scope. `shipped-archive-selection-comparison.md` defines schema 2,
-which adds every kernel and non-libc archive selection and requires matching
-collector digests. The validator labels the retained record as historical;
-complete comparisons require a newly measured schema-2 pair. The historical
-JSON and its recorded measurements remain unchanged.
+The retained receipt is schema 2: `shipped-archive-selection-comparison.md`
+defines the format, which adds every kernel and non-libc archive selection and
+requires matching collector digests. A comparison against it needs a candidate
+captured by the same collector and toolchain. The earlier schema-1 receipt at
+`e7040aa1` (580 paths, 36 groups, 32 packed programs) remains in Git history;
+the validator still labels a schema-1 receipt as historical.
+
+The source companion projects the closure: `sources` maps each tracked path in
+any group's `tracked_sources` to its SHA-256, `artifact_sources` lists each
+group's sorted `tracked_sources`, and `closure_sha256` is the digest of the
+closure file the resource receipt binds as `execution.closure_sha256`.
 
 Runtime stack, heap and storage traffic remain unmeasured in the receipt.
 Physical-board execution remains outside the capture operation. The twelve-stage

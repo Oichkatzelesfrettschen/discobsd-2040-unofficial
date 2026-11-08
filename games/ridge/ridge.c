@@ -1803,7 +1803,7 @@ main(int argc, char **argv)
 	static struct rg_view view;
 	static struct rg_keys keys;
 	struct sgttyb saved, raw;
-	int fd, level = 0, on = 1, off = 0, status;
+	int fd, level = 0, on = 1, off = 0, status, pgrp;
 
 	if (argc > 2)
 		return rg_usage();
@@ -1817,6 +1817,18 @@ main(int argc, char **argv)
 		rg_say("ridge: standard input is not a terminal\n");
 		return 1;
 	}
+	/*
+	 * The key session needs the foreground process group, so a background
+	 * start is refused before the panel is taken. SIGTTOU is ignored for the
+	 * whole run: ttioctl() in sys/kern/tty.c stops a process outside the
+	 * foreground group at TIOCFLUSH and TIOCSETP unless it ignores SIGTTOU,
+	 * and a stop there would leave /dev/lcdgfx open with the panel held.
+	 */
+	if (ioctl(0, TIOCGPGRP, &pgrp) < 0 || pgrp != getpgrp()) {
+		rg_say("ridge: must run in the foreground of the console\n");
+		return 1;
+	}
+	signal(SIGTTOU, SIG_IGN);
 	fd = open(RG_DEVICE, O_WRONLY);
 	if (fd < 0) {
 		rg_say("ridge: needs " RG_DEVICE ", the PicoCalc pixel device\n");

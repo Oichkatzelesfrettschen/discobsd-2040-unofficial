@@ -323,7 +323,9 @@ translation of raw key events into per-tick input live there.
 half draws through `games/gametile.h`; `RIDGE_RENDER` compiles it with the
 rules for `tests/render_test.c`, which binds the two device calls of
 `gametile.h` to a model of `/dev/lcdgfx`. The front end opens
-`/dev/lcdgfx` and the console, sets RAW without echo, starts the raw key
+`/dev/lcdgfx` and the console (refusing a start outside the console's
+foreground process group, and ignoring `SIGTTOU` so no tty call can stop it
+with the panel held), sets RAW without echo, starts the raw key
 session (`LCDIOC_KEYEVS`), runs a timed `select` loop that drops the
 bytes the tty also queues with `TIOCFLUSH` (a flush never waits, where a
 `read` of a tty another program had just set cooked would block until a

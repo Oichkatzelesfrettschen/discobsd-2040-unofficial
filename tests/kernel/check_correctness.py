@@ -217,9 +217,7 @@ def main():
             "io",
             {
                 "kern_time.c": (
-                    "        getitimer();\n"
-                    "        if (u.u_error)\n"
-                    "            return;",
+                    "        getitimer();\n        if (u.u_error)\n            return;",
                     "        getitimer();",
                 )
             },
@@ -402,8 +400,7 @@ def main():
             {
                 "kern_prot2.c": (
                     "u.u_groups[0] = requested_egid;",
-                    "u.u_groups[0] = requested_egid;\n"
-                    "    u.u_rgid = requested_egid;",
+                    "u.u_groups[0] = requested_egid;\n    u.u_rgid = requested_egid;",
                 )
             },
             True,

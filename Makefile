@@ -356,8 +356,9 @@ check-fs-stress:
 # sbin/fsck on images whose highest-numbered inode is in use. The inode
 # list numbers inodes 1 through imax inclusive, and the gate builds fsck for
 # the host against the tree's headers at ILP32, checks images made by the
-# fsutil library in preen and repair mode, and requires eight mutants (seven sites or pairs and the whole set) that
-# restore the pre-change comparisons to fail. A host without ILP32 execution
+# fsutil library in preen and repair mode, and requires every mutant
+# tests/fsck_inode_range/Makefile registers, each an earlier or faulted form of
+# fsck, fsutil, df or mkfs, to fail the scenarios named for it. A host without ILP32 execution
 # records a skip receipt; REQUIRE_ILP32=yes and the detached aggregate
 # check-ilp32-execution make it a failure.
 check-fsck-inode-range:

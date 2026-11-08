@@ -17,8 +17,10 @@
  *		lines (4.9 ms of bus time per step predicted)
  *
  * Every number is printed with its prediction and ratio; the program fails
- * only when a system call fails. While it runs it drains the raw key events
- * each frame and counts them by state; Esc ends it early. It sets the
+ * only when a system call fails. It starts a raw key event session
+ * (LCDIOC_KEYEVS), which needs the console open for reading in the foreground
+ * process group and empties the queue, drains the events each frame, counts
+ * them by state and ends early on an Esc pressed after the start. It sets the
  * console tty to raw mode without echo and restores it before it exits.
  *
  * Regression tool, not shipped in the root manifest; stage it with a "file
@@ -51,6 +53,7 @@
 
 static int errors;
 static int escape;			/* Esc was pressed. */
+static int keys_on;			/* A raw key event session is active. */
 static long key_events[4];		/* Events seen per state. */
 static long key_lost;
 static struct timeval t0;
@@ -96,6 +99,8 @@ poll_keys(void)
 	struct lcd_keyevs k;
 	int i;
 
+	if (!keys_on)
+		return;
 	do {
 		memset(&k, 0, sizeof(k));
 		if (ioctl(0, LCDIOC_GETKEY, &k) < 0) {
@@ -196,6 +201,7 @@ main(void)
 	struct sgttyb saved, raw;
 	long us, tiles, windows;
 	int fd, x, y, step, top, have_tty;
+	int session = 1;
 
 	have_tty = ioctl(0, TIOCGETP, &saved) == 0;
 	if (have_tty) {
@@ -211,7 +217,12 @@ main(void)
 		printf("cannot open %s\n", DEVICE);
 		return 1;
 	}
-	poll_keys();			/* Forget keys typed before the start. */
+	/* The session starts with an empty queue: earlier keys are not in it. */
+	if (ioctl(0, LCDIOC_KEYEVS, &session) < 0)
+		fail("LCDIOC_KEYEVS start (console not readable or not in the foreground)");
+	else
+		keys_on = 1;
+	escape = 0;
 	key_events[1] = key_events[2] = key_events[3] = 0;
 	key_lost = 0;
 	if (ioctl(fd, LCDG_INFO, &info) < 0)
@@ -275,6 +286,9 @@ main(void)
 
 	sleep(2);
 	poll_keys();
+	session = 0;
+	if (keys_on && ioctl(0, LCDIOC_KEYEVS, &session) < 0)
+		fail("LCDIOC_KEYEVS end");
 	close(fd);
 	if (have_tty)
 		ioctl(0, TIOCSETP, &saved);

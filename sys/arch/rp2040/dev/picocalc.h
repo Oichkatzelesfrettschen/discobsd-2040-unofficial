@@ -89,6 +89,9 @@ u_int		picokbd_errors(void);
 
 /* Bytes a key event produced, delivered by picokbd.c to lcdcons.c. */
 void		lcdcons_input(const char *s, int n);
+int		lcdcons_pgrp(void);
+struct file;
+void		lcdcons_fileclose(const struct file *fp);
 
 #endif /* KERNEL */
 

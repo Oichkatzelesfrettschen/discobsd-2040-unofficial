@@ -15,12 +15,15 @@
  */
 
 /*
- * The raw key event queue; picokbd_evq.h states the contract.
+ * The raw key event queue and its session; picokbd_evq.h states the
+ * contract.
  *
- * head and tail count events taken in and removed since the reset and wrap
- * modulo 2^32, so head - tail is the fill and the slot of event k is
- * k % LCD_KEYEV_QUEUE.
+ * head and tail count events taken in and removed since the session began
+ * and wrap modulo 2^32, so head - tail is the fill and the slot of event k
+ * is k % LCD_KEYEV_QUEUE.
  */
+
+#include <sys/errno.h>
 
 #include "picokbd_evq.h"
 
@@ -33,12 +36,76 @@ _Static_assert(LCD_KEY_PRESSED == PICOKBD_PRESSED &&
 static struct lcd_keyev queue[LCD_KEYEV_QUEUE];
 static unsigned head, tail;
 static unsigned lost;			/* Drops since the last drain, at most 255. */
+static const void *owner;		/* Open file that owns the session. */
+static int owner_pgrp;			/* Its process group; the foreground group is required to equal it. */
+static int active;			/* A session is open; events are recorded. */
+
+/* Leave no keystroke in memory: the queue is cleared, not just emptied. */
+static void
+session_end(void)
+{
+	unsigned i;
+
+	for (i = 0; i < LCD_KEYEV_QUEUE; i++) {
+		queue[i].state = 0;
+		queue[i].key = 0;
+	}
+	active = 0;
+	owner = 0;
+	owner_pgrp = 0;
+	head = tail = 0;
+	lost = 0;
+}
+
+int
+picokbd_evq_start(const void *file, int pgrp, int tty_pgrp, int readable)
+{
+	if (!readable)
+		return EBADF;
+	if (pgrp == 0 || pgrp != tty_pgrp)
+		return EIO;
+	picokbd_evq_foreground(tty_pgrp);
+	if (active && owner != file)
+		return EBUSY;
+	session_end();
+	active = 1;
+	owner = file;
+	owner_pgrp = pgrp;
+	return 0;
+}
+
+int
+picokbd_evq_stop(const void *file)
+{
+	if (!active)
+		return 0;
+	if (owner != file)
+		return EPERM;
+	session_end();
+	return 0;
+}
+
+void
+picokbd_evq_fileclose(const void *file)
+{
+	if (active && owner == file)
+		session_end();
+}
+
+void
+picokbd_evq_foreground(int tty_pgrp)
+{
+	if (active && owner_pgrp != tty_pgrp)
+		session_end();
+}
 
 void
 picokbd_evq_put(int state, int key)
 {
 	struct lcd_keyev *ev;
 
+	if (!active)
+		return;
 	if (state != PICOKBD_PRESSED && state != PICOKBD_HOLD &&
 	    state != PICOKBD_RELEASED)
 		return;
@@ -52,23 +119,30 @@ picokbd_evq_put(int state, int key)
 	ev->key = (unsigned char)key;
 }
 
-void
-picokbd_evq_drain(struct lcd_keyevs *out)
+int
+picokbd_evq_drain(struct lcd_keyevs *out, int pgrp, int tty_pgrp, int readable)
 {
 	unsigned n = 0;
 
+	if (!readable)
+		return EBADF;
+	if (pgrp == 0 || pgrp != tty_pgrp)
+		return EIO;
+	picokbd_evq_foreground(tty_pgrp);
+	if (!active)
+		return EINVAL;
 	while (n < LCD_KEYEV_N && tail != head)
 		out->ev[n++] = queue[tail++ & (LCD_KEYEV_QUEUE - 1)];
 	out->n = (unsigned char)n;
 	out->lost = (unsigned char)lost;
 	lost = 0;
+	return 0;
 }
 
 void
 picokbd_evq_reset(void)
 {
-	head = tail = 0;
-	lost = 0;
+	session_end();
 }
 
 int
@@ -78,3 +152,22 @@ picokbd_event(int state, int key, int appcursor, int *ctrl,
 	picokbd_evq_put(state, key);
 	return picokbd_translate(state, key, appcursor, ctrl, out);
 }
+
+#ifdef PICOKBD_EVQ_TEST
+/* Host test inspection: the events held and the bytes of them left in memory. */
+unsigned
+picokbd_evq_fill(void)
+{
+	return head - tail;
+}
+
+unsigned
+picokbd_evq_residue(void)
+{
+	unsigned i, n = 0;
+
+	for (i = 0; i < LCD_KEYEV_QUEUE; i++)
+		n += (queue[i].state != 0) + (queue[i].key != 0);
+	return n;
+}
+#endif

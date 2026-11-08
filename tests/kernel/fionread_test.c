@@ -610,6 +610,7 @@ input_ownership_cases(void)
 		    _Alignof(struct lcdg_tileset) },
 		{ LCDG_TILEWIN, sizeof(struct lcdg_tilewin),
 		    _Alignof(struct lcdg_tilewin) },
+		{ LCDIOC_KEYEVS, sizeof(int), _Alignof(int) },
 	};
 	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
 	unsigned char original[sizeof(struct diskpart)];
@@ -737,6 +738,7 @@ lcdg_cases(void)
 		{ LCDG_TILESET, sizeof(struct lcdg_tileset) },
 		{ LCDG_TILEWIN, sizeof(struct lcdg_tilewin) },
 		{ LCDIOC_GETKEY, sizeof(struct lcd_keyevs) },
+		{ LCDIOC_KEYEVS, sizeof(int) },
 	};
 	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
 	u_int index;

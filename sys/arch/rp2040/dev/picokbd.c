@@ -452,6 +452,7 @@ kbd_poll(caddr_t arg __unused)
 			else if (ctrl && pc_micros() - ctrl_seen_us >
 			    KBD_CTRL_EXPIRE_MS * 1000U)
 				ctrl = 0;
+			picokbd_evq_foreground(lcdcons_pgrp());
 			n = picokbd_event(state, key, lcdterm_app_cursor(),
 			    &ctrl, seq);
 			if (n > 0)

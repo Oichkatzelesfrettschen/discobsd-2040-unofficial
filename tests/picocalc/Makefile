@@ -40,10 +40,12 @@
 #
 # kbdevq_test runs the raw key event queue (picokbd_evq.c) beside the key
 # translation: every state the controller reports must enter the queue in
-# order, a full queue drops its oldest event and counts the drop, and the
-# translated bytes must equal those of picokbd_translate() alone; thirteen
-# mutants of picokbd_evq.c and a poller that translates directly (wiring.sh)
-# must fail it.
+# order, a full queue drops its oldest event and counts the drop, nothing is
+# recorded outside a session, a session needs a readable descriptor in the
+# foreground group, ends on close, on request and on a change of foreground
+# group and leaves the queue empty, and the translated bytes must equal
+# those of picokbd_translate() alone; twenty-nine mutants of picokbd_evq.c
+# and six cut connections in the kernel glue (wiring.sh) must fail it.
 #
 # gametile_test runs the tile library (games/gametile.h) against a model of
 # the tile commands of /dev/lcdgfx; twenty-three mutants of the header must
@@ -110,8 +112,8 @@ kbdreq_test: kbdreq_test.c ${DEV}/picokbd_req.c ${DEV}/picokbd_req.h
 # console header; _DEFAULT_SOURCE supplies the BSD u_char the header uses.
 kbdevq_test: kbdevq_test.c ${DEV}/picokbd_evq.c ${DEV}/picokbd_evq.h \
 	    ${DEV}/picokbd_map.c ${DEV}/picokbd_map.h ${TOPSRC}/sys/sys/lcdcons.h
-	${HOST_CC} ${CSTD} -D_DEFAULT_SOURCE ${SAN} -g -I${TOPSRC}/tests/picocalc/shim \
-	    -I${DEV} -o $@ kbdevq_test.c ${DEV}/picokbd_evq.c ${DEV}/picokbd_map.c
+	${HOST_CC} ${CSTD} -D_DEFAULT_SOURCE -DPICOKBD_EVQ_TEST ${SAN} -g \
+	    -I${TOPSRC}/tests/picocalc/shim -I${DEV} -o $@ kbdevq_test.c ${DEV}/picokbd_evq.c ${DEV}/picokbd_map.c
 
 # The tile library is a header of static functions, strict C17 like the games
 # that include it; the test binds its ioctl and write hooks to a model.
@@ -254,8 +256,8 @@ mutant-gfx-abort:
 	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/'
 
 KBDEVQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
-		"${CSTD} -D_DEFAULT_SOURCE -I${TOPSRC}/tests/picocalc/shim" "${DEV}" \
-		kbdevq_test.c
+		"${CSTD} -D_DEFAULT_SOURCE -DPICOKBD_EVQ_TEST -I${TOPSRC}/tests/picocalc/shim" \
+		"${DEV}" kbdevq_test.c
 
 KBDEVQ_SRC=	picokbd_evq.c picokbd_evq.h picokbd_map.c picokbd_map.h
 
@@ -273,6 +275,22 @@ kbdevq-mutants: \
 	kbdevq-mutant-drain-slot \
 	kbdevq-mutant-put-slot \
 	kbdevq-mutant-full-threshold \
+	kbdevq-mutant-put-ungated \
+	kbdevq-mutant-drain-unreadable \
+	kbdevq-mutant-drain-background \
+	kbdevq-mutant-drain-no-session \
+	kbdevq-mutant-start-unreadable \
+	kbdevq-mutant-start-background \
+	kbdevq-mutant-start-keeps-queue \
+	kbdevq-mutant-start-steals \
+	kbdevq-mutant-stop-any-file \
+	kbdevq-mutant-fileclose-ignored \
+	kbdevq-mutant-fileclose-any-file \
+	kbdevq-mutant-foreground-ignored \
+	kbdevq-mutant-foreground-any-change \
+	kbdevq-mutant-end-keeps-queue \
+	kbdevq-mutant-end-keeps-drops \
+	kbdevq-mutant-end-keeps-bytes \
 	kbdevq-mutant-wiring
 
 kbdevq-mutant-drop-newest:
@@ -327,14 +345,82 @@ kbdevq-mutant-full-threshold:
 	${KBDEVQ_MUT} picokbd_evq.c \
 	    's/head - tail >= LCD_KEYEV_QUEUE/head - tail > LCD_KEYEV_QUEUE/' ${KBDEVQ_SRC}
 
-# The poller must record events through picokbd_event(), which queues and
-# translates, and translate nowhere else: a poller that calls
-# picokbd_translate() directly feeds the tty and leaves the queue empty.
-# wiring.sh states the check; the mutant calls the translation directly.
-kbdevq-mutant-wiring:
-	@sh ./wiring.sh "${DEV}/picokbd.c"
-	@sh ./wiring.sh -m "${DEV}/picokbd.c"
+kbdevq-mutant-put-ungated:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_put/,/^}/s/if (!active)/if (!active \&\& 0)/' ${KBDEVQ_SRC}
 
+kbdevq-mutant-drain-unreadable:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_drain/,/^}/s/if (!readable)/if (!readable \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-drain-background:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_drain/,/^}/s/pgrp == 0 || pgrp != tty_pgrp/0 \&\& (pgrp == 0 || pgrp != tty_pgrp)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-drain-no-session:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_drain/,/^}/s/if (!active)/if (!active \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-unreadable:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/if (!readable)/if (!readable \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-background:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/pgrp == 0 || pgrp != tty_pgrp/0 \&\& (pgrp == 0 || pgrp != tty_pgrp)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-keeps-queue:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/^\tsession_end();$$/\t(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-steals:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/if (active \&\& owner != file)/if (active \&\& owner != file \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-stop-any-file:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_stop/,/^}/s/if (owner != file)/if (owner != file \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-fileclose-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_fileclose/,/^}/s/session_end();/(void)file;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-fileclose-any-file:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_fileclose/,/^}/s/if (active \&\& owner == file)/if (active \&\& (owner == file || 1))/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-foreground-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_foreground/,/^}/s/session_end();/(void)tty_pgrp;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-foreground-any-change:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_foreground/,/^}/s/owner_pgrp != tty_pgrp/(owner_pgrp != tty_pgrp || 1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-end-keeps-queue:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^session_end/,/^}/s/^\thead = tail = 0;$$/\t(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-end-keeps-bytes:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^session_end/,/^}/s/queue\[i\].key = 0;/(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-end-keeps-drops:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^session_end/,/^}/s/^\tlost = 0;$$/\t(void)0;/' ${KBDEVQ_SRC}
+
+# The kernel glue that no host program runs (the poller, the console's
+# request handlers, the close hook in vn_closefile) is checked by reading
+# the function that must make each call; wiring.sh states the checks and
+# cuts each connection in turn to show that it rejects the cut.
+kbdevq-mutant-wiring:
+	@sh ./wiring.sh "${DEV}/picokbd.c" "${DEV}/lcdcons.c" \
+	    "${TOPSRC}/sys/kern/vfs_vnops.c"
+	@sh ./wiring.sh -m "${DEV}/picokbd.c" "${DEV}/lcdcons.c" \
+	    "${TOPSRC}/sys/kern/vfs_vnops.c"
+
+# The sanitizers are on for the mutants: a range check that forms an
+# overflowing sum is rejected by the test only because UBSan stops it.
 GAMETILE_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
 		"${CSTD} -D_DEFAULT_SOURCE -I${TOPSRC}/tests/picocalc/shim" \
 		"${TOPSRC}/games" gametile_test.c
@@ -1253,7 +1339,7 @@ clean:
 	picoaudio-mutant-override-kept \
 	picoaudio-mutant-busy-kept
 
-.PHONY: kbdevq-mutants kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
+.PHONY: kbdevq-mutants kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-foreground-ignored kbdevq-mutant-foreground-any-change kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
 
 .PHONY: gametile-mutants gametile-mutant-run-crosses-row gametile-mutant-run-single gametile-mutant-run-bridges-gap gametile-mutant-mark-kept gametile-mutant-pending-uncounted gametile-mutant-pending-kept gametile-mutant-set-always-marks gametile-mutant-set-unmarked gametile-mutant-set-tile-range gametile-mutant-set-x-bound gametile-mutant-init-clean gametile-mutant-fill-range gametile-mutant-fill-tile-range gametile-mutant-short-write-accepted gametile-mutant-ioctl-failure-ignored gametile-mutant-window-height gametile-mutant-write-source gametile-mutant-load-last-tile gametile-mutant-load-high gametile-mutant-load-count-zero gametile-mutant-load-touch-missing gametile-mutant-touch-range gametile-mutant-load-bytes
 

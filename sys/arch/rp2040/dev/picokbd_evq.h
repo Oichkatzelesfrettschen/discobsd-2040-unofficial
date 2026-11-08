@@ -17,15 +17,31 @@
 /*
  * The raw key event queue behind LCDIOC_GETKEY (sys/lcdcons.h). The poller
  * of picokbd.c passes every controller event through picokbd_event(), which
- * records it here and then translates it to xterm bytes exactly as
- * picokbd_translate() does, so the queue adds no path the tty bytes wait on.
- * The file includes no kernel header beyond sys/lcdcons.h, and tests/picocalc
- * runs it directly.
+ * records it here when a session is active and then translates it to xterm
+ * bytes exactly as picokbd_translate() does, so the queue adds no path the
+ * tty bytes wait on. The file includes no kernel header beyond
+ * sys/lcdcons.h and sys/errno.h, and tests/picocalc runs it directly; the
+ * kernel glue in lcdcons.c supplies the caller's identity as plain values.
+ *
+ * Keystrokes include passwords, so nothing is recorded by default. A
+ * session starts when a process that holds the console readable
+ * (LCDIOC_KEYEVS 1) and belongs to the tty's foreground process group asks
+ * for it, and it owns the open file the request came through. The queue is
+ * emptied when the session starts and when it ends, and events are recorded
+ * only between the two. A session ends when its owner closes the file
+ * (picokbd_evq_fileclose(), called from the last close of that open file, which
+ * process exit performs), when the owner asks (LCDIOC_KEYEVS 0), and when the
+ * tty's foreground group is no longer the owner's group
+ * (picokbd_evq_foreground(), called with the tty's group before every event
+ * and by every request). A drain requires the readable descriptor and the
+ * foreground group, the checks ttread() applies, but a background caller gets
+ * EIO at once instead of SIGTTIN, and a rejected drain leaves the queue as it
+ * was.
  *
  * The queue holds LCD_KEYEV_QUEUE events. A full queue drops its oldest
  * event, so the newest state survives, and counts the drop for the next
- * drain. The caller serializes put and drain: the poller runs from the
- * clock callout and the drain from the ioctl at spltty().
+ * drain. The caller serializes every call: the poller runs from the clock
+ * callout and the requests from ioctl at spltty().
  */
 
 #ifndef _PICOKBD_EVQ_H
@@ -35,13 +51,37 @@
 
 #include "picokbd_map.h"
 
-/* Record one controller event; a state other than PRESSED, HOLD and RELEASED is no event. */
+/*
+ * Start a session owned by open file `file`. readable is nonzero when the
+ * descriptor allows reading; pgrp is the caller's process group and
+ * tty_pgrp the tty's foreground group. Returns 0, EBADF (not readable), EIO
+ * (not in the foreground group, or the tty has none) or EBUSY (another open
+ * file owns the session). A second start by the owner empties the queue and
+ * continues.
+ */
+int	picokbd_evq_start(const void *file, int pgrp, int tty_pgrp, int readable);
+
+/* End the session if `file` owns it: 0, or EPERM when another file does. */
+int	picokbd_evq_stop(const void *file);
+
+/*
+ * Remove up to LCD_KEYEV_N events, oldest first, and the drop count into
+ * out. Returns 0, EBADF (not readable), EIO (not foreground) or EINVAL
+ * (no session); only 0 touches the queue.
+ */
+int	picokbd_evq_drain(struct lcd_keyevs *out, int pgrp, int tty_pgrp,
+	    int readable);
+
+/* The open file `file` is closed: end its session. */
+void	picokbd_evq_fileclose(const void *file);
+
+/* End the session when the tty's foreground group is not the owner's. */
+void	picokbd_evq_foreground(int tty_pgrp);
+
+/* Record one controller event if a session is active and the state is an event. */
 void	picokbd_evq_put(int state, int key);
 
-/* Remove up to LCD_KEYEV_N events, oldest first, and the drop count into out. */
-void	picokbd_evq_drain(struct lcd_keyevs *out);
-
-/* Empty the queue and the drop count. */
+/* End any session and empty the queue. */
 void	picokbd_evq_reset(void);
 
 /* Record the event, then translate it as picokbd_translate() does. */

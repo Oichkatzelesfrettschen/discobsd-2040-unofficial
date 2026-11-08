@@ -58,6 +58,7 @@
 #include <sys/conf.h>
 #include <sys/user.h>
 #include <sys/proc.h>
+#include <sys/file.h>
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/systm.h>
@@ -525,19 +526,85 @@ lcd_setglyph(const struct lcd_glyph *g)
 	return error;
 }
 
+/* The foreground process group of the console tty, for the key event session. */
+int
+lcdcons_pgrp(void)
+{
+	return lcdttys[0].t_pgrp;
+}
+
 /*
- * Remove the oldest raw key events (picokbd_evq.h). The poller queues them
+ * The last close of an open file ends the raw key event session it owns
+ * (vn_closefile() calls this for every inode file). Process exit closes
+ * through the same path.
+ */
+void
+lcdcons_fileclose(const struct file *fp)
+{
+	int x = spltty();
+
+	picokbd_evq_fileclose(fp);
+	splx(x);
+}
+
+/*
+ * The open file the running ioctl(2) was made on. A driver gets only the
+ * file's flags, but the session belongs to the open file, so the descriptor
+ * is looked up from the system call's first argument and must carry the
+ * flags the driver was given; any other state fails closed.
+ */
+static const struct file *
+lcd_ioctl_file(int flag)
+{
+	int fd = u.u_arg[0];
+	const struct file *fp;
+
+	if (fd < 0 || fd >= NOFILE)
+		return NULL;
+	fp = u.u_ofile[fd];
+	if (fp == NULL || fp->f_flag != flag)
+		return NULL;
+	return fp;
+}
+
+/*
+ * LCDIOC_KEYEVS: start or end the raw key event session of this open file
+ * (picokbd_evq.h). The checks need the caller's process group and the
+ * tty's foreground group, which ttread() compares the same way.
+ */
+static int
+lcd_keyevs(int flag, int on)
+{
+	const struct file *fp = lcd_ioctl_file(flag);
+	int x, error;
+
+	if (fp == NULL || (on != 0 && on != 1))
+		return EINVAL;
+	x = spltty();
+	if (on)
+		error = picokbd_evq_start(fp, u.u_procp->p_pgrp,
+		    lcdttys[0].t_pgrp, (flag & FREAD) != 0);
+	else
+		error = picokbd_evq_stop(fp);
+	splx(x);
+	return error;
+}
+
+/*
+ * LCDIOC_GETKEY: remove the oldest raw key events. The poller queues them
  * from the clock callout, so the drain runs at spltty() as lcdcons_input()
  * does.
  */
 static int
-lcd_getkey(struct lcd_keyevs *out)
+lcd_getkey(int flag, struct lcd_keyevs *out)
 {
 	int x = spltty();
+	int error;
 
-	picokbd_evq_drain(out);
+	error = picokbd_evq_drain(out, u.u_procp->p_pgrp, lcdttys[0].t_pgrp,
+	    (flag & FREAD) != 0);
 	splx(x);
-	return 0;
+	return error;
 }
 
 /*
@@ -578,7 +645,9 @@ lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 	if (cmd == LCDIOC_SETGLYPH)
 		return lcd_setglyph((struct lcd_glyph *)addr);
 	if (cmd == LCDIOC_GETKEY)
-		return lcd_getkey((struct lcd_keyevs *)addr);
+		return lcd_getkey(flag, (struct lcd_keyevs *)addr);
+	if (cmd == LCDIOC_KEYEVS)
+		return lcd_keyevs(flag, *(int *)addr);
 
 	/*
 	 * A zero row or column count means the size is unknown, which

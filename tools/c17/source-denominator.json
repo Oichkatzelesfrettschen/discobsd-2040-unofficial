@@ -53180,7 +53180,9 @@
         "risk_tier_basis": "boundary-family-conservative",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [],
+          "aliasing": [
+            "cast-dereference"
+          ],
           "inline_assembly": [],
           "integer": [
             "integer-cast",
@@ -69797,7 +69799,9 @@
             "shift-expression",
             "width-sensitive-sizeof"
           ],
-          "object_lifetime": [],
+          "object_lifetime": [
+            "compound-literal"
+          ],
           "pointer": [
             "integer-pointer-cast"
           ],

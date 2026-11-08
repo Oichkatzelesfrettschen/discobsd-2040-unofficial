@@ -109,6 +109,7 @@ def main():
             "omitted-lcdg-info-case",
             "omitted-lcdg-tile-cases",
             "omitted-getkey-case",
+            "omitted-keyevs-case",
         ),
         required=True,
     )
@@ -211,6 +212,8 @@ def main():
             "",
             arguments.mutation,
         )
+    elif arguments.mutation == "omitted-keyevs-case":
+        source = replace_once(source, "    case LCDIOC_KEYEVS:\n", "", arguments.mutation)
     elif arguments.mutation == "omitted-getkey-case":
         source = replace_once(
             source,

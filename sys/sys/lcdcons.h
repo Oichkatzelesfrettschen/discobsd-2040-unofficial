@@ -32,8 +32,8 @@
  * ENOTTY on a console that has no bank.
  *
  * Raw key events. The tty delivers a key as the bytes an xterm sends, which
- * carry presses and the keyboard's auto-repeat but no release. LCDIOC_GETKEY
- * returns the events the keyboard controller reported, as it reported them:
+ * carry presses and the keyboard's auto-repeat but no release. A raw event
+ * session reports the events the keyboard controller sent, as it sent them:
  * a state (LCD_KEY_PRESSED, LCD_KEY_HOLD or LCD_KEY_RELEASED) and the key
  * byte. A key held down reports again, as further PRESSED or HOLD events, at
  * the controller's repeat rate. The key byte is the printable ASCII character
@@ -43,14 +43,28 @@
  * course into the input queue, so a program that reads events sets RAW and
  * clears ECHO, as the games do, and ignores or flushes the bytes.
  *
- * The driver keeps the most recent LCD_KEYEV_QUEUE events. When the queue is
- * full, the oldest event is dropped and counted, so the newest state always
- * survives. One call removes up to LCD_KEYEV_N events, oldest first, into
+ * Keystrokes include passwords, so the driver records nothing until a
+ * program asks. LCDIOC_KEYEVS with 1 starts a session on the console file
+ * it is called on; with 0 it ends the session. Starting needs a descriptor
+ * open for reading (EBADF otherwise) and a process in the tty's foreground
+ * process group (EIO otherwise, as a background read of the tty with SIGTTIN
+ * ignored); it returns EBUSY while another open file owns a session. The
+ * queue is empty when a session starts and when it ends. The session ends
+ * when the owning open file is closed for the last time (process exit
+ * closes it), when the owner ends it, and when the tty's foreground group
+ * is no longer the group the owner started in; the driver records no event
+ * after that.
+ *
+ * LCDIOC_GETKEY removes up to LCD_KEYEV_N events, oldest first, into
  * ev[0 .. n - 1], and sets `lost` to the number dropped since the previous
- * call (255 at most); a program that sees lost nonzero rebuilds its key state
- * from what it reads next. n is zero when no event waits: the call never
- * blocks. A program drains the queue once at start to ignore earlier keys,
- * and calls again while n equals LCD_KEYEV_N.
+ * call (255 at most); a program that sees lost nonzero rebuilds its key
+ * state from what it reads next. It needs a descriptor open for reading
+ * (EBADF) and a process in the foreground group (EIO), never stops the
+ * caller with SIGTTIN, returns EINVAL when no session is active, and leaves
+ * the queue untouched when it fails. n is zero when no event waits: the call
+ * never blocks. The driver keeps the most recent LCD_KEYEV_QUEUE events;
+ * when the queue is full the oldest is dropped and counted, so the newest
+ * state always survives. Both commands apply to the console tty only.
  */
 #define LCD_KEY_PRESSED		1
 #define LCD_KEY_HOLD		2
@@ -90,5 +104,6 @@ struct lcd_keyevs {
 };
 
 #define LCDIOC_GETKEY		_IOR('l', 2, struct lcd_keyevs)
+#define LCDIOC_KEYEVS		_IOW('l', 3, int)	/* 1: start a session, 0: end it. */
 
 #endif /* _SYS_LCDCONS_H_ */

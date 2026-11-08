@@ -1,6 +1,7 @@
 #!/bin/sh
 # Decide the fsck inode range gate: the program passes every scenario and
-# each mutant is rejected by the scenarios named for it.
+# each mutant is rejected by the scenarios named for it. A mutant named
+# fsutil-* rewrites tools/fsutil, and is run through its own image generator.
 #
 #   check.sh RUN_SH FSCK IMAGE_GEN WORKROOT MUTANT_DIR MUTANT=SCENARIO[,SCENARIO]...
 #
@@ -25,7 +26,7 @@ workroot=$4
 mutant_dir=$5
 shift 5
 
-all_scenarios='file-last dir-last orphan-last free-last lf-last'
+all_scenarios='file-last dir-last orphan-last free-last lf-last orphan-dir full-table fsutil-lf-last tail-evict'
 log=$workroot/check.log
 mkdir -p "$workroot" || exit 2
 
@@ -43,9 +44,21 @@ escaped=0
 for spec in "$@"; do
 	mutant=${spec%%=*}
 	scenarios=$(echo "${spec#*=}" | tr ',' ' ')
+	# A mutant of tools/fsutil is run with the unmutated fsck and its own
+	# image generator; a mutant of sbin/fsck is run with the shared one.
+	case $mutant in
+	fsutil-*)
+		mutant_fsck=$fsck
+		mutant_gen=$mutant_dir/image_gen_mutant_$mutant
+		;;
+	*)
+		mutant_fsck=$mutant_dir/fsck_mutant_$mutant
+		mutant_gen=$gen
+		;;
+	esac
 	for scenario in $scenarios; do
 		status=0
-		sh "$run_sh" "$mutant_dir/fsck_mutant_$mutant" "$gen" \
+		sh "$run_sh" "$mutant_fsck" "$mutant_gen" \
 		    "$workroot/$mutant-$scenario" "$scenario" >"$log" 2>&1 ||
 		    status=$?
 		case $status in

@@ -486,8 +486,10 @@ static int find_inode (fs_t *fs, fs_dirent_t *dirp)
     if (dirp->ino == 0)
         return KEEPON;
     if (strcmp (find_inode_name, dirp->name) == 0) {
+        /* The i-list numbers inodes 1 through (isize-1)*INOPB inclusive,
+         * the range ialloc() in sys/kern/ufs_alloc.c scans. */
         if (dirp->ino >= BSDFS_ROOT_INODE &&
-            dirp->ino < (fs->isize-1) * BSDFS_INODES_PER_BLOCK)
+            dirp->ino <= (fs->isize-1) * BSDFS_INODES_PER_BLOCK)
             find_inode_result = dirp->ino;
         return STOP;
     }

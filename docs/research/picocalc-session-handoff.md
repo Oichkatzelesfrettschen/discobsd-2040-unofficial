@@ -280,21 +280,6 @@ Prerequisites: none beyond current main.
 Done when each item is merged with its gate calibrated against a known-good
 and a known-bad input.
 
-### Software follow-ups
-
-Prerequisites: none.
-
-1. Re-record `docs/research/c17-shipped-resource-baseline.json`, which
-   records commit `e7040aa1`, before the `calc-bignum`, `calc`, `puzzles` and
-   `sdcard` closures.
-
-The per-board image paths (`sdcard-BOARD.img`, `flash-BOARD.uf2` beside the
-PICO names), strict C17 for `picokbd.c` and `lcdcons.c`
-(`check-console-c17-cross`) and the `publishat_beneath` ignore entries are
-done.
-
-Done when each item is merged or carries a tracking issue.
-
 ### Pixel console and games
 
 Prerequisites: none beyond current main. The pixel-graphics console and the

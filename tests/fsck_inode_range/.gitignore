@@ -5,3 +5,4 @@ objs/
 mutant/
 work/
 machine/
+image_gen_mutant_*

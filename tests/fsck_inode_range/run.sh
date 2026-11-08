@@ -171,6 +171,33 @@ run_decline() {
 # ".." alone, so the entry is cut from the record of ".."); a second fsutil
 # report is then clean, and so is a preen run of the host fsck over the
 # repaired image, which leaves every byte as it found it.
+# lost_name sets ino to the inode fsutil reported unreferenced, name to the
+# lost+found path fsutil gives it ("#" and the number in five digits) and
+# found to the inode that path resolves to, empty when no entry has the name.
+# A lookup that does not run to its own exit 0 or 1 is an execution error.
+lost_name() {
+	ino=$(sed -n 's/^UNREF FILE  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
+	[ -n "$ino" ] || error "$scenario: no inode number in the UNREF report"
+	name=$(printf '/lost+found/#%05u' "$ino")
+	status=0
+	found=$("$gen" --lookup "$img" "$name" 2>/dev/null) || status=$?
+	case $status in
+	0) ;;
+	1) found= ;;
+	*) error "$scenario: $gen --lookup did not complete, status $status" ;;
+	esac
+}
+
+# A lost+found whose record runs past its block is damaged: fsutil must
+# leave it alone and report that it has no room for the orphan.
+run_fsutil_overrun() {
+	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
+	has 'UNREF FILE'
+	has 'SORRY. NO SPACE IN lost+found DIRECTORY'
+	lost_name
+	[ -z "$found" ] || fail "$name resolves to $found in a damaged lost+found"
+}
+
 run_fsutil() {
 	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
 	has 'UNREF FILE'
@@ -178,10 +205,7 @@ run_fsutil() {
 	# fsutil names the reconnected file "#" and its inode number in five
 	# digits; fsck accepts an entry whose name is empty, so the name itself
 	# is checked through fsutil's lookup.
-	ino=$(sed -n 's/^UNREF FILE  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
-	[ -n "$ino" ] || error "$scenario: no inode number in the UNREF report"
-	name=$(printf '/lost+found/#%05u' "$ino")
-	found=$("$gen" --lookup "$img" "$name" 2>/dev/null) || found=
+	lost_name
 	[ "$found" = "$ino" ] ||
 	    fail "$name resolves to \"$found\", want $ino"
 	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
@@ -249,6 +273,7 @@ for scenario in "$@"; do
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
 	    full-table | fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
+	    fsutil-lf-overrun | \
 	    tail-evict | df-empty | df-full | \
 	    df-tail | df-mkfs | mkfs-ratio) ;;
 	*) error "unknown scenario $scenario" ;;
@@ -256,6 +281,7 @@ for scenario in "$@"; do
 	case $scenario in
 	fsutil-lf-last) layout=lf-last ;;
 	fsutil-lf-hole) layout=lf-hole-last ;;
+	fsutil-lf-overrun) layout=lf-overrun-last ;;
 	fsutil-lf-pristine) layout=orphan-last ;;
 	df-empty) layout=empty ;;
 	df-full) layout=file-last ;;
@@ -274,6 +300,7 @@ for scenario in "$@"; do
 	free-last) run_repair FILE after_create ;;
 	full-table) run_decline ;;
 	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil ;;
+	fsutil-lf-overrun) run_fsutil_overrun ;;
 	tail-evict) run_tail_evict ;;
 	df-empty) run_df 32 3 29 ;;
 	df-full) run_df 32 32 0 ;;

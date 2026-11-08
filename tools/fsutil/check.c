@@ -95,6 +95,7 @@ static char             *find_inode_name;   /* searching for this name */
 static unsigned         find_inode_result;  /* result of inode search */
 static unsigned         lost_inode;         /* lost file to reconnect */
 static fs_dirent_t      inserted;           /* entry to write after a shrunk one */
+static unsigned         scan_room;          /* bytes from the entry to its block end */
 
 static unsigned long    scan_filesize;      /* file size, decremented during scan */
 static unsigned         total_files;        /* number of files seen */
@@ -378,6 +379,7 @@ static int scan_directory (fs_inode_t *inode, unsigned blk, void *arg)
             break;
 
         /* For every directory entry, call handler. */
+        scan_room = &buf_data[BSDFS_BSIZE] - dirp;
         n = (*func) (inode->fs, &direntry);
 
         if (n & ALTERD) {
@@ -537,6 +539,10 @@ static int make_lost_entry (fs_t *fs, fs_dirent_t *dirp)
 
     snprintf (name, sizeof(name), "#%05u", lost_inode);
     namlen = strlen (name);
+    /* A record that runs past its block or breaks 4-byte alignment is
+     * damaged, and neither it nor its slack takes the new entry. */
+    if (dirp->reclen > scan_room || (dirp->reclen & 3))
+        return KEEPON;
     if (dirp->ino == 0) {
         if (dirp->reclen < DIRENT_SIZE (namlen))
             return KEEPON;

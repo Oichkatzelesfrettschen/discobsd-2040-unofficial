@@ -31,6 +31,10 @@
  *                  an empty entry (inode 0, no name) behind it. tools/fsutil's
  *                  checker reuses an empty entry before it cuts the slack of
  *                  a live one, so this block is the one that reaches it.
+ *   lf-overrun-last  lf-last, with the record of ".." in lost+found running
+ *                  512 bytes past the end of its block. The record is
+ *                  damaged, so tools/fsutil's checker must decline to cut
+ *                  its slack and report that lost+found has no room.
  *   tail-evict     a 96-inode volume (six inode blocks, so fsck holds the
  *                  inodes in two windows). A directory in lost+found whose
  *                  inode is in the second window has a length that is not a
@@ -55,8 +59,9 @@
  * "--fix IMAGE" opens the image for writing, as fsutil --check --fix does,
  * and lets fsutil repair what it reports.
  * "--lookup IMAGE PATH" prints the inode number PATH names, resolved through
- * fsutil's own directory lookup, and exits 1 when no entry has that name, so
- * a gate can require a repaired entry to carry the name it was given.
+ * fsutil's own directory lookup. It exits 1 when no entry has that name and
+ * 2 when the image does not open, so a gate can require a repaired entry to
+ * carry the name it was given.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -147,6 +152,31 @@ add_empty_entry(fs_t *fs, const char *name)
 	memset(block + hole, 0, sizeof block - hole);
 	block[hole + 4] = (sizeof block - hole) & 0xff;
 	block[hole + 5] = (sizeof block - hole) >> 8;
+	return fs_inode_write(&dir, 0, block, sizeof block) &&
+	    fs_inode_save(&dir, 1);
+}
+
+/*
+ * Make the record of ".." in the first block of directory name run 512 bytes
+ * past the block end, the damage a directory with a bad record length shows.
+ */
+static int
+overrun_dotdot(fs_t *fs, const char *name)
+{
+	fs_inode_t dir;
+	unsigned char block[BSDFS_BSIZE];
+	unsigned dotdot = 12;	/* "." takes 12 bytes, ".." starts behind it */
+	unsigned reclen = sizeof block - dotdot + 512;
+
+	if (!fs_inode_lookup(fs, &dir, name))
+		return 0;
+	if (!fs_inode_read(&dir, 0, block, sizeof block))
+		return 0;
+	if (block[dotdot + 4] + (block[dotdot + 5] << 8) !=
+	    (int)(sizeof block - dotdot))
+		return 0;
+	block[dotdot + 4] = reclen & 0xff;
+	block[dotdot + 5] = reclen >> 8;
 	return fs_inode_write(&dir, 0, block, sizeof block) &&
 	    fs_inode_save(&dir, 1);
 }
@@ -298,12 +328,15 @@ build(const char *layout, const char *path)
 		    !fill_files(&fs, 1, FREE_AT_START - 1))
 			return fail("cannot build", layout);
 	} else if (strcmp(layout, "lf-last") == 0 ||
-	    strcmp(layout, "lf-hole-last") == 0) {
+	    strcmp(layout, "lf-hole-last") == 0 ||
+	    strcmp(layout, "lf-overrun-last") == 0) {
 		if (!rename_to(&fs, "/lost+found", "/old-lf") ||
 		    !make_dir(&fs, "/lost+found") ||
 		    number_of(&fs, "/lost+found") != IMAGE_INODES ||
 		    (strcmp(layout, "lf-hole-last") == 0 &&
 		    !add_empty_entry(&fs, "/lost+found")) ||
+		    (strcmp(layout, "lf-overrun-last") == 0 &&
+		    !overrun_dotdot(&fs, "/lost+found")) ||
 		    !fill_files(&fs, 0, FREE_AT_START - 2) ||
 		    !drop_name(&fs, "/f05"))
 			return fail("cannot build", layout);
@@ -373,8 +406,10 @@ lookup(const char *path, const char *name)
 	fs_t fs;
 	fs_inode_t inode;
 
-	if (!fs_open(&fs, path, 0, 0))
-		return fail("cannot open", path);
+	if (!fs_open(&fs, path, 0, 0)) {
+		fail("cannot open", path);
+		return 2;
+	}
 	if (!fs_inode_lookup(&fs, &inode, name)) {
 		fs_close(&fs);
 		return fail("no entry", name);

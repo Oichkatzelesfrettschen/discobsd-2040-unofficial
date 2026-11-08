@@ -68,6 +68,10 @@ SITES: dict[str, Edit] = {
         "\n"
         '    snprintf (name, sizeof(name), "#%05u", lost_inode);\n'
         "    namlen = strlen (name);\n"
+        "    /* A record that runs past its block or breaks 4-byte alignment is\n"
+        "     * damaged, and neither it nor its slack takes the new entry. */\n"
+        "    if (dirp->reclen > scan_room || (dirp->reclen & 3))\n"
+        "        return KEEPON;\n"
         "    if (dirp->ino == 0) {\n"
         "        if (dirp->reclen < DIRENT_SIZE (namlen))\n"
         "            return KEEPON;\n"
@@ -109,6 +113,11 @@ SITES: dict[str, Edit] = {
         "check.c",
         "    if (dirp->reclen < used + DIRENT_SIZE (namlen))\n",
         "    if (dirp->ino)\n",
+    ),
+    "fsutil-reclen-bound": (
+        "check.c",
+        "    if (dirp->reclen > scan_room || (dirp->reclen & 3))\n        return KEEPON;\n",
+        "",
     ),
     "fsutil-split-trim": (
         "check.c",

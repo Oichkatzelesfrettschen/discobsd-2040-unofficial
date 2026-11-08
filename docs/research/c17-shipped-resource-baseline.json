@@ -2647,10 +2647,10 @@
   },
   "collector_sha256": "5a7b5a1073eb2caf445bfed4bd4c556879bd44e1cf27482b6df46ebe528b3e1f",
   "execution": {
-    "closure_sha256": "f42e6cc712399188392981899e02727fea91f7c71886bd11dcdf11dd0b6294fd",
+    "closure_sha256": "17e64bdcf9045778e34470bd5e1d0e825a427dea7bab32196306ee7d302b5be2",
     "exit_code": 0,
-    "log_sha256": "89bd6f5d768a15a691066c393df2f9c8147584fc3dbfce088a2436cecad827aa",
-    "receipt_sha256": "308990d2cd38c29c24881e48c4127e18becc0b10ae32c288dc2b126ea02d2b49",
+    "log_sha256": "de46f2cb8bff1b83ca7fbf7928f678567631898e9c52fd60df9f3fea7e54a59d",
+    "receipt_sha256": "9367e3c1f88c3f1ec7bfd843e32a9b79b9d52908effd6faf9e28fed176b327e3",
     "state": "completed"
   },
   "kernels": {
@@ -2713,7 +2713,7 @@
           "vma": 537133056
         }
       ],
-      "sha256": "a5ce22d6e7ffd7984ee89347b4b036c42145a84ce484242ba68d9e17b23ac58b"
+      "sha256": "59320c63e3f674f251467290c00a5773771341d60b0ba33b2c582a79720843c1"
     },
     "PICO_UART": {
       "sections": [
@@ -2760,7 +2760,7 @@
           "vma": 537018880
         }
       ],
-      "sha256": "b632ab453baf492eee47ea074c30b753478aced8db45d21f9d0b60230224fdd8"
+      "sha256": "36d1437efcb634f8b12169cf90342b4ed9586bed6fca31e4f03140b971216781"
     }
   },
   "manifest": {
@@ -3063,7 +3063,7 @@
         "writev.o"
       ],
       "bytes": 43018,
-      "sha256": "98710cc70ec5b189914a794ce9460af405c3f4286594fe85df20c8cc8450e8ca"
+      "sha256": "bd583c0eed001f348a31a45c95879bb881cbebf780c0efcce1c7e8ae219c8c8f"
     }
   },
   "programs": {
@@ -3365,9 +3365,9 @@
         "write.o"
       ],
       "packed_blocks": 32,
-      "packed_bytes": 31077,
+      "packed_bytes": 31079,
       "raw_bytes": 36316,
-      "sha256": "12680d5b91b6d77fb14670847196b528f380a18b6b6ff205556b637aabd3a766",
+      "sha256": "471f04938c2541ecd83c3dd282b7e0bdd8fee8d86fcfba60fe80532b70d2c270",
       "text": 33852
     },
     "/bin/sysbox": {
@@ -5587,7 +5587,7 @@
     "free_inodes": 32,
     "inode_list_blocks": 9,
     "partition_blocks": 988,
-    "sha256": "012dd99a20d659f58eb414090b316b05703df003791ee68caea32a488d4e8a32"
+    "sha256": "823c2fe087637365c3301dc36c1b5e9612b7b37d6bcb2b18937bc0b42bb021be"
   },
   "runtime": {
     "heap": {
@@ -5602,8 +5602,8 @@
   },
   "schema_version": 2,
   "source": {
-    "commit": "422bd00bd23050bce5de7dbfcd4bb8d5a6b3e254",
-    "tracked_files_sha256": "d33ff8aa7f8531b3c60967695cf56be0fe28c23224b39774e148d9d068a68e28"
+    "commit": "3626ccf3e510f1105692b2a24ee546acbf5828ac",
+    "tracked_files_sha256": "1ab66fc3ab6e2e0f1d525ea4ca176f03ebf3ce45256dd6776551c6ba0f21b41f"
   },
   "toolchain": {
     "bmake": "20260912",

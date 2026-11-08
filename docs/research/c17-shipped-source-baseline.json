@@ -3786,10 +3786,10 @@
       "usr.sbin/update/update.c"
     ]
   },
-  "closure_sha256": "f42e6cc712399188392981899e02727fea91f7c71886bd11dcdf11dd0b6294fd",
+  "closure_sha256": "17e64bdcf9045778e34470bd5e1d0e825a427dea7bab32196306ee7d302b5be2",
   "language_acceptance": "open",
   "schema_version": 1,
-  "source_commit": "422bd00bd23050bce5de7dbfcd4bb8d5a6b3e254",
+  "source_commit": "3626ccf3e510f1105692b2a24ee546acbf5828ac",
   "sources": {
     "benchmarks/coremark/core_list_join.c": "ca00e4e010ece47d7f040cb92aa50a95345a00d3171b59d088f6b243be06ce7b",
     "benchmarks/coremark/core_main.c": "17884c93c5b94378eb0ff02b4df3725756cf2addb9b8cbcaa6200a4649ff5ca7",
@@ -3863,7 +3863,7 @@
     "bin/sh/test.c": "2df0490f0230e58646693bcf4bd5de615268f7546bbdc0a5a656914bfe8561ee",
     "bin/sh/timeout.h": "12170e5617c881aa9b30cc140a794f3fd77e9458235ea339b29f24194a080b2a",
     "bin/sh/word.c": "1a42ccb8f0a0a6a80d3f3bdcd2148a43048119538d0f431f86e69ad7a7484462",
-    "bin/sh/xec.c": "f4be019883ec5020c147cf3830d1c2474437016c2243fef6570b6b189b261be7",
+    "bin/sh/xec.c": "eeedca9d514a0817a1101351fbcdc2022aa1bfdee35ec7c443169b6e800cefec",
     "bin/sleep/sleep.c": "5805155aa5be651c126e0ba79b46454b4b680da0e0d51a6a33bc026bcb084b8e",
     "bin/stty/stty.c": "29039c311d827fd077a39258beabe09984e1a7b1ceb0918ecb992676018c6db4",
     "bin/sync/sync.c": "172f86030897841ed6f54579c2963cc59dadd20f5613d3347fe605b762754256",
@@ -4202,7 +4202,7 @@
     "sys/kern/exec_conf.c": "3b3cd495df5e54c971358932d60fd12a110a2d113c44d08691d1556658db4287",
     "sys/kern/exec_elf.c": "b114c28c39125b3098f314de381fa1be29b54a11ebfb29ce72b434f563ab8f80",
     "sys/kern/exec_script.c": "2162c130b93a8e224809806463ef999bed9744e04f78e33bf338c7a8194b5f56",
-    "sys/kern/exec_subr.c": "86f44a49841396892c8406940aea475e18018f4b0a1e3316dfe86e10312359e4",
+    "sys/kern/exec_subr.c": "1b8d75eea428cd47b6e55ff873d332d809961635fa0639dfc832d38bba5e78a8",
     "sys/kern/init_main.c": "9853227567a1f8f2c8c205117e7fe368c204134794c8f3a06c52dd4e4fc2add6",
     "sys/kern/init_sysent.c": "70f28924b45eb0c51b91173d8ea0ae66b59255148a55dcfac14b59235dcc2a89",
     "sys/kern/kern_clock.c": "61da8b3fdb9bf57652fed819de84b1e746b8dd289e33862d22aa0ef8a428cfa3",
@@ -4396,5 +4396,5 @@
     "usr.bin/xargs/xargs.c": "b5b69b41aa7456c1ac41fde8c6a39d38c353ccfd68a89fdfffa128a15cc4012f",
     "usr.sbin/update/update.c": "023fe8bede6dae924fa3762856eb6aaa0198b9c77a120e2797f4f0d73f9bfe42"
   },
-  "tracked_files_sha256": "d33ff8aa7f8531b3c60967695cf56be0fe28c23224b39774e148d9d068a68e28"
+  "tracked_files_sha256": "1ab66fc3ab6e2e0f1d525ea4ca176f03ebf3ce45256dd6776551c6ba0f21b41f"
 }

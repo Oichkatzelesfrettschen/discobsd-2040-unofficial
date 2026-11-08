@@ -91,7 +91,7 @@ next independent row starts.
 | 12 | Remaining maintained source | Shipped-system milestone | Optional ARM, host tools, adapters and Smaller C implementation acceptance; justified exclusions and global closure |
 
 `c17-shipped-build-baseline.md` records the implemented capture/closure/resource
-foundation, first captured at `e7040aa1` and re-recorded at `422bd00b`. Its
+foundation, first captured at `e7040aa1` and re-recorded at `3626ccf3`. Its
 source and resource companions bind 604 tracked C/header paths and 37 artifact
 groups to the re-recorded revision. Shipped language
 acceptance, unreviewed migration ownership/risk decisions, runtime measurements

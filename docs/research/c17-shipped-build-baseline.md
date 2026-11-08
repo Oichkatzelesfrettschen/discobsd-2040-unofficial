@@ -2,7 +2,7 @@
 
 Public-header and libc refactoring need a configuration-specific caller set and
 comparable artifact measurements. The retained baseline measures production
-source at `422bd00b` (`a40730d1` plus the puzzlebox generated-input
+source at `3626ccf3` (main `6941397d` plus the puzzlebox generated-input
 providers) with the opt-in capture adapter, from a clean distribution
 of the `full` profile (`distrib/rp2040/sdcard.img`) built with GCC 16.2.0. The
 source companion identifies 604 tracked C/header paths by SHA-256 and records
@@ -75,7 +75,9 @@ the validator still labels a schema-1 receipt as historical.
 The source companion projects the closure: `sources` maps each tracked path in
 any group's `tracked_sources` to its SHA-256, `artifact_sources` lists each
 group's sorted `tracked_sources`, and `closure_sha256` is the digest of the
-closure file the resource receipt binds as `execution.closure_sha256`.
+closure file the resource receipt binds as `execution.closure_sha256`;
+`tools/c17/project_source_baseline.py` performs that projection and reproduces
+the committed companion from its closure byte for byte.
 
 Runtime stack, heap and storage traffic remain unmeasured in the receipt.
 Physical-board execution remains outside the capture operation. The twelve-stage

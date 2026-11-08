@@ -76,9 +76,15 @@ corrections are recorded under "Citation corrections".
      Clang-only comparator. On Thumb-1, call overhead and branch reach can
      cancel its savings.
 6. **Compressed executables.** HSAOUT with a 512-byte heatshrink window
-   (`sys/sys/exec_hsaout.h`) stays. The encoder index is disabled to save
-   2,048 bytes of bss and a 512-byte frame, at 27 percent slower host-side
-   encoding (`sys/arch/rp2040/heatshrink/heatshrink_config.h`).
+   (`sys/sys/exec_hsaout.h`, window 9, lookahead 3) stays.
+   - **Encoder index:** the heatshrink encoder also runs in the kernel, where
+     it compresses SwapRAM pages. Its search index is disabled there to save
+     2,048 bytes of kernel bss and a 512-byte `do_indexing` frame against a
+     2,100-byte kernel stack, with no change in output bytes
+     (`sys/arch/rp2040/heatshrink/heatshrink_config.h`).
+   - **Encoder speed:** the recorded cost is 27 percent more encode time on
+     the SwapRAM `awk` image, at window 9 and lookahead 8. The slowdown of
+     HSAOUT executable packing is unmeasured.
    - **Decoder candidates:** an alternative such as an LZ4 decoder for
      Cortex-M0 (ARM community blog,
      https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/lz4-decompression-routine-for-cortex-m0-and-later)

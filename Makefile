@@ -1088,8 +1088,8 @@ HOST_GATES=	check-architecture-isolation \
 		check-fs-profiles check-picocalc-host check-psram-pio
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
-		check-calc-host check-sh-editor \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
+		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
@@ -1165,6 +1165,9 @@ check-fourfall-host:
 
 check-coil-host:
 		${MAKE} -C games/coil test
+
+check-ridge-host: check-python
+		${MAKE} -C games/ridge test
 
 check-puzzlebox-host:
 		${MAKE} -C games/pzcommon test
@@ -1497,8 +1500,8 @@ installfs:
 		check-legacy-pdp11-v7-reference check-legacy-pdp11-v6 \
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
-		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-puzzlebox-host \
-		check-calc-host check-sh-editor check-tar-host \
+		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
+		check-puzzlebox-host check-calc-host check-sh-editor check-tar-host \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \

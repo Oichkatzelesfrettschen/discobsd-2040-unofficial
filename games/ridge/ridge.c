@@ -28,7 +28,8 @@
  * cells whose tile differs and sends one window per run of them. Defining
  * RIDGE_RENDER compiles the rules and the render half, for
  * tests/render_test.c, which binds the two device calls of gametile.h to a
- * model of /dev/lcdgfx. The front end opens the device and the console,
+ * model of /dev/lcdgfx; the key-event translation, which only the front end
+ * calls, is outside that build. The front end opens the device and the console,
  * starts the raw key event session of sys/lcdcons.h and runs the timed loop.
  * It needs both; without /dev/lcdgfx or without the key session it prints
  * why and exits, because the text console cannot show the game.

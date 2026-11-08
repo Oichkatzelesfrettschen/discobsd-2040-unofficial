@@ -526,11 +526,34 @@ lcd_setglyph(const struct lcd_glyph *g)
 	return error;
 }
 
-/* The foreground process group of the console tty, for the key event session. */
-int
-lcdcons_pgrp(void)
+_Static_assert(PICOKBD_EVQ_RAW_OR_CBREAK == (RAW | CBREAK) &&
+    PICOKBD_EVQ_VOLATILE == (PENDIN | FLUSHO),
+    "the key event session compares the tty flag word the line discipline sets");
+
+/*
+ * Hold the raw key event session to the tty's present foreground group and
+ * mode word. kbd_poll() calls it before it records each event, and every
+ * request calls picokbd_evq_check() before it acts, so a change of either is
+ * seen before any key is recorded or served.
+ */
+void
+lcdcons_keycheck(void)
 {
-	return lcdttys[0].t_pgrp;
+	picokbd_evq_check(lcdttys[0].t_pgrp, lcdttys[0].t_flags);
+}
+
+/*
+ * A mode-setting ioctl is about to run on the console tty: a process other
+ * than the session's owner ends the session even if it sets the flags it
+ * found (getpass() in an owner that already has RAW and no ECHO).
+ */
+static void
+lcd_modeset(void)
+{
+	int x = spltty();
+
+	picokbd_evq_modeset(u.u_procp, u.u_procp->p_pid);
+	splx(x);
 }
 
 /*
@@ -597,7 +620,8 @@ lcd_keyevs(int flag, int on)
 	x = spltty();
 	if (on)
 		error = picokbd_evq_start(fp, u.u_procp, u.u_procp->p_pid,
-		    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, (flag & FREAD) != 0);
+		    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, lcdttys[0].t_flags,
+		    (flag & FREAD) != 0);
 	else
 		error = picokbd_evq_stop(fp, u.u_procp, u.u_procp->p_pid);
 	splx(x);
@@ -616,7 +640,8 @@ lcd_getkey(int flag, struct lcd_keyevs *out)
 	int error;
 
 	error = picokbd_evq_drain(out, u.u_procp, u.u_procp->p_pid,
-	    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, (flag & FREAD) != 0);
+	    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, lcdttys[0].t_flags,
+	    (flag & FREAD) != 0);
 	splx(x);
 	return error;
 }
@@ -662,6 +687,9 @@ lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 		return lcd_getkey(flag, (struct lcd_keyevs *)addr);
 	if (cmd == LCDIOC_KEYEVS)
 		return lcd_keyevs(flag, *(int *)addr);
+	if (cmd == TIOCSETP || cmd == TIOCSETN || cmd == TIOCLBIS ||
+	    cmd == TIOCLBIC || cmd == TIOCLSET)
+		lcd_modeset();
 
 	/*
 	 * A zero row or column count means the size is unknown, which

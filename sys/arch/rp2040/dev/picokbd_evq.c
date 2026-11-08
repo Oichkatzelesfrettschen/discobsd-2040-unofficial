@@ -40,6 +40,7 @@ static const void *owner;		/* Open file that owns the session. */
 static const void *owner_proc;		/* Process that started it, with its pid. */
 static int owner_pid;
 static int owner_pgrp;			/* Its process group; the foreground group is required to equal it. */
+static unsigned owner_mode;		/* The tty's mode word when the session started. */
 static int active;			/* A session is open; events are recorded. */
 
 /* Leave no keystroke in memory: the queue is cleared, not just emptied. */
@@ -57,6 +58,7 @@ session_end(void)
 	owner_proc = 0;
 	owner_pid = 0;
 	owner_pgrp = 0;
+	owner_mode = 0;
 	head = tail = 0;
 	lost = 0;
 }
@@ -68,19 +70,29 @@ is_owner(const void *proc, int pid)
 	return owner_proc == proc && owner_pid == pid;
 }
 
+/* The part of the tty's flag word that the session compares. */
+static unsigned
+mode_of(unsigned tty_flags)
+{
+	return tty_flags & ~(unsigned)PICOKBD_EVQ_VOLATILE;
+}
+
 int
 picokbd_evq_start(const void *file, const void *proc, int pid, int pgrp,
-    int tty_pgrp, int readable)
+    int tty_pgrp, unsigned tty_flags, int readable)
 {
 	if (!readable)
 		return EBADF;
 	if (pgrp == 0 || pgrp != tty_pgrp)
 		return EIO;
-	picokbd_evq_foreground(tty_pgrp);
+	picokbd_evq_check(tty_pgrp, tty_flags);
+	if ((tty_flags & PICOKBD_EVQ_RAW_OR_CBREAK) == 0)
+		return EINVAL;
 	if (active && (owner != file || !is_owner(proc, pid)))
 		return EBUSY;
 	session_end();
 	active = 1;
+	owner_mode = mode_of(tty_flags);
 	owner = file;
 	owner_proc = proc;
 	owner_pid = pid;
@@ -114,9 +126,16 @@ picokbd_evq_procexit(const void *proc, int pid)
 }
 
 void
-picokbd_evq_foreground(int tty_pgrp)
+picokbd_evq_check(int tty_pgrp, unsigned tty_flags)
 {
-	if (active && owner_pgrp != tty_pgrp)
+	if (active && (owner_pgrp != tty_pgrp || owner_mode != mode_of(tty_flags)))
+		session_end();
+}
+
+void
+picokbd_evq_modeset(const void *proc, int pid)
+{
+	if (active && !is_owner(proc, pid))
 		session_end();
 }
 
@@ -142,7 +161,7 @@ picokbd_evq_put(int state, int key)
 
 int
 picokbd_evq_drain(struct lcd_keyevs *out, const void *proc, int pid, int pgrp,
-    int tty_pgrp, int readable)
+    int tty_pgrp, unsigned tty_flags, int readable)
 {
 	unsigned n = 0;
 
@@ -150,7 +169,7 @@ picokbd_evq_drain(struct lcd_keyevs *out, const void *proc, int pid, int pgrp,
 		return EBADF;
 	if (pgrp == 0 || pgrp != tty_pgrp)
 		return EIO;
-	picokbd_evq_foreground(tty_pgrp);
+	picokbd_evq_check(tty_pgrp, tty_flags);
 	if (!active)
 		return EINVAL;
 	if (!is_owner(proc, pid))

@@ -42,11 +42,12 @@
 # translation: every state the controller reports must enter the queue in
 # order, a full queue drops its oldest event and counts the drop, nothing is
 # recorded outside a session, a session needs a readable descriptor in the
-# foreground group and belongs to its process, ends on close, on the
-# process's exit, on request and on a change of foreground group and leaves
-# the queue empty, and the translated bytes must equal
-# those of picokbd_translate() alone; thirty-six mutants of picokbd_evq.c
-# and ten cut connections in the kernel glue (wiring.sh) must fail it.
+# foreground group and in RAW or CBREAK mode, belongs to its process, ends
+# on close, on the process's exit, on request, on a change of foreground
+# group and on any change of the tty's mode word (a getpass-like ECHO
+# clear), and leaves the queue empty, and the translated bytes must equal
+# those of picokbd_translate() alone; forty-four mutants of picokbd_evq.c
+# and sixteen cut connections in the kernel glue (wiring.sh) must fail it.
 #
 # gametile_test runs the tile library (games/gametile.h) against a model of
 # the tile commands of /dev/lcdgfx; twenty-nine mutants of the header must
@@ -287,11 +288,19 @@ kbdevq-mutants: \
 	kbdevq-mutant-stop-any-file \
 	kbdevq-mutant-fileclose-ignored \
 	kbdevq-mutant-fileclose-any-file \
-	kbdevq-mutant-foreground-ignored \
-	kbdevq-mutant-foreground-any-change \
+	kbdevq-mutant-check-ignored \
+	kbdevq-mutant-check-always-ends \
 	kbdevq-mutant-end-keeps-queue \
 	kbdevq-mutant-end-keeps-drops \
 	kbdevq-mutant-end-keeps-bytes \
+	kbdevq-mutant-check-ignores-group \
+	kbdevq-mutant-check-ignores-mode \
+	kbdevq-mutant-mode-counts-line-discipline \
+	kbdevq-mutant-start-cooked \
+	kbdevq-mutant-start-raw-only \
+	kbdevq-mutant-start-no-snapshot \
+	kbdevq-mutant-modeset-ignored \
+	kbdevq-mutant-modeset-owner \
 	kbdevq-mutant-drain-any-process \
 	kbdevq-mutant-stop-any-process \
 	kbdevq-mutant-start-any-process \
@@ -397,13 +406,13 @@ kbdevq-mutant-fileclose-any-file:
 	${KBDEVQ_MUT} picokbd_evq.c \
 	    '/^picokbd_evq_fileclose/,/^}/s/if (active \&\& owner == file)/if (active \&\& (owner == file || 1))/' ${KBDEVQ_SRC}
 
-kbdevq-mutant-foreground-ignored:
+kbdevq-mutant-check-ignored:
 	${KBDEVQ_MUT} picokbd_evq.c \
-	    '/^picokbd_evq_foreground/,/^}/s/session_end();/(void)tty_pgrp;/' ${KBDEVQ_SRC}
+	    '/^picokbd_evq_check/,/^}/s/session_end();/(void)tty_pgrp, (void)tty_flags;/' ${KBDEVQ_SRC}
 
-kbdevq-mutant-foreground-any-change:
+kbdevq-mutant-check-always-ends:
 	${KBDEVQ_MUT} picokbd_evq.c \
-	    '/^picokbd_evq_foreground/,/^}/s/owner_pgrp != tty_pgrp/(owner_pgrp != tty_pgrp || 1)/' ${KBDEVQ_SRC}
+	    '/^picokbd_evq_check/,/^}/s/owner_pgrp != tty_pgrp ||/(owner_pgrp != tty_pgrp || 1) ||/' ${KBDEVQ_SRC}
 
 kbdevq-mutant-end-keeps-queue:
 	${KBDEVQ_MUT} picokbd_evq.c \
@@ -444,6 +453,38 @@ kbdevq-mutant-owner-pid-ignored:
 kbdevq-mutant-owner-proc-ignored:
 	${KBDEVQ_MUT} picokbd_evq.c \
 	    's/return owner_proc == proc \&\& owner_pid == pid;/return (owner_proc == proc || 1) \&\& owner_pid == pid;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-check-ignores-group:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_check/,/^}/s/owner_pgrp != tty_pgrp ||/(owner_pgrp != tty_pgrp \&\& 0) ||/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-check-ignores-mode:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_check/,/^}/s/owner_mode != mode_of(tty_flags)/(owner_mode != mode_of(tty_flags) \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-mode-counts-line-discipline:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^mode_of/,/^}/s/tty_flags \& ~(unsigned)PICOKBD_EVQ_VOLATILE/tty_flags/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-cooked:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/(tty_flags \& PICOKBD_EVQ_RAW_OR_CBREAK) == 0/(tty_flags \& PICOKBD_EVQ_RAW_OR_CBREAK) == 0 \&\& 0/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-raw-only:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/(tty_flags \& PICOKBD_EVQ_RAW_OR_CBREAK) == 0/(tty_flags \& 0x20U) == 0/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-start-no-snapshot:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_start/,/^}/s/owner_mode = mode_of(tty_flags);/owner_mode = 0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-modeset-ignored:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_modeset/,/^}/s/session_end();/(void)proc, (void)pid;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-modeset-owner:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_modeset/,/^}/s/if (active \&\& !is_owner(proc, pid))/if (active \&\& (!is_owner(proc, pid) || 1))/' ${KBDEVQ_SRC}
 
 # The kernel glue that no host program runs (the poller, the console's
 # request handlers, the close hook in vn_closefile) is checked by reading
@@ -1407,7 +1448,7 @@ clean:
 	picoaudio-mutant-override-kept \
 	picoaudio-mutant-busy-kept
 
-.PHONY: kbdevq-mutants kbdevq-mutant-drain-any-process kbdevq-mutant-stop-any-process kbdevq-mutant-start-any-process kbdevq-mutant-procexit-ignored kbdevq-mutant-procexit-any-process kbdevq-mutant-owner-pid-ignored kbdevq-mutant-owner-proc-ignored kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-foreground-ignored kbdevq-mutant-foreground-any-change kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
+.PHONY: kbdevq-mutants kbdevq-mutant-check-ignores-group kbdevq-mutant-check-ignores-mode kbdevq-mutant-mode-counts-line-discipline kbdevq-mutant-start-cooked kbdevq-mutant-start-raw-only kbdevq-mutant-start-no-snapshot kbdevq-mutant-modeset-ignored kbdevq-mutant-modeset-owner kbdevq-mutant-drain-any-process kbdevq-mutant-stop-any-process kbdevq-mutant-start-any-process kbdevq-mutant-procexit-ignored kbdevq-mutant-procexit-any-process kbdevq-mutant-owner-pid-ignored kbdevq-mutant-owner-proc-ignored kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-check-ignored kbdevq-mutant-check-always-ends kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
 
 .PHONY: gametile-mutants gametile-mutant-fill-column-sum gametile-mutant-fill-row-sum gametile-mutant-fill-origin-unchecked gametile-mutant-load-sum gametile-mutant-load-product gametile-mutant-touch-unchecked gametile-mutant-run-crosses-row gametile-mutant-run-single gametile-mutant-run-bridges-gap gametile-mutant-mark-kept gametile-mutant-pending-uncounted gametile-mutant-pending-kept gametile-mutant-set-always-marks gametile-mutant-set-unmarked gametile-mutant-set-tile-range gametile-mutant-set-x-bound gametile-mutant-init-clean gametile-mutant-fill-range gametile-mutant-fill-tile-range gametile-mutant-short-write-accepted gametile-mutant-ioctl-failure-ignored gametile-mutant-window-height gametile-mutant-write-source gametile-mutant-load-last-tile gametile-mutant-load-high gametile-mutant-load-count-zero gametile-mutant-load-touch-missing gametile-mutant-touch-range gametile-mutant-load-bytes
 

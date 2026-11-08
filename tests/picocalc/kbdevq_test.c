@@ -70,6 +70,16 @@ static int proc_a, proc_b;
 static const void *cur_proc = &proc_a;
 static int cur_pid = PID_A;
 
+/* Bits of the tty flag word (sys/ioctl.h) and the word the tty shows now. */
+#define	F_CBREAK	0x00000002U
+#define	F_ECHO		0x00000008U
+#define	F_CRMOD		0x00000010U
+#define	F_RAW		0x00000020U
+#define	F_FLUSHO	0x00800000U
+#define	F_PENDIN	0x20000000U
+#define	F_GAME		(F_RAW | F_CRMOD)	/* What a game sets: raw, no echo. */
+static unsigned cur_flags = F_GAME;
+
 static void
 as_process(const void *proc, int pid)
 {
@@ -80,13 +90,15 @@ as_process(const void *proc, int pid)
 static int
 drain_as(struct lcd_keyevs *out, int pgrp, int tty_pgrp, int readable)
 {
-	return picokbd_evq_drain(out, cur_proc, cur_pid, pgrp, tty_pgrp, readable);
+	return picokbd_evq_drain(out, cur_proc, cur_pid, pgrp, tty_pgrp, cur_flags,
+	    readable);
 }
 
 static int
 start_f(const void *file, int pgrp, int tty_pgrp, int readable)
 {
-	return picokbd_evq_start(file, cur_proc, cur_pid, pgrp, tty_pgrp, readable);
+	return picokbd_evq_start(file, cur_proc, cur_pid, pgrp, tty_pgrp, cur_flags,
+	    readable);
 }
 
 static int
@@ -95,12 +107,20 @@ stop_f(const void *file)
 	return picokbd_evq_stop(file, cur_proc, cur_pid);
 }
 
+/* What kbd_poll() does before it records an event, and every request does first. */
+static void
+check_f(int tty_pgrp)
+{
+	picokbd_evq_check(tty_pgrp, cur_flags);
+}
+
 /* A fresh session owned by process A through file A in the foreground group. */
 static void
 begin(void)
 {
 	picokbd_evq_reset();
 	as_process(&proc_a, PID_A);
+	cur_flags = F_GAME;
 	expect("session start", start_f(&file_a, PG, PG, 1), 0);
 }
 
@@ -559,6 +579,140 @@ test_owner_process(void)
 	expect("owner stop empties", picokbd_evq_fill(), 0);
 }
 
+/*
+ * The session records only while the tty is in RAW or CBREAK mode and ends
+ * when any other bit of the mode word changes: getpass() clears ECHO through
+ * /dev/tty and reads a cooked line.
+ */
+static void
+test_mode(void)
+{
+	struct lcd_keyevs out;
+	char seq[PICOKBD_MAXSEQ];
+	int ctrl = 0;
+
+	/* No session starts in cooked mode. */
+	picokbd_evq_reset();
+	as_process(&proc_a, PID_A);
+	cur_flags = F_ECHO | F_CRMOD;
+	expect("cooked start", start_f(&file_a, PG, PG, 1), EINVAL);
+	cur_flags = 0;
+	expect("flagless start", start_f(&file_a, PG, PG, 1), EINVAL);
+	put_run(0, 3);
+	expect("a refused start records nothing", picokbd_evq_fill(), 0);
+	cur_flags = F_CBREAK | F_ECHO;
+	expect("cbreak start", start_f(&file_a, PG, PG, 1), 0);
+	cur_flags = F_RAW;
+	expect("a raw start by the owner restarts it", start_f(&file_a, PG, PG, 1), 0);
+	cur_flags = F_GAME;
+
+	/* A cooked start over a session finds the mode changed and ends it first. */
+	begin();
+	put_run(0, 3);
+	cur_flags = F_ECHO | F_CRMOD;
+	expect("cooked start over a session", start_f(&file_b, PG, PG, 1), EINVAL);
+	cur_flags = F_GAME;
+	expect("the session ended with the mode", picokbd_evq_residue(), 0);
+	expect("and is not revived", drain_as(&(struct lcd_keyevs){0}, PG, PG, 1), EINVAL);
+
+	/* The getpass sequence: ECHO cleared and the line read cooked. */
+	begin();
+	put_run(0, 4);
+	cur_flags = F_CRMOD;
+	check_f(PG);
+	expect("a mode change empties the queue", picokbd_evq_fill(), 0);
+	expect("and clears its bytes", picokbd_evq_residue(), 0);
+	picokbd_event(PICOKBD_PRESSED, 's', 0, &ctrl, seq);
+	put_run(10, 4);
+	expect("a cooked key is not recorded", picokbd_evq_fill(), 0);
+	cur_flags = F_GAME;
+	check_f(PG);
+	put_run(20, 4);
+	expect("restoring the flags does not revive it", picokbd_evq_fill(), 0);
+	expect("restoring the flags: drain", drain_as(&out, PG, PG, 1), EINVAL);
+
+	/* Every bit counts, but the line discipline's own toggles do not. */
+	begin();
+	put_run(0, 2);
+	cur_flags = F_GAME | F_FLUSHO | F_PENDIN;
+	check_f(PG);
+	expect("PENDIN and FLUSHO are the line discipline's", drain_run("volatile", 0, 2), 0);
+	cur_flags = F_GAME;
+	check_f(PG);
+	expect("and their return", picokbd_evq_fill(), 0);
+	put_run(0, 2);
+	cur_flags = F_GAME | F_ECHO;
+	check_f(PG);
+	expect("ECHO toggled in raw mode ends it", picokbd_evq_fill(), 0);
+	put_run(5, 2);
+	expect("nothing after the ECHO change", picokbd_evq_fill(), 0);
+	begin();
+	put_run(0, 2);
+	cur_flags = (F_GAME & ~F_RAW) | F_CBREAK;
+	check_f(PG);
+	expect("RAW to CBREAK ends it", picokbd_evq_fill(), 0);
+	begin();
+	cur_flags = F_GAME & ~F_CRMOD;
+	check_f(PG);
+	put_run(0, 2);
+	expect("CRMOD toggled ends it", picokbd_evq_fill(), 0);
+
+	/* A request that finds a changed mode word ends the session before it serves. */
+	begin();
+	put_run(0, 3);
+	cur_flags = F_CRMOD;
+	expect("drain after a mode change", drain_as(&out, PG, PG, 1), EINVAL);
+	expect("it ended the session", picokbd_evq_residue(), 0);
+	begin();
+	cur_flags = F_CRMOD;
+	expect("start after a mode change in the same call is refused",
+	    start_f(&file_b, PG, PG, 1), EINVAL);
+	cur_flags = F_GAME;
+	expect("and the old session ended", drain_as(&out, PG, PG, 1), EINVAL);
+
+	/* The poller path: check, then record. A key after a change is not kept. */
+	begin();
+	cur_flags = F_CRMOD;
+	check_f(PG);
+	picokbd_event(PICOKBD_PRESSED, 'p', 0, &ctrl, seq);
+	picokbd_event(PICOKBD_RELEASED, 'p', 0, &ctrl, seq);
+	expect("keys typed into a cooked prompt", picokbd_evq_fill(), 0);
+	expect("leave no byte", picokbd_evq_residue(), 0);
+	cur_flags = F_GAME;
+}
+
+/*
+ * A mode-setting ioctl by a process other than the owner ends the session
+ * even when it sets the flags it found: getpass() in a child of an owner that
+ * already has RAW and no ECHO.
+ */
+static void
+test_modeset(void)
+{
+	begin();
+	put_run(0, 3);
+	picokbd_evq_modeset(&proc_a, PID_A);
+	expect("the owner's own ioctl keeps the session", picokbd_evq_fill(), 3);
+	picokbd_evq_modeset(&proc_b, PID_B);
+	expect("another process's ioctl ends it", picokbd_evq_fill(), 0);
+	expect("and clears its bytes", picokbd_evq_residue(), 0);
+	put_run(0, 3);
+	expect("nothing is recorded after it", picokbd_evq_fill(), 0);
+
+	begin();
+	picokbd_evq_modeset(&proc_a, PID_B);
+	expect("a reused slot is a stranger", picokbd_evq_fill() + picokbd_evq_residue(), 0);
+	begin();
+	picokbd_evq_modeset(&proc_b, PID_A);
+	put_run(0, 1);
+	expect("a reused pid is a stranger", picokbd_evq_fill(), 0);
+
+	/* With no session the call changes nothing. */
+	picokbd_evq_reset();
+	picokbd_evq_modeset(&proc_b, PID_B);
+	expect("no session, no effect", picokbd_evq_fill(), 0);
+}
+
 /* The session ends when the tty's foreground group is no longer the owner's. */
 static void
 test_foreground(void)
@@ -569,10 +723,10 @@ test_foreground(void)
 
 	begin();
 	put_run(0, 4);
-	picokbd_evq_foreground(PG);
+	check_f(PG);
 	expect("the same group keeps the session", drain_run("same", 0, 4), 0);
 	put_run(4, 3);
-	picokbd_evq_foreground(OTHER);
+	check_f(OTHER);
 	expect("a change of group leaves no key byte in memory", picokbd_evq_residue(), 0);
 	put_run(10, 3);
 	picokbd_event(PICOKBD_PRESSED, 'x', 0, &ctrl, seq);
@@ -608,8 +762,8 @@ test_foreground(void)
 	/* The group coming back does not revive an ended session. */
 	begin();
 	put_run(0, 3);
-	picokbd_evq_foreground(OTHER);
-	picokbd_evq_foreground(PG);
+	check_f(OTHER);
+	check_f(PG);
 	expect("no revival", drain_as(&out, PG, PG, 1), EINVAL);
 }
 
@@ -703,6 +857,8 @@ main(void)
 	test_drain_checks();
 	test_close();
 	test_owner_process();
+	test_mode();
+	test_modeset();
 	test_foreground();
 	test_drain_limit();
 	test_overflow();

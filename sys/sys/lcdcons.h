@@ -47,15 +47,27 @@
  * program asks. LCDIOC_KEYEVS with 1 starts a session, owned by the calling
  * process and the console file it is called on; with 0 the owner ends it.
  * Only the owning process may drain or end it (EPERM for any other process,
- * including one that shares the file, such as the parent shell). Starting needs a descriptor
- * open for reading (EBADF otherwise) and a process in the tty's foreground
- * process group (EIO otherwise, as a background read of the tty with SIGTTIN
- * ignored); it returns EBUSY while another open file owns a session. The
+ * including one that shares the file, such as the parent shell). Starting
+ * needs a descriptor open for reading (EBADF otherwise), a process in the
+ * tty's foreground process group (EIO otherwise, as a background read of the
+ * tty with SIGTTIN ignored) and a tty in RAW or CBREAK mode (EINVAL
+ * otherwise: cooked input is never recorded); it returns EBUSY while another
+ * open file owns a session. A program sets its mode first, with TIOCSETP and
+ * no echo as the games do, and starts the session after. The
  * queue is empty when a session starts and when it ends. The session ends
  * when the owning process exits or execs (a new program image does not
  * inherit it), when the owning open file is closed for the last time, when
- * the owner ends it, and when the tty's foreground group is no longer the
- * group the owner started in; the driver records no event after that.
+ * the owner ends it, when the tty's foreground group is no longer the group
+ * the owner started in, and when the tty's mode word is not the one it had at
+ * the start (RAW, CBREAK, ECHO, CRMOD and every other bit the user sets,
+ * changed by any process through any descriptor, the owner included; the bits
+ * the line discipline toggles itself, PENDIN and FLUSHO, do not count). A
+ * mode-setting ioctl (TIOCSETP, TIOCSETN, TIOCLBIS, TIOCLBIC, TIOCLSET) from
+ * any process other than the owner ends the session even when it sets the
+ * flags it found. The driver records no event after the session ends, and
+ * getpass(), which clears ECHO through /dev/tty and reads a cooked line, ends
+ * it. A program that must change its mode mid-game ends its own session and
+ * starts a new one after.
  *
  * LCDIOC_GETKEY removes up to LCD_KEYEV_N events, oldest first, into
  * ev[0 .. n - 1], and sets `lost` to the number dropped since the previous

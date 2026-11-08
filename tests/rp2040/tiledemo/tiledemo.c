@@ -18,8 +18,9 @@
  *
  * Every number is printed with its prediction and ratio; the program fails
  * only when a system call fails. It starts a raw key event session
- * (LCDIOC_KEYEVS), which needs the console open for reading in the foreground
- * process group and empties the queue, drains the events each frame, counts
+ * (LCDIOC_KEYEVS) after it has put the tty in raw mode: a session needs the
+ * console open for reading, in the foreground process group and raw or
+ * cbreak, and it empties the queue, drains the events each frame, counts
  * them by state and ends early on an Esc pressed after the start. It sets the
  * console tty to raw mode without echo and restores it before it exits.
  *
@@ -219,7 +220,7 @@ main(void)
 	}
 	/* The session starts with an empty queue: earlier keys are not in it. */
 	if (ioctl(0, LCDIOC_KEYEVS, &session) < 0)
-		fail("LCDIOC_KEYEVS start (console not readable or not in the foreground)");
+		fail("LCDIOC_KEYEVS start (console not readable, not raw or not in the foreground)");
 	else
 		keys_on = 1;
 	escape = 0;

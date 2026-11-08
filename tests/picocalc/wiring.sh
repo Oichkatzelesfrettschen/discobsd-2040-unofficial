@@ -8,7 +8,13 @@
 #
 #   kbd_poll()         hands each event to picokbd_event(), which queues and
 #                      translates it, never to picokbd_translate() alone, and
-#                      tells the queue the tty's foreground group first;
+#                      calls lcdcons_keycheck() first;
+#   lcdcons_keycheck() gives the queue the tty's foreground group and flag
+#                      word, so a session ends before a key is recorded
+#                      after a change of either;
+#   lcdioctl()         calls lcd_modeset() for the five mode-setting ioctls,
+#                      and lcd_modeset() tells the queue which process made
+#                      the call;
 #   lcdcons_fileclose() ends the session of the closing file;
 #   lcdcons_procexit() ends the session of the exiting or exec'ing process;
 #   lcd_keyevs(), lcd_getkey()  pass the descriptor's FREAD flag, the
@@ -52,7 +58,17 @@ check() {
 	_xit=$4
 	_xec=$5
 	has "$_poll" kbd_poll 'picokbd_event(' || return 1
-	has "$_poll" kbd_poll 'picokbd_evq_foreground(' || return 1
+	has "$_poll" kbd_poll 'lcdcons_keycheck(' || return 1
+	has "$_cons" lcdcons_keycheck 'picokbd_evq_check(' || return 1
+	has "$_cons" lcdcons_keycheck 't_pgrp' || return 1
+	has "$_cons" lcdcons_keycheck 't_flags' || return 1
+	has "$_cons" lcd_modeset 'picokbd_evq_modeset(' || return 1
+	has "$_cons" lcd_modeset 'p_pid' || return 1
+	for _c in TIOCSETP TIOCSETN TIOCLBIS TIOCLBIC TIOCLSET lcd_modeset; do
+		has "$_cons" lcdioctl "$_c" || return 1
+	done
+	has "$_cons" lcd_keyevs 't_flags' || return 1
+	has "$_cons" lcd_getkey 't_flags' || return 1
 	if has "$_poll" kbd_poll 'picokbd_translate('; then
 		return 1
 	fi
@@ -116,7 +132,7 @@ mutant() {
 }
 
 mutant poller-translates poll 's/picokbd_event(/picokbd_translate(/'
-mutant poller-skips-foreground poll 's/picokbd_evq_foreground(/(void)(/'
+mutant poller-skips-keycheck poll 's/lcdcons_keycheck(/(void)(/'
 mutant close-hook-missing vfs 's/lcdcons_fileclose(fp);/(void)fp;/'
 mutant fileclose-ends-nothing cons 's/picokbd_evq_fileclose(fp);/(void)fp;/'
 mutant requests-ignore-fread cons 's/(flag & FREAD) != 0/1/'
@@ -125,3 +141,9 @@ mutant exit-hook-missing xit 's/lcdcons_procexit(p);/(void)p;/'
 mutant exec-hook-missing xec 's/lcdcons_procexit(u\.u_procp);/(void)0;/'
 mutant procexit-ends-nothing cons 's/picokbd_evq_procexit(p, p->p_pid);/(void)p;/'
 mutant requests-ignore-pid cons 's/u\.u_procp->p_pid/0/'
+mutant keycheck-ignores-flags cons 's/lcdttys\[0\]\.t_pgrp, lcdttys\[0\]\.t_flags);/lcdttys[0].t_pgrp, 0);/'
+mutant keycheck-ignores-group cons 's/picokbd_evq_check(lcdttys\[0\]\.t_pgrp,/picokbd_evq_check(0,/'
+mutant requests-ignore-flags cons 's/lcdttys\[0\]\.t_flags,$/0,/'
+mutant modeset-hook-missing cons 's/^\t\tlcd_modeset();$/\t\t(void)0;/'
+mutant modeset-ends-nothing cons 's/picokbd_evq_modeset(u\.u_procp, u\.u_procp->p_pid);/(void)0;/'
+mutant modeset-misses-setlocal cons 's/cmd == TIOCLSET/cmd == 0/'

@@ -972,26 +972,31 @@ fatal:      if (block_map)
     printf ("** Phase 3 - Check Connectivity\n");
     for (inum = BSDFS_ROOT_INODE; inum <= last_allocated_inode; inum++) {
         if (inode_state (inum) == DSTATE) {
-            unsigned ino;
+            unsigned orphan = inum, parent;
 
+            /* Follow ".." through unreached directories to the topmost one,
+             * as pass3() in sbin/fsck does. Its ".." names a reached
+             * directory, or nothing, and it is the one to reconnect:
+             * phase 2 never visited its entries, so the rescan after the
+             * reconnect is what gives them their references. */
             find_inode_name = "..";
-            ino = inum;
-            do {
-                if (! fs_inode_get (fs, &inode, ino))
+            for (;;) {
+                if (! fs_inode_get (fs, &inode, orphan))
                     break;
                 find_inode_result = 0;
                 scan_inode (&inode, DATA, scan_directory, find_inode);
-                if (find_inode_result == 0) {
-                    /* Parent link lost. */
-                    if (move_to_lost_found (&inode)) {
-                        thisname = pathp = pathname;
-                        *pathp++ = '?';
-                        scan_pass2 (fs, ino);
-                    }
-                    break;
+                parent = find_inode_result;
+                if (parent != 0 && inode_state (parent) == DSTATE) {
+                    orphan = parent;
+                    continue;
                 }
-                ino = find_inode_result;
-            } while (inode_state (ino) == DSTATE);
+                if (move_to_lost_found (&inode)) {
+                    thisname = pathp = pathname;
+                    *pathp++ = '?';
+                    scan_pass2 (fs, orphan);
+                }
+                break;
+            }
         }
     }
 

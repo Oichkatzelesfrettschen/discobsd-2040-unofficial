@@ -171,12 +171,13 @@ run_decline() {
 # ".." alone, so the entry is cut from the record of ".."); a second fsutil
 # report is then clean, and so is a preen run of the host fsck over the
 # repaired image, which leaves every byte as it found it.
-# lost_name sets ino to the inode fsutil reported unreferenced, name to the
-# lost+found path fsutil gives it ("#" and the number in five digits) and
-# found to the inode that path resolves to, empty when no entry has the name.
-# A lookup that does not run to its own exit 0 or 1 is an execution error.
+# lost_name KIND sets ino to the first inode fsutil reported unreferenced as
+# KIND (FILE or DIR), name to the lost+found path fsutil gives it ("#" and the
+# number in five digits) and found to the inode that path resolves to, empty
+# when no entry has the name. A lookup that does not run to its own exit 0 or
+# 1 is an execution error.
 lost_name() {
-	ino=$(sed -n 's/^UNREF FILE  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
+	ino=$(sed -n "s/^UNREF $1  *I=\\([0-9][0-9]*\\) .*/\\1/p" "$out" | sed 1q)
 	[ -n "$ino" ] || error "$scenario: no inode number in the UNREF report"
 	name=$(printf '/lost+found/#%05u' "$ino")
 	status=0
@@ -194,20 +195,46 @@ run_fsutil_overrun() {
 	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
 	has 'UNREF FILE'
 	has 'SORRY. NO SPACE IN lost+found DIRECTORY'
-	lost_name
+	lost_name FILE
 	[ -z "$found" ] || fail "$name resolves to $found in a damaged lost+found"
 }
 
+# run_fsutil KIND CHILD...: fsutil's repair reconnects the unreferenced KIND
+# (FILE or DIR) under lost+found. A reconnected directory names lost+found as
+# its parent, and every CHILD (a path below the reconnected name, such as
+# /inner) resolves through it.
 run_fsutil() {
+	kind=$1
+	shift
 	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
-	has 'UNREF FILE'
+	has "UNREF $kind"
 	lacks 'SORRY'
 	# fsutil names the reconnected file "#" and its inode number in five
 	# digits; fsck accepts an entry whose name is empty, so the name itself
 	# is checked through fsutil's lookup.
-	lost_name
+	lost_name "$kind"
 	[ "$found" = "$ino" ] ||
 	    fail "$name resolves to \"$found\", want $ino"
+	# A reconnected directory brings its subtree with it: the phase that
+	# reconnects it walks the entries phase 2 never reached, which is what
+	# gives them their references.
+	reconnected=$name
+	if [ "$kind" = DIR ]; then
+		lost_found=$("$gen" --lookup "$img" /lost+found) ||
+		    error "$scenario: no /lost+found in the repaired image"
+		parent=$("$gen" --lookup "$img" "$reconnected/.." 2>/dev/null) ||
+		    parent=
+		[ "$parent" = "$lost_found" ] ||
+		    fail "$reconnected/.. resolves to \"$parent\", want $lost_found"
+	fi
+	for child in "$@"; do
+		name=$reconnected$child
+		status=0
+		found=$("$gen" --lookup "$img" "$name" 2>/dev/null) || status=$?
+		[ "$status" -le 1 ] ||
+		    error "$scenario: $gen --lookup did not complete, status $status"
+		[ -n "$found" ] || fail "$name does not resolve"
+	done
 	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
 	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING'
 	set_expected_files
@@ -273,7 +300,7 @@ for scenario in "$@"; do
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
 	    full-table | fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
-	    fsutil-lf-overrun | \
+	    fsutil-lf-overrun | fsutil-lf-dir | fsutil-lf-deep | \
 	    tail-evict | df-empty | df-full | \
 	    df-tail | df-mkfs | mkfs-ratio) ;;
 	*) error "unknown scenario $scenario" ;;
@@ -283,6 +310,8 @@ for scenario in "$@"; do
 	fsutil-lf-hole) layout=lf-hole-last ;;
 	fsutil-lf-overrun) layout=lf-overrun-last ;;
 	fsutil-lf-pristine) layout=orphan-last ;;
+	fsutil-lf-dir) layout=orphan-dir ;;
+	fsutil-lf-deep) layout=orphan-deep ;;
 	df-empty) layout=empty ;;
 	df-full) layout=file-last ;;
 	df-tail) layout=tail-evict ;;
@@ -299,7 +328,9 @@ for scenario in "$@"; do
 	orphan-dir) run_repair DIR after_reconnect ;;
 	free-last) run_repair FILE after_create ;;
 	full-table) run_decline ;;
-	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil ;;
+	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil FILE ;;
+	fsutil-lf-dir) run_fsutil DIR /inner ;;
+	fsutil-lf-deep) run_fsutil DIR /sub /sub/inner ;;
 	fsutil-lf-overrun) run_fsutil_overrun ;;
 	tail-evict) run_tail_evict ;;
 	df-empty) run_df 32 3 29 ;;

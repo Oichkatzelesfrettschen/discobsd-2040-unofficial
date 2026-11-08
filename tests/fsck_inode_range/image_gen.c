@@ -49,6 +49,12 @@
  *                  a middle inode; the directory loses its name in / but
  *                  keeps its link count and its ".." entry: fsck must
  *                  reconnect it into lost+found and repoint its "..".
+ *   orphan-deep    ten files, then a directory holding a subdirectory that holds
+ *                  a file; the outer directory loses its name in / but
+ *                  keeps its link count and its ".." entry. Its subdirectory
+ *                  has the lower inode number, so the connectivity phase
+ *                  meets it first and has to follow its ".." up to the
+ *                  directory it reconnects.
  *
  * "--check IMAGE" prints fsutil's own consistency report for an image,
  * opened read-only, so a gate can compare fsutil's file count with fsck's.
@@ -344,6 +350,13 @@ build(const char *layout, const char *path)
 		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||
 		    number_of(&fs, "/d00") != IMAGE_INODES - 10 ||
 		    !make_file(&fs, "/d00/inner") || !drop_name(&fs, "/d00"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "orphan-deep") == 0) {
+		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||
+		    number_of(&fs, "/d00") != IMAGE_INODES - 10 ||
+		    !make_dir_in(&fs, "/d00/sub", IMAGE_INODES - 10) ||
+		    number_of(&fs, "/d00/sub") >= IMAGE_INODES - 10 ||
+		    !make_file(&fs, "/d00/sub/inner") || !drop_name(&fs, "/d00"))
 			return fail("cannot build", layout);
 	} else {
 		if (!fill_files(&fs, 0, FREE_AT_START - 1) ||

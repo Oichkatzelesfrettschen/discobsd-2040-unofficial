@@ -71,7 +71,8 @@ SCENARIOS.allocdir-zero=	full-table
 # check.c, which run.sh uses beside the unmutated fsck.
 FSUTIL_MUTANTS=	fsutil-find-inode fsutil-lost-entry-old fsutil-namlen-empty \
 		fsutil-namlen-split fsutil-split-off fsutil-split-trim \
-		fsutil-reclen-bound
+		fsutil-reclen-bound fsutil-reach-skip fsutil-no-rescan \
+		fsutil-dotdot-keep fsutil-chain-flat
 SCENARIOS.fsutil-find-inode=	fsutil-lf-last fsutil-lf-hole
 SCENARIOS.fsutil-lost-entry-old=	fsutil-lf-last fsutil-lf-hole \
 				fsutil-lf-pristine
@@ -80,6 +81,10 @@ SCENARIOS.fsutil-namlen-split=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-split-off=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-split-trim=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-reclen-bound=	fsutil-lf-overrun
+SCENARIOS.fsutil-reach-skip=	fsutil-lf-dir fsutil-lf-deep
+SCENARIOS.fsutil-no-rescan=	fsutil-lf-dir fsutil-lf-deep
+SCENARIOS.fsutil-dotdot-keep=	fsutil-lf-dir fsutil-lf-deep
+SCENARIOS.fsutil-chain-flat=	fsutil-lf-deep
 
 # bin/df and sbin/mkfs are built from their own sources the same way; each
 # mutant is the program with one rewritten source file.

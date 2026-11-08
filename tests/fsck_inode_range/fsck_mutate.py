@@ -124,6 +124,26 @@ SITES: dict[str, Edit] = {
         "    dirp->reclen = used;\n    return ALTERD | INSERT | STOP;",
         "    return ALTERD | INSERT | STOP;",
     ),
+    "fsutil-reach-skip": (
+        "check.c",
+        "                if (move_to_lost_found (&inode)) {\n",
+        "                if (parent == 0 && move_to_lost_found (&inode)) {\n",
+    ),
+    "fsutil-no-rescan": (
+        "check.c",
+        "                    scan_pass2 (fs, orphan);\n",
+        "                    (void) orphan;\n",
+    ),
+    "fsutil-dotdot-keep": (
+        "check.c",
+        "        scan_inode (inode, DATA, scan_directory, dotdot_to_lost_found);\n",
+        "        (void) dotdot_to_lost_found;\n",
+    ),
+    "fsutil-chain-flat": (
+        "check.c",
+        "                if (parent != 0 && inode_state (parent) == DSTATE) {\n",
+        "                if (parent != 0 && inode_state (parent) == DSTATE && 0) {\n",
+    ),
     "df-isize": (
         "df.c",
         "sfsp->f_files = (sblock.fs_isize - (SUPERB + 1)) * INOPB;",

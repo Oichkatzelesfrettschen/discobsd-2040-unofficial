@@ -53,10 +53,15 @@ corrections are recorded under "Citation corrections".
      full.
    - **SRAM:** `ufs-fixed-table-sram-reduction.md` applies the same reasoning
      to SRAM: 10,328 bytes of bss recovered for 612 bytes of text.
-5. **Per-artifact flag experiments, then global flags.** `-Oz`, LTO,
-   `-fipa-icf` and section garbage collection are each measured on the
-   kernel and on each box before any change to `share/mk/sys.mk`, which uses
-   `-Os -fno-common` with no LTO and no `--gc-sections`.
+5. **Per-artifact flag experiments, then global flags.** `-Oz`, LTO and
+   section garbage collection are each measured on the kernel and on each
+   box before any change to `share/mk/sys.mk`, which uses `-Os -fno-common`
+   with no LTO and no `--gc-sections`.
+   - **ICF:** GCC enables `-fipa-icf` by default at `-Os`, so compiler-level
+     folding is already in the baseline. The untested parts are its measured
+     contribution (an `-fno-ipa-icf` comparison), its reach across
+     translation units under LTO, and linker-level folding, which GNU ld
+     lacks.
    - **Flag references:**
      - GCC documents `-Oz` and `-fipa-icf` at
        https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html.
@@ -79,8 +84,12 @@ corrections are recorded under "Citation corrections".
      https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/lz4-decompression-routine-for-cortex-m0-and-later)
      is judged on packed root blocks, decoder text and workspace, exec
      latency and worst-case expansion, together.
-   - **Decode cycle cost:** `rp2040-second-core-emulation/` holds the
-     387-cycles-per-byte model of the current decoder.
+   - **Decode cycle cost:** the 387-cycles-per-byte model in
+     `rp2040-second-core-emulation/` measures the bit-level decoder
+     (`get_bits`, `hsx_decoder_poll`) that preceded the word-buffered
+     `hsx_dec_run` in `sys/arch/rp2040/rp2040/hsx_stream.c` (commit
+     12e6d190). It is a historical baseline, and the current decoder's cost
+     per byte is unmeasured.
 7. **Bytecode for rarely used tools only where the interpreter already
    ships.**
    - **MicroPython:** its minimal port saves about 20 KB on Thumb-2 by
@@ -135,7 +144,8 @@ Both inform the `xip-shared-libc/` r9 design.
 
 ## Not measured here
 
-- `-Oz`, LTO and ICF have not been built on this tree; they remain
-  experiments.
+- `-Oz`, LTO, an `-fno-ipa-icf` comparison and linker-level folding have
+  not been built on this tree; they remain experiments.
+- The current decoder's cycles per byte have not been modeled.
 - No alternative decoder has been prototyped.
 - The fixed-address libc has no runnable image.

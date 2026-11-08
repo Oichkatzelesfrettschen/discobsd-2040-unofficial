@@ -426,6 +426,8 @@ output_ownership_cases(void)
 		{ DIOCGETPART, sizeof(struct diskpart), _Alignof(struct diskpart) },
 		{ DIOCMEDIAGONE, sizeof(int), _Alignof(int) },
 		{ LCDG_INFO, sizeof(struct lcdg_info), _Alignof(struct lcdg_info) },
+		{ LCDIOC_GETKEY, sizeof(struct lcd_keyevs),
+		    _Alignof(struct lcd_keyevs) },
 	};
 	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
 	unsigned char expected[sizeof(struct diskpart)];
@@ -706,8 +708,9 @@ glyph_cases(void)
 }
 
 /*
- * The /dev/lcdgfx commands (sys/lcdgfx.h) carry at most twelve bytes, so each
- * fits the union that already stages the 16-byte partition record. The
+ * The /dev/lcdgfx commands (sys/lcdgfx.h) carry at most twelve bytes, and the
+ * console's LCDIOC_GETKEY record (sys/lcdcons.h) fourteen, so each fits the
+ * union that already stages the 16-byte partition record. The
  * ownership cases above copy each whole; these pin the edges per command:
  * the span ends at the window edge, a crossing span is refused before
  * dispatch, a provider error publishes nothing, and a reserved command bit
@@ -733,6 +736,7 @@ lcdg_cases(void)
 		{ LCDG_INFO, sizeof(struct lcdg_info) },
 		{ LCDG_TILESET, sizeof(struct lcdg_tileset) },
 		{ LCDG_TILEWIN, sizeof(struct lcdg_tilewin) },
+		{ LCDIOC_GETKEY, sizeof(struct lcd_keyevs) },
 	};
 	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
 	u_int index;
@@ -741,7 +745,8 @@ lcdg_cases(void)
 	    sizeof(struct lcdg_rect) <= 12 && sizeof(struct lcdg_line) <= 12 &&
 	    sizeof(struct lcdg_circle) <= 12 && sizeof(struct lcdg_pixel) <= 12,
 	    "every payload is at most twelve bytes");
-	_Static_assert(sizeof(struct lcdg_window) <= sizeof(struct diskpart),
+	_Static_assert(sizeof(struct lcdg_window) <= sizeof(struct diskpart) &&
+	    sizeof(struct lcd_keyevs) <= sizeof(struct diskpart),
 	    "the ownership cases stage these payloads in diskpart-sized buffers");
 
 	for (index = 0; index < sizeof cases / sizeof cases[0]; index++) {

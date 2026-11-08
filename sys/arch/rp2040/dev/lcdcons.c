@@ -70,6 +70,7 @@
 #include <rp2040/dev/picocalc_reg.h>
 #include <rp2040/dev/lcdterm.h>
 #include <rp2040/dev/lcdgfx.h>
+#include <rp2040/dev/picokbd_evq.h>
 
 #define	DEFER_RING	128		/* Power of two. */
 
@@ -525,6 +526,21 @@ lcd_setglyph(const struct lcd_glyph *g)
 }
 
 /*
+ * Remove the oldest raw key events (picokbd_evq.h). The poller queues them
+ * from the clock callout, so the drain runs at spltty() as lcdcons_input()
+ * does.
+ */
+static int
+lcd_getkey(struct lcd_keyevs *out)
+{
+	int x = spltty();
+
+	picokbd_evq_drain(out);
+	splx(x);
+	return 0;
+}
+
+/*
  * Hand the panel to /dev/lcdgfx (on) or take it back (off), under the
  * drawing flag so that no renderer or kernel print draws a cell inside the
  * panel transfers of the switch; what they defer drains at the release, into
@@ -561,6 +577,8 @@ lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 		return lcdgfx_ioctl(cmd, addr);
 	if (cmd == LCDIOC_SETGLYPH)
 		return lcd_setglyph((struct lcd_glyph *)addr);
+	if (cmd == LCDIOC_GETKEY)
+		return lcd_getkey((struct lcd_keyevs *)addr);
 
 	/*
 	 * A zero row or column count means the size is unknown, which

@@ -30,7 +30,44 @@
  * The ioctl returns EINVAL for a code below 0x80 or a row with a bit set
  * in bits 1-0, EAGAIN when the panel is busy with another drawer, and
  * ENOTTY on a console that has no bank.
+ *
+ * Raw key events. The tty delivers a key as the bytes an xterm sends, which
+ * carry presses and the keyboard's auto-repeat but no release. LCDIOC_GETKEY
+ * returns the events the keyboard controller reported, as it reported them:
+ * a state (LCD_KEY_PRESSED, LCD_KEY_HOLD or LCD_KEY_RELEASED) and the key
+ * byte. A key held down reports again, as further PRESSED or HOLD events, at
+ * the controller's repeat rate. The key byte is the printable ASCII character
+ * as typed after Shift, Caps Lock and the symbol layer, or a controller code
+ * (LCD_KEY_*); Shift, Ctrl, Alt and the other modifiers report as keys of
+ * their own. The tty path is unchanged: every event also takes its normal
+ * course into the input queue, so a program that reads events sets RAW and
+ * clears ECHO, as the games do, and ignores or flushes the bytes.
+ *
+ * The driver keeps the most recent LCD_KEYEV_QUEUE events. When the queue is
+ * full, the oldest event is dropped and counted, so the newest state always
+ * survives. One call removes up to LCD_KEYEV_N events, oldest first, into
+ * ev[0 .. n - 1], and sets `lost` to the number dropped since the previous
+ * call (255 at most); a program that sees lost nonzero rebuilds its key state
+ * from what it reads next. n is zero when no event waits: the call never
+ * blocks. A program drains the queue once at start to ignore earlier keys,
+ * and calls again while n equals LCD_KEYEV_N.
  */
+#define LCD_KEY_PRESSED		1
+#define LCD_KEY_HOLD		2
+#define LCD_KEY_RELEASED	3
+
+#define LCD_KEY_BACKSPACE	0x08
+#define LCD_KEY_TAB		0x09
+#define LCD_KEY_ENTER		0x0a
+#define LCD_KEY_CTRL		0xa5
+#define LCD_KEY_ESC		0xb1
+#define LCD_KEY_LEFT		0xb4
+#define LCD_KEY_UP		0xb5
+#define LCD_KEY_DOWN		0xb6
+#define LCD_KEY_RIGHT		0xb7
+
+#define LCD_KEYEV_N		6	/* Events one call returns. */
+#define LCD_KEYEV_QUEUE		32	/* Events the driver keeps. */
 #define LCD_GLYPH_FIRST		0x80
 #define LCD_GLYPH_ROWS		9
 
@@ -40,5 +77,18 @@ struct lcd_glyph {
 };
 
 #define LCDIOC_SETGLYPH		_IOW('l', 1, struct lcd_glyph)
+
+struct lcd_keyev {
+	u_char	state;			/* LCD_KEY_PRESSED, _HOLD or _RELEASED. */
+	u_char	key;
+};
+
+struct lcd_keyevs {
+	u_char	n;			/* Events in ev. */
+	u_char	lost;			/* Dropped since the previous call. */
+	struct lcd_keyev ev[LCD_KEYEV_N];
+};
+
+#define LCDIOC_GETKEY		_IOR('l', 2, struct lcd_keyevs)
 
 #endif /* _SYS_LCDCONS_H_ */

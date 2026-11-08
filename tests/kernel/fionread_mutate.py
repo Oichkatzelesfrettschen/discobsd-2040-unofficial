@@ -108,6 +108,7 @@ def main():
             "omitted-lcdg-control-cases",
             "omitted-lcdg-info-case",
             "omitted-lcdg-tile-cases",
+            "omitted-getkey-case",
         ),
         required=True,
     )
@@ -199,8 +200,8 @@ def main():
     elif arguments.mutation == "omitted-lcdg-info-case":
         source = replace_once(
             source,
-            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n#endif\n",
-            "",
+            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n    case LCDIOC_GETKEY:\n#endif\n",
+            "#ifdef PICOCALC_ENABLED\n    case LCDIOC_GETKEY:\n#endif\n",
             arguments.mutation,
         )
     elif arguments.mutation == "omitted-lcdg-tile-cases":
@@ -208,6 +209,13 @@ def main():
             source,
             "    case LCDG_TILESET:\n    case LCDG_TILEWIN:\n",
             "",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-getkey-case":
+        source = replace_once(
+            source,
+            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n    case LCDIOC_GETKEY:\n#endif\n",
+            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n#endif\n",
             arguments.mutation,
         )
     else:

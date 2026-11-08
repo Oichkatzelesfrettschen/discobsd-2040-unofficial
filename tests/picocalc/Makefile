@@ -38,6 +38,13 @@
 # model of the vendor firmware's register handler; eight mutants of
 # picokbd_req.c and picokbd_req.h must fail it.
 #
+# kbdevq_test runs the raw key event queue (picokbd_evq.c) beside the key
+# translation: every state the controller reports must enter the queue in
+# order, a full queue drops its oldest event and counts the drop, and the
+# translated bytes must equal those of picokbd_translate() alone; thirteen
+# mutants of picokbd_evq.c and a poller that translates directly (wiring.sh)
+# must fail it.
+#
 # sdspi_test runs the SD card protocol layer against a card model that
 # replays recorded command transcripts; twenty mutants of sdspi.c must fail
 # it.
@@ -69,16 +76,17 @@ SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 
 all: check
 
-check: lcdterm_test lcdgfx_test kbdreq_test sdspi_test sdstrat_test \
-	picoaudio_test font-sync
+check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test sdspi_test \
+	sdstrat_test picoaudio_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./kbdreq_test
+	./kbdevq_test
 	./sdspi_test
 	./sdstrat_test
 	./picoaudio_test
-	${MAKE} mutants gfx-mutants kbdreq-mutants sdspi-mutants \
-	    sdstrat-mutants picoaudio-mutants
+	${MAKE} mutants gfx-mutants kbdreq-mutants kbdevq-mutants \
+	    sdspi-mutants sdstrat-mutants picoaudio-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -92,6 +100,13 @@ lcdgfx_test: lcdgfx_test.c ${DEV}/lcdgfx.c ${DEV}/lcdgfx.h ${DEV}/lcdterm.c \
 kbdreq_test: kbdreq_test.c ${DEV}/picokbd_req.c ${DEV}/picokbd_req.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ kbdreq_test.c \
 	    ${DEV}/picokbd_req.c
+
+# The raw key event queue compiles as strict ISO C17 against the public
+# console header; _DEFAULT_SOURCE supplies the BSD u_char the header uses.
+kbdevq_test: kbdevq_test.c ${DEV}/picokbd_evq.c ${DEV}/picokbd_evq.h \
+	    ${DEV}/picokbd_map.c ${DEV}/picokbd_map.h ${TOPSRC}/sys/sys/lcdcons.h
+	${HOST_CC} ${CSTD} -D_DEFAULT_SOURCE ${SAN} -g -I${TOPSRC}/tests/picocalc/shim \
+	    -I${DEV} -o $@ kbdevq_test.c ${DEV}/picokbd_evq.c ${DEV}/picokbd_map.c
 
 sdspi_test: sdspi_test.c ${DEV}/sdspi.c ${DEV}/sdspi.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ sdspi_test.c \
@@ -225,6 +240,88 @@ mutant-gfx-enter-draws:
 mutant-gfx-abort:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
 	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/'
+
+KBDEVQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
+		"${CSTD} -D_DEFAULT_SOURCE -I${TOPSRC}/tests/picocalc/shim" "${DEV}" \
+		kbdevq_test.c
+
+KBDEVQ_SRC=	picokbd_evq.c picokbd_evq.h picokbd_map.c picokbd_map.h
+
+kbdevq-mutants: \
+	kbdevq-mutant-drop-newest \
+	kbdevq-mutant-lost-uncounted \
+	kbdevq-mutant-lost-wraps \
+	kbdevq-mutant-lost-kept \
+	kbdevq-mutant-drain-limit \
+	kbdevq-mutant-release-dropped \
+	kbdevq-mutant-hold-dropped \
+	kbdevq-mutant-idle-queued \
+	kbdevq-mutant-key-masked \
+	kbdevq-mutant-translate-dropped \
+	kbdevq-mutant-drain-slot \
+	kbdevq-mutant-put-slot \
+	kbdevq-mutant-full-threshold \
+	kbdevq-mutant-wiring
+
+kbdevq-mutant-drop-newest:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/^\t\ttail++;$$/\t\treturn;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-uncounted:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/^\t\t\tlost++;$$/\t\t\t(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-wraps:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/if (lost < 255)/if (1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-kept:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_drain/,/^}/s/^\tlost = 0;$$/\t(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-drain-limit:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/n < LCD_KEYEV_N \&\& tail != head/n < LCD_KEYEV_N + 1 \&\& tail != head/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-release-dropped:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/^\t    state != PICOKBD_RELEASED)$$/\t    state != PICOKBD_PRESSED)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-hold-dropped:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/state != PICOKBD_HOLD \&\&/state != PICOKBD_PRESSED \&\&/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-idle-queued:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/^\t    state != PICOKBD_RELEASED)$$/\t    state > 3)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-key-masked:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/picokbd_evq_put(state, key);$$/picokbd_evq_put(state, key \& 0x7f);/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-translate-dropped:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/return picokbd_translate(state, key, appcursor, ctrl, out);/return (void)appcursor, (void)ctrl, (void)out, 0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-drain-slot:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/queue\[tail++ \& (LCD_KEYEV_QUEUE - 1)\]/queue[tail++ \& (LCD_KEYEV_QUEUE - 2)]/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-put-slot:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/head++ \& (LCD_KEYEV_QUEUE - 1)/head++ % (LCD_KEYEV_QUEUE - 1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-full-threshold:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/head - tail >= LCD_KEYEV_QUEUE/head - tail > LCD_KEYEV_QUEUE/' ${KBDEVQ_SRC}
+
+# The poller must record events through picokbd_event(), which queues and
+# translates, and translate nowhere else: a poller that calls
+# picokbd_translate() directly feeds the tty and leaves the queue empty.
+# wiring.sh states the check; the mutant calls the translation directly.
+kbdevq-mutant-wiring:
+	@sh ./wiring.sh "${DEV}/picokbd.c"
+	@sh ./wiring.sh -m "${DEV}/picokbd.c"
 
 GFX_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
 		lcdgfx_test.c
@@ -933,8 +1030,8 @@ picoaudio-mutant-busy-kept:
 	    's/bell_on = 0;$$/(void)0;/' picoaudio.c
 
 clean:
-	rm -f lcdterm_test lcdgfx_test kbdreq_test sdspi_test sdstrat_test \
-	    picoaudio_test
+	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test \
+	    sdspi_test sdstrat_test picoaudio_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
@@ -1020,6 +1117,8 @@ clean:
 	picoaudio-mutant-slice-left-on \
 	picoaudio-mutant-override-kept \
 	picoaudio-mutant-busy-kept
+
+.PHONY: kbdevq-mutants kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
 
 .PHONY: gfx-mutants gfx-mutant-exclusive-open gfx-mutant-no-restore \
 	gfx-mutant-coord-bound gfx-mutant-rect-order gfx-mutant-circle-right \

@@ -4,3 +4,4 @@ sdspi_test
 sdstrat_test
 picoaudio_test
 lcdgfx_test
+kbdevq_test

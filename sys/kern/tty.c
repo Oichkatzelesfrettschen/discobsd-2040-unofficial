@@ -34,7 +34,17 @@ static  int rts = TIOCM_RTS;
  * but that would require 2 mapping registers and/or a rewrite of the entire
  * clist handling.
  */
-int TTYHOG = 255;
+#define TTYHOG_BYTES    255
+int TTYHOG = TTYHOG_BYTES;
+
+/*
+ * ttwrite() stops at TTHIWAT and can pass it by one OBUFSIZ chunk plus a
+ * partly filled block; what remains of the pool must hold a full raw queue,
+ * TTYHOG_BYTES spread over the partly filled blocks of t_rawq and t_canq.
+ */
+_Static_assert((int)(NCLIST * CBSIZE) - TTMAXHIWAT - OBUFSIZ - (int)CBSIZE >=
+    TTYHOG_BYTES + 2 * (int)CBSIZE,
+    "the clist pool cannot hold a full output queue and TTYHOG of input");
 int TTYBLOCK = 128;
 int TTYUNBLOCK = 64;
 

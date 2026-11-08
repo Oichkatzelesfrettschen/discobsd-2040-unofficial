@@ -103,7 +103,17 @@ extern const uint16_t tthiwat[NSPEEDS];
 extern const uint8_t ttlowat[NSPEEDS];
 extern int q_to_b(register struct clist *q, char *cp, int cc);
 
-#define TTHIWAT(tp) tthiwat[(tp)->t_ospeed&TTMASK]
+/*
+ * The output high-water mark ttwrite() stops a writer at is the speed table's
+ * value capped at half the clist pool. The table reaches 2000 bytes, more
+ * than the NCLIST * CBSIZE bytes a small pool holds, so an uncapped writer
+ * fills the pool before its mark and ttyinput() drops what arrives meanwhile;
+ * the cap keeps room for TTYHOG bytes of input on the line (tty.c checks the
+ * sum at compile time).
+ */
+#define TTMAXHIWAT  ((int)(NCLIST * CBSIZE) / 2)
+#define TTHIWAT(tp) (tthiwat[(tp)->t_ospeed&TTMASK] < TTMAXHIWAT ? \
+                     tthiwat[(tp)->t_ospeed&TTMASK] : TTMAXHIWAT)
 #define TTLOWAT(tp) ttlowat[(tp)->t_ospeed&TTMASK]
 
 extern int nldisp;      /* number of line disciplines */

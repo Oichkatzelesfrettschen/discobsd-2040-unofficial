@@ -13,6 +13,16 @@
     "tools/generate_multicall_bss_overlay.sh",
     "tools/verify_multicall_bss_objects.sh"
   ],
+  "games/puzzlebox/multicall-bss-overlay.ld": [
+    "games/puzzlebox/Makefile",
+    "share/mk/multicall-bss-overlay.mk",
+    "tools/generate_multicall_bss_overlay.sh",
+    "tools/verify_multicall_bss_objects.sh"
+  ],
+  "games/puzzlebox/puzzlebox.c": [
+    "games/puzzlebox/Makefile",
+    "games/puzzlebox/puzzlebox.c.in"
+  ],
   "sbin/adminbox/adminbox.c": [
     "sbin/adminbox/Makefile",
     "sbin/adminbox/adminbox.c.in"

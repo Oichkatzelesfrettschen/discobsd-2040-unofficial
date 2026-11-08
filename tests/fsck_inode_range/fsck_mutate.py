@@ -58,6 +58,11 @@ SITES: dict[str, Edit] = {
         "struct  dirtemplate dirhead = { 0, 12, 1, {'.'}, 0, DIRBLKSIZ - 12, 2,",
         "struct  dirtemplate dirhead = { 0, 8, 1, {'.'}, 0, DIRBLKSIZ - 8, 2,",
     ),
+    "allocdir-zero": (
+        "dir.c",
+        "    if (ino == 0)\n        return (0);\n    dirhead.dot_ino = ino;",
+        "    dirhead.dot_ino = ino;",
+    ),
     "window-flush": (
         "utilities.c",
         "bwrite(fcp, inobuf, startib, INOWINDOW(startib) * DEV_BSIZE);",

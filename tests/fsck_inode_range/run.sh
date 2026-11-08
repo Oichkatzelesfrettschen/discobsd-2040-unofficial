@@ -125,6 +125,21 @@ after_reconnect() {
 	second_run "$files"
 }
 
+# With every inode in use fsck cannot create lost+found: it reports the
+# refusal, clears the orphan it could not reconnect and leaves an image the
+# next preen run accepts with one file fewer.
+run_decline() {
+	set_expected_files
+	check_run -y
+	[ "$status" -eq 0 ] || fail "repair exit status $status, want 0"
+	has 'UNREF FILE'
+	has 'NO lost+found DIRECTORY'
+	has 'SORRY. CANNOT CREATE lost+found DIRECTORY'
+	has 'CLEAR?  yes'
+	lacks 'bad inode'
+	second_run $((files - 1))
+}
+
 # Creating lost+found adds one directory to the count, and the directory
 # fsck writes must pass the next directory check.
 after_create() {
@@ -137,7 +152,8 @@ for scenario in "$@"; do
 	img=$work/$scenario.img
 	rm -f "$img"
 	case $scenario in
-	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir) ;;
+	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
+	    full-table) ;;
 	*) error "unknown scenario $scenario" ;;
 	esac
 	"$gen" "$scenario" "$img" || error "$scenario: image generation failed"
@@ -146,6 +162,7 @@ for scenario in "$@"; do
 	orphan-last | lf-last) run_repair FILE after_reconnect ;;
 	orphan-dir) run_repair DIR after_reconnect ;;
 	free-last) run_repair FILE after_create ;;
+	full-table) run_decline ;;
 	esac
 	if [ "$failed" -eq 0 ]; then
 		printf 'ok %s\n' "$scenario"

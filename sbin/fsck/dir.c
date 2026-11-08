@@ -539,7 +539,8 @@ linkup(orphan, pdir)
 }
 
 /*
- * allocate a new directory
+ * allocate a new directory; returns its inode number, or 0 when allocino()
+ * finds no free inode or block (the callers report the refusal)
  */
 int
 allocdir(parent, request)
@@ -551,6 +552,8 @@ allocdir(parent, request)
     int st;
 
     ino = allocino(request, IFDIR|0755);
+    if (ino == 0)
+        return (0);
     dirhead.dot_ino = ino;
     dirhead.dotdot_ino = parent;
     dp = ginode(ino);

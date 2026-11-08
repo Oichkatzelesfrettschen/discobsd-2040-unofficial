@@ -18,6 +18,9 @@
  *                  deleted and one other file loses its name: the only free
  *                  inode is N, and fsck must create lost+found there to
  *                  reconnect the orphan.
+ *   full-table     lost+found is renamed old-lf and one file loses its name,
+ *                  with every inode in use: fsck has no inode to create
+ *                  lost+found in and must decline.
  *   lf-last        lost+found is a new directory at inode N, the original
  *                  is renamed old-lf, and one file loses its name: fsck must
  *                  find lost+found at inode N and reconnect the orphan in it.
@@ -191,6 +194,10 @@ build(const char *layout, const char *path)
 			/* Nothing more. */
 		} else if (strcmp(layout, "orphan-last") == 0) {
 			if (!drop_name(&fs, "/f00"))
+				return fail("cannot build", layout);
+		} else if (strcmp(layout, "full-table") == 0) {
+			if (!rename_to(&fs, "/lost+found", "/old-lf") ||
+			    !drop_name(&fs, "/f05"))
 				return fail("cannot build", layout);
 		} else if (strcmp(layout, "free-last") == 0) {
 			if (!rename_to(&fs, "/lost+found", "/old-lf") ||

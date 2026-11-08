@@ -215,6 +215,10 @@ ioctl(void)
 
     _Static_assert(sizeof payload >= sizeof(struct diskpart),
         "ioctl storage must hold the largest accepted payload");
+#ifdef PICOCALC_ENABLED
+    _Static_assert(sizeof payload >= sizeof(struct lcd_keyevs),
+        "ioctl storage must hold the raw key event record");
+#endif
 
     uap = (struct a *)u.u_arg;
     fp = getf(uap->fdes);
@@ -268,6 +272,7 @@ ioctl(void)
     case DIOCMEDIAGONE:
 #ifdef PICOCALC_ENABLED
     case LCDG_INFO:
+    case LCDIOC_GETKEY:
 #endif
         bzero((caddr_t)&payload, sizeof payload);
         u.u_error = (*Fops[fp->f_type]->fo_ioctl)(fp, com,
@@ -304,6 +309,9 @@ ioctl(void)
     case LCDG_SCROLL:
     case LCDG_SCRDEF:
     case LCDG_COLMOD:
+    case LCDG_TILESET:
+    case LCDG_TILEWIN:
+    case LCDIOC_KEYEVS:
 #endif
         break;
     default:

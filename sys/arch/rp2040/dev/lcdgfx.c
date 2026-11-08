@@ -39,9 +39,19 @@
  * widened to eight bits by bit replication and the panel keeps the upper
  * six; under COLMOD 0x55 the two bytes go out unchanged, most significant
  * first.
+ *
+ * The tile atlas is a 4,096-byte array of 128 tiles of 32 bytes, cleared at
+ * every open. LCDG_TILESET streams tiles into it through uiomove() with no
+ * staging buffer. LCDG_TILEWIN streams tile numbers into a one-row buffer;
+ * when a row of the block is complete, tile_row() opens one panel window
+ * over the row and sends the pixel lines of its tiles interleaved, so a row
+ * of n tiles costs one window setup and 64 n pixels, and the window is
+ * closed before write(2) returns. Neither stream holds chip select between
+ * write(2) calls.
  */
 
 #include <sys/param.h>
+#include <sys/systm.h>
 #include <sys/uio.h>
 #include <sys/errno.h>
 #include <sys/lcdgfx.h>
@@ -61,6 +71,19 @@ static int scr_top, scr_bottom;		/* VSCRDEF fixed areas in force. */
 static unsigned win_left;		/* Data bytes still wanted. */
 static unsigned win_fmt, win_fg, win_bg;
 static int win_w, win_col;
+
+/* The tile atlas and the two streams that fill it and draw from it. */
+static unsigned char atlas[LCDG_ATLAS_N * LCDG_TILE_BYTES];
+static unsigned tset_pos, tset_left;	/* LCDG_TILESET: next byte, bytes wanted. */
+static unsigned char tw_row[LCDG_GRID];	/* LCDG_TILEWIN: numbers of one row. */
+static unsigned tw_fill, tw_left;	/* Numbers in tw_row, numbers wanted. */
+static unsigned tw_x, tw_y, tw_w;	/* Column of the block, row and width. */
+
+_Static_assert(LCDG_GRID * LCDG_TILE_W == LCDG_WIDTH &&
+    LCDG_GRID * LCDG_TILE_H == LCDG_HEIGHT,
+    "the tile grid covers the panel");
+_Static_assert(LCDG_ATLAS_N <= 255 && LCDG_TILE_BYTES == LCDG_TILE_H * 4,
+    "the atlas size fits LCDG_INFO and a tile is eight lines of four bytes");
 
 static unsigned
 rgb565(unsigned r, unsigned g, unsigned b)
@@ -184,10 +207,12 @@ circle(int cx, int cy, int r, unsigned color)
 	}
 }
 
-/* Abandon a window that still wants pixels. */
+/* Abandon a window, a tile upload or a tile block that still wants data. */
 static void
 window_end(void)
 {
+	tset_left = 0;
+	tw_left = 0;
 	if (win_left != 0) {
 		win_left = 0;
 		lcd_gfx_end();
@@ -209,6 +234,9 @@ lcdgfx_open(void)
 	scr_top = 0;
 	scr_bottom = LCDGFX_BOTTOM;
 	win_left = 0;
+	tset_left = 0;
+	tw_left = 0;
+	bzero(atlas, sizeof(atlas));
 	for (i = 0; i < LCDG_NPAL; i++)
 		gfx_pal[i] = rgb565(lcd_palette[i][0], lcd_palette[i][1],
 		    lcd_palette[i][2]);
@@ -259,6 +287,87 @@ window_data(const unsigned char *p, unsigned n)
 	}
 }
 
+/*
+ * Draw the row of tiles in tw_row as one window. The panel window fills
+ * left to right, top to bottom, so line l of every tile precedes line l + 1:
+ * the loops run line, then tile, then the four bytes of the tile's line,
+ * high nibble first.
+ */
+static void
+tile_row(void)
+{
+	const unsigned char *p;
+	unsigned line, i, b;
+
+	lcd_gfx_window(tw_x * LCDG_TILE_W, tw_y * LCDG_TILE_H,
+	    (tw_x + tw_w) * LCDG_TILE_W - 1, (tw_y + 1) * LCDG_TILE_H - 1);
+	for (line = 0; line < LCDG_TILE_H; line++) {
+		for (i = 0; i < tw_w; i++) {
+			p = atlas + tw_row[i] * LCDG_TILE_BYTES + line * 4;
+			for (b = 0; b < 4; b++) {
+				put_color(gfx_pal[p[b] >> 4]);
+				put_color(gfx_pal[p[b] & 15]);
+			}
+		}
+	}
+	lcd_gfx_end();
+}
+
+/* The bytes of a LCDG_TILESET upload go straight into the atlas. */
+static int
+tileset_write(struct uio *uio)
+{
+	unsigned n;
+	int error;
+
+	while (uio->uio_resid > 0 && tset_left > 0) {
+		n = uio->uio_resid;
+		if (n > tset_left)
+			n = tset_left;
+		error = uiomove((caddr_t)atlas + tset_pos, n, uio);
+		if (error != 0)
+			return error;
+		tset_pos += n;
+		tset_left -= n;
+	}
+	return 0;
+}
+
+/*
+ * Tile numbers of a LCDG_TILEWIN block collect into tw_row and each
+ * complete row is drawn. A number the atlas does not hold ends the block
+ * before its row is drawn.
+ */
+static int
+tilewin_write(struct uio *uio)
+{
+	unsigned n, i;
+	int error;
+
+	while (uio->uio_resid > 0 && tw_left > 0) {
+		n = tw_w - tw_fill;
+		if (n > uio->uio_resid)
+			n = uio->uio_resid;
+		error = uiomove((caddr_t)tw_row + tw_fill, n, uio);
+		if (error != 0)
+			return error;
+		for (i = tw_fill; i < tw_fill + n; i++) {
+			if (tw_row[i] >= LCDG_ATLAS_N) {
+				tw_left = 0;
+				return EINVAL;
+			}
+		}
+		tw_fill += n;
+		tw_left -= n;
+		if (tw_fill == tw_w) {
+			tile_row();
+			tw_fill = 0;
+			tw_y++;
+		}
+	}
+	return 0;
+}
+
 int
 lcdgfx_write(struct uio *uio)
 {
@@ -266,6 +375,10 @@ lcdgfx_write(struct uio *uio)
 	unsigned n;
 	int error;
 
+	if (tset_left != 0)
+		return tileset_write(uio);
+	if (tw_left != 0)
+		return tilewin_write(uio);
 	if (win_left == 0)
 		return EINVAL;
 	if (win_fmt == LCDG_WIN_RGB565 && (uio->uio_resid & 1) != 0)
@@ -320,6 +433,8 @@ lcdgfx_ioctl(unsigned cmd, char *addr)
 	const struct lcdg_scroll *sc = (const struct lcdg_scroll *)addr;
 	const struct lcdg_scrdef *sd = (const struct lcdg_scrdef *)addr;
 	const struct lcdg_colmod *cm = (const struct lcdg_colmod *)addr;
+	const struct lcdg_tileset *ts = (const struct lcdg_tileset *)addr;
+	const struct lcdg_tilewin *tl = (const struct lcdg_tilewin *)addr;
 	struct lcdg_info *in = (struct lcdg_info *)addr;
 
 	window_end();
@@ -378,8 +493,24 @@ lcdgfx_ioctl(unsigned cmd, char *addr)
 	case LCDG_INFO:
 		in->w = LCDG_WIDTH;
 		in->h = LCDG_HEIGHT;
-		in->tiles = 0;
+		in->tiles = LCDG_ATLAS_N;
 		in->bpp = gfx_fmt == LCDG_COLMOD_RGB565 ? 16 : 18;
+		return 0;
+	case LCDG_TILESET:
+		if (ts->count == 0 || ts->first + ts->count > LCDG_ATLAS_N)
+			return EINVAL;
+		tset_pos = ts->first * LCDG_TILE_BYTES;
+		tset_left = ts->count * LCDG_TILE_BYTES;
+		return 0;
+	case LCDG_TILEWIN:
+		if (tl->tw == 0 || tl->th == 0 ||
+		    tl->tx + tl->tw > LCDG_GRID || tl->ty + tl->th > LCDG_GRID)
+			return EINVAL;
+		tw_x = tl->tx;
+		tw_y = tl->ty;
+		tw_w = tl->tw;
+		tw_fill = 0;
+		tw_left = tl->tw * tl->th;
 		return 0;
 	}
 	return ENOTTY;

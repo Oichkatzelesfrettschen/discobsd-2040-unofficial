@@ -43,6 +43,11 @@
 #include <sys/stat.h>
 #include <sys/systm.h>
 
+#ifdef PICOCALC_ENABLED
+/* sys/arch/rp2040/dev/lcdcons.c */
+extern void lcdcons_fileclose(const struct file *fp);
+#endif
+
 /*
  * 2.11BSD does not have "vnodes", having instead only old fashioned "inodes".
  * The routine names (i.e. vn_open) were retained since the functions them-
@@ -227,6 +232,10 @@ vn_closefile(register struct file *fp)
 {
     register struct inode *ip = (struct inode *)fp->f_data;
 
+#ifdef PICOCALC_ENABLED
+    /* A raw key event session ends with the open file that owns it. */
+    lcdcons_fileclose(fp);
+#endif
     /*
      * Need to clear the inode pointer in the file structure so that the
      * inode is not seen during the scan for aliases of character or block

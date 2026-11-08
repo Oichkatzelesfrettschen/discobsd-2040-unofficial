@@ -70,6 +70,7 @@
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
 #include <rp2040/dev/picokbd_map.h>
+#include <rp2040/dev/picokbd_evq.h>
 #include <rp2040/dev/picokbd_req.h>
 #include <rp2040/dev/lcdterm.h>
 #ifdef SD_ENABLED
@@ -451,7 +452,8 @@ kbd_poll(caddr_t arg __unused)
 			else if (ctrl && pc_micros() - ctrl_seen_us >
 			    KBD_CTRL_EXPIRE_MS * 1000U)
 				ctrl = 0;
-			n = picokbd_translate(state, key, lcdterm_app_cursor(),
+			lcdcons_keycheck();
+			n = picokbd_event(state, key, lcdterm_app_cursor(),
 			    &ctrl, seq);
 			if (n > 0)
 				lcdcons_input(seq, n);

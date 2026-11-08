@@ -115,6 +115,9 @@ MIN_LOST_S = 1.0
 LOSS_PAIR_FRACTION = 0.90
 LOSS_PAIR_LAG = 4
 LOSS_QUARTER = 4
+# Consecutive date lines that arrive closer than this fraction of the loop's
+# median arrival gap left a buffer together rather than the board one by one.
+BURST_FRACTION = 0.25
 # Exit status of a run whose measurements cannot decide (0 passes, 1 fails).
 INCONCLUSIVE = 2
 
@@ -267,6 +270,16 @@ def loss_of_clock(estimates):
     return loss if loss > MIN_LOST_S else None
 
 
+def buffered(arrivals):
+    """True when two consecutive ARRIVALS lie closer than BURST_FRACTION of the
+    median gap: the board forks one date per line and cannot make two lines
+    that close, so the pair drained from a buffer."""
+    gaps = [b - a for a, b in zip(arrivals, arrivals[1:])]
+    if not gaps:
+        return False
+    return min(gaps) < BURST_FRACTION * statistics.median(gaps)
+
+
 def offset_bounds(stamped, samples=SAMPLES):
     """Return (low, high) bounds on host time minus board time, in seconds.
 
@@ -276,22 +289,23 @@ def offset_bounds(stamped, samples=SAMPLES):
     lines parse. When the per-line bounds have no common point, which a sample
     delayed beyond SETTLE_MARGIN or a clock that fell behind during the loop
     produces, raises ClockLostTime for the second cause (see loss_of_clock)
-    and MeasurementError for the first. Two date lines that arrive in one read
-    of the console were held back together, so their arrival stamps bound
-    nothing about when each was made; such a loop raises MeasurementError
-    rather than ClockLostTime.
+    and MeasurementError for the first. Date lines that arrive closer together
+    than BURST_FRACTION of the loop's median arrival gap came out of a buffer
+    faster than the board makes them, so their arrival stamps bound nothing
+    about when each was made; such a loop raises MeasurementError rather than
+    ClockLostTime, whether the burst came in one console read or several.
     """
     low = -1e18
     high = 1e18
     used = 0
     estimates = []
-    arrivals = set()
+    arrivals = []
     for arrival, line in stamped:
         value = board_seconds(line)
         if value is None:
             continue
         used += 1
-        arrivals.add(arrival)
+        arrivals.append(arrival)
         estimates.append(arrival - value)
         # The line was made at x in [arrival - margin, arrival]; the board's
         # time b has floor(b) == value, so b in [value, value + 1) and the
@@ -301,7 +315,7 @@ def offset_bounds(stamped, samples=SAMPLES):
     if used < samples // 2:
         raise MeasurementError("only %d of %d date lines parsed" % (used, samples))
     if low > high:
-        loss = loss_of_clock(estimates) if len(arrivals) == used else None
+        loss = None if buffered(arrivals) else loss_of_clock(estimates)
         if loss is not None:
             raise ClockLostTime(loss, used)
         raise MeasurementError(

@@ -82,13 +82,18 @@ def cadence_lines(cadence, phase, lag=0.01, late=0.5):
     return out
 
 
-def buffered_lines(cadence=0.14, held=10, late=2.0):
+def buffered_lines(cadence=0.14, held=10, late=2.0, spread=0.0):
     """Steady board clock equal to host time: the first lines arrive 5 ms after
-    they are made, the last HELD together LATE seconds after the last one."""
+    they are made, the last HELD from LATE seconds after the last one, SPREAD
+    seconds apart (together when zero)."""
     made = [BASE + cadence * index for index in range(clock.SAMPLES)]
+    first_held = clock.SAMPLES - held
     burst = made[-1] + late
     return [
-        (burst if index >= clock.SAMPLES - held else when + 0.005, date_line(when))
+        (
+            burst + spread * (index - first_held) if index >= first_held else when + 0.005,
+            date_line(when),
+        )
         for index, when in enumerate(made)
     ]
 
@@ -203,6 +208,15 @@ class OffsetBounds(unittest.TestCase):
         # Dates 0.14 s apart from a steady clock; the console holds the last
         # ten and delivers them in one read two seconds after the last.
         stamped = buffered_lines()
+        with self.assertRaises(clock.MeasurementError) as caught:
+            clock.offset_bounds(stamped)
+        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+
+    def test_held_back_lines_drained_over_several_reads_are_not_a_lost_clock(self):
+        # The same held-back tail, delivered 5 ms apart in separate reads: every
+        # arrival stamp is distinct, and the burst still proves the buffering.
+        stamped = buffered_lines(spread=0.005)
+        self.assertEqual(len({arrival for arrival, _ in stamped}), clock.SAMPLES)
         with self.assertRaises(clock.MeasurementError) as caught:
             clock.offset_bounds(stamped)
         self.assertNotIsInstance(caught.exception, clock.ClockLostTime)

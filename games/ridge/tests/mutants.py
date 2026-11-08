@@ -165,8 +165,8 @@ LOGIC = [
     ),
     (
         "stomp-window-too-deep",
-        "prev_bottom <= e->y + RG_STOMP * RG_SUB",
-        "prev_bottom <= e->y + 4 * RG_STOMP * RG_SUB",
+        "bottom0 <= e->y + RG_STOMP * RG_SUB",
+        "bottom0 <= e->y + 4 * RG_STOMP * RG_SUB",
     ),
     (
         "enemy-overshoots-its-corridor",
@@ -191,8 +191,24 @@ LOGIC = [
     ),
     (
         "grace-also-spares-stomped-crawlers",
-        "\t\tif (p->vy > 0 && prev_bottom <= e->y + RG_STOMP * RG_SUB) {",
-        "\t\tif (p->grace == 0 && p->vy > 0 && prev_bottom <= e->y + RG_STOMP * RG_SUB) {",
+        "\t\tif (fell && bottom0 <= e->y + RG_STOMP * RG_SUB) {",
+        "\t\tif (p->grace == 0 && fell && bottom0 <= e->y + RG_STOMP * RG_SUB) {",
+    ),
+    (
+        "stomp-rebuilt-from-the-landed-velocity",
+        "\t\tif (fell && bottom0 <= e->y + RG_STOMP * RG_SUB) {",
+        "\t\tif ((void)bottom0, (void)fell, p->vy > 0 &&\n"
+        "\t\t    p->y + RG_PH * RG_SUB - p->vy <= e->y + RG_STOMP * RG_SUB) {",
+    ),
+    (
+        "stomp-without-a-fall",
+        "\t\tif (fell && bottom0 <= e->y + RG_STOMP * RG_SUB) {",
+        "\t\tif ((void)fell, bottom0 <= e->y + RG_STOMP * RG_SUB) {",
+    ),
+    (
+        "stomp-measured-after-the-move",
+        "\tbottom0 = g->p.y + RG_PH * RG_SUB;\n\ty0 = g->p.y;\n\trg_player_step(g, &g->p, in);",
+        "\ty0 = g->p.y;\n\trg_player_step(g, &g->p, in);\n\tbottom0 = g->p.y + RG_PH * RG_SUB;",
     ),
     # Level flow.
     (

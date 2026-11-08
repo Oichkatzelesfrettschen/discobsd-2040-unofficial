@@ -430,6 +430,53 @@ test_enemies(void)
 		    "box bottom %d units into the crawler before the tick: alive %d state %d", 80 + t,
 		    e->alive, G.state);
 	}
+	/*
+	 * Entering a crawler in the tick that lands on the floor: the box bottom
+	 * was at pixel 187, inside the stomp window of a crawler whose top is at
+	 * 184, and the floor at 192 stops the fall, which clears vy.
+	 */
+	arena(60);
+	G.ne = 1;
+	e = &G.en[0];
+	e->x0 = e->x1 = e->x = 10 * 128;
+	e->y = 24 * 128 - 8 * 16;
+	e->dir = 1;
+	e->alive = 1;
+	G.p.x = 10 * 128 + 8;
+	G.p.y = 187 * 16 - 224;
+	G.p.vy = 70;
+	G.p.ground = 0;
+	ticks(0, 1);
+	CHECK(G.p.ground == 1 && G.p.y == 24 * 128 - 224, "the fall ended on the floor: y %d", G.p.y);
+	CHECK(e->alive == 0 && G.score == 50 && G.state == RG_PLAY,
+	    "stomp that lands in the same tick: alive %d score %lu state %d", e->alive, G.score, G.state);
+	/* A climber at the top of its jump, level with the crawler's top, does not stomp: it is not falling. */
+	arena(60);
+	G.ne = 1;
+	e = &G.en[0];
+	e->x0 = e->x1 = e->x = 10 * 128;
+	e->y = 24 * 128 - 8 * 16;
+	e->dir = 1;
+	e->alive = 1;
+	G.p.x = 10 * 128 + 8;
+	G.p.y = e->y + 40 - 224;
+	G.p.vy = -12;
+	G.p.ground = 0;
+	ticks(0, 1);
+	CHECK(G.state == RG_DYING && e->alive == 1, "no stomp at the apex: state %d alive %d", G.state, e->alive);
+	/* Standing on the floor beside a crawler's patrol is not a fall. */
+	arena(60);
+	G.ne = 1;
+	e = &G.en[0];
+	e->x0 = e->x1 = e->x = 10 * 128;
+	e->y = 24 * 128 - 8 * 16;
+	e->dir = 1;
+	e->alive = 1;
+	G.p.x = 10 * 128 + 8;
+	G.p.y = 24 * 128 - 224;
+	G.p.ground = 1;
+	ticks(0, 1);
+	CHECK(G.state == RG_DYING && e->alive == 1, "a standing climber is hit, not a stomper");
 	/* Running into the side costs a life. */
 	arena(60);
 	G.ne = 1;
@@ -1158,15 +1205,21 @@ to_player(const struct bnode *n, struct rg_player *p)
  * tick by tick from the loaded level's start until the player touches the
  * goal; every state that touches a spike or leaves through a pit is dropped.
  * Returns the tick count and fills inputs[] (RG_IN_* of each tick), or -1
- * when the reachable states are exhausted or the node budget is spent.
+ * when the reachable states are exhausted or the node budget maxn is spent;
+ * the goal's node counts against the budget like any other and is never
+ * written beyond it.
  */
 static int
-solve(const struct rg_game *g, unsigned char *inputs, int cap, int *nstates)
+solve(const struct rg_game *g, unsigned char *inputs, int cap, int *nstates, int maxn)
 {
 	struct rg_player p;
-	int tail = 0, found = -1, d, j, x, y;
+	int tail = 0, found = -1, exhausted = 0, d, j, x, y;
 	struct bnode n0;
 
+	if (maxn < 1) {
+		*nstates = 0;
+		return -1;
+	}
 	bgoal_x = bgoal_y = 0;
 	for (x = 0; x < g->w; x++)
 		for (y = 0; y < RG_H; y++)
@@ -1184,7 +1237,7 @@ solve(const struct rg_game *g, unsigned char *inputs, int cap, int *nstates)
 	bnodes[tail++] = n0;
 	bseen(bkey(&n0));
 	bpush(0);
-	while (bheap_n > 0 && found < 0) {
+	while (bheap_n > 0 && found < 0 && !exhausted) {
 		int head = bpop();
 		struct bnode cur = bnodes[head];
 
@@ -1214,11 +1267,15 @@ solve(const struct rg_game *g, unsigned char *inputs, int cap, int *nstates)
 				nn.parent = head;
 				nn.g = cur.g + 1;
 				if (rg_goal_hit(g, &p)) {
+					if (tail >= maxn) {
+						exhausted = 1;
+						break;
+					}
 					bnodes[tail++] = nn;
 					found = tail - 1;
 					break;
 				}
-				if (tail >= BFS_MAXN || bseen(bkey(&nn)))
+				if (tail >= maxn || bseen(bkey(&nn)))
 					continue;
 				bnodes[tail] = nn;
 				bpush(tail++);
@@ -1282,7 +1339,7 @@ test_solvable(void)
 	}
 	for (lv = 0; lv < RG_NLEVELS; lv++) {
 		rg_new_game(&G, lv);
-		len = solve(&G, inputs, (int)sizeof inputs, &nst);
+		len = solve(&G, inputs, (int)sizeof inputs, &nst, BFS_MAXN);
 		CHECK(len > 0, "level %d is completable (%d states searched)", lv + 1, nst);
 		if (len <= 0)
 			continue;
@@ -1306,7 +1363,7 @@ test_solvable(void)
 		}
 		G.map[40][23] = RG_GOALBASE;
 		G.map[40][22] = RG_GOALTOP;
-		len = solve(&G, inputs, (int)sizeof inputs, &nst);
+		len = solve(&G, inputs, (int)sizeof inputs, &nst, BFS_MAXN);
 		CHECK((len > 0) == (x == 5), "a pit of %d columns: search says %d", x, len);
 	}
 	/* And a wall of 6 rows is not climbable, one of 4 is. */
@@ -1316,8 +1373,40 @@ test_solvable(void)
 			G.map[14][y] = RG_ROCK;
 		G.map[40][23] = RG_GOALBASE;
 		G.map[40][22] = RG_GOALTOP;
-		len = solve(&G, inputs, (int)sizeof inputs, &nst);
+		len = solve(&G, inputs, (int)sizeof inputs, &nst, BFS_MAXN);
 		CHECK((len > 0) == (x == 4), "a wall of %d rows: search says %d", x, len);
+	}
+	/*
+	 * Budget boundary: the search of a short flat run needs nst nodes, the
+	 * goal's among them. With arrays of exactly that size it succeeds; one
+	 * node fewer, or none, must fail without a write past the arrays.
+	 */
+	arena(60);
+	G.map[12][23] = RG_GOALBASE;
+	G.map[12][22] = RG_GOALTOP;
+	len = solve(&G, inputs, (int)sizeof inputs, &nst, BFS_MAXN);
+	CHECK(len > 0 && nst > 2, "the short run is solvable with %d nodes", nst);
+	if (len > 0 && nst > 2) {
+		int full = nst, lenfull = len, budget;
+
+		for (budget = full + 1; budget >= full - 1; budget -= 1) {
+			free(bnodes);
+			free(bheap);
+			bnodes = malloc(sizeof(*bnodes) * (size_t)budget);
+			bheap = malloc(sizeof(*bheap) * (size_t)budget);
+			len = solve(&G, inputs, (int)sizeof inputs, &nst, budget);
+			CHECK((len > 0) == (budget >= full) && (len <= 0 || len == lenfull),
+			    "budget %d of %d nodes: result %d", budget, full, len);
+			CHECK(nst <= budget, "the search keeps within its %d nodes: %d", budget, nst);
+		}
+		free(bnodes);
+		free(bheap);
+		bnodes = malloc(sizeof(*bnodes));
+		bheap = malloc(sizeof(*bheap));
+		len = solve(&G, inputs, (int)sizeof inputs, &nst, 1);
+		CHECK(len < 0 && nst == 1, "a budget of one node fails: %d, %d", len, nst);
+		len = solve(&G, inputs, (int)sizeof inputs, &nst, 0);
+		CHECK(len < 0 && nst == 0, "a budget of zero fails: %d, %d", len, nst);
 	}
 	free(bnodes);
 	free(btable);

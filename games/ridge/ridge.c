@@ -641,12 +641,18 @@ rg_collect(struct rg_game *g)
 		}
 }
 
+/*
+ * Walk the crawlers and resolve their contact with the player. A stomp needs
+ * the move of this tick to have carried the box down (fell) from a bottom
+ * (bottom0) within RG_STOMP pixels of the crawler's top; both come from before
+ * the move, because landing on a floor in the same tick clears vy.
+ */
 static void
-rg_enemies(struct rg_game *g)
+rg_enemies(struct rg_game *g, int bottom0, int fell)
 {
 	struct rg_player *p = &g->p;
 	struct rg_enemy *e;
-	int i, prev_bottom, touching = 0;
+	int i, touching = 0;
 
 	for (i = 0; i < g->ne; i++) {
 		e = &g->en[i];
@@ -663,8 +669,7 @@ rg_enemies(struct rg_game *g)
 		if (p->x >= e->x + RG_EW * RG_SUB || p->x + RG_PW * RG_SUB <= e->x ||
 		    p->y >= e->y + RG_EH * RG_SUB || p->y + RG_PH * RG_SUB <= e->y)
 			continue;
-		prev_bottom = p->y + RG_PH * RG_SUB - p->vy;
-		if (p->vy > 0 && prev_bottom <= e->y + RG_STOMP * RG_SUB) {
+		if (fell && bottom0 <= e->y + RG_STOMP * RG_SUB) {
 			e->alive = 0;
 			rg_add_score(g, RG_SCORE_STOMP);
 			p->vy = -RG_BOUNCE;
@@ -724,6 +729,8 @@ rg_respawn(struct rg_game *g)
 static void
 rg_tick(struct rg_game *g, unsigned in)
 {
+	int bottom0, y0;
+
 	g->ticks++;
 	switch (g->state) {
 	case RG_READY:
@@ -757,12 +764,14 @@ rg_tick(struct rg_game *g, unsigned in)
 	}
 	if (g->time_left > 0)
 		g->time_left--;
+	bottom0 = g->p.y + RG_PH * RG_SUB;
+	y0 = g->p.y;
 	rg_player_step(g, &g->p, in);
 	if (rg_in_pit(&g->p) || rg_spike_hit(g, &g->p)) {
 		rg_die(g);
 		return;
 	}
-	rg_enemies(g);
+	rg_enemies(g, bottom0, g->p.y > y0);
 	if (g->state != RG_PLAY)
 		return;
 	rg_collect(g);

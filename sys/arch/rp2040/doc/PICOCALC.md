@@ -43,7 +43,12 @@ name a file there, with a page for a PDF.
 | The tenth cell row of a bank glyph repeats its ninth, and `lcd_draw_cell()` clocks the bank rows to the panel | build | compiles and links into PICOCALC and PICOCALC_PSRAM; `st7365p.c` has no host model, so the repeated row and the pixels are read from the source, not run |
 | The bank on the panel: box drawing in `mc` or curses, a tile program, redraw after an upload | board | not run |
 | `/dev/lcdgfx` (character major 10, minor 1) takes the panel from the text console on open, refuses a second open with `EBUSY`, draws fills, pixels, lines, frames, circles, streamed windows in three formats, palette, scroll, scroll definition and color-format commands, rejects every out-of-range field without drawing, and on the last close restores COLMOD 0x66, VSCRDEF 0/320/160, the margin columns, the scroll start of the ring and every cell of the store | host | observed by `check-picocalc-host` (`lcdgfx_test`) against a model of the controller's write path and the real terminal: window, byte, scroll and format protocol checked on every call, fills and frames compared with their rectangles, lines with the ideal line, circles with their radius and symmetry, windows pixel by pixel in all three formats and in 2-, 130- and 520-byte writes, 51 range cases, the close restore compared with a text-only redraw of the same bytes; 37 mutants fail it (9 more fail `lcdterm_test` at the terminal) |
-| The ioctl classifier copies each `LCDG_*` payload (at most 12 bytes) into aligned kernel storage under `PICOCALC_ENABLED` and stages `LCDG_INFO` as zeroed output | host | observed by `check-kernel` (`fionread_test`, 605 checks, was 382): ownership, upper span edge, crossing span, provider error and reserved-bit cases for all eleven commands; four mutants (one per command family) fail it |
+| The ioctl classifier copies each `LCDG_*` payload (at most 12 bytes) into aligned kernel storage under `PICOCALC_ENABLED` and stages `LCDG_INFO` and `LCDIOC_GETKEY` (14 bytes) as zeroed output | host | observed by `check-kernel` (`fionread_test`, 668 checks, was 605): ownership, upper span edge, crossing span, provider error and reserved-bit cases for all thirteen `LCDG_*` commands and `LCDIOC_GETKEY`; six mutants (one per command family, the tile commands and the key command included) fail it |
+| `LCDG_TILESET` stores tiles into a 128-tile atlas that is zero at every open, bounded by `first + count <= 128`; `LCDG_TILEWIN` draws a block of tile numbers as one panel window per tile row, with the eight pixel lines of every tile in the row interleaved, through the palette and COLMOD in force; a field out of range or a tile number of 128 or more draws nothing further | host | observed by `check-picocalc-host` (`lcdgfx_test`) against the model panel, which logs each window with its pixel count and stores each pixel at its raster position: 128 tiles uploaded in nine write sizes, blocks from one tile to the 40 by 40 grid (exactly one window of `tw * 8` by 8 per tile row, every pixel compared with a reference render), palette and COLMOD 0x55 draws, 20 rejected commands, upload bounds and abandonment, a copy fault resumed, and the zero atlas at open; 24 mutants fail it |
+| `games/gametile.h` sends one `LCDG_TILEWIN` per maximal run of changed tiles in a tile row, none for a clean tile, and leaves a failed run owed | host | observed by `check-picocalc-host` (`gametile_test`) against a model of the tile commands: 300 random rounds and scripted cases compared with runs counted by an independent loop; 23 mutants fail it |
+| `LCDIOC_GETKEY` on the console returns pressed, hold and released events of the keyboard controller from a 32-event queue, oldest first, six per call, drops the oldest event when full and reports the drops; the xterm bytes the poller types are those of `picokbd_translate()` alone | host | observed by `check-picocalc-host` (`kbdevq_test`): every state against every key, a 20,000-event run, overflow at 33, 40, 50 and 1,000 events, the count saturating at 255; 13 mutants of `picokbd_evq.c` and one of the poller's wiring (`wiring.sh`) fail it; `kbd_poll()` itself is read from source, not run |
+| The tile atlas and `LCDIOC_GETKEY` compile into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their text, data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +680, bss +4,240 (112,223 / 368 / 53,064); PICOCALC_PSRAM text +680, bss +4,240 (114,381 / 424 / 53,216); flash headroom 18,480 and 16,264 bytes; the kernel's data and bss end 62,432 bytes below the end of the RAM region (Tile atlas) |
+| The tile atlas on the panel: the tiles appear, a 40-tile row costs 4.92 ms plus a window, a one-row vertical scroll step costs 4.9 ms, the raw key events arrive at the keyboard's rate | board | not run: `tests/rp2040/tiledemo` is built by `check-board-build` (text 7,379 bytes) and a board run is opt-in |
 | `lcdgfx.c` compiles into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +2,145, bss +72; PICOCALC_PSRAM text +2,145, bss +80; PICO 95,403 / 248 / 39,848 and PICO_UART 85,618 / 192 / 14,832, 9 text bytes above the measurement before the pixel device, which was taken in a different build path, the offset `version[]` carries (not traced further); at `-O` under GCC 16.2 the PICO and PICO_UART images differed only inside `version[]` (`objcopy -O binary`) |
 | `st7365p.c` clocks the pixel primitives and `lcd_gfx_reset()` to the panel | build | compiles and links; `st7365p.c` has no host model, so the SPI bytes, the VSCRDEF value and the COLMOD 0x55 pixel format are read from the source and from the model's protocol, not run |
 | `/dev/lcdgfx` on the panel: the shapes appear, the timings match the research note's table, a killed program leaves the text visible | board | not run: `tests/rp2040/lcdgfxtest` is built by `check-board-build` and a board run is opt-in |
@@ -310,10 +315,11 @@ the caller.
 `lcdclose`, `lcdread`, `lcdwrite`, `lcdselect` and `lcdioctl`, so the
 `cdevsw` table and the major-number tests of `conf.c` stay as they were). A
 program opens `/dev/tty` for the keyboard and `/dev/lcdgfx` for the panel.
-`sys/sys/lcdgfx.h` is the user interface: eleven commands (`LCDG_FILL`,
+`sys/sys/lcdgfx.h` is the user interface: thirteen commands (`LCDG_FILL`,
 `PIXEL`, `LINE`, `FRAME`, `CIRCLE`, `WINDOW`, `PALETTE`, `SCROLL`, `SCRDEF`,
-`COLMOD`, `INFO`) of group `l`, numbers 16 to 26, each with a fixed payload of
-at most 12 bytes. The tile atlas commands are not part of this device.
+`COLMOD`, `INFO`, `TILESET`, `TILEWIN`) of group `l`, numbers 16 to 28, each
+with a fixed payload of at most 12 bytes. The tile atlas commands are the
+subject of Tile atlas, below.
 
 Opening takes the panel from the text console: `lcdcons_gfx(1)` takes the
 console's drawing flag, `lcdterm_gfx(1)` sets `gfx_active` so that `lcdterm.c`
@@ -355,7 +361,7 @@ The decisions the research note left open:
   gave. A definition must leave at least one scroll line (top + bottom < 480);
   the controller's own minimum scroll area was not checked, because the
   specification PDF is not in the tree.
-- `LCDG_INFO` reports 320, 320, 0 tiles and 18 or 16 bits per pixel.
+- `LCDG_INFO` reports 320, 320, 128 tiles and 18 or 16 bits per pixel.
 - A window opened by `LCDG_WINDOW` keeps chip select low between `write(2)`
   calls; any other command, and the close, ends it. Nothing else touches SPI1
   while the device is open, because the terminal draws nothing and
@@ -386,6 +392,70 @@ classifier cases), `lcdterm.o` +188 (gating, repaint, mode switch),
 dispatch and `lcdcons_gfx()`). The bss delta is the 32-byte palette, the
 window and mode state, and `gfx_active`. The research note estimated 2.1 KB of
 text.
+
+### Tile atlas
+
+`LCDG_TILESET` and `LCDG_TILEWIN` (`sys/sys/lcdgfx.h`, staged plan item 9 of
+`docs/research/picocalc-calculator-and-gui.md`) add a 128-tile atlas to the
+pixel device. A tile is 8x8 pixels of four bits, 32 bytes: eight lines of four
+bytes, the leftmost pixel in the high nibble, each nibble an index into the
+16-entry palette. The atlas is the 4,096-byte `atlas[]` of `lcdgfx.c`, cleared
+at every open.
+
+- `LCDG_TILESET { first, count }` needs `count >= 1` and
+  `first + count <= 128`; the following `write(2)` calls move `count * 32`
+  bytes through `uiomove()` straight into the atlas, may end inside a tile,
+  stop at the end of the upload (the excess stays unread) and draw nothing.
+  Another command, rejected or not, and the close abandon an upload; the bytes
+  that arrived stay.
+- `LCDG_TILEWIN { tx, ty, tw, th }` needs `tw, th >= 1` and
+  `tx + tw, ty + th <= 40`; the following `write(2)` calls supply `tw * th`
+  tile numbers, one byte each, row by row. `tw_row[]` (40 bytes) collects one
+  row; at its last number `tile_row()` opens one panel window `tw * 8` wide
+  and 8 high at (`tx * 8`, `ty * 8`) and sends line 0 of every tile in the
+  row left to right, then line 1, and so on, each pixel through the palette
+  in force at that moment and the COLMOD in force. The window closes before
+  the `write(2)` returns, so a tile stream never holds chip select between
+  calls (a `LCDG_WINDOW` stream does). A tile number of 128 or more fails the
+  `write(2)` with `EINVAL` before its row is drawn, keeps the rows already
+  drawn and ends the block.
+- Every field is range checked in the ioctl before the first panel write,
+  and the three stream kinds (pixel window, tile upload, tile block) exclude
+  one another: starting one abandons another.
+
+The library is `games/gametile.h`: a 40x40 shadow map, a bitmap of unsent
+tiles and `gtile_flush()`, which sends one `LCDG_TILEWIN` per run of marked
+tiles in a row (1,808 bytes of structure). A run never crosses the row edge
+and never bridges a clean tile: a tile costs 123 us on the bus against 7 us
+for a window setup, so a bridged tile costs more than the window it saves
+unless the system-call overhead of a run exceeds 123 us, which no one has
+measured. `gtile_set()` compares with the shadow, not with the panel, so a
+tile changed and changed back before the flush is still sent. The header is
+host-testable because its two calls into the device are macros.
+
+Sizes, from `arm-none-eabi-size` after `bmake MACHINE=rp2040 kernel` in a
+scratch copy, GCC 13.2.1 (the Linux CI compiler) at `-Os`, before and after
+the atlas and the raw key events (Keyboard, below); headroom is what
+`check-kernel-headroom` measures against the 130,816-byte FLASH region:
+
+| Kernel | Before (text / data / bss) | After (text / data / bss) | Headroom before | Headroom after |
+| --- | --- | --- | --- | --- |
+| PICOCALC | 111,543 / 368 / 48,824 | 112,223 / 368 / 53,064 | 19,160 | 18,480 |
+| PICOCALC_PSRAM | 113,701 / 424 / 48,976 | 114,381 / 424 / 53,216 | 16,944 | 16,264 |
+| PICO | 95,395 / 248 / 39,848 | 95,395 / 248 / 39,848 | 35,428 | 35,428 |
+| PICO_UART | 85,610 / 192 / 14,832 | 85,610 / 192 / 14,832 | 45,268 | 45,268 |
+
+The "before" column is main at the merge of the `-Os` headroom change, built in
+a scratch tree; its PICOCALC text is 8 bytes below the 111,551 the pixel
+device table records, the offset `version[]` carries between build paths. The
+change adds 680 bytes of text and 4,240 of bss to each PicoCalc kernel. Per
+object: `lcdgfx.o` +440 text and +4,164 bss (4,096 of atlas, a 40-byte row
+buffer, 28 bytes of stream state), `picokbd_evq.o` +172 text and +76 bss,
+`sys_generic.o` +36 and `lcdcons.o` +36 text; `picokbd.o` is unchanged. The
+kernel's data and bss end 62,432 bytes below the end of the 106 KB RAM region
+on PICOCALC_PSRAM (0x2002f420 against 0x2003e800), so the bss addition leaves
+the layout of `BOOT-MAP.md` intact. PICO and PICO_UART compile no PicoCalc
+file and keep their text, data and bss.
 
 ## Keyboard: picokbd.c and picokbd_map.c
 
@@ -460,6 +530,22 @@ Backspace sends DEL, matching the tty's ICRNL mapping and `CERASE`.
 Arrows send `ESC [ x` or, after an application sets cursor-key mode,
 `ESC O x`; Home, End, Insert, Delete, Page Up/Down and F1-F10 send the
 xterm termcap entry's `kh`, `@7`, `kI`, `kD`, `kP`, `kN` and `k1`-`k;`.
+
+Raw key events. `LCDIOC_GETKEY` (`sys/sys/lcdcons.h`, `_IOR('l', 2,
+struct lcd_keyevs)`) on the console tty returns up to six `{ state, key }`
+events (`LCD_KEY_PRESSED`, `HOLD`, `RELEASED` and the controller's key byte)
+from a queue of 32 that `picokbd_evq.c` keeps. `kbd_poll()` calls
+`picokbd_event()` for every controller event; that function records the event
+and returns `picokbd_translate()`'s result, so the xterm bytes and their Ctrl
+tracking are those of the translate-only path and the queue never delays them.
+A full queue drops its oldest event and counts it: the call returns the count
+since the previous call in `lost` (255 at most), so a game that holds key
+state keeps the newest events and learns when to resynchronize. The call does
+not block, runs at `spltty()` against the poller's callout, and is classified
+as zeroed output in `ioctl()`. The queue records events whether or not
+anyone reads, so a program drains it once at start. The polled
+`picokbd_getc()` of the console's fatal path does not queue. Cost: 172 bytes
+of text and 76 of bss (Tile atlas, above).
 
 The counts are programmed for 100 kHz, between the vendor helloworld's
 10 kHz and its FUZIX port's 400 kHz; datasheet 4.3.14.1 adds one ic_clk
@@ -757,9 +843,9 @@ this tree and in the other BSDs, the PicoMite firmware's math functions,
 and frame-buffer-less tile and sprite techniques, and orders an import
 plan with licenses and size estimates. The kernel side is `/dev/lcdgfx`
 (Pixel device, above), a pixel ioctl set modeled on RetroBSD's `gpanel`
-interface on a second minor of the console's major, plus a tile atlas that
-is not built; the text console restores itself from its cell store when the
-graphics client closes.
+interface on a second minor of the console's major, with a 128-tile atlas
+(Tile atlas, above) and the library `games/gametile.h`; the text console
+restores itself from its cell store when the graphics client closes.
 
 The first item ships OpenBSD `bc` and `dc` (ISC, Otto Moerbeek; the manual
 pages and `bc.library` under the Caldera license, `NOTICE` sections 16 and 3)

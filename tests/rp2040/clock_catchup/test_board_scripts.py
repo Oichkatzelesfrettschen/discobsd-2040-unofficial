@@ -82,6 +82,17 @@ def cadence_lines(cadence, phase, lag=0.01, late=0.5):
     return out
 
 
+def buffered_lines(cadence=0.14, held=10, late=2.0):
+    """Steady board clock equal to host time: the first lines arrive 5 ms after
+    they are made, the last HELD together LATE seconds after the last one."""
+    made = [BASE + cadence * index for index in range(clock.SAMPLES)]
+    burst = made[-1] + late
+    return [
+        (burst if index >= clock.SAMPLES - held else when + 0.005, date_line(when))
+        for index, when in enumerate(made)
+    ]
+
+
 def delayed_index():
     return clock.SAMPLES // 2
 
@@ -187,6 +198,20 @@ class OffsetBounds(unittest.TestCase):
                     self.fail("cadence %.3f phase %.2f" % (cadence, phase))
                 except clock.MeasurementError:
                     pass
+
+    def test_lines_held_back_and_read_together_are_not_a_lost_clock(self):
+        # Dates 0.14 s apart from a steady clock; the console holds the last
+        # ten and delivers them in one read two seconds after the last.
+        stamped = buffered_lines()
+        with self.assertRaises(clock.MeasurementError) as caught:
+            clock.offset_bounds(stamped)
+        self.assertNotIsInstance(caught.exception, clock.ClockLostTime)
+
+    def test_the_held_back_lines_fool_the_loss_rule_alone(self):
+        # Calibration: the loss rule without the shared-arrival guard reports
+        # the held-back tail as a clock that fell behind.
+        estimates = [a - clock.board_seconds(line) for a, line in buffered_lines()]
+        self.assertIsNotNone(clock.loss_of_clock(estimates))
 
     def test_a_clock_that_loses_time_and_regains_it_is_inconclusive(self):
         # Rising then falling by the same amount fails the non-decreasing test.
@@ -395,6 +420,24 @@ class StubSerialModule:
 
         def read(self, _size):
             return StubSerialModule.Serial.chunks.pop(0) if StubSerialModule.Serial.chunks else b""
+
+
+class ArrivalStamps(unittest.TestCase):
+    def test_a_wall_clock_step_moves_no_arrival_stamp(self):
+        # The host wall clock jumps 3 s between two console reads; the stamps
+        # still differ by the monotonic time between them. Stamps taken from
+        # time.time() fail this check by the size of the step.
+        StubSerialModule.Serial.chunks = [b"a\n", b"b\n"]
+        console = clock.Console(StubSerialModule, "stub")
+        real = clock.time.time
+        first = console.read(1.0, stop="a")[1]
+        clock.time.time = lambda: real() + 3.0
+        try:
+            second = console.read(0.05)[1]
+        finally:
+            clock.time.time = real
+        self.assertEqual([line for _, line in first + second], ["a", "b"])
+        self.assertLess(second[0][0] - first[0][0], 1.0)
 
 
 class SentinelFraming(unittest.TestCase):

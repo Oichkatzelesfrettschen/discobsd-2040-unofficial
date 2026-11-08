@@ -16,7 +16,8 @@ so the time of day does not fall behind the host while the root file system
 erases sectors. A sector erase masks interrupts for about 44 ms.
 
 Method. The board's time of day is read as the output of "date" in a loop,
-each line stamped with the host time of its arrival. A line was produced
+each line stamped with the host time of its arrival (host_now(), the monotonic
+clock anchored once to the wall clock). A line was produced
 between its arrival and a short settle margin earlier, and the board's integer
 second at that instant is the line's value, so every line bounds the
 host-minus-board offset to an interval. The intersection over the loop is the
@@ -117,6 +118,16 @@ LOSS_QUARTER = 4
 # Exit status of a run whose measurements cannot decide (0 passes, 1 fails).
 INCONCLUSIVE = 2
 
+# Arrival stamps come from the monotonic clock placed on the wall clock once,
+# so a host clock step during the run moves no stamp relative to another.
+WALL_ANCHOR = time.time()
+MONOTONIC_ANCHOR = time.monotonic()
+
+
+def host_now():
+    """Host time in seconds since the epoch, immune to wall-clock steps."""
+    return WALL_ANCHOR + (time.monotonic() - MONOTONIC_ANCHOR)
+
 
 class Console:
     def __init__(self, serial_module, port):
@@ -125,14 +136,14 @@ class Console:
 
     def reopen(self):
         """Reopen the console after the board re-enumerates, which it can do twice."""
-        start = time.time()
+        start = time.monotonic()
         while True:
             time.sleep(2)
             try:
                 self.port = self.serial.Serial(glob.glob(PORT_PATTERN)[0], 115200, timeout=0)
                 return
             except (IndexError, self.serial.SerialException):
-                if time.time() - start > 60:
+                if time.monotonic() - start > 60:
                     raise
 
     def read(self, seconds, stop=None):
@@ -140,8 +151,8 @@ class Console:
         buf = b""
         stamped = []
         pending = b""
-        start = time.time()
-        while time.time() - start < seconds:
+        start = time.monotonic()
+        while time.monotonic() - start < seconds:
             try:
                 data = self.port.read(4096)
             except self.serial.SerialException:
@@ -150,7 +161,7 @@ class Console:
             if not data:
                 time.sleep(0.005)
                 continue
-            now = time.time()
+            now = host_now()
             buf += data
             pending += data
             while b"\n" in pending:
@@ -177,8 +188,8 @@ def flash(images):
 
 
 def open_console(serial_module, boot_wait):
-    start = time.time()
-    while time.time() - start < 30 and not glob.glob(PORT_PATTERN):
+    start = time.monotonic()
+    while time.monotonic() - start < 30 and not glob.glob(PORT_PATTERN):
         time.sleep(0.5)
     time.sleep(1)
     ports = glob.glob(PORT_PATTERN)
@@ -265,17 +276,22 @@ def offset_bounds(stamped, samples=SAMPLES):
     lines parse. When the per-line bounds have no common point, which a sample
     delayed beyond SETTLE_MARGIN or a clock that fell behind during the loop
     produces, raises ClockLostTime for the second cause (see loss_of_clock)
-    and MeasurementError for the first.
+    and MeasurementError for the first. Two date lines that arrive in one read
+    of the console were held back together, so their arrival stamps bound
+    nothing about when each was made; such a loop raises MeasurementError
+    rather than ClockLostTime.
     """
     low = -1e18
     high = 1e18
     used = 0
     estimates = []
+    arrivals = set()
     for arrival, line in stamped:
         value = board_seconds(line)
         if value is None:
             continue
         used += 1
+        arrivals.add(arrival)
         estimates.append(arrival - value)
         # The line was made at x in [arrival - margin, arrival]; the board's
         # time b has floor(b) == value, so b in [value, value + 1) and the
@@ -285,7 +301,7 @@ def offset_bounds(stamped, samples=SAMPLES):
     if used < samples // 2:
         raise MeasurementError("only %d of %d date lines parsed" % (used, samples))
     if low > high:
-        loss = loss_of_clock(estimates)
+        loss = loss_of_clock(estimates) if len(arrivals) == used else None
         if loss is not None:
             raise ClockLostTime(loss, used)
         raise MeasurementError(
@@ -429,9 +445,9 @@ def run_measurements(console):
         print("workload script was not stored intact: %r" % text[-300:])
         return 1
 
-    start = time.time()
+    start = time.monotonic()
     text, _ = console.run('sh /tmp/cc.sh; echo WORK""STATUS$?', wait=600, stop=WORKLOAD_STATUS)
-    workload_s = time.time() - start
+    workload_s = time.monotonic() - start
     reason = check_workload(text)
     if reason:
         print("workload failed: %s: %r" % (reason, text[-300:]))
@@ -440,10 +456,10 @@ def run_measurements(console):
     after_work = measure_offset(console, "after-workload")
     print("offset 2 (after workload, %.1f s): %.3f .. %.3f s" % ((workload_s, *after_work)))
 
-    idle_start = time.time()
+    idle_start = time.monotonic()
     time.sleep(workload_s)
     after_idle = measure_offset(console, "after-idle")
-    idle_s = time.time() - idle_start
+    idle_s = time.monotonic() - idle_start
     print("offset 3 (after idle, %.1f s): %.3f .. %.3f s" % ((idle_s, *after_idle)))
 
     # Between the first and the second measurement the workload ran; between

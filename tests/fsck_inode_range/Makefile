@@ -46,7 +46,8 @@ CFLAGS.setup=	-Dreply=fsck_accept_image
 # One entry per site of the inode range test, each restored by
 # fsck_mutate.py. The scenarios listed for a mutant must fail on it.
 MUTANTS=	pass1-loop direntry makeentry-ino makeentry-parent \
-		lfdir-lookup alloc-test alloc-range all-old
+		lfdir-lookup alloc-test alloc-range all-old \
+		window-flush inode-window
 SCENARIOS.pass1-loop=		file-last dir-last
 SCENARIOS.direntry=		file-last
 SCENARIOS.makeentry-ino=	orphan-last
@@ -55,6 +56,8 @@ SCENARIOS.lfdir-lookup=		lf-last
 SCENARIOS.alloc-test=		free-last
 SCENARIOS.alloc-range=		free-last
 SCENARIOS.all-old=		file-last dir-last orphan-last free-last lf-last
+SCENARIOS.window-flush=		orphan-dir
+SCENARIOS.inode-window=		orphan-dir
 
 MUTANT_SPECS=
 .for mutant in ${MUTANTS}

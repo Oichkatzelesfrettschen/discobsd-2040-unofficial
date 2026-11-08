@@ -149,7 +149,7 @@ flush(fcp, bp)
     bp->b_dirty = 0;
     bp->b_errs = 0;
     if (bp == &inoblk)
-        bwrite(fcp, inobuf, startib, NINOBLK * DEV_BSIZE);
+        bwrite(fcp, inobuf, startib, INOWINDOW(startib) * DEV_BSIZE);
     else
         bwrite(fcp, bp->b_un.b_buf, bp->b_bno, DEV_BSIZE);
 }

@@ -21,6 +21,10 @@
  *   lf-last        lost+found is a new directory at inode N, the original
  *                  is renamed old-lf, and one file loses its name: fsck must
  *                  find lost+found at inode N and reconnect the orphan in it.
+ *   orphan-dir     ten files, then a directory with a file inside it at
+ *                  a middle inode; the directory loses its name in / but
+ *                  keeps its link count and its ".." entry: fsck must
+ *                  reconnect it into lost+found and repoint its "..".
  *
  * "--check IMAGE" prints fsutil's own consistency report for an image,
  * opened read-only, so a gate can compare fsutil's file count with fsck's.
@@ -173,6 +177,11 @@ build(const char *layout, const char *path)
 		    number_of(&fs, "/lost+found") != IMAGE_INODES ||
 		    !fill_files(&fs, 0, FREE_AT_START - 2) ||
 		    !drop_name(&fs, "/f05"))
+			return fail("cannot build", layout);
+	} else if (strcmp(layout, "orphan-dir") == 0) {
+		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||
+		    number_of(&fs, "/d00") != IMAGE_INODES - 10 ||
+		    !make_file(&fs, "/d00/inner") || !drop_name(&fs, "/d00"))
 			return fail("cannot build", layout);
 	} else {
 		if (!fill_files(&fs, 0, FREE_AT_START - 1) ||

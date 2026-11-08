@@ -91,6 +91,7 @@
 
 #include <machine/mpu.h>
 #include <machine/mpuvar.h>
+#include <machine/usercopy.h>
 
 struct mpu_state mpu_state;
 
@@ -196,6 +197,31 @@ mpu_init(void)
 	arm_dsb();
 	arm_isb();
 	mpu_state.ctrl = MPU_REG32(MPU_CTRL);
+}
+
+/*
+ * Return 1 when [start, start + nbytes) lies inside one region of the map
+ * that grants unprivileged code read and denies it write (AP 110), across
+ * enabled subregions only. Those are the bytes a process may read but the
+ * kernel must never write on its behalf: copyin and the source vectors of a
+ * write admit them through baduaddr_rspan (machdep.c), while copyout, the
+ * targets of a read and physio stay inside the window, the mvalid model
+ * of a read-only mapping. The answer comes from the static map rather than
+ * from the registers, so a core that dropped the writes and runs with the
+ * MPU off admits no more than one that took them. The boot ROM is the
+ * one such region in the map.
+ */
+int
+mpu_user_rospan(u_int start, u_int nbytes)
+{
+	const struct mpu_region *r;
+
+	for (r = mpu_map; r < &mpu_map[MPU_NMAP]; r++)
+		if ((r->attrs & MPU_RASR_AP_MASK) == MPU_AP_RO &&
+		    rp2040_user_region_span_contains(r->base, r->log2, r->srd,
+		    start, nbytes))
+			return 1;
+	return 0;
 }
 
 /*

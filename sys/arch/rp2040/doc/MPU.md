@@ -242,6 +242,38 @@ emulator-specific assumption.
 Cost: 656 bytes of text and 16 of bss in the PICO kernel, 688 and 16 in
 PICO_UART, and 7,988 bytes of root for mputest.
 
+## Read-only admission of system-call arguments
+
+The kernel checks a user pointer against what the process may do with it
+rather than against the window alone. `baduaddr_span` (machdep.c) admits
+`[__user_data_start, USER_TOP(p))`, the bytes a process may read and write.
+`baduaddr_rspan` adds every region of the map above that grants
+unprivileged read and denies unprivileged write (AP 110), across its enabled
+subregions only: `mpu_user_rospan` (mpu.c) walks the static map and
+`rp2040_user_region_span_contains` (machine/usercopy.h) decides one region,
+so the boot ROM is admitted and the SIO divider, an AP 011 device grant, is
+not. Transfers that only read user memory take the wider check: `copyin`,
+through which namei, execve's argument and environment strings, sysctl
+names and every other argument structure arrive, and the source vectors of
+`write` and `writev` in `rwuio` (sys_generic.c). Transfers that store into
+user memory keep the window: `copyout`, the target vectors of `read` and
+`readv`, ioctl buffers (whose direction a driver may not honor), and
+`physio` (vm_swp.c). This is the shape of a read-only mapping under
+`mvalid` (docs/research/xip-shared-libc/streams/09-historical-unix-archive.md):
+a process may hand the kernel the address of bytes it can read but not
+write, and the kernel never writes them on its behalf. The answer comes from
+the static map rather than the registers, so a core that dropped the region
+writes admits no more than one that took them.
+
+A future read-only libc partition in flash enters the map as one more AP 110
+region and is admitted through the same walk; nothing else changes.
+`mputest` holds the board behavior: a write and a writev from the ROM deliver
+its bytes through a pipe, access on a NUL-terminated ROM string reaches
+namei and answers ENOENT, and a read into the ROM, a write source crossing
+the ROM's end at 0x3ff8 and a write source in kernel text each fail with
+EFAULT. `check-kernel-ilp32` and `check-kernel` hold the arithmetic and the
+direction split on the host (doc/TESTING.md).
+
 ## Address translation
 
 PMSAv6 grants permissions and exports memory attributes; it performs no

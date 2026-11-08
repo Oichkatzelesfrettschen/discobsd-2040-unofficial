@@ -33,4 +33,35 @@ rp2040_user_span_contains(unsigned int lower, unsigned int upper,
 	return length <= upper - start;
 }
 
+/*
+ * Return nonzero when [start, start + length) lies inside the PMSAv6 region
+ * of 2^log2 bytes at base and touches only subregions that srd leaves
+ * enabled (one disable bit per eighth, RASR.SRD, ARMv6-M ARM B3.5.9). log2
+ * runs from 8 to 31, so the shifts stay below the width of the type, and an
+ * empty span touches no subregion. A region ending at 2^32 is outside the
+ * model and rejected.
+ */
+static inline int
+rp2040_user_region_span_contains(unsigned int base, unsigned int log2,
+    unsigned int srd, unsigned int start, unsigned int length)
+{
+	unsigned int size, eighth, first, last;
+
+	if (log2 < 8 || log2 > 31)
+		return 0;
+	size = 1U << log2;
+	if (base > ~0U - size ||
+	    !rp2040_user_span_contains(base, base + size, start, length))
+		return 0;
+	if (length == 0)
+		return 1;
+	eighth = size >> 3;
+	first = (start - base) / eighth;
+	last = (start - base + (length - 1U)) / eighth;
+	for (; first <= last; first++)
+		if (srd & (1U << first))
+			return 0;
+	return 1;
+}
+
 #endif	/* !_RP2040_USERCOPY_H_ */

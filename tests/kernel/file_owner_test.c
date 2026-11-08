@@ -140,6 +140,12 @@ baduaddr(caddr_t address)
 }
 
 int
+baduaddr_rspan(caddr_t address, u_int nbytes)
+{
+	return baduaddr_span(address, nbytes);
+}
+
+int
 copyin(const caddr_t from, caddr_t to, u_int nbytes)
 {
 	copyin_calls++;

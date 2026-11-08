@@ -42,6 +42,30 @@ static struct proc current_process;
 struct user u = { &current_process };
 static unsigned int user_top_value = 0x20024000U;
 
+/*
+ * mpu.c's mpu_user_rospan over a fixture map: the boot ROM, read-only, and
+ * a read-only region at 0x30000000 whose upper half of subregions is
+ * disabled, which exercises the subregion walk.
+ */
+static const struct {
+	unsigned int base, log2, srd;
+} fixture_rospans[] = {
+	{ 0x00000000U, 14, 0x00U },
+	{ 0x30000000U, 12, 0xf0U },
+};
+
+int
+mpu_user_rospan(u_int start, u_int nbytes)
+{
+	unsigned int i;
+
+	for (i = 0; i < sizeof fixture_rospans / sizeof fixture_rospans[0]; i++)
+		if (rp2040_user_region_span_contains(fixture_rospans[i].base,
+		    fixture_rospans[i].log2, fixture_rospans[i].srd, start, nbytes))
+			return 1;
+	return 0;
+}
+
 static unsigned int recorded_copy_calls;
 static const void *recorded_copy_source;
 static void *recorded_copy_destination;
@@ -170,9 +194,62 @@ check_conditional_extension(void)
 	CHECK(recorded_copy_length == 1U);
 }
 
+/*
+ * copyin admits read-only regions outside the window; copyout never does,
+ * a span crossing a region's end or into a disabled subregion is refused,
+ * and the region predicate holds its edge and malformed-input cases.
+ */
+static void
+check_read_only_admission(void)
+{
+	char kernel_bytes[4] = { 1, 2, 3, 4 };
+
+	user_top_value = 0x20024000U;
+	reset_recording();
+	CHECK(copyin(address(0x00000010U), kernel_bytes, 4U) == 0);
+	CHECK(copyin(address(0x00000000U), kernel_bytes, 0x4000U) == 0);
+	CHECK(copyin(address(0x30000000U), kernel_bytes, 0x800U) == 0);
+	CHECK(recorded_copy_calls == 3);
+
+	reset_recording();
+	CHECK(copyout(kernel_bytes, address(0x00000010U), 4U) == EFAULT);
+	CHECK(copyin(address(0x00003fffU), kernel_bytes, 2U) == EFAULT);
+	CHECK(copyin(address(0x00004000U), kernel_bytes, 1U) == EFAULT);
+	CHECK(copyin(address(0x300007ffU), kernel_bytes, 2U) == EFAULT);
+	CHECK(copyin(address(0x30000800U), kernel_bytes, 1U) == EFAULT);
+	CHECK(copyin(address(0x10000100U), kernel_bytes, 4U) == EFAULT);
+	CHECK(recorded_copy_calls == 0);
+	CHECK(baduaddr_rspan(address(0x00000010U), 4U) == 0);
+	CHECK(baduaddr_rspan(address(0x20000000U), 0x24000U) == 0);
+	CHECK(baduaddr_span(address(0x00000010U), 4U) == 1);
+
+	/* The SIO divider grant: one enabled 32-byte eighth of 256 bytes. */
+	CHECK(rp2040_user_region_span_contains(0xd0000000U, 8, 0xf7U,
+	    0xd0000060U, 32U) == 1);
+	CHECK(rp2040_user_region_span_contains(0xd0000000U, 8, 0xf7U,
+	    0xd000005fU, 1U) == 0);
+	CHECK(rp2040_user_region_span_contains(0xd0000000U, 8, 0xf7U,
+	    0xd0000060U, 33U) == 0);
+	CHECK(rp2040_user_region_span_contains(0xd0000000U, 8, 0xf7U,
+	    0xd0000000U, 0U) == 1);
+	CHECK(rp2040_user_region_span_contains(0xd0000000U, 7, 0U,
+	    0xd0000000U, 1U) == 0);
+	CHECK(rp2040_user_region_span_contains(0xd0000000U, 32, 0U,
+	    0xd0000000U, 1U) == 0);
+	CHECK(rp2040_user_region_span_contains(0xffffff00U, 8, 0U,
+	    0xffffff00U, 1U) == 0);
+	CHECK(rp2040_user_region_span_contains(0x80000000U, 31, 0U,
+	    0xfffffffeU, 1U) == 0);
+	CHECK(rp2040_user_region_span_contains(0x00000000U, 31, 0U,
+	    0x7ffffffeU, 2U) == 1);
+	CHECK(rp2040_user_region_span_contains(0x00000000U, 14, 0U,
+	    0x00001000U, 0xfffff001U) == 0);
+}
+
 int
 main(void)
 {
+	check_read_only_admission();
 	check_single_address_admission();
 	check_zero_length_admission();
 	check_valid_spans();

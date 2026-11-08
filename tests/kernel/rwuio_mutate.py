@@ -6,7 +6,10 @@ from pathlib import Path
 ADMISSION_BLOCK = """    for (vector = uio->uio_iov, vector_index = 0;
         vector_index < (u_int)uio->uio_iovcnt;
         vector_index++, vector++) {
-        if (vector->iov_len != 0 &&
+        if (vector->iov_len == 0)
+            continue;
+        if (uio->uio_rw == UIO_WRITE ?
+            baduaddr_rspan(vector->iov_base, vector->iov_len) :
             baduaddr_span(vector->iov_base, vector->iov_len)) {
             u.u_error = EFAULT;
             return;
@@ -25,10 +28,23 @@ def mutate(source, mutation):
     if mutation == "removed_admission":
         return replace_once(source, ADMISSION_BLOCK, "", mutation)
     if mutation == "first_byte_only":
+        source = replace_once(
+            source,
+            "baduaddr_rspan(vector->iov_base, vector->iov_len)",
+            "baduaddr_rspan(vector->iov_base, 1)",
+            mutation,
+        )
         return replace_once(
             source,
             "baduaddr_span(vector->iov_base, vector->iov_len)",
             "baduaddr(vector->iov_base)",
+            mutation,
+        )
+    if mutation == "read_target_readonly":
+        return replace_once(
+            source,
+            "        if (uio->uio_rw == UIO_WRITE ?\n",
+            "        if (1 ?\n",
             mutation,
         )
     raise ValueError("unknown mutation: " + mutation)
@@ -40,7 +56,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--mutation",
-        choices=("removed_admission", "first_byte_only"),
+        choices=("removed_admission", "first_byte_only", "read_target_readonly"),
         required=True,
     )
     arguments = parser.parse_args()

@@ -65,10 +65,19 @@ rwuio(struct uio *uio)
         }
         uio->uio_resid += vector->iov_len;
     }
+    /*
+     * A write only reads its source vectors, so they may lie in memory
+     * the process can read but not write (baduaddr_rspan, read-only
+     * memory such as the boot ROM); a read stores into its vectors,
+     * which stay inside the process window.
+     */
     for (vector = uio->uio_iov, vector_index = 0;
         vector_index < (u_int)uio->uio_iovcnt;
         vector_index++, vector++) {
-        if (vector->iov_len != 0 &&
+        if (vector->iov_len == 0)
+            continue;
+        if (uio->uio_rw == UIO_WRITE ?
+            baduaddr_rspan(vector->iov_base, vector->iov_len) :
             baduaddr_span(vector->iov_base, vector->iov_len)) {
             u.u_error = EFAULT;
             return;

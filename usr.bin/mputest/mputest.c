@@ -19,6 +19,15 @@
  *      enable is 1 only when programmed equals the map's four regions and
  *      nregions is the datasheet's eight.
  *
+ *   4. the kernel takes the boot ROM, memory a process may read but not
+ *      write, as the source of a transfer and refuses it as a target:
+ *      write and writev from ROM bytes deliver them through a pipe,
+ *      access on a NUL-terminated ROM string reaches namei and answers
+ *      ENOENT, and a read into the ROM, a write source crossing the ROM's
+ *      end and a write source in kernel text each fail with EFAULT
+ *      (baduaddr_rspan, machdep.c). These hold whether or not the MPU is
+ *      on, because the kernel admits from the static map.
+ *
  * CPUID and DIV_CSR are 0x78 bytes apart inside one 256-byte region, so
  * checking both decides the subregion disables rather than the region.
  *
@@ -35,6 +44,8 @@
 #include <machine/cpu.h>
 #include <machine/machparam.h>
 #include <machine/mpuvar.h>
+#include <sys/uio.h>
+#include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,6 +56,7 @@
 #define	KERNEL_TEXT_ADDR	0x10000100UL	/* Kernel vector table in XIP. */
 #define	SIO_CPUID_ADDR		0xd0000000UL	/* SIO CPUID, datasheet 2.3.1.7. */
 #define	SIO_DIV_CSR_ADDR	0xd0000078UL	/* DIV_CSR, datasheet 2.3.1.5. */
+#define	ROM_END_ADDR		0x00004000UL	/* First byte past the ROM. */
 #define	MAP_REGIONS		4		/* ROM, window low, high, divider. */
 #define	DATASHEET_REGIONS	8		/* MPU_TYPE.DREGION reset value. */
 
@@ -130,6 +142,102 @@ rom_divide(void)
 		printf("rom double divide: mismatch\n");
 	}
 	return bad;
+}
+
+/*
+ * One transfer's outcome: 0 when it moved want bytes, the errno when it
+ * failed, -1 when it moved some other count.
+ */
+static int
+xfer_result(ssize_t n, size_t want)
+{
+	if (n < 0)
+		return errno;
+	return (size_t)n == want ? 0 : -1;
+}
+
+static volatile unsigned long rom_origin = 0;
+
+/* The first NUL-terminated run of three or more printable ROM bytes. */
+static const char *
+rom_string(void)
+{
+	const volatile unsigned char *p;
+	unsigned long i, run = 0;
+
+	/*
+	 * The ROM starts at address 0, which GCC treats as a null object;
+	 * loading the base through a volatile hides it from bounds analysis.
+	 */
+	p = (const volatile unsigned char *)rom_origin;
+
+	for (i = 0; i < ROM_END_ADDR; i++) {
+		if (p[i] == '\0') {
+			if (run >= 3)
+				return (const char *)(i - run);
+			run = 0;
+		} else if (p[i] >= 0x20 && p[i] < 0x7f)
+			run++;
+		else
+			run = 0;
+	}
+	return NULL;
+}
+
+/*
+ * The read-only admission: the boot ROM as a transfer source through a
+ * pipe and through namei, and as a target, a crossing source and a kernel
+ * source refused.
+ */
+static int
+rom_transfers(void)
+{
+	const volatile unsigned char *rom;
+	unsigned char got[16];
+	struct iovec iov;
+	const char *path;
+	int fds[2], fails = 0, i, same;
+
+	/* GCC treats addresses below 4 KB as null objects; see rom_string. */
+	rom = (const volatile unsigned char *)(rom_origin + ROM_MAGIC_ADDR);
+	if (pipe(fds) < 0) {
+		perror("pipe");
+		exit(2);
+	}
+	fails += report("rom write source", ROM_MAGIC_ADDR, 0,
+	    xfer_result(write(fds[1], (void *)ROM_MAGIC_ADDR, sizeof got),
+	    sizeof got));
+	memset(got, 0, sizeof got);
+	same = read(fds[0], got, sizeof got) == (ssize_t)sizeof got;
+	for (i = 0; same && i < (int)sizeof got; i++)
+		same = got[i] == rom[i];
+	fails += report("rom bytes delivered", ROM_MAGIC_ADDR, 1, same);
+
+	iov.iov_base = (void *)ROM_MAGIC_ADDR;
+	iov.iov_len = 4;
+	fails += report("rom writev source", ROM_MAGIC_ADDR, 0,
+	    xfer_result(writev(fds[1], &iov, 1), 4));
+	(void)read(fds[0], got, 4);
+
+	fails += report("rom end crossing", ROM_END_ADDR - 8, EFAULT,
+	    xfer_result(write(fds[1], (void *)(ROM_END_ADDR - 8), 16), 16));
+	fails += report("kernel text source", KERNEL_TEXT_ADDR, EFAULT,
+	    xfer_result(write(fds[1], (void *)KERNEL_TEXT_ADDR, 4), 4));
+	(void)write(fds[1], "x", 1);
+	fails += report("rom read target", ROM_MAGIC_ADDR, EFAULT,
+	    xfer_result(read(fds[0], (void *)ROM_MAGIC_ADDR, 1), 1));
+	(void)close(fds[0]);
+	(void)close(fds[1]);
+
+	path = rom_string();
+	if (path == NULL) {
+		printf("rom path: no NUL-terminated string in the ROM\n");
+		return fails + 1;
+	}
+	errno = 0;
+	fails += report("rom path to namei", (unsigned long)path, ENOENT,
+	    access(path, F_OK) == 0 ? 0 : errno);
+	return fails;
 }
 
 /*
@@ -251,6 +359,7 @@ main(int argc, char **argv)
 	fails += report("sio divider", SIO_DIV_CSR_ADDR, 0,
 	    probe(SIO_DIV_CSR_ADDR));
 	fails += report("rom float divide", 0, 0, rom_divide());
+	fails += rom_transfers();
 
 	if (fails == 0)
 		printf("MPUTEST OK (mpu %s)\n", enable ? "on" : "off");

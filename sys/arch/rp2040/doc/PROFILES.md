@@ -120,7 +120,7 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 | `puzzles` group with `gamesdir` | 37 | 2 | `puzzlebox` and hard links `flood`, `samegame`, `unruly`, `lightup` |
 | `games` and `puzzles` | 60 | 3 | both groups |
 | `ridge` with `gamesdir`, `gamebox` and `lcdgfx` | 11 | 3 | the hard link `/usr/games/ridge` and what it needs (`gamebox` links `ridge` only when the selection keeps it); PicoCalc only |
-| all maintained closures (`picocalc`) | 306 | 23 | |
+| all maintained closures (`picocalc`) | 307 | 23 | |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
@@ -136,8 +136,8 @@ allocation unit, not traced block by block). The `sdcard` closure needs no
 other closure: its seven inodes are `/mnt` and six device nodes, and its one
 block is the `/mnt` directory. The closure rows (`coremark` 16, the toolchain
 with its library 133, `games` 24, `puzzles` beyond `games` 36, `calc-bignum`
-60, `calc` 33, `sdcard` 1) sum to 303, and the 7 blocks `ridge` adds inside
-the full set bring them to 310, four blocks more than the 306 of the image
+60, `calc` 33, `sdcard` 1) sum to 303, and the 8 blocks `ridge` adds inside
+the full set bring them to 311, four blocks more than the 307 of the image
 that holds every closure, for the same reason.
 
 The multicall members cost far less inside the full set than alone, because
@@ -158,13 +158,13 @@ member from the `games` profile, which holds both groups at 60 blocks:
 | `samegame` | 18 | 2 | 5 |
 | `unruly` | 21 | 2 | 6 |
 | `lightup` | 23 | 2 | 8 |
-| `ridge` | 11 | 3 | 7 |
+| `ridge` | 11 | 3 | 8 |
 
 The `ridge` row is not part of the 60: it is measured on the `base` profile with
 `gamesdir`, `gamebox`, `ridge` and `lcdgfx` (the third inode is the device
 node) and, for the marginal figure, as the difference between the `picocalc`
-image built with `IMAGE_WITHOUT=ridge` (148 free blocks) and as shipped (141);
-`gamebox` grows from 21,660 to 29,518 packed bytes. The members and the two
+image built with `IMAGE_WITHOUT=ridge` (148 free blocks) and as shipped (140);
+`gamebox` grows from 21,660 to 30,005 packed bytes. The members and the two
 binaries account for the whole 60: the nine
 marginal figures sum to 41, `gamesdir` is 1, and the two binaries and their
 shared linkage are the remaining 18. Removing a member removes a hard link,
@@ -191,7 +191,7 @@ the pack's unused blocks occupy no flash.
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's, including `puzzles` | 239 | 32 |
-| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx` and `ridge`, so also `puzzles` | 141 | 20 |
+| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx` and `ridge`, so also `puzzles` | 140 | 20 |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
@@ -207,7 +207,7 @@ one tree and equal main's. The `lcdgfx` cost is such a difference too: the
 `base` image of this tree holds 447 free blocks and 43 free inodes, and 447
 and 42 with `lcdgfx` added, so the node costs one inode and no block. The
 `picocalc` image holds 148 and 20 when built with `IMAGE_WITHOUT=ridge`; the
-row reads 141 free blocks and 20 free inodes as shipped: `ridge` takes seven
+row reads 140 free blocks and 20 free inodes as shipped: `ridge` takes eight
 blocks and no inode, because its entry point is a hard link. A `full` image
 built in the same run holds 241 free blocks, two above the recorded 239;
 `ridge` is outside `full` and its `gamebox` is unchanged, so the difference

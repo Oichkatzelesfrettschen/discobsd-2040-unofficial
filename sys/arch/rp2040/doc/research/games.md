@@ -341,8 +341,18 @@ Movement splits into steps of at most four pixels, so no tick crosses a
 tile. Coyote time (a jump up to three ticks after leaving an edge) and a
 jump buffer (a press up to three ticks before landing) cover the keyboard's
 one event per 32 ms. A direction pressed and released between two ticks
-still moves one tick. Level design keeps every gap at five columns or less
-(the jump crosses six) and every climb at four rows or less.
+still moves one tick. The key state is kept per physical key, because a held
+printable key repeats as PRESSED events (`picokbd_map.h`): jump, drop, pause,
+quit and confirm fire on the first PRESSED of a key and not again until its
+RELEASED, and an action is held while any key that drives it is down (Space and
+Up both jump). Lost events clear every key's state. A life lost to a crawler respawns at the last checkpoint with 45 ticks of
+grace, during which a crawler's touch does no harm (a stomp still scores); the
+grace ends only once no crawler touches the climber, which blinks while it
+lasts. Crawlers stand still while the climber is dying, so without grace a
+crawler in the spawn box would kill it again at the first tick. The level-data
+rules also keep every checkpoint's spawn box outside every crawler's patrol.
+Level design keeps every gap at five columns or less (the jump crosses six)
+and every climb at four rows or less.
 
 Tiles and sprites. The atlas holds 57 static tiles (sixteen terrain and
 item tiles, then a 41-glyph 5 by 7 font for the HUD and banners), all
@@ -350,10 +360,16 @@ generated in code and uploaded once, and 63 slots for sprites. A 16 by 16
 sprite covers at most 3 by 3 cells, so each of up to seven sprites (the
 player and six crawlers) owns nine slots; the renderer composites the
 sprite over the world tiles under it in user memory and uploads the nine
-tiles with one `LCDG_TILESET`, which costs no bus time. A sprite whose
-position, frame, mirroring, camera column, twinkle phase and the map's change
-counter match the previous frame uploads nothing, and the cells it covers
-keep their numbers, so `gtile_set()` marks nothing. The far ridge behind the
+tiles with one `LCDG_TILESET`, which costs no bus time. Two sprites whose
+3 by 3 boxes meet share cells; every sprite composites all the sprites whose
+boxes meet its own, the climber over the crawlers and a lower crawler over a
+higher one, and a shared cell shows the slot of the lowest-numbered sprite
+that covers it, which holds all of them. The allocation stays nine slots per
+sprite and seven sprites; a sprite's unused slots are the cells another
+sprite owns. A sprite whose position, frame, mirroring, camera column,
+twinkle phase, the map's change counter and the position, frame, mirroring and
+relative index of every neighbor match the previous frame uploads nothing, and
+the cells it covers keep their numbers, so `gtile_set()` marks nothing. The far ridge behind the
 action is a one-pixel contour, so an item or sprite cell loses at most a
 stroke of it and no tile needs a variant per background. World cells are
 chosen so that columns look alike: flat rock, the sky and the abyss are
@@ -384,11 +400,11 @@ corridor to have floor and three rows of headroom, so a jump clears or
 stomps it.
 
 Sizes, from `arm-none-eabi-size` and `ls` on the toolchain of this tree at
-`-Os`: `ridge.o` is 9,668 bytes of text and 10,576 of bss (the map and the
-game state, `struct rg_game`, 6,792 bytes; the view with its tile map,
-frame buffer and sprite signatures, 3,632); the standalone a.out is 10,392 bytes (text 10,355, data 4, bss
-10,592). Inside `gamebox` it adds 9,748 raw bytes (23,920 to 33,668) and
-7,858 packed bytes (21,660 to 29,518). The survey's estimate was 5 to 6 KB
+`-Os`: `ridge.o` is 10,153 bytes of text and 11,452 of bss (the map and the
+game state, `struct rg_game`, 6,796 bytes; the view with its tile map,
+frame buffer and sprite signatures, 4,500); the standalone a.out is 10,876
+bytes (text 10,840, data 4, bss 11,468). Inside `gamebox` it adds 10,232 raw
+bytes (23,920 to 34,152) and 8,345 packed bytes (21,660 to 30,005). The survey's estimate was 5 to 6 KB
 of engine text plus 4 KB of tile data; the tiles are generated, the sprites
 (1,632 bytes of strings) and the font (287 bytes) are the stored art, and
 the HUD, banners, compositing and front end made the code larger than the

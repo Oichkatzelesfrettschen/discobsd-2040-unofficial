@@ -294,11 +294,13 @@ run_fsutil_clear() {
 	second_run "$files"
 }
 
-# Two unreached directories whose ".." entries name each other: the climb
-# along ".." never leaves the loop, so fsutil's repair must stop it by a step
-# bound. A repair that does not finish in the time allowed fails the scenario;
-# the bound is generous for a 128-kilobyte image, which repairs in
-# milliseconds. Both directories must then resolve under lost+found.
+# run_fsutil_cycle COUNT: COUNT unreached directories, two or more of them
+# with ".." entries that name each other, lead the climb along ".." around a
+# loop with no topmost directory, so fsutil's repair must end the climb and
+# still reconnect every one of them. A repair that does not finish in the time
+# allowed fails the scenario; the limit is generous for a 128-kilobyte image,
+# which repairs in milliseconds. Every directory must then resolve under
+# lost+found.
 run_fsutil_cycle() {
 	status=0
 	run_bounded 10 "$gen" --fix "$img" >"$out" 2>&1 || status=$?
@@ -312,8 +314,8 @@ run_fsutil_cycle() {
 	esac
 	lacks 'SORRY'
 	listed=$(sed -n 's/^UNREF DIR  *I=\([0-9][0-9]*\) .*/\1/p' "$out")
-	[ "$(printf '%s\n' "$listed" | wc -l)" -eq 2 ] ||
-	    fail "fsutil reported unreferenced directories \"$listed\", want two"
+	[ "$(printf '%s\n' "$listed" | wc -l)" -eq "$1" ] ||
+	    fail "fsutil reported unreferenced directories \"$listed\", want $1"
 	for ino in $listed; do
 		name=$(printf '/lost+found/#%05u' "$ino")
 		status=0
@@ -388,7 +390,7 @@ for scenario in "$@"; do
 	case $scenario in
 	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
 	    full-table | fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
-	    fsutil-lf-overrun | fsutil-lf-dir | fsutil-lf-deep | fsutil-lf-cycle | \
+	    fsutil-lf-overrun | fsutil-lf-dir | fsutil-lf-deep | fsutil-lf-cycle | fsutil-lf-gap | fsutil-lf-chain | \
 	    fsutil-clear-blocks | \
 	    tail-evict | df-empty | df-full | \
 	    df-tail | df-mkfs | mkfs-ratio) ;;
@@ -402,6 +404,8 @@ for scenario in "$@"; do
 	fsutil-lf-dir) layout=orphan-dir ;;
 	fsutil-lf-deep) layout=orphan-deep ;;
 	fsutil-lf-cycle) layout=orphan-cycle ;;
+	fsutil-lf-gap) layout=orphan-cycle-gap ;;
+	fsutil-lf-chain) layout=orphan-chain-cycle ;;
 	fsutil-clear-blocks) layout=orphan-nolf ;;
 	df-empty) layout=empty ;;
 	df-full) layout=file-last ;;
@@ -422,7 +426,8 @@ for scenario in "$@"; do
 	fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine) run_fsutil FILE ;;
 	fsutil-lf-dir) run_fsutil DIR /inner ;;
 	fsutil-lf-deep) run_fsutil DIR /sub /sub/inner ;;
-	fsutil-lf-cycle) run_fsutil_cycle ;;
+	fsutil-lf-cycle | fsutil-lf-gap) run_fsutil_cycle 2 ;;
+	fsutil-lf-chain) run_fsutil_cycle 3 ;;
 	fsutil-clear-blocks) run_fsutil_clear ;;
 	fsutil-lf-overrun) run_fsutil_overrun ;;
 	tail-evict) run_tail_evict ;;

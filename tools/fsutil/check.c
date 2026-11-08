@@ -975,37 +975,52 @@ fatal:      if (block_map)
 
     printf ("** Phase 3 - Check Connectivity\n");
     for (inum = BSDFS_ROOT_INODE; inum <= last_allocated_inode; inum++) {
-        if (inode_state (inum) == DSTATE) {
+        /* Reconnect directories until inum is reached. Each pass reconnects
+         * one directory that phase 2 left unreached, and scan_pass2() marks
+         * it reached, so the passes for one inum are at most as many as there
+         * are directories; a reconnect that fails changes no state and ends
+         * them. A pass is needed more than once when inum leads into a loop
+         * of ".." entries: the directory the first pass reconnects is not
+         * inum, and nothing it holds names inum. */
+        while (inode_state (inum) == DSTATE) {
             unsigned orphan = inum, parent, hops = 0;
 
             /* Follow ".." through unreached directories to the topmost one,
              * as pass3() in sbin/fsck does. Its ".." names a reached
              * directory, or nothing, and it is the one to reconnect:
              * phase 2 never visited its entries, so the rescan after the
-             * reconnect is what gives them their references. A ".." chain
-             * that loops through unreached directories ends after
-             * 'last_allocated_inode' steps, more than any chain of distinct
-             * directories holds, and reconnects the directory it stopped at;
-             * the others of the loop are met by later turns of this loop. */
+             * reconnect is what gives them their references. A chain that
+             * returns to inum is a loop with no topmost directory, and inum
+             * is reconnected as its head. A chain that enters a loop not
+             * holding inum ends after 'last_allocated_inode' steps, more
+             * than any chain of distinct directories holds, at a member of
+             * that loop. */
             find_inode_name = "..";
             for (;;) {
-                if (! fs_inode_get (fs, &inode, orphan))
+                if (! fs_inode_get (fs, &inode, orphan)) {
+                    orphan = 0;
                     break;
+                }
                 find_inode_result = 0;
                 scan_inode (&inode, DATA, scan_directory, find_inode);
                 parent = find_inode_result;
-                if (parent != 0 && inode_state (parent) == DSTATE &&
-                    ++hops <= last_allocated_inode) {
-                    orphan = parent;
-                    continue;
+                if (parent == 0 || inode_state (parent) != DSTATE)
+                    break;
+                if (parent == inum) {
+                    orphan = inum;
+                    if (! fs_inode_get (fs, &inode, orphan))
+                        orphan = 0;
+                    break;
                 }
-                if (move_to_lost_found (&inode)) {
-                    thisname = pathp = pathname;
-                    *pathp++ = '?';
-                    scan_pass2 (fs, orphan);
-                }
-                break;
+                if (++hops > last_allocated_inode)
+                    break;
+                orphan = parent;
             }
+            if (orphan == 0 || ! move_to_lost_found (&inode))
+                break;
+            thisname = pathp = pathname;
+            *pathp++ = '?';
+            scan_pass2 (fs, orphan);
         }
     }
 

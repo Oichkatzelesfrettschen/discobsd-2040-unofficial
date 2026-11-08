@@ -126,13 +126,13 @@ SITES: dict[str, Edit] = {
     ),
     "fsutil-reach-skip": (
         "check.c",
-        "                if (move_to_lost_found (&inode)) {\n",
-        "                if (parent == 0 && move_to_lost_found (&inode)) {\n",
+        "            if (orphan == 0 || ! move_to_lost_found (&inode))\n",
+        "            if (orphan == 0 || parent != 0 || ! move_to_lost_found (&inode))\n",
     ),
     "fsutil-no-rescan": (
         "check.c",
-        "                    scan_pass2 (fs, orphan);\n",
-        "                    (void) orphan;\n",
+        "            scan_pass2 (fs, orphan);\n",
+        "            (void) orphan;\n            break;\n",
     ),
     "fsutil-dotdot-keep": (
         "check.c",
@@ -141,8 +141,8 @@ SITES: dict[str, Edit] = {
     ),
     "fsutil-chain-flat": (
         "check.c",
-        "                if (parent != 0 && inode_state (parent) == DSTATE &&\n",
-        "                if (parent != 0 && inode_state (parent) == DSTATE && 0 &&\n",
+        "                if (parent == 0 || inode_state (parent) != DSTATE)\n",
+        "                if (parent == 0 || inode_state (parent) != DSTATE || 1)\n",
     ),
     "fsutil-clear-leak": (
         "check.c",
@@ -156,8 +156,18 @@ SITES: dict[str, Edit] = {
     ),
     "fsutil-cycle-unbound": (
         "check.c",
-        "++hops <= last_allocated_inode) {",
-        "++hops > 0) {",
+        "if (++hops > last_allocated_inode)",
+        "if (++hops == 0)",
+    ),
+    "fsutil-cycle-noclose": (
+        "check.c",
+        "                if (parent == inum) {\n",
+        "                if (parent == inum && 0) {\n",
+    ),
+    "fsutil-cycle-noretry": (
+        "check.c",
+        "            scan_pass2 (fs, orphan);\n",
+        "            scan_pass2 (fs, orphan);\n            break;\n",
     ),
     "df-isize": (
         "df.c",
@@ -222,6 +232,8 @@ RANGE_SITES = (
 GROUPS: dict[str, tuple[str, ...]] = {
     "alloc-range": ("alloc-loop", "alloc-test"),
     "inode-window": ("window-flush", "window-write", "window-read"),
+    "fsutil-cycle-open": ("fsutil-cycle-noclose", "fsutil-cycle-noretry"),
+    "fsutil-cycle-unclosed": ("fsutil-cycle-noclose", "fsutil-cycle-unbound"),
     "all-old": RANGE_SITES,
 }
 

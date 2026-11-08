@@ -63,6 +63,15 @@
  *   orphan-cycle   two directories, each with ".." naming the other and
  *                  neither named from /; their link counts include the
  *                  ".." of the other. The ".." chain of either one loops.
+ *   orphan-cycle-gap  orphan-cycle with the two directories at inodes N-2
+ *                  and N-1: a file takes inode N while they are made and is
+ *                  deleted afterwards, so the highest inode in use is N-1.
+ *                  The step bound of the climb is then odd, and a climb from
+ *                  the lower directory that stops at the bound ends on the
+ *                  higher one.
+ *   orphan-chain-cycle  orphan-cycle plus a third directory, at the lowest
+ *                  inode, whose ".." names a member of the loop: its chain
+ *                  enters the loop and never returns to it.
  *
  * "--check IMAGE" prints fsutil's own consistency report for an image,
  * opened read-only, so a gate can compare fsutil's file count with fsck's.
@@ -391,17 +400,32 @@ build(const char *layout, const char *path)
 		if (!rename_to(&fs, "/lost+found", "/old-lf") ||
 		    !fill_files(&fs, 0, 4) || !drop_name(&fs, "/f02"))
 			return fail("cannot build", layout);
-	} else if (strcmp(layout, "orphan-cycle") == 0) {
-		unsigned first, second;
+	} else if (strcmp(layout, "orphan-cycle") == 0 ||
+	    strcmp(layout, "orphan-cycle-gap") == 0 ||
+	    strcmp(layout, "orphan-chain-cycle") == 0) {
+		int gap = strcmp(layout, "orphan-cycle-gap") == 0;
+		int chain = strcmp(layout, "orphan-chain-cycle") == 0;
+		unsigned first, second, third = 0;
 
-		if (!make_dir(&fs, "/d00") || !make_dir(&fs, "/d01"))
+		if ((gap && !make_empty_file(&fs, "/pad")) ||
+		    !make_dir(&fs, "/d00") || !make_dir(&fs, "/d01") ||
+		    (chain && !make_dir(&fs, "/d02")))
 			return fail("cannot build", layout);
 		first = number_of(&fs, "/d00");
 		second = number_of(&fs, "/d01");
-		if (first == 0 || second == 0 ||
+		if (chain)
+			third = number_of(&fs, "/d02");
+		/* Highest first: the padding file, then the loop, then the tail. */
+		if ((gap && (number_of(&fs, "/pad") != IMAGE_INODES ||
+		    first != IMAGE_INODES - 1 || second != IMAGE_INODES - 2)) ||
+		    (chain && (third == 0 || third > second)) ||
+		    first == 0 || second == 0 ||
 		    !point_dotdot(&fs, "/d00", second) ||
 		    !point_dotdot(&fs, "/d01", first) ||
-		    !drop_name(&fs, "/d00") || !drop_name(&fs, "/d01"))
+		    (chain && !point_dotdot(&fs, "/d02", first)) ||
+		    !drop_name(&fs, "/d00") || !drop_name(&fs, "/d01") ||
+		    (chain && !drop_name(&fs, "/d02")) ||
+		    (gap && !delete_file(&fs, "/pad")))
 			return fail("cannot build", layout);
 	} else if (strcmp(layout, "orphan-deep") == 0) {
 		if (!fill_files(&fs, 0, 9) || !make_dir(&fs, "/d00") ||

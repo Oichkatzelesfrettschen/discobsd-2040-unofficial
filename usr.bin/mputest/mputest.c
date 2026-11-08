@@ -19,6 +19,16 @@
  *      enable is 1 only when programmed equals the map's four regions and
  *      nregions is the datasheet's eight.
  *
+ *   4. a process that catches SIGSEGV gets its handler for a fault: a read
+ *      of kernel RAM with a handler installed runs the handler with the
+ *      faulting pc and the fault-time r4-r11 in its sigcontext, three
+ *      times in a row, and the
+ *      handler leaves through siglongjmp. This runs only when the MPU is
+ *      on, since nothing faults otherwise; a kernel that signals a fault
+ *      through the wrong frame replays the faulting load forever at
+ *      HardFault priority, which stops the whole board and fails the
+ *      Renode gate by its timeout.
+ *
  * CPUID and DIV_CSR are 0x78 bytes apart inside one 256-byte region, so
  * checking both decides the subregion disables rather than the region.
  *
@@ -35,6 +45,7 @@
 #include <machine/cpu.h>
 #include <machine/machparam.h>
 #include <machine/mpuvar.h>
+#include <setjmp.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,6 +140,97 @@ rom_divide(void)
 		bad++;
 		printf("rom double divide: mismatch\n");
 	}
+	return bad;
+}
+
+/*
+ * A fault taken with a SIGSEGV handler installed. The handler records the
+ * pc the kernel saved in its sigcontext and leaves through siglongjmp; the
+ * read sits in caught_read, so the saved pc must lie in that function.
+ */
+static sigjmp_buf caught_env;
+static volatile unsigned long caught_pc;
+static volatile int caught_regs_ok;
+
+/* r4 through r11 as caught_read sets them before its faulting load. */
+static const unsigned caught_marks[8] = {
+	0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb
+};
+
+static void
+caught_handler(int sig, int code, struct sigcontext *scp)
+{
+	(void)code;
+	caught_pc = scp->sc_pc;
+	caught_regs_ok = scp->sc_r4 == caught_marks[0] &&
+	    scp->sc_r5 == caught_marks[1] && scp->sc_r6 == caught_marks[2] &&
+	    scp->sc_r7 == caught_marks[3] && scp->sc_r8 == caught_marks[4] &&
+	    scp->sc_r9 == caught_marks[5] && scp->sc_r10 == caught_marks[6] &&
+	    scp->sc_r11 == caught_marks[7];
+	siglongjmp(caught_env, sig);
+}
+
+/*
+ * Load r4-r11 with caught_marks, then read addr. The kernel's sigcontext
+ * must carry those values, which only the fault-time register bank holds.
+ */
+static __attribute__((noinline)) unsigned
+caught_read(unsigned long addr)
+{
+	unsigned v;
+
+	__asm volatile (
+	    "movs	r4, #0x88\n\t"
+	    "mov	r8, r4\n\t"
+	    "movs	r4, #0x99\n\t"
+	    "mov	r9, r4\n\t"
+	    "movs	r4, #0xaa\n\t"
+	    "mov	r10, r4\n\t"
+	    "movs	r4, #0xbb\n\t"
+	    "mov	r11, r4\n\t"
+	    "movs	r4, #0x44\n\t"
+	    "movs	r5, #0x55\n\t"
+	    "movs	r6, #0x66\n\t"
+	    "movs	r7, #0x77\n\t"
+	    "ldr	%0, [%1]\n\t"
+	    : "=r" (v)
+	    : "r" (addr)
+	    : "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "memory");
+	return v;
+}
+
+static int
+caught_fault(void)
+{
+	struct sigaction sa;
+	/* Live across siglongjmp, so kept in memory. */
+	volatile unsigned long low = (unsigned long)caught_read;
+	volatile int i, bad = 0;
+	int sig;
+
+	/* BSD handlers take (sig, code, scp); void (*)(void) is the cast GCC admits. */
+	sa.sa_handler = (void (*)(int))(void (*)(void))caught_handler;
+	sa.sa_mask = 0;			/* sigemptyset is a comma expression. */
+	sa.sa_flags = 0;
+	if (sigaction(SIGSEGV, &sa, NULL) == -1) {
+		perror("sigaction");
+		exit(2);
+	}
+	low &= ~1UL;			/* The Thumb bit of the function address. */
+	for (i = 0; i < 3; i++) {
+		caught_pc = 0;
+		caught_regs_ok = 0;
+		sig = sigsetjmp(caught_env, 1);
+		if (sig == 0) {
+			(void)caught_read(USER_DATA_END);
+			bad++;		/* The read must not complete. */
+			continue;
+		}
+		bad += sig != SIGSEGV || caught_pc < low || caught_pc >= low + 64 ||
+		    !caught_regs_ok;
+	}
+	sa.sa_handler = SIG_DFL;
+	(void)sigaction(SIGSEGV, &sa, NULL);
 	return bad;
 }
 
@@ -251,6 +353,8 @@ main(int argc, char **argv)
 	fails += report("sio divider", SIO_DIV_CSR_ADDR, 0,
 	    probe(SIO_DIV_CSR_ADDR));
 	fails += report("rom float divide", 0, 0, rom_divide());
+	if (enable)
+		fails += report("caught fault", USER_DATA_END, 0, caught_fault());
 
 	if (fails == 0)
 		printf("MPUTEST OK (mpu %s)\n", enable ? "on" : "off");

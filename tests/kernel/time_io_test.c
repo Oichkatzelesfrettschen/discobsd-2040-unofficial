@@ -19,6 +19,8 @@
 struct user u;
 struct timeval time;
 int hz = 100, usechz = 10000, lbolt, adjdelta;
+long monosec, realsec = LONG_MAX;
+u_short monotick, realtick;
 struct mount mount[NMOUNT];
 struct inode inode[NINODE];
 struct buf buf[NBUF];
@@ -178,6 +180,8 @@ static void clock_cases(void)
     u.u_procp = &process;
     process.p_realtimer.it_value = 11;
     process.p_realtimer.it_interval = 13;
+    process.p_realtick = 5;
+    process.p_realitick = 7;
     timer_args->which = ITIMER_REAL;
     timer_args->value = &timer;
     timer_args->old_value = NULL;
@@ -190,24 +194,26 @@ static void clock_cases(void)
     u.u_error = 0;
     setitimer();
     HK_CHECK(u.u_error == 0);
-    HK_CHECK(process.p_realtimer.it_value == 3);
-    HK_CHECK(process.p_realtimer.it_interval == 4);
+    /* One microsecond rounds up to one 10 ms tick: 2 s + 1 tick. */
+    HK_CHECK(process.p_realtimer.it_value == 2 && process.p_realtick == 1);
+    HK_CHECK(process.p_realtimer.it_interval == 3 && process.p_realitick == 1);
+    HK_CHECK(realsec == 2 && realtick == 1);
 
     timer = (struct itimerval){0};
     timer.it_value.tv_sec = -1;
     u.u_error = 0;
     setitimer();
     HK_CHECK(u.u_error == EINVAL);
-    HK_CHECK(process.p_realtimer.it_value == 3);
-    HK_CHECK(process.p_realtimer.it_interval == 4);
+    HK_CHECK(process.p_realtimer.it_value == 2 && process.p_realtick == 1);
+    HK_CHECK(process.p_realtimer.it_interval == 3 && process.p_realitick == 1);
 
     timer = (struct itimerval){0};
     timer.it_interval.tv_usec = 1000000;
     u.u_error = 0;
     setitimer();
     HK_CHECK(u.u_error == EINVAL);
-    HK_CHECK(process.p_realtimer.it_value == 3);
-    HK_CHECK(process.p_realtimer.it_interval == 4);
+    HK_CHECK(process.p_realtimer.it_value == 2 && process.p_realtick == 1);
+    HK_CHECK(process.p_realtimer.it_interval == 3 && process.p_realitick == 1);
 
     timer = (struct itimerval){0};
     timer.it_value.tv_sec = LONG_MAX / hz + 1;
@@ -238,7 +244,7 @@ static void clock_cases(void)
     u.u_error = 0;
     setitimer();
     HK_CHECK(u.u_error == EINVAL);
-    HK_CHECK(process.p_realtimer.it_value == 3);
+    HK_CHECK(process.p_realtimer.it_value == 2 && process.p_realtick == 1);
     HK_CHECK(hk_ipl == 0);
 
     timer = (struct itimerval){0};
@@ -250,9 +256,12 @@ static void clock_cases(void)
     u.u_error = 0;
     setitimer();
     HK_CHECK(u.u_error == 0);
-    HK_CHECK(old_timer.it_value.tv_sec == 3);
-    HK_CHECK(old_timer.it_interval.tv_sec == 4);
-    HK_CHECK(process.p_realtimer.it_value == 23);
+    HK_CHECK(old_timer.it_value.tv_sec == 2 && old_timer.it_value.tv_usec == 10000);
+    HK_CHECK(old_timer.it_interval.tv_sec == 3 &&
+        old_timer.it_interval.tv_usec == 10000);
+    HK_CHECK(process.p_realtimer.it_value == 23 && process.p_realtick == 0);
+    HK_CHECK(process.p_realtimer.it_interval == 0 && process.p_realitick == 0);
+    HK_CHECK(realsec == 2 && realtick == 1);
 
     timer.it_value.tv_sec = 29;
     timer_args->which = ITIMER_REAL;
@@ -261,8 +270,8 @@ static void clock_cases(void)
     u.u_error = 0;
     setitimer();
     HK_CHECK(u.u_error == EFAULT);
-    HK_CHECK(process.p_realtimer.it_value == 23);
-    HK_CHECK(process.p_realtimer.it_interval == 0);
+    HK_CHECK(process.p_realtimer.it_value == 23 && process.p_realtick == 0);
+    HK_CHECK(process.p_realtimer.it_interval == 0 && process.p_realitick == 0);
     copyout_error = 0;
     timer_args->old_value = NULL;
 }

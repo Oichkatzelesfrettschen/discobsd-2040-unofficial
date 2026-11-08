@@ -528,7 +528,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-usb-get-descriptor` | The production `GET_DESCRIPTOR` predicate compiles as strict C17 with address and undefined-behavior sanitizers. It exhausts all request-type bytes, `wValue` and `wIndex` values, accepts only device/configuration/BOS index zero and existing string indexes with the supported language selector, and leaves `wLength` variable as Chapter 9 requires. Calibrated request-type, string-index and language-index mutations must fail. The host test validates request geometry, not EP0 dispatch or USB hardware. |
 | `check-usb-standard-requests` | The production `GET_CONFIGURATION`, `GET_INTERFACE`, `GET_STATUS` and endpoint feature predicates compile as strict C17 with address and undefined-behavior sanitizers. Exhaustive request-type, request-code, 16-bit field and endpoint-address sweeps cover the advertised device, interface and endpoint geometry; state tests keep EP0 GET_STATUS available before configuration and reject interface/nonzero-endpoint status until configuration; remote-wakeup and test-mode selectors are rejected; calibrated mutations accepting an oversized status length or a reserved endpoint-address byte must fail. The host test validates request geometry and state predicates, not EP0 dispatch or USB hardware. |
 | `check-flash-device-bounds` | The production flash drive/partition index predicate compiles as strict C17 with address and undefined-behavior sanitizers and is exercised over all 256 encoded device minor values. A mutation that accepts the first invalid drive calibrates rejection. The host test validates the predicate; it does not execute block strategy dispatch or flash hardware. |
-| `check-clock-catchup` | The production tick catch-up arithmetic (`sys/arch/rp2040/rp2040/clock_catchup.h`) compiles as strict C17 with address and undefined-behavior sanitizers against a model of SysTick with one pending bit, a 1 MHz `TIMERAWL`, `lbolt`, the time of day and a callout queue at the real `HZ`. A 45 ms masked erase advances exactly 45 ticks from every SysTick phase; nested and repeated catch-up, alternating masked and live time, a `TIMERAWL` wrap inside the window, a late tick handler (never above the ticks SysTick raised, at most one lost per window) and an unarmed clock hold; the callout batch update equals `hardclock`'s per-tick walk over 20,000 random queues and leaves due callouts queued for `softclock`. Seven calibrating mutants must fail: no catch-up, the pending tick counted twice, the record not advanced, the wrap ignored, no carry into seconds, a head-only callout decrement and an unarmed clock counted. A source-wiring check requires `clock_catchup()` before every `splx(s)` in `flash_erase`, `flash_program`, `fl_raw` and `flstrategy` and a calibrating copy without the calls must fail it. The host test does not execute SysTick, the timer or the boot ROM. Board check: `tests/rp2040/clock_catchup/board_clock_catchup.py` compares `date` against the host across a dd-and-sync workload on the flash root (prediction: excess drift near zero; without catch-up, at least 44 ms per sector erase); it needs `DISCOBSD_BOARD_CLOCK_CATCHUP=run`. The script ends PASS (0) when the whole excess interval, propagated from the three offset measurements, lies within a tenth of that floor, FAIL (1) when it lies wholly outside and inconclusive (2) otherwise, for a measurement whose bounds share no point and for a workload whose `dd` writes were not all reported. `tests/rp2040/clock_catchup/test_board_scripts.py`, run by `check-clock-catchup`, exercises that logic and the dc and bc console framing of `board_dcbc_smoke.py` on synthetic input and a stub console, each against its defective form. Observed on one board: excess intervals of +0.160 .. +0.481 s (24 passes) and -0.043 .. +0.316 s (12 passes) with the shipped kernel, and 23 times the floor with the catch-up disabled (`docs/research/picocalc-session-handoff.md`, "Board runs"). |
+| `check-clock-catchup` | The production tick catch-up arithmetic (`sys/arch/rp2040/rp2040/clock_catchup.h`) compiles as strict C17 with address and undefined-behavior sanitizers against a model of SysTick with one pending bit, a 1 MHz `TIMERAWL`, `lbolt`, the time of day and a callout queue at the real `HZ`. A 45 ms masked erase advances exactly 45 ticks from every SysTick phase; nested and repeated catch-up, alternating masked and live time, a `TIMERAWL` wrap inside the window, a late tick handler (never above the ticks SysTick raised, at most one lost per window) and an unarmed clock hold; the callout batch update equals `hardclock`'s per-tick walk over 20,000 random queues and leaves due callouts queued for `softclock`. Seven calibrating mutants must fail: no catch-up, the pending tick counted twice, the record not advanced, the wrap ignored, no carry into seconds, a head-only callout decrement and an unarmed clock counted. A source-wiring check requires `clock_catchup()` before every `splx(s)` in `flash_erase`, `flash_program`, `fl_raw` and `flstrategy` and a calibrating copy without the calls must fail it; a second one requires `monoclock_advance(owed)` inside `clock_catchup()` (`sys/arch/rp2040/rp2040/clock.c`), which advances the monotonic clock that orders `ITIMER_REAL` deadlines, and a copy without that call must fail it. The host test does not execute SysTick, the timer or the boot ROM. Board check: `tests/rp2040/clock_catchup/board_clock_catchup.py` compares `date` against the host across a dd-and-sync workload on the flash root (prediction: excess drift near zero; without catch-up, at least 44 ms per sector erase); it needs `DISCOBSD_BOARD_CLOCK_CATCHUP=run`. The script ends PASS (0) when the whole excess interval, propagated from the three offset measurements, lies within a tenth of that floor, FAIL (1) when it lies wholly outside and inconclusive (2) otherwise, for a measurement whose bounds share no point and for a workload whose `dd` writes were not all reported. `tests/rp2040/clock_catchup/test_board_scripts.py`, run by `check-clock-catchup`, exercises that logic and the dc and bc console framing of `board_dcbc_smoke.py` on synthetic input and a stub console, each against its defective form. Observed on one board: excess intervals of +0.160 .. +0.481 s (24 passes) and -0.043 .. +0.316 s (12 passes) with the shipped kernel, and 23 times the floor with the catch-up disabled (`docs/research/picocalc-session-handoff.md`, "Board runs"). |
 | `check-config-generated-sync` | A generator built from the tested host sources regenerates the PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM Makefiles byte for byte in private trees, and requires the PICOCALC_PSRAM Config to equal the PICOCALC Config plus its board line and `device psram` (config(8) has no include directive). The gate retains production board identities and compares comments, barriers, options, source lists and flags without normalization. Mutation controls reject stale template/Config/file-list/output combinations, a variant Config that drifts from its base or lacks its device, a base Config that carries the variant device, missing inputs or outputs and generator failure; synchronized edits, unrelated source edits and concurrent isolated generation pass. |
 | `check-config-include-order` | The actual template and production `SYSTEM_DEP` declarations and include-link recipes hold include creation behind configuration, and host compilation behind include creation. A controller holds each prerequisite group until the expected event; removing either barrier must produce its specific premature-execution verdict. Deadline expiration is an infrastructure error. |
 | `check-warning-policy-host` | enabled warnings are fatal through host tools and host-only overrides, even when CFLAGS is replaced; every WARNLEVEL assignment precedes its sys.mk include and names a level warnings.mk accepts |
@@ -1680,13 +1680,14 @@ research/ names them).
 ### Clock, compact credentials and synchronous writes
 
 `bmake MACHINE=rp2040 check-storage-correctness` links `kern_time.c`,
-`sys_inode.c`, `ufs_subr.c`, `ufs_syscalls2.c`, `kern_synch.c`, `vm_sched.c` and the credential
+`sys_inode.c`, `ufs_subr.c`, `ufs_syscalls2.c`, `kern_synch.c`, `vm_sched.c`,
+`kern_clock.c`, `kern_fork.c` and the credential
 sources against
 deterministic host I/O stubs. It checks the slew/step boundary, backward-step normalization,
 step overflow refusal, both fields of each interval timer, invalid timeval
 fields, whole-second and fractional CPU-timer overflow, interval overflow and
 an old-timer copyout failure that leaves the active timer unchanged. The
-time/I/O/synchronization/storage fixture executes 149 assertions. The suite
+time/I/O/synchronization/storage fixture executes 152 assertions. The suite
 also executes 333 credential assertions over process-group input bounds,
 identity queries, wide supplementary GIDs, permanent and effective UID/GID
 transitions, current-process group reporting after a group change, and the
@@ -1748,7 +1749,38 @@ allocations are reclaimed before pointer publication, busy parents are released,
 original errors survive cleanup and earlier valid ancestors remain intact.
 The fixture uses NSHIFT for depth boundaries and only index zero; its native
 daddr_t width is not evidence about the target's on-disk encoding.
-Thirty-one source mutations, among them bypassing interval-timer validation,
+A separate interval-timer fixture (`tests/kernel/itimer_test.c`) drives the
+production `hardclock()` tick by tick over four `struct proc` entries in
+`allproc` and records every `psignal()` with its tick, 2,455 assertions in all.
+`ITIMER_REAL` counts ticks on the monotonic clock (`monosec`, `monotick`),
+which `settimeofday()` and `adjtime()` leave alone. A one-shot at 1, 10, 500,
+999, 1,000 and 2,500 ms, started from five phases of the second, signals once,
+exactly the wait plus one tick after the call (the deadline is the wait past
+the clock and fires on the first tick strictly after it, so the real wait is
+never shorter than asked), with one softclock entry and one expiry scan in the
+whole interval. A 10 ms periodic timer delivers 99 signals in the
+first 1,000 ticks and the hundredth on tick 1,001, exactly ten ticks apart; a
+1 ms first period delivers 100 inside 1,000 ticks. The fixture covers
+`getitimer()` readback falling 1 ms per tick from the exact value set,
+re-arming earlier and later, cancelling the earliest timer, two processes
+expiring on one tick, a neighbor whose deadline is the scan tick staying
+unsignalled for one more tick, a
+`newproc()` child starting with all four timer fields clear, a 5,000-tick
+`monoclock_advance()` (the due timer fires on the next tick and a periodic
+timer delivers its missed periods one per tick, then returns to its phase),
+the 1e8 s limit round trip, and
+`ITIMER_VIRTUAL` and `ITIMER_PROF` storing `sec * hz + ceil(usec / usechz)`.
+The fixture runs at `hz` 1,000; the 100 Hz fixture above checks the stored
+representation at that rate. The host `setjmp()` stand-in follows the parent
+path of `newproc()` only; the child resume path, the swapout copy and a masked
+clock interrupt are outside it, and the call of `monoclock_advance()` from
+`clock_catchup()` is covered by the wiring check of `check-clock-catchup`.
+Forty-eight source mutations, seventeen of them interval-timer ones (a
+non-strict comparison in either due test, an extra tick, rounding to a second,
+skipping the earliest-deadline lowering, re-arming a periodic timer from the
+clock, a `hardclock()` that never wakes the expiry scan, an expiry scan that
+forgets later timers, missing carries in the monotonic clock and each of the
+four fork-cleared fields), among them bypassing interval-timer validation,
 continuing after an old-timer copyout failure, replacing the saved new-timer
 pointer after a successful old-timer copyout and making `getpgrp()` return
 the caller's process ID, bypassing each privileged credential transition,

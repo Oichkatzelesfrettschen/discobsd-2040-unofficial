@@ -10,10 +10,28 @@
 #include <sys/dk.h>
 #include <sys/kernel.h>
 #include <sys/systm.h>
+#include <machine/limits.h>
 
 int     noproc;         /* no one is running just now */
 
 struct  callout *callfree, calltodo;
+
+long    monosec;        /* monotonic clock: seconds since boot */
+u_short monotick;    /* monotonic clock: tick within the second */
+long    realsec = LONG_MAX;     /* earliest ITIMER_REAL deadline, or earlier */
+u_short realtick;
+
+/*
+ * True when the monotonic clock is strictly past (realsec, realtick).  A
+ * deadline fires on the first tick after it, so a wait of N ticks lasts
+ * longer than N ticks wherever in its tick the setitimer() call landed.
+ */
+#define REALDUE()   (monosec > realsec || \
+    (monosec == realsec && monotick > realtick))
+
+/* True when the monotonic clock is strictly past p's ITIMER_REAL deadline. */
+#define TIMERDUE(p) ((p)->p_realtimer.it_value < monosec || \
+    ((p)->p_realtimer.it_value == monosec && (p)->p_realtick < monotick))
 
 #ifdef UCB_METER
 long hostid;
@@ -89,6 +107,53 @@ gatherstats(pc, ps)
 #endif /* UCB_METER */
 
 /*
+ * Deliver SIGALRM to every process whose ITIMER_REAL deadline has passed,
+ * advance or disarm each one, and recompute the earliest deadline.  A
+ * periodic timer moves on by its interval from the previous deadline, which
+ * keeps its phase; periods missed while the clock interrupt was masked are
+ * delivered one per tick until the deadline catches up.  The
+ * walk holds splclock so that a setitimer() cannot lower realsec between
+ * the scan of a process and the store of the result; the stored deadline
+ * is then never later than any armed timer.  Only allproc is walked: a
+ * zombie's p_un holds its exit status.
+ */
+static void
+realitexpire(void)
+{
+    register struct proc *p;
+    register int s = splclock();
+    long minsec = LONG_MAX;
+    int mintick = 0;
+
+    for (p = allproc; p != NULL; p = p->p_nxt) {
+        if ((p->p_realtimer.it_value | p->p_realtick) == 0)
+            continue;
+        if (TIMERDUE(p)) {
+            psignal(p, SIGALRM);
+            if ((p->p_realtimer.it_interval | p->p_realitick) == 0) {
+                p->p_realtimer.it_value = 0;
+                p->p_realtick = 0;
+                continue;
+            }
+            p->p_realtimer.it_value += p->p_realtimer.it_interval;
+            p->p_realtick += p->p_realitick;
+            if (p->p_realtick >= hz) {
+                p->p_realtick -= hz;
+                p->p_realtimer.it_value++;
+            }
+        }
+        if (p->p_realtimer.it_value < minsec ||
+            (p->p_realtimer.it_value == minsec && p->p_realtick < mintick)) {
+            minsec = p->p_realtimer.it_value;
+            mintick = p->p_realtick;
+        }
+    }
+    realsec = minsec;
+    realtick = mintick;
+    splx(s);
+}
+
+/*
  * Software priority level clock interrupt.
  * Run periodic events from timeout queue.
  */
@@ -116,6 +181,8 @@ softclock(pc, ps)
         splx(s);
         (*func) (arg);
     }
+    if (REALDUE())
+        realitexpire();
     /*
      * If trapped user-mode and profiling, give it
      * a profiling tick.
@@ -258,10 +325,31 @@ hardclock(pc, ps)
         ++time.tv_sec;
     }
 
+    if (++monotick >= hz) {
+        monotick = 0;
+        ++monosec;
+    }
+    if (REALDUE())
+        needsoft = 1;
+
     if (needsoft && BASEPRI(ps)) {  /* if ps is high, just return */
         (void) splsoftclock();
         softclock (pc, ps);
     }
+}
+
+/*
+ * Advance the monotonic clock by ticks that hardclock() did not see, for
+ * a window in which the clock interrupt was masked.  Deadlines that fall in
+ * the window fire from the next hardclock().
+ */
+void
+monoclock_advance(unsigned int ticks)
+{
+    unsigned int n = (unsigned int)monotick + ticks;
+
+    monosec += n / hz;
+    monotick = n % hz;
 }
 
 /*

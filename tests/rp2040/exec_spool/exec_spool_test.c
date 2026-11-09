@@ -431,48 +431,6 @@ raw_boundary_fallback (void)
 }
 
 static void
-swapram_to_flash_migration (void)
-{
-    struct exec_params params;
-    static char crossing_argument[MAXBSIZE + 73];
-    char *arguments[] = { "migrate", crossing_argument, NULL };
-    char *environment[] = { "WINDOW=LARGE", NULL };
-    size_t index;
-
-    reset_models ();
-    for (index = 0; index + 1 < sizeof crossing_argument; index++)
-        crossing_argument[index] = (char) ('A' + index % 19);
-    crossing_argument[sizeof crossing_argument - 1] = '\0';
-    bzero (&params, sizeof params);
-    params.userargp = arguments;
-    params.userenvp = environment;
-    CHECK (exec_save_args (&params) == 0);
-    CHECK (params.spool.backing == EXEC_SPOOL_SWAPRAM);
-    CHECK (exec_spool_to_flash (&params) == 0);
-    CHECK (params.spool.backing == EXEC_SPOOL_FLASH);
-    CHECK (!swapram_live && swapram_frees == 1);
-    CHECK (buffer_claims == 1 && flash_writes == 2);
-    expect_records (&params, arguments, 2, environment, 1);
-    exec_spool_discard (&params);
-    CHECK (buffer_releases == 1 && !backend_error);
-
-    reset_models ();
-    bzero (&params, sizeof params);
-    params.userargp = arguments;
-    params.userenvp = environment;
-    CHECK (exec_save_args (&params) == 0);
-    flash_allocation_failure = 1;
-    CHECK (exec_spool_to_flash (&params) == ENOMEM);
-    CHECK (params.spool.backing == EXEC_SPOOL_SWAPRAM);
-    CHECK (swapram_live && swapram_frees == 0);
-    CHECK (cursor_publications == 0);
-    expect_records (&params, arguments, 2, environment, 1);
-    exec_spool_discard (&params);
-    CHECK (swapram_frees == 1 && !backend_error);
-    printf ("migration: SwapRAM moves to flash and survives allocation refusal\n");
-}
-
-static void
 flash_cursor_rotation (void)
 {
     struct exec_params params;
@@ -676,7 +634,6 @@ main (void)
 {
     swapram_serialization ();
     raw_boundary_fallback ();
-    swapram_to_flash_migration ();
     flash_cursor_rotation ();
     script_argument_order ();
     argument_limits ();

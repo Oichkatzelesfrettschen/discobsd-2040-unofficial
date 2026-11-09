@@ -74,11 +74,9 @@ SECTIONS {
 
 	_sidata = LOADADDR(.data);
 	/*
-	 * The compressed swap pool sits first in RAM, abutting the user
-	 * window, so that a process admitted to the LARGE epoch can extend
-	 * its stack over it (machine/swapram.h SWAPRAM_BONUS, sys/systm.h
-	 * USER_TOP). NOLOAD like .scratch: the tier writes every byte before
-	 * it reads it, and the reset code's zero fill stops at _ebss.
+	 * The compressed swap pool sits first in RAM. NOLOAD like .scratch:
+	 * the tier writes every byte before it reads it, and the reset code's
+	 * zero fill stops at _ebss.
 	 */
 	.swapram_pool (NOLOAD) : ALIGN(8) {
 		*(.swapram_pool)
@@ -180,9 +178,6 @@ SECTIONS {
 	 */
 	ASSERT(ORIGIN(USERRAM) + LENGTH(USERRAM) == ORIGIN(RAM),
 	    "USERRAM and RAM do not meet")
-	ASSERT(DEFINED(swapram_pool_mem) ?
-	    swapram_pool_mem == ORIGIN(RAM) : 1,
-	    "the swap pool is not at the start of RAM, so the LARGE epoch would hand out kernel data")
 	ASSERT(ORIGIN(RAM) + LENGTH(RAM) == ORIGIN(U0AREA),
 	    "RAM and U0AREA do not meet")
 	ASSERT(ORIGIN(U0AREA) + LENGTH(U0AREA) == ORIGIN(UAREA),

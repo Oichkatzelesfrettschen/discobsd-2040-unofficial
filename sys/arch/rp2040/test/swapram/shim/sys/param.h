@@ -21,6 +21,5 @@
 #define SWAP_IMAGE_ALIGN 4
 #define USIZE 3072
 #define SSIZE 2048
-#define PSWP 0
 #include <errno.h>
 #endif

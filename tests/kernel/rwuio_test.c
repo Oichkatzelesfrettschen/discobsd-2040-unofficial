@@ -643,13 +643,6 @@ span_cases(void)
 	call_readv(FD, 1);
 	HK_CHECK(u.u_error == EINVAL && rw_calls == 0);
 
-	reset(FREAD);
-	check_user_spans = 1;
-	user_span_upper = 0x20028000UL;
-	vectorize_at(at_ceiling, one, 1);
-	call_readv(FD, 1);
-	HK_CHECK(u.u_error == 0 && rw_calls == 1);
-
 	read_only_cases();
 }
 

@@ -155,36 +155,6 @@ exec_spool_alloc (struct exec_params *epp, u_int size)
     return exec_spool_reserve_flash (epp);
 }
 
-#ifdef SWAPRAM
-static int
-exec_spool_to_flash (struct exec_params *epp)
-{
-    unsigned int oldoff, position, chunk;
-    int error;
-
-    if (epp->spool.backing != EXEC_SPOOL_SWAPRAM)
-        return 0;
-    oldoff = epp->spool.ramoff;
-    epp->spool.backing = EXEC_SPOOL_NONE;
-    if ((error = exec_spool_reserve_flash (epp)) != 0) {
-        epp->spool.backing = EXEC_SPOOL_SWAPRAM;
-        return error;
-    }
-    for (position = 0; position < epp->spool.size; position += chunk) {
-        chunk = MIN (MAXBSIZE, epp->spool.size - position);
-        swapram_spool_read (oldoff, position, epp->spool.bp->b_addr,
-            chunk);
-        swap_with_buf (epp->spool.bp,
-            epp->spool.blkno + btod (position),
-            (size_t) epp->spool.bp->b_addr, chunk,
-            B_WRITE | B_SWAPIMAGE);
-    }
-    swapram_spool_free (oldoff, epp->spool.size);
-    epp->spool.pos = 0;
-    return 0;
-}
-#endif
-
 static void
 exec_spool_discard (struct exec_params *epp)
 {
@@ -432,27 +402,9 @@ int exec_estab(struct exec_params *epp)
     DEBUG("\texec_estab(): stack = %#x..%#x, len = %d\n", epp->stack.vaddr,
       epp->stack.vaddr + epp->stack.len, epp->stack.len);
 
-    /*
-     * The epoch decides the window before the layout is final: an image
-     * past the window but within the bonus asks for LARGE, which sleeps
-     * until the pool is on flash; one that fits the window again gives
-     * the bonus back. The stack is then laid under the top that choice
-     * yields.
-     */
     need = epp->text.len + epp->data.len + epp->bss.len + epp->heap.len +
       epp->stack.len;
-#ifdef SWAPRAM
-    if (need > MAXMEM && need <= MAXMEM + SWAPRAM_BONUS) {
-        if (exec_spool_to_flash (epp) != 0)
-            return ENOMEM;
-        if (swapram_enter_large (u.u_procp) != 0)
-            return ENOMEM;
-    } else if (need <= MAXMEM)
-        swapram_leave_large (u.u_procp);
-    if (need > swapram_ceiling (u.u_procp)) {
-#else
     if (need > MAXMEM) {
-#endif
         DEBUG("\texec_estab(): error: memory overflow\n");
         return ENOMEM;
     }

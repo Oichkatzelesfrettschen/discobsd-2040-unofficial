@@ -2888,7 +2888,7 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
 clean:
 	rm -f ${FORK_SWAP_FUNCTIONS} fork_swap_test fork_swap_test_compact \
 	    fork_swap_test_wide fork_swap_test_diagnostic fork_swap_test_full \
-	    fork_swap_rmap*.o fork_swap_*.mutant.c \
+	    fork_swap_test_unaligned fork_swap_rmap*.o fork_swap_*.mutant.c \
 	    fork_swap_*.mutant.test fork_swap_*.mutant.out
 	rm -f ${PROGS} hostkern.o
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
@@ -3050,9 +3050,18 @@ FORK_SWAP_MUTANTS= ignore-reservation-refusal publish-allproc-early \
     advance-cursor-on-failure allocate-again-on-copy \
     child-sidl-during-copy omit-release-wakeup notify-before-release \
     ignore-copy-owner ignore-copy-state ignore-commit-owner \
-    ignore-commit-state ignore-cancel-state omit-text-release
-FORK_SWAP_CFLAGS= ${GATE_CFLAGS} -Wno-int-to-pointer-cast -Wno-deprecated-non-prototype \
+    ignore-commit-state ignore-cancel-state omit-text-release \
+    omit-swapin-ram-wakeup notify-before-swapin-restore \
+    child-result-zero parent-result-one fork1-child-rval-parent \
+    refusal-result-child write-empty-data-segment write-empty-stack-segment
+# The unaligned fixture drops SwapRAM and SWAP_IMAGE_ALIGN so the three-extent
+# malloc3() arms of vm_swap.c execute; its mutants live in those arms.
+FORK_SWAP_UNALIGNED_MUTANTS= omit-release-segment-free omit-cancel-segment-free
+FORK_SWAP_CFLAGS= ${GATE_CFLAGS} -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast \
+    -Wno-deprecated-non-prototype \
     -DSWAPRAM -DSWAPRAM_KB=16 -DSTORAGE_STATS -DUCB_METER
+FORK_SWAP_UNALIGNED_CFLAGS= ${FORK_SWAP_CFLAGS:N-DSWAPRAM} \
+    -DFORK_SWAP_UNALIGNED -DCOMPACT_SWAPMAP
 FORK_SWAP_DEPS= fork_swap_test.c ${FORK_SWAP_FUNCTIONS} hostkern.o \
     hostkern_kern.c hostkern.h ${MACHINE_STAMP} \
     ${TOPSRC}/sys/sys/vmsystm.h ${TOPSRC}/sys/sys/proc.h \
@@ -3093,10 +3102,35 @@ fork_swap_${mutation}.mutant.test: fork_swap_${mutation}.mutant.c \
 	    hostkern_kern.c hostkern.o fork_swap_rmap_compact.o
 .endfor
 
+fork_swap_rmap_unaligned.o: ${TOPSRC}/sys/kern/subr_rmap.c ${MACHINE_STAMP}
+	${HOST_CC} ${FORK_SWAP_UNALIGNED_CFLAGS} \
+	    -c -o $@ ${TOPSRC}/sys/kern/subr_rmap.c
+
+fork_swap_test_unaligned: ${FORK_SWAP_DEPS} fork_swap_rmap_unaligned.o
+	${HOST_CC} ${FORK_SWAP_UNALIGNED_CFLAGS} -o $@ \
+	    fork_swap_test.c ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \
+	    hostkern_kern.c hostkern.o fork_swap_rmap_unaligned.o
+
+.for mutation in ${FORK_SWAP_UNALIGNED_MUTANTS}
+fork_swap_${mutation}.mutant.c: fork_swap_mutate.py ${FORK_SWAP_FUNCTIONS}
+	${PYTHON} fork_swap_mutate.py --source ${FORK_SWAP_FUNCTIONS} \
+	    --output $@ --mutation ${mutation}
+
+fork_swap_${mutation}.unaligned.mutant.test: \
+    fork_swap_${mutation}.mutant.c ${FORK_SWAP_DEPS} \
+    fork_swap_rmap_unaligned.o
+	${HOST_CC} ${FORK_SWAP_UNALIGNED_CFLAGS} \
+	    -DFORK_SWAP_FUNCTIONS='"fork_swap_${mutation}.mutant.c"' \
+	    -o $@ fork_swap_test.c \
+	    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \
+	    hostkern_kern.c hostkern.o fork_swap_rmap_unaligned.o
+.endfor
+
 check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
-    fork_swap_test_diagnostic fork_swap_test_full \
-    ${FORK_SWAP_MUTANTS:@mutation@fork_swap_${mutation}.mutant.test@}
-	@set -eu; for shape in compact wide diagnostic full; do \
+    fork_swap_test_diagnostic fork_swap_test_full fork_swap_test_unaligned \
+    ${FORK_SWAP_MUTANTS:@mutation@fork_swap_${mutation}.mutant.test@} \
+    ${FORK_SWAP_UNALIGNED_MUTANTS:@mutation@fork_swap_${mutation}.unaligned.mutant.test@}
+	@set -eu; for shape in compact wide diagnostic full unaligned; do \
 		echo "run ./fork_swap_test_$$shape"; \
 		./fork_swap_test_$$shape; \
 	done
@@ -3116,6 +3150,13 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		ignore-commit-owner|ignore-commit-state) expected='commit_transition_call returned instead of panicking' ;; \
 		ignore-cancel-state) expected='cancel_transition_call returned instead of panicking' ;; \
 		omit-text-release) expected='text_inode.i_count == 1' ;; \
+		omit-swapin-ram-wakeup) expected='swapin_woke_swapper' ;; \
+		notify-before-swapin-restore) expected='swapin_pool_free_at_wake' ;; \
+		child-result-zero) expected='child_result == 1' ;; \
+		parent-result-one) expected='parent_result == 0' ;; \
+		fork1-child-rval-parent) expected='u.u_rval == 0' ;; \
+		refusal-result-child) expected='refusal_result == -1' ;; \
+		write-empty-data-segment|write-empty-stack-segment) expected='writes == 1 && io_waits == 1' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \
@@ -3123,6 +3164,21 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 			echo "FAIL fork swap $$mutation rejection" >&2; exit 1; \
 		fi; \
 		echo "PASS fork swap $$mutation rejected: $$expected"; \
+	done
+	@set -eu; for mutation in ${FORK_SWAP_UNALIGNED_MUTANTS}; do \
+		output=fork_swap_$$mutation.unaligned.mutant.out; \
+		if ./fork_swap_$$mutation.unaligned.mutant.test >$$output 2>&1; then \
+			status=0; else status=$$?; fi; \
+		case $$mutation in \
+		omit-release-segment-free) expected='release_restored' ;; \
+		omit-cancel-segment-free) expected='cancel_restored' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL fork swap unaligned $$mutation rejection" >&2; exit 1; \
+		fi; \
+		echo "PASS fork swap unaligned $$mutation rejected: $$expected"; \
 	done
 
 .PHONY: check-fork-swap-refusal

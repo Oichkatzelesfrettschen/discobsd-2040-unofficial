@@ -234,6 +234,7 @@ fork_swap_test_compact
 fork_swap_test_wide
 fork_swap_test_diagnostic
 fork_swap_test_full
+fork_swap_test_unaligned
 fork_swap_*.mutant.c
 fork_swap_*.mutant.test
 fork_swap_*.mutant.out

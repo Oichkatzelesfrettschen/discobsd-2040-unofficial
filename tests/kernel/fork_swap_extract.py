@@ -19,8 +19,6 @@ def main() -> None:
     # Codec and I/O boundaries are supplied by the fixture; fork and image
     # ownership definitions remain verbatim, including their preprocessor arms.
     swap = swap[swap.index("/*\n * The clean text") :]
-    swapin = extract_function(swap, "void\nswapin (p)", "swapin")
-    swap = swap.replace(swapin, "")
     fork = fork[fork.index("int     mpid;") :]
     ram_state = ram[ram.index("#define SR_DATA") : ram.index("static int              sr_spools;")]
     offset_start = ram.index("#if SWAPRAM_KB * 1024 <= 65535")
@@ -40,6 +38,8 @@ def main() -> None:
             "void\nswapram_commit (",
             "void\nswapram_cancel (",
             "int\nswapram_present (",
+            "void\nswapram_in (",
+            "size_t\nuser_top (",
         )
     )
     init = (args.root / "sys/kern/init_main.c").read_text()

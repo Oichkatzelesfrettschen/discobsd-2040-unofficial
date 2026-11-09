@@ -103,6 +103,17 @@ check(int ok, const char *label, const char *detail)
 		fail(label, detail);
 }
 
+static bool
+inode_equal(const struct v7fs_inode *left, const struct v7fs_inode *right)
+{
+	return left->inode_number == right->inode_number &&
+	    left->mode == right->mode && left->nlink == right->nlink &&
+	    left->uid == right->uid && left->gid == right->gid &&
+	    left->atime == right->atime && left->mtime == right->mtime &&
+	    left->ctime == right->ctime && left->append_mode == right->append_mode &&
+	    left->device == right->device && v7fs_inode_data_equal(left, right);
+}
+
 static uint8_t big[BIG_SIZE];
 static uint8_t inner[INNER_SIZE];
 static const uint8_t hello[] = "hello, v7fs\n";
@@ -766,6 +777,8 @@ regress_shrink_regrow(int fd)
 		error = v7fs_datablock_expand(fs, &inode, 2 * V7FS_BSIZE - inode.filesize);
 	if (error == 0)
 		error = v7fs_datablock_contract(fs, &inode, V7FS_BSIZE);
+	check(error == 0 && inode.addr[1] == 0, "regress-shrink-regrow",
+	    "contraction retained a freed direct pointer");
 	if (error == 0)
 		error = v7fs_datablock_expand(fs, &inode, V7FS_BSIZE);
 	check(error == 0 && inode.filesize == 2 * V7FS_BSIZE,
@@ -1093,7 +1106,7 @@ regress_create_failure(int fd, bool directory, bool full_parent,
 	    fs->superblock.total_freeblock == free_blocks &&
 	    fs->superblock.total_freeinode == free_inodes &&
 	    scratch_remain(fs) == scratch_before &&
-	    memcmp(&parent, &original, sizeof(parent)) == 0, label,
+	    inode_equal(&parent, &original), label,
 	    "failed creation must restore inode, blocks, and parent");
 	check(v7fs_superblock_writeback(fs) == 0, label,
 	    "superblock writeback failed");
@@ -1149,7 +1162,7 @@ regress_remove_failure(int fd, unsigned failure_kind)
 		fs->io.read = saved_sector_read;
 	check(error == EIO && fs->superblock.total_freeblock == free_blocks &&
 	    fs->superblock.total_freeinode == free_inodes &&
-	    memcmp(&parent, &original, sizeof(parent)) == 0, label,
+	    inode_equal(&parent, &original), label,
 	    "failed removal must report EIO and retain ownership");
 	check(v7fs_file_lookup_by_name(fs, &parent, "one", 3, &found) == 0 &&
 	    found == first && v7fs_file_lookup_by_name(fs, &parent, "two", 3,
@@ -1191,7 +1204,7 @@ regress_remove_last_block_read(int fd)
 	fs->io.read = saved_sector_read;
 	check(error == EIO && failed_read_sector == (daddr_t)parent.addr[V7FS_NADDR_INDEX1] &&
 	    fs->superblock.total_freeblock == free_before &&
-	    memcmp(&parent, &original, sizeof(parent)) == 0,
+	    inode_equal(&parent, &original),
 	    "regress-remove-last-read", "last-block lookup failure changed the directory");
 	check(v7fs_file_lookup_by_name(fs, &parent, "entry", 5, &found) == 0 &&
 	    found == ino, "regress-remove-last-read", "failed lookup lost the entry");
@@ -1302,7 +1315,7 @@ regress_indirect_rollback(int fd, unsigned failure_kind)
 	    !fail_inode_write : sector_writes >= failed_write_number) &&
 	    fs->superblock.total_freeblock == free_before &&
 	    scratch_remain(fs) == scratch_before &&
-	    memcmp(&inode, &original, sizeof(inode)) == 0, label,
+	    inode_equal(&inode, &original), label,
 	    "failed indirect growth must restore ownership");
 	check(v7fs_superblock_writeback(fs) == 0, label,
 	    "rollback superblock writeback failed");
@@ -1348,7 +1361,7 @@ regress_indirect_transition(int fd, size_t original_blocks,
 	check(error == EIO && sector_reads >= failure_read &&
 	    fs->superblock.total_freeblock == free_before &&
 	    scratch_remain(fs) == scratch_before &&
-	    memcmp(&inode, &original, sizeof(inode)) == 0, label,
+	    inode_equal(&inode, &original), label,
 	    "failed transition must restore ownership");
 	check(v7fs_superblock_writeback(fs) == 0, label,
 	    "rollback superblock writeback failed");
@@ -1381,7 +1394,118 @@ regress(int fd)
 	    v7fs_datablock_addr(last_addressable + 1, &address_map) == ENOSPC &&
 	    v7fs_datablock_addr(SIZE_MAX, &address_map) == ENOSPC,
 	    "regress-address-range", "triple-indirect limit is incorrect");
+	{
+		struct v7fs_inode left, right;
+
+		memset(&left, 0, sizeof(left));
+		memset(&right, 0xff, sizeof(right));
+		right.filesize = left.filesize;
+		for (i = 0; i < V7FS_NADDR; i++)
+			right.addr[i] = left.addr[i];
+		check(v7fs_inode_data_equal(&left, &right),
+		    "regress-inode-data-equal", "unrelated bytes changed comparison");
+		right.addr[1] = 1;
+		check(!v7fs_inode_data_equal(&left, &right),
+		    "regress-inode-data-equal", "changed block was ignored");
+	}
 	regress_uncertain_publication(fd);
+	if (format_image(fd, 64, 0) != 0) {
+		fail("regress-reformat-smaller", "format fixture failed");
+	} else {
+		struct v7fs_mount_device smaller;
+
+		memset(&smaller, 0, sizeof(smaller));
+		smaller.device.fd = fd;
+		smaller.sectors = SECTORS / 2;
+		smaller.endian = byte_order;
+		check(v7fs_newfs(&smaller, 64) == 0, "regress-reformat-smaller",
+		    "larger old superblock prevented reformatting");
+	}
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-stale-direct", "format or mount failed");
+	} else if (v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0) {
+		fail("regress-stale-direct", "root inode load failed");
+		v7fs_io_fini(fs);
+	} else {
+		v7fs_daddr_t free_block = fs->superblock.freeblock[
+		    fs->superblock.nfreeblock - 1];
+		uint32_t free_before = fs->superblock.total_freeblock;
+
+		root.addr[1] = free_block;
+		error = v7fs_datablock_expand(fs, &root,
+		    V7FS_BSIZE + 1 - root.filesize);
+		check(error == 0 && root.addr[1] != 0 &&
+		    fs->superblock.total_freeblock == free_before - 1,
+		    "regress-stale-direct", "free stale slot blocked growth");
+		check(v7fs_superblock_writeback(fs) == 0,
+		    "regress-stale-direct", "superblock writeback failed");
+		v7fs_io_fini(fs);
+		if (load_raw(fd) == 0)
+			reader_root_ownership("regress-stale-direct");
+		else
+			fail("regress-stale-direct", "image reload failed");
+	}
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-stale-allocated", "format or mount failed");
+	} else if (v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0) {
+		fail("regress-stale-allocated", "root inode load failed");
+		v7fs_io_fini(fs);
+	} else {
+		uint32_t free_before = fs->superblock.total_freeblock;
+
+		root.addr[1] = root.addr[0];
+		error = v7fs_datablock_expand(fs, &root,
+		    V7FS_BSIZE + 1 - root.filesize);
+		check(error == EIO && root.addr[1] == root.addr[0] &&
+		    fs->superblock.total_freeblock == free_before,
+		    "regress-stale-allocated", "allocated slot was reused");
+		v7fs_io_fini(fs);
+	}
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-stale-free-chain", "format or mount failed");
+	} else if (v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0) {
+		fail("regress-stale-free-chain", "root inode load failed");
+		v7fs_io_fini(fs);
+	} else {
+		void *buffer = scratch_read(fs, fs->superblock.freeblock[0]);
+		v7fs_daddr_t disk_block = 0;
+		uint32_t free_before = fs->superblock.total_freeblock;
+		int scratch_before;
+
+		if (buffer != NULL) {
+			memcpy(&disk_block, (uint8_t *)buffer +
+			    offsetof(struct v7fs_freeblock, freeblock) +
+			    sizeof(disk_block), sizeof(disk_block));
+			scratch_free(fs, buffer);
+		}
+		scratch_before = scratch_remain(fs);
+		root.addr[1] = V7FS_VAL32(fs, disk_block);
+		if (root.addr[1] == 0) {
+			fail("regress-stale-free-chain", "free-list fixture failed");
+		} else {
+			saved_sector_read = fs->io.read;
+			fs->io.read = fail_sector_read;
+			error = v7fs_datablock_expand(fs, &root,
+			    V7FS_BSIZE + 1 - root.filesize);
+			fs->io.read = saved_sector_read;
+			check(error == EIO && root.addr[1] == V7FS_VAL32(fs, disk_block) &&
+			    fs->superblock.total_freeblock == free_before &&
+			    scratch_remain(fs) == scratch_before, "regress-stale-free-chain",
+			    "free-list read failure was ignored");
+			error = v7fs_datablock_expand(fs, &root,
+			    V7FS_BSIZE + 1 - root.filesize);
+			check(error == 0 && fs->superblock.total_freeblock == free_before - 1,
+			    "regress-stale-free-chain",
+			    "free block in chained list blocked growth");
+		}
+		check(v7fs_superblock_writeback(fs) == 0, "regress-stale-free-chain",
+		    "superblock writeback failed");
+		v7fs_io_fini(fs);
+		if (load_raw(fd) == 0)
+			reader_root_ownership("regress-stale-free-chain");
+		else
+			fail("regress-stale-free-chain", "image reload failed");
+	}
 	regress_shrink_regrow(fd);
 	regress_shrink_retry(fd);
 	regress_shrink_root_retry(fd);
@@ -1538,7 +1662,7 @@ regress(int fd)
 		check(error == EIO && sector_reads >= failed_read_number &&
 		    fs->superblock.total_freeblock == free_before &&
 		    scratch_remain(fs) == scratch_before &&
-		    memcmp(&root, &saved, sizeof(root)) == 0,
+		    inode_equal(&root, &saved),
 		    "regress-grow-rollback", "failed growth must release prior blocks");
 		v7fs_io_fini(fs);
 	}
@@ -1588,7 +1712,7 @@ regress(int fd)
 		uint32_t free_before = fs->superblock.total_freeblock;
 
 		error = v7fs_datablock_size_change(fs, SIZE_MAX, &inode);
-		check(error == EFBIG && memcmp(&inode, &saved, sizeof(inode)) == 0 &&
+		check(error == EFBIG && inode_equal(&inode, &saved) &&
 		    fs->superblock.total_freeblock == free_before,
 		    "regress-size-overflow", "oversized request changed the inode");
 		v7fs_io_fini(fs);

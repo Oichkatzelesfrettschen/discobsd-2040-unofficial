@@ -422,7 +422,7 @@ cmd_put(struct image *im, const char *local, const char *path, bool directory)
 	original_inode = inode;
 	if ((error = v7fs_datablock_expand(im->fs, &inode,
 	    (size_t)st.st_size)) != 0) {
-		if (memcmp(&inode, &original_inode, sizeof(inode)) != 0)
+		if (!v7fs_inode_data_equal(&inode, &original_inode))
 			goto out;
 		goto remove_created;
 	}
@@ -516,7 +516,7 @@ cmd_rm(struct image *im, const char *path)
 	unlinked_inode = inode;
 	if ((error = v7fs_datablock_contract_status(im->fs, &inode,
 	    inode.filesize, &retryable)) != 0) {
-		if (memcmp(&inode, &unlinked_inode, sizeof(inode)) != 0) {
+		if (!v7fs_inode_data_equal(&inode, &unlinked_inode)) {
 			if (!retryable)
 				return error;
 			restore_error = v7fs_datablock_contract_status(im->fs, &inode,

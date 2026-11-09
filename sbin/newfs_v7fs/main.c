@@ -76,22 +76,22 @@ determine_ilist_size(v7fs_daddr_t volume_size, int32_t files)
 static int
 partition_check(struct v7fs_self *fs)
 {
-	struct v7fs_superblock *sb = &fs->superblock;
-	int error;
+	void *buffer;
+	int error = 0;
 
-	if ((error = v7fs_superblock_load(fs))) {
-		if (error != EINVAL) {
-			warnx("Can't read superblock sector.");
-			return error;
-		}
+	/* A previous filesystem can describe a different device size. */
+	if (!(buffer = scratch_read(fs, V7FS_SUPERBLOCK_SECTOR))) {
+		warnx("Can't read superblock sector.");
+		return EIO;
 	}
-	sb->modified = 1;
-	if ((error = v7fs_superblock_writeback(fs))) {
+	if (!fs->io.write(fs->io.cookie, buffer, V7FS_SUPERBLOCK_SECTOR)) {
+		error = EIO;
 		if (errno == EROFS) {
 			warnx("Overwriting disk label? ");
 		}
 		warnx("Can't write superblock sector.");
 	}
+	scratch_free(fs, buffer);
 
 	return error;
 }

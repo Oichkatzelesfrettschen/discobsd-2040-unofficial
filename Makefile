@@ -496,6 +496,8 @@ check-libc-contracts:
 
 check-libc-assert: check-python
 		HOSTCC=${HOSTCC:Ucc:Q} ${PYTHON} tests/libc_contracts/assert_check.py
+		HOSTCC=${HOSTCC:Ucc:Q}' -DDISCOBSD_ASSERT_TEST=1' \
+		    ${PYTHON} tests/libc_contracts/assert_check.py
 
 check-libc-host-contracts:
 		${MAKE} -C tests/libc_contracts check-host

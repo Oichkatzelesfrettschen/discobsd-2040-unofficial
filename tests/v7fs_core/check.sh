@@ -383,14 +383,55 @@ got=0
 echo "v7fs_core: uncertain publication rollback mutant rejected"
 
 mutant stale-direct-pointer sys/fs/v7fs/v7fs_datablock.c \
-    'inode->addr[map.index[0]] = 0;' \
-    'inode->addr[map.index[0]] = child;'
+    'child = inode->addr[map.index[0]];\n\t\tinode->addr[map.index[0]] = 0;' \
+    'child = inode->addr[map.index[0]];\n\t\tinode->addr[map.index[0]] = child;'
 got=0
 "$work/stale-direct-pointer.bin" "$work/mutant.img" little regress \
     >"$work/mutant.log" 2>&1 || got=$?
 [ "$got" -eq 1 ] && grep -q '^FAIL regress-shrink-regrow:' \
     "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "stale direct pointer mutant"; }
 echo "v7fs_core: stale direct pointer mutant rejected"
+
+mutant stale-allocated-slot sys/fs/v7fs/v7fs_datablock.c \
+    'if (error != 0 || !is_free)' \
+    'if (error != 0)'
+got=0
+"$work/stale-allocated-slot.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-stale-allocated:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "allocated stale slot mutant"; }
+echo "v7fs_core: allocated stale slot mutant rejected"
+
+mutant stale-free-chain sys/fs/v7fs/v7fs_datablock.c \
+    'next = count == 0 ? 0 : sb->freeblock[0];' \
+    'next = 0;'
+got=0
+"$work/stale-free-chain.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-stale-free-chain:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "free-list traversal mutant"; }
+echo "v7fs_core: stale free-list traversal mutant rejected"
+
+mutant inode-data-comparison sys/fs/v7fs/v7fs_inode.h \
+    'if (left->filesize != right->filesize)' \
+    'if (left->filesize != right->filesize || left->mode != right->mode)'
+got=0
+"$work/inode-data-comparison.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-inode-data-equal:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "inode data comparison mutant"; }
+echo "v7fs_core: unrelated inode field mutant rejected"
+
+mutant reformat-old-geometry sbin/newfs_v7fs/main.c \
+    'if (!(buffer = scratch_read(fs, V7FS_SUPERBLOCK_SECTOR))) {' \
+    'if (v7fs_superblock_load(fs) == EIO ||\n\t    !(buffer = scratch_read(fs, V7FS_SUPERBLOCK_SECTOR))) {'
+build_fixed "$work/reformat-old-geometry" "$work/reformat-old-geometry-fixed.bin"
+got=0
+"$work/reformat-old-geometry-fixed.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-reformat-smaller:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "old geometry mutant"; }
+echo "v7fs_core: old formatter geometry mutant rejected"
 
 mutant shrink-size-restore sys/fs/v7fs/v7fs_datablock.c \
     'if (error != 0 && !detached) {' \
@@ -553,6 +594,11 @@ status 1 "$tool" newfs "$work/refused.img" 127
 cmp -s "$work/refused.img" "$work/pat/hello" ||
     fail "newfs modified a target with a refused geometry"
 status 0 "$tool" newfs "$work/minimum.img" 128
+status 0 "$tool" newfs "$work/reformat.img" 2048 64
+status 0 "$tool" newfs "$work/reformat.img" 1024 64
+status 0 "$tool" df "$work/reformat.img"
+[ "$(awk '{print $2}' "$work/cmd.out")" = 1024 ] ||
+    fail "newfs did not replace the larger superblock"
 status 0 "$tool" newfs "$work/inode-limit.img" 128 600
 cp "$work/pat/hello" "$work/inode-refused.img"
 status 1 "$tool" newfs "$work/inode-refused.img" 128 608
@@ -604,7 +650,19 @@ if [ "$(uname -s)" = Linux ]; then
 
 int __real_fsync(int);
 int __real_close(int);
+ssize_t __real_read(int, void *, size_t);
 ssize_t __real_write(int, const void *, size_t);
+
+ssize_t
+__wrap_read(int descriptor, void *buffer, size_t size)
+{
+	if (getenv("V7FS_TEST_FAIL_SUPER_READ") != NULL &&
+	    lseek(descriptor, 0, SEEK_CUR) == 512) {
+		errno = EIO;
+		return -1;
+	}
+	return __real_read(descriptor, buffer, size);
+}
 
 ssize_t
 __wrap_write(int descriptor, const void *buffer, size_t size)
@@ -647,9 +705,16 @@ EOF
 	${CC:-cc} -std=c17 -Wall -Wextra -Werror -c "$work/flush_wrap.c" \
 	    -o "$work/flush_wrap.o" || fail "flush fault wrapper compilation"
 	${CC:-cc} -fsanitize=address,undefined -Wl,--wrap=fsync -Wl,--wrap=close \
-	    -Wl,--wrap=write \
+	    -Wl,--wrap=write -Wl,--wrap=read \
 	    -o "$work/v7fs-flush" "$topsrc/usr.sbin/v7fs/host.obj/"*.o \
 	    "$work/flush_wrap.o" || fail "flush fault wrapper link"
+	cp "$work/reformat.img" "$work/super-read-fail.img"
+	cp "$work/super-read-fail.img" "$work/super-read-fail.ref"
+	status 1 env LC_ALL=C V7FS_TEST_FAIL_SUPER_READ=1 "$work/v7fs-flush" \
+	    newfs "$work/super-read-fail.img" 1024 64
+	grep -q 'Input/output error' "$work/cmd.err" || fail "superblock read error"
+	cmp -s "$work/super-read-fail.img" "$work/super-read-fail.ref" ||
+	    fail "failed superblock read modified the image"
 	for point in 2:1 2:2 2:3 2:4 56:1; do
 		sector=${point%:*}
 		occurrence=${point#*:}
@@ -728,7 +793,7 @@ EOF
 		[ "$(basename "$object")" = newfs_main.o ] || set -- "$@" "$object"
 	done
 	${CC:-cc} -fsanitize=address,undefined -Wl,--wrap=fsync -Wl,--wrap=close \
-	    -Wl,--wrap=write -o "$work/v7fs-original-newfs" "$@" \
+	    -Wl,--wrap=write -Wl,--wrap=read -o "$work/v7fs-original-newfs" "$@" \
 	    "$work/newfs-original.o" "$work/flush_wrap.o" ||
 	    fail "original formatter link"
 	status 0 env LC_ALL=C V7FS_TEST_FAIL_SECTOR=2 V7FS_TEST_FAIL_OCCURRENCE=1 \
@@ -781,7 +846,7 @@ PY
 		[ "$(basename "$object")" = v7fs.o ] || set -- "$@" "$object"
 	done
 	${CC:-cc} -fsanitize=address,undefined -Wl,--wrap=fsync -Wl,--wrap=close \
-	    -Wl,--wrap=write \
+	    -Wl,--wrap=write -Wl,--wrap=read \
 	    -o "$work/v7fs-no-flush" "$@" "$work/v7fs-no-flush.o" \
 	    "$work/flush_wrap.o" || fail "flush mutant link"
 	status 0 env LC_ALL=C V7FS_TEST_FAIL_FSYNC=1 \
@@ -826,7 +891,7 @@ PY
 		[ "$(basename "$object")" = v7fs.o ] || set -- "$@" "$object"
 	done
 	${CC:-cc} -fsanitize=address,undefined -Wl,--wrap=fsync -Wl,--wrap=close \
-	    -Wl,--wrap=write -o "$work/v7fs-no-cleanup" "$@" \
+	    -Wl,--wrap=write -Wl,--wrap=read -o "$work/v7fs-no-cleanup" "$@" \
 	    "$work/v7fs-no-cleanup.o" "$work/flush_wrap.o" ||
 	    fail "cleanup mutant link"
 	img=$work/mutant-put-cleanup.img

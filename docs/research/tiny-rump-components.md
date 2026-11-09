@@ -245,7 +245,7 @@ stdio can allocate an output buffer when `df` calls `printf`, independently
 of the core scratch pool. The program
 installs to `/usr/sbin` and no manifest lists it.
 
-On 2026-11-09 UTC, the local failure-handling candidate over `af2ca599`
+On 2026-11-09 UTC, failure-handling candidate `09c75930` over `af2ca599`
 linked with ARM GCC 16.2.0 and `-Os` contained 24,142 bytes of text,
 360 bytes of data, and 2,356 bytes of bss. The `bmake -C usr.sbin/v7fs
 MACHINE=rp2040 all` measurement used the worktree's existing objects and
@@ -355,7 +355,9 @@ patch reversals or targeted mutants to exercise the corrected behavior:
 - `newfs_v7fs-main.patch`: `make_filesystem()` cleared sectors 2 through
   `ilist_size - 1`, treating a block count as an end sector, so formatting
   media that held data left the inode list's last two blocks with stale
-  inodes the superblock counted as free.
+  inodes the superblock counted as free. The formatter probes the existing
+  superblock sector directly, so a smaller replacement volume does not read
+  beyond its end using the previous filesystem's geometry.
 - `v7fs_inode.patch` and `v7fs_inode.h.patch`: `v7fs_inode_number_sanity()` rejected the last inode
   slot, whose number equals `V7FS_MAX_INODE()`, after
   `v7fs_inode_allocate()` had already decremented the free count;
@@ -375,7 +377,9 @@ patch reversals or targeted mutants to exercise the corrected behavior:
   failed free-list refill and attempts to release the selected block after a
   failed zero-fill read or write. Growth builds indirect branches before
   publication and detaches completed additions during rollback. Contraction
-  detaches pointers before freeing their blocks. A failed rollback write can
+  detaches pointers before freeing their blocks. Growth checks the free-list
+  cache and chain before clearing a stale direct pointer left by an older
+  contraction; a pointer absent from the free list remains an error. A failed rollback write can
   leave the image inconsistent and requires inspection or repair.
 - `v7fs_file.patch`: directory lookup returns a read error instead of
   treating the error as a missing name. Creation and removal restore the

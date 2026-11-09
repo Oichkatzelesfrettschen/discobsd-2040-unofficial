@@ -40,6 +40,7 @@ __KERNEL_RCSID(0, "$NetBSD: v7fs_datablock.c,v 1.5 2011/08/14 09:02:07 apb Exp $
 #endif
 
 #include <sys/types.h>
+#include <stddef.h>
 #ifdef _KERNEL
 #include <sys/systm.h>
 #include <sys/param.h>
@@ -480,6 +481,66 @@ v7fs_pointer_only(struct v7fs_self *fs, v7fs_daddr_t parent, unsigned index,
 	return error;
 }
 
+/* An older contraction can leave a freed block in an unused direct slot. */
+static int
+v7fs_block_is_free(struct v7fs_self *fs, v7fs_daddr_t target, bool *is_free)
+{
+	struct v7fs_superblock *sb = &fs->superblock;
+	v7fs_daddr_t next, disk_block;
+	uint32_t remaining;
+	int index, count, error = 0;
+	void *buffer;
+
+	*is_free = false;
+	SUPERB_LOCK(fs);
+	count = sb->nfreeblock;
+	if (count < 0 || count > V7FS_MAX_FREEBLOCK) {
+		error = EIO;
+		goto out;
+	}
+	for (index = 0; index < count; index++) {
+		if (sb->freeblock[index] == target) {
+			*is_free = true;
+			goto out;
+		}
+	}
+	next = count == 0 ? 0 : sb->freeblock[0];
+	remaining = sb->volume_size;
+	while (next != 0) {
+		int16_t disk_count;
+
+		if (remaining-- == 0 || !datablock_number_sanity(fs, next) ||
+		    !(buffer = scratch_read(fs, next))) {
+			error = EIO;
+			goto out;
+		}
+		memcpy(&disk_count, buffer, sizeof(disk_count));
+		count = V7FS_VAL16(fs, disk_count);
+		if (count <= 0 || count > V7FS_MAX_FREEBLOCK) {
+			scratch_free(fs, buffer);
+			error = EIO;
+			goto out;
+		}
+		next = 0;
+		for (index = 0; index < count; index++) {
+			memcpy(&disk_block, (uint8_t *)buffer +
+			    offsetof(struct v7fs_freeblock, freeblock) +
+			    index * sizeof(disk_block), sizeof(disk_block));
+			disk_block = V7FS_VAL32(fs, disk_block);
+			if (index == 0)
+				next = disk_block;
+			if (disk_block == target)
+				*is_free = true;
+		}
+		scratch_free(fs, buffer);
+		if (*is_free)
+			goto out;
+	}
+out:
+	SUPERB_UNLOCK(fs);
+	return error;
+}
+
 /* Construct missing index blocks privately before publishing the branch. */
 static int
 v7fs_append_block(struct v7fs_self *fs, struct v7fs_inode *inode, size_t block,
@@ -495,8 +556,15 @@ v7fs_append_block(struct v7fs_self *fs, struct v7fs_inode *inode, size_t block,
 	if (v7fs_datablock_addr(block * V7FS_BSIZE + 1, &map) != 0)
 		return EFBIG;
 	if (map.level == 0) {
-		if (inode->addr[map.index[0]] != 0)
-			return EIO;
+		if (inode->addr[map.index[0]] != 0) {
+			bool is_free;
+
+			error = v7fs_block_is_free(fs, inode->addr[map.index[0]],
+			    &is_free);
+			if (error != 0 || !is_free)
+				return error != 0 ? error : EIO;
+			inode->addr[map.index[0]] = 0;
+		}
 		error = v7fs_datablock_allocate(fs, &child);
 		if (error == 0)
 			inode->addr[map.index[0]] = child;

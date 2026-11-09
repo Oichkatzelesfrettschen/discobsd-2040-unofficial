@@ -181,11 +181,14 @@ swapin (p)
 #ifdef SWAPRAM
     /*
      * An image the RAM tier took holds no swapmap blocks, so it comes back
-     * whole from the pool and nothing here is freed.
+     * whole from the pool and nothing here is freed. Restoring it frees
+     * pool capacity, so the swapper is woken exactly as
+     * swap_image_release() wakes it for flash capacity.
      */
     if (swapram_present (p)) {
         swapram_in (p, (caddr_t) (daddr + tsize), (caddr_t) saddr,
             (caddr_t) uaddr);
+        wakeup ((caddr_t) &runout);
     } else
 #endif
     {

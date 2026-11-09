@@ -125,3 +125,23 @@ write `.commit-requests/READY` and keep working on acceptance. The
 orchestrator commits the requests in order, writes each resulting hash to
 `.commit-requests/NN.hash`, and pushes when the brief authorizes it. Cite
 those hashes in the Handoff section. `.commit-requests/` is excluded from Git.
+
+## Wrap-up order (added by the orchestrator; supersedes the remaining work items)
+
+Stop new implementation and stop or skip any long acceptance run. Then:
+
+1. Write commit requests now for every change in the working tree, in a
+   series that builds commit by commit, following "Commit protocol" above,
+   and write `.commit-requests/READY`. Leave nothing uncommitted except
+   `.commit-requests/`.
+2. Spend the rest of the session on the adversarial review only: attack the
+   whole branch diff (`git diff origin/main...HEAD` plus the requested
+   commits) for correctness, boot safety, every changed invariant, stale
+   consumers of removed interfaces, and gates that would pass on broken input.
+   Do not fix anything. Record each finding in `review-04.md` as FATAL, SERIOUS,
+   MINOR or SOUND with file:line evidence, the failing scenario, and the fix
+   you recommend; the orchestrator resolves them.
+3. End `review-04.md` with the "Handoff" section (at most fifteen lines): the
+   commit requests written, the findings ranked, which acceptance gates ran
+   and which did not, and anything that needs a board run. Write the review
+   file itself as the last commit request if it changed after step 1.

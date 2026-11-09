@@ -5,6 +5,17 @@
 #define _GNU_SOURCE
 #endif
 
+/*
+ * The test builds rename read and write to the tar_test_* shims below.
+ * Under _FORTIFY_SOURCE, glibc's <unistd.h> instead supplies an always-inline
+ * read() that calls libc's read through an assembler alias, so the shim
+ * never runs; Ubuntu's gcc defines _FORTIFY_SOURCE by default. This header is
+ * included before any system header, so it turns fortification off for
+ * every translation unit that uses the shims.
+ */
+#undef _FORTIFY_SOURCE
+#define _FORTIFY_SOURCE 0
+
 #include <sys/types.h>
 
 #ifndef O_IDENTITY

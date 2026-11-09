@@ -2867,7 +2867,8 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
-check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
+check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
+    check-credential-sanitizer \
     check-rwuio-mutants check-rwuio-sanitizer \
     check-file-owner-mutants check-file-owner-sanitizer \
     check-file-status-mutants check-fionread-mutants \
@@ -2882,6 +2883,10 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-credential-sanitizer \
 	done
 
 clean:
+	rm -f ${FORK_SWAP_FUNCTIONS} fork_swap_test fork_swap_test_compact \
+	    fork_swap_test_wide fork_swap_test_diagnostic fork_swap_test_full \
+	    fork_swap_rmap*.o fork_swap_*.mutant.c \
+	    fork_swap_*.mutant.test fork_swap_*.mutant.out
 	rm -f ${PROGS} hostkern.o
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
 	rm -f ${SWAP_IOCTL_FUNCTION} swap_ioctl_function.o swap_ioctl_rmap.o
@@ -3035,3 +3040,77 @@ clean:
 	check-tty-local-mode-ilp32-mutant \
 	check-tty-local-mode-sanitizer check-tty-layout-cross \
 	check-console-c17-cross tty-layout-contract-force clean
+
+# Exact production ownership definitions with modeled codec and storage I/O.
+FORK_SWAP_FUNCTIONS= fork_swap_functions.c
+FORK_SWAP_MUTANTS= ignore-reservation-refusal publish-allproc-early \
+    advance-cursor-on-failure allocate-again-on-copy omit-text-release
+FORK_SWAP_CFLAGS= ${GATE_CFLAGS} -Wno-int-to-pointer-cast \
+    -DSWAPRAM -DSWAPRAM_KB=16 -DSTORAGE_STATS
+FORK_SWAP_DEPS= fork_swap_test.c ${FORK_SWAP_FUNCTIONS} hostkern.o \
+    hostkern_kern.c hostkern.h ${MACHINE_STAMP} \
+    ${TOPSRC}/sys/sys/vmsystm.h ${TOPSRC}/sys/sys/proc.h \
+    ${TOPSRC}/sys/arch/rp2040/include/swapram.h \
+    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c
+${FORK_SWAP_FUNCTIONS}: fork_swap_extract.py swap_ioctl_extract.py \
+    ${TOPSRC}/sys/kern/kern_fork.c ${TOPSRC}/sys/kern/vm_swap.c \
+    ${TOPSRC}/sys/kern/exec_aout.c ${TOPSRC}/sys/kern/init_main.c \
+    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram.c
+	${PYTHON} fork_swap_extract.py --root ${TOPSRC} --output $@
+
+.for shape in compact wide diagnostic full
+FORK_SWAP_DEFS_compact= -DCOMPACT_SWAPMAP
+FORK_SWAP_DEFS_wide=
+FORK_SWAP_DEFS_diagnostic= -DCOMPACT_SWAPMAP -DDIAGNOSTIC
+FORK_SWAP_DEFS_full= -DCOMPACT_SWAPMAP -DFORK_SWAP_FULL_MAP
+fork_swap_rmap_${shape}.o: ${TOPSRC}/sys/kern/subr_rmap.c ${MACHINE_STAMP}
+	${HOST_CC} ${FORK_SWAP_CFLAGS} ${FORK_SWAP_DEFS_${shape}} \
+	    -c -o $@ ${TOPSRC}/sys/kern/subr_rmap.c
+
+fork_swap_test_${shape}: ${FORK_SWAP_DEPS} fork_swap_rmap_${shape}.o
+	${HOST_CC} ${FORK_SWAP_CFLAGS} ${FORK_SWAP_DEFS_${shape}} -o $@ \
+	    fork_swap_test.c ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \
+	    hostkern_kern.c hostkern.o fork_swap_rmap_${shape}.o
+.endfor
+
+.for mutation in ${FORK_SWAP_MUTANTS}
+fork_swap_${mutation}.mutant.c: fork_swap_mutate.py ${FORK_SWAP_FUNCTIONS}
+	${PYTHON} fork_swap_mutate.py --source ${FORK_SWAP_FUNCTIONS} \
+	    --output $@ --mutation ${mutation}
+
+fork_swap_${mutation}.mutant.test: fork_swap_${mutation}.mutant.c \
+    ${FORK_SWAP_DEPS} fork_swap_rmap_compact.o
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP \
+	    -DFORK_SWAP_FUNCTIONS='"fork_swap_${mutation}.mutant.c"' \
+	    -o $@ fork_swap_test.c \
+	    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \
+	    hostkern_kern.c hostkern.o fork_swap_rmap_compact.o
+.endfor
+
+check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
+    fork_swap_test_diagnostic fork_swap_test_full \
+    ${FORK_SWAP_MUTANTS:@mutation@fork_swap_${mutation}.mutant.test@}
+	@set -eu; for shape in compact wide diagnostic full; do \
+		echo "run ./fork_swap_test_$$shape"; \
+		./fork_swap_test_$$shape; \
+	done
+	@set -eu; for mutation in ${FORK_SWAP_MUTANTS}; do \
+		output=fork_swap_$$mutation.mutant.out; \
+		if ./fork_swap_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; else status=$$?; fi; \
+		case $$mutation in \
+		ignore-reservation-refusal) expected='u.u_error == ENOMEM' ;; \
+		publish-allproc-early) expected='allproc == &proc[0]' ;; \
+		advance-cursor-on-failure) expected='swapnext == cursor' ;; \
+		allocate-again-on-copy) expected='copy_consumed_reservation' ;; \
+		omit-text-release) expected='text_inode.i_count == 1' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL fork swap $$mutation rejection" >&2; exit 1; \
+		fi; \
+		echo "PASS fork swap $$mutation rejected: $$expected"; \
+	done
+
+.PHONY: check-fork-swap-refusal

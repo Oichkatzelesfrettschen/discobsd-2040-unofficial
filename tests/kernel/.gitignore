@@ -228,3 +228,12 @@ ufs_disk_*.mutant.functions.c
 ufs_disk_*.mutant.test
 ufs_disk_*.mutant.out
 c17-machine/
+fork_swap_functions.c
+fork_swap_test
+fork_swap_test_compact
+fork_swap_test_wide
+fork_swap_test_diagnostic
+fork_swap_test_full
+fork_swap_*.mutant.c
+fork_swap_*.mutant.test
+fork_swap_*.mutant.out

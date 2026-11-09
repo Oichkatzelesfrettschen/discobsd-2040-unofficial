@@ -140,8 +140,9 @@ formatting changes.
 
 Send upstream reports only on explicit request. Save the draft under
 `docs/research`. Lead with the finding, mechanism and user consequence.
-Include exact environment, claim-specific evidence, reproducible steps, a `git am` patch, before/after
-measurement and residuals. Follow the recipient's conventions.
+Include exact environment, claim-specific evidence, reproducible steps, a
+`git am` patch, before/after measurement and residuals. Follow the
+recipient's conventions.
 
 ## Safety stop-line
 

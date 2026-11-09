@@ -3,7 +3,7 @@
 > **Retained historical survey.** The body records the 2026-09-11
 > investigation and preserves its then-current 96 KB sizing evidence. Two
 > RP2040 conclusions are superseded: datasheet sections 2.4.1 and 2.4.6
-> document an eight-region MPU, and the live port now reserves a 144 KiB
+> document an eight-region MPU, and the live port now reserves a 192 KiB
 > process window, and sys/arch/rp2040/rp2040/mpu.c programs the MPU to fence
 > that window (sys/arch/rp2040/doc/MPU.md), so the body's statements that the
 > shipped system configures no hardware isolation describe the survey's

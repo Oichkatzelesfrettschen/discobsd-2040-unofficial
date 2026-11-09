@@ -15,6 +15,9 @@ restricted lookup through each directory mutation. Regular files remain
 descriptor-owned until the complete data stream has been written and the
 staged inode is published at the requested name.
 
+The 144 KiB capacity receipt below remains bound to its measured revision.
+`swap-exhaustion/review-04.md` owns the current fixed 192 KiB layout.
+
 ## Additive rooted interfaces
 
 The public interfaces are:

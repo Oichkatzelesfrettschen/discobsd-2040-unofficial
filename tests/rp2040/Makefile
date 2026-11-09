@@ -10,8 +10,8 @@ TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 BOARD_PROGS=	divtest exec_hsaout fptest lcdgfxtest romprobe sigtest streamtest \
-		stdio_capacity swapmaptest swapram_epoch swapram_evacuate \
-		swapram_large tartest tiledemo
+		stdio_capacity swapmaptest swapram_evacuate tartest tiledemo \
+		user_window fork_refusal
 BOARD_TARGETS=	${BOARD_PROGS:S/^/build-/}
 
 all:		${BOARD_TARGETS}

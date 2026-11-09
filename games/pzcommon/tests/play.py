@@ -626,8 +626,9 @@ def lamp_depth(root, spec, changes):
 def test_history_budget(root):
     # The undo history is bounded by heap bytes, not a state count alone: a
     # 24 by 16 Light Up state owns two 384-element int arrays (about 3.1 KB on
-    # the target), so 48 of them would fill the 144 KB window, while a small
-    # board keeps its 48 states (47 undo levels).
+    # the target), so 48 of them consume most of the 192 KB window after the
+    # linked image and runtime reserve, while a small board keeps its 48 states
+    # (47 undo levels).
     if "lightup" not in PUZZLES:
         return
     small = lamp_depth(root, "7x7b20s0d0", 60)

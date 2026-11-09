@@ -19,7 +19,7 @@ an LP64 dc using 64-bit libcrypto words with an LP64 dc using libbn's 32-bit
 recorded in the last section. `usr.bin/dc` and `usr.bin/bc` now hold the
 OpenBSD sources, ported as the section "The port in the tree" describes: a
 lazily allocated register table (dc's extended register array is 771 KB, the
-process window is 144 KB), a small compatibility layer, and for bc a name
+process window is 192 KB), a small compatibility layer, and for bc a name
 table in place of its 65,536-entry hash table and a plain line read in place
 of libedit.
 
@@ -240,7 +240,7 @@ directory of `REG_ARRAY_SIZE / 256` page pointers (1 for plain dc, 257 for
 time a register in it is named, and initializes each stack to empty. The seven
 sites that read `bmachine.reg[idx]` call it. A program that names one register
 under `-x` holds 4,413 requested bytes at `-m32`; the eager table was 789,504
-bytes for the stacks alone, 5.4 times the 144 KB process window, so `dc -x`
+bytes for the stacks alone, 4.0 times the 192 KB process window, so `dc -x`
 and bc's child dc could not have started before this change (inferred from
 the sizes; no board run). A page that fails
 to allocate ends the program through `bmalloc`'s `err(1, NULL)`.
@@ -261,8 +261,9 @@ as upstream does. `fork1()` swaps the parent image out to make the child
 (`sys/kern/kern_fork.c`), so a fork needs room in swap for the image the process
 holds at that point. The bc a.out is 39,344 bytes and the heap at fork time
 holds the 512-byte name table and the argument vector, so the copy is about
-40 KB; the 384 KB raw swap holds two windows of 144 KB with 96 KB to spare
-(arithmetic, not a measurement). The fork is kept. No board run has forked the
+40 KB. The 384 KB raw swap equals two complete 192 KB windows before u-area,
+alignment and clean-text exclusion; actual fork fit follows the measured image
+sizes rather than that worst-case equality. The fork is kept. No board run has forked the
 image: `board_dcbc_smoke.py` is the check, and `bc -c | dc -x` is the
 fallback that needs no fork.
 
@@ -539,7 +540,7 @@ and each was rerun on its own with a 100-second limit on both sides:
   libcrypto stops at once with "BN failure: bignum too long" and exit 1, and
   `lib/libbn` keeps squaring past 100 seconds. libbn checks a size limit only
   as a result grows, and the host has memory for the squarings; the board has
-  144 KB, where the same program ends in an allocation failure ("BN failure",
+  192 KB, where the same program ends in an allocation failure ("BN failure",
   exit 1) after the squarings that fit, which at 18 cycles per 16-bit product is
   minutes of CPU (an estimate from instruction counts, not run). A size test
   on `bits(a) x p` at the head of `BN_exp` would refuse these at once like

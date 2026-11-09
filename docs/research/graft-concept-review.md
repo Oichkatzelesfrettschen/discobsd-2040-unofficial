@@ -11,6 +11,10 @@ compress context; the map is what the source establishes. A node that
 disagrees with the map is a retrieval or generation finding, never a
 correction to the map, until the source says otherwise.
 
+The LARGE-epoch symbols below describe the reviewed concept snapshot.
+`swap-exhaustion/review-04.md` supersedes the live design with a fixed 192 KiB
+window and removal of the epoch.
+
 Each entry answers the same six questions: was the relevant node
 retrieved; does it name the right enforcer and callers; does it separate a
 checked condition from a precondition; does it keep configuration-dependent

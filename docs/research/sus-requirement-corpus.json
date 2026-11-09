@@ -228,7 +228,7 @@
         "child status",
         "process groups"
       ],
-      "tiny_translation": "The no-MMU kernel retains Unix process and descriptor semantics inside fixed process tables and a single 144 KiB execution window.",
+      "tiny_translation": "The no-MMU kernel retains Unix process and descriptor semantics inside fixed process tables and a single 192 KiB execution window.",
       "evidence": [
         "docs/research/sus-edition-contracts.md",
         "docs/research/board-capacity-acceptance.md"

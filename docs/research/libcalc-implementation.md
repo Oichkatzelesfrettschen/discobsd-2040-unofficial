@@ -376,7 +376,7 @@ inverse path peaks near 740 bytes, and the largest frame outside the matrix obje
 `exp`, `floor`, `log`, `sin`, `sqrt`, `memcpy`, `memset` and compiler-runtime `__aeabi_*` helpers; `check-cross` links
 the objects with `ld -r`, lists the undefined symbols against that allow-list, and rejects a calibration
 object that calls `malloc`. The 28.6 KB total (26.5 KB before the range fixes, 24.6 KB before the
-conditioning estimate and the scaled quaternion inverse) lies far below the 144 KB process window; a program that links
+conditioning estimate and the scaled quaternion inverse) lies far below the 192 KB process window; a program that links
 only the statistics or the CRC pulls in one or two objects plus `calc_util.o`.
 
 Not run: execution on the ISA of silicon, and execution through the boot ROM float routines. The qemu-arm run

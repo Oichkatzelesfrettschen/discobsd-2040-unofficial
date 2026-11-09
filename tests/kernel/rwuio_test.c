@@ -206,7 +206,7 @@ reset(int flags)
 	copy_fails = 0;
 	check_user_spans = 0;
 	user_span_lower = 0x20000000UL;
-	user_span_upper = 0x20024000UL;
+	user_span_upper = 0x20030000UL;
 	hk_reset_output();
 }
 
@@ -554,17 +554,17 @@ static void
 span_cases(void)
 {
 	static const u_long valid_then_crossing[] = {
-		0x20000000UL, 0x20023fffUL,
+		0x20000000UL, 0x2002ffffUL,
 	};
 	static const u_int one_then_two[] = { 1, 2 };
-	static const u_long last_byte[] = { 0x20023fffUL };
+	static const u_long last_byte[] = { 0x2002ffffUL };
 	static const u_int one[] = { 1 };
 	static const u_long full_window[] = { 0x20000000UL };
-	static const u_int window_length[] = { 0x24000U };
+	static const u_int window_length[] = { 0x30000U };
 	static const u_long invalid_empty[] = { 0xffffffffUL };
 	static const u_int empty[] = { 0 };
 	static const u_long below_window[] = { 0x1fffffffUL };
-	static const u_long at_ceiling[] = { 0x20024000UL };
+	static const u_long at_ceiling[] = { 0x20030000UL };
 	static const u_long wrapping[] = { 0x20001000UL };
 	static const u_int wrapping_length[] = { 0xfffff001U };
 	struct rw_arg *scalar = (struct rw_arg *)u.u_arg;
@@ -591,7 +591,7 @@ span_cases(void)
 	check_user_spans = 1;
 	fp.f_offset = START_OFFSET;
 	scalar->fdes = FD;
-	scalar->cbuf = (char *)0x20024000UL;
+	scalar->cbuf = (char *)0x20030000UL;
 	scalar->count = 1;
 	read();
 	HK_CHECK(u.u_error == EFAULT && rw_calls == 0);
@@ -642,13 +642,6 @@ span_cases(void)
 	vectorize_at(wrapping, wrapping_length, 1);
 	call_readv(FD, 1);
 	HK_CHECK(u.u_error == EINVAL && rw_calls == 0);
-
-	reset(FREAD);
-	check_user_spans = 1;
-	user_span_upper = 0x20028000UL;
-	vectorize_at(at_ceiling, one, 1);
-	call_readv(FD, 1);
-	HK_CHECK(u.u_error == 0 && rw_calls == 1);
 
 	read_only_cases();
 }

@@ -8,6 +8,11 @@ result of each step as it merged into the port. Every number below is
 read from the linked ELF (`readelf -S`, `arm-none-eabi-nm -S`) or from
 a board session over the USB console.
 
+The 144 KiB window and LARGE-epoch results below are retained evidence for
+the revisions they name. `swap-exhaustion/review-04.md` supersedes their live
+layout conclusion with a fixed 192 KiB window, a kernel-resident SwapRAM pool
+and removal of the LARGE epoch.
+
 ## Baseline (port main at 63447526, 2026-09-13)
 
 | quantity | value |

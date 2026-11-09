@@ -69,20 +69,6 @@ def extract_function(source: str, signature: str) -> str:
     raise ValueError("unterminated ELF loader function")
 
 
-def select_undefined_branch(source: str, signature: str, symbol: str) -> str:
-    """Select one simple #ifdef branch after a named function signature."""
-    signature_offset = source.index(signature)
-    directive = f"#ifdef {symbol}\n"
-    conditional_offset = source.index(directive, signature_offset)
-    alternative_offset = source.index("#else\n", conditional_offset)
-    end_offset = source.index("#endif\n", alternative_offset)
-    return (
-        source[:conditional_offset]
-        + source[alternative_offset + len("#else\n") : end_offset]
-        + source[end_offset + len("#endif\n") :]
-    )
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
@@ -106,7 +92,6 @@ def main() -> None:
         signature = FINISH_SIGNATURE
     elif arguments.establish:
         signature = ESTABLISH_SIGNATURE
-        source = select_undefined_branch(source, signature, "SWAPRAM")
     elif arguments.setupstack or arguments.setupstack_geometry_mutant:
         signature = SETUPSTACK_SIGNATURE
     elif arguments.swaptext:

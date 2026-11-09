@@ -79,8 +79,8 @@ source of truth for the reservations.
 
 | Region | Origin | Reservation | Owner |
 | --- | --- | ---: | --- |
-| USERRAM | 0x20000000 | 144 KiB | Resident process image and its dynamic space |
-| RAM | 0x20024000 | 106 KiB | Kernel data allocations |
+| USERRAM | 0x20000000 | 192 KiB | Resident process image and its dynamic space |
+| RAM | 0x20030000 | 58 KiB | Kernel data allocations, including the optional SwapRAM pool after BSS |
 | U0AREA | 0x2003E800 | 3 KiB | Process-zero u area |
 | UAREA | 0x2003F400 | 3 KiB | Current u area and its kernel stack |
 | SCRATCH | 0x20040000 | 8 KiB | USB transmit-ring storage |
@@ -115,7 +115,7 @@ A conservative process budget is:
 loaded a_text + a_data + a_bss
 + reserved heap growth + reserved user-stack growth
 + arguments/environment/alignment not already included
-<= 147456 bytes - deliberate safety reserve
+<= 196608 bytes - deliberate safety reserve
 ```
 
 Count each object once. In particular, do not add a read-only table twice if
@@ -123,7 +123,7 @@ it is already in `a_text`, and do not add each overlaid section as if the
 sections occupied separate addresses. Runtime liveness can tighten the
 bound, but only after the overlap assumptions have been demonstrated.
 
-The live linker and `machparam.h` set the process window to 144 KiB. Retained
+The live linker and `machparam.h` set the process window to 192 KiB. Retained
 documents that quote the earlier 96 KiB window describe historical revisions
 and must not set a current budget.
 
@@ -347,7 +347,7 @@ layer it covers; "C17 compliant" never means "SUSv4 compliant".
 | GNU17 | ISO C17 plus the compiler's documented GNU extensions, target builtins and ABI conventions selected by the evaluated command. | A portable C17 guarantee; POSIX utility behavior; another compiler's extension spelling. | Exact `arm-none-eabi-gcc` or host command, `-std=gnu17`, target flags, object inspection and link map. |
 | POSIX.1-2017 / SUSv4 Issue 7 | Interfaces, utilities, shell rules, option syntax, errors, limits, feature-test macros and conformance classes. The canonical publication is `https://pubs.opengroup.org/onlinepubs/9699919799/`. | C formatting, naming, indentation or a particular compiler. POSIX can constrain an ISO C choice but cannot replace the C contract. | Interface-specific tests, `errno`/signal/terminal behavior, utility ledgers and exact feature-test macros. |
 | BSD/2.11 ABI | Existing syscall numbers, structure layouts, signals, a.out loader rules, libc names and historical behavior that consumers depend on. | A promise that every BSD implementation or POSIX profile has the same layout. | Public headers, kernel ABI tests, final a.out headers, loader tests and retained compatibility cases. |
-| RP2040 project policy | Cortex-M0+/Thumb-1 code generation, 144 KiB process window, flash/XIP transitions, MPU map, USB/UART ownership, swap and multicall lifetime. | ISO or POSIX conformance by itself. | Linker assertions, `unix.map`, `machdep.mpu`, host/cross/qemu/Renode/board gates and storage/stack accounts. |
+| RP2040 project policy | Cortex-M0+/Thumb-1 code generation, 192 KiB process window, flash/XIP transitions, MPU map, USB/UART ownership, swap and multicall lifetime. | ISO or POSIX conformance by itself. | Linker assertions, `unix.map`, `machdep.mpu`, host/cross/qemu/Renode/board gates and storage/stack accounts. |
 | Native Smaller C language | The measured parser, preprocessor, type, assembler and libc subset accepted by the on-device toolchain. | C17 syntax or semantics that the compiler has not implemented. | `usr.bin/smlrc/tests`, qemu-arm differential tests, the native build and board evidence. |
 
 The comparison changes the migration order. C17 repairs declarations and
@@ -397,7 +397,7 @@ because its current Makefile still selects `gnu89`, `-ansi` or C99.
 
 ## 4D. Smaller systems and constrained-C evidence
 
-The RP2040 has 264 KiB SRAM, 2 MiB QSPI flash and a 144 KiB user window. Smaller
+The RP2040 has 264 KiB SRAM, 2 MiB QSPI flash and a 192 KiB user window. Smaller
 systems prove that C-like languages can be made useful below this envelope,
 but they do not prove C17 conformance or an RP2040 fit. The local surveys keep
 measured, documented, inferred and unknown values separate.

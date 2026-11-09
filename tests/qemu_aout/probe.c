@@ -82,7 +82,7 @@ static int
 brk_probe(void)
 {
 	static const unsigned long wild[] = {
-		0xfffffc00ul, 0xffffffffu, 0x20024000ul, 0x20024001ul
+		0xfffffc00ul, 0xffffffffu, 0x20030000ul, 0x20030001ul
 	};
 	unsigned i;
 

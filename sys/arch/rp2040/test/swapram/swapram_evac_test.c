@@ -24,8 +24,6 @@
 
 struct proc proc[NPROC];
 struct user u, u0;
-char runin, runout;
-char __user_data_start[1], __user_data_end[1];
 size_t swapnext;
 
 void
@@ -53,25 +51,6 @@ panic(const char *s)
 {
     panicmsg = s;
     longjmp(onpanic, 1);
-}
-
-void
-wakeup(caddr_t chan)
-{
-    (void)chan;
-}
-
-/*
- * A process asleep on the epoch is waiting for the swapper to answer;
- * the swapper's turn is the service call, so sleep runs it.
- */
-static int sleeps;
-void
-sleep(caddr_t chan, int pri)
-{
-    (void)chan; (void)pri;
-    sleeps++;
-    swapram_service();
 }
 
 struct buf *
@@ -191,7 +170,6 @@ spool_coexistence(void)
     reset_map(NSWAP - 1);
     fill(source, sizeof source, 41);
     memset(destination, 0, sizeof destination);
-    CHECK(swapram_epoch == SWAPRAM_SMALL);
     CHECK(swapram_spool_alloc(sizeof source, &spool_offset) == 0);
     swapram_spool_write(spool_offset, 0, source, 700);
     swapram_spool_write(spool_offset, 700, source + 700,
@@ -214,18 +192,10 @@ spool_coexistence(void)
         (caddr_t)im.ub);
     CHECK(swapram_images() == 0);
     CHECK(swapram_uarea_prefix(&proc[0], destination, 1) == -1);
-
-    swapram_set_epoch(SWAPRAM_LARGE);
-    swapram_service();
-    CHECK(swapram_epoch == SWAPRAM_SMALL);
-    CHECK(swapram_spool_alloc(16, &spool_offset) == -1);
     swapram_spool_free(spool_offset, sizeof source);
-    swapram_service();
-    CHECK(swapram_epoch == SWAPRAM_LARGE);
-    swapram_set_epoch(SWAPRAM_SMALL);
-    swapram_service();
-    CHECK(swapram_epoch == SWAPRAM_SMALL);
-    printf("spool coexistence: records share SMALL with images and defer LARGE until release\n");
+    CHECK(swapram_spool_alloc(16, &spool_offset) == 0);
+    swapram_spool_free(spool_offset, 16);
+    printf("spool coexistence: records share the pool with images and release independently\n");
 }
 
 static int
@@ -488,98 +458,6 @@ service(void)
     printf("service: idle ignored, pending evacuated, shortage reported and admission reopened\n");
 }
 
-static void
-epoch(void)
-{
-    struct image im, im2;
-    int i;
-
-    /* start from a drained pool and unmarked processes */
-    reset_map(NSWAP - 1);
-    CHECK(swapram_evacuate() == 0);
-    for (i = 0; i < NPROC; i++)
-        proc[i].p_flag = 0;
-
-    /* SMALL with images: entering LARGE evacuates, closes, marks, counts */
-    mkimage(&im, 3000, 500, 21);
-    mkimage(&im2, 1000, 100, 22);
-    CHECK(admit(0, &im));
-    CHECK(admit(1, &im2));
-    CHECK(swapram_epoch == SWAPRAM_SMALL);
-    CHECK(swapram_ceiling(&proc[5]) == MAXMEM);
-    sleeps = 0;
-    CHECK(swapram_enter_large(&proc[5]) == 0);
-    CHECK(sleeps == 1);
-    CHECK(swapram_epoch == SWAPRAM_LARGE);
-    CHECK(proc[5].p_flag & P_LARGE);
-    CHECK(swapram_ceiling(&proc[5]) == MAXMEM + SWAPRAM_BONUS);
-    CHECK(swapram_images() == 0);
-    CHECK(onflash(0, &im) && onflash(1, &im2));
-    CHECK(admit(2, &im2) == 0);             /* pool closed under LARGE */
-    /* a second process joins without another evacuation */
-    CHECK(swapram_enter_large(&proc[6]) == 0);
-    CHECK(sleeps == 1);
-    /* fork inherits; leaving one of three keeps the epoch */
-    swapram_inherit(&proc[7], &proc[6]);
-    CHECK(proc[7].p_flag & P_LARGE);
-    swapram_leave_large(&proc[5]);
-    swapram_service();
-    CHECK(swapram_epoch == SWAPRAM_LARGE);
-    CHECK(admit(2, &im2) == 0);
-    /* the last large process out returns SMALL and reopens the pool */
-    swapram_leave_large(&proc[6]);
-    swapram_leave_large(&proc[7]);
-    swapram_service();
-    CHECK(swapram_epoch == SWAPRAM_SMALL);
-    CHECK(admit(2, &im2) == 1);
-    CHECK(swapram_images() == 1);
-    /* leaving twice is idle; ceiling back to the window */
-    swapram_leave_large(&proc[7]);
-    CHECK(swapram_ceiling(&proc[7]) == MAXMEM);
-
-    /* SMALL with the map too short: the request is refused, SMALL stays */
-    reset_map(2);
-    CHECK(admit(3, &im));
-    for (i = 0; i < NPROC; i++)
-        proc[i].p_flag &= ~P_LARGE;
-    CHECK(swapram_enter_large(&proc[8]) == ENOMEM);
-    CHECK(swapram_epoch == SWAPRAM_SMALL);
-    CHECK((proc[8].p_flag & P_LARGE) == 0);
-    CHECK(swapram_images() == 2);           /* both images still in the pool */
-    CHECK(admit(9, &im2) == 1);             /* and the pool reopened */
-
-    /* the operator's requests through the sysctl path */
-    reset_map(NSWAP - 1);
-    swapram_set_epoch(SWAPRAM_LARGE);
-    swapram_service();
-    CHECK(swapram_epoch == SWAPRAM_LARGE);
-    CHECK(swapram_images() == 0);
-    CHECK(admit(10, &im2) == 0);
-    swapram_set_epoch(SWAPRAM_SMALL);
-    swapram_service();
-    CHECK(swapram_epoch == SWAPRAM_SMALL);
-    CHECK(admit(10, &im2) == 1);
-    /* SMALL is refused while a large process lives */
-    CHECK(swapram_enter_large(&proc[11]) == 0);
-    swapram_set_epoch(SWAPRAM_SMALL);
-    swapram_service();
-    CHECK(swapram_epoch == SWAPRAM_LARGE);
-    swapram_leave_large(&proc[11]);
-    swapram_service();
-    CHECK(swapram_epoch == SWAPRAM_SMALL);
-    printf("epoch: enter evacuates and closes, joins, inherits, last leaver reopens, refusal keeps SMALL, operator requests honored\n");
-
-    /* the window top follows the mark, and the bonus is the pool's size */
-    proc[12].p_flag = 0;
-    CHECK(user_top(&proc[12]) == (size_t)__user_data_end);
-    proc[12].p_flag = P_LARGE;
-    CHECK(user_top(&proc[12]) == (size_t)__user_data_end + SWAPRAM_BONUS);
-    CHECK(SWAPRAM_BONUS == SWAPRAM_KB * 1024);
-    CHECK(swapram_ceiling(&proc[12]) == MAXMEM + SWAPRAM_KB * 1024);
-    proc[12].p_flag = 0;
-    printf("window: top and ceiling rise by the pool's %d bytes under P_LARGE\n", SWAPRAM_BONUS);
-}
-
 int
 main(void)
 {
@@ -594,7 +472,6 @@ main(void)
     shortage();
     admission();
     service();
-    epoch();
     if (failures) {
         printf("%d failures\n", failures);
         return 1;

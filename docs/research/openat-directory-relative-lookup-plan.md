@@ -21,7 +21,7 @@ with the namespace residual in
 ## Global constraints
 
 - Preserve Cortex-M0+, ARMv6-M, Thumb-1, software arithmetic, 264 KiB SRAM,
-  2 MiB flash, the 128 KiB kernel region, and the 144 KiB process window.
+  2 MiB flash, the 128 KiB kernel region, and the 192 KiB process window.
 - Preserve every existing syscall number, public layout, and calling
   convention. Add the new interface at the next free syscall number.
 - Stage a user pathname before directory-descriptor lookup. An absolute path

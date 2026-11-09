@@ -6,6 +6,9 @@ audit observations. Shipped trust boundaries precede broad leaf conversion;
 source classification, compiler acceptance and semantic/resource closure remain
 separate states. Header decomposition follows ownership and dependency evidence.
 
+The 144 KiB geometry quoted in the revision-bound sections remains historical.
+`swap-exhaustion/review-04.md` owns the current fixed 192 KiB layout.
+
 This guide turns `docs/research/STYLE-GUIDE.md` into a reproducible tooling
 plan. It covers project-owned C source from K&R through C11 as a migration
 frontier: every maintainable translation unit moves to the repository C17

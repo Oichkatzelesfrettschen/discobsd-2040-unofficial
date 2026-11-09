@@ -8,7 +8,6 @@ struct proc {
 };
 extern struct proc proc[];
 #define SLOAD 0x0001
-#define P_LARGE 0x0040
 struct buf;
 void swap_with_buf(struct buf *, size_t, size_t, int, int);
 #endif

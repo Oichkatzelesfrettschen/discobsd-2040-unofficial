@@ -1,5 +1,8 @@
 # Stream: local measurement of libc duplication and a fixed-address libc prototype
 
+The 144 KiB measurements below remain bound to the measured revision.
+`../../swap-exhaustion/review-04.md` owns the current fixed 192 KiB layout.
+
 Source products: the RP2040 build products present in the canonical checkout,
 dated 2026-10-24 (lib/libc.a, lib/crt0.o, every box's `*.tool.o`, and
 standalone program objects). Toolchain: arm-none-eabi-gcc 16.2.0. Scripts and

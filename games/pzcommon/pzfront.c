@@ -29,12 +29,12 @@
 #define PZ_HIST_MIN	2	/* fewest: the current state and one undo */
 /*
  * Heap the undo history may hold, in the bytes op->state_bytes() reports.
- * The process window is 147456 bytes for text, data, bss, heap and stack; the
- * linked puzzlebox image takes about 46 KB of them, leaving about 100 KB. The
+ * The process window is 196608 bytes for text, data, bss, heap and stack; the
+ * linked puzzlebox image takes about 46 KB of them, leaving about 148 KB. The
  * generator and solver peak at about 8 KB on the largest board (24 by 16
  * Light Up), the deepest frames come to about 3 KB, and the allocator's
- * first-fit arena needs fragmentation slack, so a third of the window goes
- * to history and the rest to those uses.
+ * first-fit arena needs fragmentation slack, so 48 KB of the window goes to
+ * history and the rest to those uses.
  */
 #define PZ_HIST_BYTES	49152
 #define PZ_CMD		160	/* longest test move */

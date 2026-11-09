@@ -96,8 +96,8 @@ Findings behind the table:
   (`usr.bin/bc/bc.y` lines 975-989). `bc -l` reads `/usr/share/misc/lib.b`,
   which defines `e`, `l`, `s`, `c`, `a` and `j`. The directory
   `/usr/share/misc` exists in the manifest (line 47).
-- A pipeline of two runnable processes shares one 144 KB user window. The
-  second process swaps through SwapRAM or flash
+- Each resident process uses the fixed 192 KB user window. A second runnable
+  process swaps through SwapRAM or flash
   (`sys/arch/rp2040/doc/research/zswap.md`). The latency of `echo 2+2 | bc` on
   the board is not measured; a measured value above one second falsifies the
   choice of the two-process pair for interactive use.
@@ -503,7 +503,7 @@ redraw are 1,600 for tile numbers against 204,800 for RGB565 pixels, a 128x
 difference in `write(2)` payload. Both paths remain bus bound (about 13 ms
 of copying at 8 cycles per byte against 197 ms of bus time, estimate), so the atlas costs 4 KB of
 kernel RAM to save user-side expansion and syscall chunks. Recommendation:
-keep the atlas in the kernel at 128 tiles; the user process keeps its 144 KB
+keep the atlas in the kernel at 128 tiles; the user process keeps its 192 KB
 window for the app and the shadow map.
 
 Coexistence with the text console:
@@ -564,7 +564,7 @@ new gate is needed. Board steps run only with the repository's exact opt-in.
 
 ## Risks and open decisions
 
-- Two-process `bc | dc` under a single 144 KB user window. Not measured. The
+- Two-process `bc | dc` with one fixed 192 KB resident window. Not measured. The
   falsifier is stated in the arbitrary-precision closure row of the staged plan.
 - The `bc` bss of 22,188 bytes is mostly `bspace`. Lowering `bsp_max` is a
   small source edit; it changes the maximum program size and needs a test.

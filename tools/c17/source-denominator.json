@@ -71662,6 +71662,40 @@
       }
     },
     {
+      "path": "tests/rp2040/fork_refusal/forktest.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "tests",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "shift-expression"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "tests/rp2040/fptest/corpus_double.h",
       "class": "unreviewed",
       "scope": "unreviewed",
@@ -72005,69 +72039,7 @@
       }
     },
     {
-      "path": "tests/rp2040/swapram_epoch/epochtest.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "tests",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
-      "classification": {
-        "source_kind": "translation-unit",
-        "build_surface": "test-only",
-        "required_mode": "strict-c17-and-gnu17",
-        "extension_policy": "portable-only",
-        "extension_signals": [],
-        "risk_family": "portable-leaf",
-        "risk_tier": "unreviewed",
-        "risk_tier_basis": "caller-closure-required",
-        "hazard_basis": "lexical-candidates-v1",
-        "hazards": {
-          "aliasing": [],
-          "inline_assembly": [],
-          "integer": [],
-          "object_lifetime": [],
-          "pointer": [],
-          "prototype": [],
-          "variadic": []
-        }
-      }
-    },
-    {
       "path": "tests/rp2040/swapram_evacuate/evactest.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "tests",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
-      "classification": {
-        "source_kind": "translation-unit",
-        "build_surface": "test-only",
-        "required_mode": "strict-c17-and-gnu17",
-        "extension_policy": "portable-only",
-        "extension_signals": [],
-        "risk_family": "portable-leaf",
-        "risk_tier": "unreviewed",
-        "risk_tier_basis": "caller-closure-required",
-        "hazard_basis": "lexical-candidates-v1",
-        "hazards": {
-          "aliasing": [],
-          "inline_assembly": [],
-          "integer": [],
-          "object_lifetime": [],
-          "pointer": [],
-          "prototype": [],
-          "variadic": []
-        }
-      }
-    },
-    {
-      "path": "tests/rp2040/swapram_large/bigtest.c",
       "class": "unreviewed",
       "scope": "unreviewed",
       "owner": "tests",
@@ -72388,6 +72360,39 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/rp2040/user_window/windowtest.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "tests",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
           "object_lifetime": [],
           "pointer": [],
           "prototype": [],

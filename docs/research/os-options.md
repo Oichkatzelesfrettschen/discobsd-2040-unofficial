@@ -19,7 +19,7 @@
 > (sys/arch/rp2040/doc/MPU.md); MPU presence does not create MMU address
 > translation.
 > The survey's 96 KB sizing applies to its historical source revisions. The
-> live port reserves a 144 KiB process window. The body remains intact as a
+> live port reserves a 192 KiB process window. The body remains intact as a
 > retained survey; `docs/research/STYLE-GUIDE.md` and
 > `sys/arch/rp2040/README.md` state the current target model.
 

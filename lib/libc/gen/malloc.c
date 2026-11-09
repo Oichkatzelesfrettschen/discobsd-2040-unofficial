@@ -221,7 +221,7 @@ void free(ap)
  *
  * The block grows in place when the free blocks after it hold the
  * difference, and shrinks in place by splitting a free block off its end,
- * so a resize inside a 144 KB window costs the difference and not the sum.
+ * so a resize inside a 192 KB window costs the difference and not the sum.
  * Both leave allocp at this block's header, because the free blocks the
  * growth absorbs may include the one the search pointer stands on.
  */

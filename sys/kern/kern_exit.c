@@ -11,9 +11,6 @@
 #include <sys/exec.h>
 #include <sys/inode.h>
 #include <sys/vm.h>
-#ifdef SWAPRAM
-#include <machine/swapram.h>
-#endif
 #include <sys/file.h>
 #include <sys/wait.h>
 #include <sys/kernel.h>
@@ -104,10 +101,6 @@ exit (rv)
         p->p_nxt->p_prev = &p->p_nxt;
     p->p_prev = &zombproc;
     zombproc = p;
-#ifdef SWAPRAM
-    /* The image is gone with the process; the bonus goes with it. */
-    swapram_leave_large (p);
-#endif
     p->p_stat = SZOMB;
 
     noproc = 1;

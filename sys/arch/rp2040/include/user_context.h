@@ -22,7 +22,7 @@
  * first. The RP2040 MPU grants unprivileged execution from the 16 KB boot ROM
  * and from the resident process window. A candidate PC therefore names a
  * complete Thumb halfword in either region. baduaddr_span() owns the
- * process-specific upper bound, including a conditional USER_TOP() extension.
+ * process-window upper-bound check.
  */
 #define RP2040_USER_BOOT_ROM_END 0x00004000U
 

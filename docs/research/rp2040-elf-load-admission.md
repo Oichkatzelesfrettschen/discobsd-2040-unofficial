@@ -36,8 +36,8 @@ The admitted file bytes become the data extent, and `p_memsz - p_filesz`
 becomes the BSS extent. A zero difference is valid. The heap starts after BSS.
 The stack extent uses the same word-rounded argument and environment byte count
 as the a.out loader. `exec_estab` accounts for data, BSS, heap and stack against
-the selected 144 KiB base window or the existing conditional extension before
-core allocation. Every file, segment and entry check runs before that commit,
+the fixed 192 KiB window before core allocation. Every file, segment and entry
+check runs before that commit,
 so a rejected image preserves the running process.
 
 `exec_setupstack` subtracts argument-vector bytes through `char *` arithmetic

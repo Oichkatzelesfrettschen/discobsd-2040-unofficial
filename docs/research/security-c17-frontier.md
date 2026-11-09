@@ -10,6 +10,9 @@ behavior for the exercised inputs. Cortex-M0+ compilation, final a.out
 inspection and filesystem accounting establish the target footprint. Board
 behavior remains outside this audit.
 
+The 144 KiB capacity receipts below remain bound to their measured revisions.
+`swap-exhaustion/review-04.md` owns the current fixed 192 KiB layout.
+
 Structural Graft job `527d63e861f3851b3aea15c224869cb0` supplied the first
 symbol and file map. At current source `34902d8a3aa0a742729989be32fea67a2732ee35`,
 its graph remains pinned to `dbd8bf0cc84f3705b79e3a13c79436b0ba51cb54` with

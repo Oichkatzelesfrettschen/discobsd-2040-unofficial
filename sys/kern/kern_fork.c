@@ -11,9 +11,6 @@
 #include <sys/inode.h>
 #include <sys/file.h>
 #include <sys/vm.h>
-#ifdef SWAPRAM
-#include <machine/swapram.h>
-#endif
 #include <sys/kernel.h>
 #include <sys/syslog.h>
 #include <sys/capacity.h>
@@ -98,9 +95,6 @@ again:
     child->p_realtick = 0;
     child->p_realitick = 0;
     child->p_flag = SLOAD;
-#ifdef SWAPRAM
-    swapram_inherit (child, parent);
-#endif
     child->p_uid = parent->p_uid;
     child->p_pgrp = parent->p_pgrp;
     child->p_nice = parent->p_nice;

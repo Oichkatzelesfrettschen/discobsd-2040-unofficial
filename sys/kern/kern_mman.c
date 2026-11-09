@@ -8,9 +8,6 @@
 #include <sys/proc.h>
 #include <sys/vm.h>
 #include <sys/systm.h>
-#ifdef SWAPRAM
-#include <machine/swapram.h>
-#endif
 
 void
 brk()
@@ -24,16 +21,7 @@ brk()
     newsize = ((struct a*)u.u_arg)->naddr - u.u_procp->p_daddr;
     if (newsize < 0)
         newsize = 0;
-#ifdef SWAPRAM
-    /*
-     * A large process may grow to its ceiling; a small one cannot ask
-     * for LARGE here, because its stack already sits under the window
-     * and the bonus lies above that stack.
-     */
-    if (u.u_tsize + newsize + u.u_ssize > swapram_ceiling (u.u_procp)) {
-#else
     if (u.u_tsize + newsize + u.u_ssize > MAXMEM) {
-#endif
         u.u_error = ENOMEM;
         return;
     }

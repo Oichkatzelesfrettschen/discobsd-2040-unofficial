@@ -3,11 +3,13 @@
 # PARAM selects. With -DSWAPRAM the kernel must define the six entry points
 # vm_swap.c calls, vm_swap.o must reference each of them, and the pool
 # swapram_pool_mem must measure SWAPRAM_KB kilobytes (64 when the option is
-# absent, matching machine/swapram.h). A SwapRAM kernel must also carry one
-# 1,040-byte codec workspace, with packed-text restoration referencing its
-# owner API and the three former private workspaces absent. Without -DSWAPRAM
-# none of the tier symbols may appear. An object compiled under an earlier
-# PARAM is the fault this catches: it links cleanly and runs the wrong tier.
+# absent, matching machine/swapram.h), follow the ordinary kernel bss, stay
+# inside kernel RAM, and retain its eight-byte alignment. A SwapRAM kernel
+# must also carry one 1,040-byte codec workspace, with packed-text restoration
+# referencing its owner API, the three former private workspaces absent, and
+# every retired variable-window epoch symbol absent. Without -DSWAPRAM none
+# of the tier symbols may appear. An object compiled under an earlier PARAM is
+# the fault this catches: it links cleanly and runs the wrong tier.
 #
 # usage: verify_rp2040_swapram_link.sh --elf unix.elf --object vm_swap.o \
 #            --exec-object exec_hsaout.o \
@@ -42,6 +44,10 @@ done
 NM=${NM:-arm-none-eabi-nm}
 OBJDUMP=${OBJDUMP:-arm-none-eabi-objdump}
 entries="swapram_reserve swapram_put swapram_commit swapram_cancel swapram_present swapram_in"
+retired_epoch_symbols="swapram_epoch swapram_nlarge swapram_ceiling \
+swapram_enter_large swapram_leave_large swapram_inherit swapram_set_epoch \
+swapram_init user_top sr_nlarge sr_large_want sr_small_want sr_large_seq \
+sr_poke"
 
 enabled=0
 kb=64
@@ -57,6 +63,13 @@ syms=$("$NM" -S "$elf")
 relocs=$("$OBJDUMP" -r "$object")
 exec_relocs=$("$OBJDUMP" -r "$exec_object")
 sysctl_relocs=$("$OBJDUMP" -r "$sysctl_object")
+
+symbol_address()
+{
+	printf '%s\n' "$syms" |
+	    awk -v symbol_name="$1" '$NF == symbol_name { print $1 }'
+}
+
 if [ "$enabled" -eq 1 ]; then
 	for e in $entries; do
 		printf '%s\n' "$syms" | grep " T $e\$" >/dev/null ||
@@ -70,6 +83,46 @@ if [ "$enabled" -eq 1 ]; then
 	if [ -n "$size" ] && [ "$((0x$size))" -ne "$((0x$want))" ]; then
 		echo "$elf: swapram_pool_mem is 0x$size bytes, PARAM asks for ${kb} KB" >&2
 		fail=1
+	fi
+	pool_address=$(symbol_address swapram_pool_mem)
+	bss_end_address=$(symbol_address _ebss)
+	kernel_start_address=$(symbol_address __kernel_data_start)
+	kernel_end_address=$(symbol_address __kernel_data_end)
+	[ -n "$pool_address" ] || {
+		echo "$elf: swapram_pool_mem address is absent" >&2
+		fail=1
+	}
+	[ -n "$bss_end_address" ] || {
+		echo "$elf: _ebss address is absent" >&2
+		fail=1
+	}
+	[ -n "$kernel_start_address" ] || {
+		echo "$elf: __kernel_data_start address is absent" >&2
+		fail=1
+	}
+	[ -n "$kernel_end_address" ] || {
+		echo "$elf: __kernel_data_end address is absent" >&2
+		fail=1
+	}
+	if [ -n "$pool_address" ] && [ -n "$size" ]; then
+		pool_start_value=$((0x$pool_address))
+		pool_end_value=$((pool_start_value + 0x$size))
+		[ $((pool_start_value % 8)) -eq 0 ] || {
+			echo "$elf: swapram_pool_mem starts at unaligned 0x$pool_address" >&2
+			fail=1
+		}
+		if [ -n "$bss_end_address" ] &&
+		    [ "$pool_start_value" -lt "$((0x$bss_end_address))" ]; then
+			echo "$elf: swapram_pool_mem at 0x$pool_address precedes _ebss at 0x$bss_end_address" >&2
+			fail=1
+		fi
+		if [ -n "$kernel_start_address" ] &&
+		    [ -n "$kernel_end_address" ] &&
+		    { [ "$pool_start_value" -lt "$((0x$kernel_start_address))" ] ||
+		      [ "$pool_end_value" -gt "$((0x$kernel_end_address))" ]; }; then
+			echo "$elf: swapram_pool_mem 0x$pool_address..$(printf '%x' "$pool_end_value") is outside kernel RAM 0x$kernel_start_address..0x$kernel_end_address" >&2
+			fail=1
+		fi
 	fi
 	# The linker script assigns the workspace an absolute address, which
 	# nm -S prints without a size column: address, type A, name.
@@ -118,6 +171,13 @@ else
 		    { echo "$sysctl_object: relocation to $entry without -DSWAPRAM" >&2; fail=1; }
 	done
 fi
+for retired_epoch_symbol in $retired_epoch_symbols; do
+	printf '%s\n' "$syms" |
+	    grep "[[:space:]]$retired_epoch_symbol\$" >/dev/null && {
+		echo "$elf: retired variable-window symbol $retired_epoch_symbol remains linked" >&2
+		fail=1
+	}
+done
 if [ "$fail" -eq 0 ]; then
 	if [ "$enabled" -eq 1 ]; then
 		echo "$elf: SwapRAM tier linked, pool ${kb} KB"

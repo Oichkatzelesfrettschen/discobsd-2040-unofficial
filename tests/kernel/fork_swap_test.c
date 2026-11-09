@@ -1,7 +1,7 @@
 /*
  * Ownership gate over exact production fork, image and SwapRAM definitions.
  * Compression and storage I/O use deterministic boundary models; the pool and
- * resource-map allocators, slot metadata and LARGE inheritance are production.
+ * resource-map allocators, and slot metadata are production.
  */
 #include "hostkern.h"
 #include <sys/param.h>
@@ -335,12 +335,12 @@ reset_fixture(void)
     bzero(sr_seg, sizeof(sr_seg));
     sr_ready = 0;
     sr_pool_init_once();
-    sr_admit = sr_nlarge = sr_codec_owner = swapramdebug = 0;
+    sr_admit = sr_codec_owner = swapramdebug = 0;
     allproc = &proc[0];
     allproc->p_prev = &allproc;
     allproc->p_pid = 9;
     allproc->p_stat = SRUN;
-    allproc->p_flag = SLOAD | P_LARGE;
+    allproc->p_flag = SLOAD;
     allproc->p_daddr = 0x20000000;
     allproc->p_saddr = 0x20027000;
     allproc->p_addr = 0x2003e800;
@@ -381,7 +381,6 @@ reset_fixture(void)
 #endif
     runin = runout = 0;
     child_resume = copy_consumed_reservation = 0;
-    sr_nlarge = 1;
 }
 
 #ifdef SWAP_IMAGE_ALIGN
@@ -471,7 +470,6 @@ recorded_refusals(void)
         HK_CHECK(same_bytes(&forkstat, &saved_forkstat, sizeof(forkstat)));
         HK_CHECK(same_bytes(&cnt, &saved_count, sizeof(cnt)));
         HK_CHECK(same_bytes(storage_counts, saved_storage, sizeof(storage_counts)));
-        HK_CHECK(sr_nlarge == 1);
         HK_CHECK(writes == 0);
         HK_CHECK(mpid == 100);
     }
@@ -561,7 +559,6 @@ successful_forks(void)
         HK_CHECK(storage_counts[STORAGE_SWAPRAM_ADMISSIONS] == 0);
         HK_CHECK(forkstat.cntfork == (use_vfork ? 0U : 1U));
         HK_CHECK(forkstat.cntvfork == (use_vfork ? 1U : 0U));
-        HK_CHECK(sr_nlarge == 2);
         HK_CHECK(descriptor.f_count == 2);
         HK_CHECK(directory.i_count == 4);
         HK_CHECK(text_inode.i_count == 2);
@@ -799,7 +796,7 @@ swapin_ram_release(void)
     kernel_fork();
     HK_CHECK(u.u_error == 0);
     HK_CHECK(swapram_present(&proc[1]));
-    HK_CHECK((proc[1].p_flag & (SLOAD | P_LARGE)) == P_LARGE);
+    HK_CHECK((proc[1].p_flag & SLOAD) == 0);
     HK_CHECK(proc[1].p_stat == SRUN);
     held = swapram_pool_avail(&sr_map);
     HK_CHECK(held < sizeof(sr_pool));
@@ -807,7 +804,7 @@ swapin_ram_release(void)
     tsize = proc[1].p_tsize;
     dsize = proc[1].p_dsize;
     ssize = proc[1].p_ssize;
-    stack_dest = user_top(&proc[1]) - ssize;
+    stack_dest = USER_TOP(&proc[1]) - ssize;
     data_dest = (size_t)__user_data_start + tsize;
     u.u_procp = &proc[0];
     swapin(&proc[1]);
@@ -953,7 +950,6 @@ boot_fixture(void)
     u.u_ofile[0] = NULL;
     u.u_rdir = NULL;
     mpid = 0;
-    sr_nlarge = 0;
 #ifdef SWAP_IMAGE_ALIGN
     mfree(swapmap, blocks - SWAP_IMAGE_ALIGN, SWAP_IMAGE_ALIGN);
 #else

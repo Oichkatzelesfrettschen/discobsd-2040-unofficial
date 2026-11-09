@@ -594,9 +594,6 @@ startup(void)
 	 * unchecked.
 	 */
 	mpu_init();
-#ifdef SWAPRAM
-	swapram_init();
-#endif
 
 	/*
 	 * Configure LED pins.

@@ -25,7 +25,7 @@ def main() -> None:
     offset_start = ram.index("#if SWAPRAM_KB * 1024 <= 65535")
     offset_end = ram.index("} sr_tab[NPROC];", offset_start) + len("} sr_tab[NPROC];")
     ram_state += ram[offset_start:offset_end]
-    ram_state += "\nstatic int sr_admit, sr_nlarge, swapramdebug;\n"
+    ram_state += "\nstatic int sr_admit, swapramdebug;\n"
     ram_state += "static unsigned int sr_codec_owner;\n"
     ram_functions = "\n".join(
         extract_function(ram, signature, signature)
@@ -40,7 +40,6 @@ def main() -> None:
             "void\nswapram_cancel (",
             "int\nswapram_present (",
             "void\nswapram_in (",
-            "size_t\nuser_top (",
         )
     )
     init = (args.root / "sys/kern/init_main.c").read_text()
@@ -48,7 +47,6 @@ def main() -> None:
         init.index("fork_result = newproc(0);") : init.index("/* Child process with pid 1:")
     ]
     boot = "static void fork_swap_boot(void) { int fork_result; " + boot + "}\n"
-    inherit = extract_function(ram, "void\nswapram_inherit (", "inherit")
     release = extract_function(text, "void\nexec_text_release(", "text release")
     # The fixture keeps its own sched() for the boot path, which only needs to
     # stop the boot parent, so the production scheduler loop is renamed.
@@ -64,8 +62,6 @@ def main() -> None:
         + sched
         + "\n"
         + fork
-        + "\n"
-        + inherit
         + "\n"
         + release
         + "\n"

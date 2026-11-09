@@ -1,7 +1,7 @@
 # Prototype: run a DiscoBSD OMAGIC a.out under qemu-arm user mode.
 #
 # aoutrun.c loads the a.out the tree links (lib/crt0.o, lib/libc.a, the
-# lib/elf32-arm.ld layout at 0x20000000, elf2aout) into the 144 KB user window,
+# lib/elf32-arm.ld layout at 0x20000000, elf2aout) into the 192 KB user window,
 # serves its "svc #N" system calls from the Linux kernel and, when the
 # emulator gives the guest address 0, models the boot ROM float tables. This
 # directory is part of the root check-qemu; "check" builds and runs the probe
@@ -94,7 +94,7 @@ check: aoutrun probe probe.sites seek.dat loop.lnk
 	@# Strings that fit the window but not above the image (about 7.8 KB of
 	@# text, data and bss) end the run with the setup status instead of
 	@# overwriting the image.
-	@big=$$(head -c 71500 /dev/zero | tr '\0' x); status=0; \
+	@big=$$(head -c 96000 /dev/zero | tr '\0' x); status=0; \
 	env -i AOUT_BIG=$$big AOUT_BIG2=$$big ${RUN} env \
 	    > /dev/null 2> envfull.err || status=$$?; \
 	if [ "$$status" -ne 71 ]; then \

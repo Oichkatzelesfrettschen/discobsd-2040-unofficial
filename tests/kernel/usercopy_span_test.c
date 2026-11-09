@@ -28,7 +28,7 @@ typedef unsigned int u_int;
 
 #define EFAULT 14
 #define __user_data_start ((char *)(uintptr_t)0x20000000U)
-#define USER_TOP(process) user_top_value
+#define USER_TOP(process) 0x20030000U
 
 struct proc {
 	int unused;
@@ -40,7 +40,6 @@ struct user {
 
 static struct proc current_process;
 struct user u = { &current_process };
-static unsigned int user_top_value = 0x20024000U;
 
 /*
  * mpu.c's mpu_user_rospan over a fixture map: the boot ROM, read-only, and
@@ -112,22 +111,18 @@ reset_recording(void)
 static void
 check_single_address_admission(void)
 {
-	user_top_value = 0x20024000U;
 	CHECK(baduaddr(address(0x20000000U)) == 0);
-	CHECK(baduaddr(address(0x20023fffU)) == 0);
+	CHECK(baduaddr(address(0x2002ffffU)) == 0);
 	CHECK(baduaddr(address(0x1fffffffU)) == 1);
-	CHECK(baduaddr(address(0x20024000U)) == 1);
-	CHECK(baduaddr_span(address(0x20000000U), 0x24000U) == 0);
-	CHECK(baduaddr_span(address(0x20023fffU), 2U) == 1);
+	CHECK(baduaddr(address(0x20030000U)) == 1);
+	CHECK(baduaddr_span(address(0x20000000U), 0x30000U) == 0);
+	CHECK(baduaddr_span(address(0x2002ffffU), 2U) == 1);
 	CHECK(baduaddr_span(address(0x20001000U), 0xfffff001U) == 1);
-	user_top_value = 0x20028000U;
-	CHECK(baduaddr(address(0x20024000U)) == 0);
 }
 
 static void
 check_zero_length_admission(void)
 {
-	user_top_value = 0x20024000U;
 	reset_recording();
 	CHECK(copyin(address(0xffffffffU), address(0U), 0U) == 0);
 	CHECK(copyout(address(0U), address(0xffffffffU), 0U) == 0);
@@ -139,19 +134,18 @@ check_valid_spans(void)
 {
 	char kernel_bytes[4] = { 1, 2, 3, 4 };
 
-	user_top_value = 0x20024000U;
 	reset_recording();
-	CHECK(copyin(address(0x20000000U), kernel_bytes, 0x24000U) == 0);
+	CHECK(copyin(address(0x20000000U), kernel_bytes, 0x30000U) == 0);
 	CHECK(recorded_copy_calls == 1);
 	CHECK(recorded_copy_source == address(0x20000000U));
 	CHECK(recorded_copy_destination == kernel_bytes);
-	CHECK(recorded_copy_length == 0x24000U);
+	CHECK(recorded_copy_length == 0x30000U);
 
 	reset_recording();
-	CHECK(copyout(kernel_bytes, address(0x20023fffU), 1U) == 0);
+	CHECK(copyout(kernel_bytes, address(0x2002ffffU), 1U) == 0);
 	CHECK(recorded_copy_calls == 1);
 	CHECK(recorded_copy_source == kernel_bytes);
-	CHECK(recorded_copy_destination == address(0x20023fffU));
+	CHECK(recorded_copy_destination == address(0x2002ffffU));
 	CHECK(recorded_copy_length == 1U);
 }
 
@@ -160,11 +154,10 @@ check_rejected_spans(void)
 {
 	char destination[4] = { 1, 2, 3, 4 };
 
-	user_top_value = 0x20024000U;
 	reset_recording();
-	CHECK(copyin(address(0x20023fffU), destination, 2U) == EFAULT);
+	CHECK(copyin(address(0x2002ffffU), destination, 2U) == EFAULT);
 	CHECK(copyout(destination, address(0x1fffffffU), 1U) == EFAULT);
-	CHECK(copyin(address(0x20024000U), destination, 1U) == EFAULT);
+	CHECK(copyin(address(0x20030000U), destination, 1U) == EFAULT);
 	CHECK(copyout(destination, address(0x20001000U), 0xfffff001U) ==
 	    EFAULT);
 	CHECK(copyin(address(0x20001000U), destination, 0xfffff001U) ==
@@ -172,26 +165,6 @@ check_rejected_spans(void)
 	CHECK(recorded_copy_calls == 0);
 	CHECK(destination[0] == 1 && destination[1] == 2 &&
 	    destination[2] == 3 && destination[3] == 4);
-
-	user_top_value = 0x1fffffffU;
-	CHECK(copyin(address(0x20000000U), destination, 1U) == EFAULT);
-	CHECK(recorded_copy_calls == 0);
-}
-
-static void
-check_conditional_extension(void)
-{
-	char kernel_byte;
-
-	user_top_value = 0x20024000U;
-	reset_recording();
-	CHECK(copyin(address(0x20024000U), &kernel_byte, 1U) == EFAULT);
-	CHECK(recorded_copy_calls == 0);
-
-	user_top_value = 0x20028000U;
-	CHECK(copyin(address(0x20024000U), &kernel_byte, 1U) == 0);
-	CHECK(recorded_copy_calls == 1);
-	CHECK(recorded_copy_length == 1U);
 }
 
 /*
@@ -204,7 +177,6 @@ check_read_only_admission(void)
 {
 	char kernel_bytes[4] = { 1, 2, 3, 4 };
 
-	user_top_value = 0x20024000U;
 	reset_recording();
 	CHECK(copyin(address(0x00000010U), kernel_bytes, 4U) == 0);
 	CHECK(copyin(address(0x00000000U), kernel_bytes, 0x4000U) == 0);
@@ -220,7 +192,7 @@ check_read_only_admission(void)
 	CHECK(copyin(address(0x10000100U), kernel_bytes, 4U) == EFAULT);
 	CHECK(recorded_copy_calls == 0);
 	CHECK(baduaddr_rspan(address(0x00000010U), 4U) == 0);
-	CHECK(baduaddr_rspan(address(0x20000000U), 0x24000U) == 0);
+	CHECK(baduaddr_rspan(address(0x20000000U), 0x30000U) == 0);
 	CHECK(baduaddr_span(address(0x00000010U), 4U) == 1);
 
 	/* The SIO divider grant: one enabled 32-byte eighth of 256 bytes. */
@@ -254,6 +226,5 @@ main(void)
 	check_zero_length_admission();
 	check_valid_spans();
 	check_rejected_spans();
-	check_conditional_extension();
 	return failures != 0;
 }

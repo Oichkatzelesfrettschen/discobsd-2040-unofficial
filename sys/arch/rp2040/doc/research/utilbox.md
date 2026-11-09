@@ -207,10 +207,9 @@ merged main `93c0064b` reports:
 `exec_aout.c` and `exec_hsaout.c` fold `a_text` into the single OMAGIC data
 segment. `exec_estab()` therefore admits `a_text + a_data + a_bss + heap +
 stack`, then records 58,360 bytes in `p_dsize` and 53,016 clean bytes in
-`p_tsize`. The SMALL epoch supplies 144 KB. An image above that ceiling and
-within the 16 KB SwapRAM bonus requests the exclusive LARGE epoch before the
-kernel commits the old process image. Utilbox remains far below the SMALL
-ceiling.
+`p_tsize`. The fixed process window supplies 192 KB. Utilbox remains far
+below that ceiling; the separately placed SwapRAM pool changes only the
+backing tier for nonresident images.
 
 The clean-text contract creates the important RAM and swap intersection.
 `vm_swap.c` writes `p_dsize - p_tsize`, so utilbox swaps only its 5,344-byte
@@ -358,7 +357,7 @@ show the invoked name, not `utilbox` or `adminbox`.
 
 ## Historical 96 KB admission failure
 
-The first utilbox predated both the BSS overlay and the 144 KB SMALL window.
+The first utilbox predated both the BSS overlay and the former 144 KB window.
 Tail's 32,769-byte line buffer, tee's two 8,192-byte buffers, and du's
 8,000-byte link table pushed `_end` to 0x2001cd00, 18 KB beyond the former
 0x20018000 ceiling. The former admission calculation omitted `a_bss`, so an
@@ -366,7 +365,6 @@ exec could cross that ceiling and write globals into kernel RAM.
 
 Current `exec_estab()` includes text, data, BSS, heap, and stack before
 commit. The current utilbox resident image ends at 0x2000e3f8, well below the
-SMALL top at 0x20024000. The LARGE epoch extends that top to 0x20028000 only
-after SwapRAM evacuation. The overlay verifier and ELF layout fixtures also
+fixed top at 0x20030000. The overlay verifier and ELF layout fixtures also
 reject COMMON, escaped NOBITS, cross-applet relocations, and an image that
 exceeds its declared window before a packed root image can ship.

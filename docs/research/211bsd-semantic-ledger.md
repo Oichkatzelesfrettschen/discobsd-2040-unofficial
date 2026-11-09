@@ -6,6 +6,10 @@ and substantial sysctl and stdio contracts. Preserve those mechanisms. A
 textual distance or numbered patch does not decide whether a behavior is
 present, equivalent, missing or safe to transplant.
 
+The 144 KiB resource entries remain bound to the recipient snapshot.
+`swap-exhaustion/review-04.md` supersedes the live process-window layout with
+a fixed 192 KiB window.
+
 `211bsd-semantic-ledger.json` is the canonical selected-change inventory.
 Each stable key names one bounded invariant, original patch/hash/commit/parent,
 donor and recipient paths/symbols, disposition, evidence, regression variants,

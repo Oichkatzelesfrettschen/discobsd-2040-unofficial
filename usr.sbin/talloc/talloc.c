@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/swap.h>
 
@@ -10,25 +11,41 @@ void usage()
 	printf("Usage: talloc /dev/tempX <size>\n");
 }
 
+/*
+ * TFALLOC changes a temporary device's swap extent only for the superuser
+ * through a descriptor open for writing (sys/dev/swap.c), and reports a
+ * shortage by returning a size of zero.
+ */
 int main(int argc, char *argv[])
 {
     int fd;
-    int size;
+    off_t size;
+    long requested;
 
     if (argc != 3) {
         usage();
         return 10;
     }
 
-    fd = open(argv[1], O_RDONLY);
-    if (!fd) {
-        printf("Unable to open %s\n", argv[0]);
+    fd = open(argv[1], O_RDWR);
+    if (fd < 0) {
+        perror(argv[1]);
         return 10;
     }
 
-    size = atoi(argv[2]);
+    requested = atol(argv[2]);
+    size = requested;
 
-    ioctl(fd, TFALLOC, &size);
+    if (ioctl(fd, TFALLOC, &size) < 0) {
+        perror(argv[1]);
+        close(fd);
+        return 10;
+    }
+    if (requested > 0 && size != requested) {
+        printf("%s: could not allocate %ld blocks\n", argv[1], requested);
+        close(fd);
+        return 10;
+    }
 
     close(fd);
 

@@ -295,7 +295,8 @@ SWAP_IOCTL_DEFS=	${COMPACT_DEFS}
 SWAP_IOCTL_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 -pedantic-errors \
 			-Wstrict-prototypes -Wold-style-definition
 SWAP_IOCTL_MUTANTS=	release-fallthrough media-size-fallthrough \
-	shortage-output-suppression unrounded-free stale-released-size
+	shortage-output-suppression unrounded-free stale-released-size \
+	ignore-descriptor-mode omit-root-check
 SWAP_IOCTL_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/cdefs.h \
 	${TOPSRC}/sys/sys/conf.h ${TOPSRC}/sys/sys/disk.h \
@@ -306,8 +307,8 @@ SWAP_IOCTL_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/stdint.h ${TOPSRC}/sys/sys/syscall_dispatch.h \
 	${TOPSRC}/sys/sys/syslimits.h ${TOPSRC}/sys/sys/systm.h \
 	${TOPSRC}/sys/sys/ttychars.h ${TOPSRC}/sys/sys/ttydev.h \
-	${TOPSRC}/sys/sys/types.h ${TOPSRC}/sys/sys/vm.h \
-	${TOPSRC}/sys/sys/vmparam.h ${TOPSRC}/sys/sys/vmmac.h \
+	${TOPSRC}/sys/sys/types.h ${TOPSRC}/sys/sys/user.h \
+	${TOPSRC}/sys/sys/vm.h ${TOPSRC}/sys/sys/vmparam.h ${TOPSRC}/sys/sys/vmmac.h \
 	${TOPSRC}/sys/sys/vmmeter.h ${TOPSRC}/sys/sys/vmsystm.h \
 	${PORT_INCLUDE}/intr.h ${PORT_INCLUDE}/limits.h \
 	${PORT_INCLUDE}/machparam.h ${PORT_INCLUDE}/scb.h \
@@ -1027,11 +1028,13 @@ check-swap-ioctl-mutants: \
 			status=$$?; \
 		fi; \
 		case $$mutation in \
-		release-fallthrough) expected='call_ioctl(0, TFALLOC, &blocks, FREAD) == 0' ;; \
+		release-fallthrough) expected='call_ioctl(0, TFALLOC, &blocks, FREAD | FWRITE) == 0' ;; \
 		media-size-fallthrough) expected='call_ioctl(1, DIOCGETMEDIASIZE, &media_size, FREAD) == 0' ;; \
 		shortage-output-suppression) expected='blocks == 0' ;; \
 		unrounded-free) expected='free_total() == MAP_BLOCKS' ;; \
 		stale-released-size) expected='swap_ioctl_test_size(0) == 0' ;; \
+		ignore-descriptor-mode) expected='call_ioctl(0, TFALLOC, &request, FREAD) == EBADF' ;; \
+		omit-root-check) expected='call_ioctl(2, TFALLOC, &request, FREAD | FWRITE) == EPERM' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

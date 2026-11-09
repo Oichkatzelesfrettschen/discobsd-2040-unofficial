@@ -81,6 +81,16 @@ CASES = (
         (),
     ),
     (
+        "patched imported file keeps upstream bytes",
+        {
+            "tools/netbsd-imports.manifest": "revision 0\n" + "0" * 64
+            + "  up/p.c  patched " + "1" * 64 + " tools/netbsd-patches/p.patch\n",
+            "up/p.c": "int p; \n",
+        },
+        0,
+        (),
+    ),
+    (
         "unlisted file beside an imported one",
         {
             "tools/netbsd-imports.manifest": "revision 0\n" + "0" * 64 + "  up/x.c\n",

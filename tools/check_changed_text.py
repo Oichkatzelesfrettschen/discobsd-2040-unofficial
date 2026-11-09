@@ -65,7 +65,9 @@ def imported_paths(root, head):
     paths = set()
     for line in result.stdout.splitlines():
         fields = line.split()
-        if len(fields) == 2 and len(fields[0]) == 64:
+        # '<sha256>  <path>', or a patched file's
+        # '<sha256>  <path>  patched <sha256> <patch>'.
+        if len(fields) in (2, 5) and len(fields[0]) == 64:
             paths.add(fields[1])
     return frozenset(paths)
 

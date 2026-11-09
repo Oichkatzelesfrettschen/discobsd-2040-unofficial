@@ -3,9 +3,15 @@
 ## Contract
 
 The temporary-swap provider preserves `TFALLOC`, `DIOCGETMEDIASIZE`, their
-public payload representations, read-only descriptor acceptance, invalid-minor
-rejection, erase-aligned allocation, logical extent sizes, append cursor
-publication and unknown-command rejection.
+public payload representations, invalid-minor rejection, erase-aligned
+allocation, logical extent sizes, append cursor publication and unknown-command
+rejection. `TFALLOC` changes an extent only for the superuser through a
+descriptor open for writing: it returns `EBADF` for a read-only descriptor and
+`EPERM` for an ordinary user before touching the extent, because an extent
+outlives its descriptor and holds raw swap that process images need
+(`docs/research/swap-exhaustion/review-02.md`). The result contract below
+first preserved read-only descriptor acceptance unchanged; the authorization
+rule replaced it, and the gate grew from 56 to 87 assertions.
 
 The inherited `swcioctl()` completed two valid operations and then fell through
 to `EINVAL`. A zero-valued `TFALLOC` released the prior extent before reporting

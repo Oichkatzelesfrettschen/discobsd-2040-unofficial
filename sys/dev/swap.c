@@ -226,7 +226,7 @@ swcwrite(dev_t dev, struct uio *uio, int flag __unused)
 }
 
 int
-swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
+swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {
 	u_int		*uival;
 	off_t		*offtval;
@@ -247,6 +247,17 @@ swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 
 	switch (cmd) {
 	case TFALLOC:
+		/*
+		 * An extent outlives the descriptor that allocated it, so
+		 * allocation, replacement and release take raw swap away
+		 * from process images until the next TFALLOC on the unit.
+		 * Only the superuser holding the unit open for writing may
+		 * change it; the boot-time fsck opens temp0 that way.
+		 */
+		if ((flag & FWRITE) == 0)
+			return EBADF;
+		if (!suser())
+			return EPERM;
 		if (td[unit].t_start > 0) {
 #ifdef SWAP_IMAGE_ALIGN
 			mfree(swapmap,

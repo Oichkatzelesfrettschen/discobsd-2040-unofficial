@@ -19,7 +19,8 @@ void usage()
 int main(int argc, char *argv[])
 {
     int fd;
-    off_t size, requested;
+    off_t size;
+    long requested;
 
     if (argc != 3) {
         usage();
@@ -32,7 +33,8 @@ int main(int argc, char *argv[])
         return 10;
     }
 
-    requested = size = atol(argv[2]);
+    requested = atol(argv[2]);
+    size = requested;
 
     if (ioctl(fd, TFALLOC, &size) < 0) {
         perror(argv[1]);
@@ -40,8 +42,7 @@ int main(int argc, char *argv[])
         return 10;
     }
     if (requested > 0 && size != requested) {
-        printf("%s: could not allocate %ld blocks\n", argv[1],
-            (long)requested);
+        printf("%s: could not allocate %ld blocks\n", argv[1], requested);
         close(fd);
         return 10;
     }

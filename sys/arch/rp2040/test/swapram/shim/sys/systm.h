@@ -8,6 +8,7 @@ void swap_cursor_publish(size_t);
 void wakeup(caddr_t);
 void sleep(caddr_t, int);
 void bcopy(const void *, void *, size_t);
+void bzero(void *, size_t);
 extern char __user_data_start[], __user_data_end[];
 #define MAXMEM (144 * 1024)
 #endif

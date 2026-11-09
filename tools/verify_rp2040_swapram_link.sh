@@ -1,6 +1,6 @@
 #!/bin/sh
 # Verify that a linked RP2040 kernel carries exactly the SwapRAM tier its
-# PARAM selects. With -DSWAPRAM the kernel must define the five entry points
+# PARAM selects. With -DSWAPRAM the kernel must define the six entry points
 # vm_swap.c calls, vm_swap.o must reference each of them, and the pool
 # swapram_pool_mem must measure SWAPRAM_KB kilobytes (64 when the option is
 # absent, matching machine/swapram.h). A SwapRAM kernel must also carry one
@@ -41,7 +41,7 @@ done
 
 NM=${NM:-arm-none-eabi-nm}
 OBJDUMP=${OBJDUMP:-arm-none-eabi-objdump}
-entries="swapram_out swapram_put swapram_commit swapram_present swapram_in"
+entries="swapram_reserve swapram_put swapram_commit swapram_cancel swapram_present swapram_in"
 
 enabled=0
 kb=64

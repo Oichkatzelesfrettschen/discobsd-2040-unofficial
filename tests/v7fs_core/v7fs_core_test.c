@@ -29,9 +29,9 @@
  */
 
 #include <sys/types.h>
+#include <sys/param.h>	/* BYTE_ORDER, LITTLE_ENDIAN, PDP_ENDIAN */
 #include <sys/stat.h>
 
-#include <endian.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stddef.h>

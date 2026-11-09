@@ -31,6 +31,7 @@ page in those files without carrying them here.
 | Which datasheet section covers this register? | `sys/arch/rp2040/doc/DATASHEET-INDEX.md` |
 | How does DiscoBSD run on a ClockworkPi PicoCalc, and what is left? | `sys/arch/rp2040/doc/PICOCALC.md` |
 | What does each test gate prove, and what does it need? | `sys/arch/rp2040/doc/TESTING.md` |
+| How does a host script drive the board console without losing input? | `sys/arch/rp2040/doc/BOARD-CONSOLE.md` |
 | What does the MPU protect, and how is that proven? | `sys/arch/rp2040/doc/MPU.md` |
 | What fixed-table and kernel-stack headroom has a workload used? | `sys/arch/rp2040/doc/CAPACITY.md` |
 | Where do the 2 MB of flash go? | `sys/arch/rp2040/doc/STORAGE.md` |

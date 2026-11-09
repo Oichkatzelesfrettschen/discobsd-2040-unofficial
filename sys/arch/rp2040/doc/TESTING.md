@@ -1631,6 +1631,19 @@ A fifth, tests/rp2040/sd_detach/board_sd_detach.py, mounts the PicoCalc's
 unmount, and checks that a descriptor opened before a mount keeps reading after
 the unmount; it opens no port unless `DISCOBSD_BOARD_SD_DETACH` is exactly `run`,
 and no result of it is recorded.
+A sixth, tests/rp2040/user_window/board_user_window.py, flashes the named
+PICO kernel and root, runs `mputest` (a fault on the first kernel RAM word above
+the window and a read of its top word with the MPU on), stages windowtest (a
+170-KiB bss image only a window above 144 KiB admits) and
+tests/rp2040/fork_refusal/forktest (a 100-KiB xorshift bss) with `talloc`,
+holds the largest grantable flash swap extent on `/dev/temp0` to `temp2`,
+requires fork to refuse with ENOMEM and the shell to keep answering, releases
+the extents, and requires a successful fork whose child sees the parent's
+bytes. It opens no port unless `DISCOBSD_BOARD_USER_WINDOW` is exactly `run`.
+`sys/arch/rp2040/doc/BOARD-CONSOLE.md` records the console limits every
+driver here must respect: the 126-byte line editor cap, the per-byte prompt
+redraw, chunked and verified staging, sentinel parsing and compressible test
+data.
 
 `tests/rp2040/stdio_capacity/stdiocap` runs one operation per exec. Its
 `trap` and `leaf` controls distinguish sampled extent from touched peak;

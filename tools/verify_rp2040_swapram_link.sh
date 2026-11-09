@@ -59,9 +59,9 @@ exec_relocs=$("$OBJDUMP" -r "$exec_object")
 sysctl_relocs=$("$OBJDUMP" -r "$sysctl_object")
 if [ "$enabled" -eq 1 ]; then
 	for e in $entries; do
-		printf '%s\n' "$syms" | grep -q " T $e\$" ||
+		printf '%s\n' "$syms" | grep " T $e\$" >/dev/null ||
 		    { echo "$elf: $e is not linked" >&2; fail=1; }
-		printf '%s\n' "$relocs" | grep -q "[[:space:]]$e\$" ||
+		printf '%s\n' "$relocs" | grep "[[:space:]]$e\$" >/dev/null ||
 		    { echo "$object: no relocation to $e" >&2; fail=1; }
 	done
 	size=$(printf '%s\n' "$syms" | awk '$4 == "swapram_pool_mem" { print $2 }')
@@ -80,22 +80,22 @@ if [ "$enabled" -eq 1 ]; then
 		fail=1
 	}
 	for entry in swapram_codec_acquire swapram_codec_release; do
-		printf '%s\n' "$syms" | grep -q " T $entry\$" ||
+		printf '%s\n' "$syms" | grep " T $entry\$" >/dev/null ||
 		    { echo "$elf: $entry is not linked" >&2; fail=1; }
-		printf '%s\n' "$exec_relocs" | grep -q "[[:space:]]$entry\$" ||
+		printf '%s\n' "$exec_relocs" | grep "[[:space:]]$entry\$" >/dev/null ||
 		    { echo "$exec_object: no relocation to $entry" >&2; fail=1; }
 	done
 	for entry in swapram_present swapram_uarea_prefix; do
-		printf '%s\n' "$syms" | grep -q " T $entry\$" ||
+		printf '%s\n' "$syms" | grep " T $entry\$" >/dev/null ||
 		    { echo "$elf: $entry is not linked" >&2; fail=1; }
-		printf '%s\n' "$sysctl_relocs" | grep -q "[[:space:]]$entry\$" ||
+		printf '%s\n' "$sysctl_relocs" | grep "[[:space:]]$entry\$" >/dev/null ||
 		    { echo "$sysctl_object: no relocation to $entry" >&2; fail=1; }
 	done
 	for retired in sr_enc sr_dec swapwork.0; do
-		printf '%s\n' "$syms" | grep -q "[[:space:]]$retired\$" &&
+		printf '%s\n' "$syms" | grep "[[:space:]]$retired\$" >/dev/null &&
 		    { echo "$elf: retired codec workspace $retired remains linked" >&2; fail=1; }
 	done
-	printf '%s\n' "$syms" | grep -q '[[:space:]]sr_stage$' &&
+	printf '%s\n' "$syms" | grep '[[:space:]]sr_stage$' >/dev/null &&
 	    { echo "$elf: retired SwapRAM evacuation stage remains linked" >&2; fail=1; }
 	if [ "$kb" -le 63 ]; then
 		table_size=$(printf '%s\n' "$syms" |
@@ -108,13 +108,13 @@ if [ "$enabled" -eq 1 ]; then
 else
 	for e in $entries swapram_pool_mem swapram_codec_work \
 	    swapram_codec_acquire swapram_codec_release swapram_uarea_prefix; do
-		printf '%s\n' "$syms" | grep -q "[[:space:]]$e\$" &&
+		printf '%s\n' "$syms" | grep "[[:space:]]$e\$" >/dev/null &&
 		    { echo "$elf: $e is linked without -DSWAPRAM" >&2; fail=1; }
-		printf '%s\n' "$relocs" | grep -q "[[:space:]]$e\$" &&
+		printf '%s\n' "$relocs" | grep "[[:space:]]$e\$" >/dev/null &&
 		    { echo "$object: relocation to $e without -DSWAPRAM" >&2; fail=1; }
 	done
 	for entry in swapram_present swapram_uarea_prefix; do
-		printf '%s\n' "$sysctl_relocs" | grep -q "[[:space:]]$entry\$" &&
+		printf '%s\n' "$sysctl_relocs" | grep "[[:space:]]$entry\$" >/dev/null &&
 		    { echo "$sysctl_object: relocation to $entry without -DSWAPRAM" >&2; fail=1; }
 	done
 fi

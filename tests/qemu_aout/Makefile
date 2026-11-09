@@ -94,7 +94,7 @@ check: aoutrun probe probe.sites seek.dat loop.lnk
 	@# Strings that fit the window but not above the image (about 7.8 KB of
 	@# text, data and bss) end the run with the setup status instead of
 	@# overwriting the image.
-	@big=$$(head -c 71500 /dev/zero | tr '\0' x); status=0; \
+	@big=$$(head -c 96000 /dev/zero | tr '\0' x); status=0; \
 	env -i AOUT_BIG=$$big AOUT_BIG2=$$big ${RUN} env \
 	    > /dev/null 2> envfull.err || status=$$?; \
 	if [ "$$status" -ne 71 ]; then \

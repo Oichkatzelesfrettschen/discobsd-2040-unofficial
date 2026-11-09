@@ -59,7 +59,7 @@ int v7fs_directory_replace_entry(struct v7fs_self *, struct v7fs_inode *,
     const char *, v7fs_ino_t);
 int v7fs_file_link(struct v7fs_self *, struct v7fs_inode *, struct v7fs_inode *,
     const char *, size_t);
-bool v7fs_file_lookup_by_number(struct v7fs_self *, struct v7fs_inode *,
+int v7fs_file_lookup_by_number(struct v7fs_self *, struct v7fs_inode *,
     v7fs_ino_t, char *);
 int v7fs_file_symlink(struct v7fs_self *, struct v7fs_inode *, const char *);
 __END_DECLS

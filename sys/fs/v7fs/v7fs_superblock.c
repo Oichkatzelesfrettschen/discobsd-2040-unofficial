@@ -34,6 +34,7 @@
 #endif
 
 #include <sys/cdefs.h>
+#include <stddef.h>
 __KERNEL_RCSID(0, "$NetBSD: v7fs_superblock.c,v 1.2 2011/07/18 21:51:49 apb Exp $");
 #if defined _KERNEL_OPT
 #include "opt_v7fs.h"
@@ -162,7 +163,9 @@ v7fs_freeblock_update(struct v7fs_self *fs, v7fs_daddr_t blk)
 	}
 	DPRINTF("freeblock table#%d, nfree=%d\n", blk, fb->nfreeblock);
 
-	memcpy(sb->freeblock, fb->freeblock, sizeof(blk) * fb->nfreeblock);
+	memcpy((uint8_t *)sb + offsetof(struct v7fs_superblock, freeblock),
+	    (uint8_t *)fb + offsetof(struct v7fs_freeblock, freeblock),
+	    sizeof(blk) * fb->nfreeblock);
 	sb->nfreeblock = fb->nfreeblock;
 	sb->modified = true;
 	scratch_free(fs, buf);
@@ -200,7 +203,6 @@ v7fs_freeinode_update(struct v7fs_self *fs)
 {
 	/* Assume superblock is locked by caller. */
 	struct v7fs_superblock *sb = &fs->superblock;
-	v7fs_ino_t *freeinode = sb->freeinode;
 	size_t i, j, k;
 	v7fs_ino_t ino;
 
@@ -221,7 +223,7 @@ v7fs_freeinode_update(struct v7fs_self *fs)
 			if (v7fs_inode_allocated(di))
 				continue;
 			DPRINTF("free inode%d\n", ino);
-			freeinode[k++] = ino;
+			sb->freeinode[k++] = ino;
 		}
 		scratch_free(fs, buf);
 	}
@@ -242,16 +244,12 @@ v7fs_superblock_endian_convert(struct v7fs_self *fs __unused,
 	conv16(datablock_start_sector);
 	conv32(volume_size);
 	conv16(nfreeblock);
-	v7fs_daddr_t *dfrom = from->freeblock;
-	v7fs_daddr_t *dto = to->freeblock;
-	for (i = 0; i < V7FS_MAX_FREEBLOCK; i++, dfrom++, dto++)
-		*dto = V7FS_VAL32(fs, *dfrom);
+	for (i = 0; i < V7FS_MAX_FREEBLOCK; i++)
+		to->freeblock[i] = V7FS_VAL32(fs, from->freeblock[i]);
 
 	conv16(nfreeinode);
-	v7fs_ino_t *ifrom = from->freeinode;
-	v7fs_ino_t *ito = to->freeinode;
-	for (i = 0; i < V7FS_MAX_FREEINODE; i++, ifrom++, ito++)
-		*ito = V7FS_VAL16(fs, *ifrom);
+	for (i = 0; i < V7FS_MAX_FREEINODE; i++)
+		to->freeinode[i] = V7FS_VAL16(fs, from->freeinode[i]);
 
 	conv32(update_time);
 	conv32(total_freeblock);

@@ -7,23 +7,10 @@
 # targeted mutants calibrate the regression checks. The host v7fs command
 # runs in both byte orders against the same independent image reader.
 #
-# Two warnings stay disabled for the imported files recorded in
-# tools/netbsd-imports.manifest:
-#   -Wno-address-of-packed-member  v7fs_freeinode_update() takes a pointer to
-#       the packed superblock's freeinode cache; v7fs_core_test.c asserts
-#       that the cache is aligned for v7fs_ino_t, and this script repeats the
-#       assertion for the ARM target when arm-none-eabi-gcc is present.
-#   -Wno-unused-parameter  scratch_remain() in v7fs_io.c uses its argument
-#       only under STATIC_BUFFER.
-# The imported files also compile without the alignment sanitizer.
-# v7fs_superblock.c (the free-list load) and sbin/newfs_v7fs/main.c (the
-# free-list shift) pass pointers to the packed structs' daddr arrays, at
-# offset 2, to memcpy and memmove. Forming such a pointer is undefined in ISO
-# C (C11 6.3.2.3p7), and clang's -fsanitize=alignment reports it; no access
-# through it is unaligned, because arm-none-eabi-gcc and clang for thumbv6m
-# both lower these copies to library calls and lower direct packed-member
-# stores to byte stores. The test program keeps every sanitizer.
-# The test program itself compiles with every warning enabled.
+# The imported code suppresses unused-parameter warnings for scratch_remain(),
+# whose argument is used only with STATIC_BUFFER. Historical patch reversals
+# retain their original alignment exemption; production variants use the
+# alignment sanitizer and packed-member warnings.
 
 set -eu
 : "${PYTHON:?set PYTHON to the intended interpreter}"
@@ -42,6 +29,28 @@ fail()
 	exit 1
 }
 
+cat >"$work/alignment-calibration.c" <<'EOF'
+#include <stdint.h>
+int main(int argc, char **argv)
+{
+	uint32_t storage[2] = {0};
+	uint32_t *value;
+	(void)argv;
+	value = (uint32_t *)(void *)((unsigned char *)storage + (argc > 1));
+	return *value != 0;
+}
+EOF
+${CC:-cc} -std=c17 -Wall -Wextra -Werror -fsanitize=alignment \
+    -fno-sanitize-recover=alignment "$work/alignment-calibration.c" \
+    -o "$work/alignment-calibration" || fail "alignment calibration build"
+"$work/alignment-calibration" || fail "aligned calibration"
+if "$work/alignment-calibration" bad >"$work/alignment.log" 2>&1; then
+	fail "alignment sanitizer accepted a misaligned load"
+fi
+grep -q 'runtime error:.*misaligned' "$work/alignment.log" ||
+    fail "alignment calibration failed without a misaligned-load diagnostic"
+echo "v7fs_core: alignment sanitizer rejected a misaligned load"
+
 core="endian superblock superblock_util inode inode_util datablock dirent io
 file file_util io_user"
 
@@ -54,8 +63,9 @@ build()
 	for source in $(for f in $core; do echo "$1/sys/fs/v7fs/v7fs_$f.c"; done) \
 	    "$1/sbin/newfs_v7fs/main.c"; do
 		object=$2.obj/$(basename "$source" .c).o
-		compile -Wno-address-of-packed-member -Wno-unused-parameter \
-		    -fno-sanitize=alignment -I"$1/sys/fs/v7fs" \
+		# Word splitting permits the historical reversal flags.
+		# shellcheck disable=SC2086
+		compile ${legacy_flags:-} -Wno-unused-parameter -I"$1/sys/fs/v7fs" \
 		    -I"$1/sbin/newfs_v7fs" -c -o "$object" "$source" ||
 		    fail "sanitizer build of $source"
 		objects="$objects $object"
@@ -77,13 +87,12 @@ build_fixed()
 	    dirent io file file_util; do
 		source=$1/sys/fs/v7fs/v7fs_$name.c
 		object=$2.obj/v7fs_$name.o
-		compile -DSTATIC_BUFFER -DNDEBUG -Wno-address-of-packed-member \
-		    -Wno-unused-parameter -fno-sanitize=alignment \
+		compile -DSTATIC_BUFFER -DNDEBUG -Wno-unused-parameter \
 		    -I"$1/sys/fs/v7fs" -I"$1/sbin/newfs_v7fs" \
 		    -c -o "$object" "$source" || fail "fixed build of $source"
 		objects="$objects $object"
 	done
-	compile -DSTATIC_BUFFER -DNDEBUG -fno-sanitize=alignment \
+	compile -DSTATIC_BUFFER -DNDEBUG \
 	    -I"$1/sys/fs/v7fs" -I"$1/sbin/newfs_v7fs" \
 	    -c -o "$2.obj/newfs.o" "$1/sbin/newfs_v7fs/main.c" ||
 	    fail "fixed newfs build"
@@ -187,6 +196,77 @@ got=0
     "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "scratch exhaustion mutant"; }
 echo "v7fs_core: scratch exhaustion mutant rejected"
 
+mutant inode-list-read sys/fs/v7fs/v7fs_inode_util.c \
+    'return EIO;\n\t\t}\n\t\tdi = (struct v7fs_inode_diskimage *)buf;' \
+    'continue;\n\t\t}\n\t\tdi = (struct v7fs_inode_diskimage *)buf;'
+got=0
+"$work/inode-list-read.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-ilist-read:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "inode-list read mutant"; }
+echo "v7fs_core: ignored inode-list read mutant rejected"
+
+mutant replace-read sys/fs/v7fs/v7fs_file_util.c \
+    'if (error == V7FS_ITERATOR_END)\n\t\treturn ENOENT;\n\treturn error > 0 ? error : EIO;' \
+    'if (error == V7FS_ITERATOR_END)\n\t\treturn ENOENT;\n\treturn ENOENT;'
+got=0
+"$work/replace-read.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-replace-read:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "directory replacement read mutant"; }
+echo "v7fs_core: hidden directory replacement error mutant rejected"
+
+mutant lookup-number-read sys/fs/v7fs/v7fs_file_util.c \
+    'if (ret == V7FS_ITERATOR_END)\n\t\treturn ENOENT;\n\treturn ret > 0 ? ret : EIO;' \
+    'if (ret == V7FS_ITERATOR_END)\n\t\treturn ENOENT;\n\treturn ENOENT;'
+got=0
+"$work/lookup-number-read.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-lookup-number:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "inode-number lookup read mutant"; }
+echo "v7fs_core: hidden inode-number lookup error mutant rejected"
+
+mutant lookup-name-overread sys/fs/v7fs/v7fs_file_util.c \
+    'v7fs_dirent_filename(p->buf, dir->name,\n\t\t\t\t    V7FS_NAME_MAX);' \
+    'v7fs_dirent_filename(p->buf, dir->name,\n\t\t\t\t    strlen(dir->name));'
+got=0
+"$work/lookup-name-overread.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -ne 0 ] && grep -q 'AddressSanitizer: heap-buffer-overflow' \
+    "$work/mutant.log" && grep -q 'lookup_by_number_subr' "$work/mutant.log" ||
+    { cat "$work/mutant.log" >&2; fail "directory-name overread mutant"; }
+echo "v7fs_core: directory-name overread mutant rejected"
+
+mutant rename-inode-read sys/fs/v7fs/v7fs_file_util.c \
+    'if ((error = v7fs_inode_load(fs, &inode, from_ino)) != 0)\n\t\treturn error;' \
+    'if ((error = v7fs_inode_load(fs, &inode, from_ino)) != 0)\n\t\treturn ENOENT;'
+got=0
+"$work/rename-inode-read.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename:' "$work/mutant.log" ||
+    { cat "$work/mutant.log" >&2; fail "rename inode read mutant"; }
+echo "v7fs_core: hidden rename inode read error mutant rejected"
+
+mutant rename-parent-read sys/fs/v7fs/v7fs_file_util.c \
+    'if (!(buf = scratch_read(fs, blk)))\n\t\treturn EIO;\n\tstruct v7fs_dirent *dir' \
+    'if (!(buf = scratch_read(fs, blk)))\n\t\treturn 0;\n\tstruct v7fs_dirent *dir'
+got=0
+"$work/rename-parent-read.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename:' "$work/mutant.log" ||
+    { cat "$work/mutant.log" >&2; fail "rename parent read mutant"; }
+echo "v7fs_core: hidden rename parent read error mutant rejected"
+
+mutant rename-inode-write sys/fs/v7fs/v7fs_file_util.c \
+    'if ((error = v7fs_inode_writeback(fs, &inode)) != 0)\n\t\t\treturn error;' \
+    'if ((error = v7fs_inode_writeback(fs, &inode)) != 0)\n\t\t\treturn 0;'
+got=0
+"$work/rename-inode-write.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename:' "$work/mutant.log" ||
+    { cat "$work/mutant.log" >&2; fail "rename inode write mutant"; }
+echo "v7fs_core: hidden rename inode write error mutant rejected"
+
 # The local regression scenarios hold; reversals and mutants below must
 # fail the corresponding scenario by name with the assertion status.
 "$work/v7fs_core" "$work/regress.img" little regress >"$work/regress.log" ||
@@ -222,7 +302,13 @@ legacy.write_text(old[:start_old] + new[start_new:end_new] + old[end_old:],
                   encoding="utf-8")
 PY
 	fi
+	case $name in
+	no-newfs-patch|no-superblock-patch)
+		legacy_flags='-Wno-address-of-packed-member -fno-sanitize=alignment' ;;
+	*) legacy_flags= ;;
+	esac
 	build "$tree" "$work/$name.bin"
+	legacy_flags=
 	got=0
 	"$work/$name.bin" "$work/mutant.img" little regress >"$work/mutant.log" \
 	    2>&1 || got=$?
@@ -426,7 +512,7 @@ rejects "$work/freelist-count.bin" pdp freelist accounting
 # usr.sbin/v7fs: the tool's host build, its commands, and its image.
 "${MAKE:?set MAKE to bmake}" -C "$topsrc/usr.sbin/v7fs" HOSTCC="${CC:-cc}" \
     HOSTCFLAGS="-O1 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined" \
-    HOST_NETBSD_CFLAGS=-fno-sanitize=alignment host >"$work/tool-build.log" 2>&1 ||
+    host >"$work/tool-build.log" 2>&1 ||
     { cat "$work/tool-build.log" >&2; fail "usr.sbin/v7fs host build"; }
 tool=$topsrc/usr.sbin/v7fs/v7fs-host
 mkdir "$work/pat"
@@ -708,7 +794,7 @@ EOF
 	    fail "rm partial contraction retry leaked ownership"
 	status 1 "$tool" cat "$img" /fresh
 	echo "v7fs_core: failed partial rm contraction retries reclamation"
-	compile -DSTATIC_BUFFER -DNDEBUG -fno-sanitize=alignment \
+	compile -DSTATIC_BUFFER -DNDEBUG \
 	    -I"$v7fs" -I"$newfs" -c -o "$work/newfs-original.o" \
 	    "$work/no-newfs-patch/sbin/newfs_v7fs/main.c" ||
 	    fail "original formatter compilation"

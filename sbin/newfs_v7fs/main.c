@@ -39,6 +39,7 @@ __RCSID("$NetBSD: main.c,v 1.11 2022/02/27 21:05:11 zafer Exp $");
 #endif /* not lint */
 
 #include <sys/param.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -177,8 +178,11 @@ make_freeblocklist(struct v7fs_self *fs, v7fs_daddr_t listblk, uint8_t *buf,
 			VPRINTF(4, "\nlast freeblock #%d\n",
 			    (*val32)(fb->freeblock[i + 1]));
 
-			memmove(fb->freeblock + 1, fb->freeblock + i + 1, k *
-			    sizeof(v7fs_daddr_t));
+			memmove(buf + offsetof(struct v7fs_freeblock, freeblock) +
+			    sizeof(v7fs_daddr_t), buf +
+			    offsetof(struct v7fs_freeblock, freeblock) +
+			    (i + 1) * sizeof(v7fs_daddr_t),
+			    k * sizeof(v7fs_daddr_t));
 			fb->freeblock[0] = 0; /* Terminate link; */
 			fb->nfreeblock = (*val16)(k + 1);
 			VPRINTF(4, "last freeblock contains #%d\n",

@@ -71,6 +71,24 @@ CASES = (
         (),
     ),
     ("space before tab", {"a.md": "text\n \tindented\n"}, 1, ("TX001_WHITESPACE",)),
+    (
+        "imported file keeps upstream bytes",
+        {
+            "tools/netbsd-imports.manifest": "revision 0\n" + "0" * 64 + "  up/x.c\n",
+            "up/x.c": "int x; \n",
+        },
+        0,
+        (),
+    ),
+    (
+        "unlisted file beside an imported one",
+        {
+            "tools/netbsd-imports.manifest": "revision 0\n" + "0" * 64 + "  up/x.c\n",
+            "up/y.c": "int y; \n",
+        },
+        1,
+        ("TX001_WHITESPACE up/y.c",),
+    ),
 )
 
 

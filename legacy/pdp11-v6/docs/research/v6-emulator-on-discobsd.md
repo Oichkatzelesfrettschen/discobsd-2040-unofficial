@@ -117,6 +117,14 @@ same value, and `sys/arch/rp2040/conf/RP2040.ld` states 144K for the
 `USERRAM` region; `machdep.c` panics at boot when the two disagree.
 Every budget below uses 144 KB.
 
+Superseded layout: this study measured the 144 KB window and the LARGE
+epoch of that revision. The port now has one fixed 192 KB window
+(`USER_DATA_SIZE (192 * 1024)`), the SwapRAM pool lives in kernel RAM, and
+`SWAPRAM_BONUS`, `swapram_enter_large` and the 160 KB LARGE window no longer
+exist (`docs/research/swap-exhaustion/review-04.md`). Section 1's epoch
+paragraph and the 144 KB budgets record that revision; a re-run of the
+budgets uses 192 KB and no bonus.
+
 ## 1. The window, the flash, and the swap map
 
 `sys/kern/exec_subr.c`'s `exec_estab` sums text, data, bss, heap and

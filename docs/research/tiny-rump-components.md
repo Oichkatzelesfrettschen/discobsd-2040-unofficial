@@ -184,6 +184,79 @@ four buffer calls under their NetBSD names, so a kernel backend reduces to
 allocation and locking: `kmem_zalloc` maps to the kernel allocator and
 `mutex_*` to `spl` sections on one core.
 
+## The rump structure reduced to its working parts
+
+Six rules carry what a rump kernel does into a system this size; each rests
+on a measurement or a source reading above or below.
+
+1. A component is a state machine over a block contract. Its host
+   interface is its undefined-symbol list, not a fixed hypercall table:
+   the `v7fs` core needs `kern_assert`, `printf` and six string functions;
+   a kernel backend needs `bread`, `brelse`, `bwrite`, `getblk`,
+   `kmem_zalloc`, `kmem_free` and four `mutex_*` calls; the descriptor
+   backend needs `lseek`, `read`, `write` and `fsync`.
+2. The hypercall layer is the host backend, one file per host. NetBSD runs
+   the same `v7fs` core over vnode I/O (`v7fs_io_kern.c`), over `mmap`
+   (`v7fs_io_user.c`), and inside a rump kernel through the first; DiscoBSD
+   adds a fourth, `usr.sbin/v7fs/v7fs_io_fd.c`, in 296 bytes of text.
+3. The host owns object lifetime. `v7fs_file_deallocate()` removes the name
+   and drops the link count; releasing an unlinked inode and its blocks is
+   `v7fs_reclaim()` in NetBSD's vnode layer. A host that skips the step
+   leaks both on every removal, which `check-v7fs-core` caught in the first
+   draft of the tool's `rm`.
+4. Memory is a fixed pool sized to the deepest nesting. With
+   `STATIC_BUFFER` the core draws block buffers from three 512-byte slots in
+   `struct v7fs_self` (2,016 bytes with the superblock cache, 2,032 with
+   the `V7FS_EI` byte-order operations), the count the NetBSD kernel uses;
+   exhaustion returns NULL, and all 22 callers of
+   `scratch_read()` turn NULL into an error. Without `STATIC_BUFFER` the
+   core calls `malloc()` per read and never checks the result, so every
+   DiscoBSD build defines it.
+5. Byte order is a host parameter. `V7FS_EI` selects the order at mount
+   time (little, big, or the PDP-11 order of V7's own disks) for 928 more
+   bytes of text than a single native order.
+6. Selection happens at build time. A Makefile names the sources a program
+   or kernel links, so components need no run-time registry; the link sets
+   a rump kernel uses to find its components have nothing to collect here.
+
+## The DiscoBSD v7fs program
+
+`usr.sbin/v7fs` links the imported core and newfs library behind the
+descriptor backend and a command front end: `newfs`, `ls`, `cat`, `get`,
+`put`, `mkdir`, `rm` and `df` on an image file or a raw device, with `-p`
+for the PDP-11 order. The DiscoBSD build, from `bmake build`, is 21,978
+bytes of text, 360 of data and 2,356 of bss: 8,274 of text are the NetBSD
+core in every byte order, 1,900 the newfs library, 2,985 the front end, 296
+the backend, and the rest DiscoBSD's libc; the bss is the static
+`struct v7fs_self` and the descriptor record, and nothing comes from
+`malloc()`. Its largest stack frame in the core is 224 bytes and its
+deepest direct call chain 376 bytes on Cortex-M0+, plus the 512-byte block
+buffer each data callback holds, so the program occupies about 25 KB of
+the 144 KB window. It installs to `/usr/sbin` and no manifest lists it.
+
+The imported files compile in NetBSD's gnu17 dialect with the two warning
+exemptions `check-v7fs-core` documents; the DiscoBSD files compile as
+strict C17 with `-Wpedantic`, seeing the imported headers through
+`-isystem`. Two host gaps sit in shims under `usr.sbin/v7fs`:
+`netbsd_compat.h` supplies the BSD `<sys/cdefs.h>` macros and byte-order
+constants DiscoBSD's headers lack, from the compiler's predefines, and
+`compat/discobsd/inttypes.h` maps `<inttypes.h>`, which DiscoBSD's libc
+does not ship, onto `<stdint.h>` for these sources alone. DiscoBSD's
+`include/assert.h` expands to a statement block that calls `fprintf()`
+and `exit()` undeclared, which ISO C's `assert()` forbids; the imported
+files therefore build with `NDEBUG`, and a conforming `assert()` with its
+libc support function is a separate libc change, since it relinks every
+program.
+
+Packed structures are safe on the target for a reason worth recording.
+The core addresses `uint32_t` arrays at offset 2 of packed superblock and
+free-list blocks. Both arm-none-eabi-gcc and clang for thumbv6m lower a
+direct packed-member store to byte stores and the `memcpy`/`memmove` of
+those arrays to library calls, so no unaligned word access reaches the
+Cortex-M0+, which faults on one. Forming the offset-2 `uint32_t` pointer is
+still undefined in ISO C, and clang's alignment sanitizer on macOS reports
+it at `sbin/newfs_v7fs/main.c:177`.
+
 ## Placement and build selection
 
 A component core is placed in one of three hosts, each selected by the
@@ -265,10 +338,11 @@ and the BSD_Workspace trees, so it is not exhaustive.
    the core's own read-back and fails the reader, which shows the reader
    is the oracle that matters. `fsck_v7fs` was not used: it shares the
    core under test.
-2. DiscoBSD userland `v7fs` tool. Core plus a DiscoBSD backend over a raw
-   device or image file, cross-built, linked, and sized against the 144 KB
-   window. Falsifier: linked text plus data, bss and peak stack leaves too
-   little window for the tool's buffers.
+2. DiscoBSD userland `v7fs` tool, landed as `usr.sbin/v7fs`: cross-built
+   by `bmake build` at about 25 KB of the 144 KB window, and driven on the
+   host by `check-v7fs-core` through the same core and independent reader.
+   Board execution waits for the owner's approval; shipping it adds a
+   manifest line and a numbered NOTICE section.
 3. Import manifest and script, landed as `tools/netbsd-imports.manifest`,
    `tools/netbsd_imports.py` and `check-netbsd-imports`, whose selftest
    rejects an altered byte, a missing file, an unlisted file and a missing

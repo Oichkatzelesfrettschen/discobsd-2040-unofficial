@@ -3,8 +3,9 @@ include ${TOPSRC}/share/mk/sys.mk
 
 # init.c compiles from the tree against the tree's headers with its system
 # calls renamed onto the doubles in init_fork_test.c. init.c is held at
-# WARNLEVEL=legacy (sbin/init/Makefile), so it builds at -Wall -Werror; the
-# test itself builds at -Wall -Wextra -Werror.
+# WARNLEVEL=legacy (sbin/init/Makefile) and keeps K&R definitions, so it
+# builds at -Wall -Werror with clang's deprecated-non-prototype diagnostic
+# off; the test itself builds at -Wall -Wextra -Werror.
 HOSTCC?= cc
 INIT_SRC= ${TOPSRC}/sbin/init/init.c
 TREE_INCLUDES= -nostdinc -isystem ${TOPSRC}/include
@@ -12,7 +13,8 @@ CALLS= fork wait sleep kill syslog openlog closelog open creat close dup2 \
 	execl execve signal sigvec sigblock sigsetmask sigpause alarm sysctl \
 	errno
 RENAMES= ${CALLS:@c@-D${c}=test_${c}@} -Dmain=init_program_main
-INIT_CFLAGS= -std=gnu17 -Wall -Werror -ffunction-sections -fdata-sections \
+INIT_CFLAGS= -std=gnu17 -Wall -Werror -Wno-deprecated-non-prototype \
+	-ffunction-sections -fdata-sections \
 	${TREE_INCLUDES} ${RENAMES}
 TEST_CFLAGS= -std=gnu17 -Wall -Wextra -Werror ${TREE_INCLUDES}
 GC_SECTIONS!= if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
@@ -66,6 +68,6 @@ init_${m}.test: init_fork_test.c init_${m}.c
 .endfor
 
 clean:
-	rm -f init_fork_test init.o init_*.c init_*.o init_*.test init_*.out
+	rm -f init_fork_test init.o init_*-*.c init_*-*.o init_*-*.test init_*-*.out
 
 .PHONY: check clean

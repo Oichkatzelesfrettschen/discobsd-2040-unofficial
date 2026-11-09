@@ -224,14 +224,10 @@ writeback, free-list and inode-cache refill, inode load and writeback, block
 allocation, and the new indirect-pointer helpers return `EIO`. Directory
 lookup and removal propagate the exercised read failures; the last-block
 lookup returns zero on failure, which the directory caller maps to `EIO`.
-The `v7fs_ilist_foreach()` utility skips an unreadable inode-list sector and
-can return zero; a source search for `v7fs_ilist_foreach` under `sys`, `sbin`,
-and `usr.sbin` found its definition and declaration only.
-`v7fs_file_lookup_by_number()` reduces an iterator error to `false`, while
-`v7fs_directory_replace_entry()` reduces it to `ENOENT` and the rename
-parent-lookup callback can skip a failed read. The shipped v7fs command does
-not call those utility interfaces. Those observed sentinel and skipped-sector
-paths do not establish a universal errno contract.
+The inode-list iterator, inode-number lookup, directory replacement and rename
+parent lookup propagate read failures. `v7fs_file_lookup_by_number()` returns
+zero on a match, `ENOENT` when the inode is absent, and an error on failure.
+The shipped command does not call those utility interfaces.
 
 ## The DiscoBSD v7fs program
 
@@ -243,7 +239,10 @@ bytes of text, 360 of data and 2,356 of bss: 8,274 of text are the NetBSD
 core in every byte order, 1,900 the newfs library, 2,985 the front end, 296
 the backend, and the rest DiscoBSD's libc. The static `struct v7fs_self`
 contains the core scratch pool; the earlier object measurements do not
-establish a whole-program allocation or maximum stack bound. The program
+establish a whole-program allocation or maximum stack bound. The process
+window at `8ace6cf6` was 144 KiB; the current window is 192 KiB. DiscoBSD
+stdio can allocate an output buffer when `df` calls `printf`, independently
+of the core scratch pool. The program
 installs to `/usr/sbin` and no manifest lists it.
 
 On 2026-11-09 UTC, the local failure-handling candidate over `af2ca599`
@@ -269,8 +268,8 @@ The focused v7fs gate also passed on Linux with GCC 16.2.1 and
 `CC='cc -m32' PYTHON="$PYTHON" bmake MACHINE=rp2040 check-v7fs-core` after
 selecting `PYTHON`.
 The run exercised both scratch backends at 32-bit host width, including the
-fault cases and mutants. Imported translation units excluded the alignment
-sanitizer as described in `tests/v7fs_core/check.sh`; the run establishes
+fault cases and mutants. That historical run excluded alignment checks in
+imported translation units; the run establishes
 neither target execution nor physical-board behavior.
 
 The front end guards the host's side of the contract. `newfs` checks the
@@ -287,8 +286,8 @@ source is a regular file and that its destination is neither the image nor
 another name or device node for it before truncating, and every modifying
 command reports a failed `fsync()`.
 
-The imported files compile in NetBSD's gnu17 dialect with the two warning
-exemptions `check-v7fs-core` documents; the DiscoBSD files compile as
+The imported files compile in NetBSD's gnu17 dialect with the unused-parameter
+warning exemption `check-v7fs-core` documents; the DiscoBSD files compile as
 strict C17 with `-Wpedantic`, seeing the imported headers through
 `-isystem`. Two host gaps sit in shims under `usr.sbin/v7fs`:
 `netbsd_compat.h` supplies the BSD `<sys/cdefs.h>` macros and byte-order
@@ -300,14 +299,13 @@ failed enabled assertions to a libc routine that reports the expression and
 location before aborting. The imported target files retain `NDEBUG` so an
 exhausted scratch pool follows the tested error-return path.
 
-Packed structures are safe on the target for a reason worth recording.
-The core addresses `uint32_t` arrays at offset 2 of packed superblock and
-free-list blocks. Both arm-none-eabi-gcc and clang for thumbv6m lower a
-direct packed-member store to byte stores and the `memcpy`/`memmove` of
-those arrays to library calls, so no unaligned word access reaches the
-Cortex-M0+, which faults on one. Forming the offset-2 `uint32_t` pointer is
-still undefined in ISO C, and clang's alignment sanitizer on macOS reports
-it at `sbin/newfs_v7fs/main.c:177`.
+The packed superblock and free-list layouts place 32-bit entries at offset 2.
+The core accesses individual entries as packed members and uses byte offsets
+for bulk copies, avoiding ordinary typed pointers to those entries. The v7fs
+gate enables the alignment sanitizer for both production backends and
+calibrates the sanitizer with aligned and deliberately misaligned loads.
+Historical patch-reversal builds retain their original exemption so their
+functional regression oracles can execute.
 
 ## Placement and build selection
 
@@ -456,11 +454,7 @@ linker script now would describe a section nothing fills.
 
 ## Remaining uncertainty
 
-Not run: any link of a NetBSD component against DiscoBSD's libc or kernel,
-any board execution, a HEAD kernel build for current flash headroom, and
-any measurement of stack depth. The one execution is the host oracle
-`check-v7fs-core`, which exercises the core with NetBSD's userland backend
-on the host's C library. The compile-only sizes are within roughly 30
-percent of a linked build: garbage collection lowers them, and libkern,
-libc and backend code raise them. The other-systems table rests on project
-pages and papers, not on builds.
+The linked DiscoBSD userland tool and the host oracle provide distinct build
+and execution evidence. A whole-program stack maximum, current kernel flash
+headroom and physical-board behavior remain unmeasured here. The other-systems
+table rests on project pages and papers rather than builds.

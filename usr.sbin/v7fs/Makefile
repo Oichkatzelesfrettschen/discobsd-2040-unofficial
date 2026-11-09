@@ -29,11 +29,10 @@ V7FS_DEFS=	-DV7FS_EI -DSTATIC_BUFFER \
 # DiscoBSD's libc has <stdint.h> and no <inttypes.h>; see the header.
 DISCOBSD_DEFS=	-I${.CURDIR}/compat/discobsd
 
-# The imported files keep NetBSD's dialect. Two warnings stay off: the
-# packed-member pointer whose alignment tests/v7fs_core asserts, and an
-# argument v7fs_io.c reads only without STATIC_BUFFER. NDEBUG keeps the
-# selected target's scratch exhaustion path as a NULL return.
-NETBSD_FLAGS=	-Wno-address-of-packed-member -Wno-unused-parameter -DNDEBUG
+# The imported files keep NetBSD's dialect. The unused-parameter warning is
+# suppressed for an argument v7fs_io.c reads only with STATIC_BUFFER. NDEBUG
+# keeps the selected target's scratch exhaustion path as a NULL return.
+NETBSD_FLAGS=	-Wno-unused-parameter -DNDEBUG
 # The DiscoBSD files are strict C17. They see the imported headers as
 # system headers, so -Wpedantic judges this directory's code and leaves the
 # verbatim NetBSD declarations as NetBSD wrote them.
@@ -78,8 +77,7 @@ ${PROG}:	${OBJS}
 
 # The same program for the host compiler, which tests/v7fs_core runs.
 # HOSTCFLAGS adds the sanitizers there, and HOST_NETBSD_CFLAGS the flags
-# only the imported files take (tests/v7fs_core/check.sh explains its
-# -fno-sanitize=alignment).
+# only the imported files take.
 HOSTCC?=	cc
 HOSTCFLAGS?=	-O1 -g
 HOST_NETBSD_CFLAGS?=
@@ -93,7 +91,7 @@ host:		${HOST_SRCS} netbsd-imports.verified
 		rm -rf host.obj && mkdir host.obj
 .for src in ${NETBSD_SRCS:Nmain.c}
 		${HOSTCC} ${HOSTCFLAGS} -std=gnu17 -Wall -Wextra -Werror \
-		    ${V7FS_DEFS} -Wno-address-of-packed-member \
+		    ${V7FS_DEFS} \
 		    -Wno-unused-parameter -DNDEBUG ${HOST_NETBSD_CFLAGS} \
 		    -c -o host.obj/${src:.c=.o} ${V7FS}/${src}
 .endfor

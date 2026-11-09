@@ -59,14 +59,7 @@
 #include "v7fs_file.h"
 #include "newfs_v7fs.h"
 
-/*
- * v7fs_freeinode_update() walks a uint16_t pointer to the superblock's
- * freeinode cache, which the packed struct places at offset 210. The pointer
- * is aligned when that member's address in struct v7fs_self is even; check.sh
- * compiles v7fs_superblock.c without -Waddress-of-packed-member on the
- * strength of this assertion, and repeats it for the ARM target when the
- * cross compiler is present.
- */
+/* Pin the current host and Cortex-M0+ free-inode cache layout. */
 _Static_assert((offsetof(struct v7fs_self, superblock) +
     offsetof(struct v7fs_superblock, freeinode)) % _Alignof(v7fs_ino_t) == 0,
     "superblock freeinode cache is misaligned for v7fs_ino_t");
@@ -640,6 +633,17 @@ static unsigned inode_writes, failed_inode_write_number;
 static daddr_t failed_write_sector;
 static bool fail_sector_once;
 
+static int
+accept_inode(struct v7fs_self *fs, void *context, struct v7fs_inode *inode,
+    v7fs_ino_t number)
+{
+	(void)fs;
+	(void)context;
+	(void)inode;
+	(void)number;
+	return 0;
+}
+
 static bool
 fail_selected_read(void *cookie, uint8_t *buffer, daddr_t sector)
 {
@@ -664,6 +668,7 @@ static bool
 fail_selected_write(void *cookie, uint8_t *buffer, daddr_t sector)
 {
 	if (++sector_writes == failed_write_number) {
+		failed_write_sector = sector;
 		if (fail_after_write)
 			(void)saved_sector_write(cookie, buffer, sector);
 		return false;
@@ -933,6 +938,112 @@ regress_shrink_write_failure(int fd)
 		fail("regress-shrink-write", "image reload failed");
 	else
 		reader_root_ownership("regress-shrink-write");
+}
+
+static void
+regress_lookup_full_name(int fd)
+{
+	struct v7fs_self *fs;
+	struct v7fs_inode root;
+	v7fs_ino_t ino;
+	char entry[16], result[V7FS_NAME_MAX + 1];
+	unsigned index;
+
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-lookup-full-name", "format or mount failed");
+		return;
+	}
+	for (index = 0; index < 29; index++) {
+		snprintf(entry, sizeof(entry), "f%02u", index);
+		if (make_node(fs, V7FS_ROOT_INODE, entry, V7FS_IFREG | 0644,
+		    NULL, 0, &ino) != 0) {
+			fail("regress-lookup-full-name", "fixture creation failed");
+			v7fs_io_fini(fs);
+			return;
+		}
+	}
+	if (make_node(fs, V7FS_ROOT_INODE, "abcdefghijklmn", V7FS_IFREG | 0644,
+	    NULL, 0, &ino) != 0 ||
+	    v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0) {
+		fail("regress-lookup-full-name", "last directory entry creation failed");
+	} else {
+		check(v7fs_file_lookup_by_number(fs, &root, ino, result) == 0 &&
+		    strcmp(result, "abcdefghijklmn") == 0, "regress-lookup-full-name",
+		    "lookup must preserve all 14 name bytes");
+	}
+	v7fs_io_fini(fs);
+}
+
+static void
+regress_rename_failures(int fd)
+{
+	unsigned scenario, successful_writes = 0;
+
+	for (scenario = 0; scenario < 4; scenario++) {
+		struct v7fs_self *fs;
+		struct v7fs_inode source_parent, target_parent;
+		v7fs_ino_t source_ino, target_ino, found;
+		int error;
+
+		if (format_image(fd, 64, 0) != 0 ||
+		    (fs = mount_image(fd)) == NULL) {
+			fail("regress-rename", "format or mount failed");
+			return;
+		}
+		if (make_node(fs, V7FS_ROOT_INODE, "src", V7FS_IFDIR | 0755,
+		    NULL, 0, &source_ino) != 0 ||
+		    make_node(fs, V7FS_ROOT_INODE, "dst", V7FS_IFDIR | 0755,
+		    NULL, 0, &target_ino) != 0 ||
+		    v7fs_inode_load(fs, &source_parent, V7FS_ROOT_INODE) != 0 ||
+		    v7fs_inode_load(fs, &target_parent, target_ino) != 0) {
+			fail("regress-rename", "fixture creation failed");
+			v7fs_io_fini(fs);
+			return;
+		}
+		saved_sector_read = fs->io.read;
+		saved_sector_write = fs->io.write;
+		sector_reads = sector_writes = 0;
+		failed_read_number = scenario == 1 ? 2 : 5;
+		failed_write_number = scenario == 3 ? successful_writes : (unsigned)-1;
+		fail_after_write = false;
+		if (scenario == 1 || scenario == 2)
+			fs->io.read = fail_selected_read;
+		else
+			fs->io.write = fail_selected_write;
+		error = v7fs_file_rename(fs, &source_parent, "src", 3,
+		    &target_parent, "new", 3);
+		fs->io.read = saved_sector_read;
+		fs->io.write = saved_sector_write;
+		if (scenario == 0) {
+			successful_writes = sector_writes;
+			check(error == 0 && successful_writes != 0,
+			    "regress-rename", "control rename failed");
+		} else {
+			check(error == EIO, "regress-rename",
+			    "injected rename failure must return EIO");
+		}
+		if (scenario == 1 || scenario == 2) {
+			check(sector_reads == failed_read_number &&
+			    (scenario != 2 || failed_read_sector ==
+			    (daddr_t)target_parent.addr[0]) &&
+			    v7fs_file_lookup_by_name(fs, &source_parent, "src", 3,
+			    &found) == 0 && found == source_ino &&
+			    v7fs_file_lookup_by_name(fs, &target_parent, "new", 3,
+			    &found) == ENOENT, "regress-rename",
+			    "failed lookup changed directory entries");
+		} else {
+			if (scenario == 3)
+				check(sector_writes == successful_writes &&
+				    failed_write_sector == V7FS_ILIST_SECTOR,
+				    "regress-rename", "final inode write was not reached");
+			check(v7fs_file_lookup_by_name(fs, &source_parent, "src", 3,
+			    &found) == ENOENT &&
+			    v7fs_file_lookup_by_name(fs, &target_parent, "new", 3,
+			    &found) == 0 && found == source_ino,
+			    "regress-rename", "published rename entries differ");
+		}
+		v7fs_io_fini(fs);
+	}
 }
 
 static void
@@ -1277,6 +1388,8 @@ regress(int fd)
 	regress_shrink_transition(fd, 11, 9, "regress-shrink-single");
 	regress_shrink_transition(fd, 139, 137, "regress-shrink-double");
 	regress_shrink_write_failure(fd);
+	regress_rename_failures(fd);
+	regress_lookup_full_name(fd);
 #ifdef STATIC_BUFFER
 	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
 		fail("regress-scratch-exhaustion", "format or mount failed");
@@ -1377,7 +1490,17 @@ regress(int fd)
 		} else {
 			memset(&attr, 0, sizeof(attr));
 			attr.mode = V7FS_IFREG | 0644;
+			check(v7fs_file_lookup_by_number(fs, &root, V7FS_ROOT_INODE,
+			    NULL) == 0, "regress-lookup-number", "existing inode must be found");
+			check(v7fs_file_lookup_by_number(fs, &root, 65535, NULL) == ENOENT,
+			    "regress-lookup-number", "missing inode must return ENOENT");
 			fs->io.read = fail_sector_read;
+			check(v7fs_ilist_foreach(fs, accept_inode, NULL) == EIO,
+			    "regress-ilist-read", "inode list read must return EIO");
+			check(v7fs_directory_replace_entry(fs, &root, "..", 2) == EIO,
+			    "regress-replace-read", "directory read must return EIO");
+			check(v7fs_file_lookup_by_number(fs, &root, V7FS_ROOT_INODE,
+			    NULL) == EIO, "regress-lookup-number", "read must return EIO");
 			error = v7fs_file_lookup_by_name(fs, &root, "missing", 7, &ino);
 			check(error == EIO, "regress-lookup-read",
 			    "lookup must return the read failure");

@@ -1,6 +1,14 @@
 --- a/sbin/newfs_v7fs/main.c
 +++ b/sbin/newfs_v7fs/main.c
-@@ -80,8 +80,8 @@
+@@ -39,6 +39,7 @@
+ #endif /* not lint */
+ 
+ #include <sys/param.h>
++#include <stddef.h>
+ #include <stdio.h>
+ #include <string.h>
+ #include <errno.h>
+@@ -80,8 +81,8 @@
  
  	if ((error = v7fs_superblock_load(fs))) {
  		if (error != EINVAL) {
@@ -10,7 +18,7 @@
  		}
  	}
  	sb->modified = 1;
-@@ -106,7 +106,8 @@
+@@ -106,7 +107,8 @@
  	memset(&inode, 0, sizeof(inode));
  	inode.inode_number = 1;
  	inode.mode = V7FS_IFREG;	/* V7 manner */
@@ -20,7 +28,7 @@
  
  	/* INO 2 root */
  	v7fs_ino_t ino;
-@@ -125,11 +126,11 @@
+@@ -125,11 +127,11 @@
  	inode.atime = inode.mtime = inode.ctime = time(0);
  
  	/* root dirent. */
@@ -34,7 +42,7 @@
  		errno = error = EIO;
  		warn("Can't read / dirent.");
  		return error;
-@@ -147,7 +148,8 @@
+@@ -147,7 +149,8 @@
  		return error;
  	}
  	scratch_free(fs, buf);
@@ -44,7 +52,7 @@
  	if ((error = v7fs_superblock_writeback(fs))) {
  		errno = error;
  		warnx("Can't write superblock.");
-@@ -156,8 +158,9 @@
+@@ -156,8 +159,9 @@
  	return error;
  }
  
@@ -56,7 +64,18 @@
  {
  	uint32_t (*val32)(uint32_t) = fs->val.conv32;
  	uint16_t (*val16)(uint16_t) = fs->val.conv16;
-@@ -180,7 +183,9 @@
+@@ -174,13 +178,18 @@
+ 			VPRINTF(4, "\nlast freeblock #%d\n",
+ 			    (*val32)(fb->freeblock[i + 1]));
+ 
+-			memmove(fb->freeblock + 1, fb->freeblock + i + 1, k *
+-			    sizeof(v7fs_daddr_t));
++			memmove(buf + offsetof(struct v7fs_freeblock, freeblock) +
++			    sizeof(v7fs_daddr_t), buf +
++			    offsetof(struct v7fs_freeblock, freeblock) +
++			    (i + 1) * sizeof(v7fs_daddr_t),
++			    k * sizeof(v7fs_daddr_t));
+ 			fb->freeblock[0] = 0; /* Terminate link; */
  			fb->nfreeblock = (*val16)(k + 1);
  			VPRINTF(4, "last freeblock contains #%d\n",
  			    (*val16)(fb->nfreeblock));
@@ -67,7 +86,7 @@
  			return 0;
  		}
  		fb->freeblock[i] = (*val32)(j);
-@@ -190,11 +195,12 @@
+@@ -190,11 +199,12 @@
  	if (!fs->io.write(fs->io.cookie, buf, listblk)) {
  		errno = EIO;
  		warn("blk=%ld", (long)listblk);
@@ -82,7 +101,7 @@
  }
  
  static int
-@@ -212,8 +218,10 @@
+@@ -212,8 +222,10 @@
  	progress(&(struct progress_arg){ .label = "zero ilist", .tick =
  	    ilist_size / PROGRESS_BAR_GRANULE });
  	memset(buf, 0, sizeof buf);
@@ -95,7 +114,7 @@
  		progress(0);
  	}
  #ifndef HAVE_NBTOOL_CONFIG_H
-@@ -256,8 +264,10 @@
+@@ -256,8 +268,10 @@
  	progress(&(struct progress_arg){ .label = "freeblock list", .tick =
  	    (volume_size - sb->datablock_start_sector) / PROGRESS_BAR_GRANULE});
  	blk = sb->freeblock[0];
@@ -108,7 +127,7 @@
  #ifndef HAVE_NBTOOL_CONFIG_H
  	progress_done();
  #endif
-@@ -296,21 +306,18 @@
+@@ -296,21 +310,18 @@
  	fs->endian = mount->endian;
  	v7fs_endian_init(fs);
  

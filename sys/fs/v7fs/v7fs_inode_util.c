@@ -43,6 +43,7 @@ __KERNEL_RCSID(0, "$NetBSD: v7fs_inode_util.c,v 1.2 2011/07/18 21:51:49 apb Exp 
 #include <sys/systm.h>
 #include <sys/param.h>
 #else
+#include <errno.h>
 #include <stdio.h>
 #include <time.h>
 #endif
@@ -110,8 +111,7 @@ v7fs_ilist_foreach
 
 		if (!(buf = scratch_read(fs, i))) {
 			DPRINTF("block %zu I/O error.\n", i);
-			k += V7FS_INODE_PER_BLOCK;
-			continue;
+			return EIO;
 		}
 		di = (struct v7fs_inode_diskimage *)buf;
 		for (j = 0; j < V7FS_INODE_PER_BLOCK; j++, k++) {

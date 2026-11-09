@@ -427,6 +427,17 @@ not carry the probe. The second-stage boot code that
 does reach a board is section 4 above, carried in the tree under its own
 notice.
 
+sys/fs/v7fs and sbin/newfs_v7fs hold NetBSD's Seventh Edition file-system
+core and its newfs library, imported and pinned by
+tools/netbsd-imports.manifest; three carry local corrections recorded as
+patches under tools/netbsd-patches. Each file keeps its NetBSD header: BSD
+2-Clause, copyright The NetBSD Foundation, Inc., code contributed by
+UCHIYAMA Yasushi. usr.sbin/v7fs links them into the v7fs program and
+tests/v7fs_core into its host test. Neither distrib/base/mi nor
+distrib/rp2040/mi.rp2040 lists /usr/sbin/v7fs, so no byte reaches an
+image or a board; a manifest line that ships the program adds a numbered
+section above.
+
 Renode, the arm-none-eabi toolchain, qemu, bmake, shellcheck, ruff and
 the Python packages distrib/rp2040/host depends on are installed by a
 package manager under their own terms and are named in

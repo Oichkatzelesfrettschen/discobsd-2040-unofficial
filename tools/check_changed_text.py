@@ -13,7 +13,10 @@ Two rules apply to the lines that BASE..HEAD adds:
 Markdown under docs/research/copy-reviews is exempt from the spelling rule:
 those files quote the reviewed sources verbatim. Patch files (*.patch,
 *.diff) are exempt from the whitespace rule: a unified diff's blank context
-line is a single space, and the patch must apply byte for byte.
+line is a single space, and the patch must apply byte for byte. Files that
+tools/netbsd-imports.manifest lists at HEAD are exempt from both rules: they
+hold NetBSD's bytes verbatim, and check-netbsd-imports binds each to its
+recorded SHA-256.
 """
 
 import argparse
@@ -25,6 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 EXEMPT_PREFIXES = ("docs/research/copy-reviews/",)
 PATCH_EXCLUDES = (":(exclude)*.patch", ":(exclude)*.diff")
+IMPORT_MANIFEST = "tools/netbsd-imports.manifest"
 BRITISH = (
     "analyse", "analysed", "analysing", "artefact", "artefacts", "behaviour",
     "behaviours", "catalogue", "catalogues", "centre", "centred", "centres",
@@ -53,8 +57,24 @@ def git(root, *args):
     return result
 
 
+def imported_paths(root, head):
+    """Return the paths HEAD's import manifest pins, or none without one."""
+    result = git(root, "show", f"{head}:{IMPORT_MANIFEST}")
+    if result.returncode:
+        return frozenset()
+    paths = set()
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        # '<sha256>  <path>', or a patched file's
+        # '<sha256>  <path>  patched <sha256> <patch>'.
+        if len(fields) in (2, 5) and len(fields[0]) == 64:
+            paths.add(fields[1])
+    return frozenset(paths)
+
+
 def whitespace_findings(root, base, head):
-    result = git(root, "diff", "--check", base, head, "--", ".", *PATCH_EXCLUDES)
+    excludes = [f":(exclude,literal){path}" for path in sorted(imported_paths(root, head))]
+    result = git(root, "diff", "--check", base, head, "--", ".", *PATCH_EXCLUDES, *excludes)
     if result.returncode not in (0, 2):
         raise InfrastructureError(result.stderr.strip() or "git diff --check failed")
     findings = []
@@ -116,8 +136,9 @@ def fenced_lines(root, head, path):
 def spelling_findings(root, base, head):
     findings = []
     fences = {}
+    imported = imported_paths(root, head)
     for path, number, text in added_markdown_lines(root, base, head):
-        if path.startswith(EXEMPT_PREFIXES):
+        if path.startswith(EXEMPT_PREFIXES) or path in imported:
             continue
         if path not in fences:
             fences[path] = fenced_lines(root, head, path)

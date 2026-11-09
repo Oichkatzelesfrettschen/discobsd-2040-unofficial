@@ -45,27 +45,26 @@ header configuration. The `rumpuser`
 interface (`sys/rump/include/rump/rumpuser.h`, `RUMPUSER_VERSION 17`)
 declares 62 hypercalls a host must implement.
 
-The DiscoBSD side, from `sys/arch/rp2040/conf/RP2040.ld` and the PICO
-kernel built 2026-10-24 (258 kernel commits precede HEAD since then, so its
-sizes describe that build only): the kernel flash region is 128 KB minus the
-256-byte second stage, the kernel image used 107,902 bytes of text and 248
-of data, leaving about 22 KB; the user window `USERRAM` is 144 KB at
-`0x20000000..0x20023FFF`; kernel data `RAM` is 106 KB at `0x20024000`;
-SRAM4 and SRAM5 (`SCRATCH`, 8 KB at `0x20040000`) hold the USB transmit
-ring.
+The DiscoBSD side, from `sys/arch/rp2040/conf/RP2040.ld`: the kernel flash
+region is 128 KB minus the 256-byte second stage, 130,816 bytes, of which
+`check-kernel-headroom` measured the PICO image at 95,756 bytes on
+2026-11-09 (the four configurations leave 15,252 to 44,880 bytes); the user
+window `USERRAM` is 192 KB at `0x20000000..0x2002FFFF`; kernel data `RAM`
+is 58 KB at `0x20030000`; SRAM4 and SRAM5 (`SCRATCH`, 8 KB at
+`0x20040000`) hold the USB transmit ring.
 
 ## Why a stock rump kernel fits nowhere
 
-In the kernel: the rump base alone is 229 KB of text, against 22 KB of
-flash headroom; base, VFS faction and one file system come to about 360 KB.
-The 36 KB of data and 40 KB of bss would fit the 106 KB data region only
-by displacing the buffer cache and tables the 2.11BSD kernel already
-holds, and the base duplicates that kernel: its largest objects are the
-pool and vmem allocators, autoconfiguration, sysctl, the module loader,
+In the kernel: the rump base alone is 229 KB of text, against at most
+44,880 bytes of flash headroom; base, VFS faction and one file system come
+to about 360 KB. The 36 KB of data and 40 KB of bss exceed the 58 KB data
+region the 2.11BSD kernel's buffer cache and tables already occupy, and
+the base duplicates that kernel: its largest objects are the pool and vmem
+allocators, autoconfiguration, sysctl, the module loader,
 kqueue, process and LWP management, and entropy.
 
 As a user process: one process image is resident at a time, in the single
-144 KB window (`sys/arch/rp2040/doc/MPU.md`), and OMAGIC a.out text runs
+192 KB window (`sys/arch/rp2040/doc/MPU.md`), and OMAGIC a.out text runs
 from that window. The base's text exceeds the window before any data,
 heap or stack. A rump file-system server could not stay resident beside
 its client in any case: every request would swap one image out and the
@@ -139,7 +138,8 @@ backlights and power-off through the controller's registers `0x0B`,
 sizes; under the kernel's `-Os` the helpers are about 40 percent smaller.
 
 The research documents place the user window at `0x20010000..0x20033FFF`
-(the linker script and `MPU.md` give `0x20000000..0x20023FFF`), name call
+(the linker script then gave `0x20000000..0x20023FFF`, and gives
+`0x20000000..0x2002FFFF` since the window grew to 192 KB), name call
 chains through functions absent from `sys/` (`sdcmd`, `spi_xfer`,
 `usb_rx_handler`, `usb_cdc_read`; USB input is `usb_rx_done` to
 `ttyinput`), count SRAM4/SRAM5 as free, and state a stock librump cost of
@@ -232,7 +232,7 @@ the backend, and the rest DiscoBSD's libc; the bss is the static
 `malloc()`. Its largest stack frame in the core is 224 bytes and its
 deepest direct call chain 376 bytes on Cortex-M0+, plus the 512-byte block
 buffer each data callback holds, so the program occupies about 25 KB of
-the 144 KB window. It installs to `/usr/sbin` and no manifest lists it.
+the 192 KB window. It installs to `/usr/sbin` and no manifest lists it.
 
 The front end guards the host's side of the contract. `newfs` checks the
 geometry before touching the target: at least the 128 sectors a mount
@@ -376,7 +376,7 @@ and the BSD_Workspace trees, so it is not exhaustive.
    is the oracle that matters. `fsck_v7fs` was not used: it shares the
    core under test.
 2. DiscoBSD userland `v7fs` tool, landed as `usr.sbin/v7fs`: cross-built
-   by `bmake build` at about 25 KB of the 144 KB window, and driven on the
+   by `bmake build` at about 25 KB of the 192 KB window, and driven on the
    host by `check-v7fs-core` through the same core and independent reader.
    Board execution waits for the owner's approval; shipping it adds a
    manifest line and a numbered NOTICE section.

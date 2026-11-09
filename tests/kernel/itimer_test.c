@@ -59,8 +59,27 @@ void psignal(struct proc *p, int signal)
 int setpri(struct proc *p) { (void)p; return 0; }
 void addupc(caddr_t pc, struct uprof *prof, int ticks)
 { (void)pc; (void)prof; (void)ticks; }
-void swapout(struct proc *p, int freecore, size_t odata, size_t ostack)
-{ (void)p; (void)freecore; (void)odata; (void)ostack; }
+int
+swap_image_reserve(struct swap_image_reservation *reservation,
+    struct proc *owner, struct proc *source, u_int odata, u_int ostack)
+{
+    (void)reservation;
+    (void)owner;
+    (void)source;
+    (void)odata;
+    (void)ostack;
+    return 0;
+}
+void
+swapout(struct proc *p, int freecore, u_int odata, u_int ostack,
+    struct swap_image_reservation *reservation)
+{
+    (void)p;
+    (void)freecore;
+    (void)odata;
+    (void)ostack;
+    (void)reservation;
+}
 /* The vfork branch of newproc() is outside this gate. */
 void wakeup(caddr_t chan) { (void)chan; HK_CHECK(0); }
 void sleep(caddr_t chan, int priority) { (void)chan; (void)priority; HK_CHECK(0); }

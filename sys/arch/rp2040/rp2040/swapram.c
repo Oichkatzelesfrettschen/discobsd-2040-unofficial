@@ -125,7 +125,7 @@ sr_flash_span (struct sr_ent *e)
 #endif
 
 /*
- * Admission: swapram_out takes an image only while this is set. An
+ * Admission: swapram_reserve takes an image only while this is set. An
  * evacuation clears it first, so no image enters the pool behind the
  * move, and the SMALL/LARGE epoch keeps it clear while the pool must
  * stay empty.
@@ -377,16 +377,15 @@ sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
  * admitted whenever its real size fits rather than its raw size.
  */
 int
-swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
+swapram_reserve (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
     size_t slen, size_t ulen)
 {
     struct sr_ent *e = sr_slot (p);
     unsigned int off, want;
     int dn = 0, sn = 0;
 
-    storage_note(STORAGE_SWAPRAM_ATTEMPTS, 1);
     sr_pool_init_once ();
-    if (e->e_live)
+    if (e->e_res || e->e_live)
         panic ("swapram: image already resident");
     /*
      * Packed-text restoration holds the shared decoder across rdwri sleeps.
@@ -416,12 +415,25 @@ swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
     e->e_clen[SR_DATA] = dn;
     e->e_clen[SR_STACK] = sn;
     e->e_clen[SR_U] = SR_WORST (ulen);
-    storage_note(STORAGE_SWAPRAM_ADMISSIONS, 1);
     return 1;
 }
 
+/* The direct tier entry point accounts for attempted admission. */
+int
+swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
+    size_t slen, size_t ulen)
+{
+    int admitted;
+
+    storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
+    admitted = swapram_reserve (p, dsrc, dlen, ssrc, slen, ulen);
+    if (admitted)
+        storage_note (STORAGE_SWAPRAM_ADMISSIONS, 1);
+    return admitted;
+}
+
 /*
- * Compress one segment into the reservation swapram_out made. The data
+ * Compress one segment into the reservation swapram_reserve made. The data
  * and stack segments must produce exactly the length the counting pass
  * measured: a shorter or longer result means the bytes changed between
  * the passes or the encoder is not deterministic, and either is a bug
@@ -471,6 +483,19 @@ swapram_commit (struct proc *p)
             (u_int) (e->e_rlen[SR_DATA] + e->e_rlen[SR_STACK] +
                 e->e_rlen[SR_U]),
             used, swapram_pool_avail (&sr_map));
+}
+
+/* Return a reserved or committed slot without reading its image bytes. */
+void
+swapram_cancel (struct proc *p)
+{
+    struct sr_ent *entry = sr_slot (p);
+
+    if (entry->e_res == 0)
+        return;
+    if (swapram_pool_free (&sr_map, entry->e_off, entry->e_res) < 0)
+        panic ("swapram: cancel");
+    bzero (entry, sizeof (*entry));
 }
 
 /* True when swapin must read this process back out of the pool. */
@@ -741,6 +766,7 @@ user_top (struct proc *p)
 void
 swapram_init (void)
 {
+    sr_pool_init_once ();
     if ((size_t) sr_pool != (size_t) __user_data_end)
         panic ("swapram: pool is not at the window end");
 }

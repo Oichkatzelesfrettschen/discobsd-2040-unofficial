@@ -66270,6 +66270,46 @@
       }
     },
     {
+      "path": "tests/kernel/fork_swap_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "tests/kernel",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "sys/arch/rp2040/doc/TESTING.md",
+        "tests/kernel/fork_swap_extract.py",
+        "tests/kernel/fork_swap_mutate.py"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": [
+            "variadic-interface"
+          ]
+        }
+      }
+    },
+    {
       "path": "tests/kernel/futimes_test.c",
       "class": "A",
       "scope": "maintained",

@@ -13,6 +13,7 @@
 #include <sys/kernel.h>
 #include <sys/systm.h>
 #include <machine/debug.h>
+#include <sys/storage_stats.h>
 
 #define MINFINITY   -32767      /* minus infinity */
 
@@ -46,6 +47,8 @@ sched()
     register struct proc *rp;
     struct proc *swapped_out = 0, *in_core = 0;
     register int out_time, rptime;
+    struct swap_image_reservation reservation;
+    int s;
 
     for (;;) {
         /* Perform swap-out/swap-in action. */
@@ -53,8 +56,34 @@ sched()
 #ifdef SWAPRAM
         swapram_service ();
 #endif
+        /*
+         * The selected process is off the run queue with SLOAD clear, so
+         * its image cannot change while the reservation runs at spl0. When
+         * neither tier has room for the image, it stays resident: SLOAD
+         * returns, a runnable process rejoins the run queue, the swap-in
+         * waits, and sched retries once runin wakes it (every sleep, every
+         * exit, and once a second from schedcpu).
+         */
+        if (in_core && swap_image_reserve (&reservation, in_core, in_core,
+            X_OLDSIZE, X_OLDSIZE) != 0) {
+            s = splhigh ();
+            in_core->p_flag |= SLOAD;
+            if (in_core->p_stat == SRUN)
+                setrq (in_core);
+            splx (s);
+#ifdef SWAPRAM
+            storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
+#endif
+            in_core = 0;
+            swapped_out = 0;
+            splhigh ();
+            ++runin;
+            sleep ((caddr_t) &runin, PSWP);
+            continue;
+        }
         if (in_core)
-            swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE);
+            swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,
+                &reservation);
         if (swapped_out)
             swapin (swapped_out);
         splhigh();

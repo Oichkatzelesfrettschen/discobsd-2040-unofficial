@@ -22,7 +22,7 @@ int     mpid;           /* generic for unique process id's */
 
 /*
  * Create a new process -- the internal version of system call fork.
- * It returns 1 in the new process, 0 in the old.
+ * It returns 1 in the new process, 0 in the parent, -1 on capacity refusal.
  */
 int
 newproc (isvfork)
@@ -32,6 +32,16 @@ newproc (isvfork)
     register int n;
     static int pidchecked = 0;
     struct file *fp;
+    struct swap_image_reservation reservation;
+
+    /* Refusal precedes PID selection, proc-slot removal and shared references. */
+    parent = u.u_procp;
+    child = freeproc;
+    if (child == NULL)
+        panic ("no procs");
+    if (swap_image_reserve (&reservation, child, parent,
+        X_OLDSIZE, X_OLDSIZE) != 0)
+        return -1;
 
     /*
      * First, just locate a slot for a process
@@ -82,7 +92,6 @@ again:
     /*
      * Make a proc table entry for the new process.
      */
-    parent = u.u_procp;
     child->p_stat = SIDL;
     child->p_realtimer.it_value = 0;
     child->p_realtimer.it_interval = 0;
@@ -113,6 +122,15 @@ again:
         forkstat.sizfork += (parent->p_dsize + parent->p_ssize) >> 10;
     }
 #endif
+    child->p_dsize = parent->p_dsize;
+    child->p_ssize = parent->p_ssize;
+    child->p_daddr = parent->p_daddr;
+    child->p_saddr = parent->p_saddr;
+    child->p_tsize = parent->p_tsize;
+    child->p_tip = parent->p_tip;
+    if (child->p_tip)
+        child->p_tip->i_count++;
+
     child->p_wchan = 0;
     child->p_slptime = 0;
     {
@@ -154,15 +172,6 @@ again:
         return(1);
     }
 
-    child->p_dsize = parent->p_dsize;
-    child->p_ssize = parent->p_ssize;
-    child->p_daddr = parent->p_daddr;
-    child->p_saddr = parent->p_saddr;
-    child->p_tsize = parent->p_tsize;
-    child->p_tip = parent->p_tip;
-    if (child->p_tip)
-        child->p_tip->i_count++;
-
     /*
      * Partially simulate the environment of the new process so that
      * when it is actually created (by copying) it will look right.
@@ -171,11 +180,15 @@ again:
 
     /*
      * Swap out the current process to generate the copy.
+     * u.u_procp names the child while swap I/O may sleep, so the child must
+     * satisfy the current-process sleep contract. Its only continuation still
+     * returns through swapout, which commits the owned image before fork can
+     * return in the child.
      */
     parent->p_stat = SIDL;
     child->p_addr = parent->p_addr;
     child->p_stat = SRUN;
-    swapout (child, X_DONTFREE, X_OLDSIZE, X_OLDSIZE);
+    swapout (child, X_DONTFREE, X_OLDSIZE, X_OLDSIZE, &reservation);
     child->p_flag |= SSWAP;
     parent->p_stat = SRUN;
     u.u_procp = parent;
@@ -212,6 +225,7 @@ fork1 (isvfork)
     int isvfork;
 {
     register int a;
+    int result;
     register struct proc *p1, *p2;
 
     a = 0;
@@ -238,8 +252,12 @@ fork1 (isvfork)
         u.u_error = EAGAIN;
         return;
     }
-    p1 = u.u_procp;
-    if (newproc (isvfork)) {
+    result = newproc (isvfork);
+    if (result < 0) {
+        u.u_error = ENOMEM;
+        return;
+    }
+    if (result == 1) {
         /* Child */
         u.u_rval = 0;
         u.u_start = time.tv_sec;

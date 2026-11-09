@@ -556,15 +556,8 @@ v7fs_append_block(struct v7fs_self *fs, struct v7fs_inode *inode, size_t block,
 	if (v7fs_datablock_addr(block * V7FS_BSIZE + 1, &map) != 0)
 		return EFBIG;
 	if (map.level == 0) {
-		if (inode->addr[map.index[0]] != 0) {
-			bool is_free;
-
-			error = v7fs_block_is_free(fs, inode->addr[map.index[0]],
-			    &is_free);
-			if (error != 0 || !is_free)
-				return error != 0 ? error : EIO;
-			inode->addr[map.index[0]] = 0;
-		}
+		if (inode->addr[map.index[0]] != 0)
+			return EIO;
 		error = v7fs_datablock_allocate(fs, &child);
 		if (error == 0)
 			inode->addr[map.index[0]] = child;
@@ -699,7 +692,7 @@ v7fs_datablock_expand(struct v7fs_self *fs, struct v7fs_inode *inode, size_t sz)
 	struct v7fs_inode backup = *inode;
 	uint64_t new_size;
 	struct v7fs_daddr_map final_map;
-	size_t old_blocks, new_blocks, completed;
+	size_t old_blocks, new_blocks, completed, block;
 	int error, rollback_error;
 	bool uncertain, detached;
 
@@ -710,6 +703,20 @@ v7fs_datablock_expand(struct v7fs_self *fs, struct v7fs_inode *inode, size_t sz)
 		return EFBIG;
 	old_blocks = ((uint64_t)inode->filesize + V7FS_BSIZE - 1) / V7FS_BSIZE;
 	new_blocks = (new_size + V7FS_BSIZE - 1) / V7FS_BSIZE;
+	/* Validate every stale direct slot before allocation can reuse its block. */
+	for (block = old_blocks; block < new_blocks &&
+	    block < V7FS_NADDR_DIRECT; block++) {
+		bool is_free;
+
+		if (inode->addr[block] == 0)
+			continue;
+		error = v7fs_block_is_free(fs, inode->addr[block], &is_free);
+		if (error != 0 || !is_free)
+			return error != 0 ? error : EIO;
+	}
+	for (block = old_blocks; block < new_blocks &&
+	    block < V7FS_NADDR_DIRECT; block++)
+		inode->addr[block] = 0;
 	for (completed = old_blocks; completed < new_blocks; completed++) {
 		error = v7fs_append_block(fs, inode, completed, &uncertain);
 		if (error != 0 && uncertain)

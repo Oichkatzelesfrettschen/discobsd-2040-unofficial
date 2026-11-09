@@ -1409,6 +1409,36 @@ regress(int fd)
 		    "regress-inode-data-equal", "changed block was ignored");
 	}
 	regress_uncertain_publication(fd);
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-stale-multiple", "format or mount failed");
+	} else if (v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0) {
+		fail("regress-stale-multiple", "root inode load failed");
+		v7fs_io_fini(fs);
+	} else {
+		uint32_t free_before = fs->superblock.total_freeblock;
+		int count = fs->superblock.nfreeblock;
+
+		root.addr[1] = fs->superblock.freeblock[count - 2];
+		root.addr[2] = root.addr[0];
+		error = v7fs_datablock_expand(fs, &root,
+		    2 * V7FS_BSIZE + 1 - root.filesize);
+		check(error == EIO && root.addr[1] == fs->superblock.freeblock[count - 2] &&
+		    root.addr[2] == root.addr[0] &&
+		    fs->superblock.total_freeblock == free_before,
+		    "regress-stale-multiple", "rejected slot changed prior stale slots");
+		root.addr[2] = fs->superblock.freeblock[count - 1];
+		error = v7fs_datablock_expand(fs, &root,
+		    2 * V7FS_BSIZE + 1 - root.filesize);
+		check(error == 0 && fs->superblock.total_freeblock == free_before - 2,
+		    "regress-stale-multiple", "free slots blocked multi-block growth");
+		check(v7fs_superblock_writeback(fs) == 0, "regress-stale-multiple",
+		    "superblock writeback failed");
+		v7fs_io_fini(fs);
+		if (load_raw(fd) == 0)
+			reader_root_ownership("regress-stale-multiple");
+		else
+			fail("regress-stale-multiple", "image reload failed");
+	}
 	if (format_image(fd, 64, 0) != 0) {
 		fail("regress-reformat-smaller", "format fixture failed");
 	} else {

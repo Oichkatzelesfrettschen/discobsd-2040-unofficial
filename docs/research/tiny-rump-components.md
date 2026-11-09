@@ -15,7 +15,7 @@ use to run kernel file-system code in userland.
 
 ## Measured inputs
 
-`tiny-rump-components/measure.sh NETBSD_SRC OUTDIR` regenerates every size
+`tiny-rump-components/measure.sh [NETBSD_SRC [OUTDIR]]` regenerates every size
 in this section. It cross-compiles each NetBSD source set with
 `arm-none-eabi-gcc -Os -mcpu=cortex-m0plus -mthumb`, compiles only and never
 links, so a figure is the code before link-time garbage collection and
@@ -113,7 +113,10 @@ Defects in the code, each read from the source named:
   Reading `TIMELR` latches `TIMEHR`, and datasheet 4.6.4 calls the latched
   pair unsafe when two cores, or an interrupt and thread code, both read the
   timer -- the exact condition of the core-1 placement. The kernel reads
-  `TIMERAWL` (`sys/arch/rp2040/rp2040/machdep.c`), which has no latch.
+  `TIMERAWL` (`0x40054028`, `sys/arch/rp2040/rp2040/machdep.c`), which has
+  no latch; a 64-bit reader that tolerates concurrent readers samples
+  `TIMERAWH`, `TIMERAWL`, `TIMERAWH` and repeats while the two high reads
+  differ.
 - No file is listed in `conf/files.rp2040`, no `Config` option selects one,
   and nothing calls `nanorump_init()`. A component that fails its `init`
   is logged and the boot continues with it absent.
@@ -129,7 +132,10 @@ write-one-to-clear error bits; the I2C DREQ numbers are the PWM_WRAP
 numbers (I2C0/1 are 32 to 35); `axp2101_reg.h` names the limit and status
 registers as rail enables (DCDC enable is `0x80`, LDO enable `0x90`), and
 `dev/picocalc.h` records that the STM32 keyboard controller owns the PMIC,
-so the Pico cannot address it. The quoted object sizes are the `-O0`
+so the Pico cannot address it: the Pico reaches the battery level, both
+backlights and power-off through the controller's registers `0x0B`,
+`0x05`, `0x0A` and `0x0E` at I2C address `0x1F`, which
+`sys/arch/rp2040/doc/PICOCALC.md` maps against the vendor firmware. The quoted object sizes are the `-O0`
 sizes; under the kernel's `-Os` the helpers are about 40 percent smaller.
 
 The research documents place the user window at `0x20010000..0x20033FFF`
@@ -195,22 +201,41 @@ mechanism the tree already has:
   adds nothing. A kernel mount additionally needs an adapter from the
   2.11BSD inode and mount interfaces to the core, which NetBSD does not
   supply and which has no size estimate yet.
-- The host, for tests: the same core plus NetBSD's own userland backend,
-  built with the host compiler, checked against images made by NetBSD's
-  `makefs`.
+- The host, for tests: the same core plus NetBSD's own userland backend
+  and newfs library, built with the host compiler. `check-v7fs-core`
+  (`tests/v7fs_core`) is this host.
 
 The user-space server and the core-1 driver engine are not placements.
 
 ## NetBSD synchronization
 
-A manifest under `sys/arch/rp2040/` would list each imported NetBSD file,
-its NetBSD path, the netbsd-src revision and the file's SHA-256. An import
-script copies the listed files from a NetBSD checkout, verifies each hash
-against the manifest, and on a revision bump rewrites the hashes and shows
-the upstream diff for review. Imported files stay byte-identical to
-NetBSD, with their license headers intact, so every local change lives in
-a backend or adapter file. `rtems-libbsd` (`builder.py` in BSD_Workspace)
-imports FreeBSD the same way, at much larger scale.
+`tools/netbsd-imports.manifest` records the netbsd-src revision and the
+SHA-256 of each imported file. An imported file keeps its NetBSD path, so
+`sys/fs/v7fs/v7fs_inode.c` names the same file in both trees, and a
+directory holding an imported file holds nothing else. `tools/netbsd_imports.py`
+carries the procedure: `sync NETBSD_SRC [--add PATH]` copies the listed
+files from a NetBSD checkout, rewrites the hashes and the revision, and
+prints each path whose content changed, which is the diff a revision bump
+puts up for review; `verify` checks the tree against the manifest without
+a NetBSD checkout, so `check-netbsd-imports` runs in CI. Imported files
+stay byte-identical to NetBSD with their license headers, so every local
+change lives in a backend or adapter file outside the hashed set.
+`rtems-libbsd` (`builder.py` in BSD_Workspace) imports FreeBSD the same
+way, at much larger scale.
+
+The imported set is the ten core files and eight headers of `sys/fs/v7fs`,
+NetBSD's userland backend `v7fs_io_user.c`, and `sbin/newfs_v7fs/main.c`
+with `newfs_v7fs.h`, the library `makefs` also builds; the disklabel
+front end `newfs_v7fs.c` stays out. `sbin/Makefile` builds an explicit
+`SUBDIR` list, so the imported `sbin/newfs_v7fs` builds nothing for the
+board. With `-Wall -Wextra` on the host the core compiles warning-free
+except for an unused parameter in `scratch_remain()`, used only under
+`STATIC_BUFFER`, and one packed-member warning in
+`v7fs_freeinode_update()`, which takes a
+`uint16_t` pointer into the packed superblock; the pointer is aligned
+because the cache sits at an even offset, which `check-v7fs-core` asserts
+for the host and for Cortex-M0+, where an unaligned halfword access
+faults.
 
 ## Other systems built on rump kernels
 
@@ -231,16 +256,23 @@ and the BSD_Workspace trees, so it is not exhaustive.
 
 ## Order of work, with falsifiers
 
-1. Host test of the `v7fs` core. Build the ten core files with
-   `v7fs_io_user.c` on the host, read and write an image made by NetBSD's
-   `makefs -t v7fs`, and compare with `fsck_v7fs`. Falsifier: the core
-   needs a symbol outside the measured list, or the round trip differs.
+1. Host test of the `v7fs` core, landed as `check-v7fs-core`. The core,
+   `v7fs_io_user.c` and the newfs library format an image, write three
+   files and a directory, and read them back; an independent reader built
+   from the Seventh Edition layouts checks entries, bytes, and the
+   accounting of every block and inode, in the PDP-11 and the
+   little-endian order. A consistent but wrong address-order mutant passes
+   the core's own read-back and fails the reader, which shows the reader
+   is the oracle that matters. `fsck_v7fs` was not used: it shares the
+   core under test.
 2. DiscoBSD userland `v7fs` tool. Core plus a DiscoBSD backend over a raw
    device or image file, cross-built, linked, and sized against the 144 KB
    window. Falsifier: linked text plus data, bss and peak stack leaves too
    little window for the tool's buffers.
-3. Import manifest and script for the `v7fs` core, with a gate that fails
-   on a hash mismatch, calibrated against one altered byte.
+3. Import manifest and script, landed as `tools/netbsd-imports.manifest`,
+   `tools/netbsd_imports.py` and `check-netbsd-imports`, whose selftest
+   rejects an altered byte, a missing file, an unlisted file and a missing
+   revision line before `verify` runs.
 4. FAT tool from `msdosfs_fat.c`, `msdosfs_conv.c` and `msdosfs_lookup.c`
    plus a buffer shim modeled on `makefs/ffs/buf.c`. Falsifier: the
    `makefs` forks of `denode`, `vfsops` and `vnops` cost more than the
@@ -251,15 +283,18 @@ and the BSD_Workspace trees, so it is not exhaustive.
 
 The NanoRump files stay out of this plan. Their usable idea, a component
 descriptor collected by a link set, needs a C-identifier section name, a
-`KEEP` rule in `kern.ldscript` and a boot-time failure policy before it
-carries a component; `config(8)` already provides static selection without
-one.
+`KEEP` rule with boundary symbols in `kern.ldscript` and a boot-time
+failure policy before it carries a component. No component needs one:
+`config(8)` already selects at build time, so boundary symbols added to the
+linker script now would describe a section nothing fills.
 
 ## Remaining uncertainty
 
-Not run: any link of a NetBSD component against DiscoBSD, any host or board
-execution, a HEAD kernel build for current flash headroom, and any
-measurement of stack depth. The compile-only sizes are within roughly 30
+Not run: any link of a NetBSD component against DiscoBSD's libc or kernel,
+any board execution, a HEAD kernel build for current flash headroom, and
+any measurement of stack depth. The one execution is the host oracle
+`check-v7fs-core`, which exercises the core with NetBSD's userland backend
+on the host's C library. The compile-only sizes are within roughly 30
 percent of a linked build: garbage collection lowers them, and libkern,
 libc and backend code raise them. The other-systems table rests on project
 pages and papers, not on builds.

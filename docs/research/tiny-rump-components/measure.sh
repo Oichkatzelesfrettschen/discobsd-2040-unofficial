@@ -3,10 +3,15 @@
 # when cross-compiled for the RP2040 Cortex-M0+, and which kernel symbols
 # each component needs from its host.
 #
-# usage: measure.sh NETBSD_SRC OUTDIR
+# usage: measure.sh [NETBSD_SRC [OUTDIR]]
 #
 # NETBSD_SRC is a NetBSD source checkout (the directory holding sys/ and
-# usr.sbin/). OUTDIR receives objects, logs and results.tsv. Every object
+# usr.sbin/). Without the argument the script takes $NETBSD_SRC from the
+# environment, then BSD_Workspace/netbsd-src beside the primary checkout
+# (the directory holding the repository's common .git, so a worktree finds
+# the same sibling), and exits 2 when none exists. OUTDIR
+# receives objects, logs and results.tsv; without it the script makes a
+# fresh directory under ${TMPDIR:-/tmp} and prints its path. Every object
 # is compiled only, never linked into an image: a size here bounds code
 # before link-time garbage collection and excludes libkern, libc and the
 # rumpuser hypercall layer. Sizes vary with the compiler version, which
@@ -27,8 +32,18 @@
 #      record whether ld defines __start_nanorump_comp for each.
 set -eu
 
-NB=${1:?usage: measure.sh NETBSD_SRC OUTDIR}
-OUT=${2:?usage: measure.sh NETBSD_SRC OUTDIR}
+ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
+PRIMARY=$ROOT
+if common=$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
+	PRIMARY=$(dirname "$common")
+fi
+NB=${1:-${NETBSD_SRC:-$PRIMARY/../BSD_Workspace/netbsd-src}}
+if [ ! -d "$NB/sys/rump" ]; then
+	echo "usage: measure.sh [NETBSD_SRC [OUTDIR]]: no NetBSD checkout at $NB" >&2
+	exit 2
+fi
+OUT=${2:-$(mktemp -d "${TMPDIR:-/tmp}/rump-measure.XXXXXX")}
+echo "measure.sh: netbsd-src $NB, output $OUT" >&2
 CC_ARM=${CC_ARM:-arm-none-eabi-gcc}
 LD_ARM=${LD_ARM:-arm-none-eabi-ld}
 NM_ARM=${NM_ARM:-arm-none-eabi-nm}

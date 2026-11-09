@@ -104,6 +104,10 @@ run_read_failure_case() {
     set -e
     [ "$status" -eq "$expected_status" ] ||
         fail "$label returned status $status instead of $expected_status"
+    if [ "$read_error" -eq 1 ]; then
+        grep -F "tar: tape read error:" "$output" >/dev/null ||
+            fail "$label missed the injected archive-read diagnostic"
+    fi
     grep -F "tar regular publication: rooted cleanup" "$output" >/dev/null ||
         fail "$label missed descriptor-conditioned cleanup"
     [ ! -e "$extraction_root/000000" ] ||

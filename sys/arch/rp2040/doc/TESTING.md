@@ -2383,9 +2383,12 @@ staged cleanup ownership. Every ordinary failure and fatal archive-read exit
 calls descriptor-conditioned cleanup before filter teardown.
 
 The host schedule covers first publication, repeated write-only and mode-zero
-members, truncated payload, archive-read `EIO` after exactly one header record,
-output-write failure, staged and target replacement, pathname publication, and
-all 62 occupied staging candidates. Mutations remove `done()` cleanup, staged
+members, truncated payload, and archive-read `EIO` once the regular archive
+descriptor advances past exactly one 512-byte header record. The oracle
+requires the distinct tape-read diagnostic and status. The schedule also
+covers output-write failure, staged and target replacement, pathname
+publication, and all 62 occupied staging candidates. Mutations remove
+`done()` cleanup, staged
 or target identity, rooted publication, or bounded stage search. Each mutation
 must leave its named foreign entry unchanged or expose the expected retained
 stage; a missing hook trace, different status, or unrelated diagnostic cannot

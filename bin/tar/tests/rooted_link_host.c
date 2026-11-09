@@ -13,7 +13,6 @@ extern ssize_t read(int, void *, size_t);
 extern ssize_t write(int, const void *, size_t);
 
 static int substitution_complete;
-static int archive_read_calls;
 static int archive_write_calls;
 
 static int
@@ -98,15 +97,21 @@ openat_beneath(int root_descriptor, const char *path, int flags, ...)
 ssize_t
 tar_test_read(int descriptor, void *buffer, size_t byte_count)
 {
+    off_t archive_offset;
+    size_t header_remaining;
+
     if (getenv("TAR_REGULAR_READ_ERROR") == NULL)
         return read(descriptor, buffer, byte_count);
-    archive_read_calls++;
-    if (archive_read_calls == 1 && byte_count > 512U)
-        byte_count = 512U;
-    else if (archive_read_calls > 1) {
+    archive_offset = lseek(descriptor, 0, SEEK_CUR);
+    if (archive_offset < 0)
+        return read(descriptor, buffer, byte_count);
+    if (archive_offset >= 512) {
         errno = EIO;
         return -1;
     }
+    header_remaining = 512U - (size_t)archive_offset;
+    if (byte_count > header_remaining)
+        byte_count = header_remaining;
     return read(descriptor, buffer, byte_count);
 }
 

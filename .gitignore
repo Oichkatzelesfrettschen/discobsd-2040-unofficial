@@ -71,4 +71,3 @@ core.[0-9]*
 
 # direnv: .envrc holds local, untracked environment settings
 .envrc
-

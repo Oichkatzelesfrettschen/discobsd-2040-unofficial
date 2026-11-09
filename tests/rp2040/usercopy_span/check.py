@@ -66,23 +66,23 @@ _Static_assert(_Generic(&rp2040_user_span_contains,
 int
 main(void)
 {
-    CHECK(rp2040_user_span_contains(0x20000000U, 0x20024000U,
+    CHECK(rp2040_user_span_contains(0x20000000U, 0x20030000U,
         0x20000000U, 0U));
-    CHECK(rp2040_user_span_contains(0x20000000U, 0x20024000U,
-        0x20024000U, 0U));
-    CHECK(!rp2040_user_span_contains(0x20000000U, 0x20024000U,
+    CHECK(rp2040_user_span_contains(0x20000000U, 0x20030000U,
+        0x20030000U, 0U));
+    CHECK(!rp2040_user_span_contains(0x20000000U, 0x20030000U,
         0x1fffffffU, 0U));
-    CHECK(!rp2040_user_span_contains(0x20000000U, 0x20024000U,
-        0x20024001U, 0U));
-    CHECK(rp2040_user_span_contains(0x20000000U, 0x20024000U,
-        0x20000000U, 0x24000U));
-    CHECK(rp2040_user_span_contains(0x20000000U, 0x20024000U,
-        0x20023fffU, 1U));
-    CHECK(!rp2040_user_span_contains(0x20000000U, 0x20024000U,
-        0x20023fffU, 2U));
-    CHECK(!rp2040_user_span_contains(0x20000000U, 0x20024000U,
+    CHECK(!rp2040_user_span_contains(0x20000000U, 0x20030000U,
+        0x20030001U, 0U));
+    CHECK(rp2040_user_span_contains(0x20000000U, 0x20030000U,
+        0x20000000U, 0x30000U));
+    CHECK(rp2040_user_span_contains(0x20000000U, 0x20030000U,
+        0x2002ffffU, 1U));
+    CHECK(!rp2040_user_span_contains(0x20000000U, 0x20030000U,
+        0x2002ffffU, 2U));
+    CHECK(!rp2040_user_span_contains(0x20000000U, 0x20030000U,
         0x20001000U, 0xfffff001U));
-    CHECK(!rp2040_user_span_contains(0x20024000U, 0x20000000U,
+    CHECK(!rp2040_user_span_contains(0x20030000U, 0x20000000U,
         0x20001000U, 1U));
     return 0;
 }

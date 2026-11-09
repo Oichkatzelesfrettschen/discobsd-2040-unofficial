@@ -60,7 +60,7 @@ typedef unsigned short u16;
 typedef long long i64;
 
 #define USER_DATA_START 0x20000000u
-#define USER_DATA_SIZE (144u * 1024u)
+#define USER_DATA_SIZE (192u * 1024u)
 #define USER_DATA_END (USER_DATA_START + USER_DATA_SIZE)
 #define OMAGIC 0407u
 #define MAX_SITES 4096

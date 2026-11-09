@@ -18,7 +18,7 @@
  * The user window under the Cortex-M0+ MPU.
  *
  * One process is resident at a time and every process image occupies the
- * same 144 KB at USER_DATA_START (machparam.h, conf/RP2040.ld), so the
+ * same 192 KB at USER_DATA_START (machparam.h, conf/RP2040.ld), so the
  * protection map is static: the kernel programs it once at startup and no
  * context switch touches it. Unprivileged code, which locore0.S enters by
  * setting CONTROL.nPRIV before the first user instruction, may reach four
@@ -29,11 +29,11 @@
  *                                              routines libc calls through
  *                                              lib/libc/arm/gen/rom_float_resolver.S
  *   1       0x20000000   128 KB  rwx           the user window, low part
- *   2       0x20020000   16 KB   rwx           the user window, high part
+ *   2       0x20020000   64 KB   rwx           the user window, high part
  *   3       0xd0000000   256 B   rw-           the SIO hardware divider, one
  *                                              32-byte subregion of seven
  *
- * 144 KB is not a power of two and PMSAv6 regions are (datasheet table
+ * 192 KB is not a power of two and PMSAv6 regions are (datasheet table
  * 117, SIZE gives 2^(SIZE+1) bytes), so the window takes two regions, each
  * at a base aligned to its own size. Text runs from the window because
  * a.out images are loaded into SRAM, so XN stays clear on both.
@@ -108,7 +108,7 @@ struct mpu_region {
  */
 #define	MPU_ROM_LOG2		14
 #define	MPU_USER_LOW_LOG2	17
-#define	MPU_USER_HIGH_LOG2	14
+#define	MPU_USER_HIGH_LOG2	16
 
 /*
  * The divider grant: the smallest region PMSAv6 admits, 256 bytes, at the
@@ -125,6 +125,9 @@ _Static_assert((1UL << MPU_USER_LOW_LOG2) + (1UL << MPU_USER_HIGH_LOG2) ==
     USER_DATA_SIZE, "the two MPU window regions must tile USER_DATA_SIZE");
 _Static_assert((USER_DATA_START & ((1UL << MPU_USER_LOW_LOG2) - 1)) == 0,
     "USER_DATA_START must be aligned to the low window region");
+_Static_assert(((USER_DATA_START + (1UL << MPU_USER_LOW_LOG2)) &
+    ((1UL << MPU_USER_HIGH_LOG2) - 1)) == 0,
+    "the high window region base must be aligned to its size");
 _Static_assert(MPU_SIO_DIV_SRD == 0xf7UL,
     "only the subregion holding SIO offsets 0x060 to 0x07f may be enabled");
 

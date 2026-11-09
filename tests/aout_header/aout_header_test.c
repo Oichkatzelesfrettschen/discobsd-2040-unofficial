@@ -12,7 +12,7 @@
 #include "../../sys/sys/exec_aout.h"
 
 #define BASE    0x20000000U
-#define WINDOW  (144U * 1024)
+#define WINDOW  (192U * 1024)
 
 static int failures;
 

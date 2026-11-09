@@ -13,9 +13,9 @@ from shipped_closure import execution_receipt, manifest_artifacts
 
 FLASH_START = 0x10000000
 FLASH_END = FLASH_START + 131072
-PROCESS_WINDOW = 147456
+PROCESS_WINDOW = 196608
 RAM_REGIONS = {
-    "kernel": (0x20024000, 0x2003E800),
+    "kernel": (0x20030000, 0x2003E800),
     "u0area": (0x2003E800, 0x2003F400),
     "uarea": (0x2003F400, 0x20040000),
     "scratch": (0x20040000, 0x20042000),

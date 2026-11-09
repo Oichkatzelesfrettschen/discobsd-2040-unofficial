@@ -20,10 +20,10 @@ def snapshot():
          "lma": 0x10000000, "contents": True},
         {"name": ".text", "size": 1024, "vma": 0x10000100,
          "lma": 0x10000100, "contents": True},
-        {"name": ".data", "size": 32, "vma": 0x20024000,
+        {"name": ".data", "size": 32, "vma": 0x20030000,
          "lma": 0x10000500, "contents": True},
-        {"name": ".bss", "size": 64, "vma": 0x20024020,
-         "lma": 0x20024020, "contents": False}]}
+        {"name": ".bss", "size": 64, "vma": 0x20030020,
+         "lma": 0x20030020, "contents": False}]}
     return {"schema_version": 2, "source": {"commit": "b" * 40},
             "collector_sha256": "9" * 64,
             "toolchain": {"cc": "fixture compiler", "ld": "fixture linker",
@@ -102,14 +102,14 @@ class ResourceAccountingTest(unittest.TestCase):
 
     def test_overlapping_kernel_sections_are_rejected(self):
         candidate = snapshot()
-        candidate["kernels"]["PICO"]["sections"][3]["vma"] = 0x20024010
+        candidate["kernels"]["PICO"]["sections"][3]["vma"] = 0x20030010
         result = self.invoke("validate", candidate)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("overlap", result.stderr)
 
     def test_aout_bss_counts_toward_process_window(self):
         candidate = snapshot()
-        candidate["programs"]["/bin/fixture"]["bss"] = 147456
+        candidate["programs"]["/bin/fixture"]["bss"] = 196608
         result = self.invoke("validate", candidate)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("window", result.stderr)

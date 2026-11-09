@@ -3047,9 +3047,12 @@ clean:
 # Exact production ownership definitions with modeled codec and storage I/O.
 FORK_SWAP_FUNCTIONS= fork_swap_functions.c
 FORK_SWAP_MUTANTS= ignore-reservation-refusal publish-allproc-early \
-    advance-cursor-on-failure allocate-again-on-copy omit-text-release
+    advance-cursor-on-failure allocate-again-on-copy \
+    child-sidl-during-copy omit-release-wakeup notify-before-release \
+    ignore-copy-owner ignore-copy-state ignore-commit-owner \
+    ignore-commit-state ignore-cancel-state omit-text-release
 FORK_SWAP_CFLAGS= ${GATE_CFLAGS} -Wno-int-to-pointer-cast -Wno-deprecated-non-prototype \
-    -DSWAPRAM -DSWAPRAM_KB=16 -DSTORAGE_STATS
+    -DSWAPRAM -DSWAPRAM_KB=16 -DSTORAGE_STATS -DUCB_METER
 FORK_SWAP_DEPS= fork_swap_test.c ${FORK_SWAP_FUNCTIONS} hostkern.o \
     hostkern_kern.c hostkern.h ${MACHINE_STAMP} \
     ${TOPSRC}/sys/sys/vmsystm.h ${TOPSRC}/sys/sys/proc.h \
@@ -3106,6 +3109,12 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		publish-allproc-early) expected='allproc == &proc[0]' ;; \
 		advance-cursor-on-failure) expected='swapnext == cursor' ;; \
 		allocate-again-on-copy) expected='copy_consumed_reservation' ;; \
+		child-sidl-during-copy) expected='u.u_procp->p_stat == SRUN' ;; \
+		omit-release-wakeup) expected='wakeups == 2' ;; \
+		notify-before-release) expected='wake_flash_free[1] == 156' ;; \
+		ignore-copy-owner|ignore-copy-state) expected='copy_transition_call returned instead of panicking' ;; \
+		ignore-commit-owner|ignore-commit-state) expected='commit_transition_call returned instead of panicking' ;; \
+		ignore-cancel-state) expected='cancel_transition_call returned instead of panicking' ;; \
 		omit-text-release) expected='text_inode.i_count == 1' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \

@@ -180,11 +180,15 @@ again:
 
     /*
      * Swap out the current process to generate the copy.
+     * u.u_procp names the child while swap I/O may sleep, so the child must
+     * satisfy the current-process sleep contract. Its only continuation still
+     * returns through swapout, which commits the owned image before fork can
+     * return in the child.
      */
     parent->p_stat = SIDL;
     child->p_addr = parent->p_addr;
-    swapout (child, X_DONTFREE, X_OLDSIZE, X_OLDSIZE, &reservation);
     child->p_stat = SRUN;
+    swapout (child, X_DONTFREE, X_OLDSIZE, X_OLDSIZE, &reservation);
     child->p_flag |= SSWAP;
     parent->p_stat = SRUN;
     u.u_procp = parent;

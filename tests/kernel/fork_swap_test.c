@@ -31,12 +31,17 @@ static struct mapent entries[32];
 struct map swapmap[1] = { { entries, entries + 30, "swapmap" } };
 static struct inode directory, text_inode;
 static struct file descriptor;
-static unsigned writes, publications, sleeps;
+static unsigned writes, publications, sleeps, io_waits, wakeups;
 static int child_resume, copy_consumed_reservation, run_vfork;
 static unsigned char media[384 * 1024];
 static unsigned char parent_bytes[264 * 1024];
+static unsigned char u_image[USIZE];
 static uint32_t storage_counts[STORAGE_METRIC_COUNT];
 static unsigned write_sizes[3], write_blocks[3], write_sources[3];
+static caddr_t wake_channels[8];
+static unsigned wake_flash_free[8], wake_ram_free[8];
+
+static unsigned int free_total(void);
 
 void
 storage_note(enum storage_metric metric, uint32_t amount)
@@ -54,21 +59,34 @@ swap_cursor_publish(size_t cursor)
 void
 swap(size_t block, size_t address, int count, int flags)
 {
+    const unsigned char *source;
     unsigned index;
 
     HK_CHECK((flags & B_SWAPIMAGE) != 0);
     HK_CHECK((flags & B_READ) == 0);
     HK_CHECK(block * 1024 + count <= sizeof(media));
-    HK_CHECK(u.u_procp->p_stat == SIDL);
+    /* Production buffer and device waits enter tsleep with this contract. */
+    HK_CHECK(u.u_procp->p_stat == SRUN);
+    u.u_procp->p_stat = SSLEEP;
+    u.u_procp->p_stat = SRUN;
+    io_waits++;
     if (writes < 3) {
         write_sizes[writes] = count;
         write_blocks[writes] = block;
         write_sources[writes] = address;
     }
-    HK_CHECK(address >= 0x20000000);
-    HK_CHECK(address - 0x20000000 + count <= sizeof(parent_bytes));
+    if (address == u.u_procp->p_addr && count == USIZE) {
+        bzero(u_image, sizeof(u_image));
+        bcopy(&u, u_image,
+            sizeof(u) < sizeof(u_image) ? sizeof(u) : sizeof(u_image));
+        source = u_image;
+    } else {
+        HK_CHECK(address >= 0x20000000);
+        HK_CHECK(address - 0x20000000 + count <= sizeof(parent_bytes));
+        source = parent_bytes + address - 0x20000000;
+    }
     for (index = 0; index < (unsigned)count; index++)
-        media[block * 1024 + index] = parent_bytes[address - 0x20000000 + index];
+        media[block * 1024 + index] = source[index];
     writes++;
 }
 
@@ -86,7 +104,6 @@ sleep(caddr_t channel, int priority)
     sleeps++;
 }
 
-void wakeup(caddr_t channel) { (void)channel; }
 void sched(void) { panic("boot parent scheduled"); }
 void fork_gate_log(int level, char *message, ...)
 {
@@ -128,6 +145,17 @@ sr_encode(caddr_t source, size_t length, unsigned char *target,
 #undef vfork
 #undef log
 #undef setjmp
+
+void
+wakeup(caddr_t channel)
+{
+    if (wakeups < sizeof(wake_channels) / sizeof(wake_channels[0])) {
+        wake_channels[wakeups] = channel;
+        wake_flash_free[wakeups] = free_total();
+        wake_ram_free[wakeups] = swapram_pool_avail(&sr_map);
+    }
+    wakeups++;
+}
 
 static int
 same_bytes(const void *left, const void *right, unsigned int length)
@@ -190,7 +218,11 @@ reset_fixture(void)
 #ifdef FORK_SWAP_FULL_MAP
     swapmap->m_limit = entries + 4;
 #endif
-    writes = publications = sleeps = 0;
+    bzero(wake_channels, sizeof(wake_channels));
+    bzero(wake_flash_free, sizeof(wake_flash_free));
+    bzero(wake_ram_free, sizeof(wake_ram_free));
+    writes = publications = sleeps = io_waits = wakeups = 0;
+    runout = 0;
     child_resume = copy_consumed_reservation = 0;
     sr_nlarge = 1;
 }
@@ -313,6 +345,7 @@ static void
 successful_forks(void)
 {
     struct proc parent_before;
+    struct user copied_user;
     unsigned int use_vfork, blocks, data_blocks, text_size, index;
 
     for (blocks = 156; blocks <= 164; blocks += 8)
@@ -341,22 +374,33 @@ successful_forks(void)
         HK_CHECK(swapnext == 4 + blocks);
         HK_CHECK(publications == 1);
         HK_CHECK(writes == 3);
+        HK_CHECK(io_waits == 3);
         HK_CHECK(write_sizes[0] == parent_before.p_dsize - text_size);
         HK_CHECK(write_sizes[1] == 2244);
         HK_CHECK(write_sizes[2] == USIZE);
         HK_CHECK(write_blocks[0] == 4 && write_blocks[1] == 4 + data_blocks &&
             write_blocks[2] == 7 + data_blocks);
         HK_CHECK(write_sources[0] == parent_before.p_daddr + text_size);
-        for (index = 0; index < 3; index++)
+        for (index = 0; index < 2; index++)
             HK_CHECK(same_bytes(media + write_blocks[index] * 1024,
                 parent_bytes + (write_sources[index] - 0x20000000),
                 write_sizes[index]));
         HK_CHECK(write_sources[1] == parent_before.p_saddr);
         HK_CHECK(write_sources[2] == parent_before.p_addr);
+        bzero(&copied_user, sizeof(copied_user));
+        bcopy(media + write_blocks[2] * 1024, &copied_user,
+            sizeof(copied_user) < USIZE ? sizeof(copied_user) : USIZE);
+        HK_CHECK(copied_user.u_procp == &proc[1]);
+        HK_CHECK(copied_user.u_ru.ru_nswap == 1);
         parent_before.p_prev = &proc[1].p_nxt;
         HK_CHECK(same_bytes(&proc[0], &parent_before, sizeof(parent_before)));
         HK_CHECK(u.u_procp == &proc[0]);
         HK_CHECK(u.u_ru.ru_nswap == 1);
+        HK_CHECK(cnt.v_swpout == 1);
+        HK_CHECK(storage_counts[STORAGE_SWAPRAM_ATTEMPTS] == 1);
+        HK_CHECK(storage_counts[STORAGE_SWAPRAM_ADMISSIONS] == 0);
+        HK_CHECK(forkstat.cntfork == (use_vfork ? 0U : 1U));
+        HK_CHECK(forkstat.cntvfork == (use_vfork ? 1U : 0U));
         HK_CHECK(sr_nlarge == 2);
         HK_CHECK(descriptor.f_count == 2);
         HK_CHECK(directory.i_count == 4);
@@ -404,12 +448,18 @@ reservation_lifecycle(void)
     HK_CHECK(same_bytes(freeproc, &saved_owner, sizeof(saved_owner)));
     *freeproc = proc[0];
     u.u_procp = freeproc;
-    freeproc->p_stat = SIDL;
+    freeproc->p_stat = SRUN;
+    runout = 1;
     swapout(freeproc, X_DONTFREE, X_OLDSIZE, X_OLDSIZE, &reservation);
     HK_CHECK(reservation.state == SWAP_IMAGE_COMMITTED);
     HK_CHECK(free_total() == 0);
+    HK_CHECK(io_waits == 3);
+    HK_CHECK(runout == 0);
+    HK_CHECK(wakeups == 1 && wake_channels[0] == (caddr_t)&runout);
     swap_image_release(freeproc);
     HK_CHECK(free_total() == 156);
+    HK_CHECK(wake_flash_free[1] == 156);
+    HK_CHECK(wakeups == 2 && wake_channels[1] == (caddr_t)&runout);
 }
 
 static void
@@ -448,8 +498,84 @@ swapram_lifecycle(void)
     HK_CHECK(swapram_present(&proc[1]));
     HK_CHECK(writes == 0 && publications == 0);
     HK_CHECK(proc[1].p_addr == 0 && proc[1].p_daddr == 0);
+    HK_CHECK(cnt.v_swpout == 1);
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_ATTEMPTS] == 1);
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_ADMISSIONS] == 1);
     swap_image_release(&proc[1]);
     HK_CHECK(swapram_pool_avail(&sr_map) == sizeof(sr_pool));
+    HK_CHECK(wakeups == 1 && wake_channels[0] == (caddr_t)&runout);
+    HK_CHECK(wake_ram_free[0] == sizeof(sr_pool));
+}
+
+static struct swap_image_reservation transition_reservation;
+static struct proc *transition_process;
+
+static void
+prepare_transition(void)
+{
+    reset_fixture();
+    entries[0].m_addr = 4;
+    entries[0].m_size = 156;
+    HK_CHECK(swap_image_reserve(&transition_reservation, freeproc, &proc[0],
+        X_OLDSIZE, X_OLDSIZE) == 0);
+    *freeproc = proc[0];
+    u.u_procp = freeproc;
+    freeproc->p_stat = SRUN;
+    transition_process = freeproc;
+}
+
+static void
+copy_transition_call(void)
+{
+    swap_image_copy_out(&transition_reservation, transition_process);
+}
+
+static void
+commit_transition_call(void)
+{
+    swap_image_commit(&transition_reservation, transition_process);
+}
+
+static void
+cancel_transition_call(void)
+{
+    swap_image_cancel(&transition_reservation);
+}
+
+static void
+invalid_reservation_transitions(void)
+{
+    prepare_transition();
+    transition_process = &proc[0];
+    HK_EXPECT_PANIC("swap image: copy owner", copy_transition_call);
+    HK_CHECK(transition_reservation.state == SWAP_IMAGE_RESERVED);
+    HK_CHECK(writes == 0);
+    swap_image_cancel(&transition_reservation);
+
+    prepare_transition();
+    copy_transition_call();
+    HK_CHECK(transition_reservation.state == SWAP_IMAGE_COPIED);
+    HK_EXPECT_PANIC("swap image: copy owner", copy_transition_call);
+
+    prepare_transition();
+    HK_EXPECT_PANIC("swap image: commit owner", commit_transition_call);
+    swap_image_cancel(&transition_reservation);
+
+    prepare_transition();
+    copy_transition_call();
+    transition_process = &proc[0];
+    HK_EXPECT_PANIC("swap image: commit owner", commit_transition_call);
+
+    prepare_transition();
+    copy_transition_call();
+    commit_transition_call();
+    HK_CHECK(transition_reservation.state == SWAP_IMAGE_COMMITTED);
+    HK_EXPECT_PANIC("swap image: commit owner", commit_transition_call);
+    HK_EXPECT_PANIC("swap image: cancel state", cancel_transition_call);
+
+    prepare_transition();
+    copy_transition_call();
+    HK_EXPECT_PANIC("swap image: cancel state", cancel_transition_call);
 }
 
 static void
@@ -525,6 +651,7 @@ main(void)
         return hk_verdict("fork swap refusal and reservation");
     reservation_lifecycle();
     swapram_lifecycle();
+    invalid_reservation_transitions();
     full_descriptor_reservation();
     process_limit_refusals();
     reset_fixture();

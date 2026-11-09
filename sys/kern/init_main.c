@@ -61,6 +61,7 @@ main(void)
 {
 	struct proc *p;
 	int i;
+	int fork_result;
 	struct fs *fs = NULL;
 	int s __attribute__((unused));
 
@@ -181,7 +182,10 @@ main(void)
 	/*
 	 * Make init process.
 	 */
-	if (newproc(0) == 0) {
+	fork_result = newproc(0);
+	if (fork_result < 0)
+		panic("cannot reserve init swap");
+	if (fork_result == 0) {
 		/* Parent process with pid 0: swapper. */
 		/* No return from sched. */
 		sched();

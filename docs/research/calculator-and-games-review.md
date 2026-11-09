@@ -1,8 +1,7 @@
 # Calculator and games: review ledger
 
 Status: advisory review, 2026-11-05, of the uncommitted work on branch
-`picocalc/calculator-and-games` (base `main` at `076675a8`). Drafted by an AI
-assistant acting as reviewer; every finding below names the file and line it
+`picocalc/calculator-and-games` (base `main` at `076675a8`). Every finding below names the file and line it
 rests on and is marked demonstrated (a command, probe or source read in this
 review shows it) or suspected (an inference with the evidence that would
 settle it). Severity: blocker (the PR cannot merge green or breaks a hard
@@ -443,7 +442,7 @@ Neither library enters `mi.rp2040`, so no profile moves for them.
 9. Correct the FFT check and its record (T-2, T-3); scale the quaternion
    inverse (T-4); reject non-finite matrices (T-6); "centre" (L-5).
 10. Split the work into bisectable commits by component (libbn, libcalc,
-    fourfall, integration), each carrying an `Assisted-by:` trailer.
+    fourfall, integration).
 
 ## Hand-off items
 

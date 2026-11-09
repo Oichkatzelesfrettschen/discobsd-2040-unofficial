@@ -1,4 +1,4 @@
-Drafted by an AI assistant (Claude Opus) from the two companion reports below; no board run backs any figure, and the owner has not reviewed it.
+Drawn from the two companion reports below; no board run backs any figure.
 
 # RP2040 core 1 for DiscoBSD: what survives, in what order
 

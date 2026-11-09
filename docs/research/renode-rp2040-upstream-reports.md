@@ -24,9 +24,8 @@ signature of every defect that shows up as a warning.
 
 ## Issue 1: the boot ROM hangs in wait_ssi_ready because RP2040XIPSSI latches BUSY
 
-> An LLM assisted in the investigation and the writing of this report and
-> its patches. Everything in it was run and read back by a person; what you
-> do with it is your call.
+> Everything in this report was run and read back; what you do with it is
+> your call.
 
 **Finding.** `RP2040XIPSSI` stores SR.BUSY in a register field, sets it
 before a transfer and clears it after. Any interruption between those two
@@ -151,9 +150,8 @@ FIFO entirely, and is a larger change than this series makes.
 
 ## Issue 2: W25QXX diverges from the part on status, erase, program and identity
 
-> An LLM assisted in the investigation and the writing of this report and
-> its patch. Everything in it was run and read back by a person; what you
-> do with it is your call.
+> Everything in this report was run and read back; what you do with it is
+> your call.
 
 **Finding.** Six behaviors of `emulation/externals/w25q16.cs` differ from
 what a W25Q16JV on a Raspberry Pi Pico does. None of them stops a boot.

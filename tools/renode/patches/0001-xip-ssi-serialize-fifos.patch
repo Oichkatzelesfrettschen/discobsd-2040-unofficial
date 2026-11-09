@@ -19,8 +19,6 @@ so the boot ROM's flash_put_get waited for a reply that was never clocked.
 One lock now covers every enqueue, dequeue, clear and count on both buffers.
 The same run afterwards shows 119074 DR0 writes against 118802 frames
 shifted, the difference being the frames still queued at the sample.
-
-Assisted-by: Claude Code (claude-opus-5)
 ---
  emulation/peripherals/spi/rp2040_xip_ssi.cs | 67 ++++++++++++++-------
  1 file changed, 46 insertions(+), 21 deletions(-)

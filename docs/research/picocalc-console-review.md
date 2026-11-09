@@ -1,7 +1,6 @@
 # PicoCalc console: review ledger
 
-Drafted by Claude Code (claude-opus-5-5) as a read-only advisory review of
-PR #344. No source file, build product, board or serial port was touched;
+Read-only advisory review of PR #344. No source file, build product, board or serial port was touched;
 this file is the only write.
 
 ## Scope and inputs

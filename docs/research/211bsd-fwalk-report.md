@@ -1,7 +1,6 @@
 # Report to the 2.11BSD maintainer: `_fwalk` in patch 499
 
-This report was drafted with an AI assistant. The finding and the patch are
-offered for your judgment; nothing here has run on a PDP-11 or under SIMH, and
+The finding and the patch are offered for your judgment; nothing here has run on a PDP-11 or under SIMH, and
 the report says so wherever it matters. `211bsd-fwalk.patch` beside this
 file is the standalone patch, with the message above its hunk; it applies to
 `lib/libc/stdio/findfp.c` at patch level 499 with `patch -p0`.

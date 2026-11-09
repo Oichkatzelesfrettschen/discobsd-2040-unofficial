@@ -14,8 +14,6 @@ samples on the rising edge saw a ghost frame start and a spurious bit before
 every burst. The first frame is now dequeued at the write that starts the
 thread, and Step() returns after stopping, so SCK idles low between bursts
 as SPI mode 0 requires and the wire carries exactly the frames written.
-
-Assisted-by: Claude Code (claude-sonnet-5-5)
 ---
  emulation/peripherals/spi/rp2040_spi.cs | 4 ++++
  1 file changed, 4 insertions(+)

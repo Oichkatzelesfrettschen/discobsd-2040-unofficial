@@ -29,13 +29,16 @@ cat > "$work/good.syms" <<'EOF'
 100131f4 00000068 T swapram_commit
 100132a4 000000c0 T swapram_in
 10013078 000000f0 T swapram_out
+10013208 000000f4 T swapram_reserve
+10013400 00000034 T swapram_cancel
 20033dd8 00004000 B swapram_pool_mem
 1001325c 0000000a T swapram_present
 10013168 0000008c T swapram_put
 10013266 0000003e T swapram_uarea_prefix
 EOF
 cat > "$work/vm_swap.relocs" <<'EOF'
-00000010 R_ARM_THM_CALL   swapram_out
+00000010 R_ARM_THM_CALL   swapram_reserve
+00000018 R_ARM_THM_CALL   swapram_cancel
 00000020 R_ARM_THM_CALL   swapram_put
 00000030 R_ARM_THM_CALL   swapram_commit
 00000040 R_ARM_THM_CALL   swapram_present

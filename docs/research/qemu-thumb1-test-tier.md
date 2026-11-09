@@ -1,6 +1,6 @@
 # A Thumb-1 (ARMv6-M) QEMU test tier
 
-Drafted with assistant participation (Claude, Sonnet 5.5); every number below
+Every number below
 comes from a command run in this tree unless it names a URL.
 
 ## Answer

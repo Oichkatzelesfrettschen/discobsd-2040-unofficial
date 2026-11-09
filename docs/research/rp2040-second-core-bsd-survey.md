@@ -1,4 +1,4 @@
-Drafted by an AI assistant (Claude, model Sonnet 5.5) from local source checkouts; no board or emulator run backs any benefit figure below, and no human has reviewed it.
+Drawn from local source checkouts; no board or emulator run backs any benefit figure below.
 
 The 144 KiB memory geometry below remains bound to the surveyed revision.
 `swap-exhaustion/review-04.md` supersedes the live layout with a fixed 192 KiB

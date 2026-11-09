@@ -24,6 +24,12 @@ UNROUNDED_FREE = """\t\t\tmfree(swapmap, td[unit].t_size,
 CLEARED_SIZE = """\t\t\ttd[unit].t_start = 0;
 \t\t\ttd[unit].t_size = 0;
 \t\t\ttd[unit].t_next = TD_APPEND_DISABLED;"""
+MODE_CHECK = """\t\tif ((flag & FWRITE) == 0)
+\t\t\treturn EBADF;
+"""
+ROOT_CHECK = """\t\tif (!suser())
+\t\t\treturn EPERM;
+"""
 STALE_SIZE = """\t\t\ttd[unit].t_start = 0;
 \t\t\ttd[unit].t_next = TD_APPEND_DISABLED;"""
 
@@ -46,6 +52,8 @@ def main() -> None:
             "shortage-output-suppression",
             "unrounded-free",
             "stale-released-size",
+            "ignore-descriptor-mode",
+            "omit-root-check",
         ),
         required=True,
     )
@@ -80,6 +88,10 @@ def main() -> None:
             UNROUNDED_FREE,
             arguments.mutation,
         )
+    elif arguments.mutation == "ignore-descriptor-mode":
+        source = replace_once(source, MODE_CHECK, "\t\t(void)flag;\n", arguments.mutation)
+    elif arguments.mutation == "omit-root-check":
+        source = replace_once(source, ROOT_CHECK, "", arguments.mutation)
     else:
         source = replace_once(
             source,

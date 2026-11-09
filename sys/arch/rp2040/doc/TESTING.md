@@ -2400,6 +2400,12 @@ Tar adds `openat_beneath.o`, `publishat_beneath.o`, and
 owns the PICO and PICO_UART flash margins this change consumes, and the
 shipped-closure comparison owns the tar and root-image deltas.
 
+`kernel.file-owner` owns the descriptor-operation refusal: `flock()` on an
+`O_IDENTITY` descriptor returns `EBADF` for shared, exclusive, nonblocking
+and unlock requests without reaching the lock code, while read and write
+descriptors still lock. With the refusal removed, exactly those three
+identity assertions fail.
+
 Runtime stack and heap high-water, descriptor/inode pressure under a complete
 extraction workload, directory-write recovery, persistent-media traffic,
 symbolic-link publication, conditional removal, directory metadata

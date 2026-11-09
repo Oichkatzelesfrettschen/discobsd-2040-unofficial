@@ -411,6 +411,15 @@ flock()
         u.u_error = EOPNOTSUPP;
         return;
     }
+    /*
+     * An O_IDENTITY descriptor is acquired without read or write
+     * permission, so it carries no right to take a lock that other
+     * holders of the file honor.
+     */
+    if (fp->f_flag & FIDENTITY) {
+        u.u_error = EBADF;
+        return;
+    }
     if (uap->how & LOCK_UN) {
         ino_unlock(fp, FSHLOCK | FEXLOCK);
         return;

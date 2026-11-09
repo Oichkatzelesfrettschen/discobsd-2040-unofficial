@@ -133,6 +133,25 @@ and checks the exact numeric value. The complete kernel ILP32 aggregate,
 pathname-origin inventory, metadata, test-execution inventory, denominator,
 and both exact target distributions pass.
 
+An identity descriptor reaches the descriptor operations without the
+permission an ordinary open checks, so each one either refuses it or grants
+nothing its holder could not already do by pathname. `read`, `write` and
+`ftruncate` require `FREAD` or `FWRITE`, which the descriptor lacks.
+`fchmod`, `fchown` and `futimes` reach `ufs_setattr()`, which applies the
+same ownership and `access(ip, IWRITE)` rules as the pathname calls;
+`fstat` and `fstatfs` reveal what `stat` and `statfs` reveal after the same
+directory search. `linkat_beneath()` and `publishat_beneath()` find their
+sources by pathname and use the descriptor only to confirm identity, so an
+inode whose last name is gone cannot be linked again. Opening `/dev/fd/N`
+duplicates only into a subset of the descriptor's access mode
+(`dupfdopen()`), so the descriptor cannot be widened to `FREAD`. `flock()`
+refuses `FIDENTITY` with `EBADF`, because an advisory lock binds every
+other holder of the file: without the refusal, a user who may not read
+the mode-0600 database `passwd` and `chpass` build beside `/etc/ptmp`
+could hold `LOCK_EX` on its `.dir` file and stall both programs, which take
+a blocking exclusive lock on it before the rename.
+`kernel.file-owner` asserts the refusal for shared, exclusive, nonblocking
+and unlock requests.
 
 ## Residual namespace contract
 

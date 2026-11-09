@@ -16,6 +16,7 @@
 #include <sys/map.h>
 #include <sys/swap.h>
 #include <sys/disk.h>
+#include <sys/user.h>
 
 #define MAP_SLOTS 8
 #define MAP_START 4
@@ -40,6 +41,9 @@ u_int nswap;
 dev_t swapdev;
 const struct bdevsw bdevsw[5] = { { 0 } };
 
+struct user u;
+static int allow_superuser;
+static unsigned superuser_calls;
 static unsigned cursor_publications;
 static size_t published_cursor;
 
@@ -47,6 +51,16 @@ extern void swap_ioctl_test_reset(void);
 extern u_int swap_ioctl_test_start(int unit);
 extern u_int swap_ioctl_test_size(int unit);
 extern u_int swap_ioctl_test_next(int unit);
+
+/* suser() as sys/kern/kern_prot2.c defines it, with the answer armed. */
+int
+suser(void)
+{
+    superuser_calls++;
+    if (!allow_superuser)
+        u.u_error = EPERM;
+    return allow_superuser;
+}
 
 void
 swap_cursor_publish(size_t next)
@@ -72,6 +86,9 @@ reset_fixture(void)
     nswap = MAP_START + MAP_BLOCKS;
     cursor_publications = 0;
     published_cursor = 0;
+    allow_superuser = 1;
+    superuser_calls = 0;
+    u.u_error = 0;
     swap_ioctl_test_reset();
     hk_reset_output();
 }
@@ -99,7 +116,7 @@ positive_allocation(void)
     off_t blocks = 5;
 
     reset_fixture();
-    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD) == 0);
+    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD | FWRITE) == 0);
     HK_CHECK(blocks == 5);
     HK_CHECK(swap_ioctl_test_start(0) == MAP_START);
     HK_CHECK(swap_ioctl_test_size(0) == 5);
@@ -116,9 +133,9 @@ zero_releases_with_success(void)
     off_t blocks = 5;
 
     reset_fixture();
-    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD) == 0);
+    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD | FWRITE) == 0);
     blocks = 0;
-    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD) == 0);
+    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD | FWRITE) == 0);
     HK_CHECK(blocks == 0);
     HK_CHECK(swap_ioctl_test_start(0) == 0);
     HK_CHECK(swap_ioctl_test_size(0) == 0);
@@ -134,7 +151,7 @@ media_size_returns_success(void)
     u_int media_size = 0xa5a5a5a5U;
 
     reset_fixture();
-    HK_CHECK(call_ioctl(1, TFALLOC, &blocks, FREAD) == 0);
+    HK_CHECK(call_ioctl(1, TFALLOC, &blocks, FREAD | FWRITE) == 0);
     HK_CHECK(call_ioctl(1, DIOCGETMEDIASIZE, &media_size, FREAD) == 0);
     HK_CHECK(media_size == 5);
     HK_CHECK(swap_ioctl_test_size(1) == 5);
@@ -146,9 +163,9 @@ negative_request_releases_then_rejects(void)
     off_t blocks = 5;
 
     reset_fixture();
-    HK_CHECK(call_ioctl(2, TFALLOC, &blocks, FREAD) == 0);
+    HK_CHECK(call_ioctl(2, TFALLOC, &blocks, FREAD | FWRITE) == 0);
     blocks = -7;
-    HK_CHECK(call_ioctl(2, TFALLOC, &blocks, FREAD) == EINVAL);
+    HK_CHECK(call_ioctl(2, TFALLOC, &blocks, FREAD | FWRITE) == EINVAL);
     HK_CHECK(blocks == -7);
     HK_CHECK(swap_ioctl_test_start(2) == 0);
     HK_CHECK(swap_ioctl_test_size(2) == 0);
@@ -163,7 +180,7 @@ shortage_reports_zero_with_success(void)
     off_t blocks = MAP_BLOCKS + 1;
 
     reset_fixture();
-    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD) == 0);
+    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD | FWRITE) == 0);
     HK_CHECK(blocks == 0);
     HK_CHECK(swap_ioctl_test_start(0) == 0);
     HK_CHECK(swap_ioctl_test_size(0) == 0);
@@ -180,10 +197,10 @@ replacement_shortage_leaves_device_empty(void)
     size_t cursor_after_allocation;
 
     reset_fixture();
-    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD) == 0);
+    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD | FWRITE) == 0);
     cursor_after_allocation = swapnext;
     blocks = MAP_BLOCKS + 1;
-    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD) == 0);
+    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD | FWRITE) == 0);
     HK_CHECK(blocks == 0);
     HK_CHECK(swap_ioctl_test_start(0) == 0);
     HK_CHECK(swap_ioctl_test_size(0) == 0);
@@ -200,7 +217,7 @@ invalid_requests_preserve_state(void)
     u_int payload = 0x5a5a5a5aU;
 
     reset_fixture();
-    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD) == 0);
+    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD | FWRITE) == 0);
     HK_CHECK(call_ioctl(0, 0x12345678U, &payload, FREAD) == EINVAL);
     HK_CHECK(payload == 0x5a5a5a5aU);
     HK_CHECK(swap_ioctl_test_start(0) == MAP_START);
@@ -213,6 +230,87 @@ invalid_requests_preserve_state(void)
     HK_CHECK(payload == 0x5a5a5a5aU);
 }
 
+/*
+ * A read-only descriptor changes nothing, whoever holds it: the held extent,
+ * the map, the cursor and the caller's request all stay as they were.
+ */
+static void
+read_only_descriptor_is_refused(void)
+{
+    off_t blocks = 5;
+    off_t request;
+
+    reset_fixture();
+    HK_CHECK(call_ioctl(0, TFALLOC, &blocks, FREAD | FWRITE) == 0);
+    request = 9;
+    HK_CHECK(call_ioctl(0, TFALLOC, &request, FREAD) == EBADF);
+    HK_CHECK(request == 9);
+    request = 0;
+    HK_CHECK(call_ioctl(0, TFALLOC, &request, FREAD) == EBADF);
+    HK_CHECK(swap_ioctl_test_start(0) == MAP_START);
+    HK_CHECK(swap_ioctl_test_size(0) == 5);
+    HK_CHECK(free_total() == MAP_BLOCKS - 8);
+    HK_CHECK(swapnext == MAP_START + 8);
+    HK_CHECK(cursor_publications == 1);
+
+    reset_fixture();
+    request = 5;
+    HK_CHECK(call_ioctl(1, TFALLOC, &request, FREAD) == EBADF);
+    HK_CHECK(request == 5);
+    HK_CHECK(swap_ioctl_test_start(1) == 0);
+    HK_CHECK(free_total() == MAP_BLOCKS);
+    HK_CHECK(cursor_publications == 0);
+}
+
+/*
+ * An ordinary user holding a writable descriptor can neither allocate, nor
+ * replace, nor release the extent root left on the unit.
+ */
+static void
+non_superuser_is_refused(void)
+{
+    off_t blocks = 5;
+    off_t request;
+
+    reset_fixture();
+    HK_CHECK(call_ioctl(2, TFALLOC, &blocks, FREAD | FWRITE) == 0);
+    allow_superuser = 0;
+    request = 0;
+    HK_CHECK(call_ioctl(2, TFALLOC, &request, FREAD | FWRITE) == EPERM);
+    request = 9;
+    HK_CHECK(call_ioctl(2, TFALLOC, &request, FREAD | FWRITE) == EPERM);
+    HK_CHECK(request == 9);
+    HK_CHECK(superuser_calls == 3);
+    HK_CHECK(swap_ioctl_test_start(2) == MAP_START);
+    HK_CHECK(swap_ioctl_test_size(2) == 5);
+    HK_CHECK(free_total() == MAP_BLOCKS - 8);
+    HK_CHECK(cursor_publications == 1);
+
+    reset_fixture();
+    allow_superuser = 0;
+    request = 5;
+    HK_CHECK(call_ioctl(0, TFALLOC, &request, FREAD | FWRITE) == EPERM);
+    HK_CHECK(swap_ioctl_test_start(0) == 0);
+    HK_CHECK(free_total() == MAP_BLOCKS);
+    HK_CHECK(cursor_publications == 0);
+}
+
+/* The size query stays open to any reader. */
+static void
+media_size_needs_no_privilege(void)
+{
+    off_t blocks = 5;
+    u_int media_size = 0xa5a5a5a5U;
+
+    reset_fixture();
+    HK_CHECK(call_ioctl(1, TFALLOC, &blocks, FREAD | FWRITE) == 0);
+    allow_superuser = 0;
+    superuser_calls = 0;
+    HK_CHECK(call_ioctl(1, DIOCGETMEDIASIZE, &media_size, FREAD) == 0);
+    HK_CHECK(media_size == 5);
+    HK_CHECK(superuser_calls == 0);
+}
+
 int
 main(void)
 {
@@ -223,5 +321,8 @@ main(void)
     shortage_reports_zero_with_success();
     replacement_shortage_leaves_device_empty();
     invalid_requests_preserve_state();
+    read_only_descriptor_is_refused();
+    non_superuser_is_refused();
+    media_size_needs_no_privilege();
     return hk_verdict("swap ioctl result contract");
 }

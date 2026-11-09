@@ -8,7 +8,7 @@ STATE_START = "#define TD_APPEND_DISABLED 0xffffU\n"
 STATE_END = "static struct swtemp td[NTMP];"
 SWSIZE_SIGNATURE = "daddr_t\nswsize(dev_t dev)"
 SWCIOCTL_SIGNATURE = (
-    "int\nswcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)"
+    "int\nswcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)"
 )
 INCLUDES = """#include <sys/param.h>
 #include <sys/systm.h>

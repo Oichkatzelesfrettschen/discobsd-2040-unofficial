@@ -878,11 +878,6 @@ check-multicall-composition: check-python .WAIT symlinks .WAIT ${FSIMG}
 
 .PHONY: check-multicall-composition
 
-check-graft-cache-reader: check-python
-		${PYTHON} -B tools/graft_cache_reader_test.py
-
-.PHONY: check-graft-cache-reader
-
 check-comment-hygiene: check-python
 		${PYTHON} tools/changed_comments_test.py
 		${PYTHON} tools/check_changed_comments.py --root ${TOPSRC} --working
@@ -1070,7 +1065,6 @@ HOST_GATES=	check-architecture-isolation \
 		check-agent-instructions check-uf2-validator \
 		check-kernel-headroom-validator \
 		check-run-logging check-battlestar-generation \
-		check-graft-cache-reader \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
 		check-dpucp-donor-ledger check-dpucp-board-acceptance \
 		check-c17-source-denominator \

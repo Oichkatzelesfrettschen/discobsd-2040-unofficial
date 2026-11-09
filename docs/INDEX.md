@@ -228,6 +228,8 @@ Grouped by what they investigate.
 | `os-options.md` | the Unix-like systems that target the Pico, compared |
 | `dual-boot.md` | FUZIX and NuttX coexistence on one board |
 | `bsd44-backport.md` | the 4.4BSD-Lite2 candidates worth backporting |
+| `tiny-rump-components.md` | NetBSD rump kernels measured for the RP2040: the base exceeds the kernel flash and the user window, the uncommitted NanoRump design audited and its hypercall table, link set and buffer path refuted, and NetBSD's component-core plus host-backend split (v7fs, makefs msdosfs) as the plan, with a sync manifest and ordered falsifiers |
+| `tiny-rump-components/` | the cross-compile and symbol-count script behind the rump measurements, including the calibrated link-set probe |
 | `netbsd110-tinyspace.md` | NetBSD 1.0, the 1994 release and not NetBSD 10 or 11.0, compared to this port, and what still fits the 144 KB window as C17 |
 | `integration-review.md` | sh-lineedit, stevie-vi and swapram reviewed together |
 | `static-analysis.md` | the static analysis run over the port and what it found |

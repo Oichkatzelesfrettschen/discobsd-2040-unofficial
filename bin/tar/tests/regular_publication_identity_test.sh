@@ -153,6 +153,18 @@ grep -F "tar regular publication: rooted cleanup"     "$write_failure_output" >/
 [ ! -e "$write_failure_root/victim" ] ||
     fail "output write error published a final target"
 
+# The staging corpus names 62 candidates that differ only in letter case.
+# A case-insensitive volume (macOS's default APFS) folds them together and
+# leaves no free candidate, so the two cases that need the corpus are
+# skipped and reported there; DiscoBSD's UFS and Linux CI are case-sensitive.
+: >"$work_directory/case-probe"
+if [ -e "$work_directory/CASE-PROBE" ]; then
+    case_sensitive=0
+else
+    case_sensitive=1
+fi
+
+if [ "$case_sensitive" -eq 1 ]; then
 collision_root=$work_directory/staging-collisions
 prepare_collision_root "$collision_root"
 (
@@ -176,6 +188,9 @@ for character in alphabet[:-1]:
 if (root / "00000z").exists() or (root / "00000z").is_symlink():
     raise SystemExit("published staging candidate remains named")
 PY
+else
+    echo "tar regular publication: SKIP bounded staging search: case-insensitive volume"
+fi
 
 run_rejection_case() {
     binary=$1
@@ -309,6 +324,7 @@ $compiler $common_flags -o "$work_directory/tar_single_stage_mutant" \
     "$source_directory/tests/rooted_link_host.c" ||
     fail "compile single-stage mutation"
 
+if [ "$case_sensitive" -eq 1 ]; then
 single_stage_root=$work_directory/single-stage-mutant
 prepare_collision_root "$single_stage_root"
 single_stage_output=$work_directory/single-stage-mutant.out
@@ -327,6 +343,9 @@ grep -F "tar: allocate staged output victim:" \
     fail "single-stage mutation failed outside staged allocation"
 [ ! -e "$single_stage_root/victim" ] ||
     fail "single-stage mutation published the final target"
+else
+    echo "tar regular publication: SKIP staging search mutation: case-insensitive volume"
+fi
 
 "$PYTHON" - "$source_directory/tar.c" \
     "$work_directory/tar_no_exit_cleanup_mutant.c" <<'PY'

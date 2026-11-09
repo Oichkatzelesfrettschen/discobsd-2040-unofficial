@@ -13,6 +13,14 @@
 #       assertion for the ARM target when arm-none-eabi-gcc is present.
 #   -Wno-unused-parameter  scratch_remain() in v7fs_io.c uses its argument
 #       only under STATIC_BUFFER.
+# The imported files also compile without the alignment sanitizer.
+# v7fs_superblock.c (the free-list load) and sbin/newfs_v7fs/main.c (the
+# free-list shift) pass pointers to the packed structs' daddr arrays, at
+# offset 2, to memcpy and memmove. Forming such a pointer is undefined in ISO
+# C (C11 6.3.2.3p7), and clang's -fsanitize=alignment reports it; no access
+# through it is unaligned, because arm-none-eabi-gcc and clang for thumbv6m
+# both lower these copies to library calls and lower direct packed-member
+# stores to byte stores. The test program keeps every sanitizer.
 # The test program itself compiles with every warning enabled.
 
 set -eu
@@ -38,19 +46,32 @@ file file_util io_user"
 # SOURCE_DIR/sys/fs/v7fs and SOURCE_DIR/sbin/newfs_v7fs.
 build()
 {
-	sources=
-	for f in $core; do
-		sources="$sources $1/sys/fs/v7fs/v7fs_$f.c"
+	objects=
+	mkdir -p "$2.obj"
+	for source in $(for f in $core; do echo "$1/sys/fs/v7fs/v7fs_$f.c"; done) \
+	    "$1/sbin/newfs_v7fs/main.c"; do
+		object=$2.obj/$(basename "$source" .c).o
+		compile -Wno-address-of-packed-member -Wno-unused-parameter \
+		    -fno-sanitize=alignment -I"$1/sys/fs/v7fs" \
+		    -I"$1/sbin/newfs_v7fs" -c -o "$object" "$source" ||
+		    fail "sanitizer build of $source"
+		objects="$objects $object"
 	done
-	# shellcheck disable=SC2086  # $sources is a list of paths without spaces.
+	compile -I"$1/sys/fs/v7fs" -I"$1/sbin/newfs_v7fs" -c \
+	    -o "$2.obj/v7fs_core_test.o" "$here/v7fs_core_test.c" ||
+	    fail "sanitizer build of v7fs_core_test.c"
+	# shellcheck disable=SC2086  # $objects is a list of paths without spaces.
+	${CC:-cc} -fsanitize=address,undefined -o "$2" \
+	    "$2.obj/v7fs_core_test.o" $objects || fail "link of $2"
+}
+
+# compile ARG...: one translation unit with the sanitizers and full warnings.
+compile()
+{
 	${CC:-cc} -std=gnu17 -O1 -g -Wall -Wextra -Werror \
-	    -Wno-address-of-packed-member -Wno-unused-parameter \
 	    -fsanitize=address,undefined -fno-sanitize-recover=undefined \
 	    -DV7FS_EI -DHAVE_NBTOOL_CONFIG_H=1 \
-	    -include "$here/compat/netbsd_host.h" -I"$here/compat" \
-	    -I"$1/sys/fs/v7fs" -I"$1/sbin/newfs_v7fs" -o "$2" \
-	    "$here/v7fs_core_test.c" $sources "$1/sbin/newfs_v7fs/main.c" ||
-	    fail "sanitizer build of $1"
+	    -include "$here/compat/netbsd_host.h" -I"$here/compat" "$@"
 }
 
 # mutant NAME FILE OLD NEW: a copy of the imported sources with FILE's one

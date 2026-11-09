@@ -128,6 +128,43 @@ for order in pdp little; do
 	"$work/v7fs_core" "$work/$order.img" "$order" || fail "$order run"
 done
 
+# The local patches: their regression scenarios hold, and the core with
+# each patch reversed fails its scenario by name with the assertion status.
+"$work/v7fs_core" "$work/regress.img" little regress >"$work/regress.log" ||
+    { cat "$work/regress.log" >&2; fail "regression scenarios"; }
+
+# unpatched NAME PATCH LABEL...: the imported sources with PATCH reversed,
+# built as $work/NAME, must fail every LABEL in regress mode.
+unpatched()
+{
+	name=$1
+	patch=$topsrc/tools/netbsd-patches/$2
+	shift 2
+	tree=$work/$name
+	mkdir -p "$tree/sys/fs" "$tree/sbin"
+	cp -R "$v7fs" "$tree/sys/fs/"
+	cp -R "$newfs" "$tree/sbin/"
+	(cd "$tree" && git apply --reverse "$patch") || fail "reverse of $patch"
+	build "$tree" "$work/$name.bin"
+	got=0
+	"$work/$name.bin" "$work/mutant.img" little regress >"$work/mutant.log" \
+	    2>&1 || got=$?
+	if [ "$got" -ne 1 ]; then
+		cat "$work/mutant.log" >&2
+		fail "$name exited $got, not the assertion status 1"
+	fi
+	for label in "$@"; do
+		if ! grep -q "^FAIL $label:" "$work/mutant.log"; then
+			cat "$work/mutant.log" >&2
+			fail "$name did not report $label"
+		fi
+	done
+	echo "v7fs_core: core without $(basename "$patch") fails: $*"
+}
+unpatched no-newfs-patch newfs_v7fs-main.patch regress-ilist
+unpatched no-inode-patch v7fs_inode.patch regress-last-inode regress-inode-bound
+unpatched no-superblock-patch v7fs_superblock.patch regress-superblock
+
 # The ARM target lays out struct v7fs_self with four-byte pointers; repeat
 # the freeinode alignment assertion there when the cross compiler exists.
 if command -v arm-none-eabi-gcc >/dev/null 2>&1; then
@@ -252,5 +289,41 @@ status 1 "$tool" cat "$work/corrupt.img" /big
 [ "$(wc -c <"$work/corrupt.img")" -eq "$size_before" ] ||
     fail "corrupt image changed size"
 echo "v7fs_core: corrupt block pointer rejected with status 1"
+
+# newfs refuses a geometry it cannot format before creating the target: a
+# volume below the 128 sectors a mount accepts, and an inode list that
+# leaves no room for the free-block cache.
+status 1 "$tool" newfs "$work/small.img" 100
+status 1 "$tool" newfs "$work/crowded.img" 2048 65535
+[ ! -e "$work/small.img" ] && [ ! -e "$work/crowded.img" ] ||
+    fail "newfs created a refused image"
+
+# A put that does not fit is refused before any block is allocated: the
+# free counts stay exact and no partial file remains. The 128-sector image
+# has 120 free data blocks; big takes 80, so a second copy cannot fit.
+status 0 "$tool" newfs "$work/full.img" 128
+status 0 "$tool" put "$work/full.img" "$work/pat/big" /a
+status 0 "$tool" df "$work/full.img"
+before=$(cat "$work/cmd.out")
+status 1 "$tool" put "$work/full.img" "$work/pat/big" /b
+status 0 "$tool" df "$work/full.img"
+[ "$(cat "$work/cmd.out")" = "$before" ] || fail "refused put changed free counts"
+status 1 "$tool" cat "$work/full.img" /b
+echo "v7fs_core: oversized put refused with exact free counts"
+
+# get truncates nothing it should not: a directory source, the image as
+# its own destination, and a hard link to the image are refused, and each
+# destination keeps its bytes.
+cp "$work/pat/hello" "$work/keep"
+status 1 "$tool" get "$work/tool-little.img" / "$work/keep"
+cmp -s "$work/keep" "$work/pat/hello" || fail "get of a directory truncated"
+cp "$work/tool-little.img" "$work/self.img"
+cp "$work/self.img" "$work/self.ref"
+status 1 "$tool" get "$work/self.img" /hello "$work/self.img"
+cmp -s "$work/self.img" "$work/self.ref" || fail "get overwrote its image"
+ln "$work/self.img" "$work/self.link"
+status 1 "$tool" get "$work/self.img" /hello "$work/self.link"
+cmp -s "$work/self.img" "$work/self.ref" || fail "get overwrote its image by a link"
+echo "v7fs_core: get refuses a directory, its image and a link to it"
 
 echo "v7fs_core: PASS (pdp and little; 3 mutants rejected; usr.sbin/v7fs)"

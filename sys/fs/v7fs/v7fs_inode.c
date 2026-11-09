@@ -87,7 +87,7 @@ int
 v7fs_inode_number_sanity(const struct v7fs_superblock *sb, v7fs_ino_t ino)
 {
 
-	if (ino < V7FS_ROOT_INODE || ((size_t)ino >= V7FS_MAX_INODE(sb))) {
+	if (ino < V7FS_ROOT_INODE || ((size_t)ino > V7FS_MAX_INODE(sb))) {
 		DPRINTF("invalid inode#%d (%d-%zu)\n", ino,
 		    V7FS_ROOT_INODE, V7FS_MAX_INODE(sb));
 		return ENOSPC;
@@ -125,6 +125,8 @@ v7fs_inode_allocate(struct v7fs_self *fs, v7fs_ino_t *ino)
 		DPRINTF("new inode#%d %d %d\n", inode_number, sb->nfreeinode,
 		    sb->total_freeinode);
 		DPRINTF("free inode list corrupt\n");
+		/* The entry names no inode, so it frees no count. */
+		sb->total_freeinode++;
 		goto errexit;
 	}
 	*ino = inode_number;
@@ -282,9 +284,10 @@ v7fs_inode_inquire_disk_location(const struct v7fs_self *fs
     v7fs_daddr_t *offset)
 {
 	v7fs_daddr_t ofs, blk;
-#ifdef V7FS_INODE_DEBUG
-	v7fs_inode_number_sanity(&fs->superblock, n);
-#endif
+
+	/* Inode 1 is the bad-block inode newfs writes; others start at 2. */
+	if (n < 1 || (size_t)n > V7FS_MAX_INODE(&fs->superblock))
+		return ENOSPC;
 	ofs = (n - 1/*inode start from 1*/) *
 	    sizeof(struct v7fs_inode_diskimage);
 	blk = ofs >> V7FS_BSHIFT;

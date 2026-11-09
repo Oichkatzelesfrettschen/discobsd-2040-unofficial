@@ -234,6 +234,17 @@ deepest direct call chain 376 bytes on Cortex-M0+, plus the 512-byte block
 buffer each data callback holds, so the program occupies about 25 KB of
 the 144 KB window. It installs to `/usr/sbin` and no manifest lists it.
 
+The front end guards the host's side of the contract. `newfs` checks the
+geometry before touching the target: at least the 128 sectors a mount
+accepts, no more than v7fs addresses or `off_t` offsets, and a data area
+that holds the 50-entry free-block cache. `put` and `mkdir` compute the
+data and index blocks a file needs, plus a parent-directory block, and
+refuse with `ENOSPC` before allocating, because `v7fs_datablock_expand()`
+keeps the blocks it took when it fails part way. `get` checks that its
+source is a regular file and that its destination is neither the image nor
+another name or device node for it before truncating, and every modifying
+command reports a failed `fsync()`.
+
 The imported files compile in NetBSD's gnu17 dialect with the two warning
 exemptions `check-v7fs-core` documents; the DiscoBSD files compile as
 strict C17 with `-Wpedantic`, seeing the imported headers through
@@ -286,13 +297,39 @@ The user-space server and the core-1 driver engine are not placements.
 SHA-256 of each imported file. An imported file keeps its NetBSD path, so
 `sys/fs/v7fs/v7fs_inode.c` names the same file in both trees, and a
 directory holding an imported file holds nothing else. `tools/netbsd_imports.py`
-carries the procedure: `sync NETBSD_SRC [--add PATH]` copies the listed
-files from a NetBSD checkout, rewrites the hashes and the revision, and
-prints each path whose content changed, which is the diff a revision bump
-puts up for review; `verify` checks the tree against the manifest without
-a NetBSD checkout, so `check-netbsd-imports` runs in CI. Imported files
-stay byte-identical to NetBSD with their license headers, so every local
-change lives in a backend or adapter file outside the hashed set.
+carries the procedure: `sync NETBSD_SRC [--revision REV] [--add PATH]
+[--patch PATH=PATCH]` reads the listed files from the git objects of the
+revision, never from the checkout's working tree, applies the recorded
+patches, rewrites the hashes and the revision, and prints each path whose
+content changed, which is the diff a revision bump puts up for review;
+`verify` checks the tree against the manifest without a NetBSD checkout,
+so `check-netbsd-imports` runs in CI. Imported files keep their license
+headers, and every local change is either a backend or adapter file
+outside the hashed set or a recorded patch: a patched file's manifest line
+holds its own hash, NetBSD's hash and the patch under
+`tools/netbsd-patches`, `verify` reverses the patch to reproduce NetBSD's
+bytes, and `sync` stops when a NetBSD change makes the patch stop applying.
+
+Three patches correct defects review found in NetBSD's code, each with a
+regression scenario that fails when its patch is reversed:
+
+- `newfs_v7fs-main.patch`: `make_filesystem()` cleared sectors 2 through
+  `ilist_size - 1`, treating a block count as an end sector, so formatting
+  media that held data left the inode list's last two blocks with stale
+  inodes the superblock counted as free.
+- `v7fs_inode.patch`: `v7fs_inode_number_sanity()` rejected the last inode
+  slot, whose number equals `V7FS_MAX_INODE()`, after
+  `v7fs_inode_allocate()` had already decremented the free count;
+  `v7fs_inode_inquire_disk_location()` bounded the inode number only under
+  `V7FS_INODE_DEBUG`, so a corrupt directory entry could steer an inode
+  write into a data block. The patch makes the bound inclusive, restores
+  the count when a cache entry names no inode, and bounds every lookup to
+  inodes 1 through `V7FS_MAX_INODE()`.
+- `v7fs_superblock.patch`: `v7fs_superblock_sanity()` bounded the signed
+  free-cache counts only from above, so a negative count, or an empty block
+  cache while blocks remain free, reached the cache arrays out of bounds.
+
+Each is a candidate for a NetBSD problem report; none has been sent.
 `rtems-libbsd` (`builder.py` in BSD_Workspace) imports FreeBSD the same
 way, at much larger scale.
 

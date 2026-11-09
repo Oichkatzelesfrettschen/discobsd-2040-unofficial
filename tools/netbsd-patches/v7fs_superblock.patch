@@ -1,0 +1,14 @@
+--- a/sys/fs/v7fs/v7fs_superblock.c
++++ b/sys/fs/v7fs/v7fs_superblock.c
+@@ -122,8 +122,9 @@
+ 
+ 	if ((sb->volume_size < 128) || /* smaller than 64KB. */
+ 	    (sb->datablock_start_sector > sb->volume_size) ||
+-	    (sb->nfreeinode > V7FS_MAX_FREEINODE) ||
+-	    (sb->nfreeblock > V7FS_MAX_FREEBLOCK) ||
++	    (sb->nfreeinode < 0) || (sb->nfreeinode > V7FS_MAX_FREEINODE) ||
++	    (sb->nfreeblock < 0) || (sb->nfreeblock > V7FS_MAX_FREEBLOCK) ||
++	    ((sb->nfreeblock == 0) && (sb->total_freeblock != 0)) ||
+ 	    (sb->update_time < 0) ||
+ 	    (sb->total_freeblock > sb->volume_size) ||
+ 	    ((sb->nfreeinode == 0) && (sb->nfreeblock == 0) &&

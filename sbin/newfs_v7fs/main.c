@@ -212,7 +212,8 @@ make_filesystem(struct v7fs_self *fs, v7fs_daddr_t volume_size,
 	progress(&(struct progress_arg){ .label = "zero ilist", .tick =
 	    ilist_size / PROGRESS_BAR_GRANULE });
 	memset(buf, 0, sizeof buf);
-	for (i = V7FS_ILIST_SECTOR; i < (int32_t)ilist_size; i++) {
+	for (i = V7FS_ILIST_SECTOR; i < V7FS_ILIST_SECTOR + (int32_t)ilist_size;
+	    i++) {
 		fs->io.write(fs->io.cookie, buf, i);
 		progress(0);
 	}

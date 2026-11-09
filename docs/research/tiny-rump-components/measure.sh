@@ -10,8 +10,10 @@
 # environment, then BSD_Workspace/netbsd-src beside the primary checkout
 # (the directory holding the repository's common .git, so a worktree finds
 # the same sibling), and exits 2 when none exists. OUTDIR
-# receives objects, logs and results.tsv; without it the script makes a
-# fresh directory under ${TMPDIR:-/tmp} and prints its path. Every object
+# receives objects, logs and results.tsv and must be absent or empty, so no
+# object from an earlier revision joins the sums; without it the script
+# makes a fresh directory under ${TMPDIR:-/tmp} and prints its path. Every
+# object
 # is compiled only, never linked into an image: a size here bounds code
 # before link-time garbage collection and excludes libkern, libc and the
 # rumpuser hypercall layer. Sizes vary with the compiler version, which
@@ -43,6 +45,10 @@ if [ ! -d "$NB/sys/rump" ]; then
 	exit 2
 fi
 OUT=${2:-$(mktemp -d "${TMPDIR:-/tmp}/rump-measure.XXXXXX")}
+if [ -d "$OUT" ] && [ -n "$(ls -A "$OUT")" ]; then
+	echo "measure.sh: $OUT is not empty; give an absent or empty OUTDIR" >&2
+	exit 2
+fi
 echo "measure.sh: netbsd-src $NB, output $OUT" >&2
 CC_ARM=${CC_ARM:-arm-none-eabi-gcc}
 LD_ARM=${LD_ARM:-arm-none-eabi-ld}

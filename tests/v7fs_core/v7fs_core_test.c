@@ -24,6 +24,9 @@
  * own consistent but wrong layout passes the core check and fails the
  * reader, which the swapped-address mutant in check.sh demonstrates.
  *
+ * "v7fs_core_test IMAGE little regress" runs the regression scenarios for
+ * the local patches under tools/netbsd-patches.
+ *
  * Two further modes let check.sh drive usr.sbin/v7fs through the same
  * checks: "v7fs_core_test DIR - patterns" writes the three files (hello, big,
  * inner) into DIR, and "v7fs_core_test IMAGE ORDER verify" skips formatting
@@ -498,6 +501,141 @@ reader(void)
 	    SB_TINODE);
 }
 
+/*
+ * Regression scenarios for the local patches under tools/netbsd-patches,
+ * each reported under its own label; check.sh also runs them against the
+ * core with each patch reversed, where the matching label must fail.
+ */
+static void
+put16(uint8_t *p, unsigned v)
+{
+	p[0] = (uint8_t)v;
+	p[1] = (uint8_t)(v >> 8);
+}
+
+static int
+format_image(int fd, int32_t files, uint8_t fill)
+{
+	struct v7fs_mount_device device;
+	size_t i;
+
+	memset(image, fill, sizeof(image));
+	if (lseek(fd, 0, SEEK_SET) != 0)
+		return EIO;
+	for (i = 0; i < sizeof(image); i += 512)
+		if (write(fd, image + i, 512) != 512)
+			return EIO;
+	memset(&device, 0, sizeof(device));
+	device.device.fd = fd;
+	device.sectors = SECTORS;
+	device.endian = byte_order;
+	return v7fs_newfs(&device, files);
+}
+
+static int
+load_raw(int fd)
+{
+	return lseek(fd, 0, SEEK_SET) == 0 &&
+	    read(fd, image, sizeof(image)) == (ssize_t)sizeof(image) ? 0 : EIO;
+}
+
+static void
+regress(int fd)
+{
+	struct v7fs_self *fs;
+	struct v7fs_inode root, inode;
+	struct v7fs_fileattr attr;
+	char name[8];
+	v7fs_ino_t ino;
+	unsigned i, allocated;
+	uint8_t before[512];
+	int error;
+
+	/* newfs clears the whole inode list over media that held data. */
+	if (format_image(fd, 64, 0xff) != 0 || load_raw(fd) != 0) {
+		fail("regress-ilist", "format over filled media failed");
+	} else {
+		allocated = 0;
+		for (ino = 1; ino <= (SB_ISIZE - 2) * 8; ino++)
+			allocated += le16(dinode(ino)) != 0;
+		check(allocated == 2 && SB_TINODE + 2 == (SB_ISIZE - 2) * 8u,
+		    "regress-ilist", "stale inodes survive formatting");
+	}
+
+	/* Every inode slot up to the last can be allocated, then none. */
+	memset(&attr, 0, sizeof(attr));
+	attr.mode = V7FS_IFREG | 0644;
+	if (format_image(fd, 16, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-last-inode", "format or mount failed");
+	} else {
+		for (i = 1; i <= 15; i++) {
+			snprintf(name, sizeof(name), "f%u", i);
+			if (v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0)
+				break;
+			error = v7fs_file_allocate(fs, &root, name, strlen(name),
+			    &attr, &ino);
+			if (i <= 14 && error != 0) {
+				fail("regress-last-inode",
+				    "a free inode slot cannot be allocated");
+				break;
+			}
+			if (i == 15)
+				check(error == ENOSPC &&
+				    fs->superblock.total_freeinode == 0,
+				    "regress-last-inode",
+				    "allocation past the last slot misreports");
+		}
+		v7fs_io_fini(fs);
+	}
+
+	/* An inode number past the inode list names no inode. */
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-inode-bound", "format or mount failed");
+	} else {
+		/* Inode 785 would sit in sector 100, inside the data area. */
+		ino = 785;
+		if (lseek(fd, 100 * 512, SEEK_SET) != 100 * 512 ||
+		    read(fd, before, sizeof(before)) != (ssize_t)sizeof(before)) {
+			fail("regress-inode-bound", "read of sector 100 failed");
+		} else {
+			check(v7fs_inode_load(fs, &inode, ino) != 0,
+			    "regress-inode-bound", "an out-of-list inode loads");
+			memset(&inode, 0, sizeof(inode));
+			inode.inode_number = ino;
+			inode.mode = V7FS_IFREG | 0644;
+			check(v7fs_inode_writeback(fs, &inode) != 0,
+			    "regress-inode-bound", "an out-of-list inode writes");
+			check(load_raw(fd) == 0 &&
+			    memcmp(image + 100 * 512, before, sizeof(before)) == 0,
+			    "regress-inode-bound", "a data block was overwritten");
+		}
+		v7fs_io_fini(fs);
+	}
+
+	/* A superblock whose free-block cache count is invalid is refused. */
+	if (format_image(fd, 64, 0) != 0 || load_raw(fd) != 0) {
+		fail("regress-superblock", "format failed");
+	} else {
+		put16(image + 512 + 6, 0xffff);		/* nfreeblock = -1 */
+		if (lseek(fd, 512, SEEK_SET) != 512 ||
+		    write(fd, image + 512, 512) != 512) {
+			fail("regress-superblock", "superblock write failed");
+		} else if ((fs = mount_image(fd)) != NULL) {
+			fail("regress-superblock", "a negative nfreeblock mounts");
+			v7fs_io_fini(fs);
+		}
+		put16(image + 512 + 6, 0);		/* empty cache, blocks free */
+		if (lseek(fd, 512, SEEK_SET) != 512 ||
+		    write(fd, image + 512, 512) != 512) {
+			fail("regress-superblock", "superblock write failed");
+		} else if ((fs = mount_image(fd)) != NULL) {
+			fail("regress-superblock",
+			    "an empty block cache with free blocks mounts");
+			v7fs_io_fini(fs);
+		}
+	}
+}
+
 static int
 write_pattern(const char *dir, const char *name, const uint8_t *data,
     size_t size)
@@ -528,9 +666,24 @@ main(int argc, char **argv)
 		    write_pattern(argv[1], "big", big, sizeof(big)) ||
 		    write_pattern(argv[1], "inner", inner, sizeof(inner)) ? 2 : 0;
 	verify = argc == 4 && strcmp(argv[3], "verify") == 0;
+	if (argc == 4 && strcmp(argv[3], "regress") == 0 &&
+	    strcmp(argv[2], "little") == 0) {
+		byte_order = LITTLE_ENDIAN;
+		if ((fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0600)) == -1) {
+			perror(argv[1]);
+			return 2;
+		}
+		regress(fd);
+		close(fd);
+		if (failures != 0)
+			return 1;
+		printf("v7fs_core: regression scenarios hold\n");
+		return 0;
+	}
 	if ((argc != 3 && !verify) || (strcmp(argv[2], "little") != 0 &&
 	    strcmp(argv[2], "pdp") != 0)) {
 		fprintf(stderr, "usage: v7fs_core_test IMAGE little|pdp [verify]\n"
+		    "       v7fs_core_test IMAGE little regress\n"
 		    "       v7fs_core_test DIR - patterns\n");
 		return 2;
 	}

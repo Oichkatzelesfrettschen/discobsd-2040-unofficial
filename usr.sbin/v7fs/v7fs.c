@@ -43,6 +43,7 @@
 #include "v7fs_dirent.h"
 #include "v7fs_file.h"
 #include "newfs_v7fs.h"
+#include "v7fs_io_fd.h"
 
 /* sbin/newfs_v7fs/main.c reports through these; this tool stays silent. */
 int v7fs_newfs_verbose = 0;
@@ -128,8 +129,11 @@ image_close(struct image *im, bool writing)
 {
 	int error = 0;
 
-	if (writing)
+	if (writing) {
 		error = v7fs_superblock_writeback(im->fs);
+		if (fsync(im->fd) != 0 && error == 0)
+			error = errno;
+	}
 	v7fs_io_fini(im->fs);
 	if (close(im->fd) != 0 && error == 0)
 		error = errno;
@@ -280,20 +284,34 @@ cmd_newfs(const char *path, const char *sectors_arg, const char *files_arg)
 {
 	struct v7fs_mount_device device;
 	char *end;
-	long sectors, files = 0;
+	long sectors, files = 0, ilist;
 	struct stat st;
 	int fd, error;
 
 	errno = 0;
 	sectors = strtol(sectors_arg, &end, 10);
-	if (errno != 0 || *end != '\0' || sectors < 3 ||
+	/* v7fs_superblock_sanity() refuses a volume below 128 sectors. */
+	if (errno != 0 || *end != '\0' || sectors < 128 ||
 	    sectors > V7FS_DADDR_MAX + 1L)
 		return fail("sectors", EINVAL);
+	if ((uint64_t)sectors > V7FS_FD_MAX_SECTORS)
+		return fail("sectors", EFBIG);
 	if (files_arg != NULL) {
 		files = strtol(files_arg, &end, 10);
 		if (errno != 0 || *end != '\0' || files < 0 || files > 65535)
 			return fail("files", EINVAL);
 	}
+	/*
+	 * The inode list as determine_ilist_size() in sbin/newfs_v7fs/main.c
+	 * sizes it; the data area after it must hold the 50-entry free-block
+	 * cache newfs fills, so a refused geometry leaves the target untouched.
+	 */
+	ilist = files != 0 ? (files + (long)V7FS_INODE_PER_BLOCK - 1) /
+	    (long)V7FS_INODE_PER_BLOCK : sectors / 25;
+	if (ilist > (long)V7FS_ILISTBLK_MAX)
+		ilist = (long)V7FS_ILISTBLK_MAX;
+	if (ilist < 1 || sectors - V7FS_ILIST_SECTOR - ilist <= V7FS_MAX_FREEBLOCK)
+		return fail("newfs", ENOSPC);
 	if ((fd = open(path, O_RDWR | O_CREAT, 0644)) < 0)
 		return fail(path, errno);
 	/* An image file grows to the requested size; a device is used as is. */
@@ -309,11 +327,47 @@ cmd_newfs(const char *path, const char *sectors_arg, const char *files_arg)
 	device.sectors = (daddr_t)sectors;
 	device.endian = byte_order;
 	error = v7fs_newfs(&device, (int32_t)files);
+	if (error == 0 && fsync(fd) != 0)
+		error = errno;
 	if (close(fd) != 0 && error == 0)
 		error = errno;
 	return error != 0 ? fail("newfs", error) : 0;
 }
 
+/*
+ * Data blocks plus index blocks a file of SIZE bytes occupies: ten direct
+ * addresses, then single, double and triple indirect blocks of
+ * V7FS_DADDR_PER_BLOCK addresses each, as v7fs_datablock_expand() allocates
+ * them.
+ */
+static uint64_t
+blocks_for(uint64_t size)
+{
+	const uint64_t per = V7FS_DADDR_PER_BLOCK;
+	uint64_t n = (size + V7FS_BSIZE - 1) / V7FS_BSIZE, total = n, level;
+
+	if (n <= V7FS_NADDR_DIRECT)
+		return total;
+	n -= V7FS_NADDR_DIRECT;
+	total += 1;				/* single indirect */
+	if (n <= per)
+		return total;
+	n -= per;
+	level = n < per * per ? n : per * per;
+	total += 1 + (level + per - 1) / per;	/* double indirect */
+	n -= level;
+	if (n == 0)
+		return total;
+	total += 1 + (n + per * per - 1) / (per * per) + (n + per - 1) / per;
+	return total;
+}
+
+/*
+ * put and mkdir: v7fs_datablock_expand() keeps the blocks it took when it
+ * runs out part way, and nothing then owns them, so the whole requirement,
+ * including a new block for the parent directory's entry, is checked
+ * against the free count before anything is allocated.
+ */
 static int
 cmd_put(struct image *im, const char *local, const char *path, bool directory)
 {
@@ -322,6 +376,7 @@ cmd_put(struct image *im, const char *local, const char *path, bool directory)
 	struct v7fs_inode parent, inode;
 	struct copy c = { -1, true };
 	struct stat st;
+	uint64_t needed;
 	v7fs_ino_t dir, ino;
 	int error;
 
@@ -329,6 +384,7 @@ cmd_put(struct image *im, const char *local, const char *path, bool directory)
 		return error;
 	if (leaf[0] == '\0')
 		return EEXIST;
+	st.st_size = 0;
 	memset(&attr, 0, sizeof(attr));
 	attr.mode = directory ? V7FS_IFDIR | 0755 : V7FS_IFREG | 0644;
 	attr.ctime = attr.mtime = attr.atime = (v7fs_time_t)time(NULL);
@@ -344,9 +400,22 @@ cmd_put(struct image *im, const char *local, const char *path, bool directory)
 			close(c.fd);
 			return EINVAL;
 		}
+		/* A v7fs file size is 32 bits (v7fs_off_t). */
+		if ((uint64_t)st.st_size > UINT32_MAX) {
+			close(c.fd);
+			return EFBIG;
+		}
 	}
-	if ((error = v7fs_inode_load(im->fs, &parent, dir)) != 0 ||
-	    (error = v7fs_file_allocate(im->fs, &parent, leaf, strlen(leaf),
+	if ((error = v7fs_inode_load(im->fs, &parent, dir)) != 0)
+		goto out;
+	needed = directory ? 1 : blocks_for((uint64_t)st.st_size);
+	if (v7fs_inode_filesize(&parent) % V7FS_BSIZE == 0)
+		needed++;
+	if (needed > im->fs->superblock.total_freeblock) {
+		error = ENOSPC;
+		goto out;
+	}
+	if ((error = v7fs_file_allocate(im->fs, &parent, leaf, strlen(leaf),
 	    &attr, &ino)) != 0)
 		goto out;
 	if (directory || st.st_size == 0)
@@ -373,6 +442,41 @@ out:
  * (v7fs_reclaim() in v7fs_vnops.c). This process holds no open files, so the
  * release follows at once.
  */
+/*
+ * get: the source must be a regular file, and the destination is truncated
+ * only once it is known not to be the image itself, under its own name, a
+ * hard link, or another node for the same device.
+ */
+static int
+cmd_get(struct image *im, const char *path, const char *local)
+{
+	struct v7fs_inode inode;
+	struct stat src, dst;
+	int out, error;
+
+	if ((error = lookup(im->fs, path, &inode)) != 0)
+		return error;
+	if (!v7fs_inode_isfile(&inode))
+		return EISDIR;
+	if ((out = open(local, O_WRONLY | O_CREAT, 0644)) < 0)
+		return errno;
+	if (fstat(im->fd, &src) != 0 || fstat(out, &dst) != 0) {
+		error = errno;
+	} else if ((src.st_dev == dst.st_dev && src.st_ino == dst.st_ino) ||
+	    (((S_ISBLK(src.st_mode) && S_ISBLK(dst.st_mode)) ||
+	    (S_ISCHR(src.st_mode) && S_ISCHR(dst.st_mode))) &&
+	    src.st_rdev == dst.st_rdev)) {
+		error = EINVAL;
+	} else if (ftruncate(out, 0) != 0) {
+		error = errno;
+	} else {
+		error = copy_out(im->fs, &inode, out);
+	}
+	if (close(out) != 0 && error == 0)
+		error = errno;
+	return error;
+}
+
 static int
 cmd_rm(struct image *im, const char *path)
 {
@@ -421,7 +525,7 @@ main(int argc, char **argv)
 	struct v7fs_inode inode;
 	const char *cmd;
 	bool writing;
-	int out, error;
+	int error;
 
 	if (argc > 0 && argv[0][0] != '\0')
 		program = argv[0];
@@ -468,16 +572,7 @@ main(int argc, char **argv)
 		if ((error = lookup(im.fs, argv[2], &inode)) == 0)
 			error = copy_out(im.fs, &inode, STDOUT_FILENO);
 	} else if (strcmp(cmd, "get") == 0) {
-		if ((error = lookup(im.fs, argv[2], &inode)) == 0) {
-			if ((out = open(argv[3], O_WRONLY | O_CREAT | O_TRUNC,
-			    0644)) < 0)
-				error = errno;
-			else {
-				error = copy_out(im.fs, &inode, out);
-				if (close(out) != 0 && error == 0)
-					error = errno;
-			}
-		}
+		error = cmd_get(&im, argv[2], argv[3]);
 	} else if (strcmp(cmd, "put") == 0) {
 		error = cmd_put(&im, argv[2], argv[3], false);
 	} else if (strcmp(cmd, "mkdir") == 0) {

@@ -23,7 +23,6 @@
 #include <sys/types.h>
 
 #include <errno.h>
-#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>	/* SEEK_SET */
@@ -33,10 +32,7 @@
 #include "v7fs.h"
 #include "v7fs_impl.h"
 #include "v7fs_endian.h"
-
-/* The largest off_t, formed without overflowing the signed type. */
-#define	OFF_LIMIT							\
-	((((uint64_t)1 << (sizeof(off_t) * CHAR_BIT - 2)) - 1) * 2 + 1)
+#include "v7fs_io_fd.h"
 
 struct fd_io {
 	int	fd;
@@ -105,8 +101,8 @@ v7fs_io_init(struct v7fs_self **fs, const struct v7fs_mount_device *mount,
 	 * A caller that cannot size a raw device passes V7FS_DADDR_MAX + 1;
 	 * every sector this backend seeks to must have its end within off_t.
 	 */
-	state.sectors = (uint64_t)mount->sectors > OFF_LIMIT / V7FS_BSIZE ?
-	    (daddr_t)(OFF_LIMIT / V7FS_BSIZE) : mount->sectors;
+	state.sectors = (uint64_t)mount->sectors > V7FS_FD_MAX_SECTORS ?
+	    (daddr_t)V7FS_FD_MAX_SECTORS : mount->sectors;
 	state.open = true;
 	self.io.cookie = &state;
 	self.io.read = fd_read;
@@ -115,11 +111,13 @@ v7fs_io_init(struct v7fs_self **fs, const struct v7fs_mount_device *mount,
 	return 0;
 }
 
+/*
+ * The caller owns the descriptor and its flush: v7fs.c checks fsync()
+ * before reporting success, which this void interface cannot return.
+ */
 void
 v7fs_io_fini(struct v7fs_self *fs)
 {
-	const struct fd_io *io = fs->io.cookie;
-
-	(void)fsync(io->fd);
+	(void)fs;
 	state.open = false;
 }

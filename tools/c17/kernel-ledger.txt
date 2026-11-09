@@ -158,7 +158,6 @@ sys/kern/vm_sched.c definition loadav both
 sys/kern/vm_sched.c definition sched both
 sys/kern/vm_sched.c definition vmmeter both
 sys/kern/vm_sched.c definition vmtotal both
-sys/kern/vm_swap.c definition swapimagespan both
 sys/kern/vm_swap.c definition swapin both
 sys/kern/vm_swap.c definition swapout both
 sys/kern/vm_swap.c definition swaptext both

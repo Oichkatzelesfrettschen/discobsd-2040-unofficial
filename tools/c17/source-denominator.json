@@ -66258,7 +66258,8 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast"
+            "integer-cast",
+            "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
           "pointer": [],

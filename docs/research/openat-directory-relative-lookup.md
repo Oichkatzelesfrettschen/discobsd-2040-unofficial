@@ -111,6 +111,48 @@ The comparison receipt is
 The resource comparator deliberately reports the two positive linked-flash
 deltas until this bounded exception receives review.
 
+## Identity-only regular-file extension
+
+The tar regular-file publication unit adds `O_IDENTITY = 0x00080000` to the
+public flag vocabulary without adding or changing a syscall. `copen()` admits
+that mode only with optional `O_NOFOLLOW`. `vn_open_at()` then retains only an
+existing regular inode, records `FIDENTITY` without `FREAD` or `FWRITE`, skips
+`openi()`, and releases namespace ownership. Directories and every data,
+creation, truncation, append, search, execution, nonblocking, synchronization,
+and locking combination are rejected before descriptor allocation or lookup.
+The mode gives identity-conditioned rooted publication a descriptor that does
+not depend on the target's read permission, including repeated tar members
+whose first mode is `0200` or `0000`.
+
+The ILP32 open fixture now executes 569 assertions. The new cases require
+permission-independent regular identity, suppressed provider dispatch,
+namespace release, directory refusal, and fourteen contradictory flag
+classes. Seventeen calibrated mutations include one that restores provider
+`openi()` for identity acquisition. Smaller C repeatedly includes `fcntl.h`
+and checks the exact numeric value. The complete kernel ILP32 aggregate,
+pathname-origin inventory, metadata, test-execution inventory, denominator,
+and both exact target distributions pass.
+
+An identity descriptor reaches the descriptor operations without the
+permission an ordinary open checks, so each one either refuses it or grants
+nothing its holder could not already do by pathname. `read`, `write` and
+`ftruncate` require `FREAD` or `FWRITE`, which the descriptor lacks.
+`fchmod`, `fchown` and `futimes` reach `ufs_setattr()`, which applies the
+same ownership and `access(ip, IWRITE)` rules as the pathname calls;
+`fstat` and `fstatfs` reveal what `stat` and `statfs` reveal after the same
+directory search. `linkat_beneath()` and `publishat_beneath()` find their
+sources by pathname and use the descriptor only to confirm identity, so an
+inode whose last name is gone cannot be linked again. Opening `/dev/fd/N`
+duplicates only into a subset of the descriptor's access mode
+(`dupfdopen()`), so the descriptor cannot be widened to `FREAD`. `flock()`
+refuses `FIDENTITY` with `EBADF`, because an advisory lock binds every
+other holder of the file: without the refusal, a user who may not read
+the mode-0600 database `passwd` and `chpass` build beside `/etc/ptmp`
+could hold `LOCK_EX` on its `.dir` file and stall both programs, which take
+a blocking exclusive lock on it before the rename.
+`kernel.file-owner` asserts the refusal for shared, exclusive, nonblocking
+and unlock requests.
+
 ## Residual namespace contract
 
 Directory-relative lookup preserves the identity of the starting directory

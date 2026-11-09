@@ -2055,22 +2055,28 @@ retain their own acceptance states.
 `check-kernel-ilp32` owns `kernel.openat-namei.ilp32`,
 `kernel.openat-namei-multifs.ilp32`, and `kernel.openat.ilp32`. All three ILP32
 programs link production `ufs_namei.c`, `vfs_vnops.c`, or `ufs_syscalls.c` as
-their exercised boundary requires. The one-mount lookup program executes 248
+their exercised boundary requires. The one-mount lookup program executes 249
 assertions over cwd, descriptor and root selection, path-copy precedence,
 permissions, restricted pathname syntax, symbolic links, locked-parent
 deletion, and balanced traversal references. The two-mount lookup program
-executes the same contracts plus mounted-filesystem refusal for 309 assertions.
-The open program executes 121 assertions over `O_NOFOLLOW`, `O_DIRECTORY`,
-`O_SEARCH`, empty paths, descriptor allocation, interruption, device-open
-failure and unchanged ordinary `open()` behavior.
+executes the same contracts plus mounted-filesystem refusal for 310 assertions.
+The open program executes 569 assertions over `O_NOFOLLOW`, `O_DIRECTORY`,
+`O_SEARCH`, `O_IDENTITY`, empty paths, descriptor allocation, interruption,
+device-open failure, rooted open and mkdir namespace ownership, and unchanged
+ordinary `open()` behavior. Identity acquisition accepts only regular inodes,
+grants `FIDENTITY` without data access, skips `openi()`, releases namespace
+ownership, and rejects fourteen contradictory flag classes before allocation
+or lookup.
 
-`check-openat-mutants` generates six warning-clean source variants. The
-current-directory substitution must fail `result == &descriptor_inode`; the
-absolute-path descriptor consultation must fail `result == &root_inode`; an
-accepted empty restricted path must fail `namei_at(&name, 7) == NULL`; and
-restricted symlink following, mounted-filesystem continuation, and final-link
-following must fail their respective `ELOOP` or `EXDEV` assertions. Compilation
-or an unrelated assertion cannot satisfy the expected-rejection contract.
+`check-openat-mutants` generates seventeen warning-clean source variants. Five
+namei mutations cover directory/root selection, empty restricted paths,
+restricted symbolic links, and mounted filesystems. Three `vn_open_at()`
+mutations cover final-link following, namespace ownership across a provider,
+and forbidden provider dispatch for identity-only opens. Nine syscall
+mutations cover rooted lookup policy, namespace release and handoff, competing
+ownership, and mkdir rollback references. Each mutation must fail its named
+assertion; compilation or a different assertion cannot satisfy the
+expected-rejection contract.
 
 `check-namei-user-path` continues to own the exact pathname-origin transition
 inventory and its nine mutations. `check-kernel-metadata` owns syscall 157,
@@ -2381,3 +2387,46 @@ and `06a94f7851fd08a9b65860213c2397a494e6668ec394eeca5b4956453ed690b2`.
 Runtime stack and heap high-water, descriptor/inode pressure under a complete
 extraction workload, directory-write recovery, persistent-media traffic, and
 physical-board behavior retain separate evidence states.
+
+### Tar rooted regular-file publication
+
+`check-tar-host` owns `tar.regular-publication.native`. The exact tar
+source and host shim compile under strict C17 warnings, address and
+undefined-behavior sanitizers. Tar retains an optional extraction-owned target
+descriptor and a staged descriptor, writes the complete regular payload and
+metadata through the stage, and calls `publishat_beneath()` only while both
+pathnames still identify those descriptors. Successful publication clears
+staged cleanup ownership. Every ordinary failure and fatal archive-read exit
+calls descriptor-conditioned cleanup before filter teardown.
+
+The host schedule covers first publication, repeated write-only and mode-zero
+members, truncated payload, and archive-read `EIO` once the regular archive
+descriptor advances past exactly one 512-byte header record. The oracle
+requires the distinct tape-read diagnostic and status. The schedule also
+covers output-write failure, staged and target replacement, pathname
+publication, and all 62 occupied staging candidates. Mutations remove
+`done()` cleanup, staged
+or target identity, rooted publication, or bounded stage search. Each mutation
+must leave its named foreign entry unchanged or expose the expected retained
+stage; a missing hook trace, different status, or unrelated diagnostic cannot
+satisfy the oracle. The shim maps `O_IDENTITY` to Linux `O_PATH` or macOS
+`O_EVTONLY` for the scheduled host comparison. Kernel permission independence,
+provider suppression, `FIDENTITY`, and namespace release belong to
+`kernel.openat.ilp32`.
+
+Tar adds `openat_beneath.o`, `publishat_beneath.o`, and
+`unlinkat_beneath.o` to its selected libc members and allocates one
+256-byte staging-path buffer during extraction. `check-kernel-headroom`
+owns the PICO and PICO_UART flash margins this change consumes, and the
+shipped-closure comparison owns the tar and root-image deltas.
+
+`kernel.file-owner` owns the descriptor-operation refusal: `flock()` on an
+`O_IDENTITY` descriptor returns `EBADF` for shared, exclusive, nonblocking
+and unlock requests without reaching the lock code, while read and write
+descriptors still lock. With the refusal removed, exactly those three
+identity assertions fail.
+
+Runtime stack and heap high-water, descriptor/inode pressure under a complete
+extraction workload, directory-write recovery, persistent-media traffic,
+symbolic-link publication, conditional removal, directory metadata
+reacquisition, and physical-board behavior retain separate evidence states.

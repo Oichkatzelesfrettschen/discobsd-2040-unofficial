@@ -169,6 +169,26 @@ copyout(const caddr_t from, caddr_t to, u_int nbytes)
 	return 0;
 }
 
+static int lock_calls;
+static int unlock_calls;
+
+int
+ino_lock(struct file *fp, int cmd)
+{
+	(void)fp;
+	(void)cmd;
+	lock_calls++;
+	return 0;
+}
+
+void
+ino_unlock(struct file *fp, int kind)
+{
+	(void)fp;
+	(void)kind;
+	unlock_calls++;
+}
+
 static void
 reset(int flags)
 {
@@ -198,6 +218,8 @@ reset(int flags)
 	copyin_calls = 0;
 	copyout_calls = 0;
 	copyin_error = 0;
+	lock_calls = 0;
+	unlock_calls = 0;
 	copyout_error = 0;
 	user_span_lower = (u_long)&user_storage[4];
 	user_span_upper = (u_long)&user_storage[12];
@@ -545,6 +567,48 @@ ioctl_get_cases(void)
 	HK_CHECK(u.u_error == EFAULT && driver_calls == 0 && copyout_calls == 0);
 }
 
+static void
+call_flock(int fd, int how)
+{
+	struct arguments {
+		int fd;
+		int how;
+	} *arguments = (struct arguments *)u.u_arg;
+
+	arguments->fd = fd;
+	arguments->how = how;
+	flock();
+}
+
+/*
+ * flock() honors a descriptor opened for reading or writing and refuses an
+ * O_IDENTITY descriptor, which carries neither access right, for every lock
+ * operation and before the lock code runs.
+ */
+static void
+flock_cases(void)
+{
+	reset(FREAD);
+	call_flock(FD, LOCK_EX);
+	HK_CHECK(u.u_error == 0 && lock_calls == 1);
+
+	reset(FWRITE);
+	call_flock(FD, LOCK_SH);
+	HK_CHECK(u.u_error == 0 && lock_calls == 1);
+
+	reset(FIDENTITY);
+	call_flock(FD, LOCK_EX);
+	HK_CHECK(u.u_error == EBADF && lock_calls == 0);
+
+	reset(FIDENTITY);
+	call_flock(FD, LOCK_SH | LOCK_NB);
+	HK_CHECK(u.u_error == EBADF && lock_calls == 0);
+
+	reset(FIDENTITY);
+	call_flock(FD, LOCK_UN);
+	HK_CHECK(u.u_error == EBADF && unlock_calls == 0);
+}
+
 int
 main(void)
 {
@@ -556,5 +620,6 @@ main(void)
 	ioctl_status_cases();
 	ioctl_set_cases();
 	ioctl_get_cases();
+	flock_cases();
 	return hk_verdict("file control contracts");
 }

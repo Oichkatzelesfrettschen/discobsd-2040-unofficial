@@ -5,8 +5,21 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdarg.h>
+
+#undef read
+#undef write
+extern ssize_t read(int, void *, size_t);
+extern ssize_t write(int, const void *, size_t);
 
 static int substitution_complete;
+static int archive_write_calls;
+
+static int
+same_inode(const struct stat *left, const struct stat *right)
+{
+    return left->st_dev == right->st_dev && left->st_ino == right->st_ino;
+}
 
 static int
 write_replacement(int root_descriptor, const char *path)
@@ -50,6 +63,201 @@ substitute_source(int root_descriptor, const char *source_path)
         return -1;
     substitution_complete = 1;
     return 0;
+}
+
+int
+openat_beneath(int root_descriptor, const char *path, int flags, ...)
+{
+    int host_flags = flags;
+    int descriptor;
+    mode_t mode = 0;
+
+    if ((flags & O_CREAT) != 0) {
+        va_list arguments;
+
+        va_start(arguments, flags);
+        mode = (mode_t)va_arg(arguments, int);
+        va_end(arguments);
+    }
+    if (getenv("TAR_REGULAR_TRACE") != NULL)
+        fputs("tar regular publication: rooted open\n", stderr);
+    if ((flags & O_IDENTITY) != 0) {
+#if defined(O_PATH)
+        /*
+         * TAR_TEST_NO_O_PATH opens with read permission, as a host without
+         * O_PATH must, so the schedule that host runs can be replayed here.
+         */
+        if (getenv("TAR_TEST_NO_O_PATH") != NULL)
+            host_flags = flags & ~O_IDENTITY;
+        else
+            host_flags = (flags & ~O_IDENTITY) | O_PATH;
+#elif defined(O_EVTONLY)
+        host_flags = (flags & ~O_IDENTITY) | O_EVTONLY;
+#else
+#error "tar identity fixture requires O_PATH or O_EVTONLY"
+#endif
+    }
+    if ((flags & O_CREAT) != 0)
+        return openat(root_descriptor, path, host_flags | O_NOFOLLOW, mode);
+    descriptor = openat(root_descriptor, path, host_flags | O_NOFOLLOW);
+    /* As the kernel does, an identity open accepts only a regular inode. */
+    if (descriptor >= 0 && (flags & O_IDENTITY) != 0) {
+        struct stat status;
+        int saved_errno;
+
+        if (fstat(descriptor, &status) < 0)
+            saved_errno = errno;
+        else if (!S_ISREG(status.st_mode))
+            saved_errno = EFTYPE;
+        else
+            return descriptor;
+        close(descriptor);
+        errno = saved_errno;
+        return -1;
+    }
+    return descriptor;
+}
+
+ssize_t
+tar_test_read(int descriptor, void *buffer, size_t byte_count)
+{
+    off_t archive_offset;
+    size_t header_remaining;
+
+    if (getenv("TAR_REGULAR_READ_ERROR") == NULL)
+        return read(descriptor, buffer, byte_count);
+    archive_offset = lseek(descriptor, 0, SEEK_CUR);
+    if (archive_offset < 0)
+        return read(descriptor, buffer, byte_count);
+    if (archive_offset >= 512) {
+        errno = EIO;
+        return -1;
+    }
+    header_remaining = 512U - (size_t)archive_offset;
+    if (byte_count > header_remaining)
+        byte_count = header_remaining;
+    return read(descriptor, buffer, byte_count);
+}
+
+ssize_t
+tar_test_write(int descriptor, const void *buffer, size_t byte_count)
+{
+    if (getenv("TAR_REGULAR_WRITE_ERROR") != NULL &&
+        archive_write_calls++ == 0) {
+        errno = EIO;
+        return -1;
+    }
+    return write(descriptor, buffer, byte_count);
+}
+
+int
+unlinkat_beneath(int root_descriptor, const char *path,
+    int expected_descriptor)
+{
+    struct stat expected_status;
+    struct stat path_status;
+
+    if (getenv("TAR_REGULAR_TRACE") != NULL)
+        fputs("tar regular publication: rooted cleanup\n", stderr);
+    if (fstat(expected_descriptor, &expected_status) < 0 ||
+        fstatat(root_descriptor, path, &path_status,
+        AT_SYMLINK_NOFOLLOW) < 0)
+        return -1;
+    if (!S_ISREG(path_status.st_mode) ||
+        !same_inode(&expected_status, &path_status)) {
+        errno = ESTALE;
+        return -1;
+    }
+    return unlinkat(root_descriptor, path, 0);
+}
+
+static int
+schedule_publication_replacement(int root_descriptor,
+    const char *staged_path, const char *target_path,
+    int expected_target_descriptor)
+{
+    const char *moved_stage = getenv("TAR_REGULAR_MOVED_STAGE");
+    const char *moved_target = getenv("TAR_REGULAR_MOVED_TARGET");
+
+    if (moved_stage != NULL) {
+        if (renameat(root_descriptor, staged_path, root_descriptor,
+            moved_stage) < 0 ||
+            write_replacement(root_descriptor, staged_path) < 0)
+            return -1;
+    }
+    if (moved_target != NULL && expected_target_descriptor >= 0) {
+        if (renameat(root_descriptor, target_path, root_descriptor,
+            moved_target) < 0 ||
+            write_replacement(root_descriptor, target_path) < 0)
+            return -1;
+    } else if (getenv("TAR_REGULAR_CREATE_TARGET") != NULL &&
+        expected_target_descriptor < 0 &&
+        write_replacement(root_descriptor, target_path) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+publishat_beneath(int root_descriptor, const char *staged_path,
+    int expected_staged_descriptor, const char *target_path,
+    int expected_target_descriptor)
+{
+    struct stat expected_staged_status;
+    struct stat expected_target_status;
+    struct stat staged_status;
+    struct stat target_status;
+    int target_result;
+
+    if (getenv("TAR_REGULAR_TRACE") != NULL)
+        fputs("tar regular publication: rooted publish\n", stderr);
+    if (schedule_publication_replacement(root_descriptor, staged_path,
+        target_path, expected_target_descriptor) < 0)
+        return -1;
+    if (fstat(expected_staged_descriptor, &expected_staged_status) < 0 ||
+        fstatat(root_descriptor, staged_path, &staged_status,
+        AT_SYMLINK_NOFOLLOW) < 0)
+        return -1;
+    if (!S_ISREG(staged_status.st_mode) ||
+        !same_inode(&expected_staged_status, &staged_status)) {
+        errno = ESTALE;
+        return -1;
+    }
+    target_result = fstatat(root_descriptor, target_path, &target_status,
+        AT_SYMLINK_NOFOLLOW);
+    if (expected_target_descriptor < 0) {
+        if (target_result == 0) {
+            errno = EEXIST;
+            return -1;
+        }
+        if (errno != ENOENT)
+            return -1;
+    } else {
+        if (fstat(expected_target_descriptor, &expected_target_status) < 0)
+            return -1;
+        if (target_result < 0 || !S_ISREG(target_status.st_mode) ||
+            !same_inode(&expected_target_status, &target_status)) {
+            errno = ESTALE;
+            return -1;
+        }
+    }
+    return renameat(root_descriptor, staged_path, root_descriptor,
+        target_path);
+}
+
+int
+tar_test_path_publish(int root_descriptor, const char *staged_path,
+    int expected_staged_descriptor, const char *target_path,
+    int expected_target_descriptor)
+{
+    (void)expected_staged_descriptor;
+    if (getenv("TAR_REGULAR_TRACE") != NULL)
+        fputs("tar regular publication: pathname publish\n", stderr);
+    if (schedule_publication_replacement(root_descriptor, staged_path,
+        target_path, expected_target_descriptor) < 0)
+        return -1;
+    return renameat(root_descriptor, staged_path, root_descriptor,
+        target_path);
 }
 
 int

@@ -17,6 +17,16 @@
 #define _FORTIFY_SOURCE 0
 
 #include <sys/types.h>
+#include <errno.h>
+
+/*
+ * The DiscoBSD kernel refuses an O_IDENTITY open of a non-regular inode with
+ * EFTYPE (vn_open_at() in sys/kern/vfs_vnops.c). glibc has no EFTYPE, so the
+ * fixture names a value outside the host's errno range.
+ */
+#ifndef EFTYPE
+#define EFTYPE 4079
+#endif
 
 #ifndef O_IDENTITY
 #define O_IDENTITY 0x00080000

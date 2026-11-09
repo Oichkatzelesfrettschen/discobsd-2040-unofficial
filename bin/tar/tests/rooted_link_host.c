@@ -69,6 +69,7 @@ int
 openat_beneath(int root_descriptor, const char *path, int flags, ...)
 {
     int host_flags = flags;
+    int descriptor;
     mode_t mode = 0;
 
     if ((flags & O_CREAT) != 0) {
@@ -82,7 +83,14 @@ openat_beneath(int root_descriptor, const char *path, int flags, ...)
         fputs("tar regular publication: rooted open\n", stderr);
     if ((flags & O_IDENTITY) != 0) {
 #if defined(O_PATH)
-        host_flags = (flags & ~O_IDENTITY) | O_PATH;
+        /*
+         * TAR_TEST_NO_O_PATH opens with read permission, as a host without
+         * O_PATH must, so the schedule that host runs can be replayed here.
+         */
+        if (getenv("TAR_TEST_NO_O_PATH") != NULL)
+            host_flags = flags & ~O_IDENTITY;
+        else
+            host_flags = (flags & ~O_IDENTITY) | O_PATH;
 #elif defined(O_EVTONLY)
         host_flags = (flags & ~O_IDENTITY) | O_EVTONLY;
 #else
@@ -91,7 +99,23 @@ openat_beneath(int root_descriptor, const char *path, int flags, ...)
     }
     if ((flags & O_CREAT) != 0)
         return openat(root_descriptor, path, host_flags | O_NOFOLLOW, mode);
-    return openat(root_descriptor, path, host_flags | O_NOFOLLOW);
+    descriptor = openat(root_descriptor, path, host_flags | O_NOFOLLOW);
+    /* As the kernel does, an identity open accepts only a regular inode. */
+    if (descriptor >= 0 && (flags & O_IDENTITY) != 0) {
+        struct stat status;
+        int saved_errno;
+
+        if (fstat(descriptor, &status) < 0)
+            saved_errno = errno;
+        else if (!S_ISREG(status.st_mode))
+            saved_errno = EFTYPE;
+        else
+            return descriptor;
+        close(descriptor);
+        errno = saved_errno;
+        return -1;
+    }
+    return descriptor;
 }
 
 ssize_t

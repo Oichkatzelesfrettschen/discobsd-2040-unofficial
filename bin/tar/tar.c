@@ -1958,7 +1958,13 @@ prepare_regular_output_target(const char *name, struct stat *target_status)
             archive_path_error("close existing output", curname);
     } else if (errno == ENOENT) {
         return -1;
-    } else if (errno != ELOOP && errno != EISDIR) {
+    } else if (errno != ELOOP && errno != EISDIR && errno != EFTYPE) {
+        /*
+         * O_IDENTITY retains only a regular inode: the kernel's vn_open_at()
+         * refuses a directory or special file with EFTYPE, and O_NOFOLLOW a
+         * symbolic link with ELOOP, so each of those is an existing
+         * non-regular entry to remove before publication.
+         */
         archive_path_error("open existing output", curname);
     }
 

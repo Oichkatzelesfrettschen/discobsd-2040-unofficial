@@ -1,4 +1,4 @@
-Drafted by an AI assistant (Claude) for owner review; every figure carries its evidence class and nothing here has run on a board.
+Every figure carries its evidence class and nothing here has run on a board.
 
 # RP2040 core 1: what the hardware offers and where the port spends core-0 time
 

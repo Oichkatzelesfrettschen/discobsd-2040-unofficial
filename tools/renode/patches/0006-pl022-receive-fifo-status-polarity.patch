@@ -12,8 +12,6 @@ PicoCalc console driver's spi_wait_idle() spins in it from its first panel
 command. SSPDR returned data and dequeued only while the FIFO was not full,
 so a full FIFO could never be read. SSPDR now dequeues whenever an entry
 exists, and the two status bits follow the datasheet.
-
-Assisted-by: Claude Code (claude-sonnet-5-5)
 ---
  emulation/peripherals/spi/rp2040_spi.cs | 9 ++++-----
  1 file changed, 4 insertions(+), 5 deletions(-)

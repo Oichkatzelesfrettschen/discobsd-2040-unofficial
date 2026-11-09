@@ -338,8 +338,7 @@ Calibration and controls:
 1. Give `check-renode` and `check-renode-picocalc` a CI owner that caches
    the fetched and built models keyed on the pinned commit and the patches.
 2. Send patches 0005 to 0008 upstream as reports after the deliberate-request
-   rule in `AGENTS.md` (drafts under `docs/research`, assistant drafting
-   disclosed in the first line).
+   rule in `AGENTS.md` (drafts under `docs/research`).
 3. Extend the keyboard model with the hold-repeat and overflow paths and add
    a Ctrl-C gate (`TypeCtrl 'c'` against a running `sleep`).
 4. When the SD socket driver lands, add an SPI0 SD-card model on the same

@@ -16,8 +16,6 @@ to GP10-GP13 as the PicoCalc does gets its serial data on the clock pin and
 no clock edges at all. The rows for GP9 to GP29 now follow the datasheet
 pattern: SPI0 on GP0-GP7 and GP16-GP23, SPI1 on GP8-GP15 and GP24-GP29,
 UART0 on GP0-GP3, GP12-GP19 and GP28-GP29, UART1 on GP4-GP11 and GP20-GP27.
-
-Assisted-by: Claude Code (claude-sonnet-5-5)
 ---
  emulation/peripherals/gpio/rp2040_gpio.cs | 80 +++++++++++------------
  1 file changed, 40 insertions(+), 40 deletions(-)

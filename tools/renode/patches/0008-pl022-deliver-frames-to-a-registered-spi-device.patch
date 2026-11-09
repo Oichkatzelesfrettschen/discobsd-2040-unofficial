@@ -22,8 +22,6 @@ virtual time, because the machine clock a register callback reads advances
 in quanta much longer than a 640 ns frame and would let the FIFO drain once
 per quantum. A controller with no registered device keeps the pin-level
 path, which PIO interworking needs.
-
-Assisted-by: Claude Code (claude-sonnet-5-5)
 ---
  emulation/peripherals/spi/rp2040_spi.cs | 101 +++++++++++++++++++++++++++++++-
  1 file changed, 98 insertions(+), 3 deletions(-)

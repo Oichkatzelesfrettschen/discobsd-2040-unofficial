@@ -9,6 +9,9 @@ settle it). Severity: blocker (the PR cannot merge green or breaks a hard
 rule), major (a claim, gate or decision that must change before the work is
 relied on), minor (a defect or gap with a contained consequence).
 
+The 144 KiB capacity finding remains bound to the reviewed branch.
+`swap-exhaustion/review-04.md` owns the current fixed 192 KiB layout.
+
 ## Scope and inputs
 
 Reviewed, all untracked in the worktree:

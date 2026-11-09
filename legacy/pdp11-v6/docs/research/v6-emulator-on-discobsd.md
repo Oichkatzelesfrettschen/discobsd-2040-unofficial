@@ -9,6 +9,10 @@ SIMH does not.
 Confirmed = read from a primary source or measured in this session.
 Estimated = derived from a confirmed measurement, with the basis stated.
 
+The 144/160 KiB capacity results below remain bound to the measured images.
+`docs/research/swap-exhaustion/review-04.md` supersedes the live RP2040 layout
+with a fixed 192 KiB window and removal of the LARGE epoch.
+
 ## Summary
 
 | Question | Finding | Status |

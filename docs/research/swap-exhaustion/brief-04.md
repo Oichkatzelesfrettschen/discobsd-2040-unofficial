@@ -69,6 +69,16 @@ commits, each of which builds on its own:
 4. Update `MPU.md`, `STORAGE.md`, `TESTING.md` and the research notes the
    change makes stale (cite, do not rewrite, retained evidence ledgers).
 
+Ordering rule (added by the orchestrator after reviewing commit `07c24980`):
+every commit must be safe to boot, not only to build. A commit that moves
+the pool while `user_top()` can still grant `SWAPRAM_BONUS` to a `P_LARGE`
+process hands kernel RAM to that process. Remove the LARGE epoch before or in
+the same commit as the pool move: rework the unpushed local commits (an
+interactive rebase is unavailable; use `git reset --soft` and recommit) so
+the series reads LARGE removal, then pool move, then window enlargement, then
+docs. Commits the orchestrator has pushed (`0380c48c` and earlier) stay as
+they are.
+
 Commit messages: component-and-mechanism subject; a body of one to five
 sentences giving the invariant, the change and one sentence of evidence. No
 AI attribution of any kind in commits, comments or documents.
@@ -100,3 +110,18 @@ for added or removed files) after each commit.
   through git's own object store.
 - When done, append a "Handoff" section to `review-04.md` naming each commit,
   the gate results with counts, and anything left for a board run.
+
+## Commit protocol (added by the orchestrator)
+
+The sandbox mounts this worktree's registered Git metadata read-only, so
+`git add` and `git commit` fail on `index.lock`; the orchestrator's shell can
+write it. Do not retry Git writes. For each commit, in series order, write
+`.commit-requests/NN.paths` (one repository-relative path per line, every
+path the commit adds, modifies or deletes) and `.commit-requests/NN.msg`
+(subject line, blank line, body), with NN starting at 01. A path belongs to
+exactly one request; split a file's hunks across commits only by finishing
+the earlier commit's state first. When every request of the series is written,
+write `.commit-requests/READY` and keep working on acceptance. The
+orchestrator commits the requests in order, writes each resulting hash to
+`.commit-requests/NN.hash`, and pushes when the brief authorizes it. Cite
+those hashes in the Handoff section. `.commit-requests/` is excluded from Git.

@@ -22,8 +22,8 @@ existing rule that a zero-length operation succeeds for every pointer.
 `baduaddr` asks whether one byte is accessible. Each nonempty copy admits the
 complete span once, returns `EFAULT` before publication when admission fails,
 and calls `bcopy` once after admission succeeds. The lower bound remains
-`__user_data_start`; the upper bound remains `USER_TOP(u.u_procp)`, including
-the existing conditional process-window extension. The change adds no syscall,
+`__user_data_start`; the upper bound remains the fixed `USER_TOP(u.u_procp)`.
+The change adds no syscall,
 layout, storage definition, translation unit or archive member.
 
 `check-rp2040-usercopy-span` checks the header as a standalone and repeated
@@ -45,7 +45,7 @@ extracted sources and two executables.
 and runs them with 32-bit `caddr_t`, `u_int` and `size_t`. It covers single-byte
 admission, zero-length behavior, first, last and full-window spans, a crossing
 span, addresses below and at the upper bound, the reproduced wraparound,
-malformed bounds and the conditional upper-bound extension. Every rejected
+malformed bounds and the fixed upper boundary. Every rejected
 copy makes zero `bcopy` calls and preserves the destination fixture. Restoring
 the former endpoint checks must fail the same executable with status 1.
 

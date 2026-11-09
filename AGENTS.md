@@ -17,7 +17,7 @@ after editing the canonical file; do not add active imports.
 
 RP2040 is Cortex-M0+ (ARMv6-M, Thumb-1), without FPU or MMU, with 264 KB
 SRAM and 2 MB QSPI flash. The fixed layout is a 128 KB kernel, 1536 KB
-Dhara root (989 KB usable), 384 KB raw swap and one flat 144 KB process
+Dhara root (989 KB usable), 384 KB raw swap and one flat 192 KB process
 window for OMAGIC a.out text, data, bss and stack. The MPU grants permissions,
 not address translation. Protection claims require written/read-back register
 values, privilege transition, region coverage and a deliberate fault test;

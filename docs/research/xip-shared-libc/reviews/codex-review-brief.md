@@ -1,5 +1,8 @@
 Adversarial review brief (read-only; write only your final answer).
 
+The 144 KiB premise below describes the reviewed revision.
+`../../swap-exhaustion/review-04.md` owns the current fixed 192 KiB layout.
+
 You review one research stream for DiscoBSD's RP2040 port (Cortex-M0+, ARMv6-M
 Thumb-1, no MMU, 8-region MPU, 264 KB SRAM, 2 MB XIP flash; one user process
 resident at a time in a fixed 144 KB window at 0x20000000; statically linked

@@ -320,10 +320,9 @@ callers of a name that a header prototype and a definition both carry.
   stack; libc's `sbrk` then returns `(void *)-1` without moving its
   recorded break; `malloc` then returns NULL with ENOMEM without linking
   the refused region into its arena.
-- Enforced by: `brk` in sys/kern/kern_mman.c L16-L60, two independent
-  refusals before any state changes: `u_tsize + newsize + u_ssize` above
-  the ceiling (`swapram_ceiling(p)` under `SWAPRAM`, `MAXMEM` otherwise,
-  L33-L38), and `p_daddr + newsize` above `p_saddr` (L46-L49), the
+- Enforced by: `brk` in sys/kern/kern_mman.c, two independent refusals
+  before any state changes: `u_tsize + newsize + u_ssize` above the fixed
+  `MAXMEM` ceiling, and `p_daddr + newsize` above `p_saddr`, the
   stack's current boundary, which the size sum alone does not see. Only
   after both does it set `p_dsize`, clear the new bytes, and return the
   new break (L51-L59). lib/libc/arm/sys/sbrk.c: `sbrk` returns
@@ -334,12 +333,9 @@ callers of a name that a header prototype and a definition both carry.
   answers with an address, and a `-1` answer is ENOMEM before any link.
 - Caller obligation: none beyond the interface; the chain is three
   enforcers in series, and each keeps the refusal a refusal.
-- Relevant configuration: `SWAPRAM`. `swapram_ceiling` (swapram.c
-  L756-L760) is `MAXMEM` plus `SWAPRAM_BONUS` only under `P_LARGE`; the
-  kernel comment at kern_mman.c L28-L32 states the asymmetry: a large
-  process may grow to its ceiling, and a small one cannot acquire LARGE
-  through `brk`, because its stack already sits under the window and the
-  bonus lies above that stack.
+- Relevant configuration: the RP2040 ceiling is the fixed 192 KiB process
+  window. SwapRAM configuration changes the backing tier for nonresident
+  images and does not change the resident process ceiling.
 - Source evidence (rank 3 and 4): as cited.
 - Existing test: `check-libc-malloc` (TESTING.md L283) compiles malloc.c,
   calloc.c and the ARM sbrk.c from the tree over an `sbrk` and `_brk`
@@ -347,7 +343,7 @@ callers of a name that a header prototype and a definition both carry.
   `sbrk` returns -1 with brk's errno on refusal and that an oversized
   request is ENOMEM before any arena call. It is a host binary: the
   kernel's two refusals and the syscall boundary are outside it.
-  swapram_evac_test.c checks `swapram_ceiling` at both values.
+  The RP2040 kernel fixture checks fixed-window heap admission.
 - Open: no board run drives a process to its ceiling and reads the
   ENOMEM back through malloc; and the ceiling check reads `u_ssize`,
   the stack's size so far, so a process whose stack later grows toward a
@@ -373,39 +369,28 @@ callers of a name that a header prototype and a definition both carry.
     `exec_text_restore` before it consults the pool (L71-L80): the pool
     holds the mutable image alone, so a RAM-tier swapin still reads the
     executable, packed or raw, and a corrupt text kills the process.
-  - Evacuation and the epoch. swapram.c L15-L24: the ordinary swapout and
-    swapin paths neither sleep nor allocate, which is what lets the codec
-    and segment table be file-scope statics; the evacuation
-    (`swapram_evacuate`, L613-L692) and the epoch requests run in the
-    swapper and in process context, sleep in `swap_with_buf`, use the
-    decoder while no swapin can, and close the pool to new images for
-    their duration. An evacuated image is written to flash through the
-    `B_SWAPIMAGE` path of section 1b (the evacuation test panics on any
-    other write shape).
+  - Evacuation. The ordinary swapout and swapin paths neither sleep nor
+    allocate, which is what lets the codec and segment table be file-scope
+    statics. `swapram_evacuate` runs in the swapper, sleeps in
+    `swap_with_buf`, uses the decoder while no swapin can, and closes the
+    pool to new images for the operation. An evacuated image is written to
+    flash through the `B_SWAPIMAGE` path of section 1b (the evacuation test
+    panics on any other write shape).
     Evacuation reserves all expanded flash destinations before it writes an
     image and stores those provisional addresses in `p_daddr`, `p_saddr`
     and `p_addr` while the RAM entry remains live. Nonzero flash addresses
     therefore mean reserved during that interval, not authoritative. A
     reader must include the RAM-entry state in its decision.
-  - The LARGE window. Under `P_LARGE` the pool is the top of a large
-    process's stack (swapram.c L57-L60; `user_top`, L764-L768), so the
-    same bytes cannot hold compressed images and serve as a process's
-    bonus memory at once; the epoch machinery (L141-L148, L198-L206)
-    keeps a live spool SMALL because the LARGE window overlaps it, and
-    admission is closed whenever the epoch is not SMALL.
-- Caller obligation: a user of the pool's address range (a LARGE process,
-  the spool) obtains it through the epoch, never by reading
-  `swapram_epoch` and assuming; a caller of `swapram_evacuate` waits for
-  the answer the sysctl reads back (swapram.h L81).
-- Relevant configuration: `SWAPRAM`, `SWAP_IMAGE_ALIGN`; `swapram_init`
-  panics unless the linker placed the pool exactly at the window's end
-  (L772-L778), which is the geometry every claim above rests on.
+- Caller obligation: a caller of `swapram_evacuate` waits for the answer the
+  sysctl reads back. The process window never aliases the pool.
+- Relevant configuration: `SWAPRAM`, `SWAP_IMAGE_ALIGN`; the linker places
+  the eight-byte-aligned `NOLOAD` pool after ordinary kernel BSS and proves
+  that the complete section remains below `u0`.
 - Source evidence (rank 3 and 4): as cited. Rank 1: the board programs
-  evactest, epochtest, bigtest and hugetest (tests/rp2040/swapram_*),
-  each of which patterns memory, drives the transition, and verifies the
-  pattern; `check-swapram` ties the linked tier to Config.
-- Existing test: swapram_evac_test.c on the host (the evacuation and
-  ceiling arithmetic); the four board programs above. evactest was sent
+  evactest and hugetest pattern memory and verify evacuation or allocator
+  exhaustion; `check-swapram` ties the linked tier to Config.
+- Existing test: swapram_evac_test.c on the host exercises evacuation;
+  evactest was sent
   to the board on 2026-09-19 and verified by cksum but not run: the
   console hang of section 3 intervened, so its result is owed.
 - Open: whether an image admitted to the pool and then evacuated lands

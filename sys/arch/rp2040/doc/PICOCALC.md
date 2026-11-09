@@ -454,11 +454,11 @@ bss (4,096 of atlas, a 40-byte row buffer, 28 bytes of stream state),
 `picokbd_evq.o` +592 text and +100 bss (the session and its checks), `lcdcons.o`
 +344 text (the requests, the descriptor lookup, the mode check and the close and exit hooks),
 `sys_generic.o` +36, `picokbd.o` +4 and `vfs_vnops.o`, `kern_exit.o` and
-`exec_subr.o` +4 text each. The kernel's
-data and bss end 62,408 bytes below the end of the 106 KB RAM region on
-PICOCALC_PSRAM (0x2002f438 against 0x2003e800), so the bss addition leaves
-the layout of `BOOT-MAP.md` intact. PICO and PICO_UART compile no PicoCalc
-file and keep their text, data and bss.
+`exec_subr.o` +4 text each. At the measured revision, the kernel's data and
+bss ended 62,408 bytes below the end of the then-current 106 KB RAM region on
+PICOCALC_PSRAM (0x2002f438 against 0x2003e800), so the bss addition preserved
+that revision's layout. PICO and PICO_UART compile no PicoCalc file and keep
+their text, data and bss.
 
 ## Keyboard: picokbd.c and picokbd_map.c
 
@@ -905,7 +905,7 @@ pages and `bc.library` under the Caldera license, `NOTICE` sections 16 and 3)
 as the `calc-bignum` closure group (`bc` and `dc`) of the `picocalc` profile. They link
 `lib/libbn`, the tree's clean-room `BN_*` subset, in place of libcrypto; dc
 allocates its register stacks in 256-entry pages on first touch, because the
-extended table is 789,504 bytes against the 144 KB process window, and bc
+extended table is 789,504 bytes against the 192 KB process window, and bc
 keeps a name table in place of a 65,536-entry hash table and reads its input
 with `getc` in place of libedit. `bc` is 31,176 bytes packed, `dc` 18,644 and
 `/usr/share/misc/bc.library` 5,125; the closure costs 60 blocks and the

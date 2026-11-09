@@ -24,7 +24,7 @@ The 256-byte choice removes 768 bytes from either wrapper frame and preserves
 a single write for outputs up to 256 bytes. The 128-byte candidate saves
 another 128 bytes but nearly doubles the long-output call count. The
 512-byte candidate preserves longer single-write outputs while saving only
-512 bytes. The selection favors bounded stack demand on the flat 144 KiB
+512 bytes. The selection favors bounded stack demand on the flat 192 KiB
 process window. The existing alloca remains conditional on unbuffered mode.
 
 The formatter adds its 448-byte frame and the emission helper's 32-byte

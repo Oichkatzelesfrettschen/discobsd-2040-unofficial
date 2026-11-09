@@ -1,5 +1,8 @@
 # Stream: RTOS and microkernel memory techniques
 
+The 144 KiB window statements below remain bound to the researched revision.
+`../../swap-exhaustion/review-04.md` owns the current fixed 192 KiB layout.
+
 Retrieved 2026-11-07 through `gh api` and the web. GitHub sources are pinned to
 the default-branch commits read that day: apache/nuttx
 `b2b181fbd99ad63dc83b24edcf921d826796b8db`, zephyrproject-rtos/zephyr

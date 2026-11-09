@@ -87,7 +87,7 @@ this note.
 | Cell redraw cost | 115 us per cell; full screen of 1,696 cells 195 ms | documented, GUI note (derived from SPI timing) |
 | Square block on the text console | 2 columns by 1 row = 12x10 pixels (1.2:1) | derived |
 | Keyboard | arrows, Enter, Esc, F1-F10, letters; auto-repeat arrives as repeated presses; no key-up; at most one event per 32 ms (about 31 per second) | documented, GUI note section 4 |
-| Process window | one flat 144 KB for text, data, bss and stack | documented, `AGENTS.md` |
+| Process window | one flat 192 KB for text, data, bss and stack | documented, `AGENTS.md` |
 | Multicall box image | stays near 40 KB; `games/gamebox` raw 12,248 bytes, packed 10,835 (12 blocks) | documented guideline; measured gamebox record |
 | Root free blocks | 270 in the `full` profile, 445 in `base`; 33 free inodes in `full`; the `games` closure costs 14 blocks and 2 inodes | documented, `PROFILES.md` |
 | Float | no FPU; the boot ROM supplies `__aeabi_d*` and `__aeabi_f*` through `lib/libc/arm/gen/rom_float_*.S`; the existing games use none | documented, GUI note section 1 and `games.md` |

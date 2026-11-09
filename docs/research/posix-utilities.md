@@ -1,6 +1,6 @@
 # POSIX and SUS utility ownership for DiscoBSD/RP2040
 
-The selected RP2040 image has a 144 KiB process window and a 1,536 KiB Dhara
+The selected RP2040 image has a 192 KiB process window and a 1,536 KiB Dhara
 root with about 989 KiB usable. `distrib/rp2040/mi.rp2040` selects installed
 names. The box, sysbox, textbox, utilbox, adminbox, grepbox and gamebox
 executables share code among hard-linked names, so a source directory or an

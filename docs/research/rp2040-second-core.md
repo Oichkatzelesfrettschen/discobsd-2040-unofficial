@@ -20,7 +20,7 @@ would overturn it.
 
 ## What is ruled out, and why
 
-A big-lock SMP kernel. The port keeps one process resident in one 144 KB
+A big-lock SMP kernel. The port keeps one process resident in one 192 KB
 window (`sys/arch/rp2040/rp2040/mpu.c`) and exchanges a global `u` at a
 fixed address in `resume` (`locore.S`, `sys/sys/user.h`), so a second CPU
 has no second runnable image and every kernel path assumes one `u`.

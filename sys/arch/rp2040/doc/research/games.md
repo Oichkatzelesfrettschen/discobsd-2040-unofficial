@@ -289,7 +289,7 @@ Open points. The imported unruly generator abandons a game state, with every
 block it owns, each time a candidate comes out too easy for the difficulty
 (`unruly.c`, `new_game_desc`; the easy and normal settings reject, trivial
 never does), and the `n` key repeats generation in one process, so the leaks
-accumulate toward the 144 KB window. The wrapper redirects the generator's
+accumulate toward the 192 KB window. The wrapper redirects the generator's
 allocator names to the tracking versions in `games/pzcommon/pzscope.h` and
 frees every block still recorded when generation returns, which leaves the
 imported file unchanged. Measured on the host heap over 100 games per size,

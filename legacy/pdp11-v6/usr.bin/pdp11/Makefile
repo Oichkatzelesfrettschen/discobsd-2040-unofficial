@@ -11,7 +11,7 @@ HOSTCC?=	cc
 HOSTBIN=	${PROG}-host
 PYTHON?=
 
-# Guest core in bytes; 64 KB boots V6 and leaves the 144 KB window room.
+# Guest core in bytes; 64 KB boots V6 and leaves the 192 KB window room.
 MEMSIZE?=	65536
 IMAGE=		/usr/v6/root.rk
 CFLAGS+=	-DMEMSIZE=${MEMSIZE} -DDEFAULT_IMAGE=\"${IMAGE}\" -Wall -Wextra -Werror

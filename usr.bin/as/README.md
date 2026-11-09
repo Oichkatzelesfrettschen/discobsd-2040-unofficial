@@ -117,7 +117,7 @@ Built for the RP2040 with `bmake MACHINE=rp2040`, measured by
 | `as`    | 31664 | 765  | 30848 | 63277  |
 | `ld`    | 21964 | 745  | 41412 | 64121  |
 
-A program on the RP2040 gets 144 kbytes for text, data, bss and stack
+A program on the RP2040 gets 192 kbytes for text, data, bss and stack
 together. The bss is nearly all fixed tables -- the symbol table,
 its string area and the two hash tables -- and neither program holds an
 input segment in memory: both passes stream through scratch files, as the

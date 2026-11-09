@@ -4,6 +4,10 @@ This note is named netbsd110 so that NetBSD 1.0, the 1994 release it
 reads, is not mistaken for NetBSD 10 or the 11.0 line that carries the
 name today; the disparity between the two is the point of the note.
 
+The 144 KiB resource analysis below remains bound to the investigated
+revision. `swap-exhaustion/review-04.md` supersedes the live layout with a
+fixed 192 KiB process window and a smaller kernel-RAM region.
+
 Authority for NetBSD 1.0: the `netbsd-1-0` branch of
 `Oichkatzelesfrettschen/src-netbsd`, a git conversion of NetBSD's CVS,
 at commit `94ac458bb17df2e7dd6716a2ed86c153bd3b8110` (1994-11-29, "patch
@@ -65,7 +69,7 @@ what they call. C17 features that only the cross compiler sees are still
 usable in kernel and shipped userland.
 
 The 96 KB window in `bsd44-backport.md` and in `usr.bin/smlrc/README.rp2040.md`
-is stale. The live figure is 144 KB.
+is stale. The figure at the investigated revision is 144 KB.
 
 ## Method
 

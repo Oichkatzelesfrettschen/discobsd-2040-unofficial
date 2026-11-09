@@ -452,7 +452,7 @@ Iterations/Sec   : <value> (microsecond-accurate)
 CoreMark 1.0     : <value> / <compiler> / <memory location> (integer report)
 ```
 
-The engineering reason is sound and documented. With `HAS_FLOAT=0` -- necessary because the floating-point `printf` path overflows the 144 KB process window -- `core_main.c` divides the iteration count by a whole-second `time_in_secs()`, so its own `Iterations/Sec` truncates badly (2000 divided by 8 yields 250 for an 8.254-second run that actually achieved 242.3 per second), and its own score line, guarded by `HAS_FLOAT`, does not run. The port recomputes at microsecond resolution in fixed point and prints both lines itself.
+The engineering reason is sound and documented. At the measured revision, `HAS_FLOAT=0` was necessary because the floating-point `printf` path overflowed the then-current 144 KB process window. In that configuration `core_main.c` divides the iteration count by a whole-second `time_in_secs()`, so its own `Iterations/Sec` truncates badly (2000 divided by 8 yields 250 for an 8.254-second run that actually achieved 242.3 per second), and its own score line, guarded by `HAS_FLOAT`, does not run. The port recomputes at microsecond resolution in fixed point and prints both lines itself.
 
 It is important to be precise about what the port's line does and does not supply, because the point bears on the recommendation. The synthesized line is emitted in the canonical field order -- score, then `COMPILER_VERSION`, then `MEM_LOCATION` -- so the compiler identification that EEMBC's run rules require is present in the program's own output rather than absent from it. What the line does not carry is the compilation flags, the iteration count, or the run duration, none of which `COMPILER_VERSION` encodes.
 
@@ -668,11 +668,11 @@ The practical significance is that section 17200 gives a private plaintiff a cau
 
 *Licensing claims.* Do not say "all licenses cleared," "fully licensed," or "no legal encumbrances." Section 4 explains why a categorical statement about the Caldera chain would be inaccurate. Say what is true: every component is under a permissive license and none is GPL, which is accurate and is what buyers actually want to know.
 
-*Specification claims.* Every number in the listing must be true and current: 264 KB of SRAM, 2 MB of flash, a 128 KB kernel, roughly 979 KB of usable root blocks, a 144 KB process window, 112 command names, 115200 baud. The README supports each. If a figure changes, the listing changes with it. Tindie's own terms independently require accurate specifications.
+*Specification claims.* Every number in the listing must be true and current: 264 KB of SRAM, 2 MB of flash, a 128 KB kernel, roughly 979 KB of usable root blocks, a 192 KB process window, 112 command names, 115200 baud. The README supports each. If a figure changes, the listing changes with it. Tindie's own terms independently require accurate specifications.
 
 *Condition and provenance.* State that the board is a genuine Raspberry Pi Pico purchased new and flashed by the seller, and that the firmware can be removed by the buyer via BOOTSEL. Both are true and both forestall complaints.
 
-*Software limitations.* State plainly what the system does not do: no networking, one process resident at a time, no memory protection programmed, no preprocessor or headers for the on-board compiler. Omitting known material limitations from a listing is itself a deceptive practice, and these are limitations a buyer would care about.
+*Software limitations.* State plainly what the system does not do: networking is absent; one process is resident at a time; the MPU enforces a fixed-address user/kernel boundary without address translation; and the on-board compiler lacks a preprocessor and headers. Omitting known material limitations from a listing is itself a deceptive practice, and these are limitations a buyer would care about.
 
 ### 7.6 Statutes that do not apply, and two that were not asked about
 
@@ -702,7 +702,7 @@ The board ships without an enclosure, with exposed conductors and components, po
 >
 > **Safety.** The board is supplied without an enclosure. It is powered at 5 V from the USB connector and draws under 100 mA. Exposed conductors and components can be damaged by static discharge, and shorting the pins can damage the board or your computer's USB port. Handle it by the edges, do not place it on a conductive surface while powered, and use a USB cable that carries data as well as power. It is not a toy and is not intended for children.
 >
-> **What it does not do.** There is no networking. One user program is resident at a time, in a 144 KB window. The memory protection unit closes the kernel, the peripherals and the flash to a user program and leaves the program its own 144 KB window and the boot ROM (sys/arch/rp2040/doc/MPU.md); it grants no address translation, so a program still sees the same addresses as the kernel and cannot be isolated from another program, since one process is resident at a time. The on-board C compiler has no preprocessor and no header files. This is a 1980s-era operating system on a microcontroller, and it behaves like one.
+> **What it does not do.** There is no networking. One user program is resident at a time, in a 192 KB window. The memory protection unit closes the kernel, the peripherals and the flash to a user program and leaves the program its own 192 KB window and the boot ROM (sys/arch/rp2040/doc/MPU.md); it grants no address translation, so a program still sees the same addresses as the kernel and cannot be isolated from another program, since one process is resident at a time. The on-board C compiler has no preprocessor and no header files. This is a 1980s-era operating system on a microcontroller, and it behaves like one.
 >
 > **Support.** Questions and problems go to the project's public issue tracker. This is an independent, unofficial port and is not supported by the DiscoBSD project, by Raspberry Pi Ltd., or by any other party.
 

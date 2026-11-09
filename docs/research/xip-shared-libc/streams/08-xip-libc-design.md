@@ -3,6 +3,10 @@
 Source-and-docs reading only; no builds or probes ran. Sizes outside the
 prototype in 01-local-measurement.md are estimates.
 
+The variable-window assumptions below belong to the retained prototype.
+`../../swap-exhaustion/review-04.md` supersedes the live layout with a fixed
+192 KiB window and a kernel-resident SwapRAM pool.
+
 ## Corrections to the prototype
 - The prototype's 0x10100000 lies inside the Dhara root (0x10020000 to
   0x101A0000, `sys/arch/rp2040/conf/RP2040.ld:32`); the in-tree libc needs its

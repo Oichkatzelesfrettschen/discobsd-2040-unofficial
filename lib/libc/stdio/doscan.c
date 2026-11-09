@@ -40,7 +40,7 @@
  * __doscan_cvt, the arrangement doprnt.c uses for __doprnt_cvt:
  * share/mk/sys.mk links that member on rp2040 only for a program
  * declaring SCANF_FLOAT=yes, because the software double arithmetic it
- * carries is large against a 144 KB process window. An unresolved weak
+ * carries is large against a 192 KB process window. An unresolved weak
  * reference makes the directive a matching failure, so the scan stops
  * instead of leaving the destination indeterminate while counting the
  * directive as converted, which is what the V7 scanner did whenever its

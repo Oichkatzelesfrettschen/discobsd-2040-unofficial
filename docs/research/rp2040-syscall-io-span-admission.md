@@ -11,8 +11,8 @@ Implementation commit `838270f097111657b60d263b35c5bf91f08b28ff` validates
 every nonempty vector in the shared `rwuio()` path before `setjmp()`, file
 operation dispatch, offset movement, or transfer publication. The kernel
 service `baduaddr_span(caddr_t, u_int)` accepts a complete nonwrapping span
-inside the active user window. RP2040 keeps its conditional `USER_TOP`
-extension, and STM32 provides the same service for its fixed user window.
+inside the active user window. RP2040 and STM32 each provide the service for
+their fixed user windows.
 
 ## Contract and caller closure
 
@@ -48,7 +48,7 @@ reached the file-operation stub and advanced the modeled offset.
 The implemented fixture passes 226 assertions at native width and ILP32. It
 covers read and write directions, scalar and vector entry points, the first and
 last process-window byte, a full window, below-window, ceiling-crossing and
-wrapped spans, empty vectors, the conditional window extension, descriptor and
+wrapped spans, empty vectors, the fixed window boundary, descriptor and
 access errors, sum overflow, copy failure, short transfer, interruption, and
 complete refusal-state preservation.
 

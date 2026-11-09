@@ -287,7 +287,7 @@ What is a real tunable: `BUFSIZ` is 1024 (`include/stdio.h:8`), so every
 one of these transient allocations, and every `setbuf`/`setvbuf`-default
 buffered stream (`setbuf.c:43`), claims a full 1 KB. The measured revision used
 a 96 KB process window shared by stack, heap, and data; the current reservation
-is 144 KiB. An unbuffered `fprintf(stderr,
+is 192 KiB. An unbuffered `fprintf(stderr,
 ...)` deep in a call chain borrows 1 KB of stack for the duration of one
 diagnostic line. **Fix**: split the constant -- keep `BUFSIZ` at 1024 for
 file-backed buffered I/O (matches the block size the filesystem likely
@@ -325,7 +325,7 @@ for a follow-up pass rather than recommend a number now.
 ## 4. Kernel RAM: structural notes
 
 The survey's 96 KB single-process window was later enlarged to the current
-144 KiB reservation. The 264 KB total SRAM and why XIP from flash is not
+192 KiB reservation. The 264 KB total SRAM and why XIP from flash is not
 possible for an a.out linked at 0x20000000 are established in
 `sys/arch/rp2040/doc/STORAGE.md` and are not re-derived
 here.

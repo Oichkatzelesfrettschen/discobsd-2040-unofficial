@@ -2,13 +2,14 @@
 
 import os
 import resource
+import shlex
 import signal
 import subprocess
 import tempfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
-compiler = os.environ.get("HOSTCC", "cc")
+compiler = shlex.split(os.environ.get("HOSTCC", "cc"))
 flags = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror"]
 
 with tempfile.TemporaryDirectory(prefix="discobsd-assert-") as directory:
@@ -16,7 +17,7 @@ with tempfile.TemporaryDirectory(prefix="discobsd-assert-") as directory:
     for name in ("assert_contract_test", "assert_reinclude_test"):
         binary = temporary / name
         subprocess.run(
-            [compiler, *flags, "-iquote", str(root / "include"),
+            [*compiler, *flags, "-iquote", str(root / "include"),
              str(root / "tests/libc_contracts" / f"{name}.c"),
              str(root / "lib/libc/gen/assert_fail.c"), "-o", str(binary)],
             check=True,
@@ -39,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix="discobsd-assert-") as directory:
     )
     mutant = temporary / "assert-mutant"
     subprocess.run(
-        [compiler, *flags, "-iquote", str(temporary),
+        [*compiler, *flags, "-iquote", str(temporary),
          str(root / "tests/libc_contracts/assert_contract_test.c"),
          str(root / "lib/libc/gen/assert_fail.c"), "-o", str(mutant)],
         check=True,

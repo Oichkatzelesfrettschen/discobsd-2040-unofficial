@@ -48,14 +48,13 @@
  	struct v7fs_inode inode;
  	struct v7fs_dirent *dir;
 -	int error;
--
++	int error, cleanup_error;
++	bool unpublished;
+ 
 -	/* Check filename. */
 -	if (v7fs_file_lookup_by_name(fs, parent_dir, srcname, srclen,
 -	    ino) == 0) {
 -		DPRINTF("%.*s exists\n", (int)srclen, srcname);
-+	int error, cleanup_error;
-+	bool unpublished;
-+
 +	error = v7fs_file_lookup_by_name(fs, parent_dir, srcname, srclen, ino);
 +	if (error == 0)
  		return EEXIST;
@@ -63,13 +62,12 @@
 -
 -	/* Get new inode. */
 -	if ((error = v7fs_inode_allocate(fs, ino)))
--		return error;
--
--	/* Set initial attribute. */
 +	if (error != ENOENT)
 +		return error;
 +	if ((error = v7fs_inode_allocate(fs, ino)) != 0)
-+		return error;
+ 		return error;
+-
+-	/* Set initial attribute. */
  	memset(&inode, 0, sizeof(inode));
  	inode.inode_number = *ino;
  	inode.mode = attr->mode;
@@ -113,8 +111,6 @@
 -		if (!(buf = scratch_read(fs, blk))) {
 -			v7fs_inode_deallocate(fs, *ino);
 -			return EIO;
--		}
--		dir = (struct v7fs_dirent *)buf;
 +	case V7FS_IFDIR: {
 +		v7fs_daddr_t block;
 +		void *buffer;
@@ -127,7 +123,8 @@
 +		if (!(buffer = scratch_read(fs, block))) {
 +			error = EIO;
 +			goto cleanup;
-+		}
+ 		}
+-		dir = (struct v7fs_dirent *)buf;
 +		dir = buffer;
  		strcpy(dir[0].name, ".");
  		dir[0].inode_number = V7FS_VAL16(fs, *ino);
@@ -154,10 +151,9 @@
 -	{
 -		DPRINTF("can't add dirent.\n");
 -		return error;
--	}
+ 	}
 -
 -	return 0;
-+	}
 +	if ((error = v7fs_inode_writeback(fs, &inode)) != 0)
 +		goto cleanup;
 +	error = v7fs_directory_add_checked(fs, parent_dir, *ino, srcname,
@@ -194,10 +190,9 @@
 -		/* Decrement reference count. */
 -		--inode.nlink;	/* regular file. */
 -		DPRINTF("%.*s nlink=%d\n", (int)namelen, name, inode.nlink);
--	}
+ 	}
 -
 -
-+	}
 +	original_inode = inode;
  	if ((error = v7fs_directory_remove_entry(fs, parent_dir, name,
  	    namelen)))
@@ -206,6 +201,7 @@
  
 -	v7fs_inode_writeback(fs, &inode);
 -
+-	return 0;
 +	if (v7fs_inode_isdir(&inode))
 +		inode.nlink = 0;
 +	else
@@ -219,87 +215,41 @@
 +	restore_error = v7fs_directory_add_checked(fs, parent_dir, ino, name,
 +	    namelen, &unpublished);
 +	return restore_error != 0 ? restore_error : error;
-+}
-+
+ }
+ 
+-int
+-v7fs_directory_add_entry(struct v7fs_self *fs, struct v7fs_inode *parent_dir,
+-    v7fs_ino_t ino, const char *srcname, size_t srclen)
 +static int
 +v7fs_directory_add_checked(struct v7fs_self *fs, struct v7fs_inode *parent_dir,
 +    v7fs_ino_t ino, const char *srcname, size_t srclen, bool *unpublished)
-+{
-+	struct v7fs_inode inode;
-+	struct v7fs_dirent *dir, original;
-+	v7fs_daddr_t block;
-+	void *buffer;
-+	char filename[V7FS_NAME_MAX + 1];
-+	size_t old_size = parent_dir->filesize, size;
-+	int error, cleanup_error, slot;
-+
-+	*unpublished = true;
-+	v7fs_dirent_filename(filename, srcname, srclen);
-+	if ((error = v7fs_inode_load(fs, &inode, ino)) != 0)
-+		return error;
-+	if ((error = v7fs_datablock_expand(fs, parent_dir, sizeof(*dir))) != 0)
-+		return error;
-+	block = v7fs_datablock_last(fs, parent_dir, parent_dir->filesize);
-+	if (block == 0 || !(buffer = scratch_read(fs, block))) {
-+		error = EIO;
-+		goto rollback_parent;
-+	}
-+	size = V7FS_RESIDUE_BSIZE(parent_dir->filesize);
-+	slot = size / sizeof(*dir) - 1;
-+	dir = buffer;
-+	original = dir[slot];
-+	dir[slot].inode_number = V7FS_VAL16(fs, ino);
-+	memcpy((char *)dir[slot].name, filename, V7FS_NAME_MAX);
-+	*unpublished = false;
-+	if (!fs->io.write(fs->io.cookie, buffer, block)) {
-+		error = EIO;
-+		goto restore_entry;
-+	}
-+	if (v7fs_inode_isdir(&inode)) {
-+		parent_dir->nlink++;
-+		error = v7fs_inode_writeback(fs, parent_dir);
-+		if (error != 0) {
-+			parent_dir->nlink--;
-+			goto restore_entry;
-+		}
-+	}
-+	scratch_free(fs, buffer);
- 	return 0;
-+
-+restore_entry:
-+	dir[slot] = original;
-+	*unpublished = fs->io.write(fs->io.cookie, buffer, block);
-+	scratch_free(fs, buffer);
-+	if (!*unpublished)
-+		return error;
-+rollback_parent:
-+	cleanup_error = v7fs_datablock_contract(fs, parent_dir,
-+	    parent_dir->filesize - old_size);
-+	return cleanup_error != 0 ? cleanup_error : error;
- }
- 
- int
- v7fs_directory_add_entry(struct v7fs_self *fs, struct v7fs_inode *parent_dir,
-     v7fs_ino_t ino, const char *srcname, size_t srclen)
  {
--	struct v7fs_inode inode;
+ 	struct v7fs_inode inode;
 -	struct v7fs_dirent *dir;
 -	int error = 0;
 -	v7fs_daddr_t blk;
 -	void *buf;
--	char filename[V7FS_NAME_MAX + 1];
--
++	struct v7fs_dirent *dir, original;
++	v7fs_daddr_t block;
++	void *buffer;
+ 	char filename[V7FS_NAME_MAX + 1];
++	size_t old_size = parent_dir->filesize, size;
++	int error, cleanup_error, slot;
+ 
 -	/* Truncate filename. */
--	v7fs_dirent_filename(filename, srcname, srclen);
++	*unpublished = true;
+ 	v7fs_dirent_filename(filename, srcname, srclen);
 -	DPRINTF("%s(%.*s) %d\n", filename, (int)srclen, srcname, ino);
 -
 -	/* Target inode */
 -	if ((error = v7fs_inode_load(fs, &inode, ino)))
--		return error;
++	if ((error = v7fs_inode_load(fs, &inode, ino)) != 0)
+ 		return error;
 -
 -	/* Expand datablock. */
 -	if ((error = v7fs_datablock_expand(fs, parent_dir, sizeof(*dir))))
--		return error;
++	if ((error = v7fs_datablock_expand(fs, parent_dir, sizeof(*dir))) != 0)
+ 		return error;
 -
 -	/* Read last entry. */
 -	if (!(blk = v7fs_datablock_last(fs, parent_dir,
@@ -319,17 +269,54 @@
 -	memcpy((char *)dir[n].name, filename, V7FS_NAME_MAX);
 -	/* Write back datablock */
 -	if (!fs->io.write(fs->io.cookie, buf, blk))
--		error = EIO;
++	block = v7fs_datablock_last(fs, parent_dir, parent_dir->filesize);
++	if (block == 0 || !(buffer = scratch_read(fs, block))) {
+ 		error = EIO;
 -	scratch_free(fs, buf);
 -
--	if (v7fs_inode_isdir(&inode)) {
--		parent_dir->nlink++;
++		goto rollback_parent;
++	}
++	size = V7FS_RESIDUE_BSIZE(parent_dir->filesize);
++	slot = size / sizeof(*dir) - 1;
++	dir = buffer;
++	original = dir[slot];
++	dir[slot].inode_number = V7FS_VAL16(fs, ino);
++	memcpy((char *)dir[slot].name, filename, V7FS_NAME_MAX);
++	*unpublished = false;
++	if (!fs->io.write(fs->io.cookie, buffer, block)) {
++		error = EIO;
++		goto restore_entry;
++	}
+ 	if (v7fs_inode_isdir(&inode)) {
+ 		parent_dir->nlink++;
 -		v7fs_inode_writeback(fs, parent_dir);
--	}
--
++		error = v7fs_inode_writeback(fs, parent_dir);
++		if (error != 0) {
++			parent_dir->nlink--;
++			goto restore_entry;
++		}
+ 	}
++	scratch_free(fs, buffer);
++	return 0;
+ 
 -	DPRINTF("done. (dirent size=%dbyte)\n", parent_dir->filesize);
--
++restore_entry:
++	dir[slot] = original;
++	*unpublished = fs->io.write(fs->io.cookie, buffer, block);
++	scratch_free(fs, buffer);
++	if (!*unpublished)
++		return error;
++rollback_parent:
++	cleanup_error = v7fs_datablock_contract(fs, parent_dir,
++	    parent_dir->filesize - old_size);
++	return cleanup_error != 0 ? cleanup_error : error;
++}
+ 
 -	return error;
++int
++v7fs_directory_add_entry(struct v7fs_self *fs, struct v7fs_inode *parent_dir,
++    v7fs_ino_t ino, const char *srcname, size_t srclen)
++{
 +	bool unpublished;
 +
 +	return v7fs_directory_add_checked(fs, parent_dir, ino, srcname, srclen,
@@ -384,9 +371,13 @@
  
  	/* Contract dirent entries. */
 -	v7fs_datablock_contract(fs, parent_dir, sizeof(lastdirent));
+-	DPRINTF("done. (dirent size=%dbyte)\n", parent_dir->filesize);
+-
+-	/* Target inode */
+-	if ((error = v7fs_inode_load(fs, &inode, lookup_arg.inode_number)))
 +	if ((error = v7fs_datablock_contract(fs, parent_dir,
 +	    sizeof(lastdirent))) != 0) {
-+		if (memcmp(parent_dir, &original_parent, sizeof(*parent_dir)) == 0 &&
++		if (v7fs_inode_data_equal(parent_dir, &original_parent) &&
 +		    (buf = scratch_read(fs, remove_arg.block)) != NULL) {
 +			memcpy((uint8_t *)buf + remove_arg.offset, &remove_arg.original,
 +			    sizeof(remove_arg.original));
@@ -396,14 +387,10 @@
 +			}
 +			scratch_free(fs, buf);
 +		}
-+		return error;
+ 		return error;
 +	}
- 	DPRINTF("done. (dirent size=%dbyte)\n", parent_dir->filesize);
++	DPRINTF("done. (dirent size=%dbyte)\n", parent_dir->filesize);
  
--	/* Target inode */
--	if ((error = v7fs_inode_load(fs, &inode, lookup_arg.inode_number)))
--		return error;
--
  	if (v7fs_inode_isdir(&inode)) {
 +		int restore_error;
 +		bool unpublished;

@@ -405,7 +405,7 @@ v7fs_directory_remove_entry(struct v7fs_self *fs, struct v7fs_inode *parent_dir,
 	/* Contract dirent entries. */
 	if ((error = v7fs_datablock_contract(fs, parent_dir,
 	    sizeof(lastdirent))) != 0) {
-		if (memcmp(parent_dir, &original_parent, sizeof(*parent_dir)) == 0 &&
+		if (v7fs_inode_data_equal(parent_dir, &original_parent) &&
 		    (buf = scratch_read(fs, remove_arg.block)) != NULL) {
 			memcpy((uint8_t *)buf + remove_arg.offset, &remove_arg.original,
 			    sizeof(remove_arg.original));

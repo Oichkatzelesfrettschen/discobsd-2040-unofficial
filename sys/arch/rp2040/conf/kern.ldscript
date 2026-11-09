@@ -73,15 +73,6 @@ SECTIONS {
 	__etext = .;
 
 	_sidata = LOADADDR(.data);
-	/*
-	 * The compressed swap pool sits first in RAM. NOLOAD like .scratch:
-	 * the tier writes every byte before it reads it, and the reset code's
-	 * zero fill stops at _ebss.
-	 */
-	.swapram_pool (NOLOAD) : ALIGN(8) {
-		*(.swapram_pool)
-	} > RAM :pool
-
 	.data : ALIGN(4) {
 		__data_start__ = .;
 		_sdata = .;
@@ -116,6 +107,15 @@ SECTIONS {
 		__bss_end__ = .;
 		_ebss = .;
 	} > RAM :bss
+
+	/*
+	 * The compressed swap pool follows ordinary kernel data and bss.
+	 * NOLOAD keeps the pool out of the flash image and the reset-time
+	 * zero fill; the tier writes every stored byte before reading it.
+	 */
+	.swapram_pool (NOLOAD) : ALIGN(8) {
+		*(.swapram_pool)
+	} > RAM :pool
 
 	/*
 	 * Storage in the scratch banks, see SCRATCH in RP2040.ld. NOLOAD
@@ -178,6 +178,13 @@ SECTIONS {
 	 */
 	ASSERT(ORIGIN(USERRAM) + LENGTH(USERRAM) == ORIGIN(RAM),
 	    "USERRAM and RAM do not meet")
+	ASSERT(DEFINED(swapram_pool_mem) ?
+	    (swapram_pool_mem >= _ebss &&
+	     swapram_pool_mem >= ORIGIN(RAM) &&
+	     (swapram_pool_mem & 7) == 0 &&
+	     swapram_pool_mem + SIZEOF(.swapram_pool) <=
+	         ORIGIN(RAM) + LENGTH(RAM)) : 1,
+	    "the swap pool must follow bss, be eight-byte aligned, and stay inside kernel RAM")
 	ASSERT(ORIGIN(RAM) + LENGTH(RAM) == ORIGIN(U0AREA),
 	    "RAM and U0AREA do not meet")
 	ASSERT(ORIGIN(U0AREA) + LENGTH(U0AREA) == ORIGIN(UAREA),

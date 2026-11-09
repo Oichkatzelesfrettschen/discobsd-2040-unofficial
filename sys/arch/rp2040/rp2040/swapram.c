@@ -56,8 +56,9 @@
 #define SR_WORST(n)     ((n) + (n) / 8 + 4)
 
 /*
- * The pool lives in a NOLOAD section outside bss clearing. Every stored byte
- * is written before it is read, so the pool needs no reset-time initializer.
+ * The pool lives in a NOLOAD section after ordinary kernel data and bss.
+ * Reset-time bss clearing leaves the pool untouched, which is safe because
+ * every stored byte is written before it is read.
  */
 u_char                  swapram_pool_mem[SWAPRAM_KB * 1024]
 #ifdef __ELF__          /* the host test on macOS builds this as Mach-O */

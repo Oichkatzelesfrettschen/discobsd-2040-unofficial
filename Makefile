@@ -986,6 +986,9 @@ check-netbsd-imports: check-python
 		${PYTHON} tools/netbsd_imports.py selftest
 		${PYTHON} tools/netbsd_imports.py verify
 
+check-v7fs-core: check-python
+		${MAKE} -C tests/v7fs_core check PYTHON=${PYTHON:Q}
+
 check-storage-counters: tools
 		sh tools/verify_storage_counters.sh
 
@@ -1097,7 +1100,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
-		check-netbsd-imports \
+		check-netbsd-imports check-v7fs-core \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
 		check-usb-reset check-usb-line-coding check-usb-cdc-requests \

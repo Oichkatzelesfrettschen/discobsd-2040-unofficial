@@ -1164,19 +1164,19 @@ execute(struct trenod *argt, volatile int exec_link, int errorflg, int *pf1, int
 				 */
 				if (treeflgs & FPIN)
 				{
-					rename(pf1[INPIPE], 0);
+					sh_rename(pf1[INPIPE], 0);
 					close(pf1[OTPIPE]);
 				}
 				if (treeflgs & FPOU)
 				{
 					close(pf2[INPIPE]);
-					rename(pf2[OTPIPE], 1);
+					sh_rename(pf2[OTPIPE], 1);
 				}
 				/*
 				 * default std input for &
 				 */
 				if (treeflgs & FINT && ioset == 0)
-					rename(chkopen(devnull), 0);
+					sh_rename(chkopen(devnull), 0);
 				/*
 				 * io redirection
 				 */

@@ -152,6 +152,25 @@ int hzto(struct timeval *tv) { (void)tv; return 0; }
 void timevaladd(struct timeval *t1, struct timeval *t2) { (void)t1; (void)t2; }
 int itimerfix(struct timeval *tv) { (void)tv; return 0; }
 int baduaddr(caddr_t addr) { return baduaddr_span(addr, 1); }
+
+/*
+ * The port admits read-only memory outside the window to transfers that
+ * only read user memory; the fixture models it as [ro_lower, ro_upper).
+ */
+static const u_long user_ro_lower = 0x00000000UL;
+static const u_long user_ro_upper = 0x00004000UL;
+
+int
+baduaddr_rspan(caddr_t addr, u_int nbytes)
+{
+	u_long start = (u_long)addr;
+
+	if (!baduaddr_span(addr, nbytes))
+		return 0;
+	if (start < user_ro_lower || start > user_ro_upper)
+		return 1;
+	return (u_long)nbytes > user_ro_upper - start;
+}
 int ffs(u_long i) { int n = 0; if (i == 0) return 0; while (!(i & 1)) { i >>= 1; n++; } return n + 1; }
 
 /* The argument shapes the kernel casts u.u_arg to. */
@@ -307,6 +326,8 @@ check_accepted(const char *label, const u_int *lengths, unsigned n, u_int total)
 	HK_CHECK((u_int)u.u_rval == total);
 	HK_CHECK((u_int)fp.f_offset == START_OFFSET + total);
 }
+
+static void read_only_cases(void);
 
 static void
 bound_cases(void)
@@ -628,6 +649,39 @@ span_cases(void)
 	vectorize_at(at_ceiling, one, 1);
 	call_readv(FD, 1);
 	HK_CHECK(u.u_error == 0 && rw_calls == 1);
+
+	read_only_cases();
+}
+
+/*
+ * A write's source vectors may lie in read-only user memory; a read's
+ * targets may not, and a source crossing out of that memory is refused.
+ */
+static void
+read_only_cases(void)
+{
+	static const u_long rom_word[] = { 0x00000010UL };
+	static const u_long rom_last[] = { 0x00003fffUL };
+	static const u_int four[] = { 4 };
+	static const u_int two[] = { 2 };
+
+	reset(FWRITE);
+	check_user_spans = 1;
+	vectorize_at(rom_word, four, 1);
+	call_writev(FD, 1);
+	HK_CHECK(u.u_error == 0 && rw_calls == 1);
+
+	reset(FREAD);
+	check_user_spans = 1;
+	vectorize_at(rom_word, four, 1);
+	call_readv(FD, 1);
+	HK_CHECK(u.u_error == EFAULT && rw_calls == 0);
+
+	reset(FWRITE);
+	check_user_spans = 1;
+	vectorize_at(rom_last, two, 1);
+	call_writev(FD, 1);
+	HK_CHECK(u.u_error == EFAULT && rw_calls == 0);
 }
 
 int

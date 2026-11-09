@@ -36,6 +36,7 @@ def main():
     signatures.extend(
         (
             "int\nbaduaddr(caddr_t addr)",
+            "int\nbaduaddr_rspan(caddr_t addr, u_int nbytes)",
             "int\ncopyout(caddr_t from, caddr_t to, u_int nbytes)",
             "int\ncopyin(caddr_t from, caddr_t to, u_int nbytes)",
         )
@@ -44,7 +45,7 @@ def main():
     extracted = "\n\n".join(functions) + "\n"
     if arguments.endpoint_mutant:
         copyout_check = "if (baduaddr_span(to, nbytes))"
-        copyin_check = "if (baduaddr_span(from, nbytes))"
+        copyin_check = "if (baduaddr_rspan(from, nbytes))"
         if copyout_check not in extracted or copyin_check not in extracted:
             raise SystemExit("endpoint mutation does not match production source")
         extracted = extracted.replace(
@@ -54,7 +55,7 @@ def main():
         )
         extracted = extracted.replace(
             copyin_check,
-            "if (baduaddr(from) || baduaddr(from + nbytes - 1))",
+            "if (baduaddr_rspan(from, 1) || baduaddr_rspan(from + nbytes - 1, 1))",
             1,
         )
     source_hash = hashlib.sha256(source_bytes).hexdigest()

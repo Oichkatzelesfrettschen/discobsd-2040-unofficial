@@ -808,6 +808,13 @@ baduaddr(caddr_t addr)
 	return baduaddr_span(addr, 1);
 }
 
+/* User-readable memory on this port is the process window alone. */
+int
+baduaddr_rspan(caddr_t addr, u_int nbytes)
+{
+	return baduaddr_span(addr, nbytes);
+}
+
 /*
  * Return nonzero unless the complete non-wrapping span lies inside one
  * kernel region. Kernel RAM and kernel flash are separate intervals.

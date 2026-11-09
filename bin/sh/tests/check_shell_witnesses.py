@@ -31,7 +31,6 @@ COMPILE_FLAGS = (
     str(TEST_DIRECTORY / "hostshim.h"),
     "-Dalloc=sh_alloc",
     "-Dfree=sh_free",
-    "-Dtmpnam=sh_tmpnam",
     "-I",
     str(SHELL_SOURCE),
 )

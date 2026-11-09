@@ -97,5 +97,6 @@ extern struct mpu_state mpu_state;
 
 void	mpu_init(void);
 void	mpu_identify(void);
+int	mpu_user_rospan(u_int, u_int);
 
 #endif	/* !_MACHINE_MPU_H_ */

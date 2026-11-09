@@ -248,8 +248,8 @@ shutreset (sig)
 	longjmp(shutpass, 1);
 }
 
-void
-shutdown()
+static void
+shutdown(void)
 {
 	register int i;
 	register struct tab *p, *p1;

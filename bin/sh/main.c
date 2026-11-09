@@ -395,7 +395,7 @@ settmp(void)
 {
 	itos(getpid());
 	serial = 0;
-	tmpnam = movstr(numbuf, &tmpout[TMPNAM]);
+	sh_tmpnam = movstr(numbuf, &tmpout[TMPNAM]);
 }
 
 static void

@@ -934,6 +934,19 @@ baduaddr(caddr_t addr)
 }
 
 /*
+ * Return nonzero unless the complete span is user-readable: the window, or
+ * one read-only region the MPU map grants to unprivileged code
+ * (mpu_user_rospan). Only transfers that read user memory may use this.
+ */
+int
+baduaddr_rspan(caddr_t addr, u_int nbytes)
+{
+	if (!baduaddr_span(addr, nbytes))
+		return 0;
+	return !mpu_user_rospan((u_int)addr, nbytes);
+}
+
+/*
  * Return nonzero unless the complete non-wrapping span lies inside one
  * kernel region. Kernel RAM and kernel flash are separate intervals.
  */
@@ -1185,7 +1198,7 @@ copyin(caddr_t from, caddr_t to, u_int nbytes)
 {
 	if (nbytes == 0)
 		return 0;
-	if (baduaddr_span(from, nbytes))
+	if (baduaddr_rspan(from, nbytes))
 		return EFAULT;
 	bcopy(from, to, nbytes);
 

@@ -1212,6 +1212,8 @@ check-tar-host:
 		PYTHON=${PYTHON:Q} sh bin/tar/tests/timestamp_identity_test.sh
 		${PYTHON} tools/test_execution.py run tar.hardlink-identity.native -- \
 		    sh bin/tar/tests/hardlink_identity_test.sh
+		${PYTHON} tools/test_execution.py run tar.regular-publication.native -- \
+		    sh bin/tar/tests/regular_publication_identity_test.sh
 
 check-textbox-host:
 		sh usr.bin/textbox/tests/run.sh

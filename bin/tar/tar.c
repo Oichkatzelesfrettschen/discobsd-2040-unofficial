@@ -60,6 +60,7 @@
 #define TMAGLEN         6
 #define TVERSION        "00"
 #define TVERSLEN        2
+#define STAGING_ATTEMPTS 62U
 
 /*
  * typeflag values. The v7 header calls the field linkflag and writes only
@@ -234,7 +235,11 @@ static int open_verified_directory(const char *, mode_t, int, int, int, int,
 static char *enter_parent_directories(int, char *, int, int);
 static char *enter_parent_directories_raw(int, char *, int, int, int);
 static int open_verified_regular(const char *, int);
-static int create_output_file(const char *, mode_t);
+static int create_legacy_output(const char *, mode_t);
+static int prepare_regular_output_target(const char *, struct stat *);
+static void make_output_staging_path(unsigned);
+static int create_staged_output(mode_t);
+static void discard_staged_output(void);
 static int write_all(int, const void *, size_t);
 static void record_extracted_file(int);
 static void record_extracted_symlink(const char *);
@@ -300,6 +305,9 @@ static int prtlinkerr;
 static int freemem = 1;
 static int nblock;
 static int extraction_root_descriptor = -1;
+static char *output_staging_path;
+static int active_output_descriptor = -1;
+static int active_target_descriptor = -1;
 static int extraction_depth;
 static mode_t extraction_creation_mask;
 static dev_t archive_device;
@@ -1251,6 +1259,11 @@ doxtract(char **argv)
     extraction_root_descriptor = open(".", O_RDONLY | O_NONBLOCK);
     if (extraction_root_descriptor < 0 && chdir(".") < 0)
         archive_path_error("enter extraction root", ".");
+    if (extraction_root_descriptor >= 0) {
+        output_staging_path = malloc(sizeof(curname));
+        if (output_staging_path == NULL)
+            archive_error("out of memory allocating output staging path");
+    }
     extraction_depth = 0;
 
     for (;;) {
@@ -1355,7 +1368,21 @@ doxtract(char **argv)
                     curname, curlink);
             continue;
         }
-        output_descriptor = create_output_file(leaf_name, stbuf.st_mode);
+        {
+            struct stat target_status;
+            int target_descriptor;
+
+            if (extraction_root_descriptor >= 0) {
+                target_descriptor = prepare_regular_output_target(leaf_name,
+                    &target_status);
+                active_target_descriptor = target_descriptor;
+                output_descriptor = create_staged_output(stbuf.st_mode);
+                active_output_descriptor = output_descriptor;
+            } else {
+                target_descriptor = -1;
+                output_descriptor = create_legacy_output(leaf_name,
+                    stbuf.st_mode);
+            }
         if (vflag)
             fprintf(vfile, "x %s, %ld bytes, %ld tape blocks\n",
                 curname, (long)stbuf.st_size,
@@ -1389,9 +1416,31 @@ doxtract(char **argv)
         if (mflag == 0)
             set_descriptor_times(output_descriptor, curname,
                 stbuf.st_mtime);
+        if (extraction_root_descriptor >= 0) {
+            if (publishat_beneath(extraction_root_descriptor,
+                output_staging_path,
+                output_descriptor, curname, target_descriptor) < 0) {
+                int saved_errno = errno;
+
+                errno = saved_errno;
+                archive_path_error("publish output", curname);
+            }
+            active_output_descriptor = -1;
+        }
+        if (target_descriptor >= 0 && target_status.st_nlink == 1)
+            forget_extracted_output(&target_status);
         record_extracted_file(output_descriptor);
         if (close(output_descriptor) < 0)
             archive_path_error("close output", curname);
+        if (target_descriptor >= 0) {
+            int close_result;
+
+            active_target_descriptor = -1;
+            close_result = close(target_descriptor);
+            if (close_result < 0)
+                archive_path_error("close replaced output", curname);
+        }
+        }
     }
     curname[0] = '\0';
     storedirmetadata(curname, NULL);
@@ -1400,6 +1449,8 @@ doxtract(char **argv)
         close(extraction_root_descriptor) < 0)
         archive_path_error("close extraction root", ".");
     extraction_root_descriptor = -1;
+    free(output_staging_path);
+    output_staging_path = NULL;
     free_extracted_outputs();
 }
 
@@ -1874,7 +1925,7 @@ open_verified_regular(const char *name, int nonblocking)
 }
 
 static int
-create_output_file(const char *name, mode_t mode)
+create_legacy_output(const char *name, mode_t mode)
 {
     int descriptor = open(name, O_WRONLY | O_CREAT | O_EXCL, mode & 0777);
 
@@ -1885,6 +1936,124 @@ create_output_file(const char *name, mode_t mode)
     if (descriptor < 0)
         archive_path_error("create new output", curname);
     return descriptor;
+}
+
+static int
+prepare_regular_output_target(const char *name, struct stat *target_status)
+{
+    int descriptor;
+
+    restore_directory_root(extraction_root_descriptor);
+    descriptor = openat_beneath(extraction_root_descriptor, curname,
+        O_IDENTITY | O_NOFOLLOW);
+    if (descriptor >= 0) {
+        if (fstat(descriptor, target_status) < 0)
+            archive_path_error("fstat existing output", curname);
+        if (S_ISREG(target_status->st_mode)) {
+            if (!was_extracted_output(target_status))
+                archive_error("refusing to replace an existing output path");
+            return descriptor;
+        }
+        if (close(descriptor) < 0)
+            archive_path_error("close existing output", curname);
+    } else if (errno == ENOENT) {
+        return -1;
+    } else if (errno != ELOOP && errno != EISDIR) {
+        archive_path_error("open existing output", curname);
+    }
+
+    name = enter_parent_directories(extraction_root_descriptor,
+        curname, 1, 0);
+    remove_extracted_output(name);
+    restore_directory_root(extraction_root_descriptor);
+    return -1;
+}
+
+static void
+make_output_staging_path(unsigned attempt)
+{
+    const char *target_leaf = strrchr(curname, '/');
+    char *staged_leaf;
+    char staging_character;
+    size_t leaf_length;
+    size_t path_length = strlen(curname);
+
+    if (attempt < 10U)
+        staging_character = (char)('0' + attempt);
+    else if (attempt < 36U)
+        staging_character = (char)('A' + attempt - 10U);
+    else
+        staging_character = (char)('a' + attempt - 36U);
+    target_leaf = target_leaf == NULL ? curname : target_leaf + 1;
+    memcpy(output_staging_path, curname, path_length + 1);
+    staged_leaf = output_staging_path + (target_leaf - curname);
+    leaf_length = strlen(target_leaf);
+    memset(staged_leaf, '0', leaf_length);
+    staged_leaf[leaf_length - 1] = staging_character;
+}
+
+static int
+create_staged_output(mode_t mode)
+{
+    unsigned attempt;
+
+    for (attempt = 0; attempt < STAGING_ATTEMPTS; attempt++) {
+        int descriptor;
+
+        make_output_staging_path(attempt);
+        if (strcmp(output_staging_path, curname) == 0)
+            continue;
+        descriptor = openat_beneath(extraction_root_descriptor,
+            output_staging_path,
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
+            mode & 0777);
+        if (descriptor >= 0)
+            return descriptor;
+        if (errno != EEXIST && errno != ELOOP)
+            archive_path_error("create staged output", curname);
+    }
+    errno = EEXIST;
+    archive_path_error("allocate staged output", curname);
+}
+
+static void
+discard_staged_output(void)
+{
+    int close_error = 0;
+    int primary_error = errno;
+    int remove_error = 0;
+    int target_close_error = 0;
+
+    if (active_output_descriptor >= 0) {
+        if (unlinkat_beneath(extraction_root_descriptor,
+            output_staging_path, active_output_descriptor) < 0)
+            remove_error = errno;
+        if (close(active_output_descriptor) < 0)
+            close_error = errno;
+        active_output_descriptor = -1;
+    }
+    if (active_target_descriptor >= 0) {
+        if (close(active_target_descriptor) < 0)
+            target_close_error = errno;
+        active_target_descriptor = -1;
+    }
+    if (remove_error != 0) {
+        fprintf(stderr, "tar: cleanup remove %s: ", output_staging_path);
+        errno = remove_error;
+        perror("");
+    }
+    if (close_error != 0) {
+        fprintf(stderr, "tar: cleanup close %s: ", curname);
+        errno = close_error;
+        perror("");
+    }
+    if (target_close_error != 0) {
+        fprintf(stderr, "tar: cleanup close replaced output %s: ",
+            curname);
+        errno = target_close_error;
+        perror("");
+    }
+    errno = primary_error;
 }
 
 static int
@@ -2386,7 +2555,10 @@ checkupdate(const char *arg)
 static _Noreturn void
 done(int n)
 {
-    int filter_result = zreap(n == 0);
+    int filter_result;
+
+    discard_staged_output();
+    filter_result = zreap(n == 0);
 
     if (n == 0 && filter_result != 0)
         n = filter_result;

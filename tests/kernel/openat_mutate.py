@@ -82,6 +82,26 @@ def mutate(source: str, mutation: str) -> str:
             "    (void)namespace_owned;\n",
             mutation,
         )
+    if mutation == "open-identity-provider":
+        return replace_once(
+            source,
+            """        return(0);
+    }
+    if ((ip->i_mode & IFMT) == IFSOCK) {
+""",
+            """        if (setjmp(&u.u_qsave)) {
+            error = EINTR;
+            goto lbad;
+        }
+        error = openi(ip, fmode);
+        if (error)
+            goto lbad;
+        return(0);
+    }
+    if ((ip->i_mode & IFMT) == IFSOCK) {
+""",
+            mutation,
+        )
     raise SystemExit(f"unknown mutation: {mutation}")
 
 

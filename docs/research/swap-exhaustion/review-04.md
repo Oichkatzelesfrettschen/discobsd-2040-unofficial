@@ -446,9 +446,9 @@ bind the production boundary, and that the new verifier rejects broken inputs.
 
 ## Handoff
 
-- Requests: 01 -> `7283ad35`, 02 -> `1e0e6304`, 03 -> `bd808083`; 04 contains this final review and awaits its hash.
-- Landed series: decision `0380c48c`; LARGE removal `42590a5c`; pool move `458cc01a`; window `7283ad35`; docs `1e0e6304`; extractor `41ea8ca0`; wrap-up brief `bd808083`; QEMU oracle `e16f268a`.
-- Findings: 0 FATAL, 3 SERIOUS, 4 MINOR; SOUND results cover commit ordering, linker/MPU geometry, sysctl and ledger continuity, and the revised QEMU oracle.
+- Requests: 01 -> `7283ad35`, 02 -> `1e0e6304`, 03 -> `bd808083`, 04 -> `b443bf30`; 05 contains the final hash citation and awaits its hash.
+- Landed series: decision `0380c48c`; LARGE removal `42590a5c`; pool move `458cc01a`; window `7283ad35`; docs `1e0e6304`; extractor `41ea8ca0`; wrap-up brief `bd808083`; QEMU oracle `e16f268a`; review `b443bf30`.
+- Post-implementation findings: 0 FATAL, 3 SERIOUS, 4 MINOR; SOUND results cover commit ordering, linker/MPU geometry, sysctl and ledger continuity, and the revised QEMU oracle.
 - `logged-build`: 3 runs completed with exit 0; every dedicated receipt predates `41ea8ca0`, `bd808083`, and `e16f268a`.
 - `logged-check`: 0 of 2 attempts passed; the first failed in `unifdef_contracts` because LeakSanitizer rejected ptrace, and the wrap-up order stopped the second during libcalc mutants after its build stage passed.
 - `check-kernel-headroom`: the 35-case FLASH-checker self-test passed in both aggregate attempts; the standalone acceptance target over the four kernels did not run.

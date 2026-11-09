@@ -25,8 +25,6 @@ before it clears the queues rather than after.
 
 Free-running boots of a DiscoBSD kernel, RunFor "30", no terminal tester:
 0 of 6 reached userland before this change, 6 of 6 after.
-
-Assisted-by: Claude Code (claude-opus-5)
 ---
  emulation/peripherals/spi/rp2040_xip_ssi.cs | 70 ++++++++++++++-------
  1 file changed, 47 insertions(+), 23 deletions(-)

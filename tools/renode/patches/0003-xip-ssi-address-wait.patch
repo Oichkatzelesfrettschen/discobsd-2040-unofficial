@@ -11,8 +11,6 @@ the FIFO empty. The state holds and the next tick retries, which is the
 ordinary case, but the branch logged it at Error level and a guest driver's
 log fills with faults that are nothing of the kind. It logs at Noisy now,
 like the Instruction branch does for the same condition.
-
-Assisted-by: Claude Code (claude-opus-5)
 ---
  emulation/peripherals/spi/rp2040_xip_ssi.cs | 7 ++++++-
  1 file changed, 6 insertions(+), 1 deletion(-)

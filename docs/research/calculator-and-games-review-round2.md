@@ -1,6 +1,6 @@
 # Calculator and games review, round 2: adjudication of the Codex and Grok reports
 
-Drafted by an AI assistant (Claude Opus) acting as advisor on PR #345.
+Advisory adjudication on PR #345.
 
 Scope: branch `picocalc/calculator-and-games` at `c7160321`, base `main` at
 `6a3cbc88`. Two independent reviews of that head are adjudicated here: a

@@ -1,6 +1,6 @@
 # 16-bit assumption audit: dispositions
 
-Drafted with Claude Code. This note answers a submitted audit of 16-bit
+This note answers a submitted audit of 16-bit
 assumptions in the RP2040 port. The audit text itself is not in the tree;
 each item below is restated with the evidence that decides it. Source
 revisions: the audit was checked against `6e4c3a4`; the repairs land in

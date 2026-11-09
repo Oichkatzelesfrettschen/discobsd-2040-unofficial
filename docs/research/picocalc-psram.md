@@ -1,6 +1,6 @@
 # PicoCalc PSRAM as swap: protocol, PIO program, driver and evidence
 
-Drafted by Claude Code (claude-sonnet-5-5). The PIO program is written from
+The PIO program is written from
 the two datasheets named below; no existing PSRAM driver source was read.
 Nothing here ran on a board. `sys/arch/rp2040/doc/PICOCALC.md` carries the
 evidence table.

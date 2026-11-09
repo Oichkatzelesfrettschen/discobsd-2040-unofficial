@@ -1,4 +1,4 @@
-Drafted by an AI assistant (Claude, model Sonnet 5.5) from local source checkouts; no board or emulator run backs any benefit figure below, and no human has reviewed it.
+Drawn from local source checkouts; no board or emulator run backs any benefit figure below.
 
 # Putting RP2040 core 1 to work: what the BSDs and MINIX 3 show
 

@@ -1,6 +1,6 @@
 # Flash storage expectations: verified findings and build-out plan
 
-Status: proposal, revised after review. Drafted with assistant help from a
+Status: proposal, revised after review. Derived from a
 submitted storage expectation audit. Every claim was re-read against live
 source at `316b1d7`; the audit's Graft map was stale (`dbd8bf0c`), and the
 Graft MCP reader did not connect in the drafting session, so no claim rests

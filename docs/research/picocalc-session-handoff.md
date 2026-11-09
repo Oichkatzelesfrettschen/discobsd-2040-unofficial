@@ -1,7 +1,6 @@
 # PicoCalc bring-up: state of the port and the session plan
 
-Drafted by an AI assistant (Claude Opus) as the hand-off for the PicoCalc
-work in PRs #344 through #370.
+Hand-off for the PicoCalc work in PRs #344 through #370.
 
 This note names what the PicoCalc work put in the tree, how the board builds
 share one source tree, which test stages exist between a host compile and the

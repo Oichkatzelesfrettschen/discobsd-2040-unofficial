@@ -34,8 +34,6 @@ command that issues it, and SFDP still answers zero; both remain gaps.
 
 A DiscoBSD boot to a shell logs 9972 fewer warnings with this change and
 the same console transcript.
-
-Assisted-by: Claude Code (claude-opus-5)
 ---
  emulation/externals/w25q16.cs | 58 ++++++++++++++++++++++++++++++-----
  1 file changed, 50 insertions(+), 8 deletions(-)

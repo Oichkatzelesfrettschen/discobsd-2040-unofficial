@@ -132,16 +132,15 @@ durable tracking artifact. New work lands complete.
 Use a component-and-mechanism subject. The body records the failed or
 preserved invariant, claim-specific evidence and test outcome; the PR holds
 command logs and environment tables. Keep chronology in commits and PRs,
-not source comments. Disclose AI participation with `Assisted-by: TOOL (MODEL)`
-or `Generated-by:`; reserve `Co-authored-by:` for humans. Each
-commit must build and bisect independently; separate formatting changes.
+not source comments. Commits and pull requests carry no AI attribution
+trailer or line. Each commit must build and bisect independently; separate
+formatting changes.
 
 ## Reports and patches sent upstream
 
 Send upstream reports only on explicit request. Save the draft under
-`docs/research`; disclose assistant drafting in its first line. Lead with
-the finding, mechanism and user consequence. Include exact environment,
-claim-specific evidence, reproducible steps, a `git am` patch, before/after
+`docs/research`. Lead with the finding, mechanism and user consequence.
+Include exact environment, claim-specific evidence, reproducible steps, a `git am` patch, before/after
 measurement and residuals. Follow the recipient's conventions.
 
 ## Safety stop-line
@@ -202,4 +201,4 @@ blockers; a missing tool never becomes a passing check.
   Corrections go to audit-response.md; the ledger stays as captured.
 - The user's global instructions apply (emoji-free text, `--` not em dash,
   American English, POSIX sh with set -eu, ${PYTHON}, no local paths or
-  secrets in commits, `Assisted-by:` trailers).
+  secrets in commits, no AI attribution trailers).

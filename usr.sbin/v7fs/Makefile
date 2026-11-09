@@ -42,8 +42,26 @@ LOCAL_FLAGS=	-std=c17 -Wpedantic -isystem ${V7FS} -isystem ${NEWFS}
 
 all:		${PROG}
 
+# The imported files compile only once tools/netbsd_imports.py verify has
+# matched each one to tools/netbsd-imports.manifest and reversed each local
+# patch under tools/netbsd-patches to NetBSD's recorded bytes, so the build
+# carries NetBSD's revision plus exactly the recorded corrections. The stamp
+# reruns the check whenever the manifest, a patch or an imported file
+# changes.
+IMPORT_MANIFEST=	${TOPSRC}/tools/netbsd-imports.manifest
+IMPORT_PATCHES!=	ls ${TOPSRC}/tools/netbsd-patches/*.patch
+IMPORT_FILES=	${NETBSD_SRCS:Nmain.c:S|^|${V7FS}/|} ${NEWFS}/main.c \
+		${V7FS}/*.h ${NEWFS}/newfs_v7fs.h
+
+netbsd-imports.verified: ${IMPORT_MANIFEST} ${IMPORT_PATCHES} ${IMPORT_FILES}
+.if empty(PYTHON)
+		@echo "usr.sbin/v7fs: set PYTHON to verify the NetBSD imports" >&2; exit 2
+.endif
+		${PYTHON} ${TOPSRC}/tools/netbsd_imports.py verify
+		touch ${.TARGET}
+
 .for src in ${NETBSD_SRCS}
-${src:.c=.o}:	${src}
+${src:.c=.o}:	${src} netbsd-imports.verified
 		${CC} ${CFLAGS} ${V7FS_DEFS} ${DISCOBSD_DEFS} ${NETBSD_FLAGS} \
 		    -c -o ${.TARGET} ${.ALLSRC:M*.c}
 .endfor
@@ -72,7 +90,7 @@ HOST_SRCS=	${LOCAL_SRCS:S|^|${.CURDIR}/|} \
 
 # host rebuilds every time: a caller may change HOSTCC or HOSTCFLAGS
 # between runs, which no file date records.
-host:		${HOST_SRCS}
+host:		${HOST_SRCS} netbsd-imports.verified
 		rm -rf host.obj && mkdir host.obj
 .for src in ${NETBSD_SRCS:Nmain.c}
 		${HOSTCC} ${HOSTCFLAGS} -std=gnu17 -Wall -Wextra -Werror \
@@ -90,10 +108,16 @@ host:		${HOST_SRCS}
 .endfor
 		${HOSTCC} ${HOSTCFLAGS} -o ${HOSTBIN} host.obj/*.o
 
+# The gate that drives this program: tests/v7fs_core builds the host
+# program, runs every command in both byte orders and checks its images.
+test:
+		${MAKE} -C ${TOPSRC}/tests/v7fs_core check
+
 clean:
-		rm -rf *.o *.elf ${PROG} ${HOSTBIN} host.obj *.dis tags *~
+		rm -rf *.o *.elf ${PROG} ${HOSTBIN} host.obj *.dis tags *~ \
+		    netbsd-imports.verified
 
 install:	all
 		${INSTALL} ${PROG} ${DESTDIR}${BINDIR}/${PROG}
 
-.PHONY:		host
+.PHONY:		host test

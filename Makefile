@@ -979,6 +979,13 @@ check-dhara-metadata: check-python
 check-dhara-amplification: check-python
 		${MAKE} -C tests/rp2040/dhara_amplification check PYTHON=${PYTHON:Q}
 
+# NetBSD files imported verbatim match tools/netbsd-imports.manifest; the
+# selftest first shows verify rejects an altered byte, a missing file, an
+# unlisted file and a missing revision.
+check-netbsd-imports: check-python
+		${PYTHON} tools/netbsd_imports.py selftest
+		${PYTHON} tools/netbsd_imports.py verify
+
 check-storage-counters: tools
 		sh tools/verify_storage_counters.sh
 
@@ -1090,6 +1097,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
+		check-netbsd-imports \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
 		check-usb-reset check-usb-line-coding check-usb-cdc-requests \

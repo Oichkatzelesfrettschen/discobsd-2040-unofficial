@@ -343,7 +343,9 @@ callers of a name that a header prototype and a definition both carry.
   `sbrk` returns -1 with brk's errno on refusal and that an oversized
   request is ENOMEM before any arena call. It is a host binary: the
   kernel's two refusals and the syscall boundary are outside it.
-  The RP2040 kernel fixture checks fixed-window heap admission.
+  The qemu a.out tier (`tests/qemu_aout`, `brk.expected`) models the
+  loader's break refusal at the fixed window end; no host test executes
+  the production `sys/kern/kern_mman.c` refusals.
 - Open: no board run drives a process to its ceiling and reads the
   ENOMEM back through malloc; and the ceiling check reads `u_ssize`,
   the stack's size so far, so a process whose stack later grows toward a

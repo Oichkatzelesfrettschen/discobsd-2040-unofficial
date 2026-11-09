@@ -9,7 +9,18 @@
  		DPRINTF("invalid inode#%d (%d-%zu)\n", ino,
  		    V7FS_ROOT_INODE, V7FS_MAX_INODE(sb));
  		return ENOSPC;
-@@ -125,6 +125,8 @@
+@@ -113,6 +113,10 @@
+ 	/* If there is no free inode cache, update it. */
+ 	if (sb->nfreeinode <= 0 && (error = v7fs_freeinode_update(fs))) {
+ 		DPRINTF("inode exhausted!(2)\n");
++		goto errexit;
++	}
++	if (sb->nfreeinode <= 0) {
++		error = ENOSPC;
+ 		goto errexit;
+ 	}
+ 	/* Get inode from superblock cache. */
+@@ -125,6 +129,8 @@
  		DPRINTF("new inode#%d %d %d\n", inode_number, sb->nfreeinode,
  		    sb->total_freeinode);
  		DPRINTF("free inode list corrupt\n");
@@ -18,7 +29,35 @@
  		goto errexit;
  	}
  	*ino = inode_number;
-@@ -282,9 +284,10 @@
+@@ -135,15 +141,17 @@
+ 	return error;
+ }
+ 
+-void
++int
+ v7fs_inode_deallocate(struct v7fs_self *fs, v7fs_ino_t ino)
+ {
+ 	struct v7fs_superblock *sb = &fs->superblock;
+ 	struct v7fs_inode inode;
++	int error;
+ 
+ 	memset(&inode, 0, sizeof(inode));
+ 	inode.inode_number = ino;
+-	v7fs_inode_writeback(fs, &inode);
++	if ((error = v7fs_inode_writeback(fs, &inode)) != 0)
++		return error;
+ 
+ 	SUPERB_LOCK(fs);
+ 	if (sb->nfreeinode < V7FS_MAX_FREEINODE) {
+@@ -155,6 +163,7 @@
+ 	sb->total_freeinode++;
+ 	sb->modified = true;
+ 	SUPERB_UNLOCK(fs);
++	return 0;
+ }
+ 
+ void
+@@ -282,9 +291,10 @@
      v7fs_daddr_t *offset)
  {
  	v7fs_daddr_t ofs, blk;

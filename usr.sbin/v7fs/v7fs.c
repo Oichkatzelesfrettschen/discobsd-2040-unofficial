@@ -362,23 +362,20 @@ blocks_for(uint64_t size)
 	return total;
 }
 
-/*
- * put and mkdir: v7fs_datablock_expand() keeps the blocks it took when it
- * runs out part way, and nothing then owns them, so the whole requirement,
- * including a new block for the parent directory's entry, is checked
- * against the free count before anything is allocated.
- */
+static int cmd_rm(struct image *, const char *);
+
+/* Check the expected capacity before starting a put or mkdir operation. */
 static int
 cmd_put(struct image *im, const char *local, const char *path, bool directory)
 {
 	char leaf[V7FS_NAME_MAX + 1];
 	struct v7fs_fileattr attr;
-	struct v7fs_inode parent, inode;
+	struct v7fs_inode parent, inode, original_inode;
 	struct copy c = { -1, true };
 	struct stat st;
 	uint64_t needed;
 	v7fs_ino_t dir, ino;
-	int error;
+	int error, cleanup_error;
 
 	if ((error = walk(im->fs, path, &dir, leaf)) != 0)
 		return error;
@@ -420,24 +417,35 @@ cmd_put(struct image *im, const char *local, const char *path, bool directory)
 		goto out;
 	if (directory || st.st_size == 0)
 		goto out;
-	if ((error = v7fs_inode_load(im->fs, &inode, ino)) != 0 ||
-	    (error = v7fs_datablock_expand(im->fs, &inode,
-	    (size_t)st.st_size)) != 0)
-		goto out;
+	if ((error = v7fs_inode_load(im->fs, &inode, ino)) != 0)
+		goto remove_created;
+	original_inode = inode;
+	if ((error = v7fs_datablock_expand(im->fs, &inode,
+	    (size_t)st.st_size)) != 0) {
+		if (memcmp(&inode, &original_inode, sizeof(inode)) != 0)
+			goto out;
+		goto remove_created;
+	}
 	if (v7fs_datablock_foreach(im->fs, &inode, copy_block, &c) !=
 	    V7FS_ITERATOR_END)
 		error = EIO;
 	else
 		error = v7fs_inode_writeback(im->fs, &inode);
+	if (error == 0)
+		goto out;
+remove_created:
+	cleanup_error = cmd_rm(im, path);
+	if (cleanup_error != 0)
+		error = cleanup_error;
 out:
-	if (c.fd >= 0)
-		close(c.fd);
+	if (c.fd >= 0 && close(c.fd) != 0 && error == 0)
+		error = errno;
 	return error;
 }
 
 /*
- * rm: v7fs_file_deallocate() removes the entry and drops the link count (and
- * a directory's data blocks); releasing an inode left with no links is the
+ * rm: v7fs_file_deallocate() removes the entry and drops the link count;
+ * releasing an inode left with no links and its data blocks is the
  * host's step, which NetBSD's vnode layer performs at reclaim
  * (v7fs_reclaim() in v7fs_vnops.c). This process holds no open files, so the
  * release follows at once.
@@ -481,9 +489,10 @@ static int
 cmd_rm(struct image *im, const char *path)
 {
 	char leaf[V7FS_NAME_MAX + 1];
-	struct v7fs_inode parent, inode;
+	struct v7fs_inode parent, inode, original_inode, unlinked_inode;
 	v7fs_ino_t dir, ino;
-	int error;
+	int error, restore_error;
+	bool retryable;
 
 	if ((error = walk(im->fs, path, &dir, leaf)) != 0)
 		return error;
@@ -492,15 +501,47 @@ cmd_rm(struct image *im, const char *path)
 	if ((error = v7fs_inode_load(im->fs, &parent, dir)) != 0 ||
 	    (error = v7fs_file_lookup_by_name(im->fs, &parent, leaf,
 	    strlen(leaf), &ino)) != 0 ||
-	    (error = v7fs_file_deallocate(im->fs, &parent, leaf,
-	    strlen(leaf))) != 0 ||
 	    (error = v7fs_inode_load(im->fs, &inode, ino)) != 0)
 		return error;
+	original_inode = inode;
+	if ((error = v7fs_file_deallocate(im->fs, &parent, leaf,
+	    strlen(leaf))) != 0)
+		return error;
+	if (v7fs_inode_isdir(&inode))
+		inode.nlink = 0;
+	else
+		inode.nlink--;
 	if (v7fs_inode_nlink(&inode) != 0)
 		return 0;
-	if ((error = v7fs_datablock_size_change(im->fs, 0, &inode)) != 0)
+	unlinked_inode = inode;
+	if ((error = v7fs_datablock_contract_status(im->fs, &inode,
+	    inode.filesize, &retryable)) != 0) {
+		if (memcmp(&inode, &unlinked_inode, sizeof(inode)) != 0) {
+			if (!retryable)
+				return error;
+			restore_error = v7fs_datablock_contract_status(im->fs, &inode,
+			    inode.filesize, &retryable);
+			if (restore_error != 0)
+				return restore_error;
+			restore_error = v7fs_inode_deallocate(im->fs, ino);
+			if (restore_error != 0)
+				return restore_error;
+			return error;
+		}
+		restore_error = v7fs_inode_writeback(im->fs, &original_inode);
+		if (restore_error != 0)
+			return restore_error;
+		restore_error = v7fs_directory_add_entry(im->fs, &parent, ino,
+		    leaf, strlen(leaf));
+		return restore_error != 0 ? restore_error : error;
+	}
+	error = v7fs_inode_deallocate(im->fs, ino);
+	if (error != 0) {
+		restore_error = v7fs_inode_deallocate(im->fs, ino);
+		if (restore_error != 0)
+			return restore_error;
 		return error;
-	v7fs_inode_deallocate(im->fs, ino);
+	}
 	return 0;
 }
 
@@ -585,9 +626,8 @@ main(int argc, char **argv)
 
 	if (error != 0) {
 		/*
-		 * A failed write may already have allocated blocks and inodes
-		 * on disk; writing the in-core superblock back keeps its free
-		 * lists consistent with them.
+		 * Persist the in-core free lists after an operation error.
+		 * Failed compensation can still require image repair.
 		 */
 		image_close(&im, writing);
 		return fail(cmd, error);

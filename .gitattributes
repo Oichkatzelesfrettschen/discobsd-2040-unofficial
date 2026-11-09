@@ -8,3 +8,6 @@
 # The imported Tatham sources stay byte for byte as upstream wrote them,
 # trailing blanks included (games/pzcommon/tatham.sha256 pins them).
 /games/pzcommon/tatham/* -whitespace
+
+# Unified patch context must retain the imported source's exact whitespace.
+/tools/netbsd-patches/*.patch -whitespace

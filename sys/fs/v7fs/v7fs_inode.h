@@ -69,7 +69,7 @@ struct v7fs_inode {
 __BEGIN_DECLS
 /* Free inode access ops. */
 int v7fs_inode_allocate(struct v7fs_self *, v7fs_ino_t *);
-void v7fs_inode_deallocate(struct v7fs_self *, v7fs_ino_t);
+int v7fs_inode_deallocate(struct v7fs_self *, v7fs_ino_t);
 
 /* Disk I/O ops. */
 int v7fs_inode_load(struct v7fs_self *, struct v7fs_inode *, v7fs_ino_t);

@@ -204,12 +204,12 @@ on a measurement or a source reading above or below.
    `v7fs_reclaim()` in NetBSD's vnode layer. A host that skips the step
    leaks both on every removal, which `check-v7fs-core` caught in the first
    draft of the tool's `rm`.
-4. Memory is a fixed pool sized to the deepest nesting. With
+4. The core scratch path uses a fixed pool. With
    `STATIC_BUFFER` the core draws block buffers from three 512-byte slots in
    `struct v7fs_self` (2,016 bytes with the superblock cache, 2,032 with
    the `V7FS_EI` byte-order operations), the count the NetBSD kernel uses;
-   exhaustion returns NULL, and all 22 callers of
-   `scratch_read()` turn NULL into an error. Without `STATIC_BUFFER` the
+   exhaustion returns NULL; callers of `scratch_read()` use error returns,
+   sentinels, and other control paths. Without `STATIC_BUFFER` the
    core calls `malloc()` per read and never checks the result, so every
    DiscoBSD build defines it.
 5. Byte order is a host parameter. `V7FS_EI` selects the order at mount
@@ -219,28 +219,70 @@ on a measurement or a source reading above or below.
    or kernel links, so components need no run-time registry; the link sets
    a rump kernel uses to find its components have nothing to collect here.
 
+The `scratch_read()` return paths have different contracts. Superblock load,
+writeback, free-list and inode-cache refill, inode load and writeback, block
+allocation, and the new indirect-pointer helpers return `EIO`. Directory
+lookup and removal propagate the exercised read failures; the last-block
+lookup returns zero on failure, which the directory caller maps to `EIO`.
+The `v7fs_ilist_foreach()` utility skips an unreadable inode-list sector and
+can return zero; a source search for `v7fs_ilist_foreach` under `sys`, `sbin`,
+and `usr.sbin` found its definition and declaration only.
+`v7fs_file_lookup_by_number()` reduces an iterator error to `false`, while
+`v7fs_directory_replace_entry()` reduces it to `ENOENT` and the rename
+parent-lookup callback can skip a failed read. The shipped v7fs command does
+not call those utility interfaces. Those observed sentinel and skipped-sector
+paths do not establish a universal errno contract.
+
 ## The DiscoBSD v7fs program
 
 `usr.sbin/v7fs` links the imported core and newfs library behind the
 descriptor backend and a command front end: `newfs`, `ls`, `cat`, `get`,
 `put`, `mkdir`, `rm` and `df` on an image file or a raw device, with `-p`
-for the PDP-11 order. The DiscoBSD build, from `bmake build`, is 21,978
+for the PDP-11 order. The earlier build recorded in `8ace6cf6` was 21,978
 bytes of text, 360 of data and 2,356 of bss: 8,274 of text are the NetBSD
 core in every byte order, 1,900 the newfs library, 2,985 the front end, 296
-the backend, and the rest DiscoBSD's libc; the bss is the static
-`struct v7fs_self` and the descriptor record, and nothing comes from
-`malloc()`. Its largest stack frame in the core is 224 bytes and its
-deepest direct call chain 376 bytes on Cortex-M0+, plus the 512-byte block
-buffer each data callback holds, so the program occupies about 25 KB of
-the 192 KB window. It installs to `/usr/sbin` and no manifest lists it.
+the backend, and the rest DiscoBSD's libc. The static `struct v7fs_self`
+contains the core scratch pool; the earlier object measurements do not
+establish a whole-program allocation or maximum stack bound. The program
+installs to `/usr/sbin` and no manifest lists it.
+
+On 2026-11-09 UTC, the local failure-handling candidate over `af2ca599`
+linked with ARM GCC 16.2.0 and `-Os` contained 24,142 bytes of text,
+360 bytes of data, and 2,356 bytes of bss. The `bmake -C usr.sbin/v7fs
+MACHINE=rp2040 all` measurement used the worktree's existing objects and
+libc; it is a cross-build measurement, not a runtime memory bound.
+
+On 2026-11-09 UTC, a Linux host build over base `af2ca599` and the local
+failure-handling changes used GCC 16.2.1 with `-O1 -g`, `V7FS_EI`,
+`STATIC_BUFFER`, and `NDEBUG` for the imported sources. `ltrace` 0.8.1 with
+`-e 'malloc+calloc+realloc+free'` recorded zero matching dynamic call events
+for each successful `newfs`, `put`, `mkdir`, `df`, `cat`, `rm`, `get`, and
+`ls` command. The host executable SHA-256 was
+`63aa1497e2fd518cb0905dbae6e270b42dc8c56a59bec87c3b7eae335beb0181`.
+The trace covers calls visible to that dynamic-call filter; it does not count
+allocations internal to libc or establish a target allocation bound. The
+retained target disassembly contains `malloc`, `calloc`, `realloc`, and
+`free` symbols, so symbol presence alone establishes neither a call nor its
+absence. A whole-program stack maximum remains unknown.
+
+The focused v7fs gate also passed on Linux with GCC 16.2.1 and
+`CC='cc -m32' PYTHON="$PYTHON" bmake MACHINE=rp2040 check-v7fs-core` after
+selecting `PYTHON`.
+The run exercised both scratch backends at 32-bit host width, including the
+fault cases and mutants. Imported translation units excluded the alignment
+sanitizer as described in `tests/v7fs_core/check.sh`; the run establishes
+neither target execution nor physical-board behavior.
 
 The front end guards the host's side of the contract. `newfs` checks the
 geometry before touching the target: at least the 128 sectors a mount
 accepts, no more than v7fs addresses or `off_t` offsets, and a data area
-that holds the 50-entry free-block cache. `put` and `mkdir` compute the
-data and index blocks a file needs, plus a parent-directory block, and
-refuse with `ENOSPC` before allocating, because `v7fs_datablock_expand()`
-keeps the blocks it took when it fails part way. `get` checks that its
+that holds the 50-entry free-block cache. `put` and `mkdir` estimate the
+data and index blocks a file needs, plus a parent-directory data block, and
+refuse an oversized estimate before allocating. The estimate omits possible
+parent-directory index blocks and cannot prevent later I/O errors. Growth
+rolls back the tested single-fault cases when compensation writes succeed;
+a failed compensation can leave allocations or pointers requiring inspection
+or repair. `get` checks that its
 source is a regular file and that its destination is neither the image nor
 another name or device node for it before truncating, and every modifying
 command reports a failed `fsync()`.
@@ -253,11 +295,10 @@ strict C17 with `-Wpedantic`, seeing the imported headers through
 constants DiscoBSD's headers lack, from the compiler's predefines, and
 `compat/discobsd/inttypes.h` maps `<inttypes.h>`, which DiscoBSD's libc
 does not ship, onto `<stdint.h>` for these sources alone. DiscoBSD's
-`include/assert.h` expands to a statement block that calls `fprintf()`
-and `exit()` undeclared, which ISO C's `assert()` forbids; the imported
-files therefore build with `NDEBUG`, and a conforming `assert()` with its
-libc support function is a separate libc change, since it relinks every
-program.
+`include/assert.h` selects a void expression on each inclusion and delegates
+failed enabled assertions to a libc routine that reports the expression and
+location before aborting. The imported target files retain `NDEBUG` so an
+exhausted scratch pool follows the tested error-return path.
 
 Packed structures are safe on the target for a reason worth recording.
 The core addresses `uint32_t` arrays at offset 2 of packed superblock and
@@ -310,24 +351,38 @@ holds its own hash, NetBSD's hash and the patch under
 `tools/netbsd-patches`, `verify` reverses the patch to reproduce NetBSD's
 bytes, and `sync` stops when a NetBSD change makes the patch stop applying.
 
-Three patches correct defects review found in NetBSD's code, each with a
-regression scenario that fails when its patch is reversed:
+Seven patch files carry corrections to NetBSD's code. Regression scenarios use
+patch reversals or targeted mutants to exercise the corrected behavior:
 
 - `newfs_v7fs-main.patch`: `make_filesystem()` cleared sectors 2 through
   `ilist_size - 1`, treating a block count as an end sector, so formatting
   media that held data left the inode list's last two blocks with stale
   inodes the superblock counted as free.
-- `v7fs_inode.patch`: `v7fs_inode_number_sanity()` rejected the last inode
+- `v7fs_inode.patch` and `v7fs_inode.h.patch`: `v7fs_inode_number_sanity()` rejected the last inode
   slot, whose number equals `V7FS_MAX_INODE()`, after
   `v7fs_inode_allocate()` had already decremented the free count;
   `v7fs_inode_inquire_disk_location()` bounded the inode number only under
   `V7FS_INODE_DEBUG`, so a corrupt directory entry could steer an inode
   write into a data block. The patch makes the bound inclusive, restores
   the count when a cache entry names no inode, and bounds every lookup to
-  inodes 1 through `V7FS_MAX_INODE()`.
+  inodes 1 through `V7FS_MAX_INODE()`. Inode release returns a failed clear
+  instead of adding a still-allocated inode to the free cache.
 - `v7fs_superblock.patch`: `v7fs_superblock_sanity()` bounded the signed
   free-cache counts only from above, so a negative count, or an empty block
   cache while blocks remain free, reached the cache arrays out of bounds.
+  The patch also propagates an inode-list read failure during cache refill,
+  reports a failed volume-end read, and retains the dirty flag after a failed
+  superblock write.
+- `v7fs_datablock.patch` and `v7fs_datablock.h.patch`: block allocation restores the cache entry after a
+  failed free-list refill and attempts to release the selected block after a
+  failed zero-fill read or write. Growth builds indirect branches before
+  publication and detaches completed additions during rollback. Contraction
+  detaches pointers before freeing their blocks. A failed rollback write can
+  leave the image inconsistent and requires inspection or repair.
+- `v7fs_file.patch`: directory lookup returns a read error instead of
+  treating the error as a missing name. Creation and removal restore the
+  exercised metadata changes after a single injected failure when their
+  compensation operations succeed.
 
 Each is a candidate for a NetBSD problem report; none has been sent.
 `rtems-libbsd` (`builder.py` in BSD_Workspace) imports FreeBSD the same

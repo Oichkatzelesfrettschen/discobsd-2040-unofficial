@@ -22,7 +22,7 @@ LOCAL_SRCS=	v7fs.c v7fs_io_fd.c
 OBJS=		${LOCAL_SRCS:.c=.o} ${NETBSD_SRCS:.c=.o}
 
 # Both halves: every byte order (V7FS_EI) and the core's static scratch
-# blocks (STATIC_BUFFER, three 512-byte blocks in .bss and no malloc).
+# blocks (STATIC_BUFFER, three 512-byte blocks in .bss for core scratch I/O).
 V7FS_DEFS=	-DV7FS_EI -DSTATIC_BUFFER \
 		-include ${.CURDIR}/netbsd_compat.h -I${.CURDIR}/compat \
 		-I${V7FS} -I${NEWFS}
@@ -31,9 +31,8 @@ DISCOBSD_DEFS=	-I${.CURDIR}/compat/discobsd
 
 # The imported files keep NetBSD's dialect. Two warnings stay off: the
 # packed-member pointer whose alignment tests/v7fs_core asserts, and an
-# argument v7fs_io.c reads only without STATIC_BUFFER. NDEBUG drops
-# assert(), whose DiscoBSD expansion needs declarations those files lack;
-# an exhausted scratch pool then returns NULL, which every caller checks.
+# argument v7fs_io.c reads only without STATIC_BUFFER. NDEBUG keeps the
+# selected target's scratch exhaustion path as a NULL return.
 NETBSD_FLAGS=	-Wno-address-of-packed-member -Wno-unused-parameter -DNDEBUG
 # The DiscoBSD files are strict C17. They see the imported headers as
 # system headers, so -Wpedantic judges this directory's code and leaves the
@@ -95,11 +94,11 @@ host:		${HOST_SRCS} netbsd-imports.verified
 .for src in ${NETBSD_SRCS:Nmain.c}
 		${HOSTCC} ${HOSTCFLAGS} -std=gnu17 -Wall -Wextra -Werror \
 		    ${V7FS_DEFS} -Wno-address-of-packed-member \
-		    -Wno-unused-parameter ${HOST_NETBSD_CFLAGS} \
+		    -Wno-unused-parameter -DNDEBUG ${HOST_NETBSD_CFLAGS} \
 		    -c -o host.obj/${src:.c=.o} ${V7FS}/${src}
 .endfor
 		${HOSTCC} ${HOSTCFLAGS} -std=gnu17 -Wall -Wextra -Werror \
-		    ${V7FS_DEFS} ${HOST_NETBSD_CFLAGS} \
+		    ${V7FS_DEFS} -DNDEBUG ${HOST_NETBSD_CFLAGS} \
 		    -c -o host.obj/newfs_main.o ${NEWFS}/main.c
 .for src in ${LOCAL_SRCS}
 		${HOSTCC} ${HOSTCFLAGS} -Wall -Wextra -Werror ${LOCAL_FLAGS} \

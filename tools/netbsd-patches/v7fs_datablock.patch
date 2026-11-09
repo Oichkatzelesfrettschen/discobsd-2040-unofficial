@@ -1,0 +1,772 @@
+--- a/sys/fs/v7fs/v7fs_datablock.c
++++ b/sys/fs/v7fs/v7fs_datablock.c
+@@ -68,10 +68,10 @@
+ static int v7fs_loop2(struct v7fs_self *, v7fs_daddr_t, size_t *,
+     int (*)(struct v7fs_self *, void *, v7fs_daddr_t, size_t), void *);
+ static v7fs_daddr_t v7fs_link(struct v7fs_self *, v7fs_daddr_t, int);
+-static v7fs_daddr_t v7fs_add_leaf(struct v7fs_self *, v7fs_daddr_t, int);
+-static v7fs_daddr_t v7fs_unlink(struct v7fs_self *, v7fs_daddr_t, int);
+-static v7fs_daddr_t v7fs_remove_leaf(struct v7fs_self *, v7fs_daddr_t, int);
+-static v7fs_daddr_t v7fs_remove_self(struct v7fs_self *, v7fs_daddr_t);
++static int v7fs_append_block(struct v7fs_self *, struct v7fs_inode *, size_t,
++    bool *);
++static int v7fs_rollback_block(struct v7fs_self *, struct v7fs_inode *, size_t,
++    bool, bool *);
+ 
+ #ifdef V7FS_DATABLOCK_DEBUG
+ void daddr_map_dump(const struct v7fs_daddr_map *);
+@@ -120,6 +120,8 @@
+ 		if (sb->nfreeblock == 0) {
+ 			if ((error = v7fs_freeblock_update(fs, blk))) {
+ 				DPRINTF("no freeblock!!!\n");
++				sb->nfreeblock++;
++				sb->total_freeblock++;
+ 				SUPERB_UNLOCK(fs);
+ 				return error;
+ 			}
+@@ -132,15 +134,20 @@
+ 	DPRINTF("Get freeblock %d\n", blk);
+ 	/* Zero clear datablock. */
+ 	void *buf;
+-	if (!(buf = scratch_read(fs, blk)))
+-		return EIO;
++	if (!(buf = scratch_read(fs, blk))) {
++		error = v7fs_datablock_deallocate(fs, blk);
++		return error != 0 ? error : EIO;
++	}
+ 	memset(buf, 0, V7FS_BSIZE);
+ 	if (!fs->io.write(fs->io.cookie, buf, blk))
+ 		error = EIO;
+ 	scratch_free(fs, buf);
+-
+-	if (error == 0)
+-		*block_number = blk;
++	if (error != 0) {
++		int rollback_error = v7fs_datablock_deallocate(fs, blk);
++		return rollback_error != 0 ? rollback_error : error;
++	}
++
++	*block_number = blk;
+ 
+ 	return error;
+ }
+@@ -203,50 +210,56 @@
+ #define	DIRECT_SZ	(V7FS_NADDR_DIRECT * V7FS_BSIZE)
+ #define	IDX1_SZ		(NIDX * V7FS_BSIZE)
+ #define	IDX2_SZ		(NIDX * NIDX * V7FS_BSIZE)
+-#define	ROUND(x, a)	((((x) + ((a) - 1)) & ~((a) - 1)))
++#define	ROUND(x, a)	((((x) + ((a) - 1)) / (a)) * (a))
++	uint64_t offset;
++	const uint64_t maximum = ((uint64_t)V7FS_NADDR_DIRECT + NIDX +
++	    (uint64_t)NIDX * NIDX + (uint64_t)NIDX * NIDX * NIDX) * V7FS_BSIZE;
++	if ((uint64_t)sz > maximum)
++		return ENOSPC;
+ 	if (!sz) {
+ 		map->level = 0;
+ 		map->index[0] = 0;
+ 		return 0;
+ 	}
+ 
+-	sz = V7FS_ROUND_BSIZE(sz);
++	offset = ((uint64_t)sz + V7FS_BSIZE - 1) / V7FS_BSIZE * V7FS_BSIZE;
+ 
+ 	/* Direct */
+-	if (sz <= DIRECT_SZ) {
++	if (offset <= DIRECT_SZ) {
+ 		map->level = 0;
+-		map->index[0] = (sz >> V7FS_BSHIFT) - 1;
++		map->index[0] = (offset >> V7FS_BSHIFT) - 1;
+ 		return 0;
+ 	}
+ 	/* Index 1 */
+-	sz -= DIRECT_SZ;
+-
+-	if (sz <= IDX1_SZ) {
++	offset -= DIRECT_SZ;
++
++	if (offset <= IDX1_SZ) {
+ 		map->level = 1;
+-		map->index[0] = (sz >> V7FS_BSHIFT) - 1;
+-		return 0;
+-	}
+-	sz -= IDX1_SZ;
++		map->index[0] = (offset >> V7FS_BSHIFT) - 1;
++		return 0;
++	}
++	offset -= IDX1_SZ;
+ 
+ 	/* Index 2 */
+-	if (sz <= IDX2_SZ) {
++	if (offset <= IDX2_SZ) {
+ 		map->level = 2;
+-		map->index[0] = ROUND(sz, IDX1_SZ) / IDX1_SZ - 1;
+-		map->index[1] = ((sz - (map->index[0] * IDX1_SZ)) >>
++		map->index[0] = ROUND(offset, IDX1_SZ) / IDX1_SZ - 1;
++		map->index[1] = ((offset - (map->index[0] * IDX1_SZ)) >>
+ 		    V7FS_BSHIFT) - 1;
+ 		return 0;
+ 	}
+-	sz -= IDX2_SZ;
++	offset -= IDX2_SZ;
+ 
+ 	/* Index 3 */
+ 	map->level = 3;
+-	map->index[0] = ROUND(sz, IDX2_SZ) / IDX2_SZ - 1;
+-	sz -= map->index[0] * IDX2_SZ;
+-	map->index[1] = ROUND(sz, IDX1_SZ) / IDX1_SZ - 1;
+-	sz -= map->index[1] * IDX1_SZ;
+-	map->index[2] = (sz >> V7FS_BSHIFT) - 1;
+-
+-	return map->index[2] >= NIDX ? ENOSPC : 0;
++	map->index[0] = ROUND(offset, IDX2_SZ) / IDX2_SZ - 1;
++	offset -= map->index[0] * IDX2_SZ;
++	map->index[1] = ROUND(offset, IDX1_SZ) / IDX1_SZ - 1;
++	offset -= map->index[1] * IDX1_SZ;
++	map->index[2] = (offset >> V7FS_BSHIFT) - 1;
++
++	return map->index[0] >= NIDX || map->index[1] >= NIDX ||
++	    map->index[2] >= NIDX ? ENOSPC : 0;
+ }
+ 
+ int
+@@ -390,110 +403,272 @@
+ 	return blk;
+ }
+ 
++/* Read an indirect entry without assuming the scratch buffer is aligned. */
++static int
++v7fs_pointer_read(struct v7fs_self *fs, v7fs_daddr_t parent, unsigned index,
++    v7fs_daddr_t *child)
++{
++	void *buffer;
++	v7fs_daddr_t disk_value;
++
++	if (!datablock_number_sanity(fs, parent) ||
++	    index >= V7FS_DADDR_PER_BLOCK || !(buffer = scratch_read(fs, parent)))
++		return EIO;
++	memcpy(&disk_value, (uint8_t *)buffer + index * sizeof(disk_value),
++	    sizeof(disk_value));
++	scratch_free(fs, buffer);
++	*child = V7FS_VAL32(fs, disk_value);
++	if (*child != 0 && !datablock_number_sanity(fs, *child))
++		return EIO;
++	return 0;
++}
++
++/* Restore the old entry after a failed write before releasing its child. */
++static int
++v7fs_pointer_write(struct v7fs_self *fs, v7fs_daddr_t parent, unsigned index,
++    v7fs_daddr_t expected, v7fs_daddr_t replacement, bool *restored)
++{
++	void *buffer;
++	v7fs_daddr_t original, value;
++
++	*restored = true;
++	if (!datablock_number_sanity(fs, parent) ||
++	    index >= V7FS_DADDR_PER_BLOCK || !(buffer = scratch_read(fs, parent)))
++		return EIO;
++	memcpy(&original, (uint8_t *)buffer + index * sizeof(original),
++	    sizeof(original));
++	if (V7FS_VAL32(fs, original) != expected) {
++		scratch_free(fs, buffer);
++		return EIO;
++	}
++	value = V7FS_VAL32(fs, replacement);
++	memcpy((uint8_t *)buffer + index * sizeof(value), &value, sizeof(value));
++	if (!fs->io.write(fs->io.cookie, buffer, parent)) {
++		memcpy((uint8_t *)buffer + index * sizeof(original), &original,
++		    sizeof(original));
++		*restored = fs->io.write(fs->io.cookie, buffer, parent);
++		scratch_free(fs, buffer);
++		return EIO;
++	}
++	scratch_free(fs, buffer);
++	return 0;
++}
++
++/* An index block can be released only when its other entries are empty. */
++static int
++v7fs_pointer_only(struct v7fs_self *fs, v7fs_daddr_t parent, unsigned index,
++    v7fs_daddr_t expected)
++{
++	void *buffer;
++	unsigned entry;
++	int error = 0;
++
++	if (!datablock_number_sanity(fs, parent) ||
++	    index >= V7FS_DADDR_PER_BLOCK || !(buffer = scratch_read(fs, parent)))
++		return EIO;
++	for (entry = 0; entry < V7FS_DADDR_PER_BLOCK; entry++) {
++		v7fs_daddr_t value;
++
++		memcpy(&value, (uint8_t *)buffer + entry * sizeof(value), sizeof(value));
++		value = V7FS_VAL32(fs, value);
++		if (value != (entry == index ? expected : 0)) {
++			error = EIO;
++			break;
++		}
++	}
++	scratch_free(fs, buffer);
++	return error;
++}
++
++/* Construct missing index blocks privately before publishing the branch. */
++static int
++v7fs_append_block(struct v7fs_self *fs, struct v7fs_inode *inode, size_t block,
++    bool *uncertain)
++{
++	struct v7fs_daddr_map map;
++	v7fs_daddr_t parent = 0, child = 0, allocated[4];
++	unsigned count = 0;
++	int depth, index, error, cleanup_error = 0;
++	bool restored = true;
++
++	*uncertain = false;
++	if (v7fs_datablock_addr(block * V7FS_BSIZE + 1, &map) != 0)
++		return EFBIG;
++	if (map.level == 0) {
++		if (inode->addr[map.index[0]] != 0)
++			return EIO;
++		error = v7fs_datablock_allocate(fs, &child);
++		if (error == 0)
++			inode->addr[map.index[0]] = child;
++		return error;
++	}
++	parent = inode->addr[V7FS_NADDR_INDEX1 + map.level - 1];
++	depth = -1;
++	if (parent != 0) {
++		for (depth = 0; depth < map.level; depth++) {
++			error = v7fs_pointer_read(fs, parent, map.index[depth], &child);
++			if (error != 0)
++				return error;
++			if (child == 0)
++				break;
++			if (depth == map.level - 1)
++				return EIO;
++			parent = child;
++		}
++	}
++	error = v7fs_datablock_allocate(fs, &child);
++	if (error != 0)
++		return error;
++	allocated[count++] = child;
++	for (index = map.level - 1; index > depth; index--) {
++		v7fs_daddr_t new_parent;
++
++		error = v7fs_datablock_allocate(fs, &new_parent);
++		if (error != 0)
++			goto cleanup;
++		allocated[count++] = new_parent;
++		error = v7fs_pointer_write(fs, new_parent, map.index[index], 0,
++		    child, &restored);
++		if (error != 0)
++			goto cleanup;
++		child = new_parent;
++	}
++	if (depth < 0) {
++		inode->addr[V7FS_NADDR_INDEX1 + map.level - 1] = child;
++		return 0;
++	}
++	error = v7fs_pointer_write(fs, parent, map.index[depth], 0, child,
++	    &restored);
++	if (error == 0)
++		return 0;
++	if (!restored) {
++		*uncertain = true;
++		return error;
++	}
++cleanup:
++	while (count != 0) {
++		int result = v7fs_datablock_deallocate(fs, allocated[--count]);
++		if (result != 0)
++			cleanup_error = result;
++	}
++	if (cleanup_error != 0)
++		*uncertain = true;
++	return cleanup_error != 0 ? cleanup_error : error;
++}
++
++/* Detach the last appended block and any newly empty index blocks. */
++static int
++v7fs_rollback_block(struct v7fs_self *fs, struct v7fs_inode *inode, size_t block,
++    bool persist_inode, bool *detached)
++{
++	struct v7fs_daddr_map map;
++	v7fs_daddr_t nodes[3], child;
++	int depth, prune, error;
++	bool restored;
++
++	*detached = false;
++	if (v7fs_datablock_addr(block * V7FS_BSIZE + 1, &map) != 0)
++		return EIO;
++	if (map.level == 0) {
++		child = inode->addr[map.index[0]];
++		inode->addr[map.index[0]] = 0;
++		if (persist_inode && (error = v7fs_inode_writeback(fs, inode)) != 0) {
++			int restore_error;
++			inode->addr[map.index[0]] = child;
++			restore_error = v7fs_inode_writeback(fs, inode);
++			return restore_error != 0 ? restore_error : error;
++		}
++		*detached = true;
++		return v7fs_datablock_deallocate(fs, child);
++	}
++	nodes[0] = inode->addr[V7FS_NADDR_INDEX1 + map.level - 1];
++	for (depth = 0; depth < map.level; depth++) {
++		error = v7fs_pointer_read(fs, nodes[depth], map.index[depth], &child);
++		if (error != 0 || child == 0)
++			return EIO;
++		if (depth + 1 < map.level)
++			nodes[depth + 1] = child;
++	}
++	prune = map.level;
++	while (prune > 0 && map.index[prune - 1] == 0)
++		prune--;
++	for (depth = prune; depth < map.level; depth++) {
++		v7fs_daddr_t expected = depth + 1 == map.level ? child : nodes[depth + 1];
++		if ((error = v7fs_pointer_only(fs, nodes[depth],
++		    map.index[depth], expected)) != 0)
++			return error;
++	}
++	if (prune == 0) {
++		inode->addr[V7FS_NADDR_INDEX1 + map.level - 1] = 0;
++		if (persist_inode && (error = v7fs_inode_writeback(fs, inode)) != 0) {
++			int restore_error;
++			inode->addr[V7FS_NADDR_INDEX1 + map.level - 1] = nodes[0];
++			restore_error = v7fs_inode_writeback(fs, inode);
++			return restore_error != 0 ? restore_error : error;
++		}
++	} else {
++		v7fs_daddr_t detached_block = prune == map.level ? child : nodes[prune];
++		error = v7fs_pointer_write(fs, nodes[prune - 1],
++		    map.index[prune - 1], detached_block, 0, &restored);
++		if (error != 0) {
++			if (!restored)
++				*detached = true;
++			return error;
++		}
++	}
++	*detached = true;
++	if ((error = v7fs_datablock_deallocate(fs, child)) != 0)
++		return error;
++	for (depth = map.level - 1; depth >= prune; depth--)
++		if ((error = v7fs_datablock_deallocate(fs, nodes[depth])) != 0)
++			return error;
++	return 0;
++}
++
+ int
+ v7fs_datablock_expand(struct v7fs_self *fs, struct v7fs_inode *inode, size_t sz)
+ {
+-	size_t old_filesize = inode->filesize;
+-	size_t new_filesize = old_filesize + sz;
+-	struct v7fs_daddr_map oldmap, newmap;
+-	v7fs_daddr_t blk, idxblk;
+-	int error;
+-	v7fs_daddr_t old_nblk = V7FS_ROUND_BSIZE(old_filesize) >> V7FS_BSHIFT;
+-	v7fs_daddr_t new_nblk = V7FS_ROUND_BSIZE(new_filesize) >> V7FS_BSHIFT;
+-
+-	if (old_nblk == new_nblk) {
+-		inode->filesize += sz;
+-		v7fs_inode_writeback(fs, inode);
+-		return 0; /* no need to expand. */
+-	}
+ 	struct v7fs_inode backup = *inode;
+-	v7fs_daddr_t required_blk = new_nblk - old_nblk;
+-
+-	DPRINTF("%zu->%zu, required block=%d\n", old_filesize, new_filesize,
+-	    required_blk);
+-
+-	v7fs_datablock_addr(old_filesize, &oldmap);
+-	v7fs_daddr_t i;
+-	for (i = 0; i < required_blk; i++) {
+-		v7fs_datablock_addr(old_filesize + (i+1) * V7FS_BSIZE, &newmap);
+-		daddr_map_dump(&oldmap);
+-		daddr_map_dump(&newmap);
+-
+-		if (oldmap.level != newmap.level) {
+-			/* Allocate index area */
+-			if ((error = v7fs_datablock_allocate(fs, &idxblk)))
+-				return error;
+-
+-			switch (newmap.level) {
+-			case 1:
+-				DPRINTF("0->1\n");
+-				inode->addr[V7FS_NADDR_INDEX1] = idxblk;
+-				blk = v7fs_add_leaf(fs, idxblk, 0);
+-				break;
+-			case 2:
+-				DPRINTF("1->2\n");
+-				inode->addr[V7FS_NADDR_INDEX2] = idxblk;
+-				blk = v7fs_add_leaf(fs, v7fs_add_leaf(fs,
+-				    idxblk, 0), 0);
+-				break;
+-			case 3:
+-				DPRINTF("2->3\n");
+-				inode->addr[V7FS_NADDR_INDEX3] = idxblk;
+-				blk = v7fs_add_leaf(fs, v7fs_add_leaf(fs,
+-				    v7fs_add_leaf(fs, idxblk, 0), 0), 0);
+-				break;
+-			}
+-		} else {
+-			switch (newmap.level) {
+-			case 0:
+-				if ((error = v7fs_datablock_allocate(fs, &blk)))
+-					return error;
+-				inode->addr[newmap.index[0]] = blk;
+-				DPRINTF("direct index %d = blk%d\n",
+-				    newmap.index[0], blk);
+-				break;
+-			case 1:
+-				idxblk = inode->addr[V7FS_NADDR_INDEX1];
+-				blk = v7fs_add_leaf(fs, idxblk,
+-				    newmap.index[0]);
+-				break;
+-			case 2:
+-				idxblk = inode->addr[V7FS_NADDR_INDEX2];
+-				if (oldmap.index[0] != newmap.index[0]) {
+-					v7fs_add_leaf(fs, idxblk,
+-					    newmap.index[0]);
+-				}
+-				blk = v7fs_add_leaf(fs, v7fs_link(fs,idxblk,
+-				    newmap.index[0]), newmap.index[1]);
+-				break;
+-			case 3:
+-				idxblk = inode->addr[V7FS_NADDR_INDEX3];
+-
+-				if (oldmap.index[0] != newmap.index[0]) {
+-					v7fs_add_leaf(fs, idxblk,
+-					    newmap.index[0]);
+-				}
+-
+-				if (oldmap.index[1] != newmap.index[1]) {
+-					v7fs_add_leaf(fs, v7fs_link(fs, idxblk,
+-					    newmap.index[0]), newmap.index[1]);
+-				}
+-				blk = v7fs_add_leaf(fs, v7fs_link(fs,
+-				    v7fs_link(fs, idxblk, newmap.index[0]),
+-				    newmap.index[1]), newmap.index[2]);
+-				break;
+-			}
+-		}
+-		if (!blk) {
+-			*inode = backup; /* structure copy; */
+-			return ENOSPC;
+-		}
+-		oldmap = newmap;
+-	}
+-	inode->filesize += sz;
+-	v7fs_inode_writeback(fs, inode);
+-
+-	return 0;
++	uint64_t new_size;
++	struct v7fs_daddr_map final_map;
++	size_t old_blocks, new_blocks, completed;
++	int error, rollback_error;
++	bool uncertain, detached;
++
++	if (sz > UINT32_MAX - inode->filesize)
++		return EFBIG;
++	new_size = (uint64_t)inode->filesize + sz;
++	if (new_size != 0 && v7fs_datablock_addr((size_t)new_size, &final_map) != 0)
++		return EFBIG;
++	old_blocks = ((uint64_t)inode->filesize + V7FS_BSIZE - 1) / V7FS_BSIZE;
++	new_blocks = (new_size + V7FS_BSIZE - 1) / V7FS_BSIZE;
++	for (completed = old_blocks; completed < new_blocks; completed++) {
++		error = v7fs_append_block(fs, inode, completed, &uncertain);
++		if (error != 0 && uncertain)
++			return error;
++		if (error != 0)
++			goto rollback;
++	}
++	inode->filesize = (v7fs_off_t)new_size;
++	error = v7fs_inode_writeback(fs, inode);
++	if (error == 0)
++		return 0;
++	/* A failed write may have changed the inode sector before returning. */
++	rollback_error = v7fs_inode_writeback(fs, &backup);
++	if (rollback_error != 0) {
++		if (new_blocks == old_blocks)
++			*inode = backup;
++		return rollback_error;
++	}
++rollback:
++	while (completed > old_blocks) {
++		rollback_error = v7fs_rollback_block(fs, inode, --completed, false,
++		    &detached);
++		if (rollback_error != 0)
++			return rollback_error;
++	}
++	*inode = backup;
++	return error;
+ }
+ 
+ static v7fs_daddr_t
+@@ -517,202 +692,83 @@
+ 	return blk;
+ }
+ 
+-static v7fs_daddr_t
+-v7fs_add_leaf(struct v7fs_self *fs, v7fs_daddr_t up, int idx)
+-{
+-	v7fs_daddr_t newblk;
+-	v7fs_daddr_t *daddr_list;
+-	int error = 0;
+-	void *buf;
+-
+-	if (!up)
+-		return 0;
+-	if (!datablock_number_sanity(fs, up))
+-		return 0;
+-
+-	if ((error = v7fs_datablock_allocate(fs, &newblk)))
+-		return 0;
+-	if (!(buf = scratch_read(fs, up)))
+-		return 0;
+-	daddr_list = (v7fs_daddr_t *)buf;
+-	daddr_list[idx] = V7FS_VAL32(fs, newblk);
+-	if (!fs->io.write(fs->io.cookie, buf, up))
+-		newblk = 0;
+-	scratch_free(fs, buf);
+-
+-	return newblk;
++int
++v7fs_datablock_contract_status(struct v7fs_self *fs, struct v7fs_inode *inode,
++    size_t sz, bool *retryable)
++{
++	struct v7fs_inode previous;
++	uint64_t new_size;
++	size_t old_blocks, new_blocks, block;
++	int error, restore_error;
++	bool detached;
++
++	*retryable = false;
++	if (sz > inode->filesize)
++		return EINVAL;
++	new_size = inode->filesize - sz;
++	old_blocks = ((uint64_t)inode->filesize + V7FS_BSIZE - 1) / V7FS_BSIZE;
++	new_blocks = (new_size + V7FS_BSIZE - 1) / V7FS_BSIZE;
++	for (block = old_blocks; block > new_blocks; block--) {
++		previous = *inode;
++		inode->filesize = (v7fs_off_t)((block - 1) * V7FS_BSIZE);
++		if (inode->filesize < new_size)
++			inode->filesize = (v7fs_off_t)new_size;
++		error = v7fs_inode_writeback(fs, inode);
++		if (error != 0) {
++			*inode = previous;
++			restore_error = v7fs_inode_writeback(fs, inode);
++			*retryable = restore_error == 0;
++			return restore_error != 0 ? restore_error : error;
++		}
++		error = v7fs_rollback_block(fs, inode, block - 1, true, &detached);
++		if (error != 0 && !detached) {
++			*inode = previous;
++			restore_error = v7fs_inode_writeback(fs, inode);
++			*retryable = restore_error == 0;
++			return restore_error != 0 ? restore_error : error;
++		}
++		if (error != 0)
++			return error;
++	}
++	if (inode->filesize == new_size) {
++		*retryable = true;
++		return 0;
++	}
++	previous = *inode;
++	inode->filesize = (v7fs_off_t)new_size;
++	error = v7fs_inode_writeback(fs, inode);
++	if (error != 0) {
++		*inode = previous;
++		restore_error = v7fs_inode_writeback(fs, inode);
++		*retryable = restore_error == 0;
++		return restore_error != 0 ? restore_error : error;
++	}
++	*retryable = true;
++	return 0;
+ }
+ 
+ int
+ v7fs_datablock_contract(struct v7fs_self *fs, struct v7fs_inode *inode,
+     size_t sz)
+ {
+-	size_t old_filesize = inode->filesize;
+-	size_t new_filesize = old_filesize - sz;
+-	struct v7fs_daddr_map oldmap, newmap;
+-	v7fs_daddr_t blk, idxblk;
+-	int error = 0;
+-	v7fs_daddr_t old_nblk = V7FS_ROUND_BSIZE(old_filesize) >> V7FS_BSHIFT;
+-	v7fs_daddr_t new_nblk = V7FS_ROUND_BSIZE(new_filesize) >> V7FS_BSHIFT;
+-
+-	if (old_nblk == new_nblk) {
+-		inode->filesize -= sz;
+-		v7fs_inode_writeback(fs, inode);
+-		return 0; /* no need to contract; */
+-	}
+-	v7fs_daddr_t erase_blk = old_nblk - new_nblk;
+-
+-	DPRINTF("%zu->%zu # of erased block=%d\n", old_filesize, new_filesize,
+-	    erase_blk);
+-
+-	v7fs_datablock_addr(old_filesize, &oldmap);
+-	v7fs_daddr_t i;
+-	for (i = 0; i < erase_blk; i++) {
+-		v7fs_datablock_addr(old_filesize - (i+1) * V7FS_BSIZE, &newmap);
+-
+-		if (oldmap.level != newmap.level) {
+-			switch (newmap.level) {
+-			case 0: /*1->0 */
+-				DPRINTF("1->0\n");
+-				idxblk = inode->addr[V7FS_NADDR_INDEX1];
+-				inode->addr[V7FS_NADDR_INDEX1] = 0;
+-				error = v7fs_datablock_deallocate(fs,
+-				    v7fs_remove_self(fs, idxblk));
+-				break;
+-			case 1: /*2->1 */
+-				DPRINTF("2->1\n");
+-				idxblk = inode->addr[V7FS_NADDR_INDEX2];
+-				inode->addr[V7FS_NADDR_INDEX2] = 0;
+-				error = v7fs_datablock_deallocate(fs,
+-				    v7fs_remove_self(fs, v7fs_remove_self(fs,
+-				    idxblk)));
+-				break;
+-			case 2:/*3->2 */
+-				DPRINTF("3->2\n");
+-				idxblk = inode->addr[V7FS_NADDR_INDEX3];
+-				inode->addr[V7FS_NADDR_INDEX3] = 0;
+-				error = v7fs_datablock_deallocate(fs,
+-				    v7fs_remove_self(fs, v7fs_remove_self(fs,
+-					v7fs_remove_self(fs, idxblk))));
+-				break;
+-			}
+-		} else {
+-			switch (newmap.level) {
+-			case 0:
+-				DPRINTF("[0] %d\n", oldmap.index[0]);
+-				blk = inode->addr[oldmap.index[0]];
+-				error = v7fs_datablock_deallocate(fs, blk);
+-				break;
+-			case 1:
+-				DPRINTF("[1] %d\n", oldmap.index[0]);
+-				idxblk = inode->addr[V7FS_NADDR_INDEX1];
+-				v7fs_remove_leaf(fs, idxblk, oldmap.index[0]);
+-
+-				break;
+-			case 2:
+-				DPRINTF("[2] %d %d\n", oldmap.index[0],
+-				    oldmap.index[1]);
+-				idxblk = inode->addr[V7FS_NADDR_INDEX2];
+-				v7fs_remove_leaf(fs, v7fs_link(fs, idxblk,
+-				    oldmap.index[0]), oldmap.index[1]);
+-				if (oldmap.index[0] != newmap.index[0]) {
+-					v7fs_remove_leaf(fs, idxblk,
+-					    oldmap.index[0]);
+-				}
+-				break;
+-			case 3:
+-				DPRINTF("[2] %d %d %d\n", oldmap.index[0],
+-				    oldmap.index[1], oldmap.index[2]);
+-				idxblk = inode->addr[V7FS_NADDR_INDEX3];
+-				v7fs_remove_leaf(fs, v7fs_link(fs,
+-				    v7fs_link(fs, idxblk, oldmap.index[0]),
+-				    oldmap.index[1]), oldmap.index[2]);
+-
+-				if (oldmap.index[1] != newmap.index[1])	{
+-					v7fs_remove_leaf(fs, v7fs_link(fs,
+-					    idxblk, oldmap.index[0]),
+-					    oldmap.index[1]);
+-				}
+-				if (oldmap.index[0] != newmap.index[0]) {
+-					v7fs_remove_leaf(fs, idxblk,
+-					    oldmap.index[0]);
+-				}
+-				break;
+-			}
+-		}
+-		oldmap = newmap;
+-	}
+-	inode->filesize -= sz;
+-	v7fs_inode_writeback(fs, inode);
+-
+-	return error;
+-}
+-
+-static v7fs_daddr_t
+-v7fs_unlink(struct v7fs_self *fs, v7fs_daddr_t idxblk, int n)
+-{
+-	v7fs_daddr_t *daddr_list;
+-	v7fs_daddr_t blk;
+-	void *buf;
+-
+-	if (!(buf = scratch_read(fs, idxblk)))
+-		return 0;
+-	daddr_list = (v7fs_daddr_t *)buf;
+-	blk = V7FS_VAL32(fs, daddr_list[n]);
+-	daddr_list[n] = 0;
+-	fs->io.write(fs->io.cookie, buf, idxblk);
+-	scratch_free(fs, buf);
+-
+-	return blk; /* unlinked block. */
+-}
+-
+-static v7fs_daddr_t
+-v7fs_remove_self(struct v7fs_self *fs, v7fs_daddr_t up)
+-{
+-	v7fs_daddr_t down;
+-
+-	if (!datablock_number_sanity(fs, up))
+-		return 0;
+-
+-	/* At 1st, remove from datablock list. */
+-	down = v7fs_unlink(fs, up, 0);
+-
+-	/* link self to freelist. */
+-	v7fs_datablock_deallocate(fs, up);
+-
+-	return down;
+-}
+-
+-static v7fs_daddr_t
+-v7fs_remove_leaf(struct v7fs_self *fs, v7fs_daddr_t up, int n)
+-{
+-	v7fs_daddr_t down;
+-
+-	if (!datablock_number_sanity(fs, up))
+-		return 0;
+-
+-	/* At 1st, remove from datablock list. */
+-	down = v7fs_unlink(fs, up, n);
+-
+-	/* link leaf to freelist. */
+-	v7fs_datablock_deallocate(fs, down);
+-
+-	return down;
++	bool retryable;
++
++	return v7fs_datablock_contract_status(fs, inode, sz, &retryable);
+ }
+ 
+ int
+ v7fs_datablock_size_change(struct v7fs_self *fs, size_t newsz,
+     struct v7fs_inode *inode)
+ {
+-	ssize_t diff = newsz - v7fs_inode_filesize(inode);
+-	int error = 0;
+-
+-	if (diff > 0)
+-		error = v7fs_datablock_expand(fs, inode, diff);
+-	else if (diff < 0)
+-		error = v7fs_datablock_contract(fs, inode, -diff);
+-
+-	return error;
++	size_t old_size = v7fs_inode_filesize(inode);
++
++	if (newsz > UINT32_MAX)
++		return EFBIG;
++	if (newsz > old_size)
++		return v7fs_datablock_expand(fs, inode, newsz - old_size);
++	if (newsz < old_size)
++		return v7fs_datablock_contract(fs, inode, old_size - newsz);
++	return 0;
+ }
+ 
+ #ifdef V7FS_DATABLOCK_DEBUG

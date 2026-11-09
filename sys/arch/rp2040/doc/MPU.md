@@ -156,6 +156,7 @@ probe:
 | window top | USER_DATA_END - 4 | reads | reads |
 | SIO DIV_CSR | 0xd0000078 | reads | reads |
 | ROM float and double divide | 7.5 / 2.5 | 3.0, bit-exact | 3.0, bit-exact |
+| caught fault | USER_DATA_END, read three times with a SIGSEGV handler installed | handler runs with the faulting pc and fault-time r4-r11 in its sigcontext, leaves by siglongjmp | not run |
 
 CPUID and DIV_CSR lie 0x78 bytes apart inside the same 256-byte region, so
 the pair decides the subregion disables rather than the region's presence,
@@ -166,6 +167,18 @@ register it was granted. The test also requires `nregions` to read 8 and
 same image distinguishes a map the registers accepted from one they
 dropped. Each closed probe under an enabled MPU is a real HardFault, and
 fault.c prints its frame on the console before delivering SIGSEGV.
+
+arm_fault (fault.c) delivers that signal through the same struct
+trapframe a system call uses: it builds one from the stacked hardware
+frame and the r4-r11 HardFault_Handler banked into fault_regs, points
+u.u_frame at it before psignal and userret, then writes it back as the
+frame the exception return pops and reloads r4-r11 from it, so a handler
+entered by sendsig, or a register a debugger changed while the process
+was stopped, takes effect. The `caught fault` probe decides it: against a
+kernel that leaves u.u_frame on the last system call's frame the boot
+never gets past mputest, because the faulting load replays at HardFault
+priority, and against one whose trapframe carries a wrong r4 the probe
+fails all three reads.
 
 ## Evidence
 

@@ -117,6 +117,33 @@ writes `flash-PICOCALC_PSRAM.uf2`.
 example `IMAGE_WITHOUT="toolchain toolchainlib"`; `bmake MACHINE=rp2040
 list-closures` prints the names and their measured cost.
 
+### Under WSL: keeping the board attached across resets
+
+Under WSL the board reaches Linux through usbipd-win, which exports one
+Windows USB port over USB/IP to the guest's `vhci_hcd`. Each reset (a kernel
+reboot, `picotool reboot -u` into the boot ROM's 2e8a:0003, the return to the
+kernel's 2e8a:000a) re-enumerates the board on Windows and drops the import,
+so `discobsd-flash` and the console wait until the port is attached again.
+The busid names the Windows port, so one attach covers the console and
+BOOTSEL alike. usbipd-win keeps the port attached on its own. From an
+administrator shell on Windows, let both hardware IDs be shared whenever they
+enumerate:
+
+    usbipd policy add --effect Allow --operation AutoBind --hardware-id 2e8a:000a
+    usbipd policy add --effect Allow --operation AutoBind --hardware-id 2e8a:0003
+
+then, from an ordinary Windows shell, attach the port with
+`--auto-attach`, which re-attaches it to the default WSL distribution after
+every re-enumeration for as long as the command runs (`usbipd list` gives the
+busid):
+
+    usbipd attach --wsl --busid <busid> --auto-attach
+
+usbipd-win runs its re-attach loop inside the guest as root, so the guest
+needs no watcher of its own. A second re-attacher in the guest (a loop of
+`usbip attach`) races it for the same port, and each attach the loser starts
+fails.
+
 ## Release artifacts
 
 `.github/workflows/host.yml` runs the tests on Ubuntu, Windows and macOS,

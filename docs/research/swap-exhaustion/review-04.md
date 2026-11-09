@@ -312,3 +312,145 @@ the two-region aligned MPU tiling, and complete removal of the dynamic bonus.
 Trust requires the implementation to replace the adjacency assertion with pool
 containment, update every active independent oracle, keep historical evidence
 values historical, and pass all acceptance gates without warnings.
+
+## Branch-diff adversarial review
+
+The reviewed artifact is the complete 120-path branch diff from `origin/main`
+at `f3b2d048` through `e16f268a`, plus commit request 03. The review inspected
+the changed memory-ownership code, linker and MPU contracts, removed interfaces,
+host and model oracles, structured ledgers, current documentation, retained gate
+receipts, and whole-tree searches for the retired epoch and old geometry. The
+review ran read-only deterministic checks and source probes; the wrap-up order
+stopped builds, long tests, Renode, and board execution.
+
+### SERIOUS -- the promised exchange-bounce reserve has no enforcing gate
+
+Grounding: this review's lines 32-34 and 127-131 say that the linker and
+headroom gates preserve the 4,096-byte future bounce. The linker only requires
+the pool to end inside RAM (`sys/arch/rp2040/conf/kern.ldscript:181-187`), and
+the linked-object verifier repeats containment without a reserve
+(`tools/verify_rp2040_swapram_link.sh:119-124`). The named headroom checker
+measures the FLASH region (`tools/check_kernel_headroom.py:1-20,36-45,113-153`).
+A 10,000-byte BSS increase over the surveyed PICOCALC_PSRAM image would leave
+3,256 bytes below `u0`, so the link and both named checks could pass after the
+kernel had spent 840 bytes of the promised bounce. Recommended fix: add a
+calibrated linker assertion or RAM-headroom gate that leaves at least 4,096
+bytes after the pool in every configuration, or remove the automatic-enforcement
+claim and treat the table as one-revision budget arithmetic.
+
+### SERIOUS -- host boundary fixtures replace the production boundary
+
+Grounding: the user-copy fixture defines `USER_TOP` itself
+(`tests/kernel/usercopy_span_test.c:29-31`), and both exec fixtures define their
+own 192-KiB `USER_WINDOW`, `USER_WINDOW_MAX`, and `USER_TOP`
+(`tests/kernel/exec_elf_admission_test.c:48-55`,
+`tests/kernel/exec_elf_surrounding_contract_test.c:54-67`). The production
+contract lives separately in `sys/sys/systm.h:82-92`. A regression that adds a
+bonus directly to the production macro creates no retired symbol, so the modeled
+fixtures and the linked-symbol blacklist can all pass while user-copy or exec
+admits kernel RAM. Recommended fix: add a calibrated compile/link contract that
+binds the production macros to `__user_data_end` and `MAXMEM`, then exercise one
+image above 144 KiB and one above 192 KiB against the production admission path.
+
+### SERIOUS -- the new linked-layout verdict lacks known-bad calibration
+
+Grounding: `tools/verify_rp2040_swapram_link.sh:87-126,174-179` adds verdicts
+for missing boundary symbols, pool alignment, BSS ordering, RAM containment,
+and retired symbols. The build invokes the checker on successful kernels, but
+the tracked tests contain no negative-control harness for those new predicates.
+`AGENTS.md:91-93` requires known-good and known-bad calibration before a new
+verdict counts. A positive kernel proves only that one input passes; a parser or
+comparison that also accepts an unaligned or overflowing synthetic input would
+remain invisible. Recommended fix: feed controlled `nm` and `objdump` output
+for every rejected state and require each mutant to fail for its named reason.
+
+### MINOR -- the NOLOAD explanation contradicts reset assembly
+
+Grounding: `sys/arch/rp2040/conf/kern.ldscript:111-118` says NOLOAD keeps the
+pool out of the reset-time zero fill. `sys/arch/rp2040/rp2040/locore0.S:98-108`
+clears every word from `_sdata` through `u_end`, including the relocated pool,
+before the later BSS-only loop stops at `_ebss`. The extra clearing is safe, but
+the comment describes behavior the executable does not have. Recommended fix:
+say that NOLOAD omits a flash payload while the broad reset clear still zeros
+the pool.
+
+### MINOR -- the live testing guide names deleted coverage and stale counts
+
+Grounding: `sys/arch/rp2040/doc/TESTING.md:1605-1608` still tells an operator
+to stage `hugetest`, although the branch deletes its only source and Makefile
+with `tests/rp2040/swapram_large`. The same guide claims 229 rwuio assertions
+and 264,692 aggregate assertions at line 551, while the retained later check log
+reports 228 rwuio checks. The nonexistent board command cannot run, and the
+aggregate count no longer names the executed suite. Recommended fix: remove or
+replace `hugetest`, then recompute the aggregate from a completed current run.
+
+### MINOR -- a live structured mapping retains the old window
+
+Grounding: `docs/research/sus-requirement-corpus.json:231` describes a single
+144-KiB execution window, while `docs/INDEX.md:187-188` presents the corpus as
+the current machine-checked tiny-system mapping. The corpus checker requires a
+nonempty translation but does not validate the geometry
+(`tools/check_sus_requirement_corpus.py:344-346`), so the stale value passes.
+Recommended fix: change the mapping to the fixed 192-KiB window or bind the row
+explicitly to the older revision.
+
+### MINOR -- the invariant map claims a kernel heap fixture that is absent
+
+Grounding: `docs/research/invariant-map.md:340-346` correctly says the malloc
+host test owns its `_brk` model and excludes the kernel refusals, then claims an
+RP2040 kernel fixture checks fixed-window heap admission. Searches of `tests/`,
+`tools/`, and the RP2040 host fixtures found no execution of production
+`sys/kern/kern_mman.c`; the QEMU a.out runner models the loader and break
+boundary instead. Recommended fix: name the executable production fixture and
+receipt, or record the kernel `brk()` refusals as unexercised.
+
+### SOUND -- the reordered commits are safe at the pool-move boundary
+
+Grounding: commit `42590a5c` removes `P_LARGE`, the bonus, dynamic admission,
+inheritance, release, and epoch state before commit `458cc01a` relocates the
+pool. The resulting `USER_TOP` and `USER_WINDOW_MAX` are fixed at
+`__user_data_end` and `MAXMEM` (`sys/sys/systm.h:90-92`). No intermediate commit
+can lend the relocated kernel pool to a process.
+
+### SOUND -- source geometry contains the pool outside the MPU grant
+
+Grounding: `RP2040.ld:47-49` ends the user window at `0x20030000` and starts
+kernel RAM there. `kern.ldscript:179-187` tiles the boundary and enforces pool
+ordering, alignment, and containment. `mpu.c:124-139` tiles the user window with
+aligned 128-KiB and 64-KiB regions that end at the same address. The source
+invariants exclude the relocated pool from unprivileged access; board readback
+and deliberate faults remain required physical evidence.
+
+### SOUND -- interface numbering and deletion accounting remain coherent
+
+Grounding: `sys/arch/rp2040/include/cpu.h:34-41,77-88` leaves holes 10 and 11
+and preserves `CPU_MPU` at 12, while `sbin/sysctl/sysctl.c:217-221,765-772`
+skips unnamed entries. The tracked C/header set and the source denominator each
+contain 2,786 unique paths, and all 24 surviving capacity cases name existing
+fixtures and valid dependency identifiers. The remaining epoch names in active
+code belong to the retired-symbol rejection list.
+
+### SOUND -- the QEMU overlap oracle now separates three outcomes
+
+Grounding: commit `e16f268a` changes the overlap case at
+`tests/qemu_aout/Makefile:94-103` to two 96,000-byte strings. The commit records
+71,500 bytes reaching guest exit 8, 96,000 bytes failing with `overlap the
+image`, and 99,000 bytes failing with `exceeds the user window`; the focused
+`REQUIRE_QEMU=1` check passed. The review did not rerun that focused command, so
+the result remains commit-record evidence rather than a new receipt.
+
+No FATAL finding emerged. The implementation's ordering, linker ownership, MPU
+arithmetic, and retired-interface deletion are internally coherent. The branch
+still lacks evidence that the promised bounce remains reserved, that host tests
+bind the production boundary, and that the new verifier rejects broken inputs.
+
+## Handoff
+
+- Requests: 01 -> `7283ad35`, 02 -> `1e0e6304`, 03 -> `bd808083`; 04 contains this final review and awaits its hash.
+- Landed series: decision `0380c48c`; LARGE removal `42590a5c`; pool move `458cc01a`; window `7283ad35`; docs `1e0e6304`; extractor `41ea8ca0`; wrap-up brief `bd808083`; QEMU oracle `e16f268a`.
+- Findings: 0 FATAL, 3 SERIOUS, 4 MINOR; SOUND results cover commit ordering, linker/MPU geometry, sysctl and ledger continuity, and the revised QEMU oracle.
+- `logged-build`: 3 runs completed with exit 0; every dedicated receipt predates `41ea8ca0`, `bd808083`, and `e16f268a`.
+- `logged-check`: 0 of 2 attempts passed; the first failed in `unifdef_contracts` because LeakSanitizer rejected ptrace, and the wrap-up order stopped the second during libcalc mutants after its build stage passed.
+- `check-kernel-headroom`: the 35-case FLASH-checker self-test passed in both aggregate attempts; the standalone acceptance target over the four kernels did not run.
+- Focused evidence: commit `e16f268a` records one passing required-QEMU run; `git diff --check origin/main...e16f268a` passed during review.
+- Board work remains: boot every configuration, read back both user MPU regions, probe the final user byte and first kernel byte, execute a 144-to-192-KiB image, and run SwapRAM evacuation on authorized hardware.

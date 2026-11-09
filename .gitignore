@@ -69,8 +69,6 @@ legacy/pdp11-v6/usr.bin/pdp11/pdp11
 *.core
 core.[0-9]*
 
-# direnv: .envrc is the filled copy of .envrc.template
+# direnv: .envrc holds local, untracked environment settings
 .envrc
 
-# graft context graph, a regenerable local cache
-graft/

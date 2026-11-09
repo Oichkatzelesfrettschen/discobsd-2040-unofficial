@@ -3048,7 +3048,7 @@ clean:
 FORK_SWAP_FUNCTIONS= fork_swap_functions.c
 FORK_SWAP_MUTANTS= ignore-reservation-refusal publish-allproc-early \
     advance-cursor-on-failure allocate-again-on-copy omit-text-release
-FORK_SWAP_CFLAGS= ${GATE_CFLAGS} -Wno-int-to-pointer-cast \
+FORK_SWAP_CFLAGS= ${GATE_CFLAGS} -Wno-int-to-pointer-cast -Wno-deprecated-non-prototype \
     -DSWAPRAM -DSWAPRAM_KB=16 -DSTORAGE_STATS
 FORK_SWAP_DEPS= fork_swap_test.c ${FORK_SWAP_FUNCTIONS} hostkern.o \
     hostkern_kern.c hostkern.h ${MACHINE_STAMP} \

@@ -326,6 +326,16 @@ got=0
     "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "free-list traversal mutant"; }
 echo "v7fs_core: stale free-list traversal mutant rejected"
 
+mutant stale-multiple-slots sys/fs/v7fs/v7fs_datablock.c \
+    'inode->addr[block] = 0;' \
+    'if (block == old_blocks) inode->addr[block] = 0;'
+got=0
+"$work/stale-multiple-slots.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-stale-multiple:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "multiple stale slots mutant"; }
+echo "v7fs_core: multiple stale slots mutant rejected"
+
 mutant inode-data-comparison sys/fs/v7fs/v7fs_inode.h \
     'if (left->filesize != right->filesize)' \
     'if (left->filesize != right->filesize || left->mode != right->mode)'

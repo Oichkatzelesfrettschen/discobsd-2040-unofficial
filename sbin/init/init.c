@@ -70,6 +70,33 @@ struct	sigvec rvec = { reset, sigmask (SIGHUP), 0 };
 jmp_buf	idlebuf;
 
 /*
+ * fork() returns -1 with ENOMEM when swap cannot hold the child and with
+ * EAGAIN when the process table is full (fork(2)); both clear as other
+ * processes exit. spawn() logs the first refusal, waits between attempts so
+ * a refusal cannot spin init, and returns -1 after SPAWN_TRIES attempts.
+ */
+#define	SPAWN_TRIES	6
+#define	SPAWN_DELAY	5	/* seconds between attempts */
+
+int
+spawn(what)
+	const char *what;
+{
+	register int pid, tries;
+
+	for (tries = 1; ; tries++) {
+		pid = fork();
+		if (pid >= 0)
+			return (pid);
+		if (tries == 1)
+			syslog(LOG_ERR, "cannot fork %s: %m", what);
+		if (tries >= SPAWN_TRIES)
+			return (-1);
+		sleep(SPAWN_DELAY);
+	}
+}
+
+/*
  * Catch a SIGSYS signal.
  *
  * These may arise if a system does not support sysctl.
@@ -201,7 +228,8 @@ term(p)
 	register struct tab *p;
 {
 
-	if (p->pid != 0) {
+	/* A pid of -1 marks an entry to restart, not a process. */
+	if (p->pid > 0) {
 		rmut(p);
 		kill(p->pid, SIGKILL);
 	}
@@ -288,7 +316,11 @@ single()
 		setsecuritylevel(0);
 
 	do {
-		pid = fork();
+		pid = spawn("single-user shell");
+		if (pid < 0) {
+			xpid = -1;
+			continue;
+		}
 		if (pid == 0) {
 			signal(SIGTERM, SIG_DFL);
 			signal(SIGHUP, SIG_DFL);
@@ -313,10 +345,12 @@ int
 runcom(oldhowto)
 	int oldhowto;
 {
-	register int pid, f;
+	register int pid, f, xpid;
 	int status;
 
-	pid = fork();
+	pid = spawn(runc);
+	if (pid < 0)
+		return (0);
 	if (pid == 0) {
 		f = open("/", O_RDONLY, 0);
 		if (f > 0)
@@ -329,8 +363,12 @@ runcom(oldhowto)
 			execl(shell, shell, runc, "autoboot", (char *)0);
 		exit(1);
 	}
-	while (wait(&status) != pid)
-		;
+	status = 0;
+	while ((xpid = wait(&status)) != pid)
+		if (xpid == -1 && errno == ECHILD) {
+			status = -1;
+			break;
+		}
 	if (status) {
 syslog(LOG_ERR, "%s failed: status = %#x", runc, status);
 closelog();
@@ -421,7 +459,7 @@ wstart(p)
 		p->windcnt = 1;
 	}
 
-	pid = fork();
+	pid = spawn(p->wcmd);
 
 	if (pid == 0) {
 		signal(SIGTERM, SIG_DFL);
@@ -435,6 +473,7 @@ wstart(p)
 		execit(p->wcmd, p->line);
 		exit(0);
 	}
+	/* A refusal leaves -1, which multiple() restarts on its next pass. */
 	p->wpid = pid;
 }
 
@@ -456,7 +495,7 @@ dfork(p)
 		p->gettytime = t;
 		p->gettycnt = 1;
 	}
-	pid = fork();
+	pid = spawn(p->comn);
 	if (pid == 0) {
 		signal(SIGTERM, SIG_DFL);
 		signal(SIGHUP, SIG_IGN);
@@ -469,6 +508,7 @@ dfork(p)
 		execit(p->comn, p->line);
 		exit(0);
 	}
+	/* A refusal leaves -1, which multiple() restarts on its next pass. */
 	p->pid = pid;
 }
 
@@ -505,8 +545,8 @@ multiple()
 			if (p->wpid == pid || p->wpid == -1)
 				wstart(p);
 			if (p->pid == pid || p->pid == -1) {
-				/* disown the window system */
-				if (p->wpid)
+				/* disown the window system; -1 names no process */
+				if (p->wpid > 0)
 					kill(p->wpid, SIGHUP);
 				rmut(p);
 				dfork(p);
@@ -638,10 +678,10 @@ void
 wterm(p)
 	register struct tab *p;
 {
-	if (p->wpid != 0) {
+	/* A wpid of -1 marks a window system to restart, not a process. */
+	if (p->wpid > 0)
 		kill(p->wpid, SIGKILL);
-                p->wpid = 0;
-	}
+	p->wpid = 0;
 }
 
 /*

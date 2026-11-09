@@ -632,6 +632,11 @@ check-cat-contracts:
 check-getty-contracts:
 		${MAKE} -C tests/getty_contracts check
 
+# init's refused-fork paths, spawn() through runcom(), single(), dfork() and
+# wstart() in sbin/init/init.c, and its -1 restart marker, on the host.
+check-init-contracts:
+		${MAKE} -C tests/init_contracts check
+
 check-cat-contracts-cross:
 		${MAKE} -C tests/cat_contracts check-cross
 
@@ -1074,7 +1079,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
 		check-libc-host-contracts \
-		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts \
+		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
 		check-rmdir-contracts check-tee-contracts check-time-contracts \

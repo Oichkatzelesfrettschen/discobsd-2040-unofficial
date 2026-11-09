@@ -1,0 +1,6 @@
+init_fork_test
+init.o
+init_*-*.c
+init_*-*.o
+init_*-*.test
+init_*-*.out

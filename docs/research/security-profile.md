@@ -2,7 +2,7 @@
 
 The RP2040 has no MMU. Its MPU (datasheet 2.4.6) closes the kernel, the
 peripherals and the flash to user code, leaving a process the boot ROM, the
-SIO divider and its own 144 KB window, and `exec_clear` zeroes the part of
+SIO divider and its own 192 KB window, and `exec_clear` zeroes the part of
 that window an image does not define, so a program reads neither the
 kernel's memory nor the last program's (sys/arch/rp2040/doc/MPU.md). What
 protection stops there: every process runs at the same addresses, one is

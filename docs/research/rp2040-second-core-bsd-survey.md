@@ -1,5 +1,9 @@
 Drawn from local source checkouts; no board or emulator run backs any benefit figure below.
 
+The 144 KiB memory geometry below remains bound to the surveyed revision.
+`swap-exhaustion/review-04.md` supersedes the live layout with a fixed 192 KiB
+window and a kernel-resident SwapRAM pool.
+
 # Putting RP2040 core 1 to work: what the BSDs and MINIX 3 show
 
 ## Summary

@@ -4,7 +4,7 @@ The RP2040's Cortex-M0+ carries an eight-region Protected Memory System
 Architecture MPU (RP2040 datasheet 2.4.1, 2.4.2.5, 2.4.6; ARMv6-M
 Architecture Reference Manual B3.5). sys/arch/rp2040/rp2040/mpu.c programs
 it once at startup and never again: one process is resident at a time and
-every process image occupies the same 144 KB window at USER_DATA_START, so
+every process image occupies the same 192 KB window at USER_DATA_START, so
 the map is static and no context switch touches it. This document is the
 authority for that map, the register values behind it, the privilege
 transition it depends on, and the fault test that proves it.
@@ -35,7 +35,7 @@ fault status or fault address register.
 | --- | --- | --- | --- | --- | --- |
 | 0 | 0x00000000 | 16 KB | AP 110, XN 0, SIZE 13 | r-x | the boot ROM (datasheet 2.8), whose float routines libc calls through lib/libc/arm/gen/rom_float_resolver.S |
 | 1 | 0x20000000 | 128 KB | AP 011, XN 0, SIZE 16 | rwx | the user window, low part |
-| 2 | 0x20020000 | 16 KB | AP 011, XN 0, SIZE 13 | rwx | the user window, high part |
+| 2 | 0x20020000 | 64 KB | AP 011, XN 0, SIZE 15 | rwx | the user window, high part |
 | 3 | 0xd0000000 | 256 B | AP 011, XN 1, SIZE 7, SRD 0xf7 | rw- | SIO offsets 0x060 to 0x07f, the hardware divider |
 | 4 to 7 | | | RASR 0 | | disabled |
 
@@ -94,9 +94,9 @@ exception return, or a debugger breakpoint planted inside the sequence
 rejected by `check-divider`, and the sequence's shape is held by its
 `--user-helper` check (doc/TESTING.md).
 
-144 KB is not a power of two, so the window takes two regions; a static
-assertion in mpu.c pins their sum to USER_DATA_SIZE and the low base to
-its alignment. Text runs from the window because a.out images load into
+192 KB is not a power of two, so the window takes two regions; static
+assertions in mpu.c pin their sum to USER_DATA_SIZE and both bases to their
+region alignments. Text runs from the window because a.out images load into
 SRAM, so XN stays clear. S, C and B stay zero: the RP2040 bus fabric
 consumes none of the exported attributes (the XIP cache is an
 address-range cache) and the Cortex-M0+ reorders nothing.
@@ -120,7 +120,7 @@ emulator that drops the writes runs with the MPU off and says so.
 What was read back, not what was written, is what the kernel reports. The
 console line after the `cpu:` banner reads
 
-    mpu: 8 regions, 4 programmed, MPU_CTRL 0x5: rom 16K r-x, user 144K rwx, sio div rw
+    mpu: 8 regions, 4 programmed, MPU_CTRL 0x5: rom 16K r-x, user 192K rwx, sio div rw
 
 and `sysctl machdep.mpu` answers `enable`, `ctrl`, `nregions`, `separate`
 and `programmed` from the same readback. The first four names are the
@@ -149,7 +149,7 @@ probe:
 
 | probe | address | MPU on | MPU off |
 | --- | --- | --- | --- |
-| kernel RAM | USER_DATA_END, 0x20024000 | SIGSEGV | reads |
+| kernel RAM | USER_DATA_END, 0x20030000 | SIGSEGV | reads |
 | kernel text | 0x10000100, the kernel's vector table | SIGSEGV | reads |
 | SIO CPUID | 0xd0000000 | SIGSEGV | reads |
 | boot ROM magic | 0x00000010 | reads | reads |
@@ -293,7 +293,7 @@ PMSAv6 grants permissions and exports memory attributes; it performs no
 address translation (ARMv6-M Architecture Reference Manual B3.5, RP2040
 datasheet 2.4.6.1, whose only fault response is HardFault). Every process
 therefore runs at the addresses it was linked for, and the window is the
-same 144 KB at 0x20000000 for all of them. What follows is not a gap in
+same 192 KB at 0x20000000 for all of them. What follows is not a gap in
 the map but the architecture:
 
 - a process is capped at MAXMEM, because there is nowhere else to put it;
@@ -338,33 +338,25 @@ no fault address register, so a kernel that fenced the unused span could
 not tell a growing stack from a stray pointer, and could not resume the
 first. Narrowing waits on a core that reports the faulting address.
 
-## Known gap: the SwapRAM LARGE epoch
+## Permanent window and SwapRAM pool
 
-The PICO configuration builds with `SWAPRAM` and `SWAPRAM_KB=16`
-(`sys/arch/rp2040/compile/PICO/Makefile`). A process admitted to the LARGE
-epoch (`P_LARGE`) holds the evacuated pool as extra window: `user_top()`
-returns `__user_data_end + SWAPRAM_BONUS` (`sys/arch/rp2040/rp2040/swapram.c`)
-and exec places the stack and argument area at `USER_TOP`
-(`sys/kern/exec_subr.c`). The map above grants unprivileged access only up to
-0x20024000 and is written once at startup, so a P_LARGE stack and argument
-area intersect 0x20024000 to 0x20028000, which no enabled region grants. The
-board transcript in the Evidence section shows the unprivileged probe at
-0x20024000 faulting with the map enabled. The board runs that exercised LARGE
-execution predate MPU initialization, and
-`tests/rp2040/swapram_large/bigtest.c` asserts nothing about the MPU, so no
-retained run contradicts the gap. The first denied access depends on the
-argument layout rather than on the first push.
+The process ceiling and stack top are fixed at `0x20030000`. The optional
+16 KB SwapRAM pool is a kernel-only `NOLOAD` section that the linker places
+after ordinary kernel data and BSS. The kernel can evacuate compressed images
+from the pool to raw flash, but evacuation does not change the process window.
 
-The repair enables a read-write region over the bonus interval only while
-the pool is evacuated and the LARGE epoch owns those bytes, and disables it
-with readback before the pool reopens. Its gate runs a LARGE image with the
-map enabled and records the kernel and executable hashes, the resident demand
-`exec_estab` computes, `P_LARGE`, the entry stack pointer, a live readback of
-the region registers (`machdep.mpu.enable` reports state cached at startup),
-and unprivileged reads and writes across the bonus interval, then probes the
-first byte past and the last byte inside every enabled span.
-`docs/research/xip-shared-libc/streams/07-rp2040-hardware.md` holds the
-derivation.
+The former LARGE epoch lent the adjacent pool to one process. Relocating the
+pool made that contract unsafe: extending `USER_TOP` above `0x20030000` would
+grant ordinary kernel RAM to the process. The port therefore removed
+`SWAPRAM_BONUS`, `P_LARGE`, the variable `user_top()` path and the epoch
+sysctls before moving the pool. `docs/research/swap-exhaustion/review-04.md`
+owns the adversarial decision, consumer inventory and host evidence.
+
+The board transcripts in the Evidence section retain `0x20024000` because
+they measured the former 144 KB map. They establish the old image's MPU
+behavior only; `review-04.md` supersedes their live-layout conclusion. A new
+board run must probe `0x20030000` and record the new region readback before it
+establishes physical-hardware protection for the 192 KB map.
 
 The Renode transcript in the Evidence section reads `programmed=3` from an
 earlier three-region map; the board transcript and `mpu.c` program four. The

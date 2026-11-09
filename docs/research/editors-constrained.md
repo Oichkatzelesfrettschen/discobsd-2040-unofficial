@@ -4,7 +4,7 @@
 
 DiscoBSD (2.11BSD-derived) on Raspberry Pi Pico RP2040, Cortex-M0+ (ARMv6-M, Thumb-1),
 no MMU. This retained survey used the then-current 96 KB process window for
-text+data+stack. The current port reserves 144 KiB; every 96 KB fit verdict below
+text+data+stack. The current port reserves 192 KiB; every 96 KB fit verdict below
 records the historical assumption and requires remeasurement before adoption.
 Binaries are a.out,
 built with `arm-none-eabi-gcc -Os` and converted from ELF32. libc is 2.11BSD's, with

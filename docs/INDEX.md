@@ -31,6 +31,7 @@ page in those files without carrying them here.
 | Which datasheet section covers this register? | `sys/arch/rp2040/doc/DATASHEET-INDEX.md` |
 | How does DiscoBSD run on a ClockworkPi PicoCalc, and what is left? | `sys/arch/rp2040/doc/PICOCALC.md` |
 | What does each test gate prove, and what does it need? | `sys/arch/rp2040/doc/TESTING.md` |
+| How does a host script drive the board console without losing input? | `sys/arch/rp2040/doc/BOARD-CONSOLE.md` |
 | What does the MPU protect, and how is that proven? | `sys/arch/rp2040/doc/MPU.md` |
 | What fixed-table and kernel-stack headroom has a workload used? | `sys/arch/rp2040/doc/CAPACITY.md` |
 | Where do the 2 MB of flash go? | `sys/arch/rp2040/doc/STORAGE.md` |
@@ -127,7 +128,7 @@ Grouped by what they investigate.
 | `flash-storage-expectation-plan.md` | the storage expectation audit verified against source: per-request Dhara checkpoint padding as the cost driver, the `fs_fmod` gap in `sync()`, and a phased plan with gates and predictions |
 | `libc-size-audit.md` | where the C library's bytes go, across the shipped programs |
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
-| `constrained-c.md` | C techniques that hold inside a 144 KB process window |
+| `constrained-c.md` | C techniques that hold inside a 192 KB process window |
 | `footprint-techniques.md` | flash and SRAM techniques ranked by measured payoff and mapped to this tree: XIP libc, multicall membership, alignment-hole packing, bounded scans, per-artifact flag experiments, and why kernel overlays and wholesale shared stacks do not pay |
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
 | `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
@@ -230,7 +231,7 @@ Grouped by what they investigate.
 | `bsd44-backport.md` | the 4.4BSD-Lite2 candidates worth backporting |
 | `tiny-rump-components.md` | NetBSD rump kernels measured for the RP2040: the base exceeds the kernel flash and the user window, the uncommitted NanoRump design audited and its hypercall table, link set and buffer path refuted, and NetBSD's component-core plus host-backend split (v7fs, makefs msdosfs) as the plan, with a sync manifest and ordered falsifiers |
 | `tiny-rump-components/` | the cross-compile and symbol-count script behind the rump measurements, including the calibrated link-set probe |
-| `netbsd110-tinyspace.md` | NetBSD 1.0, the 1994 release and not NetBSD 10 or 11.0, compared to this port, and what still fits the 144 KB window as C17 |
+| `netbsd110-tinyspace.md` | NetBSD 1.0, the 1994 release and not NetBSD 10 or 11.0, compared to the revision that used a 144 KB window, and what fit as C17 |
 | `integration-review.md` | sh-lineedit, stevie-vi and swapram reviewed together |
 | `static-analysis.md` | the static analysis run over the port and what it found |
 | `security-c17-frontier.md` | the shipped CVE dispositions, the bounded LZW repair and measured C17 migration, and the ranked security/resource frontier |

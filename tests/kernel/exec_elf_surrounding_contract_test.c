@@ -53,7 +53,7 @@ typedef unsigned short u_short;
 #define UIO_READ 0
 #define SSIZE 2048U
 #define NBPW 4U
-#define USER_WINDOW (144U * 1024U)
+#define USER_WINDOW (192U * 1024U)
 #define USER_WINDOW_MAX USER_WINDOW
 #define MAXMEM USER_WINDOW
 #define STACKALIGN 8U

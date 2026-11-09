@@ -7,7 +7,7 @@ DiscoBSD/rp2040
 DiscoBSD/rp2040 is a 2.11BSD-derived UNIX for the Raspberry Pi Pico. The
 whole system lives on the Pico itself: a 128 KB kernel, a 1.5 MB root file
 system, and 384 KB of swap in the board's 2 MB QSPI flash, with 264 KB of
-SRAM split between the kernel and a 144 KB window for the running
+SRAM split between the kernel and a 192 KB window for the running
 program. The console is the board's USB cable, a standard USB serial
 device that Linux, Windows, and macOS drive with no added driver. The
 board boots to a login prompt and runs a shell, the classic BSD commands,
@@ -21,7 +21,7 @@ This fork maintains ARM targets only: RP2040 and STM32. It archives the
 former PIC32/MIPS source under `legacy/non-arm/` without a supported build.
 The RP2040 port replaces the SD card with the Pico's own flash, adds the USB
 console, and reworks memory ownership, swapping, and the userland for a
-single 144 KB process. Everything below is about the Pico; the last section
+single 192 KB process. Everything below is about the Pico; the last section
 describes the maintained STM32 target and the archived upstream context.
 
 [1]: http://DiscoBSD.org
@@ -36,7 +36,7 @@ What runs on it
 | kernel | `sys/arch/rp2040`, PICO (USB console) and PICO_UART (UART0 on GP0/GP1) |
 | root | 1.5 MB flash region, wear-leveled by Dhara, about 980 KB of blocks |
 | swap | 384 KB of raw flash behind the root, plus a 16 KB compressed in-RAM tier |
-| user program | 144 KB window, one resident process, swap for the rest |
+| user program | 192 KB window, one resident process, swap for the rest |
 | console | USB CDC-ACM at 115200 8N1, 80x24; login `operator`, no password; `su` to root |
 | commands | 112 names across /bin, /sbin, /usr/bin, /usr/sbin, /usr/libexec, and /usr/games, most of them hard links into seven multicall executables |
 | optional Sixth Edition UNIX | `BUILD_PDP11_V6=yes` adds a PDP-11/40 emulator and V6 root pack to a separate legacy image; the default image excludes both |

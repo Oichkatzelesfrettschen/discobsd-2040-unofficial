@@ -19,9 +19,9 @@
  * this path has no geteblk, no sleep, and no buffer. The same property
  * keeps the kernel stack out of it, which matters because USIZE is 3072
  * bytes for the u structure and the kernel stack together. The evacuation
- * and the epoch requests run in the swapper and in process context, where
- * sleeping in swap_with_buf() is the norm; they use the decoder while no
- * swapin can, and the pool is closed to new images for their duration.
+ * request runs in the swapper, where sleeping in swap_with_buf() is the
+ * norm; it uses the decoder while no swapin can, and the pool is closed to
+ * new images for the evacuation's duration.
  */
 
 #include <sys/param.h>
@@ -56,10 +56,9 @@
 #define SR_WORST(n)     ((n) + (n) / 8 + 4)
 
 /*
- * The pool, in the section kern.ldscript places first in RAM so that it
- * abuts the user window; under the LARGE epoch it is the top of a large
- * process's stack. NOLOAD there and outside the bss clearing, which is
- * fine because every byte is written before it is read.
+ * The pool lives in a NOLOAD section after ordinary kernel data and bss.
+ * Reset-time bss clearing leaves the pool untouched, which is safe because
+ * every stored byte is written before it is read.
  */
 u_char                  swapram_pool_mem[SWAPRAM_KB * 1024]
 #ifdef __ELF__          /* the host test on macOS builds this as Mach-O */
@@ -71,7 +70,6 @@ static struct swapram_seg sr_seg[NPROC + 1];
 static struct swapram_pool sr_map;
 static int              sr_ready;
 static int              sr_spools;
-static void             sr_poke (void);
 
 /*
  * One entry per proc slot, indexed by p - proc, because a swapped-out
@@ -125,10 +123,8 @@ sr_flash_span (struct sr_ent *e)
 #endif
 
 /*
- * Admission: swapram_out takes an image only while this is set. An
- * evacuation clears it first, so no image enters the pool behind the
- * move, and the SMALL/LARGE epoch keeps it clear while the pool must
- * stay empty.
+ * Admission: swapram_reserve takes an image only while this is set. An
+ * evacuation clears it first, so no image enters the pool behind the move.
  */
 static int              sr_admit = 1;
 
@@ -138,19 +134,6 @@ static int              sr_admit = 1;
  * then the result.
  */
 int                     swapram_evac = SWAPRAM_EVAC_IDLE;
-
-/*
- * The epoch, the processes admitted under LARGE, and the requests the
- * swapper answers: sr_large_want asks for LARGE (an evacuation first),
- * sr_small_want asks for SMALL once no large process remains. Every
- * completed attempt at LARGE steps sr_large_seq, which is how a process
- * asleep on swapram_epoch tells a refusal from a wakeup it did not ask
- * for.
- */
-int                     swapram_epoch = SWAPRAM_SMALL;
-static int              sr_nlarge;
-static int              sr_large_want, sr_small_want;
-static unsigned int     sr_large_seq;
 
 #ifdef RP2040
 extern unsigned char swapram_codec_work[SWAPRAM_CODEC_WORK_BYTES];
@@ -199,17 +182,14 @@ sr_pool_init_once (void)
 }
 
 /*
- * Exec argument spools share the byte allocator with compressed images.
- * A live spool keeps the SMALL epoch because the LARGE user window overlaps
- * every byte of the pool. The exec path moves its spool to flash before it
- * asks for LARGE and releases every reservation on its common cleanup path.
+ * Exec argument spools share the byte allocator with compressed images and
+ * release every reservation on the exec path's common cleanup path.
  */
 int
 swapram_spool_alloc (unsigned int size, unsigned int *offp)
 {
     sr_pool_init_once ();
-    if (! sr_admit || swapram_epoch != SWAPRAM_SMALL ||
-        swapram_pool_alloc (&sr_map, size, offp) < 0)
+    if (! sr_admit || swapram_pool_alloc (&sr_map, size, offp) < 0)
         return -1;
     sr_spools++;
     return 0;
@@ -240,8 +220,7 @@ swapram_spool_free (unsigned int off, unsigned int size)
 {
     if (sr_spools <= 0 || swapram_pool_free (&sr_map, off, size) < 0)
         panic ("swapram: spool free");
-    if (--sr_spools == 0 && sr_large_want)
-        sr_poke ();
+    sr_spools--;
 }
 
 static struct sr_ent *
@@ -377,16 +356,15 @@ sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
  * admitted whenever its real size fits rather than its raw size.
  */
 int
-swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
+swapram_reserve (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
     size_t slen, size_t ulen)
 {
     struct sr_ent *e = sr_slot (p);
     unsigned int off, want;
     int dn = 0, sn = 0;
 
-    storage_note(STORAGE_SWAPRAM_ATTEMPTS, 1);
     sr_pool_init_once ();
-    if (e->e_live)
+    if (e->e_res || e->e_live)
         panic ("swapram: image already resident");
     /*
      * Packed-text restoration holds the shared decoder across rdwri sleeps.
@@ -416,12 +394,25 @@ swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
     e->e_clen[SR_DATA] = dn;
     e->e_clen[SR_STACK] = sn;
     e->e_clen[SR_U] = SR_WORST (ulen);
-    storage_note(STORAGE_SWAPRAM_ADMISSIONS, 1);
     return 1;
 }
 
+/* The direct tier entry point accounts for attempted admission. */
+int
+swapram_out (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
+    size_t slen, size_t ulen)
+{
+    int admitted;
+
+    storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
+    admitted = swapram_reserve (p, dsrc, dlen, ssrc, slen, ulen);
+    if (admitted)
+        storage_note (STORAGE_SWAPRAM_ADMISSIONS, 1);
+    return admitted;
+}
+
 /*
- * Compress one segment into the reservation swapram_out made. The data
+ * Compress one segment into the reservation swapram_reserve made. The data
  * and stack segments must produce exactly the length the counting pass
  * measured: a shorter or longer result means the bytes changed between
  * the passes or the encoder is not deterministic, and either is a bug
@@ -471,6 +462,19 @@ swapram_commit (struct proc *p)
             (u_int) (e->e_rlen[SR_DATA] + e->e_rlen[SR_STACK] +
                 e->e_rlen[SR_U]),
             used, swapram_pool_avail (&sr_map));
+}
+
+/* Return a reserved or committed slot without reading its image bytes. */
+void
+swapram_cancel (struct proc *p)
+{
+    struct sr_ent *entry = sr_slot (p);
+
+    if (entry->e_res == 0)
+        return;
+    if (swapram_pool_free (&sr_map, entry->e_off, entry->e_res) < 0)
+        panic ("swapram: cancel");
+    bzero (entry, sizeof (*entry));
 }
 
 /* True when swapin must read this process back out of the pool. */
@@ -669,12 +673,8 @@ swapram_evacuate (void)
 }
 
 /*
- * The swapper calls this at the top of its loop and answers what was
- * posted: an evacuation request from the sysctl records its result;
- * a request for LARGE evacuates and, when that succeeds, keeps the
- * pool closed and switches the epoch, otherwise reopens the pool; a
- * request for SMALL is granted once no large process remains. Every
- * answer wakes the processes asleep on swapram_epoch.
+ * The swapper calls this at the top of its loop. A pending evacuation closes
+ * admission, records whether every image reached flash, and reopens the pool.
  */
 void
 swapram_service (void)
@@ -683,138 +683,6 @@ swapram_service (void)
         swapram_admit (0);
         swapram_evac = swapram_evacuate () == 0 ? SWAPRAM_EVAC_DONE :
             SWAPRAM_EVAC_NOFLASH;
-        swapram_admit (swapram_epoch == SWAPRAM_SMALL);
+        swapram_admit (1);
     }
-    if (sr_large_want &&
-        (swapram_epoch != SWAPRAM_SMALL || sr_spools == 0)) {
-        sr_large_want = 0;
-        if (swapram_epoch == SWAPRAM_SMALL) {
-            swapram_admit (0);
-            if (swapram_evacuate () == 0)
-                swapram_epoch = SWAPRAM_LARGE;
-            else
-                swapram_admit (1);
-        }
-        sr_large_seq++;
-        wakeup ((caddr_t) &swapram_epoch);
-    } else if (sr_large_want) {
-        /* The spool owner will wake the swapper after moving to flash. */
-        swapram_admit (0);
-    }
-    if (sr_small_want) {
-        sr_small_want = 0;
-        if (swapram_epoch == SWAPRAM_LARGE && sr_nlarge == 0) {
-            swapram_epoch = SWAPRAM_SMALL;
-            swapram_admit (1);
-        }
-        wakeup ((caddr_t) &swapram_epoch);
-    }
-}
-
-/* Processes holding the bonus. */
-int
-swapram_nlarge (void)
-{
-    return sr_nlarge;
-}
-
-/* The bytes of window a process may hold: the bonus only under P_LARGE. */
-size_t
-swapram_ceiling (struct proc *p)
-{
-    return MAXMEM + ((p->p_flag & P_LARGE) ? SWAPRAM_BONUS : 0);
-}
-
-/* The top of the window for p: the pool's end under P_LARGE. */
-size_t
-user_top (struct proc *p)
-{
-    return (size_t) __user_data_end + ((p->p_flag & P_LARGE) ?
-        SWAPRAM_BONUS : 0);
-}
-
-/*
- * Called once at boot: the bonus is the pool only if the linker put the
- * pool exactly at the window's end, which kern.ldscript asserts and
- * this checks against the running image.
- */
-void
-swapram_init (void)
-{
-    if ((size_t) sr_pool != (size_t) __user_data_end)
-        panic ("swapram: pool is not at the window end");
-}
-
-static void
-sr_poke (void)
-{
-    wakeup ((caddr_t) &runout);
-    wakeup ((caddr_t) &runin);
-}
-
-/*
- * Admit p to the LARGE epoch, entering it first when the window is
- * SMALL: the pool must be evacuated and closed before the bonus can be
- * anyone's. Sleeps until the swapper answers; 0 when p holds the
- * bonus, ENOMEM when the pool could not be moved to flash. The caller
- * has not committed to anything yet, so it can still refuse.
- */
-int
-swapram_enter_large (struct proc *p)
-{
-    unsigned int seq;
-
-    if (p->p_flag & P_LARGE)
-        return 0;
-    for (;;) {
-        if (swapram_epoch == SWAPRAM_LARGE) {
-            p->p_flag |= P_LARGE;
-            sr_nlarge++;
-            return 0;
-        }
-        seq = sr_large_seq;
-        sr_large_want = 1;
-        sr_poke ();
-        sleep ((caddr_t) &swapram_epoch, PSWP);
-        if (swapram_epoch == SWAPRAM_SMALL && seq != sr_large_seq)
-            return ENOMEM;
-    }
-}
-
-/* p no longer needs the bonus; the last such process frees the epoch. */
-void
-swapram_leave_large (struct proc *p)
-{
-    if ((p->p_flag & P_LARGE) == 0)
-        return;
-    p->p_flag &= ~P_LARGE;
-    if (--sr_nlarge == 0) {
-        sr_small_want = 1;
-        sr_poke ();
-    }
-}
-
-/* A child of a large process is the same size: it holds the bonus too. */
-void
-swapram_inherit (struct proc *child, struct proc *parent)
-{
-    if (parent->p_flag & P_LARGE) {
-        child->p_flag |= P_LARGE;
-        sr_nlarge++;
-    }
-}
-
-/*
- * The operator's request through machdep.swapram_epoch: LARGE asks for
- * the evacuation and the switch, SMALL for the return, which waits for
- * the large processes to go.
- */
-void
-swapram_set_epoch (int e)
-{
-    if (e == SWAPRAM_LARGE)
-        sr_large_want = 1;
-    else
-        sr_small_want = 1;
-    sr_poke ();
 }

@@ -27,9 +27,8 @@ ledger contains 1,518 Issue 8 rows, with one closed and 1,517 open.
 
 ### Architecture and resource invariants
 
-- Preserve the 128 KiB kernel region, 144 KiB base process window, Dhara root
-  partition and raw-swap allocation. Existing conditional window extensions
-  retain their own admission contracts.
+- Preserve the 128 KiB kernel region, fixed 192 KiB process window, Dhara root
+  partition and raw-swap allocation.
 - Account for loaded text/data/BSS, alignment, simultaneous scratch, heap and
   stack. Packed file size does not establish process-window fit.
 - Preserve syscall numbers, calling conventions and public layouts. Additive
@@ -112,8 +111,8 @@ independent migration obligations.
 
 `rp2040-usercopy-span-admission.md` records the first shipped user-pointer
 admission unit. `copyin` and `copyout` now admit a complete non-wrapping span
-before publication while preserving zero-length behavior, `EFAULT`, the
-conditional process-window upper bound and their public ABI. Direct
+before publication while preserving zero-length behavior, `EFAULT`, the fixed
+process-window upper bound and their public ABI. Direct
 `baduaddr` consumers and syscall stack-argument state retain separate units.
 
 `rp2040-syscall-stack-argument-admission.md` records the caller-complete

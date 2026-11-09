@@ -205,4 +205,4 @@ recovery receipts.
 `NMOUNT=1` and the four-buffer cache are already active. The USB transmit ring
 occupies 8 KiB in SRAM4/SRAM5 scratch banks. Reducing that ring changes retained
 console-output behavior and releases scratch-bank capacity; it does not by
-itself enlarge the 144 KiB process window.
+itself enlarge the fixed 192 KiB process window.

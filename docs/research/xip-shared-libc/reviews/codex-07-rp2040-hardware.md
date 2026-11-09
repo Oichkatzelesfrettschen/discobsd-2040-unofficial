@@ -1,5 +1,9 @@
 Paths are relative to the research worktree; `DS` denotes the supplied RP2040 datasheet text.
 
+The findings below review the former 144/160 KiB variable window and remain
+retained evidence. `../../swap-exhaustion/review-04.md` supersedes the live
+layout and removes the LARGE epoch instead of adding a dynamic MPU region.
+
 1. **Blocker -- the LARGE-epoch MPU defect is real.** Claim: “A P_LARGE stack therefore lies in 0x20024000 to 0x20028000, which no enabled region grants.” `swapram.c:730-733` raises `USER_TOP` to `0x20028000`; `mpu.c:130-136,187-195` grants SRAM only through `0x20024000` and disables regions 4-7. `DS:6483-6492` restricts `PRIVDEFENA` to privileged accesses. Most decisively, `MPU.md:210-227` records a four-region board run faulting on `0x20024000`. Correction: dynamically enable a read-write region for `[0x20024000,0x20028000)` only while the SwapRAM pool is evacuated and the LARGE epoch owns those bytes; disable and read back that region before reopening the pool. Add a combined MPU-plus-LARGE board gate.
 
 2. **Major -- the proposed falsifier measures the wrong quantity.** Claim: “an image between 144 and 160 KB ... that completes” refutes the defect. LARGE admission uses resident text, data, BSS, heap, argument-dependent stack, and environment sizes (`exec_aout.c:190-197`; `exec_subr.c:434-451`), not executable-file size. `machdep.mpu.enable` reports cached initialization state (`mpu.c:198,233-237`). Correction: record exact kernel and executable hashes, computed resident demand, `P_LARGE`, entry stack pointer, current MPU region readback, and successful unprivileged reads and writes inside the bonus interval.

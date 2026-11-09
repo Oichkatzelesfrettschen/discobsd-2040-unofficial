@@ -33,8 +33,7 @@
  */
 #define	CPU_SWAPRAM_EVACUATE	8	/* int: evacuation request and result */
 #define	CPU_SWAPRAM_IMAGES	9	/* int: images the pool holds */
-#define	CPU_SWAPRAM_EPOCH	10	/* int: 0 SMALL, 1 LARGE; a write asks */
-#define	CPU_SWAPRAM_LARGE	11	/* int: processes holding the bonus */
+/* Machdep identifiers 10 and 11 remain reserved after window-epoch removal. */
 /*
  * The Cortex-M0+ MPU as arch/rp2040/rp2040/mpu.c programmed it and read
  * it back; machine/mpuvar.h names the leaves.
@@ -77,8 +76,8 @@
 	{ "usb_bulkin_arms", CTLTYPE_INT }, \
 	{ "swapram_evacuate", CTLTYPE_INT }, \
 	{ "swapram_images", CTLTYPE_INT }, \
-	{ "swapram_epoch", CTLTYPE_INT }, \
-	{ "swapram_large", CTLTYPE_INT }, \
+	{ 0, 0 }, \
+	{ 0, 0 }, \
 	{ "mpu", CTLTYPE_NODE }, \
 	{ "usb_service_reentered", CTLTYPE_INT }, \
 	{ "usb_tx_recovered", CTLTYPE_INT }, \

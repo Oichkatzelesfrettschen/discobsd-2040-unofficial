@@ -106,7 +106,7 @@
       "receipt_state": "executable",
       "receipt": null,
       "dependencies": ["capacity-counter-exact-source"],
-      "expected": "NCARGS, cross-block replay, SwapRAM migration and raw-swap fallback preserve the serialized argument stream.",
+      "expected": "NCARGS, cross-block replay, SwapRAM storage and raw-swap fallback preserve the serialized argument stream.",
       "recovery": "Every success and injected failure releases the extent and codec workspace."
     },
     {
@@ -144,30 +144,6 @@
       "dependencies": ["exec-spool-fallback"],
       "expected": "Patterned data, stack and u-area bytes survive SwapRAM evacuation to raw swap.",
       "recovery": "Every child returns with its pattern intact and the pool accepts later work."
-    },
-    {
-      "id": "swapram-window-epochs",
-      "resources": ["USIZE", "NPROC"],
-      "obligations": ["swapram", "context-switch", "recovery"],
-      "fixture": "tests/rp2040/swapram_epoch/epochtest.c",
-      "execution_class": "board",
-      "receipt_state": "open",
-      "receipt": null,
-      "dependencies": ["swapram-evacuation"],
-      "expected": "SMALL to LARGE to SMALL transitions preserve patterned children across every epoch.",
-      "recovery": "The final SMALL process runs after the LARGE image releases its window."
-    },
-    {
-      "id": "swapram-large-refusal",
-      "resources": ["USIZE", "NPROC"],
-      "obligations": ["swapram", "recovery"],
-      "fixture": "tests/rp2040/swapram_large/bigtest.c",
-      "execution_class": "board",
-      "receipt_state": "open",
-      "receipt": null,
-      "dependencies": ["swapram-window-epochs"],
-      "expected": "The accepted LARGE image restores after fork and the oversized image receives the declared refusal.",
-      "recovery": "A bounded ordinary image executes after the refusal."
     },
     {
       "id": "uarea-exchange-geometry",
@@ -237,7 +213,7 @@
       "execution_class": "board",
       "receipt_state": "open",
       "receipt": null,
-      "dependencies": ["swapram-window-epochs"],
+      "dependencies": ["swapram-evacuation"],
       "expected": "Distinct u-area patterns survive repeated silicon context switches across the complete configured exchange extent.",
       "recovery": "Every switched process resumes with its own pattern and the final shell command succeeds."
     },

@@ -8,6 +8,8 @@ modernization relevant to this tree. This report retains the historical
 textual comparison and the measured prototype cost for a 144 KB process
 window. Patch 432 is an investigation boundary, not a proven universal
 divergence point. Ancestry and semantic coverage require per-change review.
+`swap-exhaustion/review-04.md` supersedes the live layout with a fixed 192 KiB
+window; the measured prototype numbers remain unchanged.
 
 ## Identity
 

@@ -75,4 +75,4 @@ a pipeline, `ed`, a write, and `sync`.
 
 `MEMSIZE` is a compile-time constant. 64 KB gives V6 `mem = 116`, 11.6 K
 words for user programs, which is what the setup document asks for; 96 KB
-fits the 144 KB process window with less room for the host.
+fits the 192 KB process window with less room for the host.

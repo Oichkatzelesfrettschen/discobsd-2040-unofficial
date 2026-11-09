@@ -6,6 +6,9 @@ removes the input through another pathname lookup.  A competing rename or
 replacement can therefore redirect truncation, metadata, cleanup, or source
 removal to an inode that the process did not open.
 
+The 144 KiB capacity receipt below remains bound to its measured revision.
+`swap-exhaustion/review-04.md` owns the current fixed 192 KiB layout.
+
 The repair keeps the codec tables and file format unchanged.  A named
 operation acquires the input's parent directory, opens the input without
 following its final symbolic link, writes a same-directory staged regular

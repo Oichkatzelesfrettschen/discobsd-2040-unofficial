@@ -1,7 +1,7 @@
 # Footprint techniques mapped to the RP2040 tree
 
 This note ranks the techniques that buy function per byte of flash and SRAM
-on the RP2040 (ARMv6-M Thumb-1, 264 KB SRAM, 128 KB kernel slot, 144 KB
+on the RP2040 (ARMv6-M Thumb-1, 264 KB SRAM, 128 KB kernel slot, 192 KB
 process window). Each technique is mapped to the place in this tree where it
 pays or does not pay. It extends `constrained-c.md`, which owns the compiler
 and linker flag analysis (section 2: `--gc-sections`, `-flto`), and

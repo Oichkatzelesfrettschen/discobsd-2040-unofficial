@@ -78,7 +78,7 @@ The target object imports no symbols.
 The packed sysbox payload shrinks by 227 bytes, login by 235 bytes and the
 selected libc by 276 bytes. Sysbox aliases share their packed payload and
 must not multiply its storage charge. Block quantization leaves the measured
-free-block count equal. The 144 KB flat process window makes code part of
+free-block count equal. The flat process window makes code part of
 process RAM: the 256-byte data reduction yields a 240-byte image reduction,
 rather than an additive 256-byte whole-process saving. Stack frames remain a
 separate account. Kernel capacity and flash-write traffic require separate

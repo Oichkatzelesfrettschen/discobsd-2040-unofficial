@@ -113,7 +113,7 @@
 #define SWAP_IMAGE_ALIGN        4       /* 4096 bytes in DEV_BSIZE blocks. */
 
 /*
- * The user window: one resident process image lives in the 144 KB at
+ * The user window: one resident process image lives in the 192 KB at
  * 0x20000000. exec_estab (sys/kern/exec_subr.c) rejects an image whose
  * text, data, bss, heap and stack exceed MAXMEM, which sys/param.h takes
  * from here, and exec_aout loads data at USER_DATA_START and places the
@@ -123,7 +123,7 @@
  * check with USER_DATA_END.
  */
 #define USER_DATA_START         (0x20000000)
-#define USER_DATA_SIZE          (144 * 1024)    /* 144kb for user RAM. */
+#define USER_DATA_SIZE          (192 * 1024)    /* 192kb for user RAM. */
 #define USER_DATA_END           (USER_DATA_START + USER_DATA_SIZE)
 #define MAXMEM                  USER_DATA_SIZE
 

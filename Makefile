@@ -331,6 +331,19 @@ check-c17-smaller-c:	check-python .WAIT symlinks
 check-capacity-corpus:	check-python
 		${PYTHON} tools/check_capacity_corpus.py --self-test
 
+# The RP2040 user-window bound has one source, USER_DATA_SIZE in machparam.h.
+# The production USER_TOP and USER_WINDOW_MAX macros, the RP2040.ld regions,
+# the MPU user regions and the host fixtures that model the window must state
+# the same bound; twelve mutations calibrate the checker.
+check-user-window-contract:	check-python
+		${PYTHON} tools/check_user_window_contract.py --self-test
+
+# tools/verify_rp2040_swapram_link.sh judges every linked kernel; its verdicts
+# are calibrated here on synthetic nm and objdump listings, two that pass and
+# thirteen mutations that each fail with the diagnostic naming its defect.
+check-swapram-link-verifier:
+		sh tools/verify_rp2040_swapram_link_test.sh
+
 # Literal formats passed to the kernel's printf(), uprintf(), tprintf() and
 # log() in the PICO and PICO_UART sources use only conversions where prf() and
 # GCC's format(printf) checking agree; the fixture calibrates the checker.
@@ -1086,7 +1099,8 @@ HOST_GATES=	check-architecture-isolation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
 		check-dpucp-donor-ledger check-dpucp-board-acceptance \
 		check-c17-source-denominator \
-		check-capacity-corpus \
+		check-capacity-corpus check-user-window-contract \
+		check-swapram-link-verifier \
 		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
@@ -1506,7 +1520,7 @@ installfs:
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

@@ -49,7 +49,7 @@
  * The LZW codec is a separate program reached through a pipe rather than a
  * library linked in: usr.bin/compress carries 30 kbytes of bss for its
  * string table, and tar and the filter are separate processes with a
- * 144-kbyte USER_DATA_SIZE window each, where linking the codec would have
+ * 192-kbyte USER_DATA_SIZE window each, where linking the codec would have
  * to fit both tables and the block buffer in one.
  */
 #ifndef COMPRESS
@@ -108,7 +108,7 @@ union hblock {
  * a create run so a second link to the same inode becomes an LNKTYPE entry
  * naming the first. The path is a separate allocation of exactly its own
  * length, so the list costs what the paths present measure rather than the
- * PATHSIZ width an ustar header can carry: the list shares one 144-kbyte
+ * PATHSIZ width an ustar header can carry: the list shares one 192-kbyte
  * USER_DATA_SIZE window with tar's text, data, bss and stack, and the number
  * of link identities a create run holds is what that window has room for.
  * Past it getmem() fails, and every further link to an unrecorded inode
@@ -2606,7 +2606,7 @@ getbuf(void)
         }
     }
     /*
-     * One rp2040 process owns a single 144-kbyte USER_DATA_SIZE window for
+     * One rp2040 process owns a single 192-kbyte USER_DATA_SIZE window for
      * text, data, bss and stack together, so the block buffer is capped at the
      * 20-block 10240-byte default however large the archive file's
      * st_blksize is and however large a -b argument asks for.

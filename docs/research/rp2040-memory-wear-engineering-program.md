@@ -110,6 +110,11 @@ claim concerns configuration rather than hardware absence. USB DPRAM is execute-
 the hardware can change the relevant attributes; the program keeps executable
 flash-recovery code in ordinary SRAM.
 
+The following pool-only projections record the former adjacent-pool design.
+`swap-exhaustion/review-04.md` supersedes their SMALL/LARGE window geometry
+with a fixed 192 KiB process window and a pool after kernel BSS. The numerical
+rows remain revision-bound inputs rather than current layout alternatives.
+
 Pool-only projections retain every other linked object and alignment:
 
 | SwapRAM pool | SMALL window | LARGE window | Projected RAM end | Projected headroom |
@@ -326,8 +331,9 @@ the generation-framed export below. Those obligations remain open rather than
 being inferred from a returning wrapper or a counter increment.
 
 The initial counter set includes SwapRAM admission and fallback reasons,
-compressed and expanded bytes, pool free bytes and largest extent, SMALL/LARGE
-residency, erases by physical sector, ROM program calls and byte lengths,
+compressed and expanded bytes, pool free bytes and largest extent, pool
+admission state and evacuation requests, erases by physical sector, ROM
+program calls and byte lengths,
 Dhara synchronization calls, checkpoints, and garbage collection. Per-sector
 32-bit erase counters saturate rather than wrap silently.
 

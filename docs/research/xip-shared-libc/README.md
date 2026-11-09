@@ -11,6 +11,10 @@ build products of a completed RP2040 build. The rows here come from build
 products dated 2026-10-24 in a checkout at commit 122ec634; the source commit
 of those products is not recorded, so a replay rebuilds first.
 
+The 144/160 KiB window and LARGE-epoch premises in this retained study describe
+the measured revision. `../swap-exhaustion/review-04.md` supersedes the live
+layout with a fixed 192 KiB window and a kernel-resident SwapRAM pool.
+
 ## Verdict
 
 1. Keep the boxes and add a shared libc whose text executes in place from a

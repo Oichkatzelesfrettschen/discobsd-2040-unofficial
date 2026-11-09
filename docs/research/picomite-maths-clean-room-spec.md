@@ -604,7 +604,7 @@ for the calculator and rejects larger sizes with the range status.
 
 The RP2040 is a Cortex-M0+ with no FPU. Every `double` operation runs through software floating point, so
 the library keeps loops short, avoids transcendental calls inside inner loops where an incremental update
-works (FFT twiddles, polynomial evaluation), and never allocates in a hot path. One flat 144 KB process
+works (FFT twiddles, polynomial evaluation), and never allocates in a hot path. One flat 192 KB process
 window holds text, data, bss and stack, and the 53-by-32 text display drives screen-sized lists, not
 megabyte arrays. The library therefore takes every buffer from the caller, uses stack arrays bounded by
 compile-time maxima (`CALC_MAT_MAX` default 12, `CALC_FFT_MAX` default 1024), and returns a status code instead

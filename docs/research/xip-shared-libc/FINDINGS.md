@@ -8,6 +8,10 @@ of the adversarial review" section records the verification behind the
 disposition. Roadmap items refer to the numbered list in `README.md`, section
 "Roadmap".
 
+The LARGE-epoch findings remain a historical ledger. The implemented fixed
+192 KiB window and kernel-resident SwapRAM pool in
+`../swap-exhaustion/review-04.md` supersede their live-layout remedy.
+
 Dispositions: ACCEPT (the stream text now carries the correction), NARROWED
 (accepted with a smaller scope than the review stated), RESOLVED-01 (a
 measurement finding raised against another stream and repaired in stream 01).
@@ -182,6 +186,6 @@ reflected in the rows above.
 | Whole-libc and union images save the same blocks per program; the union costs 11 fewer partition blocks and three fewer collisions | relink results; `flashimg -c` | README decisions |
 | Placing `--just-symbols` before crt0 removes the exit, _exit and fakcu residue | residual-member rule | harness |
 | r9-relative libc data costs +7.2 % text and about 696 bytes of GOT at object level | 185 libc sources compiled both ways | stream 08 comparison |
-| The LARGE gap is confirmed by the retained board transcript of the 0x20024000 probe | `MPU.md` board transcript | `MPU.md` known-gap section |
+| The LARGE gap is confirmed by the retained board transcript of the 0x20024000 probe | `MPU.md` board transcript | `MPU.md` permanent-window section |
 | The kernel measures 108,726 bytes against a 130,816-byte region; the `flash.h` comment's 90 KB figure is stale | `arm-none-eabi-size`; `RP2040.ld:23` | `flash.h` comment, `STORAGE.md` |
 | Codex reviewers ran with write access to the source tree; status before and after shows no change in the checkout or the BSD trees | `git status --porcelain` snapshots | this ledger |

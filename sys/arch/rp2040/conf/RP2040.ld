@@ -38,17 +38,15 @@ MEMORY {
      * User space sits at the bottom of SRAM because lib/elf32-arm.ld links
      * every userland executable at 0x20000000 and machparam.h's
      * USER_DATA_START names the same address on every Arm target. The
-     * window is 144K, the STM32 figure of 96K plus the 48K that shrinking
-     * the SwapRAM pool from 64K to 16K freed: one process is resident at
-     * a time and a switch swaps, so the window sets the per-process limit
-     * and a larger one lets a program run resident that used to be
-     * refused at exec. machparam.h's USER_DATA_SIZE must equal this
-     * length; machdep.c panics at boot when the two disagree, and
-     * kern.ldscript asserts that the regions below tile SRAM with no gap.
+     * window is 192K: one process is resident at a time and a switch swaps,
+     * so the window sets the per-process limit. The SwapRAM pool follows
+     * ordinary kernel data and bss inside RAM. machparam.h's USER_DATA_SIZE
+     * must equal this length; machdep.c panics at boot when the two disagree,
+     * and kern.ldscript asserts that the regions below tile SRAM with no gap.
      */
-    USERRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 144K   /* User space.     */
+    USERRAM (rwx) : ORIGIN = 0x20000000, LENGTH = 192K   /* User space.     */
 
-    RAM     (rw!x): ORIGIN = 0x20024000, LENGTH = 106K   /* Kernel data.    */
+    RAM     (rw!x): ORIGIN = 0x20030000, LENGTH = 58K    /* Kernel data.    */
 
     /*
      * Each u area is exactly USIZE, 3072 bytes, and the kernel stack of

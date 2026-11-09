@@ -48,7 +48,7 @@ typedef char *caddr_t;
 #define SSIZE 2048U
 #define NBPW 4U
 #define USER_BASE 0x20000000U
-#define USER_WINDOW (144U * 1024U)
+#define USER_WINDOW (192U * 1024U)
 #define USER_WINDOW_MAX USER_WINDOW
 #define NO_ADDR ((caddr_t)(uintptr_t)UINT_MAX)
 #define __user_data_start ((caddr_t)(uintptr_t)USER_BASE)

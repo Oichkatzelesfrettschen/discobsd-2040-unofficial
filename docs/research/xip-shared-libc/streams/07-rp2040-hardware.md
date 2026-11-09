@@ -7,6 +7,10 @@ references below name SDK 2.x files from the agent's knowledge and are
 unverified. Hardware facts cite the datasheet text in the companion notes
 repository (`docs/rp2040/rp2040-datasheet.txt`, cited DS:line).
 
+The LARGE-epoch defect analysis below is retained for the measured layout.
+`../../swap-exhaustion/review-04.md` supersedes the live design with a fixed
+192 KiB window, a kernel-resident SwapRAM pool and removal of the epoch.
+
 ## Settled hardware facts
 - ARMv6-M defines no TrustZone, no PSPLIM, no bit-band and no fault status or
   address registers (ARMv6-M Architecture Reference Manual); every MPU fault is

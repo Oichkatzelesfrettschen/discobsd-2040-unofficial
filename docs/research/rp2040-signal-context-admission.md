@@ -121,8 +121,8 @@ aligned and names a complete two-byte Thumb halfword in either the 16 KB Boot
 ROM or the process-specific SRAM window. The Boot ROM belongs to the user
 execution domain because libc floating-point routines enter it while the
 process remains unprivileged. The process-window half of the check delegates
-to `baduaddr_span()`, preserving the conditional `USER_TOP()` extension
-contract. The common `sys_process.c` ptrace caller uses the same machine-owned
+to `baduaddr_span()`, preserving the fixed `USER_TOP()` boundary. The common
+`sys_process.c` ptrace caller uses the same machine-owned
 policy; the maintained STM32 header retains its process-window-only policy.
 
 `sc_sp` names the base of the hardware exception frame that the privileged

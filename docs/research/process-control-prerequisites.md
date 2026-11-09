@@ -1,5 +1,8 @@
 # Process-control prerequisites
 
+The 147,456-byte margin below remains bound to the measured revision.
+`swap-exhaustion/review-04.md` owns the current fixed 196,608-byte ceiling.
+
 The DPUCP-2024 process-control tranche repairs interval-timer validation and
 the public `waitpid()` type contract without adding `timeout`. The work
 establishes partial host and cross-build evidence for prerequisites while the

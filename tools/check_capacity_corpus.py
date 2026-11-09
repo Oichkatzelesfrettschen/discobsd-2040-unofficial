@@ -298,9 +298,9 @@ def self_test(root, document):
         if case["execution_class"] in {"board", "renode"}:
             case["receipt_state"] = "retained"
             case["receipt"] = "docs/research/board-capacity-acceptance-93b709fc.txt"
-    transitive_board = case_by_id["swapram-window-epochs"]
-    transitive_board["receipt_state"] = "executable"
-    transitive_board["receipt"] = None
+    hardware_case = case_by_id["swapram-evacuation"]
+    hardware_case["receipt_state"] = "executable"
+    hardware_case["receipt"] = None
     mutations.append(("hardware dependency without retained receipt", changed))
     changed = copy.deepcopy(document)
     changed["cases"][0]["dependencies"] = [changed["cases"][0]["id"]]

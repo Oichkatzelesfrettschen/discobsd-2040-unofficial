@@ -7,6 +7,10 @@ This audit matches every one of them against `distrib/rp2040/mi.rp2040`,
 `sys/arch/rp2040/rp2040/conf.c`, the seven multicall dispatch tables, and
 the documentation that describes them.
 
+The 144 KiB layout observations below remain bound to the audited revision.
+`swap-exhaustion/review-04.md` supersedes the live layout with a fixed 192 KiB
+window and a kernel-resident SwapRAM pool.
+
 Board evidence is `research/discobsd-rp2040/board-inventory-2026-09-15.txt`
 in this repository, captured today from a running board. Source evidence is
 the port checkout `../discobsd-2040-unofficial` at HEAD `c2a196f7`; paths

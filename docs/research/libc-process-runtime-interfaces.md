@@ -1,5 +1,8 @@
 # Libc process and runtime interfaces
 
+The 147,456-byte margin below remains bound to the measured revision.
+`swap-exhaustion/review-04.md` owns the current fixed 196,608-byte ceiling.
+
 Commit `80a526fa` changes `getpgrp()`, selected `sysconf()` limits and the
 reduced board libc archive. The measurement compares that commit with base
 commit `145e19b7470ce6c783299ca7d7e4e33b72f57317`. Both images came from clean

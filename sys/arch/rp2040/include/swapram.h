@@ -84,58 +84,33 @@ unsigned int swapram_pool_largest(struct swapram_pool *);
 #define SWAPRAM_EVAC_DONE       2
 #define SWAPRAM_EVAC_NOFLASH    3
 
-/*
- * The two epochs of the resident window. SMALL: the window is
- * USER_DATA_SIZE and the pool takes images. LARGE: the pool is empty
- * and closed, and a process admitted under it (P_LARGE) may use
- * USER_DATA_SIZE + SWAPRAM_BONUS. The bonus is the pool's own bytes:
- * kern.ldscript places the pool first in RAM, abutting the window, so
- * a large process's stack extends over it (USER_TOP in sys/systm.h).
- * The pool and a large process never own the bonus at the same time.
- * A bonus is usable only by a fresh exec, which lays the stack under
- * the higher top; a running process's stack already sits under the
- * window and its data cannot grow through it, so brk never asks.
- */
-#define SWAPRAM_SMALL           0
-#define SWAPRAM_LARGE           1
-#ifdef SWAPRAM
-#define SWAPRAM_BONUS           (SWAPRAM_KB * 1024)
-#else
-#define SWAPRAM_BONUS           0
-#endif
-
 #ifdef KERNEL
 #include <sys/types.h>          /* size_t and caddr_t for the prototypes */
 
 struct proc;
 
 /*
- * swapram.c, called only from kern/vm_swap.c, in this order: swapram_out
- * counts the compressed length of the data and stack segments at the
- * addresses given, reserves the pool space for the whole image and
- * returns 0 when swapout must use flash instead, swapram_put compresses
- * one segment into that reservation, and swapram_commit releases the
- * unused tail. swapin calls swapram_in for any process swapram_present
- * reports on.
+ * swapram_reserve counts the compressed data and stack lengths, owns the
+ * whole slot on success and returns 0 when the caller must try flash.
+ * swapram_put writes one segment into the slot; swapram_commit trims its
+ * unused tail and marks the image present. swapram_cancel returns a slot
+ * without reading its bytes. swapram_out wraps reservation with attempt
+ * accounting; vm_swap accounts only after complete backing admission so a
+ * refused fork preserves diagnostics too. swapin calls swapram_in for any
+ * process swapram_present reports on.
  */
 int swapram_out(struct proc *, caddr_t, size_t, caddr_t, size_t, size_t);
+int swapram_reserve(struct proc *, caddr_t, size_t, caddr_t, size_t, size_t);
 void swapram_put(struct proc *, int, caddr_t, size_t);
 void swapram_commit(struct proc *);
+void swapram_cancel(struct proc *);
 int swapram_present(struct proc *);
 int swapram_uarea_prefix(struct proc *, void *, unsigned int);
 void swapram_in(struct proc *, caddr_t, caddr_t, caddr_t);
 void swapram_admit(int);
 int swapram_images(void);
-int swapram_nlarge(void);
 int swapram_evacuate(void);
 void swapram_service(void);
-size_t swapram_ceiling(struct proc *);
-int swapram_enter_large(struct proc *);
-void swapram_leave_large(struct proc *);
-void swapram_inherit(struct proc *, struct proc *);
-void swapram_set_epoch(int);
-void swapram_init(void);
-size_t user_top(struct proc *);
 int swapram_spool_alloc(unsigned int, unsigned int *);
 void swapram_spool_write(unsigned int, unsigned int, const void *,
     unsigned int);
@@ -143,7 +118,7 @@ void swapram_spool_read(unsigned int, unsigned int, void *, unsigned int);
 void swapram_spool_free(unsigned int, unsigned int);
 void *swapram_codec_acquire(unsigned int);
 void swapram_codec_release(unsigned int);
-extern int swapram_evac, swapram_epoch;
+extern int swapram_evac;
 extern unsigned char swapram_pool_mem[];
 extern unsigned char swapram_codec_work[];
 #endif

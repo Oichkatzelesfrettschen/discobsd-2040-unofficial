@@ -57,7 +57,7 @@ PROBE_LINES = [
     # mpu.c prints what MPU_TYPE and MPU_CTRL read back after it programmed
     # the map: eight regions from the datasheet, the four the map holds,
     # ENABLE and PRIVDEFENA set.
-    "mpu: 8 regions, 4 programmed, MPU_CTRL 0x5: rom 16K r-x, user 144K rwx, sio div rw",
+    "mpu: 8 regions, 4 programmed, MPU_CTRL 0x5: rom 16K r-x, user 192K rwx, sio div rw",
     # A cold start under the emulator reports neither a watchdog reason nor
     # a masked site; a board returning from picotool reboot -f reports
     # reason 2.
@@ -68,7 +68,7 @@ PROBE_LINES = [
     "fl0a: partition type b7, sector 2, size 988 kbytes",
     "fl1: 384 kbytes raw QSPI flash for swap",
     "phys mem  = 264 kbytes",
-    "user mem  = 144 kbytes",
+    "user mem  = 192 kbytes",
     "root dev  = (0,1)",
     "swap dev  = (0,8)",
     "root size = 988 kbytes",

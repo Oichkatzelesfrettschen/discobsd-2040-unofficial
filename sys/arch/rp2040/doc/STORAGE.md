@@ -3,6 +3,12 @@
 Measured on the built DiscoBSD tree for the RP2040 on 2026-09-11. Sizes
 are bytes of the a.out as installed unless marked.
 
+The current SRAM layout gives every process a fixed 192 KB window at
+`0x20000000..0x20030000`. The optional 16 KB SwapRAM compression pool is
+kernel memory after ordinary data and BSS; pool evacuation changes the image's
+storage tier without changing the process ceiling. Historical measurements
+below remain bound to the revisions and images they name.
+
 ## The three costs, in order
 
 **Static libc, one copy per program.** Every a.out links static libc and

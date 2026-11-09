@@ -73,17 +73,6 @@ SECTIONS {
 	__etext = .;
 
 	_sidata = LOADADDR(.data);
-	/*
-	 * The compressed swap pool sits first in RAM, abutting the user
-	 * window, so that a process admitted to the LARGE epoch can extend
-	 * its stack over it (machine/swapram.h SWAPRAM_BONUS, sys/systm.h
-	 * USER_TOP). NOLOAD like .scratch: the tier writes every byte before
-	 * it reads it, and the reset code's zero fill stops at _ebss.
-	 */
-	.swapram_pool (NOLOAD) : ALIGN(8) {
-		*(.swapram_pool)
-	} > RAM :pool
-
 	.data : ALIGN(4) {
 		__data_start__ = .;
 		_sdata = .;
@@ -120,9 +109,20 @@ SECTIONS {
 	} > RAM :bss
 
 	/*
+	 * The compressed swap pool follows ordinary kernel data and bss.
+	 * NOLOAD gives the pool no flash payload. locore0.S's first loop
+	 * clears every word from _sdata to u_end, the pool included, and the
+	 * tier writes every stored byte before reading it.
+	 */
+	.swapram_pool (NOLOAD) : ALIGN(8) {
+		*(.swapram_pool)
+	} > RAM :pool
+
+	/*
 	 * Storage in the scratch banks, see SCRATCH in RP2040.ld. NOLOAD
 	 * keeps it out of the flash image and out of the .data copy, and
-	 * locore0.S's zero-fill loops stop at _ebss, so a variable here
+	 * locore0.S's zero-fill loops stop at u_end, where the banks begin, so a
+	 * variable here
 	 * starts with whatever the banks held and its owner must write
 	 * every byte before reading it. The assertion pins the USB ring to
 	 * the banks whenever the kernel carries it; a kernel configured
@@ -181,8 +181,22 @@ SECTIONS {
 	ASSERT(ORIGIN(USERRAM) + LENGTH(USERRAM) == ORIGIN(RAM),
 	    "USERRAM and RAM do not meet")
 	ASSERT(DEFINED(swapram_pool_mem) ?
-	    swapram_pool_mem == ORIGIN(RAM) : 1,
-	    "the swap pool is not at the start of RAM, so the LARGE epoch would hand out kernel data")
+	    (swapram_pool_mem >= _ebss &&
+	     swapram_pool_mem >= ORIGIN(RAM) &&
+	     (swapram_pool_mem & 7) == 0 &&
+	     swapram_pool_mem + SIZEOF(.swapram_pool) <=
+	         ORIGIN(RAM) + LENGTH(RAM)) : 1,
+	    "the swap pool must follow bss, be eight-byte aligned, and stay inside kernel RAM")
+	/*
+	 * The in-place swap exchange of docs/research/swap-exhaustion/plan.md
+	 * stages one 4,096-byte flash sector through kernel RAM, so every
+	 * configuration keeps that many bytes free after its last data, bss
+	 * and pool byte.
+	 */
+	__kernel_ram_used_end = DEFINED(swapram_pool_mem) ?
+	    swapram_pool_mem + SIZEOF(.swapram_pool) : _ebss;
+	ASSERT(__kernel_ram_used_end + 4096 <= ORIGIN(RAM) + LENGTH(RAM),
+	    "kernel RAM must keep 4,096 bytes free for the swap exchange sector")
 	ASSERT(ORIGIN(RAM) + LENGTH(RAM) == ORIGIN(U0AREA),
 	    "RAM and U0AREA do not meet")
 	ASSERT(ORIGIN(U0AREA) + LENGTH(U0AREA) == ORIGIN(UAREA),

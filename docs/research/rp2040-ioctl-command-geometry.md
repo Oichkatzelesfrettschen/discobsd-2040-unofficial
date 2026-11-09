@@ -17,7 +17,7 @@ The repaired syscall applies these rules:
 
 - `(com >> 16) & IOCPARM_MASK` extracts only the public eight-bit size field.
 - `baduaddr_span()` admits the complete encoded span with the RP2040 process
-  window and conditional extension rules.
+  fixed window rules.
 - A directional command with encoded size zero owns an empty span and reaches
   the provider without probing caller memory.
 - The provider receives the complete command value and retains authority to

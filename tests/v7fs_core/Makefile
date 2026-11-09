@@ -1,6 +1,6 @@
 PYTHON?=
 
 check:
-		PYTHON=${PYTHON:Q} sh check.sh
+		MAKE=${MAKE:Q} PYTHON=${PYTHON:Q} sh check.sh
 
 .PHONY: check

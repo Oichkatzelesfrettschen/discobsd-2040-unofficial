@@ -24,6 +24,12 @@
  * own consistent but wrong layout passes the core check and fails the
  * reader, which the swapped-address mutant in check.sh demonstrates.
  *
+ * Two further modes let check.sh drive usr.sbin/v7fs through the same
+ * checks: "v7fs_core_test DIR - patterns" writes the three files (hello, big,
+ * inner) into DIR, and "v7fs_core_test IMAGE ORDER verify" skips formatting
+ * and writing and checks an image that already holds /hello, /big and
+ * /sub/inner.
+ *
  * Exit status: 0 when every check holds, 1 when a check fails (each
  * failure prints "FAIL <label>: ..."), 2 when the environment fails.
  */
@@ -492,28 +498,58 @@ reader(void)
 	    SB_TINODE);
 }
 
+static int
+write_pattern(const char *dir, const char *name, const uint8_t *data,
+    size_t size)
+{
+	char path[4096];
+	FILE *f;
+
+	snprintf(path, sizeof(path), "%s/%s", dir, name);
+	if ((f = fopen(path, "wb")) == NULL || fwrite(data, 1, size, f) != size ||
+	    fclose(f) != 0) {
+		perror(path);
+		return 2;
+	}
+	return 0;
+}
+
 int
 main(int argc, char **argv)
 {
 	struct v7fs_self *fs;
+	struct v7fs_inode root;
 	v7fs_ino_t inos[4];
-	int fd, error;
+	int fd, error, verify;
 
-	if (argc != 3 || (strcmp(argv[2], "little") != 0 &&
+	fill_patterns();
+	if (argc == 4 && strcmp(argv[3], "patterns") == 0)
+		return write_pattern(argv[1], "hello", hello, sizeof(hello) - 1) ||
+		    write_pattern(argv[1], "big", big, sizeof(big)) ||
+		    write_pattern(argv[1], "inner", inner, sizeof(inner)) ? 2 : 0;
+	verify = argc == 4 && strcmp(argv[3], "verify") == 0;
+	if ((argc != 3 && !verify) || (strcmp(argv[2], "little") != 0 &&
 	    strcmp(argv[2], "pdp") != 0)) {
-		fprintf(stderr, "usage: v7fs_core_test IMAGE little|pdp\n");
+		fprintf(stderr, "usage: v7fs_core_test IMAGE little|pdp [verify]\n"
+		    "       v7fs_core_test DIR - patterns\n");
 		return 2;
 	}
 	byte_order = strcmp(argv[2], "pdp") == 0 ? PDP_ENDIAN : LITTLE_ENDIAN;
-	fill_patterns();
-	if ((fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0600)) == -1 ||
-	    ftruncate(fd, (off_t)sizeof(image)) == -1) {
-		perror(argv[1]);
-		return 2;
-	}
-	if ((error = populate(fd, inos)) != 0) {
-		printf("FAIL populate: core returned error %d\n", error);
-		return 1;
+	if (verify) {
+		if ((fd = open(argv[1], O_RDWR)) == -1) {
+			perror(argv[1]);
+			return 2;
+		}
+	} else {
+		if ((fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0600)) == -1 ||
+		    ftruncate(fd, (off_t)sizeof(image)) == -1) {
+			perror(argv[1]);
+			return 2;
+		}
+		if ((error = populate(fd, inos)) != 0) {
+			printf("FAIL populate: core returned error %d\n", error);
+			return 1;
+		}
 	}
 
 	if ((fs = mount_image(fd)) == NULL) {
@@ -522,6 +558,11 @@ main(int argc, char **argv)
 	}
 	core_read(fs, V7FS_ROOT_INODE, "hello", hello, sizeof(hello) - 1, "core-hello");
 	core_read(fs, V7FS_ROOT_INODE, "big", big, sizeof(big), "core-big");
+	if (verify && (v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0 ||
+	    v7fs_file_lookup_by_name(fs, &root, "sub", 3, &inos[2]) != 0)) {
+		printf("FAIL core-sub: lookup through the core failed\n");
+		return 1;
+	}
 	core_read(fs, inos[2], "inner", inner, sizeof(inner), "core-inner");
 	v7fs_io_fini(fs);
 

@@ -2,8 +2,11 @@
 # Build the NetBSD v7fs core imported under sys/fs/v7fs, with NetBSD's own
 # userland I/O backend and newfs library, against v7fs_core_test.c under the
 # address and undefined-behavior sanitizers; run it in the PDP-11 and the
-# little-endian byte order; then require that three mutants of the imported
-# sources are rejected with the assertion status 1.
+# little-endian byte order; require that three mutants of the imported
+# sources are rejected with the assertion status 1; then build usr.sbin/v7fs
+# for the host with the same sanitizers, drive every command in both byte
+# orders, and check the image it writes with the same core read-back and
+# independent reader.
 #
 # Two warnings stay disabled for the imported files, which the tree keeps
 # byte-identical to NetBSD (tools/netbsd-imports.manifest):
@@ -28,6 +31,7 @@ set -eu
 
 topsrc=$(cd "$(dirname "$0")/../.." && pwd)
 here=$topsrc/tests/v7fs_core
+compat=$topsrc/usr.sbin/v7fs
 v7fs=$topsrc/sys/fs/v7fs
 newfs=$topsrc/sbin/newfs_v7fs
 work=$(mktemp -d "${TMPDIR:-/tmp}/v7fs-core.XXXXXX")
@@ -70,8 +74,7 @@ compile()
 {
 	${CC:-cc} -std=gnu17 -O1 -g -Wall -Wextra -Werror \
 	    -fsanitize=address,undefined -fno-sanitize-recover=undefined \
-	    -DV7FS_EI -DHAVE_NBTOOL_CONFIG_H=1 \
-	    -include "$here/compat/netbsd_host.h" -I"$here/compat" "$@"
+	    -DV7FS_EI -include "$compat/netbsd_compat.h" -I"$compat/compat" "$@"
 }
 
 # mutant NAME FILE OLD NEW: a copy of the imported sources with FILE's one
@@ -138,8 +141,8 @@ _Static_assert((offsetof(struct v7fs_self, superblock) +
     "superblock freeinode cache is misaligned for v7fs_ino_t");
 EOF
 	arm-none-eabi-gcc -std=gnu17 -mcpu=cortex-m0plus -mthumb -fsyntax-only \
-	    -Wall -Wextra -Werror -DV7FS_EI -DHAVE_NBTOOL_CONFIG_H=1 \
-	    -include "$here/compat/netbsd_host.h" -I"$here/compat" -I"$v7fs" \
+	    -Wall -Wextra -Werror -DV7FS_EI \
+	    -include "$compat/netbsd_compat.h" -I"$compat/compat" -I"$v7fs" \
 	    "$work/align.c" || fail "freeinode alignment on cortex-m0plus"
 	echo "v7fs_core: freeinode cache aligned on cortex-m0plus"
 else
@@ -167,4 +170,87 @@ mutant freelist-count sbin/newfs_v7fs/main.c \
     'fb->nfreeblock = (*val16)(k - 1);'
 rejects "$work/freelist-count.bin" pdp freelist accounting
 
-echo "v7fs_core: PASS (pdp and little; 3 mutants rejected)"
+# usr.sbin/v7fs: the tool's host build, its commands, and its image.
+"${MAKE:?set MAKE to bmake}" -C "$topsrc/usr.sbin/v7fs" HOSTCC="${CC:-cc}" \
+    HOSTCFLAGS="-O1 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined" \
+    HOST_NETBSD_CFLAGS=-fno-sanitize=alignment host >"$work/tool-build.log" 2>&1 ||
+    { cat "$work/tool-build.log" >&2; fail "usr.sbin/v7fs host build"; }
+tool=$topsrc/usr.sbin/v7fs/v7fs-host
+mkdir "$work/pat"
+"$work/v7fs_core" "$work/pat" - patterns || fail "pattern files"
+
+# status WANT CMD...: CMD exits with WANT and writes no sanitizer report.
+status()
+{
+	want=$1
+	shift
+	got=0
+	"$@" >"$work/cmd.out" 2>"$work/cmd.err" || got=$?
+	if [ "$got" -ne "$want" ] || grep -q 'Sanitizer' "$work/cmd.err"; then
+		cat "$work/cmd.err" >&2
+		fail "$* exited $got, not $want"
+	fi
+}
+
+for order in pdp little; do
+	flag=
+	[ "$order" = pdp ] && flag=-p
+	img=$work/tool-$order.img
+	# shellcheck disable=SC2086  # $flag is empty or one word.
+	{
+		status 0 "$tool" $flag newfs "$img" 2048 64
+		status 0 "$tool" $flag put "$img" "$work/pat/hello" /hello
+		status 0 "$tool" $flag put "$img" "$work/pat/big" big
+		status 0 "$tool" $flag mkdir "$img" /sub
+		status 0 "$tool" $flag put "$img" "$work/pat/inner" /sub/inner
+		"$work/v7fs_core" "$img" "$order" verify >"$work/verify.log" ||
+		    { cat "$work/verify.log" >&2; fail "tool image ($order)"; }
+
+		status 0 "$tool" $flag get "$img" /big "$work/big.out"
+		cmp -s "$work/big.out" "$work/pat/big" || fail "get big ($order)"
+		status 0 "$tool" $flag cat "$img" sub/inner
+		cmp -s "$work/cmd.out" "$work/pat/inner" || fail "cat inner ($order)"
+		status 0 "$tool" $flag ls "$img"
+		[ "$(awk '{ printf "%s ", $NF }' "$work/cmd.out")" = \
+		    ". .. hello big sub/ " ] || fail "ls names ($order)"
+		status 0 "$tool" $flag df "$img"
+		[ "$(cat "$work/cmd.out")" = \
+		    "blocks 2048 data 2038 free 1953 inodes 64 free 58" ] ||
+		    fail "df before removal ($order)"
+
+		status 1 "$tool" $flag rm "$img" /sub
+		status 1 "$tool" $flag put "$img" "$work/pat/hello" hello
+		status 1 "$tool" $flag cat "$img" /absent
+		status 1 "$tool" $flag put "$img" "$work/pat/hello" /fifteen-bytes-x
+		status 1 "$tool" $flag ls "$img" /hello
+		status 2 "$tool" $flag frobnicate "$img"
+
+		status 0 "$tool" $flag rm "$img" sub/inner
+		status 0 "$tool" $flag rm "$img" sub
+		status 0 "$tool" $flag df "$img"
+		[ "$(cat "$work/cmd.out")" = \
+		    "blocks 2048 data 2038 free 1956 inodes 64 free 60" ] ||
+		    fail "df after removal ($order)"
+	}
+	echo "v7fs_core: usr.sbin/v7fs ($order) commands and image agree"
+done
+
+# A block pointer past the end of the volume: the tool reports an error,
+# exits 1 and leaves the image size unchanged.
+cp "$work/tool-little.img" "$work/corrupt.img"
+"$PYTHON" - "$work/corrupt.img" <<'PY'
+import sys
+
+# Inode 4 is /big; its first 24-bit address sits 12 bytes into the inode.
+offset = 2 * 512 + (4 - 1) * 64 + 12
+with open(sys.argv[1], "r+b") as image:
+    image.seek(offset)
+    image.write(b"\xff\xff\xff")
+PY
+size_before=$(wc -c <"$work/corrupt.img")
+status 1 "$tool" cat "$work/corrupt.img" /big
+[ "$(wc -c <"$work/corrupt.img")" -eq "$size_before" ] ||
+    fail "corrupt image changed size"
+echo "v7fs_core: corrupt block pointer rejected with status 1"
+
+echo "v7fs_core: PASS (pdp and little; 3 mutants rejected; usr.sbin/v7fs)"

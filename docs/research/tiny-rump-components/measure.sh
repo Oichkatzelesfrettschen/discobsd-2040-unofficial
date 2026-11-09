@@ -9,10 +9,11 @@
 # usr.sbin/). Without the argument the script takes $NETBSD_SRC from the
 # environment, then BSD_Workspace/netbsd-src beside the primary checkout
 # (the directory holding the repository's common .git, so a worktree finds
-# the same sibling), and exits 2 when none exists. OUTDIR
-# receives objects, logs and results.tsv and must be absent or empty, so no
-# object from an earlier revision joins the sums; without it the script
-# makes a fresh directory under ${TMPDIR:-/tmp} and prints its path. Every
+# the same sibling), and exits 2 when none exists. OUTDIR, or
+# $MEASURE_OUTDIR, receives objects, logs and results.tsv and must be absent
+# or empty, so no object from an earlier revision joins the sums; without
+# either the script makes a fresh directory under ${TMPDIR:-/tmp} and prints
+# its path. bmake measure-tiny-rump runs it. Every
 # object
 # is compiled only, never linked into an image: a size here bounds code
 # before link-time garbage collection and excludes libkern, libc and the
@@ -44,7 +45,7 @@ if [ ! -d "$NB/sys/rump" ]; then
 	echo "usage: measure.sh [NETBSD_SRC [OUTDIR]]: no NetBSD checkout at $NB" >&2
 	exit 2
 fi
-OUT=${2:-$(mktemp -d "${TMPDIR:-/tmp}/rump-measure.XXXXXX")}
+OUT=${2:-${MEASURE_OUTDIR:-$(mktemp -d "${TMPDIR:-/tmp}/rump-measure.XXXXXX")}}
 if [ -d "$OUT" ] && [ -n "$(ls -A "$OUT")" ]; then
 	echo "measure.sh: $OUT is not empty; give an absent or empty OUTDIR" >&2
 	exit 2

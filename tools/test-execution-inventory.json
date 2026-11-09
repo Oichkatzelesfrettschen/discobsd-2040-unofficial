@@ -437,6 +437,17 @@
         "executable ILP32 reference compiler"
       ],
       "reason": "Makefile explicitly declares fuzz off-default; check-qemu and CI invoke test, not fuzz."
+    },
+    {
+      "target": "measure-tiny-rump",
+      "script": "docs/research/tiny-rump-components/measure.sh",
+      "disposition": "optional off-default investigation",
+      "owner": null,
+      "requires": [
+        "NetBSD source checkout",
+        "arm-none-eabi-gcc"
+      ],
+      "reason": "It measures NetBSD sources CI does not check out; check-netbsd-imports and check-v7fs-core carry the reproducible claims into CI."
     }
   ],
   "variants": [

@@ -989,6 +989,14 @@ check-netbsd-imports: check-python
 check-v7fs-core: check-python
 		${MAKE} -C tests/v7fs_core check PYTHON=${PYTHON:Q}
 
+# The rump-kernel size measurement behind docs/research/tiny-rump-components.md.
+# It needs a NetBSD checkout, which CI lacks, so it stays outside check:
+# NETBSD_SRC defaults to BSD_Workspace/netbsd-src beside the primary checkout,
+# and MEASURE_OUTDIR, when given, must be absent or empty.
+measure-tiny-rump:
+		NETBSD_SRC=${NETBSD_SRC:Q} MEASURE_OUTDIR=${MEASURE_OUTDIR:Q} \
+		    sh docs/research/tiny-rump-components/measure.sh
+
 check-storage-counters: tools
 		sh tools/verify_storage_counters.sh
 

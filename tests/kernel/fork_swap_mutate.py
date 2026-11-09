@@ -14,9 +14,20 @@ MUTATIONS = {
         "            &next, reservation->addr) == 0) {\n"
         "            swapnext += SWAP_IMAGE_ALIGN;\n            return ENOMEM;\n        }",
     ),
+    # swapout() given a reservation must copy into it; reserving again takes a
+    # second extent, which an exactly full map cannot supply.
     "allocate-again-on-copy": (
-        "    if (reservation == NULL) {",
-        "    if (1) {",
+        "    if (reservation == NULL || reservation->state != SWAP_IMAGE_RESERVED)\n"
+        '        panic ("swapout: no reservation");',
+        "    struct swap_image_reservation again;\n"
+        "\n"
+        "    if (swap_image_reserve (&again, p, p, odata, ostack) != 0)\n"
+        '        panic ("out of swap space");\n'
+        "    reservation = &again;",
+    ),
+    "accept-unreserved-state": (
+        "    if (reservation == NULL || reservation->state != SWAP_IMAGE_RESERVED)",
+        "    if (reservation == NULL)",
     ),
     "child-sidl-during-copy": (
         "    child->p_stat = SRUN;\n"
@@ -101,7 +112,46 @@ MUTATIONS = {
         "        mfree (swapmap, reservation->stack_blocks, reservation->addr[1]);",
         "        (void)reservation->addr[1];",
     ),
+    # sched() refusal path: the selected in-core process stays resident.
+    "sched-drop-sload-restore": (
+        "            in_core->p_flag |= SLOAD;\n",
+        "",
+    ),
+    "sched-drop-requeue": (
+        "            if (in_core->p_stat == SRUN)\n                setrq (in_core);\n",
+        "",
+    ),
+    "sched-swapin-after-refusal": (
+        "            swapped_out = 0;\n            splhigh ();\n",
+        "            splhigh ();\n",
+    ),
+    # The reservation-free swapout of the scheduler before the refusal path.
+    "sched-unreserved-swapout": (
+        (
+            "        if (in_core && swap_image_reserve (&reservation, in_core, in_core,\n"
+            "            X_OLDSIZE, X_OLDSIZE) != 0) {",
+            "        if (0 && swap_image_reserve (&reservation, in_core, in_core,\n"
+            "            X_OLDSIZE, X_OLDSIZE) != 0) {",
+        ),
+        (
+            "            swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,\n"
+            "                &reservation);",
+            "            swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE, NULL);",
+        ),
+    ),
 }
+
+
+def apply(source: str, name: str) -> str:
+    """Return source with every replacement of one mutation applied once."""
+    replacements = MUTATIONS[name]
+    if isinstance(replacements[0], str):
+        replacements = (replacements,)
+    for before, after in replacements:
+        if source.count(before) != 1:
+            raise ValueError("mutation anchor must occur exactly once: " + name)
+        source = source.replace(before, after, 1)
+    return source
 
 
 def main() -> None:
@@ -110,11 +160,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--mutation", choices=MUTATIONS, required=True)
     args = parser.parse_args()
-    source = args.source.read_text()
-    before, after = MUTATIONS[args.mutation]
-    if source.count(before) != 1:
-        raise ValueError("mutation anchor must occur exactly once: " + args.mutation)
-    args.output.write_text(source.replace(before, after, 1))
+    args.output.write_text(apply(args.source.read_text(), args.mutation))
 
 
 if __name__ == "__main__":

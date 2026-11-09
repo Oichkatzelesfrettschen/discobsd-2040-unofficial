@@ -316,32 +316,16 @@ swap_image_commit (struct swap_image_reservation *reservation, struct proc *p)
     }
 }
 
-/* The unreserved scheduler path retains its fatal capacity policy. */
+/* Every caller reserves the image first; swapout itself cannot fail. */
 void
 swapout (p, freecore, odata, ostack, reservation)
     register struct proc *p;
     int freecore __unused;
-    u_int odata, ostack;
+    u_int odata __unused, ostack __unused;
     struct swap_image_reservation *reservation;
 {
-    struct swap_image_reservation local;
-
-    if (reservation == NULL) {
-        reservation = &local;
-        if (swap_image_reserve (reservation, p, p, odata, ostack) != 0) {
-            struct mapent *entry;
-
-#ifdef SWAPRAM
-            storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
-#endif
-            printf ("swapout: pid %d dsize %u ssize %u, free:",
-                p->p_pid, p->p_dsize, p->p_ssize);
-            for (entry = swapmap->m_map; entry->m_size; entry++)
-                printf (" %u@%u", entry->m_size, entry->m_addr);
-            printf ("\n");
-            panic ("out of swap space");
-        }
-    }
+    if (reservation == NULL || reservation->state != SWAP_IMAGE_RESERVED)
+        panic ("swapout: no reservation");
     swap_image_copy_out (reservation, p);
     swap_image_commit (reservation, p);
 }

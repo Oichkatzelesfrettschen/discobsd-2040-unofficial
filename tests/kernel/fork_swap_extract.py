@@ -1,4 +1,4 @@
-"""Extract exact fork, image-swap, and SwapRAM definitions for host gates."""
+"""Extract exact fork, image-swap, scheduler and SwapRAM definitions for host gates."""
 
 import argparse
 from pathlib import Path
@@ -15,6 +15,7 @@ def main() -> None:
     swap = (args.root / "sys/kern/vm_swap.c").read_text()
     ram = (args.root / "sys/arch/rp2040/rp2040/swapram.c").read_text()
     text = (args.root / "sys/kern/exec_aout.c").read_text()
+    sched_source = (args.root / "sys/kern/vm_sched.c").read_text()
     # The allocator is compiled separately against the same kernel headers.
     # Codec and I/O boundaries are supplied by the fixture; fork and image
     # ownership definitions remain verbatim, including their preprocessor arms.
@@ -49,12 +50,18 @@ def main() -> None:
     boot = "static void fork_swap_boot(void) { int fork_result; " + boot + "}\n"
     inherit = extract_function(ram, "void\nswapram_inherit (", "inherit")
     release = extract_function(text, "void\nexec_text_release(", "text release")
+    # The fixture keeps its own sched() for the boot path, which only needs to
+    # stop the boot parent, so the production scheduler loop is renamed.
+    sched = extract_function(sched_source, "void\nsched()", "scheduler loop")
+    sched = sched.replace("void\nsched()", "void\nkernel_sched()", 1)
     args.output.write_text(
         ram_state
         + "\n"
         + ram_functions
         + "\n"
         + swap
+        + "\n"
+        + sched
         + "\n"
         + fork
         + "\n"

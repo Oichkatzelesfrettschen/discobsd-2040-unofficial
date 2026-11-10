@@ -250,3 +250,4 @@ fork_swap_test_unaligned
 fork_swap_*.mutant.c
 fork_swap_*.mutant.test
 fork_swap_*.mutant.out
+v7-format-work/

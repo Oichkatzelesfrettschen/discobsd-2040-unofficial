@@ -161,6 +161,9 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
     int error = 0;
     int flags;
     struct mount *mp;
+#ifdef V7FS
+    caddr_t base;               /* the block's bytes inside bp */
+#endif
 
     //if (uio->uio_offset < 0)
         //return (EINVAL);
@@ -205,6 +208,10 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
         }
         return (error);
     }
+#ifdef V7FS
+    if (type == IFDIR && FS_ISV7(INODE_FILESYSTEM(ip)))
+        return (v7_dirrw(ip, uio));
+#endif
     if (uio->uio_resid == 0)
         return (0);
     if (uio->uio_rw == UIO_WRITE && type == IFREG &&
@@ -221,9 +228,9 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
     flags = ioflag & IO_SYNC ? B_SYNC : 0;
 
     do {
-        lbn = lblkno(uio->uio_offset);
-        on = blkoff(uio->uio_offset);
-        n = MIN((u_int)(DEV_BSIZE - on), uio->uio_resid);
+        lbn = IN_LBLKNO(ip, uio->uio_offset);
+        on = IN_BLKOFF(ip, uio->uio_offset);
+        n = MIN((u_int)(IN_BSIZE(ip) - on), uio->uio_resid);
         if (type != IFBLK) {
             if (uio->uio_rw == UIO_READ) {
                 off_t diff = ip->i_size - uio->uio_offset;
@@ -234,7 +241,7 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
                 bn = bmap(ip, lbn, B_READ, flags);
             } else
                 bn = bmap(ip,lbn,B_WRITE,
-                       n == DEV_BSIZE ? flags : flags|B_CLRBUF);
+                       n == IN_BSIZE(ip) ? flags : flags|B_CLRBUF);
             if (u.u_error || (uio->uio_rw == UIO_WRITE && (long)bn < 0))
                 return (u.u_error);
             if (uio->uio_rw == UIO_WRITE && uio->uio_offset + n > ip->i_size &&
@@ -248,16 +255,21 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
             if ((long)bn < 0) {
                 bp = geteblk();
                 bzero (bp->b_addr, MAXBSIZE);
-            } else if (ip->i_lastr + 1 == lbn)
-                bp = breada (dev, bn, rablock);
+                IN_SETBASE(base, bp->b_addr);
+            } else {
+            if (ip->i_lastr + 1 == lbn)
+                bp = breada (dev, IN_BTODB(ip, bn), IN_BTODB(ip, rablock));
             else
-                bp = bread (dev, bn);
+                bp = bread (dev, IN_BTODB(ip, bn));
+            IN_SETBASE(base, IN_BADDR(ip, bp, bn));
+            }
             ip->i_lastr = lbn;
         } else {
-            if (n == DEV_BSIZE)
-                bp = getblk (dev, bn);
+            if (n == IN_BSIZE(ip))
+                bp = IN_GETBLK (ip, dev, bn);
             else
-                bp = bread (dev, bn);
+                bp = bread (dev, IN_BTODB(ip, bn));
+            IN_SETBASE(base, IN_BADDR(ip, bp, bn));
             /*
              * 4.3 didn't do this, but 2.10 did.  not sure why.
              * something about tape drivers don't clear buffers on end-of-tape
@@ -274,9 +286,9 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
             brelse(bp);
             break;
         }
-        u.u_error = uiomove (bp->b_addr + on, n, uio);
+        u.u_error = uiomove (IN_BASE(base, bp) + on, n, uio);
         if (uio->uio_rw == UIO_READ) {
-            if (n + on == DEV_BSIZE || uio->uio_offset == ip->i_size) {
+            if (n + on == IN_BSIZE(ip) || uio->uio_offset == ip->i_size) {
                 bp->b_flags |= B_AGE;
                 if (ip->i_flag & IPIPE)
                     bp->b_flags &= ~B_DELWRI;
@@ -292,7 +304,7 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
              * called (and I/O initiated)  constantly.  Not sure what to do about this yet
              * but this comment is being placed here as a reminder.
              */
-            else if (n + on == DEV_BSIZE && !(ip->i_flag & IPIPE)) {
+            else if (n + on == IN_BSIZE(ip) && !(ip->i_flag & IPIPE)) {
                 bp->b_flags |= B_AGE;
                 bawrite(bp);
             } else

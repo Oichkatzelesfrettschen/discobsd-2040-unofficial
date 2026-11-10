@@ -47,6 +47,7 @@ kern/ufs_inode.c			standard
 kern/ufs_mount.c			standard
 kern/ufs_namei.c			standard
 kern/ufs_subr.c				standard
+kern/ufs_v7.c				optional v7fs
 kern/ufs_syscalls.c			standard
 kern/ufs_syscalls2.c			standard
 kern/vfs_vnops.c			standard

@@ -59,7 +59,7 @@ INCLUDES+=	-I${_machdir}/dhara/compat
 INCLUDES+=	-I${_machdir}/heatshrink -I${_machdir}/heatshrink/compat
 DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
-CWARNFLAGS=	-Wall -Wextra -Werror
+CWARNFLAGS=	-Wall -Wextra -Werror -Wshadow -Wundef -Wformat=2
 
 # DiscoBSD predates C23, where an empty parameter list means (void) rather
 # than an unspecified one. GCC 15 and later default to C23 and reject the
@@ -77,7 +77,8 @@ CMACHFLAGS+=	${MACHINE_ARCH_FLAGS}
 # The FLASH region of RP2040.ld bounds the kernel image, so the kernel is
 # compiled for size.
 COPTS?=		-Os
-CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
+DEBUG_PATH_MAP?= -fdebug-prefix-map=${TOPSRC:Q}=.
+CFLAGS=		${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
 AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack
@@ -95,29 +96,33 @@ PARAM+= -DSTORAGE_STATS
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
-COMPILE_SIZE_C=	${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
+COMPILE_SIZE_C=	${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} -Os ${DEFS} -c $<
 # Code whose instruction count is a design input compiles at -O whatever
 # COPTS says: psram_xfer.c drains a four-word PIO receive FIFO from a polling
 # loop that must outrun the state machine's fill rate.
-COMPILE_CYCLE_C=${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
+COMPILE_CYCLE_C=${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} -O ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
-# PARAM reaches every object as -D flags, and .params holds the PARAM text
-# the objects were compiled with. Parsing only compares the two, so -n and -V
+# The stamp binds configuration, compiler, assembler and link options to the
+# objects. Parsing only compares the recorded values, so -n and -V
 # change nothing. When they differ the stamp is a .PHONY target that every
 # object waits on: its recipe removes every object and then records the new
 # text, so a changed option recompiles them all whatever their mtimes, and a
 # failed removal fails the build before the stamp moves. bmake compares
 # whole-second mtimes, so an object compiled in the stamp's second would
 # otherwise read as current. Unchanged options reuse their objects.
+.MAIN: unix
+
 PARAMSTAMP=	.params
-_paramchanged!=	printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null || echo yes
+PARAMSTAMP_VALUES:= ${PARAM:Q} ${CC:Q} ${CFLAGS:Q} ${AS:Q} ${AFLAGS:Q} \
+		${LD:Q} ${LDFLAGS:Q} ${LDADD:Q}
+_paramchanged!=	printf '%s\n' ${PARAMSTAMP_VALUES} | cmp -s - ${PARAMSTAMP} 2>/dev/null || echo yes
 .if ${_paramchanged} == "yes"
 .PHONY: ${PARAMSTAMP}
 ${PARAMSTAMP}:
-	rm -f -- *.o && printf '%s\n' '${PARAM}' > ${PARAMSTAMP}
+	rm -f -- *.o && printf '%s\n' ${PARAMSTAMP_VALUES} > ${PARAMSTAMP}
 .endif
 
 OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \

@@ -25,7 +25,9 @@ int
 newproc (isvfork)
     volatile int isvfork;       /* read after the setjmp below returns 0 */
 {
-    register struct proc *child, *parent;
+    /* Keep the selected child address stable across the fork checkpoint. */
+    struct proc *volatile child;
+    register struct proc *parent;
     register int n;
     static int pidchecked = 0;
     struct file *fp;

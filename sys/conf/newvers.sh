@@ -40,7 +40,6 @@ fi
 OV=`cat .oldversion`
 
 GITREV=`git rev-list --count HEAD --`
-GITDIR=`git rev-parse --show-toplevel`
 
 if [ "x$GITREV" = "x" ]
 then
@@ -54,28 +53,22 @@ fi
 echo $CV >.compileversion
 echo $GITREV >.oldversion
 
-H=`hostname`
-D=${PWD#$GITDIR}
-ID=`basename "${D}"`
+ID=`basename "${PWD}"`
 
 # The date comes from date(1): strftime() is a gawk extension that the
 # awk on macOS and the BSDs does not have.
 NOW=`date`
 
-echo $GITREV $CV ${USER-root} $H $D $OST $OSR $ID $S| \
+echo $GITREV $CV $OST $OSR $ID $S| \
 awk -v date="$NOW" '{
     gitrev = $1;
     cv = $2;
-    user = $3;
-    host = $4;
-    dir = $5;
-    ost = $6;
-    osr = $7;
-    id = toupper($8);
-    status = $9;
-    printf "const char version[] = \"%s %s%s (%s) #%d %s: %s\\n", \
+    ost = $3;
+    osr = $4;
+    id = toupper($5);
+    status = $6;
+    printf "const char version[] = \"%s %s%s (%s) #%d %s: %s\\n\";\n", \
         ost, osr, status, id, cv, gitrev, date;
-    printf "     %s@%s:%s\\n\";\n", user, host, dir;
     printf "const char ostype[] = \"%s\";\n", ost;
     printf "const char osversion[] = \"%s#%d\";\n", id, cv;
     printf "const char osrelease[] = \"%s\";\n", osr;

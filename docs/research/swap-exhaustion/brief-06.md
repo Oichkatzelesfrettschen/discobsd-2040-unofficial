@@ -97,7 +97,7 @@ sleep between the check and the allocation.
 
 ## Standing rules
 
-- Work only in this worktree. Git metadata is read-only in the sandbox: use
+- Work only in the `PICO-TO-DOS` worktree. Git metadata is read-only in the sandbox: use
   the commit protocol below and never retry a Git write.
 - No network, no package installs. Never open `/dev/ttyACM*` or
   `/dev/serial/*`, and never run `discobsd-flash` or a `picotool` command
@@ -127,3 +127,64 @@ excluded from Git.
 `review-06.md` holds Options, Falsification, Synthesis, gate results with
 counts, Board prediction, and a Handoff section of at most fifteen lines; every
 change is in a commit request; acceptance passes.
+
+## Shared worktree (added by the orchestrator)
+
+The owner set `PICO-TO-DOS` as the one worktree and branch for this work. A
+second agent works in the same tree on board bring-up. Edit only the files
+this brief's work needs, leave every other modified or untracked file as you
+find it, and run no `git checkout`, `restore`, `reset`, `stash` or `clean`.
+Write commit requests under `.commit-requests/headroom/` instead of
+`.commit-requests/`.
+
+## Handoff state (added by the orchestrator)
+
+The session that started this brief was interrupted when the work moved from
+its own worktree to `PICO-TO-DOS`. Its uncommitted edits were carried over
+unchanged: `sys/kern/vm_swap.c`, `vm_sched.c`, `exec_subr.c`, `kern_exit.c`,
+`kern_mman.c`, `init_main.c`, `sys/sys/vmsystm.h`, `sys/dev/swap.c`,
+`sys/arch/rp2040/rp2040/{swapram,syscall,sig_machdep}.c`,
+`tests/kernel/{fork_swap_test.c,fork_swap_mutate.py,swap_ioctl_test.c,swap_ioctl_extract.py}`
+and `review-06.md`. Read `review-06.md` and `git diff` of those paths, then
+continue from the first work item they leave incomplete.
+Shared files (the root `Makefile`, `tests/kernel/Makefile`, CI workflows,
+`TESTING.md`) also receive edits from a board-descriptor session: re-read one
+immediately before each edit and change only the lines your work adds.
+
+## Board measurement (added by the orchestrator)
+
+On a bare Pico running the origin/main `eb5b3081` PICO kernel, `forktest`
+built with `BSSBYTES` of 172 KiB (text 5,771, data 200, bss 176,172 bytes;
+an image of about 184 blocks) printed no FORKTEST line within 120 s while
+other boot processes held their own swap. A console interrupt returned the
+root shell, the process was gone from `ps`, and there was no panic. The
+reading is that fork reserved the child, and then `sched()` refused every
+eviction of the resident parent for lack of a second 184-block run, so the
+child never ran and the parent waited forever. That inference is moderate:
+storage counters were not captured. Admission must turn this case into a
+prompt `ENOMEM` from fork, or the in-place exchange must make it alternate.
+
+## Orchestrator review findings (fix before READY)
+
+1. SERIOUS -- scheduler evictions no longer use the SwapRAM pool.
+   `swap_exchange_switch()` (`sys/kern/vm_swap.c`) always builds a
+   `SWAP_IMAGE_FLASH` reservation for the outgoing resident, so the 16 KiB
+   compressed pool now serves only fork children. Before this series,
+   `sched()` reached `swap_image_reserve()`, which tried `swapram_reserve()`
+   first. Every switch now costs a full flash write of the resident image (the
+   erase and program count of its span), even when it compresses into the
+   pool. The invariant does not need that: when the outgoing resident is
+   admitted to the pool, move its owned departure extent into its pool record
+   (the same route field fork children use) instead of writing through it.
+   It keeps its route for the return trip, so a pool return still needs no
+   new allocation. Fall back to the flash route only when pool admission
+   refuses. Add a gate case where a compressible resident leaves through the
+   pool with zero media writes and its route stays off the free map, plus a
+   mutant that always takes the flash route, and confirm it is rejected.
+   Record the before and after behavior in `review-06.md`.
+2. MINOR -- `swap_exchange_resize()` allocates the new span before it frees
+   the old one, so growth needs `required` free blocks on top of the existing
+   route. Growth that fits by extending the existing extent in place is
+   refused. Either accept that and document it in `review-06.md` as a
+   deliberate cost with its block arithmetic, or try the in-place extension
+   first under the same spl region.

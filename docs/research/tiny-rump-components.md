@@ -1,4 +1,5 @@
-Compile-only measurements and source readings; no board run backs any figure.
+Compile measurements, host-oracle runs, source readings and one board run of
+`usr.sbin/v7fs`; the board run backs only the v7fs tool session it names.
 
 # Tiny rump components for DiscoBSD on the RP2040
 
@@ -460,8 +461,22 @@ and the BSD_Workspace trees, so it is not exhaustive.
 2. DiscoBSD userland `v7fs` tool, landed as `usr.sbin/v7fs`: cross-built
    by `bmake build` at about 25 KB of the 192 KB window, and driven on the
    host by `check-v7fs-core` through the same core and independent reader.
-   Board execution waits for the owner's approval; shipping it adds a
-   manifest line and a numbered NOTICE section.
+   On 2026-11-09 the owner-approved board run executed the gate's tool
+   session on the measured Pico under the `eb5b3081` PICO kernel, with a
+   root built from `eb5b3081` plus a staged `file /usr/sbin/v7fs` (25,012
+   bytes, cksum 537459911). On a 2,048-sector, 64-inode image in `/tmp`, in
+   both byte orders, `newfs`, three `put`s, `mkdir`, `get`, `cat`, both
+   `rm`s and `df` exited 0, the unknown command exited 2, and `get` and
+   `cat` matched the uploaded patterns under `cmp`. `ls` named
+   `. .. hello big sub/`, and `df` read
+   `blocks 2048 data 2038 free 1953 inodes 64 free 58` before removal and
+   `... free 1956 inodes 64 free 60` after, the gate's strings. Both images
+   the board wrote came back compressed and uuencoded, and the oracle's
+   verify mode accepted each: 85 file blocks, 1,953 free, 6 inodes allocated
+   (little-endian image sha256 `a954f278...`, PDP-11 `7a8eaa0d...`).
+   `tests/rp2040/v7fs/board_v7fs.py` drives that session behind
+   `DISCOBSD_BOARD_V7FS=run`. Shipping the tool adds a manifest line and a
+   numbered NOTICE section.
 3. Import manifest and script, landed as `tools/netbsd-imports.manifest`,
    `tools/netbsd_imports.py` and `check-netbsd-imports`, whose selftest
    rejects an altered byte, a missing file, an unlisted file and a missing
@@ -498,7 +513,8 @@ linker script now would describe a section nothing fills.
 The linked DiscoBSD userland tool and the host oracle provide distinct build
 and execution evidence. The stack bound above is a static analysis of the
 cross build, and the kernel flash headroom is the `check-kernel-headroom`
-measurement cited in the first section. Physical-board behavior remains
-unmeasured. The FAT figures are a compile of the NetBSD files, not of a
+measurement cited in the first section. The board run covers the tool
+session on one board, one kernel and one image geometry. It covers neither a
+raw device, a full image nor stack depth at run time. The FAT figures are a compile of the NetBSD files, not of a
 DiscoBSD link. The other-systems table rests on project pages and papers
 rather than builds.

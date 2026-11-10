@@ -20,7 +20,8 @@ STDSRC		= abort.c alarm.c aligned_alloc.c assert_fail.c asctime.c atof.c atoi.c 
 		  getgrnam.c getgrouplist.c gethostname.c getloadavg.c \
 		  getlogin.c getmntinfo.c getpagesize.c getpass.c \
 		  getcwd.c getpwent.c getttyent.c getttynam.c getusershell.c \
-		  getwd.c index.c initgroups.c isatty.c isinff.c isnanf.c \
+		  getwd.c index.c initgroups.c isascii.c isatty.c isblank.c \
+		  isctype.c isinff.c isnanf.c \
 		  knlist.c ldexp.c malloc.c mktemp.c mktime.c modf.c modff.c ndbm.c \
 		  nlist.c opendir.c perror.c popen.c psignal.c qsort.c raise.c \
 		  random.c readdir.c regex.c rindex.c scandir.c seekdir.c \
@@ -28,7 +29,8 @@ STDSRC		= abort.c alarm.c aligned_alloc.c assert_fail.c asctime.c atof.c atoi.c 
 		  siglist.c signal.c sigsetops.c sleep.c strcasecmp.c \
 		  strcat.c strcmp.c strcpy.c strdup.c strftime.c strlen.c \
 		  strncat.c strncmp.c strncpy.c swab.c sysconf.c sysctl.c syslog.c \
-		  system.c telldir.c time.c timezone.c ttyname.c ttyslot.c \
+		  system.c telldir.c time.c timezone.c tolower.c toupper.c \
+		  ttyname.c ttyslot.c \
 		  ualarm.c uname.c unvis.c usleep.c vis.c \
 		  wait.c wait3.c waitpid.c
 
@@ -41,7 +43,8 @@ STDOBJ		= abort.o alarm.o aligned_alloc.o assert_fail.o asctime.o atof.o atoi.o 
 		  getgrnam.o getgrouplist.o gethostname.o getloadavg.o \
 		  getlogin.o getmntinfo.o getpagesize.o getpass.o \
 		  getcwd.o getpwent.o getttyent.o getttynam.o getusershell.o \
-		  getwd.o index.o initgroups.o isatty.o isinff.o isnanf.o \
+		  getwd.o index.o initgroups.o isascii.o isatty.o isblank.o \
+		  isctype.o isinff.o isnanf.o \
 		  knlist.o ldexp.o malloc.o mktemp.o mktime.o modf.o modff.o ndbm.o \
 		  nlist.o opendir.o perror.o popen.o psignal.o qsort.o raise.o \
 		  random.o readdir.o regex.o rindex.o scandir.o seekdir.o \
@@ -49,7 +52,8 @@ STDOBJ		= abort.o alarm.o aligned_alloc.o assert_fail.o asctime.o atof.o atoi.o 
 		  siglist.o signal.o sigsetops.o sleep.o strcasecmp.o \
 		  strcat.o strcmp.o strcpy.o strdup.o strftime.o strlen.o \
 		  strncat.o strncmp.o strncpy.o swab.o sysconf.o sysctl.o syslog.o \
-		  system.o telldir.o time.o timezone.o ttyname.o ttyslot.o \
+		  system.o telldir.o time.o timezone.o tolower.o toupper.o \
+		  ttyname.o ttyslot.o \
 		  ualarm.o uname.o unvis.o usleep.o vis.o \
 		  wait.o wait3.o waitpid.o
 

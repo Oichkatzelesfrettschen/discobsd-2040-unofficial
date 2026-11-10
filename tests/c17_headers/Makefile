@@ -18,12 +18,13 @@ TARGET_FLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror \
 MUTATE=		${PYTHON} ${.CURDIR}/mutate.py
 
 HEADER_CONTRACTS=	stddef_contract stdalign_contract stdnoreturn_contract \
-			limits_contract stdint_contract inttypes_contract
+			limits_contract stdint_contract inttypes_contract \
+			ctype_contract
 HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
 			stdnoreturn_empty limits_llong_min_short \
 			stdint_unsigned_max stdint_narrow_intmax \
 			inttypes_pri64_long inttypes_scn16_int \
-			inttypes_scn64_defined
+			inttypes_scn64_defined ctype_no_isblank
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -94,6 +95,14 @@ inttypes_scn64_defined.mutant:
 	    '#define SCNd32          "d"' \
 	    '#define SCNd32          "d"${.newline}#define SCNd64 "lld"'
 inttypes_scn64_defined.contract= inttypes_contract
+
+# Without the prototype the contract's use of isblank is an implicit
+# declaration.
+ctype_no_isblank.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/ctype.h $@/ctype.h \
+	    "int     isblank(int);" ""
+ctype_no_isblank.contract= ctype_contract
 
 check-cross: check-header-contracts check-header-mutants check-imports
 
@@ -170,6 +179,35 @@ inttypes_test_arm: inttypes_test.c ${INTTYPES_ARM_OBJS} ${QEMU_SUPPORT}
 	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -o $@ inttypes_test.c \
 	    ${INTTYPES_ARM_OBJS} ${QEMU_SUPPORT} ${QEMU_ARM_LIBS}
 
+# The tree's <ctype.h> alone on the include path, as a copy in ctype_tree,
+# so no other tree header reaches a hosted test.  ctype_rename.h gives the
+# functions and the table db_ link names.
+CTYPE_SRCS=	ctype_ isctype isblank tolower toupper isascii
+CTYPE_FLAGS=	-include ${.CURDIR}/ctype_rename.h
+CTYPE_HOST_OBJS= ${CTYPE_SRCS:S/^/host_ct_/:S/$/.o/}
+CTYPE_ARM_OBJS=	${CTYPE_SRCS:S/^/arm_ct_/:S/$/.o/}
+
+ctype_tree/ctype.h: ${TOPSRC}/include/ctype.h
+	@mkdir -p ctype_tree
+	cp ${TOPSRC}/include/ctype.h $@
+
+.for src in ${CTYPE_SRCS}
+host_ct_${src}.o: ${GEN_DIR}/${src}.c ctype_tree/ctype.h ctype_rename.h
+	${HOSTCC} ${HOST_FLAGS} -Ictype_tree ${CTYPE_FLAGS} -c -o $@ \
+	    ${GEN_DIR}/${src}.c
+arm_ct_${src}.o: ${GEN_DIR}/${src}.c ctype_tree/ctype.h ctype_rename.h
+	${QEMU_ARM_CC} ${HOST_FLAGS} -Os ${QEMU_ARM_CPUFLAGS} -fno-common \
+	    -Ictype_tree ${CTYPE_FLAGS} -c -o $@ ${GEN_DIR}/${src}.c
+.endfor
+
+ctype_test: ctype_test.c ${CTYPE_HOST_OBJS}
+	${HOSTCC} ${HOST_FLAGS} -Ictype_tree ${CTYPE_FLAGS} -o $@ \
+	    ctype_test.c ${CTYPE_HOST_OBJS}
+
+ctype_test_arm: ctype_test.c ${CTYPE_ARM_OBJS} ${QEMU_SUPPORT}
+	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -Ictype_tree ${CTYPE_FLAGS} -o $@ \
+	    ctype_test.c ${CTYPE_ARM_OBJS} ${QEMU_SUPPORT} ${QEMU_ARM_LIBS}
+
 host_arena.o: arena_host.c ${GEN_DIR}/malloc.c ${GEN_DIR}/malloc_store.h
 	${HOSTCC} ${ARENA_FLAGS} ${ALLOC_RENAMES} -c -o $@ arena_host.c
 arm_arena.o: arena_host.c ${GEN_DIR}/malloc.c ${GEN_DIR}/malloc_store.h
@@ -206,6 +244,10 @@ exit_probe: exit_probe.c host_Exit.o
 #   exit_runs_handlers    _Exit calls exit()
 #   imaxdiv_rem_sign      the remainder takes the denominator's sign
 #   imaxdiv_short_loop    the division stops one quotient bit early
+#   toupper_raw_offset    toupper subtracts the case offset from every value
+#   isblank_no_tab        isblank accepts the space alone
+#   ctype_space_class     the table marks the space as not printable
+#   ctype_double_eval     isalnum is a macro of two tests on its argument
 strtoull_no_overflow.mutant.c: ${STDLIB_DIR}/strtoull.c
 	${MUTATE} ${STDLIB_DIR}/strtoull.c $@ \
 	    "result.overflow = 1;" "result.overflow = 0;"
@@ -223,6 +265,17 @@ imaxdiv_rem_sign.mutant.c: ${STDLIB_DIR}/imaxdiv.c
 	    "result.rem = numerator < 0" "result.rem = denominator < 0"
 imaxdiv_short_loop.mutant.c: ${STDLIB_DIR}/imaxdiv.c
 	${MUTATE} ${STDLIB_DIR}/imaxdiv.c $@ "bit < 64" "bit < 63"
+toupper_raw_offset.mutant.c: ${GEN_DIR}/toupper.c
+	${MUTATE} ${GEN_DIR}/toupper.c $@ \
+	    "c >= 'a' && c <= 'z' ? c - 'a' + 'A' : c" "c - 'a' + 'A'"
+isblank_no_tab.mutant.c: ${GEN_DIR}/isblank.c
+	${MUTATE} ${GEN_DIR}/isblank.c $@ "c == ' ' || c == '\t'" "c == ' '"
+ctype_space_class.mutant.c: ${GEN_DIR}/ctype_.c
+	${MUTATE} ${GEN_DIR}/ctype_.c $@ "_S|_B," "_S,"
+ctype_double_eval.mutant/ctype.h: ${TOPSRC}/include/ctype.h
+	@mkdir -p ctype_double_eval.mutant
+	${MUTATE} ${TOPSRC}/include/ctype.h $@ \
+	    "((_ctype_+1)[(int)(c)]&(_U|_L|_N))" "(isalpha(c) || isdigit(c))"
 exit_runs_handlers.mutant.c: ${STDLIB_DIR}/_Exit.c
 	${MUTATE} ${STDLIB_DIR}/_Exit.c $@ "	_exit(status);" "	exit(status);"
 
@@ -259,6 +312,22 @@ ${mutant}.mutant.test: ${mutant}.mutant.o inttypes_test.c \
 	${HOSTCC} ${HOST_FLAGS} -o $@ inttypes_test.c ${mutant}.mutant.o \
 	    ${INTTYPES_HOST_OBJS:Nhost_imaxdiv.o}
 .endfor
+toupper_raw_offset.member=	toupper
+isblank_no_tab.member=		isblank
+ctype_space_class.member=	ctype_
+.for mutant in toupper_raw_offset isblank_no_tab ctype_space_class
+${mutant}.mutant.o: ${mutant}.mutant.c ctype_tree/ctype.h
+	${HOSTCC} ${HOST_FLAGS} -Ictype_tree ${CTYPE_FLAGS} -c -o $@ \
+	    ${mutant}.mutant.c
+${mutant}.mutant.test: ${mutant}.mutant.o ctype_test.c ${CTYPE_HOST_OBJS}
+	${HOSTCC} ${HOST_FLAGS} -Ictype_tree ${CTYPE_FLAGS} -o $@ \
+	    ctype_test.c ${mutant}.mutant.o \
+	    ${CTYPE_HOST_OBJS:Nhost_ct_${${mutant}.member}.o}
+.endfor
+ctype_double_eval.mutant.test: ctype_double_eval.mutant/ctype.h \
+    ctype_test.c ${CTYPE_HOST_OBJS}
+	${HOSTCC} ${HOST_FLAGS} -Ictype_double_eval.mutant ${CTYPE_FLAGS} \
+	    -o $@ ctype_test.c ${CTYPE_HOST_OBJS}
 exit_runs_handlers.mutant.o: exit_runs_handlers.mutant.c
 	${HOSTCC} ${HOST_FLAGS} -D_Exit=db_Exit -c -o $@ \
 	    exit_runs_handlers.mutant.c
@@ -266,8 +335,10 @@ exit_runs_handlers.mutant.test: exit_probe.c exit_runs_handlers.mutant.o
 	${HOSTCC} ${HOST_FLAGS} -o $@ exit_probe.c exit_runs_handlers.mutant.o
 
 RUN_MUTANTS=	strtoull_no_overflow strtoll_no_llong_min aligned_leak \
-		aligned_half imaxdiv_rem_sign imaxdiv_short_loop
-HOST_TESTS=	strtoll_test aligned_alloc_test inttypes_test
+		aligned_half imaxdiv_rem_sign imaxdiv_short_loop \
+		toupper_raw_offset isblank_no_tab ctype_space_class \
+		ctype_double_eval
+HOST_TESTS=	strtoll_test aligned_alloc_test inttypes_test ctype_test
 
 check-host: ${HOST_TESTS} exit_probe ${RUN_MUTANTS:S/$/.mutant.test/} \
     exit_runs_handlers.mutant.test
@@ -321,7 +392,12 @@ strtoimax.imports=	strtoll
 strtoumax.imports=	strtoull
 IMPORT_STDLIB=	strtoull strtoll atoll _Exit imaxdiv imaxabs strtoimax \
 		strtoumax
-IMPORT_GEN=	aligned_alloc
+isctype.imports=	_ctype_
+isblank.imports=
+tolower.imports=
+toupper.imports=
+isascii.imports=
+IMPORT_GEN=	aligned_alloc isctype isblank tolower toupper isascii
 
 check-imports:
 	${TARGET_CC} ${IMPORT_FLAGS} -c -o divide_import_bad.o \
@@ -347,7 +423,7 @@ check-imports:
 	@echo "c17 headers: ${IMPORT_STDLIB} ${IMPORT_GEN} import only their listed symbols"
 
 clean:
-	rm -rf *.mutant *.log *.o *.mutant.c *.mutant.test \
+	rm -rf *.mutant *.log *.o *.mutant.c *.mutant.test ctype_tree \
 	    ${HOST_TESTS} ${HOST_TESTS:S/$/_arm/} exit_probe
 
 .PHONY: check-cross check-header-contracts check-header-mutants \

@@ -71,6 +71,7 @@ static struct opt {
 	{ MNT_QUOTA,		"with quotas" },
 	{ MNT_RDONLY,		"read-only" },
 	{ MNT_SYNCHRONOUS,	"synchronous" },
+	{ MNT_V7,		"v7" },
 	{ NULL }
 };
 
@@ -340,7 +341,7 @@ prmount(spec, name, flags)
 
 	(void)printf("%s on %s", spec, name);
 
-	flags &= MNT_VISFLAGMASK;
+	flags &= MNT_VISFLAGMASK | MNT_V7;
 	for (f = 0, o = optnames; flags && o->o_opt; o++)
 		if (flags & o->o_opt) {
 			(void)printf("%s%s", !f++ ? " (" : ", ", o->o_name);

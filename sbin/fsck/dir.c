@@ -117,7 +117,7 @@ fsck_readdir(idesc)
     u_int size;
 
     getblk(&fileblk, idesc->id_blkno);
-    if (fileblk.b_errs != NULL) {
+    if (fileblk.b_errs != 0) {
         idesc->id_filesize -= DEV_BSIZE - idesc->id_loc;
         return NULL;
     }
@@ -181,7 +181,7 @@ dirscan(idesc)
         idesc->id_dirp = (DIRECT *)dbuf;
         if ((n = (*idesc->id_func)(idesc)) & ALTERED) {
             getblk(&fileblk, idesc->id_blkno);
-            if (fileblk.b_errs != NULL) {
+            if (fileblk.b_errs != 0) {
                 n &= ~ALTERED;
             } else {
                 bcopy(dbuf, (char *)dp, dsize);
@@ -303,11 +303,11 @@ expanddir(dp)
     dp->di_addr[lastbn] = newblk;
     dp->di_size += DEV_BSIZE;
     getblk(&fileblk, dp->di_addr[lastbn + 1]);
-    if (fileblk.b_errs != NULL)
+    if (fileblk.b_errs != 0)
         goto bad;
     bcopy(dirblk.b_buf, firstblk, DIRBLKSIZ);
     getblk(&fileblk, newblk);
-    if (fileblk.b_errs != NULL)
+    if (fileblk.b_errs != 0)
         goto bad;
     bcopy(firstblk, dirblk.b_buf, DIRBLKSIZ);
     for (cp = &dirblk.b_buf[DIRBLKSIZ];
@@ -316,7 +316,7 @@ expanddir(dp)
         bcopy((char *)&emptydir, cp, sizeof emptydir);
     dirty(&fileblk);
     getblk(&fileblk, dp->di_addr[lastbn + 1]);
-    if (fileblk.b_errs != NULL)
+    if (fileblk.b_errs != 0)
         goto bad;
     bcopy((char *)&emptydir, dirblk.b_buf, sizeof emptydir);
     pwarn("NO SPACE LEFT IN %s", pathname);
@@ -556,7 +556,7 @@ allocdir(parent, request)
     dirhead.dotdot_ino = parent;
     dp = ginode(ino);
     getblk(&fileblk, dp->di_addr[0]);
-    if (fileblk.b_errs != NULL) {
+    if (fileblk.b_errs != 0) {
         freeino(ino);
         return (0);
     }

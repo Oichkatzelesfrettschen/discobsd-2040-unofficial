@@ -59,6 +59,7 @@ static unsigned expand_lengths[3], expand_destinations[3];
 static caddr_t restore_destination;
 #endif
 static unsigned char media[384 * 1024];
+static struct buf exchange_buffer;
 static unsigned char parent_bytes[264 * 1024];
 static unsigned char u_image[USIZE];
 static uint32_t storage_counts[STORAGE_METRIC_COUNT];
@@ -129,6 +130,31 @@ swap(size_t block, size_t address, int count, int flags)
     for (index = 0; index < (unsigned)count; index++)
         media[block * 1024 + index] = source[index];
     writes++;
+}
+
+int
+swap_with_buf_result(struct buf *buffer, size_t block, size_t address,
+    int count, int flags)
+{
+    (void)buffer;
+    (void)block;
+    (void)address;
+    (void)count;
+    (void)flags;
+    panic("unexpected in-place exchange");
+    return -1;
+}
+
+struct buf *
+geteblk(void)
+{
+    return &exchange_buffer;
+}
+
+void
+brelse(struct buf *buffer)
+{
+    HK_CHECK(buffer == &exchange_buffer);
 }
 
 void
@@ -320,9 +346,6 @@ same_bytes(const void *left, const void *right, unsigned int length)
 static void
 reset_fixture(void)
 {
-    const struct swap_exchange_state empty_exchange = { NULL, 0, 0 };
-
-    swap_exchange_restore(&empty_exchange);
     bzero(&u, sizeof(u));
     bzero(proc, sizeof(proc));
     bzero(pidhash, sizeof(pidhash));
@@ -617,11 +640,10 @@ reservation_lifecycle(void)
     HK_CHECK(runout == 0);
     HK_CHECK(wakeups == 1 && wake_channels[0] == (caddr_t)&runout);
     swap_image_release(freeproc);
-    HK_CHECK(free_total() == 0);
-    HK_CHECK(wake_flash_free[1] == 0);
-    HK_CHECK(wakeups == 2 && wake_channels[1] == (caddr_t)&runout);
-    swap_exchange_release(freeproc);
     HK_CHECK(free_total() == 156);
+    HK_CHECK(wake_flash_free[1] == 156);
+    HK_CHECK(wakeups == 3 && wake_channels[1] == (caddr_t)&runout &&
+        wake_channels[2] == (caddr_t)&runin);
 }
 
 static void
@@ -644,8 +666,8 @@ swapram_lifecycle(void)
     HK_CHECK(same_bytes(freeproc, &saved_owner, sizeof(saved_owner)));
     HK_CHECK(swapram_pool_avail(&sr_map) < initial_free);
     HK_CHECK(swapram_present(freeproc) == 0);
-    HK_CHECK(writes == 0 && publications == 1);
-    HK_CHECK(free_total() == 380 - swap_image_span(&proc[0]));
+    HK_CHECK(writes == 0 && publications == 0);
+    HK_CHECK(free_total() == 380);
     swap_image_cancel(&reservation);
     swap_image_cancel(&reservation);
     HK_CHECK(swapram_pool_avail(&sr_map) == initial_free);
@@ -667,7 +689,7 @@ swapram_lifecycle(void)
     kernel_fork();
     HK_CHECK(u.u_error == 0);
     HK_CHECK(swapram_present(&proc[1]));
-    HK_CHECK(writes == 0 && publications == 1);
+    HK_CHECK(writes == 0 && publications == 0);
     HK_CHECK(proc[1].p_addr == 0 && proc[1].p_daddr == 0);
     HK_CHECK(cnt.v_swpout == 1);
     HK_CHECK(storage_counts[STORAGE_SWAPRAM_ATTEMPTS] == 1);
@@ -675,149 +697,10 @@ swapram_lifecycle(void)
     HK_CHECK(swap_exchange_switch(&transition, NULL, &proc[1], 1) == 0);
     swap_image_release(&proc[1]);
     HK_CHECK(swapram_pool_avail(&sr_map) == sizeof(sr_pool));
-    HK_CHECK(wakeups == 1 && wake_channels[0] == (caddr_t)&runout);
+    HK_CHECK(wakeups == 2 && wake_channels[0] == (caddr_t)&runout &&
+        wake_channels[1] == (caddr_t)&runin);
     HK_CHECK(wake_ram_free[0] == sizeof(sr_pool));
-    swap_exchange_release(&proc[1]);
     HK_CHECK(free_total() == 380);
-}
-
-static void
-exchange_route_controls(void)
-{
-    struct swap_image_reservation reservation;
-    struct swap_exchange_state exchange;
-    unsigned int free_before;
-
-    reset_fixture();
-    exchange.owner = &proc[0];
-    exchange.base = 4;
-    exchange.span = swap_image_span(&proc[0]);
-    swap_exchange_restore(&exchange);
-    kernel_fork();
-    HK_CHECK(u.u_error == ENOMEM);
-    HK_CHECK(free_total() == 0);
-    swap_exchange_release(&proc[0]);
-    HK_CHECK(free_total() == exchange.span);
-
-    /* A 184-block resident keeps its route when fork needs another. */
-    reset_fixture();
-    proc[0].p_tip = NULL;
-    proc[0].p_tsize = 0;
-    proc[0].p_dsize = (184 - btod(USIZE)) * DEV_BSIZE;
-    proc[0].p_ssize = 0;
-    exchange.owner = &proc[0];
-    exchange.base = 4;
-    exchange.span = swap_image_span(&proc[0]);
-    HK_CHECK(exchange.span == 184);
-    swap_exchange_restore(&exchange);
-    sr_admit = 1;
-    kernel_fork();
-    HK_CHECK(u.u_error == ENOMEM);
-    HK_CHECK(publications == 0 && writes == 0);
-    HK_CHECK(swapram_pool_avail(&sr_map) == sizeof(sr_pool));
-    HK_CHECK(free_total() == 0);
-    swap_exchange_release(&proc[0]);
-    HK_CHECK(free_total() == 184);
-
-    /* Total free capacity cannot replace one owned aligned route. */
-    reset_fixture();
-    proc[0].p_tip = NULL;
-    proc[0].p_tsize = 0;
-    proc[0].p_dsize = (184 - btod(USIZE)) * DEV_BSIZE;
-    proc[0].p_ssize = 0;
-    exchange.owner = &proc[0];
-    exchange.base = 4;
-    exchange.span = swap_image_span(&proc[0]);
-    swap_exchange_restore(&exchange);
-    entries[0].m_addr = 188;
-    entries[0].m_size = 92;
-    entries[1].m_addr = 292;
-    entries[1].m_size = 92;
-    HK_CHECK(free_total() >= exchange.span);
-    sr_admit = 1;
-    kernel_fork();
-    HK_CHECK(u.u_error == ENOMEM);
-    HK_CHECK(publications == 0 && writes == 0);
-    HK_CHECK(swapram_pool_avail(&sr_map) == sizeof(sr_pool));
-    swap_exchange_release(&proc[0]);
-
-    /* A scheduler eviction moves the resident and its route into the pool. */
-    reset_fixture();
-    exchange.owner = &proc[0];
-    exchange.base = 4;
-    exchange.span = swap_image_span(&proc[0]);
-    swap_exchange_restore(&exchange);
-    entries[0].m_addr = 4 + exchange.span;
-    entries[0].m_size = 380 - exchange.span;
-    free_before = free_total();
-    sr_admit = 1;
-    HK_CHECK(swap_exchange_switch(&reservation, &proc[0], NULL, 0) == 0);
-    HK_CHECK(reservation.tier == SWAP_IMAGE_RAM);
-    HK_CHECK(reservation.state == SWAP_IMAGE_RESERVED);
-    HK_CHECK(free_total() == free_before && publications == 0);
-    swapout(&proc[0], X_FREECORE, X_OLDSIZE, X_OLDSIZE, &reservation);
-    HK_CHECK(swapram_present(&proc[0]));
-    HK_CHECK(writes == 0 && io_waits == 0);
-    HK_CHECK(sr_tab[0].e_route_base == exchange.base);
-    HK_CHECK(sr_tab[0].e_route_span == exchange.span);
-    HK_CHECK(free_total() == free_before);
-    swap_image_release(&proc[0]);
-    HK_CHECK(free_total() == 380);
-
-    reset_fixture();
-    proc[0].p_tip = NULL;
-    proc[0].p_tsize = 0;
-    proc[0].p_dsize = 1024;
-    proc[0].p_ssize = 0;
-    exchange.owner = &proc[0];
-    exchange.base = 4;
-    exchange.span = swap_image_span(&proc[0]);
-    swap_exchange_restore(&exchange);
-    entries[0].m_addr = 8;
-    entries[0].m_size = 8;
-    HK_CHECK(swap_exchange_resize(&proc[0], 5 * 1024, 0, 0) == 0);
-    HK_CHECK(swap_exchange.base == 4 && swap_exchange.span == 8);
-    HK_CHECK(free_total() == 4);
-    swap_exchange_release(&proc[0]);
-    HK_CHECK(free_total() == 12);
-
-    reset_fixture();
-    proc[0].p_tip = NULL;
-    proc[0].p_tsize = 0;
-    proc[0].p_dsize = 1024;
-    proc[0].p_ssize = 0;
-    exchange.owner = &proc[0];
-    exchange.base = 4;
-    exchange.span = swap_image_span(&proc[0]);
-    swap_exchange_restore(&exchange);
-    entries[0].m_addr = 8;
-    entries[0].m_size = 4;
-    entries[1].m_addr = 16;
-    entries[1].m_size = 4;
-    HK_CHECK(swap_exchange_resize(&proc[0], 5 * 1024, 0, 0) == 0);
-    HK_CHECK(swap_exchange.base == 4 && swap_exchange.span == 8);
-    HK_CHECK(free_total() == 4);
-    swap_exchange_release(&proc[0]);
-    HK_CHECK(free_total() == 12);
-
-    reset_fixture();
-    proc[0].p_tip = NULL;
-    proc[0].p_tsize = 0;
-    proc[0].p_dsize = 1024;
-    proc[0].p_ssize = 0;
-    exchange.owner = &proc[0];
-    exchange.base = 4;
-    exchange.span = swap_image_span(&proc[0]);
-    swap_exchange_restore(&exchange);
-    entries[0].m_addr = 12;
-    entries[0].m_size = 4;
-    entries[1].m_addr = 20;
-    entries[1].m_size = 4;
-    HK_CHECK(swap_exchange_resize(&proc[0], 5 * 1024, 0, 0) == ENOMEM);
-    HK_CHECK(swap_exchange.base == 4 && swap_exchange.span == 4);
-    HK_CHECK(free_total() == 8);
-    swap_exchange_release(&proc[0]);
-    HK_CHECK(free_total() == 12);
 }
 #endif
 
@@ -979,7 +862,7 @@ swapin_ram_release(void)
     HK_CHECK(swapram_pool_avail(&sr_map) == sizeof(sr_pool));
     HK_CHECK(swapram_present(&proc[1]) == 0);
     HK_CHECK(sr_tab[1].e_res == 0);
-    HK_CHECK(free_total() == 380 - swap_image_span(&proc[1]));
+    HK_CHECK(free_total() == 380);
     HK_CHECK(writes == 0 && io_waits == 0);
     HK_CHECK(restores == 1 && restore_length == tsize);
     HK_CHECK((unsigned int)(u_long)restore_destination ==
@@ -998,7 +881,6 @@ swapin_ram_release(void)
     HK_CHECK(requeues == 1 && requeued == (caddr_t)&proc[1]);
     HK_CHECK(signals == 0);
     HK_CHECK(cnt.v_swpin == 1);
-    swap_exchange_release(&proc[1]);
     HK_CHECK(free_total() == 380);
 }
 #endif
@@ -1175,8 +1057,8 @@ boot_process_one(void)
     HK_EXPECT_PANIC("boot parent scheduled", boot_parent_call);
     HK_CHECK(swapram_present(&proc[1]));
     HK_CHECK(proc[1].p_addr == 0 && proc[1].p_daddr == 0);
-    HK_CHECK(writes == 0 && publications == 1);
-    HK_CHECK(free_total() == blocks - SWAP_IMAGE_ALIGN - span);
+    HK_CHECK(writes == 0 && publications == 0);
+    HK_CHECK(free_total() == blocks - SWAP_IMAGE_ALIGN);
     HK_CHECK(storage_counts[STORAGE_SWAPRAM_ADMISSIONS] == 1);
 #endif
 }
@@ -1340,7 +1222,8 @@ nonaligned_release(void)
             HK_CHECK(release_restored);
         }
         HK_CHECK(free_total() == total);
-        HK_CHECK(wakeups == 1 && wake_channels[0] == (caddr_t)&runout);
+        HK_CHECK(wakeups == 2 && wake_channels[0] == (caddr_t)&runout &&
+            wake_channels[1] == (caddr_t)&runin);
         HK_CHECK(wake_flash_free[0] == total);
     }
 }
@@ -1387,20 +1270,9 @@ sched_fixture(int in_core_state)
 
 #ifdef SWAP_IMAGE_ALIGN
 static void
-sched_install_exchange(size_t base)
-{
-    struct swap_exchange_state exchange;
-
-    exchange.owner = &proc[0];
-    exchange.base = base;
-    exchange.span = swap_image_span(&proc[0]);
-    swap_exchange_restore(&exchange);
-}
-
-static void
 sched_fragment_after_exchange(unsigned int shape)
 {
-    size_t address = 4 + swap_image_span(&proc[0]);
+    size_t address = 12;
     unsigned int index;
 
     for (index = 0; index < 28 && address + 4 <= 384; index++) {
@@ -1457,29 +1329,23 @@ sched_call(void)
 }
 
 /*
- * No tier holds the image of proc[0], so the second pass of sched() leaves it
- * resident: SLOAD returns, a runnable process rejoins the run queue, proc[1]
- * stays out and sched() sleeps on runin until capacity changes. The fixture
- * wakes that first sleep, and sched() selects the pair and refuses again.
+ * The pool refuses proc[0], the blocks after proc[1]'s extent hold no tail
+ * and no free run holds a whole image, so the second pass of sched() leaves
+ * proc[0] resident: SLOAD returns, a runnable process rejoins the run queue,
+ * proc[1] stays out and sched() sleeps on runin until capacity changes. The
+ * fixture wakes that first sleep, and sched() selects the pair and refuses
+ * again.
  */
 static void
-sched_refusal_case(int in_core_state, int ram_tier, unsigned int shape,
-    unsigned int cursor)
+sched_refusal_case(int in_core_state, unsigned int shape, unsigned int cursor)
 {
     uint32_t expected_storage[STORAGE_METRIC_COUNT];
-#ifdef SWAP_IMAGE_ALIGN
-    size_t abandoned_base, abandoned_span;
-#endif
 
     sched_fixture(in_core_state);
 #ifdef SWAP_IMAGE_ALIGN
-    sched_install_exchange(4);
-    entries[0].m_addr = 4 + swap_image_span(&proc[0]);
-    entries[0].m_size = 380 - swap_image_span(&proc[0]);
-    sched_make_pool_image();
-    HK_CHECK(swapram_route_take(&proc[1], &abandoned_base,
-        &abandoned_span));
-    mfree(swapmap, abandoned_span, abandoned_base);
+    proc[1].p_daddr = 4;
+    proc[1].p_saddr = 8;
+    proc[1].p_addr = 9;
     bzero(entries, sizeof(entries));
     sched_fragment_after_exchange(shape);
     swapnext = cursor;
@@ -1496,7 +1362,6 @@ sched_refusal_case(int in_core_state, int ram_tier, unsigned int shape,
     else
         entries[2].m_size = geometry_uarea - 1;
 #endif
-    (void)ram_tier;
     sched_snapshot_take();
     sched_wakeups = 1;
     HK_EXPECT_PANIC("sched slept", sched_call);
@@ -1562,23 +1427,17 @@ sched_refusal_case(int in_core_state, int ram_tier, unsigned int shape,
 static void
 sched_refusals(void)
 {
-#ifdef SWAPRAM
-    const unsigned int tiers = 1;
-#else
-    const unsigned int tiers = 1;
-#endif
 #ifdef SWAP_IMAGE_ALIGN
     const unsigned int first_cursor = 4, last_cursor = 380;
 #else
     const unsigned int first_cursor = 0, last_cursor = 0;
 #endif
-    unsigned int shape, cursor, tier, state;
+    unsigned int shape, cursor, state;
 
     for (state = 0; state < 2; state++)
-    for (tier = 0; tier < tiers; tier++)
     for (shape = 0; shape < 3; shape++)
     for (cursor = first_cursor; cursor <= last_cursor; cursor += 4)
-        sched_refusal_case(state ? SSLEEP : SRUN, tier, shape, cursor);
+        sched_refusal_case(state ? SSLEEP : SRUN, shape, cursor);
 }
 
 /*
@@ -1590,7 +1449,6 @@ static void
 sched_success_case(int ram_tier)
 {
 #ifdef SWAP_IMAGE_ALIGN
-    struct swap_exchange_state exchange;
     size_t addresses[3], next;
 #else
     unsigned int span_in, span_out;
@@ -1613,13 +1471,6 @@ sched_success_case(int ram_tier)
         proc[1].p_saddr = addresses[1];
         proc[1].p_addr = addresses[2];
     }
-    HK_CHECK(malloc3_contiguous_next(swapmap, swap_image_span(&proc[0]),
-        0, 0, SWAP_IMAGE_ALIGN, &next, addresses) ==
-        swap_image_span(&proc[0]));
-    exchange.owner = &proc[0];
-    exchange.base = addresses[0];
-    exchange.span = swap_image_span(&proc[0]);
-    swap_exchange_restore(&exchange);
     swapnext = next;
 #else
     geometry_data = btod(proc[0].p_dsize - swaptext(&proc[0]));
@@ -1652,11 +1503,12 @@ sched_success_case(int ram_tier)
 #ifdef SWAP_IMAGE_ALIGN
         if (ram_tier)
             out_image_committed = !swapram_present(&proc[0]) &&
-                proc[0].p_daddr == exchange.base && writes == 3 &&
-                io_waits == 3 && free_total() == free_before;
+                proc[0].p_daddr >= 4 && writes == 3 &&
+                io_waits == 3 && free_total() ==
+                free_before - swap_image_span(&proc[0]);
         else
             out_image_committed = !swapram_present(&proc[0]) &&
-                proc[0].p_daddr == exchange.base && writes == 3 &&
+                proc[0].p_daddr == addresses[0] && writes == 3 &&
                 io_waits == 3 && free_total() == free_before;
 #else
         (void)ram_tier;
@@ -1678,9 +1530,10 @@ sched_success_case(int ram_tier)
 static void
 sched_successes(void)
 {
-    sched_success_case(0);
 #ifdef SWAPRAM
     sched_success_case(1);
+#else
+    sched_success_case(0);
 #endif
 }
 
@@ -1744,7 +1597,6 @@ main(void)
     newproc_results();
     boot_process_one();
     successful_forks();
-    exchange_route_controls();
     if (hk_failures)
         return hk_verdict("fork swap refusal and reservation");
     reservation_lifecycle();

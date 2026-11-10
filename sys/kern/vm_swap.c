@@ -32,8 +32,6 @@ swaptext (register struct proc *p)
     return p->p_tsize;
 }
 
-static struct swap_exchange_state swap_exchange;
-
 static size_t
 swap_image_span_geometry (size_t data_size, size_t stack_size,
     size_t clean_text)
@@ -83,190 +81,121 @@ swap_image_reservation_init (struct swap_image_reservation *reservation,
 }
 
 /*
- * Move the resident into the pool with its route when compression admits it,
- * or consume the route as flash backing.  A process returning from SwapRAM
- * transfers its separately owned route before the old resident leaves.
+ * Take one fresh flash extent for the image the reservation describes.
+ * Refusal leaves the map and the next-fit cursor unchanged.
+ */
+static int
+swap_image_reserve_flash (struct swap_image_reservation *reservation)
+{
+#ifdef SWAP_IMAGE_ALIGN
+    size_t next = swapnext;
+
+    if (malloc3_contiguous_next (swapmap, reservation->data_blocks,
+        reservation->stack_blocks, btod (USIZE),
+        SWAP_IMAGE_ALIGN, &next, reservation->addr) == 0)
+        return ENOMEM;
+    swapnext = next;
+    swap_cursor_publish (swapnext);
+#else
+    if (malloc3 (swapmap, reservation->data_blocks,
+        reservation->stack_blocks, btod (USIZE), reservation->addr) == 0)
+        return ENOMEM;
+#endif
+    return 0;
+}
+
+#ifdef SWAP_IMAGE_ALIGN
+/* Consume a free suffix without changing the next-fit cursor. */
+static int
+swap_exchange_tail_reserve (size_t base, size_t incoming_span,
+    size_t outgoing_span)
+{
+    struct mapent *entry;
+    size_t end, tail;
+
+    if (outgoing_span <= incoming_span)
+        return 1;
+    end = base + incoming_span;
+    tail = outgoing_span - incoming_span;
+    for (entry = swapmap->m_map;
+        entry->m_size != 0 && entry->m_addr < end; entry++)
+        continue;
+    if (entry->m_size < tail || entry->m_addr != end)
+        return 0;
+    entry->m_addr += tail;
+    entry->m_size -= tail;
+    if (entry->m_size == 0)
+        do {
+            *entry = entry[1];
+        } while ((entry++)->m_size != 0);
+    return 1;
+}
+#endif
+
+/*
+ * Reserve every byte the transition can write before changing either image.
+ * A resident owns no flash blocks, so its destination is found here: the
+ * SwapRAM pool, else the incoming image's own extent plus a tail of
+ * max(0, outgoing span - incoming span) blocks directly after it
+ * (SWAP_IMAGE_EXCHANGE, moved by swap_exchange_inplace()), else one fresh
+ * extent for the whole outgoing image, which swapout() fills before
+ * swapin() releases the incoming extent. ENOMEM means none of the three
+ * exists; the map, the cursor and both images are unchanged.
  */
 int
 swap_exchange_switch (struct swap_image_reservation *reservation,
     struct proc *outgoing, struct proc *incoming, int pool_backed)
 {
 #ifdef SWAP_IMAGE_ALIGN
-    size_t incoming_span = 0;
-    size_t incoming_base = 0;
     int spl;
-
-    spl = splhigh ();
-    if (outgoing != NULL) {
-        swap_image_reservation_init (reservation, outgoing, outgoing,
-            X_OLDSIZE, X_OLDSIZE);
-        if (swap_exchange.owner != outgoing || swap_exchange.base == 0 ||
-            swap_exchange.span < reservation->span)
-            panic ("swap exchange: departure owner");
-    } else
-        bzero (reservation, sizeof (*reservation));
-
-    if (pool_backed) {
-#ifdef SWAPRAM
-        incoming_span = swap_image_span (incoming);
-        if (! swapram_route_take (incoming, &incoming_base,
-            &incoming_span)) {
-            splx (spl);
-            return ENOMEM;
-        }
-        if (incoming_span < swap_image_span (incoming))
-            panic ("swap exchange: short pool route");
-#else
-        panic ("swap exchange: pool without SwapRAM");
-#endif
-    }
-
-#ifndef SWAPRAM
-    (void) incoming;
 #endif
 
-    if (outgoing != NULL) {
-#ifdef SWAPRAM
-        if (swapram_reserve_route (outgoing,
-            (caddr_t) (outgoing->p_daddr + reservation->text),
-            reservation->data, (caddr_t) outgoing->p_saddr,
-            reservation->stack, USIZE, swap_exchange.base,
-            swap_exchange.span))
-            reservation->tier = SWAP_IMAGE_RAM;
-        else
-#endif
-        {
-            reservation->addr[0] = swap_exchange.base;
-            reservation->addr[1] = reservation->addr[0] +
-                reservation->data_blocks;
-            reservation->addr[2] = reservation->addr[1] +
-                reservation->stack_blocks;
-            reservation->tier = SWAP_IMAGE_FLASH;
-            if (swap_exchange.span > reservation->span)
-                mfree (swapmap, swap_exchange.span - reservation->span,
-                    swap_exchange.base + reservation->span);
-        }
-        reservation->state = SWAP_IMAGE_RESERVED;
-    }
-
-    swap_exchange.owner = pool_backed ? incoming : NULL;
-    swap_exchange.base = pool_backed ? incoming_base : 0;
-    swap_exchange.span = incoming_span;
-    splx (spl);
-    return 0;
-#else
-    (void) incoming;
-    (void) pool_backed;
     if (outgoing == NULL) {
         bzero (reservation, sizeof (*reservation));
         return 0;
     }
+    if (pool_backed)
+        return swap_image_reserve (reservation, outgoing, outgoing,
+            X_OLDSIZE, X_OLDSIZE);
+
+#ifdef SWAP_IMAGE_ALIGN
+    swap_image_reservation_init (reservation, outgoing, outgoing,
+        X_OLDSIZE, X_OLDSIZE);
+#ifdef SWAPRAM
+    if (swapram_reserve (outgoing,
+        (caddr_t) (outgoing->p_daddr + reservation->text),
+        reservation->data, (caddr_t) outgoing->p_saddr,
+        reservation->stack, USIZE)) {
+        reservation->tier = SWAP_IMAGE_RAM;
+        reservation->state = SWAP_IMAGE_RESERVED;
+        return 0;
+    }
+#endif
+    reservation->exchange_span = swap_image_span (incoming);
+    spl = splhigh ();
+    if (! swap_exchange_tail_reserve (incoming->p_daddr,
+        reservation->exchange_span, reservation->span)) {
+        splx (spl);
+        reservation->exchange_span = 0;
+        if (swap_image_reserve_flash (reservation) != 0)
+            return ENOMEM;
+        reservation->state = SWAP_IMAGE_RESERVED;
+        return 0;
+    }
+    splx (spl);
+    reservation->addr[0] = incoming->p_daddr;
+    reservation->addr[1] = reservation->addr[0] +
+        reservation->data_blocks;
+    reservation->addr[2] = reservation->addr[1] +
+        reservation->stack_blocks;
+    reservation->tier = SWAP_IMAGE_EXCHANGE;
+    reservation->state = SWAP_IMAGE_RESERVED;
+    return 0;
+#else
+    (void) incoming;
     return swap_image_reserve (reservation, outgoing, outgoing,
         X_OLDSIZE, X_OLDSIZE);
 #endif
-}
-
-#ifdef SWAP_IMAGE_ALIGN
-/* Consume free blocks that directly follow the resident's owned extent. */
-static int
-swap_exchange_extend (size_t required)
-{
-    struct mapent *entry;
-    size_t end, extra;
-
-    end = swap_exchange.base + swap_exchange.span;
-    extra = required - swap_exchange.span;
-    for (entry = swapmap->m_map;
-        entry->m_size != 0 && entry->m_addr < end; entry++)
-        continue;
-    if (entry->m_size < extra || entry->m_addr != end)
-        return 0;
-    entry->m_addr += extra;
-    entry->m_size -= extra;
-    if (entry->m_size == 0)
-        do {
-            *entry = entry[1];
-        } while ((entry++)->m_size != 0);
-    swap_exchange.span = required;
-    return 1;
-}
-#endif
-
-void
-swap_exchange_restore (const struct swap_exchange_state *previous)
-{
-    int spl;
-
-    spl = splhigh ();
-    swap_exchange = *previous;
-    splx (spl);
-}
-
-/* Geometry changes become visible only after their departure route exists. */
-int
-swap_exchange_resize (struct proc *owner, size_t data_size,
-    size_t stack_size, size_t clean_text)
-{
-#ifdef SWAP_IMAGE_ALIGN
-    size_t addresses[3], next, span;
-    size_t required;
-    int spl;
-
-    required = swap_image_span_geometry (data_size, stack_size, clean_text);
-    spl = splhigh ();
-    if (swap_exchange.owner != owner) {
-        splx (spl);
-        return ENOMEM;
-    }
-    if (swap_exchange.span >= required) {
-        splx (spl);
-        return 0;
-    }
-    if (swap_exchange_extend (required)) {
-        splx (spl);
-        return 0;
-    }
-    next = swapnext;
-    span = malloc3_contiguous_next (swapmap, required, 0, 0,
-        SWAP_IMAGE_ALIGN, &next, addresses);
-    if (span == 0) {
-        splx (spl);
-        return ENOMEM;
-    }
-    mfree (swapmap, swap_exchange.span, swap_exchange.base);
-    swap_exchange.base = addresses[0];
-    swap_exchange.span = span;
-    swapnext = next;
-    swap_cursor_publish (swapnext);
-    splx (spl);
-    return 0;
-#else
-    (void) owner;
-    (void) data_size;
-    (void) stack_size;
-    (void) clean_text;
-    return 0;
-#endif
-}
-
-void
-swap_exchange_release (struct proc *owner)
-{
-#ifdef SWAP_IMAGE_ALIGN
-    int spl;
-
-    spl = splhigh ();
-    if (swap_exchange.owner != owner)
-        panic ("swap exchange: release owner");
-    mfree (swapmap, swap_exchange.span, swap_exchange.base);
-    swap_exchange.owner = NULL;
-    swap_exchange.base = 0;
-    swap_exchange.span = 0;
-    splx (spl);
-#else
-    (void) owner;
-#endif
-    wakeup ((caddr_t) &runin);
 }
 
 /* Refusal changes neither the owner nor the map, cursor or image bytes. */
@@ -274,10 +203,6 @@ int
 swap_image_reserve (struct swap_image_reservation *reservation,
     struct proc *owner, struct proc *source, u_int odata, u_int ostack)
 {
-#ifdef SWAP_IMAGE_ALIGN
-    size_t next = swapnext;
-#endif
-
     swap_image_reservation_init (reservation, owner, source, odata, ostack);
 #ifdef SWAPRAM
     if (swapram_reserve (owner,
@@ -286,21 +211,8 @@ swap_image_reserve (struct swap_image_reservation *reservation,
         reservation->tier = SWAP_IMAGE_RAM;
     } else
 #endif
-    {
-#ifdef SWAP_IMAGE_ALIGN
-        if (malloc3_contiguous_next (swapmap,
-            btod (source->p_dsize - reservation->text),
-            btod (source->p_ssize), btod (USIZE),
-            SWAP_IMAGE_ALIGN, &next, reservation->addr) == 0)
-            return ENOMEM;
-        swapnext = next;
-        swap_cursor_publish (swapnext);
-#else
-        if (malloc3 (swapmap, btod (source->p_dsize - reservation->text),
-            btod (source->p_ssize), btod (USIZE), reservation->addr) == 0)
-            return ENOMEM;
-#endif
-    }
+    if (swap_image_reserve_flash (reservation) != 0)
+        return ENOMEM;
     reservation->owner = owner;
     reservation->state = SWAP_IMAGE_RESERVED;
     return 0;
@@ -321,7 +233,13 @@ swap_image_cancel (struct swap_image_reservation *reservation)
 #endif
     {
 #ifdef SWAP_IMAGE_ALIGN
-        mfree (swapmap, reservation->span, reservation->addr[0]);
+        if (reservation->tier == SWAP_IMAGE_EXCHANGE) {
+            if (reservation->span > reservation->exchange_span)
+                mfree (swapmap,
+                    reservation->span - reservation->exchange_span,
+                    reservation->addr[0] + reservation->exchange_span);
+        } else
+            mfree (swapmap, reservation->span, reservation->addr[0]);
 #else
         mfree (swapmap, reservation->data_blocks, reservation->addr[0]);
         mfree (swapmap, reservation->stack_blocks, reservation->addr[1]);
@@ -336,9 +254,6 @@ swap_image_cancel (struct swap_image_reservation *reservation)
 void
 swap_image_release (struct proc *p)
 {
-    int spl;
-
-    spl = splhigh ();
 #ifdef SWAPRAM
     if (swapram_present (p))
         swapram_cancel (p);
@@ -346,20 +261,15 @@ swap_image_release (struct proc *p)
 #endif
     {
 #ifdef SWAP_IMAGE_ALIGN
-        if (swap_exchange.owner != NULL || swap_exchange.base != 0 ||
-            swap_exchange.span != 0)
-            panic ("swap exchange: occupied on transfer");
-        swap_exchange.owner = p;
-        swap_exchange.base = p->p_daddr;
-        swap_exchange.span = swap_image_span (p);
+        mfree (swapmap, swap_image_span (p), p->p_daddr);
 #else
         mfree (swapmap, btod (p->p_dsize - swaptext (p)), p->p_daddr);
         mfree (swapmap, btod (p->p_ssize), p->p_saddr);
         mfree (swapmap, btod (USIZE), p->p_addr);
 #endif
     }
-    splx (spl);
     wakeup ((caddr_t) &runout);
+    wakeup ((caddr_t) &runin);
 }
 
 /*
@@ -424,6 +334,251 @@ swapin (register struct proc *p)
     p->p_time = 0;
 #ifdef UCB_METER
     cnt.v_swpin++;
+#endif
+}
+
+#ifdef SWAP_IMAGE_ALIGN
+#define SWAP_EXCHANGE_SECTOR_BYTES (SWAP_IMAGE_ALIGN * DEV_BSIZE)
+#define SWAP_EXCHANGE_MAX_SECTORS \
+    ((MAXMEM + USIZE + SWAP_EXCHANGE_SECTOR_BYTES - 1) / \
+    SWAP_EXCHANGE_SECTOR_BYTES)
+
+struct swap_exchange_segment {
+    size_t image_start;
+    size_t length;
+    size_t window_start;
+};
+
+static u_char swap_exchange_sector[SWAP_EXCHANGE_SECTOR_BYTES];
+static u_char swap_exchange_done[SWAP_EXCHANGE_MAX_SECTORS];
+
+static void
+swap_exchange_segments (struct proc *p, int resident,
+    struct swap_exchange_segment segments[3])
+{
+    size_t text = swaptext (p);
+    size_t data = p->p_dsize - text;
+
+    segments[0].image_start = 0;
+    segments[0].length = data;
+    segments[0].window_start = resident ? p->p_daddr + text :
+        (size_t) __user_data_start + text;
+    segments[1].image_start = btod (data) * DEV_BSIZE;
+    segments[1].length = p->p_ssize;
+    segments[1].window_start = resident ? p->p_saddr : USER_TOP (p) -
+        p->p_ssize;
+    segments[2].image_start = segments[1].image_start +
+        btod (p->p_ssize) * DEV_BSIZE;
+    segments[2].length = USIZE;
+    segments[2].window_start = resident ? p->p_addr : (size_t) &u0;
+}
+
+static int
+swap_exchange_overlap (size_t first_start, size_t first_length,
+    size_t second_start, size_t second_length)
+{
+    return first_length != 0 && second_length != 0 &&
+        first_start < second_start + second_length &&
+        second_start < first_start + first_length;
+}
+
+static int
+swap_exchange_sector_piece (const struct swap_exchange_segment *segment,
+    size_t sector, size_t *image_start, size_t *window_start, size_t *length)
+{
+    size_t sector_start = sector * SWAP_EXCHANGE_SECTOR_BYTES;
+    size_t sector_end = sector_start + SWAP_EXCHANGE_SECTOR_BYTES;
+    size_t segment_end = segment->image_start + segment->length;
+    size_t start, end;
+
+    start = segment->image_start > sector_start ? segment->image_start :
+        sector_start;
+    end = segment_end < sector_end ? segment_end : sector_end;
+    if (start >= end)
+        return 0;
+    *image_start = start;
+    *window_start = segment->window_start + start - segment->image_start;
+    *length = end - start;
+    return 1;
+}
+
+/*
+ * A sector may be exchanged once its incoming bytes land on no window byte
+ * that another unsaved outgoing sector still has to program. Such a sector
+ * always exists. Both images map image offsets to window addresses in
+ * strictly increasing order (data below stack below u0), so the map from an
+ * incoming offset to the outgoing offset sharing its window byte is strictly
+ * increasing where defined. A cycle of sectors waiting on each other would
+ * give its highest sector one byte that lands in a lower sector and a lower
+ * sector one byte that lands in the highest, which reverses that order.
+ */
+static int
+swap_exchange_candidate_safe (size_t candidate, size_t sector_count,
+    const struct swap_exchange_segment incoming[3],
+    const struct swap_exchange_segment outgoing[3])
+{
+    size_t incoming_image, incoming_window, incoming_length;
+    size_t outgoing_image, outgoing_window, outgoing_length;
+    size_t other;
+    int incoming_segment, outgoing_segment;
+
+    for (incoming_segment = 0; incoming_segment < 3; incoming_segment++) {
+        if (! swap_exchange_sector_piece (&incoming[incoming_segment],
+            candidate, &incoming_image, &incoming_window, &incoming_length))
+            continue;
+        for (other = 0; other < sector_count; other++) {
+            if (other == candidate || swap_exchange_done[other])
+                continue;
+            for (outgoing_segment = 0; outgoing_segment < 3;
+                outgoing_segment++) {
+                if (! swap_exchange_sector_piece (
+                    &outgoing[outgoing_segment], other, &outgoing_image,
+                    &outgoing_window, &outgoing_length))
+                    continue;
+                if (swap_exchange_overlap (incoming_window,
+                    incoming_length, outgoing_window, outgoing_length))
+                    return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+static void
+swap_exchange_program_sector (struct buf *bp, size_t flash_base,
+    size_t sector, const struct swap_exchange_segment outgoing[3])
+{
+    size_t image_start, window_start, length;
+    size_t sector_start = sector * SWAP_EXCHANGE_SECTOR_BYTES;
+    int segment, writes = 0;
+
+    for (segment = 0; segment < 3; segment++) {
+        if (! swap_exchange_sector_piece (&outgoing[segment], sector,
+            &image_start, &window_start, &length))
+            continue;
+        /* fl_raw() erases a sector only when a write starts on it. */
+        if (writes == 0 && image_start != sector_start)
+            panic ("swap exchange: geometry");
+        if (swap_with_buf_result (bp,
+            flash_base + btod (image_start), window_start, length,
+            SWAP_IMAGE_WRITE) != 0)
+            panic ("swap exchange: media fault");
+        writes++;
+    }
+    if (writes == 0)
+        panic ("swap exchange: geometry");
+}
+
+static void
+swap_exchange_scatter_sector (size_t sector,
+    const struct swap_exchange_segment incoming[3])
+{
+    size_t image_start, window_start, length;
+    int segment;
+
+    for (segment = 0; segment < 3; segment++) {
+        if (! swap_exchange_sector_piece (&incoming[segment], sector,
+            &image_start, &window_start, &length))
+            continue;
+        bcopy (swap_exchange_sector + image_start -
+            sector * SWAP_EXCHANGE_SECTOR_BYTES,
+            (caddr_t) window_start, length);
+    }
+}
+#endif
+
+/* Exchange two images only after the complete destination span is owned. */
+void
+swap_exchange_inplace (struct swap_image_reservation *reservation,
+    struct proc *outgoing, struct proc *incoming)
+{
+#ifdef SWAP_IMAGE_ALIGN
+    struct swap_exchange_segment outgoing_segments[3], incoming_segments[3];
+    struct buf *bp;
+    size_t candidate, completed, incoming_sectors, outgoing_sectors;
+    size_t sector_count;
+    int found;
+
+    if (reservation->owner != outgoing ||
+        reservation->state != SWAP_IMAGE_RESERVED ||
+        reservation->tier != SWAP_IMAGE_EXCHANGE)
+        panic ("swap exchange: reservation");
+    incoming_sectors = reservation->exchange_span / SWAP_IMAGE_ALIGN;
+    outgoing_sectors = reservation->span / SWAP_IMAGE_ALIGN;
+    sector_count = incoming_sectors > outgoing_sectors ? incoming_sectors :
+        outgoing_sectors;
+    if (sector_count > SWAP_EXCHANGE_MAX_SECTORS)
+        panic ("swap exchange: geometry");
+
+    swap_exchange_segments (outgoing, 1, outgoing_segments);
+    swap_exchange_segments (incoming, 0, incoming_segments);
+    bzero (swap_exchange_done, sizeof (swap_exchange_done));
+    outgoing->p_flag |= SLOCK;
+    {
+        int s = splclock ();
+
+        u.u_ru.ru_nswap++;
+        splx (s);
+    }
+#ifdef SWAPRAM
+    storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
+#endif
+    bp = geteblk ();
+    for (completed = 0; completed < sector_count; completed++) {
+        found = 0;
+        for (candidate = 0; candidate < sector_count; candidate++) {
+            if (swap_exchange_done[candidate] ||
+                ! swap_exchange_candidate_safe (candidate, sector_count,
+                incoming_segments, outgoing_segments))
+                continue;
+            found = 1;
+            break;
+        }
+        if (! found)
+            panic ("swap exchange: ordering");
+        if (candidate < incoming_sectors &&
+            swap_with_buf_result (bp,
+            incoming->p_daddr + candidate * SWAP_IMAGE_ALIGN,
+            (size_t) swap_exchange_sector, SWAP_EXCHANGE_SECTOR_BYTES,
+            B_READ) != 0)
+            panic ("swap exchange: media fault");
+        if (candidate < outgoing_sectors)
+            swap_exchange_program_sector (bp, reservation->addr[0],
+                candidate, outgoing_segments);
+        if (candidate < incoming_sectors)
+            swap_exchange_scatter_sector (candidate, incoming_segments);
+        swap_exchange_done[candidate] = 1;
+    }
+    brelse (bp);
+
+    if (swaptext (incoming) && exec_text_restore (incoming,
+        __user_data_start, swaptext (incoming)) != 0) {
+        printf ("swapin: pid %d: executable text corrupt\n",
+            incoming->p_pid);
+        psignal (incoming, SIGKILL);
+    }
+    reservation->state = SWAP_IMAGE_COPIED;
+    swap_image_commit (reservation, outgoing);
+    if (reservation->exchange_span > reservation->span) {
+        mfree (swapmap, reservation->exchange_span - reservation->span,
+            reservation->addr[0] + reservation->span);
+        wakeup ((caddr_t) &runin);
+    }
+    incoming->p_daddr = (size_t) __user_data_start;
+    incoming->p_saddr = USER_TOP (incoming) - incoming->p_ssize;
+    incoming->p_addr = (size_t) &u0;
+    if (incoming->p_stat == SRUN)
+        setrq (incoming);
+    incoming->p_flag |= SLOAD;
+    incoming->p_time = 0;
+#ifdef UCB_METER
+    cnt.v_swpin++;
+#endif
+#else
+    (void) reservation;
+    (void) outgoing;
+    (void) incoming;
+    panic ("swap exchange: unsupported");
 #endif
 }
 

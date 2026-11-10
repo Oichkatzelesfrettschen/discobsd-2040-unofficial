@@ -16,7 +16,6 @@
 #include <sys/exec.h>
 #include <sys/dir.h>
 #include <sys/uio.h>
-#include <sys/vmsystm.h>
 #include <machine/debug.h>
 #include <machine/frame.h>
 
@@ -430,9 +429,6 @@ int exec_estab(struct exec_params *epp)
     /*
      * Allocate core at this point, committed to the new image.
      */
-    if (swap_exchange_resize (u.u_procp,
-        epp->data.len + epp->bss.len, epp->stack.len, 0) != 0)
-        return ENOMEM;
     u.u_prof.pr_scale = 0;
     if (u.u_procp->p_flag & SVFORK)
         endvfork();

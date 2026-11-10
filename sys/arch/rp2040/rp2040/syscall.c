@@ -195,11 +195,6 @@ syscall(struct trapframe *frame)
 	}
 	if (u.u_procp->p_ssize < USER_TOP(u.u_procp) - sp) {
 		/* Expand stack. */
-		if (swap_exchange_resize(u.u_procp, u.u_procp->p_dsize,
-		    USER_TOP(u.u_procp) - sp, u.u_procp->p_tsize) != 0) {
-			psig = SIGSEGV;
-			goto bad;
-		}
 		u.u_procp->p_ssize = USER_TOP(u.u_procp) - sp;
 		u.u_procp->p_saddr = sp;
 		u.u_ssize = u.u_procp->p_ssize;

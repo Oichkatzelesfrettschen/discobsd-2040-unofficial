@@ -12,8 +12,8 @@
 #include <sys/vm.h>
 #include <sys/uio.h>
 
-void
-swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr, int count,
+int
+swap_with_buf_result (struct buf *bp, size_t blkno, size_t coreaddr, int count,
     int rdflg)
 {
     int s, transfer_count;
@@ -39,11 +39,20 @@ swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr, int count,
             sleep ((caddr_t)bp, PSWP);
         splx (s);
         if ((bp->b_flags & B_ERROR) || bp->b_resid)
-            panic ("hard err: swap");
+            return -1;
         count -= transfer_count;
         coreaddr += transfer_count;
         blkno += btod (transfer_count);
     }
+    return 0;
+}
+
+void
+swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr, int count,
+    int rdflg)
+{
+    if (swap_with_buf_result (bp, blkno, coreaddr, count, rdflg) != 0)
+        panic ("hard err: swap");
 }
 
 /*

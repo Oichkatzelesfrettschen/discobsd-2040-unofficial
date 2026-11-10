@@ -94,11 +94,15 @@ sched()
             sleep ((caddr_t) &runin, PSWP);
             continue;
         }
-        if (in_core)
-            swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,
-                &reservation);
-        if (swapped_out)
-            swapin (swapped_out);
+        if (in_core && reservation.tier == SWAP_IMAGE_EXCHANGE)
+            swap_exchange_inplace (&reservation, in_core, swapped_out);
+        else {
+            if (in_core)
+                swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,
+                    &reservation);
+            if (swapped_out)
+                swapin (swapped_out);
+        }
         splhigh();
         in_core = 0;
         swapped_out = 0;

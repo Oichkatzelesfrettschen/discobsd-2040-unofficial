@@ -8,13 +8,11 @@
  * keeps them there whenever the pool can hold the worst-case output; when
  * it cannot, swapout takes the flash path with nothing changed.
  *
- * The pool holds compressed bytes while its process record owns one off-map
- * flash departure extent.  The extent becomes the image backing during
- * evacuation or the resident route during swap-in.  The process's p_daddr,
- * p_saddr, and p_addr stay zero while the image remains in the pool.
+ * The pool holds compressed bytes only. A process whose image is here holds
+ * no swapmap blocks, and swapout leaves p_daddr, p_saddr, and p_addr zero
+ * to say so.
  *
- * Nothing on the swapout and swapin paths sleeps or acquires a buffer. The
- * fixed pool and resource-map reservations finish before compression. The
+ * Nothing on the swapout and swapin paths sleeps or allocates. The
  * encoder, the decoder, and the segment table are file-scope statics,
  * which is safe only because swapout and swapin run to completion without
  * a context switch: the flash path sleeps inside swap() on B_DONE, and
@@ -87,14 +85,12 @@ static struct sr_ent {
     unsigned int    e_rlen[SR_NSEG];    /* the length swapin must produce */
     sr_offset_t     e_off;              /* pool offset of the reservation */
     sr_offset_t     e_res;              /* bytes reserved, then bytes used */
-    unsigned int    e_route_base;       /* off-map departure extent */
-    unsigned int    e_route_span;
     sr_offset_t     e_clen[SR_NSEG];    /* capacity, then compressed bytes */
     u_char          e_live;             /* an image is here */
 } sr_tab[NPROC];
 
 #if SWAPRAM_KB * 1024 <= 65535
-_Static_assert (sizeof (struct sr_ent) == 32,
+_Static_assert (sizeof (struct sr_ent) == 24,
     "SwapRAM process records must remain compact");
 #endif
 
@@ -359,14 +355,11 @@ sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
  * has to unwind a half-written image, while a compressible image is
  * admitted whenever its real size fits rather than its raw size.
  */
-static int
-sr_reserve (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
-    size_t slen, size_t ulen, size_t route_base, size_t route_span)
+int
+swapram_reserve (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
+    size_t slen, size_t ulen)
 {
     struct sr_ent *e = sr_slot (p);
-#ifdef SWAP_IMAGE_ALIGN
-    size_t addresses[3], next, span;
-#endif
     unsigned int off, want;
     int dn = 0, sn = 0;
 
@@ -401,49 +394,7 @@ sr_reserve (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
     e->e_clen[SR_DATA] = dn;
     e->e_clen[SR_STACK] = sn;
     e->e_clen[SR_U] = SR_WORST (ulen);
-#ifdef SWAP_IMAGE_ALIGN
-    if (route_base != 0 || route_span != 0) {
-        if (route_base == 0 || route_span < sr_flash_span (e))
-            panic ("swapram: short adopted route");
-        e->e_route_base = route_base;
-        e->e_route_span = route_span;
-    } else {
-        next = swapnext;
-        span = malloc3_contiguous_next (swapmap, sr_flash_span (e), 0, 0,
-            SWAP_IMAGE_ALIGN, &next, addresses);
-        if (span == 0) {
-            if (swapram_pool_free (&sr_map, e->e_off, e->e_res) < 0)
-                panic ("swapram: route refusal");
-            bzero (e, sizeof (*e));
-            return 0;
-        }
-        e->e_route_base = addresses[0];
-        e->e_route_span = span;
-        swapnext = next;
-        swap_cursor_publish (swapnext);
-    }
-#else
-    (void) route_base;
-    (void) route_span;
-#endif
     return 1;
-}
-
-int
-swapram_reserve (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
-    size_t slen, size_t ulen)
-{
-    return sr_reserve (p, dsrc, dlen, ssrc, slen, ulen, 0, 0);
-}
-
-/* Admit a resident image while preserving its existing departure extent. */
-int
-swapram_reserve_route (struct proc *p, caddr_t dsrc, size_t dlen,
-    caddr_t ssrc, size_t slen, size_t ulen, size_t route_base,
-    size_t route_span)
-{
-    return sr_reserve (p, dsrc, dlen, ssrc, slen, ulen, route_base,
-        route_span);
 }
 
 /* The direct tier entry point accounts for attempted admission. */
@@ -521,10 +472,6 @@ swapram_cancel (struct proc *p)
 
     if (entry->e_res == 0)
         return;
-#ifdef SWAP_IMAGE_ALIGN
-    if (entry->e_route_span != 0)
-        mfree (swapmap, entry->e_route_span, entry->e_route_base);
-#endif
     if (swapram_pool_free (&sr_map, entry->e_off, entry->e_res) < 0)
         panic ("swapram: cancel");
     bzero (entry, sizeof (*entry));
@@ -535,29 +482,6 @@ int
 swapram_present (struct proc *p)
 {
     return sr_slot (p)->e_live;
-}
-
-/* Transfer a pool image's departure extent to the resident owner. */
-int
-swapram_route_take (struct proc *p, size_t *base, size_t *span)
-{
-#ifdef SWAP_IMAGE_ALIGN
-    struct sr_ent *entry = sr_slot (p);
-
-    if (! entry->e_live || entry->e_route_base == 0 ||
-        entry->e_route_span == 0)
-        return 0;
-    *base = entry->e_route_base;
-    *span = entry->e_route_span;
-    entry->e_route_base = 0;
-    entry->e_route_span = 0;
-    return 1;
-#else
-    (void) p;
-    (void) base;
-    (void) span;
-    return 0;
-#endif
 }
 
 /*
@@ -596,10 +520,6 @@ swapram_in (struct proc *p, caddr_t ddst, caddr_t sdst, caddr_t udst)
 
     if (! e->e_live)
         panic ("swapram: no image");
-#ifdef SWAP_IMAGE_ALIGN
-    if (e->e_route_base != 0 || e->e_route_span != 0)
-        panic ("swapram: departure route not transferred");
-#endif
     dst[SR_DATA] = ddst;
     dst[SR_STACK] = sdst;
     dst[SR_U] = udst;
@@ -643,15 +563,17 @@ swapram_images (void)
 }
 
 /*
- * Move every image in the pool to its owned flash departure extent. Each
- * image acquired that extent before admission, so evacuation performs no
- * capacity allocation and cannot strand a partial set for lack of flash.
- * Each image is expanded a block at a time into its extent, and a process
- * switches to it
- * (p_daddr, p_saddr, p_addr, the same words swapout sets on the flash
- * path) after its last block is written, so a process is on one tier
- * or the other at every moment and a panic part way strands nothing.
- * The pool entry is freed last. Admission stays as the caller set it;
+ * Move every image in the pool to flash swap, all or none. The flash
+ * blocks for every image are reserved first, at the expanded sizes
+ * swapin will read, and one reservation that fails releases them all
+ * and leaves the pool as it was. The reservation pass sets p_daddr,
+ * p_saddr and p_addr, the same words swapout sets on the flash path,
+ * and the rollback clears them. Only then is each image expanded a
+ * block at a time into its extents. swapram_present() keeps an image
+ * on the pool tier until its last block is written and its pool entry
+ * is freed, so a process is on one tier or the other at every moment
+ * and a panic part way strands nothing. Admission stays as the caller
+ * set it;
  * an evacuation with images still admissible is a moment's emptiness.
  * Runs in the swapper, the one context that swaps in, so no image leaves
  * the pool under it; swap_with_buf() sleeps, and a swapout from another
@@ -663,12 +585,13 @@ int
 swapram_evacuate (void)
 {
     struct sr_ent *e;
-    struct proc *p;
+    struct proc *p, *reserved;
     struct buf *bp;
     unsigned int off;
-    size_t base, destination;
-    int i, images = 0, seg, n;
+    size_t blocks[SR_NSEG], next;
+    int i, images = 0, j, seg, n;
 
+    next = swapnext;
     for (i = 0; i < NPROC; i++) {
         e = &sr_tab[i];
         if (! e->e_live)
@@ -680,25 +603,46 @@ swapram_evacuate (void)
         if (p->p_daddr || p->p_saddr || p->p_addr)
             panic ("swapram: flash blocks already assigned");
 #ifdef SWAP_IMAGE_ALIGN
-        if (e->e_route_base == 0 ||
-            e->e_route_span < sr_flash_span (e))
-            panic ("swapram: missing departure route");
-#else
-        {
-            size_t blocks[SR_NSEG];
-
-            if (malloc3 (swapmap, btod (e->e_rlen[SR_DATA]),
+        if (malloc3_contiguous_next (swapmap, btod (e->e_rlen[SR_DATA]),
             btod (e->e_rlen[SR_STACK]), btod (e->e_rlen[SR_U]),
-                blocks) == 0)
-                return -1;
-            p->p_daddr = blocks[SR_DATA];
-            p->p_saddr = blocks[SR_STACK];
-            p->p_addr = blocks[SR_U];
-        }
+            SWAP_IMAGE_ALIGN, &next, blocks) == 0) {
+#else
+        if (malloc3 (swapmap, btod (e->e_rlen[SR_DATA]),
+            btod (e->e_rlen[SR_STACK]), btod (e->e_rlen[SR_U]),
+            blocks) == 0) {
 #endif
+            for (j = 0; j < i; j++) {
+                e = &sr_tab[j];
+                if (! e->e_live)
+                    continue;
+                reserved = &proc[j];
+#ifdef SWAP_IMAGE_ALIGN
+                mfree (swapmap, sr_flash_span (e), reserved->p_daddr);
+#else
+                for (seg = 0; seg < SR_NSEG; seg++)
+                    if (e->e_rlen[seg])
+                        mfree (swapmap, btod (e->e_rlen[seg]),
+                            seg == SR_DATA ? reserved->p_daddr :
+                            seg == SR_STACK ? reserved->p_saddr :
+                            reserved->p_addr);
+#endif
+                reserved->p_daddr = 0;
+                reserved->p_saddr = 0;
+                reserved->p_addr = 0;
+            }
+            if (swapramdebug)
+                printf ("swapram: evacuate: no flash for pid %d\n",
+                    p->p_pid);
+            return -1;
+        }
+        p->p_daddr = blocks[SR_DATA];
+        p->p_saddr = blocks[SR_STACK];
+        p->p_addr = blocks[SR_U];
     }
     if (images == 0)
         return 0;
+    swapnext = next;
+    swap_cursor_publish (swapnext);
     bp = geteblk ();
     for (i = 0; i < NPROC; i++) {
         e = &sr_tab[i];
@@ -706,36 +650,16 @@ swapram_evacuate (void)
             continue;
         p = &proc[i];
         off = e->e_off;
-#ifdef SWAP_IMAGE_ALIGN
-        base = e->e_route_base;
-#else
-        base = p->p_daddr;
-#endif
         for (seg = 0; seg < SR_NSEG; seg++) {
             if (e->e_rlen[seg] == 0)
                 continue;
-#ifdef SWAP_IMAGE_ALIGN
-            destination = seg == SR_DATA ? base :
-                seg == SR_STACK ? base + btod (e->e_rlen[SR_DATA]) :
-                base + btod (e->e_rlen[SR_DATA]) +
-                    btod (e->e_rlen[SR_STACK]);
-#else
-            destination = seg == SR_DATA ? p->p_daddr :
-                seg == SR_STACK ? p->p_saddr : p->p_addr;
-#endif
             n = sr_expand (off, e->e_clen[seg], NULL, e->e_rlen[seg],
-                destination, bp);
+                seg == SR_DATA ? p->p_daddr :
+                seg == SR_STACK ? p->p_saddr : p->p_addr, bp);
             if (n != (int) e->e_rlen[seg])
                 panic ("swapram: evacuate expand");
             off += e->e_clen[seg];
         }
-#ifdef SWAP_IMAGE_ALIGN
-        p->p_daddr = base;
-        p->p_saddr = base + btod (e->e_rlen[SR_DATA]);
-        p->p_addr = p->p_saddr + btod (e->e_rlen[SR_STACK]);
-        e->e_route_base = 0;
-        e->e_route_span = 0;
-#endif
         if (swapram_pool_free (&sr_map, e->e_off, e->e_res) < 0)
             panic ("swapram: evacuate free");
         if (swapramdebug)

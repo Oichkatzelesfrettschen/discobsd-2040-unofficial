@@ -250,3 +250,9 @@ fork_swap_test_unaligned
 fork_swap_*.mutant.c
 fork_swap_*.mutant.test
 fork_swap_*.mutant.out
+swap_exchange_inplace_test
+swap_exchange_inplace_vm_swap.o
+swap_exchange_inplace_*.mutant.c
+swap_exchange_inplace_*.mutant.o
+swap_exchange_inplace_*.mutant.test
+swap_exchange_inplace_*.mutant.out

@@ -1,4 +1,4 @@
-"""Verify every flash consumer participates in exchange-headroom ownership."""
+"""Verify the routeless-resident exchange connections in production source."""
 
 import argparse
 from dataclasses import dataclass
@@ -6,92 +6,110 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
-class Consumer:
+class Contract:
     name: str
     path: str
     anchor: str
 
 
-CONSUMERS = (
-    Consumer(
-        "fork",
+CONTRACTS = (
+    Contract(
+        "fork-child-reservation",
         "sys/kern/kern_fork.c",
         "swap_image_reserve (&reservation, child, parent,",
     ),
-    Consumer(
-        "exec-spool",
+    Contract(
+        "scheduler-prewrite-switch",
+        "sys/kern/vm_sched.c",
+        "swap_exchange_switch (&reservation, in_core, swapped_out,",
+    ),
+    Contract(
+        "scheduler-inplace-exchange",
+        "sys/kern/vm_sched.c",
+        "swap_exchange_inplace (&reservation, in_core, swapped_out);",
+    ),
+    Contract(
+        "exchange-tail-reservation",
+        "sys/kern/vm_swap.c",
+        "swap_exchange_tail_reserve (incoming->p_daddr,",
+    ),
+    Contract(
+        "pool-incoming-prewrite-reservation",
+        "sys/kern/vm_swap.c",
+        "if (pool_backed)\n        return swap_image_reserve",
+    ),
+    Contract(
+        "swapram-evacuation-reservation",
+        "sys/arch/rp2040/rp2040/swapram.c",
+        "malloc3_contiguous_next (swapmap, btod (e->e_rlen[SR_DATA]),",
+    ),
+    Contract(
+        "exec-spool-independent-reservation",
         "sys/kern/exec_subr.c",
         "malloc3_contiguous_next (swapmap, blocks, 0, 0,",
     ),
-    Consumer(
-        "temporary-swap",
+    Contract(
+        "temporary-swap-independent-reservation",
         "sys/dev/swap.c",
-        "malloc3_contiguous_next(swapmap,\n\t\t\t    (size_t)requested, 0, 0,",
+        "malloc3_contiguous_next(swapmap,",
     ),
-    Consumer(
-        "swapram-evacuation",
-        "sys/arch/rp2040/rp2040/swapram.c",
-        "        base = e->e_route_base;",
-    ),
-    Consumer(
-        "heap-growth",
-        "sys/kern/kern_mman.c",
-        "swap_exchange_resize (u.u_procp, newsize, u.u_procp->p_ssize,",
-    ),
-    Consumer(
-        "syscall-stack-growth",
-        "sys/arch/rp2040/rp2040/syscall.c",
-        "swap_exchange_resize(u.u_procp, u.u_procp->p_dsize,",
-    ),
-    Consumer(
-        "signal-stack-growth",
-        "sys/arch/rp2040/rp2040/sig_machdep.c",
-        "swap_exchange_resize(u.u_procp,",
-    ),
-    Consumer(
-        "exec-geometry",
-        "sys/kern/exec_subr.c",
-        "swap_exchange_resize (u.u_procp,\n        epp->data.len + epp->bss.len,",
-    ),
-    Consumer(
-        "process-one-geometry",
-        "sys/kern/init_main.c",
-        "swap_exchange_resize(p, icodeend - icode, 1024, 0)",
-    ),
-    Consumer(
-        "exit-release",
-        "sys/kern/kern_exit.c",
-        "swap_exchange_release(p);",
+    Contract(
+        "flash-release-wakes-scheduler",
+        "sys/kern/vm_swap.c",
+        "wakeup ((caddr_t) &runout);\n    wakeup ((caddr_t) &runin);",
     ),
 )
 
-
-def validate(sources: dict[str, str]) -> None:
-    """Require every production consumer anchor exactly once."""
-    for consumer in CONSUMERS:
-        count = sources[consumer.path].count(consumer.anchor)
-        if count != 1:
-            raise ValueError(f"{consumer.name}: expected one ownership anchor, found {count}")
+FORBIDDEN = (
+    ("resident-route-state", "sys/sys/vmsystm.h", "struct swap_exchange_state"),
+    ("resident-route-resize", "sys/sys/vmsystm.h", "swap_exchange_resize"),
+    ("swapram-route-state", "sys/arch/rp2040/include/swapram.h", "swapram_route"),
+)
 
 
 def load_sources(root: Path) -> dict[str, str]:
-    """Read each distinct production source used by the contract."""
-    return {consumer.path: (root / consumer.path).read_text() for consumer in CONSUMERS}
+    """Read every distinct source named by the contract."""
+    paths = {contract.path for contract in CONTRACTS}
+    paths.update(path for _, path, _ in FORBIDDEN)
+    return {path: (root / path).read_text() for path in paths}
+
+
+def validate(sources: dict[str, str]) -> None:
+    """Require each connection once and each deleted route surface absent."""
+    for contract in CONTRACTS:
+        count = sources[contract.path].count(contract.anchor)
+        if count != 1:
+            raise ValueError(f"{contract.name}: expected one contract anchor, found {count}")
+    for name, path, anchor in FORBIDDEN:
+        count = sources[path].count(anchor)
+        if count != 0:
+            raise ValueError(f"{name}: expected deleted surface, found {count}")
 
 
 def self_test(sources: dict[str, str]) -> None:
-    """Remove each consumer anchor and require validation to reject it."""
-    for consumer in CONSUMERS:
+    """Require removal and route-reintroduction mutants to fail validation."""
+    for contract in CONTRACTS:
         mutant = dict(sources)
-        mutant[consumer.path] = mutant[consumer.path].replace(consumer.anchor, "", 1)
+        mutant[contract.path] = mutant[contract.path].replace(contract.anchor, "", 1)
         try:
             validate(mutant)
         except ValueError as error:
-            if not str(error).startswith(consumer.name + ":"):
+            if not str(error).startswith(contract.name + ":"):
                 raise
         else:
-            raise ValueError(f"{consumer.name}: removal mutant passed")
-        print(f"PASS swap exchange {consumer.name} removal mutant rejected")
+            raise ValueError(f"{contract.name}: removal mutant passed")
+        print(f"PASS {contract.name} removal mutant rejected")
+    for name, path, anchor in FORBIDDEN:
+        mutant = dict(sources)
+        mutant[path] += "\n" + anchor + "\n"
+        try:
+            validate(mutant)
+        except ValueError as error:
+            if not str(error).startswith(name + ":"):
+                raise
+        else:
+            raise ValueError(f"{name}: reintroduction mutant passed")
+        print(f"PASS {name} reintroduction mutant rejected")
 
 
 def main() -> None:
@@ -103,7 +121,7 @@ def main() -> None:
     validate(sources)
     if args.self_test:
         self_test(sources)
-    print(f"swap exchange consumer contract: {len(CONSUMERS)} consumers")
+    print(f"routeless exchange contract: {len(CONTRACTS)} connections")
 
 
 if __name__ == "__main__":

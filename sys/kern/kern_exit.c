@@ -89,8 +89,6 @@ exit (int rv)
     if (p->p_flag & SVFORK)
         endvfork();
 
-    /* Clean-text detachment can sleep, so keep the resident route stable. */
-    p->p_flag |= SLOCK;
     exec_text_release(p, NULL);
 
     if (p->p_pid == 1)
@@ -103,7 +101,7 @@ exit (int rv)
     p->p_prev = &zombproc;
     zombproc = p;
     p->p_stat = SZOMB;
-    swap_exchange_release(p);
+    wakeup((caddr_t)&runin);
 
     noproc = 1;
     for (pp = &pidhash[PIDHASH(p->p_pid)]; *pp; pp = &(*pp)->p_hash)

@@ -2953,7 +2953,7 @@ check-ilp32:
 .endif
 
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
-	check-swap-exchange-headroom \
+	check-swap-exchange-headroom check-swap-exchange-inplace \
     check-credential-sanitizer \
     check-rwuio-mutants check-rwuio-sanitizer \
     check-file-owner-mutants check-file-owner-sanitizer \
@@ -2976,6 +2976,11 @@ clean:
 	    fork_swap_test_unaligned fork_swap_nopool.o fork_swap_rmap*.o \
 	    fork_swap_*.mutant.c \
 	    fork_swap_*.mutant.test fork_swap_*.mutant.out
+	rm -f swap_exchange_inplace_test swap_exchange_inplace_vm_swap.o \
+	    swap_exchange_inplace_*.mutant.c \
+	    swap_exchange_inplace_*.mutant.o \
+	    swap_exchange_inplace_*.mutant.test \
+	    swap_exchange_inplace_*.mutant.out
 	rm -f ${PROGS} hostkern.o
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
 	rm -f ${SWAP_IOCTL_FUNCTION} swap_ioctl_function.o swap_ioctl_rmap.o
@@ -3133,8 +3138,6 @@ clean:
 
 # Exact production ownership definitions with modeled codec and storage I/O.
 FORK_SWAP_FUNCTIONS= fork_swap_functions.c
-SWAP_EXCHANGE_MUTANTS= count-free-not-largest-run fork-consumer-skip-rule \
-    release-headroom-early pool-swap-in scheduler-pool-bypass
 FORK_SWAP_MUTANTS= ignore-reservation-refusal publish-allproc-early \
     advance-cursor-on-failure allocate-again-on-copy \
     child-sidl-during-copy omit-release-wakeup notify-before-release \
@@ -3212,28 +3215,73 @@ fork_swap_nopool.o: ${TOPSRC}/sys/kern/vm_swap.c ${MACHINE_STAMP}
 	${HOST_CC} ${FORK_SWAP_NOPOOL_CFLAGS} -c -o $@ \
 	    ${TOPSRC}/sys/kern/vm_swap.c
 
-check-swap-exchange-headroom: fork_swap_test_compact fork_swap_nopool.o \
-    ${SWAP_EXCHANGE_MUTANTS:@mutation@fork_swap_${mutation}.mutant.test@}
-	@./fork_swap_test_compact
-	@${PYTHON} swap_exchange_consumer_contract.py --root ${TOPSRC} --self-test
-	@set -eu; for mutation in ${SWAP_EXCHANGE_MUTANTS}; do \
-		output=fork_swap_$$mutation.mutant.out; \
-		if ./fork_swap_$$mutation.mutant.test >$$output 2>&1; then \
-			status=0; else status=$$?; fi; \
+swap_exchange_inplace_vm_swap.o: ${TOPSRC}/sys/kern/vm_swap.c ${MACHINE_STAMP}
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -fno-stack-protector \
+	    -c -o $@ ${TOPSRC}/sys/kern/vm_swap.c
+
+SWAP_EXCHANGE_INPLACE_MUTANTS= skip-sector-erase \
+	write-u-after-reading-incoming allocate-tail-after-first-write \
+	ignore-program-fault copy-buffer-before-program \
+	refuse-owned-tail load-data-over-clean-text
+
+.for mutation in ${SWAP_EXCHANGE_INPLACE_MUTANTS}
+swap_exchange_inplace_${mutation}.mutant.c: swap_exchange_inplace_mutate.py \
+    ${TOPSRC}/sys/kern/vm_swap.c
+	${PYTHON} swap_exchange_inplace_mutate.py \
+	    --source ${TOPSRC}/sys/kern/vm_swap.c --output $@ \
+	    --mutation ${mutation}
+
+swap_exchange_inplace_${mutation}.mutant.o: \
+    swap_exchange_inplace_${mutation}.mutant.c ${MACHINE_STAMP}
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -fno-stack-protector \
+	    -c -o $@ swap_exchange_inplace_${mutation}.mutant.c
+
+swap_exchange_inplace_${mutation}.mutant.test: \
+    swap_exchange_inplace_test.c \
+    swap_exchange_inplace_${mutation}.mutant.o fork_swap_rmap_compact.o \
+    hostkern.o hostkern_kern.c
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -fno-stack-protector \
+	    -no-pie -o $@ swap_exchange_inplace_test.c \
+	    swap_exchange_inplace_${mutation}.mutant.o fork_swap_rmap_compact.o \
+	    hostkern_kern.c hostkern.o
+.endfor
+
+swap_exchange_inplace_test: swap_exchange_inplace_test.c \
+    swap_exchange_inplace_vm_swap.o fork_swap_rmap_compact.o hostkern.o \
+    hostkern_kern.c
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -fno-stack-protector \
+	    -no-pie -o $@ swap_exchange_inplace_test.c \
+	    swap_exchange_inplace_vm_swap.o fork_swap_rmap_compact.o \
+	    hostkern_kern.c hostkern.o
+
+check-swap-exchange-inplace: swap_exchange_inplace_test \
+    ${SWAP_EXCHANGE_INPLACE_MUTANTS:@mutation@swap_exchange_inplace_${mutation}.mutant.test@}
+	@./swap_exchange_inplace_test
+	@set -eu; for mutation in ${SWAP_EXCHANGE_INPLACE_MUTANTS}; do \
+		output=swap_exchange_inplace_$$mutation.mutant.out; \
+		if ./swap_exchange_inplace_$$mutation.mutant.test \
+		    >$$output 2>&1; then status=0; else status=$$?; fi; \
 		case $$mutation in \
-		count-free-not-largest-run) expected='u.u_error == ENOMEM' ;; \
-		fork-consumer-skip-rule) expected='u.u_error == ENOMEM' ;; \
-		release-headroom-early) expected='free_total() == 0' ;; \
-		pool-swap-in) expected='swapram: departure route not transferred' ;; \
-		scheduler-pool-bypass) expected='reservation.tier == SWAP_IMAGE_RAM' ;; \
+		skip-sector-erase) expected='swap exchange: media fault' ;; \
+		write-u-after-reading-incoming) expected='expected_in_u' ;; \
+		allocate-tail-after-first-write) expected='tail_reserved_before_media' ;; \
+		ignore-program-fault) expected='run_exchange' ;; \
+		copy-buffer-before-program) expected='expected_out_data' ;; \
+		refuse-owned-tail) expected='panic_reservation.addr[0] == run' ;; \
+		load-data-over-clean-text) expected='expected_in_data' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \
-			echo "FAIL swap exchange $$mutation rejection" >&2; exit 1; \
+			echo "FAIL in-place exchange $$mutation rejection" >&2; \
+			exit 1; \
 		fi; \
-		echo "PASS swap exchange $$mutation rejected: $$expected"; \
+		echo "PASS in-place exchange $$mutation rejected: $$expected"; \
 	done
+
+check-swap-exchange-headroom: fork_swap_test_compact fork_swap_nopool.o
+	@./fork_swap_test_compact
+	@${PYTHON} swap_exchange_consumer_contract.py --root ${TOPSRC} --self-test
 
 fork_swap_rmap_unaligned.o: ${TOPSRC}/sys/kern/subr_rmap.c ${MACHINE_STAMP}
 	${HOST_CC} ${FORK_SWAP_UNALIGNED_CFLAGS} \
@@ -3320,4 +3368,5 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 	done
 
 .PHONY: check-fork-swap-refusal check-swap-exchange-headroom \
+	check-swap-exchange-inplace \
     check-pipe-rw-mutants

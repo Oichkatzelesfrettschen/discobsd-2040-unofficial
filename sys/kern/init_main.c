@@ -198,8 +198,6 @@ main(void)
 	p->p_daddr = (size_t)__user_data_start;
 	p->p_ssize = 1024;			/* One kbyte of stack. */
 	p->p_saddr = (size_t)__user_data_end - 1024;
-	if (swap_exchange_resize(p, icodeend - icode, 1024, 0) != 0)
-		panic("cannot reserve init exchange headroom");
 	bcopy((caddr_t)icode, (caddr_t)__user_data_start, icodeend - icode);
 
 	/* Start in single user mode, if asked. */

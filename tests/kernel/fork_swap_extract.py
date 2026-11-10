@@ -34,26 +34,13 @@ def main() -> None:
             "static unsigned int\nsr_compressed_size (",
             "static void\nsr_pool_init_once (",
             "static struct sr_ent *\nsr_slot(",
-            "static int\nsr_reserve (",
             "int\nswapram_reserve (",
-            "int\nswapram_reserve_route (",
             "void\nswapram_put (",
             "void\nswapram_commit (",
             "void\nswapram_cancel (",
             "int\nswapram_present (",
-            "int\nswapram_route_take (",
             "void\nswapram_in (",
         )
-    )
-    ram_functions = (
-        "#ifdef SWAP_IMAGE_ALIGN\n"
-        + extract_function(
-            ram,
-            "static size_t\nsr_flash_span (",
-            "SwapRAM flash span",
-        )
-        + "\n#endif\n"
-        + ram_functions
     )
     init = (args.root / "sys/kern/init_main.c").read_text()
     boot = init[

@@ -4,59 +4,15 @@ import argparse
 from pathlib import Path
 
 MUTATIONS = {
-    "count-free-not-largest-run": (
-        "        span = malloc3_contiguous_next (swapmap, sr_flash_span (e), 0, 0,\n"
-        "            SWAP_IMAGE_ALIGN, &next, addresses);",
-        "        {\n"
-        "        struct mapent *entry;\n\n"
-        "        span = 0;\n"
-        "        for (entry = swapmap->m_map; entry->m_size != 0; entry++)\n"
-        "            span += entry->m_size;\n"
-        "        if (span >= sr_flash_span (e)) {\n"
-        "            span = sr_flash_span (e);\n"
-        "            addresses[0] = SWAP_IMAGE_ALIGN;\n"
-        "        } else\n"
-        "            span = 0;\n"
-        "    }",
-    ),
-    "release-headroom-early": (
-        "        swap_exchange.owner = p;\n"
-        "        swap_exchange.base = p->p_daddr;\n"
-        "        swap_exchange.span = swap_image_span (p);",
-        "        mfree (swapmap, swap_image_span (p), p->p_daddr);",
-    ),
-    "pool-swap-in": (
-        "        if (! swapram_route_take (incoming, &incoming_base,\n"
-        "            &incoming_span)) {\n"
-        "            splx (spl);\n"
-        "            return ENOMEM;\n"
-        "        }",
-        "        incoming_base = SWAP_IMAGE_ALIGN;\n"
-        "        incoming_span = swap_image_span (incoming);",
-    ),
-    "scheduler-pool-bypass": (
-        "        if (swapram_reserve_route (outgoing,",
-        "        if (0 && swapram_reserve_route (outgoing,",
-    ),
-    "fork-consumer-skip-rule": (
-        "    swap_image_reservation_init (reservation, owner, source, odata, ostack);\n"
-        "#ifdef SWAPRAM",
-        "    swap_image_reservation_init (reservation, owner, source, odata, ostack);\n"
-        "#ifdef SWAP_IMAGE_ALIGN\n"
-        "    if (swap_exchange.owner == source)\n"
-        "        mfree (swapmap, swap_exchange.span, swap_exchange.base);\n"
-        "#endif\n"
-        "#ifdef SWAPRAM",
-    ),
     "ignore-reservation-refusal": ("        return -1;", "        return 0;"),
     "publish-allproc-early": (
         "    if (swap_image_reserve (&reservation, child, parent,",
         "    allproc = child;\n    if (swap_image_reserve (&reservation, child, parent,",
     ),
     "advance-cursor-on-failure": (
-        "            SWAP_IMAGE_ALIGN, &next, reservation->addr) == 0)\n            return ENOMEM;",
-        "            SWAP_IMAGE_ALIGN, &next, reservation->addr) == 0) {\n"
-        "            swapnext += SWAP_IMAGE_ALIGN;\n            return ENOMEM;\n        }",
+        "        SWAP_IMAGE_ALIGN, &next, reservation->addr) == 0)\n        return ENOMEM;",
+        "        SWAP_IMAGE_ALIGN, &next, reservation->addr) == 0) {\n"
+        "        swapnext += SWAP_IMAGE_ALIGN;\n        return ENOMEM;\n    }",
     ),
     # swapout() given a reservation must copy into it; reserving again takes a
     # second extent, which an exactly full map cannot supply.
@@ -80,8 +36,9 @@ MUTATIONS = {
         "    child->p_stat = SRUN;",
     ),
     "omit-release-wakeup": (
-        "    wakeup ((caddr_t) &runout);\n}\n\n/*\n * Swap a process in.",
-        "    (void)runout;\n}\n\n/*\n * Swap a process in.",
+        "    wakeup ((caddr_t) &runout);\n"
+        "    wakeup ((caddr_t) &runin);\n}\n\n/*\n * Swap a process in.",
+        "    (void)runout;\n    (void)runin;\n}\n\n/*\n * Swap a process in.",
     ),
     "notify-before-release": (
         "swap_image_release (struct proc *p)\n{",
@@ -171,9 +128,10 @@ MUTATIONS = {
     ),
     # The reservation-free swapout of the scheduler before the refusal path.
     "sched-unreserved-swapout": (
-        "            swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,\n"
-        "                &reservation);",
-        "            swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE, NULL);",
+        "                swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,\n"
+        "                    &reservation);",
+        "                swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,\n"
+        "                    NULL);",
     ),
 }
 

@@ -28,7 +28,8 @@ int
 newproc (isvfork)
     volatile int isvfork;       /* read after the setjmp below returns 0 */
 {
-    register struct proc *child, *parent;
+    struct proc *volatile child;
+    register struct proc *parent;
     register int n;
     static int pidchecked = 0;
     struct file *fp;

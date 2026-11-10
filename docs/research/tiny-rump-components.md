@@ -289,11 +289,10 @@ command reports a failed `fsync()`.
 The imported files compile in NetBSD's gnu17 dialect with the unused-parameter
 warning exemption `check-v7fs-core` documents; the DiscoBSD files compile as
 strict C17 with `-Wpedantic`, seeing the imported headers through
-`-isystem`. Two host gaps sit in shims under `usr.sbin/v7fs`:
+`-isystem`. One host gap sits in a shim under `usr.sbin/v7fs`:
 `netbsd_compat.h` supplies the BSD `<sys/cdefs.h>` macros and byte-order
-constants DiscoBSD's headers lack, from the compiler's predefines, and
-`compat/discobsd/inttypes.h` maps `<inttypes.h>`, which DiscoBSD's libc
-does not ship, onto `<stdint.h>` for these sources alone. DiscoBSD's
+constants DiscoBSD's headers lack, from the compiler's predefines. The
+`<inttypes.h>` the imported sources include is libc's own. DiscoBSD's
 `include/assert.h` selects a void expression on each inclusion and delegates
 failed enabled assertions to a libc routine that reports the expression and
 location before aborting. The imported target files retain `NDEBUG` so an

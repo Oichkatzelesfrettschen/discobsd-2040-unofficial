@@ -8,3 +8,5 @@ strtoll_test_arm
 aligned_alloc_test
 aligned_alloc_test_arm
 exit_probe
+inttypes_test
+inttypes_test_arm

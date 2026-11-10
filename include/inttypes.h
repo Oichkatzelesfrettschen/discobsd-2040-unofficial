@@ -1,0 +1,177 @@
+#ifndef _INTTYPES_H_
+#define _INTTYPES_H_
+
+#include <stdint.h>
+
+/*
+ * C17 7.8.1: conversion specifiers for the <stdint.h> types.  int8_t and
+ * int16_t promote to int, so their fprintf macros carry no length modifier.
+ * A 64-bit conversion prints through doprnt_llong.o, which rp2040 links
+ * only into a program built with PRINTF_LLONG=yes; without it _doprnt
+ * prints a question mark for a value above the word.
+ */
+#define PRId8           "d"
+#define PRId16          "d"
+#define PRId32          "d"
+#define PRId64          "lld"
+#define PRIdLEAST8      "d"
+#define PRIdLEAST16     "d"
+#define PRIdLEAST32     "d"
+#define PRIdLEAST64     "lld"
+#define PRIdFAST8       "d"
+#define PRIdFAST16      "d"
+#define PRIdFAST32      "d"
+#define PRIdFAST64      "lld"
+#define PRIdMAX         "jd"
+#define PRIdPTR         "ld"
+
+#define PRIi8           "i"
+#define PRIi16          "i"
+#define PRIi32          "i"
+#define PRIi64          "lli"
+#define PRIiLEAST8      "i"
+#define PRIiLEAST16     "i"
+#define PRIiLEAST32     "i"
+#define PRIiLEAST64     "lli"
+#define PRIiFAST8       "i"
+#define PRIiFAST16      "i"
+#define PRIiFAST32      "i"
+#define PRIiFAST64      "lli"
+#define PRIiMAX         "ji"
+#define PRIiPTR         "li"
+
+#define PRIo8           "o"
+#define PRIo16          "o"
+#define PRIo32          "o"
+#define PRIo64          "llo"
+#define PRIoLEAST8      "o"
+#define PRIoLEAST16     "o"
+#define PRIoLEAST32     "o"
+#define PRIoLEAST64     "llo"
+#define PRIoFAST8       "o"
+#define PRIoFAST16      "o"
+#define PRIoFAST32      "o"
+#define PRIoFAST64      "llo"
+#define PRIoMAX         "jo"
+#define PRIoPTR         "lo"
+
+#define PRIx8           "x"
+#define PRIx16          "x"
+#define PRIx32          "x"
+#define PRIx64          "llx"
+#define PRIxLEAST8      "x"
+#define PRIxLEAST16     "x"
+#define PRIxLEAST32     "x"
+#define PRIxLEAST64     "llx"
+#define PRIxFAST8       "x"
+#define PRIxFAST16      "x"
+#define PRIxFAST32      "x"
+#define PRIxFAST64      "llx"
+#define PRIxMAX         "jx"
+#define PRIxPTR         "lx"
+
+#define PRIu8           "u"
+#define PRIu16          "u"
+#define PRIu32          "u"
+#define PRIu64          "llu"
+#define PRIuLEAST8      "u"
+#define PRIuLEAST16     "u"
+#define PRIuLEAST32     "u"
+#define PRIuLEAST64     "llu"
+#define PRIuFAST8       "u"
+#define PRIuFAST16      "u"
+#define PRIuFAST32      "u"
+#define PRIuFAST64      "llu"
+#define PRIuMAX         "ju"
+#define PRIuPTR         "lu"
+
+#define PRIX8           "X"
+#define PRIX16          "X"
+#define PRIX32          "X"
+#define PRIX64          "llX"
+#define PRIXLEAST8      "X"
+#define PRIXLEAST16     "X"
+#define PRIXLEAST32     "X"
+#define PRIXLEAST64     "llX"
+#define PRIXFAST8       "X"
+#define PRIXFAST16      "X"
+#define PRIXFAST32      "X"
+#define PRIXFAST64      "llX"
+#define PRIXMAX         "jX"
+#define PRIXPTR         "lX"
+
+/*
+ * _doscan stores no object wider than long, so the 64-bit, least-64,
+ * fast-64 and greatest-width types have no suitable fscanf length modifier
+ * and, as C17 7.8.1p6 provides for that case, no fscanf macro.
+ */
+#define SCNd8           "hhd"
+#define SCNd16          "hd"
+#define SCNd32          "d"
+#define SCNdLEAST8      "hhd"
+#define SCNdLEAST16     "hd"
+#define SCNdLEAST32     "d"
+#define SCNdFAST8       "d"
+#define SCNdFAST16      "d"
+#define SCNdFAST32      "d"
+#define SCNdPTR         "ld"
+
+#define SCNi8           "hhi"
+#define SCNi16          "hi"
+#define SCNi32          "i"
+#define SCNiLEAST8      "hhi"
+#define SCNiLEAST16     "hi"
+#define SCNiLEAST32     "i"
+#define SCNiFAST8       "i"
+#define SCNiFAST16      "i"
+#define SCNiFAST32      "i"
+#define SCNiPTR         "li"
+
+#define SCNo8           "hho"
+#define SCNo16          "ho"
+#define SCNo32          "o"
+#define SCNoLEAST8      "hho"
+#define SCNoLEAST16     "ho"
+#define SCNoLEAST32     "o"
+#define SCNoFAST8       "o"
+#define SCNoFAST16      "o"
+#define SCNoFAST32      "o"
+#define SCNoPTR         "lo"
+
+#define SCNx8           "hhx"
+#define SCNx16          "hx"
+#define SCNx32          "x"
+#define SCNxLEAST8      "hhx"
+#define SCNxLEAST16     "hx"
+#define SCNxLEAST32     "x"
+#define SCNxFAST8       "x"
+#define SCNxFAST16      "x"
+#define SCNxFAST32      "x"
+#define SCNxPTR         "lx"
+
+#define SCNu8           "hhu"
+#define SCNu16          "hu"
+#define SCNu32          "u"
+#define SCNuLEAST8      "hhu"
+#define SCNuLEAST16     "hu"
+#define SCNuLEAST32     "u"
+#define SCNuFAST8       "u"
+#define SCNuFAST16      "u"
+#define SCNuFAST32      "u"
+#define SCNuPTR         "lu"
+
+typedef struct {
+	intmax_t	quot;
+	intmax_t	rem;
+} imaxdiv_t;
+
+/*
+ * C17 7.8.2.  The library has no wide character type, so wcstoimax and
+ * wcstoumax are absent with it.
+ */
+intmax_t	imaxabs(intmax_t);
+imaxdiv_t	imaxdiv(intmax_t, intmax_t);
+intmax_t	strtoimax(const char *, char **, int);
+uintmax_t	strtoumax(const char *, char **, int);
+
+#endif /* !_INTTYPES_H_ */

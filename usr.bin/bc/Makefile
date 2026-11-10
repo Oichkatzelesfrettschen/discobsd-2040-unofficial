@@ -62,12 +62,8 @@ bc.c:		bc.y
 bc.h:		bc.c
 		@test -f $@ || ${BCGEN}
 
-# flex includes <inttypes.h> in a C99 scanner and this tree has only
-# <stdint.h>, which declares the fixed-width types the scanner uses.
 scan.c:		scan.l
 		${LEX} -o $@ ${.CURDIR}/scan.l
-		sed 's/^#include <inttypes.h>/#include <stdint.h>/' $@ > $@.new
-		mv $@.new $@
 
 # The generated parser and scanner compile under the same warnings as the
 # hand-written objects; the scanner needs the parser's token header first.

@@ -26,9 +26,6 @@ OBJS=		${LOCAL_SRCS:.c=.o} ${NETBSD_SRCS:.c=.o}
 V7FS_DEFS=	-DV7FS_EI -DSTATIC_BUFFER \
 		-include ${.CURDIR}/netbsd_compat.h -I${.CURDIR}/compat \
 		-I${V7FS} -I${NEWFS}
-# DiscoBSD's libc has <stdint.h> and no <inttypes.h>; see the header.
-DISCOBSD_DEFS=	-I${.CURDIR}/compat/discobsd
-
 # The imported files keep NetBSD's dialect. The unused-parameter warning is
 # suppressed for an argument v7fs_io.c reads only with STATIC_BUFFER. NDEBUG
 # keeps the selected target's scratch exhaustion path as a NULL return. Each
@@ -64,12 +61,12 @@ netbsd-imports.verified: ${IMPORT_MANIFEST} ${IMPORT_PATCHES} ${IMPORT_FILES}
 
 .for src in ${NETBSD_SRCS}
 ${src:.c=.o}:	${src} netbsd-imports.verified
-		${CC} ${CFLAGS} ${V7FS_DEFS} ${DISCOBSD_DEFS} ${NETBSD_FLAGS} \
+		${CC} ${CFLAGS} ${V7FS_DEFS} ${NETBSD_FLAGS} \
 		    -c -o ${.TARGET} ${.ALLSRC:M*.c}
 .endfor
 .for src in ${LOCAL_SRCS}
 ${src:.c=.o}:	${src}
-		${CC} ${CFLAGS} ${V7FS_DEFS} ${DISCOBSD_DEFS} ${LOCAL_FLAGS} \
+		${CC} ${CFLAGS} ${V7FS_DEFS} ${LOCAL_FLAGS} \
 		    -c -o ${.TARGET} ${.ALLSRC:M*.c}
 .endfor
 

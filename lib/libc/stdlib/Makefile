@@ -12,8 +12,12 @@ include ${TOPSRC}/share/mk/sys.mk
 DEFS		=
 CFLAGS		+= ${DEFS} -Os
 
-SRCS		= bsearch.c getopt.c getsubopt.c heapsort.c reallocarray.c strtol.c strtoul.c strtod.c
-OBJS		= bsearch.o getopt.o getsubopt.o heapsort.o reallocarray.o strtol.o strtoul.o strtod.o
+SRCS		= _Exit.c atoll.c bsearch.c getopt.c getsubopt.c heapsort.c \
+		  imaxabs.c imaxdiv.c reallocarray.c strtoimax.c strtol.c \
+		  strtoul.c strtoll.c strtoull.c strtoumax.c strtod.c
+OBJS		= _Exit.o atoll.o bsearch.o getopt.o getsubopt.o heapsort.o \
+		  imaxabs.o imaxdiv.o reallocarray.o strtoimax.o strtol.o \
+		  strtoul.o strtoll.o strtoull.o strtoumax.o strtod.o
 
 all:		stdlib.a
 

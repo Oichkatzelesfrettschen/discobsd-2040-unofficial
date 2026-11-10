@@ -1,6 +1,6 @@
 #include <ctype.h>
 
-char _ctype_[1 + 256] = {
+const char _ctype_[1 + 256] = {
 	0,
 	_C,	_C,	_C,	_C,	_C,	_C,	_C,	_C,
 	_C,	_C|_S,	_C|_S,	_C|_S,	_C|_S,	_C|_S,	_C,	_C,

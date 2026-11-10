@@ -1,0 +1,15 @@
+*.mutant
+*.mutant.c
+*.mutant.test
+*.log
+*.o
+strtoll_test
+strtoll_test_arm
+aligned_alloc_test
+aligned_alloc_test_arm
+exit_probe
+inttypes_test
+inttypes_test_arm
+ctype_test
+ctype_test_arm
+ctype_tree

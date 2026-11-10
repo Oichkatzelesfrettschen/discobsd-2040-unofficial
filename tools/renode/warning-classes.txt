@@ -68,6 +68,14 @@
 6000    ^sysbus: ReadDoubleWord .*XIP_CTRL:FLUSH
 6000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x14002000,
 
+# SYSCFG:PROC0_NMI_MASK is decoded from the SVD with no behavior. The boot
+# ROM clears both masks, and a kernel built with "options CORE1" writes
+# PROC0_NMI_MASK twice for every flash erase and program (watchdog_site()
+# in machdep.c withdraws and restores the route of core 1's probe
+# interrupt), so the count is twice the per-operation classes above. The
+# model delivers no NMI either way, which leaves the probe unexercised here.
+12000   ^sysbus: WriteDoubleWord .*SYSCFG:PROC[01]_NMI_MASK
+
 # The QSPI pad model implements neither the slew-rate bit the boot ROM sets
 # when it raises the flash clock nor, on the GPIO bank, the input-enable and
 # a few reserved offsets. Pad drive strength has no meaning in an emulator
@@ -81,7 +89,6 @@
 # RP0000 rev 0, manufacturer 0x000" banner line, where silicon reports part
 # 0x0002 and manufacturer 0x493. An assertion on that line would be an
 # assertion about the emulator rather than about the chip.
-4       ^sysbus: WriteDoubleWord .*SYSCFG:PROC[01]_NMI_MASK
 4       ^sysbus: ReadDoubleWord .*VREG_AND_CHIP_RESET:CHIP_RESET
 4       ^sysbus: ReadDoubleWord .*TBMAN:PLATFORM
 4       ^sysbus: ReadDoubleWord .*SYSINFO:CHIP_ID

@@ -32,6 +32,7 @@
  * them beside REASON and reports where the previous kernel was. SCRATCH0
  * belongs to the swap cursor (machdep.c) and SCRATCH4 to SCRATCH7 to the
  * Boot ROM's reboot state (datasheet 2.8.1), so these two are free.
+ * SCRATCH3 carries a second argument for the one site that has two.
  *
  * The counter is left disabled. Arming it needs the reload to exceed the
  * longest section the kernel masks on purpose, a 4 KB sector erase through
@@ -51,8 +52,10 @@
 #define	WATCHDOG_SCRATCH0	0x0c
 #define	WATCHDOG_SCRATCH1	0x10
 #define	WATCHDOG_SCRATCH2	0x14
+#define	WATCHDOG_SCRATCH3	0x18
 #define	WATCHDOG_TICK		0x2c
 
+#define	WATCHDOG_CTRL_TRIGGER	(1UL << 31)	/* reset now */
 #define	WATCHDOG_CTRL_ENABLE	(1UL << 30)
 #define	WATCHDOG_CTRL_PAUSE_DBG1 (1UL << 26)
 #define	WATCHDOG_CTRL_PAUSE_DBG0 (1UL << 25)
@@ -67,6 +70,8 @@
  * is what the SDK selects, so the chip comes back through the Boot ROM.
  */
 #define	PSM_BASE		0x40010000UL
+#define	PSM_FRCE_OFF		0x04
+#define	PSM_FRCE_OFF_PROC1	(1UL << 16)	/* holds core 1 in reset */
 #define	PSM_WDSEL		0x08
 #define	PSM_WDSEL_ALL_BUT_OSC	0x1fffcUL
 
@@ -74,11 +79,18 @@
 #define	WD_SITE_NONE		0
 #define	WD_SITE_FLASH_ERASE	1	/* arg: flash offset */
 #define	WD_SITE_FLASH_PROGRAM	2	/* arg: flash offset */
+/*
+ * Stored by core 1 (rp2040/core1.c) when core 0 took no clock tick for
+ * C1_HANG_US with no section declared: SCRATCH2 is the PC and SCRATCH3 the
+ * LR that core 0's NMI found stacked, zeros when the NMI went unanswered.
+ */
+#define	WD_SITE_STALL		3	/* arg: PC, arg2: LR */
 
 #ifdef KERNEL
 extern u_int watchdog_last_reason;	/* REASON at boot */
 extern u_int watchdog_last_site;	/* SCRATCH1 at boot */
 extern u_int watchdog_last_arg;		/* SCRATCH2 at boot */
+extern u_int watchdog_last_arg2;	/* SCRATCH3 at boot */
 
 void watchdog_init(void);
 void watchdog_site(u_int site, u_int arg);

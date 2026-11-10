@@ -187,6 +187,7 @@ upload and hidden-file inclusion.
 | cross | `check-cross` | arm-none-eabi toolchain, capstone and pyelftools under `${PYTHON}`, a built tree | yes | yes |
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
 | renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | yes: the `firmware/rp2040` job installs the pinned Renode release, then fetches and builds the models | no |
+| core 1 emulation | `check-core1-emulation` | Unicorn and pyelftools under `${PYTHON}`, the arm-none-eabi toolchain, a built PICO_UART kernel | yes: the `firmware/rp2040` job installs `python3-unicorn` | no |
 | renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
@@ -626,6 +627,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-netbsd-imports` | every file under `sys/fs/v7fs` and `sbin/newfs_v7fs` matches the SHA-256 in `tools/netbsd-imports.manifest`; a file carrying a local patch also reverses through its `tools/netbsd-patches` patch to the recorded NetBSD SHA-256, and no unlisted file sits in an imported directory, so an unrecorded local edit fails here. `tools/netbsd_imports.py selftest` first calibrates the tool against a scratch git repository: sync imports the committed bytes rather than an uncommitted working-tree edit and applies a patch, and verify rejects an altered byte, an altered patched file, a missing file, an unlisted file, a forged upstream hash and a missing revision line, while sync refuses `--add` and `--patch` paths that leave the tree and writes nothing. It establishes byte identity with the recorded NetBSD revision plus the recorded patches, not that the code is correct |
 | `check-v7fs-core` | the imported NetBSD v7fs core (ten `sys/fs/v7fs` files), NetBSD's userland I/O backend `v7fs_io_user.c` and newfs library `sbin/newfs_v7fs/main.c`, built with `V7FS_EI` under address and undefined-behavior sanitizers: in the PDP-11 and the little-endian byte order, a 1 MiB image formatted by `v7fs_newfs()` receives a 12-byte file, a 40,000-byte file through the single-indirect block and a subdirectory with a 600-byte file; the core remounts the image and reads every byte back, and an independent reader built from the Seventh Edition layouts finds the same entries and bytes and accounts for every data block (85 in files, the rest on the free list, `s_tfree` equal to the list length) and every inode. Three mutants must each exit with the assertion status: a consistent but wrong 24-bit address order that only the reader can see, directory names stored one character short, and a newfs free list one block short per list block. The original regression scenarios cover formatter, inode-bound and superblock corrections: newfs over filled media leaves only inodes 1 and 2 allocated, a 16-inode volume allocates every slot through inode 16 and then refuses without disturbing `s_tinode`, inode 785 neither loads nor writes and sector 100 keeps its bytes, and a superblock with a negative or empty free-block cache does not mount; the core with each patch reversed fails its own scenario by name. The `freeinode` layout is asserted on the host and, when `arm-none-eabi-gcc` is present, for Cortex-M0+. Both production backends compile with the alignment sanitizer and packed-member warnings; aligned and deliberately misaligned loads calibrate the sanitizer. Historical full-patch reversals retain their original alignment exemption for their functional regression scenarios. The gate then builds `usr.sbin/v7fs` for the host under the same sanitizers and drives it in both orders: `newfs`, `put`, `mkdir` and `put` into a subdirectory produce an image the same core read-back and independent reader accept; `get` and `cat` return the written bytes; `ls` lists `. .. hello big sub/`; `df` reports 1,953 free blocks and 58 free inodes, then 1,956 and 60 once `rm` removes the file and the emptied directory, which holds only because the tool releases an unlinked inode as NetBSD's `v7fs_reclaim()` does; a non-empty `rm`, a duplicate `put`, a missing path, a 15-byte name and `ls` of a file exit 1, an unknown command exits 2, and a block pointer past the volume makes `cat` exit 1 without changing the image size, each without a sanitizer report. `newfs` refuses 100 sectors and an inode list leaving no room for the free-block cache without creating the target; a `put` that does not fit on a 128-sector volume exits 1 with the free counts unchanged and no partial file; and `get` refuses a directory source, its own image and a hard link to it, leaving each destination's bytes intact. The previous tool fails the first of these and, run by hand, leaked 40 blocks and an inode on the refused `put` and overwrote its image on the self-`get`. A second oracle uses the descriptor backend with `V7FS_EI`, `STATIC_BUFFER`, and `NDEBUG` on imported files. The fixed-pool case holds all three scratch slots, requires an `EIO` inode read, releases the slots, and rejects a mutant that returns an already-held slot. Injected read and write failures exercise inode-cache refill, block allocation, direct and indirect growth, inode writeback, and contraction retry; a raw reader accounts for all root pointers and free blocks in the transition fixtures. Inode-list iteration, inode-number lookup and directory replacement return injected read errors; rename returns injected source-inode read, parent-directory read and final inode-write failures, with directory entries checked afterward. A 14-byte name in the last directory slot exercises inode-number lookup at the end of a scratch block; an AddressSanitizer mutant restores the unbounded read. Targeted mutants hide each error and the regression oracle rejects them. The write-after-transfer fixture writes an entire sector before reporting failure; it is not a partial-sector or power-loss test. Creation tests inject one write failure after transfer at each file and directory publication stage, including a full parent block. On Linux, linker-wrapped writes inject formatter sector failures, and wrapped `fsync` and `close` exercise the four modifying commands and first-error reporting; those linker-wrap cases skip on other hosts. The formatter without its local patch accepts a failed inode-list write, and a flush mutant suppresses the four requested failures. Cortex-M0+ compile-time assertions check the 32-bit offset bound. Legacy direct slots are reused only when the free-list cache or a chained free-list block identifies the old block as free; allocated slots and failed free-list reads return an error. A multi-slot case validates all stale pointers before allocation and checks that rejecting a later allocated slot leaves earlier slots unchanged. A formatter regression replaces a larger filesystem with a smaller volume; a wrapped first-sector read failure preserves the existing image. Mutants that skip free-list traversal, accept an allocated slot, and read the old volume end reject the named regressions. A failed compensation can leave an image requiring inspection or repair. Patch reversals and targeted mutants calibrate the named failures. Host execution only; the DiscoBSD build of the tool is compile and link evidence, and no kernel or board path is exercised |
 | `check-corering` | `sys/arch/rp2040/rp2040/corering.c`, the single-writer rings and SIO FIFO doorbell between the two cores, compiled unchanged as strict C17 against a model of `FIFO_ST`, `FIFO_WR` and `FIFO_RD` (eight words per direction, `VLD`, `RDY`, sticky `WOF` and `ROE`). Under the address and undefined-behavior sanitizers, fixed interleavings place the other core's action at a register access or inside a handler and require, after every step, that unread entries imply a pending FIFO interrupt, that entries arrive once and in order across index wraparound, that a full ring and a full FIFO lose nothing, and that the credit count always leaves a free reply entry. Under the thread sanitizer two threads exchange 400,000 numbered requests and replies (`STRESS` overrides the count) with random stalls, servicing a ring only while the model's interrupt is pending. Sixteen mutants of the source must fail. Host execution only: it establishes the protocol on a host with sanitizer-defined ordering, and nothing about SRAM write ordering, the SIO block or a running core 1; no kernel links the file |
+| `check-core1` | the two decision functions of `sys/arch/rp2040/rp2040/core1.h`, compiled unchanged as strict C17 under the address and undefined-behavior sanitizers. `core1_observe()`: a ticking clock raises nothing over 20 s; an undeclared stall is probed once at exactly 100 ms and again at 4 s, and resets with a record one sample later; each new stall is probed again and the longest stays on record; a declared 400 ms section raises nothing, including the sample that pairs a record from inside the section with a section read after it cleared; a declared section that never returns resets without overwriting its own record; the microsecond timer may wrap inside a stall. `core1_sup_tick()` and its companions: 100,000 answered pings, restart after two unanswered periods with waits of 1, 2 and 4 periods, a parked state after three restarts, a fresh budget on request, one miss forgiven, replies from an older ping, an older launch or another operation ignored, and failed launches counted. Twenty-four mutants of the header must fail. Host execution only: it establishes the decisions, and nothing about the registers that feed them |
 | `check-crc32` | `sys/kern/subr_crc32.c`, the nibble-table CRC-32 the packed executable loader (`hsx_stream.c`), the host packer (`tools/hsaout`) and `tests/hsaout` share, compiled as a host shared object and compared with Python's `zlib.crc32` over the check vector `123456789` (0xcbf43926), empty input, every length 0..300 of seeded random data at eight start alignments and from random register states, incremental updates split at every offset of a 1 KB buffer, all 256 single bytes and 4099-byte zero and ones runs. Nine mutants (a flipped table bit, swapped and zeroed table entries, 3-bit and 5-bit shifts, a 7-entry index mask, a dropped second lookup, a skipped final byte, a masked input byte) must each be rejected; the unmodified bit-serial predecessor also passes, which shows the oracle accepts a correct CRC-32 of a different construction. Host execution only; the Thumb-1 cycle cost is read from disassembly and not measured by the gate |
 | `check-fgrep-capacity` | fgrep's allocation boundaries and its command path over regular, empty and fifo pattern sources |
 | `check-config-makefile` | the config tool regenerates the tracked kernel Makefile byte for byte |
@@ -1267,6 +1269,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-sh-heap-boundary` | the linked target shell's disassembly `bin/sh/sh.dis` contains none of `malloc`, `calloc`, `realloc`, `free`, `getwd`, `getcwd`, `opendir`, `readdir` or `closedir`, so libc never establishes a second heap over the break that `alloc()` and the stack arena own; a self-test rejects a fixture holding `malloc` and `getwd` and accepts one holding only shell allocator symbols. It establishes the link closure, not runtime heap behavior |
 | `check-control-char-contracts` | Cribbage and tip compile their exact control-character consumers for Cortex-M0+; source assertions bind redraw, bell, exit, both suspend modes, literal-next and raise to distinct bytes, rejecting the inherited macros that collapsed the Cribbage actions to control-X and every tip action to control-C |
 | `check-divider` | neither linked kernel reaches the SIO divider registers, from the ELF and from the dependency files, whose comments are stripped before the scan so a file may say which registers the boot ROM writes without being read as writing them |
+| `check-core1-image` | `tools/verify_rp2040_core1_image.py` on linked fixtures and then on every built kernel. From core 1's three entry functions the verifier follows each direct call and requires every function reached, every branch target and every call target to lie in SRAM, no literal-pool word to be an address in the execute-in-place window, no `svc`, `bkpt` or `udf`, and the ring consumer's handler call to be the only indirect one. The clean fixture passes; fixtures with a call into flash, a flash literal, a second indirect call and a trap each fail with exit 1 naming that defect, and an image with no entry symbol is reported, and refused under `--require-image`. At least one built kernel must carry a core 1 image. A source check then requires every `exit_xip()` call under `sys/arch/rp2040` to lie between a `watchdog_site()` declaration and its clearing call, and a copy of `flash.c` with one declaration removed has to fail it. It establishes placement in the linked image; it executes nothing |
 | `check-rp2040-shutdown-cross` | the source control binds `rp2040_shutdown_sync()` to the no-sync, reentry and initialized-buffer guards before final reset handling. In each production Cortex-M0+ object, the control-flow verifier finds a reachable helper call before the unique final interrupt mask, requires every route from that call's return edge to reach the mask before an exit or cycle, and rejects helper reachability after the mask. The helper object requires every route to mask interrupts before `sync()` and every post-delay route to reach the final recount. Forward, backward, guard-exit, return, direct-program-counter-write, loop, invalid-target, post-mask-call, missing-call, duplicate-call, mask-after-sync, mask-bypass, missing-recount, recount-bypass and unparsed gaps after each ordered event calibrate the verdict. The verifier models each call as returning to its next contiguous decoded instruction. The gate proves source and compiled ordering on those returning paths, not device completion or physical persistence. |
 | `check-swapram` | vm_swap.o, exec_hsaout.o and kern_sysctl.o agree with each kernel's Config on the SwapRAM tier and pool size |
 | `check-cache-footprint` | the name, buffer and inode caches' ABI and chain invariants, the exec argument spool over modeled SwapRAM, raw swap and buffers (including the swap cursor's rotation, publication and wrap), and the evacuation model; the linked symbol sizes of each kernel against its mount layout (`tools/verify_rp2040_cache_footprint.sh --layout`): `single` for the PICO kernels (`NMOUNT=1` with `SINGLE_UFS_ROOT`, mount 0x40c and inode 0x7e0 bytes) and `multi` for PICOCALC (`NMOUNT=2` without it, mount 0x988 and inode 0x8a0 bytes), where each layout must also reject the other family's kernel |
@@ -1453,8 +1456,25 @@ numbers.
 `check-renode` runs tools/renode/check-boot.sh, which boots the UART0
 console kernel from the real RP2040 boot ROM, asserts the console through
 the device probe, logs in, runs `uname`, `sysctl kern.capacity`, `mputest`
-and `mputest residue`, then holds the Renode log to a fixed set of warning
-classes. It stands outside `check` because it wants three things this tree
+and `mputest residue`, reads core 1's state, then holds the Renode log to a
+fixed set of warning classes.
+
+The core 1 stage waits five seconds and requires `machdep.core1=1` with
+zero restarts, zero faults and zero stalls. The model has a second CPU that
+runs the same boot ROM and an inter-core FIFO, so a pass means the ROM's
+launch protocol completed against `core1_launch()`, core 1 reached its loop
+in SRAM, and the rings carried each ping and its answer; two unanswered
+pings would have shown as a restart. A PICO_UART kernel whose core 1 never
+answers was run once as the known-bad input and failed the stage with
+`machdep.core1=3` and three restarts. The stage then becomes root and
+writes 300 to `machdep.core1_stall_ms`, which masks core 0's interrupts for
+300 ms with no section declared, and requires `machdep.core1_stalls=1` with
+still no restart: core 1 saw the tick record stand still against the
+model's timer and counted it once. The model's power-on state machine
+stores `FRCE_OFF` with no effect on the second CPU, and its `SYSCFG` decodes
+`PROC0_NMI_MASK` with no behavior, so a restart, the probe and the hang
+reset are outside what this tier exercises; `check-core1-emulation` covers
+them at its own class. It stands outside `check` because it wants three things this tree
 does not carry, and reports whichever is missing by name: the models
 `tools/renode/fetch-renode-rp2040.sh` clones and builds, a PICO_UART
 kernel, and a flash image. The root Makefile passes the selected board's
@@ -1540,6 +1560,51 @@ threads enough that a race between them rarely fires: the suite passed
 against a model whose BUSY flag latched and hung every free-running boot.
 The measurement that decides it is a free-running `RunFor` with no tester
 attached, recorded in emulation.md.
+
+## Core 1 emulation tier
+
+`check-core1-emulation` runs tests/core1/check-emulation.sh on the built
+PICO_UART kernel (`CORE1_EMULATION_BOARD` selects another). It stands
+outside `check` because it needs Unicorn under `${PYTHON}`, which the
+portable tiers do not.
+
+tests/core1/emulate.py loads the kernel ELF and runs its machine code
+unchanged on two Unicorn Cortex-M0 instances that share one SRAM buffer.
+The core 0 instance maps the kernel's flash and executes `core1_init()`,
+`core1_poll()`, `core1_park()`, `watchdog_site()` and `NMI_Handler()` as
+the scenario calls for them, with `timeout()` and `untimeout()` replaced by
+a model of one pending callout. The core 1 instance maps no flash, so one
+fetch or load from the execute-in-place window ends the run. A register
+model stands in for the SIO FIFOs, the boot ROM's half of the launch
+protocol, `PSM.FRCE_OFF`, `TIMERAWL` and `TIMER.INTF`, `SYSCFG`'s NMI mask,
+`RESETS`, the watchdog, and each core's SysTick and `WFI`. Structure
+offsets come from the ELF's debug information.
+
+Eleven scenarios must pass: launch and thirty answered pings with core 1
+waking once per 10 ms; two 300 ms stalls probed once each, with the stacked
+PC and LR taken from an MSP frame and a PSP frame; twenty declared 400 ms
+sections with no probe; a hang reset at 4 s carrying the answered PC and
+LR; a hang whose probe goes unanswered recorded as zeros; a declared
+section that never returns reset with its own record intact; a silent core
+1 restarted with backoff and then left parked; a park from the running
+state; a boot ROM that never answers; one that echoes wrongly; and a
+completed handshake behind which core 1 never runs. Core 1's stack is
+painted at each launch, and the run fails when fewer than 64 bytes of it
+stay untouched across all scenarios.
+
+The gate then calibrates itself. It builds a scratch tree of symbolic links
+around a copy of the board's build directory, changes one source line
+there, rebuilds the kernel with the board's own Makefile, and requires the
+emulation to fail with exit 1. Seventeen such kernels must be rejected, and
+the unmutated scratch kernel must pass first. The run prints each
+rejection's reason. Writing the gate found one defect: a launch whose
+echoes were always wrong never consulted its deadline.
+
+This is emulation of the linked instructions against registers modeled
+from the datasheet. It establishes nothing about silicon timing, the real
+boot ROM, NMI delivery through `PROC0_NMI_MASK`, or SRAM write ordering
+between two real cores. `sys/arch/rp2040/doc/CORE1.md` lists the board
+procedure that would.
 
 ## Renode PicoCalc tier
 
@@ -1650,6 +1715,16 @@ clock offset from a stamped `date` loop before and after a dd-and-sync loop on
 the flash root and after an idle wait of the same length; it opens no port
 unless `DISCOBSD_BOARD_CLOCK_CATCHUP` is exactly `run`, and no result of it is
 recorded here.
+tests/rp2040/core1/board_core1.py checks core 1 as the kernel's observer
+against the symbol addresses of the kernel ELF it is given: running with no
+restart ten seconds after boot; a 300 ms masked spin counted as one stall
+whose probed PC lies in `core1_stall` and LR in `core1_sysctl`; flash
+writes and swapping adding none; a parked core 1 counting nothing and a
+relaunched one counting again; a reboot leaving no record; and a 6 s spin
+after which the board resets itself and reports watchdog reason 2, site 3
+and the same PC and LR. It opens no port and calls neither picotool nor
+discobsd-flash unless `DISCOBSD_BOARD_CORE1` is exactly `run`.
+`sys/arch/rp2040/doc/CORE1.md` records its one run.
 A fifth, tests/rp2040/sd_detach/board_sd_detach.py, mounts the PicoCalc's
 `sd0a` read-write, writes a file, asks the operator to pull the card, requires
 `umount` to succeed, asks for the card back, requires a mount, a listing and an

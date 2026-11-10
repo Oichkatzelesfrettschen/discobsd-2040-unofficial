@@ -21,6 +21,8 @@ options         "BUS_KHZ=125000"            # clk_peri runs from clk_sys
 options         "HALTREBOOT"                # If halted, press key to reboot
 options         CAPACITY_STATS              # fixed-table and u-area peaks
 
+options         "CORE1"                     # core 1 observes core 0's clock
+
 # Root filesystem at /dev/fl0a, swap on /dev/fl1.
 # The RP2040 has no SD controller and this board has no socket, so root
 # lives on the onboard QSPI flash behind a translation layer, and swap in

@@ -37,8 +37,28 @@
 #ifndef _RP2040_CORERING_H_
 #define _RP2040_CORERING_H_
 
-/* Entries per ring. A power of two, so a free-running index wraps into it. */
+/*
+ * Entries per ring. A power of two, so a free-running index wraps into it.
+ * A unit that includes corering.c may define a smaller ring first.
+ */
+#ifndef CRING_SLOTS
 #define	CRING_SLOTS	32U
+#endif
+
+/*
+ * Linkage of the functions below: CRING_FN for the producer and consumer,
+ * which both cores execute, and CRING_REQ_FN for ring initialization and
+ * the requester side, which only the requesting core does. A unit that
+ * includes corering.c defines them to place its private copy in sections
+ * of its choosing: code that core 1 executes has to lie in SRAM, because a
+ * flash erase or program takes execute-in-place down for both cores.
+ */
+#ifndef CRING_FN
+#define	CRING_FN
+#endif
+#ifndef CRING_REQ_FN
+#define	CRING_REQ_FN	CRING_FN
+#endif
 
 #define	CRING_FULL	(-1)	/* no free entry, or no credit */
 
@@ -84,24 +104,24 @@ typedef void cring_handler_t(void *ctx, const struct cring_entry *e);
  * time per ring or channel. A core whose interrupt handlers also call them
  * masks interrupts around each call.
  */
-void	cring_init(struct cring *r);
-unsigned int cring_pending(const struct cring *r);
+CRING_REQ_FN void	cring_init(struct cring *r);
+CRING_FN unsigned int cring_pending(const struct cring *r);
 
 /* Producer. Returns 0, or CRING_FULL with the ring unchanged. */
-int	cring_put(struct cring *r, const struct cring_entry *e);
+CRING_FN int	cring_put(struct cring *r, const struct cring_entry *e);
 
 /*
  * Consumer, called for the inbound FIFO interrupt. Runs fn on every entry
  * published before the call's snapshot and returns their number. An entry
  * stays in the ring until fn returns.
  */
-unsigned int cring_service(struct cring *r, cring_handler_t *fn, void *ctx);
+CRING_FN unsigned int cring_service(struct cring *r, cring_handler_t *fn, void *ctx);
 
 /* Requester. cring_request() returns 0, or CRING_FULL with nothing sent. */
-void	cring_chan_init(struct cring_chan *c, struct cring *req,
+CRING_REQ_FN void	cring_chan_init(struct cring_chan *c, struct cring *req,
 	    struct cring *rep);
-int	cring_request(struct cring_chan *c, const struct cring_entry *e);
-unsigned int cring_replies(struct cring_chan *c, cring_handler_t *fn,
+CRING_REQ_FN int	cring_request(struct cring_chan *c, const struct cring_entry *e);
+CRING_REQ_FN unsigned int cring_replies(struct cring_chan *c, cring_handler_t *fn,
 	    void *ctx);
 
 #endif /* !_RP2040_CORERING_H_ */

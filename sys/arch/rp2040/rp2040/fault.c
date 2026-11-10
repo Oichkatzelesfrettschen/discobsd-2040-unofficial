@@ -42,6 +42,7 @@
 #include <machine/intr.h>
 #include <machine/scb.h>
 
+void core1_park(void);
 void usbdrain(void);
 void usbpoll(void);
 void usbabandon(void);
@@ -204,6 +205,14 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	 */
 	if (fault_lr != 0xfffffffdUL)
 		usbabandon();
+#endif
+#ifdef CORE1
+	/*
+	 * The report and the panic below run at HardFault priority, where no
+	 * clock tick arrives, so core 1 would read them as a stall.
+	 */
+	if (fault_lr != 0xfffffffdUL)
+		core1_park();
 #endif
 #ifdef PICOCALC_ENABLED
 	/* The panel console's drawer is abandoned the same way. */

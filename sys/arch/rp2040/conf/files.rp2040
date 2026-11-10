@@ -66,6 +66,7 @@ dev/swap.c				standard
 #
 arch/rp2040/rp2040/clock.c		standard
 arch/rp2040/rp2040/conf.c			standard
+arch/rp2040/rp2040/core1.c		optional core1
 arch/rp2040/rp2040/fault.c		standard
 arch/rp2040/rp2040/machdep.c		standard
 arch/rp2040/rp2040/shutdown_sync.c	standard

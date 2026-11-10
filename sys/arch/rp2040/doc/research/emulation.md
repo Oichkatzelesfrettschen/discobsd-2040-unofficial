@@ -611,8 +611,14 @@ build, on real hardware or emulated, not a workaround for this report.
 - **PWM, RTC, and DMA-adjacent IRQ/DREQ wiring for SSI are unfinished**
   per Renode_RP2040's own table; none of these are on the boot path this
   report exercises, so their absence was not independently confirmed here.
-- **SIO multicore dividers are partial**; DiscoBSD runs single-core on
-  cpu0 only, so this was not exercised.
+- **SIO multicore dividers are partial**; the kernel ran on cpu0 alone
+  when this report was written, so this was not exercised. Since then
+  `rp2040/core1.c` launches cpu1 through the boot ROM under this model and
+  exchanges pings over the inter-core FIFO (`check-renode`,
+  `sys/arch/rp2040/doc/CORE1.md`). The model's power-on state machine
+  stores `FRCE_OFF` without resetting cpu1, and its SYSCFG decodes
+  `PROC0_NMI_MASK` with no behavior, so neither a core 1 reset nor the NMI
+  route is emulated.
 - **QEMU was not built or patched against**; the unmerged RFC series found
   by web search was not fetched or evaluated beyond confirming it is
   unmerged.

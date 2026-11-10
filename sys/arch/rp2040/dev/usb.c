@@ -51,6 +51,9 @@
 #include <rp2040/dev/usb.h>
 #include <rp2040/dev/usb_reset.h>
 #include <rp2040/dev/flash.h>
+#ifdef CORE1
+#include <rp2040/rp2040/core1.h>
+#endif
 
 #define	REG32(a)	(*(volatile u_int *)(a))
 #define	USBREG(off)	REG32(USB_REGS_BASE + (off))
@@ -558,6 +561,9 @@ usb_reset_to_bootsel(u_int wvalue)
 	if (!usb_reset_gpio_mask(wvalue, &gpio_mask))
 		return 0;
 	rom_reset = (void (*)(u_int, u_int))rom_func_lookup(ROM_RESET_USB_BOOT);
+#ifdef CORE1
+	core1_park();
+#endif
 	rom_reset(gpio_mask, wvalue & USB_RESET_INTERFACE_DISABLE_MASK);
 	return 1;
 }
@@ -565,6 +571,10 @@ usb_reset_to_bootsel(u_int wvalue)
 static void
 usb_reset_to_flash(void)
 {
+#ifdef CORE1
+	/* SYSRESETREQ resets core 0 alone (datasheet 2.4.2.9). */
+	core1_park();
+#endif
 	arm_dsb();
 	SCB_REG32(SCB_AIRCR) = AIRCR_VECTKEY | AIRCR_SYSRESETREQ;
 	arm_dsb();
@@ -940,7 +950,9 @@ usb_tx_recover_if_idle(void)
  * Service the controller. Runs from the interrupt, and also polled with
  * interrupts masked by the console routines. PRIMASK masks every interrupt on
  * this ARMv6-M core (machine/intr.h: spltty is a global disable), and core 1
- * is never launched, so a polled call and the interrupt never interleave.
+ * never enters this driver (rp2040/core1.c runs it as an observer that
+ * touches no USB register), so a polled call and the interrupt never
+ * interleave.
  * HardFault is the exception: it holds priority -1, PRIMASK raises execution
  * priority only to 0, and ARMv6-M defines no FAULTMASK (ARMv6-M ARM B1.5.1,
  * B1.5.4), so a fault inside the driver reaches the console through

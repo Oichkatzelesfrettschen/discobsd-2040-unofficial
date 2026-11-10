@@ -125,7 +125,7 @@ extern size_t   physmem;            /* total amount of physical memory */
 extern dev_t get_cdev_by_name(char *);
 extern char *cdevname(dev_t dev);
 
-void panic (char *msg);
+__dead void panic (char *msg);
 void printf (char *fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
 void uprintf (char *fmt, ...)      /* print to the current user's terminal */
     __attribute__((__format__(__printf__, 1, 2)));
@@ -162,7 +162,7 @@ int chrtoblk (dev_t dev);           /* convert from character to block device nu
 int isdisk (dev_t dev, int type);   /* determine if a device is a disk */
 int blkoverlap (dev_t a, dev_t b);  /* do two block devices share storage */
 int iskmemdev (dev_t dev);          /* identify /dev/mem and /dev/kmem */
-void boot (dev_t dev, int howto);
+__dead void boot (dev_t dev, int howto);
 
 /*
  * Copy data from kernel space fromaddr to user space address toaddr.

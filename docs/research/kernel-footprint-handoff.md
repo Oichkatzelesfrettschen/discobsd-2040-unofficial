@@ -9,16 +9,23 @@ acceptance command. The ranked technique survey it draws on is
 
 ## Baseline
 
-The measurements use GCC 16.2.0 (`arm-none-eabi-gcc`), `-Os`, and
-`arm-none-eabi-size unix.elf` text bytes, which count `.boot2`, `.text` and
-`.ARM.exidx`. `sys/arch/rp2040/conf/RP2040.ld` gives those 131,072 bytes: a
-256-byte BOOT2 region and a FLASH region of `128K - 256`.
+The measurements use GCC 16.2.0 (`arm-none-eabi-gcc`) at `-Os`. Text
+columns are `arm-none-eabi-size unix.elf` text bytes. Headroom comes from
+`tools/check_kernel_headroom.py`, which measures the flash image against the
+FLASH region of `sys/arch/rp2040/conf/RP2040.ld` (130,816 bytes, `128K - 256`
+after BOOT2). That image includes the `.data` and `.ramfunc` initializers, so
+headroom is not the FLASH length minus text. Run `check-kernel-headroom` to
+re-measure; it enforces a 1,024-byte margin.
 
-| Kernel | Text at `origin/main` 694b91ef | After `panic`/`boot` noreturn (PR #422) | Headroom after #422 |
-|---|---|---|---|
-| PICO | 95,519 | 95,120 | 35,952 |
-| PICO_UART | 86,530 | 86,163 | 44,909 |
-| PICOCALC | 113,087 | 112,704 | 18,368 |
+| Kernel | Text at `origin/main` 694b91ef | Text after PR #422 (93ccc5da) | Flash image after #422 | Headroom after #422 |
+|---|---|---|---|---|
+| PICO | 95,519 | 95,120 | 95,120 | 35,696 |
+| PICO_UART | 86,530 | 86,163 | 86,108 | 44,708 |
+| PICOCALC | 113,087 | 112,704 | 112,824 | 17,992 |
+| PICOCALC_PSRAM | not measured | 114,774 | 114,944 | 15,872 |
+
+PICOCALC_PSRAM has the least headroom, so it bounds any change that grows
+shared kernel code.
 
 PICO data is 256 bytes and bss 39,832, which includes the 16,384-byte
 `.swapram_pool` and the 8,192-byte `.scratch` (`usb_tx_ring`). The largest
@@ -30,28 +37,6 @@ eb5b3081, whose PICO baseline was 95,516. Deltas carry across; absolute
 values do not.
 
 ## Queue, ordered by payoff over risk
-
-### Never-returning libc entry points
-
-`include/stdlib.h` (`abort` line 60, `exit` line 67), `include/unistd.h`
-(`_exit` line 79), `include/setjmp.h` (`_longjmp` line 14, `longjmp` line 20)
-and `include/err.h` (`err`, `errx`, `verr`, `verrx`, lines 19 to 24) declare
-functions that never return as plain `void`. Userland source holds 1,101
-`exit`, 53 `_exit`, 25 `abort`, 50 `err` and 24 `errx` call sites. Each call
-currently compiles a return path.
-
-- Mark each declaration `__dead` (`sys/sys/cdefs.h` maps it to `_Noreturn`
-  under C11, the GNU attribute otherwise, and nothing for other compilers).
-- Each libc definition must end in a call the compiler sees as
-  non-returning, or `-Werror` reports `'noreturn' function does return`.
-  `_exit` is the assembly stub `lib/libc/arm/sys/_exit.S` (`svc #SYS_exit`),
-  so only its declaration changes.
-- The native Smaller C compiler reads these headers. Confirm that `__dead`
-  expands to nothing there, or that Smaller C accepts `_Noreturn`
-  (`c17-semantic-migration-plan.md`, "Native Smaller C rule").
-- Measure by packed root blocks (`tools/bin/rp2040/hsaout -s`) across the
-  world build, not by raw text: `footprint-techniques.md` item 2 records
-  that packed size is not monotone in code size.
 
 ### Hot `struct user` fields within Thumb-1 load reach (scratch: -2,008 bytes)
 
@@ -108,10 +93,16 @@ of PICO dropped 67 sections. Among them: `malloc3`, `malloc3_contiguous`,
 `adjtime` is the only PICO caller of `__aeabi_ldivmod` and `__aeabi_lmul`.
 Those calls pull `__divdi3` (304 bytes), `__aeabi_ldivmod`,
 `__gnu_ldivmod_helper`, `__muldi3`, `__clzdi2` and the 64-bit shifts out of
-libgcc. Rewrite the arithmetic over the bounded `adjtime(2)` delta range
-in 32 bits, and add a host gate that compares the old and new expressions
-over that range, including negative deltas and values next to the bound.
-Confirm with `arm-none-eabi-nm unix.elf | grep divdi3` that the helper is
+libgcc. The input is not bounded: `adjtime()` (`sys/kern/kern_time.c`, from
+line 118) accepts full-width `long` `tv_sec` and `tv_usec`. The `0x7fff` tick
+threshold selects stepping the clock over slewing it and admits nothing;
+the step path accepts any adjustment whose resulting `time.tv_sec` fits in
+`long` and rejects the rest with `EINVAL`. The rewrite therefore keeps
+large steps and the overflow rejection, using checked 32-bit arithmetic
+(seconds and ticks carried separately) rather than truncating to the slew
+range. Extend `tests/kernel/time_io_test.c` with old-against-new comparisons
+at the slew/step boundary, at large positive and negative steps, and at the
+`LONG_MIN`/`LONG_MAX` rejection edges. Confirm with `arm-none-eabi-nm unix.elf | grep divdi3` that the helper is
 gone.
 
 ### `sched` and `exit` noreturn (small)
@@ -123,6 +114,43 @@ zombie but returns to every other caller, so `exit` needs
 `__builtin_unreachable()` after its `swtch()` before it can be `__dead`.
 `rexit()` (line 157) then becomes `__dead` too. `idle()`
 (`sys/arch/rp2040/rp2040/machdep.c` line 697) returns and is excluded.
+
+### Never-returning libc entry points (payoff unmeasured)
+
+`include/stdlib.h` (`abort` line 60, `exit` line 67), `include/unistd.h`
+(`_exit` line 79), `include/setjmp.h` (`_longjmp` line 14, `longjmp` line 20)
+and `include/err.h` (`err`, `errx`, `verr`, `verrx`, lines 19 to 24) declare
+functions that never return as plain `void`. Userland source holds 1,101
+`exit`, 53 `_exit`, 25 `abort`, 50 `err` and 24 `errx` call sites. Those are
+source counts; the code-generation payoff is unmeasured and smaller than the
+counts suggest.
+
+- Userland compiles hosted (`share/mk/sys.mk` passes neither
+  `-ffreestanding` nor `-fno-builtin`), and GCC already treats `exit`,
+  `_exit` and `abort` as non-returning library builtins there. The
+  candidates that remain are the `err` family and `longjmp`/`_longjmp` in
+  userland, and every one of these calls inside libc, which
+  `lib/libc/Makefile` compiles with `-ffreestanding`.
+- A single-file probe cannot decide the payoff. Six variants (plain and
+  `_Noreturn` declarations, each hosted, `-ffreestanding` and
+  `-fno-builtin`) produced identical function sizes, because the probe's call
+  sites were tail-call shaped and the known-good `_Noreturn` control moved
+  nothing. The kernel measurement for `panic` and `boot` (-399 bytes on
+  PICO, built `-ffreestanding -fno-builtin`) came from a whole build. The
+  decisive measurement is a world build compared in packed blocks.
+
+- Mark each declaration `__dead` (`sys/sys/cdefs.h` maps it to `_Noreturn`
+  under C11, the GNU attribute otherwise, and nothing for other compilers).
+- Each libc definition must end in a call the compiler sees as
+  non-returning, or `-Werror` reports `'noreturn' function does return`.
+  `_exit` is the assembly stub `lib/libc/arm/sys/_exit.S` (`svc #SYS_exit`),
+  so only its declaration changes.
+- The native Smaller C compiler reads these headers. Confirm that `__dead`
+  expands to nothing there, or that Smaller C accepts `_Noreturn`
+  (`c17-semantic-migration-plan.md`, "Native Smaller C rule").
+- Measure by packed root blocks (`tools/bin/rp2040/hsaout -s`) across the
+  world build, not by raw text: `footprint-techniques.md` item 2 records
+  that packed size is not monotone in code size.
 
 ### Lean PICO and a PICO_DIAG configuration (-1,304 bytes text, -96 bss)
 
@@ -194,10 +222,14 @@ Prototype each in a scratch tree and land only a measured win.
   `__clzsi2` (60) duplicate functions the boot ROM exports. The kernel calls
   `rom_func_lookup` once (`machdep.c` line 742). The overlapping-copy
   semantics of `bcopy` must be preserved.
-- **Halfword dispatch tables.** `syscall_handlers` (652 bytes) and `cdevsw`
-  (484 bytes) store 4-byte pointers into text under 128 KB. C cannot
-  express halfword code offsets as constant initializers, so a generator
-  would emit them in assembly.
+- **Halfword dispatch tables.** `syscall_handlers` (652 bytes) stores
+  4-byte pointers into text under 128 KB. `cdevsw` (484 bytes) mixes
+  function pointers with the RAM data pointer `d_ttys` (`struct cdevsw` in
+  `sys/sys/conf.h`, populated with tables such as `cnttys`), which cannot take
+  a code-offset encoding. A prototype compresses only the function-pointer
+  members and keeps data pointers full width. C cannot express halfword code
+  offsets as constant initializers, so a generator would emit them in
+  assembly.
 - **Packed message pools.** `errno_message_pool` (1,902 bytes) and
   `syscall_name_pool` (1,193 bytes) are mostly lowercase text. Five-bit
   packing with a small decoder would cost CPU only on error paths.

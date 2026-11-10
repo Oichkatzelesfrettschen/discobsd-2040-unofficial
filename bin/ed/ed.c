@@ -11,7 +11,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define NULL    0
 #define FNSIZE  64
 #define LBSIZE  512
 #define ESIZE   128

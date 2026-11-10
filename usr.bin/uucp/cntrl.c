@@ -768,7 +768,7 @@ int role;
 	Wrmsg = Omsg;
 	if (role == MASTER) {
 		RMESG(SLTPTCL, msg, 1);
-		if ((str[0] = fptcl(&msg[1])) == NULL) {
+		if ((str[0] = fptcl(&msg[1])) == '\0') {
 			/* no protocol match */
 			WMESG(USEPTCL, NO);
 			return FAIL;

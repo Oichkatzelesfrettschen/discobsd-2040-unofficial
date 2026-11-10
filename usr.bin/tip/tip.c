@@ -229,7 +229,7 @@ notnumber:
         PH = "/etc/phones";
     vinit();                /* init variables */
     setparity("even");          /* set the parity table */
-    if ((i = speed(number(value(BAUDRATE)))) == NULL) {
+    if ((i = speed(number(value(BAUDRATE)))) == 0) {
         printf("tip: bad baud rate %d\n", (int)number(value(BAUDRATE)));
         delock(uucplock);
         exit(3);
@@ -442,7 +442,7 @@ int speed(n)
     for (p = bauds; *p != -1;  p++)
         if (*p == n)
             return (p - bauds);
-    return (NULL);
+    return (0);
 }
 
 int any(c, p)

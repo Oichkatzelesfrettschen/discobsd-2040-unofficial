@@ -643,7 +643,7 @@ struct dfmt *d;
         else
         {
             *str_ptr = CNULL;
-            if (c == NULL)
+            if (c == '\0')
                 pr_sbuf(d, YES);
             str_mode = S_EMPTY;
         }

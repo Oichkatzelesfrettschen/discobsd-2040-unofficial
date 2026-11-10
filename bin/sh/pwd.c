@@ -10,7 +10,6 @@
 #include "defs.h"
 
 #define DOT     '.'
-#define NULL    0
 #define SLASH   '/'
 #define MAXPWD  256
 
@@ -45,7 +44,7 @@ rmslash(char *string)
 	{
 		/* Remove trailing / */
 
-		*pstring = NULL;
+		*pstring = '\0';
 	}
 	return;
 }
@@ -77,7 +76,7 @@ cwd(char *dir)
 			pdir++;
 	}
 	if(*(--pdir)==DOT && pdir>dir && *(--pdir)==SLASH)
-		*pdir = NULL;
+		*pdir = '\0';
 
 
 	/* Remove extra /'s */
@@ -86,7 +85,7 @@ cwd(char *dir)
 
 	/* Now that the dir is canonicalized, process it */
 
-	if(*dir==DOT && *(dir+1)==NULL)
+	if(*dir==DOT && *(dir+1)=='\0')
 	{
 		return;
 	}
@@ -115,7 +114,7 @@ cwd(char *dir)
 	{
 		if(*dir==DOT &&
 		   *(dir+1)==DOT &&
-		   (*(dir+2)==SLASH || *(dir+2)==NULL))
+		   (*(dir+2)==SLASH || *(dir+2)=='\0'))
 		{
 			/* Parent directory, so backup one */
 
@@ -137,14 +136,14 @@ cwd(char *dir)
 		if (*dir)
 			*pcwd++ = *dir++;
 	}
-	*pcwd = NULL;
+	*pcwd = '\0';
 
 	--pcwd;
 	if(pcwd>cwdname && *pcwd==SLASH)
 	{
 		/* Remove trailing / */
 
-		*pcwd = NULL;
+		*pcwd = '\0';
 	}
 	return;
 }

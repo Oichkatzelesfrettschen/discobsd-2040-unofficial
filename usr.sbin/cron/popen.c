@@ -162,7 +162,7 @@ cron_pclose(iop)
 	(void)sigaddset(&nmask, SIGHUP);
 	(void)sigprocmask(SIG_BLOCK, &nmask, &omask);
 	do	{
-		pid = waitpid(pids[fdes], &stat_loc, NULL);
+		pid = waitpid(pids[fdes], &stat_loc, 0);
 		} while (pid == -1 && errno == EINTR);
 	(void)sigprocmask(SIG_SETMASK, &omask, NULL);
 	pids[fdes] = 0;

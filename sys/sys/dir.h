@@ -68,7 +68,7 @@ typedef struct _dirdesc {
 } DIR;
 
 #ifndef NULL
-#define NULL 0
+#define NULL ((void *)0)
 #endif
 
 #ifndef KERNEL

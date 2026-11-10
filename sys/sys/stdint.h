@@ -102,9 +102,9 @@ typedef unsigned long long  uintmax_t;
 #define SIG_ATOMIC_MAX      INT32_MAX
 
 /*
- * The library declares no wide character type, so these four limits
- * describe the compiler's wchar_t and wint_t, which is where a wide
- * literal gets its type.
+ * <stddef.h> takes wchar_t from the compiler's __WCHAR_TYPE__, so the
+ * compiler's limits are its limits.  WINT_MIN and WINT_MAX describe the
+ * compiler's __WINT_TYPE__, the type a <wchar.h> would declare as wint_t.
  */
 #ifdef __WCHAR_MAX__
 #define WCHAR_MIN           __WCHAR_MIN__

@@ -17,3 +17,7 @@ _Static_assert(ULLONG_MAX == (unsigned long long)-1,
     "ULLONG_MAX is the all-ones value");
 _Static_assert(sizeof(long long) * CHAR_BIT == 64,
     "long long is the 64-bit type the limits describe");
+
+#if !defined(MB_LEN_MAX) || MB_LEN_MAX < 1
+#error "C17 5.2.4.2.1 MB_LEN_MAX is a #if constant of at least 1"
+#endif

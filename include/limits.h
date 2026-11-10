@@ -40,4 +40,7 @@
 
 #include <sys/syslimits.h>
 
+/* The C locale, the only one, encodes one byte per character (MB_CUR_MAX). */
+#define	MB_LEN_MAX	1
+
 #endif /* !_LIMITS_H_ */

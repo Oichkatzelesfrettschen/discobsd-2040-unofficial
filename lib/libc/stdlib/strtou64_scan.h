@@ -1,10 +1,11 @@
 /*
- * The subject-sequence scan of the 64-bit conversions of C17 7.22.1.4.  The
- * including file defines STRTOU64_SCAN, the function name; STRTOU64_CHAR,
- * the element type of the string and end pointer; and STRTOU64_UNIT, the
- * type each element is read as.  strtoull.c instantiates it over char read
- * as unsigned char.  Each instantiation depends on <errno.h>, <limits.h>,
- * <stdint.h> and "strtou64.h".
+ * The subject-sequence scan shared by the 64-bit conversions of C17 7.22.1.4
+ * and 7.8.2.4.  The including file defines STRTOU64_SCAN, the function name;
+ * STRTOU64_CHAR, the element type of the string and end pointer; and
+ * STRTOU64_UNIT, the type each element is read as.  strtoull.c instantiates
+ * it over char read as unsigned char, wcstoumax.c over wchar_t, so the
+ * narrow and wide conversions accept one grammar.  Each instantiation
+ * depends on <errno.h>, <limits.h>, <stdint.h> and "strtou64.h".
  */
 
 /*

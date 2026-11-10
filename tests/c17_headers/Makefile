@@ -20,12 +20,14 @@ MUTATE=		${PYTHON} ${.CURDIR}/mutate.py
 
 HEADER_CONTRACTS=	stddef_contract stdalign_contract stdnoreturn_contract \
 			limits_contract stdint_contract inttypes_contract \
-			ctype_contract
+			ctype_contract stdlib_wide_contract
 HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
 			stdnoreturn_empty limits_llong_min_short \
 			stdint_unsigned_max stdint_narrow_intmax \
 			inttypes_pri64_long inttypes_scn16_int \
-			inttypes_scn64_long ctype_no_isblank
+			inttypes_scn64_long ctype_no_isblank \
+			stddef_wchar_int limits_no_mb_len_max \
+			stdlib_no_mbtowc inttypes_no_wcstoimax
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -94,6 +96,29 @@ inttypes_scn64_long.mutant:
 	${MUTATE} ${TOPSRC}/include/inttypes.h $@/inttypes.h \
 	    '#define SCNu64          "llu"' '#define SCNu64          "lu"'
 inttypes_scn64_long.contract= inttypes_contract
+
+# A wchar_t of the right width but the wrong type still parses; the type of
+# a wide literal then differs from it.
+stddef_wchar_int.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/stddef.h $@/stddef.h \
+	    "typedef __WCHAR_TYPE__ wchar_t;" "typedef int wchar_t;"
+stddef_wchar_int.contract= stddef_contract
+limits_no_mb_len_max.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/limits.h $@/limits.h \
+	    "#define	MB_LEN_MAX	1" ""
+limits_no_mb_len_max.contract= limits_contract
+stdlib_no_mbtowc.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/stdlib.h $@/stdlib.h \
+	    "int     mbtowc (wchar_t *, const char *, size_t);" ""
+stdlib_no_mbtowc.contract= stdlib_wide_contract
+inttypes_no_wcstoimax.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/inttypes.h $@/inttypes.h \
+	    "intmax_t	wcstoimax(const wchar_t *, wchar_t **, int);" ""
+inttypes_no_wcstoimax.contract= inttypes_contract
 
 # Without the prototype the contract's use of isblank is an implicit
 # declaration.
@@ -219,6 +244,35 @@ inttypes_test_arm: inttypes_test.c ${INTTYPES_ARM_OBJS} ${QEMU_SUPPORT}
 	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -o $@ inttypes_test.c \
 	    ${INTTYPES_ARM_OBJS} ${QEMU_SUPPORT} ${QEMU_ARM_LIBS}
 
+# The C-locale multibyte functions and the wide conversions, with the
+# tree's strtoll and strtoull as the oracle for the latter.  -fsigned-char
+# on the host makes a byte that mbtowc fails to read as unsigned char
+# visible.
+WIDE_RENAMES=	-Dmblen=db_mblen -Dmbtowc=db_mbtowc -Dwctomb=db_wctomb \
+		-Dmbstowcs=db_mbstowcs -Dwcstombs=db_wcstombs \
+		-Dwcstoimax=db_wcstoimax -Dwcstoumax=db_wcstoumax
+WIDE_SRCS=	mblen mbtowc wctomb mbstowcs wcstombs wcstoimax wcstoumax
+WIDE_HOST_OBJS=	${WIDE_SRCS:S/^/host_/:S/$/.o/} host_strtoull.o host_strtoll.o
+WIDE_ARM_OBJS=	${WIDE_SRCS:S/^/arm_/:S/$/.o/} arm_strtoull.o arm_strtoll.o
+
+.for src in ${WIDE_SRCS}
+host_${src}.o: ${STDLIB_DIR}/${src}.c ${STDLIB_DIR}/strtou64.h \
+    ${STDLIB_DIR}/strtou64_scan.h
+	${HOSTCC} ${HOST_FLAGS} -fsigned-char ${WIDE_RENAMES} -c -o $@ \
+	    ${STDLIB_DIR}/${src}.c
+arm_${src}.o: ${STDLIB_DIR}/${src}.c ${STDLIB_DIR}/strtou64.h \
+    ${STDLIB_DIR}/strtou64_scan.h
+	${QEMU_ARM_CC} ${HOST_FLAGS} -Os ${QEMU_ARM_CPUFLAGS} -fno-common \
+	    ${WIDE_RENAMES} -c -o $@ ${STDLIB_DIR}/${src}.c
+.endfor
+
+wide_test: wide_test.c ${WIDE_HOST_OBJS}
+	${HOSTCC} ${HOST_FLAGS} -o $@ wide_test.c ${WIDE_HOST_OBJS}
+
+wide_test_arm: wide_test.c ${WIDE_ARM_OBJS} ${QEMU_SUPPORT}
+	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -o $@ wide_test.c \
+	    ${WIDE_ARM_OBJS} ${QEMU_SUPPORT} ${QEMU_ARM_LIBS}
+
 # The tree's <ctype.h> alone on the include path, as a copy in ctype_tree,
 # so no other tree header reaches a hosted test.  ctype_rename.h gives the
 # functions and the table db_ link names.
@@ -282,14 +336,19 @@ exit_probe: exit_probe.c host_Exit.o
 #   aligned_leak          the lead-in in front of an aligned block stays busy
 #   aligned_half          the address is rounded to half the alignment
 #   exit_runs_handlers    _Exit calls exit()
+#   mbtowc_sign_extend    mbtowc widens the byte without unsigned char
+#   wctomb_signed_limit   wctomb rejects the values above SCHAR_MAX
+#   wcstombs_no_range     wcstombs stores a value above UCHAR_MAX
+#   wcstou64_narrowed     the wide scan reads each element as unsigned char
+#   wcstoimax_no_min      the negative limit loses INTMAX_MIN's extra value
 #   imaxdiv_rem_sign      the remainder takes the denominator's sign
 #   imaxdiv_short_loop    the division stops one quotient bit early
 #   toupper_raw_offset    toupper subtracts the case offset from every value
 #   isblank_no_tab        isblank accepts the space alone
 #   ctype_space_class     the table marks the space as not printable
 #   ctype_double_eval     isalnum is a macro of two tests on its argument
-# The 64-bit scan is the template strtou64_scan.h, which strtoull.c reaches
-# through a quoted include.  A scan mutant is the mutated
+# The 64-bit scan is the template strtou64_scan.h, which strtoull.c and
+# wcstoumax.c reach through a quoted include.  A scan mutant is the mutated
 # template in a directory named ahead of ${STDLIB_DIR} on the include path,
 # beside an unchanged copy of the instantiating source.
 strtoull_no_overflow.mutant.c: ${STDLIB_DIR}/strtoull.c \
@@ -326,6 +385,25 @@ ctype_double_eval.mutant/ctype.h: ${TOPSRC}/include/ctype.h
 	    "((_ctype_+1)[(int)(c)]&(_U|_L|_N))" "(isalpha(c) || isdigit(c))"
 exit_runs_handlers.mutant.c: ${STDLIB_DIR}/_Exit.c
 	${MUTATE} ${STDLIB_DIR}/_Exit.c $@ "	_exit(status);" "	exit(status);"
+mbtowc_sign_extend.mutant.c: ${STDLIB_DIR}/mbtowc.c
+	${MUTATE} ${STDLIB_DIR}/mbtowc.c $@ \
+	    "(wchar_t)(unsigned char)*s" "(wchar_t)*s"
+wctomb_signed_limit.mutant.c: ${STDLIB_DIR}/wctomb.c
+	${MUTATE} ${STDLIB_DIR}/wctomb.c $@ "> UCHAR_MAX" "> SCHAR_MAX"
+wcstombs_no_range.mutant.c: ${STDLIB_DIR}/wcstombs.c
+	${MUTATE} ${STDLIB_DIR}/wcstombs.c $@ \
+	    "(unsigned long)pwcs[count] > UCHAR_MAX" "0"
+wcstoimax_no_min.mutant.c: ${STDLIB_DIR}/wcstoimax.c
+	${MUTATE} ${STDLIB_DIR}/wcstoimax.c $@ \
+	    "(unsigned long long)INTMAX_MAX + result.negative" \
+	    "(unsigned long long)INTMAX_MAX"
+wcstou64_narrowed.mutant.c: ${STDLIB_DIR}/wcstoumax.c \
+    ${STDLIB_DIR}/strtou64_scan.h
+	@rm -rf wcstou64_narrowed.mutant && mkdir wcstou64_narrowed.mutant
+	${MUTATE} ${STDLIB_DIR}/strtou64_scan.h \
+	    wcstou64_narrowed.mutant/strtou64_scan.h \
+	    "	STRTOU64_UNIT character;" "	unsigned char character;"
+	cp ${STDLIB_DIR}/wcstoumax.c $@
 
 # The renames reach the mutated source alone.  Applied to strtoll_test.c
 # they would rename its oracle calls as well, and the test would compare
@@ -376,6 +454,27 @@ ctype_double_eval.mutant.test: ctype_double_eval.mutant/ctype.h \
     ctype_test.c ${CTYPE_HOST_OBJS}
 	${HOSTCC} ${HOST_FLAGS} -Ictype_double_eval.mutant ${CTYPE_FLAGS} \
 	    -o $@ ctype_test.c ${CTYPE_HOST_OBJS}
+wide_member.mbtowc_sign_extend=		mbtowc
+wide_member.wctomb_signed_limit=	wctomb
+wide_member.wcstombs_no_range=		wcstombs
+wide_member.wcstoimax_no_min=		wcstoimax
+.for mutant in mbtowc_sign_extend wctomb_signed_limit wcstombs_no_range \
+    wcstoimax_no_min
+${mutant}.mutant.o: ${mutant}.mutant.c ${STDLIB_DIR}/strtou64.h
+	${HOSTCC} ${HOST_FLAGS} -fsigned-char ${WIDE_RENAMES} -I${STDLIB_DIR} \
+	    -c -o $@ ${mutant}.mutant.c
+${mutant}.mutant.test: ${mutant}.mutant.o wide_test.c ${WIDE_HOST_OBJS}
+	${HOSTCC} ${HOST_FLAGS} -o $@ wide_test.c ${mutant}.mutant.o \
+	    ${WIDE_HOST_OBJS:Nhost_${wide_member.${mutant}}.o}
+.endfor
+wcstou64_narrowed.mutant.o: wcstou64_narrowed.mutant.c
+	${HOSTCC} ${HOST_FLAGS} -fsigned-char ${WIDE_RENAMES} \
+	    -Iwcstou64_narrowed.mutant -I${STDLIB_DIR} -c -o $@ \
+	    wcstou64_narrowed.mutant.c
+wcstou64_narrowed.mutant.test: wcstou64_narrowed.mutant.o wide_test.c \
+    ${WIDE_HOST_OBJS}
+	${HOSTCC} ${HOST_FLAGS} -o $@ wide_test.c wcstou64_narrowed.mutant.o \
+	    ${WIDE_HOST_OBJS:Nhost_wcstoumax.o}
 exit_runs_handlers.mutant.o: exit_runs_handlers.mutant.c
 	${HOSTCC} ${HOST_FLAGS} -D_Exit=db_Exit -c -o $@ \
 	    exit_runs_handlers.mutant.c
@@ -385,8 +484,10 @@ exit_runs_handlers.mutant.test: exit_probe.c exit_runs_handlers.mutant.o
 RUN_MUTANTS=	strtoull_no_overflow strtoll_no_llong_min aligned_leak \
 		aligned_half imaxdiv_rem_sign imaxdiv_short_loop \
 		toupper_raw_offset isblank_no_tab ctype_space_class \
-		ctype_double_eval
-HOST_TESTS=	strtoll_test aligned_alloc_test inttypes_test ctype_test
+		ctype_double_eval mbtowc_sign_extend wctomb_signed_limit \
+		wcstombs_no_range wcstou64_narrowed wcstoimax_no_min
+HOST_TESTS=	strtoll_test aligned_alloc_test inttypes_test ctype_test \
+		wide_test
 
 check-host: ${HOST_TESTS} exit_probe ${RUN_MUTANTS:S/$/.mutant.test/} \
     exit_runs_handlers.mutant.test
@@ -438,8 +539,16 @@ imaxdiv.imports=
 imaxabs.imports=
 strtoimax.imports=	strtoll
 strtoumax.imports=	strtoull
+mblen.imports=
+mbtowc.imports=
+wctomb.imports=
+mbstowcs.imports=	strlen
+wcstombs.imports=
+wcstoumax.imports=	errno
+wcstoimax.imports=	errno __discobsd_wcstou64
 IMPORT_STDLIB=	strtoull strtoll atoll _Exit imaxdiv imaxabs strtoimax \
-		strtoumax
+		strtoumax mblen mbtowc wctomb mbstowcs wcstombs wcstoumax \
+		wcstoimax
 isctype.imports=	_ctype_
 isblank.imports=
 tolower.imports=

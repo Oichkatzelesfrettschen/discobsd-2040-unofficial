@@ -19,6 +19,7 @@ INCLUDES = """#include <sys/param.h>
 #include <sys/map.h>
 #include <sys/swap.h>
 #include <sys/disk.h>
+#include <sys/vmsystm.h>
 
 #ifndef NTMP
 #define NTMP 3

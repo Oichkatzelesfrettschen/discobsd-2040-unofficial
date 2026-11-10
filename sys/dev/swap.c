@@ -16,6 +16,7 @@
 #include <sys/map.h>
 #include <sys/swap.h>
 #include <sys/disk.h>
+#include <sys/vmsystm.h>
 
 #ifndef NTMP
 #define NTMP 3
@@ -275,9 +276,8 @@ swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 			requested = *offtval;
 #ifdef SWAP_IMAGE_ALIGN
 			extent[0] = extent[1] = extent[2] = 0;
-			if (malloc3_contiguous_next(swapmap,
-			    (size_t)requested, 0, 0, SWAP_IMAGE_ALIGN,
-			    &swapnext, extent) != 0)
+                if (swap_exchange_alloc((size_t)requested, 0, 0,
+                    &swapnext, extent) != 0)
 				td[unit].t_start = extent[0];
 #else
 			td[unit].t_start = malloc(swapmap, requested);
@@ -285,9 +285,6 @@ swcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 			if (td[unit].t_start > 0) {
 				td[unit].t_size = requested;
 				td[unit].t_next = 0;
-#ifdef SWAP_IMAGE_ALIGN
-				swap_cursor_publish(swapnext);
-#endif
 				/* printf("temp%d: allocated %lu blocks\n",
 				    unit, td[unit].t_size); */
 

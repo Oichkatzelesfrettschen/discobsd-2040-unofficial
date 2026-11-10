@@ -48,11 +48,15 @@ sched()
     struct proc *swapped_out = 0, *in_core = 0;
     register int out_time, rptime;
     struct swap_image_reservation reservation;
+    struct swap_exchange_state previous_exchange;
+    int exchange_prepared = 0;
+    int exchange_refusal;
     int s;
 
     for (;;) {
         /* Perform swap-out/swap-in action. */
         spl0();
+        exchange_refusal = 0;
 #ifdef SWAPRAM
         swapram_service ();
 #endif
@@ -64,18 +68,38 @@ sched()
          * waits, and sched retries once runin wakes it (every sleep, every
          * exit, and once a second from schedcpu).
          */
-        if (in_core && swap_image_reserve (&reservation, in_core, in_core,
+        if (swapped_out && !exchange_prepared) {
+            int flash_backed = 1;
+
+#ifdef SWAPRAM
+            flash_backed = !swapram_present (swapped_out);
+#endif
+            if (swap_exchange_prepare (&previous_exchange, swapped_out,
+                flash_backed) != 0)
+                exchange_refusal = 1;
+            else
+                exchange_prepared = 1;
+        }
+        if (!exchange_refusal && in_core && swap_image_reserve (&reservation,
+            in_core, in_core,
             X_OLDSIZE, X_OLDSIZE) != 0) {
+            swap_exchange_restore (&previous_exchange);
+            exchange_refusal = 1;
+        }
+        if (exchange_refusal) {
             s = splhigh ();
-            in_core->p_flag |= SLOAD;
-            if (in_core->p_stat == SRUN)
-                setrq (in_core);
+            if (in_core) {
+                in_core->p_flag |= SLOAD;
+                if (in_core->p_stat == SRUN)
+                    setrq (in_core);
+            }
             splx (s);
 #ifdef SWAPRAM
             storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
 #endif
             in_core = 0;
             swapped_out = 0;
+            exchange_prepared = 0;
             splhigh ();
             ++runin;
             sleep ((caddr_t) &runin, PSWP);
@@ -89,6 +113,7 @@ sched()
         splhigh();
         in_core = 0;
         swapped_out = 0;
+        exchange_prepared = 0;
 
         /* Find user to swap in; of users ready,
          * select one out longest. */

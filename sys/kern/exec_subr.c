@@ -16,6 +16,7 @@
 #include <sys/exec.h>
 #include <sys/dir.h>
 #include <sys/uio.h>
+#include <sys/vmsystm.h>
 #include <machine/debug.h>
 #include <machine/frame.h>
 
@@ -38,12 +39,11 @@ exec_spool_reserve_flash (struct exec_params *epp)
 
     blocks = btod (epp->spool.size);
 #ifdef SWAP_IMAGE_ALIGN
-    epp->spool.span = malloc3_contiguous_next (swapmap, blocks, 0, 0,
-        SWAP_IMAGE_ALIGN, &swapnext, addresses);
+    epp->spool.span = swap_exchange_alloc (blocks, 0, 0, &swapnext,
+        addresses);
     if (epp->spool.span == 0)
         return ENOMEM;
     epp->spool.blkno = addresses[0];
-    swap_cursor_publish (swapnext);
 #else
     epp->spool.blkno = malloc (swapmap, blocks);
     if (epp->spool.blkno == 0)
@@ -429,6 +429,9 @@ int exec_estab(struct exec_params *epp)
     /*
      * Allocate core at this point, committed to the new image.
      */
+    if (swap_exchange_resize (u.u_procp,
+        epp->data.len + epp->bss.len, epp->stack.len, 0) != 0)
+        return ENOMEM;
     u.u_prof.pr_scale = 0;
     if (u.u_procp->p_flag & SVFORK)
         endvfork();

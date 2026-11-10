@@ -36,6 +36,11 @@ extern struct forkstat forkstat;
 #ifdef KERNEL
 struct proc;
 
+struct swap_exchange_state {
+    struct proc *owner;
+    size_t span;
+};
+
 #define SWAP_IMAGE_EMPTY       0
 #define SWAP_IMAGE_RESERVED    1
 #define SWAP_IMAGE_COPIED      2
@@ -58,6 +63,11 @@ struct swap_image_reservation {
 };
 
 size_t swap_image_span(struct proc *);
+size_t swap_exchange_alloc(size_t, size_t, size_t, size_t *, size_t[3]);
+int swap_exchange_prepare(struct swap_exchange_state *, struct proc *, int);
+void swap_exchange_restore(const struct swap_exchange_state *);
+int swap_exchange_resize(struct proc *, size_t, size_t, size_t);
+void swap_exchange_release(struct proc *);
 int swap_image_reserve(struct swap_image_reservation *, struct proc *,
     struct proc *, u_int, u_int);
 void swap_image_copy_out(struct swap_image_reservation *, struct proc *);

@@ -33,6 +33,24 @@ swaptext (p)
     return p->p_tsize;
 }
 
+static struct swap_exchange_state swap_exchange;
+
+static size_t
+swap_image_span_geometry (size_t data_size, size_t stack_size,
+    size_t clean_text)
+{
+    size_t blocks;
+
+    if (clean_text > data_size)
+        clean_text = 0;
+    blocks = btod (data_size - clean_text) + btod (stack_size) + btod (USIZE);
+#ifdef SWAP_IMAGE_ALIGN
+    return (blocks + SWAP_IMAGE_ALIGN - 1) & ~(SWAP_IMAGE_ALIGN - 1);
+#else
+    return blocks;
+#endif
+}
+
 #ifdef SWAP_IMAGE_ALIGN
 #define SWAP_IMAGE_WRITE (B_WRITE | B_SWAPIMAGE)
 #else
@@ -43,14 +61,127 @@ swaptext (p)
 size_t
 swap_image_span (struct proc *p)
 {
-    size_t blocks = btod (p->p_dsize - swaptext (p)) +
-        btod (p->p_ssize) + btod (USIZE);
+    return swap_image_span_geometry (p->p_dsize, p->p_ssize, swaptext (p));
+}
 
 #ifdef SWAP_IMAGE_ALIGN
-    return (blocks + SWAP_IMAGE_ALIGN - 1) & ~(SWAP_IMAGE_ALIGN - 1);
-#else
-    return blocks;
+static size_t
+swap_exchange_largest_run (void)
+{
+    struct mapent *entry;
+    size_t largest = 0;
+
+    for (entry = swapmap->m_map; entry->m_size != 0; entry++) {
+        if ((entry->m_addr & (SWAP_IMAGE_ALIGN - 1)) != 0 ||
+            (entry->m_size & (SWAP_IMAGE_ALIGN - 1)) != 0)
+            panic ("swap exchange: unaligned map");
+        if (entry->m_size > largest)
+            largest = entry->m_size;
+    }
+    return largest;
+}
 #endif
+
+/* A successful flash grant leaves the resident's complete departure route. */
+size_t
+swap_exchange_alloc (size_t data_blocks, size_t stack_blocks,
+    size_t u_blocks, size_t *nextp, size_t addresses[3])
+{
+    size_t saved_next, span;
+    int spl;
+
+    spl = splhigh ();
+#ifdef SWAP_IMAGE_ALIGN
+    saved_next = *nextp;
+    span = malloc3_contiguous_next (swapmap, data_blocks, stack_blocks,
+        u_blocks, SWAP_IMAGE_ALIGN, nextp, addresses);
+    if (span != 0 && swap_exchange_largest_run () < swap_exchange.span) {
+        mfree (swapmap, span, addresses[0]);
+        *nextp = saved_next;
+        span = 0;
+    }
+    if (span != 0 && nextp == &swapnext)
+        swap_cursor_publish (swapnext);
+#else
+    (void) nextp;
+    saved_next = 0;
+    span = malloc3 (swapmap, data_blocks, stack_blocks, u_blocks, addresses);
+#endif
+    splx (spl);
+    (void) saved_next;
+    return span;
+}
+
+/* Publish the next window owner only while its future route is available. */
+int
+swap_exchange_prepare (struct swap_exchange_state *previous,
+    struct proc *incoming, int flash_backed)
+{
+    size_t required;
+    int spl;
+
+    required = flash_backed ? 0 : swap_image_span (incoming);
+    spl = splhigh ();
+    *previous = swap_exchange;
+#ifdef SWAP_IMAGE_ALIGN
+    if (required != 0 && swap_exchange_largest_run () < required) {
+        splx (spl);
+        return ENOMEM;
+    }
+#endif
+    swap_exchange.owner = incoming;
+    swap_exchange.span = required;
+    splx (spl);
+    return 0;
+}
+
+void
+swap_exchange_restore (const struct swap_exchange_state *previous)
+{
+    int spl;
+
+    spl = splhigh ();
+    swap_exchange = *previous;
+    splx (spl);
+}
+
+/* Geometry changes become visible only after their departure route exists. */
+int
+swap_exchange_resize (struct proc *owner, size_t data_size,
+    size_t stack_size, size_t clean_text)
+{
+    size_t required;
+    int spl;
+
+    required = swap_image_span_geometry (data_size, stack_size, clean_text);
+    spl = splhigh ();
+    if (swap_exchange.owner != owner) {
+        splx (spl);
+        return ENOMEM;
+    }
+#ifdef SWAP_IMAGE_ALIGN
+    if (swap_exchange_largest_run () < required) {
+        splx (spl);
+        return ENOMEM;
+    }
+#endif
+    swap_exchange.span = required;
+    splx (spl);
+    return 0;
+}
+
+void
+swap_exchange_release (struct proc *owner)
+{
+    int spl;
+
+    spl = splhigh ();
+    if (swap_exchange.owner != owner)
+        panic ("swap exchange: release owner");
+    swap_exchange.owner = NULL;
+    swap_exchange.span = 0;
+    splx (spl);
+    wakeup ((caddr_t) &runin);
 }
 
 /* Refusal changes neither the owner nor the map, cursor or image bytes. */
@@ -83,9 +214,9 @@ swap_image_reserve (struct swap_image_reservation *reservation,
 #endif
     {
 #ifdef SWAP_IMAGE_ALIGN
-        if (malloc3_contiguous_next (swapmap,
+        if (swap_exchange_alloc (
             btod (source->p_dsize - reservation->text),
-            btod (source->p_ssize), btod (USIZE), SWAP_IMAGE_ALIGN,
+            btod (source->p_ssize), btod (USIZE),
             &next, reservation->addr) == 0)
             return ENOMEM;
         swapnext = next;
@@ -131,6 +262,9 @@ swap_image_cancel (struct swap_image_reservation *reservation)
 void
 swap_image_release (struct proc *p)
 {
+    int spl;
+
+    spl = splhigh ();
 #ifdef SWAPRAM
     if (swapram_present (p))
         swapram_cancel (p);
@@ -145,6 +279,9 @@ swap_image_release (struct proc *p)
         mfree (swapmap, btod (USIZE), p->p_addr);
 #endif
     }
+    swap_exchange.owner = p;
+    swap_exchange.span = swap_image_span (p);
+    splx (spl);
     wakeup ((caddr_t) &runout);
 }
 

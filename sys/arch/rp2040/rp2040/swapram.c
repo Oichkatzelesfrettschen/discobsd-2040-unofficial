@@ -601,9 +601,9 @@ swapram_evacuate (void)
         if (p->p_daddr || p->p_saddr || p->p_addr)
             panic ("swapram: flash blocks already assigned");
 #ifdef SWAP_IMAGE_ALIGN
-        if (malloc3_contiguous_next (swapmap, btod (e->e_rlen[SR_DATA]),
+        if (swap_exchange_alloc (btod (e->e_rlen[SR_DATA]),
             btod (e->e_rlen[SR_STACK]), btod (e->e_rlen[SR_U]),
-            SWAP_IMAGE_ALIGN, &next, blocks) == 0) {
+            &next, blocks) == 0) {
 #else
         if (malloc3 (swapmap, btod (e->e_rlen[SR_DATA]),
             btod (e->e_rlen[SR_STACK]), btod (e->e_rlen[SR_U]),

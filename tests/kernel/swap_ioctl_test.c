@@ -17,6 +17,7 @@
 #include <sys/swap.h>
 #include <sys/disk.h>
 #include <sys/user.h>
+#include <sys/vmsystm.h>
 
 #define MAP_SLOTS 8
 #define MAP_START 4
@@ -67,6 +68,19 @@ swap_cursor_publish(size_t next)
 {
     cursor_publications++;
     published_cursor = next;
+}
+
+size_t
+swap_exchange_alloc(size_t data_blocks, size_t stack_blocks, size_t u_blocks,
+    size_t *nextp, size_t addresses[3])
+{
+    size_t span;
+
+    span = malloc3_contiguous_next(swapmap, data_blocks, stack_blocks,
+        u_blocks, SWAP_IMAGE_ALIGN, nextp, addresses);
+    if (span != 0 && nextp == &swapnext)
+        swap_cursor_publish(swapnext);
+    return span;
 }
 
 static void

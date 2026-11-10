@@ -118,17 +118,22 @@ MUTATIONS = {
         "",
     ),
     "sched-drop-requeue": (
-        "            if (in_core->p_stat == SRUN)\n                setrq (in_core);\n",
+        "                if (in_core->p_stat == SRUN)\n"
+        "                    setrq (in_core);\n",
         "",
     ),
     "sched-swapin-after-refusal": (
-        "            swapped_out = 0;\n            splhigh ();\n",
-        "            splhigh ();\n",
+        "            in_core = 0;\n"
+        "            swapped_out = 0;\n"
+        "            exchange_prepared = 0;\n",
+        "            in_core = 0;\n"
+        "            exchange_prepared = 0;\n",
     ),
     # The reservation-free swapout of the scheduler before the refusal path.
     "sched-unreserved-swapout": (
         (
-            "        if (in_core && swap_image_reserve (&reservation, in_core, in_core,\n"
+            "        if (!exchange_refusal && in_core && swap_image_reserve (&reservation,\n"
+            "            in_core, in_core,\n"
             "            X_OLDSIZE, X_OLDSIZE) != 0) {",
             "        if (0 && swap_image_reserve (&reservation, in_core, in_core,\n"
             "            X_OLDSIZE, X_OLDSIZE) != 0) {",

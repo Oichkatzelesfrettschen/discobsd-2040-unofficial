@@ -102,6 +102,7 @@ exit (rv)
     p->p_prev = &zombproc;
     zombproc = p;
     p->p_stat = SZOMB;
+    swap_exchange_release(p);
 
     noproc = 1;
     for (pp = &pidhash[PIDHASH(p->p_pid)]; *pp; pp = &(*pp)->p_hash)

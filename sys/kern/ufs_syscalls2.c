@@ -40,6 +40,10 @@ statfs1(struct mount *mp, struct statfs *sbp)
     bcopy (mp->m_mntfrom, sfsp->f_mntfromname, MNAMELEN);
 #endif
     sfsp->f_flags = mp->m_flags & MNT_VISFLAGMASK;
+#ifdef V7FS
+    /* The format is the one property of the mount statfs alone reports. */
+    sfsp->f_flags |= mp->m_flags & MNT_V7;
+#endif
     return copyout ((caddr_t) sfsp, (caddr_t) sbp, sizeof (struct statfs));
 }
 

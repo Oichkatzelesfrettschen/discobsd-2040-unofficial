@@ -238,8 +238,10 @@ images. `sys/arch/rp2040/doc/TESTING.md` carries the gate's full claim.
 
 ## Open work
 
-- `mount(8)` cannot pass `MNT_V7`, and no configuration sets `V7FS`.
-  Shipping the option is an owner decision.
+- `mount -o v7` passes `MNT_V7` and `mount` lists such a volume as `v7`,
+  but no configuration sets `V7FS`, so a shipped kernel answers the option
+  with "Incorrect super block". Setting the option on the PicoCalc
+  configurations follows a board run.
 - No board has run this code. The host gate exercises the inode layer over
   a four-buffer cache model; the SD driver, real sleeps and a second mount
   beside the flash root are unexercised.

@@ -329,11 +329,11 @@ SCANF_LLONG_TESTS=	scanf_llong_test scanf_llong_test32 \
 			scanf_llong_absent_test32
 SCANF_LLONG_OBJS=	scanf_doscan_llong.o scanf_doscan_llong32.o \
 			scanf_doscan_llong_asan.o
-# GNU ld resolves an undefined weak reference to a null address. Darwin's
-# ld64 refuses one unless -U names it, after which the reference stays a
-# weak import and dyld binds it to null at load, the condition the absent
-# variant tests.
-SCANF_LLONG_ABSENT_LDFLAGS!= if [ "$$(uname -s)" = Darwin ] ; then \
+# Every link of the scanner without doscan_llong.o leaves the weak
+# __doscan_ll undefined. GNU ld resolves it to a null address. Darwin's ld64
+# refuses it unless -U names it, after which the reference stays a weak
+# import and dyld binds it to null at load, the condition _doscan tests.
+SCANF_WEAK_LDFLAGS!= if [ "$$(uname -s)" = Darwin ] ; then \
 			echo -Wl,-U,_db_doscan_ll ; fi
 
 # The address sanitizer is what detects the defect class this scanner was
@@ -896,11 +896,11 @@ scanf_llong_test_asan: scanf_llong_test.c ${SCANF_OBJS_ASAN} \
 
 scanf_llong_absent_test: scanf_llong_test.c ${SCANF_OBJS}
 	${HOSTCC} ${SCANF_CFLAGS} -DSCANF_LLONG_ABSENT -o $@ \
-	    scanf_llong_test.c ${SCANF_OBJS} ${SCANF_LLONG_ABSENT_LDFLAGS}
+	    scanf_llong_test.c ${SCANF_OBJS} ${SCANF_WEAK_LDFLAGS}
 
 scanf_llong_absent_test32: scanf_llong_test.c ${SCANF_OBJS32}
 	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -DSCANF_LLONG_ABSENT -o $@ \
-	    scanf_llong_test.c ${SCANF_OBJS32} ${SCANF_LLONG_ABSENT_LDFLAGS}
+	    scanf_llong_test.c ${SCANF_OBJS32} ${SCANF_WEAK_LDFLAGS}
 
 scanf_doscan_llong.o: ${SCANF_DIR}/doscan_llong.c ${SCANF_DIR}/doscan.h
 	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan_llong.c
@@ -912,15 +912,15 @@ scanf_doscan_llong_asan.o: ${SCANF_DIR}/doscan_llong.c ${SCANF_DIR}/doscan.h
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan_llong.c
 
 scanf_contract_test: scanf_contract_test.c ${SCANF_OBJS}
-	${HOSTCC} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c ${SCANF_OBJS}
+	${HOSTCC} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c ${SCANF_OBJS} ${SCANF_WEAK_LDFLAGS}
 
 scanf_contract_test32: scanf_contract_test.c ${SCANF_OBJS32}
 	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c \
-	    ${SCANF_OBJS32}
+	    ${SCANF_OBJS32} ${SCANF_WEAK_LDFLAGS}
 
 scanf_contract_test_asan: scanf_contract_test.c ${SCANF_OBJS_ASAN}
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c \
-	    ${SCANF_OBJS_ASAN}
+	    ${SCANF_OBJS_ASAN} ${SCANF_WEAK_LDFLAGS}
 
 scanf_doscan.o: ${SCANF_DIR}/doscan.c ${SCANF_DIR}/doscan.h
 	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan.c

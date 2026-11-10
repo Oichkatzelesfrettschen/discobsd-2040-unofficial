@@ -32,6 +32,9 @@ DEBUG = -g
 # DEBUG is set to -g by config if debugging is requested (config -g).
 #
 
+# GNU objdump and Clang agree on DWARF 4 line tables for source disassembly.
+DEBUG+=		-gdwarf-4
+
 # sources are located via $S relative to the compilation directory
 S=		../../../..
 TOPSRC!=	cd ${S}/.. && pwd
@@ -59,7 +62,7 @@ INCLUDES+=	-I${_machdir}/dhara/compat
 INCLUDES+=	-I${_machdir}/heatshrink -I${_machdir}/heatshrink/compat
 DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
-CWARNFLAGS=	-Wall -Wextra -Werror
+CWARNFLAGS=	-Wall -Wextra -Werror -Wshadow -Wundef -Wformat=2
 
 # DiscoBSD predates C23, where an empty parameter list means (void) rather
 # than an unspecified one. GCC 15 and later default to C23 and reject the
@@ -71,7 +74,8 @@ CSTDFLAGS=	-std=gnu17
 # argument words of u.u_arg through a per-call struct, and buffer cache pages
 # are viewed as on-disk structures (struct dinode over b_addr). -Os, unlike
 # -O, enables -fstrict-aliasing, so the kernel opts out of it.
-CMACHFLAGS=	-ffreestanding -fno-builtin -fno-common -fno-strict-aliasing
+# Match the ARM EABI enum layout of the selected GCC runtime with either compiler.
+CMACHFLAGS=	-ffreestanding -fno-builtin -fno-common -fno-strict-aliasing -fshort-enums
 CMACHFLAGS+=	${MACHINE_ARCH_FLAGS}
 
 # The FLASH region of RP2040.ld bounds the kernel image, so the kernel is
@@ -104,20 +108,24 @@ COMPILE_CYCLE_C=${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} -O ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
-# PARAM reaches every object as -D flags, and .params holds the PARAM text
-# the objects were compiled with. Parsing only compares the two, so -n and -V
+# The stamp binds configuration, compiler, assembler and link options to the
+# objects. Parsing only compares the recorded values, so -n and -V
 # change nothing. When they differ the stamp is a .PHONY target that every
-# object waits on: its recipe removes every object and then records the new
-# text, so a changed option recompiles them all whatever their mtimes, and a
+# object waits on: its recipe removes every object and the boot2 intermediates
+# before recording the new text, so changed options rebuild both chains, and a
 # failed removal fails the build before the stamp moves. bmake compares
 # whole-second mtimes, so an object compiled in the stamp's second would
 # otherwise read as current. Unchanged options reuse their objects.
+.MAIN: unix
+
 PARAMSTAMP=	.params
-_paramchanged!=	printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null || echo yes
+PARAMSTAMP_VALUES:= ${PARAM:Q} ${CC:Q} ${CFLAGS:Q} ${AS:Q} ${AFLAGS:Q} \
+		${LD:Q} ${LDFLAGS:Q} ${LDADD:Q}
+_paramchanged!=	printf '%s\n' ${PARAMSTAMP_VALUES} | cmp -s - ${PARAMSTAMP} 2>/dev/null || echo yes
 .if ${_paramchanged} == "yes"
 .PHONY: ${PARAMSTAMP}
 ${PARAMSTAMP}:
-	rm -f -- *.o && printf '%s\n' '${PARAM}' > ${PARAMSTAMP}
+	rm -f -- *.o *.su boot2.elf boot2.bin boot2.S && printf '%s\n' ${PARAMSTAMP_VALUES} > ${PARAMSTAMP}
 .endif
 
 OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
@@ -213,7 +221,7 @@ SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
 # picotool types a file by its extension, so the .tmp output names its
 # type with -t uf2; picotool 2.3.1 rejects the name without it.
 PICOTOOL?=	picotool
-SYSTEM_LD_HEAD=	rm -f $@ $@.elf $@.hex $@.bin $@.dis $@.uf2 vers.o && \
+SYSTEM_LD_HEAD=	rm -f $@ $@.elf $@.hex $@.bin $@.dis $@.uf2 vers.o vers.su && \
 		sh $S/conf/newvers.sh > vers.c.tmp && mv vers.c.tmp vers.c && \
 		${CC} ${CFLAGS} -c vers.c
 SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
@@ -244,7 +252,7 @@ swapunix.o: swapunix.c
 all: unix
 
 clean:
-	rm -rf .deps unix *.elf *.o *.map *.dis *.bin *.hex *.uf2 *.tmp boot2.S machine sys \
+	rm -rf .deps unix *.elf *.o *.su *.map *.dis *.bin *.hex *.uf2 *.tmp boot2.S machine sys \
 	    vers.c .compileversion .oldversion ${PARAMSTAMP}
 
 clean-all: clean

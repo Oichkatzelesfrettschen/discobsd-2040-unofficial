@@ -4,6 +4,11 @@ import argparse
 from pathlib import Path
 
 MUTATIONS = {
+    "invalid-kind": (
+        "if ((unsigned)kind >= CAPACITY_KIND_COUNT)\n        return;\n"
+        "    if (failed)",
+        "if (failed)",
+    ),
     "process-state": ("proc[index].p_stat != 0", "proc[index].p_stat == SRUN"),
     "inode-references": (
         "live += inode[index].i_count != 0;",

@@ -72,7 +72,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            bmake make build-essential cmake git clang \
+            bmake make build-essential cmake git clang cflow cscope \
             gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
             python3 libusb-1.0-0-dev \
@@ -192,6 +192,8 @@ jobs:
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-uf2-images
 
+      # The cross tier checks compiler-object attribution and linked table pointers;
+      # the qemu tier checks executable-format dispatch with recording stubs.
       # The tiers, each a root Makefile target: lint (shellcheck at error
       # severity, ruff), host (libc, utility and kernel-model gates plus every
       # maintained program with a host build and a suite),
@@ -235,6 +237,7 @@ jobs:
               CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" \
               check-changed-text
 
+      # check-host includes the compiler-matrix identity and ownership fixture.
       - name: Run the host tier
         timeout-minutes: 20
         run: |
@@ -497,7 +500,7 @@ jobs:
           fetch-depth: 0
       - name: Install the host toolchain
         run: |
-          brew install bmake byacc bison flex groff mandoc pkgconf picotool \
+          brew install bmake byacc bison flex groff mandoc pkgconf picotool cflow cscope \
             shellcheck ruff coreutils cpio
           case "$(uname -m)" in
             arm64)
@@ -605,13 +608,13 @@ jobs:
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-lint
       - name: Run the host tier
-        timeout-minutes: 20
+        timeout-minutes: 27
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label macos-host \
             --log .build-logs/macos-host.log \
             --status .build-logs/macos-host.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1080 \
+            --idle-timeout-seconds 300 --timeout-seconds 1500 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
       - name: Run the cross tier
         timeout-minutes: 20

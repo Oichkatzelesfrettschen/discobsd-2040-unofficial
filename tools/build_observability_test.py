@@ -33,13 +33,96 @@ jobs:
           include-hidden-files: true
 """
 MAKEFILE_FIXTURE = """\
-HOST_GATES= check-run-logging
+HOST_GATES= check-run-logging check-callgraph-capture \\
+  check-rp2040-storage-delta check-compiler-matrix-harness
 
 check-run-logging: check-python
 \t${PYTHON} tools/run_logged_gate_test.py
 \t${PYTHON} tools/run_logged_build_check_test.py
 \t${PYTHON} tools/build_observability_test.py
 \t${PYTHON} tools/storage_counter_driver_test.py
+
+check-compiler-matrix-harness: check-python
+\t${PYTHON} tests/compiler_matrix/check.py
+
+check-callgraph-capture: check-python
+\t${PYTHON} tests/callgraph/check.py
+
+check-rp2040-storage-delta: check-python
+\t${PYTHON} tests/rp2040/storage_delta_test.py
+
+check-qemu: check-python
+\t${MAKE} check-exec-dispatch-qemu
+
+check-exec-dispatch-qemu: check-python
+\t${PYTHON} tests/kernel/exec_dispatch_qemu.py \\
+\t    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \\
+\t    --clang ${CLANG:Uclang:Q}
+
+CROSS_CONTRACT_GATES= check-compiler-object-attribution
+check-cross: check-cross-contracts check-cross-kernel
+check-cross-contracts: ${CROSS_CONTRACT_GATES}
+check-cross-kernel: check-rp2040-execsw .WAIT check-rp2040-vectors .WAIT \\
+  check-rp2040-syscalls .WAIT check-rp2040-devsw .WAIT \\
+  check-rp2040-fileops .WAIT check-rp2040-ioconf .WAIT \\
+  check-rp2040-tty-roots .WAIT check-rp2040-callout-roots .WAIT check-kernel-headroom
+
+check-compiler-object-attribution: check-python
+\t${PYTHON} tests/compiler_matrix/object_attribution.py \\
+\t    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \\
+\t    --objdump ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-objdump
+
+check-rp2040-execsw: check-python
+\t${PYTHON} tests/rp2040_execsw/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+\t${PYTHON} tools/check_rp2040_execsw.py sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+.endfor
+
+check-rp2040-vectors: check-python
+\t${PYTHON} tests/rp2040_vectors/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+\t${PYTHON} tools/check_rp2040_vectors.py sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+.endfor
+
+check-rp2040-syscalls: check-python
+\t${PYTHON} tests/rp2040_syscalls/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+\t@SYSCALL_CHECK@
+.endfor
+
+check-rp2040-devsw: check-python
+.for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM
+\t@DEVSW_FIXTURE@
+.endfor
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+\t@DEVSW_CHECK@
+.endfor
+
+check-rp2040-fileops: check-python
+\t${PYTHON} tests/rp2040_fileops/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+\t${PYTHON} tools/check_rp2040_fileops.py sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+.endfor
+
+check-rp2040-ioconf: check-python
+.for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM
+\t@IOCONF_FIXTURE@
+.endfor
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+\t@IOCONF_CHECK@
+.endfor
+
+check-rp2040-tty-roots: check-python
+\t${PYTHON} tests/rp2040_tty_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC_PSRAM
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+\t@TTY_ROOT_CHECK@
+.endfor
+
+check-rp2040-callout-roots: check-python
+\t@CALLOUT_FIXTURE@
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+\t@CALLOUT_CHECK@
+.endfor
 
 logged-build: check-python
 \t${PYTHON} tools/run_logged_gate.py --label rp2040-build-local \\
@@ -76,6 +159,47 @@ logged-check: check-python
 \t    --idle-timeout-seconds 600 --timeout-seconds 3600 \\
 \t    -- ${MAKE} MACHINE=rp2040
 """
+MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
+    "@SYSCALL_CHECK@",
+    "${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf",
+)
+MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
+    "@TTY_ROOT_CHECK@",
+    "${PYTHON} tools/check_rp2040_tty_roots.py --build-dir "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}",
+)
+MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
+    "@CALLOUT_FIXTURE@",
+    "${PYTHON} tests/rp2040_callout_roots/check.py --build-dir "
+    "sys/arch/rp2040/compile/PICOCALC_PSRAM",
+).replace(
+    "@CALLOUT_CHECK@",
+    "${PYTHON} tools/check_rp2040_callout_roots.py --build-dir "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}",
+)
+MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
+    "@IOCONF_FIXTURE@",
+    "${PYTHON} tests/rp2040_ioconf/check.py --kernel "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/ioconf.o",
+).replace(
+    "@IOCONF_CHECK@",
+    "${PYTHON} tools/check_rp2040_ioconf.py --object "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/ioconf.o "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf",
+)
+MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
+    "@DEVSW_FIXTURE@",
+    "${PYTHON} tests/rp2040_devsw/check.py --kernel "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/conf.o",
+).replace(
+    "@DEVSW_CHECK@",
+    "${PYTHON} tools/check_rp2040_devsw.py --object "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/conf.o "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf",
+)
 
 
 class BuildObservabilityTest(unittest.TestCase):
@@ -274,6 +398,164 @@ class BuildObservabilityTest(unittest.TestCase):
             with self.subTest(original=original):
                 source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
                 with self.assertRaisesRegex(ValueError, "check-run-logging"):
+                    observability.validate_makefile(source)
+
+    def test_matrix_harness_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            (" check-compiler-matrix-harness\n", "\n"),
+            ("${PYTHON} tests/compiler_matrix/check.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-compiler-matrix-harness"):
+                    observability.validate_makefile(source)
+
+    def test_callgraph_capture_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            (" check-callgraph-capture ", " "),
+            ("${PYTHON} tests/callgraph/check.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-callgraph-capture"):
+                    observability.validate_makefile(source)
+
+    def test_storage_delta_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            (" check-rp2040-storage-delta ", " "),
+            ("${PYTHON} tests/rp2040/storage_delta_test.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-rp2040-storage-delta"):
+                    observability.validate_makefile(source)
+
+    def test_execsw_cross_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            ("check-cross: check-cross-contracts check-cross-kernel",
+             "check-cross: check-cross-contracts"),
+            ("check-cross-kernel: check-rp2040-execsw", "check-cross-kernel:"),
+            ("${PYTHON} tests/rp2040_execsw/check.py", "true"),
+            ("${PYTHON} tools/check_rp2040_execsw.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-rp2040-execsw"):
+                    observability.validate_makefile(source)
+
+    def test_vectors_cross_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            (" check-rp2040-vectors ", " "),
+            ("${PYTHON} tests/rp2040_vectors/check.py", "true"),
+            ("${PYTHON} tools/check_rp2040_vectors.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-rp2040-vectors"):
+                    observability.validate_makefile(source)
+
+    def test_syscalls_cross_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            (" check-rp2040-syscalls ", " "),
+            ("${PYTHON} tests/rp2040_syscalls/check.py", "true"),
+            ("${PYTHON} tools/check_rp2040_syscalls.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-rp2040-syscalls"):
+                    observability.validate_makefile(source)
+
+    def test_devsw_cross_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            (" check-rp2040-devsw ", " "),
+            ("${PYTHON} tests/rp2040_devsw/check.py", "true"),
+            ("${PYTHON} tools/check_rp2040_devsw.py", "true"),
+            (".for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM",
+             ".for KERNEL_CONFIGURATION in PICO"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-rp2040-devsw"):
+                    observability.validate_makefile(source)
+
+    def test_fileops_cross_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            (" check-rp2040-fileops ", " "),
+            ("${PYTHON} tests/rp2040_fileops/check.py", "true"),
+            ("${PYTHON} tools/check_rp2040_fileops.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-rp2040-fileops"):
+                    observability.validate_makefile(source)
+
+    def test_ioconf_cross_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            (" check-rp2040-ioconf ", " "),
+            ("${PYTHON} tests/rp2040_ioconf/check.py", "true"),
+            ("${PYTHON} tools/check_rp2040_ioconf.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-rp2040-ioconf"):
+                    observability.validate_makefile(source)
+
+    def test_tty_roots_cross_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            (" check-rp2040-tty-roots ", " "),
+            ("${PYTHON} tests/rp2040_tty_roots/check.py", "true"),
+            ("${PYTHON} tools/check_rp2040_tty_roots.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-rp2040-tty-roots"):
+                    observability.validate_makefile(source)
+
+    def test_callout_roots_cross_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            (" check-rp2040-callout-roots ", " "),
+            ("${PYTHON} tests/rp2040_callout_roots/check.py", "true"),
+            ("${PYTHON} tools/check_rp2040_callout_roots.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-rp2040-callout-roots"):
+                    observability.validate_makefile(source)
+
+    def test_exec_dispatch_qemu_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            ("${MAKE} check-exec-dispatch-qemu", "true"),
+            ("${PYTHON} tests/kernel/exec_dispatch_qemu.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-exec-dispatch-qemu"):
+                    observability.validate_makefile(source)
+
+    def test_object_attribution_cross_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            ("CROSS_CONTRACT_GATES= check-compiler-object-attribution", "CROSS_CONTRACT_GATES="),
+            ("check-cross: check-cross-contracts check-cross-kernel",
+             "check-cross: check-cross-kernel"),
+            ("check-cross-contracts: ${CROSS_CONTRACT_GATES}", "check-cross-contracts:"),
+            ("${PYTHON} tests/compiler_matrix/object_attribution.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-compiler-object-attribution"):
                     observability.validate_makefile(source)
 
     def test_local_logged_entrypoints_are_required(self):

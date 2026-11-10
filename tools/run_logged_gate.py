@@ -30,6 +30,7 @@ PROCESS_EXIT_POLL_SECONDS = 0.1
 OWNERSHIP_LOCK_SECONDS = 1.0
 OWNERSHIP_PATH_ENV = "_DISCOBSD_EXECUTION_OWNERSHIP_PATH"
 OWNERSHIP_INVOCATION_ENV = "_DISCOBSD_EXECUTION_OWNERSHIP_INVOCATION"
+OWNERSHIP_ANCESTORS_ENV = "_DISCOBSD_EXECUTION_OWNERSHIP_ANCESTORS"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -539,6 +540,41 @@ def execution_ownership_for_args(args):
     return path
 
 
+def ancestor_execution_ownerships(ownership_path, invocation_id):
+    """Keep detached descendants visible to every enclosing product owner."""
+    raw = os.environ.get(OWNERSHIP_ANCESTORS_ENV, "[]")
+    try:
+        entries = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise ValueError("invalid ancestor ownership environment") from error
+    if not isinstance(entries, list):
+        raise ValueError("ancestor ownership environment must be a list")
+    inherited_path = os.environ.get(OWNERSHIP_PATH_ENV)
+    inherited_invocation = os.environ.get(OWNERSHIP_INVOCATION_ENV)
+    if (inherited_path is None) != (inherited_invocation is None):
+        raise ValueError("incomplete inherited execution ownership environment")
+    if inherited_path is not None:
+        entries.append({"path": inherited_path, "invocation_id": inherited_invocation})
+    current = Path(ownership_path).resolve() if ownership_path is not None else None
+    seen = {}
+    for entry in entries:
+        if (not isinstance(entry, dict) or set(entry) != {"path", "invocation_id"} or
+                not isinstance(entry["path"], str) or
+                not Path(entry["path"]).is_absolute() or
+                not isinstance(entry["invocation_id"], str) or not entry["invocation_id"]):
+            raise ValueError("invalid ancestor ownership entry")
+        path = Path(entry["path"]).resolve()
+        identifier = entry["invocation_id"]
+        if path == current:
+            if identifier != invocation_id:
+                raise ValueError("inherited ownership invocation mismatch")
+            continue
+        if path in seen and seen[path] != identifier:
+            raise ValueError("conflicting ancestor ownership invocations")
+        seen[path] = identifier
+    return [(path, identifier) for path, identifier in seen.items()]
+
+
 def make_coordination_paths_absolute(args):
     """Keep inherited lock receipts stable when descendants change directory."""
     for attribute in (
@@ -852,6 +888,7 @@ def run(args):
         )
         if ownership_invocation_id is None:
             raise ValueError("execution ownership requires an invocation id")
+    ancestors = ancestor_execution_ownerships(ownership_path, ownership_invocation_id)
     ownership_started = False
     ownership_finished = False
     if args.execution_lock is not None:
@@ -1003,11 +1040,20 @@ def run(args):
             if ownership_path is not None:
                 child_environment[OWNERSHIP_PATH_ENV] = str(ownership_path)
                 child_environment[OWNERSHIP_INVOCATION_ENV] = ownership_invocation_id
+            child_environment[OWNERSHIP_ANCESTORS_ENV] = json.dumps([
+                {"path": str(path), "invocation_id": identifier}
+                for path, identifier in ancestors
+            ])
             launch_reservation = None
+            ancestor_reservations = []
             try:
                 if ownership_path is not None:
                     launch_reservation = reserve_execution_launch(
                         ownership_path, ownership_invocation_id
+                    )
+                for ancestor_path, ancestor_id in ancestors:
+                    ancestor_reservations.append(
+                        reserve_execution_launch(ancestor_path, ancestor_id)
                     )
                 process = subprocess.Popen(
                     command,
@@ -1018,9 +1064,11 @@ def run(args):
                     pass_fds=make_jobserver_descriptors(),
                     env=child_environment,
                 )
-            except OSError as error:
+            except (OSError, ValueError, TimeoutError) as error:
                 if launch_reservation is not None:
                     cancel_inherited_execution_launch(launch_reservation)
+                for reservation in ancestor_reservations:
+                    cancel_inherited_execution_launch(reservation)
                 record.update(
                     state="error",
                     updated_at=utc_timestamp(),
@@ -1037,6 +1085,8 @@ def run(args):
 
             record["pid"] = process.pid
             try:
+                for reservation in ancestor_reservations:
+                    complete_inherited_execution_launch(reservation, process.pid)
                 complete_inherited_execution_launch(
                     launch_reservation, process.pid
                 )
@@ -1207,6 +1257,9 @@ def run(args):
                         ownership_invocation_id,
                         process.pid,
                     )
+                if process is not None and not group_exists(process.pid):
+                    for ancestor_path, ancestor_id in ancestors:
+                        unregister_execution_group(ancestor_path, ancestor_id, process.pid)
                 ownership_groups = []
                 ownership_pending_launches = []
                 ownership_survivors = []

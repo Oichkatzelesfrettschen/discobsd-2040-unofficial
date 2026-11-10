@@ -26,6 +26,211 @@
     },
     {
       "from": "check-host",
+      "to": "check-compiler-matrix-harness",
+      "kind": "HOST_GATES member"
+    },
+    {
+      "from": "check-host",
+      "to": "check-callgraph-capture",
+      "kind": "HOST_GATES member"
+    },
+    {
+      "from": "check-callgraph-capture",
+      "to": "tests/callgraph/check.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-host",
+      "to": "check-kernel-abi-contracts",
+      "kind": "HOST_GATES member"
+    },
+    {
+      "from": "check-host",
+      "to": "check-packed-exec-pair-summary",
+      "kind": "HOST_GATES member"
+    },
+    {
+      "from": "check-host",
+      "to": "check-rp2040-storage-delta",
+      "kind": "HOST_GATES member"
+    },
+    {
+      "from": "check-rp2040-storage-delta",
+      "to": "tests/rp2040/storage_delta_test.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-hsaout",
+      "to": "tests/hsaout/geometry_test.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-cross",
+      "to": "check-rp2040-load-span",
+      "kind": "CROSS_CONTRACT_GATES member"
+    },
+    {
+      "from": "check-cross",
+      "to": "check-rp2040-target-flags",
+      "kind": "CROSS_CONTRACT_GATES member"
+    },
+    {
+      "from": "check-cross",
+      "to": "check-compiler-object-attribution",
+      "kind": "CROSS_CONTRACT_GATES member"
+    },
+    {
+      "from": "check-compiler-object-attribution",
+      "to": "tests/compiler_matrix/object_attribution.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-cross-kernel",
+      "to": "check-rp2040-execsw",
+      "kind": "ordered prerequisite .WAIT"
+    },
+    {
+      "from": "check-cross-kernel",
+      "to": "check-rp2040-vectors",
+      "kind": "ordered prerequisite .WAIT"
+    },
+    {
+      "from": "check-cross-kernel",
+      "to": "check-rp2040-syscalls",
+      "kind": "ordered prerequisite .WAIT"
+    },
+    {
+      "from": "check-cross-kernel",
+      "to": "check-rp2040-devsw",
+      "kind": "ordered prerequisite .WAIT"
+    },
+    {
+      "from": "check-cross-kernel",
+      "to": "check-rp2040-fileops",
+      "kind": "ordered prerequisite .WAIT"
+    },
+    {
+      "from": "check-cross-kernel",
+      "to": "check-rp2040-ioconf",
+      "kind": "ordered prerequisite .WAIT"
+    },
+    {
+      "from": "check-cross-kernel",
+      "to": "check-rp2040-tty-roots",
+      "kind": "ordered prerequisite .WAIT"
+    },
+    {
+      "from": "check-cross-kernel",
+      "to": "check-rp2040-callout-roots",
+      "kind": "ordered prerequisite .WAIT"
+    },
+    {
+      "from": "check-rp2040-callout-roots",
+      "to": "tests/rp2040_callout_roots/check.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-rp2040-callout-roots",
+      "to": "tools/check_rp2040_callout_roots.py",
+      "kind": "recipe for each configured kernel"
+    },
+    {
+      "from": "check-rp2040-tty-roots",
+      "to": "tests/rp2040_tty_roots/check.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-rp2040-tty-roots",
+      "to": "tools/check_rp2040_tty_roots.py",
+      "kind": "recipe for each configured kernel"
+    },
+    {
+      "from": "check-rp2040-ioconf",
+      "to": "tests/rp2040_ioconf/check.py",
+      "kind": "recipe for PICO and PICOCALC_PSRAM kernels"
+    },
+    {
+      "from": "check-rp2040-ioconf",
+      "to": "tools/check_rp2040_ioconf.py",
+      "kind": "recipe for each configured kernel"
+    },
+    {
+      "from": "check-rp2040-fileops",
+      "to": "tests/rp2040_fileops/check.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-rp2040-fileops",
+      "to": "tools/check_rp2040_fileops.py",
+      "kind": "recipe for each configured kernel"
+    },
+    {
+      "from": "check-rp2040-devsw",
+      "to": "tests/rp2040_devsw/check.py",
+      "kind": "recipe for PICO and PICOCALC_PSRAM kernels"
+    },
+    {
+      "from": "check-rp2040-devsw",
+      "to": "tools/check_rp2040_devsw.py",
+      "kind": "recipe for each configured kernel"
+    },
+    {
+      "from": "check-rp2040-syscalls",
+      "to": "tests/rp2040_syscalls/check.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-rp2040-syscalls",
+      "to": "tools/check_rp2040_syscalls.py",
+      "kind": "recipe for each configured kernel"
+    },
+    {
+      "from": "check-rp2040-vectors",
+      "to": "tests/rp2040_vectors/check.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-rp2040-vectors",
+      "to": "tools/check_rp2040_vectors.py",
+      "kind": "recipe for each configured kernel"
+    },
+    {
+      "from": "check-rp2040-execsw",
+      "to": "tests/rp2040_execsw/check.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-rp2040-execsw",
+      "to": "tools/check_rp2040_execsw.py",
+      "kind": "recipe for each configured kernel"
+    },
+    {
+      "from": "check-qemu",
+      "to": "check-aeabi-copy-qemu",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-qemu",
+      "to": "check-ucall-qemu",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-qemu",
+      "to": "check-packed-exec-control-qemu",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-qemu",
+      "to": "check-exec-dispatch-qemu",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-exec-dispatch-qemu",
+      "to": "tests/kernel/exec_dispatch_qemu.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-host",
       "to": "check-cpio-host",
       "kind": "HOST_PROGRAM_GATES member"
     },
@@ -1955,6 +2160,44 @@
       ]
     },
     {
+      "id": "kernel.printf-log.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "prf_log_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "prf_log_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.printf-log.ilp32 -- ./prf_log_test",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.readlink.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "readlink_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "readlink_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.readlink.ilp32 -- ./readlink_test",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
       "id": "kernel.signal-auth.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",
@@ -1988,6 +2231,44 @@
         "rwuio_test32"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.pipe-rw.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "pipe_rw_contract32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "pipe_rw_contract32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.pipe-rw.ilp32 -- ./pipe_rw_contract32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.pipe-rw-single.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "pipe_rw_contract_single32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "pipe_rw_contract_single32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.pipe-rw-single.ilp32 -- ./pipe_rw_contract_single32",
       "aliases": [
         "check-kernel-ilp32"
       ]

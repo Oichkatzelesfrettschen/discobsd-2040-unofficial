@@ -52,7 +52,9 @@ ctlr_ioconf(FILE *fp)
     for (dp = dtab; dp != 0; dp = dp->d_next) {
         if (dp->d_type == SERVICE)
             continue;
-        fprintf(fp, "extern struct driver %sdriver;\n", dp->d_name);
+        fprintf(fp, "extern struct %s %sdriver;\n",
+            dp->d_type == CONTROLLER ? "controller_driver" : "driver",
+            dp->d_name);
     }
     fprintf(fp, "\nstruct conf_ctlr conf_ctlr_init[] = {\n");
     fprintf(fp, "\t/* driver,\tunit,\taddr,\t\tpri,\tflags,\talive */\n");
@@ -82,7 +84,7 @@ service_ioconf(FILE *fp)
 
     for (dp = dtab; dp != NULL; dp = dp->d_next) {
         if (dp->d_type == SERVICE)
-            fprintf(fp, "void %sattach(int);\n",
+            fprintf(fp, "void %sattach(void);\n",
                 dp->d_name);
     }
 

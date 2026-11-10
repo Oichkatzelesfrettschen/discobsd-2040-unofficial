@@ -642,7 +642,7 @@ startup(void)
  * Check whether the controller has been successfully initialized.
  */
 static int
-is_controller_alive(struct driver *driver, int unit)
+is_controller_alive(struct controller_driver *driver, int unit)
 {
 	struct conf_ctlr *ctlr;
 
@@ -1078,6 +1078,19 @@ memcpy(void *dst, const void *src, size_t nbytes)
 	bcopy(src, dst, nbytes);
 
 	return dst;
+}
+
+/* ARM EABI structure copies use the generic or four-byte-aligned entry. */
+void
+__aeabi_memcpy(void *dst, const void *src, size_t nbytes)
+{
+	bcopy(src, dst, nbytes);
+}
+
+void
+__aeabi_memcpy4(void *dst, const void *src, size_t nbytes)
+{
+	bcopy(src, dst, nbytes);
 }
 
 /*

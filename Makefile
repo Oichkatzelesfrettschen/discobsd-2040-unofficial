@@ -338,6 +338,99 @@ check-capacity-corpus:	check-python
 check-user-window-contract:	check-python
 		${PYTHON} tools/check_user_window_contract.py --self-test
 
+# The copied process-1 image must address its own path and argument vector
+# after relocation into the user window with either supported assembler.
+check-icode-relocation:	check-python
+		${PYTHON} tools/check_icode_relocation.py --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc
+
+check-rp2040-load-span: check-python
+		${PYTHON} tests/rp2040_load_span/check.py --tool-prefix ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}
+
+.PHONY: check-rp2040-load-span
+
+check-rp2040-execsw: check-python
+		${PYTHON} tests/rp2040_execsw/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+		${PYTHON} tools/check_rp2040_execsw.py sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+.endfor
+
+.PHONY: check-rp2040-execsw
+
+check-rp2040-vectors: check-python
+		${PYTHON} tests/rp2040_vectors/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+		${PYTHON} tools/check_rp2040_vectors.py sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+.endfor
+
+.PHONY: check-rp2040-vectors
+
+check-rp2040-syscalls: check-python
+		${PYTHON} tests/rp2040_syscalls/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+		${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+.endfor
+
+.PHONY: check-rp2040-syscalls
+
+check-rp2040-devsw: check-python
+.for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM
+		${PYTHON} tests/rp2040_devsw/check.py --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/conf.o
+.endfor
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+		${PYTHON} tools/check_rp2040_devsw.py --object sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/conf.o sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+.endfor
+
+.PHONY: check-rp2040-devsw
+
+check-rp2040-fileops: check-python
+		${PYTHON} tests/rp2040_fileops/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+		${PYTHON} tools/check_rp2040_fileops.py sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+.endfor
+
+.PHONY: check-rp2040-fileops
+
+check-rp2040-ioconf: check-python
+.for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM
+		${PYTHON} tests/rp2040_ioconf/check.py --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/ioconf.o
+.endfor
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+		${PYTHON} tools/check_rp2040_ioconf.py --object sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/ioconf.o sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+.endfor
+
+.PHONY: check-rp2040-ioconf
+
+check-rp2040-tty-roots: check-python
+		${PYTHON} tests/rp2040_tty_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC_PSRAM
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+		${PYTHON} tools/check_rp2040_tty_roots.py --build-dir sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}
+.endfor
+
+.PHONY: check-rp2040-tty-roots
+
+check-rp2040-callout-roots: check-python
+		${PYTHON} tests/rp2040_callout_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC_PSRAM
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+		${PYTHON} tools/check_rp2040_callout_roots.py --build-dir sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}
+.endfor
+
+.PHONY: check-rp2040-callout-roots
+
+check-rp2040-target-flags: check-python
+		${PYTHON} tests/compiler_matrix/target_flags.py \
+		    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    --readelf ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-readelf \
+		    --clang ${CLANG:Uclang:Q}
+
+.PHONY: check-rp2040-target-flags
+
+check-compiler-object-attribution: check-python
+		${PYTHON} tests/compiler_matrix/object_attribution.py \
+		    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    --objdump ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-objdump
+
+.PHONY: check-compiler-object-attribution
+
 # tools/verify_rp2040_swapram_link.sh judges every linked kernel; its verdicts
 # are calibrated here on synthetic nm and objdump listings, two that pass and
 # thirteen mutations that each fail with the diagnostic naming its defect.
@@ -381,6 +474,16 @@ check-fsck-inode-range:
 # so the gate measures the code the board runs.
 check-kernel:
 		${MAKE} -C tests/kernel check
+
+# Verify callback types and dispatch against the production architecture sources.
+check-kernel-abi-contracts: check-python
+		${PYTHON} tests/kernel/driver_callback_types.py --compiler ${HOST_CC:Ucc:Q}
+		${PYTHON} tests/kernel/driver_dispatch.py --compiler ${HOST_CC:Ucc:Q}
+		${PYTHON} tests/kernel/service_dispatch.py
+		${PYTHON} tests/kernel/ucall_contract.py
+		${PYTHON} tests/kernel/aeabi_memcpy4.py
+
+.PHONY: check-kernel-abi-contracts
 
 # The ARM libc wrapper is a cross-target contract. Keep it outside the host
 # kernel aggregate so the required ILP32 execution job needs only its declared
@@ -817,9 +920,10 @@ check-crc32:	check-python
 
 # The packed a.out container: the loader's stream loop and the packer
 # against header and stream corruption, truncation and forged lengths.
-check-hsaout:
+check-hsaout: check-python
 		sh tools/verify_packed_root_configs.sh
 		${MAKE} -C tests/hsaout check
+		${PYTHON} tests/hsaout/geometry_test.py --tool ${TOOLBINDIR:Q}/hsaout
 
 # The port's heatshrink decoder against the vendored decoder over every
 # a.out in the distribution tree, random data, truncations and corrupted
@@ -845,6 +949,26 @@ check-run-logging: check-python
 		${PYTHON} tools/storage_counter_driver_test.py
 
 .PHONY: check-run-logging
+
+check-compiler-matrix-harness: check-python
+		${PYTHON} tests/compiler_matrix/check.py
+
+.PHONY: check-compiler-matrix-harness
+
+check-callgraph-capture: check-python
+		${PYTHON} tests/callgraph/check.py
+
+.PHONY: check-callgraph-capture
+
+check-packed-exec-pair-summary: check-python
+		${PYTHON} tests/rp2040/exec_hsaout/paired_summary_test.py
+
+.PHONY: check-packed-exec-pair-summary
+
+check-rp2040-storage-delta: check-python
+		${PYTHON} tests/rp2040/storage_delta_test.py
+
+.PHONY: check-rp2040-storage-delta
 
 check-battlestar-generation: check-python
 		${PYTHON} tools/check_battlestar_generation.py --root ${TOPSRC}
@@ -1092,10 +1216,10 @@ check-elf2aout:	tools
 # and host-package tiers compile no C, and bin/sh/tests/posix-sh.sh builds
 # the shell against the host's headers, so those two reach nothing under
 # include.
-HOST_GATES=	check-architecture-isolation \
+HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed-exec-pair-summary check-rp2040-storage-delta \
 		check-agent-instructions check-uf2-validator \
 		check-kernel-headroom-validator \
-		check-run-logging check-battlestar-generation \
+		check-run-logging check-compiler-matrix-harness check-callgraph-capture check-battlestar-generation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
 		check-dpucp-donor-ledger check-dpucp-board-acceptance \
 		check-c17-source-denominator \
@@ -1138,7 +1262,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
-CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
+CROSS_CONTRACT_GATES=	check-warning-policy-cross check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \
@@ -1284,10 +1408,9 @@ check-fs-profiles:	check-python .WAIT
 
 check-host:	check-python .WAIT symlinks .WAIT ${HOST_GATES} ${HOST_PROGRAM_GATES}
 
-# sys/kern/subr_prf.c walks its arguments as four-byte slots, so the kernel's
-# own printf is faithful only at ILP32. The gate is an ordinary 32-bit
-# userspace binary, not a virtual machine: what it needs is the width of a
-# pointer. A host that cannot build 32-bit says so and skips.
+# The kernel formatter and neighboring contracts use target-width integer and
+# pointer assumptions. The gate runs them in a 32-bit userspace binary. A host
+# that cannot build 32-bit says so and skips.
 check-kernel-ilp32:
 		${MAKE} -C tests/kernel check-ilp32
 
@@ -1359,7 +1482,10 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-console-c17-cross .WAIT \
 		check-ptrace-libc-abi .WAIT \
 		check-hsaout .WAIT check-hsx-decoder .WAIT check-flash-swap .WAIT \
-		check-rp2040-shutdown-cross .WAIT check-storage-counters .WAIT \
+		check-rp2040-shutdown-cross .WAIT check-storage-counters .WAIT check-rp2040-execsw .WAIT \
+		check-rp2040-vectors .WAIT check-rp2040-syscalls .WAIT check-rp2040-devsw .WAIT \
+		check-rp2040-fileops .WAIT check-rp2040-ioconf .WAIT check-rp2040-tty-roots .WAIT \
+		check-rp2040-callout-roots .WAIT \
 		check-kernel-headroom
 
 check-cross-assembler:
@@ -1380,8 +1506,40 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 # tree's libc, crt0 and boot ROM float glue.
 # tests/qemu_cpu_model first proves that the ARMv6-M CPU model the libc
 # contracts run on faults on Thumb-2 and unaligned accesses.
+check-aeabi-copy-qemu: check-python
+		${PYTHON} tests/kernel/aeabi_copy_qemu.py \
+		    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    --clang ${CLANG:Uclang:Q}
+
+.PHONY: check-aeabi-copy-qemu
+
+check-ucall-qemu: check-python
+		${PYTHON} tests/kernel/ucall_qemu.py \
+		    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    --clang ${CLANG:Uclang:Q}
+
+.PHONY: check-ucall-qemu
+
+check-packed-exec-control-qemu: check-python
+		${PYTHON} tests/kernel/packed_exec_control.py \
+		    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    --clang ${CLANG:Uclang:Q}
+
+.PHONY: check-packed-exec-control-qemu
+
+check-exec-dispatch-qemu: check-python
+		${PYTHON} tests/kernel/exec_dispatch_qemu.py \
+		    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    --clang ${CLANG:Uclang:Q}
+
+.PHONY: check-exec-dispatch-qemu
+
 check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
+		${MAKE} check-aeabi-copy-qemu
+		${MAKE} check-ucall-qemu
+		${MAKE} check-packed-exec-control-qemu
+		${MAKE} check-exec-dispatch-qemu
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
@@ -1517,7 +1675,7 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-dpucp-board-acceptance check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
+.PHONY:		check-storage-counters check-storage-correctness check-python check-icode-relocation check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-dpucp-board-acceptance check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \

@@ -244,6 +244,191 @@ def validate_makefile(source):
     )
     if host_gates is None or "check-run-logging" not in host_gates.group(1).split():
         raise ValueError("check-run-logging is absent from HOST_GATES")
+    if "check-compiler-matrix-harness" not in host_gates.group(1).split():
+        raise ValueError("check-compiler-matrix-harness is absent from HOST_GATES")
+    matrix_target = re.search(
+        r"^check-compiler-matrix-harness:\s*check-python\s*$\n((?:\t.*\n?)+)",
+        source,
+        re.MULTILINE,
+    )
+    if (matrix_target is None or
+            normalized_command(matrix_target.group(1)) !=
+            "${PYTHON} tests/compiler_matrix/check.py"):
+        raise ValueError("check-compiler-matrix-harness recipe differs")
+    if "check-callgraph-capture" not in host_gates.group(1).split():
+        raise ValueError("check-callgraph-capture is absent from HOST_GATES")
+    graph_target = re.search(
+        r"^check-callgraph-capture:\s*check-python\s*$\n((?:\t.*\n?)+)",
+        source,
+        re.MULTILINE,
+    )
+    if (graph_target is None or
+            normalized_command(graph_target.group(1)) != "${PYTHON} tests/callgraph/check.py"):
+        raise ValueError("check-callgraph-capture recipe differs")
+    if "check-rp2040-storage-delta" not in host_gates.group(1).split():
+        raise ValueError("check-rp2040-storage-delta is absent from HOST_GATES")
+    storage_target = re.search(
+        r"^check-rp2040-storage-delta:\s*check-python\s*$\n((?:\t.*\n?)+)",
+        source,
+        re.MULTILINE,
+    )
+    if (storage_target is None or normalized_command(storage_target.group(1)) !=
+            "${PYTHON} tests/rp2040/storage_delta_test.py"):
+        raise ValueError("check-rp2040-storage-delta recipe differs")
+    cross = re.search(r"^check-cross:((?:[^\n]*\\\n)*[^\n]*)", source, re.MULTILINE)
+    if cross is None or "check-cross-kernel" not in cross.group(1).replace("\\\n", " ").split():
+        raise ValueError("check-rp2040-execsw is unreachable from check-cross")
+    if "check-cross-contracts" not in cross.group(1).replace("\\\n", " ").split():
+        raise ValueError("check-compiler-object-attribution is unreachable from check-cross")
+    contract_gates = re.search(r"^CROSS_CONTRACT_GATES=((?:[^\n]*\\\n)*[^\n]*)",
+                               source, re.MULTILINE)
+    if (contract_gates is None or "check-compiler-object-attribution" not in
+            contract_gates.group(1).replace("\\\n", " ").split() or
+            re.search(r"^check-cross-contracts:\s*\$\{CROSS_CONTRACT_GATES\}\s*$",
+                      source, re.MULTILINE) is None):
+        raise ValueError("check-compiler-object-attribution is absent from cross contracts")
+    object_target = re.search(
+        r"^check-compiler-object-attribution:\s*check-python\s*$\n((?:\t.*\n?)+)",
+        source, re.MULTILINE,
+    )
+    object_command = (
+        "${PYTHON} tests/compiler_matrix/object_attribution.py "
+        "--gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc "
+        "--objdump ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-objdump"
+    )
+    if object_target is None or normalized_command(object_target.group(1)) != object_command:
+        raise ValueError("check-compiler-object-attribution recipe differs")
+    cross_kernel = re.search(r"^check-cross-kernel:((?:[^\n]*\\\n)*[^\n]*)",
+                             source, re.MULTILINE)
+    if (cross_kernel is None or
+            "check-rp2040-execsw" not in cross_kernel.group(1).replace("\\\n", " ").split()):
+        raise ValueError("check-rp2040-execsw is absent from check-cross-kernel")
+    execsw_recipe = (
+        "check-rp2040-execsw: check-python\n"
+        "\t${PYTHON} tests/rp2040_execsw/check.py --kernel "
+        "sys/arch/rp2040/compile/PICO/unix.elf\n"
+        ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
+        "\t${PYTHON} tools/check_rp2040_execsw.py "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf\n"
+        ".endfor"
+    )
+    normalized_source = re.sub(r"^\t+", "\t", source, flags=re.MULTILINE)
+    if re.search(r"^" + re.escape(execsw_recipe) + r"$", normalized_source, re.MULTILINE) is None:
+        raise ValueError("check-rp2040-execsw recipe differs")
+    if "check-rp2040-vectors" not in cross_kernel.group(1).replace("\\\n", " ").split():
+        raise ValueError("check-rp2040-vectors is absent from check-cross-kernel")
+    vectors_recipe = (
+        "check-rp2040-vectors: check-python\n"
+        "\t${PYTHON} tests/rp2040_vectors/check.py --kernel "
+        "sys/arch/rp2040/compile/PICO/unix.elf\n"
+        ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
+        "\t${PYTHON} tools/check_rp2040_vectors.py "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf\n"
+        ".endfor"
+    )
+    if re.search(r"^" + re.escape(vectors_recipe) + r"$", normalized_source, re.MULTILINE) is None:
+        raise ValueError("check-rp2040-vectors recipe differs")
+    if "check-rp2040-syscalls" not in cross_kernel.group(1).replace("\\\n", " ").split():
+        raise ValueError("check-rp2040-syscalls is absent from check-cross-kernel")
+    syscalls_recipe = (
+        "check-rp2040-syscalls: check-python\n"
+        "\t${PYTHON} tests/rp2040_syscalls/check.py --kernel "
+        "sys/arch/rp2040/compile/PICO/unix.elf\n"
+        ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
+        "\t${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf\n"
+        ".endfor"
+    )
+    if re.search(r"^" + re.escape(syscalls_recipe) + r"$", normalized_source, re.MULTILINE) is None:
+        raise ValueError("check-rp2040-syscalls recipe differs")
+    if "check-rp2040-devsw" not in cross_kernel.group(1).replace("\\\n", " ").split():
+        raise ValueError("check-rp2040-devsw is absent from check-cross-kernel")
+    devsw_recipe = (
+        "check-rp2040-devsw: check-python\n"
+        ".for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM\n"
+        "\t${PYTHON} tests/rp2040_devsw/check.py --kernel "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/conf.o\n"
+        ".endfor\n"
+        ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
+        "\t${PYTHON} tools/check_rp2040_devsw.py --object "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/conf.o "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf\n"
+        ".endfor"
+    )
+    if re.search(r"^" + re.escape(devsw_recipe) + r"$", normalized_source, re.MULTILINE) is None:
+        raise ValueError("check-rp2040-devsw recipe differs")
+    if "check-rp2040-fileops" not in cross_kernel.group(1).replace("\\\n", " ").split():
+        raise ValueError("check-rp2040-fileops is absent from check-cross-kernel")
+    fileops_recipe = (
+        "check-rp2040-fileops: check-python\n"
+        "\t${PYTHON} tests/rp2040_fileops/check.py --kernel "
+        "sys/arch/rp2040/compile/PICO/unix.elf\n"
+        ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
+        "\t${PYTHON} tools/check_rp2040_fileops.py "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf\n"
+        ".endfor"
+    )
+    if re.search(r"^" + re.escape(fileops_recipe) + r"$", normalized_source, re.MULTILINE) is None:
+        raise ValueError("check-rp2040-fileops recipe differs")
+    if "check-rp2040-ioconf" not in cross_kernel.group(1).replace("\\\n", " ").split():
+        raise ValueError("check-rp2040-ioconf is absent from check-cross-kernel")
+    ioconf_recipe = (
+        "check-rp2040-ioconf: check-python\n"
+        ".for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM\n"
+        "\t${PYTHON} tests/rp2040_ioconf/check.py --kernel "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/ioconf.o\n"
+        ".endfor\n"
+        ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
+        "\t${PYTHON} tools/check_rp2040_ioconf.py --object "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/ioconf.o "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf\n"
+        ".endfor"
+    )
+    if re.search(r"^" + re.escape(ioconf_recipe) + r"$", normalized_source, re.MULTILINE) is None:
+        raise ValueError("check-rp2040-ioconf recipe differs")
+    if "check-rp2040-tty-roots" not in cross_kernel.group(1).replace("\\\n", " ").split():
+        raise ValueError("check-rp2040-tty-roots is absent from check-cross-kernel")
+    tty_recipe = (
+        "check-rp2040-tty-roots: check-python\n"
+        "\t${PYTHON} tests/rp2040_tty_roots/check.py --build-dir "
+        "sys/arch/rp2040/compile/PICOCALC_PSRAM\n"
+        ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
+        "\t${PYTHON} tools/check_rp2040_tty_roots.py --build-dir "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}\n"
+        ".endfor"
+    )
+    if re.search(r"^" + re.escape(tty_recipe) + r"$", normalized_source, re.MULTILINE) is None:
+        raise ValueError("check-rp2040-tty-roots recipe differs")
+    if "check-rp2040-callout-roots" not in cross_kernel.group(1).replace("\\\n", " ").split():
+        raise ValueError("check-rp2040-callout-roots is absent from check-cross-kernel")
+    callout_recipe = (
+        "check-rp2040-callout-roots: check-python\n"
+        "\t${PYTHON} tests/rp2040_callout_roots/check.py --build-dir "
+        "sys/arch/rp2040/compile/PICOCALC_PSRAM\n"
+        ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
+        "\t${PYTHON} tools/check_rp2040_callout_roots.py --build-dir "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}\n"
+        ".endfor"
+    )
+    if re.search(r"^" + re.escape(callout_recipe) + r"$", normalized_source, re.MULTILINE) is None:
+        raise ValueError("check-rp2040-callout-roots recipe differs")
+    qemu_target = re.search(r"^check-qemu:[^\n]*\n((?:\t.*\n?)+)", source, re.MULTILINE)
+    if (qemu_target is None or "${MAKE} check-exec-dispatch-qemu" not in
+            [line.strip() for line in qemu_target.group(1).splitlines()]):
+        raise ValueError("check-exec-dispatch-qemu is absent from check-qemu")
+    dispatch_target = re.search(
+        r"^check-exec-dispatch-qemu:\s*check-python\s*$\n((?:\t.*\n?)+)",
+        source, re.MULTILINE,
+    )
+    dispatch_command = (
+        "${PYTHON} tests/kernel/exec_dispatch_qemu.py "
+        "--gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc "
+        "--clang ${CLANG:Uclang:Q}"
+    )
+    if dispatch_target is None or normalized_command(dispatch_target.group(1)) != dispatch_command:
+        raise ValueError("check-exec-dispatch-qemu recipe differs")
     target = re.search(
         r"^check-run-logging:\s*check-python\s*$\n((?:\t.*\n?)+)",
         source,

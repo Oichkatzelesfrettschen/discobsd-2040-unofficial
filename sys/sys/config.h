@@ -41,9 +41,17 @@
  * can support multiple attached devices or a device can be attached to
  * different types of controllers.
  */
+struct conf_ctlr;
+struct conf_device;
+
+struct controller_driver {
+    const char  *d_name;        /* driver name for vmstat and iostat */
+    int         (*d_init)(struct conf_ctlr *);
+};
+
 struct driver {
     const char  *d_name;        /* driver name for vmstat and iostat */
-    int         (*d_init)();    /* routine to probe & initialize device */
+    int         (*d_init)(struct conf_device *);
 };
 
 /*
@@ -51,7 +59,7 @@ struct driver {
  * and is partially initialized in "ioconf.c" by the 'config' program.
  */
 struct conf_ctlr {
-    struct driver   *ctlr_driver;   /* controller driver routines */
+    struct controller_driver *ctlr_driver; /* controller driver routines */
     int             ctlr_unit;      /* controller number */
     char            *ctlr_addr;     /* address of controller */
     int             ctlr_pri;       /* interrupt priority */
@@ -66,7 +74,7 @@ struct conf_ctlr {
  */
 struct conf_device {
     struct driver   *dev_driver;    /* device driver routines */
-    struct driver   *dev_cdriver;   /* interface driver routines */
+    struct controller_driver *dev_cdriver; /* interface driver routines */
     int             dev_unit;       /* device unit number */
     int             dev_ctlr;       /* device interface number */
     int             dev_drive;      /* device address number */
@@ -83,7 +91,7 @@ struct conf_device {
  * This structure describes optional software services.
  */
 struct conf_service {
-    void        (*svc_attach)();    /* routine to initialize service */
+    void        (*svc_attach)(void); /* routine to initialize service */
 };
 
 /* Define special unit types used by the config program */

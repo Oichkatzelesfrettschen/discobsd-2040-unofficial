@@ -97,6 +97,11 @@ SECTIONS {
 		_edata = .;
 	} > RAM :ramfunc
 
+	/* Explicit AT() placement does not advance the FLASH region allocator. */
+	ASSERT(LOADADDR(.ramfunc) + SIZEOF(.ramfunc) <=
+	    ORIGIN(FLASH) + LENGTH(FLASH),
+	    "kernel flash load image exceeds FLASH")
+
 	.bss : {
 		. = ALIGN(8);
 		__bss_start__ = .;

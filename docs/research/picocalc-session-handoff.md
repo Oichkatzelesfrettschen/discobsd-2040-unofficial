@@ -485,8 +485,16 @@ plain main image. The board was later recovered and is covered by the 2026-11-08
    - **Raw:** 25.74, 27.41, 26.99, 26.74, 26.54 and 26.15 s; mean 26.60 s, sd 0.60.
    - **System time:** packed stays at 6.8 s while raw ranges from 5.8 to 12.1 s.
    - **Packed minus raw:** the paired difference is -4 ms per exec with a standard error of 13 ms.
+   - **Sampling interval:** the six pair differences have a mean of -4.25 ms
+     per exec and a two-sided 95% paired Student t interval of approximately
+     -37.3 to +28.8 ms per exec. The interval assumes independent paired
+     differences and excludes systematic timing and console errors.
    - **Prediction failed:** the prediction was the 2026-11-07 38 ms within two standard errors. The result is about 2.8 combined standard errors from it, so the packed premium is not resolved at this sample size.
-   - **`-Os` cost:** both arms are about 30 percent slower than on 2026-11-07, at 1.33 s per exec against 1.02 s. The kernel's move to `-Os` lies between the two runs, so this is the measured cost of `-Os` on the fork, swap and exec path. The new timer adds one comparison per tick.
+   - **Across-run comparison:** both arms are about 30 percent slower than on
+     2026-11-07, at 1.33 s per exec against 1.02 s. The kernel configuration
+     and other conditions differ across the runs, so the comparison does not
+     isolate the cost of `-Os` on fork, swap and exec. The new timer adds one
+     comparison per tick.
 4. **Clock catch-up, with the final script (`board_clock_catchup.py`).**
    - **Shipped kernel:** 786,432 bytes were written in 287.5 s (at least 192 sectors erased, 8.45 s lost without catch-up). The excess over the 356.0 s idle control is +0.138 .. +0.547 s, inside the 0.845 s tolerance: PASS.
    - **Calibration kernel:** INCONCLUSIVE (exit 2). Its baseline's 40 date lines have no common point (28963.970 .. 28945.557 s), because the clock lost about 18 s within the loop, as on 2026-11-07.

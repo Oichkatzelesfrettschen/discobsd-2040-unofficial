@@ -13,6 +13,7 @@
 #include <sys/buf.h>
 #include <sys/map.h>
 #include <sys/syslog.h>
+#include <sys/vmsystm.h>
 
 #include <machine/frame.h>
 #include <machine/scb.h>
@@ -85,6 +86,13 @@ sendsig(sig_t p, int sig, long mask)
 			return;
 		}
 		if (u.u_procp->p_ssize < USER_TOP(u.u_procp) - (u_int)sfp) {
+				if (swap_exchange_resize(u.u_procp,
+				    u.u_procp->p_dsize,
+				    USER_TOP(u.u_procp) - (u_int)sfp,
+				    u.u_procp->p_tsize) != 0) {
+					fatalsig(SIGILL);
+					return;
+				}
 			u.u_procp->p_ssize = USER_TOP(u.u_procp) - (u_int)sfp;
 			u.u_procp->p_saddr = (u_int)sfp;
 			u.u_ssize = u.u_procp->p_ssize;

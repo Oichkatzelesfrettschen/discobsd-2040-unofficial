@@ -8,8 +8,9 @@
  * QSPI NOR -- a 45 ms sector erase plus page programs -- so a 33 KB image
  * costs about half a second and wears the part. This tier compresses the
  * same image with heatshrink into a kernel RAM pool and keeps it there when
- * it fits; kern/vm_swap.c falls through to the flash path unchanged when it
- * does not.
+ * both the compressed bytes and an aligned flash departure route fit;
+ * kern/vm_swap.c falls through to the flash path when either reservation
+ * fails.
  *
  * The option SWAPRAM selects the tier and pulls swapram.c, swapram_pool.c,
  * and the heatshrink codec into the build (arch/rp2040/conf/files.rp2040).
@@ -91,20 +92,27 @@ struct proc;
 
 /*
  * swapram_reserve counts the compressed data and stack lengths, owns the
- * whole slot on success and returns 0 when the caller must try flash.
+ * whole slot and an aligned flash departure route on success, and returns 0
+ * when either resource is unavailable and the caller must try flash.
+ * swapram_reserve_route admits a resident using the route it already owns.
  * swapram_put writes one segment into the slot; swapram_commit trims its
  * unused tail and marks the image present. swapram_cancel returns a slot
- * without reading its bytes. swapram_out wraps reservation with attempt
+ * and its route without reading image bytes. swapram_out wraps reservation with attempt
  * accounting; vm_swap accounts only after complete backing admission so a
  * refused fork preserves diagnostics too. swapin calls swapram_in for any
- * process swapram_present reports on.
+ * process swapram_present reports on. swapram_route_take transfers a live
+ * pool image's departure route to the resident ownership record before
+ * swapram_in releases the compressed bytes.
  */
 int swapram_out(struct proc *, caddr_t, size_t, caddr_t, size_t, size_t);
 int swapram_reserve(struct proc *, caddr_t, size_t, caddr_t, size_t, size_t);
+int swapram_reserve_route(struct proc *, caddr_t, size_t, caddr_t, size_t,
+    size_t, size_t, size_t);
 void swapram_put(struct proc *, int, caddr_t, size_t);
 void swapram_commit(struct proc *);
 void swapram_cancel(struct proc *);
 int swapram_present(struct proc *);
+int swapram_route_take(struct proc *, size_t *, size_t *);
 int swapram_uarea_prefix(struct proc *, void *, unsigned int);
 void swapram_in(struct proc *, caddr_t, caddr_t, caddr_t);
 void swapram_admit(int);

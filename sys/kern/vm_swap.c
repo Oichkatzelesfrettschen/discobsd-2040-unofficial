@@ -32,6 +32,24 @@ swaptext (register struct proc *p)
     return p->p_tsize;
 }
 
+static struct swap_exchange_state swap_exchange;
+
+static size_t
+swap_image_span_geometry (size_t data_size, size_t stack_size,
+    size_t clean_text)
+{
+    size_t blocks;
+
+    if (clean_text > data_size)
+        clean_text = 0;
+    blocks = btod (data_size - clean_text) + btod (stack_size) + btod (USIZE);
+#ifdef SWAP_IMAGE_ALIGN
+    return (blocks + SWAP_IMAGE_ALIGN - 1) & ~(SWAP_IMAGE_ALIGN - 1);
+#else
+    return blocks;
+#endif
+}
+
 #ifdef SWAP_IMAGE_ALIGN
 #define SWAP_IMAGE_WRITE (B_WRITE | B_SWAPIMAGE)
 #else
@@ -42,26 +60,15 @@ swaptext (register struct proc *p)
 size_t
 swap_image_span (struct proc *p)
 {
-    size_t blocks = btod (p->p_dsize - swaptext (p)) +
-        btod (p->p_ssize) + btod (USIZE);
-
-#ifdef SWAP_IMAGE_ALIGN
-    return (blocks + SWAP_IMAGE_ALIGN - 1) & ~(SWAP_IMAGE_ALIGN - 1);
-#else
-    return blocks;
-#endif
+    return swap_image_span_geometry (p->p_dsize, p->p_ssize, swaptext (p));
 }
 
-/* Refusal changes neither the owner nor the map, cursor or image bytes. */
-int
-swap_image_reserve (struct swap_image_reservation *reservation,
+static void
+swap_image_reservation_init (struct swap_image_reservation *reservation,
     struct proc *owner, struct proc *source, u_int odata, u_int ostack)
 {
-#ifdef SWAP_IMAGE_ALIGN
-    size_t next = swapnext;
-#endif
-
     bzero (reservation, sizeof (*reservation));
+    reservation->owner = owner;
     reservation->text = swaptext (source);
     reservation->span = swap_image_span (source);
     reservation->data_blocks = btod (source->p_dsize - reservation->text);
@@ -73,6 +80,205 @@ swap_image_reserve (struct swap_image_reservation *reservation,
     reservation->data = odata > reservation->text ?
         odata - reservation->text : 0;
     reservation->stack = ostack;
+}
+
+/*
+ * Move the resident into the pool with its route when compression admits it,
+ * or consume the route as flash backing.  A process returning from SwapRAM
+ * transfers its separately owned route before the old resident leaves.
+ */
+int
+swap_exchange_switch (struct swap_image_reservation *reservation,
+    struct proc *outgoing, struct proc *incoming, int pool_backed)
+{
+#ifdef SWAP_IMAGE_ALIGN
+    size_t incoming_span = 0;
+    size_t incoming_base = 0;
+    int spl;
+
+    spl = splhigh ();
+    if (outgoing != NULL) {
+        swap_image_reservation_init (reservation, outgoing, outgoing,
+            X_OLDSIZE, X_OLDSIZE);
+        if (swap_exchange.owner != outgoing || swap_exchange.base == 0 ||
+            swap_exchange.span < reservation->span)
+            panic ("swap exchange: departure owner");
+    } else
+        bzero (reservation, sizeof (*reservation));
+
+    if (pool_backed) {
+#ifdef SWAPRAM
+        incoming_span = swap_image_span (incoming);
+        if (! swapram_route_take (incoming, &incoming_base,
+            &incoming_span)) {
+            splx (spl);
+            return ENOMEM;
+        }
+        if (incoming_span < swap_image_span (incoming))
+            panic ("swap exchange: short pool route");
+#else
+        panic ("swap exchange: pool without SwapRAM");
+#endif
+    }
+
+#ifndef SWAPRAM
+    (void) incoming;
+#endif
+
+    if (outgoing != NULL) {
+#ifdef SWAPRAM
+        if (swapram_reserve_route (outgoing,
+            (caddr_t) (outgoing->p_daddr + reservation->text),
+            reservation->data, (caddr_t) outgoing->p_saddr,
+            reservation->stack, USIZE, swap_exchange.base,
+            swap_exchange.span))
+            reservation->tier = SWAP_IMAGE_RAM;
+        else
+#endif
+        {
+            reservation->addr[0] = swap_exchange.base;
+            reservation->addr[1] = reservation->addr[0] +
+                reservation->data_blocks;
+            reservation->addr[2] = reservation->addr[1] +
+                reservation->stack_blocks;
+            reservation->tier = SWAP_IMAGE_FLASH;
+            if (swap_exchange.span > reservation->span)
+                mfree (swapmap, swap_exchange.span - reservation->span,
+                    swap_exchange.base + reservation->span);
+        }
+        reservation->state = SWAP_IMAGE_RESERVED;
+    }
+
+    swap_exchange.owner = pool_backed ? incoming : NULL;
+    swap_exchange.base = pool_backed ? incoming_base : 0;
+    swap_exchange.span = incoming_span;
+    splx (spl);
+    return 0;
+#else
+    (void) incoming;
+    (void) pool_backed;
+    if (outgoing == NULL) {
+        bzero (reservation, sizeof (*reservation));
+        return 0;
+    }
+    return swap_image_reserve (reservation, outgoing, outgoing,
+        X_OLDSIZE, X_OLDSIZE);
+#endif
+}
+
+#ifdef SWAP_IMAGE_ALIGN
+/* Consume free blocks that directly follow the resident's owned extent. */
+static int
+swap_exchange_extend (size_t required)
+{
+    struct mapent *entry;
+    size_t end, extra;
+
+    end = swap_exchange.base + swap_exchange.span;
+    extra = required - swap_exchange.span;
+    for (entry = swapmap->m_map;
+        entry->m_size != 0 && entry->m_addr < end; entry++)
+        continue;
+    if (entry->m_size < extra || entry->m_addr != end)
+        return 0;
+    entry->m_addr += extra;
+    entry->m_size -= extra;
+    if (entry->m_size == 0)
+        do {
+            *entry = entry[1];
+        } while ((entry++)->m_size != 0);
+    swap_exchange.span = required;
+    return 1;
+}
+#endif
+
+void
+swap_exchange_restore (const struct swap_exchange_state *previous)
+{
+    int spl;
+
+    spl = splhigh ();
+    swap_exchange = *previous;
+    splx (spl);
+}
+
+/* Geometry changes become visible only after their departure route exists. */
+int
+swap_exchange_resize (struct proc *owner, size_t data_size,
+    size_t stack_size, size_t clean_text)
+{
+#ifdef SWAP_IMAGE_ALIGN
+    size_t addresses[3], next, span;
+    size_t required;
+    int spl;
+
+    required = swap_image_span_geometry (data_size, stack_size, clean_text);
+    spl = splhigh ();
+    if (swap_exchange.owner != owner) {
+        splx (spl);
+        return ENOMEM;
+    }
+    if (swap_exchange.span >= required) {
+        splx (spl);
+        return 0;
+    }
+    if (swap_exchange_extend (required)) {
+        splx (spl);
+        return 0;
+    }
+    next = swapnext;
+    span = malloc3_contiguous_next (swapmap, required, 0, 0,
+        SWAP_IMAGE_ALIGN, &next, addresses);
+    if (span == 0) {
+        splx (spl);
+        return ENOMEM;
+    }
+    mfree (swapmap, swap_exchange.span, swap_exchange.base);
+    swap_exchange.base = addresses[0];
+    swap_exchange.span = span;
+    swapnext = next;
+    swap_cursor_publish (swapnext);
+    splx (spl);
+    return 0;
+#else
+    (void) owner;
+    (void) data_size;
+    (void) stack_size;
+    (void) clean_text;
+    return 0;
+#endif
+}
+
+void
+swap_exchange_release (struct proc *owner)
+{
+#ifdef SWAP_IMAGE_ALIGN
+    int spl;
+
+    spl = splhigh ();
+    if (swap_exchange.owner != owner)
+        panic ("swap exchange: release owner");
+    mfree (swapmap, swap_exchange.span, swap_exchange.base);
+    swap_exchange.owner = NULL;
+    swap_exchange.base = 0;
+    swap_exchange.span = 0;
+    splx (spl);
+#else
+    (void) owner;
+#endif
+    wakeup ((caddr_t) &runin);
+}
+
+/* Refusal changes neither the owner nor the map, cursor or image bytes. */
+int
+swap_image_reserve (struct swap_image_reservation *reservation,
+    struct proc *owner, struct proc *source, u_int odata, u_int ostack)
+{
+#ifdef SWAP_IMAGE_ALIGN
+    size_t next = swapnext;
+#endif
+
+    swap_image_reservation_init (reservation, owner, source, odata, ostack);
 #ifdef SWAPRAM
     if (swapram_reserve (owner,
         (caddr_t) (source->p_daddr + reservation->text), reservation->data,
@@ -84,8 +290,8 @@ swap_image_reserve (struct swap_image_reservation *reservation,
 #ifdef SWAP_IMAGE_ALIGN
         if (malloc3_contiguous_next (swapmap,
             btod (source->p_dsize - reservation->text),
-            btod (source->p_ssize), btod (USIZE), SWAP_IMAGE_ALIGN,
-            &next, reservation->addr) == 0)
+            btod (source->p_ssize), btod (USIZE),
+            SWAP_IMAGE_ALIGN, &next, reservation->addr) == 0)
             return ENOMEM;
         swapnext = next;
         swap_cursor_publish (swapnext);
@@ -130,6 +336,9 @@ swap_image_cancel (struct swap_image_reservation *reservation)
 void
 swap_image_release (struct proc *p)
 {
+    int spl;
+
+    spl = splhigh ();
 #ifdef SWAPRAM
     if (swapram_present (p))
         swapram_cancel (p);
@@ -137,13 +346,19 @@ swap_image_release (struct proc *p)
 #endif
     {
 #ifdef SWAP_IMAGE_ALIGN
-        mfree (swapmap, swap_image_span (p), p->p_daddr);
+        if (swap_exchange.owner != NULL || swap_exchange.base != 0 ||
+            swap_exchange.span != 0)
+            panic ("swap exchange: occupied on transfer");
+        swap_exchange.owner = p;
+        swap_exchange.base = p->p_daddr;
+        swap_exchange.span = swap_image_span (p);
 #else
         mfree (swapmap, btod (p->p_dsize - swaptext (p)), p->p_daddr);
         mfree (swapmap, btod (p->p_ssize), p->p_saddr);
         mfree (swapmap, btod (USIZE), p->p_addr);
 #endif
     }
+    splx (spl);
     wakeup ((caddr_t) &runout);
 }
 

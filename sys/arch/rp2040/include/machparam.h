@@ -86,12 +86,12 @@
 #define NCLIST          32                      /* number or CBSIZE blocks */
 #ifndef SMAPSIZ
 /*
- * Twenty-seven live extents cover 23 swapped processes plus three temporary
- * devices and one exec spool, or all 24 user process slots during SwapRAM
- * evacuation plus the temporary devices.  They can split free space into 28
- * runs, followed by one terminating descriptor.
+ * Twenty-eight live extents cover 23 swapped processes, the resident's
+ * departure extent, three temporary devices and one exec spool.  Replacing
+ * the departure extent can transiently add one more allocated run.  Those
+ * runs can split free space into 30 runs, followed by one terminator.
  */
-#define SMAPSIZ         29                      /* compact swap map slots */
+#define SMAPSIZ         31                      /* compact swap map slots */
 #endif
 
 /*

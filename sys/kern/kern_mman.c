@@ -36,6 +36,11 @@ brk()
         return;
     }
 
+    if (swap_exchange_resize (u.u_procp, newsize, u.u_procp->p_ssize,
+        u.u_procp->p_tsize) != 0) {
+        u.u_error = ENOMEM;
+        return;
+    }
     u.u_procp->p_dsize = newsize;
 
     /* set d to (new - old) */

@@ -48,11 +48,13 @@ sched()
     struct proc *swapped_out = 0, *in_core = 0;
     register int out_time, rptime;
     struct swap_image_reservation reservation;
+    int exchange_refusal;
     int s;
 
     for (;;) {
         /* Perform swap-out/swap-in action. */
         spl0();
+        exchange_refusal = 0;
 #ifdef SWAPRAM
         swapram_service ();
 #endif
@@ -64,12 +66,23 @@ sched()
          * waits, and sched retries once runin wakes it (every sleep, every
          * exit, and once a second from schedcpu).
          */
-        if (in_core && swap_image_reserve (&reservation, in_core, in_core,
-            X_OLDSIZE, X_OLDSIZE) != 0) {
+        if (swapped_out) {
+            int pool_backed = 0;
+
+#ifdef SWAPRAM
+            pool_backed = swapram_present (swapped_out);
+#endif
+            if (swap_exchange_switch (&reservation, in_core, swapped_out,
+                pool_backed) != 0)
+                exchange_refusal = 1;
+        }
+        if (exchange_refusal) {
             s = splhigh ();
-            in_core->p_flag |= SLOAD;
-            if (in_core->p_stat == SRUN)
-                setrq (in_core);
+            if (in_core) {
+                in_core->p_flag |= SLOAD;
+                if (in_core->p_stat == SRUN)
+                    setrq (in_core);
+            }
             splx (s);
 #ifdef SWAPRAM
             storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);

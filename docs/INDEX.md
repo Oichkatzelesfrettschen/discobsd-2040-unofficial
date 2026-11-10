@@ -77,6 +77,7 @@ artifact points at.
 | `utilbox.md` | what `utilbox` and `adminbox` carry | `sbin/utilbox/`, `sbin/adminbox/` |
 | `v7-tools.md` | the V6/V7 disk images, their licenses, and two ports | `sbin/textbox/Makefile`, `legacy/pdp11-v6/distrib/rp2040/mi.rp2040` |
 | `zswap.md` | the compressed RAM tier in front of flash swap | `compile/PICO/Config`, `heatshrink/heatshrink_config.h` |
+| `v7-format-descriptor.md` | the per-mount format descriptor that mounts Seventh Edition volumes through the native inode layer under the `V7FS` option, the checks a foreign volume gets and the option's measured cost | `sys/sys/fsgeom.h`, `sys/kern/ufs_v7.c` |
 
 ## Research corpus: `docs/research`
 

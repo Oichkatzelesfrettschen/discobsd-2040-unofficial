@@ -358,7 +358,10 @@ mechanism the tree already has:
   kernel backend to the generated Makefile, and an unselected component
   adds nothing. A kernel mount additionally needs an adapter from the
   2.11BSD inode and mount interfaces to the core, which NetBSD does not
-  supply and which has no size estimate yet.
+  supply and which has no size estimate yet. The kernel's `V7FS` option
+  takes a second route that needs neither the core nor the adapter: the
+  native inode layer reads a per-mount format descriptor, derived and
+  measured in `sys/arch/rp2040/doc/research/v7-format-descriptor.md`.
 - The host, for tests: the same core plus NetBSD's own userland backend
   and newfs library, built with the host compiler. `check-v7fs-core`
   (`tests/v7fs_core`) is this host.

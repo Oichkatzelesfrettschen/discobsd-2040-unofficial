@@ -8,7 +8,7 @@
  * the record codecs in kern/ufs_v7.c; a kernel built without it has one
  * format, and every accessor below expands to the constant or expression
  * the inode layer used before the accessor existed, so its code is
- * unchanged. docs/research/tiny-rump-components/v7-format-descriptor.md
+ * unchanged. sys/arch/rp2040/doc/research/v7-format-descriptor.md
  * derives the parameter set.
  *
  * Included by <sys/mount.h> after struct mount.

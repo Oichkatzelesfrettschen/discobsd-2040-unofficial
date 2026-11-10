@@ -1,9 +1,9 @@
 # A format descriptor under the inode layer: mounting V7 volumes with shared code
 
 Status: implemented behind the `V7FS` kernel option and gated on the host
-(`check-v7-format`). No kernel configuration sets the option, no board has
-mounted a V7 volume, and `mount(8)` has no way to pass `MNT_V7` yet; the
-"Open work" section lists what a shipped mount still needs.
+(`check-v7-format`). `mount -o v7` passes `MNT_V7`; no kernel configuration
+sets the option and no board has mounted a V7 volume. The "Open work"
+section lists what a shipped mount still needs.
 
 ## Finding
 

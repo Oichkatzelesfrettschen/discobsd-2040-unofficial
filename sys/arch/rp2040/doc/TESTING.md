@@ -477,9 +477,11 @@ routes, bin/sh and usr.bin/uucp, must reject the fatal probe and
 compile the `-Wextra` probe to an object, which proves the declaration
 reached `CC`. The host tier reads every tracked Makefile and fails a
 `WARNLEVEL` assignment that follows its sys.mk include or names a level
-warnings.mk does not accept. Both kernel configurations must reject
-separate `-Wall` and `-Wextra` probes, and their warning assignments
-must agree with the config template. The cross tier also compiles each route with the
+warnings.mk does not accept. PICO and PICO_UART must reject separate
+`-Wall`, `-Wextra`, `-Wshadow`, `-Wundef` and `-Wformat=2` probes, and
+their warning assignments must agree with the config template. A separate
+control removes each added warning family and must make its probe pass.
+The cross tier also compiles each route with the
 override `tools/warning-census.sh` uses, `WARNERR=-Wall -Wextra
 -Wno-error`, and requires the `-Wall` and `-Wextra` probes to raise their
 diagnostics and still produce an object: that is what makes the census a
@@ -532,10 +534,11 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-config-generated-sync` | A generator built from the tested host sources regenerates the PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM Makefiles byte for byte in private trees, and requires the PICOCALC_PSRAM Config to equal the PICOCALC Config plus its board line and `device psram` (config(8) has no include directive). The gate retains production board identities and compares comments, barriers, options, source lists and flags without normalization. Mutation controls reject stale template/Config/file-list/output combinations, a variant Config that drifts from its base or lacks its device, a base Config that carries the variant device, missing inputs or outputs and generator failure; synchronized edits, unrelated source edits and concurrent isolated generation pass. |
 | `check-config-include-order` | The actual template and production `SYSTEM_DEP` declarations and include-link recipes hold include creation behind configuration, and host compilation behind include creation. A controller holds each prerequisite group until the expected event; removing either barrier must produce its specific premature-execution verdict. Deadline expiration is an infrastructure error. |
 | `check-warning-policy-host` | enabled warnings are fatal through host tools and host-only overrides, even when CFLAGS is replaced; every WARNLEVEL assignment precedes its sys.mk include and names a level warnings.mk accepts |
+| `check-icode-relocation` | GCC and Clang assemble the process-1 entry image for Cortex-M0+. The verifier checks the privilege-transition instruction sequence, the copied PC-relative path and argument-vector addresses, the system calls, the strings and the argument-vector contents; address, opcode and vector mutations must fail. The gate checks object bytes and relocation arithmetic. Board boot and privilege enforcement require separate execution evidence. Firmware CI runs the gate in `check-cross`. |
 | `check-sh-gnu17` | The production shell compiles for Cortex-M0+ as GNU17 with `-Wall -Wextra -Werror` and optimized code generation. The optimized build is the deciding `-Wclobbered` evidence because longjmp-spanning state depends on the optimizer's data-flow analysis. A separate optimized `-fstack-usage` build measures static frames without changing the production objects. Compilation and static-frame measurements establish neither runtime peak stack and heap use nor board behavior. |
 | `check-sh-c17-contracts` | The 28 production shell translation units compile for Cortex-M0+ under strict ISO C17 with pedantic errors, full prototype and old-style-definition diagnostics, and warnings as errors. The target then compiles the GNU17 contract and links the production shell. The contract binds typed string, argument-vector and descriptor execution-input declarations to exact function-pointer types; an incompatible declaration fixture must fail under each language mode. The gate establishes declaration and language acceptance for active production branches. Other shell pointer-width assumptions, runtime peak memory and board behavior remain open. |
 | `check-sh-editor` | The shell editor and passwd-name host tests compile both the termios editor branch and the file-reader branch under strict C17 declaration diagnostics, then execute 12 editor and 10 passwd-name behavior cases. The host gate does not execute the target terminal driver or board console. |
-| `check-build-failure` | a failed step cannot pass as success: lib/Makefile's all target enters every subdirectory even when the directory's mtime is not older than the make, which bmake otherwise reads as up to date against FRC and skips (the case dates the directories an hour ahead; before the subdirectory targets were phony a clean in the same second as the build left lib/startup-arm unentered and lib/crt0.o missing); its install loop stops at the first failed child and its clean loop visits every child and keeps a failure; the kernel link recipe, lifted verbatim from the generated PICO Makefile, runs nothing after a failed newvers.sh, vers.c compile, size, objcopy, objdump or picotool, publishes no finished artifact from a failed step, tells an absent picotool from a failed one, and rejects an explicit unix.uf2 request without a working picotool. The PARAM-stamp fixture also forces no/yes/no option changes against two objects newer than the stamp, so one of them is examined after the stamp target as most kernel objects are, checks unchanged-option reuse, checks that `-n` and `-V` with another option leave the objects and the stamp untouched, and rejects a mutant whose stamp recipe keeps the old objects. Every tool is a journaling stub that fails on request, and each negative case asserts the stub's own failure sentence, so the intended step is proven reached. The suite fails on the tree before the fix by behavior, not by a missing fixture |
+| `check-build-failure` | a failed step cannot pass as success: lib/Makefile's all target enters every subdirectory even when the directory's mtime is not older than the make, which bmake otherwise reads as up to date against FRC and skips (the case dates the directories an hour ahead; before the subdirectory targets were phony a clean in the same second as the build left lib/startup-arm unentered and lib/crt0.o missing); its install loop stops at the first failed child and its clean loop visits every child and keeps a failure; the kernel link recipe, lifted verbatim from the generated PICO Makefile, runs nothing after a failed newvers.sh, vers.c compile, size, objcopy, objdump or picotool, publishes no finished artifact from a failed step, tells an absent picotool from a failed one, and rejects an explicit unix.uf2 request without a working picotool. The kernel-stamp fixture forces configuration, optimization and compiler changes against newer objects, checks unchanged-option reuse including a target-dependent linker map flag, checks that `-n` and `-V` leave the objects and stamp untouched, and rejects mutants that omit compiler options or retain old objects. Every tool is a journaling stub that fails on request, and each negative case asserts the stub's own failure sentence, so the intended step is proven reached. The default-target fixture builds unix after option changes for the template and all four generated Makefiles and rejects a missing-directive mutant. The kernel version fixture also rejects an injected build-host identity and requires the release, configuration and revision in generated C. The suite fails on the tree before the fix by behavior, not by a missing fixture |
 | `check-analysis` | The 2.11BSD mapper pins donor and recipient commits, retains relocated and absent paths, preserves NUL-delimited filename bytes, inventories merge parents, and distinguishes Git failure from absent entries. Calibration shows child-like defective text and parent-like equivalent text remain textual candidates, with semantic dispositions outside the tool. Dirty files and refs advanced after resolution leave the pinned comparison unchanged. The semantic-ledger verifier authenticates the retained tested-integration commit object against the landed tree, reads source and inventory blobs through both identities, derives receipt expectations from those pinned bytes, and checks row membership, dependencies, open next actions and its Markdown projection. The report sanitizer validates the original hosted hash and recognized path forms, then produces a deterministic derivative without hosted absolute paths. The verifier authenticates that derivative and requires the exact 62 pinned variants, each with PASS, owner, width, capability, invocation, executable path and hash, and expected/actual exit; selected ledger receipts join those rows. The retained donor Git objects authenticate selected ancestry, patch-ledger attestations and original source paths without a live donor checkout; they do not independently validate every numbered patch or the recipient semantics. Pinned Makefile recipes bind each executed row's regression source to its executable and inventory run recipe through a target prerequisite or a same-branch recursive submake before execution. They check active helper includes, the final compiler producer, shell-comment boundaries, expanded in-file width flags, the pinned `ILP32=-m32` value and umount's intermediate `gate.o` link. The recipe witness applies to the named immutable Git inputs; a rewritten Makefile needs a new identity, review and execution receipt. These checks establish retained-evidence and ledger integrity rather than semantic truth, bit-identical historical builds or whole-series coverage. |
 | `check-sus-discovery` | The API candidate scanner requires explicit DiscoBSD and 4.4BSD roots, rejects a missing root or required scan subtree, and emits path-independent deterministic JSON. Paired fixtures distinguish a declaration-only API from a definition stored under a different source basename while leaving linkage and behavior unassessed; comma-separated declarations and conditional definition alternatives remain visible, while comment, string and call-only text cannot create fixture APIs. The selected-image utility ledger checks 107 unique names against `mi.rp2040`, textbox/utilbox/box dispatch, the Bourne-shell builtin and execution tables, source ownership and named behavior cases and gates. Mutations that move textbox names to utilbox, substitute unrelated direct or alias source owners, claim a missing Bourne builtin or shell behavior case, replace the `newgrp` external-dispatch case or duplicate a name calibrate rejection. The gate proves bounded discovery and ownership consistency; it does not establish whole-system SUS conformance or execute an external 4.4BSD checkout. |
 | `check-sus-requirement-corpus` | The committed Issue 7/Issue 8 corpus pins the official archive identities and 1,617 structural entity rows: 104 Base Definitions pages, 1,329 System Interfaces pages and 184 utility or special-builtin pages. The verifier checks canonical order, edition membership, counts, row hashes, requirement-facet taxonomy, 107 selected-image utility names, seven explicitly classified extensions and every bounded RP2040 mapping's entity and evidence paths. Negative controls mutate the entity count, row hash, duplicate identity and mapped entity. An optional archive-backed invocation additionally checks both archive hashes and regenerates every entity from safe member names. The default host gate validates the copyright-safe committed corpus; it does not carry standards prose, decide option applicability, execute behavior or establish Issue 7/Issue 8 conformance. |
@@ -1148,21 +1151,16 @@ flushes no inode, and both exhaustion routes that pass through a clean
 superblock return with the filesystem marked clean. The gate runs in
 the portable shape and in PICO's.
 
-The fifth file, sys/kern/subr_prf.c, carries its own
-argument walk,
-
-    #define va_arg(ap,type) *(type*) (void*) (ap++)
-
-over a `u_int *`, and `printf()` hands it `&fmt + 1`, the address just past
-its own first parameter. Both hold where a pointer, a long and an int are
-four bytes and arguments sit on the stack. That is the target; it is also
-what `cc -m32` produces on an x86-64 host. At the host's natural width a
-`%s` would read four bytes of an eight-byte pointer and every argument after
-it would be wrong.
+The fifth file, `sys/kern/subr_prf.c`, uses the compiler's variadic argument
+interface. The ILP32 fixture exercises mixed integer, pointer, and long
+arguments, field widths, output routing, and panic formatting at the target's
+integer and pointer widths. A second executable enables the log buffer and
+checks console replay, log-reader suppression and priority formatting. A
+mutant that drops console replay must fail the same fixture.
 
 The binary this builds is ordinary 32-bit userspace. It is not a container,
 a virtual machine or a second operating system, and it needs none: what the
-gate wants from the platform is the width of a pointer, and an x86-64 kernel
+gate wants from the platform is the target's data widths, and an x86-64 kernel
 runs an i386 binary directly. That is the same reason bin/sh's conformance
 tier builds 32-bit, and the two share a CI job because they share the
 `gcc-multilib` requirement.
@@ -1180,14 +1178,21 @@ The sixth file is sys/kern/ufs_fio.c. `ufs_explicit_time_test` links
 request, the no-timestamp case, and a read-only refusal distinct. A generated
 copy restores the inherited atime guard and must fail the same assertions.
 
+`readlink_test` compiles the extracted production `readlink()` body at ILP32
+against controlled lookup and I/O stubs. It checks missing paths, non-symbolic
+inodes, successful short reads, I/O failure, inode release and return-value
+publication. A mutant that publishes a return value on the non-symbolic-inode
+error must fail the fixture.
+
 The seventh file is `sys/kern/subr_capacity.c`. `capacity_test` supplies the
 RP2040 compact table shapes and linker-sized `u`/`u0` symbols at ILP32, then
 executes all five occupancy predicates, monotonic peaks and minimum-free
-values, attributed failure counters, stack paint boundaries and latched
-saturation. Six one-defect source copies substitute a runnable-only process
-predicate, inode reference total, clist object-size divisor, any-buffer-flag
-predicate, decreasing peak and inverted saturation condition. Each mutant
-must return the fixture's assertion-failure status. The gate establishes the
+values, attributed failure counters, invalid metric kinds, stack paint
+boundaries and latched saturation. Seven one-defect source copies substitute a
+runnable-only process predicate, inode reference total, clist object-size
+divisor, any-buffer-flag predicate, decreasing peak, inverted saturation
+condition and an unchecked metric kind. Each mutant must return the fixture's
+assertion-failure status. The gate establishes the
 counter mechanism and target-width layouts; the capacity corpus and retained
 hardware receipts decide whether a compiled limit can change.
 

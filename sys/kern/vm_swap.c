@@ -25,8 +25,7 @@
  * executable to read from, as for process 1 before it execs.
  */
 static size_t
-swaptext (p)
-    register struct proc *p;
+swaptext (register struct proc *p)
 {
     if (p->p_tip == NULL || p->p_tsize > p->p_dsize)
         return 0;
@@ -156,8 +155,7 @@ swap_image_release (struct proc *p)
  * U area goes into u0 buffer.
  */
 void
-swapin (p)
-    register struct proc *p;
+swapin (register struct proc *p)
 {
     size_t daddr = (size_t)__user_data_start;
     size_t saddr = USER_TOP (p) - p->p_ssize;
@@ -318,11 +316,8 @@ swap_image_commit (struct swap_image_reservation *reservation, struct proc *p)
 
 /* Every caller reserves the image first; swapout itself cannot fail. */
 void
-swapout (p, freecore, odata, ostack, reservation)
-    register struct proc *p;
-    int freecore __unused;
-    u_int odata __unused, ostack __unused;
-    struct swap_image_reservation *reservation;
+swapout (register struct proc *p, int freecore __unused, u_int odata __unused,
+    u_int ostack __unused, struct swap_image_reservation *reservation)
 {
     if (reservation == NULL || reservation->state != SWAP_IMAGE_RESERVED)
         panic ("swapout: no reservation");

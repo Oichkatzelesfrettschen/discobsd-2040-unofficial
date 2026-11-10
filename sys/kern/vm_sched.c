@@ -204,9 +204,7 @@ vmmeter()
  * the right.
  */
 static void
-loadav (avg, n)
-    register short  *avg;
-    register int    n;
+loadav (register short *avg, register int n)
 {
     register int    i;
     static const long cexp[3] = {

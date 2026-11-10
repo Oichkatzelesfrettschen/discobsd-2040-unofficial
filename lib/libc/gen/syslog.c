@@ -211,7 +211,7 @@ vsyslog(int pri, const char *fmt, va_list ap)
 			}
 			_exit(0);
 		}
-		while (waitpid(pid, NULL, NULL) == -1 && (errno == EINTR))
+		while (waitpid(pid, NULL, 0) == -1 && (errno == EINTR))
 			;
 	}
 }

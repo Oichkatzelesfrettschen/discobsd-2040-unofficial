@@ -37,7 +37,7 @@ iblock(idesc, ilevel, isize)
         return (SKIP);
     initbarea(&ib);
     getblk(&ib, idesc->id_blkno);
-    if (ib.b_errs != NULL)
+    if (ib.b_errs != 0)
         return (SKIP);
     ilevel--;
     for (sizepb = DEV_BSIZE, i = 0; i < ilevel; i++)

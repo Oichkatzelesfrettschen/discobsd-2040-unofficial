@@ -18,13 +18,15 @@ STDSRC		= atexit.c clrerr.c doscan.c exit.c clnup.c fdopen.c fgetpos.c filbuf.c 
 		  ftell.c fwrite.c getchar.c getw.c printf.c putchar.c putw.c \
 		  rew.c scanf.c setbuf.c setbuffer.c setvbuf.c snprintf.c sprintf.c \
 		  strout.c ungetc.c vfprintf.c vprintf.c vsprintf.c vsnprintf.c \
-		  doprnt.c doprnt_float.c doprnt_llong.c doscan_float.c remove.c
+		  doprnt.c doprnt_float.c doprnt_llong.c doscan_float.c doscan_llong.c \
+		  remove.c
 STDOBJ		= atexit.o clrerr.o doscan.o exit.o fdopen.o fgetpos.o filbuf.o \
 		  findiop.o flags.o flsbuf.o fopen.o fprintf.o fread.o freopen.o fseek.o \
 		  ftell.o fwrite.o getchar.o getw.o printf.o putchar.o putw.o \
 		  rew.o scanf.o setbuf.o setbuffer.o setvbuf.o snprintf.o sprintf.o \
 		  strout.o ungetc.o vfprintf.o vprintf.o vsprintf.o vsnprintf.o \
-		  doprnt.o doprnt_float.o doprnt_llong.o doscan_float.o remove.o
+		  doprnt.o doprnt_float.o doprnt_llong.o doscan_float.o doscan_llong.o \
+		  remove.o
 
 TAGSFILE	= tags
 

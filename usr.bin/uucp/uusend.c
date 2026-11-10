@@ -305,8 +305,6 @@ fflush(dout);
  * index/strchr battle.
  */
 
-#define	NULL	0
-
 #ifdef	RECOVER
 char *
 getfname(p)

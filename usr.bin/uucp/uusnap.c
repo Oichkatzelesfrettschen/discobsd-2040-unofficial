@@ -53,8 +53,8 @@ main()
 	time_t	curtime, t;
 
 	setbuf(stdout, SYSBUF);
-	scan_spool_directory(CMDSDIR, "C.", CMDSLEN, NULL, CMDTYPE);
-	scan_spool_directory(DATADIR, "D.", DATALEN, NULL, DATTYPE);
+	scan_spool_directory(CMDSDIR, "C.", CMDSLEN, 0, CMDTYPE);
+	scan_spool_directory(DATADIR, "D.", DATALEN, 0, DATTYPE);
 	scan_spool_directory(XEQTDIR, "X.", XEQTLEN, 'X', XEQTYPE);
 	getstst(SPOOL);
 	time(&curtime);
@@ -86,7 +86,7 @@ main()
 				sys[i].cntr[XEQTYPE]>1?"s":" ");
 		else
 			printf("   ---   ");
-		if(*sys[i].stst == NULL || sys[i].locked > sys[i].st_lastime) {
+		if(*sys[i].stst == '\0' || sys[i].locked > sys[i].st_lastime) {
 			if(sys[i].locked)
 				printf("LOCKED\n");
 			else
@@ -162,15 +162,15 @@ scan_spool_directory(char *dnam, char *prfx, int flen, int fchr, int type)
 				c = toupper(c);
 			if (type == DATTYPE && (c != 'S' && c != 'B')) {
 				fnamlen -= 2;	/* For Honey DanBer */
-				fnam[fnamlen] = NULL;
+				fnam[fnamlen] = '\0';
 			} else {
-				fnam[fnamlen] = NULL;
+				fnam[fnamlen] = '\0';
 				fnamlen = MAXBASENAME; /* yes, after = NULL*/
 			}
 		} else {
 			for(; fnamlen>0; --fnamlen) {
 				if(fnam[fnamlen] == fchr) {
-					fnam[fnamlen] = NULL;
+					fnam[fnamlen] = '\0';
 					break;
 				}
 			}
@@ -266,7 +266,7 @@ char *sdir;
 		fgets(buff, sizeof(buff), st);
 		fclose(st);
 		if(tp = rindex(buff, ' '))
-			*tp = NULL;		/* drop system name */
+			*tp = '\0';		/* drop system name */
 		else
 			continue;
 		for(i=0, tp=buff;  i<4;  ++i, ++tp)

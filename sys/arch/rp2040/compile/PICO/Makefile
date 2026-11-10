@@ -18,6 +18,7 @@ PARAM += -DLINEAR_INODE_CACHE
 PARAM += -DSINGLE_UFS_ROOT
 PARAM += -DNMOUNT=1
 PARAM += -DNFL=2
+PARAM += -DCORE1
 PARAM += -DCAPACITY_STATS
 PARAM += -DSYSTRACE
 PARAM += -DHALTREBOOT
@@ -142,7 +143,7 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	ufs_alloc.o ufs_bio.o ufs_bmap.o ufs_dsort.o ufs_fio.o \
 	ufs_inode.o ufs_mount.o ufs_namei.o ufs_subr.o ufs_syscalls.o \
 	ufs_syscalls2.o vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o \
-	mem.o swap.o clock.o board.o conf.o fault.o machdep.o \
+	mem.o swap.o clock.o board.o conf.o core1.o fault.o machdep.o \
 	shutdown_sync.o mpu.o sig_machdep.o syscall.o sysctl.o systick.o \
 	uart.o usb.o flash.o flash_swap.o error.o journal.o map.o \
 	swapram.o swapram_pool.o heatshrink_encoder.o hsx_decoder.o \
@@ -167,7 +168,8 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/vm_swap.c $S/kern/vm_swp.c $S/dev/cons.c $S/dev/mem.c \
 	$S/dev/swap.c $S/arch/rp2040/rp2040/clock.c \
 	$S/arch/rp2040/rp2040/board.c $S/arch/rp2040/rp2040/conf.c \
-	$S/arch/rp2040/rp2040/fault.c $S/arch/rp2040/rp2040/machdep.c \
+	$S/arch/rp2040/rp2040/core1.c $S/arch/rp2040/rp2040/fault.c \
+	$S/arch/rp2040/rp2040/machdep.c \
 	$S/arch/rp2040/rp2040/shutdown_sync.c \
 	$S/arch/rp2040/rp2040/mpu.c $S/arch/rp2040/rp2040/sig_machdep.c \
 	$S/arch/rp2040/rp2040/syscall.c $S/arch/rp2040/rp2040/sysctl.c \
@@ -465,6 +467,9 @@ board.o: $S/arch/rp2040/rp2040/board.c
 	${COMPILE_C}
 
 conf.o: $S/arch/rp2040/rp2040/conf.c
+	${COMPILE_C}
+
+core1.o: $S/arch/rp2040/rp2040/core1.c
 	${COMPILE_C}
 
 fault.o: $S/arch/rp2040/rp2040/fault.c

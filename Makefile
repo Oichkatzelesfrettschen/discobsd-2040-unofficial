@@ -691,9 +691,11 @@ check-libc-huge-val:
 
 # The formatted input scanner at host width, at ILP32 and under the address
 # sanitizer. The sanitizer tier is the one that sees a scratch overrun
-# inside the scanner's own frame.
+# inside the scanner's own frame. check-scanf-llong runs the 64-bit integer
+# member against the host C library's conversions, and the scanner without
+# that member.
 check-libc-scanf:
-		${MAKE} -C tests/libc_contracts check-scanf
+		${MAKE} -C tests/libc_contracts check-scanf check-scanf-llong
 
 # The r+ read/write mode switch in _filbuf and _flsbuf, over a host file,
 # at host width and ILP32.
@@ -1180,6 +1182,40 @@ check-msdosfs-core: check-python
 check-corering:
 		${MAKE} -C tests/corering check
 
+# Core 1 as the kernel's observer, sys/arch/rp2040/rp2040/core1.c, in three
+# evidence classes. check-core1 runs the two decision functions of core1.h
+# on the host with mutants. check-core1-image calibrates
+# tools/verify_rp2040_core1_image.py on linked fixtures, holds every built
+# kernel's core 1 code to SRAM, requires that at least one kernel carries
+# such code, and requires every source line that takes execute-in-place
+# down to follow a declared section. check-core1-emulation runs a linked
+# kernel's own core 0 and core 1 code on two emulated cores and rebuilds
+# the kernel from mutated source to calibrate itself; it needs Unicorn
+# under ${PYTHON}, so it stands outside "check" as check-renode does.
+check-core1:
+		${MAKE} -C tests/core1 check
+
+check-core1-image: check-python
+		PYTHON=${PYTHON:Q} GCCPREFIX=${GCCPREFIX:Q} \
+		    sh tests/rp2040/core1_image/check.sh
+		@set -e; elfs=; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
+			elfs="$$elfs sys/arch/rp2040/compile/$$configuration/unix.elf"; \
+		done; \
+		${PYTHON} tools/verify_rp2040_core1_image.py $$elfs | tee core1-image.out; \
+		if ! grep -q '^PASS core1-image' core1-image.out; then \
+			rm -f core1-image.out; \
+			echo "check-core1-image: no built kernel carries a core 1 image" >&2; \
+			exit 1; \
+		fi; \
+		rm -f core1-image.out
+
+CORE1_EMULATION_BOARD?=	PICO_UART
+check-core1-emulation: check-python
+		PYTHON=${PYTHON:Q} MAKE=${MAKE:Q} \
+		    sh tests/core1/check-emulation.sh ${CORE1_EMULATION_BOARD}
+
+.PHONY: check-core1 check-core1-image check-core1-emulation
+
 # The rump-kernel size measurement behind docs/research/tiny-rump-components.md.
 # It needs a NetBSD checkout, which CI lacks, so it stays outside check:
 # NETBSD_SRC defaults to BSD_Workspace/netbsd-src beside the primary checkout,
@@ -1301,7 +1337,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
 		check-netbsd-imports check-v7fs-core check-msdosfs-core \
-		check-corering \
+		check-corering check-core1 \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
 		check-usb-reset check-usb-line-coding check-usb-cdc-requests \
@@ -1542,7 +1578,8 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-rp2040-vectors .WAIT check-rp2040-syscalls .WAIT check-rp2040-devsw .WAIT \
 		check-rp2040-fileops .WAIT check-rp2040-ioconf .WAIT check-rp2040-tty-roots .WAIT \
 		check-rp2040-callout-roots .WAIT check-rp2040-nlist .WAIT \
-		check-board-descriptor .WAIT check-kernel-headroom
+		check-board-descriptor .WAIT check-core1-image .WAIT \
+		check-kernel-headroom
 
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test

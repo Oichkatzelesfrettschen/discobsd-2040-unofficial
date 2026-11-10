@@ -34,6 +34,13 @@
 #include <machine/usercopy.h>
 #include <machine/watchdog.h>
 
+#ifdef CORE1
+#include <rp2040/rp2040/core1.h>
+
+#define	SYSCFG_BASE		0x40004000UL
+#define	SYSCFG_PROC0_NMI_MASK	0x00
+#endif
+
 #include <rp2040/dev/uart.h>
 #include <rp2040/dev/usb.h>
 #include <rp2040/dev/flash.h>
@@ -427,8 +434,11 @@ SystemClock_Config(void)
  * board and pulled low by the button, so the pad's output is disabled for
  * a moment and the level sampled through SIO. Flash is unreachable while
  * the select floats, which is why this runs from RAM with interrupts
- * masked and calls nothing. The sequence is the Pico SDK's
- * picoboard/button example, written against the IO_QSPI and SIO registers.
+ * masked and calls nothing. startup() is its only caller, before core 1 is
+ * launched; a caller after that point has to declare the window through
+ * watchdog_site(), which withdraws the NMI route core 1 uses. The sequence
+ * is the Pico SDK's picoboard/button example, written against the IO_QSPI
+ * and SIO registers.
  */
 static __ramfunc int
 bootsel_pressed(void)
@@ -475,6 +485,7 @@ cpuidentify(void)
 u_int	watchdog_last_reason;
 u_int	watchdog_last_site;
 u_int	watchdog_last_arg;
+u_int	watchdog_last_arg2;
 
 #ifdef WATCHDOG_MEASURE
 #define	TIMER_BASE		0x40054000UL
@@ -512,6 +523,11 @@ watchdog_init(void)
 	watchdog_last_arg = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2);
 	printf("watchdog: reason %x, last masked site %u arg %x\n",
 	    watchdog_last_reason, watchdog_last_site, watchdog_last_arg);
+	if (watchdog_last_site == WD_SITE_STALL) {
+		watchdog_last_arg2 = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH3);
+		printf("watchdog: core 0 stalled at pc %x lr %x\n",
+		    watchdog_last_arg, watchdog_last_arg2);
+	}
 	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1) = WD_SITE_NONE;
 	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2) = 0;
 
@@ -540,12 +556,23 @@ watchdog_init(void)
 /*
  * Name the section about to mask interrupts, and clear the name on its
  * return. A reset taken between the two reports the section.
+ *
+ * The declared sections are the ones that take execute-in-place down, and
+ * the NMI core 1 raises (rp2040/core1.c) vectors through flash, so the
+ * route that makes its interrupt an NMI is withdrawn for the section and
+ * restored after it. Both calls run with execute-in-place up. Core 0 is
+ * the register's only writer.
  */
 void
 watchdog_site(u_int site, u_int arg)
 {
 	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1) = site;
 	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2) = arg;
+#ifdef CORE1
+	if (core1_nmi_mask != 0)
+		MREG32(SYSCFG_BASE + SYSCFG_PROC0_NMI_MASK) =
+		    site != WD_SITE_NONE ? 0 : core1_nmi_mask;
+#endif
 }
 
 
@@ -723,6 +750,13 @@ boot(dev_t dev __unused, int howto)
 	    bfreelist[0].av_forw != NULL)
 		rp2040_shutdown_sync(howto);
 	(void)splhigh();
+#ifdef CORE1
+	/*
+	 * Nothing below takes a clock tick again, and the reset this ends in
+	 * would leave core 1 running.
+	 */
+	core1_park();
+#endif
 #ifdef PICOCALC_ENABLED
 	printf("lcd0: render stack %u of 2048 bytes never used\n",
 	    lcdcons_render_stack_free());

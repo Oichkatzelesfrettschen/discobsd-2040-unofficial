@@ -46,16 +46,22 @@
  * directive as converted, which is what the V7 scanner did whenever its
  * HAVE_FLOAT conditional went undefined.
  *
- * Conversions are 32-bit: this target's long, size_t, ptrdiff_t and
+ * Conversions here are 32-bit: this target's long, size_t, ptrdiff_t and
  * pointers are four bytes, so z and t select the accumulator that l
- * already selects. The ll, j and L modifiers select no wider accumulator,
- * so a long long or intmax_t destination receives its low word alone;
- * <inttypes.h> therefore defines no fscanf macro for a 64-bit type.
+ * already selects. An integer directive under ll, j or q has a 64-bit
+ * destination and reaches doscan_llong.c through a weak __doscan_ll,
+ * linked on rp2040 only for a program declaring SCANF_LLONG=yes, because
+ * the wide accumulator is text no shipped program uses. An unresolved
+ * weak reference makes that directive a matching failure too, where
+ * storing the word accumulator would leave half of the destination
+ * indeterminate.
  */
 
 #include <stdio.h>
 #include <stdarg.h>
 #include <limits.h>
+
+#include "doscan.h"
 
 /* Conversion classes. */
 #define CT_INT		0	/* d, i, o, u, x, X, p */
@@ -65,12 +71,10 @@
 #define CT_FLOAT	4	/* a, e, f, g and their uppercase spellings */
 
 /* Directive state carried from the modifiers to the store. */
-#define F_SUPPRESS	0x01	/* * : convert, assign nothing */
 #define F_LONG		0x02	/* l, ll, L, q, z, j, t */
 #define F_SHORT		0x04	/* h */
 #define F_CHAR		0x08	/* hh */
-#define F_SIGNED	0x10	/* d, i : saturate against the signed limits */
-#define F_POINTER	0x20	/* p */
+#define F_LLONG		0x40	/* ll, j, q : a 64-bit integer destination */
 
 /*
  * A scanset covers the 256 byte values in 32 bytes. getc() yields 0..255
@@ -90,35 +94,13 @@
 #define WIDTH_NONE	INT_MAX
 
 /*
- * Every conversion reports one of three verdicts. Assignment is not one
- * of them: a suppressed directive that converts reports CONV_OK, and
- * _doscan decides whether the directive reaches the returned count.
- */
-#define CONV_INPUT	(-1)	/* input ended before the subject sequence */
-#define CONV_FAIL	0	/* the input does not match the directive */
-#define CONV_OK		1	/* the directive converted */
-
-/*
  * Floating conversion, resolved only when doscan_float.o is linked. It
  * consumes the subject sequence from fp under width, adds the characters
  * it consumes to *nread, and stores a float, or a double when flags
- * carries F_LONG, unless dst is NULL. Its verdicts are those above.
+ * carries F_LONG, unless dst is NULL. Its verdicts are those of doscan.h.
  */
 extern int __doscan_cvt (FILE *fp, int width, int flags, void *dst,
 	int *nread) __attribute__((weak));
-
-/*
- * The scanner's position. nread counts the characters consumed so %n can
- * report them, and eof records that getc() reached end of input, because
- * ungetc() must not run afterwards: _filbuf() leaves a _IOSTRG stream's
- * _cnt negative once it has returned EOF, so a byte pushed back there is
- * never read again.
- */
-struct scanstate {
-	FILE *fp;
-	int nread;
-	int eof;
-};
 
 static int
 s_get (struct scanstate *s)
@@ -557,14 +539,18 @@ _doscan (FILE *iop, const char *fmt, va_list argp)
 			break;
 		case 'l':
 			fmt++;
-			if (*fmt == 'l')
+			if (*fmt == 'l') {
+				flags |= F_LLONG;
 				fmt++;
+			}
 			flags |= F_LONG;
 			break;
-		case 'L':
 		case 'q':
-		case 'z':
 		case 'j':
+			flags |= F_LLONG;
+			/* FALLTHROUGH */
+		case 'L':
+		case 'z':
 		case 't':
 			fmt++;
 			flags |= F_LONG;
@@ -635,9 +621,19 @@ _doscan (FILE *iop, const char *fmt, va_list argp)
 			 * stores anything when suppressed.
 			 */
 			flags |= F_SIGNED;
-			if (! (flags & F_SUPPRESS))
-				storeint (&ap, flags,
-				    (unsigned long) s.nread);
+			if (flags & F_SUPPRESS)
+				continue;
+			if (flags & F_LLONG) {
+				/*
+				 * The 64-bit store is the member's. The
+				 * directive goes there marked suppressed,
+				 * which keeps it out of the count below.
+				 */
+				flags |= F_SUPPRESS;
+				base = LL_BASE_COUNT;
+				break;
+			}
+			storeint (&ap, flags, (unsigned long) s.nread);
 			continue;
 		default:
 			goto malformed;
@@ -645,7 +641,14 @@ _doscan (FILE *iop, const char *fmt, va_list argp)
 
 		switch (class) {
 		case CT_INT:
-			r = convint (&s, &ap, width, flags, base);
+			if (! (flags & F_LLONG)) {
+				r = convint (&s, &ap, width, flags, base);
+				break;
+			}
+			if (__doscan_ll == NULL)
+				goto matching_failure;
+			r = __doscan_ll (&s, width,
+			    flags | (base << LL_BASE_SHIFT), &ap);
 			break;
 		case CT_CHAR:
 			r = convchar (&s, &ap, width, flags);

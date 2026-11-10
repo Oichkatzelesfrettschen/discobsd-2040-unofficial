@@ -182,6 +182,21 @@ to indicate a pointer to
 .B short
 rather than to
 .BR int .
+They may be preceded by
+.BR ll ,
+.B j
+or
+.B q
+to indicate a pointer to
+.B long long
+or
+.BR intmax_t ,
+and
+.B n
+accepts the same prefixes.
+On rp2040 such a conversion is linked only into a program built with
+.BR SCANF_LLONG=yes ;
+without it the conversion is a matching failure and assigns nothing.
 .PP
 The
 .I scanf

@@ -93,6 +93,9 @@ inttypes_contract(void)
 	scan_probe("%" SCNd32 "%" SCNi32, &signed_32, &signed_32);
 	scan_probe("%" SCNo32 "%" SCNu32 "%" SCNx32,
 	    &unsigned_32, &unsigned_32, &unsigned_32);
+	scan_probe("%" SCNd64 "%" SCNi64, &signed_64, &signed_64);
+	scan_probe("%" SCNo64 "%" SCNu64 "%" SCNx64,
+	    &unsigned_64, &unsigned_64, &unsigned_64);
 	scan_probe("%" SCNdLEAST8 "%" SCNiLEAST8, &signed_least8, &signed_least8);
 	scan_probe("%" SCNoLEAST8 "%" SCNuLEAST8 "%" SCNxLEAST8,
 	    &unsigned_least8, &unsigned_least8, &unsigned_least8);
@@ -102,6 +105,9 @@ inttypes_contract(void)
 	scan_probe("%" SCNdLEAST32 "%" SCNiLEAST32, &signed_least32, &signed_least32);
 	scan_probe("%" SCNoLEAST32 "%" SCNuLEAST32 "%" SCNxLEAST32,
 	    &unsigned_least32, &unsigned_least32, &unsigned_least32);
+	scan_probe("%" SCNdLEAST64 "%" SCNiLEAST64, &signed_least64, &signed_least64);
+	scan_probe("%" SCNoLEAST64 "%" SCNuLEAST64 "%" SCNxLEAST64,
+	    &unsigned_least64, &unsigned_least64, &unsigned_least64);
 	scan_probe("%" SCNdFAST8 "%" SCNiFAST8, &signed_fast8, &signed_fast8);
 	scan_probe("%" SCNoFAST8 "%" SCNuFAST8 "%" SCNxFAST8,
 	    &unsigned_fast8, &unsigned_fast8, &unsigned_fast8);
@@ -111,40 +117,20 @@ inttypes_contract(void)
 	scan_probe("%" SCNdFAST32 "%" SCNiFAST32, &signed_fast32, &signed_fast32);
 	scan_probe("%" SCNoFAST32 "%" SCNuFAST32 "%" SCNxFAST32,
 	    &unsigned_fast32, &unsigned_fast32, &unsigned_fast32);
+	scan_probe("%" SCNdFAST64 "%" SCNiFAST64, &signed_fast64, &signed_fast64);
+	scan_probe("%" SCNoFAST64 "%" SCNuFAST64 "%" SCNxFAST64,
+	    &unsigned_fast64, &unsigned_fast64, &unsigned_fast64);
+	scan_probe("%" SCNdMAX "%" SCNiMAX, &signed_max, &signed_max);
+	scan_probe("%" SCNoMAX "%" SCNuMAX "%" SCNxMAX,
+	    &unsigned_max, &unsigned_max, &unsigned_max);
 	scan_probe("%" SCNdPTR "%" SCNiPTR, &signed_ptr, &signed_ptr);
 	scan_probe("%" SCNoPTR "%" SCNuPTR "%" SCNxPTR,
 	    &unsigned_ptr, &unsigned_ptr, &unsigned_ptr);
 }
 
-/*
- * _doscan has no 64-bit store, so these macros stay undefined.  The check
- * turns a definition added ahead of that store into a translation failure.
- */
-#if defined(SCNd64) || \
-    defined(SCNi64) || \
-    defined(SCNo64) || \
-    defined(SCNu64) || \
-    defined(SCNx64) || \
-    defined(SCNdLEAST64) || \
-    defined(SCNiLEAST64) || \
-    defined(SCNoLEAST64) || \
-    defined(SCNuLEAST64) || \
-    defined(SCNxLEAST64) || \
-    defined(SCNdFAST64) || \
-    defined(SCNiFAST64) || \
-    defined(SCNoFAST64) || \
-    defined(SCNuFAST64) || \
-    defined(SCNxFAST64) || \
-    defined(SCNdMAX) || \
-    defined(SCNiMAX) || \
-    defined(SCNoMAX) || \
-    defined(SCNuMAX) || \
-    defined(SCNxMAX)
-#error "a 64-bit fscanf macro requires a 64-bit store in _doscan"
-#endif
-
 _Static_assert(sizeof(((imaxdiv_t *)0)->quot) == sizeof(intmax_t) &&
     sizeof(((imaxdiv_t *)0)->rem) == sizeof(intmax_t),
     "imaxdiv_t members are intmax_t");
-_Static_assert(sizeof(PRId64) == sizeof("lld") && sizeof(PRIdMAX) == sizeof("jd"),
+_Static_assert(sizeof(PRId64) == sizeof("lld") && sizeof(PRIdMAX) == sizeof("jd") &&
+    sizeof(SCNd64) == sizeof("lld") && sizeof(SCNdMAX) == sizeof("jd"),
     "the macros are string literals");

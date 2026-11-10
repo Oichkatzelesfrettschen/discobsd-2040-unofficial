@@ -216,7 +216,7 @@ loop:
         }
         ruadd(&u.u_cru, &p->p_ru);
         p->p_xstat = 0;
-        p->p_stat = NULL;
+        p->p_stat = 0;
         p->p_pid = 0;
         p->p_ppid = 0;
         if ((*p->p_prev = p->p_nxt) != NULL)    /* off zombproc */

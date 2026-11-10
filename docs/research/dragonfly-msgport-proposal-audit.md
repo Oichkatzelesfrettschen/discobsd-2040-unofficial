@@ -119,13 +119,18 @@ doorbells skipped on a full FIFO.
 
 ## Not run, and what stays open
 
-- Core 1 is not launched. Launch, `PSM.FRCE_OFF` in the boot and panic
-  paths, the SRAM vector table, the heartbeat and the observer service need
-  a board run under the owner's opt-in, and Renode's SIO model lacks the
-  multicore parts (`sys/arch/rp2040/doc/research/emulation.md`).
+- When this audit was written core 1 was not launched. The launch,
+  `PSM.FRCE_OFF` on the reset paths, the SRAM vector table, the heartbeat
+  and the observer have since been built as `core1.c`
+  (`sys/arch/rp2040/doc/CORE1.md`). That work corrected one statement made
+  here: Renode's RP2040 model does run a second CPU and an inter-core FIFO,
+  and the kernel launches core 1 through the boot ROM under it. The model
+  gap is the power-on state machine and the NMI route, not the FIFO.
+  `CORE1.md` records the board run.
 - The host gate runs on a strongly ordered x86 host with sanitizer-defined
   ordering. It says nothing about write ordering between SRAM banks on
   silicon; the board stress run of survey section 8 decides that.
-- `corering.c` executes from flash as compiled. Code that core 1 runs must
-  be placed in `.ramfunc`, a link-time choice that belongs to the skeleton.
+- `corering.c` executes from flash as compiled on its own. `core1.c`
+  includes it with the producer and consumer placed in `.ramfunc`, and
+  `check-core1-image` holds the linked result to SRAM.
 - The SPI1 DMA measurement that ranks the console service is not run.

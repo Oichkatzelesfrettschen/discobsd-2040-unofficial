@@ -1505,7 +1505,7 @@ nchinval(register dev_t dev)
         /* free the resources we had */
         ncp->nc_idev = NODEV;
         ncp->nc_dev = NODEV;
-        ncp->nc_id = NULL;
+        ncp->nc_id = 0;
         ncp->nc_ino = 0;
         ncp->nc_ip = NULL;
         remque(ncp);            /* remove entry from its hash chain */

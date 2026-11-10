@@ -53,7 +53,7 @@ gtime(ap)
 		if (*C == '.') {		/* seconds provided */
 			if (strlen(C) != 3)
 				return(1);
-			*C = NULL;
+			*C = '\0';
 			secs = (C[1] - '0') * 10 + (C[2] - '0');
 			break;
 		}

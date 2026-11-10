@@ -9,7 +9,7 @@ typedef unsigned size_t;
 #endif
 
 #ifndef NULL
-#define NULL    0
+#define NULL    ((void *)0)
 #endif
 
 /* Offset of member MEMBER in a struct of type TYPE. */

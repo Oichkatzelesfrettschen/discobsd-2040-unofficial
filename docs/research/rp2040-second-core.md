@@ -1,4 +1,4 @@
-Drawn from the two companion reports below; no board run backs any figure.
+Drawn from the two companion reports below; no board run backs any figure except step 4's.
 
 # RP2040 core 1 for DiscoBSD: what survives, in what order
 
@@ -125,9 +125,15 @@ and lets each step's measurement decide whether the next one is worth it.
    panic, the rings and doorbell, the heartbeat, and a first service that
    only observes: it samples core 0's state and captures a record when core 0
    stops answering, aimed at the unexplained USB console wedge
-   (`rp2040-usb-console` notes). The rings, doorbell and credit count exist
-   as `sys/arch/rp2040/rp2040/corering.c` under the `check-corering` host
-   gate, linked into no kernel. About 300-600 bytes of code that runs from
+   (`rp2040-usb-console` notes). Built as `sys/arch/rp2040/rp2040/core1.c`
+   over `corering.c`, selected by `options "CORE1"` and carried by the
+   PICO and PICO_UART kernels; `sys/arch/rp2040/doc/CORE1.md` is its
+   authority and records the measured cost (1,828 bytes of flash, 544 of
+   them the SRAM image), the host, linked-image, emulated and Renode
+   evidence, and one board run in which an injected 300 ms `splhigh()`
+   spin was reported with its PC, a 6 s one reset the board with that
+   record, and flash writes raised no report. The estimate made before the code
+   existed was: about 300-600 bytes of code that runs from
    SRAM and is stored in kernel flash as its load image, plus 300-500 bytes
    of launch and reset text on core 0: 600 to 1,100 bytes of flash.
    Falsified if an injected `splhigh()` spin goes unreported within two

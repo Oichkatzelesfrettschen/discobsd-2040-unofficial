@@ -118,9 +118,9 @@ ttycheckoutq(struct tty *tp, int wait)
 }
 
 /*
- * panic() ends in boot(), which never returns on a board. Here it records
- * what it was asked and returns, so the gate can read the flags back; panic
- * has nothing left to do by then.
+ * panic() ends in boot(), which sys/systm.h declares __dead. Here it records
+ * what it was asked and leaves through hk_escape(), so the gate reads the
+ * flags back from the hk_catch() frame that ran the panic.
  */
 void
 boot(dev_t dev, int howto)
@@ -128,6 +128,7 @@ boot(dev_t dev, int howto)
 	boot_calls++;
 	boot_dev = dev;
 	boot_howto = howto;
+	hk_escape();
 }
 
 static void
@@ -348,6 +349,18 @@ output_routing(void)
 	HK_CHECK(hk_streq(terminal, "a\r\n"));
 }
 
+static void
+first_panic(void)
+{
+	panic("out of mbufs");
+}
+
+static void
+second_panic(void)
+{
+	panic("and again");
+}
+
 /*
  * panic prints its message and ends in boot(). A second panic while the
  * first is still recorded adds RB_NOSYNC, because syncing the disks from a
@@ -357,7 +370,7 @@ static void
 panic_path(void)
 {
 	reset();
-	panic("out of mbufs");
+	HK_CHECK(hk_catch(first_panic));
 	HK_CHECK(hk_streq(console, "panic: out of mbufs\n"));
 	HK_CHECK(panicstr != NULL);
 	HK_CHECK(hk_streq(panicstr, "out of mbufs"));
@@ -366,7 +379,7 @@ panic_path(void)
 	HK_CHECK(boot_howto == (RB_HALT | RB_DUMP));
 
 	/* The second one keeps the first message and refuses to sync. */
-	panic("and again");
+	HK_CHECK(hk_catch(second_panic));
 	HK_CHECK(hk_streq(panicstr, "out of mbufs"));
 	HK_CHECK(boot_calls == 2);
 	HK_CHECK(boot_howto == (RB_HALT | RB_DUMP | RB_NOSYNC));

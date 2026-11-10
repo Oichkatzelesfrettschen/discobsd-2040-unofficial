@@ -280,8 +280,8 @@ mkfs_mutant_${mutant}: fsck_mutate.py ${MKFS}/mkfs.c ${MACHINE_STAMP}
 clean:
 	rm -f fsck_host image_gen df_host mkfs_host fsck_mutant_* \
 	    image_gen_mutant_* df_mutant_* mkfs_mutant_*
-	rm -f objs/*.o mutant/*/*.c mutant/*/*.o work/*/*.img work/*/*.img.repaired work/*/fsck.out \
-	    work/check.log
+	rm -f objs/*.o mutant/*/*.c mutant/*/*.o work/*/*.img work/*/*.img.repaired work/*/*.map \
+	    work/*/fsck.out work/check.log
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@for directory in objs machine mutant/* mutant work/* work; do \
 		if [ -d $$directory ]; then rmdir $$directory; fi; \

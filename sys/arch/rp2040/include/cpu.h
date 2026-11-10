@@ -62,7 +62,26 @@
  * registers (machine/picocalcvar.h); the PICOCALC kernel serves it.
  */
 #define	CPU_PICOCALC		19	/* node: PicoCalc board registers */
-#define	CPU_MAXID		20	/* number of valid machdep ids */
+#define	CPU_WATCHDOG_ARG2	20	/* int: that section's second argument */
+/*
+ * Core 1 as the kernel's observer, arch/rp2040/rp2040/core1.c, on kernels
+ * built with "options CORE1". core1 reads 0 parked by request, 1 running,
+ * 2 waiting to launch, 3 parked after repeated failures; writing 0 parks
+ * core 1 and nonzero launches it. The counters report stalls of core 0's
+ * clock with no masked section declared, the longest of them, the PC and LR
+ * core 0 was found at, and exceptions core 1 itself took. Writing
+ * core1_stall_ms masks core 0's interrupts for that long, up to 10 s, to
+ * test the report.
+ */
+#define	CPU_CORE1		21	/* int: supervisor state */
+#define	CPU_CORE1_RESTARTS	22	/* int: restarts since the last start */
+#define	CPU_CORE1_STALLS	23	/* int: undeclared stalls of core 0 */
+#define	CPU_CORE1_GAP_US	24	/* int: longest such stall */
+#define	CPU_CORE1_PC		25	/* int: core 0 PC at the last probe */
+#define	CPU_CORE1_LR		26	/* int: core 0 LR at the last probe */
+#define	CPU_CORE1_FAULTS	27	/* int: exceptions core 1 took */
+#define	CPU_CORE1_STALL_MS	28	/* int: write masks core 0 that long */
+#define	CPU_MAXID		29	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -86,5 +105,14 @@
 	{ "watchdog_arg", CTLTYPE_INT }, \
 	{ "storage_stats", CTLTYPE_STRUCT }, \
 	{ "picocalc", CTLTYPE_NODE }, \
+	{ "watchdog_arg2", CTLTYPE_INT }, \
+	{ "core1", CTLTYPE_INT }, \
+	{ "core1_restarts", CTLTYPE_INT }, \
+	{ "core1_stalls", CTLTYPE_INT }, \
+	{ "core1_gap_us", CTLTYPE_INT }, \
+	{ "core1_pc", CTLTYPE_INT }, \
+	{ "core1_lr", CTLTYPE_INT }, \
+	{ "core1_faults", CTLTYPE_INT }, \
+	{ "core1_stall_ms", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

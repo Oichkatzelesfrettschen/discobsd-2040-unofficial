@@ -297,7 +297,9 @@ flash_enter_xip(void)
  * interrupt vectoring into flash would fetch from a disabled interface.
  * SysTick holds one pending tick across the window, so clock_catchup()
  * accounts the rest before the mask lifts; flstrategy and fl_raw repeat the
- * call for the Dhara work between the erases and programs.
+ * call for the Dhara work between the erases and programs. The catch-up
+ * precedes the clearing of the section name: core 1 (rp2040/core1.c) reads
+ * a tick record that stood still with no section named as a stall.
  */
 static __ramfunc int
 flash_erase(u_int offset, u_int len)
@@ -316,8 +318,8 @@ flash_erase(u_int offset, u_int len)
 	flrom.erase(offset, len, FLASH_BLOCK_BYTES, FLASH_BLOCK_ERASE_CMD);
 	flrom.flush();
 	flash_enter_xip();
-	watchdog_site(WD_SITE_NONE, 0);
 	clock_catchup();
+	watchdog_site(WD_SITE_NONE, 0);
 	splx(s);
 	return 0;
 }
@@ -343,8 +345,8 @@ flash_program(u_int offset, const u_char *data, u_int len)
 	flrom.program(offset, data, len);
 	flrom.flush();
 	flash_enter_xip();
-	watchdog_site(WD_SITE_NONE, 0);
 	clock_catchup();
+	watchdog_site(WD_SITE_NONE, 0);
 	splx(s);
 	return 0;
 }

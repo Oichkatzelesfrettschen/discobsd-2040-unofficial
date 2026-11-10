@@ -4,13 +4,13 @@
  *
  * lib/libc/stdio compiled from the tree defines fflush and fclose, the same
  * names newlib's stdio defines. Any newlib object that reaches newlib's
- * reentrancy structure (malloc, close, fstat, isatty and write all do, through
- * errno) pulls in newlib's stdio with it and the link fails on the duplicate
- * definitions. This file supplies those six services directly so the test
- * links the tree's stdio alone: a bump allocator whose free() releases
- * nothing, which a test of bounded length can afford; close, isatty and
- * fstat answers for streams the test never opens; an errno cell; and write
- * as the Linux EABI call. Pair it with -DQEMU_SUPPORT_EXIT_DIRECT on
+ * reentrancy structure (malloc, close, fstat, isatty, read and write all do,
+ * through errno) pulls in newlib's stdio with it and the link fails on the
+ * duplicate definitions. This file supplies those seven services directly so
+ * the test links the tree's stdio alone: a bump allocator whose free()
+ * releases nothing, which a test of bounded length can afford; close,
+ * isatty, fstat and read answers for streams the test never opens; an errno
+ * cell; and write as the Linux EABI call. Pair it with -DQEMU_SUPPORT_EXIT_DIRECT on
  * tests/libbn/qemu_support.c, whose exit() would pull the same objects in.
  */
 
@@ -65,6 +65,16 @@ fstat(int fd, void *st)
 	(void)fd;
 	(void)st;
 	return -1;
+}
+
+/* The scanf tests read string streams, which _filbuf ends without a read. */
+int
+read(int fd, void *buf, size_t n)
+{
+	(void)fd;
+	(void)buf;
+	(void)n;
+	return 0;
 }
 
 int

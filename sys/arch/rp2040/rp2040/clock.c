@@ -12,6 +12,9 @@
 #include <machine/scb.h>
 
 #include <rp2040/rp2040/clock_catchup.h>
+#ifdef CORE1
+#include <rp2040/rp2040/core1.h>
+#endif
 
 /*
  * The free-running microsecond timer, datasheet 4.6. machdep.c leaves it out
@@ -58,7 +61,23 @@ clkstart(void)
 	SCB_REG32(SCB_SYST_CVR) = 0;
 	SCB_REG32(SCB_SYST_CSR) =
 	    SYST_CSR_CLKSOURCE | SYST_CSR_TICKINT | SYST_CSR_ENABLE;
+#ifdef CORE1
+	core1_init();
+#endif
 }
+
+#ifdef CORE1
+/*
+ * The tick record, for core 1 to read: it moves at every delivered tick
+ * and after every masked window, so a record that stands still is a core 0
+ * that takes no clock interrupt. See rp2040/core1.h.
+ */
+const volatile u_int *
+clock_beat(void)
+{
+	return &clkcatch.stamp_us;
+}
+#endif
 
 /*
  * Record the tick the SysTick handler is delivering; see clock_catchup.h.

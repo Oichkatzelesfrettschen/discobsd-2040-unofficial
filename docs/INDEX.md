@@ -46,6 +46,7 @@ page in those files without carrying them here.
 | --- | --- | --- |
 | `BOOT-MAP.md` | the path from the boot ROM through boot2, kernel entry and init to a login prompt | reader entry point |
 | `CAPACITY.md` | compact kernel metadata, fixed-table and u-area counters, and the evidence required before a limit changes | the metadata generator, `sys/kern/subr_capacity.c`, `sbin/sysctl` |
+| `CORE1.md` | core 1 as the kernel's observer: launch and park, the tick-record observer, the NMI probe, the reset record, the supervisor, word ownership, cost and the evidence class of each claim | `sys/arch/rp2040/rp2040/core1.c`, `core1.h`, `compile/PICO/Config`, `compile/PICO_UART/Config` |
 | `DATASHEET-INDEX.md` | datasheet section to page number, for both the RP2040 and Pico documents | every hardware citation in the tree |
 | `MPU.md` | the Cortex-M0+ MPU map the kernel programs, the registers it reads back, and the fault test that proves it | `sys/arch/rp2040/rp2040/mpu.c`, `usr.bin/mputest` |
 | `MULTICALL-BSS-OVERLAY.md` | how applets in one multicall binary share a BSS lifetime | the multicall `*.c.in` generators |
@@ -102,7 +103,7 @@ Grouped by what they investigate.
 | `rp2040-compiler-size-compatibility-scope.md` | the fixed-layout compiler compatibility and kernel-size repair boundary, measured callback and load-span failures, call-graph limits, resource denominator and falsifiable acceptance plan |
 | `rp2040-second-core-hardware.md` | core 1 launch, FIFOs, spinlocks, divider, interpolators and reset from the datasheet, the resources the port owns, and an emulated profile of the packed-executable decoder |
 | `rp2040-second-core-emulation/` | the sample program, host packer, decoder harness and Unicorn cycle model behind the 387 cycles per byte figure, with a build script that checks input hashes and recorded output |
-| `dragonfly-msgport-proposal-audit.md` | a proposal to adopt DragonFly's message ports, vkernel placement and core-1 drivers audited against DragonFly master, the datasheet readings and the tree: the ring, doorbell and `EASYNC` convention survive, the universal port, the vkernel and four subsystem placements fail, and the surviving transport is `corering.c` behind `check-corering` |
+| `dragonfly-msgport-proposal-audit.md` | a proposal to adopt DragonFly's message ports, vkernel placement and core-1 drivers audited against DragonFly master, the datasheet readings and the tree: the ring, doorbell and `EASYNC` convention survive, the universal port, the vkernel and four subsystem placements fail, and the surviving transport is `corering.c` behind `check-corering`, which `core1.c` links into the PICO and PICO_UART kernels |
 | `calculator-and-games-review.md` | advisory review of the calculator library, bignum library and fourfall before integration, with each finding's disposition |
 | `calculator-and-games-review-round2.md` | adjudication of the second Codex and Grok reviews of the same branch: 28 merged findings with verdicts and probes, 17 defects both missed, and the commit that resolves each |
 | `copy-reviews/` | the copying reviews of `lib/libcalc` and `games/fourfall` against their excluded references, with calibration and shingle numbers |
@@ -134,6 +135,7 @@ Grouped by what they investigate.
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 192 KB process window |
 | `footprint-techniques.md` | flash and SRAM techniques ranked by measured payoff and mapped to this tree: XIP libc, multicall membership, alignment-hole packing, bounded scans, per-artifact flag experiments, and why kernel overlays and wholesale shared stacks do not pay |
+| `kernel-footprint-handoff.md` | the measured kernel and libc footprint work queue: never-returning libc entry points, `struct user` load reach, unreferenced kernel functions, the `adjtime` 64-bit divide, a lean PICO beside PICO_DIAG, the `-O2` capacity-index block, kernel LTO blockers and unprototyped designs, each with location, bytes and acceptance |
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
 | `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
 | `c17-shipped-build-baseline.md` | configuration-specific shipped source membership, artifact-bound static resource receipts and the acceptance states left open |

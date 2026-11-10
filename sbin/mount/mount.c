@@ -72,7 +72,7 @@ static struct opt {
 	{ MNT_RDONLY,		"read-only" },
 	{ MNT_SYNCHRONOUS,	"synchronous" },
 	{ MNT_V7,		"v7" },
-	{ NULL }
+	{ 0 }
 };
 
 int

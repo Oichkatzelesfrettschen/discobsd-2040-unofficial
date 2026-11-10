@@ -131,6 +131,18 @@ CAPACITY_LINES = [
     "uarea bytes 3072 user 972 stack 2048 peak",
 ]
 
+CORE1_LINES = [
+    "machdep.core1=1",
+    "machdep.core1_restarts=0",
+    "machdep.core1_faults=0",
+    "machdep.core1_stalls=0",
+]
+
+STALL_LINES = [
+    "machdep.core1_stalls=1",
+    "machdep.core1_restarts=0",
+]
+
 ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 
@@ -230,6 +242,24 @@ def run_stages(console: Console, config: str) -> None:
     # bytes reports a surviving count and fails here.
     console.type_line("mputest residue")
     console.wait_lines(["RESIDUE OK"], "exec residue probe", COMMAND_BUDGET_SECONDS)
+    # The PICO_UART kernel launches core 1 through the boot ROM a second
+    # after the clock starts and pings it once a second; two unanswered
+    # pings restart it. After five more seconds a running state with no
+    # restart means the launch completed and the rings carried each ping
+    # and its answer. No stall may be on record: the boot above wrote
+    # flash thousands of times, each inside a declared section.
+    console.type_line("sleep 5; sysctl machdep.core1 machdep.core1_restarts "
+                      "machdep.core1_faults machdep.core1_stalls")
+    console.wait_lines(CORE1_LINES, "core 1 answering pings", COMMAND_BUDGET_SECONDS)
+    # operator is in wheel, so su needs no password. The write masks core
+    # 0's interrupts for 300 ms with no section declared; core 1 has to
+    # count exactly that one stall, and the supervisor must not mistake
+    # it for a dead core 1.
+    console.type_line("su")
+    console.wait_lines(["#"], "root shell", COMMAND_BUDGET_SECONDS)
+    console.type_line("sysctl -w machdep.core1_stall_ms=300; "
+                      "sysctl machdep.core1_stalls machdep.core1_restarts")
+    console.wait_lines(STALL_LINES, "injected stall reported", COMMAND_BUDGET_SECONDS)
 
 
 def main(argv: list[str]) -> int:

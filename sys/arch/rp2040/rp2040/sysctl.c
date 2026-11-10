@@ -32,6 +32,9 @@
 #include <machine/board.h>
 #include <machine/mpuvar.h>
 #include <machine/watchdog.h>
+#ifdef CORE1
+#include <rp2040/rp2040/core1.h>
+#endif
 #ifdef SWAPRAM
 #include <machine/swapram.h>
 #endif
@@ -217,6 +220,26 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return ENOTDIR;
 		i = (int)watchdog_last_arg;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+
+	case CPU_WATCHDOG_ARG2:
+		if (namelen != 1)
+			return ENOTDIR;
+		i = (int)watchdog_last_arg2;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+#ifdef CORE1
+	case CPU_CORE1:
+	case CPU_CORE1_RESTARTS:
+	case CPU_CORE1_STALLS:
+	case CPU_CORE1_GAP_US:
+	case CPU_CORE1_PC:
+	case CPU_CORE1_LR:
+	case CPU_CORE1_FAULTS:
+	case CPU_CORE1_STALL_MS:
+		if (namelen != 1)
+			return ENOTDIR;
+		return core1_sysctl(name[0] - CPU_CORE1, oldp, oldlenp, newp,
+		    newlen);
+#endif
 
 	case CPU_CONSDEV:
 		{

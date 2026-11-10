@@ -501,7 +501,10 @@ check-kernel:
 check-swap-exchange-headroom:
 		${MAKE} -C tests/kernel check-swap-exchange-headroom
 
-.PHONY: check-swap-exchange-headroom
+check-swap-exchange-inplace:
+		${MAKE} -C tests/kernel check-swap-exchange-inplace
+
+.PHONY: check-swap-exchange-headroom check-swap-exchange-inplace
 
 # Verify callback types and dispatch against the production architecture sources.
 check-kernel-abi-contracts: check-python

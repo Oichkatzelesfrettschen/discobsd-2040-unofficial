@@ -272,7 +272,7 @@ sr_encode (caddr_t src, unsigned int len, u_char *dst, unsigned int cap)
     heatshrink_encoder *encoder;
     unsigned int in = 0, out = 0, moved = 0;
     u_char scratch[64];
-    u_char *buf;
+    u_char *output_buffer;
     size_t room, n;
     HSE_poll_res pres;
     HSE_finish_res fres;
@@ -298,16 +298,16 @@ sr_encode (caddr_t src, unsigned int len, u_char *dst, unsigned int cap)
         moved = out;
         do {
             if (dst != NULL && out < cap) {
-                buf = dst + out;
+                output_buffer = dst + out;
                 room = cap - out;
             } else {
-                buf = scratch;
+                output_buffer = scratch;
                 room = dst != NULL ? 1 : sizeof scratch;
             }
-            pres = heatshrink_encoder_poll (encoder, buf, room, &n);
+            pres = heatshrink_encoder_poll (encoder, output_buffer, room, &n);
             if (pres < 0)
                 goto done;
-            if (buf == scratch && dst != NULL && n > 0)
+            if (output_buffer == scratch && dst != NULL && n > 0)
                 goto done;      /* more than cap bytes: overflow */
             out += n;
         } while (pres == HSER_POLL_MORE);

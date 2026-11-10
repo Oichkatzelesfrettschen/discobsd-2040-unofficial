@@ -715,17 +715,17 @@ lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 static int
 lcdprobe(struct conf_device *config __unused)
 {
-	int version;
+	int keyboard_version;
 
 	lcdcons_init();
 	printf("lcd0: ST7365P 320x320 on SPI1, %dx%d cells", LT_COLS, LT_ROWS);
 	if (CONS_MAJOR == LCDCONS_MAJOR)
 		printf(", console");
 	printf("\n");
-	version = picokbd_version();
-	if (version >= 0)
+	keyboard_version = picokbd_version();
+	if (keyboard_version >= 0)
 		printf("kbd0: keyboard controller at I2C1 0x%x, firmware %d.%d\n",
-		    PICOCALC_KBD_ADDR, version >> 4, version & 0xf);
+		    PICOCALC_KBD_ADDR, keyboard_version >> 4, keyboard_version & 0xf);
 	else
 		printf("kbd0: keyboard controller at I2C1 0x%x not answering\n",
 		    PICOCALC_KBD_ADDR);

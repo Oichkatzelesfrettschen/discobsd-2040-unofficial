@@ -99,8 +99,8 @@ COMPILE_CYCLE_C=${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} -O ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
-# PARAM reaches every object as -D flags, and .params holds the PARAM text
-# the objects were compiled with. Parsing only compares the two, so -n and -V
+# The stamp binds configuration, compiler, assembler and link options to the
+# objects. Parsing only compares the recorded values, so -n and -V
 # change nothing. When they differ the stamp is a .PHONY target that every
 # object waits on: its recipe removes every object and then records the new
 # text, so a changed option recompiles them all whatever their mtimes, and a
@@ -108,11 +108,13 @@ COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 # whole-second mtimes, so an object compiled in the stamp's second would
 # otherwise read as current. Unchanged options reuse their objects.
 PARAMSTAMP=	.params
-_paramchanged!=	printf '%s\n' '${PARAM}' | cmp -s - ${PARAMSTAMP} 2>/dev/null || echo yes
+PARAMSTAMP_VALUES:= ${PARAM:Q} ${CC:Q} ${CFLAGS:Q} ${AS:Q} ${AFLAGS:Q} \
+		${LD:Q} ${LDFLAGS:Q} ${LDADD:Q}
+_paramchanged!=	printf '%s\n' ${PARAMSTAMP_VALUES} | cmp -s - ${PARAMSTAMP} 2>/dev/null || echo yes
 .if ${_paramchanged} == "yes"
 .PHONY: ${PARAMSTAMP}
 ${PARAMSTAMP}:
-	rm -f -- *.o && printf '%s\n' '${PARAM}' > ${PARAMSTAMP}
+	rm -f -- *.o && printf '%s\n' ${PARAMSTAMP_VALUES} > ${PARAMSTAMP}
 .endif
 
 OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \

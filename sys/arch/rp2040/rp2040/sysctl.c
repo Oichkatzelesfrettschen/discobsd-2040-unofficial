@@ -222,7 +222,7 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return ENOTDIR;
 		dev = makedev(CONS_MAJOR, CONS_MINOR);
 		return sysctl_rdstruct(oldp, oldlenp, newp, &dev, sizeof dev);
-#if NTMSCP > 0
+#if defined(NTMSCP) && NTMSCP > 0
 	case CPU_TMSCP:
 		if (namelen != 2)
 			return ENOTDIR;

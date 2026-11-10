@@ -60,9 +60,12 @@ def selected_rows(rows, inet, glob):
 def harness(rows, handlers, inet, glob):
     lines = ['#include <sys/syscall_dispatch.h>',
              'static int observed_handler;',
-             'static int equal_text(const char *left, const char *right)',
-             '{ while (*left && *left == *right) { ++left; ++right; }',
-             '  return *left == *right; }']
+             'static int names(unsigned int code, const char *right)',
+             '{ unsigned int length = ~0U;',
+             '  const char *left = syscall_name(code, &length);',
+             '  while (length != 0 && *right && *left == *right)',
+             '  { ++left; ++right; --length; }',
+             '  return length == 0 && *right == 0; }']
     identities = {name: index + 1 for index, name in enumerate(handlers)}
     for name in handlers:
         lines.append(f'void {name}(void) {{ observed_handler = {identities[name]}; }}')
@@ -74,9 +77,9 @@ def harness(rows, handlers, inet, glob):
                       f'     syscall_nargs[{index}] != {count}) return 3;',
                       f' observed_handler = 0; syscall_handlers[{index}]();',
                       f' if (observed_handler != {identities[handler]}) return 4;',
-                      f' if (!equal_text(syscall_name({index}), {json.dumps(trace)})) return 5;'])
-    lines.extend([' if (!equal_text(syscall_name((unsigned int)nsysent), "?") ||',
-                  '     !equal_text(syscall_name(~0U), "?")) return 6;',
+                      f' if (!names({index}, {json.dumps(trace)})) return 5;'])
+    lines.extend([' if (!names((unsigned int)nsysent, "?") ||',
+                  '     !names(~0U, "?")) return 6;',
                   ' return 0;', '}'])
     return '\n'.join(lines) + '\n'
 
@@ -119,7 +122,8 @@ def check(root, host_cc):
                    subprocess.check_output([tool, '--version'], text=True).splitlines()[0]}
              for tool in {host[0], clang, arm}}
     types = ('_Static_assert(sizeof(syscall_nargs[0]) == 1, "argument byte");\n'
-             '_Static_assert(_Generic(&syscall_name, const char *(*)(unsigned int): 1, '
+             '_Static_assert(_Generic(&syscall_name, '
+             'const char *(*)(unsigned int, unsigned int *): 1, '
              'default: 0), "trace type");\n')
     types += ''.join(f'_Static_assert(_Generic(&{name}, syscall_handler_t: 1, '
                      f'default: 0), "{name} type");\n' for name in handlers)

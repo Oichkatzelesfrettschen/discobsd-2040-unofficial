@@ -59,6 +59,65 @@ def c_string(value: str) -> str:
     return f'"{escaped}\\0"'
 
 
+# A syscall trace name is a span of the name pool: the low
+# NAME_OFFSET_BITS of its 16-bit table entry hold the offset and the rest
+# hold the length.
+NAME_OFFSET_BITS = 10
+NAME_LENGTH_LIMIT = (1 << (16 - NAME_OFFSET_BITS)) - 1
+NAME_POOL_LIMIT = 1 << NAME_OFFSET_BITS
+
+
+def name_overlap(left: bytes, right: bytes) -> int:
+    """Length of the longest proper suffix of left that begins right."""
+    for length in range(min(len(left), len(right)) - 1, 0, -1):
+        if left.endswith(right[:length]):
+            return length
+    return 0
+
+
+def pack_names(names: list[bytes]) -> tuple[bytes, list[int]]:
+    """Return a string that contains every name, and each name's offset.
+
+    The names carry no terminator, so one name can lie inside another or
+    across the seam of two more. Names inside other names are dropped, then
+    the pair with the longest suffix-prefix overlap merges until no pair
+    overlaps: the maximum-overlap greedy construction for the shortest
+    common superstring. Ties resolve by byte order, so the pool depends on
+    the set of names alone.
+    """
+    distinct = sorted(set(names))
+    pieces = [
+        name
+        for name in distinct
+        if not any(name != other and name in other for other in distinct)
+    ]
+    overlaps = {
+        (left, right): name_overlap(left, right)
+        for left in pieces
+        for right in pieces
+        if left != right
+    }
+    while overlaps:
+        (left, right), length = min(
+            overlaps.items(), key=lambda item: (-item[1], item[0])
+        )
+        if length == 0:
+            break
+        merged = left + right[length:]
+        pieces = [piece for piece in pieces if piece not in (left, right)]
+        overlaps = {
+            pair: value
+            for pair, value in overlaps.items()
+            if left not in pair and right not in pair
+        }
+        for piece in pieces:
+            overlaps[(merged, piece)] = name_overlap(merged, piece)
+            overlaps[(piece, merged)] = name_overlap(piece, merged)
+        pieces.append(merged)
+    pool = b"".join(sorted(pieces))
+    return pool, [pool.index(name) for name in names]
+
+
 def read_records(path: Path, fields: int) -> list[tuple[int, list[str]]]:
     records = []
     for line_number, raw_line in enumerate(path.read_text().splitlines(), 1):
@@ -119,7 +178,13 @@ def parse_syscalls(path: Path) -> list[Syscall]:
             raise MetadataError(
                 f"{path}:{line_number}: invalid condition {condition!r}"
             )
-        if not trace_name or "\0" in trace_name or "*/" in trace_name:
+        if (
+            not trace_name
+            or not trace_name.isascii()
+            or not trace_name.isprintable()
+            or any(character in trace_name for character in '"\\?')
+            or "*/" in trace_name
+        ):
             raise MetadataError(f"{path}:{line_number}: invalid trace name")
         definitions = parse_public(public, path, line_number)
         for definition in definitions:
@@ -154,8 +219,11 @@ def parse_syscalls(path: Path) -> list[Syscall]:
         )
     if not syscalls:
         raise MetadataError(f"{path}: empty syscall master")
-    pool_size = sum(len(call.trace_name.encode("utf-8")) + 1 for call in syscalls)
-    if pool_size > 0xFFFF:
+    longest = max(len(call.trace_name) for call in syscalls)
+    if longest > NAME_LENGTH_LIMIT:
+        raise MetadataError(f"{path}: a syscall name is {longest} bytes")
+    pool_size = len(pack_names([call.trace_name.encode() for call in syscalls])[0])
+    if pool_size > NAME_POOL_LIMIT:
         raise MetadataError(f"{path}: syscall name pool is {pool_size} bytes")
     return syscalls
 
@@ -225,7 +293,8 @@ def render_dispatch_header(syscalls: list[Syscall]) -> str:
         "extern const unsigned char syscall_nargs[];\n",
         "extern const syscall_handler_t syscall_handlers[];\n",
         "extern const int nsysent;\n",
-        "const char *syscall_name(unsigned int code);\n\n",
+        "/* The name is *length bytes with no terminator. */\n",
+        "const char *syscall_name(unsigned int code, unsigned int *length);\n\n",
         "/* Handlers read arguments and publish results through the kernel u-area. */\n",
     ]
     lines.extend(f"void {handler}(void);\n" for handler in sorted(handlers))
@@ -295,33 +364,49 @@ def render_init_sysent(syscalls: list[Syscall]) -> str:
 
 
 def render_syscall_names(syscalls: list[Syscall]) -> str:
-    offsets = []
-    offset = 0
-    for call in syscalls:
-        offsets.append(offset)
-        offset += len(call.trace_name.encode("utf-8")) + 1
+    names = [call.trace_name.encode() for call in syscalls]
+    pool, offsets = pack_names(names)
+    spans = [
+        offset | len(name) << NAME_OFFSET_BITS
+        for name, offset in zip(names, offsets, strict=True)
+    ]
+    text = pool.decode()
     lines = [
         SYSCALL_TABLE_LICENSE,
         "\n",
         generated_notice("syscalls.master"),
         "#include <sys/syscall_dispatch.h>\n#include <sys/stdint.h>\n\n",
+        "/*\n",
+        " * Every trace name is a span of this string. The names carry no\n",
+        " * terminator, so one name lies inside another or across the seam of\n",
+        " * two more. A span holds the offset in its low "
+        f"{NAME_OFFSET_BITS} bits and the\n",
+        " * length above them.\n",
+        " */\n",
         "static const char syscall_name_pool[] =\n",
     ]
-    lines.extend(f"    {c_string(call.trace_name)}\n" for call in syscalls)
-    lines.append("    ;\n\nstatic const uint16_t syscall_name_offsets[] = {\n")
-    for index in range(0, len(offsets), 12):
-        values = ", ".join(str(value) for value in offsets[index : index + 12])
+    lines.extend(
+        f'    "{text[index : index + 64]}"\n' for index in range(0, len(text), 64)
+    )
+    lines.append("    ;\n\nstatic const uint16_t syscall_name_spans[] = {\n")
+    for index in range(0, len(spans), 10):
+        values = ", ".join(str(value) for value in spans[index : index + 10])
         lines.append(f"    {values},\n")
     lines.extend(
         [
             "};\n\n",
-            "_Static_assert(sizeof(syscall_name_offsets) /\n",
-            f"    sizeof(syscall_name_offsets[0]) == {len(syscalls)},\n",
+            "_Static_assert(sizeof(syscall_name_spans) /\n",
+            f"    sizeof(syscall_name_spans[0]) == {len(syscalls)},\n",
             '    "syscall name and ABI counts differ");\n\n',
             "const char *\n",
-            "syscall_name(unsigned int code)\n{\n",
-            "    if (code >= (unsigned int)nsysent)\n        return \"?\";\n",
-            "    return syscall_name_pool + syscall_name_offsets[code];\n}\n",
+            "syscall_name(unsigned int code, unsigned int *length)\n{\n",
+            "    unsigned int span;\n\n",
+            "    if (code >= (unsigned int)nsysent) {\n",
+            "        *length = 1;\n        return \"?\";\n    }\n",
+            "    span = syscall_name_spans[code];\n",
+            f"    *length = span >> {NAME_OFFSET_BITS};\n",
+            "    return syscall_name_pool + "
+            f"(span & {NAME_POOL_LIMIT - 1}U);\n}}\n",
         ]
     )
     return "".join(lines)
@@ -459,6 +544,17 @@ def self_test() -> None:
             f"{number}|0|nosys|ALWAYS|#{number}|-\n" for number in range(257)
         )
         expect_error("syscall 256", lambda: syscall_case(oversized_abi))
+        pool, offsets = pack_names([b"read", b"readv", b"pread", b"adv", b"vfork"])
+        if pool != b"preadvfork" or offsets != [1, 1, 0, 3, 5]:
+            raise MetadataError(f"name packing gave {pool!r} {offsets}")
+        wide_pool = "".join(
+            f"{number}|0|nosys|ALWAYS|{chr(65 + number) * 60}|-\n"
+            for number in range(18)
+        )
+        expect_error("syscall name pool beyond its offset field",
+                     lambda: syscall_case(wide_pool))
+        expect_error("syscall name with a quote",
+                     lambda: syscall_case(valid.replace("|exit|", '|ex"it|')))
         huge_name = "x" * 65536
         expect_error(
             "oversized syscall pool",

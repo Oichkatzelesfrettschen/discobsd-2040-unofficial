@@ -11,197 +11,62 @@
 #include <sys/syscall_dispatch.h>
 #include <sys/stdint.h>
 
+/*
+ * Every trace name is a span of this string. The names carry no
+ * terminator, so one name lies inside another or across the seam of
+ * two more. A span holds the offset in its low 10 bits and the
+ * length above them.
+ */
 static const char syscall_name_pool[] =
-    "indir\0"
-    "exit\0"
-    "fork\0"
-    "read\0"
-    "write\0"
-    "open\0"
-    "close\0"
-    "wait4\0"
-    "#8\0"
-    "link\0"
-    "unlink\0"
-    "execv\0"
-    "chdir\0"
-    "fchdir\0"
-    "mknod\0"
-    "chmod\0"
-    "chown\0"
-    "chflags\0"
-    "fchflags\0"
-    "lseek\0"
-    "getpid\0"
-    "mount\0"
-    "umount\0"
-    "__sysctl\0"
-    "getuid\0"
-    "geteuid\0"
-    "ptrace\0"
-    "getppid\0"
-    "statfs\0"
-    "fstatfs\0"
-    "getfsstat\0"
-    "sigaction\0"
-    "sigprocmask\0"
-    "access\0"
-    "sigpending\0"
-    "sigaltstack\0"
-    "sync\0"
-    "kill\0"
-    "stat\0"
-    "getlogin\0"
-    "lstat\0"
-    "dup\0"
-    "pipe\0"
-    "setlogin\0"
-    "profil\0"
-    "setuid\0"
-    "seteuid\0"
-    "getgid\0"
-    "getegid\0"
-    "setgid\0"
-    "setegid\0"
-    "kmemdev\0"
-    "phys\0"
-    "lock\0"
-    "ioctl\0"
-    "reboot\0"
-    "sigwait\0"
-    "symlink\0"
-    "readlink\0"
-    "execve\0"
-    "umask\0"
-    "chroot\0"
-    "fstat\0"
-    "#63\0"
-    "#64\0"
-    "pselect\0"
-    "vfork\0"
-    "#67\0"
-    "#68\0"
-    "brk\0"
-    "rdglob\0"
-    "wrglob\0"
-    "msec\0"
-    "#73\0"
-    "#74\0"
-    "#75\0"
-    "vhangup\0"
-    "#77\0"
-    "#78\0"
-    "getgroups\0"
-    "setgroups\0"
-    "getpgrp\0"
-    "setpgrp\0"
-    "setitimer\0"
-    "old wait\0"
-    "#85\0"
-    "getitimer\0"
-    "#87\0"
-    "#88\0"
-    "getdtablesize\0"
-    "dup2\0"
-    "#91\0"
-    "fcntl\0"
-    "select\0"
-    "#94\0"
-    "fsync\0"
-    "setpriority\0"
-    "socket\0"
-    "connect\0"
-    "accept\0"
-    "getpriority\0"
-    "send\0"
-    "recv\0"
-    "sigreturn\0"
-    "bind\0"
-    "setsockopt\0"
-    "listen\0"
-    "sigsuspend\0"
-    "#108\0"
-    "#109\0"
-    "#110\0"
-    "#111\0"
-    "sigstack\0"
-    "recvmsg\0"
-    "sendmsg\0"
-    "#115\0"
-    "gettimeofday\0"
-    "getrusage\0"
-    "getsockopt\0"
-    "#119\0"
-    "readv\0"
-    "writev\0"
-    "settimeofday\0"
-    "fchown\0"
-    "fchmod\0"
-    "recvfrom\0"
-    "#126\0"
-    "#127\0"
-    "rename\0"
-    "truncate\0"
-    "ftruncate\0"
-    "flock\0"
-    "#132\0"
-    "sendto\0"
-    "shutdown\0"
-    "socketpair\0"
-    "mkdir\0"
-    "rmdir\0"
-    "utimes\0"
-    "#139\0"
-    "adjtime\0"
-    "getpeername\0"
-    "#142\0"
-    "#143\0"
-    "getrlimit\0"
-    "setrlimit\0"
-    "killpg\0"
-    "#147\0"
-    "setquota\0"
-    "quota\0"
-    "getsockname\0"
-    "#151\0"
-    "ustore\0"
-    "ufetch\0"
-    "ucall\0"
-    "#155\0"
-    "futimes\0"
-    "openat\0"
-    "unlinkat_beneath\0"
-    "publishat_beneath\0"
-    "openat_beneath\0"
-    "mkdirat_beneath\0"
-    "linkat_beneath\0"
+    "#108#109#110#111#115#119#126#127#132#139#142#143#147#151#155#63#"
+    "64#67#68#73#74#75#77#78#85#87#88#91#94__sysctlistenaccessendtold"
+    " wait4adjtimefchdireadvforkmemdevhanguphysetegidfchflagseteuidfc"
+    "hmodfchownfcntlseekflockfstatfsynclosendmsgeteuidftruncatefutime"
+    "setgidgetgroupselectgetitimerebootgetlogingetpeernamegetpgrpipeg"
+    "etpidgetppidgetprioritygetrlimitgetrusagetdtablesizegetsocknameg"
+    "etsockoptgettimeofdaygetuidioctlstatmknodmseconnectopenat_beneat"
+    "hpublishat_beneathrmdirecvfromkdirat_beneathsetgroupsetitimerecv"
+    "msgetfsstatsetloginsetpgrprofilsetprioritysetquotacceptracexecve"
+    "xitsetrlimitsetsockoptsettimeofdaysetuidshutdownsigactionsigalts"
+    "tacksigpendingetgidsigprocmasksigreturnsigstacksigsuspendsigwait"
+    "socketpairenamesymlinkucallufetchrootumaskumountunlinkat_beneath"
+    "ustoreadlinkwrglobindirdglobrkillpgetegidup2writev"
     ;
 
-static const uint16_t syscall_name_offsets[] = {
-    0, 6, 11, 16, 21, 27, 32, 38, 44, 47, 52, 59,
-    65, 71, 78, 84, 90, 96, 104, 113, 119, 126, 132, 139,
-    148, 155, 163, 170, 178, 185, 193, 203, 213, 225, 232, 243,
-    255, 260, 265, 270, 279, 285, 289, 294, 303, 310, 317, 325,
-    332, 340, 347, 355, 363, 368, 373, 379, 386, 394, 402, 411,
-    418, 424, 431, 437, 441, 445, 453, 459, 463, 467, 471, 478,
-    485, 490, 494, 498, 502, 510, 514, 518, 528, 538, 546, 554,
-    564, 573, 577, 587, 591, 595, 609, 614, 618, 624, 631, 635,
-    641, 653, 660, 668, 675, 687, 692, 697, 707, 712, 723, 730,
-    741, 746, 751, 756, 761, 770, 778, 786, 791, 804, 814, 825,
-    830, 836, 843, 856, 863, 870, 879, 884, 889, 896, 905, 915,
-    921, 926, 933, 942, 953, 959, 965, 972, 977, 985, 997, 1002,
-    1007, 1017, 1027, 1034, 1039, 1048, 1054, 1066, 1071, 1078, 1085, 1091,
-    1096, 1104, 1111, 1128, 1146, 1161, 1177,
+static const uint16_t syscall_name_spans[] = {
+    5906, 4671, 4247, 4242, 5932, 4531, 5345, 5249, 2135, 4818,
+    6896, 5690, 5262, 6285, 5540, 5311, 5317, 7345, 8368, 5326,
+    6463, 5867, 6890, 8294, 6549, 7402, 6709, 7493, 6361, 7384,
+    9730, 9840, 11923, 6259, 10884, 11897, 4318, 4893, 4313, 8482,
+    5535, 3880, 4411, 8715, 6681, 6754, 7351, 6797, 7970, 6400,
+    7337, 7322, 4262, 4308, 5531, 6428, 7865, 7887, 8964, 6714,
+    5861, 6879, 5336, 3132, 3135, 7437, 5270, 3138, 3141, 3867,
+    6934, 6924, 4521, 3144, 3147, 3150, 7328, 3153, 3156, 9478,
+    9708, 7477, 7699, 9716, 8317, 3159, 9492, 3162, 3165, 13671,
+    4904, 3168, 5322, 6414, 3171, 5341, 11807, 6848, 7596, 6705,
+    11596, 4216, 4566, 9886, 4881, 10828, 6253, 10927, 4096, 4100,
+    4104, 4108, 8871, 7676, 7396, 4112, 12681, 9568, 10623, 4116,
+    5266, 6956, 12886, 6340, 6334, 8662, 4120, 4124, 6857, 8434,
+    9457, 5331, 4128, 6264, 8808, 10944, 5597, 5586, 6395, 4132,
+    7302, 11562, 4136, 4140, 9559, 9795, 6941, 4144, 8746, 5677,
+    11636, 4148, 6912, 6875, 5846, 4152, 7418, 6579, 17136, 17857,
+    14771, 15837, 15090,
 };
 
-_Static_assert(sizeof(syscall_name_offsets) /
-    sizeof(syscall_name_offsets[0]) == 163,
+_Static_assert(sizeof(syscall_name_spans) /
+    sizeof(syscall_name_spans[0]) == 163,
     "syscall name and ABI counts differ");
 
 const char *
-syscall_name(unsigned int code)
+syscall_name(unsigned int code, unsigned int *length)
 {
-    if (code >= (unsigned int)nsysent)
+    unsigned int span;
+
+    if (code >= (unsigned int)nsysent) {
+        *length = 1;
         return "?";
-    return syscall_name_pool + syscall_name_offsets[code];
+    }
+    span = syscall_name_spans[code];
+    *length = span >> 10;
+    return syscall_name_pool + (span & 1023U);
 }

@@ -195,7 +195,15 @@ check-uf2-images: check-python
 			    ${FLASHUF2}; \
 		done
 
-.PHONY: check-uf2-validator check-uf2-images
+check-board-descriptor: check-python
+.if ${MACHINE} == "rp2040"
+		${MAKE} -C tests/board_descriptor check
+.else
+		@echo "check-board-descriptor requires MACHINE=rp2040" >&2
+		@exit 2
+.endif
+
+.PHONY: check-uf2-validator check-uf2-images check-board-descriptor
 
 # The kernel flash image must leave KERNEL_HEADROOM_MARGIN bytes (default in
 # tools/check_kernel_headroom.py) of the FLASH region of RP2040.ld free in
@@ -1499,7 +1507,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-rp2040-vectors .WAIT check-rp2040-syscalls .WAIT check-rp2040-devsw .WAIT \
 		check-rp2040-fileops .WAIT check-rp2040-ioconf .WAIT check-rp2040-tty-roots .WAIT \
 		check-rp2040-callout-roots .WAIT check-rp2040-nlist .WAIT \
-		check-kernel-headroom
+		check-board-descriptor .WAIT check-kernel-headroom
 
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test

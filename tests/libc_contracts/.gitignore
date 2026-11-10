@@ -67,6 +67,14 @@ scanf_doscan.o
 scanf_doscan32.o
 scanf_doscan_asan.o
 scanf_doscan_float.o
+scanf_doscan_llong.o
+scanf_doscan_llong32.o
+scanf_doscan_llong_asan.o
+scanf_llong_test
+scanf_llong_test32
+scanf_llong_test_asan
+scanf_llong_absent_test
+scanf_llong_absent_test32
 scanf_doscan_float32.o
 scanf_doscan_float_asan.o
 scanf_scanf.o
@@ -172,6 +180,7 @@ string_memmem32_san.o
 strtox_test_arm
 random_contract_test_arm
 printf_contract_test_arm
+scanf_llong_test_arm
 printf_g_contract_test
 printf_g_contract_test_arm
 pg_*.o

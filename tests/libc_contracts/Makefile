@@ -58,7 +58,8 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-waitpid-contract \
 	check-mktime check-difftime \
 	check-runtime-limits check-malloc check-random check-printf \
-	check-printf-float check-scanf check-rwmode check-ansi check-syslog \
+	check-printf-float check-scanf check-scanf-llong check-rwmode \
+	check-ansi check-syslog \
 	check-vis check-printf-g check-huge-val \
 	check-qsort check-strtox check-string-security check-array-memory-line
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
@@ -307,6 +308,7 @@ SCANF_GEN_DIR=	${TOPSRC}/lib/libc/gen
 SCANF_RENAMES=	-Dscanf=db_scanf -Dfscanf=db_fscanf -Dsscanf=db_sscanf \
 		-Dvscanf=db_vscanf -Dvfscanf=db_vfscanf -Dvsscanf=db_vsscanf \
 		-D_doscan=db_doscan -D__doscan_cvt=db_doscan_cvt \
+		-D__doscan_ll=db_doscan_ll \
 		-Dungetc=db_ungetc -D_filbuf=db_filbuf -Dstrtod=db_strtod \
 		-Derrno=scanf_test_errno
 SCANF_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
@@ -318,6 +320,21 @@ SCANF_OBJS32=	scanf_doscan32.o scanf_doscan_float32.o scanf_scanf32.o \
 SCANF_OBJS_ASAN=scanf_doscan_asan.o scanf_doscan_float_asan.o \
 		scanf_scanf_asan.o scanf_ungetc_asan.o scanf_filbuf_asan.o \
 		scanf_strtod_asan.o scanf_ctype_asan.o
+
+# The 64-bit integer member joins the scanner objects above for
+# scanf_llong_test.c. scanf_llong_absent_test is the same source linked
+# without it, where the weak __doscan_ll resolves to a null address.
+SCANF_LLONG_TESTS=	scanf_llong_test scanf_llong_test32 \
+			scanf_llong_test_asan scanf_llong_absent_test \
+			scanf_llong_absent_test32
+SCANF_LLONG_OBJS=	scanf_doscan_llong.o scanf_doscan_llong32.o \
+			scanf_doscan_llong_asan.o
+# Every link of the scanner without doscan_llong.o leaves the weak
+# __doscan_ll undefined. GNU ld resolves it to a null address. Darwin's ld64
+# refuses it unless -U names it, after which the reference stays a weak
+# import and dyld binds it to null at load, the condition _doscan tests.
+SCANF_WEAK_LDFLAGS!= if [ "$$(uname -s)" = Darwin ] ; then \
+			echo -Wl,-U,_db_doscan_ll ; fi
 
 # The address sanitizer is what detects the defect class this scanner was
 # rewritten to remove: a staging buffer overrun lands inside the scanner's
@@ -846,18 +863,66 @@ check-scanf: scanf_contract_test
 	${TEST_EXECUTION} skip libc.scanf.sanitized "check-libc-scanf: ${HOSTCC} has no address sanitizer"
 .endif
 
+check-scanf-llong: scanf_llong_test scanf_llong_absent_test
+	${TEST_EXECUTION} run libc.scanf-llong.native -- ./scanf_llong_test
+	${TEST_EXECUTION} run libc.scanf-llong.absent.native -- ./scanf_llong_absent_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} scanf_llong_test32 scanf_llong_absent_test32
+	${TEST_EXECUTION} run libc.scanf-llong.ilp32 -- ./scanf_llong_test32
+	${TEST_EXECUTION} run libc.scanf-llong.absent.ilp32 -- ./scanf_llong_absent_test32
+.else
+	${TEST_EXECUTION} skip libc.scanf-llong.ilp32 "check-libc-scanf-llong: ${HOSTCC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip libc.scanf-llong.absent.ilp32 "check-libc-scanf-llong: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ASAN_OK} == "yes"
+	@${MAKE} scanf_llong_test_asan
+	${TEST_EXECUTION} run libc.scanf-llong.sanitized -- ./scanf_llong_test_asan
+.else
+	${TEST_EXECUTION} skip libc.scanf-llong.sanitized "check-libc-scanf-llong: ${HOSTCC} has no address sanitizer"
+.endif
+
+scanf_llong_test: scanf_llong_test.c ${SCANF_OBJS} scanf_doscan_llong.o
+	${HOSTCC} ${SCANF_CFLAGS} -o $@ scanf_llong_test.c ${SCANF_OBJS} \
+	    scanf_doscan_llong.o
+
+scanf_llong_test32: scanf_llong_test.c ${SCANF_OBJS32} scanf_doscan_llong32.o
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -o $@ scanf_llong_test.c \
+	    ${SCANF_OBJS32} scanf_doscan_llong32.o
+
+scanf_llong_test_asan: scanf_llong_test.c ${SCANF_OBJS_ASAN} \
+		scanf_doscan_llong_asan.o
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -o $@ scanf_llong_test.c \
+	    ${SCANF_OBJS_ASAN} scanf_doscan_llong_asan.o
+
+scanf_llong_absent_test: scanf_llong_test.c ${SCANF_OBJS}
+	${HOSTCC} ${SCANF_CFLAGS} -DSCANF_LLONG_ABSENT -o $@ \
+	    scanf_llong_test.c ${SCANF_OBJS} ${SCANF_WEAK_LDFLAGS}
+
+scanf_llong_absent_test32: scanf_llong_test.c ${SCANF_OBJS32}
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -DSCANF_LLONG_ABSENT -o $@ \
+	    scanf_llong_test.c ${SCANF_OBJS32} ${SCANF_WEAK_LDFLAGS}
+
+scanf_doscan_llong.o: ${SCANF_DIR}/doscan_llong.c ${SCANF_DIR}/doscan.h
+	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan_llong.c
+
+scanf_doscan_llong32.o: ${SCANF_DIR}/doscan_llong.c ${SCANF_DIR}/doscan.h
+	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan_llong.c
+
+scanf_doscan_llong_asan.o: ${SCANF_DIR}/doscan_llong.c ${SCANF_DIR}/doscan.h
+	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan_llong.c
+
 scanf_contract_test: scanf_contract_test.c ${SCANF_OBJS}
-	${HOSTCC} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c ${SCANF_OBJS}
+	${HOSTCC} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c ${SCANF_OBJS} ${SCANF_WEAK_LDFLAGS}
 
 scanf_contract_test32: scanf_contract_test.c ${SCANF_OBJS32}
 	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c \
-	    ${SCANF_OBJS32}
+	    ${SCANF_OBJS32} ${SCANF_WEAK_LDFLAGS}
 
 scanf_contract_test_asan: scanf_contract_test.c ${SCANF_OBJS_ASAN}
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -o $@ scanf_contract_test.c \
-	    ${SCANF_OBJS_ASAN}
+	    ${SCANF_OBJS_ASAN} ${SCANF_WEAK_LDFLAGS}
 
-scanf_doscan.o: ${SCANF_DIR}/doscan.c
+scanf_doscan.o: ${SCANF_DIR}/doscan.c ${SCANF_DIR}/doscan.h
 	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan.c
 
 scanf_doscan_float.o: ${SCANF_DIR}/doscan_float.c
@@ -878,7 +943,7 @@ scanf_strtod.o: ${SCANF_STDLIB_DIR}/strtod.c
 scanf_ctype.o: ${SCANF_GEN_DIR}/ctype_.c
 	${HOSTCC} ${SCANF_CFLAGS} -c -o $@ ${SCANF_GEN_DIR}/ctype_.c
 
-scanf_doscan32.o: ${SCANF_DIR}/doscan.c
+scanf_doscan32.o: ${SCANF_DIR}/doscan.c ${SCANF_DIR}/doscan.h
 	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan.c
 
 scanf_doscan_float32.o: ${SCANF_DIR}/doscan_float.c
@@ -899,7 +964,7 @@ scanf_strtod32.o: ${SCANF_STDLIB_DIR}/strtod.c
 scanf_ctype32.o: ${SCANF_GEN_DIR}/ctype_.c
 	${HOSTCC} ${ILP32} ${SCANF_CFLAGS} -c -o $@ ${SCANF_GEN_DIR}/ctype_.c
 
-scanf_doscan_asan.o: ${SCANF_DIR}/doscan.c
+scanf_doscan_asan.o: ${SCANF_DIR}/doscan.c ${SCANF_DIR}/doscan.h
 	${HOSTCC} ${ASAN} ${SCANF_CFLAGS} -c -o $@ ${SCANF_DIR}/doscan.c
 
 scanf_doscan_float_asan.o: ${SCANF_DIR}/doscan_float.c
@@ -1172,12 +1237,13 @@ clean:
 	rm -f rwmode_contract_test rwmode_contract_test32 ${RWMODE_OBJS} ${RWMODE_OBJS32}
 	rm -f scanf_contract_test scanf_contract_test32 scanf_contract_test_asan \
 		${SCANF_OBJS} ${SCANF_OBJS32} ${SCANF_OBJS_ASAN}
+	rm -f ${SCANF_LLONG_TESTS} ${SCANF_LLONG_OBJS}
 
 	rm -f ansi_contract_test ansi_contract_test32 ansi_contract_test32_san \
 		${ANSI_OBJS} ${ANSI_OBJS32} ${ANSI_SAN32_OBJS} \
 		ansi_shared_byte_bad.o ansi_shared_byte_bad_test ansi_shared_byte_bad.log
 	rm -f waitpid_contract_test waitpid_contract.o
-	rm -f ${QEMU_TESTS} ${QEMU_STRTOX_OBJS} ${QEMU_PRINTF_OBJS} \
+	rm -f ${QEMU_TESTS} ${QEMU_STRTOX_OBJS} ${QEMU_PRINTF_OBJS} ${QEMU_SCANF_OBJS} \
 		random_random_arm.o qemu_support_direct.o qemu_stdio_shim.o
 
 # Thumb-1 execution. The tree sources behind check-strtox, check-random and
@@ -1187,12 +1253,19 @@ clean:
 # faults on Thumb-2 and unaligned accesses. Each test is the host test
 # unchanged. REQUIRE_QEMU makes a missing qemu-arm an error; otherwise the
 # target prints SKIP and no ARM execution has occurred. The tests print to
-# stdout or stderr through qemu_support.c, and the printf test links the
-# tree's stdio over qemu_stdio_shim.c in place of newlib's.
+# stdout or stderr through qemu_support.c, and the printf and 64-bit scanf
+# tests link the tree's stdio over qemu_stdio_shim.c in place of newlib's.
+# The scanf test's oracle there is the tree's strtoll and strtoull: newlib's
+# reach _impure_ptr, whose stdio would collide with the tree's. The c17
+# header gate holds that pair to glibc and to newlib, so this run shows
+# the scanner agreeing with a verified conversion on Thumb-1.
 QEMU_OBJCFLAGS=	-Os ${QEMU_ARM_CPUFLAGS} -fno-common
-QEMU_TESTS=	strtox_test_arm random_contract_test_arm printf_contract_test_arm
+QEMU_TESTS=	strtox_test_arm random_contract_test_arm printf_contract_test_arm \
+		scanf_llong_test_arm
 QEMU_STRTOX_OBJS= strtox_strtol_arm.o strtox_strtoul_arm.o
 QEMU_PRINTF_OBJS= ${PRINTF_OBJS:S/^printf_/printf_arm_/}
+QEMU_SCANF_OBJS= ${SCANF_OBJS:S/^scanf_/scanf_arm_/} scanf_arm_doscan_llong.o \
+		scanf_arm_strtoll.o scanf_arm_strtoull.o
 
 check-qemu:
 .if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)
@@ -1204,6 +1277,7 @@ check-qemu:
 	${QEMU_ARM_RUN} ./strtox_test_arm
 	${QEMU_ARM_RUN} ./random_contract_test_arm
 	${QEMU_ARM_RUN} ./printf_contract_test_arm
+	${QEMU_ARM_RUN} ./scanf_llong_test_arm
 	@${MAKE} printf_g_contract_test_arm huge_val_contract_test_arm
 	${QEMU_ARM_RUN} ./printf_g_contract_test_arm
 	${QEMU_ARM_RUN} ./huge_val_contract_test_arm
@@ -1252,6 +1326,28 @@ printf_contract_test_arm: printf_contract_test.c ${QEMU_PRINTF_OBJS} \
 	    -o $@ printf_contract_test.c ${QEMU_PRINTF_OBJS} \
 	    qemu_support_direct.o qemu_stdio_shim.o ${QEMU_ARM_LIBS}
 
+.for _m in doscan doscan_float doscan_llong scanf ungetc filbuf
+scanf_arm_${_m}.o: ${SCANF_DIR}/${_m}.c ${SCANF_DIR}/doscan.h
+	${QEMU_ARM_CC} ${SCANF_CFLAGS} ${QEMU_OBJCFLAGS} -c -o $@ \
+	    ${SCANF_DIR}/${_m}.c
+.endfor
+
+.for _m in strtod strtoll strtoull
+scanf_arm_${_m}.o: ${SCANF_STDLIB_DIR}/${_m}.c
+	${QEMU_ARM_CC} ${SCANF_CFLAGS} ${QEMU_OBJCFLAGS} -c -o $@ \
+	    ${SCANF_STDLIB_DIR}/${_m}.c
+.endfor
+
+scanf_arm_ctype.o: ${SCANF_GEN_DIR}/ctype_.c
+	${QEMU_ARM_CC} ${SCANF_CFLAGS} ${QEMU_OBJCFLAGS} -c -o $@ \
+	    ${SCANF_GEN_DIR}/ctype_.c
+
+scanf_llong_test_arm: scanf_llong_test.c ${QEMU_SCANF_OBJS} \
+    qemu_support_direct.o qemu_stdio_shim.o
+	${QEMU_ARM_CC} ${SCANF_CFLAGS} ${QEMU_ARM_CFLAGS:N-std=*} \
+	    -o $@ scanf_llong_test.c ${QEMU_SCANF_OBJS} \
+	    qemu_support_direct.o qemu_stdio_shim.o ${QEMU_ARM_LIBS}
+
 all: check
 
 .PHONY: all check check-host check-aout check-asctime check-ctime \
@@ -1261,7 +1357,8 @@ all: check
 	check-runtime-limits check-runtime-limits-cross \
 	check-malloc check-printf check-qsort check-array-memory-line \
 	check-random check-random-cross \
-	check-printf-float check-printf-g check-huge-val check-rwmode check-scanf check-string-security \
+	check-printf-float check-printf-g check-huge-val check-rwmode check-scanf \
+	check-scanf-llong check-string-security \
 	check-array-memory-line-cross check-string-security-cross check-strtox \
 	check-syslog check-vis check-qemu clean
 

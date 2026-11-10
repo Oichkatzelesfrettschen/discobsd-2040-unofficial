@@ -242,7 +242,10 @@ Prototype each in a scratch tree and land only a measured win.
   to be invoked with `all`, because the default target stops after
   `.params`.
 - Flag variants go through `COPTS='...'` on the `bmake` command line, which
-  overrides the `COPTS?=` default.
+  overrides the `COPTS?=` default. Run `bmake clean` before every variant:
+  the objects do not depend on `COPTS`, so a changed flag reuses stale
+  objects and the size comparison reports the previous variant. Every
+  measurement in this note ran from a clean compile directory.
 - A collected link was made by hand:
   `arm-none-eabi-ld -T ../../conf/RP2040.ld -T ../../conf/kern.ldscript -nostdlib -z noexecstack boot2.o locore0.o locore.o <other objects> --gc-sections <libgcc>`.
   The production recipe also passes `--fatal-warnings` and a map file.

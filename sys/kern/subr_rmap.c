@@ -245,17 +245,17 @@ malloc3_contiguous (mp, d_size, s_size, u_size, align, a)
     struct map *mp;
     size_t d_size, s_size, u_size, align, a[3];
 {
-    size_t total, span, base;
+    size_t allocation_size, span, base;
 
     if (align == 0 || (align & (align - 1)) != 0)
         panic ("malloc3_contiguous: bad alignment");
     if (d_size > (size_t)-1 - s_size ||
         d_size + s_size > (size_t)-1 - u_size)
         return 0;
-    total = d_size + s_size + u_size;
-    if (total == 0 || total > (size_t)-1 - (align - 1))
+    allocation_size = d_size + s_size + u_size;
+    if (allocation_size == 0 || allocation_size > (size_t)-1 - (align - 1))
         return 0;
-    span = (total + align - 1) & ~(align - 1);
+    span = (allocation_size + align - 1) & ~(align - 1);
     base = malloc (mp, span);
     if (base == 0)
         return 0;
@@ -283,7 +283,7 @@ malloc3_contiguous_next (struct map *mp, size_t d_size, size_t s_size,
     size_t u_size, size_t align, size_t *nextp, size_t a[3])
 {
     struct mapent *bp, *endp, *selected;
-    size_t base, candidate, end, selected_base, span, total;
+    size_t base, candidate, end, selected_base, span, allocation_size;
     int pass, spare;
 
     if (align == 0 || (align & (align - 1)) != 0)
@@ -293,10 +293,10 @@ malloc3_contiguous_next (struct map *mp, size_t d_size, size_t s_size,
     if (d_size > (size_t)-1 - s_size ||
         d_size + s_size > (size_t)-1 - u_size)
         return 0;
-    total = d_size + s_size + u_size;
-    if (total == 0 || total > (size_t)-1 - (align - 1))
+    allocation_size = d_size + s_size + u_size;
+    if (allocation_size == 0 || allocation_size > (size_t)-1 - (align - 1))
         return 0;
-    span = (total + align - 1) & ~(align - 1);
+    span = (allocation_size + align - 1) & ~(align - 1);
 
     for (endp = mp->m_map; endp->m_size; endp++)
         continue;

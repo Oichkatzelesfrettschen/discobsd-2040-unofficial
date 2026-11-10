@@ -26,6 +26,19 @@ PROBES = {
         "unused-variable",
     ),
     "extra": ("int warning_probe(int unused_arg) { return 0; }\n", "unused-parameter"),
+    "shadow": (
+        "int marker; int warning_probe(int marker) { return marker; }\n",
+        "shadow",
+    ),
+    "undef": (
+        "#if WARNING_POLICY_UNDEFINED\n#endif\n" + CONTROL,
+        "undef",
+    ),
+    "format-nonliteral": (
+        'extern int warning_printf(const char *, ...) __attribute__((format(printf, 1, 2)));\n'
+        'int warning_probe(char *format) { return warning_printf(format, 1); }\n',
+        "format-nonliteral",
+    ),
 }
 HOST_ROUTES = ("tools/binstall", "tools/config", "tools/fsutil", "share/zoneinfo")
 # Full routes compile clean under -Wall -Wextra, so share/mk/warnings.mk
@@ -199,7 +212,23 @@ def main():
             if generated is None or generated.group().split() != expected.group().split():
                 raise RuntimeError(f"{directory}: warning policy differs from config template")
         for directory in KERNEL_ROUTES:
-            check_route(args.root, make, directory, [], ("fatal", "wall", "extra"))
+            check_route(args.root, make, directory, [],
+                        ("fatal", "wall", "extra", "shadow", "undef", "format-nonliteral"))
+        extra_flags = {"shadow": "-Wshadow", "undef": "-Wundef",
+                       "format-nonliteral": "-Wformat=2"}
+        for kind, omitted in extra_flags.items():
+            flags = ["-Wall", "-Wextra", "-Werror"] + [
+                flag for flag in extra_flags.values() if flag != omitted
+            ]
+            try:
+                check_route(args.root, make, KERNEL_ROUTES[0],
+                            ["CWARNFLAGS=" + " ".join(flags)], (kind,))
+            except RuntimeError as error:
+                if f"{kind} probe was not rejected" not in str(error):
+                    raise
+            else:
+                raise RuntimeError(f"missing {omitted} mutant unexpectedly passed")
+            print(f"PASS missing {omitted} mutant rejected")
     return 0
 
 

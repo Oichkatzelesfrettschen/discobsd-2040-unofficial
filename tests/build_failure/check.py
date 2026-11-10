@@ -380,6 +380,43 @@ def check_params(root, make, scratch):
                        result.stdout)
 
     exercise(stamp, scratch / "control")
+
+    def exercise_flags(block, directory):
+        directory.mkdir()
+        (directory / "Makefile").write_text(
+            "all: main.o\nPARAM=stable\nCFLAGS=${OPT}\nCC=${COMPILER}\n"
+            "LDFLAGS=-Map=$@.map\n"
+            + block
+            + "\nmain.o: ${PARAMSTAMP}\n\t@echo ${OPT} ${COMPILER} > $@\n"
+        )
+        obj = directory / "main.o"
+        for opt, compiler in (("-Os", "gcc"), ("-O0", "gcc"),
+                              ("-O0", "clang")):
+            if obj.exists():
+                ahead = time.time() + 3600
+                os.utime(obj, (ahead, ahead))
+            result = run([*make, f"OPT={opt}", f"COMPILER={compiler}", "all"],
+                         directory, {})
+            expect(result.returncode == 0 and obj.read_text().strip() == f"{opt} {compiler}",
+                   f"changed compiler options {opt} {compiler}: stale object reused",
+                   result.stdout)
+            before = obj.stat().st_mtime_ns
+            result = run([*make, f"OPT={opt}", f"COMPILER={compiler}", "all"],
+                         directory, {})
+            expect(result.returncode == 0 and obj.stat().st_mtime_ns == before,
+                   "unchanged compiler options rebuilt an object", result.stdout)
+
+    exercise_flags(stamp, scratch / "flags-control")
+    flags_mutant = stamp.replace("${CC:Q} ${CFLAGS:Q}", "")
+    expect(flags_mutant != stamp, "compiler-options calibration did not change stamp", "")
+    try:
+        exercise_flags(flags_mutant, scratch / "flags-mutant")
+    except Failure as error:
+        expect("stale object reused" in str(error),
+               "compiler-options mutant failed for an unrelated reason", str(error))
+    else:
+        raise Failure("compiler-options mutant reused stale objects without rejection")
+
     mutant = stamp.replace("rm -f -- *.o && ", "")
     expect(mutant != stamp, "PARAM calibration did not remove the force", "")
     try:
@@ -389,21 +426,58 @@ def check_params(root, make, scratch):
                "PARAM mutant failed for an unrelated reason", str(error))
     else:
         raise Failure("PARAM mutant reused stale objects without rejection")
-    print("PASS PARAM changes rebuild newer objects; unchanged options reuse; "
-          "missing force rejected")
+    print("PASS configuration and compiler-option changes rebuild newer objects; "
+          "unchanged options reuse; missing dependencies and force rejected")
+
+
+def check_version_identity(root, make, scratch):
+    del make
+    command_directory = scratch / "commands"
+    command_directory.mkdir()
+    git_command = command_directory / "git"
+    git_command.write_text("#!/bin/sh\nprintf '123\\n'\n")
+    git_command.chmod(0o755)
+    hostname_command = command_directory / "hostname"
+    hostname_command.write_text("#!/bin/sh\nprintf 'private-host-fixture\\n'\n")
+    hostname_command.chmod(0o755)
+    environment = {"PATH": str(command_directory) + os.pathsep + os.environ["PATH"],
+                   "USER": "private-user-fixture"}
+    source = (root / "sys/conf/newvers.sh").read_text()
+
+    def exercise(script, directory):
+        directory.mkdir()
+        fixture = directory / "newvers.sh"
+        fixture.write_text(script)
+        result = run(["sh", str(fixture)], directory, environment)
+        expect(result.returncode == 0, "kernel version generation failed", result.stdout)
+        for private in ("private-host-fixture", "private-user-fixture", str(directory)):
+            expect(private not in result.stdout, "kernel version exposes build identity", "")
+        expect('DiscoBSD 2.7' in result.stdout and ' 123:' in result.stdout and
+               f'({directory.name.upper()})' in result.stdout,
+               "kernel version omits release, configuration or revision", result.stdout)
+
+    exercise(source, scratch / "control")
+    try:
+        exercise(source + "\nprintf 'private-host-fixture\\n'\n", scratch / "mutant")
+    except Failure as error:
+        expect("exposes build identity" in str(error),
+               "version identity mutant failed for an unrelated reason", str(error))
+    else:
+        raise Failure("version identity mutant was not rejected")
+    print("PASS kernel version omits build identity; identity mutant rejected")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--make", default=os.environ.get("MAKE", "bmake"))
-    parser.add_argument("--only", choices=("lib", "kernel", "params"))
+    parser.add_argument("--only", choices=("lib", "kernel", "params", "version"))
     args = parser.parse_args()
     make = shlex.split(args.make)
     root = args.root.resolve()
     failures = 0
     for name, check in (("lib", check_lib), ("kernel", check_kernel),
-                        ("params", check_params)):
+                        ("params", check_params), ("version", check_version_identity)):
         if args.only and args.only != name:
             continue
         with tempfile.TemporaryDirectory(prefix=f"discobsd-build-failure-{name}-") as tmp:

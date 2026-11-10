@@ -105,6 +105,8 @@ __asm volatile (
 "	mov	r11, r2		\n\t"
 "	pop	{r1, r2}	\n\t"
 "	bx	r1		\n\t"	/* Exception return through EXC_RETURN. */
+/* Thumb-1 literal loads must reach the pool even when C code grows. */
+"	.ltorg			\n\t"
 );
 }
 

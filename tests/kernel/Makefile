@@ -67,12 +67,9 @@ KERNEL_SANITIZER_OK!=	sh ${TOPSRC}/tools/compiler-probe.sh native \
 ELF_SURROUNDING_CFLAGS=	${SYSCALL_GATE_CFLAGS} \
 			-Wno-deprecated-non-prototype
 
-# sys/kern/subr_prf.c walks its own arguments as an array of four-byte slots,
-# so it is faithful only where a pointer, a long and an int are four bytes
-# and arguments sit on the stack. That is the target, and it is what -m32
-# gives on an x86-64 host: an ordinary 32-bit userspace binary, no virtual
-# machine and no second operating system. A host without 32-bit support
-# builds the rest of the tier and says so.
+# The formatter gate uses target-width integers and pointers. An x86-64 host
+# running a 32-bit userspace binary provides those widths; a host without
+# 32-bit support builds the rest of the tier and reports the skip.
 ILP32=		-m32
 ILP32_CC= ${HOST_CC}
 include ${TOPSRC}/tools/test-execution.mk
@@ -323,7 +320,7 @@ CLIST_SRC=	${TOPSRC}/sys/kern/tty_subr.c
 CAPACITY_SRC=	${TOPSRC}/sys/kern/subr_capacity.c
 CAPACITY_DEFS=	-DCAPACITY_STATS -DSWAPRAM ${IALLOC_PICO_DEFS}
 CAPACITY_MUTANTS=	process-state inode-references clist-object-size \
-		buffer-any-flag peak-follows-down saturation-inverted
+		buffer-any-flag peak-follows-down saturation-inverted invalid-kind
 
 # The protection syscalls and the process lookups they decide with.
 CRED_SRC=	${TOPSRC}/sys/kern/kern_prot.c ${TOPSRC}/sys/kern/kern_prot2.c \
@@ -1582,6 +1579,49 @@ prf_test: prf_test.c ${PRF_SRC} hostkern_kern.c hostkern32.o hostkern.h \
 	${HOST_CC} ${PRF_GATE_CFLAGS} -o $@ \
 	    prf_test.c prf_kernel.o prf_shim.o hostkern32.o
 
+prf_log_test: prf_test.c ${PRF_SRC} hostkern_kern.c hostkern32.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${PRF_KERN_CFLAGS} -DLOG_ENABLED -c -o prf_log_kernel.o ${PRF_SRC}
+	${HOST_CC} ${PRF_KERN_CFLAGS} -DLOG_ENABLED -c -o prf_log_shim.o hostkern_kern.c
+	${HOST_CC} ${PRF_GATE_CFLAGS} -DLOG_ENABLED -o $@ \
+	    prf_test.c prf_log_kernel.o prf_log_shim.o hostkern32.o
+
+readlink_functions.c: readlink_extract.py ufs_topology_extract.py ${OPENAT_SYSCALL_SRC}
+	${PYTHON} readlink_extract.py ${OPENAT_SYSCALL_SRC} $@
+
+readlink_test: readlink_test.c readlink_functions.c hostkern32.o ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} \
+	    -Dreadlink=kernel_readlink -Dnamei=readlink_namei -Diput=readlink_iput \
+	    -c -o readlink_kernel.o readlink_functions.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} ${OPENAT_LDFLAGS} \
+	    -o $@ readlink_test.c readlink_kernel.o hostkern32.o
+
+check-readlink-mutant: readlink_test readlink_extract.py
+	${PYTHON} readlink_extract.py ${OPENAT_SYSCALL_SRC} readlink.mutant.c --mutant
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} \
+	    -Dreadlink=kernel_readlink -Dnamei=readlink_namei -Diput=readlink_iput \
+	    -c -o readlink.mutant.o readlink.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} ${OPENAT_LDFLAGS} \
+	    -o readlink.mutant.test readlink_test.c readlink.mutant.o hostkern32.o
+	@if ./readlink.mutant.test >readlink.mutant.out 2>&1; then \
+		echo 'FAIL readlink mutant accepted' >&2; exit 1; \
+	else status=$$?; fi; \
+	if [ "$$status" -ne 1 ] || ! grep -F 'u.u_rval == 123' readlink.mutant.out >/dev/null; then \
+		cat readlink.mutant.out >&2; exit 1; \
+	fi; echo 'PASS readlink invalid-type mutant rejected'
+
+check-prf-log-mutant: prf_log_test prf_mutate.py
+	${PYTHON} prf_mutate.py ${PRF_SRC} prf_log.mutant.c
+	${HOST_CC} ${PRF_KERN_CFLAGS} -DLOG_ENABLED -c -o prf_log.mutant.o prf_log.mutant.c
+	${HOST_CC} ${PRF_GATE_CFLAGS} -DLOG_ENABLED -o prf_log.mutant.test \
+	    prf_test.c prf_log.mutant.o prf_log_shim.o hostkern32.o
+	@if ./prf_log.mutant.test >prf_log.mutant.out 2>&1; then \
+		echo 'FAIL formatter mutant accepted' >&2; exit 1; \
+	else status=$$?; fi; \
+	if [ "$$status" -ne 1 ] || ! grep -F 'hk_streq(console, "7 event")' prf_log.mutant.out >/dev/null; then \
+		cat prf_log.mutant.out >&2; exit 1; \
+	fi; echo 'PASS formatter log-to-console mutant rejected'
+
 sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_sig.o \
@@ -2720,7 +2760,7 @@ exec_finish_signal_mutant: exec_elf_admission_test.c \
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
-	@${MAKE} prf_test rwuio_test32 file_owner_test32 fionread_test32 sigauth_test \
+	@${MAKE} prf_test prf_log_test check-prf-log-mutant readlink_test check-readlink-mutant rwuio_test32 file_owner_test32 fionread_test32 sigauth_test \
 	    swap_ioctl_test32 tty_local_mode_test32 mem_span_test32 \
 	    ptrace_test32 \
 	    mem_span_endpoint-admission.mutant32.test \
@@ -2747,6 +2787,8 @@ check-ilp32:
 	    capacity_test \
 	    check-capacity-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
+	${TEST_EXECUTION} run kernel.printf-log.ilp32 -- ./prf_log_test
+	${TEST_EXECUTION} run kernel.readlink.ilp32 -- ./readlink_test
 	${TEST_EXECUTION} run kernel.signal-auth.ilp32 -- ./sigauth_test
 	${PYTHON} ${.CURDIR}/sigauth_mutate.py ${TOPSRC} ${HOST_CC:Q} \
 	    ${.CURDIR}/sigauth_test.c ${.CURDIR}/sigauth_prot2.o \
@@ -2836,6 +2878,8 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.capacity.ilp32 -- ./capacity_test
 .else
 	${TEST_EXECUTION} skip kernel.printf.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.printf-log.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.readlink.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.signal-auth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.rwuio.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.file-owner.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -2916,7 +2960,8 @@ clean:
 	rm -f cred_test_sanitized cred_prot_sanitized.o cred_prot2_sanitized.o \
 	    cred_proc_sanitized.o hostkern_sanitized.o
 	rm -f resource_kernel.o resource_proc.o
-	rm -f prf_kernel.o prf_shim.o hostkern32.o prf_test
+	rm -f prf_kernel.o prf_shim.o prf_log_kernel.o prf_log_shim.o hostkern32.o prf_test prf_log_test prf_log.mutant.c prf_log.mutant.o prf_log.mutant.test prf_log.mutant.out
+	rm -f readlink_kernel.o readlink_test readlink_functions.c readlink.mutant.c readlink.mutant.o readlink.mutant.test readlink.mutant.out
 	rm -f sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o sigauth_test
 	rm -f rwuio_kernel.o rwuio_kernel32.o rwuio_shim32.o rwuio_test32
 	rm -f rwuio_jump.o rwuio_jump32.o

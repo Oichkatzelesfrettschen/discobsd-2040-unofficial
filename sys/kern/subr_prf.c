@@ -13,6 +13,7 @@
 #include <sys/reboot.h>
 #include <sys/systm.h>
 #include <sys/syslog.h>
+#include "../../include/stdarg.h"
 
 #define TOCONS  0x1
 #define TOTTY   0x2
@@ -31,9 +32,7 @@ char    *panicstr;
  * are saved in msgbuf for inspection later.
  */
 static void
-putchar (c, flags, tp)
-    int c, flags;
-    register struct tty *tp;
+putchar (int c, int flags, struct tty *tp)
 {
     if (flags & TOTTY) {
         register int s = spltty();
@@ -136,14 +135,8 @@ void puts(char *s, int flags, struct tty *ttyp)
 #define HION "\e[1m"
 #define HIOFF "\e[0m"
 static void
-prf (fmt, ap, flags, ttyp)
-    register char *fmt;
-    register u_int *ap;
-    int flags;
-    struct tty *ttyp;
+prf (char *fmt, va_list ap, int flags, struct tty *ttyp)
 {
-#define va_arg(ap,type) *(type*) (void*) (ap++)
-
     char *q, nbuf [sizeof(long) * 8 + 1];
     const char *s;
     int c, padding, base, lflag, ladjust, sharpflag, neg, dot, size;
@@ -445,11 +438,15 @@ number:
 }
 
 static void
-logpri (level)
-    int level;
+logpri (int level)
 {
+    char buffer[sizeof(long) * 8 + 1];
+    char *digit;
+
     putchar ('<', TOLOG, (struct tty*) 0);
-    prf ("%u", &level, TOLOG, (struct tty*) 0);
+    digit = ksprintn (buffer, (unsigned int) level, 10, 0, NULL);
+    while (digit > buffer)
+        putchar (*digit--, TOLOG, (struct tty*) 0);
     putchar ('>', TOLOG, (struct tty*) 0);
 }
 
@@ -469,7 +466,11 @@ logpri (level)
 void
 printf(char *fmt, ...)
 {
-    prf(fmt, &fmt + 1, TOCONS | TOLOG, (struct tty *)0);
+    va_list arguments;
+
+    va_start (arguments, fmt);
+    prf (fmt, arguments, TOCONS | TOLOG, (struct tty *)0);
+    va_end (arguments);
 }
 
 /*
@@ -499,13 +500,17 @@ void
 uprintf (char *fmt, ...)
 {
     register struct tty *tp;
+    va_list arguments;
 
     tp = u.u_ttyp;
     if (tp == NULL)
         return;
 
-    if (ttycheckoutq (tp, 1))
-        prf (fmt, &fmt+1, TOTTY, tp);
+    if (ttycheckoutq (tp, 1)) {
+        va_start (arguments, fmt);
+        prf (fmt, arguments, TOTTY, tp);
+        va_end (arguments);
+    }
 }
 
 /*
@@ -518,13 +523,16 @@ void
 tprintf (register struct tty *tp, char *fmt, ...)
 {
     int flags = TOTTY | TOLOG;
+    va_list arguments;
 
     logpri (LOG_INFO);
     if (tp == (struct tty*) NULL)
         tp = &cnttys[0];
     if (ttycheckoutq (tp, 0) == 0)
         flags = TOLOG;
-    prf (fmt, &fmt + 1, flags, tp);
+    va_start (arguments, fmt);
+    prf (fmt, arguments, flags, tp);
+    va_end (arguments);
 #ifdef LOG_ENABLED
     logwakeup (logMSG);
 #endif
@@ -540,14 +548,19 @@ void
 log (int level, char *fmt, ...)
 {
     register int s = splhigh();
+    va_list arguments, console_arguments;
 
     logpri(level);
-    prf(fmt, &fmt + 1, TOLOG, (struct tty *)0);
+    va_start (arguments, fmt);
+    va_copy (console_arguments, arguments);
+    prf (fmt, arguments, TOLOG, (struct tty *)0);
+    va_end (arguments);
     splx(s);
 #ifdef LOG_ENABLED
     if (! logisopen(logMSG))
 #endif
-        prf(fmt, &fmt + 1, TOCONS, (struct tty *)0);
+        prf (fmt, console_arguments, TOCONS, (struct tty *)0);
+    va_end (console_arguments);
 #ifdef LOG_ENABLED
     logwakeup(logMSG);
 #endif
@@ -560,8 +573,7 @@ log (int level, char *fmt, ...)
  * sync the disks as this often leads to recursive panics.
  */
 void
-panic(s)
-    char *s;
+panic(char *s)
 {
     int bootopt = RB_HALT | RB_DUMP;
 

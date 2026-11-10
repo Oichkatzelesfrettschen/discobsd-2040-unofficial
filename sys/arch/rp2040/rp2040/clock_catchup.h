@@ -89,16 +89,16 @@ clock_catchup_owed(struct clock_catchup *c, unsigned int now_us,
  * the masked window and never inside the flash path.
  */
 static inline void
-clock_catchup_apply(unsigned int owed, int hz, int *lbolt, long *seconds,
+clock_catchup_apply(unsigned int owed, int ticks_per_second, int *tick_counter, long *seconds,
     struct callout *head)
 {
 	struct callout *p;
 	unsigned int ahead = 0;
 
-	*lbolt += (int)owed;
-	if (*lbolt >= hz) {
-		*seconds += *lbolt / hz;
-		*lbolt %= hz;
+	*tick_counter += (int)owed;
+	if (*tick_counter >= ticks_per_second) {
+		*seconds += *tick_counter / ticks_per_second;
+		*tick_counter %= ticks_per_second;
 	}
 	for (p = head->c_next; p != 0 && ahead < owed; p = p->c_next) {
 		int t = p->c_time;

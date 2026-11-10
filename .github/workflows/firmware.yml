@@ -76,7 +76,8 @@ jobs:
             gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
             python3 libusb-1.0-0-dev \
-            shellcheck pipx qemu-user python3-capstone python3-pyelftools
+            shellcheck pipx qemu-user python3-capstone python3-pyelftools \
+            python3-unicorn
           pipx install ruff
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
@@ -254,6 +255,19 @@ jobs:
             --status .build-logs/linux-cross.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 900 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross
+
+      # The linked kernel's core 0 and core 1 code on two emulated cores,
+      # then seventeen kernels rebuilt from mutated source that must fail;
+      # python3-unicorn above is its one dependency beyond the cross tier.
+      - name: Run the core 1 emulation tier
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-core1-emulation \
+            --log .build-logs/linux-core1-emulation.log \
+            --status .build-logs/linux-core1-emulation.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-core1-emulation
 
       - name: Run the qemu tier
         timeout-minutes: 5

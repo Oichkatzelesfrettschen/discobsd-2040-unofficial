@@ -95,6 +95,20 @@ Reset_Handler:
 	ldr	r0, =_estack	/* ARMv6-M LDR (literal) targets R0-R7 only. */
 	mov	sp, r0		/* Set Main Stack Pointer (MSP). */
 
+#ifdef CORE1
+	/*
+	 * A reset that reached this core alone (AIRCR.SYSRESETREQ, datasheet
+	 * 2.4.2.9) leaves core 1 executing the previous kernel's SRAM, which
+	 * the loops below overwrite. Hold core 1 in reset through the set
+	 * alias of PSM.FRCE_OFF, bit 16 (datasheet 2.13); core1_park() in
+	 * rp2040/core1.c releases it into the boot ROM before a launch.
+	 */
+	ldr	r0, =0x40012004
+	movs	r1, #1
+	lsls	r1, r1, #16
+	str	r1, [r0]
+#endif
+
 	/* Zero fill the data segment. */
 	ldr	r2, =_sdata
 	b	LoopFillZeroData

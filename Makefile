@@ -1021,6 +1021,40 @@ check-v7fs-core: check-python
 check-corering:
 		${MAKE} -C tests/corering check
 
+# Core 1 as the kernel's observer, sys/arch/rp2040/rp2040/core1.c, in three
+# evidence classes. check-core1 runs the two decision functions of core1.h
+# on the host with mutants. check-core1-image calibrates
+# tools/verify_rp2040_core1_image.py on linked fixtures, holds every built
+# kernel's core 1 code to SRAM, requires that at least one kernel carries
+# such code, and requires every source line that takes execute-in-place
+# down to follow a declared section. check-core1-emulation runs a linked
+# kernel's own core 0 and core 1 code on two emulated cores and rebuilds
+# the kernel from mutated source to calibrate itself; it needs Unicorn
+# under ${PYTHON}, so it stands outside "check" as check-renode does.
+check-core1:
+		${MAKE} -C tests/core1 check
+
+check-core1-image: check-python
+		PYTHON=${PYTHON:Q} GCCPREFIX=${GCCPREFIX:Q} \
+		    sh tests/rp2040/core1_image/check.sh
+		@set -e; elfs=; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
+			elfs="$$elfs sys/arch/rp2040/compile/$$configuration/unix.elf"; \
+		done; \
+		${PYTHON} tools/verify_rp2040_core1_image.py $$elfs | tee core1-image.out; \
+		if ! grep -q '^PASS core1-image' core1-image.out; then \
+			rm -f core1-image.out; \
+			echo "check-core1-image: no built kernel carries a core 1 image" >&2; \
+			exit 1; \
+		fi; \
+		rm -f core1-image.out
+
+CORE1_EMULATION_BOARD?=	PICO_UART
+check-core1-emulation: check-python
+		PYTHON=${PYTHON:Q} MAKE=${MAKE:Q} \
+		    sh tests/core1/check-emulation.sh ${CORE1_EMULATION_BOARD}
+
+.PHONY: check-core1 check-core1-image check-core1-emulation
+
 # The rump-kernel size measurement behind docs/research/tiny-rump-components.md.
 # It needs a NetBSD checkout, which CI lacks, so it stays outside check:
 # NETBSD_SRC defaults to BSD_Workspace/netbsd-src beside the primary checkout,
@@ -1141,7 +1175,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
-		check-netbsd-imports check-v7fs-core check-corering \
+		check-netbsd-imports check-v7fs-core check-corering check-core1 \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
 		check-usb-reset check-usb-line-coding check-usb-cdc-requests \
@@ -1380,6 +1414,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-ptrace-libc-abi .WAIT \
 		check-hsaout .WAIT check-hsx-decoder .WAIT check-flash-swap .WAIT \
 		check-rp2040-shutdown-cross .WAIT check-storage-counters .WAIT \
+		check-core1-image .WAIT \
 		check-kernel-headroom
 
 check-cross-assembler:

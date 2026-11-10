@@ -70,28 +70,33 @@ _Static_assert(sizeof(struct cring_entry) == 8,
  * access with a DMB after the load and before the store, so the entry
  * stores reach the bus ahead of the index that publishes them. They also
  * give the host gate's thread sanitizer the ordering between the cores.
+ *
+ * The four helpers below are always inlined, so they execute from whatever
+ * section CRING_FN gives their callers.
  */
-static unsigned int
+#define	CRING_INLINE	static inline __attribute__((always_inline))
+
+CRING_INLINE unsigned int
 index_load(const unsigned int *p)
 {
 	return __atomic_load_n(p, __ATOMIC_ACQUIRE);
 }
 
-static void
+CRING_INLINE void
 index_store(unsigned int *p, unsigned int v)
 {
 	__atomic_store_n(p, v, __ATOMIC_RELEASE);
 }
 
 /* A full outbound FIFO already holds a doorbell for the other core. */
-static void
+CRING_INLINE void
 bell_ring(void)
 {
 	if (CRING_RD(SIO_FIFO_ST) & FIFO_ST_RDY)
 		CRING_WR(SIO_FIFO_WR, 0);
 }
 
-static void
+CRING_INLINE void
 bell_clear(struct cring *r)
 {
 	unsigned int st;
@@ -104,7 +109,7 @@ bell_clear(struct cring *r)
 	}
 }
 
-void
+CRING_REQ_FN void
 cring_init(struct cring *r)
 {
 	index_store(&r->cr_windex, 0);
@@ -112,13 +117,13 @@ cring_init(struct cring *r)
 	r->cr_bellerr = 0;
 }
 
-unsigned int
+CRING_FN unsigned int
 cring_pending(const struct cring *r)
 {
 	return index_load(&r->cr_windex) - index_load(&r->cr_rindex);
 }
 
-int
+CRING_FN int
 cring_put(struct cring *r, const struct cring_entry *e)
 {
 	unsigned int w = r->cr_windex;
@@ -131,7 +136,7 @@ cring_put(struct cring *r, const struct cring_entry *e)
 	return 0;
 }
 
-unsigned int
+CRING_FN unsigned int
 cring_service(struct cring *r, cring_handler_t *fn, void *ctx)
 {
 	unsigned int rd, w, n;
@@ -146,7 +151,7 @@ cring_service(struct cring *r, cring_handler_t *fn, void *ctx)
 	return n;
 }
 
-void
+CRING_REQ_FN void
 cring_chan_init(struct cring_chan *c, struct cring *req, struct cring *rep)
 {
 	c->cc_req = req;
@@ -154,7 +159,7 @@ cring_chan_init(struct cring_chan *c, struct cring *req, struct cring *rep)
 	c->cc_inflight = 0;
 }
 
-int
+CRING_REQ_FN int
 cring_request(struct cring_chan *c, const struct cring_entry *e)
 {
 	if (c->cc_inflight >= CRING_SLOTS)
@@ -185,7 +190,7 @@ reply_one(void *ctx, const struct cring_entry *e)
 	rc->chan->cc_inflight--;
 }
 
-unsigned int
+CRING_REQ_FN unsigned int
 cring_replies(struct cring_chan *c, cring_handler_t *fn, void *ctx)
 {
 	struct reply_ctx rc = { c, fn, ctx };

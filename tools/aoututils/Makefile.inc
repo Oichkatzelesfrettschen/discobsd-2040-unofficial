@@ -21,10 +21,12 @@ ${PROG}: ${OBJS}
 # says nothing about the code. The compiler records every file it read in
 # a .d file beside the object, and each one rebuilds the object it names;
 # the .d files load after "all" so none of their targets becomes the
-# default. The flags here and in each Makefile bind every object too,
+# default. The flags here, in each Makefile and in the two shared
+# files that set the compiler and its warnings bind every object too,
 # which also rebuilds an object compiled before it had a .d file.
 CFLAGS+=-MMD -MP
-${OBJS}: Makefile ../Makefile.inc
+${OBJS}: Makefile ../Makefile.inc ${TOPSRC}/tools/Makefile.inc \
+	${TOPSRC}/share/mk/warnings.mk
 .for _dep in ${OBJS:.o=.d}
 .-include "${_dep}"
 .endfor

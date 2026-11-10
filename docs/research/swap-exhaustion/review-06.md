@@ -270,3 +270,37 @@ Current-product `check-kernel-headroom` remains unrun.
 The private PICO object comparison records 908 text, 214 rodata and 212 BSS.
 Four commit requests cover every headroom change, including shared registrations.
 The orchestrator will stage only the headroom hunks of shared files.
+
+## Board measurement of owned departure extents
+
+Revision `ce242bcd` on PICO-TO-DOS, PICO kernel `unix.uf2` SHA-256
+`b87ae02f6219bcd2ad87f4c3e9233b3d5d113cec4af07a17a3e23e131bd91f9c` with the
+origin/main `eb5b3081` root `flash.uf2` SHA-256
+`1613cc2ad075f3a02456c5354eb089ce6b2c8771fff5270fbb94139a4b549597`, bare Pico,
+boot ROM V3, USB console, driven through `board_user_window.py` with no
+temporary extents held. `forktest` was rebuilt with `BSSBYTES` of 60, 100 and
+172 KiB; `swap_image_span_geometry()` gives the 100 KiB image a 108-block span
+and the 172 KiB image a 180-block span.
+
+| Image | Result | Time |
+| --- | --- | --- |
+| 60 KiB bss | `FORKTEST CHILD OK` | 17 s |
+| 100 KiB bss | `FORKTEST ENOMEM` | 25 s |
+| 172 KiB bss | exec refused, shell prints `too big`, status 126 | 2 s |
+
+`talloc` binary search then measured the free runs the boot leaves: 104 blocks
+on `/dev/temp0`, 100 on `/dev/temp1` and 34 on `/dev/temp2`, with `init`,
+`update` and the login shell swapped out and `su` resident. No panic and no
+console stall occurred.
+
+The prediction held for liveness and missed on capacity. The 172 KiB case no
+longer stalls: `exec_estab()` asks `swap_exchange_resize()` for a 180-block
+route, the largest free run is 104 blocks, and exec refuses before the image
+replaces the shell, so the predicted `fork()` ENOMEM is never reached. The
+100 KiB fork, which board run 8 on main admitted with swap free, is refused
+because no free run holds the child's 108-block route. Every resident and
+swapped image now owns an aligned extent placed next-fit, and those extents
+split the 380-block map into runs shorter than a 100 KiB image. Restoring the
+capacity needs a placement or exchange mechanism: route placement that keeps
+the largest run whole, relocation of resident routes before refusal, or the
+in-place sector exchange in `sched()` that needs one image-sized run per pair.

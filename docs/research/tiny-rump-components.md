@@ -511,6 +511,28 @@ and the BSD_Workspace trees, so it is not exhaustive.
    `msdosfs_wfile`, `msdosfs_mkdire`), so `ls`, `cat`, `get` and `rm`
    need local read, readdir and remove code. `msdosfs_wfile` maps its
    source with `mmap`, which DiscoBSD lacks, so it needs a local patch.
+   Landed as `usr.sbin/msdosfs` and `check-msdosfs-core`. The program
+   links the four core files, the three forks and `mkfs_msdos.c`,
+   imported under the manifest, behind three local files: the front end
+   (`ls`, `cat`, `get` and `rm` walk directories with the kernel's
+   long-name match rule and call `msdosfs_removede` and
+   `msdosfs_detrunc`), a buffer layer of four 4,096-byte buffers in
+   `.bss` over the image descriptor, and the `<util.h>` allocators.
+   Three local patches correct the imports: `msdosfs_wfile` reads its
+   source instead of mapping it and returns its write errors,
+   `msdosfs_deget` returns a broken directory chain instead of listing
+   the directory as empty, and `mkfs_msdos` closes its descriptor and
+   frees its sector buffer. `updatefats` returns void and drops its FAT
+   write errors, so the buffer layer records the first failed write and
+   the front end fails the command on it. The DiscoBSD link at `ce242bcd`
+   with ARM GCC 16.2.0 is 36,444 bytes of text, 620 of data and 16,992 of
+   bss; the core files are 3,297 (`fat`), 3,486 (`conv`), 1,628
+   (`lookup`) and 3,576 (`unicode`) bytes of text, the forks 921, 1,167
+   and 1,648, the formatter 6,298 and the local files 4,642. The host
+   gate measures at most two buffers held at once and calibrates that
+   bound: a two-buffer build runs the whole session and a one-buffer
+   build stops. The independent reader, `fsck.fat` and `mtype` accept
+   every FAT12, FAT16 and FAT32 image the session writes.
 5. A kernel-linked component, only after a HEAD kernel measures its flash
    headroom and an inode-to-core adapter has a size.
 
@@ -528,6 +550,6 @@ and execution evidence. The stack bound above is a static analysis of the
 cross build, and the kernel flash headroom is the `check-kernel-headroom`
 measurement cited in the first section. The board run covers the tool
 session on one board, one kernel and one image geometry. It covers neither a
-raw device, a full image nor stack depth at run time. The FAT figures are a compile of the NetBSD files, not of a
-DiscoBSD link. The other-systems table rests on project pages and papers
+raw device, a full image nor stack depth at run time. The FAT tool has
+host execution and a DiscoBSD link, and no board run. The other-systems table rests on project pages and papers
 rather than builds.

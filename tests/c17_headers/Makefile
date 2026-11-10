@@ -104,7 +104,46 @@ ctype_no_isblank.mutant:
 	    "int     isblank(int);" ""
 ctype_no_isblank.contract= ctype_contract
 
-check-cross: check-header-contracts check-header-mutants check-imports
+# null_contract.c once per header that defines NULL, each included alone,
+# because the definitions sit under #ifndef and the first one included
+# decides the macro.  <sys/dir.h> needs <sys/types.h> in front of it.
+NULL_HEADERS=	stddef.h stdio.h stdlib.h string.h time.h unistd.h \
+		sys/param.h sys/dir.h
+sys/dir.h.null=	-DNULL_NEEDS_TYPES
+
+# One libc header and one header the kernel shares, each with NULL back at
+# the integer 0.  The mutant tree is searched first, so only that header
+# changes.
+null_string_zero.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/string.h $@/string.h \
+	    "#define	NULL	((void *)0)" "#define	NULL	0"
+null_string_zero.header=	string.h
+null_param_zero.mutant:
+	@rm -rf $@ && mkdir -p $@/sys
+	${MUTATE} ${TOPSRC}/sys/sys/param.h $@/sys/param.h \
+	    "#define NULL        ((void *)0)" "#define NULL        0"
+null_param_zero.header=	sys/param.h
+NULL_MUTANTS=	null_string_zero null_param_zero
+
+check-null-contract: ${NULL_MUTANTS:S/$/.mutant/}
+.for header in ${NULL_HEADERS}
+	${TARGET_CC} ${TARGET_FLAGS} ${${header}.null} \
+	    "-DNULL_HEADER=<${header}>" -c -o null_contract.o null_contract.c
+.endfor
+.for mutant in ${NULL_MUTANTS}
+	@if ${TARGET_CC} -I${mutant}.mutant ${TARGET_FLAGS} \
+	    "-DNULL_HEADER=<${${mutant}.header}>" -c -o ${mutant}.o \
+	    null_contract.c >${mutant}.log 2>&1; then \
+		echo "c17 headers: mutant ${mutant} translated" >&2; exit 1; \
+	fi
+	@grep -q 'NULL has type void' ${mutant}.log || \
+	    { cat ${mutant}.log >&2; exit 1; }
+.endfor
+	@echo "c17 headers: NULL is a pointer constant in ${NULL_HEADERS}; ${NULL_MUTANTS} rejected"
+
+check-cross: check-header-contracts check-header-mutants check-imports \
+    check-null-contract
 
 check-header-contracts:
 .for contract in ${HEADER_CONTRACTS}
@@ -427,5 +466,5 @@ clean:
 	    ${HOST_TESTS} ${HOST_TESTS:S/$/_arm/} exit_probe
 
 .PHONY: check-cross check-header-contracts check-header-mutants \
-	check-imports check-host check-qemu clean \
-	${HEADER_MUTANTS:S/$/.mutant/}
+	check-imports check-null-contract check-host check-qemu clean \
+	${HEADER_MUTANTS:S/$/.mutant/} ${NULL_MUTANTS:S/$/.mutant/}

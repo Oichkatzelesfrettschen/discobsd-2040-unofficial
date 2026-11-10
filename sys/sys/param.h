@@ -61,7 +61,7 @@
 #define NBPW        sizeof(int) /* number of bytes in an integer */
 
 #ifndef NULL
-#define NULL        0
+#define NULL        ((void *)0)
 #endif
 #define CMASK       026     /* default mask for file creation */
 #define NODEV       (dev_t)(-1)

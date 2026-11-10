@@ -3,6 +3,15 @@
 
 #include <stdint.h>
 
+#ifndef _WCHAR_T
+#define _WCHAR_T
+#ifdef __WCHAR_TYPE__
+typedef __WCHAR_TYPE__ wchar_t;
+#else
+typedef unsigned int wchar_t;		/* as <stddef.h> defines it */
+#endif
+#endif
+
 /*
  * C17 7.8.1: conversion specifiers for the <stdint.h> types.  int8_t and
  * int16_t promote to int, so their fprintf macros carry no length modifier.
@@ -185,13 +194,11 @@ typedef struct {
 	intmax_t	rem;
 } imaxdiv_t;
 
-/*
- * C17 7.8.2.  The library has no wide character type, so wcstoimax and
- * wcstoumax are absent with it.
- */
 intmax_t	imaxabs(intmax_t);
 imaxdiv_t	imaxdiv(intmax_t, intmax_t);
 intmax_t	strtoimax(const char *, char **, int);
 uintmax_t	strtoumax(const char *, char **, int);
+intmax_t	wcstoimax(const wchar_t *, wchar_t **, int);
+uintmax_t	wcstoumax(const wchar_t *, wchar_t **, int);
 
 #endif /* !_INTTYPES_H_ */

@@ -13,3 +13,5 @@ inttypes_test_arm
 ctype_test
 ctype_test_arm
 ctype_tree
+wide_test
+wide_test_arm

@@ -56,7 +56,7 @@ OBJS1=	abort.0 abs.0 alarm.0 asinh.0 assert.0 atof.0 \
 	getgrouplist.0 getloadavg.0 getmntinfo.0 getsubopt.0 \
 	getusershell.0 getwd.0 hypot.0 ieee.0 inet.0 infnan.0 initgroups.0
 OBJS2=	insque.0 intro.0 j0.0 l3tol.0 ldfps.0 lgamma.0 lib2648.0 \
-	malloc.0 math.0 mktemp.0 monitor.0 mp.0 ndbm.0 nice.0 nlist.0 ns.0 \
+	malloc.0 math.0 mbtowc.0 mktemp.0 monitor.0 mp.0 ndbm.0 nice.0 nlist.0 ns.0 \
 	pause.0 perror.0 plot.0 popen.0 printf.0 psignal.0 putc.0 puts.0 \
 	qsort.0 rand.0 random.0 rcmd.0 regex.0 resolver.0 rexec.0 scandir.0 \
 	scanf.0 setbuf.0 setjmp.0 siginterrupt.0 signal.0 sin.0 \
@@ -113,6 +113,8 @@ REMO3=	getgrnam.0 getpwnam.0 getpwuid.0 setfsent.0 setgrent.0 setpwent.0 \
 
 REMO4=	verr.0 errx.0 verrx.0 warn.0 warnx.0 vwarnx.0
 
+MBALIASES = mblen.0 wctomb.0 mbstowcs.0 wcstombs.0 wcstoimax.0 wcstoumax.0
+
 REMO5 = sigaddset.0 sigdelset.0 sigemptyset.0 sigfillset.0 sigismember.0
 VISALIASES = nvis.0 strvis.0 strnvis.0 strvisx.0 strnvisx.0
 
@@ -142,6 +144,9 @@ install: _make_01 _make_02
 	done
 	for i in ${VISALIASES}; do \
 		ln -f ${DESTDIR}${MDIR}/vis.0 ${DESTDIR}${MDIR}/$$i; \
+	done
+	for i in ${MBALIASES}; do \
+		ln -f ${DESTDIR}${MDIR}/mbtowc.0 ${DESTDIR}${MDIR}/$$i; \
 	done
 
 	ln -f ${DESTDIR}${MDIR}/end.0 ${DESTDIR}${MDIR}/edata.0

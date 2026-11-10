@@ -52,9 +52,21 @@
 
 #define RAND_MAX        0x7fff
 
+/* C17 7.22p3: the C locale, the only one, encodes one byte per character. */
+#define MB_CUR_MAX      ((size_t)1)
+
 #ifndef _SIZE_T
 #define _SIZE_T
 typedef unsigned size_t;
+#endif
+
+#ifndef _WCHAR_T
+#define _WCHAR_T
+#ifdef __WCHAR_TYPE__
+typedef __WCHAR_TYPE__ wchar_t;
+#else
+typedef unsigned int wchar_t;		/* as <stddef.h> defines it */
+#endif
 #endif
 
 void    abort (void);
@@ -69,6 +81,9 @@ void    free (void *);
 char    *getenv (const char *);
 long    labs (long);
 void    *malloc (size_t);
+int     mblen (const char *, size_t);
+size_t  mbstowcs (wchar_t *, const char *, size_t);
+int     mbtowc (wchar_t *, const char *, size_t);
 char    *mktemp (char *);
 int     mkstemp (char *);
 void    *bsearch (const void *, const void *, size_t, size_t,
@@ -82,6 +97,8 @@ void    *reallocarray (void *, size_t, size_t);
 void    srand (unsigned);
 long    strtol (const char *, char **, int);
 unsigned long strtoul (const char *, char **, int);
+size_t  wcstombs (char *, const wchar_t *, size_t);
+int     wctomb (char *, wchar_t);
 
 /*
  * Smaller C, the native compiler, has no 64-bit integer type and no

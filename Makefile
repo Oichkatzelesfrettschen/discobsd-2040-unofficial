@@ -1529,6 +1529,15 @@ cleanall:
 		sh tools/clean-build-machines.sh "${TOPSRC}" \
 		    "${MAKE}" ${SUPPORTED_MACHINES}
 
+# cleanall, then every untracked file left, ignored files included, against
+# tools/clean-residue-allow.txt.  It destroys the build products, so it runs
+# last and outside the logged-check aggregate.
+check-clean-residue:
+		sh tools/check-clean-residue.sh --selftest
+		${MAKE} cleanall
+		sh tools/check-clean-residue.sh "${TOPSRC}" \
+		    "${TOPSRC}/tools/clean-residue-allow.txt"
+
 symlinks:
 		rm -f include/machine
 		ln -s $(MACHINE) include/machine
@@ -1538,7 +1547,7 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-dpucp-board-acceptance check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
+.PHONY:		check-clean-residue check-storage-counters check-storage-correctness check-python check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-dpucp-board-acceptance check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \

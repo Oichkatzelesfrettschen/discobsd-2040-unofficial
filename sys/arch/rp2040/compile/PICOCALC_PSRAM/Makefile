@@ -87,7 +87,7 @@ COPTS?=		-Os
 DEBUG_PATH_MAP?=	-fdebug-prefix-map=${TOPSRC:Q}=.
 CFLAGS=		${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} ${COPTS}
-AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
+AFLAGS=		-x assembler-with-cpp ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack
 LDFLAGS+=	--warn-rwx-segments --fatal-warnings

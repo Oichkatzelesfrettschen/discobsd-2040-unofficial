@@ -205,7 +205,7 @@ main(argc, argv)
 
 
     for (;;) {  /* for each entry in utmp */
-        if (fread(&utmp, sizeof(utmp), 1, ut) == NULL) {
+        if (fread(&utmp, sizeof(utmp), 1, ut) == 0) {
             fclose(ut);
             exit(0);
         }

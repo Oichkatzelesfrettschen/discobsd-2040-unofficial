@@ -128,7 +128,7 @@ fi
 check_symbol flash_swap_append
 check_symbol flash_swap_rewrite
 check_symbol malloc3_contiguous_next
-check_symbol_size swapent 7c
+check_symbol_size swapent 74
 check_relocation "$flash_object" flash_swap_append
 check_relocation "$flash_object" flash_swap_rewrite
 check_relocation "$vm_swap_object" malloc3_contiguous_next

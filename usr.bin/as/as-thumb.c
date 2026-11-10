@@ -3225,6 +3225,19 @@ main(int argc, char *argv[])
         case '-':
             if (argv[i][1] == 0)
                 break;
+            if (argv[i][1] == '-') {
+                /*
+                 * Long options are accepted and ignored. GNU as reads the
+                 * operand of --debug-prefix-map from the next argument, and
+                 * gcc -fdebug-prefix-map forwards it that way. This
+                 * assembler writes no debug sections, so the mapping has
+                 * nothing to rewrite; the operand is consumed instead of
+                 * being opened as a source file.
+                 */
+                if (strcmp (argv[i], "--debug-prefix-map") == 0 && i+1 < argc)
+                    i++;
+                break;
+            }
             for (cp=argv[i]+1; *cp; cp++) {
                 switch (*cp) {
                 case 'X':       /* strip L* and .* locals */
@@ -3259,7 +3272,6 @@ main(int argc, char *argv[])
                     }
                     break;
                 case 'O':       /* optimization level */
-                case '-':       /* long option */
                 case 'n':       /* -no-xyz */
                 case 'm':       /* -mcpu=, -mthumb, -march= */
                 case 'E':       /* -EL */

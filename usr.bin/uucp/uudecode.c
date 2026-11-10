@@ -171,5 +171,3 @@ int cnt;
  * Return the ptr in sp at which the character c appears;
  * NULL if not found
  */
-
-#define	NULL	0

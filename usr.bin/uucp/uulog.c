@@ -25,7 +25,7 @@ char *argv[];
 		switch (argv[1][1]) {
 		case 's':
 			sys = &argv[1][2];
-			if (*sys == NULL && argc > 2 && argv[2][0] != '-') {
+			if (*sys == '\0' && argc > 2 && argv[2][0] != '-') {
 				sys = &argv[2][0];
 				argv++;
 				argc--;
@@ -39,7 +39,7 @@ char *argv[];
 			break;
 		case 'u':
 			user = &argv[1][2];
-			if (*user == NULL && argc > 2 && argv[2][0] != '-') {
+			if (*user == '\0' && argc > 2 && argv[2][0] != '-') {
 				user = &argv[2][0];
 				argv++;
 				argc--;

@@ -204,7 +204,10 @@
     },
     {
       "from": "check-libc-scanf",
-      "to": "tests/libc_contracts:check-scanf",
+      "to": [
+        "tests/libc_contracts:check-scanf",
+        "tests/libc_contracts:check-scanf-llong"
+      ],
       "kind": "recursive make"
     },
     {
@@ -276,6 +279,7 @@
         "check-huge-val",
         "check-printf",
         "check-scanf",
+        "check-scanf-llong",
         "check-rwmode",
         "check-strtox",
         "check-malloc",
@@ -1641,6 +1645,101 @@
         "scanf_contract_test_asan"
       ],
       "recipe": "${TEST_EXECUTION} run libc.scanf.sanitized -- ./scanf_contract_test_asan",
+      "aliases": [
+        "check-libc-scanf"
+      ]
+    },
+    {
+      "id": "libc.scanf-llong.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-scanf-llong",
+      "root_target": "check-libc-host-contracts",
+      "program": "scanf_llong_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "scanf_llong_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scanf-llong.native -- ./scanf_llong_test",
+      "aliases": [
+        "check-libc-scanf"
+      ]
+    },
+    {
+      "id": "libc.scanf-llong.absent.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-scanf-llong",
+      "root_target": "check-libc-host-contracts",
+      "program": "scanf_llong_absent_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "scanf_llong_absent_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scanf-llong.absent.native -- ./scanf_llong_absent_test",
+      "aliases": [
+        "check-libc-scanf"
+      ]
+    },
+    {
+      "id": "libc.scanf-llong.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-scanf-llong",
+      "root_target": "check-libc-host-contracts",
+      "program": "scanf_llong_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "scanf_llong_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scanf-llong.ilp32 -- ./scanf_llong_test32",
+      "aliases": [
+        "check-libc-scanf"
+      ]
+    },
+    {
+      "id": "libc.scanf-llong.absent.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-scanf-llong",
+      "root_target": "check-libc-host-contracts",
+      "program": "scanf_llong_absent_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "scanf_llong_absent_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scanf-llong.absent.ilp32 -- ./scanf_llong_absent_test32",
+      "aliases": [
+        "check-libc-scanf"
+      ]
+    },
+    {
+      "id": "libc.scanf-llong.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-scanf-llong",
+      "root_target": "check-libc-host-contracts",
+      "program": "scanf_llong_test_asan",
+      "condition": "sanitizer compile and runtime probe == yes",
+      "prerequisites": [
+        "scanf_llong_test_asan"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.scanf-llong.sanitized -- ./scanf_llong_test_asan",
       "aliases": [
         "check-libc-scanf"
       ]

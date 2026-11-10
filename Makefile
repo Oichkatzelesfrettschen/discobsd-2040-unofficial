@@ -557,9 +557,11 @@ check-libc-huge-val:
 
 # The formatted input scanner at host width, at ILP32 and under the address
 # sanitizer. The sanitizer tier is the one that sees a scratch overrun
-# inside the scanner's own frame.
+# inside the scanner's own frame. check-scanf-llong runs the 64-bit integer
+# member against the host C library's conversions, and the scanner without
+# that member.
 check-libc-scanf:
-		${MAKE} -C tests/libc_contracts check-scanf
+		${MAKE} -C tests/libc_contracts check-scanf check-scanf-llong
 
 # The r+ read/write mode switch in _filbuf and _flsbuf, over a host file,
 # at host width and ILP32.

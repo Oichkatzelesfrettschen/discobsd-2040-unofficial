@@ -135,8 +135,18 @@ _SCANF_FLOAT!=	if [ x"${MACHINE}" != x"rp2040" -o x"${SCANF_FLOAT}" = x"yes" ] ;
 			echo "-Wl,-u,__doscan_cvt" ; \
 		fi
 
+# The 64-bit scanf integer conversion is doscan_llong.o. _doscan reports a
+# matching failure for an integer directive under ll, j or q while its weak
+# __doscan_ll stays unresolved, so a program that scans a long long or an
+# intmax_t declares SCANF_LLONG=yes.
+SCANF_LLONG?=	no
+_SCANF_LLONG!=	if [ x"${MACHINE}" != x"rp2040" -o x"${SCANF_LLONG}" = x"yes" ] ; then \
+			echo "-Wl,-u,__doscan_ll" ; \
+		fi
+
 LDFLAGS=${LDTEXT} -nostartfiles -fno-dwarf2-cfi-asm \
 	${LDWARN} ${_PRINTF_FLOAT} ${_PRINTF_LLONG} ${_SCANF_FLOAT} \
+	${_SCANF_LLONG} \
 	-T${TOPSRC}/lib/elf32-${MACHINE_ARCH}.ld \
 	${TOPSRC}/lib/crt0.o -L${TOPSRC}/lib
 

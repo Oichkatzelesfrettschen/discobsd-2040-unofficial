@@ -166,6 +166,7 @@ spool_coexistence(void)
     struct image im;
     unsigned char source[1537], destination[1537];
     unsigned int spool_offset;
+    size_t route_base, route_span;
 
     reset_map(NSWAP - 1);
     fill(source, sizeof source, 41);
@@ -188,8 +189,10 @@ spool_coexistence(void)
     swapram_spool_read(spool_offset, 0, destination,
         sizeof destination);
     CHECK(memcmp(source, destination, sizeof source) == 0);
+    CHECK(swapram_route_take(&proc[0], &route_base, &route_span));
     swapram_in(&proc[0], (caddr_t)im.d, (caddr_t)im.s,
         (caddr_t)im.ub);
+    mfree(swapmap, route_span, route_base);
     CHECK(swapram_images() == 0);
     CHECK(swapram_uarea_prefix(&proc[0], destination, 1) == -1);
     swapram_spool_free(spool_offset, sizeof source);
@@ -355,7 +358,7 @@ roundtrip(void)
         CHECK(proc[i].p_saddr == proc[i].p_daddr + btod(im[i].dlen));
         CHECK(proc[i].p_addr == proc[i].p_saddr + btod(im[i].slen));
     }
-    CHECK(before - mapfree() == held);
+    CHECK(mapfree() == before);
     CHECK((size_t)writes == written);
     /* the pool is whole again: the same images fit a second time */
     for (i = 0; i < 8; i++)
@@ -371,35 +374,25 @@ static void
 shortage(void)
 {
     struct image im[6];
-    struct proc saved[NPROC];
-    int i, k;
-    size_t before;
+    int admitted[6];
+    int i, k, count;
 
-    /* room for about two images: the third reservation fails */
+    /* Every short map refuses before publication; admitted images evacuate. */
     for (k = 1; k <= 5; k++) {
         reset_map(k * 6);
+        count = 0;
         for (i = 0; i < 6; i++) {
             mkimage(&im[i], 1500, 400, 200 + i);
-            CHECK(admit(i, &im[i]));
+            admitted[i] = admit(i, &im[i]);
+            count += admitted[i];
         }
-        memcpy(saved, proc, sizeof saved);
-        before = mapfree();
-        CHECK(swapram_evacuate() == -1);
-        CHECK(mapfree() == before);
-        CHECK(writes == 0);
-        CHECK(memcmp(saved, proc, sizeof saved) == 0);
-        CHECK(swapram_images() == 6);
-        /* and the pool still yields the images intact: bring them back */
-        for (i = 0; i < 6; i++) {
-            unsigned char *d = malloc(1500), *s = malloc(400), *ub = malloc(USIZE);
-
-            swapram_in(&proc[i], (caddr_t)d, (caddr_t)s, (caddr_t)ub);
-            CHECK(memcmp(d, im[i].d, 1500) == 0);
-            CHECK(memcmp(s, im[i].s, 400) == 0);
-            CHECK(memcmp(ub, im[i].ub, USIZE) == 0);
-            free(d); free(s); free(ub);
-        }
+        CHECK(count < 6);
+        CHECK(swapram_images() == count);
+        CHECK(swapram_evacuate() == 0);
         CHECK(swapram_images() == 0);
+        for (i = 0; i < 6; i++)
+            if (admitted[i])
+                CHECK(onflash(i, &im[i]));
     }
     /* exactly enough: every image moves */
     reset_map(6 * image_span(1500, 400));
@@ -409,7 +402,7 @@ shortage(void)
     CHECK(mapfree() == 0);
     for (i = 0; i < 6; i++)
         CHECK(onflash(i, &im[i]));
-    printf("shortage: five short maps refused whole, the exact map taken whole\n");
+    printf("shortage: five short maps refused before publication, the exact map admitted all\n");
 }
 
 static void
@@ -449,13 +442,14 @@ service(void)
     CHECK(swapram_images() == 0);
     CHECK(onflash(1, &im));
     reset_map(2);
-    CHECK(admit(1, &im));
+    CHECK(!admit(1, &im));
     swapram_evac = SWAPRAM_EVAC_PENDING;
     swapram_service();
-    CHECK(swapram_evac == SWAPRAM_EVAC_NOFLASH);
-    CHECK(swapram_images() == 1);
+    CHECK(swapram_evac == SWAPRAM_EVAC_DONE);
+    CHECK(swapram_images() == 0);
+    reset_map(NSWAP - 1);
     CHECK(admit(2, &im));       /* admission reopened after the attempt */
-    printf("service: idle ignored, pending evacuated, shortage reported and admission reopened\n");
+    printf("service: idle ignored, pending evacuated, admission refusal stayed early and service reopened\n");
 }
 
 int

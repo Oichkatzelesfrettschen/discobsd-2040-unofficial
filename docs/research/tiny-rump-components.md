@@ -262,7 +262,29 @@ The trace covers calls visible to that dynamic-call filter; it does not count
 allocations internal to libc or establish a target allocation bound. The
 retained target disassembly contains `malloc`, `calloc`, `realloc`, and
 `free` symbols, so symbol presence alone establishes neither a call nor its
-absence. A whole-program stack maximum remains unknown.
+absence.
+
+The cross-built program's stack is bounded at 3,448 bytes from `main`.
+`docs/research/tiny-rump-components/stack-depth.sh` recompiles the
+thirteen sources with the Makefile's flags plus `-fstack-usage
+-fcallgraph-info=su` and walks the call graph. Each indirect call resolves
+by its call site: the block I/O pointers reach `fd_read` and `fd_write`,
+the `foreach` callbacks reach every address-taken callback, and the
+byte-order pointers reach the `val*` functions, with the address-taken set
+taken from the objects' `R_ARM_ABS32` relocations. libc callees are bounded
+from the linked listing `usr.sbin/v7fs/v7fs.dis`, whose push and `sub sp`
+frames match the compiler's `.su` figure for every v7fs function except the
+two whose frames exceed 508 bytes. Thumb-1 allocates those through a
+register, and the script refuses them rather than guess, so their figures
+come from `.su`. The deepest chain is `main` (264), `cmd_put` (424),
+`cmd_rm` (400), `v7fs_file_deallocate`, `v7fs_directory_remove_entry`, the
+lookup's `foreach`, the `list_block` callback (672) and `printf` (968). It
+overstates the real maximum, because only `cmd_ls` passes `list_block`.
+Every frame is static, and no function recurses. The bound excludes the
+32-byte exception frame the hardware stacks on the process stack. Against
+the 192 KiB window, which the program's 24,618 bytes of text, 360 of data
+and 2,356 of bss share with its heap (ARM GCC 16.2.0, `-Os`, over
+`eb5b3081`), the stack is not the constraint.
 
 The focused v7fs gate also passed on Linux with GCC 16.2.1 and
 `CC='cc -m32' PYTHON="$PYTHON" bmake MACHINE=rp2040 check-v7fs-core` after
@@ -448,7 +470,19 @@ and the BSD_Workspace trees, so it is not exhaustive.
    plus a buffer shim modeled on `makefs/ffs/buf.c`. Falsifier: the
    `makefs` forks of `denode`, `vfsops` and `vnops` cost more than the
    reused files save, which makes a non-NetBSD FAT implementation the
-   better choice.
+   better choice. Measured at `1e8e727e` with ARM GCC 16.2.0, `-Os` for
+   cortex-m0plus and makefs's `-DMAKEFS -DMSDOS_EI`, the falsifier fails:
+   the reused `msdosfs_fat.c`, `msdosfs_conv.c` and `msdosfs_lookup.c` are
+   3,369, 3,140 and 1,788 bytes of text (8,297), and the forks
+   `msdos/msdosfs_denode.c`, `msdosfs_vfsops.c`, `msdosfs_vnops.c` and
+   `ffs/buf.c` are 1,010, 1,235, 1,804 and 1,398 (5,447). With
+   `msdosfs_unicode.c` (3,576), makefs's `msdos.c` (4,079),
+   `mkfs_msdos.c` (6,466) and `clock_subr.c` (1,148), the set links to
+   29,013 bytes of text with 52 undefined symbols, none from the vnode
+   layer. The forks implement only creation (`msdosfs_mkfile`,
+   `msdosfs_wfile`, `msdosfs_mkdire`), so `ls`, `cat`, `get` and `rm`
+   need local read, readdir and remove code. `msdosfs_wfile` maps its
+   source with `mmap`, which DiscoBSD lacks, so it needs a local patch.
 5. A kernel-linked component, only after a HEAD kernel measures its flash
    headroom and an inode-to-core adapter has a size.
 
@@ -462,6 +496,9 @@ linker script now would describe a section nothing fills.
 ## Remaining uncertainty
 
 The linked DiscoBSD userland tool and the host oracle provide distinct build
-and execution evidence. A whole-program stack maximum, current kernel flash
-headroom and physical-board behavior remain unmeasured here. The other-systems
-table rests on project pages and papers rather than builds.
+and execution evidence. The stack bound above is a static analysis of the
+cross build, and the kernel flash headroom is the `check-kernel-headroom`
+measurement cited in the first section. Physical-board behavior remains
+unmeasured. The FAT figures are a compile of the NetBSD files, not of a
+DiscoBSD link. The other-systems table rests on project pages and papers
+rather than builds.

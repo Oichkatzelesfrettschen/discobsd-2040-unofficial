@@ -12,9 +12,10 @@ TARGET_FLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror \
 		-nostdinc -I${TOPSRC}/include
 MUTATE=		${PYTHON} ${.CURDIR}/mutate.py
 
-HEADER_CONTRACTS=	stddef_contract stdalign_contract stdnoreturn_contract
+HEADER_CONTRACTS=	stddef_contract stdalign_contract stdnoreturn_contract \
+			limits_contract
 HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
-			stdnoreturn_empty
+			stdnoreturn_empty limits_llong_min_short
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -43,6 +44,14 @@ stdnoreturn_empty.mutant:
 	${MUTATE} ${TOPSRC}/include/stdnoreturn.h $@/stdnoreturn.h \
 	    "#define noreturn	_Noreturn" "#define noreturn"
 stdnoreturn_empty.contract= stdnoreturn_contract
+
+# <limits.h> reaches the machine header through the machine symlink, so the
+# mutant tree carries its own machine directory.
+limits_llong_min_short.mutant:
+	@rm -rf $@ && mkdir -p $@/machine
+	${MUTATE} ${TOPSRC}/include/machine/limits.h $@/machine/limits.h \
+	    "(-9223372036854775807LL-1LL)" "(-9223372036854775807LL)"
+limits_llong_min_short.contract= limits_contract
 
 check-cross: check-header-contracts check-header-mutants
 

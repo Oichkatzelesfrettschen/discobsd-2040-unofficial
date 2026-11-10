@@ -29,9 +29,19 @@ unsigned long inet_netof (struct in_addr);
 unsigned long inet_lnaof (struct in_addr);
 
 /*
- * Macros for number representation conversion.
+ * Network byte order is big-endian. libc keeps htonl(3) and the other
+ * three as functions for a caller that takes their address; a call by
+ * name expands to the <sys/endian.h> macro, which folds a constant and
+ * compiles a variable to one byte-reversal instruction.
  */
+#include <sys/endian.h>
+
 unsigned htonl (unsigned hostlong);
 unsigned htons (unsigned hostshort);
 unsigned ntohl (unsigned netlong);
 unsigned ntohs (unsigned netshort);
+
+#define htonl(x)	htobe32(x)
+#define htons(x)	htobe16(x)
+#define ntohl(x)	be32toh(x)
+#define ntohs(x)	be16toh(x)

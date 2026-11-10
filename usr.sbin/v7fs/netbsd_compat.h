@@ -11,6 +11,16 @@
 #define V7FS_NETBSD_COMPAT_H
 
 #include <sys/cdefs.h>
+/*
+ * A host with <sys/endian.h> (DiscoBSD, the BSDs) defines the byte-order
+ * names below with its own tokens, so it is included ahead of the guarded
+ * fallbacks; glibc and macOS lack the header and take the fallbacks.
+ */
+#if defined(__has_include)
+#if __has_include(<sys/endian.h>)
+#include <sys/endian.h>
+#endif
+#endif
 
 #ifndef __RCSID
 #define __RCSID(x)

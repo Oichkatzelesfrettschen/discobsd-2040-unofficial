@@ -602,6 +602,9 @@ check-libc-casefold: check-python
 check-libc-casefold-cross: check-python
 		${MAKE} -C tests/libc_casefold check-cross
 
+check-c17-headers-cross: check-python
+		${MAKE} -C tests/c17_headers check-cross
+
 # The tree-libm variant compiles lib/libm against include/, whose
 # include/machine link the symlinks target creates.
 check-libcalc: check-python .WAIT symlinks
@@ -1153,6 +1156,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \
+		check-c17-headers-cross \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-touch-contracts-cross \
@@ -1586,6 +1590,7 @@ installfs:
 
 .PHONY: check-getwd-lifetime check-getwd-lifetime-cross
 
+.PHONY: check-c17-headers-cross
 .PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn check-dcbc \
 	check-libcalc-cross check-libbn-cross
 

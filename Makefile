@@ -1007,6 +1007,12 @@ check-netbsd-imports: check-python
 check-v7fs-core: check-python
 		${MAKE} -C tests/v7fs_core check PYTHON=${PYTHON:Q}
 
+# The inter-core rings and SIO FIFO doorbell of corering.c against a model
+# of the FIFO registers, under the address, undefined-behavior and thread
+# sanitizers, with sixteen mutants that must fail.
+check-corering:
+		${MAKE} -C tests/corering check
+
 # The rump-kernel size measurement behind docs/research/tiny-rump-components.md.
 # It needs a NetBSD checkout, which CI lacks, so it stays outside check:
 # NETBSD_SRC defaults to BSD_Workspace/netbsd-src beside the primary checkout,
@@ -1127,7 +1133,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
-		check-netbsd-imports check-v7fs-core \
+		check-netbsd-imports check-v7fs-core check-corering \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
 		check-usb-reset check-usb-line-coding check-usb-cdc-requests \

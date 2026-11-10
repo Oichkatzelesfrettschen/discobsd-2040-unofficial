@@ -159,7 +159,29 @@ static unsigned int inode_lock_calls;
 static unsigned int inode_release_calls;
 static unsigned int text_unhold_calls;
 static unsigned int direct_release_calls;
+static int exchange_result;
+static unsigned int exchange_calls;
+static size_t exchange_data_size;
+static size_t exchange_stack_size;
+static size_t published_at_exchange;
 static unsigned int failures;
+
+/*
+ * exec_estab() reserves swap backing for the new data and stack extents
+ * before it publishes them; the model records the request, the extents the
+ * process shows at that moment, and answers with the result a case selects.
+ */
+static int
+swap_exchange_resize(struct proc *owner, size_t data_size, size_t stack_size,
+    size_t text_size)
+{
+	(void)text_size;
+	exchange_calls++;
+	published_at_exchange = owner->p_dsize + owner->p_ssize;
+	exchange_data_size = data_size;
+	exchange_stack_size = stack_size;
+	return exchange_result;
+}
 
 static void *
 exec_alloc(int size, int alignment, struct exec_params *parameters)
@@ -337,6 +359,11 @@ reset_fixture(struct exec_params *parameters)
 	inode_release_calls = 0;
 	text_unhold_calls = 0;
 	direct_release_calls = 0;
+	exchange_result = 0;
+	exchange_calls = 0;
+	exchange_data_size = 0;
+	exchange_stack_size = 0;
+	published_at_exchange = 0;
 }
 
 static void
@@ -383,10 +410,36 @@ check_elf_replacement_clears_file_backed_text(void)
 	    swaptext(&process) == 0);
 }
 
+static void
+check_image_reserves_swap_before_publication(void)
+{
+	struct exec_params parameters;
+
+	reset_fixture(&parameters);
+	CHECK("admitted ELF succeeds", exec_elf_check(&parameters) == 0);
+	CHECK("image reserves its data and stack extents once",
+	    exchange_calls == 1 &&
+	    exchange_data_size == parameters.data.len + parameters.bss.len &&
+	    exchange_stack_size == parameters.stack.len);
+	CHECK("reservation precedes publication",
+	    published_at_exchange == 0);
+	CHECK("reservation matches the published sizes",
+	    process.p_dsize == exchange_data_size &&
+	    process.p_ssize == exchange_stack_size);
+
+	reset_fixture(&parameters);
+	exchange_result = ENOMEM;
+	CHECK("refused reservation fails the image",
+	    exec_elf_check(&parameters) == ENOMEM);
+	CHECK("refused reservation publishes no extent",
+	    process.p_dsize == 0 && process.p_ssize == 0);
+}
+
 int
 main(void)
 {
 	check_stack_publication_stays_in_admitted_extent();
+	check_image_reserves_swap_before_publication();
 	check_elf_replacement_clears_file_backed_text();
 	return failures != 0;
 }

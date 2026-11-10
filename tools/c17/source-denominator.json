@@ -57200,10 +57200,13 @@
             "inline-assembly"
           ],
           "integer": [
+            "integer-cast",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }
@@ -61784,6 +61787,7 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
+            "integer-cast",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
@@ -63049,6 +63053,7 @@
           "inline_assembly": [],
           "integer": [
             "integer-cast",
+            "shift-expression",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
@@ -69639,12 +69644,15 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
+            "integer-cast",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [
             "compound-literal"
           ],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }

@@ -2953,6 +2953,7 @@ check-ilp32:
 .endif
 
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
+	check-swap-exchange-headroom \
     check-credential-sanitizer \
     check-rwuio-mutants check-rwuio-sanitizer \
     check-file-owner-mutants check-file-owner-sanitizer \
@@ -2972,7 +2973,8 @@ clean:
 	    pipe_rw_*.mutant.c pipe_rw_*.mutant32.test
 	rm -f ${FORK_SWAP_FUNCTIONS} fork_swap_test fork_swap_test_compact \
 	    fork_swap_test_wide fork_swap_test_diagnostic fork_swap_test_full \
-	    fork_swap_test_unaligned fork_swap_rmap*.o fork_swap_*.mutant.c \
+	    fork_swap_test_unaligned fork_swap_nopool.o fork_swap_rmap*.o \
+	    fork_swap_*.mutant.c \
 	    fork_swap_*.mutant.test fork_swap_*.mutant.out
 	rm -f ${PROGS} hostkern.o
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
@@ -3131,6 +3133,8 @@ clean:
 
 # Exact production ownership definitions with modeled codec and storage I/O.
 FORK_SWAP_FUNCTIONS= fork_swap_functions.c
+SWAP_EXCHANGE_MUTANTS= count-free-not-largest-run fork-consumer-skip-rule \
+    release-headroom-early pool-swap-in scheduler-pool-bypass
 FORK_SWAP_MUTANTS= ignore-reservation-refusal publish-allproc-early \
     advance-cursor-on-failure allocate-again-on-copy \
     child-sidl-during-copy omit-release-wakeup notify-before-release \
@@ -3149,6 +3153,7 @@ FORK_SWAP_CFLAGS= ${GATE_CFLAGS} -Wno-int-to-pointer-cast -Wno-pointer-to-int-ca
     -DSWAPRAM -DSWAPRAM_KB=16 -DSTORAGE_STATS -DUCB_METER
 FORK_SWAP_UNALIGNED_CFLAGS= ${FORK_SWAP_CFLAGS:N-DSWAPRAM} \
     -DFORK_SWAP_UNALIGNED -DCOMPACT_SWAPMAP
+FORK_SWAP_NOPOOL_CFLAGS= ${FORK_SWAP_CFLAGS:N-DSWAPRAM} -DCOMPACT_SWAPMAP
 FORK_SWAP_DEPS= fork_swap_test.c ${FORK_SWAP_FUNCTIONS} hostkern.o \
     hostkern_kern.c hostkern.h ${MACHINE_STAMP} \
     ${TOPSRC}/sys/sys/vmsystm.h ${TOPSRC}/sys/sys/proc.h \
@@ -3188,6 +3193,47 @@ fork_swap_${mutation}.mutant.test: fork_swap_${mutation}.mutant.c \
 	    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \
 	    hostkern_kern.c hostkern.o fork_swap_rmap_compact.o
 .endfor
+
+.for mutation in ${SWAP_EXCHANGE_MUTANTS}
+fork_swap_${mutation}.mutant.c: fork_swap_mutate.py ${FORK_SWAP_FUNCTIONS}
+	${PYTHON} fork_swap_mutate.py --source ${FORK_SWAP_FUNCTIONS} \
+	    --output $@ --mutation ${mutation}
+
+fork_swap_${mutation}.mutant.test: fork_swap_${mutation}.mutant.c \
+    ${FORK_SWAP_DEPS} fork_swap_rmap_compact.o
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP \
+	    -DFORK_SWAP_FUNCTIONS='"fork_swap_${mutation}.mutant.c"' \
+	    -o $@ fork_swap_test.c \
+	    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \
+	    hostkern_kern.c hostkern.o fork_swap_rmap_compact.o
+.endfor
+
+fork_swap_nopool.o: ${TOPSRC}/sys/kern/vm_swap.c ${MACHINE_STAMP}
+	${HOST_CC} ${FORK_SWAP_NOPOOL_CFLAGS} -c -o $@ \
+	    ${TOPSRC}/sys/kern/vm_swap.c
+
+check-swap-exchange-headroom: fork_swap_test_compact fork_swap_nopool.o \
+    ${SWAP_EXCHANGE_MUTANTS:@mutation@fork_swap_${mutation}.mutant.test@}
+	@./fork_swap_test_compact
+	@${PYTHON} swap_exchange_consumer_contract.py --root ${TOPSRC} --self-test
+	@set -eu; for mutation in ${SWAP_EXCHANGE_MUTANTS}; do \
+		output=fork_swap_$$mutation.mutant.out; \
+		if ./fork_swap_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; else status=$$?; fi; \
+		case $$mutation in \
+		count-free-not-largest-run) expected='u.u_error == ENOMEM' ;; \
+		fork-consumer-skip-rule) expected='u.u_error == ENOMEM' ;; \
+		release-headroom-early) expected='free_total() == 0' ;; \
+		pool-swap-in) expected='swapram: departure route not transferred' ;; \
+		scheduler-pool-bypass) expected='reservation.tier == SWAP_IMAGE_RAM' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL swap exchange $$mutation rejection" >&2; exit 1; \
+		fi; \
+		echo "PASS swap exchange $$mutation rejected: $$expected"; \
+	done
 
 fork_swap_rmap_unaligned.o: ${TOPSRC}/sys/kern/subr_rmap.c ${MACHINE_STAMP}
 	${HOST_CC} ${FORK_SWAP_UNALIGNED_CFLAGS} \
@@ -3232,7 +3278,7 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		allocate-again-on-copy) expected='copy_consumed_reservation' ;; \
 		child-sidl-during-copy) expected='u.u_procp->p_stat == SRUN' ;; \
 		omit-release-wakeup) expected='wakeups == 2' ;; \
-		notify-before-release) expected='wake_flash_free[1] == 156' ;; \
+		notify-before-release) expected='wakeups == 2' ;; \
 		ignore-copy-owner|ignore-copy-state) expected='copy_transition_call returned instead of panicking' ;; \
 		ignore-commit-owner|ignore-commit-state) expected='commit_transition_call returned instead of panicking' ;; \
 		ignore-cancel-state) expected='cancel_transition_call returned instead of panicking' ;; \
@@ -3247,7 +3293,7 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		accept-unreserved-state) expected='empty_reservation_call' ;; \
 		sched-drop-sload-restore) expected='in_core_keeps_sload' ;; \
 		sched-drop-requeue) expected='runnable_requeued' ;; \
-		sched-swapin-after-refusal) expected='no_swapin' ;; \
+		sched-swapin-after-refusal) expected='slept_on_runin' ;; \
 		sched-unreserved-swapout) expected='swapout: no reservation' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
@@ -3273,4 +3319,5 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		echo "PASS fork swap unaligned $$mutation rejected: $$expected"; \
 	done
 
-.PHONY: check-fork-swap-refusal check-pipe-rw-mutants
+.PHONY: check-fork-swap-refusal check-swap-exchange-headroom \
+    check-pipe-rw-mutants

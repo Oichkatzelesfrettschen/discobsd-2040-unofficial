@@ -491,6 +491,11 @@ check-fsck-inode-range:
 check-kernel:
 		${MAKE} -C tests/kernel check
 
+check-swap-exchange-headroom:
+		${MAKE} -C tests/kernel check-swap-exchange-headroom
+
+.PHONY: check-swap-exchange-headroom
+
 # Verify callback types and dispatch against the production architecture sources.
 check-kernel-abi-contracts: check-python
 		${PYTHON} tests/kernel/driver_callback_types.py --compiler ${HOST_CC:Ucc:Q}

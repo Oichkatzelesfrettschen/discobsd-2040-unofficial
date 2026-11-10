@@ -76,7 +76,8 @@ CMACHFLAGS+=	${MACHINE_ARCH_FLAGS}
 # The FLASH region of RP2040.ld bounds the kernel image, so the kernel is
 # compiled for size.
 COPTS?=		-Os
-CFLAGS=		${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
+DEBUG_PATH_MAP?= -fdebug-prefix-map=${TOPSRC:Q}=.
+CFLAGS=		${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} ${CMACHFLAGS} ${COPTS}
 AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack
@@ -94,12 +95,12 @@ PARAM+= -DSTORAGE_STATS
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
-COMPILE_SIZE_C=	${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
+COMPILE_SIZE_C=	${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} -Os ${DEFS} -c $<
 # Code whose instruction count is a design input compiles at -O whatever
 # COPTS says: psram_xfer.c drains a four-word PIO receive FIFO from a polling
 # loop that must outrun the state machine's fill rate.
-COMPILE_CYCLE_C=${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
+COMPILE_CYCLE_C=${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} -O ${DEFS} -c $<
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 

@@ -934,6 +934,12 @@ check-warning-policy-host:
 check-warning-policy-cross:
 		${MAKE} -C tests/warning_policy check-cross
 
+# Compile mapped and unmapped controls through the kernel and user routes.
+check-debug-paths: check-python
+		MAKE=${MAKE:Q} ${PYTHON} tools/check_debug_paths.py
+
+.PHONY: check-debug-paths
+
 check-sh-gnu17: symlinks
 		${MAKE} -C bin/sh clean
 		${MAKE} -C bin/sh check-gnu17 all
@@ -1105,7 +1111,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
-CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
+CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-passwd-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \

@@ -266,5 +266,107 @@ and scheduler controls, and the evacuation rollback cases of
 
 ## 8. Board measurement
 
-Pending: the 60, 100 and 172 KiB fork tests on the bare Pico against the
-section 6 predictions.
+Revision `d4e3b8f3` on PICO-TO-DOS, PICO kernel `unix.uf2` SHA-256
+`1f3d487dc94b174156da2b099a69c9e5d0b2c33df12fa05e1109bf5d9e49156d` (kernel
+stamp `#9 2648: Tue Nov 10 13:49:11 PST 2026`) with the root `flash.uf2`
+SHA-256 `1613cc2ad075f3a02456c5354eb089ce6b2c8771fff5270fbb94139a4b549597`
+that the `ce242bcd` run in `review-06.md` used, bare Pico, boot ROM V3, USB
+console, driven through `board_user_window.py` with no temporary extents
+held. At the first prompt `machdep.swapram_images` read 3,
+`machdep.swapram_evacuate` 0, `machdep.mpu.enable` 1, `machdep.mpu.ctrl` 0x5
+and `machdep.mpu.programmed` 4; `ps axl` showed `init`, `update` and the login
+shell swapped out and the root shell resident. The three `forktest` builds
+(`BSSBYTES` of 60, 100 and 172 KiB) ran in that order, twice.
+
+| Image | Round 1 | Round 2 | `ce242bcd` |
+| --- | --- | --- | --- |
+| 60 KiB bss | `FORKTEST CHILD OK`, status 0, 17 s | `FORKTEST CHILD OK`, status 0, 17 s | `FORKTEST CHILD OK`, 17 s |
+| 100 KiB bss | `FORKTEST CHILD OK`, status 0, 27 s | `FORKTEST CHILD OK`, status 0, 27 s | `FORKTEST ENOMEM`, 25 s |
+| 172 KiB bss | `FORKTEST CHILD OK`, status 0, 176 s | `FORKTEST CHILD OK`, status 0, 44 s | exec refused, `too big`, 2 s |
+
+The times are console wall time from the command to its status line. No
+panic occurred, and the kernel stamp read the same after the runs. A `talloc`
+binary search on `/dev/temp0` afterwards measured a largest free run of 220
+blocks.
+
+The section 6 prediction holds for admission: all three forks are admitted
+and each child completes. The 100 KiB fork that `ce242bcd` refused and the
+172 KiB image that `ce242bcd` refused at exec both run. The run observes
+admission and completion; it does not observe the child extent addresses or
+the initial swap cursor, so the `@64` placements of section 6 remain a replay
+result.
+
+Two findings sit outside the prediction. The 172 KiB test took 176 s in
+round 1 and 44 s in round 2; the 132 s difference is one stall of the kind
+section 9 measures. The root image has 28 free inodes, and `stage()` in
+`board_user_window.py` left every uuencode part and its join in `/tmp`, so
+the fourth staged file exhausted the inode table and the shell could open no
+pipe; `stage()` now removes the parts once the decoded file is measured.
+
+## 9. Swap-in starvation behind a refused candidate
+
+This section is the record the project requires before a kernel change that
+rests on board behavior.
+
+**Direct observation.** Same board, kernel and root image as section 8. A
+console script (`repro1.py` in the session scratchpad, port held open, every
+received chunk timestamped) ran a shell line of 20 iterations of
+`echo i=$i; /tmp/talloc /dev/temp2 0`, where the `talloc` call releases an
+empty unit and so costs one fork and one exec. With the swap map as found
+and with no temporary extents the line took 28.7 to 29.8 s on each of three
+runs, 1.4 to 1.5 s per iteration. With `/dev/temp0` holding 220 blocks and
+`/dev/temp1` holding 132, which leaves 28 of the 380 usable blocks free,
+four lines ran: three took 29.8 to 29.9 s, and one took 156.6 s because the
+gap between `i=6` and `i=7` was 128.6 s. The console was silent for that
+gap, printed no `cannot fork` message, and the remaining 13 iterations ran
+at 1.4 to 1.5 s. One iteration in 80 stalled, for 127.1 s above the normal
+iteration time. In a control on the same boot with only the 220-block hold,
+which leaves 160 blocks free and so a fresh extent for the 20-block shell,
+twelve lines (240 iterations) each took 29.2 to 29.6 s and none stalled.
+
+**Governing invariant.** `review-07.md` sections 1 and 4: the resident owns
+no flash route, and `swap_exchange_switch()` (`sys/kern/vm_swap.c`) refuses
+an exchange when the outgoing image finds no pool room, no tail after the
+incoming extent and no fresh extent; the refusal changes nothing and
+`sched()` waits. Liveness needs more than the refusal: a swapped-out
+runnable process whose exchange with the resident can succeed must not wait
+behind one whose exchange cannot.
+
+**Implementation hypothesis.** `sched()` (`sys/kern/vm_sched.c`) selects the
+runnable swapped-out process with the strictly largest `p_time - p_nice * 8`,
+the first in `allproc` winning a tie. After a refusal it sleeps on `runin`
+and the next pass selects the same process. With 28 blocks free the shell's
+fork reserves the child's 20-block extent and leaves 8. If `update`, whose
+image is in the SwapRAM pool and which wakes every 30 s, becomes runnable
+before the child is swapped in, `update` has the larger `p_time` and is
+selected; the 20-block resident shell cannot leave, because the pool is full
+and no 20-block run is free, and a pool-backed incoming image offers no
+extent to exchange into. The child, whose extent equals the shell's span and
+needs a zero-block tail, is never tried. `schedcpu()` (`sys/kern/kern_synch.c`)
+increments `p_time` once a second and stops at 127, and `newproc()` puts the
+child at the head of `allproc`, so after 127 s the child ties `update` at 127
+and wins the tie; the exchange then succeeds and the loop continues. The
+model predicts a stall of 127 s, at most one fork per `update` wake, only
+when a fork falls between the wake and the child's swap-in.
+
+**Falsifier.** The hypothesis fails if a kernel whose `sched()` moves to the
+next candidate after a refusal still shows an iteration gap above 100 s
+under the same holds, or if the unchanged kernel stalls with a swap layout
+in which the resident can leave (the control below).
+
+**Deciding capture.** The 127.1 s excess matches the 127 s saturation value
+within the 1.5 s iteration granularity, with no refusal message and no
+re-enumeration of the USB device across the gap. The identity of the refused
+candidate is inferred from the source; the PICO kernel exposes no refusal
+counter (`STORAGE_SWAPRAM_ATTEMPTS` needs `STORAGE_STATS`). The measurement
+after the change is the second half of the capture.
+
+**Predicted gate movement.** `check-fork-swap-refusal` gains a scenario with
+two swapped-out candidates, the older pool-backed and refused, the younger
+flash-backed with an extent the resident fits: production `sched()` must
+reach the younger candidate's exchange before its first sleep. The existing
+single-candidate refusal scenario keeps every state assertion; its pass and
+SwapRAM service counts rise because the refusal now returns to selection
+before the sleep on `runin`. A mutant that sleeps on `runin` straight after
+a refusal must fail the new scenario, and a mutant that keeps a refused
+candidate excluded across the sleep must fail the retry in the existing one.

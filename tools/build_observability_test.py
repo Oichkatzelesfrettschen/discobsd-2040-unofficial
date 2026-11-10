@@ -65,7 +65,8 @@ check-cross-contracts: ${CROSS_CONTRACT_GATES}
 check-cross-kernel: check-rp2040-execsw .WAIT check-rp2040-vectors .WAIT \\
   check-rp2040-syscalls .WAIT check-rp2040-devsw .WAIT \\
   check-rp2040-fileops .WAIT check-rp2040-ioconf .WAIT \\
-  check-rp2040-tty-roots .WAIT check-rp2040-callout-roots .WAIT check-kernel-headroom
+  check-rp2040-tty-roots .WAIT check-rp2040-callout-roots .WAIT \\
+  check-rp2040-nlist .WAIT check-kernel-headroom
 
 check-compiler-object-attribution: check-python
 \t${PYTHON} tests/compiler_matrix/object_attribution.py \\
@@ -124,6 +125,12 @@ check-rp2040-callout-roots: check-python
 \t@CALLOUT_CHECK@
 .endfor
 
+check-rp2040-nlist: check-python
+\t@NLIST_FIXTURE@
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+\t@NLIST_CHECK@
+.endfor
+
 logged-build: check-python
 \t${PYTHON} tools/run_logged_gate.py --label rp2040-build-local \\
 \t    --evidence-root .build-logs \\
@@ -159,6 +166,16 @@ logged-check: check-python
 \t    --idle-timeout-seconds 600 --timeout-seconds 3600 \\
 \t    -- ${MAKE} MACHINE=rp2040
 """
+MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
+    "@NLIST_FIXTURE@",
+    "${PYTHON} tests/rp2040_nlist/check.py --object sys/arch/rp2040/compile/PICO/sysctl.o "
+    "--kernel sys/arch/rp2040/compile/PICO/unix.elf",
+).replace(
+    "@NLIST_CHECK@",
+    "${PYTHON} tools/check_rp2040_nlist.py --object "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/sysctl.o "
+    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf",
+)
 MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
     "@SYSCALL_CHECK@",
     "${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master "
@@ -531,6 +548,18 @@ class BuildObservabilityTest(unittest.TestCase):
             with self.subTest(original=original):
                 source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
                 with self.assertRaisesRegex(ValueError, "check-rp2040-callout-roots"):
+                    observability.validate_makefile(source)
+
+    def test_nlist_cross_route_is_required(self):
+        observability.validate_makefile(MAKEFILE_FIXTURE)
+        for original, replacement in (
+            (" check-rp2040-nlist ", " "),
+            ("${PYTHON} tests/rp2040_nlist/check.py", "true"),
+            ("${PYTHON} tools/check_rp2040_nlist.py", "true"),
+        ):
+            with self.subTest(original=original):
+                source = MAKEFILE_FIXTURE.replace(original, replacement, 1)
+                with self.assertRaisesRegex(ValueError, "check-rp2040-nlist"):
                     observability.validate_makefile(source)
 
     def test_exec_dispatch_qemu_route_is_required(self):

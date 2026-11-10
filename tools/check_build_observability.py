@@ -414,6 +414,20 @@ def validate_makefile(source):
     )
     if re.search(r"^" + re.escape(callout_recipe) + r"$", normalized_source, re.MULTILINE) is None:
         raise ValueError("check-rp2040-callout-roots recipe differs")
+    if "check-rp2040-nlist" not in cross_kernel.group(1).replace("\\\n", " ").split():
+        raise ValueError("check-rp2040-nlist is absent from check-cross-kernel")
+    nlist_recipe = (
+        "check-rp2040-nlist: check-python\n"
+        "\t${PYTHON} tests/rp2040_nlist/check.py --object "
+        "sys/arch/rp2040/compile/PICO/sysctl.o --kernel sys/arch/rp2040/compile/PICO/unix.elf\n"
+        ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
+        "\t${PYTHON} tools/check_rp2040_nlist.py --object "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/sysctl.o "
+        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf\n"
+        ".endfor"
+    )
+    if re.search(r"^" + re.escape(nlist_recipe) + r"$", normalized_source, re.MULTILINE) is None:
+        raise ValueError("check-rp2040-nlist recipe differs")
     qemu_target = re.search(r"^check-qemu:[^\n]*\n((?:\t.*\n?)+)", source, re.MULTILINE)
     if (qemu_target is None or "${MAKE} check-exec-dispatch-qemu" not in
             [line.strip() for line in qemu_target.group(1).splitlines()]):

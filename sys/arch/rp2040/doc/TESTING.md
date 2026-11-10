@@ -373,6 +373,12 @@ rejects changed literals, cleared Thumb bits, alternate same-signature
 callbacks and truncated ELF input. The cross gate checks four configured
 kernels; it does not execute scheduling or prove callback delivery.
 
+`check-rp2040-nlist` compares configured object name relocations and exported
+symbol addresses with each linked kernel. The PICO fixture substitutes linked
+names and addresses, a configured object target and a terminator, and checks a
+truncated image. The gate binds the table to the supplied object and linked
+symbol table; source-to-object provenance and runtime lookup remain separate.
+
 The six jobs in `.github/workflows/host.yml` each carry a job deadline, every
 active command step carries a step deadline, and each job writes one deciding
 log under `.build-logs`. The pytest matrix streams combined output to

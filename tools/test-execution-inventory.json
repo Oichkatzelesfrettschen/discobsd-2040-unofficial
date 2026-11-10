@@ -125,6 +125,21 @@
       "kind": "ordered prerequisite .WAIT"
     },
     {
+      "from": "check-cross-kernel",
+      "to": "check-rp2040-nlist",
+      "kind": "ordered prerequisite .WAIT"
+    },
+    {
+      "from": "check-rp2040-nlist",
+      "to": "tests/rp2040_nlist/check.py",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-rp2040-nlist",
+      "to": "tools/check_rp2040_nlist.py",
+      "kind": "recipe for each configured kernel"
+    },
+    {
       "from": "check-rp2040-callout-roots",
       "to": "tests/rp2040_callout_roots/check.py",
       "kind": "recipe"

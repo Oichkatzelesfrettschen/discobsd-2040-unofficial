@@ -123,6 +123,10 @@ the store executes or establish terminal behavior; the `nldisp` observation
 is limited to the searched tree and the captured linked kernels. Optional PTY
 output callbacks are outside the four captured configurations and remain open.
 
+The `check-rp2040-nlist` cross gate compares configured export relocations
+with linked names and addresses. Object provenance and runtime lookups remain
+separate evidence.
+
 The `check-rp2040-callout-roots` cross gate checks selected scheduler, terminal
 and PicoCalc timeout callback references against object relocations and linked
 literals. The PICO configurations have three checked references; PicoCalc

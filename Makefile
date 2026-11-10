@@ -416,6 +416,14 @@ check-rp2040-callout-roots: check-python
 
 .PHONY: check-rp2040-callout-roots
 
+check-rp2040-nlist: check-python
+		${PYTHON} tests/rp2040_nlist/check.py --object sys/arch/rp2040/compile/PICO/sysctl.o --kernel sys/arch/rp2040/compile/PICO/unix.elf
+.for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
+		${PYTHON} tools/check_rp2040_nlist.py --object sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/sysctl.o sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+.endfor
+
+.PHONY: check-rp2040-nlist
+
 check-rp2040-target-flags: check-python
 		${PYTHON} tests/compiler_matrix/target_flags.py \
 		    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
@@ -1490,7 +1498,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-rp2040-shutdown-cross .WAIT check-storage-counters .WAIT check-rp2040-execsw .WAIT \
 		check-rp2040-vectors .WAIT check-rp2040-syscalls .WAIT check-rp2040-devsw .WAIT \
 		check-rp2040-fileops .WAIT check-rp2040-ioconf .WAIT check-rp2040-tty-roots .WAIT \
-		check-rp2040-callout-roots .WAIT \
+		check-rp2040-callout-roots .WAIT check-rp2040-nlist .WAIT \
 		check-kernel-headroom
 
 check-cross-assembler:

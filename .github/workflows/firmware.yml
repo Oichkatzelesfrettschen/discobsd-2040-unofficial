@@ -367,7 +367,13 @@ jobs:
       # tools/clean-residue-allow.txt.
       - name: Check that cleanall leaves no residue
         timeout-minutes: 10
-        run: bmake MACHINE=rp2040 check-clean-residue
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-clean-residue \
+            --log .build-logs/linux-clean-residue.log \
+            --status .build-logs/linux-clean-residue.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 540 \
+            -- bmake MACHINE=rp2040 check-clean-residue
 
   # The STM32 tree: the ten Cortex-M4 kernels, the userland and the tools,
   # all through the machine registry's stm32 tuple. No gate runs these

@@ -65,6 +65,7 @@ dev/swap.c				standard
 # STM32 platform.
 #
 arch/rp2040/rp2040/clock.c		standard
+arch/rp2040/rp2040/board.c		standard
 arch/rp2040/rp2040/conf.c			standard
 arch/rp2040/rp2040/fault.c		standard
 arch/rp2040/rp2040/machdep.c		standard

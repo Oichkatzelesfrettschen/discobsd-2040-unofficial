@@ -138,13 +138,14 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	ufs_alloc.o ufs_bio.o ufs_bmap.o ufs_dsort.o ufs_fio.o \
 	ufs_inode.o ufs_mount.o ufs_namei.o ufs_subr.o ufs_syscalls.o \
 	ufs_syscalls2.o vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o \
-	mem.o swap.o clock.o conf.o fault.o machdep.o shutdown_sync.o \
-	mpu.o sig_machdep.o syscall.o sysctl.o systick.o uart.o usb.o \
-	lcdcons.o lcdgfx.o lcdrender.o lcdterm.o lcdfont.o st7365p.o \
-	picokbd.o picokbd_map.o picokbd_evq.o picokbd_req.o picoaudio.o \
-	sd.o sdspi.o psram.o psram_xfer.o flash.o flash_swap.o error.o \
-	journal.o map.o swapram.o swapram_pool.o heatshrink_encoder.o \
-	hsx_decoder.o subr_crc32.o exec_hsaout.o hsx_stream.o
+	mem.o swap.o clock.o board.o conf.o fault.o machdep.o \
+	shutdown_sync.o mpu.o sig_machdep.o syscall.o sysctl.o systick.o \
+	uart.o usb.o lcdcons.o lcdgfx.o lcdrender.o lcdterm.o lcdfont.o \
+	st7365p.o picokbd.o picokbd_map.o picokbd_evq.o picokbd_req.o \
+	picoaudio.o sd.o sdspi.o psram.o psram_xfer.o flash.o \
+	flash_swap.o error.o journal.o map.o swapram.o swapram_pool.o \
+	heatshrink_encoder.o hsx_decoder.o subr_crc32.o exec_hsaout.o \
+	hsx_stream.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/errlist.c \
@@ -164,8 +165,8 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/ufs_syscalls2.c $S/kern/vfs_vnops.c $S/kern/vm_sched.c \
 	$S/kern/vm_swap.c $S/kern/vm_swp.c $S/dev/cons.c $S/dev/mem.c \
 	$S/dev/swap.c $S/arch/rp2040/rp2040/clock.c \
-	$S/arch/rp2040/rp2040/conf.c $S/arch/rp2040/rp2040/fault.c \
-	$S/arch/rp2040/rp2040/machdep.c \
+	$S/arch/rp2040/rp2040/board.c $S/arch/rp2040/rp2040/conf.c \
+	$S/arch/rp2040/rp2040/fault.c $S/arch/rp2040/rp2040/machdep.c \
 	$S/arch/rp2040/rp2040/shutdown_sync.c \
 	$S/arch/rp2040/rp2040/mpu.c $S/arch/rp2040/rp2040/sig_machdep.c \
 	$S/arch/rp2040/rp2040/syscall.c $S/arch/rp2040/rp2040/sysctl.c \
@@ -464,6 +465,9 @@ swap.o: $S/dev/swap.c
 	${COMPILE_C}
 
 clock.o: $S/arch/rp2040/rp2040/clock.c
+	${COMPILE_C}
+
+board.o: $S/arch/rp2040/rp2040/board.c
 	${COMPILE_C}
 
 conf.o: $S/arch/rp2040/rp2040/conf.c

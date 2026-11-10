@@ -134,3 +134,11 @@ _Static_assert(sizeof(((imaxdiv_t *)0)->quot) == sizeof(intmax_t) &&
 _Static_assert(sizeof(PRId64) == sizeof("lld") && sizeof(PRIdMAX) == sizeof("jd") &&
     sizeof(SCNd64) == sizeof("lld") && sizeof(SCNdMAX) == sizeof("jd"),
     "the macros are string literals");
+
+/* C17 7.8.2.4: the wide conversions, over the <inttypes.h> wchar_t. */
+intmax_t (*const wcstoimax_probe)(const wchar_t *, wchar_t **, int) =
+    wcstoimax;
+uintmax_t (*const wcstoumax_probe)(const wchar_t *, wchar_t **, int) =
+    wcstoumax;
+_Static_assert(_Generic(L'a', wchar_t: 1, default: 0),
+    "the <inttypes.h> wchar_t is the compiler's");

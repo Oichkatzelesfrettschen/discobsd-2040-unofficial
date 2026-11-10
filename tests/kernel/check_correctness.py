@@ -200,7 +200,7 @@ def main():
         (
             "clock-positive-lower-bound",
             "io",
-            {"kern_time.c": ("adjust < -0x8000", "adjust < 0x8000")},
+            {"kern_time.c": ("adjust >= -0x8000;", "adjust >= 0x8000;")},
             True,
         ),
         (
@@ -429,6 +429,29 @@ def main():
                 "kern_prot.c": (
                     "*group_pointer = NOGROUP;",
                     "(void)group_pointer;",
+                )
+            },
+            True,
+        ),
+        (
+            "adjtime-carry-boundary",
+            "io",
+            {"kern_time.c": ("} else if (ticks >= hz) {", "} else if (ticks > hz) {")},
+            True,
+        ),
+        (
+            "adjtime-slew-bound-narrow",
+            "io",
+            {"kern_time.c": ("seconds <= 0x8001;", "seconds <= 0x100;")},
+            True,
+        ),
+        (
+            "adjtime-microsecond-carry-dropped",
+            "io",
+            {
+                "kern_time.c": (
+                    "seconds = (int64_t)atv.tv_sec + whole;",
+                    "seconds = (int64_t)atv.tv_sec + (whole & 0);",
                 )
             },
             True,

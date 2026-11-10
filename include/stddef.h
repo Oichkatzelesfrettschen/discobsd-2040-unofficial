@@ -8,6 +8,20 @@ typedef int ptrdiff_t;
 typedef unsigned size_t;
 #endif
 
+#ifndef _WCHAR_T
+#define _WCHAR_T
+/*
+ * The compiler's wchar_t, which the type of a wide literal must match; the
+ * AAPCS makes it a 32-bit unsigned int on ARM.  Smaller C rejects wide
+ * literals and predefines no __WCHAR_TYPE__, so it takes the ARM type.
+ */
+#ifdef __WCHAR_TYPE__
+typedef __WCHAR_TYPE__ wchar_t;
+#else
+typedef unsigned int wchar_t;
+#endif
+#endif
+
 #ifndef NULL
 #define NULL    ((void *)0)
 #endif

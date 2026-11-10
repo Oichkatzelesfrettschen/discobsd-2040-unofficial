@@ -535,6 +535,8 @@ check-kernel-metadata:
 		${PYTHON} tests/kernel_metadata/dispatch_contracts.py --root ${TOPSRC:Q} \
 		    --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/syscall-dispatch-contracts.json
+		${PYTHON} tests/kernel_metadata/errmsg_contracts.py --root ${TOPSRC:Q} \
+		    --host-cc ${HOST_CC:Ucc:Q}
 
 check-root-noatime:
 		${PYTHON} tests/root_noatime/check.py --root ${TOPSRC}

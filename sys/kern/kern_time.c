@@ -122,8 +122,9 @@ adjtime()
     } *uap = (struct a *)u.u_arg;
     struct timeval atv;
     register int s;
-    int64_t adjust, seconds;
-    int ticks;
+    int64_t seconds;
+    long whole;
+    int adjust, ticks, slew;
 
     if (!suser())
         return;
@@ -131,17 +132,33 @@ adjtime()
         sizeof (struct timeval));
     if (u.u_error)
         return;
-    adjust = (int64_t)atv.tv_sec * hz + atv.tv_usec / usechz;
+    /*
+     * The delta is seconds whole seconds and ticks ticks, |ticks| < hz.
+     * Splitting the microseconds at one second first keeps every product
+     * and quotient in 32 bits for any hz up to 0x7fff, so the kernel links
+     * no 64-bit multiply or divide for this call; the sums of seconds alone
+     * are 64 bits wide.
+     */
+    whole = atv.tv_usec / 1000000L;
+    ticks = (int)((atv.tv_usec % 1000000L) / usechz);
+    seconds = (int64_t)atv.tv_sec + whole;
+    adjust = 0;
+    slew = seconds >= -0x8001 && seconds <= 0x8001;
+    if (slew) {
+        adjust = (int)seconds * hz + ticks;
+        slew = adjust <= 0x7fff && adjust >= -0x8000;
+    }
     /* Large tick corrections step the clock; smaller corrections slew. */
-    if (adjust > 0x7fff || adjust < -0x8000) {
+    if (!slew) {
         s = splclock();
-        seconds = (int64_t)time.tv_sec + atv.tv_sec;
-        adjust = (int64_t)lbolt + atv.tv_usec / usechz;
-        seconds += adjust / hz;
-        ticks = adjust % hz;
+        seconds += time.tv_sec;
+        ticks += lbolt;
         if (ticks < 0) {
             ticks += hz;
             seconds--;
+        } else if (ticks >= hz) {
+            ticks -= hz;
+            seconds++;
         }
         if (seconds < LONG_MIN || seconds > LONG_MAX) {
             splx(s);

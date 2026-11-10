@@ -1,0 +1,93 @@
+.Dd November 10, 2026
+.Dt MBTOWC 3
+.Os
+.Sh NAME
+.Nm mblen ,
+.Nm mbtowc ,
+.Nm wctomb ,
+.Nm mbstowcs ,
+.Nm wcstombs ,
+.Nm wcstoimax ,
+.Nm wcstoumax
+.Nd C-locale multibyte and wide character conversion
+.Sh SYNOPSIS
+.In stdlib.h
+.Ft int
+.Fn mblen "const char *s" "size_t n"
+.Ft int
+.Fn mbtowc "wchar_t *pwc" "const char *s" "size_t n"
+.Ft int
+.Fn wctomb "char *s" "wchar_t wc"
+.Ft size_t
+.Fn mbstowcs "wchar_t *pwcs" "const char *s" "size_t n"
+.Ft size_t
+.Fn wcstombs "char *s" "const wchar_t *pwcs" "size_t n"
+.In inttypes.h
+.Ft intmax_t
+.Fn wcstoimax "const wchar_t *nptr" "wchar_t **endptr" "int base"
+.Ft uintmax_t
+.Fn wcstoumax "const wchar_t *nptr" "wchar_t **endptr" "int base"
+.Sh DESCRIPTION
+The library implements the C locale alone.
+Its multibyte encoding has no shift state and one byte per character,
+so
+.Dv MB_CUR_MAX
+and
+.Dv MB_LEN_MAX
+are 1.
+A byte converts to the wide value of the same number read as
+.Vt unsigned char ,
+and only the wide values 0 to
+.Dv UCHAR_MAX
+have a multibyte form.
+.Pp
+.Fn mblen
+returns 0 for a null
+.Fa s
+or a null byte, -1 when
+.Fa n
+is 0, and 1 otherwise.
+.Fn mbtowc
+returns the same values and stores the wide value through
+.Fa pwc
+when
+.Fa pwc
+is not null.
+.Fn wctomb
+returns 0 for a null
+.Fa s ,
+stores one byte and returns 1 for a representable
+.Fa wc ,
+and returns -1 for any other value.
+.Pp
+.Fn mbstowcs
+and
+.Fn wcstombs
+convert a string, storing at most
+.Fa n
+elements, the terminating null among them when it fits, and return the
+count stored without the null.
+.Fn wcstombs
+returns
+.Po Vt size_t Pc Ns \-1
+when it reaches an unrepresentable value before the limit.
+A null destination, which POSIX admits, counts the whole conversion and
+stores nothing.
+.Pp
+.Fn wcstoimax
+and
+.Fn wcstoumax
+are the wide forms of
+.Fn strtoimax
+and
+.Fn strtoumax ,
+with the same subject sequence and the same results.
+An element above 0xff is none of the characters that sequence accepts.
+.Sh SEE ALSO
+.Xr strtol 3 ,
+.Xr strtoul 3
+.Sh STANDARDS
+These functions conform to
+.St -isoC-99
+as amended by ISO/IEC 9899:2018, sections 7.22.7, 7.22.8 and 7.8.2.4,
+for the C locale.

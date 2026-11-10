@@ -158,7 +158,8 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
     size_t newlen)
 {
 	int i, khz;
-	const char *message;
+	char message[KERNEL_ERRMSG_MAX];
+	u_int length;
 	dev_t dev;
 
 	/* All sysctl names at this level except mpu are terminal. */
@@ -185,11 +186,11 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 	case CPU_ERRMSG:
 		if (namelen != 2)
 			return ENOTDIR;
-		message = name[1] < 1 ? NULL : kernel_errmsg((u_int)name[1]);
-		if (message == NULL)
+		length = name[1] < 1 ? 0 :
+		    kernel_errmsg((u_int)name[1], message);
+		if (length == 0)
 			return EOPNOTSUPP;
-		return sysctl_string(oldp, oldlenp, 0, 0,
-		    (char *)message, 1 + strlen(message));
+		return sysctl_string(oldp, oldlenp, 0, 0, message, length);
 
 	case CPU_NLIST:
 		for (i = 0; nlist[i].name; i++) {

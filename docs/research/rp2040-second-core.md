@@ -125,7 +125,9 @@ and lets each step's measurement decide whether the next one is worth it.
    panic, the rings and doorbell, the heartbeat, and a first service that
    only observes: it samples core 0's state and captures a record when core 0
    stops answering, aimed at the unexplained USB console wedge
-   (`rp2040-usb-console` notes). About 300-600 bytes of code that runs from
+   (`rp2040-usb-console` notes). The rings, doorbell and credit count exist
+   as `sys/arch/rp2040/rp2040/corering.c` under the `check-corering` host
+   gate, linked into no kernel. About 300-600 bytes of code that runs from
    SRAM and is stored in kernel flash as its load image, plus 300-500 bytes
    of launch and reset text on core 0: 600 to 1,100 bytes of flash.
    Falsified if an injected `splhigh()` spin goes unreported within two

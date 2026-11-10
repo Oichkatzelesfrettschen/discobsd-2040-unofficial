@@ -212,7 +212,7 @@ loop:
     /*
      * Check I/O errors
      */
-    if ((bp->b_flags&B_ERROR) != 0) {
+    if ((bp->b_flags&B_ERROR) != 0 || FS_BADINO(fs, ino)) {
         brelse(bp);
 #ifndef LINEAR_INODE_CACHE
         /* Remove the failed inode from its hash chain. */
@@ -232,9 +232,21 @@ loop:
     }
 #ifdef V7FS
     if (FS_ISV7(fs)) {
-        v7_iread(ip, (u_char *)FSBADDR(fs, bp, FS_ITOD(fs, ino)) +
+        int bad = v7_iread(ip, (u_char *)FSBADDR(fs, bp, FS_ITOD(fs, ino)) +
             FS_ITOO(fs, ino) * sizeof(struct dinode));
+
         brelse(bp);
+        if (bad) {
+            u.u_error = bad;
+#ifndef LINEAR_INODE_CACHE
+            remque(ip);
+            ip->i_forw = ip;
+            ip->i_back = ip;
+#endif
+            ip->i_number = 0;
+            iput(ip);
+            return (NULL);
+        }
         return (ip);
     }
 #endif

@@ -76,6 +76,34 @@ fs_mount(const struct fs *fs)
         (((int)(b) & ((1 << FS_DBSHIFT(fs)) - 1)) << FS_BSHIFT(fs)))
 #define FSGETBLK(fs, dev, b)    (FS_DBSHIFT(fs) ? \
         bread((dev), FSBTODB((fs), (b))) : getblk((dev), (b)))
+/*
+ * Bytes of one part that a short transfer left out of its buffer. The
+ * last buffer of a device with an odd sector count holds a first part and
+ * no second, and the driver reports the absent bytes in b_resid.
+ */
+static inline u_int
+fs_part_resid(u_int resid, int bshift, daddr_t b)
+{
+    u_int size = 1U << bshift;
+    u_int after = DEV_BSIZE - size -
+        (((u_int)b & ((1U << (DEV_BSHIFT - bshift)) - 1)) << bshift);
+
+    if (resid <= after)
+        return (0);
+    resid -= after;
+    return (resid < size ? resid : size);
+}
+#define FSRESID(fs, bp, b)      \
+        fs_part_resid((bp)->b_resid, FS_BSHIFT(fs), (b))
+/*
+ * A V7 volume is foreign media: an address outside the data area or an
+ * inode number outside the inode table is refused where it is read.
+ */
+#define FS_BADADDR(fs, bn)      (FS_ISV7(fs) && \
+        ((u_long)(bn) < (fs)->fs_isize || (u_long)(bn) >= (fs)->fs_fsize))
+#define FS_BADINO(fs, ino)      (FS_ISV7(fs) && v7_badino((fs), (ino)))
+/* A value the format's 16-bit owner, group and device fields cannot hold. */
+#define FS_WIDE16(fs, v)        (FS_ISV7(fs) && (u_long)(v) > 0xffff)
 /* The block balloc() returned in bp, valid until the caller next sleeps. */
 #define FS_ALLOCBN(fs, bp)      (fs_mount(fs)->m_lastalloc)
 #define FS_REMAP(bap, bp)       ((void)0)
@@ -104,6 +132,9 @@ fs_mount(const struct fs *fs)
         bread((dev), IN_BTODB((ip), (b))) : getblk((dev), (b)))
 #define IN_SETBASE(base, addr)  ((base) = (addr))
 #define IN_BASE(base, bp)       (base)
+/* Bytes of block b that the transfer into bp delivered. */
+#define IN_AVAIL(ip, bp, b)     (IN_BSIZE(ip) - \
+        fs_part_resid((bp)->b_resid, IN_BSHIFT(ip), (b)))
 /* The first block of a symbolic link, read into bp as block bn. */
 #define NAMEI_LINKADDR(ip, bp, bn) \
         FSBADDR(INODE_FILESYSTEM(ip), (bp), (bn))
@@ -139,7 +170,8 @@ struct uio;
 
 daddr_t v7_addr_get (struct inode *ip, int i);
 void    v7_addr_set (struct inode *ip, int i, daddr_t bn);
-void    v7_iread (struct inode *ip, const u_char *raw);
+int     v7_badino (const struct fs *fs, ino_t ino);
+int     v7_iread (struct inode *ip, const u_char *raw);
 int     v7_iwrite (struct inode *ip, u_char *raw);
 int     v7_sbload (struct fs *fs, const u_char *raw);
 int     v7_sbwrite (struct mount *mp, int waitfor);
@@ -166,6 +198,10 @@ int     v7_dirrw (struct inode *ip, struct uio *uio);
 #define FSBTODB(fs, b)          (b)
 #define FSBADDR(fs, bp, b)      ((bp)->b_addr)
 #define FSGETBLK(fs, dev, b)    getblk((dev), (b))
+#define FSRESID(fs, bp, b)      ((bp)->b_resid)
+#define FS_BADADDR(fs, bn)      0
+#define FS_BADINO(fs, ino)      0
+#define FS_WIDE16(fs, v)        0
 #define FS_ALLOCBN(fs, bp)      dbtofsb((bp)->b_blkno)
 #define FS_REMAP(bap, bp)       ((bap) = (daddr_t *)(bp)->b_addr)
 #define FS_BRELSE_HELD(bp)      brelse(bp)
@@ -177,6 +213,7 @@ int     v7_dirrw (struct inode *ip, struct uio *uio);
 #define IN_GETBLK(ip, dev, b)   getblk((dev), (b))
 #define IN_SETBASE(base, addr)  ((void)0)
 #define IN_BASE(base, bp)       ((bp)->b_addr)
+#define IN_AVAIL(ip, bp, b)     (DEV_BSIZE - (bp)->b_resid)
 #define DIRBWRITE(ip, bp, off)  bwrite(bp)
 #define NAMEI_LINKADDR(ip, bp, bn) ((bp)->b_addr)
 #define IADDR(ip, i)            ((ip)->i_addr[i])

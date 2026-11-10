@@ -31,6 +31,9 @@
 #define V7_DOTREC       12      /* "." as mkdir's template lays it out */
 #define V7_ADDR_ESCAPE  0xffff  /* in i_a16[]: the address is on the disk */
 #define V7_ADDR_MAX     0xffffffL
+#define V7_INOPB        8       /* disk inodes in one 512-byte block */
+#define V7_INO_MAX      0xffffU /* a directory entry names 16 bits */
+#define V7_DIRSIZE_MAX  0x3fffffffUL    /* doubles into a positive off_t */
 
 /* Byte offsets in the superblock. */
 #define SB_ISIZE        0
@@ -113,19 +116,33 @@ put32(u_char *p, u_long v)
  * number: the range checks below are the only evidence that raw is a
  * superblock. The volume caches up to V7_NICINOD free inodes and struct
  * fs holds NICINOD; the cache is a hint ialloc() rebuilds by scanning,
- * so the entries nearest the top of the stack are kept.
+ * so the entries nearest the top of the stack are kept and one that
+ * names no inode of the table is dropped. An inode table larger than a
+ * directory entry can name is refused.
  */
+int
+v7_badino(const struct fs *fs, ino_t ino)
+{
+    if (ino >= 1 && ino <= V7_INO_MAX &&
+        (u_long)(ino - 1) / V7_INOPB + 2 < fs->fs_isize)
+        return (0);
+    u.u_error = EIO;
+    return (1);
+}
+
 int
 v7_sbload(struct fs *fs, const u_char *raw)
 {
     u_long isize, fsize, bn;
-    int nfree, ninode, keep, i;
+    int nfree, ninode, keep, i, n;
+    u_int ino;
 
     isize = get16(raw + SB_ISIZE);
     fsize = get32(raw + SB_FSIZE);
     nfree = (short)get16(raw + SB_NFREE);
     ninode = (short)get16(raw + SB_NINODE);
-    if (isize < 3 || fsize <= isize || fsize > V7_ADDR_MAX ||
+    if (isize < 3 || (isize - 2) * V7_INOPB > V7_INO_MAX ||
+        fsize <= isize || fsize > V7_ADDR_MAX ||
         nfree < 0 || nfree > fs_geom_table[FS_FORMAT_V7].g_nicfree ||
         ninode < 0 || ninode > V7_NICINOD)
         return (EINVAL);
@@ -138,14 +155,17 @@ v7_sbload(struct fs *fs, const u_char *raw)
         fs->fs_free[i] = bn;
     }
     keep = ninode < NICINOD ? ninode : NICINOD;
-    for (i = 0; i < keep; i++)
-        fs->fs_inode[i] = get16(raw + SB_INODE + 2 * (ninode - keep + i));
+    for (i = ninode - keep, n = 0; i < ninode; i++) {
+        ino = get16(raw + SB_INODE + 2 * i);
+        if (ino >= 1 && (u_long)(ino - 1) / V7_INOPB + 2 < isize)
+            fs->fs_inode[n++] = ino;
+    }
     fs->fs_magic1 = FSMAGIC1;
     fs->fs_magic2 = FSMAGIC2;
     fs->fs_isize = isize;
     fs->fs_fsize = fsize;
     fs->fs_nfree = nfree;
-    fs->fs_ninode = keep;
+    fs->fs_ninode = n;
     fs->fs_time = get32(raw + SB_TIME);
     fs->fs_tfree = get32(raw + SB_TFREE);
     fs->fs_tinode = get16(raw + SB_TINODE);
@@ -247,7 +267,9 @@ v7_dinode(struct inode *ip, struct buf **bpp)
  * stays on the disk: the reader fetches it from the disk inode and the
  * writer stores it there at once, as System V kept a 16-bit owner field
  * whose all-ones value sends the reader to the wide field. A volume of
- * fewer than 65,535 blocks never takes the escape.
+ * fewer than 65,535 blocks never takes the escape. A reader that cannot
+ * fetch the disk inode answers -1, which no caller takes for a hole:
+ * bmap() refuses it through FS_BADADDR() and free() through badblock().
  */
 daddr_t
 v7_addr_get(struct inode *ip, int i)
@@ -260,7 +282,7 @@ v7_addr_get(struct inode *ip, int i)
         return (ip->i_a16[i]);
     raw = v7_dinode(ip, &bp);
     if (raw == NULL)
-        return (0);
+        return ((daddr_t)-1);
     bn = get24(raw + DI_ADDR + 3 * i);
     brelse(bp);
     return (bn);
@@ -287,14 +309,20 @@ v7_addr_set(struct inode *ip, int i, daddr_t bn)
 /*
  * Disk inode to in-core inode. A device node keeps its number in the
  * first address. A directory's size doubles, because the kernel sees
- * the directory through v7_dirread().
+ * the directory through v7_dirread(); a directory size that is no whole
+ * number of entries or that does not double fails the read before ip
+ * changes.
  */
-void
+int
 v7_iread(struct inode *ip, const u_char *raw)
 {
     u_long size;
     int i, type;
 
+    size = get32(raw + DI_SIZE);
+    if ((get16(raw + DI_MODE) & IFMT) == IFDIR &&
+        (size > V7_DIRSIZE_MAX || (size & (V7_SLOT - 1)) != 0))
+        return (EIO);
     ip->i_mode = get16(raw + DI_MODE);
     ip->i_nlink = get16(raw + DI_NLINK);
     ip->i_uid = get16(raw + DI_UID);
@@ -303,7 +331,6 @@ v7_iread(struct inode *ip, const u_char *raw)
     ip->i_atime = get32(raw + DI_ATIME);
     ip->i_mtime = get32(raw + DI_MTIME);
     ip->i_ctime = get32(raw + DI_CTIME);
-    size = get32(raw + DI_SIZE);
     type = ip->i_mode & IFMT;
     bzero((caddr_t)ip->i_addr, sizeof(ip->i_addr));
     if (type == IFCHR || type == IFBLK)
@@ -317,12 +344,16 @@ v7_iread(struct inode *ip, const u_char *raw)
     if (type == IFDIR)
         size <<= 1;
     ip->i_size = size;
+    return (0);
 }
 
 /*
  * In-core inode to disk inode. The format's owner, group and device
- * fields are 16 bits and its link count 15; a value outside them fails
- * the update with nothing written.
+ * fields are 16 bits; a value outside them fails the update with
+ * nothing written. ialloc(), chown1() and mknod() refuse such a value
+ * before it enters an inode (FS_WIDE16()), so the refusal here is the
+ * backstop of those three. The link count is stored as the 16 unsigned
+ * bits the in-core field holds.
  */
 int
 v7_iwrite(struct inode *ip, u_char *raw)
@@ -330,7 +361,7 @@ v7_iwrite(struct inode *ip, u_char *raw)
     int i, type;
 
     type = ip->i_mode & IFMT;
-    if (ip->i_uid > 0xffff || ip->i_gid > 0xffff || ip->i_nlink > 0x7fff)
+    if (ip->i_uid > 0xffff || ip->i_gid > 0xffff)
         return (EOVERFLOW);
     if ((type == IFCHR || type == IFBLK) && (u_long)ip->i_rdev > 0xffff)
         return (EOVERFLOW);

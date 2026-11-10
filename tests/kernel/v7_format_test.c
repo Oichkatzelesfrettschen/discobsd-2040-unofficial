@@ -75,6 +75,7 @@ static char pool_data[POOL][DEV_BSIZE];
 static unsigned pool_age[POOL];
 static unsigned pool_clock;
 static unsigned held, held_peak;
+static daddr_t fail_blkno = -1;    /* a buffer block whose reads fail */
 
 static void
 die(const char *what, long a, long b)
@@ -90,9 +91,11 @@ store(struct buf *bp)
 
     if (bp->b_dev != GATE_DEV)
         die("write of a buffer with no identity", bp->b_blkno, 0);
-    if (at + DEV_BSIZE > disk_bytes)
+    if (at + DEV_BSIZE / 2 > disk_bytes)
         die("write past the volume", bp->b_blkno, 0);
-    memcpy(disk + at, bp->b_addr, DEV_BSIZE);
+    /* A device that ends inside the buffer takes the sector it has. */
+    memcpy(disk + at, bp->b_addr,
+        at + DEV_BSIZE > disk_bytes ? DEV_BSIZE / 2 : DEV_BSIZE);
     bp->b_flags &= ~B_DELWRI;
 }
 
@@ -126,10 +129,10 @@ take(dev_t dev, daddr_t blkno)
     bp->b_flags = 0;
     bp->b_dev = dev;
     bp->b_blkno = blkno;
+    bp->b_resid = 0;
 got:
     bp->b_flags |= B_BUSY;
     bp->b_addr = pool_data[bp - pool];
-    bp->b_resid = 0;
     pool_age[bp - pool] = ++pool_clock;
     if (++held > held_peak)
         held_peak = held;
@@ -154,13 +157,26 @@ bread(dev_t dev, daddr_t blkno)
     struct buf *bp = take(dev, blkno);
     unsigned long at = (unsigned long)blkno * DEV_BSIZE;
 
-    if (bp->b_flags & B_DONE)
-        return (bp);
-    if (blkno < 0 || at + DEV_BSIZE > disk_bytes) {
+    if (blkno == fail_blkno) {
         bp->b_flags |= B_ERROR;
         return (bp);
     }
-    memcpy(bp->b_addr, disk + at, DEV_BSIZE);
+    if (bp->b_flags & B_DONE)
+        return (bp);
+    if (blkno < 0 || at + DEV_BSIZE / 2 > disk_bytes) {
+        bp->b_flags |= B_ERROR;
+        return (bp);
+    }
+    if (at + DEV_BSIZE > disk_bytes) {
+        /*
+         * The device ends inside the buffer: the SD driver transfers
+         * the sector it has and reports the absent one in b_resid.
+         */
+        memcpy(bp->b_addr, disk + at, DEV_BSIZE / 2);
+        memset(bp->b_addr + DEV_BSIZE / 2, 0, DEV_BSIZE / 2);
+        bp->b_resid = DEV_BSIZE / 2;
+    } else
+        memcpy(bp->b_addr, disk + at, DEV_BSIZE);
     bp->b_flags |= B_DONE;
     return (bp);
 }
@@ -568,6 +584,129 @@ escape(void)
     iput(ip);
 }
 
+/* Write every delayed buffer and forget what the cache holds. */
+static void
+evict(void)
+{
+    int i;
+
+    flush();
+    for (i = 0; i < POOL; i++) {
+        pool[i].b_flags = 0;
+        pool[i].b_dev = NODEV;
+    }
+}
+
+/*
+ * A V7 volume is foreign media and a device can fail: what the layer
+ * does with an address outside the data area, an inode number outside
+ * the table, an owner the format cannot hold, a wide address whose disk
+ * inode does not read, and a device that ends inside a buffer.
+ */
+static void
+hostile(void)
+{
+    struct fs *fs = &mp->m_filsys;
+    static unsigned char saved[512], got[16];
+    struct inode *ip;
+    unsigned long bytes;
+    daddr_t root, last, before;
+    u_short keep;
+    int i;
+
+    /* A direct address that names the superblock. */
+    ip = lookup("/kernel-small");
+    HK_CHECK(ip != NULL);
+    if (ip == NULL)
+        return;
+    evict();
+    memcpy(saved, disk + 512, 512);
+    keep = ip->i_a16[0];
+    ip->i_a16[0] = 1;
+    HK_CHECK(rdwri(UIO_WRITE, ip, (caddr_t)"x", 1, (off_t)0, IO_UNIT,
+        (int *)0) == EIO);
+    u.u_error = 0;
+    HK_CHECK(rdwri(UIO_READ, ip, (caddr_t)got, 1, (off_t)0, IO_UNIT,
+        (int *)0) == EIO);
+    u.u_error = 0;
+    evict();
+    HK_CHECK(memcmp(saved, disk + 512, 512) == 0);
+    ip->i_a16[0] = keep;
+
+    /* A wide address whose disk inode does not read is no hole. */
+    before = v7_addr_get(ip, 0);
+    v7_addr_set(ip, 0, (daddr_t)0x00012345L);
+    HK_CHECK(ip->i_a16[0] == 0xffff);
+    evict();
+    fail_blkno = FSBTODB(fs, FS_ITOD(fs, ip->i_number));
+    HK_CHECK(rdwri(UIO_WRITE, ip, (caddr_t)"x", 1, (off_t)0, IO_UNIT,
+        (int *)0) == EIO);
+    fail_blkno = -1;
+    u.u_error = 0;
+    HK_CHECK(ip->i_a16[0] == 0xffff);
+    HK_CHECK(v7_addr_get(ip, 0) == 0x00012345L);
+    v7_addr_set(ip, 0, before);
+    ip->i_flag |= ICHG;
+    iput(ip);
+
+    /* An indirect root outside the data area. */
+    ip = lookup("/kernel-double");
+    HK_CHECK(ip != NULL);
+    if (ip == NULL)
+        return;
+    root = v7_addr_get(ip, 10);
+    HK_CHECK(root != 0);
+    keep = ip->i_a16[10];
+    ip->i_a16[10] = (u_short)(fs->fs_isize - 1);
+    HK_CHECK(rdwri(UIO_READ, ip, (caddr_t)got, 1, (off_t)5120, IO_UNIT,
+        (int *)0) == EIO);
+    u.u_error = 0;
+    ip->i_a16[10] = keep;
+
+    /*
+     * The device ends after the first part of its last buffer, and that
+     * part is the file's indirect block.
+     */
+    evict();
+    last = (daddr_t)fs->fs_fsize - 2;
+    memcpy(saved, disk + last * 512, 512);
+    memcpy(disk + last * 512, disk + root * 512, 512);
+    bytes = disk_bytes;
+    disk_bytes -= 512;
+    fs->fs_fsize--;
+    ip->i_a16[10] = (u_short)last;
+    HK_CHECK(rdwri(UIO_READ, ip, (caddr_t)got, sizeof(got), (off_t)5120,
+        IO_UNIT, (int *)0) == 0);
+    for (i = 0; i < (int)sizeof(got); i++)
+        HK_CHECK(got[i] == pattern(7, 5120 + i));
+    u.u_error = 0;
+    ip->i_a16[10] = keep;
+    evict();
+    fs->fs_fsize++;
+    disk_bytes = bytes;
+    memcpy(disk + last * 512, saved, 512);
+    iput(ip);
+
+    /* An inode number past the table. */
+    HK_CHECK(iget(GATE_DEV, fs,
+        (ino_t)((fs->fs_isize - 2) * 8 + 1)) == NULL);
+    HK_CHECK(u.u_error == EIO);
+    u.u_error = 0;
+
+    /* An owner the 16-bit field cannot hold creates nothing. */
+    u.u_uid = 0x10000;
+    i = kcreate("/wide-owner", IFREG | 0644, &ip);
+    HK_CHECK(i == EOVERFLOW);
+    if (i == 0)
+        iput(ip);
+    u.u_uid = 0;
+    ip = lookup("/wide-owner");
+    HK_CHECK(ip == NULL);
+    if (ip != NULL)
+        iput(ip);
+    u.u_error = 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -670,11 +809,12 @@ main(int argc, char **argv)
     HK_CHECK(kremove("/kdir/sub") == ENOTEMPTY);
     HK_CHECK(kremove("/doomed-double") == 0);
 
-    /* Truncation inside each range, and growth back through a hole. */
+    /* Truncation inside each range. */
     resize("/kernel-double", 7, 70000);
     resize("/kernel-single", 6, 5000);
     resize("/kernel-direct", 5, 300);
     escape();
+    hostile();
 
     /* What this run wrote, read back through the same layer. */
     for (i = 0; i < 300; i++)

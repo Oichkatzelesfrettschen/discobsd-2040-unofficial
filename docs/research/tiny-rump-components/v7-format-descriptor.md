@@ -189,10 +189,45 @@ through `FSBADDR`.
 
 ## Limits a V7 mount keeps
 
-Fourteen-byte names, 16-bit owners and device numbers, a 15-bit link count,
-no inode flags, no magic number. Because V7 has no magic number the mount
-type is stated by the caller (`MNT_V7`) and never detected, and
-`v7_sbload()` range-checks the superblock before the mount succeeds.
+Fourteen-byte names, 16-bit owners and device numbers, a 16-bit link count
+(the volume's field is signed, so a count above 32,767 reads as negative on
+a Seventh Edition system), no inode flags, no magic number. Because V7 has
+no magic number the mount type is stated by the caller (`MNT_V7`) and never
+detected, and `v7_sbload()` range-checks the superblock before the mount
+succeeds.
+
+## A V7 volume is foreign media
+
+The native root is written by this tree's own tools; a V7 volume arrives on
+an SD card. The format's fields are therefore checked where they are read,
+and each check is a macro that is constant false for the native format:
+
+- `FS_BADADDR()` refuses a direct address, an indirect root or an indirect
+  entry outside the data area in `bmap()`, with `EIO`, before a buffer is
+  read or written. Without it a file whose first address is 1 writes over
+  the superblock.
+- `FS_BADINO()` refuses in `iget()` an inode number outside the inode
+  table, and `v7_sbload()` drops such a number from the free-inode hints
+  and refuses an inode table larger than the 16 bits a directory entry
+  names.
+- `v7_iread()` refuses a directory size that is no whole number of entries
+  or that would not double into a positive `off_t`.
+- `FS_WIDE16()` refuses, at `ialloc()`, `chown1()` and `mknod()`, an owner,
+  group or device number above 65,535, so the value never enters an inode
+  whose directory entry would outlive a failed `v7_iwrite()`.
+- A wide address whose disk inode does not read answers -1 from
+  `v7_addr_get()`, which `FS_BADADDR()` refuses; it had read as a hole,
+  which `bmap()` fills by allocating over the live pointer.
+- `FSRESID()` and `IN_AVAIL()` judge a short transfer by the part the
+  caller selected. The last buffer of a device with an odd sector count
+  holds a first part and no second, the SD driver reports the absent 512
+  bytes in `b_resid`, and the first part is whole. A failed indirect read
+  in a `V7FS` kernel fails `bmap()` with `EIO` where the native kernel
+  answers block 0, because block 0 of a V7 volume is its boot block.
+- `balloc()` counts a block whose buffer does not read out of the free
+  total and leaves it out of the chain.
+- A V7 directory write in `rwip()` joins the `IO_SYNC` completion
+  (`syncip()` and `ufs_sync()`) the other writes take.
 
 ## Cost, measured
 
@@ -202,10 +237,11 @@ arm-none-eabi-gcc at the PICOCALC flags on 2026-11-10:
 | | text | data | bss |
 |---|---:|---:|---:|
 | PICOCALC | 115,027 | 384 | 53,336 |
-| PICOCALC with `V7FS` | 119,841 | 384 | 53,352 |
-| difference | 4,814 | 0 | 16 |
+| PICOCALC with `V7FS` | 120,553 | 384 | 53,352 |
+| difference | 5,526 | 0 | 16 |
 
-`ufs_v7.o` was 2,314 bytes in a build of the same tree 72 bytes smaller;
+The checks on foreign media are 712 of those bytes; the build before them
+measured 119,841. `ufs_v7.o` was 2,314 bytes in a build 784 bytes smaller;
 the rest is the inode layer reading geometry from the mount where it held
 constants (`sys_inode.o` grew 620 bytes, `ufs_inode.o` 784, `ufs_alloc.o`
 376, `ufs_bmap.o` 336 in that build). The 16 bytes of bss are two fields in
@@ -233,8 +269,12 @@ reads every surviving file back byte for byte, and
 data block free or named exactly once and every link count equal to its
 directory entries. The kernel code descends from V7 and the core was
 written independently, so agreement is two implementations and a checker.
-Nine source mutants each fail the run and the checker rejects five damaged
-images. `sys/arch/rp2040/doc/TESTING.md` carries the gate's full claim.
+The run then turns hostile: a direct address that names the superblock, an
+indirect root below the data area, a wide address whose disk inode fails to
+read, a device that ends after the first part of its last buffer with the
+file's indirect block in that part, an inode number past the table and an
+owner of 65,536. Fourteen source mutants each fail the run and the checker
+rejects six damaged images. `sys/arch/rp2040/doc/TESTING.md` carries the gate's full claim.
 
 ## Open work
 
@@ -245,8 +285,14 @@ images. `sys/arch/rp2040/doc/TESTING.md` carries the gate's full claim.
 - No board has run this code. The host gate exercises the inode layer over
   a four-buffer cache model; the SD driver, real sleeps and a second mount
   beside the flash root are unexercised.
-- The half-buffer paths with `b_resid` set (a short device transfer) were
-  not exercised.
+- A short transfer is exercised for one read of an indirect block in the
+  last buffer; a write there, and a short transfer anywhere else, are not.
+- The gate's `syncip()` and `ufs_sync()` are stubs, so the synchronous
+  completion of a directory write is compiled and not exercised, and the
+  `chown1()` and `mknod()` refusals live in `ufs_syscalls.c`, which the
+  gate does not build. Rename, the rewrite of `..`, the block the
+  allocator retires after a failed read and truncation back up through a
+  hole have no case either.
 - Volumes above 65,534 blocks are covered only by the escape's unit test,
   which stores and reloads wide addresses; no file was allocated there.
 - V7's `icheck.c` and `dcheck.c`, ported from K&R C, would add the original

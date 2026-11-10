@@ -115,6 +115,42 @@ zombie but returns to every other caller, so `exit` needs
 `rexit()` (line 157) then becomes `__dead` too. `idle()`
 (`sys/arch/rp2040/rp2040/machdep.c` line 697) returns and is excluded.
 
+### Lean PICO and a PICO_DIAG configuration (-1,304 bytes text, -96 bss)
+
+The owner chose this split on 2026-11-10. `sys/arch/rp2040/compile/PICO/Config`
+enables `SYSTRACE` (544 bytes of text) and `CAPACITY_STATS` (760 bytes of
+text, 96 bytes of bss). `HALTREBOOT` costs 52 bytes and stays.
+
+- Remove both options from PICO and add `compile/PICO_DIAG/Config` carrying
+  them. The generated Makefiles are tracked, so generate and track
+  PICO_DIAG's Makefile the way PICO and PICO_UART are.
+- Repoint every reader of `kern.capacity` or `kern.systrace` at PICO_DIAG:
+  `sys/arch/rp2040/doc/CAPACITY.md`, `sys/arch/rp2040/doc/TESTING.md`, the
+  board capacity acceptance in `docs/research/board-capacity-acceptance.md`,
+  and any tool under `tools/`. Run `grep -rn 'kern.capacity\|systrace'`
+  first.
+- Add the PICO_DIAG kernel to the root Makefile, the board-build tier of
+  `logged-check` and CI.
+- Confirm that `sysctl` and `adminbox` report an absent node on a lean
+  kernel as an error rather than printing stale memory.
+- `kern/subr_capacity.c` is selected by `optional capacity_stats` in
+  `sys/arch/rp2040/conf/files.rp2040`. A measurement that removes the
+  `-DCAPACITY_STATS` parameter by hand must also remove `subr_capacity.o`
+  from `OBJS`, or the build fails on the stub macros in `sys/sys/capacity.h`.
+
+### `-O2` build blocked by an unadmitted capacity index
+
+`COPTS=-O2` fails with `-Werror=array-bounds` at
+`sys/kern/subr_capacity.c` line 79: `capacity_state.metric[kind]` with
+`kind` 5 of a 5-element array. `capacity_note()` indexes the array without
+checking `kind < CAPACITY_KIND_COUNT`, and `capacity_live()`'s switch carries
+a `CAPACITY_KIND_COUNT` arm that keeps the value live in the compiler's
+range analysis. All 17 callers pass valid kinds, so no current path reaches
+it. Add the admission in `capacity_note()`, then build all four RP2040
+configurations at `-O2` to find any further diagnostics. This unblocks
+every speed-for-size comparison; `-Oz` produces the same text as `-Os` on
+this target (scratch: 95,516 both), so `-Os` remains the size baseline.
+
 ### Never-returning libc entry points (payoff unmeasured)
 
 `include/stdlib.h` (`abort` line 60, `exit` line 67), `include/unistd.h`
@@ -151,42 +187,6 @@ counts suggest.
 - Measure by packed root blocks (`tools/bin/rp2040/hsaout -s`) across the
   world build, not by raw text: `footprint-techniques.md` item 2 records
   that packed size is not monotone in code size.
-
-### Lean PICO and a PICO_DIAG configuration (-1,304 bytes text, -96 bss)
-
-The owner chose this split on 2026-11-10. `sys/arch/rp2040/compile/PICO/Config`
-enables `SYSTRACE` (544 bytes of text) and `CAPACITY_STATS` (760 bytes of
-text, 96 bytes of bss). `HALTREBOOT` costs 52 bytes and stays.
-
-- Remove both options from PICO and add `compile/PICO_DIAG/Config` carrying
-  them. The generated Makefiles are tracked, so generate and track
-  PICO_DIAG's Makefile the way PICO and PICO_UART are.
-- Repoint every reader of `kern.capacity` or `kern.systrace` at PICO_DIAG:
-  `sys/arch/rp2040/doc/CAPACITY.md`, `sys/arch/rp2040/doc/TESTING.md`, the
-  board capacity acceptance in `docs/research/board-capacity-acceptance.md`,
-  and any tool under `tools/`. Run `grep -rn 'kern.capacity\|systrace'`
-  first.
-- Add the PICO_DIAG kernel to the root Makefile, the board-build tier of
-  `logged-check` and CI.
-- Confirm that `sysctl` and `adminbox` report an absent node on a lean
-  kernel as an error rather than printing stale memory.
-- `kern/subr_capacity.c` is selected by `optional capacity_stats` in
-  `sys/arch/rp2040/conf/files.rp2040`. A measurement that removes the
-  `-DCAPACITY_STATS` parameter by hand must also remove `subr_capacity.o`
-  from `OBJS`, or the build fails on the stub macros in `sys/sys/capacity.h`.
-
-### `-O2` build blocked by an unadmitted capacity index
-
-`COPTS=-O2` fails with `-Werror=array-bounds` at
-`sys/kern/subr_capacity.c` line 79: `capacity_state.metric[kind]` with
-`kind` 5 of a 5-element array. `capacity_note()` indexes the array without
-checking `kind < CAPACITY_KIND_COUNT`, and `capacity_live()`'s switch carries
-a `CAPACITY_KIND_COUNT` arm that keeps the value live in the compiler's
-range analysis. All 17 callers pass valid kinds, so no current path reaches
-it. Add the admission in `capacity_note()`, then build all four RP2040
-configurations at `-O2` to find any further diagnostics. This unblocks
-every speed-for-size comparison; `-Oz` produces the same text as `-Os` on
-this target (scratch: 95,516 both), so `-Os` remains the size baseline.
 
 ### Kernel LTO (unmeasured; four blockers)
 

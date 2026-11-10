@@ -12,7 +12,7 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS		+= -std=c17 -pedantic-errors -ffunction-sections
+CFLAGS		+= -DHAVE_STDINT_H=1 -std=c17 -pedantic-errors -ffunction-sections
 
 OBJS=		pzfront.o support.o
 PUZZLES=	flood samegame unruly lightup

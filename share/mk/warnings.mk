@@ -15,7 +15,7 @@ WARNLEVEL?=	full
 .if ${WARNLEVEL} == "legacy"
 WARNERR=	-Werror
 .elif ${WARNLEVEL} == "full"
-WARNERR=	-Wall -Wextra -Werror
+WARNERR=	-Wall -Wextra -Wundef -Werror
 .else
 .error WARNLEVEL must be full or legacy, not ${WARNLEVEL}
 .endif

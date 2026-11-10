@@ -446,13 +446,24 @@ package's pyproject.toml carries the same rules for its own directory.
 ## Compiler warning policy
 
 The RP2040 config template and its tracked PICO/PICO_UART Makefiles use
-`-Wall -Wextra -Werror`. The host kernel-source harness uses the same
-warning groups, with its existing host-compiler compatibility exceptions.
-The other ports' kernel templates still select their own warning groups.
+`-Wall -Wextra -Wundef -Werror`. The host kernel-source harness uses the
+same warning groups, with its existing host-compiler compatibility
+exceptions. The other ports' kernel templates still select their own
+warning groups.
+
+`-Wundef` is in the set because C17 6.10.1 replaces an undefined
+identifier in `#if` with 0, so `#if BYTE_ORDER == BIG_ENDIAN` is true on
+a little-endian target wherever `<sys/endian.h>` is out of scope, and
+nothing else in the compiler reports it. `sys/sys/endian.h` and
+`<machine/endian.h>` define `_BYTE_ORDER`, the BSD and POSIX names, and
+the `htobe`/`htole`/`be16toh`/`le16toh` conversions, and
+`<machine/machparam.h>` includes them beside the legacy `LITTLE`, `BIG`,
+`PDP` and `ENDIAN` names.
 
 `share/mk/warnings.mk` defines `WARNERR` from `WARNLEVEL`: the default
-level, `full`, is `-Wall -Wextra -Werror`, and `legacy` is `-Werror`
-alone, so only the groups a Makefile's own CFLAGS name are fatal there.
+level, `full`, is `-Wall -Wextra -Wundef -Werror`, and `legacy` is
+`-Werror` alone, so only the groups a Makefile's own CFLAGS name are
+fatal there.
 A leaf Makefile assigns `WARNLEVEL=legacy` before it includes sys.mk,
 because sys.mk composes `CC` at include time and a later assignment
 selects nothing; the two comment lines above the assignment state the
@@ -471,15 +482,21 @@ at legacy.
 controls and require a deliberately emitted warning to fail using the
 evaluated commands of representative tools, shared target rules and
 CFLAGS-replacing leaves. Each shared route is checked again with
-`CFLAGS=-O0`. The full-level cross routes, bin/echo, usr.bin/smlrc and
-lib/libc, must reject separate `-Wall` and `-Wextra` probes; the legacy
-routes, bin/sh and usr.bin/uucp, must reject the fatal probe and
-compile the `-Wextra` probe to an object, which proves the declaration
-reached `CC`. The host tier reads every tracked Makefile and fails a
-`WARNLEVEL` assignment that follows its sys.mk include or names a level
-warnings.mk does not accept. Both kernel configurations must reject
-separate `-Wall` and `-Wextra` probes, and their warning assignments
-must agree with the config template. The cross tier also compiles each route with the
+`CFLAGS=-O0`. The full-level cross routes, bin/echo, bin/sh,
+usr.bin/smlrc and lib/libc, must reject separate `-Wall`, `-Wextra` and
+`-Wundef` probes; the `-Wundef` probe compares an undefined `BYTE_ORDER`
+against an undefined `BIG_ENDIAN`, and the route must first compile the
+same comparison with `<sys/endian.h>` included, where the big-endian
+branch holds `#error`, to an object, which proves the header is on the
+route's include path and selects little-endian. The legacy route,
+usr.bin/uucp, must reject the fatal probe and compile the `-Wextra`
+probe to an object, which proves the declaration reached `CC`. The host
+tier reads every tracked Makefile and fails a `WARNLEVEL` assignment
+that follows its sys.mk include or names a level warnings.mk does not
+accept. Both kernel configurations must reject separate `-Wall`,
+`-Wextra` and `-Wundef` probes and compile the endian control, and their
+warning assignments must agree with the config template. The cross tier
+also compiles each route with the
 override `tools/warning-census.sh` uses, `WARNERR=-Wall -Wextra
 -Wno-error`, and requires the `-Wall` and `-Wextra` probes to raise their
 diagnostics and still produce an object: that is what makes the census a

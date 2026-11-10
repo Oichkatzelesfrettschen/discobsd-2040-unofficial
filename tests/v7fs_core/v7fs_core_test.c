@@ -1299,6 +1299,52 @@ regress(int fd)
 	}
 	regress_uncertain_publication(fd);
 	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-stale-successive", "format or mount failed");
+	} else if (v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0) {
+		fail("regress-stale-successive", "root inode load failed");
+		v7fs_io_fini(fs);
+	} else {
+		uint32_t free_before = fs->superblock.total_freeblock;
+		int count = fs->superblock.nfreeblock;
+
+		root.addr[1] = fs->superblock.freeblock[count - 2];
+		root.addr[2] = fs->superblock.freeblock[count - 1];
+		error = v7fs_datablock_expand(fs, &root,
+		    V7FS_BSIZE + 1 - root.filesize);
+		if (error == 0)
+			error = v7fs_datablock_expand(fs, &root, V7FS_BSIZE);
+		check(error == 0 && fs->superblock.total_freeblock == free_before - 2,
+		    "regress-stale-successive", "stale slot blocked later expansion");
+		check(v7fs_superblock_writeback(fs) == 0, "regress-stale-successive",
+		    "superblock writeback failed");
+		v7fs_io_fini(fs);
+		if (load_raw(fd) == 0)
+			reader_root_ownership("regress-stale-successive");
+		else
+			fail("regress-stale-successive", "image reload failed");
+	}
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-stale-future-allocated", "format or mount failed");
+	} else if (v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0) {
+		fail("regress-stale-future-allocated", "root inode load failed");
+		v7fs_io_fini(fs);
+	} else {
+		uint32_t free_before = fs->superblock.total_freeblock;
+
+		root.addr[2] = root.addr[0];
+		error = v7fs_datablock_expand(fs, &root,
+		    V7FS_BSIZE + 1 - root.filesize);
+		check(error == 0 && root.addr[2] == root.addr[0] &&
+		    fs->superblock.total_freeblock == free_before - 1,
+		    "regress-stale-future-allocated", "future allocated slot blocked growth");
+		if (error == 0)
+			error = v7fs_datablock_expand(fs, &root, V7FS_BSIZE);
+		check(error == EIO && root.addr[2] == root.addr[0] &&
+		    fs->superblock.total_freeblock == free_before - 1,
+		    "regress-stale-future-allocated", "allocated slot was reused");
+		v7fs_io_fini(fs);
+	}
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
 		fail("regress-stale-multiple", "format or mount failed");
 	} else if (v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0) {
 		fail("regress-stale-multiple", "root inode load failed");

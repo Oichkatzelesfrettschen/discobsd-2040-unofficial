@@ -382,8 +382,9 @@ patch reversals or targeted mutants to exercise the corrected behavior:
   detaches pointers before freeing their blocks. Growth checks the free-list
   cache and chain before clearing a stale direct pointer left by an older
   contraction; a pointer absent from the free list remains an error. Growth
-  checks all relevant direct slots before allocating, so an allocation cannot
-  consume a block named by an unchecked stale slot. A failed rollback write
+  checks the unused direct tail before allocating, so an allocation cannot
+  consume a block named by an unchecked stale slot in a later expansion.
+  Allocated tail slots outside the requested growth remain unchanged. A failed rollback write
   can leave the image inconsistent and requires inspection or repair.
 - `v7fs_file.patch`: directory lookup returns a read error instead of
   treating the error as a missing name. Creation and removal restore the

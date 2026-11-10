@@ -10,8 +10,8 @@ TARGET_FLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror \
 		-nostdinc -I${TOPSRC}/include
 MUTATE=		${PYTHON} ${.CURDIR}/mutate.py
 
-HEADER_CONTRACTS=	stddef_contract
-HEADER_MUTANTS=		stddef_no_max_align
+HEADER_CONTRACTS=	stddef_contract stdalign_contract
+HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -24,6 +24,14 @@ stddef_no_max_align.mutant:
 	${MUTATE} $@/stddef.step $@/stddef.h \
 	    "long double	__max_align_floating;" ""
 stddef_no_max_align.contract= stddef_contract
+
+# alignas that expands to nothing still parses, so only the layout
+# assertions see it.
+stdalign_weak_alignas.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/stdalign.h $@/stdalign.h \
+	    "#define alignas			_Alignas" "#define alignas(x)"
+stdalign_weak_alignas.contract= stdalign_contract
 
 check-cross: check-header-contracts check-header-mutants
 

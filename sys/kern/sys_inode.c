@@ -209,8 +209,10 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
         return (error);
     }
 #ifdef V7FS
-    if (type == IFDIR && FS_ISV7(INODE_FILESYSTEM(ip)))
-        return (v7_dirrw(ip, uio));
+    if (type == IFDIR && FS_ISV7(INODE_FILESYSTEM(ip))) {
+        error = v7_dirrw(ip, uio);
+        goto complete;
+    }
 #endif
     if (uio->uio_resid == 0)
         return (0);
@@ -280,7 +282,7 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
                 bzero (bp->b_addr, MAXBSIZE);
             }
         }
-        n = MIN((u_int)n, DEV_BSIZE - bp->b_resid);
+        n = MIN((u_int)n, IN_AVAIL(ip, bp, bn));
         if (bp->b_flags & B_ERROR) {
             error = EIO;
             brelse(bp);
@@ -328,6 +330,9 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
          * bit for their writes anyways.
          */
     }
+#ifdef V7FS
+complete:
+#endif
     if (!error && uio->uio_rw == UIO_WRITE && (ioflag & IO_SYNC) &&
         type != IFBLK) {
         error = syncip(ip);

@@ -270,6 +270,11 @@ mknod(void)
     }
     if (u.u_error)
         return;
+    if (FS_WIDE16(INODE_FILESYSTEM(ndp->ni_pdir), uap->dev)) {
+        iput(ndp->ni_pdir);
+        u.u_error = EOVERFLOW;
+        return;
+    }
     ip = maknode (uap->fmode, ndp);
     if (ip == NULL)
         return;
@@ -1178,6 +1183,9 @@ chown1(register struct inode *ip, register int uid, register int gid)
     if ((u.u_uid != ip->i_uid || (uid_t)uid != ip->i_uid ||
         !groupmember((gid_t)gid)) && !suser())
         return (u.u_error);
+    if (FS_WIDE16(INODE_FILESYSTEM(ip), uid) ||
+        FS_WIDE16(INODE_FILESYSTEM(ip), gid))
+        return (u.u_error = EOVERFLOW);
     ouid = ip->i_uid;
     ogid = ip->i_gid;
     ip->i_uid = uid;

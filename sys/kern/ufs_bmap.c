@@ -48,6 +48,10 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
     if (bn < FS_NADDR(INODE_FILESYSTEM(ip))-3) {
         i = bn;
         nb = IADDR(ip, i);
+        if (nb != 0 && FS_BADADDR(INODE_FILESYSTEM(ip), nb)) {
+            u.u_error = EIO;
+            return((daddr_t)-1);
+        }
         if (nb == 0) {
             if (rwflg == B_READ || (bp = balloc(ip, flags)) == NULL)
                 return((daddr_t)-1);
@@ -92,6 +96,10 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
      * fetch the first indirect block
      */
     nb = IADDR(ip, FS_NADDR(INODE_FILESYSTEM(ip))-j);
+    if (nb != 0 && FS_BADADDR(INODE_FILESYSTEM(ip), nb)) {
+        u.u_error = EIO;
+        return((daddr_t)-1);
+    }
     if (nb == 0) {
         if (rwflg == B_READ || (bp = balloc(ip, flags | B_CLRBUF)) == NULL)
             return((daddr_t) -1);
@@ -116,9 +124,16 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
      */
     for(;j <= 3;j++) {
         bp = bread(INODE_DEVICE(ip), FSBTODB(INODE_FILESYSTEM(ip), nb));
-        if ((bp->b_flags & B_ERROR) || bp->b_resid) {
+        if ((bp->b_flags & B_ERROR) ||
+            FSRESID(INODE_FILESYSTEM(ip), bp, nb)) {
             brelse(bp);
+#ifdef V7FS
+            /* Block 0 is no hole here: on a V7 volume it is the boot block. */
+            u.u_error = EIO;
+            return((daddr_t)-1);
+#else
             return((daddr_t)0);
+#endif
         }
         bap = (daddr_t*) FSBADDR(INODE_FILESYSTEM(ip), bp, nb);
 #ifdef V7FS
@@ -127,6 +142,11 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
         sh -= FS_NSHIFT(INODE_FILESYSTEM(ip));
         i = (bn>>sh) & FS_NMASK(INODE_FILESYSTEM(ip));
         nb = bap[i];
+        if (nb != 0 && FS_BADADDR(INODE_FILESYSTEM(ip), nb)) {
+            brelse(bp);
+            u.u_error = EIO;
+            return((daddr_t)-1);
+        }
         /*
          * calculate read-ahead
          */

@@ -69,6 +69,38 @@ MUTANTS = {
         "    fs_mount(fs)->m_lastalloc = bno;",
         "    fs_mount(fs)->m_lastalloc = bno ^ 1;",
     ),
+    # An address outside the data area is refused where bmap() reads it.
+    "address_unchecked": (
+        "sys/fsgeom.h",
+        "#define FS_BADADDR(fs, bn)      (FS_ISV7(fs) && \\\n"
+        "        ((u_long)(bn) < (fs)->fs_isize || (u_long)(bn) >= (fs)->fs_fsize))",
+        "#define FS_BADADDR(fs, bn)      (0 & (int)(bn))",
+    ),
+    # A wide address that cannot be read back is not a hole.
+    "escape_failure_is_hole": (
+        "kern/ufs_v7.c",
+        "    if (raw == NULL)\n        return ((daddr_t)-1);",
+        "    if (raw == NULL)\n        return (0);",
+    ),
+    # A short transfer is judged by the part the caller selected.
+    "whole_buffer_residual": (
+        "sys/fsgeom.h",
+        "#define FSRESID(fs, bp, b)      \\\n"
+        "        fs_part_resid((bp)->b_resid, FS_BSHIFT(fs), (b))",
+        "#define FSRESID(fs, bp, b)      ((bp)->b_resid + (0 & (int)(b)))",
+    ),
+    # An inode number is checked against the inode table.
+    "inode_number_unchecked": (
+        "sys/fsgeom.h",
+        "#define FS_BADINO(fs, ino)      (FS_ISV7(fs) && v7_badino((fs), (ino)))",
+        "#define FS_BADINO(fs, ino)      (0 & (int)(ino))",
+    ),
+    # ialloc() refuses an owner the format cannot hold.
+    "wide_owner_admitted": (
+        "sys/fsgeom.h",
+        "#define FS_WIDE16(fs, v)        (FS_ISV7(fs) && (u_long)(v) > 0xffff)",
+        "#define FS_WIDE16(fs, v)        (0 & (int)(v))",
+    ),
 }
 
 FILES = (

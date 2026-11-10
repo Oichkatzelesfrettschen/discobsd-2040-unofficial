@@ -70569,6 +70569,7 @@
           ],
           "object_lifetime": [],
           "pointer": [
+            "integer-pointer-cast",
             "pointer-integer-cast"
           ],
           "prototype": [],

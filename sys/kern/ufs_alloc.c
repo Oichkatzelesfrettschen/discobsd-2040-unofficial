@@ -51,7 +51,7 @@ balloc(struct inode *ip __unused, int flags)
     if (fs->fs_nfree <= 0) {
         fs->fs_flock++;
         bp = bread(INODE_DEVICE(ip), FSBTODB(fs, bno));
-        if (((bp->b_flags&B_ERROR) == 0) && (bp->b_resid==0)) {
+        if (((bp->b_flags&B_ERROR) == 0) && (FSRESID(fs, bp, bno)==0)) {
 #ifdef V7FS
             if (FS_ISV7(fs))
                 v7_fblk_load(fs, (u_char *)FSBADDR(fs, bp, bno));
@@ -111,9 +111,16 @@ balloc(struct inode *ip __unused, int flags)
     }
     bp = FSGETBLK(fs, INODE_DEVICE(ip), bno);
 #ifdef V7FS
-    /* A failed read must not reach the disk as the other part's data. */
+    /*
+     * A failed read must not reach the disk as the other part's data.
+     * The block left the chain above; it is counted out of the free
+     * total and stays out of service until a checker reclaims it, since
+     * a block returned to the chain would fail every later allocation.
+     */
     if (bp->b_flags & B_ERROR) {
         brelse(bp);
+        fs->fs_fmod = 1;
+        fs->fs_tfree--;
         u.u_error = EIO;
         return(NULL);
     }
@@ -174,6 +181,11 @@ ialloc(struct inode *pip __unused)
     char    *emsg = "no inodes free";
 
     fs = INODE_FILESYSTEM(pip);
+    /* The new inode takes the caller's user ID, which the format must hold. */
+    if (FS_WIDE16(fs, u.u_uid)) {
+        u.u_error = EOVERFLOW;
+        return(NULL);
+    }
     while (fs->fs_ilock)
         sleep((caddr_t)&fs->fs_ilock, PINOD);
 loop:
@@ -218,7 +230,7 @@ fromtop:
     for (; (u_long)adr < fs->fs_isize; adr++) {
         inobas = ino;
         bp = bread(INODE_DEVICE(pip), FSBTODB(fs, adr));
-        if ((bp->b_flags & B_ERROR) || bp->b_resid) {
+        if ((bp->b_flags & B_ERROR) || FSRESID(fs, bp, adr)) {
             brelse(bp);
             ino += FS_INOPB(fs);
             continue;

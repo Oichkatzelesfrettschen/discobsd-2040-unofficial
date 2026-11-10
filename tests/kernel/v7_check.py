@@ -6,7 +6,7 @@ chain from the image bytes and holds these claims:
 
 - every block an inode or an indirect block names lies in the data area and
   is named once;
-- an inode names no block past the last one its size needs;
+- an inode names no data or indirect block past the last one its size needs;
 - the free chain is well formed, repeats no block and names no block in use;
 - used and free blocks together are exactly the data area, and the
   superblock's free count equals the chain's length;
@@ -53,6 +53,8 @@ def inode_blocks(image, addrs, size, isize, fsize, claim):
 
     def walk(number, depth, what):
         take(number, what)
+        if depth and len(data) >= need:
+            raise Damaged(f"{what} block {number} lies past the file's size")
         if depth == 0:
             data.append(number)
             return
@@ -187,12 +189,18 @@ def check(image, expect_free=None):
 
 
 def self_test(image):
-    """Damage a sound image five ways; each must be reported."""
+    """Damage a sound image six ways; each must be reported.
+
+    The indirect-block damage also breaks the free-chain claim, so its
+    report must be the one the inode walk raises.
+    """
     check(image)
     superblock = BSIZE
     isize = struct.unpack_from("<H", image, superblock)[0]
     root = 2 * BSIZE + 64
     first = addr24(image[root + 12 :])
+    fsize = struct.unpack_from("<I", image, superblock + 2)[0]
+    needles = {"indirect block past the size": "lies past the file's size"}
     damages = {
         "free count": lambda b: struct.pack_into(
             "<I", b, superblock + 418, struct.unpack_from("<I", b, superblock + 418)[0] + 1
@@ -207,13 +215,18 @@ def self_test(image):
         "entry naming a free inode": lambda b: struct.pack_into(
             "<H", b, first * BSIZE + 32, (isize - 2) * 8
         ),
+        "indirect block past the size": lambda b: b.__setitem__(
+            slice(root + 12 + 30, root + 12 + 33), (fsize - 1).to_bytes(3, "little")
+        ),
     }
     for label, damage in damages.items():
         copy = bytearray(image)
         damage(copy)
         try:
             check(bytes(copy))
-        except Damaged:
+        except Damaged as error:
+            if needles.get(label, "") not in str(error):
+                raise Damaged(f"self-test: {label} reported as: {error}") from None
             print(f"PASS v7-check rejects: {label}")
             continue
         raise Damaged(f"self-test: damaged image accepted ({label})")

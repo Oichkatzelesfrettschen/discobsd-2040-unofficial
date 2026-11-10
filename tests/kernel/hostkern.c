@@ -13,6 +13,8 @@
 #include <string.h>
 
 static jmp_buf panic_jmp;
+static jmp_buf escape_jmp;
+static int escape_armed;
 static int panic_armed;
 static char panic_msg[128];
 
@@ -44,6 +46,28 @@ panic(char *msg)
 	}
 	fprintf(stderr, "FAIL unexpected panic: %s\n", msg);
 	exit(1);
+}
+
+void
+hk_escape(void)
+{
+	if (escape_armed) {
+		escape_armed = 0;
+		longjmp(escape_jmp, 1);
+	}
+	fprintf(stderr, "FAIL escape outside hk_catch\n");
+	exit(1);
+}
+
+int
+hk_catch(void (*fn)(void))
+{
+	if (setjmp(escape_jmp) != 0)
+		return 1;
+	escape_armed = 1;
+	fn();
+	escape_armed = 0;
+	return 0;
 }
 
 void

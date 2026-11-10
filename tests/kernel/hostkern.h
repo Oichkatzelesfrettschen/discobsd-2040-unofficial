@@ -36,7 +36,7 @@
  * kernel and the host disagree about; the ones that do live in
  * hostkern_kern.c and are declared only by the kernel's own headers.
  */
-void panic(char *msg);
+_Noreturn void panic(char *msg);
 void hk_kprintf(char *fmt, ...);
 
 /* Text the kernel source passed to printf since the last hk_reset_output(). */
@@ -71,5 +71,14 @@ void hk_expect_panic(const char *file, int line, const char *expected,
 
 #define HK_EXPECT_PANIC(expected, fn)					\
 	hk_expect_panic(__FILE__, __LINE__, expected, fn, #fn)
+
+/*
+ * A gate's stand-in for a kernel function declared __dead, such as boot(),
+ * ends in hk_escape(). hk_catch() runs fn and reports 1 when fn left through
+ * hk_escape() and 0 when it returned. An escape outside hk_catch() ends the
+ * gate.
+ */
+_Noreturn void hk_escape(void);
+int hk_catch(void (*fn)(void));
 
 #endif /* HOSTKERN_H */

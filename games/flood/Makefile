@@ -6,7 +6,7 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS		+= -std=c17 -pedantic-errors -fwhole-program
+CFLAGS		+= -DHAVE_STDINT_H=1 -std=c17 -pedantic-errors -fwhole-program
 
 BINDIR=		/usr/games
 PROG=		flood

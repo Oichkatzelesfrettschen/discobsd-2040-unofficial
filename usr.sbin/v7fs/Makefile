@@ -31,8 +31,12 @@ DISCOBSD_DEFS=	-I${.CURDIR}/compat/discobsd
 
 # The imported files keep NetBSD's dialect. The unused-parameter warning is
 # suppressed for an argument v7fs_io.c reads only with STATIC_BUFFER. NDEBUG
-# keeps the selected target's scratch exhaustion path as a NULL return.
-NETBSD_FLAGS=	-Wno-unused-parameter -DNDEBUG
+# keeps the selected target's scratch exhaustion path as a NULL return. Each
+# import opens with `#if HAVE_NBTOOL_CONFIG_H`, a name NetBSD's tool build
+# defines and this build never does; the hash manifest fixes the bytes, so
+# the undefined-identifier warning is answered here with the value the
+# sources expect.
+NETBSD_FLAGS=	-Wno-unused-parameter -DNDEBUG -DHAVE_NBTOOL_CONFIG_H=0
 # The DiscoBSD files are strict C17. They see the imported headers as
 # system headers, so -Wpedantic judges this directory's code and leaves the
 # verbatim NetBSD declarations as NetBSD wrote them.

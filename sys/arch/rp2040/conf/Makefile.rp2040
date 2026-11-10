@@ -31,7 +31,7 @@ INCLUDES+=	-I${_machdir}/dhara/compat
 INCLUDES+=	-I${_machdir}/heatshrink -I${_machdir}/heatshrink/compat
 DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
-CWARNFLAGS=	-Wall -Wextra -Werror
+CWARNFLAGS=	-Wall -Wextra -Wundef -Werror
 
 # DiscoBSD predates C23, where an empty parameter list means (void) rather
 # than an unspecified one. GCC 15 and later default to C23 and reject the

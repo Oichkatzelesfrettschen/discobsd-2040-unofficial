@@ -238,6 +238,7 @@ Grouped by what they investigate.
 | `security-c17-frontier.md` | the shipped CVE dispositions, the bounded LZW repair and measured C17 migration, and the ranked security/resource frontier |
 | `downloads-survey.md` | the downloads folder surveyed for usable material |
 | `flash-id-build-routes.md` | the Pico SDK, CMake and the port's bmake measured against each other on the same probe |
+| `endian-cdefs-headers.md` | the byte-order and cdefs header audit: which gaps the tree bore out, which risk claims it refuted, the v7fs shim as the requirements list, and the `<sys/endian.h>`, `<sys/cdefs.h>` and `-Wundef` remediation |
 | `warning-census.md` | what -Wall -Wextra costs the tree, as instances and as sites, where the warnings are, what the census records, and five ways of measuring it that lied |
 
 ### Audit ledgers and handbacks

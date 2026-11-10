@@ -135,7 +135,8 @@ wrappers(void)
 			errno = 0;
 			host_signed = strtoll(inputs[input], &host_end,
 			    bases[base]);
-			host_errno = errno;
+			/* No digits: errno is the tree's contract, as in strtoll_test.c. */
+			host_errno = host_end == inputs[input] ? 0 : errno;
 			errno = 0;
 			tree_signed = db_strtoimax(inputs[input], &tree_end,
 			    bases[base]);
@@ -145,7 +146,8 @@ wrappers(void)
 			errno = 0;
 			host_unsigned = strtoull(inputs[input], &host_end,
 			    bases[base]);
-			host_errno = errno;
+			/* No digits: errno is the tree's contract, as in strtoll_test.c. */
+			host_errno = host_end == inputs[input] ? 0 : errno;
 			errno = 0;
 			tree_unsigned = db_strtoumax(inputs[input], &tree_end,
 			    bases[base]);

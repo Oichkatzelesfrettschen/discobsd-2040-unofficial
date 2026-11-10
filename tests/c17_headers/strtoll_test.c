@@ -27,24 +27,34 @@ expect(int condition, const char *contract)
 }
 
 /*
- * "0x" without a hex digit after it: C17 7.22.1.4p4 takes the longest
- * initial subsequence of the expected form, which is the zero, so the end
- * pointer names the x.  newlib consumes no byte there, so this shape is
- * held to the standard's answer and kept away from the oracle.  Returns the
- * required end pointer, or NULL for any other input.
+ * Two prefix shapes where hosting libraries differ and C17 7.22.1.4 gives
+ * one answer: the subject sequence is the longest initial subsequence of
+ * the expected form, which is the zero alone, so the value is 0 and the end
+ * pointer names the letter after it.
+ *
+ *   "0x" without a hex digit, base 0 or 16: newlib consumes no byte.
+ *   "0b", base 0 or 2: a C23 library converts the binary digits after it,
+ *   and C17 has no such prefix.
+ *
+ * Both are held to the standard's answer and kept away from the oracle.
+ * Returns the required end pointer, or NULL for any other input.
  */
 static const char *
-incomplete_hex_prefix(const char *input, int base)
+c17_prefix_end(const char *input, int base)
 {
 	const unsigned char *cursor = (const unsigned char *)input;
 
-	if (base != 0 && base != 16)
-		return NULL;
 	while (*cursor == ' ' || (*cursor >= '\t' && *cursor <= '\r'))
 		cursor++;
 	if (*cursor == '+' || *cursor == '-')
 		cursor++;
-	if (cursor[0] != '0' || (cursor[1] != 'x' && cursor[1] != 'X'))
+	if (cursor[0] != '0')
+		return NULL;
+	if ((base == 0 || base == 2) &&
+	    (cursor[1] == 'b' || cursor[1] == 'B'))
+		return (const char *)cursor + 1;
+	if ((base != 0 && base != 16) ||
+	    (cursor[1] != 'x' && cursor[1] != 'X'))
 		return NULL;
 	if ((cursor[2] >= '0' && cursor[2] <= '9') ||
 	    (cursor[2] >= 'a' && cursor[2] <= 'f') ||
@@ -55,6 +65,19 @@ incomplete_hex_prefix(const char *input, int base)
 
 static unsigned long pinned_prefixes;
 
+/*
+ * C17 7.22.1.4p7 gives a subject sequence without digits the value zero
+ * and the end pointer of the input, and says nothing of errno; POSIX lets
+ * an implementation report EINVAL there, and the BSD-derived libraries do.
+ * The tree leaves errno untouched, so for that case the expected errno is
+ * the tree's contract and the oracle supplies value and end pointer alone.
+ */
+static int
+no_conversion_errno(const char *input, const char *end, int oracle_errno)
+{
+	return end == input ? 0 : oracle_errno;
+}
+
 static void
 compare(const char *input, int base)
 {
@@ -64,23 +87,23 @@ compare(const char *input, int base)
 	unsigned long long tree_unsigned, host_unsigned;
 	int tree_errno, host_errno;
 
-	required_end = incomplete_hex_prefix(input, base);
+	required_end = c17_prefix_end(input, base);
 	if (required_end != NULL) {
 		pinned_prefixes++;
 		errno = 0;
 		tree_signed = db_strtoll(input, &tree_end, base);
 		expect(tree_signed == 0 && tree_end == required_end &&
-		    errno == 0, "strtoll keeps the zero of an incomplete 0x");
+		    errno == 0, "strtoll keeps the zero of a 0x or 0b prefix");
 		errno = 0;
 		tree_unsigned = db_strtoull(input, &tree_end, base);
 		expect(tree_unsigned == 0 && tree_end == required_end &&
-		    errno == 0, "strtoull keeps the zero of an incomplete 0x");
+		    errno == 0, "strtoull keeps the zero of a 0x or 0b prefix");
 		return;
 	}
 
 	errno = 0;
 	host_signed = strtoll(input, &host_end, base);
-	host_errno = errno;
+	host_errno = no_conversion_errno(input, host_end, errno);
 	errno = 0;
 	tree_signed = db_strtoll(input, &tree_end, base);
 	tree_errno = errno;
@@ -96,7 +119,7 @@ compare(const char *input, int base)
 
 	errno = 0;
 	host_unsigned = strtoull(input, &host_end, base);
-	host_errno = errno;
+	host_errno = no_conversion_errno(input, host_end, errno);
 	errno = 0;
 	tree_unsigned = db_strtoull(input, &tree_end, base);
 	tree_errno = errno;
@@ -285,10 +308,10 @@ main(void)
 	}
 	/* A corpus without the pinned shape would leave it unmeasured. */
 	if (pinned_prefixes == 0) {
-		fprintf(stderr, "strtoll test: no incomplete 0x input ran\n");
+		fprintf(stderr, "strtoll test: no pinned prefix input ran\n");
 		return 1;
 	}
-	printf("strtoll test: %lu checks passed, %lu incomplete 0x inputs "
-	    "held to C17 7.22.1.4\n", checks, pinned_prefixes);
+	printf("strtoll test: %lu checks passed, %lu prefix inputs held to "
+	    "C17 7.22.1.4\n", checks, pinned_prefixes);
 	return 0;
 }

@@ -43,6 +43,12 @@
 #ifndef _STDLIB_H_
 #define _STDLIB_H_
 
+#include <sys/cdefs.h>
+#ifndef __dead
+/* A hosted test can reach the host's <sys/cdefs.h>, which has no __dead. */
+#define __dead		_Noreturn
+#endif
+
 #ifndef NULL
 #define NULL            ((void *)0)
 #endif
@@ -69,14 +75,14 @@ typedef unsigned int wchar_t;		/* as <stddef.h> defines it */
 #endif
 #endif
 
-void    abort (void);
+__dead void abort (void);
 int     abs (int);
 void    *aligned_alloc (size_t, size_t);
 int     atexit (void (*)(void));
 int     atoi (const char *);
 long    atol (const char *);
 void    *calloc (size_t, size_t);
-void    exit (int);
+__dead void exit (int);
 void    free (void *);
 char    *getenv (const char *);
 long    labs (long);
@@ -100,15 +106,13 @@ unsigned long strtoul (const char *, char **, int);
 size_t  wcstombs (char *, const wchar_t *, size_t);
 int     wctomb (char *, wchar_t);
 
+__dead void _Exit (int);
+
 /*
- * Smaller C, the native compiler, has no 64-bit integer type and no
- * _Noreturn specifier.  It sees _Exit as an ordinary function and none of
- * the long long conversions.
+ * Smaller C, the native compiler, has no 64-bit integer type, so it sees
+ * none of the long long conversions.
  */
-#ifdef __SMALLER_C__
-void    _Exit (int);
-#else
-_Noreturn void _Exit (int);
+#ifndef __SMALLER_C__
 long long atoll (const char *);
 long long strtoll (const char *, char **, int);
 unsigned long long strtoull (const char *, char **, int);

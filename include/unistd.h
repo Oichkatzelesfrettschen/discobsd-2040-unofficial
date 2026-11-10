@@ -41,6 +41,10 @@
 #define _UNISTD_H_
 
 #include <sys/types.h>
+#ifndef __dead
+/* A hosted test can reach the host's <sys/cdefs.h>, which has no __dead. */
+#define __dead		_Noreturn
+#endif
 
 #define STDIN_FILENO    0       /* standard input file descriptor */
 #define STDOUT_FILENO   1       /* standard output file descriptor */
@@ -76,7 +80,7 @@
 
 #define CLK_TCK                 60      /* times(3) ticks per second */
 
-void    _exit (int);
+__dead void _exit (int);
 int     access (const char *, int);
 unsigned int alarm (unsigned int);
 pid_t   fork (void);

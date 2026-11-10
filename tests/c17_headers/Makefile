@@ -173,10 +173,12 @@ ALLOC_RENAMES=	-Dmalloc=db_malloc -Dfree=db_free -Drealloc=db_realloc \
 ARENA_FLAGS=	-std=gnu17 -Wall -Wextra -Werror -Wno-deprecated-non-prototype
 
 .for src in ${STRTOLL_SRCS}
-host_${src}.o: ${STDLIB_DIR}/${src}.c ${STDLIB_DIR}/strtou64.h
+host_${src}.o: ${STDLIB_DIR}/${src}.c ${STDLIB_DIR}/strtou64.h \
+    ${STDLIB_DIR}/strtou64_scan.h
 	${HOSTCC} ${HOST_FLAGS} -fsigned-char ${STRTOLL_RENAMES} -c -o $@ \
 	    ${STDLIB_DIR}/${src}.c
-arm_${src}.o: ${STDLIB_DIR}/${src}.c ${STDLIB_DIR}/strtou64.h
+arm_${src}.o: ${STDLIB_DIR}/${src}.c ${STDLIB_DIR}/strtou64.h \
+    ${STDLIB_DIR}/strtou64_scan.h
 	${QEMU_ARM_CC} ${HOST_FLAGS} -Os ${QEMU_ARM_CPUFLAGS} -fno-common \
 	    ${STRTOLL_RENAMES} -c -o $@ ${STDLIB_DIR}/${src}.c
 .endfor
@@ -286,9 +288,17 @@ exit_probe: exit_probe.c host_Exit.o
 #   isblank_no_tab        isblank accepts the space alone
 #   ctype_space_class     the table marks the space as not printable
 #   ctype_double_eval     isalnum is a macro of two tests on its argument
-strtoull_no_overflow.mutant.c: ${STDLIB_DIR}/strtoull.c
-	${MUTATE} ${STDLIB_DIR}/strtoull.c $@ \
+# The 64-bit scan is the template strtou64_scan.h, which strtoull.c reaches
+# through a quoted include.  A scan mutant is the mutated
+# template in a directory named ahead of ${STDLIB_DIR} on the include path,
+# beside an unchanged copy of the instantiating source.
+strtoull_no_overflow.mutant.c: ${STDLIB_DIR}/strtoull.c \
+    ${STDLIB_DIR}/strtou64_scan.h
+	@rm -rf strtoull_no_overflow.mutant && mkdir strtoull_no_overflow.mutant
+	${MUTATE} ${STDLIB_DIR}/strtou64_scan.h \
+	    strtoull_no_overflow.mutant/strtou64_scan.h \
 	    "result.overflow = 1;" "result.overflow = 0;"
+	cp ${STDLIB_DIR}/strtoull.c $@
 strtoll_no_llong_min.mutant.c: ${STDLIB_DIR}/strtoll.c
 	${MUTATE} ${STDLIB_DIR}/strtoll.c $@ \
 	    "(unsigned long long)LLONG_MAX + result.negative" \
@@ -323,7 +333,7 @@ exit_runs_handlers.mutant.c: ${STDLIB_DIR}/_Exit.c
 .for mutant in strtoull_no_overflow strtoll_no_llong_min
 ${mutant}.mutant.o: ${mutant}.mutant.c ${STDLIB_DIR}/strtou64.h
 	${HOSTCC} ${HOST_FLAGS} -fsigned-char ${STRTOLL_RENAMES} \
-	    -I${STDLIB_DIR} -c -o $@ ${mutant}.mutant.c
+	    -I${mutant}.mutant -I${STDLIB_DIR} -c -o $@ ${mutant}.mutant.c
 .endfor
 strtoull_no_overflow.mutant.test: strtoull_no_overflow.mutant.o \
     strtoll_test.c host_strtoll.o host_atoll.o

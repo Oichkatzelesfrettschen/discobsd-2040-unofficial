@@ -73,7 +73,7 @@ int
 vn_open_at(register struct nameidata *ndp, volatile int fmode, int cmode,
     int dirfd, int *namespace_owned)
 {
-    register struct inode *ip;
+    struct inode *volatile ip;
     register int error;
 
     if (fmode & O_CREAT) {

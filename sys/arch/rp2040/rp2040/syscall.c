@@ -248,8 +248,10 @@ syscall(struct trapframe *frame)
 	}
 
 	if (SYSTRACE_ON(SYSTRACE_SYSCALL)) {
-		printf("[%u] %s(", u.u_procp->p_pid,
-		    syscall_name((u_int)code));
+		unsigned int name_length;
+		const char *name = syscall_name((u_int)code, &name_length);
+
+		printf("[%u] %.*s(", u.u_procp->p_pid, (int)name_length, name);
 		for (int i = 0; i < nargs && i < 6; i++)
 			printf("%s%#x", i ? ", " : "", u.u_arg[i]);
 		if (u.u_error == 0)

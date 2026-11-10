@@ -18,7 +18,8 @@ typedef void (*syscall_handler_t)(void);
 extern const unsigned char syscall_nargs[];
 extern const syscall_handler_t syscall_handlers[];
 extern const int nsysent;
-const char *syscall_name(unsigned int code);
+/* The name is *length bytes with no terminator. */
+const char *syscall_name(unsigned int code, unsigned int *length);
 
 /* Handlers read arguments and publish results through the kernel u-area. */
 void __sysctl(void);

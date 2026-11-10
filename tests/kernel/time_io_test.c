@@ -177,6 +177,61 @@ static void clock_cases(void)
     HK_CHECK(time.tv_sec == 2147483647L && adjdelta == 9);
     HK_CHECK(hk_ipl == 0);
 
+    /*
+     * adjtime() works in 32 bits; the reference below takes the same delta
+     * through 64-bit tick arithmetic. The two agree wherever hz * usechz is
+     * one second, over deltas that reach both ends of each field.
+     */
+    HK_CHECK((long)hz * usechz == 1000000L);
+    {
+        static const long seconds[] = {
+            -2147483647L - 1, -2147483647L, -32770, -32769, -32768, -329,
+            -328, -327, -2, -1, 0, 1, 2, 326, 327, 328, 32767, 32768, 32769,
+            2147483646L, 2147483647L
+        };
+        static const long micros[] = {
+            -2147483647L - 1, -2147483647L, -1000001, -1000000, -999999,
+            -10001, -10000, -9999, -1, 0, 1, 9999, 10000, 10001, 999999,
+            1000000, 1000001, 2147483646L, 2147483647L
+        };
+        static const int bolts[] = { 0, 1, 50, 99 };
+        unsigned a, b, c;
+
+        for (a = 0; a < sizeof(seconds) / sizeof(seconds[0]); a++)
+        for (b = 0; b < sizeof(micros) / sizeof(micros[0]); b++)
+        for (c = 0; c < sizeof(bolts) / sizeof(bolts[0]); c++) {
+            long long total = (long long)seconds[a] * hz + micros[b] / usechz;
+            long long whole, part;
+
+            time.tv_sec = 100000; time.tv_usec = 0;
+            lbolt = bolts[c] % hz; adjdelta = 7; u.u_error = 0;
+            delta.tv_sec = seconds[a]; delta.tv_usec = micros[b];
+            args->delta = &delta; args->old = 0;
+            adjtime();
+            HK_CHECK(hk_ipl == 0);
+            if (total >= -32768 && total <= 32767) {
+                HK_CHECK(u.u_error == 0 && adjdelta == total);
+                HK_CHECK(time.tv_sec == 100000 && lbolt == bolts[c] % hz);
+                continue;
+            }
+            part = bolts[c] % hz + micros[b] / usechz;
+            whole = 100000 + (long long)seconds[a] + part / hz;
+            part %= hz;
+            if (part < 0) {
+                part += hz;
+                whole--;
+            }
+            if (whole < LONG_MIN || whole > LONG_MAX) {
+                HK_CHECK(u.u_error == EINVAL && adjdelta == 7);
+                HK_CHECK(time.tv_sec == 100000);
+                continue;
+            }
+            HK_CHECK(u.u_error == 0 && adjdelta == 0);
+            HK_CHECK(time.tv_sec == whole && lbolt == part);
+            HK_CHECK(time.tv_usec == part * usechz);
+        }
+    }
+
     u.u_procp = &process;
     process.p_realtimer.it_value = 11;
     process.p_realtimer.it_interval = 13;

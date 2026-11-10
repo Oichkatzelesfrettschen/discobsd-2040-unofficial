@@ -28,7 +28,17 @@ convention. A donor syscall master is unsuitable because equal slot numbers
 name different operations across the small BSD descendants.
 
 `sys/kern/errlist.master` similarly emits the one shared errno-message pool
-used by RP2040, STM32, and PIC32. Both pools use 16-bit offsets. The syscall
+used by RP2040 and STM32. Both pools are stored in less than their text.
+The trace names carry no terminator and form one common superstring, built
+by maximum-overlap merging, in which a name lies inside another or across
+the seam of two more; a 16-bit entry holds a 10-bit offset and a 6-bit
+length, and `syscall_name()` returns the span. The errno messages are a
+grammar: up to 128 rules, each a pair of symbols naming a character or an
+earlier rule, chosen by replacing the most frequent adjacent pair until
+none occurs three times. `kernel_errmsg()` expands one message into a
+`KERNEL_ERRMSG_MAX`-byte caller buffer with recursion four rules deep at
+most. On the PICO kernel the two encodings take 1,068 bytes less flash
+than terminated strings. The syscall
 dispatch keeps its function pointers in a separate naturally aligned array;
 ARMv6-M cannot safely trade alignment for a packed pointer record.
 

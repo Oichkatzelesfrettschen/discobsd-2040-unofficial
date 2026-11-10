@@ -94,7 +94,9 @@ extern char     __user_data_end[];
 struct inode;
 daddr_t bmap (struct inode *ip, daddr_t bn, int rwflg, int flags);
 
-const char *kernel_errmsg(u_int error);
+/* Bytes kernel_errmsg() writes at most, terminator included. */
+#define KERNEL_ERRMSG_MAX 48
+u_int kernel_errmsg(u_int error, char *buffer);
 
 /*
  * Console trace of system calls and signal delivery, set through

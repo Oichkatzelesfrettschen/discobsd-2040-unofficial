@@ -118,6 +118,112 @@ def pack_names(names: list[bytes]) -> tuple[bytes, list[int]]:
     return pool, [pool.index(name) for name in names]
 
 
+# An errno message is stored as symbols: a byte below RULE_BASE is a
+# character, and a byte at or above it names a rule, a pair of symbols that
+# each name a character or an earlier rule.
+RULE_BASE = 128
+RULE_LIMIT = 256 - RULE_BASE
+RULE_DEPTH_LIMIT = 4
+
+
+def pair_counts(sequences: list[list[int]]) -> dict[tuple[int, int], int]:
+    """Count the non-overlapping occurrences of every adjacent pair."""
+    counts: dict[tuple[int, int], int] = {}
+    for sequence in sequences:
+        skip = False
+        for index in range(len(sequence) - 1):
+            pair = (sequence[index], sequence[index + 1])
+            # In a run of one symbol the pairs overlap; count every other one.
+            if skip and pair[0] == pair[1] == sequence[index - 1]:
+                skip = False
+                continue
+            counts[pair] = counts.get(pair, 0) + 1
+            skip = pair[0] == pair[1]
+    return counts
+
+
+def replace_pair(sequence: list[int], pair: tuple[int, int], symbol: int) -> list[int]:
+    result = []
+    index = 0
+    while index < len(sequence):
+        if tuple(sequence[index : index + 2]) == pair:
+            result.append(symbol)
+            index += 2
+        else:
+            result.append(sequence[index])
+            index += 1
+    return result
+
+
+def rule_depth(rules: list[tuple[int, int]], symbol: int) -> int:
+    """Nested expansions of the first symbol, which the decoder recurses on."""
+    depth = 0
+    while symbol >= RULE_BASE:
+        depth += 1
+        symbol = rules[symbol - RULE_BASE][0]
+    return depth
+
+
+def compress_messages(
+    messages: list[bytes],
+) -> tuple[list[tuple[int, int]], list[bytes]]:
+    """Return digram rules and the messages rewritten in them.
+
+    Re-Pair: the most frequent adjacent pair of symbols becomes a rule and
+    every occurrence is replaced by the rule's symbol, until RULE_LIMIT rules
+    exist or no pair occurs three times. A rule costs its two bytes, so a
+    pair that occurs twice saves nothing. A pair whose first symbol would
+    nest beyond RULE_DEPTH_LIMIT is passed over, which bounds the decoder's
+    recursion. Ties resolve by symbol value, so the result depends on the
+    messages alone.
+    """
+    sequences = [list(message) for message in messages]
+    rules: list[tuple[int, int]] = []
+    while len(rules) < RULE_LIMIT:
+        candidates = [
+            (count, pair)
+            for pair, count in pair_counts(sequences).items()
+            if count >= 3 and rule_depth(rules, pair[0]) < RULE_DEPTH_LIMIT
+        ]
+        if not candidates:
+            break
+        pair = max(candidates)[1]
+        symbol = RULE_BASE + len(rules)
+        rules.append(pair)
+        sequences = [replace_pair(sequence, pair, symbol) for sequence in sequences]
+    return rules, [bytes(sequence) for sequence in sequences]
+
+
+def expand_message(rules: list[tuple[int, int]], encoded: bytes) -> bytes:
+    """The decoder of the generated kernel_errmsg(), for the round trip."""
+    result = bytearray()
+
+    def expand(symbol: int) -> None:
+        while symbol >= RULE_BASE:
+            first, symbol = rules[symbol - RULE_BASE]
+            expand(first)
+        result.append(symbol)
+
+    for symbol in encoded:
+        expand(symbol)
+    return bytes(result)
+
+
+def c_bytes(data: bytes) -> str:
+    """A C string literal for data, with rule symbols as octal escapes.
+
+    An escape is three digits, so a digit character after it stays a
+    character.
+    """
+    parts = []
+    for value in data:
+        if not 0x20 <= value < 0x7F or value in (0x22, 0x5C, 0x3F):
+            parts.append(f"\\{value:03o}")
+        else:
+            parts.append(chr(value))
+    return '"' + "".join(parts) + '"'
+
+
 def read_records(path: Path, fields: int) -> list[tuple[int, list[str]]]:
     records = []
     for line_number, raw_line in enumerate(path.read_text().splitlines(), 1):
@@ -240,7 +346,7 @@ def parse_errlist(path: Path) -> list[str]:
             raise MetadataError(
                 f"{path}:{line_number}: expected errno {len(messages)}, got {number}"
             )
-        if not message or "\0" in message:
+        if not message or not message.isascii() or "\0" in message:
             raise MetadataError(f"{path}:{line_number}: invalid error message")
         messages.append(message)
     if not messages:
@@ -413,19 +519,39 @@ def render_syscall_names(syscalls: list[Syscall]) -> str:
 
 
 def render_errlist(messages: list[str]) -> str:
+    plain = [message.encode() for message in messages]
+    rules, encoded = compress_messages(plain)
+    for message, symbols in zip(plain, encoded, strict=True):
+        if expand_message(rules, symbols) != message:
+            raise MetadataError(f"errno message {message!r} does not round-trip")
     offsets = []
     offset = 0
-    for message in messages:
+    for symbols in encoded:
         offsets.append(offset)
-        offset += len(message.encode("utf-8")) + 1
+        offset += len(symbols) + 1
+    longest = max(len(message) for message in plain) + 1
     lines = [
         SYSCALL_TABLE_LICENSE,
         "\n",
         generated_notice("errlist.master"),
         "#include <sys/param.h>\n#include <sys/errno.h>\n#include <sys/systm.h>\n\n",
-        "static const char errno_message_pool[] =\n",
+        "/*\n",
+        " * The messages are stored as a grammar. A byte below "
+        f"{RULE_BASE} is a character;\n",
+        f" * a byte from {RULE_BASE} up names a rule, two symbols that each "
+        "name a character\n",
+        " * or an earlier rule. A rule's first symbol nests at most "
+        f"{RULE_DEPTH_LIMIT} rules deep.\n",
+        " */\n",
+        f"static const unsigned char errno_message_rules[{len(rules)}][2] = {{\n",
     ]
-    lines.extend(f"    {c_string(message)}\n" for message in messages)
+    for index in range(0, len(rules), 6):
+        values = ", ".join(
+            f"{{{first}, {second}}}" for first, second in rules[index : index + 6]
+        )
+        lines.append(f"    {values},\n")
+    lines.append("};\n\nstatic const char errno_message_pool[] =\n")
+    lines.extend(f"    {c_bytes(symbols + bytes(1))}\n" for symbols in encoded)
     lines.append("    ;\n\nstatic const uint16_t errno_message_offsets[] = {\n")
     for index in range(0, len(offsets), 12):
         values = ", ".join(str(value) for value in offsets[index : index + 12])
@@ -436,11 +562,34 @@ def render_errlist(messages: list[str]) -> str:
             "#define ERRNO_MESSAGE_COUNT \\\n",
             "    (sizeof(errno_message_offsets) / sizeof(errno_message_offsets[0]))\n",
             "_Static_assert(ERRNO_MESSAGE_COUNT == ELAST + 1,\n",
-            '    "errno metadata must cover zero through ELAST");\n\n',
-            "const char *\n",
-            "kernel_errmsg(u_int error)\n{\n",
-            "    if (error >= ERRNO_MESSAGE_COUNT)\n        return NULL;\n",
-            "    return errno_message_pool + errno_message_offsets[error];\n}\n",
+            '    "errno metadata must cover zero through ELAST");\n',
+            f"_Static_assert(KERNEL_ERRMSG_MAX >= {longest},\n",
+            '    "KERNEL_ERRMSG_MAX must hold the longest message");\n\n',
+            "/* Append the expansion of one symbol and return the new end. */\n",
+            "static char *\n",
+            "errno_message_expand(char *end, unsigned int symbol)\n{\n",
+            f"    while (symbol >= {RULE_BASE}) {{\n",
+            "        const unsigned char *rule = "
+            f"errno_message_rules[symbol - {RULE_BASE}];\n\n",
+            "        end = errno_message_expand(end, rule[0]);\n",
+            "        symbol = rule[1];\n    }\n",
+            "    *end++ = (char)symbol;\n    return end;\n}\n\n",
+            "/*\n",
+            " * Write the message of error and its terminator into buffer, which\n",
+            " * holds KERNEL_ERRMSG_MAX bytes, and return the count written; zero\n",
+            " * when error has no message.\n",
+            " */\n",
+            "u_int\n",
+            "kernel_errmsg(u_int error, char *buffer)\n{\n",
+            "    const unsigned char *symbol;\n",
+            "    char *end = buffer;\n\n",
+            "    if (error >= ERRNO_MESSAGE_COUNT)\n        return 0;\n",
+            "    symbol = (const unsigned char *)errno_message_pool +\n",
+            "        errno_message_offsets[error];\n",
+            "    while (*symbol != 0)\n",
+            "        end = errno_message_expand(end, *symbol++);\n",
+            "    *end++ = 0;\n",
+            "    return (u_int)(end - buffer);\n}\n",
         ]
     )
     return "".join(lines)
@@ -555,6 +704,19 @@ def self_test() -> None:
                      lambda: syscall_case(wide_pool))
         expect_error("syscall name with a quote",
                      lambda: syscall_case(valid.replace("|exit|", '|ex"it|')))
+        sample = [b"no such file", b"no such process", b"no such device"]
+        rules, encoded = compress_messages(sample)
+        if (
+            not rules
+            or [expand_message(rules, symbols) for symbols in encoded] != sample
+            or sum(map(len, encoded)) + 2 * len(rules) >= sum(map(len, sample))
+            or max(rule_depth(rules, first) for first, _ in rules) >= RULE_DEPTH_LIMIT
+        ):
+            raise MetadataError("errno message grammar self-test failed")
+        if pair_counts([[7, 7, 7, 7, 7]]) != {(7, 7): 2}:
+            raise MetadataError("overlapping pairs are counted once each")
+        expect_error("errno message beyond ASCII",
+                     lambda: errno_case("0|caf\u00e9\n"))
         huge_name = "x" * 65536
         expect_error(
             "oversized syscall pool",

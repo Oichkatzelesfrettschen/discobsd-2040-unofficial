@@ -959,6 +959,25 @@ class ExecutionTest(unittest.TestCase):
         )
         self.assertEqual(result.stdout.strip(), "no")
 
+    def test_assert_recipe_honors_host_compiler_selection(self):
+        environment = os.environ.copy()
+        environment.pop("MAKEFLAGS", None)
+        environment.pop("MFLAGS", None)
+        environment.pop("HOSTCC", None)
+        for overrides, expected in ((["HOST_CC=cc -m32"], "cc -m32"),
+                                    (["HOST_CC=false", "HOSTCC=cc -O1"], "cc -O1")):
+            result = subprocess.run(
+                ["bmake", "-n", "-C", str(execution.ROOT), "MACHINE=rp2040",
+                 *overrides, "check-libc-assert"],
+                env=environment, text=True, capture_output=True, check=True,
+            )
+            recipes = [line for line in result.stdout.splitlines()
+                       if "tests/libc_contracts/assert_check.py" in line]
+            self.assertEqual(len(recipes), 2)
+            self.assertEqual(shlex.split(recipes[0])[0], f"HOSTCC={expected}")
+            self.assertEqual(shlex.split(recipes[1])[0],
+                             f"HOSTCC={expected} -DDISCOBSD_ASSERT_TEST=1")
+
     def test_stdio_bounds_recipe_preserves_compiler_argument_boundary(self):
         environment = os.environ.copy()
         environment.pop("MAKEFLAGS", None)

@@ -94,11 +94,11 @@ mutant start-keeps-restart-count \
 mutant epoch-not-advanced \
     "/${s}s->cs_epoch++;\$/d"
 mutant reply-epoch-unchecked \
-    "s/op == C1_OP_PONG && arg == s->cs_epoch &&/op == C1_OP_PONG \\&\\& (arg | 1U) \\&\\&/"
+    "s/op == C1_OP_PONG && arg == s->cs_epoch &&/op == C1_OP_PONG \\&\\& (arg + 1U != 0U) \\&\\&/"
 mutant reply-number-unchecked \
-    "s/${s}slot == (s->cs_seq & 0xffffU))\$/(slot | 1U))/"
+    "s/${s}slot == (s->cs_seq & 0xffffU))\$/slot + 1U != 0U)/"
 mutant reply-operation-unchecked \
-    "s/if (op == C1_OP_PONG && arg == s->cs_epoch/if ((op | 1U) \\&\\& arg == s->cs_epoch/"
+    "s/if (op == C1_OP_PONG && arg == s->cs_epoch/if (op + 1U != 0U \\&\\& arg == s->cs_epoch/"
 mutant failed-launch-runs \
     "/${s}if (!ok)\$/{n;s/return core1_sup_fail(s);/(void)0;/;}"
 mutant ping-number-not-advanced \

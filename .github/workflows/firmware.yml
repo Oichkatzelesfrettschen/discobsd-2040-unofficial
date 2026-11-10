@@ -327,6 +327,15 @@ jobs:
             --status .build-logs/linux-renode-picocalc.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-picocalc
+      - name: Run the Renode union kernel tier
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-union \
+            --log .build-logs/linux-renode-union.log \
+            --status .build-logs/linux-renode-union.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-renode-union
       - name: Retain the Renode logs and transcripts
         if: always()
         uses: actions/upload-artifact@v4

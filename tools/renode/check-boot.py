@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Boot the PICO_UART kernel under Renode and assert on its UART0 console.
+"""Boot a UART0-console kernel under Renode and assert on its console.
 
 Renode runs with its monitor on stdin (renode_monitor.py), so the gate holds
 no listening socket. UART0's output goes to a file backend; this driver
@@ -31,7 +31,15 @@ thread about as much as the terminal tester's pauses did, so this gate does
 not decide SSI concurrency either; sys/arch/rp2040/doc/research/emulation.md
 carries the free-running measurement that does.
 
-Usage: check-boot.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR
+CONFIG names the kernel configuration the banner must carry and defaults to
+PICO_UART. PICOCALC_PSRAM is the union kernel booted with a bare-Pico UART0
+descriptor (check-boot.sh patches it in). The probe stage asserts the lines
+the descriptor decides: the console device it names, and for the union the
+USB attach beside it and the absence of every PicoCalc device line, since
+that kernel links the panel, keyboard, PSRAM and SD drivers and only the
+descriptor keeps them from probing pins a bare Pico leaves floating.
+
+Usage: check-boot.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR [CONFIG]
 Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 """
 
@@ -50,8 +58,7 @@ LOGIN_BUDGET_SECONDS = 180.0
 COMMAND_BUDGET_SECONDS = 60.0
 WALL_SECONDS = 3300.0
 
-PROBE_LINES = [
-    "DiscoBSD 2.7 (PICO_UART)",
+CPU_LINES = [
     "cpu: Cortex-M0+, ARMv6-M, no MMU",
     "cpu: 125 MHz core, 125 MHz peripheral",
     # mpu.c prints what MPU_TYPE and MPU_CTRL read back after it programmed
@@ -62,6 +69,32 @@ PROBE_LINES = [
     # a masked site; a board returning from picotool reboot -f reports
     # reason 2.
     "watchdog: reason 0, last masked site 0 arg 0",
+]
+
+# The console and board devices the descriptor selects, in attach order.
+# PICO_UART links no USB driver. The union kernel attaches uartusb on a bare
+# Pico whichever console the descriptor names; its controller is unmodeled
+# (union-warning-classes.txt), so the line shows the attach returned instead
+# of waiting on a register the model never serves.
+BOARD_LINES = {
+    "PICO_UART": [
+        "uart0: pins tx=GP0/rx=GP1, console",
+    ],
+    "PICOCALC_PSRAM": [
+        "uart0: pins tx=GP0/rx=GP1, console",
+        "uartusb: CDC-ACM on the USB device controller, interrupt 5",
+    ],
+}
+
+# Device lines a bare-Pico descriptor must suppress, matched at the start of
+# a console line: lcdcons.c prints lcd0 and kbd0, psram.c psram0 and sd.c sd0
+# only when board_is_picocalc() holds.
+ABSENT_PREFIXES = {
+    "PICO_UART": (),
+    "PICOCALC_PSRAM": ("lcd0:", "kbd0:", "psram0:", "sd0:"),
+}
+
+STORAGE_LINES = [
     # fl0 prints only after rom_func_lookup() has resolved the ROM's flash
     # entry points and Dhara has resumed its journal through them.
     "fl0: 989 kbytes on QSPI flash, 1536 kbytes raw",
@@ -150,6 +183,15 @@ class Console:
             self.wait_for(line, what, budget)
         print(f"check-renode: {what} after {self.virtual:.1f} virtual seconds")
 
+    def absent_before_cursor(self, prefixes: tuple[str, ...], what: str) -> None:
+        """Fail when a line already matched past starts with one of prefixes."""
+        seen = [line for line in self.text()[:self.cursor].splitlines()
+                if prefixes and line.startswith(prefixes)]
+        if seen:
+            self.fail(f"{what}: {seen[0]!r} on UART0; the descriptor selects a board "
+                      "without that device")
+            raise StageFailed(what)
+
     def type_line(self, line: str) -> None:
         for byte in (line + "\r").encode():
             self.renode.command(f"sysbus.uart0 WriteChar {byte:#04x}")
@@ -159,8 +201,10 @@ class Console:
         self.failures.append(message)
 
 
-def run_stages(console: Console) -> None:
-    console.wait_lines(PROBE_LINES, "device probe", PROBE_BUDGET_SECONDS)
+def run_stages(console: Console, config: str) -> None:
+    console.wait_lines([f"DiscoBSD 2.7 ({config})"] + CPU_LINES + BOARD_LINES[config]
+                       + STORAGE_LINES, "device probe", PROBE_BUDGET_SECONDS)
+    console.absent_before_cursor(ABSENT_PREFIXES[config], "descriptor-suppressed devices")
     console.wait_lines(LOGIN_LINES, "file system check and daemons", LOGIN_BUDGET_SECONDS)
     # init opens /dev/console and forks getty, which needs a tty a process
     # can open rather than the kernel's own cnputc path.
@@ -189,10 +233,14 @@ def run_stages(console: Console) -> None:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 4:
+    if len(argv) not in (4, 5):
         print(__doc__, file=sys.stderr)
         return 2
-    renode_path, unix_bin, flash_bin, outdir = argv
+    renode_path, unix_bin, flash_bin, outdir = argv[:4]
+    config = argv[4] if len(argv) == 5 else "PICO_UART"
+    if config not in BOARD_LINES:
+        print(f"check-renode: no probe lines for CONFIG {config}", file=sys.stderr)
+        return 2
     os.makedirs(outdir, exist_ok=True)
     transcript = os.path.join(outdir, "uart0.txt")
     if os.path.exists(transcript):
@@ -204,7 +252,7 @@ def main(argv: list[str]) -> int:
         renode.command(f"$flash_bin=@{flash_bin}")
         renode.command(f"include @{os.path.join(HERE, 'machine.resc')}")
         renode.command(f"sysbus.uart0 CreateFileBackend @{transcript} true")
-        run_stages(console)
+        run_stages(console, config)
     except StageFailed:
         # A kernel that panics stops at "press any key to reboot..."; the
         # whole transcript is in uart0.txt beside the log.

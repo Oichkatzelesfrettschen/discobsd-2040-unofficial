@@ -1615,6 +1615,14 @@ check-qemu:	check-python .WAIT symlinks
 check-renode:
 		sh tools/renode/check-boot.sh ${FLASHBIN}
 
+# The union kernel (PICOCALC_PSRAM) under the same machine, booted from a
+# copy whose board descriptor distrib/rp2040/mkboarduf2.py rewrote to a bare
+# Pico with the UART0 console: the console the descriptor names carries the
+# boot, the USB attach returns on a machine with no controller model, and no
+# PicoCalc device probes. Outside "check" for the reason check-renode is.
+check-renode-union:
+		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_PSRAM
+
 # The PICOCALC kernel under Renode with the ST7365P panel and the keyboard
 # controller modeled: the boot banner, the panel's registers, a login and a
 # command typed through the I2C keyboard, all read back from the decoded
@@ -1779,7 +1787,7 @@ installfs:
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
-		check-renode-picocalc \
+		check-renode-picocalc check-renode-union \
 		check-host-package check-board-build check symlinks etc-distribution \
 		multicall-staging \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \

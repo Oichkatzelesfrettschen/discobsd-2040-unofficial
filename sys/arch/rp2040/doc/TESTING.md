@@ -400,6 +400,7 @@ upload and hidden-file inclusion.
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
 | renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | yes: the `firmware/rp2040` job installs the pinned Renode release, then fetches and builds the models | no |
 | renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
+| renode union | `check-renode-union` | Renode, the fetched RP2040 models, a built PICOCALC_PSRAM kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the PicoCalc Renode step | no |
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
@@ -1705,11 +1706,11 @@ to. `tools/renode/check-renode-pin.sh` then fails the job when the unpacked
 build differs from `VERIFIED_RENODE`, when the two gate scripts name different
 builds, or when the build is not one of `RENODE_VERSION`, so the pin and the
 verified build move together. The models are fetched at the commit
-`fetch-renode-rp2040.sh` pins. Both Renode gates run in that job after the
-board-build tier, reuse its PICO_UART and PICOCALC kernels and flash image,
-and upload the Renode logs and UART0 transcripts as the `renode-results`
-artifact. The two gates still stand outside `check`: a local run names the
-missing emulator or models instead of failing.
+`fetch-renode-rp2040.sh` pins. The three Renode gates run in that job after
+the board-build tier, reuse its PICO_UART, PICOCALC and PICOCALC_PSRAM
+kernels and flash image, and upload the Renode logs and UART0 transcripts as
+the `renode-results` artifact. The gates still stand outside `check`: a
+local run names the missing emulator or models instead of failing.
 
 tools/renode/machine.resc builds the machine and stops there. boot.resc
 includes it and adds a socket console and a GDB server for a person;
@@ -1765,6 +1766,44 @@ threads enough that a race between them rarely fires: the suite passed
 against a model whose BUSY flag latched and hung every free-running boot.
 The measurement that decides it is a free-running `RunFor` with no tester
 attached, recorded in emulation.md.
+
+## Renode union kernel tier
+
+`check-renode-union` runs tools/renode/check-boot.sh with `PICOCALC_PSRAM`
+as the kernel configuration. That kernel is the union image
+`docs/research/rp2040-single-kernel.md` proposes: it links every driver the
+four configurations carry and takes its board and console from the
+descriptor in its `.board` section (`sys/arch/rp2040/rp2040/board.c`). The
+compiled descriptor names a bare Pico with the USB console, which the models
+cannot serve, so the gate boots a copy whose descriptor
+`distrib/rp2040/mkboarduf2.py --flat --board=PICO_UART` rewrote to a bare
+Pico with the UART0 console. The patcher accepts a flat image with exactly
+one 256-byte block that starts with the descriptor magic, so a union kernel
+without its `.board` section stops there by name.
+
+The stages are `check-renode`'s, with the banner naming `PICOCALC_PSRAM`.
+The probe stage adds what the descriptor decides: `uart0: pins tx=GP0/rx=GP1,
+console` and then `uartusb: CDC-ACM on the USB device controller, interrupt
+5` between the watchdog line and `fl0`, and no console line that starts with
+`lcd0:`, `kbd0:`, `psram0:` or `sd0:` before the swap size. Two inputs
+calibrate those assertions. The kernel with its compiled USB console
+descriptor fails the probe stage with no banner on UART0. A copy whose
+descriptor names the PicoCalc board with the UART0 console prints all four
+PicoCalc device lines and fails on `lcd0:`.
+
+The log is held to tools/renode/warning-classes.txt plus
+union-warning-classes.txt. The models carry no USB device controller, so
+`usbinit()` writes five `USBCTRL_REGS` registers and the `SIE_CTRL` set
+alias into nothing, once each. The attach still returns because its one
+wait reads `RESETS:RESET_DONE`, which the platform answers all-ones from the
+SVD tag.
+
+The gate establishes that the descriptor selects the console and the device
+set at run time in the image that would ship, under Renode's peripheral
+models. It establishes nothing about USB enumeration, about the PicoCalc
+path of the same image (the PicoCalc tier boots the PICOCALC kernel), or
+about either board's silicon; those are board runs. The transcript and log
+land in tools/renode/vendor/results/boot-union.
 
 ## Renode PicoCalc tier
 

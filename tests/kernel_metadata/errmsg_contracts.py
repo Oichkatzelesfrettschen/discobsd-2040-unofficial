@@ -3,6 +3,7 @@
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import tempfile
 from pathlib import Path
@@ -68,7 +69,8 @@ def run(directory: Path, host_cc: str, source: str, main: str) -> int:
     (directory / "main.c").write_text(main)
     program = directory / "errmsg"
     subprocess.run(
-        [host_cc, "-std=c17", "-Wall", "-Wextra", "-Werror", "-fsanitize=address,undefined",
+        [*shlex.split(host_cc), "-std=c17", "-Wall", "-Wextra", "-Werror",
+         "-fsanitize=address,undefined",
          "-fno-sanitize-recover=all", f"-I{directory}", "-o", str(program),
          str(directory / "errlist.c"), str(directory / "main.c")],
         check=True,

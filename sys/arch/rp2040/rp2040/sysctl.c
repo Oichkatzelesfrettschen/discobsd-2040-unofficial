@@ -29,6 +29,7 @@
 #endif
 
 #include <machine/cpu.h>
+#include <machine/board.h>
 #include <machine/mpuvar.h>
 #include <machine/watchdog.h>
 #ifdef SWAPRAM
@@ -218,10 +219,15 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
 
 	case CPU_CONSDEV:
+		{
+			int console_major, console_minor;
+
 		if (namelen != 1)
 			return ENOTDIR;
-		dev = makedev(CONS_MAJOR, CONS_MINOR);
+		board_console(&console_major, &console_minor);
+		dev = makedev(console_major, console_minor);
 		return sysctl_rdstruct(oldp, oldlenp, newp, &dev, sizeof dev);
+		}
 #if defined(NTMSCP) && NTMSCP > 0
 	case CPU_TMSCP:
 		if (namelen != 2)

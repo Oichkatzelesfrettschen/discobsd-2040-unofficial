@@ -66,6 +66,7 @@
 #include <sys/lcdcons.h>
 
 #include <machine/intr.h>
+#include <machine/board.h>
 
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
@@ -715,11 +716,15 @@ lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 static int
 lcdprobe(struct conf_device *config __unused)
 {
+	int console_major, console_minor;
 	int keyboard_version;
 
+	if (board_id() != BOARD_ID_PICOCALC)
+		return 0;
+	board_console(&console_major, &console_minor);
 	lcdcons_init();
 	printf("lcd0: ST7365P 320x320 on SPI1, %dx%d cells", LT_COLS, LT_ROWS);
-	if (CONS_MAJOR == LCDCONS_MAJOR)
+	if (console_major == LCDCONS_MAJOR && console_minor == 0)
 		printf(", console");
 	printf("\n");
 	keyboard_version = picokbd_version();

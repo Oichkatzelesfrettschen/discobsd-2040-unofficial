@@ -26,6 +26,7 @@
 #include <sys/tty.h>
 
 #include <machine/fault.h>
+#include <machine/board.h>
 
 #include <machine/intr.h>
 #include <machine/mpu.h>
@@ -635,6 +636,8 @@ startup(void)
 	if (BUTTON_USER_PRESSED()) {
 		boothowto |= RB_SINGLE;
 	}
+
+	board_report();
 }
 
 

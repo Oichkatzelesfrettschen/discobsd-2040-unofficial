@@ -602,6 +602,9 @@ check-libc-casefold: check-python
 check-libc-casefold-cross: check-python
 		${MAKE} -C tests/libc_casefold check-cross
 
+check-c17-headers: check-python
+		${MAKE} -C tests/c17_headers check-host
+
 check-c17-headers-cross: check-python
 		${MAKE} -C tests/c17_headers check-cross
 
@@ -1118,7 +1121,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
-		check-libc-host-contracts check-libc-assert \
+		check-libc-host-contracts check-libc-assert check-c17-headers \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
@@ -1405,6 +1408,7 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libbn check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/dcbc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libc_contracts check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C tests/c17_headers check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_aout check
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
@@ -1590,7 +1594,7 @@ installfs:
 
 .PHONY: check-getwd-lifetime check-getwd-lifetime-cross
 
-.PHONY: check-c17-headers-cross
+.PHONY: check-c17-headers check-c17-headers-cross
 .PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn check-dcbc \
 	check-libcalc-cross check-libbn-cross
 

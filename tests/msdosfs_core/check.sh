@@ -529,18 +529,23 @@ status 0 "$work/no-denode-patch.bin" ls "$work/corrupt.img" "/sub/Deeper Dir"
 echo "msdosfs_core: core without msdosfs_denode.patch lists a broken directory as empty"
 
 # Without mkfs_msdos.patch the formatter leaks its sector buffer, which
-# LeakSanitizer reports at exit.
-copy_tree no-mkfs-patch
-(cd "$work/no-mkfs-patch" &&
-    git apply --reverse "$topsrc/tools/netbsd-patches/mkfs_msdos.patch") ||
-    fail "reverse of mkfs_msdos.patch"
-build "$work/no-mkfs-patch" "$work/no-mkfs-patch.bin"
-got=0
-"$work/no-mkfs-patch.bin" newfs "$work/leak.img" 2048 12 >/dev/null \
-    2>"$work/leak.err" || got=$?
-[ "$got" -ne 0 ] && grep -q 'LeakSanitizer' "$work/leak.err" ||
-    { cat "$work/leak.err" >&2; fail "formatter without mkfs_msdos.patch did not leak"; }
-echo "msdosfs_core: formatter without mkfs_msdos.patch leaks its sector buffer"
+# LeakSanitizer reports at exit. Apple's clang ships the address sanitizer
+# without its leak detector, so the control has an oracle on Linux alone.
+if [ "$(uname -s)" = Linux ]; then
+	copy_tree no-mkfs-patch
+	(cd "$work/no-mkfs-patch" &&
+	    git apply --reverse "$topsrc/tools/netbsd-patches/mkfs_msdos.patch") ||
+	    fail "reverse of mkfs_msdos.patch"
+	build "$work/no-mkfs-patch" "$work/no-mkfs-patch.bin"
+	got=0
+	"$work/no-mkfs-patch.bin" newfs "$work/leak.img" 2048 12 >/dev/null \
+	    2>"$work/leak.err" || got=$?
+	[ "$got" -ne 0 ] && grep -q 'LeakSanitizer' "$work/leak.err" ||
+	    { cat "$work/leak.err" >&2; fail "formatter without mkfs_msdos.patch did not leak"; }
+	echo "msdosfs_core: formatter without mkfs_msdos.patch leaks its sector buffer"
+else
+	echo "msdosfs_core: formatter leak control skipped on $(uname -s)"
+fi
 
 # DiscoBSD has no mmap(2): msdosfs_wfile without msdosfs_vnops.patch does
 # not compile for the target.

@@ -12,6 +12,10 @@
 # mutant of the kernel sources must then fail that same run, and
 # v7_check.py must reject each damaged image.
 #
+# A mutant must fail by verdict. One that leaves an inode locked spins in
+# the host sleep stub, so each run of the test program has V7_RUN_SECONDS
+# (default 120) and a run that outlives it fails the gate by name.
+#
 # WORKDIR must be absent or empty; the gate leaves its evidence there.
 set -eu
 
@@ -19,6 +23,7 @@ top=$(cd "$1" && pwd)
 work=$2
 PYTHON=${PYTHON:?set PYTHON to the intended interpreter}
 HOST_CC=${HOST_CC:-cc}
+V7_RUN_SECONDS=${V7_RUN_SECONDS:-120}
 here=$top/tests/kernel
 tool=$top/usr.sbin/v7fs/v7fs-host
 
@@ -59,7 +64,8 @@ build() {
 	    "$out"/*.o
 }
 
-# run BIN DIR: the whole agreement, in DIR. Returns nonzero on any
+# run BIN DIR: the whole agreement, in DIR. Returns 124 when the test
+# program outlives V7_RUN_SECONDS and another nonzero status on any
 # disagreement.
 run() {
 	bin=$1
@@ -67,9 +73,13 @@ run() {
 	mkdir -p "$dir/expect"
 	(
 		cd "$dir"
-		"$bin" "$work/volume.img" out.img expect \
+		status=0
+		timeout "$V7_RUN_SECONDS" \
+		    "$bin" "$work/volume.img" out.img expect \
 		    /a="$work/a.bin" /b="$work/b.bin" /c="$work/c.bin" \
-		    /dir/d="$work/d.bin" >test.log 2>&1 || exit 1
+		    /dir/d="$work/d.bin" >test.log 2>&1 || status=$?
+		[ "$status" -ne 124 ] || exit 124
+		[ "$status" -eq 0 ] || exit 1
 		for f in expect/*; do
 			path=/$(basename "$f" | tr '%' '/')
 			case $path in
@@ -123,7 +133,13 @@ PY
 	exit 2
 }
 build "$top/sys" "$work/build"
-if ! run "$work/build/v7_format_test" "$work/run"; then
+status=0
+run "$work/build/v7_format_test" "$work/run" || status=$?
+if [ "$status" -eq 124 ]; then
+	echo "FAIL v7-format: the test program ran past $V7_RUN_SECONDS seconds" >&2
+	exit 1
+fi
+if [ "$status" -ne 0 ]; then
 	cat "$work/run/test.log" "$work/run/check.log" 2>/dev/null >&2 || true
 	echo "FAIL v7-format: the three implementations disagree" >&2
 	exit 1
@@ -140,8 +156,14 @@ for m in "$work"/mutants/*/; do
 		echo "FAIL v7-format mutant $name does not compile" >&2
 		exit 1
 	fi
-	if run "$work/mbuild-$name/v7_format_test" "$work/mrun-$name"; then
+	status=0
+	run "$work/mbuild-$name/v7_format_test" "$work/mrun-$name" || status=$?
+	if [ "$status" -eq 0 ]; then
 		echo "FAIL v7-format mutant $name passed" >&2
+		exit 1
+	fi
+	if [ "$status" -eq 124 ]; then
+		echo "FAIL v7-format mutant $name ran past $V7_RUN_SECONDS seconds" >&2
 		exit 1
 	fi
 	echo "PASS v7-format mutant $name rejected"

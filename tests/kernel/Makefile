@@ -2955,13 +2955,24 @@ check-ilp32:
 # The V7 format descriptor: the inode layer built with V7FS, the NetBSD
 # core in usr.sbin/v7fs and v7_check.py must agree on one volume, and
 # each mutant of the kernel sources must break the agreement.
+#
+# The inode layer keeps disk addresses and sizes in 32-bit fields, so the
+# gate builds it at -m32 under the undefined-behavior sanitizer, the pair
+# TTY_LOCAL_MODE_ILP32_UBSAN_OK probes.
 V7_FORMAT_WORK=	v7-format-work
+check-v7-format:
+.if ${ILP32_OK} == "yes" && ${TTY_LOCAL_MODE_ILP32_UBSAN_OK} == "yes"
 check-v7-format: ${MACHINE_STAMP} v7_format_check.sh v7_format_test.c \
     v7_format_host.c v7_format_mutate.py v7_check.py hostkern.c
 	${MAKE} -C ${TOPSRC}/usr.sbin/v7fs host
 	rm -rf ${V7_FORMAT_WORK}
 	PYTHON=${PYTHON:Q} HOST_CC=${HOST_CC:Q} \
-	    sh v7_format_check.sh ${TOPSRC:Q} ${V7_FORMAT_WORK}
+	    ${TEST_EXECUTION} run kernel.v7-format.ilp32 -- \
+	    sh ./v7_format_check.sh ${TOPSRC:Q} ${V7_FORMAT_WORK}
+.else
+	${TEST_EXECUTION} skip kernel.v7-format.ilp32 \
+	    "V7 format descriptor: ILP32 sanitizer runtime unavailable"
+.endif
 
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
     check-v7-format \

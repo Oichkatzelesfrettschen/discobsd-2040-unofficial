@@ -2428,6 +2428,32 @@
       ]
     },
     {
+      "id": "kernel.v7-format.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable undefined-behavior sanitizer runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-v7-format",
+      "root_target": "check-kernel",
+      "program": "sh",
+      "script": "tests/kernel/v7_format_check.sh",
+      "subject": "tests/kernel/v7-format-work/build/v7_format_test",
+      "condition": "ILP32_OK == yes and TTY_LOCAL_MODE_ILP32_UBSAN_OK == yes; compiler-probe.sh compiles and executes an ILP32 undefined-behavior sanitizer binary",
+      "prerequisites": [
+        "v7_format_check.sh",
+        "v7_format_test.c",
+        "v7_format_host.c",
+        "v7_format_mutate.py",
+        "v7_check.py",
+        "hostkern.c"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.v7-format.ilp32 -- sh ./v7_format_check.sh ${TOPSRC:Q} ${V7_FORMAT_WORK}",
+      "aliases": [
+        "check-kernel"
+      ]
+    },
+    {
       "id": "kernel.usercopy-span.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

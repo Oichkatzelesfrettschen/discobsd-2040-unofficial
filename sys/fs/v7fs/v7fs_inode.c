@@ -115,6 +115,10 @@ v7fs_inode_allocate(struct v7fs_self *fs, v7fs_ino_t *ino)
 		DPRINTF("inode exhausted!(2)\n");
 		goto errexit;
 	}
+	if (sb->nfreeinode <= 0) {
+		error = ENOSPC;
+		goto errexit;
+	}
 	/* Get inode from superblock cache. */
 	KDASSERT(sb->nfreeinode <= V7FS_MAX_FREEINODE);
 	inode_number = sb->freeinode[--sb->nfreeinode];
@@ -137,15 +141,17 @@ errexit:
 	return error;
 }
 
-void
+int
 v7fs_inode_deallocate(struct v7fs_self *fs, v7fs_ino_t ino)
 {
 	struct v7fs_superblock *sb = &fs->superblock;
 	struct v7fs_inode inode;
+	int error;
 
 	memset(&inode, 0, sizeof(inode));
 	inode.inode_number = ino;
-	v7fs_inode_writeback(fs, &inode);
+	if ((error = v7fs_inode_writeback(fs, &inode)) != 0)
+		return error;
 
 	SUPERB_LOCK(fs);
 	if (sb->nfreeinode < V7FS_MAX_FREEINODE) {
@@ -157,6 +163,7 @@ v7fs_inode_deallocate(struct v7fs_self *fs, v7fs_ino_t ino)
 	sb->total_freeinode++;
 	sb->modified = true;
 	SUPERB_UNLOCK(fs);
+	return 0;
 }
 
 void

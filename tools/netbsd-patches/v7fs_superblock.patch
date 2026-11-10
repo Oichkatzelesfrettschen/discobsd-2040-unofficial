@@ -1,6 +1,16 @@
 --- a/sys/fs/v7fs/v7fs_superblock.c
 +++ b/sys/fs/v7fs/v7fs_superblock.c
-@@ -122,8 +122,9 @@
+@@ -107,7 +107,8 @@
+ 		error = EIO;
+ 	scratch_free(fs, buf);
+ 
+-	memsb->modified = 0;
++	if (error == 0)
++		memsb->modified = 0;
+ 	DPRINTF("done. %d\n", error);
+ 
+ 	return error;
+@@ -122,18 +123,19 @@
  
  	if ((sb->volume_size < 128) || /* smaller than 64KB. */
  	    (sb->datablock_start_sector > sb->volume_size) ||
@@ -12,3 +22,27 @@
  	    (sb->update_time < 0) ||
  	    (sb->total_freeblock > sb->volume_size) ||
  	    ((sb->nfreeinode == 0) && (sb->nfreeblock == 0) &&
+-		(sb->total_freeblock == 0) && (sb->total_freeinode == 0)) ||
+-	    (!(buf = scratch_read(fs, sb->volume_size - 1)))) {
++		(sb->total_freeblock == 0) && (sb->total_freeinode == 0))) {
+ 		DPRINTF("invalid super block.\n");
+ 		return EINVAL;
+ 	}
+-	if (buf)
+-		scratch_free(fs, buf);
++	if (!(buf = scratch_read(fs, sb->volume_size - 1)))
++		return EIO;
++	scratch_free(fs, buf);
+ 
+ 	return 0;
+ }
+@@ -209,8 +211,7 @@
+ 		void *buf;
+ 		if (!(buf = scratch_read(fs, i))) {
+ 			DPRINTF("block %zu I/O error.\n", i);
+-			ino += V7FS_INODE_PER_BLOCK;
+-			continue;
++			return EIO;
+ 		}
+ 		di = (struct v7fs_inode_diskimage *)buf;
+ 

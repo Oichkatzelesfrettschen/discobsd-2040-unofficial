@@ -52,6 +52,21 @@ struct v7fs_inode {
 	v7fs_daddr_t addr[V7FS_NADDR];	/* data block address list */
 };
 
+/* Compare the state changed by data-block expansion and contraction. */
+static inline bool
+v7fs_inode_data_equal(const struct v7fs_inode *left,
+    const struct v7fs_inode *right)
+{
+	unsigned index;
+
+	if (left->filesize != right->filesize)
+		return false;
+	for (index = 0; index < V7FS_NADDR; index++)
+		if (left->addr[index] != right->addr[index])
+			return false;
+	return true;
+}
+
 #define	v7fs_inode_filesize(i)	((i)->filesize)
 #define	v7fs_inode_allocated(i)	((i)->mode)
 #define	v7fs_inode_nlink(i)	((i)->nlink)
@@ -69,7 +84,7 @@ struct v7fs_inode {
 __BEGIN_DECLS
 /* Free inode access ops. */
 int v7fs_inode_allocate(struct v7fs_self *, v7fs_ino_t *);
-void v7fs_inode_deallocate(struct v7fs_self *, v7fs_ino_t);
+int v7fs_inode_deallocate(struct v7fs_self *, v7fs_ino_t);
 
 /* Disk I/O ops. */
 int v7fs_inode_load(struct v7fs_self *, struct v7fs_inode *, v7fs_ino_t);

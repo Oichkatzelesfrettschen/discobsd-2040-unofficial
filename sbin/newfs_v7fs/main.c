@@ -75,22 +75,22 @@ determine_ilist_size(v7fs_daddr_t volume_size, int32_t files)
 static int
 partition_check(struct v7fs_self *fs)
 {
-	struct v7fs_superblock *sb = &fs->superblock;
-	int error;
+	void *buffer;
+	int error = 0;
 
-	if ((error = v7fs_superblock_load(fs))) {
-		if (error != EINVAL) {
-			/* Invalid superblock information is OK. */
-			warnx("Can't read superblock sector.");
-		}
+	/* A previous filesystem can describe a different device size. */
+	if (!(buffer = scratch_read(fs, V7FS_SUPERBLOCK_SECTOR))) {
+		warnx("Can't read superblock sector.");
+		return EIO;
 	}
-	sb->modified = 1;
-	if ((error = v7fs_superblock_writeback(fs))) {
+	if (!fs->io.write(fs->io.cookie, buffer, V7FS_SUPERBLOCK_SECTOR)) {
+		error = EIO;
 		if (errno == EROFS) {
 			warnx("Overwriting disk label? ");
 		}
 		warnx("Can't write superblock sector.");
 	}
+	scratch_free(fs, buffer);
 
 	return error;
 }
@@ -106,7 +106,8 @@ make_root(struct v7fs_self *fs)
 	memset(&inode, 0, sizeof(inode));
 	inode.inode_number = 1;
 	inode.mode = V7FS_IFREG;	/* V7 manner */
-	v7fs_inode_writeback(fs, &inode);
+	if ((error = v7fs_inode_writeback(fs, &inode)) != 0)
+		return error;
 
 	/* INO 2 root */
 	v7fs_ino_t ino;
@@ -125,11 +126,11 @@ make_root(struct v7fs_self *fs)
 	inode.atime = inode.mtime = inode.ctime = time(0);
 
 	/* root dirent. */
-	v7fs_datablock_expand(fs, &inode, sizeof(*dir) * 2);
+	if ((error = v7fs_datablock_expand(fs, &inode, sizeof(*dir) * 2)) != 0)
+		return error;
 	v7fs_daddr_t blk = inode.addr[0];
 	void *buf;
 	if (!(buf = scratch_read(fs, blk))) {
-		v7fs_inode_deallocate(fs, ino);
 		errno = error = EIO;
 		warn("Can't read / dirent.");
 		return error;
@@ -147,7 +148,8 @@ make_root(struct v7fs_self *fs)
 		return error;
 	}
 	scratch_free(fs, buf);
-	v7fs_inode_writeback(fs, &inode);
+	if ((error = v7fs_inode_writeback(fs, &inode)) != 0)
+		return error;
 	if ((error = v7fs_superblock_writeback(fs))) {
 		errno = error;
 		warnx("Can't write superblock.");
@@ -156,8 +158,9 @@ make_root(struct v7fs_self *fs)
 	return error;
 }
 
-static v7fs_daddr_t
-make_freeblocklist(struct v7fs_self *fs, v7fs_daddr_t listblk, uint8_t *buf)
+static int
+make_freeblocklist(struct v7fs_self *fs, v7fs_daddr_t listblk, uint8_t *buf,
+    v7fs_daddr_t *next)
 {
 	uint32_t (*val32)(uint32_t) = fs->val.conv32;
 	uint16_t (*val16)(uint16_t) = fs->val.conv16;
@@ -180,7 +183,9 @@ make_freeblocklist(struct v7fs_self *fs, v7fs_daddr_t listblk, uint8_t *buf)
 			fb->nfreeblock = (*val16)(k + 1);
 			VPRINTF(4, "last freeblock contains #%d\n",
 			    (*val16)(fb->nfreeblock));
-			fs->io.write(fs->io.cookie, buf, listblk);
+			if (!fs->io.write(fs->io.cookie, buf, listblk))
+				return EIO;
+			*next = 0;
 			return 0;
 		}
 		fb->freeblock[i] = (*val32)(j);
@@ -190,11 +195,12 @@ make_freeblocklist(struct v7fs_self *fs, v7fs_daddr_t listblk, uint8_t *buf)
 	if (!fs->io.write(fs->io.cookie, buf, listblk)) {
 		errno = EIO;
 		warn("blk=%ld", (long)listblk);
-		return 0;
+		return EIO;
 	}
 
 	/* Return next link block */
-	return (*val32)(fb->freeblock[0]);
+	*next = (*val32)(fb->freeblock[0]);
+	return 0;
 }
 
 static int
@@ -214,7 +220,8 @@ make_filesystem(struct v7fs_self *fs, v7fs_daddr_t volume_size,
 	memset(buf, 0, sizeof buf);
 	for (i = V7FS_ILIST_SECTOR; i < V7FS_ILIST_SECTOR + (int32_t)ilist_size;
 	    i++) {
-		fs->io.write(fs->io.cookie, buf, i);
+		if (!fs->io.write(fs->io.cookie, buf, i))
+			return EIO;
 		progress(0);
 	}
 #ifndef HAVE_NBTOOL_CONFIG_H
@@ -257,8 +264,10 @@ make_filesystem(struct v7fs_self *fs, v7fs_daddr_t volume_size,
 	progress(&(struct progress_arg){ .label = "freeblock list", .tick =
 	    (volume_size - sb->datablock_start_sector) / PROGRESS_BAR_GRANULE});
 	blk = sb->freeblock[0];
-	while ((blk = make_freeblocklist(fs, blk, buf)))
-		continue;
+	while (blk != 0) {
+		if ((error = make_freeblocklist(fs, blk, buf, &blk)) != 0)
+			return error;
+	}
 #ifndef HAVE_NBTOOL_CONFIG_H
 	progress_done();
 #endif
@@ -297,21 +306,18 @@ v7fs_newfs(const struct v7fs_mount_device *mount, int32_t maxfile)
 	fs->endian = mount->endian;
 	v7fs_endian_init(fs);
 
-	if ((error = partition_check(fs))) {
-		return error;
-	}
+	if ((error = partition_check(fs)))
+		goto out;
 
 	/* Construct filesystem. */
-	if ((error = make_filesystem(fs, volume_size, ilist_size))) {
-		return error;
-	}
+	if ((error = make_filesystem(fs, volume_size, ilist_size)))
+		goto out;
 
 	/* Setup root. */
-	if ((error = make_root(fs))) {
-		return error;
-	}
+	error = make_root(fs);
 
+out:
 	v7fs_io_fini(fs);
 
-	return 0;
+	return error;
 }

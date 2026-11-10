@@ -180,6 +180,7 @@ string_memmem32_san.o
 strtox_test_arm
 random_contract_test_arm
 printf_contract_test_arm
+scanf_llong_test_arm
 printf_g_contract_test
 printf_g_contract_test_arm
 pg_*.o

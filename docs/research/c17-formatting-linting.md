@@ -292,7 +292,7 @@ Seven packed multicall binaries save root blocks by sharing libc, code and
 exclusive applet BSS. A smaller standalone object can still make a box worse
 by raising its largest overlaid BSS extent or pulling a new libc member into
 every applet path. Measure standalone, box, raw a.out, packed a.out and complete
-root image together. Preserve `PRINTF_FLOAT`, `PRINTF_LLONG` and `SCANF_FLOAT`
+root image together. Preserve `PRINTF_FLOAT`, `PRINTF_LLONG`, `SCANF_FLOAT` and `SCANF_LLONG`
 closure controls; adding a format conversion can import software arithmetic
 that dwarfs the source edit.
 

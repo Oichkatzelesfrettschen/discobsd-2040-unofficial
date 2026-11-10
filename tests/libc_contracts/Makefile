@@ -1243,7 +1243,7 @@ clean:
 		${ANSI_OBJS} ${ANSI_OBJS32} ${ANSI_SAN32_OBJS} \
 		ansi_shared_byte_bad.o ansi_shared_byte_bad_test ansi_shared_byte_bad.log
 	rm -f waitpid_contract_test waitpid_contract.o
-	rm -f ${QEMU_TESTS} ${QEMU_STRTOX_OBJS} ${QEMU_PRINTF_OBJS} \
+	rm -f ${QEMU_TESTS} ${QEMU_STRTOX_OBJS} ${QEMU_PRINTF_OBJS} ${QEMU_SCANF_OBJS} \
 		random_random_arm.o qemu_support_direct.o qemu_stdio_shim.o
 
 # Thumb-1 execution. The tree sources behind check-strtox, check-random and
@@ -1253,12 +1253,19 @@ clean:
 # faults on Thumb-2 and unaligned accesses. Each test is the host test
 # unchanged. REQUIRE_QEMU makes a missing qemu-arm an error; otherwise the
 # target prints SKIP and no ARM execution has occurred. The tests print to
-# stdout or stderr through qemu_support.c, and the printf test links the
-# tree's stdio over qemu_stdio_shim.c in place of newlib's.
+# stdout or stderr through qemu_support.c, and the printf and 64-bit scanf
+# tests link the tree's stdio over qemu_stdio_shim.c in place of newlib's.
+# The scanf test's oracle there is the tree's strtoll and strtoull: newlib's
+# reach _impure_ptr, whose stdio would collide with the tree's. The c17
+# header gate holds that pair to glibc and to newlib, so this run shows
+# the scanner agreeing with a verified conversion on Thumb-1.
 QEMU_OBJCFLAGS=	-Os ${QEMU_ARM_CPUFLAGS} -fno-common
-QEMU_TESTS=	strtox_test_arm random_contract_test_arm printf_contract_test_arm
+QEMU_TESTS=	strtox_test_arm random_contract_test_arm printf_contract_test_arm \
+		scanf_llong_test_arm
 QEMU_STRTOX_OBJS= strtox_strtol_arm.o strtox_strtoul_arm.o
 QEMU_PRINTF_OBJS= ${PRINTF_OBJS:S/^printf_/printf_arm_/}
+QEMU_SCANF_OBJS= ${SCANF_OBJS:S/^scanf_/scanf_arm_/} scanf_arm_doscan_llong.o \
+		scanf_arm_strtoll.o scanf_arm_strtoull.o
 
 check-qemu:
 .if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)
@@ -1270,6 +1277,7 @@ check-qemu:
 	${QEMU_ARM_RUN} ./strtox_test_arm
 	${QEMU_ARM_RUN} ./random_contract_test_arm
 	${QEMU_ARM_RUN} ./printf_contract_test_arm
+	${QEMU_ARM_RUN} ./scanf_llong_test_arm
 	@${MAKE} printf_g_contract_test_arm huge_val_contract_test_arm
 	${QEMU_ARM_RUN} ./printf_g_contract_test_arm
 	${QEMU_ARM_RUN} ./huge_val_contract_test_arm
@@ -1316,6 +1324,28 @@ printf_contract_test_arm: printf_contract_test.c ${QEMU_PRINTF_OBJS} \
     qemu_support_direct.o qemu_stdio_shim.o
 	${QEMU_ARM_CC} ${PRINTF_CFLAGS} ${QEMU_ARM_CFLAGS:N-std=*} \
 	    -o $@ printf_contract_test.c ${QEMU_PRINTF_OBJS} \
+	    qemu_support_direct.o qemu_stdio_shim.o ${QEMU_ARM_LIBS}
+
+.for _m in doscan doscan_float doscan_llong scanf ungetc filbuf
+scanf_arm_${_m}.o: ${SCANF_DIR}/${_m}.c ${SCANF_DIR}/doscan.h
+	${QEMU_ARM_CC} ${SCANF_CFLAGS} ${QEMU_OBJCFLAGS} -c -o $@ \
+	    ${SCANF_DIR}/${_m}.c
+.endfor
+
+.for _m in strtod strtoll strtoull
+scanf_arm_${_m}.o: ${SCANF_STDLIB_DIR}/${_m}.c
+	${QEMU_ARM_CC} ${SCANF_CFLAGS} ${QEMU_OBJCFLAGS} -c -o $@ \
+	    ${SCANF_STDLIB_DIR}/${_m}.c
+.endfor
+
+scanf_arm_ctype.o: ${SCANF_GEN_DIR}/ctype_.c
+	${QEMU_ARM_CC} ${SCANF_CFLAGS} ${QEMU_OBJCFLAGS} -c -o $@ \
+	    ${SCANF_GEN_DIR}/ctype_.c
+
+scanf_llong_test_arm: scanf_llong_test.c ${QEMU_SCANF_OBJS} \
+    qemu_support_direct.o qemu_stdio_shim.o
+	${QEMU_ARM_CC} ${SCANF_CFLAGS} ${QEMU_ARM_CFLAGS:N-std=*} \
+	    -o $@ scanf_llong_test.c ${QEMU_SCANF_OBJS} \
 	    qemu_support_direct.o qemu_stdio_shim.o ${QEMU_ARM_LIBS}
 
 all: check

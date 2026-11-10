@@ -22,10 +22,11 @@ int     mpid;           /* generic for unique process id's */
  * It returns 1 in the new process, 0 in the parent, -1 on capacity refusal.
  */
 int
-newproc (isvfork)
-    volatile int isvfork;       /* read after the setjmp below returns 0 */
+newproc (volatile int isvfork)  /* read after the setjmp below returns 0 */
 {
-    register struct proc *child, *parent;
+    /* Keep the selected child address stable across the fork checkpoint. */
+    struct proc *volatile child;
+    register struct proc *parent;
     register int n;
     static int pidchecked = 0;
     struct file *fp;
@@ -215,8 +216,7 @@ again:
 }
 
 static void
-fork1 (isvfork)
-    int isvfork;
+fork1 (int isvfork)
 {
     register int a;
     int result;

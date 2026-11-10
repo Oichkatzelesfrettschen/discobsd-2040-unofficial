@@ -12,8 +12,7 @@
 #include <machine/limits.h>
 
 static void
-setthetime (tv)
-    register struct timeval *tv;
+setthetime (register struct timeval *tv)
 {
     int s;
 
@@ -324,8 +323,7 @@ bad:
  * counts ticks rounds a nonzero value up to one tick (see tvticks()).
  */
 int
-itimerfix(tv)
-    struct timeval *tv;
+itimerfix(struct timeval *tv)
 {
     if (tv->tv_sec < 0 || tv->tv_sec > 100000000L ||
         tv->tv_usec < 0 || tv->tv_usec >= 1000000L)
@@ -378,8 +376,7 @@ expire:
 #endif /* NOT_CURRENTLY_IN_USE */
 
 static void
-tvfix(t1)
-    struct timeval *t1;
+tvfix(struct timeval *t1)
 {
     if (t1->tv_usec < 0) {
         t1->tv_sec--;
@@ -399,8 +396,7 @@ tvfix(t1)
  * Caveat emptor.
  */
 void
-timevaladd(t1, t2)
-    struct timeval *t1, *t2;
+timevaladd(struct timeval *t1, struct timeval *t2)
 {
     t1->tv_sec += t2->tv_sec;
     t1->tv_usec += t2->tv_usec;

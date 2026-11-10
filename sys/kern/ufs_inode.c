@@ -362,7 +362,7 @@ iupdat(struct inode *ip, struct timeval *ta, struct timeval *tm, int waitfor)
     register struct buf *bp;
     register struct dinode *dp;
     register struct inode *tip = ip;
-    int dirty_flags, error;
+    int dirty_flags, io_error;
 
     dirty_flags = tip->i_flag & (IUPD|IACC|ICHG|IMOD);
     if (dirty_flags == 0)
@@ -371,10 +371,10 @@ iupdat(struct inode *ip, struct timeval *ta, struct timeval *tm, int waitfor)
         return (0);
     bp = bread(INODE_DEVICE(tip), itod(tip->i_number));
     if (bp->b_flags & B_ERROR) {
-        int error = geterror(bp);
+        int read_error = geterror(bp);
 
         brelse(bp);
-        return (error);
+        return (read_error);
     }
     if (tip->i_flag&IACC)
         tip->i_atime = ta->tv_sec;
@@ -389,10 +389,10 @@ iupdat(struct inode *ip, struct timeval *ta, struct timeval *tm, int waitfor)
     dp->di_ic2 = tip->i_ic2;
     bcopy(ip->i_addr, dp->di_addr, NADDR * sizeof (daddr_t));
     if (waitfor) {
-        error = bwrite(bp);
-        if (error)
+        io_error = bwrite(bp);
+        if (io_error)
             tip->i_flag |= dirty_flags;
-        return (error);
+        return (io_error);
     }
     bdwrite(bp);
     return (0);

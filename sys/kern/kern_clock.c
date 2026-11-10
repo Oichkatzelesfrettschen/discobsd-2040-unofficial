@@ -64,9 +64,7 @@ long tk_nout;
  */
 /*ARGSUSED*/
 void
-gatherstats(pc, ps)
-    caddr_t pc __unused;
-    int ps;
+gatherstats(caddr_t pc __unused, int ps)
 {
     register int cpstate;
 
@@ -158,9 +156,7 @@ realitexpire(void)
  * Run periodic events from timeout queue.
  */
 void
-softclock(pc, ps)
-    caddr_t pc;
-    int ps;
+softclock(caddr_t pc, int ps)
 {
     for (;;) {
         register struct callout *p1;
@@ -218,9 +214,7 @@ softclock(pc, ps)
  *  profile
  */
 void
-hardclock(pc, ps)
-    caddr_t pc;
-    int ps;
+hardclock(caddr_t pc, int ps)
 {
     register struct callout *p1;
     register struct proc *p;
@@ -356,10 +350,7 @@ monoclock_advance(unsigned int ticks)
  * Arrange that (*fun)(arg) is called in t/hz seconds.
  */
 void
-timeout (fun, arg, t)
-    void (*fun) (caddr_t);
-    caddr_t arg;
-    register int t;
+timeout (void (*fun)(caddr_t), caddr_t arg, register int t)
 {
     register struct callout *p1, *p2, *pnew;
     register int s = splclock();
@@ -388,9 +379,7 @@ timeout (fun, arg, t)
  * from the callout structure.
  */
 void
-untimeout (fun, arg)
-    void (*fun) (caddr_t);
-    caddr_t arg;
+untimeout (void (*fun)(caddr_t), caddr_t arg)
 {
     register struct callout *p1, *p2;
     register int s;
@@ -432,8 +421,7 @@ profil()
  * absolute time.
  */
 int
-hzto(tv)
-    register struct timeval *tv;
+hzto(register struct timeval *tv)
 {
     register long ticks;
     register long sec;

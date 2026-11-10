@@ -181,8 +181,7 @@ const uint8_t ttlowat[NSPEEDS] = {
  * Set t_chars to default values.
  */
 void
-ttychars(tp)
-    struct tty *tp;
+ttychars(struct tty *tp)
 {
     static const struct ttychars ttydefaults = {
         CERASE, CKILL,  CINTR,  CQUIT,  CSTART, CSTOP,  CEOF,
@@ -198,8 +197,7 @@ ttychars(tp)
  * interrupt.  If t_outq.c_cc <= t_lowat then do the wakeup.
  */
 void
-ttyowake(tp)
-    register struct tty *tp;
+ttyowake(register struct tty *tp)
 {
     if (tp->t_outq.c_cc <= TTLOWAT(tp)) {
         if (ISSET(tp->t_state,TS_ASLEEP)) {
@@ -215,8 +213,7 @@ ttyowake(tp)
 }
 
 static void
-ttywait(tp)
-    register struct tty *tp;
+ttywait(register struct tty *tp)
 {
     register int s = spltty();
 
@@ -241,16 +238,14 @@ ttywait(tp)
  * Wait for output to drain, then flush input waiting.
  */
 void
-ttywflush(tp)
-    register struct tty *tp;
+ttywflush(register struct tty *tp)
 {
     ttywait(tp);
     ttyflush(tp, FREAD);
 }
 
 static void
-ttyunblock (tp)
-    register struct tty *tp;
+ttyunblock (register struct tty *tp)
 {
     if (ISSET(tp->t_flags,TANDEM) &&
         tp->t_startc != _POSIX_VDISABLE &&
@@ -268,9 +263,7 @@ ttyunblock (tp)
 /*
  * Flush all TTY queues.
  */
-void ttyflush (tp, rw)
-    register struct tty *tp;
-    int rw;
+void ttyflush (register struct tty *tp, int rw)
 {
     register int s;
 
@@ -304,8 +297,7 @@ void ttyflush (tp, rw)
  * Send stop character on input overflow.
  */
 void
-ttyblock(tp)
-    register struct tty *tp;
+ttyblock(register struct tty *tp)
 {
     register int total;
 
@@ -345,8 +337,7 @@ ttyblock(tp)
  * subroutine and it is called during a clock interrupt.
  */
 void
-ttrstrt(tp)
-    register struct tty *tp;
+ttrstrt(register struct tty *tp)
 {
     tp->t_state &= ~TS_TIMEOUT;
     ttstart(tp);
@@ -361,8 +352,7 @@ ttrstrt(tp)
  * The spl calls were removed because the priority should already be spltty.
  */
 void
-ttstart(tp)
-    register struct tty *tp;
+ttstart(register struct tty *tp)
 {
     if (tp->t_oproc)        /* kludge for pty */
         (*tp->t_oproc) (tp);
@@ -373,8 +363,7 @@ ttstart(tp)
  * call at spltty().
  */
 static void
-ttypend (tp)
-    register struct tty *tp;
+ttypend (register struct tty *tp)
 {
     struct clist tq;
     register int c;
@@ -390,8 +379,7 @@ ttypend (tp)
 }
 
 static int
-ttnread (tp)
-    register struct tty *tp;
+ttnread (register struct tty *tp)
 {
     register int nread = 0;
 
@@ -433,11 +421,7 @@ tty_local_mode_get(uint32_t flags)
  */
 /*ARGSUSED*/
 int
-ttioctl(tp, com, data, flag)
-    register struct tty *tp;
-    u_int com;
-    caddr_t data;
-    int flag;
+ttioctl(register struct tty *tp, u_int com, caddr_t data, int flag)
 {
     int s;
     uint32_t newflags;
@@ -697,9 +681,7 @@ ttioctl(tp, com, data, flag)
  * Check that input or output is possible on a terminal.
  */
 int
-ttyselect (tp, rw)
-    register struct tty *tp;
-    int rw;
+ttyselect (register struct tty *tp, int rw)
 {
     int nread;
     register int s = spltty();
@@ -738,9 +720,7 @@ win:
  * quits and interrupts from the tty.
  */
 int
-ttyopen(dev, tp)
-    dev_t dev;
-    register struct tty *tp;
+ttyopen(dev_t dev, register struct tty *tp)
 {
     register struct proc *pp;
 
@@ -765,9 +745,7 @@ ttyopen(dev, tp)
  * "close" a line discipline
  */
 int
-ttylclose (tp, flag)
-    register struct tty *tp;
-    int flag;
+ttylclose (register struct tty *tp, int flag)
 {
     /*
      * 4.4 has IO_NDELAY but I think that is a mistake because the upper level
@@ -785,8 +763,7 @@ ttylclose (tp, flag)
  * Clean terminal on last close.
  */
 void
-ttyclose(tp)
-    register struct tty *tp;
+ttyclose(register struct tty *tp)
 {
     ttyflush(tp, FREAD|FWRITE);
     tp->t_pgrp = 0;
@@ -799,9 +776,7 @@ ttyclose(tp)
  * Returns 0 if the line should be turned off, otherwise 1.
  */
 int
-ttymodem(tp, flag)
-    register struct tty *tp;
-    int flag;
+ttymodem(register struct tty *tp, int flag)
 {
     if ((tp->t_state & TS_WOPEN) == 0 && (tp->t_flags & MDMBUF)) {
         /*
@@ -842,9 +817,7 @@ ttymodem(tp, flag)
  * Return argument flag, to turn off device on carrier drop.
  */
 int
-nullmodem(tp, flag)
-    register struct tty *tp;
-    int flag;
+nullmodem(register struct tty *tp, int flag)
 {
     if (flag)
         tp->t_state |= TS_CARR_ON;
@@ -857,9 +830,7 @@ nullmodem(tp, flag)
  * send string cp to tp
  */
 static void
-ttyout (cp, tp)
-    register char *cp;
-    register struct tty *tp;
+ttyout (register char *cp, register struct tty *tp)
 {
     register int c;
 
@@ -872,9 +843,7 @@ ttyout (cp, tp)
  * erasing them.
  */
 static void
-ttyrubo(tp, cnt)
-    register struct tty *tp;
-    register int cnt;
+ttyrubo(register struct tty *tp, register int cnt)
 {
     register char *rubostring = (tp->t_flags & CRTERA) ? "\b \b" : "\b";
 
@@ -886,9 +855,7 @@ ttyrubo(tp, cnt)
  * Echo a typed character to the terminal
  */
 static void
-ttyecho(c, tp)
-    register int c;
-    register struct tty *tp;
+ttyecho(register int c, register struct tty *tp)
 {
     register int c7;
 
@@ -922,8 +889,7 @@ ttyecho(c, tp)
  * We assume c_cc has already been checked.
  */
 static void
-ttyretype(tp)
-    register struct tty *tp;
+ttyretype(register struct tty *tp)
 {
     register char *cp;
     int s;
@@ -947,9 +913,7 @@ ttyretype(tp)
  * as cleanly as possible.
  */
 static void
-ttyrub(c, tp)
-    register int c;
-    register struct tty *tp;
+ttyrub(register int c, register struct tty *tp)
 {
     register char *cp;
     int savecol;
@@ -1032,9 +996,7 @@ ttyrub(c, tp)
  * Is c a break char for tp?
  */
 int
-ttbreakc (c, tp)
-    register int c;
-    register struct tty *tp;
+ttbreakc (register int c, register struct tty *tp)
 {
     return (c == '\n' || CCEQ (tp->t_eofc, c) || CCEQ (tp->t_brkc, c) ||
         (c == '\r' && (tp->t_flags & CRMOD)));
@@ -1048,9 +1010,7 @@ ttbreakc (c, tp)
  * appropriate tty structure.
  */
 void
-ttyinput (c, tp)
-    register int c;
-    register struct tty *tp;
+ttyinput (register int c, register struct tty *tp)
 {
     uint32_t t_flags = tp->t_flags;
     int i;
@@ -1299,9 +1259,7 @@ startoutput:
  * Returns < 0 if putc succeeds, otherwise returns char to resend
  */
 int
-ttyoutput(c, tp)
-    register int c;
-    register struct tty *tp;
+ttyoutput(register int c, register struct tty *tp)
 {
     register int col;
 
@@ -1387,10 +1345,7 @@ ttyoutput(c, tp)
  * calculated the tty-structure given as argument.
  */
 int
-ttread (tp, uio, flag)
-    register struct tty *tp;
-    struct uio *uio;
-    int flag;
+ttread (register struct tty *tp, struct uio *uio, int flag)
 {
     register struct clist *qp;
     register int c;
@@ -1538,9 +1493,7 @@ checktandem:
  * if new signals come in.
  */
 int
-ttycheckoutq (tp, wait)
-    register struct tty *tp;
-    int wait;
+ttycheckoutq (register struct tty *tp, int wait)
 {
     int hiwat, s, oldsig;
 
@@ -1568,9 +1521,7 @@ ttycheckoutq (tp, wait)
  * characters left in str.
  */
 static int
-scanc (size, str)
-    unsigned size;
-    const char *str;
+scanc (unsigned size, const char *str)
 {
     if (size == 0 || str == 0)
         return 0;
@@ -1586,10 +1537,7 @@ scanc (size, str)
  * calculated the tty-structure given as argument.
  */
 int
-ttwrite (tp, uio, flag)
-    register struct tty *tp;
-    register struct uio *uio;
-    int flag;
+ttwrite (register struct tty *tp, register struct uio *uio, int flag)
 {
     char *cp;
     register int cc, ce;
@@ -1758,8 +1706,7 @@ ovhiwat:
 }
 
 void
-ttwakeup (tp)
-    register struct tty *tp;
+ttwakeup (register struct tty *tp)
 {
     if (tp->t_rsel) {
         selwakeup (tp->t_rsel, tp->t_state & TS_RCOLL);

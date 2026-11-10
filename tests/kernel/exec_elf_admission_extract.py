@@ -13,7 +13,7 @@ SETUPSTACK_SIGNATURE = (
     "void exec_setupstack(unsigned entryaddr, struct exec_params *epp)"
 )
 SWAPTEXT_SIGNATURE = (
-    "static size_t\nswaptext (p)\n    register struct proc *p"
+    "static size_t\nswaptext (register struct proc *p)"
 )
 TEXT_RELEASE_SIGNATURE = (
     "void\nexec_text_release(struct proc *p, struct inode *next)"

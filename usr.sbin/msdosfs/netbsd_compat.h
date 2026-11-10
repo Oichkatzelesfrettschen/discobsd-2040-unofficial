@@ -14,6 +14,14 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <stdint.h>
+/*
+ * <sys/endian.h> is the host's where it has one. DiscoBSD's supplies the
+ * byte-order conversions and no unaligned decoders, and it precedes the
+ * compat directory on the include path, so the compat header is named
+ * here by path to add what the host's lacks.
+ */
+#include <sys/endian.h>
+#include "compat/sys/endian.h"
 
 #ifndef __RCSID
 #define __RCSID(x)

@@ -60,8 +60,8 @@
 # sdstrat_test compiles the SD disk driver (sd.c) unchanged against the
 # kernel's buf.h and disk.h through the headers in shim/ and a card behind
 # fake sdspi calls, then drives sdopen, sdstrategy and sdsize with the
-# requests physio() and the buffer cache make; forty mutants of sd.c
-# must fail it.
+# requests physio() and the buffer cache make, and calls the probe under
+# each board identity; forty-two mutants of sd.c must fail it.
 #
 # picoaudio_test compiles the bell driver (picoaudio.c) unchanged against
 # the register model in regmodel.h, stops the tone at every counter phase
@@ -129,7 +129,8 @@ sdspi_test: sdspi_test.c ${DEV}/sdspi.c ${DEV}/sdspi.h
 	    ${DEV}/sdspi.c
 
 sdstrat_test: sdstrat_test.c regmodel.h ${DEV}/sd.c ${DEV}/sd.h \
-	    ${DEV}/sdspi.h ${DEV}/picocalc_reg.h
+	    ${DEV}/sdspi.h ${DEV}/picocalc_reg.h shim/machine/board.h \
+	    ${TOPSRC}/sys/arch/rp2040/include/board.h
 	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ sdstrat_test.c ${DEV}/sd.c
 
 picoaudio_test: picoaudio_test.c regmodel.h ${DEV}/picoaudio.c \
@@ -1159,7 +1160,9 @@ sdstrat-mutants: \
 	sdstrat-mutant-spl-dropped \
 	sdstrat-mutant-media-gone-constant \
 	sdstrat-mutant-media-gone-inverted \
-	sdstrat-mutant-getpart-whole
+	sdstrat-mutant-getpart-whole \
+	sdstrat-mutant-probe-ungated \
+	sdstrat-mutant-probe-never
 
 sdstrat-mutant-whole-block-only:
 	${SDSTRAT_MUT} sd.c \
@@ -1323,6 +1326,14 @@ sdstrat-mutant-getpart-whole:
 	${SDSTRAT_MUT} sd.c \
 	    's/\*(struct diskpart \*)addr = sdpt\[part\];/*(struct diskpart *)addr = sdpt[0];/' sd.c
 
+sdstrat-mutant-probe-ungated:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\tif (board_id() != BOARD_ID_PICOCALC)$$/\tif (0)/' sd.c
+
+sdstrat-mutant-probe-never:
+	${SDSTRAT_MUT} sd.c \
+	    's/^\tif (board_id() != BOARD_ID_PICOCALC)$$/\tif (1)/' sd.c
+
 
 PICOAUDIO_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
 		picoaudio_test.c
@@ -1438,7 +1449,9 @@ clean:
 	sdstrat-mutant-spl-dropped \
 	sdstrat-mutant-media-gone-constant \
 	sdstrat-mutant-media-gone-inverted \
-	sdstrat-mutant-getpart-whole
+	sdstrat-mutant-getpart-whole \
+	sdstrat-mutant-probe-ungated \
+	sdstrat-mutant-probe-never
 
 .PHONY: picoaudio-mutants \
 	picoaudio-mutant-left-override \

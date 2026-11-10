@@ -18,9 +18,10 @@ TARGET_FLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror \
 MUTATE=		${PYTHON} ${.CURDIR}/mutate.py
 
 HEADER_CONTRACTS=	stddef_contract stdalign_contract stdnoreturn_contract \
-			limits_contract
+			limits_contract stdint_contract
 HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
-			stdnoreturn_empty limits_llong_min_short
+			stdnoreturn_empty limits_llong_min_short \
+			stdint_unsigned_max stdint_narrow_intmax
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -57,6 +58,20 @@ limits_llong_min_short.mutant:
 	${MUTATE} ${TOPSRC}/include/machine/limits.h $@/machine/limits.h \
 	    "(-9223372036854775807LL-1LL)" "(-9223372036854775807LL)"
 limits_llong_min_short.contract= limits_contract
+
+# <stdint.h> is a link to sys/sys/stdint.h, so the mutants read that file.
+stdint_unsigned_max.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/sys/sys/stdint.h $@/stdint.h \
+	    "#define UINT16_MAX          0xFFFF" \
+	    "#define UINT16_MAX          0xFFFFU"
+stdint_unsigned_max.contract= stdint_contract
+stdint_narrow_intmax.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/sys/sys/stdint.h $@/stdint.h \
+	    "typedef long long           intmax_t;" \
+	    "typedef long                intmax_t;"
+stdint_narrow_intmax.contract= stdint_contract
 
 check-cross: check-header-contracts check-header-mutants check-imports
 

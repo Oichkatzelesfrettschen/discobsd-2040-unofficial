@@ -1922,6 +1922,44 @@
       ]
     },
     {
+      "id": "kernel.printf-log.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "prf_log_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "prf_log_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.printf-log.ilp32 -- ./prf_log_test",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.readlink.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "readlink_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "readlink_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.readlink.ilp32 -- ./readlink_test",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
       "id": "kernel.signal-auth.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

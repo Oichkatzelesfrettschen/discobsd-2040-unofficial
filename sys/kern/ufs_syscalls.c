@@ -979,9 +979,9 @@ readlink(void)
     }
     u.u_error = rdwri (UIO_READ, ip, uap->buf, uap->count, (off_t) 0,
                 IO_UNIT, &resid);
+    u.u_rval = uap->count - resid;
 out:
     iput(ip);
-    u.u_rval = uap->count - resid;
 }
 
 static int

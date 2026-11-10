@@ -61159,9 +61159,7 @@
         "risk_tier_basis": "boundary-family-conservative",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [
-            "cast-dereference"
-          ],
+          "aliasing": [],
           "inline_assembly": [],
           "integer": [
             "integer-cast",
@@ -61172,9 +61170,7 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": [
             "variadic-interface"
           ]

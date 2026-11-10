@@ -183,7 +183,7 @@ unsigned n;
 
 char *
 xstrdup(s)
-char *s;
+const char *s;
 {
 	register char *p = strdup(s);
 	if (p == NULL)

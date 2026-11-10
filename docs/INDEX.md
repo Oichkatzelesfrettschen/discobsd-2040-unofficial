@@ -101,6 +101,7 @@ Grouped by what they investigate.
 | `rp2040-compiler-size-compatibility-scope.md` | the fixed-layout compiler compatibility and kernel-size repair boundary, measured callback and load-span failures, call-graph limits, resource denominator and falsifiable acceptance plan |
 | `rp2040-second-core-hardware.md` | core 1 launch, FIFOs, spinlocks, divider, interpolators and reset from the datasheet, the resources the port owns, and an emulated profile of the packed-executable decoder |
 | `rp2040-second-core-emulation/` | the sample program, host packer, decoder harness and Unicorn cycle model behind the 387 cycles per byte figure, with a build script that checks input hashes and recorded output |
+| `dragonfly-msgport-proposal-audit.md` | a proposal to adopt DragonFly's message ports, vkernel placement and core-1 drivers audited against DragonFly master, the datasheet readings and the tree: the ring, doorbell and `EASYNC` convention survive, the universal port, the vkernel and four subsystem placements fail, and the surviving transport is `corering.c` behind `check-corering` |
 | `calculator-and-games-review.md` | advisory review of the calculator library, bignum library and fourfall before integration, with each finding's disposition |
 | `calculator-and-games-review-round2.md` | adjudication of the second Codex and Grok reviews of the same branch: 28 merged findings with verdicts and probes, 17 defects both missed, and the commit that resolves each |
 | `copy-reviews/` | the copying reviews of `lib/libcalc` and `games/fourfall` against their excluded references, with calibration and shingle numbers |
@@ -239,6 +240,7 @@ Grouped by what they investigate.
 | `security-c17-frontier.md` | the shipped CVE dispositions, the bounded LZW repair and measured C17 migration, and the ranked security/resource frontier |
 | `downloads-survey.md` | the downloads folder surveyed for usable material |
 | `flash-id-build-routes.md` | the Pico SDK, CMake and the port's bmake measured against each other on the same probe |
+| `endian-cdefs-headers.md` | the byte-order and cdefs header audit: which gaps the tree bore out, which risk claims it refuted, the v7fs shim as the requirements list, and the `<sys/endian.h>`, `<sys/cdefs.h>` and `-Wundef` remediation |
 | `warning-census.md` | what -Wall -Wextra costs the tree, as instances and as sites, where the warnings are, what the census records, and five ways of measuring it that lied |
 
 ### Audit ledgers and handbacks

@@ -7,11 +7,9 @@
 #ifndef DC_COMPAT_H
 #define DC_COMPAT_H
 
+#include <sys/cdefs.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-/* The OpenBSD attribute for a function that does not return. */
-#define __dead		_Noreturn
 
 /* Defined by lib/libc/stdlib/getopt.c, declared by no header. */
 extern int		optreset;

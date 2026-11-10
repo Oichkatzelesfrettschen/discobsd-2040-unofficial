@@ -20,7 +20,10 @@
 #define LITTLE          1234            /* least-significant byte first (vax) */
 #define BIG             4321            /* most-significant byte first */
 #define PDP             3412            /* LSB first in word, MSW first in long (pdp) */
-#define ENDIAN          LITTLE          /* byte order on stm32 */
+#define ENDIAN          LITTLE          /* byte order on the Cortex-M core */
+
+/* The BSD spellings, BYTE_ORDER and friends, and the conversions. */
+#include <machine/endian.h>
 
 /*
  * The time for a process to be blocked before being very swappable.

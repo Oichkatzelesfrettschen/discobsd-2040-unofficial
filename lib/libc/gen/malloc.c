@@ -59,22 +59,12 @@ char *s;
  * Different implementations may need to redefine ALIGN, NALIGN, BLOCK,
  * BUSY, INT where INT is integer type to which a pointer can be cast.
  *
- * The tag lives in bit 0 of a pointer value, so the integer that carries a
- * pointer has to hold every bit of it: uintptr_t, not int. A 32-bit target
- * cannot tell the two apart; a 64-bit host running this file as a test can,
- * and truncating a pointer through int there returns a different pointer.
+ * malloc_store.h holds the block header and the busy tag, which
+ * aligned_alloc.c shares.
  */
-#define	INT		uintptr_t
-#define	ALIGN		int
-#define	NALIGN		1
-#define	WORD		sizeof(union store)
+#include "malloc_store.h"
+
 #define	BLOCK		1024	/* a multiple of WORD */
-
-#define	BUSY		1
-
-#define	testbusy(p)	((INT)(p)&BUSY)
-#define	setbusy(p)	(union store *)((INT)(p)|BUSY)
-#define	clearbusy(p)	(union store *)((INT)(p)&~(INT)BUSY)
 
 /*
  * The largest request the arithmetic below can carry. A request is rounded
@@ -87,12 +77,6 @@ char *s;
  * that would hold it does not exist on the target either.
  */
 #define	MAXBYTES	((size_t)INT_MAX / 2 - BLOCK - 2 * WORD)
-
-union store {
-	union store	*ptr;
-	ALIGN		dummy[NALIGN];
-	int		calloc;	/* calloc clears an array of integers */
-};
 
 static union store	allocs[2];	/* initial arena */
 static union store	*allocp;	/* search ptr */

@@ -46,11 +46,11 @@
  * directive as converted, which is what the V7 scanner did whenever its
  * HAVE_FLOAT conditional went undefined.
  *
- * Conversions are 32-bit: this target's long, size_t, ptrdiff_t,
- * intmax_t and pointers are four bytes, so z, j and t select the
- * accumulator that l already selects. The ll and L modifiers select no
- * wider accumulator, matching _doprnt, whose value model is a single l
- * flag over unsigned long.
+ * Conversions are 32-bit: this target's long, size_t, ptrdiff_t and
+ * pointers are four bytes, so z and t select the accumulator that l
+ * already selects. The ll, j and L modifiers select no wider accumulator,
+ * so a long long or intmax_t destination receives its low word alone;
+ * <inttypes.h> therefore defines no fscanf macro for a 64-bit type.
  */
 
 #include <stdio.h>

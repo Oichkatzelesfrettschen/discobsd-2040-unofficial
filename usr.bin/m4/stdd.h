@@ -55,6 +55,4 @@
 #define YES 1
 #define NO 0
 
-#define	__P(protos)	()
-
 extern	int	errno;

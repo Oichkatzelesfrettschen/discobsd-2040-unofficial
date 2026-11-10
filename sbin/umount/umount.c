@@ -271,7 +271,7 @@ maketypelist(fslist)
 		which = IN_LIST;
 
 	/* Count the number of types. */
-	for (i = 0, nextcp = fslist; *nextcp != NULL; ++nextcp)
+	for (i = 0, nextcp = fslist; *nextcp != '\0'; ++nextcp)
 		if (*nextcp == ',')
 			i++;
 

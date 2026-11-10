@@ -71,7 +71,7 @@ static struct opt {
 	{ MNT_QUOTA,		"with quotas" },
 	{ MNT_RDONLY,		"read-only" },
 	{ MNT_SYNCHRONOUS,	"synchronous" },
-	{ NULL }
+	{ 0 }
 };
 
 int

@@ -256,3 +256,4 @@ swap_exchange_inplace_*.mutant.c
 swap_exchange_inplace_*.mutant.o
 swap_exchange_inplace_*.mutant.test
 swap_exchange_inplace_*.mutant.out
+v7-format-work/

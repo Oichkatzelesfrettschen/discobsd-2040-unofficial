@@ -2952,7 +2952,19 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
+# The V7 format descriptor: the inode layer built with V7FS, the NetBSD
+# core in usr.sbin/v7fs and v7_check.py must agree on one volume, and
+# each mutant of the kernel sources must break the agreement.
+V7_FORMAT_WORK=	v7-format-work
+check-v7-format: ${MACHINE_STAMP} v7_format_check.sh v7_format_test.c \
+    v7_format_host.c v7_format_mutate.py v7_check.py hostkern.c
+	${MAKE} -C ${TOPSRC}/usr.sbin/v7fs host
+	rm -rf ${V7_FORMAT_WORK}
+	PYTHON=${PYTHON:Q} HOST_CC=${HOST_CC:Q} \
+	    sh v7_format_check.sh ${TOPSRC:Q} ${V7_FORMAT_WORK}
+
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
+    check-v7-format \
 	check-swap-exchange-headroom check-swap-exchange-inplace \
     check-credential-sanitizer \
     check-rwuio-mutants check-rwuio-sanitizer \
@@ -2969,6 +2981,7 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
 	done
 
 clean:
+	rm -rf ${V7_FORMAT_WORK}
 	rm -f pipe_rw_function.c pipe_rw_contract32 pipe_rw_contract_single32 \
 	    pipe_rw_*.mutant.c pipe_rw_*.mutant32.test
 	rm -f ${FORK_SWAP_FUNCTIONS} fork_swap_test fork_swap_test_compact \

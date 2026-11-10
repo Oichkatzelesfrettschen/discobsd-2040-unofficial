@@ -225,12 +225,26 @@ found:
     mp->m_inodp = ip;   /* reserve slot */
     mp->m_dev = dev;
     fs = &mp->m_filsys;
+#ifdef V7FS
+    mp->m_geom = &fs_geom_table[FS_FORMAT_NATIVE];
+    if (flags & MNT_V7) {
+        /* The V7 superblock is the second 512 bytes of the volume. */
+        error = v7_sbload(fs, (u_char *)tp->b_addr + 512);
+        brelse (tp);
+        tp = 0;
+        if (error)
+            goto out;
+        mp->m_geom = &fs_geom_table[FS_FORMAT_V7];
+    } else
+#endif
+    {
     bcopy (tp->b_addr, (caddr_t)fs, sizeof(struct fs));
     brelse (tp);
     tp = 0;
     if (fs->fs_magic1 != FSMAGIC1 || fs->fs_magic2 != FSMAGIC2) {
         error = EINVAL;
         goto out;
+    }
     }
     fs->fs_ronly = (ronly != 0);
     if (ronly == 0)

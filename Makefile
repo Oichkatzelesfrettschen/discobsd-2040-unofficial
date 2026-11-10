@@ -1168,6 +1168,9 @@ check-netbsd-imports: check-python
 check-v7fs-core: check-python
 		${MAKE} -C tests/v7fs_core check PYTHON=${PYTHON:Q}
 
+check-v7-format: check-python
+		${MAKE} -C tests/kernel check-v7-format PYTHON=${PYTHON:Q}
+
 check-msdosfs-core: check-python
 		${MAKE} -C tests/msdosfs_core check PYTHON=${PYTHON:Q}
 

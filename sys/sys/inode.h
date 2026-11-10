@@ -79,6 +79,14 @@ struct inode {
     } i_un1;
     union {
         daddr_t I_addr[NADDR];      /* normal file/directory */
+#ifdef V7FS
+        /*
+         * A V7 inode's thirteen addresses, each below V7_ADDR_ESCAPE or
+         * that value, which sends the reader to the disk inode
+         * (v7_addr_get() in kern/ufs_v7.c).
+         */
+        u_short I_a16[13];
+#endif
         struct {
             daddr_t I_db[NDADDR];   /* normal file/directory */
             daddr_t I_ib[NIADDR];
@@ -135,6 +143,7 @@ struct dinode {
 #define i_ctime     i_ic2.ic_ctime
 #define i_rdev      i_un2.i_d.I_rdev
 #define i_addr      i_un2.I_addr
+#define i_a16       i_un2.I_a16
 #define i_dummy     i_un2.i_d.I_dummy
 #define i_lastr     i_un3.if_lastr
 #ifndef LINEAR_INODE_CACHE

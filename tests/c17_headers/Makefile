@@ -3,6 +3,8 @@ include ${TOPSRC}/share/mk/sys.mk
 
 # Strict C17 translation of the public headers for the selected target.  -I
 # rather than -isystem keeps the headers themselves under -pedantic-errors.
+# Each contract compiles to an object, because -fsyntax-only stops before
+# the flow analysis that -Wreturn-type reports from.
 TARGET_CC=	${GCCPREFIX}-gcc
 TARGET_FLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror \
 		-Wstrict-prototypes -Wmissing-prototypes \
@@ -10,8 +12,9 @@ TARGET_FLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror \
 		-nostdinc -I${TOPSRC}/include
 MUTATE=		${PYTHON} ${.CURDIR}/mutate.py
 
-HEADER_CONTRACTS=	stddef_contract stdalign_contract
-HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas
+HEADER_CONTRACTS=	stddef_contract stdalign_contract stdnoreturn_contract
+HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
+			stdnoreturn_empty
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -33,18 +36,26 @@ stdalign_weak_alignas.mutant:
 	    "#define alignas			_Alignas" "#define alignas(x)"
 stdalign_weak_alignas.contract= stdalign_contract
 
+# A noreturn that expands to nothing leaves a declaration that still
+# parses; the missing return then reaches -Wreturn-type.
+stdnoreturn_empty.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/stdnoreturn.h $@/stdnoreturn.h \
+	    "#define noreturn	_Noreturn" "#define noreturn"
+stdnoreturn_empty.contract= stdnoreturn_contract
+
 check-cross: check-header-contracts check-header-mutants
 
 check-header-contracts:
 .for contract in ${HEADER_CONTRACTS}
-	${TARGET_CC} ${TARGET_FLAGS} -fsyntax-only ${contract}.c
+	${TARGET_CC} ${TARGET_FLAGS} -c -o ${contract}.o ${contract}.c
 .endfor
 	@echo "c17 headers: ${HEADER_CONTRACTS} translate as strict C17"
 
 check-header-mutants: ${HEADER_MUTANTS:S/$/.mutant/}
 .for mutant in ${HEADER_MUTANTS}
-	@if ${TARGET_CC} -I${mutant}.mutant ${TARGET_FLAGS} -fsyntax-only \
-	    ${${mutant}.contract}.c >${mutant}.log 2>&1; then \
+	@if ${TARGET_CC} -I${mutant}.mutant ${TARGET_FLAGS} -c \
+	    -o ${mutant}.o ${${mutant}.contract}.c >${mutant}.log 2>&1; then \
 		echo "c17 headers: mutant ${mutant} translated" >&2; exit 1; \
 	fi
 	@grep -q 'error' ${mutant}.log || { cat ${mutant}.log >&2; exit 1; }

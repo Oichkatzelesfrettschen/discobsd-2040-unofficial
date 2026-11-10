@@ -597,6 +597,11 @@ check-libc-difftime-cross:
 check-libc-contracts:
 		${MAKE} -C tests/libc_contracts check
 
+check-libc-assert: check-python
+		HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q} ${PYTHON} tests/libc_contracts/assert_check.py
+		HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q}' -DDISCOBSD_ASSERT_TEST=1' \
+		    ${PYTHON} tests/libc_contracts/assert_check.py
+
 check-libc-host-contracts:
 		${MAKE} -C tests/libc_contracts check-host
 
@@ -1228,7 +1233,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
-		check-libc-host-contracts \
+		check-libc-host-contracts check-libc-assert \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \

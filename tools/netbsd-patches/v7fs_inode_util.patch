@@ -1,0 +1,20 @@
+--- a/sys/fs/v7fs/v7fs_inode_util.c
++++ b/sys/fs/v7fs/v7fs_inode_util.c
+@@ -43,6 +43,7 @@
+ #include <sys/systm.h>
+ #include <sys/param.h>
+ #else
++#include <errno.h>
+ #include <stdio.h>
+ #include <time.h>
+ #endif
+@@ -110,8 +111,7 @@
+ 
+ 		if (!(buf = scratch_read(fs, i))) {
+ 			DPRINTF("block %zu I/O error.\n", i);
+-			k += V7FS_INODE_PER_BLOCK;
+-			continue;
++			return EIO;
+ 		}
+ 		di = (struct v7fs_inode_diskimage *)buf;
+ 		for (j = 0; j < V7FS_INODE_PER_BLOCK; j++, k++) {

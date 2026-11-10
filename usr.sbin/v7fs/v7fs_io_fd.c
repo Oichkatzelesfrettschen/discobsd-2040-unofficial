@@ -8,10 +8,11 @@
  *
  * RAM: one static struct v7fs_self (three 512-byte scratch blocks, the
  * in-core superblock and the I/O and byte-order operations) and one static
- * descriptor record, about 2 KB in .bss, and nothing from malloc. The core
+ * descriptor record, about 2 KB in .bss. The core
  * is built with STATIC_BUFFER, so scratch_read() draws from the three blocks
  * the NetBSD kernel also sizes for, and a request beyond them returns NULL,
- * which every caller turns into EIO. One file system is open at a time; a
+ * whose callers use error returns, sentinels, or other control paths. One
+ * file system is open at a time; a
  * second v7fs_io_init() before v7fs_io_fini() fails with EBUSY.
  *
  * Every sector number is checked against the device size before the seek,

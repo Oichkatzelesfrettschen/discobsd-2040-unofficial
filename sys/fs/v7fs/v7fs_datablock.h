@@ -41,6 +41,8 @@ v7fs_daddr_t v7fs_datablock_last(struct v7fs_self *, struct v7fs_inode *,
     v7fs_off_t);
 int v7fs_datablock_expand(struct v7fs_self *, struct v7fs_inode *, size_t);
 int v7fs_datablock_contract(struct v7fs_self *, struct v7fs_inode *, size_t);
+int v7fs_datablock_contract_status(struct v7fs_self *, struct v7fs_inode *,
+    size_t, bool *);
 int v7fs_datablock_size_change(struct v7fs_self *, size_t, struct v7fs_inode *);
 
 struct v7fs_daddr_map {

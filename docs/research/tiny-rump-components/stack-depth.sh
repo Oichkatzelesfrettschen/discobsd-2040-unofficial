@@ -10,7 +10,8 @@
 # OUTDIR ($STACK_OUTDIR, or a fresh mktemp directory; it must be absent or
 # empty), collects the address-taken functions from the R_ARM_ABS32
 # relocations, bounds each libc callee from the linked listing, and prints
-# the deepest chain from main. stack_depth.py documents both analyses.
+# the deepest chain from main, conservative and parameter-scoped.
+# stack_depth.py documents the analyses.
 set -eu
 
 PYTHON=${PYTHON:?set PYTHON to the intended interpreter}
@@ -71,6 +72,14 @@ comm -23 "$out/targets.txt" "$out/nodes.txt" | grep -v '^__indirect_call$' \
 "$PYTHON" "$here/stack_depth.py" frames --callback _fwalk=fflush \
     "$listing" $(cat "$out/libc.txt") >"$out/extern.txt"
 
+for o in "$out"/*.o; do
+	arm-none-eabi-objdump -dr "$o"
+done >"$out/objects.dis"
+
 (cd "$src" && arm-none-eabi-gcc --version | head -n 1)
+echo "conservative (every foreach site reaches every callback):"
 "$PYTHON" "$here/stack_depth.py" chain "$src" main "$out/taken.txt" \
     "$out/extern.txt" "$out"/*.ci
+echo "parameter-scoped (a site reaches only callbacks passed down to it):"
+"$PYTHON" "$here/stack_depth.py" chain --loads "$out/objects.dis" "$src" \
+    main "$out/taken.txt" "$out/extern.txt" "$out"/*.ci

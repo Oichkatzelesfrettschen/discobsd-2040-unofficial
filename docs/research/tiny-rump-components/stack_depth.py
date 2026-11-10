@@ -12,15 +12,25 @@ frames [--callback FN=TARGET]... LISTING NAME...
     fflush(NULL) walks the streams through _fwalk back into fflush) counts
     once.
 
-chain SRCDIR ROOT TAKEN EXTERN CI...
+chain [--loads LISTING] SRCDIR ROOT TAKEN EXTERN CI...
     Print the deepest path from ROOT over GCC -fcallgraph-info=su files.
     Each __indirect_call edge resolves by the source text at its call site:
     the block I/O pointers reach the backend's read and write functions,
-    the foreach callbacks reach every address-taken callback, and the
+    the foreach callbacks reach the address-taken callbacks, and the
     byte-order pointers reach the address-taken val* functions. TAKEN lists
     the address-taken functions; EXTERN holds "NAME BYTES" lines for
     callees outside the call-graph files. SRCDIR resolves relative source
     paths in the call-site labels. A callee absent from both exits 1.
+    Without --loads a foreach site may reach every callback. With --loads,
+    an objdump -dr listing of the objects, a function's R_ARM_ABS32
+    relocations name the callbacks it loads. A function whose definition
+    has a function-pointer parameter (a forwarder) inherits its caller's
+    callbacks, and any other function holds only the callbacks it loads,
+    so a foreach site reaches only callbacks passed down to it through
+    forwarders; a site with none in scope exits 1. The rule assumes
+    callbacks travel only as parameters: the I/O and byte-order pointers,
+    the program's only function-pointer struct members, are resolved by
+    their own groups.
 """
 
 from __future__ import annotations
@@ -32,6 +42,7 @@ from pathlib import Path
 FUNC_RE = re.compile(r"^([0-9a-f]+) <([^>]+)>:$")
 INSN_RE = re.compile(r"^\s*[0-9a-f]+:\s+(?:[0-9a-f]{4}\s+){1,2}\s*(\S+)\s*(.*)$")
 NODE_RE = re.compile(r'node: \{ title: "([^"]+)" label: "[^"]*?\\n[^"]*?\\n(\d+) bytes \(static\)')
+NODE_LOC_RE = re.compile(r'node: \{ title: "([^"]+)" label: "[^"\\]*\\n([^"\\]+):(\d+):\d+\\n')
 DYNAMIC_RE = re.compile(r'node: \{ title: "([^"]+)" label: "[^"]*dynamic')
 EDGE_RE = re.compile(
     r'edge: \{ sourcename: "([^"]+)" targetname: "([^"]+)" '
@@ -138,9 +149,32 @@ def site_group(srcdir: Path, path: str, line: int) -> str:
     raise SystemExit(f"stack_depth: unclassified indirect call {path}:{line}")
 
 
-def chain(srcdir: str, root: str, taken_file: str, extern_file: str, cis: list[str]) -> int:
+def callback_loads(listing: str) -> dict[str, set[str]]:
+    """Map each function in an objdump -dr listing to the callbacks it loads."""
+    loads: dict[str, set[str]] = {}
+    current = None
+    for line in Path(listing).read_text(encoding="utf-8", errors="replace").splitlines():
+        match = FUNC_RE.match(line)
+        if match:
+            current = match.group(2)
+            continue
+        match = re.search(r"R_ARM_ABS32\s+(\S+)", line)
+        if match and current is not None and match.group(1) in CALLBACK_TARGETS:
+            loads.setdefault(current, set()).add(match.group(1))
+    return loads
+
+
+def chain(argv: list[str]) -> int:
+    loads_by_name: dict[str, set[str]] | None = None
+    if argv[:1] == ["--loads"]:
+        loads_by_name = callback_loads(argv[1])
+        argv = argv[2:]
+    if len(argv) < 5:
+        raise SystemExit(__doc__)
+    srcdir, root, taken_file, extern_file, *cis = argv
     frame: dict[str, int] = {}
     calls: dict[str, set[str]] = {}
+    forwarders: set[str] = set()
     for path in cis:
         text = Path(path).read_text(encoding="utf-8")
         dynamic = DYNAMIC_RE.findall(text)
@@ -148,6 +182,16 @@ def chain(srcdir: str, root: str, taken_file: str, extern_file: str, cis: list[s
             raise SystemExit(f"stack_depth: dynamic frame in {dynamic}")
         for name, size in NODE_RE.findall(text):
             frame[name] = int(size)
+        for name, npath, nline in NODE_LOC_RE.findall(text):
+            source = Path(npath) if Path(npath).is_absolute() else Path(srcdir) / npath
+            lines = source.read_text(encoding="utf-8").splitlines()[int(nline) - 1 :]
+            head = ""
+            for line in lines:
+                head += line
+                if "{" in line:
+                    break
+            if "(*" in head:
+                forwarders.add(name)
         for src, dst, spath, sline in EDGE_RE.findall(text):
             if dst == "__indirect_call":
                 dst = "__indirect_" + site_group(Path(srcdir), spath, int(sline))
@@ -170,18 +214,28 @@ def chain(srcdir: str, root: str, taken_file: str, extern_file: str, cis: list[s
         if line.strip():
             name, size = line.split()
             extern[name] = int(size)
-    memo: dict[str, tuple[int, list[str]]] = {}
+    loads = {
+        title: {t for n in names for t in bare.get(n, [])}
+        for name, names in (loads_by_name or {}).items()
+        for title in bare.get(name, [])
+    }
+    memo: dict[tuple[str, frozenset[str]], tuple[int, list[str]]] = {}
     active: set[str] = set()
 
-    def depth(fn: str) -> tuple[int, list[str]]:
-        if fn in memo:
-            return memo[fn]
+    def depth(fn: str, scope: frozenset[str] = frozenset()) -> tuple[int, list[str]]:
         if fn.startswith("__indirect_"):
             group = fn[len("__indirect_") :]
-            if not members[group]:
-                raise SystemExit(f"stack_depth: empty indirect group {group}")
-            best = max((depth(t) for t in members[group]), key=lambda r: r[0])
+            targets = members[group]
+            if group == "callback" and loads_by_name is not None:
+                targets = [t for t in targets if t in scope]
+            if not targets:
+                raise SystemExit(f"stack_depth: no {group} target in scope")
+            best = max((depth(t, scope) for t in targets), key=lambda r: r[0])
             return best[0], [f"({group})", *best[1]]
+        inherited = scope if fn in forwarders else frozenset()
+        scope = inherited | frozenset(loads.get(fn, ()))
+        if (fn, scope) in memo:
+            return memo[(fn, scope)]
         if fn not in frame:
             if fn in extern:
                 return extern[fn], [f"{fn}[libc {extern[fn]}]"]
@@ -191,15 +245,17 @@ def chain(srcdir: str, root: str, taken_file: str, extern_file: str, cis: list[s
         active.add(fn)
         best: tuple[int, list[str]] = (0, [])
         for callee in sorted(calls.get(fn, ())):
-            result = depth(callee)
+            result = depth(callee, scope)
             if result[0] > best[0]:
                 best = result
         active.discard(fn)
         short = fn.rsplit("/", 1)[-1]
-        memo[fn] = (frame[fn] + best[0], [f"{short}[{frame[fn]}]", *best[1]])
-        return memo[fn]
+        memo[(fn, scope)] = (frame[fn] + best[0], [f"{short}[{frame[fn]}]", *best[1]])
+        return memo[(fn, scope)]
 
     total, path = depth(root)
+    if loads_by_name is not None:
+        print("forwarders:", " ".join(sorted(f.rsplit(":", 1)[-1] for f in forwarders)))
     print(f"{root} {total}")
     print(" -> ".join(path))
     return 0
@@ -208,8 +264,8 @@ def chain(srcdir: str, root: str, taken_file: str, extern_file: str, cis: list[s
 def main(argv: list[str]) -> int:
     if argv and argv[0] == "frames":
         return frames(argv[1:])
-    if len(argv) >= 5 and argv[0] == "chain":
-        return chain(argv[1], argv[2], argv[3], argv[4], argv[5:])
+    if argv and argv[0] == "chain":
+        return chain(argv[1:])
     raise SystemExit(__doc__)
 
 

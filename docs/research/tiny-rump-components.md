@@ -265,7 +265,7 @@ retained target disassembly contains `malloc`, `calloc`, `realloc`, and
 `free` symbols, so symbol presence alone establishes neither a call nor its
 absence.
 
-The cross-built program's stack is bounded at 3,448 bytes from `main`.
+The cross-built program's stack is bounded at 2,288 bytes from `main`.
 `docs/research/tiny-rump-components/stack-depth.sh` recompiles the
 thirteen sources with the Makefile's flags plus `-fstack-usage
 -fcallgraph-info=su` and walks the call graph. Each indirect call resolves
@@ -277,11 +277,24 @@ from the linked listing `usr.sbin/v7fs/v7fs.dis`, whose push and `sub sp`
 frames match the compiler's `.su` figure for every v7fs function except the
 two whose frames exceed 508 bytes. Thumb-1 allocates those through a
 register, and the script refuses them rather than guess, so their figures
-come from `.su`. The deepest chain is `main` (264), `cmd_put` (424),
-`cmd_rm` (400), `v7fs_file_deallocate`, `v7fs_directory_remove_entry`, the
-lookup's `foreach`, the `list_block` callback (672) and `printf` (968). It
-overstates the real maximum, because only `cmd_ls` passes `list_block`.
-Every frame is static, and no function recurses. The bound excludes the
+come from `.su`. Letting every `foreach` site reach every callback gives
+3,448 bytes, through `main` (264), `cmd_put` (424), `cmd_rm` (400),
+`v7fs_file_deallocate`, `v7fs_directory_remove_entry`, the lookup's
+`foreach`, the `list_block` callback (672) and `printf` (968). The script
+then scopes callbacks by parameter: a function whose definition has a
+function-pointer parameter inherits its caller's callbacks, and the four
+such forwarders are `v7fs_datablock_foreach`, `v7fs_loop1`, `v7fs_loop2`
+and `v7fs_ilist_foreach`. Every other function holds only the callbacks
+its own `R_ARM_ABS32` relocations load. The I/O and byte-order pointers
+are the program's only function-pointer struct members, and they resolve
+by their own groups. Under that rule the bound is 2,288 bytes:
+`cmd_rm`'s directory removal, `v7fs_directory_add_checked`,
+`v7fs_datablock_expand`, `v7fs_rollback_block`, `v7fs_inode_writeback`,
+`scratch_read` and the backend's `fd_transfer`. Two calibrations hold.
+Injecting a `list_block` load into `v7fs_file_lookup_by_name` raises the
+scoped bound back to 3,448 bytes. Removing the `lookup_subr` load leaves a
+callback site with nothing in scope, and the script exits 1. Every frame is
+static, and no function recurses. The bound excludes the
 32-byte exception frame the hardware stacks on the process stack. Against
 the 192 KiB window, which the program's 24,618 bytes of text, 360 of data
 and 2,356 of bss share with its heap (ARM GCC 16.2.0, `-Os`, over

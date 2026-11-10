@@ -21,6 +21,13 @@ prf_kernel.o
 prf_shim.o
 hostkern32.o
 prf_test
+prf_log_test
+readlink_test
+readlink_functions.c
+readlink.mutant.c
+readlink.mutant.test
+prf_log.mutant.c
+prf_log.mutant.test
 sigauth_test
 sigauth_sig.o
 sigauth_prot2.o

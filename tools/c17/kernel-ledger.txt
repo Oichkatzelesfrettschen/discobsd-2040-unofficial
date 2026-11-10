@@ -87,10 +87,6 @@ sys/kern/subr_log.c definition logread scan
 sys/kern/subr_log.c definition logselect scan
 sys/kern/subr_log.c definition logwakeup scan
 sys/kern/subr_log.c definition logwrt scan
-sys/kern/subr_prf.c definition logpri both
-sys/kern/subr_prf.c definition panic both
-sys/kern/subr_prf.c definition prf both
-sys/kern/subr_prf.c definition putchar both
 sys/kern/subr_rmap.c definition malloc both
 sys/kern/subr_rmap.c definition malloc3 both
 sys/kern/subr_rmap.c definition malloc3_contiguous both

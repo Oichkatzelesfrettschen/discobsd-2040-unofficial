@@ -1284,10 +1284,9 @@ check-fs-profiles:	check-python .WAIT
 
 check-host:	check-python .WAIT symlinks .WAIT ${HOST_GATES} ${HOST_PROGRAM_GATES}
 
-# sys/kern/subr_prf.c walks its arguments as four-byte slots, so the kernel's
-# own printf is faithful only at ILP32. The gate is an ordinary 32-bit
-# userspace binary, not a virtual machine: what it needs is the width of a
-# pointer. A host that cannot build 32-bit says so and skips.
+# The kernel formatter and neighboring contracts use target-width integer and
+# pointer assumptions. The gate runs them in a 32-bit userspace binary. A host
+# that cannot build 32-bit says so and skips.
 check-kernel-ilp32:
 		${MAKE} -C tests/kernel check-ilp32
 

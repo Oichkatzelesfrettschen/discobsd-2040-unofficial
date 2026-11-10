@@ -291,11 +291,6 @@ output_routing(void)
 	HK_CHECK(hk_streq(terminal, "a\r\n"));
 }
 
-/*
- * panic prints its message and ends in boot(). A second panic while the
- * first is still recorded adds RB_NOSYNC, because syncing the disks from a
- * panic is what turns one panic into a recursive pair.
- */
 static void
 first_panic(void)
 {
@@ -308,6 +303,11 @@ second_panic(void)
 	panic("and again");
 }
 
+/*
+ * panic prints its message and ends in boot(). A second panic while the
+ * first is still recorded adds RB_NOSYNC, because syncing the disks from a
+ * panic is what turns one panic into a recursive pair.
+ */
 static void
 panic_path(void)
 {

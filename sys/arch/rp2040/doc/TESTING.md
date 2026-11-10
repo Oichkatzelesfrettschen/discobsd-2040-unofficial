@@ -160,7 +160,13 @@ receipts and the shared total deadline. Its test helper carries a separate
 five-second deadline. The sequence fixtures calibrate live build state,
 deadline exhaustion without a successor launch, unresolved launch reservations
 blocking the successor and both interstage signal windows. A FIFO fixture
-calibrates pre-launch rejection. The gate rejects
+calibrates pre-launch rejection. `run_logged_gate_test.py` removes the
+inherited ownership environment before its fixtures run, because the runner
+registers every nested launch with each enclosing owner and an injected
+registration failure leaves that reservation pending. A fixture runs three
+failure-injection tests under a disposable outer owner and requires its
+record to end released with no group, pending launch or quarantine receipt.
+The gate rejects
 firmware workflow changes that remove bounded active commands or retained logs.
 `recover_logged_execution_test.py` calibrates missing operator confirmation,
 recovery evidence retained before ownership release, live-group refusal and

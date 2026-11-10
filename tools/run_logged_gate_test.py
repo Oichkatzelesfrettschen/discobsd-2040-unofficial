@@ -18,6 +18,28 @@ import run_logged_gate as runner
 ROOT = Path(__file__).resolve().parent.parent
 RUNNER = ROOT / "tools/run_logged_gate.py"
 TEST_HELPER_TIMEOUT_SECONDS = 5
+NESTED_SUITE_TIMEOUT_SECONDS = 20
+OWNERSHIP_ENVIRONMENT = (
+    runner.OWNERSHIP_PATH_ENV,
+    runner.OWNERSHIP_INVOCATION_ENV,
+    runner.OWNERSHIP_ANCESTORS_ENV,
+)
+
+
+def setUpModule():
+    """Detach every fixture from an enclosing execution owner.
+
+    Fixtures run gates in this process with registration, cleanup and
+    receipt failures injected.  ancestor_execution_ownerships() reads the
+    inherited ownership environment, so a logged target that runs this file
+    would receive each fixture launch as an ancestor reservation and retain
+    the one an injected registration failure leaves pending.
+    """
+    environment = mock.patch.dict(os.environ)
+    environment.start()
+    unittest.addModuleCleanup(environment.stop)
+    for name in OWNERSHIP_ENVIRONMENT:
+        os.environ.pop(name, None)
 
 
 class LoggedGateTest(unittest.TestCase):
@@ -1063,6 +1085,43 @@ class LoggedGateTest(unittest.TestCase):
         )
         self.assertEqual(ownership["state"], "released")
         self.assertEqual(ownership["pending_launches"], [])
+
+    def test_failure_injection_fixtures_cannot_reach_outer_ownership(self):
+        execution_lock = self.directory / "products.lock"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(RUNNER),
+                "--label", "gate-fixture-ownership",
+                "--log", str(self.log),
+                "--status", str(self.status),
+                "--execution-lock", str(execution_lock),
+                "--heartbeat-seconds", "0.05",
+                "--idle-timeout-seconds", "10",
+                "--timeout-seconds", "15",
+                "--",
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "LoggedGateTest."
+                "test_registration_error_with_incomplete_cleanup_blocks_successor",
+                "LoggedGateTest."
+                "test_quarantine_write_failure_retains_prelaunch_ownership_barrier",
+                "LoggedGateTest.test_log_failure_stops_the_launched_process_group",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=NESTED_SUITE_TIMEOUT_SECONDS,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        ownership = json.loads(
+            Path(f"{execution_lock}.ownership.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(ownership["state"], "released")
+        self.assertEqual(ownership["pending_launches"], [])
+        self.assertEqual(ownership["process_groups"], [])
+        self.assertFalse(Path(f"{execution_lock}.quarantine.json").exists())
 
     def test_ownership_finalization_failure_publishes_terminal_error(self):
         execution_lock = self.directory / "products.lock"

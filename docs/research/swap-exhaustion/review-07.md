@@ -236,14 +236,17 @@ The existing gates now describe the routeless invariant:
 - `check-fork-swap-refusal` removes resident-route setup, resize, transfer and
   release assertions. RAM-tier reservations now consume only pool capacity;
   ordinary flash image release wakes both `runout` and `runin`. The five build
-  shapes execute 51,861 assertions each in the compact, wide and diagnostic
-  configurations, 51,867 with a full descriptor map and 435 in the unaligned
-  fixture. The 26 aligned reservation, publication, release, result and
+  shapes execute 51,885 assertions each in the compact, wide and diagnostic
+  configurations, 51,891 with a full descriptor map and 435 in the unaligned
+  fixture. The 29 aligned reservation, publication, release, result and
   scheduler mutants and the two unaligned release mutants are rejected; the
   five owned-route mutant definitions left the mutation tool with their
-  anchors. The four scheduler mutants
+  anchors. The seven scheduler mutants
   reject loss of the resident `SLOAD` restoration, loss of run-queue
-  restoration, swap-in after refusal and reservation-free swapout.
+  restoration, swap-in after refusal, reservation-free swapout and, for the
+  candidate order of section 9, a sleep before the next candidate is tried,
+  reselection of a refused candidate and refusal marks kept across the
+  sleep.
 - `check-swapram-evac` removes departure-route transfer from spool coexistence,
   requires evacuation to allocate every flash extent before writes, and checks
   complete rollback with pool images preserved on five short maps. The exact

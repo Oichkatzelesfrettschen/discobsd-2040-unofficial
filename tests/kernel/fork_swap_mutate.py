@@ -123,8 +123,26 @@ MUTATIONS = {
         "",
     ),
     "sched-swapin-after-refusal": (
-        "            in_core = 0;\n            swapped_out = 0;\n            splhigh ();\n",
-        "            in_core = 0;\n            splhigh ();\n",
+        "            in_core = 0;\n            swapped_out = 0;\n            continue;\n",
+        "            in_core = 0;\n            continue;\n",
+    ),
+    # A refused candidate is passed over until sched() sleeps: sleeping
+    # straight after the refusal, or selecting the refused candidate again,
+    # leaves a candidate whose exchange fits untried, and marks that outlive
+    # the sleep leave the refused candidate out after capacity returns.
+    "sched-sleep-after-refusal": (
+        "            in_core = 0;\n            swapped_out = 0;\n            continue;\n",
+        "            in_core = 0;\n            swapped_out = 0;\n            splhigh ();\n"
+        "            ++runin;\n            sleep ((caddr_t) &runin, PSWP);\n"
+        "            continue;\n",
+    ),
+    "sched-reselect-refused": (
+        "            if (refusals && refused[rp - proc])\n                continue;\n",
+        "",
+    ),
+    "sched-keep-refused-marks": (
+        "            if (refusals) {\n                refusals = 0;\n",
+        "            if (refusals) {\n",
     ),
     # The reservation-free swapout of the scheduler before the refusal path.
     "sched-unreserved-swapout": (

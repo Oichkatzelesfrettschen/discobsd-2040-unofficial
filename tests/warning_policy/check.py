@@ -30,21 +30,34 @@ PROBES = {
         "int marker; int warning_probe(int marker) { return marker; }\n",
         "shadow",
     ),
-    "undef": (
-        "#if WARNING_POLICY_UNDEFINED\n#endif\n" + CONTROL,
-        "undef",
-    ),
     "format-nonliteral": (
         'extern int warning_printf(const char *, ...) __attribute__((format(printf, 1, 2)));\n'
         'int warning_probe(char *format) { return warning_printf(format, 1); }\n',
         "format-nonliteral",
     ),
+    # An undefined identifier in #if is 0 (C17 6.10.1), so an unshimmed
+    # BYTE_ORDER == BIG_ENDIAN is true on a little-endian target. -Wundef
+    # is the diagnostic that names it; GCC and clang share this wording.
+    "undef": (
+        "#if BYTE_ORDER == BIG_ENDIAN\n#endif\n" + CONTROL,
+        "is not defined, evaluates to",
+    ),
 }
+# The known-good side of the undef probe: with <sys/endian.h> in scope the
+# same comparison is defined and false, so the big-endian branch is dead
+# and the object builds. A route whose include path lost the header fails
+# here before the undef probe can mean anything.
+ENDIAN_CONTROL = (
+    "#include <sys/endian.h>\n"
+    "#if BYTE_ORDER == BIG_ENDIAN\n#error big-endian branch taken\n#endif\n"
+    "#if _BYTE_ORDER != _LITTLE_ENDIAN\n#error _BYTE_ORDER\n#endif\n"
+    + CONTROL
+)
 HOST_ROUTES = ("tools/binstall", "tools/config", "tools/fsutil", "share/zoneinfo")
 # Full routes compile clean under -Wall -Wextra, so share/mk/warnings.mk
-# makes both groups fatal there; legacy routes declare WARNLEVEL=legacy
-# before their sys.mk include and are held to -Werror alone. usr.bin/uucp
-# retains the largest open site count.
+# makes both groups and -Wundef fatal there; legacy routes declare
+# WARNLEVEL=legacy before their sys.mk include and are held to -Werror
+# alone. usr.bin/uucp retains the largest open site count.
 CROSS_ROUTES = ("bin/echo", "bin/sh", "usr.bin/smlrc", "lib/libc")
 LEGACY_ROUTES = ("usr.bin/uucp",)
 KERNEL_ROUTES = ("sys/arch/rp2040/compile/PICO", "sys/arch/rp2040/compile/PICO_UART")
@@ -84,6 +97,15 @@ def check_route(root, make, directory, overrides, kinds):
         control = run(argv, cwd)
         if control.returncode or not output.is_file():
             raise RuntimeError(f"{directory}: clean control failed:\n{control.stdout}")
+        if "undef" in kinds:
+            output.unlink(missing_ok=True)
+            source.write_text(ENDIAN_CONTROL)
+            control = run(argv, cwd)
+            if control.returncode or not output.is_file():
+                raise RuntimeError(
+                    f"{directory}: <sys/endian.h> control failed\n"
+                    f"command: {shlex.join(argv)}\n{control.stdout}"
+                )
         for kind in kinds:
             output.unlink(missing_ok=True)
             text, diagnostic = PROBES[kind]
@@ -197,7 +219,7 @@ def main():
         check_level_declarations(args.root)
     if args.tier == "cross":
         for directory in routes:
-            check_route(args.root, make, directory, [], ("wall", "extra"))
+            check_route(args.root, make, directory, [], ("wall", "extra", "undef"))
         for directory in LEGACY_ROUTES:
             check_legacy_route(args.root, make, directory)
         for directory in (*routes, *LEGACY_ROUTES):

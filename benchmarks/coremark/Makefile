@@ -24,7 +24,10 @@ ITERATIONS?=	6000
 # -D's, so FLAGS_STR reports the actual compile line without CFLAGS
 # referencing itself.
 CM_BASE_CFLAGS:=${CFLAGS}
-CFLAGS+=	-O2 -DITERATIONS=${ITERATIONS} \
+# The EEMBC sources test CORE_DEBUG, PROFILE_RUN, VALIDATION_RUN and
+# COMPILER_REQUIRES_SORT_RETURN with `#if` and leave them undefined; the
+# tree's -Wundef is suppressed here so the benchmark stays as published.
+CFLAGS+=	-O2 -Wno-undef -DITERATIONS=${ITERATIONS} \
 		-DFLAGS_STR='"${CM_BASE_CFLAGS} -O2"'
 
 OBJS=		core_list_join.o core_main.o core_matrix.o core_state.o \

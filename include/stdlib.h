@@ -59,6 +59,7 @@ typedef unsigned size_t;
 
 void    abort (void);
 int     abs (int);
+void    *aligned_alloc (size_t, size_t);
 int     atexit (void (*)(void));
 int     atoi (const char *);
 long    atol (const char *);
@@ -81,6 +82,21 @@ void    *reallocarray (void *, size_t, size_t);
 void    srand (unsigned);
 long    strtol (const char *, char **, int);
 unsigned long strtoul (const char *, char **, int);
+
+/*
+ * Smaller C, the native compiler, has no 64-bit integer type and no
+ * _Noreturn specifier.  It sees _Exit as an ordinary function and none of
+ * the long long conversions.
+ */
+#ifdef __SMALLER_C__
+void    _Exit (int);
+#else
+_Noreturn void _Exit (int);
+long long atoll (const char *);
+long long strtoll (const char *, char **, int);
+unsigned long long strtoull (const char *, char **, int);
+#endif
+
 int     system (const char *);
 
 int     putenv (char *string);

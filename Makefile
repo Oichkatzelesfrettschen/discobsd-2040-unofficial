@@ -733,6 +733,12 @@ check-libc-casefold: check-python
 check-libc-casefold-cross: check-python
 		${MAKE} -C tests/libc_casefold check-cross
 
+check-c17-headers: check-python
+		${MAKE} -C tests/c17_headers check-host
+
+check-c17-headers-cross: check-python
+		${MAKE} -C tests/c17_headers check-cross
+
 # The tree-libm variant compiles lib/libm against include/, whose
 # include/machine link the symlinks target creates.
 check-libcalc: check-python .WAIT symlinks
@@ -1165,6 +1171,12 @@ check-v7-format: check-python
 check-msdosfs-core: check-python
 		${MAKE} -C tests/msdosfs_core check PYTHON=${PYTHON:Q}
 
+# The inter-core rings and SIO FIFO doorbell of corering.c against a model
+# of the FIFO registers, under the address, undefined-behavior and thread
+# sanitizers, with sixteen mutants that must fail.
+check-corering:
+		${MAKE} -C tests/corering check
+
 # The rump-kernel size measurement behind docs/research/tiny-rump-components.md.
 # It needs a NetBSD checkout, which CI lacks, so it stays outside check:
 # NETBSD_SRC defaults to BSD_Workspace/netbsd-src beside the primary checkout,
@@ -1267,7 +1279,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
-		check-libc-host-contracts check-libc-assert \
+		check-libc-host-contracts check-libc-assert check-c17-headers \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
@@ -1286,6 +1298,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
 		check-netbsd-imports check-v7fs-core check-msdosfs-core \
+		check-corering \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
 		check-usb-reset check-usb-line-coding check-usb-cdc-requests \
@@ -1305,6 +1318,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-r
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \
+		check-c17-headers-cross \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-touch-contracts-cross \
@@ -1587,6 +1601,7 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libbn check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/dcbc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libc_contracts check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C tests/c17_headers check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_aout check
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
@@ -1772,6 +1787,7 @@ installfs:
 
 .PHONY: check-getwd-lifetime check-getwd-lifetime-cross
 
+.PHONY: check-c17-headers check-c17-headers-cross
 .PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn check-dcbc \
 	check-libcalc-cross check-libbn-cross
 

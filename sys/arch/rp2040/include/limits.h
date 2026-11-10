@@ -64,5 +64,10 @@
 #define LONG_MAX        2147483647L     /* max value for a long */
 #define LONG_MIN        (-2147483647L-1L)       /* min value for a long */
 
+/* C17 5.2.4.2.1: the long long limits are usable in #if directives. */
+#define ULLONG_MAX      0xffffffffffffffffULL   /* max value for an unsigned long long */
+#define LLONG_MAX       9223372036854775807LL   /* max value for a long long */
+#define LLONG_MIN       (-9223372036854775807LL-1LL)    /* min value for a long long */
+
 #define SSIZE_MAX       INT_MAX         /* max value for a ssize_t */
 #define SIZE_T_MAX      UINT_MAX        /* max value for a size_t */

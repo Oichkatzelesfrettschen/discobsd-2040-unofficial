@@ -50,7 +50,10 @@ CFLAGS += -DTIME
 #	-m386 -malign-loops=1 -malign-jumps=1 -malign-functions=1
 
 ## For Solaris 2, or general-purpose GCC 2.7.x
-OPTON = -O2 -fomit-frame-pointer -fforce-addr -ffast-math -Wall
+# Most rules below compile through OPTON alone, so it also carries the
+# -Wno-undef that answers the upstream `#if debug` tests, which leave the
+# name undefined and would otherwise trip the tree's -Wundef.
+OPTON = -O2 -fomit-frame-pointer -fforce-addr -ffast-math -Wall -Wno-undef
 
 ## Very generic
 #OPTON = -O

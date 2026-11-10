@@ -22,12 +22,12 @@ include ${TOPSRC}/share/mk/sys.mk
 STD=	a.out.h alloca.h ar.h assert.h \
 	ctype.h curses.h err.h \
 	fcntl.h float.h fnmatch.h fstab.h \
-	grp.h kmem.h lastlog.h libgen.h limits.h \
+	grp.h inttypes.h kmem.h lastlog.h libgen.h limits.h \
 	math.h mtab.h ndbm.h nlist.h \
 	paths.h psout.h pwd.h \
 	ranlib.h regexp.h \
 	setjmp.h sgtty.h \
-	stdarg.h stddef.h stdint.h stdio.h stdlib.h \
+	stdalign.h stdarg.h stddef.h stdint.h stdio.h stdlib.h stdnoreturn.h \
 	string.h strings.h struct.h syscall.h sysexits.h \
 	term.h time.h ttyent.h tzfile.h \
 	unistd.h utmp.h vis.h vmf.h

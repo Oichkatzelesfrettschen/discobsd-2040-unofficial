@@ -8,8 +8,13 @@ enabled(void)
 	return (assert(++enabled_count), enabled_count);
 }
 
+static_assert(sizeof(enabled_count) == sizeof(int), "enabled state");
+
 #define NDEBUG
 #include "assert.h"
+
+/* C17 7.2p3 keeps static_assert defined while NDEBUG disables assert. */
+static_assert(sizeof(char) == 1, "disabled state");
 
 static int
 disabled(void)
@@ -28,6 +33,7 @@ main(int argc, char **argv)
 {
 	int count = 0;
 
+	static_assert(sizeof(count) >= 2, "block scope");
 	(void)argv;
 	if (argc > 1)
 		assert(count != 0);

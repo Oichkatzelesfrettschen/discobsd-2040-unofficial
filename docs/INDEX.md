@@ -98,6 +98,7 @@ Grouped by what they investigate.
 | `rp2040-second-core.md` | how the port uses the RP2040's second core: big-lock SMP ruled out, DragonFly-style single-writer rings and MINIX-style supervision kept, three tiers and an ordered, falsifiable plan that fixes the single-core decoder first |
 | `rp2040-second-core-bsd-survey.md` | DragonFly LWKT and the MINIX 3 Reincarnation Server decomposed, multiprocessor and offload precedent across the BSD trees, and the candidate architecture with a falsifier per claim |
 | `rp2040-compiler-debug-optimization.md` | PICO optimization-level build and board timing evidence, compiler diagnostics, debug symbols and RP2040 measurement surfaces |
+| `rp2040-compiler-size-compatibility-scope.md` | the fixed-layout compiler compatibility and kernel-size repair boundary, measured callback and load-span failures, call-graph limits, resource denominator and falsifiable acceptance plan |
 | `rp2040-second-core-hardware.md` | core 1 launch, FIFOs, spinlocks, divider, interpolators and reset from the datasheet, the resources the port owns, and an emulated profile of the packed-executable decoder |
 | `rp2040-second-core-emulation/` | the sample program, host packer, decoder harness and Unicorn cycle model behind the 387 cycles per byte figure, with a build script that checks input hashes and recorded output |
 | `calculator-and-games-review.md` | advisory review of the calculator library, bignum library and fourfall before integration, with each finding's disposition |

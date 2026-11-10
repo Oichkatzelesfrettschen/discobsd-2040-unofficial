@@ -52,6 +52,7 @@
 
 #include "regmodel.h"
 
+#include <machine/board.h>
 #include <rp2040/dev/sd.h>
 #include <rp2040/dev/sdspi.h>
 
@@ -185,6 +186,13 @@ rawrw(dev_t dev, struct uio *uio, int flag __attribute__((unused)))
 }
 
 const char *panicstr;
+
+/* sdprobe() attaches only on the board that carries the SD socket. */
+int
+board_id(void)
+{
+	return BOARD_ID_PICOCALC;
+}
 
 void
 timeout(void (*fn)(char *) __attribute__((unused)),

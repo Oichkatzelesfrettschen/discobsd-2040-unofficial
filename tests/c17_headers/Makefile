@@ -5,6 +5,7 @@ include ${TOPSRC}/tools/qemu-arm.mk
 HOSTCC?=	cc
 STDLIB_DIR=	${TOPSRC}/lib/libc/stdlib
 GEN_DIR=	${TOPSRC}/lib/libc/gen
+STDIO_DIR=	${TOPSRC}/lib/libc/stdio
 
 # Strict C17 translation of the public headers for the selected target.  -I
 # rather than -isystem keeps the headers themselves under -pedantic-errors.
@@ -24,7 +25,7 @@ HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
 			stdnoreturn_empty limits_llong_min_short \
 			stdint_unsigned_max stdint_narrow_intmax \
 			inttypes_pri64_long inttypes_scn16_int \
-			inttypes_scn64_defined ctype_no_isblank
+			inttypes_scn64_long ctype_no_isblank
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -76,9 +77,8 @@ stdint_narrow_intmax.mutant:
 	    "typedef long                intmax_t;"
 stdint_narrow_intmax.contract= stdint_contract
 
-# The first two name a length modifier that disagrees with the type, which
-# -Wformat reports.  The third defines a 64-bit fscanf macro that _doscan
-# cannot honor.
+# Each names a length modifier that disagrees with the type, which -Wformat
+# reports.
 inttypes_pri64_long.mutant:
 	@rm -rf $@ && mkdir $@
 	${MUTATE} ${TOPSRC}/include/inttypes.h $@/inttypes.h \
@@ -89,12 +89,11 @@ inttypes_scn16_int.mutant:
 	${MUTATE} ${TOPSRC}/include/inttypes.h $@/inttypes.h \
 	    '#define SCNd16          "hd"' '#define SCNd16          "d"'
 inttypes_scn16_int.contract= inttypes_contract
-inttypes_scn64_defined.mutant:
+inttypes_scn64_long.mutant:
 	@rm -rf $@ && mkdir $@
 	${MUTATE} ${TOPSRC}/include/inttypes.h $@/inttypes.h \
-	    '#define SCNd32          "d"' \
-	    '#define SCNd32          "d"${.newline}#define SCNd64 "lld"'
-inttypes_scn64_defined.contract= inttypes_contract
+	    '#define SCNu64          "llu"' '#define SCNu64          "lu"'
+inttypes_scn64_long.contract= inttypes_contract
 
 # Without the prototype the contract's use of isblank is an implicit
 # declaration.
@@ -437,6 +436,8 @@ tolower.imports=
 toupper.imports=
 isascii.imports=
 IMPORT_GEN=	aligned_alloc isctype isblank tolower toupper isascii
+doscan_llong.imports=	_filbuf ungetc
+IMPORT_STDIO=	doscan_llong
 
 check-imports:
 	${TARGET_CC} ${IMPORT_FLAGS} -c -o divide_import_bad.o \
@@ -459,7 +460,13 @@ check-imports:
 	sh ${.CURDIR}/check_imports.sh ${GCCPREFIX}-nm import_${member}.o \
 	    ${${member}.imports}
 .endfor
-	@echo "c17 headers: ${IMPORT_STDLIB} ${IMPORT_GEN} import only their listed symbols"
+.for member in ${IMPORT_STDIO}
+	${TARGET_CC} ${IMPORT_FLAGS} -c -o import_${member}.o \
+	    ${STDIO_DIR}/${member}.c
+	sh ${.CURDIR}/check_imports.sh ${GCCPREFIX}-nm import_${member}.o \
+	    ${${member}.imports}
+.endfor
+	@echo "c17 headers: ${IMPORT_STDLIB} ${IMPORT_GEN} ${IMPORT_STDIO} import only their listed symbols"
 
 clean:
 	rm -rf *.mutant *.log *.o *.mutant.c *.mutant.test ctype_tree \

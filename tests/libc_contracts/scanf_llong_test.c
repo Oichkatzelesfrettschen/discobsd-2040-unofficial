@@ -404,6 +404,14 @@ main(void)
 	sweep("%jd", 10, 1, 0);
 	sweep("%qx", 16, 0, 0);
 
+	/* The <inttypes.h> spellings reach the same member. */
+	llv = 0;
+	r = db_sscanf("-9223372036854775808", "%" SCNd64, &llv);
+	check(r == 1 && llv == LLONG_MIN, "SCNd64 does not scan an int64_t");
+	ujv = 0;
+	r = db_sscanf("ffffffffffffffff", "%" SCNxMAX, &ujv);
+	check(r == 1 && ujv == UINTMAX_MAX, "SCNxMAX does not scan a uintmax_t");
+
 	if (failures == 0) {
 		(void)write(1, "scanf llong contracts: pass\n", 28);
 		return 0;

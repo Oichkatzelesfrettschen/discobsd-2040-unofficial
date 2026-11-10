@@ -64,9 +64,10 @@ build() {
 	    "$out"/*.o
 }
 
-# run BIN DIR: the whole agreement, in DIR. Returns 124 when the test
-# program outlives V7_RUN_SECONDS and another nonzero status on any
-# disagreement.
+# run BIN DIR: the whole agreement, in DIR. Returns 1 on a disagreement,
+# 124 when the test program outlives V7_RUN_SECONDS and 125 when it did
+# not reach a verdict: it could not load its inputs (status 2) or could
+# not be executed (126, 127).
 run() {
 	bin=$1
 	dir=$2
@@ -78,8 +79,12 @@ run() {
 		    "$bin" "$work/volume.img" out.img expect \
 		    /a="$work/a.bin" /b="$work/b.bin" /c="$work/c.bin" \
 		    /dir/d="$work/d.bin" >test.log 2>&1 || status=$?
-		[ "$status" -ne 124 ] || exit 124
-		[ "$status" -eq 0 ] || exit 1
+		case $status in
+		0) ;;
+		124) exit 124 ;;
+		2|126|127) exit 125 ;;
+		*) exit 1 ;;
+		esac
 		for f in expect/*; do
 			path=/$(basename "$f" | tr '%' '/')
 			case $path in
@@ -93,7 +98,8 @@ run() {
 			cmp -s got.tmp "$f" || exit 1
 		done
 		for pair in /a:a.bin /b:b.bin /c:c.bin /dir/d:d.bin; do
-			"$tool" get out.img "${pair%%:*}" got.tmp >/dev/null
+			"$tool" get out.img "${pair%%:*}" got.tmp >/dev/null ||
+			    exit 1
 			cmp -s got.tmp "$work/${pair##*:}" || exit 1
 		done
 		"$PYTHON" "$here/v7_check.py" out.img >check.log 2>&1 || exit 1
@@ -164,6 +170,10 @@ for m in "$work"/mutants/*/; do
 	fi
 	if [ "$status" -eq 124 ]; then
 		echo "FAIL v7-format mutant $name ran past $V7_RUN_SECONDS seconds" >&2
+		exit 1
+	fi
+	if [ "$status" -eq 125 ]; then
+		echo "FAIL v7-format mutant $name did not run to a verdict" >&2
 		exit 1
 	fi
 	echo "PASS v7-format mutant $name rejected"

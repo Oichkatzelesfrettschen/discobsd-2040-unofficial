@@ -76,6 +76,8 @@ static unsigned pool_age[POOL];
 static unsigned pool_clock;
 static unsigned held, held_peak;
 static daddr_t fail_blkno = -1;    /* a buffer block whose reads fail */
+static unsigned long bread_calls;
+static int bad_frees = -1;         /* counts refused frees when >= 0 */
 
 static void
 die(const char *what, long a, long b)
@@ -129,7 +131,9 @@ take(dev_t dev, daddr_t blkno)
     bp->b_flags = 0;
     bp->b_dev = dev;
     bp->b_blkno = blkno;
-    bp->b_resid = 0;
+    /* geteblk() hands out a buffer with the residual its last use left. */
+    if (dev != NODEV)
+        bp->b_resid = 0;
 got:
     bp->b_flags |= B_BUSY;
     bp->b_addr = pool_data[bp - pool];
@@ -157,6 +161,7 @@ bread(dev_t dev, daddr_t blkno)
     struct buf *bp = take(dev, blkno);
     unsigned long at = (unsigned long)blkno * DEV_BSIZE;
 
+    bread_calls++;
     if (blkno == fail_blkno) {
         bp->b_flags |= B_ERROR;
         return (bp);
@@ -300,8 +305,12 @@ uiomove(caddr_t cp, u_int n, struct uio *uio)
 int
 badblock(struct fs *fp, daddr_t bn)
 {
-    if (bn < 0 || (u_long)bn < fp->fs_isize || (u_long)bn >= fp->fs_fsize)
-        die("block outside the data area", bn, fp->fs_fsize);
+    if (bn < 0 || (u_long)bn < fp->fs_isize || (u_long)bn >= fp->fs_fsize) {
+        if (bad_frees < 0)
+            die("block outside the data area", bn, fp->fs_fsize);
+        bad_frees++;
+        return (1);
+    }
     return (0);
 }
 
@@ -707,6 +716,165 @@ hostile(void)
     u.u_error = 0;
 }
 
+/*
+ * More of the same: fields a V7 volume's writer chose that reach a
+ * write, an allocation or a count, and the device extent the superblock
+ * claims.
+ */
+static void
+foreign(void)
+{
+    struct fs *fs = &mp->m_filsys;
+    static unsigned char saved[512], got[16], raw[64];
+    static struct inode scratch_inode;
+    struct inode *ip;
+    struct buf *bp;
+    unsigned long bytes, calls, tfree;
+    daddr_t last, kept;
+    off_t size;
+    u_short keep;
+    int i, resid;
+
+    /*
+     * Truncation inside the indirect range, with the indirect root
+     * naming the superblock: nothing is read, cleared or freed there.
+     */
+    ip = lookup("/kernel-double");
+    HK_CHECK(ip != NULL);
+    if (ip == NULL)
+        return;
+    evict();
+    memcpy(saved, disk + 512, 512);
+    size = ip->i_size;
+    keep = ip->i_a16[10];
+    tfree = fs->fs_tfree;
+    ip->i_a16[10] = 1;
+    bad_frees = 0;
+    itrunc(ip, (off_t)(60 * 512), 0);
+    HK_CHECK(u.u_error == EIO);
+    u.u_error = 0;
+    HK_CHECK(bad_frees == 0);
+    bad_frees = -1;
+    evict();
+    HK_CHECK(memcmp(saved, disk + 512, 512) == 0);
+    HK_CHECK(fs->fs_tfree == tfree);
+    ip->i_a16[10] = keep;
+    ip->i_size = size;
+    ip->i_flag |= ICHG;
+
+    /* A wide address that cannot be stored leaves the slot as it was. */
+    keep = ip->i_a16[0];
+    evict();
+    fail_blkno = FSBTODB(fs, FS_ITOD(fs, ip->i_number));
+    HK_CHECK(v7_addr_set(ip, 0, (daddr_t)0x00012345L) == EIO);
+    fail_blkno = -1;
+    u.u_error = 0;
+    HK_CHECK(ip->i_a16[0] == keep);
+    iput(ip);
+
+    /*
+     * The superblock claims one block more than the device holds. The
+     * mount check refuses the volume; an allocation that reaches the
+     * absent block anyway retires it and fails.
+     */
+    HK_CHECK(v7_extent(mp) == 0);
+    evict();
+    bytes = disk_bytes;
+    last = (daddr_t)fs->fs_fsize - 1;
+    HK_CHECK((last & 1) == 1 && fs->fs_nfree >= 2);
+    disk_bytes -= 512;
+    HK_CHECK(v7_extent(mp) == EINVAL);
+    kept = fs->fs_free[fs->fs_nfree - 1];
+    fs->fs_free[fs->fs_nfree - 1] = last;
+    tfree = fs->fs_tfree;
+    bp = balloc(rootdir, 0);
+    HK_CHECK(bp == NULL);
+    HK_CHECK(u.u_error == EIO);
+    if (bp != NULL)
+        brelse(bp);
+    u.u_error = 0;
+    HK_CHECK(fs->fs_tfree == tfree - 1);
+    fs->fs_tfree = tfree;
+    fs->fs_free[fs->fs_nfree++] = kept;
+    /* An odd volume ends inside its last buffer and mounts. */
+    fs->fs_fsize--;
+    HK_CHECK(v7_extent(mp) == 0);
+    fs->fs_fsize++;
+    evict();
+    disk_bytes -= 512;
+    HK_CHECK(v7_extent(mp) == EINVAL);
+    evict();
+    disk_bytes = bytes;
+
+    /* A free total of 0 beside a usable cache stays 0. */
+    tfree = fs->fs_tfree;
+    fs->fs_tfree = 0;
+    bp = balloc(rootdir, 0);
+    HK_CHECK(bp != NULL);
+    HK_CHECK(fs->fs_tfree == 0);
+    if (bp != NULL) {
+        kept = mp->m_lastalloc;
+        brelse(bp);
+        free(rootdir, kept);
+        HK_CHECK(fs->fs_tfree == 1);
+    }
+    fs->fs_tfree = tfree;
+    u.u_error = 0;
+
+    /*
+     * An allocated inode whose size is no positive off_t, or whose
+     * link count is negative in the format's signed field, does not
+     * read; a free inode carrying the same bytes does.
+     */
+    memset(raw, 0, sizeof(raw));
+    raw[0] = 0xa4; raw[1] = 0x81;               /* IFREG | 0644 */
+    raw[2] = 1;
+    HK_CHECK(v7_iread(&scratch_inode, raw) == 0);
+    raw[11] = 0x80;                             /* size 0x80000000 */
+    HK_CHECK(v7_iread(&scratch_inode, raw) == EIO);
+    raw[11] = 0;
+    raw[2] = 0; raw[3] = 0x80;                  /* link count 0x8000 */
+    HK_CHECK(v7_iread(&scratch_inode, raw) == EIO);
+    raw[2] = 0xff; raw[3] = 0x7f;
+    HK_CHECK(v7_iread(&scratch_inode, raw) == 0);
+    raw[0] = raw[1] = 0;
+    raw[3] = 0x80; raw[11] = 0x80;
+    HK_CHECK(v7_iread(&scratch_inode, raw) == 0);
+
+    /* An inode number past the table is refused before any read. */
+    calls = bread_calls;
+    HK_CHECK(iget(GATE_DEV, fs, (ino_t)0xffff) == NULL);
+    HK_CHECK(u.u_error == EIO);
+    HK_CHECK(bread_calls == calls);
+    u.u_error = 0;
+
+    /*
+     * A hole reads as zeros from a buffer whose last transfer was
+     * short: geteblk() does not clear the residual.
+     */
+    HK_CHECK(kcreate("/foreign-hole", IFREG | 0644, &ip) == 0);
+    HK_CHECK(rdwri(UIO_WRITE, ip, (caddr_t)"x", 1, (off_t)2048, IO_UNIT,
+        (int *)0) == 0);
+    iput(ip);
+    ip = lookup("/foreign-hole");
+    HK_CHECK(ip != NULL);
+    if (ip == NULL)
+        return;
+    evict();
+    for (i = 0; i < POOL; i++)
+        pool[i].b_resid = DEV_BSIZE / 2;
+    memset(got, 0xff, sizeof(got));
+    resid = -1;
+    HK_CHECK(rdwri(UIO_READ, ip, (caddr_t)got, sizeof(got), (off_t)0,
+        IO_UNIT, &resid) == 0);
+    HK_CHECK(resid == 0);
+    for (i = 0; i < (int)sizeof(got); i++)
+        HK_CHECK(got[i] == 0);
+    u.u_error = 0;
+    iput(ip);
+    HK_CHECK(kremove("/foreign-hole") == 0);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -741,6 +909,7 @@ main(int argc, char **argv)
             return (hk_verdict("v7 format"));
         mp->m_geom = &fs_geom_table[FS_FORMAT_V7];
         mp->m_filsys.fs_flags = MNT_V7;
+        HK_CHECK(v7_extent(mp) == 0);
     }
     rootdir = iget(GATE_DEV, &mp->m_filsys, (ino_t)ROOTINO);
     HK_CHECK(rootdir != NULL);
@@ -815,6 +984,7 @@ main(int argc, char **argv)
     resize("/kernel-direct", 5, 300);
     escape();
     hostile();
+    foreign();
 
     /* What this run wrote, read back through the same layer. */
     for (i = 0; i < 300; i++)

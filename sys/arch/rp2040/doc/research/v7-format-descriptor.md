@@ -206,26 +206,54 @@ and each check is a macro that is constant false for the native format:
   entry outside the data area in `bmap()`, with `EIO`, before a buffer is
   read or written. Without it a file whose first address is 1 writes over
   the superblock.
+- `indirtrunc()` applies the same refusal before it reads an indirect
+  block, clears its tail and writes it back. Truncation reaches that path
+  without `bmap()`, so a file whose indirect root is 1 would otherwise
+  clear the superblock on truncate or unlink. The entries of an accepted
+  indirect block go to `free()`, where `badblock()` refuses the ones
+  outside the data area.
+- `v7_extent()` refuses at mount a volume whose last claimed block the
+  device does not deliver whole. Every accepted address lies below
+  `fs_fsize`, so on a mounted volume the only short transfer left is the
+  absent second part of an odd volume's last buffer, which no accepted
+  address selects; directory, inode and free-chain reads need no residual
+  check of their own.
 - `FS_BADINO()` refuses in `iget()` an inode number outside the inode
-  table, and `v7_sbload()` drops such a number from the free-inode hints
-  and refuses an inode table larger than the 16 bits a directory entry
-  names.
-- `v7_iread()` refuses a directory size that is no whole number of entries
-  or that would not double into a positive `off_t`.
+  table before the number selects a device block, and `v7_sbload()` drops
+  such a number from the free-inode hints and refuses an inode table
+  larger than the 16 bits a directory entry names.
+- `v7_iread()` refuses an allocated inode whose size is no positive
+  `off_t`, whose link count is negative in the format's signed 16-bit
+  field, or whose directory size is no whole number of entries or would
+  not double into a positive `off_t`. A size of 0x80000000 would otherwise
+  turn `itrunc(ip, 0)` into a lengthening that fails and leaves every
+  block allocated while the inode is freed.
+- `FS_LINK_MAX()` and `FS_LINKS_FULL()` stop `link()`, `linkat()`,
+  `rename()` and `mkdir()` at 32,767 links with `EMLINK`, the last count
+  the signed field holds.
+- `FS_TALLY_DOWN()` leaves a free-block or free-inode total at 0 when the
+  volume's writer recorded 0 beside a usable cache; the unsigned total
+  would otherwise wrap and be written back.
 - `FS_WIDE16()` refuses, at `ialloc()`, `chown1()` and `mknod()`, an owner,
   group or device number above 65,535, so the value never enters an inode
   whose directory entry would outlive a failed `v7_iwrite()`.
 - A wide address whose disk inode does not read answers -1 from
   `v7_addr_get()`, which `FS_BADADDR()` refuses; it had read as a hole,
-  which `bmap()` fills by allocating over the live pointer.
+  which `bmap()` fills by allocating over the live pointer. A wide address
+  that cannot be stored answers `EIO` from `v7_addr_set()`, and `bmap()`
+  returns the block it was publishing to the free chain
+  (`IADDR_STORE()`).
 - `FSRESID()` and `IN_AVAIL()` judge a short transfer by the part the
   caller selected. The last buffer of a device with an odd sector count
   holds a first part and no second, the SD driver reports the absent 512
   bytes in `b_resid`, and the first part is whole. A failed indirect read
   in a `V7FS` kernel fails `bmap()` with `EIO` where the native kernel
-  answers block 0, because block 0 of a V7 volume is its boot block.
-- `balloc()` counts a block whose buffer does not read out of the free
-  total and leaves it out of the chain.
+  answers block 0, because block 0 of a V7 volume is its boot block. A
+  hole is a zeroed buffer that no transfer filled, so `IN_AVAIL()` counts
+  all of it whatever residual `geteblk()` left in the buffer.
+- `balloc()` counts a block whose buffer does not read, or whose part the
+  device did not deliver, out of the free total and leaves it out of the
+  chain.
 - A V7 directory write in `rwip()` joins the `IO_SYNC` completion
   (`syncip()` and `ufs_sync()`) the other writes take.
 
@@ -236,12 +264,14 @@ arm-none-eabi-gcc at the PICOCALC flags on 2026-11-10:
 
 | | text | data | bss |
 |---|---:|---:|---:|
-| PICOCALC | 115,027 | 384 | 53,336 |
-| PICOCALC with `V7FS` | 120,553 | 384 | 53,352 |
-| difference | 5,526 | 0 | 16 |
+| PICOCALC | 115,227 | 384 | 57,264 |
+| PICOCALC with `V7FS` | 121,329 | 384 | 57,280 |
+| difference | 6,102 | 0 | 16 |
 
-The checks on foreign media are 712 of those bytes; the build before them
-measured 119,841. `ufs_v7.o` was 2,314 bytes in a build 784 bytes smaller;
+The checks on foreign media are 1,288 of those bytes: the option cost
+4,814 before any of them and 5,526 before the truncation, extent, size,
+link-count and total checks, each measured against the PICOCALC of its
+day. `ufs_v7.o` was 2,314 bytes in the first of those builds;
 the rest is the inode layer reading geometry from the mount where it held
 constants (`sys_inode.o` grew 620 bytes, `ufs_inode.o` 784, `ufs_alloc.o`
 376, `ufs_bmap.o` 336 in that build). The 16 bytes of bss are two fields in
@@ -273,7 +303,12 @@ The run then turns hostile: a direct address that names the superblock, an
 indirect root below the data area, a wide address whose disk inode fails to
 read, a device that ends after the first part of its last buffer with the
 file's indirect block in that part, an inode number past the table and an
-owner of 65,536. Fourteen source mutants each fail the run and the checker
+owner of 65,536; then a truncation whose indirect root names the
+superblock, a wide address that cannot be stored, a superblock that claims
+one block more than the device holds, a free total of 0 beside a usable
+cache, an inode with a negative size or link count, and a hole read from
+a buffer that carries a stale residual. Twenty-three source mutants each
+fail the run at the check that names their claim, and the checker
 rejects six damaged images. `sys/arch/rp2040/doc/TESTING.md` carries the gate's full claim.
 
 ## Open work
@@ -289,10 +324,17 @@ rejects six damaged images. `sys/arch/rp2040/doc/TESTING.md` carries the gate's 
   last buffer; a write there, and a short transfer anywhere else, are not.
 - The gate's `syncip()` and `ufs_sync()` are stubs, so the synchronous
   completion of a directory write is compiled and not exercised, and the
-  `chown1()` and `mknod()` refusals live in `ufs_syscalls.c`, which the
-  gate does not build. Rename, the rewrite of `..`, the block the
-  allocator retires after a failed read and truncation back up through a
-  hole have no case either.
+  `chown1()` and `mknod()` refusals and the four link-count refusals live
+  in `ufs_syscalls.c`, which the gate does not build, as does the
+  `v7_extent()` call in `mountfs()`. Rename, the rewrite of `..` and
+  truncation back up through a hole have no case either.
+- `bmap()`'s return of a block whose wide address could not be stored is
+  compiled and not exercised: the gate's volume has no block above 65,534,
+  so only `v7_addr_set()`'s answer is tested.
+- A read error on an indirect block during truncation leaves that block's
+  children allocated and unreachable, on a V7 volume as on the native
+  format: `indirtrunc()` returns no status and `itrunc()` frees the root.
+  A checker reclaims them.
 - Volumes above 65,534 blocks are covered only by the escape's unit test,
   which stores and reloads wide addresses; no file was allocated there.
 - V7's `icheck.c` and `dcheck.c`, ported from K&R C, would add the original

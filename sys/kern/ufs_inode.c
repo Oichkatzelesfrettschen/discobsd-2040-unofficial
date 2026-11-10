@@ -121,6 +121,10 @@ iget(dev_t dev, register struct fs *fs, ino_t ino)
 #endif
     struct buf *bp;
     struct dinode *dp;
+
+    /* Before the number selects a device block. */
+    if (FS_BADINO(fs, ino))
+        return(NULL);
 loop:
 #ifndef LINEAR_INODE_CACHE
     ih = &ihead[INOHASH(dev, ino)];
@@ -212,7 +216,7 @@ loop:
     /*
      * Check I/O errors
      */
-    if ((bp->b_flags&B_ERROR) != 0 || FS_BADINO(fs, ino)) {
+    if ((bp->b_flags&B_ERROR) != 0) {
         brelse(bp);
 #ifndef LINEAR_INODE_CACHE
         /* Remove the failed inode from its hash chain. */
@@ -488,6 +492,11 @@ indirtrunc(struct inode *ip, daddr_t bn, daddr_t lastbn, int level, int aflags)
     last = lastbn;
     if (lastbn > 0)
         last = last / factor;
+    /* Before the address selects a block to read, clear and write. */
+    if (FS_BADADDR(INODE_FILESYSTEM(ip), bn)) {
+        u.u_error = EIO;
+        return;
+    }
     /*
      * Get buffer of block pointers, zero those
      * entries corresponding to blocks to be free'd,

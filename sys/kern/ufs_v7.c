@@ -34,6 +34,8 @@
 #define V7_INOPB        8       /* disk inodes in one 512-byte block */
 #define V7_INO_MAX      0xffffU /* a directory entry names 16 bits */
 #define V7_DIRSIZE_MAX  0x3fffffffUL    /* doubles into a positive off_t */
+#define V7_SIZE_MAX     0x7fffffffUL    /* a positive off_t */
+#define V7_LINK_MAX     0x7fff          /* the link count is signed */
 
 /* Byte offsets in the superblock. */
 #define SB_ISIZE        0
@@ -173,6 +175,28 @@ v7_sbload(struct fs *fs, const u_char *raw)
 }
 
 /*
+ * The device must deliver the last block the superblock claims. Every
+ * address the layer accepts lies below fs_fsize (FS_BADADDR()), so a
+ * volume that passes holds each of them, and the only short transfer
+ * left is the absent second part of an odd volume's last buffer, which
+ * no accepted address selects. Called by mountfs() once m_geom is set.
+ */
+int
+v7_extent(struct mount *mp)
+{
+    struct fs *fs = &mp->m_filsys;
+    daddr_t last = (daddr_t)fs->fs_fsize - 1;
+    struct buf *bp;
+    int error = 0;
+
+    bp = bread(mp->m_dev, FSBTODB(fs, last));
+    if ((bp->b_flags & B_ERROR) || FSRESID(fs, bp, last))
+        error = EINVAL;
+    brelse(bp);
+    return (error);
+}
+
+/*
  * Write the superblock into the second half of buffer block 0. The read
  * keeps the boot block in the first half and the fields this kernel
  * does not maintain (interleave, volume and pack names).
@@ -270,6 +294,8 @@ v7_dinode(struct inode *ip, struct buf **bpp)
  * fewer than 65,535 blocks never takes the escape. A reader that cannot
  * fetch the disk inode answers -1, which no caller takes for a hole:
  * bmap() refuses it through FS_BADADDR() and free() through badblock().
+ * A writer that cannot fetch it answers EIO with the slot unchanged, and
+ * bmap() returns the block it was publishing to the free chain.
  */
 daddr_t
 v7_addr_get(struct inode *ip, int i)
@@ -288,7 +314,7 @@ v7_addr_get(struct inode *ip, int i)
     return (bn);
 }
 
-void
+int
 v7_addr_set(struct inode *ip, int i, daddr_t bn)
 {
     struct buf *bp;
@@ -296,22 +322,25 @@ v7_addr_set(struct inode *ip, int i, daddr_t bn)
 
     if (bn < V7_ADDR_ESCAPE) {
         ip->i_a16[i] = bn;
-        return;
+        return (0);
     }
     raw = v7_dinode(ip, &bp);
     if (raw == NULL)
-        return;
+        return (EIO);
     put24(raw + DI_ADDR + 3 * i, bn);
     bdwrite(bp);
     ip->i_a16[i] = V7_ADDR_ESCAPE;
+    return (0);
 }
 
 /*
  * Disk inode to in-core inode. A device node keeps its number in the
  * first address. A directory's size doubles, because the kernel sees
- * the directory through v7_dirread(); a directory size that is no whole
- * number of entries or that does not double fails the read before ip
- * changes.
+ * the directory through v7_dirread(). An allocated inode fails the read
+ * before ip changes when its size is no positive off_t, when a directory
+ * size is no whole number of entries or does not double, or when its
+ * link count is negative in the format's signed field; a free inode
+ * (mode 0) carries whatever its last owner left and always reads.
  */
 int
 v7_iread(struct inode *ip, const u_char *raw)
@@ -320,6 +349,9 @@ v7_iread(struct inode *ip, const u_char *raw)
     int i, type;
 
     size = get32(raw + DI_SIZE);
+    if (get16(raw + DI_MODE) != 0 &&
+        (size > V7_SIZE_MAX || get16(raw + DI_NLINK) > V7_LINK_MAX))
+        return (EIO);
     if ((get16(raw + DI_MODE) & IFMT) == IFDIR &&
         (size > V7_DIRSIZE_MAX || (size & (V7_SLOT - 1)) != 0))
         return (EIO);
@@ -352,8 +384,9 @@ v7_iread(struct inode *ip, const u_char *raw)
  * fields are 16 bits; a value outside them fails the update with
  * nothing written. ialloc(), chown1() and mknod() refuse such a value
  * before it enters an inode (FS_WIDE16()), so the refusal here is the
- * backstop of those three. The link count is stored as the 16 unsigned
- * bits the in-core field holds.
+ * backstop of those three. The link count stays inside the format's
+ * signed field because link(), linkat(), rename() and mkdir() refuse the
+ * increment past it (FS_LINK_MAX(), FS_LINKS_FULL()).
  */
 int
 v7_iwrite(struct inode *ip, u_char *raw)

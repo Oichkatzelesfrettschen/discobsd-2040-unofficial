@@ -104,6 +104,18 @@ fs_part_resid(u_int resid, int bshift, daddr_t b)
 #define FS_BADINO(fs, ino)      (FS_ISV7(fs) && v7_badino((fs), (ino)))
 /* A value the format's 16-bit owner, group and device fields cannot hold. */
 #define FS_WIDE16(fs, v)        (FS_ISV7(fs) && (u_long)(v) > 0xffff)
+/* The V7 link count is a signed 16-bit field. */
+#define FS_LINK_MAX(fs)         (FS_ISV7(fs) ? 0x7fff : USHRT_MAX)
+#define FS_LINKS_FULL(ip)       (FS_ISV7(INODE_FILESYSTEM(ip)) && \
+        (ip)->i_nlink >= 0x7fff)
+/*
+ * Count one block or inode out of a superblock total. A V7 volume's
+ * totals are whatever its writer left, so one that reads 0 stays 0.
+ */
+#define FS_TALLY_DOWN(fs, field) do { \
+        if (!FS_ISV7(fs) || (fs)->field != 0) \
+            (fs)->field--; \
+    } while (0)
 /* The block balloc() returned in bp, valid until the caller next sleeps. */
 #define FS_ALLOCBN(fs, bp)      (fs_mount(fs)->m_lastalloc)
 #define FS_REMAP(bap, bp)       ((void)0)
@@ -132,9 +144,12 @@ fs_part_resid(u_int resid, int bshift, daddr_t b)
         bread((dev), IN_BTODB((ip), (b))) : getblk((dev), (b)))
 #define IN_SETBASE(base, addr)  ((base) = (addr))
 #define IN_BASE(base, bp)       (base)
-/* Bytes of block b that the transfer into bp delivered. */
-#define IN_AVAIL(ip, bp, b)     (IN_BSIZE(ip) - \
-        fs_part_resid((bp)->b_resid, IN_BSHIFT(ip), (b)))
+/*
+ * Bytes of block b that the transfer into bp delivered. A hole (b < 0)
+ * is a zeroed buffer no transfer filled, so all of it is there.
+ */
+#define IN_AVAIL(ip, bp, b)     ((long)(b) < 0 ? (u_int)IN_BSIZE(ip) : \
+        IN_BSIZE(ip) - fs_part_resid((bp)->b_resid, IN_BSHIFT(ip), (b)))
 /* The first block of a symbolic link, read into bp as block bn. */
 #define NAMEI_LINKADDR(ip, bp, bn) \
         FSBADDR(INODE_FILESYSTEM(ip), (bp), (bn))
@@ -147,10 +162,13 @@ fs_part_resid(u_int resid, int bshift, daddr_t b)
         v7_addr_get((ip), (i)) : (ip)->i_addr[i])
 #define IADDR_SET(ip, i, v)     do { \
         if (FS_ISV7(INODE_FILESYSTEM(ip))) \
-            v7_addr_set((ip), (i), (v)); \
+            (void) v7_addr_set((ip), (i), (v)); \
         else \
             (ip)->i_addr[i] = (v); \
     } while (0)
+/* The same store as an expression: nonzero when the address was not kept. */
+#define IADDR_STORE(ip, i, v)   (FS_ISV7(INODE_FILESYSTEM(ip)) ? \
+        v7_addr_set((ip), (i), (v)) : ((ip)->i_addr[i] = (v), 0))
 
 /* The same addresses by kind: direct i, and indirect of level l. */
 #define IADDR_DB(ip, i)         IADDR((ip), (i))
@@ -169,7 +187,8 @@ struct buf;
 struct uio;
 
 daddr_t v7_addr_get (struct inode *ip, int i);
-void    v7_addr_set (struct inode *ip, int i, daddr_t bn);
+int     v7_addr_set (struct inode *ip, int i, daddr_t bn);
+int     v7_extent (struct mount *mp);
 int     v7_badino (const struct fs *fs, ino_t ino);
 int     v7_iread (struct inode *ip, const u_char *raw);
 int     v7_iwrite (struct inode *ip, u_char *raw);
@@ -202,6 +221,9 @@ int     v7_dirrw (struct inode *ip, struct uio *uio);
 #define FS_BADADDR(fs, bn)      0
 #define FS_BADINO(fs, ino)      0
 #define FS_WIDE16(fs, v)        0
+#define FS_LINK_MAX(fs)         USHRT_MAX
+#define FS_LINKS_FULL(ip)       0
+#define FS_TALLY_DOWN(fs, field) (fs)->field--
 #define FS_ALLOCBN(fs, bp)      dbtofsb((bp)->b_blkno)
 #define FS_REMAP(bap, bp)       ((bap) = (daddr_t *)(bp)->b_addr)
 #define FS_BRELSE_HELD(bp)      brelse(bp)
@@ -218,6 +240,7 @@ int     v7_dirrw (struct inode *ip, struct uio *uio);
 #define NAMEI_LINKADDR(ip, bp, bn) ((bp)->b_addr)
 #define IADDR(ip, i)            ((ip)->i_addr[i])
 #define IADDR_SET(ip, i, v)     ((ip)->i_addr[i] = (v))
+#define IADDR_STORE(ip, i, v)   ((ip)->i_addr[i] = (v), 0)
 #define IADDR_DB(ip, i)         ((ip)->i_db[i])
 #define IADDR_DB_SET(ip, i, v)  ((ip)->i_db[i] = (v))
 #define IADDR_IB(ip, l)         ((ip)->i_ib[l])

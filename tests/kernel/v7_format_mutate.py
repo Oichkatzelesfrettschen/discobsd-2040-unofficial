@@ -3,9 +3,9 @@
 Usage: v7_format_mutate.py SYS OUT
 
 Each mutant is a copy of the sys/ files the gate compiles, under OUT/NAME,
-with one exact replacement that breaks one claim of the V7 format design.
-A replacement whose text is absent or repeated stops the run, so a mutant
-never silently equals the original.
+with exact replacements in one file that break one claim of the V7 format
+design. A replacement whose text is absent or repeated stops the run, so a
+mutant never silently equals the original.
 """
 
 import sys
@@ -101,12 +101,84 @@ MUTANTS = {
         "#define FS_WIDE16(fs, v)        (FS_ISV7(fs) && (u_long)(v) > 0xffff)",
         "#define FS_WIDE16(fs, v)        (0 & (int)(v))",
     ),
+    # indirtrunc() refuses an address before it reads, clears and writes it.
+    "truncate_address_unchecked": (
+        "kern/ufs_inode.c",
+        "    if (FS_BADADDR(INODE_FILESYSTEM(ip), bn)) {\n"
+        "        u.u_error = EIO;\n"
+        "        return;\n"
+        "    }\n",
+        "",
+    ),
+    # A part the device did not deliver is no block to hand out.
+    "absent_block_allocated": (
+        "kern/ufs_alloc.c",
+        "    if ((bp->b_flags & B_ERROR) ||\n"
+        "        (FS_DBSHIFT(fs) && FSRESID(fs, bp, bno))) {",
+        "    if (bp->b_flags & B_ERROR) {",
+    ),
+    # The device must deliver the last block the superblock claims.
+    "extent_unchecked": (
+        "kern/ufs_v7.c",
+        "    if ((bp->b_flags & B_ERROR) || FSRESID(fs, bp, last))\n"
+        "        error = EINVAL;",
+        "    if (bp->b_flags & B_ERROR)\n"
+        "        error = EINVAL;",
+    ),
+    # A size that is no positive off_t does not enter an inode.
+    "size_unchecked": (
+        "kern/ufs_v7.c",
+        "        (size > V7_SIZE_MAX || get16(raw + DI_NLINK) > V7_LINK_MAX))",
+        "        (get16(raw + DI_NLINK) > V7_LINK_MAX))",
+    ),
+    # Nor does a link count that is negative in the signed field.
+    "link_count_unchecked": (
+        "kern/ufs_v7.c",
+        "        (size > V7_SIZE_MAX || get16(raw + DI_NLINK) > V7_LINK_MAX))",
+        "        (size > V7_SIZE_MAX))",
+    ),
+    # A free total the volume's writer left at 0 does not wrap.
+    "tally_underflow": (
+        "sys/fsgeom.h",
+        "        if (!FS_ISV7(fs) || (fs)->field != 0) \\\n"
+        "            (fs)->field--; \\\n",
+        "        (fs)->field--; \\\n",
+    ),
+    # A wide address that cannot be stored is reported to bmap().
+    "wide_store_failure_ignored": (
+        "kern/ufs_v7.c",
+        "    if (raw == NULL)\n        return (EIO);\n    put24(",
+        "    if (raw == NULL)\n        return (0);\n    put24(",
+    ),
+    # An inode number is checked before it selects a device block.
+    "inode_number_read_first": (
+        "kern/ufs_inode.c",
+        (
+            (
+                "    if (FS_BADINO(fs, ino))\n        return(NULL);\nloop:",
+                "loop:",
+            ),
+            (
+                "    if ((bp->b_flags&B_ERROR) != 0) {",
+                "    if ((bp->b_flags&B_ERROR) != 0 || FS_BADINO(fs, ino)) {",
+            ),
+        ),
+    ),
+    # A hole is a zeroed buffer whatever residual its buffer carries.
+    "hole_residual": (
+        "sys/fsgeom.h",
+        "#define IN_AVAIL(ip, bp, b)     ((long)(b) < 0 ? (u_int)IN_BSIZE(ip) : \\\n"
+        "        IN_BSIZE(ip) - fs_part_resid((bp)->b_resid, IN_BSHIFT(ip), (b)))",
+        "#define IN_AVAIL(ip, bp, b)     (IN_BSIZE(ip) - \\\n"
+        "        fs_part_resid((bp)->b_resid, IN_BSHIFT(ip), (b)))",
+    ),
 }
 
 FILES = (
     "sys/fsgeom.h",
     "kern/ufs_v7.c",
     "kern/ufs_alloc.c",
+    "kern/ufs_inode.c",
 )
 
 
@@ -116,7 +188,8 @@ def main(argv):
         return 2
     source, out = Path(argv[1]), Path(argv[2])
     out.mkdir(parents=True)
-    for name, (path, old, new) in MUTANTS.items():
+    for name, (path, *change) in MUTANTS.items():
+        pairs = change[0] if len(change) == 1 else (tuple(change),)
         root = out / name
         # The gate compiles with -I ROOT, so the whole sys/ tree is needed;
         # symlink everything and replace only the mutated file.
@@ -128,11 +201,15 @@ def main(argv):
             if entry.name not in ("kern", "sys"):
                 (root / entry.name).symlink_to(entry)
         text = (source / path).read_text()
-        if text.count(old) != 1:
-            raise SystemExit(f"mutant {name}: {text.count(old)} matches in {path}")
+        for old, new in pairs:
+            if text.count(old) != 1:
+                raise SystemExit(
+                    f"mutant {name}: {text.count(old)} matches of {old!r} in {path}"
+                )
+            text = text.replace(old, new)
         target = root / path
         target.unlink()
-        target.write_text(text.replace(old, new))
+        target.write_text(text)
         if path not in FILES:
             raise SystemExit(f"mutant {name}: {path} is not a file the gate tracks")
     return 0

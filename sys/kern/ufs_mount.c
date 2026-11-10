@@ -235,6 +235,9 @@ found:
         if (error)
             goto out;
         mp->m_geom = &fs_geom_table[FS_FORMAT_V7];
+        error = v7_extent(mp);
+        if (error)
+            goto out;
     } else
 #endif
     {

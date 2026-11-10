@@ -325,6 +325,11 @@ link(void)
         iput(ip);
         return;
     }
+    if (FS_LINKS_FULL(ip)) {
+        u.u_error = EMLINK;
+        iput(ip);
+        return;
+    }
     ip->i_nlink++;
     ip->i_flag |= ICHG;
     iupdat(ip, &time, &time, 1);
@@ -410,7 +415,7 @@ linkat_beneath(void)
         u.u_error = EPERM;
         goto release_source;
     }
-    if (source->i_nlink == USHRT_MAX) {
+    if (source->i_nlink == FS_LINK_MAX(INODE_FILESYSTEM(source))) {
         u.u_error = EMLINK;
         goto release_source;
     }
@@ -741,6 +746,10 @@ publishat_beneath(void)
         u.u_uid != staged_parent->i_uid &&
         staged_inode->i_uid != u.u_uid) {
         u.u_error = EPERM;
+        goto release_staged_lookup;
+    }
+    if (FS_LINKS_FULL(staged_inode)) {
+        u.u_error = EMLINK;
         goto release_staged_lookup;
     }
 
@@ -1320,6 +1329,16 @@ rename(void)
         u.u_error = EPERM;
         goto done;
     }
+    /* The move holds one more link on ip until the old name goes. */
+    if (FS_LINKS_FULL(ip)) {
+        iput(dp);
+        if (dp == ip)
+            irele(ip);
+        else
+            iput(ip);
+        u.u_error = EMLINK;
+        goto done;
+    }
 
     if ((ip->i_mode&IFMT) == IFDIR) {
         register struct direct *d;
@@ -1424,6 +1443,12 @@ rename(void)
          * parent we don't fool with the link count.
          */
         if (doingdirectory && newparent) {
+#ifdef V7FS
+            if (FS_LINKS_FULL(dp)) {
+                error = EMLINK;
+                goto bad;
+            }
+#endif
             dp->i_nlink++;
             dp->i_flag |= ICHG;
             iupdat(dp, &time, &time, 1);
@@ -1665,6 +1690,12 @@ mkdir_common(int rootfd, caddr_t name, int dmode, int namei_policy)
         goto out;
     }
     dp = ndp->ni_pdir;
+    /* The new directory's ".." is one more link on dp. */
+    if (FS_LINKS_FULL(dp)) {
+        iput(dp);
+        u.u_error = EMLINK;
+        goto out;
+    }
     dmode &= 0777;
     dmode |= IFDIR;
     /*

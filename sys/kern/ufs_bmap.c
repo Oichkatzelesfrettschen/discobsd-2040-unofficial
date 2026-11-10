@@ -63,7 +63,10 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
                     goto write_failed;
             } else
                 bdwrite(bp);
-            IADDR_SET(ip, i, nb);
+            if (IADDR_STORE(ip, i, nb)) {
+                error = EIO;
+                goto write_failed;
+            }
             ip->i_flag |= IUPD|ICHG;
         }
         if (i < FS_NADDR(INODE_FILESYSTEM(ip))-4)
@@ -115,7 +118,10 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
             if (error)
                 goto write_failed;
         }
-        IADDR_SET(ip, FS_NADDR(INODE_FILESYSTEM(ip))-j, nb);
+        if (IADDR_STORE(ip, FS_NADDR(INODE_FILESYSTEM(ip))-j, nb)) {
+            error = EIO;
+            goto write_failed;
+        }
         ip->i_flag |= IUPD|ICHG;
     }
 

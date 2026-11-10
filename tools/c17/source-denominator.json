@@ -70607,7 +70607,9 @@
             "shift-expression",
             "width-sensitive-sizeof"
           ],
-          "object_lifetime": [],
+          "object_lifetime": [
+            "dynamic-storage"
+          ],
           "pointer": [
             "integer-pointer-cast",
             "pointer-integer-cast"

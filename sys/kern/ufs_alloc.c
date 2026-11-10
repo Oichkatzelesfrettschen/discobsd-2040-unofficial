@@ -112,15 +112,17 @@ balloc(struct inode *ip __unused, int flags)
     bp = FSGETBLK(fs, INODE_DEVICE(ip), bno);
 #ifdef V7FS
     /*
-     * A failed read must not reach the disk as the other part's data.
+     * A failed read must not reach the disk as the other part's data,
+     * and a part the device did not deliver is no block to hand out.
      * The block left the chain above; it is counted out of the free
      * total and stays out of service until a checker reclaims it, since
      * a block returned to the chain would fail every later allocation.
      */
-    if (bp->b_flags & B_ERROR) {
+    if ((bp->b_flags & B_ERROR) ||
+        (FS_DBSHIFT(fs) && FSRESID(fs, bp, bno))) {
         brelse(bp);
         fs->fs_fmod = 1;
-        fs->fs_tfree--;
+        FS_TALLY_DOWN(fs, fs_tfree);
         u.u_error = EIO;
         return(NULL);
     }
@@ -130,7 +132,7 @@ balloc(struct inode *ip __unused, int flags)
     if (flags & B_CLRBUF)
         bzero (FSBADDR(fs, bp, bno), FS_BSIZE(fs));
     fs->fs_fmod = 1;
-    fs->fs_tfree--;
+    FS_TALLY_DOWN(fs, fs_tfree);
     return(bp);
 
 nospace:
@@ -200,7 +202,7 @@ loop:
             bzero((caddr_t)ip->i_addr,sizeof(ip->i_addr));
             ip->i_flags = 0;
             fs->fs_fmod = 1;
-            fs->fs_tinode--;
+            FS_TALLY_DOWN(fs, fs_tinode);
             return(ip);
         }
         /*

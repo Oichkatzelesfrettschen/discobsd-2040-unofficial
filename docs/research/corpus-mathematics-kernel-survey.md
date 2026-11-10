@@ -1,4 +1,4 @@
-Host measurements of the linked PICO and PICO_UART kernels and host gates; one Raspberry Pi Pico run read four errno messages and 57 trace lines through the two decoders; no Renode run.
+Host measurements of the linked PICO and PICO_UART kernels and host gates; one Raspberry Pi Pico run read five errno messages and 57 trace lines through the two decoders; no Renode run.
 
 # Mathematics from the owner's document corpora, tested against the kernel
 
@@ -161,8 +161,8 @@ moves none of the four scarce quantities. It becomes worth landing if
   compiler refutes the size claims.
 - A trace line or a strerror(3) message that differs from its master on a
   board refutes the two decoders. One Pico run of the PICO kernel printed
-  the master text for ENOENT, EEXIST, ENOTEMPTY and ENOTDIR and 57 trace
-  lines naming 14 system calls, each in `syscalls.master`; the other 79
+  the master text for ENOENT, ESRCH, EEXIST, ENOTEMPTY and ENOTDIR and 57 trace
+  lines naming 14 system calls, each in `syscalls.master`; the other 78
   messages and 149 names rest on the host gates.
 - An `hz` that does not divide one million moves `adjtime()` results by the
   rounding of `usechz`; the equality claim is limited to the ARM ports.

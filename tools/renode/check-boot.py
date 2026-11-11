@@ -229,10 +229,9 @@ def run_stages(console: Console, config: str) -> None:
     console.wait_lines(["DiscoBSD 2.7"], "uname", COMMAND_BUDGET_SECONDS)
     console.type_line("sysctl kern.capacity")
     console.wait_lines(CAPACITY_LINES, "capacity record", COMMAND_BUDGET_SECONDS)
-    # usr.bin/mputest forks children that read kernel RAM, kernel text, SIO,
-    # the unstriped SRAM aliases and the XIP cache-as-SRAM window and expects
-    # SIGSEGV for each while machdep.mpu.enable reads 1, and reads the boot
-    # ROM and the window top without harm. "mpu on" pins the
+    # usr.bin/mputest forks children that read kernel RAM, kernel text and
+    # SIO and expects SIGSEGV for each while machdep.mpu.enable reads 1, and
+    # reads the boot ROM and the window top without harm. "mpu on" pins the
     # state, so a kernel whose map was dropped passes its own consistency
     # check and still fails here.
     console.type_line("mputest")

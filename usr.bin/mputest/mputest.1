@@ -1,4 +1,4 @@
-.Dd November 11, 2026
+.Dd September 20, 2026
 .Dt MPUTEST 1
 .Os
 .Sh NAME
@@ -22,13 +22,6 @@ Kernel RAM above the process window, kernel text in XIP flash and SIO CPUID
 must be closed when
 .Va machdep.mpu.enable
 reads 1 and open when it reads 0.
-Four words of the unstriped SRAM windows at 0x21000000, which name the
-process window and kernel RAM one bank at a time, follow the same rule.
-The XIP cache-as-SRAM window at 0x15000000 bus-errors while the cache is
-enabled, so a read there must kill the child with
-.Dv SIGSEGV
-in both states; that probe shows the range is closed and does not by itself
-show the MPU.
 The boot ROM, the top of the process window and the SIO divider status
 register must be open in both states, and a float and a double division
 through the boot ROM must return the expected bits: the ROM's own divide

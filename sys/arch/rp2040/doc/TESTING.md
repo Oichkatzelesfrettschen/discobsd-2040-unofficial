@@ -2588,3 +2588,52 @@ Runtime stack and heap high-water, descriptor/inode pressure under a complete
 extraction workload, directory-write recovery, persistent-media traffic,
 symbolic-link publication, conditional removal, directory metadata
 reacquisition, and physical-board behavior retain separate evidence states.
+
+## Core interface and flash-recovery continuation
+
+`check-libc-err` runs through `check-host` in firmware CI on Linux and macOS.
+It compiles production `libc/gen/err.c` and the repository `err.h` under strict
+C17 with fatal prototype warnings. Thirty-two subprocess cases check all
+eight APIs, null formats, integer/string/double forwarding, prefix and errno
+selection, returning warnings and exit status. Three mutations change errno,
+exit status and prefix; each must fail. Host stdio supplies the formatter.
+This gate does not execute target libc or establish target stack use.
+
+`check-ufs-prototypes` also checks `kern_proc.c`, `kern_resource.c`,
+`tty_subr.c` and `kern_time.c`: 17 translation units per configured kernel.
+Their production compile rules reject old-style definitions and unspecified
+parameter lists. Resource/clist and storage-correctness fixtures remain the
+behavior owners. The compiler-backed ledger records the remaining scope;
+prototype conversion does not repair `ruadd` object-bounds arithmetic.
+
+The existing ILP32 sysctl fixture additionally checks the three absent lean
+diagnostic nodes: `EOPNOTSUPP`, unchanged payload, one size-word copyout and
+unchanged length. PICO_DIAG adds exactly `SYSTRACE` and `CAPACITY_STATS` to
+PICO. Generated-config tests reject option drift; the architecture registry,
+headroom and divider gates include all five configurations. Capacity board
+procedures select `BOARD=PICO_DIAG`; execution still requires explicit opt-in.
+
+`check-dhara-amplification` includes `check-recovery.sh`. The production map
+and journal execute under address/undefined-behavior sanitizers with 989
+sentinel sectors, sixteen overwrite-and-sync transactions and 464 cut points.
+Complete-operation cuts preserve acknowledged-new, unacknowledged-old-or-new
+and unchanged-sentinel data. Early acknowledgement and byte corruption fail
+the payload oracle; omitted metadata fails the next collection write with
+`DHARA_E_RECOVER`. Sanitizer crashes are not accepted mutation verdicts.
+
+The same gate reproduces a distinct limit: a half-programmed page produces a
+mixed sector at cut 26, before acknowledgement. Its `LIMIT` output is an
+expected model counterexample, not passing torn-write recovery. Half-block
+erase is also injected, but the first page-program failure stops that run.
+The complete-operation matrix covers collection erases. The model neither
+mounts UFS nor simulates arbitrary electrical failures; copy programs aggregate
+256-byte adapter suboperations. `docs/research/rp2040-optimization/wear-recovery.md`
+owns the architectural stop and next discriminating evidence.
+
+`tools/rp2040_footprint_probe.py` is a read-only, cross-link experiment, not a
+runtime gate. Its private control must match the existing kernel footprint.
+It measures linker flags and validates actual handler address encodings;
+missing-slot, Thumb-bit and range controls calibrate the representation check.
+`KERNEL_SORT_ALIGNMENT=yes` selects an opt-in alignment-sort build and retains
+all object and 8-byte section alignments. Generated-config tests pin its
+enabled/disabled flags, mode marker and rejection of invalid values.

@@ -70,8 +70,11 @@ before and after the complete change.
 
 The RP2040 kernels expose `kern.capacity` when `CAPACITY_STATS` is enabled.
 The read-only, versioned structure records fixed-table occupancy, allocation
-failures, and overwritten kernel-stack bytes. The PICO and PICO_UART
-configurations enable the option. The counters collect evidence for a later
+failures, and overwritten kernel-stack bytes. PICO_DIAG, PICO_UART and the
+PicoCalc configurations enable the option; lean PICO omits it and SYSTRACE.
+Build telemetry images with `BOARD=PICO_DIAG STORAGE_STATS=yes`. An omitted
+diagnostic sysctl returns `EOPNOTSUPP`, not an empty capacity record.
+The counters collect evidence for a later
 capacity decision; they do not change `NPROC`, `NINODE`, `NFILE`, `NCLIST`,
 `NBUF`, `USIZE`, or the 8 KiB USB transmit ring.
 

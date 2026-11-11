@@ -49,7 +49,8 @@ check-divider:
 		    --elf PICO_UART/unix.elf --dependency-directory PICO_UART/.deps \
 		    --elf PICOCALC/unix.elf --dependency-directory PICOCALC/.deps \
 		    --elf PICOCALC_PSRAM/unix.elf \
-		    --dependency-directory PICOCALC_PSRAM/.deps
+		    --dependency-directory PICOCALC_PSRAM/.deps \
+		    --elf PICO_DIAG/unix.elf --dependency-directory PICO_DIAG/.deps
 
 # Each kernel's PARAM decides whether vm_swap.o calls the SwapRAM tier and
 # how large its pool is; the verifier reads the linked kernel and the

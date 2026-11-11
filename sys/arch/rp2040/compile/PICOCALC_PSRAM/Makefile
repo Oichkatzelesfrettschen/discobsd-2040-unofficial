@@ -92,6 +92,15 @@ PARAM+= -DKERNEL_SECTION_GC
 .elif ${KERNEL_GC:Uno} != "no"
 .error KERNEL_GC must be yes or no
 .endif
+
+# Sort wildcard inputs by required alignment without lowering object or
+# section alignment. The parameter stamp closes mode-switch invalidation.
+.if ${KERNEL_SORT_ALIGNMENT:Uno} == "yes"
+LDFLAGS+= --sort-section=alignment
+PARAM+= -DKERNEL_SORT_ALIGNMENT
+.elif ${KERNEL_SORT_ALIGNMENT:Uno} != "no"
+.error KERNEL_SORT_ALIGNMENT must be yes or no
+.endif
 # Cortex-M0+ has no divide instruction, so the compiler emits calls to the
 # libgcc helpers __aeabi_idiv and friends.
 LIBGCC!=	${CC} ${CMACHFLAGS} -print-libgcc-file-name
@@ -105,8 +114,10 @@ PARAM+= -DSTORAGE_STATS
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
+COMPILE_C17_C=	${CC} ${CFLAGS} -Wstrict-prototypes \
+		-Wold-style-definition ${DEFS} -c $<
 COMPILE_SIZE_C=	${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
-		${CMACHFLAGS} -Os ${DEFS} -c $<
+		${CMACHFLAGS} -Os -Wstrict-prototypes -Wold-style-definition ${DEFS} -c $<
 # Code whose instruction count is a design input compiles at -O whatever
 # COPTS says: psram_xfer.c drains a four-word PIO receive FIFO from a polling
 # loop that must outrun the state machine's fill rate.
@@ -349,7 +360,7 @@ kern_mman.o: $S/kern/kern_mman.c
 	${COMPILE_C}
 
 kern_proc.o: $S/kern/kern_proc.c
-	${COMPILE_C}
+	${COMPILE_C17_C}
 
 kern_prot.o: $S/kern/kern_prot.c
 	${COMPILE_C}
@@ -358,7 +369,7 @@ kern_prot2.o: $S/kern/kern_prot2.c
 	${COMPILE_C}
 
 kern_resource.o: $S/kern/kern_resource.c
-	${COMPILE_C}
+	${COMPILE_C17_C}
 
 kern_sig.o: $S/kern/kern_sig.c
 	${COMPILE_C}
@@ -406,7 +417,7 @@ tty.o: $S/kern/tty.c
 	${COMPILE_C}
 
 tty_subr.o: $S/kern/tty_subr.c
-	${COMPILE_C}
+	${COMPILE_C17_C}
 
 tty_tty.o: $S/kern/tty_tty.c
 	${COMPILE_C}

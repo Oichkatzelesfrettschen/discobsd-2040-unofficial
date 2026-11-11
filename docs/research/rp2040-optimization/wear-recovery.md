@@ -49,7 +49,34 @@ image mismatch or unexplained background traffic.
 
 ### 2. Deterministic host interruption oracle
 
-Extend the production Dhara host model with numbered cut points immediately
+`tests/rp2040/dhara_amplification/check-recovery.sh` exercises the production
+Dhara journal/map against the calibrated NOR traffic model. A full map holds
+989 sentinel sectors. Sixteen overwrite-and-sync operations exercise
+collection; each replay discards the map and page buffer and checks every
+logical sector. All 464 complete-operation cut boundaries preserve the
+acknowledged-new, unacknowledged-old-or-new and unchanged-sentinel contracts.
+Early acknowledgement and single-byte program corruption fail the recovered
+payload oracle. Omitting metadata is rejected during the next collection
+write with `DHARA_E_RECOVER`; it does not silently complete the workload.
+
+The partial-prefix model programs half a 1 KiB page or erases half an 8 KiB
+Dhara block before interruption. It fails at cut 26/464 with a mixed sector
+before the first acknowledgement. Production NOR reads copy XIP bytes without
+ECC; successful map resumption alone does not establish payload integrity.
+The reproduction reports `LIMIT`, separately from the passing atomic-operation
+matrix. It establishes a model counterexample, not its frequency on silicon.
+Copy operations aggregate the production adapter's 256-byte subprograms;
+arbitrary electrical corruption, filesystem mounting and board power cuts
+remain outside this test.
+
+The deciding next evidence is a byte/phase capture from the production adapter
+under controlled interruption. Alternatives include explicit payload integrity
+with recovery fallback, a validated atomic-program assumption, or a weaker
+documented durability contract. Selecting a persistent representation or
+weakening acknowledgement semantics is an architectural decision. No batching
+or write-back policy change follows from the passing atomic-operation matrix.
+
+Extend the host matrix with numbered cut points immediately
 before and after erase, page program, metadata program and checkpoint return.
 For every cut point, discard volatile state, reopen the map, mount/read through
 the production path and compare against the last acknowledged durable state.

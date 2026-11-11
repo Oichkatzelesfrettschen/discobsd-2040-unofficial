@@ -18,7 +18,8 @@ make_value()
 
 source_files='ufs_alloc.c ufs_bio.c ufs_bmap.c ufs_dsort.c ufs_fio.c
 ufs_inode.c ufs_mount.c ufs_namei.c ufs_subr.c ufs_syscalls.c
-ufs_syscalls2.c vfs_vnops.c sys_inode.c'
+ufs_syscalls2.c vfs_vnops.c sys_inode.c
+kern_proc.c kern_resource.c tty_subr.c kern_time.c'
 
 (
     cd "$kernel_build"
@@ -44,4 +45,4 @@ ufs_syscalls2.c vfs_vnops.c sys_inode.c'
     done
 )
 
-echo "GNU17 UFS prototype check passed: 13 translation units"
+echo "GNU17 UFS and core prototype check passed: 17 translation units"

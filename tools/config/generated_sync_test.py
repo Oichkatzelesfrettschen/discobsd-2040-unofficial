@@ -79,6 +79,19 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
             sync.check(self.root)
 
+    def test_diagnostic_option_missing_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICO_DIAG/Config",
+                    "options         CAPACITY_STATS              # fixed-table and u-area peaks\n",
+                    "")
+        with self.assertRaisesRegex(sync.SyncError, "PICO_DIAG: Config must equal"):
+            sync.check(self.root)
+
+    def test_lean_base_with_diagnostic_option_is_rejected(self):
+        path = self.root / sync.COMPILE / "PICO/Config"
+        path.write_text(path.read_text() + "options CAPACITY_STATS\n")
+        with self.assertRaisesRegex(sync.SyncError, "PICO_DIAG: Config must equal"):
+            sync.check(self.root)
+
     def test_variant_without_its_device_is_rejected(self):
         self.mutate(sync.COMPILE / "PICOCALC_PSRAM/Config", "device          psram\n", "")
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
@@ -125,6 +138,28 @@ class GeneratedSyncTest(unittest.TestCase):
             self.assertIn("-fno-strict-aliasing", generated)
             self.assertIn(cycle, generated)
 
+    def test_alignment_sort_mode_is_explicit(self):
+        sync.copy_file(sync.ROOT, self.root, sync.CONF / "compiler.mk")
+        for board in sync.BOARDS:
+            directory = self.root / sync.COMPILE / board
+            environment = sync.child_environment()
+            for value, enabled in (("yes", True), ("no", False)):
+                result = subprocess.run(
+                    ["bmake", "LIBGCC=", f"KERNEL_SORT_ALIGNMENT={value}",
+                     "-V", "${PARAM} ${LDFLAGS}"],
+                    cwd=directory, env=environment, text=True, capture_output=True,
+                    check=True,
+                )
+                self.assertEqual("--sort-section=alignment" in result.stdout, enabled)
+                self.assertEqual("-DKERNEL_SORT_ALIGNMENT" in result.stdout, enabled)
+            result = subprocess.run(
+                ["bmake", "LIBGCC=", "KERNEL_SORT_ALIGNMENT=invalid", "-V", "PARAM"],
+                cwd=directory, env=environment, text=True, capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("KERNEL_SORT_ALIGNMENT must be yes or no", result.stderr)
+
     def test_psram_transfer_uses_cycle_counted_compile_rule(self):
         generated = (self.root / sync.COMPILE / "PICOCALC_PSRAM/Makefile").read_text()
         rule = ("psram_xfer.o: $S/arch/rp2040/dev/psram_xfer.c\n"
@@ -153,8 +188,9 @@ class GeneratedSyncTest(unittest.TestCase):
         sync.check(self.root)
 
     def test_generator_failure_is_rejected(self):
-        self.mutate(sync.COMPILE / "PICO/Config", 'architecture    "rp2040"',
-                    'architecture    "invalid"')
+        for board in ("PICO", "PICO_DIAG"):
+            self.mutate(sync.COMPILE / board / "Config", 'architecture    "rp2040"',
+                        'architecture    "invalid"')
         with self.assertRaisesRegex(sync.SyncError, "PICO: config generator: exit"):
             sync.check(self.root)
 

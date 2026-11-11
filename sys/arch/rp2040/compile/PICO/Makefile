@@ -19,8 +19,6 @@ PARAM += -DSINGLE_UFS_ROOT
 PARAM += -DNMOUNT=1
 PARAM += -DNFL=2
 PARAM += -DCORE1
-PARAM += -DCAPACITY_STATS
-PARAM += -DSYSTRACE
 PARAM += -DHALTREBOOT
 PARAM += -DBUS_KHZ=125000
 PARAM += -DCPU_KHZ=125000
@@ -92,6 +90,15 @@ PARAM+= -DKERNEL_SECTION_GC
 .elif ${KERNEL_GC:Uno} != "no"
 .error KERNEL_GC must be yes or no
 .endif
+
+# Sort wildcard inputs by required alignment without lowering object or
+# section alignment. The parameter stamp closes mode-switch invalidation.
+.if ${KERNEL_SORT_ALIGNMENT:Uno} == "yes"
+LDFLAGS+= --sort-section=alignment
+PARAM+= -DKERNEL_SORT_ALIGNMENT
+.elif ${KERNEL_SORT_ALIGNMENT:Uno} != "no"
+.error KERNEL_SORT_ALIGNMENT must be yes or no
+.endif
 # Cortex-M0+ has no divide instruction, so the compiler emits calls to the
 # libgcc helpers __aeabi_idiv and friends.
 LIBGCC!=	${CC} ${CMACHFLAGS} -print-libgcc-file-name
@@ -105,8 +112,10 @@ PARAM+= -DSTORAGE_STATS
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
+COMPILE_C17_C=	${CC} ${CFLAGS} -Wstrict-prototypes \
+		-Wold-style-definition ${DEFS} -c $<
 COMPILE_SIZE_C=	${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
-		${CMACHFLAGS} -Os ${DEFS} -c $<
+		${CMACHFLAGS} -Os -Wstrict-prototypes -Wold-style-definition ${DEFS} -c $<
 # Code whose instruction count is a design input compiles at -O whatever
 # COPTS says: psram_xfer.c drains a four-word PIO receive FIFO from a polling
 # loop that must outrun the state machine's fill rate.
@@ -134,17 +143,17 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	errlist.o init_main.o init_sysent.o kern_clock.o kern_descrip.o \
 	kern_exec.o kern_exit.o kern_fork.o kern_mman.o kern_proc.o \
 	kern_prot.o kern_prot2.o kern_resource.o kern_sig.o kern_sig2.o \
-	kern_subr.o kern_synch.o kern_sysctl.o kern_time.o \
-	subr_capacity.o subr_prf.o subr_rmap.o sys_generic.o sys_inode.o \
-	sys_pipe.o sys_process.o syscalls.o tty.o tty_subr.o tty_tty.o \
-	ufs_alloc.o ufs_bio.o ufs_bmap.o ufs_dsort.o ufs_fio.o \
-	ufs_inode.o ufs_mount.o ufs_namei.o ufs_subr.o ufs_syscalls.o \
-	ufs_syscalls2.o vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o \
-	mem.o swap.o clock.o conf.o core1.o fault.o machdep.o \
-	shutdown_sync.o mpu.o sig_machdep.o syscall.o sysctl.o systick.o \
-	uart.o usb.o flash.o flash_swap.o error.o journal.o map.o \
-	swapram.o swapram_pool.o heatshrink_encoder.o hsx_decoder.o \
-	subr_crc32.o exec_hsaout.o hsx_stream.o
+	kern_subr.o kern_synch.o kern_sysctl.o kern_time.o subr_prf.o \
+	subr_rmap.o sys_generic.o sys_inode.o sys_pipe.o sys_process.o \
+	syscalls.o tty.o tty_subr.o tty_tty.o ufs_alloc.o ufs_bio.o \
+	ufs_bmap.o ufs_dsort.o ufs_fio.o ufs_inode.o ufs_mount.o \
+	ufs_namei.o ufs_subr.o ufs_syscalls.o ufs_syscalls2.o \
+	vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o mem.o swap.o \
+	clock.o conf.o core1.o fault.o machdep.o shutdown_sync.o mpu.o \
+	sig_machdep.o syscall.o sysctl.o systick.o uart.o usb.o flash.o \
+	flash_swap.o error.o journal.o map.o swapram.o swapram_pool.o \
+	heatshrink_encoder.o hsx_decoder.o subr_crc32.o exec_hsaout.o \
+	hsx_stream.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/errlist.c \
@@ -154,13 +163,13 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/kern_prot.c $S/kern/kern_prot2.c $S/kern/kern_resource.c \
 	$S/kern/kern_sig.c $S/kern/kern_sig2.c $S/kern/kern_subr.c \
 	$S/kern/kern_synch.c $S/kern/kern_sysctl.c $S/kern/kern_time.c \
-	$S/kern/subr_capacity.c $S/kern/subr_prf.c $S/kern/subr_rmap.c \
-	$S/kern/sys_generic.c $S/kern/sys_inode.c $S/kern/sys_pipe.c \
-	$S/kern/sys_process.c $S/kern/syscalls.c $S/kern/tty.c \
-	$S/kern/tty_subr.c $S/kern/tty_tty.c $S/kern/ufs_alloc.c \
-	$S/kern/ufs_bio.c $S/kern/ufs_bmap.c $S/kern/ufs_dsort.c \
-	$S/kern/ufs_fio.c $S/kern/ufs_inode.c $S/kern/ufs_mount.c \
-	$S/kern/ufs_namei.c $S/kern/ufs_subr.c $S/kern/ufs_syscalls.c \
+	$S/kern/subr_prf.c $S/kern/subr_rmap.c $S/kern/sys_generic.c \
+	$S/kern/sys_inode.c $S/kern/sys_pipe.c $S/kern/sys_process.c \
+	$S/kern/syscalls.c $S/kern/tty.c $S/kern/tty_subr.c \
+	$S/kern/tty_tty.c $S/kern/ufs_alloc.c $S/kern/ufs_bio.c \
+	$S/kern/ufs_bmap.c $S/kern/ufs_dsort.c $S/kern/ufs_fio.c \
+	$S/kern/ufs_inode.c $S/kern/ufs_mount.c $S/kern/ufs_namei.c \
+	$S/kern/ufs_subr.c $S/kern/ufs_syscalls.c \
 	$S/kern/ufs_syscalls2.c $S/kern/vfs_vnops.c $S/kern/vm_sched.c \
 	$S/kern/vm_swap.c $S/kern/vm_swp.c $S/dev/cons.c $S/dev/mem.c \
 	$S/dev/swap.c $S/arch/rp2040/rp2040/clock.c \
@@ -340,7 +349,7 @@ kern_mman.o: $S/kern/kern_mman.c
 	${COMPILE_C}
 
 kern_proc.o: $S/kern/kern_proc.c
-	${COMPILE_C}
+	${COMPILE_C17_C}
 
 kern_prot.o: $S/kern/kern_prot.c
 	${COMPILE_C}
@@ -349,7 +358,7 @@ kern_prot2.o: $S/kern/kern_prot2.c
 	${COMPILE_C}
 
 kern_resource.o: $S/kern/kern_resource.c
-	${COMPILE_C}
+	${COMPILE_C17_C}
 
 kern_sig.o: $S/kern/kern_sig.c
 	${COMPILE_C}
@@ -368,9 +377,6 @@ kern_sysctl.o: $S/kern/kern_sysctl.c
 
 kern_time.o: $S/kern/kern_time.c
 	${COMPILE_SIZE_C}
-
-subr_capacity.o: $S/kern/subr_capacity.c
-	${COMPILE_C}
 
 subr_prf.o: $S/kern/subr_prf.c
 	${COMPILE_C}
@@ -397,7 +403,7 @@ tty.o: $S/kern/tty.c
 	${COMPILE_C}
 
 tty_subr.o: $S/kern/tty_subr.c
-	${COMPILE_C}
+	${COMPILE_C17_C}
 
 tty_tty.o: $S/kern/tty_tty.c
 	${COMPILE_C}

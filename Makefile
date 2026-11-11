@@ -594,6 +594,9 @@ check-sysctl-status: check-python
 check-libc-output: check-python
 		${MAKE} -C tests/libc_output check
 
+check-libc-err: check-python
+		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tests/libc_err/check.py
+
 check-board-libc-output: check-python ${TOPSRC}/distrib/obj/boardlibc.${MACHINE}/libc.a
 		${PYTHON} tests/libc_output/check_board_archive.py ${TOPSRC} ${BOARDLIBC_GCCPREFIX}-gcc
 
@@ -1160,7 +1163,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
-		check-libc-host-contracts check-libc-assert check-c17-headers \
+		check-libc-host-contracts check-libc-assert check-libc-err check-c17-headers \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
@@ -1653,7 +1656,7 @@ installfs:
 .PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn check-dcbc \
 	check-libcalc-cross check-libbn-cross
 
-.PHONY: check-libc-output check-libc-output-cross
+.PHONY: check-libc-output check-libc-output-cross check-libc-err
 
 .PHONY: check-board-libc-output
 

@@ -12,9 +12,12 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BOARDS = ("PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM")
+BOARDS = ("PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM", "PICO_DIAG")
 # (variant, base, directives the variant adds to the base Config).
-VARIANTS = (("PICOCALC_PSRAM", "PICOCALC", ("device psram",)),)
+VARIANTS = (
+    ("PICOCALC_PSRAM", "PICOCALC", ("device psram",)),
+    ("PICO_DIAG", "PICO", ("options SYSTRACE", "options CAPACITY_STATS")),
+)
 COMPILE = Path("sys/arch/rp2040/compile")
 CONF = Path("sys/arch/rp2040/conf")
 BUILD_INPUTS = tuple(Path("tools/config") / name for name in (

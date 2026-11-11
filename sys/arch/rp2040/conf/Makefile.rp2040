@@ -64,6 +64,15 @@ PARAM+= -DKERNEL_SECTION_GC
 .elif ${KERNEL_GC:Uno} != "no"
 .error KERNEL_GC must be yes or no
 .endif
+
+# Sort wildcard inputs by required alignment without lowering object or
+# section alignment. The parameter stamp closes mode-switch invalidation.
+.if ${KERNEL_SORT_ALIGNMENT:Uno} == "yes"
+LDFLAGS+= --sort-section=alignment
+PARAM+= -DKERNEL_SORT_ALIGNMENT
+.elif ${KERNEL_SORT_ALIGNMENT:Uno} != "no"
+.error KERNEL_SORT_ALIGNMENT must be yes or no
+.endif
 # Cortex-M0+ has no divide instruction, so the compiler emits calls to the
 # libgcc helpers __aeabi_idiv and friends.
 LIBGCC!=	${CC} ${CMACHFLAGS} -print-libgcc-file-name
@@ -77,8 +86,10 @@ PARAM+= -DSTORAGE_STATS
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
+COMPILE_C17_C=	${CC} ${CFLAGS} -Wstrict-prototypes \
+		-Wold-style-definition ${DEFS} -c $<
 COMPILE_SIZE_C=	${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \
-		${CMACHFLAGS} -Os ${DEFS} -c $<
+		${CMACHFLAGS} -Os -Wstrict-prototypes -Wold-style-definition ${DEFS} -c $<
 # Code whose instruction count is a design input compiles at -O whatever
 # COPTS says: psram_xfer.c drains a four-word PIO receive FIFO from a polling
 # loop that must outrun the state machine's fill rate.

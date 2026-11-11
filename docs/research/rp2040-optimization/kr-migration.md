@@ -39,6 +39,33 @@ type or a typed adapter. Preserve syscall handlers as `void handler(void)`;
 their arguments and results still pass through the u-area. Changing that
 protocol is a separate mechanism.
 
+## Implemented interface tranche
+
+The definitions in `kern_proc.c` (3), `kern_resource.c` (8), `tty_subr.c` (9)
+and `kern_time.c` (11, including inactive helpers) use typed parameter lists.
+Owning public types remain unchanged. The compiler-backed ledger contains
+131 remaining definitions and two declarations across 20 files. The four
+units compile with strict-prototype and old-style-definition warnings made
+fatal in every RP2040 configuration; STM32F407 compilation also passes.
+
+Matched GCC 15.2.1 compiles against `fb4fae87` emit byte-identical executable
+sections for all four units in all five configurations. Host resource/clist,
+credential, time-I/O and interval-timer fixtures retain their behavior and
+mutation checks. The capacity bounds regression executes through emulated
+ILP32 userspace with its invalid-kind controls; that is not board evidence.
+
+`libc/gen/err.c` includes its owning header and converts its six old-style
+definitions. `check-libc-err` executes 32 subprocess cases for all eight APIs,
+null formats, integer/string/double forwarding, prefixes, saved errno,
+warning returns and exit status; three output/status mutations calibrate it.
+The fixture uses the repository header and production definitions with host
+stdio, not the target's formatter.
+
+`ruadd` retains its cross-member pointer loop. Its object-bounds repair is
+not established by the interface conversion. The formatter, heterogeneous
+driver callbacks, service-generator mismatch, scheduler/context families and
+optional libc closure remain separate semantic units.
+
 ## Candidate units
 
 | Order | Unit and observed findings | Recovered contract and closure | Acceptance |
@@ -51,8 +78,9 @@ protocol is a separate mechanism.
 | 5 | `libc/gen/err.c`: six old-style definitions | Two private no-argument helpers and four `va_list` entries; `include/err.h` already declares public prototypes | New subprocess stderr/status/errno fixture, null formats, integer/string/float forwarding, returning warning paths, strict C17 and native-header checks; clean archive/consumer rebuild |
 | 6 | `config.h`: `svc_attach` and `d_init` declarations | Services are called without arguments in `init_main.c`; driver initialization receives either a controller or device pointer in `machdep.c`. Inventory generator output, every initializer and both ARM ports | Treat service typing separately; resolve the heterogeneous driver slot through an explicit typed design. Reject incompatible callbacks without casts; verify generated tables and startup behavior |
 
-Orders 2a and 2b are separate commits even when the same translation unit is
-edited. Helper-level warning closure precedes a whole-file acceptance claim.
+Arithmetic or object-bounds changes in order 2b remain separate from the
+interface-only conversion. Helper-level warning closure precedes a
+whole-file interface acceptance claim.
 `resource_test` currently links both resource and process translation units,
 which provides a useful joint consumer without making their migrations one
 indivisible change.

@@ -19,8 +19,7 @@ makeoptions     DEBUG="-g"                  # Debug symbols
 options         "CPU_KHZ=125000"            # clk_sys after PLL bring-up
 options         "BUS_KHZ=125000"            # clk_peri runs from clk_sys
 options         "HALTREBOOT"                # If halted, press key to reboot
-options         SYSTRACE                    # kern.systrace console trace
-options         CAPACITY_STATS              # fixed-table and u-area peaks
+# PICO_DIAG carries syscall trace and capacity accounting.
 
 options         "CORE1"                     # core 1 observes core 0's clock
 

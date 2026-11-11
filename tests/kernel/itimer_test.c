@@ -175,10 +175,10 @@ get_timer(struct proc *p, u_int which)
 }
 
 /* A remaining value in microseconds. */
-static long
+static long long
 usec_of(struct timeval tv)
 {
-    return tv.tv_sec * 1000000L + tv.tv_usec;
+    return (long long)tv.tv_sec * 1000000LL + tv.tv_usec;
 }
 
 static unsigned
@@ -592,7 +592,7 @@ limits(void)
     back = get_timer(&proc[0], ITIMER_REAL);
     HK_CHECK(back.it_interval.tv_sec == 100000000L &&
         back.it_interval.tv_usec == 0);
-    HK_CHECK(usec_of(back.it_value) == 100000000L * 1000000L);
+    HK_CHECK(usec_of(back.it_value) == 100000000LL * 1000000LL);
 
     itv.it_value.tv_sec = 0;
     itv.it_value.tv_usec = 999999;

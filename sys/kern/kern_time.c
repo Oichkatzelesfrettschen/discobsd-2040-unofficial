@@ -12,8 +12,7 @@
 #include <machine/limits.h>
 
 static void
-setthetime (tv)
-    register struct timeval *tv;
+setthetime(struct timeval *tv)
 {
     int s;
 
@@ -57,7 +56,7 @@ setthetime (tv)
  * the time-of-day.
  */
 void
-gettimeofday()
+gettimeofday(void)
 {
     register struct a {
         struct  timeval *tp;
@@ -88,7 +87,7 @@ gettimeofday()
 }
 
 void
-settimeofday()
+settimeofday(void)
 {
     register struct a {
         struct  timeval *tv;
@@ -115,7 +114,7 @@ settimeofday()
 }
 
 void
-adjtime()
+adjtime(void)
 {
     register struct a {
         struct timeval *delta;
@@ -206,7 +205,7 @@ tvticks(struct timeval *tv, int *ticks)
 }
 
 void
-getitimer()
+getitimer(void)
 {
     register struct a {
         u_int   which;
@@ -256,7 +255,7 @@ getitimer()
 }
 
 void
-setitimer()
+setitimer(void)
 {
     register struct a {
         u_int   which;
@@ -341,8 +340,7 @@ bad:
  * counts ticks rounds a nonzero value up to one tick (see tvticks()).
  */
 int
-itimerfix(tv)
-    struct timeval *tv;
+itimerfix(struct timeval *tv)
 {
     if (tv->tv_sec < 0 || tv->tv_sec > 100000000L ||
         tv->tv_usec < 0 || tv->tv_usec >= 1000000L)
@@ -361,9 +359,8 @@ itimerfix(tv)
  * that it is called in a context where the timers
  * on which it is operating cannot change in value.
  */
-itimerdecr(itp, usec)
-    register struct itimerval *itp;
-    int usec;
+int
+itimerdecr(struct itimerval *itp, int usec)
 {
 
     if (itp->it_value.tv_usec < usec) {
@@ -395,8 +392,7 @@ expire:
 #endif /* NOT_CURRENTLY_IN_USE */
 
 static void
-tvfix(t1)
-    struct timeval *t1;
+tvfix(struct timeval *t1)
 {
     if (t1->tv_usec < 0) {
         t1->tv_sec--;
@@ -416,8 +412,7 @@ tvfix(t1)
  * Caveat emptor.
  */
 void
-timevaladd(t1, t2)
-    struct timeval *t1, *t2;
+timevaladd(struct timeval *t1, struct timeval *t2)
 {
     t1->tv_sec += t2->tv_sec;
     t1->tv_usec += t2->tv_usec;
@@ -426,8 +421,7 @@ timevaladd(t1, t2)
 
 #ifdef NOT_CURRENTLY_IN_USE
 void
-timevalsub(t1, t2)
-    struct timeval *t1, *t2;
+timevalsub(struct timeval *t1, struct timeval *t2)
 {
     t1->tv_sec -= t2->tv_sec;
     t1->tv_usec -= t2->tv_usec;

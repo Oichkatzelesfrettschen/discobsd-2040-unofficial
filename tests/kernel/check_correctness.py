@@ -73,6 +73,7 @@ def build(work, suite, changes):
             source.write_text(text)
         extra = ["-ffunction-sections", "-fdata-sections"]
         if name == "kern_time.c":
+            extra += ["-Wstrict-prototypes", "-Wold-style-definition"]
             extra += ["-Dgettimeofday=gate_gettimeofday", "-Dsettimeofday=gate_settimeofday"]
             if name in changes:
                 # Clang diagnoses the historical wrong-sign bound before the

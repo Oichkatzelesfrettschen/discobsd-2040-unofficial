@@ -24,6 +24,9 @@ and persistence contracts remain intact.
 
 ## Documents and ownership
 
+UART flash work buffers fit SRAM4. USB ring peak and discarded-byte accounting
+are implemented through read-only sysctls; board measurements remain pending.
+
 - [alignment.md](alignment.md) owns byte-alignment decisions and experiments.
 - [memory-map.md](memory-map.md) owns current linked RAM decomposition,
   adversarial alternatives and map-level admission evidence.

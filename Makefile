@@ -1080,8 +1080,9 @@ check-rp2040-usercopy-span: check-python
 		    --root ${TOPSRC:Q} --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/usercopy-span-contracts.json
 
-check-usb-reset:
+check-usb-reset: check-python
 		${MAKE} -C tests/rp2040/usb_reset check
+		${PYTHON} tools/check_usb_ring.py
 
 # The PicoCalc console's terminal emulator and key translation against a
 # model panel, three calibrating mutants, and the font table's sync with

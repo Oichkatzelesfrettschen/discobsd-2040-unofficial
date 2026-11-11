@@ -412,6 +412,13 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		count = usb_tx_recovered;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
 		    sizeof count);
+	case CPU_USB_TX_PEAK:
+	case CPU_USB_TX_DROPPED:
+		if (namelen != 1)
+			return ENOTDIR;
+		count = name[0] == CPU_USB_TX_PEAK ? usb_tx_peak : usb_tx_dropped;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
+		    sizeof count);
 #endif	/* UARTUSB_ENABLED */
 #ifdef SWAPRAM
 	case CPU_SWAPRAM_EVACUATE:

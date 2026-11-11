@@ -117,6 +117,20 @@ check-flash-swap:
 			    --exec-object $$i/exec_subr.o \
 			    --swap-object $$i/swap.o $$swapram_arg; \
 		done
+		@# Reject the retired SRAM5 placement using an otherwise linked kernel.
+		@set -eu; work=$$(mktemp -d); trap 'rm -r "$$work"' EXIT HUP INT TERM; \
+		tool_prefix=$$(${MAKE} -C PICO_UART -V ARM_GCC_PREFIX); \
+		"$${tool_prefix}-objcopy" --strip-symbol flscratch \
+		    --add-symbol flscratch=0x20041f00,global \
+		    PICO_UART/unix.elf "$$work/old-layout.elf"; \
+		if NM="$${tool_prefix}-nm" OBJDUMP="$${tool_prefix}-objdump" \
+		    sh "${FLASH_SWAP_LINK_VERIFIER}" --elf "$$work/old-layout.elf" \
+		    --flash-object PICO_UART/flash.o --vm-swap-object PICO_UART/vm_swap.o \
+		    --exec-object PICO_UART/exec_subr.o --swap-object PICO_UART/swap.o \
+		    >"$$work/output" 2>&1; then \
+			echo "flash verifier accepted retired SRAM5 placement" >&2; exit 1; \
+		fi; \
+		grep -F 'flscratch is at 0x20041f00, expected 0x20040500' "$$work/output"
 
 .PHONY:		default all install clean clean-all reconfig check-divider \
 		check-swapram check-cache-footprint check-exec-spool \

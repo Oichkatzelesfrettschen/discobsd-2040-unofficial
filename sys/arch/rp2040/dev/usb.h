@@ -293,6 +293,8 @@ extern u_int usb_e15_bulkin_arms;
  */
 extern u_int usb_service_reentered;
 extern u_int usb_tx_recovered;
+extern u_int usb_tx_peak;
+extern u_int usb_tx_dropped;
 
 void	usbabandon(void);
 #endif	/* KERNEL */

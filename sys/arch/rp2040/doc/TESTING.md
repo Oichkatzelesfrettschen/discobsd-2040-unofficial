@@ -526,6 +526,16 @@ bmake MACHINE=rp2040 check-kernel check-config-makefile
 
 ## Host tier
 
+`check-usb-reset` also compiles the production `usb_tx_put` body through
+`tools/check_usb_ring.py`. Capacity, oldest-byte discard, saturating drop
+accounting and unsigned index wrap execute on the host. Missing peak updates,
+missing drop updates and wrapping drop counters must fail at distinct checks.
+The fixture establishes enqueue accounting, not USB controller timing.
+
+`check-flash-swap` verifies UART flash work in SRAM4 and rejects a mutated
+linked ELF carrying the retired SRAM5 program-buffer address. The kernel
+linker also bounds UART flash work to the first 4 KiB scratch bank.
+
 Each gate compiles the tree's own source for the host, with `-Wall
 -Wextra -Werror`, around a model of what the board supplies.
 

@@ -106,6 +106,29 @@ buffer beside the first two would leave all of SRAM5 unowned after boot.
 
 ## Process-window pressure
 
+The implemented UART packing places `flscratch` at `0x20040500`, ending at
+`0x20040600`. All three work objects fit SRAM4, and SRAM5 has no runtime owner.
+The linker rejects a UART work-buffer end beyond SRAM4. The flash link gate
+rejects a mutated ELF that restores the former SRAM5 address. Bank power and
+boot-ROM reset behavior remain unchanged.
+
+USB kernels expose `machdep.usb_tx_peak` and `machdep.usb_tx_dropped` as
+read-only unsigned counter payloads. The peak counts queued ring bytes and
+never exceeds 8,192. The drop count saturates at `UINT_MAX` and counts oldest
+bytes discarded by enqueue; a saturated value cannot supply exact deltas.
+Both counters last for one boot and include output before a host opens the
+console. Separate sysctl reads do not provide an atomic paired snapshot.
+`check-usb-reset` exercises the production enqueue function at capacity, on
+overflow, at counter saturation and across unsigned index wrap, and rejects
+three calibrated accounting mutations. USB controller timing and board
+throughput remain hardware measurements.
+
+The accounting implementation adds 56 text bytes to PICO and PICOCALC and
+48 text bytes to PICOCALC_PSRAM with GCC 15.2.1 at `-Os`; each USB kernel
+adds eight BSS bytes. PICO_UART retains its text/data/BSS totals. The
+worst-configuration post-exchange margin becomes 9,136 bytes. SRAM4 packing
+changes placement, not total capacity or bank power.
+
 The projection keeps the current PICOCALC_PSRAM physical static bytes, 16 KiB
 pool and 4 KiB exchange reserve. It assumes relocation does not change code or
 data size. Each result is therefore an arithmetic bound rather than a linked

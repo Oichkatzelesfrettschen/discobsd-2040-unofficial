@@ -2,6 +2,7 @@
 
 import concurrent.futures
 import os
+import re
 import shlex
 import subprocess
 import tempfile
@@ -175,7 +176,7 @@ int main(void) {
     def test_trace_names_follow_the_tracing_option(self):
         for board in sync.BOARDS:
             generated = (self.root / sync.COMPILE / board / "Makefile").read_text()
-            tracing = "PARAM += -DSYSTRACE\n" in generated
+            tracing = bool(re.search(r"^PARAM \+= -DSYSTRACE(?:=[^\n]*)?$", generated, re.M))
             self.assertEqual("syscalls.o: $S/kern/syscalls.c\n" in generated, tracing)
 
     def test_kernel_optimization_and_aliasing_policy(self):
@@ -214,6 +215,30 @@ int main(void) {
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("KERNEL_SORT_ALIGNMENT must be yes or no", result.stderr)
+
+    def test_compact_dispatch_mode_is_explicit(self):
+        sync.copy_file(sync.ROOT, self.root, sync.CONF / "compiler.mk")
+        for board in sync.BOARDS:
+            directory = self.root / sync.COMPILE / board
+            for mode in ("yes", "no", "invalid"):
+                result = subprocess.run(
+                    ["bmake", "LIBGCC=", f"KERNEL_COMPACT_DISPATCH={mode}",
+                     "-V", "${PARAM}"], cwd=directory, env=sync.child_environment(),
+                    text=True, capture_output=True, check=False,
+                )
+                if mode == "invalid":
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("KERNEL_COMPACT_DISPATCH must be yes or no", result.stderr)
+                else:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual("-DCOMPACT_SYSCALL_DISPATCH" in result.stdout, mode == "yes")
+            environment = dict(sync.child_environment(), PYTHON="")
+            result = subprocess.run(
+                ["bmake", "LIBGCC=", "KERNEL_COMPACT_DISPATCH=yes", "-V", "PARAM"],
+                cwd=directory, env=environment, text=True, capture_output=True, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("compact dispatch requires caller-selected PYTHON", result.stderr)
 
     def test_psram_transfer_uses_cycle_counted_compile_rule(self):
         generated = (self.root / sync.COMPILE / "PICOCALC_PSRAM/Makefile").read_text()

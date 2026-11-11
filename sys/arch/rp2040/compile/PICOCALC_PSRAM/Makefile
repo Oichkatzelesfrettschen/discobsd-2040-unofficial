@@ -101,6 +101,15 @@ PARAM+= -DKERNEL_SORT_ALIGNMENT
 .elif ${KERNEL_SORT_ALIGNMENT:Uno} != "no"
 .error KERNEL_SORT_ALIGNMENT must be yes or no
 .endif
+
+.if ${KERNEL_COMPACT_DISPATCH:Uno} == "yes"
+.if !defined(PYTHON) || empty(PYTHON)
+.error compact dispatch requires caller-selected PYTHON
+.endif
+PARAM+= -DCOMPACT_SYSCALL_DISPATCH
+.elif ${KERNEL_COMPACT_DISPATCH:Uno} != "no"
+.error KERNEL_COMPACT_DISPATCH must be yes or no
+.endif
 # Cortex-M0+ has no divide instruction, so the compiler emits calls to the
 # libgcc helpers __aeabi_idiv and friends.
 LIBGCC!=	${CC} ${CMACHFLAGS} -print-libgcc-file-name
@@ -214,7 +223,16 @@ ${SYSTEM_OBJ} swapunix.o: ${PARAMSTAMP}
 # the compile stops at that include. Delaying the ln -s by one second turns
 # the gap into a failure on every run, which is how the barrier was measured.
 SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
-		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
+		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript \
+		syscall_roots.ld syscall_offsets.ld ${TOPSRC}/tools/verify_rp2040_dispatch.py
+
+syscall_roots.ld syscall_offsets.ld: ${PARAMSTAMP}
+syscall_roots.ld: $S/kern/syscall_roots.ld.S
+	${CC} -E -P -x c ${PARAM} $< -o $@.tmp
+	mv $@.tmp $@
+syscall_offsets.ld: $S/kern/syscall_offsets.ld.S
+	${CC} -E -P -x c ${PARAM} $< -o $@.tmp
+	mv $@.tmp $@
 # The link is one recipe of three lines, and each line is one && chain, so
 # the status a step returns is the status of the line and a failed step
 # stops the ones after it: a failed newvers.sh compiles no vers.c, a failed
@@ -239,7 +257,11 @@ SYSTEM_LD_HEAD=	rm -f $@ $@.elf $@.hex $@.bin $@.dis $@.uf2 vers.o && \
 		${CC} ${CFLAGS} -c vers.c
 SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
-SYSTEM_LD_TAIL=	${SIZE} $@ && cp $@ $@.elf && \
+SYSTEM_LD_TAIL=	${SIZE} $@ && \
+		if [ ${KERNEL_COMPACT_DISPATCH:Uno:Q} != yes ]; then :; else \
+		    ${PYTHON} ${TOPSRC}/tools/verify_rp2040_dispatch.py \
+		        --elf $@ --param ${PARAM:Q}; fi && \
+		cp $@ $@.elf && \
 		${OBJCOPY} -O ihex $@ $@.hex.tmp && mv $@.hex.tmp $@.hex && \
 		${OBJCOPY} -O binary $@ $@.bin.tmp && mv $@.bin.tmp $@.bin && \
 		${OBJDUMP} -d -S $@ > $@.dis.tmp && mv $@.dis.tmp $@.dis && \
@@ -266,7 +288,7 @@ all: unix
 
 clean:
 	rm -rf .deps unix *.elf *.o *.map *.dis *.bin *.hex *.uf2 *.tmp boot2.S machine sys \
-	    vers.c .compileversion .oldversion ${PARAMSTAMP}
+	    vers.c .compileversion .oldversion ${PARAMSTAMP} syscall_roots.ld syscall_offsets.ld
 
 clean-all: clean
 	rm -f *.h ioconf.c swap*.c vers.c

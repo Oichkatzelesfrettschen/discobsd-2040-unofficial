@@ -16,7 +16,24 @@
  */
 typedef void (*syscall_handler_t)(void);
 extern const unsigned char syscall_nargs[];
+#ifdef COMPACT_SYSCALL_DISPATCH
+#if !defined(__arm__) || !defined(__thumb__)
+#error "compact dispatch requires ARM Thumb"
+#endif
+extern const unsigned short syscall_handler_offsets[];
+extern const unsigned char __syscall_text_anchor[];
+_Static_assert(sizeof(unsigned short) == 2 && sizeof(unsigned int) == 4 &&
+    sizeof(syscall_handler_t) == 4, "compact dispatch requires the ARM32 ABI");
+/* The caller bounds code against nsysent before decoding. */
+static inline syscall_handler_t
+syscall_handler_at(unsigned int code)
+{
+    return (syscall_handler_t)((unsigned int)__syscall_text_anchor +
+        ((unsigned int)syscall_handler_offsets[code] << 1) + 1U);
+}
+#else
 extern const syscall_handler_t syscall_handlers[];
+#endif
 extern const int nsysent;
 /* The name is *length bytes with no terminator. */
 const char *syscall_name(unsigned int code, unsigned int *length);

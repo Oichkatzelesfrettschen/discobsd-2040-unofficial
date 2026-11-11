@@ -20,6 +20,8 @@ u			= ORIGIN(UAREA);
 u_end			= ORIGIN(UAREA) + LENGTH(UAREA);
 _estack			= ORIGIN(UAREA) + LENGTH(UAREA);
 
+INCLUDE syscall_roots.ld
+
 ENTRY(Reset_Handler)
 
 PHDRS {
@@ -51,6 +53,7 @@ SECTIONS {
 		*(.text*)
 		. = ALIGN(8);
 		*(.rodata*)
+		INCLUDE syscall_offsets.ld
 	} > FLASH :flash
 
 	.ARM.extab : {

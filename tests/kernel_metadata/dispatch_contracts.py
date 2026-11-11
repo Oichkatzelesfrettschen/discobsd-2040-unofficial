@@ -117,7 +117,9 @@ def check(root, host_cc):
                 ('clang.arm.c17', [clang, '--target=arm-none-eabi', *portable, *target])]
     source_hashes = {str(path.relative_to(root)): digest(path) for path in
                      [header, root / 'sys/kern/syscalls.master',
-                      root / 'sys/kern/init_sysent.c', root / 'sys/kern/syscalls.c']}
+                      root / 'sys/kern/init_sysent.c', root / 'sys/kern/syscalls.c',
+                      root / 'sys/kern/syscall_roots.ld.S',
+                      root / 'sys/kern/syscall_offsets.ld.S']}
     tools = {tool: {'sha256': digest(Path(tool)), 'version':
                    subprocess.check_output([tool, '--version'], text=True).splitlines()[0]}
              for tool in {host[0], clang, arm}}
@@ -219,7 +221,8 @@ def check(root, host_cc):
         # the private header. A private copied tree makes the stale-output control safe.
         generator = root / 'tools/gen_kernel_metadata.py'
         outputs = ['include/syscall.h', 'sys/sys/syscall_dispatch.h',
-                   'sys/kern/init_sysent.c', 'sys/kern/syscalls.c', 'sys/kern/errlist.c']
+                   'sys/kern/init_sysent.c', 'sys/kern/syscalls.c', 'sys/kern/errlist.c',
+                   'sys/kern/syscall_roots.ld.S', 'sys/kern/syscall_offsets.ld.S']
         fixture = workspace / 'freshness'
         for name in [*outputs, 'sys/kern/syscalls.master', 'sys/kern/errlist.master']:
             destination = fixture / name
@@ -229,6 +232,13 @@ def check(root, host_cc):
         run_command(command, 'fresh-output', cases)
         (fixture / 'sys/sys/syscall_dispatch.h').write_text(original + '\n/* stale */\n')
         run_command(command, 'stale-header', cases, reject='stale')
+        (fixture / 'sys/sys/syscall_dispatch.h').write_text(original)
+        for name in ('sys/kern/syscall_roots.ld.S', 'sys/kern/syscall_offsets.ld.S'):
+            text = (fixture / name).read_text()
+            (fixture / name).write_text(text + '\n/* stale */\n')
+            run_command(command, 'stale-' + Path(name).stem, cases,
+                        reject=re.escape(name) + '.*stale')
+            (fixture / name).write_text(text)
         consumer.write_text('#include <syscall.h>\n.word SYS_MAXSYSCALL\n'
                             '.word SYS_vfork\n.word SYS_openat\n'
                             '.word SYS_unlinkat_beneath\n'

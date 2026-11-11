@@ -43,6 +43,18 @@ def read_symbols(path):
                 if section["sh_type"] != "SHT_NOBITS":
                     data = section.data()[offset:offset + size]
             result[entry.name] = Symbol(address, size, data, function)
+        if "syscall_handler_offsets" in result and "syscall_handler_offsets_end" in result:
+            start = result["syscall_handler_offsets"]
+            size = result["syscall_handler_offsets_end"].address - start.address
+            require(0 <= size <= 65536, "compact table extent differs")
+            entry = elf.get_section_by_name(".symtab").get_symbol_by_name(
+                "syscall_handler_offsets")[0]
+            section = elf.get_section(entry["st_shndx"])
+            offset = start.address - section["sh_addr"]
+            require(0 <= offset and offset + size <= section["sh_size"],
+                    "compact table outside its section")
+            start.size = size
+            start.data = section.data()[offset:offset + size]
         return result
 
 
@@ -58,14 +70,31 @@ def validate(symbols, rows, defines):
     require(symbols["nsysent"].data == struct.pack("<I", count), "syscall count differs")
     args = symbols["syscall_nargs"].data
     require(len(args) == count, "argument table extent differs")
-    require("syscall_handlers" in symbols, "missing full handler table")
-    table = symbols["syscall_handlers"]
-    require(table.address % 4 == 0, "handler table alignment differs")
-    require(len(table.data) == count * 4, "handler table extent differs")
-    pointers = struct.unpack("<" + "I" * count, table.data)
+    if "COMPACT_SYSCALL_DISPATCH" in defines:
+        require("syscall_handlers" not in symbols, "full handler table retained")
+        require(all(name in symbols for name in ("syscall_handler_offsets",
+                "syscall_handler_offsets_end", "__syscall_text_anchor")),
+                "missing compact table boundary")
+        table = symbols["syscall_handler_offsets"]
+        anchor = symbols["__syscall_text_anchor"].address
+        require(anchor == 0x10000100, "compact anchor differs from RP2040 flash origin")
+        require(table.address % 2 == 0, "compact table alignment differs")
+        require(len(table.data) == count * 2 and
+                symbols["syscall_handler_offsets_end"].address - table.address == count * 2,
+                "compact table extent differs")
+        pointers = [anchor + (offset << 1) + 1
+                    for offset in struct.unpack("<" + "H" * count, table.data)]
+    else:
+        require("syscall_handler_offsets" not in symbols, "compact table retained")
+        require("syscall_handlers" in symbols, "missing full handler table")
+        table = symbols["syscall_handlers"]
+        require(table.address % 4 == 0, "handler table alignment differs")
+        require(len(table.data) == count * 4, "handler table extent differs")
+        pointers = struct.unpack("<" + "I" * count, table.data)
     for index, row in enumerate(rows):
         number, nargs, handler, condition, _trace, _public = row
         require(int(number) == index, "master ordinal differs")
+        require(condition in {"ALWAYS", "IFNET", "ERRNET", "GLOB"}, "master condition differs")
         if condition in ("IFNET", "ERRNET") and "INET" not in defines:
             handler = "nonet" if condition == "ERRNET" else "nosys"
             nargs = "0"
@@ -106,6 +135,24 @@ def self_test():
             "nosys": Symbol(0x10000101, 2, function=True),
             "rexit": Symbol(0x10000111, 2, function=True)}
     validate(good, rows, set())
+    compact = copy.deepcopy(good)
+    del compact["syscall_handlers"]
+    compact.update({"__syscall_text_anchor": Symbol(0x10000100, 0),
+                    "syscall_handler_offsets": Symbol(0x10001008, 6,
+                                                       struct.pack("<HHH", 0, 8, 0)),
+                    "syscall_handler_offsets_end": Symbol(0x1000100e, 0)})
+    validate(compact, rows, {"COMPACT_SYSCALL_DISPATCH"})
+    for name, field, value in (("__syscall_text_anchor", "address", 0x10000101),
+                               ("syscall_handler_offsets", "data", bytes(6)),
+                               ("syscall_handler_offsets_end", "address", 0x1000100c)):
+        bad = copy.deepcopy(compact)
+        setattr(bad[name], field, value)
+        try:
+            validate(bad, rows, {"COMPACT_SYSCALL_DISPATCH"})
+        except ValueError:
+            pass
+        else:
+            raise ValueError("accepted malformed compact table")
     mutations = (
         ("syscall_nargs", "data", bytes((0, 0, 0)), "argument slot"),
         ("syscall_handlers", "address", 0x10001009, "alignment"),
@@ -138,7 +185,7 @@ def self_test():
             require(diagnostic in str(error), "unexpected trace calibration diagnostic")
         else:
             raise ValueError("accepted inconsistent trace selection")
-    print("PASS dispatch image calibration: two controls, eight corruptions rejected")
+    print("PASS dispatch image calibration: three controls, eleven corruptions rejected")
 
 
 def main():

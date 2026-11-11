@@ -28,6 +28,23 @@ objects are restored after the matrix. Boot and hardware evidence remain
 open, so collection remains
 an explicit experiment mode.
 
+After trace-source closure at `8c8fc442`, matched full-pointer links with the
+same compiler/linker and `-Os` measure:
+
+| Configuration | Default flash span | Collected flash span | Flash saving | BSS saving |
+| --- | ---: | ---: | ---: | ---: |
+| PICO | 91,772 | 89,424 | 2,348 | 16 |
+| PICO_UART | 84,016 | 81,668 | 2,348 | 16 |
+| PICOCALC | 109,108 | 108,180 | 928 | 24 |
+| PICOCALC_PSRAM | 111,272 | 110,328 | 944 | 24 |
+| PICO_DIAG | 94,364 | 92,016 | 2,348 | 16 |
+
+The omitted trace source already releases bytes that collection previously
+discarded. Those savings are not additive. Data, SwapRAM pool sizes and
+eight-byte section/stack alignment remain unchanged. These full-pointer
+builds and the compact collected builds pass the same placement, divider
+and headroom owners.
+
 The 32-byte `locore0.o` input `.text` contains eight anonymous address words
 before the explicit `.text.Reset_Handler` section. `objdump -h -r locore0.o`
 shows eight ABS32 relocations to linker boundaries and no incoming reference
@@ -167,6 +184,8 @@ the decoder, all 163 trace spans and their name pool. Generated-source and
 final-image gates enforce membership; the numeric syscall ABI and handler
 table remain unchanged. The preceding default measurements retain their
 pre-closure revision boundary. No section-GC flag is required for this saving.
+Lean PICO then spans 91,772 flash bytes versus PICO_DIAG's 94,364, a
+2,592-byte difference; their ordinary BSS extents remain equal.
 
 ## Anchored hot scalars
 
@@ -202,34 +221,68 @@ claim and does not establish an alias-based production ownership design.
 
 ## Compact dispatch tables
 
-The current generated control is already compact and alignment-safe. In the
-current PICO ELF, `syscall_nargs` is 163 bytes and `syscall_handlers` is 652
-bytes: one byte and one 4-byte pointer for each of 163 entries. Trace names use
-a 326-byte halfword span table and an 819-byte shared string pool.
+The default representation retains 163 argument bytes and 652 bytes of
+naturally aligned handler pointers. `KERNEL_COMPACT_DISPATCH=yes` replaces
+only the pointer table with 163 unsigned halfwords. The generated private
+header decodes `0x10000100 + 2 * offset + 1` into the existing handler type.
+The caller retains its bounds check and u-area calling contract. Full-pointer
+dispatch remains the default; no public numeric syscall definition changes.
 
-The next prototype may encode handler addresses as generated 16-bit offsets
-from a fixed, even text anchor while retaining byte argument counts. Its
-generator/assembler must prove:
+The metadata generator owns two linker inputs. EXTERN roots preserve selected
+handlers under GC. The table fragment uses ABSOLUTE handler addresses inside
+the output section and rejects either range violation, odd code addresses,
+an odd table start or an extent other than 326 bytes. GNU ld expressions
+strip the function's Thumb tag; the post-link image gate checks ELF function
+metadata independently and verifies every reconstructed pointer. A failure
+blocks derived-image publication, including replacement of stale images.
+The parameter stamp invalidates objects and regenerated fragments in either
+mode-switch direction. Missing PYTHON and invalid mode values fail parsing.
 
-- every target is a Thumb function, representable relative to the anchor and
-  restored with the Thumb bit before the indirect call;
-- the table is 2-byte aligned and decoded without an unaligned word access;
-- conditional `INET` entries, `nosys` aliases and all 163 ABI slots match the
-  full-pointer table;
-- link movement outside the representable range fails at build time;
-- dispatch behavior, syscall tracing and every configuration pass unchanged.
+Matched against `8c8fc442`, GCC 15.2.1, GNU ld 2.45.1, default `-Os`, without
+GC or alignment sorting:
 
-The theoretical pointer-table saving is 326 bytes before decoder and anchor
-cost. `cdevsw` is not the same problem: it mixes function pointers with RAM
-data pointers and needs a separately generated prototype, if any. Do not
-recreate the larger upstream BSD `sysent` records or use packed function
-pointers.
+| Configuration | Loaded flash-span delta | Data/BSS delta | Syscall static frame, full/compact |
+| --- | ---: | ---: | ---: |
+| PICO | -320 | 0 / 0 | 32 / 32 |
+| PICO_UART | -308 | 0 / 0 | 32 / 32 |
+| PICOCALC | -320 | 0 / 0 | 32 / 32 |
+| PICOCALC_PSRAM | -308 | 0 / 0 | 32 / 32 |
+| PICO_DIAG | -308 | 0 / 0 | 48 / 48 |
 
-The private footprint probe reads every handler pointer from each of the five
-linked control ELFs, requires a matching Thumb-function symbol and round-trips
-all 163 slots through `(pointer - 1 - 0x10000100) / 2`. The largest encoded
-offset is 32,740; the representation has a 65,535 limit. Missing slots,
-even/non-Thumb pointers and an out-of-range address calibrate rejection.
-This checks actual linked addresses, not a future link's representability.
-Generated link-time range assertions, a decoder, INET variant execution and
-whole-image net savings remain prerequisites to replacing production pointers.
+The 326-byte gross table saving is reduced by decoder/literal/padding costs
+in those whole-image deltas. Static frames are compiler reports, not runtime peaks.
+All five compact links, both ordinary and collected, pass dispatch, flash,
+SwapRAM, divider and headroom checks. Default objects are restored afterward.
+The default-mode generated fragments are empty and add no image bytes.
+
+`check-compact-dispatch` executes all 163 selections and indirect calls in
+13 Cortex-M0 instruction runs: full/compact controls, INET/GLOB combinations,
+tracing, defined-zero options, GC, alignment sorting and an Arm Clang build.
+Volatile function-pointer storage prevents the comparison oracle from turning
+the tested indirect call into a direct branch. Two decoder mutations return
+the expected pointer-mismatch status; four linker controls, a non-Thumb
+image and an unsupported host architecture are rejected. Three image controls
+and eleven corruptions calibrate the companion structural checker. These
+fixtures execute stub handlers, not kernel syscalls or networking code.
+
+The measured artifacts are the five configuration directories' `unix.elf`
+images and compiler `-fstack-usage` reports for production `syscall.c`.
+Reproduce each image mode before inspecting it; ordinary make-variable
+queries describe the requested mode, not the options of stale objects:
+
+```sh
+: "${PYTHON:?select the gate interpreter}"
+bmake MACHINE=rp2040 logged-build
+bmake -C sys/arch/rp2040/compile KERNEL_COMPACT_DISPATCH=yes all
+bmake MACHINE=rp2040 KERNEL_COMPACT_DISPATCH=yes check-dispatch-image \
+  check-flash-swap check-swapram check-divider check-kernel-headroom
+bmake -C sys/arch/rp2040/compile KERNEL_COMPACT_DISPATCH=yes KERNEL_GC=yes all
+bmake MACHINE=rp2040 KERNEL_COMPACT_DISPATCH=yes KERNEL_GC=yes \
+  check-dispatch-image check-flash-swap check-swapram check-divider check-kernel-headroom
+bmake -C sys/arch/rp2040/compile KERNEL_COMPACT_DISPATCH=no KERNEL_GC=no all
+bmake MACHINE=rp2040 check-compact-dispatch
+```
+
+Boot and full kernel syscall-path execution remain open. Keep the mode opt-in.
+`cdevsw` mixes function and RAM data pointers and remains outside this encoding;
+packed function pointers and larger upstream `sysent` records are not used.

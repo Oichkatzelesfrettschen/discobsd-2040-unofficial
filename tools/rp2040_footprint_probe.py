@@ -202,16 +202,25 @@ def inspect(path):
             "post_exchange_margin": 0x2003e800 - 4096
                                     - symbols["__kernel_ram_used_end"]["st_value"],
         }
-        table = symbols["syscall_handlers"]
+        compact = "syscall_handler_offsets" in symbols
+        table = symbols["syscall_handler_offsets" if compact else "syscall_handlers"]
         section = elf.get_section(table["st_shndx"])
         offset = table["st_value"] - section["sh_addr"]
-        raw = section.data()[offset:offset + table["st_size"]]
-        pointers = [int.from_bytes(raw[i:i + 4], "little") for i in range(0, len(raw), 4)]
+        size = (symbols["syscall_handler_offsets_end"]["st_value"] - table["st_value"]
+                if compact else table["st_size"])
+        raw = section.data()[offset:offset + size]
+        if compact:
+            anchor = symbols["__syscall_text_anchor"]["st_value"]
+            pointers = [anchor + int.from_bytes(raw[i:i + 2], "little") * 2 + 1
+                        for i in range(0, len(raw), 2)]
+        else:
+            pointers = [int.from_bytes(raw[i:i + 4], "little") for i in range(0, len(raw), 4)]
         functions = {s["st_value"] for s in symbols.values()
                      if s["st_info"]["type"] == "STT_FUNC"}
         encoded = encode_handlers(pointers, functions)
         return footprint, {"slots": len(pointers), "largest_halfword_offset": max(encoded),
-                           "gross_table_saving": len(raw) // 2}
+                           "gross_table_saving": len(pointers) * 2,
+                           "table_bytes": len(raw), "compact": compact}
 
 
 def main():

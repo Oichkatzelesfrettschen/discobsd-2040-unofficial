@@ -17,12 +17,12 @@ and persistence contracts remain intact.
 | Alignment | Retain the 8-byte ABI, stack and section boundary; use 4-byte natural alignment for words and narrower storage only behind explicit byte/halfword contracts | decision recorded |
 | RAM and memory map | Retain the 192/58/3/3/8 KiB split; projected windows above 192 KiB consume the worst configuration's stability margin before they provide a material process gain | adversarial review recorded |
 | Wear and recovery | All 464 complete-operation cuts recover; a half-programmed page fails at cut 26. Resolve the payload-integrity contract before changing wear policy | model counterexample retained |
-| Section garbage collection | `KERNEL_GC=yes` saves 2,124--3,548 text bytes across five builds; placement, headroom and divider checks pass; boot evidence remains open | opt-in mode implemented and remeasured |
+| Section garbage collection | After trace-source closure, `KERNEL_GC=yes` saves 928--2,348 flash-span bytes across five builds; placement, headroom and divider checks pass; boot evidence remains open | opt-in mode implemented and remeasured |
 | PICO/PICO_DIAG | PICO omits both diagnostic options; PICO_DIAG adds exactly those options. Build, generated-config, reader and CI coverage include the sibling | implemented |
 | Trace-name membership | Only SYSTRACE configurations link the trace decoder/name pool; four ordinary kernels save 1,196--1,200 flash bytes with unchanged RAM | source selection and calibrated image gate implemented |
 | Additional linker flags | Alignment sorting reduces flash span by 8--12 bytes and BSS extent by 8--168 bytes; relaxation, common sorting and linker `-O2` produce no measured saving | opt-in sorting mode and private probe implemented |
 | Anchored hot scalars | Four-field clock bank leaves code unchanged and adds eight data/flash bytes in every configuration; no production bank or `r9` reservation | private prototype rejected |
-| Compact dispatch | All 163 handlers in five linked controls round-trip through halfword offsets and retain the Thumb bit; decoder, generated link assertions and execution remain open | representability probe implemented |
+| Compact dispatch | Opt-in halfword decoder saves 308--320 flash-span bytes in five kernels; generated range/extent assertions, image admission and Cortex-M0 instruction tests pass | implemented; default remains full pointers pending boot evidence |
 | Capacity admission | Reject invalid metric kinds before indexing; `-O2` compilation proceeds, but PicoCalc exceeds FLASH | bounds fix implemented |
 | K&R interfaces | Six units include typed driver/service slots and the independent resource object-bounds repair; pure definition conversions preserve code bytes | implemented and reconciled with the existing PR commits |
 | `adjtime` arithmetic | Commit `98810124` already splits seconds/ticks before division; current PICO contains no `__aeabi_ldivmod`, `__aeabi_lmul` or `__divdi3` | implemented before this tranche |
@@ -73,9 +73,9 @@ The implemented tranche does not close every historical queue entry:
   integrity/fallback, the atomicity assumption and acknowledgement semantics
   require an explicit recovery design and production-adapter interruption
   evidence. Board erase-address traces and endurance distribution remain unrun.
-- Halfword dispatch still needs generated range assertions, an actual decoder,
-  conditional INET execution and net image measurements. Address round trips
-  alone do not admit a replacement dispatcher.
+- Halfword dispatch remains opt-in pending kernel boot and full syscall-path
+  execution. Stub-handler emulation establishes address selection and decoding,
+  not networking, scheduling, persistence or physical-board behavior.
 - Kernel LTO retains the assembly-only roots, synthesized memory routines,
   scratch placement and literal-pool constraints recorded in the historical
   handoff. Userland/libc section collection remains a separate unimplemented

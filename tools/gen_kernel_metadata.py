@@ -397,7 +397,22 @@ def render_dispatch_header(syscalls: list[Syscall]) -> str:
         " */\n",
         "typedef void (*syscall_handler_t)(void);\n",
         "extern const unsigned char syscall_nargs[];\n",
+        "#ifdef COMPACT_SYSCALL_DISPATCH\n",
+        "#if !defined(__arm__) || !defined(__thumb__)\n",
+        '#error "compact dispatch requires ARM Thumb"\n',
+        "#endif\n",
+        "extern const unsigned short syscall_handler_offsets[];\n",
+        "extern const unsigned char __syscall_text_anchor[];\n",
+        "_Static_assert(sizeof(unsigned short) == 2 && sizeof(unsigned int) == 4 &&\n",
+        "    sizeof(syscall_handler_t) == 4, \"compact dispatch requires the ARM32 ABI\");\n",
+        "/* The caller bounds code against nsysent before decoding. */\n",
+        "static inline syscall_handler_t\n",
+        "syscall_handler_at(unsigned int code)\n{\n",
+        "    return (syscall_handler_t)((unsigned int)__syscall_text_anchor +\n",
+        "        ((unsigned int)syscall_handler_offsets[code] << 1) + 1U);\n}\n",
+        "#else\n",
         "extern const syscall_handler_t syscall_handlers[];\n",
+        "#endif\n",
         "extern const int nsysent;\n",
         "/* The name is *length bytes with no terminator. */\n",
         "const char *syscall_name(unsigned int code, unsigned int *length);\n\n",
@@ -451,7 +466,8 @@ def render_init_sysent(syscalls: list[Syscall]) -> str:
     ]
     for call in syscalls:
         lines.extend(conditional_nargs(call))
-    lines.append("};\n\nconst syscall_handler_t syscall_handlers[] = {\n")
+    lines.append("};\n\n#ifndef COMPACT_SYSCALL_DISPATCH\n"
+                 "const syscall_handler_t syscall_handlers[] = {\n")
     for call in syscalls:
         lines.extend(conditional_handler(call))
     lines.extend(
@@ -459,13 +475,51 @@ def render_init_sysent(syscalls: list[Syscall]) -> str:
             "};\n\n",
             "_Static_assert(sizeof(syscall_nargs) / sizeof(syscall_nargs[0]) ==\n",
             "    sizeof(syscall_handlers) / sizeof(syscall_handlers[0]),\n",
-            '    "syscall metadata arrays differ in length");\n\n',
+            '    "syscall metadata arrays differ in length");\n#endif\n\n',
             "_Static_assert(sizeof(syscall_nargs) / sizeof(syscall_nargs[0]) ==\n",
             f"    {len(syscalls)}, \"syscall master count differs from ABI\");\n\n",
             "const int nsysent =\n",
-            "    sizeof(syscall_handlers) / sizeof(syscall_handlers[0]);\n",
+            "    sizeof(syscall_nargs) / sizeof(syscall_nargs[0]);\n",
         ]
     )
+    return "".join(lines)
+
+
+def render_compact_linker(syscalls: list[Syscall], *, roots: bool) -> str:
+    lines = [SYSCALL_TABLE_LICENSE, "\n", generated_notice("syscalls.master"),
+             "#ifdef COMPACT_SYSCALL_DISPATCH\n"]
+    if not roots:
+        lines.extend([
+            "__syscall_text_anchor = ABSOLUTE(ORIGIN(FLASH));\n",
+            ". = ALIGN(2);\nsyscall_handler_offsets = .;\n",
+            'ASSERT((__syscall_text_anchor & 1) == 0, "compact syscall anchor must be even");\n',
+        ])
+    for call in syscalls:
+        for line in conditional_handler(call):
+            if line.startswith("#"):
+                lines.append(line)
+                continue
+            handler = line.strip().rstrip(",")
+            if roots:
+                lines.append(f"EXTERN({handler})\n")
+            else:
+                address = f"ABSOLUTE({handler})"
+                lines.extend([
+                    f'ASSERT(({address} & 1) == 0, "compact syscall code address must be even");\n',
+                    f"ASSERT({address} >= __syscall_text_anchor &&\n",
+                    f"    {address} - __syscall_text_anchor <= 0x1fffe,\n",
+                    f'    "compact syscall target outside flash range: {handler}");\n',
+                    f"SHORT(({address} - __syscall_text_anchor) >> 1);\n",
+                ])
+    if not roots:
+        lines.extend([
+            "syscall_handler_offsets_end = .;\n",
+            'ASSERT((syscall_handler_offsets & 1) == 0, "compact syscall table must be even");\n',
+            "ASSERT(syscall_handler_offsets_end - syscall_handler_offsets == "
+            f"{2 * len(syscalls)},\n",
+            '    "compact syscall table extent differs");\n',
+        ])
+    lines.append("#endif\n")
     return "".join(lines)
 
 
@@ -602,6 +656,8 @@ def render_all(root: Path) -> dict[Path, str]:
         Path("include/syscall.h"): render_syscall_header(syscalls),
         Path("sys/sys/syscall_dispatch.h"): render_dispatch_header(syscalls),
         Path("sys/kern/init_sysent.c"): render_init_sysent(syscalls),
+        Path("sys/kern/syscall_roots.ld.S"): render_compact_linker(syscalls, roots=True),
+        Path("sys/kern/syscall_offsets.ld.S"): render_compact_linker(syscalls, roots=False),
         Path("sys/kern/syscalls.c"): render_syscall_names(syscalls),
         Path("sys/kern/errlist.c"): render_errlist(messages),
     }

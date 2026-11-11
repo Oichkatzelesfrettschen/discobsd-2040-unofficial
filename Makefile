@@ -1010,7 +1010,10 @@ check-flash-swap:
 check-dispatch-image: check-python
 		${MAKE} -C sys/arch/rp2040/compile check-dispatch
 
-.PHONY: check-dispatch-image
+check-compact-dispatch: check-python
+		${PYTHON} tests/kernel_metadata/compact_dispatch.py
+
+.PHONY: check-dispatch-image check-compact-dispatch
 
 check-dhara-metadata: check-python
 		${MAKE} -C tests/rp2040/dhara_bounds check PYTHON=${PYTHON:Q}
@@ -1206,6 +1209,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
+		check-compact-dispatch \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \

@@ -65730,7 +65730,10 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "integer-cast",
+            "shift-expression"
+          ],
           "object_lifetime": [],
           "pointer": [],
           "prototype": [],

@@ -245,6 +245,7 @@ const uint8_t syscall_nargs[] = {
     4,
 };
 
+#ifndef COMPACT_SYSCALL_DISPATCH
 const syscall_handler_t syscall_handlers[] = {
     nosys,
     rexit,
@@ -490,9 +491,10 @@ const syscall_handler_t syscall_handlers[] = {
 _Static_assert(sizeof(syscall_nargs) / sizeof(syscall_nargs[0]) ==
     sizeof(syscall_handlers) / sizeof(syscall_handlers[0]),
     "syscall metadata arrays differ in length");
+#endif
 
 _Static_assert(sizeof(syscall_nargs) / sizeof(syscall_nargs[0]) ==
     163, "syscall master count differs from ABI");
 
 const int nsysent =
-    sizeof(syscall_handlers) / sizeof(syscall_handlers[0]);
+    sizeof(syscall_nargs) / sizeof(syscall_nargs[0]);

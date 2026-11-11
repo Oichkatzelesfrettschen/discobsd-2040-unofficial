@@ -94,6 +94,7 @@ Grouped by what they investigate.
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
 | `picocalc-calculator-and-gui.md` | the calculator and tile-graphics plan for the PicoCalc: sources and licenses mined from this tree, the other BSDs and the vendor firmware, size estimates and a staged import order |
+| `picocalc-pending-hardware.md` | the ledger of the `picocalc-wip-pending-hardware` branch: each PicoCalc change and claim that waits on a board run, with the measurement that decides it |
 | `picocalc-psram.md` | the PicoCalc's ESP-PSRAM64H as swap: datasheet facts with pages, the 19-word PIO program and its timing derivation, the boot-time swap selection with `fl1` as fallback, the alternatives with costs, and the host evidence |
 | `picocalc-games-survey.md` | game sources surveyed for the PicoCalc with their licenses, the clean-room route for each excluded one, and the game plan |
 | `picocalc-renode-keyboard-registers.md` | the change that makes the Renode keyboard model condition backlight writes as the vendor firmware does, shipped as `picocalc-renode-keyboard-backlight.patch` because the model lives on another branch |

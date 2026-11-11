@@ -36,6 +36,8 @@ are implemented through read-only sysctls; board measurements remain pending.
   footprint experiments named above.
 - [bsd-comparisons.md](bsd-comparisons.md) records the pinned upstream ideas
   and the limits of each comparison.
+- [kr-migration.md](kr-migration.md) scopes caller-complete C17 interface units
+  from the remaining K&R definitions, declarations and callback protocols.
 - [`../kernel-footprint-handoff.md`](../kernel-footprint-handoff.md) retains
   the detailed historical measurements and candidate queue.
 - [`../rp2040-memory-wear-engineering-program.md`](../rp2040-memory-wear-engineering-program.md)

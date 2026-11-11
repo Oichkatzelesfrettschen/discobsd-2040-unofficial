@@ -38,8 +38,9 @@ before.
 | init | 23,968 | 17,372 |
 
 **The kernel region.** 512 KB was the STM32F407XE figure. The region is
-128 KB, of which boot2 takes 256 bytes; the PICO kernel measured 108,726
-bytes of text and data on 2026-11-07, leaving 22,090 bytes, and the Dhara
+128 KB, of which boot2 takes 256 bytes; `check-kernel-headroom` measures
+the flash image of each kernel against the remaining 130,816 (PICO: 95,248
+bytes, 35,568 free, at `7a270276` with GCC 16.2.0), and the Dhara
 region is 1536 KB, 989 KB of logical blocks; the 64 KB moved from the
 kernel region bought 39 KB of root because Dhara reserves its share of
 every erase block.

@@ -281,6 +281,45 @@ flash_rom_init(void)
 }
 
 /*
+ * The XIP cache control register, datasheet 2.6.3.1. EN resets to 1 and the
+ * boot ROM's flush routine sets it again after every erase and program, so a
+ * request to run uncached is kept here and reapplied by flash_enter_xip().
+ */
+#define	XIP_CTRL_REG	(*(volatile u_int *)0x14000000UL)
+#define	XIP_CTRL_FLUSH	(*(volatile u_int *)0x14000004UL)
+#define	XIP_CTRL_EN	1U
+
+static u_char flash_xip_uncached;
+
+/*
+ * Turn the XIP cache off (request 0) or on (request positive), or leave it
+ * alone (request negative); return whether it is enabled. With the cache off
+ * every flash access, kernel text included, goes to the chip, which is the
+ * control for a measurement of what the cache saves. Turning it on flushes
+ * first: the tags kept from before would otherwise answer for flash written
+ * in between.
+ */
+int
+flash_xip_cache(int request)
+{
+	int s;
+
+	if (request >= 0) {
+		s = splhigh();
+		flash_xip_uncached = request == 0;
+		if (request == 0) {
+			XIP_CTRL_REG &= ~XIP_CTRL_EN;
+		} else {
+			XIP_CTRL_FLUSH = 1;
+			(void)XIP_CTRL_FLUSH;
+			XIP_CTRL_REG |= XIP_CTRL_EN;
+		}
+		splx(s);
+	}
+	return (XIP_CTRL_REG & XIP_CTRL_EN) != 0;
+}
+
+/*
  * Re-enter execute-in-place by calling the copied second stage. It returns to
  * its caller when entered with a non-zero link register, which is how the
  * Pico SDK re-enables XIP after a write, and is why the copy is kept.
@@ -288,6 +327,8 @@ flash_rom_init(void)
 static __ramfunc void
 flash_enter_xip(void)
 {
+	if (flash_xip_uncached)
+		XIP_CTRL_REG &= ~XIP_CTRL_EN;
 	((void (*)(void))((u_int)boot2_copy + 1))();
 }
 

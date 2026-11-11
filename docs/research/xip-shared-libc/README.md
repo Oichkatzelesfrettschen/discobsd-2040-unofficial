@@ -231,7 +231,11 @@ first. Item 8's board evidence reads `XIP_CTRL` `CTR_ACC` and `CTR_HIT`, and
 so does every cache question the shared libc raises: libc text at
 0x10020000 shares the 16 kB, two-way cache of 8-byte lines (datasheet
 2.6.3.1) with kernel text, so the miss rate of a libc-heavy workload is the
-first number that can confirm or overturn the verdict.
+first number that can confirm or overturn the verdict. The kernel alone
+runs at a 99.7 percent hit rate, and uncached execution is 23 times slower
+on a shell command (`../hardware-review-reconciliation.md`, "The cache
+control"), so the bound of item 8 is a miss rate, read as `xip_acc` less
+`xip_hit` in one command.
 `../hardware-review-reconciliation.md` orders the counters, the
 non-allocating alias and line alignment as its roadmap items 1 to 4 and
 records the kernel sizes of `7a270276` (PICO flash image 95,248 bytes,

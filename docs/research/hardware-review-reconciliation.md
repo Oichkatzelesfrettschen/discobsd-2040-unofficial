@@ -152,7 +152,7 @@ and several are already at work in the tree under other names.
 | A map of every byte | A link-time ownership ledger: every range has one named owner and the linker refuses a gap or an overlap. The byte map was unreliable because it was written by hand; the linker script and `nm` give the same thing exactly | `kern.ldscript` assertions; the DPSRAM ledger of the memory and wear program; `BOOT-MAP.md` section 2, extended by this change |
 | Struct packing for size | Layout for instruction reach. A Thumb-1 load reaches 124 bytes by word, 62 by halfword and 31 by byte from a base register; a field beyond reach costs a literal or an add at every use. Moving hot fields inside reach saves text where reordering saves no data | `kernel-footprint-handoff.md` (hot `struct user` fields) |
 | Bank-aware allocation | Contention as a measured quantity. Two bus masters contend only on the same bank in the same cycle, and the bus fabric counts it: `BUSCTRL` performance counters select contested and total accesses per SRAM bank (datasheet 2.1.1.2). Core 1 wakes every 10 ms, so the expected count is near zero; a nonzero count would make SRAM4 or SRAM5 the home of core 1's stack and words | roadmap item 2; `CORE1.md` |
-| XIP cache tuning | The cache as an instrument and the aliases as policy. `CTR_HIT` over `CTR_ACC` is a miss rate for any workload; reading file and swap data through the non-allocating 0x11 alias would stop data reads from evicting kernel text | roadmap items 1 and 3; `xip-shared-libc/README.md` item 12 |
+| XIP cache tuning | The cache as an instrument. `CTR_ACC` less `CTR_HIT` is a miss count for any workload, and it showed the cache already serves 99.7 percent of accesses, so alias policy has nothing left to win | roadmap items 1, 3 and 4; `xip-shared-libc/README.md` item 12 |
 | Faster interrupt paths by bank placement | `.ramfunc` already places code in RAM at a known byte cost; the cache counters decide whether any handler belongs there | roadmap item 4 |
 | DMA alignment | DMA as a throughput tool where a peripheral is the bottleneck: the PicoCalc panel fill and SD block transfer over SPI | roadmap item 8; `sys/arch/rp2040/doc/PICOCALC.md` |
 | Power-down of banks and clocks | A power budget for the battery-powered PicoCalc, measured at the supply before any gating | roadmap item 7 |
@@ -181,12 +181,12 @@ instruments; items 3 to 8 each wait on the measurement named.
 2. Bus contention counters: landed as `machdep.bus_perfctr0` to `3` with
    `machdep.bus_perfsel0` to `3` choosing each counter's event. Gate: the
    same board test.
-3. Flash data through the non-allocating alias. Read root and swap data at
-   0x11000000 in `flash.c`. Depends on item 1. Adopt only if elapsed time
-   on a fixed workload improves; a hit-count change alone shows nothing.
-4. Cache-line alignment or RAM placement of hot kernel paths. Depends on
-   item 1 identifying a path with a measured miss cost. The cost is up to
-   6 bytes per aligned symbol, or the function's size in kernel RAM.
+3. Flash data through the non-allocating alias: measured and declined. It
+   removes 7 percent of cache misses and no measurable time ("The cache
+   control" below).
+4. Cache-line alignment or RAM placement of hot kernel paths: declined on
+   the same measurement. Every miss of a command together costs about
+   0.17 s of 2.8 s, at a hit rate of 99.7 percent.
 5. Shared libc, in the order of `xip-shared-libc/README.md`. Its board
    evidence item uses the counters of item 1.
 6. `mputest` probes for the unstriped alias and for 0x15000000: landed as
@@ -222,18 +222,69 @@ checks passed. The workload is `cat /bin/sh /bin/sh /bin/sh /bin/sh >
 | --- | ---: | --- |
 | SRAM0 accesses, all | 8,665,460 | the counter is below its 16,777,215 ceiling over this workload |
 | SRAM0 accesses, contested | 250 | 0.003 percent: core 1 as the observer does not measurably contend for a striped bank, so moving its stack and words to SRAM4 or SRAM5 buys nothing. The falsifier of that proposal held |
-| XIP accesses | 186,183,398 | the counters advance and clear as the datasheet states |
-| XIP cache hits | 93,638,182 | 0.503 of accesses |
 
-The hit fraction is unresolved. A true miss on every second access would
-cost far more time than the workload took at a 62.5 MHz flash clock, and
-the fraction sits within one percent of one half, which suggests the two
-counters differ in what one fetch increments. The control that separates
-the readings is the same workload with kernel text reached through the
-non-cacheable 0x13 alias, where hits must fall to zero and elapsed time
-shows the real miss cost. Until that control runs, compare hit counts only
-between two runs of one workload, and treat the fraction itself as
-uncalibrated.
+The same run read 186,183,398 XIP accesses against 93,638,182 hits, a
+fraction of 0.503. That fraction measured the test, not the cache: the
+counters were cleared and read by separate console commands, each of which
+adds tens of millions of flash accesses to one counter and not the other.
+The control below replaces it.
+
+## The cache control, and the two proposals it decides
+
+`machdep.xip_cache` turns the XIP cache off and on; off survives flash
+writes, whose ROM flush routine would otherwise re-enable it.
+`board_hwcount.py` clears both counters, runs `cat /bin/sh > /dev/null` and
+reads both in one shell command, and times that command from its first
+output to its sentinel. One run on the same Pico, kernel and root built
+from this change on `58ec71f1`, 2026-11-11, all 19 checks passed:
+
+| Cache | Seconds | XIP accesses | Hits | Misses |
+| --- | ---: | ---: | ---: | ---: |
+| on | 4.06 | 66,932,156 | 66,715,934 | 216,222 |
+| off | 93.23 | 0 | 0 | 0 |
+| on, just flushed | 4.48 | 105,215,058 | 105,025,464 | 189,594 |
+| on, warm | 4.48 | 105,337,662 | 105,148,176 | 189,486 |
+
+The seconds of this run include the echo of the typed line, which the test
+now leaves out; the later runs below time the command alone.
+
+- The hit rate is 99.7 to 99.8 percent. The 16 kB cache serves a 95 KB
+  kernel almost entirely.
+- The cache is worth a factor of 23 on this command. Uncached execution is a
+  measurement control and nothing else.
+- With the cache off `CTR_ACC` stays at zero. The datasheet (2.6.3.1) says
+  it counts every XIP access, cached or not; on this board it counts only
+  while `CTRL.EN` is 1. An access count for an uncached run has to come
+  from elsewhere.
+- The flushed and warm runs miss equally often, so the misses are steady
+  conflict and data-read misses, not start-up cost.
+
+Roadmap item 3, flash data through the non-allocating alias, was measured
+on a kernel built for the experiment whose data-read base could be switched
+between 0x10000000 and 0x11000000 at run time; the kernel was not kept.
+Six timed runs per alias and workload, alternating:
+
+| Workload | Alias | Misses, range | Seconds, range |
+| --- | --- | ---: | ---: |
+| `cat /bin/sh > /dev/null` | 0x10 | 189,142 to 190,743 | 2.81 to 3.02 |
+| `cat /bin/sh > /dev/null` | 0x11 | 176,134 to 177,360 | 2.81 to 2.83 |
+| `ls -lR /bin /etc > /dev/null` | 0x10 | 179,851 to 208,642 | 2.61 to 2.83 |
+| `ls -lR /bin /etc > /dev/null` | 0x11 | 167,227 to 193,106 | 2.61 to 3.02 |
+
+The non-allocating alias removes about 13,500 misses per command, 7
+percent, and elapsed time does not move within the 0.2 s resolution of the
+host timing. At the uncached cost of about 0.9 microseconds per access
+(93 s over roughly 100 million accesses) those misses are about 12 ms of a
+2.8 s command. The item's own rule was to adopt on an elapsed-time gain, so
+the alias is declined. The second `ls` round ran with different access
+totals than the first, which is why its ranges are wide; the comparison
+within each round shows the same 7 percent.
+
+The same arithmetic bounds roadmap item 4. All of a command's misses
+together, about 190,000, cost about 0.17 s; alignment or RAM placement can
+remove only a part of them, at up to 6 bytes of flash per aligned symbol or
+a function's size in kernel RAM. It is declined until a workload shows a
+miss rate far above 0.3 percent.
 
 ## Falsifiers for this document
 

@@ -1,0 +1,6 @@
+{"blocks": 8, "inodes": 1,
+ "objects": {"box": {"blocks": 4, "inodes": 1}, "a": {"blocks": 2, "inodes": 0}, "b": {"blocks": 2, "inodes": 0}},
+ "features": [
+  {"name": "a", "benefit": 2, "needs": [], "objects": ["box", "a"]},
+  {"name": "b", "benefit": 3, "needs": ["a"], "objects": ["box", "b"]}
+ ]}

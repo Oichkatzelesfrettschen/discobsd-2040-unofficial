@@ -2569,8 +2569,9 @@ reacquisition, and physical-board behavior retain separate evidence states.
 ## Optional graph layout research tier
 
 `check-graph-layout` runs `tools/graph_layout_test.py` and
-`tools/graph_layout_trace_test.py` with the selected `${PYTHON}`. It requires
-the pinned NumPy research dependency, and is outside the aggregate firmware
+`tools/graph_layout_trace_test.py` and `tools/performance_lab_test.py` with the
+selected `${PYTHON}`. It requires the pinned NumPy/SciPy research dependencies,
+and is outside the aggregate firmware
 checks. `.github/workflows/graph-layout.yml` runs these same host commands
 on changes to the tool, fixtures or workflow. This tier establishes model
 algebra, trace admission and cache-hypothesis behavior, not target compilation
@@ -2580,3 +2581,8 @@ LRU/FIFO distinguishing accesses, crossing-line fetches, and a host GNU linker
 ordering fixture. The linker case explicitly skips without cc, ld and nm;
 a skipped case establishes no linker result. Full acquisition and relink/board
 admission are described in `docs/research/graph-layout-experiment.md`.
+The performance tests additionally check Bellman solutions against a direct
+linear solve, transport against every small assignment, offload contention
+and capacity controls, profile dependency/union costs, drift-diffusion against
+an analytic absorption law, MPS Schmidt loss, conserved walk probabilities,
+tail parameter recovery and emitted QASM against independent gate evolution.

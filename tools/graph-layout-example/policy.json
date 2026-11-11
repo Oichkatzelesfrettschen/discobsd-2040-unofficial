@@ -1,0 +1,5 @@
+{"discount": 0.5, "states": [
+  [{"name": "flash", "cost": 3, "probabilities": [1, 0]},
+   {"name": "ram", "cost": 1, "probabilities": [0, 1]}],
+  [{"name": "release", "cost": 0, "probabilities": [1, 0]}]
+]}

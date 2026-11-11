@@ -165,3 +165,111 @@ input-section membership in the map, establish actual sizes and alignment,
 account for unprofiled sections/literals/veneers, and verify the relinked
 addresses match the model. The tool never edits or invokes the kernel linker.
 Full trace acquisition and physical XIP counter calibration remain open.
+
+## Remaining host experiments
+
+Install the pinned NumPy and SciPy requirements and add `--extended` to the
+graph command to compare replica-exchange tempering, quartic spin dynamics,
+and imaginary-time annealing with bond limits 1, 2, 4 and 8. Both classical
+and coherent graph walks start at vertex zero and report full probability
+distributions. The extended report hashes the additional solver source.
+
+Tempering uses eight temperatures and 500 sweeps with balanced exchanges.
+Quartic spin dynamics is a damped classical relaxation heuristic; it is not
+an implementation or reproduction claim for Goto's published simulated
+bifurcation machine. Imaginary time applies symmetric cost/mixer splitting
+with dt=0.2 over 60 steps, then sequential Schmidt truncation. It retains and
+reconstructs a dense state at each step, deliberately limited to 12 variables.
+This validates MPS approximation sensitivity, not scalable tensor-network
+performance. Candidate selection uses 4,096 seeded samples, not exhaustive
+inspection of every nonzero amplitude. Reports include feasible sample count,
+mean penalized energy, bond limit and summed discarded norm squared; the last
+is a diagnostic, not a rigorous final-state error bound. All solvers use the
+same reduced graph, but their compute budgets differ. No speedup follows
+from recovery of the same optimum.
+
+The eight-symbol fixture recovers cut 5 with every extended solver at seed
+1729. Increasing the bond limit from 1 to 8 reduces summed discarded norm
+squared from about 0.0167 to 2.0e-11. This is a constructed calibration case,
+not a population benchmark. Multi-seed, multi-workload studies remain needed.
+
+`graph-layout-five-seed.json` retains the additional seeds 0..4 comparison.
+The oscillator scores 5, 370, 5, 402 and 5, missing the optimum twice. All other
+tested optimizers recover 5 for these seeds. The oscillator therefore fails
+the reliability criterion even on this fixture and stays a research comparator.
+This small seed study still does not establish performance on real graphs.
+
+`tools/performance_lab.py MODE INPUT.json` runs the following independent
+models. Inputs are hashed and reports record source and numeric versions.
+The checked-in JSON fixtures are synthetic and have no board calibration.
+
+| Mode | Input and implementation | Deciding control |
+| --- | --- | --- |
+| `mdp` | Discount in [0,1), and states containing named actions with scalar cost and next-state probability vector. Discounted Bellman iteration exports a bounded table policy, transitions, values and convergence bound. Infeasible actions must be absent. | Known delayed-reward policy, changed-cost reversal, stochastic-row rejection and direct policy linear solve. |
+| `wear` | Erase counts, nonnegative relocation matrix, wear weight and number of writes. Exact unit-capacity assignment minimizes relocation plus increase in squared wear. | Exhaustive assignment comparison. |
+| `offload` | Tasks with bytes and measured saved cycles, symmetric pair contention costs and SRAM budget. Enumerates all subsets up to 20 tasks. | Excess contention changes the winner; zero budget selects nothing. |
+| `pde` | Cells, dx, drift, diffusion, time and initial probability mass including an absorbing state. Upwind finite-volume generator with reflecting left boundary and absorbing right boundary, propagated by matrix exponential. | Two successive rate-one jumps absorb probability 1-exp(-t)(1+t); positivity and mass checks. |
+| `profiles` | Features with benefit, dependencies and object names; objects with block/inode costs; two budgets. Exact union-cost enumeration up to 20 features. | Shared multicall object is charged once; removing budget excludes its dependent feature. |
+| `tails` | 100..100,000 positive samples in temporal order and an explicitly chosen positive tail threshold. All samples must exceed the threshold. | Seeded Pareto exponent recovery, bootstrap interval, invalid-threshold control. |
+| `qasm` | Symmetric nonnegative integer weights, gamma, beta and positive energy scale. Emits portable OpenQASM 2 for p=1 H/cost/X-mixer/measurement, with CNOT-RZ-CNOT ZZ gates. | Independently interpret the emitted gates and compare probabilities with direct cost and mixer matrices. |
+
+For example:
+
+```sh
+"$PYTHON" tools/performance_lab_test.py
+"$PYTHON" tools/performance_lab.py mdp tools/graph-layout-example/policy.json
+"$PYTHON" tools/performance_lab.py wear tools/graph-layout-example/wear.json
+"$PYTHON" tools/performance_lab.py offload tools/graph-layout-example/offload.json
+"$PYTHON" tools/performance_lab.py pde tools/graph-layout-example/pde.json
+"$PYTHON" tools/performance_lab.py profiles tools/graph-layout-example/profiles.json
+"$PYTHON" tools/performance_lab.py qasm tools/graph-layout-example/qasm.json
+```
+
+The MDP is a finite-state counterpart to the proposed HJB control model.
+It does not invent SwapRAM transition probabilities or state definitions.
+Calibrate free bytes, largest extent, compressed-image class, allocation
+ownership and release events from actual workload traces before exporting
+its policy into any runtime. Costs must use normalized units or explicit
+conversion weights. A policy table itself does not establish firmware savings.
+
+Wear assignment handles one erase per assigned write, unique destinations,
+and one finite batch. It does not model Dhara garbage collection, recovery,
+page programming, repeated destinations or unknown erase persistence. The
+PDE coefficients have units dx/time and dx squared/time; erase count is a
+possible state coordinate, not a physical space claim. Require mesh and time
+convergence, fitted coefficients and held-out tail predictions before claiming
+flash lifetime. Offload input must include launch, synchronization, SRAM code
+residency and flash-off safety costs measured on the target configuration.
+Profile union costs also need real fsutil allocation and dependency validation;
+the model cannot derive nonadditive directory block allocation from names.
+
+The tail audit uses the first half for fitting and second half for likelihood
+comparison. Pareto is fit analytically; lognormal and Weibull are fitted as
+distributions conditional above the same fixed threshold. Bounded optimizer
+solutions report boundary hits. Two hundred seeded bootstrap resamples give
+an exponent interval under an independent-sample assumption; serial dependence
+requires block bootstrap or independent captures. Thresholds must be chosen
+before evaluation. A Pareto fit, including an exponent below one, cannot prove
+a fractional PDE or justify its use without a dynamical memory experiment.
+
+## Hardware and integration frontier
+
+The host paths above are implemented and tested. Real PC acquisition, measured
+SwapRAM transitions, erase telemetry, contention measurements, ARM relinking,
+board A/B testing, formal Lean proofs and provider experiments remain open.
+The implementation environment lacks bmake, arm-none-eabi-gcc and Renode.
+The current firmware/CI build tiers remain the authority for target compilation.
+No new solver, Python dependency or policy is included in the shipped root.
+
+A first QPU case should freeze a real 16..24-cluster training graph and its
+held-out workload, source hashes, QUBO/Ising mapping, angles and seed. Use
+offline angle training, depths 1..3, four gauge encodings and 4,096 shots per
+arm with equal-shape null controls. The QASM emitter currently supplies p=1
+only; it does not claim routed/native circuit equivalence or estimate runtime.
+Refresh the live Heron Target, compile, inspect routing growth and run the
+repository's noise rehearsal before calculating a seconds ceiling. Simulation
+answers the ideal optimization question; hardware tests how device errors
+change feasible-sample probability and the low-energy distribution. A written
+case with the resulting backend, calibration, circuit hashes, controls and
+charge ceiling must receive the approval required by gororoba-quantum's
+AGENTS.md before submission. No provider account was accessed in this stage.

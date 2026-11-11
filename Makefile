@@ -85,6 +85,7 @@ all:		build
 check-graph-layout: check-python
 		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/graph_layout_test.py
 		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/graph_layout_trace_test.py
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/performance_lab_test.py
 
 check-python:
 		@if [ -z "${PYTHON}" ]; then \

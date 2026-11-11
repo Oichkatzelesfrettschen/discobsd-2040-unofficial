@@ -247,7 +247,7 @@ def qaoa_p1(weights, k, seed, shots=4096):
     }
 
 
-def experiment(names, sizes, weights, clusters, seed, quantum=False):
+def experiment(names, sizes, weights, clusters, seed, quantum=False, extended=False):
     require(not quantum or clusters <= 12, "ideal QAOA rehearsal is limited to 12 clusters")
     groups, reduced = coarsen(weights, clusters, seed)
     k = clusters // 2
@@ -260,6 +260,25 @@ def experiment(names, sizes, weights, clusters, seed, quantum=False):
     if clusters <= 20:
         choices["exact"] = exact(reduced, k)
     qmeta = None
+    extensions = {}
+    if extended:
+        from performance_lab import imaginary_time, oscillator, temper, walks
+
+        require(clusters <= 12, "extended reference limited to 12 clusters")
+        for label, solver in (("tempering", temper), ("quartic_oscillator", oscillator)):
+            bits, meta = solver(reduced, k, seed)
+            choices[label] = bits
+            extensions[label] = meta
+        for bond in (1, 2, 4, 8):
+            bits, meta = imaginary_time(reduced, k, seed, bond=bond)
+            label = f"imaginary_time_bond_{bond}"
+            if bits is not None:
+                choices[label] = bits
+            extensions[label] = meta
+        extensions["walks"] = walks(reduced)
+        extensions["tool_sha256"] = hashlib.sha256(
+            Path(__file__).with_name("performance_lab.py").read_bytes()
+        ).hexdigest()
     if quantum:
         bits, qmeta = qaoa_p1(reduced, k, seed)
         if bits is not None:
@@ -290,6 +309,7 @@ def experiment(names, sizes, weights, clusters, seed, quantum=False):
         "ising": ising(model),
         "results": results,
         "qaoa": qmeta,
+        "extensions": extensions,
         "exact_scope": "reduced graph only; coarsening may exclude global optima",
     }
 
@@ -301,12 +321,15 @@ def main():
     parser.add_argument("--clusters", default=8, type=int)
     parser.add_argument("--seed", default=1729, type=int)
     parser.add_argument("--ideal-qaoa", action="store_true")
+    parser.add_argument("--extended", action="store_true")
     args = parser.parse_args()
     try:
         names, sizes, weights, provenance = load_graph(args.symbols, args.trace)
         require(2 <= args.clusters <= min(64, len(names)), "invalid cluster count (2..64)")
         require(0 <= args.seed < 2**32, "seed must be a uint32")
-        report = experiment(names, sizes, weights, args.clusters, args.seed, args.ideal_qaoa)
+        report = experiment(
+            names, sizes, weights, args.clusters, args.seed, args.ideal_qaoa, args.extended
+        )
         report["inputs"] = provenance
         json.dump(report, sys.stdout, indent=2, allow_nan=False)
         print()

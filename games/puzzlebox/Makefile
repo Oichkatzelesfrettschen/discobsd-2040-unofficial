@@ -16,6 +16,7 @@ OBJCOPY=	${C17_CAPTURE_PREFIX}${GCCPREFIX}-objcopy
 BINDIR=		/usr/games
 
 TOOLS=		flood samegame unruly lightup
+MULTICALL_TOOL_ROOTS=	games
 
 # The members linked into this build, in the order the dispatch table lists
 # them. PUZZLEBOX_TOOLS (set by distrib/rp2040/Makefile.inc from the image

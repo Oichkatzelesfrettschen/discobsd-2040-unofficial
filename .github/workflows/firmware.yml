@@ -375,6 +375,20 @@ jobs:
             distrib/rp2040/flash.uf2
           if-no-files-found: error
 
+      # cleanall destroys the images and logs retained above, so the
+      # residue check runs last: every file the build and the gates wrote
+      # must be removed by a clean target or named in
+      # tools/clean-residue-allow.txt.
+      - name: Check that cleanall leaves no residue
+        timeout-minutes: 10
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-clean-residue \
+            --log .build-logs/linux-clean-residue.log \
+            --status .build-logs/linux-clean-residue.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 540 \
+            -- bmake MACHINE=rp2040 check-clean-residue
+
   # The STM32 tree: the ten Cortex-M4 kernels, the userland and the tools,
   # all through the machine registry's stm32 tuple. No gate runs these
   # binaries; the job establishes that they compile and link, which is the

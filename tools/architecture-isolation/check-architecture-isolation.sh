@@ -827,6 +827,12 @@ expect_path_present "cleanall RP2040 source cleanup" \
 expect_path_present "cleanall STM32 source cleanup" \
     "$temporary_directory/cleanup-success.log" \
     "-C $cleanup_root MACHINE=stm32 BUILD_LEGACY_NON_ARM=no BUILD_PDP11_V6=no"
+expect_path_present "cleanall RP2040 image cleanup" \
+    "$temporary_directory/cleanup-success.log" \
+    "-C $cleanup_root MACHINE=rp2040 cleanfs"
+expect_path_present "cleanall STM32 image cleanup" \
+    "$temporary_directory/cleanup-success.log" \
+    "-C $cleanup_root MACHINE=stm32 cleanfs"
 cleanup_environment_make=$temporary_directory/cleanup-environment-make
 cleanup_environment_log=$temporary_directory/cleanup-environment.log
 printf '%s\n' '#!/bin/sh' \
@@ -855,7 +861,7 @@ then
 	cat "$cleanup_environment_log" >&2
 	fail "cleanup inherited a caller machine or make override"
 fi
-expect_equal "cleanup environment observation count" "30" \
+expect_equal "cleanup environment observation count" "40" \
     "$(wc -l <"$cleanup_environment_log" | awk '{$1=$1; print}')"
 if [ -e "$cleanup_stamp" ] || [ -L "$cleanup_stamp" ]; then
 	fail "cleanup environment fixture retained the architecture stamp"

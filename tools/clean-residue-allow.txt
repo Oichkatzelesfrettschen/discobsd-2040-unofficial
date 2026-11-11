@@ -1,0 +1,9 @@
+# Untracked paths that may survive cleanall, each "PATTERN # reason".
+# tools/check-clean-residue.sh reports every other untracked file, ignored
+# files included.  PATTERN is a sh case pattern over the path relative to the
+# source root, where * also matches /.
+.build-logs/* # logged-execution receipts and gate evidence, kept across cleans by design
+*__pycache__/* # CPython bytecode caches the Python gates write beside their sources
+*.ruff_cache/* # ruff's lint cache
+*.pytest_cache/* # pytest's cache
+tools/renode/vendor/* # third-party Renode peripheral models fetched by tools/renode/fetch-renode-rp2040.sh

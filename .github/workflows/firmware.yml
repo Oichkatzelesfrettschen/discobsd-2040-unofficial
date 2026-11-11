@@ -468,14 +468,17 @@ jobs:
             --status .build-logs/posix-inventory.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-test-execution
+      # The inventory runs about ten minutes on a hosted runner. The gate
+      # deadline leaves half of that again, and the step limit stays above
+      # the gate deadline so the gate writes its own terminal status.
       - name: Execute every required variant
-        timeout-minutes: 12
+        timeout-minutes: 17
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label posix-ilp32 \
             --log .build-logs/posix-ilp32.log \
             --status .build-logs/posix-ilp32.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 600 \
+            --idle-timeout-seconds 300 --timeout-seconds 900 \
             -- bmake MACHINE=rp2040 check-ilp32-execution \
               TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"
       # dc and bc need the 32-bit C library headers the gates job lacks,

@@ -19,8 +19,8 @@ export PYTHON=python3
   --clusters 8 --seed 1729 --ideal-qaoa > /tmp/graph-layout-report.json
 ```
 
-These are standalone research commands, not registered firmware admission
-gates. Their tests do not require or establish a target build. The output
+These research commands also run through the optional `check-graph-layout`
+target and their dedicated CI workflow. Their tests do not establish a target build. The output
 contains input and tool SHA-256 digests, seed, Python/NumPy versions, cluster membership and
 byte sizes, edge weights, solver partitions, cut scores, QUBO coefficients,
 and QAOA sampling metadata. It contains no local input paths. Float results
@@ -100,3 +100,68 @@ stack and flash growth. Require board A/B runs with randomized order and cold
 and warm caches. A cut improvement without a board improvement falsifies
 the locality proxy for that workload. No linker, kernel, flash or board
 modification is performed by this experiment.
+
+## PC attribution and cache-aware candidate search
+
+`tools/graph_layout_trace.py` implements the next stage. Supply a filtered
+`nm -S -n --defined-only` listing containing only the XIP text extents to be
+reordered. The tool rejects zero-sized aliases, overlaps, duplicate names,
+odd addresses, and extents outside 0x10000000..0x10ffffff. Do not include
+SRAM routines or deduce zero-sized symbol lengths from the next address.
+Each CSV record is one chronological instruction fetch with header
+`pc,width`; PC is an even absolute address (for example 0x10000180), and width
+is 2 or 4 bytes. A fetch crossing its attributed symbol is rejected.
+Provide isolated captures with no intervening reset/cache invalidation.
+
+```sh
+"$PYTHON" tools/graph_layout_trace_test.py
+"$PYTHON" tools/graph_layout_trace.py \
+  --nm tools/graph-layout-example/collision.nm \
+  --training tools/graph-layout-example/training.csv \
+  --heldout tools/graph-layout-example/heldout.csv \
+  --trials 100 --seed 1729 > /tmp/cache-layout-report.json
+```
+
+The same invocation accepts `--emit symbols` and `--emit transitions` to
+produce the JSON and CSV consumed by `graph_layout.py`. It aggregates
+transitions only from the training capture. Identical training and held-out
+files are rejected. Choosing truly independent workloads remains the
+experimenter's responsibility; file inequality cannot establish independence.
+
+Cache geometry is 16 KiB, two ways and eight-byte lines. The companion
+notes' RP2040 datasheet section 2.6.3.1 confirms capacity and associativity;
+`hardware-review-reconciliation.md` records the line size. Replacement is
+tested under both LRU and FIFO hypotheses. Neither is asserted to model the
+silicon's exact replacement, prefetch, instruction bus transaction formation,
+literal/data reads or interrupt traffic. A 32-bit fetch crossing a line
+contributes two line accesses. A warm run first replays one entire capture
+without counting it. These scores are line misses, not processor cycles or
+XIP_CTRL hardware counter predictions.
+
+The search first tries packed original order with eight-byte alignment, then
+bounded seeded pair swaps, accepting only strict improvements in the sum of
+training cold LRU and FIFO misses. It retains the original addresses as the
+fallback and never exceeds the original text span. Held-out cold/warm results
+are reported for both policies but never affect candidate selection. The
+search is a local heuristic, with no optimality guarantee. It reports every
+new address and input/tool hashes. Holes and alignment can change the span;
+this is not proof of a smaller linked image.
+
+The collision fixture places three eight-byte functions 8,192 bytes apart.
+They collide in one two-way set: nine training fetches miss nine times.
+Packing them gives three cold misses and zero warm misses. The independent
+reverse-order held-out capture changes from six cold misses to three. Both
+LRU and FIFO agree for this fixture. These are synthetic model observations.
+
+`--emit linker` produces ordered `*(.text.SYMBOL)` selectors with explicit
+alignment for insertion after the vector table and before `*(.text*)` inside
+the existing `.text` output section. No improving layout means no fragment.
+The host test compiles a deliberately reversed C fixture with function
+sections, links with the emitted fragment, and checks symbol order with nm.
+It proves the host GNU linker mechanism only. The current kernel does not
+enable per-function sections; its wildcard alone cannot reorder functions.
+Before kernel integration, build with `-ffunction-sections`, check unique
+input-section membership in the map, establish actual sizes and alignment,
+account for unprofiled sections/literals/veneers, and verify the relinked
+addresses match the model. The tool never edits or invokes the kernel linker.
+Full trace acquisition and physical XIP counter calibration remain open.

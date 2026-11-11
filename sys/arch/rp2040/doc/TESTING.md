@@ -2565,3 +2565,18 @@ Runtime stack and heap high-water, descriptor/inode pressure under a complete
 extraction workload, directory-write recovery, persistent-media traffic,
 symbolic-link publication, conditional removal, directory metadata
 reacquisition, and physical-board behavior retain separate evidence states.
+
+## Optional graph layout research tier
+
+`check-graph-layout` runs `tools/graph_layout_test.py` and
+`tools/graph_layout_trace_test.py` with the selected `${PYTHON}`. It requires
+the pinned NumPy research dependency, and is outside the aggregate firmware
+checks. `.github/workflows/graph-layout.yml` runs these same host commands
+on changes to the tool, fixtures or workflow. This tier establishes model
+algebra, trace admission and cache-hypothesis behavior, not target compilation
+or physical timing. It includes all-state QUBO/Ising checks, a changed-edge
+optimum, an independent dense QAOA mixer oracle, invalid input controls,
+LRU/FIFO distinguishing accesses, crossing-line fetches, and a host GNU linker
+ordering fixture. The linker case explicitly skips without cc, ld and nm;
+a skipped case establishes no linker result. Full acquisition and relink/board
+admission are described in `docs/research/graph-layout-experiment.md`.

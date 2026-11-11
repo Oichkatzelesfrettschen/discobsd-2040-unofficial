@@ -17,6 +17,7 @@ import sys
 import tempfile
 
 BSS_LIMIT = 64
+RUN_SECONDS = 30
 RENAMES = [
     "-Dgetgrent=db_getgrent",
     "-Dsetgrent=db_setgrent",
@@ -66,7 +67,19 @@ def host_contract(compiler, source, test, directory):
         text=True,
     )
     require(result.returncode == 0, result.stdout + result.stderr)
-    return subprocess.run([str(program)], capture_output=True).returncode == 0
+    # A mutant runs through undefined behavior, so its run is bounded in time
+    # and its output is discarded; an overrun counts as a failed contract.
+    try:
+        result = subprocess.run(
+            [str(program)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=RUN_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    return result.returncode == 0
 
 
 def target_bss(root, compiler, source, directory):

@@ -82,3 +82,4 @@
 80|Authentication error
 81|Need authenticator
 82|Value too large for data type
+83|Illegal byte sequence

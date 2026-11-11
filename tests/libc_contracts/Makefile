@@ -788,6 +788,12 @@ GETGRENT_RENAMES=	-Dgetgrent=db_getgrent -Dsetgrent=db_setgrent \
 check-getgrent: getgrent_contract_test
 	${TEST_EXECUTION} run libc.getgrent.native -- ./getgrent_contract_test
 	${PYTHON} ${.CURDIR}/getgrent_contract_mutate.py ${TOPSRC} \
+	    ${HOSTCC:Q} - ${.CURDIR}/getgrent_contract_test.c
+
+# The same oracle with the Cortex-M0+ bss bound, for tiers that carry the
+# cross compiler.
+check-getgrent-cross:
+	${PYTHON} ${.CURDIR}/getgrent_contract_mutate.py ${TOPSRC} \
 	    ${HOSTCC:Q} ${ARM_COMPILER:Q} ${.CURDIR}/getgrent_contract_test.c
 
 getgrent_contract_test: getgrent_contract_test.c grent_getgrent.o
@@ -1384,7 +1390,8 @@ all: check
 	check-printf-float check-printf-g check-huge-val check-rwmode check-scanf \
 	check-scanf-llong check-string-security \
 	check-array-memory-line-cross check-string-security-cross check-strtox \
-	check-syslog check-vis check-getgrent check-qemu clean
+	check-syslog check-vis check-getgrent check-getgrent-cross \
+	check-qemu clean
 
 # The C17 stdio surface outside the read and write path: the mode strings
 # fopen accepts and the descriptor flags they produce, fflush over every

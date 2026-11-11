@@ -236,6 +236,11 @@
       "kind": "recursive make"
     },
     {
+      "from": "check-libc-getgrent-cross",
+      "to": "tests/libc_contracts:check-getgrent-cross",
+      "kind": "recursive make"
+    },
+    {
       "from": "check-dd-contracts",
       "to": "tests/dd_contracts:check",
       "kind": "recursive make"

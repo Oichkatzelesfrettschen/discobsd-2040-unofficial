@@ -591,6 +591,9 @@ check-libc-vis:
 check-libc-getgrent:
 		${MAKE} -C tests/libc_contracts check-getgrent
 
+check-libc-getgrent-cross:
+		${MAKE} -C tests/libc_contracts check-getgrent-cross
+
 check-sysctl-status: check-python
 		${MAKE} -C tests/sysctl_status check
 
@@ -1203,7 +1206,8 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
 		check-c17-headers-cross \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \
-		check-libc-ctime-cross check-touch-contracts-cross \
+		check-libc-ctime-cross check-libc-getgrent-cross \
+		check-touch-contracts-cross \
 		check-printf-contracts-cross check-recovery-utility-contracts-cross \
 		check-timeout-contracts-cross \
 		check-libc-random-cross \

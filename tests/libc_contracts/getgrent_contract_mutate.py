@@ -2,10 +2,12 @@
 
 usage: getgrent_contract_mutate.py ROOT HOSTCC ARMCC TEST
 
-The tree's getgrent.c must pass both oracles: the host contract test, and a
-Cortex-M0+ object whose .bss stays under BSS_LIMIT bytes, which holds the
-file pointer, the struct group and the record pointer but not the record.
-Each mutant must fail at least one oracle.
+The tree's getgrent.c must pass the host contract test, and every mutant must
+fail it. With ARMCC a compiler, the tree's Cortex-M0+ object must also keep
+its .bss under BSS_LIMIT bytes, which holds the file pointer, the struct group
+and the record pointer but not the record, and the static-record mutant must
+exceed it. ARMCC given as "-" names a tier without the cross compiler: the
+host oracle runs alone and the bss bound is reported as not checked.
 """
 
 import pathlib
@@ -130,17 +132,25 @@ def main():
         require(
             host_contract(host, tree, test, directory), "tree getgrent.c fails the host contract"
         )
-        bss = target_bss(root, target, tree, directory)
-        require(bss < BSS_LIMIT, f"tree getgrent.o carries {bss} bytes of bss")
         for label, text in mutants.items():
             require(text != source, f"{label} mutant did not apply")
             mutant = directory / "getgrent_mutant.c"
             mutant.write_text(text, encoding="utf-8")
-            passes = host_contract(host, mutant, test, directory)
-            small = target_bss(root, target, mutant, directory) < BSS_LIMIT
-            require(not (passes and small), f"{label} mutant was accepted")
+            require(
+                not host_contract(host, mutant, test, directory),
+                f"{label} mutant passes the host contract",
+            )
             print(f"getgrent mutant rejected: {label}")
-    print(f"getgrent tree object: {bss} bytes of bss, limit {BSS_LIMIT}")
+        if target == ["-"]:
+            print("getgrent bss bound: not checked, no cross compiler in this tier")
+            return
+        bss = target_bss(root, target, tree, directory)
+        require(bss < BSS_LIMIT, f"tree getgrent.o carries {bss} bytes of bss")
+        static = directory / "getgrent_static.c"
+        static.write_text(mutants["static record"], encoding="utf-8")
+        large = target_bss(root, target, static, directory)
+        require(large >= BSS_LIMIT, f"static-record mutant has {large} bytes of bss")
+    print(f"getgrent tree object: {bss} bytes of bss, limit {BSS_LIMIT}; static record {large}")
 
 
 if __name__ == "__main__":

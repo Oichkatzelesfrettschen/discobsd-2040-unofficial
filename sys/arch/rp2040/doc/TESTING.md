@@ -1784,8 +1784,10 @@ with the MPU's deliberate fault test. The probe test
 asserts the `mpu:` banner line, which is MPU_TYPE and MPU_CTRL read back
 after sys/arch/rp2040/rp2040/mpu.c programmed its three regions; the login
 test then runs usr.bin/mputest, which forks children that read kernel RAM,
-kernel text and SIO CPUID from unprivileged code and expects SIGSEGV for
-each while the divider beside that CPUID reads and divides, and asserts
+kernel text, SIO CPUID, four words of the unstriped SRAM aliases at
+0x21000000 and the XIP cache-as-SRAM window at 0x15000000 from unprivileged
+code and expects SIGSEGV for each while the divider beside that CPUID reads
+and divides, and asserts
 `MPUTEST OK (mpu on)`. `mputest residue` follows: it fills the span
 between the image and its stack, execs, and asserts `RESIDUE OK`, which
 holds only when exec_clear has zeroed that span. Renode's Cortex-M0+ implements the
@@ -2010,9 +2012,12 @@ tests/rp2040/hwcount/board_hwcount.py checks the machdep event counters of
 `xip_hit` at or below it, a write clearing a counter, every `bus_perfsel`
 taking events 19 and 31 and refusing 20, and a `bus_perfctr` on all SRAM0
 accesses counting, holding once its select names no event, and reading zero
-after a write. It opens no port and calls no flashing tool unless
-`DISCOBSD_BOARD_HWCOUNT` is exactly `run`.
-`docs/research/hardware-review-reconciliation.md` records its one run. No
+after a write. It then writes `machdep.xip_cache` 0 and requires the cache
+to read disabled, to stay disabled across a flash write, to count no hit
+over a `cat` of `/bin/sh` and to take longer over it than with the cache
+on, and writes 1 again; the board answers slowly in between. It opens no
+port and calls no flashing tool unless `DISCOBSD_BOARD_HWCOUNT` is exactly
+`run`. `docs/research/hardware-review-reconciliation.md` records its runs. No
 emulator models `XIP_CTRL` counters or `BUSCTRL`, so the nodes have board
 evidence only.
 A fifth, tests/rp2040/sd_detach/board_sd_detach.py, mounts the PicoCalc's
@@ -2030,6 +2035,28 @@ holds the largest grantable flash swap extent on `/dev/temp0` to `temp2`,
 requires fork to refuse with ENOMEM and the shell to keep answering, releases
 the extents, and requires a successful fork whose child sees the parent's
 bytes. It opens no port unless `DISCOBSD_BOARD_USER_WINDOW` is exactly `run`.
+A seventh, tests/rp2040/capacity_exhaustion/board_capacity_exhaustion.py,
+stages `filetab` and `proctab` with the routines of board_user_window.py and
+runs the board cases `system-file-table-exhaustion` and
+`process-table-exhaustion` of `tests/rp2040/capacity-corpus.json`. `filetab`
+dups one descriptor to the per-process limit and requires EMFILE with no file
+failure, fills the system file table with holder processes that each open six
+files, requires the next `open` to fail with ENFILE while the parent holds far
+fewer than `NOFILE` descriptors, closes every holder and requires a later
+`open` to succeed. `proctab` runs as root, forks children that park in
+`sigsuspend(2)` until the table is full, requires EAGAIN (a fork refused with
+ENOMEM means swap ran out first and ends the run as inconclusive with exit
+status 3), releases and reaps every child and requires one more fork to
+succeed. Both programs read `kern.maxproc`, `kern.maxfiles` and
+`kern.capacity` instead of a compiled limit, require the failure counter of
+the resource to rise by the number of refusals and every other counter to hold,
+require occupancy to return to its starting value, and print one PASS or FAIL
+line per check and a `PROCTABTEST` or `FILETABTEST` verdict line. The driver
+also requires the process occupancy after both programs to equal its starting
+value. It opens no port unless `DISCOBSD_BOARD_CAPACITY_EXHAUSTION` is exactly
+`run`, and no result of it is recorded. No host gate or Renode driver runs
+these programs; `check-board-build` establishes compilation and a.out
+conversion only.
 `sys/arch/rp2040/doc/BOARD-CONSOLE.md` records the console limits every
 driver here must respect: the 126-byte line editor cap, the per-byte prompt
 redraw, chunked and verified staging, sentinel parsing and compressible test

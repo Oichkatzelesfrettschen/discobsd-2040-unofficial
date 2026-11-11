@@ -32,6 +32,7 @@
 #include <machine/board.h>
 #include <machine/mpuvar.h>
 #include <machine/watchdog.h>
+#include <rp2040/dev/flash.h>
 #ifdef CORE1
 #include <rp2040/rp2040/core1.h>
 #endif
@@ -218,7 +219,7 @@ int
 cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
     size_t newlen)
 {
-	int i, khz;
+	int error, i, khz;
 	char message[KERNEL_ERRMSG_MAX];
 	u_int length;
 #ifdef UARTUSB_ENABLED
@@ -361,6 +362,15 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return ENOTDIR;
 		return hwcount_sysctl(name[0] - CPU_XIP_ACC, oldp, oldlenp,
 		    newp, newlen);
+
+	case CPU_XIP_CACHE:
+		if (namelen != 1)
+			return ENOTDIR;
+		i = flash_xip_cache(-1);
+		error = sysctl_int(oldp, oldlenp, newp, newlen, &i);
+		if (error == 0 && newp != NULL)
+			(void)flash_xip_cache(i != 0);
+		return error;
 
 	case CPU_FREQ_KHZ:
 		if (namelen != 1)

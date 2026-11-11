@@ -88,3 +88,6 @@ depend:
 		echo '# see make depend above' >> Makefile
 
 # DO NOT DELETE THIS LINE -- make depend uses it
+
+err.o: err.c
+	${CC} ${CFLAGS} -Wstrict-prototypes -Wold-style-definition -c err.c

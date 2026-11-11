@@ -37,30 +37,28 @@
 #include <errno.h>
 
 #include <stdarg.h>
+#include <err.h>
 
 /*
  * Repeated constructs of the form "%s: " consume data space. An extra call
  * or two on an error path is a reasonable trade for 20 or 30 saved bytes.
  */
 static void
-putcolsp()
+putcolsp(void)
 {
 	fputc (':', stderr);
 	fputc (' ', stderr);
 }
 
 static void
-putprog()
+putprog(void)
 {
 	fputs (__progname, stderr);
 	putcolsp();
 }
 
 void
-verr (eval, fmt, ap)
-	int eval;
-	const char *fmt;
-	va_list ap;
+verr(int eval, const char *fmt, va_list ap)
 {
 	int sverrno;
 
@@ -85,10 +83,7 @@ err (int eval, const char *fmt, ...)
 }
 
 void
-verrx (eval, fmt, ap)
-	int eval;
-	const char *fmt;
-	va_list ap;
+verrx(int eval, const char *fmt, va_list ap)
 {
 	putprog();
 	if (fmt != NULL)
@@ -107,9 +102,7 @@ errx (int eval, const char *fmt, ...)
 }
 
 void
-vwarn (fmt, ap)
-	const char *fmt;
-	va_list ap;
+vwarn(const char *fmt, va_list ap)
 {
 	int sverrno;
 
@@ -133,9 +126,7 @@ warn (const char *fmt, ...)
 }
 
 void
-vwarnx (fmt, ap)
-	const char *fmt;
-	va_list ap;
+vwarnx(const char *fmt, va_list ap)
 {
 	putprog();
 	if (fmt != NULL)

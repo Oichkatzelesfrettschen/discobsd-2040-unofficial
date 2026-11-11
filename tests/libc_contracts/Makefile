@@ -53,7 +53,7 @@ ILP32_CC= ${HOSTCC}
 include ${TOPSRC}/tools/test-execution.mk
 include ${TOPSRC}/tools/qemu-arm.mk
 
-check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
+check-host: check-err ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
 	check-unistd-prototypes check-alarm-contract \
 	check-waitpid-contract \
 	check-mktime check-difftime \
@@ -1629,3 +1629,8 @@ huge_val_contract_test_arm: huge_val_contract_test.c huge_val_header_arm.o \
 	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -o $@ huge_val_contract_test.c \
 	    huge_val_header_arm.o huge_val_stubs.c ${HV_ARM_OBJS} \
 	    ${PRINTF_ORACLE_ARM_OBJS} ${QEMU_SUPPORT} -lm ${QEMU_ARM_LIBS}
+
+check-err:
+	HOST_CC=${HOSTCC:Q} ${PYTHON} err_test.py
+
+.PHONY: check-err

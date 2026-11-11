@@ -213,6 +213,12 @@ class Console:
         self.failures.append(message)
 
 
+# The configurations that link the core 1 observer (the "core1" option in
+# their Config). The union kernel carries no core1.c, so its machdep.core1
+# nodes do not exist and the core 1 stages have nothing to read.
+CORE1_CONFIGS = ("PICO_UART",)
+
+
 def run_stages(console: Console, config: str) -> None:
     console.wait_lines([f"DiscoBSD 2.7 ({config})"] + CPU_LINES + BOARD_LINES[config]
                        + STORAGE_LINES, "device probe", PROBE_BUDGET_SECONDS)
@@ -242,6 +248,8 @@ def run_stages(console: Console, config: str) -> None:
     # bytes reports a surviving count and fails here.
     console.type_line("mputest residue")
     console.wait_lines(["RESIDUE OK"], "exec residue probe", COMMAND_BUDGET_SECONDS)
+    if config not in CORE1_CONFIGS:
+        return
     # The PICO_UART kernel launches core 1 through the boot ROM a second
     # after the clock starts and pings it once a second; two unanswered
     # pings restart it. After five more seconds a running state with no

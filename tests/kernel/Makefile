@@ -3279,6 +3279,15 @@ swap_exchange_inplace_test: swap_exchange_inplace_test.c \
 	    swap_exchange_inplace_vm_swap.o fork_swap_rmap_compact.o \
 	    hostkern_kern.c hostkern.o
 
+# The kernel's size_t is 32 bits wide in these objects, and this gate copies
+# through the addresses the production exchange computes, so its window must
+# sit below 4 GiB. A non-PIE link places it there on ELF hosts. Mach-O
+# reserves the low 4 GiB and has no such link, so Darwin runs no part of the
+# gate and says so.
+.if ${_HOST_OSNAME} == "Darwin"
+check-swap-exchange-inplace:
+	@echo "SKIP swap exchange in place: the modeled window needs addresses below 4 GiB, which a Darwin host cannot link"
+.else
 check-swap-exchange-inplace: swap_exchange_inplace_test \
     ${SWAP_EXCHANGE_INPLACE_MUTANTS:@mutation@swap_exchange_inplace_${mutation}.mutant.test@}
 	@./swap_exchange_inplace_test
@@ -3303,6 +3312,7 @@ check-swap-exchange-inplace: swap_exchange_inplace_test \
 		fi; \
 		echo "PASS in-place exchange $$mutation rejected: $$expected"; \
 	done
+.endif
 
 check-swap-exchange-headroom: fork_swap_test_compact fork_swap_nopool.o
 	@./fork_swap_test_compact

@@ -373,3 +373,46 @@ SwapRAM service counts rise because the refusal now returns to selection
 before the sleep on `runin`. A mutant that sleeps on `runin` straight after
 a refusal must fail the new scenario, and a mutant that keeps a refused
 candidate excluded across the sleep must fail the retry in the existing one.
+
+**Gate outcome.** The gate moved as predicted. `check-fork-swap-refusal`
+holds the two-candidate scenario in both resident states, the single-candidate
+refusal scenario counts six scheduler passes and six SwapRAM services, and
+the mutants `sched-sleep-after-refusal`, `sched-reselect-refused` and
+`sched-keep-refused-marks` fail at their named assertions.
+
+**Measurement after the change.** Bare Pico, boot ROM V3, USB console, root
+`flash.uf2` SHA-256 of section 8, each kernel flashed
+with the root image and driven from a fresh login. The driver holds
+`/dev/temp0` and `/dev/temp1` by a descending search and accepts the layout
+when a 20-block request on `/dev/temp2` is then refused with
+`machdep.swapram_images` at 3: the pool is full and one fork-sized run is
+free. It then runs 20 lines of 20 iterations of
+`echo i=$i; /tmp/talloc /dev/temp2 0`, releases the holds, and runs the 60,
+100 and 172 KiB `forktest` builds twice.
+
+| Kernel | `sched()` | Stamp | `unix.uf2` SHA-256 | Holds | Lines | Iterations above 5 s |
+| --- | --- | --- | --- | --- | --- | --- |
+| control | reselects the refused candidate (`vm_sched.c` of the parent revision) | `#1 2699: Wed Nov 11 01:02:50 PST 2026` | `b87f65ce582b340903ef0d708013dee1d02d3b25922e4bf64de2cc9e0bb85815` | 188 + 136 | 20 | 5 of 400: 127.8, 128.2, 128.5, 128.5, 128.2 s |
+| changed | passes over the refused candidate | `#1 2699: Wed Nov 11 00:01:37 PST 2026` | `6893c5101f97e87d6bae802056fdb4cdd8d0cfa16b5fed221027553395b9961b` | 200 + 132 | 20 | 0 of 400 |
+
+Both kernels come from one tree and differ in `sys/kern/vm_sched.c` alone.
+On the control kernel fifteen lines took 26.5 to 29.7 s and five took 153.4
+to 155.7 s, each with one gap of 127.8 to 128.5 s and no `cannot fork`
+message. On the changed kernel every line took 27.1 to 30.4 s. The falsifier
+did not fire: no iteration on the changed kernel exceeded 5 s, against the
+100 s bound. An earlier run of the `d4e3b8f3` kernel under holds of 260 and
+100 blocks stalled 127.8 to 128.5 s in three of its first four lines; its
+remaining lines were lost with the host session.
+
+**Fork tests after the loop.** On both kernels the 60 KiB test passed in 17
+to 18 s and the 100 KiB test in 27 s, twice. The 172 KiB test was admitted
+once on the changed kernel (62 s) and refused with `FORKTEST ENOMEM` in its
+second round; the control kernel refused it in both rounds. `ps axl` after
+the runs showed the login shell's 49-block image at swap block 0xf7 and the
+root shell's at 0x94 on the changed kernel, and at 0xbf and 0x153 on the
+control. Two small images in the middle of the 380-block map leave no free
+run for the 172 KiB child's extent, so the refusal follows the layout the
+hold loop leaves behind and occurs with and without the scheduler change.
+Section 8 measured the same test admitted twice on a map no hold had
+touched. Next-fit placement of small images is the open cause; a placement
+policy needs an owner decision (brief-07 item 6).

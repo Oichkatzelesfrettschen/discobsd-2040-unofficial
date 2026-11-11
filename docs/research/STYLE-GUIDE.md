@@ -31,6 +31,20 @@ Use these evidence terms consistently:
 | Inferred | A stated argument derives the result from measured or documented premises. |
 | Not run | The relevant build, emulator or board check did not run. The value is unknown, not zero. |
 
+### Research-program layout and handoff
+
+Keep a single bounded investigation as a top-level file under
+`docs/research`. When one program owns several experiments or evidence
+classes, give it a named subdirectory with a `README.md` status and handoff
+hub. The hub links to stable authorities instead of moving or duplicating
+them, and `docs/INDEX.md` contains one entry for the program.
+
+Put commands, acceptance thresholds and rejected controls in the relevant
+workstream document. Retain raw output only when review needs it and name the
+artifact by subject or revision, not by a chat session. Update the hub when a
+workstream changes state rather than adding another handoff file. Immutable
+review handbacks remain under `docs/research/audit-handbacks`.
+
 ## 1. Optimize the resource that is actually constrained
 
 Apply this priority order unless a change records a stronger project-specific

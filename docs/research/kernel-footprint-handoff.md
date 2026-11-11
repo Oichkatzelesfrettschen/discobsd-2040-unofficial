@@ -7,6 +7,12 @@ acceptance command. The ranked technique survey it draws on is
 `footprint-techniques.md`; the compiler and linker flag analysis is
 `constrained-c.md` section 2.
 
+Ongoing alignment, wear/recovery, cross-BSD and footprint experiments are
+organized under `rp2040-optimization/README.md`. This file retains the
+historical measurements and detailed queue; the program hub records current
+state and prevents parallel session handoffs from becoming competing
+authorities.
+
 ## Baseline
 
 The measurements use GCC 16.2.0 (`arm-none-eabi-gcc`) at `-Os`. Text
@@ -46,6 +52,11 @@ values do not.
   remains available for a specific object only when a peripheral, encoded
   layout or measured access pattern requires it. Flash program pages and
   Dhara pages retain their independent 256- and 1,024-byte granularities.
+- The existing 8-byte call-stack and linker-section alignment is retained.
+  Four bytes remains the natural baseline for 32-bit words and pointers; one-
+  or two-byte storage is admitted only for byte/halfword access or an explicit
+  copy/decode boundary. `rp2040-optimization/alignment.md` owns the detailed
+  table and experiment rules.
 - `-std=gnu17`, `-mcpu=cortex-m0plus`, `-mthumb` and
   `-mfloat-abi=soft` already describe the native 32-bit target. The useful
   C17 work is stronger declarations, checked arithmetic and compile-time

@@ -7,6 +7,10 @@ engineering program. It describes proposed work and acceptance contracts. It
 does not report that the watchdog, telemetry, 32 KiB SwapRAM pool, compressed
 flash format, checkpoint batching, or RAM-staged rewrite mechanism exists.
 
+The current telemetry-first execution and interrupted-write evidence order is
+kept in `rp2040-optimization/wear-recovery.md`. It narrows the next evidence
+package without changing the architecture or phase ownership in this document.
+
 The submitted audit snapshot is commit
 `728677b8ff4330decf579b8ea03693ee904bb592`. The size measurements and
 worktree observations below are local observations supplied for that snapshot.

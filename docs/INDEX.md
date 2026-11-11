@@ -124,6 +124,7 @@ Grouped by what they investigate.
 | `memory-ownership-plan.md` | memory ownership chosen over instruction tuning, and what landed |
 | `hardware-review-reconciliation.md` | twenty-one outside hardware, optimization and mathematics reviews checked against the datasheet and the kernels linked at `7a270276`: the corrected hardware facts, the disposition of every proposal, the ideas that survive in another form, and the ordered instrument-first roadmap |
 | `rp2040-memory-wear-engineering-program.md` | the submitted SRAM and flash-wear audit turned into configuration-specific provenance, recovery, telemetry, SwapRAM, and durability gates |
+| `rp2040-optimization/` | the 32-bit C17/Thumb-1 optimization program hub: retained 8-byte alignment and narrower-alignment rules, BSD comparisons, telemetry-first wear/recovery gates, section GC, PICO/PICO_DIAG, anchored scalars and compact dispatch experiments |
 | `ram-compression.md` | the compression options against RAM and flash pressure, with measured costs |
 | `storage-techniques.md` | techniques from other small systems, and the SWAPRAM enable path |
 | `xip-shared-libc/` | a shared execute-in-place libc kept with the multicall boxes, measured against static linking and position-independent loading: 502 to 288 packed blocks over 28 executables, r9-relative libc data relocated by crt0, the LARGE-epoch MPU gap, the libc flash admission requirement, the `box` naming decision, nine adversarially reviewed research streams and a replayable relink harness |

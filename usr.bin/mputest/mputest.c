@@ -38,6 +38,18 @@
  *      HardFault priority, which stops the whole board and fails the
  *      Renode gate by its timeout.
  *
+ *   6. the two ranges the map closes only by leaving them uncovered. The
+ *      unstriped SRAM windows at 0x21000000-0x2103ffff (datasheet 2.6.2)
+ *      name the user window and kernel RAM one bank at a time, so a user
+ *      read there faults when the MPU is on and succeeds when it is off,
+ *      which makes the probe a discriminator of the MPU. The cache-as-SRAM
+ *      window at 0x15000000 (datasheet 2.6.3.1) answers every access with a
+ *      bus error while the XIP cache is enabled, which is the reset state
+ *      the kernel keeps, so a read there dies of SIGSEGV in both MPU
+ *      states: the MPU stops it first when on, the bus error when off.
+ *      That probe shows the range is closed to user mode; it does not by
+ *      itself show the MPU.
+ *
  * CPUID and DIV_CSR are 0x78 bytes apart inside one 256-byte region, so
  * checking both decides the subregion disables rather than the region.
  *
@@ -68,6 +80,26 @@
 #define	SIO_CPUID_ADDR		0xd0000000UL	/* SIO CPUID, datasheet 2.3.1.7. */
 #define	SIO_DIV_CSR_ADDR	0xd0000078UL	/* DIV_CSR, datasheet 2.3.1.5. */
 #define	ROM_END_ADDR		0x00004000UL	/* First byte past the ROM. */
+#define	XIP_SRAM_ADDR		0x15000000UL	/* XIP cache as SRAM, 2.6.3.1. */
+#define	SRAM_ALIAS_BASE		0x21000000UL	/* Unstriped SRAM0-3, 2.6.2. */
+#define	SRAM_STRIPED_BASE	0x20000000UL	/* Striped SRAM0-3. */
+#define	SRAM_BANK_SIZE		0x10000UL	/* One 64 KB bank. */
+/*
+ * Word w of bank b at its alias and at its striped twin: the alias lays the
+ * banks end to end, the striped map interleaves them word by word.
+ */
+#define	SRAM_ALIAS(b, w)	(SRAM_ALIAS_BASE + SRAM_BANK_SIZE * (b) + 4UL * (w))
+#define	SRAM_STRIPED(b, w)	(SRAM_STRIPED_BASE + 16UL * (w) + 4UL * (b))
+/* Word 0x3000 of a bank is where the striped map crosses USER_DATA_END. */
+#define	SRAM_KERNEL_WORD	(USER_DATA_SIZE / 16)
+
+/* The alias probes name the striped twins their labels claim. */
+_Static_assert(SRAM_STRIPED(0, 0) == USER_DATA_START &&
+    SRAM_STRIPED(3, 0) == USER_DATA_START + 12, "alias window twin");
+_Static_assert(SRAM_STRIPED(0, SRAM_KERNEL_WORD) == USER_DATA_END &&
+    SRAM_STRIPED(3, SRAM_KERNEL_WORD) == USER_DATA_END + 12,
+    "alias kernel twin");
+
 #define	MAP_REGIONS		4		/* ROM, window low, high, divider. */
 #define	DATASHEET_REGIONS	8		/* MPU_TYPE.DREGION reset value. */
 
@@ -446,6 +478,31 @@ main(int argc, char **argv)
 	    probe(KERNEL_TEXT_ADDR));
 	fails += report("sio cpuid", SIO_CPUID_ADDR, closed,
 	    probe(SIO_CPUID_ADDR));
+
+	/*
+	 * The unstriped aliases are covered by no region. Bank 0 word 0 and
+	 * bank 3 word 0 are the first words of the user window, which the
+	 * process owns through 0x20000000 and may not reach through the alias;
+	 * word SRAM_KERNEL_WORD of each bank is the twin of kernel RAM at
+	 * USER_DATA_END, whose exposure would hand a process the kernel's data.
+	 */
+	fails += report("alias bank 0 window", SRAM_ALIAS(0, 0), closed,
+	    probe(SRAM_ALIAS(0, 0)));
+	fails += report("alias bank 3 window", SRAM_ALIAS(3, 0), closed,
+	    probe(SRAM_ALIAS(3, 0)));
+	fails += report("alias bank 0 kernel", SRAM_ALIAS(0, SRAM_KERNEL_WORD),
+	    closed, probe(SRAM_ALIAS(0, SRAM_KERNEL_WORD)));
+	fails += report("alias bank 3 kernel", SRAM_ALIAS(3, SRAM_KERNEL_WORD),
+	    closed, probe(SRAM_ALIAS(3, SRAM_KERNEL_WORD)));
+
+	/*
+	 * Cache-as-SRAM bus-errors while the XIP cache is enabled, so the read
+	 * dies in both MPU states: the expectation does not depend on enable.
+	 * With the MPU on the region check faults first and the bus never sees
+	 * the access; with it off the bus error is the HardFault.
+	 */
+	fails += report("xip cache sram", XIP_SRAM_ADDR, SIGSEGV,
+	    probe(XIP_SRAM_ADDR));
 
 	/* What stays open in both states. */
 	fails += report("boot rom", ROM_MAGIC_ADDR, 0, probe(ROM_MAGIC_ADDR));

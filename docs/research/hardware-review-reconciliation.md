@@ -98,7 +98,7 @@ that already tracks the surviving form.
 | Split the user window into text, data and bss regions | OMAGIC images are one writable extent and text size is neither fixed nor a power of two | Conflicts with the programmed-once map of `MPU.md`; the guard-subregion items below are the form that fits |
 | A 4-byte stack guard | Below the 256-byte region minimum | Survives as the 32-byte subregion guard, owned by `xip-shared-libc/README.md` roadmap items 10 and 11 |
 | Shrink the SIO divider region to 32 bytes, or widen it | The shipped 256-byte region with subregion mask 0xf7 is the smallest legal form; widening exposes CPUID, which `mputest` requires to fault | Already minimal |
-| MPU regions over the alias windows | Access already faults by non-coverage | Survives as a missing `mputest` probe; roadmap item 6 |
+| MPU regions over the alias windows | Access already faults by non-coverage | Survives as the `mputest` alias probes; roadmap item 6 |
 | DMA transfer alignment | The kernel uses no DMA | Survives as a throughput question for the PicoCalc panel and SD paths; roadmap item 8 |
 | Convert 32-bit Thumb instructions to 16-bit; reorder functions to shorten calls | All 32-bit instructions in the kernel are `bl`, `mrs`, `msr`, `isb` and `dsb`, which have no 16-bit form | No bytes available; the dead-function and hot-field queue of `kernel-footprint-handoff.md` is where kernel text comes from |
 | Metadata in boot2 padding or the CRC trailer | The slot is fixed at 256 bytes and checked by the ROM | No byte is freed |
@@ -189,8 +189,13 @@ instruments; items 3 to 8 each wait on the measurement named.
    0.17 s of 2.8 s, at a hit rate of 99.7 percent.
 5. Shared libc, in the order of `xip-shared-libc/README.md`. Its board
    evidence item uses the counters of item 1.
-6. `mputest` probes for the unstriped alias and for 0x15000000, expecting
-   SIGSEGV, calibrated against the MPU-off recipe of `MPU.md`.
+6. `mputest` probes for the unstriped alias and for 0x15000000: landed as
+   four `alias bank` lines at 0x21000000, 0x21030000, 0x2100c000 and
+   0x2103c000, expecting SIGSEGV with the MPU on and a successful read with
+   it off, and one `xip cache sram` line at 0x15000000, expecting SIGSEGV in
+   both states because the bus error stops it whatever the MPU does. Gate:
+   `check-renode` for the MPU-on lines through `MPUTEST OK (mpu on)`;
+   `MPU.md` records the board run and the MPU-off calibration run.
 7. PicoCalc power budget: supply current at idle, then with unused
    peripheral clocks gated in `SLEEP_EN`, then with an unowned SRAM bank
    powered down. On PICO_UART, moving the 256-byte flash program-page

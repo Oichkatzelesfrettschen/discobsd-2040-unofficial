@@ -31,7 +31,7 @@ f:
 	.data
 v:	.word	f
 EOF
-cp "$dir/t.s" "$dir/t.S"
+cp "$dir/t.s" "$dir/cpp.S"
 
 fail=0
 "$AS" "$dir/t.s" -o "$dir/plain.aout"
@@ -49,9 +49,9 @@ done
 # The forwarded route: gcc picks the assembler named "as" in the -B
 # directory, as lib/libc_aout does.
 ln -s "$AS" "$dir/bin/as"
-$CC -B"$dir/bin/" -c "$dir/t.S" -o "$dir/plain-S.aout"
+$CC -B"$dir/bin/" -c "$dir/cpp.S" -o "$dir/plain-S.aout"
 if ! $CC -g -fdebug-prefix-map="$dir"=. -B"$dir/bin/" \
-    -c "$dir/t.S" -o "$dir/opt-S.aout"; then
+    -c "$dir/cpp.S" -o "$dir/opt-S.aout"; then
 	echo "options: gcc -g -fdebug-prefix-map on a .S source through -B failed"
 	fail=$((fail + 1))
 elif ! cmp -s "$dir/plain-S.aout" "$dir/opt-S.aout"; then

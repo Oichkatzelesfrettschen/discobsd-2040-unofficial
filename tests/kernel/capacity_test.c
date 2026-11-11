@@ -183,6 +183,13 @@ main(void)
 	capacity_init();
 	stats = capacity_snapshot();
 	check_initial(stats);
+	{
+		struct kernel_capacity_stats before = *stats;
+
+		capacity_note(CAPACITY_KIND_COUNT, 1);
+		capacity_note((enum capacity_kind)-1, 1);
+		HK_CHECK(memcmp(&before, capacity_snapshot(), sizeof(before)) == 0);
+	}
 	exercise_tables();
 	exercise_stack();
 	hk_note("  limits: proc=%d inode=%d file=%d clist=%d buffer=%d usize=%d",

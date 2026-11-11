@@ -323,7 +323,7 @@ CLIST_SRC=	${TOPSRC}/sys/kern/tty_subr.c
 CAPACITY_SRC=	${TOPSRC}/sys/kern/subr_capacity.c
 CAPACITY_DEFS=	-DCAPACITY_STATS -DSWAPRAM ${IALLOC_PICO_DEFS}
 CAPACITY_MUTANTS=	process-state inode-references clist-object-size \
-		buffer-any-flag peak-follows-down saturation-inverted
+		buffer-any-flag peak-follows-down saturation-inverted invalid-kind
 
 # The protection syscalls and the process lookups they decide with.
 CRED_SRC=	${TOPSRC}/sys/kern/kern_prot.c ${TOPSRC}/sys/kern/kern_prot2.c \

@@ -185,7 +185,24 @@ text, 96 bytes of bss). `HALTREBOOT` costs 52 bytes and stays.
 
 ### `-O2` build blocked by an unadmitted capacity index
 
-`COPTS=-O2` fails with `-Werror=array-bounds` at
+The capacity index is admitted at both `capacity_note()` and
+`capacity_refresh()`. Unsigned comparisons reject negative enum conversions
+and the `CAPACITY_KIND_COUNT` sentinel before forming an array element pointer.
+The fixture requires complete statistics preservation after both invalid
+inputs, and an off-by-one admission mutant must fail. Local ILP32 execution
+remains blocked by missing 32-bit libc headers.
+
+GCC 15.2.1 compiles the repaired capacity source at `-O2`. PICO and PICO_UART
+link; PICOCALC exceeds FLASH by 3,204 bytes. Whole-kernel `-O2` therefore remains
+unadmitted. Default builds retain `-Os`; individual hot functions can be
+compared independently after an explicit size and latency measurement.
+PICOCALC_PSRAM compiles at `-O2` and exceeds FLASH by 5,040 bytes. An isolated
+native fixture using the production `capacity_note()` body and fixed-width
+statistics layout preserves state for both invalid kinds; the off-by-one
+control is rejected by GCC's `-O2 -Werror=array-bounds` check. That seam does
+not execute the full ILP32 stack and table fixture.
+
+Before admission, `COPTS=-O2` failed with `-Werror=array-bounds` at
 `sys/kern/subr_capacity.c` line 79: `capacity_state.metric[kind]` with
 `kind` 5 of a 5-element array. `capacity_note()` indexes the array without
 checking `kind < CAPACITY_KIND_COUNT`, and `capacity_live()`'s switch carries

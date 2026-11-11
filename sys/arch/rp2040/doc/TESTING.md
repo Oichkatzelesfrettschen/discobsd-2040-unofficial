@@ -526,6 +526,11 @@ bmake MACHINE=rp2040 check-kernel check-config-makefile
 
 ## Host tier
 
+The capacity fixture also requires byte-identical statistics after sentinel
+and negative metric indices. An off-by-one admission mutation must fail.
+Both the entry and refresh helpers reject invalid kinds before indexing.
+The fixture requires ILP32 headers and runtime support.
+
 `check-usb-reset` also compiles the production `usb_tx_put` body through
 `tools/check_usb_ring.py`. Capacity, oldest-byte discard, saturating drop
 accounting and unsigned index wrap execute on the host. Missing peak updates,

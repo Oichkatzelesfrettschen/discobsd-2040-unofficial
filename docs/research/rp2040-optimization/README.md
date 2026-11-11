@@ -21,6 +21,7 @@ and persistence contracts remain intact.
 | PICO/PICO_DIAG | Keep the shipping PICO lean; move `SYSTRACE` and `CAPACITY_STATS` to a diagnostic sibling after the reader/build inventory is closed | design queued |
 | Anchored hot scalars | Prototype a small core-0-owned scalar bank; do not import an SMP per-CPU framework or reserve `r9` | experiment queued |
 | Compact dispatch | Keep byte argument counts and full aligned handler pointers as the control; prototype generated halfword code offsets only if relocation and Thumb-bit checks pass | experiment queued |
+| Capacity admission | Reject invalid metric kinds before indexing; `-O2` compilation proceeds, but PicoCalc exceeds FLASH | bounds fix implemented |
 
 ## Documents and ownership
 

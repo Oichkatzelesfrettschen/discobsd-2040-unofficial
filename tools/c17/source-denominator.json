@@ -62947,6 +62947,7 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
+            "integer-cast",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],

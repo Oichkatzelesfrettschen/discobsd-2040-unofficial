@@ -1547,8 +1547,10 @@ with the MPU's deliberate fault test. The probe test
 asserts the `mpu:` banner line, which is MPU_TYPE and MPU_CTRL read back
 after sys/arch/rp2040/rp2040/mpu.c programmed its three regions; the login
 test then runs usr.bin/mputest, which forks children that read kernel RAM,
-kernel text and SIO CPUID from unprivileged code and expects SIGSEGV for
-each while the divider beside that CPUID reads and divides, and asserts
+kernel text, SIO CPUID, four words of the unstriped SRAM aliases at
+0x21000000 and the XIP cache-as-SRAM window at 0x15000000 from unprivileged
+code and expects SIGSEGV for each while the divider beside that CPUID reads
+and divides, and asserts
 `MPUTEST OK (mpu on)`. `mputest residue` follows: it fills the span
 between the image and its stack, execs, and asserts `RESIDUE OK`, which
 holds only when exec_clear has zeroed that span. Renode's Cortex-M0+ implements the
@@ -1731,9 +1733,12 @@ tests/rp2040/hwcount/board_hwcount.py checks the machdep event counters of
 `xip_hit` at or below it, a write clearing a counter, every `bus_perfsel`
 taking events 19 and 31 and refusing 20, and a `bus_perfctr` on all SRAM0
 accesses counting, holding once its select names no event, and reading zero
-after a write. It opens no port and calls no flashing tool unless
-`DISCOBSD_BOARD_HWCOUNT` is exactly `run`.
-`docs/research/hardware-review-reconciliation.md` records its one run. No
+after a write. It then writes `machdep.xip_cache` 0 and requires the cache
+to read disabled, to stay disabled across a flash write, to count no hit
+over a `cat` of `/bin/sh` and to take longer over it than with the cache
+on, and writes 1 again; the board answers slowly in between. It opens no
+port and calls no flashing tool unless `DISCOBSD_BOARD_HWCOUNT` is exactly
+`run`. `docs/research/hardware-review-reconciliation.md` records its runs. No
 emulator models `XIP_CTRL` counters or `BUSCTRL`, so the nodes have board
 evidence only.
 A fifth, tests/rp2040/sd_detach/board_sd_detach.py, mounts the PicoCalc's

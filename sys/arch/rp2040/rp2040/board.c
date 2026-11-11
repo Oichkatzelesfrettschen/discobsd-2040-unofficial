@@ -44,8 +44,18 @@
 #define BOARD_DEFAULT_CRC	0xae2d75b2U
 #endif
 
-const struct board_desc rp2040_board_desc
-    __attribute__((section(".board"), used)) = {
+/*
+ * The kernel link places the descriptor in .board, where mkboarduf2.py
+ * finds it by its magic. The host build of the reader links it as plain
+ * data: a Mach-O host rejects a section name without a segment.
+ */
+#ifdef BOARD_DESC_HOST
+#define BOARD_DESC_PLACEMENT
+#else
+#define BOARD_DESC_PLACEMENT	__attribute__((section(".board"), used))
+#endif
+
+const struct board_desc rp2040_board_desc BOARD_DESC_PLACEMENT = {
 	BOARD_DESC_MAGIC,
 	BOARD_DESC_VERSION,
 	BOARD_DESC_LENGTH,

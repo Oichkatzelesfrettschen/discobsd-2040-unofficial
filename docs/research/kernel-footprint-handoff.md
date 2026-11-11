@@ -36,32 +36,66 @@ The experiments on rows marked "scratch" ran on a `git archive` export of
 eb5b3081, whose PICO baseline was 95,516. Deltas carry across; absolute
 values do not.
 
+## Target decisions for the 32-bit C17/Thumb-1 pass
+
+- A blanket 16-byte alignment policy is rejected. RP2040 is ARMv6-M
+  Thumb-1 with no FPU or vector load/store unit, the AAPCS call boundary is
+  eight-byte stack aligned, and the shipped linker script uses eight-byte
+  section alignment. Raising objects or stacks to 16 bytes would consume
+  padding without giving this core a wider access. Sixteen-byte alignment
+  remains available for a specific object only when a peripheral, encoded
+  layout or measured access pattern requires it. Flash program pages and
+  Dhara pages retain their independent 256- and 1,024-byte granularities.
+- `-std=gnu17`, `-mcpu=cortex-m0plus`, `-mthumb` and
+  `-mfloat-abi=soft` already describe the native 32-bit target. The useful
+  C17 work is stronger declarations, checked arithmetic and compile-time
+  layout invariants, not widening target alignment.
+- The Pico SDK should not be imported wholesale. The tree already exposes
+  RP2040 ROM single- and double-precision AEABI entries on demand through
+  `lib/libc/arm/gen/rom_float_*.S`; that keeps the fast mask-ROM
+  implementation without carrying SDK runtime, CMake or duplicate soft-float
+  code. Fixed-point remains preferable where bounded range permits it.
+- Flash-wear changes follow the telemetry and recovery program in
+  `rp2040-memory-wear-engineering-program.md`. Checkpoint batching, compressed
+  flash eviction or RAM staging is not a size-only change: no such policy
+  lands before write/erase counters and interrupted-write recovery gates.
+- The next low-storage candidates remain section garbage collection across
+  every kernel configuration, a lean PICO/PICO_DIAG split, anchored hot
+  scalars and compact halfword dispatch. LTO stays behind its four documented
+  correctness and linker blockers. These trade cycles for bytes only after
+  the exact kernel and packed-root measurements prove a net win.
+
 ## Queue, ordered by payoff over risk
 
-### Hot `struct user` fields within Thumb-1 load reach (scratch: -2,008 bytes)
+### Resolved: hot `struct user` fields within Thumb-1 load reach
 
-`sys/sys/user.h` places `u_comm[MAXCOMLEN + 1]` (64 bytes) and three 40-byte
-`label_t` saves (`u_qsave`, `u_rsave`, `u_ssave`) at offsets 8 to 191. A
-Thumb-1 `ldr rX, [rY, #imm]` reaches 124 bytes, so `u_arg` (offset 192),
-`u_rval` (216) and `u_error` (220) each need a 4-byte literal. The PICO
-disassembly holds 164 literals for `&u`, 60 for `&u.u_arg`, 46 for
-`&u.u_error` and 20 for `&u.u_rval`.
+Before this change, `sys/sys/user.h` placed `u_comm[MAXCOMLEN + 1]` (64
+bytes) and three 40-byte `label_t` saves (`u_qsave`, `u_rsave`, `u_ssave`)
+at offsets 8 to 191. A Thumb-1 `ldr rX, [rY, #imm]` reaches 124 bytes, so
+`u_arg` (offset 192), `u_rval` (216) and `u_error` (220) each needed a
+four-byte literal. The PICO disassembly held 164 literals for `&u`, 60 for
+`&u.u_arg`, 46 for `&u.u_error` and 20 for `&u.u_rval`.
 
-- The scratch experiment moved the four cold fields after `u_stack[1]`.
-  That placement measures the payoff but is wrong for landing, because
-  `u_stack` must remain last: the kernel stack grows down from
-  `u + USIZE` toward it. Place the cold fields immediately before
-  `u_stack` instead.
-- Inventory every reader of the layout before editing: ptrace
-  (`sys/kern/sys_process.c`), core dumps, sysctl export, any locore or
-  assembly offset constant, swap images of the u-area, `subr_capacity.c`
-  (`UAREA_STACK_OFFSET`), and host tests under `tests/kernel`.
-- Add `_Static_assert(offsetof(struct user, F) <= 124, ...)` for each hot
-  field (`u_procp`, `u_frame`, `u_arg`, `u_rval`, `u_error`, `u_uid` and
-  the credentials), so a later field insertion that breaks reach fails the
-  build. Calibrate the assertion by moving one field past 124 once.
-- `struct mount` (1,036 bytes, containing a 1,024-byte `struct fs`) is the
-  next candidate for the same analysis.
+Resolved on 2026-11-11 by moving those four cold fields immediately before
+`u_stack` and adding the compile-time reach assertions. The reader inventory
+found member-name access in ptrace and sysctl, whole-u-area exchange in swap
+and context switch, and no assembly constant for any moved member. The
+target layout remains 972 bytes with `u_stack` at offset 968; the last group
+credential is at offset 120. GCC 15.2.1 at `-Os` measured:
+
+| Kernel | Baseline text | Candidate text | Delta | Data/BSS delta |
+|---|---:|---:|---:|---:|
+| PICO | 95,989 | 93,965 | -2,024 | 0 / 0 |
+| PICO_UART | 86,984 | 84,944 | -2,040 | 0 / 0 |
+| PICOCALC | 111,845 | 109,789 | -2,056 | 0 / 0 |
+| PICOCALC_PSRAM | 113,959 | 111,903 | -2,056 | 0 / 0 |
+
+The assertions are part of every RP2040 kernel compile. Their rejected control
+inserts 128 bytes before `u_arg` and must fail with
+`u_arg exceeds Thumb-1 word-load reach`.
+
+`struct mount` (1,036 bytes, containing a 1,024-byte `struct fs`) is the next
+candidate for the same load-reach analysis.
 
 ### Unreferenced kernel functions (scratch: up to -2,463 bytes)
 

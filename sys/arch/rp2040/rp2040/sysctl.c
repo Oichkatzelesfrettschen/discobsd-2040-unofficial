@@ -326,7 +326,8 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		for (i = 0; nlist[i].name; i++) {
 			if (strncmp(newp, nlist[i].name, newlen) == 0) {
 				int addr = nlist[i].addr;
-				int error = 0;
+
+				error = 0;
 
 				/*
 				 * The node answers with an address and takes

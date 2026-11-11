@@ -17,7 +17,7 @@ and persistence contracts remain intact.
 | Alignment | Retain the 8-byte ABI, stack and section boundary; use 4-byte natural alignment for words and narrower storage only behind explicit byte/halfword contracts | decision recorded |
 | RAM and memory map | Retain the 192/58/3/3/8 KiB split; projected windows above 192 KiB consume the worst configuration's stability margin before they provide a material process gain | adversarial review recorded |
 | Wear and recovery | Count requested program/erase equivalents and prove reset-state recovery before changing checkpoint, eviction or staging policy | evidence plan |
-| Section garbage collection | Reproduce the PICO scratch result in every RP2040 configuration and explain every collected startup section before admitting flags or deleting code | experiment queued |
+| Section garbage collection | `KERNEL_GC=yes` saves 2,132--3,548 text bytes across four builds; startup address words identified; boot evidence remains open | opt-in mode implemented |
 | PICO/PICO_DIAG | Keep the shipping PICO lean; move `SYSTRACE` and `CAPACITY_STATS` to a diagnostic sibling after the reader/build inventory is closed | design queued |
 | Anchored hot scalars | Prototype a small core-0-owned scalar bank; do not import an SMP per-CPU framework or reserve `r9` | experiment queued |
 | Compact dispatch | Keep byte argument counts and full aligned handler pointers as the control; prototype generated halfword code offsets only if relocation and Thumb-bit checks pass | experiment queued |

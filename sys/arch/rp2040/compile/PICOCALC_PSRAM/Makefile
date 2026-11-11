@@ -82,6 +82,16 @@ AFLAGS=		-x assembler-with-cpp ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack
 LDFLAGS+=	--warn-rwx-segments --fatal-warnings
+
+# Explicit experiment mode. The PARAM marker makes switching either way
+# invalidate every object through .params, including size/cycle-tuned units.
+.if ${KERNEL_GC:Uno} == "yes"
+CMACHFLAGS+= -ffunction-sections -fdata-sections
+LDFLAGS+= --gc-sections
+PARAM+= -DKERNEL_SECTION_GC
+.elif ${KERNEL_GC:Uno} != "no"
+.error KERNEL_GC must be yes or no
+.endif
 # Cortex-M0+ has no divide instruction, so the compiler emits calls to the
 # libgcc helpers __aeabi_idiv and friends.
 LIBGCC!=	${CC} ${CMACHFLAGS} -print-libgcc-file-name

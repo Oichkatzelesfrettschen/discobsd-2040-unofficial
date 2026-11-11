@@ -1272,6 +1272,14 @@ fails the gate rather than unwinding into unrelated code.
 
 ## Cross tier
 
+`KERNEL_GC=yes` selects experimental kernel section collection; `no` is the
+default. Both directions change the parameter stamp and rebuild every object.
+`check-flash-swap` and `check-swapram` accept the collected layouts, and
+`check-kernel-headroom` measures the resulting images. The discarded-section
+ledger lives in each `unix.map`; fatal linker warnings remain enabled.
+Collection-mode builds establish placement and size. Kernel boot behavior
+requires separate Renode and board evidence before default admission.
+
 `check-warning-policy-cross` checks shared target warning enforcement and
 both kernels' `-Wall -Wextra -Werror` behavior as described above.
 

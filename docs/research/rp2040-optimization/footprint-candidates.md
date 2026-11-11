@@ -5,6 +5,49 @@ independent: do not combine their deltas or land them in one code change.
 
 ## Cross-configuration section garbage collection
 
+`KERNEL_GC=yes` enables function/data sections and linker collection in the
+kernel build. The default is `no`; other values fail during Makefile parsing.
+A `KERNEL_SECTION_GC` parameter marker invalidates all objects when the mode
+changes. Size- and cycle-specific compile rules retain their optimization
+levels and receive the section flags. The generated configuration Makefiles
+carry the same rule as `conf/Makefile.rp2040`.
+
+GCC 15.2.1, GNU ld 2.45.1, `-Os`, following `f019845e`:
+
+| Configuration | Default text | Collected text | Text saving | BSS saving |
+| --- | ---: | ---: | ---: | ---: |
+| PICO | 94,021 | 91,665 | 2,356 | 16 |
+| PICO_UART | 84,944 | 81,396 | 3,548 | 16 |
+| PICOCALC | 109,845 | 107,713 | 2,132 | 24 |
+| PICOCALC_PSRAM | 111,951 | 109,807 | 2,144 | 24 |
+
+Data sizes remain unchanged. All four collected links pass the flash-work
+and SwapRAM placement checks and the flash-headroom gate. Divider ownership
+validation requires Capstone and pyelftools, unavailable in the execution
+environment. Boot and hardware evidence remain open, so collection remains
+an explicit experiment mode.
+
+The 32-byte `locore0.o` input `.text` contains eight anonymous address words
+before the explicit `.text.Reset_Handler` section. `objdump -h -r locore0.o`
+shows eight ABS32 relocations to linker boundaries and no incoming reference
+to those words. Reset code carries its own literal pool and calls in the
+separate retained handler section. The vector table and boot2 remain `KEEP`
+roots. The discarded words therefore establish no startup dependency.
+
+`unix.map` retains the discarded input-section ledger. GNU ld 2.45.1 makes
+`--print-gc-sections` diagnostics fatal under `--fatal-warnings`; the supported
+mode keeps fatal warnings and uses the map ledger. Reproduction:
+
+```sh
+bmake MACHINE=rp2040 KERNEL_GC=yes kernel
+bmake -C sys/arch/rp2040/compile KERNEL_GC=yes check-flash-swap check-swapram
+bmake MACHINE=rp2040 check-kernel-headroom
+bmake MACHINE=rp2040 KERNEL_GC=no kernel
+```
+
+The final command restores default objects through the parameter stamp.
+Changing `COPTS` separately still requires a clean build.
+
 The historical PICO scratch link using `-ffunction-sections
 -fdata-sections` and `--gc-sections` removed as much as 2,463 text bytes and
 reported 67 discarded sections. It also discarded a 32-byte `locore0.o`

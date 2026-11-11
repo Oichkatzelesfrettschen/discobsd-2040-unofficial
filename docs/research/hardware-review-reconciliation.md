@@ -194,9 +194,8 @@ instruments; items 3 to 8 each wait on the measurement named.
    0x2103c000, expecting SIGSEGV with the MPU on and a successful read with
    it off, and one `xip cache sram` line at 0x15000000, expecting SIGSEGV in
    both states because the bus error stops it whatever the MPU does. Gate:
-   `check-renode` for the MPU-on lines through `MPUTEST OK (mpu on)`. The
-   board run and the MPU-off calibration run of `MPU.md` have no recorded
-   result yet.
+   `check-renode` for the MPU-on lines through `MPUTEST OK (mpu on)`;
+   `MPU.md` records the board run and the MPU-off calibration run.
 7. PicoCalc power budget: supply current at idle, then with unused
    peripheral clocks gated in `SLEEP_EN`, then with an unowned SRAM bank
    powered down. On PICO_UART, moving the 256-byte flash program-page

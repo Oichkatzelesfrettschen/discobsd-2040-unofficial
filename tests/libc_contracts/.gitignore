@@ -188,3 +188,5 @@ huge_val_contract_test
 huge_val_contract_test_arm
 hv_*.o
 huge_val_header*.o
+getgrent_contract_test
+grent_getgrent.o

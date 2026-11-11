@@ -61,7 +61,8 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-printf-float check-scanf check-scanf-llong check-rwmode \
 	check-ansi check-syslog \
 	check-vis check-printf-g check-huge-val \
-	check-qsort check-strtox check-string-security check-array-memory-line
+	check-qsort check-strtox check-string-security check-array-memory-line \
+	check-getgrent
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 ARRAY_MEMORY_CFLAGS= -std=c17 -Wall -Wextra -Werror
@@ -775,6 +776,28 @@ string_timingsafe_bcmp_bad_target.o: timingsafe_bcmp_bad.c
 check-vis: vis_contract_test
 	${TEST_EXECUTION} run libc.vis.native -- ./vis_contract_test
 
+# getgrent.c compiled from the tree under db_ names, with its malloc, free
+# and fopen routed to the test. The mutation script repeats the contract
+# against static-record, per-call, unchecked and released-record mutants
+# and bounds the Cortex-M0+ object's bss, so each mutant fails an oracle.
+GETGRENT_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror
+GETGRENT_RENAMES=	-Dgetgrent=db_getgrent -Dsetgrent=db_setgrent \
+		-Dendgrent=db_endgrent -Dmalloc=grent_test_malloc \
+		-Dfree=grent_test_free -Dfopen=grent_test_fopen
+
+check-getgrent: getgrent_contract_test
+	${TEST_EXECUTION} run libc.getgrent.native -- ./getgrent_contract_test
+	${PYTHON} ${.CURDIR}/getgrent_contract_mutate.py ${TOPSRC} \
+	    ${HOSTCC:Q} ${ARM_COMPILER:Q} ${.CURDIR}/getgrent_contract_test.c
+
+getgrent_contract_test: getgrent_contract_test.c grent_getgrent.o
+	${HOSTCC} ${GETGRENT_CFLAGS} -o $@ getgrent_contract_test.c \
+	    grent_getgrent.o
+
+grent_getgrent.o: ${TARGET_DIR}/getgrent.c
+	${HOSTCC} ${GETGRENT_CFLAGS} ${GETGRENT_RENAMES} -c -o $@ \
+	    ${TARGET_DIR}/getgrent.c
+
 vis_contract_test: vis_contract_test.c vis_vis.o
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -fsigned-char -o $@ \
 	    vis_contract_test.c vis_vis.o
@@ -1190,6 +1213,7 @@ header_contract.o: header_contract.c
 clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
 	rm -f alarm_contract_test alarm_contract.o
+	rm -f getgrent_contract_test grent_getgrent.o
 	rm -f asctime_contract_test asctime_contract_bad_test \
 		asctime_asctime.o asctime_bad.o
 	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_ctime32.o
@@ -1360,7 +1384,7 @@ all: check
 	check-printf-float check-printf-g check-huge-val check-rwmode check-scanf \
 	check-scanf-llong check-string-security \
 	check-array-memory-line-cross check-string-security-cross check-strtox \
-	check-syslog check-vis check-qemu clean
+	check-syslog check-vis check-getgrent check-qemu clean
 
 # The C17 stdio surface outside the read and write path: the mode strings
 # fopen accepts and the descriptor flags they produce, fflush over every

@@ -93,8 +93,12 @@ getlogin(3), getpwent(3), group(5)
 .SH DIAGNOSTICS
 A null pointer
 (0) is returned on EOF or error.
+The first routine to read an entry allocates the area the entry is
+built in; when that allocation fails it returns a null pointer with
+.I errno
+set to ENOMEM.
 .SH BUGS
 All information
-is contained in a static area
+is contained in one area, allocated once and reused by every call,
 so it must be copied if it is
 to be saved.

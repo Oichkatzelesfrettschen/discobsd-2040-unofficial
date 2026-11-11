@@ -588,6 +588,9 @@ check-libc-syslog:
 check-libc-vis:
 		${MAKE} -C tests/libc_contracts check-vis
 
+check-libc-getgrent:
+		${MAKE} -C tests/libc_contracts check-getgrent
+
 check-sysctl-status: check-python
 		${MAKE} -C tests/sysctl_status check
 
@@ -1601,6 +1604,7 @@ installfs:
 		check-libc-qsort check-libc-strtox check-libc-printf \
 		check-libc-random check-libc-random-cross check-libc-scanf \
 		check-libc-rwmode check-libc-ansi check-libc-syslog check-libc-vis \
+		check-libc-getgrent \
 		check-libc-printf-float check-libc-printf-g check-libc-huge-val check-dirent-contracts \
 		check-dirent-contracts-cross check-scandir-contracts \
 		check-scandir-contracts-cross check-colrm-contracts \

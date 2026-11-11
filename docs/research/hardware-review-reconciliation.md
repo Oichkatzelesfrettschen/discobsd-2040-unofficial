@@ -188,7 +188,10 @@ instruments; items 3 to 8 each wait on the measurement named.
    item 1 identifying a path with a measured miss cost. The cost is up to
    6 bytes per aligned symbol, or the function's size in kernel RAM.
 5. Shared libc, in the order of `xip-shared-libc/README.md`. Its board
-   evidence item uses the counters of item 1.
+   evidence item uses the counters of item 1. Of its static-state items,
+   const `_ctype_` and getgrent's first-use record have landed and the
+   other buffers stay static on measurement (that README's section "Static
+   libc state under static links").
 6. `mputest` probes for the unstriped alias and for 0x15000000, expecting
    SIGSEGV, calibrated against the MPU-off recipe of `MPU.md`.
 7. PicoCalc power budget: supply current at idle, then with unused

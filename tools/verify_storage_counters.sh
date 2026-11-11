@@ -11,7 +11,7 @@ size_command=${SIZE:-arm-none-eabi-size}
 # their -J numbers to each child produces invalid-descriptor warnings.
 unset MAKEFLAGS MFLAGS
 
-for board in PICO PICO_UART; do
+for board in PICO PICO_UART PICO_DIAG; do
     build="sys/arch/rp2040/compile/$board"
     "$make_command" MACHINE=rp2040 STORAGE_STATS=no -C "$build" all
     "$nm_command" "$build/unix.elf" > "$build/.storage-symbols"
@@ -35,4 +35,4 @@ for board in PICO PICO_UART; do
     rm -f "$build/.storage-symbols"
 done
 
-echo "storage counters: enabled and disabled kernels linked on both boards"
+echo "storage counters: enabled and disabled kernels linked on three configurations"

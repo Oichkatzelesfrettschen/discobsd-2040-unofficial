@@ -116,5 +116,6 @@ psramprobe(struct conf_device *config __unused)
 }
 
 struct driver psramdriver = {
-	"psram", psramprobe,
+    .d_name = "psram",
+    .d_device_init = psramprobe,
 };

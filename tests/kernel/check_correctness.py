@@ -43,6 +43,8 @@ def build(work, suite, changes):
         "bmap": ["ufs_bmap.c"],
         "synch": ["kern_synch.c", "vm_sched.c"],
         "itimer": ["kern_clock.c", "kern_time.c", "kern_fork.c"],
+        "resource": ["kern_proc.c", "kern_resource.c"],
+        "clist": ["tty_subr.c"],
     }[suite]
     # A header mutation copies every sys/sys header into the private include
     # directory, which -I lists ahead of the tree's sys directory, and mutates
@@ -73,6 +75,7 @@ def build(work, suite, changes):
             source.write_text(text)
         extra = ["-ffunction-sections", "-fdata-sections"]
         if name == "kern_time.c":
+            extra += ["-Wstrict-prototypes", "-Wold-style-definition"]
             extra += ["-Dgettimeofday=gate_gettimeofday", "-Dsettimeofday=gate_settimeofday"]
             if name in changes:
                 # Clang diagnoses the historical wrong-sign bound before the
@@ -107,7 +110,8 @@ def build(work, suite, changes):
                 "-Dfork=gate_fork",
                 "-Dvfork=gate_vfork",
             ]
-        elif name in ("kern_prot.c", "kern_prot2.c"):
+        elif name in ("kern_prot.c", "kern_prot2.c", "kern_proc.c",
+                      "kern_resource.c", "tty_subr.c"):
             extra += ["-Wstrict-prototypes", "-Wold-style-definition"]
         obj = work / (name + ".o")
         run(CC + common + includes + extra + ["-c", str(source), "-o", str(obj)])
@@ -135,6 +139,8 @@ def build(work, suite, changes):
             "bmap": "bmap_write_test.c",
             "synch": "synch_meter_test.c",
             "itimer": "itimer_test.c",
+            "resource": "resource_test.c",
+            "clist": "clist_test.c",
         }[suite]
     )
     run(
@@ -162,6 +168,16 @@ def main():
         ("baseline-bmap", "bmap", {}, False),
         ("baseline-synch", "synch", {}, False),
         ("baseline-itimer", "itimer", {}, False),
+        ("baseline-resource", "resource", {}, False),
+        ("baseline-clist", "clist", {}, False),
+        ("resource-drops-counter", "resource", {"kern_resource.c":
+            ("ru->ru_msgsnd += ru2->ru_msgsnd;", "ru->ru_msgsnd += 0;")}, True),
+        ("resource-leaks-result", "resource", {"kern_resource.c":
+            ("bzero((caddr_t)rup, sizeof(*rup));", "/* result left uncleared */")}, True),
+        ("process-misses-hash-tail", "resource", {"kern_proc.c":
+            ("for (; p; p = p->p_hash)", "for (; p && p->p_hash; p = p->p_hash)")}, True),
+        ("clist-loses-high-bit", "clist", {"tty_subr.c":
+            ("c = *p->c_cf++ & 0377;", "c = *p->c_cf++ & 0177;")}, True),
         (
             "discard-direct-init-error",
             "bmap",

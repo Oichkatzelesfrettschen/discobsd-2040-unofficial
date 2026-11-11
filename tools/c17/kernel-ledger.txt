@@ -122,7 +122,6 @@ sys/kern/tty.c definition ttyselect both
 sys/kern/tty.c definition ttyunblock both
 sys/kern/tty.c definition ttywait both
 sys/kern/tty.c definition ttywflush both
-sys/kern/tty_pty.c definition ptyattach scan
 sys/kern/vm_sched.c definition loadav both
 sys/kern/vm_sched.c definition sched both
 sys/kern/vm_sched.c definition vmmeter both
@@ -132,5 +131,3 @@ sys/kern/vm_swap.c definition swapout both
 sys/kern/vm_swap.c definition swaptext both
 sys/kern/vm_swp.c definition physio both
 sys/kern/vm_swp.c definition rawrw both
-sys/sys/config.h declaration d_init both
-sys/sys/config.h declaration svc_attach both

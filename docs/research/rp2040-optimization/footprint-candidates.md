@@ -12,19 +12,20 @@ changes. Size- and cycle-specific compile rules retain their optimization
 levels and receive the section flags. The generated configuration Makefiles
 carry the same rule as `conf/Makefile.rp2040`.
 
-GCC 15.2.1, GNU ld 2.45.1, `-Os`, following `f019845e`:
+GCC 15.2.1, GNU ld 2.45.1, `-Os`, `2b387882` reconciled with `42b49f48`:
 
 | Configuration | Default text | Collected text | Text saving | BSS saving |
 | --- | ---: | ---: | ---: | ---: |
-| PICO | 94,021 | 91,665 | 2,356 | 16 |
-| PICO_UART | 84,944 | 81,396 | 3,548 | 16 |
-| PICOCALC | 109,845 | 107,713 | 2,132 | 24 |
-| PICOCALC_PSRAM | 111,951 | 109,807 | 2,144 | 24 |
+| PICO | 92,701 | 89,157 | 3,544 | 16 |
+| PICO_UART | 85,016 | 81,468 | 3,548 | 16 |
+| PICOCALC | 109,909 | 107,785 | 2,124 | 24 |
+| PICOCALC_PSRAM | 112,023 | 109,879 | 2,144 | 24 |
+| PICO_DIAG | 94,100 | 91,752 | 2,348 | 16 |
 
-Data sizes remain unchanged. All four collected links pass the flash-work
-and SwapRAM placement checks and the flash-headroom gate. Divider ownership
-validation requires Capstone and pyelftools, unavailable in the execution
-environment. Boot and hardware evidence remain open, so collection remains
+Data sizes remain unchanged. All five collected links pass flash-work,
+SwapRAM placement, flash-headroom and divider-ownership checks. Default
+objects are restored after the matrix. Boot and hardware evidence remain
+open, so collection remains
 an explicit experiment mode.
 
 The 32-byte `locore0.o` input `.text` contains eight anonymous address words
@@ -48,8 +49,7 @@ bmake MACHINE=rp2040 KERNEL_GC=no kernel
 The final command restores default objects through the parameter stamp.
 Changing `COPTS` separately still requires a clean build.
 
-The unresolved admission evidence is boot/smoke execution and a collected
-PICO_DIAG matrix after the configuration split. Keep vendored Dhara and
+The unresolved admission evidence is boot/smoke execution. Keep vendored Dhara and
 heatshrink source intact. Dead-member collection does not authorize a local
 source fork or source deletion.
 
@@ -61,7 +61,21 @@ warnings and both production linker scripts. Its optional `--compare-ref`
 compiles the four core interface units against a Git reference with the
 same target flags. No production build products change.
 
-GCC 15.2.1, GNU ld 2.45.1, `fb4fae87` plus the interface/configuration changes:
+GCC 15.2.1, GNU ld 2.45.1, `2b387882` reconciled with the typed-driver and
+resource changes in `42b49f48`:
+
+| Configuration | Default flash span | Data | Ordinary BSS | Post-exchange RAM margin |
+| --- | ---: | ---: | ---: | ---: |
+| PICO | 92,968 | 264 | 15,840 | 21,792 |
+| PICO_UART | 85,216 | 200 | 15,408 | 38,608 |
+| PICOCALC | 110,304 | 392 | 28,504 | 9,672 |
+| PICOCALC_PSRAM | 112,472 | 448 | 28,656 | 9,104 |
+| PICO_DIAG | 94,364 | 264 | 15,840 | 21,792 |
+
+Flash span starts at `0x10000000` and includes boot2 and load-image padding.
+Ordinary BSS excludes the 16 KiB SwapRAM pool and scratch sections. The
+post-exchange margin follows the linked `__kernel_ram_used_end` and already
+subtracts the mandatory 4 KiB reserve; it is not a measured runtime peak.
 
 | Configuration | Alignment-sort flash-span delta | BSS-extent delta |
 | --- | ---: | ---: |
@@ -124,8 +138,8 @@ change; missing-option and diagnostic-in-base mutations fail. Capacity image
 preparation selects `BOARD=PICO_DIAG`. PICO_UART and PicoCalc retain their
 existing instrumentation.
 
-Matched links measure 92,904 bytes from flash origin through the final load
-byte for lean PICO and 94,300 for PICO_DIAG: a 1,396-byte difference. Both
+Matched links measure 92,968 bytes from flash origin through the final load
+byte for lean PICO and 94,364 for PICO_DIAG: a 1,396-byte difference. Both
 ordinary `.bss` extents remain 15,840 bytes because alignment absorbs the
 removed state. The ILP32 sysctl fixture requires `EOPNOTSUPP`, unchanged
 payload bytes and an unchanged returned size for all three absent diagnostic
@@ -194,7 +208,7 @@ pointers.
 The private footprint probe reads every handler pointer from each of the five
 linked control ELFs, requires a matching Thumb-function symbol and round-trips
 all 163 slots through `(pointer - 1 - 0x10000100) / 2`. The largest encoded
-offset is 32,710; the representation has a 65,535 limit. Missing slots,
+offset is 32,740; the representation has a 65,535 limit. Missing slots,
 even/non-Thumb pointers and an out-of-range address calibrate rejection.
 This checks actual linked addresses, not a future link's representability.
 Generated link-time range assertions, a decoder, INET variant execution and

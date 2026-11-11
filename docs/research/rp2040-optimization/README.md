@@ -17,13 +17,13 @@ and persistence contracts remain intact.
 | Alignment | Retain the 8-byte ABI, stack and section boundary; use 4-byte natural alignment for words and narrower storage only behind explicit byte/halfword contracts | decision recorded |
 | RAM and memory map | Retain the 192/58/3/3/8 KiB split; projected windows above 192 KiB consume the worst configuration's stability margin before they provide a material process gain | adversarial review recorded |
 | Wear and recovery | All 464 complete-operation cuts recover; a half-programmed page fails at cut 26. Resolve the payload-integrity contract before changing wear policy | model counterexample retained |
-| Section garbage collection | `KERNEL_GC=yes` saves 2,132--3,548 text bytes across four builds; startup address words identified; boot evidence remains open | opt-in mode implemented |
+| Section garbage collection | `KERNEL_GC=yes` saves 2,124--3,548 text bytes across five builds; placement, headroom and divider checks pass; boot evidence remains open | opt-in mode implemented and remeasured |
 | PICO/PICO_DIAG | PICO omits both diagnostic options; PICO_DIAG adds exactly those options. Build, generated-config, reader and CI coverage include the sibling | implemented |
 | Additional linker flags | Alignment sorting reduces flash span by 8--12 bytes and BSS extent by 8--168 bytes; relaxation, common sorting and linker `-O2` produce no measured saving | opt-in sorting mode and private probe implemented |
 | Anchored hot scalars | Four-field clock bank leaves code unchanged and adds eight data/flash bytes in every configuration; no production bank or `r9` reservation | private prototype rejected |
 | Compact dispatch | All 163 handlers in five linked controls round-trip through halfword offsets and retain the Thumb bit; decoder, generated link assertions and execution remain open | representability probe implemented |
 | Capacity admission | Reject invalid metric kinds before indexing; `-O2` compilation proceeds, but PicoCalc exceeds FLASH | bounds fix implemented |
-| K&R interfaces | 31 core definitions and six libc definitions converted; core code bytes remain identical under matched target flags. Shared callbacks and semantic repairs remain separate | first interface tranche implemented |
+| K&R interfaces | Six units include typed driver/service slots and the independent resource object-bounds repair; pure definition conversions preserve code bytes | implemented and reconciled with the existing PR commits |
 | `adjtime` arithmetic | Commit `98810124` already splits seconds/ticks before division; current PICO contains no `__aeabi_ldivmod`, `__aeabi_lmul` or `__divdi3` | implemented before this tranche |
 | 32 KiB SwapRAM | Private PICO/PICO_DIAG links retain 5,408 bytes beyond the exchange reserve; PicoCalc links reject the larger pool; UART remains unconfigured | link experiment implemented; no default change |
 
@@ -41,7 +41,8 @@ are implemented through read-only sysctls; board measurements remain pending.
 - [bsd-comparisons.md](bsd-comparisons.md) records the pinned upstream ideas
   and the limits of each comparison.
 - [kr-migration.md](kr-migration.md) scopes caller-complete C17 interface units
-  from the remaining K&R definitions, declarations and callback protocols.
+  from the remaining K&R definitions, declarations and callback protocols,
+  and records scoped implementation, resource costs and admission residuals.
 - [`../kernel-footprint-handoff.md`](../kernel-footprint-handoff.md) retains
   the detailed historical measurements and candidate queue.
 - [`../rp2040-memory-wear-engineering-program.md`](../rp2040-memory-wear-engineering-program.md)
@@ -78,11 +79,7 @@ The implemented tranche does not close every historical queue entry:
   scratch placement and literal-pool constraints recorded in the historical
   handoff. Userland/libc section collection remains a separate unimplemented
   experiment; kernel collection does not establish its startup roots.
-- Driver initialization shares a slot between controller and device pointers.
-  Service calls supply no arguments, while the generator declares an integer
-  parameter. Exact adapters or separate typed slots require a shared-port
-  interface design; casts do not resolve the mismatch.
-- `ruadd` object bounds, scheduler/context declarations, kernel/libc
+- Scheduler/context declarations, kernel/libc
   nonreturning contracts, Boot ROM overlapping-copy semantics and remaining
   shipped libc K&R families retain separate caller/behavior closure. The
   completed syntax conversions do not establish those semantic contracts.

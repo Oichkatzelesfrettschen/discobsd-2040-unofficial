@@ -27,11 +27,8 @@ DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall -Werror
 
-# DiscoBSD predates C23, where an empty parameter list means (void) rather
-# than an unspecified one. GCC 15 and later default to C23 and reject the
-# driver dispatch in machdep.c, which calls d_init through a pointer
-# declared with no parameters. sys/arch/rp2040/conf pins the same standard
-# for the same reason and its comment names this tree.
+# Historical kernel definitions and unspecified parameter lists require C17.
+# GCC 15 and later default to C23, which changes empty-list declarations.
 CSTDFLAGS=	-std=gnu17
 
 CMACHFLAGS=	-ffreestanding -fno-builtin -fcommon

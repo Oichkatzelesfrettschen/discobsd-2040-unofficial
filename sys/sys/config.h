@@ -41,9 +41,13 @@
  * can support multiple attached devices or a device can be attached to
  * different types of controllers.
  */
+struct conf_ctlr;
+struct conf_device;
+
 struct driver {
     const char  *d_name;        /* driver name for vmstat and iostat */
-    int         (*d_init)();    /* routine to probe & initialize device */
+    int         (*d_ctlr_init)(struct conf_ctlr *);
+    int         (*d_device_init)(struct conf_device *);
 };
 
 /*
@@ -83,7 +87,7 @@ struct conf_device {
  * This structure describes optional software services.
  */
 struct conf_service {
-    void        (*svc_attach)();    /* routine to initialize service */
+    void        (*svc_attach)(void);    /* routine to initialize service */
 };
 
 /* Define special unit types used by the config program */

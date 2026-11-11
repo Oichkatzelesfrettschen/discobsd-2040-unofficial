@@ -501,6 +501,12 @@ check-libc-assert: check-python
 		HOSTCC=${HOSTCC:Ucc:Q}' -DDISCOBSD_ASSERT_TEST=1' \
 		    ${PYTHON} tests/libc_contracts/assert_check.py
 
+check-libc-err: check-python
+		${MAKE} -C tests/libc_contracts check-err
+		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tests/libc_err/check.py
+
+.PHONY: check-libc-err
+
 check-libc-host-contracts:
 		${MAKE} -C tests/libc_contracts check-host
 
@@ -593,9 +599,6 @@ check-sysctl-status: check-python
 
 check-libc-output: check-python
 		${MAKE} -C tests/libc_output check
-
-check-libc-err: check-python
-		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tests/libc_err/check.py
 
 check-board-libc-output: check-python ${TOPSRC}/distrib/obj/boardlibc.${MACHINE}/libc.a
 		${PYTHON} tests/libc_output/check_board_archive.py ${TOPSRC} ${BOARDLIBC_GCCPREFIX}-gcc

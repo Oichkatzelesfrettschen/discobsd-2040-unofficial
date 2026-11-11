@@ -44,5 +44,6 @@ spi_probe(struct conf_ctlr *config)
 }
 
 struct driver spidriver = {
-	"spi", spi_probe,
+    .d_name = "spi",
+    .d_ctlr_init = spi_probe,
 };

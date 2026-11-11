@@ -1731,9 +1731,12 @@ tests/rp2040/hwcount/board_hwcount.py checks the machdep event counters of
 `xip_hit` at or below it, a write clearing a counter, every `bus_perfsel`
 taking events 19 and 31 and refusing 20, and a `bus_perfctr` on all SRAM0
 accesses counting, holding once its select names no event, and reading zero
-after a write. It opens no port and calls no flashing tool unless
-`DISCOBSD_BOARD_HWCOUNT` is exactly `run`.
-`docs/research/hardware-review-reconciliation.md` records its one run. No
+after a write. It then writes `machdep.xip_cache` 0 and requires the cache
+to read disabled, to stay disabled across a flash write, to count no hit
+over a `cat` of `/bin/sh` and to take longer over it than with the cache
+on, and writes 1 again; the board answers slowly in between. It opens no
+port and calls no flashing tool unless `DISCOBSD_BOARD_HWCOUNT` is exactly
+`run`. `docs/research/hardware-review-reconciliation.md` records its runs. No
 emulator models `XIP_CTRL` counters or `BUSCTRL`, so the nodes have board
 evidence only.
 A fifth, tests/rp2040/sd_detach/board_sd_detach.py, mounts the PicoCalc's

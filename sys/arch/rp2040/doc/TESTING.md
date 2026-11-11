@@ -2589,3 +2589,16 @@ Runtime stack and heap high-water, descriptor/inode pressure under a complete
 extraction workload, directory-write recovery, persistent-media traffic,
 symbolic-link publication, conditional removal, directory metadata
 reacquisition, and physical-board behavior retain separate evidence states.
+
+The assembler's `thumb-compile.sh` contract also invokes the production `.S.o`
+rule with a host-style traditional-CPP default injected into a private Makefile.
+The ROM-float bare-cell member must assemble through that rule and agree with
+GNU as on its emitted bytes and relocations. A separate traditional-CPP control
+must leave token-pasting operators unexpanded and fail native assembly. This
+calibrates the project-owned ISO preprocessing boundary; it executes no ROM code.
+
+The a.out libc output directory marks its object targets `.NOPATH`, so a
+previous ELF build cannot satisfy an a.out output from a source-directory
+object. `thumb-link.sh` rebuilds the native archive after the ELF build,
+compares the captured assembly with GNU as and executes its linked program
+under Unicorn; this includes the foreign-object lookup regression.

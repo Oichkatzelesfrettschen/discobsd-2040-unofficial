@@ -195,16 +195,79 @@ to zero bytes. Other reported frames are unchanged. Full-link differences
 also include typed driver table storage and resulting placement. No ABI,
 stack alignment or 192 KiB process-window constants change.
 
-### Remaining admission evidence
+### Build and artifact admission
 
-Both baseline and migrated `logged-build` reach all four linked kernels, then
-fail in the native a.out assembler on `rom_float_clz.S` with `bad instruction
-arguments`. This pre-existing build failure blocks a complete libc archive,
-clean consumer relink, loaded a.out size and packed-root-block comparison.
-The full Smaller C harness also stops at the missing target `lib/crt0.o`;
-the isolated header probe above does not replace it. Picotool is unavailable,
-so no UF2 was generated. No board boot, interrupt, fault-console or runtime
-peak measurement was requested or executed. Those are open evidence items,
-not passing admission checks. The initial development worktree retains a
-logged-build quarantine for defunct lexer processes; target measurements use
-an independent validation worktree and preserve the quarantine receipt.
+The initial capture stopped in `rom_float_clz.S`: BSD make's inherited
+`.S.o` rule selected traditional preprocessing, leaving `##` operators in
+ROM-float symbol names. The project now owns the ISO-preprocessed suffix
+rule. A second build-path failure appeared when the assembler suite rebuilt
+libc after an ELF build: `.PATH` could satisfy an a.out object target from an
+existing ELF source-directory object. `.NOPATH: ${OBJS}` confines outputs to
+the a.out object directory while retaining source lookup.
+
+`thumb-compile.sh` injects the traditional host rule into a private Makefile,
+compiles the production ROM-float bare-cell source through the project rule,
+and compares its output with GNU as. The good input agrees on eight text
+halfwords, three text relocations, four data bytes and one data relocation;
+the traditional-preprocessor control retains `##` and fails native assembly.
+The complete `check-cross-assembler` gate assembles 376 libc units with zero
+GNU disagreements, links an a.out with no remaining relocation, executes it
+under Unicorn and rejects the divider-ownership mutants. The pre-fix rebuild
+failed with missing object outputs in the presence of source-directory ELF
+objects; the same rebuild passes with output lookup confined.
+
+The follow-on environment supplies QEMU 11.1.3 and picotool 2.3.1. The
+`check-c17-smaller-c` harness passes 20 tests with zero failures and zero
+link-only cases. `check-c17-headers` and `check-c17-headers-cross` pass their
+native, target, import and mutation checks as selected by those owners.
+`tests/qemu_aout` passes with `REQUIRE_QEMU=1`, including its calibrated
+malformed-image and divider controls. UF2 structure checks pass for all four
+kernels paired with the root image. These are emulated execution and artifact
+checks, separate from silicon observations.
+
+An additional ARM err probe uses the retained `err_probe.c` with
+`ERR_PROBE_STRERROR`, `PRINTF_FLOAT=yes` and the existing a.out runner at
+`-cpu cortex-m0`. Both baseline and migrated archives pass all 16 message,
+status, null-format and integer/string/double forwarding cases. The typed
+`strerror` shim checks the error number and supplies the expected text because
+the runner does not implement the kernel's sysctl error-message provider.
+This establishes the exercised ARM varargs boundary, not kernel sysctl
+behavior or board execution.
+
+### Clean distribution comparison
+
+Both trees complete `bmake MACHINE=rp2040 clean` followed by
+`bmake -j4 MACHINE=rp2040 logged-distribution`, with GCC 15.3.1 and both
+build repairs applied identically. The baseline remains `fb4fae87`; the
+candidate is the scoped migration plus those repairs. These clean builds
+relink the libc consumers rather than relying on an incremental archive update.
+
+The ELF libc has 416 object entries and the a.out libc has 378, excluding
+its symbol directory. Their ordered member lists match their respective
+controls, including the existing duplicate `memcpy.o` and `memset.o` entries
+in the native archive. The complete `err.o` bytes match in both archive forms;
+each has 360 text bytes and zero data/BSS in the production profile.
+
+All 236 paired production OMAGIC programs have unchanged text, data and BSS
+sizes. Their hsaout raw sizes, packed sizes and raw/packed block counts also
+match. Each root uses 743 data blocks and nine inode-list blocks in the
+988-block partition, leaving 236 blocks and 32 inodes free. This is static
+loaded-size and storage evidence; no runtime peak follows from it.
+
+[kr-migration-admission.json](kr-migration-admission.json) retains the relative
+program inventory, archive/object hashes, common-repair patch hash, exact
+root accounting, ARM probe results and immutable successful build-receipt
+hashes. Program enumeration uses `aout_reachability.parse_aout` on production
+`.dis` sibling binaries; packing uses `hsaout -s`; root accounting uses
+`check_multicall_composition.measure_root_image`. Archive enumeration uses
+`aout_archive_section_filter.parse_archive_members`, preserving repeated
+names instead of collapsing them into a set.
+
+### Physical evidence still open
+
+No serial board or USB device is attached to the execution environment.
+Board boot, interrupt behavior, fault-console behavior and runtime peak
+measurements therefore remain unexecuted. The generated images and host or
+emulator results cannot substitute for those measurements. The initial
+development worktree's logged-build quarantine for defunct lexer processes
+is preserved; independent worktrees own the follow-on build receipts.

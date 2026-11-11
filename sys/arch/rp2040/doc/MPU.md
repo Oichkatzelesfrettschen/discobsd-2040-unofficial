@@ -105,7 +105,12 @@ The kernel runs privileged and sees the default map as its background, so
 kernel text in XIP flash, kernel data above the window, the peripherals at
 0x40000000, SIO at 0xd0000000 and the PPB stay reachable to it and closed
 to a process. A process may read, write and execute its own window, and
-read and execute the boot ROM. Nothing else.
+read and execute the boot ROM. Nothing else. That includes the unstriped
+SRAM windows at 0x21000000-0x2103ffff (datasheet 2.6.2), which name the
+same cells as the user window and kernel RAM one bank at a time: no region
+covers them, so an unprivileged access faults, and a region that granted
+them to user mode would hand a process the kernel's data. `mputest` carries
+no probe at those addresses.
 
 ## Programming order and readback
 

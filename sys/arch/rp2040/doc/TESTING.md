@@ -1813,7 +1813,11 @@ Pico with the UART0 console. The patcher accepts a flat image with exactly
 one 256-byte block that starts with the descriptor magic, so a union kernel
 without its `.board` section stops there by name.
 
-The stages are `check-renode`'s, with the banner naming `PICOCALC_PSRAM`.
+The stages are `check-renode`'s through the exec residue probe, with the
+banner naming `PICOCALC_PSRAM`. The core 1 stages run for `PICO_UART` alone:
+the union configuration links no `core1.c`, so it has no `machdep.core1`
+node, and a union image that replaces the PICO kernel needs the `core1`
+option first (`docs/research/rp2040-single-kernel.md`).
 The probe stage adds what the descriptor decides: `uart0: pins tx=GP0/rx=GP1,
 console` and then `uartusb: CDC-ACM on the USB device controller, interrupt
 5` between the watchdog line and `fl0`, and no console line that starts with

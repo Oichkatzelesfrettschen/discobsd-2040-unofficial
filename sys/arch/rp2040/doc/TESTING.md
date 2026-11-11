@@ -2586,3 +2586,11 @@ linear solve, transport against every small assignment, offload contention
 and capacity controls, profile dependency/union costs, drift-diffusion against
 an analytic absorption law, MPS Schmidt loss, conserved walk probabilities,
 tail parameter recovery and emitted QASM against independent gate evolution.
+
+`check-layout-extensions` requires the pinned extended requirements and runs
+the MILP/enumeration, fixed-cardinality noisy-circuit and tensor-only MPS
+controls. The graph-layout CI also compiles the production HSX decoder for
+M0+ with a pinned Zig toolchain and executes it under Unicorn, accepting
+traces only after decoded bytes and return length match. This establishes
+compiled algorithm behavior under emulation, not a booted kernel or board
+cache timing. Its artifacts retain the ELF, symbol map, traces and report.

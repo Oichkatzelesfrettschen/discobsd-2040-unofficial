@@ -262,6 +262,7 @@ def experiment(names, sizes, weights, clusters, seed, quantum=False, extended=Fa
     qmeta = None
     extensions = {}
     if extended:
+        from layout_solver_extensions import conserved_qaoa, integer_baseline
         from performance_lab import imaginary_time, oscillator, temper, walks
 
         require(clusters <= 12, "extended reference limited to 12 clusters")
@@ -276,6 +277,14 @@ def experiment(names, sizes, weights, clusters, seed, quantum=False, extended=Fa
                 choices[label] = bits
             extensions[label] = meta
         extensions["walks"] = walks(reduced)
+        choices["milp"], extensions["milp"] = integer_baseline(reduced, k)
+        if clusters <= 8:
+            for depth in (1, 2, 3):
+                label = f"conserved_noisy_qaoa_p{depth}"
+                choices[label], extensions[label] = conserved_qaoa(reduced, k, seed, depth=depth)
+        extensions["solver_extensions_sha256"] = hashlib.sha256(
+            Path(__file__).with_name("layout_solver_extensions.py").read_bytes()
+        ).hexdigest()
         extensions["tool_sha256"] = hashlib.sha256(
             Path(__file__).with_name("performance_lab.py").read_bytes()
         ).hexdigest()

@@ -257,8 +257,10 @@ a fractional PDE or justify its use without a dynamical memory experiment.
 The host paths above are implemented and tested. Real PC acquisition, measured
 SwapRAM transitions, erase telemetry, contention measurements, ARM relinking,
 board A/B testing, formal Lean proofs and provider experiments remain open.
-The implementation environment lacks bmake, arm-none-eabi-gcc and Renode.
-The current firmware/CI build tiers remain the authority for target compilation.
+The original environment lacked the target tools. The later audit installed
+GNU Arm GCC 15.2.1 and BSD make 20260912 locally and successfully compiled and
+linked all four kernels; `implementation-scope.md` records the resulting flash
+headroom. Renode and physical-board execution remain unperformed.
 No new solver, Python dependency or policy is included in the shipped root.
 
 A first QPU case should freeze a real 16..24-cluster training graph and its

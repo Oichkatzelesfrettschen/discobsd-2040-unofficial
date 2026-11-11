@@ -13,6 +13,7 @@ measurement that decides it and the state.
 | Change | Artifact | Deciding measurement | State |
 | --- | --- | --- | --- |
 | Retire the PICO, PICO_UART and PICOCALC kernel configurations in favor of the union image | `docs/research/rp2040-single-kernel.md`, `sys/arch/rp2040/compile` | The union kernel (`PICOCALC_PSRAM` with a PicoCalc descriptor written by `distrib/rp2040/mkboarduf2.py --board=PICOCALC_PSRAM`) boots on a PicoCalc to a login on the panel and keyboard, with the `lcd0:`, `kbd0:`, `sd0:` and `psram0:` probe lines | open: the bare-Pico half is measured (`docs/research/swap-exhaustion/review-07.md` section 10), the PicoCalc half is not run |
+| Give the union configuration the `core1` option before it replaces PICO | `sys/arch/rp2040/compile/PICOCALC_PSRAM/Config`, `sys/arch/rp2040/doc/CORE1.md` | `check-renode-union` passes the core 1 stages `tools/renode/check-boot.py` runs for `PICO_UART`, the kernel RAM headroom of `rp2040-single-kernel.md` holds with `core1.c` linked, and the PicoCalc renderer's use of core 1 is settled | open: the PICO and PICO_UART kernels link the observer, the union image has no `machdep.core1` node |
 
 ## Claims on `main` whose board rows read "not run"
 

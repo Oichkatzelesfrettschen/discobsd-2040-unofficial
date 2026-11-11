@@ -15,6 +15,7 @@ and persistence contracts remain intact.
 | --- | --- | --- |
 | Hot `struct user` layout | Cold save areas moved behind the Thumb-1 hot range; all four kernels save 2,024--2,056 text bytes with no data/BSS growth | implemented in this PR |
 | Alignment | Retain the 8-byte ABI, stack and section boundary; use 4-byte natural alignment for words and narrower storage only behind explicit byte/halfword contracts | decision recorded |
+| RAM and memory map | Retain the 192/58/3/3/8 KiB split; projected windows above 192 KiB consume the worst configuration's stability margin before they provide a material process gain | adversarial review recorded |
 | Wear and recovery | Count requested program/erase equivalents and prove reset-state recovery before changing checkpoint, eviction or staging policy | evidence plan |
 | Section garbage collection | Reproduce the PICO scratch result in every RP2040 configuration and explain every collected startup section before admitting flags or deleting code | experiment queued |
 | PICO/PICO_DIAG | Keep the shipping PICO lean; move `SYSTRACE` and `CAPACITY_STATS` to a diagnostic sibling after the reader/build inventory is closed | design queued |
@@ -24,6 +25,8 @@ and persistence contracts remain intact.
 ## Documents and ownership
 
 - [alignment.md](alignment.md) owns byte-alignment decisions and experiments.
+- [memory-map.md](memory-map.md) owns current linked RAM decomposition,
+  adversarial alternatives and map-level admission evidence.
 - [wear-recovery.md](wear-recovery.md) owns the evidence order for flash policy.
 - [footprint-candidates.md](footprint-candidates.md) owns the four bounded
   footprint experiments named above.

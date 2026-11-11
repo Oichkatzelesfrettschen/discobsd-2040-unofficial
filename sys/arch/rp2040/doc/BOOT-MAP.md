@@ -63,6 +63,10 @@ The XIP cache (2.6.3.1) stays enabled from reset, so 0x15000000 is closed.
 The PICO kernel's flash image is 95,248 bytes; its data and bss take 17,112
 bytes of the 58K and the SwapRAM pool 16,384, at `7a270276` with GCC 16.2.0.
 `check-kernel-headroom` re-measures the flash side.
+Current four-configuration RAM measurements, process-window projections and
+adversarial dispositions are retained in
+`docs/research/rp2040-optimization/memory-map.md`; the revision-bound numbers
+in this paragraph remain historical evidence.
 
 ## 3. Clocks and ticks, in the order the kernel does them
 

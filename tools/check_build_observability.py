@@ -472,6 +472,9 @@ def validate_makefile(source):
         ),
         "logged-flash": ("check-python", "rp2040-flash-local", "flash"),
         "logged-kernel": ("check-python", "rp2040-kernel-local", "kernel"),
+        "logged-ilp32": (
+            "check-python", "rp2040-ilp32-local", "check-ilp32-execution"
+        ),
     }
     for target, (dependencies, label, command_target) in local_targets.items():
         target_match = re.search(

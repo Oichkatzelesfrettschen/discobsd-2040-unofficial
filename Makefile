@@ -117,6 +117,15 @@ logged-kernel: check-python
 		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
 		    -- ${MAKE} MACHINE=rp2040 kernel
 
+# The ILP32 execution inventory hosted CI requires. It stands outside
+# logged-check, whose total deadline the aggregate already fills.
+logged-ilp32: check-python
+		${PYTHON} tools/run_logged_gate.py --label rp2040-ilp32-local \
+		    --evidence-root .build-logs \
+		    --execution-lock .build-logs/rp2040-products.lock \
+		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
+		    -- ${MAKE} MACHINE=rp2040 check-ilp32-execution
+
 logged-check: check-python
 		${PYTHON} tools/run_logged_build_check.py --label rp2040-check-local \
 		    --evidence-root .build-logs \
@@ -124,7 +133,8 @@ logged-check: check-python
 		    --idle-timeout-seconds 600 --timeout-seconds 3600 \
 		    -- ${MAKE} MACHINE=rp2040
 
-.PHONY: logged-build logged-distribution logged-flash logged-kernel logged-check
+.PHONY: logged-build logged-distribution logged-flash logged-kernel \
+		logged-ilp32 logged-check
 
 # The SUS discovery tools reject unavailable comparison trees and keep
 # source, installed-name, linkage and behavior evidence in separate states.

@@ -32,7 +32,11 @@ an ordinary child exit retains the child's status. Local logs belong under the
 ignored `.build-logs` directory.
 
 The caller-facing `logged-build`, `logged-distribution`, `logged-flash`,
-`logged-kernel` and `logged-check` targets are the required local routes.
+`logged-kernel`, `logged-ilp32` and `logged-check` targets are the required
+local routes. `logged-ilp32` runs `check-ilp32-execution`, the inventory the
+hosted "Required ILP32 execution" job runs; `logged-check` does not include
+it, so a change that touches a kernel source or a mutation script runs both
+before a push.
 Each invocation owns an immutable directory under `.build-logs`, containing
 its log and status receipt, while `<label>.latest.json` names the most recently
 updated invocation. A worktree-wide execution lock rejects a second logged

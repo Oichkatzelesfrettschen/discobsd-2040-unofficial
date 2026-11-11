@@ -37,6 +37,7 @@ tool. The build system rejects an empty interpreter value.
     bmake MACHINE=rp2040 logged-kernel       # PICO unix.uf2
     bmake MACHINE=rp2040 logged-build        # required before aggregate check
     bmake MACHINE=rp2040 logged-check        # build, then non-hardware tiers
+    bmake MACHINE=rp2040 logged-ilp32        # ILP32 execution inventory CI requires
 
 `distrib/rp2040/host/DEVELOPMENT.md` owns host setup and manual flashing.
 `bmake build` does not relink programs after libc changes: clean first when
@@ -50,7 +51,9 @@ Makefiles are tracked; synchronize both when generation inputs change.
   check target. `logged-check` runs the logged build first, then lint, host,
   32-bit POSIX shell, cross,
   qemu-user, host-package and board-build tiers. `check-renode` boots a
-  PICO_UART kernel and stands outside the aggregate. Board execution requires
+  PICO_UART kernel and stands outside the aggregate. `logged-ilp32` runs the
+  ILP32 execution inventory, which also stands outside it and which hosted CI
+  requires; run it before a push. Board execution requires
   explicit opt-in. `sys/arch/rp2040/doc/TESTING.md` owns each gate's execution
   class and claim; add new gates there and to the root Makefile and CI owner.
 - Logged local targets allocate immutable invocation directories under

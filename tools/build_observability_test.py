@@ -159,6 +159,13 @@ logged-kernel: check-python
 \t    --idle-timeout-seconds 600 --timeout-seconds 3600 \\
 \t    -- ${MAKE} MACHINE=rp2040 kernel
 
+logged-ilp32: check-python
+\t${PYTHON} tools/run_logged_gate.py --label rp2040-ilp32-local \\
+\t    --evidence-root .build-logs \\
+\t    --execution-lock .build-logs/rp2040-products.lock \\
+\t    --idle-timeout-seconds 600 --timeout-seconds 3600 \\
+\t    -- ${MAKE} MACHINE=rp2040 check-ilp32-execution
+
 logged-check: check-python
 \t${PYTHON} tools/run_logged_build_check.py --label rp2040-check-local \\
 \t    --evidence-root .build-logs \\
@@ -599,6 +606,8 @@ class BuildObservabilityTest(unittest.TestCase):
             ("-- ${MAKE} MACHINE=rp2040 flash", "-- true"),
             ("logged-kernel: check-python", "unlogged-kernel: check-python"),
             ("-- ${MAKE} MACHINE=rp2040 kernel", "-- true"),
+            ("logged-ilp32: check-python", "unlogged-ilp32: check-python"),
+            ("-- ${MAKE} MACHINE=rp2040 check-ilp32-execution", "-- true"),
             ("logged-check: check-python", "unlogged-check: check-python"),
             ("--label rp2040-check-local", "--label wrong-check-local"),
             ("-- ${MAKE} MACHINE=rp2040", "-- true"),
@@ -618,6 +627,7 @@ class BuildObservabilityTest(unittest.TestCase):
             "logged-distribution",
             "logged-flash",
             "logged-kernel",
+            "logged-ilp32",
         ):
             with self.subTest(target=target):
                 result = subprocess.run(

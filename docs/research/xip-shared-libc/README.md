@@ -226,6 +226,18 @@ libc and land first.
     the panic PC in watchdog scratch3, ROM memcpy against the kernel's
     `bcopy`, per-program stack budgets from `-fstack-usage`.
 
+The two counter instruments of item 12 are numbered last and are built
+first. Item 8's board evidence reads `XIP_CTRL` `CTR_ACC` and `CTR_HIT`, and
+so does every cache question the shared libc raises: libc text at
+0x10020000 shares the 16 kB, two-way cache of 8-byte lines (datasheet
+2.6.3.1) with kernel text, so the miss rate of a libc-heavy workload is the
+first number that can confirm or overturn the verdict.
+`../hardware-review-reconciliation.md` orders the counters, the
+non-allocating alias and line alignment as its roadmap items 1 to 4 and
+records the kernel sizes of `7a270276` (PICO flash image 95,248 bytes,
+35,568 free; the 108,726 quoted in `FINDINGS.md` is a retained row of the
+measured revision).
+
 Bytes a process may execute stay immutable while it can run: Lites kept the
 old emulator file mapped for running programs while a replacement installed
 by pathname. Here the policy replaces the libc partition only by a whole-image

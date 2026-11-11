@@ -99,6 +99,52 @@ static const struct {
 };
 
 /*
+ * The XIP cache counters, datasheet 2.6.3.1, and the bus fabric performance
+ * counters and their event selects, datasheet 2.1.1.2.
+ */
+#define	XIP_CTRL_BASE		0x14000000UL
+#define	XIP_CTR_HIT		0x0c
+#define	XIP_CTR_ACC		0x10
+#define	BUSCTRL_BASE		0x40030000UL
+#define	BUSCTRL_PERFCTR0	0x08	/* PERFCTRn at 8n, PERFSELn 4 above. */
+#define	BUSCTRL_PERFSEL_ROM	19	/* Highest event that counts. */
+#define	BUSCTRL_PERFSEL_NONE	31	/* Reset value: no event. */
+
+/*
+ * machdep.xip_acc, xip_hit, bus_perfctr0-3 and bus_perfsel0-3, numbered from
+ * 0 in that order. Each is one hardware register read as an int. A write to a
+ * counter clears it, which is all the hardware accepts; a write to a select
+ * takes an event number or BUSCTRL_PERFSEL_NONE.
+ */
+static int
+hwcount_sysctl(int which, void *oldp, size_t *oldlenp, void *newp,
+    size_t newlen)
+{
+	volatile u_int *reg;
+	int error, val;
+
+	if (which == 0)
+		reg = (volatile u_int *)(XIP_CTRL_BASE + XIP_CTR_ACC);
+	else if (which == 1)
+		reg = (volatile u_int *)(XIP_CTRL_BASE + XIP_CTR_HIT);
+	else
+		reg = (volatile u_int *)(BUSCTRL_BASE + BUSCTRL_PERFCTR0 +
+		    8 * ((which - 2) & 3) + (which >= 6 ? 4 : 0));
+	val = (int)*reg;
+	error = sysctl_int(oldp, oldlenp, newp, newlen, &val);
+	if (error != 0 || newp == NULL)
+		return error;
+	if (which < 6) {
+		*reg = 0;
+		return 0;
+	}
+	if ((u_int)val > BUSCTRL_PERFSEL_ROM && val != BUSCTRL_PERFSEL_NONE)
+		return EINVAL;
+	*reg = (u_int)val;
+	return 0;
+}
+
+/*
  * ucall allows user level code to call various kernel functions.
  * Autoconfig uses it to call the probe and attach routines of the
  * various device drivers.
@@ -300,6 +346,21 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			}
 		}
 		return EOPNOTSUPP;
+
+	case CPU_XIP_ACC:
+	case CPU_XIP_HIT:
+	case CPU_BUS_PERFCTR0:
+	case CPU_BUS_PERFCTR1:
+	case CPU_BUS_PERFCTR2:
+	case CPU_BUS_PERFCTR3:
+	case CPU_BUS_PERFSEL0:
+	case CPU_BUS_PERFSEL1:
+	case CPU_BUS_PERFSEL2:
+	case CPU_BUS_PERFSEL3:
+		if (namelen != 1)
+			return ENOTDIR;
+		return hwcount_sysctl(name[0] - CPU_XIP_ACC, oldp, oldlenp,
+		    newp, newlen);
 
 	case CPU_FREQ_KHZ:
 		if (namelen != 1)

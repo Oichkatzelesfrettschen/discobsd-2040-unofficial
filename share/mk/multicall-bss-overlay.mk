@@ -23,9 +23,25 @@ ${MULTICALL_BSS_LDSCRIPT}: ${OBJS} ${MULTICALL_BSS_GENERATOR} ${MULTICALL_BSS_VE
 clean-multicall-bss-overlay:
 	rm -f ${MULTICALL_BSS_LDSCRIPT}
 
-clean: clean-multicall-bss-overlay
+# Each <tool>.tool.o rule builds the tool in its own source directory, found
+# under one of MULTICALL_TOOL_ROOTS as <tool> or, where that directory holds
+# only sources, <tool>2 (bin/date2 builds date), so the box's clean cleans
+# each of those directories too; a tool outside its parent directory's SUBDIR
+# is reached by no other clean.
+MULTICALL_TOOL_ROOTS?=	bin sbin usr.bin usr.sbin
+
+clean-multicall-tools:
+	@for t in ${TOOLS}; do d=""; \
+		for c in ${MULTICALL_TOOL_ROOTS}; do for n in $$t $${t}2; do \
+			[ -d ${TOPSRC}/$$c/$$n ] && d=${TOPSRC}/$$c/$$n; \
+		done; done; \
+		[ -n "$$d" ] || { echo "$$t: no directory under ${MULTICALL_TOOL_ROOTS}" >&2; exit 1; }; \
+		${MAKE} -C $$d MACHINE=${MACHINE} clean >/dev/null || exit 1; \
+	done
+
+clean: clean-multicall-bss-overlay clean-multicall-tools
 
 # The localized objects depend on compiler flags and recursive source-directory
 # builds that make cannot see from a box directory. Recreate each object on
 # every box build so a flag or source transition cannot preserve stale input.
-.PHONY: ${OBJS} clean-multicall-bss-overlay
+.PHONY: ${OBJS} clean-multicall-bss-overlay clean-multicall-tools

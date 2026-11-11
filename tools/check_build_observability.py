@@ -10,6 +10,7 @@ EXPECTED_LABELS = {
     "linux-build",
     "linux-changed-comments",
     "linux-changed-text",
+    "linux-clean-residue",
     "linux-cross",
     "linux-core1-emulation",
     "linux-flash",
@@ -39,6 +40,7 @@ EXPECTED_LABELS = {
 EXPECTED_COMMANDS = {
     "linux-board-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build',
     "linux-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build',
+    "linux-clean-residue": "bmake MACHINE=rp2040 check-clean-residue",
     "linux-changed-comments": (
         'bmake MACHINE=rp2040 CHANGED_COMMENT_BASE="$CHANGED_COMMENT_BASE" '
         'CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" check-changed-comments'

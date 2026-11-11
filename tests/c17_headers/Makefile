@@ -20,14 +20,15 @@ MUTATE=		${PYTHON} ${.CURDIR}/mutate.py
 
 HEADER_CONTRACTS=	stddef_contract stdalign_contract stdnoreturn_contract \
 			limits_contract stdint_contract inttypes_contract \
-			ctype_contract stdlib_wide_contract
+			ctype_contract stdlib_wide_contract errno_contract
 HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
 			stdnoreturn_empty limits_llong_min_short \
 			stdint_unsigned_max stdint_narrow_intmax \
 			inttypes_pri64_long inttypes_scn16_int \
 			inttypes_scn64_long ctype_no_isblank \
 			stddef_wchar_int limits_no_mb_len_max \
-			stdlib_no_mbtowc inttypes_no_wcstoimax
+			stdlib_no_mbtowc inttypes_no_wcstoimax \
+			errno_no_eilseq
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -119,6 +120,13 @@ inttypes_no_wcstoimax.mutant:
 	${MUTATE} ${TOPSRC}/include/inttypes.h $@/inttypes.h \
 	    "intmax_t	wcstoimax(const wchar_t *, wchar_t **, int);" ""
 inttypes_no_wcstoimax.contract= inttypes_contract
+
+# <errno.h> is a link to sys/sys/errno.h, which the mutant reads.
+errno_no_eilseq.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/sys/sys/errno.h $@/errno.h \
+	    "#define EILSEQ          83      /* Illegal byte sequence */" ""
+errno_no_eilseq.contract= errno_contract
 
 # Without the prototype the contract's use of isblank is an implicit
 # declaration.

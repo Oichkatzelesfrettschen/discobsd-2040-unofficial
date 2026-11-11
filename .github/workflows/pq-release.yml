@@ -1,0 +1,42 @@
+name: Hybrid release verification
+on:
+  pull_request:
+    paths: ['distrib/rp2040/host/**', 'tools/proofs/**', '.github/workflows/pq-release.yml']
+  push:
+    paths: ['distrib/rp2040/host/**', 'tools/proofs/**', '.github/workflows/pq-release.yml']
+permissions:
+  contents: read
+jobs:
+  policy-proofs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: tools/proofs
+          build: 'true'
+          test: 'false'
+          lint: 'false'
+      - name: Calibrate proof and geometry checks
+        working-directory: tools/proofs
+        run: lake env python3 check_policy.py
+  hybrid-signatures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash -el {0}
+        working-directory: distrib/rp2040/host
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: '3.12'
+          channels: conda-forge
+          channel-priority: strict
+      - run: conda install -y openssl=3.5.7 pytest pyserial
+      - run: python -m pytest -q
+        env:
+          DISCOBSD_REQUIRE_PQ_TESTS: '1'
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'

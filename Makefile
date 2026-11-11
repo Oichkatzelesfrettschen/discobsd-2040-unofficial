@@ -80,6 +80,14 @@ SUBDIR=		share lib bin usr.bin sbin libexec usr.sbin games benchmarks
 
 all:		build
 
+LEAN?=		lean
+.PHONY: check-release-policy check-hybrid-release
+check-release-policy: check-python
+		${PYTHON} tools/proofs/check_policy.py --lean "${LEAN}"
+
+check-hybrid-release: check-python
+		cd distrib/rp2040/host && DISCOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
+
 check-python:
 		@if [ -z "${PYTHON}" ]; then \
 			echo "PYTHON must name the interpreter for this target" >&2; \

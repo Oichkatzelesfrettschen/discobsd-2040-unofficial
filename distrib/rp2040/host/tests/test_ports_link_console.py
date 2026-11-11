@@ -196,6 +196,29 @@ def test_console_cli_requires_a_command():
         console.main([])
 
 
+@pytest.mark.parametrize("systemd", [False, True])
+def test_console_default_loopback_applies_to_every_launch_path(tmp_path, monkeypatch, systemd):
+    monkeypatch.setattr(console, "config_dir", lambda: tmp_path)
+    monkeypatch.setattr(console, "systemd_units_installed", lambda: systemd)
+    monkeypatch.setattr(console, "_http_answers", lambda *a: True)
+    monkeypatch.setattr(console, "_stop_pidfile", lambda *a: False)
+    monkeypatch.setattr(console, "_tool", lambda name: [name])
+    monkeypatch.setattr(console.subprocess, "call", lambda *a: 0)
+    spawned = []
+
+    def spawn(command, *args):
+        spawned.append(command)
+        return 123
+
+    monkeypatch.setattr(console, "_spawn_detached", spawn)
+    assert console.main(["up"]) == 0
+    values = console.read_env(tmp_path / "web.env")
+    assert values["DISCOBSD_WEB_BIND"] == "127.0.0.1"
+    assert values["DISCOBSD_HOST_IP"] == "127.0.0.1"
+    for command in spawned:
+        assert command[command.index("--bind") + 1] == "127.0.0.1"
+
+
 def test_escape_menu_quits_sends_and_helps():
     e = term.Escape()
     assert e.feed(b"ls\r") == (b"ls\r", None)

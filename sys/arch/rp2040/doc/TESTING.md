@@ -1756,6 +1756,28 @@ holds the largest grantable flash swap extent on `/dev/temp0` to `temp2`,
 requires fork to refuse with ENOMEM and the shell to keep answering, releases
 the extents, and requires a successful fork whose child sees the parent's
 bytes. It opens no port unless `DISCOBSD_BOARD_USER_WINDOW` is exactly `run`.
+A seventh, tests/rp2040/capacity_exhaustion/board_capacity_exhaustion.py,
+stages `filetab` and `proctab` with the routines of board_user_window.py and
+runs the board cases `system-file-table-exhaustion` and
+`process-table-exhaustion` of `tests/rp2040/capacity-corpus.json`. `filetab`
+dups one descriptor to the per-process limit and requires EMFILE with no file
+failure, fills the system file table with holder processes that each open six
+files, requires the next `open` to fail with ENFILE while the parent holds far
+fewer than `NOFILE` descriptors, closes every holder and requires a later
+`open` to succeed. `proctab` runs as root, forks children that park in
+`sigsuspend(2)` until the table is full, requires EAGAIN (a fork refused with
+ENOMEM means swap ran out first and ends the run as inconclusive with exit
+status 3), releases and reaps every child and requires one more fork to
+succeed. Both programs read `kern.maxproc`, `kern.maxfiles` and
+`kern.capacity` instead of a compiled limit, require the failure counter of
+the resource to rise by the number of refusals and every other counter to hold,
+require occupancy to return to its starting value, and print one PASS or FAIL
+line per check and a `PROCTABTEST` or `FILETABTEST` verdict line. The driver
+also requires the process occupancy after both programs to equal its starting
+value. It opens no port unless `DISCOBSD_BOARD_CAPACITY_EXHAUSTION` is exactly
+`run`, and no result of it is recorded. No host gate or Renode driver runs
+these programs; `check-board-build` establishes compilation and a.out
+conversion only.
 `sys/arch/rp2040/doc/BOARD-CONSOLE.md` records the console limits every
 driver here must respect: the 126-byte line editor cap, the per-byte prompt
 redraw, chunked and verified staging, sentinel parsing and compressible test

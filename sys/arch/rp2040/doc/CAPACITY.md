@@ -177,6 +177,42 @@ attribution, not allocator exhaustion. Separate host, Renode and board cases
 own their declared exhaustion obligations. The fixture does not establish
 workload peaks or silicon headroom.
 
+The board cases `process-table-exhaustion` and `system-file-table-exhaustion`
+name `tests/rp2040/capacity_exhaustion/proctab.c` and `filetab.c`.
+`fork1()` refuses with EAGAIN and notes one process failure only when
+`freeproc` is empty, or for a non-root caller at `MAXUPRC` or the last slot;
+`proctab` therefore runs as root. `newproc()` refuses with ENOMEM and notes
+nothing when `swap_image_reserve()` finds no backing, so the fixture reads
+the errno to attribute a refusal and reports ENOMEM as an unreached table.
+`falloc()` notes a file failure only for ENFILE; `ufalloc()` refuses with
+EMFILE at `NOFILE` (30) descriptors and notes nothing, and `dup(2)` shares a
+file slot, so `filetab` reaches EMFILE through `dup` with the file counter
+unchanged, then reaches ENFILE through holder processes that each stay far below
+`NOFILE`. Because `NOFILE` exceeds `NFILE` here, one process could fill the
+file table alone; the holders keep the refusal attributable to the table and
+keep the fixture valid when the limits change.
+
+Each child of `proctab` copies the parent image to swap. `swap_image_span()`
+in `sys/kern/vm_swap.c` charges the data past the clean text, the stack and
+the three u-area blocks, rounded up to `SWAP_IMAGE_ALIGN`. The stack is
+`SSIZE` (2,048 bytes) plus the argument vectors by `exec_aout.c`, so at least
+three blocks, and the data is at least one block: no OMAGIC child costs less
+than 7 blocks rounded to 8, and `proctab` measures its own span through
+`KERN_PROC_PID`. The retained run began with 5 of 25 slots in use, so 20
+children need at most 160 of the 380 flash blocks, less the roughly four
+images the 16-KiB SwapRAM pool takes (`SR_WORST` reserves at least 3,460
+bytes per image for the u area). With the process that runs the test and
+process 0 excluded, at most three system images sit in swap; the 60 blocks
+that `docs/research/swap-exhaustion/plan.md` records for a small process put
+them at 180 blocks. That leaves about 40 blocks, five children of margin
+before the swapper needs headroom to exchange the resident image, so the
+process table is reachable at `NPROC=25` on paper, with a margin that depends
+on what the boot left in swap. A table of 16 slots needs at most 88 blocks.
+`proctab` prints the swap map, the image span and the number of children flash
+alone holds before the first fork, and ends as inconclusive when ENOMEM
+precedes EAGAIN. The arithmetic is derived from source and the retained
+snapshot; it is not a board measurement.
+
 A capacity reduction requires one named workload corpus and separate Renode
 and board runs. Each run records the exact kernel identity, configuration,
 workload commands, starting and ending `kern.capacity` snapshots, allocation

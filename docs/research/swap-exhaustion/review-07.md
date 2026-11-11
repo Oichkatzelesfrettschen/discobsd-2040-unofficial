@@ -407,12 +407,47 @@ remaining lines were lost with the host session.
 **Fork tests after the loop.** On both kernels the 60 KiB test passed in 17
 to 18 s and the 100 KiB test in 27 s, twice. The 172 KiB test was admitted
 once on the changed kernel (62 s) and refused with `FORKTEST ENOMEM` in its
-second round; the control kernel refused it in both rounds. `ps axl` after
-the runs showed the login shell's 49-block image at swap block 0xf7 and the
-root shell's at 0x94 on the changed kernel, and at 0xbf and 0x153 on the
-control. Two small images in the middle of the 380-block map leave no free
-run for the 172 KiB child's extent, so the refusal follows the layout the
-hold loop leaves behind and occurs with and without the scheduler change.
-Section 8 measured the same test admitted twice on a map no hold had
-touched. Next-fit placement of small images is the open cause; a placement
-policy needs an owner decision (brief-07 item 6).
+second round; the control kernel refused it in both rounds. The refusal
+occurs with and without the scheduler change.
+
+## 10. Admission of the 172 KiB fork depends on where two small images sit
+
+**Direct observation.** The union kernel (`PICOCALC_PSRAM`, stamp
+`#5 2699: Wed Nov 11 01:48:18 PST 2026`, `unix.uf2` SHA-256
+`7f039038ab149bc1be15bb1f60f072a0eeb290d2bdc9154e7c40d4f2176c29ef`, compiled
+bare-Pico USB descriptor) booted on the bare Pico, mounted `/dev/fl0a`,
+reported `machdep.console_device=ttyUSB0` and `machdep.mpu.enable=1`, passed
+the 60 and 100 KiB tests twice and refused the 172 KiB fork twice, with no
+swap hold ever placed. `tests/rp2040/swapmaptest`, which prints the free runs
+of `CTL_VM.VM_SWAPMAP`, then ran around further attempts on the same boot:
+
+| Step | Free runs (start, size) | Root shell `p_addr` | 172 KiB fork |
+| --- | --- | --- | --- |
+| before | 4+184, 208+140, 368+16 | 0x158 | refused |
+| after the refusal | 4+20, 44+144, 208+176 | 0x3c | |
+| after a 100 KiB run | 4+184, 208+108, 336+48 | | admitted |
+| after the admitted run | 4+184, 228+156 | | |
+
+Blocks 188 to 207 stayed allocated through every step, and `ps axl` showed
+the login shell (`-sh`, asleep in `wait`) at `p_addr` 0xcb throughout, inside
+that extent. `machdep.swapram_images` read 3 at the first prompt and 2 at the
+end.
+
+**Mechanism.** The 172 KiB image and its fork child each need a 184-block
+extent. The login shell's 20-block flash extent at 188 divides the 380 usable
+blocks into a 184-block run and a 176-block run for as long as that shell
+sleeps. The root shell is swapped out for every command into a 20-block
+extent that `malloc3_contiguous_next()` (`sys/kern/subr_rmap.c`) places at
+the cyclic cursor. When the cursor puts it in the upper run, the lower run
+stays whole and the fork is admitted; when the cursor puts it in the lower
+run, as at block 24 above, no run holds 184 blocks and
+`swap_image_reserve()` refuses. Section 8 measured two admissions on the
+`d4e3b8f3` kernel and recorded no map, so it does not show which layout that
+run had.
+
+**Inference still open.** The login shell held a SwapRAM pool slot at the
+first prompt and a flash extent later; the event that moved it was not
+captured. The cursor exists to spread erases of short-lived images across
+sectors; the same cursor places the one long-lived image, and nothing moves
+that image afterwards. A placement or compaction policy needs an owner
+decision (brief-07 item 6).

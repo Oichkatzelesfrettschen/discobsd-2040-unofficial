@@ -175,16 +175,12 @@ should build first.
 Each item is one reviewable change with its gate. Items 1 and 2 are
 instruments; items 3 to 8 each wait on the measurement named.
 
-1. XIP cache counters. Export `XIP_CTRL` `CTR_ACC` and `CTR_HIT` through
-   `machdep`, with a write that clears both. Gate: host-side name-table
-   test; board read around a fixed workload under the hardware opt-in.
-   Falsifier: a counter pair that does not advance across a `cat` of a
-   root file.
-2. Bus contention counters. Program four `BUSCTRL` `PERFSEL` slots for
-   contested and total accesses on the SRAM banks and export the counts.
-   Gate: as item 1, read with `options CORE1` on and off. Falsifier for
-   moving core 1 state to SRAM4 or SRAM5: a contested count that stays at
-   zero over a build workload.
+1. XIP cache counters: landed as `machdep.xip_acc` and `machdep.xip_hit`
+   (`XIP_CTRL` `CTR_ACC` and `CTR_HIT`); a write clears a counter. Gate:
+   `tests/rp2040/hwcount/board_hwcount.py` under its opt-in.
+2. Bus contention counters: landed as `machdep.bus_perfctr0` to `3` with
+   `machdep.bus_perfsel0` to `3` choosing each counter's event. Gate: the
+   same board test.
 3. Flash data through the non-allocating alias. Read root and swap data at
    0x11000000 in `flash.c`. Depends on item 1. Adopt only if elapsed time
    on a fixed workload improves; a hit-count change alone shows nothing.
@@ -207,6 +203,31 @@ instruments; items 3 to 8 each wait on the measurement named.
    rule; 1,368 bytes at 16 and 18.
 10. Image identity in the reserved vector words, together with the
     running-board identity reader of the memory and wear program.
+
+## First readings from the instruments
+
+One run of `board_hwcount.py` on a Raspberry Pi Pico, PICO kernel at `ecf54e13`
+with `options CORE1` and the matching root image, 2026-11-11; all twelve
+checks passed. The workload is `cat /bin/sh /bin/sh /bin/sh /bin/sh >
+/dev/null` typed at the USB console, so each count includes the shell, the
+`sysctl` commands around it and the idle kernel.
+
+| Reading | Value | What it settles |
+| --- | ---: | --- |
+| SRAM0 accesses, all | 8,665,460 | the counter is below its 16,777,215 ceiling over this workload |
+| SRAM0 accesses, contested | 250 | 0.003 percent: core 1 as the observer does not measurably contend for a striped bank, so moving its stack and words to SRAM4 or SRAM5 buys nothing. The falsifier of that proposal held |
+| XIP accesses | 186,183,398 | the counters advance and clear as the datasheet states |
+| XIP cache hits | 93,638,182 | 0.503 of accesses |
+
+The hit fraction is unresolved. A true miss on every second access would
+cost far more time than the workload took at a 62.5 MHz flash clock, and
+the fraction sits within one percent of one half, which suggests the two
+counters differ in what one fetch increments. The control that separates
+the readings is the same workload with kernel text reached through the
+non-cacheable 0x13 alias, where hits must fall to zero and elapsed time
+shows the real miss cost. Until that control runs, compare hit counts only
+between two runs of one workload, and treat the fraction itself as
+uncalibrated.
 
 ## Falsifiers for this document
 

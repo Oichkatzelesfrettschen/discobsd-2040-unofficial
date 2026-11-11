@@ -1725,6 +1725,16 @@ after which the board resets itself and reports watchdog reason 2, site 3
 and the same PC and LR. It opens no port and calls neither picotool nor
 discobsd-flash unless `DISCOBSD_BOARD_CORE1` is exactly `run`.
 `sys/arch/rp2040/doc/CORE1.md` records its one run.
+tests/rp2040/hwcount/board_hwcount.py checks the machdep event counters of
+`machine/cpu.h`: `xip_acc` advancing across a read of a root file with
+`xip_hit` at or below it, a write clearing a counter, every `bus_perfsel`
+taking events 19 and 31 and refusing 20, and a `bus_perfctr` on all SRAM0
+accesses counting, holding once its select names no event, and reading zero
+after a write. It opens no port and calls no flashing tool unless
+`DISCOBSD_BOARD_HWCOUNT` is exactly `run`.
+`docs/research/hardware-review-reconciliation.md` records its one run. No
+emulator models `XIP_CTRL` counters or `BUSCTRL`, so the nodes have board
+evidence only.
 A fifth, tests/rp2040/sd_detach/board_sd_detach.py, mounts the PicoCalc's
 `sd0a` read-write, writes a file, asks the operator to pull the card, requires
 `umount` to succeed, asks for the card back, requires a mount, a listing and an

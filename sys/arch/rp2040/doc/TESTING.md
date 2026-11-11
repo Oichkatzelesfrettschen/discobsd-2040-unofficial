@@ -42,7 +42,8 @@ its log and status receipt, while `<label>.latest.json` names the most recently
 updated invocation. A worktree-wide execution lock rejects a second logged
 target before it mutates shared build products. Each target uses a 600-second
 output-idle deadline and a 3600-second hard deadline. `logged-check` runs build
-and check as correlated stages under one 3600-second total deadline. A failed
+and check as correlated stages under one 5400-second total deadline: the
+check stage alone runs 50 to 58 minutes serially on a loaded host. A failed
 build publishes a `blocked` check receipt in the same invocation directory.
 The sequence summary publishes each stage as `running` with its status path
 before the stage starts. Each launched stage receipt records the hard-deadline

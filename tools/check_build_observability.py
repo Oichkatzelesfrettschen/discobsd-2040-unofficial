@@ -510,7 +510,7 @@ def validate_makefile(source):
         "${PYTHON} tools/run_logged_build_check.py --label rp2040-check-local "
         "--evidence-root .build-logs "
         "--execution-lock .build-logs/rp2040-products.lock "
-        "--idle-timeout-seconds 600 --timeout-seconds 3600 "
+        "--idle-timeout-seconds 600 --timeout-seconds 5400 "
         "-- ${MAKE} MACHINE=rp2040"
     )
     if check_recipe != required_check:

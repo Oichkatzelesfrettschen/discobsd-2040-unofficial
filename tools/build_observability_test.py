@@ -170,7 +170,7 @@ logged-check: check-python
 \t${PYTHON} tools/run_logged_build_check.py --label rp2040-check-local \\
 \t    --evidence-root .build-logs \\
 \t    --execution-lock .build-logs/rp2040-products.lock \\
-\t    --idle-timeout-seconds 600 --timeout-seconds 3600 \\
+\t    --idle-timeout-seconds 600 --timeout-seconds 5400 \\
 \t    -- ${MAKE} MACHINE=rp2040
 """
 MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(

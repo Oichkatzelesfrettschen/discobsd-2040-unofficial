@@ -230,7 +230,7 @@ writes, whose ROM flush routine would otherwise re-enable it.
 `board_hwcount.py` clears both counters, runs `cat /bin/sh > /dev/null` and
 reads both in one shell command, and times that command from its first
 output to its sentinel. One run on the same Pico, kernel and root built
-from this change on `58ec71f1`, 2026-11-11, all 21 checks passed:
+from this change on `58ec71f1`, 2026-11-11, all 19 checks passed:
 
 | Cache | Seconds | XIP accesses | Hits | Misses |
 | --- | ---: | ---: | ---: | ---: |

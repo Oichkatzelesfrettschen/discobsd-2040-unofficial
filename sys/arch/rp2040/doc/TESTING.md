@@ -2640,6 +2640,17 @@ missing-slot, Thumb-bit and range controls calibrate the representation check.
 `KERNEL_SORT_ALIGNMENT=yes` selects an opt-in alignment-sort build and retains
 all object and 8-byte section alignments. Generated-config tests pin its
 enabled/disabled flags, mode marker and rejection of invalid values.
+## Linked syscall metadata
+
+`check-dispatch-image` runs after the cross-kernel gates in firmware CI on
+Linux and macOS. It reads all five configured ELFs and their evaluated PARAM
+options, verifies all 163 handler addresses against the independently selected
+master rows, and checks Thumb function symbols, pointer alignment, argument
+bytes and the loaded syscall count. SYSTRACE requires all trace spans to
+decode to their master names; disabled tracing requires the decoder, span
+table and name pool to be absent. Two good synthetic images and eight corrupt
+or inconsistent images calibrate the checker. It executes no kernel code.
+
 ## Native assembly preprocessing and object ownership
 
 The assembler's `thumb-compile.sh` contract also invokes the production `.S.o`

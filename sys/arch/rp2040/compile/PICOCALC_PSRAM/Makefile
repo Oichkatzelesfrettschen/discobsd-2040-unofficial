@@ -147,9 +147,9 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	kern_prot.o kern_prot2.o kern_resource.o kern_sig.o kern_sig2.o \
 	kern_subr.o kern_synch.o kern_sysctl.o kern_time.o \
 	subr_capacity.o subr_prf.o subr_rmap.o sys_generic.o sys_inode.o \
-	sys_pipe.o sys_process.o syscalls.o tty.o tty_subr.o tty_tty.o \
-	ufs_alloc.o ufs_bio.o ufs_bmap.o ufs_dsort.o ufs_fio.o \
-	ufs_inode.o ufs_mount.o ufs_namei.o ufs_subr.o ufs_syscalls.o \
+	sys_pipe.o sys_process.o tty.o tty_subr.o tty_tty.o ufs_alloc.o \
+	ufs_bio.o ufs_bmap.o ufs_dsort.o ufs_fio.o ufs_inode.o \
+	ufs_mount.o ufs_namei.o ufs_subr.o ufs_syscalls.o \
 	ufs_syscalls2.o vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o \
 	mem.o swap.o clock.o conf.o fault.o machdep.o shutdown_sync.o \
 	mpu.o sig_machdep.o syscall.o sysctl.o systick.o uart.o usb.o \
@@ -169,11 +169,11 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/kern_synch.c $S/kern/kern_sysctl.c $S/kern/kern_time.c \
 	$S/kern/subr_capacity.c $S/kern/subr_prf.c $S/kern/subr_rmap.c \
 	$S/kern/sys_generic.c $S/kern/sys_inode.c $S/kern/sys_pipe.c \
-	$S/kern/sys_process.c $S/kern/syscalls.c $S/kern/tty.c \
-	$S/kern/tty_subr.c $S/kern/tty_tty.c $S/kern/ufs_alloc.c \
-	$S/kern/ufs_bio.c $S/kern/ufs_bmap.c $S/kern/ufs_dsort.c \
-	$S/kern/ufs_fio.c $S/kern/ufs_inode.c $S/kern/ufs_mount.c \
-	$S/kern/ufs_namei.c $S/kern/ufs_subr.c $S/kern/ufs_syscalls.c \
+	$S/kern/sys_process.c $S/kern/tty.c $S/kern/tty_subr.c \
+	$S/kern/tty_tty.c $S/kern/ufs_alloc.c $S/kern/ufs_bio.c \
+	$S/kern/ufs_bmap.c $S/kern/ufs_dsort.c $S/kern/ufs_fio.c \
+	$S/kern/ufs_inode.c $S/kern/ufs_mount.c $S/kern/ufs_namei.c \
+	$S/kern/ufs_subr.c $S/kern/ufs_syscalls.c \
 	$S/kern/ufs_syscalls2.c $S/kern/vfs_vnops.c $S/kern/vm_sched.c \
 	$S/kern/vm_swap.c $S/kern/vm_swp.c $S/dev/cons.c $S/dev/mem.c \
 	$S/dev/swap.c $S/arch/rp2040/rp2040/clock.c \
@@ -408,9 +408,6 @@ sys_pipe.o: $S/kern/sys_pipe.c
 	${COMPILE_C}
 
 sys_process.o: $S/kern/sys_process.c
-	${COMPILE_C}
-
-syscalls.o: $S/kern/syscalls.c
 	${COMPILE_C}
 
 tty.o: $S/kern/tty.c

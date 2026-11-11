@@ -148,6 +148,26 @@ nodes. Consumer tests also reject unavailable and malformed capacity records.
 The split is configuration hygiene as well as size work: telemetry has a named
 home, while the default image does not pay its permanent RAM/flash cost.
 
+## Trace-name source closure
+
+Against `ac6afe1d`, GCC 15.2.1 and GNU ld 2.45.1 at default `-Os`, making
+`kern/syscalls.c` conditional on `SYSTRACE` changes loaded flash span by:
+
+| Configuration | Flash bytes | Data/BSS bytes |
+| --- | ---: | ---: |
+| PICO | -1,196 | 0 / 0 |
+| PICO_UART | -1,200 | 0 / 0 |
+| PICOCALC | -1,196 | 0 / 0 |
+| PICOCALC_PSRAM | -1,200 | 0 / 0 |
+| PICO_DIAG | 0 | 0 / 0 |
+
+The only RP2040 call to `syscall_name` lies under `SYSTRACE_ON`, which expands
+to zero without the option. No live call path is removed. PICO_DIAG retains
+the decoder, all 163 trace spans and their name pool. Generated-source and
+final-image gates enforce membership; the numeric syscall ABI and handler
+table remain unchanged. The preceding default measurements retain their
+pre-closure revision boundary. No section-GC flag is required for this saving.
+
 ## Anchored hot scalars
 
 The PICO disassembly survey found 891 literal words referring to 169 distinct

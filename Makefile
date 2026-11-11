@@ -1007,6 +1007,11 @@ check-flash-swap:
 		${MAKE} -C tests/rp2040/flash_swap check
 		${MAKE} -C sys/arch/rp2040/compile check-flash-swap
 
+check-dispatch-image: check-python
+		${MAKE} -C sys/arch/rp2040/compile check-dispatch
+
+.PHONY: check-dispatch-image
+
 check-dhara-metadata: check-python
 		${MAKE} -C tests/rp2040/dhara_bounds check PYTHON=${PYTHON:Q}
 
@@ -1424,7 +1429,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-hsaout .WAIT check-hsx-decoder .WAIT check-flash-swap .WAIT \
 		check-rp2040-shutdown-cross .WAIT check-storage-counters .WAIT \
 		check-core1-image .WAIT \
-		check-kernel-headroom
+		check-kernel-headroom .WAIT check-dispatch-image
 
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test

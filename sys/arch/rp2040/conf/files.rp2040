@@ -33,7 +33,7 @@ kern/sys_generic.c			standard
 kern/sys_inode.c			standard
 kern/sys_pipe.c				standard
 kern/sys_process.c			standard
-kern/syscalls.c				standard
+kern/syscalls.c				optional systrace
 kern/tty.c				standard
 kern/tty_pty.c				optional pty
 kern/tty_subr.c				standard compile-with "${COMPILE_C17_C}"

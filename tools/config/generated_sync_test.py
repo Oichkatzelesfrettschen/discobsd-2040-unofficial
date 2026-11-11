@@ -172,6 +172,12 @@ int main(void) {
             rule = "kern_time.o: $S/kern/kern_time.c\n\t${COMPILE_SIZE_C}\n"
             self.assertIn(rule, generated)
 
+    def test_trace_names_follow_the_tracing_option(self):
+        for board in sync.BOARDS:
+            generated = (self.root / sync.COMPILE / board / "Makefile").read_text()
+            tracing = "PARAM += -DSYSTRACE\n" in generated
+            self.assertEqual("syscalls.o: $S/kern/syscalls.c\n" in generated, tracing)
+
     def test_kernel_optimization_and_aliasing_policy(self):
         template = (self.root / sync.CONF / "Makefile.rp2040").read_text()
         self.assertIn("COPTS?=\t\t-Os\n", template)

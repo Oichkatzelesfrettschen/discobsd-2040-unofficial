@@ -19,6 +19,7 @@ and persistence contracts remain intact.
 | Wear and recovery | All 464 complete-operation cuts recover; a half-programmed page fails at cut 26. Resolve the payload-integrity contract before changing wear policy | model counterexample retained |
 | Section garbage collection | `KERNEL_GC=yes` saves 2,124--3,548 text bytes across five builds; placement, headroom and divider checks pass; boot evidence remains open | opt-in mode implemented and remeasured |
 | PICO/PICO_DIAG | PICO omits both diagnostic options; PICO_DIAG adds exactly those options. Build, generated-config, reader and CI coverage include the sibling | implemented |
+| Trace-name membership | Only SYSTRACE configurations link the trace decoder/name pool; four ordinary kernels save 1,196--1,200 flash bytes with unchanged RAM | source selection and calibrated image gate implemented |
 | Additional linker flags | Alignment sorting reduces flash span by 8--12 bytes and BSS extent by 8--168 bytes; relaxation, common sorting and linker `-O2` produce no measured saving | opt-in sorting mode and private probe implemented |
 | Anchored hot scalars | Four-field clock bank leaves code unchanged and adds eight data/flash bytes in every configuration; no production bank or `r9` reservation | private prototype rejected |
 | Compact dispatch | All 163 handlers in five linked controls round-trip through halfword offsets and retain the Thumb bit; decoder, generated link assertions and execution remain open | representability probe implemented |

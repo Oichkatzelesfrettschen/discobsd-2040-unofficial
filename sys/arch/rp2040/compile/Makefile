@@ -14,6 +14,7 @@ DIVIDER_OWNERSHIP_VERIFIER=	${TOPSRC}/tools/verify_rp2040_divider_ownership.py
 SWAPRAM_LINK_VERIFIER=	${TOPSRC}/tools/verify_rp2040_swapram_link.sh
 CACHE_FOOTPRINT_VERIFIER=	${TOPSRC}/tools/verify_rp2040_cache_footprint.sh
 UFS_PROTOTYPE_VERIFIER=	${TOPSRC}/tools/verify_ufs_prototypes.sh
+DISPATCH_VERIFIER=	${TOPSRC}/tools/verify_rp2040_dispatch.py
 FLASH_SWAP_LINK_VERIFIER=	${TOPSRC}/tools/verify_rp2040_flash_swap_link.sh
 CACHE_FOOTPRINT_TEST=	${TOPSRC}/tests/rp2040/cache_footprint
 EXEC_SPOOL_TEST=	${TOPSRC}/tests/rp2040/exec_spool
@@ -103,6 +104,13 @@ check-ufs-prototypes:
 			    "${.CURDIR}/$$i"; \
 		done
 
+check-dispatch:
+		${PYTHON} ${DISPATCH_VERIFIER} --self-test
+		@set -eu; for i in ${SUBDIR}; do \
+			param=$$(${MAKE} -C $$i -V PARAM); \
+			${PYTHON} ${DISPATCH_VERIFIER} --elf $$i/unix.elf --param "$$param"; \
+		done
+
 check-flash-swap:
 		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
 		@set -e; for i in ${SUBDIR}; do \
@@ -135,5 +143,5 @@ check-flash-swap:
 
 .PHONY:		default all install clean clean-all reconfig check-divider \
 		check-swapram check-cache-footprint check-exec-spool \
-		check-ufs-prototypes \
+		check-ufs-prototypes check-dispatch \
 		check-flash-swap

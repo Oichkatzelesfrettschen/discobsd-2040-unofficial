@@ -15,6 +15,7 @@ OBJCOPY=	${C17_CAPTURE_PREFIX}${GCCPREFIX}-objcopy
 BINDIR=		/usr/games
 
 TOOLS=		fifteen keen bubble fourfall coil ridge
+MULTICALL_TOOL_ROOTS=	games
 
 # The members linked into this build, in the order the dispatch table lists
 # them. GAMEBOX_TOOLS (set by distrib/rp2040/Makefile.inc from the image

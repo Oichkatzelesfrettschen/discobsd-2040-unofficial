@@ -56,6 +56,7 @@ for machine in "$@"; do
 		BUILD_LEGACY_NON_ARM=no BUILD_PDP11_V6=no \
 		DESTDIR="$source_root/distrib/obj/destdir.$machine" \
 		RELEASEDIR="$source_root/distrib/obj/releasedir.$machine" clean
+	run_make -C "$source_root" MACHINE="$machine" cleanfs
 done
 
 run_make -C "$source_root" cleantools
@@ -67,4 +68,11 @@ if [ "$cleanup_status" -ne 0 ]; then
 	exit "$cleanup_status"
 fi
 
+# The install, release and board-libc trees each machine's build writes
+# under distrib/obj belong to the tree, which names them above.
+for machine in "$@"; do
+	for tree in destdir releasedir boardlibc; do
+		rm -rf "$source_root/distrib/obj/$tree.$machine"
+	done
+done
 rm -f "$stamp_path"

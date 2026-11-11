@@ -188,7 +188,10 @@ instruments; items 3 to 8 each wait on the measurement named.
    the same measurement. Every miss of a command together costs about
    0.17 s of 2.8 s, at a hit rate of 99.7 percent.
 5. Shared libc, in the order of `xip-shared-libc/README.md`. Its board
-   evidence item uses the counters of item 1.
+   evidence item uses the counters of item 1. Of its static-state items,
+   const `_ctype_` and getgrent's first-use record have landed and the
+   other buffers stay static on measurement (that README's section "Static
+   libc state under static links").
 6. `mputest` probes for the unstriped alias and for 0x15000000: landed as
    four `alias bank` lines at 0x21000000, 0x21030000, 0x2100c000 and
    0x2103c000, expecting SIGSEGV with the MPU on and a successful read with

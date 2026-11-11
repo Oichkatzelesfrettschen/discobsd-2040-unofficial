@@ -102,7 +102,14 @@
 #define	CPU_BUS_PERFSEL1	36
 #define	CPU_BUS_PERFSEL2	37
 #define	CPU_BUS_PERFSEL3	38
-#define	CPU_MAXID		39	/* number of valid machdep ids */
+/*
+ * xip_cache reads 1 while the XIP cache is enabled, the reset state. Writing
+ * 0 turns it off, so that every flash access goes to the chip, and stays off
+ * across flash writes; writing 1 flushes and enables it. Off is the control
+ * for measuring what the cache saves, not a way to run.
+ */
+#define	CPU_XIP_CACHE		39	/* int: XIP cache enabled */
+#define	CPU_MAXID		40	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -145,5 +152,6 @@
 	{ "bus_perfsel1", CTLTYPE_INT }, \
 	{ "bus_perfsel2", CTLTYPE_INT }, \
 	{ "bus_perfsel3", CTLTYPE_INT }, \
+	{ "xip_cache", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

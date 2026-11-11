@@ -200,7 +200,12 @@ instruments; items 3 to 8 each wait on the measurement named.
    programmed-I/O paths shows the peripheral rather than the bus as the
    limit.
 9. Capacity trims of `NPROC` and `NFILE` under the `CAPACITY.md` admission
-   rule; 1,368 bytes at 16 and 18.
+   rule; 1,368 bytes at 16 and 18. The board exhaustion cases now hold a
+   receipt: `tests/rp2040/capacity_exhaustion` fills each table on a Pico,
+   sees EAGAIN and ENFILE attributed to the right counter, and recovers
+   (`board-capacity-exhaustion-58ec71f1.txt`). The limits stay until the
+   Renode exhaustion cases and the remaining open cases of each decision
+   hold receipts too.
 10. Image identity in the reserved vector words, together with the
     running-board identity reader of the memory and wear program.
 

@@ -432,6 +432,13 @@ check-rp2040-nlist: check-python
 
 .PHONY: check-rp2040-nlist
 
+# The RP2040 compile routes keep the checkout path out of their objects:
+# two userland programs and the PICO kernel map it in DWARF without
+# changing an instruction, and lib/libc_aout's -B route through the tree's
+# Thumb assembler accepts the --debug-prefix-map operand GCC forwards.
+check-debug-paths: check-python
+		MAKE=${MAKE:Q} ${PYTHON} tools/check_debug_paths.py
+
 check-rp2040-target-flags: check-python
 		${PYTHON} tests/compiler_matrix/target_flags.py \
 		    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
@@ -1291,7 +1298,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
-CROSS_CONTRACT_GATES=	check-warning-policy-cross check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts \
+CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \

@@ -140,7 +140,7 @@ class GeneratedSyncTest(unittest.TestCase):
         self.assertIn("COPTS?=\t\t-Os\n", template)
         self.assertIn("-fno-strict-aliasing", template)
         # The cycle-counted rule compiles at -O whatever COPTS says.
-        cycle = ("COMPILE_CYCLE_C=${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \\\n"
+        cycle = ("COMPILE_CYCLE_C=${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \\\n"
                  "\t\t${CMACHFLAGS} -O ${DEFS} -c $<\n")
         self.assertIn(cycle, template)
         self.assertNotIn("COPTS", cycle)

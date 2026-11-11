@@ -87,9 +87,27 @@ kernel and two userland routes, but a subsequent `bmake -k` logged build
 failed in the native a.out libc route. GCC forwarded `--debug-prefix-map` to
 the tree's Thumb assembler selected by `-B`; the assembler treated the mapping
 operand as another input file. The failed full-build receipt is
-`rp2040-build-local-20261109T132627Z-3499023-3c3f384d`. The focused controls
-therefore do not establish a working default mapping across the build. Native
-assembler debug support and a calibrated native-library route remain open.
+`rp2040-build-local-20261109T132627Z-3499023-3c3f384d`.
+
+The mapping is now the default. `usr.bin/as` consumes the forwarded operand
+(its `thumb-options.sh` test fails the previous assembler on both spellings),
+and `share/mk/sys.mk` and `sys/arch/rp2040/conf/Makefile.rp2040` set
+`DEBUG_PATH_MAP` to `-fdebug-prefix-map=${TOPSRC}=.` for every RP2040 C and
+`.S` compile. The rebuilt assembler first had to reach `tools/bin/rp2040`:
+`tools/aoututils/as` compiles a shim that includes `usr.bin/as/as-thumb.c`,
+and the shim's date never changed, so the installed assembler predated the
+fix until `tools/aoututils/Makefile.inc` recorded each object's included
+files. A logged build on 2026-11-10 then assembled 116 `.S` files through
+the `-B` route with the mapping and completed (receipt
+`rp2040-build-local`, 131.5 s, an incremental build after the flag change).
+`check-debug-paths` (`tools/check_debug_paths.py`) gates the claim: for
+`bin/echo`, `usr.bin/smlrc` and the PICO kernel a `-g` probe carries DWARF
+without the checkout path while its unmapped control carries it, and the
+stripped objects match; for `lib/libc_aout/libc` a `.S` probe assembles
+mapped, unmapped and with `-g` into one byte-identical a.out object, and a
+stand-in assembler that reads the operand as a second source fails the
+mapped probe. The a.out assembler writes no debug sections, so the mapping
+there establishes acceptance of the operand, not path rewriting.
 
 ## Measured PICO build matrix
 

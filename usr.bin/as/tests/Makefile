@@ -26,6 +26,7 @@ test:
 		    sh ./thumb-encoding.sh
 		@AS=${AOUT_AS} CC="${CC}" TOPSRC=${TOPSRC} \
 		    CPU=${MACHINE_CPU} PYTHON="${PYTHON}" WORK=. \
+		    MACHINE=${MACHINE} TOOLBINDIR=${TOOLBINDIR} MAKE=${MAKE} \
 		    sh ./thumb-compile.sh
 		@TOPSRC=${TOPSRC} MACHINE=${MACHINE} TOOLBINDIR=${TOOLBINDIR} \
 		    CC="${CC}" CPU=${MACHINE_CPU} MAKE=${MAKE} PYTHON="${PYTHON}" WORK=. \

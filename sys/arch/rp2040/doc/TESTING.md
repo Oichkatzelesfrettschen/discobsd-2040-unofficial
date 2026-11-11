@@ -2640,3 +2640,17 @@ missing-slot, Thumb-bit and range controls calibrate the representation check.
 `KERNEL_SORT_ALIGNMENT=yes` selects an opt-in alignment-sort build and retains
 all object and 8-byte section alignments. Generated-config tests pin its
 enabled/disabled flags, mode marker and rejection of invalid values.
+## Native assembly preprocessing and object ownership
+
+The assembler's `thumb-compile.sh` contract also invokes the production `.S.o`
+rule with a host-style traditional-CPP default injected into a private Makefile.
+The ROM-float bare-cell member must assemble through that rule and agree with
+GNU as on its emitted bytes and relocations. A separate traditional-CPP control
+must leave token-pasting operators unexpanded and fail native assembly. This
+calibrates the project-owned ISO preprocessing boundary; it executes no ROM code.
+
+The a.out libc output directory marks its object targets `.NOPATH`, so a
+previous ELF build cannot satisfy an a.out output from a source-directory
+object. `thumb-link.sh` rebuilds the native archive after the ELF build,
+compares the captured assembly with GNU as and executes its linked program
+under Unicorn; this includes the foreign-object lookup regression.

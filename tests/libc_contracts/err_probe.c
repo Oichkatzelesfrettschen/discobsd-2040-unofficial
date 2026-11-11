@@ -1,9 +1,23 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <string.h>
 #include <err.h>
 
+#ifdef ERR_PROBE_HOST_PROGNAME
 char *__progname;
+#else
+extern char *__progname;
+#endif
+
+#ifdef ERR_PROBE_STRERROR
+/* The user-mode runner has no kernel sysctl error-message provider. */
+char *
+strerror(int code)
+{
+    return code == ENOENT ? "No such file or directory" : "unexpected errno";
+}
+#endif
 
 static void
 forward(int mode, const char *fmt, ...)

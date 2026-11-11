@@ -228,7 +228,8 @@ def main():
     result = {"source": command(["git", "rev-parse", "HEAD"], ROOT),
               "dirty": bool(command(["git", "status", "--porcelain"], ROOT)),
               "diff_sha256": hashlib.sha256(
-                  command(["git", "diff", "HEAD", "--binary"], ROOT).encode()).hexdigest(),
+                  subprocess.check_output(["git", "diff", "HEAD", "--binary"],
+                                          cwd=ROOT)).hexdigest(),
               "variants": VARIANTS, "boards": {}}
     for board in args.board:
         if board not in ("PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM", "PICO_DIAG"):

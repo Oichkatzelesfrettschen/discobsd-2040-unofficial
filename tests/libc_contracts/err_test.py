@@ -22,7 +22,7 @@ def main():
         shim = work / "native.h"
         shim.write_text("extern char *__progname;\n")
         command = CC + FLAGS + ["-I" + str(work), "-include", str(shim),
-                                "-D__progname=tree_progname"]
+                                "-D__progname=tree_progname", "-DERR_PROBE_HOST_PROGNAME"]
         command += ["-D" + name + "=tree_" + name for name in NAMES]
         source = ROOT / "lib/libc/gen/err.c"
         probe = ROOT / "tests/libc_contracts/err_probe.c"

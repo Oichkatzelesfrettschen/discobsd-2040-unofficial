@@ -42,3 +42,31 @@ if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
 echo "compile: 3 compiler-written programs assemble and agree"
+
+# The project suffix rule must override a host make's traditional CPP rule.
+# Compile the production bare-cell member: its symbol names require ##.
+cpp_work=$(mktemp -d)
+trap 'rm -r "$cpp_work"' EXIT HUP INT TERM
+ln -s "$TOPSRC/.git" "$cpp_work/.git"
+printf 'TOPSRC=%s\nCOMPILE.S = ${CC} ${AFLAGS} ${CPPFLAGS} -c -traditional-cpp\ninclude ${TOPSRC}/share/mk/sys.mk\nAFLAGS = -Wa,-x -B${TOOLBINDIR}/\nall: cpp-contract.o\n' \
+    "$TOPSRC" > "$cpp_work/Makefile"
+printf '#include "%s/lib/libc/arm/gen/rom_float_clz.S"\n' \
+    "$TOPSRC" > "$cpp_work/cpp-contract.S"
+"${MAKE:-bmake}" -s -C "$cpp_work" MACHINE="${MACHINE:?set MACHINE}" \
+    TOOLBINDIR="${TOOLBINDIR:?set TOOLBINDIR}" BUILD=1 cpp-contract.o
+$CC -E "$TOPSRC/lib/libc/arm/gen/rom_float_clz.S" -o "$cpp_work/modern.s"
+$GNUAS -mcpu="$CPU" -mthumb -o "$cpp_work/modern.gnu.o" "$cpp_work/modern.s"
+"$PYTHON" "$here/thumb-aoutdiff.py" "$cpp_work/modern.s" \
+    "$cpp_work/cpp-contract.o" "$cpp_work/modern.gnu.o"
+$CC -E -traditional-cpp "$TOPSRC/lib/libc/arm/gen/rom_float_clz.S" \
+    -o "$cpp_work/traditional.s"
+if ! grep -F '##' "$cpp_work/traditional.s" >/dev/null; then
+    echo "compile: traditional CPP control did not retain token pasting" >&2
+    exit 1
+fi
+if $AS -o "$cpp_work/traditional.o" "$cpp_work/traditional.s" \
+    > "$cpp_work/control.log" 2>&1; then
+    echo "compile: native assembler accepted unexpanded token pasting" >&2
+    exit 1
+fi
+echo "compile: project assembly CPP rule passes; traditional CPP control rejected"

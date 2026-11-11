@@ -54,6 +54,12 @@ def capture(args):
                        "version": (result.stdout + result.stderr).strip()}
         if not tools[name]["version"]:
             raise ValueError(f"{name} did not report a version")
+    # cflow 1.8 loads a default profile unless -q is given; cflow 1.7 has
+    # neither the profile nor the option and exits 64 on it.
+    profile_probe = subprocess.run([str(args.cflow.resolve(strict=True)), "-q", "--version"],
+                                   cwd=root, env=environment, check=False,
+                                   capture_output=True)
+    cflow_profile = ["-q"] if profile_probe.returncode == 0 else []
     variables = {}
     for name in VARIABLES:
         command = [str(args.bmake), "-k", "MACHINE=rp2040", "-V", "${" + name + "}"]
@@ -110,7 +116,8 @@ def capture(args):
         selection = (["--all"] if not discovered else
                      [f"--start={name}" for name in sorted(discovered)])
         graph_name = f"direct-pass-{pass_number:03d}.dot"
-        command = [str(args.cflow), "-q", "--format=dot", "--depth=2", *selection, *sources]
+        command = [str(args.cflow), *cflow_profile, "--format=dot", "--depth=2",
+                   *selection, *sources]
         run_tool(f"cflow-{pass_number:03d}", command, graph_name)
         graph = (args.output / graph_name).read_text(encoding="utf-8")
         names = set(re.findall(r"(?m)^\s*([A-Za-z_][A-Za-z_0-9]*)\s+\[label=", graph))

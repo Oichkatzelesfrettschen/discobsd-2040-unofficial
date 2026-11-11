@@ -32,7 +32,7 @@ def mutate(function: str, mutation: str) -> str:
     if mutation == "skip-link-count-limit":
         return replace_once(
             function,
-            """    if (source->i_nlink == USHRT_MAX) {
+            """    if (source->i_nlink == FS_LINK_MAX(INODE_FILESYSTEM(source))) {
         u.u_error = EMLINK;
         goto release_source;
     }

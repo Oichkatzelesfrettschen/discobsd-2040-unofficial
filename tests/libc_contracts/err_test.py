@@ -2,11 +2,11 @@
 
 import errno
 import os
-from pathlib import Path
 import shlex
 import shutil
 import subprocess
 import tempfile
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CC = shlex.split(os.environ.get("HOST_CC", "cc"))
@@ -35,7 +35,8 @@ def main():
                 if mode % 2 == 0:
                     message += ("" if null else ": ") + os.strerror(errno.ENOENT)
                 status = {0: 21, 1: 22, 4: 23, 5: 24}.get(mode, 19)
-                assert (result.returncode, result.stdout, result.stderr) == (status, "", message + "\n"), (mode, null, result)
+                actual = (result.returncode, result.stdout, result.stderr)
+                assert actual == (status, "", message + "\n"), (mode, null, actual)
         # Calibrate both syntax and owning-header type rejection.
         for name, text in {
             "old-style": "int old(x) int x; { return x; }\n",

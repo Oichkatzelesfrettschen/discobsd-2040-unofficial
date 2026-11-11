@@ -15,16 +15,16 @@ kern/kern_exec.c			standard
 kern/kern_exit.c			standard
 kern/kern_fork.c			standard
 kern/kern_mman.c			standard
-kern/kern_proc.c			standard
+kern/kern_proc.c			standard compile-with "${COMPILE_C} -Wstrict-prototypes -Wold-style-definition"
 kern/kern_prot.c			standard
 kern/kern_prot2.c			standard
-kern/kern_resource.c			standard
+kern/kern_resource.c			standard compile-with "${COMPILE_C} -Wstrict-prototypes -Wold-style-definition"
 kern/kern_sig.c				standard
 kern/kern_sig2.c			standard
 kern/kern_subr.c			standard
 kern/kern_synch.c			standard
 kern/kern_sysctl.c			standard
-kern/kern_time.c			standard compile-with "${COMPILE_SIZE_C}"
+kern/kern_time.c			standard compile-with "${COMPILE_SIZE_C} -Wstrict-prototypes -Wold-style-definition"
 kern/subr_log.c				optional log
 kern/subr_capacity.c			optional capacity_stats
 kern/subr_prf.c				standard
@@ -36,7 +36,7 @@ kern/sys_process.c			standard
 kern/syscalls.c				standard
 kern/tty.c				standard
 kern/tty_pty.c				optional pty
-kern/tty_subr.c				standard
+kern/tty_subr.c				standard compile-with "${COMPILE_C} -Wstrict-prototypes -Wold-style-definition"
 kern/tty_tty.c				standard
 kern/ufs_alloc.c			standard
 kern/ufs_bio.c				standard

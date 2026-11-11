@@ -349,7 +349,7 @@ kern_mman.o: $S/kern/kern_mman.c
 	${COMPILE_C}
 
 kern_proc.o: $S/kern/kern_proc.c
-	${COMPILE_C}
+	${COMPILE_C} -Wstrict-prototypes -Wold-style-definition
 
 kern_prot.o: $S/kern/kern_prot.c
 	${COMPILE_C}
@@ -358,7 +358,7 @@ kern_prot2.o: $S/kern/kern_prot2.c
 	${COMPILE_C}
 
 kern_resource.o: $S/kern/kern_resource.c
-	${COMPILE_C}
+	${COMPILE_C} -Wstrict-prototypes -Wold-style-definition
 
 kern_sig.o: $S/kern/kern_sig.c
 	${COMPILE_C}
@@ -376,7 +376,7 @@ kern_sysctl.o: $S/kern/kern_sysctl.c
 	${COMPILE_C}
 
 kern_time.o: $S/kern/kern_time.c
-	${COMPILE_SIZE_C}
+	${COMPILE_SIZE_C} -Wstrict-prototypes -Wold-style-definition
 
 subr_capacity.o: $S/kern/subr_capacity.c
 	${COMPILE_C}
@@ -406,7 +406,7 @@ tty.o: $S/kern/tty.c
 	${COMPILE_C}
 
 tty_subr.o: $S/kern/tty_subr.c
-	${COMPILE_C}
+	${COMPILE_C} -Wstrict-prototypes -Wold-style-definition
 
 tty_tty.o: $S/kern/tty_tty.c
 	${COMPILE_C}

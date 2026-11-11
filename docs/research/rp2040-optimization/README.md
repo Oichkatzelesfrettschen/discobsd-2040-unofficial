@@ -21,6 +21,7 @@ and persistence contracts remain intact.
 | PICO/PICO_DIAG | Keep the shipping PICO lean; move `SYSTRACE` and `CAPACITY_STATS` to a diagnostic sibling after the reader/build inventory is closed | design queued |
 | Anchored hot scalars | Prototype a small core-0-owned scalar bank; do not import an SMP per-CPU framework or reserve `r9` | experiment queued |
 | Compact dispatch | Keep byte argument counts and full aligned handler pointers as the control; prototype generated halfword code offsets only if relocation and Thumb-bit checks pass | experiment queued |
+| Scoped K&R interfaces | Six migration units implemented; typed driver slots, resource object-bounds repair and calibrated fixtures; full archive/image admission blocked by the baseline assembler failure | kernel and host evidence recorded |
 | Capacity admission | Reject invalid metric kinds before indexing; `-O2` compilation proceeds, but PicoCalc exceeds FLASH | bounds fix implemented |
 
 ## Documents and ownership
@@ -37,7 +38,8 @@ are implemented through read-only sysctls; board measurements remain pending.
 - [bsd-comparisons.md](bsd-comparisons.md) records the pinned upstream ideas
   and the limits of each comparison.
 - [kr-migration.md](kr-migration.md) scopes caller-complete C17 interface units
-  from the remaining K&R definitions, declarations and callback protocols.
+  from the remaining K&R definitions, declarations and callback protocols,
+  and records scoped implementation, resource costs and admission residuals.
 - [`../kernel-footprint-handoff.md`](../kernel-footprint-handoff.md) retains
   the detailed historical measurements and candidate queue.
 - [`../rp2040-memory-wear-engineering-program.md`](../rp2040-memory-wear-engineering-program.md)

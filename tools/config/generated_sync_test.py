@@ -2,6 +2,7 @@
 
 import concurrent.futures
 import os
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -23,6 +24,54 @@ class GeneratedSyncTest(unittest.TestCase):
         contents = path.read_text()
         self.assertIn(before, contents)
         path.write_text(contents.replace(before, after, 1))
+
+    def test_typed_startup_callbacks(self):
+        header = sync.ROOT / "sys/sys/config.h"
+        good = """#include "config-contract.h"
+static int controller(struct conf_ctlr *c) { return c->ctlr_unit == 3; }
+static int device(struct conf_device *d) { return d->dev_unit == 7; }
+static int attached;
+static void service(void) { attached++; }
+static struct driver bus = { .d_name = "bus", .d_ctlr_init = controller };
+static struct driver disk = { .d_name = "disk", .d_device_init = device };
+int main(void) {
+    struct conf_ctlr c = { .ctlr_driver = &bus, .ctlr_unit = 3 };
+    struct conf_device d = { .dev_driver = &disk, .dev_unit = 7 };
+    struct conf_service s = { service };
+    s.svc_attach();
+    return !(c.ctlr_driver->d_ctlr_init(&c) &&
+             d.dev_driver->d_device_init(&d) && attached == 1);
+}
+"""
+        (self.root / "config-contract.h").write_bytes(header.read_bytes())
+        cc = shlex.split(os.environ.get("HOST_CC", "cc"))
+        flags = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror",
+                 "-Wstrict-prototypes", "-Wold-style-definition"]
+        source = self.root / "callbacks.c"
+        source.write_text(good)
+        binary = self.root / "callbacks"
+        subprocess.run(cc + flags + [str(source), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True)
+        for before, after in [
+            (".d_ctlr_init = controller", ".d_ctlr_init = device"),
+            (".d_device_init = device", ".d_device_init = controller"),
+            ("static void service(void)", "static void service(int unused)"),
+        ]:
+            source.write_text(good.replace(before, after))
+            rejected = subprocess.run(cc + flags + ["-fsyntax-only", str(source)],
+                                      capture_output=True)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn(b"incompatible", rejected.stderr)
+
+    def test_generated_service_has_no_arguments(self):
+        generator = sync.build_generator(self.root, "bmake")
+        directory = self.root / sync.COMPILE / "PICO"
+        config = directory / "Config"
+        config.write_text(config.read_text() + "\nservice pty\n")
+        sync.generate(generator, directory, "PICO")
+        output = (directory / "ioconf.c").read_text()
+        self.assertIn("void ptyattach(void);", output)
+        self.assertIn("{ ptyattach }", output)
 
     def test_synchronized_pair_without_kernel_or_include_link(self):
         self.assertFalse((self.root / "include/machine").exists())
@@ -107,7 +156,8 @@ class GeneratedSyncTest(unittest.TestCase):
         self.assertIn("COMPILE_SIZE_C=", template)
         for board in sync.BOARDS:
             generated = (self.root / sync.COMPILE / board / "Makefile").read_text()
-            rule = "kern_time.o: $S/kern/kern_time.c\n\t${COMPILE_SIZE_C}\n"
+            rule = ("kern_time.o: $S/kern/kern_time.c\n"
+                    "\t${COMPILE_SIZE_C} -Wstrict-prototypes -Wold-style-definition\n")
             self.assertIn(rule, generated)
 
     def test_kernel_optimization_and_aliasing_policy(self):

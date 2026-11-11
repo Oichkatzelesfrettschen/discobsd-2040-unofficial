@@ -44,5 +44,6 @@ sdio_probe(struct conf_ctlr *config)
 }
 
 struct driver sdiodriver = {
-    "sdio", sdio_probe,
+    .d_name = "sdio",
+    .d_ctlr_init = sdio_probe,
 };

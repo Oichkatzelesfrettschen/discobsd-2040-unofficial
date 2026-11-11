@@ -68,6 +68,12 @@ expected-rejection contracts rather than a portable-C17 acceptance claim.
 
 ### Ordered modernization queue
 
+`rp2040-optimization/kr-migration.md` refines the remaining K&R interface work
+into caller-complete process, resource, clist, time, error-reporting and
+configuration-callback units. Its lexical counts are revision-bound inventory;
+the shipped closure and acceptance dependencies in this queue still govern
+implementation order.
+
 The queue below owns program order. The historical ordered work queue later
 in this document records delivered units and their residuals; it does not
 restart those implementations. Each row expands into one caller-complete

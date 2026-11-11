@@ -121,9 +121,9 @@ else
 	check_symbol_address flpage_end 20040400
 	check_symbol_address boot2_copy 20040400
 	check_symbol_address boot2_copy_end 20040500
-	check_symbol_address flscratch 20041f00
-	check_symbol_address flscratch_end 20042000
-	scratch_description="SRAM5 0x20041f00..0x20041fff"
+	check_symbol_address flscratch 20040500
+	check_symbol_address flscratch_end 20040600
+	scratch_description="SRAM4 0x20040500..0x200405ff"
 fi
 check_symbol flash_swap_append
 check_symbol flash_swap_rewrite

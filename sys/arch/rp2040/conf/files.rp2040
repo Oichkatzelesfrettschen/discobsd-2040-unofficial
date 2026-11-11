@@ -15,10 +15,10 @@ kern/kern_exec.c			standard
 kern/kern_exit.c			standard
 kern/kern_fork.c			standard
 kern/kern_mman.c			standard
-kern/kern_proc.c			standard
+kern/kern_proc.c			standard compile-with "${COMPILE_C17_C}"
 kern/kern_prot.c			standard
 kern/kern_prot2.c			standard
-kern/kern_resource.c			standard
+kern/kern_resource.c			standard compile-with "${COMPILE_C17_C}"
 kern/kern_sig.c				standard
 kern/kern_sig2.c			standard
 kern/kern_subr.c			standard
@@ -33,10 +33,10 @@ kern/sys_generic.c			standard
 kern/sys_inode.c			standard
 kern/sys_pipe.c				standard
 kern/sys_process.c			standard
-kern/syscalls.c				standard
+kern/syscalls.c				optional systrace
 kern/tty.c				standard
 kern/tty_pty.c				optional pty
-kern/tty_subr.c				standard
+kern/tty_subr.c				standard compile-with "${COMPILE_C17_C}"
 kern/tty_tty.c				standard
 kern/ufs_alloc.c			standard
 kern/ufs_bio.c				standard

@@ -24,10 +24,6 @@
 struct user {
     struct  proc *u_procp;          /* pointer to proc structure */
     struct  trapframe *u_frame;     /* address of users saved frame */
-    char    u_comm[MAXCOMLEN + 1];  /* command file name */
-    label_t u_qsave;                /* for non-local gotos on interrupts */
-    label_t u_rsave;                /* save info when exchanging stacks */
-    label_t u_ssave;                /* label variable for swapping */
 
 /* syscall parameters and results */
     int     u_arg[6];               /* arguments to current system call */
@@ -93,10 +89,39 @@ struct user {
         ino_t nc_inumber;           /* inum of cached directory */
         dev_t nc_dev;               /* dev of cached directory */
     } u_ncache;
+
+/* cold state kept beyond the Thumb-1 word-load immediate window */
+    char    u_comm[MAXCOMLEN + 1];  /* command file name */
+    label_t u_qsave;                /* for non-local gotos on interrupts */
+    label_t u_rsave;                /* save info when exchanging stacks */
+    label_t u_ssave;                /* label variable for swapping */
     int     u_stack[1];             /* kernel stack per user
                                      * extends from u + USIZE
                                      * backward not to reach here */
 };
+
+#if defined(KERNEL) && defined(RP2040)
+/*
+ * A Thumb-1 word load reaches 124 bytes from its base register. Keep the
+ * fields used by syscall dispatch and credential checks in that window so a
+ * reference through &u needs neither a literal address nor an extra add.
+ */
+#define U_WORD_LOAD_REACH(field) \
+    _Static_assert(offsetof(struct user, field) <= 124, \
+        #field " exceeds Thumb-1 word-load reach")
+U_WORD_LOAD_REACH(u_procp);
+U_WORD_LOAD_REACH(u_frame);
+U_WORD_LOAD_REACH(u_arg);
+U_WORD_LOAD_REACH(u_rval);
+U_WORD_LOAD_REACH(u_error);
+U_WORD_LOAD_REACH(u_uid);
+U_WORD_LOAD_REACH(u_svuid);
+U_WORD_LOAD_REACH(u_ruid);
+U_WORD_LOAD_REACH(u_svgid);
+U_WORD_LOAD_REACH(u_rgid);
+U_WORD_LOAD_REACH(u_groups[NGROUPS - 1]);
+#undef U_WORD_LOAD_REACH
+#endif
 
 #include <sys/errno.h>
 

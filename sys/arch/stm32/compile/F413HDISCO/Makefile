@@ -48,11 +48,8 @@ DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall -Werror
 
-# DiscoBSD predates C23, where an empty parameter list means (void) rather
-# than an unspecified one. GCC 15 and later default to C23 and reject the
-# driver dispatch in machdep.c, which calls d_init through a pointer
-# declared with no parameters. sys/arch/rp2040/conf pins the same standard
-# for the same reason and its comment names this tree.
+# Historical kernel definitions and unspecified parameter lists require C17.
+# GCC 15 and later default to C23, which changes empty-list declarations.
 CSTDFLAGS=	-std=gnu17
 
 CMACHFLAGS=	-ffreestanding -fno-builtin -fcommon
@@ -219,7 +216,7 @@ kern_mman.o: $S/kern/kern_mman.c
 	${COMPILE_C}
 
 kern_proc.o: $S/kern/kern_proc.c
-	${COMPILE_C}
+	${COMPILE_C} -Wstrict-prototypes -Wold-style-definition
 
 kern_prot.o: $S/kern/kern_prot.c
 	${COMPILE_C}
@@ -228,7 +225,7 @@ kern_prot2.o: $S/kern/kern_prot2.c
 	${COMPILE_C}
 
 kern_resource.o: $S/kern/kern_resource.c
-	${COMPILE_C}
+	${COMPILE_C} -Wstrict-prototypes -Wold-style-definition
 
 kern_sig.o: $S/kern/kern_sig.c
 	${COMPILE_C}
@@ -246,7 +243,7 @@ kern_sysctl.o: $S/kern/kern_sysctl.c
 	${COMPILE_C}
 
 kern_time.o: $S/kern/kern_time.c
-	${COMPILE_C}
+	${COMPILE_C} -Wstrict-prototypes -Wold-style-definition
 
 subr_prf.o: $S/kern/subr_prf.c
 	${COMPILE_C}
@@ -273,7 +270,7 @@ tty.o: $S/kern/tty.c
 	${COMPILE_C}
 
 tty_subr.o: $S/kern/tty_subr.c
-	${COMPILE_C}
+	${COMPILE_C} -Wstrict-prototypes -Wold-style-definition
 
 tty_tty.o: $S/kern/tty_tty.c
 	${COMPILE_C}

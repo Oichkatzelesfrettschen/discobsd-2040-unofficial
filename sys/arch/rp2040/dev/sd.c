@@ -480,5 +480,6 @@ sdprobe(struct conf_device *config __unused)
 }
 
 struct driver sddriver = {
-	"sd", sdprobe,
+    .d_name = "sd",
+    .d_device_init = sdprobe,
 };

@@ -109,7 +109,9 @@
  * for measuring what the cache saves, not a way to run.
  */
 #define	CPU_XIP_CACHE		39	/* int: XIP cache enabled */
-#define	CPU_MAXID		40	/* number of valid machdep ids */
+#define CPU_USB_TX_PEAK         40      /* int: greatest queued ring bytes */
+#define CPU_USB_TX_DROPPED      41      /* int: saturating discarded bytes */
+#define	CPU_MAXID		42	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -153,5 +155,7 @@
 	{ "bus_perfsel2", CTLTYPE_INT }, \
 	{ "bus_perfsel3", CTLTYPE_INT }, \
 	{ "xip_cache", CTLTYPE_INT }, \
+	{ "usb_tx_peak", CTLTYPE_INT }, \
+	{ "usb_tx_dropped", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

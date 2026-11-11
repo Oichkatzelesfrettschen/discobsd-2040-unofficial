@@ -81,6 +81,10 @@ refuse "closure gamebox is selected with none of its members" \
 accept IMAGE_WITHOUT="toolchain toolchainlib"
 accept BOARD=PICOCALC IMAGE_WITHOUT="calc-bignum calc"
 accept BOARD=PICOCALC IMAGE_WITHOUT=sdcard
+accept BOARD=PICO_DIAG
+members PROFILE "full" BOARD=PICO_DIAG
+members BOARD_OUT_SUFFIX "-PICO_DIAG" BOARD=PICO_DIAG
+refuse "BOARD must be one of" BOARD=INVALID_DIAGNOSTIC
 accept PROFILE=base IMAGE_WITH=sdcard
 accept PROFILE=base IMAGE_WITH="gamesdir puzzlebox lightup"
 accept BOARD=PICOCALC IMAGE_WITHOUT="ridge lcdgfx"

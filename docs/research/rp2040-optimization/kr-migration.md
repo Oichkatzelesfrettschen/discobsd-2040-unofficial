@@ -1,0 +1,330 @@
+# Granular K&R interface migration to C17
+
+## Inventory boundary
+
+The lexical scan at `f8183b869479` reports 162 old-style definitions across
+23 `sys/kern` files, two unprototyped declarations in one `sys/sys` header,
+and 293 definitions plus 33 declarations across 154 libc files. The libc
+inventory includes optional and inactive source. It does not establish
+shipped membership, compiler acceptance or a count of independent defects.
+
+Reproduce the lexical inventory with `tools/c17/kr_scan.py` over Git-tracked
+`sys/kern/*.c`, `sys/sys/*.h` and libc C files. `check-c17-kernel-inventory`
+combines the calibrated lexical scan with target compiler diagnostics for
+PICO and PICO_UART. Compiler dependencies and final archive selection decide
+which libc candidates belong to the shipped closure. PicoCalc and maintained
+STM32 callers remain part of a shared-interface migration's caller inventory.
+
+The program order remains in `../c17-semantic-migration-plan.md`. The units
+below refine its interface and remaining-source rows after their prerequisite
+closure and resource evidence exists.
+
+## Language and ABI contracts
+
+K&R identifier-list definitions and empty-list declarations are distinct.
+C17 permits the old definition form as obsolescent syntax. `int f();` declares
+unspecified parameters; `int f(void);` declares no parameters. A zero-argument
+definition does not justify changing every declaration without finding its
+callers and address-taking uses.
+
+Unprototyped calls apply default argument promotions: narrow integers promote
+to `int` or `unsigned int`, and `float` promotes to `double`. A prototype can
+change conversion and machine argument placement. Recover both the declared
+parameter type and the promoted incoming type before choosing the replacement.
+Floating, variadic and function-pointer boundaries require explicit ABI checks.
+
+Calling a function through an incompatible function-pointer type remains
+undefined after a cast. Recover the actual callback protocol and use an exact
+type or a typed adapter. Preserve syscall handlers as `void handler(void)`;
+their arguments and results still pass through the u-area. Changing that
+protocol is a separate mechanism.
+
+## Implemented interface tranche
+
+The definitions in `kern_proc.c` (3), `kern_resource.c` (8), `tty_subr.c` (9)
+and `kern_time.c` (11, including inactive helpers) use typed parameter lists.
+Owning public types remain unchanged. The compiler-backed ledger contains
+130 remaining definitions and zero declarations across 18 files. The four
+units compile with strict-prototype and old-style-definition warnings made
+fatal in every RP2040 configuration; STM32F407 compilation also passes.
+
+At `2b387882`, matched GCC 15.2.1 compiles against `fb4fae87` emit byte-identical
+executable sections for the four definition-only conversions in all five
+configurations. The separate resource repair below changes that unit's code.
+Host resource/clist,
+credential, time-I/O and interval-timer fixtures retain their behavior and
+mutation checks. The capacity bounds regression executes through emulated
+ILP32 userspace with its invalid-kind controls; that is not board evidence.
+
+`libc/gen/err.c` includes its owning header and converts its six old-style
+definitions. `check-libc-err` executes 32 subprocess cases for all eight APIs,
+null formats, integer/string/double forwarding, prefixes, saved errno,
+warning returns and exit status; three output/status mutations calibrate it.
+The fixture uses the repository header and production definitions with host
+stdio, not the target's formatter.
+
+`ruadd` adds named members instead of traversing distinct objects as an array.
+Typed controller/device slots and no-argument service declarations close the
+shared callback family. The formatter, scheduler/context families and optional
+libc closure remain separate semantic units.
+
+## Candidate units
+
+| Order | Unit and observed findings | Recovered contract and closure | Acceptance |
+| --- | --- | --- | --- |
+| 1 | `kern_proc.c`: three definitions, `inferior`, `pfind`, `pqinit` | `proc.h` already declares pointer ancestry, integer PID lookup and no-argument queue initialization; trace process, signal, ptrace, fork and startup callers | `resource_test` plus direct ancestry/hash/queue cases; exact header types; four RP2040 builds; maintained STM32 compilation; ABI and resource comparison |
+| 2a | `kern_resource.c`: five syscall entries and private `donice` | Keep u-area dispatch; preserve ownership checks, priority clamping, copy failures, CPU-limit tick conversion and errno precedence | Existing `resource_test`, targeted refusal-state controls, warning-clean target builds and matched resource receipts |
+| 2b | `ruadd`, `rucvt`: two definitions in the same file | `resource.h` owns exact pointer types; `kern_exit.c` calls both. `ruadd` uses explicit member additions after the separate object-bounds repair | Per-field accounting oracle, zeroed public-result padding, tick boundary/overflow cases and exit/wait caller coverage; record semantic repair separately |
+| 3 | `tty_subr.c`: nine definitions | Recover clist ownership, byte signedness, empty/full returns and queue iteration. Convert definitions against existing declarations and all driver callers | `clist_test`, boundary bytes `0x00/0x7f/0x80/0xff`, exhaustion/reuse and pointer-type controls; preserve block layout and interrupt assumptions |
+| 4 | `kern_time.c`: eleven definitions | Split pure timeval/timer helpers from user-copy/privilege syscalls; trace `kern_clock.c`, signal delivery and timer callers | Extend time-I/O and interval-timer fixtures through `check-storage-correctness`; time normalization, borrow/carry, timer expiry and copy failures; separate `adjtime` arithmetic optimization |
+| 5 | `libc/gen/err.c`: six old-style definitions | Two private no-argument helpers and four `va_list` entries; `include/err.h` already declares public prototypes | New subprocess stderr/status/errno fixture, null formats, integer/string/float forwarding, returning warning paths, strict C17 and native-header checks; clean archive/consumer rebuild |
+| 6 | `config.h`: service and driver declarations | Services use no arguments in header, generator and implementation; separate controller/device slots match both ARM ports | Reject incompatible callbacks without casts; verify generated tables and startup behavior |
+
+Arithmetic or object-bounds changes in order 2b remain separate from the
+interface-only conversion. Helper-level warning closure precedes a
+whole-file interface acceptance claim.
+`resource_test` currently links both resource and process translation units,
+which provides a useful joint consumer without making their migrations one
+indivisible change.
+
+`kern_subr.c` is not a new conversion candidate: its four definitions are
+already typed. The large lexical findings in libc networking do not establish
+priority over shipped RP2040 interfaces. A current closure capture decides
+their membership before migration work starts.
+
+## Reconstruction procedure
+
+1. Record definitions, declarations, direct calls, address-taking sites,
+   callbacks, generator inputs, assembly references and conditional branches.
+   Annotate argument promotions, return values, side effects and error order.
+2. Trace representative success, refusal and interruption paths through the
+   production implementation. Record ownership and state publication before
+   selecting C17 syntax or a new header boundary.
+3. Establish an independent behavioral oracle. Compare against the old
+   implementation only for defined behavior; use explicit expected outcomes
+   for malformed inputs and suspected undefined behavior.
+4. Convert one caller-complete interface family. Update its owning declaration,
+   definition and callbacks together. Keep arithmetic changes, `restrict`,
+   `const` propagation, `noreturn` and data-layout changes independently reviewed.
+5. Require `-Wold-style-definition -Wstrict-prototypes` for the admitted scope,
+   alongside the existing warning policy. Use strict C17 with pedantic errors
+   for portable mechanisms; retain GNU17 for hardware and assembly owners.
+6. Reject a reintroduced old-style definition and an incompatible callback or
+   declaration fixture. Keep runtime malformed-input controls separate from
+   compiler rejection controls.
+7. Rebuild actual consumers and compare text/data/BSS, static frames, archive
+   members, a.out loaded bytes and packed-root blocks. Retain 8-byte ABI/stack
+   alignment and the fixed process window. Runtime peaks require execution.
+8. Refresh the source denominator after C/header edits. Regenerate the kernel
+   ledger through its compiler-backed owner when its interface set changes.
+   Record native Smaller C header acceptance separately from cross-GCC C17.
+
+## Deferred mechanisms
+
+The kernel formatter in `subr_prf.c` walks arguments as four-byte words and
+has an ILP32 calling-contract gate. Converting its declaration or parameter
+list alone does not establish portable variadic behavior. A `stdarg` rewrite
+needs its own ARM argument, format, stack and fault-console evidence.
+
+Scheduler sleep/context functions, signal transitions, filesystem operations
+and device-switch callback families remain separate units. Their calling
+contracts cross assembly, nonlocal jumps, user memory or storage state. A
+prototype cannot establish those contracts by itself.
+
+No size saving follows from C17 syntax alone. Admission requires zero remaining
+interface findings in the named scope, calibrated compiler/behavior checks,
+preserved ABI and explicit resource deltas. Missing ILP32 headers, emulators
+or board captures leave the corresponding execution evidence open.
+
+## Scoped implementation receipt (2026-11-11)
+
+The six candidate units above are implemented on PR #435 after `fb4fae87`.
+The deferred mechanisms remain outside this change. The calibrated lexical
+scan reports zero findings in `kern_proc.c`, `kern_resource.c`, `tty_subr.c`,
+`kern_time.c` (including inactive helpers), `config.h` and libc `err.c`.
+`ptyattach` and the STM32 SD probe are also typed to close their callback
+families. The compiler-backed kernel ledger has 130 definitions and zero
+unprototyped declarations, across 18 files; the original count was 162 and
+two. The source denominator includes the new err fixture and refreshed hazards.
+
+The recovered parameter types are pointers and promoted `int` values; none
+of these replacements narrows an incoming argument. Syscalls retain
+`void (void)` and u-area arguments/results. The err v-forms retain the public
+`va_list` type. `struct driver` has separate `d_ctlr_init(struct conf_ctlr *)`
+and `d_device_init(struct conf_device *)` slots, with designated initializers
+for every maintained ARM driver. Both ports dispatch through the corresponding
+slot. Services use `void (void)` in the header, generator and `ptyattach`.
+No callback conversion uses a cast.
+
+Caller reconstruction used `rg` for each migrated symbol, `d_init`,
+`svc_attach`, `struct driver` and `attach` under `sys`, `include`, `lib` and
+`tools/config`. `proc.h`, `resource.h`, `clist.h`, `time.h`, `systm.h` and
+`err.h` own the existing declarations. Process consumers include fork,
+signal, ptrace and startup; accounting consumers include exit and wait in
+`kern_exit.c`. Time consumers include `kern_clock.c` and inode timestamp
+operations. Driver tables are generated by `mkioconf.c`; only `ptyattach`
+implements an optional service in the maintained source inventory.
+
+`ruadd` is the separate semantic repair: each `k_rusage` member is an
+independent C object, so subtracting member addresses and incrementing a
+pointer across them does not describe an array traversal. Explicit member
+additions preserve counter order and self-addition, without that traversal.
+Counter overflow policy is unchanged; this patch does not define overflowing
+signed additions. `rucvt` still zeros the complete public result before
+assigning fields.
+
+### Behavioral and compiler evidence
+
+- `check-storage-correctness` links production sources. Its resource suite
+  passes 251 checks, including ancestry, colliding PID hash chains, queue
+  ownership, independent per-member sums, tick boundaries and whole-result
+  zeroing. The clist suite passes 340 checks, including `00/7f/80/ff`, block
+  exhaustion/reuse and iteration. `unputc` retains plain-char signedness.
+  Four additional mutants drop a counter, omit result clearing, skip a hash
+  tail and lose the byte high bit; all are rejected by runtime checks.
+  Existing time-I/O and interval-timer mutation cases also pass.
+- The initial `check-libc-err` fixture passes 16 subprocess message/status cases and two compiler
+  controls. Native C17 exercises integer/string/double `va_list` forwarding,
+  null formats, saved errno reporting and returning warnings. The owning
+  header rejects an incompatible v-form type; old-style syntax is rejected.
+- `check-config-generated-sync` passes 26 tests, including execution of typed
+  startup callbacks, rejection of swapped controller/device callback types,
+  rejection of argument-taking services, and real generation of a
+  `void ptyattach(void)` declaration and table entry.
+- Admitted kernel compile rules require `-Wstrict-prototypes` and
+  `-Wold-style-definition` in both ARM ports, preserving kern_time's RP2040
+  size rule. The libc err rule and relevant host fixtures require them too.
+  `check-c17-kernel-inventory` passes its two-oracle calibration and ledger.
+- All ten maintained STM32 configurations compile the ten selected production
+  translation units in their actual source lists, including startup, exit,
+  shared helpers and enabled probe implementations. This is compiler evidence;
+  it does not establish a complete STM32 link or boot.
+- Native Smaller C accepts a preprocessed `err.h` probe that forwards all four
+  v-forms (`arm-none-eabi-cpp -nostdinc -Iinclude -U__GNUC__
+  -D__SMALLER_C__ -P`, followed by the host-built Thumb Smaller C compiler).
+  This is parser/codegen evidence, separate from cross-GCC compilation.
+
+### Matched resource evidence
+
+Debian x86-64 host, GCC 15.3.1, GNU17, default `-Os`, `KERNEL_GC=no`.
+The baseline is `fb4fae87`; both sides use the same tools and configurations.
+All four kernels compile and link with the production warning policy.
+
+| Kernel | Before text/data/BSS | After text/data/BSS | Delta text/data/BSS |
+| --- | --- | --- | --- |
+| PICO | 94061 / 256 / 40416 | 94117 / 264 / 40416 | +56 / +8 / 0 |
+| PICO_UART | 84984 / 200 / 15408 | 85048 / 200 / 15408 | +64 / 0 / 0 |
+| PICOCALC | 109885 / 376 / 53080 | 109949 / 392 / 53080 | +64 / +16 / 0 |
+| PICOCALC_PSRAM | 111999 / 424 / 53232 | 112055 / 448 / 53232 | +56 / +24 / 0 |
+
+[kr-migration-resources.json](kr-migration-resources.json) records isolated
+object sizes, text hashes and GCC static-frame reports. Process, clist, time
+and err text bytes match their controls exactly. Resource text grows by 60
+bytes in the isolated PICO compilation; `ruadd`'s static frame falls from eight
+to zero bytes. Other reported frames are unchanged. Full-link differences
+also include typed driver table storage and resulting placement. No ABI,
+stack alignment or 192 KiB process-window constants change.
+
+### Build and artifact admission
+
+### Reconciled execution
+
+The combined `2b387882` and `42b49f48` changes pass a subsequent GCC 15.2.1
+logged PICO_DIAG build, including all five kernels and userland. Native host
+resource/clist fixtures pass 251/340 checks. Emulated ILP32 execution passes
+179/372 checks, plus the time, credential, inode-mapping and scheduler
+fixtures and their calibrated mutations. Width-dependent check counts remain
+distinct. All ten STM32 configurations compile the four shared core units
+under their evaluated target flags and fatal prototype warnings.
+
+The ILP32 capacity fixture passes 176 checks and rejects all seven mutations.
+Its byte comparison no longer relies on an undeclared host `memcmp`.
+The interval-timer oracle widens its microsecond calculation before
+multiplication, so the 100-million-second case also executes without host
+32-bit overflow. Lean sysctl fixtures pass 3,453/3,429 checks; unavailable
+diagnostic consumers retain nonzero exit status. The combined err gate runs
+both the 16-case/compiler-control and 32-case/mutation fixtures. Generated
+configuration synchronization passes 29 calibrated tests across five builds.
+### Assembly preprocessing and archive ownership
+
+The initial capture stopped in `rom_float_clz.S`: BSD make's inherited
+`.S.o` rule selected traditional preprocessing, leaving `##` operators in
+ROM-float symbol names. The project now owns the ISO-preprocessed suffix
+rule. A second build-path failure appeared when the assembler suite rebuilt
+libc after an ELF build: `.PATH` could satisfy an a.out object target from an
+existing ELF source-directory object. `.NOPATH: ${OBJS}` confines outputs to
+the a.out object directory while retaining source lookup.
+
+`thumb-compile.sh` injects the traditional host rule into a private Makefile,
+compiles the production ROM-float bare-cell source through the project rule,
+and compares its output with GNU as. The good input agrees on eight text
+halfwords, three text relocations, four data bytes and one data relocation;
+the traditional-preprocessor control retains `##` and fails native assembly.
+The complete `check-cross-assembler` gate assembles 376 libc units with zero
+GNU disagreements, links an a.out with no remaining relocation, executes it
+under Unicorn and rejects the divider-ownership mutants. The pre-fix rebuild
+failed with missing object outputs in the presence of source-directory ELF
+objects; the same rebuild passes with output lookup confined.
+
+The follow-on environment supplies QEMU 11.1.3 and picotool 2.3.1. The
+`check-c17-smaller-c` harness passes 20 tests with zero failures and zero
+link-only cases. `check-c17-headers` and `check-c17-headers-cross` pass their
+native, target, import and mutation checks as selected by those owners.
+`tests/qemu_aout` passes with `REQUIRE_QEMU=1`, including its calibrated
+malformed-image and divider controls. UF2 structure checks pass for all four
+kernels paired with the root image. These are emulated execution and artifact
+checks, separate from silicon observations.
+
+An additional ARM err probe uses the retained `err_probe.c` with
+`ERR_PROBE_STRERROR`, `PRINTF_FLOAT=yes` and the existing a.out runner at
+`-cpu cortex-m0`. Both baseline and migrated archives pass all 16 message,
+status, null-format and integer/string/double forwarding cases. The typed
+`strerror` shim checks the error number and supplies the expected text because
+the runner does not implement the kernel's sysctl error-message provider.
+This establishes the exercised ARM varargs boundary, not kernel sysctl
+behavior or board execution.
+
+The reconciled GCC 15.2.1 environment also passes the complete logged build
+with both assembly/archive fixes. Its cross-assembler gate assembles 376 libc
+units with zero GNU disagreements, executes the linked image under Unicorn,
+and rejects the preprocessing and divider controls. Host-only program-name
+storage is explicitly selected in the err fixture; target probes retain the
+runtime-owned symbol.
+
+### Clean distribution comparison
+
+Both trees complete `bmake MACHINE=rp2040 clean` followed by
+`bmake -j4 MACHINE=rp2040 logged-distribution`, with GCC 15.3.1 and both
+build repairs applied identically. The baseline remains `fb4fae87`; the
+candidate is the scoped migration plus those repairs. These clean builds
+relink the libc consumers rather than relying on an incremental archive update.
+
+The ELF libc has 416 object entries and the a.out libc has 378, excluding
+its symbol directory. Their ordered member lists match their respective
+controls, including the existing duplicate `memcpy.o` and `memset.o` entries
+in the native archive. The complete `err.o` bytes match in both archive forms;
+each has 360 text bytes and zero data/BSS in the production profile.
+
+All 236 paired production OMAGIC programs have unchanged text, data and BSS
+sizes. Their hsaout raw sizes, packed sizes and raw/packed block counts also
+match. Each root uses 743 data blocks and nine inode-list blocks in the
+988-block partition, leaving 236 blocks and 32 inodes free. This is static
+loaded-size and storage evidence; no runtime peak follows from it.
+
+[kr-migration-admission.json](kr-migration-admission.json) retains the relative
+program inventory, archive/object hashes, common-repair patch hash, exact
+root accounting, ARM probe results and immutable successful build-receipt
+hashes. Program enumeration uses `aout_reachability.parse_aout` on production
+`.dis` sibling binaries; packing uses `hsaout -s`; root accounting uses
+`check_multicall_composition.measure_root_image`. Archive enumeration uses
+`aout_archive_section_filter.parse_archive_members`, preserving repeated
+names instead of collapsing them into a set.
+
+### Physical evidence still open
+
+No serial board or USB device is attached to the execution environment.
+Board boot, interrupt behavior, fault-console behavior and runtime peak
+measurements therefore remain unexecuted. The generated images and host or
+emulator results cannot substitute for those measurements. The initial
+development worktree's logged-build quarantine for defunct lexer processes
+is preserved; independent worktrees own the follow-on build receipts.

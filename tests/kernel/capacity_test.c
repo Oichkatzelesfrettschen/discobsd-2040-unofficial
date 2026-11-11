@@ -183,6 +183,18 @@ main(void)
 	capacity_init();
 	stats = capacity_snapshot();
 	check_initial(stats);
+	{
+		struct kernel_capacity_stats before = *stats;
+		const unsigned char *expected = (const unsigned char *)&before;
+		const unsigned char *actual;
+		unsigned int index;
+
+		capacity_note(CAPACITY_KIND_COUNT, 1);
+		capacity_note((enum capacity_kind)-1, 1);
+		actual = (const unsigned char *)capacity_snapshot();
+		for (index = 0; index < sizeof(before); index++)
+			HK_CHECK(expected[index] == actual[index]);
+	}
 	exercise_tables();
 	exercise_stack();
 	hk_note("  limits: proc=%d inode=%d file=%d clist=%d buffer=%d usize=%d",

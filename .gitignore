@@ -48,6 +48,8 @@ sys/arch/*/compile/*/.compileversion
 sys/arch/*/compile/*/.oldversion
 sys/arch/*/compile/*/.deps/
 sys/arch/*/compile/*/.params
+sys/arch/rp2040/compile/*/syscall_roots.ld
+sys/arch/rp2040/compile/*/syscall_offsets.ld
 sys/arch/*/compile/*/*.dep
 sys/arch/*/compile/*/machine
 sys/arch/*/compile/*/sys

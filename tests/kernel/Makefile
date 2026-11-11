@@ -323,7 +323,7 @@ CLIST_SRC=	${TOPSRC}/sys/kern/tty_subr.c
 CAPACITY_SRC=	${TOPSRC}/sys/kern/subr_capacity.c
 CAPACITY_DEFS=	-DCAPACITY_STATS -DSWAPRAM ${IALLOC_PICO_DEFS}
 CAPACITY_MUTANTS=	process-state inode-references clist-object-size \
-		buffer-any-flag peak-follows-down saturation-inverted
+		buffer-any-flag peak-follows-down saturation-inverted invalid-kind
 
 # The protection syscalls and the process lookups they decide with.
 CRED_SRC=	${TOPSRC}/sys/kern/kern_prot.c ${TOPSRC}/sys/kern/kern_prot2.c \
@@ -1094,7 +1094,7 @@ check-shutdown: shutdown_sync_test check-shutdown-mutants check-shutdown-order
 
 clist_test: clist_test.c ${CLIST_SRC} hostkern_kern.c hostkern.o hostkern.h \
     ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} -c -o clist_kernel.o ${CLIST_SRC}
+	${HOST_CC} ${CRED_KERN_CFLAGS} -c -o clist_kernel.o ${CLIST_SRC}
 	${HOST_CC} ${GATE_CFLAGS} -o $@ \
 	    clist_test.c hostkern_kern.c clist_kernel.o hostkern.o
 
@@ -1136,9 +1136,9 @@ check-credential-sanitizer:
 resource_test: resource_test.c ${TOPSRC}/sys/kern/kern_resource.c \
     ${TOPSRC}/sys/kern/kern_proc.c hostkern_kern.c hostkern.o hostkern.h \
     ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} -c -o resource_kernel.o \
+	${HOST_CC} ${CRED_KERN_CFLAGS} -c -o resource_kernel.o \
 	    ${TOPSRC}/sys/kern/kern_resource.c
-	${HOST_CC} ${KERN_CFLAGS} -c -o resource_proc.o \
+	${HOST_CC} ${CRED_KERN_CFLAGS} -c -o resource_proc.o \
 	    ${TOPSRC}/sys/kern/kern_proc.c
 	${HOST_CC} ${GATE_CFLAGS} -o $@ resource_test.c hostkern_kern.c \
 	    resource_kernel.o resource_proc.o hostkern.o

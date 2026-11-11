@@ -1,0 +1,194 @@
+{
+  "baseline": "fb4fae87cfa8080e5ca7481c2f956fa1974b5467",
+  "compiler": "arm-none-eabi-gcc 15.3.1 20260627 (Debian 15:15.3.rel1-3)",
+  "profile": "PICO -Os GNU17; err.c strict C17 -Os Cortex-M0+",
+  "measurement": "evaluated kernel CC CFLAGS INCLUDES PARAM, -DKERNEL -fstack-usage -c; GNU size and objcopy -O binary -j .text; before source from git show baseline:path",
+  "objects": {
+    "sys/kern/kern_proc.c": {
+      "before": {
+        "text_data_bss": [
+          132,
+          0,
+          80
+        ],
+        "text_sha256": "092b4fa35edd9ca8d842561f750a281866953aaed2089762ba3c57f1027150b5",
+        "static_frames": {
+          "inferior": 0,
+          "pfind": 0,
+          "pqinit": 8
+        }
+      },
+      "after": {
+        "text_data_bss": [
+          132,
+          0,
+          80
+        ],
+        "text_sha256": "092b4fa35edd9ca8d842561f750a281866953aaed2089762ba3c57f1027150b5",
+        "static_frames": {
+          "inferior": 0,
+          "pfind": 0,
+          "pqinit": 8
+        }
+      }
+    },
+    "sys/kern/kern_resource.c": {
+      "before": {
+        "text_data_bss": [
+          844,
+          0,
+          0
+        ],
+        "text_sha256": "5942391989814715fa2993d180d498b5aa5b2b8a0dbdfb34822cd3058c4ffbe4",
+        "static_frames": {
+          "donice": 16,
+          "getpriority": 16,
+          "setpriority": 16,
+          "setrlimit": 40,
+          "getrlimit": 32,
+          "ruadd": 8,
+          "rucvt": 24,
+          "getrusage": 80
+        }
+      },
+      "after": {
+        "text_data_bss": [
+          904,
+          0,
+          0
+        ],
+        "text_sha256": "4991a0aed0394e431a3ce3afbe5fa94fc15ff066a3d06fc7c12f8133e8b9ded8",
+        "static_frames": {
+          "donice": 16,
+          "getpriority": 16,
+          "setpriority": 16,
+          "setrlimit": 40,
+          "getrlimit": 32,
+          "ruadd": 0,
+          "rucvt": 24,
+          "getrusage": 80
+        }
+      }
+    },
+    "sys/kern/tty_subr.c": {
+      "before": {
+        "text_data_bss": [
+          1240,
+          0,
+          9
+        ],
+        "text_sha256": "31d62b7d4394799aeb69b16ccb33cff087caf2ab9359d71aa22e41f32beec4a8",
+        "static_frames": {
+          "arm_intr_disable": 0,
+          "getc": 24,
+          "q_to_b": 40,
+          "ndqb": 16,
+          "ndflush": 32,
+          "putc": 32,
+          "b_to_q": 40,
+          "nextc": 0,
+          "unputc": 16,
+          "catq": 136
+        }
+      },
+      "after": {
+        "text_data_bss": [
+          1240,
+          0,
+          9
+        ],
+        "text_sha256": "31d62b7d4394799aeb69b16ccb33cff087caf2ab9359d71aa22e41f32beec4a8",
+        "static_frames": {
+          "arm_intr_disable": 0,
+          "getc": 24,
+          "q_to_b": 40,
+          "ndqb": 16,
+          "ndflush": 32,
+          "putc": 32,
+          "b_to_q": 40,
+          "nextc": 0,
+          "unputc": 16,
+          "catq": 136
+        }
+      }
+    },
+    "sys/kern/kern_time.c": {
+      "before": {
+        "text_data_bss": [
+          1236,
+          0,
+          0
+        ],
+        "text_sha256": "3c3e63911e6254955729e15166f1372a8f7b228deda90c1d2075b3c456eca636",
+        "static_frames": {
+          "gettimeofday": 24,
+          "settimeofday": 32,
+          "adjtime": 48,
+          "getitimer": 48,
+          "itimerfix": 0,
+          "setitimer": 56,
+          "timevaladd": 0
+        }
+      },
+      "after": {
+        "text_data_bss": [
+          1236,
+          0,
+          0
+        ],
+        "text_sha256": "3c3e63911e6254955729e15166f1372a8f7b228deda90c1d2075b3c456eca636",
+        "static_frames": {
+          "gettimeofday": 24,
+          "settimeofday": 32,
+          "adjtime": 48,
+          "getitimer": 48,
+          "itimerfix": 0,
+          "setitimer": 56,
+          "timevaladd": 0
+        }
+      }
+    },
+    "lib/libc/gen/err.c": {
+      "before": {
+        "text_data_bss": [
+          340,
+          0,
+          0
+        ],
+        "text_sha256": "699096d5c20500e8b9a4bd648a6764b494d8a8bfc61c3dd2e90dba976a45e2cd",
+        "static_frames": {
+          "putcolsp": 8,
+          "putprog": 8,
+          "verr": 32,
+          "err": 12,
+          "verrx": 24,
+          "errx": 12,
+          "vwarn": 24,
+          "warn": 16,
+          "vwarnx": 16,
+          "warnx": 16
+        }
+      },
+      "after": {
+        "text_data_bss": [
+          340,
+          0,
+          0
+        ],
+        "text_sha256": "699096d5c20500e8b9a4bd648a6764b494d8a8bfc61c3dd2e90dba976a45e2cd",
+        "static_frames": {
+          "putcolsp": 8,
+          "putprog": 8,
+          "verr": 32,
+          "err": 12,
+          "verrx": 24,
+          "errx": 12,
+          "vwarn": 24,
+          "warn": 16,
+          "vwarnx": 16,
+          "warnx": 16
+        }
+      }
+    }
+  }
+}

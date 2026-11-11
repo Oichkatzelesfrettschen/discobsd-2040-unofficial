@@ -76,9 +76,12 @@ capacity_live(enum capacity_kind kind)
 static void
 capacity_refresh(enum capacity_kind kind)
 {
-    struct capacity_metric *metric = &capacity_state.metric[kind];
+    struct capacity_metric *metric;
     uint16_t free_slots;
 
+    if ((unsigned)kind >= CAPACITY_KIND_COUNT)
+        return;
+    metric = &capacity_state.metric[kind];
     metric->current = capacity_live(kind);
     if (metric->current > metric->peak)
         metric->peak = metric->current;
@@ -152,6 +155,8 @@ capacity_init(void)
 void
 capacity_note(enum capacity_kind kind, int failed)
 {
+    if ((unsigned int)kind >= CAPACITY_KIND_COUNT)
+        return;
     if (capacity_state.version != KERNEL_CAPACITY_VERSION)
         return;
     if (failed)

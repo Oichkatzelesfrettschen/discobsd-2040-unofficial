@@ -21,7 +21,9 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 `sys/kern/syscalls.master` is the single authority for syscall numbers,
 argument counts, handlers, trace names, and public definitions. The generator
 emits `include/syscall.h`, `sys/sys/syscall_dispatch.h`,
-`sys/kern/init_sysent.c`, and `sys/kern/syscalls.c`. The master preserves this tree's ABI: slot 23 is
+`sys/kern/init_sysent.c`, `sys/kern/syscalls.c`, and the preprocessed
+`syscall_roots.ld.S`/`syscall_offsets.ld.S` linker inputs. The master
+preserves this tree's ABI: slot 23 is
 `__sysctl`, dispatch slot 66 is `vfork`, `SYS_vfork` remains the public alias
 for slot 2, and every handler retains the `void handler(void)` calling
 convention. A donor syscall master is unsuitable because equal slot numbers
@@ -39,8 +41,30 @@ none occurs three times. `kernel_errmsg()` expands one message into a
 `KERNEL_ERRMSG_MAX`-byte caller buffer with recursion four rules deep at
 most. On the PICO kernel the two encodings take 1,068 bytes less flash
 than terminated strings. The syscall
-dispatch keeps its function pointers in a separate naturally aligned array;
-ARMv6-M cannot safely trade alignment for a packed pointer record.
+default dispatch keeps its function pointers in a separate naturally aligned array;
+ARMv6-M cannot safely trade alignment for a packed pointer record. RP2040
+builds omit the trace-name source when SYSTRACE is absent.
+
+`KERNEL_COMPACT_DISPATCH=yes` selects an opt-in ARM Thumb representation.
+The default remains `no`; other values fail parsing. Mode changes invalidate
+objects and regenerate both linker fragments through the parameter stamp.
+Each of 163 unsigned halfwords encodes a two-byte-scaled code offset from
+the even FLASH origin, `0x10000100`. The decoder forms `anchor + 2 * offset + 1`
+and calls the existing `void (void)` handler after the syscall entry bounds
+the index. The table requires two-byte alignment; stacks and section alignment
+remain unchanged. No function pointer is packed or loaded from an unaligned word.
+
+Generated EXTERN roots retain selected handlers under section collection.
+Link assertions check even code addresses, both range bounds, table parity
+and the exact 326-byte extent. GNU ld arithmetic uses even code addresses;
+the ELF image gate separately requires actual Thumb-function symbols and
+validates every decoded target, argument byte and trace option. A failed
+compact gate stops before ELF-copy, HEX, binary and UF2 publication.
+Compact builds require caller-selected PYTHON. Numeric syscall definitions,
+u-area arguments/results and userspace calling conventions are unchanged.
+Boot and physical-board syscall behavior remain separate admission evidence.
+The optional halfword table releases 326 gross bytes before decoder and
+padding costs; it is excluded from the default-representation total below.
 
 The guarded private dispatch header owns handler prototypes and array types
 without device or process prerequisites. `systm.h` and kernel `glob.h` retain
@@ -70,8 +94,11 @@ before and after the complete change.
 
 The RP2040 kernels expose `kern.capacity` when `CAPACITY_STATS` is enabled.
 The read-only, versioned structure records fixed-table occupancy, allocation
-failures, and overwritten kernel-stack bytes. The PICO and PICO_UART
-configurations enable the option. The counters collect evidence for a later
+failures, and overwritten kernel-stack bytes. PICO_DIAG, PICO_UART and the
+PicoCalc configurations enable the option; lean PICO omits it and SYSTRACE.
+Build telemetry images with `BOARD=PICO_DIAG STORAGE_STATS=yes`. An omitted
+diagnostic sysctl returns `EOPNOTSUPP`, not an empty capacity record.
+The counters collect evidence for a later
 capacity decision; they do not change `NPROC`, `NINODE`, `NFILE`, `NCLIST`,
 `NBUF`, `USIZE`, or the 8 KiB USB transmit ring.
 

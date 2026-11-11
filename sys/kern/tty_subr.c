@@ -19,8 +19,7 @@ char    cwaiting;
  * Character list get/put
  */
 int
-getc(p)
-    register struct clist *p;
+getc(struct clist *p)
 {
     register struct cblock *bp;
     register int c, s;
@@ -66,10 +65,7 @@ getc(p)
  * Return number of bytes moved.
  */
 int
-q_to_b (q, cp, cc)
-    register struct clist *q;
-    char *cp;
-    int cc;
+q_to_b(struct clist *q, char *cp, int cc)
 {
     register struct cblock *bp;
     register int nc;
@@ -131,9 +127,7 @@ q_to_b (q, cp, cc)
  * in clist starting at q->c_cf.
  * Stop counting if flag&character is non-null.
  */
-int ndqb (q, flag)
-    register struct clist *q;
-    int flag;
+int ndqb(struct clist *q, int flag)
 {
     int cc;
     int s;
@@ -170,9 +164,7 @@ out:
  * Flush cc bytes from q.
  */
 void
-ndflush (q, cc)
-    register struct clist *q;
-    register int cc;
+ndflush(struct clist *q, int cc)
 {
     register struct cblock *bp;
     char *end;
@@ -227,9 +219,7 @@ out:
  * Put a symbol to a character list.
  */
 int
-putc (c, p)
-    int c;
-    register struct clist *p;
+putc(int c, struct clist *p)
 {
     register struct cblock *bp;
     register char *cp;
@@ -273,10 +263,7 @@ putc (c, p)
  * Return number of bytes not transfered.
  */
 int
-b_to_q (cp, cc, q)
-    register char *cp;
-    struct clist *q;
-    register int cc;
+b_to_q(char *cp, int cc, struct clist *q)
 {
     register char *cq;
     register struct cblock *bp;
@@ -335,9 +322,7 @@ out:
  * pointer becomes invalid.  Note that interrupts are NOT masked.
  */
 char *
-nextc (p, cp)
-    register struct clist *p;
-    register char *cp;
+nextc(struct clist *p, char *cp)
 {
     register char *rcp;
 
@@ -355,8 +340,7 @@ nextc (p, cp)
  * Remove the last character in the list and return it.
  */
 int
-unputc (p)
-    register struct clist *p;
+unputc(struct clist *p)
 {
     register struct cblock *bp;
     register int c, s;
@@ -398,8 +382,7 @@ unputc (p)
  * on the end of the to que.
  */
 void
-catq (from, to)
-    register struct clist *from, *to;
+catq(struct clist *from, struct clist *to)
 {
     char bbuf [CBSIZE*4];
     register int c;

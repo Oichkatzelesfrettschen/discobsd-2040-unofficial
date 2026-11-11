@@ -65,9 +65,9 @@ export `PYTHON`, then run these build-only commands serially:
 ```sh
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 export PYTHON
-bmake MACHINE=rp2040 distribution
+bmake MACHINE=rp2040 BOARD=PICO_DIAG distribution
 bmake MACHINE=rp2040 check
-bmake MACHINE=rp2040 STORAGE_STATS=yes kernel
+bmake MACHINE=rp2040 BOARD=PICO_DIAG STORAGE_STATS=yes kernel
 ```
 
 `distribution` includes `build`. A later `build` can replace the selected
@@ -77,7 +77,7 @@ output into the test staging `/usr/bin`, with executable mode; append a `file /u
 by `mode 0755`, `owner 0`, and `group 0` to the test manifest. `filemode`
 belongs only inside a `default` section; per-file modes avoid changing the
 existing defaults.
-Retain the exact test manifest, build `bmake MACHINE=rp2040 flash`, and restore
+Retain the exact test manifest, build `bmake MACHINE=rp2040 BOARD=PICO_DIAG flash`, and restore
 the tracked manifest before committing. Retain the image bytes separately
 before another image build overwrites them.
 
@@ -87,8 +87,9 @@ ELF sizes, image SHA-256 hashes, selected libc hash and test-manifest hash.
 Decode every UF2 block and verify family, address, payload and block-count
 consistency. The kernel belongs in `[0x10000000, 0x10020000)`; the root belongs
 in `[0x10020000, 0x101a0000)`. Raw swap occupies the remaining 384 KiB.
-`flash.uf2` contains the root alone. A two-image operation loads both
-`unix.uf2` and `flash.uf2`.
+`flash-PICO_DIAG.uf2` contains the root alone. A two-image operation loads
+`PICO_DIAG/unix.uf2` and `flash-PICO_DIAG.uf2`. Historical captures below retain
+their original PICO image names and configuration.
 
 ## Attended execution
 

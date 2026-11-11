@@ -82,7 +82,7 @@ service_ioconf(FILE *fp)
 
     for (dp = dtab; dp != NULL; dp = dp->d_next) {
         if (dp->d_type == SERVICE)
-            fprintf(fp, "void %sattach(int);\n",
+            fprintf(fp, "void %sattach(void);\n",
                 dp->d_name);
     }
 

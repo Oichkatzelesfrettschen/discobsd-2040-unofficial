@@ -1091,5 +1091,24 @@ main(void)
 	test_structure_copy_faults();
 	test_syscall_copy_faults();
 	test_syscall_authorization();
+	/* Lean kernels reject absent diagnostic nodes without publishing bytes. */
+	{
+		int nodes[] = { KERN_CAPACITY, KERN_SYSTRACE, KERN_SYSTRACEPID };
+		unsigned i;
+
+		for (i = 0; i < sizeof(nodes) / sizeof(nodes[0]); i++) {
+			int name[] = { CTL_KERN, nodes[i] };
+			size_t length = sizeof(outbuf);
+
+			reset_calls();
+			reset_out(POISON);
+			HK_CHECK(call_syscall(name, 2, outbuf, &length, NULL, 0) ==
+			    EOPNOTSUPP);
+			/* Only the size word, not the diagnostic payload, is copied. */
+			HK_CHECK(copyout_state.calls == 1);
+			HK_CHECK(length == sizeof(outbuf));
+			HK_CHECK(out_untouched());
+		}
+	}
 	return (hk_verdict("sysctl"));
 }

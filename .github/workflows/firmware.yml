@@ -351,6 +351,7 @@ jobs:
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
                 sys/arch/rp2040/compile/PICO_UART/unix.uf2 \
+                sys/arch/rp2040/compile/PICO_DIAG/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2 \
                 distrib/rp2040/flash.uf2
@@ -370,6 +371,7 @@ jobs:
           path: |
             sys/arch/rp2040/compile/PICO/unix.uf2
             sys/arch/rp2040/compile/PICO_UART/unix.uf2
+            sys/arch/rp2040/compile/PICO_DIAG/unix.uf2
             sys/arch/rp2040/compile/PICOCALC/unix.uf2
             sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2
             distrib/rp2040/flash.uf2
@@ -553,10 +555,11 @@ jobs:
           echo "/Applications/ArmGNUToolchain/$arm_toolchain_version/arm-none-eabi/bin" \
             >> "$GITHUB_PATH"
           # The divider verifier reads the kernels through capstone and
-          # pyelftools; Homebrew's Python refuses pip installs into itself,
+          # pyelftools; compact dispatch executes through Unicorn.
+          # Homebrew's Python refuses pip installs into itself,
           # so they live in a venv the tiers name as PYTHON.
           python3 -m venv "$HOME/gates-venv"
-          "$HOME/gates-venv/bin/pip" install --quiet capstone pyelftools
+          "$HOME/gates-venv/bin/pip" install --quiet capstone pyelftools unicorn
           echo "PYTHON=$HOME/gates-venv/bin/python3" >> "$GITHUB_ENV"
       - name: Report the toolchain
         run: |
@@ -671,6 +674,7 @@ jobs:
       - name: Confirm the images exist
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
+                sys/arch/rp2040/compile/PICO_DIAG/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2 \
                 distrib/rp2040/flash.uf2

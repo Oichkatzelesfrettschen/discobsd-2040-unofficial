@@ -118,6 +118,8 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         "sys/kern/init_sysent.c": "Copyright (c) 1986 Regents",
         "sys/sys/syscall_dispatch.h": "Copyright (c) 1986 Regents",
         "sys/kern/syscalls.c": "Copyright (c) 1986 Regents",
+        "sys/kern/syscall_roots.ld.S": "Copyright (c) 1986 Regents",
+        "sys/kern/syscall_offsets.ld.S": "Copyright (c) 1986 Regents",
         "sys/kern/errlist.c": "Copyright (c) 1986 Regents",
     }
     for relative_path, notice in generated_files.items():

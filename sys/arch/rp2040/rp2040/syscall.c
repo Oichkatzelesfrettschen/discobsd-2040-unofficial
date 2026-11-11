@@ -244,7 +244,13 @@ syscall(struct trapframe *frame)
 	u.u_rval = 0;
 
 	if (u.u_error == 0 && setjmp(&u.u_qsave) == 0) {
+#ifdef COMPACT_SYSCALL_DISPATCH
+		syscall_handler_t const handler = syscall_handler_at(dispatch_code);
+
+		handler();
+#else
 		syscall_handlers[dispatch_code]();	/* Make syscall. */
+#endif
 	}
 
 	if (SYSTRACE_ON(SYSTRACE_SYSCALL)) {

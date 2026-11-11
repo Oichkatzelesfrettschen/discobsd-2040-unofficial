@@ -51,8 +51,10 @@ each buffer at an absolute address and refuses an overlap. In the USB kernel
 the tail holds the Dhara page at 0x50100240 (1,024 bytes), the heatshrink
 workspace at 0x50100740 (1,040) and the flash program-page buffer at
 0x50100f00 (256), with 256 bytes at 0x50100640 and 944 at 0x50100b50
-unassigned. In the UART-only kernel 0x20040500-0x20041eff (6,656 bytes) of
-SRAM4 and SRAM5 is unassigned.
+unassigned. The UART-only kernel packs the Dhara page, boot2 copy and program
+buffer into `0x20040000..0x200405ff`. The remaining 6,656 bytes at
+`0x20040600..0x20041fff` are unassigned, including all of SRAM5 after boot.
+SRAM5 remains powered; boot ROM staging still uses it on reset.
 
 The windows at 0x21000000-0x2103ffff are the same 256 KB of SRAM0-3 seen one
 bank at a time (2.6.2): 0x21000000 + 0x10000 b + 4 w is the word at
@@ -63,6 +65,10 @@ The XIP cache (2.6.3.1) stays enabled from reset, so 0x15000000 is closed.
 The PICO kernel's flash image is 95,248 bytes; its data and bss take 17,112
 bytes of the 58K and the SwapRAM pool 16,384, at `7a270276` with GCC 16.2.0.
 `check-kernel-headroom` re-measures the flash side.
+Current four-configuration RAM measurements, process-window projections and
+adversarial dispositions are retained in
+`docs/research/rp2040-optimization/memory-map.md`; the revision-bound numbers
+in this paragraph remain historical evidence.
 
 ## 3. Clocks and ticks, in the order the kernel does them
 

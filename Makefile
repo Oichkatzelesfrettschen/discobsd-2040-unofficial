@@ -501,6 +501,12 @@ check-libc-assert: check-python
 		HOSTCC=${HOSTCC:Ucc:Q}' -DDISCOBSD_ASSERT_TEST=1' \
 		    ${PYTHON} tests/libc_contracts/assert_check.py
 
+check-libc-err: check-python
+		${MAKE} -C tests/libc_contracts check-err
+		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tests/libc_err/check.py
+
+.PHONY: check-libc-err
+
 check-libc-host-contracts:
 		${MAKE} -C tests/libc_contracts check-host
 
@@ -1001,6 +1007,14 @@ check-flash-swap:
 		${MAKE} -C tests/rp2040/flash_swap check
 		${MAKE} -C sys/arch/rp2040/compile check-flash-swap
 
+check-dispatch-image: check-python
+		${MAKE} -C sys/arch/rp2040/compile check-dispatch
+
+check-compact-dispatch: check-python
+		${PYTHON} tests/kernel_metadata/compact_dispatch.py
+
+.PHONY: check-dispatch-image check-compact-dispatch
+
 check-dhara-metadata: check-python
 		${MAKE} -C tests/rp2040/dhara_bounds check PYTHON=${PYTHON:Q}
 
@@ -1080,8 +1094,9 @@ check-rp2040-usercopy-span: check-python
 		    --root ${TOPSRC:Q} --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/usercopy-span-contracts.json
 
-check-usb-reset:
+check-usb-reset: check-python
 		${MAKE} -C tests/rp2040/usb_reset check
+		${PYTHON} tools/check_usb_ring.py
 
 # The PicoCalc console's terminal emulator and key translation against a
 # model panel, three calibrating mutants, and the font table's sync with
@@ -1159,7 +1174,7 @@ HOST_GATES=	check-architecture-isolation \
 		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution \
-		check-libc-host-contracts check-libc-assert check-c17-headers \
+		check-libc-host-contracts check-libc-assert check-libc-err check-c17-headers \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
@@ -1194,6 +1209,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-passwd-header-contracts \
+		check-compact-dispatch \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \
@@ -1417,7 +1433,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-hsaout .WAIT check-hsx-decoder .WAIT check-flash-swap .WAIT \
 		check-rp2040-shutdown-cross .WAIT check-storage-counters .WAIT \
 		check-core1-image .WAIT \
-		check-kernel-headroom
+		check-kernel-headroom .WAIT check-dispatch-image
 
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test
@@ -1652,7 +1668,7 @@ installfs:
 .PHONY: check-libc-casefold check-libc-casefold-cross check-libcalc check-libbn check-dcbc \
 	check-libcalc-cross check-libbn-cross
 
-.PHONY: check-libc-output check-libc-output-cross
+.PHONY: check-libc-output check-libc-output-cross check-libc-err
 
 .PHONY: check-board-libc-output
 

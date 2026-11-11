@@ -49,6 +49,7 @@ STUB_BODIES = {
     "cc": 'for a in "$@"; do case $a in *.c) : > "${a%%.c}.o" ;; esac; done\n',
     "ld": 'while [ $# -gt 1 ]; do [ "$1" = -o ] && : > "$2"; shift; done\n',
     "size": "",
+    "dispatch": "",
     "objcopy": 'for a in "$@"; do out=$a; done; : > "$out"\n',
     "objdump": 'echo "disassembly"\n',
     # picotool uf2 convert [--quiet] <in> [-t <type>] <out> [-t <type>]:
@@ -251,7 +252,7 @@ def check_kernel(root, make, scratch):
     build, stubs, blocks = kernel_driver(root, scratch)
     absent = scratch / "absent/picotool"
 
-    def invoke(target, fail, picotool=stubs / "picotool", stale=()):
+    def invoke(target, fail, picotool=stubs / "picotool", stale=(), compact=False):
         for name in (*ARTIFACTS, "vers.c", "vers.o", *(p.name for p in build.glob("*.tmp"))):
             (build / name).unlink(missing_ok=True)
         # A stale output predates swapunix.o, so the unix rule is out of
@@ -263,7 +264,9 @@ def check_kernel(root, make, scratch):
         journal.unlink(missing_ok=True)
         # The stubs lead PATH so a recipe naming a tool bare, as the
         # picotool call once did, still reaches a journaled stub.
-        result = run([*make, f"PICOTOOL={picotool}", target], build,
+        result = run([*make, f"PICOTOOL={picotool}",
+                      f"KERNEL_COMPACT_DISPATCH={'yes' if compact else 'no'}",
+                      f"PYTHON={stubs / 'dispatch'}", target], build,
                      {"STUB_JOURNAL": str(journal), "STUB_FAIL": " ".join(fail),
                       "PATH": f"{stubs}:{ENVIRONMENT.get('PATH', '/usr/bin:/bin')}"})
         return result, [entry[0] for entry in journal_of(journal)]
@@ -278,6 +281,20 @@ def check_kernel(root, make, scratch):
     expect(present() == sorted(ARTIFACTS), f"kernel control: outputs {present()}",
            result.stdout)
     print("PASS kernel link control: " + " ".join(ORDER))
+
+    result, calls = invoke("unix", [], compact=True)
+    expected = [*ORDER[:4], "dispatch", *ORDER[4:]]
+    expect(result.returncode == 0 and calls == expected,
+           f"compact publication control: rc {result.returncode}, calls {calls}", result.stdout)
+    for stale in ((), ARTIFACTS):
+        result, calls = invoke("unix", ["dispatch"], stale=stale, compact=True)
+        expect(result.returncode != 0 and "dispatch: " + INJECTED in result.stdout,
+               "compact publication: checker failure was not reached", result.stdout)
+        expect(not any(tool in calls for tool in ("objcopy", "objdump", "picotool")) and
+               not any((build / artifact).exists() for artifact in ARTIFACTS[1:]),
+               "compact publication: unchecked image was published", result.stdout)
+    print("PASS compact publication: checker failure blocks all derived images, "
+          "including stale ones")
 
     # Each step in turn, with the artifacts of an earlier link in place so
     # a failed step is seen to remove them rather than leave them as new.

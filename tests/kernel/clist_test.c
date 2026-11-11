@@ -396,9 +396,28 @@ concatenate(void)
 	check_balanced();
 }
 
+static void
+boundary_bytes(void)
+{
+    static const unsigned char bytes[] = {0x00, 0x7f, 0x80, 0xff};
+    unsigned i;
+
+    setup();
+    for (i = 0; i < sizeof bytes; i++) {
+        HK_CHECK(putc(bytes[i], &queue) == 0);
+        HK_CHECK(getc(&queue) == bytes[i]);
+        HK_CHECK(putc(bytes[i], &queue) == 0);
+        /* unputc returns the port's plain-char value, including signedness. */
+        HK_CHECK(unputc(&queue) == (char)bytes[i]);
+    }
+    HK_CHECK(cfreecount == POOL_BYTES);
+    check_balanced();
+}
+
 int
 main(void)
 {
+	boundary_bytes();
 	one_character();
 	chain_across_blocks();
 	pool_runs_out();

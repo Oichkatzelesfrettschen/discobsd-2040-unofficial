@@ -20,6 +20,8 @@ u			= ORIGIN(UAREA);
 u_end			= ORIGIN(UAREA) + LENGTH(UAREA);
 _estack			= ORIGIN(UAREA) + LENGTH(UAREA);
 
+INCLUDE syscall_roots.ld
+
 ENTRY(Reset_Handler)
 
 PHDRS {
@@ -51,6 +53,7 @@ SECTIONS {
 		*(.text*)
 		. = ALIGN(8);
 		*(.rodata*)
+		INCLUDE syscall_offsets.ld
 	} > FLASH :flash
 
 	.ARM.extab : {
@@ -157,8 +160,9 @@ SECTIONS {
 	boot2_copy_end = boot2_copy + 256;
 	/* The linker emits this address only when SwapRAM references it. */
 	PROVIDE(swapram_codec_work = 0x50100740);
+	/* UART flash work occupies SRAM4 only; SRAM5 has no runtime owner. */
 	flscratch = DEFINED(usb_tx_ring) ? 0x50100f00 :
-	    ORIGIN(SCRATCH) + LENGTH(SCRATCH) - 256;
+	    ORIGIN(SCRATCH) + 1280;
 	flscratch_end = flscratch + 256;
 	ASSERT(DEFINED(usb_tx_ring) ?
 	    (flpage >= 0x50100240 && flpage_end <= 0x50100740 &&
@@ -169,7 +173,7 @@ SECTIONS {
 	     boot2_copy_end <= ORIGIN(RAM) + LENGTH(RAM)) :
 	    (__scratch_end__ <= flpage && flpage_end <= boot2_copy &&
 	     boot2_copy_end <= flscratch &&
-	     flscratch_end <= ORIGIN(SCRATCH) + LENGTH(SCRATCH)),
+	     flscratch_end <= ORIGIN(SCRATCH) + 4096),
 	    "flash work buffers overlap active memory")
 	/*
 	 * The SRAM regions of RP2040.ld are edited as a set: the user window

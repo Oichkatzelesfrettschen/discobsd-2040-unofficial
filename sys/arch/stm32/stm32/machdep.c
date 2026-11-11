@@ -559,7 +559,7 @@ config(void)
 
 	/* Probe and initialize controllers first. */
 	for (ctlr = conf_ctlr_init; ctlr->ctlr_driver; ctlr++) {
-		if ((*ctlr->ctlr_driver->d_init)(ctlr)) {
+		if ((*ctlr->ctlr_driver->d_ctlr_init)(ctlr)) {
 			ctlr->ctlr_alive = 1;
 		}
 	}
@@ -567,7 +567,7 @@ config(void)
 	/* Probe and initialize devices. */
 	for (dev = conf_device_init; dev->dev_driver; dev++) {
 		if (is_controller_alive(dev->dev_cdriver, dev->dev_ctlr)) {
-			if ((*dev->dev_driver->d_init)(dev)) {
+			if ((*dev->dev_driver->d_device_init)(dev)) {
 				dev->dev_alive = 1;
 			}
 		}

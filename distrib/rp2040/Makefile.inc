@@ -15,12 +15,14 @@ U_KBYTES=	0
 # PICOCALC_PSRAM is the PicoCalc kernel with the ESP-PSRAM64H swap driver
 # linked in: the same board and profile, selected only by naming it. The
 # default BOARD=PICOCALC kernel carries no PSRAM driver.
+# PICO_DIAG pairs the full root with PICO's opt-in diagnostic kernel.
 BOARD?=		PICO
-BOARDS=		PICO PICOCALC PICOCALC_PSRAM
+BOARDS=		PICO PICOCALC PICOCALC_PSRAM PICO_DIAG
 .if empty(BOARDS:M${BOARD})
 .error BOARD must be one of ${BOARDS}, not ${BOARD}
 .endif
 BOARD_PROFILE.PICO=	full
+BOARD_PROFILE.PICO_DIAG=	full
 BOARD_PROFILE.PICOCALC=	picocalc
 BOARD_PROFILE.PICOCALC_PSRAM=	picocalc
 BOARD_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/${BOARD}/unix.uf2

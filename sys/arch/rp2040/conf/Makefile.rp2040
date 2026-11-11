@@ -202,7 +202,10 @@ BOOT2SRC=	${_machdir}/boot2/boot2_w25q080.S
 BOOT2LD=	${_machdir}/boot2/boot2.ld
 BOOT2SUM=	${TOOLBINDIR}/boot2sum
 
-boot2.elf: ${BOOT2SRC} ${BOOT2LD}
+# The stamp recipe removes the boot2 intermediates, so the head of their
+# chain waits on it; a parallel build otherwise regenerates boot2.S before
+# the removal and compiles boot2.o after it.
+boot2.elf: ${BOOT2SRC} ${BOOT2LD} ${PARAMSTAMP}
 	${CC} ${AFLAGS} ${INCLUDES} -nostdlib -nostartfiles \
 	    -Wl,-T,${BOOT2LD} -o $@ ${BOOT2SRC}
 

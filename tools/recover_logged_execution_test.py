@@ -128,6 +128,80 @@ class RecoverLoggedExecutionTest(unittest.TestCase):
         ownership = gate.read_execution_ownership(self.ownership_path)
         self.assertEqual(ownership["state"], "cleanup_incomplete")
 
+    def mark_lost_supervisor(self, pid):
+        self.invocation_id = f"recovery-fixture-20261110T021709Z-{pid}-0123abcd"
+        ownership = gate.read_execution_ownership(self.ownership_path)
+        ownership["invocation_id"] = self.invocation_id
+        gate.atomic_status(self.ownership_path, ownership)
+        status = json.loads(self.status_path.read_text(encoding="utf-8"))
+        status.update(
+            invocation_id=self.invocation_id, state="running", exit_code=None
+        )
+        gate.atomic_status(self.status_path, status)
+
+    def exited_pid(self):
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+        child.wait(timeout=5)
+        return child.pid
+
+    def test_lost_supervisor_recovery_releases_an_exited_supervisor(self):
+        pid = self.exited_pid()
+        self.mark_lost_supervisor(pid)
+
+        result = self.recover(
+            "--confirm-unrecorded-groups-absent", "--supervisor-lost"
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        ownership = gate.read_execution_ownership(self.ownership_path)
+        self.assertEqual(ownership["state"], "released")
+        recovery = json.loads(
+            Path(ownership["recovery_receipt"]).read_text(encoding="utf-8")
+        )
+        self.assertEqual(recovery["lost_supervisor_pid"], pid)
+        self.assertEqual(recovery["status"]["state"], "running")
+        self.assertEqual(
+            recovery["confirmation"],
+            "supervisor_and_unrecorded_process_groups_absent",
+        )
+
+    def test_lost_supervisor_recovery_rejects_a_live_supervisor(self):
+        self.mark_lost_supervisor(os.getpid())
+
+        result = self.recover(
+            "--confirm-unrecorded-groups-absent", "--supervisor-lost"
+        )
+
+        self.assertEqual(result.returncode, gate.RUNNER_ERROR_EXIT)
+        self.assertIn("supervisor remains live", result.stderr)
+        ownership = gate.read_execution_ownership(self.ownership_path)
+        self.assertEqual(ownership["state"], "cleanup_incomplete")
+
+    def test_lost_supervisor_recovery_rejects_a_terminal_status(self):
+        self.mark_lost_supervisor(self.exited_pid())
+        status = json.loads(self.status_path.read_text(encoding="utf-8"))
+        status.update(state="completed", exit_code=0)
+        gate.atomic_status(self.status_path, status)
+
+        result = self.recover(
+            "--confirm-unrecorded-groups-absent", "--supervisor-lost"
+        )
+
+        self.assertEqual(result.returncode, gate.RUNNER_ERROR_EXIT)
+        self.assertIn("nonterminal", result.stderr)
+
+    def test_lost_supervisor_recovery_rejects_an_unparsable_invocation(self):
+        status = json.loads(self.status_path.read_text(encoding="utf-8"))
+        status.update(state="running", exit_code=None)
+        gate.atomic_status(self.status_path, status)
+
+        result = self.recover(
+            "--confirm-unrecorded-groups-absent", "--supervisor-lost"
+        )
+
+        self.assertEqual(result.returncode, gate.RUNNER_ERROR_EXIT)
+        self.assertIn("names no supervisor", result.stderr)
+
     def test_recovery_resolves_recorded_status_from_execution_directory(self):
         ownership = gate.read_execution_ownership(self.ownership_path)
         ownership["status_path"] = self.status_path.name

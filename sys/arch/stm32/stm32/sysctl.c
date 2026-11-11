@@ -93,7 +93,7 @@ ucall(void)
 {
 	struct a {
 		int priority;
-		int (*routine)();
+		int (*routine)(int, int);
 		int arg1;
 		int arg2;
 	} *uap = (struct a *)u.u_arg;

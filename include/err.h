@@ -14,14 +14,19 @@
  * declare its own argument, so <err.h> defines it rather than borrowing
  * a name it would then undefine.
  */
+#include <sys/cdefs.h>
+#ifndef __dead
+/* A hosted test can reach the host's <sys/cdefs.h>, which has no __dead. */
+#define __dead		_Noreturn
+#endif
 #include <stdarg.h>
 
-void    err (int eval, const char *fmt, ...);
-void    errx (int eval, const char *fmt, ...);
+__dead void err (int eval, const char *fmt, ...);
+__dead void errx (int eval, const char *fmt, ...);
 void    warn (const char *fmt, ...);
 void    warnx (const char *fmt, ...);
-void    verr (int eval, const char *fmt, va_list ap);
-void    verrx (int eval, const char *fmt, va_list ap);
+__dead void verr (int eval, const char *fmt, va_list ap);
+__dead void verrx (int eval, const char *fmt, va_list ap);
 void    vwarn (const char *fmt, va_list ap);
 void    vwarnx (const char *fmt, va_list ap);
 

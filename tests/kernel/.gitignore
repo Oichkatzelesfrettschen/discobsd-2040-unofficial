@@ -1,4 +1,9 @@
 machine/
+pipe_rw_function.c
+pipe_rw_contract32
+pipe_rw_contract_single32
+pipe_rw_*.mutant.c
+pipe_rw_*.mutant32.test
 hostkern.o
 rmap_kernel_compact.o
 rmap_kernel_wide.o
@@ -21,6 +26,13 @@ prf_kernel.o
 prf_shim.o
 hostkern32.o
 prf_test
+prf_log_test
+readlink_test
+readlink_functions.c
+readlink.mutant.c
+readlink.mutant.test
+prf_log.mutant.c
+prf_log.mutant.test
 sigauth_test
 sigauth_sig.o
 sigauth_prot2.o
@@ -238,3 +250,10 @@ fork_swap_test_unaligned
 fork_swap_*.mutant.c
 fork_swap_*.mutant.test
 fork_swap_*.mutant.out
+swap_exchange_inplace_test
+swap_exchange_inplace_vm_swap.o
+swap_exchange_inplace_*.mutant.c
+swap_exchange_inplace_*.mutant.o
+swap_exchange_inplace_*.mutant.test
+swap_exchange_inplace_*.mutant.out
+v7-format-work/

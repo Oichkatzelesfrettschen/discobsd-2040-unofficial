@@ -75,3 +75,6 @@ MEMORY {
      */
     SCRATCH (rw!x): ORIGIN = 0x20040000, LENGTH = 8K    /* SRAM4, SRAM5.   */
 }
+
+BOARD_ALIGN = 256;
+BOARD_MAX = 256;

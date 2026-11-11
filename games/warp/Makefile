@@ -7,7 +7,7 @@ OBJS            = bang.o init.o intrp.o move.o \
                   object.o play.o score.o \
                   sig.o term.o them.o us.o \
                   util.o version.o warp.o weapon.o
-LIBS            = -ltermcap -lm
+LIBS            = -ltermcap -lm -lc
 MAN		= warp.0
 MANSRC		= warp.man
 PRIVATE         = warp.doc smap.0 smap.1 smap.2 smap.3 smap.4 smap.5 smap.6 smap.7

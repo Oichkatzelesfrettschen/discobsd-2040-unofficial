@@ -393,8 +393,8 @@ got=0
 echo "v7fs_core: stale direct pointer mutant rejected"
 
 mutant stale-allocated-slot sys/fs/v7fs/v7fs_datablock.c \
-    'if (error != 0 || !is_free)' \
-    'if (error != 0)'
+    'if (!is_free) {' \
+    'if (false) {'
 got=0
 "$work/stale-allocated-slot.bin" "$work/mutant.img" little regress \
     >"$work/mutant.log" 2>&1 || got=$?
@@ -421,6 +421,16 @@ got=0
 [ "$got" -eq 1 ] && grep -q '^FAIL regress-stale-multiple:' \
     "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "multiple stale slots mutant"; }
 echo "v7fs_core: multiple stale slots mutant rejected"
+
+mutant stale-successive-slots sys/fs/v7fs/v7fs_datablock.c \
+    'for (block = old_blocks; new_blocks > old_blocks &&\n\t    block < V7FS_NADDR_DIRECT; block++) {' \
+    'for (block = old_blocks; block < new_blocks &&\n\t    block < V7FS_NADDR_DIRECT; block++) {'
+got=0
+"$work/stale-successive-slots.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-stale-successive:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "successive stale slots mutant"; }
+echo "v7fs_core: successive stale slots mutant rejected"
 
 mutant inode-data-comparison sys/fs/v7fs/v7fs_inode.h \
     'if (left->filesize != right->filesize)' \

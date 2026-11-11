@@ -33,6 +33,8 @@
 #include <sys/errno.h>
 #include <sys/storage_stats.h>
 
+#include <machine/board.h>
+
 #include <rp2040/dev/psram.h>
 
 static int psram_up;
@@ -98,6 +100,8 @@ psramprobe(struct conf_device *config __unused)
 {
 	int err;
 
+	if (board_id() != BOARD_ID_PICOCALC)
+		return 0;
 	psram_hw_init();
 	err = psram_device_init();
 	if (err == PSRAM_E_ID)

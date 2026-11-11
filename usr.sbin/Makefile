@@ -6,7 +6,7 @@
 TOPSRC!=cd ..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-SUBDIR=	chroot cron disktool iostat mkpasswd pstat talloc \
+SUBDIR=	chroot cron disktool iostat mkpasswd msdosfs pstat talloc \
 	update v7fs vipw
 
 # TODO: devupdate

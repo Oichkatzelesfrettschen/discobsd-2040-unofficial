@@ -341,6 +341,35 @@ def check_params(root, make, scratch):
     start = template.index("PARAMSTAMP=")
     stamp = template[start:template.index("\n\n", start)]
 
+    def exercise_default(source, directory):
+        directory.mkdir()
+        directive = next((line for line in source.splitlines()
+                          if line.strip() == ".MAIN: unix"), "")
+        (directory / "Makefile").write_text(
+            directive + "\nPARAM=${OPTION}\n" + stamp
+            + "\nunix: main.o\n\t@echo linked > unix\n"
+            + "main.o: ${PARAMSTAMP}\n\t@echo ${OPTION} > main.o\n"
+        )
+        for option in ("one", "two"):
+            (directory / "unix").unlink(missing_ok=True)
+            result = run([*make, f"OPTION={option}"], directory, {})
+            expect(result.returncode == 0 and (directory / "unix").exists()
+                   and (directory / "main.o").read_text().strip() == option,
+                   "default target failed to build unix", result.stdout)
+
+    exercise_default(template, scratch / "default-control")
+    for route in ("PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM"):
+        generated = (root / f"sys/arch/rp2040/compile/{route}/Makefile").read_text()
+        exercise_default(generated, scratch / f"default-{route}")
+    try:
+        exercise_default(template.replace(".MAIN: unix", ""), scratch / "default-mutant")
+    except Failure as error:
+        expect("default target failed" in str(error),
+               "default target mutant failed for an unrelated reason", str(error))
+    else:
+        raise Failure("default target mutant was not rejected")
+    print("PASS kernel default target links unix after option changes; mutant rejected")
+
     def exercise(block, directory):
         directory.mkdir()
         (directory / "Makefile").write_text(
@@ -348,6 +377,7 @@ def check_params(root, make, scratch):
             + "\nmain.o late.o: ${PARAMSTAMP}\n\t@echo ${PARAM} > $@\n"
         )
         objects = [directory / "main.o", directory / "late.o"]
+        report = directory / "main.su"
         for option in ("no", "yes", "no"):
             # Objects newer than the stamp model the whole-second mtime tie
             # without depending on the host clock; two objects make one of
@@ -356,15 +386,20 @@ def check_params(root, make, scratch):
             for obj in objects:
                 obj.write_text("stale\n")
                 os.utime(obj, (ahead, ahead))
+            report.write_text("stale\n")
             result = run([*make, f"OPTION={option}", "all"], directory, {})
             expect(result.returncode == 0
                    and all(obj.read_text().strip() == option for obj in objects),
                    f"changed PARAM {option}: stale object reused", result.stdout)
+            expect(not report.exists(), "changed PARAM: stale stack report retained", result.stdout)
+            report.write_text("current\n")
             before = [obj.stat().st_mtime_ns for obj in objects]
             result = run([*make, f"OPTION={option}", "all"], directory, {})
             expect(result.returncode == 0
                    and [obj.stat().st_mtime_ns for obj in objects] == before,
                    "unchanged PARAM rebuilt an object", result.stdout)
+            expect(report.read_text() == "current\n", "unchanged PARAM removed stack report",
+                   result.stdout)
             # Inspecting another option is read-only: -n and -V leave the
             # objects and the stamp as the last build wrote them.
             other = "yes" if option == "no" else "no"
@@ -380,7 +415,81 @@ def check_params(root, make, scratch):
                        result.stdout)
 
     exercise(stamp, scratch / "control")
-    mutant = stamp.replace("rm -f -- *.o && ", "")
+    stack_mutant = stamp.replace("*.o *.su", "*.o")
+    expect(stack_mutant != stamp, "stack report calibration did not change stamp", "")
+    try:
+        exercise(stack_mutant, scratch / "stack-mutant")
+    except Failure as error:
+        expect("stale stack report retained" in str(error),
+               "stack report mutant failed for an unrelated reason", str(error))
+    else:
+        raise Failure("stack report mutant retained a stale report without rejection")
+
+    def exercise_flags(block, directory):
+        directory.mkdir()
+        (directory / "Makefile").write_text(
+            "all: main.o\nPARAM=stable\nCFLAGS=${OPT}\nCC=${COMPILER}\n"
+            "LDFLAGS=-Map=$@.map\n"
+            + block
+            + "\nmain.o: ${PARAMSTAMP}\n\t@echo ${OPT} ${COMPILER} > $@\n"
+        )
+        obj = directory / "main.o"
+        for opt, compiler in (("-Os", "gcc"), ("-O0", "gcc"),
+                              ("-O0", "clang")):
+            if obj.exists():
+                ahead = time.time() + 3600
+                os.utime(obj, (ahead, ahead))
+            result = run([*make, f"OPT={opt}", f"COMPILER={compiler}", "all"],
+                         directory, {})
+            expect(result.returncode == 0 and obj.read_text().strip() == f"{opt} {compiler}",
+                   f"changed compiler options {opt} {compiler}: stale object reused",
+                   result.stdout)
+            before = obj.stat().st_mtime_ns
+            result = run([*make, f"OPT={opt}", f"COMPILER={compiler}", "all"],
+                         directory, {})
+            expect(result.returncode == 0 and obj.stat().st_mtime_ns == before,
+                   "unchanged compiler options rebuilt an object", result.stdout)
+
+    exercise_flags(stamp, scratch / "flags-control")
+    flags_mutant = stamp.replace("${CC:Q} ${CFLAGS:Q}", "")
+    expect(flags_mutant != stamp, "compiler-options calibration did not change stamp", "")
+    try:
+        exercise_flags(flags_mutant, scratch / "flags-mutant")
+    except Failure as error:
+        expect("stale object reused" in str(error),
+               "compiler-options mutant failed for an unrelated reason", str(error))
+    else:
+        raise Failure("compiler-options mutant reused stale objects without rejection")
+
+    def exercise_boot2(block, directory):
+        directory.mkdir()
+        (directory / "Makefile").write_text(
+            "all: boot2.o\nPARAM=stable\nAFLAGS=${BOOTFLAG}\n" + block
+            + "\nboot2.o: ${PARAMSTAMP}\n"
+            + "boot2.o: boot2.S\n\tcp boot2.S boot2.o\n"
+            + "boot2.S: boot2.bin\n\tcp boot2.bin boot2.S\n"
+            + "boot2.bin: boot2.elf\n\tcp boot2.elf boot2.bin\n"
+            + "boot2.elf: boot2.src\n\t@echo ${AFLAGS} > boot2.elf\n"
+        )
+        (directory / "boot2.src").write_text("fixture\n")
+        for flag in ("divisor-2", "divisor-4"):
+            result = run([*make, f"BOOTFLAG={flag}", "all"], directory, {})
+            expect(result.returncode == 0
+                   and (directory / "boot2.o").read_text().strip() == flag,
+                   f"changed assembler options {flag}: stale boot2 reused", result.stdout)
+
+    exercise_boot2(stamp, scratch / "boot2-control")
+    boot2_mutant = stamp.replace("*.o *.su boot2.elf boot2.bin boot2.S", "*.o *.su")
+    expect(boot2_mutant != stamp, "boot2 calibration did not remove invalidation", "")
+    try:
+        exercise_boot2(boot2_mutant, scratch / "boot2-mutant")
+    except Failure as error:
+        expect("stale boot2 reused" in str(error),
+               "boot2 mutant failed for an unrelated reason", str(error))
+    else:
+        raise Failure("boot2 mutant reused stale intermediates without rejection")
+
+    mutant = stamp.replace("rm -f -- *.o *.su boot2.elf boot2.bin boot2.S && ", "")
     expect(mutant != stamp, "PARAM calibration did not remove the force", "")
     try:
         exercise(mutant, scratch / "mutant")
@@ -389,21 +498,122 @@ def check_params(root, make, scratch):
                "PARAM mutant failed for an unrelated reason", str(error))
     else:
         raise Failure("PARAM mutant reused stale objects without rejection")
-    print("PASS PARAM changes rebuild newer objects; unchanged options reuse; "
-          "missing force rejected")
+    print("PASS configuration and compiler-option changes rebuild newer objects; "
+          "unchanged options reuse; missing dependencies and force rejected")
+
+
+def check_version_identity(root, make, scratch):
+    del make
+    command_directory = scratch / "commands"
+    command_directory.mkdir()
+    git_command = command_directory / "git"
+    git_command.write_text("#!/bin/sh\nprintf '123\\n'\n")
+    git_command.chmod(0o755)
+    hostname_command = command_directory / "hostname"
+    hostname_command.write_text("#!/bin/sh\nprintf 'private-host-fixture\\n'\n")
+    hostname_command.chmod(0o755)
+    environment = {"PATH": str(command_directory) + os.pathsep + os.environ["PATH"],
+                   "USER": "private-user-fixture"}
+    source = (root / "sys/conf/newvers.sh").read_text()
+
+    def exercise(script, directory):
+        directory.mkdir()
+        fixture = directory / "newvers.sh"
+        fixture.write_text(script)
+        result = run(["sh", str(fixture)], directory, environment)
+        expect(result.returncode == 0, "kernel version generation failed", result.stdout)
+        for private in ("private-host-fixture", "private-user-fixture", str(directory)):
+            expect(private not in result.stdout, "kernel version exposes build identity", "")
+        expect('DiscoBSD 2.7' in result.stdout and ' 123:' in result.stdout and
+               f'({directory.name.upper()})' in result.stdout,
+               "kernel version omits release, configuration or revision", result.stdout)
+        return result.stdout
+
+    exercise(source, scratch / "control")
+    environment["SOURCE_DATE_EPOCH"] = "946684800"
+    reproducible = exercise(source, scratch / "reproducible")
+    expect("Sat Jan  1 00:00:00 UTC 2000" in reproducible,
+           "SOURCE_DATE_EPOCH is ignored", reproducible)
+    environment["SOURCE_DATE_EPOCH"] = "not-a-timestamp"
+    invalid = scratch / "invalid"
+    invalid.mkdir()
+    fixture = invalid / "newvers.sh"
+    fixture.write_text(source)
+    result = run(["sh", str(fixture)], invalid, environment)
+    expect(result.returncode != 0 and not (invalid / ".compileversion").exists(),
+           "invalid SOURCE_DATE_EPOCH changed version state", result.stdout)
+    date_directory = scratch / "date-commands"
+    date_directory.mkdir()
+    date_command = date_directory / "date"
+    date_command.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$FIXTURE_DATE_STYLE\" = bsd ] && [ \"${2-}\" = -r ]; then\n"
+        "  printf 'Sat Jan  1 00:00:00 UTC 2000\\n'; exit 0\n"
+        "fi\n"
+        "if [ \"$FIXTURE_DATE_STYLE\" = gnu ] && [ \"${2-}\" = -d ] "
+        "&& [ \"${3-}\" = @0 ]; then exit 0; fi\n"
+        "if [ \"$FIXTURE_DATE_STYLE\" = gnu ] && [ \"${2-}\" = -r ]; then\n"
+        "  printf 'incorrect file timestamp\\n'; exit 0\n"
+        "fi\n"
+        "exit 1\n"
+    )
+    date_command.chmod(0o755)
+    original_path = environment["PATH"]
+    environment["PATH"] = str(date_directory) + os.pathsep + original_path
+    environment["FIXTURE_DATE_STYLE"] = "bsd"
+    environment["SOURCE_DATE_EPOCH"] = "946684800"
+    expect("Sat Jan  1 00:00:00 UTC 2000" in exercise(source, scratch / "bsd-date"),
+           "BSD epoch conversion failed", "")
+    environment["FIXTURE_DATE_STYLE"] = "gnu"
+    environment["SOURCE_DATE_EPOCH"] = "99999999999999999999999999"
+    out_of_range = scratch / "out-of-range"
+    out_of_range.mkdir()
+    fixture = out_of_range / "newvers.sh"
+    fixture.write_text(source)
+    result = run(["sh", str(fixture)], out_of_range, environment)
+    expect(result.returncode != 0 and not (out_of_range / ".compileversion").exists(),
+           "out-of-range GNU epoch fell back to a file timestamp", result.stdout)
+    environment["PATH"] = original_path
+    environment.pop("FIXTURE_DATE_STYLE")
+    environment.pop("SOURCE_DATE_EPOCH")
+    try:
+        exercise(source + "\nprintf 'private-host-fixture\\n'\n", scratch / "mutant")
+    except Failure as error:
+        expect("exposes build identity" in str(error),
+               "version identity mutant failed for an unrelated reason", str(error))
+    else:
+        raise Failure("version identity mutant was not rejected")
+    print("PASS kernel version omits build identity; identity mutant rejected")
+
+
+def check_icode_toolchain_selector(root, make, scratch):
+    del scratch
+    for variable, selected in (("GCCPREFIX", "/fixture/selected arm-toolchain"),
+                               ("ARM_GCC_PREFIX", "/fixture/kernel arm-toolchain"),
+                               ("BOARDLIBC_GCCPREFIX", "/fixture/default arm-toolchain")):
+        result = run([*make, "-n", "MACHINE=rp2040", f"PYTHON={sys.executable}",
+                      f"{variable}={selected}", "check-icode-relocation"], root, {})
+        expect(result.returncode == 0, "icode toolchain dry run failed", result.stdout)
+        command = next((line for line in result.stdout.splitlines()
+                        if "tools/check_icode_relocation.py" in line), "")
+        arguments = shlex.split(command)
+        expect("--gcc" in arguments and arguments[arguments.index("--gcc") + 1]
+               == f"{selected}-gcc", f"icode gate ignored {variable}", result.stdout)
+    print("PASS icode relocation gate uses the selected root compiler prefix")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--make", default=os.environ.get("MAKE", "bmake"))
-    parser.add_argument("--only", choices=("lib", "kernel", "params"))
+    parser.add_argument("--only", choices=("lib", "kernel", "params", "version", "icode"))
     args = parser.parse_args()
     make = shlex.split(args.make)
     root = args.root.resolve()
     failures = 0
     for name, check in (("lib", check_lib), ("kernel", check_kernel),
-                        ("params", check_params)):
+                        ("params", check_params), ("version", check_version_identity),
+                        ("icode", check_icode_toolchain_selector)):
         if args.only and args.only != name:
             continue
         with tempfile.TemporaryDirectory(prefix=f"discobsd-build-failure-{name}-") as tmp:

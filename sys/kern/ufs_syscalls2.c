@@ -24,12 +24,12 @@ statfs1(struct mount *mp, struct statfs *sbp)
     sfsp = &sfs;
     bzero((caddr_t)sfsp, sizeof(*sfsp));
     sfsp->f_type = MOUNT_UFS;
-    sfsp->f_bsize = MAXBSIZE;
+    sfsp->f_bsize = FS_BSIZE(fs);
     sfsp->f_iosize = MAXBSIZE;
     sfsp->f_blocks = fs->fs_fsize - fs->fs_isize;
     sfsp->f_bfree = fs->fs_tfree;
     sfsp->f_bavail = fs->fs_tfree;
-    sfsp->f_files = (fs->fs_isize - 1) * INOPB;
+    sfsp->f_files = (fs->fs_isize - 1 - FS_SUPERB(fs)) * FS_INOPB(fs);
     sfsp->f_ffree = fs->fs_tinode;
 
 #ifdef SINGLE_UFS_ROOT
@@ -40,6 +40,10 @@ statfs1(struct mount *mp, struct statfs *sbp)
     bcopy (mp->m_mntfrom, sfsp->f_mntfromname, MNAMELEN);
 #endif
     sfsp->f_flags = mp->m_flags & MNT_VISFLAGMASK;
+#ifdef V7FS
+    /* The format is the one property of the mount statfs alone reports. */
+    sfsp->f_flags |= mp->m_flags & MNT_V7;
+#endif
     return copyout ((caddr_t) sfsp, (caddr_t) sbp, sizeof (struct statfs));
 }
 
@@ -182,11 +186,20 @@ ufs_sync(register struct mount *mp)
      * of each file system is still in the buffer cache.
      */
     if (fs->fs_fmod) {
+#ifdef V7FS
+        if (FS_ISV7(fs)) {
+            fs->fs_fmod = 0;
+            fs->fs_time = time.tv_sec;
+            error = v7_sbwrite(mp, 1);
+        } else
+#endif
+        {
         bp = getblk(mp->m_dev, SUPERB);
         fs->fs_fmod = 0;
         fs->fs_time = time.tv_sec;
         bcopy(fs, bp->b_addr, sizeof (struct fs));
         error = bwrite(bp);
+        }
         if (error)
             fs->fs_fmod = 1;
     }

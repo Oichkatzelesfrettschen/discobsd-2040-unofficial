@@ -12,6 +12,9 @@ manifest cite as the authority for a shipped mechanism:
   rockbox-ui.md -- what each multicall binary in distrib/rp2040/mi.rp2040
   carries and why.
 - zswap.md and emulation.md -- the RAM-tier swap design and the Renode flow.
+- v7-format-descriptor.md -- the per-mount parameter set sys/sys/fsgeom.h
+  reads to mount Seventh Edition volumes through the native inode layer, the
+  checks a foreign volume gets and the measured cost of the V7FS option.
 - sh-posix-audit.md -- the bin/sh POSIX ledger whose rows bin/sh/tests/posix-sh.sh
   tests and whose xfail cases pin the open items.
 

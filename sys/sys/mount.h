@@ -60,6 +60,10 @@ struct  mount
     struct  inode *m_qinod;         /* QUOTA: pointer to quota file */
 #endif
     int     m_write_error;           /* first write error until next mount */
+#ifdef V7FS
+    const struct fs_geom *m_geom;   /* format geometry, <sys/fsgeom.h> */
+    daddr_t m_lastalloc;            /* block of balloc()'s last buffer */
+#endif
 #ifndef SINGLE_UFS_ROOT
     char    m_mntfrom [MNAMELEN];   /* /dev/xxxx mounted from */
     char    m_mnton [MNAMELEN];     /* directory mounted on - this is the
@@ -89,6 +93,12 @@ struct  mount
  * support will never be a problem we can avoid making the flags into a 'long.
 */
 #define MNT_UPDATE      0x1000      /* not a real mount, just an update */
+/*
+ * The volume is in Seventh Edition format. The format has no magic
+ * number, so the caller states it. A kernel without V7FS reads the
+ * volume as native and refuses it for its missing magic numbers.
+ */
+#define MNT_V7          0x2000
 
 /*
  * Flags for various system call interfaces.
@@ -102,6 +112,8 @@ struct  mount
 #ifdef KERNEL
 
 extern struct mount mount[NMOUNT];
+
+#include <sys/fsgeom.h>
 
 #else
 

@@ -25,6 +25,7 @@ ENTRY(Reset_Handler)
 PHDRS {
 	boot2 PT_LOAD FLAGS(5);
 	flash PT_LOAD FLAGS(5);
+	board PT_LOAD FLAGS(4);
 	data PT_LOAD FLAGS(6);
 	ramfunc PT_LOAD FLAGS(5);
 	bss PT_LOAD FLAGS(6);
@@ -62,6 +63,18 @@ SECTIONS {
 		*(.ARM.exidx* .gnu.linkonce.armexidx.*)
 		__exidx_end = .;
 	} > FLASH :flash
+
+	.board : ALIGN(BOARD_ALIGN) {
+		__board_start = .;
+		KEEP(*(.board))
+		__board_end = .;
+	} > FLASH :board
+	ASSERT((__board_start & 255) == 0,
+	    "board descriptor is not 256-byte aligned")
+	ASSERT(__board_end - __board_start == 16,
+	    "kernel must carry exactly one board descriptor")
+	ASSERT(__board_end - __board_start <= BOARD_MAX,
+	    "board descriptor exceeds one UF2 payload")
 	/*
 	 * The .data initializers are copied by whole words in locore0.S, and
 	 * ARMv6-M faults on an unaligned word load, before any handler can
@@ -96,6 +109,11 @@ SECTIONS {
 		__data_end__ = .;
 		_edata = .;
 	} > RAM :ramfunc
+
+	/* Explicit AT() placement does not advance the FLASH region allocator. */
+	ASSERT(LOADADDR(.ramfunc) + SIZEOF(.ramfunc) <=
+	    ORIGIN(FLASH) + LENGTH(FLASH),
+	    "kernel flash load image exceeds FLASH")
 
 	.bss : {
 		. = ALIGN(8);

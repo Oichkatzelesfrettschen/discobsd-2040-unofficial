@@ -10,9 +10,9 @@ MUTATIONS = {
         "    allproc = child;\n    if (swap_image_reserve (&reservation, child, parent,",
     ),
     "advance-cursor-on-failure": (
-        "            &next, reservation->addr) == 0)\n            return ENOMEM;",
-        "            &next, reservation->addr) == 0) {\n"
-        "            swapnext += SWAP_IMAGE_ALIGN;\n            return ENOMEM;\n        }",
+        "        SWAP_IMAGE_ALIGN, &next, reservation->addr) == 0)\n        return ENOMEM;",
+        "        SWAP_IMAGE_ALIGN, &next, reservation->addr) == 0) {\n"
+        "        swapnext += SWAP_IMAGE_ALIGN;\n        return ENOMEM;\n    }",
     ),
     # swapout() given a reservation must copy into it; reserving again takes a
     # second extent, which an exactly full map cannot supply.
@@ -36,8 +36,9 @@ MUTATIONS = {
         "    child->p_stat = SRUN;",
     ),
     "omit-release-wakeup": (
-        "    wakeup ((caddr_t) &runout);\n}\n\n/*\n * Swap a process in.",
-        "    (void)runout;\n}\n\n/*\n * Swap a process in.",
+        "    wakeup ((caddr_t) &runout);\n"
+        "    wakeup ((caddr_t) &runin);\n}\n\n/*\n * Swap a process in.",
+        "    (void)runout;\n    (void)runin;\n}\n\n/*\n * Swap a process in.",
     ),
     "notify-before-release": (
         "swap_image_release (struct proc *p)\n{",
@@ -118,26 +119,37 @@ MUTATIONS = {
         "",
     ),
     "sched-drop-requeue": (
-        "            if (in_core->p_stat == SRUN)\n                setrq (in_core);\n",
+        "                if (in_core->p_stat == SRUN)\n                    setrq (in_core);\n",
         "",
     ),
     "sched-swapin-after-refusal": (
-        "            swapped_out = 0;\n            splhigh ();\n",
-        "            splhigh ();\n",
+        "            in_core = 0;\n            swapped_out = 0;\n            continue;\n",
+        "            in_core = 0;\n            continue;\n",
+    ),
+    # A refused candidate is passed over until sched() sleeps: sleeping
+    # straight after the refusal, or selecting the refused candidate again,
+    # leaves a candidate whose exchange fits untried, and marks that outlive
+    # the sleep leave the refused candidate out after capacity returns.
+    "sched-sleep-after-refusal": (
+        "            in_core = 0;\n            swapped_out = 0;\n            continue;\n",
+        "            in_core = 0;\n            swapped_out = 0;\n            splhigh ();\n"
+        "            ++runin;\n            sleep ((caddr_t) &runin, PSWP);\n"
+        "            continue;\n",
+    ),
+    "sched-reselect-refused": (
+        "            if (refusals && refused[rp - proc])\n                continue;\n",
+        "",
+    ),
+    "sched-keep-refused-marks": (
+        "            if (refusals) {\n                refusals = 0;\n",
+        "            if (refusals) {\n",
     ),
     # The reservation-free swapout of the scheduler before the refusal path.
     "sched-unreserved-swapout": (
-        (
-            "        if (in_core && swap_image_reserve (&reservation, in_core, in_core,\n"
-            "            X_OLDSIZE, X_OLDSIZE) != 0) {",
-            "        if (0 && swap_image_reserve (&reservation, in_core, in_core,\n"
-            "            X_OLDSIZE, X_OLDSIZE) != 0) {",
-        ),
-        (
-            "            swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,\n"
-            "                &reservation);",
-            "            swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE, NULL);",
-        ),
+        "                swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,\n"
+        "                    &reservation);",
+        "                swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,\n"
+        "                    NULL);",
     ),
 }
 

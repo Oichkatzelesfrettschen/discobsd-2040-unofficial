@@ -31,14 +31,15 @@ char *panicstr;
 
 static unsigned timeouts, untimeouts;
 static int timeout_ticks;
+static int fire_timeout;
 
 void
 timeout(void (*fun)(caddr_t), caddr_t arg, int t)
 {
-	(void)fun;
-	(void)arg;
 	timeouts++;
 	timeout_ticks = t;
+	if (fire_timeout)
+		fun(arg);
 }
 
 void
@@ -72,6 +73,7 @@ reset(void)
 	bzero(proc, sizeof proc);
 	timeouts = untimeouts = 0;
 	timeout_ticks = 0;
+	fire_timeout = 0;
 	u.u_procp = &proc[0];
 	proc[0].p_stat = SRUN;
 	proc[0].p_sig = sigmask(SIGINT);
@@ -90,6 +92,14 @@ sleep_bound(void)
 	HK_CHECK(timeouts == 1 && timeout_ticks == INT_MAX);
 	HK_CHECK(untimeouts == 1);
 	HK_CHECK(proc[0].p_wchan == 0);
+
+	/* A fired callout removes the queued process and is not canceled. */
+	reset();
+	fire_timeout = 1;
+	HK_CHECK(tsleep(&channel, PCATCH, 1) == EINTR);
+	HK_CHECK(timeouts == 1 && untimeouts == 0);
+	HK_CHECK(proc[0].p_wchan == 0);
+	HK_CHECK((proc[0].p_flag & P_TIMEOUT) == 0);
 
 	/* Larger ones are refused before the process is queued. */
 	for (i = 0; i < sizeof refused / sizeof refused[0]; i++) {

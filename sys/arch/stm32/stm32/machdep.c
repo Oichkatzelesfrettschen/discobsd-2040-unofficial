@@ -527,7 +527,7 @@ cpuidentify(void)
  * Check whether the controller has been successfully initialized.
  */
 static int
-is_controller_alive(struct driver *driver, int unit)
+is_controller_alive(struct controller_driver *driver, int unit)
 {
 	struct conf_ctlr *ctlr;
 

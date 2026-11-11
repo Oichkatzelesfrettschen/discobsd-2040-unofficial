@@ -73,6 +73,8 @@
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/buf.h>
+
+#include <machine/board.h>
 #include <sys/conf.h>
 #include <sys/config.h>
 #include <sys/disk.h>
@@ -466,6 +468,8 @@ sdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 static int
 sdprobe(struct conf_device *config __unused)
 {
+	if (board_id() != BOARD_ID_PICOCALC)
+		return 0;
 	pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 | PC_RESET_SPI0);
 	pc_gpio_output(PICOCALC_SD_CS, 1);
 	pc_pin(PICOCALC_SD_SCK, PC_FUNC_SPI, 0);

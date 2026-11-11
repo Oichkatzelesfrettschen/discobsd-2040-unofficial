@@ -81,7 +81,28 @@
 #define	CPU_CORE1_LR		26	/* int: core 0 LR at the last probe */
 #define	CPU_CORE1_FAULTS	27	/* int: exceptions core 1 took */
 #define	CPU_CORE1_STALL_MS	28	/* int: write masks core 0 that long */
-#define	CPU_MAXID		29	/* number of valid machdep ids */
+/*
+ * Hardware event counters, for measuring a workload from the shell. xip_acc
+ * and xip_hit are the XIP cache's access and hit counts (datasheet 2.6.3.1,
+ * CTR_ACC and CTR_HIT): 32-bit, saturating, and counting every flash access
+ * of the kernel as well as the workload's. bus_perfctr0 to bus_perfctr3 are
+ * the bus fabric's four 24-bit saturating counters (datasheet 2.1.1.2), each
+ * counting the event its bus_perfsel names: 0 to 19, an even number for the
+ * contested accesses of one arbiter and the next odd number for all of them
+ * (APB, FASTPERI, SRAM5 down to SRAM0, XIP_MAIN, ROM); 31, the reset value,
+ * counts nothing. Writing any value to a counter clears it.
+ */
+#define	CPU_XIP_ACC		29	/* int: XIP accesses; a write clears */
+#define	CPU_XIP_HIT		30	/* int: XIP cache hits; a write clears */
+#define	CPU_BUS_PERFCTR0	31	/* int: bus event count; a write clears */
+#define	CPU_BUS_PERFCTR1	32
+#define	CPU_BUS_PERFCTR2	33
+#define	CPU_BUS_PERFCTR3	34
+#define	CPU_BUS_PERFSEL0	35	/* int: event bus_perfctr0 counts */
+#define	CPU_BUS_PERFSEL1	36
+#define	CPU_BUS_PERFSEL2	37
+#define	CPU_BUS_PERFSEL3	38
+#define	CPU_MAXID		39	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -114,5 +135,15 @@
 	{ "core1_lr", CTLTYPE_INT }, \
 	{ "core1_faults", CTLTYPE_INT }, \
 	{ "core1_stall_ms", CTLTYPE_INT }, \
+	{ "xip_acc", CTLTYPE_INT }, \
+	{ "xip_hit", CTLTYPE_INT }, \
+	{ "bus_perfctr0", CTLTYPE_INT }, \
+	{ "bus_perfctr1", CTLTYPE_INT }, \
+	{ "bus_perfctr2", CTLTYPE_INT }, \
+	{ "bus_perfctr3", CTLTYPE_INT }, \
+	{ "bus_perfsel0", CTLTYPE_INT }, \
+	{ "bus_perfsel1", CTLTYPE_INT }, \
+	{ "bus_perfsel2", CTLTYPE_INT }, \
+	{ "bus_perfsel3", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

@@ -190,6 +190,7 @@ daddr_t	dumplo = (daddr_t)1024;
 #define	RESETS_RESET		0x0
 #define	RESETS_DONE		0x8
 #define	RESETS_CLR		0x3000		/* Atomic clear alias. */
+#define	RESETS_BUSCTRL		(1UL << 1)
 #define	RESETS_PLL_SYS		(1UL << 12)
 #define	RESETS_PLL_USB		(1UL << 13)
 #define	RESETS_IO_BANK0		(1UL << 5)
@@ -385,7 +386,11 @@ SystemClock_Config(void)
 	/* Start the microsecond tick, then the timer that counts it. */
 	MREG32(WATCHDOG_BASE + WATCHDOG_TICK) =
 	    WATCHDOG_TICK_ENABLE | WATCHDOG_TICK_CYCLES;
-	rp_unreset(RESETS_TIMER | RESETS_SYSINFO);
+	/*
+	 * BUSCTRL holds the bus performance counters machdep.bus_perfctr
+	 * reads; its registers answer only out of reset.
+	 */
+	rp_unreset(RESETS_TIMER | RESETS_SYSINFO | RESETS_BUSCTRL);
 
 	/* Program the system PLL: 12 * 125 / (6 * 2) == 125 MHz. */
 	rp_unreset(RESETS_PLL_SYS);

@@ -161,8 +161,8 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         )
 
     errno_records = records(root / "sys/kern/errlist.master", 2)
-    if len(errno_records) != 83 or errno_records[-1] != [
-        "82", "Value too large for data type"
+    if len(errno_records) != 84 or errno_records[-1] != [
+        "83", "Illegal byte sequence"
     ]:
         raise CheckError("errno master must cover zero through ELAST")
 

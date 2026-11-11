@@ -109,10 +109,8 @@ read and execute the boot ROM. Nothing else. That includes the unstriped
 SRAM windows at 0x21000000-0x2103ffff (datasheet 2.6.2), which name the
 same cells as the user window and kernel RAM one bank at a time: no region
 covers them, so an unprivileged access faults, and a region that granted
-them to user mode would hand a process the kernel's data. `mputest` probes
-four of those words, and a fifth address, the XIP cache-as-SRAM window at
-0x15000000 (datasheet 2.6.3.1), which the map also closes by leaving it
-uncovered; the fault test section lists them.
+them to user mode would hand a process the kernel's data. `mputest` carries
+no probe at those addresses.
 
 ## Programming order and readback
 
@@ -159,43 +157,11 @@ probe:
 | kernel RAM | USER_DATA_END, 0x20030000 | SIGSEGV | reads |
 | kernel text | 0x10000100, the kernel's vector table | SIGSEGV | reads |
 | SIO CPUID | 0xd0000000 | SIGSEGV | reads |
-| alias bank 0 window | 0x21000000, twin of 0x20000000, the first user window word | SIGSEGV | reads |
-| alias bank 3 window | 0x21030000, twin of 0x2000000c | SIGSEGV | reads |
-| alias bank 0 kernel | 0x2100c000, twin of 0x20030000, the first kernel RAM word | SIGSEGV | reads |
-| alias bank 3 kernel | 0x2103c000, twin of 0x2003000c | SIGSEGV | reads |
-| xip cache sram | 0x15000000 | SIGSEGV | SIGSEGV |
 | boot ROM magic | 0x00000010 | reads | reads |
 | window top | USER_DATA_END - 4 | reads | reads |
 | SIO DIV_CSR | 0xd0000078 | reads | reads |
 | ROM float and double divide | 7.5 / 2.5 | 3.0, bit-exact | 3.0, bit-exact |
 | caught fault | USER_DATA_END, read three times with a SIGSEGV handler installed | handler runs with the faulting pc and fault-time r4-r11 in its sigcontext, leaves by siglongjmp | not run |
-
-The alias addresses follow the datasheet 2.6.2 identity: word w of bank b
-sits at 0x21000000 + 0x10000 b + 4 w and at 0x20000000 + 16 w + 4 b, so
-bank 0 word 0 and bank 3 word 0 are the first words of the user window, and
-word 0x3000 of a bank (USER_DATA_SIZE / 16) is where the striped map crosses
-USER_DATA_END into kernel RAM; `_Static_assert` lines in mputest.c pin each
-address to its twin. With the MPU off the alias reads succeed, so these four
-probes discriminate the MPU the way the kernel RAM probe does; the known-bad
-recipe (MPU_CTRL 0, see Evidence) is the run that calibrates them.
-
-The `xip cache sram` probe stands apart. The XIP cache stays enabled from
-reset and nothing in the port clears XIP_CTRL.CTRL.EN, and datasheet 2.6.3.1
-answers a cache-as-SRAM access with a bus error while the cache is enabled.
-The probe expects SIGSEGV in both MPU states, so it shows that the range is
-closed to user mode and does not by itself show the MPU: with the MPU on the
-access matches no region and faults before the bus sees it, and with the MPU
-off the bus error is the fault. It does not discriminate a dropped map; a
-kernel that disabled the XIP cache would open the range and fail the probe in
-both states.
-
-The signal comes from the same path in each case. An MPU violation and a
-precise bus error on a data load both enter HardFault on ARMv6-M, which has
-no MemManage or BusFault exception (datasheet 2.4.6.1); the faulting access
-leaves EXC_RETURN 0xfffffffd, so `arm_fault` (fault.c) takes the process
-branch rather than the `panic("kernel fault")` branch and delivers SIGSEGV
-through `psignal`. With no fault address register the kernel cannot tell an
-MPU fault from a bus error, and both print the same frame.
 
 CPUID and DIV_CSR lie 0x78 bytes apart inside the same 256-byte region, so
 the pair decides the subregion disables rather than the region's presence,
@@ -249,14 +215,6 @@ captured transcript of the login shell:
     MPUTEST OK (mpu on)
     $ echo status $?
     status 0
-
-The four alias probes and the cache-as-SRAM probe have no recorded run: the
-transcripts above predate them and carry none of their lines. The board
-result, including whether `xip cache sram` reads as SIGSEGV with the MPU
-off and whether the alias reads succeed in the known-bad recipe, is
-recorded by the board run that follows this change. A Renode run decides the
-MPU-on lines through its third-party MPU model and says nothing about what
-silicon does with the XIP bus error.
 
 Calibration against a known-bad kernel, one that wrote MPU_CTRL 0 after
 programming the regions: the banner read `MPU_CTRL 0x0: protection off`,

@@ -733,5 +733,6 @@ lcdprobe(struct conf_device *config __unused)
 }
 
 struct driver picocalcdriver = {
-	"picocalc", lcdprobe,
+    .d_name = "picocalc",
+    .d_device_init = lcdprobe,
 };

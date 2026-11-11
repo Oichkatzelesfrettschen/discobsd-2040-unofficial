@@ -488,5 +488,6 @@ uartprobe(struct conf_device *config)
 }
 
 struct driver uartdriver = {
-    "uart", uartprobe,
+    .d_name = "uart",
+    .d_device_init = uartprobe,
 };

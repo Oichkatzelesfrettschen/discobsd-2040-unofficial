@@ -1363,5 +1363,6 @@ usbprobe(struct conf_device *config __unused)
 }
 
 struct driver uartusbdriver = {
-	"uartusb", usbprobe,
+    .d_name = "uartusb",
+    .d_device_init = usbprobe,
 };

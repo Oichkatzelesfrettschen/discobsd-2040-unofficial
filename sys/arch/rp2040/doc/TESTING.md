@@ -1546,8 +1546,10 @@ with the MPU's deliberate fault test. The probe test
 asserts the `mpu:` banner line, which is MPU_TYPE and MPU_CTRL read back
 after sys/arch/rp2040/rp2040/mpu.c programmed its three regions; the login
 test then runs usr.bin/mputest, which forks children that read kernel RAM,
-kernel text and SIO CPUID from unprivileged code and expects SIGSEGV for
-each while the divider beside that CPUID reads and divides, and asserts
+kernel text, SIO CPUID, four words of the unstriped SRAM aliases at
+0x21000000 and the XIP cache-as-SRAM window at 0x15000000 from unprivileged
+code and expects SIGSEGV for each while the divider beside that CPUID reads
+and divides, and asserts
 `MPUTEST OK (mpu on)`. `mputest residue` follows: it fills the span
 between the image and its stack, execs, and asserts `RESIDUE OK`, which
 holds only when exec_clear has zeroed that span. Renode's Cortex-M0+ implements the

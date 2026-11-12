@@ -281,6 +281,17 @@ def main():
             True,
         ),
         (
+            "block-sync-uses-containing-device",
+            "io",
+            {
+                "ufs_subr.c": (
+                    "error = bdevsync(ip->i_rdev);",
+                    "error = bdevsync(INODE_DEVICE(ip));",
+                )
+            },
+            True,
+        ),
+        (
             "release-drops-retry-state",
             "io",
             {"inode.h": ("(ip)->i_flag |= IMOD; \\", "(void)0; \\")},

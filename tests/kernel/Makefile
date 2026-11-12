@@ -322,6 +322,16 @@ CAPACITY_DEFS=	-DCAPACITY_STATS -DSWAPRAM ${IALLOC_PICO_DEFS}
 CAPACITY_MUTANTS=	process-state inode-references clist-object-size \
 		buffer-any-flag peak-follows-down saturation-inverted invalid-kind
 
+# Buffer-cache pressure: the production ufs_bio.c and subr_capacity.c in the
+# rp2040 configuration (four buffers, linear cache, capacity statistics). The
+# storage counters come from a counting stand-in in the gate, because their
+# production definition sits in the flash driver.
+BUFFER_BUSY_SRC=	${TOPSRC}/sys/kern/ufs_bio.c
+BUFFER_BUSY_DEFS=	-DCAPACITY_STATS -DSTORAGE_STATS -DNBUF=4 \
+			-DSWAPRAM ${IALLOC_PICO_DEFS}
+BUFFER_BUSY_MUTANTS=	no-capacity-note eviction-capacity-note \
+			no-freelist-wakeup eviction-drops-write
+
 # The protection syscalls and the process lookups they decide with.
 CRED_SRC=	${TOPSRC}/sys/kern/kern_prot.c ${TOPSRC}/sys/kern/kern_prot2.c \
 		${TOPSRC}/sys/kern/kern_proc.c
@@ -2469,6 +2479,57 @@ check-capacity-mutants: capacity_test capacity_mutate.py
 		echo "PASS capacity mutation $$mutation rejected"; \
 	done
 
+buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
+    ${CAPACITY_SRC} hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	    -c -o buffer_busy_kernel.o ${BUFFER_BUSY_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	    -c -o buffer_busy_capacity.o ${CAPACITY_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	    -c -o buffer_busy_uarea.o capacity_uarea.c
+	${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} -o $@ \
+	    buffer_busy_test.c buffer_busy_kernel.o buffer_busy_capacity.o \
+	    buffer_busy_uarea.o hostkern_kern.c hostkern32.o
+
+# Each mutant replaces ufs_bio.c for one build of the gate and must fail the
+# check that states the property the defect breaks.
+check-buffer-busy-mutants:
+.if ${ILP32_OK} == "yes"
+check-buffer-busy-mutants: buffer_busy_test buffer_busy_mutate.py
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for check-buffer-busy-mutants" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} buffer_busy_mutate.py ${BUFFER_BUSY_SRC} ${.CURDIR}
+	@set -eu; for mutation in ${BUFFER_BUSY_MUTANTS}; do \
+		${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+		    -c -o buffer_busy_$$mutation.mutant.o \
+		    buffer_busy_$$mutation.mutant.c; \
+		${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+		    -o buffer_busy_$$mutation.mutant.test buffer_busy_test.c \
+		    buffer_busy_$$mutation.mutant.o buffer_busy_capacity.o \
+		    buffer_busy_uarea.o hostkern_kern.c hostkern32.o; \
+		if ./buffer_busy_$$mutation.mutant.test \
+		    >buffer_busy_$$mutation.mutant.out 2>&1; then status=0; \
+		else status=$$?; fi; \
+		case $$mutation in \
+		no-capacity-note) expected='FAIL all-busy/capacity-failure-raised-by-one-before-sleep' ;; \
+		eviction-capacity-note) expected='FAIL all-delayed/no-capacity-failure' ;; \
+		no-freelist-wakeup) expected='FAIL all-busy/release-wakes-free-list-waiter' ;; \
+		eviction-drops-write) expected='FAIL all-delayed/every-eviction-reaches-the-device' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" buffer_busy_$$mutation.mutant.out >/dev/null; then \
+			cat buffer_busy_$$mutation.mutant.out >&2; \
+			echo "FAIL buffer busy $$mutation mutation rejection (exit $$status, expected 1 with '$$expected')" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS buffer busy $$mutation mutation rejected"; \
+	done
+.else
+	@echo "SKIP check-buffer-busy-mutants: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
+
 # Restore the inherited defect in a generated source copy. The same executable
 # must reject a MNT_NOATIME mount that drops an explicit atime request.
 ufs_fio_noatime_bad.c: ${UFS_EXPLICIT_TIME_SRC}
@@ -2816,8 +2877,8 @@ check-ilp32:
 	    check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
 	    check-ufs-topology-ilp32 check-ufs-topology-mutants \
 	    check-ufs-disk-ilp32 check-ufs-disk-mutants \
-	    capacity_test \
-	    check-capacity-mutants
+	    capacity_test buffer_busy_test \
+	    check-capacity-mutants check-buffer-busy-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
 	${TEST_EXECUTION} run kernel.pipe-rw.ilp32 -- ./pipe_rw_contract32
 	${TEST_EXECUTION} run kernel.pipe-rw-single.ilp32 -- ./pipe_rw_contract_single32
@@ -2910,6 +2971,7 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.explicit-time-negative.ilp32 -- ./ufs_explicit_time_bad
 	${TEST_EXECUTION} run kernel.futimes.ilp32 -- ./futimes_test32
 	${TEST_EXECUTION} run kernel.capacity.ilp32 -- ./capacity_test
+	${TEST_EXECUTION} run kernel.buffer-busy.ilp32 -- ./buffer_busy_test
 .else
 	${TEST_EXECUTION} skip kernel.printf.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.printf-log.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -2950,6 +3012,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.ufs-topology.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ufs-disk.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.buffer-busy.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
 # The V7 format descriptor: the inode layer built with V7FS, the NetBSD
@@ -3130,6 +3193,10 @@ clean:
 	    ufs_disk_*.mutant.test ufs_disk_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
+	rm -f buffer_busy_kernel.o buffer_busy_capacity.o buffer_busy_uarea.o \
+	    buffer_busy_test
+	rm -f buffer_busy_*.mutant.c buffer_busy_*.mutant.o \
+	    buffer_busy_*.mutant.test buffer_busy_*.mutant.out
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 	rm -f ${CONSOLE_C17_MACHINE}/machine/*.h ${CONSOLE_C17_STAMP}
@@ -3140,6 +3207,7 @@ clean:
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
+	check-buffer-busy-mutants \
 	check-rwuio-mutants check-rwuio-sanitizer \
 	check-file-owner-mutants check-file-owner-native-mutants \
 	check-file-owner-ubsan-mutant check-file-owner-ubsan-oracle \

@@ -3105,6 +3105,25 @@
       ]
     },
     {
+      "id": "kernel.buffer-busy.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "buffer_busy_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "buffer_busy_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.buffer-busy.ilp32 -- ./buffer_busy_test",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
       "id": "dd.contract.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

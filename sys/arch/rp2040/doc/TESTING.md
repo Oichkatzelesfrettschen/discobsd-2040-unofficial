@@ -1452,6 +1452,24 @@ assertion-failure status. The gate establishes the
 counter mechanism and target-width layouts; the capacity corpus and retained
 hardware receipts decide whether a compiled limit can change.
 
+`buffer_busy_test` links the production `sys/kern/ufs_bio.c` and
+`subr_capacity.c` at ILP32 in the RP2040 shape, four buffers and the linear
+cache, over a RAM disk whose strategy routine records every write. Its
+`sleep()` records the channel and runs a scripted release in place of the
+process that would run meanwhile. With every buffer `B_BUSY`, `getnewbuf()`
+counts one buffer capacity failure and one wait per sleep, sets `B_WANTED`
+on the free-list head, and completes once `brelse()` wakes that channel; a
+wakeup that frees nothing sends it back to sleep with a second failure. With
+a delayed write on the free list it counts an eviction write, sends the
+block to the device byte for byte, and neither sleeps nor counts a failure.
+Delayed data written before the pressure reaches the device through
+`bflush()` afterwards, and the occupancy returns to zero with the peak and
+failures latched. Four one-defect source copies drop the capacity note on
+the all-busy path, add it to the eviction path, drop the free-list wakeup
+in `brelse()` and drop the eviction write; each must fail the check named
+for it. This is the `buffer-all-busy` case of
+tests/rp2040/capacity-corpus.json.
+
 ### Kernel sources on the host
 
 `check-kernel` compiles a file from sys/kern unchanged and links it
@@ -2066,6 +2084,19 @@ holds the largest grantable flash swap extent on `/dev/temp0` to `temp2`,
 requires fork to refuse with ENOMEM and the shell to keep answering, releases
 the extents, and requires a successful fork whose child sees the parent's
 bytes. It opens no port unless `DISCOBSD_BOARD_USER_WINDOW` is exactly `run`.
+An eighth, tests/rp2040/capacity_cases/board_capacity_cases.py, runs the
+board cases `swapram-evacuation`, `signal-frame-recovery` and
+`buffer-cache-board-pressure` of `tests/rp2040/capacity-corpus.json`. It
+stages `evactest` and `sigtest`, runs the evacuation twice and requires an
+image in the compressed pool before each request, the result "done" and four
+children with no bad data byte, stack byte or signal disposition, the pattern
+each child keeps in the u area. It requires `SIGTEST OK` with no failed check,
+then runs `tar` of /etc, `find` and `du` over /usr and /etc one after the
+other and all at once, requires equal `cksum` values after a `sync` and an
+unchanged failure count on every `kern.capacity` row, reboots, and requires
+the boot's `fsck -p` summary with no repair line, the starting `df` values
+and an answering shell. It opens no port unless
+`DISCOBSD_BOARD_CAPACITY_CASES` is exactly `run`.
 A seventh, tests/rp2040/capacity_exhaustion/board_capacity_exhaustion.py,
 stages `filetab` and `proctab` with the routines of board_user_window.py and
 runs the board cases `system-file-table-exhaustion` and

@@ -92,6 +92,19 @@ runs those owners. Hardware execution remains unrun and requires authorization.
 
 ## Resource and integration boundary
 
+The board-native archive selects its members independently through
+`distrib/rp2040/boardlibc-members` and `mkboardlibc.py`. Both selectors include
+the four functions, the board recipe tracks their source/header dependencies,
+and `libc-sink.c` references them. The link gate removes each string member
+from copies of both archives and requires a failed link naming that symbol.
+The full ELF and a.out archive Makefiles alone do not establish availability
+in the shipped board library.
+
+The first candidate at `f302b5ef` has a zero resource delta because its reduced
+board archive omits the four new members. The native-link check rejects that
+candidate with `expected one strnlen.o member`. That comparison is a packaging
+negative control and supplies no acceptance for the complete capability.
+
 The clean parent distribution and full dependency capture precede the source
 change. The candidate requires the same collector and toolchain, a clean
 distribution, complete dependency attribution and per-surface comparison.

@@ -13,12 +13,13 @@ script_directory=$(CDPATH= cd "$(dirname "$0")" && pwd)
 tool_directory=$source_root/tools/bin/$target_machine
 assembler=$tool_directory/as
 archiver=$tool_directory/ar
+indexer=$tool_directory/ranlib
 linker=$tool_directory/ld
 symbol_reader=$tool_directory/nm
 temporary_directory=$(mktemp -d)
 trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
 
-for required_tool in "$assembler" "$archiver" "$linker" "$symbol_reader"
+for required_tool in "$assembler" "$archiver" "$indexer" "$linker" "$symbol_reader"
 do
 	if [ ! -x "$required_tool" ]; then
 		echo "a.out libc contracts require a completed MACHINE=$target_machine build: $required_tool is absent" >&2
@@ -26,7 +27,7 @@ do
 	fi
 done
 
-"$arm_compiler" -std=gnu17 -mcpu=cortex-m0plus -mabi=aapcs \
+"$arm_compiler" -std=gnu17 -Wall -Wextra -Werror -mcpu=cortex-m0plus -mabi=aapcs \
     -mlittle-endian -mthumb -mfloat-abi=soft -nostdinc \
     -I"$source_root/include" -Os -ffreestanding -fno-builtin \
     -fno-jump-tables -S "$script_directory/aout_link_contract.c" \
@@ -94,7 +95,25 @@ do
 		printf '%s\n' "$undefined_symbols" >&2
 		exit 1
 	fi
+	for missing_member in strnlen strndup stpcpy stpncpy
+	do
+		damaged_archive=$temporary_directory/damaged.a
+		cp "$archive_path" "$damaged_archive"
+		"$archiver" d "$damaged_archive" "$missing_member.o"
+		"$indexer" "$damaged_archive"
+		if "$linker" -T536870912 -o "$temporary_directory/damaged-image" \
+		    "$temporary_directory/aout_link_contract.o" "$damaged_archive" \
+		    > "$temporary_directory/damaged.log" 2>&1; then
+			echo "$archive_path: missing $missing_member still links" >&2
+			exit 1
+		fi
+		if ! grep -F "$missing_member" "$temporary_directory/damaged.log" >/dev/null; then
+			echo "$archive_path: missing-member control fails for another reason" >&2
+			cat "$temporary_directory/damaged.log" >&2
+			exit 1
+		fi
+	done
 	archive_index=$((archive_index + 1))
 done
 
-echo "a.out libc contract tests passed"
+echo "a.out libc contract tests passed; eight missing-string-member controls reject"

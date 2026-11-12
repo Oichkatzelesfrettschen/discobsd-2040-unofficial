@@ -155,7 +155,8 @@ check-sus-requirement-corpus: check-python
 # claim fields; the verifier then checks the committed 1,518-row ledger.
 check-dpucp-profile: check-python
 		${PYTHON} tools/check_dpucp_profile_test.py
-		${PYTHON} tools/check_dpucp_profile.py --root ${TOPSRC} --self-test
+		${PYTHON} tools/check_dpucp_profile.py --root ${TOPSRC} --self-test \
+		    --flashimg "${TOOLBINDIR}/flashimg"
 
 # The retained board record binds the approved UF2 pair, the single flash
 # execution, bounded terminal receipt, seven release surfaces and thirteen

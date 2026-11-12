@@ -526,25 +526,36 @@ reader_index_ownership(uint32_t block, unsigned level, const char *label)
 	}
 }
 
-/* Account every root inode pointer and every raw free-list entry. */
 static void
-reader_root_ownership(const char *label)
+reader_inode_ownership(unsigned ino, const char *label)
 {
-	const uint8_t *root = dinode(2);
-	uint32_t block, link, free_count = 0;
-	unsigned index, count;
+	const uint8_t *inode = dinode(ino);
+	uint32_t block;
+	unsigned index;
 
-	memset(owner, 0, sizeof(owner));
 	for (index = 0; index < 10; index++) {
-		block = le24(root + 12 + index * 3);
+		block = le24(inode + 12 + index * 3);
 		if (block != 0)
 			(void)claim(block, 1, label);
 	}
 	for (index = 0; index < 3; index++) {
-		block = le24(root + 12 + (10 + index) * 3);
+		block = le24(inode + 12 + (10 + index) * 3);
 		if (block != 0)
 			reader_index_ownership(block, index + 1, label);
 	}
+}
+
+/* Account selected inode pointers and every raw free-list entry. */
+static void
+reader_selected_ownership(const char *label, unsigned extra_inode)
+{
+	uint32_t block, link, free_count = 0;
+	unsigned index, count;
+
+	memset(owner, 0, sizeof(owner));
+	reader_inode_ownership(V7FS_ROOT_INODE, label);
+	if (extra_inode != 0 && extra_inode != V7FS_ROOT_INODE)
+		reader_inode_ownership(extra_inode, label);
 	count = SB_NFREE;
 	if (count > 50) {
 		fail(label, "free cache exceeds its bounds");
@@ -576,6 +587,12 @@ reader_root_ownership(const char *label)
 			fail(label, "data block has no owner");
 			break;
 		}
+}
+
+static void
+reader_root_ownership(const char *label)
+{
+	reader_selected_ownership(label, 0);
 }
 
 /*
@@ -1259,6 +1276,58 @@ regress_create_failure(int fd, bool directory, bool full_parent,
 }
 
 static void
+regress_symlink_writeback(int fd)
+{
+	static const char target[] = "destination";
+	struct v7fs_self *fs;
+	struct v7fs_inode inode;
+	v7fs_ino_t ino;
+	void *buffer;
+	int error;
+
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-symlink-writeback", "format or mount failed");
+		return;
+	}
+	if (make_node(fs, V7FS_ROOT_INODE, "link", V7FSBSD_IFLNK | 0777,
+	    NULL, 0, &ino) != 0 || v7fs_inode_load(fs, &inode, ino) != 0) {
+		fail("regress-symlink-writeback", "fixture creation failed");
+		v7fs_io_fini(fs);
+		return;
+	}
+	saved_sector_write = fs->io.write;
+	inode_writes = 0;
+	failed_inode_write_number = 2;
+	fs->io.write = fail_nth_inode_write;
+	error = v7fs_file_symlink(fs, &inode, target);
+	fs->io.write = saved_sector_write;
+	check(error == EIO && inode_writes == failed_inode_write_number,
+	    "regress-symlink-writeback",
+	    "final inode write failure must be reported");
+	check(v7fs_superblock_writeback(fs) == 0,
+	    "regress-symlink-writeback", "superblock writeback failed");
+	v7fs_io_fini(fs);
+
+	fs = mount_image(fd);
+	if (fs == NULL || v7fs_inode_load(fs, &inode, ino) != 0 ||
+	    (buffer = scratch_read(fs, inode.addr[0])) == NULL) {
+		fail("regress-symlink-writeback", "fresh symlink load failed");
+		if (fs != NULL)
+			v7fs_io_fini(fs);
+		return;
+	}
+	check(inode.filesize == sizeof(target) && strcmp(buffer, target) == 0,
+	    "regress-symlink-writeback",
+	    "reported write failure damaged the persisted symlink");
+	scratch_free(fs, buffer);
+	v7fs_io_fini(fs);
+	if (load_raw(fd) != 0)
+		fail("regress-symlink-writeback", "image reload failed");
+	else
+		reader_selected_ownership("regress-symlink-writeback", ino);
+}
+
+static void
 regress_remove_failure(int fd, unsigned failure_kind)
 {
 	struct v7fs_self *fs;
@@ -1787,6 +1856,7 @@ regress(int fd)
 		regress_create_failure(fd, true, false, i);
 	for (i = 2; i <= 4; i++)
 		regress_create_failure(fd, false, true, i);
+	regress_symlink_writeback(fd);
 	regress_remove_failure(fd, 0);
 	regress_remove_failure(fd, 1);
 	regress_remove_failure(fd, 2);

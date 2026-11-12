@@ -121,9 +121,7 @@ v7fs_file_symlink(struct v7fs_self *fs, struct v7fs_inode *p,
 		return EIO;
 	}
 	scratch_free(fs, buf);
-	v7fs_inode_writeback(fs, p);
-
-	return 0;
+	return v7fs_inode_writeback(fs, p);
 }
 
 int

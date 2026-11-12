@@ -31,7 +31,18 @@
  }
  
  int
-@@ -133,8 +142,16 @@
+@@ -112,9 +121,7 @@
+ 		return EIO;
+ 	}
+ 	scratch_free(fs, buf);
+-	v7fs_inode_writeback(fs, p);
+-
+-	return 0;
++	return v7fs_inode_writeback(fs, p);
+ }
+ 
+ int
+@@ -133,8 +140,16 @@
  		DPRINTF("%.*s don't exists\n", (int)fromlen, from);
  		return error;
  	}
@@ -49,7 +60,7 @@
  
  	/* Check target file */
  	error = v7fs_file_lookup_by_name(fs, parent_to, to, tolen, &to_ino);
-@@ -149,14 +166,6 @@
+@@ -149,14 +164,6 @@
  		DPRINTF("error=%d\n", error);
  		return error;
  	}
@@ -64,7 +75,7 @@
  	if ((error = v7fs_directory_add_entry(fs, parent_to, from_ino, to,
  	    tolen))) {
  		DPRINTF("can't add entry");
-@@ -176,7 +186,8 @@
+@@ -176,7 +183,8 @@
  			DPRINTF("can't replace parent dir");
  			return error;
  		}
@@ -74,7 +85,7 @@
  	}
  
  	return 0;
-@@ -192,11 +203,12 @@
+@@ -192,11 +200,12 @@
  	/* Search entry that replaced. replace it to new inode number. */
  	struct v7fs_lookup_arg lookup_arg = { .name = name,
  					      .inode_number = ino };
@@ -91,7 +102,7 @@
  }
  
  static int
-@@ -233,7 +245,7 @@
+@@ -233,7 +242,7 @@
  	return ret;
  }
  
@@ -100,7 +111,7 @@
  v7fs_file_lookup_by_number(struct v7fs_self *fs, struct v7fs_inode *parent_dir,
      v7fs_ino_t ino, char *buf)
  {
-@@ -242,7 +254,11 @@
+@@ -242,7 +251,11 @@
  	ret = v7fs_datablock_foreach(fs, parent_dir, lookup_by_number_subr,
  	    &(struct v7fs_lookup_arg){ .inode_number = ino, .buf = buf });
  
@@ -113,7 +124,7 @@
  }
  
  static int
-@@ -266,7 +282,7 @@
+@@ -266,7 +279,7 @@
  		if (dir->inode_number == p->inode_number) {
  			if (p->buf)
  				v7fs_dirent_filename(p->buf, dir->name,
@@ -122,7 +133,7 @@
  			ret = V7FS_ITERATOR_BREAK;
  			break;
  		}
-@@ -299,8 +315,10 @@
+@@ -299,8 +312,10 @@
  		struct lookup_parent_arg arg;
  		/* Search parent dir */
  		arg.parent_ino = 0;
@@ -135,7 +146,7 @@
  		if ((parent = arg.parent_ino) == 0) {
  			DPRINTF("***parent missing\n");
  			return ENOENT;
-@@ -322,12 +340,11 @@
+@@ -322,12 +337,11 @@
      size_t sz)
  {
  	struct lookup_parent_arg *arg = (struct lookup_parent_arg *)ctx;
@@ -149,7 +160,7 @@
  	struct v7fs_dirent *dir = (struct v7fs_dirent *)buf;
  	size_t i, n = sz / sizeof(*dir);
  	if (!v7fs_dirent_endian_convert(fs, dir, n)) {
-@@ -336,7 +353,6 @@
+@@ -336,7 +350,6 @@
  	}
  
  	for (i = 0; i < n; i++, dir++) {

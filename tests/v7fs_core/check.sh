@@ -237,6 +237,16 @@ got=0
     { cat "$work/mutant.log" >&2; fail "directory-name overread mutant"; }
 echo "v7fs_core: directory-name overread mutant rejected"
 
+mutant symlink-inode-write sys/fs/v7fs/v7fs_file_util.c \
+    'return v7fs_inode_writeback(fs, p);' \
+    'v7fs_inode_writeback(fs, p);\n\treturn 0;'
+got=0
+"$work/symlink-inode-write.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-symlink-writeback:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "symlink inode write mutant"; }
+echo "v7fs_core: hidden symlink inode write error mutant rejected"
+
 mutant rename-inode-read sys/fs/v7fs/v7fs_file_util.c \
     'if ((error = v7fs_inode_load(fs, &inode, from_ino)) != 0)\n\t\treturn error;' \
     'if ((error = v7fs_inode_load(fs, &inode, from_ino)) != 0)\n\t\treturn ENOENT;'

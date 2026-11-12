@@ -1125,7 +1125,7 @@
       },
       "deciding_gate": "Run check-libc-bounded-string, check-string-header-contracts, native archive linkage, Thumb-1 execution, matched clean distributions and resource comparison before promotion.",
       "disposition": "candidate",
-      "residual": "The implementation and calibrated behavior fixtures exist. Matched clean resources, aggregate qualification, review and integration remain open; docs/research/libc-bounded-string-contracts.md records the mechanism and evidence boundaries."
+      "residual": "The implementation and calibrated behavior fixtures exist. Matched static captures measure 692 additional native archive bytes with all other measured surfaces unchanged; docs/research/libc-bounded-string-resource-exception.md binds the receipts and pending review. Runtime resource qualification, aggregate gates and integration remain open; the unmeasured size state retains that incomplete qualification."
     }
   ],
   "candidate_bindings": {

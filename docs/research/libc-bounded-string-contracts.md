@@ -4,8 +4,9 @@ The libc sources provide `strnlen`, `strndup`, `stpcpy`, and `stpncpy` through
 separate archive members. The public declarations select POSIX 2008 or later,
 the corresponding XSI level, or the default BSD namespace. These interfaces
 extend the POSIX profile; ISO C17 alone does not require them. The definitions
-compile as strict C17 and production GNU17. Qualification remains open until
-the matched resource comparison and aggregate gates complete.
+compile as strict C17 and production GNU17. The matched resource comparison
+measures 692 additional native archive bytes; exception review, aggregate
+qualification and integration remain open.
 
 ## Requirements and mechanism
 
@@ -112,3 +113,7 @@ Packed bytes, allocated blocks, native archive storage, kernel resources and
 process occupancy retain separate accounts. A measured positive delta requires
 the profile's concrete exception review. Static local state and the exact
 allocation formula do not establish whole-workload stack or heap peaks.
+
+The [resource review](libc-bounded-string-resource-exception.md) binds the
+complete candidate to its matched parent, exact archive growth, unchanged
+remaining surfaces, retained margins and pending exception decision.

@@ -110,8 +110,9 @@ throughout the queue. A declaration or stub cannot close a runtime requirement.
 
 The [bounded-string contract](libc-bounded-string-contracts.md) records the four
 small string implementations, their DragonFlyBSD provenance and calibrated
-host/ILP32/Thumb-1 witnesses. Their ledger rows remain partial while matched
-resources, aggregate qualification and integration remain open. The lifecycle
+host/ILP32/Thumb-1 witnesses. Their ledger rows remain partial while the
+[measured archive exception](libc-bounded-string-resource-exception.md),
+aggregate qualification and integration remain open. The lifecycle
 interfaces retain their separate dependency and resource decisions.
 
 Every requirement leaf records edition/option authority, declarations/types,

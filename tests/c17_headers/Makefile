@@ -28,7 +28,7 @@ HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
 			inttypes_scn64_long ctype_no_isblank \
 			stddef_wchar_int limits_no_mb_len_max \
 			stdlib_no_mbtowc inttypes_no_wcstoimax \
-			errno_no_eilseq
+			errno_no_eilseq limits_ulong_uint
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -65,6 +65,12 @@ limits_llong_min_short.mutant:
 	${MUTATE} ${TOPSRC}/include/machine/limits.h $@/machine/limits.h \
 	    "(-9223372036854775807LL-1LL)" "(-9223372036854775807LL)"
 limits_llong_min_short.contract= limits_contract
+
+limits_ulong_uint.mutant:
+	@rm -rf $@ && mkdir -p $@/machine
+	${MUTATE} ${TOPSRC}/include/machine/limits.h $@/machine/limits.h \
+	    "0xffffffffUL" "0xffffffff"
+limits_ulong_uint.contract= limits_contract
 
 # <stdint.h> is a link to sys/sys/stdint.h, so the mutants read that file.
 stdint_unsigned_max.mutant:

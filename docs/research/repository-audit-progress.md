@@ -141,6 +141,16 @@ is established; the actual kernel host reproduction remains pending.
 
 ## Replay
 
+The public-header review reproduced a separate C17 limits defect. The
+RP2040 `ULONG_MAX` macro had the value `0xffffffff` with type `unsigned int`;
+C17 5.2.4.2.1 requires the corresponding promoted `unsigned long` type.
+The new `_Generic` assertion failed against the baseline spelling. The
+`UL` suffix repairs the type, and `check-c17-headers-cross` passes the
+value/type checks, all header controls and object-import checks. The
+`limits_ulong_uint` mutation restores the defective spelling and must fail
+the type assertion. The change affects a preprocessing constant and adds
+neither target storage nor executable instructions.
+
 Select and export `PYTHON`, then run:
 
 ```sh

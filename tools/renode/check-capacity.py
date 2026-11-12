@@ -1,27 +1,31 @@
 #!/usr/bin/env python3
-"""Fill the process and system file tables of the PICO_UART kernel under Renode.
+"""Fill the process, in-core inode and system file tables under Renode.
 
 The flash image this driver boots is the shipped root with
-tests/rp2040/capacity_exhaustion/filetab and proctab added under /tmp
+tests/rp2040/capacity_exhaustion/filetab, inotab and proctab added under /tmp
 (check-capacity.sh composes it). The driver boots it through the same
 machine, console and virtual-time slicing as check-boot.py, reaches a root
-shell and runs both programs. Each program fills one table, checks that the
+shell and runs the three programs. Each program fills one table, checks that the
 refusal carries the table's own errno and moves only that table's failure
 counter in kern.capacity, releases the table and checks that the next
-allocation succeeds; filetab.c and proctab.c state every check.
+allocation succeeds; filetab.c, inotab.c and proctab.c state every check.
 
 The driver asserts, in order:
 
 filetab
     "FILETABTEST OK", exit status 0 and no line beginning "FAIL".
+inotab
+    "INOTABTEST OK", exit status 0 and no line beginning "FAIL". "INOTABTEST
+    INCONCLUSIVE" means the free process or file slots could not carry
+    enough holders: the case was not reached, and the gate fails.
 proctab
     "PROCTABTEST OK", exit status 0 and no line beginning "FAIL". A fork
     refused with ENOMEM before the table filled prints "PROCTABTEST
     INCONCLUSIVE": swap ran out first, the case was not reached, and the
     gate fails.
 counters
-    kern.capacity after both runs, read by the driver and not by the
-    programs: the process and file rows each record a peak equal to the
+    kern.capacity after the runs, read by the driver and not by the
+    programs: the process, inode and file rows each record a peak equal to the
     limit, a minimum free count of zero and at least one failure, and the
     process occupancy equals its value before the runs, so no child
     outlived its program.
@@ -48,8 +52,9 @@ from renode_monitor import Renode, RenodeError  # noqa: E402
 # The kernel configuration check-capacity.sh boots; it selects the probe lines.
 CONFIG = "PICO_UART"
 PROGRAM_BUDGET_SECONDS = 900.0
+TABLES = {"proc", "inode", "file"}
 ROW = re.compile(
-    r"^(proc|file)\s+limit (\d+) current (\d+) peak (\d+) min-free (\d+) failures (\d+)",
+    r"^(proc|inode|file)\s+limit (\d+) current (\d+) peak (\d+) min-free (\d+) failures (\d+)",
     re.M,
 )
 
@@ -122,17 +127,18 @@ def run_stages(console, boot) -> None:
     console.wait_lines(["#"], "root shell", boot.COMMAND_BUDGET_SECONDS)
 
     before = capacity_rows(console, boot)
-    if set(before) != {"proc", "file"}:
+    if set(before) != TABLES:
         console.fail(f"kern.capacity rows before the runs: {sorted(before)}")
         raise boot.StageFailed("capacity record")
     run_program(console, boot, "filetab", "FILETABTEST")
+    run_program(console, boot, "inotab", "INOTABTEST")
     run_program(console, boot, "proctab", "PROCTABTEST")
     after = capacity_rows(console, boot)
-    if set(after) != {"proc", "file"}:
+    if set(after) != TABLES:
         console.fail(f"kern.capacity rows after the runs: {sorted(after)}")
         raise boot.StageFailed("capacity record")
 
-    for table in ("proc", "file"):
+    for table in ("proc", "inode", "file"):
         limit, current, peak, min_free, failures = after[table]
         print(
             f"check-capacity: {table} limit {limit} current {current} peak {peak} "

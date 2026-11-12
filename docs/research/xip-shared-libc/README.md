@@ -15,7 +15,71 @@ The 144/160 KiB window and LARGE-epoch premises in this retained study describe
 the measured revision. `../swap-exhaustion/review-04.md` supersedes the live
 layout with a fixed 192 KiB window and a kernel-resident SwapRAM pool.
 
-## Verdict
+## Shared-library implementation contract
+
+The accepted implementation keeps multicall executables and static native
+output while adding an explicit shared-link mode. The initial libc reservation
+is 48 KiB immediately after the 128 KiB kernel. Raw Dhara space becomes
+1,488 KiB; raw swap remains 384 KiB. Production geometry and `flashimg -c`
+determine logical capacity and image limits. The application base stays
+`0x20000000` and the process window stays 192 KiB. A size-gate failure requires
+rescoping rather than implicit partition growth. These are implementation
+requirements; the shipped layout remains the static layout until qualification.
+
+Public data imports require an object ABI as well as callable function slots.
+Each executable reserves libc initialization data, BSS, GOT and alignment at
+the tail of writable BSS after every application and multicall overlay extent.
+The reservation contributes to ELF writable `PT_LOAD.p_memsz`, converted
+`a_bss` and final end symbols. Changing `_end` alone cannot establish admission.
+Generated executable-specific addresses resolve ordinary references and
+initialized pointers to `errno`, `environ` and `_iob` at link time. Application
+text remains immutable when swap reloads clean text from its executable.
+
+Static startup sets the compiler-required PIC base in `r9`, copies initialization
+data, relocates only libc-owned writable state and initializes libc-owned
+current/minimum break cells before shared calls. One authoritative ABI
+description generates function slots, mutable-object offsets, sizes, alignments
+and layout identity. The link rejects conflicting definitions and accidental
+interposition. Shared syscall assembly and ROM-float trampolines access the
+same process-local objects and preserve descriptor alignment and provider
+contracts. The candidate needs compiler/linker/runtime fixtures before ABI
+acceptance; reserving `r9` alone cannot redirect public object references.
+
+One versioned library requirement record spans cross ELF, raw a.out, packed
+a.out and native output. Kernel exec admission validates metadata version, ABI
+identity, required slots, mutable layout, aligned state containment in admitted
+BSS, complete image/stack fit, truncation and arithmetic overflow before
+replacing the process. Static formats remain accepted. Startup repeats essential
+checks before its first shared call. Function slots stay stable within an ABI
+version; a mutable-layout change requires an explicit compatibility decision
+and rebuilding affected binaries. Reserved fields acquire meaning only through
+documented format versions and flags.
+
+Read-direction usercopy and MPU coverage extend to the exact libc flash
+interval; write destinations remain restricted to writable process memory.
+Native shared mode derives object imports and reservation from the same ABI
+description and emits import stubs or veneers for SRAM-to-flash Thumb calls.
+Unsupported imports fail explicitly. Kernel, libc and root images form one
+matched release set; live library replacement remains prohibited. Recovery
+documentation addresses interrupted flashing without asserting atomic UF2
+installation.
+
+Qualification exercises differing BSS sizes, zero-data applications, multicall
+overlays, object address identity, initialized pointers, malformed descriptors,
+raw/packed parity, heap boundaries, callbacks, signals, setjmp/longjmp, fork and
+swap restoration. Matched clean builds measure each constrained surface
+separately. Authorized board workloads cover startup, stdio and process
+switching; each workload permits at most 10% regression with measurement
+uncertainty reported. Host, ILP32, cross, Qemu-user, Renode and physical-board
+evidence retain separate claims.
+
+## Historical screening verdict
+
+The following estimates retain the original study's artifact limitations.
+The implementation contract above supersedes the claims that startup-only
+relocation leaves exec admission unchanged and that native output remains
+exclusively static. Historical savings supply candidate experiments rather
+than available capacity at the refreshed implementation baseline.
 
 1. Keep the boxes and add a shared libc whose text executes in place from a
    48 KB flash partition. Over 28 shipped executables that pass every gate,
@@ -48,7 +112,7 @@ layout with a fixed 192 KiB window and a kernel-resident SwapRAM pool.
 | Boxes exist because static libc is duplicated per file, which headers cannot fix | survives | 264,611 libc-attributed bytes across 30 executables; a header shares source, not linked code (stream 01) |
 | Boxes are the only way to share libc on this system | falsified | a fixed-address libc alone matches the shipping boxes (138 against 145 blocks for five boxes' applets) |
 | PIC plus exec-time relocation beats the current design | falsified for executables | the window fixes every load address; no relocation is needed for placement |
-| A relocating step has no use here | falsified | crt0-time relocation of libc data removes every kernel loader and swap change (stream 08) |
+| A relocating step has no use here | falsified, with narrower scope | crt0-time relocation of libc-owned data remains useful (stream 08); the object ABI and versioned pre-exec admission still require loader changes |
 | `--just-symbols` fails closed on symbol clashes | falsified | sh's `rename(int,int)` bound silently to libc's pathname `rename`; a calibrated gate now fails sh and passes tee |
 | A whole-libc image buys on-board `cc` support | falsified | the board ld rejects Thumb calls beyond about 4 MiB without veneers (`usr.bin/ld/ld.c:592-645`); board-built programs keep static `libc.a` |
 | libc flash strings work as syscall arguments | falsified | `baduaddr_span` (`machdep.c:920`) admits only the SRAM window; the kernel must admit the libc range for read-direction transfers |

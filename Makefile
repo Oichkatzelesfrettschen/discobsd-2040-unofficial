@@ -172,6 +172,8 @@ check-dpucp-donor-ledger: check-python
 		${PYTHON} tools/measurement_source_identity_test.py
 		${PYTHON} tools/check_dpucp_donor_ledger_test.py
 		${PYTHON} tools/check_dpucp_donor_ledger.py --root ${TOPSRC}
+		${PYTHON} tools/check_archive_donor_frontier_test.py
+		${PYTHON} tools/check_archive_donor_frontier.py --root ${TOPSRC}
 
 build:		check-python .WAIT symlinks tools
 		$(MAKE) kernel

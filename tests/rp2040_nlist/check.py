@@ -44,7 +44,10 @@ def main():
     data, obj = args.kernel.read_bytes(), args.object.read_bytes()
     entries = checker.check_data(data, obj)
     source = (ROOT / "sys/arch/rp2040/rp2040/sysctl.c").read_text(encoding="utf-8")
-    body = source.split("} nlist[] = {", 1)[1].split("\n};", 1)[0]
+    declarations = re.split(r"\bstruct sysctl_symbol nlist\[\] = \{", source)
+    if len(declarations) != 2:
+        raise AssertionError("sysctl.c must declare one struct sysctl_symbol nlist[] table")
+    body = declarations[1].split("\n};", 1)[0]
     pairs = re.findall(r'\{\s*"([^"]+)"\s*,\s*\(int\)&([A-Za-z0-9_]+)', body)
     if len(pairs) != len(set(pairs)) or any(pair not in pairs for pair in entries):
         raise AssertionError("object exports differ from source initializer")

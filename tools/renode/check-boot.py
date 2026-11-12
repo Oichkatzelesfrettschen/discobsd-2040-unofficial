@@ -176,7 +176,7 @@ STALL_LINES = [
     "machdep.core1_restarts=0",
 ]
 
-# The ps row of init while a root shell runs: the pid, a tty field, minutes
+# The ps row of init: the pid, a tty field, minutes
 # and seconds of processor time, and the command. init is swapped out. A
 # kernel with the SwapRAM tier holds its image in the pool, so ps reads its
 # fields through machdep.swapram_psinfo, has no stack to read arguments
@@ -263,12 +263,10 @@ CORE1_CONFIGS = ("PICO_UART",)
 def check_ps(console: Console) -> None:
     """Require the ps row of the swapped-out init to carry its time and name.
 
-    ps resolves kernel symbols through a sysctl that takes the symbol name
-    as a new value, which __sysctl() grants to root alone, so the stage
-    runs in a root shell and leaves it.
+    ps resolves kernel symbols through the CPU_NLIST sysctl, which carries
+    the symbol name in the MIB and takes no new value, so the operator shell
+    runs it without root.
     """
-    console.type_line("su")
-    console.wait_for("#", "root shell for the process list", COMMAND_BUDGET_SECONDS)
     start = console.cursor
     console.type_line("ps -ax; echo ps-end")
     console.wait_for("\nps-end", "process list", COMMAND_BUDGET_SECONDS)
@@ -276,8 +274,6 @@ def check_ps(console: Console) -> None:
     if not PS_INIT_ROW.search(rows):
         console.fail(f"process list: no row for init with a time and its name in {rows!r}")
         raise StageFailed("process list")
-    console.wait_for("#", "prompt after the process list", COMMAND_BUDGET_SECONDS)
-    console.type_line("exit")
     console.wait_for("$", "operator shell after the process list", COMMAND_BUDGET_SECONDS)
     print(f"check-renode: process list after {console.virtual:.1f} virtual seconds")
 

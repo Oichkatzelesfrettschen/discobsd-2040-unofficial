@@ -134,7 +134,7 @@ struct bufhd		bufhash[BUFHSZ];
 _Alignas(sizeof(struct cblock)) struct cblock cfree[NCLIST];
 struct proc		proc[NPROC];
 /* P_realtick and P_realitick occupy the alignment holes of p_alive. */
-_Static_assert(sizeof(struct proc) == 104,
+_Static_assert(sizeof(struct proc) == 100,
     "the ITIMER_REAL tick fields must not grow struct proc");
 struct file		file[NFILE];
 
@@ -164,7 +164,7 @@ _Static_assert(PSRAM_BYTES / DEV_BSIZE <= (u_short)-1,
 struct map	swapmap[1] = {
 	{ swapent,
 	  &swapent[SMAPSIZ - 1],
-	  "swapmap" },
+	  "swapmap", 0, 0, 0 },
 };
 
 int	waittime = -1;

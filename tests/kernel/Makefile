@@ -322,6 +322,16 @@ CAPACITY_DEFS=	-DCAPACITY_STATS -DSWAPRAM ${IALLOC_PICO_DEFS}
 CAPACITY_MUTANTS=	process-state inode-references clist-object-size \
 		buffer-any-flag peak-follows-down saturation-inverted invalid-kind
 
+# Buffer-cache pressure: the production ufs_bio.c and subr_capacity.c in the
+# rp2040 configuration (four buffers, linear cache, capacity statistics). The
+# storage counters come from a counting stand-in in the gate, because their
+# production definition sits in the flash driver.
+BUFFER_BUSY_SRC=	${TOPSRC}/sys/kern/ufs_bio.c
+BUFFER_BUSY_DEFS=	-DCAPACITY_STATS -DSTORAGE_STATS -DNBUF=4 \
+			-DSWAPRAM ${IALLOC_PICO_DEFS}
+BUFFER_BUSY_MUTANTS=	no-capacity-note eviction-capacity-note \
+			no-freelist-wakeup eviction-drops-write
+
 # The protection syscalls and the process lookups they decide with.
 CRED_SRC=	${TOPSRC}/sys/kern/kern_prot.c ${TOPSRC}/sys/kern/kern_prot2.c \
 		${TOPSRC}/sys/kern/kern_proc.c
@@ -938,6 +948,63 @@ rmap_test_diagnostic: rmap_test.c ${RMAP_SRC} hostkern_kern.c hostkern.o \
 	    -c -o rmap_kernel_diagnostic.o ${RMAP_SRC}
 	${HOST_CC} ${GATE_CFLAGS} ${DIAGNOSTIC_DEFS} -o $@ \
 	    rmap_test.c hostkern_kern.c rmap_kernel_diagnostic.o hostkern.o
+
+# swap_ring_io_test includes sys/kern/vm_swp.c for swap_with_buf_result() and
+# lets the linker drop the raw I/O routines beside it. The kernel's size_t is
+# 32 bits wide, so the block-address casts are excused on a 64-bit host, as
+# tests/rp2040/exec_spool excuses them.
+SWAP_RING_IO_LDFLAGS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; else echo -Wl,--gc-sections ; fi
+SWAP_RING_IO_CFLAGS=	${GATE_CFLAGS} ${COMPACT_DEFS} -ffunction-sections \
+			-fdata-sections -Wno-pointer-to-int-cast \
+			-Wno-int-to-pointer-cast -Wno-deprecated-non-prototype
+
+swap_ring_io_test: swap_ring_io_test.c ${TOPSRC}/sys/kern/vm_swp.c \
+    hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SWAP_RING_IO_CFLAGS} ${SWAP_RING_IO_LDFLAGS} -o $@ \
+	    swap_ring_io_test.c hostkern_kern.c hostkern.o
+
+# The mutant drops the fold of a block above the ring end.
+check-swap-ring-io: swap_ring_io_test
+	./swap_ring_io_test
+	@sed 's/blkno -= swapmap->m_ring_end - swapmap->m_ring_first;/blkno -= 0;/' \
+	    ${TOPSRC}/sys/kern/vm_swp.c > swap_ring_io_vm_swp.mutant.c; \
+	if cmp -s ${TOPSRC}/sys/kern/vm_swp.c swap_ring_io_vm_swp.mutant.c; then \
+		echo "swap ring io mutant: no source change" >&2; exit 1; fi; \
+	sed 's|"../../sys/kern/vm_swp.c"|"swap_ring_io_vm_swp.mutant.c"|' \
+	    swap_ring_io_test.c > swap_ring_io_test.mutant.c; \
+	${HOST_CC} ${SWAP_RING_IO_CFLAGS} ${SWAP_RING_IO_LDFLAGS} \
+	    -o swap_ring_io.mutant.test \
+	    swap_ring_io_test.mutant.c hostkern_kern.c hostkern.o || exit 1; \
+	if ./swap_ring_io.mutant.test > swap_ring_io.mutant.out 2>&1; then \
+		echo "swap ring io mutant: SURVIVED" >&2; exit 1; fi; \
+	echo "swap ring io mutant: rejected"
+
+# Each mutant removes one ring rule from a copy of subr_rmap.c; the compact
+# gate has to fail on it. no_join stops a run from passing the ring end,
+# no_guard takes the first fitting position, no_fold stops mfree() from
+# folding an address above the ring end.
+RMAP_RING_MUTANTS=	no_join no_guard no_fold
+RMAP_RING_SED_no_join=	s/run += first == bp ? addr - first->m_addr : first->m_size;/run += 0;/
+RMAP_RING_SED_no_guard=	s/if (after >= target) {/if (1) {/
+RMAP_RING_SED_no_fold=	s/addr -= mp->m_ring_end - mp->m_ring_first;/addr -= 0;/
+
+check-rmap-ring-mutants: rmap_test_compact
+.for mutation in ${RMAP_RING_MUTANTS}
+	@sed '${RMAP_RING_SED_${mutation}}' ${RMAP_SRC} \
+	    > rmap_ring_${mutation}.mutant.c; \
+	if cmp -s ${RMAP_SRC} rmap_ring_${mutation}.mutant.c; then \
+		echo "rmap ring mutant ${mutation}: no source change" >&2; \
+		exit 1; fi; \
+	${HOST_CC} ${KERN_CFLAGS} ${COMPACT_DEFS} -c \
+	    -o rmap_ring_${mutation}.mutant.o rmap_ring_${mutation}.mutant.c && \
+	${HOST_CC} ${GATE_CFLAGS} ${COMPACT_DEFS} \
+	    -o rmap_ring_${mutation}.mutant.test rmap_test.c hostkern_kern.c \
+	    rmap_ring_${mutation}.mutant.o hostkern.o || exit 1; \
+	if ./rmap_ring_${mutation}.mutant.test \
+	    > rmap_ring_${mutation}.mutant.out 2>&1; then \
+		echo "rmap ring mutant ${mutation}: SURVIVED" >&2; exit 1; fi; \
+	echo "rmap ring mutant ${mutation}: rejected"
+.endfor
 
 ${SWAP_IOCTL_FUNCTION}: swap_ioctl_extract.py ${SWAP_IOCTL_SRC}
 	${PYTHON} swap_ioctl_extract.py --source ${SWAP_IOCTL_SRC} --output $@
@@ -2469,6 +2536,57 @@ check-capacity-mutants: capacity_test capacity_mutate.py
 		echo "PASS capacity mutation $$mutation rejected"; \
 	done
 
+buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
+    ${CAPACITY_SRC} hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	    -c -o buffer_busy_kernel.o ${BUFFER_BUSY_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	    -c -o buffer_busy_capacity.o ${CAPACITY_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	    -c -o buffer_busy_uarea.o capacity_uarea.c
+	${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} -o $@ \
+	    buffer_busy_test.c buffer_busy_kernel.o buffer_busy_capacity.o \
+	    buffer_busy_uarea.o hostkern_kern.c hostkern32.o
+
+# Each mutant replaces ufs_bio.c for one build of the gate and must fail the
+# check that states the property the defect breaks.
+check-buffer-busy-mutants:
+.if ${ILP32_OK} == "yes"
+check-buffer-busy-mutants: buffer_busy_test buffer_busy_mutate.py
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for check-buffer-busy-mutants" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} buffer_busy_mutate.py ${BUFFER_BUSY_SRC} ${.CURDIR}
+	@set -eu; for mutation in ${BUFFER_BUSY_MUTANTS}; do \
+		${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+		    -c -o buffer_busy_$$mutation.mutant.o \
+		    buffer_busy_$$mutation.mutant.c; \
+		${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+		    -o buffer_busy_$$mutation.mutant.test buffer_busy_test.c \
+		    buffer_busy_$$mutation.mutant.o buffer_busy_capacity.o \
+		    buffer_busy_uarea.o hostkern_kern.c hostkern32.o; \
+		if ./buffer_busy_$$mutation.mutant.test \
+		    >buffer_busy_$$mutation.mutant.out 2>&1; then status=0; \
+		else status=$$?; fi; \
+		case $$mutation in \
+		no-capacity-note) expected='FAIL all-busy/capacity-failure-raised-by-one-before-sleep' ;; \
+		eviction-capacity-note) expected='FAIL all-delayed/no-capacity-failure' ;; \
+		no-freelist-wakeup) expected='FAIL all-busy/release-wakes-free-list-waiter' ;; \
+		eviction-drops-write) expected='FAIL all-delayed/every-eviction-reaches-the-device' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" buffer_busy_$$mutation.mutant.out >/dev/null; then \
+			cat buffer_busy_$$mutation.mutant.out >&2; \
+			echo "FAIL buffer busy $$mutation mutation rejection (exit $$status, expected 1 with '$$expected')" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS buffer busy $$mutation mutation rejected"; \
+	done
+.else
+	@echo "SKIP check-buffer-busy-mutants: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
+
 # Restore the inherited defect in a generated source copy. The same executable
 # must reject a MNT_NOATIME mount that drops an explicit atime request.
 ufs_fio_noatime_bad.c: ${UFS_EXPLICIT_TIME_SRC}
@@ -2816,8 +2934,8 @@ check-ilp32:
 	    check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
 	    check-ufs-topology-ilp32 check-ufs-topology-mutants \
 	    check-ufs-disk-ilp32 check-ufs-disk-mutants \
-	    capacity_test \
-	    check-capacity-mutants
+	    capacity_test buffer_busy_test \
+	    check-capacity-mutants check-buffer-busy-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
 	${TEST_EXECUTION} run kernel.pipe-rw.ilp32 -- ./pipe_rw_contract32
 	${TEST_EXECUTION} run kernel.pipe-rw-single.ilp32 -- ./pipe_rw_contract_single32
@@ -2910,6 +3028,7 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.explicit-time-negative.ilp32 -- ./ufs_explicit_time_bad
 	${TEST_EXECUTION} run kernel.futimes.ilp32 -- ./futimes_test32
 	${TEST_EXECUTION} run kernel.capacity.ilp32 -- ./capacity_test
+	${TEST_EXECUTION} run kernel.buffer-busy.ilp32 -- ./buffer_busy_test
 .else
 	${TEST_EXECUTION} skip kernel.printf.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.printf-log.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -2950,6 +3069,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.ufs-topology.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ufs-disk.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.buffer-busy.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
 
 # The V7 format descriptor: the inode layer built with V7FS, the NetBSD
@@ -2975,6 +3095,7 @@ check-v7-format: ${MACHINE_STAMP} v7_format_check.sh v7_format_test.c \
 .endif
 
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
+    check-rmap-ring-mutants check-swap-ring-io \
     check-v7-format \
 	check-swap-exchange-headroom check-swap-exchange-inplace \
     check-credential-sanitizer \
@@ -3005,7 +3126,8 @@ clean:
 	    swap_exchange_inplace_*.mutant.o \
 	    swap_exchange_inplace_*.mutant.test \
 	    swap_exchange_inplace_*.mutant.out
-	rm -f ${PROGS} hostkern.o
+	rm -f ${PROGS} hostkern.o rmap_ring_*.mutant.* swap_ring_io_test \
+	    swap_ring_io*.mutant.*
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
 	rm -f ${SWAP_IOCTL_FUNCTION} swap_ioctl_function.o swap_ioctl_rmap.o
 	rm -f swap_ioctl_test32 swap_ioctl_function32.o swap_ioctl_rmap32.o
@@ -3130,6 +3252,10 @@ clean:
 	    ufs_disk_*.mutant.test ufs_disk_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
+	rm -f buffer_busy_kernel.o buffer_busy_capacity.o buffer_busy_uarea.o \
+	    buffer_busy_test
+	rm -f buffer_busy_*.mutant.c buffer_busy_*.mutant.o \
+	    buffer_busy_*.mutant.test buffer_busy_*.mutant.out
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 	rm -f ${CONSOLE_C17_MACHINE}/machine/*.h ${CONSOLE_C17_STAMP}
@@ -3139,7 +3265,9 @@ clean:
 	@if [ -d ${CONSOLE_C17_MACHINE} ]; then rmdir ${CONSOLE_C17_MACHINE}; fi
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
+	check-rmap-ring-mutants check-swap-ring-io \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
+	check-buffer-busy-mutants \
 	check-rwuio-mutants check-rwuio-sanitizer \
 	check-file-owner-mutants check-file-owner-native-mutants \
 	check-file-owner-ubsan-mutant check-file-owner-ubsan-oracle \
@@ -3247,7 +3375,7 @@ swap_exchange_inplace_vm_swap.o: ${TOPSRC}/sys/kern/vm_swap.c ${MACHINE_STAMP}
 SWAP_EXCHANGE_INPLACE_MUTANTS= skip-sector-erase \
 	write-u-after-reading-incoming allocate-tail-after-first-write \
 	ignore-program-fault copy-buffer-before-program \
-	refuse-owned-tail load-data-over-clean-text
+	refuse-owned-tail load-data-over-clean-text tail-ignores-ring-end
 
 .for mutation in ${SWAP_EXCHANGE_INPLACE_MUTANTS}
 swap_exchange_inplace_${mutation}.mutant.c: swap_exchange_inplace_mutate.py \
@@ -3303,6 +3431,7 @@ check-swap-exchange-inplace: swap_exchange_inplace_test \
 		copy-buffer-before-program) expected='expected_out_data' ;; \
 		refuse-owned-tail) expected='panic_reservation.addr[0] == run' ;; \
 		load-data-over-clean-text) expected='expected_in_data' ;; \
+		tail-ignores-ring-end) expected='swap exchange: reservation' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \

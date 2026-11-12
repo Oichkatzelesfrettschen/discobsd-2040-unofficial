@@ -44,4 +44,9 @@ int board_id(void);
 void board_console(int *, int *);
 void board_report(void);
 
+/* The running flash image's identity; board.c image_identify(). */
+extern unsigned int image_length;
+extern unsigned int image_crc;
+extern unsigned int image_crc_stored;
+
 #endif /* !_RP2040_BOARD_H_ */

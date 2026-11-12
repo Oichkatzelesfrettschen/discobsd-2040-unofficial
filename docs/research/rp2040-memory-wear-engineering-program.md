@@ -527,7 +527,10 @@ exception handler can execute safely while XIP is unavailable.
 R01 records the serial-by-id path, USB identity, board and ROM revision, flash
 identity, kernel and filesystem hashes, configuration, toolchain, reset method,
 and instrumentation schema before a run. A banner or source checkout alone
-does not identify the flashed bytes.
+does not identify the flashed bytes. The kernel half exists: the kernel
+sums its own flash image at boot and
+`tests/rp2040/image_identity/board_image_identity.py` compares
+`machdep.image_crc` with a host `unix.bin` (`BOOT-MAP.md`, "Image identity").
 
 W01 first injects a bounded masked stall and demonstrates the declared
 watchdog coverage. It then demonstrates the live-timer counterexample. Only

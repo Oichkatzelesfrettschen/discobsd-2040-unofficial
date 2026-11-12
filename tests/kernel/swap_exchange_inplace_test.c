@@ -32,7 +32,7 @@ __asm__(".globl __user_data_start\n"
     ".set u0, exchange_u0\n");
 
 static struct mapent map_entries[16];
-struct map swapmap[1] = { { map_entries, map_entries + 14, "swapmap" } };
+struct map swapmap[1] = { { map_entries, map_entries + 14, "swapmap", 0, 0, 0 } };
 static struct buf exchange_buffer;
 static unsigned char media[MEDIA_BYTES];
 static unsigned char expected_out_data[MAX_CASE_BYTES];
@@ -46,6 +46,33 @@ static unsigned program_counts[MEDIA_BYTES / SECTOR_BYTES];
 static unsigned erase_total, program_total, media_writes;
 static int fail_erase_sector, fail_program_sector;
 static size_t image_base;
+/*
+ * In ring mode the swap map is a ring over blocks RING_FIRST to RING_END - 1
+ * and the incoming image starts RING_TAIL blocks below the end, so every
+ * image longer than that passes the end and continues at RING_FIRST. The
+ * kernel folds such a block in swap_with_buf_result(), which this fixture
+ * replaces with its media model; media_block() is that fold here, and the
+ * model checks that no transfer of the exchange crosses the end.
+ */
+#define RING_FIRST SWAP_IMAGE_ALIGN
+#define RING_END 380
+#define RING_TAIL 8
+static int ring_mode;
+
+static size_t
+media_block(size_t block)
+{
+    if (ring_mode && block >= RING_END)
+        block -= RING_END - RING_FIRST;
+    return block;
+}
+
+static unsigned char *
+media_byte(size_t base, size_t offset)
+{
+    return media + media_block(base + offset / DEV_BSIZE) * DEV_BSIZE +
+        offset % DEV_BSIZE;
+}
 static struct swap_image_reservation panic_reservation;
 static struct proc panic_outgoing, panic_incoming;
 /* Executable-backed clean text at the front of each data segment. */
@@ -92,16 +119,27 @@ put_image(size_t base, const unsigned char *data, size_t data_length,
     size_t stack_blocks = btod(stack_length);
     size_t span = image_span(data_length, stack_length);
 
-    bzero(media + base * DEV_BSIZE, span * DEV_BSIZE);
-    {
-        size_t index;
-        for (index = 0; index < span * DEV_BSIZE; index++)
-            media[base * DEV_BSIZE + index] = 0xff;
-    }
-    bcopy(data, media + base * DEV_BSIZE, data_length);
-    bcopy(stack, media + (base + data_blocks) * DEV_BSIZE, stack_length);
-    bcopy(uarea, media + (base + data_blocks + stack_blocks) * DEV_BSIZE,
-        USIZE);
+    size_t index;
+
+    for (index = 0; index < span * DEV_BSIZE; index++)
+        *media_byte(base, index) = 0xff;
+    for (index = 0; index < data_length; index++)
+        *media_byte(base, index) = data[index];
+    for (index = 0; index < stack_length; index++)
+        *media_byte(base + data_blocks, index) = stack[index];
+    for (index = 0; index < USIZE; index++)
+        *media_byte(base + data_blocks + stack_blocks, index) = uarea[index];
+}
+
+static int
+same_media(size_t base, const unsigned char *bytes, size_t length)
+{
+    size_t index;
+
+    for (index = 0; index < length; index++)
+        if (*media_byte(base, index) != bytes[index])
+            return 0;
+    return 1;
 }
 
 static int
@@ -112,11 +150,9 @@ image_matches(size_t base, const unsigned char *data, size_t data_length,
     size_t data_blocks = btod(data_length);
     size_t stack_blocks = btod(stack_length);
 
-    return same_bytes(media + base * DEV_BSIZE, data, data_length) &&
-        same_bytes(media + (base + data_blocks) * DEV_BSIZE, stack,
-            stack_length) &&
-        same_bytes(media + (base + data_blocks + stack_blocks) * DEV_BSIZE,
-            uarea, USIZE);
+    return same_media(base, data, data_length) &&
+        same_media(base + data_blocks, stack, stack_length) &&
+        same_media(base + data_blocks + stack_blocks, uarea, USIZE);
 }
 
 static void
@@ -173,7 +209,24 @@ reset_case(size_t outgoing_data, size_t outgoing_stack,
     fail_erase_sector = fail_program_sector = -1;
     image_base = 40;
     swapnext = image_base + incoming_span;
-    if (tail_available == 1) {
+    swapmap->m_ring_first = swapmap->m_ring_end = swapmap->m_guard = 0;
+    if (ring_mode) {
+        /* Everything outside the incoming image is one free run. */
+        image_base = RING_END - RING_TAIL;
+        swapmap->m_ring_first = RING_FIRST;
+        swapmap->m_ring_end = RING_END;
+        swapnext = media_block(image_base + incoming_span);
+        if (incoming_span >= RING_TAIL) {
+            map_entries[0].m_addr = swapnext;
+            map_entries[0].m_size = image_base - swapnext;
+        } else {
+            /* A short image leaves a free run on each side of the end. */
+            map_entries[0].m_addr = RING_FIRST;
+            map_entries[0].m_size = image_base - RING_FIRST;
+            map_entries[1].m_addr = image_base + incoming_span;
+            map_entries[1].m_size = RING_END - map_entries[1].m_addr;
+        }
+    } else if (tail_available == 1) {
         map_entries[0].m_addr = image_base + incoming_span;
         map_entries[0].m_size = 380 - map_entries[0].m_addr;
     } else {
@@ -240,7 +293,7 @@ int
 swap_with_buf_result(struct buf *buffer, size_t block, size_t address,
     int count, int flags)
 {
-    size_t byte_offset = block * DEV_BSIZE;
+    size_t byte_offset = media_block(block) * DEV_BSIZE;
     size_t sector = byte_offset / SECTOR_BYTES;
     size_t relative_sector = sector - image_base / SWAP_IMAGE_ALIGN;
     const unsigned char *source = (const unsigned char *)address;
@@ -248,6 +301,8 @@ swap_with_buf_result(struct buf *buffer, size_t block, size_t address,
 
     HK_CHECK(buffer == &exchange_buffer);
     HK_CHECK(byte_offset + (size_t)count <= sizeof(media));
+    if (ring_mode)
+        HK_CHECK(byte_offset + (size_t)count <= RING_END * DEV_BSIZE);
     if (flags & B_READ) {
         bcopy(media + byte_offset, (void *)address, count);
         return 0;
@@ -277,6 +332,17 @@ swap_with_buf_result(struct buf *buffer, size_t block, size_t address,
     return 0;
 }
 
+static size_t
+free_blocks(void)
+{
+    struct mapent *entry;
+    size_t total = 0;
+
+    for (entry = map_entries; entry->m_size != 0; entry++)
+        total += entry->m_size;
+    return total;
+}
+
 static void
 run_exchange(void)
 {
@@ -298,8 +364,9 @@ successful_case(size_t outgoing_data, size_t outgoing_stack,
         &panic_incoming, 0) == 0);
     HK_CHECK(panic_reservation.span == outgoing_span);
     if (outgoing_span > incoming_span) {
-        int tail_reserved_before_media =
-            map_entries[0].m_addr == image_base + outgoing_span;
+        int tail_reserved_before_media = free_blocks() ==
+            (ring_mode ? RING_END - RING_FIRST : 380 - image_base) -
+            outgoing_span;
 
         HK_CHECK(tail_reserved_before_media);
     }
@@ -529,5 +596,10 @@ main(void)
     fresh_extent_fallback();
     fault_matrix();
     boot_map_replay();
+    /* The same exchanges on an image that passes the end of a ring map. */
+    ring_mode = 1;
+    grid_cases();
+    text_cases();
+    ring_mode = 0;
     return hk_verdict("swap exchange in place");
 }

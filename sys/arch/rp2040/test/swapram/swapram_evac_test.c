@@ -34,7 +34,7 @@ swap_cursor_publish(size_t next)
 
 #define NSWAP   512                     /* blocks in the stand-in unit */
 static struct mapent swapent[NPROC * 3 + 2];
-struct map swapmap[1] = { { swapent, &swapent[NPROC * 3 + 1], "swapmap" } };
+struct map swapmap[1] = { { swapent, &swapent[NPROC * 3 + 1], "swapmap", 0, 0, 0 } };
 static unsigned char flash[NSWAP * DEV_BSIZE];
 static int writes;
 static struct buf evacuation_buf;

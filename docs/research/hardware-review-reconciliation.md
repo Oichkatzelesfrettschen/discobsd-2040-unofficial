@@ -57,7 +57,7 @@ linked kernel. Each row names the claim it replaces.
 | MPU | eight regions, 256-byte minimum, power-of-two size with base aligned to size, eight subregions on a region of 256 bytes or more; the port programs four and never reprograms them | `MPU.md`; `mpu.c` | 32-byte region at 0xd0000078; 4-byte guard; "256 subregions" |
 | Alias and MPU | no region covers 0x21000000-0x2103ffff, so an unprivileged access there faults by non-coverage; a region granting user read-write over it would open kernel RAM | `MPU.md`; `mpu.c` | "aliases are unprotected; add AP_RW regions" |
 | boot2 | 252 bytes of code and a CRC32 at offset 0xfc; the boot ROM checks it before running boot2 from 0x20041f00 | `BOOT-MAP.md`; `tools/boot2sum` | CRC at 0xf8; metadata in the trailer |
-| Vector table | 48 words at 0x10000100; nine system slots are reserved on ARMv6-M and hold zero; PICO installs real handlers for USBCTRL, UART0 and UART1 and `Default_Handler` elsewhere | `locore0.S` | 1 KB table |
+| Vector table | 48 words at 0x10000100; nine system slots are reserved on ARMv6-M; six hold zero and three hold the image identity words; PICO installs real handlers for USBCTRL, UART0 and UART1 and `Default_Handler` elsewhere | `locore0.S` | 1 KB table |
 | DMA | 12 channels; the kernel uses none | datasheet 2.5; source search | 8 channels; a `dma.c` to tune |
 | Flash geometry | 2 MB is 512 erase sectors of 4,096 bytes and 8,192 program pages of 256 bytes; the Dhara root's 1,536 KB yields 989 KB of logical blocks | `STORAGE.md`; `dhara-geometry.txt` | 4,096 sectors; "12 KB Dhara overhead" |
 | Flash clock | boot2 sets the serial clock divider to 2, 62.5 MHz at the 125 MHz system clock | `boot2_w25q080.S` | not stated |
@@ -75,9 +75,11 @@ Flash image and headroom are the `check_kernel_headroom.py` span. Of PICO's
 25,896 free bytes the linker reserves 4,096 for the swap-exchange sector
 (`kern.ldscript`), which leaves 21,800 without an owner; PICOCALC keeps 9,728 by the same
 subtraction and is the configuration where kernel RAM is scarce. The PICO fixed
-tables are `proc` 2,600 (25 slots of 104), `inode` 2,016 (24 of 84), `file`
-576 (24 of 24), `bufdata` 4,096, `mount` 1,036, `cfree` 1,024, `sr_tab` 600
-and `sr_seg` 208.
+tables at that revision are `proc` 2,600 (25 slots of 104), `inode` 2,016 (24
+of 84), `file` 576 (24 of 24), `bufdata` 4,096, `mount` 1,036, `cfree` 1,024,
+`sr_tab` 600 and `sr_seg` 208. The capacity trim of roadmap item 9 brings
+`proc` to 1,664 (16 slots), `file` to 432 (18), `sr_tab` to 384 and `sr_seg`
+to 136.
 
 ## Proposals, one by one
 
@@ -86,9 +88,9 @@ that already tracks the surviving form.
 
 | Proposal in the reviews | Finding | Disposition |
 | --- | --- | --- |
-| Reorder `struct proc` and `struct file` by alignment to save 900 and 96 bytes | `pahole`: `proc` is 104 bytes with one 2-byte hole and 102 bytes of members, so no order is smaller; `file`, `inode` and `buf` have no hole. The 104 is pinned by a static assertion in `machdep.c` and the whole struct is copied to `ps`, `w` and `fstat` through `kern.proc` | No bytes available. The surviving form is field placement by Thumb-1 addressing reach; see "What translates" |
+| Reorder `struct proc` and `struct file` by alignment to save 900 and 96 bytes | `pahole`: reordering alone saves nothing, since `proc` held one 2-byte hole in 104 bytes and `file`, `inode` and `buf` held none. Narrowing does: `p_stat` takes values 1 to 6 and becomes `uint8_t`, and with the head ordered `p_uid`, `p_sig`, `p_flag`, `p_pid`, `p_ppid`, `p_stat` the struct is 100 bytes with one pad byte before the union. `file` carries `f_count` (bounded by `NPROC` times `NOFILE`) in `uint16_t`, `f_type` and `f_msgcount` in `uint8_t`, and is 16 bytes. The 100 is pinned by a static assertion in `machdep.c`, the offset of `p_addr` (60) by `P_ADDR_OFFSET` in `proc_asm.h`, and the whole struct is copied to `ps`, `w` and `fstat` through `kern.proc`, which compile against the same header | Lands as the fixed-width narrowing of `struct proc`, `struct file` and `struct tty`; the field placement by Thumb-1 addressing reach in "What translates" is the remaining form |
 | C bit-fields and nibble packing of process state | Thumb-1 has no bit-field instruction, so each store becomes a read-modify-write | Declined, as the reviews' own later pass concluded |
-| Trim `NPROC` 25 to 16 and `NFILE` 24 to 18 | The saving is 1,368 bytes (136 per process slot, 24 per file slot), larger than the 732 the reviews computed; observed peaks are 8 and 15 | Owned by `sys/arch/rp2040/doc/CAPACITY.md`: stays at the active value until the exhaustion and recovery cases of `tests/rp2040/capacity-corpus.json` hold receipts |
+| Trim `NPROC` 25 to 16 and `NFILE` 24 to 18 | The saving is 1,368 bytes (136 per process slot, 24 per file slot), larger than the 732 the reviews computed; observed peaks are 8 and 15 | Owned by `sys/arch/rp2040/doc/CAPACITY.md`: landed at 16 and 18 once the exhaustion and recovery cases of `tests/rp2040/capacity-corpus.json` held receipts; the PICO bss fell by 1,344 bytes |
 | Trim `NINODE`, `NBUF`, `USIZE` | Peaks are 22 of 24, 3 of 4, and 1,828 of a 2,048-byte stack | Retained, as the reviews' later pass concluded and `CAPACITY.md` records |
 | Hot data, stacks or interrupt code in one bank through the 0x21000000 alias | The alias overlays assigned memory, and one Cortex-M0+ issues one data access per cycle, so striping buys no parallelism within a core | No placement available. Survives as a bus-contention measurement; see roadmap item 2 |
 | Use SRAM4 and SRAM5 for per-core stacks | The datasheet intends exactly this; PICO has no free byte there, PICO_UART has 6,656 | Open only on PICO_UART; needs a contention measurement first |
@@ -102,7 +104,7 @@ that already tracks the surviving form.
 | DMA transfer alignment | The kernel uses no DMA | Survives as a throughput question for the PicoCalc panel and SD paths; roadmap item 8 |
 | Convert 32-bit Thumb instructions to 16-bit; reorder functions to shorten calls | All 32-bit instructions in the kernel are `bl`, `mrs`, `msr`, `isb` and `dsb`, which have no 16-bit form | No bytes available; the dead-function and hot-field queue of `kernel-footprint-handoff.md` is where kernel text comes from |
 | Metadata in boot2 padding or the CRC trailer | The slot is fixed at 256 bytes and checked by the ROM | No byte is freed |
-| Identity words in the reserved vector slots | Nine words (36 bytes) are never fetched, and the boot2 CRC does not cover them | Capacity recorded; it lands with its first reader, the running-board identity task (R01) of the memory and wear program |
+| Identity words in the reserved vector slots | Nine words (36 bytes) are never fetched, and the boot2 CRC does not cover them | Landed in three of the nine: the image length, its CRC32 and the board descriptor address (`BOOT-MAP.md`, "Image identity"). The kernel recomputes the sum at boot and `board_image_identity.py` is the first reader, the kernel part of the running-board identity task (R01) of the memory and wear program |
 | Truncate the interrupt table after the last used vector | Saves at most 40 bytes and makes any later interrupt enable fetch past the table | Declined on risk against yield |
 | Gate unused peripheral clocks; power down unused SRAM banks | `WAKE_EN`/`SLEEP_EN` and `SYSCFG.MEMPOWERDOWN` exist (datasheet 2.11); no shipped kernel leaves a whole bank unowned, and no current has been measured | Roadmap item 7, scoped to the battery-powered PicoCalc |
 | `wfi` in idle, SIO GPIO, exception priorities, multicall bss overlay, UART scratch layout, `NBUF` 10 to 4 | Present in the tree | Already done |
@@ -208,14 +210,29 @@ instruments; items 3 to 8 each wait on the measurement named.
    programmed-I/O paths shows the peripheral rather than the bus as the
    limit.
 9. Capacity trims of `NPROC` and `NFILE` under the `CAPACITY.md` admission
-   rule; 1,368 bytes at 16 and 18. The board exhaustion cases now hold a
-   receipt: `tests/rp2040/capacity_exhaustion` fills each table on a Pico,
-   sees EAGAIN and ENFILE attributed to the right counter, and recovers
-   (`board-capacity-exhaustion-58ec71f1.txt`). The limits stay until the
-   Renode exhaustion cases and the remaining open cases of each decision
-   hold receipts too.
-10. Image identity in the reserved vector words, together with the
-    running-board identity reader of the memory and wear program.
+   rule. Landed: `NPROC` is 16 and `NFILE` is 18, and the PICO kernel's bss
+   is 1,344 bytes smaller. The deciding cases hold receipts at the earlier
+   limits (board and Renode table exhaustion, SwapRAM evacuation, signal
+   frame recovery, storage pressure, and the all-buffers-busy fixture of
+   `tests/kernel`), and the board and Renode exhaustion runs and the board
+   cases repeat at the reduced limits
+   (`board-capacity-exhaustion-65d7244c.txt`,
+   `renode-capacity-exhaustion-65d7244c.txt`,
+   `board-capacity-cases-65d7244c.txt`). `NINODE`, `NCLIST`, `NBUF` and
+   `USIZE` keep their values. The in-core inode table has its exhaustion
+   fixture (`tests/rp2040/capacity_exhaustion/inotab.c`) and its Renode
+   receipt (`renode-capacity-exhaustion-083b35c3.txt`); its board receipt
+   and the exhaustion and fault cases of `NCLIST`, `NBUF` and `USIZE` are
+   open.
+10. Image identity in the reserved vector words. Landed for the kernel:
+    `tools/kernsum` stamps the length and CRC32 after the link, the kernel
+    recomputes the sum over its flash at boot and exports it as
+    `machdep.image_crc`, and `board_image_identity.py` compares a board with
+    a host `unix.bin`. `check-renode-identity` runs the mismatch branch on
+    the emulated kernel with an altered stored word and an altered image
+    byte; no board has reported a mismatch. The rest of the running-board identity task of the
+    memory and wear program is open: the root file system's hash, the flash
+    chip identity and the ROM revision in one record.
 
 ## First readings from the instruments
 

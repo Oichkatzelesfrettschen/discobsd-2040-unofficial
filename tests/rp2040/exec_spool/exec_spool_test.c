@@ -75,7 +75,7 @@ static struct mapent spool_map_entries[SPOOL_MAP_SLOTS];
 static struct mapent exhausted_map_entries[1];
 struct map swapmap[1] = {
     { spool_map_entries, &spool_map_entries[SPOOL_MAP_SLOTS - 1],
-      "exec-spool-map" }
+      "exec-spool-map", 0, 0, 0 }
 };
 
 static void

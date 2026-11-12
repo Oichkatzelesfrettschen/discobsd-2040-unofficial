@@ -332,6 +332,24 @@ jobs:
             --status .build-logs/linux-renode.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode
+      - name: Run the Renode table exhaustion tier
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-capacity \
+            --log .build-logs/linux-renode-capacity.log \
+            --status .build-logs/linux-renode-capacity.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-renode-capacity
+      - name: Run the Renode image identity tier
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-identity \
+            --log .build-logs/linux-renode-identity.log \
+            --status .build-logs/linux-renode-identity.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-renode-identity
       - name: Run the Renode PicoCalc tier
         timeout-minutes: 15
         run: |

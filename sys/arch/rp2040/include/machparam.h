@@ -67,13 +67,13 @@
 #define MAXUSERS        1                       /* number of user logins */
 #endif
 #ifndef NPROC
-#define NPROC           25                      /* number of processes */
+#define NPROC           16                      /* number of processes */
 #endif
 #ifndef NINODE
 #define NINODE          24
 #endif
 #ifndef NFILE
-#define NFILE           24
+#define NFILE           18
 #endif
 /*
  * Four pathname entries cover a short working set. Four hash heads avoid
@@ -114,6 +114,13 @@
  * the alignment, so two live images never share an erase sector.
  */
 #define SWAP_IMAGE_ALIGN        4       /* 4096 bytes in DEV_BSIZE blocks. */
+
+/*
+ * The raw-swap map is a ring, and the image search keeps one free run of
+ * this many blocks: the 192 KiB process window plus USIZE, rounded up to
+ * SWAP_IMAGE_ALIGN, which is the largest image a fork can ask for.
+ */
+#define SWAP_IMAGE_GUARD        196
 
 /*
  * The user window: one resident process image lives in the 192 KB at

@@ -230,6 +230,11 @@ exec_elf_text_ownership_mutant
 capacity_test
 capacity_*.mutant.c
 capacity_*.mutant.test
+buffer_busy_test
+buffer_busy_*.o
+buffer_busy_*.mutant.c
+buffer_busy_*.mutant.test
+buffer_busy_*.mutant.out
 cred_test_sanitized
 ufs_disk_*.o
 ufs_disk_test
@@ -257,3 +262,6 @@ swap_exchange_inplace_*.mutant.o
 swap_exchange_inplace_*.mutant.test
 swap_exchange_inplace_*.mutant.out
 v7-format-work/
+rmap_ring_*.mutant.*
+swap_ring_io_test
+swap_ring_io*.mutant.*

@@ -119,9 +119,9 @@ The retained configuration reports these per-slot costs:
 
 | resource | bytes per slot |
 | --- | ---: |
-| process | 136: `struct proc` plus the SwapRAM `sr_tab` and `sr_seg` rows |
+| process | 132: the 100-byte `struct proc` plus the SwapRAM `sr_tab` and `sr_seg` rows |
 | inode | 84 |
-| file | 24 |
+| file | 16 |
 | clist | 32 |
 | buffer | approximately 1,060: `struct buf` plus one 1 KiB data block |
 
@@ -177,8 +177,9 @@ attribution, not allocator exhaustion. Separate host, Renode and board cases
 own their declared exhaustion obligations. The fixture does not establish
 workload peaks or silicon headroom.
 
-The board cases `process-table-exhaustion` and `system-file-table-exhaustion`
-name `tests/rp2040/capacity_exhaustion/proctab.c` and `filetab.c`.
+The board cases `process-table-exhaustion`, `system-file-table-exhaustion`
+and `incore-inode-exhaustion` name
+`tests/rp2040/capacity_exhaustion/proctab.c`, `filetab.c` and `inotab.c`.
 `fork1()` refuses with EAGAIN and notes one process failure only when
 `freeproc` is empty, or for a non-root caller at `MAXUPRC` or the last slot;
 `proctab` therefore runs as root. `newproc()` refuses with ENOMEM and notes
@@ -192,28 +193,42 @@ unchanged, then reaches ENFILE through holder processes that each stay far below
 file table alone; the holders keep the refusal attributable to the table and
 keep the fixture valid when the limits change.
 
+`iget()` takes a slot for a new identity from the free list, which holds
+the slots whose reference count is zero, and with that list empty notes one
+inode failure and fails with ENFILE, the errno of a full file table. A
+process references an inode without a file slot through its working
+directory, so each holder of `inotab` changes into its own directory and
+opens one file there: two references for one file slot. With the table
+full, an `open` and a `stat` of two further files must both fail with
+ENFILE while the inode counter alone moves and file slots remain free;
+`stat` takes no file slot at all. Every path is relative to the working
+directory, so no lookup needs a slot for an intermediate directory.
+`inotab` ends as inconclusive when the free process or file slots cannot
+carry enough holders.
+
 Each child of `proctab` copies the parent image to swap. `swap_image_span()`
 in `sys/kern/vm_swap.c` charges the data past the clean text, the stack and
 the three u-area blocks, rounded up to `SWAP_IMAGE_ALIGN`. The stack is
 `SSIZE` (2,048 bytes) plus the argument vectors by `exec_aout.c`, so at least
 three blocks, and the data is at least one block: no OMAGIC child costs less
 than 7 blocks rounded to 8, and `proctab` measures its own span through
-`KERN_PROC_PID`. The retained run began with 5 of 25 slots in use, so 20
-children need at most 160 of the 380 flash blocks, less the roughly four
-images the 16-KiB SwapRAM pool takes (`SR_WORST` reserves at least 3,460
-bytes per image for the u area). With the process that runs the test and
-process 0 excluded, at most three system images sit in swap; the 60 blocks
-that `docs/research/swap-exhaustion/plan.md` records for a small process put
-them at 180 blocks. That leaves about 40 blocks, five children of margin
-before the swapper needs headroom to exchange the resident image, so the
-process table is reachable at `NPROC=25` on paper, with a margin that depends
-on what the boot left in swap. A table of 16 slots needs at most 88 blocks.
+`KERN_PROC_PID`. At `NPROC=16` a boot that leaves 6 slots in use admits 10
+children, at most 80 of the 380 flash blocks, less the roughly four images
+the 16-KiB SwapRAM pool takes (`SR_WORST` reserves at least 3,460 bytes per
+image for the u area). With the process that runs the test and process 0
+excluded, at most three system images sit in swap; the 60 blocks that
+`docs/research/swap-exhaustion/plan.md` records for a small process put them
+at 180 blocks. That leaves 120 blocks of margin before the swapper needs
+headroom to exchange the resident image, so the process table is reachable
+at `NPROC=16` on paper. The earlier table of 25 slots needed 160 blocks for
+its 20 children and left about 40.
 `proctab` prints the swap map, the image span and the number of children flash
 alone holds before the first fork, and ends as inconclusive when ENOMEM
 precedes EAGAIN. The arithmetic is derived from source and the retained
 snapshot; it is not a board measurement.
 
-One Pico run on 2026-11-11 reached both tables at the active limits. With 6
+One Pico run on 2026-11-11 reached both tables at `NPROC=25` and `NFILE=24`,
+the limits before the reduction. With 6
 process slots in use `proctab` forked 19 children, the twentieth and a
 repeated fork refused with EAGAIN, the process failure counter rose by 2 and
 no other counter moved, and every child was reaped before a recovery fork
@@ -222,6 +237,55 @@ counter unchanged, then three holders and the parent filled all 24 slots, two
 opens refused with ENFILE, and the counter rose by 2.
 `docs/research/board-capacity-exhaustion-58ec71f1.txt` is the transcript and
 the receipt of the two board exhaustion cases.
+
+One Renode run on 2026-11-11 reached both tables at those limits on the
+emulated PICO_UART kernel through `check-renode-capacity`. The counts equal
+the board's: 19
+children from 6 occupied slots before EAGAIN, three holders and the parent
+filling 24 file slots before ENFILE, each failure counter up by 2 and no
+other counter moved, and occupancy back at 6 and 3 after the release.
+`docs/research/renode-capacity-exhaustion-d76edd1a.txt` is the transcript and
+the receipt of the two Renode exhaustion cases.
+
+One Pico run on 2026-11-11 at `a9970f3d` holds the receipt of three more
+board cases, `docs/research/board-capacity-cases-a9970f3d.txt`. Two SwapRAM
+evacuations moved every pooled image to flash and all eight children read
+back their data, stack and u-area patterns; `sigtest` passed its nine checks;
+and `tar`, `find` and `du` run at once produced the outputs of their serial
+runs with no failure on any table. That workload peaked at 10 processes, 19
+inodes, 15 files, 17 clists and 3 buffers, and the root passed the next
+boot's `fsck -p` with its free space unchanged.
+
+Those receipts completed the deciding cases of the process and file
+decisions, and `NPROC` fell from 25 to 16 and `NFILE` from 24 to 18: 6 slots
+above the workload peak of 10 processes and 3 above the peak of 15 files.
+The PICO kernel's bss fell from 44,760 to 43,416 bytes, 1,344 bytes of
+kernel RAM; the process table is 1,664 bytes, the file table 432, and the
+SwapRAM entry and segment tables that scale with `NPROC` are 384 and 136.
+Giving the fields of `struct proc` and `struct file` their true widths later
+shrank those slots to 100 and 16 bytes, so the process table is 1,600 bytes and
+the file table 288 at the same limits.
+Three runs on 2026-11-11 at `65d7244c` repeat the cases at the reduced
+limits. On the Pico, `proctab` forked 10 children from 6 occupied slots
+before EAGAIN and `filetab` filled 18 file slots with two holders and the
+parent before ENFILE, each failure counter rose by 2, and every slot was
+released (`docs/research/board-capacity-exhaustion-65d7244c.txt`).
+`check-renode-capacity` reports the same counts on the emulated kernel
+(`docs/research/renode-capacity-exhaustion-65d7244c.txt`). The evacuation,
+signal-frame and storage-pressure driver passed its 16 checks on the same
+boot with no failure beyond the four the exhaustion run left
+(`docs/research/board-capacity-cases-65d7244c.txt`).
+
+One Renode run on 2026-11-12 at `083b35c3` reached the in-core inode table
+at `NINODE=24` on the emulated PICO_UART kernel. With 10 inodes referenced,
+seven holders took the other 14, an `open` and a `stat` refused with ENFILE
+with 10 of 18 file slots in use, the inode failure counter rose by 2 and no
+other counter moved, and both calls succeeded after the release with
+occupancy back at 10. `docs/research/renode-capacity-exhaustion-083b35c3.txt`
+is the transcript and the receipt of `incore-inode-renode-exhaustion`. A
+kernel whose `iget()` drops the failure note was run once as the known-bad
+input and failed the gate on the counter. The board case
+`incore-inode-exhaustion` has the fixture and no receipt.
 
 A capacity reduction requires one named workload corpus and separate Renode
 and board runs. Each run records the exact kernel identity, configuration,
@@ -236,8 +300,9 @@ The proposed limit must retain an explicit reserve above the greatest measured
 peak. Every failure counter must remain zero except a deliberately calibrated
 exhaustion case, and the calibrated case must increment the intended counter.
 Renode evidence establishes the emulated path; only the board run establishes
-silicon headroom. Until those records exist, `NPROC=25`, `NINODE=24`,
-`NFILE=24`, `NCLIST=32`, `NBUF=4`, and `USIZE=3072` remain unchanged.
+silicon headroom. Until those records exist for a resource, its limit
+remains unchanged: `NINODE=24`, `NCLIST=32`, `NBUF=4`, and `USIZE=3072` wait
+on the open cases of `tests/rp2040/capacity-corpus.json`.
 
 The retained C17/SUS stdio run exercises operator login, wheel `su`, 43
 checked stdio and snapshot commands, 12 concurrent streams and a 45-second
@@ -246,14 +311,14 @@ inodes, 15 files, 22 clists and 3 buffers with zero failure counters. The
 kernel stack watermark reaches 1,828 of 2,048 bytes and leaves 220 bytes
 untouched without saturation. The run supplies one named workload result; it
 omits the required exhaustion controls, deliberate fault path and broader
-signal/SwapRAM recovery corpus. Every compiled limit and `USIZE` therefore
-remains unchanged.
+signal/SwapRAM recovery corpus, so no limit moved on that run alone.
 
-The retained decision rows therefore keep `NPROC=25`, `NINODE=24`,
-`NFILE=24`, `NCLIST=32`, `NBUF=4`, and `USIZE=3072`. The corpus preserves the
-greatest admitted observation across runs rather than replacing it with a
-newer lower value: 8 processes, 22 inodes, 15 files, 22 clists, 3 buffers and
-1,828 touched kernel-stack bytes. The two-slot inode reserve and the 220-byte
+The retained decision rows keep `NPROC=16` and `NFILE=18` after their
+reduction and `NINODE=24`, `NCLIST=32`, `NBUF=4`, and `USIZE=3072` at their
+original values. The corpus preserves the greatest admitted workload
+observation across runs rather than replacing it with a newer lower value:
+10 processes, 22 inodes, 15 files, 22 clists, 3 buffers and 1,828 touched
+kernel-stack bytes. The two-slot inode reserve and the 220-byte
 paint remainder are especially narrow observations; neither becomes a safe
 decrement without the declared exhaustion, fault, signal, SwapRAM and
 recovery receipts.

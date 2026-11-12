@@ -8,8 +8,11 @@ import csv
 import hashlib
 import io
 import json
+import re
+import subprocess
 from pathlib import Path, PurePosixPath
 
+import check_kernel_headroom as headroom
 import check_sus_requirement_corpus as sus
 
 REQUIREMENT_COLUMNS = (
@@ -37,7 +40,7 @@ APPLICABILITY_STATES = (
     "unselected-standard-option",
     "environment-constrained",
 )
-IMPLEMENTATION_STATES = ("present", "partial", "absent", "divergent")
+IMPLEMENTATION_STATES = ("unreviewed", "present", "partial", "absent", "divergent")
 EVIDENCE_STATES = ("none", "static", "host", "cross", "qemu-user", "renode", "board")
 RESIDUAL_STATES = ("closed", "open", "blocked")
 UNOWNED_OPTIONS = {"none-known", "pending-source-analysis"}
@@ -253,6 +256,69 @@ class ProfileError(RuntimeError):
     """Report a DPUCP schema, denominator, or evidence contradiction."""
 
 
+LINKER_SCRIPT = "sys/arch/rp2040/conf/RP2040.ld"
+
+
+def physical_limits_from_linker(script):
+    """Derive physical budgets from the production linker regions."""
+    groups = (
+        ("BOOT2", "FLASH", "FSFLASH", "SWAPFLASH"),
+        ("USERRAM", "RAM", "U0AREA", "UAREA", "SCRATCH"),
+    )
+    regions = {}
+    try:
+        for group in groups:
+            for name in group:
+                regions[name] = headroom.region_bounds(script, name)
+            for left, right in zip(group, group[1:]):
+                origin, length = regions[left]
+                require(
+                    origin + length == regions[right][0],
+                    f"noncontiguous physical regions: {left}/{right}",
+                )
+    except headroom.InputError as error:
+        raise ProfileError(f"invalid physical layout: {error}") from error
+    return {
+        "kernel_region_bytes": regions["BOOT2"][1] + regions["FLASH"][1],
+        "process_window_bytes": regions["USERRAM"][1],
+        "dhara_root_region_bytes": regions["FSFLASH"][1],
+        "raw_swap_bytes": regions["SWAPFLASH"][1],
+        "sram_bytes": sum(regions[name][1] for name in groups[1]),
+    }
+
+
+def validate_hardware_limits(root, profile):
+    limits = profile.get("hardware_limits")
+    expected = physical_limits_from_linker((root / LINKER_SCRIPT).read_text())
+    require(isinstance(limits, dict), "hardware limits are absent")
+    require(set(limits) == set(expected) | {"dhara_root_logical_bytes"},
+            "hardware limit fields differ")
+    for field, value in limits.items():
+        require(type(value) is int and value > 0, f"invalid hardware limit: {field}")
+    for field, value in expected.items():
+        require(limits[field] == value, f"hardware limit differs from linker: {field}")
+    require(limits["dhara_root_logical_bytes"] <= limits["dhara_root_region_bytes"],
+            "logical root exceeds physical region")
+
+
+def validate_capacity_report(profile, output):
+    """Check production Dhara capacity without duplicating its arithmetic."""
+    match = re.fullmatch(
+        r"flashimg: region (\d+) kbytes, capacity (\d+) sectors of (\d+) "
+        r"bytes, (\d+) kbytes\s*", output,
+    )
+    require(match is not None, "invalid flashimg capacity report")
+    region_kib, sectors, sector_bytes, capacity_kib = map(int, match.groups())
+    limits = profile["hardware_limits"]
+    require(region_kib * 1024 == limits["dhara_root_region_bytes"],
+            "flashimg physical root differs from profile")
+    capacity = sectors * sector_bytes
+    require(capacity > 0 and capacity == capacity_kib * 1024,
+            "flashimg logical capacity arithmetic differs")
+    require(capacity == limits["dhara_root_logical_bytes"],
+            "flashimg logical root differs from profile")
+
+
 def require(condition, message):
     if not condition:
         raise ProfileError(message)
@@ -422,7 +488,7 @@ def mapped_entities(corpus):
 def default_requirement(entity, mapped):
     entity_id = f"{entity.kind}:{entity.name}"
     mapping_state = mapped.get(entity_id)
-    implementation = "partial" if mapping_state in {"bounded", "partial"} else "absent"
+    implementation = "partial" if mapping_state in {"bounded", "partial"} else "unreviewed"
     evidence = "static" if mapping_state in {"bounded", "partial"} else "none"
     return {
         "requirement_id": f"dpucp-2024:{entity_id}",
@@ -532,7 +598,7 @@ def validate_first_hardware_release(profile, rows_by_id):
 
 
 def validate_documents(root, corpus, entities, profile, rows):
-    require(profile.get("schema_version") == 2, "unsupported DPUCP schema")
+    require(profile.get("schema_version") == 3, "unsupported DPUCP schema")
     identity = profile.get("profile")
     require(isinstance(identity, dict), "profile identity is absent")
     require(identity.get("id") == "DPUCP-2024", "profile id drift")
@@ -540,7 +606,8 @@ def validate_documents(root, corpus, entities, profile, rows):
         identity.get("name") == "DiscoBSD/Pico Unix Compatibility Profile 2024",
         "profile name drift",
     )
-    require(identity.get("version") == "2024.2", "profile version drift")
+    require(identity.get("version") == "2024.3", "profile version drift")
+    validate_hardware_limits(root, profile)
 
     claims = profile.get("claims")
     require(isinstance(claims, dict), "profile claims are absent")
@@ -605,6 +672,14 @@ def validate_documents(root, corpus, entities, profile, rows):
                 f"unselected option lacks standard owner: {expected_id}",
             )
         witness_ids = validate_witnesses(root, profile, row)
+        if row["implementation"] == "unreviewed":
+            require(row["evidence"] == "none" and not witness_ids,
+                    f"unreviewed row claims evidence: {expected_id}")
+            require(row["residual"] != "closed",
+                    f"unreviewed row claims closure: {expected_id}")
+        if row["implementation"] == "absent":
+            require(row["evidence"] != "none" and witness_ids,
+                    f"absence claim lacks audit witness: {expected_id}")
         for witness_id in witness_ids:
             require(
                 profile["witnesses"][witness_id]["evidence"] == row["evidence"],
@@ -676,12 +751,14 @@ def self_test(root, corpus, entities, profile, rows):
 
 
 def refresh_generated(root, profile_path, requirements_path, corpus, entities, profile):
+    validate_hardware_limits(root, profile)
     previous_rows = parse_requirements(requirements_path) if requirements_path.is_file() else []
     rows = derive_requirements(corpus, entities, previous_rows)
     profile = copy.deepcopy(profile)
     profile["requirements"]["row_count"] = len(rows)
     profile["requirements"]["ordered_row_sha256"] = ordered_sha256(rows)
     profile["state_counts"] = count_states(rows)
+    validate_documents(root, corpus, entities, profile, rows)
     requirements_path.write_text(render_requirements(rows), encoding="utf-8")
     profile_path.write_text(json.dumps(profile, indent=2) + "\n", encoding="utf-8")
 
@@ -701,6 +778,8 @@ def parse_args():
     )
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--flashimg", type=Path,
+                        help="built flashimg executable for production logical-capacity validation")
     return parser.parse_args()
 
 
@@ -716,6 +795,17 @@ def main():
     profile_path = resolve(root, arguments.profile)
     requirements_path = resolve(root, arguments.requirements)
     profile = load_json(profile_path)
+    validate_hardware_limits(root, profile)
+    if arguments.flashimg is not None:
+        try:
+            result = subprocess.run(
+                [str(resolve(root, arguments.flashimg)), "-c"],
+                check=True, capture_output=True, text=True, timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            raise ProfileError(f"flashimg capacity probe failed: {error}") from error
+        require(not result.stderr.strip(), "flashimg capacity probe emits diagnostics")
+        validate_capacity_report(profile, result.stdout)
     if arguments.refresh:
         refresh_generated(root, profile_path, requirements_path, corpus, entities, profile)
     rows = parse_requirements(requirements_path)

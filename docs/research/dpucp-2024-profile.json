@@ -1,9 +1,9 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "profile": {
     "id": "DPUCP-2024",
     "name": "DiscoBSD/Pico Unix Compatibility Profile 2024",
-    "version": "2024.2",
+    "version": "2024.3",
     "target": "DiscoBSD on RP2040"
   },
   "claims": {
@@ -32,7 +32,7 @@
   },
   "hardware_limits": {
     "kernel_region_bytes": 131072,
-    "process_window_bytes": 147456,
+    "process_window_bytes": 196608,
     "dhara_root_region_bytes": 1572864,
     "dhara_root_logical_bytes": 1012736,
     "raw_swap_bytes": 393216,
@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "687a536dfd6d4e73c7387226dbdebc487c7e092674d1726ca1c5210c09763525"
+    "ordered_row_sha256": "be64f21c0da8c38267e0e1fef0e42ec7628abe43dd61213e2c39ef960d9dd972"
   },
   "state_counts": {
     "applicability": {
@@ -51,9 +51,10 @@
       "environment-constrained": 0
     },
     "implementation": {
+      "unreviewed": 1465,
       "present": 1,
       "partial": 52,
-      "absent": 1465,
+      "absent": 0,
       "divergent": 0
     },
     "evidence": {
@@ -181,7 +182,7 @@
         "report unsupported language and relocation constructs without corrupting output"
       ],
       "hardware_feasibility_questions": [
-        "Does the compiler, assembler, and linker peak below the 147456-byte process window for the selected corpus?",
+        "Does the compiler, assembler, and linker peak below the 196608-byte process window for the selected corpus?",
         "Do intermediate files fit the packed root without exhausting logical blocks or increasing flash wear beyond the measured policy?",
         "Can Thumb-1 helper calls replace unsupported divide and wide-arithmetic instructions without importing an unbounded runtime?"
       ],
@@ -397,7 +398,7 @@
         "confidence": "screening",
         "surfaces": {
           "kernel": "Scheduler, sleep-queue, signal, and exit paths require structural changes rather than archive-only additions.",
-          "process": "Every live thread needs a bounded stack inside the single 147456-byte process window.",
+          "process": "Every live thread needs a bounded stack inside the single 196608-byte process window.",
           "packed_root": "pthread and reentrant-libc code affects many consumers unless archive isolation remains exact.",
           "runtime_memory": "Per-thread stacks, scheduler state, synchronization queues, and thread-local libc state dominate the unknown peak."
         },

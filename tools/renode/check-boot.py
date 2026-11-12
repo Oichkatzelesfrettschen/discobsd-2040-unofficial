@@ -23,7 +23,8 @@ login
     a.out through the swap writer, a tty a process can open, fork and wait.
 shell
     A login and commands, because a prompt alone would also appear from a
-    shell that cannot execute anything: uname, the capacity record, the
+    shell that cannot execute anything: uname, the process list with the
+    swapped-out init's time and name (check_ps()), the capacity record, the
     image identity, the MPU fault test and the exec residue probe. The
     identity lines are computed here from UNIX_BIN (image_identity()): the
     emulated kernel summed the flash model's bytes at boot, so its length,
@@ -175,6 +176,14 @@ STALL_LINES = [
     "machdep.core1_restarts=0",
 ]
 
+# The ps row of init: the pid, a tty field, minutes
+# and seconds of processor time, and the command. init is swapped out. A
+# kernel with the SwapRAM tier holds its image in the pool, so ps reads its
+# fields through machdep.swapram_psinfo, has no stack to read arguments
+# from and prints the name in parentheses; a kernel without the tier holds
+# it on the swap device and ps prints its arguments.
+PS_INIT_ROW = re.compile(r"^ *1 \S+ +\d+:\d\d +(\(init\)|init( .*)?)$", re.M)
+
 ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 
@@ -251,6 +260,24 @@ class Console:
 CORE1_CONFIGS = ("PICO_UART",)
 
 
+def check_ps(console: Console) -> None:
+    """Require the ps row of the swapped-out init to carry its time and name.
+
+    ps resolves kernel symbols through the CPU_NLIST sysctl, which carries
+    the symbol name in the MIB and takes no new value, so the operator shell
+    runs it without root.
+    """
+    start = console.cursor
+    console.type_line("ps -ax; echo ps-end")
+    console.wait_for("\nps-end", "process list", COMMAND_BUDGET_SECONDS)
+    rows = console.text()[start:console.cursor]
+    if not PS_INIT_ROW.search(rows):
+        console.fail(f"process list: no row for init with a time and its name in {rows!r}")
+        raise StageFailed("process list")
+    console.wait_for("$", "operator shell after the process list", COMMAND_BUDGET_SECONDS)
+    print(f"check-renode: process list after {console.virtual:.1f} virtual seconds")
+
+
 def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.wait_lines([f"DiscoBSD 2.7 ({config})"] + CPU_LINES + BOARD_LINES[config]
                        + STORAGE_LINES, "device probe", PROBE_BUDGET_SECONDS)
@@ -265,6 +292,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.wait_lines(["$"], "shell prompt", COMMAND_BUDGET_SECONDS)
     console.type_line("uname -sr")
     console.wait_lines(["DiscoBSD 2.7"], "uname", COMMAND_BUDGET_SECONDS)
+    check_ps(console)
     console.type_line("sysctl kern.capacity")
     console.wait_lines(CAPACITY_LINES, "capacity record", COMMAND_BUDGET_SECONDS)
     console.type_line("sysctl machdep.image_length machdep.image_crc machdep.image_crc_stored")

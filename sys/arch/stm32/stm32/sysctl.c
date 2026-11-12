@@ -33,10 +33,7 @@
 /*
  * Kernel symbol name list.
  */
-static const struct {
-	const char *name;
-	int addr;
-} nlist[] = {
+static const struct sysctl_symbol nlist[] = {
 	{ "_boottime",	(int)&boottime	},	/* vmstat */
 	{ "_cnttys",	(int)&cnttys	},	/* pstat */
 	{ "_cp_time",	(int)&cp_time	},	/* iostat	vmstat */
@@ -157,7 +154,7 @@ int
 cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
     size_t newlen)
 {
-	int i, khz;
+	int khz;
 	char message[KERNEL_ERRMSG_MAX];
 	u_int length;
 	dev_t dev;
@@ -193,30 +190,8 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		return sysctl_string(oldp, oldlenp, 0, 0, message, length);
 
 	case CPU_NLIST:
-		for (i = 0; nlist[i].name; i++) {
-			if (strncmp(newp, nlist[i].name, newlen) == 0) {
-				int addr = nlist[i].addr;
-				int error = 0;
-
-				/*
-				 * The node answers with an address and takes
-				 * the symbol name as its new value, so it
-				 * carries the length contract of the helpers
-				 * in sys/kern/kern_sysctl.c rather than
-				 * calling one: the prefix that fits is
-				 * copied, the length the address needs is
-				 * reported whether or not a buffer was
-				 * offered, and __sysctl() decides ENOMEM.
-				 */
-				if (oldp)
-					error = copyout((caddr_t)&addr,
-					    (caddr_t)oldp,
-					    MIN(sizeof(int), *oldlenp));
-				*oldlenp = sizeof(int);
-				return error;
-			}
-		}
-		return EOPNOTSUPP;
+		return sysctl_nlist(nlist, name + 1, namelen - 1, oldp,
+		    oldlenp, newp);
 
 	case CPU_FREQ_KHZ:
 		if (namelen != 1)

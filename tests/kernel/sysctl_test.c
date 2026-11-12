@@ -16,6 +16,12 @@
  * started at the descriptor, or ran past m_limit, puts a poison or pointer
  * word where the gate reads an entry.
  *
+ * sysctl_nlist() decodes a symbol name from the components after CPU_NLIST,
+ * CTL_NLIST_BYTES to a component, first byte lowest. The gate spells names
+ * with its own encoder and requires the exact name, a terminator in the last
+ * component with zero bytes after it, a refusal of any new value, and that
+ * an unprivileged __sysctl() reaches the node without consulting suser().
+ *
  * vm_sysctl() reaches its length through a pointer difference, which is an
  * int at the target's width, so the gate builds ILP32 beside prf_test and
  * sigauth_test.
@@ -213,16 +219,29 @@ biowait(struct buf *bp)
 	panic("sysctl_test: biowait");
 }
 
+/* CPU_NLIST in both ports' machine/cpu.h, which the gate does not include. */
+#define GATE_CPU_NLIST	3
+
+/* Symbols of lengths 3, 4 and 10, so names end in each component position. */
+static const struct sysctl_symbol gate_symbols[] = {
+	{ "_hz",	11 },
+	{ "_abc",	33 },
+	{ "_dk_ndrive",	22 },
+	{ NULL,		0 },
+};
+
+/*
+ * A port's cpu_sysctl() routes CPU_NLIST to sysctl_nlist(); the double does
+ * the same and nothing else, so any other machdep request is a gate defect.
+ */
 int
 cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
     size_t newlen)
 {
-	(void)name;
-	(void)namelen;
-	(void)oldp;
-	(void)oldlenp;
-	(void)newp;
 	(void)newlen;
+	if (namelen >= 1 && name[0] == GATE_CPU_NLIST)
+		return (sysctl_nlist(gate_symbols, name + 1, namelen - 1, oldp,
+		    oldlenp, newp));
 	panic("sysctl_test: cpu_sysctl");
 	return (0);
 }
@@ -1069,6 +1088,118 @@ test_syscall_authorization(void)
 	reset_calls();
 }
 
+/*
+ * Spell text into words as sys/sysctl.h defines the CPU_NLIST name and
+ * return the component count: the bytes, a terminator, zero padding.
+ */
+static u_int
+spell(const char *text, int *words)
+{
+	size_t length = 0, i;
+	u_int count;
+
+	while (text[length] != '\0')
+		length++;
+	count = (u_int)(length / CTL_NLIST_BYTES + 1);
+
+	for (i = 0; i < count; i++)
+		words[i] = 0;
+	for (i = 0; i < length; i++)
+		words[i / CTL_NLIST_BYTES] |= (int)((u_int)(unsigned char)text[i]
+		    << (8 * (i % CTL_NLIST_BYTES)));
+	return (count);
+}
+
+/* sysctl_nlist() on words, reading into an int the gate poisons first. */
+static int
+lookup(int *words, u_int count, int *value, size_t *length, void *newp)
+{
+	*value = -1;
+	*length = sizeof(*value);
+	return (sysctl_nlist(gate_symbols, words, count, value, length, newp));
+}
+
+static void
+test_nlist_names(void)
+{
+	int words[CTL_MAXNAME], value, mib[CTL_MAXNAME];
+	size_t length;
+	u_int count;
+	char token = 1;
+
+	reset_calls();
+	count = spell("_hz", words);
+	HK_CHECK(count == 1);
+	HK_CHECK(lookup(words, count, &value, &length, NULL) == 0);
+	HK_CHECK(value == 11 && length == sizeof(int));
+	count = spell("_abc", words);
+	HK_CHECK(count == 2 && words[1] == 0);
+	HK_CHECK(lookup(words, count, &value, &length, NULL) == 0);
+	HK_CHECK(value == 33);
+	count = spell("_dk_ndrive", words);
+	HK_CHECK(count == 3);
+	HK_CHECK(lookup(words, count, &value, &length, NULL) == 0);
+	HK_CHECK(value == 22);
+
+	/* A prefix or an extension of a symbol names nothing. */
+	count = spell("_h", words);
+	HK_CHECK(lookup(words, count, &value, &length, NULL) == EOPNOTSUPP);
+	count = spell("_hzz", words);
+	HK_CHECK(lookup(words, count, &value, &length, NULL) == EOPNOTSUPP);
+	HK_CHECK(value == -1);
+
+	/* No terminator: "_abc" in one component. */
+	reset_calls();
+	count = spell("_abc", words);
+	HK_CHECK(lookup(words, 1, &value, &length, NULL) == EINVAL);
+	/* The terminator in an earlier component, a zero component after it. */
+	count = spell("_hz", words);
+	words[1] = 0;
+	HK_CHECK(lookup(words, 2, &value, &length, NULL) == EINVAL);
+	/* A nonzero byte after the terminator. */
+	count = spell("_abc", words);
+	words[1] = 0x00ff0000;
+	HK_CHECK(lookup(words, count, &value, &length, NULL) == EINVAL);
+	/* No terminator: "_hz" with its fourth byte set. */
+	count = spell("_hz", words);
+	words[0] |= (int)0x01000000;
+	HK_CHECK(lookup(words, count, &value, &length, NULL) == EINVAL);
+	HK_CHECK(lookup(words, 0, &value, &length, NULL) == EINVAL);
+	HK_CHECK(lookup(words, CTL_MAXNAME - 1, &value, &length, NULL) ==
+	    EINVAL);
+	HK_CHECK(value == -1 && copyout_state.calls == 0);
+
+	/* The node takes no new value. */
+	count = spell("_hz", words);
+	HK_CHECK(lookup(words, count, &value, &length, &token) == EPERM);
+	HK_CHECK(value == -1 && copyout_state.calls == 0);
+
+	/* A short buffer takes the prefix and learns the full length. */
+	value = -1;
+	length = 2;
+	HK_CHECK(sysctl_nlist(gate_symbols, words, count, &value, &length,
+	    NULL) == 0);
+	HK_CHECK(copyout_state.extent == 2 && length == sizeof(int));
+	HK_CHECK((value & 0xffff) == 11);
+
+	/* An unprivileged __sysctl() reaches the node without suser(). */
+	reset_calls();
+	allow_superuser = 0;
+	mib[0] = CTL_MACHDEP;
+	mib[1] = GATE_CPU_NLIST;
+	count = spell("_dk_ndrive", mib + 2);
+	value = -1;
+	length = sizeof(value);
+	HK_CHECK(call_syscall(mib, 2 + count, &value, &length, NULL, 0) == 0);
+	HK_CHECK(superuser_calls == 0);
+	HK_CHECK(value == 22 && length == sizeof(int));
+	/* The same request with a new value is refused before the node. */
+	HK_CHECK(call_syscall(mib, 2 + count, &value, &length, &token,
+	    sizeof(token)) == EPERM);
+	HK_CHECK(superuser_calls == 1);
+	reset_calls();
+}
+
 int
 main(void)
 {
@@ -1091,5 +1222,6 @@ main(void)
 	test_structure_copy_faults();
 	test_syscall_copy_faults();
 	test_syscall_authorization();
+	test_nlist_names();
 	return (hk_verdict("sysctl"));
 }

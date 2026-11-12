@@ -18,6 +18,14 @@ uses `base` as the conservative DPUCP accounting default until source analysis
 identifies a standard option boundary. The default does not assert that the
 corresponding POSIX page belongs to the normative Base option.
 
+Schema 3 distinguishes `unreviewed` implementation state from an audited
+`absent` result. An entity outside the selected implementation mappings starts
+unreviewed with evidence `none`; its presence in the standards corpus supplies
+no implementation verdict. An absence claim requires a registered audit
+witness. Refresh preserves reviewed states and never reclassifies an existing
+row from a name search alone. The schema migration changes only rows that
+match the complete generated default, retaining every reviewed row.
+
 The verifier permits `unselected-standard-option` only when `option_owner`
 names the standard-defined option. Issue 8 Base gaps stay open. An applicable
 row closes only with `implementation=present`, a nonempty evidence class and a
@@ -44,6 +52,17 @@ not offset a larger process-window maximum. An exception records exact deltas,
 examined alternatives, retained margins, user benefit, rollback point and
 reviewer approval.
 
+The profile's current physical limits derive from the production RP2040
+linker regions. The verifier checks contiguous flash and SRAM regions and
+compares kernel, process-window, root-region, swap and total SRAM sizes. The
+process window is 196,608 bytes. `check-user-window-contract` independently
+binds the linker window to `machparam.h`, the MPU and execution fixtures.
+The profile gate also runs the built `flashimg -c` and checks the logical
+Dhara capacity against production arithmetic. A direct metadata-only verifier
+invocation omits that executable check unless `--flashimg` names the built
+tool. Historical donor and board receipts retain the limits of their recorded
+revisions; their 147,456-byte windows are historical evidence.
+
 ## First hardware release
 
 The first hardware release binds each shipped acceptance surface to an Issue 8
@@ -60,7 +79,7 @@ the measured USB console.
 
 ## Later compatibility families
 
-The schema-2 `later_families` records keep seven deferred families inside the
+The `later_families` records keep seven deferred families inside the
 finite profile instead of treating them as an unbounded wish list. Each record
 names its Issue 8 Base or standard-option boundary, Base residual, dependency
 closure, minimum useful subset, RP2040 feasibility questions, screening

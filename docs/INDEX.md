@@ -142,6 +142,7 @@ Grouped by what they investigate.
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
 | `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
 | `c17-shipped-build-baseline.md` | configuration-specific shipped source membership, artifact-bound static resource receipts and the acceptance states left open |
+| `kernel-checksum-capture.md` | in-place kernel checksum stamping, retained pre/post ELF identities and calibrated source attribution |
 | `libc-passwd-header-inclusion.md` | repeated password-header inclusion, preserved public types/layout, captured callers, native compatibility and paired static resources |
 | `shipped-archive-selection-comparison.md` | complete kernel, packed-program and native archive selection; schema-2 comparison, historical receipts and calibrated dependency-growth rejection |
 | `syscall-dispatch-header-contract.md` | generated private syscall declarations, configuration-selected dispatch checks and native-header boundaries |

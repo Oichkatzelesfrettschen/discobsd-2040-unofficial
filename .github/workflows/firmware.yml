@@ -238,7 +238,7 @@ jobs:
               CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" \
               check-changed-text
 
-      # check-host includes the compiler-matrix identity and ownership fixture.
+      # check-host includes compiler-matrix ownership and bounded PTY completion.
       - name: Run the host tier
         timeout-minutes: 20
         run: |
@@ -665,6 +665,7 @@ jobs:
             --status .build-logs/macos-lint.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-lint
+      # The host tier owns PTY completion and the terminal nohup consumer.
       - name: Run the host tier
         timeout-minutes: 27
         run: |

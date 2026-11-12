@@ -915,6 +915,9 @@ check-libc-string-security-cross:
 check-id-aliases:
 		${MAKE} -C tests/id_aliases check
 
+check-pty-runner: check-python
+		${PYTHON} tools/ptyrun_test.py
+
 check-tiny-utility-multicall:
 		${MAKE} -C tests/tiny_utility_multicall check
 
@@ -1351,7 +1354,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-touch-contracts check-printf-contracts \
 		check-recovery-utility-contracts check-timeout-contracts \
 		check-libc-tempfiles check-libcalc check-libbn check-dcbc \
-		check-id-aliases check-tiny-utility-multicall \
+		check-id-aliases check-pty-runner check-tiny-utility-multicall \
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
@@ -1869,7 +1872,7 @@ installfs:
 		check-unifdef-contracts-cross check-libc-string-security \
 		check-libc-string-security-cross check-id-aliases \
 		check-find-contracts check-find-contracts-cross \
-		check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout check-hsx-decoder \
+		check-pty-runner check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout check-hsx-decoder \
 		check-config-makefile check-portable-utilities \
 		check-architecture-isolation legacy-non-arm-verify \
 		legacy-pdp11-v6-build legacy-pdp11-v6-install \

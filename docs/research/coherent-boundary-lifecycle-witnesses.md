@@ -228,3 +228,8 @@ Source hashes, positive boundary controls and the diagnostic class constrain
 interpretation. A compiler failure, unrelated crash or missing sanitizer
 runtime supplies no confirming result. The archive review retains all other
 unreviewed Coherent families and source-permission questions.
+
+The matched clean distribution comparison retains fifteen increases of one to
+four packed bytes per executable with unchanged block allocations and loaded
+sizes. [The exception review](exit-lifecycle-resource-exception.md) records the
+exact rejected default verdict, alternatives, margins and owner approval.

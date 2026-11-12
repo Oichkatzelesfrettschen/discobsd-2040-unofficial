@@ -36,7 +36,7 @@ the authorized offline execution surface.
 | Map storage contracts | Complete for named write paths | `storage-recovery-contracts.md` traces units, volatile state, return conventions, acknowledgements and ordering through descriptor, kernel, flash, Dhara and ROM boundaries. Pull request 435's retained experiment was inspected at its recorded head. |
 | Implement shared failure interface | Complete for host prefix model | Typed transfer callbacks execute the production descriptor backend; inactive injections fail. Positive shorts, errors before/after transfer, frozen interruption prefixes and paired compensation errors are calibrated. |
 | Extend persistent-image oracle | Complete for exercised image range | Independent ownership, free-list, inode, namespace, link-count and metadata checks read fresh exported bytes. Corrupted-image controls and valid-but-changed metadata distinguish invariant failures from state differences. Larger sparse files retain a bounded-reader extension requirement. |
-| Repair supported recoverable v7fs defects | Open; three repairs verified | Formatter cache and hard-link writeback/compensation repairs are committed at `167e856d`. Rename hierarchy validation precedes target replacement at `ff07aeab`. Both imported-source commits carry synchronized patches and manifest hashes. Verify remaining candidates: CLI parent-growth preflight, symlink writeback, rename I/O compensation and out-of-range inode address encoding. |
+| Repair supported recoverable v7fs defects | Open; six mechanisms repaired | Formatter cache and hard-link compensation are committed at `167e856d`; rename hierarchy validation precedes target replacement at `ff07aeab`; parent-growth admission includes index blocks at `7a9fa7e3`; symlink writeback reports its final error at `640fe310`; and inode serialization rejects addresses outside 24 bits at `eb27bc90`. Imported-source changes carry synchronized patches and manifest hashes. Rename publication compensation and interruption behavior remain open. |
 | Compare atomic recovery policies | Complete offline; production admission open | Bounded policies pass 22,854 transaction/recovery cuts and negative controls. Dhara replay supplies operation counts and separate committed-recovery work. `storage-recovery-comparison.md` records the representation/reclamation/migration/interruption architecture stop. |
 | Review remaining components | Active: verify device error lifetime and unit admission | The host probe reproduced queued-buffer routing and unmounted asynchronous error loss. The candidate retains shared first-error replicas in active inode storage through last close and drains busy writes. The mount-publication schedule reproduces raw/whole-device admission races; the unit guard passes the deciding host schedules. The extended fixture passes 1,950 checks and rejects 46 mutants; the buffer-pressure fixture passes 53 checks and rejects its four behavior mutants. Selected Clang analyses pass, and matched Cortex-M0+ resource captures retain source hashes. Final clean-revision logged gates remain required before publication. `block-device-write-error-lifetime.md` owns the contract and evidence limits. Six source-review components cover 101 paths; 658 components remain pending. |
 | Determine takeover eligibility | Pending | Record UTC decision and exact five-hour cutoff, attributable activity and ownership, then recheck head and ownership immediately before mutation. |
@@ -202,6 +202,19 @@ focused format gate then passes 1,017 checks and rejects all 23 source
 mutants. The failed aggregate remains a failed result; a later aggregate is
 required for the repaired revision.
 
+The later aggregate
+`rp2040-check-local-20261112T225909Z-630958-d6e1f2b5` also completed its build
+stage and failed the check stage. The storage-correctness fixture linked
+`ufs_subr.c` after `syncip()` gained the shared block-device synchronization
+boundary, but its host closure supplied no `bdevsync()` implementation. The
+linker reported both unresolved calls after 1,074.6 seconds of check-stage
+execution. Commit `95ce84ad` adds the fixture model and block-inode cases that
+bind synchronization to `i_rdev`, propagate the shared device error and keep
+inode publication behind successful synchronization. The focused gate passes
+5,911 baseline I/O checks and rejects a containing-filesystem alias mutant.
+The aggregate receipt remains failed; focused repair evidence does not replace
+a fresh aggregate on the final revision.
+
 The persistent-image probe found that `v7fs_file_rename()` deallocated an
 existing target before `can_dirmove()` rejected a directory move into its
 descendant. Empty-directory targets eliminate the source/target type mismatch
@@ -219,3 +232,29 @@ entries. The required logged build
 the storage-recovery and import gates pass after it. These results establish
 ordinary execution and host prefix-error behavior, rather than interruption
 atomicity for the remaining rename publication sequence.
+
+The command-line capacity probe creates root directories at exactly 10 and
+138 blocks, the direct-to-single and single-to-double indirect transitions.
+The former one-block estimate admitted a payload whose operation returned
+`ENOSPC` after changing persistent bytes. Commit `7a9fa7e3` derives the parent
+increment through the same `blocks_for()` model used for the payload. Both
+byte orders now refuse the operation with byte-identical images, and the
+under-count mutant changes those images and fails.
+
+The symlink probe injects the second inode-sector write, after target data and
+the first inode update have persisted. The prior helper returned success.
+Commit `640fe310` returns the final `v7fs_inode_writeback()` result; a fresh
+mount confirms the already-persisted target bytes and the independent reader
+confirms ownership for the exercised non-root inode. The ignored-error mutant
+fails the regression. This result establishes error observability after that
+write; it does not make the multi-write operation atomic.
+
+The inode serializer previously passed each 32-bit in-memory address directly
+to a 24-bit codec, so `0x01000000` became zero on disk. Commit `eb27bc90`
+checks every one of the 13 address slots before the inode sector is read or
+written. The regression admits and round-trips `0x00ffffff`, rejects the next
+value with `EFBIG`, and compares the raw sector byte-for-byte in PDP-11 and
+little-endian formats through both host backends. The truncation mutant fails,
+the v7fs core gate passes, and the import verifier matches all 37 manifest
+entries. These finite endpoint checks establish the exercised serializer
+boundary, rather than arbitrary corruption detection.

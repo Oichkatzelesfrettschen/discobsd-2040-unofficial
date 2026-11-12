@@ -69,7 +69,8 @@ int
 v7fs_file_link(struct v7fs_self *fs, struct v7fs_inode *parent_dir,
     struct v7fs_inode *p, const char *name, size_t namelen)
 {
-	int error = 0;
+	struct v7fs_inode original_inode = *p;
+	int error, cleanup_error;
 
 	DPRINTF("%d %d %.*s\n", parent_dir->inode_number, p->inode_number,
 	    (int)namelen, name);
@@ -79,9 +80,17 @@ v7fs_file_link(struct v7fs_self *fs, struct v7fs_inode *parent_dir,
 		return error;
 	}
 	p->nlink++;
-	v7fs_inode_writeback(fs, p);
+	error = v7fs_inode_writeback(fs, p);
+	if (error == 0)
+		return 0;
 
-	return 0;
+	/* Remove the new reference before restoring its inode link count. */
+	cleanup_error = v7fs_directory_remove_entry(fs, parent_dir, name, namelen);
+	if (cleanup_error != 0)
+		return cleanup_error;
+	*p = original_inode;
+	cleanup_error = v7fs_inode_writeback(fs, p);
+	return cleanup_error != 0 ? cleanup_error : error;
 }
 
 int

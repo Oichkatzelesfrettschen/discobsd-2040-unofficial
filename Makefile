@@ -1186,6 +1186,14 @@ check-netbsd-imports: check-python
 		${PYTHON} tools/netbsd_imports.py selftest
 		${PYTHON} tools/netbsd_imports.py verify
 
+check-storage-recovery: check-python
+		${PYTHON} tests/storage_recovery/storage_trace_test.py
+		${PYTHON} tests/storage_recovery/v7fs_backend_test.py
+		${PYTHON} tests/storage_recovery/v7_image_test.py
+		${PYTHON} tests/storage_recovery/v7fs_fault_matrix_test.py
+
+.PHONY: check-storage-recovery
+
 check-v7fs-core: check-python
 		${MAKE} -C tests/v7fs_core check PYTHON=${PYTHON:Q}
 
@@ -1355,7 +1363,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
-		check-netbsd-imports check-v7fs-core check-msdosfs-core \
+		check-netbsd-imports check-v7fs-core check-storage-recovery check-msdosfs-core \
 		check-corering check-core1 \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \

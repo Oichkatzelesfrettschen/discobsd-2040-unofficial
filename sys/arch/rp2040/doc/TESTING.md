@@ -1525,6 +1525,48 @@ is what lets a gate assert on the defensive checks rather than only on the
 paths that return. Outside one it prints and exits, so an unexpected panic
 fails the gate rather than unwinding into unrelated code.
 
+### Storage transfer and persistent-image recovery
+
+`check-storage-recovery` runs in the Linux and macOS host tiers. It compiles
+the production imported v7fs core, formatter and descriptor backend with
+`STATIC_BUFFER`, `NDEBUG`, `V7FS_EI`, undefined-behavior instrumentation and
+warnings as errors. A test-only bridge replaces the descriptor backend's
+read/write/seek system calls with typed transfer callbacks. The exported
+image contains the modeled persistent bytes independently of cached v7fs
+structures. Every armed injection must activate exactly once.
+
+The interface records sequence, layer, operation kind, address domain,
+offset, length, phase, transferred bytes and result. Calibrations exercise
+positive short transfers, errors before and after transfer, a second error
+during compensation, and an interrupted prefix whose bytes freeze before
+later compensation. Checked unit conversions and one- through four-byte
+test codecs cover endpoints and all 512 alignment residues. Those codecs
+belong to the test interface; their checks do not establish every production
+codec's admitted value range.
+
+The independent reader shares neither allocator helpers nor codec functions
+with production. It checks all direct and indirect ownership trees, the
+free-list partition, inode counts/cache entries, directory reachability,
+parent entries, link counts and bounds for the exercised image range. Seven
+corrupted-image controls require their specific invariant failures. Fresh
+production images pass in both byte orders. A formatter that caches inode
+numbers beyond its inode table fails the positive image check.
+
+The compensation matrix exercises ordinary write failures before transfer
+and after a complete transfer, in both byte orders, for regular-file and
+directory creation at full 1-, 10- and 138-block parents. Fresh-image checks
+and continued allocation follow compensation. A hard-link matrix requires
+reported errors and restored namespace/link counts. The matrix rejects the
+helper that ignores its final inode-writeback error. Persistent compensation
+failure remains a separate inspection/repair boundary. These host models
+establish neither electrical persistence nor crash atomicity; the existing
+`check-v7fs-core` independently retains its address/undefined sanitizer and
+historical-reversal coverage.
+
+The assertion host gate also runs its positive and false-compiler-success
+controls with `PYTHONOPTIMIZE=1`. Explicit verdict checks keep diagnostic,
+termination and negative-control requirements active under Python optimization.
+
 ### Repository review coverage
 
 `check-repository-coverage` runs in the host tier owned by the Linux and

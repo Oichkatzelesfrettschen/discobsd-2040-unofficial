@@ -93,8 +93,10 @@ check-m4:
 
 # Mutant 1 builds the SIO helper for the Cortex-M4. Mutant 2 replaces the
 # Cortex-M4 helper's remainder multiply-subtract with the quotient.
+# The SIO mutant ends on a fatal guest signal; the zero core limit keeps
+# qemu-user from writing the guest's core beside the sources.
 check-m4-mutants:
-	@set -eu; \
+	@set -eu; ulimit -c 0; \
 	${M4_MAKE} PROG=mutant_m4_sio DIV_SOURCE=${GEN_DIR}/${RP2040_DIV_SRC} \
 	    mutant_m4_sio > mutant_m4_sio.build 2>&1; \
 	if ${QEMU_ARM} -cpu ${M4_QEMU_CPU} ./mutant_m4_sio > mutant_m4_sio.out 2>&1; then \

@@ -458,6 +458,14 @@ The build and parallel-safe gate groups run with `bmake
 host exposes none. On a 12-thread host the kernel goes from 8.07 s to 1.55 s
 and the whole world from 136.94 s to 31.10 s.
 
+The aggregate `check` target serializes its seven tiers through `.WAIT` while
+each tier retains its internal parallelism. Cross composition cleans program
+directories that host and QEMU suites use, so those tiers require disjoint
+execution lifetimes. `check-build-failure` executes the aggregate dependency
+rule with seven recording fixtures under `bmake -j8`, rejects a control with
+the barriers removed, and checks that each failed tier blocks its successors.
+Hosted firmware CI also invokes the tiers sequentially.
+
 The tree is safe to build that way. Every kernel object is byte-identical
 across a serial build and three parallel ones. Two parallel builds of the
 world differ in 9 of 3736 artifacts and every one is a timestamp: seven

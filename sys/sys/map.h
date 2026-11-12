@@ -25,6 +25,16 @@ struct map {
     struct mapent   *m_limit;   /* address of last slot in map */
     char            *m_name;    /* name of resource */
 /* we use m_name when the map overflows, in warning messages */
+    /*
+     * A map with m_ring_end set describes a ring: addresses m_ring_first to
+     * m_ring_end - 1, with m_ring_end - 1 followed by m_ring_first.  An
+     * extent from malloc3_contiguous_next() may then end above m_ring_end;
+     * address m_ring_end + n names m_ring_first + n.  m_guard is the free
+     * run that search keeps whole while some placement allows it.
+     */
+    size_t          m_ring_first;
+    size_t          m_ring_end;
+    size_t          m_guard;
 };
 
 struct mapent {

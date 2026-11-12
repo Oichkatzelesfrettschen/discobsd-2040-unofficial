@@ -41,7 +41,7 @@ size_t swapnext;
 struct user u0;
 char __user_data_start[16], __user_data_end[16];
 static struct mapent entries[32];
-struct map swapmap[1] = { { entries, entries + 30, "swapmap" } };
+struct map swapmap[1] = { { entries, entries + 30, "swapmap", 0, 0, 0 } };
 static struct inode directory, text_inode;
 static struct file descriptor;
 static unsigned writes, publications, sleeps, io_waits, wakeups;
@@ -403,6 +403,7 @@ reset_fixture(void)
     swapnext = 4;
 #endif
     swapmap->m_limit = entries + 30;
+    swapmap->m_ring_first = swapmap->m_ring_end = swapmap->m_guard = 0;
 #ifdef FORK_SWAP_FULL_MAP
     swapmap->m_limit = entries + 4;
 #endif
@@ -659,6 +660,57 @@ reservation_lifecycle(void)
     HK_CHECK(wake_flash_free[1] == 156);
     HK_CHECK(wakeups == 3 && wake_channels[1] == (caddr_t)&runout &&
         wake_channels[2] == (caddr_t)&runin);
+}
+
+/*
+ * On a ring map (struct map, sys/map.h) an image reserved near the last
+ * block continues at the first one. The reservation keeps one base, cancel
+ * and release return both pieces, and the map is whole again.
+ */
+static void
+ring_reservation_lifecycle(void)
+{
+    struct swap_image_reservation reservation;
+    unsigned int cursor, wrapped = 0;
+    size_t span;
+
+    for (cursor = 4; cursor < 384; cursor += 4) {
+        reset_fixture();
+        entries[0].m_addr = 4;
+        entries[0].m_size = 380;
+        swapmap->m_ring_first = 4;
+        swapmap->m_ring_end = 384;
+        swapmap->m_guard = 196;
+        swapnext = cursor;
+        HK_CHECK(swap_image_reserve(&reservation, freeproc, &proc[0],
+            X_OLDSIZE, X_OLDSIZE) == 0);
+        span = reservation.span;
+        HK_CHECK(span >= 100 && span <= 184);
+        HK_CHECK(reservation.addr[0] == cursor);
+        HK_CHECK(reservation.addr[2] > reservation.addr[0]);
+        HK_CHECK(free_total() == 380 - span);
+        if (cursor + span > 384) {
+            wrapped++;
+            /* The free blocks are one run between the two pieces. */
+            HK_CHECK(entries[0].m_addr == cursor + span - 380);
+            HK_CHECK(entries[0].m_size == 380 - span);
+            HK_CHECK(entries[1].m_size == 0);
+        }
+        if (cursor % 8 == 0) {
+            swap_image_cancel(&reservation);
+        } else {
+            *freeproc = proc[0];
+            freeproc->p_daddr = reservation.addr[0];
+            freeproc->p_saddr = reservation.addr[1];
+            freeproc->p_addr = reservation.addr[2];
+            swap_image_release(freeproc);
+        }
+        HK_CHECK(free_total() == 380);
+        HK_CHECK(entries[0].m_addr == 4 && entries[0].m_size == 380);
+        HK_CHECK(entries[1].m_size == 0);
+        HK_CHECK(writes == 0);
+    }
+    HK_CHECK(wrapped >= 24);
 }
 
 static void
@@ -1715,6 +1767,7 @@ main(void)
     if (hk_failures)
         return hk_verdict("fork swap refusal and reservation");
     reservation_lifecycle();
+    ring_reservation_lifecycle();
 #ifdef SWAPRAM
     swapram_lifecycle();
     swapin_ram_release();

@@ -142,6 +142,7 @@ Grouped by what they investigate.
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
 | `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
 | `c17-shipped-build-baseline.md` | configuration-specific shipped source membership, artifact-bound static resource receipts and the acceptance states left open |
+| `kernel-checksum-capture.md` | in-place kernel checksum stamping, retained pre/post ELF identities and calibrated source attribution |
 | `libc-passwd-header-inclusion.md` | repeated password-header inclusion, preserved public types/layout, captured callers, native compatibility and paired static resources |
 | `shipped-archive-selection-comparison.md` | complete kernel, packed-program and native archive selection; schema-2 comparison, historical receipts and calibrated dependency-growth rejection |
 | `syscall-dispatch-header-contract.md` | generated private syscall declarations, configuration-selected dispatch checks and native-header boundaries |
@@ -211,6 +212,9 @@ Grouped by what they investigate.
 | `dpucp-2024-profile.json` | versioned DPUCP-2024 identity, denominator, language modes, hardware limits, state counts and witness catalog |
 | `dpucp-2024-requirements.tsv` | 1,518 Issue 8 requirement rows with applicability, implementation, evidence, residual and next-action states |
 | `dpucp-2024-donor-ledger.json` | pinned BSD donor mechanisms, licenses, invariants, dependency closures, C17 rewrites, promotion state, size evidence and deciding gates |
+| `bsd-donor-inventory.json` | all 20 BSD checkout observations, authoritative development refs, retained fetch attempts and unresolved immediate-source identities |
+| `posix-archive-donor-frontier.md`, `posix-archive-donor-frontier.json` | 13 additional archive roots, 23 content-identified investigations, per-file permission boundaries, reusable invariants, conflicts and deciding experiments |
+| `coherent-donor-review.md` | pinned Coherent sources, libc/archive/FILE/regex mechanisms, exec/fork/ABI ownership, C17 conflicts and deciding experiments |
 | `dpucp-2024-multicall-composition.md` | the seven-box shipped-name denominator, archive-member closure, 433-block standalone comparison and zero-block `logname` root delta |
 | `dpucp-2024-multicall-composition.json` | machine-checked multicall dispatch, link-map, packed-image, root-accounting and source-identity evidence |
 | `dpucp-2024-multicall-libc-members.tsv` | the 192-member libc archive closure for seven multicall boxes and the shell |

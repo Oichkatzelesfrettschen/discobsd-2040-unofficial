@@ -7,7 +7,9 @@ import io
 import json
 import re
 import subprocess
+from datetime import datetime, timedelta
 from pathlib import Path, PurePosixPath
+from urllib.parse import urlsplit
 
 from measurement_source_identity import RetainedSourceError, validate_retained_sources
 
@@ -74,6 +76,7 @@ REQUIRED_DOCUMENT_FIELDS = {
     "selection_rule",
     "repositories",
     "candidates",
+    "candidate_bindings",
 }
 REQUIRED_CANDIDATE_FIELDS = {
     "id",
@@ -119,6 +122,18 @@ PROCESS_CONTROL_MEASUREMENT = "docs/research/process-control-prerequisites.md"
 PROCESS_CONTROL_MEASUREMENT_DATA = "docs/research/process-control-prerequisites.json"
 TIMEOUT_MEASUREMENT = "docs/research/timeout-process-control-growth-exception.md"
 TIMEOUT_MEASUREMENT_DATA = "docs/research/timeout-process-control-growth-exception.json"
+DONOR_INVENTORY = "docs/research/bsd-donor-inventory.json"
+INVENTORY_CLAIM = (
+    "The inventory records checkout identity and fetch evidence for a finite "
+    "20-repository corpus. Git object reads establish source identity; fetched "
+    "revisions do not establish semantic audit completion."
+)
+INVENTORY_REPOSITORIES = {
+    "211bsd", "386bsd", "4.4BSD-Lite2", "BSDRP", "DragonFlyBSD", "LiteBSD",
+    "LiteBSD-2", "NextBSD", "cheribsd", "freebsd-src", "hardenedBSD",
+    "midnightbsd-src", "netbsd-src", "openbsd-src", "opnsense-core",
+    "opnsense-src", "pfsense", "pfsense-freebsd-src", "retrobsd", "rtems-libbsd",
+}
 
 
 class DonorError(RuntimeError):
@@ -145,6 +160,175 @@ def valid_sha256_digest(value):
         and re.fullmatch(r"[0-9a-f]{64}", value) is not None
         and value != "0" * 64
     )
+
+
+def valid_revision(value):
+    return (
+        isinstance(value, str)
+        and re.fullmatch(r"[0-9a-f]{40}", value) is not None
+        and value != "0" * 40
+    )
+
+
+def valid_origin(value):
+    if not isinstance(value, str) or any(character.isspace() for character in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        return (
+            parsed.scheme == "https" and bool(parsed.hostname)
+            and parsed.username is None and parsed.password is None
+            and not parsed.query and not parsed.fragment
+            and parsed.path.endswith(".git")
+        )
+    except ValueError:
+        return False
+
+
+def validate_repository_pins(repositories, inventory):
+    require(isinstance(repositories, dict), "repository pins are absent")
+    require(set(EXPECTED_REPOSITORIES) <= set(repositories), "historical repository missing")
+    for name, record in repositories.items():
+        require(isinstance(record, dict), f"bad repository pin: {name}")
+        if name in EXPECTED_REPOSITORIES:
+            origin, revision = EXPECTED_REPOSITORIES[name]
+            require(set(record) == {"origin", "revision"}, f"bad repository pin: {name}")
+            require(record.get("revision") == revision, f"repository revision drift: {name}")
+            require(record.get("origin") == origin, f"repository origin drift: {name}")
+        else:
+            require(set(record) == {"origin", "revision", "checkout"},
+                    f"bad revision-specific pin: {name}")
+            checkout = record["checkout"]
+            require(isinstance(checkout, str)
+                    and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", checkout) is not None,
+                    f"unsafe checkout: {name}")
+            require(valid_revision(record["revision"]), f"bad revision: {name}")
+            require(valid_origin(record["origin"]), f"bad origin: {name}")
+            require(name == checkout + "@" + record["revision"],
+                    f"revision identity drift: {name}")
+            observed = inventory["repositories"].get(checkout)
+            require(observed is not None, f"unrecorded checkout: {name}")
+            require(any(attempt["fetch_exit"] == 0
+                        and attempt["research_revision"] == record["revision"]
+                        and attempt["source_url"] == record["origin"]
+                        for attempt in observed["sync_attempts"]),
+                    f"revision-specific pin lacks matching fetch provenance: {name}")
+
+
+def validate_candidate_bindings(bindings, repositories, requirement_ids):
+    require(isinstance(bindings, dict), "candidate bindings are absent")
+    require(list(bindings)[:len(EXPECTED_CANDIDATES)] == list(EXPECTED_CANDIDATES),
+            "historical candidate binding set or order drift")
+    for name, binding in bindings.items():
+        require(isinstance(name, str)
+                and re.fullmatch(r"[a-z][a-z0-9-]*", name) is not None,
+                "invalid candidate identity")
+        require(isinstance(binding, dict) and set(binding) == {"repository", "requirements"},
+                f"malformed binding: {name}")
+        require(binding["repository"] in repositories, f"unknown bound repository: {name}")
+        requirements = binding["requirements"]
+        require(isinstance(requirements, list)
+                and all(isinstance(item, str) and item in requirement_ids for item in requirements)
+                and len(requirements) == len(set(requirements)),
+                f"invalid bound requirements: {name}")
+        if name in EXPECTED_CANDIDATES:
+            repository, expected = EXPECTED_CANDIDATES[name]
+            require(binding == {"repository": repository, "requirements": expected},
+                    f"historical candidate binding drift: {name}")
+        else:
+            require(bool(requirements), f"compatibility extension lacks requirements: {name}")
+
+
+def require_utc_timestamp(value):
+    require(isinstance(value, str), "nontext observation time")
+    try:
+        timestamp = datetime.fromisoformat(value)
+    except ValueError as error:
+        raise DonorError("invalid observation time") from error
+    require(timestamp.utcoffset() == timedelta(0), "observation time lacks UTC offset")
+
+
+def validate_checkout_measurement(measurement):
+    require(isinstance(measurement, dict)
+            and set(measurement) == {"head", "index_sha256", "status_sha256"},
+            "malformed checkout measurement")
+    require(valid_revision(measurement["head"]), "invalid checkout HEAD")
+    for field in ("index_sha256", "status_sha256"):
+        require(valid_sha256_digest(measurement[field]), f"invalid checkout {field}")
+
+
+def validate_inventory(inventory):
+    require(isinstance(inventory, dict)
+            and set(inventory) == {"schema_version", "observed_utc", "claim", "repositories"},
+            "malformed donor inventory")
+    require(type(inventory["schema_version"]) is int and inventory["schema_version"] == 1,
+            "unsupported inventory schema")
+    require_utc_timestamp(inventory["observed_utc"])
+    require(inventory["claim"] == INVENTORY_CLAIM, "inventory claim drift")
+    repositories = inventory["repositories"]
+    require(isinstance(repositories, dict) and set(repositories) == INVENTORY_REPOSITORIES,
+            "inventory repository denominator drift")
+    for name, record in repositories.items():
+        require(isinstance(record, dict)
+                and set(record) == {"local", "development", "sync_attempts", "next_action"},
+                f"malformed inventory record: {name}")
+        require(isinstance(record["next_action"], str) and record["next_action"].strip(),
+                f"missing donor next action: {name}")
+        local = record["local"]
+        require(isinstance(local, dict) and set(local) == {
+            "head", "branch", "origin", "status_porcelain", "index_sha256", "status_sha256"
+        }, f"malformed local observation: {name}")
+        measurement = {field: local[field] for field in ("head", "index_sha256", "status_sha256")}
+        validate_checkout_measurement(measurement)
+        require(isinstance(local["branch"], str) and local["branch"], f"missing branch: {name}")
+        require(valid_origin(local["origin"]), f"invalid local origin: {name}")
+        require(isinstance(local["status_porcelain"], str), f"invalid status: {name}")
+        require(hashlib.sha256(local["status_porcelain"].encode()).hexdigest()
+                == local["status_sha256"], f"status digest drift: {name}")
+        development = record["development"]
+        require(isinstance(development, dict) and set(development) == {
+            "status", "source_url", "source_branch", "revision"
+        }, f"malformed development identity: {name}")
+        require(development["status"] in {"fetched", "authority-unresolved", "fetch-failed"},
+                f"unknown synchronization state: {name}")
+        attempts = record["sync_attempts"]
+        require(isinstance(attempts, list), f"invalid fetch attempts: {name}")
+        for attempt in attempts:
+            require(isinstance(attempt, dict) and set(attempt) == {
+                "observed_utc", "source_url", "source_branch", "local_before", "local_after",
+                "fetch_exit", "research_revision"
+            }, f"malformed fetch receipt: {name}")
+            require_utc_timestamp(attempt["observed_utc"])
+            require(valid_origin(attempt["source_url"]), f"invalid fetch source: {name}")
+            require(isinstance(attempt["source_branch"], str) and attempt["source_branch"],
+                    f"missing development branch: {name}")
+            validate_checkout_measurement(attempt["local_before"])
+            validate_checkout_measurement(attempt["local_after"])
+            require(attempt["local_before"] == attempt["local_after"],
+                    f"fetch changes measured checkout surfaces: {name}")
+            require(type(attempt["fetch_exit"]) is int, f"invalid fetch exit: {name}")
+            if attempt["fetch_exit"] == 0:
+                require(valid_revision(attempt["research_revision"]),
+                        f"successful fetch lacks revision: {name}")
+            else:
+                require(attempt["research_revision"] == "",
+                        f"failed fetch claims revision: {name}")
+        if development["status"] == "authority-unresolved":
+            require(not attempts and all(development[field] == "" for field in (
+                "source_url", "source_branch", "revision"
+            )), f"unresolved authority claims synchronization: {name}")
+        else:
+            require(bool(attempts), f"synchronization lacks receipt: {name}")
+            latest = attempts[-1]
+            require(development["source_url"] == latest["source_url"]
+                    and development["source_branch"] == latest["source_branch"]
+                    and development["revision"] == latest["research_revision"],
+                    f"development identity differs from receipt: {name}")
+            require((development["status"] == "fetched") == (latest["fetch_exit"] == 0),
+                    f"synchronization outcome differs from receipt: {name}")
+            require(measurement == latest["local_after"],
+                    f"local observation differs from fetch receipt: {name}")
+    return len(repositories)
 
 
 def validate_foundation_measurement(measurement):
@@ -2131,8 +2315,10 @@ def validate_measured_sources(root, hashes, revision):
 
 def validate_document(root, document, requirement_ids):
     require(set(document) == REQUIRED_DOCUMENT_FIELDS, "malformed donor ledger")
-    require(document.get("schema_version") == 2, "unsupported donor schema")
+    require(document.get("schema_version") == 3, "unsupported donor schema")
     require(document.get("profile_id") == "DPUCP-2024", "wrong donor profile")
+    inventory = load_json(root / DONOR_INVENTORY)
+    validate_inventory(inventory)
     measurement_path = root / FOUNDATION_MEASUREMENT_DATA
     require(measurement_path.is_file(), "missing foundational-libc measurement data")
     validate_foundation_measurement(load_json(measurement_path))
@@ -2166,19 +2352,15 @@ def validate_document(root, document, requirement_ids):
     )
     require(bool(document.get("selection_rule")), "donor selection rule is absent")
     repositories = document.get("repositories")
-    require(isinstance(repositories, dict), "repository pins are absent")
-    require(set(repositories) == set(EXPECTED_REPOSITORIES), "repository set drift")
-    for name, (origin, revision) in EXPECTED_REPOSITORIES.items():
-        record = repositories[name]
-        require(set(record) == {"origin", "revision"}, f"bad repository pin: {name}")
-        require(record.get("revision") == revision, f"repository revision drift: {name}")
-        require(record.get("origin") == origin, f"repository origin drift: {name}")
+    validate_repository_pins(repositories, inventory)
+    bindings = document.get("candidate_bindings")
+    validate_candidate_bindings(bindings, repositories, requirement_ids)
 
     candidates = document.get("candidates")
     require(isinstance(candidates, list) and candidates, "donor candidates are absent")
     candidate_ids = [candidate.get("id") for candidate in candidates]
     require(
-        candidate_ids == list(EXPECTED_CANDIDATES),
+        candidate_ids == list(bindings),
         "bounded donor candidate set or order drift",
     )
     seen = set()
@@ -2187,7 +2369,9 @@ def validate_document(root, document, requirement_ids):
         candidate_id = candidate["id"]
         require(candidate_id and candidate_id not in seen, f"duplicate donor: {candidate_id}")
         seen.add(candidate_id)
-        expected_repository, expected_requirements = EXPECTED_CANDIDATES[candidate_id]
+        binding = bindings[candidate_id]
+        expected_repository = binding["repository"]
+        expected_requirements = binding["requirements"]
         require(
             candidate["repository"] == expected_repository,
             f"repository binding drift: {candidate_id}",
@@ -2232,13 +2416,15 @@ def validate_document(root, document, requirement_ids):
             )
             source_paths.add(source_identity)
             require(
-                re.fullmatch(r"[0-9a-f]{64}", source["sha256"]) is not None,
+                valid_sha256_digest(source["sha256"]),
                 f"bad donor hash: {candidate_id}",
             )
             require(
                 source["license"] in REVIEWED_LICENSES,
                 f"unknown donor license: {candidate_id}",
             )
+        require(any(source["repository"] == candidate["repository"] for source in sources),
+                f"primary repository lacks source: {candidate_id}")
         archive_members = candidate["archive_members"]
         require(
             isinstance(archive_members, list)
@@ -2299,8 +2485,9 @@ def verify_workspace(document, workspace):
     for candidate in document["candidates"]:
         for source in candidate["sources"]:
             repository = source["repository"]
-            revision = document["repositories"][repository]["revision"]
-            checkout = workspace / repository
+            pin = document["repositories"][repository]
+            revision = pin["revision"]
+            checkout = workspace / pin.get("checkout", repository)
             require((checkout / ".git").exists(), f"donor checkout absent: {repository}")
             result = subprocess.run(
                 ["git", "show", f"{revision}:{source['path']}"],

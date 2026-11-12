@@ -80,17 +80,23 @@ static const unsigned crc32_nibble[16] = {
 	0x9b64c2b0U, 0x86d3d2d4U, 0xa00ae278U, 0xbdbdf21cU,
 };
 
+/* Continue a CRC32 from CRC32_INIT over length bytes; CRC32_FIN ends it. */
 static unsigned int
-board_crc32(const volatile unsigned char *bytes, unsigned int length)
+board_crc32_run(unsigned int crc, const volatile unsigned char *bytes,
+    unsigned int length)
 {
-	unsigned int crc = CRC32_INIT;
-
 	while (length-- != 0) {
 		crc ^= *bytes++;
 		crc = (crc >> 4) ^ crc32_nibble[crc & 15];
 		crc = (crc >> 4) ^ crc32_nibble[crc & 15];
 	}
-	return CRC32_FIN(crc);
+	return crc;
+}
+
+static unsigned int
+board_crc32(const volatile unsigned char *bytes, unsigned int length)
+{
+	return CRC32_FIN(board_crc32_run(CRC32_INIT, bytes, length));
 }
 
 static int descriptor_checked;
@@ -159,6 +165,61 @@ board_console(int *major_number, int *minor_number)
 	*minor_number = selected_console_minor;
 }
 
+#ifndef BOARD_DESC_HOST
+/*
+ * The identity of the flash image this kernel runs from. Vector entries 8
+ * and 9, at IMAGE_WORDS, hold the image's length and its CRC32 as
+ * tools/kernsum stamped them after the link. The sum covers the image from
+ * the first byte of boot2 with the CRC word and the board descriptor read
+ * as zero: mkboarduf2.py rewrites the descriptor per board, so one build
+ * keeps one identity on every board. image_identify() recomputes the sum
+ * from flash, so image_crc names the bytes that are executing and differs
+ * from image_crc_stored when they are not the bytes that were linked.
+ * machdep.image_length, image_crc and image_crc_stored export the three
+ * values; image_length is zero for a kernel without the words.
+ */
+#define IMAGE_BASE	0x10000000U
+#define IMAGE_WORDS	(IMAGE_BASE + 0x120U)
+
+unsigned int image_length;
+unsigned int image_crc;
+unsigned int image_crc_stored;
+
+static void
+image_identify(void)
+{
+	static const unsigned char zero[sizeof(struct board_desc)];
+	const volatile unsigned int *words =
+	    (const volatile unsigned int *)IMAGE_WORDS;
+	const volatile unsigned char *base =
+	    (const volatile unsigned char *)IMAGE_BASE;
+	unsigned int crc_at = IMAGE_WORDS + 4 - IMAGE_BASE;
+	unsigned int board = (unsigned int)&rp2040_board_desc - IMAGE_BASE;
+	unsigned int length = words[0];
+	unsigned int crc;
+
+	if (length < board + sizeof zero ||
+	    length > (unsigned int)__kernel_flash_end - IMAGE_BASE) {
+		printf("image: no identity words\n");
+		return;
+	}
+	crc = board_crc32_run(CRC32_INIT, base, crc_at);
+	crc = board_crc32_run(crc, zero, 4);
+	crc = board_crc32_run(crc, base + crc_at + 4, board - crc_at - 4);
+	crc = board_crc32_run(crc, zero, sizeof zero);
+	crc = board_crc32_run(crc, base + board + sizeof zero,
+	    length - board - sizeof zero);
+	image_length = length;
+	image_crc = CRC32_FIN(crc);
+	image_crc_stored = words[1];
+	if (image_crc == image_crc_stored)
+		printf("image: %u bytes, crc32 %x\n", image_length, image_crc);
+	else
+		printf("image: %u bytes, crc32 %x, stored %x differs\n",
+		    image_length, image_crc, image_crc_stored);
+}
+#endif
+
 void
 board_report(void)
 {
@@ -166,5 +227,6 @@ board_report(void)
 #ifndef BOARD_DESC_HOST
 	if (!descriptor_valid)
 		printf("board: invalid descriptor, using bare Pico with USB console\n");
+	image_identify();
 #endif
 }

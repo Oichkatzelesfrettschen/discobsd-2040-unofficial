@@ -274,6 +274,15 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return ENOTDIR;
 		i = (int)watchdog_last_arg2;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+
+	case CPU_IMAGE_LENGTH:
+	case CPU_IMAGE_CRC:
+	case CPU_IMAGE_CRC_STORED:
+		if (namelen != 1)
+			return ENOTDIR;
+		i = (int)(name[0] == CPU_IMAGE_LENGTH ? image_length :
+		    name[0] == CPU_IMAGE_CRC ? image_crc : image_crc_stored);
+		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
 #ifdef CORE1
 	case CPU_CORE1:
 	case CPU_CORE1_RESTARTS:

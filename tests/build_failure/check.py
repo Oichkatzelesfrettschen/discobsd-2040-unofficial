@@ -49,6 +49,7 @@ STUB_BODIES = {
     "cc": 'for a in "$@"; do case $a in *.c) : > "${a%%.c}.o" ;; esac; done\n',
     "ld": 'while [ $# -gt 1 ]; do [ "$1" = -o ] && : > "$2"; shift; done\n',
     "size": "",
+    "kernsum": "",
     "objcopy": 'for a in "$@"; do out=$a; done; : > "$out"\n',
     "objdump": 'echo "disassembly"\n',
     # picotool uf2 convert [--quiet] <in> [-t <type>] <out> [-t <type>]:
@@ -228,7 +229,7 @@ def kernel_driver(root, scratch):
         f"CC=\t{stubs / 'cc'}", "CFLAGS=\t-O",
         f"LD=\t{stubs / 'ld'}", "LDFLAGS=", "LDADD=",
         f"SIZE=\t{stubs / 'size'}", f"OBJCOPY=\t{stubs / 'objcopy'}",
-        f"OBJDUMP=\t{stubs / 'objdump'}",
+        f"OBJDUMP=\t{stubs / 'objdump'}", f"KERNSUM=\t{stubs / 'kernsum'}",
         "SYSTEM_OBJ=\tmain.o", "SYSTEM_DEP=",
         *(blocks[k] for k in KERNEL_BLOCKS if k in blocks),
         "",
@@ -238,7 +239,8 @@ def kernel_driver(root, scratch):
 
 
 ARTIFACTS = ("unix", "unix.elf", "unix.hex", "unix.bin", "unix.dis", "unix.uf2")
-ORDER = ["newvers", "cc", "ld", "size", "objcopy", "objcopy", "objdump", "picotool"]
+ORDER = ["newvers", "cc", "ld", "size", "kernsum", "objcopy", "objcopy", "objdump",
+         "picotool"]
 
 
 def absent_line(picotool):
@@ -288,7 +290,8 @@ def check_kernel(root, make, scratch):
     cases = [
         ("newvers", ["newvers"], ["cc", "ld"], ("vers.o", *ARTIFACTS)),
         ("cc", ["cc"], ["ld"], ("vers.o", *ARTIFACTS)),
-        ("size", ["size"], ["objcopy", "objdump", "picotool"], ARTIFACTS[1:]),
+        ("size", ["size"], ["kernsum", "objcopy", "objdump", "picotool"], ARTIFACTS[1:]),
+        ("kernsum", ["kernsum"], ["objcopy", "objdump", "picotool"], ARTIFACTS[1:]),
         ("objcopy ihex", ["objcopy:1"], ["objdump", "picotool"], ARTIFACTS[2:]),
         ("objcopy binary", ["objcopy:2"], ["objdump", "picotool"], ARTIFACTS[3:]),
         ("objdump", ["objdump"], ["picotool"], ARTIFACTS[4:]),
@@ -310,7 +313,7 @@ def check_kernel(root, make, scratch):
                 vers = build / "vers.c"
                 expect(vers.read_text() == "stale\n" if stale else not vers.exists(),
                        "kernel, newvers failing: vers.c was published", result.stdout)
-    print("PASS kernel link: each of the seven steps fails the link, with and without "
+    print("PASS kernel link: each of the eight steps fails the link, with and without "
           "stale outputs")
 
     result, calls = invoke("unix", [], picotool=absent)

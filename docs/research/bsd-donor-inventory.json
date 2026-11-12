@@ -1,0 +1,725 @@
+{
+  "schema_version": 1,
+  "observed_utc": "2026-11-12T19:44:07.881229+00:00",
+  "claim": "The inventory records checkout identity and fetch evidence for a finite 20-repository corpus. Git object reads establish source identity; fetched revisions do not establish semantic audit completion.",
+  "repositories": {
+    "211bsd": {
+      "local": {
+        "head": "0a38e59d742ff4371b78ea65c5bcc50477b31708",
+        "branch": "main",
+        "origin": "https://github.com/Oichkatzelesfrettschen/211bsd.git",
+        "status_porcelain": "?? .gitignore\u0000?? .ignore\u0000",
+        "index_sha256": "add7fa41255474ab2ec9a59edc975cebcee3ad31cbf602739602c26aa3cf01eb",
+        "status_sha256": "a7546ea8c099c0317b989101fc2f3e99e9681a85d99935f61453758e18d69c83"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/AaronJackson/2.11BSD.git",
+        "source_branch": "main",
+        "revision": "dff9640c6e8d4e7fcc3ca83b0ec7716cfe9f447d"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:31:46.651755+00:00",
+          "source_url": "https://github.com/AaronJackson/2.11BSD.git",
+          "source_branch": "main",
+          "local_before": {
+            "head": "0a38e59d742ff4371b78ea65c5bcc50477b31708",
+            "index_sha256": "add7fa41255474ab2ec9a59edc975cebcee3ad31cbf602739602c26aa3cf01eb",
+            "status_sha256": "a7546ea8c099c0317b989101fc2f3e99e9681a85d99935f61453758e18d69c83"
+          },
+          "local_after": {
+            "head": "0a38e59d742ff4371b78ea65c5bcc50477b31708",
+            "index_sha256": "add7fa41255474ab2ec9a59edc975cebcee3ad31cbf602739602c26aa3cf01eb",
+            "status_sha256": "a7546ea8c099c0317b989101fc2f3e99e9681a85d99935f61453758e18d69c83"
+          },
+          "fetch_exit": 0,
+          "research_revision": "dff9640c6e8d4e7fcc3ca83b0ec7716cfe9f447d"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "386bsd": {
+      "local": {
+        "head": "9eaf3b3359255f461055b8f582131dd4695e750d",
+        "branch": "2.0",
+        "origin": "https://github.com/Oichkatzelesfrettschen/386bsd.git",
+        "status_porcelain": "",
+        "index_sha256": "e182f9dd0daba341dfa71ad117ce0eefbb19065e98a074ec6d2e077fc7e5492c",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/386bsd/386bsd.git",
+        "source_branch": "2.0",
+        "revision": "9eaf3b3359255f461055b8f582131dd4695e750d"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:31:46.662886+00:00",
+          "source_url": "https://github.com/386bsd/386bsd.git",
+          "source_branch": "2.0",
+          "local_before": {
+            "head": "9eaf3b3359255f461055b8f582131dd4695e750d",
+            "index_sha256": "e182f9dd0daba341dfa71ad117ce0eefbb19065e98a074ec6d2e077fc7e5492c",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "9eaf3b3359255f461055b8f582131dd4695e750d",
+            "index_sha256": "e182f9dd0daba341dfa71ad117ce0eefbb19065e98a074ec6d2e077fc7e5492c",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "9eaf3b3359255f461055b8f582131dd4695e750d"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "4.4BSD-Lite2": {
+      "local": {
+        "head": "b10da34408c8a0f32f51d79a7f16bd75337115d2",
+        "branch": "main",
+        "origin": "https://github.com/Oichkatzelesfrettschen/4.4BSD-Lite2.git",
+        "status_porcelain": " M .gitignore\u0000?? .ignore\u0000",
+        "index_sha256": "21a51f2204769d04226cb1b939c48809d34a2676cc3ea45a6cfeea8f2bf83658",
+        "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+      },
+      "development": {
+        "status": "authority-unresolved",
+        "source_url": "",
+        "source_branch": "",
+        "revision": ""
+      },
+      "sync_attempts": [],
+      "next_action": "Resolve the immediate authority of the modified local archive before synchronization. Compare retained b10da344 with sergev/4.4BSD-Lite2 master 50587b00e922225c62f1706266587f435898126d without replacing the local donor identity."
+    },
+    "BSDRP": {
+      "local": {
+        "head": "21b817a5d13e03cbfe721b395cca0de45817ab1b",
+        "branch": "HEAD",
+        "origin": "https://github.com/Oichkatzelesfrettschen/BSDRP.git",
+        "status_porcelain": "",
+        "index_sha256": "7576639db76ec7a43e340db46732c2789ff250828e823b040995ea7cba15e834",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/ocochard/BSDRP.git",
+        "source_branch": "master",
+        "revision": "c3d134a3036a763a6698d806e00c210a5fa9514a"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:31:46.904952+00:00",
+          "source_url": "https://github.com/ocochard/BSDRP.git",
+          "source_branch": "master",
+          "local_before": {
+            "head": "21b817a5d13e03cbfe721b395cca0de45817ab1b",
+            "index_sha256": "7576639db76ec7a43e340db46732c2789ff250828e823b040995ea7cba15e834",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "21b817a5d13e03cbfe721b395cca0de45817ab1b",
+            "index_sha256": "7576639db76ec7a43e340db46732c2789ff250828e823b040995ea7cba15e834",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "c3d134a3036a763a6698d806e00c210a5fa9514a"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "DragonFlyBSD": {
+      "local": {
+        "head": "94448f622a06cde90ba42d688e9cab2448ad9ab3",
+        "branch": "HEAD",
+        "origin": "https://github.com/Oichkatzelesfrettschen/DragonFlyBSD.git",
+        "status_porcelain": " M .gitignore\u0000?? .ignore\u0000",
+        "index_sha256": "beff4aa3ffec4e6a8ba07354d125918cf714c213307b9db859320984b094a99a",
+        "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/DragonFlyBSD/DragonFlyBSD.git",
+        "source_branch": "master",
+        "revision": "805ca132aededa6ae4c8b3499a2d5c934d78fe56"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:31:48.886372+00:00",
+          "source_url": "https://github.com/DragonFlyBSD/DragonFlyBSD.git",
+          "source_branch": "master",
+          "local_before": {
+            "head": "94448f622a06cde90ba42d688e9cab2448ad9ab3",
+            "index_sha256": "beff4aa3ffec4e6a8ba07354d125918cf714c213307b9db859320984b094a99a",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "local_after": {
+            "head": "94448f622a06cde90ba42d688e9cab2448ad9ab3",
+            "index_sha256": "beff4aa3ffec4e6a8ba07354d125918cf714c213307b9db859320984b094a99a",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "fetch_exit": 0,
+          "research_revision": "805ca132aededa6ae4c8b3499a2d5c934d78fe56"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "LiteBSD": {
+      "local": {
+        "head": "03934b78b7c78c2ecc52dd63d597c7847ebc1704",
+        "branch": "master",
+        "origin": "https://github.com/Oichkatzelesfrettschen/LiteBSD.git",
+        "status_porcelain": " M .gitignore\u0000?? .ignore\u0000",
+        "index_sha256": "b1f5a849dfed5cf6599a85b4693b094b6f431ca10454af26ceb33a1cccae6549",
+        "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+      },
+      "development": {
+        "status": "authority-unresolved",
+        "source_url": "",
+        "source_branch": "",
+        "revision": ""
+      },
+      "sync_attempts": [],
+      "next_action": "Resolve the immediate source for Michael Engel's modified private copy named in README.md. Keep the local fork identity separate from the available sergev/LiteBSD source represented by LiteBSD-2."
+    },
+    "LiteBSD-2": {
+      "local": {
+        "head": "25b8a3ff7ad21b426214964eb91786f63e34e5a4",
+        "branch": "master",
+        "origin": "https://github.com/Oichkatzelesfrettschen/LiteBSD-2.git",
+        "status_porcelain": "",
+        "index_sha256": "8db86450e8497c57d8b26f26f4bd13654b2fa56d34344933c7b8c5f2c22e1f76",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/sergev/LiteBSD.git",
+        "source_branch": "master",
+        "revision": "25b8a3ff7ad21b426214964eb91786f63e34e5a4"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:31:47.007855+00:00",
+          "source_url": "https://github.com/sergev/LiteBSD.git",
+          "source_branch": "master",
+          "local_before": {
+            "head": "25b8a3ff7ad21b426214964eb91786f63e34e5a4",
+            "index_sha256": "8db86450e8497c57d8b26f26f4bd13654b2fa56d34344933c7b8c5f2c22e1f76",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "25b8a3ff7ad21b426214964eb91786f63e34e5a4",
+            "index_sha256": "8db86450e8497c57d8b26f26f4bd13654b2fa56d34344933c7b8c5f2c22e1f76",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "25b8a3ff7ad21b426214964eb91786f63e34e5a4"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "NextBSD": {
+      "local": {
+        "head": "5e199472222f4fe1362ee2dd092b9cd8613a6929",
+        "branch": "NextBSD-CURRENT",
+        "origin": "https://github.com/Oichkatzelesfrettschen/NextBSD.git",
+        "status_porcelain": "",
+        "index_sha256": "23210cd796a73e65ab7e367411e948c2546474d51c7df63d5780a736ec81544b",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/NextBSD/NextBSD.git",
+        "source_branch": "main",
+        "revision": "2adf5a5551b6f55db78ffc0c44069b57469ca43c"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:31:57.295316+00:00",
+          "source_url": "https://github.com/NextBSD/NextBSD.git",
+          "source_branch": "main",
+          "local_before": {
+            "head": "5e199472222f4fe1362ee2dd092b9cd8613a6929",
+            "index_sha256": "23210cd796a73e65ab7e367411e948c2546474d51c7df63d5780a736ec81544b",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "5e199472222f4fe1362ee2dd092b9cd8613a6929",
+            "index_sha256": "23210cd796a73e65ab7e367411e948c2546474d51c7df63d5780a736ec81544b",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "2adf5a5551b6f55db78ffc0c44069b57469ca43c"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "cheribsd": {
+      "local": {
+        "head": "88f39900c32928d807dba245fba138808c666f34",
+        "branch": "HEAD",
+        "origin": "https://github.com/Oichkatzelesfrettschen/cheribsd.git",
+        "status_porcelain": " M .gitignore\u0000?? .ignore\u0000",
+        "index_sha256": "4e6ec658028882379e1a20df5c77c48364c85747bf6e910244d26eb3dc342a05",
+        "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/CTSRD-CHERI/cheribsd.git",
+        "source_branch": "main",
+        "revision": "88f39900c32928d807dba245fba138808c666f34"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:31:47.726043+00:00",
+          "source_url": "https://github.com/CTSRD-CHERI/cheribsd.git",
+          "source_branch": "main",
+          "local_before": {
+            "head": "88f39900c32928d807dba245fba138808c666f34",
+            "index_sha256": "4e6ec658028882379e1a20df5c77c48364c85747bf6e910244d26eb3dc342a05",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "local_after": {
+            "head": "88f39900c32928d807dba245fba138808c666f34",
+            "index_sha256": "4e6ec658028882379e1a20df5c77c48364c85747bf6e910244d26eb3dc342a05",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "fetch_exit": 0,
+          "research_revision": "88f39900c32928d807dba245fba138808c666f34"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "freebsd-src": {
+      "local": {
+        "head": "88e7371d9dc26f85dfc1b008cbe59ebc7e4a33da",
+        "branch": "HEAD",
+        "origin": "https://github.com/Oichkatzelesfrettschen/freebsd-src.git",
+        "status_porcelain": " M .gitignore\u0000?? .ignore\u0000",
+        "index_sha256": "36c2239c26a7957a5544a113a1f3520165ce3993caf4b8ed6a5b54853924c0db",
+        "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://git.FreeBSD.org/src.git",
+        "source_branch": "main",
+        "revision": "f3ec447a1c0697f024dcf12929552e4ee9a420e0"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:36:48.289323+00:00",
+          "source_url": "https://git.FreeBSD.org/src.git",
+          "source_branch": "main",
+          "local_before": {
+            "head": "88e7371d9dc26f85dfc1b008cbe59ebc7e4a33da",
+            "index_sha256": "36c2239c26a7957a5544a113a1f3520165ce3993caf4b8ed6a5b54853924c0db",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "local_after": {
+            "head": "88e7371d9dc26f85dfc1b008cbe59ebc7e4a33da",
+            "index_sha256": "36c2239c26a7957a5544a113a1f3520165ce3993caf4b8ed6a5b54853924c0db",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "fetch_exit": -15,
+          "research_revision": ""
+        },
+        {
+          "observed_utc": "2026-11-12T19:42:00.246669+00:00",
+          "source_url": "https://git.FreeBSD.org/src.git",
+          "source_branch": "main",
+          "local_before": {
+            "head": "88e7371d9dc26f85dfc1b008cbe59ebc7e4a33da",
+            "index_sha256": "36c2239c26a7957a5544a113a1f3520165ce3993caf4b8ed6a5b54853924c0db",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "local_after": {
+            "head": "88e7371d9dc26f85dfc1b008cbe59ebc7e4a33da",
+            "index_sha256": "36c2239c26a7957a5544a113a1f3520165ce3993caf4b8ed6a5b54853924c0db",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "fetch_exit": 0,
+          "research_revision": "f3ec447a1c0697f024dcf12929552e4ee9a420e0"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "hardenedBSD": {
+      "local": {
+        "head": "521ab3484716ca437b84c384f019299ffcf172f0",
+        "branch": "quarterly/hardened/15-stable/main-2026q2",
+        "origin": "https://github.com/HardenedBSD/hardenedBSD.git",
+        "status_porcelain": "",
+        "index_sha256": "aff4da7e3762719984e7b47418b6de42e95e439b569c6f32521517da523909a6",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/HardenedBSD/hardenedBSD.git",
+        "source_branch": "hardened/current/master",
+        "revision": "f00d21450c56a835db29968f4afc7e8554ece95d"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:36:49.454525+00:00",
+          "source_url": "https://github.com/HardenedBSD/hardenedBSD.git",
+          "source_branch": "hardened/current/master",
+          "local_before": {
+            "head": "521ab3484716ca437b84c384f019299ffcf172f0",
+            "index_sha256": "aff4da7e3762719984e7b47418b6de42e95e439b569c6f32521517da523909a6",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "521ab3484716ca437b84c384f019299ffcf172f0",
+            "index_sha256": "aff4da7e3762719984e7b47418b6de42e95e439b569c6f32521517da523909a6",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": -15,
+          "research_revision": ""
+        },
+        {
+          "observed_utc": "2026-11-12T19:42:34.112809+00:00",
+          "source_url": "https://github.com/HardenedBSD/hardenedBSD.git",
+          "source_branch": "hardened/current/master",
+          "local_before": {
+            "head": "521ab3484716ca437b84c384f019299ffcf172f0",
+            "index_sha256": "aff4da7e3762719984e7b47418b6de42e95e439b569c6f32521517da523909a6",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "521ab3484716ca437b84c384f019299ffcf172f0",
+            "index_sha256": "aff4da7e3762719984e7b47418b6de42e95e439b569c6f32521517da523909a6",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "f00d21450c56a835db29968f4afc7e8554ece95d"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "midnightbsd-src": {
+      "local": {
+        "head": "2063cf25e2fe3631ec031bd05440aefb4f5b502a",
+        "branch": "HEAD",
+        "origin": "https://github.com/Oichkatzelesfrettschen/midnightbsd-src.git",
+        "status_porcelain": "",
+        "index_sha256": "256f3b34e7ff08683f5fe4592e3a5e99758bc69523ed847682bfe5d8d4c7735c",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/MidnightBSD/src.git",
+        "source_branch": "master",
+        "revision": "c73632db218b1039d5bb0fd6685b6fc37ae997c8"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:32:56.418392+00:00",
+          "source_url": "https://github.com/MidnightBSD/src.git",
+          "source_branch": "master",
+          "local_before": {
+            "head": "2063cf25e2fe3631ec031bd05440aefb4f5b502a",
+            "index_sha256": "256f3b34e7ff08683f5fe4592e3a5e99758bc69523ed847682bfe5d8d4c7735c",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "2063cf25e2fe3631ec031bd05440aefb4f5b502a",
+            "index_sha256": "256f3b34e7ff08683f5fe4592e3a5e99758bc69523ed847682bfe5d8d4c7735c",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "c73632db218b1039d5bb0fd6685b6fc37ae997c8"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "netbsd-src": {
+      "local": {
+        "head": "1e8e727e461bb760bf82162f33b64afea02da2f3",
+        "branch": "netbsd-11",
+        "origin": "https://github.com/Oichkatzelesfrettschen/src.git",
+        "status_porcelain": "?? .gitignore\u0000?? .ignore\u0000",
+        "index_sha256": "1ef60b94301969e8a00025b150e7080151598f3677baaa757b6a4d9f082a042f",
+        "status_sha256": "a7546ea8c099c0317b989101fc2f3e99e9681a85d99935f61453758e18d69c83"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/NetBSD/src.git",
+        "source_branch": "trunk",
+        "revision": "dc5f6b2d8a00d0780c9a3f1ae12a02d78d60e745"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:33:28.199754+00:00",
+          "source_url": "https://github.com/NetBSD/src.git",
+          "source_branch": "trunk",
+          "local_before": {
+            "head": "1e8e727e461bb760bf82162f33b64afea02da2f3",
+            "index_sha256": "1ef60b94301969e8a00025b150e7080151598f3677baaa757b6a4d9f082a042f",
+            "status_sha256": "a7546ea8c099c0317b989101fc2f3e99e9681a85d99935f61453758e18d69c83"
+          },
+          "local_after": {
+            "head": "1e8e727e461bb760bf82162f33b64afea02da2f3",
+            "index_sha256": "1ef60b94301969e8a00025b150e7080151598f3677baaa757b6a4d9f082a042f",
+            "status_sha256": "a7546ea8c099c0317b989101fc2f3e99e9681a85d99935f61453758e18d69c83"
+          },
+          "fetch_exit": 0,
+          "research_revision": "dc5f6b2d8a00d0780c9a3f1ae12a02d78d60e745"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "openbsd-src": {
+      "local": {
+        "head": "8849c5d46b9b299f5d887033706f1ddd60f8f966",
+        "branch": "master",
+        "origin": "https://github.com/Oichkatzelesfrettschen/openbsd-src.git",
+        "status_porcelain": "",
+        "index_sha256": "c590d8a38923ccbbac0b00d2eee95050aa0f89bea17e809d78d29c30fa4ebf9e",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/openbsd/src.git",
+        "source_branch": "master",
+        "revision": "e408428c254f7060d257bc302f7d62c5988f90ec"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:33:33.122209+00:00",
+          "source_url": "https://github.com/openbsd/src.git",
+          "source_branch": "master",
+          "local_before": {
+            "head": "8849c5d46b9b299f5d887033706f1ddd60f8f966",
+            "index_sha256": "c590d8a38923ccbbac0b00d2eee95050aa0f89bea17e809d78d29c30fa4ebf9e",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "8849c5d46b9b299f5d887033706f1ddd60f8f966",
+            "index_sha256": "c590d8a38923ccbbac0b00d2eee95050aa0f89bea17e809d78d29c30fa4ebf9e",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "e408428c254f7060d257bc302f7d62c5988f90ec"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "opnsense-core": {
+      "local": {
+        "head": "67c49d2e89860d53b43b5bbb8937aca4af2ece98",
+        "branch": "master",
+        "origin": "https://github.com/Oichkatzelesfrettschen/opnsense-core.git",
+        "status_porcelain": "",
+        "index_sha256": "936a42d10d8c9bffc25fc853f2539d7e247bc8870e2779224e7d2d1f31b7ade8",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/opnsense/core.git",
+        "source_branch": "master",
+        "revision": "855dbea44aef4b88712b6e4008998a8fa6d0d697"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:33:34.195500+00:00",
+          "source_url": "https://github.com/opnsense/core.git",
+          "source_branch": "master",
+          "local_before": {
+            "head": "67c49d2e89860d53b43b5bbb8937aca4af2ece98",
+            "index_sha256": "936a42d10d8c9bffc25fc853f2539d7e247bc8870e2779224e7d2d1f31b7ade8",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "67c49d2e89860d53b43b5bbb8937aca4af2ece98",
+            "index_sha256": "936a42d10d8c9bffc25fc853f2539d7e247bc8870e2779224e7d2d1f31b7ade8",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "855dbea44aef4b88712b6e4008998a8fa6d0d697"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "opnsense-src": {
+      "local": {
+        "head": "083dc7025377cba0776aa2686f4720d1df27e693",
+        "branch": "HEAD",
+        "origin": "https://github.com/Oichkatzelesfrettschen/opnsense-src.git",
+        "status_porcelain": "",
+        "index_sha256": "b397bfbadc9610d8f68f24836c32ffffd8fe6d58829db13e71c8bdd85a9d89e4",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/opnsense/src.git",
+        "source_branch": "stable/26.7",
+        "revision": "1633399de9ddbceb1474b7c095eeb5ef8c2f9ca8"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:33:37.224727+00:00",
+          "source_url": "https://github.com/opnsense/src.git",
+          "source_branch": "stable/26.7",
+          "local_before": {
+            "head": "083dc7025377cba0776aa2686f4720d1df27e693",
+            "index_sha256": "b397bfbadc9610d8f68f24836c32ffffd8fe6d58829db13e71c8bdd85a9d89e4",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "083dc7025377cba0776aa2686f4720d1df27e693",
+            "index_sha256": "b397bfbadc9610d8f68f24836c32ffffd8fe6d58829db13e71c8bdd85a9d89e4",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "1633399de9ddbceb1474b7c095eeb5ef8c2f9ca8"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "pfsense": {
+      "local": {
+        "head": "9363ac5b8651a1c7a333180425ce7719070f95f9",
+        "branch": "master",
+        "origin": "https://github.com/Oichkatzelesfrettschen/pfsense.git",
+        "status_porcelain": "",
+        "index_sha256": "9692765de133ef9c97ed1f7aea8ead81361078d2f0bd46dd5ca7b31edde03ac4",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/pfsense/pfsense.git",
+        "source_branch": "master",
+        "revision": "9363ac5b8651a1c7a333180425ce7719070f95f9"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:33:37.544806+00:00",
+          "source_url": "https://github.com/pfsense/pfsense.git",
+          "source_branch": "master",
+          "local_before": {
+            "head": "9363ac5b8651a1c7a333180425ce7719070f95f9",
+            "index_sha256": "9692765de133ef9c97ed1f7aea8ead81361078d2f0bd46dd5ca7b31edde03ac4",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "9363ac5b8651a1c7a333180425ce7719070f95f9",
+            "index_sha256": "9692765de133ef9c97ed1f7aea8ead81361078d2f0bd46dd5ca7b31edde03ac4",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "9363ac5b8651a1c7a333180425ce7719070f95f9"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "pfsense-freebsd-src": {
+      "local": {
+        "head": "220e9a7e8d1f8d11dac87d7f1ffe1a1e10dade10",
+        "branch": "devel-main",
+        "origin": "https://github.com/Oichkatzelesfrettschen/pfsense-freebsd-src.git",
+        "status_porcelain": "",
+        "index_sha256": "ee731290c0a2e0dab2f51020f0208d2effb9fda1442683a6b5506002b1826574",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/pfsense/FreeBSD-src.git",
+        "source_branch": "devel-main",
+        "revision": "220e9a7e8d1f8d11dac87d7f1ffe1a1e10dade10"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:33:39.027111+00:00",
+          "source_url": "https://github.com/pfsense/FreeBSD-src.git",
+          "source_branch": "devel-main",
+          "local_before": {
+            "head": "220e9a7e8d1f8d11dac87d7f1ffe1a1e10dade10",
+            "index_sha256": "ee731290c0a2e0dab2f51020f0208d2effb9fda1442683a6b5506002b1826574",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "220e9a7e8d1f8d11dac87d7f1ffe1a1e10dade10",
+            "index_sha256": "ee731290c0a2e0dab2f51020f0208d2effb9fda1442683a6b5506002b1826574",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "220e9a7e8d1f8d11dac87d7f1ffe1a1e10dade10"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "retrobsd": {
+      "local": {
+        "head": "10e2a8d731502d7dfc4ca87ff87a586f194eafa6",
+        "branch": "master",
+        "origin": "https://github.com/Oichkatzelesfrettschen/retrobsd.git",
+        "status_porcelain": "",
+        "index_sha256": "76e87136774e817564157305fb17f508e2a77eb308f691858b2d5d4738cfb0de",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://github.com/RetroBSD/retrobsd.git",
+        "source_branch": "master",
+        "revision": "e7a6580d755f2fa9675ac1313cad097dae8ffea0"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:33:39.569121+00:00",
+          "source_url": "https://github.com/RetroBSD/retrobsd.git",
+          "source_branch": "master",
+          "local_before": {
+            "head": "10e2a8d731502d7dfc4ca87ff87a586f194eafa6",
+            "index_sha256": "76e87136774e817564157305fb17f508e2a77eb308f691858b2d5d4738cfb0de",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "10e2a8d731502d7dfc4ca87ff87a586f194eafa6",
+            "index_sha256": "76e87136774e817564157305fb17f508e2a77eb308f691858b2d5d4738cfb0de",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "e7a6580d755f2fa9675ac1313cad097dae8ffea0"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    },
+    "rtems-libbsd": {
+      "local": {
+        "head": "fbc3c66436cba935958fc44886ec5cb6f95a76b7",
+        "branch": "main",
+        "origin": "https://github.com/Oichkatzelesfrettschen/rtems-libbsd.git",
+        "status_porcelain": "",
+        "index_sha256": "2d21cf878df89aa40cd524882cf8547d570899b097cbe867a64015bd3ae70028",
+        "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "development": {
+        "status": "fetched",
+        "source_url": "https://gitlab.rtems.org/rtems/pkg/rtems-libbsd.git",
+        "source_branch": "7-freebsd-14",
+        "revision": "8efc40e412187d9bea4200e4f7b14fd5a38f66c2"
+      },
+      "sync_attempts": [
+        {
+          "observed_utc": "2026-11-12T19:33:54.179465+00:00",
+          "source_url": "https://gitlab.rtems.org/rtems/pkg/rtems-libbsd.git",
+          "source_branch": "7-freebsd-14",
+          "local_before": {
+            "head": "fbc3c66436cba935958fc44886ec5cb6f95a76b7",
+            "index_sha256": "2d21cf878df89aa40cd524882cf8547d570899b097cbe867a64015bd3ae70028",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "local_after": {
+            "head": "fbc3c66436cba935958fc44886ec5cb6f95a76b7",
+            "index_sha256": "2d21cf878df89aa40cd524882cf8547d570899b097cbe867a64015bd3ae70028",
+            "status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "fetch_exit": 0,
+          "research_revision": "8efc40e412187d9bea4200e4f7b14fd5a38f66c2"
+        }
+      ],
+      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+    }
+  }
+}

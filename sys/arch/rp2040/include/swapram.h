@@ -84,6 +84,30 @@ unsigned int swapram_pool_largest(struct swapram_pool *);
 #define SWAPRAM_EVAC_DONE       2
 #define SWAPRAM_EVAC_NOFLASH    3
 
+/*
+ * machdep.swapram_psinfo.<pid>: the fields ps(1) reads from the u area, for
+ * a process whose image the pool holds. Times are clock ticks and sizes
+ * are bytes, as struct user keeps them. The record holds no kernel
+ * address.
+ */
+#define SWAPRAM_PS_DEFAULT  0           /* SIG_DFL */
+#define SWAPRAM_PS_IGNORED  1           /* SIG_IGN */
+#define SWAPRAM_PS_CAUGHT   4           /* a handler is installed */
+
+struct swapram_psinfo {
+    long            sp_utime;           /* u_ru.ru_utime */
+    long            sp_stime;           /* u_ru.ru_stime */
+    long            sp_cutime;          /* u_cru.ru_utime */
+    long            sp_cstime;          /* u_cru.ru_stime */
+    unsigned int    sp_tsize;           /* u_tsize */
+    unsigned int    sp_dsize;           /* u_dsize */
+    unsigned int    sp_ssize;           /* u_ssize */
+    int             sp_ttyd;            /* u_ttyd */
+    unsigned char   sp_sigint;          /* SWAPRAM_PS_* of SIGINT */
+    unsigned char   sp_sigquit;         /* SWAPRAM_PS_* of SIGQUIT */
+    char            sp_comm[64];        /* u_comm */
+};
+
 #ifdef KERNEL
 #include <sys/types.h>          /* size_t and caddr_t for the prototypes */
 

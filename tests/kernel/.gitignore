@@ -262,3 +262,6 @@ swap_exchange_inplace_*.mutant.o
 swap_exchange_inplace_*.mutant.test
 swap_exchange_inplace_*.mutant.out
 v7-format-work/
+rmap_ring_*.mutant.*
+swap_ring_io_test
+swap_ring_io*.mutant.*

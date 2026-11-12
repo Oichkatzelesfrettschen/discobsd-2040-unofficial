@@ -284,8 +284,16 @@ other counter moved, and both calls succeeded after the release with
 occupancy back at 10. `docs/research/renode-capacity-exhaustion-083b35c3.txt`
 is the transcript and the receipt of `incore-inode-renode-exhaustion`. A
 kernel whose `iget()` drops the failure note was run once as the known-bad
-input and failed the gate on the counter. The board case
-`incore-inode-exhaustion` has the fixture and no receipt.
+input and failed the gate on the counter.
+
+One board run on 2026-11-12 at `1e986446` repeated it on the Pico at the
+same limits. With 11 inodes referenced, six holders took the other 12 and
+the parent the last one, an `open` and a `stat` refused with ENFILE with 10
+of 18 file slots in use, the inode failure counter rose by 2 and no other
+counter moved, and both calls succeeded after the release with occupancy
+back at 11. The file-table and process-table cases passed again in the same
+run. `docs/research/board-capacity-exhaustion-1e986446.txt` is the
+transcript and the receipt of `incore-inode-exhaustion`.
 
 A capacity reduction requires one named workload corpus and separate Renode
 and board runs. Each run records the exact kernel identity, configuration,

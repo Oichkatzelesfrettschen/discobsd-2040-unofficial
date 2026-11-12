@@ -10,7 +10,11 @@ implementation is maintained code, while its accepted input language remains
 a separate compatibility contract. Full on-device C17 development stays in
 the later DPUCP family.
 
-The integration baseline is `42bb56fb10c0b2620b2e862fda52fc03241d512c`.
+The retained modernization baseline is `42bb56fb10c0b2620b2e862fda52fc03241d512c`.
+The C17/POSIX expansion starts from refreshed owned `origin/main` revision
+`1e9864463c57f11c3a45db37d393652023843171`. Historical artifact measurements
+retain their original revisions; a refreshed source baseline supplies no new
+resource margin by itself.
 The DPUCP profile, donor ledger, allocation and line-reading libc members,
 process/runtime interfaces, shell command and getopts, utility printf,
 recovery utilities, timeout and multicall accounting are delivered foundations.
@@ -68,7 +72,7 @@ expected-rejection contracts rather than a portable-C17 acceptance claim.
 
 ### Ordered modernization queue
 
-The queue below owns program order. The historical ordered work queue later
+The queue below owns program order for the C17/POSIX expansion. The historical ordered work queue later
 in this document records delivered units and their residuals; it does not
 restart those implementations. Each row expands into one caller-complete
 mechanism per PR. A blocked row records its deciding experiment before the
@@ -76,18 +80,69 @@ next independent row starts.
 
 | Order | Mechanism | Dependency | Deciding output |
 | --- | --- | --- | --- |
-| 1 | Baseline and document reconciliation | Identified source revision and retained records | Delivered work, bounded residuals and one current queue |
-| 2 | Configuration-keyed shipped dependency closure | Evaluated commands, compiler dependencies, generated inputs, installed manifest and final links | Calibrated closure checker for PICO and PICO_UART, with archive/member and native-header ownership |
-| 3 | Reproducible resource comparison | Clean matched-toolchain parent/candidate distributions | Artifact-bound kernel/SRAM/a.out/root/member receipts; runtime and wear states remain explicit |
-| 4 | Header ownership boundaries | Shipped closure and resource baseline | Caller-complete headers with inclusion, ABI, assembly and native-input gates |
-| 5 | Calibrated compiler and analysis coverage | Header contracts and exact production commands | GNU17 target and strict-C17 portable coverage, expected-rejection fixtures and scoped analysis |
-| 6 | Shipped trust boundaries | Caller-complete interfaces and calibrated negative controls | Executable admission, copying, path, credential and parser invariants with target resource acceptance |
-| 7 | Libc and public interfaces | Existing libc evidence reconciled; all consumers identified | One interface family per change, clean consumer rebuild and native-header acceptance |
-| 8 | Typed shell execution input | Existing C17 shell behavior and parser ownership contracts | Typed string/argv and descriptor entry points; eval/source/trap/nesting/failure tests and resource receipts |
-| 9 | Filesystem and archive identity | Additive directory-relative kernel/libc contracts | Separate compress, tar and cpio race/failure gates with bounded linked costs |
-| 10 | RP2040 hardware and persistence ownership | Register/ROM/IRQ/buffer contracts and portable controls | PICO/PICO_UART builds; separately authorized silicon and recovery evidence |
-| 11 | Remaining shipped utilities and multicall units | Shipped T1 obligations addressed before broad T3 cleanup | Shipped language/interface closure and lifetime-safe composition measurements |
-| 12 | Remaining maintained source | Shipped-system milestone | Optional ARM, host tools, adapters and Smaller C implementation acceptance; justified exclusions and global closure |
+| 1 | Baseline, donor provenance and accounting | Identified source revision, existing dependency closure and retained records | Calibrated physical limits; explicit unreviewed rows; all 20 donor dispositions; matched clean source/resource receipts |
+| 2 | Public-header contracts | Shipped closure and native-header ownership | Explicit ISO C17, Issue 7/8 and BSD visibility; standalone/repeated/reordered inclusion; exact types; default compatibility and Smaller C acceptance |
+| 3 | Small strings and exit lifecycle | Header contracts and caller closure | Verified missing strnlen, strndup, stpcpy, stpncpy, quick_exit and at_quick_exit contracts with bounded access, allocation failures and reverse handler order |
+| 4 | Context-aware sorting | Typed public callbacks | Issue 8 context-last qsort_r with nested-call isolation and independent permutation/order witnesses |
+| 5 | Search and sorting bounds | Existing algorithm baselines | Tableless Two-Way and duplicate-aware/introspective sort experiments; replacements require correctness, stack and resource acceptance |
+| 6 | Shared XIP libc ABI and tooling | Current static baseline, complete object ownership and explicit exec format | Generated function/object ABI; executable-tail state; cross/native imports; kernel admission; raw/packed parity; matched image workflow |
+| 7 | C/POSIX locale foundation | Header type ownership and shared mutable-state ABI | Truthful locale selection, localeconv, byte collation/transformation, mbstate_t and restartable conversion; all-byte and error witnesses |
+| 8 | Memory streams | Private FILE backend and stdio lifetime contract | fmemopen/open_memstream with cursor, extent, capacity and publication invariants; seek/error/cleanup and peak allocation evidence |
+| 9 | Numeric conversion, formatting and math | Existing limb scanner and target precision | Grammar/error witnesses, precision-correct conversions, formatting and numerical exceptional-value contracts |
+| 10 | Calendar and clocks | Locale names, calendar arithmetic and separate kernel timer contracts | strptime/calendar tests; independent clock, timespec_get, monotonic clock and interrupted-sleep experiments |
+| 11 | Shared regular expressions | Public regex ownership and bounded resources | BRE/ERE, captures, cleanup and resource errors; individual utility migrations; conditional complexity claims |
+| 12 | Directory-relative operations and process launch | namei, descriptors, signals and exec ownership | Path-race and transactional cleanup tests; ordered spawn actions, exec failure transport and parent/child ownership |
+| 13 | Utility and shell closure | Delivered libc mechanisms and typed shell input | Selected utility behavior, archive identity, eval/source/trap/nesting/failure contracts and multicall lifetime/resource receipts |
+| 14 | Remaining maintained system | Finite standards/source denominators and shipped closure | Per-family feasibility and deciding experiments for filesystems, terminals, signals, networking, realtime, threads, native C, optional languages, host tools and hardware/persistence ownership |
+
+Each row expands through requirement facets, caller closure, donor comparison,
+calibrated behavior tests, complete implementation, clean rebuild, matched
+resource comparison, documentation and reviewed integration. Configuration-keyed
+dependency capture, compiler/analysis coverage and trust-boundary checks apply
+throughout the queue. A declaration or stub cannot close a runtime requirement.
+
+Every requirement leaf records edition/option authority, declarations/types,
+input and state transitions, outputs/errors, ownership/cleanup, signal and
+concurrency interactions, archive/caller/kernel dependencies, complexity and
+resource bounds, executable witness, negative control and remaining uncertainty.
+The allowed outcomes distinguish witnessed implementation, partial work,
+audited absence, unreviewed work, legitimately unselected options and blocking
+experiments. Parent closure requires all required children to close. C17,
+SUSv4, SUSv5, native input, emulator and hardware claims remain separate.
+
+`bsd-donor-inventory.json` records all 20 checkout identities, branch/status
+observations, authoritative development refs and synchronization outcomes.
+`dpucp-2024-donor-ledger.json` retains historical pins and adds immutable
+revision-specific source identities. The donor gate checks inventory and
+mechanism structure; the optional workspace check authenticates pinned source
+bytes. Shared ancestry supplies one evidence lineage, even when multiple forks
+retain the same source. Git-object inspection leaves checkout experiments open;
+an isolated research worktree precedes experiments that require a changed tree.
+
+`posix-archive-donor-frontier.md` extends the donor investigation to 13 local
+archive roots: historical BSD, AT&T, OSF, Xinu, Schily, extracted Mach,
+Schillix, SunOS, Solaris, archived Mach, MINIX, research Unix/standards and
+seL4. Its JSON companion records 262,043 regular-file paths and 23 selected
+source/package investigations with content identities, permission observations,
+invariants, conflicts and deciding experiments. seL4 ownership admission and
+ABI generation receive explicit priority; its proof claims retain their exact
+platform/configuration boundary. DragonFlyBSD remains the preferred current
+implementation reference, while standards and target witnesses govern claims.
+Packed, binary-only and restricted-source pieces retain separate investigation
+leaves. An archive label does not establish source eligibility or semantic truth.
+
+`coherent-donor-review.md` adds the separately cloned `gspu/Coherent` donor at
+`a00b86ea22c66625cf1838a71c06129f5eda2b49`. Its file-specific review enriches
+archive dependency accounting, FILE backend dispatch, regex compilation,
+numeric scanning, syscall metadata, exec/fork ownership and image planning.
+The shallow Git tip supplies source identity; RCS histories, historical binary
+behavior and target adaptation remain separate open investigations.
+
+`xip-shared-libc/README.md` owns the coordinated shared-library implementation
+contract. Its historical savings remain screening evidence until matched
+current builds establish margins. Physical-board execution requires separate
+authorization; each representative shared-libc workload must stay within a
+10% regression limit with measurement uncertainty reported.
 
 `c17-shipped-build-baseline.md` records the implemented capture/closure/resource
 foundation, first captured at `e7040aa1` and re-recorded at `3626ccf3`. Its

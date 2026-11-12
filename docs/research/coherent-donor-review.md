@@ -176,3 +176,7 @@ The command writes the named replay output in the caller's current directory. Co
 The boundary and lifecycle witnesses bind the scanner capacity counterexample,
 signed-limit and work-stack derivations, and the DiscoBSD exit registry repair
 to exact source identities and separately stated evidence classes.
+
+[The regex encoding and selection analysis](coherent-regex-mechanisms.md)
+adds exhaustive two-byte decoder controls and separates program bounds,
+match selection, conservative filters and caller-owned error handling.

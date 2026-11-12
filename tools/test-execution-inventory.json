@@ -517,7 +517,8 @@
         "check-qsort",
         "check-random",
         "check-ansi",
-        "check-exit-lifecycle"
+        "check-exit-lifecycle",
+        "check-quick-exit"
       ],
       "kind": "prerequisites"
     },
@@ -663,6 +664,11 @@
     {
       "from": "check-libc-exit-lifecycle",
       "to": "tests/libc_contracts:check-exit-lifecycle",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-quick-exit",
+      "to": "tests/libc_contracts:check-quick-exit",
       "kind": "recursive make"
     }
   ],
@@ -4334,6 +4340,44 @@
       "recipe": "${TEST_EXECUTION} run libc.exit.ilp32 -- ./exit_lifecycle_test32 nested",
       "aliases": [
         "check-libc-exit-lifecycle"
+      ]
+    },
+    {
+      "id": "libc.quick-exit.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-quick-exit",
+      "root_target": "check-libc-host-contracts",
+      "program": "quick_exit_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "quick_exit_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.quick-exit.native -- ./quick_exit_test nested",
+      "aliases": [
+        "check-libc-quick-exit"
+      ]
+    },
+    {
+      "id": "libc.quick-exit.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-quick-exit",
+      "root_target": "check-libc-host-contracts",
+      "program": "quick_exit_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "quick_exit_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.quick-exit.ilp32 -- ./quick_exit_test32 nested",
+      "aliases": [
+        "check-libc-quick-exit"
       ]
     }
   ]

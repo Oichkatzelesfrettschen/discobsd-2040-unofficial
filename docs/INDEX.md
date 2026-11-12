@@ -216,6 +216,7 @@ Grouped by what they investigate.
 | `bsd-donor-inventory.json` | all 20 BSD checkout observations, authoritative development refs, retained fetch attempts and unresolved immediate-source identities |
 | `posix-archive-donor-frontier.md`, `posix-archive-donor-frontier.json` | 13 additional archive roots, 23 content-identified investigations, per-file permission boundaries, reusable invariants, conflicts and deciding experiments |
 | `coherent-donor-review.md` | pinned Coherent sources, libc/archive/FILE/regex mechanisms, exec/fork/ABI ownership, C17 conflicts and deciding experiments |
+| `quick-exit-contracts.md` | independent quick-exit registry, live-head callback ordering, allocation failure and target/native qualification boundaries |
 | `callback-allocation-accounting.md` | calibrated ILP32 callback-node extents, cold heap commitment, allocator alignment and storage-policy limits |
 | `qsort-partition-cost.md` | calibrated duplicate-key comparison counts, partition traces, adapted DragonFly control and Cortex-M0+ object costs |
 | `dpucp-2024-multicall-composition.md` | the seven-box shipped-name denominator, archive-member closure, 433-block standalone comparison and zero-block `logname` root delta |

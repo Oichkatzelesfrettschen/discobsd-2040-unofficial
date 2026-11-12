@@ -1143,3 +1143,13 @@ separate `--closure` mode.
 Cortex-M0+ kernel compilation in one explicitly invoked profile gate.
 `check-c17-smaller-c` remains separate because native language acceptance does
 not establish ISO C17 or the production cross-build result.
+
+## Independent quick-exit callback qualification
+
+The [quick-exit contract](quick-exit-contracts.md) decomposes the independent
+registry, live-head removal and `_Exit` backend. Twelve modeled cases, process
+termination and six compiled controls pass on host/ILP32 and ARMv6-M QEMU.
+Target signatures, native input and full/reduced a.out archive closure pass.
+Matched resources, aggregate qualification and reviewed integration remain open. This work shares the
+existing exit repair as a prerequisite and keeps its resource approval
+separate from every new library member.

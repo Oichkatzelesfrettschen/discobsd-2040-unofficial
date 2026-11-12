@@ -192,3 +192,5 @@ hv_*.o
 huge_val_header*.o
 getgrent_contract_test
 grent_getgrent.o
+quick_exit_test
+quick_exit_test32

@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "64357fdcf4777180df7bc977b7774b31a07688224cdfa489d12067f87edd7b0e"
+    "ordered_row_sha256": "495528c2402bd68338f403e8e0c32fa01c1c5afa618c06b041b524d0032a8e19"
   },
   "state_counts": {
     "applicability": {
@@ -51,16 +51,16 @@
       "environment-constrained": 0
     },
     "implementation": {
-      "unreviewed": 1463,
+      "unreviewed": 1461,
       "present": 1,
-      "partial": 54,
+      "partial": 56,
       "absent": 0,
       "divergent": 0
     },
     "evidence": {
-      "none": 1463,
+      "none": 1461,
       "static": 39,
-      "host": 16,
+      "host": 18,
       "cross": 0,
       "qemu-user": 0,
       "renode": 0,
@@ -144,6 +144,12 @@
       "evidence": "host",
       "known_good": "tests/libc_contracts/exit_lifecycle_test.c",
       "known_bad": "tests/libc_contracts/exit_lifecycle.py"
+    },
+    "libc-quick-exit-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-quick-exit",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/quick_exit_test.c",
+      "known_bad": "tests/libc_contracts/quick_exit.py"
     }
   },
   "growth_policy": {

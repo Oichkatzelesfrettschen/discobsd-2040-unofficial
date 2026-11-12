@@ -36,7 +36,7 @@ the authorized offline execution surface.
 | Map storage contracts | Complete for named write paths | `storage-recovery-contracts.md` traces units, volatile state, return conventions, acknowledgements and ordering through descriptor, kernel, flash, Dhara and ROM boundaries. Pull request 435's retained experiment was inspected at its recorded head. |
 | Implement shared failure interface | Complete for host prefix model | Typed transfer callbacks execute the production descriptor backend; inactive injections fail. Positive shorts, errors before/after transfer, frozen interruption prefixes and paired compensation errors are calibrated. |
 | Extend persistent-image oracle | Complete for exercised image range | Independent ownership, free-list, inode, namespace, link-count and metadata checks read fresh exported bytes. Corrupted-image controls and valid-but-changed metadata distinguish invariant failures from state differences. Larger sparse files retain a bounded-reader extension requirement. |
-| Repair supported recoverable v7fs defects | Open; two repairs verified | Formatter cache and hard-link writeback/compensation repairs are committed at `167e856d`, with import patches and manifest. Verify remaining candidates: CLI parent-growth preflight, symlink writeback, rename compensation and out-of-range inode address encoding. |
+| Repair supported recoverable v7fs defects | Open; three repairs verified | Formatter cache and hard-link writeback/compensation repairs are committed at `167e856d`. Rename hierarchy validation precedes target replacement at `ff07aeab`. Both imported-source commits carry synchronized patches and manifest hashes. Verify remaining candidates: CLI parent-growth preflight, symlink writeback, rename I/O compensation and out-of-range inode address encoding. |
 | Compare atomic recovery policies | Complete offline; production admission open | Bounded policies pass 22,854 transaction/recovery cuts and negative controls. Dhara replay supplies operation counts and separate committed-recovery work. `storage-recovery-comparison.md` records the representation/reclamation/migration/interruption architecture stop. |
 | Review remaining components | Active: verify device error lifetime and unit admission | The host probe reproduced queued-buffer routing and unmounted asynchronous error loss. The candidate retains shared first-error replicas in active inode storage through last close and drains busy writes. The mount-publication schedule reproduces raw/whole-device admission races; the unit guard passes the deciding host schedules. The extended fixture passes 1,950 checks and rejects 46 mutants; the buffer-pressure fixture passes 53 checks and rejects its four behavior mutants. Selected Clang analyses pass, and matched Cortex-M0+ resource captures retain source hashes. Final clean-revision logged gates remain required before publication. `block-device-write-error-lifetime.md` owns the contract and evidence limits. Six source-review components cover 101 paths; 658 components remain pending. |
 | Determine takeover eligibility | Pending | Record UTC decision and exact five-hour cutoff, attributable activity and ownership, then recheck head and ownership immediately before mutation. |
@@ -192,3 +192,30 @@ their respective calibrated behavior checks. The design and resource limits
 remain in `block-device-write-error-lifetime.md`. A fresh aggregate and
 ILP32 inventory on the resulting clean head remain pending; the failed
 aggregate supplies no aggregate pass for its preceding revision.
+
+The fresh aggregate
+`rp2040-check-local-20261112T213213Z-2026801-69edab66` completed its build
+stage and failed the check stage when the V7 format fixture linked
+`sys_inode.c` without the device-lifetime helper closure. Commit `37626590`
+adds fail-closed special-device stand-ins and the host interrupt state. The
+focused format gate then passes 1,017 checks and rejects all 23 source
+mutants. The failed aggregate remains a failed result; a later aggregate is
+required for the repaired revision.
+
+The persistent-image probe found that `v7fs_file_rename()` deallocated an
+existing target before `can_dirmove()` rejected a directory move into its
+descendant. Empty-directory targets eliminate the source/target type mismatch
+alternative: both little-endian and PDP-11 images returned `EINVAL`, issued
+four writes, lost the target name and reopened with an unreachable inode.
+Commit `ff07aeab` moves hierarchy validation ahead of target lookup and
+deallocation. The fixed-pool regression now observes zero operation writes,
+byte-identical persistent state, fresh-mount source and target names, and an
+independent valid image in both byte orders. A valid cross-parent rename
+remains reachable. The core gate separately injects source-inode,
+hierarchy-parent and target-name read failures and rejects a mutant that
+restores late validation. `tools/netbsd_imports.py verify` matches all 37
+entries. The required logged build
+`rp2040-build-local-20261112T224926Z-488837-192ffb9c` passes in 82.572 seconds;
+the storage-recovery and import gates pass after it. These results establish
+ordinary execution and host prefix-error behavior, rather than interruption
+atomicity for the remaining rename publication sequence.

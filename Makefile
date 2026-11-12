@@ -1194,6 +1194,20 @@ check-storage-recovery: check-python
 
 .PHONY: check-storage-recovery
 
+STORAGE_PREFIX_PARENT_BLOCKS?=	1 10 138
+check-storage-recovery-prefix: check-python
+		${PYTHON} tests/storage_recovery/prefix_matrix.py \
+		    --parent-blocks ${STORAGE_PREFIX_PARENT_BLOCKS:@block@${block:Q}@}
+
+.PHONY: check-storage-recovery-prefix
+
+check-storage-recovery-models: check-python
+		${PYTHON} tests/storage_recovery/transaction_models_test.py
+		${PYTHON} tests/storage_recovery/dhara_backend_test.py
+		${PYTHON} tests/storage_recovery/compare_policies.py
+
+.PHONY: check-storage-recovery-models
+
 check-v7fs-core: check-python
 		${MAKE} -C tests/v7fs_core check PYTHON=${PYTHON:Q}
 
@@ -1363,7 +1377,8 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
-		check-netbsd-imports check-v7fs-core check-storage-recovery check-msdosfs-core \
+		check-netbsd-imports check-v7fs-core check-storage-recovery \
+		check-storage-recovery-models check-msdosfs-core \
 		check-corering check-core1 \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \

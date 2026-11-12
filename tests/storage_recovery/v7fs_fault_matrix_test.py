@@ -1,8 +1,10 @@
 """Check ordinary compensation against fresh persistent-image state."""
 
 import errno
+import json
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 
 from storage_trace import Device, Fault
@@ -94,6 +96,41 @@ class CompensationTest(unittest.TestCase):
                             image, order, operation, Fault(event.sequence, mode, amount))
                         self.assertEqual(result, errno.EIO, "hard-link write error was hidden")
                         self.assertEqual(verify(persistent, order), old)
+
+    def test_second_compensation_failure_reports_inspection_boundary(self):
+        dispositions = Counter()
+        for order in ("little", "pdp"):
+            image = self.images[order, 1]
+            for directory in (False, True):
+                def operation(backend, directory=directory):
+                    return backend.create("new", directory)
+                _result, _successful, events = self.run_operation(image, order, operation)
+                first = [event for event in events if event.kind == "write"][-1]
+                _result, _persistent, cleanup = self.run_operation(
+                    image, order, operation, Fault(first.sequence, "after_error", first.length))
+                compensation = [event for event in cleanup if event.kind == "write" and
+                                event.phase == "compensation"]
+                self.assertGreater(len(compensation), 0)
+                for event in compensation:
+                    device = Device(image, faults=[
+                        Fault(first.sequence, "after_error", first.length),
+                        Fault(event.sequence, "before_error", 0),
+                    ])
+                    backend = Backend(self.library, device, order)
+                    self.assertEqual(backend.mount(), 0)
+                    result = operation(backend)
+                    self.assertEqual(result, errno.EIO)
+                    self.assertEqual(backend.sync(), 0)
+                    backend.close()
+                    device.verify_injections()
+                    self.assertEqual(device.events[event.sequence - 1].phase, "compensation")
+                    try:
+                        verify(device.export(), order)
+                        dispositions["reader-valid inspection state"] += 1
+                    except ValueError:
+                        dispositions["reader-rejected inspection state"] += 1
+        self.assertGreater(dispositions["reader-rejected inspection state"], 0)
+        print(json.dumps({"second_failure_dispositions": dict(dispositions)}, sort_keys=True))
 
 
 if __name__ == "__main__":

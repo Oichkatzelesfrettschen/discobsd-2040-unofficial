@@ -26,6 +26,7 @@ class Report:
     link_counts: dict
     sizes: dict
     payload_hashes: dict
+    inode_metadata: dict
 
 
 class Reader:
@@ -42,6 +43,7 @@ class Reader:
         self.owners = {}
         self.inodes = {}
         self.maps = {}
+        self.attributes = {}
 
     def number(self, offset, width):
         require(0 <= offset <= len(self.image) and width <= len(self.image) - offset,
@@ -89,6 +91,11 @@ class Reader:
             require(file_type in (0o100000, 0o040000, 0o120000, 0o020000, 0o060000),
                     f"inode {inode}: unsupported type in bounded oracle")
             self.inodes[inode] = (file_type, links, size)
+            self.attributes[inode] = (
+                mode, self.number(offset + 4, 2), self.number(offset + 6, 2),
+                tuple(self.number(offset + 12 + index * 3, 3) for index in range(13)),
+                tuple(self.number(offset + time_offset, 4) for time_offset in (52, 56, 60)),
+            )
             mapping = {}
             self.maps[inode] = mapping
             if file_type in (0o020000, 0o060000):
@@ -206,4 +213,4 @@ def verify(image, order="little"):
                   {inode: values[1] for inode, values in reader.inodes.items()},
                   {inode: values[2] for inode, values in reader.inodes.items()},
                   {path: hashlib.sha256(reader.payload(inode)).hexdigest()
-                   for path, inode in namespace.items()})
+                   for path, inode in namespace.items()}, reader.attributes)

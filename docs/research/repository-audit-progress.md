@@ -25,13 +25,13 @@ the authorized offline execution surface.
 | --- | --- | --- |
 | Establish baseline and ownership | Complete for audit worktree | Remote main and worktree heads/statuses recorded; isolated baseline build passed. Preserve unrelated dirty worktrees. Recheck pull-request ownership separately before mutation. |
 | Create coverage denominator | Complete; reviews pending | 6,743 unique paths and 654 pending component rows validate; 15 fixtures calibrate identities, missing/duplicate paths, references, closure and overwrite protection. |
-| Revalidate historical v7fs and assertion findings | Active | Baseline host regressions pass. Repair the reproduced optimized-Python assertion-oracle gap, record source/test boundaries, and carry v7fs compensation candidates into persistent-image probes. |
-| Map storage contracts | Pending | Trace descriptor, buffer cache, flash, Dhara and ROM operations with units, acknowledgements, ordering and persistence assumptions. Inspect pull request 435's experiment before reuse. |
-| Implement shared failure interface | Pending | Trace typed events; exercise short/error/partial transfers and a second compensation failure; require activated injections. |
-| Extend persistent-image oracle | Pending | Reopen images with fresh volatile state; account independently for ownership, free lists, inodes, directories and links; reject specified mutants. |
-| Repair supported recoverable v7fs defects | Pending | Reproduce before editing; test allocation boundaries and failure classes; update import patches and manifest with source repairs. |
-| Compare atomic recovery policies | Pending | Exercise undo, redo and copy-on-write models against identical traces and oracles; publish counterexamples, costs, assumptions and hardware residuals. |
-| Review remaining components | Pending | Review all 654 components, record exact path witnesses, keep unsupported or blocked completion open, and add delta reviews. |
+| Revalidate historical v7fs and assertion findings | Complete for named contracts | Baseline host regressions and import checks pass. The optimized-Python oracle counterexample is repaired at `602915a2`. Additional source candidates remain separate probes rather than historical closure claims. |
+| Map storage contracts | Complete for named write paths | `storage-recovery-contracts.md` traces units, volatile state, return conventions, acknowledgements and ordering through descriptor, kernel, flash, Dhara and ROM boundaries. Pull request 435's retained experiment was inspected at its recorded head. |
+| Implement shared failure interface | Complete for host prefix model | Typed transfer callbacks execute the production descriptor backend; inactive injections fail. Positive shorts, errors before/after transfer, frozen interruption prefixes and paired compensation errors are calibrated. |
+| Extend persistent-image oracle | Complete for exercised image range | Independent ownership, free-list, inode, namespace, link-count and metadata checks read fresh exported bytes. Corrupted-image controls and valid-but-changed metadata distinguish invariant failures from state differences. Larger sparse files retain a bounded-reader extension requirement. |
+| Repair supported recoverable v7fs defects | Open; two repairs verified | Formatter cache and hard-link writeback/compensation repairs are committed at `167e856d`, with import patches and manifest. Verify remaining candidates: CLI parent-growth preflight, symlink writeback, rename compensation and out-of-range inode address encoding. |
+| Compare atomic recovery policies | Complete offline; production admission open | Bounded policies pass 22,854 transaction/recovery cuts and negative controls. Dhara replay supplies operation counts and separate committed-recovery work. `storage-recovery-comparison.md` records the representation/reclamation/migration/interruption architecture stop. |
+| Review remaining components | Active: reproduce kernel device flush route | Execute the independent-device `rwip`/`fsync` host probe, then review the remaining component rows with exact path witnesses and explicit delta reviews. All 654 baseline component rows still require ledger dispositions. |
 | Determine takeover eligibility | Pending | Record UTC decision and exact five-hour cutoff, attributable activity and ownership, then recheck head and ownership immediately before mutation. |
 | Complete eligible pull requests | Pending | Apply the user's separate contracts for pull requests 435, 436, 437 and later eligible requests; preserve experimental defaults and keep unmet readiness criteria visible. |
 | Verify and integrate | Pending | Focused checks, logged-check and logged-ilp32 on final revisions; separate CI watchers; fresh review and merge-commit integration; retain evidence and remove only clean, pushed task-owned worktrees. |
@@ -99,6 +99,45 @@ injection, a fresh image read, and a claim-specific oracle. Existing root-block
 ownership checks cover data/index/free-list partitioning for their fixtures;
 they leave directory reachability, link counts, and parent-directory creation
 at indirect growth boundaries for the new oracle.
+
+The persistent-image reader exposed an additional formatter invariant: a
+64-inode image received a 100-entry cache containing candidates through inode
+101. The formatter now bounds its initial cache by the existing inode count.
+The hard-link matrix activated errors at the final inode write in both byte
+orders and observed success before repair. The corrected helper removes the
+new directory reference before restoring the saved inode.
+
+The candidate tree `fbb382598d73c3c434de095c4f741af5a96b6098` became commit
+`167e856d`. Its logged build passed; invocation
+`audit-v7fs-persistence-20261112T185137Z-2850298-ce4f16d8` passed the new
+storage gate, historical v7fs gate and all 37 import entries after 83.2 seconds.
+Matched GCC 16.2 Cortex-M0+ object measurements add 64 text bytes for
+`v7fs_file_util.c` and 16 for the formatter, with unchanged object data/BSS.
+The hard-link function's static frame changes from 24 to 128 bytes; the
+formatter's frame remains 592 bytes. Those measurements cover static compiler
+frames, rather than runtime call-chain peaks.
+
+Invocation `audit-v7fs-prefix-20261112T185532Z-2861646-2880cb0c` retains its full log and terminal status locally. The matrix completed 49,248
+ordinary-error prefixes and 49,248 interrupted prefixes across both byte
+orders, regular/directory creation and full 1-, 10- and 138-block parents.
+All ordinary-error cases restored the then-declared semantic checks. The
+reader rejected 43,854 interrupted images; 5,394 matched the old state.
+The subsequent metadata-comparison extension requires a fresh final matrix
+before extending that receipt's claim to owners, permissions and timestamps.
+
+The paired-failure extension activates 20 second errors during actual core
+compensation. All operations report EIO; the reader accepts 12 resulting
+inspection states and rejects eight. A successful later superblock writeback
+does not establish that failed compensation restored the image.
+
+The storage write-path review also identified a kernel probe for the next
+component review. A partial cooked-device write addresses `i_rdev`, while a
+zero-size block inode gives `syncip` an empty data loop and `fsync` selects
+the filesystem containing the node. The independent-device host fixture must
+keep the descriptor open, observe dirty target buffers immediately after
+`fsync`, and use explicit target `bflush` plus a same-device case as controls.
+`share/man/man2/fsync.2` supplies the interface requirement. The source route
+is established; the actual kernel host reproduction remains pending.
 
 ## Replay
 

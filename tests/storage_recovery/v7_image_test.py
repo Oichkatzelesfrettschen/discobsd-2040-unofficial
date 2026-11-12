@@ -89,6 +89,16 @@ class ImageOracleTest(unittest.TestCase):
             image[root_block * 512 + 32:root_block * 512 + 34] = encode(64, 2, order)
         self.mutation(modify, "unallocated inode")
 
+    def test_semantic_comparison_includes_inode_attributes(self):
+        for order, original in self.images.items():
+            before = self.oracle.verify(original, order)
+            for relative, width in ((0, 2), (4, 2), (6, 2), (52, 4), (56, 4), (60, 4)):
+                image = bytearray(original)
+                offset = 2 * 512 + 64 + relative
+                value = decode(image, offset, width, order)
+                image[offset:offset + width] = encode(value ^ 1, width, order)
+                self.assertNotEqual(self.oracle.verify(bytes(image), order), before)
+
 
 if __name__ == "__main__":
     unittest.main()

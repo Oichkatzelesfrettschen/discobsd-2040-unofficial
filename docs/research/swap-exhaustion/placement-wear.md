@@ -215,18 +215,27 @@ block 383 in every trial; each child verified its parent's 172 KiB of
 xorshift bytes. The prediction held: a refusal on the ring kernel or an
 admission on the interval kernel would have refuted it.
 
-**Console.** The first boot of the ring kernel stopped echoing in the middle
-of a typed command after login, before any test. The next three boots of
-that kernel and the Renode boot gate ran clean. The cause is not established;
-`sys/arch/rp2040/doc/BOARD-CONSOLE.md` records a USB console wedge on this
-board that predates the change, and one event in four boots does not
-separate the two.
+**The final kernel.** The kernel built from commit `34602fd3`, with the
+two-sided tail (`unix.uf2` SHA-256 `6309d0b5...d3259bf2`), repeated the
+adverse procedure: six trials, six admissions, each child verified. In one
+trial the joined run was exactly 180 blocks (free runs 4+152, 176+20,
+216+20, 356+28), so the child's extent took every block of the run below
+the end and 152 above the start.
+
+**Console.** The first boot of the earlier ring kernel stopped echoing in
+the middle of a typed command after login, before any test. Every later
+boot ran clean: three more of that kernel, eight of the final ring kernel
+and eight of the interval kernel, each flashed, logged in and driven through
+`sysctl`, `ls`, `ps` and `date`; the Renode boot gate also passes. The
+event did not recur in the 11 later boots of ring kernels, which bounds its
+rate on this board but does not name its cause;
+`sys/arch/rp2040/doc/BOARD-CONSOLE.md` records a USB console wedge here
+that predates the change.
 
 ## Not run
 
 - Per-sector erase counts on the board. The lifetime table rests on the
   model, whose event order the twelve-fork run contradicts.
-- Repeated boots of both kernels to bound the console event.
 - The three-sleeper remainder and relocation on refusal.
 - A session model fitted to a recorded allocation trace.
 

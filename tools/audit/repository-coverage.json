@@ -16392,2723 +16392,2723 @@
       "path": "lib/libc/arm/Makefile",
       "mode": "100644",
       "blob": "d9ad45676300581cffbbfa2cfb78a8f2aee8a90c",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/arm/gen/Makefile",
       "mode": "100644",
       "blob": "c620378098240c1e20033f9d75c6310fc1ad13be",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/arm/gen/_setjmp.S",
       "mode": "100644",
       "blob": "0ba7ed11407ec48dfb2a1cfa65f57ddc7a5e991b",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/aeabi_div.S",
       "mode": "100644",
       "blob": "2493e1c7a4dd60d601fdcbbbdede28372b041921",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/aeabi_div_idiv.S",
       "mode": "100644",
       "blob": "2b25385d0c3a537570c7ced765f58de6c1f66d12",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/htonl.S",
       "mode": "100644",
       "blob": "5f041db2ee434ebe0079a8ce37939db12cb318fe",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/htons.S",
       "mode": "100644",
       "blob": "fe92068818c0131d5f3a986dfc15c6ad63f1e1e7",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float.inc",
       "mode": "100644",
       "blob": "6ef8fbf4b4e5580b3bd0648f245486caebf32444",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_cdcmple.S",
       "mode": "100644",
       "blob": "61abc952d65ca3487530db9c269f949c02419fd4",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_cdrcmple.S",
       "mode": "100644",
       "blob": "d9877d75b74dca7b1d8c095694f82c91ba836b95",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_cfcmple.S",
       "mode": "100644",
       "blob": "7eeafadbe09797b3cf42f725cde04d322d5a17cb",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_cfrcmple.S",
       "mode": "100644",
       "blob": "a6716e1ebce3017becdcfc80d566ca2d1735d819",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_clz.S",
       "mode": "100644",
       "blob": "a504abc3adf5e16ffb294fb9ff859a3ef786645e",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_d2f.S",
       "mode": "100644",
       "blob": "b80a8627f5145ce72920b705ae7fa9625bf10b06",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_d2iz.S",
       "mode": "100644",
       "blob": "746362346d2867bb24dbdd3db9e85e95c7ed0a14",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_d2uiz.S",
       "mode": "100644",
       "blob": "d0b0667bd2aaaaec551f5dadb0843ce0e343da3b",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_d2ulz.S",
       "mode": "100644",
       "blob": "7ad2d5a7f81640a130e80b62150c5c11a5e65d44",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_dadd.S",
       "mode": "100644",
       "blob": "e93f6a07d2183cf88ad9f7ea7443605614345d02",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_dcmp_core.S",
       "mode": "100644",
       "blob": "a8f655960f4a946ac387a0dd1ffc418c4a56086b",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_dcmpeq.S",
       "mode": "100644",
       "blob": "a5fcfddad0504bb2eea58eadf83d23a9a698adf6",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_dcmpge.S",
       "mode": "100644",
       "blob": "ae709b55fe8e7090cca1bd7c548b8ec8d08dcdda",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_dcmpgt.S",
       "mode": "100644",
       "blob": "d67255f8dfddb312bd2ab5b36acf908ff9fa3495",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_dcmple.S",
       "mode": "100644",
       "blob": "bdb563979d1100d597b0305575bc1b36be73cd48",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_dcmplt.S",
       "mode": "100644",
       "blob": "7505a65aeb3d0a1b710fac41ad53f77cb37409d3",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_dcmpun.S",
       "mode": "100644",
       "blob": "fa8422488fc7c6838a9e81e271aa182b311ce29a",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_ddiv.S",
       "mode": "100644",
       "blob": "c12210954c5ef8247d774617f193bffd4f525e9a",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_df_compare.S",
       "mode": "100644",
       "blob": "47b5b5082b51f6d3df1ecdb46ca9184c7ae1979b",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_dmul.S",
       "mode": "100644",
       "blob": "795efe6e73351ba8c8b645f465ea438c0e213961",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_dneg.S",
       "mode": "100644",
       "blob": "50e5546aaf80c636cb9cdf1a4ca6962455e42dfc",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_dsub.S",
       "mode": "100644",
       "blob": "44b043ebf3d543f4d1fa6ef69695c76fc721d38e",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_f2d.S",
       "mode": "100644",
       "blob": "34c676805b8e5b4737a10155a18897c7d660fa5f",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_f2iz.S",
       "mode": "100644",
       "blob": "f622c2a4a1cb4941ae388c4b67215aa45fe891c4",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_f2uiz.S",
       "mode": "100644",
       "blob": "27df61ec2c95cdef429e474f2ed852d78f4dd878",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_f2ulz.S",
       "mode": "100644",
       "blob": "5707156adca46f0e6008766877811a2fc3aa9941",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fadd.S",
       "mode": "100644",
       "blob": "3c27ec12efec135c510efae9c770d9d1e850d2ac",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fcmp_core.S",
       "mode": "100644",
       "blob": "910510152a4f43829fd85cc21cb34d115d810aad",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fcmpeq.S",
       "mode": "100644",
       "blob": "5763cbcc71cddbc81635cddad69f8abdcf54db31",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fcmpge.S",
       "mode": "100644",
       "blob": "f613252b6cea3842604126bd3e179a566278e405",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fcmpgt.S",
       "mode": "100644",
       "blob": "7690c94b13e4141ab9aa5e0a363bbb4af42a1413",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fcmple.S",
       "mode": "100644",
       "blob": "06cf7ba87e4684fe929b894c91a72398fb12a324",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fcmplt.S",
       "mode": "100644",
       "blob": "7eb72ecd34a395f09d27834f157b116c0fe30082",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fcmpun.S",
       "mode": "100644",
       "blob": "894fb99990e255f2351d3656a54a341740c9c8d4",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fdiv.S",
       "mode": "100644",
       "blob": "cf4b23323bb53062cf6a5ef7cd3344c2c2c632c0",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fmul.S",
       "mode": "100644",
       "blob": "c1edba3c0338669d36e337471e3da9de178ad8e7",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fneg.S",
       "mode": "100644",
       "blob": "d67f8c2bb438d5be6ebd5ba067f5cda56628b394",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_fsub.S",
       "mode": "100644",
       "blob": "a2075fb45a5a01e2cc901154fabef33164d3be33",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_i2d.S",
       "mode": "100644",
       "blob": "bc6ed5869a0d56b551568a339a9a82c39625668c",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_i2f.S",
       "mode": "100644",
       "blob": "c22a55320a2ff7b8e200c172035643fefe6e9a1c",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_l2d.S",
       "mode": "100644",
       "blob": "a11d668cb643ccda0a691b2165190a2c5faf27e6",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_l2f.S",
       "mode": "100644",
       "blob": "b0131b66945821691771cb3a9608f60931e72e28",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_members",
       "mode": "100644",
       "blob": "5dab1130460e892ba011687274be51df23761a70",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_resolver.S",
       "mode": "100644",
       "blob": "479918bfd9df13fa44eecaefcc2fcd0503246d9d",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_sf_compare.S",
       "mode": "100644",
       "blob": "f4b51ecd51b876ea6519503a710ba8b3374be436",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_ui2d.S",
       "mode": "100644",
       "blob": "be6d08b8d6c18ab16349966f564b070831755d2e",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_ui2f.S",
       "mode": "100644",
       "blob": "bdef5e760b54362ee57be549adedbcb4f886e4c8",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_ul2d.S",
       "mode": "100644",
       "blob": "dae2cfa636d23c9a94a2c2aa7d92f66c3a32f6c2",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/rom_float_ul2f.S",
       "mode": "100644",
       "blob": "d47bda281d7e9b87fa331b08b9627b4ee6043334",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/setjmp.S",
       "mode": "100644",
       "blob": "77e85e3d813b8cb20f624c7f74fe9307af1c1217",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/gen/sigsetjmp.S",
       "mode": "100644",
       "blob": "66ebad4fb960879c007473a31815d0ff8e17d918",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/string/Makefile",
       "mode": "100644",
       "blob": "fcd96063d3e9db451d044ffecbddc513576ff886",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/arm/string/memmove.S",
       "mode": "100644",
       "blob": "e7cacee71a53e1b30484051efa2b3fe0f8c33398",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/string/strcmp.S",
       "mode": "100644",
       "blob": "02613731721ed42c6fcb74ea43ae9ded0e1c71a9",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/sys/Makefile",
       "mode": "100644",
       "blob": "fcc58789904d167b3a70dedadd0371740f15ff72",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/arm/sys/SYS.h",
       "mode": "100644",
       "blob": "f85cde55c3ae620da6f5a1baacec5499f322b7b2",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/sys/_brk.S",
       "mode": "100644",
       "blob": "6ace735f428d9f4928ebdc826808daedda3018fe",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/sys/_exit.S",
       "mode": "100644",
       "blob": "9a2ca655a443788e5a09a4fb1b2080becd4b5107",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/sys/execl.c",
       "mode": "100644",
       "blob": "0b526286cb18fec29600ecda8ebfa165a56f7104",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/sys/execle.c",
       "mode": "100644",
       "blob": "7d11e4b8634c0b6e97a2e6298ec772b922e819bb",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/sys/execv.c",
       "mode": "100644",
       "blob": "f34b7aa3f24f926ddc81ea0164ed84c8f0e7491c",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/sys/pipe.S",
       "mode": "100644",
       "blob": "750bc7dc87a6b01589eae98df94486c14670a91d",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/sys/ptrace.S",
       "mode": "100644",
       "blob": "6489fca18804670edb06183471a9091b9b04f613",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/sys/sbrk.c",
       "mode": "100644",
       "blob": "cc87cf1cd7e49a65e219e406aea99a9333484dd3",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/arm/sys/sigaction.S",
       "mode": "100644",
       "blob": "5ebb96e3ff8c94a6d0de9906ca13446358f6da53",
-      "component": "lib/libc",
+      "component": "lib/libc/arm",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/Makefile",
       "mode": "100644",
       "blob": "a2689c005d46ec03580bcf6a08afa871ced6b736",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/compat/creat.c",
       "mode": "100644",
       "blob": "3be80dda558a7d5575cf00cfa6284576520c9d2a",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/ftime.c",
       "mode": "100644",
       "blob": "c8bf403441f7b8a5f3d0367f841433d856647246",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/gethostid.c",
       "mode": "100644",
       "blob": "4213eaa5b3042a8f4b0638a93de9ed00dec5c023",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/memccpy.c",
       "mode": "100644",
       "blob": "be8790a7e5468c0ce3ae8f29d7f722a888ec45a5",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/memchr.c",
       "mode": "100644",
       "blob": "a14df7e626309ff601ea217fd73c7c7453e3a948",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/memcmp.c",
       "mode": "100644",
       "blob": "519043bd17aa7a840c05dcf7b369d8cb09c40417",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/memcpy.c",
       "mode": "100644",
       "blob": "bc03276649ef7df4ab41ed684d4d064221e960a1",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/memset.c",
       "mode": "100644",
       "blob": "3c474fa72518d16604af0e9403033e04ca7d8dc6",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/nice.c",
       "mode": "100644",
       "blob": "d4fa0a1446d4960419c8a88e99ff83c9f921b696",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/pause.c",
       "mode": "100644",
       "blob": "97716a0826bfaa86f7fa73765755265280047f93",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/rand.c",
       "mode": "100644",
       "blob": "5b51eac5c2483703e234fd5c05523abb25a8fbd4",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/sethostid.c",
       "mode": "100644",
       "blob": "570e8b569ec39a042e7290908301308cff4b4085",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/setregid.c",
       "mode": "100644",
       "blob": "4c8e7d92196b948adec71a6290dcf7ae3d125b80",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/setreuid.c",
       "mode": "100644",
       "blob": "bc24f09c1975dbbb663043d1ac9a5260be8515a1",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/setrgid.c",
       "mode": "100644",
       "blob": "4f7c2eb056c8357ec0d502f30a944529c68d2691",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/setruid.c",
       "mode": "100644",
       "blob": "0d177589516edd16fae360b9fb5bbf6818f0bbd0",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/sigcompat.c",
       "mode": "100644",
       "blob": "e4a8be8c70e9fc836fa12d8802e47c387bf6fd15",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/strchr.c",
       "mode": "100644",
       "blob": "4250406e670a6d2eed5d666889c3fac0cd9af49d",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/strrchr.c",
       "mode": "100644",
       "blob": "b1c4e48b2a7b97a8e1a6e459e3fc8fd464448bbd",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/times.c",
       "mode": "100644",
       "blob": "8805f9ab063a01c0be338edeb63624b3d5c87b34",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/tmpnam.c",
       "mode": "100644",
       "blob": "ab9883148c76fe0c0015921f113fb4c6244de52a",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/compat/utime.c",
       "mode": "100644",
       "blob": "8b8687f4baa32d56c66ee9fdc683df2ef512c4df",
-      "component": "lib/libc",
+      "component": "lib/libc/compat",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/Makefile",
       "mode": "100644",
       "blob": "a599c3fc17eae3ce9efda4aec1fe653feecabbc8",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/gen/abort.c",
       "mode": "100644",
       "blob": "70d5f9377f99737dbbd8bf4ae3014ee02ee2ad43",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/abs.c",
       "mode": "100644",
       "blob": "feb1d8726db5c44a2f4114228cb1071262b36a35",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/alarm.c",
       "mode": "100644",
       "blob": "b28253fb078f6994d692a7d9b0ef2c84d2e6a4e6",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/aligned_alloc.c",
       "mode": "100644",
       "blob": "fa14696dd2ac4a9b23cb7906c3a40dd53473f4ba",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/asctime.c",
       "mode": "100644",
       "blob": "07d8850078277061bef1fe2aecd114f1608d83ba",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/assert_fail.c",
       "mode": "100644",
       "blob": "13af9f89189e21a7fa7442ea8ca91c005730fd80",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/atof.c",
       "mode": "100644",
       "blob": "3c79c6c9462f7d809f99a80585da058025ff7f73",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/atoi.c",
       "mode": "100644",
       "blob": "428f7ba3c73c80cff764af5c6245b4befeba2233",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/atol.c",
       "mode": "100644",
       "blob": "c6a20240cea08a19457726d7d4a61bb477f35338",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/basename.c",
       "mode": "100644",
       "blob": "721f33d76d4f5981a3f927bdca44463a2b297bf1",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/bcmp.c",
       "mode": "100644",
       "blob": "cc7d59a7c6e1439c0610da521cd61f149660ebb7",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/bcopy.c",
       "mode": "100644",
       "blob": "0ba106bf2cedc2528cdcc18a8a1ebf489cf44bb5",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/bzero.c",
       "mode": "100644",
       "blob": "abb81f1469514260c2c178744cd93f5cbb0b2b54",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/calloc.c",
       "mode": "100644",
       "blob": "cb4ca3e54a9d11836fc20e6f20f72dadd37a59c1",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/closedir.c",
       "mode": "100644",
       "blob": "c2f711b25f779920ec847c379d547e9b63783264",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/confstr.c",
       "mode": "100644",
       "blob": "6b2af481ff9b82309fe7ddb98048284a95325161",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/crypt.c",
       "mode": "100644",
       "blob": "cd064ade64c0967aac05be222e589fbc7c1fb27a",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/ctermid.c",
       "mode": "100644",
       "blob": "22f333a84951155bdb632c769d1e2321506a8f5f",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/ctime.c",
       "mode": "100644",
       "blob": "2c15765c244954000b701c0511cad5598dff5754",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/ctype_.c",
       "mode": "100644",
       "blob": "e2a8f6a1ce8b6eb215f8fb38f6bff942855eac4a",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/daemon.c",
       "mode": "100644",
       "blob": "1f376e88e1689bc2ef6c397589acabb19226401e",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/devname.c",
       "mode": "100644",
       "blob": "4bb332c88db6b122a069ef1ca75907d675351ba9",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/difftime.c",
       "mode": "100644",
       "blob": "d634fb414e1e1af95ffa851c15c71924c990cbe6",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/dirname.c",
       "mode": "100644",
       "blob": "65e3cf210ade71444db0231f20b9a3b5f9447fdc",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/ecvt.c",
       "mode": "100644",
       "blob": "6ea7b28af983cadd961d16a26d73c8da163b5bf4",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/err.c",
       "mode": "100644",
       "blob": "efb3f31dfebc898103c96e698cbf3b795911dc21",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/execvp.c",
       "mode": "100644",
       "blob": "537748f6b01c10ff90577186bb9a47f10627544d",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/fabs.c",
       "mode": "100644",
       "blob": "e384dca8afda81cc73d1aa6e66f7c450ffffd01e",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/fakcu.c",
       "mode": "100644",
       "blob": "c8437b9487491564c059210e0a418fb2a84ede8e",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/ffs.c",
       "mode": "100644",
       "blob": "eacd3a1906df3ec439b35308b1112d76528fea04",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/fnmatch.c",
       "mode": "100755",
       "blob": "e927b6cc07b3eeda4cc13f4ea8796b1db3edd471",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/frexp.c",
       "mode": "100644",
       "blob": "3d0c092831093bdc568633adf9bbf8875460a510",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/fstab.c",
       "mode": "100644",
       "blob": "0a4378ae901b0d644a136608318d51ca1853b2c3",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/gcvt.c",
       "mode": "100644",
       "blob": "7510cf7fcdccda49d24d91a9374e1e11f5b65435",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getcwd.c",
       "mode": "100755",
       "blob": "70e77910aeeb39e2df6f3b3be39fb17ddb79fd4e",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getenv.c",
       "mode": "100644",
       "blob": "0d6bb908d03822425dde327352052eeff97be798",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getgrent.c",
       "mode": "100644",
       "blob": "4cf6bd7ae075447e6438e11e4eff09ab4b2f19ba",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getgrgid.c",
       "mode": "100644",
       "blob": "99aa546f0e8eeda19e7ec2bc261d084b637c88b3",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getgrnam.c",
       "mode": "100644",
       "blob": "1a492a6566c1a6bdd366655a5650fe57a37ada35",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getgrouplist.c",
       "mode": "100644",
       "blob": "b42c25d8a7e8f707de897fb23f2cd6ec170ff6a2",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/gethostname.c",
       "mode": "100644",
       "blob": "5b24ad86f7d84888471e9f4f78a35381e63fc06a",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getloadavg.c",
       "mode": "100644",
       "blob": "e74ae931bddc67e4bab617529b19d847f0cb9346",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getlogin.c",
       "mode": "100644",
       "blob": "5cd88f47ac4cb38068b2c79a4b006093078ad2c7",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getmntinfo.c",
       "mode": "100644",
       "blob": "8cde9e05c400c86de733fa13d6e995da427149f2",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getpagesize.c",
       "mode": "100644",
       "blob": "c7b5925a520553597af1cf5101deb4437b55033e",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getpass.c",
       "mode": "100644",
       "blob": "389deb488d076bd3d5d16e6fca6e52d3c8b11ee0",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getpwent.c",
       "mode": "100644",
       "blob": "2286791e10e387a320bfc37747f7c762d9f1630a",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getttyent.c",
       "mode": "100644",
       "blob": "a70f01f11485b058f35148c5638e049c0e92817f",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getttynam.c",
       "mode": "100644",
       "blob": "f98e64d68c7062fc6805879ab3603e18237a8d09",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getusershell.c",
       "mode": "100644",
       "blob": "09edff42febfdbf6bf28862148ae657243f4eabc",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/getwd.c",
       "mode": "100644",
       "blob": "e897e2fd4d7204556f247291f80cd4db89f53667",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/index.c",
       "mode": "100644",
       "blob": "a1ce863a4fee186bae42c4018f3768cb42a1b0dd",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/initgroups.c",
       "mode": "100644",
       "blob": "02caea49c5e1885434a0a94cb961079d00eef61c",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/insque.c",
       "mode": "100644",
       "blob": "c1be2a7cd2b25aa2f57096757b56b7461335f131",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/isascii.c",
       "mode": "100644",
       "blob": "798e92b5d9c1383afb92da148b4460922356aef1",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/isatty.c",
       "mode": "100644",
       "blob": "616d418f68e0002775f7132c0926734f03082676",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/isblank.c",
       "mode": "100644",
       "blob": "186e556a4b3bb1e994c855e2005090507c0088c3",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/isctype.c",
       "mode": "100644",
       "blob": "0b89107b894daa9316ed92e5f5f4745b84d1bfee",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/isinf.c",
       "mode": "100644",
       "blob": "f8d1a88a74695bacf6eb27c39831a5b2eaae1c7d",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/isinff.c",
       "mode": "100644",
       "blob": "305db2786753de9e61077305b0a71d1e3819bea8",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/isnan.c",
       "mode": "100644",
       "blob": "b1d0a447147d7aadbe2939c81ed1d19ccd805832",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/isnanf.c",
       "mode": "100644",
       "blob": "53a4c762d0aa7fa95b1a5aad88a242cdaf484def",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/knlist.c",
       "mode": "100644",
       "blob": "04156381c6b72ddcf92b7ccdf5b7d76beeccc11e",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/ldexp.c",
       "mode": "100644",
       "blob": "d103ea87892044733cae951dd2ed2b23fe529915",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/malloc.c",
       "mode": "100644",
       "blob": "2ddfe810d6df6347c17e974a5edb48cb1c8318a0",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/malloc_store.h",
       "mode": "100644",
       "blob": "4fac4afda59d50c59040f26a92ab68a6ae9a2dcf",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/mktemp.c",
       "mode": "100644",
       "blob": "d422658c2e1bf5c7bf4894c90e3c1aec514b220a",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/mktime.c",
       "mode": "100644",
       "blob": "8ec1fd584b60b1fa869fd01f23827ff075e464e5",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/modf.c",
       "mode": "100644",
       "blob": "6862566d9b58cf30a6abe5f4efee619799ae4c74",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/modff.c",
       "mode": "100644",
       "blob": "40345abf94a1e66dbb453ce143f01573664768a3",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/ndbm.c",
       "mode": "100644",
       "blob": "9f512d398666aaeb99f483c3caeeecc35d9475a0",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/nlist.c",
       "mode": "100644",
       "blob": "08b72d9703eb4e402bc5934843ffd5234144324f",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/opendir.c",
       "mode": "100644",
       "blob": "769892e47c45753a4fa442d38c3b4b8bd862930c",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/perror.c",
       "mode": "100644",
       "blob": "8a89add6b867ed0b2e33bb536b95f4c086ae08e5",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/popen.c",
       "mode": "100644",
       "blob": "285bb6b1f20ddeafc431f1bfc64b2165e0312360",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/psignal.c",
       "mode": "100644",
       "blob": "f26b2035cfc4013ffc8229d26ca26f477c494626",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/qsort.c",
       "mode": "100644",
       "blob": "b02c74cb1be65fbc03393299ecf7c99abc46de3b",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/raise.c",
       "mode": "100644",
       "blob": "9820941dea32416811c5f8c50788d47c397486a7",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/random.c",
       "mode": "100644",
       "blob": "791b0d394ec8a503af60239332942ef904cf4319",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/readdir.c",
       "mode": "100644",
       "blob": "2b553f26bf121b0f721bbfca1e67ebb6b633fcac",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/regex.c",
       "mode": "100644",
       "blob": "f84abbf44cdb536dcb61bb025f66395ce4dd2a09",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/remque.c",
       "mode": "100644",
       "blob": "ddb3ada9b4ccec8d5fbc9cd5b50db562b1385312",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/rindex.c",
       "mode": "100644",
       "blob": "c0274cfc597edc80f7f417ae1419272c261a7341",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/scandir.c",
       "mode": "100644",
       "blob": "1ebb670b8521689d5441f3ccc939aa4953cb44af",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/seekdir.c",
       "mode": "100644",
       "blob": "f3cd132201d7318f452f8466dcb0cee94cec0cf4",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/setenv.c",
       "mode": "100644",
       "blob": "2d40b691305f0bc01092581259e942efe1beb71e",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/sethostname.c",
       "mode": "100644",
       "blob": "0a8a4725779336b03ff706280d51e5736f92a839",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/setmode.c",
       "mode": "100644",
       "blob": "65f719f0ecb3b9de2824af85852f47a3b7027631",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/setpgid.c",
       "mode": "100644",
       "blob": "a9c38add85e14ccf74e9af4c27afcdfde0b20915",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/siginterrupt.c",
       "mode": "100644",
       "blob": "de1acb66d927da818a0009dc679ef0518738c8ad",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/siglist.c",
       "mode": "100644",
       "blob": "cceccf0895fae3a57c2cf4c84214797c91e1962b",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/signal.c",
       "mode": "100644",
       "blob": "cb1086db365938a9e094e811a00bf4bb16ef7b92",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/sigsetops.c",
       "mode": "100644",
       "blob": "0b83a2afa2d198d47d8eab944db859f18268998e",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/sleep.c",
       "mode": "100644",
       "blob": "cb0123dbf47d6797439b7631f7d8a8152fc704e9",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/strcasecmp.c",
       "mode": "100644",
       "blob": "6c95da66f30778e7d1d6f2dd27eaa07095486eb6",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/strcat.c",
       "mode": "100644",
       "blob": "16d1a15bacb48e2cc0acd011b1d2c1ce4b015708",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/strcmp.c",
       "mode": "100644",
       "blob": "f5a249cb65e9924cc7b09ba3dac3fa1e3828d9f1",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/strcpy.c",
       "mode": "100644",
       "blob": "f6b2c1005897a4817107553ed0541f183dcb93c2",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/strdup.c",
       "mode": "100644",
       "blob": "a1ed7a665e0e3c4a75cf343d512097da998a8e70",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/strftime.c",
       "mode": "100644",
       "blob": "1956386666e35f716823136a360cb969e6ec249c",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/strlen.c",
       "mode": "100644",
       "blob": "7a845a2e375bfbbb5913097eb0958984a8527faf",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/strncat.c",
       "mode": "100644",
       "blob": "3143dba8298f8e796b7e519311202a71267b6617",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/strncmp.c",
       "mode": "100644",
       "blob": "82eaca28d4db1ab1a68751178378d8b174c052e9",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/strncpy.c",
       "mode": "100644",
       "blob": "9b07613b03a2cb0e5fe98d80fa8cbf3a7d01b45d",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/swab.c",
       "mode": "100644",
       "blob": "824711ce9d28fe24ceed6f5205dc3337097cd3d2",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/sysconf.c",
       "mode": "100644",
       "blob": "732c28ca74e81b956ad11e6312e089e5b763360c",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/sysctl.c",
       "mode": "100644",
       "blob": "dd17650f29ca00f912c691758613bc336dc2a5e9",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/syslog.c",
       "mode": "100644",
       "blob": "24b54bea6d19ecef3f3bb46591e84a386365192e",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/system.c",
       "mode": "100644",
       "blob": "e19702e6af9c42c2622bad31521aed238f92a427",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/telldir.c",
       "mode": "100644",
       "blob": "116e0e7185accb395ceb92f9c6816ad833e944fb",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/time.c",
       "mode": "100644",
       "blob": "8be45f2d23e716780ca71808dfc058761b15280a",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/timezone.c",
       "mode": "100644",
       "blob": "96b9ecef715251147b0c4adbc7cbb408c4bb1d72",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/tolower.c",
       "mode": "100644",
       "blob": "40158f540dbc47371cf205afbe51ec0da0b2b20c",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/toupper.c",
       "mode": "100644",
       "blob": "4661b65d1de12f295cec7f4585b2009c9e3450da",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/ttyname.c",
       "mode": "100644",
       "blob": "5afbaf2490bf12a3a5a69e5a1bc1b10a0221c5fe",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/ttyslot.c",
       "mode": "100644",
       "blob": "d5d8c26eb1335fa6500f2b17ec40a07f58c44f4b",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/ualarm.c",
       "mode": "100644",
       "blob": "412f3768b0a0d9e51508816fd1f080ec854d7392",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/uname.c",
       "mode": "100644",
       "blob": "bb5629c123cbaba78ee2388afa3658999f4022dc",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/unvis.c",
       "mode": "100755",
       "blob": "7f4401bdb3b299cf3b9dea11dca584d480fe6f93",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/usleep.c",
       "mode": "100644",
       "blob": "39bbf8b1b05f0f83fb1ed92d6a8db8c6df8b346c",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/valloc.c",
       "mode": "100644",
       "blob": "c582c83fd00054730495b39f2d9d5dbfa4c80b90",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/vis.c",
       "mode": "100755",
       "blob": "0174705b0545cbfd17e94ef9def8624c49ffa74b",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/wait.c",
       "mode": "100644",
       "blob": "8fc6ac97bc2b21e83ae18780c0f39bc8cda9fc66",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/wait3.c",
       "mode": "100644",
       "blob": "f1621a2e2bc59320057457422a19fe1585f743c3",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/gen/waitpid.c",
       "mode": "100644",
       "blob": "296eacfc86d17d51ceb3497a5382df06cb8755fd",
-      "component": "lib/libc",
+      "component": "lib/libc/gen",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/inet/Makefile",
       "mode": "100644",
       "blob": "b2ab860a6fadb7109b8591f1e70fcfc5fd8fe67c",
-      "component": "lib/libc",
+      "component": "lib/libc/inet",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/inet/inet_addr.c",
       "mode": "100644",
       "blob": "4015addc2756e97a511cb3836fa52e10feceda79",
-      "component": "lib/libc",
+      "component": "lib/libc/inet",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/inet/inet_lnaof.c",
       "mode": "100644",
       "blob": "a35dbf139b5965a09784c64a983c98450c95d3ee",
-      "component": "lib/libc",
+      "component": "lib/libc/inet",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/inet/inet_maddr.c",
       "mode": "100644",
       "blob": "e94112d58672226e036527a0884c19b8d956f052",
-      "component": "lib/libc",
+      "component": "lib/libc/inet",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/inet/inet_netof.c",
       "mode": "100644",
       "blob": "fb0aeb993d05c8e9a2fb6d28a82b69b6b08067fc",
-      "component": "lib/libc",
+      "component": "lib/libc/inet",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/inet/inet_network.c",
       "mode": "100644",
       "blob": "639b4003a42a91b6a87c5e8cd1b23f01e609dd4e",
-      "component": "lib/libc",
+      "component": "lib/libc/inet",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/inet/inet_ntoa.c",
       "mode": "100644",
       "blob": "50dd42d196e9aa9ce49dda736fccf6c1014f2d33",
-      "component": "lib/libc",
+      "component": "lib/libc/inet",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/Makefile",
       "mode": "100644",
       "blob": "9255b18e875f82ea9361f6815424c8cf56d9c057",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/net/getnbyaddr.c",
       "mode": "100644",
       "blob": "18fd4b5ad526b7e55fed260fde258863c104e319",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/getnbyname.c",
       "mode": "100644",
       "blob": "c944ae52d4b38e72c7cc498edb9d4353b09221d2",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/getnent.c",
       "mode": "100644",
       "blob": "74dd4b2bd1f2623f2b325779a3ad164b2c70f3e4",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/getpent.c",
       "mode": "100644",
       "blob": "938a67c6fa5194e2ce301cd6fceb4068b893abf5",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/getpname.c",
       "mode": "100644",
       "blob": "872303f2910428d0b56f2710e9b257a66622e880",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/getproto.c",
       "mode": "100644",
       "blob": "f35a6d676530ce74e94ba9c7faabdc44932aae8f",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/getsbyname.c",
       "mode": "100644",
       "blob": "40c784d879c6c663d97720901fc2fb35a5f803de",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/getsbyport.c",
       "mode": "100644",
       "blob": "d3632a2ecf8dace3d75b22e7a0f4eedc4e6d9e2a",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/getsent.c",
       "mode": "100644",
       "blob": "02fab5bd3f4aa571ced90c1ec7c4152c0525f053",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/herror.c",
       "mode": "100644",
       "blob": "a59e4a5b1ff29a63e6fcad6ded7ff068aba5cc63",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/hosttable/Makefile",
       "mode": "100644",
       "blob": "73a8b03db0b7ee8d5a56ee60724ca6e4e7ef52b3",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/net/hosttable/gethnamadr.c",
       "mode": "100644",
       "blob": "8ae3c52db5eef6c857769bb7c6ef727ee2489976",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/hosttable/gethostent.c",
       "mode": "100644",
       "blob": "70e3806b2d9afd7384cf8b62d3dc1c9e6a8833b5",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/named/Makefile",
       "mode": "100644",
       "blob": "f16d63d0bdd78770d86981c86ca02c3927de3a0e",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/net/named/gethnamadr.c",
       "mode": "100644",
       "blob": "89a7146cc51615e298832d8abf821cc749f1bb19",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/named/sethostent.c",
       "mode": "100644",
       "blob": "0acfe9c516920feef01ff91a5a4f089506668cff",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/rcmd.c",
       "mode": "100644",
       "blob": "1588c6f6cd3c0d218e6101f19d73d91e44d172a2",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/res_comp.c",
       "mode": "100644",
       "blob": "c31c94fb47b712bab6a69d2dc5d964fd26b037fa",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/res_debug.c",
       "mode": "100644",
       "blob": "8bcecb55414b56d2c6d08140253281099e0b08e3",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/res_init.c",
       "mode": "100644",
       "blob": "022179e2a0775b1b3ae5b173048d42171cf6b216",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/res_mkquery.c",
       "mode": "100644",
       "blob": "f9bb7d7d3f4bdf6d9400611fe904efd88bc7558e",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/res_query.c",
       "mode": "100644",
       "blob": "e0fe2d1ae5f049a82242df47e1037100fe727cbe",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/res_send.c",
       "mode": "100644",
       "blob": "f13d8ab73eaee14460f15810f6a20290fa87b4e7",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/rexec.c",
       "mode": "100644",
       "blob": "681f6f453c3614fdb15d1e1dfa54cb3ab040b3a4",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/net/ruserpass.c",
       "mode": "100644",
       "blob": "d5a8588e2166dd8491c931eec0636f3a20e2b9d0",
-      "component": "lib/libc",
+      "component": "lib/libc/net",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/ns/Makefile",
       "mode": "100644",
       "blob": "ee5735b7ad1dfb8a2dcd78bd0a95120e32eb18d2",
-      "component": "lib/libc",
+      "component": "lib/libc/ns",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/ns/ns_addr.c",
       "mode": "100644",
       "blob": "d1824871f5a396a189da048de91be06be1d1c986",
-      "component": "lib/libc",
+      "component": "lib/libc/ns",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/ns/ns_ntoa.c",
       "mode": "100644",
       "blob": "f72ca7111a4dd6ffdf4c3fc06b29831e678734c7",
-      "component": "lib/libc",
+      "component": "lib/libc/ns",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/CREDITS.txt",
       "mode": "100644",
       "blob": "6964eba020b8aa7a08629b249e3b9aea3ce3e448",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "documentation"
     },
     {
       "path": "lib/libc/runtime/LICENSE.txt",
       "mode": "100644",
       "blob": "0134694e4e5f17a0203a2609ca0d8174237904da",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "documentation"
     },
     {
       "path": "lib/libc/runtime/Makefile",
       "mode": "100644",
       "blob": "dc763a4df1cceb031441cf6accfc70fa20b4cb67",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/runtime/README.txt",
       "mode": "100644",
       "blob": "610696c6ac494fd4dc842af8f561080ca34e83af",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "documentation"
     },
     {
       "path": "lib/libc/runtime/adddf3.c",
       "mode": "100644",
       "blob": "9a3901312e51e90ccbcdd17e8dd33d0fbd3bd5f5",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/addsf3.c",
       "mode": "100644",
       "blob": "c5c1a41c3611a51eb254caca3d0853764a182da9",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/ashldi3.c",
       "mode": "100644",
       "blob": "a5c1836006b91e0de150f0e2c974dd120a5e7c58",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/comparedf2.c",
       "mode": "100644",
       "blob": "6a2e7a68f781bf3f1586c227d459330e15b3084c",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/comparesf2.c",
       "mode": "100644",
       "blob": "9ca2a477692e913b2dafb7f84a06d5c9d22a2b66",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/divdf3.c",
       "mode": "100644",
       "blob": "411c82ebb87a0e1aa773bd4047ac092ae8acca04",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/divsf3.c",
       "mode": "100644",
       "blob": "a74917fd1de580d873878a3a7db422727baa338e",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/fixdfsi.c",
       "mode": "100644",
       "blob": "5b9588175717c7439f29cc0a9067ab49d958d126",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/fixsfsi.c",
       "mode": "100644",
       "blob": "e94e5f3dcd6809f95a94540062e5893d24112f49",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/fixunsdfsi.c",
       "mode": "100644",
       "blob": "3c5355beae1ab1abcb7d3cabf0af5ad5d11c2679",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/fixunssfsi.c",
       "mode": "100644",
       "blob": "eca2916a5c88fea17e65104a9ad6c1c6aa153b9e",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/floatsidf.c",
       "mode": "100644",
       "blob": "49435ba457e8f698c6fd5cf9f58ffde121706c8c",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/floatsisf.c",
       "mode": "100644",
       "blob": "e42cef03da6d2c24d3dc159a5b0b3c93a451ef0f",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/floatunsidf.c",
       "mode": "100644",
       "blob": "e5dcb9a06efc723772902cc897757b51d1896ef8",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/floatunsisf.c",
       "mode": "100644",
       "blob": "a4abef3e62225f37ff72613cd7888b7446dfbfe3",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/fp_add_impl.inc",
       "mode": "100644",
       "blob": "0ba7813d82674d4527ef2ba966f4aa21f4e7681d",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/fp_fixint_impl.inc",
       "mode": "100644",
       "blob": "da70d4d39301f9f773faae34abce3f73b065a62e",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/fp_fixuint_impl.inc",
       "mode": "100644",
       "blob": "d68ccf27a79ca8923d7aca07a6ae90646e614576",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/fp_lib.h",
       "mode": "100644",
       "blob": "f15c12762d75aec3a966f95fc0ea9f0647372e80",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/fp_mul_impl.inc",
       "mode": "100644",
       "blob": "b0df1b3924211fd8209e28748aa8ddd359869fdb",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/int_endianness.h",
       "mode": "100644",
       "blob": "e2586c56bac884908a2c00c985f5951c9323a7a7",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/int_lib.h",
       "mode": "100644",
       "blob": "9d09e2dc915b242c8e8a85b339f4ecb03ad1cee5",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/int_types.h",
       "mode": "100644",
       "blob": "f53f343d35d5c03964ff169ebe34fc91d30537a2",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/int_util.h",
       "mode": "100644",
       "blob": "a7b20ed66244feeaf64f06463c161a4498805161",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/lshrdi3.c",
       "mode": "100644",
       "blob": "67b2a766834595dc7c5cc0de95ddf3a65d9fc73c",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/muldf3.c",
       "mode": "100644",
       "blob": "1bb103e38c1378ff1ad0d67daeaa1b098d74c6c0",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/mulsf3.c",
       "mode": "100644",
       "blob": "1e2cf3e717c97006840791641135e2341cb52de6",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/negdf2.c",
       "mode": "100644",
       "blob": "f0bfaad24743973465d61c52b63b897f604ee773",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/negsf2.c",
       "mode": "100644",
       "blob": "05c97d4d5a119ae67fbe2433169aee74e01ea211",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/subdf3.c",
       "mode": "100644",
       "blob": "a892fa603cf2323600853cf38e1241e46f2d3e55",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/runtime/subsf3.c",
       "mode": "100644",
       "blob": "4b2786177dcc8dcd840208743232fd63d590db72",
-      "component": "lib/libc",
+      "component": "lib/libc/runtime",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/Makefile",
       "mode": "100644",
       "blob": "4073d5f84890fe8f57c36cc49f636187d5904221",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/stdio/atexit.c",
       "mode": "100644",
       "blob": "ea5a250cff4862e7c90f5932ed3af22e51cb68ce",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/atexit.h",
       "mode": "100644",
       "blob": "711cfb7229bc6f561ba9c7c9b3f614c19737cbee",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/clnup.c",
       "mode": "100644",
       "blob": "65660a16b844f7273e4f34dfb1c625842e1194e5",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/clrerr.c",
       "mode": "100644",
       "blob": "b40bb0ed3f46b167a3605cd47086ea3baa3de37b",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/doprnt.c",
       "mode": "100644",
       "blob": "b5a3685bb7e352ee58f31b328d921f6fb8320fc5",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/doprnt_float.c",
       "mode": "100644",
       "blob": "363e57cd25e8f8f72f2fd738234522626a7520ff",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/doprnt_llong.c",
       "mode": "100644",
       "blob": "1f19b768ea92a7c21909dd0b0ea77696544eec69",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/doscan.c",
       "mode": "100644",
       "blob": "518d898af4e3913b3ef32c0abd9922129eff4340",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/doscan.h",
       "mode": "100644",
       "blob": "2ecfef6012d0a668aaf8f92b61559575842d6afc",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/doscan_float.c",
       "mode": "100644",
       "blob": "926dde31643771604a6fc653b81ecd97bcd78340",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/doscan_llong.c",
       "mode": "100644",
       "blob": "b4b3de92fe89800d93d3e8ce3f0b22dc7be42287",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/exit.c",
       "mode": "100644",
       "blob": "0d63968d20fdacc056bfe26c57e686912997ef70",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fdopen.c",
       "mode": "100644",
       "blob": "7b9adac8fef607ec6246b53daf68d8d82b1062f9",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/feof.c",
       "mode": "100644",
       "blob": "eb742da7efdac6351a910e778afaf01466fc0f35",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/ferror.c",
       "mode": "100644",
       "blob": "0d2cf01a1bc5f6fd531c8297533c38e0831330fa",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fgetc.c",
       "mode": "100644",
       "blob": "5cb095c55a839eac7d8fe234d9fb0577438104e6",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fgetpos.c",
       "mode": "100644",
       "blob": "cada8ae759b02a9fa5ddb3954f04e931d2c47dd2",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fgets.c",
       "mode": "100644",
       "blob": "b0fd1762d4fd0363d861e98134c2f8a8d34871a4",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/filbuf.c",
       "mode": "100644",
       "blob": "0229cfcca758c0407f53eb7e6791b917b59e0391",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fileno.c",
       "mode": "100644",
       "blob": "0fd985b23e7851b4458c88577c7d39d38d363099",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/findiop.c",
       "mode": "100644",
       "blob": "f8926072a8738dd1bb246eaebc4a5bff504c5403",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/flags.c",
       "mode": "100644",
       "blob": "f5996175ea7963e682e1462e17c083a9cd3efa35",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/flsbuf.c",
       "mode": "100644",
       "blob": "c4f49788a308897f62926c87038477ae4285f7f2",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fopen.c",
       "mode": "100644",
       "blob": "2d2d64e3fb42afaf38253783162c00d4984f7a21",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fprintf.c",
       "mode": "100644",
       "blob": "bd4966f2024ba8e25aea49075d8d96454fb56cf1",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fputc.c",
       "mode": "100644",
       "blob": "1b06908a97684e24ed9650c1c42d05f027323f04",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fputs.c",
       "mode": "100644",
       "blob": "230fba8bf753e0ed3cc3294eaaae34512419ea94",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fread.c",
       "mode": "100644",
       "blob": "e0290490fe4705271595be5513db70c0b4aeb5ea",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/freopen.c",
       "mode": "100644",
       "blob": "a8d33b0d7cbb270c84a19ec3f25408113ced0c82",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fseek.c",
       "mode": "100644",
       "blob": "564add51b6cedfd3c18f50b1796a4ca37c7203e1",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/ftell.c",
       "mode": "100644",
       "blob": "d665dbdc2efe88c7a6ffe55a0f56b6837d5a1a7a",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/fwrite.c",
       "mode": "100644",
       "blob": "aee3cf49dd64a8fd971bd96b7713b3177f713b61",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/getchar.c",
       "mode": "100644",
       "blob": "df53c6fddf9d247112cbaa5430045df7ed612279",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/getdelim.c",
       "mode": "100644",
       "blob": "a4a20986310e2d676b4f968961080d75e55566d3",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/getline.c",
       "mode": "100644",
       "blob": "497a83f2b49d004f24038bb41ff25751481f57e9",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/getw.c",
       "mode": "100644",
       "blob": "cf0ae9ed49dc1a5faa89367975f3d5489f3fee8a",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/output.h",
       "mode": "100644",
       "blob": "1d3b2a8a31808de831af14692e44ff08b7b1bbf4",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/printf.c",
       "mode": "100644",
       "blob": "4509760e112b1520999d3200c9bef3b021a72ee0",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/putchar.c",
       "mode": "100644",
       "blob": "24adc7b0b076cbc55f0a4a2605d81f5ec0239b2e",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/puts.c",
       "mode": "100644",
       "blob": "357e5d4af19545f0f327f9c4dbf6dee01cd4ebad",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/putw.c",
       "mode": "100644",
       "blob": "a49ef375f2e38bd24b00a9826c42731fd8a892e9",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/remove.c",
       "mode": "100644",
       "blob": "e127ed943f9769fe751fce6b74a588df60ccd10f",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/rew.c",
       "mode": "100644",
       "blob": "b6b92b616b7bd43d4a38d3cb3d0ed6c1a84afdf5",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/scanf.c",
       "mode": "100644",
       "blob": "c12a9e388e1f00ccbb07c20f4cdd7057867e8fb6",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/setbuf.c",
       "mode": "100644",
       "blob": "c21c0661a420d6196d03621da7cfece7b7199926",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/setbuffer.c",
       "mode": "100644",
       "blob": "de50f81c6b36d3614b065cde8d99513d9953faea",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/setvbuf.c",
       "mode": "100644",
       "blob": "59aaf5a0227eb1e92a20cf64e9e50d62efdb9a79",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/snprintf.c",
       "mode": "100644",
       "blob": "4f4af51e895d871b6633d77588976aa7d553973c",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/sprintf.c",
       "mode": "100644",
       "blob": "2d0d4c317071e1fd125285ad517d6c519c8c6de1",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/strout.c",
       "mode": "100644",
       "blob": "b8b4d3fc9236ec653b3630e57ffe76bbff587243",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/ungetc.c",
       "mode": "100644",
       "blob": "222ec5313b53c1044978d4b08d2645ed53148c54",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/vfprintf.c",
       "mode": "100644",
       "blob": "e266d4fb5556d093ae1e39ffb92e22aee64ef5f5",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/vprintf.c",
       "mode": "100644",
       "blob": "86fa6cd9f601d4579c7c6b976045b90a662050fe",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/vsnprintf.c",
       "mode": "100644",
       "blob": "ad499b5532d7062c08d695c4862d3320001edd65",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdio/vsprintf.c",
       "mode": "100644",
       "blob": "84ec1d9411be1c6e964ae919536dc228e8423aae",
-      "component": "lib/libc",
+      "component": "lib/libc/stdio",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/Makefile",
       "mode": "100644",
       "blob": "3ee2a0a2d87b7e6b9712fc55a19be1819dfcb5d7",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/stdlib/_Exit.c",
       "mode": "100644",
       "blob": "51e10d267d49458495aed70d8468fb7206f5c9c7",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/atoll.c",
       "mode": "100644",
       "blob": "52f57002d9f9e12d22d34f80696904c4a30add46",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/bsearch.c",
       "mode": "100755",
       "blob": "0c4bc5cdff7c816809d203b138a7d92219b1b95b",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/getopt.c",
       "mode": "100644",
       "blob": "b20a466d0c7b08aef6f338b8b963d451f317cf8c",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/getsubopt.c",
       "mode": "100644",
       "blob": "af9030f6bd15a73a525585a5a8e1ccbdafa8fecd",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/heapsort.c",
       "mode": "100755",
       "blob": "548a32e9cc677411480f45884e73cbaf1a8584cc",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/imaxabs.c",
       "mode": "100644",
       "blob": "af05403a8f024fb843d06b4ef0ad476b1b5c5b59",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/imaxdiv.c",
       "mode": "100644",
       "blob": "40d290eb65a9724852d3f9027df6929054c59ded",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/mblen.c",
       "mode": "100644",
       "blob": "ba54cf192ea08e0b900a59346c05d5b263119e5c",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/mbstowcs.c",
       "mode": "100644",
       "blob": "0064ebb3901aef3c187d2f2d2eacfad23739e7f0",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/mbtowc.c",
       "mode": "100644",
       "blob": "d64dba30229ab839fc11a177aa56145a281b37bc",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/reallocarray.c",
       "mode": "100644",
       "blob": "d83ae46db09c19a7c0fc048706440057e329cdae",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/strtod.c",
       "mode": "100644",
       "blob": "52b2070d7b577fb0775739a1f49c1b1447ab8122",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/strtoimax.c",
       "mode": "100644",
       "blob": "82d4ff90d124cab1e28221ed45795507c4e35380",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/strtol.c",
       "mode": "100644",
       "blob": "afec833ba72caddd648fd8ec291bb138da39f9f7",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/strtoll.c",
       "mode": "100644",
       "blob": "3fa7df74642f8e978ce44e028677e04ebacc65f0",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/strtou64.h",
       "mode": "100644",
       "blob": "cd81bc42f5f575b731aefcd2b242899ad82295aa",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/strtou64_scan.h",
       "mode": "100644",
       "blob": "1b0110b28a5d2fb3c55f98f800796f687b5ccc8b",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/strtoul.c",
       "mode": "100644",
       "blob": "30b361bde8687827b75876819cfbc55e62ffa1ae",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/strtoull.c",
       "mode": "100644",
       "blob": "0468906abccb217a15923a4d3dc4442e5f55092e",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/strtoumax.c",
       "mode": "100644",
       "blob": "49cb8e6dc1a4938618f8ac2293a7f43dc7f79444",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/wcstoimax.c",
       "mode": "100644",
       "blob": "4eaffbcde43c66d9b9fd8f4f208fe22f610c1674",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/wcstombs.c",
       "mode": "100644",
       "blob": "6951f535d39689ad228d659f60a8794824cb0676",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/wcstoumax.c",
       "mode": "100644",
       "blob": "f5496934800bc7525dab035b107c4eada6ca4665",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/stdlib/wctomb.c",
       "mode": "100644",
       "blob": "64f0329036284efcf9b212a414287d311d5dce1a",
-      "component": "lib/libc",
+      "component": "lib/libc/stdlib",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/Makefile",
       "mode": "100644",
       "blob": "bf19287c4e64e39043ea7475e015764694be0597",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "build-configuration"
     },
     {
       "path": "lib/libc/string/explicit_bzero.c",
       "mode": "100644",
       "blob": "144dc23aa4f48b0af5149d24556aa80f37cad650",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/memmem.c",
       "mode": "100644",
       "blob": "eb06089870405b9fcd42f9f24bbebd8c1f678559",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/strcspn.c",
       "mode": "100644",
       "blob": "e988ad0de86e7ecad83978a6db0b734ef64b4dc7",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/strerror.c",
       "mode": "100644",
       "blob": "7b17952fd836fbffe0d9009498a88b942bc3c5b3",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/strlcat.c",
       "mode": "100644",
       "blob": "c94e90deeeeb6ac7f13d4b9535b259676a40b37e",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/strlcpy.c",
       "mode": "100644",
       "blob": "2fa498c3978bc4a99d04433281766a805b3bf3ef",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/strpbrk.c",
       "mode": "100644",
       "blob": "a33bc3288ce404f0d7c88c1ceff667555e14fc79",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/strsep.c",
       "mode": "100644",
       "blob": "e71334e54112ec39f483f84c804a6f87e2f62d0a",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/strspn.c",
       "mode": "100644",
       "blob": "edadc91cd4ccecc12cbe47889b67ced63973ba49",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/strstr.c",
       "mode": "100644",
       "blob": "0907385238537ed7f4376851216148c35b2f56d7",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/strtok.c",
       "mode": "100644",
       "blob": "78635542e3d21ef20bf895363fd2688150668a04",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/strtok_r.c",
       "mode": "100644",
       "blob": "3b5465dc71ca7d90525f384d042aafa8c2175dea",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
       "path": "lib/libc/string/timingsafe_bcmp.c",
       "mode": "100644",
       "blob": "82d6fb2531258655b5faed107595f7e33e558130",
-      "component": "lib/libc",
+      "component": "lib/libc/string",
       "artifact_class": "maintained-implementation"
     },
     {
@@ -47886,27 +47886,39 @@
     },
     {
       "id": "include",
-      "state": "pending",
-      "review_witness": null,
-      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+      "state": "reviewed",
+      "review_witness": {
+        "path": "tools/audit/reviews/include.json",
+        "sha256": "8861782346f94b0c925161c804afd3ca7e1192464028942e412cf546dcdbba2b"
+      },
+      "next_action": ""
     },
     {
       "id": "include/arpa",
-      "state": "pending",
-      "review_witness": null,
-      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+      "state": "reviewed",
+      "review_witness": {
+        "path": "tools/audit/reviews/include-arpa.json",
+        "sha256": "43eae5961ccc0f9ebfbc9f42abe55d9a474e124dbca4d550d33b993e488942e8"
+      },
+      "next_action": ""
     },
     {
       "id": "include/netinet",
-      "state": "pending",
-      "review_witness": null,
-      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+      "state": "reviewed",
+      "review_witness": {
+        "path": "tools/audit/reviews/include-netinet.json",
+        "sha256": "fe3eae7ef3d66768b27bd1152705aa6d19e005142c4dbd712484a31ec47e87e9"
+      },
+      "next_action": ""
     },
     {
       "id": "include/tcl",
-      "state": "pending",
-      "review_witness": null,
-      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+      "state": "reviewed",
+      "review_witness": {
+        "path": "tools/audit/reviews/include-tcl.json",
+        "sha256": "25f93ce7264000f1442b7fea79ccdade983e987fede3587a9f45d7cfdfe26e0f"
+      },
+      "next_action": ""
     },
     {
       "id": "legacy/non-arm",
@@ -47943,6 +47955,72 @@
       "state": "pending",
       "review_witness": null,
       "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+    },
+    {
+      "id": "lib/libc/arm",
+      "state": "pending",
+      "review_witness": null,
+      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+    },
+    {
+      "id": "lib/libc/compat",
+      "state": "pending",
+      "review_witness": null,
+      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+    },
+    {
+      "id": "lib/libc/gen",
+      "state": "pending",
+      "review_witness": null,
+      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+    },
+    {
+      "id": "lib/libc/inet",
+      "state": "pending",
+      "review_witness": null,
+      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+    },
+    {
+      "id": "lib/libc/net",
+      "state": "pending",
+      "review_witness": null,
+      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+    },
+    {
+      "id": "lib/libc/ns",
+      "state": "pending",
+      "review_witness": null,
+      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+    },
+    {
+      "id": "lib/libc/runtime",
+      "state": "pending",
+      "review_witness": null,
+      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+    },
+    {
+      "id": "lib/libc/stdio",
+      "state": "pending",
+      "review_witness": null,
+      "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
+    },
+    {
+      "id": "lib/libc/stdlib",
+      "state": "reviewed",
+      "review_witness": {
+        "path": "tools/audit/reviews/lib-libc-stdlib.json",
+        "sha256": "a93a563a0cc0c9b52728c4b826f63c7044905b92d4461d5782dc9f17fdc69991"
+      },
+      "next_action": ""
+    },
+    {
+      "id": "lib/libc/string",
+      "state": "reviewed",
+      "review_witness": {
+        "path": "tools/audit/reviews/lib-libc-string.json",
+        "sha256": "55d7a42a8917d268f80274ecfed6c0306102bd66cbd561bb280fff5e30d558ba"
+      },
+      "next_action": ""
     },
     {
       "id": "lib/libc_aout",

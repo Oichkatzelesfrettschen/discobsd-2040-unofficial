@@ -31,14 +31,14 @@ the authorized offline execution surface.
 | Work | Status | Acceptance and next action |
 | --- | --- | --- |
 | Establish baseline and ownership | Complete for audit worktree | Remote main and worktree heads/statuses recorded; isolated baseline build passed. Preserve unrelated dirty worktrees. Recheck pull-request ownership separately before mutation. |
-| Create coverage denominator | Complete; reviews pending | 6,743 unique paths and 654 pending component rows validate; 15 fixtures calibrate identities, missing/duplicate paths, references, closure and overwrite protection. |
+| Create coverage denominator | Complete; reviews pending | 6,743 unique paths validate. Refining libc by source directory yields 664 components: six reviewed and 658 pending. Twenty-two fixtures calibrate identities, references and revision-bound repair evidence. |
 | Revalidate historical v7fs and assertion findings | Complete for named contracts | Baseline host regressions and import checks pass. The optimized-Python oracle counterexample is repaired at `602915a2`. Additional source candidates remain separate probes rather than historical closure claims. |
 | Map storage contracts | Complete for named write paths | `storage-recovery-contracts.md` traces units, volatile state, return conventions, acknowledgements and ordering through descriptor, kernel, flash, Dhara and ROM boundaries. Pull request 435's retained experiment was inspected at its recorded head. |
 | Implement shared failure interface | Complete for host prefix model | Typed transfer callbacks execute the production descriptor backend; inactive injections fail. Positive shorts, errors before/after transfer, frozen interruption prefixes and paired compensation errors are calibrated. |
 | Extend persistent-image oracle | Complete for exercised image range | Independent ownership, free-list, inode, namespace, link-count and metadata checks read fresh exported bytes. Corrupted-image controls and valid-but-changed metadata distinguish invariant failures from state differences. Larger sparse files retain a bounded-reader extension requirement. |
 | Repair supported recoverable v7fs defects | Open; two repairs verified | Formatter cache and hard-link writeback/compensation repairs are committed at `167e856d`, with import patches and manifest. Verify remaining candidates: CLI parent-growth preflight, symlink writeback, rename compensation and out-of-range inode address encoding. |
 | Compare atomic recovery policies | Complete offline; production admission open | Bounded policies pass 22,854 transaction/recovery cuts and negative controls. Dhara replay supplies operation counts and separate committed-recovery work. `storage-recovery-comparison.md` records the representation/reclamation/migration/interruption architecture stop. |
-| Review remaining components | Active: reproduce kernel device flush route | Execute the independent-device `rwip`/`fsync` host probe, then review the remaining component rows with exact path witnesses and explicit delta reviews. All 654 baseline component rows still require ledger dispositions. |
+| Review remaining components | Active: decompose device error lifetime | The host probe reproduced queued-buffer routing and unmounted asynchronous error loss. Compare shared-device and alias-local retention under inode/close lifetime constraints, then implement and calibrate the selected contract. Six source-review components cover 101 paths; 658 components remain pending. |
 | Determine takeover eligibility | Pending | Record UTC decision and exact five-hour cutoff, attributable activity and ownership, then recheck head and ownership immediately before mutation. |
 | Complete eligible pull requests | Pending | Apply the user's separate contracts for pull requests 435, 436, 437 and later eligible requests; preserve experimental defaults and keep unmet readiness criteria visible. |
 | Verify and integrate | Pending | Focused checks, logged-check and logged-ilp32 on final revisions; separate CI watchers; fresh review and merge-commit integration; retain evidence and remove only clean, pushed task-owned worktrees. |
@@ -64,7 +64,7 @@ the Python interpreter explicitly. These results establish host lint and
 cross compilation for the baseline, with build outputs local to the audit
 worktree. They establish neither board execution nor power-loss behavior.
 
-`bmake MACHINE=rp2040 check-repository-coverage` passes all 15 calibration
+`bmake MACHINE=rp2040 check-repository-coverage` passes all 22 calibration
 fixtures and the baseline ledger. `--require-reviewed` deliberately rejects
 the ledger while component reviews remain pending. Initialization uses
 exclusive creation and preserves an existing snapshot.

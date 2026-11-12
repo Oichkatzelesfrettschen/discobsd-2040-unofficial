@@ -38,7 +38,7 @@ the authorized offline execution surface.
 | Extend persistent-image oracle | Complete for exercised image range | Independent ownership, free-list, inode, namespace, link-count and metadata checks read fresh exported bytes. Corrupted-image controls and valid-but-changed metadata distinguish invariant failures from state differences. Larger sparse files retain a bounded-reader extension requirement. |
 | Repair supported recoverable v7fs defects | Open; two repairs verified | Formatter cache and hard-link writeback/compensation repairs are committed at `167e856d`, with import patches and manifest. Verify remaining candidates: CLI parent-growth preflight, symlink writeback, rename compensation and out-of-range inode address encoding. |
 | Compare atomic recovery policies | Complete offline; production admission open | Bounded policies pass 22,854 transaction/recovery cuts and negative controls. Dhara replay supplies operation counts and separate committed-recovery work. `storage-recovery-comparison.md` records the representation/reclamation/migration/interruption architecture stop. |
-| Review remaining components | Active: verify device error lifetime and unit admission | The host probe reproduced queued-buffer routing and unmounted asynchronous error loss. The candidate retains shared first-error replicas in active inode storage through last close and drains busy writes. The mount-publication schedule reproduces raw/whole-device admission races; the unit guard passes the deciding host schedules. The focused fixture passes 1,944 checks and rejects 45 mutants, selected Clang analyses pass, and matched Cortex-M0+ resource captures retain source hashes. Final clean-revision logged gates remain required before publication. `block-device-write-error-lifetime.md` owns the contract and evidence limits. Six source-review components cover 101 paths; 658 components remain pending. |
+| Review remaining components | Active: verify device error lifetime and unit admission | The host probe reproduced queued-buffer routing and unmounted asynchronous error loss. The candidate retains shared first-error replicas in active inode storage through last close and drains busy writes. The mount-publication schedule reproduces raw/whole-device admission races; the unit guard passes the deciding host schedules. The extended fixture passes 1,950 checks and rejects 46 mutants; the buffer-pressure fixture passes 53 checks and rejects its four behavior mutants. Selected Clang analyses pass, and matched Cortex-M0+ resource captures retain source hashes. Final clean-revision logged gates remain required before publication. `block-device-write-error-lifetime.md` owns the contract and evidence limits. Six source-review components cover 101 paths; 658 components remain pending. |
 | Determine takeover eligibility | Pending | Record UTC decision and exact five-hour cutoff, attributable activity and ownership, then recheck head and ownership immediately before mutation. |
 | Complete eligible pull requests | Pending | Apply the user's separate contracts for pull requests 435, 436, 437 and later eligible requests; preserve experimental defaults and keep unmet readiness criteria visible. |
 | Verify and integrate | Pending | Focused checks, logged-check and logged-ilp32 on final revisions; separate CI watchers; fresh review and merge-commit integration; retain evidence and remove only clean, pushed task-owned worktrees. |
@@ -171,3 +171,24 @@ reviews carry valid witnesses. A later main revision changes the audit
 frontier through a reviewed delta; initializing over the baseline ledger is
 prohibited. Local invocation logs remain under `.build-logs` and carry their
 own environment and timing boundaries.
+
+## Reconciled kernel and verification dependencies
+
+The cooked-device implementation is retained at `70ea03e2`. Merge
+`da4b2b15` reconciles remote main `e734a4ea`, adding the swap-ring allocator,
+pooled-process accounting and retained board observations to the candidate;
+the 6,743-path audit baseline remains fixed. The merge's logged build passes
+in 108 seconds. Its aggregate then fails workflow-observability validation
+because the storage-prefix runner has an unregistered label.
+`82300c60` registers the exact one-block-parent command and adds a substituted
+parent-range control; all 38 observability cases pass.
+
+The shared-source review identifies STM32's minor-bit-3 unit selector.
+`efaaa74a` uses that selector for its guard and extends the extracted-function
+probe. The lower-level buffer-pressure fixture also needs a link boundary:
+`2212531d` keeps its real buffer-call closure with function sections, while
+the disk fixture retains the device-admission closure. The two fixtures keep
+their respective calibrated behavior checks. The design and resource limits
+remain in `block-device-write-error-lifetime.md`. A fresh aggregate and
+ILP32 inventory on the resulting clean head remain pending; the failed
+aggregate supplies no aggregate pass for its preceding revision.

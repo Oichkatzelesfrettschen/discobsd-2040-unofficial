@@ -410,6 +410,7 @@ upload and hidden-file inclusion.
 | cross | `check-cross` | arm-none-eabi toolchain, capstone and pyelftools under `${PYTHON}`, a built tree | yes | yes |
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
 | renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | yes: the `firmware/rp2040` job installs the pinned Renode release, then fetches and builds the models | no |
+| renode table exhaustion | `check-renode-capacity` | Renode, the fetched RP2040 models, a built PICO_UART kernel, the selected board's disk image (`${FSIMG}`), `fsutil` and `flashimg`, `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
 | core 1 emulation | `check-core1-emulation` | Unicorn and pyelftools under `${PYTHON}`, the arm-none-eabi toolchain, a built PICO_UART kernel | yes: the `firmware/rp2040` job installs `python3-unicorn` | no |
 | renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
 | renode union | `check-renode-union` | Renode, the fetched RP2040 models, a built PICOCALC_PSRAM kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the PicoCalc Renode step | no |
@@ -1740,7 +1741,7 @@ to. `tools/renode/check-renode-pin.sh` then fails the job when the unpacked
 build differs from `VERIFIED_RENODE`, when the two gate scripts name different
 builds, or when the build is not one of `RENODE_VERSION`, so the pin and the
 verified build move together. The models are fetched at the commit
-`fetch-renode-rp2040.sh` pins. The three Renode gates run in that job after
+`fetch-renode-rp2040.sh` pins. The four Renode gates run in that job after
 the board-build tier, reuse its PICO_UART, PICOCALC and PICOCALC_PSRAM
 kernels and flash image, and upload the Renode logs and UART0 transcripts as
 the `renode-results` artifact. The gates still stand outside `check`: a
@@ -1889,6 +1890,34 @@ from the datasheet. It establishes nothing about silicon timing, the real
 boot ROM, NMI delivery through `PROC0_NMI_MASK`, or SRAM write ordering
 between two real cores. `sys/arch/rp2040/doc/CORE1.md` lists the board
 procedure that would.
+
+## Renode table exhaustion tier
+
+`check-renode-capacity` builds tests/rp2040/capacity_exhaustion and runs
+tools/renode/check-capacity.sh, which adds `filetab` and `proctab` under
+/tmp to a copy of the root disk image (`fsutil --add`), checks the copy,
+wraps it with `flashimg` and boots the PICO_UART kernel on it through the
+machine, console and virtual-time slicing of the UART0 tier. The shipped
+images are read and never written, and the programs stay outside the root
+manifest. tools/renode/check-capacity.py reaches a root shell, reads
+`kern.capacity`, runs both programs and reads `kern.capacity` again. It
+requires `FILETABTEST OK` and `PROCTABTEST OK`, exit status 0 and no `FAIL`
+line from either, a process and a file row that each record a peak equal
+to the limit, a minimum free count of zero and a failure count above the
+starting one, and a process occupancy equal to its starting value. A
+`PROCTABTEST INCONCLUSIVE` verdict, swap exhausted before the table, fails
+the gate.
+
+The claim is the emulated kernel's table accounting, errno attribution and
+recovery at the configured `NPROC` and `NFILE`; it is the Renode class of
+the process-table and file-table exhaustion cases in
+tests/rp2040/capacity-corpus.json, and the board class is
+tests/rp2040/capacity_exhaustion/board_capacity_exhaustion.py. The gate
+leaves the warning-class ceilings to `check-renode`, whose shorter run they
+were measured on. An image without the two programs fails the gate at the
+first verdict line, which is the calibration of its reject path. The
+composed image, the UART0 transcript and the Renode log stay under
+tools/renode/vendor/results/capacity.
 
 ## Renode PicoCalc tier
 

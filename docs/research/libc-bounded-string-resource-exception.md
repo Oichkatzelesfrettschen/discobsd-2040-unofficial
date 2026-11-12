@@ -4,7 +4,7 @@ The four string interfaces add 692 bytes to the shipped native libc archive.
 The matched distribution comparison preserves all other 157 measured surfaces,
 including executable packed bytes, loaded sizes, kernel resources and root
 block counts. The default resource gate rejects the added archive members;
-resource acceptance remains pending.
+the owner approves the exact increase and candidate below on 2026-11-12.
 
 The governing [profile rule](dpucp-2024.md) states: "An exception records exact
 deltas, examined alternatives, retained margins, user benefit, rollback point
@@ -70,6 +70,8 @@ The user benefit is native and cross-linked access to the four tested POSIX
 interfaces. The rollback point is the parent revision, which lacks them.
 The requested exception covers only the 692-byte archive increase and four
 named members. Future growth and other resource surfaces require their own
-comparison. Review approval remains pending; aggregate qualification and
-reviewed integration continue independently. Physical-board execution remains
-outside this evidence.
+comparison. The owner approves the exact 692-byte increase and four named
+members for candidate `b57da5bac273bd4ba382c17ccdb3327eb0061f6d` on
+2026-11-12 and directs continued qualification and review. The approval leaves
+the default rejected comparison intact. Reviewed integration remains open.
+Physical-board execution remains outside this evidence.

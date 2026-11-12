@@ -116,4 +116,4 @@ allocation formula do not establish whole-workload stack or heap peaks.
 
 The [resource review](libc-bounded-string-resource-exception.md) binds the
 complete candidate to its matched parent, exact archive growth, unchanged
-remaining surfaces, retained margins and pending exception decision.
+remaining surfaces, retained margins and the exact owner approval.

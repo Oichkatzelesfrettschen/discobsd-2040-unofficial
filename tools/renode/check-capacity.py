@@ -45,6 +45,8 @@ sys.path.insert(0, HERE)
 
 from renode_monitor import Renode, RenodeError  # noqa: E402
 
+# The kernel configuration check-capacity.sh boots; it selects the probe lines.
+CONFIG = "PICO_UART"
 PROGRAM_BUDGET_SECONDS = 900.0
 ROW = re.compile(
     r"^(proc|file)\s+limit (\d+) current (\d+) peak (\d+) min-free (\d+) failures (\d+)",
@@ -102,7 +104,14 @@ def capacity_rows(console, boot) -> dict:
 
 
 def run_stages(console, boot) -> None:
-    console.wait_lines(boot.PROBE_LINES, "device probe", boot.PROBE_BUDGET_SECONDS)
+    console.wait_lines(
+        [f"DiscoBSD 2.7 ({CONFIG})"]
+        + boot.CPU_LINES
+        + boot.BOARD_LINES[CONFIG]
+        + boot.STORAGE_LINES,
+        "device probe",
+        boot.PROBE_BUDGET_SECONDS,
+    )
     console.wait_lines(boot.LOGIN_LINES, "file system check and daemons", boot.LOGIN_BUDGET_SECONDS)
     console.wait_lines(["login:"], "login prompt", boot.LOGIN_BUDGET_SECONDS)
     console.type_line("operator")

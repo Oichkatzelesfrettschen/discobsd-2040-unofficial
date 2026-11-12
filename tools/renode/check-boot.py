@@ -129,9 +129,9 @@ LOGIN_LINES = [
 # board headroom.
 CAPACITY_LINES = [
     "kern.capacity=version 1 size 100",
-    "proc limit 25 current",
+    "proc limit 16 current",
     "inode limit 24 current",
-    "file limit 24 current",
+    "file limit 18 current",
     "clist limit 32 current",
     "buffer limit 4 current",
     "uarea bytes 3072 user 972 stack 2048 peak",

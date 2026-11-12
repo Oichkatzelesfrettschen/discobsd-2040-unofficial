@@ -23,7 +23,6 @@ BOARDS=		PICO PICOCALC PICOCALC_PSRAM
 BOARD_PROFILE.PICO=	full
 BOARD_PROFILE.PICOCALC=	picocalc
 BOARD_PROFILE.PICOCALC_PSRAM=	picocalc
-BOARD_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/${BOARD}/unix.uf2
 
 # Output paths. The PICO board keeps the bare names distrib/rp2040/sdcard.img,
 # flash.bin and flash.uf2 that the documentation, CI and discobsd-flash
@@ -37,6 +36,12 @@ BOARD_OUT_SUFFIX=
 BOARD_OUT_SUFFIX=	-${BOARD}
 .endif
 FSIMG=		${TOPSRC}/distrib/${MACHINE}/sdcard${BOARD_OUT_SUFFIX}.img
+MKBOARDUF2=	${TOPSRC}/distrib/rp2040/mkboarduf2.py
+UNION_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2
+BOARD_KERNEL_UF2=	${TOPSRC}/distrib/${MACHINE}/unix${BOARD_OUT_SUFFIX}.uf2
+
+${BOARD_KERNEL_UF2}:	${UNION_KERNEL_UF2} ${MKBOARDUF2}
+		${PYTHON} ${MKBOARDUF2} --board=${BOARD} ${UNION_KERNEL_UF2} $@
 
 # The root filesystem profile. distrib/rp2040/mi.rp2040 brackets each
 # optional feature between "#closure NAME" and "#endclosure NAME",
@@ -140,7 +145,7 @@ FLASHUF2=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}.uf2
 # sys/arch/rp2040/dev/flash.h, which flashimg also prints.
 FLASH_FS_ADDR=	0x10020000
 
-flash:		check-account-image .WAIT ${FLASHUF2}
+flash:		check-account-image .WAIT ${BOARD_KERNEL_UF2} ${FLASHUF2}
 
 ${FLASHBIN}:	${FSIMG}
 		${FLASHIMG} ${FSIMG} $@
@@ -149,7 +154,7 @@ ${FLASHUF2}:	${FLASHBIN}
 		picotool uf2 convert --quiet ${FLASHBIN} -t bin $@ -o ${FLASH_FS_ADDR}
 
 cleanflash:
-		rm -f ${FLASHBIN} ${FLASHUF2}
+		rm -f ${BOARD_KERNEL_UF2} ${FLASHBIN} ${FLASHUF2}
 
 .PHONY:		flash cleanflash
 

@@ -80,7 +80,19 @@ C17_CAPTURE_PREFIX= ${PYTHON} ${TOPSRC}/tools/c17/record_tool.py \
 .export C17_CAPTURE_DIR
 .endif
 
-CC=		${C17_CAPTURE_PREFIX}${GCCPREFIX}-gcc ${WARNERR} -std=gnu17 -fno-common \
+# Debug data names each source relative to the checkout. GCC hands the
+# mapping to the assembler for every .S file, debug or not, so the RP2040
+# route through the tree's Thumb assembler (usr.bin/as, selected by -B)
+# accepts the forwarded --debug-prefix-map operand.
+# tools/check_debug_paths.py gates the C and assembler routes.
+.if ${MACHINE} == "rp2040"
+DEBUG_PATH_MAP?=	-fdebug-prefix-map=${TOPSRC:Q}=.
+.else
+DEBUG_PATH_MAP?=
+.endif
+
+CC=		${C17_CAPTURE_PREFIX}${GCCPREFIX}-gcc ${DEBUG_PATH_MAP} ${WARNERR} \
+		-std=gnu17 -fno-common \
 		${MACHINE_ARCH_FLAGS} ${KERNEL_LAYOUT_CFLAGS} \
 		-nostdinc -I${TOPSRC}/include ${INCLUDES}
 

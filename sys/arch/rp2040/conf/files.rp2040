@@ -47,6 +47,7 @@ kern/ufs_inode.c			standard
 kern/ufs_mount.c			standard
 kern/ufs_namei.c			standard
 kern/ufs_subr.c				standard
+kern/ufs_v7.c				optional v7fs
 kern/ufs_syscalls.c			standard
 kern/ufs_syscalls2.c			standard
 kern/vfs_vnops.c			standard
@@ -65,6 +66,7 @@ dev/swap.c				standard
 # STM32 platform.
 #
 arch/rp2040/rp2040/clock.c		standard
+arch/rp2040/rp2040/board.c		standard
 arch/rp2040/rp2040/conf.c			standard
 arch/rp2040/rp2040/core1.c		optional core1
 arch/rp2040/rp2040/fault.c		standard

@@ -1,0 +1,63 @@
+--- a/usr.sbin/makefs/msdos/msdosfs_vnops.c
++++ b/usr.sbin/makefs/msdos/msdosfs_vnops.c
+@@ -54,7 +54,6 @@
+ __KERNEL_RCSID(0, "$NetBSD: msdosfs_vnops.c,v 1.22 2022/04/09 10:05:35 riastradh Exp $");
+ 
+ #include <sys/param.h>
+-#include <sys/mman.h>
+ #include <fcntl.h>
+ #include <unistd.h>
+ 
+@@ -435,7 +434,7 @@
+ 	size_t nsize, offs;
+ 	struct msdosfsmount *pmp = dep->de_pmp;
+ 	struct buf *bp;
+-	char *dat;
++	ssize_t got;
+ 	u_long cn = 0;
+ 
+ 	error = 0;	/* XXX: gcc/vax */
+@@ -463,16 +462,6 @@
+ 		return error;
+ 	}
+ 
+-	if ((dat = mmap(0, nsize, PROT_READ, MAP_FILE | MAP_PRIVATE, fd, 0))
+-	    == MAP_FAILED) {
+-		error = errno;
+-		DPRINTF(("%s: mmap %s: %s", __func__, node->name,
+-		    strerror(error)));
+-		close(fd);
+-		goto out;
+-	}
+-	close(fd);
+-
+ 	for (offs = 0; offs < nsize;) {
+ 		int blsize, cpsize;
+ 		daddr_t bn;
+@@ -502,15 +491,22 @@
+ 			goto out;
+ 		}
+ 		cpsize = MIN((nsize - offs), blsize - on);
+-		memcpy((char *)bp->b_data + on, dat + offs, cpsize);
+-		bwrite(bp);
++		/* Read the source into the cluster buffer: no mmap(2). */
++		got = read(fd, (char *)bp->b_data + on, cpsize);
++		if (got != cpsize) {
++			error = got < 0 ? errno : EIO;
++			brelse(bp, 0);
++			goto out;
++		}
++		if ((error = bwrite(bp)) != 0)
++			goto out;
+ 		offs += cpsize;
+ 	}
+ 
+-	munmap(dat, nsize);
++	close(fd);
+ 	return 0;
+ out:
+-	munmap(dat, nsize);
++	close(fd);
+ 	return error;
+ }
+ 

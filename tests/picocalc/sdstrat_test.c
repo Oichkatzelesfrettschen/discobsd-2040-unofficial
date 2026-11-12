@@ -45,10 +45,13 @@
 
 #include <sys/param.h>
 #include <sys/buf.h>
+#include <sys/config.h>
 #include <sys/disk.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
+
+#include <machine/board.h>
 
 #include "regmodel.h"
 
@@ -191,6 +194,20 @@ timeout(void (*fn)(char *) __attribute__((unused)),
     char *arg __attribute__((unused)), int ticks __attribute__((unused)))
 {
 }
+
+/*
+ * The board the descriptor names. sdprobe() reads it through board_id()
+ * and attaches on the PicoCalc alone.
+ */
+static int test_board = BOARD_ID_PICOCALC;
+
+int
+board_id(void)
+{
+	return test_board;
+}
+
+extern struct driver sddriver;
 
 static void
 check(const char *what, long got, long want)
@@ -801,6 +818,16 @@ int
 main(void)
 {
 	struct req r;
+
+	/*
+	 * Autoconfiguration. A bare Pico carries no card slot, so the probe
+	 * declines before it reaches a register; a PicoCalc attaches.
+	 */
+	test_board = BOARD_ID_PICO;
+	check("probe on a bare Pico", sddriver.probe(NULL), 0);
+	check("registers reached by the declined probe", model_n, 0);
+	test_board = BOARD_ID_PICOCALC;
+	check("probe on a PicoCalc", sddriver.probe(NULL), 1);
 
 	fill_card();
 

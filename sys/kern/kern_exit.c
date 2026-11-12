@@ -52,8 +52,7 @@ endvfork()
  * Check for child processes and orphan them.
  */
 void
-exit (rv)
-    int rv;
+exit (int rv)
 {
     register int i;
     register struct proc *p;
@@ -102,6 +101,7 @@ exit (rv)
     p->p_prev = &zombproc;
     zombproc = p;
     p->p_stat = SZOMB;
+    wakeup((caddr_t)&runin);
 
     noproc = 1;
     for (pp = &pidhash[PIDHASH(p->p_pid)]; *pp; pp = &(*pp)->p_hash)
@@ -178,10 +178,7 @@ struct args {
  * child's proc structure.
  */
 static int
-wait1 (q, uap, retval)
-    struct proc *q;
-    register struct args *uap;
-    int retval[];
+wait1 (struct proc *q, register struct args *uap, int retval[])
 {
     int nfound, status;
     struct rusage ru;                   /* used for local conversion */

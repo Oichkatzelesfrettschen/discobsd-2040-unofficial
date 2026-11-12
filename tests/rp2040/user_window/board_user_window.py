@@ -190,6 +190,11 @@ def stage(name, path):
     run("cd /tmp && uudecode /tmp/%s.uu" % name, 60)
     want = subprocess.run(["cksum"], input=blob, capture_output=True, check=True).stdout.split()[:2]
     got = run("cksum < /tmp/%s" % name)
+    # Each staged file leaves its parts and their join in /tmp, and the
+    # root file system has too few free inodes to keep those of four files.
+    # A full inode table also stops the shell's pipes, so the parts go once
+    # the decoded file is measured.
+    run("rm -f /tmp/%s.uu /tmp/%s.p*" % (name, name))
     have = got[-1].split()[:2] if got else []
     ok = [w.decode() for w in want] == have
     print(

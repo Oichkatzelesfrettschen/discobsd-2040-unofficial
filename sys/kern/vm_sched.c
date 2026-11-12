@@ -48,11 +48,14 @@ sched()
     struct proc *swapped_out = 0, *in_core = 0;
     register int out_time, rptime;
     struct swap_image_reservation reservation;
+    char refused[NPROC];
+    int exchange_refusal, refusals = 0;
     int s;
 
     for (;;) {
         /* Perform swap-out/swap-in action. */
         spl0();
+        exchange_refusal = 0;
 #ifdef SWAPRAM
         swapram_service ();
 #endif
@@ -60,32 +63,59 @@ sched()
          * The selected process is off the run queue with SLOAD clear, so
          * its image cannot change while the reservation runs at spl0. When
          * neither tier has room for the image, it stays resident: SLOAD
-         * returns, a runnable process rejoins the run queue, the swap-in
-         * waits, and sched retries once runin wakes it (every sleep, every
-         * exit, and once a second from schedcpu).
+         * returns, a runnable process rejoins the run queue and the swap-in
+         * waits.
+         *
+         * A refusal belongs to one pair: swap_exchange_switch() gives the
+         * outgoing image the extent of a flash-backed incoming image, so
+         * another swapped-out process can fit where this one did not. The
+         * refused process is marked in refused[], indexed by proc slot, and
+         * selection passes over it, so every runnable swapped-out process
+         * is tried before sched sleeps. The marks are valid while refusals
+         * is nonzero and last until sched sleeps or completes a swap, since
+         * either can change what fits; runin then wakes sched for a retry
+         * (every sleep, every exit, and once a second from schedcpu).
          */
-        if (in_core && swap_image_reserve (&reservation, in_core, in_core,
-            X_OLDSIZE, X_OLDSIZE) != 0) {
+        if (swapped_out) {
+            int pool_backed = 0;
+
+#ifdef SWAPRAM
+            pool_backed = swapram_present (swapped_out);
+#endif
+            if (swap_exchange_switch (&reservation, in_core, swapped_out,
+                pool_backed) != 0)
+                exchange_refusal = 1;
+        }
+        if (exchange_refusal) {
             s = splhigh ();
-            in_core->p_flag |= SLOAD;
-            if (in_core->p_stat == SRUN)
-                setrq (in_core);
+            if (in_core) {
+                in_core->p_flag |= SLOAD;
+                if (in_core->p_stat == SRUN)
+                    setrq (in_core);
+            }
             splx (s);
 #ifdef SWAPRAM
             storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
 #endif
+            if (refusals == 0)
+                bzero (refused, sizeof (refused));
+            refused[swapped_out - proc] = 1;
+            ++refusals;
             in_core = 0;
             swapped_out = 0;
-            splhigh ();
-            ++runin;
-            sleep ((caddr_t) &runin, PSWP);
             continue;
         }
-        if (in_core)
-            swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,
-                &reservation);
         if (swapped_out)
-            swapin (swapped_out);
+            refusals = 0;
+        if (in_core && reservation.tier == SWAP_IMAGE_EXCHANGE)
+            swap_exchange_inplace (&reservation, in_core, swapped_out);
+        else {
+            if (in_core)
+                swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,
+                    &reservation);
+            if (swapped_out)
+                swapin (swapped_out);
+        }
         splhigh();
         in_core = 0;
         swapped_out = 0;
@@ -95,6 +125,8 @@ sched()
         out_time = -20000;
         for (rp = allproc; rp; rp = rp->p_nxt) {
             if (rp->p_stat != SRUN || (rp->p_flag & SLOAD))
+                continue;
+            if (refusals && refused[rp - proc])
                 continue;
             rptime = rp->p_time - rp->p_nice * 8;
 
@@ -110,8 +142,18 @@ sched()
             }
         }
 
-        /* If there is no one there, wait. */
+        /*
+         * If there is no one there, wait. A process becoming runnable wakes
+         * runout, which a refused process already is, so capacity for the
+         * refused ones is awaited on runin.
+         */
         if (! swapped_out) {
+            if (refusals) {
+                refusals = 0;
+                ++runin;
+                sleep ((caddr_t) &runin, PSWP);
+                continue;
+            }
             ++runout;
             sleep ((caddr_t) &runout, PSWP);
             continue;
@@ -153,6 +195,7 @@ sched()
             /* Nothing to swap in/out. */
             in_core = 0;
             swapped_out = 0;
+            refusals = 0;
             ++runin;
             sleep ((caddr_t) &runin, PSWP);
         }
@@ -204,9 +247,7 @@ vmmeter()
  * the right.
  */
 static void
-loadav (avg, n)
-    register short  *avg;
-    register int    n;
+loadav (register short *avg, register int n)
 {
     register int    i;
     static const long cexp[3] = {

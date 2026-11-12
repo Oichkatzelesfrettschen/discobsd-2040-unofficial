@@ -26,6 +26,27 @@ OSR="2.7"
 #S="-beta"
 S=""
 
+# A fixed UTC date makes version payloads comparable across clean builds.
+# date(1) uses -d on GNU systems and -r on BSD and macOS.
+if [ "${SOURCE_DATE_EPOCH+x}" = x ]; then
+    case "$SOURCE_DATE_EPOCH" in
+        ''|*[!0-9]*) echo "invalid SOURCE_DATE_EPOCH" >&2; exit 1 ;;
+    esac
+    if LC_ALL=C TZ=UTC date -u -d "@0" >/dev/null 2>&1; then
+        NOW=$(LC_ALL=C TZ=UTC date -u -d "@$SOURCE_DATE_EPOCH" 2>/dev/null) || {
+            echo "SOURCE_DATE_EPOCH is outside the supported date range" >&2
+            exit 1
+        }
+    else
+        NOW=$(LC_ALL=C TZ=UTC date -u -r "$SOURCE_DATE_EPOCH" 2>/dev/null) || {
+            echo "SOURCE_DATE_EPOCH is outside the supported date range" >&2
+            exit 1
+        }
+    fi
+else
+    NOW=$(date) || exit 1
+fi
+
 if [ ! -r .compileversion -o ! -s .compileversion ]
 then
     echo 0 >.compileversion
@@ -40,7 +61,6 @@ fi
 OV=`cat .oldversion`
 
 GITREV=`git rev-list --count HEAD --`
-GITDIR=`git rev-parse --show-toplevel`
 
 if [ "x$GITREV" = "x" ]
 then
@@ -54,28 +74,18 @@ fi
 echo $CV >.compileversion
 echo $GITREV >.oldversion
 
-H=`hostname`
-D=${PWD#$GITDIR}
-ID=`basename "${D}"`
+ID=`basename "${PWD}"`
 
-# The date comes from date(1): strftime() is a gawk extension that the
-# awk on macOS and the BSDs does not have.
-NOW=`date`
-
-echo $GITREV $CV ${USER-root} $H $D $OST $OSR $ID $S| \
+echo $GITREV $CV $OST $OSR $ID $S| \
 awk -v date="$NOW" '{
     gitrev = $1;
     cv = $2;
-    user = $3;
-    host = $4;
-    dir = $5;
-    ost = $6;
-    osr = $7;
-    id = toupper($8);
-    status = $9;
-    printf "const char version[] = \"%s %s%s (%s) #%d %s: %s\\n", \
+    ost = $3;
+    osr = $4;
+    id = toupper($5);
+    status = $6;
+    printf "const char version[] = \"%s %s%s (%s) #%d %s: %s\\n\";\n", \
         ost, osr, status, id, cv, gitrev, date;
-    printf "     %s@%s:%s\\n\";\n", user, host, dir;
     printf "const char ostype[] = \"%s\";\n", ost;
     printf "const char osversion[] = \"%s#%d\";\n", id, cv;
     printf "const char osrelease[] = \"%s\";\n", osr;

@@ -97,7 +97,7 @@ test-play:	require-python host
 # Each deliberately wrong copy of calc.c must be rejected by the line table
 # or the pty test. The unmutated tests pass first.
 test-mutants:	require-python host
-		HOSTCC=${HOSTCC} ${PYTHON} -I tests/mutants.py .
+		HOSTCC=${HOSTCC} ${PYTHON} -I -u tests/mutants.py .
 
 # The mutants run after every unmutated test has passed.
 test:		test-line test-line-san test-line-treelibm test-play .WAIT test-mutants

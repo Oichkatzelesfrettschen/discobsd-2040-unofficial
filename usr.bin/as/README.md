@@ -133,7 +133,7 @@ the host build of this tree's own tools from `tools/aoututils`, and the
 interpreter named by `PYTHON`. The last step also runs the linked program if
 that interpreter can import Unicorn, and says so when it cannot.
 
-Three tests run in order.
+Four assembler tests run in order, after the archive tests.
 
 Each comparison covers both the text and the data segment. A field covered
 by a relocation is excluded, because there the a.out addend convention and
@@ -153,6 +153,15 @@ and section use differ from the cross compiler's.
 carry what hand-written input does not: switch tables that read the
 difference of two labels into a `.byte`, code split across `.text` and
 `.text.startup`, and calls to symbols the object does not define.
+
+**Forwarded options.** For an assembler source, `gcc -fdebug-prefix-map=OLD=NEW`
+runs the assembler named by `-B` with `--debug-prefix-map OLD=NEW` as two
+arguments, whether or not `-g` is given. This assembler writes no debug
+sections, so it consumes the operand, and every object assembled with the
+forwarded options must be byte-identical to the object assembled without
+them. A C compile with `-g` stays outside the native route: its DWARF
+directives (`.cfi_startproc`, `.uleb128`, the `.debug_*` sections) have no
+a.out representation.
 
 **Link.** This is the acceptance test. `crt0` and the whole of `libc` are
 built with this assembler through `lib/libc_aout`, every one of those

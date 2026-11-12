@@ -121,6 +121,10 @@ iget(dev_t dev, register struct fs *fs, ino_t ino)
 #endif
     struct buf *bp;
     struct dinode *dp;
+
+    /* Before the number selects a device block. */
+    if (FS_BADINO(fs, ino))
+        return(NULL);
 loop:
 #ifndef LINEAR_INODE_CACHE
     ih = &ihead[INOHASH(dev, ino)];
@@ -208,7 +212,7 @@ loop:
     ip->i_count++;
     capacity_note(CAPACITY_INODE, 0);
     ip->i_lastr = 0;
-    bp = bread(dev, itod(ino));
+    bp = bread(dev, FSBTODB(fs, FS_ITOD(fs, ino)));
     /*
      * Check I/O errors
      */
@@ -230,6 +234,26 @@ loop:
         iput(ip);
         return(NULL);
     }
+#ifdef V7FS
+    if (FS_ISV7(fs)) {
+        int bad = v7_iread(ip, (u_char *)FSBADDR(fs, bp, FS_ITOD(fs, ino)) +
+            FS_ITOO(fs, ino) * sizeof(struct dinode));
+
+        brelse(bp);
+        if (bad) {
+            u.u_error = bad;
+#ifndef LINEAR_INODE_CACHE
+            remque(ip);
+            ip->i_forw = ip;
+            ip->i_back = ip;
+#endif
+            ip->i_number = 0;
+            iput(ip);
+            return (NULL);
+        }
+        return (ip);
+    }
+#endif
     dp = (struct dinode*) bp->b_addr;
     dp += itoo(ino);
 #ifdef COMPACT_INODE_FIELDS
@@ -362,19 +386,20 @@ iupdat(struct inode *ip, struct timeval *ta, struct timeval *tm, int waitfor)
     register struct buf *bp;
     register struct dinode *dp;
     register struct inode *tip = ip;
-    int dirty_flags, error;
+    int dirty_flags, io_error;
 
     dirty_flags = tip->i_flag & (IUPD|IACC|ICHG|IMOD);
     if (dirty_flags == 0)
         return (0);
     if (INODE_FILESYSTEM(tip)->fs_ronly)
         return (0);
-    bp = bread(INODE_DEVICE(tip), itod(tip->i_number));
+    bp = bread(INODE_DEVICE(tip), FSBTODB(INODE_FILESYSTEM(tip),
+        FS_ITOD(INODE_FILESYSTEM(tip), tip->i_number)));
     if (bp->b_flags & B_ERROR) {
-        int error = geterror(bp);
+        int read_error = geterror(bp);
 
         brelse(bp);
-        return (error);
+        return (read_error);
     }
     if (tip->i_flag&IACC)
         tip->i_atime = ta->tv_sec;
@@ -383,16 +408,31 @@ iupdat(struct inode *ip, struct timeval *ta, struct timeval *tm, int waitfor)
     if (tip->i_flag&ICHG)
         tip->i_ctime = time.tv_sec;
     tip->i_flag &= ~(IUPD|IACC|ICHG|IMOD);
+#ifdef V7FS
+    if (FS_ISV7(INODE_FILESYSTEM(tip))) {
+        io_error = v7_iwrite(tip, (u_char *)FSBADDR(INODE_FILESYSTEM(tip),
+            bp, FS_ITOD(INODE_FILESYSTEM(tip), tip->i_number)) +
+            FS_ITOO(INODE_FILESYSTEM(tip), tip->i_number) *
+            sizeof(struct dinode));
+        if (io_error) {
+            brelse(bp);
+            tip->i_flag |= dirty_flags;
+            return (io_error);
+        }
+    } else
+#endif
+    {
     dp = (struct dinode*) bp->b_addr + itoo (tip->i_number);
     dp->di_ic1 = tip->i_ic1;
     dp->di_flags = tip->i_flags;
     dp->di_ic2 = tip->i_ic2;
     bcopy(ip->i_addr, dp->di_addr, NADDR * sizeof (daddr_t));
+    }
     if (waitfor) {
-        error = bwrite(bp);
-        if (error)
+        io_error = bwrite(bp);
+        if (io_error)
             tip->i_flag |= dirty_flags;
-        return (error);
+        return (io_error);
     }
     bdwrite(bp);
     return (0);
@@ -408,7 +448,7 @@ trsingle(register struct inode *ip, struct buf *bp, daddr_t last)
     register const daddr_t *bstart, *bstop;
     const daddr_t *blarray = (const daddr_t*) bp->b_addr;
 
-    bstart = &blarray[NINDIR - 1];
+    bstart = &blarray[FS_NINDIR(INODE_FILESYSTEM(ip)) - 1];
     bstop = &blarray[last];
     for (; bstart > bstop; --bstart)
         if (*bstart)
@@ -443,15 +483,20 @@ indirtrunc(struct inode *ip, daddr_t bn, daddr_t lastbn, int level, int aflags)
         factor = 1;
         break;
     case DOUBLE:
-        factor = NINDIR;
+        factor = FS_NINDIR(INODE_FILESYSTEM(ip));
         break;
     case TRIPLE:
-        factor = NINDIR * NINDIR;
+        factor = FS_NINDIR(INODE_FILESYSTEM(ip)) * FS_NINDIR(INODE_FILESYSTEM(ip));
         break;
     }
     last = lastbn;
     if (lastbn > 0)
         last = last / factor;
+    /* Before the address selects a block to read, clear and write. */
+    if (FS_BADADDR(INODE_FILESYSTEM(ip), bn)) {
+        u.u_error = EIO;
+        return;
+    }
     /*
      * Get buffer of block pointers, zero those
      * entries corresponding to blocks to be free'd,
@@ -461,16 +506,17 @@ indirtrunc(struct inode *ip, daddr_t bn, daddr_t lastbn, int level, int aflags)
         register daddr_t *bap;
         register struct buf *cpy;
 
-        bp = bread(INODE_DEVICE(ip), bn);
+        bp = bread(INODE_DEVICE(ip), FSBTODB(INODE_FILESYSTEM(ip), bn));
         if (bp->b_flags&B_ERROR) {
             brelse(bp);
             return;
         }
         cpy = geteblk();
-        bcopy (bp->b_addr, cpy->b_addr, DEV_BSIZE);
-        bap = (daddr_t*) bp->b_addr;
+        bcopy (FSBADDR(INODE_FILESYSTEM(ip), bp, bn), cpy->b_addr,
+            FS_BSIZE(INODE_FILESYSTEM(ip)));
+        bap = (daddr_t*) FSBADDR(INODE_FILESYSTEM(ip), bp, bn);
         bzero((caddr_t)&bap[last + 1],
-            (u_int)(NINDIR - (last + 1)) * sizeof(daddr_t));
+            (u_int)(FS_NINDIR(INODE_FILESYSTEM(ip)) - (last + 1)) * sizeof(daddr_t));
         if (aflags & B_SYNC)
             bwrite(bp);
         else
@@ -493,7 +539,7 @@ indirtrunc(struct inode *ip, daddr_t bn, daddr_t lastbn, int level, int aflags)
 
         bstart = (daddr_t*) bp->b_addr;
         bstop = &bstart[last];
-        bstart += NINDIR - 1;
+        bstart += FS_NINDIR(INODE_FILESYSTEM(ip)) - 1;
         /*
          * Recursively free totally unused blocks.
          */
@@ -565,7 +611,7 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
      * value of osize is 0, length will be at least 1.
      */
     if (oip->i_size < length) {
-        bn = bmap(oip, lblkno(length - 1), B_WRITE, aflags);
+        bn = bmap(oip, IN_LBLKNO(oip, length - 1), B_WRITE, aflags);
         if (u.u_error || bn < 0)
             return;
         oip->i_size = length;
@@ -578,10 +624,10 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
      * which we want to keep.  Lastblock is -1 when
      * the file is truncated to 0.
      */
-    lastblock = lblkno(length + DEV_BSIZE - 1) - 1;
-    lastiblock[SINGLE] = lastblock - NDADDR;
-    lastiblock[DOUBLE] = lastiblock[SINGLE] - NINDIR;
-    lastiblock[TRIPLE] = lastiblock[DOUBLE] - NINDIR * NINDIR;
+    lastblock = IN_LBLKNO(oip, length + IN_BSIZE(oip) - 1) - 1;
+    lastiblock[SINGLE] = lastblock - FS_NDADDR(INODE_FILESYSTEM(oip));
+    lastiblock[DOUBLE] = lastiblock[SINGLE] - FS_NINDIR(INODE_FILESYSTEM(oip));
+    lastiblock[TRIPLE] = lastiblock[DOUBLE] - FS_NINDIR(INODE_FILESYSTEM(oip)) * FS_NINDIR(INODE_FILESYSTEM(oip));
     /*
      * Update the size of the file. If the file is not being
      * truncated to a block boundry, the contents of the
@@ -589,18 +635,19 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
      * zero'ed in case it ever become accessable again because
      * of subsequent file growth.
      */
-    offset = blkoff(length);
+    offset = IN_BLKOFF(oip, length);
     if (offset) {
-        bn = bmap(oip, lblkno(length), B_WRITE, aflags);
+        bn = bmap(oip, IN_LBLKNO(oip, length), B_WRITE, aflags);
         if (u.u_error || bn < 0)
             return;
-        bp = bread(INODE_DEVICE(oip), bn);
+        bp = bread(INODE_DEVICE(oip), FSBTODB(INODE_FILESYSTEM(oip), bn));
         if (bp->b_flags & B_ERROR) {
             u.u_error = EIO;
             brelse(bp);
             return;
         }
-        bzero (bp->b_addr + offset, (u_int) (DEV_BSIZE - offset));
+        bzero (FSBADDR(INODE_FILESYSTEM(oip), bp, bn) + offset,
+            (u_int) (IN_BSIZE(oip) - offset));
         bdwrite(bp);
     }
     /*
@@ -615,22 +662,22 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
     oip->i_size = length;
     for (level = TRIPLE; level >= SINGLE; level--)
         if (lastiblock[level] < 0) {
-            oip->i_ib[level] = 0;
+            IADDR_IB_SET(oip, level, 0);
             lastiblock[level] = -1;
         }
-    for (i = NDADDR - 1; i > lastblock; i--)
-        oip->i_db[i] = 0;
+    for (i = FS_NDADDR(INODE_FILESYSTEM(oip)) - 1; i > lastblock; i--)
+        IADDR_DB_SET(oip, i, 0);
 
     /*
      * Indirect blocks first.
      */
     ip = &tip;
     for (level = TRIPLE; level >= SINGLE; level--) {
-        bn = ip->i_ib[level];
+        bn = IADDR_IB(ip, level);
         if (bn != 0) {
             indirtrunc(ip, bn, lastiblock[level], level, aflags);
             if (lastiblock[level] < 0) {
-                ip->i_ib[level] = 0;
+                IADDR_IB_SET(ip, level, 0);
                 free(ip, bn);
             }
         }
@@ -641,18 +688,18 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
     /*
      * All whole direct blocks.
      */
-    for (i = NDADDR - 1; i > lastblock; i--) {
-        bn = ip->i_db[i];
+    for (i = FS_NDADDR(INODE_FILESYSTEM(ip)) - 1; i > lastblock; i--) {
+        bn = IADDR_DB(ip, i);
         if (bn == 0)
             continue;
-        ip->i_db[i] = 0;
+        IADDR_DB_SET(ip, i, 0);
         free(ip, bn);
     }
     if (lastblock < 0)
         goto done;
 
 done:
-#ifdef DIAGNOSTIC
+#if defined(DIAGNOSTIC) && !defined(V7FS)
 /* BEGIN PARANOIA */
     for (level = SINGLE; level <= TRIPLE; level++)
         if (ip->i_ib[level] != oip->i_ib[level])

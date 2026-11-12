@@ -2,6 +2,7 @@
 
 import concurrent.futures
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -23,6 +24,30 @@ class GeneratedSyncTest(unittest.TestCase):
         contents = path.read_text()
         self.assertIn(before, contents)
         path.write_text(contents.replace(before, after, 1))
+
+    def test_service_callback_has_no_arguments(self):
+        configuration = self.root / sync.COMPILE / "PICO/Config"
+        with configuration.open("a", encoding="utf-8") as stream:
+            stream.write("\nservice pty\n")
+        generator = sync.build_generator(self.root, "bmake")
+        sync.generate(generator, configuration.parent, "PICO service fixture")
+        generated = (configuration.parent / "ioconf.c").read_text(encoding="utf-8")
+        self.assertIn("void ptyattach(void);", generated)
+        self.assertIn("{ ptyattach }", generated)
+
+    def test_stm32_controller_and_device_descriptors(self):
+        architecture = Path("sys/arch/stm32")
+        shutil.copytree(sync.ROOT / architecture / "conf", self.root / architecture / "conf")
+        directory = self.root / architecture / "compile/F405WEACTCORE"
+        directory.mkdir(parents=True)
+        shutil.copyfile(sync.ROOT / architecture / "compile/F405WEACTCORE/Config",
+                        directory / "Config")
+        generator = sync.build_generator(self.root, "bmake")
+        sync.generate(generator, directory, "STM32 controller fixture")
+        generated = (directory / "ioconf.c").read_text(encoding="utf-8")
+        self.assertIn("extern struct controller_driver sdiodriver;", generated)
+        self.assertIn("extern struct driver sddriver;", generated)
+        self.assertIn("&sddriver,\t&sdiodriver", generated)
 
     def test_synchronized_pair_without_kernel_or_include_link(self):
         self.assertFalse((self.root / "include/machine").exists())
@@ -115,7 +140,7 @@ class GeneratedSyncTest(unittest.TestCase):
         self.assertIn("COPTS?=\t\t-Os\n", template)
         self.assertIn("-fno-strict-aliasing", template)
         # The cycle-counted rule compiles at -O whatever COPTS says.
-        cycle = ("COMPILE_CYCLE_C=${CC} ${DEBUG} ${CWARNFLAGS} ${CSTDFLAGS} \\\n"
+        cycle = ("COMPILE_CYCLE_C=${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \\\n"
                  "\t\t${CMACHFLAGS} -O ${DEFS} -c $<\n")
         self.assertIn(cycle, template)
         self.assertNotIn("COPTS", cycle)

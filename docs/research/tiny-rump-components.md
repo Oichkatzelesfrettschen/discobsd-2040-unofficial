@@ -1,4 +1,5 @@
-Compile-only measurements and source readings; no board run backs any figure.
+Compile measurements, host-oracle runs, source readings and one board run of
+`usr.sbin/v7fs`; the board run backs only the v7fs tool session it names.
 
 # Tiny rump components for DiscoBSD on the RP2040
 
@@ -262,7 +263,42 @@ The trace covers calls visible to that dynamic-call filter; it does not count
 allocations internal to libc or establish a target allocation bound. The
 retained target disassembly contains `malloc`, `calloc`, `realloc`, and
 `free` symbols, so symbol presence alone establishes neither a call nor its
-absence. A whole-program stack maximum remains unknown.
+absence.
+
+The cross-built program's stack is bounded at 2,288 bytes from `main`.
+`docs/research/tiny-rump-components/stack-depth.sh` recompiles the
+thirteen sources with the Makefile's flags plus `-fstack-usage
+-fcallgraph-info=su` and walks the call graph. Each indirect call resolves
+by its call site: the block I/O pointers reach `fd_read` and `fd_write`,
+the `foreach` callbacks reach every address-taken callback, and the
+byte-order pointers reach the `val*` functions, with the address-taken set
+taken from the objects' `R_ARM_ABS32` relocations. libc callees are bounded
+from the linked listing `usr.sbin/v7fs/v7fs.dis`, whose push and `sub sp`
+frames match the compiler's `.su` figure for every v7fs function except the
+two whose frames exceed 508 bytes. Thumb-1 allocates those through a
+register, and the script refuses them rather than guess, so their figures
+come from `.su`. Letting every `foreach` site reach every callback gives
+3,448 bytes, through `main` (264), `cmd_put` (424), `cmd_rm` (400),
+`v7fs_file_deallocate`, `v7fs_directory_remove_entry`, the lookup's
+`foreach`, the `list_block` callback (672) and `printf` (968). The script
+then scopes callbacks by parameter: a function whose definition has a
+function-pointer parameter inherits its caller's callbacks, and the four
+such forwarders are `v7fs_datablock_foreach`, `v7fs_loop1`, `v7fs_loop2`
+and `v7fs_ilist_foreach`. Every other function holds only the callbacks
+its own `R_ARM_ABS32` relocations load. The I/O and byte-order pointers
+are the program's only function-pointer struct members, and they resolve
+by their own groups. Under that rule the bound is 2,288 bytes:
+`cmd_rm`'s directory removal, `v7fs_directory_add_checked`,
+`v7fs_datablock_expand`, `v7fs_rollback_block`, `v7fs_inode_writeback`,
+`scratch_read` and the backend's `fd_transfer`. Two calibrations hold.
+Injecting a `list_block` load into `v7fs_file_lookup_by_name` raises the
+scoped bound back to 3,448 bytes. Removing the `lookup_subr` load leaves a
+callback site with nothing in scope, and the script exits 1. Every frame is
+static, and no function recurses. The bound excludes the
+32-byte exception frame the hardware stacks on the process stack. Against
+the 192 KiB window, which the program's 24,618 bytes of text, 360 of data
+and 2,356 of bss share with its heap (ARM GCC 16.2.0, `-Os`, over
+`eb5b3081`), the stack is not the constraint.
 
 The focused v7fs gate also passed on Linux with GCC 16.2.1 and
 `CC='cc -m32' PYTHON="$PYTHON" bmake MACHINE=rp2040 check-v7fs-core` after
@@ -322,7 +358,10 @@ mechanism the tree already has:
   kernel backend to the generated Makefile, and an unselected component
   adds nothing. A kernel mount additionally needs an adapter from the
   2.11BSD inode and mount interfaces to the core, which NetBSD does not
-  supply and which has no size estimate yet.
+  supply and which has no size estimate yet. The kernel's `V7FS` option
+  takes a second route that needs neither the core nor the adapter: the
+  native inode layer reads a per-mount format descriptor, derived and
+  measured in `sys/arch/rp2040/doc/research/v7-format-descriptor.md`.
 - The host, for tests: the same core plus NetBSD's own userland backend
   and newfs library, built with the host compiler. `check-v7fs-core`
   (`tests/v7fs_core`) is this host.
@@ -379,8 +418,9 @@ patch reversals or targeted mutants to exercise the corrected behavior:
   detaches pointers before freeing their blocks. Growth checks the free-list
   cache and chain before clearing a stale direct pointer left by an older
   contraction; a pointer absent from the free list remains an error. Growth
-  checks all relevant direct slots before allocating, so an allocation cannot
-  consume a block named by an unchecked stale slot. A failed rollback write
+  checks the unused direct tail before allocating, so an allocation cannot
+  consume a block named by an unchecked stale slot in a later expansion.
+  Allocated tail slots outside the requested growth remain unchanged. A failed rollback write
   can leave the image inconsistent and requires inspection or repair.
 - `v7fs_file.patch`: directory lookup returns a read error instead of
   treating the error as a missing name. Creation and removal restore the
@@ -436,8 +476,22 @@ and the BSD_Workspace trees, so it is not exhaustive.
 2. DiscoBSD userland `v7fs` tool, landed as `usr.sbin/v7fs`: cross-built
    by `bmake build` at about 25 KB of the 192 KB window, and driven on the
    host by `check-v7fs-core` through the same core and independent reader.
-   Board execution waits for the owner's approval; shipping it adds a
-   manifest line and a numbered NOTICE section.
+   On 2026-11-09 the owner-approved board run executed the gate's tool
+   session on the measured Pico under the `eb5b3081` PICO kernel, with a
+   root built from `eb5b3081` plus a staged `file /usr/sbin/v7fs` (25,012
+   bytes, cksum 537459911). On a 2,048-sector, 64-inode image in `/tmp`, in
+   both byte orders, `newfs`, three `put`s, `mkdir`, `get`, `cat`, both
+   `rm`s and `df` exited 0, the unknown command exited 2, and `get` and
+   `cat` matched the uploaded patterns under `cmp`. `ls` named
+   `. .. hello big sub/`, and `df` read
+   `blocks 2048 data 2038 free 1953 inodes 64 free 58` before removal and
+   `... free 1956 inodes 64 free 60` after, the gate's strings. Both images
+   the board wrote came back compressed and uuencoded, and the oracle's
+   verify mode accepted each: 85 file blocks, 1,953 free, 6 inodes allocated
+   (little-endian image sha256 `a954f278...`, PDP-11 `7a8eaa0d...`).
+   `tests/rp2040/v7fs/board_v7fs.py` drives that session behind
+   `DISCOBSD_BOARD_V7FS=run`. Shipping the tool adds a manifest line and a
+   numbered NOTICE section.
 3. Import manifest and script, landed as `tools/netbsd-imports.manifest`,
    `tools/netbsd_imports.py` and `check-netbsd-imports`, whose selftest
    rejects an altered byte, a missing file, an unlisted file and a missing
@@ -446,7 +500,41 @@ and the BSD_Workspace trees, so it is not exhaustive.
    plus a buffer shim modeled on `makefs/ffs/buf.c`. Falsifier: the
    `makefs` forks of `denode`, `vfsops` and `vnops` cost more than the
    reused files save, which makes a non-NetBSD FAT implementation the
-   better choice.
+   better choice. Measured at `1e8e727e` with ARM GCC 16.2.0, `-Os` for
+   cortex-m0plus and makefs's `-DMAKEFS -DMSDOS_EI`, the falsifier fails:
+   the reused `msdosfs_fat.c`, `msdosfs_conv.c` and `msdosfs_lookup.c` are
+   3,369, 3,140 and 1,788 bytes of text (8,297), and the forks
+   `msdos/msdosfs_denode.c`, `msdosfs_vfsops.c`, `msdosfs_vnops.c` and
+   `ffs/buf.c` are 1,010, 1,235, 1,804 and 1,398 (5,447). With
+   `msdosfs_unicode.c` (3,576), makefs's `msdos.c` (4,079),
+   `mkfs_msdos.c` (6,466) and `clock_subr.c` (1,148), the set links to
+   29,013 bytes of text with 52 undefined symbols, none from the vnode
+   layer. The forks implement only creation (`msdosfs_mkfile`,
+   `msdosfs_wfile`, `msdosfs_mkdire`), so `ls`, `cat`, `get` and `rm`
+   need local read, readdir and remove code. `msdosfs_wfile` maps its
+   source with `mmap`, which DiscoBSD lacks, so it needs a local patch.
+   Landed as `usr.sbin/msdosfs` and `check-msdosfs-core`. The program
+   links the four core files, the three forks and `mkfs_msdos.c`,
+   imported under the manifest, behind three local files: the front end
+   (`ls`, `cat`, `get` and `rm` walk directories with the kernel's
+   long-name match rule and call `msdosfs_removede` and
+   `msdosfs_detrunc`), a buffer layer of four 4,096-byte buffers in
+   `.bss` over the image descriptor, and the `<util.h>` allocators.
+   Three local patches correct the imports: `msdosfs_wfile` reads its
+   source instead of mapping it and returns its write errors,
+   `msdosfs_deget` returns a broken directory chain instead of listing
+   the directory as empty, and `mkfs_msdos` closes its descriptor and
+   frees its sector buffer. `updatefats` returns void and drops its FAT
+   write errors, so the buffer layer records the first failed write and
+   the front end fails the command on it. The DiscoBSD link at `ce242bcd`
+   with ARM GCC 16.2.0 is 36,444 bytes of text, 620 of data and 16,992 of
+   bss; the core files are 3,297 (`fat`), 3,486 (`conv`), 1,628
+   (`lookup`) and 3,576 (`unicode`) bytes of text, the forks 921, 1,167
+   and 1,648, the formatter 6,298 and the local files 4,642. The host
+   gate measures at most two buffers held at once and calibrates that
+   bound: a two-buffer build runs the whole session and a one-buffer
+   build stops. The independent reader, `fsck.fat` and `mtype` accept
+   every FAT12, FAT16 and FAT32 image the session writes.
 5. A kernel-linked component, only after a HEAD kernel measures its flash
    headroom and an inode-to-core adapter has a size.
 
@@ -460,6 +548,10 @@ linker script now would describe a section nothing fills.
 ## Remaining uncertainty
 
 The linked DiscoBSD userland tool and the host oracle provide distinct build
-and execution evidence. A whole-program stack maximum, current kernel flash
-headroom and physical-board behavior remain unmeasured here. The other-systems
-table rests on project pages and papers rather than builds.
+and execution evidence. The stack bound above is a static analysis of the
+cross build, and the kernel flash headroom is the `check-kernel-headroom`
+measurement cited in the first section. The board run covers the tool
+session on one board, one kernel and one image geometry. It covers neither a
+raw device, a full image nor stack depth at run time. The FAT tool has
+host execution and a DiscoBSD link, and no board run. The other-systems table rests on project pages and papers
+rather than builds.

@@ -578,7 +578,7 @@ fl_setup(int unit)
 {
 	struct fldisk *du = &fldrives[unit];
 	dhara_error_t err = DHARA_E_NONE;
-	u_short buf[DEV_BSIZE / sizeof(u_short)];
+	u_short partition_data[DEV_BSIZE / sizeof(u_short)];
 	u_int i;
 
 	if (unit == FL_UNIT_SWAP) {
@@ -615,13 +615,13 @@ fl_setup(int unit)
 	for (i = 0; i < DEV_BSIZE / FLASH_UNIT_BYTES; i++) {
 		err = DHARA_E_NONE;
 		if (dhara_map_read(&flmap, i,
-		    (u_char *)buf + i * FLASH_UNIT_BYTES, &err) < 0) {
+		    (u_char *)partition_data + i * FLASH_UNIT_BYTES, &err) < 0) {
 			printf("fl%d: cannot read partition table\n", unit);
 			return ENXIO;
 		}
 	}
-	if (buf[255] == MBR_MAGIC) {
-		bcopy(&buf[223], &du->part[1], 64);
+	if (partition_data[255] == MBR_MAGIC) {
+		bcopy(&partition_data[223], &du->part[1], 64);
 		for (i = 1; i <= NPARTITIONS; i++) {
 			if (du->part[i].dp_type != 0)
 				printf("fl%d%c: partition type %02x, "

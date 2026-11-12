@@ -68,8 +68,7 @@ schedcpu (caddr_t arg __unused)
  * Recalculate the priority of a process after it has slept for a while.
  */
 void
-updatepri(p)
-    register struct proc *p;
+updatepri(register struct proc *p)
 {
     register int a = p->p_cpu & 0377;
 
@@ -90,9 +89,9 @@ updatepri(p)
  * is stopped just unsleep so it will remain stopped.
  */
 static void
-endtsleep (p)
-    register struct proc *p;
+endtsleep (caddr_t argument)
 {
+    register struct proc *p = (struct proc *)argument;
     register int    s;
 
     s = splhigh();
@@ -119,10 +118,7 @@ endtsleep (p)
  * interrupted and EINTR returned to the user process.
  */
 int
-tsleep (ident, priority, timo)
-    caddr_t ident;
-    int priority;
-    u_int   timo;
+tsleep (caddr_t ident, int priority, u_int timo)
 {
     register struct proc *p = u.u_procp;
     register struct proc **qp;
@@ -218,9 +214,7 @@ resume:
  * that the reason for sleeping has gone away.
  */
 void
-sleep (chan, pri)
-    caddr_t chan;
-    int pri;
+sleep (caddr_t chan, int pri)
 {
     register int priority = pri;
 
@@ -253,8 +247,7 @@ sleep (chan, pri)
  * Remove a process from its wait queue
  */
 void
-unsleep (p)
-    register struct proc *p;
+unsleep (register struct proc *p)
 {
     register struct proc **hp;
     register int s;
@@ -274,8 +267,7 @@ unsleep (p)
  * Wake up all processes sleeping on chan.
  */
 void
-wakeup (chan)
-    register caddr_t chan;
+wakeup (register caddr_t chan)
 {
     register struct proc *p, **q;
     struct proc **qp;
@@ -328,8 +320,7 @@ restart:
  * arrange for it to be swapped in if necessary.
  */
 void
-setrun (p)
-    register struct proc *p;
+setrun (register struct proc *p)
 {
     register int s;
 
@@ -374,8 +365,7 @@ setrun (p)
  * than the currently running process.
  */
 int
-setpri (pp)
-    register struct proc *pp;
+setpri (register struct proc *pp)
 {
     register int p;
 
@@ -490,8 +480,7 @@ loop:
  * Put the process into the run queue.
  */
 void
-setrq (p)
-    register struct proc *p;
+setrq (register struct proc *p)
 {
     register int s;
 
@@ -516,8 +505,7 @@ setrq (p)
  * reinserted in the qs with setrq when it is swapped back in.
  */
 void
-remrq (p)
-    register struct proc *p;
+remrq (register struct proc *p)
 {
     register struct proc *q;
     register int s;

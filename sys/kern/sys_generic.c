@@ -363,9 +363,7 @@ struct pselect_args {
 };
 
 int
-selscan(ibits, obits, nfd, retval)
-    fd_set *ibits, *obits;
-    int nfd, *retval;
+selscan(fd_set *ibits, fd_set *obits, int nfd, int *retval)
 {
     register int i, j, flag = 0;
     fd_mask bits;
@@ -403,9 +401,7 @@ selscan(ibits, obits, nfd, retval)
  * Select helper function common to both select() and pselect()
  */
 static int
-select1(uap, is_pselect)
-    register struct pselect_args *uap;
-    int is_pselect;
+select1(register struct pselect_args *uap, int is_pselect)
 {
     fd_set ibits[3], obits[3];
     struct timeval atv;
@@ -563,17 +559,13 @@ pselect()
 
 /*ARGSUSED*/
 int
-seltrue(dev, flag)
-    dev_t dev __unused;
-    int flag __unused;
+seltrue(dev_t dev __unused, int flag __unused)
 {
     return (1);
 }
 
 void
-selwakeup (p, coll)
-    register struct proc *p;
-    long coll;
+selwakeup (register struct proc *p, long coll)
 {
     if (coll) {
         nselcoll++;
@@ -593,9 +585,7 @@ selwakeup (p, coll)
 }
 
 int
-sorw(fp, uio)
-    register struct file *fp __unused;
-    register struct uio *uio __unused;
+sorw(register struct file *fp __unused, register struct uio *uio __unused)
 {
 #ifdef  INET
     if (uio->uio_rw == UIO_READ)
@@ -607,10 +597,7 @@ sorw(fp, uio)
 }
 
 int
-soctl(fp, com, data)
-    struct file *fp __unused;
-    u_int   com __unused;
-    char    *data __unused;
+soctl(struct file *fp __unused, u_int com __unused, char *data __unused)
 {
 #ifdef  INET
     return (SOO_IOCTL(fp, com, data));
@@ -620,9 +607,7 @@ soctl(fp, com, data)
 }
 
 int
-sosel(fp, flag)
-    struct file *fp __unused;
-    int     flag __unused;
+sosel(struct file *fp __unused, int flag __unused)
 {
 #ifdef  INET
     return (SOO_SELECT(fp, flag));
@@ -632,8 +617,7 @@ sosel(fp, flag)
 }
 
 int
-socls(fp)
-    register struct file *fp __unused;
+socls(register struct file *fp __unused)
 {
     register int error = 0;
 
@@ -664,8 +648,7 @@ const struct fileops *const Fops[] = {
  * Routine placed in illegal entries in the bdevsw and cdevsw tables.
  */
 void
-nostrategy (bp)
-    struct buf *bp __unused;
+nostrategy (struct buf *bp __unused)
 {
     /* Empty. */
 }

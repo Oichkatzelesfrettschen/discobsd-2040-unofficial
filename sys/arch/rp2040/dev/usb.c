@@ -46,6 +46,7 @@
 #include <sys/config.h>
 
 #include <machine/intr.h>
+#include <machine/board.h>
 #include <machine/scb.h>
 
 #include <rp2040/dev/usb.h>
@@ -1347,9 +1348,12 @@ usbgetc(dev_t dev __unused)
 static int
 usbprobe(struct conf_device *config __unused)
 {
+	int console_major, console_minor;
+
+	board_console(&console_major, &console_minor);
 	printf("uartusb: CDC-ACM on the USB device controller, interrupt %d",
 	    USBCTRL_IRQ);
-	if (CONS_MAJOR == UARTUSB_MAJOR)
+	if (console_major == UARTUSB_MAJOR && console_minor == 0)
 		printf(", console");
 	printf("\n");
 	return 1;

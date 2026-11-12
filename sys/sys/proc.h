@@ -220,6 +220,8 @@ struct buf;
 void swap (size_t blkno, size_t coreaddr, int count, int rdflg);
 void swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr,
     int count, int rdflg);
+int swap_with_buf_result (struct buf *bp, size_t blkno, size_t coreaddr,
+    int count, int rdflg);
 
 /*
  * Kill a process when ran out of swap space.

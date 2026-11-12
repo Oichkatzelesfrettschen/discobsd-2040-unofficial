@@ -5,6 +5,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import stat
 import sys
 import uuid
@@ -20,6 +21,12 @@ TERMINAL_STATES = {
     "interrupted",
     "timed_out",
 }
+
+NONTERMINAL_STATES = {"pending", "running"}
+
+# run_logged_gate.prepare_evidence names an invocation
+# LABEL-YYYYMMDDTHHMMSSZ-SUPERVISOR_PID[-UUID8].
+SUPERVISOR_PID = re.compile(r"-\d{8}T\d{6}Z-(\d+)(?:-[0-9a-f]{8})?\Z")
 
 
 def acquire_recovery_lock(path):
@@ -52,6 +59,50 @@ def read_terminal_status(path, invocation_id):
     if not isinstance(exit_code, int) or isinstance(exit_code, bool):
         raise ValueError(f"terminal execution status lacks an exit code: {path}")
     return status
+
+
+def supervisor_pid(invocation_id):
+    match = SUPERVISOR_PID.search(invocation_id)
+    if match is None:
+        raise ValueError(
+            f"invocation id names no supervisor process: {invocation_id}"
+        )
+    return int(match.group(1))
+
+
+def process_exists(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def read_lost_supervisor_status(path, invocation_id):
+    """Accept a nonterminal receipt whose writing supervisor has exited.
+
+    The supervisor writes the terminal receipt; a supervisor killed before
+    that write leaves the receipt nonterminal forever.  Recovery then rests
+    on the absence of the supervisor process named by the invocation id,
+    beside the recorded process-group check in recover().  A reused PID
+    reads as live and refuses recovery.
+    """
+    status = gate._read_regular_json(path, "execution status receipt")
+    if not isinstance(status, dict) or status.get("schema") != 1:
+        raise ValueError(f"invalid execution status receipt: {path}")
+    if status.get("invocation_id") != invocation_id:
+        raise ValueError(f"execution status invocation mismatch: {path}")
+    if status.get("state") not in NONTERMINAL_STATES:
+        raise ValueError(
+            "lost-supervisor recovery needs a nonterminal status: "
+            f"{path}"
+        )
+    pid = supervisor_pid(invocation_id)
+    if process_exists(pid):
+        raise ValueError(f"execution supervisor remains live: {pid}")
+    return status, pid
 
 
 def recovery_receipt_path(execution_lock):
@@ -90,7 +141,15 @@ def recover(args):
         if live_groups:
             joined = ", ".join(map(str, live_groups))
             raise ValueError(f"recorded process group remains live: {joined}")
-        status = read_terminal_status(status_path, args.invocation_id)
+        supervisor = None
+        if args.supervisor_lost:
+            status, supervisor = read_lost_supervisor_status(
+                status_path, args.invocation_id
+            )
+            confirmation = "supervisor_and_unrecorded_process_groups_absent"
+        else:
+            status = read_terminal_status(status_path, args.invocation_id)
+            confirmation = "unrecorded_process_groups_absent"
         recorded_status_path = Path(ownership["status_path"])
         if not recorded_status_path.is_absolute():
             execution_directory = status.get("cwd")
@@ -123,7 +182,8 @@ def recover(args):
             "invocation_id": args.invocation_id,
             "operator_uid": os.getuid(),
             "reason": args.reason,
-            "confirmation": "unrecorded_process_groups_absent",
+            "confirmation": confirmation,
+            "lost_supervisor_pid": supervisor,
             "previous_ownership": ownership,
             "status": status,
             "status_path": str(status_path),
@@ -162,6 +222,14 @@ def parse_arguments(argv=None):
         "--confirm-unrecorded-groups-absent",
         action="store_true",
         help="confirm that host inspection found no unrecorded surviving group",
+    )
+    parser.add_argument(
+        "--supervisor-lost",
+        action="store_true",
+        help=(
+            "accept a nonterminal status whose supervisor process, named "
+            "by the invocation id, has exited"
+        ),
     )
     args = parser.parse_args(argv)
     if not args.reason.strip():

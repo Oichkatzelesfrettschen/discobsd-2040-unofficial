@@ -77,13 +77,13 @@ syncip(struct inode *ip)
     daddr_t blkno, mapped_block;
     int error;
 
-    lastlbn = howmany(ip->i_size, DEV_BSIZE);
+    lastlbn = howmany(ip->i_size, IN_BSIZE(ip));
     if (lastlbn < NBUF / 2) {
         for (lbn = 0; lbn < lastlbn; lbn++) {
             mapped_block = bmap(ip, lbn, B_READ, 0);
             if (mapped_block < 0)
                 return (u.u_error ? u.u_error : EIO);
-            blkno = fsbtodb(mapped_block);
+            blkno = fsbtodb(FSBTODB(INODE_FILESYSTEM(ip), mapped_block));
             error = blkflush(INODE_DEVICE(ip), blkno);
             if (error)
                 return (error);
@@ -147,7 +147,7 @@ getfs(dev_t dev)
         if (mp->m_inodp == NULL || mp->m_dev != dev)
             continue;
         fs = &mp->m_filsys;
-        if (fs->fs_nfree > NICFREE || fs->fs_ninode > NICINOD) {
+        if (fs->fs_nfree > FS_NICFREE(fs) || fs->fs_ninode > NICINOD) {
             fserr(fs, "bad count");
             fs->fs_nfree = fs->fs_ninode = 0;
         }

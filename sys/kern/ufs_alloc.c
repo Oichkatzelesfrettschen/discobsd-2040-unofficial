@@ -40,7 +40,7 @@ balloc(struct inode *ip __unused, int flags)
     do {
         if (fs->fs_nfree <= 0)
             goto nospace;
-        if (fs->fs_nfree > NICFREE) {
+        if (fs->fs_nfree > FS_NICFREE(fs)) {
             fserr (fs, "bad free count");
             goto nospace;
         }
@@ -50,12 +50,19 @@ balloc(struct inode *ip __unused, int flags)
     } while (badblock(fs, bno));
     if (fs->fs_nfree <= 0) {
         fs->fs_flock++;
-        bp = bread(INODE_DEVICE(ip), bno);
-        if (((bp->b_flags&B_ERROR) == 0) && (bp->b_resid==0)) {
+        bp = bread(INODE_DEVICE(ip), FSBTODB(fs, bno));
+        if (((bp->b_flags&B_ERROR) == 0) && (FSRESID(fs, bp, bno)==0)) {
+#ifdef V7FS
+            if (FS_ISV7(fs))
+                v7_fblk_load(fs, (u_char *)FSBADDR(fs, bp, bno));
+            else
+#endif
+            {
             register struct fblk *fbp;
 
             fbp = (FBLKP) bp->b_addr;
             *((FBLKP)&fs->fs_nfree) = *fbp;
+            }
         }
         brelse(bp);
         /*
@@ -65,6 +72,12 @@ balloc(struct inode *ip __unused, int flags)
          * use some of the blocks in this freeblock, then crash
          * without a sync.
          */
+#ifdef V7FS
+        if (FS_ISV7(fs))
+            (void) v7_sbwrite(fs_mount(fs), !async);
+        else
+#endif
+        {
         bp = getblk(INODE_DEVICE(ip), SUPERB);
         {
             register struct fs *fps;
@@ -90,17 +103,36 @@ balloc(struct inode *ip __unused, int flags)
             bwrite(bp);
         else
             bdwrite(bp);
+        }
         fs->fs_flock = 0;
         wakeup((caddr_t)&fs->fs_flock);
         if (fs->fs_nfree <=0)
             goto nospace;
     }
-    bp = getblk(INODE_DEVICE(ip), bno);
+    bp = FSGETBLK(fs, INODE_DEVICE(ip), bno);
+#ifdef V7FS
+    /*
+     * A failed read must not reach the disk as the other part's data,
+     * and a part the device did not deliver is no block to hand out.
+     * The block left the chain above; it is counted out of the free
+     * total and stays out of service until a checker reclaims it, since
+     * a block returned to the chain would fail every later allocation.
+     */
+    if ((bp->b_flags & B_ERROR) ||
+        (FS_DBSHIFT(fs) && FSRESID(fs, bp, bno))) {
+        brelse(bp);
+        fs->fs_fmod = 1;
+        FS_TALLY_DOWN(fs, fs_tfree);
+        u.u_error = EIO;
+        return(NULL);
+    }
+    fs_mount(fs)->m_lastalloc = bno;
+#endif
     bp->b_resid = 0;
     if (flags & B_CLRBUF)
-        bzero (bp->b_addr, MAXBSIZE);
+        bzero (FSBADDR(fs, bp, bno), FS_BSIZE(fs));
     fs->fs_fmod = 1;
-    fs->fs_tfree--;
+    FS_TALLY_DOWN(fs, fs_tfree);
     return(bp);
 
 nospace:
@@ -151,6 +183,11 @@ ialloc(struct inode *pip __unused)
     char    *emsg = "no inodes free";
 
     fs = INODE_FILESYSTEM(pip);
+    /* The new inode takes the caller's user ID, which the format must hold. */
+    if (FS_WIDE16(fs, u.u_uid)) {
+        u.u_error = EOVERFLOW;
+        return(NULL);
+    }
     while (fs->fs_ilock)
         sleep((caddr_t)&fs->fs_ilock, PINOD);
 loop:
@@ -165,7 +202,7 @@ loop:
             bzero((caddr_t)ip->i_addr,sizeof(ip->i_addr));
             ip->i_flags = 0;
             fs->fs_fmod = 1;
-            fs->fs_tinode--;
+            FS_TALLY_DOWN(fs, fs_tinode);
             return(ip);
         }
         /*
@@ -180,28 +217,28 @@ loop:
         first = 1;
         ino = fs->fs_lasti;
 #ifdef DIAGNOSTIC
-        if (itoo(ino))
+        if (FS_ITOO(fs, ino))
             panic("ialloc");
 #endif
-        adr = itod(ino);
+        adr = FS_ITOD(fs, ino);
     } else {
 fromtop:
         first = 0;
         ino = 1;
-        adr = SUPERB+1;
+        adr = FS_SUPERB(fs)+1;
         fs->fs_nbehind = 0;
     }
     inobas = 0;
     for (; (u_long)adr < fs->fs_isize; adr++) {
         inobas = ino;
-        bp = bread(INODE_DEVICE(pip), adr);
-        if ((bp->b_flags & B_ERROR) || bp->b_resid) {
+        bp = bread(INODE_DEVICE(pip), FSBTODB(fs, adr));
+        if ((bp->b_flags & B_ERROR) || FSRESID(fs, bp, adr)) {
             brelse(bp);
-            ino += INOPB;
+            ino += FS_INOPB(fs);
             continue;
         }
-        dp = (struct dinode*) bp->b_addr;
-        for (i = 0;i < INOPB;i++) {
+        dp = (struct dinode*) FSBADDR(fs, bp, adr);
+        for (i = 0;i < FS_INOPB(fs);i++) {
             if (dp->di_mode != 0)
                 goto cont;
             if (ifind(INODE_DEVICE(pip), ino))
@@ -267,11 +304,25 @@ free(struct inode *ip, daddr_t bno)
         fs->fs_nfree = 1;
         fs->fs_free[0] = 0;
     }
-    if (fs->fs_nfree >= NICFREE) {
+    if (fs->fs_nfree >= FS_NICFREE(fs)) {
         fs->fs_flock++;
-        bp = getblk(INODE_DEVICE(ip), bno);
+        bp = FSGETBLK(fs, INODE_DEVICE(ip), bno);
+#ifdef V7FS
+        if (FS_ISV7(fs)) {
+            if (bp->b_flags & B_ERROR) {
+                /* The chain cannot take the block; it stays allocated. */
+                brelse(bp);
+                fs->fs_flock = 0;
+                wakeup((caddr_t)&fs->fs_flock);
+                return;
+            }
+            v7_fblk_store(fs, (u_char *)FSBADDR(fs, bp, bno));
+        } else
+#endif
+        {
         fbp = (FBLKP) bp->b_addr;
         *fbp = *((FBLKP)&fs->fs_nfree);
+        }
         fs->fs_nfree = 0;
         if (fs->fs_flags & MNT_ASYNC)
             bdwrite(bp);

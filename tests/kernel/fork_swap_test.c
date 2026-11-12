@@ -49,6 +49,9 @@ static unsigned swap_reads, sched_sleeps, sched_runin_sleeps, sched_spins;
 static unsigned sched_wakeups, remrqs, requeues;
 static int swap_reads_allowed, sched_sleep_priority, requeued_flags;
 static caddr_t sched_sleep_channel, requeued;
+static int exchange_begin_expected;
+static unsigned exchange_begins;
+static size_t exchange_begin_block;
 static int child_resume, copy_consumed_reservation;
 #ifdef SWAP_IMAGE_ALIGN
 static int run_vfork;
@@ -59,6 +62,7 @@ static unsigned expand_lengths[3], expand_destinations[3];
 static caddr_t restore_destination;
 #endif
 static unsigned char media[384 * 1024];
+static struct buf exchange_buffer;
 static unsigned char parent_bytes[264 * 1024];
 static unsigned char u_image[USIZE];
 static uint32_t storage_counts[STORAGE_METRIC_COUNT];
@@ -129,6 +133,40 @@ swap(size_t block, size_t address, int count, int flags)
     for (index = 0; index < (unsigned)count; index++)
         media[block * 1024 + index] = source[index];
     writes++;
+}
+
+int
+swap_with_buf_result(struct buf *buffer, size_t block, size_t address,
+    int count, int flags)
+{
+    (void)buffer;
+    (void)address;
+    (void)count;
+    (void)flags;
+    /*
+     * swap_exchange_inplace() copies sectors to window addresses the host
+     * does not map. The scheduler scenario that reaches it ends at its first
+     * media call, whose block names the extent being exchanged.
+     */
+    if (exchange_begin_expected) {
+        exchange_begins++;
+        exchange_begin_block = block;
+        panic("in-place exchange began");
+    }
+    panic("unexpected in-place exchange");
+    return -1;
+}
+
+struct buf *
+geteblk(void)
+{
+    return &exchange_buffer;
+}
+
+void
+brelse(struct buf *buffer)
+{
+    HK_CHECK(buffer == &exchange_buffer);
 }
 
 void
@@ -376,6 +414,9 @@ reset_fixture(void)
     sched_wakeups = remrqs = requeues = 0;
     swap_reads_allowed = sched_sleep_priority = requeued_flags = 0;
     sched_sleep_channel = requeued = NULL;
+    exchange_begin_expected = 0;
+    exchange_begins = 0;
+    exchange_begin_block = 0;
 #ifdef SWAPRAM
     swapram_services = 0;
 #endif
@@ -616,17 +657,21 @@ reservation_lifecycle(void)
     swap_image_release(freeproc);
     HK_CHECK(free_total() == 156);
     HK_CHECK(wake_flash_free[1] == 156);
-    HK_CHECK(wakeups == 2 && wake_channels[1] == (caddr_t)&runout);
+    HK_CHECK(wakeups == 3 && wake_channels[1] == (caddr_t)&runout &&
+        wake_channels[2] == (caddr_t)&runin);
 }
 
 static void
 swapram_lifecycle(void)
 {
     struct swap_image_reservation reservation;
+    struct swap_image_reservation transition;
     struct proc saved_owner;
     unsigned int initial_free;
 
     reset_fixture();
+    entries[0].m_addr = 4;
+    entries[0].m_size = 380;
     sr_admit = 1;
     initial_free = swapram_pool_avail(&sr_map);
     saved_owner = *freeproc;
@@ -637,18 +682,24 @@ swapram_lifecycle(void)
     HK_CHECK(swapram_pool_avail(&sr_map) < initial_free);
     HK_CHECK(swapram_present(freeproc) == 0);
     HK_CHECK(writes == 0 && publications == 0);
+    HK_CHECK(free_total() == 380);
     swap_image_cancel(&reservation);
     swap_image_cancel(&reservation);
     HK_CHECK(swapram_pool_avail(&sr_map) == initial_free);
     HK_CHECK(sr_tab[1].e_res == 0);
+    HK_CHECK(free_total() == 380);
     HK_CHECK(writes == 0);
     /* An exhausted pool refuses without taking a flash extent. */
+    reset_fixture();
+    sr_admit = 1;
     sr_map.p_used = 0;
     HK_CHECK(swap_image_reserve(&reservation, freeproc, &proc[0],
         X_OLDSIZE, X_OLDSIZE) == ENOMEM);
     HK_CHECK(sr_tab[1].e_res == 0);
     HK_CHECK(writes == 0 && publications == 0);
     reset_fixture();
+    entries[0].m_addr = 4;
+    entries[0].m_size = 380;
     sr_admit = 1;
     kernel_fork();
     HK_CHECK(u.u_error == 0);
@@ -658,10 +709,13 @@ swapram_lifecycle(void)
     HK_CHECK(cnt.v_swpout == 1);
     HK_CHECK(storage_counts[STORAGE_SWAPRAM_ATTEMPTS] == 1);
     HK_CHECK(storage_counts[STORAGE_SWAPRAM_ADMISSIONS] == 1);
+    HK_CHECK(swap_exchange_switch(&transition, NULL, &proc[1], 1) == 0);
     swap_image_release(&proc[1]);
     HK_CHECK(swapram_pool_avail(&sr_map) == sizeof(sr_pool));
-    HK_CHECK(wakeups == 1 && wake_channels[0] == (caddr_t)&runout);
+    HK_CHECK(wakeups == 2 && wake_channels[0] == (caddr_t)&runout &&
+        wake_channels[1] == (caddr_t)&runin);
     HK_CHECK(wake_ram_free[0] == sizeof(sr_pool));
+    HK_CHECK(free_total() == 380);
 }
 #endif
 
@@ -788,10 +842,13 @@ process_limit_refusals(void)
 static void
 swapin_ram_release(void)
 {
+    struct swap_image_reservation transition;
     size_t data_dest, stack_dest, tsize, ssize, dsize;
     unsigned int held;
 
     reset_fixture();
+    entries[0].m_addr = 4;
+    entries[0].m_size = 380;
     sr_admit = 1;
     kernel_fork();
     HK_CHECK(u.u_error == 0);
@@ -807,6 +864,7 @@ swapin_ram_release(void)
     stack_dest = USER_TOP(&proc[1]) - ssize;
     data_dest = (size_t)__user_data_start + tsize;
     u.u_procp = &proc[0];
+    HK_CHECK(swap_exchange_switch(&transition, NULL, &proc[1], 1) == 0);
     swapin(&proc[1]);
     {
         int swapin_woke_swapper = wakeups == 1 &&
@@ -819,7 +877,7 @@ swapin_ram_release(void)
     HK_CHECK(swapram_pool_avail(&sr_map) == sizeof(sr_pool));
     HK_CHECK(swapram_present(&proc[1]) == 0);
     HK_CHECK(sr_tab[1].e_res == 0);
-    HK_CHECK(free_total() == 0 && entries[0].m_size == 0);
+    HK_CHECK(free_total() == 380);
     HK_CHECK(writes == 0 && io_waits == 0);
     HK_CHECK(restores == 1 && restore_length == tsize);
     HK_CHECK((unsigned int)(u_long)restore_destination ==
@@ -838,6 +896,7 @@ swapin_ram_release(void)
     HK_CHECK(requeues == 1 && requeued == (caddr_t)&proc[1]);
     HK_CHECK(signals == 0);
     HK_CHECK(cnt.v_swpin == 1);
+    HK_CHECK(free_total() == 380);
 }
 #endif
 
@@ -1178,7 +1237,8 @@ nonaligned_release(void)
             HK_CHECK(release_restored);
         }
         HK_CHECK(free_total() == total);
-        HK_CHECK(wakeups == 1 && wake_channels[0] == (caddr_t)&runout);
+        HK_CHECK(wakeups == 2 && wake_channels[0] == (caddr_t)&runout &&
+            wake_channels[1] == (caddr_t)&runin);
         HK_CHECK(wake_flash_free[0] == total);
     }
 }
@@ -1200,6 +1260,7 @@ static struct sched_snapshot {
     unsigned char pool_bytes[sizeof(sr_pool)];
     uint32_t storage[STORAGE_METRIC_COUNT];
     size_t cursor;
+    unsigned int cursor_publications;
 } sched_before;
 
 static void
@@ -1222,6 +1283,42 @@ sched_fixture(int in_core_state)
     proc[1].p_addr = 520;
 }
 
+#ifdef SWAP_IMAGE_ALIGN
+static void
+sched_fragment_after_exchange(unsigned int shape)
+{
+    size_t address = 12;
+    unsigned int index;
+
+    for (index = 0; index < 28 && address + 4 <= 384; index++) {
+        entries[index].m_addr = address;
+        entries[index].m_size = 4;
+        address += 8 + (shape == 1 && index == 0 ? 4 : 0);
+    }
+}
+
+static void
+sched_make_pool_image(void)
+{
+    size_t text = swaptext(&proc[1]);
+
+    proc[1].p_daddr = 0x20000000;
+    proc[1].p_saddr = 0x20020000;
+    proc[1].p_addr = 0x2003e800;
+    sr_admit = 1;
+    HK_CHECK(swapram_reserve(&proc[1],
+        (caddr_t)(proc[1].p_daddr + text), proc[1].p_dsize - text,
+        (caddr_t)proc[1].p_saddr, proc[1].p_ssize, USIZE));
+    swapram_put(&proc[1], SWAPRAM_DATA,
+        (caddr_t)(proc[1].p_daddr + text), proc[1].p_dsize - text);
+    swapram_put(&proc[1], SWAPRAM_STACK, (caddr_t)proc[1].p_saddr,
+        proc[1].p_ssize);
+    swapram_put(&proc[1], SWAPRAM_U, (caddr_t)proc[1].p_addr, USIZE);
+    swapram_commit(&proc[1]);
+    proc[1].p_daddr = proc[1].p_saddr = proc[1].p_addr = 0;
+}
+#endif
+
 static void
 sched_snapshot_take(void)
 {
@@ -1235,6 +1332,7 @@ sched_snapshot_take(void)
     bcopy(storage_counts, sched_before.storage, sizeof(storage_counts));
 #ifdef SWAP_IMAGE_ALIGN
     sched_before.cursor = swapnext;
+    sched_before.cursor_publications = publications;
 #endif
 }
 
@@ -1246,21 +1344,26 @@ sched_call(void)
 }
 
 /*
- * No tier holds the image of proc[0], so the second pass of sched() leaves it
- * resident: SLOAD returns, a runnable process rejoins the run queue, proc[1]
- * stays out and sched() sleeps on runin until capacity changes. The fixture
- * wakes that first sleep, and sched() selects the pair and refuses again.
+ * The pool refuses proc[0], the blocks after proc[1]'s extent hold no tail
+ * and no free run holds a whole image, so the second pass of sched() leaves
+ * proc[0] resident: SLOAD returns, a runnable process rejoins the run queue
+ * and proc[1] stays out. The third pass finds no candidate it has not
+ * refused and sleeps on runin until capacity changes. The fixture wakes that
+ * first sleep, and three more passes select the pair, refuse it and sleep
+ * again: a refused candidate is excluded only until the sleep.
  */
 static void
-sched_refusal_case(int in_core_state, int ram_tier, unsigned int shape,
-    unsigned int cursor)
+sched_refusal_case(int in_core_state, unsigned int shape, unsigned int cursor)
 {
     uint32_t expected_storage[STORAGE_METRIC_COUNT];
-    struct swap_image_reservation probe;
 
     sched_fixture(in_core_state);
 #ifdef SWAP_IMAGE_ALIGN
-    seed_map(shape);
+    proc[1].p_daddr = 4;
+    proc[1].p_saddr = 8;
+    proc[1].p_addr = 9;
+    bzero(entries, sizeof(entries));
+    sched_fragment_after_exchange(shape);
     swapnext = cursor;
 #else
     (void)cursor;
@@ -1275,20 +1378,13 @@ sched_refusal_case(int in_core_state, int ram_tier, unsigned int shape,
     else
         entries[2].m_size = geometry_uarea - 1;
 #endif
-    sr_admit = ram_tier;
-    if (ram_tier)
-        sr_map.p_used = 0;
-    /* The reservation sched() makes has to refuse for the scenario to hold. */
-    HK_CHECK(swap_image_reserve(&probe, &proc[0], &proc[0], X_OLDSIZE,
-        X_OLDSIZE) == ENOMEM);
-    swap_image_cancel(&probe);
     sched_snapshot_take();
     sched_wakeups = 1;
     HK_EXPECT_PANIC("sched slept", sched_call);
     hk_ipl = 0;
     {
         int slept_on_runin = sched_sleeps == 2 && sched_runin_sleeps == 2 &&
-            sched_spins == 4 && sched_sleep_channel == (caddr_t)&runin &&
+            sched_spins == 6 && sched_sleep_channel == (caddr_t)&runin &&
             sched_sleep_priority == PSWP && runin == 2 && runout == 0;
         int in_core_keeps_sload = (proc[0].p_flag & SLOAD) != 0;
         int runnable_requeued = remrqs == 2 && requeues == 2 &&
@@ -1310,7 +1406,7 @@ sched_refusal_case(int in_core_state, int ram_tier, unsigned int shape,
             same_bytes(sr_pool, sched_before.pool_bytes, sizeof(sr_pool));
 #ifdef SWAP_IMAGE_ALIGN
         int cursor_unchanged = swapnext == sched_before.cursor &&
-            publications == 0;
+            publications == sched_before.cursor_publications;
 #endif
 
         bcopy(sched_before.storage, expected_storage, sizeof(storage_counts));
@@ -1339,31 +1435,124 @@ sched_refusal_case(int in_core_state, int ram_tier, unsigned int shape,
         HK_CHECK(cursor_unchanged);
 #endif
 #ifdef SWAPRAM
-        HK_CHECK(swapram_services == 4);
+        HK_CHECK(swapram_services == 6);
 #endif
     }
 }
 
+#if defined(SWAP_IMAGE_ALIGN) && defined(SWAPRAM)
+/*
+ * Two runnable processes wait to come in. proc[1] has been out longer and is
+ * selected first; its image is in the pool, the pool refuses proc[0] and the
+ * 8 free blocks hold no image, so that exchange is refused. proc[2] is a
+ * fork child of proc[0] and owns an extent of proc[0]'s span, which proc[0]
+ * can take with a zero-block tail. sched() must reach that exchange before
+ * it sleeps: a sleep here leaves the child waiting behind proc[1] until the
+ * p_time of both saturates.
+ */
+static void
+sched_next_candidate_case(int in_core_state)
+{
+    uint32_t expected_storage[STORAGE_METRIC_COUNT];
+    size_t addresses[3], next = 4, span;
+
+    sched_fixture(in_core_state);
+    freeproc = &proc[3];
+    proc[1].p_nxt = &proc[2];
+    proc[2].p_nxt = NULL;
+    proc[2].p_pid = 11;
+    proc[2].p_stat = SRUN;
+    proc[2].p_time = 3;
+    proc[2].p_dsize = proc[0].p_dsize;
+    proc[2].p_tsize = proc[0].p_tsize;
+    proc[2].p_ssize = proc[0].p_ssize;
+    proc[2].p_tip = proc[0].p_tip;
+    span = swap_image_span(&proc[0]);
+    entries[0].m_addr = 4;
+    entries[0].m_size = 380;
+    HK_CHECK(malloc3_contiguous_next(swapmap,
+        btod(proc[2].p_dsize - swaptext(&proc[2])), btod(proc[2].p_ssize),
+        btod(USIZE), SWAP_IMAGE_ALIGN, &next, addresses) == span);
+    proc[2].p_daddr = addresses[0];
+    proc[2].p_saddr = addresses[1];
+    proc[2].p_addr = addresses[2];
+    bzero(entries, sizeof(entries));
+    entries[0].m_addr = addresses[0] + span;
+    entries[0].m_size = 8;
+    swapnext = entries[0].m_addr;
+    sched_make_pool_image();
+    sr_admit = 0;
+    sched_snapshot_take();
+    exchange_begin_expected = 1;
+    HK_EXPECT_PANIC("in-place exchange began", sched_call);
+    hk_ipl = 0;
+    {
+        int reached_next_candidate = exchange_begins == 1 &&
+            exchange_begin_block >= proc[2].p_daddr &&
+            exchange_begin_block < proc[2].p_daddr + span &&
+            (exchange_begin_block - proc[2].p_daddr) % SWAP_IMAGE_ALIGN == 0;
+        int no_sleep_before_exchange = sched_sleeps == 0 && runin == 0 &&
+            runout == 0 && sched_spins == 4;
+        int refused_candidate_stays_out = (proc[1].p_flag & SLOAD) == 0 &&
+            swapram_present(&proc[1]) && cnt.v_swpin == 0 &&
+            same_bytes(&proc[1], &sched_before.procs[1], sizeof(proc[1]));
+        int resident_leaves_through_exchange =
+            (proc[0].p_flag & (SLOAD | SLOCK)) == SLOCK &&
+            u.u_ru.ru_nswap == 1 && writes == 0 && swap_reads == 0;
+        int runnable_requeued_once = remrqs == 2 && requeues == 1 &&
+            requeued == (caddr_t)&proc[0];
+        int sleeper_not_requeued = remrqs == 0 && requeues == 0;
+        int swapmap_unchanged = same_bytes(entries, sched_before.entries,
+            sizeof(entries)) && swapnext == sched_before.cursor &&
+            publications == sched_before.cursor_publications;
+        int pool_unchanged = same_bytes(sr_tab, sched_before.slots,
+                sizeof(sr_tab)) &&
+            same_bytes(sr_seg, sched_before.segments, sizeof(sr_seg)) &&
+            same_bytes(&sr_map, &sched_before.pool, sizeof(sr_map)) &&
+            same_bytes(sr_pool, sched_before.pool_bytes, sizeof(sr_pool));
+
+        /* One refusal and the start of one exchange. */
+        bcopy(sched_before.storage, expected_storage, sizeof(storage_counts));
+        expected_storage[STORAGE_SWAPRAM_ATTEMPTS] += 2;
+        {
+            int attempts_accounted = same_bytes(storage_counts,
+                expected_storage, sizeof(storage_counts));
+
+            HK_CHECK(attempts_accounted);
+        }
+        HK_CHECK(reached_next_candidate);
+        HK_CHECK(no_sleep_before_exchange);
+        HK_CHECK(refused_candidate_stays_out);
+        HK_CHECK(resident_leaves_through_exchange);
+        if (in_core_state == SRUN)
+            HK_CHECK(runnable_requeued_once);
+        else
+            HK_CHECK(sleeper_not_requeued);
+        HK_CHECK(swapmap_unchanged);
+        HK_CHECK(pool_unchanged);
+        HK_CHECK(swapram_services == 4);
+    }
+}
+#endif
+
 static void
 sched_refusals(void)
 {
-#ifdef SWAPRAM
-    const unsigned int tiers = 2;
-#else
-    const unsigned int tiers = 1;
-#endif
 #ifdef SWAP_IMAGE_ALIGN
     const unsigned int first_cursor = 4, last_cursor = 380;
 #else
     const unsigned int first_cursor = 0, last_cursor = 0;
 #endif
-    unsigned int shape, cursor, tier, state;
+    unsigned int shape, cursor, state;
 
     for (state = 0; state < 2; state++)
-    for (tier = 0; tier < tiers; tier++)
     for (shape = 0; shape < 3; shape++)
     for (cursor = first_cursor; cursor <= last_cursor; cursor += 4)
-        sched_refusal_case(state ? SSLEEP : SRUN, tier, shape, cursor);
+        sched_refusal_case(state ? SSLEEP : SRUN, shape, cursor);
+#if defined(SWAP_IMAGE_ALIGN) && defined(SWAPRAM)
+    sched_next_candidate_case(SRUN);
+    sched_next_candidate_case(SSLEEP);
+#endif
 }
 
 /*
@@ -1374,22 +1563,42 @@ sched_refusals(void)
 static void
 sched_success_case(int ram_tier)
 {
-    unsigned int span_out, span_in, free_before;
+#ifdef SWAP_IMAGE_ALIGN
+    size_t addresses[3], next;
+#else
+    unsigned int span_in, span_out;
+#endif
+    unsigned int free_before;
 
     sched_fixture(SRUN);
 #ifdef SWAP_IMAGE_ALIGN
     entries[0].m_addr = 4;
     entries[0].m_size = 380;
+    next = 4;
+    if (ram_tier)
+        sched_make_pool_image();
+    else {
+        HK_CHECK(malloc3_contiguous_next(swapmap,
+            btod(proc[1].p_dsize - swaptext(&proc[1])),
+            btod(proc[1].p_ssize), btod(USIZE), SWAP_IMAGE_ALIGN,
+            &next, addresses) == swap_image_span(&proc[1]));
+        proc[1].p_daddr = addresses[0];
+        proc[1].p_saddr = addresses[1];
+        proc[1].p_addr = addresses[2];
+    }
+    swapnext = next;
 #else
     geometry_data = btod(proc[0].p_dsize - swaptext(&proc[0]));
     geometry_stack = btod(proc[0].p_ssize);
     geometry_uarea = btod(USIZE);
     seed_runs(geometry_data + 1, geometry_stack + 1, geometry_uarea + 2);
 #endif
-    sr_admit = ram_tier;
+    sr_admit = 0;
     swap_reads_allowed = 1;
+#ifndef SWAP_IMAGE_ALIGN
     span_out = swap_image_span(&proc[0]);
     span_in = swap_image_span(&proc[1]);
+#endif
     free_before = free_total();
     HK_EXPECT_PANIC("sched slept", sched_call);
     hk_ipl = 0;
@@ -1402,27 +1611,27 @@ sched_success_case(int ram_tier)
             cnt.v_swpout == 1 && u.u_ru.ru_nswap == 1;
         int out_image_committed;
         int swapped_in = (proc[1].p_flag & SLOAD) != 0 &&
-            cnt.v_swpin == 1 && swap_reads == 3 && remrqs == 1 &&
+            cnt.v_swpin == 1 && swap_reads == (ram_tier ? 0U : 3U) &&
+            remrqs == 1 &&
             requeues == 1 && requeued == (caddr_t)&proc[1];
 
-        if (ram_tier) {
-            out_image_committed = swapram_present(&proc[0]) &&
-                proc[0].p_addr == 0 && proc[0].p_daddr == 0 &&
-                writes == 0 && free_total() == free_before + span_in &&
-                storage_counts[STORAGE_SWAPRAM_ADMISSIONS] == 1;
-        } else {
 #ifdef SWAP_IMAGE_ALIGN
+        if (ram_tier)
             out_image_committed = !swapram_present(&proc[0]) &&
-                proc[0].p_daddr == 4 && writes == 3 && io_waits == 3 &&
-                publications == 1 && swapnext == 4 + span_out &&
-                free_total() == free_before - span_out + span_in;
+                proc[0].p_daddr >= 4 && writes == 3 &&
+                io_waits == 3 && free_total() ==
+                free_before - swap_image_span(&proc[0]);
+        else
+            out_image_committed = !swapram_present(&proc[0]) &&
+                proc[0].p_daddr == addresses[0] && writes == 3 &&
+                io_waits == 3 && free_total() == free_before;
 #else
+        (void)ram_tier;
             out_image_committed = !swapram_present(&proc[0]) &&
                 proc[0].p_daddr == 10 && proc[0].p_saddr == 200 &&
                 proc[0].p_addr == 300 && writes == 3 && io_waits == 3 &&
                 free_total() == free_before - span_out + span_in;
 #endif
-        }
         HK_CHECK(slept_on_runin);
         HK_CHECK(in_core_swapped_out);
         HK_CHECK(out_image_committed);
@@ -1436,9 +1645,10 @@ sched_success_case(int ram_tier)
 static void
 sched_successes(void)
 {
-    sched_success_case(0);
 #ifdef SWAPRAM
     sched_success_case(1);
+#else
+    sched_success_case(0);
 #endif
 }
 

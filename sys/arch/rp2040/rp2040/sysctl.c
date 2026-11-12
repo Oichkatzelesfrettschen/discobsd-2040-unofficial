@@ -29,6 +29,7 @@
 #endif
 
 #include <machine/cpu.h>
+#include <machine/board.h>
 #include <machine/mpuvar.h>
 #include <machine/watchdog.h>
 #include <rp2040/dev/flash.h>
@@ -154,7 +155,7 @@ ucall(void)
 {
 	struct a {
 		int priority;
-		int (*routine)();
+		int (*routine)(int, int);
 		int arg1;
 		int arg2;
 	} *uap = (struct a *)u.u_arg;
@@ -289,10 +290,15 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 #endif
 
 	case CPU_CONSDEV:
+		{
+			int console_major, console_minor;
+
 		if (namelen != 1)
 			return ENOTDIR;
-		dev = makedev(CONS_MAJOR, CONS_MINOR);
+		board_console(&console_major, &console_minor);
+		dev = makedev(console_major, console_minor);
 		return sysctl_rdstruct(oldp, oldlenp, newp, &dev, sizeof dev);
+		}
 #if defined(NTMSCP) && NTMSCP > 0
 	case CPU_TMSCP:
 		if (namelen != 2)
@@ -320,7 +326,8 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		for (i = 0; nlist[i].name; i++) {
 			if (strncmp(newp, nlist[i].name, newlen) == 0) {
 				int addr = nlist[i].addr;
-				int error = 0;
+
+				error = 0;
 
 				/*
 				 * The node answers with an address and takes

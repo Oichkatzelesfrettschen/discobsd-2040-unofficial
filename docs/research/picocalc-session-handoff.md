@@ -485,14 +485,119 @@ plain main image. The board was later recovered and is covered by the 2026-11-08
    - **Raw:** 25.74, 27.41, 26.99, 26.74, 26.54 and 26.15 s; mean 26.60 s, sd 0.60.
    - **System time:** packed stays at 6.8 s while raw ranges from 5.8 to 12.1 s.
    - **Packed minus raw:** the paired difference is -4 ms per exec with a standard error of 13 ms.
+   - **Sampling interval:** the six pair differences have a mean of -4.25 ms
+     per exec and a two-sided 95% paired Student t interval of approximately
+     -37.3 to +28.8 ms per exec. The interval assumes independent paired
+     differences and excludes systematic timing and console errors.
    - **Prediction failed:** the prediction was the 2026-11-07 38 ms within two standard errors. The result is about 2.8 combined standard errors from it, so the packed premium is not resolved at this sample size.
-   - **`-Os` cost:** both arms are about 30 percent slower than on 2026-11-07, at 1.33 s per exec against 1.02 s. The kernel's move to `-Os` lies between the two runs, so this is the measured cost of `-Os` on the fork, swap and exec path. The new timer adds one comparison per tick.
+   - **Across-run comparison:** both arms are about 30 percent slower than on
+     2026-11-07, at 1.33 s per exec against 1.02 s. The kernel configuration
+     and other conditions differ across the runs, so the comparison does not
+     isolate the cost of `-Os` on fork, swap and exec. The new timer adds one
+     comparison per tick.
 4. **Clock catch-up, with the final script (`board_clock_catchup.py`).**
    - **Shipped kernel:** 786,432 bytes were written in 287.5 s (at least 192 sectors erased, 8.45 s lost without catch-up). The excess over the 356.0 s idle control is +0.138 .. +0.547 s, inside the 0.845 s tolerance: PASS.
    - **Calibration kernel:** INCONCLUSIVE (exit 2). Its baseline's 40 date lines have no common point (28963.970 .. 28945.557 s), because the clock lost about 18 s within the loop, as on 2026-11-07.
    - **What the calibration shows:** the script rejects the known-bad kernel as not passing, but does not report it as failing. The script now classifies a measurement whose clock fell behind across the loop as FAIL (same branch as this note).
 
 **State at the end.** The board holds the plain images above and sits at `login:`.
+
+### Packed executable timing on an `-Os` kernel, 2026-11-09
+
+On one bare RP2040 board, 24 alternating pairs of ten `seq` executions
+measured a packed-minus-raw elapsed-time difference of **39.75 ms per
+execution**. The paired standard deviation was 40.93 ms and the standard
+error was 8.36 ms. A two-sided 95% Student t interval with 23 degrees of
+freedom was 22.47 to 57.03 ms per execution. That interval assumes the
+paired differences support the independent-pair t model; alternating order
+does not establish independence. The positive interval resolves the sign
+for this workload under that model and includes the earlier 38 ms estimate.
+The result does not isolate decompression time, establish the effect of
+switching optimization settings, or apply automatically to other programs,
+images, boards or workloads.
+
+The PICO kernel and full-profile root were built from clean commit
+`f3b2d0482af51b98b9243e7a3d4b3d7e5ef168b6` with
+`PYTHON` set to the host interpreter, using `bmake MACHINE=rp2040
+logged-distribution` and `bmake MACHINE=rp2040 logged-flash`. The kernel
+uses `-Os`, `SWAPRAM_KB=16`, and a 125 MHz CPU. The booted kernel reported
+build number 2479. The kernel UF2 SHA-256 was
+`487fa565aa9032ec0cca1682851cd7d8b708ca1621b7ec6517c21abf39341b30`.
+The test root UF2 SHA-256 was
+`1326a4a39977f915ee675c54996eebf87bf931a9845def10d34aa38eccf95cce`.
+The test root added a directory `/usr/rawbin` and a raw `textbox` copy as
+`/usr/rawbin/seq`, with 144 inodes. A host filesystem check passed with
+197 free blocks. Host extraction and `hsaout -d` verified the installed
+packed `textbox` expands byte-for-byte to the raw copy; both expanded files
+had SHA-256 `3b5bf95030390a1b510cbd50e90e30843b1057f76a350c8080b9d8a5ccbe14f6`.
+Both applet paths printed `1` in a board smoke check.
+
+The runner sent the following command over USB serial, substituting
+`/usr/rawbin/seq` for the raw arm and checking the marker for exit status 0:
+
+    /usr/bin/time sh -c 'for i in x x x x x x x x x x; do /usr/bin/seq 1 >/dev/null || exit 1; done'; echo QZX$?
+
+The runner paced console input, required a complete status marker and a
+`time` output line, and alternated packed-first on odd pairs with raw-first
+on even pairs. The first attempted 20-execution command exceeded the console
+line editor's input capacity and lost its marker; the runner excluded that
+unverified attempt before the fixed 24-pair sequence. Each accepted arm
+returned status 0. `time` prints elapsed time in hundredths of a second,
+corresponding to 1 ms per execution for a ten-execution loop. The measured
+packed and raw elapsed times in seconds, in pair order, were:
+
+    packed 13.23 13.45 13.25 13.57 13.24 13.40 13.24 13.28 13.31 13.22 13.29 13.28
+    raw    12.71 13.96 12.73 12.96 12.89 13.56 12.79 12.99 12.94 12.94 13.37 12.75
+    packed 14.22 13.24 13.47 13.44 13.66 13.86 13.25 13.49 13.39 13.22 13.29 13.29
+    raw    12.97 12.75 12.72 12.77 12.88 12.77 12.75 13.85 12.80 12.96 12.93 13.30
+
+The packed-first pairs averaged +53.0 ms per execution and the raw-first
+pairs averaged +26.5 ms; these descriptive subsets leave order and time
+effects uncertain. System-time differences averaged +27.33 ms per execution
+with a paired 95% t interval from -27.71 to +82.38 ms. Both arms had
+system-time spikes and the calculation retained every successful pair.
+The unmodified `-Os` packed loader expands both streams during preflight and
+again after commit; the loop also exercises shell, fork, wait and swap paths.
+Direct timing around the loader and a matched `-O` kernel remain separate
+experiments.
+
+After the measurement, `discobsd-flash` restored the same kernel and the
+plain full-profile root, whose UF2 SHA-256 was
+`caf6b3ad761300d457f9d668235b041bd1ef0e32d7e0c8f4b89cddddb3d3bee8`.
+The restored board reached the USB console `login:` prompt.
+
+### Packed executable timing on an `-O` kernel, 2026-11-09
+
+The bare PICO board ran the same test root and executable pair used for the
+preceding `-Os` measurement. A separate clean build of commit
+`f3b2d0482af51b98b9243e7a3d4b3d7e5ef168b6` used ARM GCC 16.2.0 with
+`COPTS=-O`, `-g`, `-Wall -Wextra -Werror` and the PICO configuration. The
+kernel's `kern_time.c` retained the build's explicit `-Os` rule. The kernel
+UF2 SHA-256 was
+`c7c26d7a1a6ebb1298db78b46c1a6e2e8bcc7ee8c07b747e6a154490fb445545`;
+the test-root UF2 SHA-256 was
+`1326a4a39977f915ee675c54996eebf87bf931a9845def10d34aa38eccf95cce`.
+
+Twelve alternating pairs of ten executions used the same command and status
+check as the preceding measurement. Packed execution averaged 1.1205 seconds
+per execution and raw execution 1.0572 seconds. The mean paired premium was
+63.33 ms, standard error 8.68 ms, with a 95% paired t interval of 44.24 to
+82.43 ms under the independent-pair model. The paired elapsed times in
+seconds, packed then raw, were:
+
+    packed 11.31 11.27 10.98 11.14 10.90 11.61 11.05 10.97 11.65 11.64 10.95 10.99
+    raw    10.62 10.48 10.71 10.54 10.54 10.58 10.66 10.50 10.57 10.55 10.46 10.65
+
+The earlier `-Os` run averaged 1.3399 and 1.3002 seconds per execution for
+packed and raw, respectively. The `-O` means are 16.4% and 18.7% lower
+relative to those `-Os` means. The optimization campaigns ran sequentially,
+not interleaved across kernels, so time-dependent board and filesystem
+effects remain possible. The result does not isolate the compiler's effect
+or establish the cause of either premium. GCC's reported optimizer settings
+for `-O` and `-O1` were identical on this toolchain.
+
+`discobsd-flash` then restored the kernel and plain root named in the
+preceding section; the board reached the USB console `login:` prompt.
 
 ## Open decisions and residuals
 

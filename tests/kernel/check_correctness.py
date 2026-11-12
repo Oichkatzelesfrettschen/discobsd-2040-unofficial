@@ -163,6 +163,12 @@ def main():
         ("baseline-synch", "synch", {}, False),
         ("baseline-itimer", "itimer", {}, False),
         (
+            "timeout-callback-omits-expiry",
+            "synch",
+            {"kern_synch.c": ("        p->p_flag |= P_TIMEOUT;", "        p->p_flag |= 0;")},
+            True,
+        ),
+        (
             "discard-direct-init-error",
             "bmap",
             {

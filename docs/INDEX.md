@@ -78,6 +78,7 @@ artifact points at.
 | `utilbox.md` | what `utilbox` and `adminbox` carry | `sbin/utilbox/`, `sbin/adminbox/` |
 | `v7-tools.md` | the V6/V7 disk images, their licenses, and two ports | `sbin/textbox/Makefile`, `legacy/pdp11-v6/distrib/rp2040/mi.rp2040` |
 | `zswap.md` | the compressed RAM tier in front of flash swap | `compile/PICO/Config`, `heatshrink/heatshrink_config.h` |
+| `v7-format-descriptor.md` | the per-mount format descriptor that mounts Seventh Edition volumes through the native inode layer under the `V7FS` option, the checks a foreign volume gets and the option's measured cost | `sys/sys/fsgeom.h`, `sys/kern/ufs_v7.c` |
 
 ## Research corpus: `docs/research`
 
@@ -98,6 +99,8 @@ Grouped by what they investigate.
 | `picocalc-renode-keyboard-registers.md` | the change that makes the Renode keyboard model condition backlight writes as the vendor firmware does, shipped as `picocalc-renode-keyboard-backlight.patch` because the model lives on another branch |
 | `rp2040-second-core.md` | how the port uses the RP2040's second core: big-lock SMP ruled out, DragonFly-style single-writer rings and MINIX-style supervision kept, three tiers and an ordered, falsifiable plan that fixes the single-core decoder first |
 | `rp2040-second-core-bsd-survey.md` | DragonFly LWKT and the MINIX 3 Reincarnation Server decomposed, multiprocessor and offload precedent across the BSD trees, and the candidate architecture with a falsifier per claim |
+| `rp2040-compiler-debug-optimization.md` | PICO optimization-level build and board timing evidence, compiler diagnostics, debug symbols and RP2040 measurement surfaces |
+| `rp2040-compiler-size-compatibility-scope.md` | the fixed-layout compiler compatibility and kernel-size repair boundary, measured callback and load-span failures, call-graph limits, resource denominator and falsifiable acceptance plan |
 | `rp2040-second-core-hardware.md` | core 1 launch, FIFOs, spinlocks, divider, interpolators and reset from the datasheet, the resources the port owns, and an emulated profile of the packed-executable decoder |
 | `rp2040-second-core-emulation/` | the sample program, host packer, decoder harness and Unicorn cycle model behind the 387 cycles per byte figure, with a build script that checks input hashes and recorded output |
 | `corpus-mathematics-kernel-survey.md` | mathematics from the owner's document corpora tested against kernel sites: superstring packing of the trace names, grammar coding of the errno messages and a 32-bit `adjtime()` land for 1,692 bytes of PICO text; golden-ratio sleep hashing is measured and declined |

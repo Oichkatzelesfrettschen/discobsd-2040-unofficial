@@ -1,0 +1,26 @@
+--- a/sbin/newfs_msdos/mkfs_msdos.c
++++ b/sbin/newfs_msdos/mkfs_msdos.c
+@@ -576,6 +576,8 @@
+ 	if (bspf_is_calculated && o.sectors_per_cluster == 0 && bpb.spc > 2) {
+ 		/* retry with smaller cluster size */
+ 		o.sectors_per_cluster = 2;
++		/* The retry opens the image again. */
++		close(fd);
+ 		goto again;
+ 	}
+ 	warnx("%u clusters too few clusters for FAT%u, need %u", cls,
+@@ -764,6 +766,14 @@
+ 		return -1;
+ 	    }
+ 	}
++	free(img);
++    }
++    /* A caller that formats more than one image keeps no descriptor. */
++    if (fd1 != -1)
++	close(fd1);
++    if (close(fd) == -1) {
++	warn("%s", fname);
++	return -1;
+     }
+     return 0;
+ }

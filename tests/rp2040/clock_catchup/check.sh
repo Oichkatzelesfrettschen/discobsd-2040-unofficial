@@ -116,7 +116,7 @@ expect_mutant_rejected stamp-not-advanced \
 expect_mutant_rejected timer-wrap-ignored \
     's/due = (unsigned int)(now_us - c->stamp_us) \/ tick_us;/due = (now_us > c->stamp_us ? now_us - c->stamp_us : 0U) \/ tick_us;/'
 expect_mutant_rejected seconds-not-carried \
-    's/\*seconds += \*lbolt \/ hz;/*seconds += 0;/'
+    's/\*seconds += \*tick_counter \/ ticks_per_second;/*seconds += 0;/'
 expect_mutant_rejected head-only-callout-decrement \
     's/p->c_time = t - (int)(owed - ahead);/p->c_time = t - (int)owed;/'
 expect_mutant_rejected unarmed-clock-counted \

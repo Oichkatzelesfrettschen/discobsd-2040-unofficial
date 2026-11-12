@@ -18,6 +18,28 @@ import run_logged_gate as runner
 ROOT = Path(__file__).resolve().parent.parent
 RUNNER = ROOT / "tools/run_logged_gate.py"
 TEST_HELPER_TIMEOUT_SECONDS = 5
+NESTED_SUITE_TIMEOUT_SECONDS = 20
+OWNERSHIP_ENVIRONMENT = (
+    runner.OWNERSHIP_PATH_ENV,
+    runner.OWNERSHIP_INVOCATION_ENV,
+    runner.OWNERSHIP_ANCESTORS_ENV,
+)
+
+
+def setUpModule():
+    """Detach every fixture from an enclosing execution owner.
+
+    Fixtures run gates in this process with registration, cleanup and
+    receipt failures injected.  ancestor_execution_ownerships() reads the
+    inherited ownership environment, so a logged target that runs this file
+    would receive each fixture launch as an ancestor reservation and retain
+    the one an injected registration failure leaves pending.
+    """
+    environment = mock.patch.dict(os.environ)
+    environment.start()
+    unittest.addModuleCleanup(environment.stop)
+    for name in OWNERSHIP_ENVIRONMENT:
+        os.environ.pop(name, None)
 
 
 class LoggedGateTest(unittest.TestCase):
@@ -874,6 +896,136 @@ class LoggedGateTest(unittest.TestCase):
                 except ProcessLookupError:
                     pass
 
+    def test_nested_distinct_lock_keeps_surviving_child_in_outer_ownership(self):
+        execution_lock = self.directory / "outer.lock"
+        nested_lock = self.directory / "nested.lock"
+        nested_log = self.directory / "nested-distinct.log"
+        nested_status = self.directory / "nested-distinct.status.json"
+        leaf_group_path = self.directory / "distinct-leaf-group"
+        leaf_program = (
+            "import os, pathlib, sys, time; "
+            "pathlib.Path(sys.argv[1]).write_text(str(os.getpgrp()), "
+            "encoding='ascii'); time.sleep(60)"
+        )
+        parent_program = (
+            "import json, os, pathlib, signal, subprocess, sys, time; "
+            "marker = pathlib.Path(sys.argv[5]); "
+            "nested = subprocess.Popen([sys.executable, sys.argv[1], "
+            "'--label', 'nested-distinct', '--log', sys.argv[2], "
+            "'--status', sys.argv[3], '--execution-lock', sys.argv[4], "
+            "'--heartbeat-seconds', '0.05', '--idle-timeout-seconds', '2', "
+            "'--timeout-seconds', '3', '--', sys.executable, '-c', sys.argv[6], "
+            "sys.argv[5]]); "
+            "deadline = time.monotonic() + 2; "
+            "exec(\"while not marker.exists():\\n"
+            "    if nested.poll() is not None:\\n"
+            "        raise SystemExit('nested runner stopped before leaf launch')\\n"
+            "    if time.monotonic() >= deadline:\\n"
+            "        raise SystemExit('leaf launch deadline expired')\\n"
+            "    time.sleep(0.01)\"); "
+            "leaf_group = int(marker.read_text(encoding='ascii')); "
+            "receipt = pathlib.Path(sys.argv[4] + '.ownership.json'); "
+            "exec(\"while not receipt.exists() or leaf_group not in "
+            "json.loads(receipt.read_text())['process_groups']:\\n"
+            "    if time.monotonic() >= deadline:\\n"
+            "        raise SystemExit('leaf registration deadline expired')\\n"
+            "    time.sleep(0.01)\"); "
+            "os.kill(nested.pid, signal.SIGKILL); nested.wait()"
+        )
+        leaf_group = None
+        try:
+            result = self.run_gate(
+                parent_program,
+                execution_lock=execution_lock,
+                program_arguments=(RUNNER, nested_log, nested_status, nested_lock,
+                                   leaf_group_path, leaf_program),
+            )
+            leaf_group = int(leaf_group_path.read_text(encoding="ascii"))
+            ownership = json.loads(
+                Path(f"{execution_lock}.ownership.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(result.returncode, runner.RUNNER_ERROR_EXIT,
+                             result.stdout + result.stderr)
+            self.assertEqual(ownership["state"], "cleanup_incomplete")
+            self.assertIn(leaf_group, ownership["process_groups"])
+        finally:
+            if leaf_group is not None:
+                try:
+                    os.killpg(leaf_group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    def test_distinct_nested_locks_register_grandchild_with_all_ancestors(self):
+        outer_lock = self.directory / "chain-outer.lock"
+        middle_group_file = self.directory / "chain-middle-group"
+        leaf_group_file = self.directory / "chain-leaf-group"
+        leaf_program = (
+            "import os, pathlib, sys, time; "
+            "pathlib.Path(sys.argv[1]).write_text(str(os.getpgrp()), "
+            "encoding='ascii'); time.sleep(60)"
+        )
+        middle_program = (
+            "import os, pathlib, subprocess, sys, time; "
+            "pathlib.Path(sys.argv[5]).write_text(str(os.getpgrp()), encoding='ascii'); "
+            "subprocess.Popen([sys.executable, sys.argv[1], '--label', 'chain-leaf', "
+            "'--log', sys.argv[2], '--status', sys.argv[3], '--execution-lock', "
+            "sys.argv[4], '--idle-timeout-seconds', '10', '--timeout-seconds', '15', "
+            "'--', sys.executable, '-c', sys.argv[7], sys.argv[6]]); time.sleep(60)"
+        )
+        parent_program = (
+            "import json, os, pathlib, signal, subprocess, sys, time; "
+            "marker = pathlib.Path(sys.argv[9]); "
+            "nested = subprocess.Popen([sys.executable, sys.argv[1], '--label', "
+            "'chain-middle', '--log', sys.argv[2], '--status', sys.argv[3], "
+            "'--execution-lock', sys.argv[4], '--idle-timeout-seconds', '10', "
+            "'--timeout-seconds', '15', '--', sys.executable, '-c', sys.argv[10], "
+            "sys.argv[1], sys.argv[5], sys.argv[6], sys.argv[7], sys.argv[8], "
+            "sys.argv[9], sys.argv[11]]); deadline = time.monotonic() + 2; "
+            "exec(\"while not marker.exists():\\n"
+            "    if nested.poll() is not None:\\n"
+            "        raise SystemExit('nested runner stopped before leaf launch')\\n"
+            "    if time.monotonic() >= deadline:\\n"
+            "        raise SystemExit('leaf launch deadline expired')\\n"
+            "    time.sleep(0.01)\"); "
+            "leaf_group = int(marker.read_text(encoding='ascii')); "
+            "receipt = pathlib.Path(sys.argv[7] + '.ownership.json'); "
+            "exec(\"while not receipt.exists() or leaf_group not in "
+            "json.loads(receipt.read_text())['process_groups']:\\n"
+            "    if time.monotonic() >= deadline:\\n"
+            "        raise SystemExit('leaf registration deadline expired')\\n"
+            "    time.sleep(0.01)\"); "
+            "os.kill(nested.pid, signal.SIGKILL); nested.wait()"
+        )
+        try:
+            result = self.run_gate(
+                parent_program, execution_lock=outer_lock,
+                program_arguments=(RUNNER, self.directory / "chain-middle.log",
+                                   self.directory / "chain-middle.json",
+                                   self.directory / "chain-middle.lock",
+                                   self.directory / "chain-leaf.log",
+                                   self.directory / "chain-leaf.json",
+                                   self.directory / "chain-leaf.lock",
+                                   middle_group_file, leaf_group_file,
+                                   middle_program, leaf_program),
+            )
+            middle_group = int(middle_group_file.read_text(encoding="ascii"))
+            leaf_group = int(leaf_group_file.read_text(encoding="ascii"))
+            ownership = json.loads(
+                Path(f"{outer_lock}.ownership.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(result.returncode, runner.RUNNER_ERROR_EXIT,
+                             result.stdout + result.stderr)
+            self.assertEqual(ownership["state"], "cleanup_incomplete")
+            self.assertIn(middle_group, ownership["process_groups"])
+            self.assertIn(leaf_group, ownership["process_groups"])
+        finally:
+            for marker in (middle_group_file, leaf_group_file):
+                if marker.exists():
+                    try:
+                        os.killpg(int(marker.read_text(encoding="ascii")), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
     def test_successful_recursive_logged_gate_ignores_ancestor_group(self):
         execution_lock = self.directory / "products.lock"
         nested_log = self.directory / "nested-success.log"
@@ -933,6 +1085,43 @@ class LoggedGateTest(unittest.TestCase):
         )
         self.assertEqual(ownership["state"], "released")
         self.assertEqual(ownership["pending_launches"], [])
+
+    def test_failure_injection_fixtures_cannot_reach_outer_ownership(self):
+        execution_lock = self.directory / "products.lock"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(RUNNER),
+                "--label", "gate-fixture-ownership",
+                "--log", str(self.log),
+                "--status", str(self.status),
+                "--execution-lock", str(execution_lock),
+                "--heartbeat-seconds", "0.05",
+                "--idle-timeout-seconds", "10",
+                "--timeout-seconds", "15",
+                "--",
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "LoggedGateTest."
+                "test_registration_error_with_incomplete_cleanup_blocks_successor",
+                "LoggedGateTest."
+                "test_quarantine_write_failure_retains_prelaunch_ownership_barrier",
+                "LoggedGateTest.test_log_failure_stops_the_launched_process_group",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=NESTED_SUITE_TIMEOUT_SECONDS,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        ownership = json.loads(
+            Path(f"{execution_lock}.ownership.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(ownership["state"], "released")
+        self.assertEqual(ownership["pending_launches"], [])
+        self.assertEqual(ownership["process_groups"], [])
+        self.assertFalse(Path(f"{execution_lock}.quarantine.json").exists())
 
     def test_ownership_finalization_failure_publishes_terminal_error(self):
         execution_lock = self.directory / "products.lock"

@@ -153,6 +153,12 @@ main(void)
 #ifdef SWAP_IMAGE_ALIGN
 	swap_cursor_init(nswap);
 	mfree(swapmap, nswap - SWAP_IMAGE_ALIGN, SWAP_IMAGE_ALIGN);
+#ifdef SWAP_IMAGE_GUARD
+	/* swap_with_buf_result() folds a block at or above nswap. */
+	swapmap->m_ring_first = SWAP_IMAGE_ALIGN;
+	swapmap->m_ring_end = nswap;
+	swapmap->m_guard = SWAP_IMAGE_GUARD;
+#endif
 #else
 	mfree(swapmap, nswap, swapstart);
 #endif

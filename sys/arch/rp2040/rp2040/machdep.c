@@ -164,7 +164,7 @@ _Static_assert(PSRAM_BYTES / DEV_BSIZE <= (u_short)-1,
 struct map	swapmap[1] = {
 	{ swapent,
 	  &swapent[SMAPSIZ - 1],
-	  "swapmap" },
+	  "swapmap", 0, 0, 0 },
 };
 
 int	waittime = -1;

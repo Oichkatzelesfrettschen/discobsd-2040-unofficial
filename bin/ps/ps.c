@@ -33,6 +33,9 @@
 #include <paths.h>
 #include <psout.h>
 #include <machine/cpu.h>
+#ifdef CPU_SWAPRAM_PSINFO
+#include <machine/swapram.h>
+#endif
 
 /*
  * savcom() stores p_uid in o_uid, and the name lookup in fixup() compares
@@ -280,6 +283,53 @@ getbyte(adr)
     return((unsigned) b);
 }
 
+/*
+ * Set while savcom() handles a process whose image the kernel's compressed
+ * RAM swap tier holds. Such a process has no blocks on the swap device:
+ * its fields come from pooled_psinfo() and its stack, where the argument
+ * strings live, is out of reach.
+ */
+static int pooled;
+
+#ifdef CPU_SWAPRAM_PSINFO
+/*
+ * Fill the fields savcom() reads from *up with the kernel's record of
+ * process pid in the SwapRAM pool, {CTL_MACHDEP, CPU_SWAPRAM_PSINFO, pid}.
+ * Return 1 when the pool holds the process. SWAPRAM_PS_IGNORED equals
+ * SIG_IGN, so two ignored signals sum to 2 in o_sigs as they do for a
+ * resident process.
+ */
+static int
+pooled_psinfo(pid, up)
+    int pid;
+    struct user *up;
+{
+    struct swapram_psinfo info;
+    int mib[3];
+    size_t len = sizeof(info);
+
+    mib[0] = CTL_MACHDEP;
+    mib[1] = CPU_SWAPRAM_PSINFO;
+    mib[2] = pid;
+    if (sysctl(mib, 3, &info, &len, 0, 0) < 0 || len != sizeof(info))
+        return 0;
+    memset(up, 0, sizeof(*up));
+    up->u_ru.ru_utime = info.sp_utime;
+    up->u_ru.ru_stime = info.sp_stime;
+    up->u_cru.ru_utime = info.sp_cutime;
+    up->u_cru.ru_stime = info.sp_cstime;
+    up->u_tsize = info.sp_tsize;
+    up->u_dsize = info.sp_dsize;
+    up->u_ssize = info.sp_ssize;
+    up->u_ttyd = info.sp_ttyd;
+    up->u_signal[SIGINT] = (sig_t)(long)info.sp_sigint;
+    up->u_signal[SIGQUIT] = (sig_t)(long)info.sp_sigquit;
+    memcpy(up->u_comm, info.sp_comm, sizeof(up->u_comm));
+    up->u_comm[sizeof(up->u_comm) - 1] = 0;
+    return 1;
+}
+#endif
+
 int
 getcmd(a, addr)
     off_t addr;
@@ -299,7 +349,7 @@ getcmd(a, addr)
     strcat(bp, ")");
     bp[63] = 0; /* max room in psout is 64 chars */
 
-    if (mproc->p_pid == 0)
+    if (mproc->p_pid == 0 || pooled)
         return(1);
 
     /* look for in-core process */
@@ -412,9 +462,20 @@ savcom(puid)
         saddr = (off_t)procp->p_saddr * DEV_BSIZE;
         file = swap;
     }
-    lseek(file, addr, 0);
-    if (read(file, (char *) up, sizeof (u)) != sizeof (u))
-        return(0);
+    pooled = 0;
+#ifdef CPU_SWAPRAM_PSINFO
+    if (! (procp->p_flag & SLOAD)) {
+        pooled = pooled_psinfo(procp->p_pid, up);
+        /* A zero p_addr names no swap block to fall back on. */
+        if (! pooled && procp->p_addr == 0)
+            return(0);
+    }
+#endif
+    if (! pooled) {
+        lseek(file, addr, 0);
+        if (read(file, (char *) up, sizeof (u)) != sizeof (u))
+            return(0);
+    }
 
     txtsiz = up->u_tsize;       /* set up address maps for user pcs */
     datsiz = up->u_dsize;

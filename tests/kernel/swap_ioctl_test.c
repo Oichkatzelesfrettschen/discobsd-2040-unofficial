@@ -34,7 +34,7 @@ _Static_assert(DIOCGETMEDIASIZE == 0x40046401UL,
 static struct mapent swap_entries[MAP_SLOTS + 1];
 static char swapmap_name[] = "swapmap";
 struct map swapmap[1] = {
-    { swap_entries, &swap_entries[MAP_SLOTS - 1], swapmap_name }
+    { swap_entries, &swap_entries[MAP_SLOTS - 1], swapmap_name, 0, 0, 0 }
 };
 size_t swapnext;
 u_int nswap;

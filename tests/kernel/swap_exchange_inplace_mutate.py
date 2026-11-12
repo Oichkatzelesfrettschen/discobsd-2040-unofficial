@@ -69,6 +69,13 @@ def mutate(source: str, mutation: str) -> str:
             "        (size_t) __user_data_start;",
             mutation,
         )
+    if mutation == "tail-ignores-ring-end":
+        return replace_once(
+            source,
+            "            end -= swapmap->m_ring_end - swapmap->m_ring_first;",
+            "            end -= 0;",
+            mutation,
+        )
     raise ValueError(f"unknown mutation: {mutation}")
 
 

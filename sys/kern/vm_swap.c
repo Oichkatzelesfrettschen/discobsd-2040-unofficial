@@ -105,29 +105,69 @@ swap_image_reserve_flash (struct swap_image_reservation *reservation)
 }
 
 #ifdef SWAP_IMAGE_ALIGN
-/* Consume a free suffix without changing the next-fit cursor. */
+/* The free run that starts at addr, or NULL when it is shorter than size. */
+static struct mapent *
+swap_exchange_free_prefix (size_t addr, size_t size)
+{
+    struct mapent *entry;
+
+    for (entry = swapmap->m_map;
+        entry->m_size != 0 && entry->m_addr < addr; entry++)
+        continue;
+    if (entry->m_size < size || entry->m_addr != addr)
+        return NULL;
+    return entry;
+}
+
+static void
+swap_exchange_take_prefix (struct mapent *entry, size_t size)
+{
+    entry->m_addr += size;
+    entry->m_size -= size;
+    if (entry->m_size == 0)
+        do {
+            *entry = entry[1];
+        } while ((entry++)->m_size != 0);
+}
+
+/*
+ * Consume a free suffix without changing the next-fit cursor.  On a ring
+ * map (struct map, sys/map.h) the block after the last one is the first
+ * one, so the suffix may lie in two free runs: one that ends at
+ * m_ring_end and one that starts at m_ring_first.
+ */
 static int
 swap_exchange_tail_reserve (size_t base, size_t incoming_span,
     size_t outgoing_span)
 {
-    struct mapent *entry;
-    size_t end, tail;
+    struct mapent *upper, *lower;
+    size_t end, tail, above;
 
     if (outgoing_span <= incoming_span)
         return 1;
     end = base + incoming_span;
     tail = outgoing_span - incoming_span;
-    for (entry = swapmap->m_map;
-        entry->m_size != 0 && entry->m_addr < end; entry++)
-        continue;
-    if (entry->m_size < tail || entry->m_addr != end)
+    above = tail;
+    if (swapmap->m_ring_end != 0) {
+        if (end >= swapmap->m_ring_end)
+            end -= swapmap->m_ring_end - swapmap->m_ring_first;
+        if (above > swapmap->m_ring_end - end)
+            above = swapmap->m_ring_end - end;
+    }
+    upper = swap_exchange_free_prefix (end, above);
+    if (upper == NULL)
         return 0;
-    entry->m_addr += tail;
-    entry->m_size -= tail;
-    if (entry->m_size == 0)
-        do {
-            *entry = entry[1];
-        } while ((entry++)->m_size != 0);
+    if (above != tail) {
+        lower = swap_exchange_free_prefix (swapmap->m_ring_first,
+            tail - above);
+        if (lower == NULL || lower == upper)
+            return 0;
+        /* The lower run precedes the upper one, so it keeps its slot. */
+        swap_exchange_take_prefix (upper, above);
+        swap_exchange_take_prefix (lower, tail - above);
+        return 1;
+    }
+    swap_exchange_take_prefix (upper, above);
     return 1;
 }
 #endif

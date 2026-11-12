@@ -1689,8 +1689,8 @@ check-renode-union:
 check-renode-picocalc:
 		sh tools/renode/check-picocalc.sh ${FLASHBIN}
 
-# The process and system file tables filled on the emulated PICO_UART
-# kernel: tools/renode/check-capacity.sh adds the two programs of
+# The process, in-core inode and system file tables filled on the emulated PICO_UART
+# kernel: tools/renode/check-capacity.sh adds the three programs of
 # tests/rp2040/capacity_exhaustion to a copy of ${FSIMG}, boots it and
 # requires each refusal on its own counter and a recovery after release.
 # Outside "check" for the reason check-renode is; the Renode class of the

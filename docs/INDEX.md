@@ -177,6 +177,7 @@ Grouped by what they investigate.
 | `board-capacity-cases-a9970f3d.txt` | the board run of the SwapRAM evacuation, signal-frame and storage-pressure cases at the 25-process, 24-file limits: patterns intact after evacuation, `sigtest` clean, parallel `tar`, `find` and `du` equal to their serial outputs, clean boot `fsck` |
 | `board-capacity-exhaustion-65d7244c.txt` | the board transcript of the same exhaustion tests at NPROC 16 and NFILE 18: EAGAIN after 10 children, ENFILE at 18 file slots, counters and recovery |
 | `renode-capacity-exhaustion-65d7244c.txt` | the Renode transcript of the exhaustion tests at NPROC 16 and NFILE 18 on the emulated PICO_UART kernel |
+| `renode-capacity-exhaustion-083b35c3.txt` | the Renode transcript of the three exhaustion tests with the in-core inode table added: seven holders fill 24 inode slots, an open and a stat refuse with ENFILE, the inode counter rises by 2 and recovery succeeds |
 | `board-capacity-cases-65d7244c.txt` | the board run of the SwapRAM evacuation, signal-frame and storage-pressure cases at NPROC 16 and NFILE 18 |
 | `board-capacity-acceptance.md` | board-only sampled-stack probe, calibration, exact image boundaries, the shared-break repair runs and open physical resource measurements; `board-capacity-acceptance-93b709fc.txt` holds the merged-source run transcript and `board-capacity-acceptance-passwd-edges.txt` the passwd edge-case steps |
 | `kernel-uio-typed-interfaces.md` | four typed transfer definitions, caller preconditions and calibrated kernel inventory |

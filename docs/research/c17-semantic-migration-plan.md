@@ -1157,6 +1157,11 @@ The [quick-exit contract](quick-exit-contracts.md) decomposes the independent
 registry, live-head removal and `_Exit` backend. Twelve modeled cases, process
 termination and six compiled controls pass on host/ILP32 and ARMv6-M QEMU.
 Target signatures, native input and full/reduced a.out archive closure pass.
-Matched resources, aggregate qualification and reviewed integration remain open. This work shares the
-existing exit repair as a prerequisite and keeps its resource approval
-separate from every new library member.
+The [integrated lifecycle resource review](libc-lifecycle-integrated-resource-exception.md)
+records the matched clean distribution, focused contracts, fourteen archive
+omission controls and ARMv6-M QEMU qualification. Quick exit adds 624 native
+archive bytes; its composition with bounded strings consumes one additional
+root data block. The complete resource vector also carries normal exit's
+sixteen positive packed-byte entries. Resource approval, combined aggregate
+qualification and reviewed integration remain open. Earlier approvals retain
+their exact candidate identities.

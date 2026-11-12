@@ -1231,8 +1231,12 @@ ctermid.o: ${TARGET_DIR}/ctermid.c
 	${HOSTCC} ${CFLAGS} -DL_ctermid=9 -Dctermid=discobsd_ctermid \
 		-c -o $@ ${TARGET_DIR}/ctermid.c
 
-header_contract.o: header_contract.c
-	${HOSTCC} ${CFLAGS} -ffreestanding -c -o $@ header_contract.c
+header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
+    ${TOPSRC}/include/stdlib.h ${TOPSRC}/include/string.h \
+    ${TOPSRC}/include/strings.h ${TOPSRC}/include/time.h \
+    ${TOPSRC}/include/vis.h ${TOPSRC}/include/_featuretest.h
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -ffreestanding -nostdinc \
+	    -isystem ${TOPSRC}/include -c -o $@ header_contract.c
 
 clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o

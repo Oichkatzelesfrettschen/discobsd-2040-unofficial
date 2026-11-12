@@ -70,6 +70,13 @@ include orders, exact function-pointer types, target sizeof/alignment/offsets,
 assembly consumers and Smaller C inputs. Deliberately invalid fixtures have
 expected-rejection contracts rather than a portable-C17 acceptance claim.
 
+The first public-header visibility unit converts `string.h` through the installed
+private `_featuretest.h` policy. The port specification
+[`string-header-visibility.md`](../../sys/arch/rp2040/doc/research/string-header-visibility.md)
+owns selector precedence and the calibrated declaration/inclusion gate. Peer
+headers retain separate conversion work; the string unit leaves full public-header
+closure and missing runtime functions open.
+
 ### Ordered modernization queue
 
 The queue below owns program order for the C17/POSIX expansion. The historical ordered work queue later

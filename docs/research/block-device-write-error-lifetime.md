@@ -144,7 +144,9 @@ mask is empty. `flopen()` similarly initializes a unit's partition table.
 The operation guard therefore covers the driver unit even before a partition
 extent is known. `blkdev_same_unit()` identifies the flash and SD units by
 major number and the minor number above the low three partition bits.
-Other RP2040 block devices and STM32 devices retain exact-device guards.
+Other RP2040 block devices retain exact-device guards. The STM32 SD driver
+selects its unit using minor bit 3, so its guard uses that same selector;
+other STM32 devices retain exact-device guards.
 `chrtoblk()` gives mapped raw nodes the same unit identity. The transient
 inode union holds their lock bit; cooked open counts and errors retain their
 exact block-device identity. Pipe selector storage has its separate inode type.
@@ -172,7 +174,7 @@ production scheduling interleaving.
 
 ## Host verification and resource capture
 
-The final focused Linux ILP32 invocation runs
+The Linux ILP32 fixture retained by commit `70ea03e2` runs
 `bmake -C tests/kernel MACHINE=rp2040 -j4 check-ufs-disk-ilp32 check-ufs-disk-mutants`
 with `PYTHON` selected and exported. The fixture passes 1,944 checks and rejects
 45 mutants. The policy-raise reproduction first fails four checks, and the
@@ -216,3 +218,13 @@ The preceding logged build passes with exit zero, including the PICO and
 PICO_UART links; the pointer-return helper requires final revision-bound
 build and aggregate results before publication. The production atomic-recovery stop
 point in `storage-recovery-comparison.md` remains independent.
+
+The shared-source review extends the unit guard to STM32 SD devices.
+`sys/arch/stm32/dev/sd.c:sdunit()` masks minor bit 3; distinct partition minors
+and minors differing only in ignored upper bits select the same card state.
+The exact-device implementation fails two assertions in the extracted-function
+probe. The corrected selector is tested beside the RP2040 unit function,
+including separate units, majors and unknown device classes. The probe
+executes the extracted identity function at ILP32; it supplies no STM32
+driver execution or board result. The extended fixture passes 1,950 checks
+and rejects 46 mutants, including the STM32 exact-device reversal.

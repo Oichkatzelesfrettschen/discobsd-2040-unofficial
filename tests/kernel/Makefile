@@ -251,6 +251,7 @@ UFS_DISK_OBJECTS=	${UFS_DISK_SOURCES:@s@ufs_disk_${s}.o@}
 UFS_DISK_CONF_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/conf.c
 UFS_DISK_FLASH_SRC=	${TOPSRC}/sys/arch/rp2040/dev/flash.c
 UFS_DISK_FLASH_HDR=	${TOPSRC}/sys/arch/rp2040/dev/flash.h
+UFS_DISK_STM32_SRC=	${TOPSRC}/sys/arch/stm32/stm32/conf.c
 UFS_DISK_MOUNT_MUTANTS=	close-always mount-close-always gone-ignored \
 			gone-assumed gone-keeps-error gone-no-close \
 			gone-no-invalidate gone-inverted
@@ -2298,6 +2299,10 @@ ufs_disk_conf_functions.c: ufs_disk_extract.py ${UFS_DISK_CONF_SRC}
 	${PYTHON} ufs_disk_extract.py conf --source ${UFS_DISK_CONF_SRC} \
 	    --output $@
 
+ufs_disk_stm32_unit_functions.c: ufs_disk_extract.py ${UFS_DISK_STM32_SRC}
+	${PYTHON} ufs_disk_extract.py unit --source ${UFS_DISK_STM32_SRC} \
+	    --output $@
+
 ufs_disk_flash_functions.c: ufs_disk_extract.py ${UFS_DISK_FLASH_SRC} \
     ${UFS_DISK_FLASH_HDR}
 	${PYTHON} ufs_disk_extract.py flash --source ${UFS_DISK_FLASH_SRC} \
@@ -2458,14 +2463,34 @@ ufs_disk_flash_${mutation}.mutant.test: \
 	    ${UFS_DISK_LINK}
 .endfor
 
+ufs_disk_stm32_unit.mutant.c: ufs_disk_mutate.py ${UFS_DISK_STM32_SRC}
+	${PYTHON} ufs_disk_mutate.py --source ${UFS_DISK_STM32_SRC} \
+	    --output $@ --mutation device-stm32-unit-guard-exact-only
+
+ufs_disk_stm32_unit.mutant.functions.c: ufs_disk_extract.py \
+    ufs_disk_stm32_unit.mutant.c
+	${PYTHON} ufs_disk_extract.py unit --source ufs_disk_stm32_unit.mutant.c \
+	    --output $@
+
+ufs_disk_stm32_unit.mutant.test: ufs_disk_stm32_unit.mutant.functions.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ufs_disk_flash_functions.c ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    -DUFS_DISK_STM32_INCLUDE='"ufs_disk_stm32_unit.mutant.functions.c"' \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c ${UFS_DISK_OBJECTS} \
+	    ${UFS_DISK_LINK}
+
 UFS_DISK_MUTANT_TESTS=	\
     ufs_disk_scheduler-budget-failure-hidden.mutant.test \
+    ufs_disk_stm32_unit.mutant.test \
     ${UFS_DISK_MOUNT_MUTANTS:@m@ufs_disk_mount_${m}.mutant.test@} \
     ${UFS_DISK_FIO_MUTANTS:@m@ufs_disk_fio_${m}.mutant.test@} \
     ${UFS_DISK_SUBR_MUTANTS:@m@ufs_disk_subr_${m}.mutant.test@} \
     ${UFS_DISK_EXTRA_TESTS} \
     ${UFS_DISK_CONF_MUTANTS:@m@ufs_disk_conf_${m}.mutant.test@} \
     ${UFS_DISK_FLASH_MUTANTS:@m@ufs_disk_flash_${m}.mutant.test@}
+
+ufs_disk_test ${UFS_DISK_MUTANT_TESTS}: ufs_disk_stm32_unit_functions.c
 
 # A mutant must fail through the gate's own verdict, not by a crash, a hang
 # or a build error: the gate exits 1 after naming the failed checks.
@@ -3332,7 +3357,7 @@ clean:
 	rm -f ufs_topology_*.mutant.c ufs_topology_*.mutant.o \
 	    ufs_topology_*.mutant.test ufs_topology_*.mutant.out
 	rm -f ufs_disk_*.o ufs_disk_test ufs_disk_conf_functions.c \
-	    ufs_disk_flash_functions.c ufs_disk_*.mutant.c \
+	    ufs_disk_flash_functions.c ufs_disk_stm32_unit_functions.c ufs_disk_*.mutant.c \
 	    ufs_disk_*.mutant.functions.c ufs_disk_*.mutant.o \
 	    ufs_disk_*.mutant.test ufs_disk_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test

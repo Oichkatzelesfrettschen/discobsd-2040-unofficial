@@ -240,6 +240,7 @@ ufs_disk_*.o
 ufs_disk_test
 ufs_disk_conf_functions.c
 ufs_disk_flash_functions.c
+ufs_disk_stm32_unit_functions.c
 ufs_disk_*.mutant.c
 ufs_disk_*.mutant.functions.c
 ufs_disk_*.mutant.test

@@ -105,6 +105,11 @@ MUTATIONS = {
         "        error = securelevel >= 2 && (mode & FWRITE) && isdisk(dev, IFCHR) ? EPERM : 0;",
         "        error = 0;",
     ),
+    "device-stm32-unit-guard-exact-only": (
+        "conf.c",
+        "\t\treturn ((minor(a) ^ minor(b)) & 8) == 0;",
+        "\t\treturn a == b;",
+    ),
     "device-unit-guard-exact-only": (
         "conf.c",
         "blkdev_same_unit(dev_t a, dev_t b)\n{",

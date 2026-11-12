@@ -123,13 +123,18 @@ def extract_flash(source_path: Path, header_path: Path) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("kind", choices=("conf", "flash"))
+    parser.add_argument("kind", choices=("conf", "flash", "unit"))
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--header", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
     if arguments.kind == "conf":
         text = extract_conf(arguments.source)
+    elif arguments.kind == "unit":
+        data = arguments.source.read_bytes()
+        text = banner(arguments.source, data) + extract_function(
+            data.decode(), "int\nblkdev_same_unit(dev_t a, dev_t b)", "blkdev_same_unit"
+        ) + "\n"
     else:
         if arguments.header is None:
             raise SystemExit("flash extraction needs --header")

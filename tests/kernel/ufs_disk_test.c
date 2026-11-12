@@ -681,6 +681,13 @@ const int nchrdev = sizeof(cdevsw) / sizeof(cdevsw[0]) - 1;
 #endif
 #include UFS_DISK_CONF_INCLUDE
 
+#ifndef UFS_DISK_STM32_INCLUDE
+#define UFS_DISK_STM32_INCLUDE "ufs_disk_stm32_unit_functions.c"
+#endif
+#define blkdev_same_unit stm32_blkdev_same_unit
+#include UFS_DISK_STM32_INCLUDE
+#undef blkdev_same_unit
+
 /*
  * Descriptors. open_node() makes a special-file inode, runs openi() on it as
  * vn_open() does and gives the result a file table entry; close_node() is
@@ -2357,6 +2364,12 @@ test_overlap_other_unit_and_majors(void)
 	/* sd unit 1 does not exist; fl0 and sd0 share no storage. */
 	HK_CHECK(try_open(makedev(SD_BMAJOR, 9), IFBLK | 0600, FWRITE) !=
 	    0);
+	HK_CHECK(stm32_blkdev_same_unit(makedev(0, 1), makedev(0, 2)) == 1);
+	HK_CHECK(stm32_blkdev_same_unit(makedev(0, 1), makedev(0, 17)) == 1);
+	HK_CHECK(stm32_blkdev_same_unit(makedev(0, 1), makedev(0, 9)) == 0);
+	HK_CHECK(stm32_blkdev_same_unit(makedev(0, 1), makedev(4, 1)) == 0);
+	HK_CHECK(stm32_blkdev_same_unit(makedev(4, 1), makedev(4, 2)) == 0);
+	HK_CHECK(stm32_blkdev_same_unit(makedev(4, 1), makedev(4, 1)) == 1);
 	HK_CHECK(blkdev_same_unit(SD_A, SD_B) == 1);
 	HK_CHECK(blkdev_same_unit(SD_A, SD_WHOLE) == 1);
 	HK_CHECK(blkdev_same_unit(SD_A, FL_ROOT) == 0);

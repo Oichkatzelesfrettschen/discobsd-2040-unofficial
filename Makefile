@@ -155,7 +155,8 @@ check-sus-requirement-corpus: check-python
 # claim fields; the verifier then checks the committed 1,518-row ledger.
 check-dpucp-profile: check-python
 		${PYTHON} tools/check_dpucp_profile_test.py
-		${PYTHON} tools/check_dpucp_profile.py --root ${TOPSRC} --self-test
+		${PYTHON} tools/check_dpucp_profile.py --root ${TOPSRC} --self-test \
+		    --flashimg "${TOOLBINDIR}/flashimg"
 
 # The retained board record binds the approved UF2 pair, the single flash
 # execution, bounded terminal receipt, seven release surfaces and thirteen
@@ -171,6 +172,8 @@ check-dpucp-donor-ledger: check-python
 		${PYTHON} tools/measurement_source_identity_test.py
 		${PYTHON} tools/check_dpucp_donor_ledger_test.py
 		${PYTHON} tools/check_dpucp_donor_ledger.py --root ${TOPSRC}
+		${PYTHON} tools/check_archive_donor_frontier_test.py
+		${PYTHON} tools/check_archive_donor_frontier.py --root ${TOPSRC}
 
 build:		check-python .WAIT symlinks tools
 		$(MAKE) kernel
@@ -339,6 +342,12 @@ check-passwd-header-contracts: check-python .WAIT symlinks
 		${PYTHON} tools/c17/passwd_header_contracts.py --root ${TOPSRC:Q} \
 		    --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/passwd-header-contracts.json
+
+check-string-header-contracts: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/string_header_contracts.py --root ${TOPSRC:Q} \
+		    --host-cc ${HOST_CC:Ucc:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/string-header-contracts.json
 
 check-c17-smaller-c:	check-python .WAIT symlinks
 		${MAKE} -C usr.bin/smlrc test
@@ -1395,7 +1404,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
-CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts \
+CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \
@@ -1930,4 +1939,4 @@ installfs:
 
 .PHONY: check-sysctl-status
 
-.PHONY: check-passwd-header-contracts
+.PHONY: check-passwd-header-contracts check-string-header-contracts

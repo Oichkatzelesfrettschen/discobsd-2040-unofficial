@@ -2372,7 +2372,7 @@ the read-only counters.
 ### Executed tool capture
 
 `check-c17-tool-capture` belongs to the cross tier and firmware CI's
-`check-cross` invocation. Fifteen ARM-toolchain and evaluated-make fixtures establish compiler
+`check-cross` invocation. Seventeen ARM-toolchain and evaluated-make fixtures establish compiler
 header discovery, unchanged object bytes, original dependency-file retention,
 failed-command attribution, generated stdin identity, selected archive members,
 configuration separation, in-place object-transform identities, output-path
@@ -2391,7 +2391,7 @@ the wrapper. A complete shipped-source claim additionally requires clean-build
 coverage, manifest membership, archive provenance and generated-input edges;
 the wrapper's fixture gate alone establishes none of those aggregate states.
 
-The same cross gate runs twenty-one shipped-closure fixtures against real ARM
+The same cross gate runs twenty-two shipped-closure fixtures against real ARM
 compiler and archive output. An executable includes its selected archive
 member; an installed development archive includes all members. Missing
 producers, changed headers/artifacts, damaged retained outputs, a dependency
@@ -2422,6 +2422,12 @@ invocation and `C17_SOURCE_SNAPSHOT` digest. A fresh capture exports that
 snapshot path alongside `C17_CAPTURE_DIR`. Link receipts retain the archive
 bytes selected through explicit filenames, `-l` lookup and linker maps. The
 closure checker rejects an archive replaced outside recorded producer commands.
+The kernel checksum stamp is an in-place transformation: `kernsum unix`
+retains the linked ELF input and stamped ELF output, while `kernsum -c unix`
+records a read-only check with an empty output set. All four RP2040 kernel
+recipes route stamping through the capture prefix. A real ARM ELF fixture
+closes the compile/link/stamp chain and rejects omission of the stamp
+record, because the final kernel hash differs from the linker output.
 Tracked linker scripts remain inputs rather than generated outputs; separated,
 attached and compiler-forwarded script options retain their source identities.
 Nested linker INCLUDE directives require an explicit capture adapter and are

@@ -11,6 +11,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from record_tool import CaptureError, classify
+
 RECORDER = Path(__file__).with_name("record_tool.py")
 
 
@@ -61,6 +63,27 @@ class ToolCaptureTest(unittest.TestCase):
         arguments = shlex.split(result.stdout.strip())
         self.assertEqual(arguments[-2], "--")
         self.assertEqual(arguments[-1], str(root / "tools/bin/rp2040/elf2aout"))
+
+    def test_kernel_checksum_modes_have_explicit_output_ownership(self):
+        self.assertEqual(classify(["kernsum", "unix"]), ("transform", [], "unix"))
+        self.assertEqual(classify(["kernsum", "-c", "unix"]), ("query", [], None))
+        for arguments in [["kernsum"], ["kernsum", "first", "second"],
+                          ["kernsum", "-c", "first", "second"]]:
+            with self.assertRaises(CaptureError):
+                classify(arguments)
+
+    def test_kernel_recipes_capture_checksum_stamp(self):
+        root = Path(__file__).resolve().parents[2]
+        environment = dict(os.environ, PYTHON=sys.executable,
+                           C17_CAPTURE_DIR=str(self.records))
+        for board in ["PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM"]:
+            arguments = shlex.split(subprocess.check_output(
+                ["bmake", "-C", str(root / "sys/arch/rp2040/compile" / board),
+                 "MACHINE=rp2040", "-V", "${SYSTEM_LD_TAIL}"],
+                env=environment, text=True))
+            position = arguments.index(str(root / "tools/bin/rp2040/kernsum"))
+            self.assertEqual(arguments[position - 1], "--", board)
+            self.assertIn(str(RECORDER), arguments[:position], board)
 
     def test_compile_tracks_used_header_and_preserves_object(self):
         normal = subprocess.run(

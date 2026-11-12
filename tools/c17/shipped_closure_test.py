@@ -1,5 +1,6 @@
 """Calibrate shipped dependency selection with real compiler and archive output."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -72,6 +73,47 @@ class ShippedClosureTest(unittest.TestCase):
         self.assertEqual(data["configurations"]["fixture"]["tracked_sources"],
                          ["main.c", "selected.c", "used.h"])
         self.assertEqual(data["language_acceptance"], "open")
+
+    def test_kernel_checksum_transform_closes_linked_image_provenance(self):
+        checksum = Path(__file__).resolve().parents[1] / "bin/rp2040/kernsum"
+        self.assertTrue(checksum.is_file())
+        (self.root / "kernel.S").write_text(
+            ".section .text\n.global _start\n_start:\n.space 0x128\n"
+            ".long 0x10000200\n.space 0x200 - (. - _start)\n.space 16\n")
+        (self.root / "kernel.ld").write_text(
+            "PHDRS { flash PT_LOAD FLAGS(5); }\n"
+            "SECTIONS { . = 0x10000000; .text : { *(.text) } :flash }\n")
+        subprocess.run(["git", "add", "kernel.S", "kernel.ld"], cwd=self.root, check=True)
+        self.record(self.compiler, "-c", "kernel.S", "-o", "kernel.o")
+        self.record(self.compiler, "-nostdlib", "-Wl,-e,_start", "-Tkernel.ld",
+                    "kernel.o", "-o", "unix")
+        before = hashlib.sha256((self.root / "unix").read_bytes()).hexdigest()
+        self.record(str(checksum), "unix")
+        after = hashlib.sha256((self.root / "unix").read_bytes()).hexdigest()
+        self.assertNotEqual(before, after)
+        transforms = [(path, json.loads(path.read_text())) for path in self.records.glob("*.json")]
+        path, transform = next((path, row) for path, row in transforms
+                               if row["kind"] == "transform")
+        self.assertEqual(transform["inputs"][0]["sha256"], before)
+        self.assertEqual(transform["outputs"][0]["sha256"], after)
+        self.record(str(checksum), "-c", "unix")
+        query = json.loads(sorted(self.records.glob("*.json"))[-1].read_text())
+        self.assertEqual(query["kind"], "query")
+        self.assertEqual(query["outputs"], [])
+        self.assertEqual(hashlib.sha256((self.root / "unix").read_bytes()).hexdigest(), after)
+        result = self.check("--artifact", "kernel:unix")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        closure = json.loads((self.root / "closure.json").read_text())
+        self.assertIn("kernel.S", closure["configurations"]["kernel"]["tracked_inputs"])
+        self.assertIn("kernel.ld", closure["configurations"]["kernel"]["tracked_inputs"])
+        hidden = path.with_suffix(".withheld")
+        path.rename(hidden)
+        try:
+            result = self.check("--artifact", "kernel:unix")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("missing producer for unix", result.stderr)
+        finally:
+            hidden.rename(path)
 
     def test_native_bsd_archive_includes_members_without_index_as_source(self):
         native_ar = Path(__file__).resolve().parents[1] / "bin/rp2040/ar"

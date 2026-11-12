@@ -228,7 +228,9 @@ instruments; items 3 to 8 each wait on the measurement named.
     `tools/kernsum` stamps the length and CRC32 after the link, the kernel
     recomputes the sum over its flash at boot and exports it as
     `machdep.image_crc`, and `board_image_identity.py` compares a board with
-    a host `unix.bin`. The rest of the running-board identity task of the
+    a host `unix.bin`. `check-renode-identity` runs the mismatch branch on
+    the emulated kernel with an altered stored word and an altered image
+    byte; no board has reported a mismatch. The rest of the running-board identity task of the
     memory and wear program is open: the root file system's hash, the flash
     chip identity and the ROM revision in one record.
 

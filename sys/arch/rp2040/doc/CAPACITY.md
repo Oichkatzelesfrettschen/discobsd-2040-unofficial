@@ -223,6 +223,15 @@ opens refused with ENFILE, and the counter rose by 2.
 `docs/research/board-capacity-exhaustion-58ec71f1.txt` is the transcript and
 the receipt of the two board exhaustion cases.
 
+One Pico run on 2026-11-11 at `a9970f3d` holds the receipt of three more
+board cases, `docs/research/board-capacity-cases-a9970f3d.txt`. Two SwapRAM
+evacuations moved every pooled image to flash and all eight children read
+back their data, stack and u-area patterns; `sigtest` passed its nine checks;
+and `tar`, `find` and `du` run at once produced the outputs of their serial
+runs with no failure on any table. That workload peaked at 10 processes, 19
+inodes, 15 files, 17 clists and 3 buffers, and the root passed the next
+boot's `fsck -p` with its free space unchanged.
+
 A capacity reduction requires one named workload corpus and separate Renode
 and board runs. Each run records the exact kernel identity, configuration,
 workload commands, starting and ending `kern.capacity` snapshots, allocation

@@ -263,7 +263,12 @@ def self_test(root, document):
     changed["cases"][0]["execution_class"] = "hardware"
     mutations.append(("unknown execution class", changed))
     changed = copy.deepcopy(document)
-    changed["decisions"][0]["state"] = "reduce-approved"
+    decision = changed["decisions"][0]
+    decision["state"] = "reduce-approved"
+    for case in changed["cases"]:
+        if case["id"] in decision["deciding_cases"] and case["execution_class"] == "board":
+            case["receipt_state"] = "open"
+            case["receipt"] = None
     mutations.append(("reduction without board admission", changed))
     changed = copy.deepcopy(document)
     changed["decisions"][0]["active_value"] += 1

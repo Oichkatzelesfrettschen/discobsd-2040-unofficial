@@ -64,6 +64,35 @@ The PICO kernel's flash image is 95,248 bytes; its data and bss take 17,112
 bytes of the 58K and the SwapRAM pool 16,384, at `7a270276` with GCC 16.2.0.
 `check-kernel-headroom` re-measures the flash side.
 
+### Image identity
+
+Vector entries 8, 9 and 10 (0x10000120 to 0x1000012b) are reserved on
+ARMv6-M and never fetched. They identify the flash image:
+
+| Word | Address | Value | Written by |
+|---|---|---|---|
+| length | 0x10000120 | bytes of the flash image from 0x10000000, the size of `unix.bin` | `tools/kernsum` after the link |
+| CRC32 | 0x10000124 | zlib `crc32()` of those bytes with this word and the board descriptor read as zero | `tools/kernsum` after the link |
+| descriptor | 0x10000128 | address of the 16-byte board descriptor (`__board_start`) | the linker, from `locore0.S` |
+
+The link recipe stamps the kernel before it derives `unix.elf`, `unix.bin`,
+`unix.hex` and `unix.uf2`, so all four carry the words. The sum leaves the
+descriptor out because `distrib/rp2040/mkboarduf2.py` rewrites it per board
+in a linked image: one build keeps one identity on every board. The boot
+ROM's boot2 checksum covers only the first 256 bytes and is unaffected.
+
+At boot `image_identify()` in `board.c` sums the flash it executes from and
+prints `image: N bytes, crc32 X`; when the sum differs from the stored word
+the line ends `stored Y differs`, and a kernel without the words prints
+`image: no identity words`. `machdep.image_length`, `machdep.image_crc`
+(computed) and `machdep.image_crc_stored` export the values, as signed
+integers. `tools/bin/rp2040/kernsum -c unix.elf` prints the length and sum
+of a linked kernel on the host. `check-rp2040-vectors` recomputes both from
+the ELF, `check-renode` requires the emulated kernel to report the values of
+the `unix.bin` it was given, and
+`tests/rp2040/image_identity/board_image_identity.py` makes the same
+comparison against a board.
+
 ## 3. Clocks and ticks, in the order the kernel does them
 
 `startup()` in `rp2040/machdep.c`:

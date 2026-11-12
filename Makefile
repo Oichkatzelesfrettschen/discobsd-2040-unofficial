@@ -1689,8 +1689,8 @@ check-renode-union:
 check-renode-picocalc:
 		sh tools/renode/check-picocalc.sh ${FLASHBIN}
 
-# The process and system file tables filled on the emulated PICO_UART
-# kernel: tools/renode/check-capacity.sh adds the two programs of
+# The process, in-core inode and system file tables filled on the emulated PICO_UART
+# kernel: tools/renode/check-capacity.sh adds the three programs of
 # tests/rp2040/capacity_exhaustion to a copy of ${FSIMG}, boots it and
 # requires each refusal on its own counter and a recovery after release.
 # Outside "check" for the reason check-renode is; the Renode class of the
@@ -1698,6 +1698,14 @@ check-renode-picocalc:
 check-renode-capacity:
 		${MAKE} -C tests/rp2040/capacity_exhaustion MACHINE=${MACHINE}
 		sh tools/renode/check-capacity.sh ${FSIMG}
+
+# The boot-time image comparison on the emulated PICO_UART kernel:
+# tools/renode/check-identity.sh boots the stamped kernel and two altered
+# copies on ${FLASHBIN} and requires the image line of each, so the
+# "differs" branch of image_identify() runs. Outside "check" for the reason
+# check-renode is.
+check-renode-identity:
+		sh tools/renode/check-identity.sh ${FLASHBIN}
 
 # The SRAM-resident board probes, flash-id and flash-semantics, built
 # against a Pico SDK that tools/pico-sdk/sdk-path.sh resolves. Outside

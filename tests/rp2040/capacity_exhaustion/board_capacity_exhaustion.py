@@ -8,8 +8,8 @@ The script touches the board only when DISCOBSD_BOARD_CAPACITY_EXHAUSTION is
 exactly "run"; unset, empty and every other value exit without opening a port
 or calling discobsd-flash. With the variable set it flashes the named images
 with discobsd-flash when given, reaches a root shell on the USB console and
-stages tests/rp2040/capacity_exhaustion/filetab and proctab as uuencoded text
-with the staging routines of tests/rp2040/user_window/board_user_window.py.
+stages tests/rp2040/capacity_exhaustion/filetab, inotab and proctab as
+uuencoded text with the staging routines of tests/rp2040/user_window/board_user_window.py.
 It then runs, in order:
 
 1. filetab: a dup to the per-process limit refuses with EMFILE and leaves the
@@ -18,19 +18,27 @@ It then runs, in order:
    descriptors; the file failure counter rises by the refusals and no other
    counter moves; closing every holder restores occupancy and a later open
    succeeds (system-file-table-exhaustion in capacity-corpus.json);
-2. proctab: children park until the process table is full; fork refuses with
+2. inotab: holder processes each reference a working directory and one open
+   file until every in-core inode slot is referenced; an open and a stat of
+   further files refuse with ENFILE while the file table has free slots; the
+   inode failure counter rises by the refusals and no other counter moves;
+   releasing the holders restores occupancy and both calls then succeed
+   (incore-inode-exhaustion). inotab prints INOTABTEST INCONCLUSIVE when the
+   free process or file slots cannot carry enough holders, and this script
+   reports the case as unreached;
+3. proctab: children park until the process table is full; fork refuses with
    EAGAIN, not ENOMEM; the process failure counter rises by the refusals and
    no other counter moves; every child exits and is reaped; a later fork
    succeeds (process-table-exhaustion). A fork refused with ENOMEM before
    the table filled means swap ran out first; proctab then prints
    PROCTABTEST INCONCLUSIVE and this script reports the case as unreached;
-3. a final kern.capacity snapshot whose process occupancy equals the starting
+4. a final kern.capacity snapshot whose process occupancy equals the starting
    value, so no child outlived its program.
 
 Every console byte goes to LOG. The exit status is 0 when every check passed,
-1 when one failed, 2 when the console stopped answering and 3 when only the
-process-table case was unreached. The script records no result; the operator
-retains LOG as the receipt.
+1 when one failed, 2 when the console stopped answering and 3 when every
+check passed and the inode-table or process-table case was unreached. The
+script records no result; the operator retains LOG as the receipt.
 """
 
 import importlib.util
@@ -46,6 +54,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 WINDOW_DRIVER = os.path.join(HERE, "..", "user_window", "board_user_window.py")
 STAGED = (
     ("filetab", "tests/rp2040/capacity_exhaustion/filetab"),
+    ("inotab", "tests/rp2040/capacity_exhaustion/inotab"),
     ("proctab", "tests/rp2040/capacity_exhaustion/proctab"),
 )
 PROC_LINE = re.compile(
@@ -130,6 +139,20 @@ def main():
             results,
         )
         console.check("shell answers after filetab", "alive" in console.run("echo alive"), results)
+
+        out, status = run_program(console, "inotab", 300)
+        if "INOTABTEST INCONCLUSIVE" in out and status == 3:
+            unreached = True
+            print("UNREACHED inode table: too few free slots for holders; see the INFO line above")
+        else:
+            console.check(
+                "inotab: in-core inode table exhaustion and recovery",
+                "INOTABTEST OK" in out
+                and status == 0
+                and not any(x.startswith("FAIL") for x in out),
+                results,
+            )
+        console.check("shell answers after inotab", "alive" in console.run("echo alive"), results)
 
         out, status = run_program(console, "proctab", 600)
         if "PROCTABTEST INCONCLUSIVE" in out and status == 3:

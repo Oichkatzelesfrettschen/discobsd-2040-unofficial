@@ -219,12 +219,18 @@ instruments; items 3 to 8 each wait on the measurement named.
    (`board-capacity-exhaustion-65d7244c.txt`,
    `renode-capacity-exhaustion-65d7244c.txt`,
    `board-capacity-cases-65d7244c.txt`). `NINODE`, `NCLIST`, `NBUF` and
-   `USIZE` keep their values; their exhaustion and fault cases are open.
+   `USIZE` keep their values. The in-core inode table has its exhaustion
+   fixture (`tests/rp2040/capacity_exhaustion/inotab.c`) and its Renode
+   receipt (`renode-capacity-exhaustion-083b35c3.txt`); its board receipt
+   and the exhaustion and fault cases of `NCLIST`, `NBUF` and `USIZE` are
+   open.
 10. Image identity in the reserved vector words. Landed for the kernel:
     `tools/kernsum` stamps the length and CRC32 after the link, the kernel
     recomputes the sum over its flash at boot and exports it as
     `machdep.image_crc`, and `board_image_identity.py` compares a board with
-    a host `unix.bin`. The rest of the running-board identity task of the
+    a host `unix.bin`. `check-renode-identity` runs the mismatch branch on
+    the emulated kernel with an altered stored word and an altered image
+    byte; no board has reported a mismatch. The rest of the running-board identity task of the
     memory and wear program is open: the root file system's hash, the flash
     chip identity and the ROM revision in one record.
 

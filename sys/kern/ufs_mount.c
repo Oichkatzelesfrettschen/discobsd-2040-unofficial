@@ -19,11 +19,11 @@
 #include <sys/proc.h>
 
 /*
- * Common code for mount and umount.
- * Check that the user's argument is a reasonable
- * thing on which to mount, otherwise return error.
+ * A successful device lookup returns a referenced, unlocked block inode, so
+ * mount and unmount can retain the unit guard through their driver calls.
+ * A failed lookup records u.u_error and returns NULL.
  */
-static int
+static struct inode *
 getmdev(dev_t *pdev, caddr_t fname)
 {
     register dev_t dev;
@@ -32,24 +32,28 @@ getmdev(dev_t *pdev, caddr_t fname)
     register struct nameidata *ndp = &nd;
 
     if (!suser())
-        return (u.u_error);
+        return NULL;
     NAMEI_INIT_USER (ndp, LOOKUP, FOLLOW, fname);
     ip = namei(ndp);
     if (ip == NULL) {
         if (u.u_error == ENOENT)
-            return (ENODEV); /* needs translation */
-        return (u.u_error);
+            u.u_error = ENODEV; /* needs translation */
+        return NULL;
     }
     if ((ip->i_mode&IFMT) != IFBLK) {
         iput(ip);
-        return (ENOTBLK);
+        u.u_error = ENOTBLK;
+        return NULL;
     }
     dev = (dev_t)ip->i_rdev;
-    iput(ip);
-    if (major(dev) >= nblkdev)
-        return (ENXIO);
+    if (major(dev) >= nblkdev) {
+        iput(ip);
+        u.u_error = ENXIO;
+        return NULL;
+    }
+    IUNLOCK(ip);
     *pdev = dev;
-    return (0);
+    return ip;
 }
 
 void
@@ -94,6 +98,7 @@ smount(void)
     } *uap = (struct a *)u.u_arg;
     dev_t dev = 0;
     register struct inode *ip;
+    struct inode *device_inode;
     register struct fs *fs;
     struct  nameidata nd;
     struct  nameidata *ndp = &nd;
@@ -102,12 +107,13 @@ smount(void)
     int error = 0;
     char    mnton[MNAMELEN], mntfrom[MNAMELEN];
 
-    u.u_error = getmdev (&dev, uap->fspec);
-    if (u.u_error)
+    device_inode = getmdev(&dev, uap->fspec);
+    if (device_inode == NULL)
         return;
+    bdevlock(device_inode);
     NAMEI_INIT_USER (ndp, LOOKUP, FOLLOW, uap->freg);
     if ((ip = namei(ndp)) == NULL)
-        return;
+        goto release_device;
     if ((ip->i_mode&IFMT) != IFDIR) {
         error = ENOTDIR;
         goto    cmnout;
@@ -170,7 +176,7 @@ smount(void)
         }
         fs = mountfs (dev, uap->flags, ip);
         if (fs == 0)
-            return;
+            goto release_device;
     }
     /*
      * Lastly, both for new mounts and updates of existing mounts, update the
@@ -178,16 +184,23 @@ smount(void)
      */
 updname:
     mount_updname(fs, mnton, mntfrom, lenon, lenfrom);
-    return;
+    u.u_error = 0;
+    goto release_device;
 cmnout:
     iput(ip);
+    u.u_error = error;
+release_device:
+    error = u.u_error;
+    bdevunlock(device_inode);
+    irele(device_inode);
     u.u_error = error;
 }
 
 /*
  * Mount a filesystem on the given directory inode.
  *
- * this routine has races if running twice
+ * Runtime callers hold bdevlock() through publication or cleanup. The initial
+ * root mount runs before concurrent processes and has no device inode yet.
  */
 struct fs *
 mountfs(dev_t dev, int flags, struct inode *ip)
@@ -198,9 +211,9 @@ mountfs(dev_t dev, int flags, struct inode *ip)
     register int error;
     int ronly = flags & MNT_RDONLY;
     int needclose = 0;
+    int priority;
 
-    error = (*bdevsw[major(dev)].d_open) (dev,
-        ronly ? FREAD : (FREAD | FWRITE), S_IFBLK);
+    error = bdev_driver_open(dev, ronly ? FREAD : (FREAD | FWRITE));
     if (error)
         goto out;
 
@@ -216,14 +229,17 @@ mountfs(dev_t dev, int flags, struct inode *ip)
             goto out;
         }
     for (mp = &mount[0]; mp < &mount[NMOUNT]; mp++)
-        if (mp->m_inodp == 0)
+        if (mp->m_inodp == 0 && mp->m_device_lock == 0)
             goto found;
     mp = 0;
     error = EMFILE;     /* needs translation */
     goto out;
 found:
-    mp->m_inodp = ip;   /* reserve slot */
+    priority = splbio();
+    mp->m_write_error = bdev_write_error(dev);
     mp->m_dev = dev;
+    mp->m_inodp = ip;   /* reserve slot */
+    splx(priority);
     fs = &mp->m_filsys;
 #ifdef V7FS
     mp->m_geom = &fs_geom_table[FS_FORMAT_NATIVE];
@@ -257,7 +273,6 @@ found:
     fs->fs_nbehind = 0;
     fs->fs_lasti = 1;
     fs->fs_flags = flags;
-    mp->m_write_error = 0;
     if (ip) {
         ip->i_flag |= IMOUNT;
         cacheinval(ip);
@@ -276,7 +291,7 @@ out:
     if (needclose) {
         /* Last close only: a descriptor on dev keeps the driver open. */
         if (iflush(dev) == 0)
-            (*bdevsw[major(dev)].d_close)(dev,
+            dev_driver_close(dev,
                 ronly? FREAD : FREAD|FWRITE, S_IFBLK);
         binval(dev);
     }
@@ -306,21 +321,30 @@ unmount1(caddr_t fname)
     dev_t dev = 0;
     register struct mount *mp;
     register struct inode *ip;
+    struct inode *device_inode;
     register int error;
-    int aflag, nopen;
+    int aflag, nopen, flush_error, close_error = 0;
 
-    error = getmdev(&dev, fname);
-    if (error)
-        return (error);
+    device_inode = getmdev(&dev, fname);
+    if (device_inode == NULL)
+        return u.u_error;
+    bdevlock(device_inode);
     for (mp = &mount[0]; mp < &mount[NMOUNT]; mp++)
         if (mp->m_inodp != NULL && dev == mp->m_dev)
             goto found;
-    return (EINVAL);
+    error = EINVAL;
+    goto release_device;
 found:
+    bdev_mount_take_lock(mp, device_inode);
+    irele(device_inode);
+    device_inode = NULL;
     nchinval (dev); /* flush the name cache */
     aflag = mp->m_flags & MNT_ASYNC;
     mp->m_flags &= ~MNT_ASYNC;  /* Don't want async when unmounting */
     error = ufs_sync(mp);
+    flush_error = bdevsync(dev);
+    if (error == 0)
+        error = flush_error;
     if (error) {
         /*
          * A write error on media that is still there stays fatal. Media
@@ -331,7 +355,7 @@ found:
          */
         if (! media_gone(dev)) {
             mp->m_flags |= aflag;
-            return (error);
+            goto release_device;
         }
         mp->m_write_error = 0;
     }
@@ -339,22 +363,29 @@ found:
     nopen = iflush(dev);
     if (nopen < 0) {
         mp->m_flags |= aflag;
-        return (EBUSY);
+        error = EBUSY;
+        goto release_device;
     }
     ip = mp->m_inodp;
     ip->i_flag &= ~IMOUNT;
     irele(ip);
     mp->m_inodp = 0;
-    mp->m_dev = 0;
     /*
      * iflush() counted the open block-special inodes that name dev. A driver
      * sees only the last close, the rule closei() applies, so a descriptor
      * that is still open releases the device when it closes.
      */
     if (nopen == 0)
-        (*bdevsw[major(dev)].d_close)(dev, 0, S_IFBLK);
+        close_error = dev_driver_close(dev, 0, S_IFBLK);
     binval(dev);
-    return (0);
+    error = close_error;
+release_device:
+    if (device_inode != NULL) {
+        bdevunlock(device_inode);
+        irele(device_inode);
+    } else
+        bdev_mount_unlock(mp);
+    return error;
 }
 
 void

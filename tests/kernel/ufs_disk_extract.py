@@ -5,7 +5,7 @@ boot ROM, so neither links into a host binary whole. The gate takes the text
 of the routines it tests from the owning file, the way swap_ioctl_extract.py
 takes the temporary-swap provider:
 
-  conf   isdisk, chrtoblk, iskmemdev and blkoverlap from
+  conf   isdisk, chrtoblk, iskmemdev, blkdev_same_unit and blkoverlap from
          sys/arch/rp2040/rp2040/conf.c
   flash  the partition state (NPARTITIONS through fldrives), flopen, flclose
          and flioctl from sys/arch/rp2040/dev/flash.c
@@ -31,6 +31,7 @@ CONF_FUNCTIONS = (
     ("iskmemdev", "int\niskmemdev(dev_t dev)"),
     ("isdisk", "int\nisdisk(dev_t dev, int type)"),
     ("chrtoblk", "int\nchrtoblk(dev_t dev __unused)"),
+    ("blkdev_same_unit", "int\nblkdev_same_unit(dev_t a, dev_t b)"),
     ("blkoverlap", "int\nblkoverlap(dev_t a, dev_t b)"),
 )
 

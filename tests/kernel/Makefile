@@ -235,12 +235,18 @@ UFS_TOPOLOGY_MUTANTS=	omit-rename-acquisition \
 # each source. free() takes an inode and a block number in ufs_alloc.c and
 # would interpose on libc's, so every object compiles with the same rename.
 UFS_DISK_SOURCES=	ufs_mount ufs_fio ufs_bio ufs_inode ufs_subr ufs_bmap \
-			ufs_syscalls2 ufs_alloc sys_inode vfs_vnops
+			ufs_syscalls2 ufs_alloc sys_inode vfs_vnops kern_subr kern_descrip
 UFS_DISK_DEFS=		-DNMOUNT=2 -DNFL=2 -DSD_ENABLED -DLINEAR_INODE_CACHE \
 			-DCOMPACT_INODE_FIELDS -DLINEAR_BUFFER_CACHE \
-			-Dfree=ufs_free -Dsetjmp=ufs_disk_setjmp
+			-Dfree=ufs_free -Os \
+			-include ${.CURDIR}/ufs_disk_checkpoint.h
 UFS_DISK_CFLAGS=	-ffunction-sections -fdata-sections ${UFS_DISK_DEFS}
 UFS_DISK_FLAGS_vfs_vnops=	-Wno-clobbered
+UFS_DISK_FLAGS_sys_inode= -Dbdev_write_error=ufs_disk_error_query
+UFS_DISK_FLAGS_kern_descrip= -Dgetf=ufs_disk_getf -Dgetinode=ufs_disk_getinode \
+	-Dgetdtablesize=ufs_disk_getdtablesize -Ddup=ufs_disk_dup -Ddup2=ufs_disk_dup2 \
+	-Dclose=ufs_disk_close -Dfcntl=ufs_disk_fcntl -Dfstat=ufs_disk_fstat \
+	-Dflock=ufs_disk_flock
 UFS_DISK_OBJECTS=	${UFS_DISK_SOURCES:@s@ufs_disk_${s}.o@}
 UFS_DISK_CONF_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/conf.c
 UFS_DISK_FLASH_SRC=	${TOPSRC}/sys/arch/rp2040/dev/flash.c
@@ -248,9 +254,26 @@ UFS_DISK_FLASH_HDR=	${TOPSRC}/sys/arch/rp2040/dev/flash.h
 UFS_DISK_MOUNT_MUTANTS=	close-always mount-close-always gone-ignored \
 			gone-assumed gone-keeps-error gone-no-close \
 			gone-no-invalidate gone-inverted
+UFS_DISK_MOUNT_MUTANTS+= device-mount-lock-omitted device-mount-inheritance-omitted
+UFS_DISK_MOUNT_MUTANTS+= device-mount-guard-transfer-omitted \
+	device-node-reference-leaked device-unmount-close-error-hidden
 UFS_DISK_FIO_MUTANTS=	exact-compare
+UFS_DISK_SUBR_MUTANTS=	cooked-device-flush-omitted cooked-device-error-hidden
+UFS_DISK_EXTRA_MUTANTS= cooked-device-latch-ignored ufs_bio \
+	device-error-replica-omitted ufs_bio device-first-error-overwritten ufs_bio \
+	device-busy-drain-omitted ufs_bio device-lock-ignored ufs_bio \
+	device-inherit-omitted sys_inode device-open-count-on-failure sys_inode \
+	device-close-error-hidden sys_inode device-error-lifetime-reset-omitted sys_inode \
+	device-driver-checkpoint-lost ufs_bio \
+	device-unlock-wakeup-omitted ufs_bio device-inode-released-early vfs_vnops \
+	device-mount-guard-invisible ufs_bio
+UFS_DISK_EXTRA_MUTANTS+= device-inheritance-unmasked sys_inode \
+	device-block-admission-before-lock sys_inode \
+	device-raw-admission-before-lock sys_inode \
+	device-block-policy-raise-ignored sys_inode \
+	device-raw-policy-raise-ignored sys_inode
 UFS_DISK_CONF_MUTANTS=	ignore-unit ignore-major touching start-only \
-			whole-device-disjoint failed-query-disjoint
+			whole-device-disjoint failed-query-disjoint device-unit-guard-exact-only
 UFS_DISK_FLASH_MUTANTS=	reinit-unguarded reinit-counts-whole-device \
 			reinit-first-partition-only
 .if ${_HOST_OSNAME} == "Darwin"
@@ -2224,13 +2247,36 @@ ufs_disk_flash_functions.c: ufs_disk_extract.py ${UFS_DISK_FLASH_SRC} \
 	    --header ${UFS_DISK_FLASH_HDR} --output $@
 
 .for source in ${UFS_DISK_SOURCES}
-ufs_disk_${source}.o: ${TOPSRC}/sys/kern/${source}.c ${MACHINE_STAMP}
+ufs_disk_${source}.o: ${TOPSRC}/sys/kern/${source}.c ${MACHINE_STAMP} \
+    ${TOPSRC}/sys/sys/inode.h ${TOPSRC}/sys/sys/buf.h \
+    ${TOPSRC}/sys/sys/mount.h ufs_disk_checkpoint.h Makefile
 	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} \
 	    ${UFS_DISK_FLAGS_${source}} ${ILP32} -c -o $@ \
 	    ${TOPSRC}/sys/kern/${source}.c
 .endfor
 
-UFS_DISK_LINK=	hostkern_kern.c hostkern32.o
+ufs_disk_schedule.o: ufs_disk_schedule.c ufs_disk_schedule.h
+	${HOST_CC} -std=c17 -Wall -Wextra -Werror ${ILP32} -c -o $@ \
+	    ufs_disk_schedule.c
+
+UFS_DISK_LINK=	hostkern_kern.c hostkern32.o ufs_disk_schedule.o
+
+ufs_disk_scheduler-budget-failure-hidden.mutant.c: ufs_disk_mutate.py \
+    ufs_disk_schedule.c
+	${PYTHON} ufs_disk_mutate.py --source ufs_disk_schedule.c \
+	    --output $@ --mutation scheduler-budget-failure-hidden
+
+ufs_disk_scheduler-budget-failure-hidden.mutant.test: \
+    ufs_disk_scheduler-budget-failure-hidden.mutant.c ufs_disk_test.c \
+    ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c ufs_disk_flash_functions.c \
+    ${UFS_DISK_LINK} ufs_disk_schedule.h ufs_disk_checkpoint.h
+	${HOST_CC} -std=c17 -Wall -Wextra -Werror ${ILP32} -c -o \
+	    ufs_disk_scheduler-budget-failure-hidden.mutant.o \
+	    ufs_disk_scheduler-budget-failure-hidden.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
+	    ${UFS_DISK_OBJECTS} ufs_disk_scheduler-budget-failure-hidden.mutant.o \
+	    ${UFS_DISK_LINK:Nufs_disk_schedule.o}
 
 ufs_disk_test: ufs_disk_test.c ${UFS_DISK_OBJECTS} \
     ufs_disk_conf_functions.c ufs_disk_flash_functions.c \
@@ -2258,6 +2304,42 @@ ufs_disk_mount_${mutation}.mutant.test: ufs_disk_mount_${mutation}.mutant.c \
 	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
 	    ufs_disk_mount_${mutation}.mutant.o \
 	    ${UFS_DISK_OBJECTS:Nufs_disk_ufs_mount.o} ${UFS_DISK_LINK}
+.endfor
+
+.for mutation in ${UFS_DISK_SUBR_MUTANTS}
+ufs_disk_subr_${mutation}.mutant.c: ufs_disk_mutate.py \
+    ${TOPSRC}/sys/kern/ufs_subr.c
+	${PYTHON} ufs_disk_mutate.py --source ${TOPSRC}/sys/kern/ufs_subr.c \
+	    --output $@ --mutation ${mutation}
+
+ufs_disk_subr_${mutation}.mutant.test: ufs_disk_subr_${mutation}.mutant.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ufs_disk_flash_functions.c ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} ${ILP32} -c -o \
+	    ufs_disk_subr_${mutation}.mutant.o ufs_disk_subr_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
+	    ufs_disk_subr_${mutation}.mutant.o \
+	    ${UFS_DISK_OBJECTS:Nufs_disk_ufs_subr.o} ${UFS_DISK_LINK}
+.endfor
+
+.for mutation source in ${UFS_DISK_EXTRA_MUTANTS}
+ufs_disk_${source}_${mutation}.mutant.c: ufs_disk_mutate.py \
+    ${TOPSRC}/sys/kern/${source}.c
+	${PYTHON} ufs_disk_mutate.py --source ${TOPSRC}/sys/kern/${source}.c \
+	    --output $@ --mutation ${mutation}
+
+ufs_disk_${source}_${mutation}.mutant.test: ufs_disk_${source}_${mutation}.mutant.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ufs_disk_flash_functions.c ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} \
+	    ${UFS_DISK_FLAGS_${source}} ${ILP32} -c -o \
+	    ufs_disk_${source}_${mutation}.mutant.o ufs_disk_${source}_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
+	    ufs_disk_${source}_${mutation}.mutant.o \
+	    ${UFS_DISK_OBJECTS:Nufs_disk_${source}.o} ${UFS_DISK_LINK}
+UFS_DISK_EXTRA_TESTS+= ufs_disk_${source}_${mutation}.mutant.test
 .endfor
 
 .for mutation in ${UFS_DISK_FIO_MUTANTS}
@@ -2320,8 +2402,11 @@ ufs_disk_flash_${mutation}.mutant.test: \
 .endfor
 
 UFS_DISK_MUTANT_TESTS=	\
+    ufs_disk_scheduler-budget-failure-hidden.mutant.test \
     ${UFS_DISK_MOUNT_MUTANTS:@m@ufs_disk_mount_${m}.mutant.test@} \
     ${UFS_DISK_FIO_MUTANTS:@m@ufs_disk_fio_${m}.mutant.test@} \
+    ${UFS_DISK_SUBR_MUTANTS:@m@ufs_disk_subr_${m}.mutant.test@} \
+    ${UFS_DISK_EXTRA_TESTS} \
     ${UFS_DISK_CONF_MUTANTS:@m@ufs_disk_conf_${m}.mutant.test@} \
     ${UFS_DISK_FLASH_MUTANTS:@m@ufs_disk_flash_${m}.mutant.test@}
 

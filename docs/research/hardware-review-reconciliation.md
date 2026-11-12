@@ -221,9 +221,9 @@ instruments; items 3 to 8 each wait on the measurement named.
    `board-capacity-cases-65d7244c.txt`). `NINODE`, `NCLIST`, `NBUF` and
    `USIZE` keep their values. The in-core inode table has its exhaustion
    fixture (`tests/rp2040/capacity_exhaustion/inotab.c`) and its Renode
-   receipt (`renode-capacity-exhaustion-083b35c3.txt`); its board receipt
-   and the exhaustion and fault cases of `NCLIST`, `NBUF` and `USIZE` are
-   open.
+   receipt (`renode-capacity-exhaustion-083b35c3.txt`) and board receipt
+   (`board-capacity-exhaustion-1e986446.txt`); the exhaustion and fault
+   cases of `NCLIST`, `NBUF` and `USIZE` are open.
 10. Image identity in the reserved vector words. Landed for the kernel:
     `tools/kernsum` stamps the length and CRC32 after the link, the kernel
     recomputes the sum over its flash at boot and exports it as

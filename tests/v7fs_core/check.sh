@@ -674,6 +674,73 @@ status 0 "$tool" df "$work/full.img"
 status 1 "$tool" cat "$work/full.img" /b
 echo "v7fs_core: oversized put refused with exact free counts"
 
+# A parent at an indirect-address boundary needs index blocks as well as its
+# next data block. The capacity preflight must account for those blocks before
+# the command allocates an inode or changes persistent bytes.
+"$PYTHON" - "$topsrc/usr.sbin/v7fs/v7fs.c" \
+    "$work/v7fs-parent-under-count.c" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+old = ("\tparent_size = v7fs_inode_filesize(&parent);\n"
+       "\tneeded += blocks_for(parent_size + sizeof(struct v7fs_dirent)) -\n"
+       "\t    blocks_for(parent_size);")
+new = ("\tparent_size = v7fs_inode_filesize(&parent);\n"
+       "\tif (parent_size % V7FS_BSIZE == 0)\n"
+       "\t\tneeded++;")
+if source.count(old) != 1:
+    raise SystemExit("parent capacity mutation anchor count")
+Path(sys.argv[2]).write_text(source.replace(old, new), encoding="utf-8")
+PY
+compile -D_DEFAULT_SOURCE -DSTATIC_BUFFER \
+    -include "$compat/netbsd_compat.h" -I"$compat/compat" \
+    -I"$compat" -isystem "$v7fs" -isystem "$newfs" \
+    -c "$work/v7fs-parent-under-count.c" \
+    -o "$work/v7fs-parent-under-count.o" ||
+    fail "parent capacity mutant compilation"
+set --
+for object in "$topsrc/usr.sbin/v7fs/host.obj/"*.o; do
+	[ "$(basename "$object")" = v7fs.o ] || set -- "$@" "$object"
+done
+${CC:-cc} -fsanitize=address,undefined -o "$work/v7fs-parent-under-count" \
+    "$@" "$work/v7fs-parent-under-count.o" ||
+    fail "parent capacity mutant link"
+for blocks in 10 138; do
+	case "$blocks" in
+	10)	expected_free=2028; payload_blocks=2010 ;;
+	138)	expected_free=1899; payload_blocks=1882 ;;
+	esac
+	dd if=/dev/zero of="$work/pat/parent-$blocks" bs=512 \
+	    count="$payload_blocks" 2>/dev/null
+	for order in little pdp; do
+		flag=
+		[ "$order" = pdp ] && flag=-p
+		img=$work/parent-$blocks-$order.img
+		"$work/v7fs_core" "$img" "$order" parent "$blocks" ||
+		    fail "parent boundary fixture ($blocks, $order)"
+		# shellcheck disable=SC2086  # $flag is empty or one word.
+		status 0 "$tool" $flag df "$img"
+		[ "$(awk '{print $6}' "$work/cmd.out")" -eq "$expected_free" ] ||
+		    fail "parent boundary free count ($blocks, $order)"
+		cp "$img" "$work/parent-$blocks-$order.ref"
+		# shellcheck disable=SC2086  # $flag is empty or one word.
+		status 1 "$tool" $flag put "$img" "$work/pat/parent-$blocks" /boundary
+		cmp -s "$img" "$work/parent-$blocks-$order.ref" ||
+		    fail "parent capacity refusal changed the image ($blocks, $order)"
+		cp "$work/parent-$blocks-$order.ref" \
+		    "$work/parent-$blocks-$order-mutant.img"
+		# shellcheck disable=SC2086  # $flag is empty or one word.
+		status 1 "$work/v7fs-parent-under-count" $flag put \
+		    "$work/parent-$blocks-$order-mutant.img" \
+		    "$work/pat/parent-$blocks" /boundary
+		cmp -s "$work/parent-$blocks-$order-mutant.img" \
+		    "$work/parent-$blocks-$order.ref" &&
+		    fail "parent capacity under-count mutant survived ($blocks, $order)"
+	done
+done
+echo "v7fs_core: parent capacity includes direct and indirect growth"
+
 # get truncates nothing it should not: a directory source, the image as
 # its own destination, and a hard link to the image are refused, and each
 # destination keeps its bytes.

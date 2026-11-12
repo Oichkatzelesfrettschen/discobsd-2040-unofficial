@@ -29,9 +29,10 @@
  *
  * Two further modes let check.sh drive usr.sbin/v7fs through the same
  * checks: "v7fs_core_test DIR - patterns" writes the three files (hello, big,
- * inner) into DIR, and "v7fs_core_test IMAGE ORDER verify" skips formatting
- * and writing and checks an image that already holds /hello, /big and
- * /sub/inner.
+ * inner) into DIR, "v7fs_core_test IMAGE ORDER verify" skips formatting and
+ * writing and checks an image that already holds /hello, /big and /sub/inner,
+ * and "v7fs_core_test IMAGE ORDER parent BLOCKS" creates a root directory at
+ * an indirect-address boundary for the command-line capacity checks.
  *
  * Exit status: 0 when every check holds, 1 when a check fails (each
  * failure prints "FAIL <label>: ..."), 2 when the environment fails.
@@ -43,6 +44,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -605,6 +607,84 @@ format_image(int fd, int32_t files, uint8_t fill)
 	device.sectors = SECTORS;
 	device.endian = byte_order;
 	return v7fs_newfs(&device, files);
+}
+
+struct directory_fill {
+	unsigned slot;
+	v7fs_ino_t target;
+};
+
+static int
+fill_directory_block(struct v7fs_self *fs, void *context,
+    v7fs_daddr_t block, size_t length)
+{
+	struct directory_fill *fill = context;
+	uint8_t buffer[V7FS_BSIZE];
+	uint16_t disk_inode;
+	unsigned slot;
+	char *name;
+
+	if (length != sizeof(buffer))
+		return V7FS_ITERATOR_ERROR;
+	memset(buffer, 0, sizeof(buffer));
+	for (slot = 0; slot < V7FS_BSIZE / sizeof(struct v7fs_dirent);
+	    slot++, fill->slot++) {
+		disk_inode = V7FS_VAL16(fs, fill->slot < 2 ?
+		    V7FS_ROOT_INODE : fill->target);
+		memcpy(buffer + slot * sizeof(struct v7fs_dirent), &disk_inode,
+		    sizeof(disk_inode));
+		name = (char *)(buffer + slot * sizeof(struct v7fs_dirent) +
+		    sizeof(disk_inode));
+		if (fill->slot < 2)
+			strcpy(name, fill->slot == 0 ? "." : "..");
+		else if (fill->slot == 2)
+			strcpy(name, "seed");
+		else
+			(void)snprintf(name, V7FS_NAME_MAX, "f%06u", fill->slot);
+	}
+	return fs->io.write(fs->io.cookie, buffer, block) ? 0 :
+	    V7FS_ITERATOR_ERROR;
+}
+
+static int
+write_parent_fixture(int fd, unsigned blocks)
+{
+	struct v7fs_self *fs;
+	struct v7fs_inode parent, target;
+	struct directory_fill fill;
+	v7fs_ino_t target_number;
+	int error;
+
+	if (blocks == 0 || blocks > 138)
+		return EINVAL;
+	if ((error = format_image(fd, 64, 0)) != 0)
+		return error;
+	if ((fs = mount_image(fd)) == NULL)
+		return EIO;
+	error = make_node(fs, V7FS_ROOT_INODE, "seed", V7FS_IFREG | 0644,
+	    NULL, 0, &target_number);
+	if (error == 0)
+		error = v7fs_inode_load(fs, &parent, V7FS_ROOT_INODE);
+	if (error == 0)
+		error = v7fs_inode_load(fs, &target, target_number);
+	if (error == 0)
+		error = v7fs_datablock_expand(fs, &parent,
+		    (size_t)blocks * V7FS_BSIZE - parent.filesize);
+	fill.slot = 0;
+	fill.target = target_number;
+	if (error == 0 && v7fs_datablock_foreach(fs, &parent,
+	    fill_directory_block, &fill) != V7FS_ITERATOR_END)
+		error = EIO;
+	if (error == 0) {
+		target.nlink = (int16_t)(fill.slot - 2);
+		error = v7fs_inode_writeback(fs, &target);
+	}
+	if (error == 0)
+		error = v7fs_inode_writeback(fs, &parent);
+	if (error == 0)
+		error = v7fs_superblock_writeback(fs);
+	v7fs_io_fini(fs);
+	return error;
 }
 
 static int
@@ -2046,6 +2126,8 @@ main(int argc, char **argv)
 	struct v7fs_self *fs;
 	struct v7fs_inode root;
 	v7fs_ino_t inos[4];
+	char *end;
+	unsigned long parent_blocks;
 	int fd, error, verify;
 
 	fill_patterns();
@@ -2068,10 +2150,28 @@ main(int argc, char **argv)
 		printf("v7fs_core: regression scenarios hold\n");
 		return 0;
 	}
+	if (argc == 5 && strcmp(argv[3], "parent") == 0 &&
+	    (strcmp(argv[2], "little") == 0 || strcmp(argv[2], "pdp") == 0)) {
+		errno = 0;
+		parent_blocks = strtoul(argv[4], &end, 10);
+		if (errno != 0 || *end != '\0' || parent_blocks > UINT_MAX)
+			return 2;
+		byte_order = strcmp(argv[2], "pdp") == 0 ?
+		    PDP_ENDIAN : LITTLE_ENDIAN;
+		if ((fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0600)) == -1) {
+			perror(argv[1]);
+			return 2;
+		}
+		error = write_parent_fixture(fd, (unsigned)parent_blocks);
+		if (close(fd) != 0 && error == 0)
+			error = errno;
+		return error == 0 ? 0 : 1;
+	}
 	if ((argc != 3 && !verify) || (strcmp(argv[2], "little") != 0 &&
 	    strcmp(argv[2], "pdp") != 0)) {
 		fprintf(stderr, "usage: v7fs_core_test IMAGE little|pdp [verify]\n"
 		    "       v7fs_core_test IMAGE little regress\n"
+		    "       v7fs_core_test IMAGE little|pdp parent BLOCKS\n"
 		    "       v7fs_core_test DIR - patterns\n");
 		return 2;
 	}

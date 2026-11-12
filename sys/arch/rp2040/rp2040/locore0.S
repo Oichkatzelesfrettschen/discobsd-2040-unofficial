@@ -227,7 +227,7 @@ InfiniteLoop:
  * and UsageFault entries nor DebugMon, so those slots stay reserved.
  * Entries 8, 9 and 10 identify the flash image: tools/kernsum stamps its
  * length and CRC32 into 8 and 9 after the link, and 10 addresses the board
- * descriptor that sum leaves out. image_identify() in machdep.c reads them.
+ * descriptor that sum leaves out. image_identify() in board.c reads them.
  */
 	.section	.isr_vector, "a", %progbits
 	.type	g_pfnVectors, %object

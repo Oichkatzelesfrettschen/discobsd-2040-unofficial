@@ -204,7 +204,7 @@ ${SYSTEM_OBJ} swapunix.o: ${PARAMSTAMP}
 # group reaches <machine/types.h> on -I. before ln -s has created machine, and
 # the compile stops at that include. Delaying the ln -s by one second turns
 # the gap into a failure on every run, which is how the barrier was measured.
-SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
+SYSTEM_DEP=	Makefile ioconf.c ${KERNSUM} .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
 		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
 # The link is one recipe of three lines, and each line is one && chain, so
 # the status a step returns is the status of the line and a failed step
@@ -219,7 +219,9 @@ SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
 #
 # kernsum stamps the image length and CRC32 into the linked kernel before
 # any image is derived from it, so unix.elf, unix.bin, unix.hex and
-# unix.uf2 carry the same identity words (tools/kernsum/kernsum.c).
+# unix.uf2 carry the same identity words (tools/kernsum/kernsum.c). The sum
+# reads the alignment gaps between sections as zero, the bytes unix.bin and
+# unix.uf2 hold there, so the hex image fills them with zero as well.
 #
 # picotool is the one optional tool, with three outcomes that the recipe
 # keeps apart: absent, which "all" reports and tolerates because a host
@@ -236,7 +238,7 @@ SYSTEM_LD_HEAD=	rm -f $@ $@.elf $@.hex $@.bin $@.dis $@.uf2 vers.o vers.su && \
 SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
 SYSTEM_LD_TAIL=	${SIZE} $@ && ${KERNSUM} $@ && cp $@ $@.elf && \
-		${OBJCOPY} -O ihex $@ $@.hex.tmp && mv $@.hex.tmp $@.hex && \
+		${OBJCOPY} --gap-fill=0 -O ihex $@ $@.hex.tmp && mv $@.hex.tmp $@.hex && \
 		${OBJCOPY} -O binary $@ $@.bin.tmp && mv $@.bin.tmp $@.bin && \
 		${OBJDUMP} -d -S $@ > $@.dis.tmp && mv $@.dis.tmp $@.dis && \
 		if command -v ${PICOTOOL} >/dev/null 2>&1; then \

@@ -57,7 +57,7 @@ linked kernel. Each row names the claim it replaces.
 | MPU | eight regions, 256-byte minimum, power-of-two size with base aligned to size, eight subregions on a region of 256 bytes or more; the port programs four and never reprograms them | `MPU.md`; `mpu.c` | 32-byte region at 0xd0000078; 4-byte guard; "256 subregions" |
 | Alias and MPU | no region covers 0x21000000-0x2103ffff, so an unprivileged access there faults by non-coverage; a region granting user read-write over it would open kernel RAM | `MPU.md`; `mpu.c` | "aliases are unprotected; add AP_RW regions" |
 | boot2 | 252 bytes of code and a CRC32 at offset 0xfc; the boot ROM checks it before running boot2 from 0x20041f00 | `BOOT-MAP.md`; `tools/boot2sum` | CRC at 0xf8; metadata in the trailer |
-| Vector table | 48 words at 0x10000100; nine system slots are reserved on ARMv6-M and hold zero; PICO installs real handlers for USBCTRL, UART0 and UART1 and `Default_Handler` elsewhere | `locore0.S` | 1 KB table |
+| Vector table | 48 words at 0x10000100; nine system slots are reserved on ARMv6-M; six hold zero and three hold the image identity words; PICO installs real handlers for USBCTRL, UART0 and UART1 and `Default_Handler` elsewhere | `locore0.S` | 1 KB table |
 | DMA | 12 channels; the kernel uses none | datasheet 2.5; source search | 8 channels; a `dma.c` to tune |
 | Flash geometry | 2 MB is 512 erase sectors of 4,096 bytes and 8,192 program pages of 256 bytes; the Dhara root's 1,536 KB yields 989 KB of logical blocks | `STORAGE.md`; `dhara-geometry.txt` | 4,096 sectors; "12 KB Dhara overhead" |
 | Flash clock | boot2 sets the serial clock divider to 2, 62.5 MHz at the 125 MHz system clock | `boot2_w25q080.S` | not stated |

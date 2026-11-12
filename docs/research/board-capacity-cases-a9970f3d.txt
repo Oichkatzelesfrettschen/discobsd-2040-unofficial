@@ -1,0 +1,78 @@
+Board run of three capacity cases: SwapRAM evacuation, signal frame, storage pressure
+
+source revision: a9970f3db245a81235682ef673cfbcb35076881d
+command: DISCOBSD_BOARD_CAPACITY_CASES=run $PYTHON tests/rp2040/capacity_cases/board_capacity_cases.py LOG unix.uf2,flash.uf2
+board: Raspberry Pi Pico (RP2040), PICO kernel, USB CDC-ACM console
+kernel: sys/arch/rp2040/compile/PICO/unix.uf2 sha256 9dcd46e2f2240d1cf396dc40c980b923dd17799df12521f70391cc4a557da384
+root: distrib/rp2040/flash.uf2 sha256 30fb34c34f2d94f33e18164120e9de8aa7ec67bf5875e30345ca662085481e74
+limits: NPROC 25, NINODE 24, NFILE 24, NCLIST 32, NBUF 4, USIZE 3072
+date: 2026-11-11
+evidence class: board; the driver's output follows, with the flasher's progress lines removed
+
+discobsd-flash: rebooting the kernel into BOOTSEL
+discobsd-flash: loading sys/arch/rp2040/compile/PICO/unix.uf2
+discobsd-flash: loading distrib/rp2040/flash.uf2
+discobsd-flash: rebooting into the kernel
+PASS a root shell answers
+DiscoBSD/rp2040 root built 2026-11-12T00:27:59Z from host-v1.0.7-1661-ga9970f3d on Linux
+kern.capacity=version 1 size 100
+proc limit 25 current 6 peak 6 min-free 19 failures 0 slot-bytes 136
+inode limit 24 current 9 peak 11 min-free 13 failures 0 slot-bytes 84
+file limit 24 current 3 peak 7 min-free 17 failures 0 slot-bytes 24
+clist limit 32 current 0 peak 8 min-free 24 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 3 min-free 1 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1752 min-free 296 saturated 0
+df before: 979 747 232
+stage evactest   7300 bytes cksum match
+PASS staged evactest
+stage sigtest    7024 bytes cksum match
+PASS staged sigtest
+pool images before: 2
+evacuation result: 2 (2 done, 3 no flash), pool images after: 0
+child 3: 0 bad bytes, 0 bad dispositions
+child 2: 0 bad bytes, 0 bad dispositions
+child 1: 0 bad bytes, 0 bad dispositions
+child 0: 0 bad bytes, 0 bad dispositions
+EVACTEST OK
+rc=0
+PASS evactest, first run: patterns survive evacuation to flash
+pool images before: 2
+evacuation result: 2 (2 done, 3 no flash), pool images after: 0
+child 1: 0 bad bytes, 0 bad dispositions
+child 0: 0 bad bytes, 0 bad dispositions
+child 3: 0 bad bytes, 0 bad dispositions
+child 2: 0 bad bytes, 0 bad dispositions
+EVACTEST OK
+rc=0
+PASS evactest, second run: patterns survive evacuation to flash
+PASS shell answers after evactest
+pause returns -1             ok (0xffffffff 0)
+errno is EINTR               ok (0x4 0x4)
+handler ran                  ok (0xe 0xe)
+mask preserved               ok (0 0)
+handler sp 8-aligned         ok (0x2002fe60 0)
+sc_psr is Thumb              ok (0x61000000 0)
+sc_sp above handler sp       ok (0x2002fea8 0x2002fe60)
+sc_pc in text                ok (0x20000406 0x20000199)
+r7 survives signal           ok (0x5a5a1234 0x5a5a1234)
+SIGTEST OK
+rc=0
+PASS sigtest: frame, mask, EINTR and registers
+PASS kern.capacity snapshot after sigtest
+PASS parallel tar equals its reference (cksum 2990397762 26624, 2990397762 26624)
+PASS parallel find equals its reference (cksum 4043643953 1577, 4043643953 1577)
+PASS parallel du equals its reference (cksum 868713962 17, 868713962 17)
+kern.capacity=version 1 size 100
+proc limit 25 current 6 peak 10 min-free 15 failures 0 slot-bytes 136
+inode limit 24 current 9 peak 19 min-free 5 failures 0 slot-bytes 84
+file limit 24 current 3 peak 15 min-free 9 failures 0 slot-bytes 24
+clist limit 32 current 0 peak 17 min-free 15 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 3 min-free 1 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1768 min-free 280 saturated 0
+PASS the workload adds no capacity failure ({'proc': 0, 'inode': 0, 'file': 0, 'clist': 0, 'buffer': 0} then {'proc': 0, 'inode': 0, 'file': 0, 'clist': 0, 'buffer': 0})
+PASS a root shell answers after the reboot
+boot fsck: /dev/fl0a: 96 files, 746 used, 233 free
+PASS the boot's fsck -p reports a clean root and the boot goes on
+PASS df reports the free space it reported before (979 747 232 then 979 747 232)
+PASS final command answers
+16 of 16 checks passed

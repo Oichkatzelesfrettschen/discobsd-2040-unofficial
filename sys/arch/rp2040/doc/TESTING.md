@@ -2037,6 +2037,19 @@ holds the largest grantable flash swap extent on `/dev/temp0` to `temp2`,
 requires fork to refuse with ENOMEM and the shell to keep answering, releases
 the extents, and requires a successful fork whose child sees the parent's
 bytes. It opens no port unless `DISCOBSD_BOARD_USER_WINDOW` is exactly `run`.
+An eighth, tests/rp2040/capacity_cases/board_capacity_cases.py, runs the
+board cases `swapram-evacuation`, `signal-frame-recovery` and
+`buffer-cache-board-pressure` of `tests/rp2040/capacity-corpus.json`. It
+stages `evactest` and `sigtest`, runs the evacuation twice and requires an
+image in the compressed pool before each request, the result "done" and four
+children with no bad data byte, stack byte or signal disposition, the pattern
+each child keeps in the u area. It requires `SIGTEST OK` with no failed check,
+then runs `tar` of /etc, `find` and `du` over /usr and /etc one after the
+other and all at once, requires equal `cksum` values after a `sync` and an
+unchanged failure count on every `kern.capacity` row, reboots, and requires
+the boot's `fsck -p` summary with no repair line, the starting `df` values
+and an answering shell. It opens no port unless
+`DISCOBSD_BOARD_CAPACITY_CASES` is exactly `run`.
 A seventh, tests/rp2040/capacity_exhaustion/board_capacity_exhaustion.py,
 stages `filetab` and `proctab` with the routines of board_user_window.py and
 runs the board cases `system-file-table-exhaustion` and

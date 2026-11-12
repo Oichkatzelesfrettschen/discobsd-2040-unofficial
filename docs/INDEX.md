@@ -74,6 +74,7 @@ artifact points at.
 | `menu-shell.md` | the Rockbox-shaped menu shell and its line editing | `bin/sh/edit.c` |
 | `posix-tools.md` | what `textbox` carries, from sbase | `sbin/textbox/`, `distrib/rp2040/mi.rp2040` |
 | `rockbox-ui.md` | Rockbox measured as a UI source for this board | `usr.bin/menu/` |
+| `string-header-visibility.md` | string declaration selectors, edition boundaries and compiler/native-input evidence | `check-string-header-contracts`, `include/_featuretest.h` |
 | `sh-posix-audit.md` | the POSIX ledger for `bin/sh`, row by row | `bin/sh/tests/posix-sh.sh` tests its rows; its xfail cases pin the open items |
 | `utilbox.md` | what `utilbox` and `adminbox` carry | `sbin/utilbox/`, `sbin/adminbox/` |
 | `v7-tools.md` | the V6/V7 disk images, their licenses, and two ports | `sbin/textbox/Makefile`, `legacy/pdp11-v6/distrib/rp2040/mi.rp2040` |

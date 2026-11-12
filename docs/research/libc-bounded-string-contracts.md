@@ -5,8 +5,8 @@ separate archive members. The public declarations select POSIX 2008 or later,
 the corresponding XSI level, or the default BSD namespace. These interfaces
 extend the POSIX profile; ISO C17 alone does not require them. The definitions
 compile as strict C17 and production GNU17. The matched resource comparison
-measures 692 additional native archive bytes; exception review, aggregate
-qualification and integration remain open.
+measures 692 additional native archive bytes; the owner approves that exact
+exception. Aggregate qualification and integration remain open.
 
 ## Requirements and mechanism
 
@@ -69,6 +69,17 @@ place source and destination ends against inaccessible memory.
 `bounded_string.py` requires seven mutated definitions to compile and then fail
 the behavioral assertion: scan extent, duplicate terminator, allocation extent,
 both returned pointers, padding byte and allocation overflow admission.
+
+The host harness includes system headers before replacing function names.
+Fortified headers can redefine a command-line rename as a function-like macro;
+the macOS SDK expands `stpcpy` into `__builtin___stpcpy_chk` at a function
+definition and rejects compilation. A generated namespace header undefines
+those macros after system-header inclusion, declares the renamed interfaces,
+and leaves production sources unchanged. An injected-header control replaces
+all four names: early renames must fail compilation with the control's named
+diagnostic, while post-header renames must pass the behavioral matrix. The
+injection calibrates namespace ordering; hosted macOS CI separately validates
+the actual SDK.
 
 ```sh
 : "${PYTHON:?set PYTHON to the intended interpreter}"

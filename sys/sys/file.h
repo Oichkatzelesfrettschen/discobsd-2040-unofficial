@@ -4,6 +4,7 @@
  * specifies the terms and conditions for redistribution.
  */
 #include <sys/fcntl.h>
+#include <sys/stdint.h>
 
 #ifndef _SYS_FILE_H_
 #define _SYS_FILE_H_
@@ -11,12 +12,18 @@
 /*
  * Descriptor table entry.
  * One for each kernel object.
+ *
+ * The fields carry their true widths.  f_count is bounded by the
+ * descriptors of every process (NPROC * NOFILE) and closef() decrements it
+ * only from a value above one, so it stays within 16 bits and never goes
+ * below zero; f_type holds a DTYPE_* value; f_flag keeps all 32 bits of the
+ * open and lock flags.  kern_descrip.c asserts the ILP32 size.
  */
 struct  file {
-    int     f_flag;         /* see below */
-    int     f_type;         /* descriptor type */
-    u_int   f_count;        /* reference count */
-    int     f_msgcount;     /* references from message queue */
+    int32_t     f_flag;         /* see below */
+    uint16_t    f_count;        /* reference count */
+    uint8_t     f_type;         /* descriptor type */
+    uint8_t     f_msgcount;     /* references from message queue */
     union {
         caddr_t f_Data;
         struct socket *f_Socket;

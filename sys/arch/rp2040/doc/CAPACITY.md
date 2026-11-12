@@ -119,9 +119,9 @@ The retained configuration reports these per-slot costs:
 
 | resource | bytes per slot |
 | --- | ---: |
-| process | 136: `struct proc` plus the SwapRAM `sr_tab` and `sr_seg` rows |
+| process | 132: the 100-byte `struct proc` plus the SwapRAM `sr_tab` and `sr_seg` rows |
 | inode | 84 |
-| file | 24 |
+| file | 16 |
 | clist | 32 |
 | buffer | approximately 1,060: `struct buf` plus one 1 KiB data block |
 
@@ -248,6 +248,9 @@ above the workload peak of 10 processes and 3 above the peak of 15 files.
 The PICO kernel's bss fell from 44,760 to 43,416 bytes, 1,344 bytes of
 kernel RAM; the process table is 1,664 bytes, the file table 432, and the
 SwapRAM entry and segment tables that scale with `NPROC` are 384 and 136.
+Giving the fields of `struct proc` and `struct file` their true widths later
+shrank those slots to 100 and 16 bytes, so the process table is 1,600 bytes and
+the file table 288 at the same limits.
 Three runs on 2026-11-11 at `65d7244c` repeat the cases at the reduced
 limits. On the Pico, `proctab` forked 10 children from 6 occupied slots
 before EAGAIN and `filetab` filled 18 file slots with two holders and the

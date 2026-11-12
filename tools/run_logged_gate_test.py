@@ -42,6 +42,16 @@ def setUpModule():
         os.environ.pop(name, None)
 
 
+# A fixture child publishes its process group for a waiter that polls for the
+# marker file.  write_text() creates the file before it writes, so the waiter
+# can see an empty marker; the child writes beside it and renames instead.
+GROUP_MARKER_WRITE = (
+    "pathlib.Path(sys.argv[{index}] + '.tmp').write_text("
+    "str(os.getpgrp()), encoding='ascii'); "
+    "os.replace(sys.argv[{index}] + '.tmp', sys.argv[{index}]); "
+)
+
+
 class LoggedGateTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-logged-gate-")
@@ -829,8 +839,7 @@ class LoggedGateTest(unittest.TestCase):
         leaf_group_path = self.directory / "leaf-group"
         leaf_program = (
             "import os, pathlib, sys, time; "
-            "pathlib.Path(sys.argv[1]).write_text(str(os.getpgrp()), "
-            "encoding='ascii'); time.sleep(60)"
+            + GROUP_MARKER_WRITE.format(index=1) + "time.sleep(60)"
         )
         parent_program = (
             "import os, pathlib, signal, subprocess, sys, time; "
@@ -904,8 +913,7 @@ class LoggedGateTest(unittest.TestCase):
         leaf_group_path = self.directory / "distinct-leaf-group"
         leaf_program = (
             "import os, pathlib, sys, time; "
-            "pathlib.Path(sys.argv[1]).write_text(str(os.getpgrp()), "
-            "encoding='ascii'); time.sleep(60)"
+            + GROUP_MARKER_WRITE.format(index=1) + "time.sleep(60)"
         )
         parent_program = (
             "import json, os, pathlib, signal, subprocess, sys, time; "
@@ -961,12 +969,11 @@ class LoggedGateTest(unittest.TestCase):
         leaf_group_file = self.directory / "chain-leaf-group"
         leaf_program = (
             "import os, pathlib, sys, time; "
-            "pathlib.Path(sys.argv[1]).write_text(str(os.getpgrp()), "
-            "encoding='ascii'); time.sleep(60)"
+            + GROUP_MARKER_WRITE.format(index=1) + "time.sleep(60)"
         )
         middle_program = (
             "import os, pathlib, subprocess, sys, time; "
-            "pathlib.Path(sys.argv[5]).write_text(str(os.getpgrp()), encoding='ascii'); "
+            + GROUP_MARKER_WRITE.format(index=5) +
             "subprocess.Popen([sys.executable, sys.argv[1], '--label', 'chain-leaf', "
             "'--log', sys.argv[2], '--status', sys.argv[3], '--execution-lock', "
             "sys.argv[4], '--idle-timeout-seconds', '10', '--timeout-seconds', '15', "

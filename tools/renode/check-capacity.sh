@@ -1,10 +1,11 @@
 #!/bin/sh
 # Run the Renode table-exhaustion gate, or say exactly what is missing and stop.
 #
-# The gate adds tests/rp2040/capacity_exhaustion/filetab and proctab to a
-# copy of the root disk image under /tmp, wraps the copy as a flash region
-# image the way the flash target does, boots the UART0-console kernel on it
-# under Renode and runs both programs from a root shell (check-capacity.py).
+# The gate adds tests/rp2040/capacity_exhaustion/filetab, inotab and proctab
+# to a copy of the root disk image under /tmp, wraps the copy as a flash
+# region image the way the flash target does, boots the UART0-console kernel
+# on it under Renode and runs the three programs from a root shell
+# (check-capacity.py).
 # The shipped images are read and never written: the programs are regression
 # tools outside the root manifest, and the composed image lives under
 # tools/renode/vendor/results/capacity, which git ignores.
@@ -50,7 +51,7 @@ command -v renode >/dev/null 2>&1 ||
 	missing "no $DISK; run bmake MACHINE=rp2040 fs"
 [ -x "$FSUTIL" ] && [ -x "$FLASHIMG" ] ||
 	missing "no fsutil or flashimg under tools/bin/rp2040; run bmake MACHINE=rp2040 tools"
-for program in filetab proctab; do
+for program in filetab inotab proctab; do
 	[ -r "$FIXTURES/$program" ] ||
 		missing "no $FIXTURES/$program; run bmake -C tests/rp2040/capacity_exhaustion MACHINE=rp2040"
 done
@@ -62,15 +63,15 @@ echo "check-capacity: Renode ${RUNNING_RENODE:-unknown}"
 # file under the name it is given, relative to the working directory.
 mkdir -p "$OUTPUT"
 STAGE=$(mktemp -d "$OUTPUT/stage.XXXXXX")
-trap 'rm -f "$STAGE/tmp/filetab" "$STAGE/tmp/proctab"
+trap 'rm -f "$STAGE/tmp/filetab" "$STAGE/tmp/inotab" "$STAGE/tmp/proctab"
 rmdir "$STAGE/tmp" "$STAGE" 2>/dev/null || :' EXIT HUP INT TERM
 mkdir "$STAGE/tmp"
-for program in filetab proctab; do
+for program in filetab inotab proctab; do
 	cp "$FIXTURES/$program" "$STAGE/tmp/$program"
 	chmod 755 "$STAGE/tmp/$program"
 done
 cp "$DISK" "$OUTPUT/disk.img"
-(cd "$STAGE" && "$FSUTIL" --add --partition=1 "$OUTPUT/disk.img" tmp/filetab tmp/proctab)
+(cd "$STAGE" && "$FSUTIL" --add --partition=1 "$OUTPUT/disk.img" tmp/filetab tmp/inotab tmp/proctab)
 "$FSUTIL" --check --partition=1 "$OUTPUT/disk.img" >"$OUTPUT/fsck.txt" 2>&1 ||
 	missing "the composed image fails fsutil --check; see $OUTPUT/fsck.txt"
 "$FLASHIMG" "$OUTPUT/disk.img" "$OUTPUT/flash.bin" >"$OUTPUT/flashimg.txt"

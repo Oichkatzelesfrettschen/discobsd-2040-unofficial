@@ -1942,28 +1942,31 @@ no receipt.
 ## Renode table exhaustion tier
 
 `check-renode-capacity` builds tests/rp2040/capacity_exhaustion and runs
-tools/renode/check-capacity.sh, which adds `filetab` and `proctab` under
-/tmp to a copy of the root disk image (`fsutil --add`), checks the copy,
+tools/renode/check-capacity.sh, which adds `filetab`, `inotab` and `proctab`
+under /tmp to a copy of the root disk image (`fsutil --add`), checks the copy,
 wraps it with `flashimg` and boots the PICO_UART kernel on it through the
 machine, console and virtual-time slicing of the UART0 tier. The shipped
 images are read and never written, and the programs stay outside the root
 manifest. tools/renode/check-capacity.py reaches a root shell, reads
-`kern.capacity`, runs both programs and reads `kern.capacity` again. It
-requires `FILETABTEST OK` and `PROCTABTEST OK`, exit status 0 and no `FAIL`
-line from either, a process and a file row that each record a peak equal
-to the limit, a minimum free count of zero and a failure count above the
-starting one, and a process occupancy equal to its starting value. A
-`PROCTABTEST INCONCLUSIVE` verdict, swap exhausted before the table, fails
-the gate.
+`kern.capacity`, runs the three programs and reads `kern.capacity` again.
+It requires `FILETABTEST OK`, `INOTABTEST OK` and `PROCTABTEST OK`, exit
+status 0 and no `FAIL` line from any, a process, an inode and a file row
+that each record a peak equal to the limit, a minimum free count of zero
+and a failure count above the starting one, and a process occupancy equal
+to its starting value. A `PROCTABTEST INCONCLUSIVE` verdict, swap exhausted
+before the table, fails the gate, as does `INOTABTEST INCONCLUSIVE`, too
+few free process or file slots for the holders.
 
 The claim is the emulated kernel's table accounting, errno attribution and
-recovery at the configured `NPROC` and `NFILE`; it is the Renode class of
-the process-table and file-table exhaustion cases in
+recovery at the configured `NPROC`, `NINODE` and `NFILE`; it is the Renode
+class of the process-table, inode-table and file-table exhaustion cases in
 tests/rp2040/capacity-corpus.json, and the board class is
 tests/rp2040/capacity_exhaustion/board_capacity_exhaustion.py. The gate
 leaves the warning-class ceilings to `check-renode`, whose shorter run they
-were measured on. An image without the two programs fails the gate at the
-first verdict line, which is the calibration of its reject path. The
+were measured on. An image without the programs fails the gate at the
+first verdict line, which is the calibration of its reject path, and a
+kernel whose `iget()` drops the inode failure note fails it on the inode
+counter. The
 composed image, the UART0 transcript and the Renode log stay under
 tools/renode/vendor/results/capacity.
 

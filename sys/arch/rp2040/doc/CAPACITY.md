@@ -177,8 +177,9 @@ attribution, not allocator exhaustion. Separate host, Renode and board cases
 own their declared exhaustion obligations. The fixture does not establish
 workload peaks or silicon headroom.
 
-The board cases `process-table-exhaustion` and `system-file-table-exhaustion`
-name `tests/rp2040/capacity_exhaustion/proctab.c` and `filetab.c`.
+The board cases `process-table-exhaustion`, `system-file-table-exhaustion`
+and `incore-inode-exhaustion` name
+`tests/rp2040/capacity_exhaustion/proctab.c`, `filetab.c` and `inotab.c`.
 `fork1()` refuses with EAGAIN and notes one process failure only when
 `freeproc` is empty, or for a non-root caller at `MAXUPRC` or the last slot;
 `proctab` therefore runs as root. `newproc()` refuses with ENOMEM and notes
@@ -191,6 +192,19 @@ unchanged, then reaches ENFILE through holder processes that each stay far below
 `NOFILE`. Because `NOFILE` exceeds `NFILE` here, one process could fill the
 file table alone; the holders keep the refusal attributable to the table and
 keep the fixture valid when the limits change.
+
+`iget()` takes a slot for a new identity from the free list, which holds
+the slots whose reference count is zero, and with that list empty notes one
+inode failure and fails with ENFILE, the errno of a full file table. A
+process references an inode without a file slot through its working
+directory, so each holder of `inotab` changes into its own directory and
+opens one file there: two references for one file slot. With the table
+full, an `open` and a `stat` of two further files must both fail with
+ENFILE while the inode counter alone moves and file slots remain free;
+`stat` takes no file slot at all. Every path is relative to the working
+directory, so no lookup needs a slot for an intermediate directory.
+`inotab` ends as inconclusive when the free process or file slots cannot
+carry enough holders.
 
 Each child of `proctab` copies the parent image to swap. `swap_image_span()`
 in `sys/kern/vm_swap.c` charges the data past the clean text, the stack and
@@ -261,6 +275,17 @@ released (`docs/research/board-capacity-exhaustion-65d7244c.txt`).
 signal-frame and storage-pressure driver passed its 16 checks on the same
 boot with no failure beyond the four the exhaustion run left
 (`docs/research/board-capacity-cases-65d7244c.txt`).
+
+One Renode run on 2026-11-12 at `083b35c3` reached the in-core inode table
+at `NINODE=24` on the emulated PICO_UART kernel. With 10 inodes referenced,
+seven holders took the other 14, an `open` and a `stat` refused with ENFILE
+with 10 of 18 file slots in use, the inode failure counter rose by 2 and no
+other counter moved, and both calls succeeded after the release with
+occupancy back at 10. `docs/research/renode-capacity-exhaustion-083b35c3.txt`
+is the transcript and the receipt of `incore-inode-renode-exhaustion`. A
+kernel whose `iget()` drops the failure note was run once as the known-bad
+input and failed the gate on the counter. The board case
+`incore-inode-exhaustion` has the fixture and no receipt.
 
 A capacity reduction requires one named workload corpus and separate Renode
 and board runs. Each run records the exact kernel identity, configuration,

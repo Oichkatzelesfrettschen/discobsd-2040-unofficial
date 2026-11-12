@@ -1328,6 +1328,61 @@ regress_symlink_writeback(int fd)
 }
 
 static void
+regress_inode_address_width(int fd)
+{
+	struct v7fs_self *fs;
+	struct v7fs_inode inode, original, loaded;
+	uint8_t before[V7FS_BSIZE], after[V7FS_BSIZE];
+	off_t sector_offset = (off_t)V7FS_ILIST_SECTOR * V7FS_BSIZE;
+	unsigned slot;
+	char detail[96];
+	int error;
+
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-inode-address-width", "format or mount failed");
+		return;
+	}
+	if (v7fs_inode_load(fs, &inode, V7FS_ROOT_INODE) != 0) {
+		fail("regress-inode-address-width", "root inode load failed");
+		v7fs_io_fini(fs);
+		return;
+	}
+	original = inode;
+	for (slot = 0; slot < V7FS_NADDR; slot++) {
+		inode = original;
+		inode.addr[slot] = V7FS_DADDR_MAX;
+		error = v7fs_inode_writeback(fs, &inode);
+		if (error == 0)
+			error = v7fs_inode_load(fs, &loaded, V7FS_ROOT_INODE);
+		snprintf(detail, sizeof(detail),
+		    "address slot %u did not round-trip the 24-bit maximum", slot);
+		check(error == 0 && loaded.addr[slot] == V7FS_DADDR_MAX,
+		    "regress-inode-address-width", detail);
+		check(v7fs_inode_writeback(fs, &original) == 0,
+		    "regress-inode-address-width", "fixture restoration failed");
+
+		if (pread(fd, before, sizeof(before), sector_offset) !=
+		    (ssize_t)sizeof(before)) {
+			fail("regress-inode-address-width", "inode sector read failed");
+			break;
+		}
+		inode = original;
+		inode.addr[slot] = V7FS_DADDR_MAX + 1u;
+		error = v7fs_inode_writeback(fs, &inode);
+		if (pread(fd, after, sizeof(after), sector_offset) !=
+		    (ssize_t)sizeof(after)) {
+			fail("regress-inode-address-width", "inode sector reread failed");
+			break;
+		}
+		snprintf(detail, sizeof(detail),
+		    "address slot %u truncated outside the 24-bit domain", slot);
+		check(error == EFBIG && memcmp(before, after, sizeof(before)) == 0,
+		    "regress-inode-address-width", detail);
+	}
+	v7fs_io_fini(fs);
+}
+
+static void
 regress_remove_failure(int fd, unsigned failure_kind)
 {
 	struct v7fs_self *fs;
@@ -1857,6 +1912,7 @@ regress(int fd)
 	for (i = 2; i <= 4; i++)
 		regress_create_failure(fd, false, true, i);
 	regress_symlink_writeback(fd);
+	regress_inode_address_width(fd);
 	regress_remove_failure(fd, 0);
 	regress_remove_failure(fd, 1);
 	regress_remove_failure(fd, 2);
@@ -2207,8 +2263,9 @@ main(int argc, char **argv)
 		    write_pattern(argv[1], "inner", inner, sizeof(inner)) ? 2 : 0;
 	verify = argc == 4 && strcmp(argv[3], "verify") == 0;
 	if (argc == 4 && strcmp(argv[3], "regress") == 0 &&
-	    strcmp(argv[2], "little") == 0) {
-		byte_order = LITTLE_ENDIAN;
+	    (strcmp(argv[2], "little") == 0 || strcmp(argv[2], "pdp") == 0)) {
+		byte_order = strcmp(argv[2], "pdp") == 0 ?
+		    PDP_ENDIAN : LITTLE_ENDIAN;
 		if ((fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0600)) == -1) {
 			perror(argv[1]);
 			return 2;
@@ -2240,7 +2297,7 @@ main(int argc, char **argv)
 	if ((argc != 3 && !verify) || (strcmp(argv[2], "little") != 0 &&
 	    strcmp(argv[2], "pdp") != 0)) {
 		fprintf(stderr, "usage: v7fs_core_test IMAGE little|pdp [verify]\n"
-		    "       v7fs_core_test IMAGE little regress\n"
+		    "       v7fs_core_test IMAGE little|pdp regress\n"
 		    "       v7fs_core_test IMAGE little|pdp parent BLOCKS\n"
 		    "       v7fs_core_test DIR - patterns\n");
 		return 2;

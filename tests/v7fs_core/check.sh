@@ -170,8 +170,10 @@ for order in pdp little; do
 	"$work/v7fs_fixed" "$work/fixed-$order.img" "$order" ||
 	    fail "fixed descriptor backend ($order)"
 done
-"$work/v7fs_fixed" "$work/fixed-regress.img" little regress ||
-    fail "fixed descriptor backend regressions"
+for order in pdp little; do
+	"$work/v7fs_fixed" "$work/fixed-regress-$order.img" "$order" regress ||
+	    fail "fixed descriptor backend regressions ($order)"
+done
 tree=$work/scratch-exhaustion
 mkdir -p "$tree/sys/fs" "$tree/sbin"
 cp -R "$v7fs" "$tree/sys/fs/"
@@ -247,6 +249,19 @@ got=0
     "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "symlink inode write mutant"; }
 echo "v7fs_core: hidden symlink inode write error mutant rejected"
 
+mutant inode-address-truncation sys/fs/v7fs/v7fs_inode.c \
+    'for (i = 0; i < V7FS_NADDR; i++)\n\t\tif (mem->addr[i] > V7FS_DADDR_MAX)\n\t\t\treturn EFBIG;' \
+    'for (i = 0; i < V7FS_NADDR; i++)\n\t\t(void)mem->addr[i];'
+got=0
+"$work/inode-address-truncation.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-inode-address-width:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "inode address truncation mutant"
+}
+echo "v7fs_core: out-of-range inode address mutant rejected"
+
 mutant rename-inode-read sys/fs/v7fs/v7fs_file_util.c \
     'if ((error = v7fs_inode_load(fs, &inode, from_ino)) != 0)\n\t\treturn error;' \
     'if ((error = v7fs_inode_load(fs, &inode, from_ino)) != 0)\n\t\treturn ENOENT;'
@@ -315,8 +330,11 @@ echo "v7fs_core: late rename hierarchy validation mutant rejected"
 
 # The local regression scenarios hold; reversals and mutants below must
 # fail the corresponding scenario by name with the assertion status.
-"$work/v7fs_core" "$work/regress.img" little regress >"$work/regress.log" ||
-    { cat "$work/regress.log" >&2; fail "regression scenarios"; }
+for order in pdp little; do
+	"$work/v7fs_core" "$work/regress-$order.img" "$order" regress \
+	    >"$work/regress.log" ||
+	    { cat "$work/regress.log" >&2; fail "regression scenarios ($order)"; }
+done
 
 # unpatched NAME PATCH LABEL...: the imported sources with PATCH reversed,
 # built as $work/NAME, must fail every LABEL in regress mode.

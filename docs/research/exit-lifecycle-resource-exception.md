@@ -121,3 +121,16 @@ The original approval remains attached to its original candidate. Approval of
 the integrated candidate and the additional adminbox byte remains pending;
 qualification continues independently of that resource decision. Physical-board
 execution remains outside both comparisons.
+
+## Public-header integration preserves the resource comparison
+
+The clean capture at `327cd4792704ebbda76b1ac0d2d814c7288e7b95` includes
+main's public string-header qualification and the aggregate tier barriers.
+Its [candidate receipt](exit-lifecycle-header-resource-candidate.json) retains
+the same collector and measurement tools. Complete shipped dependency
+attribution passes. Comparing it with the integrated parent above produces
+the retained integrated comparison byte-for-byte, including all sixteen
+positive entries, unchanged resource surfaces and archive-selection changes.
+The pending integrated exception therefore retains the same 28 positive packed
+bytes and unchanged limits after header integration. The original receipts
+remain separate evidence for their named source revisions.

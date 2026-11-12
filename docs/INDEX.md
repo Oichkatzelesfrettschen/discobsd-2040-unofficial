@@ -177,6 +177,7 @@ Grouped by what they investigate.
 | `renode-capacity-exhaustion-d76edd1a.txt` | the Renode transcript of the same two exhaustion tests on the emulated PICO_UART kernel, from `check-renode-capacity`: the counts equal the board's |
 | `board-capacity-cases-a9970f3d.txt` | the board run of the SwapRAM evacuation, signal-frame and storage-pressure cases at the 25-process, 24-file limits: patterns intact after evacuation, `sigtest` clean, parallel `tar`, `find` and `du` equal to their serial outputs, clean boot `fsck` |
 | `board-capacity-exhaustion-65d7244c.txt` | the board transcript of the same exhaustion tests at NPROC 16 and NFILE 18: EAGAIN after 10 children, ENFILE at 18 file slots, counters and recovery |
+| `board-capacity-exhaustion-1e986446.txt` | the board transcript of the file-table, in-core inode table and process-table exhaustion tests: ENFILE at 24 of 24 inodes with the file table at 10 of 18, the inode failure counter +2 and recovery |
 | `renode-capacity-exhaustion-65d7244c.txt` | the Renode transcript of the exhaustion tests at NPROC 16 and NFILE 18 on the emulated PICO_UART kernel |
 | `renode-capacity-exhaustion-083b35c3.txt` | the Renode transcript of the three exhaustion tests with the in-core inode table added: seven holders fill 24 inode slots, an open and a stat refuse with ENFILE, the inode counter rises by 2 and recovery succeeds |
 | `board-capacity-cases-65d7244c.txt` | the board run of the SwapRAM evacuation, signal-frame and storage-pressure cases at NPROC 16 and NFILE 18 |

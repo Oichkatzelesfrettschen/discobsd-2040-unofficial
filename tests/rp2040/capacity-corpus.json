@@ -55,8 +55,8 @@
       "obligations": ["exhaustion", "recovery"],
       "fixture": "tests/rp2040/capacity_exhaustion/inotab.c",
       "execution_class": "board",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/board-capacity-exhaustion-1e986446.txt",
       "dependencies": ["stream-file-pressure"],
       "expected": "Distinct live in-core inode identities fill the table and increment only the inode failure counter.",
       "recovery": "Released identities permit a subsequent iget allocation."

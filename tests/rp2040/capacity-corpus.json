@@ -294,8 +294,8 @@
     {
       "resource": "NPROC",
       "active_value": 25,
-      "state": "retain",
-      "greatest_observed_peak": 8,
+      "state": "reduce-approved",
+      "greatest_observed_peak": 10,
       "reserve_rule": "Require the full corpus, attributed process exhaustion, successful reap and subsequent creation, plus Renode and board receipts before any decrement.",
       "deciding_cases": ["capacity-counter-exact-source", "stdio-board-workload", "process-table-exhaustion", "swapram-evacuation", "process-table-renode-exhaustion"]
     },
@@ -310,7 +310,7 @@
     {
       "resource": "NFILE",
       "active_value": 24,
-      "state": "retain",
+      "state": "reduce-approved",
       "greatest_observed_peak": 15,
       "reserve_rule": "Require system-table attribution distinct from a per-process descriptor refusal, close/reopen recovery and a positive reserve.",
       "deciding_cases": ["capacity-counter-exact-source", "stream-file-pressure", "system-file-table-exhaustion", "buffer-cache-board-pressure", "system-file-table-renode-exhaustion"]

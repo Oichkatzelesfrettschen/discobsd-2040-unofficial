@@ -143,6 +143,83 @@ class CoverageTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(self.snapshot.read_bytes(), before)
 
+    def repair_witness(self):
+        baseline = self.data["baseline"]["commit"]
+        (self.root / "bin/cat/cat.c").write_text("int main(void) { return 1; }\n")
+        self.git("add", "bin/cat/cat.c")
+        self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                 "commit", "-qm", "repair fixture")
+        repair = self.git("rev-parse", "HEAD").strip()
+        evidence = self.root / "test.log"
+        evidence.write_text("fixture result: PASS\n")
+        component = next(row for row in self.data["components"] if row["id"] == "bin/cat")
+        witness = {
+            "baseline": baseline, "paths": ["bin/cat/cat.c"],
+            "method": "Review the fixed baseline and reproduce the fixture failure.",
+            "failure_classes": ["incorrect exit status"],
+            "source_evidence": ["bin/cat/cat.c"], "limitations": ["Fixture only."],
+            "tests": [{"source_commit": repair,
+                       "source_tree": self.git("rev-parse", "HEAD^{tree}").strip(),
+                       "command": "fixture-check", "result": "pass", "evidence": "test.log",
+                       "sha256": hashlib.sha256(evidence.read_bytes()).hexdigest()}],
+            "findings": [{"id": "fixture-exit", "state": "repaired", "evidence": "fixture",
+                          "repair_commit": repair, "test": "fixture-check"}],
+        }
+        component.update(state="reviewed", next_action="")
+        return component, witness
+
+    def save_witness(self, component, witness):
+        path = self.root / "repair-review.json"
+        path.write_text(json.dumps(witness), encoding="utf-8")
+        component["review_witness"] = {
+            "path": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+
+    def test_descendant_repair_preserves_baseline_identities(self):
+        component, witness = self.repair_witness()
+        self.save_witness(component, witness)
+        self.validate(self.data)
+
+    def test_mutable_test_source_revision(self):
+        component, witness = self.repair_witness()
+        witness["tests"][0]["source_commit"] = "HEAD"
+        self.save_witness(component, witness)
+        self.validate(self.data, "complete commit identity")
+
+    def test_stale_test_tree(self):
+        component, witness = self.repair_witness()
+        witness["tests"][0]["source_tree"] = "0" * 40
+        self.save_witness(component, witness)
+        self.validate(self.data, "test source tree differs")
+
+    def test_unrelated_test_revision(self):
+        component, witness = self.repair_witness()
+        unrelated = self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                             "commit-tree", witness["tests"][0]["source_tree"],
+                             "-m", "unrelated root").strip()
+        witness["tests"][0]["source_commit"] = unrelated
+        self.save_witness(component, witness)
+        self.validate(self.data, "outside baseline ancestry")
+
+    def test_test_before_repair(self):
+        component, witness = self.repair_witness()
+        witness["tests"][0].update(
+            source_commit=self.data["baseline"]["commit"],
+            source_tree=self.data["baseline"]["tree"])
+        self.save_witness(component, witness)
+        self.validate(self.data, "outside baseline ancestry")
+
+    def test_repair_requires_passing_result(self):
+        component, witness = self.repair_witness()
+        witness["tests"][0]["result"] = "fail"
+        self.save_witness(component, witness)
+        self.validate(self.data, "passing test witness")
+
+    def test_test_evidence_substitution(self):
+        component, witness = self.repair_witness()
+        self.save_witness(component, witness)
+        (self.root / "test.log").write_text("fixture result: FAIL\n")
+        self.validate(self.data, "test evidence identity differs")
+
 
 if __name__ == "__main__":
     unittest.main()

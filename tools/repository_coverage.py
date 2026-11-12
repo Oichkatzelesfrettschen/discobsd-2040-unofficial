@@ -145,6 +145,20 @@ def text_list(value, label, nonempty=True):
             all(isinstance(item, str) and item.strip() for item in value), label)
 
 
+def descendant_commit(root, revision, baseline):
+    require(isinstance(revision, str) and
+            re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", revision) is not None,
+            "source revision must be a complete commit identity")
+    commit, tree, _entries = tracked_tree(root, revision)
+    require(commit == revision, "source revision must identify a commit")
+    ancestry = subprocess.run(
+        ["git", "-C", str(root), "merge-base", "--is-ancestor", baseline, commit],
+        capture_output=True,
+    )
+    require(ancestry.returncode == 0, "source revision is outside baseline ancestry")
+    return commit, tree
+
+
 def verify_review(root, baseline, component, assigned, entries):
     reference = component.get("review_witness")
     require(isinstance(reference, dict), f"{component['id']}: missing review witness")
@@ -164,7 +178,8 @@ def verify_review(root, baseline, component, assigned, entries):
     for field in ("tests", "findings"):
         require(isinstance(record.get(field), list), f"{component['id']}: missing {field}")
     for test in record["tests"]:
-        require(test.get("source_commit") == baseline, "test source revision differs")
+        _commit, tree = descendant_commit(root, test.get("source_commit"), baseline)
+        require(test.get("source_tree") == tree, "test source tree differs")
         require(test.get("result") in {"pass", "fail", "blocked"}, "unsupported test result")
         require(isinstance(test.get("command"), str) and test["command"].strip(),
                 "test command required")
@@ -183,9 +198,13 @@ def verify_review(root, baseline, component, assigned, entries):
             require(isinstance(finding.get("next_action"), str) and
                     finding["next_action"].strip(), "open finding requires next action")
         else:
-            require(finding.get("test") in [test["command"] for test in record["tests"]
-                                           if test["result"] == "pass"],
+            repair, _tree = descendant_commit(root, finding.get("repair_commit"), baseline)
+            passing = [test for test in record["tests"]
+                       if test["result"] == "pass" and test["command"] == finding.get("test")]
+            require(bool(passing),
                     "repaired finding requires passing test witness")
+            for test in passing:
+                descendant_commit(root, test["source_commit"], repair)
 
 
 def validate(root, data, require_reviewed=False):

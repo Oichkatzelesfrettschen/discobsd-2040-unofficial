@@ -14,6 +14,13 @@ component requires a SHA-256-bound JSON witness covering exactly its assigned
 paths. The validator establishes identity and structural consistency; the
 reviewer establishes the substance of the source analysis.
 
+Repair witnesses retain the baseline path identities and name an immutable
+tested descendant commit plus its exact tree. The validator checks that a
+repaired finding's commit precedes the passing test revision. Calibration
+rejects mutable revision names, unrelated roots, stale trees, tests preceding
+the repair, failing verdicts and substituted evidence. The 22 fixtures cover
+the original denominator checks and those descendant-evidence boundaries.
+
 ## Ordered work
 
 Only one item carries active implementation focus. Product jobs use the

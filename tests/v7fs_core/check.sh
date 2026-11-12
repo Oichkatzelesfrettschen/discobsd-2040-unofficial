@@ -267,6 +267,42 @@ got=0
     { cat "$work/mutant.log" >&2; fail "rename inode write mutant"; }
 echo "v7fs_core: hidden rename inode write error mutant rejected"
 
+tree=$work/rename-hierarchy-late
+mkdir -p "$tree/sys/fs" "$tree/sbin"
+cp -R "$v7fs" "$tree/sys/fs/"
+cp -R "$newfs" "$tree/sbin/"
+"$PYTHON" - "$tree/sys/fs/v7fs/v7fs_file_util.c" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text(encoding="utf-8")
+validation = """\t/* Check directory hierarchy. t_vnops rename_dir(5) */
+\tif (dir_move && (error = can_dirmove(fs, from_ino,
+\t    parent_to->inode_number))) {
+\t\tDPRINTF("dst '%.*s' is child dir of '%.*s'. error=%d\\n",
+\t\t    (int)tolen, to, (int)fromlen, from, error);
+\t\treturn error;
+\t}
+"""
+publication = "\tif ((error = v7fs_directory_add_entry(fs, parent_to, from_ino, to,\n"
+if source.count(validation) != 1 or source.count(publication) != 1:
+    raise SystemExit("rename hierarchy mutation anchor mismatch")
+source = source.replace(validation, "", 1)
+source = source.replace(publication, validation + "\n" + publication, 1)
+path.write_text(source, encoding="utf-8")
+PY
+build "$tree" "$work/rename-hierarchy-late.bin"
+got=0
+"$work/rename-hierarchy-late.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename-hierarchy:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "late rename hierarchy validation mutant"
+}
+echo "v7fs_core: late rename hierarchy validation mutant rejected"
+
 # The local regression scenarios hold; reversals and mutants below must
 # fail the corresponding scenario by name with the assertion status.
 "$work/v7fs_core" "$work/regress.img" little regress >"$work/regress.log" ||

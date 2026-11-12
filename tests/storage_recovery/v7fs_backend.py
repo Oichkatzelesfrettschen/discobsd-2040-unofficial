@@ -65,6 +65,11 @@ class Backend:
         self.library.storage_backend_write.argtypes = [ctypes.c_int32, ctypes.c_void_p]
         self.library.storage_backend_create.argtypes = [ctypes.c_char_p, ctypes.c_int]
         self.library.storage_backend_lookup.argtypes = [ctypes.c_char_p]
+        self.library.storage_backend_create_at.argtypes = [ctypes.c_uint, ctypes.c_char_p,
+                                                           ctypes.c_int]
+        self.library.storage_backend_lookup_at.argtypes = [ctypes.c_uint, ctypes.c_char_p]
+        self.library.storage_backend_rename.argtypes = [ctypes.c_uint, ctypes.c_char_p,
+                                                        ctypes.c_uint, ctypes.c_char_p]
         self.library.storage_backend_link.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
         self.library.storage_backend_fill_parent.argtypes = [ctypes.c_uint]
         result = self.library.storage_backend_open(self.size_bytes // 512, int(order == "pdp"))
@@ -137,6 +142,17 @@ class Backend:
 
     def lookup(self, name):
         return self._result(self.library.storage_backend_lookup(name.encode("ascii")))
+
+    def create_at(self, parent, name, directory=False):
+        return self._result(self.library.storage_backend_create_at(
+            parent, name.encode("ascii"), int(directory)))
+
+    def lookup_at(self, parent, name):
+        return self._result(self.library.storage_backend_lookup_at(parent, name.encode("ascii")))
+
+    def rename(self, source_parent, source, target_parent, target):
+        return self._result(self.library.storage_backend_rename(
+            source_parent, source.encode("ascii"), target_parent, target.encode("ascii")))
 
     def link(self, source, name):
         return self._result(self.library.storage_backend_link(source.encode("ascii"),

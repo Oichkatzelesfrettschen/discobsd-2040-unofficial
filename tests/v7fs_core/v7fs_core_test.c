@@ -992,7 +992,7 @@ regress_rename_failures(int fd)
 {
 	unsigned scenario, successful_writes = 0;
 
-	for (scenario = 0; scenario < 4; scenario++) {
+	for (scenario = 0; scenario < 5; scenario++) {
 		struct v7fs_self *fs;
 		struct v7fs_inode source_parent, target_parent;
 		v7fs_ino_t source_ino, target_ino, found;
@@ -1016,10 +1016,10 @@ regress_rename_failures(int fd)
 		saved_sector_read = fs->io.read;
 		saved_sector_write = fs->io.write;
 		sector_reads = sector_writes = 0;
-		failed_read_number = scenario == 1 ? 2 : 5;
-		failed_write_number = scenario == 3 ? successful_writes : (unsigned)-1;
+		failed_read_number = scenario == 1 ? 2 : scenario == 2 ? 4 : 6;
+		failed_write_number = scenario == 4 ? successful_writes : (unsigned)-1;
 		fail_after_write = false;
-		if (scenario == 1 || scenario == 2)
+		if (scenario >= 1 && scenario <= 3)
 			fs->io.read = fail_selected_read;
 		else
 			fs->io.write = fail_selected_write;
@@ -1035,17 +1035,20 @@ regress_rename_failures(int fd)
 			check(error == EIO, "regress-rename",
 			    "injected rename failure must return EIO");
 		}
-		if (scenario == 1 || scenario == 2) {
-			check(sector_reads == failed_read_number &&
-			    (scenario != 2 || failed_read_sector ==
-			    (daddr_t)target_parent.addr[0]) &&
-			    v7fs_file_lookup_by_name(fs, &source_parent, "src", 3,
-			    &found) == 0 && found == source_ino &&
-			    v7fs_file_lookup_by_name(fs, &target_parent, "new", 3,
+		if (scenario >= 1 && scenario <= 3) {
+			check(sector_reads == failed_read_number, "regress-rename",
+			    "injected read was not reached exactly once");
+			check(scenario == 1 || failed_read_sector ==
+			    (daddr_t)target_parent.addr[0], "regress-rename",
+			    "target-directory read was not reached");
+			check(v7fs_file_lookup_by_name(fs, &source_parent, "src", 3,
+			    &found) == 0 && found == source_ino, "regress-rename",
+			    "failed lookup removed its source");
+			check(v7fs_file_lookup_by_name(fs, &target_parent, "new", 3,
 			    &found) == ENOENT, "regress-rename",
-			    "failed lookup changed directory entries");
+			    "failed lookup published its target");
 		} else {
-			if (scenario == 3)
+			if (scenario == 4)
 				check(sector_writes == successful_writes &&
 				    failed_write_sector == V7FS_ILIST_SECTOR,
 				    "regress-rename", "final inode write was not reached");
@@ -1055,6 +1058,64 @@ regress_rename_failures(int fd)
 			    &found) == 0 && found == source_ino,
 			    "regress-rename", "published rename entries differ");
 		}
+		v7fs_io_fini(fs);
+	}
+}
+
+static void
+regress_rename_hierarchy(int fd)
+{
+	struct v7fs_self *fs;
+	struct v7fs_inode source_parent, target_parent, victim_before, victim_after;
+	v7fs_ino_t source, descendant, victim, found;
+	int error;
+
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-rename-hierarchy", "format or mount failed");
+		return;
+	}
+	if (make_node(fs, V7FS_ROOT_INODE, "source", V7FS_IFDIR | 0755,
+	    NULL, 0, &source) != 0 ||
+	    make_node(fs, source, "descendant", V7FS_IFDIR | 0755,
+	    NULL, 0, &descendant) != 0 ||
+	    make_node(fs, descendant, "victim", V7FS_IFDIR | 0755,
+	    NULL, 0, &victim) != 0 ||
+	    v7fs_inode_load(fs, &source_parent, V7FS_ROOT_INODE) != 0 ||
+	    v7fs_inode_load(fs, &target_parent, descendant) != 0 ||
+	    v7fs_inode_load(fs, &victim_before, victim) != 0) {
+		fail("regress-rename-hierarchy", "fixture creation failed");
+		v7fs_io_fini(fs);
+		return;
+	}
+	error = v7fs_file_rename(fs, &source_parent, "source", 6,
+	    &target_parent, "victim", 6);
+	check(error == EINVAL, "regress-rename-hierarchy",
+	    "descendant move must fail with EINVAL");
+	check(v7fs_file_lookup_by_name(fs, &source_parent, "source", 6,
+	    &found) == 0 && found == source, "regress-rename-hierarchy",
+	    "rejected move removed its source");
+	check(v7fs_file_lookup_by_name(fs, &target_parent, "victim", 6,
+	    &found) == 0 && found == victim &&
+	    v7fs_inode_load(fs, &victim_after, victim) == 0 &&
+	    inode_equal(&victim_after, &victim_before),
+	    "regress-rename-hierarchy", "rejected move changed its target");
+	check(v7fs_superblock_writeback(fs) == 0, "regress-rename-hierarchy",
+	    "superblock writeback failed");
+	v7fs_io_fini(fs);
+	fs = mount_image(fd);
+	if (fs == NULL) {
+		fail("regress-rename-hierarchy", "fresh mount failed");
+	} else if (v7fs_inode_load(fs, &source_parent, V7FS_ROOT_INODE) != 0 ||
+	    v7fs_inode_load(fs, &target_parent, descendant) != 0) {
+		fail("regress-rename-hierarchy", "fresh inode load failed");
+		v7fs_io_fini(fs);
+	} else {
+		check(v7fs_file_lookup_by_name(fs, &source_parent, "source", 6,
+		    &found) == 0 && found == source, "regress-rename-hierarchy",
+		    "fresh mount lost the source");
+		check(v7fs_file_lookup_by_name(fs, &target_parent, "victim", 6,
+		    &found) == 0 && found == victim, "regress-rename-hierarchy",
+		    "fresh mount lost the target");
 		v7fs_io_fini(fs);
 	}
 }
@@ -1591,6 +1652,7 @@ regress(int fd)
 	regress_shrink_transition(fd, 139, 137, "regress-shrink-double");
 	regress_shrink_write_failure(fd);
 	regress_rename_failures(fd);
+	regress_rename_hierarchy(fd);
 	regress_lookup_full_name(fd);
 #ifdef STATIC_BUFFER
 	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {

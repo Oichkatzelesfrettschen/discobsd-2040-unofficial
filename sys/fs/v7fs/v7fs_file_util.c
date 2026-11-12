@@ -145,6 +145,13 @@ v7fs_file_rename(struct v7fs_self *fs, struct v7fs_inode *parent_from,
 	if ((error = v7fs_inode_load(fs, &inode, from_ino)) != 0)
 		return error;
 	dir_move = v7fs_inode_isdir(&inode);
+	/* Check directory hierarchy. t_vnops rename_dir(5) */
+	if (dir_move && (error = can_dirmove(fs, from_ino,
+	    parent_to->inode_number))) {
+		DPRINTF("dst '%.*s' is child dir of '%.*s'. error=%d\n",
+		    (int)tolen, to, (int)fromlen, from, error);
+		return error;
+	}
 
 	/* Check target file */
 	error = v7fs_file_lookup_by_name(fs, parent_to, to, tolen, &to_ino);
@@ -159,14 +166,6 @@ v7fs_file_rename(struct v7fs_self *fs, struct v7fs_inode *parent_from,
 		DPRINTF("error=%d\n", error);
 		return error;
 	}
-	/* Check directory hierarchy. t_vnops rename_dir(5) */
-	if (dir_move && (error = can_dirmove(fs, from_ino,
-	    parent_to->inode_number))) {
-		DPRINTF("dst '%.*s' is child dir of '%.*s'. error=%d\n",
-		    (int)tolen, to, (int)fromlen, from, error);
-		return error;
-	}
-
 	if ((error = v7fs_directory_add_entry(fs, parent_to, from_ino, to,
 	    tolen))) {
 		DPRINTF("can't add entry");

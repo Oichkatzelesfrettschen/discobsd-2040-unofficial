@@ -180,6 +180,27 @@ storage_backend_create(const char *name, int directory)
 }
 
 int
+storage_backend_create_at(unsigned parent_number, const char *name, int directory)
+{
+    struct v7fs_inode parent;
+    struct v7fs_fileattr attributes;
+    v7fs_ino_t inode;
+    int error;
+
+    if (filesystem == NULL)
+        return -EINVAL;
+    error = v7fs_inode_load(filesystem, &parent, (v7fs_ino_t)parent_number);
+    if (error != 0)
+        return -error;
+    memset(&attributes, 0, sizeof(attributes));
+    attributes.mode = directory ? V7FS_IFDIR | 0755 : V7FS_IFREG | 0644;
+    attributes.atime = attributes.mtime = attributes.ctime = 1000000000;
+    error = v7fs_file_allocate(filesystem, &parent, name, strlen(name),
+        &attributes, &inode);
+    return error != 0 ? -error : (int)inode;
+}
+
+int
 storage_backend_lookup(const char *name)
 {
     struct v7fs_inode parent;
@@ -192,6 +213,44 @@ storage_backend_lookup(const char *name)
     if (error == 0)
         error = v7fs_file_lookup_by_name(filesystem, &parent, name, strlen(name), &inode);
     return error != 0 ? -error : (int)inode;
+}
+
+int
+storage_backend_lookup_at(unsigned parent_number, const char *name)
+{
+    struct v7fs_inode parent;
+    v7fs_ino_t inode;
+    int error;
+
+    if (filesystem == NULL)
+        return -EINVAL;
+    error = v7fs_inode_load(filesystem, &parent, (v7fs_ino_t)parent_number);
+    if (error == 0)
+        error = v7fs_file_lookup_by_name(filesystem, &parent, name, strlen(name), &inode);
+    return error != 0 ? -error : (int)inode;
+}
+
+int
+storage_backend_rename(unsigned source_parent, const char *source,
+    unsigned target_parent, const char *target)
+{
+    struct v7fs_inode source_directory, target_directory;
+    int error;
+
+    if (filesystem == NULL)
+        return EINVAL;
+    error = v7fs_inode_load(filesystem, &source_directory,
+        (v7fs_ino_t)source_parent);
+    if (error != 0)
+        return error;
+    if (source_parent == target_parent)
+        return v7fs_file_rename(filesystem, &source_directory, source,
+            strlen(source), &source_directory, target, strlen(target));
+    error = v7fs_inode_load(filesystem, &target_directory,
+        (v7fs_ino_t)target_parent);
+    return error != 0 ? error : v7fs_file_rename(filesystem,
+        &source_directory, source, strlen(source), &target_directory, target,
+        strlen(target));
 }
 
 int

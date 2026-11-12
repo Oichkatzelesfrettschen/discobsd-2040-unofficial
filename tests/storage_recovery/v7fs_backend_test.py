@@ -1,11 +1,13 @@
 """Exercise the production fixed-pool descriptor backend through typed faults."""
 
+import errno
 import importlib
 import tempfile
 import unittest
 from pathlib import Path
 
 from storage_trace import Address, Device, Domain, Fault
+from v7_image import verify
 
 
 class BackendTest(unittest.TestCase):
@@ -18,8 +20,8 @@ class BackendTest(unittest.TestCase):
         cls.addClassCleanup(cls.temporary.cleanup)
         cls.library = cls.module.compile_backend(Path(cls.temporary.name))
 
-    def backend(self, device):
-        backend = self.module.Backend(self.library, device)
+    def backend(self, device, order="little"):
+        backend = self.module.Backend(self.library, device, order)
         self.addCleanup(backend.close)
         return backend
 
@@ -81,6 +83,46 @@ class BackendTest(unittest.TestCase):
         self.assertEqual(reopened.mount(), 0)
         self.assertGreater(reopened.lookup("empty"), 2)
         self.assertEqual(reopened.device.read(Address(Domain.IMAGE_BYTE, 0), 1), bytes(1))
+
+    def test_rejected_descendant_rename_preserves_existing_directory(self):
+        for order in ("little", "pdp"):
+            with self.subTest(order=order):
+                backend = self.backend(Device(bytes(512 * 2048)), order)
+                self.assertEqual(backend.format(64), 0)
+                source = backend.create_at(2, "source", True)
+                descendant = backend.create_at(source, "descendant", True)
+                victim = backend.create_at(descendant, "victim", True)
+                self.assertGreater(victim, 2)
+                self.assertEqual(backend.sync(), 0)
+                before = backend.device.export()
+                verify(before, order)
+                backend.device.events.clear()
+
+                self.assertEqual(
+                    backend.rename(2, "source", descendant, "victim"), errno.EINVAL)
+                self.assertFalse(any(event.kind == "write" for event in backend.device.events))
+                self.assertEqual(backend.sync(), 0)
+                self.assertEqual(backend.device.export(), before)
+                backend.close()
+
+                reopened = self.backend(Device(before), order)
+                self.assertEqual(reopened.mount(), 0)
+                self.assertEqual(reopened.lookup_at(descendant, "victim"), victim)
+                verify(reopened.device.export(), order)
+
+    def test_valid_cross_parent_rename_publishes_one_reachable_name(self):
+        for order in ("little", "pdp"):
+            with self.subTest(order=order):
+                backend = self.backend(Device(bytes(512 * 2048)), order)
+                self.assertEqual(backend.format(64), 0)
+                source = backend.create_at(2, "source", True)
+                target = backend.create_at(2, "target", True)
+                self.assertGreater(target, source)
+                self.assertEqual(backend.rename(2, "source", target, "moved"), 0)
+                self.assertEqual(backend.sync(), 0)
+                report = verify(backend.device.export(), order)
+                self.assertEqual(report.namespace["/target/moved"], source)
+                self.assertNotIn("/source", report.namespace)
 
 
 if __name__ == "__main__":

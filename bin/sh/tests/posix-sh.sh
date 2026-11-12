@@ -127,10 +127,15 @@ _run_command_alloc_failure()
 	fi
 }
 
+# _arena_top SCRIPT -- prints the shell's final break offset.  The shell
+# allocates one name node per imported variable and grows its break in
+# BRKINCR-derived steps of up to 1536 bytes, so the caller's variable count
+# decides whether a script's last allocation crosses a step.  A fixed
+# two-variable environment makes the offset a function of SCRIPT alone.
 _arena_top()
 {
-	if arena_output=$(cd "$WORK" && SH_TEST_ARENA_TRACE=1 \
-	    "$SH" -c "$1" < /dev/null 2>&1); then
+	if arena_output=$(cd "$WORK" && env -i PATH=/usr/bin:/bin \
+	    SH_TEST_ARENA_TRACE=1 "$SH" -c "$1" < /dev/null 2>&1); then
 		:
 	else
 		return 1

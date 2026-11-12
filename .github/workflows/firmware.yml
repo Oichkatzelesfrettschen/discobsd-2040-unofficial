@@ -249,6 +249,8 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 1140 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
+      # check-cross owns the string namespace/signature and expanded Smaller C
+      # header gate on both host platforms; runtime behavior stays separate.
       - name: Run the cross tier
         timeout-minutes: 20
         run: |

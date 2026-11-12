@@ -65,6 +65,10 @@ interfaces, while the installed native archive carries all four members.
 combinations, exact output and padding, sentinel preservation, end pointers,
 allocation extent, failed allocation and large bounds. Host protected pages
 place source and destination ends against inaccessible memory.
+The protected-page fixture requests GNU and Darwin host extensions explicitly:
+Darwin's `sys/mman.h` exposes `MAP_ANONYMOUS` under `_DARWIN_C_SOURCE` when
+`_POSIX_C_SOURCE` is selected. These host mappings establish boundary witnesses,
+separately from DiscoBSD's public-header visibility contracts.
 `bounded_string_overflow_test.c` checks rejection before allocation.
 `bounded_string.py` requires seven mutated definitions to compile and then fail
 the behavioral assertion: scan extent, duplicate terminator, allocation extent,

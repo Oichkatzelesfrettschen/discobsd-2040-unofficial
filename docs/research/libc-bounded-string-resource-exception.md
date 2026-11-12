@@ -75,3 +75,29 @@ members for candidate `b57da5bac273bd4ba382c17ccdb3327eb0061f6d` on
 2026-11-12 and directs continued qualification and review. The approval leaves
 the default rejected comparison intact. Reviewed integration remains open.
 Physical-board execution remains outside this evidence.
+
+## Integrated syscall baseline preserves the approved limits
+
+A separate matched clean pair includes the shared `knlist`/`sysctl` contract
+and the aggregate/PTY lifetime repairs. Its parent is
+`c402a4a6736c0f523b7706bd02fddeaecc14ce99`; its candidate is
+`0ca3930f933037c897e96102eae026cad1e044c8`. Both distributions pass complete
+dependency attribution with the same collector, measurement-tool hashes and
+toolchain identities. The candidate tree is
+`6038ec874787bd6308a8b7604e880416c8799f87`.
+
+The retained [parent](libc-bounded-string-integrated-resource-parent.json),
+[candidate](libc-bounded-string-integrated-resource-candidate.json), and
+[default comparison](libc-bounded-string-integrated-resource-comparison.json)
+preserve the integration evidence separately from the historical pair above.
+All 158 deltas match the approved pair: the native archive grows from 43,094
+to 43,786 bytes, and the other 157 surfaces remain unchanged. The four added
+members retain their approved content hashes. Root allocation remains 744
+data blocks, with 235 free blocks and 32 free inodes.
+
+These receipts establish the same bounded-string costs against the integrated
+baseline; they broaden neither the approved limits nor the behavior evidence.
+The host fixture's namespace and anonymous-mapping selectors have separate
+qualification in [the contract analysis](libc-bounded-string-contracts.md).
+The default comparison remains rejected, and whole-system conformance and
+physical-board execution remain separate obligations.

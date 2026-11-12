@@ -1,0 +1,76 @@
+Board run of three capacity cases at NPROC 16 and NFILE 18: SwapRAM evacuation, signal frame, storage pressure
+
+source revision: 65d7244c (git rev-parse resolves the full name)
+command: DISCOBSD_BOARD_CAPACITY_CASES=run $PYTHON tests/rp2040/capacity_cases/board_capacity_cases.py LOG
+board: Raspberry Pi Pico (RP2040), PICO kernel, USB CDC-ACM console
+kernel: sys/arch/rp2040/compile/PICO/unix.uf2 sha256 007461706d1112347b22ad8027ee20245edf933f0ec9cf5280eaa88b5a9f9e5f
+root: distrib/rp2040/flash.uf2 sha256 81d1dc2cecebd8bef8468c1238d1e0dcb8f634f48f0a4bd57591e7537261e93f
+limits: NPROC 16, NINODE 24, NFILE 18, NCLIST 32, NBUF 4, USIZE 3072
+date: 2026-11-11
+boot: the boot the exhaustion run of board-capacity-exhaustion-65d7244c.txt left, so the process and file
+  rows open with that run's latched peaks (16 and 18) and its two deliberate failures each
+evidence class: board; the driver's output follows
+
+PASS a root shell answers
+DiscoBSD/rp2040 root built 2026-11-12T00:47:05Z from host-v1.0.7-1675-g65d7244c on Linux
+kern.capacity=version 1 size 100
+proc limit 16 current 6 peak 16 min-free 0 failures 2 slot-bytes 136
+inode limit 24 current 10 peak 12 min-free 12 failures 0 slot-bytes 84
+file limit 18 current 3 peak 18 min-free 0 failures 2 slot-bytes 24
+clist limit 32 current 0 peak 14 min-free 18 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 3 min-free 1 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1768 min-free 280 saturated 0
+df before: 979 769 210
+stage evactest   7300 bytes cksum match
+PASS staged evactest
+stage sigtest    7024 bytes cksum match
+PASS staged sigtest
+pool images before: 2
+evacuation result: 2 (2 done, 3 no flash), pool images after: 0
+child 3: 0 bad bytes, 0 bad dispositions
+child 2: 0 bad bytes, 0 bad dispositions
+child 1: 0 bad bytes, 0 bad dispositions
+child 0: 0 bad bytes, 0 bad dispositions
+EVACTEST OK
+rc=0
+PASS evactest, first run: patterns survive evacuation to flash
+pool images before: 1
+evacuation result: 2 (2 done, 3 no flash), pool images after: 0
+child 3: 0 bad bytes, 0 bad dispositions
+child 2: 0 bad bytes, 0 bad dispositions
+child 1: 0 bad bytes, 0 bad dispositions
+child 0: 0 bad bytes, 0 bad dispositions
+EVACTEST OK
+rc=0
+PASS evactest, second run: patterns survive evacuation to flash
+PASS shell answers after evactest
+pause returns -1             ok (0xffffffff 0)
+errno is EINTR               ok (0x4 0x4)
+handler ran                  ok (0xe 0xe)
+mask preserved               ok (0 0)
+handler sp 8-aligned         ok (0x2002fe60 0)
+sc_psr is Thumb              ok (0x61000000 0)
+sc_sp above handler sp       ok (0x2002fea8 0x2002fe60)
+sc_pc in text                ok (0x20000406 0x20000199)
+r7 survives signal           ok (0x5a5a1234 0x5a5a1234)
+SIGTEST OK
+rc=0
+PASS sigtest: frame, mask, EINTR and registers
+PASS kern.capacity snapshot after sigtest
+PASS parallel tar equals its reference (cksum 2676006347 26624, 2676006347 26624)
+PASS parallel find equals its reference (cksum 4043643953 1577, 4043643953 1577)
+PASS parallel du equals its reference (cksum 868713962 17, 868713962 17)
+kern.capacity=version 1 size 100
+proc limit 16 current 6 peak 16 min-free 0 failures 2 slot-bytes 136
+inode limit 24 current 9 peak 15 min-free 9 failures 0 slot-bytes 84
+file limit 18 current 3 peak 18 min-free 0 failures 2 slot-bytes 24
+clist limit 32 current 0 peak 17 min-free 15 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 3 min-free 1 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1768 min-free 280 saturated 0
+PASS the workload adds no capacity failure ({'proc': 2, 'inode': 0, 'file': 2, 'clist': 0, 'buffer': 0} then {'proc': 2, 'inode': 0, 'file': 2, 'clist': 0, 'buffer': 0})
+PASS a root shell answers after the reboot
+boot fsck: /dev/fl0a: 98 files, 768 used, 211 free
+PASS the boot's fsck -p reports a clean root and the boot goes on
+PASS df reports the free space it reported before (979 769 210 then 979 769 210)
+PASS final command answers
+16 of 16 checks passed

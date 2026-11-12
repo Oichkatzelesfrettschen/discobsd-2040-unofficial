@@ -75,9 +75,11 @@ Flash image and headroom are the `check_kernel_headroom.py` span. Of PICO's
 25,896 free bytes the linker reserves 4,096 for the swap-exchange sector
 (`kern.ldscript`), which leaves 21,800 without an owner; PICOCALC keeps 9,728 by the same
 subtraction and is the configuration where kernel RAM is scarce. The PICO fixed
-tables are `proc` 2,600 (25 slots of 104), `inode` 2,016 (24 of 84), `file`
-576 (24 of 24), `bufdata` 4,096, `mount` 1,036, `cfree` 1,024, `sr_tab` 600
-and `sr_seg` 208.
+tables at that revision are `proc` 2,600 (25 slots of 104), `inode` 2,016 (24
+of 84), `file` 576 (24 of 24), `bufdata` 4,096, `mount` 1,036, `cfree` 1,024,
+`sr_tab` 600 and `sr_seg` 208. The capacity trim of roadmap item 9 brings
+`proc` to 1,664 (16 slots), `file` to 432 (18), `sr_tab` to 384 and `sr_seg`
+to 136.
 
 ## Proposals, one by one
 
@@ -88,7 +90,7 @@ that already tracks the surviving form.
 | --- | --- | --- |
 | Reorder `struct proc` and `struct file` by alignment to save 900 and 96 bytes | `pahole`: `proc` is 104 bytes with one 2-byte hole and 102 bytes of members, so no order is smaller; `file`, `inode` and `buf` have no hole. The 104 is pinned by a static assertion in `machdep.c` and the whole struct is copied to `ps`, `w` and `fstat` through `kern.proc` | No bytes available. The surviving form is field placement by Thumb-1 addressing reach; see "What translates" |
 | C bit-fields and nibble packing of process state | Thumb-1 has no bit-field instruction, so each store becomes a read-modify-write | Declined, as the reviews' own later pass concluded |
-| Trim `NPROC` 25 to 16 and `NFILE` 24 to 18 | The saving is 1,368 bytes (136 per process slot, 24 per file slot), larger than the 732 the reviews computed; observed peaks are 8 and 15 | Owned by `sys/arch/rp2040/doc/CAPACITY.md`: stays at the active value until the exhaustion and recovery cases of `tests/rp2040/capacity-corpus.json` hold receipts |
+| Trim `NPROC` 25 to 16 and `NFILE` 24 to 18 | The saving is 1,368 bytes (136 per process slot, 24 per file slot), larger than the 732 the reviews computed; observed peaks are 8 and 15 | Owned by `sys/arch/rp2040/doc/CAPACITY.md`: landed at 16 and 18 once the exhaustion and recovery cases of `tests/rp2040/capacity-corpus.json` held receipts; the PICO bss fell by 1,344 bytes |
 | Trim `NINODE`, `NBUF`, `USIZE` | Peaks are 22 of 24, 3 of 4, and 1,828 of a 2,048-byte stack | Retained, as the reviews' later pass concluded and `CAPACITY.md` records |
 | Hot data, stacks or interrupt code in one bank through the 0x21000000 alias | The alias overlays assigned memory, and one Cortex-M0+ issues one data access per cycle, so striping buys no parallelism within a core | No placement available. Survives as a bus-contention measurement; see roadmap item 2 |
 | Use SRAM4 and SRAM5 for per-core stacks | The datasheet intends exactly this; PICO has no free byte there, PICO_UART has 6,656 | Open only on PICO_UART; needs a contention measurement first |
@@ -208,15 +210,16 @@ instruments; items 3 to 8 each wait on the measurement named.
    programmed-I/O paths shows the peripheral rather than the bus as the
    limit.
 9. Capacity trims of `NPROC` and `NFILE` under the `CAPACITY.md` admission
-   rule; 1,368 bytes at 16 and 18. The board exhaustion cases now hold a
-   receipt: `tests/rp2040/capacity_exhaustion` fills each table on a Pico,
-   sees EAGAIN and ENFILE attributed to the right counter, and recovers
-   (`board-capacity-exhaustion-58ec71f1.txt`), and `check-renode-capacity`
-   repeats both on the emulated kernel with the same counts
-   (`renode-capacity-exhaustion-d76edd1a.txt`). The limits stay until the
-   remaining open board cases of each decision hold receipts:
-   `swapram-evacuation` for `NPROC` and `buffer-cache-board-pressure` for
-   `NFILE`.
+   rule. Landed: `NPROC` is 16 and `NFILE` is 18, and the PICO kernel's bss
+   is 1,344 bytes smaller. The deciding cases hold receipts at the earlier
+   limits (board and Renode table exhaustion, SwapRAM evacuation, signal
+   frame recovery, storage pressure, and the all-buffers-busy fixture of
+   `tests/kernel`), and the board and Renode exhaustion runs and the board
+   cases repeat at the reduced limits
+   (`board-capacity-exhaustion-65d7244c.txt`,
+   `renode-capacity-exhaustion-65d7244c.txt`,
+   `board-capacity-cases-65d7244c.txt`). `NINODE`, `NCLIST`, `NBUF` and
+   `USIZE` keep their values; their exhaustion and fault cases are open.
 10. Image identity in the reserved vector words, together with the
     running-board identity reader of the memory and wear program.
 

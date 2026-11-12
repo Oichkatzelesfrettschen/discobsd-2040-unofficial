@@ -108,7 +108,7 @@ so the whole-image ratio is a measurement of the data segment and an
 estimate of the other two. Only the board settles them.
 
 At 6.4x, the worst of the three, a 64 KB pool holds about 33 sh-sized
-images; NPROC is 25.
+images; NPROC is 16.
 
 ## Speed
 

@@ -88,7 +88,7 @@ getlogin getmntinfo getpagesize getpass getpwent getttyent getttynam
 getusershell getwd index initgroups isatty isinff isnanf knlist ldexp malloc
 mktemp modff modf ndbm nlist opendir perror popen psignal qsort random
 raise readdir regex rindex scandir seekdir setenv sethostname setmode setpgid siginterrupt
-siglist signal sigsetops sleep strcasecmp strcat strcmp strcpy strdup
+siglist signal sigsetops sleep stpcpy stpncpy strcasecmp strcat strcmp strcpy strdup strndup strnlen
 strftime strlen strncat strncmp strncpy swab sysconf sysctl syslog system telldir
 time timezone ttyname ttyslot ualarm uname usleep vis wait3 wait waitpid
 """.split()

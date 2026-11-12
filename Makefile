@@ -681,6 +681,11 @@ check-libc-aout-contracts:	${BOARDLIBC_WORK}/libc.a
 check-libc-malloc:
 		${MAKE} -C tests/libc_contracts check-malloc
 
+check-libc-bounded-string:
+		${MAKE} -C tests/libc_contracts check-bounded-string
+
+.PHONY: check-libc-bounded-string
+
 check-libc-qsort:
 		${MAKE} -C tests/libc_contracts check-qsort
 

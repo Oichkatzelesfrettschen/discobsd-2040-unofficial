@@ -48,6 +48,10 @@ do
 	    "$source_root/lib/libc/gen/ctermid.c" \
 	    "$source_root/lib/libc/gen/difftime.c" \
 	    "$source_root/lib/libc/gen/raise.c" \
+	    "$source_root/lib/libc/gen/strnlen.c" \
+	    "$source_root/lib/libc/gen/strndup.c" \
+	    "$source_root/lib/libc/gen/stpcpy.c" \
+	    "$source_root/lib/libc/gen/stpncpy.c" \
 	    "$source_root/lib/libc/gen/sysconf.c" \
 	    "$source_root/lib/libc/gen/vis.c" \
 	    "$source_root/lib/libc/string/explicit_bzero.c" \
@@ -59,7 +63,7 @@ do
 		fi
 	done
 	for required_member in confstr.o ctermid.o difftime.o explicit_bzero.o \
-	    raise.o sysconf.o \
+	    raise.o sysconf.o strnlen.o strndup.o stpcpy.o stpncpy.o \
 	    timingsafe_bcmp.o vis.o
 	do
 		member_count=$(

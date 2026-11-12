@@ -516,7 +516,8 @@
         "check-malloc",
         "check-qsort",
         "check-random",
-        "check-ansi"
+        "check-ansi",
+        "check-bounded-string"
       ],
       "kind": "prerequisites"
     },
@@ -657,6 +658,11 @@
     {
       "from": "check-libcalc",
       "to": "tests/libcalc:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-bounded-string",
+      "to": "tests/libc_contracts:check-bounded-string",
       "kind": "recursive make"
     }
   ],
@@ -4291,6 +4297,63 @@
         "check_mutants.sh"
       ],
       "script": "tests/libcalc/check_mutants.sh"
+    },
+    {
+      "id": "libc.bounded-string.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-bounded-string",
+      "root_target": "check-libc-host-contracts",
+      "program": "bounded_string_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "bounded_string_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.bounded-string.native -- ./bounded_string_test matrix",
+      "aliases": [
+        "check-libc-bounded-string"
+      ]
+    },
+    {
+      "id": "libc.bounded-string.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-bounded-string",
+      "root_target": "check-libc-host-contracts",
+      "program": "bounded_string_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "bounded_string_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.bounded-string.ilp32 -- ./bounded_string_test32 matrix",
+      "aliases": [
+        "check-libc-bounded-string"
+      ]
+    },
+    {
+      "id": "libc.bounded-string.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-bounded-string",
+      "root_target": "check-libc-host-contracts",
+      "program": "bounded_string_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "bounded_string_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.bounded-string.sanitized -- ./bounded_string_test_san matrix",
+      "aliases": [
+        "check-libc-bounded-string"
+      ]
     }
   ]
 }

@@ -1050,6 +1050,82 @@
       "deciding_gate": "Test descriptor collisions, CLOEXEC, ordered open/close/dup, signal defaults/masks, action and exec failures, allocation exhaustion, parent stack integrity and child reaping in the target process model.",
       "disposition": "candidate",
       "residual": "Donor source supplies a mechanism candidate, not a proof that local vfork or spawn is implementable with the same ownership. Kernel prerequisites remain visible."
+    },
+    {
+      "id": "libc-bounded-strings",
+      "requirements": [
+        "dpucp-2024:system-interface:strnlen",
+        "dpucp-2024:system-interface:strndup",
+        "dpucp-2024:system-interface:stpcpy",
+        "dpucp-2024:system-interface:stpncpy"
+      ],
+      "roles": [
+        "bounded byte-string operations",
+        "end-pointer copy operations"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/string/strnlen.c",
+          "sha256": "55cf317adfcabac6fd4dbbe65126db401548aa6460dbe681c58587643aa466ce",
+          "license": "BSD-2-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/string/strndup.c",
+          "sha256": "e83ea2541f738aa89442b99791638f8f8d4b6d7e3c51b36ba864a37340bed38a",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/string/stpcpy.c",
+          "sha256": "5733e25e9c582c1310cb03a7016a7c0cc28dbdc84a71955cb3920670578f1788",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/string/stpncpy.c",
+          "sha256": "3f8b1051dc01ce3cd0d150f15da032b2a918fbbdf8554c13cb9dc986f8ecbe1f",
+          "license": "BSD-2-Clause"
+        }
+      ],
+      "behavior": "Bound scans and duplication by the supplied extent; return the copied terminator or the end of the bounded destination; pad stpncpy through exactly n bytes.",
+      "invariants": [
+        "strnlen reads at most maxlen bytes and stops at the first NUL.",
+        "strndup admits length plus one before allocation and terminates the successful result.",
+        "stpcpy returns the copied NUL address; stpncpy returns the first written NUL or destination plus n.",
+        "All state is per call; nonallocating operations preserve errno."
+      ],
+      "algorithm": "Use bytewise loops and one bounded-length allocation. Distinguish the first terminator position from the padding cursor.",
+      "dependencies": [
+        "size_t",
+        "malloc and ENOMEM",
+        "memcpy",
+        "strnlen for strndup"
+      ],
+      "c_language": "The definitions use strict C17 prototypes and restrict; public declarations remain accepted by Smaller C.",
+      "c17_rewrite": "Preserve the donor notices and bytewise loops; replace private restrict spelling and reject SIZE_MAX before adding the terminator byte.",
+      "archive_members": [
+        "strnlen.o",
+        "strndup.o",
+        "stpcpy.o",
+        "stpncpy.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "native archive bytes",
+          "shipped packed bytes and blocks",
+          "kernel flash and SRAM",
+          "process occupancy",
+          "static frames and allocation extent"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Run check-libc-bounded-string, check-string-header-contracts, native archive linkage, Thumb-1 execution, matched clean distributions and resource comparison before promotion.",
+      "disposition": "candidate",
+      "residual": "The implementation and calibrated behavior fixtures exist. Matched clean resources, aggregate qualification, review and integration remain open; docs/research/libc-bounded-string-contracts.md records the mechanism and evidence boundaries."
     }
   ],
   "candidate_bindings": {
@@ -1155,6 +1231,15 @@
       "requirements": [
         "dpucp-2024:system-interface:posix_spawn",
         "dpucp-2024:system-interface:posix_spawnp"
+      ]
+    },
+    "libc-bounded-strings": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:system-interface:strnlen",
+        "dpucp-2024:system-interface:strndup",
+        "dpucp-2024:system-interface:stpcpy",
+        "dpucp-2024:system-interface:stpncpy"
       ]
     }
   }

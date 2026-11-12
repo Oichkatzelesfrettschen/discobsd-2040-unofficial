@@ -239,6 +239,8 @@ jobs:
               check-changed-text
 
       # check-host includes the compiler-matrix identity and ownership fixture.
+      # libc bounded strings execute calibrated native, ILP32 and sanitizer cases;
+      # check-qemu executes the same bytewise functions as Thumb-1 code.
       - name: Run the host tier
         timeout-minutes: 20
         run: |

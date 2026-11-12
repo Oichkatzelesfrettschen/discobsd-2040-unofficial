@@ -27,7 +27,8 @@ STDSRC		= abort.c alarm.c aligned_alloc.c assert_fail.c asctime.c atof.c atoi.c 
 		  random.c readdir.c regex.c rindex.c scandir.c seekdir.c \
 		  setenv.c sethostname.c setmode.c setpgid.c siginterrupt.c \
 		  siglist.c signal.c sigsetops.c sleep.c strcasecmp.c \
-		  strcat.c strcmp.c strcpy.c strdup.c strftime.c strlen.c \
+		  stpcpy.c stpncpy.c strcat.c strcmp.c strcpy.c strdup.c \
+		  strndup.c strnlen.c strftime.c strlen.c \
 		  strncat.c strncmp.c strncpy.c swab.c sysconf.c sysctl.c syslog.c \
 		  system.c telldir.c time.c timezone.c tolower.c toupper.c \
 		  ttyname.c ttyslot.c \
@@ -50,7 +51,8 @@ STDOBJ		= abort.o alarm.o aligned_alloc.o assert_fail.o asctime.o atof.o atoi.o 
 		  random.o readdir.o regex.o rindex.o scandir.o seekdir.o \
 		  setenv.o sethostname.o setmode.o setpgid.o siginterrupt.o \
 		  siglist.o signal.o sigsetops.o sleep.o strcasecmp.o \
-		  strcat.o strcmp.o strcpy.o strdup.o strftime.o strlen.o \
+		  stpcpy.o stpncpy.o strcat.o strcmp.o strcpy.o strdup.o \
+		  strndup.o strnlen.o strftime.o strlen.o \
 		  strncat.o strncmp.o strncpy.o swab.o sysconf.o sysctl.o syslog.o \
 		  system.o telldir.o time.o timezone.o tolower.o toupper.o \
 		  ttyname.o ttyslot.o \

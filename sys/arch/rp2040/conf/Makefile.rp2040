@@ -122,8 +122,8 @@ ${SYSTEM_OBJ} swapunix.o: ${PARAMSTAMP}
 # group reaches <machine/types.h> on -I. before ln -s has created machine, and
 # the compile stops at that include. Delaying the ln -s by one second turns
 # the gap into a failure on every run, which is how the barrier was measured.
-SYSTEM_DEP=	Makefile ioconf.c ${KERNSUM} .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
-		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript
+SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
+		${_confdir}/${LDSCRIPT:S/"//g} ${_confdir}/kern.ldscript ${KERNSUM}
 # The link is one recipe of three lines, and each line is one && chain, so
 # the status a step returns is the status of the line and a failed step
 # stops the ones after it: a failed newvers.sh compiles no vers.c, a failed

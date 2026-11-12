@@ -102,6 +102,9 @@ storage is `12 + (n - 1) * (8 + allocator_overhead)`, compared with Coherent's
 linker effects and allocator rounding. Zero-, one-, four- and 32-registration
 consumer maps and peak-allocation measurements decide quick-exit storage policy.
 The archive member selected by an exit-only consumer remains a separate cost.
+The [allocator experiment](callback-allocation-accounting.md) measures dynamic
+block extents and cold break growth independently, including calibration of
+both node-size and allocator-granule controls.
 
 [POSIX Issue 8 exit](https://pubs.opengroup.org/onlinepubs/9799919799/functions/exit.html)
 requires reverse registration order with the exception needed for registrations

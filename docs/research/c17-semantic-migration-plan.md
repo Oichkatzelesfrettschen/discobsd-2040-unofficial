@@ -141,6 +141,12 @@ behavior and target adaptation remain separate open investigations.
 capacity counterexample and the derived live-registry repair for DiscoBSD
 `exit()`. Lifecycle qualification covers registrations made by a running
 handler before new quick-exit storage policy receives resource admission.
+The [callback allocation record](callback-allocation-accounting.md) separates
+live node extents from cold heap commitment and calibrates both against the
+production allocator. The [sorting record](qsort-partition-cost.md) measures
+the duplicate-key partition chain and an adapted DragonFly control; callback
+context, recursion depth, comparison work and linked resources retain separate
+acceptance obligations.
 The float-scanning work item separately tracks token completeness, terminator
 capacity, and normative consumption; donor return values provide no oracle.
 

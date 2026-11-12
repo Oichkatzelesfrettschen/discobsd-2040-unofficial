@@ -972,6 +972,63 @@ rmap_test_diagnostic: rmap_test.c ${RMAP_SRC} hostkern_kern.c hostkern.o \
 	${HOST_CC} ${GATE_CFLAGS} ${DIAGNOSTIC_DEFS} -o $@ \
 	    rmap_test.c hostkern_kern.c rmap_kernel_diagnostic.o hostkern.o
 
+# swap_ring_io_test includes sys/kern/vm_swp.c for swap_with_buf_result() and
+# lets the linker drop the raw I/O routines beside it. The kernel's size_t is
+# 32 bits wide, so the block-address casts are excused on a 64-bit host, as
+# tests/rp2040/exec_spool excuses them.
+SWAP_RING_IO_LDFLAGS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; else echo -Wl,--gc-sections ; fi
+SWAP_RING_IO_CFLAGS=	${GATE_CFLAGS} ${COMPACT_DEFS} -ffunction-sections \
+			-fdata-sections -Wno-pointer-to-int-cast \
+			-Wno-int-to-pointer-cast -Wno-deprecated-non-prototype
+
+swap_ring_io_test: swap_ring_io_test.c ${TOPSRC}/sys/kern/vm_swp.c \
+    hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SWAP_RING_IO_CFLAGS} ${SWAP_RING_IO_LDFLAGS} -o $@ \
+	    swap_ring_io_test.c hostkern_kern.c hostkern.o
+
+# The mutant drops the fold of a block above the ring end.
+check-swap-ring-io: swap_ring_io_test
+	./swap_ring_io_test
+	@sed 's/blkno -= swapmap->m_ring_end - swapmap->m_ring_first;/blkno -= 0;/' \
+	    ${TOPSRC}/sys/kern/vm_swp.c > swap_ring_io_vm_swp.mutant.c; \
+	if cmp -s ${TOPSRC}/sys/kern/vm_swp.c swap_ring_io_vm_swp.mutant.c; then \
+		echo "swap ring io mutant: no source change" >&2; exit 1; fi; \
+	sed 's|"../../sys/kern/vm_swp.c"|"swap_ring_io_vm_swp.mutant.c"|' \
+	    swap_ring_io_test.c > swap_ring_io_test.mutant.c; \
+	${HOST_CC} ${SWAP_RING_IO_CFLAGS} ${SWAP_RING_IO_LDFLAGS} \
+	    -o swap_ring_io.mutant.test \
+	    swap_ring_io_test.mutant.c hostkern_kern.c hostkern.o || exit 1; \
+	if ./swap_ring_io.mutant.test > swap_ring_io.mutant.out 2>&1; then \
+		echo "swap ring io mutant: SURVIVED" >&2; exit 1; fi; \
+	echo "swap ring io mutant: rejected"
+
+# Each mutant removes one ring rule from a copy of subr_rmap.c; the compact
+# gate has to fail on it. no_join stops a run from passing the ring end,
+# no_guard takes the first fitting position, no_fold stops mfree() from
+# folding an address above the ring end.
+RMAP_RING_MUTANTS=	no_join no_guard no_fold
+RMAP_RING_SED_no_join=	s/run += first == bp ? addr - first->m_addr : first->m_size;/run += 0;/
+RMAP_RING_SED_no_guard=	s/if (after >= target) {/if (1) {/
+RMAP_RING_SED_no_fold=	s/addr -= mp->m_ring_end - mp->m_ring_first;/addr -= 0;/
+
+check-rmap-ring-mutants: rmap_test_compact
+.for mutation in ${RMAP_RING_MUTANTS}
+	@sed '${RMAP_RING_SED_${mutation}}' ${RMAP_SRC} \
+	    > rmap_ring_${mutation}.mutant.c; \
+	if cmp -s ${RMAP_SRC} rmap_ring_${mutation}.mutant.c; then \
+		echo "rmap ring mutant ${mutation}: no source change" >&2; \
+		exit 1; fi; \
+	${HOST_CC} ${KERN_CFLAGS} ${COMPACT_DEFS} -c \
+	    -o rmap_ring_${mutation}.mutant.o rmap_ring_${mutation}.mutant.c && \
+	${HOST_CC} ${GATE_CFLAGS} ${COMPACT_DEFS} \
+	    -o rmap_ring_${mutation}.mutant.test rmap_test.c hostkern_kern.c \
+	    rmap_ring_${mutation}.mutant.o hostkern.o || exit 1; \
+	if ./rmap_ring_${mutation}.mutant.test \
+	    > rmap_ring_${mutation}.mutant.out 2>&1; then \
+		echo "rmap ring mutant ${mutation}: SURVIVED" >&2; exit 1; fi; \
+	echo "rmap ring mutant ${mutation}: rejected"
+.endfor
+
 ${SWAP_IOCTL_FUNCTION}: swap_ioctl_extract.py ${SWAP_IOCTL_SRC}
 	${PYTHON} swap_ioctl_extract.py --source ${SWAP_IOCTL_SRC} --output $@
 
@@ -3123,6 +3180,7 @@ check-v7-format: ${MACHINE_STAMP} v7_format_check.sh v7_format_test.c \
 .endif
 
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
+    check-rmap-ring-mutants check-swap-ring-io \
     check-v7-format \
 	check-swap-exchange-headroom check-swap-exchange-inplace \
     check-credential-sanitizer \
@@ -3153,7 +3211,8 @@ clean:
 	    swap_exchange_inplace_*.mutant.o \
 	    swap_exchange_inplace_*.mutant.test \
 	    swap_exchange_inplace_*.mutant.out
-	rm -f ${PROGS} hostkern.o
+	rm -f ${PROGS} hostkern.o rmap_ring_*.mutant.* swap_ring_io_test \
+	    swap_ring_io*.mutant.*
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
 	rm -f ${SWAP_IOCTL_FUNCTION} swap_ioctl_function.o swap_ioctl_rmap.o
 	rm -f swap_ioctl_test32 swap_ioctl_function32.o swap_ioctl_rmap32.o
@@ -3291,6 +3350,7 @@ clean:
 	@if [ -d ${CONSOLE_C17_MACHINE} ]; then rmdir ${CONSOLE_C17_MACHINE}; fi
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
+	check-rmap-ring-mutants check-swap-ring-io \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
 	check-buffer-busy-mutants \
 	check-rwuio-mutants check-rwuio-sanitizer \
@@ -3400,7 +3460,7 @@ swap_exchange_inplace_vm_swap.o: ${TOPSRC}/sys/kern/vm_swap.c ${MACHINE_STAMP}
 SWAP_EXCHANGE_INPLACE_MUTANTS= skip-sector-erase \
 	write-u-after-reading-incoming allocate-tail-after-first-write \
 	ignore-program-fault copy-buffer-before-program \
-	refuse-owned-tail load-data-over-clean-text
+	refuse-owned-tail load-data-over-clean-text tail-ignores-ring-end
 
 .for mutation in ${SWAP_EXCHANGE_INPLACE_MUTANTS}
 swap_exchange_inplace_${mutation}.mutant.c: swap_exchange_inplace_mutate.py \
@@ -3456,6 +3516,7 @@ check-swap-exchange-inplace: swap_exchange_inplace_test \
 		copy-buffer-before-program) expected='expected_out_data' ;; \
 		refuse-owned-tail) expected='panic_reservation.addr[0] == run' ;; \
 		load-data-over-clean-text) expected='expected_in_data' ;; \
+		tail-ignores-ring-end) expected='swap exchange: reservation' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \

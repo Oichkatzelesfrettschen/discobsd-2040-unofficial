@@ -135,7 +135,7 @@ struct mapent	swapent[SMAPSIZ];
 struct map	swapmap[1] = {
 	{ swapent,
 	  &swapent[SMAPSIZ],
-	  "swapmap" },
+	  "swapmap", 0, 0, 0 },
 };
 
 int	waittime = -1;

@@ -11,6 +11,7 @@
 #include <sys/systm.h>
 #include <sys/vm.h>
 #include <sys/uio.h>
+#include <sys/map.h>
 
 int
 swap_with_buf_result (struct buf *bp, size_t blkno, size_t coreaddr, int count,
@@ -28,6 +29,17 @@ swap_with_buf_result (struct buf *bp, size_t blkno, size_t coreaddr, int count,
 #endif
     while (count) {
         transfer_count = count;
+        /*
+         * An image extent on a ring swap map may pass the last block and
+         * continue at the first one (struct map, sys/map.h).  The transfer
+         * ends at the last block and resumes at the folded address.
+         */
+        if (swapmap->m_ring_end != 0) {
+            if (blkno >= swapmap->m_ring_end)
+                blkno -= swapmap->m_ring_end - swapmap->m_ring_first;
+            if ((size_t) btod (transfer_count) > swapmap->m_ring_end - blkno)
+                transfer_count = (swapmap->m_ring_end - blkno) << DEV_BSHIFT;
+        }
         bp->b_flags = B_BUSY | B_PHYS | B_INVAL | rdflg;
         bp->b_dev = swapdev;
         bp->b_bcount = transfer_count;

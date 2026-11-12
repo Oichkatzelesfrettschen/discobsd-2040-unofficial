@@ -20,6 +20,17 @@
 #include <sys/capacity.h>
 
 /*
+ * The ILP32 layout of every port is 16 bytes; a host gate that compiles this
+ * file at LP64 widens the pointer and offset and is not that layout.  The
+ * reference count must also hold every descriptor of every process.
+ */
+#if __SIZEOF_POINTER__ == 4
+_Static_assert(sizeof(struct file) == 16, "struct file must stay 16 bytes");
+#endif
+_Static_assert((unsigned long)NPROC * NOFILE <= 0xffffUL,
+    "f_count must hold every descriptor of every process");
+
+/*
  * Descriptor management.
  */
 

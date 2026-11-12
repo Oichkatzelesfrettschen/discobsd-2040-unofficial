@@ -170,6 +170,7 @@ Grouped by what they investigate.
 | `stdio-formatter-count-contract.md` | checked formatter arithmetic, logical counts, early stream failure and native consumer acceptance |
 | `stdio-output-batch-capacity.md` | private 256-byte batching, frame and write-count tradeoffs, chunk failure controls |
 | `board-capacity-exhaustion-58ec71f1.txt` | the board transcript of the process-table and file-table exhaustion tests at NPROC 25 and NFILE 24: EAGAIN after 19 children, ENFILE at a full table, counters and recovery |
+| `renode-capacity-exhaustion-d76edd1a.txt` | the Renode transcript of the same two exhaustion tests on the emulated PICO_UART kernel, from `check-renode-capacity`: the counts equal the board's |
 | `board-capacity-acceptance.md` | board-only sampled-stack probe, calibration, exact image boundaries, the shared-break repair runs and open physical resource measurements; `board-capacity-acceptance-93b709fc.txt` holds the merged-source run transcript and `board-capacity-acceptance-passwd-edges.txt` the passwd edge-case steps |
 | `kernel-uio-typed-interfaces.md` | four typed transfer definitions, caller preconditions and calibrated kernel inventory |
 | `libc-scandir-allocation-contract.md` | selected-entry allocation, compact self-describing records, typed per-call sorting, calibrated failure gates and paired target resource evidence |

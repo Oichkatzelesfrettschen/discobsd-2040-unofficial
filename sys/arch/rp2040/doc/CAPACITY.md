@@ -223,6 +223,14 @@ opens refused with ENFILE, and the counter rose by 2.
 `docs/research/board-capacity-exhaustion-58ec71f1.txt` is the transcript and
 the receipt of the two board exhaustion cases.
 
+One Renode run on 2026-11-11 reached both tables on the emulated PICO_UART
+kernel through `check-renode-capacity`. The counts equal the board's: 19
+children from 6 occupied slots before EAGAIN, three holders and the parent
+filling 24 file slots before ENFILE, each failure counter up by 2 and no
+other counter moved, and occupancy back at 6 and 3 after the release.
+`docs/research/renode-capacity-exhaustion-d76edd1a.txt` is the transcript and
+the receipt of the two Renode exhaustion cases.
+
 A capacity reduction requires one named workload corpus and separate Renode
 and board runs. Each run records the exact kernel identity, configuration,
 workload commands, starting and ending `kern.capacity` snapshots, allocation

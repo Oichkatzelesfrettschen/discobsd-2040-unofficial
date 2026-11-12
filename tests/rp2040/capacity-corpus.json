@@ -223,8 +223,8 @@
       "obligations": ["normal", "exhaustion", "recovery"],
       "fixture": "tests/rp2040/capacity_exhaustion/proctab.c",
       "execution_class": "renode",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/renode-capacity-exhaustion-d76edd1a.txt",
       "dependencies": ["capacity-counter-exact-source"],
       "expected": "A bounded cooperating workload fills the emulated process table and increments only the process failure counter.",
       "recovery": "Every child exits and is reaped before a subsequent creation succeeds."
@@ -247,8 +247,8 @@
       "obligations": ["normal", "exhaustion", "recovery"],
       "fixture": "tests/rp2040/capacity_exhaustion/filetab.c",
       "execution_class": "renode",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/renode-capacity-exhaustion-d76edd1a.txt",
       "dependencies": ["capacity-counter-exact-source"],
       "expected": "Cooperating holders fill the emulated system file table and increment only the file failure counter.",
       "recovery": "Closing holders permits a subsequent falloc allocation."

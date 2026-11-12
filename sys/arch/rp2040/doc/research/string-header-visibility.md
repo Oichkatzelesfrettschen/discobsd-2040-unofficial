@@ -87,12 +87,39 @@ and assembles their output for Cortex-M0+. A malformed input calibrates parser
 rejection. Expanded-header acceptance does not establish on-device preprocessing,
 execution, or full C17 language support.
 
+## Measured consumers and static resources
+
+`docs/research/libc-string-header-consumers.json` records 551 compiled C source
+paths and 34 affected shipped artifact groups in the repaired parent capture.
+The capture includes generated C inputs and records zero non-C consumers of
+`include/string.h`. The caller set derives from executed compiler dependencies.
+The installed private header matches its source bytes after distribution.
+
+The paired receipts in `docs/research/libc-string-header-resource-parent.json`
+and `docs/research/libc-string-header-resource-candidate.json` bind parent
+`fc71a27927812e835dea232d327c287da7f3c094` and candidate
+`6aa74484c0d1b30d790625d0d0bd75c3d7a3ac2c`. Both clean distributions complete
+with kernel-checksum transformation capture and resolve the complete selected
+shipped closure. The collector and toolchain identities match. All 158 static
+resource deltas equal zero, and archive selections remain unchanged across
+37 groups. The root image retains 744 allocated data blocks, 235 free blocks
+and 32 free inodes. Image byte identity and static resource equality remain
+separate observations.
+
+The comparison replays with caller-selected `PYTHON` from the repository root:
+
+```
+"$PYTHON" tools/c17/shipped_resources.py compare \
+    --base docs/research/libc-string-header-resource-parent.json \
+    --candidate docs/research/libc-string-header-resource-candidate.json \
+    --output .build-logs/string-header-resource-comparison.json
+```
+
 ## Remaining closure
 
 The mechanism converts `string.h`. Other public headers retain their existing
 visibility policies and require individual conversions. Existing string
-algorithms retain independent runtime obligations. Consumer rebuilds, matched
-resource receipts, aggregate checks, and reviewed integration decide release
+algorithms retain independent runtime obligations. Aggregate checks and reviewed integration decide release
 acceptance; host compilation establishes neither board behavior nor performance.
 
 <!--

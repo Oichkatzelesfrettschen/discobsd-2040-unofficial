@@ -148,6 +148,117 @@ These results retain kernel teardown as a separate execution obligation. The ori
 in `tests/c17_headers/exit_probe.c`. Quick-exit adds an independent registry;
 it must preserve normal-exit isolation and receive its own resource decision.
 
+## DragonFlyBSD quick-exit traversal has the same registration boundary
+
+The source search uses `git show` at DragonFlyBSD revision
+`805ca132aededa6ae4c8b3499a2d5c934d78fe56`, path
+`lib/libc/stdlib/quick_exit.c`. The source SHA-256 is
+`3b2b334f9db8c945930ad57a9f3f5b8edfe6cca72ad8365a5704c57c1e28d571`.
+Its registration function prepends an allocated node to `quick_exit_fns`;
+its termination loop walks a saved `fn` through `fn->next`. A callback's
+successful registrations therefore enter the head without entering the saved
+traversal. The same mutation boundary explains the DiscoBSD exit defect above.
+
+[POSIX Issue 8 quick_exit](https://pubs.opengroup.org/onlinepubs/9799919799/functions/quick_exit.html)
+requires reverse registration order, with the exception for functions already
+called when a new registration occurs. It also requires isolation from normal
+exit handlers and final termination as if through `_Exit(status)`.
+The retained reference HTML hashes to
+`6112e047becb7241ad64fd9458ec381bcb6aa59ab5500a0639d6dcdd15920b46`.
+These rules distinguish permissible callback registration from recursive exit
+or mixed exit/quick-exit calls, whose behavior is undefined.
+
+| Host-source case | Retained donor | Live-head-pop control |
+| --- | --- | --- |
+| A then B; B registers C then D | `BA`, rejection against `BDCA` | `BDCA`, pass |
+| B alone; B registers C then D | `B`, rejection against `BDC` | `BDC`, pass |
+| Duplicate callback | `AA`, pass | `AA`, pass |
+| 32 registrations | 32 calls, pass | 32 calls, pass |
+| Failed allocation after A | A remains registered, pass | A remains registered, pass |
+| Empty registry | Status 7, pass | Status 7, pass |
+
+The fixture sets `__isthreaded=0` and supplies lock declarations that permit
+host compilation. The experiment establishes the single-thread traversal
+behavior under modeled allocation and termination; it establishes neither
+DragonFlyBSD runtime behavior in threaded processes nor a complete quick-exit
+implementation. The control only changes traversal to pop the live head before
+the callback. Callback node reclamation, lock ownership, independent registries,
+target storage policy and native packaging retain separate obligations.
+
+The reusable invariant places the mutation before the callback, because the
+callback can mutate the registry. Coherent's count decrement and the linked
+live-head pop express that same ordering through different representations.
+The algorithm has prior art; the contribution is a calibrated boundary witness
+that prevents donor preference from concealing a target contract violation.
+
+The following replay uses a content-pinned donor and the retained exit fixture.
+It compiles only the inspected translation unit and generates temporary files;
+it executes no donor build scripts. `CC` selects a host C17 compiler.
+
+```sh
+set -eu
+: "${PYTHON:?set PYTHON to the intended interpreter}"
+: "${DRAGONFLY_DONOR:?select the donor checkout}"
+export PYTHON DRAGONFLY_DONOR
+"${PYTHON}" - <<'PY'
+import hashlib
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import tempfile
+
+revision = "805ca132aededa6ae4c8b3499a2d5c934d78fe56"
+source = subprocess.check_output([
+    "git", "-C", os.environ["DRAGONFLY_DONOR"], "show",
+    revision + ":lib/libc/stdlib/quick_exit.c"])
+if hashlib.sha256(source).hexdigest() != (
+        "3b2b334f9db8c945930ad57a9f3f5b8edfe6cca72ad8365a5704c57c1e28d571"):
+    raise SystemExit("donor source identity differs")
+fixture = Path("tests/libc_contracts/exit_lifecycle_test.c").read_bytes()
+if hashlib.sha256(fixture).hexdigest() != (
+        "a0f6f077b0898960b6cfd29a5e6674e9e6b4a45cae5cf48d443c6cd20d416c68"):
+    raise SystemExit("fixture identity differs")
+fixture = "int __isthreaded;\n" + fixture.decode().replace('!";', '";')
+before = "for (fn = quick_exit_fns; fn != NULL; fn = fn->next) {"
+after = ("while ((fn = quick_exit_fns) != NULL) {\n"
+         "               quick_exit_fns = fn->next;")
+original = source.decode()
+if original.count(before) != 1:
+    raise SystemExit("donor traversal anchor differs")
+compiler = shlex.split(os.environ.get("CC", "cc"))
+flags = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror"]
+renames = ["-Dat_quick_exit=db_atexit", "-Dquick_exit=db_exit",
+           "-Dmalloc=exit_test_malloc", "-D_exit=exit_test_terminate"]
+with tempfile.TemporaryDirectory(prefix="quick-exit-donor-") as temporary:
+    work = Path(temporary)
+    (work / "fixture.c").write_text(fixture)
+    (work / "libc_private.h").write_text("extern int __isthreaded;\n")
+    (work / "spinlock.h").write_text(
+        "typedef int spinlock_t;\n#define _SPINLOCK(p) ((void)(p))\n"
+        "#define _SPINUNLOCK(p) ((void)(p))\n")
+    for label, text in (("retained", original),
+                        ("live-head-pop", original.replace(before, after))):
+        (work / "donor.c").write_text(text)
+        subprocess.run(compiler + flags + renames + ["-c", str(work / "donor.c"),
+                       "-o", str(work / "donor.o")], check=True, timeout=60)
+        program = work / label
+        subprocess.run(compiler + flags + [str(work / "fixture.c"),
+                       str(work / "donor.o"), "-o", str(program)],
+                       check=True, timeout=60)
+        for case in ("nested", "last", "duplicate", "capacity", "failure", "empty"):
+            result = subprocess.run([str(program), case], capture_output=True,
+                                    text=True, timeout=10, check=False)
+            failures = {
+                "nested": "lifecycle mismatch: events=BA expected=BDCA status=7\n",
+                "last": "lifecycle mismatch: events=B expected=BDC status=7\n"}
+            diagnostic = failures.get(case, "") if label == "retained" else ""
+            if result.returncode != bool(diagnostic) or result.stderr != diagnostic:
+                raise SystemExit(f"unexpected {label}/{case}: {result}")
+            print(label, case, "expected rejection" if diagnostic else "pass")
+PY
+```
+
 ## Scanner witness replay
 
 Place the following C fixture in a caller-owned build directory as `probe.c`.

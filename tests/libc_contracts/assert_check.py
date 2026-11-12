@@ -12,6 +12,12 @@ root = Path(__file__).resolve().parents[2]
 compiler = shlex.split(os.environ.get("HOSTCC", "cc"))
 flags = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror"]
 
+
+def require(condition, message):
+    if not condition:
+        raise SystemExit(f"assert contract: FAIL: {message}")
+
+
 with tempfile.TemporaryDirectory(prefix="discobsd-assert-") as directory:
     temporary = Path(directory)
     for name in ("assert_contract_test", "assert_reinclude_test"):
@@ -27,13 +33,13 @@ with tempfile.TemporaryDirectory(prefix="discobsd-assert-") as directory:
     result = subprocess.run(
         [temporary / "assert_contract_test", "fail"], capture_output=True, text=True
     )
-    assert result.returncode == -signal.SIGABRT, result.returncode
+    require(result.returncode == -signal.SIGABRT, result.returncode)
     for fragment in ("count != 0", "assert_contract_test.c", "line 39", "main"):
-        assert fragment in result.stderr, result.stderr
+        require(fragment in result.stderr, result.stderr)
 
     header = (root / "include/assert.h").read_text(encoding="utf-8")
     original = "#define assert(expression) ((void)0)"
-    assert header.count(original) == 1
+    require(header.count(original) == 1, "disabled assertion mutation anchor differs")
     (temporary / "assert.h").write_text(
         header.replace(original, "#define assert(expression) ((void)(expression))"),
         encoding="utf-8",
@@ -46,8 +52,8 @@ with tempfile.TemporaryDirectory(prefix="discobsd-assert-") as directory:
         check=True,
     )
     result = subprocess.run([mutant], capture_output=True, text=True)
-    assert result.returncode == -signal.SIGABRT, result.returncode
-    assert "disabled() == 0" in result.stderr, result.stderr
+    require(result.returncode == -signal.SIGABRT, result.returncode)
+    require("disabled() == 0" in result.stderr, result.stderr)
 
     # A false constant expression is a translation failure that carries the
     # message; a header without the macro leaves the contract test unbuildable.
@@ -63,11 +69,11 @@ with tempfile.TemporaryDirectory(prefix="discobsd-assert-") as directory:
          "-fsyntax-only", str(false_source)],
         capture_output=True, text=True,
     )
-    assert result.returncode != 0, "false static_assert compiled"
-    assert "discobsd false constant" in result.stderr, result.stderr
+    require(result.returncode != 0, "false static_assert compiled")
+    require("discobsd false constant" in result.stderr, result.stderr)
 
     definition = "#define static_assert _Static_assert\n"
-    assert header.count(definition) == 1
+    require(header.count(definition) == 1, "static assertion mutation anchor differs")
     (temporary / "assert.h").write_text(
         header.replace(definition, ""), encoding="utf-8"
     )
@@ -76,7 +82,7 @@ with tempfile.TemporaryDirectory(prefix="discobsd-assert-") as directory:
          str(root / "tests/libc_contracts/assert_contract_test.c")],
         capture_output=True, text=True,
     )
-    assert result.returncode != 0, "contract test built without static_assert"
+    require(result.returncode != 0, "contract test built without static_assert")
 
 print("assert contract: PASS; disabled-evaluation, false-constant and "
       "missing-static_assert mutants rejected")

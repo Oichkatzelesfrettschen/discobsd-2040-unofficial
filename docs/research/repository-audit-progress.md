@@ -25,7 +25,7 @@ the authorized offline execution surface.
 | --- | --- | --- |
 | Establish baseline and ownership | Complete for audit worktree | Remote main and worktree heads/statuses recorded; isolated baseline build passed. Preserve unrelated dirty worktrees. Recheck pull-request ownership separately before mutation. |
 | Create coverage denominator | Complete; reviews pending | 6,743 unique paths and 654 pending component rows validate; 15 fixtures calibrate identities, missing/duplicate paths, references, closure and overwrite protection. |
-| Revalidate historical v7fs and assertion findings | Active | Trace current implementations and calibrated regression cases; run host and target-equivalent configurations. Record bounded findings. |
+| Revalidate historical v7fs and assertion findings | Active | Baseline host regressions pass. Repair the reproduced optimized-Python assertion-oracle gap, record source/test boundaries, and carry v7fs compensation candidates into persistent-image probes. |
 | Map storage contracts | Pending | Trace descriptor, buffer cache, flash, Dhara and ROM operations with units, acknowledgements, ordering and persistence assumptions. Inspect pull request 435's experiment before reuse. |
 | Implement shared failure interface | Pending | Trace typed events; exercise short/error/partial transfers and a second compensation failure; require activated injections. |
 | Extend persistent-image oracle | Pending | Reopen images with fresh volatile state; account independently for ownership, free lists, inodes, directories and links; reject specified mutants. |
@@ -69,6 +69,36 @@ takeover eligibility nor local inactivity. Pull request 435 reports Linux
 and macOS gate failures and conflicts; pull request 436 reports successful
 historical checks; pull request 437 reports only a skipped automated review.
 Every reconciled candidate needs revision-bound acceptance checks.
+
+The baseline assertion, v7fs, and import-provenance invocation
+`audit-v7fs-assert-20261112T182405Z-2765539-54f2f9c3` retains its full log and terminal status locally. The selected command was
+`bmake MACHINE=rp2040 check-libc-assert check-v7fs-core check-netbsd-imports`;
+the runner reports exit zero after 72.2 seconds. The v7fs run exercised both
+byte orders, the user backend, the fixed-pool descriptor backend with
+`NDEBUG`, alignment sanitization, and the suite's calibrated reversals and
+mutants. The import gate matched all 37 files. Linux linker-wrapped failure
+cases carry Linux host evidence; optional variants retain their own limits.
+
+The assertion harness used Python `assert` statements for verdicts, so
+`PYTHONOPTIMIZE=1` removed the negative-control checks. A compiler wrapper
+that returned success for the deliberately false static assertion made the
+baseline harness print `assert contract: PASS` and exit zero. The dedicated
+oracle regression observed that false acceptance before the repair. Explicit
+verdict checks replace removable Python assertions; the same optimized-Python
+control then reports `false static_assert compiled` and exits with failure.
+The positive optimized-Python case and both existing assertion configurations
+pass. The compiler wrapper carries its compiler selector as quoted arguments;
+the generated shell text contains only a static `exec "$@"` dispatch.
+
+Read-only source analysis identified three further v7fs probes rather than
+establishing completed repairs: the CLI parent-growth preflight counts a data
+block while indirect growth can also require index blocks; the core hard-link
+helper ignores its final inode-writeback result; and rename failure propagation
+does not establish namespace compensation. Each candidate requires an activated
+injection, a fresh image read, and a claim-specific oracle. Existing root-block
+ownership checks cover data/index/free-list partitioning for their fixtures;
+they leave directory reachability, link counts, and parent-directory creation
+at indirect growth boundaries for the new oracle.
 
 ## Replay
 

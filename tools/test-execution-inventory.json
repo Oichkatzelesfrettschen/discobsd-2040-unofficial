@@ -451,6 +451,16 @@
       "kind": "recursive make"
     },
     {
+      "from": "check-libc-getgrent",
+      "to": "tests/libc_contracts:check-getgrent",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-getgrent-cross",
+      "to": "tests/libc_contracts:check-getgrent-cross",
+      "kind": "recursive make"
+    },
+    {
       "from": "check-dd-contracts",
       "to": "tests/dd_contracts:check",
       "kind": "recursive make"
@@ -494,6 +504,7 @@
         "check-difftime",
         "check-string-security",
         "check-vis",
+        "check-getgrent",
         "check-printf-float",
         "check-printf-g",
         "check-huge-val",
@@ -1182,6 +1193,25 @@
       "recipe": "${TEST_EXECUTION} run libc.vis.native -- ./vis_contract_test",
       "aliases": [
         "check-libc-vis"
+      ]
+    },
+    {
+      "id": "libc.getgrent.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-getgrent",
+      "root_target": "check-libc-host-contracts",
+      "program": "getgrent_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "getgrent_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.getgrent.native -- ./getgrent_contract_test",
+      "aliases": [
+        "check-libc-getgrent"
       ]
     },
     {

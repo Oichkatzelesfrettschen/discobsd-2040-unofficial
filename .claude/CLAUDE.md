@@ -65,6 +65,9 @@ Makefiles are tracked; synchronize both when generation inputs change.
   a recorded group remains visible. Resolve an unknown pending launch only
   through `tools/recover_logged_execution.py` after inspecting the host and the
   exact terminal status receipt.
+- Give the hosted CI run and each local logged target its own watcher. Each
+  watcher exits on its job's first failed part or terminal status. A waiter
+  that chains two jobs holds the first job's failure until the second ends.
 - `BUILD_LEGACY_NON_ARM=yes legacy-non-arm-verify` checks archive identity.
   `BUILD_PDP11_V6=yes` explicitly opts into isolated PDP-11/V6 tests; neither
   makes legacy code part of the maintained ARM build. See

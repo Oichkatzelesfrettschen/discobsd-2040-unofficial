@@ -828,6 +828,7 @@ Each gate compiles the tree's own source for the host, with `-Wall
 | `check-libc-rwmode` | `_filbuf` and `_flsbuf` compiled from the tree over a host temporary opened read-write: output, `fflush`, input continuing at the output position, input to end of file, output appending there, then the file read back whole. The V7 core fails both switches: after `fflush` the write buffer's free count let `getc` read the output buffer as input, and `putc` at end of file wrote the consumed read-ahead back as output |
 | `check-libc-syslog` | syslog compiled as strict C17 over deterministic clock, errno and transport shims: priority, timestamp, tag, maximum target PID, CRLF, LOG_PERROR, repeated and escaped `%m`, long tag, literal format, argument and error-text bounds, and retry after a failed logfile open |
 | `check-libc-vis` | the legacy and bounded visual encoders compiled as strict C17 with signed input bytes: all 65,536 byte, flag and octal-lookahead combinations preserve the historical encoding; focused cases pin exact and short capacities, destination guards, an unchanged destination on ENOSPC, embedded NUL input and high-bit bytes |
+| `check-libc-getgrent` | lib/libc/gen/getgrent.c compiled from the tree under `db_` names with its malloc, free and fopen routed to the test over a temporary group file: setgrent allocates nothing, a failed first allocation returns NULL with ENOMEM and the next call returns the first entry, later calls and a reopen after endgrent allocate nothing more, an entry outlives endgrent unreleased, and the member vector stops at 199 of 248 members. `getgrent_contract_mutate.py` rejects a static record, a record per call, an unchecked allocation and a release at endgrent, and bounds the Cortex-M0+ object's bss under 64 bytes |
 | `check-getty-contracts` | getty's public capability parser, flag derivation and exact mode-application function from `main.c`, compiled with its tables, virtual gettytab text and an ordered ioctl trace: the header indexes agree with the table; parsed omitted and explicit `rw` and `ec` select `RAW` and echo or `CBREAK` and disabled echo; parsed `np` delivers `LPASS8` after the low mode through ordered `TIOCSETP` and `TIOCLSET` calls; parsed `ep` or `op` replaces the shipped parsed `ap` default; parsed tab, flow-control and explicit `f0` choices retain their meanings. Fixtures that drop local-mode application or report every parsed flag absent must fail the same gate. The login half records `TIOCLGET`, a temporary zero-valued `TIOCLSET`, and restoration of the exact inherited local-mode word. An exact-source order check requires login to clear before authentication commits, restore before environment setup and execute the shell last; missing and prematurely restored fixtures calibrate that check |
 | `check-init-contracts` | init's refused-fork paths from `sbin/init/init.c`, compiled from the tree against the tree's headers with fork, wait, sleep, kill and syslog answered by scripted doubles: `spawn()` makes six attempts five seconds apart, logs the first refusal once and returns the first success; `runcom()` reads no wait status after a refusal and treats a vanished child as a failed `/etc/rc`; `single()` retries until a shell starts; a refused getty or window system leaves the `-1` restart marker, which `term()` and `wterm()` never pass to `kill()`. The 26 checks run beside four mutations (`term-kills-marker`, `wterm-kills-marker`, `spawn-no-delay`, `runcom-waits-after-refusal`), each of which must fail a named check; a mutation whose pattern no longer matches the source fails the build. |
 | `check-libc-string-security` | explicit_bzero and timingsafe_bcmp compiled from the tree: zero, partial and complete erasure; zero length, equality and differences in the first, middle and final byte across all 256 byte values |
@@ -1534,6 +1535,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-libc-rwmode` | the C17 7.21.5.3p7 mode switch on an r+ stream at host and ILP32 widths |
 | `check-libc-syslog` | the bounded logfile and stderr record contract over the tree's string formatter |
 | `check-libc-vis` | the legacy and bounded visual encoders compiled as strict C17 with signed input bytes: all 65,536 byte, flag and octal-lookahead combinations preserve the historical encoding; exact and short capacities, destination guards, an unchanged destination on ENOSPC, embedded NUL input and high-bit bytes pin the bounded contract |
+| `check-libc-getgrent`, `check-libc-getgrent-cross` | the group-file record allocated on the first getgrent call (the `-cross` target adds the Cortex-M0+ bss bound, which needs the cross compiler and so runs in the cross tier): no allocation before it, one for every later call, NULL with ENOMEM on failure, an entry valid after endgrent, four rejected mutants and a Cortex-M0+ bss bound |
 | `check-libc-string-security-cross` | Cortex-M0+ disassembly of timingsafe_bcmp has two volatile byte loads, one length-controlled conditional branch and no delegation to bcmp or memcmp; an early-return comparator calibrates the rejection path |
 | `check-ptrace-libc-abi` | Cortex-M0+ disassembly requires the ptrace wrapper to save r0-r3 on an aligned stack, clear `errno`, restore all four syscall arguments immediately before `svc 26`, and retain both success and error return sequences. Mutations that remove argument preservation or insert a post-restore argument clobber calibrate the two rejection paths. The cross gate establishes the emitted ARM calling sequence; it does not execute ptrace or board hardware. |
 | `check-scandir-contracts-cross` | The exact scanner compiles as strict C17 for Cortex-M0+. Import inspection rejects qsort and signed/unsigned compiler integer-division helpers. Allowed imports, every forbidden helper and an inspector returning failure calibrate the check before the target object is inspected. The cross gate establishes compilation and imports; host fixtures establish their exercised behavior. |
@@ -1784,8 +1786,10 @@ with the MPU's deliberate fault test. The probe test
 asserts the `mpu:` banner line, which is MPU_TYPE and MPU_CTRL read back
 after sys/arch/rp2040/rp2040/mpu.c programmed its three regions; the login
 test then runs usr.bin/mputest, which forks children that read kernel RAM,
-kernel text and SIO CPUID from unprivileged code and expects SIGSEGV for
-each while the divider beside that CPUID reads and divides, and asserts
+kernel text, SIO CPUID, four words of the unstriped SRAM aliases at
+0x21000000 and the XIP cache-as-SRAM window at 0x15000000 from unprivileged
+code and expects SIGSEGV for each while the divider beside that CPUID reads
+and divides, and asserts
 `MPUTEST OK (mpu on)`. `mputest residue` follows: it fills the span
 between the image and its stack, execs, and asserts `RESIDUE OK`, which
 holds only when exec_clear has zeroed that span. Renode's Cortex-M0+ implements the
@@ -2010,9 +2014,12 @@ tests/rp2040/hwcount/board_hwcount.py checks the machdep event counters of
 `xip_hit` at or below it, a write clearing a counter, every `bus_perfsel`
 taking events 19 and 31 and refusing 20, and a `bus_perfctr` on all SRAM0
 accesses counting, holding once its select names no event, and reading zero
-after a write. It opens no port and calls no flashing tool unless
-`DISCOBSD_BOARD_HWCOUNT` is exactly `run`.
-`docs/research/hardware-review-reconciliation.md` records its one run. No
+after a write. It then writes `machdep.xip_cache` 0 and requires the cache
+to read disabled, to stay disabled across a flash write, to count no hit
+over a `cat` of `/bin/sh` and to take longer over it than with the cache
+on, and writes 1 again; the board answers slowly in between. It opens no
+port and calls no flashing tool unless `DISCOBSD_BOARD_HWCOUNT` is exactly
+`run`. `docs/research/hardware-review-reconciliation.md` records its runs. No
 emulator models `XIP_CTRL` counters or `BUSCTRL`, so the nodes have board
 evidence only.
 A fifth, tests/rp2040/sd_detach/board_sd_detach.py, mounts the PicoCalc's
@@ -2030,6 +2037,28 @@ holds the largest grantable flash swap extent on `/dev/temp0` to `temp2`,
 requires fork to refuse with ENOMEM and the shell to keep answering, releases
 the extents, and requires a successful fork whose child sees the parent's
 bytes. It opens no port unless `DISCOBSD_BOARD_USER_WINDOW` is exactly `run`.
+A seventh, tests/rp2040/capacity_exhaustion/board_capacity_exhaustion.py,
+stages `filetab` and `proctab` with the routines of board_user_window.py and
+runs the board cases `system-file-table-exhaustion` and
+`process-table-exhaustion` of `tests/rp2040/capacity-corpus.json`. `filetab`
+dups one descriptor to the per-process limit and requires EMFILE with no file
+failure, fills the system file table with holder processes that each open six
+files, requires the next `open` to fail with ENFILE while the parent holds far
+fewer than `NOFILE` descriptors, closes every holder and requires a later
+`open` to succeed. `proctab` runs as root, forks children that park in
+`sigsuspend(2)` until the table is full, requires EAGAIN (a fork refused with
+ENOMEM means swap ran out first and ends the run as inconclusive with exit
+status 3), releases and reaps every child and requires one more fork to
+succeed. Both programs read `kern.maxproc`, `kern.maxfiles` and
+`kern.capacity` instead of a compiled limit, require the failure counter of
+the resource to rise by the number of refusals and every other counter to hold,
+require occupancy to return to its starting value, and print one PASS or FAIL
+line per check and a `PROCTABTEST` or `FILETABTEST` verdict line. The driver
+also requires the process occupancy after both programs to equal its starting
+value. It opens no port unless `DISCOBSD_BOARD_CAPACITY_EXHAUSTION` is exactly
+`run`, and no result of it is recorded. No host gate or Renode driver runs
+these programs; `check-board-build` establishes compilation and a.out
+conversion only.
 `sys/arch/rp2040/doc/BOARD-CONSOLE.md` records the console limits every
 driver here must respect: the 126-byte line editor cap, the per-byte prompt
 redraw, chunked and verified staging, sentinel parsing and compressible test

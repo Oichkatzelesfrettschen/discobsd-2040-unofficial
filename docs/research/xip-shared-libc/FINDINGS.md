@@ -142,6 +142,8 @@ No finding was rejected.
 | stream 08 | weak `_doprnt` hooks resolve inside libc; ROM float trampolines use absolute cell addresses | open decision | roadmap 5 (rewrite r9-relative or keep float printf out of libcx) |
 | stream 08 | veneer count reported as a gate figure | adopted | roadmap 7 |
 | stream 08 | crt0 must exit cleanly when libc data does not fit; a gate checks image plus libc data plus stack against MAXMEM | adopted | roadmap 5 |
+| stream 08 | make `_ctype_` const | landed in `6b76f490`; the table sits in `a_text`, which swap skips, and still occupies the window, since text and data load as one extent | README "Static libc state under static links"; roadmap 4 |
+| stream 01, 08 | allocate `gr_mem`, crypt `KS`, regex `expbuf` and the 256-byte line buffers on first use | NARROWED under static links: getgrent's 1,057-byte record is allocated on first use, so box, find, login, su, tar and utilbox lose 1,056 bytes of bss and one flash swap block for 24 bytes of text; `KS`, `expbuf` and the line buffers stay static, saving no kilobyte or swap block outside main-path callers at this layout | README "Static libc state under static links"; `check-libc-getgrent`; roadmap 4 |
 
 ## Stream 09: historical UNIX archive
 

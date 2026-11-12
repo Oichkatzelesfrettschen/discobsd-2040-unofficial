@@ -183,9 +183,14 @@ libc and land first.
    reads succeed and writes fail with EFAULT.
 4. libc ABI: libc-owned `environ`, `__progname`, current and minimum break;
    `_iob`, `errno` and `environ` access defined for indirection; lazy
-   allocation of `gr_mem`, crypt `KS`, regex `expbuf` and the line buffers
-   behind first use (an open-call convention after Palm's per-library globals
-   pointer); const `_ctype_`.
+   allocation of large libc state behind first use (an open-call convention
+   after Palm's per-library globals pointer); const `_ctype_`. The two
+   static-state items stand alone under today's static links and are
+   settled by measurement (section "Static libc state under static links"):
+   `_ctype_` is const already (`6b76f490`); getgrent's 1,057-byte record
+   is allocated on first use; crypt `KS`, regex `expbuf` and the 256-byte
+   line buffers stay static, because no shipped program saves a window
+   kilobyte or a swap block by moving them.
 5. r9-relative libc data: libc built with `-fPIC -msingle-pic-base
    -mpic-register=r9 -mno-pic-data-is-text-relative`, programs with
    `-ffixed-r9`, crt0 placing libc data after bss and fixing up the GOT and
@@ -231,7 +236,11 @@ first. Item 8's board evidence reads `XIP_CTRL` `CTR_ACC` and `CTR_HIT`, and
 so does every cache question the shared libc raises: libc text at
 0x10020000 shares the 16 kB, two-way cache of 8-byte lines (datasheet
 2.6.3.1) with kernel text, so the miss rate of a libc-heavy workload is the
-first number that can confirm or overturn the verdict.
+first number that can confirm or overturn the verdict. The kernel alone
+runs at a 99.7 percent hit rate, and uncached execution is 23 times slower
+on a shell command (`../hardware-review-reconciliation.md`, "The cache
+control"), so the bound of item 8 is a miss rate, read as `xip_acc` less
+`xip_hit` in one command.
 `../hardware-review-reconciliation.md` orders the counters, the
 non-allocating alias and line alignment as its roadmap items 1 to 4 and
 records the kernel sizes of `7a270276` (PICO flash image 95,248 bytes,
@@ -246,6 +255,68 @@ survives a reflash.
 
 `FINDINGS.md` maps every finding from every stream, review and pass to this
 roadmap.
+
+## Static libc state under static links
+
+Every shipped program links static `libc.a`, so a member's data and bss
+cost only the programs that link it, and the executable format decides
+which of those bytes matter. `elf2aout` puts the non-writable load segment
+(`.text` and `.rodata`, `lib/elf32-arm.ld:102`) in `a_text` and the
+writable one in `a_data` and `a_bss` (`tools/elf2aout/elf2aout.c:468-487`).
+Both loaders place text, data and bss in one extent at `__user_data_start`
+(`sys/kern/exec_aout.c:150-153`, `sys/arch/rp2040/rp2040/exec_hsaout.c:172-174`,
+`sys/kern/exec_subr.c:435`), so moving a table from `.data` to `.rodata`
+frees no window byte. Text is not swapped: `p_tsize` records `a_text`
+(`exec_aout.c:225`, `exec_hsaout.c:196`), swapout skips it
+(`sys/kern/vm_swap.c:27-34,42-47,246`) and swapin re-reads it from the
+executable (`vm_swap.c:171`, `exec_aout.c:89`), so a const table leaves the
+swap image. Bss is swapped with data and the break (`vm_swap.c:196,246`):
+the flash tier writes it raw in 1,024-byte blocks (`DEV_BSIZE`,
+`sys/arch/rp2040/include/machparam.h:103,108`), while the PICO kernel's
+16 KB SwapRAM tier (`sys/arch/rp2040/compile/PICO/Makefile:6-7`) runs
+heatshrink at window 9 and lookahead 8 (`heatshrink_config.h:34,37`) twice
+per swapout (`swapram.c:359-400,423`), and the tree's encoder turns 1,057
+zero bytes into 12. malloc extends the arena to the next 1,024-byte address
+(`lib/libc/gen/malloc.c:67,142`) and every shipped program links it, so a
+bss cut moves the heap start, the window headroom and the flash-tier swap
+image only when it crosses a kilobyte boundary.
+
+The rows below come from the 37 shipped executables of a clean build of
+`58ec71f1` (arm-none-eabi-gcc 16.2.0), each relinked from its own objects
+with a link map; every relink reproduces the shipped a.out byte for byte.
+"Saving" is the upper bound with no text added: the kilobyte of heap start
+and the flash swap block a run gains when it never calls the member.
+
+| Candidate | Member bss | Shipped programs linking it | Saving | Disposition |
+| --- | --- | --- | --- | --- |
+| `_ctype_` | none; 257 bytes of `.rodata` | 19 | in `a_text` of all 19, outside swap | const since `6b76f490` |
+| getgrent `gr_mem` and `line` | 1,077 (800 + 257) | box, find, login, su, tar, utilbox | 1 KiB and 1 block in each | allocated on first use |
+| crypt `KS` | 1,130 (768) | login, passwd | none; both call `crypt()` on the main path | static |
+| regex `expbuf` | 585 (512) | utilbox (`more`) | none; 66,318 to 65,806 bytes stays in one kilobyte | static |
+| getpwent `line` | 344 (256) | adminbox, box, find, fsck, login, passwd, ps, su, tar, utilbox | find, fsck and su; a 256-byte cut crosses a kilobyte in 3 of 10 layouts, and su reads the file on its main path | static |
+| getttyent `line` | 288 (256) | init, login | init, which reads `/etc/ttys` at every start | static |
+| fstab `line` | 288 (256) | fsck, sysbox | fsck, which reads `/etc/fstab` on its main path; none in sysbox | static |
+| dirname `dname` | 256 | textbox | none | static |
+
+getgrent allocates one record holding the 200-pointer member vector and the
+257-byte line on its first call and keeps it for the process lifetime,
+because `getgrgid()` and `getgrnam()` return an entry after `endgrent()`.
+The member's bss falls from 1,077 to 24 bytes and its text grows from 228 to
+252. In the six linking programs bss falls by 1,056 bytes, text grows by 24,
+packed root blocks are unchanged, and the flash-tier swap image falls by one
+block (box 15 to 14, find 11 to 10, login 4 to 3, su 4 to 3, tar 5 to 4,
+utilbox 12 to 11) in every run that does not read the group file: every box
+applet but `chgrp`, `chown` and `ls`, every utilbox applet but `id`, and
+find without `-group`, `-nogroup` or `-ls`. A run that does read it places the
+record in the arena with one header word, 32 bytes beyond the static
+layout, which adds a kilobyte only when its break lands within 32 bytes
+below a boundary. A failed allocation returns NULL with `ENOMEM`;
+`initgroups()` then sets the primary group alone, as it does when
+`/etc/group` cannot be opened. `check-libc-getgrent` pins first use,
+repeated use, the failure path and the bss bound against four mutants.
+The SwapRAM tier saves about 12 bytes per swapout for the same runs; how
+often each tier takes an image is a board measurement this note does not
+carry.
 
 ## Evidence classes and limits
 

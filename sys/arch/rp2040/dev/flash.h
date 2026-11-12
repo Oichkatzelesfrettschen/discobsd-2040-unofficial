@@ -138,6 +138,7 @@ flash_nand_range_valid(uint32_t page, size_t offset, size_t length)
 struct buf;
 
 void	*rom_func_lookup(u_int code);
+int	flash_xip_cache(int request);
 
 int	flopen(dev_t dev, int flags, int mode);
 int	flclose(dev_t dev, int mode, int flag);

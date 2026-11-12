@@ -57,7 +57,7 @@ linked kernel. Each row names the claim it replaces.
 | MPU | eight regions, 256-byte minimum, power-of-two size with base aligned to size, eight subregions on a region of 256 bytes or more; the port programs four and never reprograms them | `MPU.md`; `mpu.c` | 32-byte region at 0xd0000078; 4-byte guard; "256 subregions" |
 | Alias and MPU | no region covers 0x21000000-0x2103ffff, so an unprivileged access there faults by non-coverage; a region granting user read-write over it would open kernel RAM | `MPU.md`; `mpu.c` | "aliases are unprotected; add AP_RW regions" |
 | boot2 | 252 bytes of code and a CRC32 at offset 0xfc; the boot ROM checks it before running boot2 from 0x20041f00 | `BOOT-MAP.md`; `tools/boot2sum` | CRC at 0xf8; metadata in the trailer |
-| Vector table | 48 words at 0x10000100; nine system slots are reserved on ARMv6-M and hold zero; PICO installs real handlers for USBCTRL, UART0 and UART1 and `Default_Handler` elsewhere | `locore0.S` | 1 KB table |
+| Vector table | 48 words at 0x10000100; nine system slots are reserved on ARMv6-M; six hold zero and three hold the image identity words; PICO installs real handlers for USBCTRL, UART0 and UART1 and `Default_Handler` elsewhere | `locore0.S` | 1 KB table |
 | DMA | 12 channels; the kernel uses none | datasheet 2.5; source search | 8 channels; a `dma.c` to tune |
 | Flash geometry | 2 MB is 512 erase sectors of 4,096 bytes and 8,192 program pages of 256 bytes; the Dhara root's 1,536 KB yields 989 KB of logical blocks | `STORAGE.md`; `dhara-geometry.txt` | 4,096 sectors; "12 KB Dhara overhead" |
 | Flash clock | boot2 sets the serial clock divider to 2, 62.5 MHz at the 125 MHz system clock | `boot2_w25q080.S` | not stated |
@@ -104,7 +104,7 @@ that already tracks the surviving form.
 | DMA transfer alignment | The kernel uses no DMA | Survives as a throughput question for the PicoCalc panel and SD paths; roadmap item 8 |
 | Convert 32-bit Thumb instructions to 16-bit; reorder functions to shorten calls | All 32-bit instructions in the kernel are `bl`, `mrs`, `msr`, `isb` and `dsb`, which have no 16-bit form | No bytes available; the dead-function and hot-field queue of `kernel-footprint-handoff.md` is where kernel text comes from |
 | Metadata in boot2 padding or the CRC trailer | The slot is fixed at 256 bytes and checked by the ROM | No byte is freed |
-| Identity words in the reserved vector slots | Nine words (36 bytes) are never fetched, and the boot2 CRC does not cover them | Capacity recorded; it lands with its first reader, the running-board identity task (R01) of the memory and wear program |
+| Identity words in the reserved vector slots | Nine words (36 bytes) are never fetched, and the boot2 CRC does not cover them | Landed in three of the nine: the image length, its CRC32 and the board descriptor address (`BOOT-MAP.md`, "Image identity"). The kernel recomputes the sum at boot and `board_image_identity.py` is the first reader, the kernel part of the running-board identity task (R01) of the memory and wear program |
 | Truncate the interrupt table after the last used vector | Saves at most 40 bytes and makes any later interrupt enable fetch past the table | Declined on risk against yield |
 | Gate unused peripheral clocks; power down unused SRAM banks | `WAKE_EN`/`SLEEP_EN` and `SYSCFG.MEMPOWERDOWN` exist (datasheet 2.11); no shipped kernel leaves a whole bank unowned, and no current has been measured | Roadmap item 7, scoped to the battery-powered PicoCalc |
 | `wfi` in idle, SIO GPIO, exception priorities, multicall bss overlay, UART scratch layout, `NBUF` 10 to 4 | Present in the tree | Already done |
@@ -220,8 +220,13 @@ instruments; items 3 to 8 each wait on the measurement named.
    `renode-capacity-exhaustion-65d7244c.txt`,
    `board-capacity-cases-65d7244c.txt`). `NINODE`, `NCLIST`, `NBUF` and
    `USIZE` keep their values; their exhaustion and fault cases are open.
-10. Image identity in the reserved vector words, together with the
-    running-board identity reader of the memory and wear program.
+10. Image identity in the reserved vector words. Landed for the kernel:
+    `tools/kernsum` stamps the length and CRC32 after the link, the kernel
+    recomputes the sum over its flash at boot and exports it as
+    `machdep.image_crc`, and `board_image_identity.py` compares a board with
+    a host `unix.bin`. The rest of the running-board identity task of the
+    memory and wear program is open: the root file system's hash, the flash
+    chip identity and the ROM revision in one record.
 
 ## First readings from the instruments
 

@@ -325,7 +325,12 @@ not access hardware or establish the complete resource measurement contract.
 `check-rp2040-vectors` compares all 48 linked vector words with the named
 symbols and reserved zero slots, checks the boot2 vector address, initial
 stack alignment, handler Thumb bits and executable load mappings for each
-RP2040 kernel. The PICO fixture checks the source slot list and rejects a
+RP2040 kernel. Entries 8, 9 and 10 are the image identity words
+(`BOOT-MAP.md`, "Image identity"): the gate rebuilds the flash image from the
+PT_LOAD segments, requires the length word to equal its size and the CRC word
+to equal its sum, and requires its own comparison to reject the image with
+its first byte, its last byte, the length word or the CRC word changed and to
+accept a rewritten board descriptor. The PICO fixture checks the source slot list and rejects a
 source-handler substitution, every changed vector word and every cleared
 handler Thumb bit. The cross gate checks linked values, rather than exception
 delivery or physical privilege behavior. Weak aliases may legitimately share
@@ -2007,6 +2012,15 @@ delivery to a registered SPI device. check-picocalc.sh refuses a model build
 that predates 0008.
 
 ## Board tier
+
+`tests/rp2040/image_identity/board_image_identity.py` answers which kernel a
+board runs. With `DISCOBSD_BOARD_IMAGE_IDENTITY=run` it reads
+`machdep.image_length`, `machdep.image_crc` and `machdep.image_crc_stored`
+over the USB console and compares them with the values computed from a host
+`unix.bin`; it flashes nothing. The claim is that the kernel bytes in the
+board's flash are the bytes of that file, the board descriptor aside. The
+root file system has no such word; `/etc/release` names its build.
+
 
 `check-board-build` builds the on-device regression programs to a.out
 through tests/rp2040/Makefile: fptest (Boot ROM float, bit-exact),

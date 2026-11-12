@@ -109,7 +109,19 @@
  * for measuring what the cache saves, not a way to run.
  */
 #define	CPU_XIP_CACHE		39	/* int: XIP cache enabled */
-#define	CPU_MAXID		40	/* number of valid machdep ids */
+
+/*
+ * The flash image's identity, read-only. image_length and image_crc_stored
+ * are the words tools/kernsum stamped into vector entries 8 and 9;
+ * image_crc is the CRC32 the kernel computed over its own flash at boot,
+ * with the CRC word and the board descriptor read as zero. The two sums
+ * differ when the flash holds other bytes than the link produced.
+ * image_length is zero for a kernel without the words.
+ */
+#define	CPU_IMAGE_LENGTH	40	/* int: flash image bytes */
+#define	CPU_IMAGE_CRC		41	/* int: CRC32 computed at boot */
+#define	CPU_IMAGE_CRC_STORED	42	/* int: CRC32 stamped at the link */
+#define	CPU_MAXID		43	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -153,5 +165,8 @@
 	{ "bus_perfsel2", CTLTYPE_INT }, \
 	{ "bus_perfsel3", CTLTYPE_INT }, \
 	{ "xip_cache", CTLTYPE_INT }, \
+	{ "image_length", CTLTYPE_INT }, \
+	{ "image_crc", CTLTYPE_INT }, \
+	{ "image_crc_stored", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

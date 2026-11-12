@@ -62,7 +62,7 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-ansi check-syslog \
 	check-vis check-printf-g check-huge-val \
 	check-qsort check-strtox check-string-security check-array-memory-line \
-	check-getgrent
+	check-getgrent check-exit-lifecycle
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 ARRAY_MEMORY_CFLAGS= -std=c17 -Wall -Wextra -Werror
@@ -1058,6 +1058,24 @@ rwmode_filbuf32.o: ${PRINTF_DIR}/filbuf.c
 rwmode_flsbuf32.o: ${PRINTF_DIR}/flsbuf.c
 	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
 
+check-exit-lifecycle: exit_lifecycle_test
+	${TEST_EXECUTION} run libc.exit.native -- ./exit_lifecycle_test nested
+.if ${ILP32_OK} == "yes"
+	@${MAKE} exit_lifecycle_test32
+	${TEST_EXECUTION} run libc.exit.ilp32 -- ./exit_lifecycle_test32 nested
+.else
+	${TEST_EXECUTION} skip libc.exit.ilp32 "check-libc-exit-lifecycle: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+
+EXIT_LIFECYCLE_INPUTS= exit_lifecycle.py exit_lifecycle_test.c \
+	${STDIO_DIR}/exit.c ${STDIO_DIR}/atexit.c ${STDIO_DIR}/atexit.h
+
+exit_lifecycle_test: ${EXIT_LIFECYCLE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/exit_lifecycle.py ${TOPSRC} ${HOSTCC:Q} $@
+
+exit_lifecycle_test32: ${EXIT_LIFECYCLE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/exit_lifecycle.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
 check-strtox: strtox_test
 	${TEST_EXECUTION} run libc.strtox.native -- ./strtox_test
 .if ${ILP32_OK} == "yes"
@@ -1218,6 +1236,7 @@ header_contract.o: header_contract.c
 
 clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
+	rm -f exit_lifecycle_test exit_lifecycle_test32
 	rm -f alarm_contract_test alarm_contract.o
 	rm -f getgrent_contract_test grent_getgrent.o
 	rm -f asctime_contract_test asctime_contract_bad_test \
@@ -1390,7 +1409,7 @@ all: check
 	check-printf-float check-printf-g check-huge-val check-rwmode check-scanf \
 	check-scanf-llong check-string-security \
 	check-array-memory-line-cross check-string-security-cross check-strtox \
-	check-syslog check-vis check-getgrent check-getgrent-cross \
+	check-syslog check-vis check-getgrent check-getgrent-cross check-exit-lifecycle \
 	check-qemu clean
 
 # The C17 stdio surface outside the read and write path: the mode strings

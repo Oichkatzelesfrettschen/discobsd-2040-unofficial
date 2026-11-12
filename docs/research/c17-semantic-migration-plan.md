@@ -137,6 +137,12 @@ archive dependency accounting, FILE backend dispatch, regex compilation,
 numeric scanning, syscall metadata, exec/fork ownership and image planning.
 The shallow Git tip supplies source identity; RCS histories, historical binary
 behavior and target adaptation remain separate open investigations.
+`coherent-boundary-lifecycle-witnesses.md` records a host-source scanner
+capacity counterexample and the derived live-registry repair for DiscoBSD
+`exit()`. Lifecycle qualification covers registrations made by a running
+handler before new quick-exit storage policy receives resource admission.
+The float-scanning work item separately tracks token completeness, terminator
+capacity, and normative consumption; donor return values provide no oracle.
 
 `xip-shared-libc/README.md` owns the coordinated shared-library implementation
 contract. Its historical savings remain screening evidence until matched

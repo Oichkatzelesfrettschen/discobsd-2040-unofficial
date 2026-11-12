@@ -516,7 +516,8 @@
         "check-malloc",
         "check-qsort",
         "check-random",
-        "check-ansi"
+        "check-ansi",
+        "check-exit-lifecycle"
       ],
       "kind": "prerequisites"
     },
@@ -657,6 +658,11 @@
     {
       "from": "check-libcalc",
       "to": "tests/libcalc:check",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-exit-lifecycle",
+      "to": "tests/libc_contracts:check-exit-lifecycle",
       "kind": "recursive make"
     }
   ],
@@ -4291,6 +4297,44 @@
         "check_mutants.sh"
       ],
       "script": "tests/libcalc/check_mutants.sh"
+    },
+    {
+      "id": "libc.exit.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-exit-lifecycle",
+      "root_target": "check-libc-host-contracts",
+      "program": "exit_lifecycle_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "exit_lifecycle_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.exit.native -- ./exit_lifecycle_test nested",
+      "aliases": [
+        "check-libc-exit-lifecycle"
+      ]
+    },
+    {
+      "id": "libc.exit.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-exit-lifecycle",
+      "root_target": "check-libc-host-contracts",
+      "program": "exit_lifecycle_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "exit_lifecycle_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.exit.ilp32 -- ./exit_lifecycle_test32 nested",
+      "aliases": [
+        "check-libc-exit-lifecycle"
+      ]
     }
   ]
 }

@@ -1731,8 +1731,11 @@ check-host-package:	check-python .WAIT
 check-board-build:	symlinks
 		${MAKE} -C tests/rp2040 all
 
-check:		check-lint check-host check-posix-sh check-cross check-qemu \
-		check-host-package check-board-build
+# Cross composition cleans program directories used by host and QEMU tests.
+# Tier barriers preserve those executables throughout each suite's lifetime.
+check:		check-lint .WAIT check-host .WAIT check-posix-sh .WAIT \
+		check-cross .WAIT check-qemu .WAIT check-host-package .WAIT \
+		check-board-build
 
 fs:		check-python .WAIT $(FSIMG)
 

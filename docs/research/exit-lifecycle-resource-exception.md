@@ -84,3 +84,40 @@ continued qualification and review. The approval covers only the fifteen
 positive packed-byte entries and candidate identity above. Aggregate
 qualification and reviewed PR integration remain required.
 Physical-board execution remains outside this evidence.
+
+## Integrated-source comparison
+
+A second matched clean pair includes the main-branch swap-ring and process-status
+changes. Its parent is `e55ebbdb27e70fcaa729dc1d30954d7e78e6c38d`; its candidate
+is `686c8dab7ea1c3310136e046ad15786979c64414`. The runtime source difference
+remains the live-head exit traversal and its private header comment. Both
+captured distributions pass complete shipped dependency attribution. Their
+collector, measurement tools and toolchain identities match.
+
+The retained [parent](exit-lifecycle-integrated-resource-parent.json),
+[candidate](exit-lifecycle-integrated-resource-candidate.json), and
+[default comparison](exit-lifecycle-integrated-resource-comparison.json)
+preserve the second pair independently of the approved historical pair.
+The default comparison rejects sixteen positive packed-byte deltas. All
+fifteen original positive entries retain their exact parent, candidate and
+delta values. One additional entry requires approval:
+
+| Executable | Parent packed bytes | Candidate packed bytes | Increase |
+| --- | ---: | ---: | ---: |
+| `/sbin/adminbox` | 23872 | 23873 | +1 |
+
+Total positive growth is 28 packed bytes. The only difference between the two
+complete delta maps is the adminbox packed-byte delta, which changes from zero
+to one. All loaded sizes, raw executable sizes, packed block counts, native
+artifact sizes and kernel resource vectors remain unchanged within the second
+pair. Archive member sets remain unchanged in all 37 groups. The root retains
+744 allocated data blocks, 235 free blocks and 32 free inodes. Packed bytes
+measure compressed representation; a one-byte change introduces no additional
+filesystem block or process reservation in this pair.
+
+The source-level behavior and alternatives remain those above. Reverting the
+exit repair returns the integrated parent and its callback-order defect.
+The original approval remains attached to its original candidate. Approval of
+the integrated candidate and the additional adminbox byte remains pending;
+qualification continues independently of that resource decision. Physical-board
+execution remains outside both comparisons.

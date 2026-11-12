@@ -64,6 +64,16 @@
 #define	CTL_MAXNAME	12	/* largest number of components supported */
 
 /*
+ * {CTL_MACHDEP, CPU_NLIST, w0, w1, ...} reads the address of the kernel
+ * symbol whose name the components w0, w1, ... spell, CTL_NLIST_BYTES name
+ * bytes to a component, the first byte in the least significant 8 bits.
+ * The name ends at its first zero byte, which falls inside the last
+ * component, and every byte after it is zero. The node takes no new value,
+ * so every user may read it. knlist(3) builds the name.
+ */
+#define	CTL_NLIST_BYTES	4
+
+/*
  * Each subsystem defined by sysctl defines a list of variables
  * for that subsystem.  Each name is either a node with further
  * levels defined below it, or it is a leaf of some particular
@@ -362,6 +372,14 @@ int	sysctl_string(void *, size_t *, void *, size_t, char *, int);
 int	sysctl_rdstring(void *, size_t *, void *, const char *);
 int	sysctl_struct(void *, size_t *, void *, size_t, void *, int);
 int	sysctl_rdstruct(void *, size_t *, void *, void *, int);
+
+/* A kernel symbol the CPU_NLIST node of a machine's cpu_sysctl() names. */
+struct sysctl_symbol {
+	const char *ss_name;
+	int ss_addr;
+};
+int	sysctl_nlist(const struct sysctl_symbol *, int *, u_int, void *,
+	    size_t *, void *);
 
 int	sysctl_file(char *, size_t *);
 int	sysctl_clockrate(char *, size_t *);

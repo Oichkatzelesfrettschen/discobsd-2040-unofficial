@@ -40655,9 +40655,14 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "integer-cast",
+            "shift-expression"
+          ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [
             "old-style-definition"
           ],
@@ -63445,6 +63450,7 @@
           "inline_assembly": [],
           "integer": [
             "integer-cast",
+            "shift-expression",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
@@ -70897,6 +70903,7 @@
           "inline_assembly": [],
           "integer": [
             "integer-cast",
+            "shift-expression",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],

@@ -1723,12 +1723,12 @@ numbers.
 
 `check-renode` runs tools/renode/check-boot.sh, which boots the UART0
 console kernel from the real RP2040 boot ROM, asserts the console through
-the device probe, logs in, runs `uname`, `ps -ax` as root,
+the device probe, logs in, runs `uname`, `ps -ax` as operator,
 `sysctl kern.capacity`, `mputest` and `mputest residue`, reads core 1's
 state, then holds the Renode log to a fixed set of warning classes.
 
 The process-list stage requires the row of init, which is swapped out while
-the root shell runs, to carry a processor time and init's name. The
+ps runs, to carry a processor time and init's name. The
 PICO_UART kernel has no SwapRAM tier, so init's image is on the swap device
 and ps(1) prints its arguments. The union kernel of `check-renode-union`
 has the tier: init's image is in the pool with a zero `p_addr`, ps reads

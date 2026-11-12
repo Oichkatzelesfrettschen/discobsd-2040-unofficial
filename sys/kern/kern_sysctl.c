@@ -601,6 +601,42 @@ sysctl_rdstruct(void *oldp, size_t *oldlenp, void *newp, void *sp, int len)
 }
 
 /*
+ * The CPU_NLIST node: name and namelen are the components after CPU_NLIST,
+ * which spell a symbol name as sys/sysctl.h defines at CTL_NLIST_BYTES.
+ * __sysctl() copied them into the kernel, so the name is read from kernel
+ * memory alone. table ends with a null ss_name. A malformed name answers
+ * EINVAL and a name the table lacks EOPNOTSUPP.
+ */
+int
+sysctl_nlist(const struct sysctl_symbol *table, int *name, u_int namelen,
+    void *oldp, size_t *oldlenp, void *newp)
+{
+	char symbol[(CTL_MAXNAME - 2) * CTL_NLIST_BYTES];
+	size_t length, i;
+
+	if (newp)
+		return (EPERM);
+	if (namelen == 0 || namelen > CTL_MAXNAME - 2)
+		return (EINVAL);
+	for (i = 0; i < namelen * CTL_NLIST_BYTES; i++)
+		symbol[i] = (char)(((u_int)name[i / CTL_NLIST_BYTES] >>
+		    (8 * (i % CTL_NLIST_BYTES))) & 0xff);
+	length = 0;
+	while (length < i && symbol[length] != '\0')
+		length++;
+	/* The terminator falls in the last component; the rest is zero. */
+	if (length == i || length / CTL_NLIST_BYTES != namelen - 1)
+		return (EINVAL);
+	while (++length < i)
+		if (symbol[length] != '\0')
+			return (EINVAL);
+	for (; table->ss_name; table++)
+		if (strncmp(symbol, table->ss_name, sizeof symbol) == 0)
+			return (sysctl_rdint(oldp, oldlenp, NULL, table->ss_addr));
+	return (EOPNOTSUPP);
+}
+
+/*
  * Get file structures.
  */
 int

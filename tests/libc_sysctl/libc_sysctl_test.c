@@ -16,11 +16,20 @@
  * copies MIN(value, *oldlenp), assigns the value's whole length to *oldlenp,
  * and reports ENOMEM when the two differ.
  *
+ * knlist() spells a kernel symbol name into the components after
+ * {CTL_MACHDEP, CPU_NLIST} as sys/sysctl.h defines at CTL_NLIST_BYTES and
+ * passes no new value. test_sysctl() answers that node only for the exact
+ * components written out below as literals, so an encoder that orders the
+ * bytes differently, drops the terminator or pads with another component
+ * finds no symbol.
+ *
  * This file carries the tree's headers alone; libc_shim.h says why.
  */
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #include <sys/utsname.h>
+#include <machine/cpu.h>
+#include <nlist.h>
 #include <string.h>
 #include <errno.h>
 
@@ -28,6 +37,7 @@
 
 int	uname(struct utsname *);
 int	gethostname(char *, int);
+int	knlist(struct nlist *);
 
 /*
  * The error number include/errno.h declares, which the Makefile renames so
@@ -47,6 +57,54 @@ static const char stub_short[] = "DiscoBSD";
 
 /* Calls that reported truncation, so a test can require the case arose. */
 static unsigned truncations;
+
+/*
+ * The symbols the CPU_NLIST double knows, each with the components that
+ * spell it: four bytes to a word, the first in the low byte, a terminator
+ * inside the last word.
+ */
+static const struct {
+	u_int	words[3];
+	u_int	count;
+	u_int	value;
+} symbols[] = {
+	{ { 0x007a685fu }, 1, 0x20000100u },			/* "_hz" */
+	{ { 0x6362615fu, 0 }, 2, 0x20000200u },			/* "_abc" */
+	{ { 0x5f6b645fu, 0x6972646eu, 0x00006576u }, 3,
+	    0x20000300u },					/* "_dk_ndrive" */
+};
+
+/* What the CPU_NLIST double saw. */
+static unsigned nlist_calls, nlist_new_values;
+
+static int
+nlist_answer(int *words, u_int count, void *oldp, size_t *oldlenp,
+    void *newp)
+{
+	unsigned i, j;
+
+	nlist_calls++;
+	if (newp != NULL)
+		nlist_new_values++;
+	for (i = 0; i < sizeof(symbols) / sizeof(symbols[0]); i++) {
+		if (symbols[i].count != count)
+			continue;
+		for (j = 0; j < count; j++)
+			if ((u_int)words[j] != symbols[i].words[j])
+				break;
+		if (j < count)
+			continue;
+		if (*oldlenp < sizeof(symbols[i].value)) {
+			errno = ENOMEM;
+			return (-1);
+		}
+		memcpy(oldp, &symbols[i].value, sizeof(symbols[i].value));
+		*oldlenp = sizeof(symbols[i].value);
+		return (0);
+	}
+	errno = EOPNOTSUPP;
+	return (-1);
+}
 
 static const char *
 value_for(int level, int id)
@@ -71,9 +129,14 @@ test_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 	const char *val;
 	size_t len;
 
-	(void)newp;
 	(void)newlen;
 	if (namelen < 2) {
+		errno = EINVAL;
+		return (-1);
+	}
+	if (name[0] == CTL_MACHDEP && name[1] == CPU_NLIST)
+		return (nlist_answer(name + 2, namelen - 2, oldp, oldlenp, newp));
+	if (namelen > CTL_MAXNAME) {
 		errno = EINVAL;
 		return (-1);
 	}
@@ -255,6 +318,46 @@ test_gethostname_zero_length(void)
 		CHECK(buf[i] == 'Z');
 }
 
+/*
+ * knlist() finds each symbol the double knows through its literal
+ * components, passes no new value, and leaves 0 in an unknown entry and in
+ * a name too long for CTL_MAXNAME components without asking for it.
+ */
+static void
+test_knlist_spells_names(void)
+{
+	char longest[(CTL_MAXNAME - 2) * CTL_NLIST_BYTES];
+	char overlong[sizeof(longest) + 1];
+	struct nlist list[7];
+
+	memset(longest, 'x', sizeof(longest) - 1);
+	longest[sizeof(longest) - 1] = '\0';
+	memset(overlong, 'x', sizeof(overlong) - 1);
+	overlong[sizeof(overlong) - 1] = '\0';
+	memset(list, 0, sizeof(list));
+	list[0].n_name = "_hz";
+	list[1].n_name = "_dk_ndrive";
+	list[2].n_name = "_unknown";
+	list[3].n_name = "_abc";
+	list[4].n_name = longest;
+	list[5].n_name = overlong;
+	list[2].n_value = 7;
+	list[5].n_value = 7;
+	nlist_calls = 0;
+	nlist_new_values = 0;
+
+	CHECK(knlist(list) == 3);
+	CHECK(list[0].n_value == 0x20000100u);
+	CHECK(list[1].n_value == 0x20000300u);
+	CHECK(list[2].n_value == 0);
+	CHECK(list[3].n_value == 0x20000200u);
+	CHECK(list[4].n_value == 0);
+	CHECK(list[5].n_value == 0);
+	/* The longest name fits the MIB and is asked; one byte more is not. */
+	CHECK(nlist_calls == 5);
+	CHECK(nlist_new_values == 0);
+}
+
 int
 main(void)
 {
@@ -264,5 +367,6 @@ main(void)
 	test_gethostname_truncation();
 	test_gethostname_fits();
 	test_gethostname_zero_length();
+	test_knlist_spells_names();
 	return (lsys_verdict("libc_sysctl"));
 }

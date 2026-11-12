@@ -1451,6 +1451,24 @@ assertion-failure status. The gate establishes the
 counter mechanism and target-width layouts; the capacity corpus and retained
 hardware receipts decide whether a compiled limit can change.
 
+`buffer_busy_test` links the production `sys/kern/ufs_bio.c` and
+`subr_capacity.c` at ILP32 in the RP2040 shape, four buffers and the linear
+cache, over a RAM disk whose strategy routine records every write. Its
+`sleep()` records the channel and runs a scripted release in place of the
+process that would run meanwhile. With every buffer `B_BUSY`, `getnewbuf()`
+counts one buffer capacity failure and one wait per sleep, sets `B_WANTED`
+on the free-list head, and completes once `brelse()` wakes that channel; a
+wakeup that frees nothing sends it back to sleep with a second failure. With
+a delayed write on the free list it counts an eviction write, sends the
+block to the device byte for byte, and neither sleeps nor counts a failure.
+Delayed data written before the pressure reaches the device through
+`bflush()` afterwards, and the occupancy returns to zero with the peak and
+failures latched. Four one-defect source copies drop the capacity note on
+the all-busy path, add it to the eviction path, drop the free-list wakeup
+in `brelse()` and drop the eviction write; each must fail the check named
+for it. This is the `buffer-all-busy` case of
+tests/rp2040/capacity-corpus.json.
+
 ### Kernel sources on the host
 
 `check-kernel` compiles a file from sys/kern unchanged and links it

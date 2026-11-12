@@ -62,7 +62,7 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-ansi check-syslog \
 	check-vis check-printf-g check-huge-val \
 	check-qsort check-strtox check-string-security check-array-memory-line \
-	check-getgrent check-bounded-string
+	check-getgrent check-bounded-string check-exit-lifecycle check-quick-exit
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 ARRAY_MEMORY_CFLAGS= -std=c17 -Wall -Wextra -Werror
@@ -1088,6 +1088,47 @@ rwmode_filbuf32.o: ${PRINTF_DIR}/filbuf.c
 rwmode_flsbuf32.o: ${PRINTF_DIR}/flsbuf.c
 	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
 
+check-exit-lifecycle: exit_lifecycle_test
+	${TEST_EXECUTION} run libc.exit.native -- ./exit_lifecycle_test nested
+.if ${ILP32_OK} == "yes"
+	@${MAKE} exit_lifecycle_test32
+	${TEST_EXECUTION} run libc.exit.ilp32 -- ./exit_lifecycle_test32 nested
+.else
+	${TEST_EXECUTION} skip libc.exit.ilp32 "check-libc-exit-lifecycle: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+
+EXIT_LIFECYCLE_INPUTS= exit_lifecycle.py exit_lifecycle_test.c \
+	${STDIO_DIR}/exit.c ${STDIO_DIR}/atexit.c ${STDIO_DIR}/atexit.h
+
+exit_lifecycle_test: ${EXIT_LIFECYCLE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/exit_lifecycle.py ${TOPSRC} ${HOSTCC:Q} $@
+
+exit_lifecycle_test32: ${EXIT_LIFECYCLE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/exit_lifecycle.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+check-quick-exit: quick_exit_test
+	${TEST_EXECUTION} run libc.quick-exit.native -- ./quick_exit_test nested
+.if ${ILP32_OK} == "yes"
+	@${MAKE} quick_exit_test32
+	${TEST_EXECUTION} run libc.quick-exit.ilp32 -- ./quick_exit_test32 nested
+.else
+	${TEST_EXECUTION} skip libc.quick-exit.ilp32 "check-libc-quick-exit: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+
+check-quick-exit-cross:
+	${PYTHON} ${.CURDIR}/quick_exit_target.py ${TOPSRC} ${ARM_COMPILER} --host ${HOSTCC:Q}
+
+QUICK_EXIT_INPUTS= quick_exit.py quick_exit_test.c quick_exit_termination_test.c \
+	${STDIO_DIR}/exit.c ${STDIO_DIR}/atexit.c ${STDIO_DIR}/atexit.h \
+	${STDLIB_DIR}/at_quick_exit.c ${STDLIB_DIR}/quick_exit.c \
+	${STDLIB_DIR}/quick_exit.h ${STDLIB_DIR}/_Exit.c
+
+quick_exit_test: ${QUICK_EXIT_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${HOSTCC:Q} $@
+
+quick_exit_test32: ${QUICK_EXIT_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
 check-strtox: strtox_test
 	${TEST_EXECUTION} run libc.strtox.native -- ./strtox_test
 .if ${ILP32_OK} == "yes"
@@ -1253,6 +1294,7 @@ header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
 clean:
 	rm -f bounded_string_test bounded_string_test32 bounded_string_test_san
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
+	rm -f exit_lifecycle_test exit_lifecycle_test32 quick_exit_test quick_exit_test32
 	rm -f alarm_contract_test alarm_contract.o
 	rm -f getgrent_contract_test grent_getgrent.o
 	rm -f asctime_contract_test asctime_contract_bad_test \
@@ -1347,6 +1389,7 @@ check-qemu:
 	${QEMU_ARM_RUN} ./printf_g_contract_test_arm
 	${QEMU_ARM_RUN} ./huge_val_contract_test_arm
 	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 .endif
 
 qemu_support_direct.o: ${QEMU_SUPPORT}
@@ -1426,7 +1469,8 @@ all: check
 	check-printf-float check-printf-g check-huge-val check-rwmode check-scanf \
 	check-scanf-llong check-string-security \
 	check-array-memory-line-cross check-string-security-cross check-strtox \
-	check-syslog check-vis check-getgrent check-getgrent-cross \
+	check-syslog check-vis check-getgrent check-getgrent-cross check-exit-lifecycle \
+	check-quick-exit check-quick-exit-cross \
 	check-qemu clean
 
 # The C17 stdio surface outside the read and write path: the mode strings

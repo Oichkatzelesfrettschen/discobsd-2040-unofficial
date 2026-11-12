@@ -104,7 +104,8 @@ OBJS            += fgetc.o fgets.o fputc.o fputs.o puts.o \
                    remove.o feof.o ferror.o fileno.o
 
 # libc/stdlib
-OBJS            += getopt.o getsubopt.o strtol.o strtoul.o strtod.o
+OBJS            += _Exit.o at_quick_exit.o quick_exit.o \
+                   getopt.o getsubopt.o strtol.o strtoul.o strtod.o
 
 # libc/string
 OBJS            += explicit_bzero.o strcspn.o strerror.o strlcat.o strlcpy.o \
@@ -147,6 +148,7 @@ all:            ../libc.a
 
 vfprintf.o fputs.o: ${LIBCDIR}/stdio/output.h
 atexit.o exit.o: ${LIBCDIR}/stdio/atexit.h
+at_quick_exit.o quick_exit.o: ${LIBCDIR}/stdlib/quick_exit.h
 
 ${OBJS}:	FRC
 

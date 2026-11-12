@@ -151,6 +151,18 @@ archive dependency accounting, FILE backend dispatch, regex compilation,
 numeric scanning, syscall metadata, exec/fork ownership and image planning.
 The shallow Git tip supplies source identity; RCS histories, historical binary
 behavior and target adaptation remain separate open investigations.
+`coherent-boundary-lifecycle-witnesses.md` records a host-source scanner
+capacity counterexample and the derived live-registry repair for DiscoBSD
+`exit()`. Lifecycle qualification covers registrations made by a running
+handler before new quick-exit storage policy receives resource admission.
+The [callback allocation record](callback-allocation-accounting.md) separates
+live node extents from cold heap commitment and calibrates both against the
+production allocator. The [sorting record](qsort-partition-cost.md) measures
+the duplicate-key partition chain and an adapted DragonFly control; callback
+context, recursion depth, comparison work and linked resources retain separate
+acceptance obligations.
+The float-scanning work item separately tracks token completeness, terminator
+capacity, and normative consumption; donor return values provide no oracle.
 
 `xip-shared-libc/README.md` owns the coordinated shared-library implementation
 contract. Its historical savings remain screening evidence until matched
@@ -1138,3 +1150,13 @@ separate `--closure` mode.
 Cortex-M0+ kernel compilation in one explicitly invoked profile gate.
 `check-c17-smaller-c` remains separate because native language acceptance does
 not establish ISO C17 or the production cross-build result.
+
+## Independent quick-exit callback qualification
+
+The [quick-exit contract](quick-exit-contracts.md) decomposes the independent
+registry, live-head removal and `_Exit` backend. Twelve modeled cases, process
+termination and six compiled controls pass on host/ILP32 and ARMv6-M QEMU.
+Target signatures, native input and full/reduced a.out archive closure pass.
+Matched resources, aggregate qualification and reviewed integration remain open. This work shares the
+existing exit repair as a prerequisite and keeps its resource approval
+separate from every new library member.

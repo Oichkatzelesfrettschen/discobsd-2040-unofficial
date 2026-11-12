@@ -7,6 +7,9 @@
 #include <vis.h>
 
 volatile double aout_contract_elapsed;
+void (*aout_quick_exit)(int) = quick_exit;
+void (*aout_immediate_exit)(int) = _Exit;
+int (*aout_register_quick_exit)(void (*)(void)) = at_quick_exit;
 
 int
 aout_contract_probe(void)

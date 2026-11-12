@@ -79,6 +79,7 @@ __dead void abort (void);
 int     abs (int);
 void    *aligned_alloc (size_t, size_t);
 int     atexit (void (*)(void));
+int     at_quick_exit (void (*)(void));
 int     atoi (const char *);
 long    atol (const char *);
 void    *calloc (size_t, size_t);
@@ -107,6 +108,7 @@ size_t  wcstombs (char *, const wchar_t *, size_t);
 int     wctomb (char *, wchar_t);
 
 __dead void _Exit (int);
+__dead void quick_exit (int);
 
 /*
  * Smaller C, the native compiler, has no 64-bit integer type, so it sees

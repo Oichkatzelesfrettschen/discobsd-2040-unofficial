@@ -34,7 +34,15 @@ placement_sim: placement_sim.c subr_rmap.o
 run: placement_sim
 	./placement_sim ${SESSIONS} ${COMMANDS}
 
-clean:
-	rm -f placement_sim subr_rmap.o
+# The ring study needs no kernel header: it restates next-fit on a bitmap
+# and placement-wear.md compares its rows with placement_sim's.
+ring_sim: ring_sim.c
+	${HOST_CC} -std=gnu17 -O2 -Wall -Wextra -Werror -o $@ ring_sim.c
 
-.PHONY: all run clean
+ring: ring_sim
+	./ring_sim ${SESSIONS} ${COMMANDS}
+
+clean:
+	rm -f placement_sim ring_sim subr_rmap.o
+
+.PHONY: all run ring clean

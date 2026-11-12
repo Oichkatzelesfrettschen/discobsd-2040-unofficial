@@ -224,6 +224,7 @@ void fs_inode_print (fs_inode_t *inode, FILE *out)
 
     fprintf (out, "      Links: %u\n", inode->nlink);
     fprintf (out, "   Owner id: %u\n", inode->uid);
+    fprintf (out, "   Group id: %u\n", inode->gid);
 
     fprintf (out, "     Blocks:");
     for (i=0; i<NADDR; ++i) {

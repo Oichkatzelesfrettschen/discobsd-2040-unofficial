@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Verify the RP2040 image checks root/operator password fields and shadow privacy."""
+"""Verify the RP2040 image's account records, shadow privacy and privileged inodes.
+
+The privileged inodes are the set-user-id programs and the kernel memory
+boundary: /dev/mem, /dev/kmem and /dev/swap read and write kernel state, so
+they are mode 0640 in group kmem, and /bin/ps, the one program that reads
+them, is set-group-id kmem. Group 0 is wheel, which lists operator.
+"""
 
 from __future__ import annotations
 
@@ -10,10 +16,19 @@ import stat
 import subprocess
 import tempfile
 
-PRIVILEGED_PACKED_MODES = {
-    "/usr/bin/passwd": 0o4755,
-    "/usr/bin/su": 0o4751,
+KMEM_GROUP = 2
+
+# Path to (file type, permission bits, owner, group), as fsutil -vvv prints them.
+PRIVILEGED_INODES = {
+    "/usr/bin/passwd": (stat.S_IFREG, 0o4755, 0, 0),
+    "/usr/bin/su": (stat.S_IFREG, 0o4751, 0, 0),
+    "/bin/ps": (stat.S_IFREG, 0o2751, 0, KMEM_GROUP),
+    "/dev/mem": (stat.S_IFCHR, 0o640, 0, KMEM_GROUP),
+    "/dev/kmem": (stat.S_IFCHR, 0o640, 0, KMEM_GROUP),
+    "/dev/swap": (stat.S_IFBLK, 0o640, 0, KMEM_GROUP),
 }
+
+InodeRecord = tuple[int, int, int, int]
 
 
 def account_password_field(passwd_data: bytes, shadow_data: bytes, account: bytes) -> bytes:
@@ -62,44 +77,44 @@ def verify_account_record(shadow_mode: int, passwd_data: bytes, shadow_data: byt
         raise ValueError("operator password field in /etc/shadow must be empty")
 
 
-def packed_program_metadata(fsutil_output: str) -> dict[str, tuple[int, int]]:
+def privileged_inode_metadata(fsutil_output: str) -> dict[str, InodeRecord]:
+    """Return the type, permission bits, owner and group of each privileged path."""
     lines = fsutil_output.splitlines()
     metadata = {}
     for index, line in enumerate(lines):
         path = next(
-            (
-                candidate
-                for candidate in PRIVILEGED_PACKED_MODES
-                if line.startswith(candidate + " - ")
-            ),
+            (candidate for candidate in PRIVILEGED_INODES if line.startswith(candidate + " - ")),
             None,
         )
         if path is None:
             continue
         mode = None
         owner = None
+        group = None
         for detail in lines[index + 1 :]:
             if detail.startswith("/"):
                 break
             if detail.startswith("       Mode: "):
-                mode = stat.S_IMODE(int(detail.split(":", 1)[1].strip(), 8))
+                mode = int(detail.split(":", 1)[1].strip(), 8)
             elif detail.startswith("   Owner id: "):
                 owner = int(detail.split(":", 1)[1].strip())
-        if mode is not None and owner is not None:
-            metadata[path] = (mode, owner)
+            elif detail.startswith("   Group id: "):
+                group = int(detail.split(":", 1)[1].strip())
+        if mode is not None and owner is not None and group is not None:
+            metadata[path] = (stat.S_IFMT(mode), stat.S_IMODE(mode), owner, group)
     return metadata
 
 
-def verify_privileged_program_metadata(metadata: dict[str, tuple[int, int]]) -> None:
-    for path, expected_mode in PRIVILEGED_PACKED_MODES.items():
+def verify_privileged_inodes(metadata: dict[str, InodeRecord]) -> None:
+    for path, expected in PRIVILEGED_INODES.items():
         actual = metadata.get(path)
         if actual is None:
             raise ValueError(f"{path} inode metadata is missing")
-        actual_mode, actual_owner = actual
-        if actual_mode != expected_mode or actual_owner != 0:
+        if actual != expected:
             raise ValueError(
-                f"{path} mode/owner is {actual_mode:04o}/{actual_owner}, "
-                f"expected {expected_mode:04o}/0"
+                f"{path} type/mode/owner/group is {actual[0]:o}/{actual[1]:04o}/"
+                f"{actual[2]}/{actual[3]}, expected {expected[0]:o}/{expected[1]:04o}/"
+                f"{expected[2]}/{expected[3]}"
             )
 
 
@@ -168,24 +183,49 @@ def verify_checker_controls() -> None:
             continue
         raise AssertionError("account image checker accepted an invalid control")
 
-    packed_metadata = packed_program_metadata(
-        "/usr/bin/passwd - 123 bytes\n       Mode: 0104755\n   Owner id: 0\n"
-        "/usr/bin/su - 123 bytes\n       Mode: 0104751\n   Owner id: 0\n"
+    listing = "".join(
+        f"{path} - 123 bytes\n       Mode: {kind | mode:#o}\n"
+        f"            READ\n      Links: 1\n   Owner id: {owner}\n   Group id: {group}\n"
+        for path, (kind, mode, owner, group) in PRIVILEGED_INODES.items()
     )
-    verify_privileged_program_metadata(packed_metadata)
+    packed_metadata = privileged_inode_metadata(listing)
+    verify_privileged_inodes(packed_metadata)
+    # A listing without the group line leaves the record incomplete.
+    if privileged_inode_metadata(listing.replace("   Group id: 2\n", "")).keys() & {
+        "/bin/ps",
+        "/dev/mem",
+    }:
+        raise AssertionError("account image checker read a record without its group")
     unsafe_metadata = (
-        ("/usr/bin/passwd", (0o775, 0)),
-        ("/usr/bin/su", (0o751, 0)),
-        ("/usr/bin/passwd", (0o4755, 2)),
+        ("/usr/bin/passwd", (stat.S_IFREG, 0o775, 0, 0)),
+        ("/usr/bin/su", (stat.S_IFREG, 0o751, 0, 0)),
+        ("/usr/bin/passwd", (stat.S_IFREG, 0o4755, 2, 0)),
+        ("/bin/ps", (stat.S_IFREG, 0o2751, 0, 0)),
+        ("/bin/ps", (stat.S_IFREG, 0o0775, 0, KMEM_GROUP)),
+        ("/dev/mem", (stat.S_IFCHR, 0o664, 0, 0)),
+        ("/dev/mem", (stat.S_IFCHR, 0o640, 0, 0)),
+        ("/dev/kmem", (stat.S_IFCHR, 0o660, 0, KMEM_GROUP)),
+        ("/dev/kmem", (stat.S_IFREG, 0o640, 0, KMEM_GROUP)),
+        ("/dev/swap", (stat.S_IFBLK, 0o644, 0, KMEM_GROUP)),
+        ("/dev/swap", (stat.S_IFCHR, 0o640, 0, KMEM_GROUP)),
+        ("/dev/swap", (stat.S_IFBLK, 0o640, 2, KMEM_GROUP)),
     )
     for path, unsafe_record in unsafe_metadata:
         altered_metadata = dict(packed_metadata)
         altered_metadata[path] = unsafe_record
         try:
-            verify_privileged_program_metadata(altered_metadata)
+            verify_privileged_inodes(altered_metadata)
         except ValueError:
             continue
         raise AssertionError(f"account image checker accepted unsafe inode metadata for {path}")
+    for path in PRIVILEGED_INODES:
+        missing_metadata = dict(packed_metadata)
+        del missing_metadata[path]
+        try:
+            verify_privileged_inodes(missing_metadata)
+        except ValueError:
+            continue
+        raise AssertionError(f"account image checker accepted a missing {path}")
 
 
 def verify_image(fsutil: pathlib.Path, image: pathlib.Path) -> None:
@@ -195,7 +235,7 @@ def verify_image(fsutil: pathlib.Path, image: pathlib.Path) -> None:
         capture_output=True,
         text=True,
     ).stdout
-    verify_privileged_program_metadata(packed_program_metadata(listing))
+    verify_privileged_inodes(privileged_inode_metadata(listing))
 
     with tempfile.TemporaryDirectory(prefix="rp2040-account-image-") as temporary:
         subprocess.run(
@@ -223,7 +263,7 @@ def main() -> int:
     verify_image(arguments.fsutil.resolve(), arguments.image.resolve())
     print(
         "RP2040 account image: root locked; operator empty; /etc/shadow mode 0600; "
-        "passwd and su packed modes verified"
+        "passwd, su, ps and the kernel memory devices verified"
     )
     return 0
 

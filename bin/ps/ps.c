@@ -579,6 +579,15 @@ openfiles(argc, argv)
     int argc;
     char **argv;
 {
+    /*
+     * ps runs setgid kmem so that it can read /dev/kmem, /dev/mem and
+     * /dev/swap.  A core file or swap file named by the caller is opened
+     * with the caller's own groups, and the kmem group is dropped as soon
+     * as the fixed devices are open.  setgid(getgid()) resets the real,
+     * effective and saved group ids (kern_prot2.c).
+     */
+    if ((kflg || argc > 2) && setgid(getgid()) < 0)
+        perrexit("setgid");
     if (kflg)
         kmemf = argc > 1 ?  argv[1] : _PATH_CORE;
     kmem = open(kmemf, 0);
@@ -595,6 +604,8 @@ openfiles(argc, argv)
     swap = open(swapf, 0);
     if (swap < 0)
         perrexit(swapf);
+    if (setgid(getgid()) < 0)
+        perrexit("setgid");
 }
 
 void

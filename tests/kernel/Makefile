@@ -353,6 +353,13 @@ CAPACITY_MUTANTS=	process-state inode-references clist-object-size \
 BUFFER_BUSY_SRC=	${TOPSRC}/sys/kern/ufs_bio.c
 BUFFER_BUSY_DEFS=	-DCAPACITY_STATS -DSTORAGE_STATS -DNBUF=4 \
 			-DSWAPRAM ${IALLOC_PICO_DEFS}
+# Function sections retain the buffer paths; ufs_disk_test owns device admission.
+BUFFER_BUSY_CFLAGS=	-ffunction-sections -fdata-sections
+.if ${_HOST_OSNAME} == "Darwin"
+BUFFER_BUSY_LDFLAGS=	-Wl,-dead_strip
+.else
+BUFFER_BUSY_LDFLAGS=	-Wl,--gc-sections
+.endif
 BUFFER_BUSY_MUTANTS=	no-capacity-note eviction-capacity-note \
 			no-freelist-wakeup eviction-drops-write
 
@@ -2648,13 +2655,13 @@ check-capacity-mutants: capacity_test capacity_mutate.py
 
 buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
     ${CAPACITY_SRC} hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
 	    -c -o buffer_busy_kernel.o ${BUFFER_BUSY_SRC}
-	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
 	    -c -o buffer_busy_capacity.o ${CAPACITY_SRC}
-	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
 	    -c -o buffer_busy_uarea.o capacity_uarea.c
-	${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} -o $@ \
+	${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_LDFLAGS} ${ILP32} -o $@ \
 	    buffer_busy_test.c buffer_busy_kernel.o buffer_busy_capacity.o \
 	    buffer_busy_uarea.o hostkern_kern.c hostkern32.o
 
@@ -2669,10 +2676,10 @@ check-buffer-busy-mutants: buffer_busy_test buffer_busy_mutate.py
 	fi
 	${PYTHON} buffer_busy_mutate.py ${BUFFER_BUSY_SRC} ${.CURDIR}
 	@set -eu; for mutation in ${BUFFER_BUSY_MUTANTS}; do \
-		${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+		${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
 		    -c -o buffer_busy_$$mutation.mutant.o \
 		    buffer_busy_$$mutation.mutant.c; \
-		${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+		${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_LDFLAGS} ${ILP32} \
 		    -o buffer_busy_$$mutation.mutant.test buffer_busy_test.c \
 		    buffer_busy_$$mutation.mutant.o buffer_busy_capacity.o \
 		    buffer_busy_uarea.o hostkern_kern.c hostkern32.o; \

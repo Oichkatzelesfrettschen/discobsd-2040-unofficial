@@ -91,7 +91,8 @@ of a linked kernel on the host. `check-rp2040-vectors` recomputes both from
 the ELF, `check-renode` requires the emulated kernel to report the values of
 the `unix.bin` it was given, and
 `tests/rp2040/image_identity/board_image_identity.py` makes the same
-comparison against a board.
+comparison against a board. `check-renode-identity` boots two altered
+copies of `unix.bin` and requires the `differs` line of each.
 
 ## 3. Clocks and ticks, in the order the kernel does them
 

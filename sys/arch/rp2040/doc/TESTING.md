@@ -416,6 +416,7 @@ upload and hidden-file inclusion.
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
 | renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | yes: the `firmware/rp2040` job installs the pinned Renode release, then fetches and builds the models | no |
 | renode table exhaustion | `check-renode-capacity` | Renode, the fetched RP2040 models, a built PICO_UART kernel, the selected board's disk image (`${FSIMG}`), `fsutil` and `flashimg`, `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
+| renode image identity | `check-renode-identity` | Renode, the fetched RP2040 models, a built PICO_UART kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the table exhaustion step | no |
 | core 1 emulation | `check-core1-emulation` | Unicorn and pyelftools under `${PYTHON}`, the arm-none-eabi toolchain, a built PICO_UART kernel | yes: the `firmware/rp2040` job installs `python3-unicorn` | no |
 | renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
 | renode union | `check-renode-union` | Renode, the fetched RP2040 models, a built PICOCALC_PSRAM kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the PicoCalc Renode step | no |
@@ -1915,6 +1916,28 @@ from the datasheet. It establishes nothing about silicon timing, the real
 boot ROM, NMI delivery through `PROC0_NMI_MASK`, or SRAM write ordering
 between two real cores. `sys/arch/rp2040/doc/CORE1.md` lists the board
 procedure that would.
+
+## Renode image identity tier
+
+`check-renode-identity` runs tools/renode/check-identity.sh, which boots
+the PICO_UART kernel three times on the selected board's root flash image
+through the machine, console and virtual-time slicing of the UART0 tier.
+tools/renode/check-identity.py derives the three kernels from `unix.bin`:
+the file as built, a copy with one bit of the stamped CRC32 word (vector
+entry 9) inverted, and a copy with one byte of the reserved vector entry 12
+set. It computes each copy's sum the way `tools/kernsum` does and requires
+the exact console line of `image_identify()`: `image: N bytes, crc32 X` for
+the built kernel, and the same line ending `stored Y differs` for each
+altered copy, with the stored value moved in the first and the computed
+sum moved in the second. Each boot continues through the storage probe.
+The built kernel is read and never written; the copies live under
+tools/renode/vendor/results/identity.
+
+The three boots calibrate one another: a kernel that prints `differs` for
+every image fails the first, and one that never prints it fails the other
+two. The claim is the emulated kernel's comparison over the flash model's
+bytes; a board that reports `differs` is a separate evidence class and has
+no receipt.
 
 ## Renode table exhaustion tier
 

@@ -6,7 +6,9 @@ refusals of the 172 KiB fork and lowers the wear a flash part accumulates
 below what the kernel's next-fit produces. In the host model the hottest
 sector takes 1.01 to 1.04 times the mean erases over 2000 sessions, against
 1.13 to 1.24 for the kernel's next-fit and 1.36 to 1.51 for the guard on the
-interval. The kernel does not have the ring, and the board has not run it.
+interval. The RP2040 kernel has the ring, and on the bare Pico it admits the
+172 KiB fork under free maps where the interval kernel refuses it; the wear
+figures remain model results.
 
 ## Why the guard alone costs wear
 
@@ -135,10 +137,10 @@ erases less often.
    is 1.010 to 1.035 against 1.127 to 1.239. Held.
 4. **The ring's excess wear is sampling noise.** Refuted if it does not fall
    with more sessions. It falls 1.025, 1.015, 1.007. Held.
-5. **A topological change cannot be carried into this kernel.** Open; the
-   next section lists what it takes.
+5. **A topological change cannot be carried into this kernel.** Refuted: the
+   next two sections describe the change and its board measurement.
 
-## Carrying it into the kernel
+## The change in the kernel
 
 Every extent stays contiguous in a logical block space that runs past the map
 end: logical block `b` at or above `nswap` names physical block
@@ -149,26 +151,84 @@ arithmetic, and three places learn the fold.
   through which `swap()`, the exec spool, the in-place exchange and the
   SwapRAM evacuation reach the device. It folds the block number and ends a
   transfer at the map end.
-- **Allocation.** `malloc3_contiguous_next()` treats the run that ends at
-  `nswap` and the run that starts at `SWAP_IMAGE_ALIGN` as one, applies the
-  guard, and removes both pieces from the map.
-- **Release.** The `mfree(swapmap, ...)` calls in `vm_swap.c`, `exec_subr.c`
-  and `swapram.c` release an extent that passes `nswap` as two pieces.
-  `swap_exchange_tail_reserve()` looks up the free run after an extent and
-  folds that address the same way.
+- **Allocation.** `struct map` (`sys/sys/map.h`) carries the ring bounds and
+  the guard. With them set, `malloc3_contiguous_next()` treats the run that
+  ends at `nswap` and the run that starts at `SWAP_IMAGE_ALIGN` as one,
+  applies the guard, and removes both pieces from the map. With them zero it
+  is the interval search, which the STM32 port and every earlier fixture
+  keep.
+- **Release.** `mfree()` folds an address above the ring end and returns an
+  extent that passes it as two pieces, so no caller changed.
+  `swap_exchange_tail_reserve()` takes the free blocks after an incoming
+  extent from the run before the end and the run after it.
 
-The cost is no flash write, no per-process field and one constant. The gates
-that must move with it are `tests/kernel/fork_swap_test.c`, the exchange
-gates and `tests/rp2040/exec_spool`, each of which links the production
-allocator. The board experiment is the one `placement-study.md` describes,
-with `swapmaptest` printing the map before each 172 KiB fork.
+`init_main.c` sets the bounds when the port defines `SWAP_IMAGE_GUARD`
+(`sys/arch/rp2040/include/machparam.h`, 196). The cost is no flash write, no
+per-process field and three words in the map.
+
+Host gates, each linking the production source:
+
+- `tests/kernel/rmap_test.c`: an extent that passes the end, the guard, the
+  full-descriptor case, and a 20,000-step random session in which the
+  allocator must return the placement of the model in `ring_sim.c` on the
+  RP2040 geometry. `check-rmap-ring-mutants` removes the run join, the guard
+  and the `mfree()` fold in turn; each is rejected.
+- `tests/kernel/swap_ring_io_test.c` (`check-swap-ring-io`): the transfer
+  ends at the last block and resumes at the first, and a block above the end
+  is folded; the mutant without the fold is rejected.
+- `swap_exchange_inplace_test.c` repeats its exchange grid on an image that
+  starts 8 blocks below the end of a ring, and `fork_swap_test.c` reserves,
+  cancels and releases an image at every cursor of a ring.
+
+## Board measurement
+
+Bare Pico, boot ROM V3, tree `9e57fc33` plus the change as it stood before
+`swap_exchange_tail_reserve()` learned to take a tail from both sides of the
+end; that kernel declined such a tail and took a fresh extent. Two PICO kernels
+from that tree differ only in `SWAP_IMAGE_GUARD`: defined (`unix.uf2`
+SHA-256 `2d1b43cc...87c748c`) and undefined, which leaves the interval map
+(`82035931...ef3a46c`). The fork test is `tests/rp2040/fork_refusal` built
+with a 172 KiB bss; on this tree its image and its fork child each need 180
+blocks. `tests/rp2040/swapmaptest` prints the free runs.
+
+**Twelve forks from one login, no holds.** Both kernels admitted all twelve.
+This run decides nothing between them, and it corrects the model: the
+invoking shell kept one extent for eight consecutive commands (blocks 184 to
+203 on the interval kernel), where the model moves it at every command. The
+in-place exchange returns the shell to the extent it left. The model's
+per-command rotation of short images, and with it the wear figures above, do
+not describe this kernel's steady state.
+
+**Forks under a free map that only a ring can serve.** Swap holds on
+`/dev/temp0` and `/dev/temp1` (`talloc`) were moved until `swapmaptest`
+showed a longest free run under 180 blocks while the run ending at block 383
+plus the run starting at block 4 reached 180; then the fork test ran.
+
+| Kernel | Trials | Admitted | Refused |
+| --- | --- | --- | --- |
+| interval | 6 | 0 | 6 |
+| ring | 6 | 6 | 0 |
+
+On the ring kernel the joined run was 200 blocks in five trials and exactly
+180 in one (free runs 4+32, 76+60, 236+148), so the child's extent passed
+block 383 in every trial; each child verified its parent's 172 KiB of
+xorshift bytes. The prediction held: a refusal on the ring kernel or an
+admission on the interval kernel would have refuted it.
+
+**Console.** The first boot of the ring kernel stopped echoing in the middle
+of a typed command after login, before any test. The next three boots of
+that kernel and the Renode boot gate ran clean. The cause is not established;
+`sys/arch/rp2040/doc/BOARD-CONSOLE.md` records a USB console wedge on this
+board that predates the change, and one event in four boots does not
+separate the two.
 
 ## Not run
 
-- The kernel change and every board measurement.
-- A session model fitted to a recorded allocation trace. The model's event
-  order comes from reading the source.
-- Workloads with long-lived background jobs larger than the sleepers.
+- Per-sector erase counts on the board. The lifetime table rests on the
+  model, whose event order the twelve-fork run contradicts.
+- Repeated boots of both kernels to bound the console event.
+- The three-sleeper remainder and relocation on refusal.
+- A session model fitted to a recorded allocation trace.
 
 ## Reproduce
 

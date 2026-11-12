@@ -116,6 +116,13 @@
 #define SWAP_IMAGE_ALIGN        4       /* 4096 bytes in DEV_BSIZE blocks. */
 
 /*
+ * The raw-swap map is a ring, and the image search keeps one free run of
+ * this many blocks: the 192 KiB process window plus USIZE, rounded up to
+ * SWAP_IMAGE_ALIGN, which is the largest image a fork can ask for.
+ */
+#define SWAP_IMAGE_GUARD        196
+
+/*
  * The user window: one resident process image lives in the 192 KB at
  * 0x20000000. exec_estab (sys/kern/exec_subr.c) rejects an image whose
  * text, data, bss, heap and stack exceed MAXMEM, which sys/param.h takes

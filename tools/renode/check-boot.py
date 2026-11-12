@@ -24,7 +24,11 @@ login
 shell
     A login and commands, because a prompt alone would also appear from a
     shell that cannot execute anything: uname, the capacity record, the
-    MPU fault test and the exec residue probe.
+    image identity, the MPU fault test and the exec residue probe. The
+    identity lines are computed here from UNIX_BIN (image_identity()): the
+    emulated kernel summed the flash model's bytes at boot, so its length,
+    its sum and the word tools/kernsum stamped must all equal what the file
+    on the host holds.
 
 Slicing virtual time serializes the CPU thread and the SSI model's clocking
 thread about as much as the terminal tester's pauses did, so this gate does
@@ -45,7 +49,9 @@ Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 
 import os
 import re
+import struct
 import sys
+import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -130,6 +136,32 @@ CAPACITY_LINES = [
     "buffer limit 4 current",
     "uarea bytes 3072 user 972 stack 2048 peak",
 ]
+
+# The identity words of a flash image: vector entries 8, 9 and 10 at
+# 0x10000100, as tools/kernsum/kernsum.c lays them out.
+IMAGE_ADDRESS = 0x10000000
+IDENTITY_OFFSET = 0x120
+BOARD_DESCRIPTOR_SIZE = 16
+
+
+def image_identity(path: str) -> list[str]:
+    """Return the three machdep.image lines a kernel running PATH prints."""
+    image = bytearray(open(path, "rb").read())
+    length, stored, board = struct.unpack_from("<3I", image, IDENTITY_OFFSET)
+    board -= IMAGE_ADDRESS
+    image[IDENTITY_OFFSET + 4:IDENTITY_OFFSET + 8] = bytes(4)
+    image[board:board + BOARD_DESCRIPTOR_SIZE] = bytes(BOARD_DESCRIPTOR_SIZE)
+    # sysctl prints an int, so a sum with the top bit set reads negative.
+    crc = struct.unpack("<i", struct.pack("<I", zlib.crc32(image)))[0]
+    stored = struct.unpack("<i", struct.pack("<I", stored))[0]
+    if length != len(image) or stored != crc:
+        raise ValueError(f"{path}: identity words do not describe the file")
+    return [
+        f"machdep.image_length={length}",
+        f"machdep.image_crc={crc}",
+        f"machdep.image_crc_stored={stored}",
+    ]
+
 
 CORE1_LINES = [
     "machdep.core1=1",
@@ -219,7 +251,7 @@ class Console:
 CORE1_CONFIGS = ("PICO_UART",)
 
 
-def run_stages(console: Console, config: str) -> None:
+def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.wait_lines([f"DiscoBSD 2.7 ({config})"] + CPU_LINES + BOARD_LINES[config]
                        + STORAGE_LINES, "device probe", PROBE_BUDGET_SECONDS)
     console.absent_before_cursor(ABSENT_PREFIXES[config], "descriptor-suppressed devices")
@@ -235,6 +267,8 @@ def run_stages(console: Console, config: str) -> None:
     console.wait_lines(["DiscoBSD 2.7"], "uname", COMMAND_BUDGET_SECONDS)
     console.type_line("sysctl kern.capacity")
     console.wait_lines(CAPACITY_LINES, "capacity record", COMMAND_BUDGET_SECONDS)
+    console.type_line("sysctl machdep.image_length machdep.image_crc machdep.image_crc_stored")
+    console.wait_lines(identity, "image identity", COMMAND_BUDGET_SECONDS)
     # usr.bin/mputest forks children that read kernel RAM, kernel text, SIO,
     # the unstriped SRAM aliases and the XIP cache-as-SRAM window and expects
     # SIGSEGV for each while machdep.mpu.enable reads 1, and reads the boot
@@ -280,6 +314,11 @@ def main(argv: list[str]) -> int:
     if config not in BOARD_LINES:
         print(f"check-renode: no probe lines for CONFIG {config}", file=sys.stderr)
         return 2
+    try:
+        identity = image_identity(unix_bin)
+    except (OSError, ValueError, struct.error) as error:
+        print(f"check-renode: {error}", file=sys.stderr)
+        return 2
     os.makedirs(outdir, exist_ok=True)
     transcript = os.path.join(outdir, "uart0.txt")
     if os.path.exists(transcript):
@@ -291,7 +330,7 @@ def main(argv: list[str]) -> int:
         renode.command(f"$flash_bin=@{flash_bin}")
         renode.command(f"include @{os.path.join(HERE, 'machine.resc')}")
         renode.command(f"sysbus.uart0 CreateFileBackend @{transcript} true")
-        run_stages(console, config)
+        run_stages(console, config, identity)
     except StageFailed:
         # A kernel that panics stops at "press any key to reboot..."; the
         # whole transcript is in uart0.txt beside the log.

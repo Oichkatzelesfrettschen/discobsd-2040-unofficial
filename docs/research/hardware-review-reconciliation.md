@@ -102,7 +102,7 @@ that already tracks the surviving form.
 | DMA transfer alignment | The kernel uses no DMA | Survives as a throughput question for the PicoCalc panel and SD paths; roadmap item 8 |
 | Convert 32-bit Thumb instructions to 16-bit; reorder functions to shorten calls | All 32-bit instructions in the kernel are `bl`, `mrs`, `msr`, `isb` and `dsb`, which have no 16-bit form | No bytes available; the dead-function and hot-field queue of `kernel-footprint-handoff.md` is where kernel text comes from |
 | Metadata in boot2 padding or the CRC trailer | The slot is fixed at 256 bytes and checked by the ROM | No byte is freed |
-| Identity words in the reserved vector slots | Nine words (36 bytes) are never fetched, and the boot2 CRC does not cover them | Capacity recorded; it lands with its first reader, the running-board identity task (R01) of the memory and wear program |
+| Identity words in the reserved vector slots | Nine words (36 bytes) are never fetched, and the boot2 CRC does not cover them | Landed in three of the nine: the image length, its CRC32 and the board descriptor address (`BOOT-MAP.md`, "Image identity"). The kernel recomputes the sum at boot and `board_image_identity.py` is the first reader, the kernel part of the running-board identity task (R01) of the memory and wear program |
 | Truncate the interrupt table after the last used vector | Saves at most 40 bytes and makes any later interrupt enable fetch past the table | Declined on risk against yield |
 | Gate unused peripheral clocks; power down unused SRAM banks | `WAKE_EN`/`SLEEP_EN` and `SYSCFG.MEMPOWERDOWN` exist (datasheet 2.11); no shipped kernel leaves a whole bank unowned, and no current has been measured | Roadmap item 7, scoped to the battery-powered PicoCalc |
 | `wfi` in idle, SIO GPIO, exception priorities, multicall bss overlay, UART scratch layout, `NBUF` 10 to 4 | Present in the tree | Already done |
@@ -217,8 +217,13 @@ instruments; items 3 to 8 each wait on the measurement named.
    remaining open board cases of each decision hold receipts:
    `swapram-evacuation` for `NPROC` and `buffer-cache-board-pressure` for
    `NFILE`.
-10. Image identity in the reserved vector words, together with the
-    running-board identity reader of the memory and wear program.
+10. Image identity in the reserved vector words. Landed for the kernel:
+    `tools/kernsum` stamps the length and CRC32 after the link, the kernel
+    recomputes the sum over its flash at boot and exports it as
+    `machdep.image_crc`, and `board_image_identity.py` compares a board with
+    a host `unix.bin`. The rest of the running-board identity task of the
+    memory and wear program is open: the root file system's hash, the flash
+    chip identity and the ROM revision in one record.
 
 ## First readings from the instruments
 

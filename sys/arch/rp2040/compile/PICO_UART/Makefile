@@ -202,6 +202,10 @@ SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
 # under a finished artifact's name. tests/build_failure injects a failure
 # into each step and asserts the ones after it never run.
 #
+# kernsum stamps the image length and CRC32 into the linked kernel before
+# any image is derived from it, so unix.elf, unix.bin, unix.hex and
+# unix.uf2 carry the same identity words (tools/kernsum/kernsum.c).
+#
 # picotool is the one optional tool, with three outcomes that the recipe
 # keeps apart: absent, which "all" reports and tolerates because a host
 # without it still builds a kernel to inspect; present and successful,
@@ -210,12 +214,13 @@ SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ} \
 # picotool types a file by its extension, so the .tmp output names its
 # type with -t uf2; picotool 2.3.1 rejects the name without it.
 PICOTOOL?=	picotool
+KERNSUM?=	${TOOLBINDIR}/kernsum
 SYSTEM_LD_HEAD=	rm -f $@ $@.elf $@.hex $@.bin $@.dis $@.uf2 vers.o vers.su && \
 		sh $S/conf/newvers.sh > vers.c.tmp && mv vers.c.tmp vers.c && \
 		${CC} ${CFLAGS} -c vers.c
 SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
-SYSTEM_LD_TAIL=	${SIZE} $@ && cp $@ $@.elf && \
+SYSTEM_LD_TAIL=	${SIZE} $@ && ${KERNSUM} $@ && cp $@ $@.elf && \
 		${OBJCOPY} -O ihex $@ $@.hex.tmp && mv $@.hex.tmp $@.hex && \
 		${OBJCOPY} -O binary $@ $@.bin.tmp && mv $@.bin.tmp $@.bin && \
 		${OBJDUMP} -d -S $@ > $@.dis.tmp && mv $@.dis.tmp $@.dis && \

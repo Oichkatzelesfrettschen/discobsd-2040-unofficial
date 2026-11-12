@@ -225,6 +225,9 @@ InfiniteLoop:
  * The RP2040 vector table: ARMv6-M's 16 system entries followed by the
  * chip's 32 interrupts. ARMv6-M defines neither the MemManage, BusFault,
  * and UsageFault entries nor DebugMon, so those slots stay reserved.
+ * Entries 8, 9 and 10 identify the flash image: tools/kernsum stamps its
+ * length and CRC32 into 8 and 9 after the link, and 10 addresses the board
+ * descriptor that sum leaves out. image_identify() in machdep.c reads them.
  */
 	.section	.isr_vector, "a", %progbits
 	.type	g_pfnVectors, %object
@@ -238,9 +241,9 @@ g_pfnVectors:
 	.word	0			/* Reserved on ARMv6-M. */
 	.word	0			/* Reserved on ARMv6-M. */
 	.word	0
-	.word	0
-	.word	0
-	.word	0
+	.word	0			/* Image length; tools/kernsum. */
+	.word	0			/* Image CRC32; tools/kernsum. */
+	.word	__board_start		/* Board descriptor address. */
 	.word	SVC_Handler
 	.word	0			/* Reserved on ARMv6-M. */
 	.word	0

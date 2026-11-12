@@ -1525,6 +1525,28 @@ is what lets a gate assert on the defensive checks rather than only on the
 paths that return. Outside one it prints and exits, so an unexpected panic
 fails the gate rather than unwinding into unrelated code.
 
+### Repository review coverage
+
+`check-repository-coverage` runs in the host tier owned by the Linux and
+macOS firmware jobs. It validates the fixed Git tree in
+`tools/audit/repository-coverage.json`, assigning each tracked path exactly
+once to a component and artifact class with its original blob and mode.
+The C17 source denominator and test execution inventory retain separate
+purposes and pinned input identities. The checkout needs the baseline Git
+objects; both host-tier CI jobs fetch complete history.
+
+Fifteen real-Git fixtures calibrate missing, duplicate and unexpected paths,
+changed blobs, stale inputs, unresolved component and witness references,
+invalid classes and states, false review closure, incomplete review coverage,
+altered witness bytes, missing next actions and attempted baseline overwrite.
+A passing ordinary gate establishes classification and witness consistency.
+`--require-reviewed` additionally requires a review witness for every
+component. Each witness records the exact reviewed paths, method, failure
+classes, source references, tests, findings and limitations. The validator
+checks identity and structure; the reviewer establishes the analysis itself.
+Pending and externally blocked reviews stay visible. A baseline pass
+establishes coverage of that baseline; later changes require delta review.
+
 ## Cross tier
 
 `check-warning-policy-cross` checks shared target warning enforcement and

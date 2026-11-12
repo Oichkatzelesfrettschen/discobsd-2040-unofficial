@@ -1335,7 +1335,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-swapram-link-verifier \
 		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
-		check-test-execution \
+		check-test-execution check-repository-coverage \
 		check-libc-host-contracts check-libc-assert check-c17-headers \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
@@ -1567,6 +1567,12 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 
 check-test-execution: check-python
 		${PYTHON} tools/test_execution_test.py
+
+check-repository-coverage: check-python
+		${PYTHON} tools/repository_coverage_test.py
+		${PYTHON} tools/repository_coverage.py
+
+.PHONY: check-repository-coverage
 
 .PHONY: check-ilp32-execution check-ilp32-execution-recipes check-test-execution \
 	check-sh-heap-boundary

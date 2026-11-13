@@ -116,9 +116,11 @@ Three statements of the proposal survive, each in a narrower form.
    timestamps and `fs_time` as unsigned moves the last representable second
    from 2038-01-19 to 2106-02-07 with the 64-byte inode and the 1024-byte
    superblock unchanged. A timestamp before 1970 changes meaning under that
-   reading: `touch -d 1969-12-31T23:59:59Z` stores -1 today, which an
-   unsigned reading shows as 2106-02-07T06:28:15Z (the `Z` matters: the
-   kernel's default zone is 480 minutes west, and `-t` reads local time). The build images hold no such
+   reading: `touch -d 1969-12-31T23:59:58Z` stores -2 today, which an
+   unsigned reading shows as 2106-02-07T06:28:14Z. The `Z` matters, since
+   the kernel's default zone is 480 minutes west and `-t` reads local
+   time; so does the second, since `ufs_setattr()` reads -1 as "leave
+   this time alone" (`VNOVAL`) and stores nothing for it. The build images hold no such
    timestamp, since the clock starts at the image's build time, and a file
    system written on a board may hold one only where a user set it. The
    change therefore states the rule (a stored value at or above 2^31 is a
@@ -146,7 +148,7 @@ costs on both sides, and the tree does not choose between them.
 | | Unsigned 32-bit `time_t` | 64-bit `time_t`, 32-bit unsigned kernel and disk |
 | --- | --- | --- |
 | Last second | 2106-02-07 | 2106 in the kernel until a carry word lands; no interface limit |
-| Shipped `full` image, measured below | no block | at least 7 of 217 free blocks: a lower bound from a build that changes the user-side type alone |
+| Shipped `full` image, measured below | no block | 7 of 217 free blocks in a prototype that cannot run; the working change's cost is unmeasured |
 | Interface break | none in size; signedness changes | every time-carrying system call and every program, once |
 | Times before 1970 | unrepresentable | representable in programs; clamped on disk |
 | POSIX.1-2024 `time_t` (`<sys/types.h>`: an integer type at least 64 bits wide, set by Austin Group defect 1462) | fails | meets |
@@ -171,13 +173,15 @@ image.
 | unsigned 32-bit | 217 | 102,094 |
 | 64-bit interface | 210 | 102,094 |
 
-The 64-bit variant's image has 7 fewer free blocks. That is a lower bound
-on the interface's cost and not the cost: the variant changes the type
-programs see and nothing else, so the kernel still copies an 8-byte
-`struct timeval` where programs expect 16, the image cannot run, the
-conversion at the system call boundary adds kernel text that is not in
-it, and the callers compiled with the diagnostic downgraded have yet to be
-converted. The seven-bit split works in the other direction. With the wide type the target
+The 64-bit variant's image has 7 fewer free blocks. That is the observed
+delta of a prototype that cannot run, and it bounds the working change's
+cost from neither side: the variant changes the type programs see and
+nothing else, so the kernel still copies an 8-byte `struct timeval` where
+programs expect 16; callers were compiled with the diagnostic downgraded;
+`touch` is compiled from an undefined shift; and the seven-bit split
+removes division code that the figure includes. Conversion at the system
+call boundary adds kernel text, the split removes program text, and the
+net is unmeasured until an image that boots is built. With the wide type the target
 compiler gives `struct stat` 72 bytes (56 today) and `struct timeval` 16
 (8 today), since a 64-bit member aligns its struct to eight. Across all 1,677 staged files,
 most of which no profile ships, it changes 158 files and adds 44,434 bytes;

@@ -746,7 +746,7 @@ zone_contract_test_san: zone_contract_test.c zone_ctime_san.o \
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} ${ZONE_SAN} -o $@ \
 	    zone_contract_test.c zone_ctime_san.o zone_timezone_san.o
 
-zone_ctime_san.o: ${TARGET_DIR}/ctime.c
+zone_ctime_san.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/ctime.c
 
 zone_timezone_san.o: ${TARGET_DIR}/timezone.c
@@ -762,17 +762,17 @@ zone_contract_test_fixed: zone_contract_test.c zone_ctime_fixed.o \
 	${HOSTCC} ${ZONE_CFLAGS} ${GC_SECTIONS} -o $@ \
 	    zone_contract_test.c zone_ctime_fixed.o zone_timezone_fixed.o
 
-zone_ctime_fixed.o: ${TARGET_DIR}/ctime.c
+zone_ctime_fixed.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ZONE_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
 zone_timezone_fixed.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_TZ_WARN} -c -o $@ \
 	    ${TARGET_DIR}/timezone.c
 
-zone_ctime.o: ${TARGET_DIR}/ctime.c
+zone_ctime.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} -c -o $@ ${TARGET_DIR}/ctime.c
 
-zone_ctime32.o: ${TARGET_DIR}/ctime.c
+zone_ctime32.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} ${ZONE_ZI} -c -o $@ ${TARGET_DIR}/ctime.c
 
 # ctime.c's tzsetkernel() names tztab(), which timezone.c defines and which
@@ -812,22 +812,22 @@ mktime_timezone32.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${MKTIME_TZ_WARN} -c -o $@ \
 	    ${TARGET_DIR}/timezone.c
 
-mktime_mktime.o: ${TARGET_DIR}/mktime.c
+mktime_mktime.o: ${TARGET_DIR}/mktime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/mktime.c
 
-mktime_mktime32.o: ${TARGET_DIR}/mktime.c
+mktime_mktime32.o: ${TARGET_DIR}/mktime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/mktime.c
 
-mktime_ctime.o: ${TARGET_DIR}/ctime.c
+mktime_ctime.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
-mktime_ctime32.o: ${TARGET_DIR}/ctime.c
+mktime_ctime32.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
-ctime_ctime.o: ${TARGET_DIR}/ctime.c
+ctime_ctime.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${CTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
-ctime_ctime32.o: ${TARGET_DIR}/ctime.c
+ctime_ctime32.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ILP32} ${CTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
 asctime_target.o: ${TARGET_DIR}/asctime.c
@@ -837,7 +837,7 @@ asctime_target_diagnostic.o: ${TARGET_DIR}/asctime.c
 	${ARM_COMPILER} ${CTIME_TARGET_DIAGNOSTIC_CFLAGS} -c -o $@ \
 	    ${TARGET_DIR}/asctime.c
 
-ctime_target.o: ${TARGET_DIR}/ctime.c
+ctime_target.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
 stdio_format_extensions.o: stdio_format_extensions.c

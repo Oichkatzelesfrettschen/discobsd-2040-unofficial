@@ -281,15 +281,20 @@ test_leap_year_rule(void)
 	check(db_timegm(&tm) != (time_t)-1, "leap: 2000-12-31 was refused");
 	check(tm.tm_yday == 365, "leap: 2000 was not a leap year");
 
-	/* 2100-02-29 does not exist, so it normalizes to 1 March. */
+	/*
+	 * 2100 lies past the time_t this library is built with, so its
+	 * February is refused and the sentinel stays. The century rule is
+	 * measured where time_t reaches it: test_every_day() counts through
+	 * 2000, which the 400-year rule keeps a leap year, and through the
+	 * years on either side, whose day counts carry the century term.
+	 */
 	memset(&tm, 0, sizeof(tm));
 	tm.tm_year = 200;
 	tm.tm_mon = 1;
 	tm.tm_mday = 29;
-	tm.tm_isdst = -1;
-	(void)db_timegm(&tm);
-	check(tm.tm_mon == 2 && tm.tm_mday == 1,
-	    "leap: 2100 was treated as a leap year");
+	tm.tm_wday = -1;
+	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	    "leap: a date past time_t's range was accepted");
 
 	/* 2004-12-31 is day 365 again. */
 	memset(&tm, 0, sizeof(tm));
@@ -317,6 +322,8 @@ test_out_of_range(void)
 	tm.tm_wday = -1;
 	check(db_timegm(&tm) == (time_t)-1,
 	    "range: a year past the representable span was accepted");
+	check(tm.tm_wday == -1,
+	    "range: a refused year past the span rewrote the sentinel");
 
 	memset(&tm, 0, sizeof(tm));
 	tm.tm_year = -20000 - 1900;
@@ -324,6 +331,22 @@ test_out_of_range(void)
 	tm.tm_wday = -1;
 	check(db_timegm(&tm) == (time_t)-1,
 	    "range: a year before the representable span was accepted");
+	check(tm.tm_wday == -1,
+	    "range: a refused year before the span rewrote the sentinel");
+
+	/* The years an int names at its two ends. */
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = INT_MAX;
+	tm.tm_mday = 1;
+	tm.tm_wday = -1;
+	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	    "range: the last year an int names was accepted");
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = INT_MIN;
+	tm.tm_mday = 1;
+	tm.tm_wday = -1;
+	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	    "range: the first year an int names was accepted");
 
 	/* The legitimate time -1 is one second before the epoch. */
 	memset(&tm, 0, sizeof(tm));
@@ -338,6 +361,188 @@ test_out_of_range(void)
 	    "range: the second before the epoch is not -1");
 	check(tm.tm_wday != -1,
 	    "range: the legitimate -1 left the sentinel in place");
+}
+
+/*
+ * The two ends of time_t's range, which <limits.h> gives as LONG_MIN and
+ * LONG_MAX, with instants one second and one day inside and outside each.
+ * An instant past either end has no count, so it answers -1 and leaves the
+ * tm_wday sentinel in place. The fields name each instant directly, so the
+ * answers do not pass through gmtime.
+ */
+struct edge {
+	int		year, mon, mday, hour, min, sec;
+	long long	secs;
+};
+
+static const struct edge edges[] = {
+	{ 2038,  1, 19,  3, 14,  7,  2147483647LL },
+	{ 2038,  1, 19,  3, 14,  8,  2147483648LL },
+	{ 2038,  1, 19, 23,  0,  0,  2147554800LL },
+	{ 2038,  1, 20,  0,  0,  0,  2147558400LL },
+	{ 1901, 12, 13, 20, 45, 52, -2147483648LL },
+	{ 1901, 12, 13, 20, 45, 51, -2147483649LL },
+	{ 1901, 12, 13,  0,  0,  0, -2147558400LL },
+	{ 1901, 12, 12, 23, 59, 59, -2147558401LL },
+};
+
+static void
+test_range_edges(void)
+{
+	struct tm tm;
+	time_t got;
+	int fits;
+	unsigned i;
+
+	for (i = 0; i < sizeof(edges) / sizeof(edges[0]); i++) {
+		memset(&tm, 0, sizeof(tm));
+		tm.tm_year = edges[i].year - 1900;
+		tm.tm_mon = edges[i].mon - 1;
+		tm.tm_mday = edges[i].mday;
+		tm.tm_hour = edges[i].hour;
+		tm.tm_min = edges[i].min;
+		tm.tm_sec = edges[i].sec;
+		tm.tm_wday = -1;
+		fits = edges[i].secs >= (long long)LONG_MIN &&
+		    edges[i].secs <= (long long)LONG_MAX;
+		got = db_timegm(&tm);
+		if (fits) {
+			check((long long)got == edges[i].secs,
+			    "edge: a representable instant has the wrong count");
+			check(tm.tm_wday != -1,
+			    "edge: a representable instant left the sentinel");
+		} else {
+			check(got == (time_t)-1,
+			    "edge: an instant past time_t's range was accepted");
+			check(tm.tm_wday == -1,
+			    "edge: a refused instant rewrote the fields");
+		}
+	}
+
+	/* A day count no calendar reaches, carried in tm_mday alone. */
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = 70;
+	tm.tm_mday = INT_MAX;
+	got = db_timegm(&tm);
+	check(got == (time_t)-1,
+	    "edge: the largest tm_mday was accepted");
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = 70;
+	tm.tm_mday = INT_MIN;
+	got = db_timegm(&tm);
+	check(got == (time_t)-1,
+	    "edge: the smallest tm_mday was accepted");
+}
+
+/*
+ * Every whole day a four-byte time_t names, against a calendar that only counts:
+ * it steps one day at a time from the epoch in each direction and carries
+ * the month, year, weekday and day of the year by their own rules, sharing
+ * no arithmetic with the library. timegm() must reach the day's count from
+ * the fields, and gmtime() must read the same fields back from the count.
+ */
+static int
+month_days(int year, int mon)
+{
+	static const int lengths[12] =
+	    { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+	if (mon == 1 && year % 4 == 0 && (year % 100 != 0 || year % 400 == 0))
+		return (29);
+	return (lengths[mon]);
+}
+
+static void
+check_day(long day, int year, int mon, int mday, int wday, int yday)
+{
+	struct tm tm, *back;
+	time_t t;
+	long second = (long)(((unsigned long)day * 7919UL) % 86400UL);
+
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = year - 1900;
+	tm.tm_mon = mon;
+	tm.tm_mday = mday;
+	tm.tm_hour = (int)(second / 3600);
+	tm.tm_min = (int)(second / 60 % 60);
+	tm.tm_sec = (int)(second % 60);
+	tm.tm_wday = -1;
+	t = db_timegm(&tm);
+	check(t == (time_t)(day * 86400L + second),
+	    "every day: timegm has the wrong count");
+	check(tm.tm_wday == wday && tm.tm_yday == yday &&
+	    tm.tm_year == year - 1900 && tm.tm_mon == mon &&
+	    tm.tm_mday == mday,
+	    "every day: timegm reported the wrong fields");
+	t = (time_t)(day * 86400L + second);
+	back = db_gmtime(&t);
+	check(back != 0 && back->tm_year == year - 1900 &&
+	    back->tm_mon == mon && back->tm_mday == mday &&
+	    back->tm_wday == wday && back->tm_yday == yday &&
+	    back->tm_hour == (int)(second / 3600) &&
+	    back->tm_min == (int)(second / 60 % 60) &&
+	    back->tm_sec == (int)(second % 60),
+	    "every day: gmtime read the wrong fields");
+}
+
+#define LAST_WHOLE_DAY	24854L		/* 2038-01-18 */
+#define FIRST_WHOLE_DAY	(-24855L)	/* 1901-12-14 */
+
+static void
+test_every_day(void)
+{
+	long day;
+	int year, mon, mday, wday, yday;
+
+	year = 1970; mon = 0; mday = 1; wday = 4; yday = 0;
+	for (day = 0; day <= LAST_WHOLE_DAY; day++) {
+		check_day(day, year, mon, mday, wday, yday);
+		wday = (wday + 1) % 7;
+		yday++;
+		if (++mday > month_days(year, mon)) {
+			mday = 1;
+			if (++mon == 12) {
+				mon = 0;
+				yday = 0;
+				year++;
+			}
+		}
+	}
+	check(year == 2038 && mon == 0 && mday == 19,
+	    "every day: the counting calendar ended on the wrong date");
+
+	year = 1970; mon = 0; mday = 1; wday = 4; yday = 0;
+	for (day = -1; day >= FIRST_WHOLE_DAY; day--) {
+		wday = (wday + 6) % 7;
+		if (--mday < 1) {
+			if (--mon < 0) {
+				mon = 11;
+				year--;
+				yday = 365 + (month_days(year, 1) == 29);
+			}
+			mday = month_days(year, mon);
+		}
+		yday--;
+		check_day(day, year, mon, mday, wday, yday);
+	}
+	check(year == 1901 && mon == 11 && mday == 14,
+	    "every day: the counting calendar began on the wrong date");
+}
+
+/* timegm reports the zone it read the fields in, as gmtime does. */
+static void
+test_timegm_zone_fields(void)
+{
+	struct tm tm;
+
+	fill(&tm, &knowns[0]);
+	tm.tm_gmtoff = 12345L;
+	tm.tm_zone = 0;
+	(void)db_timegm(&tm);
+	check(tm.tm_gmtoff == 0 && tm.tm_isdst == 0,
+	    "zone fields: timegm left an offset or a daylight flag");
+	check(tm.tm_zone != 0 && strcmp(tm.tm_zone, "GMT") == 0,
+	    "zone fields: timegm did not name GMT");
 }
 
 /*
@@ -473,6 +678,9 @@ main(void)
 	test_normalization();
 	test_leap_year_rule();
 	test_out_of_range();
+	test_range_edges();
+	test_every_day();
+	test_timegm_zone_fields();
 	test_zone_offset();
 
 	report("checks: ", check_count);

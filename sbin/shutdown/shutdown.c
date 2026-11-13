@@ -44,7 +44,7 @@ void	nolog(time_t);
 
 struct	utmp utmp;
 int	sint;
-long	stogo;
+time_t	stogo;
 char	tpath[] =	"/dev/";
 int	nlflag = 1;		/* nolog yet to be done */
 int	killflg = 1;

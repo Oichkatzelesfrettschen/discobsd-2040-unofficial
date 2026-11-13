@@ -427,6 +427,32 @@ with tempfile.TemporaryDirectory() as tmp:
         "an existing dump file exits 2 before the port opens and keeps its bytes",
     )
 
+    missing = os.path.join(tmp, "absent-directory", "kbd.bin")
+    status, rec, fake = run_main(["/dev/fake", "--dump", missing, "--dump-length", "1000"])
+    check(
+        status == kbi.EXIT_PROTOCOL
+        and rec.get("exit_status") == 1
+        and rec.get("dump", {}).get("status") == "failed"
+        and rec.get("product_id", {}).get("status") == "ok",
+        "a dump file that cannot be created exits 1 and still prints the identity record",
+    )
+    shipped_write = kbi.write_dump
+
+    def raising_write(path, image):
+        with open(path, "xb") as fh:
+            fh.write(image)
+        return shipped_write(path, image)
+
+    kbi.write_dump = raising_write
+    try:
+        try:
+            status, rec, fake = run_main(["/dev/fake", "--dump", missing, "--dump-length", "1000"])
+        except OSError:
+            rec = {}
+    finally:
+        kbi.write_dump = shipped_write
+    check(not rec, "mutant that lets the file error escape prints no record and is caught")
+
     def default_dump(kbytes, name):
         image = flash_image(kbytes)
         out = os.path.join(tmp, name)

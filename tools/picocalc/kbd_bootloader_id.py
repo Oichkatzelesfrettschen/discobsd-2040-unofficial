@@ -330,6 +330,24 @@ def dump_flash(port, length):
     return bytes(out)
 
 
+def write_dump(path, image):
+    """Create path and write image; return the record's dump entry. A file
+    system failure (a missing or unwritable directory, an existing file, a
+    full disk) becomes a failed entry, so the identity already read still
+    reaches the JSON record."""
+    try:
+        with open(path, "xb") as fh:
+            fh.write(image)
+    except OSError as e:
+        return {"status": "failed", "path": path, "detail": f"{type(e).__name__}: {e.strerror}"}
+    return {
+        "status": "ok",
+        "path": path,
+        "bytes": len(image),
+        "sha256": hashlib.sha256(image).hexdigest(),
+    }
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("tty", help="the CH340C's tty, such as /dev/ttyUSB0")
@@ -379,14 +397,9 @@ def main(argv):
                     record["dump"] = {"status": "failed", "detail": str(e)}
                     status = EXIT_PROTOCOL
                 else:
-                    with open(args.dump, "xb") as fh:
-                        fh.write(image)
-                    record["dump"] = {
-                        "status": "ok",
-                        "path": args.dump,
-                        "bytes": len(image),
-                        "sha256": hashlib.sha256(image).hexdigest(),
-                    }
+                    record["dump"] = write_dump(args.dump, image)
+                    if record["dump"]["status"] != "ok":
+                        status = EXIT_PROTOCOL
     record["tty"] = args.tty
     record["baud"] = args.baud
     record["read_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())

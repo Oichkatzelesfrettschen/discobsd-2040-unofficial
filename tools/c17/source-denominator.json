@@ -100354,7 +100354,9 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "width-sensitive-sizeof"
+          ],
           "object_lifetime": [],
           "pointer": [],
           "prototype": [

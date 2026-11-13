@@ -86,10 +86,13 @@ DEV=		${TOPSRC}/sys/arch/rp2040/dev
 # header it includes comes from the tree after the host's own.
 CRC32=		${TOPSRC}/sys/kern/subr_crc32.c
 # The crash-dump stream sd.c's sddump() writes through, and savecore(8),
-# which dump_test runs on the host with main renamed and POSIX visible.
+# which dump_test runs on the host with main renamed. _DEFAULT_SOURCE makes
+# glibc declare getopt, fsync and mkdtemp under -std=c17, as kbdevq_test
+# does; macOS declares them unless a strict POSIX level is requested, and
+# _POSIX_C_SOURCE=200809L there hides mkdtemp.
 DUMPW=		${TOPSRC}/sys/arch/rp2040/rp2040/dump.c
 SAVECORE=	${TOPSRC}/sbin/savecore
-DUMPCSTD=	-std=c17 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L \
+DUMPCSTD=	-std=c17 -Wall -Wextra -Werror -D_DEFAULT_SOURCE \
 		-Dmain=savecore_main -I${TOPSRC}/tests/picocalc/shim \
 		-I${TOPSRC}/sys/arch -I${SAVECORE} -idirafter ${TOPSRC}/sys
 CSTD=		-std=c17 -pedantic-errors -Wall -Wextra -Werror

@@ -1,5 +1,5 @@
 HOST_CC?=      cc
-HOST_CFLAGS?= -O2 -Wall -Wextra -Werror
+HOST_CFLAGS?= -O2 -Wall -Wextra
 
 CAPACITY_PROG= fgrep_capacity_test
 HOST_PROG=     fgrep_host

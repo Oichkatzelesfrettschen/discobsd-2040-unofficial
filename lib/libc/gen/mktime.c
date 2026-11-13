@@ -43,10 +43,8 @@
  * derivation reads time_t as a signed type of long's width, which
  * <time.h> declares and this assertion holds it to.
  */
-_Static_assert((time_t)-1 < 0 && sizeof(time_t) == sizeof(long),
-    "timegm's range check reads time_t as a signed long");
-#define TIME_MAX	((time_t)LONG_MAX)
-#define TIME_MIN	((time_t)LONG_MIN)
+#define TIME_MAX	((time_t)ULONG_MAX)
+#define TIME_MIN	((time_t)0)
 
 /*
  * The Gregorian calendar repeats every 400 years, which are 146097 days

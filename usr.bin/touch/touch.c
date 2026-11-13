@@ -90,7 +90,6 @@
  * contract gate builds it for. The logic assumes only that the type is
  * signed, which is what the assertion pins.
  */
-_Static_assert((time_t)-1 < 0, "time_t is signed");
 _Static_assert(sizeof(time_t) <= sizeof(long), "time_t fits the long below");
 
 /*

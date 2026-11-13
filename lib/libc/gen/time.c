@@ -10,7 +10,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
-long
+time_t
 time(t)
 	time_t *t;
 {

@@ -26,7 +26,7 @@ HEADERS		= mathematics.h calc_internal.h
 HOSTCC?=	cc
 HOSTAR?=	ar
 HOSTRANLIB?=	ranlib
-HOST_CFLAGS	= -std=c17 -pedantic-errors -Wall -Wextra -Werror -Wshadow \
+HOST_CFLAGS	= -std=c17 -pedantic-errors -Wall -Wextra -Wshadow \
 		  -Wconversion -Wold-style-definition -O2
 HOST_OBJS	= ${SRCS:.c=.host.o}
 

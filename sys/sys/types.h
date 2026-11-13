@@ -45,7 +45,7 @@ typedef int     ssize_t;
 #endif
 #ifndef _TIME_T
 #define _TIME_T
-typedef long    time_t;
+typedef unsigned long time_t;
 #endif
 typedef int     dev_t;
 #ifndef _OFF_T

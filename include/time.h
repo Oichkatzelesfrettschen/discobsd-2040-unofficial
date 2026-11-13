@@ -12,7 +12,7 @@
 
 #ifndef _TIME_T
 #define _TIME_T
-typedef long time_t;
+typedef unsigned long time_t;
 #endif
 
 #ifndef _SIZE_T

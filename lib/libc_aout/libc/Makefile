@@ -18,9 +18,14 @@ VPATH=	${LIBCDIR}/${MACHINE_ARCH}/sys ${LIBCDIR}/${MACHINE_ARCH}/string \
 	${LIBCDIR}/compat ${LIBCDIR}/runtime
 
 # The RP2040 assembles its own objects with the tree's Thumb assembler,
-# which -B puts ahead of the cross toolchain's own as.
+# which -B puts ahead of the cross toolchain's own as. An a.out object has
+# one text segment and the target ld keeps whole members, so the
+# -ffunction-sections of share/mk/sys.mk has nothing to collect here; it
+# only moves each function to its own alignment boundary, where the ELF
+# layout usr.bin/as/tests/thumb-link.sh compares against places it
+# differently. -fno-function-sections keeps one .text per unit.
 COPTS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
+		echo "-Wa,-x -B${TOOLBINDIR}/ -fno-function-sections" ; \
 	else \
 		echo "" ; \
 	fi

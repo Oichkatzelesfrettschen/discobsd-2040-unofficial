@@ -8,8 +8,9 @@
 TOPSRC!=cd ../../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
+# One .text per unit, as in ../libc/Makefile.
 COPTS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
+		echo "-Wa,-x -B${TOOLBINDIR}/ -fno-function-sections" ; \
 	else \
 		echo "" ; \
 	fi

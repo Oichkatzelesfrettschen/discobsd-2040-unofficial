@@ -290,11 +290,16 @@ RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
 SWAP_IOCTL_SRC=	${TOPSRC}/sys/dev/swap.c
 SWAP_IOCTL_FUNCTION=	swap_ioctl_function.c
 SWAP_IOCTL_DEFS=	${COMPACT_DEFS}
+# swstrategy() hands a buffer address to swap() as the kernel's 32-bit
+# size_t, so the 64-bit host build excuses that cast, as swap_ring_io_test
+# does.
 SWAP_IOCTL_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 -pedantic-errors \
-			-Wstrict-prototypes -Wold-style-definition
+			-Wstrict-prototypes -Wold-style-definition \
+			-Wno-pointer-to-int-cast
 SWAP_IOCTL_MUTANTS=	release-fallthrough media-size-fallthrough \
 	shortage-output-suppression unrounded-free stale-released-size \
-	ignore-descriptor-mode omit-root-check
+	ignore-descriptor-mode omit-root-check open-writes-live-swap \
+	transfer-writes-live-swap
 SWAP_IOCTL_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/cdefs.h \
 	${TOPSRC}/sys/sys/conf.h ${TOPSRC}/sys/sys/disk.h \
@@ -446,7 +451,8 @@ CONSOLE_C17_CFLAGS=	${CONSOLE_C17_BASE_CFLAGS} ${CONSOLE_C17_PARAM}
 MEM_SPAN_SRC=		${TOPSRC}/sys/dev/mem.c
 MEM_SPAN_MACHDEP_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
 MEM_SPAN_FUNCTIONS=	mem_kernel_span_functions.c
-MEM_SPAN_DRIVER_MUTANTS=	endpoint-admission user-rejected kernel-rejected
+MEM_SPAN_DRIVER_MUTANTS=	endpoint-admission user-rejected kernel-rejected \
+			write-unbound
 MEM_SPAN_FUNCTION_MUTANTS=	kernel-first-byte
 MEM_SPAN_MUTANTS=	${MEM_SPAN_DRIVER_MUTANTS} ${MEM_SPAN_FUNCTION_MUTANTS}
 MEM_SPAN_CFLAGS=	-ffunction-sections -fdata-sections
@@ -1100,6 +1106,8 @@ check-swap-ioctl-mutants: \
 		stale-released-size) expected='swap_ioctl_test_size(0) == 0' ;; \
 		ignore-descriptor-mode) expected='call_ioctl(0, TFALLOC, &request, FREAD) == EBADF' ;; \
 		omit-root-check) expected='call_ioctl(2, TFALLOC, &request, FREAD | FWRITE) == EPERM' ;; \
+		open-writes-live-swap) expected='swopen(live, FWRITE, 0) == (level ? EPERM : 0)' ;; \
+		transfer-writes-live-swap) expected='live_transfers == (level ? 0U : 1U)' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

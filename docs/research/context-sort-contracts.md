@@ -123,7 +123,9 @@ bmake MACHINE=rp2040 check-libc-qsort check-libc-aout-contracts
 bmake -C tests/libc_contracts MACHINE=rp2040 REQUIRE_QEMU=1 check-qemu
 ```
 
-The logged target build and native archive omission gate pass. Matched clean
-distributions/resources, complete aggregate/ILP32 qualification and reviewed
-integration remain open.
+The logged target build and native archive omission gate pass. The
+[resource review](context-sort-resource-exception.md) records matched clean
+distributions: 668 added native archive bytes and one root data block, with the
+other 156 numeric surfaces unchanged. Resource approval, complete aggregate/ILP32
+qualification and reviewed integration remain open.
 The compatibility ledger records partial implementation with host evidence.

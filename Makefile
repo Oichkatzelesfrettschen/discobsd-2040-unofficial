@@ -1399,6 +1399,13 @@ check-picocalc-host:	check-python
 check-psram-pio:	check-python
 		${MAKE} -C tests/psram check
 
+# The keyboard controller's bootloader identity reader against a model of
+# the STM32 USART bootloader: readable, readout-protected, already-synced,
+# silent and garbled parts, the read-only command allow-list, and three
+# mutant clients that must miss the flash-size word.
+check-picocalc-kbd-bootloader:	check-python
+		${PYTHON} tools/picocalc/kbd_bootloader_id_test.py
+
 check-usb-line-coding:
 		${MAKE} -C tests/rp2040/usb_line_coding check
 
@@ -1492,7 +1499,8 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-set-address-interface check-usb-get-descriptor \
 		check-flash-device-bounds check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
-		check-fs-profiles check-picocalc-host check-psram-pio
+		check-fs-profiles check-picocalc-host check-psram-pio \
+		check-picocalc-kbd-bootloader
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \

@@ -233,7 +233,7 @@ reach names the board observation that reaches it.
 | U401, U601 | TPS61160 or TPS61161 | pin map confirmed; variant undecided | six pins and pad agree; I_LED = 200 mV / R: LCD 5.1 Ohm gives 39.2 mA, keyboard 20 Ohm gives 10.0 mA; the keyboard string is 6 LEDs in series (54 LEDs, 9 parallel per column), inside both OVP limits; 25 V output capacitors weakly favor the 26 V-OVP TPS61160 | top mark `BZQ` 61160, `BZR` 61161, or LEDA voltage at full brightness |
 | U702 | CH340C | confirmed against CH340G/T/R; CH340B not excluded | SOP-16 pin map agrees; pins 7 and 8 carry no crystal, which CH340G/T/R require | top mark |
 | U201 | CKS32F103 in LQFP64 | pin map confirmed | 64 of 64 pins agree with the CKS LQFP64 table | not needed |
-| U201 | flash size letter 8, B, C or E | undecided | the x8/xB and xC-xE LQFP64 pin columns are identical | top mark, or the flash-size word at 0x1FFFF7E0 read through the system bootloader: SW701 in the keyboard-flash position raises BOOT0 and routes the CH340C to M_UART1, the vendor wiki's `stm32flash` path (`stm32flash` is not installed on the build host) |
+| U201 | flash size letter 8, B, C or E | undecided | the x8/xB and xC-xE LQFP64 pin columns are identical | top mark, or the flash-size word at 0x1FFFF7E0 read through the system bootloader: SW701 in the keyboard-flash position raises BOOT0 and routes the CH340C to M_UART1, the vendor wiki's `stm32flash` path, here `tools/picocalc/kbd_bootloader_id.py`, which sends read commands only; the wiki's own log shows product ID 0x410, the ST medium-density ID that the x8 and xB letters report |
 | U201 | Cortex-M3 r1p1 or r2p1 | undecided; documents conflict | the CKS manual gives TAP ID 0x3BA00477 (r1p1) in 22.6.3 and IDCODE 0x4BA00477 (r2p1) in table 92; CKS's difference list says r2p1 | CPUID at 0xE000ED00: 0x411FC231 r1p1, 0x412FC231 r2p1, read over SWD wired to pins 46 and 49 under reset, or reported by a firmware build; the bootloader's device ID does not carry the core revision |
 | U701, U703 | WAS7227Q | confirmed | all 10 pins agree; OE tied low; SEL low selects D1, matching `docs/picocalc/INDEX.md` | not needed |
 | U501 | NC7WZ16 | pin map confirmed; package undecided | six pins agree | top mark `Z16MG` SC-88, `C7KK` SIP6/UDFN6 |
@@ -277,7 +277,10 @@ repository keeps the vendor's name until then.
 - Read the top marks of U102, U201, U401, U501, U502, U601 and U702 and
   the R701 and R702 sites on the owner's board; read U201's flash-size word
   (0x1FFFF7E0) through the USART1 bootloader, and its CPUID (0xE000ED00)
-  over wired SWD or from a firmware build.
+  through the same bootloader where it serves that address, else over
+  wired SWD or from a firmware build. `picocalc-first-power-up.md` orders
+  these reads with the cell-less power-key test and the PicoCalc kernel
+  boot, and states each one's prediction.
 - The panel module datasheet, the 0.5-40PBSX connector, the JC101GV01
   volume potentiometer and the TP-1221U-K9K5325 switch have no source
   that served them; the notes repository's

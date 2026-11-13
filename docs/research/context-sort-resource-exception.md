@@ -82,3 +82,25 @@ exit zero at `2026-11-13T00:27:18Z`. Automated review at that head reports
 zero findings. Aggregate and hosted qualification expose the header-fixture
 search-path defect described in the context-sort contract. Repaired aggregate,
 hosted CI and reviewed integration retain their separate completion requirements.
+
+## Case-distinct termination member qualification
+
+Clean source `7469f2cb` includes the ISO termination member rename described in
+the [lifecycle identity mapping](libc-lifecycle-integrated-resource-exception.md#case-distinct-member-identity).
+The [repaired sorting capture](context-sort-member-resources.json) and
+[comparison to the approved sorting candidate](context-sort-member-comparison.json)
+retain zero change across all 158 numeric surfaces. The native archive remains
+45,078 bytes with 159 members, and the root retains 746 allocated data blocks
+and 233 free blocks. All 33 program records, including hashes, match.
+The sole selection change renames `_Exit.o` to byte-identical `iso_exit.o`;
+all other selected member hashes match. Kernel section sizes remain equal;
+generated kernel ELF identities differ.
+
+The repaired lifecycle baseline remains 44,410 native archive bytes and 745
+root data blocks. Sorting therefore retains the approved 668-byte archive
+increase, `qsort_r.o` addition and one root data block. The identity repair
+adds no resource allowance. Both native archive link witnesses pass, and all
+twenty missing-member controls reject, including the renamed ISO member,
+context-aware sorting and the machine-specific divide provider. Cross termination
+linkage and the calibrated case-alias check also pass. Final aggregate, hosted
+CI and review remain separate requirements.

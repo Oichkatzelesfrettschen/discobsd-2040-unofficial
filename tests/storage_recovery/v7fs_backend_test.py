@@ -11,6 +11,8 @@ from v7_image import verify
 
 
 class BackendTest(unittest.TestCase):
+    compile_flags = ()
+
     @classmethod
     def setUpClass(cls):
         if not Path(__file__).with_name("v7fs_backend.py").exists():
@@ -18,7 +20,7 @@ class BackendTest(unittest.TestCase):
         cls.module = importlib.import_module("v7fs_backend")
         cls.temporary = tempfile.TemporaryDirectory(prefix="v7fs-backend-")
         cls.addClassCleanup(cls.temporary.cleanup)
-        cls.library = cls.module.compile_backend(Path(cls.temporary.name))
+        cls.library = cls.module.compile_backend(Path(cls.temporary.name), cls.compile_flags)
 
     def backend(self, device, order="little"):
         backend = self.module.Backend(self.library, device, order)
@@ -123,6 +125,10 @@ class BackendTest(unittest.TestCase):
                 report = verify(backend.device.export(), order)
                 self.assertEqual(report.namespace["/target/moved"], source)
                 self.assertNotIn("/source", report.namespace)
+
+
+class FortifiedBackendTest(BackendTest):
+    compile_flags = ("-U_FORTIFY_SOURCE", "-D_FORTIFY_SOURCE=3")
 
 
 if __name__ == "__main__":

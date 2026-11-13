@@ -141,6 +141,7 @@ def compare():
         sources += ["tests/storage_recovery/" + name for name in (
             "storage_trace.py", "transaction_models.py", "v7_image.py", "v7fs_backend.py",
             "dhara_backend.py", "compare_policies.py", "dhara_bridge.c", "v7fs_bridge.c",
+            "v7fs_io_hooks.h", "host_build.py",
         )]
         return {
             "schema_version": 1,

@@ -1545,7 +1545,12 @@ the production imported v7fs core, formatter and descriptor backend with
 warnings as errors. A test-only bridge replaces the descriptor backend's
 read/write/seek system calls with typed transfer callbacks. The exported
 image contains the modeled persistent bytes independently of cached v7fs
-structures. Every armed injection must activate exactly once.
+structures. Every armed injection must activate exactly once. The hook header
+loads host declarations before replacing call names, so fortified libc aliases
+cannot route a descriptor read around the injection boundary. Backend cases
+run with both default host flags and explicit `_FORTIFY_SOURCE=3`. Python-loaded
+Clang libraries link the shared sanitizer runtime and record its compiler-selected
+runtime directory as a loader search path; GCC retains its driver-managed linkage.
 
 The interface records sequence, layer, operation kind, address domain,
 offset, length, phase, transferred bytes and result. Calibrations exercise

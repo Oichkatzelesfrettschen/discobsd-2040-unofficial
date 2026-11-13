@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from host_build import sanitizer_link_flags
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -18,7 +20,7 @@ def compile_dhara(directory):
     subprocess.run(
         [*compiler, "-std=c17", "-O1", "-g", "-Wall", "-Wextra", "-Werror", "-Wpedantic",
          "-Wstrict-prototypes", "-Wold-style-definition", "-fPIC", shared,
-         "-fsanitize=undefined", "-fno-sanitize-recover=undefined",
+         *sanitizer_link_flags(compiler), "-fno-sanitize-recover=undefined",
          "-I" + str(ROOT / "sys/arch"), "-I" + str(dhara),
          str(Path(__file__).with_name("dhara_bridge.c")), str(dhara / "error.c"),
          str(dhara / "journal.c"), str(dhara / "map.c"), "-o", str(output)],

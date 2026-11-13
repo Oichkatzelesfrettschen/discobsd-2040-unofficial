@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from host_build import sanitizer_link_flags
 from storage_trace import Address, Domain, Interruption, TransferError, checked_range
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,14 +17,15 @@ TRANSFER = ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int, ctypes.c_void_p,
 SEEK = ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int, ctypes.c_int64, ctypes.c_int)
 
 
-def compile_backend(directory):
+def compile_backend(directory, extra_flags=()):
     compiler = shlex.split(os.environ.get("HOSTCC", "cc"))
     flags = ["-std=gnu17", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
              "-Wno-unused-parameter", "-fPIC", "-fsanitize=undefined",
              "-fno-sanitize-recover=undefined", "-DV7FS_EI", "-DSTATIC_BUFFER", "-DNDEBUG",
              "-D_DEFAULT_SOURCE", "-include", str(ROOT / "usr.sbin/v7fs/netbsd_compat.h"),
              "-I" + str(ROOT / "usr.sbin/v7fs/compat"),
-             "-I" + str(ROOT / "sys/fs/v7fs"), "-I" + str(ROOT / "sbin/newfs_v7fs")]
+             "-I" + str(ROOT / "sys/fs/v7fs"), "-I" + str(ROOT / "sbin/newfs_v7fs"),
+             *extra_flags]
     sources = [ROOT / "sys/fs/v7fs" / f"v7fs_{name}.c" for name in (
         "endian", "superblock", "superblock_util", "inode", "inode_util",
         "datablock", "dirent", "io", "file", "file_util",
@@ -33,15 +35,16 @@ def compile_backend(directory):
     objects = []
     for number, source in enumerate(sources):
         output = directory / f"object-{number}.o"
-        renames = (["-Dread=storage_test_read", "-Dwrite=storage_test_write",
-                    "-Dlseek=storage_test_seek"] if source.name == "v7fs_io_fd.c" else [])
+        renames = (["-include", str(Path(__file__).with_name("v7fs_io_hooks.h"))]
+                   if source.name == "v7fs_io_fd.c" else [])
         subprocess.run([*compiler, *flags, *renames, "-c", str(source), "-o", str(output)],
                        check=True)
         objects.append(str(output))
     library = directory / "v7fs-backend.so"
     shared = "-dynamiclib" if sys.platform == "darwin" else "-shared"
-    subprocess.run([*compiler, shared, "-fsanitize=undefined", *objects, "-o", str(library)],
-                   check=True)
+    subprocess.run(
+        [*compiler, shared, *sanitizer_link_flags(compiler), *objects, "-o", str(library)],
+        check=True)
     return library
 
 

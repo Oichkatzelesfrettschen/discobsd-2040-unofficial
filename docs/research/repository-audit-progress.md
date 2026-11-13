@@ -62,7 +62,7 @@ rather than the shared GitHub account's authorship field.
 - [x] Fetch origin main, inspect its delta and merge it into the owned branch
   while preserving the fixed audit baseline and other agents' work.
 - [x] Run focused gates for reconciled changes and resolve their failures.
-- [x] Run final logged-build, logged-check and logged-ilp32; bind receipts to
+- [ ] Run final logged-build, logged-check and logged-ilp32; bind receipts to
   the tested head, base, configuration and resulting tree.
 - [ ] Review the final diff, push to origin and open the owned pull request;
   keep it in draft while acceptance requirements remain open.
@@ -173,6 +173,33 @@ ILP32 receipt `rp2040-ilp32-local-20261113T033238Z-452143-86bca3fd` records
 worktree remains clean throughout both runs. The subsequent acceptance-record
 edit changes documentation only; product and test inputs retain these tested
 identities. Publication, hosted checks, review and integration remain open.
+
+Hosted Linux run `43360490352` rejects seven backend cases on `c80d667a`,
+although local aggregate acceptance passes. A GCC 13 probe with
+`-D_FORTIFY_SOURCE=3` reproduces all seven failures. `nm -u` on the descriptor
+object resolves `read` to the host while write and seek resolve to test hooks:
+glibc's fortified declaration preserves the underlying read symbol when
+command-line macros rename the declaration itself. The test hook header loads
+host declarations first, then substitutes calls with explicitly declared hooks.
+The original and fortified configurations both pass all eight backend cases
+with GCC 13. Production source remains unchanged; the source inventory and
+hosted storage gate must validate the expanded test boundary before acceptance.
+
+The Clang probe exposes a separate shared-library load failure:
+`__ubsan_handle_function_type_mismatch_abort` is unresolved before a test runs.
+Explicit shared-sanitizer linkage and a compiler-selected runtime search path
+make the library load and preserve instrumentation. Both Python-loaded storage
+libraries use that linkage helper. GCC 13 passes all 16 default/fortified
+backend cases and three Dhara cases after the change. The comparison report
+binds the hook header and runtime helper by SHA-256.
+
+Logged invocation `storage-clang-focused-20261113T035754Z-1180377-792d4393`
+passes the complete storage recovery and model gates in 75.735 seconds,
+including the unchanged prefix and interruption classifications. The preceding
+fortified GCC run passes storage gates and source-inventory calibration in
+81.7 seconds. Final aggregate acceptance and hosted checks must refresh for
+this test-boundary repair. The production sources and ILP32 inventory inputs
+remain identical to their passing acceptance revision.
 
 Only one item carries active implementation focus. Product jobs use the
 worktree's logged execution lock. Physical-board access, raw-device writes,

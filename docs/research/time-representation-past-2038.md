@@ -187,10 +187,13 @@ What the design owes before it is adopted:
   types match.
 - The wrappers name both layouts in one translation unit, so the narrow
   structures need private tags (`struct __stat32`, `struct __timeval32`).
-- The carriers are `struct stat`, `struct timeval`, `struct itimerval`,
-  `struct rusage` (`wait4`, `getrusage`), `struct timespec` (`pselect`),
-  `struct tms` and the arguments of `utimes` and `futimes`
-  (`sys/kern/syscalls.master`).
+- Every time-carrying system call in `sys/kern/syscalls.master` takes a
+  wide wrapper: `stat`, `fstat` and `lstat` (`struct stat`);
+  `gettimeofday`, `settimeofday`, `adjtime`, `select`, `utimes` and
+  `futimes` (`struct timeval`); `getitimer` and `setitimer`
+  (`struct itimerval`); `getrusage` and `wait4` (`struct rusage`); and
+  `pselect` (`struct timespec`). A call left on the narrow entry receives
+  a wide caller's layout.
 - `lastlog.ll_time` is a `time_t` (`include/lastlog.h`) and `utmp.ut_time`
   a `long`; both are disk records and take explicit 32-bit fields before
   the type changes.
@@ -203,9 +206,12 @@ What the design owes before it is adopted:
   program, `libc.a` growth and free blocks on the packed image.
 
 Adding `long long` to Smaller C would leave one interface and is the one
-alternative not excluded: the compiler occupies 74,912 bytes of text,
-data and bss (`arm-none-eabi-size usr.bin/smlrc/smlrc.elf` at `fca28c6a`)
-in a 192 KiB process window (`machparam.h`). Its cost is unmeasured.
+alternative not excluded: a build of `fca28c6a` with
+arm-none-eabi-gcc 16.2.0 links the compiler at 47,460 bytes of text, 1,140 of
+data and 26,312 of bss (`arm-none-eabi-size usr.bin/smlrc/smlrc.elf`),
+74,912 in a 192 KiB process window (`machparam.h`);
+`usr.bin/smlrc/README.rp2040.md` records an earlier build's figures. The
+cost of the 64-bit type in it is unmeasured.
 Converting in the kernel instead, with old and new system calls side by
 side, keeps two user interfaces as well and spends kernel text for a clock
 that stays 32 bits wide; `check-kernel-headroom` at `fca28c6a` reports

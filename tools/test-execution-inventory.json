@@ -682,6 +682,11 @@
       "from": "check-libc-qsort-context",
       "to": "tests/libc_contracts:check-qsort-context",
       "kind": "recipe"
+    },
+    {
+      "from": "check-libc-absolute-value",
+      "to": "tests/libc_contracts:check-absolute-value",
+      "kind": "recipe"
     }
   ],
   "optional_investigations": [
@@ -4542,6 +4547,63 @@
       "recipe": "${TEST_EXECUTION} run libc.dbm-open.ilp32 -- ./dbm_open_test32",
       "aliases": [
         "check-libc-dbm-open"
+      ]
+    },
+    {
+      "id": "libc.absolute-value.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-absolute-value",
+      "root_target": "check-libc-host-contracts",
+      "program": "absolute_value_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "absolute_value_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.absolute-value.native -- ./absolute_value_test",
+      "aliases": [
+        "check-libc-absolute-value"
+      ]
+    },
+    {
+      "id": "libc.absolute-value.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-absolute-value",
+      "root_target": "check-libc-host-contracts",
+      "program": "absolute_value_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "absolute_value_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.absolute-value.ilp32 -- ./absolute_value_test32",
+      "aliases": [
+        "check-libc-absolute-value"
+      ]
+    },
+    {
+      "id": "libc.absolute-value.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-absolute-value",
+      "root_target": "check-libc-host-contracts",
+      "program": "absolute_value_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "absolute_value_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.absolute-value.sanitized -- ./absolute_value_test_san",
+      "aliases": [
+        "check-libc-absolute-value"
       ]
     }
   ]

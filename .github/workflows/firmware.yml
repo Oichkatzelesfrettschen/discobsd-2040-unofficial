@@ -241,8 +241,9 @@ jobs:
       # check-host owns compiler-matrix identity, ownership and bounded PTY completion.
       # It also checks the fixed Git-tree repository coverage ledger and rejection fixtures.
       # Libc strings and exit registries execute calibrated host and ILP32 cases;
-      # strings and context sorting add sanitizers; the libc QEMU tier replays
-      # strings, quick exit and context sorting as Thumb-1.
+      # strings, context sorting and absolute values add sanitizers; the libc
+      # QEMU tier replays strings, quick exit, context sorting and absolute values
+      # as Thumb-1. Native archive omission controls cover callable abs/labs.
       - name: Run the host tier
         timeout-minutes: 20
         run: |

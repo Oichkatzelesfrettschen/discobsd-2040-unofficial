@@ -36,6 +36,7 @@ done
     -o "$temporary_directory/aout_link_contract.o"
 
 archive_index=0
+rejected_members=0
 case "$target_machine" in
 rp2040) divider_member=aeabi_div ;;
 *) divider_member=aeabi_div_idiv ;;
@@ -49,6 +50,8 @@ do
 		exit 2
 	fi
 	for required_source in \
+	    "$source_root/lib/libc/stdlib/abs.c" \
+	    "$source_root/lib/libc/stdlib/labs.c" \
 	    "$source_root/lib/libc/stdlib/iso_exit.c" \
 	    "$source_root/lib/libc/stdlib/at_quick_exit.c" \
 	    "$source_root/lib/libc/stdlib/quick_exit.c" \
@@ -75,7 +78,7 @@ do
 		fi
 	done
 	for required_member in confstr.o ctermid.o difftime.o explicit_bzero.o \
-	    iso_exit.o at_quick_exit.o quick_exit.o \
+	    abs.o labs.o iso_exit.o at_quick_exit.o quick_exit.o \
 	    "$divider_member.o" qsort.o qsort_r.o raise.o sysconf.o \
 	    strnlen.o strndup.o stpcpy.o stpncpy.o \
 	    timingsafe_bcmp.o vis.o
@@ -108,7 +111,7 @@ do
 		printf '%s\n' "$undefined_symbols" >&2
 		exit 1
 	fi
-	for missing_member in strnlen strndup stpcpy stpncpy iso_exit at_quick_exit quick_exit qsort qsort_r "$divider_member"
+	for missing_member in abs labs strnlen strndup stpcpy stpncpy iso_exit at_quick_exit quick_exit qsort qsort_r "$divider_member"
 	do
 		damaged_archive=$temporary_directory/damaged.a
 		cp "$archive_path" "$damaged_archive"
@@ -130,8 +133,9 @@ do
 			cat "$temporary_directory/damaged.log" >&2
 			exit 1
 		fi
+		rejected_members=$((rejected_members + 1))
 	done
 	archive_index=$((archive_index + 1))
 done
 
-echo "a.out libc contracts pass; twenty missing-string-lifecycle-sort-and-divider-member controls reject"
+echo "a.out libc contracts pass; $rejected_members missing-member controls reject"

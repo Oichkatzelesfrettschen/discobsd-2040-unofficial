@@ -63,7 +63,7 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-vis check-printf-g check-huge-val \
 	check-qsort check-strtox check-string-security check-array-memory-line \
 	check-getgrent check-bounded-string check-exit-lifecycle check-quick-exit \
-	check-qsort-context check-dbm-open
+	check-qsort-context check-dbm-open check-absolute-value
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 ARRAY_MEMORY_CFLAGS= -std=c17 -Wall -Wextra -Werror
@@ -106,6 +106,35 @@ bounded_string_test_san: ${BOUNDED_STRING_INPUTS} .PHONY
 	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
 
 .PHONY: check-bounded-string
+
+ABSOLUTE_VALUE_INPUTS= absolute_value.py absolute_value_test.c \
+	${STDLIB_DIR}/abs.c ${STDLIB_DIR}/labs.c
+
+check-absolute-value: absolute_value_test
+	${TEST_EXECUTION} run libc.absolute-value.native -- ./absolute_value_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} absolute_value_test32
+	${TEST_EXECUTION} run libc.absolute-value.ilp32 -- ./absolute_value_test32
+.else
+	${TEST_EXECUTION} skip libc.absolute-value.ilp32 "check-libc-absolute-value: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} absolute_value_test_san
+	${TEST_EXECUTION} run libc.absolute-value.sanitized -- ./absolute_value_test_san
+.else
+	${TEST_EXECUTION} skip libc.absolute-value.sanitized "check-libc-absolute-value: sanitizer runtime unavailable"
+.endif
+
+absolute_value_test: ${ABSOLUTE_VALUE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} ${HOSTCC:Q} $@
+
+absolute_value_test32: ${ABSOLUTE_VALUE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+absolute_value_test_san: ${ABSOLUTE_VALUE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-absolute-value
 
 QSORT_CONTEXT_INPUTS= qsort_context.py qsort_context_test.c \
 	${TARGET_DIR}/qsort.c ${TARGET_DIR}/qsort_r.c
@@ -1345,6 +1374,7 @@ header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
 	    -isystem ${TOPSRC}/include -c -o $@ header_contract.c
 
 clean:
+	rm -f absolute_value_test absolute_value_test32 absolute_value_test_san
 	rm -f qsort_context_test qsort_context_test32 qsort_context_test_san
 	rm -f bounded_string_test bounded_string_test32 bounded_string_test_san
 	rm -f dbm_open_test dbm_open_test32
@@ -1445,6 +1475,7 @@ check-qemu:
 	${QEMU_ARM_RUN} ./huge_val_contract_test_arm
 	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/dbm_open.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 .endif

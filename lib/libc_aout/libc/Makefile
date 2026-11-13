@@ -109,7 +109,7 @@ OBJS            += fgetc.o fgets.o fputc.o fputs.o puts.o \
                    remove.o feof.o ferror.o fileno.o
 
 # libc/stdlib
-OBJS            += iso_exit.o at_quick_exit.o quick_exit.o \
+OBJS            += abs.o labs.o iso_exit.o at_quick_exit.o quick_exit.o \
                    getopt.o getsubopt.o strtol.o strtoul.o strtod.o
 
 # libc/string
@@ -152,6 +152,12 @@ all:            ../libc.a
 		${AOUT_RANLIB} $@
 
 qsort_r.o: ${LIBCDIR}/gen/qsort.c
+
+# The retained gen/abs.c belongs to the historical implementation; native
+# archives use the maintained typed provider from stdlib. An explicit local
+# output keeps .PATH lookup from replacing the cross-library ELF object.
+abs.o: ${LIBCDIR}/stdlib/abs.c
+		${CC} ${CFLAGS} -c -o abs.o ${LIBCDIR}/stdlib/abs.c
 
 vfprintf.o fputs.o: ${LIBCDIR}/stdio/output.h
 atexit.o exit.o: ${LIBCDIR}/stdio/atexit.h

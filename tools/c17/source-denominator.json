@@ -46945,6 +46945,39 @@
       }
     },
     {
+      "path": "lib/libc/stdlib/abs.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "libc-callable-absolute-values",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/libc-absolute-value-contracts.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "libc-public-header",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "lib/libc/stdlib/at_quick_exit.c",
       "class": "unreviewed",
       "scope": "unreviewed",
@@ -47220,6 +47253,39 @@
       "language_state": "unreviewed",
       "evidence": [],
       "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "libc-public-header",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "lib/libc/stdlib/labs.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "libc-callable-absolute-values",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/libc-absolute-value-contracts.md"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -72103,6 +72169,42 @@
       }
     },
     {
+      "path": "tests/libc_contracts/absolute_value_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "libc-callable-absolute-values",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/libc-absolute-value-contracts.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "tests/libc_contracts/alarm_contract_test.c",
       "class": "A",
       "scope": "maintained",
@@ -91926,6 +92028,41 @@
           "variadic": [
             "variadic-interface"
           ]
+        }
+      }
+    },
+    {
+      "path": "usr.bin/smlrc/tests/t21_absolute.c",
+      "class": "B",
+      "scope": "maintained",
+      "owner": "libc-callable-absolute-values",
+      "profile": "native-smaller-c-implementation",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/libc-absolute-value-contracts.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "native-smaller-c",
+        "required_mode": "c17-migration",
+        "extension_policy": "native-subset-separated",
+        "extension_signals": [],
+        "risk_family": "native-compiler",
+        "risk_tier": "T1",
+        "risk_tier_basis": "native-compiler-input",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
         }
       }
     },

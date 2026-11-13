@@ -14,6 +14,8 @@ volatile double aout_contract_elapsed;
 void (*aout_quick_exit)(int) = quick_exit;
 void (*aout_immediate_exit)(int) = _Exit;
 int (*aout_register_quick_exit)(void (*)(void)) = at_quick_exit;
+int (*volatile aout_abs)(int) = abs;
+long (*volatile aout_labs)(long) = labs;
 
 int
 aout_contract_probe(void)

@@ -1198,3 +1198,13 @@ closure. The candidate preserves the ordinary-sort cross object byte-for-byte
 and passes calibrated context/record witnesses. Its matched resources, complete
 qualification and reviewed integration remain open. Algorithm replacements keep
 their separate comparison, stack and resource acceptance requirements.
+
+## Callable integer magnitude providers
+
+The [absolute-value contracts](libc-absolute-value-contracts.md) close the
+`abs`/`labs` declaration-to-provider gap in the ELF and native archives.
+Volatile address-taking, strict C17, ILP32, sanitizer, Thumb-1 and Smaller C
+witnesses cover the defined representability domain. Native archive omission
+controls reject each missing member. Matched whole-image resources and complete
+qualification remain open; the shared-libc export contract retains its separate
+public-root audit and fixed flash reservation.

@@ -902,9 +902,13 @@ check-host-gate-selection:
 
 # tools/mutant_pool.py, which the fourfall, puzzlebox and calc mutant runners
 # share: list order, serial timing mutants alone, MUTANT_JOBS, and a known-bad
-# pool that lets a serial item overlap.
+# pool that lets a serial item overlap. The pool's default size and make's -j
+# (tools/online-cpus.sh) come from the affinity mask bounded by the cgroup CPU
+# quota; tools/available_cpus_test.py holds both counters to fixture
+# hierarchies and four mutants.
 check-mutant-pool: check-python
 		${PYTHON} tools/mutant_pool_test.py
+		${PYTHON} tools/available_cpus_test.py
 
 check-cat-contracts-cross:
 		${MAKE} -C tests/cat_contracts check-cross

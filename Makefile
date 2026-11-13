@@ -297,6 +297,12 @@ check-divider:	tools
 		fi
 		${MAKE} -C sys/arch/rp2040/compile check-divider
 
+# The host ar and ranlib give equal archive bytes for equal members under
+# SOURCE_DATE_EPOCH, across umasks, member dates and builder user ids.
+check-archive-identity:	tools
+		sh tools/check_archive_identity.sh ${TOOLBINDIR}/ar \
+		    ${TOOLBINDIR}/ranlib
+
 check-swapram:	tools
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-swapram requires MACHINE=rp2040" >&2; \
@@ -1510,6 +1516,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-r
 		check-find-contracts-cross \
 		check-backgammon-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
+		check-archive-identity \
 		check-time-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross \
@@ -1995,6 +2002,7 @@ installfs:
 .PHONY:		check-clean-residue check-storage-counters check-storage-correctness check-python check-icode-relocation check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-dpucp-board-acceptance check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
+		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
 		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \

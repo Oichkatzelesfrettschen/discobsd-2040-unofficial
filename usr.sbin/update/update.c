@@ -34,16 +34,31 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
+/*
+ * -f keeps update in the foreground, so a supervisor that forked it (init
+ * through /etc/daemons) holds its pid and sees it exit.
+ */
 int
-main()
+main(int argc, char **argv)
 {
 	struct itimerval value;
 	sigset_t set;
 	void mysync();
 
-	daemon(0, 0);
+	if (argc == 2 && strcmp(argv[1], "-f") == 0)
+		;
+	else if (argc == 1)
+		daemon(0, 0);
+	else {
+		static const char usage[] = "usage: update [-f]\n";
+
+		/* write(2) keeps stdio out of this 1.4 KB program. */
+		write(2, usage, sizeof(usage) - 1);
+		exit(1);
+	}
 
 	(void)signal(SIGALRM, mysync);
 

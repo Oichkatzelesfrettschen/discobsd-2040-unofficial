@@ -217,7 +217,7 @@ privilege may change the value.
 	HW\_USERMEM	integer	no
 	HW\_PAGESIZE	integer	no
 .\".It HW\_DISKNAMES	integer	no
-.\".It HW\_DISKSTATS	integer	no
+	HW\_DISKSTATS	struct kinfo_disk []	no
 	HW\_MACHINE_ARCH	string	no
 .fi
 .PP
@@ -251,7 +251,18 @@ HW_PAGESIZE
 	The software page size.
 .sp
 .\".It Fa HW_DISKNAMES
-.\".It Fa HW_DISKSTATS
+HW_DISKSTATS
+.br
+.in +.5i
+Return one
+\fIstruct kinfo_disk\fP
+(\fI<sys/sysctl.h>\fP)
+for each disk-statistics slot a driver has claimed, in slot order: the
+drive's name, NUL-ended, and its transfer and byte counts.
+A kernel whose drivers claim no slot returns no record.
+Each value is a copy; the record names no kernel address.
+.in -.5i
+.sp
 HW_MACHINE_ARCH
 .br
 	The machine architecture.
@@ -303,7 +314,8 @@ information.
 	KERN\_TEXT	struct text	no
 .\"KERN\_VDISABLE	integer	no
 	KERN\_VERSION	string	no
-	KERN\_INODE	struct inode	no
+	KERN\_INODE	struct kinfo_inode []	no
+	KERN\_TTY	struct kinfo_tty	no
 .fi
 .PP
 KERN_ARGMAX
@@ -343,13 +355,42 @@ frequencies, and the number of micro-seconds per hz tick.
 KERN_FILE
 .br
 .in +.5i
-Return the entire file table as an array of extended \fIfile\fP
-structures.
-Each element of the array contains the kernel address of a file
-\fIstruct inode *\fP
-followed by the file itself
-\fIstruct file\fP.  There can never be more than \fBKERN_MAXFILES\fP
-inodes returned.
+Return the working directory and open descriptors of one process, or
+under KERN_FILE_BYFILE the system file table, as an array of
+\fIstruct kinfo_file\fP
+records (\fI<sys/sysctl.h>\fP).
+A KERN_FILE_BYFILE record has
+\fIkf_pid\fP
+\-1 and
+\fIkf_fd\fP
+the entry's table index, and only the super-user receives the table.
+Every record carries its file entry's reference and message counts.
+The third level is the selector, KERN_FILE_BYPID, the fourth the process
+ID, and the fifth the record size the caller was built with, used as for
+KERN_PROC; it must be at least KI_FILE_MINSIZE and at most DEV_BSIZE.
+The first record, whose
+\fIkf_fd\fP
+is KF_FD_CWD, describes the working directory; the rest follow in
+descriptor order.
+A size query, and a buffer too short for every record, report room for
+the directory and NOFILE descriptors.
+.sp
+A record holds values only, no kernel address.
+An inode or pipe carries its device, inode number, mode and size
+(KF_VALID_INODE in
+\fIkf_valid\fP);
+a descriptor carries its open flags and offset (KF_VALID_FILE); any other
+descriptor type carries
+\fIkf_type\fP
+alone.
+The kernel reads the descriptor table from the process's user area, in
+memory, on the swap device or in the SwapRAM pool.
+It returns the records only to the super-user and to a caller whose
+effective user ID is the process's real or effective user ID, and fails
+with EPERM for any other caller.
+It fails with ESRCH for no such process or one that exited or changed
+during the read, and EIO for a failed read; a zombie returns no record.
+KERN_FILE takes no new value.
 .sp
 .in -.5i
 KERN_HOSTID
@@ -449,11 +490,37 @@ attempts to comply.
 KERN_PROC
 .br
 .in +.5i
-Return the entire process table, or a subset of it.
-An array of
+Return the entire process table, or a subset of it, as an array of
 \fIstruct kinfo_proc\fP
-structures is returned,
-whose size depends on the current number of such objects in the system.
+records (\fI<sys/sysctl.h>\fP), one for each process the selector admits.
+The third level is the selector, the fourth its argument and the fifth
+the record size the caller was built with, which must be at least
+KI_PROC_MINSIZE and at most DEV_BSIZE.
+The kernel copies the first bytes of each record, as many as the smaller
+of the two sizes, and starts each record at a multiple of the caller's
+size, so fields appended to the end of the record leave older callers
+unaffected;
+\fIkp_size\fP
+reports the kernel's own size.
+A size query, and a buffer too short for every record, report room for a
+full process table.
+A caller that selects by process group, terminal or user does so over the
+full table.
+.sp
+A record holds values only, no kernel address.
+The process-table fields are always filled.
+The groups that come from the process's user area carry a bit in
+\fIkp_valid\fP
+when the kernel could read that user area, from memory, the swap device
+or the SwapRAM pool;
+otherwise
+\fIkp_error\fP
+holds ESRCH, for a process that exited or changed during the read, or
+EIO, for a failed read, and the record is still returned.
+The argument prefix, which exec records, is returned only to the
+super-user and to a caller whose effective user ID is the process's real
+or effective user ID.
+KERN_PROC takes no new value.
 .sp
 .in -.5i
 The third and fourth level names are as follows:
@@ -461,12 +528,8 @@ The third and fourth level names are as follows:
 .nf
 .ta .25i 3.0i
 	Third level name	Fourth level is:
-	KERN\_PROC\_ALL	None
+	KERN\_PROC\_ALL	Ignored
 	KERN\_PROC\_PID	A process ID
-	KERN\_PROC\_PGRP	A process group
-	KERN\_PROC\_TTY	A tty device
-	KERN\_PROC\_UID	A user ID
-	KERN\_PROC\_RUID	A real user ID
 	KERN\_PROF	Return kernel profiling information.
 .fi
 .sp
@@ -553,16 +616,27 @@ The system version string.
 KERN_INODE
 .br
 .in +.5i
-Return the entire inode table.
-Note, the inode table is not necessarily a consistent snapshot of
-the system.
-The returned data consists of an array whose size depends on the
-current number of such objects in the system.
-Each element of the array contains the kernel address of a inode
-\fIstruct inode *\fP
-followed by the inode itself
-\fIstruct inode\fP.  There can never be more than \fBKERN_MAXINODES\fP
-inodes returned.
+Return one
+\fIstruct kinfo_inode\fP
+(\fI<sys/sysctl.h>\fP)
+for each in-core inode with a reference, in table order: flags,
+references, device, lock counts, number, mode, links, owner, and size, or
+for a block or character special file the device it names.
+The record holds no kernel address.
+The in-core table shows which files every user has open, so only the
+super-user receives it; any other caller gets EPERM.
+A size query, and a buffer too short for every record, report room for
+\fBKERN_MAXINODES\fP records.
+.sp
+.in -.5i
+KERN_TTY
+.br
+.in +.5i
+Return the state of the terminal the console forwards to as one
+\fIstruct kinfo_tty\fP:
+input and output queue lengths, modes, state bits, delimiter and column
+counts, and the foreground process group.
+Only the super-user receives it.
 .sp
 .in -.5i
 KERN_TEXT
@@ -866,6 +940,7 @@ privilege may change the value.
 	VM\_METER	struct vmtotal	no
 	VM\_SWAPMAP	struct mapent []	no
 	VM\_NSWAP	integer	no
+	VM\_STATS	struct kinfo_vmstat	no
 .fi
 .PP
 VM_LOADAVG
@@ -900,6 +975,19 @@ VM_NSWAP
 .in +.5i
 Return the size of the swap device in DEV_BSIZE blocks, which is the value
 of the kernel variable \fInswap\fP.
+.in -.5i
+.sp
+VM_STATS
+.br
+.in +.5i
+Return the system's event counters as one
+\fIstruct kinfo_vmstat\fP
+(\fI<sys/sysctl.h>\fP):
+the clock ticks spent in each processor state, the virtual memory events
+of the last second and their totals since boot, the fork and name-cache
+statistics, and the terminal characters read and written.
+Each field is a 32-bit copy of the kernel counter; the record names no
+kernel address.
 .in -.5i
 .SH RETURN VALUES
 If the call to
@@ -991,6 +1079,17 @@ The KERN_TEXT, KERN_MAXTEXTS, VM_SWAPMAP and VM_NSWAP options are
 VM_COREMAP, a 2.11BSD extension returning the core allocation map, needs a
 core resource map this system does not keep.
 .PP
-Having KERN_FILE return the address of the file structure before the
-actual \fIstruct file\fP is a 2.11BSD enhancement.  The \fIinode\fP
-(\fIvnode\fP under 4.4) table was handled this way.
+In 4.4BSD and 2.11BSD a successful call returned the number of bytes
+copied out, or for a size query the length the value needs.
+This system returns 0, as OpenBSD and FreeBSD do, and reports the length
+through
+\fIoldlenp\fP
+alone.
+.PP
+In 2.11BSD, KERN_FILE returned the whole file table, each
+\fIstruct file\fP
+preceded by its kernel address, an enhancement modeled on the
+\fIinode\fP
+(\fIvnode\fP under 4.4) table.
+This system returns pointer-free records of one process's descriptors
+instead.

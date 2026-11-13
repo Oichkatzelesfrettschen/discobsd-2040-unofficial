@@ -224,6 +224,9 @@ int cnselect (dev_t dev, int rw);
 extern struct tty cnttys[];
 #endif
 
+struct tty;
+struct tty *cntty(void);	/* the console's terminal, sys/dev/cons.c */
+
 int mmrw (dev_t dev, struct uio *uio, int flag);
 int seltrue (dev_t dev, int rw);
 void nostrategy (struct buf *bp);

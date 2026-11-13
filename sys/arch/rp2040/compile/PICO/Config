@@ -30,6 +30,7 @@ options         "CORE1"                     # core 1 observes core 0's clock
 # a raw region above it; see arch/rp2040/dev/flash.c.
 config          unix    root on fl0a
                         swap on fl1
+                        dumps on none          # A dump would overwrite the live swap; sys/arch/rp2040/include/dump.h.
 
 options         "NFL=2"                     # fl0 root, fl1 swap.
 options         "NMOUNT=1"                  # One UFS root; fl1 is raw swap.

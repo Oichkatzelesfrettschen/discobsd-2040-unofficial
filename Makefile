@@ -857,6 +857,11 @@ check-getty-contracts:
 check-init-contracts:
 		${MAKE} -C tests/init_contracts check
 
+# init's /etc/daemons parser and restart policies, sbin/init/daemons.c, on
+# the host.
+check-init-daemons:
+		${MAKE} -C tests/init_daemons check
+
 check-cat-contracts-cross:
 		${MAKE} -C tests/cat_contracts check-cross
 
@@ -1405,7 +1410,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
 		check-libc-host-contracts check-libc-assert check-c17-headers \
-		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts \
+		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts check-init-daemons \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
 		check-rmdir-contracts check-tee-contracts check-time-contracts \

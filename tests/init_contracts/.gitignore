@@ -4,3 +4,4 @@ init_*-*.c
 init_*-*.o
 init_*-*.test
 init_*-*.out
+daemons.o

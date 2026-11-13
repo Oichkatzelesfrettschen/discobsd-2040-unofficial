@@ -120,8 +120,10 @@ int flock(int fd, int operation);
         return; \
     } \
 }
+#endif
+
+/* f_type, which KERN_FILE reports as kf_type (sys/sysctl.h). */
 #define DTYPE_INODE     1   /* file */
 #define DTYPE_SOCKET    2   /* communications endpoint */
 #define DTYPE_PIPE      3   /* I don't want to hear it, okay? */
-#endif
 #endif  /* _SYS_FILE_H_ */

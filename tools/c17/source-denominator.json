@@ -2075,9 +2075,7 @@
         "risk_tier_basis": "caller-closure-required",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [
-            "cast-dereference"
-          ],
+          "aliasing": [],
           "inline_assembly": [],
           "integer": [
             "integer-cast",
@@ -2089,9 +2087,7 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -18655,37 +18651,6 @@
     },
     {
       "path": "include/paths.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "include",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
-      "classification": {
-        "source_kind": "header",
-        "build_surface": "rp2040-userland",
-        "required_mode": "strict-c17-and-gnu17",
-        "extension_policy": "portable-only",
-        "extension_signals": [],
-        "risk_family": "libc-public-header",
-        "risk_tier": "T1",
-        "risk_tier_basis": "boundary-family-conservative",
-        "hazard_basis": "lexical-candidates-v1",
-        "hazards": {
-          "aliasing": [],
-          "inline_assembly": [],
-          "integer": [],
-          "object_lifetime": [],
-          "pointer": [],
-          "prototype": [],
-          "variadic": []
-        }
-      }
-    },
-    {
-      "path": "include/psout.h",
       "class": "unreviewed",
       "scope": "unreviewed",
       "owner": "include",
@@ -53168,6 +53133,73 @@
       }
     },
     {
+      "path": "sbin/init/daemons.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "sbin",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [
+            "integer-pointer-cast",
+            "pointer-integer-cast"
+          ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "sbin/init/daemons.h",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "sbin",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "sbin/init/init.c",
       "class": "unreviewed",
       "scope": "unreviewed",
@@ -56750,6 +56782,37 @@
     },
     {
       "path": "sys/arch/rp2040/include/debug.h",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "sys",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-kernel",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "hardware-seam",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "sys/arch/rp2040/include/dump.h",
       "class": "unreviewed",
       "scope": "unreviewed",
       "owner": "sys",
@@ -63259,7 +63322,8 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast"
+            "integer-cast",
+            "width-sensitive-sizeof"
           ],
           "object_lifetime": [
             "dynamic-storage"
@@ -69631,6 +69695,43 @@
       }
     },
     {
+      "path": "tests/init_daemons/init_daemons_test.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "tests",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "shift-expression",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "tests/kernel/balloc_test.c",
       "class": "unreviewed",
       "scope": "unreviewed",
@@ -70027,7 +70128,8 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast"
+            "integer-cast",
+            "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
           "pointer": [
@@ -71391,7 +71493,9 @@
         "risk_tier_basis": "caller-closure-required",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [],
+          "aliasing": [
+            "union-access"
+          ],
           "inline_assembly": [],
           "integer": [
             "integer-cast",
@@ -84005,9 +84109,7 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast",
-            "shift-expression",
-            "width-sensitive-sizeof"
+            "integer-cast"
           ],
           "object_lifetime": [
             "dynamic-storage"
@@ -84015,9 +84117,7 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -98452,16 +98552,11 @@
           "integer": [
             "integer-cast"
           ],
-          "object_lifetime": [
-            "dynamic-storage"
-          ],
+          "object_lifetime": [],
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -98490,16 +98585,12 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [
             "dynamic-storage"
           ],
-          "pointer": [
-            "integer-pointer-cast",
-            "pointer-integer-cast"
-          ],
+          "pointer": [],
           "prototype": [
             "old-style-declaration",
             "old-style-definition"
@@ -100047,16 +100138,11 @@
           "integer": [
             "integer-cast"
           ],
-          "object_lifetime": [
-            "dynamic-storage"
-          ],
+          "object_lifetime": [],
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -100665,9 +100751,7 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast",
-            "shift-expression",
-            "width-sensitive-sizeof"
+            "integer-cast"
           ],
           "object_lifetime": [
             "dynamic-storage"
@@ -100675,10 +100759,7 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -100739,7 +100820,9 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "width-sensitive-sizeof"
+          ],
           "object_lifetime": [],
           "pointer": [],
           "prototype": [

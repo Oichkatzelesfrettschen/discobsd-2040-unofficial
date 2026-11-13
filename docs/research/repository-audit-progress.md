@@ -45,6 +45,19 @@ the authorized offline execution surface.
 
 ## Recorded observations
 
+The rename fail-after-transfer probe at `b14c9324` finds a mismatched parent
+entry in both byte orders. The seventh write (trace sequence 28, image byte
+offset 5632) persists the moved directory's new `..` entry before reporting
+`EIO`. Namespace compensation restores `/source`, while the independent image
+reader rejects inode 3's destination-parent entry. The regression
+`test_rename_parent_write_failure_restores_parent_entry` exercises the complete
+transfer followed by error, requires the old namespace and valid independent
+ownership/link accounting, and reopens the exported image for continued
+allocation. The candidate restores `..` before namespace compensation;
+failure of that restoration returns its error and retains the inspection
+boundary. Partial prefixes, replacement targets and paired rename compensation
+failures remain separate pending cases.
+
 The initial remote fetch advanced `origin/main` from `b9d64cbe` to
 `1e986446`. The canonical checkout's local main remained `b9d64cbe` during
 baseline acquisition. The audit worktree started at the remote revision.

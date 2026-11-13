@@ -209,6 +209,10 @@ v7fs_file_rename(struct v7fs_self *fs, struct v7fs_inode *parent_from,
 		if ((error = v7fs_directory_replace_entry(fs, &inode, "..",
 			    parent_to->inode_number))) {
 			DPRINTF("can't replace parent dir");
+			restore_error = v7fs_directory_replace_entry(fs, &inode, "..",
+			    parent_from->inode_number);
+			if (restore_error != 0)
+				return restore_error;
 			restore_error = v7fs_directory_add_entry(fs, parent_from,
 			    from_ino, from, fromlen);
 			if (restore_error != 0)

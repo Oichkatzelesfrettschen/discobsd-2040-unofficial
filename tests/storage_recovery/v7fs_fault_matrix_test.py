@@ -132,6 +132,34 @@ class CompensationTest(unittest.TestCase):
         self.assertGreater(dispositions["reader-rejected inspection state"], 0)
         print(json.dumps({"second_failure_dispositions": dict(dispositions)}, sort_keys=True))
 
+    def test_rename_parent_write_failure_restores_parent_entry(self):
+        for order in ("little", "pdp"):
+            with self.subTest(order=order):
+                backend = Backend(self.library, Device(bytes(512 * 2048)), order)
+                self.assertEqual(backend.format(64), 0)
+                source = backend.create_at(2, "source", True)
+                target = backend.create_at(2, "target", True)
+                self.assertGreater(source, 2)
+                self.assertGreater(target, source)
+                self.assertEqual(backend.sync(), 0)
+                initial = backend.device.export()
+                backend.close()
+
+                def operation(backend, target=target):
+                    return backend.rename(2, "source", target, "moved")
+
+                result, successful, events = self.run_operation(initial, order, operation)
+                self.assertEqual(result, 0)
+                self.assertEqual(verify(successful, order).namespace["/target/moved"], source)
+                parent_write = [event for event in events if event.kind == "write"][-1]
+                result, persistent, _events = self.run_operation(
+                    initial, order, operation,
+                    Fault(parent_write.sequence, "after_error", parent_write.length))
+                self.assertEqual(result, errno.EIO)
+                report = verify(persistent, order)
+                self.assertEqual(report.namespace, {"/": 2, "/source": source, "/target": target})
+                self.check_reopen_and_continue(persistent, order)
+
 
 if __name__ == "__main__":
     unittest.main()

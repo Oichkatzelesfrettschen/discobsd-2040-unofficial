@@ -178,13 +178,23 @@ class Device:
     commands the driver uses, in serial and quad mode."""
 
     def __init__(
-        self, kgd=0x5D, mfid=0x0D, stuck_low_sio=None, absent=False, seed=1
+        self,
+        kgd=0x5D,
+        mfid=0x0D,
+        stuck_low_sio=None,
+        absent=False,
+        seed=1,
+        eid=bytes([0xC0, 0xDE, 0x12, 0x34, 0x56, 0x78]),
+        size=SIZE,
     ):
         rnd = random.Random(seed)
         self.mem = bytearray(rnd.getrandbits(8) for _ in range(4096)) * (
             SIZE // 4096
         )
-        self.eid = bytes([0xC0, 0xDE, 0x12, 0x34, 0x56, 0x78])
+        self.eid = bytes(eid)
+        # A compatible part with fewer address bits ignores the high ones,
+        # so an address wraps modulo its size.
+        self.size = size
         self.kgd, self.mfid = kgd, mfid
         self.stuck_low_sio = stuck_low_sio
         self.absent = absent
@@ -481,7 +491,7 @@ class Device:
                 a = 0
                 for n in fr["addr"]:
                     a = a << 4 | n
-                fr["a"] = a
+                fr["a"] = a % self.size
                 if kind == "qread":
                     fr["p0"] = j + 1 + 6
                     self._begin_read(fr, "qread")
@@ -493,7 +503,7 @@ class Device:
                 self.mem[a] = fr["wn"][0] << 4 | fr["wn"][1]
                 fr["wn"] = []
                 fr["wbytes"] += 1
-                nxt = (a + 1) % SIZE
+                nxt = (a + 1) % self.size
                 if nxt % PAGE == 0:
                     self.crossed_page = True
                     if (
@@ -526,7 +536,7 @@ class Device:
             def value(i, pin):
                 if i is None:
                     return 1
-                a = (a0 + i // 2) % SIZE
+                a = (a0 + i // 2) % self.size
                 nib = self.mem[a] >> 4 if i % 2 == 0 else self.mem[a] & 15
                 if self.stuck_low_sio == pin:
                     return 0
@@ -592,8 +602,12 @@ class Pio:
         access_ticks=6,
         out_gated=False,
         in_gated=False,
+        forced_stalls=(),
     ):
         self.dev = dev
+        # Chip-select frames, by index into dev.frames, whose completion
+        # reports FDEBUG.RXSTALL once, as an RX FIFO overrun would.
+        self.forced_stalls = set(forced_stalls)
         self.out_ns, self.in_ns = out_ns, in_ns
         self.out_gated, self.in_gated = out_gated, in_gated
         self.access_ticks = access_ticks
@@ -687,7 +701,12 @@ class Pio:
             v |= 1 if len(self.rx) >= self._rx_depth() else 0
             return v
         if off == 0x008:
-            return (1 if self.rxstall else 0) | (1 << 16 if self.txover else 0)
+            forced = len(self.dev.frames) - 1 in self.forced_stalls
+            if forced:
+                self.forced_stalls.discard(len(self.dev.frames) - 1)
+            return (1 if self.rxstall or forced else 0) | (
+                1 << 16 if self.txover else 0
+            )
         if off == 0x020:
             if not self.rx:
                 raise RuntimeError("RX FIFO read while empty")

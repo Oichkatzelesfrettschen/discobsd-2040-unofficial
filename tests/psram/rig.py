@@ -17,6 +17,7 @@ class Rig:
         access_ticks=6,
         out_gated=False,
         in_gated=False,
+        forced_stalls=(),
     ):
         self.dev = device or pio_sim.Device()
         self.pio = pio_sim.Pio(
@@ -26,6 +27,7 @@ class Rig:
             access_ticks=access_ticks,
             out_gated=out_gated,
             in_gated=in_gated,
+            forced_stalls=forced_stalls,
         )
         self.pins = []
         self.unresets = 0
@@ -109,4 +111,11 @@ class Rig:
         return (
             ctypes.c_ubyte.in_dll(self.lib, "psram_mfid").value,
             ctypes.c_ubyte.in_dll(self.lib, "psram_kgd").value,
+        )
+
+    def eid(self):
+        """The six EID bytes, EID[47:40] first, and whether Read ID ran."""
+        return (
+            bytes((ctypes.c_ubyte * 6).in_dll(self.lib, "psram_eid")),
+            ctypes.c_int.in_dll(self.lib, "psram_id_read").value,
         )

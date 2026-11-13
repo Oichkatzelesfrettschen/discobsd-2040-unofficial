@@ -37,11 +37,13 @@ board: invalid descriptor, using bare Pico with USB console
 ## PicoCalc descriptor
 
 The measured keyboard model and retained PicoCalc evidence predict these
-device lines in order when the PSRAM identifies and passes its pattern test:
+device lines in order when the PSRAM identifies and passes its pattern and
+address-extent tests:
 
 ```text
 lcd0: ST7365P 320x320 on SPI1, 53x32 cells, console
 kbd0: keyboard controller at I2C1 0x1f, firmware 1.6
+psram0: read id 0d/5d eid <twelve hex digits>
 psram0: ESP-PSRAM64H 8192 kbytes on PIO0, swap
 sd0: SPI0 on GP16-GP19, card detect GP22
 uart0: pins tx=GP0/rx=GP1
@@ -49,7 +51,8 @@ uartusb: CDC-ACM on the USB device controller, interrupt 5
 ```
 
 A PSRAM identification or transfer failure replaces the success line with
-one of the source-defined `psram0: ... swap stays on fl1` lines. The later
+one of the source-defined `psram0: ... swap stays on fl1` lines; the
+`read id` line stays whenever the Read ID frame completed. The later
 summary must then report `swap dev  = (4,1)` for flash; a successful PSRAM
 probe must report `swap dev  = (3,0)`. A keyboard communication failure
 replaces its firmware line with:

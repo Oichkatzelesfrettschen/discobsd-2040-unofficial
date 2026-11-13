@@ -513,8 +513,9 @@ check-swapram-link-verifier:
 		sh tools/verify_rp2040_swapram_link_test.sh
 
 # Literal formats passed to the kernel's printf(), uprintf(), tprintf() and
-# log() in the PICO and PICO_UART sources use only conversions where prf() and
-# GCC's format(printf) checking agree; the fixture calibrates the checker.
+# log() in the sources of the PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM
+# kernels use only conversions where prf() and GCC's format(printf) checking
+# agree; the fixture calibrates the checker.
 check-kernel-printf-formats:	check-python
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-kernel-printf-formats requires MACHINE=rp2040" >&2; \
@@ -523,7 +524,9 @@ check-kernel-printf-formats:	check-python
 		${PYTHON} tools/c17/kernel_format_check_test.py
 		${PYTHON} tools/c17/kernel_format_check.py --make "${MAKE}" \
 		    --build sys/arch/rp2040/compile/PICO \
-		    --build sys/arch/rp2040/compile/PICO_UART
+		    --build sys/arch/rp2040/compile/PICO_UART \
+		    --build sys/arch/rp2040/compile/PICOCALC \
+		    --build sys/arch/rp2040/compile/PICOCALC_PSRAM
 
 check-aout:
 		${MAKE} -C tests/aout_header check

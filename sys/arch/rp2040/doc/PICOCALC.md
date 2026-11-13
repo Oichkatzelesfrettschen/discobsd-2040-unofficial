@@ -78,7 +78,7 @@ name a file there, with a page for a PDF.
 | On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 48,136, two u areas of 3,072, `dump.0` 55,808 bytes; a kernel that dumps only on the reset path fails the panic stage |
 | A panic on the board writes a dump that `savecore` saves | board | not run: the bench board is a Pico without the PicoCalc's SD socket |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
-| `psram.c`, `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, 40 random transfers, four injected faults, the four placements of the two register stages and thirteen mutants | host | observed by `check-psram-pio` (1,197 checks); the model's pad delays and the clock of the two register stages are assumptions |
+| `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, the 98-clock Read ID with its 48-bit EID, 40 random transfers, four injected faults, parts of 1 KB to 4 MB that wrap their addresses, the four placements of the two register stages and seventeen mutants | host | observed by `check-psram-pio` (1,226 checks); the model's pad delays and the clock of the two register stages are assumptions. `psram.c` is not compiled on the host: its probe lines rest on the PICOCALC_PSRAM build, the format gate and the source (host test tracked at https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/issues/508) |
 | PICO, PICO_UART and PICOCALC carry no PSRAM driver | build | observed: no `psram` symbol in the `unix.elf` of any of the three; PICO and PICO_UART sizes equal those recorded when the driver landed |
 | The Renode RP2040 model runs the PSRAM program | Renode | not run: the pinned model has PIO but no input synchronizer latency, the tree has no PSRAM peripheral, and `renode-test` cannot run on the build host (`docs/research/picocalc-psram.md`) |
 | The part answers Read ID 0x0D with a passing die, enters quad mode and returns what was written at 31.25 MHz | board | not run |
@@ -897,19 +897,25 @@ ESP-PSRAM64H (8 MB) on GP2-GP5, GP20 and GP21 is not a hardware SPI pin
 set, so PIO0 state machine 0 clocks it; `docs/research/picocalc-psram.md`
 holds the datasheet pages, the program, the timing derivation and the
 evidence. `psramprobe()` runs from `config()`, before `init_main()` opens
-`swapdev`: it resets the part, reads its ID, requires manufacturer 0x0D and
-a passing known-good die, enters quad mode and writes and reads back a
-pattern. A part that passes becomes block device major 3 and replaces `fl1`
-as `swapdev`, so swap is 8 MB behind the SWAPRAM tier and the 384 KB flash
-swap region goes unused; a part that does not pass prints one `psram0:` line
-and leaves `swapdev` on `fl1`. SCK runs at 31.25 MHz (`PSRAM_CLKDIV` in
-`psram_pio.h`), a frame holds CS low for under 5 us against the 8 us tCEM,
-and interrupts are masked for that long per frame.
+`swapdev`: it resets the part, reads its ID (manufacturer, known-good die
+and the 48-bit EID, printed as `psram0: read id 0d/5d eid` and twelve hex
+digits), requires manufacturer 0x0D and a passing known-good die, enters
+quad mode and writes and reads back a pattern. A part that passes becomes
+block device major 3 and replaces `fl1` as `swapdev`, so swap is 8 MB
+behind the SWAPRAM tier and the 384 KB flash swap region goes unused; a
+part that does not pass prints a second `psram0:` line and leaves
+`swapdev` on `fl1`. The EID tells the ESP-PSRAM64H, LY68L6400 and APS6404L
+apart only against reads of reference parts: the APS6404L sheet alone
+defines a field, EID[47:45] = 010 for 64 Mbit. SCK runs at 31.25 MHz
+(`PSRAM_CLKDIV` in `psram_pio.h`), a frame holds CS low for under 5 us
+against the 8 us tCEM, and interrupts are masked for that long per frame.
 
 Open for the board run: the read sampling margin depends on pad delays no
 datasheet gives and on whether the output and input register stages run on
 clk_sys or on the state machine cycle (a scope capture of SCK against a read
-data line decides both, and whether the clock can rise), whether the part ignores a serial command cut
+data line decides both, and whether the clock can rise;
+`docs/research/picocalc-psram-capture.md` orders the instruments), whether
+the part ignores a serial command cut
 short, and how a module in the shared header J703 loads the lines. The owner
 chose replacing `fl1` over a second tier behind PSRAM, and chose the driver
 as a PicoCalc build option; the research note's swap integration table

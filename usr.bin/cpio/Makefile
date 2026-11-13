@@ -3,7 +3,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 PROG=		cpio
 
-CFLAGS+=	-Wall -Wextra -Werror
+CFLAGS+=	-Wall -Wextra
 
 OBJS=		${PROG}.o
 

@@ -32,9 +32,9 @@ struct icommon1 {
 };
 
 struct icommon2 {
-    time_t  ic_atime;       /* time last accessed */
-    time_t  ic_mtime;       /* time last modified */
-    time_t  ic_ctime;       /* time created */
+    long    ic_atime;       /* time last accessed */
+    long    ic_mtime;       /* time last modified */
+    long    ic_ctime;       /* time created */
 };
 
 struct fs;

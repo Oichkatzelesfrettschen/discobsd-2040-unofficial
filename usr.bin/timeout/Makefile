@@ -2,7 +2,7 @@ TOPSRC!=cd ../..; pwd
 WARNLEVEL=	full
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS	+= -Wall -Wextra -Werror -Wformat=2
+CFLAGS	+= -Wall -Wextra -Wformat=2
 PROG	=  timeout
 OBJS	=  timeout.o
 

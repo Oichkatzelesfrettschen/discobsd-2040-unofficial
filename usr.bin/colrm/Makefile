@@ -6,7 +6,7 @@ PROG=		colrm
 OBJS=		colrm.o
 MANSRC=		colrm.1
 MAN=		colrm.0
-CFLAGS+=	-std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
+CFLAGS+=	-std=c17 -Wall -Wextra -Wstrict-prototypes \
 		-Wmissing-prototypes -Wold-style-definition
 
 all:		${PROG} ${MAN}

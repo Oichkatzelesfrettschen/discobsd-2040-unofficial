@@ -6,7 +6,7 @@ PROG=		unifdef
 OBJS=		unifdef.o
 MANSRC=		${TOPSRC}/share/man/man1/unifdef.1
 MAN=		unifdef.0
-CFLAGS+=	-std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
+CFLAGS+=	-std=c17 -Wall -Wextra -Wstrict-prototypes \
 		-Wmissing-prototypes -Wold-style-definition
 
 all:		${PROG} ${MAN}

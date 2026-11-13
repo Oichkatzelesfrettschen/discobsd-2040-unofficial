@@ -45,7 +45,11 @@ typedef int     ssize_t;
 #endif
 #ifndef _TIME_T
 #define _TIME_T
+#ifdef KERNEL
 typedef long    time_t;
+#else
+typedef long long time_t;
+#endif
 #endif
 typedef int     dev_t;
 #ifndef _OFF_T

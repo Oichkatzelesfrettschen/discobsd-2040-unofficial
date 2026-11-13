@@ -54,7 +54,7 @@ register char *name;
 
 		s = Myfullname;
 		if(gethostname(Myfullname, sizeof(Myfullname)) == -1) {
-			DEBUG(1, "gethostname");
+			DEBUG(1, "gethostname %s\n", _FAILED);
 			s = NULL;
 		}
 	}
@@ -66,7 +66,7 @@ register char *name;
 		struct utsname utsn;
 
 		if (uname(&utsn) == -1) {
-			DEBUG(1, "uname", _FAILED);
+			DEBUG(1, "uname %s\n", _FAILED);
 			s = NULL;
 		} else {
 			strncpy(Myfullname, utsn.nodename, sizeof Myfullname);
@@ -81,7 +81,7 @@ register char *name;
 
 		s = Myfullname;
 		if (fakegethostname(Myfullname, sizeof(Myfullname)) == -1) {
-			DEBUG(1, "whoami search", _FAILED);
+			DEBUG(1, "whoami search %s\n", _FAILED);
 			s = NULL;
 		}
 	}
@@ -104,7 +104,7 @@ register char *name;
 		if (((uucpf = fopen("/etc/uucpname", "r")) == NULL &&
 		     (uucpf = fopen("/local/uucpname", "r")) == NULL) ||
 			fgets(Myfullname, sizeof Myfullname, uucpf) == NULL) {
-				DEBUG(1, "uuname search", _FAILED);
+				DEBUG(1, "uuname search %s\n", _FAILED);
 				s = NULL;
 		}
 		if (s == Myfullname) {
@@ -122,7 +122,7 @@ register char *name;
 	/* Use 3Com's getmyhname() routine */
 	if (s == NULL || *s == '\0') {
 		if ((s = getmyhname()) == NULL)
-			DEBUG(1, "getmyhname", _FAILED);
+			DEBUG(1, "getmyhname %s\n", _FAILED);
 		else
 			strncpy(Myfullname, s, sizeof Myfullname);
 	}

@@ -112,5 +112,7 @@ The root wrapper delegates compiler selection to `tests/libc_contracts`, whose
 `ARM_COMPILER` derives from the selected target toolchain. The first wrapper
 uses an unset root-level `GCCPREFIX` and fails before compilation; that failed
 invocation establishes no target execution. The corrected root invocation
-passes the same focused gate. Aggregate, matched-resource and current-head
-ILP32 qualification remain open until their complete receipts exist.
+passes the same focused gate. The [integrated resource review](libc-lifecycle-integrated-resource-exception.md)
+owns the matched clean measurements, exact owner approval and complete
+193-variant ILP32 result. Combined aggregate qualification and reviewed
+integration remain open.

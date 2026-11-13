@@ -14,7 +14,9 @@
 typedef int		daddr_t;
 
 #undef minor
+#undef makedev
 #define	minor(dev)	((dev) & 0xff)
+#define	makedev(x, y)	((dev_t)(((x) << 8) | (y)))
 #define	DEV_BSIZE	1024
 #define	DEV_BSHIFT	10
 #define	btod(x)		(((x) + DEV_BSIZE - 1) >> DEV_BSHIFT)

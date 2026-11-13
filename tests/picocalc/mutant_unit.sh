@@ -4,9 +4,11 @@
 #
 # usage: mutant_unit.sh CC CFLAGS DEVDIR TEST.c FILE SED-EXPRESSION SOURCE...
 #
-# Every SOURCE (a name under DEVDIR) is copied to a private directory, FILE
-# is rewritten there by the sed expression, and the C sources among the
-# copies are compiled with TEST.c. The expression must change FILE.
+# Every SOURCE (a path relative to DEVDIR) is copied by its base name to a
+# private directory, FILE (one of them) is rewritten there by the sed
+# expression, and the C sources among the copies are compiled with TEST.c.
+# A SOURCE given as an absolute path is compiled where it stands,
+# unmutated. The expression must change FILE.
 set -eu
 
 cc=$1
@@ -21,13 +23,19 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/picocalc-mutant.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 csrcs=
 for f in "$@"; do
+	case $f in
+	/*.c)
+		csrcs="$csrcs $f"
+		continue
+		;;
+	esac
 	cp "$dev/$f" "$work/"
 	case $f in
-	*.c) csrcs="$csrcs $work/$f" ;;
+	*.c) csrcs="$csrcs $work/${f##*/}" ;;
 	esac
 done
-sed "$expr" "$dev/$file" >"$work/$file"
-if cmp -s "$dev/$file" "$work/$file"; then
+sed "$expr" "$dev/$file" >"$work/${file##*/}"
+if cmp -s "$dev/$file" "$work/${file##*/}"; then
 	echo "mutant_unit.sh: '$expr' changed nothing in $file" >&2
 	exit 1
 fi

@@ -148,10 +148,10 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	shutdown_sync.o mpu.o sig_machdep.o syscall.o sysctl.o systick.o \
 	uart.o usb.o lcdcons.o lcdgfx.o lcdrender.o lcdterm.o lcdfont.o \
 	st7365p.o picokbd.o picokbd_map.o picokbd_evq.o picokbd_req.o \
-	picoaudio.o sd.o sdspi.o psram.o psram_xfer.o flash.o \
-	flash_swap.o error.o journal.o map.o swapram.o swapram_pool.o \
-	heatshrink_encoder.o hsx_decoder.o subr_crc32.o exec_hsaout.o \
-	hsx_stream.o
+	picoaudio.o sd.o sdspi.o dump.o subr_crc32.o psram.o \
+	psram_xfer.o flash.o flash_swap.o error.o journal.o map.o \
+	swapram.o swapram_pool.o heatshrink_encoder.o hsx_decoder.o \
+	exec_hsaout.o hsx_stream.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/errlist.c \
@@ -184,13 +184,14 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/rp2040/dev/picokbd_evq.c \
 	$S/arch/rp2040/dev/picokbd_req.c $S/arch/rp2040/dev/picoaudio.c \
 	$S/arch/rp2040/dev/sd.c $S/arch/rp2040/dev/sdspi.c \
+	$S/arch/rp2040/rp2040/dump.c $S/kern/subr_crc32.c \
 	$S/arch/rp2040/dev/psram.c $S/arch/rp2040/dev/psram_xfer.c \
 	$S/arch/rp2040/dev/flash.c $S/arch/rp2040/dev/flash_swap.c \
 	$S/arch/rp2040/dhara/error.c $S/arch/rp2040/dhara/journal.c \
 	$S/arch/rp2040/dhara/map.c $S/arch/rp2040/rp2040/swapram.c \
 	$S/arch/rp2040/rp2040/swapram_pool.c \
 	$S/arch/rp2040/heatshrink/heatshrink_encoder.c \
-	$S/arch/rp2040/rp2040/hsx_decoder.c $S/kern/subr_crc32.c \
+	$S/arch/rp2040/rp2040/hsx_decoder.c \
 	$S/arch/rp2040/rp2040/exec_hsaout.c \
 	$S/arch/rp2040/rp2040/hsx_stream.c swapunix.c
 
@@ -558,6 +559,12 @@ sd.o: $S/arch/rp2040/dev/sd.c
 sdspi.o: $S/arch/rp2040/dev/sdspi.c
 	${COMPILE_C}
 
+dump.o: $S/arch/rp2040/rp2040/dump.c
+	${COMPILE_C}
+
+subr_crc32.o: $S/kern/subr_crc32.c
+	${COMPILE_C}
+
 psram.o: $S/arch/rp2040/dev/psram.c
 	${COMPILE_C}
 
@@ -589,9 +596,6 @@ heatshrink_encoder.o: $S/arch/rp2040/heatshrink/heatshrink_encoder.c
 	${COMPILE_C}
 
 hsx_decoder.o: $S/arch/rp2040/rp2040/hsx_decoder.c
-	${COMPILE_C}
-
-subr_crc32.o: $S/kern/subr_crc32.c
 	${COMPILE_C}
 
 exec_hsaout.o: $S/arch/rp2040/rp2040/exec_hsaout.c

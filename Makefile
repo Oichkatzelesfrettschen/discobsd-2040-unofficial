@@ -249,6 +249,32 @@ check-kernel-headroom: check-python
 
 .PHONY: check-kernel-headroom-validator check-kernel-headroom
 
+# The SD crash-dump writer (sys/arch/rp2040/include/dump.h) is linked into the
+# PICOCALC kernels and into no other: tools/check_dump_writer_link.py reads
+# each unix.elf's symbol table, and a control with the roles swapped must
+# exit 1, so a checker that passes every kernel is reported.
+check-dump-writer-link: check-python
+.if ${MACHINE} == "rp2040"
+		@set -e; c=sys/arch/rp2040/compile; \
+		${PYTHON} tools/check_dump_writer_link.py \
+		    --with $$c/PICOCALC/unix.elf --with $$c/PICOCALC_PSRAM/unix.elf \
+		    --without $$c/PICO/unix.elf --without $$c/PICO_UART/unix.elf; \
+		rc=0; \
+		${PYTHON} tools/check_dump_writer_link.py \
+		    --with $$c/PICO/unix.elf --without $$c/PICOCALC/unix.elf \
+		    >/dev/null 2>&1 || rc=$$?; \
+		if [ "$$rc" -ne 1 ]; then \
+			echo "check-dump-writer-link: swapped control gave exit $$rc, expected 1" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS dump-writer-link control: swapped roles are rejected"
+.else
+		@echo "check-dump-writer-link requires MACHINE=rp2040" >&2
+		@exit 2
+.endif
+
+.PHONY: check-dump-writer-link
+
 check-account-image:	check-python .WAIT ${FSIMG}
 .if ${MACHINE} == "rp2040"
 		${PYTHON} tools/check_rp2040_account_image.py ${FSUTIL} ${FSIMG}

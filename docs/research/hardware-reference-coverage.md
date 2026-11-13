@@ -155,7 +155,7 @@ layer. The Pico seated in J301 and J302 is covered above. Paths in
 | X201, X202 | 8 MHz, 32.768 kHz | keyboard-controller clocks | no part number printed | not applicable |
 | D401, D601 | B5819W | boost catch diodes | MCC B5817W-B5819W SOD-123 | tracked, notes |
 | FB101 | BLM18PG121SH1 | DCDC1 to MCU_3V3 | Murata reference specification JENF243A_9101X-01 | tracked, notes |
-| J101 | KS18650X2 | two 18650 cells | no listing names the part | absent |
+| J101 | KS18650X2 | two 18650 cells | JBT Componentes battery-holder catalog, printed page P-08: KS18650x2-DIY, -SMT and -THM, each for two 18650 cells, 77 x 40 x 15 mm, `picocalc/parts/jbt_suportes_de_bateria_catalog_ks18650x2_p08.pdf`; the mounting variant is read from the board (pads or through-hole pins) | tracked, notes |
 | J303 | TF-03A | microSD socket, card detect on GP22 | Korean Hroparts drawing, LCSC C693842 | tracked, notes |
 | J401 | 0.5-40PBSX | 40-pin panel FPC, SPI1 | connector drawing | absent |
 | panel | ST7365P controller, 320x320 IPS | display | Sitronix ST7365P V1.0, `picocalc/ST7365P_SPEC_V1.0.pdf`; the panel module's own datasheet (glass, backlight current); the Tianxianwei TXW392001B0 listing and forum statements, `picocalc/panel-sources.md` | controller tracked, notes, byte-identical to ClockworkPi's GitHub copy (blob `40f0c1f1`); module datasheet absent |
@@ -263,7 +263,6 @@ repository keeps the vendor's name until then.
 - Read the top marks of U102, U201, U401, U501, U502, U601 and U702, the
   R701 and R702 sites, and U201's CPUID (0xE000ED00) and flash-size word
   (0x1FFFF7E0) over SWD on the owner's board.
-- The panel module datasheet, the 0.5-40PBSX, JC101GV01 and KS18650X2
-  drawings and the TP-1221U-K9K5325 switch have no source that served
-  them; the notes repository's
+- The panel module datasheet, the 0.5-40PBSX and JC101GV01 drawings and
+  the TP-1221U-K9K5325 switch have no source that served them; the notes repository's
   `docs/NOT-FETCHED.tsv` records each search.

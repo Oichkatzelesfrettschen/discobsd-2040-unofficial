@@ -180,6 +180,29 @@ Text size across the series, start to end:
 
 The SwapRAM kernels recover 216 bytes from the retired
 `machdep.swapram_psinfo` node; PICO_UART has no pool node to retire. The
-`ps` a.out grows from 14,062 to 16,763 bytes, most of it local time for
+`ps` a.out grows from 14,062 to 16,839 bytes, most of it local time for
 STIME and `getopt()` for the POSIX grammar, and its bss falls from 5,164 to
 1,308 bytes.
+
+### Descriptor records
+
+`fstat` was the last program that read `/dev/kmem`, `/dev/mem` and
+`/dev/swap`. Its install mode, 02755 in group 0, granted no kmem access,
+so on the shipped image it ran for root alone, and the flash root did not
+carry it. `KERN_FILE`, which returned the whole file table with each
+entry's kernel address and `f_data` pointer to any caller, is replaced in
+place by `{KERN_FILE_BYPID, pid, record size}`: a 32-byte pointer-free
+`struct kinfo_file` for the working directory and each descriptor, read
+through `proc_uarea()` with the `KERN_PROC` stride and room rules. Nothing
+sleeps between the reader's last check and its release, since `copyout()`
+on this port is a bounds check and a copy, so every `u_ofile` entry still
+holds a reference to its file and inode. The records go to root and to a
+caller whose effective uid is the process's real or effective uid, the
+argument rule, and anyone else gets EPERM. `fstat` reads only the two
+records, ships 0775 on the flash root, and needs no privilege.
+
+| Artifact | main | After | Change |
+|---|---:|---:|---:|
+| PICO text | 101,110 | 101,390 | +280 |
+| PICO_UART text | 91,964 | 92,228 | +264 |
+| `fstat` a.out | 10,992 | 10,040 | -952 |

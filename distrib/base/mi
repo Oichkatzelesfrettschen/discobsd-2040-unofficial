@@ -486,7 +486,6 @@ file /usr/bin/find
 file /usr/bin/fold
 file /usr/bin/forth
 file /usr/bin/fstat
-mode 02755
 file /usr/bin/grep
 file /usr/bin/groups
 file /usr/bin/head

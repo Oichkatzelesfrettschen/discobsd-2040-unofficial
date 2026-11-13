@@ -269,12 +269,51 @@ struct kinfo_inode {
 };
 
 /*
- * KERN_FILE returns an array of augmented file structures:
-*/
+ * KERN_FILE selectors. The name is {CTL_KERN, KERN_FILE, selector,
+ * argument, record size}, as for KERN_PROC. KERN_FILE_BYPID, OpenBSD's
+ * value, selects the process whose id is the argument.
+ */
+#define	KERN_FILE_BYPID		2	/* by process id */
+
+/*
+ * KERN_FILE returns one record for the working directory of the selected
+ * process (kf_fd KF_FD_CWD) and one for each open descriptor, in descriptor
+ * order, with the caller-sized stride of KERN_PROC. A size query reports
+ * room for the directory and NOFILE descriptors.
+ *
+ * The record holds values only, never a kernel address. An inode or pipe
+ * carries its device, inode number, mode and size (KF_VALID_INODE); a
+ * descriptor carries its open flags and offset (KF_VALID_FILE); any other
+ * descriptor type carries kf_type alone. The kernel reads the descriptor
+ * table from the process's user area wherever the image lives; ESRCH
+ * reports no such process or one that exited or changed during the read,
+ * EIO a failed read. Root and a caller whose effective uid is the
+ * process's real or effective uid receive the records, the rule KERN_PROC
+ * applies to arguments; any other caller gets EPERM. A zombie has no
+ * descriptors and returns no record.
+ */
+#define	KF_FD_CWD		(-1)	/* kf_fd of the working directory */
+
+#define	KF_VALID_INODE		0x01	/* dev, inum, mode, isize */
+#define	KF_VALID_FILE		0x02	/* flag, offset */
+
 struct kinfo_file {
-	struct file	*kp_filep;	/* address of file */
-	struct file	 kp_file;	/* file structure */
+	uint16_t kf_size;		/* sizeof(struct kinfo_file) */
+	uint16_t kf_valid;		/* KF_VALID_* groups filled */
+	int16_t	 kf_pid;
+	int16_t	 kf_fd;			/* descriptor, or KF_FD_CWD */
+	uint32_t kf_flag;		/* f_flag (sys/file.h) */
+	int32_t	 kf_offset;		/* f_offset */
+	int32_t	 kf_dev;		/* device holding the inode */
+	uint32_t kf_inum;		/* inode number */
+	int32_t	 kf_isize;		/* inode size, bytes */
+	uint16_t kf_mode;		/* inode mode */
+	uint8_t	 kf_type;		/* DTYPE_* (sys/file.h) */
+	uint8_t	 kf_spare;		/* zero */
 };
+
+/* The fixed prefix every record size must cover: kf_size and kf_valid. */
+#define	KI_FILE_MINSIZE		4
 
 /*
  * CTL_HW identifiers
@@ -432,10 +471,10 @@ struct sysctl_symbol {
 int	sysctl_nlist(const struct sysctl_symbol *, int *, u_int, void *,
 	    size_t *, void *);
 
-int	sysctl_file(char *, size_t *);
 int	sysctl_clockrate(char *, size_t *);
 int	sysctl_inode(char *, size_t *);
 int	sysctl_doproc(int *, u_int, char *, size_t *);
+int	sysctl_dofile(int *, u_int, char *, size_t *);
 void	fill_from_u(struct proc *, uid_t *, struct tty **, dev_t *);
 
 #else	/* !KERNEL */

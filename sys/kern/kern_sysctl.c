@@ -49,6 +49,7 @@
 #include <sys/kernel.h>
 #include <sys/file.h>
 #include <sys/inode.h>
+#include <sys/mount.h>
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/vm.h>
@@ -212,7 +213,8 @@ kern_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 	u_long longhostid;
 
 	/* All sysctl names at this level are terminal. */
-	if (namelen != 1 && !(name[0] == KERN_PROC || name[0] == KERN_PROF))
+	if (namelen != 1 && !(name[0] == KERN_PROC || name[0] == KERN_FILE ||
+	    name[0] == KERN_PROF))
 		return (ENOTDIR);		/* overloaded */
 
 	switch (name[0]) {
@@ -279,7 +281,9 @@ kern_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 			return (EPERM);
 		return (sysctl_doproc(name + 1, namelen - 1, oldp, oldlenp));
 	case KERN_FILE:
-		return (sysctl_file(oldp, oldlenp));
+		if (newp != NULL)
+			return (EPERM);
+		return (sysctl_dofile(name + 1, namelen - 1, oldp, oldlenp));
 #ifdef GPROF
 	case KERN_PROF:
 		return (sysctl_doprof(name + 1, namelen - 1, oldp, oldlenp,
@@ -639,57 +643,6 @@ sysctl_nlist(const struct sysctl_symbol *table, int *name, u_int namelen,
 }
 
 /*
- * Get file structures.
- */
-int
-sysctl_file(char *where, size_t *sizep)
-{
-	size_t buflen;
-	int error;
-	struct file *fp;
-	struct file *fpp;
-	char *start = where;
-	int i;
-
-	buflen = *sizep;
-	if (where == NULL) {
-		for (i = 0, fp = file; fp < file + NFILE; fp++)
-			if (fp->f_count)
-				i++;
-
-#define FPTRSZ	sizeof(struct file *)
-#define FILESZ	sizeof(struct file)
-		/*
-		 * Overestimate by 5 files.
-		 */
-		*sizep = (i + 5) * (FILESZ + FPTRSZ);
-		return (0);
-	}
-
-	/*
-	 * Array of extended file structures: first the address then the
-	 * file structure.
-	 */
-	for (fp = file; fp < file + NFILE; fp++) {
-		if (fp->f_count == 0)
-			continue;
-		if (buflen < (FPTRSZ + FILESZ)) {
-			*sizep = where - start;
-			return (ENOMEM);
-		}
-		fpp = fp;
-		if ((error = copyout((caddr_t)&fpp, (caddr_t)where, FPTRSZ)) ||
-		    (error = copyout((caddr_t)fp, (caddr_t)(where + FPTRSZ),
-		    FILESZ)))
-			return (error);
-		buflen -= (FPTRSZ + FILESZ);
-		where += (FPTRSZ + FILESZ);
-	}
-	*sizep = where - start;
-	return (0);
-}
-
-/*
  * This one is in kern_clock.c in 4.4 but placed here for the reasons
  * given earlier (back around line 367).
  */
@@ -984,4 +937,108 @@ sysctl_doproc(int *name, u_int namelen, char *where, size_t *sizep)
 	}
 	*sizep = done;
 	return (0);
+}
+
+_Static_assert(sizeof(struct kinfo_file) == 32,
+    "kinfo_file packs its fields without padding");
+
+/* The inode fields of a KERN_FILE record. */
+static void
+kinfo_file_inode(const struct inode *ip, struct kinfo_file *kf)
+{
+	kf->kf_dev = INODE_DEVICE(ip);
+	kf->kf_inum = ip->i_number;
+	kf->kf_mode = ip->i_mode;
+	kf->kf_isize = ip->i_size;
+	kf->kf_valid |= KF_VALID_INODE;
+}
+
+/*
+ * KERN_FILE: {selector, argument, record size} after the KERN_FILE
+ * component (sys/sysctl.h). The descriptor table lives in the user area,
+ * which proc_uarea() reads and checks after its sleeps. From its return to
+ * proc_uarea_release() nothing sleeps -- copyout() is a bounds check and a
+ * copy -- so the process cannot close a descriptor meanwhile, and each
+ * u_ofile entry holds a reference that keeps its file and inode in place.
+ * A buffer too short for every record reports the size-query length, which
+ * __sysctl() turns into ENOMEM.
+ */
+int
+sysctl_dofile(int *name, u_int namelen, char *where, size_t *sizep)
+{
+	struct kinfo_file kf;
+	const struct user *up;
+	struct buf *bp;
+	struct proc *p = NULL;
+	uid_t caller = u.u_procp->p_uid;
+	size_t stride, copy, need, done = 0;
+	int slot, fd, error;
+
+	if (namelen != 3)
+		return (EINVAL);
+	stride = (u_int)name[2];
+	if (name[0] != KERN_FILE_BYPID || stride < KI_FILE_MINSIZE ||
+	    stride > DEV_BSIZE)
+		return (EINVAL);
+	need = (NOFILE + 1) * stride;
+	if (where == NULL) {
+		*sizep = need;
+		return (0);
+	}
+	for (slot = 0; slot < NPROC; slot++) {
+		if (proc[slot].p_stat != 0 && proc[slot].p_stat != SIDL &&
+		    proc[slot].p_pid == name[1]) {
+			p = &proc[slot];
+			break;
+		}
+	}
+	if (p == NULL)
+		return (ESRCH);
+	if (p->p_stat == SZOMB) {
+		*sizep = 0;
+		return (0);
+	}
+	error = proc_uarea(p, &up, &bp);
+	if (error != 0)
+		goto release;
+	if (caller != 0 && caller != p->p_uid && caller != up->u_ruid) {
+		error = EPERM;
+		goto release;
+	}
+	copy = stride < sizeof(kf) ? stride : sizeof(kf);
+	for (fd = KF_FD_CWD; fd < NOFILE; fd++) {
+		const struct file *fp = NULL;
+
+		if (fd == KF_FD_CWD ? up->u_cdir == NULL :
+		    (fp = up->u_ofile[fd]) == NULL)
+			continue;
+		if (*sizep - done < stride) {
+			*sizep = need;
+			goto release;
+		}
+		bzero(&kf, sizeof(kf));
+		kf.kf_size = sizeof(kf);
+		kf.kf_pid = p->p_pid;
+		kf.kf_fd = fd;
+		if (fp == NULL) {
+			kf.kf_type = DTYPE_INODE;
+			kinfo_file_inode(up->u_cdir, &kf);
+		} else {
+			kf.kf_type = fp->f_type;
+			kf.kf_flag = fp->f_flag;
+			kf.kf_offset = fp->f_offset;
+			kf.kf_valid = KF_VALID_FILE;
+			if ((fp->f_type == DTYPE_INODE ||
+			    fp->f_type == DTYPE_PIPE) && fp->f_data != NULL)
+				kinfo_file_inode((const struct inode *)fp->f_data,
+				    &kf);
+		}
+		if ((error = copyout((caddr_t)&kf, where + done, copy)) != 0)
+			goto release;
+		done += stride;
+	}
+	*sizep = done;
+release:
+	proc_uarea_release(bp);
+	return (error);
 }

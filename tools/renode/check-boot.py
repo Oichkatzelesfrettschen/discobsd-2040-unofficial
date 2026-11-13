@@ -191,6 +191,12 @@ PS_OWN_ROW = re.compile(r"^ *\d+ co +\d+:\d\d ps$", re.M)
 # "ps -o pid= -o stime= -o etime= -p 0": the swapper's row, with no start.
 PS_SWAPPER_START = re.compile(r"^ *0 +- +-$", re.M)
 
+# "fstat -v -p 1" as operator: the refusal fstat names, and any file row
+# of pid 1, which must be absent. The console expands the tabs fstat
+# prints, so columns are matched as runs of spaces.
+FSTAT_REFUSED = re.compile(r"^fstat: pid 1: \S.*$", re.M)
+FSTAT_INIT_ROW = re.compile(r"^\S+ +\S+ +1 +(wd|\d+) +\d+, ", re.M)
+
 # One row of "ps -A -o pid= -o comm=": every header is empty, so ps prints
 # no header line.
 PS_ROW = re.compile(r"^ *(\d+) (\S.*)$")
@@ -375,6 +381,45 @@ def check_memory_devices(console: Console) -> None:
           "virtual seconds")
 
 
+def check_fstat(console: Console) -> None:
+    """Require fstat to list the operator shell's files and no one else's.
+
+    fstat reads the kernel's KERN_PROC and KERN_FILE records, so operator,
+    whom check_memory_devices showed outside every memory device, runs it.
+    While fstat runs the shell is swapped out -- to the swap device in the
+    PICO_UART kernel and to the SwapRAM pool in the union kernel -- so the
+    kernel reads the shell's descriptor table through the user-area reader.
+    The shell's working directory and its standard input, the console, must
+    each appear on a row of their own. init belongs to root, so the kernel
+    refuses its descriptors and fstat -v names the refusal with no row.
+    """
+    start = console.cursor
+    console.type_line("echo sh=$$; fstat -p $$; echo fs-end")
+    console.wait_for("\nfs-end", "fstat of the shell", COMMAND_BUDGET_SECONDS)
+    output = console.text()[start:console.cursor]
+    shell = re.search(r"^sh=(\d+)$", output, re.M)
+    if shell is None:
+        console.fail(f"fstat of the shell: no shell pid in {output!r}")
+        raise StageFailed("fstat of the shell")
+    for fd, kind in (("wd", "dir"), ("0", "chr")):
+        row = re.compile(rf"^operator +\S+ +{shell.group(1)} +{fd} +\d+, +\d+"
+                         rf" +\d+ +\d+ +{kind} $", re.M)
+        if not row.search(output):
+            console.fail(f"fstat of the shell: no {fd} row of type {kind} in {output!r}")
+            raise StageFailed("fstat of the shell")
+    console.wait_for("$", "operator shell after fstat", COMMAND_BUDGET_SECONDS)
+
+    start = console.cursor
+    console.type_line("fstat -v -p 1 2>&1; echo fs1-end")
+    console.wait_for("\nfs1-end", "fstat of init", COMMAND_BUDGET_SECONDS)
+    output = console.text()[start:console.cursor]
+    if not FSTAT_REFUSED.search(output) or FSTAT_INIT_ROW.search(output):
+        console.fail(f"fstat of init: operator was not refused init's files in {output!r}")
+        raise StageFailed("fstat of init")
+    console.wait_for("$", "operator shell after fstat of init", COMMAND_BUDGET_SECONDS)
+    print(f"check-renode: fstat after {console.virtual:.1f} virtual seconds")
+
+
 def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.wait_lines([f"DiscoBSD 2.7 ({config})"] + CPU_LINES + BOARD_LINES[config]
                        + STORAGE_LINES, "device probe", PROBE_BUDGET_SECONDS)
@@ -391,6 +436,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.wait_lines(["DiscoBSD 2.7"], "uname", COMMAND_BUDGET_SECONDS)
     check_ps(console)
     check_memory_devices(console)
+    check_fstat(console)
     console.type_line("sysctl kern.capacity")
     console.wait_lines(CAPACITY_LINES, "capacity record", COMMAND_BUDGET_SECONDS)
     console.type_line("sysctl machdep.image_length machdep.image_crc machdep.image_crc_stored")

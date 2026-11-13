@@ -263,6 +263,7 @@ pack /usr/bin/utilbox
 pack /usr/bin/tail
 pack /usr/bin/tee
 pack /usr/bin/du
+pack /usr/bin/fstat
 #closure as
 pack /usr/bin/as
 #endclosure as

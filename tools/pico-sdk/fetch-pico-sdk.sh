@@ -7,7 +7,7 @@
 # CMake project whose only consumer here is the flash-id probe, and it
 # carries submodules under their own licenses.
 #
-# The pin is a commit, not the 2.3.0 tag, because a tag can be moved and
+# The pin is a commit, not the 2.3.1 tag, because a tag can be moved and
 # because the commit also fixes which TinyUSB the SDK's submodule points
 # at. lib/tinyusb is the only submodule initialized: btstack, cyw43-driver,
 # lwip and mbedtls are never linked by anything here and dominate the
@@ -19,8 +19,8 @@
 set -eu
 
 PICO_SDK_REPO=https://github.com/raspberrypi/pico-sdk.git
-# Tag 2.3.0.
-PICO_SDK_COMMIT=98a542c1a62fb549ffb5d66a3e5892b06276b670
+# Tag 2.3.1.
+PICO_SDK_COMMIT=079c6f39023649b154152db30f1d781e884879bc
 # The submodule commit that pin carries, recorded so a mismatch is visible.
 TINYUSB_COMMIT=86ad6e56c1700e85f1c5678607a762cfe3aa2f47
 

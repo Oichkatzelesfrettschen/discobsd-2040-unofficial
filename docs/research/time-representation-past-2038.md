@@ -1,4 +1,4 @@
-Source reading at `aec36799`, `arm-none-eabi-gcc` 16.2.0 object sizes, and host runs of `tests/libc_contracts/mktime_contract_test.c`; no qemu-user, Renode or board run.
+Source reading at `aec36799`, `arm-none-eabi-gcc` 16.2.0 object sizes, host runs of `tests/libc_contracts/mktime_contract_test.c`, and three world builds at `61f6cf6d` that differ in the type of `time_t`; no qemu-user, Renode or board run.
 
 # Time representation past 2038: verified claims, measurements and plan
 
@@ -140,15 +140,57 @@ costs on both sides, and the tree does not choose between them.
 | | Unsigned 32-bit `time_t` | 64-bit `time_t`, 32-bit unsigned kernel and disk |
 | --- | --- | --- |
 | Last second | 2106-02-07 | 2106 in the kernel until a carry word lands; no interface limit |
-| Bytes added | none | `struct stat` 12, `struct timeval` 8, plus code wherever a program stores or compares a time |
+| Shipped `full` profile, measured below | 28 bytes more, no block | 9,072 bytes more, 10 blocks of the 270 free, before the seven-bit split |
 | Interface break | none in size; signedness changes | every time-carrying system call and every program, once |
 | Times before 1970 | unrepresentable | representable in programs; clamped on disk |
-| POSIX.1-2024 `time_t` (at least 64 bits, as recalled; `not run` against the standard's text) | fails | meets |
+| POSIX.1-2024 `time_t` (`<sys/types.h>`: an integer type at least 64 bits wide, set by Austin Group defect 1462) | fails | meets |
 | Source audit | every signed comparison and subtraction of `time_t` | every `long` that holds a `time_t`, every `%ld` that prints one |
 
-Evidence that would settle it: the growth of the full root image under the
-64-bit interface, which only a branch that builds it can measure, against
-the 270 free blocks of the `full` profile.
+## Measured cost of each interface width
+
+Three trees at `61f6cf6d` were built with `bmake MACHINE=rp2040 build`: the
+tree as it stands, one with `time_t` as `unsigned long`, and one with
+`time_t` as `long long` for programs while the kernel and the on-disk
+structures keep `long`. Sizes are the staged files a profile's manifest
+installs (`mkmanifest.py --profile`, `file` and `pack` entries), before the
+packer runs.
+
+| Profile | Staged bytes | Unsigned 32-bit | 64-bit interface |
+| --- | --- | --- | --- |
+| `full` (37 staged entries) | 871,062 | +28, no block | +9,072, 10 blocks |
+| `base` (29 staged entries) | 572,700 | -12, no block | +8,916, 10 blocks |
+
+Under the 64-bit interface twelve programs carry nearly all of the growth,
+between 636 and 944 bytes each: `adminbox`, `init`, `tar`, `sysbox`, `box`,
+`find`, `utilbox`, `getty`, `login`, `ps`, `fsck` and `su`. Each links the
+calendar conversion, whose division of a 64-bit count by 86,400 brings in
+the compiler's 64-bit division routines. The seven-bit split above replaces
+those routines with 136 bytes; how much of the growth it removes per
+program is an inference from the object sizes (about 280 bytes) until a
+build measures it. The PICO kernel is 102,094 bytes of text in all three
+builds, because neither variant changes a kernel type.
+
+What the builds had to be given, which is the work a real change owes:
+
+- Unsigned: `time()` in libc returns `long` and must return `time_t`;
+  `bin/tar/tar.c` tests `st_mtime < 0`. With `struct timeval.tv_sec` also
+  unsigned the kernel stops at `kern_time.c` (the interval-timer bounds and
+  `itimerfix()`) and at `clock_catchup_apply()`'s `long *`; the measured
+  variant left `tv_sec` as `long`.
+- 64-bit: the same `time()` return type; `utmp.ut_time` is `long` and
+  three callers pass its address to `time()`; thirteen more call sites pass
+  a `long *` to `time()` and were compiled as they stand, which a real
+  change converts, so the figure understates by those sites; `adminbox`
+  grows from 29,120 to 30,064 bytes and passes its 25-block packed limit,
+  which was raised for the measurement.
+- Both: twelve program Makefiles carry their own `-Werror`, removed in the
+  variants; the tree's warning flags stayed on without it.
+
+Limits of the measurement: packed sizes and the image's free-block count
+were not produced; the 64-bit variant's kernel does not convert at the
+system call boundary, so it cannot run and its kernel cost is unmeasured;
+no variant was executed. The variant patches are the local branches
+`measure/time-width-u32` and `measure/time-width-i64`.
 
 ## Plan
 
@@ -184,8 +226,8 @@ at stop point P3.0 on the sparse image (P8b) and the board baseline
   earlier `localtime()` returned; C permits that only of the functions that
   return such a pointer. The shared conversion now takes a caller-supplied
   struct, which is the piece a repair needs.
-- The sizes are of single objects. Linked growth per program was not
-  measured, and the 64-bit interface's cost across the root image is
-  unmeasured.
+- The 64-bit interface's cost is measured for staged files with the
+  compiler's own 64-bit division; with the seven-bit split, with every
+  call site converted, and after packing it is unmeasured.
 - No target execution: qemu-user, Renode and the board did not run the
   repaired `timegm()`.

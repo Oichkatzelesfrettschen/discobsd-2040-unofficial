@@ -139,7 +139,9 @@ xC-xE letters; exit 3 means Get listed Read Memory and its command byte
 was refused, and the dump stays unattempted (hypothesis: readout
 protection, AN3155, which the notes repository does not hold; whether the
 CKS bootloader refuses that byte for another reason is unknown); exit 1
-with the memory reads "not run" means Get listed no Read Memory; exit 1
+with the memory reads "not run" means either that Get did not list Read
+Memory or that a protocol failure stopped the session, as each read's
+`detail` field says; exit 1
 with a refusal at the address stage means the bootloader rejected that
 address. The CPUID and DBGMCU_IDCODE reads are attempts: an ST
 bootloader may refuse the private peripheral bus, and on ST silicon

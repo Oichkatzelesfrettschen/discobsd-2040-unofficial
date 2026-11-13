@@ -287,7 +287,10 @@ check(
     "an unlisted Read Memory is never sent",
 )
 status, rec, model = run(refuse_get=True, protected=True)
-check(status == kbi.EXIT_PROTOCOL, "a refused Get leaves a refused Read Memory at exit 1, not 3")
+check(
+    status == kbi.EXIT_PROTOCOL and kbi.CMD_READ_MEMORY not in model.commands,
+    "a refused Get exits 1, not 3, and sends no Read Memory",
+)
 
 # Failures of the link.
 status, rec, _ = run(silent=True)

@@ -2,7 +2,7 @@
 # Calibration for "tools/report-nightly-failure.sh --failed": each case
 # writes a jobs document in the GitHub REST shape and compares the printed
 # list. A passing run must print nothing, since the caller closes the issue
-# on an empty list, and a failed, timed-out or cancelled job must print.
+# on an empty list, and a job that ended any other way must print.
 set -eu
 
 here=$(dirname "$0")
@@ -35,6 +35,10 @@ expect "a timed-out job prints" "- b (timed_out): no step recorded" \
 	'{"jobs":[{"name":"b","conclusion":"timed_out","steps":[{"name":"s","conclusion":"success"}]}]}'
 expect "a cancelled job prints its cancelled step" "- c (cancelled): s" \
 	'{"jobs":[{"name":"c","conclusion":"cancelled","steps":[{"name":"s","conclusion":"cancelled"}]}]}'
+expect "a job that failed to start prints" "- e (startup_failure): no step recorded" \
+	'{"jobs":[{"name":"e","conclusion":"startup_failure","steps":[]}]}'
+expect "a neutral job is not a failure" "" \
+	'{"jobs":[{"name":"n","conclusion":"neutral","steps":[]}]}'
 expect "two pages of jobs are both read" "- a (failure): s
 - d (failure): t" \
 	'{"jobs":[{"name":"a","conclusion":"failure","steps":[{"name":"s","conclusion":"failure"}]}]}

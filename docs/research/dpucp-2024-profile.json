@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "9228403cb3f42bbba16d62ce742a714b171a61f16e891ba4a6b10d40bf2102d6"
+    "ordered_row_sha256": "996d4acd855e6c2755bcafeb2851f6504e6f01c3f31dab229159ef50f8212931"
   },
   "state_counts": {
     "applicability": {
@@ -51,16 +51,16 @@
       "environment-constrained": 0
     },
     "implementation": {
-      "unreviewed": 1456,
+      "unreviewed": 1454,
       "present": 1,
-      "partial": 61,
+      "partial": 63,
       "absent": 0,
       "divergent": 0
     },
     "evidence": {
-      "none": 1456,
+      "none": 1454,
       "static": 39,
-      "host": 23,
+      "host": 25,
       "cross": 0,
       "qemu-user": 0,
       "renode": 0,
@@ -162,6 +162,12 @@
       "evidence": "host",
       "known_good": "tests/libc_contracts/qsort_context_test.c",
       "known_bad": "tests/libc_contracts/qsort_context.py"
+    },
+    "libc-absolute-value-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-absolute-value",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/absolute_value_test.c",
+      "known_bad": "tests/libc_contracts/absolute_value.py"
     }
   },
   "growth_policy": {

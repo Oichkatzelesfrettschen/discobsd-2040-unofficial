@@ -189,6 +189,7 @@ Grouped by what they investigate.
 | `libc-scandir-allocation-contract.md` | selected-entry allocation, compact self-describing records, typed per-call sorting, calibrated failure gates and paired target resource evidence |
 | `libc-bounded-string-contracts.md` | bounded scan/duplication, end-pointer copy and padding invariants, calibrated byte-domain witnesses and resource qualification |
 | `libc-bounded-string-resource-exception.md` | matched native archive growth, retained resource receipts, alternatives and exception decision |
+| `libc-lifecycle-integrated-resource-exception.md` | composed string and lifecycle archive costs, root block admission, packed executable limits and combined qualification |
 | `search-bound-experiment/README.md` | unshipped tableless Two-Way search, calibrated finite work counts, target frames and replay driver |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |
 | `STYLE-GUIDE.md` | the constrained-C and C17 migration proposal: resource accounts, C17isms, POSIX/BSD boundaries, quarantined historical sources, smaller-system evidence, and the proof a size claim owes |
@@ -219,6 +220,9 @@ Grouped by what they investigate.
 | `bsd-donor-inventory.json` | all 20 BSD checkout observations, authoritative development refs, retained fetch attempts and unresolved immediate-source identities |
 | `posix-archive-donor-frontier.md`, `posix-archive-donor-frontier.json` | 13 additional archive roots, 23 content-identified investigations, per-file permission boundaries, reusable invariants, conflicts and deciding experiments |
 | `coherent-donor-review.md` | pinned Coherent sources, libc/archive/FILE/regex mechanisms, exec/fork/ABI ownership, C17 conflicts and deciding experiments |
+| `quick-exit-contracts.md` | independent quick-exit registry, live-head callback ordering, allocation failure and target/native qualification boundaries |
+| `callback-allocation-accounting.md` | calibrated ILP32 callback-node extents, cold heap commitment, allocator alignment and storage-policy limits |
+| `qsort-partition-cost.md` | calibrated duplicate-key comparison counts, partition traces, adapted DragonFly control and Cortex-M0+ object costs |
 | `dpucp-2024-multicall-composition.md` | the seven-box shipped-name denominator, archive-member closure, 433-block standalone comparison and zero-block `logname` root delta |
 | `dpucp-2024-multicall-composition.json` | machine-checked multicall dispatch, link-map, packed-image, root-accounting and source-identity evidence |
 | `dpucp-2024-multicall-libc-members.tsv` | the 192-member libc archive closure for seven multicall boxes and the shell |

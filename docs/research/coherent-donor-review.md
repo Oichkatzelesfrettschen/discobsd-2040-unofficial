@@ -10,8 +10,11 @@ hashes to `fcbeb535ff81abe858aa8095dfeaf55f673ba7dfecdd1739874f7d2221030dfa`.
 
 Coherent supplements the 20-repository BSD workspace and 13-root archive
 frontier. DragonFlyBSD remains the preferred current implementation reference.
-Standards and independent DiscoBSD witnesses decide adaptation. The review
-reads source and Git metadata; historical tools and binaries remain unexecuted.
+Standards and independent DiscoBSD witnesses decide adaptation. The inventory
+review reads source and Git metadata; historical tools and binaries remain
+unexecuted. The separately documented
+[boundary and lifecycle probes](coherent-boundary-lifecycle-witnesses.md) compile
+one pinned donor source on the host and test a derived DiscoBSD correction.
 The donor gate validates the BSD/archive ledgers. The supplemental identities
 below have a separate manual Git-object replay rather than coverage by that gate.
 
@@ -169,3 +172,11 @@ sha256sum coherent-stdio.source
 ```
 
 The command writes the named replay output in the caller's current directory. Compare its digest with the table and retain source identity beside adaptation evidence. Full Git history, RCS extraction, historical binary disassembly and COHERENT.pdf analysis remain follow-up surfaces rather than completed review.
+
+The boundary and lifecycle witnesses bind the scanner capacity counterexample,
+signed-limit and work-stack derivations, and the DiscoBSD exit registry repair
+to exact source identities and separately stated evidence classes.
+
+[The regex encoding and selection analysis](coherent-regex-mechanisms.md)
+adds exhaustive two-byte decoder controls and separates program bounds,
+match selection, conservative filters and caller-owned error handling.

@@ -20,10 +20,10 @@ tools/compiler-probe.sh tools/select-host-gates.sh include/ lib/libc/ sys/
 .github/ games/mutlib.py"
 
 # gate|prefix ...
-SUITES="check-fourfall-host|games/fourfall/ games/gametty.h
-check-puzzlebox-host|games/pzcommon/ games/puzzlebox/ games/flood/ games/samegame/ games/unruly/ games/lightup/ games/gameterm.h games/gametty.h
+SUITES="check-fourfall-host|games/fourfall/ games/gametty.h tools/mutant_pool.py
+check-puzzlebox-host|games/pzcommon/ games/puzzlebox/ games/flood/ games/samegame/ games/unruly/ games/lightup/ games/gameterm.h games/gametty.h tools/mutant_pool.py
 check-ridge-host|games/ridge/ games/gametile.h tests/picocalc/shim/
-check-calc-host|usr.bin/calc/ lib/libcalc/
+check-calc-host|usr.bin/calc/ lib/libcalc/ tools/mutant_pool.py
 check-libcalc|tests/libcalc/ lib/libcalc/ docs/research/picomite-maths-clean-room-spec.md
 check-dcbc|tests/dcbc/ lib/libbn/ usr.bin/bc/ usr.bin/dc/"
 

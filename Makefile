@@ -862,6 +862,12 @@ check-init-daemons:
 check-host-gate-selection:
 		sh tools/select_host_gates_test.sh
 
+# tools/mutant_pool.py, which the fourfall, puzzlebox and calc mutant runners
+# share: list order, serial timing mutants alone, MUTANT_JOBS, and a known-bad
+# pool that lets a serial item overlap.
+check-mutant-pool: check-python
+		${PYTHON} tools/mutant_pool_test.py
+
 check-cat-contracts-cross:
 		${MAKE} -C tests/cat_contracts check-cross
 
@@ -1398,7 +1404,7 @@ check-elf2aout:	tools
 # the shell against the host's headers, so those two reach nothing under
 # include.
 HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed-exec-pair-summary check-rp2040-storage-delta \
-		check-agent-instructions check-uf2-validator check-host-gate-selection \
+		check-agent-instructions check-uf2-validator check-host-gate-selection check-mutant-pool \
 		check-kernel-headroom-validator \
 		check-run-logging check-compiler-matrix-harness check-callgraph-capture check-battlestar-generation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \

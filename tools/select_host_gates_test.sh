@@ -39,6 +39,8 @@ expect "libcalc runs calc and libcalc" \
 expect "libbn runs dcbc" \
 	"check-fourfall-host check-puzzlebox-host check-ridge-host check-calc-host check-libcalc" \
 	"lib/libbn/bn.c"
+expect "the mutant pool runs its three users" \
+	"check-ridge-host check-libcalc check-dcbc" "tools/mutant_pool.py"
 expect "ridge shim runs ridge" \
 	"check-fourfall-host check-puzzlebox-host check-calc-host check-libcalc check-dcbc" \
 	"tests/picocalc/shim/term.c"

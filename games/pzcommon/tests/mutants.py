@@ -17,6 +17,10 @@ import subprocess
 import sys
 import tempfile
 
+TOOLS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "tools")
+sys.path.insert(0, TOOLS)
+import mutant_pool  # noqa: E402  tools/mutant_pool.py, beside this tree's other tools
+
 CC = os.environ.get("HOSTCC", "cc")
 HERE = os.path.dirname(os.path.abspath(__file__))
 STRICT = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror", "-g", "-O1"]
@@ -631,48 +635,49 @@ def build_host(games, puzzle, exe):
     return r.stderr if r.returncode else None
 
 
-def play_mutants(src_games):
-    failures = 0
+def play_mutant(src_games, work, mutant):
+    """Build one play mutant in its own copy of the games tree and run its
+    pty cases; returns (verdict, failed)."""
+    puzzle, rel, name, old, new, cases = mutant
+    puzzle = puzzle or "flood"
     play = os.path.join(src_games, "pzcommon", "tests", "play.py")
+    games = copy_tree(src_games, tempfile.mkdtemp(dir=work))
+    n = replace_once(os.path.join(games, rel), old, new)
+    if n != 1:
+        return "ERROR: anchor occurs %d times" % n, True
+    os.makedirs(os.path.join(games, puzzle), exist_ok=True)
+    err = build_host(games, puzzle, os.path.join(games, puzzle, puzzle + "-host"))
+    if err:
+        return "ERROR: compile\n%s" % err, True
+    env = dict(os.environ, PZ_ONLY=puzzle)
+    try:
+        r = subprocess.run(
+            [sys.executable, play, games] + cases,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            env=env,
+        )
+    except subprocess.TimeoutExpired:
+        return "rejected: the pty test timed out", False
+    if r.returncode == 0:
+        return "SURVIVED", True
+    last = (r.stderr.strip().splitlines() or ["exit %d" % r.returncode])[-1]
+    return "rejected: %s" % last[:80], False
+
+
+def play_mutants(src_games):
+    """Run every play mutant; tools/mutant_pool.py overlaps them."""
+    failures = 0
     with tempfile.TemporaryDirectory() as work:
-        games = copy_tree(src_games, work)
-        for puzzle, rel, name, old, new, cases in PLAY:
-            puzzle = puzzle or "flood"
-            for p in ("flood", "samegame", "unruly", "lightup"):
-                shutil.copy(os.path.join(src_games, p, p + ".c"), os.path.join(games, p, p + ".c"))
-            shutil.copy(
-                os.path.join(src_games, "pzcommon", "pzfront.c"),
-                os.path.join(games, "pzcommon", "pzfront.c"),
-            )
-            n = replace_once(os.path.join(games, rel), old, new)
-            if n != 1:
-                print("play mutant %-40s ERROR: anchor occurs %d times" % (name, n))
-                failures += 1
-                continue
-            os.makedirs(os.path.join(games, puzzle), exist_ok=True)
-            err = build_host(games, puzzle, os.path.join(games, puzzle, puzzle + "-host"))
-            if err:
-                print("play mutant %-40s ERROR: compile\n%s" % (name, err))
-                failures += 1
-                continue
-            env = dict(os.environ, PZ_ONLY=puzzle)
-            try:
-                r = subprocess.run(
-                    [sys.executable, play, games] + cases,
-                    capture_output=True,
-                    text=True,
-                    timeout=180,
-                    env=env,
-                )
-            except subprocess.TimeoutExpired:
-                print("play mutant %-40s rejected: the pty test timed out" % name)
-                continue
-            if r.returncode == 0:
-                print("play mutant %-40s SURVIVED" % name)
-                failures += 1
-                continue
-            last = (r.stderr.strip().splitlines() or ["exit %d" % r.returncode])[-1]
-            print("play mutant %-40s rejected: %s" % (name, last[:80]))
+        results = mutant_pool.ordered(
+            PLAY,
+            lambda mutant: play_mutant(src_games, work, mutant),
+            name=lambda mutant: mutant[2],
+        )
+        for mutant, (verdict, failed) in results:
+            print("play mutant %-40s %s" % (mutant[2], verdict))
+            failures += failed
     print("play mutants: %d tried, %d failures" % (len(PLAY), failures))
     return 1 if failures else 0
 

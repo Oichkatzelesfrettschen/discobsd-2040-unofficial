@@ -260,9 +260,10 @@ nothing else, so the kernel still copies an 8-byte `struct timeval` where
 programs expect 16; callers were compiled with the diagnostic downgraded;
 `touch` is compiled from an undefined shift; and the seven-bit split
 removes division code that the figure includes. The conversion the
-prototype omits adds text where it is placed (libc wrappers linked into
-each program in the leading design under "Programs compiled on the
-board", kernel text if it sits
+prototype omits adds text where it is placed (in the leading design
+under "Programs compiled on the board", a libc wrapper in each program
+that calls a time-carrying entry point, since the linker takes only the
+archive members a program references; kernel text if the conversion sits
 at the system call boundary), the split removes program text, and the
 net is unmeasured until an image that boots is built. With the wide type the target
 compiler gives `struct stat` 72 bytes (56 today) and `struct timeval` 16

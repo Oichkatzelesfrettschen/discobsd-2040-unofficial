@@ -36,6 +36,7 @@ discobsd-term = "discobsd_host.term:main"
 discobsd-web = "discobsd_host.web:main"
 discobsd-link = "discobsd_host.link:main"
 discobsd-console = "discobsd_host.console:main"
+discobsd-release = "discobsd_host.release:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

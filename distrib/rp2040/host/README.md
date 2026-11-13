@@ -90,9 +90,14 @@ keeps its state under `~/Library/Application Support/discobsd`.
 `discobsd-connect` finds `cu` on every Mac and `tio` or `picocom` from
 Homebrew.
 
-## Web console on the LAN
+## Web console
 
-    discobsd-console up
+The default binds loopback only. Reach it remotely through SSH forwarding
+or a trusted tunnel. See [release and transport security](RELEASE-SECURITY.md)
+for hybrid release verification and post-quantum transport recommendations.
+LAN access explicitly opts in to exposing the token-revealing short link:
+
+    discobsd-console up --bind 0.0.0.0
 
 prints a short URL such as `http://10.0.0.5:42069/` that redirects to the
 tokenized console at `http://10.0.0.5:7681/?token=...`. The token and the

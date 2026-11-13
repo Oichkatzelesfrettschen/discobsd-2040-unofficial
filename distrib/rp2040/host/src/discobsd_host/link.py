@@ -58,7 +58,7 @@ def parser() -> argparse.ArgumentParser:
         "web-token and appended as a query string",
     )
     p.add_argument("--port", type=int, default=42069, help="TCP port (default 42069)")
-    p.add_argument("--bind", default="0.0.0.0", help="bind address (default 0.0.0.0)")
+    p.add_argument("--bind", default="127.0.0.1", help="bind address (default 127.0.0.1)")
     p.add_argument("--version", action="version", version="discobsd-link " + __version__)
     return p
 

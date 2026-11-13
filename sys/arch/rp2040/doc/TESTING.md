@@ -3268,3 +3268,15 @@ Runtime stack and heap high-water, descriptor/inode pressure under a complete
 extraction workload, directory-write recovery, persistent-media traffic,
 symbolic-link publication, conditional removal, directory metadata
 reacquisition, and physical-board behavior retain separate evidence states.
+
+## Hybrid release and policy specification tiers
+
+`check-hybrid-release` requires an OpenSSL implementation with Ed25519 and
+ML-DSA-65. It executes real signing and verification against synthetic UF2
+bundles, malformed/corrupted controls, wrong epochs and rollback sequences,
+private staging, and failed/successful mocked flash delegation. No serial or
+picotool operation occurs in this tier. `check-release-policy` runs Lean 4.19.0
+through the selected `LEAN` and checks Python manifest geometry, specification
+theorems and a rejected AND-to-OR mutant. These optional tiers add no target
+dependencies. `.github/workflows/pq-release.yml` owns their CI equivalents.
+Proofs concern the stated policy, not Python/OpenSSL refinement or hardware.

@@ -118,7 +118,11 @@ and follow the steps for your platform.
 
 5. Optional: serve the console to phones and laptops on your LAN.
 
-       discobsd-console up
+       discobsd-console up --bind 0.0.0.0
+
+   The default without `--bind` is loopback only. Anyone reaching the LAN
+   short link learns the console token. Prefer the loopback default through
+   a trusted tunnel; see `distrib/rp2040/host/RELEASE-SECURITY.md`.
 
    It prints a short URL such as `http://192.168.1.20:42069/`; open it in
    any browser on the same network. `discobsd-console down` stops it,
@@ -159,7 +163,7 @@ join the `discobsd` group instead and log in again:
    Windows Firewall when it asks; `discobsd-console.exe down` stops the
    servers.
 
-       .\discobsd-console.exe up
+       .\discobsd-console.exe up --bind 0.0.0.0
 
 #### macOS
 

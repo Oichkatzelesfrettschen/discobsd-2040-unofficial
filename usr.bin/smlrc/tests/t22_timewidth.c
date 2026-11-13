@@ -19,6 +19,12 @@ struct timeval {
 	long tv_usec;
 };
 
+/*
+ * Hand-written, as on the board, and unsigned, the type the design gives the
+ * narrow count. libc still defines time() over a long, so this object relies
+ * on the two having one 32-bit representation and one register, which the
+ * procedure call standard fixes and no header checks.
+ */
 int gettimeofday(struct timeval *tv, void *tz);
 unsigned long time(unsigned long *t);
 

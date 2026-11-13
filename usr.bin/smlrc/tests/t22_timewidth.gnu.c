@@ -23,8 +23,14 @@ struct wide_timeval {
 	long tv_usec;
 };
 
-int gettimeofday(struct narrow_timeval *, void *);
-unsigned long time(unsigned long *);
+/*
+ * The narrow entry points as their definitions declare them: time() in
+ * lib/libc/gen/time.c returns the count as a long, and the execution tier's
+ * gettimeofday() takes two object pointers. The wrappers convert the count
+ * to unsigned before widening.
+ */
+int gettimeofday(void *, void *);
+long time(long *);
 
 int wide_gettimeofday(struct wide_timeval *, void *);
 long long wide_time(long long *);
@@ -39,7 +45,7 @@ wide_gettimeofday(struct wide_timeval *tv, void *tz)
 
 	result = gettimeofday(&narrow, tz);
 	if (result == 0 && tv != 0) {
-		tv->tv_sec = (long long)(unsigned long long)narrow.tv_sec;
+		tv->tv_sec = (long long)narrow.tv_sec;
 		tv->tv_usec = narrow.tv_usec;
 	}
 	return result;
@@ -48,7 +54,7 @@ wide_gettimeofday(struct wide_timeval *tv, void *tz)
 long long
 wide_time(long long *t)
 {
-	long long now = (long long)(unsigned long long)time(0);
+	long long now = (long long)(unsigned long)time(0);
 
 	if (t != 0)
 		*t = now;
@@ -88,7 +94,7 @@ wide_disagreement(unsigned long sec, long usec)
 
 	if (wide_gettimeofday(&guarded.tv, 0) != 0)
 		wrong |= 1;
-	if (guarded.tv.tv_sec != (long long)(unsigned long long)sec)
+	if (guarded.tv.tv_sec != (long long)sec)
 		wrong |= 2;
 	if (guarded.tv.tv_sec <= 0)
 		wrong |= 4;

@@ -8,7 +8,7 @@ no time-of-day clock: `sys/kern/init_main.c` seeds `time.tv_sec` from the
 root superblock's `fs_time`, and `date` sets it. A proposal to widen the
 representation, with storage-wear changes attached to it, was checked claim
 by claim against this tree. The checks leave one decision for the owner (the
-width of `time_t` at the system call boundary), one defect that holds at any
+width of `time_t` that programs see), one defect that holds at any
 width (repaired with this note), and a plan whose steps are ordered by what
 that decision does and does not change.
 
@@ -132,10 +132,11 @@ Three statements of the proposal survive, each in a narrower form.
    style of FreeRTOS's overflow counter is one compare in the tick path and
    can be added later behind an unchanged system call interface.
 3. The width visible to programs is a separate question from the width
-   stored. A 64-bit `time_t` at the system call boundary can be served by a
-   kernel that zero-extends a 32-bit count, so the costly part (the
-   interface every program is compiled against) changes once and the cheap
-   part (the kernel's representation) is free to change later.
+   stored. A 64-bit `time_t` in the interface programs are compiled
+   against can be served from a 32-bit count that is zero-extended on the
+   way out, in the kernel or in libc, so the costly part (that interface)
+   changes once and the cheap part (the kernel's representation) is free
+   to change later.
 
 The Q32.32 fixed-point clock and a uniformly 64-bit kernel and disk format
 stay refuted for this target, for the reasons the proposal gives.
@@ -258,8 +259,12 @@ cost from neither side: the variant changes the type programs see and
 nothing else, so the kernel still copies an 8-byte `struct timeval` where
 programs expect 16; callers were compiled with the diagnostic downgraded;
 `touch` is compiled from an undefined shift; and the seven-bit split
-removes division code that the figure includes. Conversion at the system
-call boundary adds kernel text, the split removes program text, and the
+removes division code that the figure includes. The conversion the
+prototype omits adds text where it is placed (in the leading design
+under "Programs compiled on the board", a libc wrapper in each program
+that calls a time-carrying entry point, since the linker takes only the
+archive members a program references; kernel text if the conversion sits
+at the system call boundary), the split removes program text, and the
 net is unmeasured until an image that boots is built. With the wide type the target
 compiler gives `struct stat` 72 bytes (56 today) and `struct timeval` 16
 (8 today), since a 64-bit member aligns its struct to eight. Across all 1,677 staged files,
@@ -298,10 +303,11 @@ What the variants changed to build, which is the work a real change owes:
   count is then negative, so `touch` in that image is compiled from
   undefined arithmetic and its bytes are part of the figure.
 
-Limits of the measurement: the 64-bit variant converts nothing at the
-system call boundary, so its image cannot run and the kernel cost of the
-conversion is unmeasured; no variant was executed; one profile and one
-kernel configuration were measured.
+Limits of the measurement: the 64-bit variant converts nothing between
+the kernel's 32-bit layouts and the wide ones programs see, so its image
+cannot run and the cost of the conversion, in libc or in the kernel, is
+unmeasured; no variant was executed; one profile and one kernel
+configuration were measured.
 
 ## Plan
 

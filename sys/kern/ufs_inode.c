@@ -160,6 +160,7 @@ loop:
             if (ip->i_count == 0) {     /* ino on free list */
                 register struct inode *iq;
 
+                ip->i_wsel = NULL;
                 iq = ip->i_freef;
                 if (iq)
                     iq->i_freeb = ip->i_freeb;
@@ -212,6 +213,9 @@ loop:
     ip->i_count++;
     capacity_note(CAPACITY_INODE, 0);
     ip->i_lastr = 0;
+    ip->i_wsel = NULL;
+    /* A slot awaiting disk input cannot identify its former device alias. */
+    ip->i_mode = 0;
     bp = bread(dev, FSBTODB(fs, FS_ITOD(fs, ino)));
     /*
      * Check I/O errors
@@ -296,6 +300,7 @@ igrab(register struct inode *ip)
     if (ip->i_count == 0) {     /* ino on free list */
         register struct inode *iq;
 
+        ip->i_wsel = NULL;
         iq = ip->i_freef;
         if (iq)
             iq->i_freeb = ip->i_freeb;
@@ -348,6 +353,7 @@ irele(register struct inode *ip)
         IUPDAT(ip, &time, &time, 0);
         IUNLOCK(ip);
         ip->i_flag = 0;
+        ip->i_wsel = NULL;
         /*
          * Put the inode on the end of the free list.
          * Possibly in some cases it would be better to
@@ -758,7 +764,7 @@ iflush(dev_t dev)
                  */
             }
         else if (ip->i_count && (ip->i_mode&IFMT)==IFBLK &&
-            ip->i_rdev == dev)
+            ip->i_rdev == dev && (ip->i_bdev_state & IBDEV_REFS) != 0)
             open++;
     }
     return (open);

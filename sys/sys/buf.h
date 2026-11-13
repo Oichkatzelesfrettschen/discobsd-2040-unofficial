@@ -77,6 +77,7 @@ struct buf
 #include <sys/capacity.h>
 
 struct inode;
+struct mount;
 
 #ifndef BUFHSZ
 #define BUFHSZ      16              /* must be power of 2 */
@@ -155,6 +156,17 @@ int incore (dev_t dev, daddr_t blkno);
  * Make sure all write-behind blocks on dev are flushed out.
  */
 int bflush (dev_t dev);
+int bdevsync(dev_t dev);
+int bdev_write_error(dev_t dev);
+void bdev_clear_write_error(dev_t dev);
+void bdevlock(struct inode *holder);
+void bdevunlock(struct inode *holder);
+int bdev_other_open(struct inode *holder);
+void bdev_mount_take_lock(struct mount *device_mount, struct inode *holder);
+void bdev_mount_unlock(struct mount *device_mount);
+int cdev_driver_open(dev_t dev, int flags);
+int bdev_driver_open(dev_t dev, int flags);
+int dev_driver_close(dev_t dev, int flags, int mode);
 
 /*
  * Insure that no part of a specified block is in an incore buffer.

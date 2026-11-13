@@ -241,10 +241,11 @@ make_filesystem(struct v7fs_self *fs, v7fs_daddr_t volume_size,
 
 	/* fill free inode cache. */
 	VPRINTF(4, "Setup inode cache.\n");
-	sb->nfreeinode = V7FS_MAX_FREEINODE;
-	for (i = V7FS_MAX_FREEINODE - 1, j = V7FS_ROOT_INODE; i >= 0; i--, j++)
-		sb->freeinode[i] = j;
 	sb->total_freeinode = ilist_size * V7FS_INODE_PER_BLOCK - 1;
+	sb->nfreeinode = sb->total_freeinode < V7FS_MAX_FREEINODE ?
+	    sb->total_freeinode : V7FS_MAX_FREEINODE;
+	for (i = sb->nfreeinode - 1, j = V7FS_ROOT_INODE; i >= 0; i--, j++)
+		sb->freeinode[i] = j;
 
 	/* fill free block cache. */
 	VPRINTF(4, "Setup free block cache.\n");

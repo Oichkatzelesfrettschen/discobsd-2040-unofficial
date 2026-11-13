@@ -244,6 +244,7 @@ int
 vn_closefile(register struct file *fp)
 {
     register struct inode *ip = (struct inode *)fp->f_data;
+    int error;
 
 #ifdef PICOCALC_ENABLED
     /* A raw key event session ends with the open file that owns it. */
@@ -255,6 +256,8 @@ vn_closefile(register struct file *fp)
      * devices in closei().
      */
     fp->f_data = (caddr_t)0;    /* XXX */
+    /* Device completion retains its inode error holder through last close. */
+    error = closei(ip, fp->f_flag);
     irele(ip);
-    return (closei(ip, fp->f_flag));
+    return error;
 }

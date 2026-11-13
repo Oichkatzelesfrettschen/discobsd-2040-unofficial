@@ -1,5 +1,10 @@
 #include <limits.h>
 
+_Static_assert(_Generic(ULONG_MAX, unsigned long: 1, default: 0),
+    "ULONG_MAX has the promoted type of unsigned long");
+_Static_assert(ULONG_MAX == (unsigned long)-1,
+    "ULONG_MAX covers every unsigned long value");
+
 #if LLONG_MAX != 9223372036854775807 || ULLONG_MAX != 18446744073709551615U
 #error "C17 5.2.4.2.1 long long limits are #if constants of the stated value"
 #endif

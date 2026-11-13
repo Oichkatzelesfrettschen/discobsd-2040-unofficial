@@ -27,10 +27,12 @@ struct buf buf[NBUF];
 const struct cdevsw cdevsw[1] = {{0}};
 static struct inode node;
 static char data[sizeof(struct fs) + DEV_BSIZE];
-static unsigned writes, delayed, asynchronous, flushes, updates;
+static unsigned writes, delayed, asynchronous, flushes, updates, device_syncs;
 static int write_error, flush_error, update_error, mount_error;
 static int copyout_error;
 static unsigned mount_flushes;
+static dev_t device_sync_device;
+static int device_sync_error;
 /* Delayed buffers bflush() would find, and the block superblock writes use. */
 static unsigned dirty_buffers, superblock_gets;
 /* iupdat()'s wait argument: syncip() waits, syncinodes() delays. */
@@ -119,6 +121,12 @@ void iput(struct inode *ip)
 }
 int blkflush(dev_t dev, daddr_t block)
 { (void)dev; (void)block; flushes++; return flush_error; }
+int bdevsync(dev_t dev)
+{
+    device_syncs++;
+    device_sync_device = dev;
+    return device_sync_error;
+}
 /*
  * Like the production iupdat(), a failure leaves the dirty flags set, and a
  * delayed update leaves the inode block for bflush() to write.
@@ -380,6 +388,21 @@ static void io_cases(void)
     update_error = 0; mount_error = EIO;
     HK_CHECK(write_case(IFREG, 0, IO_SYNC, 17) == EIO);
     HK_CHECK(mount_flushes == 1);
+
+    node = (struct inode){0};
+    device_syncs = flushes = updates = 0;
+    device_sync_device = NODEV;
+    device_sync_error = 0;
+    node.i_mode = IFBLK | 0600;
+    node.i_rdev = 7;
+    HK_CHECK(syncip(&node) == 0);
+    HK_CHECK(device_syncs == 1 && device_sync_device == node.i_rdev);
+    HK_CHECK(flushes == 0 && updates == 1);
+
+    device_sync_error = EIO;
+    HK_CHECK(syncip(&node) == EIO);
+    HK_CHECK(device_syncs == 2 && updates == 1);
+    device_sync_error = 0;
 }
 
 /*

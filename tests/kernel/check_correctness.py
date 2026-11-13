@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[2]
 TESTS = ROOT / "tests/kernel"
 CC = shlex.split(os.environ.get("HOST_CC", "cc"))
 GC_FLAG = "-Wl,-dead_strip" if sys.platform == "darwin" else "-Wl,--gc-sections"
+# The wall clock cases need the target's 32-bit long, and a signed overflow
+# there wraps silently unless the sanitizer stops the program.
+ILP32_FLAGS = ["-m32", "-fsanitize=signed-integer-overflow", "-fno-sanitize-recover=all"]
 
 
 def run(args):
@@ -43,7 +46,10 @@ def build(work, suite, changes):
         "bmap": ["ufs_bmap.c"],
         "synch": ["kern_synch.c", "vm_sched.c"],
         "itimer": ["kern_clock.c", "kern_time.c", "kern_fork.c"],
+        "itimer-ilp32": ["kern_clock.c", "kern_time.c", "kern_fork.c"],
     }[suite]
+    if suite == "itimer-ilp32":
+        common += ILP32_FLAGS + ["-DHK_WALL_ILP32"]
     # A header mutation copies every sys/sys header into the private include
     # directory, which -I lists ahead of the tree's sys directory, and mutates
     # the copy. Copying them all matters because sys/vm.h names vmmeter.h in
@@ -115,6 +121,7 @@ def build(work, suite, changes):
     harness = work / "harness.o"
     run(
         CC
+        + (ILP32_FLAGS if suite == "itimer-ilp32" else [])
         + [
             "-std=gnu17",
             "-Wall",
@@ -135,6 +142,7 @@ def build(work, suite, changes):
             "bmap": "bmap_write_test.c",
             "synch": "synch_meter_test.c",
             "itimer": "itimer_test.c",
+            "itimer-ilp32": "itimer_test.c",
         }[suite]
     )
     run(
@@ -146,6 +154,17 @@ def build(work, suite, changes):
         + ["-o", str(binary)]
     )
     return subprocess.run([str(binary)], capture_output=True, text=True)
+
+
+def ilp32_supported(base):
+    """Whether the host compiler links and runs an ILP32_FLAGS program."""
+    probe = base / "ilp32-probe.c"
+    probe.write_text("int main(void) { return sizeof(long) == 4 ? 0 : 1; }\n")
+    binary = base / "ilp32-probe"
+    built = subprocess.run(
+        CC + ILP32_FLAGS + [str(probe), "-o", str(binary)], capture_output=True
+    )
+    return built.returncode == 0 and subprocess.run([str(binary)]).returncode == 0
 
 
 def vmrate_narrowing():
@@ -162,6 +181,105 @@ def main():
         ("baseline-bmap", "bmap", {}, False),
         ("baseline-synch", "synch", {}, False),
         ("baseline-itimer", "itimer", {}, False),
+        ("baseline-itimer-ilp32", "itimer-ilp32", {}, False),
+        (
+            "wall-clock-signed-increment",
+            "itimer-ilp32",
+            {
+                "kern_clock.c": (
+                    "        time.tv_sec = wall_advance(time.tv_sec, 1);",
+                    "        ++time.tv_sec;",
+                )
+            },
+            True,
+        ),
+        (
+            "wall-interval-signed-subtraction",
+            "itimer-ilp32",
+            {
+                "time.h": (
+                    "    unsigned long to = (unsigned long)later, from = (unsigned long)earlier;",
+                    "    unsigned long to = 0, from = 0;\n    return later - earlier;",
+                )
+            },
+            True,
+        ),
+        (
+            "wall-deadline-signed-compare",
+            "itimer-ilp32",
+            {
+                "time.h": (
+                    "    return now > due || (now == due && microseconds >= deadline->tv_usec);",
+                    "    (void)now;\n"
+                    "    (void)due;\n"
+                    "    return seconds > deadline->tv_sec || (seconds == deadline->tv_sec\n"
+                    "        && microseconds >= deadline->tv_usec);",
+                )
+            },
+            True,
+        ),
+        (
+            "wall-period-signed-remainder",
+            "itimer-ilp32",
+            {
+                "time.h": (
+                    "    return (unsigned long)seconds % period == 0;",
+                    "    return seconds % (long)period == 0;",
+                )
+            },
+            True,
+        ),
+        (
+            "wall-interval-wraps-past-a-long",
+            "itimer-ilp32",
+            {
+                "time.h": (
+                    "        return to - from > limit ? (long)limit : (long)(to - from);",
+                    "        return (long)(to - from);",
+                )
+            },
+            True,
+        ),
+        (
+            "hzto-multiplies-a-distant-past-deadline",
+            "itimer-ilp32",
+            {"kern_clock.c": ("    if (sec < -1)\n        ticks = 0;\n    else if", "    if")},
+            True,
+        ),
+        (
+            "adjtime-signed-clock-range",
+            "itimer-ilp32",
+            {
+                "kern_time.c": (
+                    "        if (seconds < 0 || seconds > 0xffffffffLL) {",
+                    "        if (seconds < LONG_MIN || seconds > LONG_MAX) {",
+                )
+            },
+            True,
+        ),
+        (
+            "settimeofday-signed-boot-time",
+            "itimer-ilp32",
+            {
+                "kern_time.c": (
+                    "    boottime.tv_sec = wall_advance(boottime.tv_sec,\n"
+                    "        (long)((unsigned long)tv->tv_sec - (unsigned long)time.tv_sec));",
+                    "    boottime.tv_sec += tv->tv_sec - time.tv_sec;",
+                )
+            },
+            True,
+        ),
+        (
+            "timeval-carry-signed",
+            "itimer-ilp32",
+            {
+                "kern_time.c": (
+                    "        t1->tv_sec = wall_advance(t1->tv_sec, 1);",
+                    "        t1->tv_sec++;",
+                )
+            },
+            True,
+        ),
         (
             "timeout-callback-omits-expiry",
             "synch",
@@ -635,7 +753,11 @@ def main():
     ]
     with tempfile.TemporaryDirectory(prefix="discobsd-correctness-") as tmp:
         base = Path(tmp)
+        ilp32 = ilp32_supported(base)
         for label, suite, changes, negative in cases:
+            if suite == "itimer-ilp32" and not ilp32:
+                print(label + ": skipped, the host compiler has no 32-bit sanitizer runtime")
+                continue
             work = base / label
             (work / "machine").mkdir(parents=True)
             for header in (ROOT / "sys/arch/rp2040/include").glob("*.h"):

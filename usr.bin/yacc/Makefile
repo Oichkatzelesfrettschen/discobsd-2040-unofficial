@@ -11,7 +11,7 @@ TOPSRC!=cd ../..; pwd
 WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS         += -ansi -O0
+CFLAGS         += -ansi
 
 OBJS            = y1.o y2.o y3.o y4.o
 SRCS            = y1.c y2.c y3.c y4.c

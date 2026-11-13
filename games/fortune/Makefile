@@ -4,7 +4,7 @@ TOPSRC!=cd ../..; pwd
 WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS		+= -O -Wall
+CFLAGS		+= -Wall
 LIBS            = -lc
 
 OBJS            = fortune.o

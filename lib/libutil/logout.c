@@ -44,7 +44,7 @@ logout(char *line)
 			continue;
 		memset(ut.ut_name, 0, UT_NAMESIZE);
 		memset(ut.ut_host, 0, UT_HOSTSIZE);
-		(void)time(&ut.ut_time);
+		ut.ut_time = time((time_t *)0);
 		(void)lseek(fd, -(long)sizeof(UTMP), L_INCR);
 		(void)write(fd, (char *)&ut, sizeof(UTMP));
 		rval = 1;

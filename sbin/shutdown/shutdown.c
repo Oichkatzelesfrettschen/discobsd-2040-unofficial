@@ -24,6 +24,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/param.h>
+#include <limits.h>
 #include <sys/syslog.h>
 
 #define	REBOOT	"/sbin/reboot"
@@ -44,7 +45,7 @@ void	nolog(time_t);
 
 struct	utmp utmp;
 int	sint;
-long	stogo;
+time_t	stogo;
 char	tpath[] =	"/dev/";
 int	nlflag = 1;		/* nolog yet to be done */
 int	killflg = 1;
@@ -187,8 +188,17 @@ main(argc,argv)
 		fprintf(stderr, "NOT super-user\n");
 		finish(0);
 	}
-	nowtime = time((long *)0);
+	nowtime = time((time_t *)0);
 	sdt = getsdt(argv[0]);
+	/*
+	 * The minute count printed below and the delay warning() computes
+	 * are ints, so a shutdown further off than an int of seconds is
+	 * refused here rather than announced with a wrapped figure.
+	 */
+	if (sdt - nowtime > INT_MAX) {
+		fprintf(stderr, "shutdown: time is too far in the future\n");
+		finish(0);
+	}
 	argc--, argv++;
 	nolog2[0] = '\0';
 	while (argc-- > 0) {
@@ -240,7 +250,7 @@ main(argc,argv)
 		}
 		if (sint >= stogo || sint == 0)
 			f = "FINAL ";
-		nowtime = time((long *)0);
+		nowtime = time((time_t *)0);
 		(void) lseek(ufd, 0L, 0);
 		while (read(ufd,(char *)&utmp,sizeof utmp)==sizeof utmp)
 		if (utmp.ut_name[0] &&
@@ -290,9 +300,9 @@ main(argc,argv)
 				doitfast();
 #ifndef DEBUG
 			if (doreboot)
-				execle(REBOOT, "reboot", "-l", nosync, 0, 0);
+				execle(REBOOT, "reboot", "-l", nosync, (char *)0, (char **)0);
 			if (halt)
-				execle(HALT, "halt", "-l", nosync, 0, 0);
+				execle(HALT, "halt", "-l", nosync, (char *)0, (char **)0);
 			(void) kill(1, SIGTERM);	/* to single user */
 #else
 			if (doreboot)
@@ -309,7 +319,7 @@ main(argc,argv)
 #endif
 			finish(0);
 		}
-		stogo = sdt - time((long *) 0);
+		stogo = sdt - time((time_t *)0);
 		if (stogo > 0 && sint > 0)
 			sleep((unsigned)(sint<stogo ? sint : stogo));
 		stogo -= sint;
@@ -339,7 +349,7 @@ getsdt(s)
 		if (t <= 0)
 			t = 5;
 		t *= 60;
-		tim = time((long *) 0) + t;
+		tim = time((time_t *)0) + t;
 		return(tim);
 	}
 	t = 0;
@@ -357,7 +367,7 @@ getsdt(s)
 		goto badform;
 	tim += t;
 	tim *= 60;
-	t1 = time((long *) 0);
+	t1 = time((time_t *)0);
 	lt = localtime(&t1);
 	t = lt->tm_sec + lt->tm_min*60 + (long)lt->tm_hour*3600;
 	if (tim < t || tim >= ((long)24*3600)) {

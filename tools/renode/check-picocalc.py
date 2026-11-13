@@ -16,7 +16,11 @@ The panel model's counters and registers are asserted from its Status line:
 the init commands the driver sends (MADCTL, COLMOD, VSCRDEF, DISPON), no
 unmodeled commands, and no pixel written outside the CASET/RASET window.
 
-Usage: check-picocalc.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR
+With CARD and FSUTIL the driver also loads Renode's SD card model with that
+image and runs the crash-dump stages of picocalc_dump.py after the shell
+stage: reboot -d, savecore, and a panic entered from the idle loop.
+
+Usage: check-picocalc.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR [CARD FSUTIL]
        check-picocalc.py --self-test    calibrate the Status-line assertions
 Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 """
@@ -29,6 +33,7 @@ from collections.abc import Callable
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import picocalc_dump  # noqa: E402
 import picocalc_fb  # noqa: E402
 from renode_monitor import Renode, RenodeError, monitor_int  # noqa: E402
 
@@ -363,17 +368,22 @@ def self_test() -> int:
 def main(argv: list[str]) -> int:
     if argv == ["--self-test"]:
         return self_test()
-    if len(argv) != 4:
+    if len(argv) not in (4, 6):
         print(__doc__, file=sys.stderr)
         return 2
-    renode_path, unix_bin, flash_bin, outdir = argv
+    renode_path, unix_bin, flash_bin, outdir = argv[:4]
+    card, fsutil = (argv[4], argv[5]) if len(argv) == 6 else (None, None)
     os.makedirs(outdir, exist_ok=True)
+    if card is not None:
+        picocalc_dump.make_card(card, fsutil)
     renode = Renode(renode_path, os.path.join(outdir, "renode.log"), WALL_SECONDS)
     run = Run(renode, outdir)
     try:
         renode.command(f"$unix_bin=@{unix_bin}")
         renode.command(f"$flash_bin=@{flash_bin}")
         renode.command(f"include @{os.path.join(HERE, 'picocalc-machine.resc')}")
+        if card is not None:
+            picocalc_dump.attach_card(renode, os.path.abspath(card))
         renode.command(f"sysbus.uart0 CreateFileBackend @{os.path.join(outdir, 'uart0.txt')} true")
         init_trace = expected_init_trace()
         renode.command(f"sysbus.spi1.lcd TraceBytes {len(init_trace)}")
@@ -407,6 +417,9 @@ def main(argv: list[str]) -> int:
         transactions = monitor_int(renode, "sysbus.i2c1.kbd Transactions")
         run.expect(transactions > 0, "keyboard: no I2C transaction reached 0x1f")
         check_spi_fifo(run)
+        if card is not None:
+            elf = os.path.splitext(unix_bin)[0] + ".elf"
+            picocalc_dump.run_dump_stages(run, os.path.abspath(card), elf)
     except StageFailed:
         pass
     except RenodeError as error:
@@ -414,6 +427,8 @@ def main(argv: list[str]) -> int:
         renode.close()
         return 2
     renode.close()
+    if card is not None:
+        picocalc_dump.check_after_close(run, card, fsutil)
     if run.failures:
         return 1
     print("check-picocalc: pass")

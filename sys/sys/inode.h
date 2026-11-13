@@ -32,9 +32,9 @@ struct icommon1 {
 };
 
 struct icommon2 {
-    time_t  ic_atime;       /* time last accessed */
-    time_t  ic_mtime;       /* time last modified */
-    time_t  ic_ctime;       /* time created */
+    utime32_t ic_atime;     /* time last accessed */
+    utime32_t ic_mtime;     /* time last modified */
+    utime32_t ic_ctime;     /* time created */
 };
 
 struct fs;
@@ -420,8 +420,8 @@ struct vattr {
     uid_t   va_uid;
     gid_t   va_gid;
     off_t   va_size;
-    time_t  va_atime;
-    time_t  va_mtime;
+    utime32_t va_atime;
+    utime32_t va_mtime;
     u_int   va_flags;
     u_int   va_vaflags;
 };

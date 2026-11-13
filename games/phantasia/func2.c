@@ -397,7 +397,7 @@ void
 adjuststats(stat)				/* make sure things are within limits, etc. */
         register struct	stats	*stat;
 {
-        long	ltemp;
+        time_t	ltemp;
         register int	temp;
 
 	stat->x = floor(stat->x);
@@ -824,7 +824,7 @@ purge() 	/* remove old players */
         FILE	*fin, *fout;
         struct	stats	sbuf;
         register int	loc, today, temp;
-        long	ltime;
+        time_t	ltime;
 
 	loc = 0;
 	time(&ltime);

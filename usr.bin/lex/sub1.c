@@ -8,8 +8,12 @@ getl(uchar *p)	/* return next line of input, throw away trailing '\n' */
 	uchar *s, *t;
 
 	t = s = p;
-	while(((c = gch()) != 0) && c != '\n')
+	while(((c = gch()) != 0) && c != '\n'){
+		/* every caller reads into buf, at or after its start */
+		if(t >= buf + sizeof(buf) - 1)
+			error("Input line too long");
 		*t++ = c;
+	}
 	*t = 0;
 	if(c == 0 && s == t) return((uchar *)0);
 	prev = '\n';
@@ -310,9 +314,22 @@ gch(void)
 	return(c);
 }
 
+/*
+ * name[], left[], right[], parent[], nullstr[] and ptr[] each hold treesize
+ * entries, and mn0, mn1, mn2 and mnp store at index tptr, so the bound is
+ * tested before the first store.
+ */
+static void
+chktree(void)
+{
+	if(tptr >= treesize)
+		error("Parse tree too big %s",(treesize == TREESIZE?"\nTry using %e num":""));
+}
+
 int
 mn2(int a, int d, uintptr c)
 {
+	chktree();
 	name[tptr] = a;
 	left[tptr] = d;
 	right[tptr] = c;
@@ -342,14 +359,13 @@ mn2(int a, int d, uintptr c)
 		break;
 # endif
 		}
-	if(tptr > treesize)
-		error("Parse tree too big %s",(treesize == TREESIZE?"\nTry using %e num":""));
 	return(tptr++);
 }
 
 int
 mnp(int a, void *p)
 {
+	chktree();
 	name[tptr] = a;
 	left[tptr] = 0;
 	parent[tptr] = 0;
@@ -364,14 +380,13 @@ mnp(int a, void *p)
 		error("bad switch mnp %d %P", a, p);
 		break;
 	}
-	if(tptr > treesize)
-		error("Parse tree too big %s",(treesize == TREESIZE?"\nTry using %e num":""));
 	return(tptr++);
 }
 
 int
 mn1(int a, int d)
 {
+	chktree();
 	name[tptr] = a;
 	left[tptr] = d;
 	parent[tptr] = 0;
@@ -399,14 +414,13 @@ mn1(int a, int d)
 		break;
 # endif
 	}
-	if(tptr > treesize)
-		error("Parse tree too big %s",(treesize == TREESIZE?"\nTry using %e num":""));
 	return(tptr++);
 }
 
 int
 mn0(int a)
 {
+	chktree();
 	name[tptr] = a;
 	parent[tptr] = 0;
 	nullstr[tptr] = 0;
@@ -418,31 +432,39 @@ mn0(int a)
 		break;
 # endif
 	}
-	if(tptr > treesize)
-		error("Parse tree too big %s",(treesize == TREESIZE?"\nTry using %e num":""));
 	return(tptr++);
+}
+
+/*
+ * The pushback stack pushc[] holds TOKENSIZE characters and must keep one
+ * entry free after a push, so a push of n characters is refused before the
+ * first store when fewer than n + 1 entries remain.
+ */
+static void
+chkpush(int n)
+{
+	if(n >= pushc + TOKENSIZE - pushptr)
+		error("Too many characters pushed");
 }
 
 void
 munputc(int p)
 {
+	chkpush(1);
 	*pushptr++ = peek;		/* watch out for this */
 	peek = p;
-	if(pushptr >= pushc+TOKENSIZE)
-		error("Too many characters pushed");
 }
 
 void
 munputs(uchar *p)
 {
 	int i,j;
+	i = strlen((char*)p);
+	chkpush(i > 1 ? i : 1);
 	*pushptr++ = peek;
 	peek = p[0];
-	i = strlen((char*)p);
 	for(j = i-1; j>=1; j--)
 		*pushptr++ = p[j];
-	if(pushptr >= pushc+TOKENSIZE)
-		error("Too many characters pushed");
 }
 
 int

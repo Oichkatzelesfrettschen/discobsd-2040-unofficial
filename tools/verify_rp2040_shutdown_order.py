@@ -357,15 +357,21 @@ def verify_helper(disassembly):
         successors, mask_return, sync_call, "the sync call"
     )
     delay_calls = relocation_addresses(disassembly, "mdelay")
-    busy_calls = [
-        int(match.group(1), 16)
-        for match in re.finditer(
-            r"^[ \t]*([0-9a-f]+):[ \t]+[0-9a-f ]+[ \t]+"
-            r"bl(?:\.[nw])?[ \t]+[^\n]*<shutdown_busy_buffers>",
-            disassembly,
-            re.IGNORECASE | re.MULTILINE,
-        )
-    ]
+    # A static callee in the helper's own section is a resolved branch that
+    # objdump labels with the callee. Under -ffunction-sections the callee
+    # has its own section, so the same call is a relocation against it.
+    busy_calls = sorted(
+        {
+            int(match.group(1), 16)
+            for match in re.finditer(
+                r"^[ \t]*([0-9a-f]+):[ \t]+[0-9a-f ]+[ \t]+"
+                r"bl(?:\.[nw])?[ \t]+[^\n]*<shutdown_busy_buffers>",
+                disassembly,
+                re.IGNORECASE | re.MULTILINE,
+            )
+        }
+        | set(relocation_addresses(disassembly, "shutdown_busy_buffers"))
+    )
     if len(delay_calls) != 1 or len(busy_calls) != 2:
         raise VerificationError(
             "shutdown drain must contain one delay and two buffer recounts"
@@ -502,7 +508,29 @@ def run_selftest():
     verify_boot(valid_forward_boot)
     verify_boot(valid_backward_boot)
     verify_helper(valid_helper)
+    busy_call_text = "bl\t0 <shutdown_busy_buffers>\n"
+    sectioned_helper = valid_helper.replace(
+        "  6:\tf7ff fffe\t" + busy_call_text,
+        "  6:\tf7ff fffe\tbl\t0 <rp2040_shutdown_sync>\n"
+        "     6: R_ARM_THM_CALL shutdown_busy_buffers\n",
+    ).replace(
+        "  e:\tf7ff fffe\t" + busy_call_text,
+        "  e:\tf7ff fffe\tbl\t0 <rp2040_shutdown_sync>\n"
+        "     e: R_ARM_THM_CALL shutdown_busy_buffers\n",
+    )
+    if busy_call_text in sectioned_helper:
+        raise VerificationError("selftest sectioned fixture kept a direct call")
+    verify_helper(sectioned_helper)
     rejected_cases = (
+        (
+            verify_helper,
+            sectioned_helper.replace(
+                "  e:\tf7ff fffe\tbl\t0 <rp2040_shutdown_sync>\n"
+                "     e: R_ARM_THM_CALL shutdown_busy_buffers\n",
+                "",
+            ),
+            "sectioned-missing-final-recount",
+        ),
         (
             verify_boot,
             valid_backward_boot.replace(

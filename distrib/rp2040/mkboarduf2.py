@@ -49,8 +49,30 @@ def descriptor(board: str) -> bytes:
     return prefix + struct.pack("<I", zlib.crc32(prefix))
 
 
+def is_descriptor(image: bytes, offset: int) -> bool:
+    """True when a whole, self-consistent descriptor starts at offset.
+
+    The magic word alone also appears in kernel text: the descriptor
+    reader in sys/arch/rp2040/rp2040/board.c loads BOARD_DESC_MAGIC from a
+    literal pool, and a pool word that lands at the start of a block reads
+    as a second descriptor. A descriptor also carries its version, its
+    length and the CRC-32 of the fields before the CRC, which code bytes
+    after a pool word do not reproduce.
+    """
+    if offset + BOARD_DESC.size > len(image):
+        return False
+    magic, version, length, *_, crc = BOARD_DESC.unpack_from(image, offset)
+    prefix = image[offset : offset + BOARD_DESC.size - 4]
+    return (
+        magic == BOARD_DESC_MAGIC
+        and version == BOARD_DESC_VERSION
+        and length == BOARD_DESC.size
+        and crc == zlib.crc32(prefix)
+    )
+
+
 def payload_offsets(image: bytes) -> list[int]:
-    """Return UF2 payload offsets whose first word is the descriptor magic."""
+    """Return UF2 payload offsets where a whole descriptor starts."""
     if not image or len(image) % UF2_BLOCK_SIZE:
         raise ValueError("UF2 size is not a positive multiple of 512")
     offsets = []
@@ -67,20 +89,19 @@ def payload_offsets(image: bytes) -> list[int]:
         if payload_size != 256:
             raise ValueError(f"block {block_index}: payload size is not 256")
         payload_offset = block_offset + UF2_PAYLOAD_OFFSET
-        magic = struct.unpack_from("<I", image, payload_offset)[0]
-        if magic == BOARD_DESC_MAGIC:
+        if is_descriptor(image, payload_offset):
             offsets.append(payload_offset)
     return offsets
 
 
 def flat_offsets(image: bytes) -> list[int]:
-    """Return flat-image block offsets whose first word is the descriptor magic."""
+    """Return flat-image block offsets where a whole descriptor starts."""
     if not image:
         raise ValueError("flat image is empty")
     return [
         offset
         for offset in range(0, len(image) - BOARD_DESC.size + 1, FLAT_BLOCK_SIZE)
-        if struct.unpack_from("<I", image, offset)[0] == BOARD_DESC_MAGIC
+        if is_descriptor(image, offset)
     ]
 
 
@@ -146,6 +167,15 @@ def self_test() -> None:
     flat_expected[flat_offset : flat_offset + BOARD_DESC.size] = descriptor("PICO_UART")
     if patch_image(flat, "PICO_UART", flat=True) != bytes(flat_expected):
         raise AssertionError("flat patch changed bytes outside the descriptor")
+    # The literal can also land at a block start, where only the rest of
+    # the descriptor tells it apart.
+    aligned = original_descriptor[:4] + bytes([0x33]) * 252
+    aligned_flat = payloads[0] + aligned + payloads[1]
+    aligned_offset = 2 * FLAT_BLOCK_SIZE
+    aligned_expected = bytearray(aligned_flat)
+    aligned_expected[aligned_offset : aligned_offset + BOARD_DESC.size] = descriptor("PICO_UART")
+    if patch_image(aligned_flat, "PICO_UART", flat=True) != bytes(aligned_expected):
+        raise AssertionError("an aligned magic literal counted as a descriptor")
     for label, candidate in (
         ("missing", flat[:flat_offset]),
         ("duplicate", flat + payloads[1]),

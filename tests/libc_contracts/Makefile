@@ -562,6 +562,12 @@ GC_SECTIONS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
 ZONE_SAN=	-fsanitize=address,undefined -fno-omit-frame-pointer \
 		-fno-sanitize-recover=all
 ZONE_SAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${ZONE_SAN}
+# mktime's sums stay inside an int and a time_t by comparing first. A sum
+# that leaves either wraps to a value the plain run can still accept or
+# refuse for another reason, so the sanitized runs are what stop on one; the
+# ILP32 run is the one where long and time_t are four bytes, as on the target.
+MKTIME_SAN32_OK!= sh ${TOPSRC}/tools/compiler-probe.sh ilp32 ${HOSTCC} \
+	${ILP32} ${ZONE_SAN}
 
 check-zone: zone_contract_test zone_contract_test_fixed
 	${TEST_EXECUTION} run libc.zone.native -- ./zone_contract_test
@@ -586,6 +592,18 @@ check-mktime: mktime_contract_test
 	${TEST_EXECUTION} run libc.mktime.ilp32 -- ./mktime_contract_test32
 .else
 	${TEST_EXECUTION} skip libc.mktime.ilp32 "check-libc-mktime: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ZONE_SAN_OK} == "yes"
+	@${MAKE} mktime_contract_test_san
+	${TEST_EXECUTION} run libc.mktime.sanitized -- ./mktime_contract_test_san
+.else
+	${TEST_EXECUTION} skip libc.mktime.sanitized "check-libc-mktime: no sanitizer runtime"
+.endif
+.if ${MKTIME_SAN32_OK} == "yes"
+	@${MAKE} mktime_contract_test32_san
+	${TEST_EXECUTION} run libc.mktime.sanitized-ilp32 -- ./mktime_contract_test32_san
+.else
+	${TEST_EXECUTION} skip libc.mktime.sanitized-ilp32 "check-libc-mktime: ${HOSTCC} cannot execute ILP32 address/undefined sanitizers"
 .endif
 
 check-ctime: check-asctime ctime_contract_test
@@ -746,7 +764,7 @@ zone_contract_test_san: zone_contract_test.c zone_ctime_san.o \
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} ${ZONE_SAN} -o $@ \
 	    zone_contract_test.c zone_ctime_san.o zone_timezone_san.o
 
-zone_ctime_san.o: ${TARGET_DIR}/ctime.c
+zone_ctime_san.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/ctime.c
 
 zone_timezone_san.o: ${TARGET_DIR}/timezone.c
@@ -762,17 +780,17 @@ zone_contract_test_fixed: zone_contract_test.c zone_ctime_fixed.o \
 	${HOSTCC} ${ZONE_CFLAGS} ${GC_SECTIONS} -o $@ \
 	    zone_contract_test.c zone_ctime_fixed.o zone_timezone_fixed.o
 
-zone_ctime_fixed.o: ${TARGET_DIR}/ctime.c
+zone_ctime_fixed.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ZONE_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
 zone_timezone_fixed.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_TZ_WARN} -c -o $@ \
 	    ${TARGET_DIR}/timezone.c
 
-zone_ctime.o: ${TARGET_DIR}/ctime.c
+zone_ctime.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} -c -o $@ ${TARGET_DIR}/ctime.c
 
-zone_ctime32.o: ${TARGET_DIR}/ctime.c
+zone_ctime32.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} ${ZONE_ZI} -c -o $@ ${TARGET_DIR}/ctime.c
 
 # ctime.c's tzsetkernel() names tztab(), which timezone.c defines and which
@@ -812,22 +830,56 @@ mktime_timezone32.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${MKTIME_TZ_WARN} -c -o $@ \
 	    ${TARGET_DIR}/timezone.c
 
-mktime_mktime.o: ${TARGET_DIR}/mktime.c
+mktime_contract_test_san: mktime_contract_test.c mktime_mktime_san.o \
+    mktime_ctime_san.o mktime_timezone_san.o
+	${HOSTCC} ${MKTIME_CFLAGS} ${ZONE_SAN} -o $@ \
+	    mktime_contract_test.c mktime_mktime_san.o mktime_ctime_san.o \
+	    mktime_timezone_san.o
+
+mktime_contract_test32_san: mktime_contract_test.c mktime_mktime32_san.o \
+    mktime_ctime32_san.o mktime_timezone32_san.o
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${ZONE_SAN} -o $@ \
+	    mktime_contract_test.c mktime_mktime32_san.o \
+	    mktime_ctime32_san.o mktime_timezone32_san.o
+
+mktime_mktime_san.o: ${TARGET_DIR}/mktime.c ${TARGET_DIR}/offtime.h
+	${HOSTCC} ${MKTIME_CFLAGS} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/mktime.c
+
+mktime_mktime32_san.o: ${TARGET_DIR}/mktime.c ${TARGET_DIR}/offtime.h
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${ZONE_SAN} -c -o $@ \
+	    ${TARGET_DIR}/mktime.c
+
+mktime_ctime_san.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
+	${HOSTCC} ${MKTIME_CFLAGS} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/ctime.c
+
+mktime_ctime32_san.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${ZONE_SAN} -c -o $@ \
+	    ${TARGET_DIR}/ctime.c
+
+mktime_timezone_san.o: ${TARGET_DIR}/timezone.c
+	${HOSTCC} ${MKTIME_CFLAGS} ${ZONE_SAN} ${MKTIME_TZ_WARN} -c -o $@ \
+	    ${TARGET_DIR}/timezone.c
+
+mktime_timezone32_san.o: ${TARGET_DIR}/timezone.c
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${ZONE_SAN} ${MKTIME_TZ_WARN} \
+	    -c -o $@ ${TARGET_DIR}/timezone.c
+
+mktime_mktime.o: ${TARGET_DIR}/mktime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/mktime.c
 
-mktime_mktime32.o: ${TARGET_DIR}/mktime.c
+mktime_mktime32.o: ${TARGET_DIR}/mktime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/mktime.c
 
-mktime_ctime.o: ${TARGET_DIR}/ctime.c
+mktime_ctime.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
-mktime_ctime32.o: ${TARGET_DIR}/ctime.c
+mktime_ctime32.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
-ctime_ctime.o: ${TARGET_DIR}/ctime.c
+ctime_ctime.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${CTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
-ctime_ctime32.o: ${TARGET_DIR}/ctime.c
+ctime_ctime32.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ILP32} ${CTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
 asctime_target.o: ${TARGET_DIR}/asctime.c
@@ -837,7 +889,7 @@ asctime_target_diagnostic.o: ${TARGET_DIR}/asctime.c
 	${ARM_COMPILER} ${CTIME_TARGET_DIAGNOSTIC_CFLAGS} -c -o $@ \
 	    ${TARGET_DIR}/asctime.c
 
-ctime_target.o: ${TARGET_DIR}/ctime.c
+ctime_target.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h
 	${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
 stdio_format_extensions.o: stdio_format_extensions.c
@@ -1392,6 +1444,10 @@ clean:
 	rm -f mktime_contract_test mktime_contract_test32 \
 		mktime_mktime.o mktime_mktime32.o mktime_ctime.o mktime_ctime32.o \
 		mktime_timezone.o mktime_timezone32.o
+	rm -f mktime_contract_test_san mktime_contract_test32_san \
+		mktime_mktime_san.o mktime_mktime32_san.o mktime_ctime_san.o \
+		mktime_ctime32_san.o mktime_timezone_san.o \
+		mktime_timezone32_san.o
 	rm -f asctime_target.o asctime_target_diagnostic.o ctime_target.o \
 		asctime_format_bad_target.o asctime_format_bad_target.log \
 		stdio_format_extensions.o

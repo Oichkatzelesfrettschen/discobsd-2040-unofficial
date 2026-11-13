@@ -264,9 +264,12 @@ putline()
             printf("%-2.2s", utmp.ut_line);
     }
 
-    if (lflag)
+    if (lflag) {
         /* print when the user logged in */
-        prtat(localtime(&utmp.ut_time));
+        time_t login_time = utmp.ut_time;
+
+        prtat(localtime(&login_time));
+    }
 
     /* print idle time */
     prttime(idle," ");

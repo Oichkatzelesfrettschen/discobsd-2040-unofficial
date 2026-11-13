@@ -11,6 +11,7 @@
 TOPSRC!=	pwd
 
 include ${TOPSRC}/share/mk/architecture.mk
+include ${TOPSRC}/share/mk/source-date.mk
 
 DESTDIR?=	${TOPSRC}/distrib/obj/destdir.${MACHINE}
 RELEASEDIR?=	${TOPSRC}/distrib/obj/releasedir.${MACHINE}
@@ -249,6 +250,32 @@ check-kernel-headroom: check-python
 
 .PHONY: check-kernel-headroom-validator check-kernel-headroom
 
+# The SD crash-dump writer (sys/arch/rp2040/include/dump.h) is linked into the
+# PICOCALC kernels and into no other: tools/check_dump_writer_link.py reads
+# each unix.elf's symbol table, and a control with the roles swapped must
+# exit 1, so a checker that passes every kernel is reported.
+check-dump-writer-link: check-python
+.if ${MACHINE} == "rp2040"
+		@set -e; c=sys/arch/rp2040/compile; \
+		${PYTHON} tools/check_dump_writer_link.py \
+		    --with $$c/PICOCALC/unix.elf --with $$c/PICOCALC_PSRAM/unix.elf \
+		    --without $$c/PICO/unix.elf --without $$c/PICO_UART/unix.elf; \
+		rc=0; \
+		${PYTHON} tools/check_dump_writer_link.py \
+		    --with $$c/PICO/unix.elf --without $$c/PICOCALC/unix.elf \
+		    >/dev/null 2>&1 || rc=$$?; \
+		if [ "$$rc" -ne 1 ]; then \
+			echo "check-dump-writer-link: swapped control gave exit $$rc, expected 1" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS dump-writer-link control: swapped roles are rejected"
+.else
+		@echo "check-dump-writer-link requires MACHINE=rp2040" >&2
+		@exit 2
+.endif
+
+.PHONY: check-dump-writer-link
+
 check-account-image:	check-python .WAIT ${FSIMG}
 .if ${MACHINE} == "rp2040"
 		${PYTHON} tools/check_rp2040_account_image.py ${FSUTIL} ${FSIMG}
@@ -269,6 +296,12 @@ check-divider:	tools
 			exit 2; \
 		fi
 		${MAKE} -C sys/arch/rp2040/compile check-divider
+
+# The host ar and ranlib give equal archive bytes for equal members under
+# SOURCE_DATE_EPOCH, across umasks, member dates and builder user ids.
+check-archive-identity:	tools
+		sh tools/check_archive_identity.sh ${TOOLBINDIR}/ar \
+		    ${TOOLBINDIR}/ranlib
 
 check-swapram:	tools
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
@@ -480,8 +513,9 @@ check-swapram-link-verifier:
 		sh tools/verify_rp2040_swapram_link_test.sh
 
 # Literal formats passed to the kernel's printf(), uprintf(), tprintf() and
-# log() in the PICO and PICO_UART sources use only conversions where prf() and
-# GCC's format(printf) checking agree; the fixture calibrates the checker.
+# log() in the sources of the PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM
+# kernels use only conversions where prf() and GCC's format(printf) checking
+# agree; the fixture calibrates the checker.
 check-kernel-printf-formats:	check-python
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-kernel-printf-formats requires MACHINE=rp2040" >&2; \
@@ -490,7 +524,9 @@ check-kernel-printf-formats:	check-python
 		${PYTHON} tools/c17/kernel_format_check_test.py
 		${PYTHON} tools/c17/kernel_format_check.py --make "${MAKE}" \
 		    --build sys/arch/rp2040/compile/PICO \
-		    --build sys/arch/rp2040/compile/PICO_UART
+		    --build sys/arch/rp2040/compile/PICO_UART \
+		    --build sys/arch/rp2040/compile/PICOCALC \
+		    --build sys/arch/rp2040/compile/PICOCALC_PSRAM
 
 check-aout:
 		${MAKE} -C tests/aout_header check
@@ -862,6 +898,22 @@ check-init-contracts:
 check-init-daemons:
 		${MAKE} -C tests/init_daemons check
 
+# The failed-job list of tools/report-nightly-failure.sh against its
+# calibration cases: a passing run prints nothing, and a failed, timed-out
+# or cancelled job prints with its steps.
+check-nightly-report:
+		sh tools/report_nightly_failure_test.sh
+
+# tools/mutant_pool.py, which the fourfall, puzzlebox and calc mutant runners
+# share: list order, serial timing mutants alone, MUTANT_JOBS, and a known-bad
+# pool that lets a serial item overlap. The pool's default size and make's -j
+# (tools/online-cpus.sh) come from the affinity mask bounded by the cgroup CPU
+# quota; tools/available_cpus_test.py holds both counters to fixture
+# hierarchies and four mutants.
+check-mutant-pool: check-python
+		${PYTHON} tools/mutant_pool_test.py
+		${PYTHON} tools/available_cpus_test.py
+
 check-cat-contracts-cross:
 		${MAKE} -C tests/cat_contracts check-cross
 
@@ -918,6 +970,12 @@ check-tee-contracts:
 
 check-tee-contracts-cross:
 		${MAKE} -C tests/tee_contracts check-cross
+
+# usr.bin/lex built for the host at the target's table sizes: a grammar that
+# needs more than a table holds exits 1 with the table's diagnostic before
+# the store, under AddressSanitizer where the host links it.
+check-lex-tables:	check-python
+		${MAKE} -C tests/lex_tables check
 
 # usr.bin/time linked with sbin/utilbox's dispatcher and a wait3 shim, run
 # as "time" and as "utilbox time": the exit status of a normal exit, of a
@@ -1345,6 +1403,13 @@ check-picocalc-host:	check-python
 check-psram-pio:	check-python
 		${MAKE} -C tests/psram check
 
+# The keyboard controller's bootloader identity reader against a model of
+# the STM32 USART bootloader: readable, readout-protected, already-synced,
+# silent and garbled parts, the read-only command allow-list, and three
+# mutant clients that must miss the flash-size word.
+check-picocalc-kbd-bootloader:	check-python
+		${PYTHON} tools/picocalc/kbd_bootloader_id_test.py
+
 check-usb-line-coding:
 		${MAKE} -C tests/rp2040/usb_line_coding check
 
@@ -1398,7 +1463,7 @@ check-elf2aout:	tools
 # the shell against the host's headers, so those two reach nothing under
 # include.
 HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed-exec-pair-summary check-rp2040-storage-delta \
-		check-agent-instructions check-uf2-validator \
+		check-agent-instructions check-uf2-validator check-nightly-report check-mutant-pool \
 		check-kernel-headroom-validator \
 		check-run-logging check-compiler-matrix-harness check-callgraph-capture check-battlestar-generation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
@@ -1414,7 +1479,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
 		check-rmdir-contracts check-tee-contracts check-time-contracts \
-		check-libtcl-contracts \
+		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
@@ -1438,7 +1503,8 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-set-address-interface check-usb-get-descriptor \
 		check-flash-device-bounds check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
-		check-fs-profiles check-picocalc-host check-psram-pio
+		check-fs-profiles check-picocalc-host check-psram-pio \
+		check-picocalc-kbd-bootloader
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
@@ -1466,6 +1532,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-r
 		check-find-contracts-cross \
 		check-backgammon-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
+		check-archive-identity \
 		check-time-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross \
@@ -1598,7 +1665,8 @@ check-fs-profiles:	check-python .WAIT
 		    --append=distrib/rp2040/md.rp2040
 		sh distrib/rp2040/check-image-selection.sh ${MAKE}
 
-check-host:	check-python .WAIT symlinks .WAIT ${HOST_GATES} ${HOST_PROGRAM_GATES}
+check-host:	check-python .WAIT symlinks .WAIT \
+		${HOST_GATES} ${HOST_PROGRAM_GATES}
 
 # The kernel formatter and neighboring contracts use target-width integer and
 # pointer assumptions. The gate runs them in a 32-bit userspace binary. A host
@@ -1783,6 +1851,14 @@ check-renode-union:
 check-renode-picocalc:
 		sh tools/renode/check-picocalc.sh ${FLASHBIN}
 
+# The PicoCalc tier with Renode's SD card model and the crash-dump stages
+# (tools/renode/picocalc_dump.py): reboot -d, savecore and an injected panic,
+# each dump validated on the host by tools/check_crash_dump.py. savecore
+# ships in the picocalc profile, so the gate boots BOARD=PICOCALC's image.
+check-renode-picocalc-dump:
+		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
+		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
+
 # The process, in-core inode and system file tables filled on the emulated PICO_UART
 # kernel: tools/renode/check-capacity.sh adds the three programs of
 # tests/rp2040/capacity_exhaustion to a copy of ${FSIMG}, boots it and
@@ -1848,13 +1924,19 @@ multicall-staging:
 # /etc/release names the build the root came from: the commit (with
 # -dirty when the tree had changes), the date, and the builder's host OS,
 # so a board answers "which firmware is this?" with "cat /etc/release".
+# The date is SOURCE_DATE_EPOCH (share/mk/source-date.mk), read by GNU
+# date as -d @seconds and by BSD date as -r seconds, and the build time
+# where the variable is unset.
 # A tree without git history says so rather than failing.
 ${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home \
 		etc-distribution multicall-staging
 		rm -f $@ distrib/$(MACHINE)/_manifest
 		commit=`git -C ${TOPSRC} describe --always --dirty --tags 2>/dev/null || echo unknown`; \
+		stamp=`date -u -d "@$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+		    date -u -r "$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+		    date -u +%Y-%m-%dT%H:%M:%SZ`; \
 		printf 'DiscoBSD/${MACHINE} root built %s from %s on %s\n' \
-		    "`date -u +%Y-%m-%dT%H:%M:%SZ`" "$$commit" "`uname -s`" \
+		    "$$stamp" "$$commit" "`uname -s`" \
 		    > ${DESTDIR}/etc/release
 		cat ${MI_MANIFEST} distrib/$(MACHINE)/md.$(MACHINE) > distrib/$(MACHINE)/_manifest
 		$(FSUTIL) --repartition=${PARTITIONS} $@
@@ -1931,6 +2013,7 @@ installfs:
 .PHONY:		check-clean-residue check-storage-counters check-storage-correctness check-python check-icode-relocation check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-dpucp-board-acceptance check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
+		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
 		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
@@ -1939,7 +2022,7 @@ installfs:
 		check-account-image regen-kernel-metadata check-fs-stress \
 		check-fsck-inode-range \
 		check-libc-environment check-libc-sysctl check-umount-contracts \
-		check-touch-contracts check-printf-contracts \
+		check-touch-contracts check-lex-tables check-printf-contracts \
 		check-printf-contracts-ilp32 check-printf-contracts-cross \
 		check-recovery-utility-contracts \
 		check-recovery-utility-contracts-cross check-timeout-contracts \
@@ -1976,7 +2059,7 @@ installfs:
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
-		check-renode-picocalc check-renode-union \
+		check-renode-picocalc check-renode-picocalc-dump check-renode-union \
 		check-host-package check-board-build check symlinks etc-distribution \
 		multicall-staging \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \

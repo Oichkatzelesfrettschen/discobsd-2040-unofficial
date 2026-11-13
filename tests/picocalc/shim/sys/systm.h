@@ -24,6 +24,7 @@ extern void shim_splx(int s);
 #define	splx(s)		shim_splx(s)
 
 extern const char *panicstr;
+extern dev_t dumpdev;
 void timeout(void (*fn)(char *), char *arg, int ticks);
 
 #endif

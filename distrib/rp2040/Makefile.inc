@@ -240,11 +240,15 @@ ${DESTDIR}/usr/bin/cc:	${TOPSRC}/distrib/rp2040/cc
 
 # lib/libc_aout installs its whole archive at the same path during the
 # build, so the trimmed one is copied over it right before the image is
-# made.
+# made. The copy is newer than the symbol table mkboardlibc.py dated, and
+# the board's ld reads an archive more than two seconds newer than its
+# table as unsorted, so ranlib -t dates the table again after the copy, as
+# lib/libc_aout's install targets do.
 boardlibc-install:	${BOARDLIBC_WORK}/libc.a ${DESTDIR}/usr/lib/crt0.o \
 			${DESTDIR}/usr/bin/cc
 		${INSTALL} -d ${DESTDIR}/usr/lib
 		${INSTALL} ${BOARDLIBC_WORK}/libc.a ${DESTDIR}/usr/lib/libc.a
+		${TOOLBINDIR}/ranlib -t ${DESTDIR}/usr/lib/libc.a
 
 ${FSIMG}:	boardlibc-install
 

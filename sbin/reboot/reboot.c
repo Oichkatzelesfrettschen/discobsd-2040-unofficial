@@ -178,7 +178,7 @@ markdown()
 		SCPYN(wtmp.ut_line, "~");
 		SCPYN(wtmp.ut_name, "shutdown");
 		SCPYN(wtmp.ut_host, "");
-		(void) time(&wtmp.ut_time);
+		wtmp.ut_time = time((time_t *)0);
 		write(f, (char *)&wtmp, sizeof(wtmp));
 		close(f);
 	}

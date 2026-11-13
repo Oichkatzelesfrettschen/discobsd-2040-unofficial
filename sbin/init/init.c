@@ -190,7 +190,7 @@ rmut(p)
 				lseek(f, ((long)u)-((long)utmp), L_SET);
 				SCPYN(u->ut_name, "");
 				SCPYN(u->ut_host, "");
-				time(&u->ut_time);
+				u->ut_time = time((time_t *)0);
 				write(f, (char *)u, sizeof(*u));
 				found++;
 			}
@@ -203,7 +203,7 @@ rmut(p)
 			SCPYN(wtmp.ut_line, p->line);
 			SCPYN(wtmp.ut_name, "");
 			SCPYN(wtmp.ut_host, "");
-			time(&wtmp.ut_time);
+			wtmp.ut_time = time((time_t *)0);
 			write(f, (char *)&wtmp, sizeof(wtmp));
 			close(f);
 		}
@@ -616,7 +616,7 @@ shutend()
 		SCPYN(wtmp.ut_line, "~");
 		SCPYN(wtmp.ut_name, "shutdown");
 		SCPYN(wtmp.ut_host, "");
-		time(&wtmp.ut_time);
+		wtmp.ut_time = time((time_t *)0);
 		write(f, (char *)&wtmp, sizeof(wtmp));
 		close(f);
 	}
@@ -749,7 +749,7 @@ sleep(1);
 			wtmp.ut_time = time0;
 			time0 = 0;
 		} else
-			time(&wtmp.ut_time);
+			wtmp.ut_time = time((time_t *)0);
 		write(f, (char *)&wtmp, sizeof(wtmp));
 		close(f);
 	}

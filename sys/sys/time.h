@@ -70,6 +70,58 @@ struct  itimerval {
 
 #ifdef KERNEL
 /*
+ * The wall clock, time.tv_sec, counts seconds since 1970 modulo 2^32 in
+ * the signed field struct timeval shares with intervals; read unsigned
+ * (utime32_t) it is valid to 2106. Its arithmetic runs in unsigned long,
+ * where the carry out of bit 31 in January 2038 is defined: wall_advance()
+ * moves a clock value by a number of seconds modulo 2^32, and
+ * wall_interval() returns the signed distance from one clock value to
+ * another, held at LONG_MAX or -LONG_MAX when the two are further apart
+ * than a long holds (a clock stepped across more than 68 years).
+ */
+static inline long
+wall_advance(long seconds, long by)
+{
+    return (long)((unsigned long)seconds + (unsigned long)by);
+}
+
+static inline long
+wall_interval(long later, long earlier)
+{
+    unsigned long to = (unsigned long)later, from = (unsigned long)earlier;
+    unsigned long limit = (unsigned long)-1 >> 1;
+
+    if (to >= from)
+        return to - from > limit ? (long)limit : (long)(to - from);
+    return from - to > limit ? -(long)limit : -(long)(from - to);
+}
+
+/*
+ * Nonzero when a wall clock reading of seconds and microseconds is at or
+ * after the deadline. Both second counts are compared unsigned, so the
+ * order holds across the carry and for any two values of the count.
+ */
+static inline int
+wall_reached(const struct timeval *deadline, long seconds, long microseconds)
+{
+    unsigned long now = (unsigned long)seconds;
+    unsigned long due = (unsigned long)deadline->tv_sec;
+
+    return now > due || (now == due && microseconds >= deadline->tv_usec);
+}
+
+/*
+ * Nonzero on each wall clock second that is a multiple of period. The
+ * count is taken unsigned, since 2^32 is a multiple of few periods and a
+ * signed remainder would shift the phase at the carry.
+ */
+static inline int
+wall_every(long seconds, unsigned long period)
+{
+    return (unsigned long)seconds % period == 0;
+}
+
+/*
  * Round up a proposed time value to a minimal resolution of the clock.
  */
 int itimerfix (struct timeval *tv);

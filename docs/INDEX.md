@@ -95,7 +95,11 @@ Grouped by what they investigate.
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
 | `picocalc-calculator-and-gui.md` | the calculator and tile-graphics plan for the PicoCalc: sources and licenses mined from this tree, the other BSDs and the vendor firmware, size estimates and a staged import order |
+| `hardware-reference-coverage.md` | which Pico, Pico W, RP2040 and PicoCalc parts, licensed blocks and bus specifications have a reference document on the build host, the state of the Pico SDK and the tools, the PicoCalc schematic's designator-to-part map, and the USB-C CC pull-downs the schematic shows |
+| `picocalc-first-power-up.md` | the ordered board observations for the PicoCalc's first run with cells: the cell-less power-key test, matched parallel cells, the charge LED, the keyboard controller's identity and firmware dump through its bootloader, the PicoCalc kernel's boot lines, the panel's lit height, the top marks, and the PSRAM probe points |
+| `picocalc-pending-hardware.md` | each PicoCalc change held until a board run and each claim on `main` whose board row reads "not run", with the measurement that decides it |
 | `picocalc-psram.md` | the PicoCalc's ESP-PSRAM64H as swap: datasheet facts with pages, the 19-word PIO program and its timing derivation, the boot-time swap selection with `fl1` as fallback, the alternatives with costs, and the host evidence |
+| `picocalc-psram-capture.md` | instruments that measure the PicoCalc PSRAM bus timing on the board, cheapest first: the RP2040 sampling its own pins from PIO1 at 125 MS/s with DMA, a second Pico on the Core GPIO header for sub-cycle edge statistics, and a commercial analyzer; with the sampling-margin prediction each one tests |
 | `picocalc-games-survey.md` | game sources surveyed for the PicoCalc with their licenses, the clean-room route for each excluded one, and the game plan |
 | `picocalc-renode-keyboard-registers.md` | the change that makes the Renode keyboard model condition backlight writes as the vendor firmware does, shipped as `picocalc-renode-keyboard-backlight.patch` because the model lives on another branch |
 | `rp2040-second-core.md` | how the port uses the RP2040's second core: big-lock SMP ruled out, DragonFly-style single-writer rings and MINIX-style supervision kept, three tiers and an ordered, falsifiable plan that fixes the single-core decoder first |
@@ -109,6 +113,7 @@ Grouped by what they investigate.
 | `calculator-and-games-review.md` | advisory review of the calculator library, bignum library and fourfall before integration, with each finding's disposition |
 | `calculator-and-games-review-round2.md` | adjudication of the second Codex and Grok reviews of the same branch: 28 merged findings with verdicts and probes, 17 defects both missed, and the commit that resolves each |
 | `copy-reviews/` | the copying reviews of `lib/libcalc` and `games/fourfall` against their excluded references, with calibration and shingle numbers |
+| `time-representation-past-2038.md` | the four-byte `time_t` and its 2038 limit: each claim of a widening proposal checked against the tree, the measured cost of a closed-form calendar in each direction, a 64-bit day split built from 32-bit divisions, the `timegm()` range defect and its repair, and the open choice of interface width |
 
 ### USB console
 
@@ -185,6 +190,7 @@ Grouped by what they investigate.
 | `renode-capacity-exhaustion-083b35c3.txt` | the Renode transcript of the three exhaustion tests with the in-core inode table added: seven holders fill 24 inode slots, an open and a stat refuse with ENFILE, the inode counter rises by 2 and recovery succeeds |
 | `board-capacity-cases-65d7244c.txt` | the board run of the SwapRAM evacuation, signal-frame and storage-pressure cases at NPROC 16 and NFILE 18 |
 | `ps-kernel-memory-boundary-review.md` | design review of process listing for ordinary users: `operator` holds write access to `/dev/mem` and `/dev/kmem` through group 0, the options compared, and the recommended `kmem` boundary with a read-only symbol lookup and a compact SwapRAM process record |
+| `renode-sd-card-model-probe.md` | Renode's `SD.SDCard` in SPI mode as the PicoCalc's SD card: the working platform lines, why the GPIO chip select does not matter, persistence across reboot, buffered image writes, and the 2 GiB, keyboard FIFO and card-detect limits |
 | `kmem-options-synthesis.md` | why `ps` drops resident and folded-swap rows, the falsification table across BSD, SVR, RTOS, microkernel and Minix process-status designs, the invariants they share, and the reviewed and decided design for the kernel process record |
 | `kmem-options-bsd-corpus.md`, `kmem-options-titor-corpus.md`, `kmem-options-rtos-corpus.md`, `kmem-options-microkernel-corpus.md`, `kmem-options-minix-corpus.md` | per-corpus evidence behind the synthesis, each claim tagged as read or inferred |
 | `process-info-redesign-brief.md`, `process-info-redesign-review.md` | the design brief and the resulting architecture review: invariants, argument source, record layout, read paths, POSIX `ps`, boundary, crash dumps and byte budget |

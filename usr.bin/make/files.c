@@ -293,7 +293,7 @@ TIMETYPE prestime()
 {
     TIMETYPE t;
 
-    time(&t);
+    t = time((time_t *)0);
     return(t);
 }
 

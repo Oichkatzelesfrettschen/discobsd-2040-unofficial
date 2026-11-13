@@ -34,8 +34,17 @@ Espressif's own download URL
 returned an HTML page to a command-line client, so the two mirrors above are
 the retained copies. Version 1.1 changed only the marking appendix
 (release notes), and the values compared across the two (tCEM, tCPH, tCHD,
-tSP, the maximum clocks and the command table) agree. The part is the PSRAM that AP Memory sells as the APS6404L; the
-Espressif sheet is the one the board's part number names.
+tSP, the maximum clocks and the command table) agree. The Espressif sheet
+is the one the board's part number names. Its timing, current and opcode
+rows equal those of Lyontek's LY68L6400 Rev. 1.2, whose command table adds
+one note the Espressif sheet lacks ("Linear burst is prohibited", on the
+SPI-mode 02h write at 133 MHz, a command the driver does not issue), and
+page 5 of the V1.1 PDF carries a hidden text layer from Lyontek's
+LY68S3200, so the Espressif sheet was built on a Lyontek template. AP Memory's APS6404L-3SQR shares the opcodes and the Read
+ID bytes (MF 0x0D, KGD 0x5D) but prints different limits (tCHD 3.0 ns,
+tCPH 18 ns, tACLK 5.5 ns), so it is a family member, not this part's
+specification; `docs/research/hardware-reference-coverage.md` holds the
+comparison.
 
 Page references below read `doc N/21 (pdf P)`: the page number printed on the
 sheet, then the page in the PDF file.
@@ -197,11 +206,25 @@ completes one pair and the other pair is a command cut short, which the
 model treats as no command; the datasheet does not say. It then reads the ID, requires
 manufacturer 0x0D and known-good-die 0x5D, enters quad mode, and writes and
 reads back 32 bytes across a 64-byte frame boundary and a page boundary.
-`psram.c` registers `psramdriver`; `config()` calls its probe before
-`init_main()` opens `swapdev`, so a part that fails any step prints one line
-(`psram0: id %x/%x is not an ESP-PSRAM64H, swap stays on fl1` or
-`psram0: not usable (error %d), swap stays on fl1`) and `swapdev` stays at
-the `fl1` the configuration names.
+Those bytes name a family, not a density, so `psram_check_extent()` then
+writes a tag at 4 MB and another at address 0 and requires the first to
+read back. Hypothesis: a smaller part answering the same bytes ignores the
+high address bits, so its 4 MB address lands on address 0; that part, and
+any part that drops the write, is refused (error -6) before swap would
+overwrite itself.
+The Read ID frame collects all 64 ID bits, manufacturer, known-good die and
+the 48-bit EID, eight RX words in one 98-clock frame (31 clocks out, three
+with the pins released, 64 in); an RX overrun repeats
+the reset with the Read ID, because the APS6404L sheet (section 12) admits
+Read ID only right after a reset. `psram.c` registers `psramdriver`;
+`config()` calls its probe before `init_main()` opens `swapdev`. Whenever
+the ID was read, the probe prints
+`psram0: read id %02x/%02x eid %02x%02x%02x%02x%02x%02x`, so a refused part
+leaves its identity on the console too; a part that fails any step then
+prints one more line (`psram0: id %x/%x is not an ESP-PSRAM64H, swap stays
+on fl1`, `psram0: addresses wrap below %u kbytes, swap stays on fl1` or
+`psram0: not usable (error %d), swap stays on fl1`) and
+`swapdev` stays at the `fl1` the configuration names.
 
 ### Swap integration
 

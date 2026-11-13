@@ -11,7 +11,12 @@ HOST_CC?=	cc
 
 include ${TOPSRC}/share/mk/warnings.mk
 
-CC=		${HOST_CC} ${WARNERR}
+# glibc checks the destination size of the string and memory calls it can
+# bound when _FORTIFY_SOURCE is set, and requires optimization to do it. -O2
+# rides on CC beside it because a tool Makefile that replaces CFLAGS without
+# an -O option would otherwise fail on the header's #warning; a later -O in
+# CFLAGS still selects that tool's level.
+CC=		${HOST_CC} ${WARNERR} -O2 -pipe -D_FORTIFY_SOURCE=3
 
 # libbsd-dev package on Linux in overlay mode.
 _LIBBSD_CFLAGS!=if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \

@@ -50,6 +50,11 @@
 #ifdef PSRAM_ENABLED
 #include <rp2040/dev/psram_xfer.h>
 #endif
+#ifdef SD_ENABLED
+#include <sys/kernel.h>
+#include <machine/dump.h>
+#include <rp2040/dev/sd.h>
+#endif
 
 #define	MREG32(a)		(*(volatile u_int *)(a))
 
@@ -169,6 +174,39 @@ struct map	swapmap[1] = {
 
 int	waittime = -1;
 
+#ifdef SD_ENABLED
+/*
+ * The crash dump of machine/dump.h: the panic message, kernel RAM from the
+ * start of .data to the end of the SwapRAM pool, and both u areas, written
+ * by sddump() to the dump partition of the SD card. sdprobe() sets dumpdev
+ * on a PicoCalc; on any other board it stays NODEV and boot() never calls
+ * this. __kernel_ram_used_end is kern.ldscript's end of bss or pool.
+ */
+extern char _sdata[], __kernel_ram_used_end[];
+
+static int
+dumpsys(dev_t dev)
+{
+	const char *msg = panicstr != NULL ? panicstr : "reboot";
+	struct dump_span span[4];
+
+	span[0].kind = DUMP_SEG_MESSAGE;
+	span[0].addr = msg;
+	span[0].bytes = strlen(msg);
+	span[1].kind = DUMP_SEG_KERNEL_DATA;
+	span[1].addr = _sdata;
+	span[1].bytes = __kernel_ram_used_end - _sdata;
+	span[2].kind = DUMP_SEG_UAREA;
+	span[2].addr = &u0;
+	span[2].bytes = USIZE;
+	span[3].kind = DUMP_SEG_UAREA;
+	span[3].addr = &u;
+	span[3].bytes = USIZE;
+	return sddump(dev, span, 4, image_crc, time.tv_sec);
+}
+
+int (*dump)(dev_t) = dumpsys;
+#else
 static int
 nodump(dev_t dev __unused)
 {
@@ -179,6 +217,7 @@ nodump(dev_t dev __unused)
 }
 
 int (*dump)(dev_t) = nodump;
+#endif
 
 dev_t	pipedev;
 daddr_t	dumplo = (daddr_t)1024;
@@ -785,16 +824,20 @@ boot(dev_t dev __unused, int howto)
 		rom_reset(0, 0);
 		/* NOTREACHED */
 	}
+	/*
+	 * panic() asks for RB_HALT | RB_DUMP, so the dump comes before the
+	 * halt test and a halted panic leaves its dump too.
+	 */
+	if ((howto & RB_DUMP) && dumpdev != NODEV) {
+		/*
+		 * Take a dump of memory by calling (*dump)(),
+		 * which must correspond to dumpdev.
+		 * It should dump from dumplo blocks to the end
+		 * of memory or to the end of the logical device.
+		 */
+		(*dump)(dumpdev);
+	}
 	if (!(howto & RB_HALT)) {
-		if ((howto & RB_DUMP) && dumpdev != NODEV) {
-			/*
-			 * Take a dump of memory by calling (*dump)(),
-			 * which must correspond to dumpdev.
-			 * It should dump from dumplo blocks to the end
-			 * of memory or to the end of the logical device.
-			 */
-			(*dump)(dumpdev);
-		}
 		/* Restart from dev, howto. */
 
 		/*

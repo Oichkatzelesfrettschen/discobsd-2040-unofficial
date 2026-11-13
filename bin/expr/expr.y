@@ -18,7 +18,7 @@
 /* a single `expression' is evaluated and printed: */
 
 expression: expr NOARG {
-            printf("%s\n", $1);
+            printf("%s\n", (char *) $1);
             exit((! strcmp((char*) $1, "0") ||
                   ! strcmp((char*) $1, "\0")) ? 1 : 0);
             }
@@ -160,7 +160,7 @@ arith(op, r1, r2)
     case REM: i1 = i1 % i2; break;
     }
     rv = malloc(16);
-    sprintf(rv, "%D", i1);
+    sprintf(rv, "%ld", i1);
     return rv;
 }
 
@@ -222,7 +222,7 @@ char *length(s) register char *s;
 
     while(*s++) ++i;
 
-    rv = malloc(8);
+    rv = malloc(12);
     sprintf(rv, "%d", i);
     return rv;
 }
@@ -235,7 +235,7 @@ char *cindex(s, t) char *s, *t;
     for(i = 0; s[i] ; ++i)
         for(j = 0; t[j] ; ++j)
             if(s[i]==t[j]) {
-                sprintf(rv = malloc(8), "%d", ++i);
+                sprintf(rv = malloc(12), "%d", ++i);
                 return rv;
             }
     return "0";

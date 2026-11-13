@@ -90,6 +90,8 @@ static unsigned char frame[6];
 static int fn, wr_have;
 static const struct step *wr_step;
 static int cmds_seen;
+static unsigned char *churn;	/* A write source the model changes. */
+static int churn_len;
 
 static void
 push(int b)
@@ -235,11 +237,21 @@ model_xfer(unsigned char in)
 	default:
 		if (wr_have < SD_SECTOR)
 			captured[wr_have] = in;
+		if (churn != NULL && wr_have < churn_len) {
+			/*
+			 * The source changes around the byte just sent, as
+			 * the dump writer's own stack does under it: a sum
+			 * taken before or after the transfer disagrees.
+			 */
+			churn[wr_have] ^= 0x5a;
+			if (wr_have + 1 < churn_len)
+				churn[wr_have + 1] ^= 0x33;
+		}
 		if (++wr_have == SD_SECTOR + 2) {
+			/* command_complete() consumed the step already. */
 			push(wr_step->resp);
 			busy_left = wr_step->busy;
 			st = S_IDLE;
-			pos++;
 		}
 		break;
 	}
@@ -686,6 +698,89 @@ test_csd(void)
 		    SECTORS_V2_128G);
 }
 
+/*
+ * The crash dump's transfers: a read that keeps a window of the sector, a
+ * write of a short span padded with zeros, and the CRC folded over exactly
+ * the bytes that left even while the source changes under the transfer.
+ */
+static void
+test_spans(void)
+{
+	static const struct step t[] = {
+		CMD0_OK, CMD8_V2,
+		ACMD(1, 0x01, 0x40000000), ACMD(1, 0x00, 0x40000000),
+		CMD58(0xc0), CMD9_CSD,
+		{ 17, 5, 1, 1, 0x00, 0, { 0 }, D_BLOCK, 0, 0, 0, 0 },
+		{ 17, 4, 1, 1, 0x00, 0, { 0 }, D_BLOCK, 0, 0, 0, 0 },
+		{ 24, 6, 1, 1, 0x00, 0, { 0 }, D_WRITE, 0, 0xe5, 0, 0 },
+		{ 24, 7, 1, 1, 0x00, 0, { 0 }, D_WRITE, 0, 0xe5, 0, 0 },
+		END
+	};
+	unsigned char buf[SD_SECTOR], src[100];
+	unsigned crc, want, start;
+	int i;
+
+	load("spans", t);
+	csd_payload = csd_v2_128g;
+	for (i = 0; i < SD_SECTOR; i++)
+		block_payload[i] = (unsigned char)(i * 7 + 3);
+	if (sdspi_init(&card) != SDE_OK)
+		fail(scenario, "init result", -1, SDE_OK);
+	if (sdspi_read_span(&card, 0, buf, 500, 13) != SDE_IO)
+		fail(scenario, "window past the sector", 0, SDE_IO);
+	memset(buf, 0xee, sizeof buf);
+	if (sdspi_read_span(&card, 5, buf, 446, 66) != SDE_OK ||
+	    memcmp(buf, block_payload + 446, 66) != 0)
+		fail(scenario, "window bytes", 0, 1);
+	for (i = 66; i < SD_SECTOR; i++)
+		if (buf[i] != 0xee) {
+			fail(scenario, "byte stored past the window", i, -1);
+			break;
+		}
+	/* A window inside the sector, which ends before the sector does. */
+	memset(buf, 0xee, sizeof buf);
+	if (sdspi_read_span(&card, 4, buf, 10, 20) != SDE_OK ||
+	    memcmp(buf, block_payload + 10, 20) != 0)
+		fail(scenario, "inner window bytes", 0, 1);
+	for (i = 20; i < SD_SECTOR; i++)
+		if (buf[i] != 0xee) {
+			fail(scenario, "byte stored past the inner window", i,
+			    -1);
+			break;
+		}
+
+	for (i = 0; i < (int)sizeof src; i++)
+		src[i] = (unsigned char)(i + 1);
+	churn = src;
+	churn_len = sizeof src;
+	start = 0x12345678;
+	crc = start;
+	if (sdspi_write_span(&card, 6, src, sizeof src, &crc) != SDE_OK)
+		fail(scenario, "span write result", -1, SDE_OK);
+	churn = NULL;
+	want = crc32_update(start, captured, sizeof src);
+	if (crc != want)
+		fail(scenario, "sum of the bytes sent", (long)crc, (long)want);
+	for (i = sizeof src; i < SD_SECTOR; i++)
+		if (captured[i] != 0) {
+			fail(scenario, "padding byte", i, 0);
+			break;
+		}
+
+	memset(captured, 0xff, sizeof captured);
+	crc = start;
+	if (sdspi_write_span(&card, 7, src, 0, &crc) != SDE_OK)
+		fail(scenario, "empty span write result", -1, SDE_OK);
+	if (crc != start)
+		fail(scenario, "sum of an empty span", (long)crc, (long)start);
+	for (i = 0; i < SD_SECTOR; i++)
+		if (captured[i] != 0) {
+			fail(scenario, "zero sector byte", i, 0);
+			break;
+		}
+	finish();
+}
+
 int
 main(void)
 {
@@ -695,6 +790,7 @@ main(void)
 	test_init_sdsc_v2();
 	test_failures();
 	test_transfer_errors();
+	test_spans();
 	if (failures != 0) {
 		fprintf(stderr, "sdspi_test: %d failures\n", failures);
 		return 1;

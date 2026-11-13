@@ -515,6 +515,69 @@ copy_ar(CF *cfp, off_t size, int lname)
 }
 
 /*
+ * member_date --
+ *	The date recorded for a member read from disk.  The host build of
+ *	ar bounds it by SOURCE_DATE_EPOCH, as tools/fsutil bounds the file
+ *	times of the image, so equal objects give equal archives.  An
+ *	absent or malformed value leaves the file's modification time.
+ */
+static long
+member_date(struct stat *sb)
+{
+#ifdef CROSS
+	const char *text = getenv("SOURCE_DATE_EPOCH");
+	char *end;
+	unsigned long long epoch;
+
+	if (text != NULL && *text >= '0' && *text <= '9') {
+		errno = 0;
+		epoch = strtoull(text, &end, 10);
+		if (errno == 0 && *end == '\0' && epoch <= 0x7fffffffULL &&
+		    (unsigned long long)sb->st_mtime > epoch)
+			return ((long)epoch);
+	}
+#endif
+	return ((long)sb->st_mtime);
+}
+
+/*
+ * member_owner --
+ *	The user id, group id and mode recorded for a member read from
+ *	disk.  Under a well-formed SOURCE_DATE_EPOCH the host build of ar
+ *	records user 0, group 0 and mode 0644 (0755 for a file with an
+ *	execute bit) in place of the builder's ids and umask, as GNU ar
+ *	does in deterministic mode, so two hosts archive equal objects into
+ *	equal bytes.  The target linker and ranlib read neither field.
+ */
+static void
+member_owner(struct stat *sb, unsigned int *uid, unsigned int *gid,
+    unsigned int *mode)
+{
+	*uid = sb->st_uid;
+	*gid = sb->st_gid;
+	*mode = sb->st_mode;
+#ifdef CROSS
+	{
+		const char *text = getenv("SOURCE_DATE_EPOCH");
+		char *end;
+		unsigned long long epoch;
+
+		if (text != NULL && *text >= '0' && *text <= '9') {
+			errno = 0;
+			epoch = strtoull(text, &end, 10);
+			if (errno == 0 && *end == '\0' &&
+			    epoch <= 0x7fffffffULL) {
+				*uid = 0;
+				*gid = 0;
+				*mode = (sb->st_mode & S_IFMT) |
+				    ((sb->st_mode & 0111) ? 0755 : 0644);
+			}
+		}
+	}
+#endif
+}
+
+/*
  * put_arobj --
  *	Write an archive member to a file.
  */
@@ -525,6 +588,7 @@ put_arobj(CF *cfp, struct stat *sb)
 	register char *name;
 	struct ar_hdr *hdr;
 	off_t size;
+	unsigned int uid, gid, mode;
 
 	/*
 	 * If passed an sb structure, reading a file from disk.  Get stat(2)
@@ -536,6 +600,7 @@ put_arobj(CF *cfp, struct stat *sb)
 		name = rname(cfp->rname);
 		if (fstat(cfp->rfd, sb) < 0)
 			error(cfp->rname);
+		member_owner(sb, &uid, &gid, &mode);
 
 		/*
 		 * If not truncating names and the name is too long or contains
@@ -551,18 +616,18 @@ put_arobj(CF *cfp, struct stat *sb)
 				(void)fflush(stderr);
 			}
 			(void)snprintf(hb, sizeof(hb), HDR3,
-			    name, (long)sb->st_mtime, sb->st_uid, sb->st_gid,
-			    sb->st_mode, (long)sb->st_size, ARFMAG);
+			    name, member_date(sb), uid, gid,
+			    mode, (long)sb->st_size, ARFMAG);
 			lname = 0;
 		} else if (lname > (int)sizeof(hdr->ar_name) || index(name, ' '))
 			(void)snprintf(hb, sizeof(hb), HDR1, AR_EFMT1,
-			    lname, (long)sb->st_mtime, sb->st_uid, sb->st_gid,
-			    sb->st_mode, (long) sb->st_size + lname, ARFMAG);
+			    lname, member_date(sb), uid, gid,
+			    mode, (long) sb->st_size + lname, ARFMAG);
 		else {
 			lname = 0;
 			(void)snprintf(hb, sizeof(hb), HDR2,
-			    name, (long)sb->st_mtime, sb->st_uid, sb->st_gid,
-			    sb->st_mode, (long) sb->st_size, ARFMAG);
+			    name, member_date(sb), uid, gid,
+			    mode, (long) sb->st_size, ARFMAG);
 		}
 		size = sb->st_size;
 	} else {

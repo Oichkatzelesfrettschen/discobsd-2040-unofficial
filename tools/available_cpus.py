@@ -6,7 +6,11 @@ systemd scope with CPUQuota= it overstates the budget, and a pool sized
 from it oversubscribes the quota: every worker then runs in slices and a
 timing-sensitive check sees gaps no host load would explain.
 sched_getaffinity() honors CPU pinning on Linux; the cgroup walk below
-honors a quota set on the process's cgroup or any ancestor.
+honors the tightest readable quota on the process's cgroup or any
+ancestor, under the standard mounts: the v2 root at /sys/fs/cgroup or, on
+a hybrid host, /sys/fs/cgroup/unified, and the v1 cpu controller as cpu,
+cpu,cpuacct or cpuacct,cpu. A quota file the process cannot read, or a
+controller mounted elsewhere, counts as no quota.
 
 `tools/online-cpus.sh` applies the same two bounds for make's -j, and
 `tools/available_cpus_test.py` holds both to fixture hierarchies.
@@ -33,8 +37,9 @@ def cgroup_cpu_quota(
 
     /proc/self/cgroup names the process's cgroup in each hierarchy. A
     cgroup v2 line "0::/path" places cpu.max ("QUOTA PERIOD" in
-    microseconds, "max" for none) under cgroup_root/path and in every
-    ancestor up to the root. A cgroup v1 line whose controllers include cpu
+    microseconds, "max" for none) under cgroup_root/path, or under
+    cgroup_root/unified/path on a hybrid host, and in every ancestor up to
+    the root. A cgroup v1 line whose controllers include cpu
     places cpu.cfs_quota_us (-1 for none) and cpu.cfs_period_us under the
     cpu controller mount; every name in V1_CPU_MOUNTS that exists under
     cgroup_root is walked, so an empty sibling directory hides nothing. An
@@ -54,10 +59,13 @@ def cgroup_cpu_quota(
             continue
         hierarchy, controllers, path = fields
         if hierarchy == "0" and controllers == "":
-            for node in _ancestors(cgroup_root, path):
-                quota = _v2_quota(node / "cpu.max")
-                if quota is not None:
-                    quotas.append(quota)
+            for mount in (cgroup_root, cgroup_root / "unified"):
+                if not mount.is_dir():
+                    continue
+                for node in _ancestors(mount, path):
+                    quota = _v2_quota(node / "cpu.max")
+                    if quota is not None:
+                        quotas.append(quota)
         elif "cpu" in controllers.split(","):
             for name in V1_CPU_MOUNTS:
                 mount = cgroup_root / name

@@ -3,7 +3,10 @@
 # on Linux by the process's affinity mask (Cpus_allowed_list in
 # /proc/self/status) and by the CPU quota of its cgroup or any ancestor
 # (cgroup v2 cpu.max, cgroup v1 cpu.cfs_quota_us over cpu.cfs_period_us),
-# rounded up. getconf covers the CI runners; sysctl covers BSD hosts and nproc
+# rounded up: the tightest readable quota under the standard mounts, the v2
+# root or its hybrid unified/ directory and the v1 cpu controller as cpu,
+# cpu,cpuacct or cpuacct,cpu; an unreadable file or a controller mounted
+# elsewhere counts as no quota. getconf covers the CI runners; sysctl covers BSD hosts and nproc
 # covers GNU hosts whose getconf omits the extension. A host without any probe
 # stays usable. tools/available_cpus.py applies the same bounds in Python, and
 # tools/available_cpus_test.py holds both to fixture hierarchies through
@@ -72,11 +75,12 @@ cgroup_quotas() {
 }
 
 # Walk path from the process's cgroup to the root under each mount that
-# holds the hierarchy: the v2 root, or every name a v1 cpu controller is
-# mounted under, so an empty sibling directory hides nothing.
+# holds the hierarchy: the v2 root and its hybrid unified/ directory, or
+# every name a v1 cpu controller is mounted under, so an empty sibling
+# directory hides nothing.
 cgroup_walk() {
 	if [ "$kind" = v2 ]; then
-		set -- "$mount"
+		set -- "$mount" "$mount/unified"
 	else
 		set -- "$cgroup_root/cpu" "$cgroup_root/cpu,cpuacct" \
 		    "$cgroup_root/cpuacct,cpu"

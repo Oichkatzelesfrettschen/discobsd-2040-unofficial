@@ -7,6 +7,7 @@ affinity from an argument, both 64, so every verdict holds on a host of
 any size. A quota on the process's own cgroup, a tighter one on an
 ancestor, one on an ancestor only, a fractional quota (rounded up),
 cgroup v1 under each mount name and beside an empty sibling, v1 ancestors,
+a hybrid host's v1 line beside a v2 line under unified/,
 "max", malformed files and an affinity list with ranges must each give the
 expected count. On the host, both counters must agree, and under
 `taskset -c 0` (where present) both must print 1.
@@ -14,7 +15,7 @@ expected count. On the host, both counters must agree, and under
 Mutants that must fail: in each language a walk that skips ancestors, a
 quota rounded down and the first quota taken in place of the tightest;
 in Python an affinity ignored (under taskset); in the shell one v1 mount
-name dropped and a lax cpu.max pattern. mutant_pool.workers() must equal available_cpus()
+name dropped, the hybrid unified/ mount dropped and a lax cpu.max pattern. mutant_pool.workers() must equal available_cpus()
 when MUTANT_JOBS is unset.
 """
 
@@ -161,6 +162,18 @@ CASES = [
         None,
         ONLINE,
     ),
+    (
+        "hybrid v1 line beside a v2 line under unified/",
+        "4:cpu,cpuacct:/x\n0::/x",
+        {
+            "cpu,cpuacct/x/cpu.cfs_quota_us": "300000\n",
+            "cpu,cpuacct/x/cpu.cfs_period_us": "100000\n",
+            "unified/x/cpu.max": "200000 100000\n",
+        },
+        "0-63",
+        2.0,
+        2,
+    ),
     ("affinity 0-3,8,10-11 counts 7", "0::/", {"cpu.max": "max 100000\n"}, "0-3,8,10-11", None, 7),
 ]
 
@@ -189,6 +202,7 @@ with tempfile.TemporaryDirectory() as tmp:
             'for quota in $(cgroup_quotas < "$proc_self/cgroup" | head -n 1); do',
         ),
         "cpuacct,cpu mount dropped": text.replace(' \\\n\t\t    "$cgroup_root/cpuacct,cpu"', ""),
+        "hybrid unified mount dropped": text.replace(' "$mount/unified"', ""),
         "lax cpu.max period": text.replace("$2 ~ /^[0-9]+$/ && $1 > 0", "$1 > 0"),
     }
     for name, mutant_text in shell_mutants.items():

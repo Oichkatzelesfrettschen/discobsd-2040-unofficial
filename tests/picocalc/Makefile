@@ -1547,7 +1547,7 @@ picoaudio-mutant-busy-kept:
 
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
-	    sdspi_test sdstrat_test picoaudio_test
+	    sdspi_test sdstrat_test dump_test picoaudio_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
@@ -1678,4 +1678,31 @@ clean:
 	gfx-mutant-tile-nibble-order \
 	gfx-mutant-tile-palette-entry \
 	gfx-mutant-tile-open-clear \
-	gfx-mutant-info-tiles
+	gfx-mutant-info-tiles \
+	dump-mutants \
+	dump-mutant-early-clear \
+	dump-mutant-segment-sum-unchecked \
+	dump-mutant-header-sum-unchecked \
+	dump-mutant-version-unchecked \
+	dump-mutant-magic-unchecked \
+	dump-mutant-reserve-dropped \
+	dump-mutant-minfree-ignored \
+	dump-mutant-bounds-stuck \
+	dump-mutant-temp-kept \
+	sdspi-mutant-span-window \
+	sdspi-mutant-span-padding \
+	sdspi-mutant-span-sum-late \
+	sdstrat-mutant-dump-busy-unchecked \
+	sdstrat-mutant-dump-replaced-ignored \
+	sdstrat-mutant-dump-overlap-adjacent \
+	sdstrat-mutant-dump-type-ignored \
+	sdstrat-mutant-dump-past-card \
+	sdstrat-mutant-dump-signature-unchecked \
+	sdstrat-mutant-dump-probe-unarmed \
+	sdstrat-mutant-dump-device-unchecked \
+	sdstrat-mutant-dump-offset-ignored \
+	sdstrat-mutant-dump-no-invalidate \
+	sdstrat-mutant-dump-sum-dropped \
+	sdstrat-mutant-dump-size-unchecked \
+	sdstrat-mutant-dump-length-short \
+	sdstrat-mutant-dump-table-dropped

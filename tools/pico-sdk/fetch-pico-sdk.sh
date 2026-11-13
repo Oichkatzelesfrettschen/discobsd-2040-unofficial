@@ -21,7 +21,7 @@ set -eu
 PICO_SDK_REPO=https://github.com/raspberrypi/pico-sdk.git
 # Tag 2.3.1.
 PICO_SDK_COMMIT=079c6f39023649b154152db30f1d781e884879bc
-# The submodule commit that pin carries, recorded so a mismatch is visible.
+# The submodule commit that pin carries; a different checkout fails the fetch.
 TINYUSB_COMMIT=86ad6e56c1700e85f1c5678607a762cfe3aa2f47
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -51,6 +51,7 @@ got=$(git -C "$DEST/lib/tinyusb" rev-parse HEAD)
 if [ "$got" != "$TINYUSB_COMMIT" ]; then
 	printf 'fetch-pico-sdk: lib/tinyusb is %s, the pin records %s\n' \
 		"$got" "$TINYUSB_COMMIT" >&2
+	exit 1
 fi
 
 [ -f "$DEST/lib/tinyusb/src/tusb.h" ] || {

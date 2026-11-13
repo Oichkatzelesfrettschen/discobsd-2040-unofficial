@@ -240,7 +240,8 @@ jobs:
 
       # check-host owns compiler-matrix identity, ownership and bounded PTY completion.
       # Libc strings and exit registries execute calibrated host and ILP32 cases;
-      # strings add sanitizers, and check-qemu executes strings and quick exit as Thumb-1.
+      # strings and context sorting add sanitizers; the libc QEMU tier replays
+      # strings, quick exit and context sorting as Thumb-1.
       - name: Run the host tier
         timeout-minutes: 20
         run: |

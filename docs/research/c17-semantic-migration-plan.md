@@ -1165,3 +1165,12 @@ root data block. The complete resource vector also carries normal exit's
 sixteen positive packed-byte entries. Resource approval, combined aggregate
 qualification and reviewed integration remain open. Earlier approvals retain
 their exact candidate identities.
+
+## Context-aware sort qualification
+
+The [context-sort contracts](context-sort-contracts.md) bind the Issue 8 callback
+signature, per-call ownership, existing smaller-side recursion and native archive
+closure. The candidate preserves the ordinary-sort cross object byte-for-byte
+and passes calibrated context/record witnesses. Its matched resources, complete
+qualification and reviewed integration remain open. Algorithm replacements keep
+their separate comparison, stack and resource acceptance requirements.

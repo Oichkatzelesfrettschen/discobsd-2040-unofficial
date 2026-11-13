@@ -519,7 +519,8 @@
         "check-ansi",
         "check-bounded-string",
         "check-exit-lifecycle",
-        "check-quick-exit"
+        "check-quick-exit",
+        "check-qsort-context"
       ],
       "kind": "prerequisites"
     },
@@ -676,6 +677,11 @@
       "from": "check-libc-quick-exit",
       "to": "tests/libc_contracts:check-quick-exit",
       "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-qsort-context",
+      "to": "tests/libc_contracts:check-qsort-context",
+      "kind": "recipe"
     }
   ],
   "optional_investigations": [
@@ -4441,6 +4447,63 @@
       "recipe": "${TEST_EXECUTION} run libc.quick-exit.ilp32 -- ./quick_exit_test32 nested",
       "aliases": [
         "check-libc-quick-exit"
+      ]
+    },
+    {
+      "id": "libc.qsort-context.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-qsort-context",
+      "root_target": "check-libc-host-contracts",
+      "program": "qsort_context_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "qsort_context_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.qsort-context.native -- ./qsort_context_test",
+      "aliases": [
+        "check-libc-qsort-context"
+      ]
+    },
+    {
+      "id": "libc.qsort-context.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-qsort-context",
+      "root_target": "check-libc-host-contracts",
+      "program": "qsort_context_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "qsort_context_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.qsort-context.ilp32 -- ./qsort_context_test32",
+      "aliases": [
+        "check-libc-qsort-context"
+      ]
+    },
+    {
+      "id": "libc.qsort-context.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-qsort-context",
+      "root_target": "check-libc-host-contracts",
+      "program": "qsort_context_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "qsort_context_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.qsort-context.sanitized -- ./qsort_context_test_san",
+      "aliases": [
+        "check-libc-qsort-context"
       ]
     }
   ]

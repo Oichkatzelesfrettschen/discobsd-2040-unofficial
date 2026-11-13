@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "7183ebd12770259fbf23bce7af3637c39dec82a5e721593f206098d40660d2fa"
+    "ordered_row_sha256": "b4751c8f706991f02ac4492e70e4db8b73c42bb689ed3e64c09b8c599445f4bf"
   },
   "state_counts": {
     "applicability": {
@@ -51,16 +51,16 @@
       "environment-constrained": 0
     },
     "implementation": {
-      "unreviewed": 1457,
+      "unreviewed": 1456,
       "present": 1,
-      "partial": 60,
+      "partial": 61,
       "absent": 0,
       "divergent": 0
     },
     "evidence": {
-      "none": 1457,
+      "none": 1456,
       "static": 39,
-      "host": 22,
+      "host": 23,
       "cross": 0,
       "qemu-user": 0,
       "renode": 0,
@@ -156,6 +156,12 @@
       "evidence": "host",
       "known_good": "tests/libc_contracts/quick_exit_test.c",
       "known_bad": "tests/libc_contracts/quick_exit.py"
+    },
+    "context-sort-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-qsort-context",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/qsort_context_test.c",
+      "known_bad": "tests/libc_contracts/qsort_context.py"
     }
   },
   "growth_policy": {

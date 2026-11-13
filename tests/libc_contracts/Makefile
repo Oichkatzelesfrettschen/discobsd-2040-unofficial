@@ -62,7 +62,8 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-ansi check-syslog \
 	check-vis check-printf-g check-huge-val \
 	check-qsort check-strtox check-string-security check-array-memory-line \
-	check-getgrent check-bounded-string check-exit-lifecycle check-quick-exit
+	check-getgrent check-bounded-string check-exit-lifecycle check-quick-exit \
+	check-qsort-context
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 ARRAY_MEMORY_CFLAGS= -std=c17 -Wall -Wextra -Werror
@@ -105,6 +106,38 @@ bounded_string_test_san: ${BOUNDED_STRING_INPUTS} .PHONY
 	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
 
 .PHONY: check-bounded-string
+
+QSORT_CONTEXT_INPUTS= qsort_context.py qsort_context_test.c \
+	${TARGET_DIR}/qsort.c ${TARGET_DIR}/qsort_r.c
+
+check-qsort-context: qsort_context_test
+	${TEST_EXECUTION} run libc.qsort-context.native -- ./qsort_context_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} qsort_context_test32
+	${TEST_EXECUTION} run libc.qsort-context.ilp32 -- ./qsort_context_test32
+.else
+	${TEST_EXECUTION} skip libc.qsort-context.ilp32 "check-libc-qsort-context: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} qsort_context_test_san
+	${TEST_EXECUTION} run libc.qsort-context.sanitized -- ./qsort_context_test_san
+.else
+	${TEST_EXECUTION} skip libc.qsort-context.sanitized "check-libc-qsort-context: sanitizer runtime unavailable"
+.endif
+
+qsort_context_test: ${QSORT_CONTEXT_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${HOSTCC:Q} $@
+
+qsort_context_test32: ${QSORT_CONTEXT_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+qsort_context_test_san: ${QSORT_CONTEXT_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-qsort-context
+
+check-qsort-context-cross:
+	${PYTHON} ${.CURDIR}/qsort_context_target.py ${TOPSRC} ${ARM_COMPILER} --host ${HOSTCC:Q}
 
 check-array-memory-line: reallocarray_contract_test memmem_contract_test \
 	line_reading_contract_test
@@ -1292,6 +1325,7 @@ header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
 	    -isystem ${TOPSRC}/include -c -o $@ header_contract.c
 
 clean:
+	rm -f qsort_context_test qsort_context_test32 qsort_context_test_san
 	rm -f bounded_string_test bounded_string_test32 bounded_string_test_san
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
 	rm -f exit_lifecycle_test exit_lifecycle_test32 quick_exit_test quick_exit_test32
@@ -1390,6 +1424,7 @@ check-qemu:
 	${QEMU_ARM_RUN} ./huge_val_contract_test_arm
 	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 .endif
 
 qemu_support_direct.o: ${QEMU_SUPPORT}
@@ -1470,7 +1505,7 @@ all: check
 	check-scanf-llong check-string-security \
 	check-array-memory-line-cross check-string-security-cross check-strtox \
 	check-syslog check-vis check-getgrent check-getgrent-cross check-exit-lifecycle \
-	check-quick-exit check-quick-exit-cross \
+	check-quick-exit check-quick-exit-cross check-qsort-context-cross \
 	check-qemu clean
 
 # The C17 stdio surface outside the read and write path: the mode strings

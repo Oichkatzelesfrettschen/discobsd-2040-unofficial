@@ -1027,7 +1027,7 @@ test_syscall_enomem(void)
 	error = call_syscall(name, 2, outbuf, &len, NULL, 0);
 	HK_CHECK(error == 0);
 	HK_CHECK(len == (size_t)PAYLOAD_LEN);
-	HK_CHECK(u.u_rval == PAYLOAD_LEN);
+	HK_CHECK(u.u_rval == 0);
 
 	/*
 	 * A short buffer: ENOMEM, and the length the caller reads back is
@@ -1167,7 +1167,7 @@ test_syscall_authorization(void)
 	HK_CHECK(superuser_calls == 1);
 	HK_CHECK(copyin_state.calls == 2 && copyout_state.calls == 2);
 	HK_CHECK(length == sizeof(hostid));
-	HK_CHECK(u.u_rval == sizeof(hostid));
+	HK_CHECK(u.u_rval == 0);
 	bcopy(outbuf, &previous, sizeof(previous));
 	HK_CHECK(previous == 23);
 	HK_CHECK(hostid == 23);
@@ -1182,7 +1182,7 @@ test_syscall_authorization(void)
 	HK_CHECK(copyin_state.extent == sizeof(replacement));
 	HK_CHECK(hostid == replacement);
 	HK_CHECK(length == sizeof(hostid));
-	HK_CHECK(u.u_rval == sizeof(hostid));
+	HK_CHECK(u.u_rval == 0);
 	bcopy(outbuf, &previous, sizeof(previous));
 	HK_CHECK(previous == 23);
 	HK_CHECK((unsigned char)outbuf[sizeof(hostid)] == POISON);
@@ -1880,6 +1880,7 @@ test_records_refuse_writes(void)
 	len = sizeof(records);
 	HK_CHECK(call_syscall(mib, 5, records, &len, NULL, 0) == 0);
 	HK_CHECK(superuser_calls == 0);
+	HK_CHECK(len > 0 && u.u_rval == 0);
 	reset_calls();
 }
 
@@ -2176,6 +2177,13 @@ test_files_refuse_writes(void)
 	len = sizeof(records);
 	HK_CHECK(call_syscall(mib, 5, records, &len, NULL, 0) == 0);
 	HK_CHECK(len == (size_t)(4 * FREC) && superuser_calls == 0);
+	HK_CHECK(u.u_rval == 0);
+
+	/* A size query reports through the length alone and returns 0. */
+	reset_calls();
+	len = 0;
+	HK_CHECK(call_syscall(mib, 5, NULL, &len, NULL, 0) == 0);
+	HK_CHECK(len == (size_t)((NOFILE + 1) * FREC) && u.u_rval == 0);
 	reset_calls();
 }
 

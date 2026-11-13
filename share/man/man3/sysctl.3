@@ -1036,6 +1036,13 @@ The KERN_TEXT, KERN_MAXTEXTS, VM_SWAPMAP and VM_NSWAP options are
 VM_COREMAP, a 2.11BSD extension returning the core allocation map, needs a
 core resource map this system does not keep.
 .PP
+In 4.4BSD and 2.11BSD a successful call returned the number of bytes
+copied out, or for a size query the length the value needs.
+This system returns 0, as OpenBSD and FreeBSD do, and reports the length
+through
+\fIoldlenp\fP
+alone.
+.PP
 In 2.11BSD, KERN_FILE returned the whole file table, each
 \fIstruct file\fP
 preceded by its kernel address, an enhancement modeled on the

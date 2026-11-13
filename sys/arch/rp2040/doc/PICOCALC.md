@@ -913,7 +913,9 @@ against the 8 us tCEM, and interrupts are masked for that long per frame.
 Open for the board run: the read sampling margin depends on pad delays no
 datasheet gives and on whether the output and input register stages run on
 clk_sys or on the state machine cycle (a scope capture of SCK against a read
-data line decides both, and whether the clock can rise), whether the part ignores a serial command cut
+data line decides both, and whether the clock can rise;
+`docs/research/picocalc-psram-capture.md` orders the instruments), whether
+the part ignores a serial command cut
 short, and how a module in the shared header J703 loads the lines. The owner
 chose replacing `fl1` over a second tier behind PSRAM, and chose the driver
 as a PicoCalc build option; the research note's swap integration table

@@ -148,7 +148,7 @@ usage:		fprintf(stderr, "Usage: find path-list predicate-list\n");
 		strcpy(Pathname, "TRAILER!!!");
 		Statb.st_size = 0;
 		cpio();
-		printf("%D blocks\n", Blocks*10);
+		printf("%ld blocks\n", Blocks*10);
 	}
 	exit(0);
 }
@@ -299,7 +299,7 @@ struct anode *e3() { /* parse parens and predicates */
 	}
 	else if(EQ(a, "-cpio")) {
 		if((Cpio = creat(b, 0666)) < 0) {
-			fprintf(stderr, "find: cannot create < %s >\n", s);
+			fprintf(stderr, "find: cannot create < %s >\n", b);
 			exit(1);
 		}
 		Buf = (short *)sbrk(512);
@@ -1264,7 +1264,7 @@ list(file, stp)
 		sprintf(ftime, "%-12.12s", cp + 4);
 
 	printf("%5lu %4ld %s %2d %s%s%s %s %s%s%s\n",
-		stp->st_ino,				/* inode #	*/
+		(unsigned long) stp->st_ino,		/* inode #	*/
 #ifdef	S_IFSOCK
 		(long) kbytes(stp->st_blocks),          /* kbytes       */
 #else

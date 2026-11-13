@@ -290,9 +290,9 @@ main(argc,argv)
 				doitfast();
 #ifndef DEBUG
 			if (doreboot)
-				execle(REBOOT, "reboot", "-l", nosync, 0, 0);
+				execle(REBOOT, "reboot", "-l", nosync, (char *)0, (char **)0);
 			if (halt)
-				execle(HALT, "halt", "-l", nosync, 0, 0);
+				execle(HALT, "halt", "-l", nosync, (char *)0, (char **)0);
 			(void) kill(1, SIGTERM);	/* to single user */
 #else
 			if (doreboot)

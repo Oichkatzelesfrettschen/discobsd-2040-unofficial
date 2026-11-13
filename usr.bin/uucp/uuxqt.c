@@ -102,7 +102,7 @@ char *argv[];
 		--argc;  argv++;
 	}
 
-	DEBUG(4, "\n\n** START **\n", CNULL);
+	DEBUG(4, "\n\n** START **\n");
 	ret = subchdir(Spool);
 	ASSERT(ret >= 0, "CHDIR FAILED", Spool, ret);
 	strcpy(Wrkdir, Spool);
@@ -161,7 +161,7 @@ char *argv[];
 		} else
 			Notify[i] = NT_YES;
 		if ((Cmds[i] = (char *)malloc((unsigned)(strlen(xcmd)+1))) == NULL) {
-			DEBUG(1, "MALLOC FAILED", CNULL);
+			DEBUG(1, "MALLOC FAILED");
 			break;
 		}
 		strcpy(Cmds[i], xcmd);
@@ -177,7 +177,7 @@ doprocess:
 
 	DEBUG(11,"path = %s\n", getenv("PATH"));
 
-	DEBUG(4, "process %s\n", CNULL);
+	DEBUG(4, "process (null)\n");
 	time(&xstart);
 	while (gtxfile(xfile) > 0) {
 		/* if /etc/nologin exists, exit cleanly */
@@ -292,13 +292,13 @@ doprocess:
 		if (cmdp > buf && cmdp[0] == '\0' && cmdp[-1] == ' ')
 			*--cmdp = '\0';
 		if (argnok || badfiles) {
-			sprintf(lbuf, "%s XQT DENIED", user);
+			snprintf(lbuf, sizeof lbuf, "%s XQT DENIED", user);
 			logent(cmd, lbuf);
 			DEBUG(4, "bad command %s\n", prm);
 			notify(user, Rmtname, cmd, "DENIED");
 			goto rmfiles;
 		}
-		sprintf(lbuf, "%s XQT", user);
+		snprintf(lbuf, sizeof lbuf, "%s XQT", user);
 		logent(buf, lbuf);
 		DEBUG(4, "cmd %s\n", buf);
 
@@ -325,7 +325,8 @@ doprocess:
 #else
 			notify(user, Rmtname, cmd, retstat);
 #endif
-			sprintf(buf, "%s (%s) from %s!%s", buf, retstat, Rmtname, user);
+			snprintf(buf + strlen(buf), sizeof buf - strlen(buf),
+			    " (%s) from %s!%s", retstat, Rmtname, user);
 			logent("MAIL FAIL", buf);
 		}
 		DEBUG(4, "exit cmd - %d\n", ret);
@@ -412,7 +413,7 @@ retry:
 		if (rechecked)
 			return 0;
 		rechecked = 1;
-		DEBUG(4, "iswrk\n", CNULL);
+		DEBUG(4, "iswrk\n");
 		if (!iswrk(file, "get", Spool, pre))
 			return 0;
 	}
@@ -426,7 +427,7 @@ retry:
 	if (Nfiles > LLEN/2) {
 	    time(&ystrdy);
 	    ystrdy -= (4 * 3600L);		/* 4 hours ago */
-	    DEBUG(4, "gtxfile: Nfiles > LLEN/2\n", CNULL);
+	    DEBUG(4, "gtxfile: Nfiles > LLEN/2\n");
 	    while (gtwrkf(Spool, file) && !gotfiles(file)) {
 		if (stat(subfile(file), &stbuf) == 0)
 		    if (stbuf.st_mtime <= ystrdy) {
@@ -440,7 +441,7 @@ retry:
 			logent(file, "X. FILE CORRUPTED");
 		    }
 	    }
-	    DEBUG(4, "iswrk\n", CNULL);
+	    DEBUG(4, "iswrk\n");
 	    if (!iswrk(file, "get", Spool, pre))
 		return 0;
 	}
@@ -500,7 +501,7 @@ register char *xfile;
 			continue;
 		if (sscanf(&buf[1], "%s%s", file, tfile) < 2)
 			continue;
-		sprintf(tfull, "%s/%s", XQTDIR, tfile);
+		snprintf(tfull, sizeof tfull, "%s/%s", XQTDIR, tfile);
 		unlink(subfile(tfull));
 	}
 	fclose(fp);
@@ -529,7 +530,7 @@ char *xfile;
 		if (sscanf(&buf[1], "%s%s", ffile, tfile) < 2)
 			continue;
 		expfile(ffile);
-		sprintf(tfull, "%s/%s", XQTDIR, tfile);
+		snprintf(tfull, sizeof tfull, "%s/%s", XQTDIR, tfile);
 		unlink(subfile(tfull));
 		ret = xmv(ffile, tfull);
 		ASSERT(ret == 0, "XQTDIR ERROR", CNULL, ret);
@@ -551,7 +552,7 @@ register char *xc, *cmd;
 
 #ifndef ALLOK
 	if (strpbrk(cmd, BADCHARS) != NULL) {
-		DEBUG(1,"MAGIC CHARACTER FOUND\n", CNULL);
+		DEBUG(1,"MAGIC CHARACTER FOUND\n");
 		logent(cmd, "NASTY MAGIC CHARACTER FOUND");
 		return FAIL;
 	}
@@ -570,7 +571,7 @@ register char *xc, *cmd;
 		ptr++;
 	}
 	if (*ptr == NULL) {
-		DEBUG(1,"COMMAND NOT FOUND\n", CNULL);
+		DEBUG(1,"COMMAND NOT FOUND\n");
 		return FAIL;
 	}
 #endif

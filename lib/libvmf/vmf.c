@@ -127,8 +127,8 @@ vmmapseg(vspace, segno)
 				if	(swap(s, write) != 0)
 					{
 					fprintf(stderr,
-						"write swap, v=%d fd=%d\n",
-						s->s_vspace,s->s_vspace->v_fd);
+						"write swap, v=%p fd=%d\n",
+						(void *)s->s_vspace,s->s_vspace->v_fd);
 					exit(-2);
 					}
 			s->s_vspace = vspace;

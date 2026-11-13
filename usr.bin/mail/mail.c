@@ -552,7 +552,7 @@ char *name;
 {
     FILE *rmf, *popen();
     register char *p;
-    char rsys[64], cmd[64];
+    char rsys[64], cmd[256];
     register int pid;
     int sts;
 
@@ -578,9 +578,9 @@ skip:
     }
     setuid(getuid());
     if (any('!', name+1))
-        (void)sprintf(cmd, "uux - %s!rmail \\(%s\\)", rsys, name+1);
+        (void)snprintf(cmd, sizeof cmd, "uux - %s!rmail \\(%s\\)", rsys, name+1);
     else
-        (void)sprintf(cmd, "uux - %s!rmail %s", rsys, name+1);
+        (void)snprintf(cmd, sizeof cmd, "uux - %s!rmail %s", rsys, name+1);
     if ((rmf=popen(cmd, "w")) == NULL)
         exit(1);
     copylet(n, rmf, REMOTE);

@@ -167,7 +167,7 @@ register char *flds[];
 
 	sprintf(dcname, "/dev/%s", dev.D_line);
 	if (setjmp(Sjbuf)) {
-		DEBUG(4, "Open timed out\n", CNULL);
+		DEBUG(4, "Open timed out\n");
 		delock(dev.D_line);
 		return CF_DIAL;
 	}
@@ -189,7 +189,7 @@ register char *flds[];
 	}
 	fflush(stdout);
 	if (fixline(dcr, dev.D_speed) == FAIL) {
-		DEBUG(4, "FIXLINE FAILED\n", CNULL);
+		DEBUG(4, "FIXLINE FAILED\n");
 		return CF_DIAL;
 	}
 	strcpy(devSel, dev.D_line);	/* for latter unlock */
@@ -368,14 +368,14 @@ busyloop(n)
 slowrite(fd, str)
 register char *str;
 {
-	DEBUG(6, "slowrite ", CNULL);
+	DEBUG(6, "slowrite ");
 	while (*str) {
 		DEBUG(6, "%c", *str);
 		uucpdelay(1, 10);	/* delay 1/10 second */
 		write(fd, str, 1);
 		str++;
 	}
-	DEBUG(6, "\n", CNULL);
+	DEBUG(6, "\n");
 }
 
 #define BSPEED B150

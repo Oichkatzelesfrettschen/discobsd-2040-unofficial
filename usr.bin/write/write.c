@@ -70,7 +70,7 @@ ex(bp)
         setgid(getgid());   /* Give up effective group privs */
         sigs((sig_t) 0);
         execl(getenv("SHELL") ?
-            getenv("SHELL") : "/bin/sh", "sh", "-c", bp+1, 0);
+            getenv("SHELL") : "/bin/sh", "sh", "-c", bp+1, (char *)0);
         exit(0);
     }
     while (wait((int *)NULL) != i)

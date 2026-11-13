@@ -1567,6 +1567,19 @@ establish neither electrical persistence nor crash atomicity; the existing
 `check-v7fs-core` independently retains its address/undefined sanitizer and
 historical-reversal coverage.
 
+The nonreplacement cross-parent directory rename matrix injects errors at
+every control write using prefixes of 0, 1, 2, 3, 4, 255, 256, 257, 511 and
+512 bytes in both byte orders. Successful compensation must preserve the old
+namespace, inode attributes, sizes, link counts and free totals; a fresh mount
+must support continued allocation. Directory-entry ordering is outside this
+semantic identity. The same sampled prefixes freeze interruption images and
+classify them as old, new, other valid or invalid through the independent
+reader. Two fresh mounts must leave the frozen bytes unchanged; a successful
+mount supplies no repair claim. Every observed compensation write after a
+full-transfer error also receives a second fail-before-transfer injection,
+which must activate and return an error. The reader classifies these states
+for inspection without requiring successful restoration after two failures.
+
 `check-storage-recovery-prefix` enumerates every byte prefix, including zero
 and complete transfer, at every selected creation write. The default selects
 both byte orders and full 1-, 10- and 138-block parents. The Linux firmware

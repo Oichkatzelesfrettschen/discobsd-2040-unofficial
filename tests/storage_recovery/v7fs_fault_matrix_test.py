@@ -132,7 +132,8 @@ class CompensationTest(unittest.TestCase):
         self.assertGreater(dispositions["reader-rejected inspection state"], 0)
         print(json.dumps({"second_failure_dispositions": dict(dispositions)}, sort_keys=True))
 
-    def test_rename_parent_write_failure_restores_parent_entry(self):
+    def test_rename_write_prefix_failures_restore_persistent_invariants(self):
+        interruptions = Counter()
         for order in ("little", "pdp"):
             with self.subTest(order=order):
                 backend = Backend(self.library, Device(bytes(512 * 2048)), order)
@@ -150,15 +151,104 @@ class CompensationTest(unittest.TestCase):
 
                 result, successful, events = self.run_operation(initial, order, operation)
                 self.assertEqual(result, 0)
-                self.assertEqual(verify(successful, order).namespace["/target/moved"], source)
-                parent_write = [event for event in events if event.kind == "write"][-1]
-                result, persistent, _events = self.run_operation(
+                new = verify(successful, order)
+                self.assertEqual(new.namespace["/target/moved"], source)
+                old = verify(initial, order)
+                writes = [event for event in events if event.kind == "write"]
+                self.assertGreater(len(writes), 0)
+                for event in writes:
+                    for amount in (0, 1, 2, 3, 4, 255, 256, 257, 511, 512):
+                        with self.subTest(sequence=event.sequence, transferred=amount):
+                            result, persistent, _events = self.run_operation(
+                                initial, order, operation,
+                                Fault(event.sequence, "after_error", amount))
+                            self.assertEqual(result, errno.EIO)
+                            report = verify(persistent, order)
+                            self.assertEqual(report.namespace, old.namespace)
+                            self.assertEqual(report.link_counts, old.link_counts)
+                            self.assertEqual(report.sizes, old.sizes)
+                            self.assertEqual(report.inode_metadata, old.inode_metadata)
+                            self.assertEqual(report.free_blocks, old.free_blocks)
+                            self.assertEqual(report.free_inodes, old.free_inodes)
+                            self.check_reopen_and_continue(persistent, order)
+
+                            device = Device(initial, faults=[
+                                Fault(event.sequence, "interrupt", amount)])
+                            backend = Backend(self.library, device, order)
+                            try:
+                                self.assertEqual(backend.mount(), 0)
+                                self.assertEqual(operation(backend), errno.EIO)
+                            finally:
+                                backend.close()
+                            device.verify_injections()
+                            self.assertTrue(device.frozen)
+                            self.assertEqual(len(device.events), event.sequence)
+                            persistent = device.export()
+                            try:
+                                report = verify(persistent, order)
+                                category = ("old" if report == old else
+                                            "new" if report == new else "other-valid")
+                            except ValueError:
+                                category = "invalid"
+                            interruptions[category] += 1
+                            for _reopen in range(2):
+                                reopened = Backend(self.library, Device(persistent), order)
+                                try:
+                                    self.assertEqual(reopened.mount(), 0)
+                                    self.assertEqual(reopened.device.export(), persistent)
+                                finally:
+                                    reopened.close()
+        self.assertGreater(interruptions["invalid"], 0)
+        print(json.dumps({"rename_sampled_interruptions": dict(interruptions)}, sort_keys=True))
+
+    def test_rename_second_failure_reports_inspection_boundary(self):
+        dispositions = Counter()
+        for order in ("little", "pdp"):
+            backend = Backend(self.library, Device(bytes(512 * 2048)), order)
+            self.assertEqual(backend.format(64), 0)
+            self.assertGreater(backend.create_at(2, "source", True), 2)
+            target = backend.create_at(2, "target", True)
+            self.assertGreater(target, 2)
+            self.assertEqual(backend.sync(), 0)
+            initial = backend.device.export()
+            backend.close()
+
+            def operation(backend, target=target):
+                return backend.rename(2, "source", target, "moved")
+
+            result, _successful, events = self.run_operation(initial, order, operation)
+            self.assertEqual(result, 0)
+            for first in (event for event in events if event.kind == "write"):
+                _result, _persistent, cleanup = self.run_operation(
                     initial, order, operation,
-                    Fault(parent_write.sequence, "after_error", parent_write.length))
-                self.assertEqual(result, errno.EIO)
-                report = verify(persistent, order)
-                self.assertEqual(report.namespace, {"/": 2, "/source": source, "/target": target})
-                self.check_reopen_and_continue(persistent, order)
+                    Fault(first.sequence, "after_error", first.length))
+                compensation = [event for event in cleanup if event.kind == "write"
+                                and event.phase == "compensation"]
+                self.assertGreater(len(compensation), 0)
+                for second in compensation:
+                    with self.subTest(order=order, first=first.sequence, second=second.sequence):
+                        device = Device(initial, faults=[
+                            Fault(first.sequence, "after_error", first.length),
+                            Fault(second.sequence, "before_error", 0),
+                        ])
+                        backend = Backend(self.library, device, order)
+                        try:
+                            self.assertEqual(backend.mount(), 0)
+                            self.assertEqual(operation(backend), errno.EIO)
+                            self.assertEqual(backend.sync(), 0)
+                        finally:
+                            backend.close()
+                        device.verify_injections()
+                        self.assertEqual(device.events[second.sequence - 1].phase,
+                                         "compensation")
+                        try:
+                            verify(device.export(), order)
+                            dispositions["reader-valid inspection state"] += 1
+                        except ValueError:
+                            dispositions["reader-rejected inspection state"] += 1
+        self.assertGreater(dispositions["reader-rejected inspection state"], 0)
+        print(json.dumps({"rename_second_failure_dispositions": dict(dispositions)},
+                         sort_keys=True))
 
 
 if __name__ == "__main__":

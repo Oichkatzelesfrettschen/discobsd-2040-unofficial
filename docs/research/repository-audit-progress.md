@@ -50,13 +50,33 @@ entry in both byte orders. The seventh write (trace sequence 28, image byte
 offset 5632) persists the moved directory's new `..` entry before reporting
 `EIO`. Namespace compensation restores `/source`, while the independent image
 reader rejects inode 3's destination-parent entry. The regression
-`test_rename_parent_write_failure_restores_parent_entry` exercises the complete
+`test_rename_write_prefix_failures_restore_persistent_invariants` exercises the complete
 transfer followed by error, requires the old namespace and valid independent
 ownership/link accounting, and reopens the exported image for continued
 allocation. The candidate restores `..` before namespace compensation;
 failure of that restoration returns its error and retains the inspection
-boundary. Partial prefixes, replacement targets and paired rename compensation
-failures remain separate pending cases.
+boundary. Commit `39d2cc28` carries the repair.
+
+The expanded nonreplacement rename matrix covers every one of seven control
+writes in both byte orders at transferred lengths 0, 1, 2, 3, 4, 255, 256,
+257, 511 and 512. All 140 reported-error cases restore namespace, inode
+metadata, sizes, link counts and free totals, and accept continued allocation
+after a fresh mount. Directory-entry byte ordering remains outside compensated
+semantic identity. The same 140 frozen interruption positions yield 10 old,
+10 new, 20 other reader-valid and 100 reader-invalid reports. Two fresh mounts
+leave each interrupted image unchanged; mount acceptance does not repair the
+image or establish recovery. All 54 paired failures, selected from every
+observed compensation write after a full-transfer error, report `EIO`; eight
+inspection states pass the reader and 46 fail it. These are sampled prefix
+positions, not complete prefix enumeration.
+
+The successful replacement probe leaves the displaced inode allocated with
+zero links, so the independent reader reports an unreachable inode. The
+imported `v7fs_file_deallocate()` drops namespace/link ownership and leaves
+reclamation to its caller, as `usr.sbin/v7fs/v7fs.c` documents for removal.
+The bridge calls the rename helper directly. Replacement lifecycle closure
+and complete rename prefix enumeration remain pending; the oracle keeps its
+reachability requirement.
 
 The initial remote fetch advanced `origin/main` from `b9d64cbe` to
 `1e986446`. The canonical checkout's local main remained `b9d64cbe` during

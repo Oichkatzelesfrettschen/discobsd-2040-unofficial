@@ -3,8 +3,9 @@
 The context-last `qsort_r` candidate adds exactly 668 bytes to the shipped native
 libc archive and one 1,024-byte root data block relative to the approved combined
 lifecycle candidate. The other 156 of 158 numeric resource surfaces remain
-unchanged. Root storage retains 233 free blocks and 32 free inodes. Reviewer
-approval of this additional vector remains pending.
+unchanged. Root storage retains 233 free blocks and 32 free inodes. The owner
+approves this exact additional vector and directs continued qualification
+and review.
 
 The [profile rule](dpucp-2024.md) states: "An exception records exact deltas,
 examined alternatives, retained margins, user benefit, rollback point and
@@ -64,8 +65,8 @@ The full converted archive also selects its existing machine-specific integer
 divider, completing both sorting functions' native dependency. The reduced
 shipped archive already contains that divider; its bytes remain identical.
 
-The rollback point is the parent source. The requested limits are exactly 668
-archive bytes, the one named member and one root data block. The request covers
+The rollback point is the parent source. The approved limits are exactly 668
+archive bytes, the one named member and one root data block. The approval covers
 no additional executable, kernel or runtime growth. Runtime stack peaks,
 physical-board timing and swap traffic remain unmeasured.
 
@@ -75,5 +76,9 @@ Focused native, ILP32, sanitizer and ARMv6-M QEMU execution passes 78,740 cases
 and rejects five behavioral mutations. The positive harness compiles the shipped
 `qsort_r.c` wrapper. Target header/native-input controls and twenty full/reduced
 archive omission controls pass. The ordinary-sort regression also passes.
-Complete aggregate qualification, the complete ILP32 inventory, hosted CI and
-reviewed integration retain their separate completion requirements.
+The complete local ILP32 inventory passes 196 of 196 variants at
+`6d47f36208a08489ca628de6793671cc6fd4a5b8`; its terminal receipt records
+exit zero at `2026-11-13T00:27:18Z`. Automated review at that head reports
+zero findings. Aggregate and hosted qualification expose the header-fixture
+search-path defect described in the context-sort contract. Repaired aggregate,
+hosted CI and reviewed integration retain their separate completion requirements.

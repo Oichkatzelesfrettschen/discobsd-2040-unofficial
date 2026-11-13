@@ -126,6 +126,26 @@ bmake -C tests/libc_contracts MACHINE=rp2040 REQUIRE_QEMU=1 check-qemu
 The logged target build and native archive omission gate pass. The
 [resource review](context-sort-resource-exception.md) records matched clean
 distributions: 668 added native archive bytes and one root data block, with the
-other 156 numeric surfaces unchanged. Resource approval, complete aggregate/ILP32
-qualification and reviewed integration remain open.
+other 156 numeric surfaces unchanged. The owner approves the exact vector;
+the complete ILP32 inventory passes 196 of 196 variants. Aggregate and hosted
+qualification after the header-fixture repair and reviewed integration remain open.
 The compatibility ledger records partial implementation with host evidence.
+
+## Relative header fixture closure
+
+`tests/libc_tempfiles/header_contract.c` includes the target `stdio.h` and
+`stdlib.h` by relative path. The latter includes `_featuretest.h` through its
+installed include search path. The fixture's original compiler recipe omits
+that path. Local and hosted Linux execution report
+`fatal error: _featuretest.h: No such file or directory`; hosted macOS reports
+`error: '_featuretest.h' file not found with <angled> include`. The complete
+ILP32 execution inventory covers its enumerated runtime variants and supplies
+no result for this separate header-only fixture.
+
+The fixture Makefile supplies `-isystem ../../include` and names both public
+headers, `_featuretest.h` and `sys/cdefs.h` as prerequisites. The unmodified
+recipe reproduces the named missing-header failure; the repaired temporary-file
+suite and strict C17 GCC/Clang header compilations pass. The installed public
+header retains the same lookup contract as `string.h`. Source search uses
+`rg -n 'include/stdlib.h' tests` to identify both relative-header consumers;
+`tests/libc_contracts` already supplies the include path and header prerequisites.

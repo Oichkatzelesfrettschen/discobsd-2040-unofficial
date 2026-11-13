@@ -316,6 +316,66 @@ struct kinfo_file {
 #define	KI_FILE_MINSIZE		4
 
 /*
+ * VM_STATS returns the system's event counters as one pointer-free record:
+ * the processor-state ticks, the vm event rates of the last second and
+ * their sums since boot, the fork and name-cache statistics, and the
+ * terminal character counts. Each is a fixed-width copy of the kernel
+ * counter (sys/dk.h, sys/vmmeter.h, sys/vmsystm.h, sys/namei.h), which
+ * wraps at 2^32 as the counter does on the target. The kernel builds the
+ * record when UCB_METER is configured; vs_size is its size.
+ */
+#define	KI_CPUSTATES		4	/* CPUSTATES, sys/dk.h */
+
+/* The vm events of struct vmrate and struct vmsum (sys/vmmeter.h). */
+struct kinfo_vmevents {
+	uint32_t ve_swtch;		/* context switches */
+	uint32_t ve_trap;		/* calls to trap */
+	uint32_t ve_syscall;		/* calls to syscall() */
+	uint32_t ve_intr;		/* device interrupts */
+	uint32_t ve_soft;		/* software interrupts */
+	uint32_t ve_fpsim;		/* floating point simulator faults */
+	uint32_t ve_kbin;		/* kbytes swapped in */
+	uint32_t ve_kbout;		/* kbytes swapped out */
+	uint32_t ve_swpin;		/* swapins */
+	uint32_t ve_swpout;		/* swapouts */
+};
+
+struct kinfo_vmstat {
+	uint16_t vs_size;		/* sizeof(struct kinfo_vmstat) */
+	uint16_t vs_spare;		/* zero */
+	uint32_t vs_cp_time[KI_CPUSTATES]; /* ticks: CP_USER, CP_NICE, CP_SYS, CP_IDLE */
+	struct kinfo_vmevents vs_rate;	/* events in the last second */
+	struct kinfo_vmevents vs_sum;	/* events since boot */
+	uint32_t vs_cntfork;		/* forks */
+	uint32_t vs_cntvfork;		/* vforks */
+	uint32_t vs_sizfork;		/* kbytes copied by fork */
+	uint32_t vs_sizvfork;		/* kbytes lent by vfork */
+	uint32_t vs_nch_goodhits;	/* name-cache hits used */
+	uint32_t vs_nch_badhits;	/* hits dropped */
+	uint32_t vs_nch_falsehits;	/* hits with an id mismatch */
+	uint32_t vs_nch_miss;		/* misses */
+	uint32_t vs_nch_long;		/* names too long for the cache */
+	uint32_t vs_nch_pass2;		/* names found on the second pass */
+	uint32_t vs_nch_2passes;	/* second passes attempted */
+	uint32_t vs_tk_nin;		/* terminal characters in */
+	uint32_t vs_tk_nout;		/* terminal characters out */
+};
+
+/*
+ * HW_DISKSTATS returns one record for each disk-statistics slot a driver
+ * has claimed (dk_alloc(), sys/kern/ufs_dsort.c), in slot order: the name
+ * the driver gave, NUL-ended, and the slot's transfer and byte counts. A
+ * kernel whose drivers claim no slot returns no record.
+ */
+#define	KI_DISKNAMESZ		8
+
+struct kinfo_disk {
+	char	 kd_name[KI_DISKNAMESZ]; /* driver's name for the drive */
+	uint32_t kd_xfer;		/* transfers */
+	uint32_t kd_bytes;		/* bytes transferred */
+};
+
+/*
  * CTL_HW identifiers
  */
 #define	HW_MACHINE		1	/* string: machine class */

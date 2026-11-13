@@ -14,7 +14,10 @@ iostat \- report I/O statistics
 [ interval [ count ] ]
 .SH DESCRIPTION
 .I Iostat
-iteratively reports the number of characters read and written to terminals
+reads the kernel's statistics records through
+.IR sysctl (3)
+and needs no privilege.
+It iteratively reports the number of characters read and written to terminals
 per second,
 and, for each disk, the number of transfers per second, kilobytes
 transferred per second,
@@ -23,16 +26,17 @@ It also gives the percentage of time the system has
 spent in user mode, in user mode running low priority (niced) processes,
 in system mode, and idling.
 .PP
-To compute this information, for each disk, seeks and data transfer completions
-and number of words transferred are counted;
+To compute this information, for each disk, data transfer completions
+and bytes transferred are counted;
 for terminals collectively, the number
 of input and output characters are counted.
-Also, each sixtieth of a second,
-the state of each disk is examined
-and a tally is made if the disk is active.
-From these numbers and given the transfer rates
-of the devices it is possible to determine
-average seek times for each device.
+The disk records come from
+.B hw.diskstats
+and list the drives a driver has claimed, in slot order;
+a system whose drivers claim no drive reports the terminal and cpu
+columns only.
+The remaining counts come from
+.BR vm.stats .
 .PP
 The optional
 .I interval
@@ -58,9 +62,6 @@ in favor of the Massbus drives).  To force
 .I iostat
 to display specific drives, their names may be supplied on
 the command line.
-.SH FILES
-/dev/kmem
-.br
-/vmunix
 .SH SEE ALSO
-vmstat(1)
+vmstat(1),
+sysctl(3)

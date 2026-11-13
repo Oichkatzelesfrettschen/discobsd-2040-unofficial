@@ -7,101 +7,58 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <nlist.h>
-#include <fcntl.h>
+#include <errno.h>
+#include <signal.h>
 #include <unistd.h>
 
 #include <sys/param.h>
-#include <sys/file.h>
-#include <sys/vm.h>
+#include <sys/types.h>
 #include <sys/dk.h>
-#include <sys/buf.h>
-#include <sys/dir.h>
-#include <sys/inode.h>
-#include <sys/namei.h>
+#include <sys/sysctl.h>
 #include <sys/time.h>
 
-#include <machine/machparam.h>
+/*
+ * Every statistic comes from a sysctl(3) record, so the program needs no
+ * privilege: CTL_VM VM_STATS (event counters, cpu ticks, fork and name-cache
+ * statistics), CTL_HW HW_DISKSTATS (one record per drive a driver claimed),
+ * CTL_VM VM_METER (process and memory totals), CTL_HW HW_USERMEM (free
+ * memory), CTL_KERN KERN_BOOTTIME and CTL_KERN KERN_CLOCKRATE.
+ */
 
-void    dotimes();
-void    dosum();
-void    doforkst();
+void    dotimes(void);
+void    dosum(void);
+void    doforkst(void);
 void    stats(int dn);
 double  stat1(int row);
 void    dointr(long nintv);
-void    read_names();
+void    printhdr(int sig);
+void    fetch(int *mib, u_int miblen, void *buf, size_t len, const char *what);
+int     fetchdisks(struct kinfo_disk *kd);
+void    fetchvmstat(struct kinfo_vmstat *vs);
 
-struct nlist nl[] = {
-#define X_CPTIME    0
-    { "_cp_time" },
-#define X_RATE      1
-    { "_rate" },
-#define X_TOTAL     2
-    { "_total" },
-#define X_FORKSTAT  3
-    { "_forkstat" },
-#define X_SUM       4
-    { "_sum" },
-#define X_BOOTTIME  5
-    { "_boottime" },
-#define X_DKXFER    6
-    { "_dk_xfer" },
-#define X_HZ        7
-    { "_hz" },
-#define X_NCHSTATS  8
-    { "_nchstats" },
-#define X_DK_NDRIVE 9
-    { "_dk_ndrive" },
-#define X_DK_NAME   10
-    { "_dk_name" },
-#define X_DK_UNIT   11
-    { "_dk_unit" },
-#define X_FREEMEM   12
-    { "_freemem" },
-    { "" },
-};
-
-char    **dk_name;
-int *dk_unit;
-size_t  pfree;
-int pflag;
-char    **dr_name;
-int *dr_select;
+char    *defdrives[] = { "sd0", 0 };
+struct kinfo_disk disks[DK_NDRIVE];     /* names, as first fetched */
+int dr_select[DK_NDRIVE];
 int dk_ndrive;
 int ndrives = 0;
-char    *defdrives[] = { "sd0", 0 };
+int pflag;
 int hz;
 
 struct {
-    int busy;
     long    time[CPUSTATES];
-    long    *xfer;
+    long    xfer[DK_NDRIVE];
+} s, s1;
 
-    struct  vmrate Rate;
-    struct  vmtotal Total;
-    struct  vmsum Sum;
-
-    struct  forkstat Forkstat;
-    unsigned rectime;
-    unsigned pgintime;
-} s, s1, z;
-#define rate        s.Rate
-#define total       s.Total
-#define sum     s.Sum
-#define forkstat    s.Forkstat
-
-struct  vmsum osum;
 double  etime;
-int     mf;
 time_t  now, boottime;
 int lines = 1;
 
 void
-printhdr(sig)
-    int sig;
+printhdr(int sig)
 {
-    register int i, j;
+    int i;
 
+    (void)sig;
     if (pflag)
         printf("-procs- -----memory----- -swap- ");
     else
@@ -119,8 +76,7 @@ printhdr(sig)
 
     for (i = 0; i < dk_ndrive; i++)
         if (dr_select[i])
-            printf("%c%c%c ",
-                dr_name[i][0], dr_name[i][1], dr_name[i][2]);
+            printf("%.3s ", disks[i].kd_name);
     printf("  in  sy");
     if (pflag)
         printf("  tr");
@@ -131,43 +87,82 @@ printhdr(sig)
     lines = 19;
 }
 
-int
-main(argc, argv)
-    int argc;
-    char **argv;
+/*
+ * Read one sysctl record of exactly len bytes into buf, or exit.
+ */
+void
+fetch(int *mib, u_int miblen, void *buf, size_t len, const char *what)
 {
-    extern char *ctime();
-    register int i;
+    size_t size = len;
+
+    if (sysctl(mib, miblen, buf, &size, NULL, 0) < 0) {
+        fprintf(stderr, "vmstat: sysctl %s: %s\n", what,
+            strerror(errno));
+        exit(1);
+    }
+    if (size != len) {
+        fprintf(stderr, "vmstat: sysctl %s: record is %u bytes, "
+            "expected %u\n", what, (unsigned)size, (unsigned)len);
+        exit(1);
+    }
+}
+
+void
+fetchvmstat(struct kinfo_vmstat *vs)
+{
+    int mib[2];
+
+    mib[0] = CTL_VM;
+    mib[1] = VM_STATS;
+    fetch(mib, 2, vs, sizeof *vs, "vm.stats");
+}
+
+/*
+ * Read the drive records into kd (room for DK_NDRIVE) and return how many
+ * the kernel reports; zero on a kernel whose drivers claim no drive.
+ */
+int
+fetchdisks(struct kinfo_disk *kd)
+{
+    int mib[2];
+    size_t size = DK_NDRIVE * sizeof (struct kinfo_disk);
+
+    mib[0] = CTL_HW;
+    mib[1] = HW_DISKSTATS;
+    if (sysctl(mib, 2, kd, &size, NULL, 0) < 0) {
+        fprintf(stderr, "vmstat: sysctl hw.diskstats: %s\n",
+            strerror(errno));
+        exit(1);
+    }
+    return (int)(size / sizeof (struct kinfo_disk));
+}
+
+int
+main(int argc, char **argv)
+{
+    int i, mib[2];
     int iter, iflag = 0;
     long nintv, t;
-    char *arg, **cp, buf[BUFSIZ];
+    char **cp;
+    unsigned long divisor;
+    struct kinfo_vmstat vs;
+    struct kinfo_disk cur[DK_NDRIVE];
+    struct vmtotal total;
+    struct timeval tv;
+    struct clockinfo clock;
+    size_t size;
+    long pfree;
+    const struct kinfo_vmevents *ev;
 
-    knlist(nl);
-    if(nl[0].n_value == 0) {
-        fprintf(stderr, "no /vmunix namelist\n");
-        exit(1);
-    }
-    mf = open("/dev/kmem", 0);
-    if(mf < 0) {
-        fprintf(stderr, "cannot open /dev/kmem\n");
-        exit(1);
-    }
     iter = 0;
     argc--, argv++;
     while (argc>0 && argv[0][0]=='-') {
-        char *cp = *argv++;
+        char *opt = *argv++;
         argc--;
-        while (*++cp) switch (*cp) {
+        while (*++opt) switch (*opt) {
 
         case 't':
             dotimes();
-            exit(0);
-
-        case 'z':
-            close(mf);
-            mf = open("/dev/kmem", 2);
-            lseek(mf, (long)nl[X_SUM].n_value, L_SET);
-            write(mf, &z.Sum, sizeof z.Sum);
             exit(0);
 
         case 'f':
@@ -188,43 +183,31 @@ main(argc, argv)
 
         default:
             fprintf(stderr,
-                "usage: vmstat [ -fsiptz ] [ interval ] [ count]\n");
+                "usage: vmstat [ -fsip ] [ interval ] [ count]\n");
             exit(1);
         }
     }
-    lseek(mf, (long)nl[X_BOOTTIME].n_value, L_SET);
-    read(mf, &boottime, sizeof boottime);
-    lseek(mf, (long)nl[X_HZ].n_value, L_SET);
-    read(mf, &hz, sizeof hz);
-    if (nl[X_DK_NDRIVE].n_value == 0) {
-        fprintf(stderr, "dk_ndrive undefined in system\n");
+    mib[0] = CTL_KERN;
+    mib[1] = KERN_BOOTTIME;
+    fetch(mib, 2, &tv, sizeof tv, "kern.boottime");
+    boottime = tv.tv_sec;
+    mib[1] = KERN_CLOCKRATE;
+    size = sizeof clock;
+    if (sysctl(mib, 2, &clock, &size, NULL, 0) < 0) {
+        fprintf(stderr, "vmstat: sysctl kern.clockrate: %s\n",
+            strerror(errno));
         exit(1);
     }
-    lseek(mf, (long)nl[X_DK_NDRIVE].n_value, L_SET);
-    read(mf, &dk_ndrive, sizeof (dk_ndrive));
-    if (dk_ndrive <= 0) {
-        fprintf(stderr, "dk_ndrive %d\n", dk_ndrive);
+    hz = clock.hz;
+    if (hz <= 0) {
+        fprintf(stderr, "vmstat: clock rate %d\n", hz);
         exit(1);
     }
-    dr_select = (int *)calloc(dk_ndrive, sizeof (int));
-    dr_name = (char **)calloc(dk_ndrive, sizeof (char *));
-    dk_name = (char **)calloc(dk_ndrive, sizeof (char *));
-    dk_unit = (int *)calloc(dk_ndrive, sizeof (int));
-#define allocate(e, t) \
-    s./**/e = (t *)calloc(dk_ndrive, sizeof (t)); \
-    s1./**/e = (t *)calloc(dk_ndrive, sizeof (t));
-    allocate(xfer, long);
-    for (arg = buf, i = 0; i < dk_ndrive; i++) {
-        dr_name[i] = arg;
-        sprintf(dr_name[i], "dk%d", i);
-        arg += strlen(dr_name[i]) + 1;
-    }
-    read_names();
+    dk_ndrive = fetchdisks(disks);
     time(&now);
     nintv = now - boottime;
     if (nintv <= 0 || nintv > 60L*60L*24L*365L*10L) {
-        fprintf(stderr,
-            "Time makes no sense... namelist must be wrong.\n");
+        fprintf(stderr, "Time makes no sense... boot time must be wrong.\n");
         exit(1);
     }
     if (iflag) {
@@ -239,9 +222,9 @@ main(argc, argv)
      * display the first few that fit.
      */
     ndrives = 0;
-    while (argc > 0 && !isdigit(argv[0][0])) {
+    while (argc > 0 && !isdigit((unsigned char)argv[0][0])) {
         for (i = 0; i < dk_ndrive; i++) {
-            if (strcmp(dr_name[i], argv[0]))
+            if (strcmp(disks[i].kd_name, argv[0]))
                 continue;
             dr_select[i] = 1;
             ndrives++;
@@ -252,7 +235,7 @@ main(argc, argv)
         if (dr_select[i])
             continue;
         for (cp = defdrives; *cp; cp++)
-            if (strcmp(dr_name[i], *cp) == 0) {
+            if (strcmp(disks[i].kd_name, *cp) == 0) {
                 dr_select[i] = 1;
                 ndrives++;
                 break;
@@ -269,35 +252,35 @@ main(argc, argv)
     signal(SIGCONT, printhdr);
 loop:
     if (--lines == 0)
-        printhdr();
-    lseek(mf, (long)nl[X_CPTIME].n_value, L_SET);
-    read(mf, s.time, sizeof s.time);
-    lseek(mf, (long)nl[X_DKXFER].n_value, L_SET);
-    read(mf, s.xfer, dk_ndrive * sizeof (long));
+        printhdr(0);
+    fetchvmstat(&vs);
+    for (i = 0; i < CPUSTATES; i++)
+        s.time[i] = vs.vs_cp_time[i];
+    t = fetchdisks(cur);
+    if (t > dk_ndrive)
+        t = dk_ndrive;
+    for (i = 0; i < t; i++)
+        s.xfer[i] = cur[i].kd_xfer;
 
-    if (nintv != 1) {
-        lseek(mf, (long)nl[X_SUM].n_value, L_SET);
-        read(mf, &sum, sizeof(sum));
-        rate.v_swtch = sum.v_swtch;
-        rate.v_trap = sum.v_trap;
-        rate.v_syscall = sum.v_syscall;
-        rate.v_intr = sum.v_intr;
-        rate.v_swpin = sum.v_swpin;
-        rate.v_swpout = sum.v_swpout;
-    } else {
-        lseek(mf, (long)nl[X_RATE].n_value, L_SET);
-        read(mf, &rate, sizeof rate);
-        lseek(mf, (long)nl[X_SUM].n_value, L_SET);
-        read(mf, &sum, sizeof sum);
+    /*
+     * The first report averages the counts since boot; later ones show the
+     * kernel's rates for the last second.
+     */
+    ev = nintv != 1 ? &vs.vs_sum : &vs.vs_rate;
+    divisor = (unsigned long)nintv;
+
+    mib[0] = CTL_HW;
+    mib[1] = HW_USERMEM;
+    size = sizeof pfree;
+    if (sysctl(mib, 2, &pfree, &size, NULL, 0) < 0) {
+        fprintf(stderr, "vmstat: sysctl hw.usermem: %s\n",
+            strerror(errno));
+        exit(1);
     }
-    lseek(mf, (long)nl[X_FREEMEM].n_value, L_SET);
-    read(mf, &pfree, sizeof(pfree));
+    mib[0] = CTL_VM;
+    mib[1] = VM_METER;
+    fetch(mib, 2, &total, sizeof total, "vm.meter");
 
-    lseek(mf, (long)nl[X_TOTAL].n_value, L_SET);
-    read(mf, &total, sizeof total);
-    osum = sum;
-    lseek(mf, (long)nl[X_SUM].n_value, L_SET);
-    read(mf, &sum, sizeof sum);
     etime = 0;
     for (i=0; i < dk_ndrive; i++) {
         t = s.xfer[i];
@@ -318,14 +301,15 @@ loop:
      * We don't use total.t_free because it slops around too much
      * within this kernel
      */
-    printf("%7d", total.t_avm);
+    printf("%7ld", total.t_avm);
     if (pflag)
-        printf("%4d",
+        printf("%4ld",
             total.t_avm ? (total.t_avmtxt * 100) / total.t_avm : 0);
-    printf("%6d", pfree);
+    printf("%6ld", pfree);
 
     if (pflag) {
-        printf("%4lu%3lu ", rate.v_swpin / nintv, rate.v_swpout / nintv);
+        printf("%4lu%3lu ", (unsigned long)ev->ve_swpin / divisor,
+            (unsigned long)ev->ve_swpout / divisor);
     }
 
     etime /= (float)hz;
@@ -333,10 +317,11 @@ loop:
         if (dr_select[i])
             stats(i);
     }
-    printf("%5lu%4lu", rate.v_intr/nintv, rate.v_syscall/nintv);
+    printf("%5lu%4lu", (unsigned long)ev->ve_intr / divisor,
+        (unsigned long)ev->ve_syscall / divisor);
     if (pflag)
-        printf("%4lu", rate.v_trap / nintv);
-    printf("%4lu", rate.v_swtch / nintv);
+        printf("%4lu", (unsigned long)ev->ve_trap / divisor);
+    printf("%4lu", (unsigned long)ev->ve_swtch / divisor);
 
     for(i=0; i<CPUSTATES; i++) {
         float f = stat1(i);
@@ -353,62 +338,62 @@ loop:
         sleep(atoi(argv[0]));
         goto loop;
     }
+    return 0;
 }
 
 void
-dotimes()
+dotimes(void)
 {
     printf("page in/out/reclamation is not applicable to 2.11BSD\n");
 }
 
 void
-dosum()
+dosum(void)
 {
-    struct nchstats nchstats;
-    long nchtotal;
+    struct kinfo_vmstat vs;
+    unsigned long nchtotal;
 
-    lseek(mf, (long)nl[X_SUM].n_value, L_SET);
-    read(mf, &sum, sizeof sum);
-    printf("%9d swap ins\n", sum.v_swpin);
-    printf("%9d swap outs\n", sum.v_swpout);
-    printf("%9d kbytes swapped in\n", sum.v_kbin);
-    printf("%9d kbytes swapped out\n", sum.v_kbout);
-    printf("%9d cpu context switches\n", sum.v_swtch);
-    printf("%9d device interrupts\n", sum.v_intr);
-    printf("%9d software interrupts\n", sum.v_soft);
-    printf("%9d traps\n", sum.v_trap);
-    printf("%9d system calls\n", sum.v_syscall);
+    fetchvmstat(&vs);
+    printf("%9lu swap ins\n", (unsigned long)vs.vs_sum.ve_swpin);
+    printf("%9lu swap outs\n", (unsigned long)vs.vs_sum.ve_swpout);
+    printf("%9lu kbytes swapped in\n", (unsigned long)vs.vs_sum.ve_kbin);
+    printf("%9lu kbytes swapped out\n", (unsigned long)vs.vs_sum.ve_kbout);
+    printf("%9lu cpu context switches\n", (unsigned long)vs.vs_sum.ve_swtch);
+    printf("%9lu device interrupts\n", (unsigned long)vs.vs_sum.ve_intr);
+    printf("%9lu software interrupts\n", (unsigned long)vs.vs_sum.ve_soft);
+    printf("%9lu traps\n", (unsigned long)vs.vs_sum.ve_trap);
+    printf("%9lu system calls\n", (unsigned long)vs.vs_sum.ve_syscall);
 #define nz(x)   ((x) ? (x) : 1)
-    lseek(mf, (long)nl[X_NCHSTATS].n_value, 0);
-    read(mf, &nchstats, sizeof nchstats);
-    nchtotal = nchstats.ncs_goodhits + nchstats.ncs_badhits +
-        nchstats.ncs_falsehits + nchstats.ncs_miss + nchstats.ncs_long;
-    printf("%9d total name lookups", nchtotal);
-    printf(" (cache hits %d%% system %d%% per-process)\n",
-        nchstats.ncs_goodhits * 100 / nz(nchtotal),
-        nchstats.ncs_pass2 * 100 / nz(nchtotal));
-    printf("%9s badhits %d, falsehits %d, toolong %d\n", "",
-        nchstats.ncs_badhits, nchstats.ncs_falsehits, nchstats.ncs_long);
+    nchtotal = (unsigned long)vs.vs_nch_goodhits + vs.vs_nch_badhits +
+        vs.vs_nch_falsehits + vs.vs_nch_miss + vs.vs_nch_long;
+    printf("%9lu total name lookups", nchtotal);
+    printf(" (cache hits %lu%% system %lu%% per-process)\n",
+        (unsigned long)vs.vs_nch_goodhits * 100 / nz(nchtotal),
+        (unsigned long)vs.vs_nch_pass2 * 100 / nz(nchtotal));
+    printf("%9s badhits %lu, falsehits %lu, toolong %lu\n", "",
+        (unsigned long)vs.vs_nch_badhits,
+        (unsigned long)vs.vs_nch_falsehits,
+        (unsigned long)vs.vs_nch_long);
 }
 
 void
-doforkst()
+doforkst(void)
 {
-    lseek(mf, (long)nl[X_FORKSTAT].n_value, L_SET);
-    read(mf, &forkstat, sizeof forkstat);
-    if (forkstat.cntfork != 0)
-        printf("%d forks, %d kbytes, average=%.2f\n",
-            forkstat.cntfork, forkstat.sizfork,
-            (float) forkstat.sizfork / forkstat.cntfork);
-    if (forkstat.cntvfork != 0)
-        printf("%d vforks, %d kbytes, average=%.2f\n",
-            forkstat.cntvfork, forkstat.sizvfork,
-            (float) forkstat.sizvfork / forkstat.cntvfork);
+    struct kinfo_vmstat vs;
+
+    fetchvmstat(&vs);
+    if (vs.vs_cntfork != 0)
+        printf("%lu forks, %lu kbytes, average=%.2f\n",
+            (unsigned long)vs.vs_cntfork, (unsigned long)vs.vs_sizfork,
+            (float) vs.vs_sizfork / vs.vs_cntfork);
+    if (vs.vs_cntvfork != 0)
+        printf("%lu vforks, %lu kbytes, average=%.2f\n",
+            (unsigned long)vs.vs_cntvfork, (unsigned long)vs.vs_sizvfork,
+            (float) vs.vs_sizvfork / vs.vs_cntvfork);
 }
 
 void
-stats(dn)
-    int dn;
+stats(int dn)
 {
     if (dn >= dk_ndrive) {
         printf("   0");
@@ -418,11 +403,10 @@ stats(dn)
 }
 
 double
-stat1(row)
-    int row;
+stat1(int row)
 {
     double t;
-    register int i;
+    int i;
 
     t = 0;
     for(i=0; i<CPUSTATES; i++)
@@ -433,32 +417,8 @@ stat1(row)
 }
 
 void
-dointr(nintv)
-    long nintv;
+dointr(long nintv)
 {
+    (void)nintv;
     printf("Device interrupt statistics are not applicable to 2.11BSD\n");
-}
-
-#define steal(where, var) \
-    lseek(mf, where, L_SET); read(mf, &var, sizeof var);
-/*
- * Read the drive names out of kmem.
- */
-void
-read_names()
-{
-    char two_char[2];
-    register int i;
-
-    lseek(mf, (long)nl[X_DK_NAME].n_value, L_SET);
-    read(mf, dk_name, dk_ndrive * sizeof (char *));
-    lseek(mf, (long)nl[X_DK_UNIT].n_value, L_SET);
-    read(mf, dk_unit, dk_ndrive * sizeof (int));
-
-    for(i = 0; dk_name[i]; i++) {
-        lseek(mf, (long)dk_name[i], L_SET);
-        read(mf, two_char, sizeof two_char);
-        sprintf(dr_name[i], "%c%c%d", two_char[0], two_char[1],
-            dk_unit[i]);
-    }
 }

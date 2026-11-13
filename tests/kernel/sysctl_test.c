@@ -43,6 +43,8 @@
 #include <sys/file.h>
 #include <sys/inode.h>
 #include <sys/mount.h>
+#include <sys/namei.h>
+#include <sys/dk.h>
 #include <sys/tty.h>
 #include <sys/vm.h>		/* vmmeter.h and vmsystm.h, which self-include */
 #include <sys/map.h>
@@ -89,6 +91,16 @@ struct inode inode[NINODE];
 struct mount mount[NMOUNT];
 struct vmtotal total;
 struct vmrate cnt;		/* the swap transfer counts vm_swp.c meters */
+struct vmrate rate;		/* VM_STATS: the last second's events */
+struct vmsum sum;		/* VM_STATS: events since boot */
+struct forkstat forkstat;
+struct nchstats nchstats;
+long cp_time[CPUSTATES];
+long dk_xfer[DK_NDRIVE];
+long dk_bytes[DK_NDRIVE];
+char *dk_name[DK_NDRIVE];
+long tk_nin;
+long tk_nout;
 struct timeval boottime;
 short avenrun[3];
 size_t freemem;
@@ -2187,6 +2199,146 @@ test_files_refuse_writes(void)
 	reset_calls();
 }
 
+/*
+ * VM_STATS: every counter lands in its own field. Each fixture value is
+ * distinct and derives from the field's place, so a value copied into the
+ * wrong field, or one counter copied twice, shows.
+ */
+static void
+fill_counters(void)
+{
+	unsigned i;
+
+	for (i = 0; i < CPUSTATES; i++)
+		cp_time[i] = (long)(10 + i);
+	rate.v_swtch = 101; rate.v_trap = 102; rate.v_syscall = 103;
+	rate.v_intr = 104; rate.v_soft = 105; rate.v_fpsim = 106;
+	rate.v_kbin = 107; rate.v_kbout = 108; rate.v_swpin = 109;
+	rate.v_swpout = 110;
+	sum.v_swtch = 201; sum.v_trap = 202; sum.v_syscall = 203;
+	sum.v_intr = 204; sum.v_soft = 205; sum.v_fpsim = 206;
+	sum.v_kbin = 207; sum.v_kbout = 208; sum.v_swpin = 209;
+	sum.v_swpout = 210;
+	forkstat.cntfork = 301; forkstat.cntvfork = 302;
+	forkstat.sizfork = 303; forkstat.sizvfork = 304;
+	nchstats.ncs_goodhits = 401; nchstats.ncs_badhits = 402;
+	nchstats.ncs_falsehits = 403; nchstats.ncs_miss = 404;
+	nchstats.ncs_long = 405; nchstats.ncs_pass2 = 406;
+	nchstats.ncs_2passes = 407;
+	tk_nin = 501;
+	tk_nout = 502;
+}
+
+static void
+poison_bytes(void *p, size_t n)
+{
+	for (size_t i = 0; i < n; i++)
+		((unsigned char *)p)[i] = POISON;
+}
+
+static int
+events_are(const struct kinfo_vmevents *e, uint32_t base)
+{
+	return (e->ve_swtch == base + 1 && e->ve_trap == base + 2 &&
+	    e->ve_syscall == base + 3 && e->ve_intr == base + 4 &&
+	    e->ve_soft == base + 5 && e->ve_fpsim == base + 6 &&
+	    e->ve_kbin == base + 7 && e->ve_kbout == base + 8 &&
+	    e->ve_swpin == base + 9 && e->ve_swpout == base + 10);
+}
+
+static void
+test_vmstats(void)
+{
+	int mib[2] = { CTL_VM, VM_STATS };
+	struct kinfo_vmstat vs;
+	size_t len;
+	int token = 1;
+
+	fill_counters();
+	reset_calls();
+	poison_bytes(&vs, sizeof(vs));
+	len = sizeof(vs);
+	HK_CHECK(call_syscall(mib, 2, &vs, &len, NULL, 0) == 0);
+	HK_CHECK(len == sizeof(vs) && u.u_rval == 0);
+	HK_CHECK(vs.vs_size == sizeof(vs) && vs.vs_spare == 0);
+	for (unsigned i = 0; i < KI_CPUSTATES; i++)
+		HK_CHECK(vs.vs_cp_time[i] == 10 + i);
+	HK_CHECK(events_are(&vs.vs_rate, 100));
+	HK_CHECK(events_are(&vs.vs_sum, 200));
+	HK_CHECK(vs.vs_cntfork == 301 && vs.vs_cntvfork == 302 &&
+	    vs.vs_sizfork == 303 && vs.vs_sizvfork == 304);
+	HK_CHECK(vs.vs_nch_goodhits == 401 && vs.vs_nch_badhits == 402 &&
+	    vs.vs_nch_falsehits == 403 && vs.vs_nch_miss == 404 &&
+	    vs.vs_nch_long == 405 && vs.vs_nch_pass2 == 406 &&
+	    vs.vs_nch_2passes == 407);
+	HK_CHECK(vs.vs_tk_nin == 501 && vs.vs_tk_nout == 502);
+
+	/* A size query and a short buffer report the record's length. */
+	reset_calls();
+	len = 0;
+	HK_CHECK(call_syscall(mib, 2, NULL, &len, NULL, 0) == 0);
+	HK_CHECK(len == sizeof(vs));
+	reset_calls();
+	poison_bytes(&vs, sizeof(vs));
+	len = offsetof(struct kinfo_vmstat, vs_rate);
+	HK_CHECK(call_syscall(mib, 2, &vs, &len, NULL, 0) == ENOMEM);
+	HK_CHECK(len == sizeof(vs) && vs.vs_size == sizeof(vs));
+	HK_CHECK((unsigned char)vs.vs_rate.ve_swtch == POISON);
+
+	/* The record is read-only. */
+	reset_calls();
+	len = sizeof(vs);
+	HK_CHECK(call_syscall(mib, 2, &vs, &len, &token, sizeof(token)) ==
+	    EPERM);
+	reset_calls();
+}
+
+/*
+ * HW_DISKSTATS: a record for each claimed slot, up to the first unnamed
+ * one, with the name copied and ended within KI_DISKNAMESZ.
+ */
+static void
+test_diskstats(void)
+{
+	int mib[2] = { CTL_HW, HW_DISKSTATS };
+	struct kinfo_disk kd[DK_NDRIVE + 1];
+	char sd0[] = "sd0", longname[] = "abcdefghij", late[] = "late";
+	size_t len;
+	int token = 1;
+
+	bzero(dk_name, sizeof(dk_name));
+	reset_calls();
+	len = sizeof(kd);
+	HK_CHECK(call_syscall(mib, 2, kd, &len, NULL, 0) == 0);
+	HK_CHECK(len == 0 && u.u_rval == 0);
+
+	dk_name[0] = sd0;
+	dk_xfer[0] = 11;
+	dk_bytes[0] = 12;
+	dk_name[1] = longname;
+	dk_xfer[1] = 21;
+	dk_bytes[1] = 22;
+	dk_name[3] = late;	/* after the unnamed slot 2: not claimed */
+	reset_calls();
+	poison_bytes(kd, sizeof(kd));
+	len = sizeof(kd);
+	HK_CHECK(call_syscall(mib, 2, kd, &len, NULL, 0) == 0);
+	HK_CHECK(len == 2 * sizeof(kd[0]));
+	HK_CHECK(hk_streq(kd[0].kd_name, "sd0") && kd[0].kd_xfer == 11 &&
+	    kd[0].kd_bytes == 12);
+	HK_CHECK(kd[0].kd_name[KI_DISKNAMESZ - 1] == '\0');
+	HK_CHECK(hk_streq(kd[1].kd_name, "abcdefg") && kd[1].kd_xfer == 21 &&
+	    kd[1].kd_bytes == 22);
+	HK_CHECK((unsigned char)kd[2].kd_name[0] == POISON);
+
+	reset_calls();
+	len = sizeof(kd);
+	HK_CHECK(call_syscall(mib, 2, kd, &len, &token, sizeof(token)) ==
+	    EPERM);
+	bzero(dk_name, sizeof(dk_name));
+	reset_calls();
+}
+
 int
 main(void)
 {
@@ -2229,5 +2381,7 @@ main(void)
 	test_files_refusals();
 	test_files_caller_sized();
 	test_files_refuse_writes();
+	test_vmstats();
+	test_diskstats();
 	return (hk_verdict("sysctl"));
 }

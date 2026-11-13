@@ -58,7 +58,7 @@ def build(root, compiler, directory, overrides, target):
     stdlib = root / "lib/libc/stdlib"
     stdio = root / "lib/libc/stdio"
     objects = []
-    sources = [stdlib / name for name in ("at_quick_exit.c", "quick_exit.c", "_Exit.c")]
+    sources = [stdlib / name for name in ("at_quick_exit.c", "quick_exit.c", "iso_exit.c")]
     sources += [stdio / "atexit.c", stdio / "exit.c"]
     for source in sources:
         unit = directory / (source.stem + ".o")
@@ -81,7 +81,7 @@ def run(program, case, target):
 
 def real_termination(root, compiler, directory, target):
     objects = []
-    for filename in ("at_quick_exit.c", "quick_exit.c", "_Exit.c"):
+    for filename in ("at_quick_exit.c", "quick_exit.c", "iso_exit.c"):
         unit = directory / ("real_" + filename + ".o")
         compile_command(compiler + production_flags(root, target) + RENAMES[:3] +
                         ["-D_Exit=db_Exit", "-c",
@@ -93,13 +93,13 @@ def real_termination(root, compiler, directory, target):
     result = run(program, None, target)
     require((result.returncode, result.stdout, result.stderr) == (7, "Q", ""),
             "real termination mismatch: " + repr(result))
-    original = (root / "lib/libc/stdlib/_Exit.c").read_text()
+    original = (root / "lib/libc/stdlib/iso_exit.c").read_text()
     require(original.count("_exit(status);") == 1, "immediate-exit control anchor differs")
     mutant = directory / "flushing_exit.c"
     mutant.write_text(original.replace("_exit(status);", "exit(status);"))
     compile_command(compiler + production_flags(root, target) + RENAMES[:3] +
                     ["-D_Exit=db_Exit", "-c", str(mutant),
-                    "-o", str(directory / "real__Exit.c.o")])
+                    "-o", str(directory / "real_iso_exit.c.o")])
     link_program(root, compiler, directory, fixture, objects, program, target)
     result = run(program, None, target)
     require((result.returncode, result.stdout, result.stderr) == (99, "Q", ""),

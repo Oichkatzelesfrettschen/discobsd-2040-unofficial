@@ -109,7 +109,7 @@ OBJS            += fgetc.o fgets.o fputc.o fputs.o puts.o \
                    remove.o feof.o ferror.o fileno.o
 
 # libc/stdlib
-OBJS            += _Exit.o at_quick_exit.o quick_exit.o \
+OBJS            += iso_exit.o at_quick_exit.o quick_exit.o \
                    getopt.o getsubopt.o strtol.o strtoul.o strtod.o
 
 # libc/string

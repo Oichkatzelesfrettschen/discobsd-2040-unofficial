@@ -184,7 +184,7 @@ BOARDLIBC_GCCPREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
 		fi
 
 ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
-				${TOPSRC}/lib/libc/stdlib/_Exit.c \
+				${TOPSRC}/lib/libc/stdlib/iso_exit.c \
 				${TOPSRC}/lib/libc/stdlib/at_quick_exit.c \
 				${TOPSRC}/lib/libc/stdlib/quick_exit.c \
 				${TOPSRC}/lib/libc/stdlib/quick_exit.h \

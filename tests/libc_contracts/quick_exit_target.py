@@ -34,6 +34,18 @@ def command(argv, *, cwd=None, reject=None):
     return result.stdout
 
 
+def find_case_alias(members):
+    """Find distinct member names that alias during case-insensitive extraction."""
+    names = {}
+    for member in members:
+        folded = member.casefold()
+        previous = names.get(folded)
+        if previous is not None and previous != member:
+            return previous, member
+        names[folded] = member
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=pathlib.Path)
@@ -54,7 +66,7 @@ def main():
         command([compiler, *flags, "-c", str(source), "-o", str(work / "bad.o")],
                 reject="incompatible-pointer-types")
         source.write_text(FIXTURE)
-        for name in ("at_quick_exit", "quick_exit", "_Exit"):
+        for name in ("at_quick_exit", "quick_exit", "iso_exit"):
             command([compiler, *flags, "-c", str(root / "lib/libc/stdlib" / (name + ".c")),
                      "-o", str(work / (name + ".o"))])
 
@@ -76,6 +88,15 @@ def main():
         command([compiler, *flags, "-c", str(source), "-o", str(work / "probe.o")])
         archive = root / "lib/libc.a"
         require(archive.is_file(), "build the target libc before archive selection")
+        members = command([prefix + "ar", "t", str(archive)]).splitlines()
+        require(find_case_alias(members) is None,
+                "case-insensitive archive extraction aliases distinct members")
+        require(members.count("iso_exit.o") == 1 and members.count("_exit.o") == 1,
+                "termination archive requires distinct ISO and syscall objects")
+        damaged = ["_Exit.o" if member == "iso_exit.o" else member for member in members]
+        require(set(find_case_alias(damaged) or ()) == {"_Exit.o", "_exit.o"},
+                "archive case-alias control lacks the expected rejection")
+        print("quick-exit archive: distinct member names pass; case-alias control rejects")
         command([compiler, "-mcpu=cortex-m0plus", "-mthumb", "-nostdlib", "-Wl,-e,probe",
                  "-Wl,-Ttext=0x20000000", "-o", str(work / "probe"),
                  str(work / "probe.o"), str(archive)])

@@ -42,7 +42,7 @@ compiler declarations require separate results before qualification closes.
 
 ## Dependency closure
 
-Source discovery uses `rg -n 'atexit.o|_Exit.o'` over the library Makefiles
+Source discovery uses `rg -n 'atexit.o|iso_exit.o'` over the library Makefiles
 and `rg -n 'quick_exit|at_quick_exit'` over public headers and libc sources.
 The reduced native archive omits `_Exit` at the parent revision
 `6894810f9be79a5834657802702971661b7cc9c6`. Adding quick-exit members therefore
@@ -116,3 +116,30 @@ passes the same focused gate. The [integrated resource review](libc-lifecycle-in
 owns the matched clean measurements, exact owner approval and complete
 193-variant ILP32 result and completed combined aggregate qualification.
 Hosted CI and reviewed integration remain open.
+
+## Case-insensitive archive extraction
+
+The cross-library recipe in `lib/libc/Makefile` extracts each component archive
+into one directory. The stdlib `_Exit.o` and ARM syscall `_exit.o` names alias
+on a case-insensitive filesystem. The later ARM extraction replaces the ISO
+implementation, and the final library lacks `_Exit`. macOS CI run
+`43335655136`, job `131591036279`, reports `undefined reference to \`_Exit'`
+in `check-libc-quick-exit-cross` at `edd9bb44`. Component-symbol inspection
+with `arm-none-eabi-nm -A` confirms that each component supplies its own
+function before extraction; case-folding the component member lists identifies
+exactly this conflicting pair. The link failure therefore follows archive
+assembly rather than the C termination semantics.
+
+The ISO source and member use `iso_exit.c` and `iso_exit.o`; the exported
+function remains `_Exit`. The cross library, full converted archive, reduced
+native archive, dependency recipes and omission controls share that name.
+Historical resource receipts retain `_Exit.o` and their original hashes.
+The case-alias check rejects the pre-repair cross archive on Linux. Its
+calibration substitutes `_Exit.o` for `iso_exit.o` in the built member inventory
+and requires the exact collision with `_exit.o`. Existing link witnesses
+continue to require both function symbols and allocator-free quick termination.
+
+The deciding observations are a successful repaired cross-link, both native
+archive omission controls, and macOS CI on the repaired head. Matched clean
+resource capture determines whether the member rename preserves the approved
+byte and block limits; a successful host run alone leaves that question open.

@@ -49,7 +49,7 @@ do
 		exit 2
 	fi
 	for required_source in \
-	    "$source_root/lib/libc/stdlib/_Exit.c" \
+	    "$source_root/lib/libc/stdlib/iso_exit.c" \
 	    "$source_root/lib/libc/stdlib/at_quick_exit.c" \
 	    "$source_root/lib/libc/stdlib/quick_exit.c" \
 	    "$source_root/lib/libc/stdlib/quick_exit.h" \
@@ -75,7 +75,7 @@ do
 		fi
 	done
 	for required_member in confstr.o ctermid.o difftime.o explicit_bzero.o \
-	    _Exit.o at_quick_exit.o quick_exit.o \
+	    iso_exit.o at_quick_exit.o quick_exit.o \
 	    "$divider_member.o" qsort.o qsort_r.o raise.o sysconf.o \
 	    strnlen.o strndup.o stpcpy.o stpncpy.o \
 	    timingsafe_bcmp.o vis.o
@@ -108,7 +108,7 @@ do
 		printf '%s\n' "$undefined_symbols" >&2
 		exit 1
 	fi
-	for missing_member in strnlen strndup stpcpy stpncpy _Exit at_quick_exit quick_exit qsort qsort_r "$divider_member"
+	for missing_member in strnlen strndup stpcpy stpncpy iso_exit at_quick_exit quick_exit qsort qsort_r "$divider_member"
 	do
 		damaged_archive=$temporary_directory/damaged.a
 		cp "$archive_path" "$damaged_archive"
@@ -121,6 +121,7 @@ do
 			exit 1
 		fi
 		case "$missing_member" in
+		iso_exit) required_symbol=_Exit ;;
 		aeabi_div*) required_symbol=__aeabi_uidiv ;;
 		*) required_symbol=$missing_member ;;
 		esac

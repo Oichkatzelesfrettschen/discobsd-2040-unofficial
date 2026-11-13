@@ -1539,6 +1539,15 @@ fails the gate rather than unwinding into unrelated code.
 
 ## Cross tier
 
+`check-hsx-decoder` also routes stream-loop calls through a test adapter that
+checks the contiguous history-ring suffix before the production decoder writes.
+Eight deterministic streams of 513 through 520 literals exercise this boundary
+before image-dependent cases. The ring-overrun mutant requires exit 1 and the
+named caller-contract diagnostic; output and CRC agreement alone can preserve
+an invalid write into consumed staging bytes. The
+[ring-call record](../../../../docs/research/hsx-ring-call-contract.md) owns the
+counterexample and replay. Production decoder code remains unchanged.
+
 `check-warning-policy-cross` checks shared target warning enforcement and
 both kernels' `-Wall -Wextra -Werror` behavior as described above.
 

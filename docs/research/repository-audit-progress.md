@@ -54,14 +54,14 @@ rather than the shared GitHub account's authorship field.
 - [x] Complete replacement-rename caller reclamation tests, including the
   intermediate unreachable inode, successful release, live-inode rejection,
   repeated-release rejection and bounded rename-write error compensation.
-- [ ] Reconcile the storage tests, import patches, manifest and evidence
+- [x] Reconcile the storage tests, import patches, manifest and evidence
   documents; retain explicit limits for failed compensation and power loss.
-- [ ] Review the shared device first-error lifetime through last close,
+- [x] Review the shared device first-error lifetime through last close,
   per-active-inode replicas, alias propagation, cached-inode reuse and unit
   admission against the retained regression and mutation evidence.
-- [ ] Fetch origin main, inspect its delta and merge it into the owned branch
+- [x] Fetch origin main, inspect its delta and merge it into the owned branch
   while preserving the fixed audit baseline and other agents' work.
-- [ ] Run focused gates for reconciled changes and resolve their failures.
+- [x] Run focused gates for reconciled changes and resolve their failures.
 - [ ] Run final logged-build, logged-check and logged-ilp32; bind receipts to
   the tested head, base, configuration and resulting tree.
 - [ ] Review the final diff, push to origin and open the owned pull request;
@@ -76,6 +76,33 @@ repository-wide reviews, production atomic-recovery design, provider jobs and
 physical-board experiments remain outside this delivery queue. Retained open
 audit entries remain open; integration of the owned changes does not establish
 repository-wide audit completion.
+
+### Integrated validation evidence
+
+Commit `e71483dfdaf3f1f10d4a3e56c20f4b83a66fc3ca` integrates main
+`11a3f97045aa5631533d0209217eda288c1f9391`; its tree is
+`cdfb7c95b6ac3751f35fa4b05218e97920a3b55d`. A locked world clean
+precedes the logged build so the libc and sysctl interface changes reach
+relinked consumers. With `PYTHON` selected as the host Python 3 interpreter
+and `MACHINE=rp2040`, the following local receipts complete with exit zero:
+
+- `rp2040-build-local-20261113T012620Z-3747964-9780e678`: clean-world
+  build, including the kernel links, in 156.311 seconds.
+- `storage-device-focused`: `check-ufs-disk-ilp32` passes 1,968 checks;
+  `check-ufs-disk-mutants` rejects all 47 mutants through named assertions.
+- `storage-integrated-focused`: import verification matches 37 files;
+  v7fs core, persistent-image compensation, bounded transaction models and
+  the fixed-baseline coverage ledger pass. The ledger's 22 calibrations pass
+  and its 658 unreviewed components remain pending.
+
+The seven source hashes in `block-device-write-error-resources.json` match
+the integrated kernel sources. Those retained object and static-frame
+measurements retain their original compiler/configuration scope. Source review
+traces `biodone`, `bdev_write_error`, `openi`, `closei`, `vn_closefile` and
+`iget` through error publication, alias inheritance, final-close drain and
+cached-inode reactivation. The deciding fixture exercises those lifetimes;
+physical persistence and arbitrary scheduling interleavings remain separate
+claims. Final aggregate and ILP32 receipts remain required before publication.
 
 Only one item carries active implementation focus. Product jobs use the
 worktree's logged execution lock. Physical-board access, raw-device writes,

@@ -957,6 +957,12 @@ check-tee-contracts:
 check-tee-contracts-cross:
 		${MAKE} -C tests/tee_contracts check-cross
 
+# usr.bin/lex built for the host at the target's table sizes: a grammar that
+# needs more than a table holds exits 1 with the table's diagnostic before
+# the store, under AddressSanitizer where the host links it.
+check-lex-tables:	check-python
+		${MAKE} -C tests/lex_tables check
+
 # usr.bin/time linked with sbin/utilbox's dispatcher and a wait3 shim, run
 # as "time" and as "utilbox time": the exit status of a normal exit, of a
 # signal death (128 plus the signal), of a missing program (127), of a
@@ -1452,7 +1458,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
 		check-rmdir-contracts check-tee-contracts check-time-contracts \
-		check-libtcl-contracts \
+		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
@@ -1997,7 +2003,7 @@ installfs:
 		check-account-image regen-kernel-metadata check-fs-stress \
 		check-fsck-inode-range \
 		check-libc-environment check-libc-sysctl check-umount-contracts \
-		check-touch-contracts check-printf-contracts \
+		check-touch-contracts check-lex-tables check-printf-contracts \
 		check-printf-contracts-ilp32 check-printf-contracts-cross \
 		check-recovery-utility-contracts \
 		check-recovery-utility-contracts-cross check-timeout-contracts \

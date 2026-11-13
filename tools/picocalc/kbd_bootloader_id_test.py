@@ -2,18 +2,22 @@
 the STM32 USART bootloader (AN3155 framing).
 
 The model checks every complement and address checksum, answers from a
-memory map, and can refuse the private peripheral bus or one address,
-apply readout protection (a NACK of the Read Memory command byte), stay
-silent, answer garbage or cut a reply short. The client must exit 0 on a
-readable part, 3 only when the command byte is refused, 1 on every other
-refusal of the flash-size read and on every protocol failure, after which
-it sends nothing more; it must decode the product ID, CPUID and
-DBGMCU_IDCODE fields, bound a dump to the reported flash size, open the
-port at 57600 baud 8E1, and never put a byte outside its read-only
-command set on the wire. Three mutant clients (a little-endian address, a
-missing address checksum, a length byte sent without its complement) must
-exit 1 without claiming readout protection, and a client that swaps
-DEV_ID and REV_ID must be caught.
+memory map and a flash image, and can refuse the private peripheral bus
+or one address, apply readout protection (a NACK of the Read Memory
+command byte), refuse Get, list a chosen command set, stay silent, ACK the
+first 0x7F late, answer garbage or cut a reply short. The client must exit
+0 on a readable part, 3 only when Get lists Read Memory and its command
+byte is refused, 1 on every other refusal of the flash-size read and on
+every protocol failure, after which it sends nothing more; it must decode
+the product ID, CPUID and DBGMCU_IDCODE fields, bound a dump to the
+reported flash size, open the port at 57600 baud 8E1, refuse an existing
+dump file, and never put a byte outside its read-only command set on the
+wire, through a full default-length dump at 64 and 128 Kbytes included.
+Three mutant clients (a little-endian address, a missing address
+checksum, a length byte sent without its complement) must exit 1 without
+claiming readout protection, and a client that swaps DEV_ID and REV_ID
+and one that writes Readout Protect during a 64-Kbyte dump must be
+caught.
 """
 
 import contextlib
@@ -47,8 +51,11 @@ MEMORY = {
     kbi.DBGMCU_IDCODE_ADDR: bytes(4),
 }
 FIRMWARE = bytes((i * 7 + 3) & 0xFF for i in range(1000))
-for off in range(0, len(FIRMWARE), kbi.READ_CHUNK):
-    MEMORY[kbi.FLASH_BASE + off] = FIRMWARE[off : off + kbi.READ_CHUNK]
+GET_COMMANDS = [0x00, 0x01, 0x02, 0x11, 0x21, 0x31, 0x43, 0x63, 0x73, 0x82, 0x92]
+
+
+def flash_image(kbytes):
+    return bytes((i * 13 + 5) & 0xFF for i in range(kbytes * 1024))
 
 
 class ModelBootloader:
@@ -65,8 +72,17 @@ class ModelBootloader:
         already_synced=False,
         memory=None,
         refuse=(),
+        flash=FIRMWARE,
+        get_commands=GET_COMMANDS,
+        refuse_get=False,
+        late_sync_ack=False,
     ):
         self.already_synced = already_synced
+        self.flash = flash
+        self.get_commands = list(get_commands)
+        self.refuse_get = refuse_get
+        self.late_sync_ack = late_sync_ack
+        self.held_ack = False
         self.protected = protected
         self.refuse_ppb = refuse_ppb
         self.silent = silent
@@ -86,7 +102,16 @@ class ModelBootloader:
     def _reply(self, *bs):
         self.out.extend(bs)
 
+    def _lookup(self, addr):
+        if kbi.FLASH_BASE <= addr < kbi.FLASH_BASE + len(self.flash):
+            return self.flash[addr - kbi.FLASH_BASE :]
+        return self.memory.get(addr)
+
     def write(self, data):
+        # A late sync ACK leaves the line only after the host's next byte.
+        if self.held_ack:
+            self.held_ack = False
+            self._reply(kbi.ACK)
         self.inbuf.extend(data)
         self._parse()
 
@@ -112,8 +137,11 @@ class ModelBootloader:
                     return
                 if self.inbuf[0] == kbi.SYNC and not self.already_synced:
                     del self.inbuf[0]
+                    self.already_synced = True
                     if self.garbage:
                         self._reply(0x00)
+                    elif self.late_sync_ack:
+                        self.held_ack = True
                     elif not self.silent:
                         self._reply(kbi.ACK)
                     continue
@@ -134,7 +162,7 @@ class ModelBootloader:
                 del self.inbuf[:5]
                 addr = int.from_bytes(a, "big")
                 self.addresses.append(addr)
-                ok = a[0] ^ a[1] ^ a[2] ^ a[3] == xor and addr in self.memory
+                ok = a[0] ^ a[1] ^ a[2] ^ a[3] == xor and self._lookup(addr) is not None
                 if ok and (addr in self.refuse or (self.refuse_ppb and addr >= 0xE0000000)):
                     ok = False
                 self._reply(kbi.ACK if ok else kbi.NACK)
@@ -150,14 +178,16 @@ class ModelBootloader:
                     self._reply(kbi.NACK)
                     continue
                 self._reply(kbi.ACK)
-                data = self.memory[self.addr][: n + 1]
+                data = self._lookup(self.addr)[: n + 1]
                 if self.short_read:
                     data = data[:-1]
                 self.out.extend(data)
 
     def _command(self, cmd):
-        if cmd == kbi.CMD_GET:
-            cmds = [0x00, 0x01, 0x02, 0x11, 0x21, 0x31, 0x43, 0x63, 0x73, 0x82, 0x92]
+        if cmd == kbi.CMD_GET and self.refuse_get:
+            self._reply(kbi.NACK)
+        elif cmd == kbi.CMD_GET:
+            cmds = self.get_commands
             self._reply(kbi.ACK, len(cmds), 0x22, *cmds, kbi.ACK)
         elif cmd == kbi.CMD_GET_VERSION:
             self._reply(kbi.ACK, 0x22, 0x00, 0x00, kbi.ACK)
@@ -233,6 +263,32 @@ status, rec, model = run(already_synced=True)
 check(status == kbi.EXIT_OK, "already-synced bootloader exits 0 after the second 0x7F")
 check(model.commands[0] == kbi.SYNC, "the paired 0x7F bytes drew the NACK")
 
+# The first 0x7F's ACK arrives after the second 0x7F, which then waits as a
+# command byte: the client must stop, and a rerun must recover.
+model = ModelBootloader(late_sync_ack=True)
+status, rec = kbi.identify(model)
+check(
+    status == kbi.EXIT_PROTOCOL and rec["sync"]["status"] == "failed",
+    "an ACK after the second 0x7F stops the session with exit 1",
+)
+check(
+    not model.commands and bytes(model.inbuf) == bytes([kbi.SYNC]),
+    "after an ambiguous sync no command byte follows the pending 0x7F",
+)
+model.reset_input_buffer()
+status, rec = kbi.identify(model)
+check(status == kbi.EXIT_OK, "a rerun's first 0x7F completes the pending byte; the session reads")
+
+# Exit 3 needs Get to list Read Memory.
+status, rec, model = run(get_commands=[0x00, 0x01, 0x02])
+check(status == kbi.EXIT_PROTOCOL, "a bootloader that lists no Read Memory exits 1, not 3")
+check(
+    kbi.CMD_READ_MEMORY not in model.commands and rec["flash_size_kbytes"]["status"] == "not run",
+    "an unlisted Read Memory is never sent",
+)
+status, rec, model = run(refuse_get=True, protected=True)
+check(status == kbi.EXIT_PROTOCOL, "a refused Get leaves a refused Read Memory at exit 1, not 3")
+
 # Failures of the link.
 status, rec, _ = run(silent=True)
 check(status == kbi.EXIT_PROTOCOL and rec["sync"]["status"] == "failed", "silent port exits 1")
@@ -301,18 +357,19 @@ class FakeSerialModule(types.ModuleType):
     class SerialException(Exception):
         pass
 
-    def __init__(self):
+    def __init__(self, **model_kw):
         super().__init__("serial")
         self.opened = []
+        self.model_kw = model_kw
 
     def Serial(self, tty, baud, **kw):  # noqa: N802 (pyserial's name)
-        model = ModelBootloader()
+        model = ModelBootloader(**self.model_kw)
         self.opened.append((tty, baud, kw, model))
         return model
 
 
-def run_main(argv):
-    fake = FakeSerialModule()
+def run_main(argv, **model_kw):
+    fake = FakeSerialModule(**model_kw)
     saved = sys.modules.get("serial")
     sys.modules["serial"] = fake
     out = io.StringIO()
@@ -357,6 +414,53 @@ with tempfile.TemporaryDirectory() as tmp:
         not any(kbi.FLASH_BASE <= a < kbi.FLASH_SIZE_ADDR for a in model.addresses),
         "a refused dump length sends no flash address",
     )
+    with open(path, "rb") as fh:
+        before = fh.read()
+    status, rec, fake = run_main(["/dev/fake", "--dump", path])
+    with open(path, "rb") as fh:
+        after = fh.read()
+    check(
+        status == kbi.EXIT_USAGE and not fake.opened and before == after,
+        "an existing dump file exits 2 before the port opens and keeps its bytes",
+    )
+
+    def default_dump(kbytes, name):
+        image = flash_image(kbytes)
+        out = os.path.join(tmp, name)
+        status, rec, fake = run_main(
+            ["/dev/fake", "--dump", out],
+            flash=image,
+            memory={kbi.FLASH_SIZE_ADDR: kbytes.to_bytes(2, "little")},
+        )
+        model = fake.opened[0][3]
+        wire_ok = set(model.commands) <= kbi.ALLOWED_COMMANDS and model.state == "idle"
+        return status, rec, image, wire_ok
+
+    for kbytes in (64, 128):
+        status, rec, image, wire_ok = default_dump(kbytes, f"default-{kbytes}.bin")
+        check(
+            status == kbi.EXIT_OK
+            and rec["dump"]["bytes"] == kbytes * 1024
+            and rec["dump"]["sha256"] == hashlib.sha256(image).hexdigest(),
+            f"a default dump copies all {kbytes} Kbytes the flash-size word reports",
+        )
+        check(wire_ok, f"a default {kbytes}-Kbyte dump puts only read-only commands on the wire")
+
+    # A dump that slips Readout Protect (0x82 0x7D) onto the wire at the
+    # default 64-Kbyte length must fail the wire check above.
+    shipped_dump = kbi.dump_flash
+
+    def protecting_dump(port, length):
+        if length == 65536:
+            port.write(bytes([0x82, 0x7D]))
+        return shipped_dump(port, length)
+
+    kbi.dump_flash = protecting_dump
+    try:
+        _, _, _, wire_ok = default_dump(64, "mutant-64.bin")
+    finally:
+        kbi.dump_flash = shipped_dump
+    check(not wire_ok, "mutant that writes Readout Protect during a 64-Kbyte dump is caught")
 
 
 # Mutant clients must fail.
@@ -394,11 +498,11 @@ class NoLengthComplement(kbi.Bootloader):
 
 shipped = kbi.Bootloader
 for mutant in (LittleEndianAddress, NoChecksum, NoLengthComplement):
-    kbi.Bootloader = mutant
+    setattr(kbi, "Bootloader", mutant)  # noqa: B010 (mypy refuses assigning a class)
     try:
         status, rec, _ = run()
     finally:
-        kbi.Bootloader = shipped
+        setattr(kbi, "Bootloader", shipped)  # noqa: B010
     check(status == kbi.EXIT_PROTOCOL, f"mutant {mutant.__name__} exits 1, claiming no protection")
 
 shipped_identify_reads = kbi._identify_reads

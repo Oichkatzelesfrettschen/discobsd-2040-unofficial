@@ -48,6 +48,7 @@ extern int dreap(int, int);
 extern volatile int dtimer;
 extern void dalarm(int);
 extern void dtimer_run(void);
+extern void dconsole(const char *);
 
 int test_errno;
 
@@ -57,6 +58,8 @@ static int wait_script[SCRIPT], wait_count, wait_calls;
 static int sleep_calls, sleep_seconds, syslog_calls, kill_calls;
 static int alarm_calls;
 static unsigned alarm_last;
+/* The order of process-group changes and opens, one letter each. */
+static char trace[64];
 static int kill_pid[SCRIPT], kill_sig[SCRIPT];
 static int failures, checks;
 
@@ -70,6 +73,7 @@ reset(void)
 	sleep_calls = sleep_seconds = syslog_calls = kill_calls = 0;
 	alarm_calls = 0;
 	alarm_last = 0;
+	trace[0] = '\0';
 	test_errno = 0;
 }
 
@@ -132,7 +136,18 @@ test_syslog(int priority, const char *format, ...)
 
 void test_openlog(const char *i, int o, int f) { (void)i; (void)o; (void)f; }
 void test_closelog(void) { }
-int test_open(const char *p, int f, ...) { (void)p; (void)f; return -1; }
+static void
+trace_add(const char *s)
+{
+	if (strlen(trace) + strlen(s) < sizeof(trace))
+		strcat(trace, s);
+}
+int test_open(const char *p, int f, ...) { (void)p; (void)f; trace_add("o"); return -1; }
+int test_setpgrp(pid_t p, pid_t g)
+{
+	trace_add(p == 0 && g == 0 ? "0" : p == 0 && g == 1 ? "1" : "?");
+	return 0;
+}
 int test_creat(const char *p, int m) { (void)p; (void)m; return -1; }
 int test_close(int d) { (void)d; return 0; }
 int test_dup2(int a, int b) { (void)a; return b; }
@@ -364,6 +379,19 @@ alarm_handler_only_records_the_deadline(void)
 	dtab = 0;
 }
 
+/*
+ * init lives in process group 0, where ttyopen() would attach the console
+ * and move init into the login shell's group; the console opens from group
+ * 1 and init returns to group 0 before anything else runs.
+ */
+static void
+console_message_leaves_init_detached(void)
+{
+	reset();
+	dconsole("init: test\n");
+	CHECK(strcmp(trace, "1o0") == 0);
+}
+
 static void
 idle_starts_no_daemon(void)
 {
@@ -395,6 +423,7 @@ main(void)
 	reaped_daemon_waits_for_its_backoff();
 	alarm_handler_only_records_the_deadline();
 	idle_starts_no_daemon();
+	console_message_leaves_init_detached();
 	if (failures) {
 		printf("init fork refusal: %d of %d checks failed\n", failures,
 		    checks);

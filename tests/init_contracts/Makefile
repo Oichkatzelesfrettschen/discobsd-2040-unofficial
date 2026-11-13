@@ -12,7 +12,7 @@ DAEMONS_SRC= ${TOPSRC}/sbin/init/daemons.c
 TREE_INCLUDES= -nostdinc -isystem ${TOPSRC}/include
 CALLS= fork wait sleep kill syslog openlog closelog open creat close dup2 \
 	execl execve signal sigvec sigblock sigsetmask sigpause alarm sysctl \
-	errno
+	setpgrp errno
 RENAMES= ${CALLS:@c@-D${c}=test_${c}@} -Dmain=init_program_main
 INIT_CFLAGS= -I${TOPSRC}/sbin/init -std=gnu17 -Wall -Werror -Wno-deprecated-non-prototype \
 	-ffunction-sections -fdata-sections \
@@ -25,7 +25,7 @@ GC_SECTIONS!= if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
 # a named check. mutate.sh requires its pattern to match exactly once.
 MUTANTS= term-kills-marker wterm-kills-marker spawn-no-delay \
 	runcom-waits-after-refusal daemon-refusal-no-backoff \
-	alarm-handler-schedules alarm-handler-no-rearm
+	alarm-handler-schedules alarm-handler-no-rearm console-joins-tty
 
 check: init_fork_test ${MUTANTS:@m@init_${m}.test@}
 	./init_fork_test
@@ -74,6 +74,9 @@ init_alarm-handler-schedules.c: ${INIT_SRC} mutate.sh
 
 init_alarm-handler-no-rearm.c: ${INIT_SRC} mutate.sh
 	sh ./mutate.sh ${INIT_SRC} $@ '\tdtimer = 1;\n\talarm(1);\n}' '\tdtimer = 1;\n}'
+
+init_console-joins-tty.c: ${INIT_SRC} mutate.sh
+	sh ./mutate.sh ${INIT_SRC} $@ '\tsetpgrp(0, 1);\n\tf = open(ctty, O_WRONLY);\n\tsetpgrp(0, 0);' '\tf = open(ctty, O_WRONLY);'
 
 .for m in ${MUTANTS}
 init_${m}.test: init_fork_test.c init_${m}.c daemons.o

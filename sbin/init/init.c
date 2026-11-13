@@ -223,7 +223,19 @@ dconsole(msg)
 {
 	register int f;
 
+	/*
+	 * ttyopen() in sys/kern/tty.c makes the opened tty the controlling
+	 * terminal of a process whose p_pgrp is 0 and moves it into the tty's
+	 * process group, and it ignores O_NOCTTY. init runs in group 0, so it
+	 * opens the console from its own group 1 and returns to 0 at once;
+	 * otherwise init would join the login shell's group, take console
+	 * signals and pass the console to every child, and getty could no
+	 * longer start a login on it. Gettys inherit group 0 from init, which
+	 * lets each one claim its own line.
+	 */
+	setpgrp(0, 1);
 	f = open(ctty, O_WRONLY);
+	setpgrp(0, 0);
 	if (f >= 0) {
 		write(f, msg, strlen(msg));
 		close(f);

@@ -40,6 +40,7 @@
 #define	PSRAM_E_RANGE		(-3)	/* the range leaves the device */
 #define	PSRAM_E_ID		(-4)	/* identification bytes are wrong */
 #define	PSRAM_E_QUAD		(-5)	/* quad-mode pattern test failed */
+#define	PSRAM_E_SIZE		(-6)	/* addresses wrap below PSRAM_BYTES */
 
 #define	PSRAM_MFID		0x0d	/* manufacturer, datasheet Figure 6-7 */
 #define	PSRAM_KGD_PASS		0x5d	/* known good die, Table 6-1 */

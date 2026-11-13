@@ -78,6 +78,7 @@ class Consts:
         self.e_range = macro(xfer_text, "PSRAM_E_RANGE")
         self.e_id = macro(xfer_text, "PSRAM_E_ID")
         self.e_quad = macro(xfer_text, "PSRAM_E_QUAD")
+        self.e_size = macro(xfer_text, "PSRAM_E_SIZE")
 
     def ctrl(self, nout, wait, nin):
         return self.lib.psram_host_ctrl_word(nout, wait, nin)
@@ -361,7 +362,7 @@ def new_rig(lib_path, **kw):
     dkw = {
         k: kw.pop(k)
         for k in list(kw)
-        if k in ("kgd", "mfid", "stuck_low_sio", "absent", "seed", "eid")
+        if k in ("kgd", "mfid", "stuck_low_sio", "absent", "seed", "eid", "size")
     }
     return rigmod.Rig(lib_path, device=pio_sim.Device(**dkw), **kw)
 
@@ -595,6 +596,18 @@ def test_eid(lib_path, c):
             r.eid() == (want, 1),
             "%s: EID %s read %d" % (name, r.eid()[0].hex(), r.eid()[1]),
         )
+    # The full Read ID runs 31 clocks out, three with the pins released and
+    # 64 in, and holds CS low inside tCEM.
+    r = new_rig(lib_path)
+    r.hw_init()
+    r.device_init()
+    f = r.dev.frames[4]
+    check(
+        f["cmd"] == 0x9F and f["pulses"] == 31 + 3 + 64,
+        "full Read ID frame: command %s, %d clocks" % (f["cmd"], f["pulses"]),
+    )
+    low = f["t_rise"] - f["t_fall"]
+    check(low < pio_sim.T_CEM, "full Read ID holds CS low %.0f ns" % low)
     # Frames 0-3 are the two reset pairs; frame 4 is the first Read ID.
     r = new_rig(lib_path, forced_stalls=(4,))
     r.hw_init()
@@ -614,6 +627,18 @@ def test_eid(lib_path, c):
         e == c.e_stall and r.eid()[1] == 0,
         "three overrun Read IDs give up with %d (read %d)" % (e, r.eid()[1]),
     )
+
+
+def test_extent(lib_path, c):
+    """A part that answers 0d/5d with fewer than 23 address bits wraps its
+    addresses; the probe must refuse it before swap does, and accept the
+    full 8 MB part."""
+    for size in (1 << 10, 1 << 16, 1 << 20, 2 << 20, 4 << 20, 8 << 20):
+        r = new_rig(lib_path, size=size)
+        r.hw_init()
+        e = r.device_init()
+        want = 0 if size == pio_sim.SIZE else c.e_size
+        check(e == want, "a %d-byte part: init %d, want %d" % (size, e, want))
 
 
 def test_cpu_speed(lib_path, c):
@@ -733,6 +758,7 @@ def main():
     }
     test_faults(a.lib, c)
     test_eid(a.lib, c)
+    test_extent(a.lib, c)
     test_cpu_speed(a.lib, c)
     test_pad_delay(a.lib, c)
     results["stage_gating"] = test_stage_gating(a.lib, c)

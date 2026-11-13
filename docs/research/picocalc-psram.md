@@ -206,8 +206,13 @@ completes one pair and the other pair is a command cut short, which the
 model treats as no command; the datasheet does not say. It then reads the ID, requires
 manufacturer 0x0D and known-good-die 0x5D, enters quad mode, and writes and
 reads back 32 bytes across a 64-byte frame boundary and a page boundary.
+Those bytes name a family, not a density, so `psram_check_extent()` then
+writes a tag at 4 MB and another at address 0 and requires the first to
+read back: on a smaller part the 4 MB address lands on address 0, and the
+probe refuses it (error -6) before swap would overwrite itself.
 The Read ID frame collects all 64 ID bits, manufacturer, known-good die and
-the 48-bit EID, eight RX words in one 96-clock frame; an RX overrun repeats
+the 48-bit EID, eight RX words in one 98-clock frame (31 clocks out, three
+with the pins released, 64 in); an RX overrun repeats
 the reset with the Read ID, because the APS6404L sheet (section 12) admits
 Read ID only right after a reset. `psram.c` registers `psramdriver`;
 `config()` calls its probe before `init_main()` opens `swapdev`. Whenever
@@ -215,7 +220,8 @@ the ID was read, the probe prints
 `psram0: read id %02x/%02x eid %02x%02x%02x%02x%02x%02x`, so a refused part
 leaves its identity on the console too; a part that fails any step then
 prints one more line (`psram0: id %x/%x is not an ESP-PSRAM64H, swap stays
-on fl1` or `psram0: not usable (error %d), swap stays on fl1`) and
+on fl1`, `psram0: addresses wrap below %u kbytes, swap stays on fl1` or
+`psram0: not usable (error %d), swap stays on fl1`) and
 `swapdev` stays at the `fl1` the configuration names.
 
 ### Swap integration

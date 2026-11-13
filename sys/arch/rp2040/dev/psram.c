@@ -18,11 +18,12 @@
  * The PicoCalc's 8 MB ESP-PSRAM64H as the swap device.
  *
  * config() runs psramprobe() before init_main() opens swapdev. A device
- * that answers with the manufacturer and known-good-die bytes and passes
- * the quad-mode pattern test replaces fl1 as swapdev; any other outcome
- * prints one line and leaves swapdev on the fl1 that the configuration
- * names. Transfers complete inside psramstrategy(), as the flash driver's
- * do, because swap_with_buf() sleeps only until B_DONE.
+ * that answers with the manufacturer and known-good-die bytes, passes
+ * the quad-mode pattern test and addresses all 8 MB replaces fl1 as
+ * swapdev; any other outcome prints one line and leaves swapdev on the
+ * fl1 that the configuration names. Transfers complete inside
+ * psramstrategy(), as the flash driver's do, because swap_with_buf()
+ * sleeps only until B_DONE.
  */
 
 #include <sys/param.h>
@@ -111,6 +112,9 @@ psramprobe(struct conf_device *config __unused)
 	if (err == PSRAM_E_ID)
 		printf("psram0: id %x/%x is not an ESP-PSRAM64H, swap stays on fl1\n",
 		    psram_mfid, psram_kgd);
+	else if (err == PSRAM_E_SIZE)
+		printf("psram0: addresses wrap below %u kbytes, swap stays on fl1\n",
+		    (unsigned int)(PSRAM_BYTES / 1024));
 	else if (err != 0)
 		printf("psram0: not usable (error %d), swap stays on fl1\n",
 		    err);

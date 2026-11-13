@@ -208,8 +208,10 @@ psram_cmd_quad(unsigned int cmd)
  * state machine has released SIO0 before the device drives SIO1 with the
  * first ID bit. Each nibble read carries one ID bit in its bit 1, so each
  * RX word holds one byte: the manufacturer, the known-good die, then the
- * six EID bytes. The 96-clock frame holds CS low about 3 us at 31.25 MHz,
- * inside tCEM, and under the 33 MHz the APS6404L sheet allows for 9Fh.
+ * six EID bytes. The frame runs 98 clocks: 31 with the command and address
+ * out, three with the pins released while the input stages fill, and 64
+ * in. At 31.25 MHz that holds CS low about 3.2 us, inside tCEM, and under
+ * the 33 MHz the APS6404L sheet allows for 9Fh.
  */
 static int
 psram_read_id(void)
@@ -350,13 +352,42 @@ psram_write(unsigned int addr, const unsigned char *src, unsigned int len)
 }
 
 /*
+ * Address extent. Manufacturer 0x0d and known-good die 0x5d identify a
+ * family, not a density: the APS6404L sheet gives the density only in
+ * EID[47:45], and the ESP and Lyontek sheets give none. A part with fewer
+ * address bits than PSRAM_BYTES needs ignores the high ones, so swap would
+ * overwrite itself. On a part of 2^k bytes below PSRAM_BYTES, address
+ * PSRAM_BYTES / 2 is a multiple of 2^k and lands on address 0, so a tag
+ * written there and then overwritten through address 0 reads back changed.
+ */
+static int
+psram_check_extent(void)
+{
+	static const unsigned char high[4] = { 0xa5, 0x5a, 0x0f, 0xf0 };
+	static const unsigned char low[4] = { 0x3c, 0xc3, 0x00, 0xff };
+	unsigned char back[sizeof(high)];
+	unsigned int i;
+	int err;
+
+	if ((err = psram_write(PSRAM_BYTES / 2, high, sizeof(high))) != 0 ||
+	    (err = psram_write(0, low, sizeof(low))) != 0 ||
+	    (err = psram_read(PSRAM_BYTES / 2, back, sizeof(back))) != 0)
+		return err;
+	for (i = 0; i < sizeof(high); i++)
+		if (back[i] != high[i])
+			return PSRAM_E_SIZE;
+	return 0;
+}
+
+/*
  * Bring the device to quad mode from any starting mode. The reset pair
  * goes out in quad format and in serial format: whichever mode the device
  * is in completes one pair, and a frame in the other format is a command
  * cut short that the device does not execute. Then the identification
  * must read manufacturer 0x0d and a passing known-good die, and a pattern
  * written across a 64-byte frame boundary and a page boundary must read
- * back through quad mode. The APS6404L sheet (section 12) admits Read ID
+ * back through quad mode, and the addresses must reach PSRAM_BYTES
+ * (psram_check_extent()). The APS6404L sheet (section 12) admits Read ID
  * only right after the reset, so a Read ID whose eight-word reply overran
  * the RX FIFO repeats the reset with it.
  */
@@ -396,5 +427,5 @@ psram_device_init(void)
 	for (i = 0; i < PSRAM_SELFTEST; i++)
 		if (back[i] != pat[i])
 			return PSRAM_E_QUAD;
-	return 0;
+	return psram_check_extent();
 }

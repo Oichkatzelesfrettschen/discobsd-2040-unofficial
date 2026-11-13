@@ -179,6 +179,7 @@ Predicted boot lines and what each settles:
 | `psram0: read id 0d/5d eid` and twelve hex digits | the part's 48-bit EID, printed whenever Read ID completed; ledger row U301 |
 | `psram0: ESP-PSRAM64H 8192 kbytes on PIO0, swap` | Read ID 0x0D with a passing die; `PICOCALC.md` row "The part answers Read ID 0x0D" |
 | `psram0: id M/K is not an ESP-PSRAM64H, swap stays on fl1` | a different manufacturer or a failing die, with the bytes read |
+| `psram0: addresses wrap below 8192 kbytes, swap stays on fl1` | a part of the same family with fewer address bits; its EID line names it |
 
 Then, at the shell: `sysctl machdep.picocalc` reads the battery, charging
 and backlight registers (`PICOCALC.md` row "The controller answers the

@@ -47,7 +47,7 @@ MUT=		@sh ./mutant.sh "${HOST_CC}" "${PYTHON}" "${DEV}"
 mutants: mutant-sideset mutant-setup mutant-cs mutant-wait mutant-address \
 	mutant-tcem mutant-block mutant-comment mutant-turnaround \
 	mutant-blkrange mutant-blklen mutant-drive mutant-duty mutant-eid \
-	mutant-eid-retry
+	mutant-eid-retry mutant-extent mutant-extent-half
 
 # Word 7's side-set value 2 raises SCK; 0 leaves it low (word and comment
 # agree, so only the waveform checks can catch it).
@@ -120,10 +120,19 @@ mutant-eid:
 mutant-eid-retry:
 	${MUT} psram_xfer.c 's/if ((err = psram_read_id()) != PSRAM_E_STALL)/if ((err = psram_read_id()) != PSRAM_E_STALL || 1)/'
 
+# The probe accepts any part that answers 0d/5d without testing its extent.
+mutant-extent:
+	${MUT} psram_xfer.c 's/return psram_check_extent();/return 0;/'
+
+# The extent tag sits at 2 MB, so a 4 MB part passes.
+mutant-extent-half:
+	${MUT} psram_xfer.c 's|psram_write(PSRAM_BYTES / 2,|psram_write(PSRAM_BYTES / 4,|; s|psram_read(PSRAM_BYTES / 2,|psram_read(PSRAM_BYTES / 4,|'
+
 clean:
 	rm -f libpsram.so
 
 .PHONY: all check mutants mutant-sideset mutant-setup mutant-cs mutant-wait \
 	mutant-address mutant-tcem mutant-block mutant-comment \
 	mutant-turnaround mutant-blkrange mutant-blklen mutant-drive \
-	mutant-duty mutant-eid mutant-eid-retry clean
+	mutant-duty mutant-eid mutant-eid-retry mutant-extent \
+	mutant-extent-half clean

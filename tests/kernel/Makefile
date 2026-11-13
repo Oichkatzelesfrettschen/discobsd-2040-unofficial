@@ -1707,19 +1707,69 @@ sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
 sysctl_shim.o: hostkern_kern.c hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o $@ hostkern_kern.c
 
+#
+# A process's user area is read through swap_with_buf_result(), so the gate
+# links the real sys/kern/vm_swp.c and the linker drops the raw I/O routines
+# beside it. The compact gate also builds the SwapRAM branch, as the PICO and
+# PicoCalc kernels do; the wide gate reads every nonresident user area from
+# the ring swap device, as PICO_UART does.
+SYSCTL_COMPACT_DEFS=	${COMPACT_DEFS} -DSWAPRAM
+SYSCTL_VMSWP_SRC=	${TOPSRC}/sys/kern/vm_swp.c
+SYSCTL_VMSWP_CFLAGS=	${KERN_CFLAGS} ${ILP32} -ffunction-sections \
+			-fdata-sections
+
+sysctl_vmswp_compact.o: ${SYSCTL_VMSWP_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCTL_VMSWP_CFLAGS} ${SYSCTL_COMPACT_DEFS} -c -o $@ \
+	    ${SYSCTL_VMSWP_SRC}
+
+sysctl_vmswp_wide.o: ${SYSCTL_VMSWP_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCTL_VMSWP_CFLAGS} ${WIDE_DEFS} -c -o $@ \
+	    ${SYSCTL_VMSWP_SRC}
+
 sysctl_test_compact: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
-    hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} ${COMPACT_DEFS} ${ILP32} \
+    sysctl_vmswp_compact.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
 	    -c -o sysctl_kernel_compact.o ${SYSCTL_SRC}
-	${HOST_CC} ${GATE_CFLAGS} ${COMPACT_DEFS} ${ILP32} -o $@ sysctl_test.c \
-	    sysctl_kernel_compact.o sysctl_shim.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o $@ sysctl_test.c \
+	    sysctl_kernel_compact.o sysctl_vmswp_compact.o sysctl_shim.o \
+	    hostkern32.o
 
 sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
-    hostkern.h ${MACHINE_STAMP}
+    sysctl_vmswp_wide.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${WIDE_DEFS} ${ILP32} \
 	    -c -o sysctl_kernel_wide.o ${SYSCTL_SRC}
-	${HOST_CC} ${GATE_CFLAGS} ${WIDE_DEFS} ${ILP32} -o $@ sysctl_test.c \
-	    sysctl_kernel_wide.o sysctl_shim.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${WIDE_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o $@ sysctl_test.c \
+	    sysctl_kernel_wide.o sysctl_vmswp_wide.o sysctl_shim.o hostkern32.o
+
+# Each mutant removes one acceptance rule of proc_uarea() from a copy of
+# kern_sysctl.c, and the compact gate has to fail on it. no_identity accepts
+# a block whatever image its u_procp names; no_recheck accepts a block after
+# the process exited or its slot changed during the read.
+SYSCTL_UAREA_MUTANTS=	no_identity no_recheck
+SYSCTL_UAREA_SED_no_identity=	s/if (up->u_procp != p)/if (0)/
+SYSCTL_UAREA_SED_no_recheck=	s/if (proc_changed(p, pid))/if (proc_changed(p, pid) < 0)/
+
+check-sysctl-uarea-mutants: sysctl_test_compact
+.for mutation in ${SYSCTL_UAREA_MUTANTS}
+	@sed '${SYSCTL_UAREA_SED_${mutation}}' ${SYSCTL_SRC} \
+	    > sysctl_uarea_${mutation}.mutant.c; \
+	if cmp -s ${SYSCTL_SRC} sysctl_uarea_${mutation}.mutant.c; then \
+		echo "sysctl uarea mutant ${mutation}: no source change" >&2; \
+		exit 1; fi; \
+	${HOST_CC} ${KERN_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} -c \
+	    -o sysctl_uarea_${mutation}.mutant.o \
+	    sysctl_uarea_${mutation}.mutant.c && \
+	${HOST_CC} ${GATE_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o sysctl_uarea_${mutation}.mutant.test \
+	    sysctl_test.c sysctl_uarea_${mutation}.mutant.o \
+	    sysctl_vmswp_compact.o sysctl_shim.o hostkern32.o || exit 1; \
+	if ./sysctl_uarea_${mutation}.mutant.test \
+	    > sysctl_uarea_${mutation}.mutant.out 2>&1; then \
+		echo "sysctl uarea mutant ${mutation}: SURVIVED" >&2; exit 1; fi; \
+	echo "sysctl uarea mutant ${mutation}: rejected"
+.endfor
 
 # The inode allocator in the three shapes the tree configures it in: the
 # portable one, sys/arch/rp2040/compile/PICO's, and a DIAGNOSTIC kernel.
@@ -2922,7 +2972,7 @@ check-ilp32:
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
 	    exec_elf_text_ownership_mutant \
-	    sysctl_test_compact sysctl_test_wide \
+	    sysctl_test_compact sysctl_test_wide check-sysctl-uarea-mutants \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
 	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
@@ -3206,6 +3256,7 @@ clean:
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
 	    exec_elf_text_ownership_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
+	rm -f sysctl_vmswp_compact.o sysctl_vmswp_wide.o sysctl_uarea_*.mutant.*
 	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o
 	rm -f ialloc_shim.o ialloc_shim_pico.o
@@ -3265,7 +3316,7 @@ clean:
 	@if [ -d ${CONSOLE_C17_MACHINE} ]; then rmdir ${CONSOLE_C17_MACHINE}; fi
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
-	check-rmap-ring-mutants check-swap-ring-io \
+	check-rmap-ring-mutants check-swap-ring-io check-sysctl-uarea-mutants \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
 	check-buffer-busy-mutants \
 	check-rwuio-mutants check-rwuio-sanitizer \

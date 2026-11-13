@@ -22,6 +22,12 @@
  * component with zero bytes after it, a refusal of any new value, and that
  * an unprivileged __sysctl() reaches the node without consulting suser().
  *
+ * proc_uarea() finds a process's user area for fill_from_u(): in place when
+ * resident, through the pool decoder when pooled, and otherwise through
+ * swap_with_buf_result(), which the gate links from sys/kern/vm_swp.c so
+ * that the ring fold is the kernel's own. Hooks run inside geteblk() and the
+ * transfer, where the kernel sleeps, and change the process there.
+ *
  * vm_sysctl() reaches its length through a pointer difference, which is an
  * int at the target's width, so the gate builds ILP32 beside prf_test and
  * sigauth_test.
@@ -80,6 +86,7 @@ struct proc *freeproc, *zombproc, *allproc, *qs;
 struct file file[NFILE];
 struct inode inode[NINODE];
 struct vmtotal total;
+struct vmrate cnt;		/* the swap transfer counts vm_swp.c meters */
 struct timeval boottime;
 short avenrun[3];
 size_t freemem;
@@ -100,7 +107,55 @@ const char version[] = "gate";
 const char ostype[] = "gate";
 const char osversion[] = "gate";
 const char osrelease[] = "gate";
-const struct bdevsw bdevsw[1];
+
+/*
+ * The fixture's swap device: a ring of GATE_SWAP_END blocks whose first
+ * GATE_SWAP_FIRST are reserved, laid out as init_main.c lays out the RP2040
+ * map, so logical block GATE_SWAP_END + n names device block
+ * GATE_SWAP_FIRST + n. The gate links the real sys/kern/vm_swp.c, so the
+ * fold a user-area read goes through is the kernel's own. A request that
+ * runs past the device returns short, as the flash driver returns end of
+ * partition.
+ */
+#define GATE_SWAP_FIRST	4
+#define GATE_SWAP_END	16
+
+union gate_block {
+	struct user	u;
+	char		bytes[DEV_BSIZE];
+};
+
+static union gate_block swapdisk[GATE_SWAP_END];
+static int swap_error;
+static unsigned swap_reads;
+
+/*
+ * Each hook runs where the kernel sleeps: inside geteblk() and inside the
+ * device transfer. A hook that changes the process models a swap-in, an
+ * exit or another image's write while the reader is asleep.
+ */
+static void (*during_geteblk)(void);
+static void (*during_io)(void);
+
+static void
+gate_strategy(struct buf *bp)
+{
+	u_int blocks = bp->b_bcount / DEV_BSIZE;
+
+	swap_reads++;
+	if (during_io != NULL)
+		during_io();
+	bp->b_resid = 0;
+	if (swap_error)
+		bp->b_flags |= B_ERROR;
+	else if ((u_int)bp->b_blkno + blocks > GATE_SWAP_END)
+		bp->b_resid = bp->b_bcount;
+	else
+		bcopy(swapdisk[bp->b_blkno].bytes, bp->b_addr, bp->b_bcount);
+	bp->b_flags |= B_DONE;
+}
+
+const struct bdevsw bdevsw[1] = { { .d_strategy = gate_strategy } };
 
 /* The destination of every copyout, and the byte the gate fills it with. */
 #define OUTBUF		512
@@ -198,26 +253,70 @@ wakeup(caddr_t chan)
 	panic("sysctl_test: wakeup");
 }
 
+/*
+ * One buffer, which a reader holds at most once at a time and returns aged.
+ * Its contents start as poison, so a reader that uses a block it never read
+ * finds bytes no user area holds.
+ */
+static struct buf gate_buf;
+static union gate_block gate_buf_data;
+static unsigned geteblk_calls, brelse_calls;
+
 struct buf *
 geteblk(void)
 {
-	panic("sysctl_test: geteblk");
-	return (NULL);
+	HK_CHECK(geteblk_calls == brelse_calls);
+	geteblk_calls++;
+	bzero(&gate_buf, sizeof(gate_buf));
+	for (unsigned i = 0; i < sizeof(gate_buf_data); i++)
+		gate_buf_data.bytes[i] = POISON;
+	gate_buf.b_addr = gate_buf_data.bytes;
+	gate_buf.b_flags = B_BUSY;
+	if (during_geteblk != NULL)
+		during_geteblk();
+	return (&gate_buf);
 }
 
 void
 brelse(struct buf *bp)
 {
-	(void)bp;
-	panic("sysctl_test: brelse");
+	HK_CHECK(bp == &gate_buf);
+	HK_CHECK(bp->b_flags & B_AGE);
+	brelse_calls++;
 }
 
+/* gate_strategy() completes every request before it returns. */
 void
 biowait(struct buf *bp)
 {
 	(void)bp;
-	panic("sysctl_test: biowait");
 }
+
+#ifdef SWAPRAM
+/*
+ * The SwapRAM pool, by slot: an image present in the pool and the user area
+ * swapram_uarea_prefix() decodes for it. The decoder's contract is an exact
+ * expansion of the requested prefix or failure.
+ */
+static int pool_present[NPROC];
+static union gate_block pool_user[NPROC];
+static int pool_error;
+
+int
+swapram_present(struct proc *p)
+{
+	return (pool_present[p - proc]);
+}
+
+int
+swapram_uarea_prefix(struct proc *p, void *dst, unsigned int len)
+{
+	if (!pool_present[p - proc] || pool_error || len > DEV_BSIZE)
+		return (-1);
+	bcopy(pool_user[p - proc].bytes, dst, len);
+	return (0);
+}
+#endif
 
 /* CPU_NLIST in both ports' machine/cpu.h, which the gate does not include. */
 #define GATE_CPU_NLIST	3
@@ -1200,6 +1299,242 @@ test_nlist_names(void)
 	reset_calls();
 }
 
+/*
+ * User-area reads. A process row needs fields from the user area, which is
+ * resident kernel memory, a block on the ring swap device, or a SwapRAM
+ * pool image. Every case below names the block the kernel must read and a
+ * change the reader must notice across its sleeps.
+ */
+static struct user resident_u;
+static struct tty gate_tty;
+static struct proc *hook_proc;
+
+/* Logical swap block to device block, the fold of struct map (sys/map.h). */
+static int
+device_block(int logical)
+{
+	if (logical >= GATE_SWAP_END)
+		return (logical - GATE_SWAP_END + GATE_SWAP_FIRST);
+	return (logical);
+}
+
+static void
+reset_procs(void)
+{
+	bzero(proc, sizeof(proc));
+	bzero(swapdisk, sizeof(swapdisk));
+	bzero(&resident_u, sizeof(resident_u));
+	swapmap->m_ring_first = GATE_SWAP_FIRST;
+	swapmap->m_ring_end = GATE_SWAP_END;
+	swap_error = 0;
+	swap_reads = 0;
+	geteblk_calls = 0;
+	brelse_calls = 0;
+	during_geteblk = NULL;
+	during_io = NULL;
+	hook_proc = NULL;
+#ifdef SWAPRAM
+	bzero(pool_present, sizeof(pool_present));
+	bzero(pool_user, sizeof(pool_user));
+	pool_error = 0;
+#endif
+}
+
+static void
+fill_user(struct user *up, struct proc *p, uid_t ruid)
+{
+	up->u_procp = p;
+	up->u_ruid = ruid;
+	up->u_ttyp = &gate_tty;
+	up->u_ttyd = (dev_t)(0x0400 + ruid);
+}
+
+static struct proc *
+make_resident(int slot, int pid, uid_t ruid)
+{
+	struct proc *p = &proc[slot];
+
+	p->p_stat = SRUN;
+	p->p_pid = (short)pid;
+	p->p_flag = SLOAD;
+	p->p_addr = (size_t)&resident_u;
+	fill_user(&resident_u, p, ruid);
+	return (p);
+}
+
+static struct proc *
+make_on_flash(int slot, int pid, int logical, uid_t ruid)
+{
+	struct proc *p = &proc[slot];
+
+	p->p_stat = SSLEEP;
+	p->p_pid = (short)pid;
+	p->p_flag = 0;
+	p->p_addr = (size_t)logical;
+	fill_user(&swapdisk[device_block(logical)].u, p, ruid);
+	return (p);
+}
+
+/* The real uid fill_from_u() reports, and whether it left the buffer balanced. */
+static uid_t
+read_ruid(struct proc *p, dev_t *ttyd, struct tty **ttyp)
+{
+	uid_t ruid = 0;
+
+	fill_from_u(p, &ruid, ttyp, ttyd);
+	HK_CHECK(geteblk_calls == brelse_calls);
+	return (ruid);
+}
+
+static void
+test_uarea_resident(void)
+{
+	struct tty *ttyp;
+	dev_t ttyd;
+
+	reset_procs();
+	HK_CHECK(read_ruid(make_resident(3, 30, 123), &ttyd, &ttyp) == 123);
+	HK_CHECK(ttyd == 0x0400 + 123 && ttyp == &gate_tty);
+	HK_CHECK(geteblk_calls == 0 && swap_reads == 0);
+}
+
+/*
+ * Logical block GATE_SWAP_END + 2 is device block GATE_SWAP_FIRST + 2. A
+ * reader that seeks the logical block reads past the device and gets the
+ * poisoned buffer back.
+ */
+static void
+test_uarea_folded_flash(void)
+{
+	struct proc *p;
+	struct tty *ttyp;
+	dev_t ttyd;
+
+	reset_procs();
+	p = make_on_flash(5, 50, GATE_SWAP_END + 2, 321);
+	HK_CHECK(read_ruid(p, &ttyd, &ttyp) == 321);
+	HK_CHECK(ttyd == 0x0400 + 321 && ttyp == &gate_tty);
+	HK_CHECK(geteblk_calls == 1 && swap_reads == 1);
+
+	reset_procs();
+	HK_CHECK(read_ruid(make_on_flash(5, 50, 9, 222), NULL, NULL) == 222);
+}
+
+/* Another process's image now holds the block: the read is refused. */
+static void
+test_uarea_overwritten(void)
+{
+	struct proc *p;
+	struct tty *ttyp = &gate_tty;
+	dev_t ttyd = 0;
+
+	reset_procs();
+	p = make_on_flash(5, 50, GATE_SWAP_END + 2, 321);
+	swapdisk[device_block(GATE_SWAP_END + 2)].u.u_procp = &proc[6];
+	HK_CHECK(read_ruid(p, &ttyd, &ttyp) == (uid_t)-2);
+	HK_CHECK(ttyd == NODEV && ttyp == NULL);
+}
+
+static void
+exit_process(void)
+{
+	hook_proc->p_stat = SZOMB;
+}
+
+static void
+free_slot(void)
+{
+	hook_proc->p_stat = 0;
+}
+
+static void
+reuse_slot(void)
+{
+	hook_proc->p_pid++;
+}
+
+static void
+swap_in(void)
+{
+	hook_proc->p_flag |= SLOAD;
+	hook_proc->p_addr = (size_t)&resident_u;
+	fill_user(&resident_u, hook_proc, 77);
+}
+
+/* Each change while the reader sleeps is noticed after the sleep. */
+static void
+test_uarea_changes_while_asleep(void)
+{
+	reset_procs();
+	hook_proc = make_on_flash(5, 50, 9, 321);
+	during_io = exit_process;
+	HK_CHECK(read_ruid(hook_proc, NULL, NULL) == (uid_t)-2);
+
+	reset_procs();
+	hook_proc = make_on_flash(5, 50, 9, 321);
+	during_io = reuse_slot;
+	HK_CHECK(read_ruid(hook_proc, NULL, NULL) == (uid_t)-2);
+
+	reset_procs();
+	hook_proc = make_on_flash(5, 50, 9, 321);
+	during_geteblk = free_slot;
+	HK_CHECK(read_ruid(hook_proc, NULL, NULL) == (uid_t)-2);
+	HK_CHECK(swap_reads == 0);
+
+	/* A process back in core is read in place, from its new user area. */
+	reset_procs();
+	hook_proc = make_on_flash(5, 50, 9, 321);
+	during_io = swap_in;
+	HK_CHECK(read_ruid(hook_proc, NULL, NULL) == 77);
+
+	reset_procs();
+	hook_proc = make_on_flash(5, 50, 9, 321);
+	during_geteblk = swap_in;
+	HK_CHECK(read_ruid(hook_proc, NULL, NULL) == 77);
+	HK_CHECK(swap_reads == 0);
+}
+
+static void
+test_uarea_unreadable(void)
+{
+	struct proc *p;
+
+	reset_procs();
+	p = make_on_flash(5, 50, 9, 321);
+	swap_error = 1;
+	HK_CHECK(read_ruid(p, NULL, NULL) == (uid_t)-2);
+
+	/* A zombie has no user area, and the reader takes no buffer for it. */
+	reset_procs();
+	p = make_resident(3, 30, 123);
+	p->p_stat = SZOMB;
+	HK_CHECK(read_ruid(p, NULL, NULL) == (uid_t)-2);
+	HK_CHECK(geteblk_calls == 0);
+}
+
+#ifdef SWAPRAM
+/* A pooled image has a zero p_addr; the pool decoder supplies its user area. */
+static void
+test_uarea_pool(void)
+{
+	struct proc *p;
+
+	reset_procs();
+	p = make_on_flash(7, 70, 0, 999);
+	pool_present[7] = 1;
+	fill_user(&pool_user[7].u, p, 456);
+	HK_CHECK(read_ruid(p, NULL, NULL) == 456);
+	HK_CHECK(swap_reads == 0 && geteblk_calls == 1);
+
+	pool_user[7].u.u_procp = &proc[8];
+	HK_CHECK(read_ruid(p, NULL, NULL) == (uid_t)-2);
+
+	fill_user(&pool_user[7].u, p, 456);
+	pool_error = 1;
+	HK_CHECK(read_ruid(p, NULL, NULL) == (uid_t)-2);
+}
+#endif
+
 int
 main(void)
 {
@@ -1223,5 +1558,13 @@ main(void)
 	test_syscall_copy_faults();
 	test_syscall_authorization();
 	test_nlist_names();
+	test_uarea_resident();
+	test_uarea_folded_flash();
+	test_uarea_overwritten();
+	test_uarea_changes_while_asleep();
+	test_uarea_unreadable();
+#ifdef SWAPRAM
+	test_uarea_pool();
+#endif
 	return (hk_verdict("sysctl"));
 }

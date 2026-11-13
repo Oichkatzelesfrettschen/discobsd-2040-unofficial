@@ -1345,6 +1345,25 @@ precedence. The authorization double can deny a write with EPERM before
 dispatch, copying or mutation; reads and permitted writes have separate
 success cases. The failure doubles stop before copying, so their results
 cover error propagation and ordering rather than partial-copy atomicity.
+
+The gate also holds proc_uarea(), the reader behind fill_from_u() and
+therefore behind `cansignal()` and every process row. It links the real
+sys/kern/vm_swp.c against a 16-block ring swap device whose first four
+blocks are reserved, so a logical block past the ring end reaches the
+device through the kernel's own fold. A resident process is read in
+place. A process on flash at a folded block is read from the folded block.
+A block whose u_procp names another slot is refused. A process that exits,
+loses its slot or comes back into core while the reader sleeps in
+geteblk() or in the transfer is noticed after the sleep, and the one that
+came back is read in place. A device error and a zombie both report uid
+-2. The compact binary is built with SWAPRAM and reads a pooled process
+through the pool decoder rather than swap block zero. Every case checks
+that the buffer is returned aged exactly once. `check-sysctl-uarea-mutants`
+requires a failure from a copy that drops the u_procp check and from one
+that drops the rechecks. The reader the gate replaced, which handed the raw
+p_addr to the strategy routine, fails 13 of 3543 checks in the compact
+binary, the folded block among them.
+
 The two actual-source binaries, `sysctl_test_compact` and
 `sysctl_test_wide`, execute as `kernel.sysctl-compact.ilp32` and
 `kernel.sysctl-wide.ilp32` in the required `firmware/posix-sh` CI job.

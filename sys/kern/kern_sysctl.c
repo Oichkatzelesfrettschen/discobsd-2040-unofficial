@@ -869,73 +869,100 @@ fill_eproc(struct proc *p, struct eproc *ep)
 		ep->e_tpgid = 0;
 }
 
+/* True when slot p no longer holds live process pid. */
+static int
+proc_changed(const struct proc *p, int pid)
+{
+	return (p->p_stat == 0 || p->p_stat == SZOMB || p->p_pid != pid);
+}
+
 /*
- * Three pieces of information we need about a process are not kept in
- * the proc table: real uid, controlling terminal device, and controlling
- * terminal tty struct pointer.  For these we must look in either the u
- * area or the swap area.  If the process is still in memory this is
- * easy but if the process has been swapped out we have to read in the
- * u area.
+ * Find the user area of live process p.  A resident user area is the kernel
+ * memory p_addr names.  A nonresident one is read into a buffer, from the
+ * SwapRAM pool through swapram_uarea_prefix() or from flash through
+ * swap_with_buf_result(), which folds a ring address at or above m_ring_end
+ * (sys/map.h) and rejects an error or a short transfer.  geteblk() and the
+ * flash read sleep, and meanwhile p can exit, come back into core, or lose
+ * its blocks to another image.  A read block is therefore accepted only when
+ * its u_procp names p and p still holds pid, nonresident; a process that came
+ * back into core is read in place.
  *
- * XXX - We rely on the fact that u_ttyp, u_ttyd, and u_ruid are all within
- * XXX - the first 1kb of the u area.  If this ever changes the logic below
- * XXX - will break (and badly).  At the present time (97/9/2) the u area
- * XXX - is 856 bytes long.
+ * The first DEV_BSIZE bytes hold the whole struct user (subr_capacity.c).
+ * On success *upp addresses them.  *bpp is the buffer for
+ * proc_uarea_release(), or NULL.  ESRCH reports a process that exited or
+ * changed during the read, EIO a failed read.
+ */
+static int
+proc_uarea(struct proc *p, const struct user **upp, struct buf **bpp)
+{
+	const struct user *up;
+	struct buf *bp;
+	int pid = p->p_pid;
+	int error;
+
+	*bpp = NULL;
+	if (proc_changed(p, pid))
+		return (ESRCH);
+	if (p->p_flag & SLOAD)
+		goto resident;
+	bp = geteblk();
+	*bpp = bp;
+	if (proc_changed(p, pid))
+		return (ESRCH);
+	if (p->p_flag & SLOAD)
+		goto resident;
+#ifdef SWAPRAM
+	if (swapram_present(p))
+		error = swapram_uarea_prefix(p, bp->b_addr, DEV_BSIZE);
+	else
+#endif
+		error = swap_with_buf_result(bp, p->p_addr, (size_t)bp->b_addr,
+		    DEV_BSIZE, B_READ);
+	if (proc_changed(p, pid))
+		return (ESRCH);
+	if (p->p_flag & SLOAD)
+		goto resident;
+	if (error)
+		return (EIO);
+	up = (const struct user *)bp->b_addr;
+	if (up->u_procp != p)
+		return (ESRCH);
+	*upp = up;
+	return (0);
+resident:
+	*upp = (const struct user *)p->p_addr;
+	return (0);
+}
+
+static void
+proc_uarea_release(struct buf *bp)
+{
+	if (bp == NULL)
+		return;
+	bp->b_flags |= B_AGE;
+	brelse(bp);
+}
+
+/*
+ * The real uid, controlling terminal device and terminal of process p live
+ * in its user area, which proc_uarea() finds.  A zombie, or a process whose
+ * user area cannot be read, reports uid -2 and no terminal.
  */
 void
 fill_from_u(struct proc *p, uid_t *rup, struct tty **ttp, dev_t *tdp)
 {
+	const struct user *up;
 	struct buf *bp;
-	dev_t ttyd;
-	uid_t ruid;
-	struct tty *ttyp;
-	struct user *up;
-	int error;
+	dev_t ttyd = NODEV;
+	uid_t ruid = (uid_t)-2;
+	struct tty *ttyp = NULL;
 
-	if (p->p_stat == SZOMB) {
-		ruid = (uid_t)-2;
-		ttyp = NULL;
-		ttyd = NODEV;
-		goto out;
+	if (proc_uarea(p, &up, &bp) == 0) {
+		ruid = up->u_ruid;
+		ttyd = up->u_ttyd;
+		ttyp = up->u_ttyp;
 	}
-	if (p->p_flag & SLOAD) {
-		ttyd = ((struct user *)p->p_addr)->u_ttyd;
-		ttyp = ((struct user *)p->p_addr)->u_ttyp;
-		ruid = ((struct user *)p->p_addr)->u_ruid;
-	} else {
-		bp = geteblk();
-		error = 0;
-#ifdef SWAPRAM
-		if (swapram_present(p)) {
-			error = swapram_uarea_prefix(p, bp->b_addr, DEV_BSIZE);
-		} else
-#endif
-		{
-		bp->b_dev = swapdev;
-		bp->b_blkno = (daddr_t)p->p_addr;
-		bp->b_bcount = DEV_BSIZE;	/* XXX */
-		bp->b_flags = B_READ;
-
-		(*bdevsw[major(swapdev)].d_strategy)(bp);
-		biowait(bp);
-		error = u.u_error;
-		}
-
-		if (error) {
-			ttyd = NODEV;
-			ttyp = NULL;
-			ruid = (uid_t)-2;
-		} else {
-			up = (struct user *)bp->b_addr;
-			ruid = up->u_ruid;	/* u_ruid = offset 164 */
-			ttyd = up->u_ttyd;	/* u_ttyd = offset 654 */
-			ttyp = up->u_ttyp;	/* u_ttyp = offset 652 */
-		}
-		bp->b_flags |= B_AGE;
-		brelse(bp);
-		u.u_error = 0;			/* XXX */
-	}
-out:
+	proc_uarea_release(bp);
 	if (rup)
 		*rup = ruid;
 	if (ttp)

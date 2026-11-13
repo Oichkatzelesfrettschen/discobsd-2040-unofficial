@@ -76,9 +76,11 @@ _Static_assert((time_t)-1 < 0 && sizeof(time_t) == sizeof(long),
 /*
  * Fold a field that has run past its base into the field above it. The
  * quotient is floored rather than truncated, so a negative field borrows
- * instead of carrying the wrong way.
+ * instead of carrying the wrong way. The field above is compared with the
+ * room an int has left before the quotient is added; a sum outside an int
+ * returns nonzero with both fields as they were.
  */
-static void
+static int
 carry(int *lo, int *hi, int base)
 {
 	int q = *lo / base;
@@ -88,22 +90,27 @@ carry(int *lo, int *hi, int base)
 		r += base;
 		q--;
 	}
+	if (q > 0 ? *hi > INT_MAX - q : *hi < INT_MIN - q)
+		return (1);
 	*lo = r;
 	*hi += q;
+	return (0);
 }
 
 /*
  * Bring tm_sec through tm_mon into range and settle tm_year with them.
  * tm_mday is left alone: a day count past the end of its month is carried
  * by the day arithmetic below, which is where the month lengths are known.
+ * The answer is nonzero when a field above cannot hold what is carried into
+ * it, and the fields from that one up are then as the caller gave them.
  */
-static void
+static int
 normalize(struct tm *tm)
 {
-	carry(&tm->tm_sec, &tm->tm_min, SECSPERMIN);
-	carry(&tm->tm_min, &tm->tm_hour, MINSPERHOUR);
-	carry(&tm->tm_hour, &tm->tm_mday, HOURSPERDAY);
-	carry(&tm->tm_mon, &tm->tm_year, MONSPERYEAR);
+	return (carry(&tm->tm_sec, &tm->tm_min, SECSPERMIN) ||
+	    carry(&tm->tm_min, &tm->tm_hour, MINSPERHOUR) ||
+	    carry(&tm->tm_hour, &tm->tm_mday, HOURSPERDAY) ||
+	    carry(&tm->tm_mon, &tm->tm_year, MONSPERYEAR));
 }
 
 /*
@@ -152,7 +159,8 @@ timegm(struct tm *tm)
 	long days, seconds;
 	time_t result;
 
-	normalize(tm);
+	if (normalize(tm))
+		return ((time_t)-1);
 
 	if (tm->tm_year < TM_YEAR_MIN || tm->tm_year > TM_YEAR_MAX)
 		return ((time_t)-1);
@@ -192,7 +200,8 @@ mktime(struct tm *tm)
 	long offset;
 	int pass;
 
-	normalize(tm);
+	if (normalize(tm))
+		return ((time_t)-1);
 
 	/* The answer as though the fields were UTC, which starts the search. */
 	probe = *tm;
@@ -212,17 +221,22 @@ mktime(struct tm *tm)
 			return ((time_t)-1);
 
 		/*
-		 * The offset is the difference between the fields localtime
-		 * reports and the instant they were read from, which is the
-		 * zone's offset at that instant.
+		 * localtime reports the zone's offset at that instant in
+		 * tm_gmtoff, seconds east of UTC.
 		 */
-		probe = *back;
-		offset = (long)(timegm(&probe) - guess);
+		offset = back->tm_gmtoff;
 
 		probe = *tm;
 		probe.tm_isdst = back->tm_isdst;
 		guess = timegm(&probe);
 		if (guess == (time_t)-1)
+			return ((time_t)-1);
+		/*
+		 * The fields are in range as UTC; the instant they name in
+		 * this zone lies offset seconds away and may not be.
+		 */
+		if (offset < 0 ? guess > TIME_MAX + offset :
+		    guess < TIME_MIN + offset)
 			return ((time_t)-1);
 		guess -= offset;
 	}

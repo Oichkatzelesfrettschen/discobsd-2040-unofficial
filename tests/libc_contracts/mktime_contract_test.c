@@ -529,6 +529,57 @@ test_every_day(void)
 	    "every day: the counting calendar began on the wrong date");
 }
 
+/*
+ * Field carrying adds a quotient to the field above, and that sum can leave
+ * an int before any range check on the result runs. The second case is the
+ * one a wrapped sum would answer wrongly rather than refuse: INT_MAX minutes
+ * and sixty seconds wrap to a large negative minute count, which the hour
+ * field given here cancels to 00:52 on the epoch day, an accepted time,
+ * while the fields name an instant some four thousand years on.
+ */
+static void
+test_carry_overflow(void)
+{
+	struct tm tm;
+
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = INT_MAX;
+	tm.tm_mon = 12;
+	tm.tm_mday = 1;
+	tm.tm_wday = -1;
+	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	    "carry: a month carried past the last year was accepted");
+	check(tm.tm_year == INT_MAX && tm.tm_mon == 12,
+	    "carry: a refused month carry rewrote its fields");
+
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = 70;
+	tm.tm_mday = 1;
+	tm.tm_hour = 35791395;
+	tm.tm_min = INT_MAX;
+	tm.tm_sec = 60;
+	tm.tm_wday = -1;
+	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	    "carry: seconds carried past the last minute were accepted");
+
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = 70;
+	tm.tm_mday = INT_MAX;
+	tm.tm_hour = 24;
+	tm.tm_wday = -1;
+	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	    "carry: hours carried past the last day were accepted");
+
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = INT_MIN;
+	tm.tm_mon = -1;
+	tm.tm_mday = 1;
+	tm.tm_isdst = -1;
+	tm.tm_wday = -1;
+	check(db_mktime(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	    "carry: mktime accepted a month borrowed before the first year");
+}
+
 /* timegm reports the zone it read the fields in, as gmtime does. */
 static void
 test_timegm_zone_fields(void)
@@ -640,6 +691,28 @@ test_zone_offset(void)
 		    "zone: mktime did not apply the zone's offset");
 	}
 
+	/*
+	 * The last instant of the range round-trips through the zone, and
+	 * the same fields read as this zone's local time five hours later
+	 * name an instant past it, which is refused.
+	 */
+	t = (time_t)LONG_MAX;
+	back = db_localtime(&t);
+	if (back != 0) {
+		copy = *back;
+		copy.tm_isdst = -1;
+		check(db_mktime(&copy) == t,
+		    "zone: the last instant of the range did not round-trip");
+	}
+	back = db_gmtime(&t);
+	if (back != 0) {
+		copy = *back;
+		copy.tm_isdst = -1;
+		copy.tm_wday = -1;
+		check(db_mktime(&copy) == (time_t)-1 && copy.tm_wday == -1,
+		    "zone: a local time past the range was accepted");
+	}
+
 	/* The round trip holds through the zone, which is the whole claim. */
 	for (v = SWEEP_LO; v <= SWEEP_HI - STEP; v += STEP) {
 		t = (time_t)v;
@@ -679,6 +752,7 @@ main(void)
 	test_leap_year_rule();
 	test_out_of_range();
 	test_range_edges();
+	test_carry_overflow();
 	test_every_day();
 	test_timegm_zone_fields();
 	test_zone_offset();

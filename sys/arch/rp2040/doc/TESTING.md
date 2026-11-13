@@ -1411,12 +1411,26 @@ real-uid match alone and any other caller get EPERM. No such pid and an
 embryonic slot give ESRCH, a zombie no record, a failed read EIO, and a
 slot that changes during the read or a block another image holds ESRCH.
 The stride, size-query and short-buffer rules of `KERN_PROC` hold, and a
-new value is refused. `check-sysctl-proc-mutants` requires a failure from
-seven copies of kern_sysctl.c: one without the u_procp check, one without
-the rechecks, one that gives every caller the arguments, one that leaves
-out a row whose user area could not be read, one that gives every caller
-another user's descriptors, one without the working-directory record, and
-one that leaves a pipe without its inode fields.
+new value is refused.
+
+`VM_STATS` returns the event counters as one `struct kinfo_vmstat`, and
+`HW_DISKSTATS` one `struct kinfo_disk` per claimed disk-statistics slot.
+The gate gives every counter a distinct value derived from its field, so
+each record field must hold its own counter: the four processor-state
+ticks, the last second's events and their since-boot sums, the fork and
+name-cache statistics and the terminal character counts. A size query and
+a short buffer report the record's length, the short buffer keeps only its
+prefix, and a new value is refused. With no slot claimed the disk node
+returns nothing; with two claimed and a named slot after an unnamed one,
+it returns the two in slot order, a ten-character name cut to seven and
+NUL-ended in the eight-byte field. `check-sysctl-proc-mutants` requires a
+failure from nine copies of kern_sysctl.c: one without the u_procp check,
+one without the rechecks, one that gives every caller the arguments, one
+that leaves out a row whose user area could not be read, one that gives
+every caller another user's descriptors, one without the working-directory
+record, one that leaves a pipe without its inode fields, one that fills
+the since-boot events from the last second's, and one that copies a disk
+name to the end of its field with no NUL.
 
 The two actual-source binaries, `sysctl_test_compact` and
 `sysctl_test_wide`, execute as `kernel.sysctl-compact.ilp32` and

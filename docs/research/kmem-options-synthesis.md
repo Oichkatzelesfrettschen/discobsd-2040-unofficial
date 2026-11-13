@@ -209,10 +209,17 @@ records, ships 0775 on the flash root, and needs no privilege.
 
 ### Remaining kernel-memory readers
 
-Three programs on the SD image (`distrib/base/mi`) still read kernel
-memory, each installed 02755 in group 0, which grants no kmem access, so
-each runs for root alone: `vmstat` and `iostat` read `/dev/kmem`, and
-`pstat` reads `/dev/kmem` and `/dev/mem`. `devupdate` reads `/dev/kmem`
+`vmstat` and `iostat` read the kernel's counters through `VM_STATS`,
+`HW_DISKSTATS`, `VM_METER`, `HW_USERMEM`, `KERN_BOOTTIME` and
+`KERN_CLOCKRATE`, and ship 0775 without privilege; `vmstat -z`, which
+zeroed the kernel's sums through `/dev/kmem`, is gone. Under Renode,
+staged on the flash root, both ran as operator. The new nodes add 328
+bytes of PICO text and 336 of PICO_UART; `vmstat` shrinks from 13,612 to
+13,044 bytes and `iostat` from 11,344 to 10,904.
+
+`pstat` on the SD image (`distrib/base/mi`) still reads `/dev/kmem` and
+`/dev/mem`, installed 02755 in group 0, which grants no kmem access, so it
+runs for root alone. `devupdate` reads `/dev/kmem`
 and ships on neither image. None is on the flash root. The search is
 `rg -ln '"/dev/(kmem|mem|swap)"|_PATH_KMEM|knlist\(' --type c -g '!sys/**'`.
 `KERN_INODE` still returns the inode table with each entry's kernel

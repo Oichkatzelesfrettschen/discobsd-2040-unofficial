@@ -1790,9 +1790,11 @@ sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
 # open_args gives every caller the argument prefix; drop_marked leaves out
 # a process whose user area could not be read, as the raw-memory ps did;
 # open_files gives every caller another user's descriptors; no_cwd drops
-# the working-directory record; bare_pipe leaves a pipe without its inode.
+# the working-directory record; bare_pipe leaves a pipe without its inode;
+# sum_from_rate fills VM_STATS's since-boot events from the last second's;
+# unended_disk copies a disk name to the end of its field with no NUL.
 SYSCTL_PROC_MUTANTS=	no_identity no_recheck open_args drop_marked \
-			open_files no_cwd bare_pipe
+			open_files no_cwd bare_pipe sum_from_rate unended_disk
 SYSCTL_PROC_SED_no_identity=	s/if (up->u_procp != p)/if (0)/
 SYSCTL_PROC_SED_no_recheck=	s/if (proc_changed(p, pid))/if (proc_changed(p, pid) < 0)/
 SYSCTL_PROC_SED_open_args=	s/caller == kp->kp_ruid)/caller == kp->kp_ruid || kp->kp_size != 0)/
@@ -1800,6 +1802,8 @@ SYSCTL_PROC_SED_drop_marked=	s/kinfo_fill(p, &kp);/kinfo_fill(p, \&kp); if (kp.k
 SYSCTL_PROC_SED_open_files=	s/caller != 0 && caller != p->p_uid/caller == (uid_t)-1 \&\& caller != p->p_uid/
 SYSCTL_PROC_SED_no_cwd=	s/fd = KF_FD_CWD; fd < NOFILE/fd = 0; fd < NOFILE/
 SYSCTL_PROC_SED_bare_pipe=	s/fp->f_type == DTYPE_PIPE)/0)/
+SYSCTL_PROC_SED_sum_from_rate=	s/KINFO_VMEVENTS(vs.vs_sum, sum);/KINFO_VMEVENTS(vs.vs_sum, rate);/
+SYSCTL_PROC_SED_unended_disk=	s/i < KI_DISKNAMESZ - 1 \&\& dk_name/i < KI_DISKNAMESZ \&\& dk_name/
 
 check-sysctl-proc-mutants: sysctl_test_compact
 .for mutation in ${SYSCTL_PROC_MUTANTS}

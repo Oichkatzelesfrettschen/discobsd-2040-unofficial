@@ -50,6 +50,8 @@
 #include <sys/file.h>
 #include <sys/inode.h>
 #include <sys/mount.h>
+#include <sys/namei.h>
+#include <sys/dk.h>
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/vm.h>
@@ -307,6 +309,82 @@ kern_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 /*
  * Hardware related system variables.
  */
+#ifdef UCB_METER
+_Static_assert(CPUSTATES == KI_CPUSTATES, "kinfo_vmstat holds every cpu state");
+_Static_assert(sizeof(struct kinfo_vmstat) == 152,
+    "kinfo_vmstat packs its fields without padding");
+_Static_assert(sizeof(struct kinfo_disk) == 16,
+    "kinfo_disk packs its fields without padding");
+
+/* Copy the ten vm events of a struct vmrate or struct vmsum. */
+#define	KINFO_VMEVENTS(dst, src) do {					\
+	(dst).ve_swtch = (src).v_swtch;					\
+	(dst).ve_trap = (src).v_trap;					\
+	(dst).ve_syscall = (src).v_syscall;				\
+	(dst).ve_intr = (src).v_intr;					\
+	(dst).ve_soft = (src).v_soft;					\
+	(dst).ve_fpsim = (src).v_fpsim;					\
+	(dst).ve_kbin = (src).v_kbin;					\
+	(dst).ve_kbout = (src).v_kbout;					\
+	(dst).ve_swpin = (src).v_swpin;					\
+	(dst).ve_swpout = (src).v_swpout;				\
+} while (0)
+
+/*
+ * VM_STATS: the event counters as one record (sys/sysctl.h). Every value
+ * is a copy, so the record names no kernel address.
+ */
+static int
+sysctl_vmstats(void *oldp, size_t *oldlenp, void *newp)
+{
+	struct kinfo_vmstat vs;
+	int i;
+
+	bzero(&vs, sizeof(vs));
+	vs.vs_size = sizeof(vs);
+	for (i = 0; i < CPUSTATES; i++)
+		vs.vs_cp_time[i] = cp_time[i];
+	KINFO_VMEVENTS(vs.vs_rate, rate);
+	KINFO_VMEVENTS(vs.vs_sum, sum);
+	vs.vs_cntfork = forkstat.cntfork;
+	vs.vs_cntvfork = forkstat.cntvfork;
+	vs.vs_sizfork = forkstat.sizfork;
+	vs.vs_sizvfork = forkstat.sizvfork;
+	vs.vs_nch_goodhits = nchstats.ncs_goodhits;
+	vs.vs_nch_badhits = nchstats.ncs_badhits;
+	vs.vs_nch_falsehits = nchstats.ncs_falsehits;
+	vs.vs_nch_miss = nchstats.ncs_miss;
+	vs.vs_nch_long = nchstats.ncs_long;
+	vs.vs_nch_pass2 = nchstats.ncs_pass2;
+	vs.vs_nch_2passes = nchstats.ncs_2passes;
+	vs.vs_tk_nin = tk_nin;
+	vs.vs_tk_nout = tk_nout;
+	return (sysctl_rdstruct(oldp, oldlenp, newp, &vs, sizeof(vs)));
+}
+
+/*
+ * HW_DISKSTATS: one record per claimed disk-statistics slot, in slot
+ * order. dk_alloc() fills the slots from the first, so the claimed slots
+ * are the ones before the first unnamed one; the name is copied, never
+ * its address.
+ */
+static int
+sysctl_diskstats(void *oldp, size_t *oldlenp, void *newp)
+{
+	struct kinfo_disk kd[DK_NDRIVE];
+	int n, i;
+
+	bzero(kd, sizeof(kd));
+	for (n = 0; n < DK_NDRIVE && dk_name[n] != NULL; n++) {
+		for (i = 0; i < KI_DISKNAMESZ - 1 && dk_name[n][i] != '\0'; i++)
+			kd[n].kd_name[i] = dk_name[n][i];
+		kd[n].kd_xfer = dk_xfer[n];
+		kd[n].kd_bytes = dk_bytes[n];
+	}
+	return (sysctl_rdstruct(oldp, oldlenp, newp, kd, n * sizeof(kd[0])));
+}
+#endif
+
 int
 hw_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen __unused)
@@ -331,6 +409,8 @@ hw_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 #ifdef UCB_METER
 	case HW_USERMEM:
 		return (sysctl_rdlong(oldp, oldlenp, newp, freemem));
+	case HW_DISKSTATS:
+		return (sysctl_diskstats(oldp, oldlenp, newp));
 #endif
 	case HW_PAGESIZE:
 		return (sysctl_rdint(oldp, oldlenp, newp, DEV_BSIZE));
@@ -438,6 +518,10 @@ vm_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 		    len));
 	case VM_NSWAP:
 		return (sysctl_rdint(oldp, oldlenp, newp, (int)nswap));
+#ifdef UCB_METER
+	case VM_STATS:
+		return (sysctl_vmstats(oldp, oldlenp, newp));
+#endif
 	default:
 		return (EOPNOTSUPP);
 	}

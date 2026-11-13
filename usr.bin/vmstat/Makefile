@@ -1,14 +1,12 @@
 TOPSRC!=cd ../..; pwd
 PRINTF_FLOAT=	yes
-# -Wall -Wextra raises 37 distinct sites in this directory, so the fatal set
-# stays at the groups CFLAGS names until they are repaired.
-WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
 # Must run set-group-id kmem.
+# The program reads sysctl(3) records and runs without privilege.
 
 BINDIR=		/usr/bin
-BINMODE=	2751
+BINMODE=	755
 
 PROG=		vmstat
 

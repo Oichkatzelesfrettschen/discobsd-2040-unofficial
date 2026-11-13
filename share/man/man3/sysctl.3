@@ -217,7 +217,7 @@ privilege may change the value.
 	HW\_USERMEM	integer	no
 	HW\_PAGESIZE	integer	no
 .\".It HW\_DISKNAMES	integer	no
-.\".It HW\_DISKSTATS	integer	no
+	HW\_DISKSTATS	struct kinfo_disk []	no
 	HW\_MACHINE_ARCH	string	no
 .fi
 .PP
@@ -251,7 +251,18 @@ HW_PAGESIZE
 	The software page size.
 .sp
 .\".It Fa HW_DISKNAMES
-.\".It Fa HW_DISKSTATS
+HW_DISKSTATS
+.br
+.in +.5i
+Return one
+\fIstruct kinfo_disk\fP
+(\fI<sys/sysctl.h>\fP)
+for each disk-statistics slot a driver has claimed, in slot order: the
+drive's name, NUL-ended, and its transfer and byte counts.
+A kernel whose drivers claim no slot returns no record.
+Each value is a copy; the record names no kernel address.
+.in -.5i
+.sp
 HW_MACHINE_ARCH
 .br
 	The machine architecture.
@@ -911,6 +922,7 @@ privilege may change the value.
 	VM\_METER	struct vmtotal	no
 	VM\_SWAPMAP	struct mapent []	no
 	VM\_NSWAP	integer	no
+	VM\_STATS	struct kinfo_vmstat	no
 .fi
 .PP
 VM_LOADAVG
@@ -945,6 +957,19 @@ VM_NSWAP
 .in +.5i
 Return the size of the swap device in DEV_BSIZE blocks, which is the value
 of the kernel variable \fInswap\fP.
+.in -.5i
+.sp
+VM_STATS
+.br
+.in +.5i
+Return the system's event counters as one
+\fIstruct kinfo_vmstat\fP
+(\fI<sys/sysctl.h>\fP):
+the clock ticks spent in each processor state, the virtual memory events
+of the last second and their totals since boot, the fork and name-cache
+statistics, and the terminal characters read and written.
+Each field is a 32-bit copy of the kernel counter; the record names no
+kernel address.
 .in -.5i
 .SH RETURN VALUES
 If the call to

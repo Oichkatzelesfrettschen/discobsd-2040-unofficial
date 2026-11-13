@@ -98550,16 +98550,11 @@
           "integer": [
             "integer-cast"
           ],
-          "object_lifetime": [
-            "dynamic-storage"
-          ],
+          "object_lifetime": [],
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -100141,16 +100136,11 @@
           "integer": [
             "integer-cast"
           ],
-          "object_lifetime": [
-            "dynamic-storage"
-          ],
+          "object_lifetime": [],
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }

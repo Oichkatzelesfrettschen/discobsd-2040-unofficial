@@ -12,7 +12,8 @@
 #define VM_SWAPMAP  3       /* struct mapent _swapmap[] */
                     /* 4 was VM_COREMAP, which needs a core resource map */
 #define VM_NSWAP    5       /* int, swap space in DEV_BSIZE blocks */
-#define VM_MAXID    6       /* number of valid vm ids */
+#define VM_STATS    6       /* struct kinfo_vmstat (sys/sysctl.h) */
+#define VM_MAXID    7       /* number of valid vm ids */
 
 /*
  * One entry per id below VM_MAXID, retired ids included: sbin/sysctl walks
@@ -27,5 +28,6 @@
     { "swapmap", CTLTYPE_STRUCT }, \
     { 0, 0 }, \
     { "nswap", CTLTYPE_INT }, \
+    { "stats", CTLTYPE_STRUCT }, \
 }
 #endif

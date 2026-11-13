@@ -494,7 +494,6 @@ file /bin/hostname
 file /usr/bin/id
 file /usr/bin/install
 file /usr/sbin/iostat
-mode 02755
 file /usr/bin/join
 file /bin/kill
 file /usr/bin/la
@@ -587,7 +586,6 @@ file /usr/bin/uux
 file /usr/bin/uuxqt
 file /usr/bin/vi
 file /usr/bin/vmstat
-mode 02755
 file /usr/bin/w
 file /usr/bin/wall
 mode 02755

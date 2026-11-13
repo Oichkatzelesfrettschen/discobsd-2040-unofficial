@@ -28,25 +28,28 @@ Reads, in order:
     0xE0042000, 4 bytes     DBGMCU_IDCODE: DEV_ID and REV_ID
                             (RM0008 31.6.1)
 
-Read Memory is refused with NACK when readout protection is active or the
-bootloader rejects the address. The flash-size word decides the verdict;
-the CPUID and DBGMCU_IDCODE reads are attempts recorded apart, because an
-ST bootloader may refuse the private peripheral bus and ES096 2.2.2 makes
-DBGMCU_IDCODE read 0x00000000 outside debug mode on ST silicon, so a
-nonzero value is itself an observation about the CKS part.
+Readout protection refuses the Read Memory command byte itself; a NACK
+after the address or the length is the bootloader rejecting that frame.
+The flash-size word decides the verdict; the CPUID and DBGMCU_IDCODE
+reads are attempts recorded apart, because an ST bootloader may refuse
+the private peripheral bus and ES096 2.2.2 makes DBGMCU_IDCODE read
+0x00000000 outside debug mode on ST silicon, so a nonzero value is
+itself an observation about the CKS part.
 
 --dump FILE copies the application flash from 0x08000000 through the same
 Read Memory command, 256 bytes per request, for the length the flash-size
-word gives (or --dump-length), and records the copy's sha256: a backup of
+word gives (or a --dump-length no larger), and records the copy's sha256: a backup of
 the installed keyboard firmware and the bytes that identify its version.
 The vendor wiki's own session (`Setting-Up-Arduino-Development-for-PicoCalc-
 keyboard.md` in the notes repository) shows 57600 baud 8E1, bootloader
 version 0x22 and device ID 0x0410, so 57600 is the default rate.
 
 Exit status: 0 when Get ID and the flash-size word both read; 3 when Get
-ID answers and readout protection refuses the flash-size read; 1 for any
-other protocol failure, a silent port included, and for a dump that
-cannot complete; 2 for a usage error or a missing pyserial. The record is
+ID answers and the flash-size read is refused at its command byte
+(readout protection); 1 for any other refusal of that read, any protocol
+failure (a silent port included; the session then sends nothing more), an
+unopenable port and a dump that cannot complete; 2 for a usage error, a
+missing pyserial and a --dump-length outside 1 to the flash size. The record is
 printed as JSON on standard output.
 
 Usage: $PYTHON tools/picocalc/kbd_bootloader_id.py /dev/ttyUSB0
@@ -91,7 +94,17 @@ class ProtocolError(Exception):
 
 
 class Refused(Exception):
-    """The bootloader answered NACK to a well-formed request."""
+    """The bootloader answered NACK to a well-formed request.
+
+    stage names the byte it refused: "command" for the command byte, which
+    readout protection refuses for Read Memory, or "address", "length" or
+    "end" for a later frame. After a NACK the bootloader waits for a new
+    command, so the session may continue.
+    """
+
+    def __init__(self, what, stage):
+        super().__init__(what)
+        self.stage = stage
 
 
 class Bootloader:
@@ -110,10 +123,10 @@ class Bootloader:
             raise ProtocolError(f"{what}: expected {n} bytes, received {len(data)}")
         return data
 
-    def _expect_ack(self, what):
+    def _expect_ack(self, what, stage):
         b = self._read_exact(1, what)[0]
         if b == NACK:
-            raise Refused(what)
+            raise Refused(what, stage)
         if b != ACK:
             raise ProtocolError(f"{what}: byte 0x{b:02x} is neither ACK nor NACK")
 
@@ -137,26 +150,26 @@ class Bootloader:
         if cmd not in ALLOWED_COMMANDS:
             raise ValueError(f"command 0x{cmd:02x} is outside the read-only set")
         self.port.write(bytes([cmd, cmd ^ 0xFF]))
-        self._expect_ack(f"command 0x{cmd:02x}")
+        self._expect_ack(f"command 0x{cmd:02x}", "command")
 
     def get(self):
         self.send_command(CMD_GET)
         n = self._read_exact(1, "get length")[0]
         body = self._read_exact(n + 1, "get body")
-        self._expect_ack("get end")
+        self._expect_ack("get end", "end")
         return {"version": body[0], "commands": list(body[1:])}
 
     def get_version(self):
         self.send_command(CMD_GET_VERSION)
         body = self._read_exact(3, "get version body")
-        self._expect_ack("get version end")
+        self._expect_ack("get version end", "end")
         return {"version": body[0], "option_bytes": [body[1], body[2]]}
 
     def get_id(self):
         self.send_command(CMD_GET_ID)
         n = self._read_exact(1, "get id length")[0]
         body = self._read_exact(n + 1, "get id body")
-        self._expect_ack("get id end")
+        self._expect_ack("get id end", "end")
         return int.from_bytes(body, "big")
 
     def read_memory(self, addr, length):
@@ -165,24 +178,44 @@ class Bootloader:
         self.send_command(CMD_READ_MEMORY)
         a = addr.to_bytes(4, "big")
         self.port.write(a + bytes([a[0] ^ a[1] ^ a[2] ^ a[3]]))
-        self._expect_ack(f"read address 0x{addr:08x}")
+        self._expect_ack(f"read address 0x{addr:08x}", "address")
         self.port.write(bytes([length - 1, (length - 1) ^ 0xFF]))
-        self._expect_ack(f"read length at 0x{addr:08x}")
+        self._expect_ack(f"read length at 0x{addr:08x}", "length")
         return self._read_exact(length, f"read data at 0x{addr:08x}")
 
 
+class SessionStopped(Exception):
+    """A protocol failure left the bootloader's parser state unknown."""
+
+
 def attempt(record, key, fn):
-    """Run one read; record its value, a refusal or a protocol failure."""
+    """Run one read and record its value or refusal. A protocol failure
+    (silence, a short reply, a byte that is neither ACK nor NACK) leaves
+    the bootloader's parser state unknown: a later address or length frame
+    could then land where it expects a command byte, so the session sends
+    nothing more and SessionStopped ends it."""
     try:
         value = fn()
     except Refused as e:
-        record[key] = {"status": "refused", "detail": str(e)}
+        record[key] = {"status": "refused", "stage": e.stage, "detail": str(e)}
         return None
     except ProtocolError as e:
         record[key] = {"status": "failed", "detail": str(e)}
-        return None
+        raise SessionStopped(key) from e
     record[key] = {"status": "ok", "value": value}
     return value
+
+
+READS = (
+    "get",
+    "get_version",
+    "product_id",
+    "flash_size_kbytes",
+    "unique_id",
+    "option_bytes",
+    "cpuid",
+    "dbgmcu_idcode",
+)
 
 
 def identify(port):
@@ -195,15 +228,31 @@ def identify(port):
         record["sync"] = {"status": "failed", "detail": str(e)}
         return EXIT_PROTOCOL, record
     record["sync"] = {"status": "ok"}
+    try:
+        _identify_reads(bl, record)
+    except SessionStopped:
+        for key in READS:
+            record.setdefault(key, {"status": "not run", "detail": "session stopped"})
+        return EXIT_PROTOCOL, record
 
+    flash = record["flash_size_kbytes"]
+    if record["product_id"]["status"] != "ok":
+        return EXIT_PROTOCOL, record
+    if flash["status"] == "ok":
+        return EXIT_OK, record
+    if flash.get("stage") == "command":
+        return EXIT_PROTECTED, record
+    return EXIT_PROTOCOL, record
+
+
+def _identify_reads(bl, record):
     attempt(record, "get", bl.get)
     attempt(record, "get_version", bl.get_version)
     pid = attempt(record, "product_id", bl.get_id)
     if pid is not None:
         record["product_id"]["hex"] = f"0x{pid:03x}"
         record["product_id"]["meaning"] = PRODUCT_IDS.get(pid, "not in the ST F1 table")
-
-    flash = attempt(
+    attempt(
         record,
         "flash_size_kbytes",
         lambda: int.from_bytes(bl.read_memory(FLASH_SIZE_ADDR, 2), "little"),
@@ -226,17 +275,26 @@ def identify(port):
         record["dbgmcu_idcode"]["dev_id"] = f"0x{idcode & 0xFFF:03x}"
         record["dbgmcu_idcode"]["rev_id"] = f"0x{idcode >> 16:04x}"
 
-    if pid is None:
-        return EXIT_PROTOCOL, record
-    if flash is not None:
-        return EXIT_OK, record
-    if record["flash_size_kbytes"]["status"] == "refused":
-        return EXIT_PROTECTED, record
-    return EXIT_PROTOCOL, record
+
+# The STM32F1 family ends at 1 Mbyte of flash (XL density); a larger
+# flash-size word is not a value this tool trusts to bound a dump.
+MAX_FLASH_KBYTES = 1024
+
+
+def dump_length_for(record, requested):
+    """The dump length in bytes, or None when the request leaves the
+    application flash that the flash-size word reports."""
+    kbytes = record["flash_size_kbytes"].get("value")
+    if not isinstance(kbytes, int) or not 1 <= kbytes <= MAX_FLASH_KBYTES:
+        return None
+    limit = kbytes * 1024
+    length = limit if requested is None else requested
+    return length if 1 <= length <= limit else None
 
 
 def dump_flash(port, length):
-    """Read length bytes of application flash; raise on any refusal."""
+    """Read length bytes of application flash; raise on any refusal or
+    protocol failure, so a dump never continues on an unknown state."""
     bl = Bootloader(port)
     out = bytearray()
     while len(out) < length:
@@ -251,39 +309,54 @@ def main(argv):
     ap.add_argument("--baud", type=int, default=57600)
     ap.add_argument("--timeout", type=float, default=1.0, help="seconds per read")
     ap.add_argument("--dump", metavar="FILE", help="copy the application flash to FILE")
-    ap.add_argument("--dump-length", type=int, help="bytes to copy; default the flash size")
+    ap.add_argument(
+        "--dump-length", type=int, help="bytes to copy, 1 to the flash size; default the flash size"
+    )
     args = ap.parse_args(argv)
     try:
         import serial  # pyserial
     except ImportError:
         print("kbd_bootloader_id: pyserial is required (python-pyserial)", file=sys.stderr)
         return EXIT_USAGE
-    with serial.Serial(
-        args.tty,
-        args.baud,
-        bytesize=serial.EIGHTBITS,
-        parity=serial.PARITY_EVEN,
-        stopbits=serial.STOPBITS_ONE,
-        timeout=args.timeout,
-    ) as port:
+    try:
+        port = serial.Serial(
+            args.tty,
+            args.baud,
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_EVEN,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=args.timeout,
+        )
+    except (serial.SerialException, OSError) as e:
+        print(f"kbd_bootloader_id: {args.tty}: {e}", file=sys.stderr)
+        return EXIT_PROTOCOL
+    with port:
         port.reset_input_buffer()
         status, record = identify(port)
         if args.dump and status == EXIT_OK:
-            length = args.dump_length or record["flash_size_kbytes"]["value"] * 1024
-            try:
-                image = dump_flash(port, length)
-            except (Refused, ProtocolError) as e:
-                record["dump"] = {"status": "failed", "detail": str(e)}
-                status = EXIT_PROTOCOL
-            else:
-                with open(args.dump, "wb") as fh:
-                    fh.write(image)
+            length = dump_length_for(record, args.dump_length)
+            if length is None:
                 record["dump"] = {
-                    "status": "ok",
-                    "path": args.dump,
-                    "bytes": len(image),
-                    "sha256": hashlib.sha256(image).hexdigest(),
+                    "status": "not run",
+                    "detail": "--dump-length outside 1 to the flash size, or no usable flash size",
                 }
+                status = EXIT_USAGE
+            else:
+                port.reset_input_buffer()
+                try:
+                    image = dump_flash(port, length)
+                except (Refused, ProtocolError) as e:
+                    record["dump"] = {"status": "failed", "detail": str(e)}
+                    status = EXIT_PROTOCOL
+                else:
+                    with open(args.dump, "wb") as fh:
+                        fh.write(image)
+                    record["dump"] = {
+                        "status": "ok",
+                        "path": args.dump,
+                        "bytes": len(image),
+                        "sha256": hashlib.sha256(image).hexdigest(),
+                    }
     record["tty"] = args.tty
     record["baud"] = args.baud
     record["read_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())

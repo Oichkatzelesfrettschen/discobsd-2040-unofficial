@@ -116,6 +116,48 @@ def execute(program, arm):
                           timeout=90, check=False)
 
 
+def mode_promotions(root, compiler, work, arm):
+    fixture = (root / "tests/libc_contracts/dbm_open_test.c").read_text()
+    anchor = "static mode_t\nread_mode(va_list *arguments)\n{"
+    require(fixture.count(anchor) == 1, "mode promotion helper anchor differs")
+    helper = anchor + fixture.split(anchor)[1].split("\n}", 1)[0] + "\n}\n"
+    for index, mode_type in enumerate(("unsigned short", "int", "unsigned int",
+                                       "long", "unsigned long", "long long",
+                                       "unsigned long long")):
+        source = work / "mode-promotion.c"
+        source.write_text(
+            "#include <stdarg.h>\ntypedef " + mode_type + " mode_t;\n" + helper +
+            "static int check(int marker, ...) {\n"
+            "va_list arguments; mode_t value; va_start(arguments, marker);\n"
+            "value = read_mode(&arguments); va_end(arguments);\n"
+            "return value != (mode_t)0640; }\n"
+            "int main(void) { return check(0, (mode_t)0640); }\n")
+        obj = work / "mode-promotion.o"
+        compile_command(compiler + FLAGS + (ARM if arm else []) +
+                        ["-c", str(source), "-o", str(obj)])
+        program = work / "mode-promotion"
+        objects = [str(obj)]
+        link = []
+        if arm:
+            objects.append(str(work / "support.o"))
+            link = ["-nostartfiles", "-Wl,-Ttext=0x20000", "-lc", "-lgcc"]
+        compile_command(compiler + (ARM if arm else []) + objects + link +
+                        ["-o", str(program)])
+        result = execute(program, arm)
+        require(result.returncode == 0 and not result.stderr,
+                "mode promotion fails for " + mode_type + ": " + result.stderr)
+        if index == 0:
+            source.write_text(source.read_text().replace(helper,
+                "static mode_t read_mode(va_list *arguments) {\n"
+                "return va_arg(*arguments, mode_t); }\n"))
+            result = subprocess.run(compiler + FLAGS + (ARM if arm else []) +
+                ["-c", str(source), "-o", str(obj)], capture_output=True,
+                text=True, timeout=90, check=False)
+            require(result.returncode != 0 and "promot" in result.stderr,
+                    "narrow mode va_arg mutation lacks promotion rejection")
+    print("dbm-open mode promotions: seven types pass; narrow va_arg rejected")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
@@ -138,6 +180,7 @@ def main():
                 "dbm-open contract fails: exit=" + str(result.returncode) +
                 "\n" + result.stdout + result.stderr)
         print(result.stdout, end="")
+        mode_promotions(root, compiler, work, args.arm)
         accepted = work / "accepted"
         shutil.copy2(program, accepted)
         original = source.read_text()

@@ -22,6 +22,19 @@ int dbm_test_open(const char *, int, ...);
 int dbm_test_close(int);
 int dbm_test_fstat(int, struct stat *);
 
+static mode_t
+read_mode(va_list *arguments)
+{
+    /* Unary plus selects the type after the default integer promotions. */
+    return (mode_t)_Generic(+(mode_t)0,
+        int: va_arg(*arguments, int),
+        unsigned int: va_arg(*arguments, unsigned int),
+        long: va_arg(*arguments, long),
+        unsigned long: va_arg(*arguments, unsigned long),
+        long long: va_arg(*arguments, long long),
+        unsigned long long: va_arg(*arguments, unsigned long long));
+}
+
 void *
 dbm_test_malloc(size_t size)
 {
@@ -52,7 +65,7 @@ dbm_test_open(const char *path, int actual_flags, ...)
     va_list arguments;
 
     va_start(arguments, actual_flags);
-    actual_mode = va_arg(arguments, mode_t);
+    actual_mode = read_mode(&arguments);
     va_end(arguments);
     if ((expected_flags & O_ACCMODE) == O_WRONLY)
         expected_flags = (expected_flags & ~O_ACCMODE) | O_RDWR;

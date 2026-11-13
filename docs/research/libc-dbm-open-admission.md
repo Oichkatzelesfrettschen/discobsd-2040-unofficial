@@ -95,6 +95,16 @@ header and typed fixture retain their strict diagnostics. GCC, Clang, ILP32
 and ARMv6-M QEMU runs pass the 3,180 cases and reject the eight controls.
 Apple linker execution remains a hosted macOS qualification requirement.
 
+The injected variadic `open` reads the creation mode using its default-promoted
+integer type. C17 6.5.2.2 applies integer promotions to variadic arguments;
+reading a narrow `mode_t` directly with `va_arg` has undefined behavior. Unary
+plus and `_Generic` select the promoted type without compiler extensions.
+Seven isolated type fixtures cover unsigned short, signed/unsigned int,
+signed/unsigned long and signed/unsigned long long. GCC, Clang and ARMv6-M
+QEMU pass these fixtures, while the direct narrow-type `va_arg` mutation fails
+compilation with its promotion diagnostic. These fixtures establish type-width
+portability independently of the host's actual `mode_t` definition.
+
 The witness establishes public declarations and constructor behavior under
 its injected allocation and I/O schedules. Database page parsing, hashing,
 fetch/store/delete/iteration semantics, concurrent access, crash persistence,

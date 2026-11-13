@@ -316,7 +316,7 @@ hardclock(caddr_t pc, int ps)
     }
     if (++lbolt >= hz) {
         lbolt -= hz;
-        ++time.tv_sec;
+        time.tv_sec = wall_advance(time.tv_sec, 1);
     }
 
     if (++monotick >= hz) {
@@ -436,9 +436,9 @@ hzto(register struct timeval *tv)
      * Delta times less than 25 days can be computed ``exactly''.
      * Maximum value for any timeout in 10ms ticks is 250 days.
      */
-    sec = tv->tv_sec - time.tv_sec;
+    sec = wall_interval(tv->tv_sec, time.tv_sec);
     if (sec <= 0x7fffffff / 1000 - 1000)
-        ticks = ((tv->tv_sec - time.tv_sec) * 1000 +
+        ticks = (sec * 1000 +
             (tv->tv_usec - time.tv_usec) / 1000) / (1000/hz);
     else if (sec <= 0x7fffffff / hz)
         ticks = sec * hz;

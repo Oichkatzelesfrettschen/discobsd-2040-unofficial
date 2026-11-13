@@ -2651,6 +2651,21 @@ native address and undefined-behavior sanitizers, including alignment checks,
 when the compiler probe admits the runtime. The execution inventory records an
 explicit skipped state otherwise.
 
+The wall clock, `time.tv_sec`, counts seconds since 1970 modulo 2^32 and is
+read unsigned (`utime32_t`, `sys/types.h`), so it carries out of bit 31 in
+January 2038 and is valid to 2106. The interval-timer fixture is built a
+second time with `-m32`, where `long` has the target's width, and with the
+signed-overflow sanitizer: `hardclock()` carries the count from 0x7fffffff
+to 0x80000000, `hzto()` measures a deadline across the carry and past it,
+`wall_reached()` (the `select` deadline test) orders a clock and a deadline
+on either side, `timevaladd()` carries a microsecond overflow into bit 31,
+`settimeofday()` moves the boot time by the same distance, and `adjtime()`
+steps the clock anywhere inside 0..4294967295 and refuses a step that leaves
+it. Six mutants restore signed arithmetic at one site each and are rejected,
+four by the sanitizer and two by an assertion. A host compiler without a
+32-bit sanitizer runtime prints a skip for these seven cases; the native
+build never reaches the carry, so it establishes nothing about it.
+
 Clean parent `4514cd81be7d82e03d5d97977398e3aa3b6d7921` and credential
 implementation `34df4b4156deee5924aa0c221867c6bd933fa4ba` captures use the complete
 manifest workflow under bmake 20260912, arm-none-eabi-gcc 16.2.0, GNU ld

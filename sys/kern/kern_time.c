@@ -36,7 +36,8 @@ setthetime (register struct timeval *tv)
     }
 #endif
 /* WHAT DO WE DO ABOUT PENDING REAL-TIME TIMEOUTS??? */
-    boottime.tv_sec += tv->tv_sec - time.tv_sec;
+    boottime.tv_sec = wall_advance(boottime.tv_sec,
+        wall_interval(tv->tv_sec, time.tv_sec));
     s = splhigh();
     time = *tv;
     lbolt = time.tv_usec / usechz;
@@ -151,7 +152,7 @@ adjtime()
     /* Large tick corrections step the clock; smaller corrections slew. */
     if (!slew) {
         s = splclock();
-        seconds += time.tv_sec;
+        seconds += (utime32_t)time.tv_sec;
         ticks += lbolt;
         if (ticks < 0) {
             ticks += hz;
@@ -160,12 +161,13 @@ adjtime()
             ticks -= hz;
             seconds++;
         }
-        if (seconds < LONG_MIN || seconds > LONG_MAX) {
+        /* The stepped clock stays inside the unsigned count, 1970..2106. */
+        if (seconds < 0 || seconds > 0xffffffffLL) {
             splx(s);
             u.u_error = EINVAL;
             return;
         }
-        time.tv_sec = seconds;
+        time.tv_sec = (long)(utime32_t)seconds;
         lbolt = ticks;
         time.tv_usec = ticks * usechz;
         adjdelta = 0;
@@ -396,11 +398,11 @@ static void
 tvfix(struct timeval *t1)
 {
     if (t1->tv_usec < 0) {
-        t1->tv_sec--;
+        t1->tv_sec = wall_advance(t1->tv_sec, -1);
         t1->tv_usec += 1000000L;
     }
     if (t1->tv_usec >= 1000000L) {
-        t1->tv_sec++;
+        t1->tv_sec = wall_advance(t1->tv_sec, 1);
         t1->tv_usec -= 1000000L;
     }
 }
@@ -415,7 +417,7 @@ tvfix(struct timeval *t1)
 void
 timevaladd(struct timeval *t1, struct timeval *t2)
 {
-    t1->tv_sec += t2->tv_sec;
+    t1->tv_sec = wall_advance(t1->tv_sec, t2->tv_sec);
     t1->tv_usec += t2->tv_usec;
     tvfix(t1);
 }

@@ -67193,9 +67193,13 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "integer-cast"
+          ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }
@@ -70747,7 +70751,9 @@
             "integer-pointer-cast"
           ],
           "prototype": [],
-          "variadic": []
+          "variadic": [
+            "variadic-interface"
+          ]
         }
       }
     },

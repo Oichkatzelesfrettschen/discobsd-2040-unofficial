@@ -70,6 +70,39 @@ struct  itimerval {
 
 #ifdef KERNEL
 /*
+ * The wall clock, time.tv_sec, counts seconds since 1970 modulo 2^32 in
+ * the signed field struct timeval shares with intervals; read unsigned
+ * (utime32_t) it is valid to 2106. Its arithmetic runs in unsigned long,
+ * where the carry out of bit 31 in January 2038 is defined: wall_advance()
+ * moves a clock value by a signed number of seconds, and wall_interval()
+ * returns the signed distance from one clock value to another, exact
+ * while the two are less than 2^31 seconds apart.
+ */
+static inline long
+wall_advance(long seconds, long by)
+{
+    return (long)((unsigned long)seconds + (unsigned long)by);
+}
+
+static inline long
+wall_interval(long later, long earlier)
+{
+    return (long)((unsigned long)later - (unsigned long)earlier);
+}
+
+/*
+ * Nonzero when a wall clock reading of seconds and microseconds is at or
+ * after the deadline; the signed distance orders the two across the carry.
+ */
+static inline int
+wall_reached(const struct timeval *deadline, long seconds, long microseconds)
+{
+    long past = wall_interval(seconds, deadline->tv_sec);
+
+    return past > 0 || (past == 0 && microseconds >= deadline->tv_usec);
+}
+
+/*
  * Round up a proposed time value to a minimal resolution of the clock.
  */
 int itimerfix (struct timeval *tv);

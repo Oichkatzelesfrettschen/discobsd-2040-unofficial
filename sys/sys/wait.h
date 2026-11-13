@@ -83,5 +83,6 @@ union wait  {
 int wait (int *istat);
 int wait3 (int *istat, int options, struct rusage *rup);
 pid_t waitpid (pid_t pid, int *istat, int options);
-pid_t wait4 (pid_t pid, int *istat, int options, struct rusage *rup);
+pid_t wait4 (pid_t pid, int *istat, int options, struct rusage *rup)
+           __TIME64_NAME(wait4);
 #endif

@@ -84,6 +84,12 @@ OBJS            += aeabi_div.o
 OBJS            += aeabi_div_idiv.o
 .endif
 
+# libc/gen, the system calls of the 64-bit view of time
+OBJS            += time64_widen_stat.o time64_widen_rusage.o time64_stat.o time64_lstat.o \
+                   time64_fstat.o time64_gettimeofday.o time64_settimeofday.o time64_adjtime.o \
+                   time64_select.o time64_pselect.o time64_utimes.o time64_futimes.o \
+                   time64_getitimer.o time64_setitimer.o time64_getrusage.o time64_wait4.o
+
 # libc/gen
 OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
                    calloc.o closedir.o confstr.o crypt.o ctime.o ctype_.o \

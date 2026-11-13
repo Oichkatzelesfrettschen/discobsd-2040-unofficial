@@ -68,7 +68,8 @@ typedef struct fd_set {
 
 /* According to POSIX.1-2001 */
 struct timeval;
-int	select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
+int	select(int, fd_set *, fd_set *, fd_set *, struct timeval *)
+	    __TIME64_NAME(select);
 
 #endif	/* !KERNEL */
 

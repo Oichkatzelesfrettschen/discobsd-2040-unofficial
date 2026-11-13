@@ -43,23 +43,7 @@ typedef int     ssize_t;
 #define _SSIZE_T
 #endif
 #endif
-/*
- * Seconds since 1970 as the kernel clock, the inode and the superblock
- * hold them: 32 bits on the target, read unsigned, so the count is valid
- * to 2106. The kernel's time_t is this type; a program's time_t is
- * declared apart from it, and a structure both sides lay out (struct
- * icommon2, struct fs, struct vattr) names this type so that its layout
- * does not follow the program's.
- */
-typedef unsigned long   utime32_t;
-#ifndef _TIME_T
-#define _TIME_T
-#ifdef KERNEL
-typedef utime32_t time_t;
-#else
-typedef long    time_t;
-#endif
-#endif
+#include <sys/_time_t.h>
 typedef int     dev_t;
 #ifndef _OFF_T
 #define _OFF_T

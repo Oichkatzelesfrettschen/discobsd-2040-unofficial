@@ -10,10 +10,7 @@
 #define NULL    ((void *)0)
 #endif
 
-#ifndef _TIME_T
-#define _TIME_T
-typedef long time_t;
-#endif
+#include <sys/_time_t.h>
 
 #ifndef _SIZE_T
 #define _SIZE_T
@@ -37,6 +34,13 @@ struct tm {
     char    *tm_zone;
 };
 
+/*
+ * The functions that pass a time_t exist in libc at the 32-bit width only,
+ * so the 64-bit view (sys/_time_t.h) leaves them undeclared: a unit built
+ * with that view fails to compile a call instead of binding a 64-bit
+ * argument to a 32-bit function.
+ */
+#ifndef __TIME64_VIEW
 struct tm *gmtime(const time_t *);
 struct tm *localtime(const time_t *);
 time_t mktime(struct tm *);
@@ -45,11 +49,12 @@ time_t mktime(struct tm *);
  * closed form, and mktime searches with it; lib/libc/gen/mktime.c says how.
  */
 time_t timegm(struct tm *);
-char *asctime(const struct tm *);
 char *ctime(const time_t *);
-char *timezone(int, int);
 double difftime(time_t, time_t);
 time_t time(time_t *);
+#endif
+char *asctime(const struct tm *);
+char *timezone(int, int);
 void tzset(void);
 
 size_t strftime (char *s, size_t maxsize, const char *format,

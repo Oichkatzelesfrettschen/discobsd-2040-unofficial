@@ -52,12 +52,41 @@ expect "headers run everything" "" "include/stdio.h"
 expect "kernel runs everything" "" "sys/kern/tty.c"
 expect "workflow runs everything" "" ".github/workflows/firmware.yml"
 expect "shared mutant library runs everything" "" "games/mutlib.py"
+expect "test runner runs everything" "" "tools/test_execution.py"
+expect "test inventory runs everything" "" "tools/test-execution-inventory.json"
+expect "logged gate runner runs everything" "" "tools/run_logged_gate.py"
+expect "tree libm runs calc and libcalc" \
+	"check-fourfall-host check-puzzlebox-host check-ridge-host check-dcbc" \
+	"lib/libm/sin.c"
+expect "tree libm errno shim runs calc and libcalc" \
+	"check-fourfall-host check-puzzlebox-host check-ridge-host check-dcbc" \
+	"tests/libcalc/tl_errno.c"
 expect "selector itself runs everything" "" "tools/select-host-gates.sh"
 expect "a game Makefile is not the root Makefile" \
 	"check-puzzlebox-host check-ridge-host check-calc-host check-libcalc check-dcbc" \
 	"games/fourfall/Makefile"
 expect "a sibling name is not a directory prefix" "$all" "games/fourfallx/a.c
 lib/libcalcx/b.c"
+
+# A rename out of a suite's directory reports the old path too.
+repo=$(mktemp -d)
+trap 'trash-put "$repo"' EXIT
+git -C "$repo" init -q
+mkdir -p "$repo/games/fourfall" "$repo/docs"
+echo v >"$repo/games/fourfall/vectors.txt"
+git -C "$repo" add -A
+git -C "$repo" -c user.name=t -c user.email=t@example.com commit -qm a
+git -C "$repo" mv games/fourfall/vectors.txt docs/vectors.txt
+git -C "$repo" -c user.name=t -c user.email=t@example.com commit -qm b
+selector=$(cd "$here" && pwd)/select-host-gates.sh
+got=$(cd "$repo" && sh "$selector" HEAD~1 HEAD)
+want="check-puzzlebox-host check-ridge-host check-calc-host check-libcalc check-dcbc"
+if [ "$got" = "$want" ]; then
+	echo "PASS a rename out of fourfall runs fourfall"
+else
+	echo "FAIL a rename out of fourfall runs fourfall: want [$want] got [$got]"
+	failures=$((failures + 1))
+fi
 
 # A range git cannot read prints nothing: every gate runs.
 got=$(sh "$select" 0000000000000000000000000000000000000000 HEAD)

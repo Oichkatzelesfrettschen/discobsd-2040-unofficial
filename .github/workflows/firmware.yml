@@ -54,7 +54,12 @@ jobs:
           EVENT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           EVENT_HEAD: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        # A scheduled or dispatched run carries no event base; the head's
+        # first parent, the prior tip of main, gives the last merge's range.
         run: |
+          if [ -z "$EVENT_BASE" ]; then
+            EVENT_BASE=$(git rev-parse "$EVENT_HEAD^")
+          fi
           read -r resolved_base resolved_head < <(
             sh tools/resolve-changed-comment-range.sh . \
               "$EVENT_BASE" "$EVENT_HEAD" \

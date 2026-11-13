@@ -10,21 +10,23 @@
 # changed path starts with one of its prefixes, and every suite runs when a
 # path starts with a SHARED prefix: the build rules, the C library and
 # headers every host build includes, the kernel, CI and this script. A git
-# failure prints nothing, so check-host runs every gate. The nightly and
+# failure prints nothing, so check-host runs every gate. Rename detection is
+# off, so a moved file reports its old path beside its new one. The nightly and
 # main-branch runs pass no skip list; tools/select_host_gates_test.sh holds
 # the calibration cases.
 set -eu
 
 SHARED="Makefile share/mk/ tools/host-test.mk tools/test-execution.mk
-tools/compiler-probe.sh tools/select-host-gates.sh include/ lib/libc/ sys/
-.github/ games/mutlib.py"
+tools/test_execution.py tools/test-execution-inventory.json
+tools/run_logged_gate.py tools/compiler-probe.sh tools/select-host-gates.sh
+include/ lib/libc/ sys/ .github/ games/mutlib.py"
 
 # gate|prefix ...
 SUITES="check-fourfall-host|games/fourfall/ games/gametty.h tools/mutant_pool.py
 check-puzzlebox-host|games/pzcommon/ games/puzzlebox/ games/flood/ games/samegame/ games/unruly/ games/lightup/ games/gameterm.h games/gametty.h tools/mutant_pool.py
 check-ridge-host|games/ridge/ games/gametile.h tests/picocalc/shim/
-check-calc-host|usr.bin/calc/ lib/libcalc/ tools/mutant_pool.py
-check-libcalc|tests/libcalc/ lib/libcalc/ docs/research/picomite-maths-clean-room-spec.md
+check-calc-host|usr.bin/calc/ lib/libcalc/ lib/libm/ tests/libcalc/tl_errno.c tools/mutant_pool.py
+check-libcalc|tests/libcalc/ lib/libcalc/ lib/libm/ docs/research/picomite-maths-clean-room-spec.md
 check-dcbc|tests/dcbc/ lib/libbn/ usr.bin/bc/ usr.bin/dc/"
 
 case "${1-}" in
@@ -36,7 +38,7 @@ case "${1-}" in
 	exit 2
 	;;
 *)
-	changed=$(git diff --name-only "$1" "${2:?HEAD required}" 2>/dev/null) || exit 0
+	changed=$(git diff --no-renames --name-only "$1" "${2:?HEAD required}" 2>/dev/null) || exit 0
 	;;
 esac
 

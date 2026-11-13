@@ -23,6 +23,25 @@ the original denominator checks and those descendant-evidence boundaries.
 
 ## Ordered work
 
+### Active delivery scope
+
+The owner's scope revision limits active delivery to this session's owned
+changes, including the v7fs repairs and device write-error lifetime work on
+`audit/storage-contracts`. Other agents retain their pull requests. Inactive
+pull-request takeover and the remaining repository-wide component reviews
+leave this session's execution queue; their open ledger entries remain
+retained obligations rather than completed reviews.
+
+Delivery proceeds through bounded storage regression closure, reconciliation
+with origin main, focused checks, final logged build/check and ILP32 gates,
+then review and merge-commit integration of the owned changes. Replacement
+rename tests must model caller reclamation explicitly. Production atomic
+recovery remains a separate architecture decision. Further experimental
+expansion requires a concrete defect or an acceptance requirement.
+
+The fixed baseline and coverage counts remain evidence for the broader audit;
+they do not measure completion of this narrower delivery scope.
+
 Only one item carries active implementation focus. Product jobs use the
 worktree's logged execution lock. Physical-board access, raw-device writes,
 power interruption, production keys, and provider execution remain outside
@@ -58,24 +77,26 @@ failure of that restoration returns its error and retains the inspection
 boundary. Commit `39d2cc28` carries the repair.
 
 The expanded nonreplacement rename matrix covers every one of seven control
-writes in both byte orders at transferred lengths 0, 1, 2, 3, 4, 255, 256,
-257, 511 and 512. All 140 reported-error cases restore namespace, inode
+writes in both byte orders at every transferred length from 0 through 512.
+All 7,182 reported-error cases restore namespace, inode
 metadata, sizes, link counts and free totals, and accept continued allocation
 after a fresh mount. Directory-entry byte ordering remains outside compensated
-semantic identity. The same 140 frozen interruption positions yield 10 old,
-10 new, 20 other reader-valid and 100 reader-invalid reports. Two fresh mounts
+semantic identity. The same 7,182 frozen interruption positions yield 404 old,
+992 new, 688 other reader-valid and 5,098 reader-invalid reports. Two fresh mounts
 leave each interrupted image unchanged; mount acceptance does not repair the
 image or establish recovery. All 54 paired failures, selected from every
 observed compensation write after a full-transfer error, report `EIO`; eight
-inspection states pass the reader and 46 fail it. These are sampled prefix
-positions, not complete prefix enumeration.
+inspection states pass the reader and 46 fail it. Prefix enumeration is complete
+for these seven control writes; paired failures retain their separate bounded
+selection. The host storage gate passes in this configuration, with the fault
+matrix completing in 75.253 seconds.
 
 The successful replacement probe leaves the displaced inode allocated with
 zero links, so the independent reader reports an unreachable inode. The
 imported `v7fs_file_deallocate()` drops namespace/link ownership and leaves
 reclamation to its caller, as `usr.sbin/v7fs/v7fs.c` documents for removal.
 The bridge calls the rename helper directly. Replacement lifecycle closure
-and complete rename prefix enumeration remain pending; the oracle keeps its
+remains pending; the oracle keeps its
 reachability requirement.
 
 The initial remote fetch advanced `origin/main` from `b9d64cbe` to

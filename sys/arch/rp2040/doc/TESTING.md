@@ -1568,11 +1568,11 @@ establish neither electrical persistence nor crash atomicity; the existing
 historical-reversal coverage.
 
 The nonreplacement cross-parent directory rename matrix injects errors at
-every control write using prefixes of 0, 1, 2, 3, 4, 255, 256, 257, 511 and
-512 bytes in both byte orders. Successful compensation must preserve the old
+every control write using all byte prefixes from zero through the complete
+transfer in both byte orders. Successful compensation must preserve the old
 namespace, inode attributes, sizes, link counts and free totals; a fresh mount
 must support continued allocation. Directory-entry ordering is outside this
-semantic identity. The same sampled prefixes freeze interruption images and
+semantic identity. The same complete prefix set freezes interruption images and
 classify them as old, new, other valid or invalid through the independent
 reader. Two fresh mounts must leave the frozen bytes unchanged; a successful
 mount supplies no repair claim. Every observed compensation write after a

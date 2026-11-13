@@ -157,7 +157,7 @@ class CompensationTest(unittest.TestCase):
                 writes = [event for event in events if event.kind == "write"]
                 self.assertGreater(len(writes), 0)
                 for event in writes:
-                    for amount in (0, 1, 2, 3, 4, 255, 256, 257, 511, 512):
+                    for amount in range(event.length + 1):
                         with self.subTest(sequence=event.sequence, transferred=amount):
                             result, persistent, _events = self.run_operation(
                                 initial, order, operation,
@@ -199,7 +199,8 @@ class CompensationTest(unittest.TestCase):
                                 finally:
                                     reopened.close()
         self.assertGreater(interruptions["invalid"], 0)
-        print(json.dumps({"rename_sampled_interruptions": dict(interruptions)}, sort_keys=True))
+        print(json.dumps({"rename_complete_prefix_interruptions": dict(interruptions)},
+                         sort_keys=True))
 
     def test_rename_second_failure_reports_inspection_boundary(self):
         dispositions = Counter()

@@ -174,8 +174,12 @@ points keep their 32-bit unsigned meaning and their present layouts, which
 are the kernel's; the headers the cross compiler reads declare the 64-bit
 types and redirect each of those functions to a second symbol by an
 assembler label, and libc holds that second set as wrappers that call the
-narrow entry and widen each time zero-extended, or check and narrow on the
-way in. The kernel gains no code and no second interface. NetBSD's
+narrow entry and widen on the way out, or check the range and narrow on
+the way in. A second count since the epoch (`st_mtime`, `gettimeofday`)
+widens zero-extended, since the kernel reads it unsigned. A signed
+interval widens sign-extended: `adjtime()` returns the correction still
+owed in `olddelta`, which is negative while the clock is being slowed
+(`sys/kern/kern_time.c`). The kernel gains no code and no second interface. NetBSD's
 `__RENAME` symbols and glibc's `_TIME_BITS=64` redirects are the same
 mechanism; neither source was re-read for this note.
 
@@ -200,8 +204,14 @@ What the design owes before it is adopted:
 - One executable can hold objects from both compilers: the Smaller C test
   harness links a cross-compiled companion (`usr.bin/smlrc/tests/run.sh`).
   An object that reaches the other width's symbol links without a
-  diagnostic and overruns the smaller object, so the gate is a symbol scan
-  of every staged program, calibrated on an object bound the wrong way.
+  diagnostic and overruns the smaller object. The linked program cannot
+  show it: `tools/elf2aout` writes `a_syms = 0` in the normal conversion,
+  and an executable with a wide caller holds both symbol sets anyway,
+  because each wide wrapper calls its narrow entry. The gate therefore
+  reads the undefined references of each relocatable object before the
+  link against the width its compiler implies, allows the narrow calls of
+  the wrapper members by name, and is calibrated on a wrongly bound object
+  inside an otherwise valid program built by both compilers.
 - The wrapper cost is unmeasured: text per wrapper, text per shipped
   program, `libc.a` growth and free blocks on the packed image.
 

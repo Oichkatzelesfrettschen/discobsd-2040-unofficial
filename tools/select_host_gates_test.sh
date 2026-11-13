@@ -70,7 +70,7 @@ lib/libcalcx/b.c"
 
 # A rename out of a suite's directory reports the old path too.
 repo=$(mktemp -d)
-trap 'trash-put "$repo"' EXIT
+trap 'rm -r -- "$repo"' EXIT
 git -C "$repo" init -q
 mkdir -p "$repo/games/fourfall" "$repo/docs"
 echo v >"$repo/games/fourfall/vectors.txt"

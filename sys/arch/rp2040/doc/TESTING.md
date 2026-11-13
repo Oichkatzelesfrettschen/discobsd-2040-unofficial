@@ -1539,6 +1539,20 @@ fails the gate rather than unwinding into unrelated code.
 
 ## Cross tier
 
+`check-libc-shared-closure` calibrates `tools/libc_shared_closure.py` against
+compiler-produced ARM ELF32 archives. Its controls cover explicit dormant API
+roots, transitive and cyclic dependencies, weak imports, strong/weak provider
+ownership, function/object kinds, COMMON storage, invalid member names, duplicate
+and case-alias members, thin archives and duplicate contract fields. The gate
+requires the caller-selected `PYTHON` with `pyelftools` and ARM GNU GCC/binutils;
+`SHARED_CLOSURE_CC` and `SHARED_CLOSURE_AR` select direct test invocations, while
+the root gate derives both from the target compiler prefix. Linux and macOS
+`firmware.yml` cross tiers own execution. The checker emits JSON on success and
+a nonzero status with a diagnostic on rejection. Input-section sums establish
+archive costs; final PIC size, signatures, ABI eligibility and runtime behavior
+remain separate checks. The [closure record](../../../../docs/research/xip-shared-libc/export-closure/README.md)
+defines the contract, replay commands and screening evidence.
+
 `check-warning-policy-cross` checks shared target warning enforcement and
 both kernels' `-Wall -Wextra -Werror` behavior as described above.
 

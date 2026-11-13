@@ -15,8 +15,9 @@ expected count. On the host, both counters must agree, and under
 Mutants that must fail: in each language a walk that skips ancestors, a
 quota rounded down and the first quota taken in place of the tightest;
 in Python an affinity ignored (under taskset); in the shell one v1 mount
-name dropped, the hybrid unified/ mount dropped and a lax cpu.max pattern. mutant_pool.workers() must equal available_cpus()
-when MUTANT_JOBS is unset.
+name dropped, the hybrid unified/ mount dropped and a lax cpu.max
+pattern. mutant_pool.workers() must equal available_cpus() when
+MUTANT_JOBS is unset.
 """
 
 import os

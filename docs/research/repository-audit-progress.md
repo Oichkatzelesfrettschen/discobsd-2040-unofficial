@@ -36,7 +36,7 @@ the authorized offline execution surface.
 | Map storage contracts | Complete for named write paths | `storage-recovery-contracts.md` traces units, volatile state, return conventions, acknowledgements and ordering through descriptor, kernel, flash, Dhara and ROM boundaries. Pull request 435's retained experiment was inspected at its recorded head. |
 | Implement shared failure interface | Complete for host prefix model | Typed transfer callbacks execute the production descriptor backend; inactive injections fail. Positive shorts, errors before/after transfer, frozen interruption prefixes and paired compensation errors are calibrated. |
 | Extend persistent-image oracle | Complete for exercised image range | Independent ownership, free-list, inode, namespace, link-count and metadata checks read fresh exported bytes. Corrupted-image controls and valid-but-changed metadata distinguish invariant failures from state differences. Larger sparse files retain a bounded-reader extension requirement. |
-| Repair supported recoverable v7fs defects | Open; seven mechanisms repaired | Formatter cache and hard-link compensation are committed at `167e856d`; rename hierarchy validation precedes target replacement at `ff07aeab`; parent-growth admission includes index blocks at `7a9fa7e3`; symlink writeback reports its final error at `640fe310`; inode serialization rejects addresses outside 24 bits at `eb27bc90`; and rename publication failures restore the source namespace and a displaced target at `8ca92acd`. Imported-source changes carry synchronized patches and manifest hashes. Failed compensation, fail-after-transfer behavior and interruption atomicity remain open. |
+| Repair supported recoverable v7fs defects | Open; eight mechanisms repaired | Formatter cache and hard-link compensation are committed at `167e856d`; rename hierarchy validation precedes target replacement at `ff07aeab`; parent-growth admission includes index blocks at `7a9fa7e3`; symlink writeback reports its final error at `640fe310`; inode serialization rejects addresses outside 24 bits at `eb27bc90`; rename publication failures restore the source namespace and a displaced target at `8ca92acd`; and same-inode rename aliases remain unchanged at `64d8410d`. Imported-source changes carry synchronized patches and manifest hashes. Failed compensation, fail-after-transfer behavior and interruption atomicity remain open. |
 | Compare atomic recovery policies | Complete offline; production admission open | Bounded policies pass 22,854 transaction/recovery cuts and negative controls. Dhara replay supplies operation counts and separate committed-recovery work. `storage-recovery-comparison.md` records the representation/reclamation/migration/interruption architecture stop. |
 | Review remaining components | Active: verify device error lifetime and unit admission | The host probe reproduced queued-buffer routing and unmounted asynchronous error loss. The candidate retains shared first-error replicas in active inode storage through last close and drains busy writes. The mount-publication schedule reproduces raw/whole-device admission races; the unit guard passes the deciding host schedules. The extended fixture passes 1,950 checks and rejects 46 mutants; the buffer-pressure fixture passes 53 checks and rejects its four behavior mutants. Selected Clang analyses pass, and matched Cortex-M0+ resource captures retain source hashes. Final clean-revision logged gates remain required before publication. `block-device-write-error-lifetime.md` owns the contract and evidence limits. Six source-review components cover 101 paths; 658 components remain pending. |
 | Determine takeover eligibility | Pending | Record UTC decision and exact five-hour cutoff, attributable activity and ownership, then recheck head and ownership immediately before mutation. |
@@ -279,3 +279,18 @@ These checks establish ordinary fail-before-transfer recovery. The
 implementation gives a compensation error precedence over the initiating
 error, while systematic second-error enumeration remains open alongside
 fail-after-transfer behavior and interruption atomicity.
+
+The direct v7fs rename helper lacked the kernel rename path's identical-inode
+short circuit. An exact source/target path issued writes, removed its only
+directory name and changed its link count. Two hard-link names for one inode
+also collapsed to the target name and lost one link. The regression observed
+both counterexamples before the repair. Commit `64d8410d` returns success when
+the target lookup resolves to the source inode, before target deallocation.
+Both cases now issue zero writes, retain every name and the original link
+count after a fresh mount, and pass independent block/free-list ownership
+accounting. The identity-guard mutant fails both named cases. Logged build
+`rp2040-build-local-20261113T003031Z-2286976-650d48a8` completed with exit zero;
+the v7fs core gate passed both byte orders and both descriptor backends, the
+import gate matched all 37 entries, and the ShellCheck error-level gate passed.
+This result establishes ordinary same-inode rename identity for the imported
+helper; it adds no interruption-atomicity guarantee.

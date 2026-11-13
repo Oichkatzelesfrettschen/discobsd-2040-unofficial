@@ -123,6 +123,7 @@ the Pico apply unchanged.
 | board | design files | layout and schematic source; the ZIP carries no schematic PDF | `rp2040/design-files/rpi_picow_public_20220607_rp008380.zip` | tracked, notes |
 | U2 | RT6154AGQW | buck-boost SMPS, PS/SYNC on WL_GPIO1 | Richtek DS6154A/B-05, `rp2040/richtek_rt6154a_b_ds6154ab_05.pdf` | tracked, notes |
 | U19 | CYW43439KUBG | Wi-Fi and Bluetooth, gSPI to the RP2040 | Infineon 002-30348 Rev. \*D, 2023-04-17, LCSC copy, `rp2040/infineon_cyw43439_datasheet_002_30348_rev_d_lcsc_c5359496.pdf`; Infineon lists version 07_00 of 2024-05-29 for myInfineon accounts only | Rev. \*D tracked, notes; 07_00 absent |
+| U19 sibling | CYW43438 | the CYW43439's single-band sibling, whose Rev. \*O datasheet maps Broadcom to Cypress part numbers | Infineon 002-14796 Rev. \*O, `rp2040/infineon_cyw43438_datasheet_002_14796_rev_o.pdf` | tracked, notes |
 | software | Wi-Fi and Bluetooth connectivity on Pico W-series (formerly "Connecting to the Internet") | wireless SDK use | `rp2040/wifi_bluetooth_connectivity_pico_w_series_rp008257.pdf`, Release 9 | tracked, notes |
 | X1 | 12 MHz | RP2040 crystal | ABM8-272-T3 drawing as on the Pico | tracked, notes |
 | X2 | 37.4 MHz | CYW43439 reference crystal | no part number printed | not applicable |
@@ -145,7 +146,7 @@ layer. The Pico seated in J301 and J302 is covered above. Paths in
 | U101 | AXP2101 | PMU: VBUS, battery, DCDC1, ALDO1-4, BLDO1-2 | X-Powers datasheet V1.4, `picocalc/AXP2101_Datasheet_V1.4.pdf` | tracked, notes |
 | U102 | WAS4603 | current-limited load switch, IPS to PICO_VSYS, enable PICO_EN | no `WAS4603` document exists; Will Semiconductor WS4603 Rev 1.2, `picocalc/parts/willsemi_ws4603_datasheet_rev1.2.pdf`, an unconfirmed match | tracked, notes |
 | U201 | CKS32F103Rx | keyboard controller: matrix, backlights, PMU I2C, I2C1 target at 0x1F | CKS32F103x8/xB datasheet v1.15 (Chinese, LCSC copy) and an undated English CKS32F103xx datasheet (third-party copy); ST DS5319 Rev 20, RM0008 Rev 21, PM0056 Rev 7, ES096 Rev 15 (x8/xB) and ES0340 (xC/D/E), all in `picocalc/parts/` | tracked, notes; the CKS32F103x8/xB reference manual (458 pages, V1.1 per sekorm.com) local only, `local/picocalc/parts/`, while the sekorm account terms it came under are unread |
-| U301 | ESP-PSRAM64H | 8 MB quad PSRAM | Espressif ESP-PSRAM64/64H V1.0, 2018-06, `picocalc/esp-psram64_esp-psram64h_datasheet_en.pdf` | tracked, notes |
+| U301 | ESP-PSRAM64H | 8 MB quad PSRAM | Espressif ESP-PSRAM64/64H V1.1, 2020-10, English and Chinese, from Wayback copies of Espressif's URL, which now answers 404 (`picocalc/esp_psram64_esp_psram64h_datasheet_en_v1.1_wayback.pdf`), and the V1.0 of 2018-06; AP Memory APS6404L-3SQR Rev. 2.7 and Lyontek LY68L6400 Rev. 1.2, the parts sellers list as the same die (inferred; `docs/ALIASES.md` in the notes repository carries the evidence) | tracked, notes |
 | U401, U601 | TPS6116x | LCD and keyboard backlight boost converters | TI SLVS791E, covering TPS61160 and TPS61161 | tracked, notes |
 | U501 | NC7WZ16 | dual buffer, PWM_L and PWM_R to the audio filters | onsemi NC7WZ16/D Rev 8 | tracked, notes |
 | U502, U503 | AW8010 | class-D speaker amplifiers, enable PA_EN | Awinic AW8010A V1.3, AW8010B V1.4, AW8010D V1.1; the schematic prints no suffix | tracked, notes |

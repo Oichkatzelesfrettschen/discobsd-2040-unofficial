@@ -103,6 +103,17 @@ wall_reached(const struct timeval *deadline, long seconds, long microseconds)
 }
 
 /*
+ * Nonzero on each wall clock second that is a multiple of period. The
+ * count is taken unsigned, since 2^32 is a multiple of few periods and a
+ * signed remainder would shift the phase at the carry.
+ */
+static inline int
+wall_every(long seconds, unsigned long period)
+{
+    return (unsigned long)seconds % period == 0;
+}
+
+/*
  * Round up a proposed time value to a minimal resolution of the clock.
  */
 int itimerfix (struct timeval *tv);

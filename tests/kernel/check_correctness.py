@@ -218,6 +218,17 @@ def main():
             True,
         ),
         (
+            "wall-period-signed-remainder",
+            "itimer-ilp32",
+            {
+                "time.h": (
+                    "    return (unsigned long)seconds % period == 0;",
+                    "    return seconds % (long)period == 0;",
+                )
+            },
+            True,
+        ),
+        (
             "adjtime-signed-clock-range",
             "itimer-ilp32",
             {

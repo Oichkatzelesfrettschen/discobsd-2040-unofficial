@@ -717,6 +717,11 @@ wall_clock_carry(void)
     HK_CHECK(wall_reached(&deadline, (long)0x80000001UL, 5));
     HK_CHECK(wall_reached(&deadline, (long)0x80000002UL, 0));
 
+    /* A five-second period keeps its phase across the carry. */
+    HK_CHECK(wall_every(0x7ffffffdL, 5));
+    HK_CHECK(wall_every((long)0x80000002UL, 5));
+    HK_CHECK(!wall_every((long)0x80000003UL, 5));
+
     /* timevaladd() carries a microsecond overflow into bit 31. */
     tv.tv_sec = 0x7fffffffL;
     tv.tv_usec = 999999;

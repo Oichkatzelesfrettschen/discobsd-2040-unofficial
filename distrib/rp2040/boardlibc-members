@@ -82,6 +82,8 @@ sleep
 snprintf
 sprintf
 stat
+stpcpy
+stpncpy
 strcasecmp
 strcat
 strchr
@@ -93,6 +95,8 @@ strlen
 strncat
 strncmp
 strncpy
+strndup
+strnlen
 strrchr
 strstr
 strtok

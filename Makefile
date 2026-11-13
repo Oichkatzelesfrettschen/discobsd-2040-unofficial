@@ -682,6 +682,11 @@ check-libc-aout-contracts:	${BOARDLIBC_WORK}/libc.a
 check-libc-malloc:
 		${MAKE} -C tests/libc_contracts check-malloc
 
+check-libc-bounded-string:
+		${MAKE} -C tests/libc_contracts check-bounded-string
+
+.PHONY: check-libc-bounded-string
+
 check-libc-qsort:
 		${MAKE} -C tests/libc_contracts check-qsort
 
@@ -923,6 +928,9 @@ check-libc-string-security-cross:
 
 check-id-aliases:
 		${MAKE} -C tests/id_aliases check
+
+check-pty-runner: check-python
+		${PYTHON} tools/ptyrun_test.py
 
 check-tiny-utility-multicall:
 		${MAKE} -C tests/tiny_utility_multicall check
@@ -1382,7 +1390,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-touch-contracts check-printf-contracts \
 		check-recovery-utility-contracts check-timeout-contracts \
 		check-libc-tempfiles check-libcalc check-libbn check-dcbc \
-		check-id-aliases check-tiny-utility-multicall \
+		check-id-aliases check-pty-runner check-tiny-utility-multicall \
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
@@ -1761,8 +1769,11 @@ check-host-package:	check-python .WAIT
 check-board-build:	symlinks
 		${MAKE} -C tests/rp2040 all
 
-check:		check-lint check-host check-posix-sh check-cross check-qemu \
-		check-host-package check-board-build
+# Cross composition cleans program directories used by host and QEMU tests.
+# Tier barriers preserve those executables throughout each suite's lifetime.
+check:		check-lint .WAIT check-host .WAIT check-posix-sh .WAIT \
+		check-cross .WAIT check-qemu .WAIT check-host-package .WAIT \
+		check-board-build
 
 fs:		check-python .WAIT $(FSIMG)
 
@@ -1904,7 +1915,7 @@ installfs:
 		check-unifdef-contracts-cross check-libc-string-security \
 		check-libc-string-security-cross check-id-aliases \
 		check-find-contracts check-find-contracts-cross \
-		check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout check-hsx-decoder \
+		check-pty-runner check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout check-hsx-decoder \
 		check-config-makefile check-portable-utilities \
 		check-architecture-isolation legacy-non-arm-verify \
 		legacy-pdp11-v6-build legacy-pdp11-v6-install \

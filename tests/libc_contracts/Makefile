@@ -62,7 +62,7 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-ansi check-syslog \
 	check-vis check-printf-g check-huge-val \
 	check-qsort check-strtox check-string-security check-array-memory-line \
-	check-getgrent
+	check-getgrent check-bounded-string
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 ARRAY_MEMORY_CFLAGS= -std=c17 -Wall -Wextra -Werror
@@ -75,6 +75,36 @@ ARRAY_MEMORY_SAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native \
 	${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}
 ARRAY_MEMORY_SAN32_OK!= sh ${TOPSRC}/tools/compiler-probe.sh ilp32 \
 	${HOSTCC} ${ILP32} ${ARRAY_MEMORY_SAN_FLAGS}
+
+BOUNDED_STRING_INPUTS= bounded_string.py bounded_string_test.c \
+	bounded_string_overflow_test.c ${TARGET_DIR}/strnlen.c \
+	${TARGET_DIR}/strndup.c ${TARGET_DIR}/stpcpy.c ${TARGET_DIR}/stpncpy.c
+
+check-bounded-string: bounded_string_test
+	${TEST_EXECUTION} run libc.bounded-string.native -- ./bounded_string_test matrix
+.if ${ILP32_OK} == "yes"
+	@${MAKE} bounded_string_test32
+	${TEST_EXECUTION} run libc.bounded-string.ilp32 -- ./bounded_string_test32 matrix
+.else
+	${TEST_EXECUTION} skip libc.bounded-string.ilp32 "check-libc-bounded-string: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} bounded_string_test_san
+	${TEST_EXECUTION} run libc.bounded-string.sanitized -- ./bounded_string_test_san matrix
+.else
+	${TEST_EXECUTION} skip libc.bounded-string.sanitized "check-libc-bounded-string: sanitizer runtime unavailable"
+.endif
+
+bounded_string_test: ${BOUNDED_STRING_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${HOSTCC:Q} $@
+
+bounded_string_test32: ${BOUNDED_STRING_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+bounded_string_test_san: ${BOUNDED_STRING_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-bounded-string
 
 check-array-memory-line: reallocarray_contract_test memmem_contract_test \
 	line_reading_contract_test
@@ -1221,6 +1251,7 @@ header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
 	    -isystem ${TOPSRC}/include -c -o $@ header_contract.c
 
 clean:
+	rm -f bounded_string_test bounded_string_test32 bounded_string_test_san
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
 	rm -f alarm_contract_test alarm_contract.o
 	rm -f getgrent_contract_test grent_getgrent.o
@@ -1315,6 +1346,7 @@ check-qemu:
 	@${MAKE} printf_g_contract_test_arm huge_val_contract_test_arm
 	${QEMU_ARM_RUN} ./printf_g_contract_test_arm
 	${QEMU_ARM_RUN} ./huge_val_contract_test_arm
+	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 .endif
 
 qemu_support_direct.o: ${QEMU_SUPPORT}

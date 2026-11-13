@@ -210,6 +210,10 @@ What the variants changed to build, which is the work a real change owes:
   the variant raises.
 - Both: twelve program Makefiles carry their own `-Werror`, removed in the
   variants; the tree's warning flags stayed on without it.
+- 64-bit, `usr.bin/touch/touch.c`: the variant removes the assertion that
+  `time_t` fits a `long` and leaves `TIME_MAX` as it is, whose shift
+  count is then negative, so `touch` in that image is compiled from
+  undefined arithmetic and its bytes are part of the figure.
 
 Limits of the measurement: the 64-bit variant converts nothing at the
 system call boundary, so its image cannot run and the kernel cost of the

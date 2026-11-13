@@ -123,6 +123,19 @@ PROCESS_CONTROL_MEASUREMENT_DATA = "docs/research/process-control-prerequisites.
 TIMEOUT_MEASUREMENT = "docs/research/timeout-process-control-growth-exception.md"
 TIMEOUT_MEASUREMENT_DATA = "docs/research/timeout-process-control-growth-exception.json"
 DONOR_INVENTORY = "docs/research/bsd-donor-inventory.json"
+MEASURED_CANDIDATE_EVIDENCE = {
+    "libc-reallocarray": FOUNDATION_MEASUREMENT,
+    "libc-memmem": FOUNDATION_MEASUREMENT,
+    "libc-getdelim-getline": FOUNDATION_MEASUREMENT,
+    "shell-getopts": SHELL_MEASUREMENT,
+    "shell-command": SHELL_MEASUREMENT,
+    "utility-printf": PRINTF_MEASUREMENT,
+    "utility-readlink": RECOVERY_MEASUREMENT,
+    "utility-realpath": RECOVERY_MEASUREMENT,
+    "utility-timeout": TIMEOUT_MEASUREMENT,
+    "utility-uudecode": RECOVERY_MEASUREMENT,
+    "libc-ndbm-open-admission": "docs/research/libc-dbm-open-admission.md",
+}
 INVENTORY_CLAIM = (
     "The inventory records checkout identity and fetch evidence for a finite "
     "20-repository corpus. Git object reads establish source identity; fetched "
@@ -2442,22 +2455,9 @@ def validate_document(root, document, requirement_ids):
             ),
             f"missing size surfaces: {candidate_id}",
         )
-        if candidate_id in PROMOTED_CANDIDATES:
-            require(size["status"] == "measured", f"unmeasured promotion: {candidate_id}")
-            if candidate_id in {"shell-getopts", "shell-command"}:
-                expected_evidence = SHELL_MEASUREMENT
-            elif candidate_id == "utility-printf":
-                expected_evidence = PRINTF_MEASUREMENT
-            elif candidate_id in {
-                "utility-readlink",
-                "utility-realpath",
-                "utility-uudecode",
-            }:
-                expected_evidence = RECOVERY_MEASUREMENT
-            elif candidate_id == "utility-timeout":
-                expected_evidence = TIMEOUT_MEASUREMENT
-            else:
-                expected_evidence = FOUNDATION_MEASUREMENT
+        expected_evidence = MEASURED_CANDIDATE_EVIDENCE.get(candidate_id)
+        if expected_evidence is not None:
+            require(size["status"] == "measured", f"unmeasured candidate: {candidate_id}")
             require(size["evidence"] == expected_evidence, f"unbound size evidence: {candidate_id}")
             require(
                 (root / expected_evidence).is_file(),

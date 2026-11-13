@@ -89,4 +89,37 @@ every control fails at its named observation.
 The witness establishes public declarations and constructor behavior under
 its injected allocation and I/O schedules. Database page parsing, hashing,
 fetch/store/delete/iteration semantics, concurrent access, crash persistence,
-target resource effects and physical-board behavior remain open.
+runtime resource effects and physical-board behavior remain open.
+
+## Static resource accounting
+
+Matched clean schema-2 captures compare integration baseline
+`01c8dbfde957fcfddfbd6b892d39af65265ab8f1` with merged candidate
+`3a8b388df9ee2283a5bb37099dc468bc320ab515`. Both distributions use ARM GCC
+16.2.0, GNU ld 2.47.20260726 and bmake 20260912. Their dependency closures
+account for the same 37 artifact groups.
+
+The comparison reports zero positive or negative deltas across all 158
+constrained shipped numeric surfaces. All 33 program records, both kernel
+resource vectors, both native artifacts and every archive selection remain
+equal. The installed native libc remains 45,078 bytes with 159 members. The
+root remains at 746 data blocks, 233 free blocks and 32 free inodes. Root and
+kernel hashes differ because their release identities bind the distinct source
+commits; their measured resource vectors and archive selections remain equal.
+
+The unshipped full cross libc archive grows from 447,164 to 447,256 bytes.
+Its `ndbm.o` member grows from 4,508 to 4,600 bytes, accounting for the exact
+92-byte build-only delta. No shipped program or native archive selects that
+member. The compatibility profile therefore requires no shipped-resource
+exception for this candidate. Runtime stack, heap, storage traffic and physical
+board timing remain unmeasured.
+
+The candidate source, closure, resource and comparison receipt SHA-256 values
+are `47f6b11f1a4705b393c63d97b759afed16ef07be997032a2510553f3079b8f77`,
+`1a4102023e85dc8e2d49ec5d9acace18fa670ab2d1f776b516d66b496e01c41a`,
+`a481fb3e6a6642e96aa1a9ae84bf74deedfa4080cf7907c848dbde933cbcba90`
+and `76212dba83b169c5b28dd1caeca7f66b87e7d09088ed5c51c0dd04a331c5f627`.
+The baseline source, closure and resource receipt SHA-256 values are
+`7fb77b909e2464739df5ac121e19eb1e32f322379e3c26f45d56a1d19d2b2b33`,
+`40c8a51d736c89ef54b63828982597cb6cc2a95b142263978a56e547bac8e476`
+and `0d2c89db978bd125a9eb27d4208ddf4de753883f367100de48f49bd1e6aa1c36`.

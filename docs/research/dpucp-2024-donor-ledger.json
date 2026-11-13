@@ -1116,18 +1116,18 @@
         "ndbm.o"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
           "native libc archive bytes",
           "shipped program text/data/BSS and packed bytes",
           "packed root blocks",
           "maximum constructor stack and allocation extent"
         ],
-        "evidence": ""
+        "evidence": "docs/research/libc-dbm-open-admission.md"
       },
-      "deciding_gate": "Run check-libc-dbm-open, check-qemu, full native and target libc builds, caller closure, matched clean distributions and resource comparison before promotion.",
+      "deciding_gate": "Run the aggregate host, cross, QEMU and ILP32 gates on the merged candidate; retain the matched clean static-resource verdict; review before promotion.",
       "disposition": "candidate",
-      "residual": "Focused native, ILP32 and ARMv6-M constructor witnesses pass. Complete resource qualification, aggregate gates, integration, remaining ndbm semantics and physical-board behavior remain open."
+      "residual": "Focused native, ILP32 and ARMv6-M constructor witnesses and matched shipped static-resource qualification pass. Aggregate gates, reviewed integration, runtime resources, remaining ndbm semantics and physical-board behavior remain open."
     },
     {
       "id": "libc-bounded-strings",

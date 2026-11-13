@@ -128,8 +128,10 @@ public header owns complete prototypes and `mode_t`; the constructor admits a
 basename only when the suffix and terminator fit its 1,024-byte buffer, and it
 publishes a database only after both descriptors and the directory extent are
 valid. Host, available ILP32 and ARMv6-M QEMU witnesses reject eight independent
-header, bound, cleanup and arithmetic mutations. Record parsing, page mutation,
-iteration, locking, full resource qualification and physical-board execution
+header, bound, cleanup and arithmetic mutations. Matched clean distributions
+report zero deltas across all 158 constrained shipped surfaces; the unshipped
+full cross libc archive grows by 92 bytes. Record parsing, page mutation,
+iteration, locking, runtime resource qualification and physical-board execution
 remain separate open leaves.
 
 Every requirement leaf records edition/option authority, declarations/types,

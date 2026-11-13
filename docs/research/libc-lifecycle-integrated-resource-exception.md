@@ -126,8 +126,15 @@ witnesses; the string sanitizer variant also passes.
 passes with ARMv6-M execution. Its string and quick-exit mutations reject the
 specified broken implementations. This result establishes user-mode instruction
 execution under QEMU; physical-board execution remains unrun. The combined
-`logged-check` remains pending. The complete `logged-ilp32` inventory passes
+`logged-check` passes at `eacedc9f15733fabd6a71fd64846a3da0be0e3d6`;
+its terminal receipt records exit zero at `2026-11-13T00:35:27Z`.
+Hosted CI and reviewed integration retain their separate verdicts. The complete `logged-ilp32` inventory passes
 193 of 193 variants at documentation commit
 `eacedc9f15733fabd6a71fd64846a3da0be0e3d6`, whose production implementation
 matches the captured candidate. The terminal receipt records exit zero at
 `2026-11-13T00:01:46Z`.
+
+The publication head `edd9bb440729eda0a992cc54015005d39ca6af30` also
+passes all 193 ILP32 variants at `2026-11-13T00:14:12Z`. Its automated
+review completes with zero findings. Those documentation revisions retain
+the captured production implementation.

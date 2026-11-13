@@ -105,6 +105,16 @@ MUTATIONS = {
         "        error = securelevel >= 2 && (mode & FWRITE) && isdisk(dev, IFCHR) ? EPERM : 0;",
         "        error = 0;",
     ),
+    "device-reuse-state-kept": (
+        "ufs_inode.c",
+        "            if (ip->i_count == 0) {     /* ino on free list */\n"
+        "                register struct inode *iq;\n\n"
+        "                ip->i_wsel = NULL;\n"
+        "                iq = ip->i_freef;",
+        "            if (ip->i_count == 0) {     /* ino on free list */\n"
+        "                register struct inode *iq;\n\n"
+        "                iq = ip->i_freef;",
+    ),
     "device-stm32-unit-guard-exact-only": (
         "conf.c",
         "\t\treturn ((minor(a) ^ minor(b)) & 8) == 0;",

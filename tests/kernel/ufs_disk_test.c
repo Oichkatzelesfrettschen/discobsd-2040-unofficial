@@ -116,6 +116,14 @@ uprintf(char *fmt, ...)
 }
 
 void
+log(int level, char *fmt, ...)
+{
+	(void)level;
+	(void)fmt;
+	hk_fail(__FILE__, __LINE__, "unexpected kernel log");
+}
+
+void
 nchinval(dev_t dev)
 {
 	(void)dev;
@@ -1476,6 +1484,32 @@ test_cooked_first_error_and_alias_state(void)
 }
 
 static void
+test_cooked_cached_inode_reuse_clears_device_state(void)
+{
+	struct inode *cached, *reused;
+	unsigned i;
+
+	boot_machine();
+	cached = NULL;
+	for (i = 0; i < npaths; i++)
+		if (hk_streq(paths[i].name, "/dev/sd0a")) {
+			cached = paths[i].ip;
+			break;
+		}
+	HK_CHECK(cached != NULL);
+	cached->i_count = 1;
+	irele(cached);
+	HK_CHECK(cached->i_count == 0);
+	cached->i_bdev_error = ENOSPC;
+	cached->i_bdev_state = IBDEV_LOCKED | 1U;
+	reused = iget(cached->i_dev, cached->i_fs, cached->i_number);
+	HK_CHECK(reused == cached);
+	HK_CHECK(reused->i_bdev_error == 0);
+	HK_CHECK(reused->i_bdev_state == 0);
+	iput(reused);
+}
+
+static void
 test_cooked_mount_inherits_error(void)
 {
 	struct node node;
@@ -2485,6 +2519,7 @@ main(void)
 	test_raw_driver_interruption();
 	test_cooked_deferred_completion();
 	test_cooked_first_error_and_alias_state();
+	test_cooked_cached_inode_reuse_clears_device_state();
 	test_cooked_mount_inherits_error();
 	test_cooked_mount_waits_for_last_close();
 	test_cooked_close_waits_for_mount_publication();

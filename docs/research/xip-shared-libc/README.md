@@ -17,6 +17,18 @@ layout with a fixed 192 KiB window and a kernel-resident SwapRAM pool.
 
 ## Shared-library implementation contract
 
+The [executable-tail object experiment](object-abi/README.md) supplies compiler,
+linker, a.out conversion and QEMU witnesses for process-local object identity.
+Its five application layouts and seven calibrated rejection controls establish
+that prerequisite. Full-libc sizing, versioned admission and runtime lifecycle
+qualification remain separate implementation work.
+
+The [export-closure checker](export-closure/README.md) resolves explicit API
+roots through compiled archive providers. Its calibration rejects a selection
+that drops a required interface merely because installed programs never call it.
+The all-global screening receipt retains input-section costs and leaves public
+ABI selection and final PIC sizing open.
+
 The accepted implementation keeps multicall executables and static native
 output while adding an explicit shared-link mode. The initial libc reservation
 is 48 KiB immediately after the 128 KiB kernel. Raw Dhara space becomes

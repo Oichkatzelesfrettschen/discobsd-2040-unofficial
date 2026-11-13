@@ -255,6 +255,8 @@ jobs:
 
       # check-cross owns the string namespace/signature and expanded Smaller C
       # header gate on both host platforms; runtime behavior stays separate.
+      # It also calibrates explicit shared-libc API/provider closure with ARM
+      # object archives through check-libc-shared-closure on both platforms.
       - name: Run the cross tier
         timeout-minutes: 20
         run: |
@@ -290,6 +292,8 @@ jobs:
             -- bmake MACHINE=rp2040 check-core1-emulation
 
       - name: Run the qemu tier
+        # Includes the executable-tail libc object ABI experiment with real
+        # ELF/a.out conversion and calibrated QEMU identity checks.
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \

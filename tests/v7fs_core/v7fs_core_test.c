@@ -1161,6 +1161,78 @@ regress_rename_failures(int fd)
 	}
 }
 
+static void
+regress_rename_same_inode(int fd)
+{
+	unsigned scenario;
+
+	for (scenario = 0; scenario < 2; scenario++) {
+		const char *label = scenario == 0 ? "regress-rename-same-path" :
+		    "regress-rename-same-inode-alias";
+		const char *target = scenario == 0 ? "source" : "alias";
+		const size_t target_length = strlen(target);
+		struct v7fs_self *fs;
+		struct v7fs_inode root, source;
+		v7fs_ino_t source_ino, found;
+		int16_t source_nlink;
+		int error;
+
+		if (format_image(fd, 64, 0) != 0 ||
+		    (fs = mount_image(fd)) == NULL) {
+			fail(label, "format or mount failed");
+			return;
+		}
+		if (make_node(fs, V7FS_ROOT_INODE, "source", V7FS_IFREG | 0644,
+		    NULL, 0, &source_ino) != 0 || v7fs_inode_load(fs, &root,
+		    V7FS_ROOT_INODE) != 0 || v7fs_inode_load(fs, &source,
+		    source_ino) != 0 || (scenario != 0 && v7fs_file_link(fs, &root,
+		    &source, target, target_length) != 0) ||
+		    v7fs_superblock_writeback(fs) != 0) {
+			fail(label, "fixture creation failed");
+			v7fs_io_fini(fs);
+			return;
+		}
+		source_nlink = source.nlink;
+		saved_sector_write = fs->io.write;
+		sector_writes = 0;
+		failed_write_number = UINT_MAX;
+		fail_after_write = false;
+		fs->io.write = fail_selected_write;
+		error = v7fs_file_rename(fs, &root, "source", 6, &root, target,
+		    target_length);
+		fs->io.write = saved_sector_write;
+		check(error == 0, label, "same-inode rename failed");
+		check(sector_writes == 0, label, "same-inode rename issued a write");
+		check(v7fs_file_lookup_by_name(fs, &root, "source", 6, &found) ==
+		    0 && found == source_ino, label, "same-inode rename lost source");
+		check(v7fs_file_lookup_by_name(fs, &root, target, target_length,
+		    &found) == 0 && found == source_ino, label,
+		    "same-inode rename lost target alias");
+		check(v7fs_inode_load(fs, &source, source_ino) == 0 &&
+		    source.nlink == source_nlink, label,
+		    "same-inode rename changed the link count");
+		v7fs_io_fini(fs);
+		if (load_raw(fd) != 0) {
+			fail(label, "image reload failed");
+			return;
+		}
+		reader_selected_ownership(label, source_ino);
+		fs = mount_image(fd);
+		if (fs == NULL || v7fs_inode_load(fs, &root,
+		    V7FS_ROOT_INODE) != 0 || v7fs_inode_load(fs, &source,
+		    source_ino) != 0 || source.nlink != source_nlink ||
+		    v7fs_file_lookup_by_name(fs, &root, "source", 6, &found) != 0 ||
+		    found != source_ino || v7fs_file_lookup_by_name(fs, &root,
+		    target, target_length, &found) != 0 || found != source_ino) {
+			fail(label, "fresh mount changed same-inode names");
+			if (fs != NULL)
+				v7fs_io_fini(fs);
+			continue;
+		}
+		v7fs_io_fini(fs);
+	}
+}
+
 static bool
 rename_state(struct v7fs_self *fs, v7fs_ino_t source_ino,
     v7fs_ino_t target_parent_ino, int16_t root_nlink,
@@ -2158,6 +2230,7 @@ regress(int fd)
 	regress_shrink_transition(fd, 139, 137, "regress-shrink-double");
 	regress_shrink_write_failure(fd);
 	regress_rename_failures(fd);
+	regress_rename_same_inode(fd);
 	regress_rename_write_compensation(fd);
 	regress_rename_replacement_compensation(fd);
 	regress_rename_hierarchy(fd);

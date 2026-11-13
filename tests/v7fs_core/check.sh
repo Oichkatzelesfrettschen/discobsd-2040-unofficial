@@ -282,6 +282,20 @@ got=0
     { cat "$work/mutant.log" >&2; fail "rename parent read mutant"; }
 echo "v7fs_core: hidden rename parent read error mutant rejected"
 
+mutant rename-same-inode sys/fs/v7fs/v7fs_file_util.c \
+    'if (to_ino == from_ino)\n\t\t\treturn 0;' \
+    'if (to_ino == 0)\n\t\t\treturn 0;'
+got=0
+"$work/rename-same-inode.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename-same-path:' \
+    "$work/mutant.log" && \
+    grep -q '^FAIL regress-rename-same-inode-alias:' "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "rename same-inode identity mutant"
+}
+echo "v7fs_core: missing rename same-inode identity guard mutant rejected"
+
 mutant rename-target-add-compensation sys/fs/v7fs/v7fs_file_util.c \
     'if (target_removed) {\n\t\t\trestore_error = restore_rename_target(fs, parent_to,\n\t\t\t    &target_inode, to, tolen);\n\t\t\treturn restore_error != 0 ? restore_error : error;\n\t\t}\n\t\treturn error;' \
     'return error;'

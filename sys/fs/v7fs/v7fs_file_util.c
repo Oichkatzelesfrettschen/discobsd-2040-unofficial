@@ -166,6 +166,8 @@ v7fs_file_rename(struct v7fs_self *fs, struct v7fs_inode *parent_from,
 	/* Check target file */
 	error = v7fs_file_lookup_by_name(fs, parent_to, to, tolen, &to_ino);
 	if (error == 0) {	/* found */
+		if (to_ino == from_ino)
+			return 0;
 		DPRINTF("%.*s already exists\n", (int)tolen, to);
 		if ((error = v7fs_inode_load(fs, &target_inode, to_ino)) != 0)
 			return error;

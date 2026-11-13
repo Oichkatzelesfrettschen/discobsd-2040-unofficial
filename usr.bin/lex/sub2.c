@@ -283,7 +283,7 @@ cgoto(void)
 				xstate = notin(stnum);
 				if(xstate == -2) warning("bad state  %d %o",s,i);
 				else if(xstate == -1){
-					if(stnum >= nstates)
+					if(stnum + 1 >= nstates)	/* state[] holds nstates entries */
 						error("Too many states %s",(nstates == NSTATES ? "\nTry using %n num":""));
 					add(state,++stnum);
 # ifdef DEBUG

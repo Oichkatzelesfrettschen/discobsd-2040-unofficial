@@ -4,7 +4,6 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS		+= -O
 SRCS		= update.c
 OBJS		= update.o
 MAN		= update.0

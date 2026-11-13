@@ -172,6 +172,8 @@ int fs_open (fs_t *fs, const char *filename, int writable, unsigned pindex);
 void fs_close (fs_t *fs);
 int fs_set_partition (fs_t *fs, unsigned pindex);
 int fs_sync (fs_t *fs, int force);
+time_t fs_source_time (time_t observed);
+time_t fs_clock (void);
 int fs_create (fs_t *fs, const char *filename, int kbytes,
     unsigned swap_kbytes, unsigned inodes);
 int fs_check (fs_t *fs);

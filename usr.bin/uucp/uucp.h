@@ -266,7 +266,7 @@ struct timeb {
 #define LLEN	50
 #define MAXRQST	250
 
-#define DEBUG(l, f, s) if (Debug >= l) fprintf(stderr, f, s); else
+#define DEBUG(l, ...) if (Debug >= l) fprintf(stderr, __VA_ARGS__); else
 
 #define ASSERT(e, s1, s2, i1) if (!(e)) {assert(s1, s2, i1);cleanup(FAIL);}else
 
@@ -420,7 +420,7 @@ extern int main();
 #ifdef DEBUG
 #undef DEBUG
 #endif
-#define DEBUG(a,b,c)
+#define DEBUG(a, ...)
 #endif
 
 void	syslog(char *);

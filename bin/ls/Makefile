@@ -7,7 +7,6 @@ TOPSRC!=cd ../..; pwd
 WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS		+= -O
 SRCS		= ls.c stat_flags.c
 OBJS		= ls.o stat_flags.o
 

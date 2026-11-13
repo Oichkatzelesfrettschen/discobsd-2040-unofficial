@@ -515,6 +515,32 @@ copy_ar(CF *cfp, off_t size, int lname)
 }
 
 /*
+ * member_date --
+ *	The date recorded for a member read from disk.  The host build of
+ *	ar bounds it by SOURCE_DATE_EPOCH, as tools/fsutil bounds the file
+ *	times of the image, so equal objects give equal archives.  An
+ *	absent or malformed value leaves the file's modification time.
+ */
+static long
+member_date(struct stat *sb)
+{
+#ifdef CROSS
+	const char *text = getenv("SOURCE_DATE_EPOCH");
+	char *end;
+	unsigned long long epoch;
+
+	if (text != NULL && *text >= '0' && *text <= '9') {
+		errno = 0;
+		epoch = strtoull(text, &end, 10);
+		if (errno == 0 && *end == '\0' && epoch <= 0x7fffffffULL &&
+		    (unsigned long long)sb->st_mtime > epoch)
+			return ((long)epoch);
+	}
+#endif
+	return ((long)sb->st_mtime);
+}
+
+/*
  * put_arobj --
  *	Write an archive member to a file.
  */
@@ -551,17 +577,17 @@ put_arobj(CF *cfp, struct stat *sb)
 				(void)fflush(stderr);
 			}
 			(void)snprintf(hb, sizeof(hb), HDR3,
-			    name, (long)sb->st_mtime, sb->st_uid, sb->st_gid,
+			    name, member_date(sb), sb->st_uid, sb->st_gid,
 			    sb->st_mode, (long)sb->st_size, ARFMAG);
 			lname = 0;
 		} else if (lname > (int)sizeof(hdr->ar_name) || index(name, ' '))
 			(void)snprintf(hb, sizeof(hb), HDR1, AR_EFMT1,
-			    lname, (long)sb->st_mtime, sb->st_uid, sb->st_gid,
+			    lname, member_date(sb), sb->st_uid, sb->st_gid,
 			    sb->st_mode, (long) sb->st_size + lname, ARFMAG);
 		else {
 			lname = 0;
 			(void)snprintf(hb, sizeof(hb), HDR2,
-			    name, (long)sb->st_mtime, sb->st_uid, sb->st_gid,
+			    name, member_date(sb), sb->st_uid, sb->st_gid,
 			    sb->st_mode, (long) sb->st_size, ARFMAG);
 		}
 		size = sb->st_size;

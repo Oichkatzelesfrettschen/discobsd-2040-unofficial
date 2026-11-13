@@ -77,6 +77,18 @@ CSTDFLAGS=	-std=gnu17
 # Match the ARM EABI enum layout of the selected GCC runtime with either compiler.
 CMACHFLAGS=	-ffreestanding -fno-builtin -fno-common -fno-strict-aliasing -fshort-enums
 CMACHFLAGS+=	${MACHINE_ARCH_FLAGS}
+# The kernel runs privileged and address 0 is readable boot ROM, so a null
+# dereference returns data instead of faulting. GCC and Clang otherwise treat
+# the dereference as proof that the pointer is non-null and delete a later
+# test of it; the kernel keeps every such test.
+CMACHFLAGS+=	-fno-delete-null-pointer-checks
+# Each function and object gets its own input section so that --gc-sections
+# in LDFLAGS discards the ones no configuration root reaches. The roots are
+# ENTRY(Reset_Handler) and the KEEP() inputs of kern.ldscript; a function
+# table (cdevsw, execsw, the system call table) roots every entry it names.
+CMACHFLAGS+=	-ffunction-sections -fdata-sections
+# Compiler stages exchange data through pipes; the output is unchanged.
+CMACHFLAGS+=	-pipe
 
 # The FLASH region of RP2040.ld bounds the kernel image, so the kernel is
 # compiled for size.
@@ -91,6 +103,9 @@ AFLAGS=		-x assembler-with-cpp ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CMACHFLAGS}
 LDFLAGS=	-T ${_confdir}/${LDSCRIPT} -T ${_confdir}/kern.ldscript
 LDFLAGS+=	-nostdlib -Map=$@.map -z noexecstack
 LDFLAGS+=	--warn-rwx-segments --fatal-warnings
+# The map file lists each discarded input section. kern.ldscript asserts
+# that a defined scratch or SwapRAM owner still contributes its storage.
+LDFLAGS+=	--gc-sections
 # Cortex-M0+ has no divide instruction, so the compiler emits calls to the
 # libgcc helpers __aeabi_idiv and friends.
 LIBGCC!=	${CC} ${CMACHFLAGS} -print-libgcc-file-name

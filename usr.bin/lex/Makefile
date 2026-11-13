@@ -7,7 +7,6 @@ include ${TOPSRC}/share/mk/sys.mk
 
 PROG=		lex
 
-CFLAGS+=	-O0
 CFLAGS+=	-DSMALL
 #CFLAGS+=	-ggdb
 #CFLAGS+=	-DDEBUG

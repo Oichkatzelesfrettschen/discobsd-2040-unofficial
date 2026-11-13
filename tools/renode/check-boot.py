@@ -184,7 +184,7 @@ STALL_LINES = [
 PS_INIT_ROW = re.compile(r"^ *1 \S+ +\d+:\d\d +(\(init\)|init( .*)?)$", re.M)
 # init starts update from /etc/daemons (sbin/init/init.8), so update's row
 # shows the supervisor ran its table.
-PS_UPDATE_ROW = re.compile(r"^ *\d+ \S+ +\d+:\d\d +(\(update\)|/?update( .*)?)$", re.M)
+PS_UPDATE_ROW = re.compile(r"^ *\d+ \S+ +\d+:\d\d +(\(/?update\)|/?update( .*)?)$", re.M)
 
 ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 

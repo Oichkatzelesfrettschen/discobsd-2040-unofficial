@@ -148,12 +148,24 @@ ioctl(int fd, unsigned long req, void *arg)
 	return -1;
 }
 
+/*
+ * A fixed instant in the kernel's layout, two 32-bit words: seconds, then
+ * microseconds. The seconds value has bit 31 set, so a reader that takes it
+ * as signed sees a date before 1970 and a reader that widens it
+ * sign-extended sees a negative 64-bit count; t22_timewidth depends on both
+ * being wrong.
+ */
 int
 gettimeofday(void *tv, void *tz)
 {
-	(void)tv;
+	unsigned long *word = tv;
+
 	(void)tz;
-	return -1;
+	if (word != 0) {
+		word[0] = 0x90000000UL;
+		word[1] = 250000UL;
+	}
+	return 0;
 }
 
 /*

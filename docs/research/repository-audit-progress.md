@@ -42,6 +42,41 @@ expansion requires a concrete defect or an acceptance requirement.
 The fixed baseline and coverage counts remain evidence for the broader audit;
 they do not measure completion of this narrower delivery scope.
 
+### Owned-change completion checklist
+
+The delivery objective is to verify, publish, review and integrate this
+session's v7fs, storage-test and device write-error lifetime changes through
+origin pull requests. Ownership follows the session's branch and commits,
+rather than the shared GitHub account's authorship field.
+
+- [x] Enumerate every byte prefix of the nonreplacement rename control writes
+  in both byte orders and retain separate compensation/interruption verdicts.
+- [x] Complete replacement-rename caller reclamation tests, including the
+  intermediate unreachable inode, successful release, live-inode rejection,
+  repeated-release rejection and bounded rename-write error compensation.
+- [ ] Reconcile the storage tests, import patches, manifest and evidence
+  documents; retain explicit limits for failed compensation and power loss.
+- [ ] Review the shared device first-error lifetime through last close,
+  per-active-inode replicas, alias propagation, cached-inode reuse and unit
+  admission against the retained regression and mutation evidence.
+- [ ] Fetch origin main, inspect its delta and merge it into the owned branch
+  while preserving the fixed audit baseline and other agents' work.
+- [ ] Run focused gates for reconciled changes and resolve their failures.
+- [ ] Run final logged-build, logged-check and logged-ilp32; bind receipts to
+  the tested head, base, configuration and resulting tree.
+- [ ] Review the final diff, push to origin and open the owned pull request;
+  keep it in draft while acceptance requirements remain open.
+- [ ] Watch hosted CI, address review findings and refresh affected checks
+  after every relevant source or base change.
+- [ ] Merge through the required merge-commit workflow after acceptance,
+  update canonical main and retire only clean, pushed task-owned worktrees.
+
+Other agents own their pull requests. Inactive-PR takeover, the remaining
+repository-wide reviews, production atomic-recovery design, provider jobs and
+physical-board experiments remain outside this delivery queue. Retained open
+audit entries remain open; integration of the owned changes does not establish
+repository-wide audit completion.
+
 Only one item carries active implementation focus. Product jobs use the
 worktree's logged execution lock. Physical-board access, raw-device writes,
 power interruption, production keys, and provider execution remain outside
@@ -95,9 +130,15 @@ The successful replacement probe leaves the displaced inode allocated with
 zero links, so the independent reader reports an unreachable inode. The
 imported `v7fs_file_deallocate()` drops namespace/link ownership and leaves
 reclamation to its caller, as `usr.sbin/v7fs/v7fs.c` documents for removal.
-The bridge calls the rename helper directly. Replacement lifecycle closure
-remains pending; the oracle keeps its
-reachability requirement.
+The test bridge models the caller's release after a successful replacement:
+it contracts the displaced inode's data and deallocates the zero-link inode.
+Both byte orders reject release of a linked inode and repeated release, restore
+one free inode and one free block, and support continued allocation after a
+fresh mount. Every replacement-helper control write receives errors after
+zero-byte and full-byte transfers; successful compensation restores namespace,
+inode metadata and free totals. The full storage gate passes with six fault
+matrix tests. Reclamation-write failure recovery remains untested; the adapter
+establishes successful caller release rather than a recovery guarantee.
 
 The initial remote fetch advanced `origin/main` from `b9d64cbe` to
 `1e986446`. The canonical checkout's local main remained `b9d64cbe` during

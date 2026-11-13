@@ -68,6 +68,7 @@ class Backend:
         self.library.storage_backend_create_at.argtypes = [ctypes.c_uint, ctypes.c_char_p,
                                                            ctypes.c_int]
         self.library.storage_backend_lookup_at.argtypes = [ctypes.c_uint, ctypes.c_char_p]
+        self.library.storage_backend_reclaim.argtypes = [ctypes.c_uint]
         self.library.storage_backend_rename.argtypes = [ctypes.c_uint, ctypes.c_char_p,
                                                         ctypes.c_uint, ctypes.c_char_p]
         self.library.storage_backend_link.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
@@ -153,6 +154,9 @@ class Backend:
     def rename(self, source_parent, source, target_parent, target):
         return self._result(self.library.storage_backend_rename(
             source_parent, source.encode("ascii"), target_parent, target.encode("ascii")))
+
+    def reclaim(self, number):
+        return self._result(self.library.storage_backend_reclaim(number))
 
     def link(self, source, name):
         return self._result(self.library.storage_backend_link(source.encode("ascii"),

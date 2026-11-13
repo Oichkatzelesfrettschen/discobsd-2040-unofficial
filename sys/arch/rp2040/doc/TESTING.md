@@ -1580,6 +1580,15 @@ full-transfer error also receives a second fail-before-transfer injection,
 which must activate and return an error. The reader classifies these states
 for inspection without requiring successful restoration after two failures.
 
+The replacement directory rename test retains the displaced zero-link inode
+until the test caller contracts its data and deallocates it. The independent
+reader rejects the intermediate unreachable inode and accepts the reclaimed
+image, including its free-block and free-inode totals. Both byte orders reject
+linked-inode release and repeated release and support continued allocation.
+Errors after zero-byte and complete transfers at each rename-helper write
+require restored namespace, inode metadata and free totals. Reclamation-write
+failures remain outside this test's recovery coverage.
+
 `check-storage-recovery-prefix` enumerates every byte prefix, including zero
 and complete transfer, at every selected creation write. The default selects
 both byte orders and full 1-, 10- and 138-block parents. The Linux firmware

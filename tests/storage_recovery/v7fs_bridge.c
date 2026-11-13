@@ -231,6 +231,24 @@ storage_backend_lookup_at(unsigned parent_number, const char *name)
 }
 
 int
+storage_backend_reclaim(unsigned number)
+{
+    struct v7fs_inode inode;
+    int error;
+
+    if (filesystem == NULL || number <= V7FS_ROOT_INODE || number > UINT16_MAX)
+        return EINVAL;
+    error = v7fs_inode_load(filesystem, &inode, (v7fs_ino_t)number);
+    if (error != 0)
+        return error;
+    if (inode.mode == 0 || v7fs_inode_nlink(&inode) != 0)
+        return EINVAL;
+    /* The host caller holds no open references to the displaced inode. */
+    error = v7fs_datablock_contract(filesystem, &inode, inode.filesize);
+    return error != 0 ? error : v7fs_inode_deallocate(filesystem, (v7fs_ino_t)number);
+}
+
+int
 storage_backend_rename(unsigned source_parent, const char *source,
     unsigned target_parent, const char *target)
 {

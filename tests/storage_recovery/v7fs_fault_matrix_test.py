@@ -202,6 +202,58 @@ class CompensationTest(unittest.TestCase):
         print(json.dumps({"rename_complete_prefix_interruptions": dict(interruptions)},
                          sort_keys=True))
 
+    def test_replacement_rename_caller_reclaims_displaced_inode(self):
+        for order in ("little", "pdp"):
+            backend = Backend(self.library, Device(bytes(512 * 2048)), order)
+            self.assertEqual(backend.format(64), 0)
+            source = backend.create_at(2, "source", True)
+            parent = backend.create_at(2, "parent", True)
+            displaced = backend.create_at(parent, "target", True)
+            self.assertGreater(displaced, parent)
+            self.assertEqual(backend.reclaim(source), errno.EINVAL)
+            self.assertEqual(backend.sync(), 0)
+            initial = backend.device.export()
+            backend.close()
+            old = verify(initial, order)
+
+            def operation(backend, parent=parent):
+                return backend.rename(2, "source", parent, "target")
+
+            result, intermediate, events = self.run_operation(initial, order, operation)
+            self.assertEqual(result, 0)
+            with self.assertRaisesRegex(ValueError, "unreachable inode"):
+                verify(intermediate, order)
+            backend = Backend(self.library, Device(intermediate), order)
+            try:
+                self.assertEqual(backend.mount(), 0)
+                self.assertEqual(backend.reclaim(displaced), 0)
+                self.assertEqual(backend.reclaim(displaced), errno.EINVAL)
+                self.assertEqual(backend.sync(), 0)
+                completed = backend.device.export()
+            finally:
+                backend.close()
+            report = verify(completed, order)
+            self.assertEqual(report.namespace["/parent/target"], source)
+            self.assertNotIn("/source", report.namespace)
+            self.assertNotIn(displaced, report.inode_metadata)
+            self.assertEqual(report.free_inodes, old.free_inodes + 1)
+            self.assertEqual(report.free_blocks, old.free_blocks + 1)
+            self.check_reopen_and_continue(completed, order)
+
+            for event in (event for event in events if event.kind == "write"):
+                for amount in (0, event.length):
+                    with self.subTest(order=order, sequence=event.sequence, amount=amount):
+                        result, persistent, _events = self.run_operation(
+                            initial, order, operation,
+                            Fault(event.sequence, "after_error", amount))
+                        self.assertEqual(result, errno.EIO)
+                        report = verify(persistent, order)
+                        self.assertEqual(report.namespace, old.namespace)
+                        self.assertEqual(report.inode_metadata, old.inode_metadata)
+                        self.assertEqual(report.free_blocks, old.free_blocks)
+                        self.assertEqual(report.free_inodes, old.free_inodes)
+                        self.check_reopen_and_continue(persistent, order)
+
     def test_rename_second_failure_reports_inspection_boundary(self):
         dispositions = Counter()
         for order in ("little", "pdp"):

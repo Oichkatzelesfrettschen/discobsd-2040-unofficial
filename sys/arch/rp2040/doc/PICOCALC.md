@@ -119,15 +119,19 @@ runs with cells, which contradicts the reading above. The keyboard
 firmware does not gate the Pico: its `setup()` raises PA13, the Pico
 enable, unconditionally (`picocalc_keyboard.ino`), so the inference is
 that no rail comes up at all, including DCDC1 (MCU_3V3) for the STM32.
-Two explanations fit, each with the measurement that separates them:
+The schematic wires R701 and R702, 5.1 kOhm each, from the receptacle's
+CC1 and CC2 to ground, so a USB-C-to-C supply sees a sink and switches
+VBUS on; a missing CC pull-down explains the observation only on a board
+that leaves R701 and R702 unfitted, which a look at the two sites
+settles. The explanation the schematic leaves standing:
 
-- The USB-C receptacle lacks a 5.1 kOhm pull-down on each CC pin, so a
-  USB-C-to-C supply never switches VBUS on. A USB-A-to-C cable, which
-  carries VBUS unconditionally, powering a cell-less board confirms it.
 - The AXP2101 needs a power-key press or a battery to start, through
-  power-on defaults the board does not change. A cell-less board that
-  stays off on an A-to-C cable and starts after a press of the power key
-  confirms it.
+  power-on defaults the board does not change; the power key SW102 sits
+  on its PWRON pin. A cell-less board that stays off on USB-C and starts
+  after a press of the power key confirms it.
+
+`docs/research/hardware-reference-coverage.md` holds the schematic's
+designator-to-part map behind this reading.
 
 The Pico's own micro-USB port feeds the Pico module's VSYS through the
 module's Schottky diode; whether the mainboard's PICO_VSYS net, the STM32

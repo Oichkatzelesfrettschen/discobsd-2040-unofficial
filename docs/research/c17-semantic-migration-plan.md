@@ -108,6 +108,13 @@ resource comparison, documentation and reviewed integration. Configuration-keyed
 dependency capture, compiler/analysis coverage and trust-boundary checks apply
 throughout the queue. A declaration or stub cannot close a runtime requirement.
 
+The [tableless search experiment](search-bound-experiment/README.md) retains
+the next search-bound comparison and its replay driver. The finite host and
+ARMv6-M matrices preserve earliest-match behavior while exposing the separate
+text, frame and work-count costs. The experiment stays outside shipped libc;
+general work bounds, workload timing and complete resource/caller admission
+remain prerequisites to a replacement.
+
 The [bounded-string contract](libc-bounded-string-contracts.md) records the four
 small string implementations, their DragonFlyBSD provenance and calibrated
 host/ILP32/Thumb-1 witnesses. Their ledger rows remain partial while the

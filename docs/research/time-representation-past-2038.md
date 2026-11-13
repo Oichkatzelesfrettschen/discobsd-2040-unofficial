@@ -146,7 +146,7 @@ costs on both sides, and the tree does not choose between them.
 | | Unsigned 32-bit `time_t` | 64-bit `time_t`, 32-bit unsigned kernel and disk |
 | --- | --- | --- |
 | Last second | 2106-02-07 | 2106 in the kernel until a carry word lands; no interface limit |
-| Shipped `full` image, measured below | no block | 7 of 217 free blocks, before the seven-bit split |
+| Shipped `full` image, measured below | no block | at least 7 of 217 free blocks: a lower bound from a build that changes the user-side type alone |
 | Interface break | none in size; signedness changes | every time-carrying system call and every program, once |
 | Times before 1970 | unrepresentable | representable in programs; clamped on disk |
 | POSIX.1-2024 `time_t` (`<sys/types.h>`: an integer type at least 64 bits wide, set by Austin Group defect 1462) | fails | meets |
@@ -171,7 +171,13 @@ image.
 | unsigned 32-bit | 217 | 102,094 |
 | 64-bit interface | 210 | 102,094 |
 
-The 64-bit interface costs 7 packed blocks. With the wide type the target
+The 64-bit variant's image has 7 fewer free blocks. That is a lower bound
+on the interface's cost and not the cost: the variant changes the type
+programs see and nothing else, so the kernel still copies an 8-byte
+`struct timeval` where programs expect 16, the image cannot run, the
+conversion at the system call boundary adds kernel text that is not in
+it, and the callers compiled with the diagnostic downgraded have yet to be
+converted. The seven-bit split works in the other direction. With the wide type the target
 compiler gives `struct stat` 72 bytes (56 today) and `struct timeval` 16
 (8 today), since a 64-bit member aligns its struct to eight. Across all 1,677 staged files,
 most of which no profile ships, it changes 158 files and adds 44,434 bytes;

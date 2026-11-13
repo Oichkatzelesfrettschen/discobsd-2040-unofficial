@@ -2,51 +2,57 @@
 
 This ledger tests a claim: that the tree's owner holds, on the build host,
 the reference document for every part of the Raspberry Pi Pico, the Pico W,
-the RP2040 and the ClockworkPi PicoCalc, along with an installed Pico SDK. The claim
-is false. The RP2040 and Pico datasheets and the PicoCalc's own
-schematic, panel and PMU documents are committed; the flash and PSRAM
-datasheets sit uncommitted in one checkout, so a fresh clone lacks them.
-On 2026-11-12 no Pico SDK existed on the host: the Arch `pico-sdk`
-package had been removed on 2026-10-10, and `tools/pico-sdk/vendor`, where
-`tools/pico-sdk/fetch-pico-sdk.sh` writes, was absent from the primary
-checkout and from every worktree. The AUR package 2.3.1-1 now supplies
-`/usr/share/pico-sdk` with every submodule, and the fetch script pins the
-same 2.3.1 release. No Pico W
-document beyond the CYW43439 product brief is held. Of the PicoCalc's
-ten distinct integrated circuits, the PMU, the PSRAM and the panel
-controller have documents and the other seven have none, and no Arm core,
-PrimeCell or bus specification behind the RP2040's blocks is held.
+the RP2040 and the ClockworkPi PicoCalc, along with an installed Pico SDK.
+Tested on 2026-11-12, the claim was false: the notes repository held the
+RP2040 and Pico datasheets and the PicoCalc's schematic, panel and PMU
+documents, the flash and PSRAM datasheets sat uncommitted in one checkout,
+no Pico W document beyond the CYW43439 product brief existed, seven of the
+PicoCalc's ten distinct integrated circuits had no document, no Arm core,
+PrimeCell or bus specification was held, and no Pico SDK existed on the
+host. The Arch `pico-sdk` package had been removed on 2026-10-10, and
+`tools/pico-sdk/vendor`, where `tools/pico-sdk/fetch-pico-sdk.sh` writes,
+was absent from the primary checkout and from every worktree.
+
+The rows below give the state after the gaps were filled: the AUR
+`pico-sdk` 2.3.1-1 package supplies `/usr/share/pico-sdk` with every
+submodule, the fetch script pins the same 2.3.1 release, and the notes
+repository holds every document a manufacturer, standards body or
+distributor served. What remains absent is listed under "Pending checks"
+and in the notes repository's `docs/NOT-FETCHED.tsv`.
 
 ## Method
 
-Each row names a part, the place its document would live, and one of
-these states:
+Each row names a part, the place its document lives, and one of these
+states:
 
 | State | Meaning |
 | --- | --- |
 | tracked | committed in the named repository |
-| untracked | on disk in the named checkout, not committed |
+| local only | on disk under the notes repository's ignored `docs/local/`, because its license forbids copies on another server; `docs/specs/README.md` there records its digest |
 | read, not kept | an earlier note fetched and cited it; no local copy exists |
-| absent | no copy found by the search below |
+| absent | no source served it, or no copy exists |
 | installed | a host package provides it; version given |
-| removed | a host package provided it and was uninstalled |
 
-The search covered `~/Github`, `~/Projects`, `~/Documents`, `~/Downloads`
-and `/usr/share/doc` by file name (`find ... -iname` over `.pdf`, `.md`,
-`.txt`, `.html`, `.7z`, `.zip`, for every part number below and the
-architecture and bus document numbers), the manifests of the owner's private
-document stores, `pacman -Q` and `/var/log/pacman.log`,
-and every worktree and scratch copy of this tree on the host. A document held under a name that carries no part number
-escapes the file-name search. A search for `pico_sdk_init.cmake` across
-`~`, `/opt` and `/usr` with no depth limit backs the SDK row.
+The 2026-11-12 search covered `~/Github`, `~/Projects`, `~/Documents`,
+`~/Downloads` and `/usr/share/doc` by file name (`find ... -iname` over
+`.pdf`, `.md`, `.txt`, `.html`, `.7z`, `.zip`, for every part number below
+and the architecture and bus document numbers), the manifests of the
+owner's private document stores, `pacman -Q` and `/var/log/pacman.log`,
+and every worktree and scratch copy of this tree on the host. A document
+held under a name that carries no part number escapes the file-name
+search. A search for `pico_sdk_init.cmake` across `~`, `/opt` and `/usr`
+with no depth limit backed the SDK row.
 
 The recursion runs from each board to every integrated circuit,
 connector and crystal on its schematic, from each integrated circuit to
 the licensed or standard blocks inside it, and from each block to the
 architecture or bus specification that defines its interface. It stops
 at the instruction set and bus specifications; passives other than the
-ferrite bead and the diodes have no row. The notes repository is the
-sibling checkout `discobsd-2040-notes`; its paths below start at `docs/`.
+ferrite beads, the RF filter and the diodes have no row. The notes
+repository is the sibling checkout `discobsd-2040-notes`; its paths below
+start at `docs/`, and each of its document directories carries a
+`README.md` with every file's printed revision, source and retrieval date
+and a `SHA256SUMS`.
 
 ## Software: SDK, tools and models
 
@@ -75,18 +81,18 @@ its frequency.
 
 | Ref | Part as printed | Role | Document | State |
 | --- | --- | --- | --- | --- |
-| board | Raspberry Pi Pico Rev3 | the module | Pico Datasheet, build `d4e0f1799616`, 2026-07-03, 31 pages, `docs/rp2040/pico-datasheet.pdf` and `.txt` | tracked, notes |
-| board | design files | schematic source and layout | ZIP named in the Pico Datasheet section 2 | absent |
-| U1 | RP2040, silicon B2 | the MCU | RP2040 Datasheet, build `3184e62-clean`, 2025-02-20, 642 pages, errata in appendix B, `docs/rp2040/rp2040-datasheet.pdf` and `.txt`; RP2040 product brief in a private document store | tracked, notes |
-| U2 | RT6150B-33GQW | buck-boost SMPS, VSYS to 3V3, PS on GPIO23, EN on 3V3_EN | Richtek RT6150 datasheet | absent |
-| U3 | W25Q16JVUXIQ | 2 MiB QSPI flash | Winbond W25Q16JV revision G, 2018-03-22, 75 pages, whose table 9.1 gives `W25Q16JV-IQ/JQ` manufacturer `EFh` and JEDEC device `4015h`, the `ef 40 15` the measured board returns (`DEVICE-INVENTORY.md`), `docs/rp2040/W25Q16JV_Datasheet.pdf` and `.txt` | untracked, notes |
-| X1 | 12 MHz; ABM8-272-T3 in the datasheet text | crystal | Abracon ABM8 datasheet | absent |
-| D1 | MBR120VLSFT1G | VBUS to VSYS Schottky | onsemi MBR120VLSFT1 datasheet | absent |
-| Q1 | DMG1012T | ADC3 isolation FET on GPIO29 | Diodes DMG1012T datasheet | absent |
+| board | Raspberry Pi Pico Rev3 | the module | Pico Datasheet, build `d4e0f1799616`, 2026-07-03, `rp2040/pico-datasheet.pdf`; product brief, January 2021, `rp2040/pico_product_brief_rp008308.pdf` | tracked, notes |
+| board | design files | schematic, layout, BOM | `rp2040/design-files/rpi_pico_r3_public_20200119_rp008379.zip` | tracked, notes |
+| U1 | RP2040, silicon B2 | the MCU | RP2040 Datasheet, build `3184e62-clean`, 2025-02-20, errata in appendix B, `rp2040/rp2040-datasheet.pdf` | tracked, notes |
+| U2 | RT6150B-33GQW | buck-boost SMPS, VSYS to 3V3, PS on GPIO23, EN on 3V3_EN | Richtek DS6150A/B-06, `rp2040/richtek_rt6150a_b_ds6150ab_06.pdf` | tracked, notes |
+| U3 | W25Q16JVUXIQ | 2 MiB QSPI flash | Winbond W25Q16JV revision G, 2018-03-22, whose table 9.1 gives `W25Q16JV-IQ/JQ` manufacturer `EFh` and JEDEC device `4015h`, the `ef 40 15` the measured board returns (`DEVICE-INVENTORY.md`), `rp2040/W25Q16JV_Datasheet.pdf` | tracked, notes |
+| X1 | 12 MHz; ABM8-272-T3 in the datasheet text | crystal | Abracon ABM8 family sheet, `rp2040/abracon_abm8_ceramic_smd_crystal.pdf`; the ABM8-272-T3 part sheet only distributors host | family sheet tracked, notes |
+| D1 | MBR120VLSFT1G | VBUS to VSYS Schottky | onsemi MBR120VLSFT1/D Rev. 5, `rp2040/onsemi_mbr120vlsft1_d.pdf` | tracked, notes |
+| Q1 | DMG1012T | ADC3 isolation FET on GPIO29 | Diodes DS31783, `rp2040/diodes_dmg1012t_ds31783.pdf` | tracked, notes |
 | J1 | 690-005-298-486 | micro-USB receptacle | EDAC drawing | absent |
-| SW1 | TP-1221U-K9K5325 | BOOTSEL switch on QSPI_SS | switch drawing | absent |
+| SW1 | TP-1221U-K9K5325 | BOOTSEL switch on QSPI_SS | no manufacturer identified | absent |
 | D2 | green LED | GPIO25 | no part number printed | not applicable |
-| guides | Hardware design with RP2040; Getting started with Raspberry Pi Pico; Raspberry Pi Pico-series C/C++ SDK | reference circuit, setup, SDK API | Raspberry Pi documents | absent |
+| guides | Hardware design with RP2040; Getting started with Pico-series; Pico-series C/C++ SDK | reference circuit, setup, SDK API | `rp2040/hardware_design_with_rp2040_rp008279.pdf`, `getting_started_with_pico_series_rp008276.pdf`, `pico_series_c_cpp_sdk_rp009085.pdf` | tracked, notes |
 
 ### Inside the RP2040
 
@@ -96,98 +102,104 @@ for behavior it does not restate.
 
 | Block | Port user | Document | State |
 | --- | --- | --- | --- |
-| Cortex-M0+ core, NVIC, SysTick, MPU | the whole kernel; `MPU.md` | Arm Cortex-M0+ Technical Reference Manual (DDI 0484); Armv6-M Architecture Reference Manual (DDI 0419) | absent |
-| Debug: SWD, multidrop | OpenOCD | Arm Debug Interface v5 (IHI 0031) | absent |
-| UART, PL011 | `dev/uart.c` | Arm PrimeCell UART PL011 TRM (DDI 0183) | absent |
-| SPI, PL022 | `st7365p.c`, `sdspi.c` | Arm PrimeCell SSP PL022 TRM (DDI 0194) | absent |
+| Cortex-M0+ core, NVIC, SysTick, MPU | the whole kernel; `MPU.md` | Cortex-M0+ TRM DDI 0484C (r0p1), `arm/arm_ddi0484c_cortex_m0plus_r0p1_trm.pdf`; Armv6-M ARM DDI 0419E, `arm/arm_ddi0419e_armv6m_architecture_reference_manual.pdf` | tracked, notes |
+| Debug: SWD, multidrop | OpenOCD | ADIv5 IHI 0031G, `arm/arm_ihi0031g_adiv5_architecture_specification.pdf` | tracked, notes |
+| UART, PL011 | `dev/uart.c` | PL011 TRM DDI 0183G (r1p5), `arm/arm_ddi0183g_primecell_uart_pl011_r1p5_trm.pdf` | tracked, notes |
+| SPI, PL022 | `st7365p.c`, `sdspi.c` | PL022 TRM DDI 0194H (r1p4), `arm/arm_ddi0194h_primecell_ssp_pl022_r1p4_trm.pdf` | tracked, notes |
 | I2C, Synopsys DW_apb_i2c | `picokbd.c` | Synopsys databook, licensee-only | absent; RP2040 Datasheet section 4.3 is the public authority |
 | SSI, Synopsys DW_apb_ssi | `boot2/boot2_w25q080.S` | Synopsys databook, licensee-only | absent; RP2040 Datasheet section 4.10 is the public authority |
-| USB 1.1 controller and PHY | `sys/dev/usb`, the CDC-ACM console | USB 2.0 Specification; USB CDC 1.2 and PSTN 1.2 | absent |
+| USB 1.1 controller and PHY | `sys/dev/usb`, the CDC-ACM console | USB 2.0, `specs/usb_20.pdf`; CDC 1.2 with errata through 2025-04-03 and PSTN 1.2, `specs/usb_cdc120_with_errata_and_ecn_through_2025-04-03.pdf`, `specs/usb_pstn120.pdf` | tracked, notes |
 
 ## Raspberry Pi Pico W
 
-| Part | Role | Document | State |
-| --- | --- | --- | --- |
-| Pico W board | the module | Pico W Datasheet | read, not kept: `docs/research/firmware-updates.md` cites `datasheets.raspberrypi.com/picow/pico-w-datasheet.pdf` |
-| Pico W design files | schematic and layout | ZIP named in the Pico W Datasheet | absent |
-| Connecting to the internet with Raspberry Pi Pico W | wireless software | Raspberry Pi document | absent |
-| CYW43439 | Wi-Fi and Bluetooth, gSPI to the RP2040 | Infineon AIROC CYW43439 product brief, in a private document store; the full datasheet | product brief only; the full datasheet is absent |
-| RP2040, W25Q16JV | as on the Pico | as on the Pico | as on the Pico |
-| SMPS, crystal, antenna | power and clock | the Pico W Datasheet names them | absent; a row per part follows a read of that datasheet |
+Designators come from the Pico W Rev3 schematic, Pico W Datasheet
+appendix B (PDF pages 21-22), rendered at 500 dpi. The RP2040, W25Q16JV,
+MBR120VLSFT1G, DMG1012T, micro-USB receptacle and BOOTSEL switch rows of
+the Pico apply unchanged.
+
+| Ref | Part as printed | Role | Document | State |
+| --- | --- | --- | --- | --- |
+| board | Raspberry Pi Pico W Rev3 | the module | Pico W Datasheet, Release 7, build `d4e0f1799616`, `rp2040/pico_w_datasheet_rp008312.pdf`; product brief, April 2024, `rp2040/pico_w_product_brief_rp008313.pdf` | tracked, notes |
+| board | design files | layout and schematic source; the ZIP carries no schematic PDF | `rp2040/design-files/rpi_picow_public_20220607_rp008380.zip` | tracked, notes |
+| U2 | RT6154AGQW | buck-boost SMPS, PS/SYNC on WL_GPIO1 | Richtek DS6154A/B-05, `rp2040/richtek_rt6154a_b_ds6154ab_05.pdf` | tracked, notes |
+| U19 | CYW43439KUBG | Wi-Fi and Bluetooth, gSPI to the RP2040 | Infineon CYW43439 datasheet, served only to a signed-in myInfineon account; the product brief is in a private document store | datasheet absent |
+| software | Wi-Fi and Bluetooth connectivity on Pico W-series (formerly "Connecting to the Internet") | wireless SDK use | `rp2040/wifi_bluetooth_connectivity_pico_w_series_rp008257.pdf`, Release 9 | tracked, notes |
+| X1 | 12 MHz | RP2040 crystal | ABM8 family sheet as on the Pico | family sheet tracked, notes |
+| X2 | 37.4 MHz | CYW43439 reference crystal | no part number printed | not applicable |
+| FL1 | LFB212G45CG7D227 | 2.45 GHz band-pass filter in the antenna path | Murata datasheet | absent |
+| FB8, FB9 | BLM18AG601SN1, BLM03AG601SN1 | ferrites on the CYW43439 supplies | Murata datasheets | absent |
+| L9 | CML0306-4N7-H-NH | RF matching inductor | datasheet | absent |
+| D2 | green LED | WL_GPIO0 | no part number printed | not applicable |
 
 ## ClockworkPi PicoCalc mainboard V2.0
 
 Designators come from a 600 dpi render of
-`docs/picocalc/clockwork_Mainboard_V2.0_Schematic.pdf` (title block dated
+`picocalc/clockwork_Mainboard_V2.0_Schematic.pdf` (title block dated
 2024-12-20); every part number below also appears in that PDF's text
-layer. The Pico seated in J301 and J302 is covered above. The vendor
-copies in `docs/picocalc/` match `SHA256SUMS` (`sha256sum -c` passes);
-the PSRAM datasheet postdates that file and is absent from it.
+layer. The Pico seated in J301 and J302 is covered above. Paths in
+`picocalc/parts/` name a distributor where one served the file.
 
 | Ref | Part as printed | Role | Document | State |
 | --- | --- | --- | --- | --- |
-| board | mainboard V2.0 | schematic, Gerbers, assembly guide | `docs/picocalc/clockwork_Mainboard_V2.0_Schematic.pdf`, `pcb/CPI_V2.0_Gerber.7z`, `Clockwork_PicoCalc_Assembly_Guidelines.pdf` | tracked, notes |
-| U101 | AXP2101 | PMU: VBUS, battery, DCDC1, ALDO1-4, BLDO1-2 | X-Powers datasheet V1.4, `docs/picocalc/AXP2101_Datasheet_V1.4.pdf` | tracked, notes |
-| U102 | WAS4603 | current-limited load switch, IPS to PICO_VSYS, enable PICO_EN | WillSemi WAS4603 datasheet | absent |
-| U201 | CKS32F103Rx | keyboard controller: matrix, backlights, PMU I2C, I2C1 target at 0x1F | CKS32F103 datasheet; ST STM32F103x8/xB datasheet, RM0008 reference manual, PM0056 programming manual, errata ES0340 | absent; the controller firmware source is tracked, `docs/picocalc/code/picocalc_keyboard` |
-| U301 | ESP-PSRAM64H | 8 MB quad PSRAM | Espressif ESP-PSRAM64/64H datasheet, `docs/picocalc/esp-psram64_esp-psram64h_datasheet_en.pdf` | untracked, notes |
-| U401, U601 | TPS6116x | LCD and keyboard backlight boost converters | TI TPS61160/TPS61161 datasheet; the schematic leaves the variant open | absent |
-| U501 | NC7WZ16 | dual buffer, PWM_L and PWM_R to the audio filters | onsemi NC7WZ16 datasheet | absent |
-| U502, U503 | AW8010 | class-D speaker amplifiers, enable PA_EN | Awinic AW8010 datasheet | absent |
-| U701, U703 | WAS7227 | USB pair switch (U701) and serial pair switch (U703) under SW701 | WillSemi WAS7227 datasheet | absent |
-| U702 | CH340C | USB-serial bridge | WCH CH340 datasheet | absent |
+| board | mainboard V2.0 | schematic, Gerbers, assembly guide | `picocalc/clockwork_Mainboard_V2.0_Schematic.pdf`, `pcb/CPI_V2.0_Gerber.7z`, `Clockwork_PicoCalc_Assembly_Guidelines.pdf` | tracked, notes |
+| U101 | AXP2101 | PMU: VBUS, battery, DCDC1, ALDO1-4, BLDO1-2 | X-Powers datasheet V1.4, `picocalc/AXP2101_Datasheet_V1.4.pdf` | tracked, notes |
+| U102 | WAS4603 | current-limited load switch, IPS to PICO_VSYS, enable PICO_EN | no `WAS4603` document exists; Will Semiconductor WS4603 Rev 1.2, `picocalc/parts/willsemi_ws4603_datasheet_rev1.2.pdf`, an unconfirmed match | tracked, notes |
+| U201 | CKS32F103Rx | keyboard controller: matrix, backlights, PMU I2C, I2C1 target at 0x1F | CKS32F103x8/xB datasheet v1.15 (Chinese, LCSC copy) and an undated English CKS32F103xx datasheet (third-party copy); ST DS5319 Rev 20, RM0008 Rev 21, PM0056 Rev 7, ES096 Rev 15 (x8/xB) and ES0340 (xC/D/E), all in `picocalc/parts/` | tracked, notes; the CKS32F103 reference manual absent |
+| U301 | ESP-PSRAM64H | 8 MB quad PSRAM | Espressif ESP-PSRAM64/64H V1.0, 2018-06, `picocalc/esp-psram64_esp-psram64h_datasheet_en.pdf` | tracked, notes |
+| U401, U601 | TPS6116x | LCD and keyboard backlight boost converters | TI SLVS791E, covering TPS61160 and TPS61161 | tracked, notes |
+| U501 | NC7WZ16 | dual buffer, PWM_L and PWM_R to the audio filters | onsemi NC7WZ16/D Rev 8 | tracked, notes |
+| U502, U503 | AW8010 | class-D speaker amplifiers, enable PA_EN | Awinic AW8010A V1.3, AW8010B V1.4, AW8010D V1.1; the schematic prints no suffix | tracked, notes |
+| U701, U703 | WAS7227 | USB pair switch (U701) and serial pair switch (U703) under SW701 | Will Semiconductor WAS7227Q Rev 1.4 | tracked, notes |
+| U702 | CH340C | USB-serial bridge | WCH CH340DS1 version 3D | tracked, notes |
 | X201, X202 | 8 MHz, 32.768 kHz | keyboard-controller clocks | no part number printed | not applicable |
-| D401, D601 | B5819W | boost catch diodes | B5819W datasheet | absent |
-| FB101 | BLM18PG121SH1 | DCDC1 to MCU_3V3 | Murata BLM18PG datasheet | absent |
-| J101 | KS18650X2 | two 18650 cells | holder drawing | absent |
-| J303 | TF-03A | microSD socket, card detect on GP22 | socket drawing | absent |
+| D401, D601 | B5819W | boost catch diodes | MCC B5817W-B5819W SOD-123 | tracked, notes |
+| FB101 | BLM18PG121SH1 | DCDC1 to MCU_3V3 | Murata reference specification JENF243A_9101X-01 | tracked, notes |
+| J101 | KS18650X2 | two 18650 cells | no listing names the part | absent |
+| J303 | TF-03A | microSD socket, card detect on GP22 | Korean Hroparts drawing, LCSC C693842 | tracked, notes |
 | J401 | 0.5-40PBSX | 40-pin panel FPC, SPI1 | connector drawing | absent |
-| panel | ST7365P controller, 320x320 IPS | display | Sitronix ST7365P V1.0, `docs/picocalc/ST7365P_SPEC_V1.0.pdf`; the panel module's own datasheet (glass, backlight current) | controller tracked, notes; module absent |
-| J501, SW501 | PJ-327C, JC101GV01 | headphone jack and its contact | drawings | absent |
-| J701 | TYPEC-31-M-12 | USB-C receptacle | receptacle drawing | absent |
-| SW102, SW701 | K2-1112SA, EM-02KP | power key on AXP2101 PWRON; USB and BOOT0 routing | drawings | absent |
+| panel | ST7365P controller, 320x320 IPS | display | Sitronix ST7365P V1.0, `picocalc/ST7365P_SPEC_V1.0.pdf`; the panel module's own datasheet (glass, backlight current) | controller tracked, notes; module absent |
+| J501, SW501 | PJ-327C, JC101GV01 | headphone jack and its contact | HOOYA PJ-327C drawing, LCSC C2939157; JC101GV01 absent | jack tracked, notes |
+| J701 | TYPEC-31-M-12 | USB-C receptacle | Korean Hroparts drawing, LCSC C165948 | tracked, notes |
+| SW102, SW701 | K2-1112SA, EM-02KP | power key on AXP2101 PWRON; USB and BOOT0 routing | Korean Hroparts K2-1112SA-A4DW-01 drawing, LCSC C961745; EM-02KP absent | K2-1112SA tracked, notes |
 
 ### Inside U201
 
 | Block | Document | State |
 | --- | --- | --- |
-| Cortex-M3 core | Arm Cortex-M3 Technical Reference Manual (DDI 0337); Armv7-M Architecture Reference Manual (DDI 0403) | absent |
+| Cortex-M3 core | Cortex-M3 TRM DDI 0337E (r1p1, the STM32F103 core revision) and DDI 0337H (r2p0); Armv7-M ARM DDI 0403E.e, all in `arm/` | tracked, notes |
+
+Neither CKS32F103 document states pin or register compatibility with
+STM32F103: the English copy claims compatibility only among CKS32F103xx
+members (section 2.2, page 10), and the Chinese v1.15 names no STM32 part.
 
 ### Bus and card specifications the PicoCalc drivers rest on
 
 | Specification | Port user | State |
 | --- | --- | --- |
-| SD Physical Layer Simplified Specification | `sd.c`, `sdspi.c` | absent |
-| I2C-bus specification, NXP UM10204 | `picokbd.c` | absent |
-| USB Type-C Cable and Connector Specification | the CC pull-down rule below | absent |
+| SD Physical Layer Simplified Specification, Part 1 v9.10, 2023-12-01 | `sd.c`, `sdspi.c` | local only, notes; the SD Association's click-through license forbids copies on another server |
+| I2C-bus specification, NXP UM10204 Rev. 7.0 | `picokbd.c` | tracked, notes |
+| USB Type-C Cable and Connector Specification, Release 2.5 | the CC pull-down rule below | tracked, notes, as the usb.org ZIP |
 
 ## Findings beside the coverage
 
 The schematic wires R701 and R702, 5.1 kOhm each, from J701's CC1 and CC2
-to ground. `sys/arch/rp2040/doc/PICOCALC.md` ("USB-C and power") offers
-missing CC pull-downs as the first explanation for the owner's board
-staying off on USB-C without cells; the schematic refutes it at the design
-level, and a board with R701 and R702 unfitted would restore it. The same
-schematic puts SW102 on the AXP2101's PWRON pin, which leaves the second
-explanation, a power-key press or a battery needed to start, standing.
-Reading the two resistor sites on the owner's board decides it.
+to ground. `sys/arch/rp2040/doc/PICOCALC.md` ("USB-C and power") carries
+the consequence: a missing CC pull-down no longer explains the owner's
+board staying off on USB-C without cells unless the board leaves R701 and
+R702 unfitted, and the power-key explanation, with SW102 on the AXP2101's
+PWRON pin, stands.
 
 U201 is printed `CKS32F103Rx`, a CKS32 part, while the vendor keyboard
 `README.md` names `STM32F103R8T6`. The marking on the owner's board
-decides which document set governs; `docs/picocalc/INDEX.md` keeps the
-vendor's name until then.
-
-`DEVICE-INVENTORY.md` cites `~/Github/rpi/DEVICE.md` and
-`~/Github/rpi/docs/rp2040/rp2040-datasheet.txt`; neither path exists. The
-files live at `DEVICE.md` and `docs/rp2040/rp2040-datasheet.txt` in the
-notes repository.
-
-`docs/rp2040/` in the notes repository carries no `SHA256SUMS`, so its
-three PDFs have no recorded digest.
+decides which document set governs; `docs/picocalc/INDEX.md` in the notes
+repository keeps the vendor's name until then.
 
 ## Pending checks
 
-- Read the Pico W Datasheet and add a row for each of its power, clock
-  and antenna parts.
-- Commit the W25Q16JV and ESP-PSRAM64H copies with their digests.
-- Read the U201 marking and the R701 and R702 sites on the owner's board.
+- The CYW43439 full datasheet, once a myInfineon session exists.
+- Read the U201 and U102 markings, the AW8010 suffix and the R701 and R702
+  sites on the owner's board.
+- The panel module datasheet, the EDAC 690-005-298-486, 0.5-40PBSX,
+  JC101GV01, EM-02KP and KS18650X2 drawings, the TP-1221U-K9K5325 switch,
+  the Murata FL1, FB8 and FB9 parts and the CKS32F103 reference manual
+  have no source that served them.

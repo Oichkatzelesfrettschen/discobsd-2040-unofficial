@@ -4,7 +4,8 @@ The callable `abs` and `labs` providers add exactly 240 bytes to the shipped
 native libc archive, from 45,078 to 45,318 bytes, and add the two members
 `abs.o` and `labs.o`. The other 157 of 158 numeric resource surfaces remain
 unchanged. The root image retains 746 allocated data blocks, 233 free blocks
-and 32 free inodes. Reviewer approval remains pending.
+and 32 free inodes. The owner approves these exact limits and directs continued
+qualification and review.
 
 The [profile rule](dpucp-2024.md) requires an exception with exact deltas,
 examined alternatives, retained margins, user benefit, rollback point and
@@ -60,12 +61,14 @@ No alternative has qualified lower cost across all constrained surfaces.
 The requested exception admits exactly 240 additional native archive bytes and
 the two named members. It admits no growth in root blocks, executable packed or
 loaded sizes, kernel sizes, startup size or other measured surfaces. The parent
-source supplies the rollback point. Approval of these limits remains pending.
+source supplies the rollback point. The owner approves these exact limits;
+additional growth requires its own measurement and decision.
 
 Focused native, ILP32, sanitizer and ARMv6-M QEMU behavior passes 131,088 cases
 per run and rejects both named sign-preservation mutations. Full/reduced native
 archive linkage passes all 24 member-omission controls. Smaller C passes the
 21-fixture suite, including public address-taking. Strict C17 header/import
-checks, Clang static analysis and repository lint pass. Aggregate, complete
-ILP32 inventory, hosted CI and reviewed integration remain open. Physical-board
+checks, Clang static analysis and repository lint pass. The complete ILP32
+inventory passes 199 of 199 variants at `73460affa4cb18c07d613423e82a2297f01b0ad1`.
+Aggregate, hosted CI and reviewed integration remain open. Physical-board
 execution remains unrun and requires separate authorization.

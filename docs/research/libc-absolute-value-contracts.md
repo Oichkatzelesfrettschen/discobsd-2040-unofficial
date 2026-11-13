@@ -95,7 +95,7 @@ bmake -C usr.bin/smlrc MACHINE=rp2040 REQUIRE_QEMU=1 test
 The compatibility rows remain partial with host evidence. The
 [resource review](libc-absolute-value-resource-exception.md) records matched
 clean distributions and exactly 240 additional native archive bytes with
-unchanged root blocks. Resource approval, aggregate qualification and reviewed
-integration remain open. Existing string, lifecycle and context-sort approvals
+unchanged root blocks. The owner approves the exact growth limits; aggregate
+qualification and reviewed integration remain open. Existing string, lifecycle and context-sort approvals
 carry their exact limits; they authorize no additional absolute-provider growth.
 Physical-board execution remains unrun and requires separate authorization.

@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "996d4acd855e6c2755bcafeb2851f6504e6f01c3f31dab229159ef50f8212931"
+    "ordered_row_sha256": "84802f277da4ddcd5a7ef1cf38a1a927577023c76659dc3cf5c794df60dbe7fa"
   },
   "state_counts": {
     "applicability": {

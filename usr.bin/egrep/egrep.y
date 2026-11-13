@@ -134,7 +134,7 @@ r:  r OR r
 %%
 
 void
-yyerror(s) int s; {
+yyerror(s) char *s; {
     fprintf(stderr, "egrep: %s\n", s);
     exit(2);
 }

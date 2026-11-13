@@ -102,7 +102,7 @@ load_database(old_db)
 
 	while (NULL != (dp = readdir(dir))) {
 		char	fname[MAXNAMLEN+1],
-			tabname[MAXNAMLEN+1];
+			tabname[sizeof SPOOL_DIR + MAXNAMLEN + 1];
 
 		/* avoid file names beginning with ".".  this is good
 		 * because we would otherwise waste two guaranteed calls
@@ -113,7 +113,7 @@ load_database(old_db)
 			continue;
 
 		(void) strcpy(fname, dp->d_name);
-		sprintf(tabname, CRON_TAB(fname));
+		snprintf(tabname, sizeof tabname, CRON_TAB(fname));
 
 		process_crontab(fname, fname, tabname,
 				&statbuf, &new_db, old_db);

@@ -333,18 +333,56 @@ free_symbol_list(void)
 	rhead = NULL;
 }
 
+/*
+ * source_clock --
+ *	The present, bounded in the host build by SOURCE_DATE_EPOCH, the
+ *	same bound tools/fsutil puts on the file times of an image, so
+ *	equal objects give equal archives.  *bounded tells whether the
+ *	variable set the result.  An absent or malformed value leaves the
+ *	clock.
+ */
+static time_t
+source_clock(int *bounded)
+{
+	time_t now = time((time_t *)NULL);
+#ifdef CROSS
+	const char *text = getenv("SOURCE_DATE_EPOCH");
+	char *end;
+	unsigned long long epoch;
+
+	if (text != NULL && *text >= '0' && *text <= '9') {
+		errno = 0;
+		epoch = strtoull(text, &end, 10);
+		if (errno == 0 && *end == '\0' && epoch <= 0x7fffffffULL &&
+		    (unsigned long long)now > epoch) {
+			*bounded = 1;
+			return ((time_t)epoch);
+		}
+	}
+#endif
+	*bounded = 0;
+	return (now);
+}
+
+/*
+ * settime --
+ *	Date the symbol table.  ld reads an archive as sorted only while
+ *	the file is at most two seconds newer than this date, so it leads
+ *	the clock by RANLIBSKEW.
+ */
 static void
 settime(int afd)
 {
 	struct ar_hdr *hdr;
 	off_t size;
 	char buf[50];
+	int bounded;
 
 	size = SARMAG + sizeof(hdr->ar_name);
 	if (lseek(afd, size, SEEK_SET) == (off_t)-1)
 		error(archive);
 	(void)snprintf(buf, sizeof(buf), "%-12ld",
-	    time((time_t *)NULL) + RANLIBSKEW);
+	    (long)source_clock(&bounded) + RANLIBSKEW);
 	write_bytes(afd, buf, sizeof(hdr->ar_date), archive);
 }
 
@@ -469,6 +507,24 @@ touch(void)
 	copy_ar(&cf, payload_size, 0);
 	settime(replacement_fd);
 	commit_archive_rewrite(afd, replacement_fd);
+#ifdef CROSS
+	/*
+	 * An installed archive whose table date came from SOURCE_DATE_EPOCH
+	 * takes that time as its own, so the image fsutil stages from it
+	 * holds a file no newer than its table whatever the epoch is when
+	 * the image is made.
+	 */
+	{
+		struct timeval times[2];
+		int bounded;
+
+		times[0].tv_sec = source_clock(&bounded);
+		times[0].tv_usec = 0;
+		times[1] = times[0];
+		if (bounded && utimes(archive, times) < 0)
+			error(archive);
+	}
+#endif
 	return(0);
 }
 

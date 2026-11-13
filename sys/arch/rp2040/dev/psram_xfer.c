@@ -71,7 +71,7 @@
 #define	PSRAM_CMD_QUADEN	0x35
 #define	PSRAM_CMD_QREAD		0xeb
 #define	PSRAM_CMD_QWRITE	0x38
-#define	PSRAM_READ_WAIT		6	/* datasheet Table 5-1 */
+#define	PSRAM_READ_WAIT		6	/* datasheet 5.4, truth table, EBh */
 #define	PSRAM_ID_WAIT		1	/* 0 cycles, one released early */
 
 unsigned char psram_mfid, psram_kgd;

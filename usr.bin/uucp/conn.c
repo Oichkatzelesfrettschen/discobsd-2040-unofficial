@@ -183,7 +183,7 @@ keeplooking:
 		AbortOn = "Good";	/* .... Good Bye */
 		fcode = expect("****~300", Dcf);
 		if (fcode != SUCCESS) {
-			DEBUG(4, "\nexpect timed out\n", CNULL);
+			DEBUG(4, "\nexpect timed out\n");
 			fcode = CF_DIAL;
 		}
 	}
@@ -588,7 +588,7 @@ int fn;
 		if (*strptr == '\\')
 			switch(*++strptr) {
 			case 's':
-				DEBUG(5, "BLANK\n", CNULL);
+				DEBUG(5, "BLANK\n");
 				*strptr = ' ';
 				break;
 			default:
@@ -741,23 +741,23 @@ int fn;
 		if (c == '\\') {
 			switch(*strptr++) {
 			case '\0':
-				DEBUG(5, "TRAILING BACKSLASH IGNORED\n", CNULL);
+				DEBUG(5, "TRAILING BACKSLASH IGNORED\n");
 				--strptr;
 				continue;
 			case 's':
-				DEBUG(5, "BLANK\n", CNULL);
+				DEBUG(5, "BLANK\n");
 				c = ' ';
 				break;
 			case 'd':
-				DEBUG(5, "DELAY\n", CNULL);
+				DEBUG(5, "DELAY\n");
 				sleep(1);
 				continue;
 			case 'n':
-				DEBUG(5, "NEW LINE\n", CNULL);
+				DEBUG(5, "NEW LINE\n");
 				c = '\n';
 				break;
 			case 'r':
-				DEBUG(5, "RETURN\n", CNULL);
+				DEBUG(5, "RETURN\n");
 				c = '\r';
 				break;
 			case 'b':
@@ -774,10 +774,10 @@ int fn;
 				continue;
 			case 'c':
 				if (*strptr == '\0') {
-					DEBUG(5, "NO CR\n", CNULL);
+					DEBUG(5, "NO CR\n");
 					cr = 0;
 				} else
-					DEBUG(5, "NO CR - IGNORED NOT EOL\n", CNULL);
+					DEBUG(5, "NO CR - IGNORED NOT EOL\n");
 				continue;
 #define isoctal(x)	((x >= '0') && (x <= '7'))
 			default:

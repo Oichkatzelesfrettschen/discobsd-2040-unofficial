@@ -374,7 +374,7 @@ copy(pw, fp)
 			(void)fprintf(fp, "%s", buf);
 			continue;
 		}
-		(void)fprintf(fp, "%s:%s:%d:%d:%s:%s\n",
+		(void)fprintf(fp, "%s:%s:%d:%d:%s:%s:%s\n",
 		    pw->pw_name, pw->pw_passwd, pw->pw_uid, pw->pw_gid,
 		    pw->pw_gecos, pw->pw_dir, pw->pw_shell);
 		done = 1;

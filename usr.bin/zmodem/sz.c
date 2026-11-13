@@ -1179,7 +1179,7 @@ canit()
 	 24,24,24,24,24,24,24,24,24,24,8,8,8,8,8,8,8,8,8,8,0
 	};
 
-	printf(canistr);
+	fputs(canistr, stdout);
 	fflush(stdout);
 }
 
@@ -1604,7 +1604,7 @@ gotack:
 	if (Test) {
 		if ( --tleft)
 			while (tcount < 20000) {
-				printf(qbf); fflush(stdout);
+				fputs(qbf, stdout); fflush(stdout);
 				tcount += strlen(qbf);
 #ifdef READCHECK
 				while (rdchk(0)) {

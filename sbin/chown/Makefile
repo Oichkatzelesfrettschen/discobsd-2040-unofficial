@@ -4,7 +4,6 @@ TOPSRC!=cd ../..; pwd
 WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS         += -O
 SRCS            = chown.c
 OBJS            = chown.o
 MAN             = chown.0

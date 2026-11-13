@@ -21,7 +21,9 @@
  * arising out of or in connection with the use or performance of
  * this software.
  */
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -263,6 +265,38 @@ int fs_open (fs_t *fs, const char *filename, int writable, unsigned pindex)
     return 1;
 }
 
+/*
+ * Bound a timestamp by SOURCE_DATE_EPOCH. With the variable set to a
+ * decimal count of seconds, no time written to an image is later than it,
+ * so equal inputs give equal images, and a file is never newer than the
+ * table date ranlib writes into an archive from the same variable (ld
+ * reads an archive whose file is newer than its table as unsorted). The
+ * image fits a time in 32 bits, which bounds the accepted value. An
+ * absent or malformed value leaves the observed time.
+ */
+time_t fs_source_time (time_t observed)
+{
+    const char *text = getenv ("SOURCE_DATE_EPOCH");
+    char *end;
+    unsigned long long epoch;
+
+    if (text == NULL || *text < '0' || *text > '9')
+        return observed;
+    errno = 0;
+    epoch = strtoull (text, &end, 10);
+    if (errno != 0 || *end != '\0' || epoch > 0x7fffffffULL)
+        return observed;
+    return observed > (time_t) epoch ? (time_t) epoch : observed;
+}
+
+/*
+ * The time fsutil stamps on what it creates or changes.
+ */
+time_t fs_clock (void)
+{
+    return fs_source_time (time (NULL));
+}
+
 int fs_sync (fs_t *fs, int force)
 {
     int i;
@@ -272,7 +306,7 @@ int fs_sync (fs_t *fs, int force)
     if (! force && ! fs->dirty)
         return 1;
 
-    time (&fs->utime);
+    fs->utime = fs_clock ();
     if (! fs_seek (fs, 0))
         return 0;
 

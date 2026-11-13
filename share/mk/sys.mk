@@ -14,6 +14,8 @@ RELEASE=	${OSREV}
 BUILD!=		git rev-list --count HEAD --
 VERSION=	${RELEASE}-${BUILD}
 
+include ${TOPSRC}/share/mk/source-date.mk
+
 TOOLDIR?=	${TOPSRC}/tools
 TOOLBINDIR?=	${TOOLDIR}/bin/${MACHINE}
 
@@ -91,8 +93,19 @@ DEBUG_PATH_MAP?=	-fdebug-prefix-map=${TOPSRC:Q}=.
 DEBUG_PATH_MAP?=
 .endif
 
+# -ffunction-sections gives each function its own input section, so that
+# -Wl,--gc-sections in LDFLAGS drops the ones a program never reaches, inside
+# a multi-function libc member and in every other library. Data keeps the
+# default sections: sbin/box renames each applet's .bss whole
+# (share/mk/multicall-bss-overlay.mk), and per-object data sections cost
+# more alignment padding than collection recovers.
+# -fno-delete-null-pointer-checks keeps a null test that follows a
+# dereference; the compiler otherwise deletes it as unreachable.
+# The tree's Thumb assembler (usr.bin/as) reads its input twice, so -pipe,
+# which hands it a stream it cannot rewind, stays out of these flags.
 CC=		${C17_CAPTURE_PREFIX}${GCCPREFIX}-gcc ${DEBUG_PATH_MAP} ${WARNERR} \
-		-std=gnu17 -fno-common \
+		-std=gnu17 -fno-common -ffunction-sections \
+		-fno-delete-null-pointer-checks \
 		${MACHINE_ARCH_FLAGS} ${KERNEL_LAYOUT_CFLAGS} \
 		-nostdinc -I${TOPSRC}/include ${INCLUDES}
 
@@ -156,7 +169,7 @@ _SCANF_LLONG!=	if [ x"${MACHINE}" != x"rp2040" -o x"${SCANF_LLONG}" = x"yes" ] ;
 			echo "-Wl,-u,__doscan_ll" ; \
 		fi
 
-LDFLAGS=${LDTEXT} -nostartfiles -fno-dwarf2-cfi-asm \
+LDFLAGS=${LDTEXT} -nostartfiles -fno-dwarf2-cfi-asm -Wl,--gc-sections \
 	${LDWARN} ${_PRINTF_FLOAT} ${_PRINTF_LLONG} ${_SCANF_FLOAT} \
 	${_SCANF_LLONG} \
 	-T${TOPSRC}/lib/elf32-${MACHINE_ARCH}.ld \

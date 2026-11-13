@@ -310,9 +310,22 @@ gch(void)
 	return(c);
 }
 
+/*
+ * name[], left[], right[], parent[], nullstr[] and ptr[] each hold treesize
+ * entries, and mn0, mn1, mn2 and mnp store at index tptr, so the bound is
+ * tested before the first store.
+ */
+static void
+chktree(void)
+{
+	if(tptr >= treesize)
+		error("Parse tree too big %s",(treesize == TREESIZE?"\nTry using %e num":""));
+}
+
 int
 mn2(int a, int d, uintptr c)
 {
+	chktree();
 	name[tptr] = a;
 	left[tptr] = d;
 	right[tptr] = c;
@@ -342,14 +355,13 @@ mn2(int a, int d, uintptr c)
 		break;
 # endif
 		}
-	if(tptr > treesize)
-		error("Parse tree too big %s",(treesize == TREESIZE?"\nTry using %e num":""));
 	return(tptr++);
 }
 
 int
 mnp(int a, void *p)
 {
+	chktree();
 	name[tptr] = a;
 	left[tptr] = 0;
 	parent[tptr] = 0;
@@ -364,14 +376,13 @@ mnp(int a, void *p)
 		error("bad switch mnp %d %P", a, p);
 		break;
 	}
-	if(tptr > treesize)
-		error("Parse tree too big %s",(treesize == TREESIZE?"\nTry using %e num":""));
 	return(tptr++);
 }
 
 int
 mn1(int a, int d)
 {
+	chktree();
 	name[tptr] = a;
 	left[tptr] = d;
 	parent[tptr] = 0;
@@ -399,14 +410,13 @@ mn1(int a, int d)
 		break;
 # endif
 	}
-	if(tptr > treesize)
-		error("Parse tree too big %s",(treesize == TREESIZE?"\nTry using %e num":""));
 	return(tptr++);
 }
 
 int
 mn0(int a)
 {
+	chktree();
 	name[tptr] = a;
 	parent[tptr] = 0;
 	nullstr[tptr] = 0;
@@ -418,8 +428,6 @@ mn0(int a)
 		break;
 # endif
 	}
-	if(tptr > treesize)
-		error("Parse tree too big %s",(treesize == TREESIZE?"\nTry using %e num":""));
 	return(tptr++);
 }
 

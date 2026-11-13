@@ -11,6 +11,7 @@
 TOPSRC!=	pwd
 
 include ${TOPSRC}/share/mk/architecture.mk
+include ${TOPSRC}/share/mk/source-date.mk
 
 DESTDIR?=	${TOPSRC}/distrib/obj/destdir.${MACHINE}
 RELEASEDIR?=	${TOPSRC}/distrib/obj/releasedir.${MACHINE}
@@ -1899,13 +1900,19 @@ multicall-staging:
 # /etc/release names the build the root came from: the commit (with
 # -dirty when the tree had changes), the date, and the builder's host OS,
 # so a board answers "which firmware is this?" with "cat /etc/release".
+# The date is SOURCE_DATE_EPOCH (share/mk/source-date.mk), read by GNU
+# date as -d @seconds and by BSD date as -r seconds, and the build time
+# where the variable is unset.
 # A tree without git history says so rather than failing.
 ${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home \
 		etc-distribution multicall-staging
 		rm -f $@ distrib/$(MACHINE)/_manifest
 		commit=`git -C ${TOPSRC} describe --always --dirty --tags 2>/dev/null || echo unknown`; \
+		stamp=`date -u -d "@$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+		    date -u -r "$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+		    date -u +%Y-%m-%dT%H:%M:%SZ`; \
 		printf 'DiscoBSD/${MACHINE} root built %s from %s on %s\n' \
-		    "`date -u +%Y-%m-%dT%H:%M:%SZ`" "$$commit" "`uname -s`" \
+		    "$$stamp" "$$commit" "`uname -s`" \
 		    > ${DESTDIR}/etc/release
 		cat ${MI_MANIFEST} distrib/$(MACHINE)/md.$(MACHINE) > distrib/$(MACHINE)/_manifest
 		$(FSUTIL) --repartition=${PARTITIONS} $@

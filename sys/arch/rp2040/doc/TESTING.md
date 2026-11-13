@@ -1999,7 +1999,7 @@ would otherwise be told to fetch an SDK the disk already holds.
 It tests for `lib/tinyusb/src/tusb.h` rather than for the directory,
 because a clone whose submodule is not initialized otherwise passes the
 guard and fails inside CMake. tools/pico-sdk/fetch-pico-sdk.sh writes that
-vendor copy, pinned by commit rather than by the 2.3.0 tag, and initializes
+vendor copy, pinned by commit rather than by the 2.3.1 tag, and initializes
 only lib/tinyusb.
 
 The probe sources are tools/flash-id and tools/flash-semantics, or the

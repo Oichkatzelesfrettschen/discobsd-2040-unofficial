@@ -1031,7 +1031,7 @@ canit()
 	 24,24,24,24,24,24,24,24,24,24,8,8,8,8,8,8,8,8,8,8,0
 	};
 
-	printf(canistr);
+	fputs(canistr, stdout);
 	Lleft=0;	/* Do read next time ... */
 	fflush(stdout);
 }

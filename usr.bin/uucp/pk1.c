@@ -60,7 +60,7 @@ int ifn, ofn;
 		pk->p_ipool = bp;
 	}
 	if (i == 0) {
-		DEBUG(1, "pkopen: can't malloc i = 0\n", CNULL);
+		DEBUG(1, "pkopen: can't malloc i = 0\n");
 		return NULL;
 	}
 	pk->p_rwindow = i;
@@ -74,7 +74,7 @@ int ifn, ofn;
 		}
 	}
 	if (i >= NPLINES) {
-		DEBUG(1,"pkopen: i>=NPLINES\n", CNULL);
+		DEBUG(1,"pkopen: i>=NPLINES\n");
 		return NULL;
 	}
 	pkoutput(pk);
@@ -85,7 +85,7 @@ int ifn, ofn;
 			break;
 	}
 	if (i >= PKMAXSTMSG) {
-		DEBUG(1, "pkopen: i>= PKMAXSTMSG\n", CNULL);
+		DEBUG(1, "pkopen: i>= PKMAXSTMSG\n");
 		return NULL;
 	}
 
@@ -144,7 +144,7 @@ register struct pack *pk;
 				if (noise++ < 10 || noise < (3*pk->p_rsize))
 					continue;
 			}
-			DEBUG(4, "Noisy line - set up RXMIT\n", CNULL);
+			DEBUG(4, "Noisy line - set up RXMIT\n");
 			noise = 0;
 		}
 		/* set up retransmit or REJ */
@@ -384,8 +384,8 @@ register int n;
 			if (r > 20000) {
 				tv.tv_sec = r / 1000000L;
 				tv.tv_usec = r % 1000000L;
-				DEBUG(11, "PKCGET stall for %d", tv.tv_sec);
-				DEBUG(11, ".%06d sec\n", tv.tv_usec);
+				DEBUG(11, "PKCGET stall for %ld", tv.tv_sec);
+				DEBUG(11, ".%06ld sec\n", tv.tv_usec);
 				(void) select (0, (fd_set*)0, (fd_set*)0, (fd_set*)0, &tv);
 			}
 		}

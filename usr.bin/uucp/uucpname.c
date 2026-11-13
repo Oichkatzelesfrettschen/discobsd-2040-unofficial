@@ -54,7 +54,7 @@ register char *name;
 
 		s = Myfullname;
 		if(gethostname(Myfullname, sizeof(Myfullname)) == -1) {
-			DEBUG(1, "gethostname", _FAILED);
+			DEBUG(1, "gethostname");
 			s = NULL;
 		}
 	}

@@ -4,7 +4,6 @@ TOPSRC!=cd ../..; pwd
 WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS         += -O
 SRCS            = calendar.c
 OBJS            = calendar.o
 MAN             = calendar.0

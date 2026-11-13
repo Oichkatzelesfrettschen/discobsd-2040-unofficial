@@ -28,26 +28,50 @@
  */
 #include "time.h"
 #include "limits.h"
+#include "offtime.h"
 
 #define SECSPERMIN	60
 #define MINSPERHOUR	60
 #define HOURSPERDAY	24
-#define DAYSPERWEEK	7
 #define SECSPERHOUR	(SECSPERMIN * MINSPERHOUR)
 #define SECSPERDAY	((long)SECSPERHOUR * HOURSPERDAY)
 #define MONSPERYEAR	12
-#define EPOCH_YEAR	1970
-#define EPOCH_WDAY	4			/* 1970-01-01 was a Thursday */
 #define TM_YEAR_BASE	1900
 
-#define isleap(y)	(((y) % 4) == 0 && (((y) % 100) != 0 || ((y) % 400) == 0))
+/*
+ * The range check in timegm() derives its bounds from time_t, and the
+ * derivation reads time_t as a signed type of long's width, which
+ * <time.h> declares and this assertion holds it to.
+ */
+_Static_assert((time_t)-1 < 0 && sizeof(time_t) == sizeof(long),
+    "timegm's range check reads time_t as a signed long");
+#define TIME_MAX	((time_t)LONG_MAX)
+#define TIME_MIN	((time_t)LONG_MIN)
 
-static const int mon_lengths[2][MONSPERYEAR] = {
-	{ 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 },
-	{ 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 }
-};
-
-static const int year_lengths[2] = { 365, 366 };
+/*
+ * The Gregorian calendar repeats every 400 years, which are 146097 days
+ * (an era). Counting years from 1 March puts the leap day last, so the days
+ * before a month are one linear expression of the month, (153 m + 2) / 5
+ * with March as month 0, and a year's leap days are counted by its number
+ * within the era alone.
+ *
+ * Both counts are biased by ERA_BIAS eras before any division, so every
+ * dividend is non-negative and floored division is the unsigned division
+ * the compiler emits. The bias is as large as an unsigned 32-bit day count
+ * allows with the top of the range still reaching the last day a signed
+ * 32-bit count names: 14000 eras are 5,600,000 years and 2,045,358,000
+ * days. EPOCH_DAYS is the count from 1 March of year 0 to 1 January 1970.
+ * The two tm_year bounds are the years whose biased counts stay inside
+ * those 32 bits.
+ */
+#define ERA_YEARS	400UL
+#define ERA_DAYS	146097UL
+#define ERA_BIAS	14000UL
+#define EPOCH_DAYS	719468UL
+#define BIAS_YEARS	(ERA_BIAS * ERA_YEARS + TM_YEAR_BASE)
+#define BIAS_DAYS	(ERA_BIAS * ERA_DAYS + EPOCH_DAYS)
+#define TM_YEAR_MIN	(-5601899L)
+#define TM_YEAR_MAX	5879000L
 
 /*
  * Fold a field that has run past its base into the field above it. The
@@ -83,93 +107,77 @@ normalize(struct tm *tm)
 }
 
 /*
- * The days from the epoch to the first of the given year, which is where
- * the per-year loop would otherwise run for as many iterations as there are
- * years. Counting leap days by their own rule keeps it a constant-time
- * calculation over the whole representable range.
+ * The days from the epoch to the day before the first of the given month,
+ * so that adding tm_mday gives the day the fields name. tm_mon is in range
+ * and tm_year is within the two bounds above.
  */
 static long
-days_before_year(int year)
+days_before_month(long tm_year, int tm_mon)
 {
-	long y = year - 1;
-	long e = EPOCH_YEAR - 1;
+	unsigned long year, year_of_era, month, days;
 
-	return ((y * 365 + y / 4 - y / 100 + y / 400) -
-	    (e * 365 + e / 4 - e / 100 + e / 400));
+	year = (unsigned long)(tm_year + (long)BIAS_YEARS);
+	if (tm_mon < 2) {
+		/* January and February close the year that began in March. */
+		year--;
+		month = (unsigned long)tm_mon + 10;
+	} else
+		month = (unsigned long)tm_mon - 2;
+	year_of_era = year % ERA_YEARS;
+	days = year / ERA_YEARS * ERA_DAYS + year_of_era * 365 +
+	    year_of_era / 4 - year_of_era / 100 + (153 * month + 2) / 5;
+	if (days > BIAS_DAYS)
+		return ((long)(days - BIAS_DAYS) - 1);
+	return (-(long)(BIAS_DAYS - days) - 1);
 }
 
 /*
  * The calendar conversion with no zone: the fields name a UTC time and the
- * answer is the count of seconds from the epoch to it. tm_wday and tm_yday
- * are filled in from the result, as C requires, and tm_isdst is cleared
- * because no zone was consulted.
+ * answer is the count of seconds from the epoch to it. Every field is then
+ * read back from the answer by the conversion gmtime() uses, which settles
+ * a tm_mday outside its month and fills in tm_wday and tm_yday, as C
+ * requires; tm_isdst is zero because no zone was consulted.
+ *
+ * A time outside time_t's range answers (time_t)-1. Each comparison is made
+ * before the operation it guards, against a bound the operation cannot
+ * pass: the day count before tm_mday is added, the whole days before they
+ * are multiplied into seconds, and the seconds before the time of day is
+ * added. A negative day count is taken as the day after it less a day's
+ * seconds, so the product and the sum move the same way and the first
+ * second of time_t's range is reached without passing it.
  */
 time_t
 timegm(struct tm *tm)
 {
-	long days, secs, yday;
-	int i, leap, year;
+	long days, seconds;
+	time_t result;
 
 	normalize(tm);
 
-	year = tm->tm_year + TM_YEAR_BASE;
-	leap = isleap(year);
-
-	/* The day of the year, which tm_mday may still carry past. */
-	yday = 0;
-	for (i = 0; i < tm->tm_mon; i++)
-		yday += mon_lengths[leap][i];
-	yday += tm->tm_mday - 1;
-
-	days = days_before_year(year) + yday;
-
-	/*
-	 * A tm_mday past its month, or below 1, has moved the date into
-	 * another year; recover the year the day count actually names so
-	 * tm_year and tm_yday report it.
-	 */
-	while (yday < 0) {
-		year--;
-		yday += year_lengths[isleap(year)];
-	}
-	while (yday >= year_lengths[isleap(year)]) {
-		yday -= year_lengths[isleap(year)];
-		year++;
-	}
-
-	if (year - TM_YEAR_BASE < INT_MIN || year - TM_YEAR_BASE > INT_MAX)
+	if (tm->tm_year < TM_YEAR_MIN || tm->tm_year > TM_YEAR_MAX)
 		return ((time_t)-1);
-	tm->tm_year = year - TM_YEAR_BASE;
-	tm->tm_yday = (int)yday;
-
-	/* The month and day within the year the day count names. */
-	leap = isleap(year);
-	for (i = 0; yday >= mon_lengths[leap][i]; i++)
-		yday -= mon_lengths[leap][i];
-	tm->tm_mon = i;
-	tm->tm_mday = (int)yday + 1;
-
-	tm->tm_wday = (int)((days + EPOCH_WDAY) % DAYSPERWEEK);
-	if (tm->tm_wday < 0)
-		tm->tm_wday += DAYSPERWEEK;
-	tm->tm_isdst = 0;
-
-	/*
-	 * time_t is a signed 32-bit count here, so the day count alone can
-	 * leave the range before the seconds are added. The bound is checked
-	 * on the days rather than on the product, because the product is
-	 * what would wrap.
-	 */
-	if (days > (long)(INT_MAX / SECSPERDAY) + 1 ||
-	    days < (long)(INT_MIN / SECSPERDAY) - 1)
+	days = days_before_month(tm->tm_year, tm->tm_mon);
+	if (tm->tm_mday > 0 ? days > LONG_MAX - tm->tm_mday :
+	    days < LONG_MIN - tm->tm_mday)
 		return ((time_t)-1);
+	days += tm->tm_mday;
 
-	secs = days * SECSPERDAY;
-	secs += tm->tm_hour * SECSPERHOUR;
-	secs += tm->tm_min * SECSPERMIN;
-	secs += tm->tm_sec;
+	seconds = tm->tm_hour * (long)SECSPERHOUR + tm->tm_min * SECSPERMIN +
+	    tm->tm_sec;
+	if (days < 0) {
+		days++;
+		seconds -= SECSPERDAY;
+	}
+	if (days > TIME_MAX / SECSPERDAY || days < TIME_MIN / SECSPERDAY)
+		return ((time_t)-1);
+	result = (time_t)days * SECSPERDAY;
+	if (seconds < 0 ? result < TIME_MIN - seconds :
+	    result > TIME_MAX - seconds)
+		return ((time_t)-1);
+	result += seconds;
 
-	return ((time_t)secs);
+	__discobsd_offtime(&result, 0L, tm)->tm_zone = "GMT";
+	return (result);
 }
 
 /*

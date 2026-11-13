@@ -243,10 +243,10 @@ void fmttime(char *fmt, struct tm *tm)
 						printf("%d",tm->tm_isdst);
 						break;
 					case 'O':
-						printf("%02d%02d",tm->tm_gmtoff/60,tm->tm_gmtoff%60);
+						printf("%02ld%02ld",tm->tm_gmtoff/60,tm->tm_gmtoff%60);
 						break;
 					case 'P':
-						printf("%02d:%02d",tm->tm_gmtoff/60,tm->tm_gmtoff%60);
+						printf("%02ld:%02ld",tm->tm_gmtoff/60,tm->tm_gmtoff%60);
 						break;
 					case 'T':
 						printf("%s",tm->tm_zone);

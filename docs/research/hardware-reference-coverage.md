@@ -158,7 +158,7 @@ layer. The Pico seated in J301 and J302 is covered above. Paths in
 | J101 | KS18650X2 | two 18650 cells | no listing names the part | absent |
 | J303 | TF-03A | microSD socket, card detect on GP22 | Korean Hroparts drawing, LCSC C693842 | tracked, notes |
 | J401 | 0.5-40PBSX | 40-pin panel FPC, SPI1 | connector drawing | absent |
-| panel | ST7365P controller, 320x320 IPS | display | Sitronix ST7365P V1.0, `picocalc/ST7365P_SPEC_V1.0.pdf`; the panel module's own datasheet (glass, backlight current) | controller tracked, notes; module absent |
+| panel | ST7365P controller, 320x320 IPS | display | Sitronix ST7365P V1.0, `picocalc/ST7365P_SPEC_V1.0.pdf`; the panel module's own datasheet (glass, backlight current); the Tianxianwei TXW392001B0 listing and forum statements, `picocalc/panel-sources.md` | controller tracked, notes, byte-identical to ClockworkPi's GitHub copy (blob `40f0c1f1`); module datasheet absent |
 | J501, SW501 | PJ-327C, JC101GV01 | headphone jack and its contact | HOOYA PJ-327C drawing, LCSC C2939157; JC101GV01 absent | jack tracked, notes |
 | J701 | TYPEC-31-M-12 | USB-C receptacle | Korean Hroparts drawing, LCSC C165948 | tracked, notes |
 | SW102, SW701 | K2-1112SA, EM-02KP | power key on AXP2101 PWRON; USB and BOOT0 routing | Korean Hroparts K2-1112SA-A4DW-01 drawing, LCSC C961745; HRO EM-series DIP switch drawing, LCSC C129078 | tracked, notes |
@@ -230,7 +230,8 @@ reach names the board observation that reaches it.
 | U701, U703 | WAS7227Q | confirmed | all 10 pins agree; OE tied low; SEL low selects D1, matching `docs/picocalc/INDEX.md` | not needed |
 | U501 | NC7WZ16 | pin map confirmed; package undecided | six pins agree | top mark `Z16MG` SC-88, `C7KK` SIP6/UDFN6 |
 | U19 (Pico W) | BCM43439 is the Broadcom name | refuted as documented | no held document prints it; the CYW43438 sheet maps only BCM43438; the SDK loads firmware for the 43439A0 die | not needed |
-| panel | supplier listing TXW392001B0 (3.92 inch, 480x480) | refuted | the ST7365P drives at most 320(RGB) x 480 (specification page 1), so no 480-column module uses it | the module's own label |
+| panel | Tianxianwei TXW392001B0 base model, ST7365P, SPI/MCU interface | supported as the base model, second-hand | a forum post relays the supplier naming the ST7365P for the TXW392001B0 page, and a second calls TXW392001B0 the same base model at a higher resolution; ClockworkPi ships the ST7365P specification, and the vendor drivers program 320x320 | the module's FPC or back label |
+| panel | the listing's 480x480 glass, of which the PicoCalc uses 320x320 | refuted horizontally, open vertically | the ST7365P has 320 RGB source outputs (specification page 1), so 160 of 480 columns would have no driver; the controller has 480 gate lines and the drivers show 320 (VSCRDEF 0/320/160), so the vertical half of the hypothesis survives documents | pixel pitch: a 3.92 inch square is 70.4 mm a side, 0.220 mm per pixel at 320 and 0.147 mm at 480; or fill frame-memory rows 320-479 and watch whether any row lights |
 
 Schematic findings from the same read: U201 drives PICO_EN from PA13 and
 PA_EN from PA14, the SWDIO and SWCLK pins, which RM0008 puts in input

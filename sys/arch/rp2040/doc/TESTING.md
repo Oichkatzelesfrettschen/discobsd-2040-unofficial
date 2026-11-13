@@ -1086,7 +1086,14 @@ The fixtures start without a kernel or `include/machine`.
 `check-config-makefile` retains its separate role: `mkmakefile_test.sh` uses
 the real generator with a synthetic board and generic swap configuration to
 check physical CFILES line width. Production synchronization preserves each
-board's actual Config instead of adapting that fixture.
+board's actual Config instead of adapting that fixture. `dumps_test.sh`
+runs the generator on the PICO Config: `dumps on none` writes
+`dumpdev = NODEV`, which every RP2040 Config names because the only swap
+device is the live flash swap, a Config without a dumps line takes the
+swap device, an explicit device is kept, and `dumps on none` beside a
+generic swap is refused with exit status 3. The generator counts every
+error and exits 3 after a parse that reported one; before that rule it
+printed the generic-swap error and exited 0, and the test failed on it.
 
 `check-config-include-order` extracts the actual `SYSTEM_DEP` assignment and
 include-link recipes from the template and both production Makefiles. The

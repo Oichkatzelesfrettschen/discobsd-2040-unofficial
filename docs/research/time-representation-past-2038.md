@@ -1,4 +1,4 @@
-Source reading at `aec36799`, `arm-none-eabi-gcc` 16.2.0 object sizes, host runs of `tests/libc_contracts/mktime_contract_test.c`, and three world builds at `61f6cf6d` that differ in the type of `time_t`; no qemu-user, Renode or board run.
+Source reading at `aec36799`, `arm-none-eabi-gcc` 16.2.0 object sizes, host runs of `tests/libc_contracts/mktime_contract_test.c`, and three clean distribution builds that differ in the type of `time_t`, each through the packed root image; no qemu-user, Renode or board run.
 
 # Time representation past 2038: verified claims, measurements and plan
 
@@ -32,8 +32,8 @@ that decision does and does not change.
 | --- | --- | --- |
 | `time_t` is a four-byte signed `long`; `struct timeval.tv_sec` is `long` | `include/time.h`, `sys/sys/types.h`, `sys/sys/time.h` | holds |
 | `struct dinode` is 64 bytes with four unused bytes in `di_reserved[1]` | `sys/sys/inode.h`; `_Static_assert` in `sys/kern/ufs_v7.c` | holds |
-| `struct fs` is 512 bytes and a 64-bit `fs_time` makes it 516 | `DEV_BSIZE` is 1024 (`sys/arch/rp2040/include/machparam.h`); the fields of `struct fs` sum to 1024 | refuted: the superblock is 1024 bytes and fills its block exactly; a 64-bit `fs_time` at offset 968 makes it 1028 |
-| A 64-bit timestamp makes `struct dinode` 76 bytes and breaks `INOPB` | three fields grow by four bytes each; 1024 is not a multiple of 76 | holds |
+| `struct fs` is 512 bytes and a 64-bit `fs_time` makes it 516 | `DEV_BSIZE` is 1024 (`sys/arch/rp2040/include/machparam.h`); the fields of `struct fs` sum to 1024 | refuted: the superblock is 1024 bytes and fills its block exactly; a 64-bit `fs_time` at offset 968 makes it 1032, measured with the target compiler |
+| A 64-bit timestamp makes `struct dinode` 76 bytes and breaks `INOPB` | the target compiler gives 80: three fields grow by four bytes each and the 64-bit members align the struct to eight | holds with the size corrected; 1024 is not a multiple of 80 |
 | PICO kernel text is 98,390 bytes | `arm-none-eabi-size` of the local `unix.elf`: text 101,390, data 272, bss 43,136 | stale by 3,000 bytes |
 | The kernel links no 64-bit division | `unix.map` defines `__aeabi_uidiv`, `__aeabi_idiv` and their `mod` forms; `__aeabi_ldiv0` is the divide-by-zero stub | holds |
 | `ctime.o` is 578 bytes of text and 124 of bss; `mktime.o` is 848 | measured | holds |
@@ -106,7 +106,7 @@ range and reads the fields back only for an accepted time. The contract
 test gains the eight boundary instants, both extreme `tm_mday` values, both
 extreme `tm_year` values, and every whole day of the range against a
 calendar that counts day by day. The parent source fails 18 of the 157,838
-checks at either width; the repaired source passes all of them.
+checks natively and as ILP32; the repaired source passes all of them.
 
 ## What survives
 
@@ -115,10 +115,15 @@ Three statements of the proposal survive, each in a narrower form.
 1. The on-disk format needs no new bytes. Reading the three inode
    timestamps and `fs_time` as unsigned moves the last representable second
    from 2038-01-19 to 2106-02-07 with the 64-byte inode and the 1024-byte
-   superblock unchanged, and every image written so far stays valid because
-   no timestamp before 1970 exists on a board whose clock starts at its
-   image's build time. `di_reserved[1]` remains free for two high bits per
-   timestamp (the scheme ext4 uses) if 2106 is ever too near.
+   superblock unchanged. A timestamp before 1970 changes meaning under that
+   reading: `touch -t 196912312359.59` stores -1 today, which an unsigned
+   reading shows as 2106-02-07T06:28:15Z. The build images hold no such
+   timestamp, since the clock starts at the image's build time, and a file
+   system written on a board may hold one only where a user set it. The
+   change therefore states the rule (a stored value at or above 2^31 is a
+   time after 2038) and `fsck` reports inodes it affects.
+   `di_reserved[1]` remains free for two high bits per timestamp (the
+   scheme ext4 uses) if 2106 is ever too near.
 2. The kernel needs no 64-bit clock. `hardclock()` increments a 32-bit
    second count; read as unsigned it serves until 2106. A carry word in the
    style of FreeRTOS's overflow counter is one compare in the tick path and
@@ -140,7 +145,7 @@ costs on both sides, and the tree does not choose between them.
 | | Unsigned 32-bit `time_t` | 64-bit `time_t`, 32-bit unsigned kernel and disk |
 | --- | --- | --- |
 | Last second | 2106-02-07 | 2106 in the kernel until a carry word lands; no interface limit |
-| Shipped `full` profile, measured below | 28 bytes more, no block | 9,072 bytes more, 10 blocks of the 270 free, before the seven-bit split |
+| Shipped `full` image, measured below | no block | 7 of 217 free blocks, before the seven-bit split |
 | Interface break | none in size; signedness changes | every time-carrying system call and every program, once |
 | Times before 1970 | unrepresentable | representable in programs; clamped on disk |
 | POSIX.1-2024 `time_t` (`<sys/types.h>`: an integer type at least 64 bits wide, set by Austin Group defect 1462) | fails | meets |
@@ -148,53 +153,68 @@ costs on both sides, and the tree does not choose between them.
 
 ## Measured cost of each interface width
 
-Three trees at `61f6cf6d` were built with `bmake MACHINE=rp2040 build`: the
-tree as it stands, one with `time_t` as `unsigned long`, and one with
-`time_t` as `long long` for programs while the kernel and the on-disk
-structures keep `long`. Sizes are the staged files a profile's manifest
-installs (`mkmanifest.py --profile`, `file` and `pack` entries), before the
-packer runs.
+Three trees were built from clean worktrees with
+`bmake MACHINE=rp2040 distribution`, which builds the world, packs the
+`full` profile and writes the root image: `61f6cf6d` as it stands; `0db61ca4`
+(`archive/measure-time-width-u32`), where `time_t` is `unsigned long`
+everywhere, the kernel included; and `9c623881`
+(`archive/measure-time-width-i64`), where programs see `time_t` as
+`long long` while the kernel, the inode timestamps and `fs_time` keep
+`long`. Both variants carry the source and Makefile changes listed below.
+Free blocks are `fsutil`'s report on the 988-block root partition of each
+image.
 
-| Profile | Staged bytes | Unsigned 32-bit | 64-bit interface |
-| --- | --- | --- | --- |
-| `full` (37 staged entries) | 871,062 | +28, no block | +9,072, 10 blocks |
-| `base` (29 staged entries) | 572,700 | -12, no block | +8,916, 10 blocks |
+| Tree | Free blocks | PICO kernel text |
+| --- | --- | --- |
+| `61f6cf6d` | 217 | 102,094 |
+| unsigned 32-bit | 217 | 102,094 |
+| 64-bit interface | 210 | 102,094 |
 
-Under the 64-bit interface twelve programs carry nearly all of the growth,
-between 636 and 944 bytes each: `adminbox`, `init`, `tar`, `sysbox`, `box`,
-`find`, `utilbox`, `getty`, `login`, `ps`, `fsck` and `su`. Each links the
-calendar conversion, whose division of a 64-bit count by 86,400 brings in
-the compiler's 64-bit division routines. The seven-bit split above replaces
-those routines with 136 bytes; how much of the growth it removes per
-program is an inference from the object sizes (about 280 bytes) until a
-build measures it. The PICO kernel is 102,094 bytes of text in all three
-builds, because neither variant changes a kernel type.
+The 64-bit interface costs 7 packed blocks. With the wide type the target
+compiler gives `struct stat` 72 bytes (56 today) and `struct timeval` 16
+(8 today), since a 64-bit member aligns its struct to eight. Across all 1,677 staged files,
+most of which no profile ships, it changes 158 files and adds 44,434 bytes;
+the unsigned variant removes 89. The largest growth sits in programs that
+link the calendar conversion, between 636 and 956 bytes each before
+packing (`uucico`, `adminbox`, `init`, `tar`, `sysbox`, `box`, `find`,
+`utilbox`, `getty`, `login`, `ps`, `fsck`, `su`): the conversion divides a
+64-bit count by 86,400 and so brings in the compiler's 64-bit division
+routines. The seven-bit split above replaces those routines with 136
+bytes; how much of the growth it removes per program is an inference from
+the object sizes (about 280 bytes) until a build measures it.
 
-What the builds had to be given, which is the work a real change owes:
+The kernel text is equal in all three. In the 64-bit variant no kernel type
+changes. In the unsigned variant the kernel's `time_t` changes signedness,
+`(time_t)-1` becomes 4,294,967,295 there, and the generated code happens to
+have the same size; `struct timeval.tv_sec` stayed `long` in that variant.
+
+What the variants changed to build, which is the work a real change owes:
 
 - Unsigned: `time()` in libc returns `long` and must return `time_t`;
   `bin/tar/tar.c` tests `st_mtime < 0`. With `struct timeval.tv_sec` also
   unsigned the kernel stops at `kern_time.c` (the interval-timer bounds and
-  `itimerfix()`) and at `clock_catchup_apply()`'s `long *`; the measured
-  variant left `tv_sec` as `long`.
-- 64-bit: the same `time()` return type; `utmp.ut_time` is `long` and
-  three callers pass its address to `time()`; thirteen more call sites pass
-  a `long *` to `time()` and were compiled as they stand, which a real
-  change converts, so the figure understates by those sites; `adminbox`
-  grows from 29,120 to 30,064 bytes and passes its 25-block packed limit,
-  which was raised for the measurement.
+  `itimerfix()`) and at `clock_catchup_apply()`'s `long *`.
+- 64-bit: the same `time()` return type; `utmp.ut_time` is `long`;
+  callers that pass a `long *` or the address of a 32-bit record field to
+  `time()`, `ctime()`, `gmtime()` and `localtime()` were compiled as they
+  stand with the diagnostic downgraded, so those programs are wrong at run
+  time and the figure understates by their conversion; `adminbox` grows
+  from 29,120 to 30,064 bytes and passes its 25-block packed limit, which
+  the variant raises.
 - Both: twelve program Makefiles carry their own `-Werror`, removed in the
   variants; the tree's warning flags stayed on without it.
 
-Limits of the measurement: packed sizes and the image's free-block count
-were not produced; the 64-bit variant's kernel does not convert at the
-system call boundary, so it cannot run and its kernel cost is unmeasured;
-no variant was executed. The variant patches are the local branches
-`measure/time-width-u32` and `measure/time-width-i64`.
+Limits of the measurement: the 64-bit variant converts nothing at the
+system call boundary, so its image cannot run and the kernel cost of the
+conversion is unmeasured; no variant was executed; one profile and one
+kernel configuration were measured.
 
 ## Plan
 
-Each step is one pull request. The first two hold at either width.
+Each step is one pull request. The first two are owed whichever width is
+chosen; neither makes the code width-independent. `mktime.c` asserts that
+`time_t` is a signed `long` and derives its range and day arithmetic from
+that, so the step that changes the type adapts it.
 
 1. `timegm()` range repair and the shared calendar (this change).
 2. Width assertions where a time meets a fixed layout: `struct dinode`,
@@ -226,8 +246,13 @@ at stop point P3.0 on the sparse image (P8b) and the board baseline
   earlier `localtime()` returned; C permits that only of the functions that
   return such a pointer. The shared conversion now takes a caller-supplied
   struct, which is the piece a repair needs.
-- The 64-bit interface's cost is measured for staged files with the
-  compiler's own 64-bit division; with the seven-bit split, with every
-  call site converted, and after packing it is unmeasured.
+- The 64-bit interface's cost is measured with the compiler's own 64-bit
+  division; with the seven-bit split and with every call site converted
+  it is unmeasured.
+- `timegm()`'s field carrying runs before its range checks, and
+  `carry()` adds the quotient to the next field unchecked: `tm_year` of
+  `INT_MAX` with `tm_mon` of 12 overflows an `int`. The range repair
+  guards the day and second arithmetic and leaves that addition as it
+  was.
 - No target execution: qemu-user, Renode and the board did not run the
   repaired `timegm()`.

@@ -198,6 +198,11 @@ What the design owes before it is adopted:
   (`struct itimerval`); `getrusage` and `wait4` (`struct rusage`); and
   `pselect` (`struct timespec`). A call left on the narrow entry receives
   a wide caller's layout.
+- `sysctl()` carries a time as payload: `KERN_BOOTTIME` copies out the
+  kernel's `struct timeval` (`sys/kern/kern_sysctl.c`). The call's
+  signature holds no time type, so a redirect by name cannot select a
+  width; a wide caller reads the narrow payload through a private narrow
+  structure or a libc helper that widens it.
 - `lastlog.ll_time` is a `time_t` (`include/lastlog.h`) and `utmp.ut_time`
   a `long`; both are disk records and take explicit 32-bit fields before
   the type changes.

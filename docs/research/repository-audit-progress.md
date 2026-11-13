@@ -140,6 +140,29 @@ the QEMU, host-package, board-build, cross-kernel and assembler checks that
 the failed aggregate had not completed. Final aggregate and ILP32 validation
 remain open until the clean candidate receives their terminal passing receipts.
 
+The aggregate on `56f662fa50054da7a0071a07f67019c33286ad76` completes
+both build and check stages with exit zero. Its invocation
+`rp2040-check-local-20261113T025324Z-2891325-dd0222b1` takes 1,041.851
+seconds overall, including 1,008.2 seconds in the check stage. The passing
+run preserves the original puzzle timeout and includes the corrected footprint
+and detached-query gates.
+
+Merge `d8f96ce5698831b6f2a17b8ab03c9acde630038c` incorporates main
+`88abf7151e25b4fc1c01682587561f7c9197f7bc`; its tree is
+`f90fa23411be17dbf5d94fac59070a58ba769c8d`. The incoming termination and
+context-sort changes alter libc, public declarations and execution inventories.
+The workflow comment resolution retains both the storage coverage gate and
+the libc execution classes. A locked world clean precedes logged build
+`rp2040-build-local-20261113T031154Z-3746428-35858314`, which passes in
+59.769 seconds with `MACHINE=rp2040` and the exported host Python interpreter.
+
+Invocation `storage-libc-focused-20261113T031306Z-3880074-5ad48c66` passes
+in 22.912 seconds. Its targets cover exit lifecycle, quick exit and context
+sorting on host and cross configurations, C17 headers on host and cross,
+a.out linkage, the source denominator, execution inventory and retained
+coverage ledger. These checks establish the affected interface contracts;
+final aggregate and ILP32 receipts remain required for the combined candidate.
+
 Only one item carries active implementation focus. Product jobs use the
 worktree's logged execution lock. Physical-board access, raw-device writes,
 power interruption, production keys, and provider execution remain outside

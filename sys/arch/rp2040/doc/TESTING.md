@@ -1528,7 +1528,10 @@ interface. The ILP32 fixture exercises mixed integer, pointer, and long
 arguments, field widths, output routing, and panic formatting at the target's
 integer and pointer widths. A second executable enables the log buffer and
 checks console replay, log-reader suppression and priority formatting. A
-mutant that drops console replay must fail the same fixture.
+mutant that drops console replay must fail the same fixture. `tprintf()`
+with no terminal must write to the terminal `cntty()` names and, with none,
+to no terminal; the routine that fell back to the redirector's idle
+`cnttys` slot fails 2 of 47 checks.
 
 The binary this builds is ordinary 32-bit userspace. It is not a container,
 a virtual machine or a second operating system, and it needs none: what the

@@ -94,12 +94,22 @@ cnputc(char c)
 }
 
 /* The terminal path, which uprintf and tprintf reach instead. */
+static struct tty *terminal_tp;	/* the terminal ttyoutput() last wrote */
+static struct tty *console_tty;	/* what cntty() answers */
+
 int
 ttyoutput(int c, struct tty *tp)
 {
-	(void)tp;
+	terminal_tp = tp;
 	capture(terminal, &terminal_len, c);
 	return 0;
+}
+
+/* The terminal the console redirector forwards to (sys/dev/cons.c). */
+struct tty *
+cntty(void)
+{
+	return (console_tty);
 }
 
 void
@@ -136,6 +146,8 @@ reset(void)
 {
 	bzero((caddr_t)&u, sizeof u);
 	bzero((caddr_t)cnttys, sizeof cnttys);
+	terminal_tp = NULL;
+	console_tty = NULL;
 	console[0] = '\0';
 	console_len = 0;
 	terminal[0] = '\0';
@@ -324,6 +336,27 @@ output_routing(void)
 	tprintf(&cnttys[0], "%u %s", 23U, "message");
 	HK_CHECK(hk_streq(terminal, "23 message"));
 	HK_CHECK(console_len == 0);
+
+	/*
+	 * With no terminal named, tprintf writes to the one the console
+	 * forwards to, never to the redirector's idle cnttys slot; with no
+	 * such terminal the message reaches no terminal at all.
+	 */
+	{
+		static struct tty live;
+
+		reset();
+		bzero((caddr_t)&live, sizeof live);
+		live.t_state = TS_CARR_ON | TS_ISOPEN;
+		console_tty = &live;
+		tprintf(NULL, "%s", "to the console");
+		HK_CHECK(hk_streq(terminal, "to the console"));
+		HK_CHECK(terminal_tp == &live);
+
+		reset();
+		tprintf(NULL, "%s", "nowhere");
+		HK_CHECK(terminal_len == 0 && terminal_tp == NULL);
+	}
 
 	reset();
 	log(LOG_INFO, "%d %s", 7, "event");

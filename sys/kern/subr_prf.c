@@ -526,9 +526,14 @@ tprintf (register struct tty *tp, char *fmt, ...)
     va_list arguments;
 
     logpri (LOG_INFO);
+    /*
+     * "The console" is the terminal the console redirector forwards to
+     * (cntty(), sys/dev/cons.c); cnttys is the redirector's own idle
+     * slot. Without such a terminal the message goes to the log alone.
+     */
     if (tp == (struct tty*) NULL)
-        tp = &cnttys[0];
-    if (ttycheckoutq (tp, 0) == 0)
+        tp = cntty();
+    if (tp == (struct tty*) NULL || ttycheckoutq (tp, 0) == 0)
         flags = TOLOG;
     va_start (arguments, fmt);
     prf (fmt, arguments, flags, tp);

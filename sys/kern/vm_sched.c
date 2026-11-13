@@ -225,7 +225,7 @@ vmmeter()
     }
 #endif
 
-    if (time.tv_sec % 5 == 0) {
+    if (wall_every(time.tv_sec, 5)) {
         vmtotal();
 #ifdef UCB_METER
         rate.v_swpin = cnt.v_swpin;

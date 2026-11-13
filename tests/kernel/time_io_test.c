@@ -177,12 +177,26 @@ static void clock_cases(void)
         }
         HK_CHECK(hk_ipl == 0);
     }
+    /*
+     * The clock is an unsigned 32-bit count: a step may land anywhere in
+     * 0..4294967295 and no further.
+     */
     time.tv_sec = 2147483647L; lbolt = 0; adjdelta = 9;
     delta.tv_sec = 2147483647L; delta.tv_usec = 0;
     args->delta = &delta; args->old = 0; u.u_error = 0;
     adjtime();
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK((unsigned long)time.tv_sec == 4294967294UL && adjdelta == 0);
+    adjdelta = 9;
+    delta.tv_sec = 400; u.u_error = 0;
+    adjtime();
     HK_CHECK(u.u_error == EINVAL);
-    HK_CHECK(time.tv_sec == 2147483647L && adjdelta == 9);
+    HK_CHECK((unsigned long)time.tv_sec == 4294967294UL && adjdelta == 9);
+    time.tv_sec = 100; lbolt = 0;
+    delta.tv_sec = -400; u.u_error = 0;
+    adjtime();
+    HK_CHECK(u.u_error == EINVAL);
+    HK_CHECK(time.tv_sec == 100 && adjdelta == 9);
     HK_CHECK(hk_ipl == 0);
 
     /*
@@ -229,7 +243,7 @@ static void clock_cases(void)
                 part += hz;
                 whole--;
             }
-            if (whole < LONG_MIN || whole > LONG_MAX) {
+            if (whole < 0 || whole > 0xffffffffLL) {
                 HK_CHECK(u.u_error == EINVAL && adjdelta == 7);
                 HK_CHECK(time.tv_sec == 100000);
                 continue;

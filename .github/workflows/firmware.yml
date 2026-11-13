@@ -96,8 +96,9 @@ jobs:
       # test programs link (check-qemu: libcalc, libbn, calc, dc), which
       # gcc-arm-none-eabi does not depend on, and capstone and pyelftools
       # for the divider verifier (check-cross). ruff comes through pipx: Ubuntu 24.04
-      # packages no ruff and pip refuses the system interpreter. The 32-bit
-      # shell conformance run is the posix-sh job below.
+      # packages no ruff and pip refuses the system interpreter. gcc-multilib
+      # gives check-storage-correctness the -m32 build its wall clock cases
+      # need. The 32-bit shell conformance run is the posix-sh job below.
       - name: Install the host toolchain
         run: |
           sudo apt-get update
@@ -107,7 +108,7 @@ jobs:
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
             python3 libusb-1.0-0-dev \
             shellcheck pipx qemu-user python3-capstone python3-pyelftools \
-            python3-unicorn
+            python3-unicorn gcc-multilib
           pipx install ruff
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"

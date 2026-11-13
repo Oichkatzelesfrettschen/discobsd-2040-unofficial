@@ -122,6 +122,24 @@ load of 22.01 with 12 online CPUs. Scheduling pressure remains a hypothesis;
 the passing reproduction does not replace the failed aggregate. The aggregate
 requires a complete passing rerun, with its timeout and acceptance unchanged.
 
+The parallel aggregate on `1e1628ff` passes the complete puzzle gate,
+including all four rule baselines and its logic and terminal mutation controls.
+It reaches `check-cache-footprint`, which rejects the mount array because its
+expected sizes omit the four-byte device-operation guard. Commit `b60a2aa9`
+binds the single-record array to 1,040 bytes and the two-record array to
+2,448 bytes, with historical cache savings retained separately. The focused
+footprint gate passes all four kernels and both wrong-layout rejection controls.
+
+The parallel run also exposes closed jobserver descriptors in detached make
+queries. Commit `bb8bc182` removes inherited `MAKEFLAGS` and `MFLAGS` from
+the kernel-metadata and MSDOS queries. Their focused parallel gates pass
+without invalid-jobserver warnings; ShellCheck, Ruff and changed-text checks
+pass. The incomplete MSDOS mutation trees retain their preexisting missing-Git
+and missing-patch diagnostics. On `bb8bc182`, separate logged runs also pass
+the QEMU, host-package, board-build, cross-kernel and assembler checks that
+the failed aggregate had not completed. Final aggregate and ILP32 validation
+remain open until the clean candidate receives their terminal passing receipts.
+
 Only one item carries active implementation focus. Product jobs use the
 worktree's logged execution lock. Physical-board access, raw-device writes,
 power interruption, production keys, and provider execution remain outside

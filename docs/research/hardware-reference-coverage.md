@@ -157,9 +157,10 @@ layer. The Pico seated in J301 and J302 is covered above. Paths in
 | FB101 | BLM18PG121SH1 | DCDC1 to MCU_3V3 | Murata reference specification JENF243A_9101X-01 | tracked, notes |
 | J101 | KS18650X2 | two 18650 cells | JBT Componentes battery-holder catalog, printed page P-08: KS18650x2-DIY, -SMT and -THM, each for two 18650 cells, 77 x 40 x 15 mm, `picocalc/parts/jbt_suportes_de_bateria_catalog_ks18650x2_p08.pdf`; the mounting variant is read from the board (pads or through-hole pins) | tracked, notes |
 | J303 | TF-03A | microSD socket, card detect on GP22 | Korean Hroparts drawing, LCSC C693842 | tracked, notes |
-| J401 | 0.5-40PBSX | 40-pin panel FPC, SPI1 | connector drawing | absent |
+| J401 | 0.5-40PBSX | 40-pin 0.5 mm panel FPC, SPI1 | no listing at LCSC, szlcsc or GitHub; the same label sits at J302 on ClockworkPi's uConsole mainboard V3.14, so it reads as ClockworkPi's BOM code; the 0.5-40P-plus-suffix naming matches BOOMELE's FPC series (C11080 0.5-40P, C9160 0.5-40PFGPZ), which leaves the maker inferred, not established | absent; the contact side and lock style are read from the board |
 | panel | ST7365P controller, 320x320 IPS | display | Sitronix ST7365P V1.0, `picocalc/ST7365P_SPEC_V1.0.pdf`; the panel module's own datasheet (glass, backlight current); the Tianxianwei TXW392001B0 listing and forum statements, `picocalc/panel-sources.md` | controller tracked, notes, byte-identical to ClockworkPi's GitHub copy (blob `40f0c1f1`); module datasheet absent |
-| J501, SW501 | PJ-327C, JC101GV01 | headphone jack and its contact | HOOYA PJ-327C drawing, LCSC C2939157; JC101GV01 absent | jack tracked, notes |
+| J501 | PJ-327C | 3.5 mm headphone jack, detect contact on HP_DET | HOOYA PJ-327C drawing, LCSC C2939157 | tracked, notes |
+| SW501 | JC101GV01 | dual-gang potentiometer: two tracks with wipers, the schematic's PCM_AUDIO_L/R taps between R505/R506 (1.8 kOhm) and the amplifiers; the assembly guide's interfaces page (page 20) calls it the "Volume knob" on the left edge, a thumbwheel | no listing at LCSC, szlcsc or GitHub, and no resistance or taper printed | absent; the marking and the end-to-end resistance are read from the board |
 | J701 | TYPEC-31-M-12 | USB-C receptacle | Korean Hroparts drawing, LCSC C165948 | tracked, notes |
 | SW102, SW701 | K2-1112SA, EM-02KP | power key on AXP2101 PWRON; USB and BOOT0 routing | Korean Hroparts K2-1112SA-A4DW-01 drawing, LCSC C961745; HRO EM-series DIP switch drawing, LCSC C129078 | tracked, notes |
 
@@ -263,6 +264,7 @@ repository keeps the vendor's name until then.
 - Read the top marks of U102, U201, U401, U501, U502, U601 and U702, the
   R701 and R702 sites, and U201's CPUID (0xE000ED00) and flash-size word
   (0x1FFFF7E0) over SWD on the owner's board.
-- The panel module datasheet, the 0.5-40PBSX and JC101GV01 drawings and
-  the TP-1221U-K9K5325 switch have no source that served them; the notes repository's
+- The panel module datasheet, the 0.5-40PBSX connector, the JC101GV01
+  volume potentiometer and the TP-1221U-K9K5325 switch have no source
+  that served them; the notes repository's
   `docs/NOT-FETCHED.tsv` records each search.

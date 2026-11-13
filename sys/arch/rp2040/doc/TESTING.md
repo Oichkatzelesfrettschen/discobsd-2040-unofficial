@@ -766,25 +766,33 @@ bmake MACHINE=rp2040 check-kernel check-config-makefile
 Each gate compiles the tree's own source for the host, with `-Wall
 -Wextra -Werror`, around a model of what the board supplies.
 
-### Pull-request selection and the nightly run
+### The pull-request set and the nightly run
 
-A pull request runs every host gate except the heavy suites its changes
-cannot reach. `tools/select-host-gates.sh` reads the pull request's changed
-paths and prints the suites to skip, and the workflow passes them to
-`check-host` as `HOST_GATE_SKIP`. The six suites -- `check-fourfall-host`,
-`check-puzzlebox-host`, `check-ridge-host`, `check-calc-host`,
-`check-libcalc` and `check-dcbc` -- each read only their own directories and
-the inputs the script names for them. A change to the build rules, `lib/libc`,
-`include`, `sys`, `.github`, `games/mutlib.py` or the script itself runs
-every suite, and so does a range git cannot read. The macOS job runs on pushes
-to `main` and on the nightly schedule, which also runs every suite on the
-Linux runner after a full clean build. A newer push to a pull request cancels
-that pull request's running jobs.
+A pull request and a push to `main` run one job, `rp2040 kernel, flash image
+and gates`, with a fixed short set: the warning-free build of the kernels and
+the userland, `check-kernel-headroom` and `check-dump-writer-link`, the flash
+image, `check-uf2-images`, `check-lint`, `check-changed-comments`,
+`check-changed-text` and `check-renode`, which boots the PICO_UART kernel on
+the flash image, logs in and runs its probes. Branch protection on `main` requires that job. The
+set is the same for every change, so it has no selection step; a newer push
+to a pull request or to `main` cancels the run in progress there.
 
-Measured on the GitHub ubuntu-24.04 runner (4 cores), each gate alone, the
-host gates total 2,110 s wall and 1,497 s CPU; the six selectable suites take
-1,324 s wall and 777 s CPU of that, and 90 of the 120 gates finish in under
-5 s each.
+The nightly schedule and a manual dispatch check out `main` and run every
+tier of that job (host, cross, qemu, board-build, the other Renode tiers,
+`check-clean-residue`) and every other job: the STM32 build, the required
+ILP32 execution, the macOS build and `check-flash-id`. A scheduled run that
+fails reports through `tools/report-nightly-failure.sh`: it opens the issue
+"Nightly gates failed", or adds a comment to the open one, with the failed
+jobs and steps and the merges since the last scheduled run that passed, and
+a later passing run closes the issue. A defect in a tier outside the short
+set therefore reaches `main` and is found within a day; the gates that read
+a changed file are run locally before the merge
+(`bmake MACHINE=rp2040 <gate>` after `logged-build`).
+
+Measured on the GitHub ubuntu-24.04 runner (4 cores) before the short set,
+the whole job took 33 minutes on average over two days of runs and 44 on
+the slowest: the host tier 769 s, the six Renode tiers 1,106 s, the cross
+tier 325 s, the qemu tier 99 s and the build 98 s.
 
 | gate | proves |
 | --- | --- |
@@ -792,7 +800,7 @@ host gates total 2,110 s wall and 1,497 s CPU; the six selectable suites take
 | `check-uf2-validator` | `tools/check_rp2040_uf2.py --self-test` accepts a valid two-block RP2040 UF2 image and rejects one mutation each of the start magic, end magic, family flag, family ID, payload size, block number, block total and address. `check-uf2-images` applies the same parser to each `sys/arch/rp2040/compile/<config>/unix.uf2` that `MACHINE_KERNEL_CONFIGS` names (PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM), each of which must be contiguous inside `[0x10000000, 0x10020000)`, and `distrib/rp2040/flash.uf2`, which must cover `[0x10020000, 0x101a0000)` exactly; it prints each image's blocks, interval and SHA-256. Both establish container structure, not the bytes the boot ROM programs or executes. |
 | `check-kernel-headroom-validator`, `check-kernel-headroom` | `tools/check_kernel_headroom.py --self-test` parses the `FLASH` entry of the MEMORY block (`128K - 256` is 130,816 bytes), computes the image end as the highest `PT_LOAD` load address plus file size inside the region, and accepts and rejects synthetic ELF images at headroom equal to the margin and one byte below it, at exact fill, at overflow, with a RAM segment and a below-origin `.boot2` segment that must not count, with segments in any order, and for a missing region, a duplicate region, an unsupported expression, a bad magic, an ELF64 file, a big-endian file, a non-ARM file, an absent or truncated program header table and an image with no flash segment. `check-kernel-headroom` then measures the `unix.elf` of PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM, fails any kernel whose headroom is below the margin (1,024 bytes by default, `KERNEL_HEADROOM_MARGIN` overrides it) and runs a control: a margin of 1,000,000 bytes against the PICO kernel must exit 1. The margin is 1.7 times the 592-byte difference that GCC 13.2 and GCC 16.2 produce for the `-Os` PICOCALC_PSRAM kernel with `/dev/lcdgfx`. `ld` bounds `.text` and `.data` by `FLASH` but not the `.ramfunc` initializers, whose `AT()` expression in `kern.ldscript` names no region, so a kernel can link with that load image past the region end; the measured span includes it. The gate establishes the room left under the toolchain of the job that runs it, in the Linux and macOS jobs of `firmware.yml` directly after the kernel build. Calibration on linked kernels: the GCC 13.2 `-O` PICOCALC_PSRAM kernel built with `/dev/lcdgfx` (headroom -168 bytes, accepted by `ld`) exits 1, and the same sources at `-Os` (16,948 bytes) exit 0. It measures bytes and executes nothing. |
 | `check-dump-writer-link` | `tools/check_dump_writer_link.py` reads the symbol table of each kernel's `unix.elf` and requires PICOCALC and PICOCALC_PSRAM to define all three crash-dump writer symbols (`sddump` in `dev/sd.c`, `dump_write` in `rp2040/dump.c`, `dumpsys` in `rp2040/machdep.c`) and PICO and PICO_UART to define none, the zero-cost rule of `sys/arch/rp2040/include/dump.h`; a control with the roles swapped (PICO required to link the writer, PICOCALC to lack it) must exit 1. It runs in the kernel headroom step of the Linux and macOS jobs. It reads symbols and executes nothing. |
-| `check-host-gate-selection` | `tools/select_host_gates_test.sh` feeds changed paths to `tools/select-host-gates.sh` and compares the skip list: a change inside one suite's inputs runs that suite only, a shared header runs each suite that includes it, a sibling directory name such as `games/fourfallx` matches no suite, and a change to the build rules, libc, headers, kernel, CI, the shared mutant library or the script prints an empty list so every gate runs. A range git cannot read also prints an empty list. A matcher that treats a directory prefix as a non-match fails 11 of the cases. The gate runs the script on fixed inputs; whether a suite's real inputs match its listed prefixes rests on the suite's Makefile and tests. |
+| `check-nightly-report` | `tools/report_nightly_failure_test.sh` feeds job documents in the GitHub REST shape to `tools/report-nightly-failure.sh --failed` and compares the printed list: a passing run and a skipped job print nothing, and a failed, timed-out or cancelled job prints its name and its steps with that conclusion, across two pages of jobs. A filter that counts only `failure` fails two of the cases. The gate reads fixed documents with `jq`; the issue calls to GitHub run only in the scheduled workflow. |
 | `check-mutant-pool` | `tools/mutant_pool_test.py` drives `tools/mutant_pool.py`, which the fourfall, puzzlebox and calc mutant runners share, with a recording check: results return in list order, items run concurrently up to `MUTANT_JOBS`, a timing mutant named serial runs after the pool drains with no other check alive, and `MUTANT_JOBS=1` runs one check at a time. A known-bad pool that schedules the serial items with the rest lets one overlap four others and fails. On the 4-worker setting the CI runner gets, fourfall's play mutants take 77 s instead of 228 s, calc's mutants 69 s instead of 144 s and puzzlebox's play mutants 22 s instead of 84 s on a 12-thread host, with every mutant still rejected. `tools/available_cpus_test.py` holds the pool's default size (`tools/available_cpus.py`, which `mutant_pool.workers()` must equal with `MUTANT_JOBS` unset) and make's `-j` (`tools/online-cpus.sh`) to fixture `/proc/self` and cgroup trees, with the online count and affinity injected so every verdict holds on any host: a quota on the process's cgroup, a tighter one on an ancestor, one on an ancestor only, a fractional quota rounded up, cgroup v1 under each mount name, beside an empty sibling and on an ancestor, a hybrid host's v1 line beside a v2 line under `unified/`, a v2-only host whose root holds a sibling cgroup named `unified` with a tighter quota, `max`, malformed files, and an affinity list with ranges. Mutants that skip ancestors, round down or take the first quota (in each language), drop the hybrid `unified/` mount or walk `unified/` on a v2-only host (in each language), drop a v1 mount name or loosen the `cpu.max` pattern (shell) must fail, and on the host the two counters must agree and print 1 under `taskset` pinned to the lowest CPU of the process's affinity mask, where a Python counter that ignores affinity must not. |
 | `check-agent-instructions` | The repository has regular canonical and generated compatibility files; `.claude` is an actual directory, `.claude/CLAUDE.md` is byte-identical to `AGENTS.md`, and the canonical policy has literal references instead of active imports. Calibration exercises drift, malformed, cyclic, escaping and private-home imports, parent and file modes, staged/unstaged inversions and Git infrastructure errors. The gate verifies the chosen two-file contract, not actual client instruction loading. |
 | `check-battlestar-generation` | A three-job bmake fixture reproduces overlapping recipes when four side-effect outputs share one unordered generator, then proves that the production `.ORDER` declaration reduces the fixture to one invocation. A clean RP2040 integration build separately compiles the generated sources with warnings as errors. The gate validates build-graph serialization; it does not validate Battlestar gameplay or the external message text. |

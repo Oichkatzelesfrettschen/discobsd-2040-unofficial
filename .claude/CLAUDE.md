@@ -52,8 +52,8 @@ Makefiles are tracked; synchronize both when generation inputs change.
   32-bit POSIX shell, cross,
   qemu-user, host-package and board-build tiers. `check-renode` boots a
   PICO_UART kernel and stands outside the aggregate. `logged-ilp32` runs the
-  ILP32 execution inventory, which also stands outside it and which hosted CI
-  requires on every push. Board execution requires
+  ILP32 execution inventory, which also stands outside it and which the
+  nightly hosted run requires. Board execution requires
   explicit opt-in. `sys/arch/rp2040/doc/TESTING.md` owns each gate's execution
   class and claim; add new gates there and to the root Makefile and CI owner.
 - Iterative local validation covers the changed files: build the touched
@@ -62,7 +62,12 @@ Makefiles are tracked; synchronize both when generation inputs change.
   script, the C17 ledger after a C edit) and, for a change the target runs, the
   Renode stage that exercises it after `logged-distribution` and
   `logged-flash`, since `check-renode` boots the flash image. Hosted CI runs
-  the aggregate from clean on every push.
+  a fixed short set on each pull request and push to `main` (warning-free
+  build, kernel headroom, flash image, lint, changed-comment and
+  changed-text checks, the Renode UART0 boot) and every tier nightly and on
+  manual dispatch; a failed nightly opens the issue "Nightly gates failed".
+  The local gates over the changed files are therefore the evidence a merge
+  has for every tier outside the short set.
 - The full local chain -- `bmake clean`, `logged-build`, `logged-check`,
   `logged-ilp32`, `logged-distribution`, `logged-flash`, `check-renode`,
   `check-renode-union` -- takes about an hour serialized, 40 minutes of it in

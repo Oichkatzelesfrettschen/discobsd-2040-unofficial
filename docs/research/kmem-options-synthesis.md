@@ -186,7 +186,7 @@ STIME and `getopt()` for the POSIX grammar, and its bss falls from 5,164 to
 
 ### Descriptor records
 
-`fstat` was the last program that read `/dev/kmem`, `/dev/mem` and
+`fstat` was the last program that read user areas from `/dev/mem` and
 `/dev/swap`. Its install mode, 02755 in group 0, granted no kmem access,
 so on the shipped image it ran for root alone, and the flash root did not
 carry it. `KERN_FILE`, which returned the whole file table with each
@@ -206,3 +206,16 @@ records, ships 0775 on the flash root, and needs no privilege.
 | PICO text | 101,110 | 101,390 | +280 |
 | PICO_UART text | 91,964 | 92,228 | +264 |
 | `fstat` a.out | 10,992 | 10,040 | -952 |
+
+### Remaining kernel-memory readers
+
+Three programs on the SD image (`distrib/base/mi`) still read kernel
+memory, each installed 02755 in group 0, which grants no kmem access, so
+each runs for root alone: `vmstat` and `iostat` read `/dev/kmem`, and
+`pstat` reads `/dev/kmem` and `/dev/mem`. `devupdate` reads `/dev/kmem`
+and ships on neither image. None is on the flash root. The search is
+`rg -ln '"/dev/(kmem|mem|swap)"|_PATH_KMEM|knlist\(' --type c -g '!sys/**'`.
+`KERN_INODE` still returns the inode table with each entry's kernel
+address to any caller; nothing in the tree consumes it, and `pstat -i` is
+the natural consumer of a pointer-free form. `KERN_TEXT` has no kernel
+case and returns EOPNOTSUPP.

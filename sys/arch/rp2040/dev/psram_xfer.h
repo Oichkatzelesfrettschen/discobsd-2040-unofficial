@@ -41,7 +41,7 @@
 #define	PSRAM_E_ID		(-4)	/* identification bytes are wrong */
 #define	PSRAM_E_QUAD		(-5)	/* quad-mode pattern test failed */
 
-#define	PSRAM_MFID		0x0d	/* manufacturer, datasheet 6.4 */
+#define	PSRAM_MFID		0x0d	/* manufacturer, datasheet Figure 6-7 */
 #define	PSRAM_KGD_PASS		0x5d	/* known good die, Table 6-1 */
 
 extern unsigned char psram_mfid, psram_kgd;

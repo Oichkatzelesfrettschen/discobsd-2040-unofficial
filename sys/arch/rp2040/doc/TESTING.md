@@ -419,6 +419,7 @@ upload and hidden-file inclusion.
 | renode image identity | `check-renode-identity` | Renode, the fetched RP2040 models, a built PICO_UART kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the table exhaustion step | no |
 | core 1 emulation | `check-core1-emulation` | Unicorn and pyelftools under `${PYTHON}`, the arm-none-eabi toolchain, a built PICO_UART kernel | yes: the `firmware/rp2040` job installs `python3-unicorn` | no |
 | renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
+| renode PicoCalc crash dump | `check-renode-picocalc-dump` | the `check-renode-picocalc` requirements, `FSUTIL`, the PICOCALC kernel's `unix.elf`, and `distrib/rp2040/flash-PICOCALC.bin` (`BOARD=PICOCALC flash`) | yes: the `firmware/rp2040` job, after the PicoCalc step and a `BOARD=PICOCALC flash` step | no |
 | renode union | `check-renode-union` | Renode, the fetched RP2040 models, a built PICOCALC_PSRAM kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the PicoCalc Renode step | no |
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
@@ -2340,6 +2341,34 @@ composed image, the UART0 transcript and the Renode log stay under
 tools/renode/vendor/results/capacity.
 
 ## Renode PicoCalc tier
+
+`check-renode-picocalc-dump` runs the script of `check-renode-picocalc`
+(next paragraph) with `--dump`. It boots
+the PICOCALC root image of the picocalc profile, which carries `savecore`,
+and adds Renode's own SD card model (`SD.SDCard`, SPI mode, persistent
+writes) on SPI0 with an 8 MiB image that `fsutil` makes: a UFS partition at
+`sd0a` and a 1 MiB dump partition of type 0xb9 at `sd0b`. The model needs no
+patch: patch 0008 hands it SPI0's frames, and its SPI state returns to idle
+after each response, so the chip select the driver drives from a SIO pin is
+not needed; card detect (GP22) has no model, so a replaced card is not
+exercised. After the console stages, tools/renode/picocalc_dump.py types
+through the keyboard model in pieces of eight keys (its 31-event FIFO drops
+the keys of a longer line): as root it mounts `sd0a`, makes `/mnt/crash`
+and runs `reboot -d`, and requires a fresh login prompt after the reset;
+`savecore /mnt/crash` must print `savecore: /mnt/crash/dump.0: reboot` and a
+second run `savecore: no dump on /dev/rsd0b`. Then the monitor stops the CPU
+inside `idle()`, writes a message past `__kernel_ram_used_end`, sets r0 to
+it and the PC to `panic`; the panel must show the panic line, `dump: sd0b,
+1024 kbytes: succeeded` and `halted`, which is the `RB_HALT | RB_DUMP` path
+of a real panic. The model writes the image through a buffered stream, so
+the host reads the card only after Renode exits: `tools/check_crash_dump.py`,
+a reader of the `machine/dump.h` format that shares no code with the kernel
+or `savecore` and whose self-test rejects eight damaged dumps and a card
+without a 0xb9 entry, must find the panic's dump valid with its message, and
+`dump.0`, extracted from `sd0a` with `fsutil --extract`, must hold a valid
+dump whose message is `reboot`. The run takes about ten wall minutes; a
+halted kernel spins in `cngetc()`, which Renode runs about 30 times slower
+than an idle one, so the panic stage's budget is ten virtual seconds.
 
 `check-renode-picocalc` runs tools/renode/check-picocalc.sh, which boots the
 PICOCALC kernel (`sys/arch/rp2040/compile/PICOCALC/unix.bin`) and the root

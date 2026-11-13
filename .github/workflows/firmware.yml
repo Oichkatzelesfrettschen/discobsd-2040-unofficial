@@ -419,6 +419,27 @@ jobs:
             --status .build-logs/linux-renode-picocalc.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-picocalc
+      # savecore ships in the picocalc profile, so the crash-dump tier boots
+      # the PICOCALC board's root image.
+      - name: Build the PicoCalc flash image
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-flash-picocalc \
+            --log .build-logs/linux-flash-picocalc.log \
+            --status .build-logs/linux-flash-picocalc.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 600 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 \
+            BOARD=PICOCALC flash
+      - name: Run the Renode PicoCalc crash-dump tier
+        timeout-minutes: 25
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-picocalc-dump \
+            --log .build-logs/linux-renode-picocalc-dump.log \
+            --status .build-logs/linux-renode-picocalc-dump.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 1440 \
+            -- bmake MACHINE=rp2040 check-renode-picocalc-dump
       - name: Run the Renode union kernel tier
         timeout-minutes: 15
         run: |

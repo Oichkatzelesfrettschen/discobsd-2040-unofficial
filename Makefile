@@ -1826,6 +1826,14 @@ check-renode-union:
 check-renode-picocalc:
 		sh tools/renode/check-picocalc.sh ${FLASHBIN}
 
+# The PicoCalc tier with Renode's SD card model and the crash-dump stages
+# (tools/renode/picocalc_dump.py): reboot -d, savecore and an injected panic,
+# each dump validated on the host by tools/check_crash_dump.py. savecore
+# ships in the picocalc profile, so the gate boots BOARD=PICOCALC's image.
+check-renode-picocalc-dump:
+		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
+		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
+
 # The process, in-core inode and system file tables filled on the emulated PICO_UART
 # kernel: tools/renode/check-capacity.sh adds the three programs of
 # tests/rp2040/capacity_exhaustion to a copy of ${FSIMG}, boots it and
@@ -2019,7 +2027,7 @@ installfs:
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
-		check-renode-picocalc check-renode-union \
+		check-renode-picocalc check-renode-picocalc-dump check-renode-union \
 		check-host-package check-board-build check symlinks etc-distribution \
 		multicall-staging \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \

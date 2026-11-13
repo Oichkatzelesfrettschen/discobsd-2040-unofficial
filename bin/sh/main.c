@@ -114,8 +114,8 @@ static void chkmail(void);
 static void
 exfile(BOOL prof)
 {
-	volatile long mailtime = 0;
-	long    curtime = 0;
+	volatile time_t mailtime = 0;
+	time_t  curtime = 0;
 	register int    userid;
 
 	/*
@@ -184,7 +184,7 @@ exfile(BOOL prof)
 
 			if (mailp)
 			{
-				time(&curtime);
+				curtime = time((time_t *)0);
 
 				if ((curtime - mailtime) >= mailchk)
 				{

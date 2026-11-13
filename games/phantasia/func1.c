@@ -95,7 +95,7 @@ FILE	*fp;
 void	leave(stat)				/* save character in file */
 register struct	stats	*stat;
 {
-long	ltemp;
+time_t	ltemp;
 
 	if (!stat->lvl)
 		strcpy(stat->name,"<null>");
@@ -237,7 +237,7 @@ FILE	*fp;
 struct	stats	buf;
 register int	loop = 0;
 double	loc;
-long	ltmp;
+time_t	ltmp;
 int	ch;
 
 	if (stat->blind)
@@ -540,7 +540,7 @@ char	s[60], flag[2];
 FILE	*fp;
 register int	loc = 0;
 int	c, temp, today;
-long	ltemp;
+time_t	ltemp;
 double	dtemp;
 
 	flag[0] = 'F';	flag[1] = 'T';

@@ -11,7 +11,7 @@
 
 #define SHELLCOM "/bin/sh"
 
-typedef long int TIMETYPE;
+typedef time_t TIMETYPE;
 
 /*  to install metering, add a statement like
  * #define METERFILE "/usr/sif/make/Meter"

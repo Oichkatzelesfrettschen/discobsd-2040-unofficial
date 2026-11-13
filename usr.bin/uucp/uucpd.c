@@ -258,7 +258,7 @@ dologout()
 			sprintf(utmp.ut_line, "uucp%.4d", pid);
 			SCPYN(utmp.ut_name, "");
 			SCPYN(utmp.ut_host, "");
-			(void) time(&utmp.ut_time);
+			utmp.ut_time = time((time_t *)0);
 #ifdef BSD2_9
 			(void) lseek(wtmp, 0L, 2);
 #endif BSD2_9
@@ -294,7 +294,7 @@ struct sockaddr_in *sin;
 		SCPYN(utmp.ut_line, line);
 		SCPYN(utmp.ut_name, pw->pw_name);
 		SCPYN(utmp.ut_host, remotehost);
-		time(&utmp.ut_time);
+		utmp.ut_time = time((time_t *)0);
 #ifdef BSD2_9
 		(void) lseek(wtmp, 0L, 2);
 #endif BSD2_9

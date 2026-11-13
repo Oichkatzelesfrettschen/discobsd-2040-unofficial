@@ -130,7 +130,7 @@ main(argc, argv)
 	av = argv;
 	ac = argc;
 	av++;
-	time(&vect);
+	vect = time((time_t *)0);
 	srand(vect);
 	/* opencode = 'w'; */
 	prio = PRIO;

@@ -429,6 +429,7 @@ bulkmail(argc, argv)
 int argc;
 char **argv;
 {
+    time_t now;
     char *truename;
     int first;
     register char *cp;
@@ -501,8 +502,8 @@ char **argv;
         usage();
     if (truename == 0)
         truename = my_name;
-    time(&iop);
-    fprintf(tmpf, "%s%s %s", from, truename, ctime(&iop));
+    now = time((time_t *)0);
+    fprintf(tmpf, "%s%s %s", from, truename, ctime(&now));
     iop = ftell(tmpf);
     flgf = first = 1;
     for (;;) {

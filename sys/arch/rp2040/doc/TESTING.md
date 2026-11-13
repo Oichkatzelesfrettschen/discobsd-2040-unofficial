@@ -1423,14 +1423,26 @@ a short buffer report the record's length, the short buffer keeps only its
 prefix, and a new value is refused. With no slot claimed the disk node
 returns nothing; with two claimed and a named slot after an unnamed one,
 it returns the two in slot order, a ten-character name cut to seven and
-NUL-ended in the eight-byte field. `check-sysctl-proc-mutants` requires a
-failure from nine copies of kern_sysctl.c: one without the u_procp check,
+NUL-ended in the eight-byte field.
+
+The system tables go to root alone. `KERN_INODE` returns a pointer-free
+`struct kinfo_inode` per referenced in-core inode: the gate requires each
+field of a regular file, the device a character special file names in
+place of its size, and zero lock counts for a pipe whose select union
+holds a process address; a short buffer and a non-root caller get the
+size-query length and EPERM. `KERN_FILE_BYFILE` returns the system file
+table with each entry's index, reference and message counts, and
+`KERN_TTY` the state of the terminal `cntty()` names, EOPNOTSUPP when the
+console's driver keeps none. `check-sysctl-proc-mutants` requires a
+failure from twelve copies of kern_sysctl.c: one without the u_procp check,
 one without the rechecks, one that gives every caller the arguments, one
 that leaves out a row whose user area could not be read, one that gives
 every caller another user's descriptors, one without the working-directory
 record, one that leaves a pipe without its inode fields, one that fills
-the since-boot events from the last second's, and one that copies a disk
-name to the end of its field with no NUL.
+the since-boot events from the last second's, one that copies a disk name
+to the end of its field with no NUL, one that gives every caller the
+system tables, one that reads a pipe's lock counts from its select union,
+and one that reports a special file's size for its device.
 
 The two actual-source binaries, `sysctl_test_compact` and
 `sysctl_test_wide`, execute as `kernel.sysctl-compact.ilp32` and

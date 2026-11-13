@@ -217,12 +217,18 @@ staged on the flash root, both ran as operator. The new nodes add 328
 bytes of PICO text and 336 of PICO_UART; `vmstat` shrinks from 13,612 to
 13,044 bytes and `iostat` from 11,344 to 10,904.
 
-`pstat` on the SD image (`distrib/base/mi`) still reads `/dev/kmem` and
-`/dev/mem`, installed 02755 in group 0, which grants no kmem access, so it
-runs for root alone. `devupdate` reads `/dev/kmem`
-and ships on neither image. None is on the flash root. The search is
+`pstat` reads `KERN_INODE`, `KERN_FILE_BYFILE`, `KERN_TTY`, `KERN_PROC`,
+`VM_SWAPMAP`, `VM_NSWAP` and `KERN_CAPACITY` and ships 0775 without a
+set-id bit. `KERN_INODE`, which returned the inode table with each entry's
+kernel address to any caller, now returns a pointer-free `struct
+kinfo_inode` to root alone; the system file table and the console terminal
+record go to root alone too, the audience pstat had when it needed kmem,
+while its process, swap and capacity views need no privilege. `pstat -u`,
+which read a `struct user` at a physical address the caller typed, and the
+core-file arguments are gone, and `-i`, which failed because `knlist()`
+could not resolve `_mount`, works. pstat's `-t` read `cnttys`, the console
+redirector's own `cdevsw` slot, which carries no traffic; `KERN_TTY`
+reports the terminal the redirector forwards to through `cntty()`.
+
+`devupdate` reads `/dev/kmem` and ships on neither image. The search is
 `rg -ln '"/dev/(kmem|mem|swap)"|_PATH_KMEM|knlist\(' --type c -g '!sys/**'`.
-`KERN_INODE` still returns the inode table with each entry's kernel
-address to any caller; nothing in the tree consumes it, and `pstat -i` is
-the natural consumer of a pointer-free form. `KERN_TEXT` has no kernel
-case and returns EOPNOTSUPP.

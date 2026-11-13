@@ -89,6 +89,13 @@ struct proc *freeproc, *zombproc, *allproc, *qs;
 struct file file[NFILE];
 struct inode inode[NINODE];
 struct mount mount[NMOUNT];
+static struct tty *console_tty;	/* what cntty() answers */
+
+struct tty *
+cntty(void)
+{
+	return (console_tty);
+}
 struct vmtotal total;
 struct vmrate cnt;		/* the swap transfer counts vm_swp.c meters */
 struct vmrate rate;		/* VM_STATS: the last second's events */
@@ -2006,7 +2013,8 @@ check_files_of(int k, int pid, size_t len)
 	HK_CHECK(files_hold_no_address(len));
 	for (int r = 0; r < 4; r++) {
 		HK_CHECK(kf[r].kf_size == FREC && kf[r].kf_pid == pid &&
-		    kf[r].kf_spare == 0);
+		    kf[r].kf_spare == 0 && kf[r].kf_msgcount == 0);
+		HK_CHECK(kf[r].kf_count == (r == 0 ? 0 : 1));
 	}
 	HK_CHECK(kf[0].kf_fd == KF_FD_CWD && kf[0].kf_type == DTYPE_INODE);
 	HK_CHECK(kf[0].kf_valid == KF_VALID_INODE && kf[0].kf_flag == 0);
@@ -2120,7 +2128,7 @@ test_files_refusals(void)
 	HK_CHECK(get_files(KERN_FILE_BYPID, 13, FREC, &len) == ESRCH);
 
 	for (int selector = -1; selector <= 4; selector++) {
-		if (selector != KERN_FILE_BYPID)
+		if (selector != KERN_FILE_BYPID && selector != KERN_FILE_BYFILE)
 			HK_CHECK(get_files(selector, 13, FREC, &len) == EINVAL);
 	}
 	HK_CHECK(get_files(KERN_FILE_BYPID, 13, KI_FILE_MINSIZE - 1, &len) ==
@@ -2339,6 +2347,166 @@ test_diskstats(void)
 	reset_calls();
 }
 
+/*
+ * KERN_FILE_BYFILE: the system file table, to root alone, one record per
+ * open entry with its table index; the per-process entries of
+ * build_file_table() are its contents.
+ */
+static void
+test_file_table(void)
+{
+	int name[3] = { KERN_FILE_BYFILE, 0, FREC };
+	const struct kinfo_file *kf = (const void *)records;
+	size_t len;
+	int open = 0;
+
+	build_file_table();
+	file[1].f_count = 3;
+	file[1].f_msgcount = 2;
+	for (int i = 0; i < NFILE; i++)
+		open += file[i].f_count != 0;
+	set_caller(0, 0);
+	HK_CHECK(get_files(KERN_FILE_BYFILE, 0, FREC, &len) == 0);
+	HK_CHECK(len == (size_t)(open * FREC) && files_hold_no_address(len));
+	HK_CHECK(kf[0].kf_pid == -1 && kf[0].kf_fd == 0 &&
+	    kf[0].kf_type == DTYPE_INODE && kf[0].kf_count == 1 &&
+	    kf[0].kf_inum == 200 && kf[0].kf_offset == 40);
+	HK_CHECK(kf[1].kf_fd == 1 && kf[1].kf_type == DTYPE_PIPE &&
+	    kf[1].kf_count == 3 && kf[1].kf_msgcount == 2 &&
+	    kf[1].kf_inum == 300);
+	HK_CHECK(kf[2].kf_fd == 2 && kf[2].kf_type == DTYPE_SOCKET &&
+	    !(kf[2].kf_valid & KF_VALID_INODE));
+	HK_CHECK(POISONED(len));
+
+	len = 0;
+	HK_CHECK(sysctl_dofile(name, 3, NULL, &len) == 0);
+	HK_CHECK(len == (size_t)(NFILE * FREC));
+
+	set_caller(CALLER_UID, CALLER_UID);
+	HK_CHECK(get_files(KERN_FILE_BYFILE, 0, FREC, &len) == EPERM);
+	HK_CHECK(POISONED(0));
+}
+
+/*
+ * KERN_INODE: a pointer-free record per referenced in-core inode, to root
+ * alone. A special file reports its device in ki_isize, and a pipe's lock
+ * counts read zero whatever its union holds.
+ */
+static void
+test_inode_records(void)
+{
+	int mib[2] = { CTL_KERN, KERN_INODE };
+	const struct kinfo_inode *ki = (const void *)records;
+	size_t len;
+	int token = 1;
+
+	bzero(inode, sizeof(inode));
+	mount[0].m_dev = GATE_DEV;
+	inode[2].i_count = 2;
+	inode[2].i_flag = IACC | ITEXT;
+	inode[2].i_number = 77;
+	inode[2].i_mode = IFREG | 0755;
+	inode[2].i_nlink = 3;
+	inode[2].i_uid = 501;
+	inode[2].i_size = 4096;
+	inode[2].i_shlockc = 4;
+	inode[2].i_exlockc = 5;
+	inode[5].i_count = 1;
+	inode[5].i_number = 15;
+	inode[5].i_mode = IFCHR | 0620;
+	inode[5].i_rdev = 0x0100;
+	inode[9].i_count = 1;
+	inode[9].i_flag = IPIPE;
+	inode[9].i_mode = IFREG;
+	inode[9].i_un0.I_rsel = &proc[3];
+#ifndef SINGLE_UFS_ROOT
+	inode[2].i_dev = inode[5].i_dev = inode[9].i_dev = GATE_DEV;
+#endif
+	set_caller(0, 0);
+	reset_calls();
+	poison_bytes(records, sizeof(records));
+	len = sizeof(records);
+	HK_CHECK(call_syscall(mib, 2, records, &len, NULL, 0) == 0);
+	HK_CHECK(len == 3 * sizeof(*ki) && u.u_rval == 0);
+	HK_CHECK(files_hold_no_address(len));
+	HK_CHECK(ki[0].ki_size == sizeof(*ki) && ki[0].ki_spare == 0);
+	HK_CHECK(ki[0].ki_flag == (IACC | ITEXT) && ki[0].ki_count == 2 &&
+	    ki[0].ki_dev == GATE_DEV && ki[0].ki_number == 77 &&
+	    ki[0].ki_mode == (IFREG | 0755) && ki[0].ki_nlink == 3 &&
+	    ki[0].ki_uid == 501 && ki[0].ki_isize == 4096 &&
+	    ki[0].ki_shlockc == 4 && ki[0].ki_exlockc == 5);
+	HK_CHECK(ki[1].ki_number == 15 && ki[1].ki_isize == 0x0100);
+	HK_CHECK(ki[2].ki_flag == IPIPE && ki[2].ki_shlockc == 0 &&
+	    ki[2].ki_exlockc == 0);
+	HK_CHECK(POISONED(len));
+
+	reset_calls();
+	len = 0;
+	HK_CHECK(call_syscall(mib, 2, NULL, &len, NULL, 0) == 0);
+	HK_CHECK(len == NINODE * sizeof(*ki));
+
+	/* Room for two records: the third is not read, and the length says so. */
+	reset_calls();
+	len = 2 * sizeof(*ki);
+	HK_CHECK(call_syscall(mib, 2, records, &len, NULL, 0) == ENOMEM);
+	HK_CHECK(len == NINODE * sizeof(*ki));
+
+	reset_calls();
+	len = sizeof(records);
+	HK_CHECK(call_syscall(mib, 2, records, &len, &token, sizeof(token)) ==
+	    EPERM);
+	set_caller(CALLER_UID, CALLER_UID);
+	reset_calls();
+	poison_bytes(records, sizeof(records));
+	len = sizeof(records);
+	HK_CHECK(call_syscall(mib, 2, records, &len, NULL, 0) == EPERM);
+	HK_CHECK(POISONED(0));
+	reset_calls();
+	bzero(inode, sizeof(inode));
+}
+
+/* KERN_TTY: the terminal the console forwards to, to root alone. */
+static void
+test_tty_record(void)
+{
+	int mib[2] = { CTL_KERN, KERN_TTY };
+	static struct tty live;
+	struct kinfo_tty kt;
+	size_t len;
+
+	bzero(&live, sizeof(live));
+	live.t_rawq.c_cc = 3;
+	live.t_canq.c_cc = 4;
+	live.t_outq.c_cc = 5;
+	live.t_dev = 0x0700;
+	live.t_flags = 0x12345;
+	live.t_state = 0x6789;
+	live.t_pgrp = 42;
+	live.t_delct = 6;
+	live.t_col = 7;
+	console_tty = &live;
+	set_caller(0, 0);
+	reset_calls();
+	poison_bytes(&kt, sizeof(kt));
+	len = sizeof(kt);
+	HK_CHECK(call_syscall(mib, 2, &kt, &len, NULL, 0) == 0);
+	HK_CHECK(len == sizeof(kt) && kt.kt_size == sizeof(kt) &&
+	    kt.kt_spare == 0);
+	HK_CHECK(kt.kt_rawcc == 3 && kt.kt_cancc == 4 && kt.kt_outcc == 5 &&
+	    kt.kt_dev == 0x0700 && kt.kt_flags == 0x12345 &&
+	    kt.kt_state == 0x6789 && kt.kt_pgrp == 42 && kt.kt_delct == 6 &&
+	    kt.kt_col == 7);
+
+	set_caller(CALLER_UID, CALLER_UID);
+	reset_calls();
+	HK_CHECK(call_syscall(mib, 2, &kt, &len, NULL, 0) == EPERM);
+	console_tty = NULL;
+	set_caller(0, 0);
+	reset_calls();
+	HK_CHECK(call_syscall(mib, 2, &kt, &len, NULL, 0) == EOPNOTSUPP);
+	reset_calls();
+}
+
 int
 main(void)
 {
@@ -2383,5 +2551,8 @@ main(void)
 	test_files_refuse_writes();
 	test_vmstats();
 	test_diskstats();
+	test_file_table();
+	test_inode_records();
+	test_tty_record();
 	return (hk_verdict("sysctl"));
 }

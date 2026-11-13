@@ -152,7 +152,8 @@ struct ctlname {
 #define	KERN_SYSTRACE		26	/* int: console trace mask */
 #define	KERN_SYSTRACEPID	27	/* int: trace only this pid */
 #define	KERN_CAPACITY		28	/* struct: fixed-table and u-area peaks */
-#define	KERN_MAXID		29	/* number of valid kern ids */
+#define	KERN_TTY		29	/* struct kinfo_tty: the console */
+#define	KERN_MAXID		30	/* number of valid kern ids */
 
 #ifndef	KERNEL
 #define	CTL_KERN_NAMES { \
@@ -185,6 +186,7 @@ struct ctlname {
 	{ "systrace", CTLTYPE_INT }, \
 	{ "systracepid", CTLTYPE_INT }, \
 	{ "capacity", CTLTYPE_STRUCT }, \
+	{ "tty", CTLTYPE_STRUCT }, \
 }
 #endif
 
@@ -261,25 +263,64 @@ struct kinfo_proc {
 #define	KI_PROC_MINSIZE		4
 
 /*
- * KERN_INODE returns an array of augmented inode structures:
-*/
+ * KERN_INODE returns one struct kinfo_inode for each in-core inode with a
+ * reference, in table order. The record holds values only, never a kernel
+ * address; ki_isize holds the device a block or character special inode
+ * names, and a pipe's lock counts read zero. The in-core table shows which
+ * files every user has open, so only root receives it: any other caller
+ * gets EPERM. A size query reports room for the whole table.
+ */
 struct kinfo_inode {
-	struct inode	*kp_inodep;	/* address of inode */
-	struct inode	 kp_inode;	/* inode structure */
+	uint16_t ki_size;		/* sizeof(struct kinfo_inode) */
+	uint16_t ki_flag;		/* i_flag (sys/inode.h) */
+	uint16_t ki_count;		/* references */
+	uint16_t ki_nlink;		/* links */
+	int32_t	 ki_dev;		/* device holding the inode */
+	uint32_t ki_number;		/* inode number */
+	uint16_t ki_mode;		/* mode */
+	uint16_t ki_shlockc;		/* shared locks */
+	uint16_t ki_exlockc;		/* exclusive locks */
+	uint16_t ki_spare;		/* zero */
+	uint32_t ki_uid;		/* owner */
+	int32_t	 ki_isize;		/* size, or the special file's device */
+};
+
+/*
+ * KERN_TTY returns the console terminal's state as one struct kinfo_tty:
+ * queue lengths, modes, delay and column counts, state bits and the
+ * foreground process group. Only root receives it.
+ */
+struct kinfo_tty {
+	uint16_t kt_size;		/* sizeof(struct kinfo_tty) */
+	uint16_t kt_rawcc;		/* raw input queue, bytes */
+	uint16_t kt_cancc;		/* canonical input queue, bytes */
+	uint16_t kt_outcc;		/* output queue, bytes */
+	int32_t	 kt_dev;		/* device */
+	uint32_t kt_flags;		/* t_flags (sys/ioctl.h modes) */
+	uint32_t kt_state;		/* t_state (sys/tty.h TS_*) */
+	int16_t	 kt_pgrp;		/* foreground process group */
+	uint16_t kt_delct;		/* delimiters in the raw queue */
+	uint16_t kt_col;		/* output column */
+	uint16_t kt_spare;		/* zero */
 };
 
 /*
  * KERN_FILE selectors. The name is {CTL_KERN, KERN_FILE, selector,
- * argument, record size}, as for KERN_PROC. KERN_FILE_BYPID, OpenBSD's
- * value, selects the process whose id is the argument.
+ * argument, record size}, as for KERN_PROC. KERN_FILE_BYPID selects the
+ * process whose id is the argument. KERN_FILE_BYFILE ignores its argument
+ * and returns the system file table, one record per open entry with kf_pid
+ * -1 and kf_fd the entry's table index; only root receives it. Both carry
+ * OpenBSD's values.
  */
+#define	KERN_FILE_BYFILE	1	/* the system file table */
 #define	KERN_FILE_BYPID		2	/* by process id */
 
 /*
  * KERN_FILE returns one record for the working directory of the selected
  * process (kf_fd KF_FD_CWD) and one for each open descriptor, in descriptor
  * order, with the caller-sized stride of KERN_PROC. A size query reports
- * room for the directory and NOFILE descriptors.
+ * room for the directory and NOFILE descriptors, or for NFILE entries under
+ * KERN_FILE_BYFILE.
  *
  * The record holds values only, never a kernel address. An inode or pipe
  * carries its device, inode number, mode and size (KF_VALID_INODE); a
@@ -309,7 +350,9 @@ struct kinfo_file {
 	int32_t	 kf_isize;		/* inode size, bytes */
 	uint16_t kf_mode;		/* inode mode */
 	uint8_t	 kf_type;		/* DTYPE_* (sys/file.h) */
-	uint8_t	 kf_spare;		/* zero */
+	uint8_t	 kf_msgcount;		/* references from message queues */
+	uint16_t kf_count;		/* references to the file entry */
+	uint16_t kf_spare;		/* zero */
 };
 
 /* The fixed prefix every record size must cover: kf_size and kf_valid. */

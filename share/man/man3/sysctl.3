@@ -314,7 +314,8 @@ information.
 	KERN\_TEXT	struct text	no
 .\"KERN\_VDISABLE	integer	no
 	KERN\_VERSION	string	no
-	KERN\_INODE	struct inode	no
+	KERN\_INODE	struct kinfo_inode []	no
+	KERN\_TTY	struct kinfo_tty	no
 .fi
 .PP
 KERN_ARGMAX
@@ -354,10 +355,16 @@ frequencies, and the number of micro-seconds per hz tick.
 KERN_FILE
 .br
 .in +.5i
-Return the working directory and open descriptors of one process as an
-array of
+Return the working directory and open descriptors of one process, or
+under KERN_FILE_BYFILE the system file table, as an array of
 \fIstruct kinfo_file\fP
 records (\fI<sys/sysctl.h>\fP).
+A KERN_FILE_BYFILE record has
+\fIkf_pid\fP
+\-1 and
+\fIkf_fd\fP
+the entry's table index, and only the super-user receives the table.
+Every record carries its file entry's reference and message counts.
 The third level is the selector, KERN_FILE_BYPID, the fourth the process
 ID, and the fifth the record size the caller was built with, used as for
 KERN_PROC; it must be at least KI_FILE_MINSIZE and at most DEV_BSIZE.
@@ -609,16 +616,27 @@ The system version string.
 KERN_INODE
 .br
 .in +.5i
-Return the entire inode table.
-Note, the inode table is not necessarily a consistent snapshot of
-the system.
-The returned data consists of an array whose size depends on the
-current number of such objects in the system.
-Each element of the array contains the kernel address of a inode
-\fIstruct inode *\fP
-followed by the inode itself
-\fIstruct inode\fP.  There can never be more than \fBKERN_MAXINODES\fP
-inodes returned.
+Return one
+\fIstruct kinfo_inode\fP
+(\fI<sys/sysctl.h>\fP)
+for each in-core inode with a reference, in table order: flags,
+references, device, lock counts, number, mode, links, owner, and size, or
+for a block or character special file the device it names.
+The record holds no kernel address.
+The in-core table shows which files every user has open, so only the
+super-user receives it; any other caller gets EPERM.
+A size query, and a buffer too short for every record, report room for
+\fBKERN_MAXINODES\fP records.
+.sp
+.in -.5i
+KERN_TTY
+.br
+.in +.5i
+Return the state of the terminal the console forwards to as one
+\fIstruct kinfo_tty\fP:
+input and output queue lengths, modes, state bits, delimiter and column
+counts, and the foreground process group.
+Only the super-user receives it.
 .sp
 .in -.5i
 KERN_TEXT

@@ -209,6 +209,8 @@ __sysctl()
 /*
  * Kernel related system variables.
  */
+static int sysctl_tty(void *, size_t *, void *);
+
 int
 kern_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
     void *newp, size_t newlen)
@@ -279,7 +281,11 @@ kern_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 		return (sysctl_rdstruct(oldp, oldlenp, newp, &boottime,
 		    sizeof(struct timeval)));
 	case KERN_INODE:
+		if (newp != NULL)
+			return (EPERM);
 		return (sysctl_inode(oldp, oldlenp));
+	case KERN_TTY:
+		return (sysctl_tty(oldp, oldlenp, newp));
 	case KERN_PROC:
 		if (newp != NULL)
 			return (EPERM);
@@ -748,47 +754,89 @@ sysctl_clockrate(char *where, size_t *sizep)
 	return (sysctl_rdstruct(where, sizep, NULL, &clkinfo, sizeof clkinfo));
 }
 
+_Static_assert(sizeof(struct kinfo_tty) == 28,
+    "kinfo_tty packs its fields without padding");
+
 /*
- * Dump inode list (via sysctl).
- * Copyout address of inode followed by inode.
+ * KERN_TTY: the state of the terminal the console redirector forwards to
+ * (cntty(), sys/dev/cons.c), to root alone. A console whose driver keeps
+ * no terminal returns EOPNOTSUPP.
  */
-/* ARGSUSED */
+static int
+sysctl_tty(void *oldp, size_t *oldlenp, void *newp)
+{
+	struct kinfo_tty kt;
+	const struct tty *tp = cntty();
+
+	if (u.u_procp->p_uid != 0)
+		return (EPERM);
+	if (tp == NULL)
+		return (EOPNOTSUPP);
+	bzero(&kt, sizeof(kt));
+	kt.kt_size = sizeof(kt);
+	kt.kt_rawcc = tp->t_rawq.c_cc;
+	kt.kt_cancc = tp->t_canq.c_cc;
+	kt.kt_outcc = tp->t_outq.c_cc;
+	kt.kt_dev = tp->t_dev;
+	kt.kt_flags = tp->t_flags;
+	kt.kt_state = tp->t_state;
+	kt.kt_pgrp = tp->t_pgrp;
+	kt.kt_delct = tp->t_delct;
+	kt.kt_col = tp->t_col;
+	return (sysctl_rdstruct(oldp, oldlenp, newp, &kt, sizeof(kt)));
+}
+
+_Static_assert(sizeof(struct kinfo_inode) == 32,
+    "kinfo_inode packs its fields without padding");
+
+/*
+ * KERN_INODE: a struct kinfo_inode for each in-core inode with a reference
+ * (sys/sysctl.h), to root alone. Nothing here sleeps, so the table is read
+ * in one pass.
+ */
 int
 sysctl_inode(char *where, size_t *sizep)
 {
+	struct kinfo_inode ki;
 	struct inode *ip;
-	char *bp = where;
-	struct inode *ipp;
-	char *ewhere;
-	int error, numi;
+	size_t done = 0;
+	int error;
 
-	for (numi = 0, ip = inode; ip < inode + NINODE; ip++)
-		if (ip->i_count)
-			numi++;
-
-#define IPTRSZ	sizeof(struct inode *)
-#define INODESZ	sizeof(struct inode)
+	if (u.u_procp->p_uid != 0)
+		return (EPERM);
 	if (where == NULL) {
-		*sizep = (numi + 5) * (IPTRSZ + INODESZ);
+		*sizep = NINODE * sizeof(ki);
 		return (0);
 	}
-	ewhere = where + *sizep;
-
 	for (ip = inode; ip < inode + NINODE; ip++) {
 		if (ip->i_count == 0)
 			continue;
-		if (bp + IPTRSZ + INODESZ > ewhere) {
-			*sizep = bp - where;
-			return (ENOMEM);
+		if (*sizep - done < sizeof(ki)) {
+			*sizep = NINODE * sizeof(ki);
+			return (0);
 		}
-		ipp = ip;
-		if ((error = copyout((caddr_t)&ipp, bp, IPTRSZ)) ||
-		    (error = copyout((caddr_t)ip, bp + IPTRSZ, INODESZ)))
+		bzero(&ki, sizeof(ki));
+		ki.ki_size = sizeof(ki);
+		ki.ki_flag = ip->i_flag;
+		ki.ki_count = ip->i_count;
+		ki.ki_nlink = ip->i_nlink;
+		ki.ki_dev = INODE_DEVICE(ip);
+		ki.ki_number = ip->i_number;
+		ki.ki_mode = ip->i_mode;
+		if (!(ip->i_flag & IPIPE)) {
+			ki.ki_shlockc = ip->i_shlockc;
+			ki.ki_exlockc = ip->i_exlockc;
+		}
+		ki.ki_uid = ip->i_uid;
+		if ((ip->i_mode & IFMT) == IFBLK || (ip->i_mode & IFMT) == IFCHR)
+			ki.ki_isize = ip->i_rdev;
+		else
+			ki.ki_isize = ip->i_size;
+		if ((error = copyout((caddr_t)&ki, where + done, sizeof(ki))) != 0)
 			return (error);
-		bp += IPTRSZ + INODESZ;
+		done += sizeof(ki);
 	}
-
-	*sizep = bp - where;
+	*sizep = done;
 	return (0);
 }
 
@@ -1025,7 +1073,7 @@ sysctl_doproc(int *name, u_int namelen, char *where, size_t *sizep)
 	return (0);
 }
 
-_Static_assert(sizeof(struct kinfo_file) == 32,
+_Static_assert(sizeof(struct kinfo_file) == 36,
     "kinfo_file packs its fields without padding");
 
 /* The inode fields of a KERN_FILE record. */
@@ -1037,6 +1085,59 @@ kinfo_file_inode(const struct inode *ip, struct kinfo_file *kf)
 	kf->kf_mode = ip->i_mode;
 	kf->kf_isize = ip->i_size;
 	kf->kf_valid |= KF_VALID_INODE;
+}
+
+/* The fields of a KERN_FILE record that come from file entry fp. */
+static void
+kinfo_file_entry(const struct file *fp, struct kinfo_file *kf)
+{
+	kf->kf_type = fp->f_type;
+	kf->kf_flag = fp->f_flag;
+	kf->kf_offset = fp->f_offset;
+	kf->kf_count = fp->f_count;
+	kf->kf_msgcount = fp->f_msgcount;
+	kf->kf_valid = KF_VALID_FILE;
+	if ((fp->f_type == DTYPE_INODE || fp->f_type == DTYPE_PIPE) &&
+	    fp->f_data != NULL)
+		kinfo_file_inode((const struct inode *)fp->f_data, kf);
+}
+
+/*
+ * KERN_FILE_BYFILE: a record for each open entry of the system file table,
+ * to root alone, with kf_fd the entry's index. Nothing here sleeps.
+ */
+static int
+sysctl_filetable(size_t stride, char *where, size_t *sizep)
+{
+	struct kinfo_file kf;
+	size_t copy, need = NFILE * stride, done = 0;
+	int slot, error;
+
+	if (u.u_procp->p_uid != 0)
+		return (EPERM);
+	if (where == NULL) {
+		*sizep = need;
+		return (0);
+	}
+	copy = stride < sizeof(kf) ? stride : sizeof(kf);
+	for (slot = 0; slot < NFILE; slot++) {
+		if (file[slot].f_count == 0)
+			continue;
+		if (*sizep - done < stride) {
+			*sizep = need;
+			return (0);
+		}
+		bzero(&kf, sizeof(kf));
+		kf.kf_size = sizeof(kf);
+		kf.kf_pid = -1;
+		kf.kf_fd = slot;
+		kinfo_file_entry(&file[slot], &kf);
+		if ((error = copyout((caddr_t)&kf, where + done, copy)) != 0)
+			return (error);
+		done += stride;
+	}
+	*sizep = done;
+	return (0);
 }
 
 /*
@@ -1063,9 +1164,11 @@ sysctl_dofile(int *name, u_int namelen, char *where, size_t *sizep)
 	if (namelen != 3)
 		return (EINVAL);
 	stride = (u_int)name[2];
-	if (name[0] != KERN_FILE_BYPID || stride < KI_FILE_MINSIZE ||
-	    stride > DEV_BSIZE)
+	if ((name[0] != KERN_FILE_BYPID && name[0] != KERN_FILE_BYFILE) ||
+	    stride < KI_FILE_MINSIZE || stride > DEV_BSIZE)
 		return (EINVAL);
+	if (name[0] == KERN_FILE_BYFILE)
+		return (sysctl_filetable(stride, where, sizep));
 	need = (NOFILE + 1) * stride;
 	if (where == NULL) {
 		*sizep = need;
@@ -1109,16 +1212,8 @@ sysctl_dofile(int *name, u_int namelen, char *where, size_t *sizep)
 		if (fp == NULL) {
 			kf.kf_type = DTYPE_INODE;
 			kinfo_file_inode(up->u_cdir, &kf);
-		} else {
-			kf.kf_type = fp->f_type;
-			kf.kf_flag = fp->f_flag;
-			kf.kf_offset = fp->f_offset;
-			kf.kf_valid = KF_VALID_FILE;
-			if ((fp->f_type == DTYPE_INODE ||
-			    fp->f_type == DTYPE_PIPE) && fp->f_data != NULL)
-				kinfo_file_inode((const struct inode *)fp->f_data,
-				    &kf);
-		}
+		} else
+			kinfo_file_entry(fp, &kf);
 		if ((error = copyout((caddr_t)&kf, where + done, copy)) != 0)
 			goto release;
 		done += stride;

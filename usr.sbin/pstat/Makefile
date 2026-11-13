@@ -1,10 +1,9 @@
 #
 # Should be installed with kmem group.
+# The program reads sysctl(3) records and carries no set-id bit; the kernel
+# returns the inode, file and terminal tables to root alone.
 #
 TOPSRC!=cd ../..; pwd
-# -Wall -Wextra raises 37 distinct sites in this directory, so the fatal set
-# stays at the groups CFLAGS names until they are repaired.
-WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
 SRCS            = pstat.c
@@ -31,7 +30,7 @@ depend:         ${SRCS}
 
 install:        pstat
 		cp ${MAN} ${DESTDIR}/usr/share/man/cat8/
-		${INSTALL} -m 2755 pstat ${DESTDIR}/usr/sbin/pstat
+		${INSTALL} -m 755 pstat ${DESTDIR}/usr/sbin/pstat
 
 lint:           ${SRCS}
 		lint -hax ${SRCS}

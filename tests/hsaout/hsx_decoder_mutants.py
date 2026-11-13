@@ -214,6 +214,8 @@ def main():
         ):
             objs[name] = os.path.join(tmp, name + ".o")
             extra = ["-Wno-implicit-fallthrough"] if name.startswith("ref") else []
+            if name == STR:
+                extra += ["-Dhsx_dec_run=hsx_checked_run"]
             compile_obj(args.cc, flags + extra, path, objs[name])
 
         def link_and_run(use):
@@ -245,12 +247,19 @@ def main():
             with open(mpath, "w", encoding="utf-8") as f:
                 f.write(text.replace(frag, repl))
             mobj = os.path.join(tmp, "m%d.o" % n)
-            rc, out = run([args.cc] + flags + ["-Wno-error", "-c", "-o", mobj, mpath], 300)
+            extra = ["-Dhsx_dec_run=hsx_checked_run"] if fname == STR else []
+            rc, out = run([args.cc] + flags + extra +
+                          ["-Wno-error", "-c", "-o", mobj, mpath], 300)
             if rc != 0:
                 print("FAIL: mutant %r does not compile:\n%s" % (name, out))
                 return 1
             rc, out = link_and_run({fname: mobj})
-            if rc is None:
+            if name == "ring run crosses the ring end":
+                if rc != 1 or "history ring run crosses end" not in out:
+                    print("FAIL: ring-boundary mutant lacks its named rejection:\n" + out)
+                    return 1
+                verdict = "rejected (ring call contract)"
+            elif rc is None:
                 verdict = "rejected (timeout)"
             elif rc < 0:
                 verdict = "rejected (signal %d)" % -rc

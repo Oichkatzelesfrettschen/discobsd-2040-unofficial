@@ -278,6 +278,8 @@ jobs:
             -- bmake MACHINE=rp2040 check-core1-emulation
 
       - name: Run the qemu tier
+        # Includes the executable-tail libc object ABI experiment with real
+        # ELF/a.out conversion and calibrated QEMU identity checks.
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \

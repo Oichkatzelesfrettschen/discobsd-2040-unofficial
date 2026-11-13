@@ -1539,6 +1539,15 @@ fails the gate rather than unwinding into unrelated code.
 
 ## Cross tier
 
+`check-hsx-decoder` also routes stream-loop calls through a test adapter that
+checks the contiguous history-ring suffix before the production decoder writes.
+Eight deterministic streams of 513 through 520 literals exercise this boundary
+before image-dependent cases. The ring-overrun mutant requires exit 1 and the
+named caller-contract diagnostic; output and CRC agreement alone can preserve
+an invalid write into consumed staging bytes. The
+[ring-call record](../../../../docs/research/hsx-ring-call-contract.md) owns the
+counterexample and replay. Production decoder code remains unchanged.
+
 `check-warning-policy-cross` checks shared target warning enforcement and
 both kernels' `-Wall -Wextra -Werror` behavior as described above.
 
@@ -1609,6 +1618,18 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | tests/rp2040/divider_ownership | the divider verifier's positive and negative fixtures, and the `--user-helper` check of `lib/libc/arm/gen/aeabi_div.S` assembled for Cortex-M0+: each of the two helper bodies must store the dividend (SIO offset 0x60) and then the divisor (0x64), spend at least eight modeled Cortex-M0+ cycles in ALU instructions or taken branches to the next instruction, load the remainder (0x74) and then the quotient (0x70), and contain no other divider or memory access, system call, call, breakpoint, push or pop in that window. Nine mutants of the real source (one branch removed from the wait, result loads swapped, a CSR poll in place of a wait slot, `svc`, `bl`, `push` and `bkpt` inside the window, a wrong base constant, a helper symbol removed) must each exit 1 with the finding named for it. The cycle table is a model of the Cortex-M0+ Technical Reference Manual, so the check establishes the window's structure, not the divider's timing on silicon |
 
 ## qemu tier
+
+`check-libc-xip-object-abi` compiles production libc data owners into an
+experimental PIC library and links five application layouts with executable-tail
+state. ELF inspection and actual a.out conversion check BSS containment and final
+end symbols; Cortex-M0 QEMU execution checks public object identity, initialized
+pointers and callbacks. Seven controls reject incorrect addresses, GOT base,
+relocation, segment/end bounds, non-PIC references and interposition. Linux
+`firmware.yml` owns the gate through `check-qemu`; Python `pyelftools`, ARM GNU
+tools, QEMU user mode and the built `elf2aout` converter are required. The
+[experiment record](../../../../docs/research/xip-shared-libc/object-abi/README.md)
+owns replay commands and evidence limits. Its runtime-only RWX process envelope
+establishes neither MPU protection nor a production shared executable ABI.
 
 This tier runs **user-mode** qemu, which is not an emulated machine.
 qemu-arm loads one Arm program and translates its instructions on the host

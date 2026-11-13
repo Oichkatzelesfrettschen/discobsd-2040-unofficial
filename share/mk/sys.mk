@@ -14,6 +14,19 @@ RELEASE=	${OSREV}
 BUILD!=		git rev-list --count HEAD --
 VERSION=	${RELEASE}-${BUILD}
 
+# GCC and Clang expand __DATE__ and __TIME__ from SOURCE_DATE_EPOCH when the
+# environment carries it. A caller's value stands; otherwise the committer
+# date of HEAD is exported, so two builds of one commit embed the same date
+# (usr.bin/pdc prints its compile time). sys/conf/newvers.sh applies the
+# same default to the kernel version string. Outside a git checkout the
+# variable stays unset and the compiler uses the build time.
+.if !defined(SOURCE_DATE_EPOCH) || empty(SOURCE_DATE_EPOCH)
+SOURCE_DATE_EPOCH!=	git log -1 --format=%ct 2>/dev/null || true
+.endif
+.if !empty(SOURCE_DATE_EPOCH)
+.export SOURCE_DATE_EPOCH
+.endif
+
 TOOLDIR?=	${TOPSRC}/tools
 TOOLBINDIR?=	${TOOLDIR}/bin/${MACHINE}
 

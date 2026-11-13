@@ -686,6 +686,14 @@ check-libc-bounded-string:
 
 .PHONY: check-libc-bounded-string
 
+check-libc-qsort-context:
+		${MAKE} -C tests/libc_contracts check-qsort-context
+
+check-libc-qsort-context-cross: check-python
+		${MAKE} -C tests/libc_contracts check-qsort-context-cross
+
+.PHONY: check-libc-qsort-context check-libc-qsort-context-cross
+
 check-libc-qsort:
 		${MAKE} -C tests/libc_contracts check-qsort
 
@@ -1400,7 +1408,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
-		check-libc-aout-contracts check-libc-quick-exit-cross \
+		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
 		check-c17-headers-cross \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \

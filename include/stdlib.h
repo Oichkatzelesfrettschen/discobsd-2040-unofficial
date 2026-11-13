@@ -43,6 +43,7 @@
 #ifndef _STDLIB_H_
 #define _STDLIB_H_
 
+#include <_featuretest.h>
 #include <sys/cdefs.h>
 #ifndef __dead
 /* A hosted test can reach the host's <sys/cdefs.h>, which has no __dead. */
@@ -98,6 +99,10 @@ void    *bsearch (const void *, const void *, size_t, size_t,
 int     heapsort (void *, size_t, size_t,
             int (*)(const void *, const void *));
 void    qsort (void *, size_t, size_t, int (*)(const void *, const void *));
+#if _DISCOBSD_BSD_VISIBLE || _DISCOBSD_POSIX_VISIBLE >= 202405L
+void    qsort_r (void *, size_t, size_t,
+            int (*)(const void *, const void *, void *), void *);
+#endif
 int     rand (void);
 void    *realloc (void*, size_t);
 void    *reallocarray (void *, size_t, size_t);

@@ -17,6 +17,14 @@
 #define		THRESH		4		/* threshold for insertion */
 #define		MTHRESH		6		/* threshold for median */
 
+#ifdef _DISCOBSD_QSORT_R
+typedef int (*qsort_comparator)(const void *, const void *, void *);
+#define COMPARE(function, left, right, context) function(left, right, context)
+#else
+typedef int (*qsort_comparator)(const void *, const void *);
+#define COMPARE(function, left, right, context) function(left, right)
+#endif
+
 /*
  * The parameters of one sort. They travel with the call rather than
  * living at file scope, because a comparison routine may itself call
@@ -26,7 +34,10 @@
  * through a comparator that sorts, at two record sizes.
  */
 struct qsort_state {
-	int		(*qcmp)(const void *, const void *);
+	qsort_comparator qcmp;
+#ifdef _DISCOBSD_QSORT_R
+	void		*context;
+#endif
 	size_t		qsz;			/* size of each record */
 	size_t		thresh;			/* THRESHold in chars */
 	size_t		mthresh;		/* MTHRESHold in chars */
@@ -52,7 +63,7 @@ qst(const struct qsort_state *st, char *base, char *max)
 	register char c, *i, *j, *jj;
 	register size_t ii;
 	const size_t qsz = st->qsz;
-	int (*const qcmp)(const void *, const void *) = st->qcmp;
+	const qsort_comparator qcmp = st->qcmp;
 	char *mid, *tmp;
 	size_t lo, hi;
 
@@ -69,11 +80,11 @@ qst(const struct qsort_state *st, char *base, char *max)
 	do	{
 		mid = i = base + qsz * ((lo / qsz) >> 1);
 		if (lo >= st->mthresh) {
-			j = (qcmp((jj = base), i) > 0 ? jj : i);
-			if (qcmp(j, (tmp = max - qsz)) > 0) {
+			j = (COMPARE(qcmp, (jj = base), i, st->context) > 0 ? jj : i);
+			if (COMPARE(qcmp, j, (tmp = max - qsz), st->context) > 0) {
 				/* switch to first loser */
 				j = (j == jj ? i : jj);
-				if (qcmp(j, tmp) < 0)
+				if (COMPARE(qcmp, j, tmp, st->context) < 0)
 					j = tmp;
 			}
 			if (j != i) {
@@ -89,10 +100,10 @@ qst(const struct qsort_state *st, char *base, char *max)
 		 * Semi-standard quicksort partitioning/swapping
 		 */
 		for (i = base, j = max - qsz; ; ) {
-			while (i < mid && qcmp(i, mid) <= 0)
+			while (i < mid && COMPARE(qcmp, i, mid, st->context) <= 0)
 				i += qsz;
 			while (j > mid) {
-				if (qcmp(mid, j) <= 0) {
+				if (COMPARE(qcmp, mid, j, st->context) <= 0) {
 					j -= qsz;
 					continue;
 				}
@@ -153,8 +164,13 @@ qst(const struct qsort_state *st, char *base, char *max)
  * It's not...
  */
 void
+#ifdef _DISCOBSD_QSORT_R
+qsort_r(void *vbase, size_t n, size_t size, qsort_comparator compar,
+    void *context)
+#else
 qsort(void *vbase, size_t n, size_t size,
-    int (*compar)(const void *, const void *))
+    qsort_comparator compar)
+#endif
 {
 	struct qsort_state st;
 	register char c, *i, *j, *lo, *hi;
@@ -165,6 +181,9 @@ qsort(void *vbase, size_t n, size_t size,
 		return;
 	st.qsz = qsz;
 	st.qcmp = compar;
+#ifdef _DISCOBSD_QSORT_R
+	st.context = context;
+#endif
 	st.thresh = qsz * THRESH;
 	st.mthresh = qsz * MTHRESH;
 	max = base + n * qsz;
@@ -181,7 +200,7 @@ qsort(void *vbase, size_t n, size_t size,
 	 * the min, and swapping it into the first position.
 	 */
 	for (j = lo = base; (lo += qsz) < hi; )
-		if (compar(j, lo) > 0)
+		if (COMPARE(compar, j, lo, st.context) > 0)
 			j = lo;
 	if (j != base) {
 		/* swap j into place */
@@ -199,7 +218,7 @@ qsort(void *vbase, size_t n, size_t size,
 	 * basis for each element in the frob.
 	 */
 	for (min = base; (hi = min += qsz) < max; ) {
-		while (compar(hi -= qsz, min) > 0)
+		while (COMPARE(compar, hi -= qsz, min, st.context) > 0)
 			/* void */;
 		if ((hi += qsz) != min) {
 			for (lo = min + qsz; --lo >= min; ) {

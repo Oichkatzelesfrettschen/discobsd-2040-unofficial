@@ -197,3 +197,6 @@ getgrent_contract_test
 grent_getgrent.o
 quick_exit_test
 quick_exit_test32
+qsort_context_test
+qsort_context_test32
+qsort_context_test_san

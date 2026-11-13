@@ -66,6 +66,7 @@ perror
 printf
 puts
 qsort
+qsort_r
 quick_exit
 raise
 read

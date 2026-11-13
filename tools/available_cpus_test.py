@@ -7,7 +7,8 @@ affinity from an argument, both 64, so every verdict holds on a host of
 any size. A quota on the process's own cgroup, a tighter one on an
 ancestor, one on an ancestor only, a fractional quota (rounded up),
 cgroup v1 under each mount name and beside an empty sibling, v1 ancestors,
-a hybrid host's v1 line beside a v2 line under unified/,
+a hybrid host's v1 line beside a v2 line under unified/, a v2-only host
+whose root holds a sibling cgroup named unified with a tighter quota,
 "max", malformed files and an affinity list with ranges must each give the
 expected count. On the host, both counters must agree, and pinned by
 `taskset` (where present) to the lowest CPU in the process's affinity
@@ -16,8 +17,9 @@ mask, which a cpuset that excludes CPU 0 still allows, both must print 1.
 Mutants that must fail: in each language a walk that skips ancestors, a
 quota rounded down and the first quota taken in place of the tightest;
 in Python an affinity ignored (under taskset); in the shell one v1 mount
-name dropped, the hybrid unified/ mount dropped and a lax cpu.max
-pattern. mutant_pool.workers() must equal available_cpus() when
+name dropped, the hybrid unified/ mount dropped, unified/ walked on a
+v2-only host and a lax cpu.max pattern; in Python unified/ walked on a
+v2-only host and never walked. mutant_pool.workers() must equal available_cpus() when
 MUTANT_JOBS is unset.
 """
 
@@ -176,6 +178,14 @@ CASES = [
         2.0,
         2,
     ),
+    (
+        "v2-only host with a tighter sibling cgroup named unified",
+        "0::/a",
+        {"a/cpu.max": "400000 100000\n", "unified/cpu.max": "100000 100000\n"},
+        "0-63",
+        4.0,
+        4,
+    ),
     ("affinity 0-3,8,10-11 counts 7", "0::/", {"cpu.max": "max 100000\n"}, "0-3,8,10-11", None, 7),
 ]
 
@@ -204,7 +214,13 @@ with tempfile.TemporaryDirectory() as tmp:
             'for quota in $(cgroup_quotas < "$proc_self/cgroup" | head -n 1); do',
         ),
         "cpuacct,cpu mount dropped": text.replace(' \\\n\t\t    "$cgroup_root/cpuacct,cpu"', ""),
-        "hybrid unified mount dropped": text.replace(' "$mount/unified"', ""),
+        "hybrid unified mount dropped": text.replace(
+            "v2_mount=$cgroup_root/unified", "v2_mount=$cgroup_root"
+        ),
+        "unified walked on a v2-only host": text.replace(
+            "grep -q '^[1-9][0-9]*:' \"$proc_self/cgroup\" 2>/dev/null &&\n\t    [ -d",
+            "[ -d",
+        ),
         "lax cpu.max period": text.replace("$2 ~ /^[0-9]+$/ && $1 > 0", "$1 > 0"),
     }
     for name, mutant_text in shell_mutants.items():
@@ -236,6 +252,16 @@ with tempfile.TemporaryDirectory() as tmp:
         check(python_caught(), "python mutant quota rounded down is rejected")
     finally:
         setattr(ac.math, "ceil", shipped_ceil)  # noqa: B010
+    shipped_mount = ac._v2_mount
+    for name, mutant_mount in (
+        ("unified walked on a v2-only host", lambda root, hybrid: shipped_mount(root, True)),
+        ("hybrid unified mount dropped", lambda root, hybrid: root),
+    ):
+        ac._v2_mount = mutant_mount
+        try:
+            check(python_caught(), f"python mutant {name} is rejected")
+        finally:
+            ac._v2_mount = shipped_mount
     shipped_quota = ac.cgroup_cpu_quota
 
     def first_quota(proc_cgroup=ac.PROC_SELF_CGROUP, cgroup_root=ac.CGROUP_ROOT):

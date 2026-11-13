@@ -4,8 +4,9 @@
 # /proc/self/status) and by the CPU quota of its cgroup or any ancestor
 # (cgroup v2 cpu.max, cgroup v1 cpu.cfs_quota_us over cpu.cfs_period_us),
 # rounded up: the tightest readable quota under the standard mounts, the v2
-# root or its hybrid unified/ directory and the v1 cpu controller as cpu,
-# cpu,cpuacct or cpuacct,cpu; an unreadable file or a controller mounted
+# root (its unified/ directory on a hybrid host, which a v1 line in
+# /proc/self/cgroup marks) and the v1 cpu controller as cpu, cpu,cpuacct or
+# cpuacct,cpu; an unreadable file or a controller mounted
 # elsewhere counts as no quota. getconf covers the CI runners; sysctl covers BSD hosts and nproc
 # covers GNU hosts whose getconf omits the extension. A host without any probe
 # stays usable. tools/available_cpus.py applies the same bounds in Python, and
@@ -60,7 +61,6 @@ fi
 cgroup_quotas() {
 	while IFS=: read -r hierarchy controllers path; do
 		if [ "$hierarchy" = 0 ] && [ -z "$controllers" ]; then
-			mount=$cgroup_root
 			kind=v2
 		else
 			case ",$controllers," in
@@ -68,19 +68,17 @@ cgroup_quotas() {
 			*) continue ;;
 			esac
 			kind=v1
-			mount=
 		fi
 		cgroup_walk
 	done
 }
 
 # Walk path from the process's cgroup to the root under each mount that
-# holds the hierarchy: the v2 root and its hybrid unified/ directory, or
-# every name a v1 cpu controller is mounted under, so an empty sibling
-# directory hides nothing.
+# holds the hierarchy: the v2 mount, or every name a v1 cpu controller is
+# mounted under, so an empty sibling directory hides nothing.
 cgroup_walk() {
 	if [ "$kind" = v2 ]; then
-		set -- "$mount" "$mount/unified"
+		set -- "$v2_mount"
 	else
 		set -- "$cgroup_root/cpu" "$cgroup_root/cpu,cpuacct" \
 		    "$cgroup_root/cpuacct,cpu"
@@ -110,7 +108,16 @@ cgroup_walk() {
 	done
 }
 
+# The v2 hierarchy is mounted on unified/ on a hybrid host, which a v1 line
+# (a nonzero hierarchy number) marks, and on the cgroup root otherwise: on
+# a v2-only host a directory named unified is a sibling cgroup whose quota
+# does not bind this process.
 if [ -r "$proc_self/cgroup" ]; then
+	v2_mount=$cgroup_root
+	if grep -q '^[1-9][0-9]*:' "$proc_self/cgroup" 2>/dev/null &&
+	    [ -d "$cgroup_root/unified" ]; then
+		v2_mount=$cgroup_root/unified
+	fi
 	for quota in $(cgroup_quotas < "$proc_self/cgroup"); do
 		if valid_count "$quota" && [ "$quota" -lt "$online_count" ]; then
 			online_count=$quota

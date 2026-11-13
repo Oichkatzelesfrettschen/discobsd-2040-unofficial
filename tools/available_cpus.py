@@ -8,8 +8,9 @@ timing-sensitive check sees gaps no host load would explain.
 sched_getaffinity() honors CPU pinning on Linux; the cgroup walk below
 honors the tightest readable quota on the process's cgroup or any
 ancestor, under the standard mounts: the v2 root at /sys/fs/cgroup or, on
-a hybrid host, /sys/fs/cgroup/unified, and the v1 cpu controller as cpu,
-cpu,cpuacct or cpuacct,cpu. A quota file the process cannot read, or a
+a hybrid host (one whose /proc/self/cgroup also carries a v1 line),
+/sys/fs/cgroup/unified, and the v1 cpu controller as cpu, cpu,cpuacct or
+cpuacct,cpu. A quota file the process cannot read, or a
 controller mounted elsewhere, counts as no quota.
 
 `tools/online-cpus.sh` applies the same two bounds for make's -j, and
@@ -37,9 +38,12 @@ def cgroup_cpu_quota(
 
     /proc/self/cgroup names the process's cgroup in each hierarchy. A
     cgroup v2 line "0::/path" places cpu.max ("QUOTA PERIOD" in
-    microseconds, "max" for none) under cgroup_root/path, or under
-    cgroup_root/unified/path on a hybrid host, and in every ancestor up to
-    the root. A cgroup v1 line whose controllers include cpu
+    microseconds, "max" for none) under the v2 mount and in every ancestor
+    up to the root. The v2 mount is cgroup_root/unified on a hybrid host,
+    which a v1 line (a nonzero hierarchy number) in the same file marks, and
+    cgroup_root otherwise: on a v2-only host a directory named unified is a
+    sibling cgroup whose quota does not bind this process. A cgroup v1 line
+    whose controllers include cpu
     places cpu.cfs_quota_us (-1 for none) and cpu.cfs_period_us under the
     cpu controller mount; every name in V1_CPU_MOUNTS that exists under
     cgroup_root is walked, so an empty sibling directory hides nothing. An
@@ -52,20 +56,15 @@ def cgroup_cpu_quota(
         lines = proc_cgroup.read_text().splitlines()
     except OSError:
         return None
+    entries = [fields for fields in (line.split(":", 2) for line in lines) if len(fields) == 3]
+    v2_mount = _v2_mount(cgroup_root, hybrid=any(fields[0] != "0" for fields in entries))
     quotas: list[float] = []
-    for line in lines:
-        fields = line.split(":", 2)
-        if len(fields) != 3:
-            continue
-        hierarchy, controllers, path = fields
+    for hierarchy, controllers, path in entries:
         if hierarchy == "0" and controllers == "":
-            for mount in (cgroup_root, cgroup_root / "unified"):
-                if not mount.is_dir():
-                    continue
-                for node in _ancestors(mount, path):
-                    quota = _v2_quota(node / "cpu.max")
-                    if quota is not None:
-                        quotas.append(quota)
+            for node in _ancestors(v2_mount, path):
+                quota = _v2_quota(node / "cpu.max")
+                if quota is not None:
+                    quotas.append(quota)
         elif "cpu" in controllers.split(","):
             for name in V1_CPU_MOUNTS:
                 mount = cgroup_root / name
@@ -76,6 +75,12 @@ def cgroup_cpu_quota(
                     if quota is not None:
                         quotas.append(quota)
     return min(quotas) if quotas else None
+
+
+def _v2_mount(cgroup_root: Path, hybrid: bool) -> Path:
+    """The directory the cgroup v2 hierarchy is mounted on."""
+    unified = cgroup_root / "unified"
+    return unified if hybrid and unified.is_dir() else cgroup_root
 
 
 def _ancestors(mount: Path, path: str) -> list[Path]:

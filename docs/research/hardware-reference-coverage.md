@@ -144,9 +144,9 @@ layer. The Pico seated in J301 and J302 is covered above. Paths in
 | --- | --- | --- | --- | --- |
 | board | mainboard V2.0 | schematic, Gerbers, assembly guide | `picocalc/clockwork_Mainboard_V2.0_Schematic.pdf`, `pcb/CPI_V2.0_Gerber.7z`, `Clockwork_PicoCalc_Assembly_Guidelines.pdf` | tracked, notes |
 | U101 | AXP2101 | PMU: VBUS, battery, DCDC1, ALDO1-4, BLDO1-2 | X-Powers datasheet V1.4, `picocalc/AXP2101_Datasheet_V1.4.pdf` | tracked, notes |
-| U102 | WAS4603 | current-limited load switch, IPS to PICO_VSYS, enable PICO_EN | no `WAS4603` document exists; Will Semiconductor WS4603 Rev 1.2, `picocalc/parts/willsemi_ws4603_datasheet_rev1.2.pdf`, an unconfirmed match | tracked, notes |
+| U102 | WAS4603 | current-limited load switch, IPS to PICO_VSYS, enable PICO_EN | Will Semiconductor WS4603 Rev 1.2, `picocalc/parts/willsemi_ws4603_datasheet_rev1.2.pdf`; no document carries the printed WAS prefix (Part identity verdicts, below) | tracked, notes |
 | U201 | CKS32F103Rx | keyboard controller: matrix, backlights, PMU I2C, I2C1 target at 0x1F | CKS32F103x8/xB datasheet v1.15 (Chinese, LCSC copy) and an undated English CKS32F103xx datasheet (third-party copy); ST DS5319 Rev 20, RM0008 Rev 21, PM0056 Rev 7, ES096 Rev 15 (x8/xB) and ES0340 (xC/D/E), all in `picocalc/parts/` | tracked, notes; the CKS32F103x8/xB reference manual (458 pages, V1.1 per sekorm.com) local only, `local/picocalc/parts/`, while the sekorm account terms it came under are unread |
-| U301 | ESP-PSRAM64H | 8 MB quad PSRAM | Espressif ESP-PSRAM64/64H V1.1, 2020-10, English and Chinese, from Wayback copies of Espressif's URL, which now answers 404 (`picocalc/esp_psram64_esp_psram64h_datasheet_en_v1.1_wayback.pdf`), and the V1.0 of 2018-06; AP Memory APS6404L-3SQR Rev. 2.7 and Lyontek LY68L6400 Rev. 1.2, the parts sellers list as the same die (inferred; `docs/ALIASES.md` in the notes repository carries the evidence) | tracked, notes |
+| U301 | ESP-PSRAM64H | 8 MB quad PSRAM | Espressif ESP-PSRAM64/64H V1.1, 2020-10, English and Chinese, from Wayback copies of Espressif's URL, which now answers 404 (`picocalc/esp_psram64_esp_psram64h_datasheet_en_v1.1_wayback.pdf`), and the V1.0 of 2018-06; Lyontek LY68L6400 Rev. 1.2, whose sheet the Espressif one derives from; AP Memory APS6404L-3SQR Rev. 2.7, a family member with different limits (Part identity verdicts, below) | tracked, notes |
 | U401, U601 | TPS6116x | LCD and keyboard backlight boost converters | TI SLVS791E, covering TPS61160 and TPS61161 | tracked, notes |
 | U501 | NC7WZ16 | dual buffer, PWM_L and PWM_R to the audio filters | onsemi NC7WZ16/D Rev 8 | tracked, notes |
 | U502, U503 | AW8010 | class-D speaker amplifiers, enable PA_EN | Awinic AW8010A V1.3, AW8010B V1.4, AW8010D V1.1; the schematic prints no suffix | tracked, notes |
@@ -206,6 +206,41 @@ the owner's board that examines the core without that override.
 | I2C-bus specification, NXP UM10204 Rev. 7.0 | `picokbd.c` | tracked, notes |
 | USB Type-C Cable and Connector Specification, Release 2.5 | the CC pull-down rule below | tracked, notes, as the usb.org ZIP |
 
+## Part identity verdicts
+
+Each part number below was tested against the parameters its candidate
+documents print: a candidate is refuted by one disagreeing pin, value or
+limit, and supported only when every compared row agrees. Pins, nets and
+component values come from the 600 dpi schematic render; datasheet pages
+are PDF pages in the notes repository. A verdict that documents cannot
+reach names the board observation that reaches it.
+
+| Ref | Claim | Verdict | Discriminating evidence | Board observation that decides |
+| --- | --- | --- | --- | --- |
+| U301 | ESP-PSRAM64H sheet describes the part | supported | the part number the schematic prints | not needed |
+| U301 | LY68L6400 is the same specification | supported | every timing, current and command row equal (tCHD 20 ns, tCPH 50 ns, tACLK 2-6 ns, ICC 40 mA, absolute maximum 4.2 V); page 5 of the ESP V1.1 PDF carries an invisible LY68S3200 text layer with Lyontek's address | die origin: none in documents |
+| U301 | APS6404L-3SQR is the same specification | refuted | tCHD 3.0 vs 20 ns, tCPH 18 vs 50 ns, tACLK and tHZ 5.5 vs 6 ns, ICC 7 vs 40 mA, absolute maximum 4.0 vs 4.2 V; opcodes, MF 0x0D, KGD 0x5D, 1 KB page and SOP8 pin order agree, so it stays a family member | a 9-byte Read ID (9Fh after the 66h/99h reset) compared with reference APS6404L and LY68L6400 parts; only APS defines EID[47:45] = 010 for 64 Mb |
+| U102 | WS4603 (printed WAS4603) | pin map confirmed; prefix undecided | SOT-23-5 pins 1 OUT/PICO_VSYS, 2 GND, 3 ISET/R104, 4 EN/PICO_EN active high, 5 IN/IPS; I_OC = 6.8 kOhm / 3.4 kOhm = 2.0 A (datasheet page 8) | top mark |
+| U502, U503 | AW8010 A, B or D | undecided | all three print the same 3x3 ball map, and all nine balls agree with the schematic; gain 315 kOhm / 47 kOhm = 6.7 V/V | top mark: `A1A` A, `LCV` B, `U0J` D |
+| U401, U601 | TPS61160 or TPS61161 | pin map confirmed; variant undecided | six pins and pad agree; I_LED = 200 mV / R: LCD 5.1 Ohm gives 39.2 mA, keyboard 20 Ohm gives 10.0 mA; the keyboard string is 6 LEDs in series (54 LEDs, 9 parallel per column), inside both OVP limits; 25 V output capacitors weakly favor the 26 V-OVP TPS61160 | top mark `BZQ` 61160, `BZR` 61161, or LEDA voltage at full brightness |
+| U702 | CH340C | confirmed against CH340G/T/R; CH340B not excluded | SOP-16 pin map agrees; pins 7 and 8 carry no crystal, which CH340G/T/R require | top mark |
+| U201 | CKS32F103 in LQFP64 | pin map confirmed | 64 of 64 pins agree with the CKS LQFP64 table | not needed |
+| U201 | flash size letter 8, B, C or E | undecided | the x8/xB and xC-xE LQFP64 pin columns are identical | top mark, or the flash-size word at 0x1FFFF7E0 |
+| U201 | Cortex-M3 r1p1 or r2p1 | undecided; documents conflict | the CKS manual gives TAP ID 0x3BA00477 (r1p1) in 22.6.3 and IDCODE 0x4BA00477 (r2p1) in table 92; CKS's difference list says r2p1 | CPUID at 0xE000ED00 over SWD: 0x411FC231 r1p1, 0x412FC231 r2p1 |
+| U701, U703 | WAS7227Q | confirmed | all 10 pins agree; OE tied low; SEL low selects D1, matching `docs/picocalc/INDEX.md` | not needed |
+| U501 | NC7WZ16 | pin map confirmed; package undecided | six pins agree | top mark `Z16MG` SC-88, `C7KK` SIP6/UDFN6 |
+| U19 (Pico W) | BCM43439 is the Broadcom name | refuted as documented | no held document prints it; the CYW43438 sheet maps only BCM43438; the SDK loads firmware for the 43439A0 die | not needed |
+| panel | supplier listing TXW392001B0 (3.92 inch, 480x480) | refuted | the ST7365P drives at most 320(RGB) x 480 (specification page 1), so no 480-column module uses it | the module's own label |
+
+Schematic findings from the same read: U201 drives PICO_EN from PA13 and
+PA_EN from PA14, the SWDIO and SWCLK pins, which RM0008 puts in input
+pull-up and pull-down after reset; on an ST part PICO_EN therefore reads
+high and both amplifiers stay shut down until firmware remaps SWJ_CFG
+(hypothesis for the CKS part). M_I2C1 uses the I2C1 remap pins PB8/PB9.
+The audio input capacitors are 15 nF against 47 kOhm, a 225 Hz corner.
+U701, U702 and U703 show no decoupling capacitor on VCC, which the CH340
+datasheet (page 3) asks for.
+
 ## Findings beside the coverage
 
 The schematic wires R701 and R702, 5.1 kOhm each, from J701's CC1 and CC2
@@ -224,8 +259,9 @@ repository keeps the vendor's name until then.
 
 - CYW43439 version 07_00: Infineon's download link loops in a signed-in
   session; Rev. \*D is the newest public copy.
-- Read the U201 and U102 markings, the AW8010 suffix and the R701 and R702
-  sites on the owner's board.
+- Read the top marks of U102, U201, U401, U501, U502, U601 and U702, the
+  R701 and R702 sites, and U201's CPUID (0xE000ED00) and flash-size word
+  (0x1FFFF7E0) over SWD on the owner's board.
 - The panel module datasheet, the 0.5-40PBSX, JC101GV01 and KS18650X2
   drawings and the TP-1221U-K9K5325 switch have no source that served
   them; the notes repository's

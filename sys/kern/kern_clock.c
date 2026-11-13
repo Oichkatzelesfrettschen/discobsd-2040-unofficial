@@ -436,8 +436,15 @@ hzto(register struct timeval *tv)
      * Delta times less than 25 days can be computed ``exactly''.
      * Maximum value for any timeout in 10ms ticks is 250 days.
      */
+    /*
+     * A deadline more than a second behind the clock is due at once; the
+     * distance saturates (wall_interval(), sys/time.h), so its product
+     * below stays inside a long only on the positive side.
+     */
     sec = wall_interval(tv->tv_sec, time.tv_sec);
-    if (sec <= 0x7fffffff / 1000 - 1000)
+    if (sec < -1)
+        ticks = 0;
+    else if (sec <= 0x7fffffff / 1000 - 1000)
         ticks = (sec * 1000 +
             (tv->tv_usec - time.tv_usec) / 1000) / (1000/hz);
     else if (sec <= 0x7fffffff / hz)

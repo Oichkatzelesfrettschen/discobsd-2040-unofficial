@@ -198,8 +198,8 @@ def main():
             "itimer-ilp32",
             {
                 "time.h": (
-                    "    return (long)((unsigned long)later - (unsigned long)earlier);",
-                    "    return later - earlier;",
+                    "    unsigned long to = (unsigned long)later, from = (unsigned long)earlier;",
+                    "    unsigned long to = 0, from = 0;\n    return later - earlier;",
                 )
             },
             True,
@@ -209,8 +209,9 @@ def main():
             "itimer-ilp32",
             {
                 "time.h": (
-                    "    return past > 0 || (past == 0 && microseconds >= deadline->tv_usec);",
-                    "    (void)past;\n"
+                    "    return now > due || (now == due && microseconds >= deadline->tv_usec);",
+                    "    (void)now;\n"
+                    "    (void)due;\n"
                     "    return seconds > deadline->tv_sec || (seconds == deadline->tv_sec\n"
                     "        && microseconds >= deadline->tv_usec);",
                 )
@@ -226,6 +227,23 @@ def main():
                     "    return seconds % (long)period == 0;",
                 )
             },
+            True,
+        ),
+        (
+            "wall-interval-wraps-past-a-long",
+            "itimer-ilp32",
+            {
+                "time.h": (
+                    "        return to - from > limit ? (long)limit : (long)(to - from);",
+                    "        return (long)(to - from);",
+                )
+            },
+            True,
+        ),
+        (
+            "hzto-multiplies-a-distant-past-deadline",
+            "itimer-ilp32",
+            {"kern_clock.c": ("    if (sec < -1)\n        ticks = 0;\n    else if", "    if")},
             True,
         ),
         (
@@ -245,7 +263,7 @@ def main():
             {
                 "kern_time.c": (
                     "    boottime.tv_sec = wall_advance(boottime.tv_sec,\n"
-                    "        wall_interval(tv->tv_sec, time.tv_sec));",
+                    "        (long)((unsigned long)tv->tv_sec - (unsigned long)time.tv_sec));",
                     "    boottime.tv_sec += tv->tv_sec - time.tv_sec;",
                 )
             },

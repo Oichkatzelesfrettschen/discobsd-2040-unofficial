@@ -74,9 +74,10 @@ struct  itimerval {
  * the signed field struct timeval shares with intervals; read unsigned
  * (utime32_t) it is valid to 2106. Its arithmetic runs in unsigned long,
  * where the carry out of bit 31 in January 2038 is defined: wall_advance()
- * moves a clock value by a signed number of seconds, and wall_interval()
- * returns the signed distance from one clock value to another, exact
- * while the two are less than 2^31 seconds apart.
+ * moves a clock value by a number of seconds modulo 2^32, and
+ * wall_interval() returns the signed distance from one clock value to
+ * another, held at LONG_MAX or -LONG_MAX when the two are further apart
+ * than a long holds (a clock stepped across more than 68 years).
  */
 static inline long
 wall_advance(long seconds, long by)
@@ -87,19 +88,26 @@ wall_advance(long seconds, long by)
 static inline long
 wall_interval(long later, long earlier)
 {
-    return (long)((unsigned long)later - (unsigned long)earlier);
+    unsigned long to = (unsigned long)later, from = (unsigned long)earlier;
+    unsigned long limit = (unsigned long)-1 >> 1;
+
+    if (to >= from)
+        return to - from > limit ? (long)limit : (long)(to - from);
+    return from - to > limit ? -(long)limit : -(long)(from - to);
 }
 
 /*
  * Nonzero when a wall clock reading of seconds and microseconds is at or
- * after the deadline; the signed distance orders the two across the carry.
+ * after the deadline. Both second counts are compared unsigned, so the
+ * order holds across the carry and for any two values of the count.
  */
 static inline int
 wall_reached(const struct timeval *deadline, long seconds, long microseconds)
 {
-    long past = wall_interval(seconds, deadline->tv_sec);
+    unsigned long now = (unsigned long)seconds;
+    unsigned long due = (unsigned long)deadline->tv_sec;
 
-    return past > 0 || (past == 0 && microseconds >= deadline->tv_usec);
+    return now > due || (now == due && microseconds >= deadline->tv_usec);
 }
 
 /*

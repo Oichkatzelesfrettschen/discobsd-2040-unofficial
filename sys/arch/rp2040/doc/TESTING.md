@@ -2658,13 +2658,16 @@ second time with `-m32`, where `long` has the target's width, and with the
 signed-overflow sanitizer: `hardclock()` carries the count from 0x7fffffff
 to 0x80000000, `hzto()` measures a deadline across the carry and past it,
 `wall_reached()` (the `select` deadline test) orders a clock and a deadline
-on either side, `wall_every()` (the five-second `vmmeter()` period) keeps its
+on either side and after a clock step of more than 2^31 seconds, where
+`hzto()` waits the longest sleep for a deadline far ahead and returns zero
+for one far behind, `wall_every()` (the five-second `vmmeter()` period) keeps its
 phase, `timevaladd()` carries a microsecond overflow into bit 31,
 `settimeofday()` moves the boot time by the same distance, and `adjtime()`
 steps the clock anywhere inside 0..4294967295 and refuses a step that leaves
-it. Seven mutants restore signed arithmetic at one site each and are rejected,
-four by the sanitizer and three by an assertion. A host compiler without a
-32-bit sanitizer runtime prints a skip for these eight cases; the native
+it. Nine mutants are rejected: seven restore signed arithmetic at one site
+each, one lets the distance wrap past a long, and one lets `hzto()`
+multiply a deadline far behind the clock. A host compiler without a
+32-bit sanitizer runtime prints a skip for these ten cases; the native
 build never reaches the carry, so it establishes nothing about it.
 
 Clean parent `4514cd81be7d82e03d5d97977398e3aa3b6d7921` and credential

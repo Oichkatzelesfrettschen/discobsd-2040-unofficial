@@ -36,8 +36,9 @@ setthetime (register struct timeval *tv)
     }
 #endif
 /* WHAT DO WE DO ABOUT PENDING REAL-TIME TIMEOUTS??? */
+    /* The boot time moves by the step itself, taken modulo 2^32. */
     boottime.tv_sec = wall_advance(boottime.tv_sec,
-        wall_interval(tv->tv_sec, time.tv_sec));
+        (long)((unsigned long)tv->tv_sec - (unsigned long)time.tv_sec));
     s = splhigh();
     time = *tv;
     lbolt = time.tv_usec / usechz;

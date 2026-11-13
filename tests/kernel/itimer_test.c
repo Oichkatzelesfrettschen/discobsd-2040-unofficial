@@ -663,7 +663,9 @@ virtual_prof(void)
  * The wall clock counts seconds since 1970 modulo 2^32 and is read
  * unsigned, so it carries out of bit 31 in January 2038 and stays ordered
  * to 2106. The cases need the target's 32-bit long: a 64-bit long never
- * reaches the carry. HK_WALL_ILP32 marks the build that must have it.
+ * reaches the carry. HK_WALL_ILP32 marks the build that has it and runs
+ * them; the kernel's LONG_MAX is the target's in either build and cannot
+ * tell the two apart.
  */
 #ifdef HK_WALL_ILP32
 _Static_assert(sizeof(long) == 4, "the wall clock cases need a 32-bit long");
@@ -672,7 +674,7 @@ _Static_assert(sizeof(long) == 4, "the wall clock cases need a 32-bit long");
 static void
 wall_clock_carry(void)
 {
-#if LONG_MAX == 0x7fffffffL
+#ifdef HK_WALL_ILP32
     struct { struct timeval *delta, *old; } *adjust = (void *)u.u_arg;
     struct { struct timeval *tv; struct timezone *tzp; } *sargs =
         (void *)u.u_arg;
@@ -709,6 +711,22 @@ wall_clock_carry(void)
     deadline.tv_sec = (long)0x9000000aUL;
     HK_CHECK(hzto(&deadline) == 10 * hz);
 
+    /*
+     * A clock stepped across more than 2^31 seconds keeps its order with a
+     * pending deadline: far ahead waits the longest sleep, far behind is
+     * due at once.
+     */
+    time.tv_sec = (long)1800000000UL;
+    deadline.tv_sec = (long)4000000000UL;
+    HK_CHECK(wall_interval(deadline.tv_sec, time.tv_sec) == LONG_MAX);
+    HK_CHECK(wall_interval(time.tv_sec, deadline.tv_sec) == -LONG_MAX);
+    HK_CHECK(hzto(&deadline) == 0x7fffffff);
+    HK_CHECK(!wall_reached(&deadline, time.tv_sec, 0));
+    time.tv_sec = (long)4000000000UL;
+    deadline.tv_sec = (long)1800000001UL;
+    HK_CHECK(hzto(&deadline) == 0);
+    HK_CHECK(wall_reached(&deadline, time.tv_sec, 0));
+
     /* A deadline past the carry is not reached by a clock before it. */
     deadline.tv_sec = (long)0x80000001UL;
     deadline.tv_usec = 5;
@@ -744,6 +762,13 @@ wall_clock_carry(void)
     HK_CHECK(u.u_error == 0);
     HK_CHECK((unsigned long)time.tv_sec == 0x80000010UL);
     HK_CHECK((unsigned long)boottime.tv_sec == 0x7fffff20UL);
+    time.tv_sec = (long)1800000000UL;
+    boottime.tv_sec = (long)1799999000UL;
+    tv.tv_sec = (long)4000000000UL;
+    u.u_error = 0;
+    gate_settimeofday();
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK((unsigned long)boottime.tv_sec == 3999999000UL);
 
     /* adjtime(2) steps the clock anywhere inside 1970..2106 and nowhere else. */
     for (i = 0; i < sizeof steps / sizeof steps[0]; i++) {

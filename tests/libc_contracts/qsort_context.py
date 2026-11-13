@@ -107,7 +107,9 @@ def main():
             diagnostic = result.returncode == 1 and "qsort context:" in result.stderr
             # Shared state retains the nested callback's expired stack context.
             lifetime = (label == "shared call state" and result.returncode != 0 and
-                        "ERROR: AddressSanitizer: stack-use-after-return" in result.stderr and
+                        any("ERROR: AddressSanitizer: " + violation in result.stderr
+                            for violation in ("stack-use-after-return",
+                                              "stack-use-after-scope")) and
                         "in compare" in result.stderr)
             require(diagnostic or lifetime,
                     label + " lacks behavioral rejection: " + result.stdout + result.stderr)

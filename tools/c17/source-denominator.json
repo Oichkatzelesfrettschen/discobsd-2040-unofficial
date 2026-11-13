@@ -84974,7 +84974,9 @@
             "cast-dereference"
           ],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "width-sensitive-sizeof"
+          ],
           "object_lifetime": [],
           "pointer": [
             "pointer-integer-cast"

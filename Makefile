@@ -297,6 +297,12 @@ check-divider:	tools
 		fi
 		${MAKE} -C sys/arch/rp2040/compile check-divider
 
+# The host ar and ranlib give equal archive bytes for equal members under
+# SOURCE_DATE_EPOCH, across umasks, member dates and builder user ids.
+check-archive-identity:	tools
+		sh tools/check_archive_identity.sh ${TOOLBINDIR}/ar \
+		    ${TOOLBINDIR}/ranlib
+
 check-swapram:	tools
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-swapram requires MACHINE=rp2040" >&2; \
@@ -957,6 +963,12 @@ check-tee-contracts:
 check-tee-contracts-cross:
 		${MAKE} -C tests/tee_contracts check-cross
 
+# usr.bin/lex built for the host at the target's table sizes: a grammar that
+# needs more than a table holds exits 1 with the table's diagnostic before
+# the store, under AddressSanitizer where the host links it.
+check-lex-tables:	check-python
+		${MAKE} -C tests/lex_tables check
+
 # usr.bin/time linked with sbin/utilbox's dispatcher and a wait3 shim, run
 # as "time" and as "utilbox time": the exit status of a normal exit, of a
 # signal death (128 plus the signal), of a missing program (127), of a
@@ -1452,7 +1464,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
 		check-rmdir-contracts check-tee-contracts check-time-contracts \
-		check-libtcl-contracts \
+		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
 		check-aout check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
@@ -1504,6 +1516,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-r
 		check-find-contracts-cross \
 		check-backgammon-contracts-cross \
 		check-rmdir-contracts-cross check-tee-contracts-cross \
+		check-archive-identity \
 		check-time-contracts-cross \
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross \
@@ -1989,6 +2002,7 @@ installfs:
 .PHONY:		check-clean-residue check-storage-counters check-storage-correctness check-python check-icode-relocation check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-dpucp-board-acceptance check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
+		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
 		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
@@ -1997,7 +2011,7 @@ installfs:
 		check-account-image regen-kernel-metadata check-fs-stress \
 		check-fsck-inode-range \
 		check-libc-environment check-libc-sysctl check-umount-contracts \
-		check-touch-contracts check-printf-contracts \
+		check-touch-contracts check-lex-tables check-printf-contracts \
 		check-printf-contracts-ilp32 check-printf-contracts-cross \
 		check-recovery-utility-contracts \
 		check-recovery-utility-contracts-cross check-timeout-contracts \

@@ -177,7 +177,7 @@ doprocess:
 
 	DEBUG(11,"path = %s\n", getenv("PATH"));
 
-	DEBUG(4, "process (null)\n");
+	DEBUG(4, "process X. files in %s\n", Spool);
 	time(&xstart);
 	while (gtxfile(xfile) > 0) {
 		/* if /etc/nologin exists, exit cleanly */

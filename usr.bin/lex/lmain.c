@@ -11,7 +11,7 @@
 
 # include "ldefs.h"
 
-FILE	*fout = NULL, *errorf = {stdout};
+FILE	*fout = NULL, *errorf;
 int	sect = DEFSECTION;
 int	prev = '\n';	/* previous input character */
 int	pres = '\n';	/* present input character */
@@ -106,6 +106,7 @@ main(int argc, char **argv)
 {
 	int i;
 
+	errorf = stdout;
 # ifdef DEBUG
 	signal(SIGBUS,buserr);
 	signal(SIGSEGV,segviol);
@@ -141,10 +142,14 @@ main(int argc, char **argv)
 	sargc = argc;
 	sargv = argv;
 	if (argc > 1){
-		fin = fopen(argv[++fptr], "r");		/* open argv[1] */
+		yyfile = argv[++fptr];
+		fin = fopen(yyfile, "r");		/* open argv[1] */
 		sargc--;
 	}
-	else fin = stdin;
+	else {
+		yyfile = "stdin";
+		fin = stdin;
+	}
 	if(fin == NULL)
 		error ("Can't read input file %s",argc>1?argv[1]:"standard input");
 	gch();

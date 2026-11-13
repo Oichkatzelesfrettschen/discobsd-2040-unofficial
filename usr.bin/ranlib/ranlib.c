@@ -267,6 +267,7 @@ symobj(void)
 	char hb[2 * sizeof(struct ar_hdr)];
 	long ransize, baseoff;
 	mode_t creation_mask;
+	unsigned int table_uid, table_gid, table_mode;
 
 	/* Rewind the archive, leaving the magic number. */
 	if (fseek(fp, (off_t)SARMAG, SEEK_SET) == (off_t)-1)
@@ -282,8 +283,34 @@ symobj(void)
 	/* Put out the ranlib archive file header. */
 	creation_mask = umask(0);
 	(void)umask(creation_mask);
-	(void)snprintf(hb, sizeof hb, HDR2, RANLIBMAG, 0L, getuid(), getgid(),
-	    0666 & ~creation_mask, ransize, ARFMAG);
+	table_uid = getuid();
+	table_gid = getgid();
+	table_mode = 0666 & ~creation_mask;
+#ifdef CROSS
+	/*
+	 * Under a well-formed SOURCE_DATE_EPOCH the host build records the
+	 * ids and mode usr.bin/ar records for a member (member_owner in
+	 * ar/archive.c), so the table header is the same on every host.
+	 */
+	{
+		const char *text = getenv("SOURCE_DATE_EPOCH");
+		char *end;
+		unsigned long long epoch;
+
+		if (text != NULL && *text >= '0' && *text <= '9') {
+			errno = 0;
+			epoch = strtoull(text, &end, 10);
+			if (errno == 0 && *end == '\0' &&
+			    epoch <= 0x7fffffffULL) {
+				table_uid = 0;
+				table_gid = 0;
+				table_mode = 0644;
+			}
+		}
+	}
+#endif
+	(void)snprintf(hb, sizeof hb, HDR2, RANLIBMAG, 0L, table_uid,
+	    table_gid, table_mode, ransize, ARFMAG);
 	if (! fwrite(hb, sizeof(struct ar_hdr), 1, fp))
 		error(tname);
 

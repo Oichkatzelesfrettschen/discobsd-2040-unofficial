@@ -1409,7 +1409,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-r
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
-		check-c17-headers-cross \
+		check-c17-headers-cross check-libc-shared-closure \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-libc-getgrent-cross \
@@ -1430,6 +1430,13 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-r
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross \
 		check-stdio-bounds-cross check-elf2aout
+
+check-libc-shared-closure: check-python
+		env SHARED_CLOSURE_CC=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    SHARED_CLOSURE_AR=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-ar \
+		    ${PYTHON} tools/libc_shared_closure_test.py
+
+.PHONY: check-libc-shared-closure
 
 # No object of a shipped program defines a global symbol that lib/libc.a also
 # defines, because `ld --just-symbols` against a shared libc image rebinds such

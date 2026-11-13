@@ -254,6 +254,8 @@ jobs:
 
       # check-cross owns the string namespace/signature and expanded Smaller C
       # header gate on both host platforms; runtime behavior stays separate.
+      # It also calibrates explicit shared-libc API/provider closure with ARM
+      # object archives through check-libc-shared-closure on both platforms.
       - name: Run the cross tier
         timeout-minutes: 20
         run: |

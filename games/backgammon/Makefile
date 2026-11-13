@@ -9,7 +9,7 @@ include ${TOPSRC}/share/mk/sys.mk
 # V7 selects CBREAK, where the driver still turns the interrupt character into
 # SIGINT; the default build takes RAW, where subs.c's readc() is the only
 # thing that sees it. tests/backgammon_contracts covers the RAW reading.
-CFLAGS		+= -O -Wall #-DV7
+CFLAGS		+= -Wall #-DV7
 LIBS            += -ltermcap -lc
 
 OBJS            = allow.o board.o check.o extra.o fancy.o init.o main.o \

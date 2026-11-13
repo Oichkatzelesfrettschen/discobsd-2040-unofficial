@@ -36,7 +36,7 @@ the authorized offline execution surface.
 | Map storage contracts | Complete for named write paths | `storage-recovery-contracts.md` traces units, volatile state, return conventions, acknowledgements and ordering through descriptor, kernel, flash, Dhara and ROM boundaries. Pull request 435's retained experiment was inspected at its recorded head. |
 | Implement shared failure interface | Complete for host prefix model | Typed transfer callbacks execute the production descriptor backend; inactive injections fail. Positive shorts, errors before/after transfer, frozen interruption prefixes and paired compensation errors are calibrated. |
 | Extend persistent-image oracle | Complete for exercised image range | Independent ownership, free-list, inode, namespace, link-count and metadata checks read fresh exported bytes. Corrupted-image controls and valid-but-changed metadata distinguish invariant failures from state differences. Larger sparse files retain a bounded-reader extension requirement. |
-| Repair supported recoverable v7fs defects | Open; six mechanisms repaired | Formatter cache and hard-link compensation are committed at `167e856d`; rename hierarchy validation precedes target replacement at `ff07aeab`; parent-growth admission includes index blocks at `7a9fa7e3`; symlink writeback reports its final error at `640fe310`; and inode serialization rejects addresses outside 24 bits at `eb27bc90`. Imported-source changes carry synchronized patches and manifest hashes. Rename publication compensation and interruption behavior remain open. |
+| Repair supported recoverable v7fs defects | Open; seven mechanisms repaired | Formatter cache and hard-link compensation are committed at `167e856d`; rename hierarchy validation precedes target replacement at `ff07aeab`; parent-growth admission includes index blocks at `7a9fa7e3`; symlink writeback reports its final error at `640fe310`; inode serialization rejects addresses outside 24 bits at `eb27bc90`; and rename publication failures restore the source namespace and a displaced target at `8ca92acd`. Imported-source changes carry synchronized patches and manifest hashes. Failed compensation, fail-after-transfer behavior and interruption atomicity remain open. |
 | Compare atomic recovery policies | Complete offline; production admission open | Bounded policies pass 22,854 transaction/recovery cuts and negative controls. Dhara replay supplies operation counts and separate committed-recovery work. `storage-recovery-comparison.md` records the representation/reclamation/migration/interruption architecture stop. |
 | Review remaining components | Active: verify device error lifetime and unit admission | The host probe reproduced queued-buffer routing and unmounted asynchronous error loss. The candidate retains shared first-error replicas in active inode storage through last close and drains busy writes. The mount-publication schedule reproduces raw/whole-device admission races; the unit guard passes the deciding host schedules. The extended fixture passes 1,950 checks and rejects 46 mutants; the buffer-pressure fixture passes 53 checks and rejects its four behavior mutants. Selected Clang analyses pass, and matched Cortex-M0+ resource captures retain source hashes. Final clean-revision logged gates remain required before publication. `block-device-write-error-lifetime.md` owns the contract and evidence limits. Six source-review components cover 101 paths; 658 components remain pending. |
 | Determine takeover eligibility | Pending | Record UTC decision and exact five-hour cutoff, attributable activity and ownership, then recheck head and ownership immediately before mutation. |
@@ -258,3 +258,24 @@ little-endian formats through both host backends. The truncation mutant fails,
 the v7fs core gate passes, and the import verifier matches all 37 manifest
 entries. These finite endpoint checks establish the exercised serializer
 boundary, rather than arbitrary corruption detection.
+
+The cross-parent rename regression enumerates every write position issued by
+successful directory moves with and without an existing empty-directory
+target. A failure before transfer at each position returns `EIO`; a fresh
+mount then finds the source at its original name, the original `..` entry,
+the original parent and target link counts, and any displaced target at its
+original name and inode. The independent reader accounts the exercised root,
+source, target-parent and displaced-target data and index blocks against the
+free list. Each recovered image accepts a successful retry. Four mutants
+remove source or target compensation at the add, source-removal and parent
+replacement boundaries, and each fails its named regression. The compensation
+identity is semantic: directory entry ordering and unreachable bytes beyond a
+restored logical directory size are outside it. Commit `8ca92acd` carries the
+repair, synchronized NetBSD patch and manifest identity. Logged build
+`rp2040-build-local-20261113T001616Z-1986941-e04c30ec` completed with exit zero;
+the v7fs core gate passed both byte orders and both descriptor backends, the
+import gate matched all 37 entries, and the ShellCheck error-level gate passed.
+These checks establish ordinary fail-before-transfer recovery. The
+implementation gives a compensation error precedence over the initiating
+error, while systematic second-error enumeration remains open alongside
+fail-after-transfer behavior and interruption atomicity.

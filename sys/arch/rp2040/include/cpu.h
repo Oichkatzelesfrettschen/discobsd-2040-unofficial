@@ -121,13 +121,7 @@
 #define	CPU_IMAGE_LENGTH	40	/* int: flash image bytes */
 #define	CPU_IMAGE_CRC		41	/* int: CRC32 computed at boot */
 #define	CPU_IMAGE_CRC_STORED	42	/* int: CRC32 stamped at the link */
-/*
- * swapram_psinfo.<pid> reads struct swapram_psinfo (machine/swapram.h) for
- * a process whose image the SwapRAM pool holds; ESRCH answers any other
- * pid. ps(1) is the reader, so the identifier carries no sysctl(8) name.
- */
-#define	CPU_SWAPRAM_PSINFO	43	/* node: struct swapram_psinfo by pid */
-#define	CPU_MAXID		44	/* number of valid machdep ids */
+#define	CPU_MAXID		43	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -174,6 +168,5 @@
 	{ "image_length", CTLTYPE_INT }, \
 	{ "image_crc", CTLTYPE_INT }, \
 	{ "image_crc_stored", CTLTYPE_INT }, \
-	{ 0, 0 }, \
 }
 #endif	/* !KERNEL */

@@ -89,9 +89,12 @@ do_swap(struct file_list *fl)
     fprintf(fp, "dev_t\trootdev = makedev(%d, %d);\t/* %s */\n",
         major(fl->f_rootdev), minor(fl->f_rootdev),
         devtoname(fl->f_rootdev));
-    fprintf(fp, "dev_t\tdumpdev = makedev(%d, %d);\t/* %s */\n",
-        major(fl->f_dumpdev), minor(fl->f_dumpdev),
-        devtoname(fl->f_dumpdev));
+    if (fl->f_dumpdev == NODUMP)
+        fprintf(fp, "dev_t\tdumpdev = NODEV;\t\t/* none */\n");
+    else
+        fprintf(fp, "dev_t\tdumpdev = makedev(%d, %d);\t/* %s */\n",
+            major(fl->f_dumpdev), minor(fl->f_dumpdev),
+            devtoname(fl->f_dumpdev));
 #if 1
     /* Only one swap device is supported. */
     fprintf(fp, "dev_t\tswapdev = makedev(%d, %d);\t/* %s */\n",

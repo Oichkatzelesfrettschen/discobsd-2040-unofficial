@@ -24,7 +24,7 @@ STD=	_featuretest.h a.out.h alloca.h ar.h assert.h \
 	fcntl.h float.h fnmatch.h fstab.h \
 	grp.h inttypes.h kmem.h lastlog.h libgen.h limits.h \
 	math.h mtab.h ndbm.h nlist.h \
-	paths.h psout.h pwd.h \
+	paths.h pwd.h \
 	ranlib.h regexp.h \
 	setjmp.h sgtty.h \
 	stdalign.h stdarg.h stddef.h stdint.h stdio.h stdlib.h stdnoreturn.h \

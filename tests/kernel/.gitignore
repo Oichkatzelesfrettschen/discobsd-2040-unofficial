@@ -100,6 +100,9 @@ sysctl_test_compact
 sysctl_test_wide
 sysctl_kernel_compact.o
 sysctl_kernel_wide.o
+sysctl_vmswp_compact.o
+sysctl_vmswp_wide.o
+sysctl_proc_*.mutant.*
 sysctl_shim.o
 ialloc_test
 ialloc_test_pico
@@ -240,6 +243,7 @@ ufs_disk_*.o
 ufs_disk_test
 ufs_disk_conf_functions.c
 ufs_disk_flash_functions.c
+ufs_disk_stm32_unit_functions.c
 ufs_disk_*.mutant.c
 ufs_disk_*.mutant.functions.c
 ufs_disk_*.mutant.test

@@ -78,6 +78,13 @@ class ExecutionTest(unittest.TestCase):
         except ProcessLookupError:
             pass
 
+    def assert_recorded_group_stopped(self, group_file):
+        self.assertTrue(group_file.is_file())
+        process_group = int(group_file.read_text(encoding="ascii"))
+        self.assertGreater(process_group, 1)
+        with self.assertRaises(ProcessLookupError):
+            os.killpg(process_group, 0)
+
     def wait_for_file(self, path, timeout_seconds=2):
         deadline = time.monotonic() + timeout_seconds
         while time.monotonic() < deadline:
@@ -272,12 +279,15 @@ class ExecutionTest(unittest.TestCase):
         variant = self.variant()
         marker = self.directory / "variant-descendant-terminated"
         ready = self.directory / "variant-descendant-ready"
+        group_file = self.directory / "variant-descendant-group"
+        self.addCleanup(self.stop_recorded_group, group_file)
         executable = self.directory / variant["program"]
         executable.write_text(
             f"#!{sys.executable}\n"
             "import os, pathlib, signal, sys, time\n"
-            "child = (\"import pathlib, signal, sys, time; \""
-            "         \"marker, ready=map(pathlib.Path, sys.argv[1:]); \""
+            "child = (\"import os, pathlib, signal, sys, time; \""
+            "         \"marker, ready, group_file=map(pathlib.Path, sys.argv[1:]); \""
+            "         \"group_file.write_text(str(os.getpgrp()), encoding='ascii'); \""
             "         \"signal.signal(signal.SIGTERM, lambda *_: \""
             "         \"(marker.write_text('terminated', encoding='ascii'), \""
             "         \"sys.exit(0))); ready.write_text('ready', encoding='ascii'); \""
@@ -292,7 +302,7 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(
             execution.run_variant(
                 variant,
-                [str(executable), str(marker), str(ready)],
+                [str(executable), str(marker), str(ready), str(group_file)],
                 timeout_seconds=2.0,
             ),
             2,
@@ -304,9 +314,9 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(record["termination"], "hard_timeout")
         self.assertEqual(record["timeout_seconds"], 2.0)
         self.assertTrue(ready.is_file())
-        self.assertTrue(marker.is_file())
+        self.assert_recorded_group_stopped(group_file)
 
-    def test_successful_variant_stops_its_surviving_descendant(self):
+    def check_successful_descendant(self, handler_delay):
         variant = self.variant()
         marker = self.directory / "successful-descendant-terminated"
         ready = self.directory / "successful-descendant-ready"
@@ -319,8 +329,10 @@ class ExecutionTest(unittest.TestCase):
             "marker, ready, group_file = map(pathlib.Path, sys.argv[1:])\n"
             "child = (\"import pathlib, signal, sys, time; \"\n"
             "         \"marker, ready = map(pathlib.Path, sys.argv[1:]); \"\n"
+            "         \"signal.signal(signal.SIGHUP, signal.SIG_IGN); \"\n"
             "         \"signal.signal(signal.SIGTERM, lambda *_: \"\n"
-            "         \"(marker.write_text('terminated', encoding='ascii'), \"\n"
+            f"         \"(time.sleep({handler_delay!r}), \"\n"
+            "         \"marker.write_text('terminated', encoding='ascii'), \"\n"
             "         \"sys.exit(0))); ready.write_text('ready', encoding='ascii'); \"\n"
             "         \"time.sleep(60)\")\n"
             "child_pid = os.fork()\n"
@@ -345,7 +357,25 @@ class ExecutionTest(unittest.TestCase):
             0,
         )
 
-        self.assertTrue(self.wait_for_file(marker, 1))
+        self.assertTrue(ready.is_file())
+        self.assert_recorded_group_stopped(group_file)
+        if handler_delay:
+            self.assertFalse(marker.exists())
+
+    def test_successful_variant_stops_its_surviving_descendant(self):
+        self.check_successful_descendant(0)
+
+    def test_successful_variant_kills_slow_signal_handler(self):
+        self.check_successful_descendant(execution.ROOT_CLEANUP_ALLOWANCE_SECONDS + 1)
+
+    def test_successful_descendant_oracle_rejects_omitted_cleanup(self):
+        def omit_cleanup(_variant, command):
+            subprocess.run(command, check=True, start_new_session=True, timeout=5)
+            return 0
+
+        with patch.object(execution, "run_variant", side_effect=omit_cleanup):
+            with self.assertRaisesRegex(AssertionError, "ProcessLookupError not raised"):
+                self.check_successful_descendant(0)
 
     def test_completed_group_leaves_sequence_ownership(self):
         variant = self.variant("owned-success")
@@ -735,7 +765,8 @@ class ExecutionTest(unittest.TestCase):
 
         self.assertEqual(returncode, execution.TIMEOUT_EXIT)
         self.assertEqual(termination, "hard_timeout")
-        self.assertTrue(self.wait_for_file(marker, 1))
+        self.assertTrue(ready.is_file())
+        self.assert_recorded_group_stopped(group_file)
 
     def test_three_nested_supervisors_stop_resistant_leaf_before_return(self):
         for probe in range(3):
@@ -838,18 +869,24 @@ class ExecutionTest(unittest.TestCase):
     def test_detached_aggregate_timeout_stops_process_group_and_is_reported(self):
         report = self.directory / "aggregate-timeout.json"
         marker = self.directory / "aggregate-descendant-terminated"
+        group_file = self.directory / "aggregate-descendant-group"
+        ready = self.directory / "aggregate-descendant-ready"
+        self.addCleanup(self.stop_recorded_group, group_file)
         observer = self.directory / "make-timeout-observer"
         observer.write_text(
             f"#!{sys.executable}\n"
             "import os, pathlib, signal, sys, time\n"
-            "child = (\"import pathlib, signal, sys, time; \""
-            "         \"marker=pathlib.Path(sys.argv[1]); \""
+            "child = (\"import os, pathlib, signal, sys, time; \""
+            "         \"marker, ready, group_file=map(pathlib.Path, sys.argv[1:]); \""
+            "         \"group_file.write_text(str(os.getpgrp()), encoding='ascii'); \""
             "         \"signal.signal(signal.SIGTERM, lambda *_: \""
             "         \"(marker.write_text('terminated', encoding='ascii'), \""
-            "         \"sys.exit(0))); time.sleep(60)\")\n"
+            "         \"sys.exit(0))); ready.write_text('ready', encoding='ascii'); \""
+            "         \"time.sleep(60)\")\n"
             "child_pid = os.fork()\n"
             "if child_pid == 0:\n"
-            f"    os.execv(sys.executable, [sys.executable, '-c', child, {str(marker)!r}])\n"
+            f"    os.execv(sys.executable, [sys.executable, '-c', child, "
+            f"{str(marker)!r}, {str(ready)!r}, {str(group_file)!r}])\n"
             "time.sleep(60)\n"
         )
         observer.chmod(0o755)
@@ -865,7 +902,8 @@ class ExecutionTest(unittest.TestCase):
         self.assertEqual(payload["returncode"], execution.TIMEOUT_EXIT)
         self.assertEqual(payload["termination"], "hard_timeout")
         self.assertEqual(payload["timeout_seconds"], STARTUP_BOUND_SECONDS)
-        self.assertTrue(marker.is_file())
+        self.assertTrue(ready.is_file())
+        self.assert_recorded_group_stopped(group_file)
 
     def test_probe_executes_and_checks_width(self):
         probe = execution.ROOT / "tools/compiler-probe.sh"

@@ -138,7 +138,22 @@
  		progress(0);
  	}
  #ifndef HAVE_NBTOOL_CONFIG_H
-@@ -256,8 +268,10 @@
+@@ -229,10 +241,11 @@
+ 
+ 	/* fill free inode cache. */
+ 	VPRINTF(4, "Setup inode cache.\n");
+-	sb->nfreeinode = V7FS_MAX_FREEINODE;
+-	for (i = V7FS_MAX_FREEINODE - 1, j = V7FS_ROOT_INODE; i >= 0; i--, j++)
++	sb->total_freeinode = ilist_size * V7FS_INODE_PER_BLOCK - 1;
++	sb->nfreeinode = sb->total_freeinode < V7FS_MAX_FREEINODE ?
++	    sb->total_freeinode : V7FS_MAX_FREEINODE;
++	for (i = sb->nfreeinode - 1, j = V7FS_ROOT_INODE; i >= 0; i--, j++)
+ 		sb->freeinode[i] = j;
+-	sb->total_freeinode = ilist_size * V7FS_INODE_PER_BLOCK - 1;
+ 
+ 	/* fill free block cache. */
+ 	VPRINTF(4, "Setup free block cache.\n");
+@@ -256,8 +269,10 @@
  	progress(&(struct progress_arg){ .label = "freeblock list", .tick =
  	    (volume_size - sb->datablock_start_sector) / PROGRESS_BAR_GRANULE});
  	blk = sb->freeblock[0];
@@ -151,7 +166,7 @@
  #ifndef HAVE_NBTOOL_CONFIG_H
  	progress_done();
  #endif
-@@ -296,21 +310,18 @@
+@@ -296,21 +311,18 @@
  	fs->endian = mount->endian;
  	v7fs_endian_init(fs);
  

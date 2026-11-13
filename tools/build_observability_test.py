@@ -337,6 +337,13 @@ class BuildObservabilityTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "linux-build.*command"):
             observability.validate_workflow(source)
 
+    def test_storage_prefix_runner_binds_the_parent_range(self):
+        source = (ROOT / ".github/workflows/firmware.yml").read_text(
+            encoding="utf-8"
+        ).replace("STORAGE_PREFIX_PARENT_BLOCKS=1", "STORAGE_PREFIX_PARENT_BLOCKS=10", 1)
+        with self.assertRaisesRegex(ValueError, "runner linux-storage-prefix command differs"):
+            observability.validate_workflow(source)
+
     def test_repository_workflow_satisfies_the_contract(self):
         observability.check(ROOT)
 

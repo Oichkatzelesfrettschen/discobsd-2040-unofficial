@@ -59,7 +59,8 @@ struct  mount
 #ifndef SINGLE_UFS_ROOT
     struct  inode *m_qinod;         /* QUOTA: pointer to quota file */
 #endif
-    int     m_write_error;           /* first write error until next mount */
+    int     m_write_error;           /* device's first error while mounted */
+    int     m_device_lock;           /* device guard survives device-node release */
 #ifdef V7FS
     const struct fs_geom *m_geom;   /* format geometry, <sys/fsgeom.h> */
     daddr_t m_lastalloc;            /* block of balloc()'s last buffer */

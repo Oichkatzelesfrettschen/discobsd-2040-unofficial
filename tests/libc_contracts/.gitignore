@@ -200,3 +200,6 @@ quick_exit_test32
 qsort_context_test
 qsort_context_test32
 qsort_context_test_san
+absolute_value_test
+absolute_value_test32
+absolute_value_test_san

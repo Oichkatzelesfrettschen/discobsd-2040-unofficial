@@ -449,11 +449,37 @@ attempts to comply.
 KERN_PROC
 .br
 .in +.5i
-Return the entire process table, or a subset of it.
-An array of
+Return the entire process table, or a subset of it, as an array of
 \fIstruct kinfo_proc\fP
-structures is returned,
-whose size depends on the current number of such objects in the system.
+records (\fI<sys/sysctl.h>\fP), one for each process the selector admits.
+The third level is the selector, the fourth its argument and the fifth
+the record size the caller was built with, which must be at least
+KI_PROC_MINSIZE and at most DEV_BSIZE.
+The kernel copies the first bytes of each record, as many as the smaller
+of the two sizes, and starts each record at a multiple of the caller's
+size, so fields appended to the end of the record leave older callers
+unaffected;
+\fIkp_size\fP
+reports the kernel's own size.
+A size query, and a buffer too short for every record, report room for a
+full process table.
+A caller that selects by process group, terminal or user does so over the
+full table.
+.sp
+A record holds values only, no kernel address.
+The process-table fields are always filled.
+The groups that come from the process's user area carry a bit in
+\fIkp_valid\fP
+when the kernel could read that user area, from memory, the swap device
+or the SwapRAM pool;
+otherwise
+\fIkp_error\fP
+holds ESRCH, for a process that exited or changed during the read, or
+EIO, for a failed read, and the record is still returned.
+The argument prefix, which exec records, is returned only to the
+super-user and to a caller whose effective user ID is the process's real
+or effective user ID.
+KERN_PROC takes no new value.
 .sp
 .in -.5i
 The third and fourth level names are as follows:
@@ -461,12 +487,8 @@ The third and fourth level names are as follows:
 .nf
 .ta .25i 3.0i
 	Third level name	Fourth level is:
-	KERN\_PROC\_ALL	None
+	KERN\_PROC\_ALL	Ignored
 	KERN\_PROC\_PID	A process ID
-	KERN\_PROC\_PGRP	A process group
-	KERN\_PROC\_TTY	A tty device
-	KERN\_PROC\_UID	A user ID
-	KERN\_PROC\_RUID	A real user ID
 	KERN\_PROF	Return kernel profiling information.
 .fi
 .sp

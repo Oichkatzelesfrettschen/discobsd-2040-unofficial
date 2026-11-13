@@ -61,6 +61,8 @@ typedef unsigned short u_short;
 #define EXEC_SPOOL_BLOCK_NONE 0xffff
 #define EXEC_COMMITTED_FAILURE 0x02
 #define MAXCOMLEN 16
+#define PSARGSZ 52
+#define bzero(destination, length) memset((destination), 0, (length))
 #define NO_ADDR ((caddr_t)(uintptr_t)UINT_MAX)
 #define USER_BASE ((uintptr_t)user_window)
 #define __user_data_start ((caddr_t)USER_BASE)
@@ -144,7 +146,15 @@ struct user {
 	} u_prof;
 	unsigned int u_rval;
 	char u_comm[MAXCOMLEN + 1];
+	char u_psargs[PSARGSZ];
 };
+
+/*
+ * The argument strings the spool serves. A null table serves the 200 empty
+ * arguments the stack-geometry cases size the image for.
+ */
+static const char *const *spool_args;
+static unsigned int spool_argc;
 
 static struct user u;
 static struct proc process;
@@ -195,11 +205,24 @@ rdwri(int operation, struct inode *inode, caddr_t destination, int length,
 static int
 exec_save_args(struct exec_params *parameters)
 {
-	parameters->argc = 200;
+	unsigned int index;
+
 	parameters->envc = 0;
-	parameters->argbc = 200;
 	parameters->envbc = 0;
-	parameters->spool.size = 3U * parameters->argc;
+	if (spool_args == NULL) {
+		parameters->argc = 200;
+		parameters->argbc = 200;
+		parameters->spool.size = 3U * parameters->argc;
+		return 0;
+	}
+	parameters->argc = (unsigned short)spool_argc;
+	parameters->argbc = 0;
+	parameters->spool.size = 0;
+	for (index = 0; index < spool_argc; index++) {
+		parameters->argbc += (unsigned short)(strlen(spool_args[index]) + 1);
+		parameters->spool.size += (unsigned int)(sizeof(u_short) +
+		    strlen(spool_args[index]) + 1);
+	}
 	return 0;
 }
 
@@ -218,12 +241,15 @@ static void
 exec_spool_read(struct exec_params *parameters, void *destination,
     unsigned int length)
 {
+	const char *argument = spool_args != NULL ?
+	    spool_args[spool_part / 2U] : "";
+
 	if ((spool_part & 1U) == 0) {
-		u_short record_length = 1;
+		u_short record_length = (u_short)(strlen(argument) + 1);
 
 		memcpy(destination, &record_length, length);
 	} else {
-		memset(destination, 0, length);
+		memcpy(destination, argument, length);
 	}
 	spool_part++;
 	parameters->spool.pos += length;
@@ -383,10 +409,74 @@ check_elf_replacement_clears_file_backed_text(void)
 	    swaptext(&process) == 0);
 }
 
+/*
+ * exec records the argument strings joined by single spaces, cut to
+ * PSARGSZ - 1 bytes, with every byte after them zero, and clears both the
+ * snapshot and the command name before it fills them.
+ */
+static int
+snapshot_is(const char *const *arguments, unsigned int count)
+{
+	char expected[PSARGSZ];
+	size_t used = 0;
+	unsigned int index;
+
+	memset(expected, 0, sizeof(expected));
+	for (index = 0; index < count; index++) {
+		const char *byte = arguments[index];
+
+		if (index != 0 && used < PSARGSZ - 1)
+			expected[used++] = ' ';
+		while (*byte != '\0' && used < PSARGSZ - 1)
+			expected[used++] = *byte++;
+	}
+	return memcmp(u.u_psargs, expected, sizeof(expected)) == 0;
+}
+
+static void
+check_argument_snapshot(void)
+{
+	static const char *const long_arguments[] = {
+		"ls", "-l", "",
+		"/a/path/that/runs/past/the/fifty/one/byte/argument/snapshot",
+	};
+	static const char *const one_argument[] = { "sh" };
+	struct exec_params parameters;
+
+	reset_fixture(&parameters);
+	memset(u.u_psargs, 'x', sizeof(u.u_psargs));
+	spool_args = long_arguments;
+	spool_argc = 4;
+	CHECK("argument ELF succeeds", exec_elf_check(&parameters) == 0);
+	CHECK("long arguments join, truncate and end in NUL",
+	    snapshot_is(long_arguments, 4) && u.u_psargs[PSARGSZ - 1] == '\0');
+
+	reset_fixture(&parameters);
+	memset(u.u_psargs, 'x', sizeof(u.u_psargs));
+	spool_args = one_argument;
+	spool_argc = 1;
+	CHECK("one-argument ELF succeeds", exec_elf_check(&parameters) == 0);
+	CHECK("one argument leaves no byte of the previous snapshot",
+	    snapshot_is(one_argument, 1));
+
+	reset_fixture(&parameters);
+	memset(u.u_psargs, 'x', sizeof(u.u_psargs));
+	memset(u.u_comm, 'y', sizeof(u.u_comm));
+	spool_args = one_argument;
+	spool_argc = 0;
+	CHECK("argumentless ELF succeeds", exec_elf_check(&parameters) == 0);
+	CHECK("no argument clears the snapshot", snapshot_is(one_argument, 0));
+	CHECK("no argument clears the inherited command name",
+	    u.u_comm[0] == '\0' && u.u_comm[MAXCOMLEN] == '\0');
+	spool_args = NULL;
+	spool_argc = 0;
+}
+
 int
 main(void)
 {
 	check_stack_publication_stays_in_admitted_extent();
 	check_elf_replacement_clears_file_backed_text();
+	check_argument_snapshot();
 	return failures != 0;
 }

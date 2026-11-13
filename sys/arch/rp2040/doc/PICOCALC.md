@@ -679,9 +679,9 @@ failed `mount` close the partition only when no block descriptor names it, the l
 rule of `closei()`, because the open state is a bit and one close drops it: a descriptor
 opened before the mount keeps reading after the unmount and closes the partition itself.
 `chrtoblk()` maps `rsd0` to `sd0`, and `blkoverlap()` in `conf.c` compares the
-sector extents that `DIOCGETPART` reports for two nodes of one unit. Once an
-operator raises `kern.securelevel` to 1 (the default is 0 and `init` never raises
-it), `ufs_mountedon()` therefore refuses with `EBUSY` a write open of `rsd0` or
+sector extents that `DIOCGETPART` reports for two nodes of one unit. At
+`kern.securelevel` 1, which `multiple()` in `sbin/init/init.c` sets when it
+enters multiuser mode from level 0, `ufs_mountedon()` therefore refuses with `EBUSY` a write open of `rsd0` or
 `sd0`, the whole card, while any partition is mounted, a write open of an MBR
 entry whose extent overlaps a mounted one, and every open of a mounted block node;
 a partition that only touches the mounted one opens. Every other pair of block

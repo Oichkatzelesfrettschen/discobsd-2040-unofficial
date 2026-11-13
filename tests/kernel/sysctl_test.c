@@ -22,6 +22,12 @@
  * component with zero bytes after it, a refusal of any new value, and that
  * an unprivileged __sysctl() reaches the node without consulting suser().
  *
+ * proc_uarea() finds a process's user area for fill_from_u(): in place when
+ * resident, through the pool decoder when pooled, and otherwise through
+ * swap_with_buf_result(), which the gate links from sys/kern/vm_swp.c so
+ * that the ring fold is the kernel's own. Hooks run inside geteblk() and the
+ * transfer, where the kernel sleeps, and change the process there.
+ *
  * vm_sysctl() reaches its length through a pointer difference, which is an
  * int at the target's width, so the gate builds ILP32 beside prf_test and
  * sigauth_test.
@@ -80,6 +86,7 @@ struct proc *freeproc, *zombproc, *allproc, *qs;
 struct file file[NFILE];
 struct inode inode[NINODE];
 struct vmtotal total;
+struct vmrate cnt;		/* the swap transfer counts vm_swp.c meters */
 struct timeval boottime;
 short avenrun[3];
 size_t freemem;
@@ -100,7 +107,55 @@ const char version[] = "gate";
 const char ostype[] = "gate";
 const char osversion[] = "gate";
 const char osrelease[] = "gate";
-const struct bdevsw bdevsw[1];
+
+/*
+ * The fixture's swap device: a ring of GATE_SWAP_END blocks whose first
+ * GATE_SWAP_FIRST are reserved, laid out as init_main.c lays out the RP2040
+ * map, so logical block GATE_SWAP_END + n names device block
+ * GATE_SWAP_FIRST + n. The gate links the real sys/kern/vm_swp.c, so the
+ * fold a user-area read goes through is the kernel's own. A request that
+ * runs past the device returns short, as the flash driver returns end of
+ * partition.
+ */
+#define GATE_SWAP_FIRST	4
+#define GATE_SWAP_END	16
+
+union gate_block {
+	struct user	u;
+	char		bytes[DEV_BSIZE];
+};
+
+static union gate_block swapdisk[GATE_SWAP_END];
+static int swap_error;
+static unsigned swap_reads;
+
+/*
+ * Each hook runs where the kernel sleeps: inside geteblk() and inside the
+ * device transfer. A hook that changes the process models a swap-in, an
+ * exit or another image's write while the reader is asleep.
+ */
+static void (*during_geteblk)(void);
+static void (*during_io)(void);
+
+static void
+gate_strategy(struct buf *bp)
+{
+	u_int blocks = bp->b_bcount / DEV_BSIZE;
+
+	swap_reads++;
+	if (during_io != NULL)
+		during_io();
+	bp->b_resid = 0;
+	if (swap_error)
+		bp->b_flags |= B_ERROR;
+	else if ((u_int)bp->b_blkno + blocks > GATE_SWAP_END)
+		bp->b_resid = bp->b_bcount;
+	else
+		bcopy(swapdisk[bp->b_blkno].bytes, bp->b_addr, bp->b_bcount);
+	bp->b_flags |= B_DONE;
+}
+
+const struct bdevsw bdevsw[1] = { { .d_strategy = gate_strategy } };
 
 /* The destination of every copyout, and the byte the gate fills it with. */
 #define OUTBUF		512
@@ -198,26 +253,70 @@ wakeup(caddr_t chan)
 	panic("sysctl_test: wakeup");
 }
 
+/*
+ * One buffer, which a reader holds at most once at a time and returns aged.
+ * Its contents start as poison, so a reader that uses a block it never read
+ * finds bytes no user area holds.
+ */
+static struct buf gate_buf;
+static union gate_block gate_buf_data;
+static unsigned geteblk_calls, brelse_calls;
+
 struct buf *
 geteblk(void)
 {
-	panic("sysctl_test: geteblk");
-	return (NULL);
+	HK_CHECK(geteblk_calls == brelse_calls);
+	geteblk_calls++;
+	bzero(&gate_buf, sizeof(gate_buf));
+	for (unsigned i = 0; i < sizeof(gate_buf_data); i++)
+		gate_buf_data.bytes[i] = POISON;
+	gate_buf.b_addr = gate_buf_data.bytes;
+	gate_buf.b_flags = B_BUSY;
+	if (during_geteblk != NULL)
+		during_geteblk();
+	return (&gate_buf);
 }
 
 void
 brelse(struct buf *bp)
 {
-	(void)bp;
-	panic("sysctl_test: brelse");
+	HK_CHECK(bp == &gate_buf);
+	HK_CHECK(bp->b_flags & B_AGE);
+	brelse_calls++;
 }
 
+/* gate_strategy() completes every request before it returns. */
 void
 biowait(struct buf *bp)
 {
 	(void)bp;
-	panic("sysctl_test: biowait");
 }
+
+#ifdef SWAPRAM
+/*
+ * The SwapRAM pool, by slot: an image present in the pool and the user area
+ * swapram_uarea_prefix() decodes for it. The decoder's contract is an exact
+ * expansion of the requested prefix or failure.
+ */
+static int pool_present[NPROC];
+static union gate_block pool_user[NPROC];
+static int pool_error;
+
+int
+swapram_present(struct proc *p)
+{
+	return (pool_present[p - proc]);
+}
+
+int
+swapram_uarea_prefix(struct proc *p, void *dst, unsigned int len)
+{
+	if (!pool_present[p - proc] || pool_error || len > DEV_BSIZE)
+		return (-1);
+	bcopy(pool_user[p - proc].bytes, dst, len);
+	return (0);
+}
+#endif
 
 /* CPU_NLIST in both ports' machine/cpu.h, which the gate does not include. */
 #define GATE_CPU_NLIST	3
@@ -1200,6 +1299,588 @@ test_nlist_names(void)
 	reset_calls();
 }
 
+/*
+ * User-area reads. A process row needs fields from the user area, which is
+ * resident kernel memory, a block on the ring swap device, or a SwapRAM
+ * pool image. Every case below names the block the kernel must read and a
+ * change the reader must notice across its sleeps.
+ */
+static union gate_block core_user[NPROC];	/* resident user areas, by slot */
+static struct tty gate_tty;
+static struct proc *hook_proc;
+
+/* Logical swap block to device block, the fold of struct map (sys/map.h). */
+static int
+device_block(int logical)
+{
+	if (logical >= GATE_SWAP_END)
+		return (logical - GATE_SWAP_END + GATE_SWAP_FIRST);
+	return (logical);
+}
+
+static void
+reset_procs(void)
+{
+	bzero(proc, sizeof(proc));
+	bzero(swapdisk, sizeof(swapdisk));
+	bzero(core_user, sizeof(core_user));
+	swapmap->m_ring_first = GATE_SWAP_FIRST;
+	swapmap->m_ring_end = GATE_SWAP_END;
+	swap_error = 0;
+	swap_reads = 0;
+	geteblk_calls = 0;
+	brelse_calls = 0;
+	during_geteblk = NULL;
+	during_io = NULL;
+	hook_proc = NULL;
+#ifdef SWAPRAM
+	bzero(pool_present, sizeof(pool_present));
+	bzero(pool_user, sizeof(pool_user));
+	pool_error = 0;
+#endif
+}
+
+/*
+ * A user area whose every reported field derives from ruid, so a record
+ * built from the wrong user area shows in each field.
+ */
+static void
+fill_user(struct user *up, struct proc *p, uid_t ruid)
+{
+	unsigned i;
+
+	up->u_procp = p;
+	up->u_ruid = ruid;
+	up->u_groups[0] = ruid + 1000;
+	up->u_rgid = ruid + 2000;
+	up->u_start = (long)(100000 + ruid);
+	up->u_ru.ru_utime = (long)(ruid * 3);
+	up->u_ru.ru_stime = (long)(ruid * 5);
+	up->u_cru.ru_utime = 7;
+	up->u_cru.ru_stime = 11;
+	up->u_ttyp = &gate_tty;
+	up->u_ttyd = (dev_t)(0x0400 + ruid);
+	for (i = 0; i < sizeof(up->u_comm); i++)
+		up->u_comm[i] = POISON;
+	for (i = 0; i < sizeof(up->u_psargs); i++)
+		up->u_psargs[i] = POISON;
+	up->u_comm[0] = 'c';
+	up->u_comm[1] = (char)('0' + ruid % 10);
+	up->u_comm[2] = '\0';
+	up->u_psargs[0] = 'a';
+	up->u_psargs[1] = ' ';
+	up->u_psargs[2] = (char)('0' + ruid % 10);
+	up->u_psargs[3] = '\0';
+}
+
+static struct proc *
+make_resident(int slot, int pid, uid_t ruid)
+{
+	struct proc *p = &proc[slot];
+
+	p->p_stat = SRUN;
+	p->p_pid = (short)pid;
+	p->p_flag = SLOAD;
+	p->p_addr = (size_t)&core_user[slot].u;
+	fill_user(&core_user[slot].u, p, ruid);
+	return (p);
+}
+
+static struct proc *
+make_on_flash(int slot, int pid, int logical, uid_t ruid)
+{
+	struct proc *p = &proc[slot];
+
+	p->p_stat = SSLEEP;
+	p->p_pid = (short)pid;
+	p->p_flag = 0;
+	p->p_addr = (size_t)logical;
+	fill_user(&swapdisk[device_block(logical)].u, p, ruid);
+	return (p);
+}
+
+/* The real uid fill_from_u() reports, and whether it left the buffer balanced. */
+static uid_t
+read_ruid(struct proc *p, dev_t *ttyd, struct tty **ttyp)
+{
+	uid_t ruid = 0;
+
+	fill_from_u(p, &ruid, ttyp, ttyd);
+	HK_CHECK(geteblk_calls == brelse_calls);
+	return (ruid);
+}
+
+static void
+test_uarea_resident(void)
+{
+	struct tty *ttyp;
+	dev_t ttyd;
+
+	reset_procs();
+	HK_CHECK(read_ruid(make_resident(3, 30, 123), &ttyd, &ttyp) == 123);
+	HK_CHECK(ttyd == 0x0400 + 123 && ttyp == &gate_tty);
+	HK_CHECK(geteblk_calls == 0 && swap_reads == 0);
+}
+
+/*
+ * Logical block GATE_SWAP_END + 2 is device block GATE_SWAP_FIRST + 2. A
+ * reader that seeks the logical block reads past the device and gets the
+ * poisoned buffer back.
+ */
+static void
+test_uarea_folded_flash(void)
+{
+	struct proc *p;
+	struct tty *ttyp;
+	dev_t ttyd;
+
+	reset_procs();
+	p = make_on_flash(5, 50, GATE_SWAP_END + 2, 321);
+	HK_CHECK(read_ruid(p, &ttyd, &ttyp) == 321);
+	HK_CHECK(ttyd == 0x0400 + 321 && ttyp == &gate_tty);
+	HK_CHECK(geteblk_calls == 1 && swap_reads == 1);
+
+	reset_procs();
+	HK_CHECK(read_ruid(make_on_flash(5, 50, 9, 222), NULL, NULL) == 222);
+}
+
+/* Another process's image now holds the block: the read is refused. */
+static void
+test_uarea_overwritten(void)
+{
+	struct proc *p;
+	struct tty *ttyp = &gate_tty;
+	dev_t ttyd = 0;
+
+	reset_procs();
+	p = make_on_flash(5, 50, GATE_SWAP_END + 2, 321);
+	swapdisk[device_block(GATE_SWAP_END + 2)].u.u_procp = &proc[6];
+	HK_CHECK(read_ruid(p, &ttyd, &ttyp) == (uid_t)-2);
+	HK_CHECK(ttyd == NODEV && ttyp == NULL);
+}
+
+static void
+exit_process(void)
+{
+	hook_proc->p_stat = SZOMB;
+}
+
+static void
+free_slot(void)
+{
+	hook_proc->p_stat = 0;
+}
+
+static void
+reuse_slot(void)
+{
+	hook_proc->p_pid++;
+}
+
+static void
+swap_in(void)
+{
+	hook_proc->p_flag |= SLOAD;
+	hook_proc->p_addr = (size_t)&core_user[hook_proc - proc].u;
+	fill_user(&core_user[hook_proc - proc].u, hook_proc, 77);
+}
+
+/* Each change while the reader sleeps is noticed after the sleep. */
+static void
+test_uarea_changes_while_asleep(void)
+{
+	reset_procs();
+	hook_proc = make_on_flash(5, 50, 9, 321);
+	during_io = exit_process;
+	HK_CHECK(read_ruid(hook_proc, NULL, NULL) == (uid_t)-2);
+
+	reset_procs();
+	hook_proc = make_on_flash(5, 50, 9, 321);
+	during_io = reuse_slot;
+	HK_CHECK(read_ruid(hook_proc, NULL, NULL) == (uid_t)-2);
+
+	reset_procs();
+	hook_proc = make_on_flash(5, 50, 9, 321);
+	during_geteblk = free_slot;
+	HK_CHECK(read_ruid(hook_proc, NULL, NULL) == (uid_t)-2);
+	HK_CHECK(swap_reads == 0);
+
+	/* A process back in core is read in place, from its new user area. */
+	reset_procs();
+	hook_proc = make_on_flash(5, 50, 9, 321);
+	during_io = swap_in;
+	HK_CHECK(read_ruid(hook_proc, NULL, NULL) == 77);
+
+	reset_procs();
+	hook_proc = make_on_flash(5, 50, 9, 321);
+	during_geteblk = swap_in;
+	HK_CHECK(read_ruid(hook_proc, NULL, NULL) == 77);
+	HK_CHECK(swap_reads == 0);
+}
+
+static void
+test_uarea_unreadable(void)
+{
+	struct proc *p;
+
+	reset_procs();
+	p = make_on_flash(5, 50, 9, 321);
+	swap_error = 1;
+	HK_CHECK(read_ruid(p, NULL, NULL) == (uid_t)-2);
+
+	/* A zombie has no user area, and the reader takes no buffer for it. */
+	reset_procs();
+	p = make_resident(3, 30, 123);
+	p->p_stat = SZOMB;
+	HK_CHECK(read_ruid(p, NULL, NULL) == (uid_t)-2);
+	HK_CHECK(geteblk_calls == 0);
+}
+
+#ifdef SWAPRAM
+/* A pooled image has a zero p_addr; the pool decoder supplies its user area. */
+static void
+test_uarea_pool(void)
+{
+	struct proc *p;
+
+	reset_procs();
+	p = make_on_flash(7, 70, 0, 999);
+	pool_present[7] = 1;
+	fill_user(&pool_user[7].u, p, 456);
+	HK_CHECK(read_ruid(p, NULL, NULL) == 456);
+	HK_CHECK(swap_reads == 0 && geteblk_calls == 1);
+
+	pool_user[7].u.u_procp = &proc[8];
+	HK_CHECK(read_ruid(p, NULL, NULL) == (uid_t)-2);
+
+	fill_user(&pool_user[7].u, p, 456);
+	pool_error = 1;
+	HK_CHECK(read_ruid(p, NULL, NULL) == (uid_t)-2);
+}
+#endif
+
+/*
+ * KERN_PROC records. The table holds a process in every place an image can
+ * live -- resident, on flash at a folded block, unfolded on flash, in the
+ * pool when SWAPRAM is built, and exited -- plus an embryonic slot and the
+ * caller. Each record must come from the user area of its own process,
+ * carry no fixture address, and appear exactly once.
+ */
+#define REC		((int)sizeof(struct kinfo_proc))
+#define CALLER_SLOT	1
+#define CALLER_UID	500
+
+static char records[NPROC * 256];
+#define POISONED(i)	((unsigned char)records[(i)] == POISON)
+
+static void
+set_caller(uid_t euid, uid_t ruid)
+{
+	u.u_procp = &proc[CALLER_SLOT];
+	proc[CALLER_SLOT].p_uid = euid;
+	u.u_ruid = ruid;
+}
+
+static void
+build_table(void)
+{
+	struct proc *p;
+
+	reset_procs();
+	gate_tty.t_pgrp = 42;
+	p = make_resident(0, 0, 0);
+	p->p_flag |= SSYS;
+	make_resident(CALLER_SLOT, 1, CALLER_UID);
+	p = make_on_flash(2, 12, GATE_SWAP_END + 2, CALLER_UID);
+	p->p_uid = CALLER_UID;
+	p->p_pgrp = 12;
+	p = make_on_flash(3, 13, 9, 7);
+	p->p_uid = 7;
+	p->p_dsize = 4000;
+	p->p_ssize = 2048;
+	p->p_tsize = 1000;
+	p->p_tip = (struct inode *)&gate_tty;
+	p = &proc[4];
+	p->p_stat = SZOMB;
+	p->p_pid = 14;
+	p->p_ru.ru_utime = 30;
+	p->p_ru.ru_stime = 40;
+	proc[5].p_stat = SIDL;
+	proc[5].p_pid = 15;
+#ifdef SWAPRAM
+	p = make_on_flash(6, 16, 0, 999);
+	pool_present[6] = 1;
+	fill_user(&pool_user[6].u, p, 8);
+	p->p_uid = 8;
+#endif
+	set_caller(CALLER_UID, CALLER_UID);
+}
+
+static int
+get_records(int selector, int arg, int stride, size_t *len)
+{
+	int name[3];
+
+	name[0] = selector;
+	name[1] = arg;
+	name[2] = stride;
+	for (unsigned i = 0; i < sizeof(records); i++)
+		records[i] = POISON;
+	*len = sizeof(records);
+	return (sysctl_doproc(name, 3, records, len));
+}
+
+static const struct kinfo_proc *
+record_for(int pid, size_t len)
+{
+	const struct kinfo_proc *found = NULL;
+
+	for (size_t off = 0; off + REC <= len; off += REC) {
+		const struct kinfo_proc *kp = (const void *)(records + off);
+
+		if (kp->kp_pid == pid) {
+			HK_CHECK(found == NULL);
+			found = kp;
+		}
+	}
+	return (found);
+}
+
+/* True when no four bytes of the buffer equal a fixture address. */
+static int
+holds_no_address(size_t len)
+{
+	uint32_t word;
+
+	for (size_t off = 0; off + sizeof(word) <= len; off++) {
+		bcopy(records + off, &word, sizeof(word));
+		if (word >= (uint32_t)(uintptr_t)proc &&
+		    word < (uint32_t)(uintptr_t)(proc + NPROC))
+			return (0);
+		if (word >= (uint32_t)(uintptr_t)core_user &&
+		    word < (uint32_t)(uintptr_t)(core_user + NPROC))
+			return (0);
+		if (word == (uint32_t)(uintptr_t)&gate_tty)
+			return (0);
+	}
+	return (1);
+}
+
+static void
+test_records_every_residency(void)
+{
+	const struct kinfo_proc *kp;
+	size_t len;
+	int expected = 5;
+
+#ifdef SWAPRAM
+	expected = 6;
+#endif
+	build_table();
+	HK_CHECK(get_records(KERN_PROC_ALL, 0, REC, &len) == 0);
+	HK_CHECK(len == (size_t)(expected * REC));
+	HK_CHECK(holds_no_address(len));
+	HK_CHECK(record_for(15, len) == NULL);
+	HK_CHECK(geteblk_calls == brelse_calls);
+
+	kp = record_for(0, len);
+	HK_CHECK(kp != NULL && (kp->kp_flag & (SSYS | SLOAD)) == (SSYS | SLOAD));
+
+	kp = record_for(12, len);
+	HK_CHECK(kp != NULL && (kp->kp_flag & SLOAD) == 0);
+	HK_CHECK(kp != NULL && kp->kp_size == REC && kp->kp_error == 0);
+	HK_CHECK(kp != NULL && kp->kp_ruid == CALLER_UID &&
+	    kp->kp_gid == CALLER_UID + 1000 && kp->kp_rgid == CALLER_UID + 2000);
+	HK_CHECK(kp != NULL && kp->kp_start == 100000 + CALLER_UID);
+	HK_CHECK(kp != NULL && kp->kp_utime == CALLER_UID * 3 &&
+	    kp->kp_stime == CALLER_UID * 5 && kp->kp_ctime == 18);
+	HK_CHECK(kp != NULL && kp->kp_tdev == 0x0400 + CALLER_UID &&
+	    kp->kp_tpgid == 42 && kp->kp_pgid == 12);
+	HK_CHECK(kp != NULL && hk_streq(kp->kp_comm, "c0") &&
+	    hk_streq(kp->kp_args, "a 0"));
+	HK_CHECK(kp != NULL && kp->kp_comm[KI_COMMSZ - 1] == '\0' &&
+	    kp->kp_args[KI_ARGSZ - 1] == '\0');
+	HK_CHECK(kp != NULL && kp->kp_valid == (KP_VALID_LIVE |
+	    KP_VALID_TIMES | KP_VALID_CRED | KP_VALID_START | KP_VALID_TTY |
+	    KP_VALID_COMM | KP_VALID_ARGS));
+
+	kp = record_for(13, len);
+	HK_CHECK(kp != NULL && kp->kp_ruid == 7 && hk_streq(kp->kp_comm, "c7"));
+	HK_CHECK(kp != NULL && kp->kp_dsize == 4000 && kp->kp_ssize == 2048 &&
+	    kp->kp_tsize == 1000);
+
+	kp = record_for(14, len);
+	HK_CHECK(kp != NULL && kp->kp_stat == SZOMB);
+	HK_CHECK(kp != NULL && kp->kp_valid == KP_VALID_TIMES &&
+	    kp->kp_utime == 30 && kp->kp_stime == 40 && kp->kp_ctime == 0);
+	HK_CHECK(kp != NULL && kp->kp_tdev == NODEV);
+
+#ifdef SWAPRAM
+	kp = record_for(16, len);
+	HK_CHECK(kp != NULL && (kp->kp_flag & SLOAD) == 0 &&
+	    kp->kp_ruid == 8 && hk_streq(kp->kp_comm, "c8"));
+#endif
+}
+
+/*
+ * Arguments go to root and to a caller whose effective uid is the
+ * process's real or effective uid; anyone else gets the row without them.
+ */
+static void
+test_records_argument_policy(void)
+{
+	const struct kinfo_proc *kp;
+	size_t len;
+
+	build_table();
+	set_caller(CALLER_UID, CALLER_UID);
+	HK_CHECK(get_records(KERN_PROC_PID, 13, REC, &len) == 0);
+	kp = record_for(13, len);
+	HK_CHECK(kp != NULL && !(kp->kp_valid & KP_VALID_ARGS) &&
+	    kp->kp_args[0] == '\0');
+	HK_CHECK(kp != NULL && (kp->kp_valid & KP_VALID_COMM));
+
+	build_table();
+	set_caller(0, CALLER_UID);
+	HK_CHECK(get_records(KERN_PROC_PID, 13, REC, &len) == 0);
+	kp = record_for(13, len);
+	HK_CHECK(kp != NULL && (kp->kp_valid & KP_VALID_ARGS) &&
+	    hk_streq(kp->kp_args, "a 7"));
+
+	/* A real-uid match alone is not enough. */
+	build_table();
+	set_caller(CALLER_UID, 7);
+	HK_CHECK(get_records(KERN_PROC_PID, 13, REC, &len) == 0);
+	kp = record_for(13, len);
+	HK_CHECK(kp != NULL && !(kp->kp_valid & KP_VALID_ARGS));
+
+	build_table();
+	set_caller(7, CALLER_UID);
+	HK_CHECK(get_records(KERN_PROC_PID, 13, REC, &len) == 0);
+	kp = record_for(13, len);
+	HK_CHECK(kp != NULL && (kp->kp_valid & KP_VALID_ARGS));
+}
+
+/* A user area the kernel cannot read leaves the row, marked. */
+static void
+test_records_keep_unreadable_rows(void)
+{
+	const struct kinfo_proc *kp;
+	size_t len;
+
+	build_table();
+	swap_error = 1;
+	HK_CHECK(get_records(KERN_PROC_PID, 13, REC, &len) == 0);
+	kp = record_for(13, len);
+	HK_CHECK(kp != NULL && kp->kp_error == EIO);
+	HK_CHECK(kp != NULL && kp->kp_valid == KP_VALID_LIVE);
+	HK_CHECK(kp != NULL && kp->kp_uid == 7 && kp->kp_comm[0] == '\0');
+	HK_CHECK(kp != NULL && kp->kp_tdev == NODEV);
+
+	build_table();
+	hook_proc = &proc[3];
+	during_io = reuse_slot;
+	HK_CHECK(get_records(KERN_PROC_PID, 13, REC, &len) == 0);
+	kp = record_for(13, len);
+	HK_CHECK(kp != NULL && kp->kp_error == ESRCH &&
+	    kp->kp_valid == KP_VALID_LIVE);
+	during_io = NULL;
+}
+
+/*
+ * The kernel selects all processes or one pid; the pid test comes before
+ * the user-area read, so one pid on flash costs one read.
+ */
+static void
+test_records_selectors(void)
+{
+	size_t len;
+
+	build_table();
+	HK_CHECK(get_records(KERN_PROC_PID, 13, REC, &len) == 0);
+	HK_CHECK(len == (size_t)REC && record_for(13, len));
+	HK_CHECK(swap_reads == 1);
+	HK_CHECK(get_records(KERN_PROC_PID, 14, REC, &len) == 0);
+	HK_CHECK(len == (size_t)REC && record_for(14, len));
+	HK_CHECK(get_records(KERN_PROC_PID, 15, REC, &len) == 0);
+	HK_CHECK(len == 0);
+	HK_CHECK(get_records(KERN_PROC_PID, 99, REC, &len) == 0);
+	HK_CHECK(len == 0);
+	for (int selector = 2; selector <= 7; selector++)
+		HK_CHECK(get_records(selector, 0, REC, &len) == EINVAL);
+	HK_CHECK(get_records(-1, 0, REC, &len) == EINVAL);
+	HK_CHECK(get_records(KERN_PROC_ALL, 0, KI_PROC_MINSIZE - 1, &len) ==
+	    EINVAL);
+	HK_CHECK(get_records(KERN_PROC_ALL, 0, DEV_BSIZE + 1, &len) == EINVAL);
+}
+
+/*
+ * The caller's record size sets the stride: a smaller one takes each
+ * record's prefix, a larger one leaves the tail untouched. A size query
+ * and a short buffer both report room for a full table.
+ */
+static void
+test_records_caller_sized(void)
+{
+	int name[3] = { KERN_PROC_ALL, 0, REC };
+	const struct kinfo_proc *kp;
+	size_t len;
+	int rows;
+
+	build_table();
+	HK_CHECK(get_records(KERN_PROC_ALL, 0, REC, &len) == 0);
+	rows = (int)len / REC;
+
+	HK_CHECK(get_records(KERN_PROC_ALL, 0, 8, &len) == 0);
+	HK_CHECK(len == (size_t)(rows * 8));
+	for (int r = 0; r < rows; r++) {
+		kp = (const void *)(records + r * 8);
+		HK_CHECK(kp->kp_size == REC);
+	}
+	HK_CHECK(POISONED(rows * 8));
+
+	HK_CHECK(get_records(KERN_PROC_ALL, 0, REC + 12, &len) == 0);
+	HK_CHECK(len == (size_t)(rows * (REC + 12)));
+	for (int r = 0; r < rows; r++) {
+		HK_CHECK(POISONED(r * (REC + 12) + REC));
+		HK_CHECK(POISONED(r * (REC + 12) + REC + 11));
+	}
+
+	len = 0;
+	HK_CHECK(sysctl_doproc(name, 3, NULL, &len) == 0);
+	HK_CHECK(len == (size_t)(NPROC * REC));
+	HK_CHECK(geteblk_calls == brelse_calls);
+
+	/* Slots 0 and 1 are resident; the full buffer stops before slot 2's read. */
+	swap_reads = 0;
+	len = (size_t)(2 * REC + REC / 2);
+	HK_CHECK(sysctl_doproc(name, 3, records, &len) == 0);
+	HK_CHECK(len == (size_t)(NPROC * REC));
+	HK_CHECK(swap_reads == 0);
+
+	HK_CHECK(sysctl_doproc(name, 2, records, &len) == EINVAL);
+	HK_CHECK(sysctl_doproc(name, 4, records, &len) == EINVAL);
+}
+
+/* The process table is read-only through __sysctl(). */
+static void
+test_records_refuse_writes(void)
+{
+	int mib[5] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0, REC };
+	size_t len = sizeof(records);
+	int token = 1;
+
+	build_table();
+	reset_calls();
+	HK_CHECK(call_syscall(mib, 5, records, &len, &token, sizeof(token)) ==
+	    EPERM);
+	reset_calls();
+	len = sizeof(records);
+	HK_CHECK(call_syscall(mib, 5, records, &len, NULL, 0) == 0);
+	HK_CHECK(superuser_calls == 0);
+	reset_calls();
+}
+
 int
 main(void)
 {
@@ -1223,5 +1904,19 @@ main(void)
 	test_syscall_copy_faults();
 	test_syscall_authorization();
 	test_nlist_names();
+	test_uarea_resident();
+	test_uarea_folded_flash();
+	test_uarea_overwritten();
+	test_uarea_changes_while_asleep();
+	test_uarea_unreadable();
+#ifdef SWAPRAM
+	test_uarea_pool();
+#endif
+	test_records_every_residency();
+	test_records_argument_policy();
+	test_records_keep_unreadable_rows();
+	test_records_selectors();
+	test_records_caller_sized();
+	test_records_refuse_writes();
 	return (hk_verdict("sysctl"));
 }

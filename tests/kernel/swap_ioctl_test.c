@@ -10,6 +10,7 @@
 
 #include <sys/param.h>
 #include <sys/systm.h>
+#include <sys/buf.h>
 #include <sys/conf.h>
 #include <sys/errno.h>
 #include <sys/fcntl.h>
@@ -39,7 +40,52 @@ struct map swapmap[1] = {
 size_t swapnext;
 u_int nswap;
 dev_t swapdev;
-const struct bdevsw bdevsw[5] = { { 0 } };
+int securelevel;
+
+/*
+ * The live swap device behind minor 64, whose open and strategy routines
+ * count the requests swopen() and swstrategy() pass through, and the
+ * temporary-unit transfer swap() performs.
+ */
+static unsigned live_opens, live_transfers, temp_transfers, completions;
+
+static int
+live_open(dev_t dev, int mode, int flag)
+{
+    (void)dev;
+    (void)mode;
+    (void)flag;
+    live_opens++;
+    return 0;
+}
+
+static void
+live_strategy(struct buf *bp)
+{
+    (void)bp;
+    live_transfers++;
+}
+
+const struct bdevsw bdevsw[5] = {
+    { .d_open = live_open, .d_strategy = live_strategy },
+};
+
+void
+swap(size_t blkno, size_t coreaddr, int count, int rdflg)
+{
+    (void)blkno;
+    (void)coreaddr;
+    (void)count;
+    (void)rdflg;
+    temp_transfers++;
+}
+
+void
+biodone(struct buf *bp)
+{
+    bp->b_flags |= B_DONE;
+    completions++;
+}
 
 struct user u;
 static int allow_superuser;
@@ -311,6 +357,45 @@ media_size_needs_no_privilege(void)
     HK_CHECK(superuser_calls == 0);
 }
 
+/*
+ * At securelevel 1 and above minor 64 takes no write open and no write
+ * transfer, whenever its descriptor was opened; reads, level 0 and the
+ * temporary units are unaffected.
+ */
+static void
+live_swap_writes_follow_securelevel(void)
+{
+    dev_t live = makedev(4, 64);
+    struct buf bp;
+
+    for (int level = 0; level <= 2; level++) {
+        securelevel = level;
+        live_opens = live_transfers = completions = 0;
+        HK_CHECK(swopen(live, FWRITE, 0) == (level ? EPERM : 0));
+        HK_CHECK(swopen(live, FREAD, 0) == 0);
+        HK_CHECK(live_opens == (level ? 1U : 2U));
+
+        bzero(&bp, sizeof(bp));
+        bp.b_dev = live;
+        bp.b_flags = B_WRITE;
+        swstrategy(&bp);
+        HK_CHECK(live_transfers == (level ? 0U : 1U));
+        HK_CHECK(level ? (bp.b_flags & B_ERROR) && bp.b_error == EPERM &&
+            completions == 1 : (bp.b_flags & B_ERROR) == 0);
+        HK_CHECK(bp.b_dev == live);
+
+        bzero(&bp, sizeof(bp));
+        bp.b_dev = live;
+        bp.b_flags = B_READ;
+        swstrategy(&bp);
+        HK_CHECK(live_transfers == (level ? 1U : 2U));
+        HK_CHECK((bp.b_flags & B_ERROR) == 0);
+
+        HK_CHECK(swopen(makedev(4, 0), FWRITE, 0) == 0);
+    }
+    securelevel = 0;
+}
+
 int
 main(void)
 {
@@ -324,5 +409,6 @@ main(void)
     read_only_descriptor_is_refused();
     non_superuser_is_refused();
     media_size_needs_no_privilege();
+    live_swap_writes_follow_securelevel();
     return hk_verdict("swap ioctl result contract");
 }

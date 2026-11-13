@@ -185,6 +185,9 @@ Grouped by what they investigate.
 | `renode-capacity-exhaustion-083b35c3.txt` | the Renode transcript of the three exhaustion tests with the in-core inode table added: seven holders fill 24 inode slots, an open and a stat refuse with ENFILE, the inode counter rises by 2 and recovery succeeds |
 | `board-capacity-cases-65d7244c.txt` | the board run of the SwapRAM evacuation, signal-frame and storage-pressure cases at NPROC 16 and NFILE 18 |
 | `ps-kernel-memory-boundary-review.md` | design review of process listing for ordinary users: `operator` holds write access to `/dev/mem` and `/dev/kmem` through group 0, the options compared, and the recommended `kmem` boundary with a read-only symbol lookup and a compact SwapRAM process record |
+| `kmem-options-synthesis.md` | why `ps` drops resident and folded-swap rows, the falsification table across BSD, SVR, RTOS, microkernel and Minix process-status designs, the invariants they share, and the reviewed and decided design for the kernel process record |
+| `kmem-options-bsd-corpus.md`, `kmem-options-titor-corpus.md`, `kmem-options-rtos-corpus.md`, `kmem-options-microkernel-corpus.md`, `kmem-options-minix-corpus.md` | per-corpus evidence behind the synthesis, each claim tagged as read or inferred |
+| `process-info-redesign-brief.md`, `process-info-redesign-review.md` | the design brief and the resulting architecture review: invariants, argument source, record layout, read paths, POSIX `ps`, boundary, crash dumps and byte budget |
 | `board-capacity-acceptance.md` | board-only sampled-stack probe, calibration, exact image boundaries, the shared-break repair runs and open physical resource measurements; `board-capacity-acceptance-93b709fc.txt` holds the merged-source run transcript and `board-capacity-acceptance-passwd-edges.txt` the passwd edge-case steps |
 | `kernel-uio-typed-interfaces.md` | four typed transfer definitions, caller preconditions and calibrated kernel inventory |
 | `libc-scandir-allocation-contract.md` | selected-entry allocation, compact self-describing records, typed per-call sorting, calibrated failure gates and paired target resource evidence |
@@ -192,6 +195,8 @@ Grouped by what they investigate.
 | `libc-bounded-string-resource-exception.md` | matched native archive growth, retained resource receipts, alternatives and exception decision |
 | `libc-lifecycle-integrated-resource-exception.md` | composed string and lifecycle archive costs, root block admission, packed executable limits and combined qualification |
 | `context-sort-contracts.md` | typed context-last sorting, nested-call and record invariants, donor ABI differences and caller resource isolation |
+| `libc-absolute-value-contracts.md` | callable int/long magnitude providers, representability domain, archive ownership and calibrated address-taking witnesses |
+| `libc-absolute-value-resource-exception.md` | matched native archive growth, preserved program identities and resource admission limits for callable magnitude providers |
 | `search-bound-experiment/README.md` | unshipped tableless Two-Way search, calibrated finite work counts, target frames and replay driver |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |
 | `STYLE-GUIDE.md` | the constrained-C and C17 migration proposal: resource accounts, C17isms, POSIX/BSD boundaries, quarantined historical sources, smaller-system evidence, and the proof a size claim owes |

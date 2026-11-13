@@ -54,6 +54,8 @@ def main() -> None:
             "stale-released-size",
             "ignore-descriptor-mode",
             "omit-root-check",
+            "open-writes-live-swap",
+            "transfer-writes-live-swap",
         ),
         required=True,
     )
@@ -92,6 +94,20 @@ def main() -> None:
         source = replace_once(source, MODE_CHECK, "\t\t(void)flag;\n", arguments.mutation)
     elif arguments.mutation == "omit-root-check":
         source = replace_once(source, ROOT_CHECK, "", arguments.mutation)
+    elif arguments.mutation == "open-writes-live-swap":
+        source = replace_once(
+            source,
+            "if (swap_live_write_refused(unit, mode & FWRITE))",
+            "if (swap_live_write_refused(unit, 0))",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "transfer-writes-live-swap":
+        source = replace_once(
+            source,
+            "if (swap_live_write_refused(unit, !(bp->b_flags & B_READ))) {",
+            "if (swap_live_write_refused(unit, 0)) {",
+            arguments.mutation,
+        )
     else:
         source = replace_once(
             source,

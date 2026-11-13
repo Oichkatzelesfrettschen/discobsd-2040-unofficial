@@ -243,7 +243,7 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     int i;
     u_int pad;
     u_short len;
-    char *ucp;
+    char *ucp, *args_end;
     char **argp, **envp, ***topp;
 
     DEBUG("\texec_setupstack(): start\n");
@@ -298,6 +298,7 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
         ucp += len;
     }
     argp[epp->argc] = NULL;
+    args_end = ucp;
 
     for (i = 0; i < epp->envc; i++) {
         envp[i] = ucp;
@@ -323,10 +324,24 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     DEBUG("\texec_setupstack(): new PC = %#x\n", entryaddr);
 
     /*
-     * Remember file name for accounting.
+     * Remember file name for accounting, and the argument prefix for the
+     * process record. The argument strings lie contiguously from argp[0] to
+     * args_end, each with its NUL. Both fields are cleared on every exec, so
+     * neither keeps bytes of the image exec replaced, and copystr() fills
+     * at most MAXCOMLEN of the MAXCOMLEN + 1 bytes of u_comm, so its last
+     * byte stays the terminator.
      */
-    if (epp->argc != 0)
+    bzero(u.u_psargs, sizeof(u.u_psargs));
+    bzero(u.u_comm, sizeof(u.u_comm));
+    if (epp->argc != 0) {
+        u_int n = args_end - argp[0] - 1;
+
+        if (n > sizeof(u.u_psargs) - 1)
+            n = sizeof(u.u_psargs) - 1;
+        for (u_int k = 0; k < n; k++)
+            u.u_psargs[k] = argp[0][k] != '\0' ? argp[0][k] : ' ';
         (void) copystr(argp[0], u.u_comm, MAXCOMLEN, 0);
+    }
 
     DEBUG("\texec_setupstack(): end\n");
 }

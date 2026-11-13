@@ -60,9 +60,17 @@ mode 0555
 #
 # Block devices, majors as sys/arch/rp2040/rp2040/conf.c orders bdevsw.
 #
+# /dev/swap, /dev/mem and /dev/kmem read and write kernel state, so they
+# belong to group 2 (kmem in /etc/group) with mode 0640: root writes them
+# and the group reads them. No shipped program runs set-group-id kmem; ps
+# reads the kernel's process records through sysctl(3). The image default
+# group 0 is wheel, which lists operator.
+#
 bdev /dev/swap
 major 4             # Virtual swap device, mapped to real swap partition
 minor 64
+mode 0640
+group 2
 
 #closure sdcard
 #
@@ -100,9 +108,13 @@ minor 0
 cdev /dev/mem
 major 1
 minor 0
+mode 0640
+group 2
 cdev /dev/kmem
 major 1
 minor 1
+mode 0640
+group 2
 cdev /dev/null
 major 1
 minor 2

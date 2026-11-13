@@ -1126,6 +1126,63 @@
       "deciding_gate": "Run check-libc-bounded-string, check-string-header-contracts, native archive linkage, Thumb-1 execution, matched clean distributions and resource comparison before promotion.",
       "disposition": "candidate",
       "residual": "The implementation and calibrated behavior fixtures exist. Matched static captures measure 692 additional native archive bytes with all other measured surfaces unchanged; docs/research/libc-bounded-string-resource-exception.md binds the receipts and pending review. Runtime resource qualification, aggregate gates and integration remain open; the unmeasured size state retains that incomplete qualification."
+    },
+    {
+      "id": "libc-callable-absolute-values",
+      "requirements": [
+        "dpucp-2024:system-interface:abs",
+        "dpucp-2024:system-interface:labs"
+      ],
+      "roles": [
+        "callable C17 integer arithmetic",
+        "archive provider closure"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/stdlib/abs.c",
+          "sha256": "9389c5c035d834a69ca10cc54b6776b1a244f858920a3bc564766630b2069e67",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/stdlib/labs.c",
+          "sha256": "ea22897d30681739304b6d6c0b59adf1046e4cf8eed2759f36b2c98790ebf218",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "Return the representable mathematical magnitude through public callable int and long providers.",
+      "invariants": [
+        "The input type determines the result type.",
+        "Unrepresentable mathematical magnitudes remain outside the defined contract.",
+        "Each provider has its own archive member and imports no runtime symbol."
+      ],
+      "algorithm": "Typed conditional negation uses constant work and constant automatic storage.",
+      "dependencies": [
+        "stdlib declarations",
+        "cross and native archive member selection"
+      ],
+      "c_language": "GNU17 production and strict C17 probes; Smaller C consumes public address-taking declarations.",
+      "c17_rewrite": "Independent typed definitions follow C17 7.22.6.1. Coherent and DragonFlyBSD comparisons corroborate the representability boundary; no bit-pattern or signed-shift assumption enters the source.",
+      "archive_members": [
+        "abs.o",
+        "labs.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "native archive bytes",
+          "packed root blocks",
+          "kernel flash and SRAM",
+          "process occupancy",
+          "stack and allocations"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Run check-libc-absolute-value, check-c17-headers-cross, full/reduced native archive omission controls, Smaller C and matched clean resource captures.",
+      "disposition": "candidate",
+      "residual": "Cross objects each occupy eight text bytes with no imports, data or BSS. Whole-image resource admission and aggregate qualification remain open. docs/research/libc-absolute-value-contracts.md records source identities, defined-domain witnesses and limitations."
     }
   ],
   "candidate_bindings": {
@@ -1240,6 +1297,13 @@
         "dpucp-2024:system-interface:strndup",
         "dpucp-2024:system-interface:stpcpy",
         "dpucp-2024:system-interface:stpncpy"
+      ]
+    },
+    "libc-callable-absolute-values": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:system-interface:abs",
+        "dpucp-2024:system-interface:labs"
       ]
     }
   }

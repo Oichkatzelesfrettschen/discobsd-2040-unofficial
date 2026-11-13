@@ -235,22 +235,47 @@ UFS_TOPOLOGY_MUTANTS=	omit-rename-acquisition \
 # each source. free() takes an inode and a block number in ufs_alloc.c and
 # would interpose on libc's, so every object compiles with the same rename.
 UFS_DISK_SOURCES=	ufs_mount ufs_fio ufs_bio ufs_inode ufs_subr ufs_bmap \
-			ufs_syscalls2 ufs_alloc sys_inode vfs_vnops
+			ufs_syscalls2 ufs_alloc sys_inode vfs_vnops kern_subr kern_descrip
 UFS_DISK_DEFS=		-DNMOUNT=2 -DNFL=2 -DSD_ENABLED -DLINEAR_INODE_CACHE \
 			-DCOMPACT_INODE_FIELDS -DLINEAR_BUFFER_CACHE \
-			-Dfree=ufs_free -Dsetjmp=ufs_disk_setjmp
+			-Dfree=ufs_free -Os \
+			-include ${.CURDIR}/ufs_disk_checkpoint.h
 UFS_DISK_CFLAGS=	-ffunction-sections -fdata-sections ${UFS_DISK_DEFS}
 UFS_DISK_FLAGS_vfs_vnops=	-Wno-clobbered
+UFS_DISK_FLAGS_sys_inode= -Dbdev_write_error=ufs_disk_error_query
+UFS_DISK_FLAGS_kern_descrip= -Dgetf=ufs_disk_getf -Dgetinode=ufs_disk_getinode \
+	-Dgetdtablesize=ufs_disk_getdtablesize -Ddup=ufs_disk_dup -Ddup2=ufs_disk_dup2 \
+	-Dclose=ufs_disk_close -Dfcntl=ufs_disk_fcntl -Dfstat=ufs_disk_fstat \
+	-Dflock=ufs_disk_flock
 UFS_DISK_OBJECTS=	${UFS_DISK_SOURCES:@s@ufs_disk_${s}.o@}
 UFS_DISK_CONF_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/conf.c
 UFS_DISK_FLASH_SRC=	${TOPSRC}/sys/arch/rp2040/dev/flash.c
 UFS_DISK_FLASH_HDR=	${TOPSRC}/sys/arch/rp2040/dev/flash.h
+UFS_DISK_STM32_SRC=	${TOPSRC}/sys/arch/stm32/stm32/conf.c
 UFS_DISK_MOUNT_MUTANTS=	close-always mount-close-always gone-ignored \
 			gone-assumed gone-keeps-error gone-no-close \
 			gone-no-invalidate gone-inverted
+UFS_DISK_MOUNT_MUTANTS+= device-mount-lock-omitted device-mount-inheritance-omitted
+UFS_DISK_MOUNT_MUTANTS+= device-mount-guard-transfer-omitted \
+	device-node-reference-leaked device-unmount-close-error-hidden
 UFS_DISK_FIO_MUTANTS=	exact-compare
+UFS_DISK_SUBR_MUTANTS=	cooked-device-flush-omitted cooked-device-error-hidden
+UFS_DISK_EXTRA_MUTANTS= cooked-device-latch-ignored ufs_bio \
+	device-error-replica-omitted ufs_bio device-first-error-overwritten ufs_bio \
+	device-busy-drain-omitted ufs_bio device-lock-ignored ufs_bio \
+	device-inherit-omitted sys_inode device-open-count-on-failure sys_inode \
+	device-close-error-hidden sys_inode device-error-lifetime-reset-omitted sys_inode \
+	device-driver-checkpoint-lost ufs_bio \
+	device-unlock-wakeup-omitted ufs_bio device-inode-released-early vfs_vnops \
+	device-mount-guard-invisible ufs_bio
+UFS_DISK_EXTRA_MUTANTS+= device-inheritance-unmasked sys_inode \
+	device-block-admission-before-lock sys_inode \
+	device-raw-admission-before-lock sys_inode \
+	device-block-policy-raise-ignored sys_inode \
+	device-raw-policy-raise-ignored sys_inode \
+	device-reuse-state-kept ufs_inode
 UFS_DISK_CONF_MUTANTS=	ignore-unit ignore-major touching start-only \
-			whole-device-disjoint failed-query-disjoint
+			whole-device-disjoint failed-query-disjoint device-unit-guard-exact-only
 UFS_DISK_FLASH_MUTANTS=	reinit-unguarded reinit-counts-whole-device \
 			reinit-first-partition-only
 .if ${_HOST_OSNAME} == "Darwin"
@@ -290,11 +315,16 @@ RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
 SWAP_IOCTL_SRC=	${TOPSRC}/sys/dev/swap.c
 SWAP_IOCTL_FUNCTION=	swap_ioctl_function.c
 SWAP_IOCTL_DEFS=	${COMPACT_DEFS}
+# swstrategy() hands a buffer address to swap() as the kernel's 32-bit
+# size_t, so the 64-bit host build excuses that cast, as swap_ring_io_test
+# does.
 SWAP_IOCTL_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 -pedantic-errors \
-			-Wstrict-prototypes -Wold-style-definition
+			-Wstrict-prototypes -Wold-style-definition \
+			-Wno-pointer-to-int-cast
 SWAP_IOCTL_MUTANTS=	release-fallthrough media-size-fallthrough \
 	shortage-output-suppression unrounded-free stale-released-size \
-	ignore-descriptor-mode omit-root-check
+	ignore-descriptor-mode omit-root-check open-writes-live-swap \
+	transfer-writes-live-swap
 SWAP_IOCTL_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/cdefs.h \
 	${TOPSRC}/sys/sys/conf.h ${TOPSRC}/sys/sys/disk.h \
@@ -329,6 +359,13 @@ CAPACITY_MUTANTS=	process-state inode-references clist-object-size \
 BUFFER_BUSY_SRC=	${TOPSRC}/sys/kern/ufs_bio.c
 BUFFER_BUSY_DEFS=	-DCAPACITY_STATS -DSTORAGE_STATS -DNBUF=4 \
 			-DSWAPRAM ${IALLOC_PICO_DEFS}
+# Function sections retain the buffer paths; ufs_disk_test owns device admission.
+BUFFER_BUSY_CFLAGS=	-ffunction-sections -fdata-sections
+.if ${_HOST_OSNAME} == "Darwin"
+BUFFER_BUSY_LDFLAGS=	-Wl,-dead_strip
+.else
+BUFFER_BUSY_LDFLAGS=	-Wl,--gc-sections
+.endif
 BUFFER_BUSY_MUTANTS=	no-capacity-note eviction-capacity-note \
 			no-freelist-wakeup eviction-drops-write
 
@@ -446,7 +483,8 @@ CONSOLE_C17_CFLAGS=	${CONSOLE_C17_BASE_CFLAGS} ${CONSOLE_C17_PARAM}
 MEM_SPAN_SRC=		${TOPSRC}/sys/dev/mem.c
 MEM_SPAN_MACHDEP_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
 MEM_SPAN_FUNCTIONS=	mem_kernel_span_functions.c
-MEM_SPAN_DRIVER_MUTANTS=	endpoint-admission user-rejected kernel-rejected
+MEM_SPAN_DRIVER_MUTANTS=	endpoint-admission user-rejected kernel-rejected \
+			write-unbound
 MEM_SPAN_FUNCTION_MUTANTS=	kernel-first-byte
 MEM_SPAN_MUTANTS=	${MEM_SPAN_DRIVER_MUTANTS} ${MEM_SPAN_FUNCTION_MUTANTS}
 MEM_SPAN_CFLAGS=	-ffunction-sections -fdata-sections
@@ -1100,6 +1138,8 @@ check-swap-ioctl-mutants: \
 		stale-released-size) expected='swap_ioctl_test_size(0) == 0' ;; \
 		ignore-descriptor-mode) expected='call_ioctl(0, TFALLOC, &request, FREAD) == EBADF' ;; \
 		omit-root-check) expected='call_ioctl(2, TFALLOC, &request, FREAD | FWRITE) == EPERM' ;; \
+		open-writes-live-swap) expected='swopen(live, FWRITE, 0) == (level ? EPERM : 0)' ;; \
+		transfer-writes-live-swap) expected='live_transfers == (level ? 0U : 1U)' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \
@@ -1707,19 +1747,73 @@ sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
 sysctl_shim.o: hostkern_kern.c hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o $@ hostkern_kern.c
 
+#
+# A process's user area is read through swap_with_buf_result(), so the gate
+# links the real sys/kern/vm_swp.c and the linker drops the raw I/O routines
+# beside it. The compact gate also builds the SwapRAM branch, as the PICO and
+# PicoCalc kernels do; the wide gate reads every nonresident user area from
+# the ring swap device, as PICO_UART does.
+SYSCTL_COMPACT_DEFS=	${COMPACT_DEFS} -DSWAPRAM
+SYSCTL_VMSWP_SRC=	${TOPSRC}/sys/kern/vm_swp.c
+SYSCTL_VMSWP_CFLAGS=	${KERN_CFLAGS} ${ILP32} -ffunction-sections \
+			-fdata-sections
+
+sysctl_vmswp_compact.o: ${SYSCTL_VMSWP_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCTL_VMSWP_CFLAGS} ${SYSCTL_COMPACT_DEFS} -c -o $@ \
+	    ${SYSCTL_VMSWP_SRC}
+
+sysctl_vmswp_wide.o: ${SYSCTL_VMSWP_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCTL_VMSWP_CFLAGS} ${WIDE_DEFS} -c -o $@ \
+	    ${SYSCTL_VMSWP_SRC}
+
 sysctl_test_compact: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
-    hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} ${COMPACT_DEFS} ${ILP32} \
+    sysctl_vmswp_compact.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
 	    -c -o sysctl_kernel_compact.o ${SYSCTL_SRC}
-	${HOST_CC} ${GATE_CFLAGS} ${COMPACT_DEFS} ${ILP32} -o $@ sysctl_test.c \
-	    sysctl_kernel_compact.o sysctl_shim.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o $@ sysctl_test.c \
+	    sysctl_kernel_compact.o sysctl_vmswp_compact.o sysctl_shim.o \
+	    hostkern32.o
 
 sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
-    hostkern.h ${MACHINE_STAMP}
+    sysctl_vmswp_wide.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${WIDE_DEFS} ${ILP32} \
 	    -c -o sysctl_kernel_wide.o ${SYSCTL_SRC}
-	${HOST_CC} ${GATE_CFLAGS} ${WIDE_DEFS} ${ILP32} -o $@ sysctl_test.c \
-	    sysctl_kernel_wide.o sysctl_shim.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${WIDE_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o $@ sysctl_test.c \
+	    sysctl_kernel_wide.o sysctl_vmswp_wide.o sysctl_shim.o hostkern32.o
+
+# Each mutant removes one rule of the process path from a copy of
+# kern_sysctl.c, and the compact gate has to fail on it. no_identity accepts
+# a user-area block whatever image its u_procp names; no_recheck accepts a
+# block after the process exited or its slot changed during the read;
+# open_args gives every caller the argument prefix; drop_marked leaves out
+# a process whose user area could not be read, as the raw-memory ps did.
+SYSCTL_PROC_MUTANTS=	no_identity no_recheck open_args drop_marked
+SYSCTL_PROC_SED_no_identity=	s/if (up->u_procp != p)/if (0)/
+SYSCTL_PROC_SED_no_recheck=	s/if (proc_changed(p, pid))/if (proc_changed(p, pid) < 0)/
+SYSCTL_PROC_SED_open_args=	s/caller == kp->kp_ruid)/caller == kp->kp_ruid || kp->kp_size != 0)/
+SYSCTL_PROC_SED_drop_marked=	s/kinfo_fill(p, &kp);/kinfo_fill(p, \&kp); if (kp.kp_error) continue;/
+
+check-sysctl-proc-mutants: sysctl_test_compact
+.for mutation in ${SYSCTL_PROC_MUTANTS}
+	@sed '${SYSCTL_PROC_SED_${mutation}}' ${SYSCTL_SRC} \
+	    > sysctl_proc_${mutation}.mutant.c; \
+	if cmp -s ${SYSCTL_SRC} sysctl_proc_${mutation}.mutant.c; then \
+		echo "sysctl proc mutant ${mutation}: no source change" >&2; \
+		exit 1; fi; \
+	${HOST_CC} ${KERN_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} -c \
+	    -o sysctl_proc_${mutation}.mutant.o \
+	    sysctl_proc_${mutation}.mutant.c && \
+	${HOST_CC} ${GATE_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o sysctl_proc_${mutation}.mutant.test \
+	    sysctl_test.c sysctl_proc_${mutation}.mutant.o \
+	    sysctl_vmswp_compact.o sysctl_shim.o hostkern32.o || exit 1; \
+	if ./sysctl_proc_${mutation}.mutant.test \
+	    > sysctl_proc_${mutation}.mutant.out 2>&1; then \
+		echo "sysctl proc mutant ${mutation}: SURVIVED" >&2; exit 1; fi; \
+	echo "sysctl proc mutant ${mutation}: rejected"
+.endfor
 
 # The inode allocator in the three shapes the tree configures it in: the
 # portable one, sys/arch/rp2040/compile/PICO's, and a DIAGNOSTIC kernel.
@@ -2275,19 +2369,46 @@ ufs_disk_conf_functions.c: ufs_disk_extract.py ${UFS_DISK_CONF_SRC}
 	${PYTHON} ufs_disk_extract.py conf --source ${UFS_DISK_CONF_SRC} \
 	    --output $@
 
+ufs_disk_stm32_unit_functions.c: ufs_disk_extract.py ${UFS_DISK_STM32_SRC}
+	${PYTHON} ufs_disk_extract.py unit --source ${UFS_DISK_STM32_SRC} \
+	    --output $@
+
 ufs_disk_flash_functions.c: ufs_disk_extract.py ${UFS_DISK_FLASH_SRC} \
     ${UFS_DISK_FLASH_HDR}
 	${PYTHON} ufs_disk_extract.py flash --source ${UFS_DISK_FLASH_SRC} \
 	    --header ${UFS_DISK_FLASH_HDR} --output $@
 
 .for source in ${UFS_DISK_SOURCES}
-ufs_disk_${source}.o: ${TOPSRC}/sys/kern/${source}.c ${MACHINE_STAMP}
+ufs_disk_${source}.o: ${TOPSRC}/sys/kern/${source}.c ${MACHINE_STAMP} \
+    ${TOPSRC}/sys/sys/inode.h ${TOPSRC}/sys/sys/buf.h \
+    ${TOPSRC}/sys/sys/mount.h ufs_disk_checkpoint.h Makefile
 	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} \
 	    ${UFS_DISK_FLAGS_${source}} ${ILP32} -c -o $@ \
 	    ${TOPSRC}/sys/kern/${source}.c
 .endfor
 
-UFS_DISK_LINK=	hostkern_kern.c hostkern32.o
+ufs_disk_schedule.o: ufs_disk_schedule.c ufs_disk_schedule.h
+	${HOST_CC} -std=c17 -Wall -Wextra -Werror ${ILP32} -c -o $@ \
+	    ufs_disk_schedule.c
+
+UFS_DISK_LINK=	hostkern_kern.c hostkern32.o ufs_disk_schedule.o
+
+ufs_disk_scheduler-budget-failure-hidden.mutant.c: ufs_disk_mutate.py \
+    ufs_disk_schedule.c
+	${PYTHON} ufs_disk_mutate.py --source ufs_disk_schedule.c \
+	    --output $@ --mutation scheduler-budget-failure-hidden
+
+ufs_disk_scheduler-budget-failure-hidden.mutant.test: \
+    ufs_disk_scheduler-budget-failure-hidden.mutant.c ufs_disk_test.c \
+    ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c ufs_disk_flash_functions.c \
+    ${UFS_DISK_LINK} ufs_disk_schedule.h ufs_disk_checkpoint.h
+	${HOST_CC} -std=c17 -Wall -Wextra -Werror ${ILP32} -c -o \
+	    ufs_disk_scheduler-budget-failure-hidden.mutant.o \
+	    ufs_disk_scheduler-budget-failure-hidden.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
+	    ${UFS_DISK_OBJECTS} ufs_disk_scheduler-budget-failure-hidden.mutant.o \
+	    ${UFS_DISK_LINK:Nufs_disk_schedule.o}
 
 ufs_disk_test: ufs_disk_test.c ${UFS_DISK_OBJECTS} \
     ufs_disk_conf_functions.c ufs_disk_flash_functions.c \
@@ -2315,6 +2436,42 @@ ufs_disk_mount_${mutation}.mutant.test: ufs_disk_mount_${mutation}.mutant.c \
 	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
 	    ufs_disk_mount_${mutation}.mutant.o \
 	    ${UFS_DISK_OBJECTS:Nufs_disk_ufs_mount.o} ${UFS_DISK_LINK}
+.endfor
+
+.for mutation in ${UFS_DISK_SUBR_MUTANTS}
+ufs_disk_subr_${mutation}.mutant.c: ufs_disk_mutate.py \
+    ${TOPSRC}/sys/kern/ufs_subr.c
+	${PYTHON} ufs_disk_mutate.py --source ${TOPSRC}/sys/kern/ufs_subr.c \
+	    --output $@ --mutation ${mutation}
+
+ufs_disk_subr_${mutation}.mutant.test: ufs_disk_subr_${mutation}.mutant.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ufs_disk_flash_functions.c ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} ${ILP32} -c -o \
+	    ufs_disk_subr_${mutation}.mutant.o ufs_disk_subr_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
+	    ufs_disk_subr_${mutation}.mutant.o \
+	    ${UFS_DISK_OBJECTS:Nufs_disk_ufs_subr.o} ${UFS_DISK_LINK}
+.endfor
+
+.for mutation source in ${UFS_DISK_EXTRA_MUTANTS}
+ufs_disk_${source}_${mutation}.mutant.c: ufs_disk_mutate.py \
+    ${TOPSRC}/sys/kern/${source}.c
+	${PYTHON} ufs_disk_mutate.py --source ${TOPSRC}/sys/kern/${source}.c \
+	    --output $@ --mutation ${mutation}
+
+ufs_disk_${source}_${mutation}.mutant.test: ufs_disk_${source}_${mutation}.mutant.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ufs_disk_flash_functions.c ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} \
+	    ${UFS_DISK_FLAGS_${source}} ${ILP32} -c -o \
+	    ufs_disk_${source}_${mutation}.mutant.o ufs_disk_${source}_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
+	    ufs_disk_${source}_${mutation}.mutant.o \
+	    ${UFS_DISK_OBJECTS:Nufs_disk_${source}.o} ${UFS_DISK_LINK}
+UFS_DISK_EXTRA_TESTS+= ufs_disk_${source}_${mutation}.mutant.test
 .endfor
 
 .for mutation in ${UFS_DISK_FIO_MUTANTS}
@@ -2376,11 +2533,34 @@ ufs_disk_flash_${mutation}.mutant.test: \
 	    ${UFS_DISK_LINK}
 .endfor
 
+ufs_disk_stm32_unit.mutant.c: ufs_disk_mutate.py ${UFS_DISK_STM32_SRC}
+	${PYTHON} ufs_disk_mutate.py --source ${UFS_DISK_STM32_SRC} \
+	    --output $@ --mutation device-stm32-unit-guard-exact-only
+
+ufs_disk_stm32_unit.mutant.functions.c: ufs_disk_extract.py \
+    ufs_disk_stm32_unit.mutant.c
+	${PYTHON} ufs_disk_extract.py unit --source ufs_disk_stm32_unit.mutant.c \
+	    --output $@
+
+ufs_disk_stm32_unit.mutant.test: ufs_disk_stm32_unit.mutant.functions.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ufs_disk_flash_functions.c ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    -DUFS_DISK_STM32_INCLUDE='"ufs_disk_stm32_unit.mutant.functions.c"' \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c ${UFS_DISK_OBJECTS} \
+	    ${UFS_DISK_LINK}
+
 UFS_DISK_MUTANT_TESTS=	\
+    ufs_disk_scheduler-budget-failure-hidden.mutant.test \
+    ufs_disk_stm32_unit.mutant.test \
     ${UFS_DISK_MOUNT_MUTANTS:@m@ufs_disk_mount_${m}.mutant.test@} \
     ${UFS_DISK_FIO_MUTANTS:@m@ufs_disk_fio_${m}.mutant.test@} \
+    ${UFS_DISK_SUBR_MUTANTS:@m@ufs_disk_subr_${m}.mutant.test@} \
+    ${UFS_DISK_EXTRA_TESTS} \
     ${UFS_DISK_CONF_MUTANTS:@m@ufs_disk_conf_${m}.mutant.test@} \
     ${UFS_DISK_FLASH_MUTANTS:@m@ufs_disk_flash_${m}.mutant.test@}
+
+ufs_disk_test ${UFS_DISK_MUTANT_TESTS}: ufs_disk_stm32_unit_functions.c
 
 # A mutant must fail through the gate's own verdict, not by a crash, a hang
 # or a build error: the gate exits 1 after naming the failed checks.
@@ -2538,13 +2718,13 @@ check-capacity-mutants: capacity_test capacity_mutate.py
 
 buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
     ${CAPACITY_SRC} hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
 	    -c -o buffer_busy_kernel.o ${BUFFER_BUSY_SRC}
-	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
 	    -c -o buffer_busy_capacity.o ${CAPACITY_SRC}
-	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
 	    -c -o buffer_busy_uarea.o capacity_uarea.c
-	${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} -o $@ \
+	${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_LDFLAGS} ${ILP32} -o $@ \
 	    buffer_busy_test.c buffer_busy_kernel.o buffer_busy_capacity.o \
 	    buffer_busy_uarea.o hostkern_kern.c hostkern32.o
 
@@ -2559,10 +2739,10 @@ check-buffer-busy-mutants: buffer_busy_test buffer_busy_mutate.py
 	fi
 	${PYTHON} buffer_busy_mutate.py ${BUFFER_BUSY_SRC} ${.CURDIR}
 	@set -eu; for mutation in ${BUFFER_BUSY_MUTANTS}; do \
-		${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+		${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
 		    -c -o buffer_busy_$$mutation.mutant.o \
 		    buffer_busy_$$mutation.mutant.c; \
-		${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${ILP32} \
+		${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_LDFLAGS} ${ILP32} \
 		    -o buffer_busy_$$mutation.mutant.test buffer_busy_test.c \
 		    buffer_busy_$$mutation.mutant.o buffer_busy_capacity.o \
 		    buffer_busy_uarea.o hostkern_kern.c hostkern32.o; \
@@ -2922,7 +3102,7 @@ check-ilp32:
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
 	    exec_elf_text_ownership_mutant \
-	    sysctl_test_compact sysctl_test_wide \
+	    sysctl_test_compact sysctl_test_wide check-sysctl-proc-mutants \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
 	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
@@ -3206,6 +3386,7 @@ clean:
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
 	    exec_elf_text_ownership_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
+	rm -f sysctl_vmswp_compact.o sysctl_vmswp_wide.o sysctl_proc_*.mutant.*
 	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o
 	rm -f ialloc_shim.o ialloc_shim_pico.o
@@ -3247,7 +3428,7 @@ clean:
 	rm -f ufs_topology_*.mutant.c ufs_topology_*.mutant.o \
 	    ufs_topology_*.mutant.test ufs_topology_*.mutant.out
 	rm -f ufs_disk_*.o ufs_disk_test ufs_disk_conf_functions.c \
-	    ufs_disk_flash_functions.c ufs_disk_*.mutant.c \
+	    ufs_disk_flash_functions.c ufs_disk_stm32_unit_functions.c ufs_disk_*.mutant.c \
 	    ufs_disk_*.mutant.functions.c ufs_disk_*.mutant.o \
 	    ufs_disk_*.mutant.test ufs_disk_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
@@ -3265,7 +3446,7 @@ clean:
 	@if [ -d ${CONSOLE_C17_MACHINE} ]; then rmdir ${CONSOLE_C17_MACHINE}; fi
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
-	check-rmap-ring-mutants check-swap-ring-io \
+	check-rmap-ring-mutants check-swap-ring-io check-sysctl-proc-mutants \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
 	check-buffer-busy-mutants \
 	check-rwuio-mutants check-rwuio-sanitizer \

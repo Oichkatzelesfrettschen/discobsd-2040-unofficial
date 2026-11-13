@@ -61,15 +61,17 @@ The root filesystem is `/dev/fl0a` mounted asynchronous, 932 KB total with
 
 ## DEVICE.md rows that are now stale
 
-`~/Github/rpi/DEVICE.md` records "Bootable image in flash: none" and describes
+`DEVICE.md` in the sibling repository `discobsd-2040-notes` records
+"Bootable image in flash: none" and describes
 the board enumerating as `2e8a:0003 RP2 Boot` in BOOTSEL with an `RPI-RP2`
 volume. The board now enumerates as `2e8a:000a` and runs DiscoBSD from flash,
-so those rows describe a superseded state. That file is outside any git
-repository, and correcting it is a separate task.
+so those rows describe a superseded state. Correcting them belongs to that
+repository.
 
 ## RP2040 fixed specification
 
-Every figure below comes from `~/Github/rpi/docs/rp2040/rp2040-datasheet.txt`.
+Every figure below comes from `docs/rp2040/rp2040-datasheet.txt` in
+`discobsd-2040-notes`.
 
 | Item | Value | Datasheet location |
 |---|---|---|

@@ -130,6 +130,15 @@ the mechanism. Comment length follows the mechanism's explanatory needs;
 individual words such as "this", "now" or "previously" do not decide whether
 a comment describes implementation behavior or investigation history.
 
+Inherited legacy text stays: the dated change notes, SCCS and version
+lines, author initials and usage lines that BSD, RetroBSD and upstream
+DiscoBSD sources carry at the top of a file or above a routine are
+provenance, with the same standing as a copyright header. A rewrite keeps
+every such line verbatim. It may move the block to the top of the file or
+regroup it for formatting, and it states the current behavior in a new
+comment beside it, never by editing or deleting the inherited lines. The
+rule for new comments above governs only text written for this port.
+
 A TODO names the missing mechanism, the constraint that defers it and its
 durable tracking artifact. New work lands complete.
 

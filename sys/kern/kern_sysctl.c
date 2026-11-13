@@ -771,6 +771,11 @@ proc_changed(const struct proc *p, int pid)
  * its u_procp names p and p still holds pid, nonresident; a process that came
  * back into core is read in place.
  *
+ * XXX - We rely on the fact that u_ttyp, u_ttyd, and u_ruid are all within
+ * XXX - the first 1kb of the u area.  If this ever changes the logic below
+ * XXX - will break (and badly).  At the present time (97/9/2) the u area
+ * XXX - is 856 bytes long.
+ *
  * The first DEV_BSIZE bytes hold the whole struct user (subr_capacity.c).
  * On success *upp addresses them.  *bpp is the buffer for
  * proc_uarea_release(), or NULL.  ESRCH reports a process that exited or

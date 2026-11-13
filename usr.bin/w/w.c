@@ -6,7 +6,9 @@
  * Rewritten using sysctl, no nlist used  - 1/19/94 - sms.
  *
  * This program is similar to the systat command on Tenex/Tops 10/20
- * It reads the process records of KERN_PROC (sys/sysctl.h), which the
+ * It needs read permission on /dev/mem and /dev/swap.
+ *
+ * w now reads the process records of KERN_PROC (sys/sysctl.h), which the
  * kernel fills wherever a process image lives, and needs no privilege.
  */
 #include <sys/param.h>

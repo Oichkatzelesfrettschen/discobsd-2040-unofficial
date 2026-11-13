@@ -18,11 +18,16 @@ on:
     - cron: '17 9 * * *'
   workflow_dispatch:
 
-# A newer push to a pull request supersedes its running jobs; pushes to main
-# and scheduled runs each finish.
+# A run that enters the group of its pull request or pushed branch cancels
+# the run in progress there, so a burst of merges to main leaves one
+# finished run. GitHub orders a group by arrival and does not promise push
+# order, so that run is usually the last merge's and its head SHA says
+# which; a failure there names the burst, and rerunning the cancelled run of
+# one merge isolates it. Scheduled and dispatched runs each take their own
+# group and finish.
 concurrency:
-  group: firmware-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: firmware-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 permissions:
   contents: read
@@ -165,7 +170,8 @@ jobs:
       # the complete process group at the idle or hard deadline. GitHub's
       # step and job deadlines remain independent outer bounds.
       # tools/online-cpus.sh resolves getconf, BSD sysctl and GNU nproc in
-      # that order, then returns one when a host exposes none of them.
+      # that order, then returns one when a host exposes none of them; on
+      # Linux it bounds the count by affinity and the cgroup CPU quota.
       # Measured on a 12-thread host: the kernel alone
       # 8.07 s to 1.55 s, the whole world 136.94 s to 31.10 s. Two -j runs
       # of the world differ from each other in 9 of 3736 artifacts, all of
@@ -680,7 +686,8 @@ jobs:
           bmake -V MAKE_VERSION
           picotool version
       # tools/online-cpus.sh resolves getconf, BSD sysctl and GNU nproc in
-      # that order, then returns one when a host exposes none of them.
+      # that order, then returns one when a host exposes none of them; on
+      # Linux it bounds the count by affinity and the cgroup CPU quota.
       # Measured on a 12-thread host: the kernel alone
       # 8.07 s to 1.55 s, the whole world 136.94 s to 31.10 s. Two -j runs
       # of the world differ from each other in 9 of 3736 artifacts, all of

@@ -140,10 +140,12 @@ Three statements of the proposal survive, each in a narrower form.
 The Q32.32 fixed-point clock and a uniformly 64-bit kernel and disk format
 stay refuted for this target, for the reasons the proposal gives.
 
-## The open decision
+## The interface width: 64 bits, chosen
 
-The width of `time_t` in the user interface has two candidates with real
-costs on both sides, and the tree does not choose between them.
+The width of `time_t` in the user interface had two candidates with real
+costs on both sides. The owner chose the 64-bit interface over a 32-bit
+unsigned kernel and disk, on the POSIX.1-2024 requirement in the table's
+fifth row. The table records what each candidate costs.
 
 | | Unsigned 32-bit `time_t` | 64-bit `time_t`, 32-bit unsigned kernel and disk |
 | --- | --- | --- |
@@ -153,6 +155,83 @@ costs on both sides, and the tree does not choose between them.
 | Times before 1970 | unrepresentable | representable in programs; clamped on disk |
 | POSIX.1-2024 `time_t` (`<sys/types.h>`: an integer type at least 64 bits wide, set by Austin Group defect 1462) | fails | meets |
 | Source audit | every signed comparison and subtraction of `time_t` | every `long` that holds a `time_t`, every `%ld` that prints one |
+
+## Programs compiled on the board
+
+The choice above binds programs the cross compiler builds. The compiler the
+image ships as `/usr/bin/cc`, Smaller C (`usr.bin/smlrc`), has no 64-bit
+integer type: `tokLongLong` is commented out in `smlrc.c`, and
+`include/stdlib.h` hides `atoll()` from it for that reason. The selected
+image ships neither headers nor a preprocessor (`usr.bin/smlrc/README.rp2040.md`),
+so a program compiled on the board declares `time()` and `stat()` by hand
+and binds to them by name, and it links the `/usr/lib/libc.a` the cross
+compiler built. A 64-bit `time_t` behind the existing names would hand such a
+program a 16-byte `struct timeval` where it reserved 8.
+
+The leading design keeps the existing names narrow. `stat`, `fstat`,
+`lstat`, `time`, `ctime`, `gettimeofday` and the other time-carrying entry
+points keep their 32-bit unsigned meaning and their present layouts, which
+are the kernel's; the headers the cross compiler reads declare the 64-bit
+types and redirect each of those functions to a second symbol by an
+assembler label, and libc holds that second set as wrappers that call the
+narrow entry and widen on the way out, or check the range and narrow on
+the way in. A second count since the epoch (`st_mtime`, `gettimeofday`)
+widens zero-extended, since the kernel reads it unsigned. A signed
+interval widens sign-extended: `adjtime()` returns the correction still
+owed in `olddelta`, which is negative while the clock is being slowed
+(`sys/kern/kern_time.c`). The kernel gains no code and no second interface. NetBSD's
+`__RENAME` symbols and glibc's `_TIME_BITS=64` redirects are the same
+mechanism; neither source was re-read for this note.
+
+What the design owes before it is adopted:
+
+- libc is itself compiled by the cross compiler, so `time()`, and
+  `ctime()`, `localtime()` and `gmtime()` in `ctime.o`, need a narrow and a
+  wide build each, and an internal call must reach the one its caller's
+  types match.
+- The wrappers name both layouts in one translation unit, so the narrow
+  structures need private tags (`struct __stat32`, `struct __timeval32`).
+- Every time-carrying system call in `sys/kern/syscalls.master` takes a
+  wide wrapper: `stat`, `fstat` and `lstat` (`struct stat`);
+  `gettimeofday`, `settimeofday`, `adjtime`, `select`, `utimes` and
+  `futimes` (`struct timeval`); `getitimer` and `setitimer`
+  (`struct itimerval`); `getrusage` and `wait4` (`struct rusage`); and
+  `pselect` (`struct timespec`). A call left on the narrow entry receives
+  a wide caller's layout.
+- `sysctl()` carries a time as payload: `KERN_BOOTTIME` copies out the
+  kernel's `struct timeval` (`sys/kern/kern_sysctl.c`). The call's
+  signature holds no time type, so a redirect by name cannot select a
+  width; a wide caller reads the narrow payload through a private narrow
+  structure or a libc helper that widens it.
+- `lastlog.ll_time` is a `time_t` (`include/lastlog.h`) and `utmp.ut_time`
+  a `long`; both are disk records and take explicit 32-bit fields before
+  the type changes.
+- One executable can hold objects from both compilers: the Smaller C test
+  harness links a cross-compiled companion (`usr.bin/smlrc/tests/run.sh`).
+  An object that reaches the other width's symbol links without a
+  diagnostic and overruns the smaller object. The linked program cannot
+  show it: `tools/elf2aout` writes `a_syms = 0` in the normal conversion,
+  and an executable with a wide caller holds both symbol sets anyway,
+  because each wide wrapper calls its narrow entry. The gate therefore
+  reads the undefined references of each relocatable object before the
+  link against the width its compiler implies, allows the narrow calls of
+  the wrapper members by name, and is calibrated on a wrongly bound object
+  inside an otherwise valid program built by both compilers.
+- The wrapper cost is unmeasured: text per wrapper, text per shipped
+  program, `libc.a` growth and free blocks on the packed image.
+
+Adding `long long` to Smaller C would leave one interface and is the one
+alternative not excluded: a build of `fca28c6a` with
+arm-none-eabi-gcc 16.2.0 links the compiler at 47,460 bytes of text, 1,140 of
+data and 26,312 of bss (`arm-none-eabi-size usr.bin/smlrc/smlrc.elf`),
+74,912 in a 192 KiB process window (`machparam.h`);
+`usr.bin/smlrc/README.rp2040.md` records an earlier build's figures. The
+cost of the 64-bit type in it is unmeasured.
+Converting in the kernel instead, with old and new system calls side by
+side, keeps two user interfaces as well and spends kernel text for a clock
+that stays 32 bits wide; `check-kernel-headroom` at `fca28c6a` reports
+30,832 bytes free in the PICO kernel's flash region and 9,880 in
+PICOCALC_PSRAM, the tightest of the four.
 
 ## Measured cost of each interface width
 
@@ -239,14 +318,18 @@ that, so the step that changes the type adapts it.
    (`tests/kernel/balloc_test.c` and `usr.bin/touch/touch.c` have them;
    `sys/kern/kern_time.c`'s `LONG_MIN`/`LONG_MAX` clamp, `difftime.c` and
    the `tar`, `ar` and `ls` formatters do not).
-3. The decision above.
+3. The width decision: 64 bits, recorded above.
 4. Unsigned on disk and in the kernel clock: `icommon2`, `fs_time`,
    `time.tv_sec` and the `adjtime()` clamp. The gate is `balloc_test` and
    `ialloc_test` with a clock past 2038, and a Renode boot from an image
    whose `fs_time` is past 2038.
-5. The user-interface width chosen in step 3, with the forward conversion
-   moved to closed form and the seven-bit split if the width is 64 bits.
-6. `date`, `touch`, `ls`, `tar`, `ar`, `ps` and the host tools
+5. A target-executed proof of the two-name design: one test program built
+   from a Smaller C object and a cross-compiled object, each reading the
+   clock and a file's times through its own width and agreeing on a value
+   with bit 31 set; with it, a bounded trial of `long long` in Smaller C.
+6. The 64-bit interface by the surviving design, with the forward
+   conversion moved to closed form and the seven-bit split.
+7. `date`, `touch`, `ls`, `tar`, `ar`, `ps` and the host tools
    (`tools/libufs`, `sbin/mkfs`, `sbin/fsck`) read and print through the
    chosen type.
 
@@ -264,10 +347,12 @@ at stop point P3.0 on the sparse image (P8b) and the board baseline
 - The 64-bit interface's cost is measured with the compiler's own 64-bit
   division; with the seven-bit split and with every call site converted
   it is unmeasured.
-- `timegm()`'s field carrying runs before its range checks, and
-  `carry()` adds the quotient to the next field unchecked: `tm_year` of
-  `INT_MAX` with `tm_mon` of 12 overflows an `int`. The range repair
-  guards the day and second arithmetic and leaves that addition as it
-  was.
+- The kernel sets its clock at boot from the superblock
+  (`sys/kern/init_main.c`: `time.tv_sec = fs->fs_time`) and reads no
+  hardware clock, so the time after a power cycle is the last superblock
+  write. The RP2040's own real-time clock peripheral is unused.
+- Time carriers outside the system calls are not yet audited for width:
+  the crash-dump header, the msdosfs and V7 file-system timestamps, and
+  the host tools that stamp an image (`tools/fsutil`, `sbin/mkfs`).
 - No target execution: qemu-user, Renode and the board did not run the
-  repaired `timegm()`.
+  repaired `timegm()` or `mktime()`.

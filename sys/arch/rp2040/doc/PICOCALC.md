@@ -72,6 +72,11 @@ name a file there, with a page for a PDF.
 | `fsutil --repartition=fs=8m` and `fsutil --new --partition=1` make an image whose sector 0 holds the 0x55AA signature and one type 0xB7 entry at sector 2 in the 16-byte layout `sd.c` copies into `struct diskpart`, and `fsutil --check --partition=1` accepts it | host | observed on a scratch image; the kernel side of the parse is not run |
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
 | The SD socket's card-detect polarity, the fast clock at 12.5 MHz on this board's traces, and the busy times of real cards | board | not run |
+| The crash-dump writer (`sddump()`, `rp2040/dump.c`, `dumpsys()`) links into PICOCALC and PICOCALC_PSRAM only | build | observed by `check-dump-writer-link` on the symbol tables of all four kernels, with a swapped-role control that exits 1 |
+| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (56 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (23 mutants of `sdspi.c` rejected) |
+| `savecore` saves a dump the kernel's stream wrote, names a different running kernel, advances the bounds file, and leaves the dump on the card for a damaged segment, header checksum, version, segment count or length, one byte too little space with and without a reserve, and a copy that cannot be written; an unfinished dump reads as none | host | observed by `check-picocalc-host` (`dump_test`, 9 mutants of `savecore.c` rejected) |
+| On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 48,136, two u areas of 3,072, `dump.0` 55,808 bytes; a kernel that dumps only on the reset path fails the panic stage |
+| A panic on the board writes a dump that `savecore` saves | board | not run: the bench board is a Pico without the PicoCalc's SD socket |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
 | `psram.c`, `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, 40 random transfers, four injected faults, the four placements of the two register stages and thirteen mutants | host | observed by `check-psram-pio` (1,197 checks); the model's pad delays and the clock of the two register stages are assumptions |
 | PICO, PICO_UART and PICOCALC carry no PSRAM driver | build | observed: no `psram` symbol in the `unix.elf` of any of the three; PICO and PICO_UART sizes equal those recorded when the driver landed |
@@ -773,6 +778,44 @@ on-board `fdisk /dev/rsd0` and `mkfs -s BLOCKS /dev/rsd0a` are the second
 route; they use only the disk ioctls the driver answers
 (`DIOCGETMEDIASIZE`, `DIOCGETPART`, `DIOCREINIT`; `umount` adds
 `DIOCMEDIAGONE`) but have not run against it, so a closure that ships them waits on a board run.
+
+### Crash dumps
+
+A PICOCALC kernel on a PicoCalc takes a crash dump on the SD card. The
+probe sets `dumpdev` to the card (`sdprobe()`), and `boot()` calls the dump
+routine for a panic, which asks for `RB_HALT | RB_DUMP`, and for
+`reboot -d`, before it halts or resets. `sddump()` initializes whatever
+card is in the socket on a card state of its own, reads the partition
+entries of sector 0, and writes to the first entry of type 0xb9 that lies
+inside the card, unless a block open of the accepted card (a mount, or the
+whole card) overlaps it. It polls the card with every interrupt masked
+and allocates nothing. The format is `sys/arch/rp2040/include/dump.h`: a
+header and segment table in sector 0, then the panic message, kernel RAM
+from `.data` to the end of the SwapRAM pool, and the two u areas, each
+with a CRC-32 computed over the bytes as they leave for the card, which
+keeps the current u area, where the writer's own stack runs, consistent.
+Sector 0 is zeroed first and written last, so an unfinished dump reads as
+none. A PICOCALC dump is 109 sectors (55,808 bytes), 48,136 of them kernel
+RAM; a PICOCALC_PSRAM dump is 110.
+
+    fsutil --repartition=fs=64m:dump=1m card.img
+    fsutil --new --partition=1 card.img
+
+makes a card with a file system on `sd0a` and a dump partition on `sd0b`.
+After the reboot that follows a panic, `savecore` (in the `sdcard`
+closure) copies the dump off the card:
+
+    mount /dev/sd0a /mnt
+    mkdir /mnt/crash
+    savecore /mnt/crash
+
+`savecore(8)` checks every checksum while it copies, writes `dump.N` and
+`info.N`, whose image CRC32 names the `unix.elf` build whose symbols decode
+the dump, and zeroes sector 0 only after both files, the bounds file and
+the directory are on stable storage. It refuses to copy unless 1024 KB (or
+the kilobytes in the directory's `minfree` file) stay free afterward. At
+securelevel 2 every write open of the card is refused, so `savecore` runs
+before the level rises.
 
 ## Building and flashing
 

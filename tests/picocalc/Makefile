@@ -54,14 +54,23 @@
 # fail it.
 #
 # sdspi_test runs the SD card protocol layer against a card model that
-# replays recorded command transcripts; twenty mutants of sdspi.c must fail
+# replays recorded command transcripts, including the crash dump's window
+# reads and summed span writes; twenty-three mutants of sdspi.c must fail
 # it.
 #
 # sdstrat_test compiles the SD disk driver (sd.c) unchanged against the
 # kernel's buf.h and disk.h through the headers in shim/ and a card behind
 # fake sdspi calls, then drives sdopen, sdstrategy and sdsize with the
-# requests physio() and the buffer cache make, and calls the probe under
-# each board identity; forty-two mutants of sd.c must fail it.
+# requests physio() and the buffer cache make, calls the probe under each
+# board identity, and writes crash dumps through sddump() and the kernel's
+# dump stream (rp2040/dump.c) onto the card's dump partition, mounted,
+# beside a mount, undersized, failing and replaced; fifty-six mutants of
+# sd.c and dump.c must fail it.
+#
+# dump_test writes a dump with the kernel's dump stream into a partition
+# image and runs savecore(8) on it from the host: a saved dump, a damaged
+# one, too little space and a blocked copy; nine mutants of savecore.c
+# must fail it.
 #
 # picoaudio_test compiles the bell driver (picoaudio.c) unchanged against
 # the register model in regmodel.h, stops the tone at every counter phase
@@ -73,6 +82,16 @@ TOPSRC!=	cd ../..; pwd
 
 HOST_CC?=	cc
 DEV=		${TOPSRC}/sys/arch/rp2040/dev
+# The CRC-32 the crash dump and the packed executables share; the kernel
+# header it includes comes from the tree after the host's own.
+CRC32=		${TOPSRC}/sys/kern/subr_crc32.c
+# The crash-dump stream sd.c's sddump() writes through, and savecore(8),
+# which dump_test runs on the host with main renamed and POSIX visible.
+DUMPW=		${TOPSRC}/sys/arch/rp2040/rp2040/dump.c
+SAVECORE=	${TOPSRC}/sbin/savecore
+DUMPCSTD=	-std=c17 -Wall -Wextra -Werror -D_POSIX_C_SOURCE=200809L \
+		-Dmain=savecore_main -I${TOPSRC}/tests/picocalc/shim \
+		-I${TOPSRC}/sys/arch -I${SAVECORE} -idirafter ${TOPSRC}/sys
 CSTD=		-std=c17 -pedantic-errors -Wall -Wextra -Werror
 SAN=		-fsanitize=address,undefined -fno-sanitize-recover=all
 # The kernel compiles under the GNU17 profile, and sd.c uses the BSD types
@@ -85,7 +104,7 @@ SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 all: check
 
 check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
-	sdspi_test sdstrat_test picoaudio_test font-sync
+	sdspi_test sdstrat_test dump_test picoaudio_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./kbdreq_test
@@ -93,9 +112,11 @@ check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	./gametile_test
 	./sdspi_test
 	./sdstrat_test
+	./dump_test
 	./picoaudio_test
 	${MAKE} mutants gfx-mutants kbdreq-mutants kbdevq-mutants \
-	    gametile-mutants sdspi-mutants sdstrat-mutants picoaudio-mutants
+	    gametile-mutants sdspi-mutants sdstrat-mutants dump-mutants \
+	    picoaudio-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -124,14 +145,76 @@ gametile_test: gametile_test.c ${TOPSRC}/games/gametile.h \
 	${HOST_CC} ${CSTD} -D_DEFAULT_SOURCE ${SAN} -g -I${TOPSRC}/tests/picocalc/shim \
 	    -I${TOPSRC}/games -o $@ gametile_test.c
 
-sdspi_test: sdspi_test.c ${DEV}/sdspi.c ${DEV}/sdspi.h
-	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ sdspi_test.c \
-	    ${DEV}/sdspi.c
+sdspi_test: sdspi_test.c ${DEV}/sdspi.c ${DEV}/sdspi.h ${CRC32}
+	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -idirafter ${TOPSRC}/sys \
+	    -o $@ sdspi_test.c ${DEV}/sdspi.c ${CRC32}
 
 sdstrat_test: sdstrat_test.c regmodel.h ${DEV}/sd.c ${DEV}/sd.h \
 	    ${DEV}/sdspi.h ${DEV}/picocalc_reg.h shim/machine/board.h \
-	    ${TOPSRC}/sys/arch/rp2040/include/board.h
-	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ sdstrat_test.c ${DEV}/sd.c
+	    shim/machine/dump.h ${TOPSRC}/sys/arch/rp2040/include/board.h \
+	    ${TOPSRC}/sys/arch/rp2040/include/dump.h ${DUMPW} ${CRC32}
+	${HOST_CC} ${KCSTD} ${SAN} -g -idirafter ${TOPSRC}/sys -o $@ \
+	    sdstrat_test.c ${DEV}/sd.c ${DUMPW} ${CRC32}
+
+dump_test: dump_test.c ${DUMPW} ${CRC32} ${SAVECORE}/savecore.c \
+	    ${SAVECORE}/savecore.h shim/machine/dump.h \
+	    ${TOPSRC}/sys/arch/rp2040/include/dump.h
+	${HOST_CC} ${DUMPCSTD} ${SAN} -g -o $@ dump_test.c ${DUMPW} \
+	    ${CRC32} ${SAVECORE}/savecore.c
+
+# Each mutant of savecore.c must fail dump_test. The header's length is
+# checked twice, against the table before the space test and against the
+# segments at the end of the copy, so no single cut of either fails it.
+DUMP_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${DUMPCSTD}" "${SAVECORE}" \
+		dump_test.c
+DUMP_SRC=	savecore.c savecore.h ${DUMPW} ${CRC32}
+
+dump-mutants: \
+	dump-mutant-early-clear \
+	dump-mutant-segment-sum-unchecked \
+	dump-mutant-header-sum-unchecked \
+	dump-mutant-version-unchecked \
+	dump-mutant-magic-unchecked \
+	dump-mutant-reserve-dropped \
+	dump-mutant-minfree-ignored \
+	dump-mutant-bounds-stuck \
+	dump-mutant-temp-kept
+
+dump-mutant-early-clear:
+	${DUMP_MUT} savecore.c \
+	    's/bounds = read_number("bounds", 0);/clear_dump(dev); bounds = read_number("bounds", 0);/' ${DUMP_SRC}
+
+dump-mutant-segment-sum-unchecked:
+	${DUMP_MUT} savecore.c \
+	    's/if (~crc != s.ds_crc)/if (0)/' ${DUMP_SRC}
+
+dump-mutant-header-sum-unchecked:
+	${DUMP_MUT} savecore.c \
+	    's/if (crc != h.dh_crc)/if (crc == ~h.dh_crc)/' ${DUMP_SRC}
+
+dump-mutant-version-unchecked:
+	${DUMP_MUT} savecore.c \
+	    's/if (h.dh_version != DUMP_VERSION)/if (0)/' ${DUMP_SRC}
+
+dump-mutant-magic-unchecked:
+	${DUMP_MUT} savecore.c \
+	    's/if (h.dh_magic != DUMP_MAGIC) {/if (0) {/' ${DUMP_SRC}
+
+dump-mutant-reserve-dropped:
+	${DUMP_MUT} savecore.c \
+	    's/h.dh_bytes + INFO_BYTES + reserve) {/h.dh_bytes + INFO_BYTES) {/' ${DUMP_SRC}
+
+dump-mutant-minfree-ignored:
+	${DUMP_MUT} savecore.c \
+	    's/reserve = read_number("minfree", -1);/reserve = -1;/' ${DUMP_SRC}
+
+dump-mutant-bounds-stuck:
+	${DUMP_MUT} savecore.c \
+	    's/bounds + 1);/bounds);/' ${DUMP_SRC}
+
+dump-mutant-temp-kept:
+	${DUMP_MUT} savecore.c \
+	    's/unlink(tmp);/(void)0;/' ${DUMP_SRC}
 
 picoaudio_test: picoaudio_test.c regmodel.h ${DEV}/picoaudio.c \
 	    ${DEV}/picocalc_reg.h
@@ -1009,10 +1092,10 @@ kbdreq-mutant-off-ceiling:
 	${KBDREQ_MUT} picokbd_req.c \
 	    's/v > 255 ? 255 : v/v/' ${KBDREQ_SRC}
 
-SDSPI_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD}" "${DEV}" \
-		sdspi_test.c
+SDSPI_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
+		"${CSTD} -idirafter ${TOPSRC}/sys" "${DEV}" sdspi_test.c
 
-SDSPI_SRC=	sdspi.c sdspi.h
+SDSPI_SRC=	sdspi.c sdspi.h ${CRC32}
 
 sdspi-mutants: \
 	sdspi-mutant-crc-cmd8 \
@@ -1034,7 +1117,10 @@ sdspi-mutants: \
 	sdspi-mutant-cmd0-tries \
 	sdspi-mutant-ocr-ready \
 	sdspi-mutant-acmd-illegal \
-	sdspi-mutant-range-check
+	sdspi-mutant-range-check \
+	sdspi-mutant-span-window \
+	sdspi-mutant-span-padding \
+	sdspi-mutant-span-sum-late
 
 sdspi-mutant-crc-cmd8:
 	${SDSPI_MUT} sdspi.c \
@@ -1116,9 +1202,25 @@ sdspi-mutant-range-check:
 	${SDSPI_MUT} sdspi.c \
 	    's/ || sector >= sd->nsectors//' ${SDSPI_SRC}
 
+sdspi-mutant-span-window:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (i - off < len)/if (i - off < len + 1)/' ${SDSPI_SRC}
 
-SDSTRAT_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
-		sdstrat_test.c
+sdspi-mutant-span-padding:
+	${SDSPI_MUT} sdspi.c \
+	    's/b = i < len ? buf\[i\] : 0;/b = i < len ? buf[i] : 0xff;/' ${SDSPI_SRC}
+
+sdspi-mutant-span-sum-late:
+	${SDSPI_MUT} sdspi.c \
+	    's/\*crc = crc32_update(\*crc, &b, 1);/*crc = crc32_update(*crc, \&buf[i], 1);/' ${SDSPI_SRC}
+
+
+SDSTRAT_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
+		"${KCSTD} -idirafter ${TOPSRC}/sys" "${DEV}" sdstrat_test.c
+
+# The driver, the dump stream it writes through and the CRC; a mutant of
+# dump.c names it relative to DEV.
+SDSTRAT_SRC=	sd.c ../rp2040/dump.c ${CRC32}
 
 sdstrat-mutants: \
 	sdstrat-mutant-whole-block-only \
@@ -1162,177 +1264,247 @@ sdstrat-mutants: \
 	sdstrat-mutant-media-gone-inverted \
 	sdstrat-mutant-getpart-whole \
 	sdstrat-mutant-probe-ungated \
-	sdstrat-mutant-probe-never
+	sdstrat-mutant-probe-never \
+	sdstrat-mutant-dump-busy-unchecked \
+	sdstrat-mutant-dump-replaced-ignored \
+	sdstrat-mutant-dump-overlap-adjacent \
+	sdstrat-mutant-dump-type-ignored \
+	sdstrat-mutant-dump-past-card \
+	sdstrat-mutant-dump-signature-unchecked \
+	sdstrat-mutant-dump-probe-unarmed \
+	sdstrat-mutant-dump-device-unchecked \
+	sdstrat-mutant-dump-offset-ignored \
+	sdstrat-mutant-dump-no-invalidate \
+	sdstrat-mutant-dump-sum-dropped \
+	sdstrat-mutant-dump-size-unchecked \
+	sdstrat-mutant-dump-length-short \
+	sdstrat-mutant-dump-table-dropped
 
 sdstrat-mutant-whole-block-only:
 	${SDSTRAT_MUT} sd.c \
-	    's/(bp->b_bcount \& (SD_SECTOR - 1))/(bp->b_bcount \& (DEV_BSIZE - 1))/' sd.c
+	    's/(bp->b_bcount \& (SD_SECTOR - 1))/(bp->b_bcount \& (DEV_BSIZE - 1))/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-stale-resid:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\tbp->b_resid = 0;/\t(void)0;/' sd.c
+	    's/^\tbp->b_resid = 0;/\t(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-truncation-resid:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid = (n - avail) \* SD_SECTOR;/(void)0;/' sd.c
+	    's/bp->b_resid = (n - avail) \* SD_SECTOR;/(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-truncation-clamp:
 	${SDSTRAT_MUT} sd.c \
-	    's/if (n > avail) {/if (0) {/' sd.c
+	    's/if (n > avail) {/if (0) {/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-eof-resid:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\t\t\tbp->b_resid = bp->b_bcount;/\t\t\t(void)0;/' sd.c
+	    's/^\t\t\tbp->b_resid = bp->b_bcount;/\t\t\t(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-eof-past:
 	${SDSTRAT_MUT} sd.c \
-	    's/if ((u_int)bp->b_blkno == blocks) {/if ((u_int)bp->b_blkno >= blocks) {/' sd.c
+	    's/if ((u_int)bp->b_blkno == blocks) {/if ((u_int)bp->b_blkno >= blocks) {/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-odd-tail:
 	${SDSTRAT_MUT} sd.c \
-	    's/(p->dp_nsectors + 1) >> 1;/p->dp_nsectors >> 1;/' sd.c
+	    's/(p->dp_nsectors + 1) >> 1;/p->dp_nsectors >> 1;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-partition-offset:
 	${SDSTRAT_MUT} sd.c \
-	    's/sector = p->dp_offset + first;/sector = first;/' sd.c
+	    's/sector = p->dp_offset + first;/sector = first;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-block-units:
 	${SDSTRAT_MUT} sd.c \
-	    's/(u_int)bp->b_blkno \* (DEV_BSIZE \/ SD_SECTOR)/(u_int)bp->b_blkno/' sd.c
+	    's/(u_int)bp->b_blkno \* (DEV_BSIZE \/ SD_SECTOR)/(u_int)bp->b_blkno/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-direction:
 	${SDSTRAT_MUT} sd.c \
-	    's/((bp->b_flags \& B_READ) ?/((bp->b_flags \& B_READ) == 0 ?/' sd.c
+	    's/((bp->b_flags \& B_READ) ?/((bp->b_flags \& B_READ) == 0 ?/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-card-changed:
 	${SDSTRAT_MUT} sd.c \
-	    's/changed = sd_replaced();/changed = 0;/' sd.c
+	    's/changed = sd_replaced();/changed = 0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-open-check:
 	${SDSTRAT_MUT} sd.c \
-	    's/(sd_openpart \& (1U << part)) == 0) {/0) {/' sd.c
+	    's/(sd_openpart \& (1U << part)) == 0) {/0) {/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-reinit-early-clear:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\tbzero(pt, sizeof(pt));/\tbzero(pt, sizeof(pt)); bzero(sdpt, sizeof(sdpt));/' sd.c
+	    's/^\tbzero(pt, sizeof(pt));/\tbzero(pt, sizeof(pt)); bzero(sdpt, sizeof(sdpt));/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-reinit-keep-old:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\t\tbcopy(pt, sdpt, sizeof(sdpt));/\t\t(void)0;/' sd.c
+	    's/^\t\tbcopy(pt, sdpt, sizeof(sdpt));/\t\t(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-raw-read-unchecked:
 	${SDSTRAT_MUT} sd.c \
-	    '/^sdread(/,/^}/s/sd_misaligned(uio)/0/' sd.c
+	    '/^sdread(/,/^}/s/sd_misaligned(uio)/0/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-raw-write-unchecked:
 	${SDSTRAT_MUT} sd.c \
-	    '/^sdwrite(/,/^}/s/sd_misaligned(uio)/0/' sd.c
+	    '/^sdwrite(/,/^}/s/sd_misaligned(uio)/0/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-raw-offset-unchecked:
 	${SDSTRAT_MUT} sd.c \
-	    's/(uio->uio_offset \& (DEV_BSIZE - 1)) != 0/0/' sd.c
+	    's/(uio->uio_offset \& (DEV_BSIZE - 1)) != 0/0/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-raw-sector-granularity:
 	${SDSTRAT_MUT} sd.c \
-	    's/(uio->uio_offset \& (DEV_BSIZE - 1))/(uio->uio_offset \& (SD_SECTOR - 1))/' sd.c
+	    's/(uio->uio_offset \& (DEV_BSIZE - 1))/(uio->uio_offset \& (SD_SECTOR - 1))/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-raw-segments-unchecked:
 	${SDSTRAT_MUT} sd.c \
-	    's/(uio->uio_iov\[i\].iov_len \& (DEV_BSIZE - 1)) != 0/0/' sd.c
+	    's/(uio->uio_iov\[i\].iov_len \& (DEV_BSIZE - 1)) != 0/0/' ${SDSTRAT_SRC}
 
 
 sdstrat-mutant-reject-resid:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\tbp->b_resid = bp->b_bcount;/\t(void)0;/' sd.c
+	    's/^\tbp->b_resid = bp->b_bcount;/\t(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-failure-resid:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid += (n - i) \* SD_SECTOR;/(void)0;/' sd.c
+	    's/bp->b_resid += (n - i) \* SD_SECTOR;/(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-failure-resid-off-by-one:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid += (n - i) \* SD_SECTOR;/bp->b_resid += (n - i - 1) * SD_SECTOR;/' sd.c
+	    's/bp->b_resid += (n - i) \* SD_SECTOR;/bp->b_resid += (n - i - 1) * SD_SECTOR;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-failure-resid-truncation:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid += (n - i) \* SD_SECTOR;/bp->b_resid = (n - i) * SD_SECTOR;/' sd.c
+	    's/bp->b_resid += (n - i) \* SD_SECTOR;/bp->b_resid = (n - i) * SD_SECTOR;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-sector-replaced:
 	${SDSTRAT_MUT} sd.c \
-	    's/if (sd_replaced() ||$$/if (0 ||/' sd.c
+	    's/if (sd_replaced() ||$$/if (0 ||/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-replaced-errno:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_error = changed ? EIO : EINVAL;/bp->b_error = EINVAL;/' sd.c
+	    's/bp->b_error = changed ? EIO : EINVAL;/bp->b_error = EINVAL;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-reinit-held:
 	${SDSTRAT_MUT} sd.c \
-	    's/if (sd_blkopen != 0)/if (0)/' sd.c
+	    's/if (sd_blkopen != 0)/if (0)/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-reinit-held-raw:
 	${SDSTRAT_MUT} sd.c \
-	    's/if (sd_blkopen != 0)/if (sd_openpart != 0)/' sd.c
+	    's/if (sd_blkopen != 0)/if (sd_openpart != 0)/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-reinit-replaced:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\t\tif (sd_replaced())$$/\t\tif (0)/' sd.c
+	    's/^\t\tif (sd_replaced())$$/\t\tif (0)/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-debounce-latest:
 	${SDSTRAT_MUT} sd.c \
-	    's/if (level != det_cand) {/if (level != det_level) {/' sd.c
+	    's/if (level != det_cand) {/if (level != det_level) {/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-debounce-interval:
 	${SDSTRAT_MUT} sd.c \
-	    's/pc_micros() - det_t0 >= SD_DET_DEBOUNCE_US/1/' sd.c
+	    's/pc_micros() - det_t0 >= SD_DET_DEBOUNCE_US/1/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-debounce-boundary:
 	${SDSTRAT_MUT} sd.c \
-	    's/det_t0 >= SD_DET_DEBOUNCE_US/det_t0 > SD_DET_DEBOUNCE_US/' sd.c
+	    's/det_t0 >= SD_DET_DEBOUNCE_US/det_t0 > SD_DET_DEBOUNCE_US/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-debounce-restart:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\t\tdet_t0 = pc_micros();/\t\t(void)0;/' sd.c
+	    's/^\t\tdet_t0 = pc_micros();/\t\t(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-debounce-pending:
 	${SDSTRAT_MUT} sd.c \
-	    's/else if (det_cand != det_level \&\&/else if (/' sd.c
+	    's/else if (det_cand != det_level \&\&/else if (/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-accept-candidate:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\tdet_cand = det_level;$$/\t(void)0;/' sd.c
+	    's/^\tdet_cand = det_level;$$/\t(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-accept-committed:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\tdet_level = sd_det_pin();$$/\t(void)0;/' sd.c
+	    's/^\tdet_level = sd_det_pin();$$/\t(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-accept-flag:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\tcard_changed = 0;$$/\t(void)0;/' sd.c
+	    's/^\tcard_changed = 0;$$/\t(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-spl-dropped:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\tint s = splbio();$$/\tint s = 0;/' sd.c
+	    's/^\tint s = splbio();$$/\tint s = 0;/' ${SDSTRAT_SRC}
 
 
 sdstrat-mutant-media-gone-constant:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\t\t\*(int \*)addr = sd_replaced();/\t\t*(int *)addr = 0;/' sd.c
+	    's/^\t\t\*(int \*)addr = sd_replaced();/\t\t*(int *)addr = 0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-media-gone-inverted:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\t\t\*(int \*)addr = sd_replaced();/\t\t*(int *)addr = !sd_replaced();/' sd.c
+	    's/^\t\t\*(int \*)addr = sd_replaced();/\t\t*(int *)addr = !sd_replaced();/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-getpart-whole:
 	${SDSTRAT_MUT} sd.c \
-	    's/\*(struct diskpart \*)addr = sdpt\[part\];/*(struct diskpart *)addr = sdpt[0];/' sd.c
+	    's/\*(struct diskpart \*)addr = sdpt\[part\];/*(struct diskpart *)addr = sdpt[0];/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-probe-ungated:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\tif (board_id() != BOARD_ID_PICOCALC)$$/\tif (0)/' sd.c
+	    's/^\tif (board_id() != BOARD_ID_PICOCALC)$$/\tif (0)/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-probe-never:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\tif (board_id() != BOARD_ID_PICOCALC)$$/\tif (1)/' sd.c
+	    's/^\tif (board_id() != BOARD_ID_PICOCALC)$$/\tif (1)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-busy-unchecked:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (sd_dump_busy(dp.dp_offset, dp.dp_nsectors)) {/if (sd_dump_busy(dp.dp_offset, dp.dp_nsectors) \&\& 0) {/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-replaced-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (card_changed)/if (0)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-overlap-adjacent:
+	${SDSTRAT_MUT} sd.c \
+	    's/ \&\& offset < end)/ \&\& offset <= end)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-type-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (dp.dp_type == DUMP_PART_TYPE \&\& dp.dp_nsectors != 0 \&\&/if (dp.dp_nsectors != 0 \&\&/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-past-card:
+	${SDSTRAT_MUT} sd.c \
+	    's/dp.dp_nsectors <= dd.card.nsectors - dp.dp_offset)/1)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-signature-unchecked:
+	${SDSTRAT_MUT} sd.c \
+	    's/tab\[sizeof(tab) - 1\] != 0xaa) {/0) {/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-probe-unarmed:
+	${SDSTRAT_MUT} sd.c \
+	    's/dumpdev = makedev(SD_BMAJOR, 0);/(void)0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-device-unchecked:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (dev != makedev(SD_BMAJOR, 0))/if (dev == (dev_t)-2)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-offset-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/dd.offset = dp.dp_offset;/dd.offset = 0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-no-invalidate:
+	${SDSTRAT_MUT} ../rp2040/dump.c \
+	    's/if (put(arg, 0, (const unsigned char \*)"", 0, (unsigned int \*)0) != 0)/if (0)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-sum-dropped:
+	${SDSTRAT_MUT} ../rp2040/dump.c \
+	    's/if (put(arg, sector++, p, len, \&crc) != 0)/if (put(arg, sector++, p, len, (unsigned int *)0) != 0)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-size-unchecked:
+	${SDSTRAT_MUT} ../rp2040/dump.c \
+	    's/if (need > nsectors)/if (need > nsectors + 4)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-length-short:
+	${SDSTRAT_MUT} ../rp2040/dump.c \
+	    's/sect0.h.dh_bytes = sector \* DUMP_SECTOR;/sect0.h.dh_bytes = (sector - 1) * DUMP_SECTOR;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-dump-table-dropped:
+	${SDSTRAT_MUT} ../rp2040/dump.c \
+	    's/len = sizeof(sect0.h) + nspan \* sizeof(sect0.s\[0\]);/len = sizeof(sect0.h);/' ${SDSTRAT_SRC}
 
 
 PICOAUDIO_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \

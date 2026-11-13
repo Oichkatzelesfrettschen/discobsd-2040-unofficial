@@ -113,7 +113,7 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 | `dc` | 21 | 1 | OpenBSD `dc` (18,644 bytes packed); PicoCalc only |
 | `calc-bignum` (`bc` + `dc`) | 60 | 3 | the three files above |
 | `calc` | 33 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
-| `sdcard` | 1 | 7 | `/mnt` and the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`; PicoCalc only |
+| `sdcard` | 11 | 8 | `/mnt`, the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`, and `/sbin/savecore` (9,141 bytes packed); PicoCalc only |
 | `lcdgfx` | 0 | 1 | the device node `/dev/lcdgfx` (character major 10, minor 1, mode 666); PicoCalc only |
 | `gamesdir` | 1 | 1 | `/usr/games` |
 | `games` group | 24 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall`, `coil` |
@@ -133,12 +133,23 @@ linked into itself and needs no `/usr/bin/dc`. The 60 blocks of the two
 together are one fewer than the sum of the rows (40 + 21), because entries
 that two closures add can share a directory block (inferred from the
 allocation unit, not traced block by block). The `sdcard` closure needs no
-other closure: its seven inodes are `/mnt` and six device nodes, and its one
-block is the `/mnt` directory. The closure rows (`coremark` 16, the toolchain
-with its library 133, `games` 24, `puzzles` beyond `games` 36, `calc-bignum`
-60, `calc` 33, `sdcard` 1) sum to 303, and the 8 blocks `ridge` adds inside
-the full set bring them to 311, four blocks more than the 307 of the image
-that holds every closure, for the same reason.
+other closure: its eight inodes are `/mnt`, six device nodes and
+`savecore`, and its eleven blocks are the `/mnt` directory and ten for
+`savecore`, whose 9,141 bytes fill nine (the tenth inferred to be a
+directory block, not traced). The base image measured 426 free blocks and
+40 free inodes alone and 415 and 32 with the closure on the tree that added
+`savecore`; the other closure rows were not measured again on that tree.
+Its profile images measured `base` 426 free blocks and 40 free inodes,
+`benchmark` 412 and 39, `games` 365 and 37, `developer` 292 and 33, `full`
+217 and 29, and `picocalc` 106 and 16, below the profile table, which
+predates them: `savecore` accounts for 10 blocks and 1 inode of the
+`picocalc` difference, and the rest comes from changes after the table was
+recorded, not attributed here. Before `savecore`, the closure rows
+(`coremark` 16, the toolchain with its library 133, `games` 24, `puzzles`
+beyond `games` 36, `calc-bignum` 60, `calc` 33, `sdcard` 1) summed to 303,
+and the 8 blocks `ridge` adds inside the full set brought them to 311, four
+blocks more than the 307 of the image that held every closure, for the same
+reason.
 
 The multicall members cost far less inside the full set than alone, because
 the binary, its directory and the libc linkage they share are paid once. The

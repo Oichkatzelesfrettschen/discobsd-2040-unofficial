@@ -39,6 +39,7 @@
  * of a request.
  */
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,6 +53,7 @@
 #include <sys/uio.h>
 
 #include <machine/board.h>
+#include <machine/dump.h>
 
 #include "regmodel.h"
 
@@ -72,9 +74,13 @@ static struct buf ebuf;
 static unsigned char ebuf_data[DEV_BSIZE];
 static int failures;
 
+static int init_fail;		/* sdspi_init() finds no card. */
+
 int
 sdspi_init(struct sdspi *sd)
 {
+	if (init_fail)
+		return SDE_NOCARD;
 	sd->type = SD_HC;
 	sd->nsectors = CARD_SECTORS;
 	return SDE_OK;
@@ -125,6 +131,39 @@ sdspi_write(struct sdspi *sd __attribute__((unused)), unsigned sector,
 	command_done(sector);
 	return SDE_OK;
 }
+
+/*
+ * The crash dump's transfers. They count sectors as the whole-sector calls
+ * do; the sum covers the bytes stored, the bytes the card received.
+ */
+int
+sdspi_read_span(struct sdspi *sd __attribute__((unused)), unsigned sector,
+    unsigned char *buf, unsigned off, unsigned len)
+{
+	if (sector >= CARD_SECTORS || (int)sector == fail_sector ||
+	    off > SD_SECTOR || len > SD_SECTOR - off)
+		return SDE_IO;
+	nread[sector]++;
+	memcpy(buf, card[sector] + off, len);
+	return SDE_OK;
+}
+
+int
+sdspi_write_span(struct sdspi *sd __attribute__((unused)), unsigned sector,
+    const unsigned char *buf, unsigned len, unsigned *crc)
+{
+	if (sector >= CARD_SECTORS || (int)sector == fail_sector ||
+	    len > SD_SECTOR)
+		return SDE_IO;
+	nwrite[sector]++;
+	memcpy(card[sector], buf, len);
+	memset(card[sector] + len, 0, SD_SECTOR - len);
+	if (crc != NULL)
+		*crc = crc32_update(*crc, card[sector], len);
+	return SDE_OK;
+}
+
+dev_t dumpdev = NODEV;
 
 struct buf *
 geteblk(void)
@@ -814,6 +853,222 @@ detect_cases(void)
 	check("shipped state after the cases: interrupt mask", shim_spl, 0);
 }
 
+/*
+ * sddump(): the crash dump of machine/dump.h on the card's first partition
+ * of type DUMP_PART_TYPE. Entry 2 of the table (card sectors 41 to 60) is
+ * made the dump partition; the three spans fill ten of its sectors.
+ */
+#define	DUMPDEV		((dev_t)(SD_BMAJOR << 8))
+#define	DUMP_FIRST	41
+
+static char dump_msg[] = "panic: test";
+static unsigned char dump_data[3000], dump_u[700], dump_big[9000];
+static unsigned dump_now;
+
+static const struct dump_span dump_spans[3] = {
+	{ DUMP_SEG_MESSAGE, dump_msg, sizeof(dump_msg) - 1 },
+	{ DUMP_SEG_KERNEL_DATA, dump_data, sizeof(dump_data) },
+	{ DUMP_SEG_UAREA, dump_u, sizeof(dump_u) },
+};
+
+static void
+dump_table(unsigned type1, unsigned offset1, unsigned n1)
+{
+	fill_card();
+	card[0][446 + 16 + 4] = (unsigned char)type1;
+	memcpy(&card[0][446 + 16 + 8], &offset1, 4);
+	memcpy(&card[0][446 + 16 + 12], &n1, 4);
+	memset(nread, 0, sizeof(nread));
+	memset(nwrite, 0, sizeof(nwrite));
+}
+
+static unsigned
+writes_outside(unsigned first, unsigned n)
+{
+	unsigned s, k = 0;
+
+	for (s = 0; s < CARD_SECTORS; s++)
+		if ((s < first || s >= first + n) && nwrite[s] != 0)
+			k++;
+	return k;
+}
+
+/* Sector first holds a complete dump of dump_spans; report what is wrong. */
+static void
+check_dump(const char *name, unsigned first)
+{
+	struct dump_header h;
+	struct dump_segment seg;
+	unsigned char copy[SD_SECTOR];
+	unsigned sector = first + 1, i, crc;
+	char what[96];
+
+	memcpy(&h, card[first], sizeof(h));
+	snprintf(what, sizeof(what), "%s: magic", name);
+	check(what, h.dh_magic, DUMP_MAGIC);
+	snprintf(what, sizeof(what), "%s: version", name);
+	check(what, h.dh_version, DUMP_VERSION);
+	snprintf(what, sizeof(what), "%s: segments", name);
+	check(what, h.dh_nsegments, 3);
+	snprintf(what, sizeof(what), "%s: image crc", name);
+	check(what, h.dh_image_crc, 0xc0ffee11U);
+	snprintf(what, sizeof(what), "%s: time", name);
+	check(what, h.dh_time, dump_now);
+	snprintf(what, sizeof(what), "%s: bytes", name);
+	check(what, h.dh_bytes, 10 * SD_SECTOR);
+	/* The sum covers the header and table with dh_crc read as zero. */
+	memcpy(copy, card[first], SD_SECTOR);
+	memset(copy + offsetof(struct dump_header, dh_crc), 0, 4);
+	crc = ~crc32_update(~0U, copy, 24 + 3 * 16);
+	snprintf(what, sizeof(what), "%s: header crc", name);
+	check(what, h.dh_crc, crc);
+	for (i = 24 + 3 * 16; i < SD_SECTOR; i++)
+		if (copy[i] != 0) {
+			snprintf(what, sizeof(what), "%s: header sector padding",
+			    name);
+			check(what, i, -1);
+			break;
+		}
+	for (i = 0; i < 3; i++) {
+		memcpy(&seg, card[first] + 24 + i * 16, sizeof(seg));
+		snprintf(what, sizeof(what), "%s: segment %u kind", name, i);
+		check(what, seg.ds_kind, dump_spans[i].kind);
+		snprintf(what, sizeof(what), "%s: segment %u bytes", name, i);
+		check(what, seg.ds_bytes, dump_spans[i].bytes);
+		snprintf(what, sizeof(what), "%s: segment %u address", name, i);
+		check(what, seg.ds_address,
+		    (unsigned)(unsigned long)dump_spans[i].addr);
+		crc = ~crc32_update(~0U, dump_spans[i].addr,
+		    dump_spans[i].bytes);
+		snprintf(what, sizeof(what), "%s: segment %u crc", name, i);
+		check(what, seg.ds_crc, crc);
+		snprintf(what, sizeof(what), "%s: segment %u bytes on the card",
+		    name, i);
+		check(what, memcmp(card[sector], dump_spans[i].addr,
+		    dump_spans[i].bytes) == 0 ? 1 : 0, 1);
+		sector += (dump_spans[i].bytes + SD_SECTOR - 1) / SD_SECTOR;
+	}
+	snprintf(what, sizeof(what), "%s: end sector", name);
+	check(what, sector, first + 10);
+}
+
+static void
+dump_cases(void)
+{
+	struct dump_span big[3];
+	unsigned i;
+
+	for (i = 0; i < sizeof(dump_data); i++)
+		dump_data[i] = (unsigned char)(i * 13 + 5);
+	for (i = 0; i < sizeof(dump_u); i++)
+		dump_u[i] = (unsigned char)(i * 3 + 1);
+	dump_now = 1700000000U;
+
+	/* The probe arms the socket; a bare Pico keeps NODEV. */
+	dumpdev = NODEV;
+	test_board = BOARD_ID_PICO;
+	(void)sddriver.probe(NULL);
+	check("dump device on a bare Pico", dumpdev == NODEV, 1);
+	test_board = BOARD_ID_PICOCALC;
+	(void)sddriver.probe(NULL);
+	check("dump device on a PicoCalc", dumpdev, DUMPDEV);
+
+	/* A complete dump, and nothing written outside the partition. */
+	dump_table(DUMP_PART_TYPE, DUMP_FIRST, 20);
+	check("dump", sddump(DUMPDEV, dump_spans, 3, 0xc0ffee11U, dump_now),
+	    0);
+	check_dump("dump", DUMP_FIRST);
+	check("dump writes outside the partition",
+	    writes_outside(DUMP_FIRST, 10), 0);
+	check("dump header sector writes", nwrite[DUMP_FIRST], 2);
+	check("dump reads the table alone", nread[0], 1);
+	check("dump leaves the driver's card closed", (long)sdsize(2), 0);
+
+	/* The first entry of the type wins: partition 1 at sector 8. */
+	dump_table(DUMP_PART_TYPE, DUMP_FIRST, 20);
+	card[0][446 + 4] = DUMP_PART_TYPE;
+	check("dump on the first entry of the type",
+	    sddump(DUMPDEV, dump_spans, 3, 0xc0ffee11U, dump_now), 0);
+	check_dump("dump on the first entry", 8);
+
+	/* Refusals that write nothing. */
+	dump_table(PTYPE_BSDFFS, DUMP_FIRST, 20);
+	check("dump without a dump partition",
+	    sddump(DUMPDEV, dump_spans, 3, 0, 0), ENXIO);
+	check("writes without a dump partition", writes_outside(0, 0), 0);
+	dump_table(DUMP_PART_TYPE, DUMP_FIRST, CARD_SECTORS);
+	check("dump partition past the card",
+	    sddump(DUMPDEV, dump_spans, 3, 0, 0), ENXIO);
+	check("writes past the card", writes_outside(0, 0), 0);
+	dump_table(DUMP_PART_TYPE, DUMP_FIRST, 20);
+	card[0][511] = 0;
+	check("dump without a table signature",
+	    sddump(DUMPDEV, dump_spans, 3, 0, 0), ENXIO);
+	dump_table(DUMP_PART_TYPE, DUMP_FIRST, 20);
+	check("dump to another device", sddump(DUMPDEV + 1, dump_spans, 3, 0,
+	    0), ENXIO);
+	init_fail = 1;
+	check("dump without a card", sddump(DUMPDEV, dump_spans, 3, 0, 0),
+	    ENXIO);
+	init_fail = 0;
+	check("writes without a card", writes_outside(0, 0), 0);
+
+	memcpy(big, dump_spans, sizeof(big));
+	big[1].addr = dump_big;
+	big[1].bytes = sizeof(dump_big);
+	dump_table(DUMP_PART_TYPE, DUMP_FIRST, 20);
+	memcpy(card[DUMP_FIRST], "OLDDUMP", 7);
+	check("dump larger than the partition", sddump(DUMPDEV, big, 3, 0, 0),
+	    ENOSPC);
+	check("writes for an undersized partition", writes_outside(0, 0), 0);
+	check("an undersized partition keeps its sector 0",
+	    memcmp(card[DUMP_FIRST], "OLDDUMP", 7), 0);
+
+	/* A failed sector leaves no header: sector 0 stays zero. */
+	dump_table(DUMP_PART_TYPE, DUMP_FIRST, 20);
+	fail_sector = DUMP_FIRST + 5;
+	check("dump with a failing sector",
+	    sddump(DUMPDEV, dump_spans, 3, 0, 0), EIO);
+	fail_sector = -1;
+	for (i = 0; i < SD_SECTOR && card[DUMP_FIRST][i] == 0; i++)
+		continue;
+	check("header sector after a failed dump", i, SD_SECTOR);
+	check("sectors after the failed one", writes_outside(DUMP_FIRST, 5),
+	    0);
+
+	/*
+	 * A block open that overlaps the partition is a mount: refused. The
+	 * whole card overlaps everything; partition 1 (sectors 8 to 40) does
+	 * not overlap sectors 41 to 60; a raw open is no mount.
+	 */
+	dump_table(DUMP_PART_TYPE, DUMP_FIRST, 20);
+	check("block open of the dump partition", sdopen(2, 0, S_IFBLK), 0);
+	memset(nwrite, 0, sizeof(nwrite));
+	check("dump on a mounted partition",
+	    sddump(DUMPDEV, dump_spans, 3, 0, 0), EBUSY);
+	check("writes on a mounted partition", writes_outside(0, 0), 0);
+	close_all();
+	check("block open of the whole card", sdopen(0, 0, S_IFBLK), 0);
+	check("dump under a whole-card open",
+	    sddump(DUMPDEV, dump_spans, 3, 0, 0), EBUSY);
+	close_all();
+	check("block open of partition 1", sdopen(1, 0, S_IFBLK), 0);
+	check("raw open of the dump partition", sdopen(2, 0, S_IFCHR), 0);
+	check("dump beside a mount",
+	    sddump(DUMPDEV, dump_spans, 3, 0xc0ffee11U, dump_now), 0);
+	check_dump("dump beside a mount", DUMP_FIRST);
+	close_all();
+
+	/* A replaced card holds no mount, so its dump partition is free. */
+	dump_table(DUMP_PART_TYPE, DUMP_FIRST, 20);
+	check("block open before a swap", sdopen(2, 0, S_IFBLK), 0);
+	card_swap();
+	check("dump on a replaced card",
+	    sddump(DUMPDEV, dump_spans, 3, 0xc0ffee11U, dump_now), 0);
+	check_dump("dump on a replaced card", DUMP_FIRST);
+	close_all();
+}
+
 int
 main(void)
 {
@@ -1042,6 +1297,7 @@ main(void)
 
 	detect_cases();
 	close_all();
+	dump_cases();
 	check("interrupt mask released", shim_spl, 0);
 	check("card commands run with interrupts enabled", bad_spl, 0);
 

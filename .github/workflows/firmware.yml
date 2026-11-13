@@ -186,7 +186,7 @@ jobs:
       # The linker refuses a kernel that overflows FLASH. This gate reports a
       # kernel that links but has less than the margin of tools/
       # check_kernel_headroom.py left, under the toolchain this job installs.
-      - name: Check the kernel flash headroom
+      - name: Check the kernel flash headroom and dump-writer linkage
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -194,7 +194,8 @@ jobs:
             --log .build-logs/linux-kernel-headroom.log \
             --status .build-logs/linux-kernel-headroom.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
-            -- bmake MACHINE=rp2040 check-kernel-headroom
+            -- bmake MACHINE=rp2040 check-kernel-headroom \
+            check-dump-writer-link
 
       - name: Build the flash image
         timeout-minutes: 15
@@ -418,6 +419,27 @@ jobs:
             --status .build-logs/linux-renode-picocalc.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-picocalc
+      # savecore ships in the picocalc profile, so the crash-dump tier boots
+      # the PICOCALC board's root image.
+      - name: Build the PicoCalc flash image
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-flash-picocalc \
+            --log .build-logs/linux-flash-picocalc.log \
+            --status .build-logs/linux-flash-picocalc.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 600 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 \
+            BOARD=PICOCALC flash
+      - name: Run the Renode PicoCalc crash-dump tier
+        timeout-minutes: 25
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-picocalc-dump \
+            --log .build-logs/linux-renode-picocalc-dump.log \
+            --status .build-logs/linux-renode-picocalc-dump.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 1440 \
+            -- bmake MACHINE=rp2040 check-renode-picocalc-dump
       - name: Run the Renode union kernel tier
         timeout-minutes: 15
         run: |
@@ -675,7 +697,7 @@ jobs:
             --status .build-logs/macos-build.status.json \
             --idle-timeout-seconds 600 --timeout-seconds 1800 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build
-      - name: Check the kernel flash headroom
+      - name: Check the kernel flash headroom and dump-writer linkage
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -683,7 +705,8 @@ jobs:
             --log .build-logs/macos-kernel-headroom.log \
             --status .build-logs/macos-kernel-headroom.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
-            -- bmake MACHINE=rp2040 check-kernel-headroom
+            -- bmake MACHINE=rp2040 check-kernel-headroom \
+            check-dump-writer-link
       - name: Build the flash image
         timeout-minutes: 15
         run: |

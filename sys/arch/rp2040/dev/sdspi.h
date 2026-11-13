@@ -61,6 +61,20 @@ int	sdspi_init(struct sdspi *sd);
 int	sdspi_read(struct sdspi *sd, unsigned sector, unsigned char *buf);
 int	sdspi_write(struct sdspi *sd, unsigned sector, const unsigned char *buf);
 
+/*
+ * The crash-dump writer's transfers (sddump() in sd.c), which run with no
+ * sector buffer to spare. sdspi_read_span() reads one sector and keeps
+ * bytes off to off + len - 1 in buf. sdspi_write_span() writes len bytes
+ * of buf and then zeros as one sector and, when crc is not null, folds
+ * each byte into *crc through crc32_update() (kern/subr_crc32.c) as it
+ * leaves, so the sum matches the card even when buf changes meanwhile.
+ */
+int	sdspi_read_span(struct sdspi *sd, unsigned sector, unsigned char *buf,
+	    unsigned off, unsigned len);
+int	sdspi_write_span(struct sdspi *sd, unsigned sector,
+	    const unsigned char *buf, unsigned len, unsigned *crc);
+unsigned crc32_update(unsigned crc, const void *buf, unsigned len);
+
 /* Sectors a 16-byte CSD register describes; 0 when the version is unknown. */
 unsigned sdspi_csd_sectors(const unsigned char csd[16]);
 

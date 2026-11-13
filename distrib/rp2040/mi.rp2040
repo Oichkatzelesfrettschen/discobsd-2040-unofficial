@@ -239,6 +239,9 @@ pack /bin/tar
 pack /sbin/fsck
 pack /sbin/init
 pack /sbin/adminbox
+#closure sdcard
+pack /sbin/savecore
+#endclosure sdcard
 
 pack /usr/bin/awk
 #closure coremark

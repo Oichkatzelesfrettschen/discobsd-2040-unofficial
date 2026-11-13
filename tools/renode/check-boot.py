@@ -135,7 +135,7 @@ CAPACITY_LINES = [
     "file limit 18 current",
     "clist limit 32 current",
     "buffer limit 4 current",
-    "uarea bytes 3072 user 972 stack 2048 peak",
+    "uarea bytes 3072 user 1024 stack 2048 peak",
 ]
 
 # The identity words of a flash image: vector entries 8, 9 and 10 at

@@ -6,10 +6,12 @@ the RP2040 and the ClockworkPi PicoCalc, along with an installed Pico SDK. The c
 is false. The RP2040 and Pico datasheets and the PicoCalc's own
 schematic, panel and PMU documents are committed; the flash and PSRAM
 datasheets sit uncommitted in one checkout, so a fresh clone lacks them.
-No Pico SDK exists on the host: the Arch `pico-sdk` package was
-removed on 2026-10-10, and `tools/pico-sdk/vendor`, where
-`tools/pico-sdk/fetch-pico-sdk.sh` writes, is absent from the primary
-checkout and from every worktree. No Pico W
+On 2026-11-12 no Pico SDK existed on the host: the Arch `pico-sdk`
+package had been removed on 2026-10-10, and `tools/pico-sdk/vendor`, where
+`tools/pico-sdk/fetch-pico-sdk.sh` writes, was absent from the primary
+checkout and from every worktree. The AUR package 2.3.1-1 now supplies
+`/usr/share/pico-sdk` with every submodule, and the fetch script pins the
+same 2.3.1 release. No Pico W
 document beyond the CYW43439 product brief is held. Of the PicoCalc's
 ten distinct integrated circuits, the PMU, the PSRAM and the panel
 controller have documents and the other seven have none, and no Arm core,
@@ -50,17 +52,17 @@ sibling checkout `discobsd-2040-notes`; its paths below start at `docs/`.
 
 | Item | Pin or need | State | Evidence |
 | --- | --- | --- | --- |
-| Pico SDK | commit `98a542c1` (tag 2.3.0), `lib/tinyusb` at `86ad6e56`, from `tools/pico-sdk/fetch-pico-sdk.sh` | absent | `sh tools/pico-sdk/sdk-path.sh` exits 1 and lists all five candidates absent; no `pico_sdk_init.cmake` under `~`, `/opt` or `/usr/share` |
-| Arch `pico-sdk` package | 2.3.0-1 | removed | `pacman.log`: installed 2026-09-11, removed 2026-10-10; `discobsd-2040-notes/tools/flash-id/build/CMakeCache.txt` still names `PICO_SDK_PATH=/usr/share/pico-sdk` |
-| SDK submodules for the Pico W: `cyw43-driver`, `btstack`, `lwip`, `mbedtls` | needed by any Pico W wireless build | absent | `fetch-pico-sdk.sh` initializes `lib/tinyusb` alone, by design, so a fetched SDK still builds no Pico W wireless code |
-| `pioasm` | built by the SDK | absent | not on `PATH`; it arrives with the SDK |
+| AUR `pico-sdk` package | 2.3.1-1: tag 2.3.1, `btstack` `eb0bb8b`, `cyw43-driver` `055d642`, `lwip` `77dcd25`, `mbedtls` `0bebf8b`, `tinyusb` `86ad6e5`, the submodule commits upstream 2.3.1 records | installed, `/usr/share/pico-sdk`, with `/etc/profile.d/pico-sdk.sh` exporting `PICO_SDK_PATH` | `pacman -Q pico-sdk`; the 2.3.0-1 package before it was installed 2026-09-11 and removed 2026-10-10 (`pacman.log`) |
+| Pico SDK fetched by the tree | `tools/pico-sdk/fetch-pico-sdk.sh`: commit `079c6f39` (tag 2.3.1), `lib/tinyusb` at `86ad6e56` | absent from the primary checkout until the script runs there | `sh tools/pico-sdk/check-flash-id.sh` passes against the fetched copy and the package alike: `flash_id` 37,996 and `flash_semantics` 53,660 of 262,144 usable SRAM bytes, GCC 16.2.0 (build evidence) |
+| SDK submodules for the Pico W: `cyw43-driver`, `btstack`, `lwip`, `mbedtls` | needed by any Pico W wireless build | installed in the package; absent from the fetched copy | `fetch-pico-sdk.sh` initializes `lib/tinyusb` alone, by design |
+| `pioasm` | built by the SDK | source in the package, `tools/pioasm`; no binary on `PATH` | an SDK CMake build compiles it on demand |
 | `picotool` | flash, info, reboot | installed | 2.3.1-1, `/usr/bin/picotool` |
 | `arm-none-eabi-gcc`, binutils, newlib, gdb | cross toolchain | installed | gcc 16.2.0-1.1, binutils 2.47-1.1, newlib 4.6.0.20260123-1, gdb 17.2-1.1 |
 | `openocd` with `target/rp2040.cfg`, `target/stm32f1x.cfg`, `interface/cmsis-dap.cfg` | SWD for both MCUs | installed | 1:0.12.0-6.1 |
 | `cmake`, `bmake`, `renode` | build and emulation | installed | `/usr/bin` |
 | Renode RP2040 models with boot ROM `bootroms/rp2040/b2.elf` | `tools/renode/fetch-renode-rp2040.sh`, commit `205a5e4b` | absent from the primary checkout; present in one session worktree at the pinned commit | `tools/renode/vendor` absent from the primary checkout |
 | RP2040 boot ROM source, `raspberrypi/pico-bootrom-rp2040` | cited by `MPU.md`, `BOOT-MAP.md`, `doc/research/float-libs.md` | read, not kept | `docs/research/firmware-updates.md` read it through `gh api`; only the compiled `b2.elf` above is local |
-| RP2040 SVD register description | debugger and generator input | absent | no `rp2040*.svd` on the host; it ships in the SDK |
+| RP2040 SVD register description | debugger and generator input | installed | `src/rp2040/hardware_regs/RP2040.svd` in the SDK package |
 | `stm32flash`, `arduino-cli` | keyboard-controller firmware, per the vendor wiki | absent | not on `PATH` |
 | `dfu-util` | STM32 USB DFU | installed | `/usr/bin/dfu-util` |
 
@@ -185,9 +187,6 @@ three PDFs have no recorded digest.
 
 ## Pending checks
 
-- Fetch the Pico SDK at the pinned commit, or reinstall the package, then
-  rerun `sh tools/pico-sdk/sdk-path.sh`, which then exits 0, and
-  `bmake MACHINE=rp2040 check-flash-id`.
 - Read the Pico W Datasheet and add a row for each of its power, clock
   and antenna parts.
 - Commit the W25Q16JV and ESP-PSRAM64H copies with their digests.

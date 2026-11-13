@@ -108,6 +108,13 @@ resource comparison, documentation and reviewed integration. Configuration-keyed
 dependency capture, compiler/analysis coverage and trust-boundary checks apply
 throughout the queue. A declaration or stub cannot close a runtime requirement.
 
+The [tableless search experiment](search-bound-experiment/README.md) retains
+the next search-bound comparison and its replay driver. The finite host and
+ARMv6-M matrices preserve earliest-match behavior while exposing the separate
+text, frame and work-count costs. The experiment stays outside shipped libc;
+general work bounds, workload timing and complete resource/caller admission
+remain prerequisites to a replacement.
+
 The [bounded-string contract](libc-bounded-string-contracts.md) records the four
 small string implementations, their DragonFlyBSD provenance and calibrated
 host/ILP32/Thumb-1 witnesses. Their ledger rows remain partial while the
@@ -151,6 +158,18 @@ archive dependency accounting, FILE backend dispatch, regex compilation,
 numeric scanning, syscall metadata, exec/fork ownership and image planning.
 The shallow Git tip supplies source identity; RCS histories, historical binary
 behavior and target adaptation remain separate open investigations.
+`coherent-boundary-lifecycle-witnesses.md` records a host-source scanner
+capacity counterexample and the derived live-registry repair for DiscoBSD
+`exit()`. Lifecycle qualification covers registrations made by a running
+handler before new quick-exit storage policy receives resource admission.
+The [callback allocation record](callback-allocation-accounting.md) separates
+live node extents from cold heap commitment and calibrates both against the
+production allocator. The [sorting record](qsort-partition-cost.md) measures
+the duplicate-key partition chain and an adapted DragonFly control; callback
+context, recursion depth, comparison work and linked resources retain separate
+acceptance obligations.
+The float-scanning work item separately tracks token completeness, terminator
+capacity, and normative consumption; donor return values provide no oracle.
 
 `xip-shared-libc/README.md` owns the coordinated shared-library implementation
 contract. Its historical savings remain screening evidence until matched
@@ -1138,3 +1157,28 @@ separate `--closure` mode.
 Cortex-M0+ kernel compilation in one explicitly invoked profile gate.
 `check-c17-smaller-c` remains separate because native language acceptance does
 not establish ISO C17 or the production cross-build result.
+
+## Independent quick-exit callback qualification
+
+The [quick-exit contract](quick-exit-contracts.md) decomposes the independent
+registry, live-head removal and `_Exit` backend. Twelve modeled cases, process
+termination and six compiled controls pass on host/ILP32 and ARMv6-M QEMU.
+Target signatures, native input and full/reduced a.out archive closure pass.
+The [integrated lifecycle resource review](libc-lifecycle-integrated-resource-exception.md)
+records the matched clean distribution, focused contracts, fourteen archive
+omission controls and ARMv6-M QEMU qualification. Quick exit adds 624 native
+archive bytes; its composition with bounded strings consumes one additional
+root data block. The complete resource vector also carries normal exit's
+sixteen positive packed-byte entries. The owner approves the exact combined
+resource limits. The complete ILP32 inventory and combined aggregate pass.
+Hosted CI and reviewed integration remain open. Earlier approvals retain
+their exact candidate identities.
+
+## Context-aware sort qualification
+
+The [context-sort contracts](context-sort-contracts.md) bind the Issue 8 callback
+signature, per-call ownership, existing smaller-side recursion and native archive
+closure. The candidate preserves the ordinary-sort cross object byte-for-byte
+and passes calibrated context/record witnesses. Its matched resources, complete
+qualification and reviewed integration remain open. Algorithm replacements keep
+their separate comparison, stack and resource acceptance requirements.

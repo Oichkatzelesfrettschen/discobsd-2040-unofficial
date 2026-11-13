@@ -517,7 +517,10 @@
         "check-qsort",
         "check-random",
         "check-ansi",
-        "check-bounded-string"
+        "check-bounded-string",
+        "check-exit-lifecycle",
+        "check-quick-exit",
+        "check-qsort-context"
       ],
       "kind": "prerequisites"
     },
@@ -664,6 +667,21 @@
       "from": "check-libc-bounded-string",
       "to": "tests/libc_contracts:check-bounded-string",
       "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-exit-lifecycle",
+      "to": "tests/libc_contracts:check-exit-lifecycle",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-quick-exit",
+      "to": "tests/libc_contracts:check-quick-exit",
+      "kind": "recursive make"
+    },
+    {
+      "from": "check-libc-qsort-context",
+      "to": "tests/libc_contracts:check-qsort-context",
+      "kind": "recipe"
     }
   ],
   "optional_investigations": [
@@ -4353,6 +4371,139 @@
       "recipe": "${TEST_EXECUTION} run libc.bounded-string.sanitized -- ./bounded_string_test_san matrix",
       "aliases": [
         "check-libc-bounded-string"
+      ]
+    },
+    {
+      "id": "libc.exit.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-exit-lifecycle",
+      "root_target": "check-libc-host-contracts",
+      "program": "exit_lifecycle_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "exit_lifecycle_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.exit.native -- ./exit_lifecycle_test nested",
+      "aliases": [
+        "check-libc-exit-lifecycle"
+      ]
+    },
+    {
+      "id": "libc.exit.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-exit-lifecycle",
+      "root_target": "check-libc-host-contracts",
+      "program": "exit_lifecycle_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "exit_lifecycle_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.exit.ilp32 -- ./exit_lifecycle_test32 nested",
+      "aliases": [
+        "check-libc-exit-lifecycle"
+      ]
+    },
+    {
+      "id": "libc.quick-exit.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-quick-exit",
+      "root_target": "check-libc-host-contracts",
+      "program": "quick_exit_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "quick_exit_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.quick-exit.native -- ./quick_exit_test nested",
+      "aliases": [
+        "check-libc-quick-exit"
+      ]
+    },
+    {
+      "id": "libc.quick-exit.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-quick-exit",
+      "root_target": "check-libc-host-contracts",
+      "program": "quick_exit_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "quick_exit_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.quick-exit.ilp32 -- ./quick_exit_test32 nested",
+      "aliases": [
+        "check-libc-quick-exit"
+      ]
+    },
+    {
+      "id": "libc.qsort-context.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-qsort-context",
+      "root_target": "check-libc-host-contracts",
+      "program": "qsort_context_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "qsort_context_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.qsort-context.native -- ./qsort_context_test",
+      "aliases": [
+        "check-libc-qsort-context"
+      ]
+    },
+    {
+      "id": "libc.qsort-context.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-qsort-context",
+      "root_target": "check-libc-host-contracts",
+      "program": "qsort_context_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "qsort_context_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.qsort-context.ilp32 -- ./qsort_context_test32",
+      "aliases": [
+        "check-libc-qsort-context"
+      ]
+    },
+    {
+      "id": "libc.qsort-context.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-qsort-context",
+      "root_target": "check-libc-host-contracts",
+      "program": "qsort_context_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "qsort_context_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.qsort-context.sanitized -- ./qsort_context_test_san",
+      "aliases": [
+        "check-libc-qsort-context"
       ]
     }
   ]

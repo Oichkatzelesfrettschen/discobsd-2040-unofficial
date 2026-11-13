@@ -139,13 +139,22 @@ cmp(const void *a, const void *b)
 	return *(const int *)a - *(const int *)b;
 }
 
+static int
+cmp_context(const void *a, const void *b, void *context)
+{
+	return *(const int *)context * cmp(a, b);
+}
+
 static void
 touch_stdlib(void)
 {
 	int v[4] = { 4, 3, 2, 1 };
+	int direction = -1;
 	char path[32];
 
 	qsort(v, 4, sizeof(v[0]), cmp);
+	sink += v[0];
+	qsort_r(v, 4, sizeof(v[0]), cmp_context, &direction);
 	sink += v[0];
 	sink += strtol("42", NULL, 10);
 	sink += strtoul("42", NULL, 10);

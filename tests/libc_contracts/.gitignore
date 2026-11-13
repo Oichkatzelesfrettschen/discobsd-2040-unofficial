@@ -2,6 +2,8 @@ libc_contracts_test
 bounded_string_test
 bounded_string_test32
 bounded_string_test_san
+exit_lifecycle_test
+exit_lifecycle_test32
 alarm_contract_test
 waitpid_contract_test
 asctime_contract_test
@@ -193,3 +195,8 @@ hv_*.o
 huge_val_header*.o
 getgrent_contract_test
 grent_getgrent.o
+quick_exit_test
+quick_exit_test32
+qsort_context_test
+qsort_context_test32
+qsort_context_test_san

@@ -10,6 +10,7 @@
 # perror, qsort, the strtol family, and getenv -- what libc-sink.c calls.
 #
 aeabi_div
+at_quick_exit
 atoi
 atol
 bcopy
@@ -28,6 +29,7 @@ execl
 execve
 explicit_bzero
 _exit
+iso_exit
 exit
 fakcu
 fgetc
@@ -64,6 +66,8 @@ perror
 printf
 puts
 qsort
+qsort_r
+quick_exit
 raise
 read
 remove

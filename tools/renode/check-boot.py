@@ -121,7 +121,6 @@ STORAGE_LINES = [
 LOGIN_LINES = [
     "Automatic boot in progress: starting file system checks.",
     "/dev/fl0a:",
-    "Starting daemons:  update",
 ]
 
 # The formatter accepts the versioned kernel structure only when its compiled

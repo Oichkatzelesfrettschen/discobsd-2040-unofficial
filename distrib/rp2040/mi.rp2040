@@ -52,6 +52,10 @@ dir /root
 dir /var
 dir /var/log
 dir /var/run
+# init chroots update here (etc/daemons); root-owned and read-only, it
+# holds only the hard link to /usr/sbin/update below.
+dir /var/update
+mode 0555
 
 #
 # Block devices, majors as sys/arch/rp2040/rp2040/conf.c orders bdevsw.
@@ -212,6 +216,7 @@ file /etc/shells
 file /etc/ttys
 file /etc/termcap
 file /etc/menu
+file /etc/daemons
 
 #
 # /bin/box and /bin/sysbox are two a.outs holding the small utilities,
@@ -286,6 +291,8 @@ pack /usr/bin/compress
 pack /usr/bin/cpio
 
 pack /usr/sbin/update
+link /var/update/update
+target /usr/sbin/update
 
 pack /usr/libexec/getty
 #closure smlrc

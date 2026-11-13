@@ -282,15 +282,58 @@ got=0
     { cat "$work/mutant.log" >&2; fail "rename parent read mutant"; }
 echo "v7fs_core: hidden rename parent read error mutant rejected"
 
-mutant rename-inode-write sys/fs/v7fs/v7fs_file_util.c \
-    'if ((error = v7fs_inode_writeback(fs, &inode)) != 0)\n\t\t\treturn error;' \
-    'if ((error = v7fs_inode_writeback(fs, &inode)) != 0)\n\t\t\treturn 0;'
+mutant rename-target-add-compensation sys/fs/v7fs/v7fs_file_util.c \
+    'if (target_removed) {\n\t\t\trestore_error = restore_rename_target(fs, parent_to,\n\t\t\t    &target_inode, to, tolen);\n\t\t\treturn restore_error != 0 ? restore_error : error;\n\t\t}\n\t\treturn error;' \
+    'return error;'
 got=0
-"$work/rename-inode-write.bin" "$work/mutant.img" little regress \
+"$work/rename-target-add-compensation.bin" "$work/mutant.img" little regress \
     >"$work/mutant.log" 2>&1 || got=$?
-[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename:' "$work/mutant.log" ||
-    { cat "$work/mutant.log" >&2; fail "rename inode write mutant"; }
-echo "v7fs_core: hidden rename inode write error mutant rejected"
+[ "$got" -eq 1 ] && \
+    grep -q '^FAIL regress-rename-replacement-compensation:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "rename displaced-target add compensation mutant"
+}
+echo "v7fs_core: missing displaced-target add compensation mutant rejected"
+
+mutant rename-source-compensation sys/fs/v7fs/v7fs_file_util.c \
+    'restore_error = v7fs_directory_remove_entry(fs, parent_to, to,\n\t\t    tolen);\n\t\tif (restore_error != 0 || !target_removed)\n\t\t\treturn restore_error != 0 ? restore_error : error;\n\t\trestore_error = restore_rename_target(fs, parent_to, &target_inode,\n\t\t    to, tolen);\n\t\treturn restore_error != 0 ? restore_error : error;' \
+    'return error;'
+got=0
+"$work/rename-source-compensation.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename-write-compensation:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "rename source compensation mutant"
+}
+echo "v7fs_core: missing rename source compensation mutant rejected"
+
+mutant rename-parent-compensation sys/fs/v7fs/v7fs_file_util.c \
+    'restore_error = v7fs_directory_add_entry(fs, parent_from,\n\t\t\t    from_ino, from, fromlen);\n\t\t\tif (restore_error != 0)\n\t\t\t\treturn restore_error;' \
+    'restore_error = 0;'
+got=0
+"$work/rename-parent-compensation.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename-write-compensation:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "rename parent compensation mutant"
+}
+echo "v7fs_core: missing rename parent compensation mutant rejected"
+
+mutant rename-target-parent-compensation sys/fs/v7fs/v7fs_file_util.c \
+    'if (restore_error != 0 || !target_removed)\n\t\t\t\treturn restore_error != 0 ? restore_error : error;\n\t\t\trestore_error = restore_rename_target(fs, parent_to,\n\t\t\t    &target_inode, to, tolen);\n\t\t\treturn restore_error != 0 ? restore_error : error;' \
+    'return error;'
+got=0
+"$work/rename-target-parent-compensation.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename-replacement-compensation:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "rename displaced-target parent compensation mutant"
+}
+echo "v7fs_core: missing displaced-target parent compensation mutant rejected"
 
 tree=$work/rename-hierarchy-late
 mkdir -p "$tree/sys/fs" "$tree/sbin"

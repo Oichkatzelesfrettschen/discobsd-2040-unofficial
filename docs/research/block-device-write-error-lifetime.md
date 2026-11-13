@@ -227,4 +227,8 @@ probe. The corrected selector is tested beside the RP2040 unit function,
 including separate units, majors and unknown device classes. The probe
 executes the extracted identity function at ILP32; it supplies no STM32
 driver execution or board result. The extended fixture passes 1,950 checks
-and rejects 46 mutants, including the STM32 exact-device reversal.
+and rejects 46 mutants, including the STM32 exact-device reversal. Commit
+`7b171dce` then drives production `iget()` through cached-inode reactivation
+and rejects a mutant that retains the prior slot's transient error, open count
+and operation lock. The resulting fixture passes 1,968 checks and rejects all
+47 mutants. The host transition does not establish physical-device behavior.

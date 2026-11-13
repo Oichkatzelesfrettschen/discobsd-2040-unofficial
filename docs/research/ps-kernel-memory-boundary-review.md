@@ -41,3 +41,7 @@ Adopt option 3, hardened with a read-only MIB lookup, and defer option 4.
 6. Run the existing sysctl, nlist, image-metadata, Renode, and kernel-headroom gates.
 
 I did not build, boot Renode, inspect a generated image, or validate STM32 runtime policy. Exact linked deltas and live permission behavior remain unverified.
+
+Outcome: items 1, 3 and 5 are implemented, and item 4 in part. `knlist()` carries the name in the MIB. The devices ship 0640 root:kmem, `/bin/ps` ships 02751 root:kmem, and `check-account-image` verifies type, mode, owner and group. `ps:openfiles()` opens read-only and drops the kmem group with `setgid(getgid())` before a caller-named core or swap path and after the fixed devices. The Renode stages run `ps -ax` as `operator` and require operator opens of all three devices to fail; a 0664 wheel image fails that stage. A unit test of the privilege-drop failure and of the `-k` ordering does not exist: `ps.c` keeps `openfiles()` inside the program, with no host harness, and the Renode stage exercises only the fixed-device path.
+
+Superseded: `ps` now reads the kernel's process records (`KERN_PROC`) alone and ships 0775 with no set-id bit; the devices stay 0640 root:kmem and every write to them is refused above securelevel 0. `kmem-options-synthesis.md` records the design and its measured cost.

@@ -275,6 +275,8 @@ kern_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 	case KERN_INODE:
 		return (sysctl_inode(oldp, oldlenp));
 	case KERN_PROC:
+		if (newp != NULL)
+			return (EPERM);
 		return (sysctl_doproc(name + 1, namelen - 1, oldp, oldlenp));
 	case KERN_FILE:
 		return (sysctl_file(oldp, oldlenp));
@@ -751,195 +753,235 @@ sysctl_inode(char *where, size_t *sizep)
 	return (0);
 }
 
-/*
- * Try overestimating by 5 procs.
- */
-#define KERN_PROCSLOP	(5 * sizeof(struct kinfo_proc))
-
-int
-sysctl_doproc(int *name, u_int namelen, char *where, size_t *sizep)
+/* True when slot p no longer holds live process pid. */
+static int
+proc_changed(const struct proc *p, int pid)
 {
-	struct proc *p;
-	struct kinfo_proc *dp = (struct kinfo_proc *)where;
-	size_t needed = 0;
-	size_t buflen = where != NULL ? *sizep : 0;
-	int doingzomb;
-	struct eproc eproc;
-	int error = 0;
-	dev_t ttyd;
-	uid_t ruid;
-	struct tty *ttyp;
-
-	if (namelen != 2 && !(namelen == 1 && name[0] == KERN_PROC_ALL))
-		return (EINVAL);
-	p = (struct proc *)allproc;
-	doingzomb = 0;
-again:
-	for (; p != NULL; p = p->p_nxt) {
-		/*
-		 * Skip embryonic processes.
-		 */
-		if (p->p_stat == SIDL)
-			continue;
-		/*
-		 * TODO: sysctl_oproc - make more efficient (see notes below).
-		 * do by session.
-		 */
-		switch (name[0]) {
-		case KERN_PROC_PID:
-			/* Could do this with just a lookup. */
-			if (p->p_pid != (pid_t)name[1])
-				continue;
-			break;
-
-		case KERN_PROC_PGRP:
-			/* Could do this by traversing pgrp. */
-			if (p->p_pgrp != (pid_t)name[1])
-				continue;
-			break;
-
-		case KERN_PROC_TTY:
-			fill_from_u(p, &ruid, &ttyp, &ttyd);
-			if (!ttyp || ttyd != (dev_t)name[1])
-				continue;
-			break;
-
-		case KERN_PROC_UID:
-			if (p->p_uid != (uid_t)name[1])
-				continue;
-			break;
-
-		case KERN_PROC_RUID:
-			fill_from_u(p, &ruid, &ttyp, &ttyd);
-			if (ruid != (uid_t)name[1])
-				continue;
-			break;
-
-		case KERN_PROC_ALL:
-			break;
-
-		default:
-			return (EINVAL);
-		}
-		if (buflen >= sizeof(struct kinfo_proc)) {
-			fill_eproc(p, &eproc);
-			if ((error = copyout((caddr_t)p,
-			    (caddr_t)&dp->kp_proc, sizeof(struct proc))))
-				return (error);
-			if ((error = copyout((caddr_t)&eproc,
-			    (caddr_t)&dp->kp_eproc, sizeof(eproc))))
-				return (error);
-			dp++;
-			buflen -= sizeof(struct kinfo_proc);
-		}
-		needed += sizeof(struct kinfo_proc);
-	}
-	if (doingzomb == 0) {
-		p = zombproc;
-		doingzomb++;
-		goto again;
-	}
-	if (where != NULL) {
-		*sizep = (caddr_t)dp - where;
-		if (needed > *sizep)
-			return (ENOMEM);
-	} else {
-		needed += KERN_PROCSLOP;
-		*sizep = needed;
-	}
-	return (0);
+	return (p->p_stat == 0 || p->p_stat == SZOMB || p->p_pid != pid);
 }
 
 /*
- * Fill in an eproc structure for the specified process.  Slightly
- * inefficient because we have to access the u area again for the
- * information not kept in the proc structure itself.  Can't afford
- * to expand the proc struct so we take a slight speed hit here.
- */
-void
-fill_eproc(struct proc *p, struct eproc *ep)
-{
-	struct tty *ttyp;
-
-	ep->e_paddr = p;
-	fill_from_u(p, &ep->e_ruid, &ttyp, &ep->e_tdev);
-	if (ttyp)
-		ep->e_tpgid = ttyp->t_pgrp;
-	else
-		ep->e_tpgid = 0;
-}
-
-/*
- * Three pieces of information we need about a process are not kept in
- * the proc table: real uid, controlling terminal device, and controlling
- * terminal tty struct pointer.  For these we must look in either the u
- * area or the swap area.  If the process is still in memory this is
- * easy but if the process has been swapped out we have to read in the
- * u area.
+ * Find the user area of live process p.  A resident user area is the kernel
+ * memory p_addr names.  A nonresident one is read into a buffer, from the
+ * SwapRAM pool through swapram_uarea_prefix() or from flash through
+ * swap_with_buf_result(), which folds a ring address at or above m_ring_end
+ * (sys/map.h) and rejects an error or a short transfer.  geteblk() and the
+ * flash read sleep, and meanwhile p can exit, come back into core, or lose
+ * its blocks to another image.  A read block is therefore accepted only when
+ * its u_procp names p and p still holds pid, nonresident; a process that came
+ * back into core is read in place.
  *
  * XXX - We rely on the fact that u_ttyp, u_ttyd, and u_ruid are all within
  * XXX - the first 1kb of the u area.  If this ever changes the logic below
  * XXX - will break (and badly).  At the present time (97/9/2) the u area
  * XXX - is 856 bytes long.
+ *
+ * The first DEV_BSIZE bytes hold the whole struct user (subr_capacity.c).
+ * On success *upp addresses them.  *bpp is the buffer for
+ * proc_uarea_release(), or NULL.  ESRCH reports a process that exited or
+ * changed during the read, EIO a failed read.
+ */
+static int
+proc_uarea(struct proc *p, const struct user **upp, struct buf **bpp)
+{
+	const struct user *up;
+	struct buf *bp;
+	int pid = p->p_pid;
+	int error;
+
+	*bpp = NULL;
+	if (proc_changed(p, pid))
+		return (ESRCH);
+	if (p->p_flag & SLOAD)
+		goto resident;
+	bp = geteblk();
+	*bpp = bp;
+	if (proc_changed(p, pid))
+		return (ESRCH);
+	if (p->p_flag & SLOAD)
+		goto resident;
+#ifdef SWAPRAM
+	if (swapram_present(p))
+		error = swapram_uarea_prefix(p, bp->b_addr, DEV_BSIZE);
+	else
+#endif
+		error = swap_with_buf_result(bp, p->p_addr, (size_t)bp->b_addr,
+		    DEV_BSIZE, B_READ);
+	if (proc_changed(p, pid))
+		return (ESRCH);
+	if (p->p_flag & SLOAD)
+		goto resident;
+	if (error)
+		return (EIO);
+	up = (const struct user *)bp->b_addr;
+	if (up->u_procp != p)
+		return (ESRCH);
+	*upp = up;
+	return (0);
+resident:
+	*upp = (const struct user *)p->p_addr;
+	return (0);
+}
+
+static void
+proc_uarea_release(struct buf *bp)
+{
+	if (bp == NULL)
+		return;
+	bp->b_flags |= B_AGE;
+	brelse(bp);
+}
+
+/*
+ * The real uid, controlling terminal device and terminal of process p live
+ * in its user area, which proc_uarea() finds.  A zombie, or a process whose
+ * user area cannot be read, reports uid -2 and no terminal.
  */
 void
 fill_from_u(struct proc *p, uid_t *rup, struct tty **ttp, dev_t *tdp)
 {
+	const struct user *up;
 	struct buf *bp;
-	dev_t ttyd;
-	uid_t ruid;
-	struct tty *ttyp;
-	struct user *up;
-	int error;
+	dev_t ttyd = NODEV;
+	uid_t ruid = (uid_t)-2;
+	struct tty *ttyp = NULL;
 
-	if (p->p_stat == SZOMB) {
-		ruid = (uid_t)-2;
-		ttyp = NULL;
-		ttyd = NODEV;
-		goto out;
+	if (proc_uarea(p, &up, &bp) == 0) {
+		ruid = up->u_ruid;
+		ttyd = up->u_ttyd;
+		ttyp = up->u_ttyp;
 	}
-	if (p->p_flag & SLOAD) {
-		ttyd = ((struct user *)p->p_addr)->u_ttyd;
-		ttyp = ((struct user *)p->p_addr)->u_ttyp;
-		ruid = ((struct user *)p->p_addr)->u_ruid;
-	} else {
-		bp = geteblk();
-		error = 0;
-#ifdef SWAPRAM
-		if (swapram_present(p)) {
-			error = swapram_uarea_prefix(p, bp->b_addr, DEV_BSIZE);
-		} else
-#endif
-		{
-		bp->b_dev = swapdev;
-		bp->b_blkno = (daddr_t)p->p_addr;
-		bp->b_bcount = DEV_BSIZE;	/* XXX */
-		bp->b_flags = B_READ;
-
-		(*bdevsw[major(swapdev)].d_strategy)(bp);
-		biowait(bp);
-		error = u.u_error;
-		}
-
-		if (error) {
-			ttyd = NODEV;
-			ttyp = NULL;
-			ruid = (uid_t)-2;
-		} else {
-			up = (struct user *)bp->b_addr;
-			ruid = up->u_ruid;	/* u_ruid = offset 164 */
-			ttyd = up->u_ttyd;	/* u_ttyd = offset 654 */
-			ttyp = up->u_ttyp;	/* u_ttyp = offset 652 */
-		}
-		bp->b_flags |= B_AGE;
-		brelse(bp);
-		u.u_error = 0;			/* XXX */
-	}
-out:
+	proc_uarea_release(bp);
 	if (rup)
 		*rup = ruid;
 	if (ttp)
 		*ttp = ttyp;
 	if (tdp)
 		*tdp = ttyd;
+}
+
+_Static_assert(sizeof(struct kinfo_proc) == 184,
+    "struct kinfo_proc is 183 bytes and one of tail padding");
+_Static_assert(offsetof(struct kinfo_proc, kp_comm) == 67,
+    "kinfo_proc packs its fixed fields without interior padding");
+_Static_assert(sizeof(((struct user *)0)->u_comm) == KI_COMMSZ,
+    "kp_comm carries the whole command name");
+_Static_assert(sizeof(((struct user *)0)->u_psargs) == KI_ARGSZ,
+    "kp_args carries the whole exec argument prefix");
+
+/*
+ * Fill *kp for live or zombie process p. The process-table fields need no
+ * sleep and come first. The user-area groups follow through proc_uarea(),
+ * which may sleep and checks the process again after it; when it refuses,
+ * the record keeps the process-table fields and names the reason.
+ * Arguments go to root and to a caller whose effective uid is the
+ * process's real or effective uid.
+ */
+static void
+kinfo_fill(struct proc *p, struct kinfo_proc *kp)
+{
+	const struct user *up;
+	struct buf *bp;
+	uid_t caller = u.u_procp->p_uid;
+	int error;
+
+	bzero(kp, sizeof(*kp));
+	kp->kp_size = sizeof(*kp);
+	kp->kp_uid = p->p_uid;
+	kp->kp_tdev = NODEV;
+	kp->kp_pid = p->p_pid;
+	kp->kp_ppid = p->p_ppid;
+	kp->kp_flag = p->p_flag;
+	kp->kp_stat = p->p_stat;
+	if (p->p_stat == SZOMB) {
+		kp->kp_utime = p->p_ru.ru_utime;
+		kp->kp_stime = p->p_ru.ru_stime;
+		kp->kp_valid = KP_VALID_TIMES;
+		return;
+	}
+	kp->kp_pgid = p->p_pgrp;
+	if (p->p_tip != NULL)
+		kp->kp_tsize = p->p_tsize;
+	kp->kp_dsize = p->p_dsize;
+	kp->kp_ssize = p->p_ssize;
+	kp->kp_pri = p->p_pri;
+	kp->kp_cpu = p->p_cpu;
+	kp->kp_nice = p->p_nice;
+	kp->kp_valid = KP_VALID_LIVE;
+
+	error = proc_uarea(p, &up, &bp);
+	if (error != 0) {
+		kp->kp_error = error;
+		proc_uarea_release(bp);
+		return;
+	}
+	kp->kp_ruid = up->u_ruid;
+	kp->kp_gid = up->u_groups[0];
+	kp->kp_rgid = up->u_rgid;
+	kp->kp_start = up->u_start;
+	kp->kp_utime = up->u_ru.ru_utime;
+	kp->kp_stime = up->u_ru.ru_stime;
+	kp->kp_ctime = up->u_cru.ru_utime + up->u_cru.ru_stime;
+	if (up->u_ttyp != NULL) {
+		kp->kp_tdev = up->u_ttyd;
+		kp->kp_tpgid = up->u_ttyp->t_pgrp;
+	}
+	bcopy(up->u_comm, kp->kp_comm, sizeof(kp->kp_comm) - 1);
+	kp->kp_valid |= KP_VALID_TIMES | KP_VALID_CRED | KP_VALID_START |
+	    KP_VALID_TTY | KP_VALID_COMM;
+	if (caller == 0 || caller == kp->kp_uid || caller == kp->kp_ruid) {
+		bcopy(up->u_psargs, kp->kp_args, sizeof(kp->kp_args) - 1);
+		kp->kp_valid |= KP_VALID_ARGS;
+	}
+	proc_uarea_release(bp);
+}
+
+/*
+ * KERN_PROC: {selector, argument, record size} after the KERN_PROC
+ * component (sys/sysctl.h). KERN_PROC_ALL returns every process and
+ * KERN_PROC_PID the one whose id is the argument; the pid test runs before
+ * kinfo_fill(), so a single-process query reads one user area. Every other
+ * projection is the caller's, over the full table. The walk runs over the
+ * slots of proc[], so it holds no list cursor across the sleeps in
+ * kinfo_fill(); a process keeps its slot for its life, so one alive for the
+ * whole call appears exactly once. A buffer too short for every record
+ * reports the length of a full table, which __sysctl() turns into ENOMEM.
+ */
+int
+sysctl_doproc(int *name, u_int namelen, char *where, size_t *sizep)
+{
+	struct kinfo_proc kp;
+	size_t stride, copy, done = 0;
+	int selector, slot, error;
+
+	if (namelen != 3)
+		return (EINVAL);
+	selector = name[0];
+	stride = (u_int)name[2];
+	if ((u_int)selector > KERN_PROC_PID || stride < KI_PROC_MINSIZE ||
+	    stride > DEV_BSIZE)
+		return (EINVAL);
+	if (where == NULL) {
+		*sizep = NPROC * stride;
+		return (0);
+	}
+	copy = stride < sizeof(kp) ? stride : sizeof(kp);
+	for (slot = 0; slot < NPROC; slot++) {
+		struct proc *p = &proc[slot];
+
+		if (p->p_stat == 0 || p->p_stat == SIDL)
+			continue;
+		if (selector == KERN_PROC_PID && p->p_pid != name[1])
+			continue;
+		if (*sizep - done < stride) {
+			*sizep = NPROC * stride;
+			return (0);
+		}
+		kinfo_fill(p, &kp);
+		if ((error = copyout((caddr_t)&kp, where + done, copy)) != 0)
+			return (error);
+		done += stride;
+	}
+	*sizep = done;
+	return (0);
 }

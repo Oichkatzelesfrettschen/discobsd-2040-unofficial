@@ -28,6 +28,7 @@
 %token  MAXUSERS
 %token  MINOR
 %token  MINUS
+%token  NONE
 %token  ON
 %token  OPTIONS
 %token  MAKEOPTIONS
@@ -113,6 +114,7 @@ char    *val_id;
 
 int             yylex(void);
 void            yyerror(char *s);
+void            yywarn(char *s);
 
 void            newdev(struct device *dp);
 void            mkconf(char *sysname);
@@ -342,6 +344,9 @@ dump_device_spec:
         { $$ = nametodev($1, 0); }
         |
     major_minor
+        |
+    NONE
+        { $$ = -2; }    /* NODUMP, carried as the parser's int */
     ;
 
 major_minor:
@@ -575,8 +580,21 @@ Pin_list:
     ;
 %%
 
+/*
+ * Every error counts, and main() refuses to generate output after a parse
+ * that reported one; a warning is printed and does not count.
+ */
+int yyerrors;
+
 void
 yyerror(char *s)
+{
+    fprintf(stderr, "config: line %d: %s\n", yyline + 1, s);
+    yyerrors++;
+}
+
+void
+yywarn(char *s)
 {
     fprintf(stderr, "config: line %d: %s\n", yyline + 1, s);
 }
@@ -869,6 +887,8 @@ checksystemspec(struct file_list *fl)
      * Default dump device and warn if place is not a
      * swap area.
      */
+    if (fl->f_dumpdev == NODUMP)
+        return;
     if (fl->f_dumpdev == NODEV)
         fl->f_dumpdev = swap->f_swapdev;
     if (fl->f_dumpdev != swap->f_swapdev) {
@@ -879,7 +899,7 @@ checksystemspec(struct file_list *fl)
                 return;
         (void)snprintf(buf, sizeof(buf),
             "Warning: dump device is not a swap partition");
-        yyerror(buf);
+        yywarn(buf);
     }
 }
 

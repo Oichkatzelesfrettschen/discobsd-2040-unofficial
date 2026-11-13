@@ -135,7 +135,7 @@ CAPACITY_LINES = [
     "file limit 18 current",
     "clist limit 32 current",
     "buffer limit 4 current",
-    "uarea bytes 3072 user 972 stack 2048 peak",
+    "uarea bytes 3072 user 1024 stack 2048 peak",
 ]
 
 # The identity words of a flash image: vector entries 8, 9 and 10 at
@@ -176,13 +176,37 @@ STALL_LINES = [
     "machdep.core1_restarts=0",
 ]
 
-# The ps row of init: the pid, a tty field, minutes
-# and seconds of processor time, and the command. init is swapped out. A
-# kernel with the SwapRAM tier holds its image in the pool, so ps reads its
-# fields through machdep.swapram_psinfo, has no stack to read arguments
-# from and prints the name in parentheses; a kernel without the tier holds
-# it on the swap device and ps prints its arguments.
-PS_INIT_ROW = re.compile(r"^ *1 \S+ +\d+:\d\d +(\(init\)|init( .*)?)$", re.M)
+MEMORY_DEVICES = ("mem", "kmem", "swap")
+
+# The BSD ps row of init: the pid, a tty field, minutes and seconds of
+# processor time, and the command. init belongs to root, so the kernel
+# withholds its arguments from operator and ps prints the command name in
+# brackets.
+PS_INIT_ROW = re.compile(r"^ *1 \S+ +\d+:\d\d +\[\S*init\]$", re.M)
+
+# The caller's own ps row in the default BSD listing: pid, terminal, time,
+# and the command with its arguments.
+PS_OWN_ROW = re.compile(r"^ *\d+ co +\d+:\d\d ps$", re.M)
+
+# "ps -o pid= -o stime= -o etime= -p 0": the swapper's row, with no start.
+PS_SWAPPER_START = re.compile(r"^ *0 +- +-$", re.M)
+
+# One row of "ps -A -o pid= -o comm=": every header is empty, so ps prints
+# no header line.
+PS_ROW = re.compile(r"^ *(\d+) (\S.*)$")
+
+# The processes a booted operator shell always has, by pid or by the last
+# path component of the command name: the swapper, init, update, the
+# login shell and ps itself. Each lives in a different place -- resident,
+# on flash or in the pool -- when ps runs, so a reader that loses any
+# residency state loses a row here.
+PS_REQUIRED = (
+    ("pid 0", lambda pid, name: pid == 0 and name == "swapper"),
+    ("init", lambda pid, name: pid == 1 and name == "init"),
+    ("update", lambda pid, name: name == "update"),
+    ("the operator shell", lambda pid, name: name.lstrip("-") == "sh"),
+    ("ps itself", lambda pid, name: name == "ps"),
+)
 
 ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
@@ -261,21 +285,94 @@ CORE1_CONFIGS = ("PICO_UART",)
 
 
 def check_ps(console: Console) -> None:
-    """Require the ps row of the swapped-out init to carry its time and name.
+    """Require a ps row for every process, wherever its image lives.
 
-    ps resolves kernel symbols through the CPU_NLIST sysctl, which carries
-    the symbol name in the MIB and takes no new value, so the operator shell
-    runs it without root.
+    ps reads the kernel's process records (KERN_PROC), which the kernel
+    fills for a resident process, an image on the swap device and one in
+    the SwapRAM pool, so operator runs it without privilege and no row is
+    dropped. The POSIX listing must hold every process of PS_REQUIRED
+    exactly once; the BSD listing must hold init with its time.
     """
     start = console.cursor
-    console.type_line("ps -ax; echo ps-end")
+    console.type_line("ps -A -o pid= -o comm=; echo ps-end")
     console.wait_for("\nps-end", "process list", COMMAND_BUDGET_SECONDS)
-    rows = console.text()[start:console.cursor]
-    if not PS_INIT_ROW.search(rows):
-        console.fail(f"process list: no row for init with a time and its name in {rows!r}")
+    lines = console.text()[start:console.cursor].splitlines()
+    rows = [(int(m.group(1)), m.group(2).rsplit("/", 1)[-1])
+            for m in map(PS_ROW.match, lines) if m]
+    for what, wanted in PS_REQUIRED:
+        found = [row for row in rows if wanted(*row)]
+        if len(found) != 1:
+            console.fail(f"process list: {len(found)} rows for {what} in {lines!r}")
+            raise StageFailed("process list")
+    if len({pid for pid, _ in rows}) != len(rows):
+        console.fail(f"process list: a pid appears twice in {lines!r}")
         raise StageFailed("process list")
     console.wait_for("$", "operator shell after the process list", COMMAND_BUDGET_SECONDS)
+
+    start = console.cursor
+    console.type_line("ps ax; echo ps-end")
+    console.wait_for("\nps-end", "BSD process list", COMMAND_BUDGET_SECONDS)
+    rows_text = console.text()[start:console.cursor]
+    if not PS_INIT_ROW.search(rows_text):
+        console.fail(f"BSD process list: no row for init with a time and its name in {rows_text!r}")
+        raise StageFailed("BSD process list")
+    console.wait_for("$", "operator shell after the BSD process list", COMMAND_BUDGET_SECONDS)
+
+    # With no selection, both grammars list the caller's processes on the
+    # caller's terminal. The shell sits on the console, whose sessions carry
+    # the device the redirector substitutes, so a ps that matched the
+    # terminal by /dev/console's own number would list nothing here.
+    start = console.cursor
+    console.type_line("ps; ps -o pid= -o comm=; echo ps-end")
+    console.wait_for("\nps-end", "default process lists", COMMAND_BUDGET_SECONDS)
+    lines = console.text()[start:console.cursor].splitlines()
+    if not PS_OWN_ROW.search("\n".join(lines)):
+        console.fail(f"default process lists: no BSD row for ps itself in {lines!r}")
+        raise StageFailed("default process lists")
+    if not any(m and m.group(2) == "ps" for m in map(PS_ROW.match, lines)):
+        console.fail(f"default process lists: no POSIX row for ps itself in {lines!r}")
+        raise StageFailed("default process lists")
+    console.wait_for("$", "operator shell after the default process lists",
+                     COMMAND_BUDGET_SECONDS)
+
+    # fork sets u_start, and the swapper never forked: its record reports
+    # start 0, so its start and elapsed time print as "-" rather than as
+    # times reckoned from the epoch.
+    start = console.cursor
+    console.type_line("ps -o pid= -o stime= -o etime= -p 0; echo ps0-end")
+    console.wait_for("\nps0-end", "swapper start", COMMAND_BUDGET_SECONDS)
+    text = console.text()[start:console.cursor]
+    if not PS_SWAPPER_START.search(text):
+        console.fail(f"swapper start: no row with '-' start and elapsed time in {text!r}")
+        raise StageFailed("swapper start")
+    console.wait_for("$", "operator shell after the swapper start", COMMAND_BUDGET_SECONDS)
     print(f"check-renode: process list after {console.virtual:.1f} virtual seconds")
+
+
+def check_memory_devices(console: Console) -> None:
+    """Require the operator shell to be refused every kernel memory device.
+
+    /dev/mem, /dev/kmem and /dev/swap are mode 0640 root:kmem and operator
+    is outside kmem, so each open fails, while check_ps lists every process
+    from the same shell without them. The
+    console echoes the typed loop, so a verdict line is matched with the
+    device name spelled out, which the echoed "$d" never carries. The loop
+    stays within ED_MAX in bin/sh/edit.c, 126 bytes, past which the shell's
+    line editor rings the bell and drops the rest of the line.
+    """
+    start = console.cursor
+    console.type_line("for d in mem kmem swap; do (:</dev/$d) 2>/dev/null"
+                      " && echo $d-open || echo $d-shut; done; echo dev-end")
+    console.wait_for("\ndev-end", "kernel memory devices", COMMAND_BUDGET_SECONDS)
+    output = console.text()[start:console.cursor]
+    for device in MEMORY_DEVICES:
+        if f"\n{device}-shut" not in output:
+            console.fail(f"kernel memory devices: operator open of /dev/{device} was not refused "
+                         f"in {output!r}")
+            raise StageFailed("kernel memory devices")
+    console.wait_for("$", "operator shell after the device opens", COMMAND_BUDGET_SECONDS)
+    print(f"check-renode: kernel memory devices refused after {console.virtual:.1f} "
+          "virtual seconds")
 
 
 def run_stages(console: Console, config: str, identity: list[str]) -> None:
@@ -293,6 +390,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.type_line("uname -sr")
     console.wait_lines(["DiscoBSD 2.7"], "uname", COMMAND_BUDGET_SECONDS)
     check_ps(console)
+    check_memory_devices(console)
     console.type_line("sysctl kern.capacity")
     console.wait_lines(CAPACITY_LINES, "capacity record", COMMAND_BUDGET_SECONDS)
     console.type_line("sysctl machdep.image_length machdep.image_crc machdep.image_crc_stored")

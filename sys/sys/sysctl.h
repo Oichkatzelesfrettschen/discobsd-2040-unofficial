@@ -39,8 +39,11 @@
 #ifndef	_SYS_SYSCTL_H_
 #define	_SYS_SYSCTL_H_
 
+#include <sys/types.h>
+#include <sys/stdint.h>		/* struct kinfo_proc */
+
 /*
- * These are for the eproc, etext, einode, efile and map structures.
+ * These are for the etext, einode, efile and map structures.
  */
 #ifndef	KERNEL
 #include <sys/time.h>
@@ -186,28 +189,76 @@ struct ctlname {
 #endif
 
 /*
- * KERN_PROC subtypes
+ * KERN_PROC selectors. The name is {CTL_KERN, KERN_PROC, selector, argument,
+ * record size}; KERN_PROC_ALL ignores its argument. A caller selects by
+ * group, terminal or user from the full table.
  */
 #define	KERN_PROC_ALL		0	/* everything */
 #define	KERN_PROC_PID		1	/* by process id */
-#define	KERN_PROC_PGRP		2	/* by process group id */
-#define	KERN_PROC_SESSION	3	/* by session of pid - NOT IN 2.11 */
-#define	KERN_PROC_TTY		4	/* by controlling tty */
-#define	KERN_PROC_UID		5	/* by effective uid */
-#define	KERN_PROC_RUID		6	/* by real uid */
 
 /*
- * KERN_PROC subtype ops return arrays of augmented proc structures:
+ * KERN_PROC returns one record for every process the selector admits, in
+ * process-table order. The caller names the record size it was built
+ * with: the kernel copies the first min(that size, kp_size) bytes of each
+ * record and advances by the caller's size, so a field appended to the end
+ * reaches a newer caller while an older one keeps its layout. A size query
+ * reports room for a full process table.
+ *
+ * The record holds values only, never a kernel address, swap block, pool
+ * offset or wait channel. The process-table fields are always filled. The
+ * groups that come from the user area -- credentials, start, times,
+ * terminal, command name and arguments -- carry a bit in kp_valid each
+ * time the kernel could read that user area, wherever the image lives.
+ * When it could not, kp_error holds the reason: ESRCH when the process
+ * exited or changed during the read, EIO when the read failed. A zombie
+ * has no user area; its times come from the exit record, which already
+ * holds its reaped children's time, so its kp_ctime is zero. The arguments
+ * are the PSARGSZ prefix exec recorded (sys/user.h); root and a caller
+ * whose effective uid is the process's real or effective uid receive them,
+ * and every other caller gets the record with KP_VALID_ARGS clear.
  */
+#define	KI_COMMSZ		64	/* MAXCOMLEN + 1, sys/user.h */
+#define	KI_ARGSZ		52	/* PSARGSZ, sys/user.h */
+
+#define	KP_VALID_LIVE		0x01	/* pgid, sizes, priority, cpu, nice */
+#define	KP_VALID_TIMES		0x02	/* utime, stime, ctime */
+#define	KP_VALID_CRED		0x04	/* ruid, gid, rgid */
+#define	KP_VALID_START		0x08	/* start */
+#define	KP_VALID_TTY		0x10	/* tdev, tpgid */
+#define	KP_VALID_COMM		0x20	/* comm */
+#define	KP_VALID_ARGS		0x40	/* args */
+
 struct kinfo_proc {
-	struct proc kp_proc;		/* proc structure */
-	struct eproc {
-		struct proc	*e_paddr;	/* address of proc */
-		dev_t		 e_tdev;	/* controlling tty dev */
-		pid_t		 e_tpgid;	/* tty process group id */
-		uid_t		 e_ruid;	/* real uid */
-	} kp_eproc;
+	uint16_t kp_size;		/* sizeof(struct kinfo_proc) */
+	uint16_t kp_valid;		/* KP_VALID_* groups filled */
+	uint32_t kp_uid;		/* effective uid */
+	uint32_t kp_ruid;		/* real uid */
+	uint32_t kp_gid;		/* effective gid */
+	uint32_t kp_rgid;		/* real gid */
+	int32_t	 kp_start;		/* start, seconds since the epoch */
+	uint32_t kp_utime;		/* user time, clock ticks */
+	uint32_t kp_stime;		/* system time, clock ticks */
+	uint32_t kp_ctime;		/* reaped children's time, clock ticks */
+	int32_t	 kp_tdev;		/* controlling terminal, or NODEV */
+	uint32_t kp_tsize;		/* clean text at the start of data, bytes */
+	uint32_t kp_dsize;		/* data, bytes */
+	uint32_t kp_ssize;		/* stack, bytes */
+	int16_t	 kp_pid;
+	int16_t	 kp_ppid;
+	int16_t	 kp_pgid;
+	int16_t	 kp_tpgid;		/* terminal's foreground group */
+	uint16_t kp_flag;		/* p_flag */
+	uint8_t	 kp_stat;		/* p_stat; SLOAD in kp_flag marks core */
+	uint8_t	 kp_error;		/* 0, ESRCH or EIO */
+	int8_t	 kp_pri;
+	uint8_t	 kp_cpu;
+	int8_t	 kp_nice;
+	char	 kp_comm[KI_COMMSZ];	/* command name, NUL-ended */
+	char	 kp_args[KI_ARGSZ];	/* argument prefix, NUL-ended */
 };
+
+/* The fixed prefix every record size must cover: kp_size and kp_valid. */
+#define	KI_PROC_MINSIZE		4
 
 /*
  * KERN_INODE returns an array of augmented inode structures:
@@ -385,7 +436,6 @@ int	sysctl_file(char *, size_t *);
 int	sysctl_clockrate(char *, size_t *);
 int	sysctl_inode(char *, size_t *);
 int	sysctl_doproc(int *, u_int, char *, size_t *);
-void	fill_eproc(struct proc *p, struct eproc *ep);
 void	fill_from_u(struct proc *, uid_t *, struct tty **, dev_t *);
 
 #else	/* !KERNEL */

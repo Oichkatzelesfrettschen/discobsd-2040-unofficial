@@ -21,6 +21,16 @@
  */
 #define MAXCOMLEN   MAXNAMLEN   /* <= MAXNAMLEN, >= sizeof(ac_comm) */
 
+/*
+ * exec_setupstack() records the first PSARGSZ - 1 bytes of the argument
+ * strings in u_psargs, each terminator a space and the field NUL-ended, so
+ * the process record (KERN_PROC) reports arguments for a process wherever
+ * its image lives. On RP2040 the 52 bytes fill struct user to exactly
+ * UAREA_STACK_OFFSET, which sys/kern/subr_capacity.c asserts, so the field
+ * costs no user-area, swap or pool byte there.
+ */
+#define PSARGSZ     52
+
 struct user {
     struct  proc *u_procp;          /* pointer to proc structure */
     struct  trapframe *u_frame;     /* address of users saved frame */
@@ -93,6 +103,7 @@ struct user {
         ino_t nc_inumber;           /* inum of cached directory */
         dev_t nc_dev;               /* dev of cached directory */
     } u_ncache;
+    char    u_psargs[PSARGSZ];      /* argument prefix exec recorded */
     int     u_stack[1];             /* kernel stack per user
                                      * extends from u + USIZE
                                      * backward not to reach here */

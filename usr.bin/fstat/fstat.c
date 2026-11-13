@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 #include <sys/inode.h>
 #include <sys/mount.h>
+#include <sys/vmparam.h>
 #if HAVE_NETWORK
 #include <sys/socket.h>
 #include <sys/socketvar.h>
@@ -81,13 +82,46 @@ _Static_assert(sizeof(struct inode) == 84,
     "fstat must use the RP2040 kernel inode layout");
 #endif
 
+/*
+ * sys/sysctl.h includes sys/inode.h, which has no include guard and is
+ * already included above, so the sysctl(3) prototype and CTL_VM are
+ * declared here as sys/sysctl.h declares them.
+ */
+#define CTL_VM 2
+extern int sysctl(int *, unsigned, void *, size_t *, void *, size_t);
+
+/*
+ * The swap blocks a process's user area can be read from linearly. The
+ * kernel's swap map is a ring (sys/map.h): an image at or past the last
+ * block continues at the first one, so only an address below vm.nswap
+ * names its own device block, and block 0 never starts an image, which
+ * marks one the SwapRAM pool holds. Any other user area fstat cannot
+ * locate, and it says so rather than reading another block.
+ */
+static int
+swap_readable(size_t addr)
+{
+	static int nswap = -1;
+	int mib[2] = { CTL_VM, VM_NSWAP };
+	size_t len = sizeof(nswap);
+
+	if (nswap < 0 && sysctl(mib, 2, &nswap, &len, NULL, 0) < 0)
+		nswap = 0;
+	return (addr != 0 && addr < (size_t)nswap);
+}
+
 static int
 getu()
 {
 	if ((mproc->p_flag & SLOAD) == 0) {
 		if (swap < 0)
 			return(0);
-		(void)lseek(swap, (off_t)(mproc->p_addr)<<9, L_SET);
+		if (!swap_readable(mproc->p_addr)) {
+			fprintf(stderr, "fstat: u of pid %d is not at a linear "
+			    "swap address\n", mproc->p_pid);
+			return(0);
+		}
+		(void)lseek(swap, (off_t)mproc->p_addr << DEV_BSHIFT, L_SET);
 		if (read(swap, (char *)&user, sizeof(struct user))
 		    != sizeof(struct user)) {
 			fprintf(stderr, "fstat: can't read u for pid %d from %s\n", mproc->p_pid, N_SWAP);

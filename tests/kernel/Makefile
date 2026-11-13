@@ -315,11 +315,16 @@ RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
 SWAP_IOCTL_SRC=	${TOPSRC}/sys/dev/swap.c
 SWAP_IOCTL_FUNCTION=	swap_ioctl_function.c
 SWAP_IOCTL_DEFS=	${COMPACT_DEFS}
+# swstrategy() hands a buffer address to swap() as the kernel's 32-bit
+# size_t, so the 64-bit host build excuses that cast, as swap_ring_io_test
+# does.
 SWAP_IOCTL_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 -pedantic-errors \
-			-Wstrict-prototypes -Wold-style-definition
+			-Wstrict-prototypes -Wold-style-definition \
+			-Wno-pointer-to-int-cast
 SWAP_IOCTL_MUTANTS=	release-fallthrough media-size-fallthrough \
 	shortage-output-suppression unrounded-free stale-released-size \
-	ignore-descriptor-mode omit-root-check
+	ignore-descriptor-mode omit-root-check open-writes-live-swap \
+	transfer-writes-live-swap
 SWAP_IOCTL_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/cdefs.h \
 	${TOPSRC}/sys/sys/conf.h ${TOPSRC}/sys/sys/disk.h \
@@ -478,7 +483,8 @@ CONSOLE_C17_CFLAGS=	${CONSOLE_C17_BASE_CFLAGS} ${CONSOLE_C17_PARAM}
 MEM_SPAN_SRC=		${TOPSRC}/sys/dev/mem.c
 MEM_SPAN_MACHDEP_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
 MEM_SPAN_FUNCTIONS=	mem_kernel_span_functions.c
-MEM_SPAN_DRIVER_MUTANTS=	endpoint-admission user-rejected kernel-rejected
+MEM_SPAN_DRIVER_MUTANTS=	endpoint-admission user-rejected kernel-rejected \
+			write-unbound
 MEM_SPAN_FUNCTION_MUTANTS=	kernel-first-byte
 MEM_SPAN_MUTANTS=	${MEM_SPAN_DRIVER_MUTANTS} ${MEM_SPAN_FUNCTION_MUTANTS}
 MEM_SPAN_CFLAGS=	-ffunction-sections -fdata-sections
@@ -1132,6 +1138,8 @@ check-swap-ioctl-mutants: \
 		stale-released-size) expected='swap_ioctl_test_size(0) == 0' ;; \
 		ignore-descriptor-mode) expected='call_ioctl(0, TFALLOC, &request, FREAD) == EBADF' ;; \
 		omit-root-check) expected='call_ioctl(2, TFALLOC, &request, FREAD | FWRITE) == EPERM' ;; \
+		open-writes-live-swap) expected='swopen(live, FWRITE, 0) == (level ? EPERM : 0)' ;; \
+		transfer-writes-live-swap) expected='live_transfers == (level ? 0U : 1U)' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \
@@ -1739,19 +1747,73 @@ sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
 sysctl_shim.o: hostkern_kern.c hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o $@ hostkern_kern.c
 
+#
+# A process's user area is read through swap_with_buf_result(), so the gate
+# links the real sys/kern/vm_swp.c and the linker drops the raw I/O routines
+# beside it. The compact gate also builds the SwapRAM branch, as the PICO and
+# PicoCalc kernels do; the wide gate reads every nonresident user area from
+# the ring swap device, as PICO_UART does.
+SYSCTL_COMPACT_DEFS=	${COMPACT_DEFS} -DSWAPRAM
+SYSCTL_VMSWP_SRC=	${TOPSRC}/sys/kern/vm_swp.c
+SYSCTL_VMSWP_CFLAGS=	${KERN_CFLAGS} ${ILP32} -ffunction-sections \
+			-fdata-sections
+
+sysctl_vmswp_compact.o: ${SYSCTL_VMSWP_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCTL_VMSWP_CFLAGS} ${SYSCTL_COMPACT_DEFS} -c -o $@ \
+	    ${SYSCTL_VMSWP_SRC}
+
+sysctl_vmswp_wide.o: ${SYSCTL_VMSWP_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCTL_VMSWP_CFLAGS} ${WIDE_DEFS} -c -o $@ \
+	    ${SYSCTL_VMSWP_SRC}
+
 sysctl_test_compact: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
-    hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} ${COMPACT_DEFS} ${ILP32} \
+    sysctl_vmswp_compact.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
 	    -c -o sysctl_kernel_compact.o ${SYSCTL_SRC}
-	${HOST_CC} ${GATE_CFLAGS} ${COMPACT_DEFS} ${ILP32} -o $@ sysctl_test.c \
-	    sysctl_kernel_compact.o sysctl_shim.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o $@ sysctl_test.c \
+	    sysctl_kernel_compact.o sysctl_vmswp_compact.o sysctl_shim.o \
+	    hostkern32.o
 
 sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
-    hostkern.h ${MACHINE_STAMP}
+    sysctl_vmswp_wide.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${WIDE_DEFS} ${ILP32} \
 	    -c -o sysctl_kernel_wide.o ${SYSCTL_SRC}
-	${HOST_CC} ${GATE_CFLAGS} ${WIDE_DEFS} ${ILP32} -o $@ sysctl_test.c \
-	    sysctl_kernel_wide.o sysctl_shim.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${WIDE_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o $@ sysctl_test.c \
+	    sysctl_kernel_wide.o sysctl_vmswp_wide.o sysctl_shim.o hostkern32.o
+
+# Each mutant removes one rule of the process path from a copy of
+# kern_sysctl.c, and the compact gate has to fail on it. no_identity accepts
+# a user-area block whatever image its u_procp names; no_recheck accepts a
+# block after the process exited or its slot changed during the read;
+# open_args gives every caller the argument prefix; drop_marked leaves out
+# a process whose user area could not be read, as the raw-memory ps did.
+SYSCTL_PROC_MUTANTS=	no_identity no_recheck open_args drop_marked
+SYSCTL_PROC_SED_no_identity=	s/if (up->u_procp != p)/if (0)/
+SYSCTL_PROC_SED_no_recheck=	s/if (proc_changed(p, pid))/if (proc_changed(p, pid) < 0)/
+SYSCTL_PROC_SED_open_args=	s/caller == kp->kp_ruid)/caller == kp->kp_ruid || kp->kp_size != 0)/
+SYSCTL_PROC_SED_drop_marked=	s/kinfo_fill(p, &kp);/kinfo_fill(p, \&kp); if (kp.kp_error) continue;/
+
+check-sysctl-proc-mutants: sysctl_test_compact
+.for mutation in ${SYSCTL_PROC_MUTANTS}
+	@sed '${SYSCTL_PROC_SED_${mutation}}' ${SYSCTL_SRC} \
+	    > sysctl_proc_${mutation}.mutant.c; \
+	if cmp -s ${SYSCTL_SRC} sysctl_proc_${mutation}.mutant.c; then \
+		echo "sysctl proc mutant ${mutation}: no source change" >&2; \
+		exit 1; fi; \
+	${HOST_CC} ${KERN_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} -c \
+	    -o sysctl_proc_${mutation}.mutant.o \
+	    sysctl_proc_${mutation}.mutant.c && \
+	${HOST_CC} ${GATE_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o sysctl_proc_${mutation}.mutant.test \
+	    sysctl_test.c sysctl_proc_${mutation}.mutant.o \
+	    sysctl_vmswp_compact.o sysctl_shim.o hostkern32.o || exit 1; \
+	if ./sysctl_proc_${mutation}.mutant.test \
+	    > sysctl_proc_${mutation}.mutant.out 2>&1; then \
+		echo "sysctl proc mutant ${mutation}: SURVIVED" >&2; exit 1; fi; \
+	echo "sysctl proc mutant ${mutation}: rejected"
+.endfor
 
 # The inode allocator in the three shapes the tree configures it in: the
 # portable one, sys/arch/rp2040/compile/PICO's, and a DIAGNOSTIC kernel.
@@ -3040,7 +3102,7 @@ check-ilp32:
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
 	    exec_elf_text_ownership_mutant \
-	    sysctl_test_compact sysctl_test_wide \
+	    sysctl_test_compact sysctl_test_wide check-sysctl-proc-mutants \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
 	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
@@ -3324,6 +3386,7 @@ clean:
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
 	    exec_elf_text_ownership_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
+	rm -f sysctl_vmswp_compact.o sysctl_vmswp_wide.o sysctl_proc_*.mutant.*
 	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o
 	rm -f ialloc_shim.o ialloc_shim_pico.o
@@ -3383,7 +3446,7 @@ clean:
 	@if [ -d ${CONSOLE_C17_MACHINE} ]; then rmdir ${CONSOLE_C17_MACHINE}; fi
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
-	check-rmap-ring-mutants check-swap-ring-io \
+	check-rmap-ring-mutants check-swap-ring-io check-sysctl-proc-mutants \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
 	check-buffer-busy-mutants \
 	check-rwuio-mutants check-rwuio-sanitizer \

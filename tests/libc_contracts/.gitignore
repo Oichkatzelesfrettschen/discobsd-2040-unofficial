@@ -2,6 +2,8 @@ libc_contracts_test
 bounded_string_test
 bounded_string_test32
 bounded_string_test_san
+dbm_open_test
+dbm_open_test32
 exit_lifecycle_test
 exit_lifecycle_test32
 alarm_contract_test

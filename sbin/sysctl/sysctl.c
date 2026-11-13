@@ -283,7 +283,6 @@ parse(char *string, int flags)
 			    "%s is not supported in DiscoBSD\n", string);
 			return (1);
 		case KERN_INODE:
-		case KERN_FILE:
 		case KERN_TEXT:
 			if (flags == 0)
 				return (0);
@@ -295,6 +294,12 @@ parse(char *string, int flags)
 				return (0);
 			fprintf(stderr,
 			    "Use ps to view %s information\n", string);
+			return (1);
+		case KERN_FILE:
+			if (flags == 0)
+				return (0);
+			fprintf(stderr,
+			    "Use fstat to view %s information\n", string);
 			return (1);
 		case KERN_CLOCKRATE:
 			special |= CLOCK;

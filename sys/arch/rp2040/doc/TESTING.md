@@ -1385,11 +1385,31 @@ KERN_PROC_PID, a record size below the four-byte prefix or above DEV_BSIZE, and 
 the wrong length are refused. A record size smaller than the kernel's
 takes each record's prefix and a larger one leaves each tail untouched; a
 size query and a short buffer report room for a full table, and a new
-value is refused before the node runs. `check-sysctl-proc-mutants`
-requires a failure from four copies of kern_sysctl.c: one without the
-u_procp check, one without the rechecks, one that gives every caller the
-arguments, and one that leaves out a row whose user area could not be
-read.
+value is refused before the node runs.
+
+`KERN_FILE` returns a pointer-free `struct kinfo_file` for the working
+directory and each open descriptor of one pid, through the same reader.
+The gate gives the resident caller, the folded and unfolded flash
+processes and the pooled one a directory, a regular file, a pipe and a
+socket-typed descriptor each, from their own file and inode entries, and
+requires every value of every record from that process's entries: the
+inode fields for the directory, file and pipe, the flags and offset for
+each descriptor, and none of the inode fields for the socket. No four
+bytes of the output equal an address of the fixture's file table, inode
+table, process table, user areas or terminal. The compact binary is built
+with `SINGLE_UFS_ROOT`, as PICO is, so the device comes from the root
+mount; the wide binary reads `i_dev`. Root and a caller whose effective
+uid is the process's real or effective uid receive the records; a
+real-uid match alone and any other caller get EPERM. No such pid and an
+embryonic slot give ESRCH, a zombie no record, a failed read EIO, and a
+slot that changes during the read or a block another image holds ESRCH.
+The stride, size-query and short-buffer rules of `KERN_PROC` hold, and a
+new value is refused. `check-sysctl-proc-mutants` requires a failure from
+seven copies of kern_sysctl.c: one without the u_procp check, one without
+the rechecks, one that gives every caller the arguments, one that leaves
+out a row whose user area could not be read, one that gives every caller
+another user's descriptors, one without the working-directory record, and
+one that leaves a pipe without its inode fields.
 
 The two actual-source binaries, `sysctl_test_compact` and
 `sysctl_test_wide`, execute as `kernel.sysctl-compact.ilp32` and
@@ -1938,7 +1958,7 @@ numbers.
 `check-renode` runs tools/renode/check-boot.sh, which boots the UART0
 console kernel from the real RP2040 boot ROM, asserts the console through
 the device probe, logs in, runs `uname` and five ps listings as operator, tries to
-open the kernel memory devices as operator, `sysctl kern.capacity`, `mputest` and `mputest residue`, reads core 1's
+open the kernel memory devices as operator, runs fstat on the shell and on init, `sysctl kern.capacity`, `mputest` and `mputest residue`, reads core 1's
 state, then holds the Renode log to a fixed set of warning classes.
 
 The process-list stage runs `ps -A -o pid= -o comm=` and requires exactly
@@ -1971,6 +1991,17 @@ every process without them. An image with the devices mode 0664 in group 0 (whee
 holds operator) was run once as the known-bad input: all three opens
 succeeded and the stage failed. The typed loop stays within the 126-byte
 `ED_MAX` line of `bin/sh/edit.c`.
+
+The fstat stage follows from the same shell. `fstat -p $$` must list the
+shell's working directory as a `dir` row and its standard input, the
+console, as a `chr` row, under the operator's name and the shell's pid.
+While fstat runs the shell is swapped out, to the swap device in
+PICO_UART and to the SwapRAM pool in the union kernel, so the kernel reads
+its descriptor table through the user-area reader. `fstat -v -p 1` must
+then name the refusal of init's descriptors and print no row for pid 1.
+An image whose fstat read `/dev/kmem` was run as the known-bad input: it
+printed `/dev/kmem: Permission denied` and the stage failed with no `wd`
+row.
 
 The core 1 stage waits five seconds and requires `machdep.core1=1` with
 zero restarts, zero faults and zero stalls. The model has a second CPU that

@@ -343,13 +343,36 @@ frequencies, and the number of micro-seconds per hz tick.
 KERN_FILE
 .br
 .in +.5i
-Return the entire file table as an array of extended \fIfile\fP
-structures.
-Each element of the array contains the kernel address of a file
-\fIstruct inode *\fP
-followed by the file itself
-\fIstruct file\fP.  There can never be more than \fBKERN_MAXFILES\fP
-inodes returned.
+Return the working directory and open descriptors of one process as an
+array of
+\fIstruct kinfo_file\fP
+records (\fI<sys/sysctl.h>\fP).
+The third level is the selector, KERN_FILE_BYPID, the fourth the process
+ID, and the fifth the record size the caller was built with, used as for
+KERN_PROC; it must be at least KI_FILE_MINSIZE and at most DEV_BSIZE.
+The first record, whose
+\fIkf_fd\fP
+is KF_FD_CWD, describes the working directory; the rest follow in
+descriptor order.
+A size query, and a buffer too short for every record, report room for
+the directory and NOFILE descriptors.
+.sp
+A record holds values only, no kernel address.
+An inode or pipe carries its device, inode number, mode and size
+(KF_VALID_INODE in
+\fIkf_valid\fP);
+a descriptor carries its open flags and offset (KF_VALID_FILE); any other
+descriptor type carries
+\fIkf_type\fP
+alone.
+The kernel reads the descriptor table from the process's user area, in
+memory, on the swap device or in the SwapRAM pool.
+It returns the records only to the super-user and to a caller whose
+effective user ID is the process's real or effective user ID, and fails
+with EPERM for any other caller.
+It fails with ESRCH for no such process or one that exited or changed
+during the read, and EIO for a failed read; a zombie returns no record.
+KERN_FILE takes no new value.
 .sp
 .in -.5i
 KERN_HOSTID
@@ -1013,6 +1036,10 @@ The KERN_TEXT, KERN_MAXTEXTS, VM_SWAPMAP and VM_NSWAP options are
 VM_COREMAP, a 2.11BSD extension returning the core allocation map, needs a
 core resource map this system does not keep.
 .PP
-Having KERN_FILE return the address of the file structure before the
-actual \fIstruct file\fP is a 2.11BSD enhancement.  The \fIinode\fP
-(\fIvnode\fP under 4.4) table was handled this way.
+In 2.11BSD, KERN_FILE returned the whole file table, each
+\fIstruct file\fP
+preceded by its kernel address, an enhancement modeled on the
+\fIinode\fP
+(\fIvnode\fP under 4.4) table.
+This system returns pointer-free records of one process's descriptors
+instead.

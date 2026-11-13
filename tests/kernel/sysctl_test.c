@@ -42,6 +42,7 @@
 #include <sys/kernel.h>
 #include <sys/file.h>
 #include <sys/inode.h>
+#include <sys/mount.h>
 #include <sys/tty.h>
 #include <sys/vm.h>		/* vmmeter.h and vmsystm.h, which self-include */
 #include <sys/map.h>
@@ -85,6 +86,7 @@ struct proc proc[NPROC];
 struct proc *freeproc, *zombproc, *allproc, *qs;
 struct file file[NFILE];
 struct inode inode[NINODE];
+struct mount mount[NMOUNT];
 struct vmtotal total;
 struct vmrate cnt;		/* the swap transfer counts vm_swp.c meters */
 struct timeval boottime;
@@ -1881,6 +1883,302 @@ test_records_refuse_writes(void)
 	reset_calls();
 }
 
+/*
+ * KERN_FILE records. Process number k of the fixture gets a working
+ * directory and three descriptors: a regular file at 0, a pipe at 3 and a
+ * socket-typed entry at NOFILE - 1 whose f_data is no inode. Every value
+ * derives from k, so a record built from another process's user area
+ * shows in each field.
+ */
+#define FREC		((int)sizeof(struct kinfo_file))
+#define GATE_DEV	0x0305
+
+static void
+give_files(int k, struct user *up)
+{
+	struct inode *dir = &inode[3 * k];
+	struct inode *reg = dir + 1;
+	struct inode *pipe = dir + 2;
+	struct file *f = &file[3 * k];
+
+	HK_CHECK(3 * k + 2 < NFILE && 3 * k + 2 < NINODE);
+	dir->i_number = (ino_t)(100 + k);
+	dir->i_mode = IFDIR | 0755;
+	dir->i_size = 512;
+	reg->i_number = (ino_t)(200 + k);
+	reg->i_mode = IFREG | 0644;
+	reg->i_size = 1000 + k;
+	pipe->i_number = (ino_t)(300 + k);
+	pipe->i_mode = IFREG;
+	pipe->i_size = 7;
+#ifndef SINGLE_UFS_ROOT
+	dir->i_dev = reg->i_dev = pipe->i_dev = GATE_DEV;
+#endif
+	f[0].f_type = DTYPE_INODE;
+	f[0].f_flag = FREAD;
+	f[0].f_count = 1;
+	f[0].f_offset = 40 + k;
+	f[0].f_data = (caddr_t)reg;
+	f[1].f_type = DTYPE_PIPE;
+	f[1].f_flag = FREAD | FWRITE;
+	f[1].f_count = 1;
+	f[1].f_data = (caddr_t)pipe;
+	f[2].f_type = DTYPE_SOCKET;
+	f[2].f_flag = FWRITE;
+	f[2].f_count = 1;
+	f[2].f_data = (caddr_t)&gate_tty;
+	up->u_cdir = dir;
+	up->u_ofile[0] = &f[0];
+	up->u_ofile[3] = &f[1];
+	up->u_ofile[NOFILE - 1] = &f[2];
+}
+
+/* The process table of build_table(), with files for pids 1, 12, 13 and 16. */
+static void
+build_file_table(void)
+{
+	build_table();
+	bzero(file, sizeof(file));
+	bzero(inode, sizeof(inode));
+	mount[0].m_dev = GATE_DEV;
+	give_files(0, &core_user[CALLER_SLOT].u);
+	give_files(1, &swapdisk[device_block(GATE_SWAP_END + 2)].u);
+	give_files(2, &swapdisk[device_block(9)].u);
+#ifdef SWAPRAM
+	give_files(3, &pool_user[6].u);
+#endif
+}
+
+static int
+get_files(int selector, int pid, int stride, size_t *len)
+{
+	int name[3];
+
+	name[0] = selector;
+	name[1] = pid;
+	name[2] = stride;
+	for (unsigned i = 0; i < sizeof(records); i++)
+		records[i] = POISON;
+	*len = sizeof(records);
+	return (sysctl_dofile(name, 3, records, len));
+}
+
+/* True when no four bytes of the buffer address a file or inode entry. */
+static int
+files_hold_no_address(size_t len)
+{
+	uint32_t word;
+
+	for (size_t off = 0; off + sizeof(word) <= len; off++) {
+		bcopy(records + off, &word, sizeof(word));
+		if (word >= (uint32_t)(uintptr_t)file &&
+		    word < (uint32_t)(uintptr_t)(file + NFILE))
+			return (0);
+		if (word >= (uint32_t)(uintptr_t)inode &&
+		    word < (uint32_t)(uintptr_t)(inode + NINODE))
+			return (0);
+		if (word == (uint32_t)(uintptr_t)&gate_tty)
+			return (0);
+	}
+	return (holds_no_address(len));
+}
+
+/* The four records give_files(k) produces, in descriptor order. */
+static void
+check_files_of(int k, int pid, size_t len)
+{
+	const struct kinfo_file *kf = (const void *)records;
+
+	HK_CHECK(len == (size_t)(4 * FREC));
+	HK_CHECK(files_hold_no_address(len));
+	for (int r = 0; r < 4; r++) {
+		HK_CHECK(kf[r].kf_size == FREC && kf[r].kf_pid == pid &&
+		    kf[r].kf_spare == 0);
+	}
+	HK_CHECK(kf[0].kf_fd == KF_FD_CWD && kf[0].kf_type == DTYPE_INODE);
+	HK_CHECK(kf[0].kf_valid == KF_VALID_INODE && kf[0].kf_flag == 0);
+	HK_CHECK(kf[0].kf_inum == (uint32_t)(100 + k) &&
+	    kf[0].kf_mode == (IFDIR | 0755) && kf[0].kf_isize == 512 &&
+	    kf[0].kf_dev == GATE_DEV);
+	HK_CHECK(kf[1].kf_fd == 0 && kf[1].kf_type == DTYPE_INODE);
+	HK_CHECK(kf[1].kf_valid == (KF_VALID_FILE | KF_VALID_INODE));
+	HK_CHECK(kf[1].kf_flag == FREAD && kf[1].kf_offset == 40 + k);
+	HK_CHECK(kf[1].kf_inum == (uint32_t)(200 + k) &&
+	    kf[1].kf_mode == (IFREG | 0644) && kf[1].kf_isize == 1000 + k &&
+	    kf[1].kf_dev == GATE_DEV);
+	HK_CHECK(kf[2].kf_fd == 3 && kf[2].kf_type == DTYPE_PIPE);
+	HK_CHECK(kf[2].kf_valid == (KF_VALID_FILE | KF_VALID_INODE));
+	HK_CHECK(kf[2].kf_flag == (FREAD | FWRITE) &&
+	    kf[2].kf_inum == (uint32_t)(300 + k) && kf[2].kf_isize == 7);
+	HK_CHECK(kf[3].kf_fd == NOFILE - 1 && kf[3].kf_type == DTYPE_SOCKET);
+	HK_CHECK(kf[3].kf_valid == KF_VALID_FILE && kf[3].kf_flag == FWRITE);
+	HK_CHECK(kf[3].kf_inum == 0 && kf[3].kf_mode == 0 &&
+	    kf[3].kf_dev == 0 && kf[3].kf_isize == 0);
+	HK_CHECK(POISONED(len));
+	HK_CHECK(geteblk_calls == brelse_calls);
+}
+
+/* Every place an image lives yields its own descriptors. */
+static void
+test_files_every_residency(void)
+{
+	size_t len;
+
+	build_file_table();
+	set_caller(0, 0);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 1, FREC, &len) == 0);
+	check_files_of(0, 1, len);
+	HK_CHECK(geteblk_calls == 0);
+
+	HK_CHECK(get_files(KERN_FILE_BYPID, 12, FREC, &len) == 0);
+	check_files_of(1, 12, len);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 13, FREC, &len) == 0);
+	check_files_of(2, 13, len);
+#ifdef SWAPRAM
+	HK_CHECK(get_files(KERN_FILE_BYPID, 16, FREC, &len) == 0);
+	check_files_of(3, 16, len);
+#endif
+	/* pid 0 has a user area but no files or directory in the fixture. */
+	HK_CHECK(get_files(KERN_FILE_BYPID, 0, FREC, &len) == 0);
+	HK_CHECK(len == 0 && POISONED(0));
+}
+
+/*
+ * The records go to root and to a caller whose effective uid is the
+ * process's real or effective uid, the rule KERN_PROC applies to arguments.
+ */
+static void
+test_files_policy(void)
+{
+	size_t len;
+
+	build_file_table();
+	set_caller(CALLER_UID, CALLER_UID);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 12, FREC, &len) == 0);
+	check_files_of(1, 12, len);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 13, FREC, &len) == EPERM);
+	HK_CHECK(POISONED(0) && geteblk_calls == brelse_calls);
+
+	set_caller(7, CALLER_UID);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 13, FREC, &len) == 0);
+	check_files_of(2, 13, len);
+
+	/* A real-uid match alone is not enough. */
+	set_caller(CALLER_UID, 7);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 13, FREC, &len) == EPERM);
+
+	/* The process's real uid admits a caller its effective uid does not. */
+	build_file_table();
+	proc[2].p_uid = 9;
+	set_caller(CALLER_UID, CALLER_UID);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 12, FREC, &len) == 0);
+	check_files_of(1, 12, len);
+}
+
+/* No process, an embryo, a zombie, a failed read and a changed slot. */
+static void
+test_files_refusals(void)
+{
+	int name[3] = { KERN_FILE_BYPID, 13, FREC };
+	size_t len;
+
+	build_file_table();
+	set_caller(0, 0);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 99, FREC, &len) == ESRCH);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 15, FREC, &len) == ESRCH);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 14, FREC, &len) == 0);
+	HK_CHECK(len == 0 && POISONED(0) && geteblk_calls == 0);
+
+	swap_error = 1;
+	HK_CHECK(get_files(KERN_FILE_BYPID, 13, FREC, &len) == EIO);
+	HK_CHECK(POISONED(0) && geteblk_calls == brelse_calls);
+	swap_error = 0;
+
+	hook_proc = &proc[3];
+	during_io = reuse_slot;
+	HK_CHECK(get_files(KERN_FILE_BYPID, 13, FREC, &len) == ESRCH);
+	HK_CHECK(POISONED(0) && geteblk_calls == brelse_calls);
+	during_io = NULL;
+
+	/* A block another image now holds is not this process's table. */
+	build_file_table();
+	set_caller(0, 0);
+	swapdisk[device_block(9)].u.u_procp = &proc[6];
+	HK_CHECK(get_files(KERN_FILE_BYPID, 13, FREC, &len) == ESRCH);
+
+	for (int selector = -1; selector <= 4; selector++) {
+		if (selector != KERN_FILE_BYPID)
+			HK_CHECK(get_files(selector, 13, FREC, &len) == EINVAL);
+	}
+	HK_CHECK(get_files(KERN_FILE_BYPID, 13, KI_FILE_MINSIZE - 1, &len) ==
+	    EINVAL);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 13, DEV_BSIZE + 1, &len) == EINVAL);
+	len = sizeof(records);
+	HK_CHECK(sysctl_dofile(name, 2, records, &len) == EINVAL);
+	HK_CHECK(sysctl_dofile(name, 4, records, &len) == EINVAL);
+}
+
+/*
+ * The caller's record size sets the stride, as for KERN_PROC. A size query
+ * and a short buffer both report room for the directory and NOFILE
+ * descriptors.
+ */
+static void
+test_files_caller_sized(void)
+{
+	int name[3] = { KERN_FILE_BYPID, 12, FREC };
+	const struct kinfo_file *kf;
+	size_t len;
+
+	build_file_table();
+	set_caller(0, 0);
+	HK_CHECK(get_files(KERN_FILE_BYPID, 12, 8, &len) == 0);
+	HK_CHECK(len == 4 * 8);
+	for (int r = 0; r < 4; r++) {
+		kf = (const void *)(records + r * 8);
+		HK_CHECK(kf->kf_size == FREC && kf->kf_pid == 12);
+	}
+	HK_CHECK(POISONED(4 * 8));
+
+	HK_CHECK(get_files(KERN_FILE_BYPID, 12, FREC + 12, &len) == 0);
+	HK_CHECK(len == (size_t)(4 * (FREC + 12)));
+	for (int r = 0; r < 4; r++) {
+		kf = (const void *)(records + r * (FREC + 12));
+		HK_CHECK(kf->kf_size == FREC && POISONED(r * (FREC + 12) + FREC) &&
+		    POISONED(r * (FREC + 12) + FREC + 11));
+	}
+
+	len = 0;
+	HK_CHECK(sysctl_dofile(name, 3, NULL, &len) == 0);
+	HK_CHECK(len == (size_t)((NOFILE + 1) * FREC));
+
+	len = (size_t)(2 * FREC + FREC / 2);
+	for (unsigned i = 0; i < sizeof(records); i++)
+		records[i] = POISON;
+	HK_CHECK(sysctl_dofile(name, 3, records, &len) == 0);
+	HK_CHECK(len == (size_t)((NOFILE + 1) * FREC));
+	HK_CHECK(POISONED(2 * FREC) && geteblk_calls == brelse_calls);
+}
+
+/* The descriptor records are read-only through __sysctl(). */
+static void
+test_files_refuse_writes(void)
+{
+	int mib[5] = { CTL_KERN, KERN_FILE, KERN_FILE_BYPID, 1, FREC };
+	size_t len = sizeof(records);
+	int token = 1;
+
+	build_file_table();
+	reset_calls();
+	HK_CHECK(call_syscall(mib, 5, records, &len, &token, sizeof(token)) ==
+	    EPERM);
+	reset_calls();
+	len = sizeof(records);
+	HK_CHECK(call_syscall(mib, 5, records, &len, NULL, 0) == 0);
+	HK_CHECK(len == (size_t)(4 * FREC) && superuser_calls == 0);
+	reset_calls();
+}
+
 int
 main(void)
 {
@@ -1918,5 +2216,10 @@ main(void)
 	test_records_selectors();
 	test_records_caller_sized();
 	test_records_refuse_writes();
+	test_files_every_residency();
+	test_files_policy();
+	test_files_refusals();
+	test_files_caller_sized();
+	test_files_refuse_writes();
 	return (hk_verdict("sysctl"));
 }

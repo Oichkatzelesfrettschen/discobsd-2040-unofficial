@@ -1753,7 +1753,7 @@ sysctl_shim.o: hostkern_kern.c hostkern.h ${MACHINE_STAMP}
 # beside it. The compact gate also builds the SwapRAM branch, as the PICO and
 # PicoCalc kernels do; the wide gate reads every nonresident user area from
 # the ring swap device, as PICO_UART does.
-SYSCTL_COMPACT_DEFS=	${COMPACT_DEFS} -DSWAPRAM
+SYSCTL_COMPACT_DEFS=	${COMPACT_DEFS} -DSWAPRAM -DSINGLE_UFS_ROOT -DNMOUNT=1
 SYSCTL_VMSWP_SRC=	${TOPSRC}/sys/kern/vm_swp.c
 SYSCTL_VMSWP_CFLAGS=	${KERN_CFLAGS} ${ILP32} -ffunction-sections \
 			-fdata-sections
@@ -1788,12 +1788,18 @@ sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
 # a user-area block whatever image its u_procp names; no_recheck accepts a
 # block after the process exited or its slot changed during the read;
 # open_args gives every caller the argument prefix; drop_marked leaves out
-# a process whose user area could not be read, as the raw-memory ps did.
-SYSCTL_PROC_MUTANTS=	no_identity no_recheck open_args drop_marked
+# a process whose user area could not be read, as the raw-memory ps did;
+# open_files gives every caller another user's descriptors; no_cwd drops
+# the working-directory record; bare_pipe leaves a pipe without its inode.
+SYSCTL_PROC_MUTANTS=	no_identity no_recheck open_args drop_marked \
+			open_files no_cwd bare_pipe
 SYSCTL_PROC_SED_no_identity=	s/if (up->u_procp != p)/if (0)/
 SYSCTL_PROC_SED_no_recheck=	s/if (proc_changed(p, pid))/if (proc_changed(p, pid) < 0)/
 SYSCTL_PROC_SED_open_args=	s/caller == kp->kp_ruid)/caller == kp->kp_ruid || kp->kp_size != 0)/
 SYSCTL_PROC_SED_drop_marked=	s/kinfo_fill(p, &kp);/kinfo_fill(p, \&kp); if (kp.kp_error) continue;/
+SYSCTL_PROC_SED_open_files=	s/caller != 0 && caller != p->p_uid/caller == (uid_t)-1 \&\& caller != p->p_uid/
+SYSCTL_PROC_SED_no_cwd=	s/fd = KF_FD_CWD; fd < NOFILE/fd = 0; fd < NOFILE/
+SYSCTL_PROC_SED_bare_pipe=	s/fp->f_type == DTYPE_PIPE)/0)/
 
 check-sysctl-proc-mutants: sysctl_test_compact
 .for mutation in ${SYSCTL_PROC_MUTANTS}

@@ -4,7 +4,8 @@
 The privileged inodes are the set-user-id programs and the kernel memory
 boundary: /dev/mem, /dev/kmem and /dev/swap read and write kernel state, so
 they are mode 0640 in group kmem. /bin/ps reads the kernel's process
-records through sysctl(3), so it carries no set-id bit and no kmem group.
+records through sysctl(3), and /usr/bin/fstat the kernel's descriptor
+records, so neither carries a set-id bit or the kmem group.
 Group 0 is wheel, which lists operator.
 """
 
@@ -24,6 +25,7 @@ PRIVILEGED_INODES = {
     "/usr/bin/passwd": (stat.S_IFREG, 0o4755, 0, 0),
     "/usr/bin/su": (stat.S_IFREG, 0o4751, 0, 0),
     "/bin/ps": (stat.S_IFREG, 0o775, 0, 0),
+    "/usr/bin/fstat": (stat.S_IFREG, 0o775, 0, 0),
     "/dev/mem": (stat.S_IFCHR, 0o640, 0, KMEM_GROUP),
     "/dev/kmem": (stat.S_IFCHR, 0o640, 0, KMEM_GROUP),
     "/dev/swap": (stat.S_IFBLK, 0o640, 0, KMEM_GROUP),
@@ -202,6 +204,9 @@ def verify_checker_controls() -> None:
         ("/bin/ps", (stat.S_IFREG, 0o2775, 0, 0)),
         ("/bin/ps", (stat.S_IFREG, 0o4775, 0, 0)),
         ("/bin/ps", (stat.S_IFREG, 0o775, 0, KMEM_GROUP)),
+        ("/usr/bin/fstat", (stat.S_IFREG, 0o2755, 0, KMEM_GROUP)),
+        ("/usr/bin/fstat", (stat.S_IFREG, 0o2775, 0, 0)),
+        ("/usr/bin/fstat", (stat.S_IFREG, 0o775, 0, KMEM_GROUP)),
         ("/dev/mem", (stat.S_IFCHR, 0o664, 0, 0)),
         ("/dev/mem", (stat.S_IFCHR, 0o640, 0, 0)),
         ("/dev/kmem", (stat.S_IFCHR, 0o660, 0, KMEM_GROUP)),

@@ -84058,9 +84058,7 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast",
-            "shift-expression",
-            "width-sensitive-sizeof"
+            "integer-cast"
           ],
           "object_lifetime": [
             "dynamic-storage"
@@ -84068,9 +84066,7 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }

@@ -17,6 +17,8 @@ fstat \- file status
 .SH SYNOPSIS
 .B fstat
 [
+.B \-v
+] [
 .B \-u
 user ] [
 .B \-p
@@ -26,14 +28,31 @@ pid ] [
 .SH DESCRIPTION
 .I Fstat
 identifies open files.
-A file is considered open if a process has it open,
-if it is the working directory for a process,
-or if it is an active pure text file.
+A file is considered open if a process has it open
+or if it is the working directory for a process.
 If no options are specified,
 .I fstat
-reports on all open files.
+reports on all open files of the processes it may inspect.
+.PP
+.I Fstat
+reads the kernel's process and descriptor records, which
+.IR sysctl (3)
+returns for
+.B KERN_PROC
+and
+.BR KERN_FILE .
+The kernel reads a process's descriptor table wherever its image lives \-
+in memory, on the swap device or in the SwapRAM pool \- so
+.I fstat
+reads no memory device and needs no privilege.
+The kernel returns the descriptors of a process to the super-user and to a
+caller whose effective user ID is the process's real or effective user ID;
+the other processes are left out.
 .PP
 Options:
+.TP 6
+.B  \-v
+Name each process left out and the reason.
 .TP 6
 .B  \-u
 Report all files open by a specified user.
@@ -61,16 +80,9 @@ The process id.
 .TP 6
 .B FD
 The file number in the per-process open file table.  The special
-names "text" and "wd" mean that the file is the pure text inode
-or the working directory for the process.  If the file number is
-followed by an asterick (*), then the file is not an inode, but
-either a socket, fifo, or has an error of some kind. In this case
-the rest of the entry is variable format, doesn't correspond
-to the rest of the
-headings, and is
-enclosed in parenthesis.
-The following paragraph describing sockets will explain the
-variable format.
+name "wd" means that the file is the working directory for the process.
+If the file number is followed by an asterisk (*), then the file is not
+an inode, and the rest of the entry names its type in parentheses.
 .TP 6
 .B DEVICE
 Major minor number of the device this file exists on.
@@ -82,30 +94,10 @@ The inode number of the file.
 The size in bytes of the file.
 .TP 6
 .B TYPE
-The type of the file. (see sys/file.h)
-.PP
-Sockets
-.sp 1 6
-The formating of open sockets depends on the protocol domain.  In
-all cases the first field is the domain name, the second field
-is the socket type (stream, dgram, etc), and the third is the socket
-flags field (in hex).  The remaining fields are protocol dependent.  For tcp,
-it is the address of the tcpcb, and for udp,
-the inpcb (socket pcb).  For unix domain sockets, its the address of the socket
-pcb and the address of the connected pcb (if connected).  Otherwise
-the protocol number and address of the socket itself are printed. The
-idea is not to duplicate netstat, but to make available enough
-information for further analysis.  For example, the addresses mentioned
-above are the addresses which the "netstat -A" command would print for
-tcp, udp, and unixdomain.  Note that since pipe(2) is implemented
-with sockets, a pipe appears as a connected unix domain stream socket.
-A unidirectional unix domain socket indicates the direction of
-flow with an arrow ("<-" or "->"), and a full duplex socket shows
-a double arrow ("<->").
+The type of the file: reg, dir, chr, blk, lnk or soc from its inode mode,
+or pip for a pipe.
 .SH BUGS
-Socket information clutters the output.
-.PP
 Since \fIfstat\fP takes a snapshot of the system, it is only correct for
 a very short period of time.
 .SH "SEE ALSO"
-ps(1), pstat(8)
+ps(1), pstat(8), sysctl(3)

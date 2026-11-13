@@ -1162,7 +1162,8 @@ records the matched clean distribution, focused contracts, fourteen archive
 omission controls and ARMv6-M QEMU qualification. Quick exit adds 624 native
 archive bytes; its composition with bounded strings consumes one additional
 root data block. The complete resource vector also carries normal exit's
-sixteen positive packed-byte entries. Resource approval, combined aggregate
+sixteen positive packed-byte entries. The owner approves the exact combined
+resource limits, and the complete ILP32 inventory passes. Combined aggregate
 qualification and reviewed integration remain open. Earlier approvals retain
 their exact candidate identities.
 

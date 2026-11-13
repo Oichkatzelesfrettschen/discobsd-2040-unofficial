@@ -5,7 +5,9 @@ archive bytes and one root data block relative to the bounded-string baseline.
 The exit repair adds 28 positive packed bytes across sixteen executables. The
 same sixteen packed-byte deltas appear in the retained integrated exit review.
 The root has 234 free blocks and 32 free inodes after the combined change.
-Owner approval remains pending for this complete resource vector.
+The owner approves this exact combined resource vector and directs continued
+qualification and review. The approval includes the additional adminbox byte;
+the original 27-byte exit and 692-byte string approvals retain their identities.
 
 The [profile rule](dpucp-2024.md) states: "An exception records exact deltas,
 examined alternatives, retained margins, user benefit, rollback point and
@@ -64,8 +66,8 @@ packed-byte entry has its own limit:
 | `/usr/sbin/update` | 1213 | 1214 | +1 |
 
 The sixteen positive packed-byte entries total 28 bytes. Fifteen entries carry
-the original exit repair's 27 positive bytes; the adminbox byte remains the
-additional pending entry. All executable raw sizes, loaded sizes and allocated
+the original exit repair's 27 positive bytes; the combined approval also covers
+the additional adminbox byte. All executable raw sizes, loaded sizes and allocated
 packed blocks remain unchanged. Both kernel resource vectors remain unchanged.
 The complete comparison has 158 surfaces, with 125 unchanged; the remaining
 nonzero entries are the listed positive costs and separately recorded packed
@@ -103,7 +105,7 @@ interfaces. The [quick-exit contracts](quick-exit-contracts.md) and
 The rollback point is the parent source, which retains bounded strings while
 lacking quick exit and retaining the normal-exit callback defect.
 
-The requested exception binds the exact pair, 624 archive bytes, three named
+The approved exception binds the exact pair, 624 archive bytes, three named
 members, one root data block and sixteen positive packed-byte limits above.
 The earlier bounded-string approval remains separate. Approval covers no future
 growth and establishes no full POSIX conformance or physical-board result.
@@ -124,4 +126,8 @@ witnesses; the string sanitizer variant also passes.
 passes with ARMv6-M execution. Its string and quick-exit mutations reject the
 specified broken implementations. This result establishes user-mode instruction
 execution under QEMU; physical-board execution remains unrun. The combined
-`logged-check` and complete `logged-ilp32` inventories remain pending.
+`logged-check` remains pending. The complete `logged-ilp32` inventory passes
+193 of 193 variants at documentation commit
+`eacedc9f15733fabd6a71fd64846a3da0be0e3d6`, whose production implementation
+matches the captured candidate. The terminal receipt records exit zero at
+`2026-11-13T00:01:46Z`.

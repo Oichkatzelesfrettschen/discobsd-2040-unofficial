@@ -29,6 +29,20 @@ counters
     limit, a minimum free count of zero and at least one failure, and the
     process occupancy equals its value before the runs, so no child
     outlived its program.
+clistbound
+    run between proctab and the counters: output stopped, a blocked
+    writer, and 600 typed bytes past TTYHOG; "CLISTBOUND OK" (no clist
+    refusal), exit status 0, and the writer's 60 numbered lines once each
+    in order.
+clist and buffer bounds
+    the clist and buffer failure counters do not move across the run: no
+    clist refusal and no getblk() wait for a buffer; their peaks are
+    printed.
+record readers
+    as root, pstat -i, -f and -t print the inode table, file table and
+    console terminal; then as operator, outside the kmem group, pstat -T
+    and -p, vmstat, vmstat -s and -f, and iostat print their records, and
+    pstat -i is refused with EPERM.
 
 The claim is the emulated kernel's table accounting and recovery. The
 third-party peripheral models carry the boot; a Pico's result is the board
@@ -52,9 +66,10 @@ from renode_monitor import Renode, RenodeError  # noqa: E402
 # The kernel configuration check-capacity.sh boots; it selects the probe lines.
 CONFIG = "PICO_UART"
 PROGRAM_BUDGET_SECONDS = 900.0
-TABLES = {"proc", "inode", "file"}
+TABLES = {"proc", "inode", "file", "clist", "buffer"}
 ROW = re.compile(
-    r"^(proc|inode|file)\s+limit (\d+) current (\d+) peak (\d+) min-free (\d+) failures (\d+)",
+    r"^(proc|inode|file|clist|buffer)\s+limit (\d+) current (\d+) peak (\d+) min-free (\d+) "
+    r"failures (\d+)",
     re.M,
 )
 
@@ -96,6 +111,95 @@ def run_program(console, boot, name: str, verdict: str) -> None:
         console.fail(f"{name}: a check printed FAIL")
 
 
+# clistbound (tests/rp2040/capacity_exhaustion/clistbound.c) stops its
+# terminal's output and holds a blocked writer while this driver types
+# CB_INPUT_BYTES into the stopped terminal, past TTYHOG (255, sys/kern/tty.c),
+# in chunks one emulation slice apart so the UART model delivers each. The
+# writer's CB_LINES numbered lines must then arrive once each and in order.
+CB_LINES = 60
+CB_INPUT_BYTES = 600
+CB_CHUNK = 60
+CB_DRAIN_SECONDS = 3.0
+# Echoed input can land on the same console line as a writer line, so a
+# line is matched wherever it sits.
+CB_LINE = re.compile(r"CB(\d{4}) abcdefghijkl")
+
+
+def run_clistbound(console, boot) -> None:
+    """Run /tmp/clistbound with typed input and require its verdict."""
+    start = console.cursor
+    console.type_line("/tmp/clistbound; echo rc=$?")
+    console.wait_for("\nCLISTBOUND STOP", "clistbound start", boot.COMMAND_BUDGET_SECONDS)
+    for _ in range(int(CB_DRAIN_SECONDS / boot.SLICE_SECONDS)):
+        console.advance()
+    # The input begins with '#', so the shell reads what the terminal kept
+    # of it as a comment once the program exits.
+    console.renode.command("sysbus.uart0 WriteChar 0x23")
+    for _ in range(CB_INPUT_BYTES // CB_CHUNK):
+        for _ in range(CB_CHUNK):
+            console.renode.command("sysbus.uart0 WriteChar 0x78")
+        console.advance()
+    console.wait_for("\nrc=", "clistbound exit status", PROGRAM_BUDGET_SECONDS)
+    console.type_line("")
+    console.wait_for("#", "prompt after clistbound", boot.COMMAND_BUDGET_SECONDS)
+    text = output_since(console, start)
+    lines = text.split("\n")
+    for line in lines:
+        if line.startswith(("INFO", "FAIL", "CLISTBOUND")):
+            print(f"check-capacity: clistbound: {line}")
+    numbers = [int(found) for found in CB_LINE.findall(text)]
+    if numbers != list(range(CB_LINES)):
+        console.fail(f"clistbound: {len(numbers)} writer lines, not 0..{CB_LINES - 1} once each")
+    if "CLISTBOUND OK" not in lines:
+        refused = [line for line in lines if line.startswith("CLISTBOUND REFUSED")]
+        console.fail(f"clistbound: the clist pool refused a block: {refused}")
+    if "rc=0" not in lines or any(line.startswith("FAIL") for line in lines):
+        console.fail("clistbound: exit status is not 0 or a check printed FAIL")
+
+
+# The kernel-record readers, which check-capacity.sh adds under /tmp. root
+# reads pstat's system tables; operator, outside the kmem
+# group, runs everything else, which the readers that opened /dev/kmem
+# could not, and must be refused the inode table.
+ROOT_READER_CHECKS = (
+    ("/tmp/pstat -i", (r"^\d+/24 active inodes$", r"^FLAGS +CNT +DEVICE")),
+    ("/tmp/pstat -f", (r"^\d+/18 open files$", r"^TYPE +FLG +CNT")),
+    ("/tmp/pstat -t", (r"^cn line$", r"^ +\d+ +\d+ +\d+ ")),
+)
+OPERATOR_READER_CHECKS = (
+    ("/tmp/pstat -T", (r"^ *\d+/ *18 files$", r"^ *\d+/ *24 inodes$", r"^ *\d+/ *16 processes$",
+                  r"^\d+ kbytes swap used, \d+ kbytes free$")),
+    ("/tmp/pstat -p", (r"^ +S +F +PRI +UID", r"^ +\d+ +[0-9a-f]+ +\d+ +0 ")),
+    ("/tmp/vmstat", (r"^ *r +b +w +avm", r"^ *\d+ +\d+ +\d+ +\d+ ")),
+    ("/tmp/vmstat -s", (r"^ *\d+ system calls$", r"^ *\d+ cpu context switches$")),
+    ("/tmp/vmstat -f", (r"^\d+ forks, \d+ kbytes",)),
+    ("/tmp/iostat", (r"^ *tin +tout", r"^ *\d+ +\d+ +\d+ +\d+ +\d+ +\d+$")),
+    ("/tmp/pstat -i", (r"^pstat: inodes: Operation not permitted$",)),
+)
+
+
+def run_reader_checks(console, boot, checks, prompt: str) -> None:
+    """Run each command and require a line for each of its patterns."""
+    for command, patterns in checks:
+        start = console.cursor
+        console.type_line(f"{command}; echo rd-end")
+        console.wait_for("\nrd-end", command, boot.COMMAND_BUDGET_SECONDS)
+        console.wait_for(prompt, f"prompt after {command}", boot.COMMAND_BUDGET_SECONDS)
+        text = output_since(console, start)
+        for pattern in patterns:
+            if not re.search(pattern, text, re.M):
+                console.fail(f"{command}: no line matching {pattern!r} in {text!r}")
+
+
+def run_record_readers(console, boot) -> None:
+    """Check the readers as root, then as operator after leaving su."""
+    run_reader_checks(console, boot, ROOT_READER_CHECKS, "#")
+    console.type_line("exit")
+    console.wait_lines(["$"], "operator shell", boot.COMMAND_BUDGET_SECONDS)
+    run_reader_checks(console, boot, OPERATOR_READER_CHECKS, "$")
+    print("check-capacity: record readers checked")
+
+
 def capacity_rows(console, boot) -> dict:
     """Return {table: (limit, current, peak, min_free, failures)} from sysctl."""
     start = console.cursor
@@ -133,6 +237,7 @@ def run_stages(console, boot) -> None:
     run_program(console, boot, "filetab", "FILETABTEST")
     run_program(console, boot, "inotab", "INOTABTEST")
     run_program(console, boot, "proctab", "PROCTABTEST")
+    run_clistbound(console, boot)
     after = capacity_rows(console, boot)
     if set(after) != TABLES:
         console.fail(f"kern.capacity rows after the runs: {sorted(after)}")
@@ -150,6 +255,20 @@ def run_stages(console, boot) -> None:
             console.fail(f"{table}: failures stayed at {failures}")
     if after["proc"][1] != before["proc"][1]:
         console.fail(f"process occupancy {before['proc'][1]} before, {after['proc'][1]} after")
+    # The buffer bound: the table-exhaustion programs and clistbound drive
+    # the file system and swap hardest of any tier, and no getblk() may
+    # wait for a buffer meanwhile (sys/kern/ufs_bio.c counts each wait as a
+    # buffer failure); the peak is recorded, and the clist row must show no
+    # refusal.
+    for table in ("clist", "buffer"):
+        limit, current, peak, min_free, failures = after[table]
+        print(
+            f"check-capacity: {table} limit {limit} current {current} peak {peak} "
+            f"min-free {min_free} failures {failures}"
+        )
+        if failures != before[table][4]:
+            console.fail(f"{table}: failures moved from {before[table][4]} to {failures}")
+    run_record_readers(console, boot)
 
 
 def main(argv: list[str]) -> int:

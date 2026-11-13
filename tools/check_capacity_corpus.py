@@ -25,6 +25,20 @@ REQUIRED_OBLIGATIONS = {
         "recovery",
     },
 }
+
+# The obligations each execution class declares. The emulated image has one
+# live terminal, and sys/kern/tty.c asserts that one terminal fits the clist
+# pool; the emulated workload never makes getblk() wait for a buffer. So the
+# Renode class bounds those two resources (peak recorded, failure counter
+# unchanged) where the host and board classes exhaust them.
+CLASS_OBLIGATIONS = {
+    "board": REQUIRED_OBLIGATIONS,
+    "renode": {
+        **REQUIRED_OBLIGATIONS,
+        "NCLIST": {"normal", "bound", "recovery"},
+        "NBUF": {"normal", "bound", "recovery"},
+    },
+}
 EXECUTION_CLASSES = {"host", "ilp32", "qemu-user", "renode", "board"}
 LOCAL_EXECUTION_CLASSES = {"host", "ilp32", "qemu-user"}
 RECEIPT_STATES = {"executable", "retained", "open"}
@@ -220,7 +234,7 @@ def validate(root, document):
                     and case["receipt_state"] == "retained"
                     for obligation in case["obligations"]
                 }
-                missing = REQUIRED_OBLIGATIONS[resource] - admitted
+                missing = CLASS_OBLIGATIONS[execution_class][resource] - admitted
                 require(
                     not missing,
                     f"{resource} lacks retained {execution_class} obligations: "
@@ -232,6 +246,7 @@ def validate(root, document):
         missing = obligations - coverage[resource]
         require(not missing, f"{resource} lacks corpus obligations: {', '.join(sorted(missing))}")
         for execution_class in ("renode", "board"):
+            obligations = CLASS_OBLIGATIONS[execution_class][resource]
             declared = {
                 obligation
                 for case in cases.values()
@@ -310,6 +325,11 @@ def self_test(root, document):
     changed = copy.deepcopy(document)
     changed["cases"][0]["dependencies"] = [changed["cases"][0]["id"]]
     mutations.append(("dependency cycle", changed))
+    changed = copy.deepcopy(document)
+    for case in changed["cases"]:
+        if case["execution_class"] == "renode" and "NCLIST" in case["resources"]:
+            case["obligations"] = [o for o in case["obligations"] if o != "bound"]
+    mutations.append(("Renode clist case without its bound", changed))
     for name, mutated in mutations:
         try:
             validate(root, mutated)

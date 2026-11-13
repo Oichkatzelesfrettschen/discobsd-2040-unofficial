@@ -51,9 +51,16 @@ command -v renode >/dev/null 2>&1 ||
 	missing "no $DISK; run bmake MACHINE=rp2040 fs"
 [ -x "$FSUTIL" ] && [ -x "$FLASHIMG" ] ||
 	missing "no fsutil or flashimg under tools/bin/rp2040; run bmake MACHINE=rp2040 tools"
-for program in filetab inotab proctab; do
+for program in filetab inotab proctab clistbound; do
 	[ -r "$FIXTURES/$program" ] ||
 		missing "no $FIXTURES/$program; run bmake -C tests/rp2040/capacity_exhaustion MACHINE=rp2040"
+done
+# The kernel-record readers, which the RP2040 root does not carry, run from
+# /tmp beside the fixtures: their build products, as the SD image ships them.
+READERS="usr.bin/vmstat/vmstat usr.sbin/iostat/iostat usr.sbin/pstat/pstat"
+for reader in $READERS; do
+	[ -r "$TOP/$reader" ] ||
+		missing "no $TOP/$reader; run bmake MACHINE=rp2040 build"
 done
 
 RUNNING_RENODE=$(renode --version 2>/dev/null | sed -n 's/.*build: *//p' | head -1)
@@ -63,15 +70,21 @@ echo "check-capacity: Renode ${RUNNING_RENODE:-unknown}"
 # file under the name it is given, relative to the working directory.
 mkdir -p "$OUTPUT"
 STAGE=$(mktemp -d "$OUTPUT/stage.XXXXXX")
-trap 'rm -f "$STAGE/tmp/filetab" "$STAGE/tmp/inotab" "$STAGE/tmp/proctab"
+trap 'rm -f "$STAGE/tmp/filetab" "$STAGE/tmp/inotab" "$STAGE/tmp/proctab" "$STAGE/tmp/clistbound"
+rm -f "$STAGE/tmp/vmstat" "$STAGE/tmp/iostat" "$STAGE/tmp/pstat"
 rmdir "$STAGE/tmp" "$STAGE" 2>/dev/null || :' EXIT HUP INT TERM
 mkdir "$STAGE/tmp"
-for program in filetab inotab proctab; do
+for program in filetab inotab proctab clistbound; do
 	cp "$FIXTURES/$program" "$STAGE/tmp/$program"
 	chmod 755 "$STAGE/tmp/$program"
 done
+for reader in $READERS; do
+	cp "$TOP/$reader" "$STAGE/tmp/${reader##*/}"
+	chmod 755 "$STAGE/tmp/${reader##*/}"
+done
 cp "$DISK" "$OUTPUT/disk.img"
-(cd "$STAGE" && "$FSUTIL" --add --partition=1 "$OUTPUT/disk.img" tmp/filetab tmp/inotab tmp/proctab)
+(cd "$STAGE" && "$FSUTIL" --add --partition=1 "$OUTPUT/disk.img" tmp/filetab tmp/inotab tmp/proctab tmp/clistbound \
+	tmp/vmstat tmp/iostat tmp/pstat)
 "$FSUTIL" --check --partition=1 "$OUTPUT/disk.img" >"$OUTPUT/fsck.txt" 2>&1 ||
 	missing "the composed image fails fsutil --check; see $OUTPUT/fsck.txt"
 "$FLASHIMG" "$OUTPUT/disk.img" "$OUTPUT/flash.bin" >"$OUTPUT/flashimg.txt"

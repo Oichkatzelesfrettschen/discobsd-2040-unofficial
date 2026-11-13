@@ -427,7 +427,7 @@ upload and hidden-file inclusion.
 | board descriptor reader and UF2 patch | `check-board-descriptor` | host cc, `${PYTHON}`, built `PICOCALC_PSRAM/unix.uf2` | yes, through `check-cross` after the build | yes, through `check-cross` after the build |
 | kernel flash headroom (FLASH region of `RP2040.ld` less the loaded image, per board kernel) | `check-kernel-headroom` | `${PYTHON}`, built `unix.elf` for each of `MACHINE_KERNEL_CONFIGS` | yes, after the build | yes, after the build |
 | clean residue (`cleanall`, then every untracked file, ignored files included, against `tools/clean-residue-allow.txt`, whose entries each carry a reason; `tools/check-clean-residue.sh --selftest` first accepts a tree holding only allowed files, rejects an ignored leftover and refuses an entry without a reason) | `check-clean-residue` | git, a built and checked tree | yes: the last step of the `firmware/rp2040` job, after the images are retained, since it destroys them | no |
-| account image (root lock, operator empty password, exact named shadow offsets, privileged modes) | `check-account-image` | `${PYTHON}`, RP2040 `fsutil`, generated filesystem image | distribution and flash builds | not run on host-only targets |
+| account image (root lock, operator empty password, exact named shadow offsets, type, mode, owner and group of passwd, su, ps and the kernel memory devices) | `check-account-image` | `${PYTHON}`, RP2040 `fsutil`, generated filesystem image | distribution and flash builds | not run on host-only targets |
 | STM32 build (ten Cortex-M4 kernels linked, userland and tools compiled) | `bmake MACHINE=stm32 build` | arm-none-eabi toolchain, host build tools | yes: the `firmware/stm32` job | no |
 
 The STM32 build is the only gate that compiles `sys/arch/stm32`. The
@@ -1733,8 +1733,8 @@ numbers.
 
 `check-renode` runs tools/renode/check-boot.sh, which boots the UART0
 console kernel from the real RP2040 boot ROM, asserts the console through
-the device probe, logs in, runs `uname`, `ps -ax` as operator,
-`sysctl kern.capacity`, `mputest` and `mputest residue`, reads core 1's
+the device probe, logs in, runs `uname`, `ps -ax` as operator, tries to
+open the kernel memory devices as operator, `sysctl kern.capacity`, `mputest` and `mputest residue`, reads core 1's
 state, then holds the Renode log to a fixed set of warning classes.
 
 The process-list stage requires the row of init, which is swapped out while
@@ -1746,6 +1746,15 @@ its fields through `machdep.swapram_psinfo.<pid>` and prints
 `(init)`. A union kernel without that node was run once as the known-bad
 input: its ps read block 0 of the swap device for init and the stage failed
 on a row with an empty name.
+
+The kernel memory device stage follows from the same operator shell. The
+image ships `/dev/mem`, `/dev/kmem` and `/dev/swap` mode 0640 root:kmem and
+`/bin/ps` setgid kmem, so the process-list stage reaches the devices only
+through ps, and the stage requires a direct open of each device from the
+shell to fail. An image with the devices mode 0664 in group 0 (wheel, which
+holds operator) was run once as the known-bad input: all three opens
+succeeded and the stage failed. The typed loop stays within the 126-byte
+`ED_MAX` line of `bin/sh/edit.c`.
 
 The core 1 stage waits five seconds and requires `machdep.core1=1` with
 zero restarts, zero faults and zero stalls. The model has a second CPU that

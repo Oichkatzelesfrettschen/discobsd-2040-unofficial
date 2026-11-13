@@ -1414,7 +1414,7 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-r
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
-		check-c17-headers-cross \
+		check-c17-headers-cross check-libc-shared-closure \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-libc-getgrent-cross \
@@ -1435,6 +1435,13 @@ CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-r
 		check-du-contracts-cross check-resize-contracts-cross \
 		check-libc-string-security-cross \
 		check-stdio-bounds-cross check-elf2aout
+
+check-libc-shared-closure: check-python
+		env SHARED_CLOSURE_CC=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    SHARED_CLOSURE_AR=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-ar \
+		    ${PYTHON} tools/libc_shared_closure_test.py
+
+.PHONY: check-libc-shared-closure
 
 # No object of a shipped program defines a global symbol that lib/libc.a also
 # defines, because `ld --just-symbols` against a shared libc image rebinds such
@@ -1685,12 +1692,19 @@ check-exec-dispatch-qemu: check-python
 
 .PHONY: check-exec-dispatch-qemu
 
+check-libc-xip-object-abi: check-python
+		${PYTHON} tests/libc_xip_object_abi/run.py \
+		    --cc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc
+
+.PHONY: check-libc-xip-object-abi
+
 check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} check-aeabi-copy-qemu
 		${MAKE} check-ucall-qemu
 		${MAKE} check-packed-exec-control-qemu
 		${MAKE} check-exec-dispatch-qemu
+		${MAKE} check-libc-xip-object-abi
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test

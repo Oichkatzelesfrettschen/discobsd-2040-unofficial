@@ -186,6 +186,10 @@ contract. Its historical savings remain screening evidence until matched
 current builds establish margins. Physical-board execution requires separate
 authorization; each representative shared-libc workload must stay within a
 10% regression limit with measurement uncertainty reported.
+The [export-closure record](xip-shared-libc/export-closure/README.md) adds a
+calibrated prerequisite: explicit public roots determine archive membership,
+and input-section screening stays separate from final PIC size. Public ABI
+selection, complete state layout and runtime admission remain open.
 
 `c17-shipped-build-baseline.md` records the implemented capture/closure/resource
 foundation, first captured at `e7040aa1` and re-recorded at `3626ccf3`. Its

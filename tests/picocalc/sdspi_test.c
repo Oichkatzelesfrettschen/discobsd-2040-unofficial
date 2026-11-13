@@ -236,10 +236,10 @@ model_xfer(unsigned char in)
 		if (wr_have < SD_SECTOR)
 			captured[wr_have] = in;
 		if (++wr_have == SD_SECTOR + 2) {
+			/* command_complete() consumed the step already. */
 			push(wr_step->resp);
 			busy_left = wr_step->busy;
 			st = S_IDLE;
-			pos++;
 		}
 		break;
 	}

@@ -138,3 +138,28 @@ The publication head `edd9bb440729eda0a992cc54015005d39ca6af30` also
 passes all 193 ILP32 variants at `2026-11-13T00:14:12Z`. Its automated
 review completes with zero findings. Those documentation revisions retain
 the captured production implementation.
+
+## Case-distinct member identity
+
+Clean source `f0d9200376c681b23792f5962ffbeb1d140bb110` names the ISO termination
+member `iso_exit.o` so case-insensitive archive extraction preserves both `_Exit`
+and `_exit`. The [repair resource receipt](libc-termination-member-resources.json)
+and [comparison](libc-termination-member-comparison.json) retain all 158 numeric
+surfaces unchanged against the approved combined candidate. The native archive
+remains 44,410 bytes with 158 members; the root retains 745 allocated data blocks
+and 234 free blocks. All 33 program records, including hashes, match.
+
+The sole native selection change maps `_Exit.o` to `iso_exit.o`. Both members
+have SHA-256 `2efd930e058e191e8ab481df5127283923e340b2c7b28e1fce68933452fc3a78`;
+every other selected member retains its hash. The default comparator rejects
+the newly named member as an added dependency, despite zero numeric growth.
+This explicit byte-identity mapping reconciles that mechanical rejection with
+the existing resource approval; it adds neither a function nor a resource
+allowance. Kernel section sizes match while generated ELF identities differ.
+Historical receipts preserve their original names and hashes.
+
+The repaired cross-link includes both termination symbols and excludes allocation
+and normal cleanup. The case-alias control rejects, and fourteen native
+missing-member controls reject across full and reduced archives. The
+[mechanism record](quick-exit-contracts.md#case-insensitive-archive-extraction)
+owns the failure analysis and remaining macOS qualification.

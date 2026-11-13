@@ -37,7 +37,8 @@ board: invalid descriptor, using bare Pico with USB console
 ## PicoCalc descriptor
 
 The measured keyboard model and retained PicoCalc evidence predict these
-device lines in order when the PSRAM identifies and passes its pattern test:
+device lines in order when the PSRAM identifies and passes its pattern and
+address-extent tests:
 
 ```text
 lcd0: ST7365P 320x320 on SPI1, 53x32 cells, console

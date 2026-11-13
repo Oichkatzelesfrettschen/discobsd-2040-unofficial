@@ -208,8 +208,10 @@ manufacturer 0x0D and known-good-die 0x5D, enters quad mode, and writes and
 reads back 32 bytes across a 64-byte frame boundary and a page boundary.
 Those bytes name a family, not a density, so `psram_check_extent()` then
 writes a tag at 4 MB and another at address 0 and requires the first to
-read back: on a smaller part the 4 MB address lands on address 0, and the
-probe refuses it (error -6) before swap would overwrite itself.
+read back. Hypothesis: a smaller part answering the same bytes ignores the
+high address bits, so its 4 MB address lands on address 0; that part, and
+any part that drops the write, is refused (error -6) before swap would
+overwrite itself.
 The Read ID frame collects all 64 ID bits, manufacturer, known-good die and
 the 48-bit EID, eight RX words in one 98-clock frame (31 clocks out, three
 with the pins released, 64 in); an RX overrun repeats

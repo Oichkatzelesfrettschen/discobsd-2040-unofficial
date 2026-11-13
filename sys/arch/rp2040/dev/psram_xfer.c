@@ -354,11 +354,13 @@ psram_write(unsigned int addr, const unsigned char *src, unsigned int len)
 /*
  * Address extent. Manufacturer 0x0d and known-good die 0x5d identify a
  * family, not a density: the APS6404L sheet gives the density only in
- * EID[47:45], and the ESP and Lyontek sheets give none. A part with fewer
- * address bits than PSRAM_BYTES needs ignores the high ones, so swap would
- * overwrite itself. On a part of 2^k bytes below PSRAM_BYTES, address
- * PSRAM_BYTES / 2 is a multiple of 2^k and lands on address 0, so a tag
- * written there and then overwritten through address 0 reads back changed.
+ * EID[47:45], and the ESP and Lyontek sheets give none. Hypothesis: a
+ * smaller part answering the same bytes ignores the high address bits, so
+ * PSRAM_BYTES / 2, a multiple of any smaller power of two, lands on
+ * address 0. The check fails closed either way: the tag written at
+ * PSRAM_BYTES / 2 must read back after a different tag goes to address 0,
+ * so a wrapped address and a dropped write both refuse the part before
+ * swap uses it.
  */
 static int
 psram_check_extent(void)

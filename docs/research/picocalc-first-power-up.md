@@ -6,9 +6,29 @@ the board observations that the coverage ledger
 (`hardware-reference-coverage.md`, "Pending checks") leaves open, so that
 each one costs the least and none disturbs an earlier one. Each step
 states its prediction and the observation that refutes it; a result goes
-into the ledger row named in the step. Every step reads; the two that
-write are marked: the Pico's flash in "PicoCalc kernel boot", and nothing
-else. A board run of a DiscoBSD image stays the owner's explicit opt-in.
+into the ledger row named in the step. Every step reads except "PicoCalc
+kernel boot", which writes the Pico's flash; a board run of a DiscoBSD
+image stays the owner's explicit opt-in.
+
+## The Pico's flash image, first
+
+The Pico on the bench runs the PICO kernel from its UFS root (`fl0a`).
+Save its flash before it goes near the PicoCalc, through its own
+micro-USB port:
+
+    mkdir -p "$NOTES/docs/local/picocalc"
+    discobsd-flash --bootsel
+    picotool save -r 0x10000000 0x10200000 \
+        "$NOTES/docs/local/picocalc/pico-flash-before-$(date -u +%Y%m%d).bin"
+    discobsd-flash --eject
+
+where `$NOTES` names the discobsd-2040-notes checkout. Keep the Pico out
+of the PicoCalc until "PicoCalc kernel boot": every power-off below cuts
+its supply without a `sync`, and with U201 held in its bootloader PA13
+(PICO_EN) floats to its reset pull-up, which enables the Pico's supply
+through U102 (ledger, schematic findings; a hypothesis for the CKS part).
+A Pico that is seated anyway is halted at its console (`halt`) before each
+power-off.
 
 ## Cell-less power-key test
 
@@ -47,8 +67,9 @@ between the two cells to limit it.
 3. Hold the power key for one second and watch the power LED; Alt+B
    flashes it three, two or one times for high, medium or low charge
    (assembly guide, "Check the battery level").
-4. Fit the second cell only when the two read within about 0.05 V of each
-   other, or charge the first through USB-C until they do.
+4. Power the board off (hold the key) and disconnect USB-C. Fit the
+   second cell only when the two read within about 0.05 V of each other,
+   or charge the first through USB-C until they do.
 
 Prediction: the board starts on one cell and the keyboard backlight
 answers Alt+Space. A board that stays dark with a cell measured above
@@ -69,9 +90,11 @@ through the keyboard controller's battery register.
 system bootloader and sends only Get, Get Version, Get ID and Read
 Memory; `check-picocalc-kbd-bootloader` calibrates it.
 
-1. Power the board off. Set SW701 switch 1 ON (the vendor wiki's "Put DIP
-   1 ON"): it raises BOOT0 to about 2.45 V (ledger, SW701 paragraph) and
-   routes the CH340C to M_UART1.
+1. Power the board off and disconnect USB-C. Set SW701 switch 1 ON (the
+   vendor wiki's "Put DIP 1 ON"): it raises BOOT0 to about 2.45 V (ledger,
+   SW701 paragraph) and routes the CH340C to M_UART1. Leave switch 2 OFF:
+   it moves the USB-C pair through U701 to the keyboard controller's own
+   USB pins (`PICOCALC.md`, "USB-C and power"), away from the CH340C.
 2. Connect USB-C to the host. A CH340 enumerates as `1a86:7523` and gives
    `/dev/ttyUSB0`; this host has no other `ttyUSB` device.
 3. Hold the power key one second, so the controller resets with BOOT0
@@ -82,15 +105,18 @@ Memory; `check-picocalc-kbd-bootloader` calibrates it.
            --dump "$NOTES/docs/local/picocalc/kbd-flash-$(date -u +%Y%m%d).bin" \
            > "$NOTES/docs/local/picocalc/kbd-bootloader-id-$(date -u +%Y%m%d).json"
 
-   where `$NOTES` names the discobsd-2040-notes checkout.
-5. Power off, set SW701 switch 1 OFF, power on.
+   The tool stops sending at the first reply outside the protocol, and the
+   dump stays inside the flash size the part reports.
+5. Power off, disconnect USB-C, set SW701 switch 1 OFF, power on.
 
 Predictions: exit 0; bootloader version 0x22 and product ID 0x410, as in
 the vendor wiki's log of its own board; a flash-size word of 64 or 128
 Kbytes (the x8 or xB letter), since 0x410 is the ST medium-density ID; a
 dump whose length equals that size. A product ID of 0x414 points at the
-xC-xE letters; exit 3 means readout protection, and the dump stays
-unattempted. The CPUID and DBGMCU_IDCODE reads are attempts: an ST
+xC-xE letters; exit 3 means the Read Memory command byte itself was
+refused, the mark of readout protection, and the dump stays unattempted;
+exit 1 with a refusal at the address stage means the bootloader rejected
+that address. The CPUID and DBGMCU_IDCODE reads are attempts: an ST
 bootloader may refuse the private peripheral bus, and on ST silicon
 DBGMCU_IDCODE reads zero outside debug mode (ES096 2.2.2), so a nonzero
 value there distinguishes the CKS part from ST behavior.
@@ -106,13 +132,12 @@ images.
 
 This step writes the Pico's flash and waits for the owner's opt-in.
 
-1. Seat the Pico in the PicoCalc. Its micro-USB port stays the console and
-   BOOTSEL path once cells are fitted (`PICOCALC.md`).
-2. Save the present image before writing:
-   `discobsd-flash --bootsel`, then
-   `picotool save -r 0x10000000 0x10200000 pico-flash-before.bin`, then
-   `discobsd-flash --eject`. The present kernel is PICO (`uname`:
-   `DiscoBSD pico 2.7 PICO#1 rp2040`).
+1. Confirm the saved image from "The Pico's flash image, first" exists.
+   The present kernel is PICO (`uname`: `DiscoBSD pico 2.7 PICO#1
+   rp2040`).
+2. Seat the Pico in the PicoCalc with the board off. Its micro-USB port
+   stays the console and BOOTSEL path once cells are fitted
+   (`PICOCALC.md`).
 3. Flash `sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2` with
    `distrib/rp2040/flash-PICOCALC_PSRAM.uf2`
    (`distrib/rp2040/host/DEVELOPMENT.md`).
@@ -138,10 +163,14 @@ not collect.
 ## Panel rows
 
 The ST7365P drives 480 gate lines and the vendor drivers use 320 (ledger
-panel rows). With the console filling the panel, measure the lit area's
-height: 320 rows at 0.220 mm are about 70.4 mm, the full 3.92 inch
-square, and 320 rows at 0.147 mm are about 47 mm. A lit height near 70 mm
-refutes a 480-row glass; near 47 mm supports it.
+panel rows). `st7365p.c` programs display function control (0xB6) for 480
+lines (third parameter 0x3B) and clears frame-memory rows 0 to 319 only,
+so on a 480-row glass rows 320 to 479 show whatever the memory held at
+power-up. Measure the height of the console's 320 rows, the area the
+kernel draws: 320 rows at 0.220 mm are about 70.4 mm, the full 3.92 inch
+square, and 320 rows at 0.147 mm are about 47 mm. A console height near
+70 mm refutes a 480-row glass; near 47 mm, with noise or dark below it,
+supports it.
 
 ## Marks to photograph
 
@@ -165,7 +194,7 @@ and SCK (`PICOCALC.md` pin map); chip select, GP20, is absent from it. A
 logic analyzer there sees the PSRAM bus at 31.25 MHz, which needs at least
 125 MS/s to resolve, and would replace the assumed pad delays of
 `check-psram-pio` with measured ones. Nothing else may drive those pins
-while the PSRAM driver runs. The schematic's test points TP1-TP6 carry
+while the PSRAM driver runs. The schematic's test points TP1-TP6, on header J702, carry
 UART0_RX, UART0_TX, M_UART1_RX, M_UART1_TX, M_USB_DP and M_USB_DM, the
 same six nets in the same order as the guide's "Mainboard GPIOs" legend,
 so the keyboard controller's USART1 and USB are reachable there as well.

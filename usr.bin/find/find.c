@@ -23,7 +23,7 @@ struct anode {
 } Node[MAXNODES];
 int Nn;  /* number of nodes */
 char	*Fname;
-long	Now;
+time_t	Now;
 int	Argc,
 	Ai,
 	Pi;

@@ -3037,7 +3037,9 @@
           "object_lifetime": [
             "dynamic-storage"
           ],
-          "pointer": [],
+          "pointer": [
+            "pointer-integer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }
@@ -5344,7 +5346,8 @@
           ],
           "object_lifetime": [],
           "pointer": [
-            "integer-pointer-cast"
+            "integer-pointer-cast",
+            "pointer-integer-cast"
           ],
           "prototype": [
             "old-style-definition"
@@ -7479,7 +7482,8 @@
           ],
           "object_lifetime": [],
           "pointer": [
-            "integer-pointer-cast"
+            "integer-pointer-cast",
+            "pointer-integer-cast"
           ],
           "prototype": [
             "old-style-declaration",
@@ -14661,7 +14665,8 @@
           ],
           "object_lifetime": [],
           "pointer": [
-            "integer-pointer-cast"
+            "integer-pointer-cast",
+            "pointer-integer-cast"
           ],
           "prototype": [
             "old-style-declaration",
@@ -15720,7 +15725,9 @@
             "shift-expression"
           ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "pointer-integer-cast"
+          ],
           "prototype": [
             "old-style-definition"
           ],
@@ -52176,7 +52183,8 @@
           ],
           "object_lifetime": [],
           "pointer": [
-            "integer-pointer-cast"
+            "integer-pointer-cast",
+            "pointer-integer-cast"
           ],
           "prototype": [
             "old-style-declaration"
@@ -52210,7 +52218,9 @@
           "inline_assembly": [],
           "integer": [],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "pointer-integer-cast"
+          ],
           "prototype": [
             "old-style-declaration",
             "old-style-definition"
@@ -52731,7 +52741,9 @@
             "integer-cast"
           ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "pointer-integer-cast"
+          ],
           "prototype": [
             "old-style-definition"
           ],
@@ -52838,7 +52850,8 @@
           ],
           "object_lifetime": [],
           "pointer": [
-            "integer-pointer-cast"
+            "integer-pointer-cast",
+            "pointer-integer-cast"
           ],
           "prototype": [
             "old-style-declaration",
@@ -52875,7 +52888,9 @@
             "integer-cast"
           ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "pointer-integer-cast"
+          ],
           "prototype": [
             "old-style-declaration",
             "old-style-definition"
@@ -84792,6 +84807,7 @@
             "dynamic-storage"
           ],
           "pointer": [
+            "integer-pointer-cast",
             "pointer-integer-cast"
           ],
           "prototype": [
@@ -85045,7 +85061,9 @@
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "pointer-integer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }
@@ -85487,7 +85505,9 @@
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "pointer-integer-cast"
+          ],
           "prototype": [
             "old-style-declaration",
             "old-style-definition"
@@ -99006,7 +99026,9 @@
           "inline_assembly": [],
           "integer": [],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "pointer-integer-cast"
+          ],
           "prototype": [
             "old-style-declaration",
             "old-style-definition"

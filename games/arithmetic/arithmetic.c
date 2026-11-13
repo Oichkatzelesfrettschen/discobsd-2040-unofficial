@@ -21,7 +21,7 @@ long	dtvec;
 
 void score()
 {
-	time(&etvec);
+	etvec = time((time_t *)0);
 
 	printf("\n\nRights %d; Wrongs %d; Score %d%%\n", rights, wrongs,
 		(rights * 100)/(rights + wrongs));
@@ -33,7 +33,7 @@ void score()
 		(etvec - stvec) / (rights + 0.));
 
 	sleep(3);
-	time(&dtvec);
+	dtvec = time((time_t *)0);
 	stvec += dtvec - etvec;
 }
 
@@ -168,7 +168,7 @@ int main(argc, argv)
 	for(i = 0; i < range; i++) {
 		left[i] = right[i] = i;
 	}
-	time(&stvec);
+	stvec = time((time_t *)0);
 	k = stvec;
 	srand13(k);
 	k = 0;

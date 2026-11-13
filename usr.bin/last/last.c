@@ -45,10 +45,11 @@ onintr(signo)
     int signo;
 {
     char *ct;
+    time_t when = buf[0].ut_time;
 
     if (signo == SIGQUIT)
         signal(SIGQUIT, onintr);
-    ct = ctime(&buf[0].ut_time);
+    ct = ctime(&when);
     printf("\ninterrupted %10.10s %5.5s \n", ct, ct + 11);
     fflush(stdout);
     if (signo == SIGINT)
@@ -77,6 +78,7 @@ main(ac, av)
     char progname[256];
     register struct utmp *bp;
     long otime;
+    time_t when;
     struct stat stb;
     int print;
     int sinput = 0;
@@ -85,7 +87,7 @@ main(ac, av)
     long outrec = 0;
     long maxrec = 0x7fffffffL;
 
-    time(&buf[0].ut_time);
+    buf[0].ut_time = time((time_t *)0);
     strcpy(wtmpfile, _PATH_WTMP);
     strcpy(progname,av[0]);
     ac--, av++;
@@ -141,7 +143,8 @@ main(ac, av)
         for ( ; bp >= buf; bp--) {
             print = want(bp);
             if (print) {
-                ct = ctime(&bp->ut_time);
+                when = bp->ut_time;
+                ct = ctime(&when);
                 printf("%-*.*s  %-*.*s %-*.*s %10.10s %5.5s ",
                     NMAX, NMAX, bp->ut_name,
                     LMAX, LMAX, bp->ut_line,
@@ -168,20 +171,22 @@ main(ac, av)
                 else if (otime == 0)
                     printf("  still logged in\n");
                 else {
-                    long delta;
+                    time_t delta;
                     if (otime < 0) {
                         otime = -otime;
                         printf("- %s", crmsg);
-                    } else
+                    } else {
+                        when = otime;
                         printf("- %5.5s",
-                            ctime(&otime)+11);
+                            ctime(&when)+11);
+                    }
                     delta = otime - bp->ut_time;
                     if (delta < SECDAY)
                         printf("  (%5.5s)\n",
                         asctime(gmtime(&delta))+11);
                     else
                         printf(" (%ld+%5.5s)\n",
-                        delta / SECDAY,
+                        (long)(delta / SECDAY),
                         asctime(gmtime(&delta))+11);
                 }
                 fflush(stdout);
@@ -198,7 +203,8 @@ main(ac, av)
             }
         }
     }
-    ct = ctime(&buf[0].ut_time);
+    when = buf[0].ut_time;
+    ct = ctime(&when);
     printf("\nwtmp begins %10.10s %5.5s \n", ct, ct + 11);
     exit(0);
 }

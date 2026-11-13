@@ -376,7 +376,7 @@ nouser:
 		void login(struct utmp *);
 
 		bzero((char *)&utmp, sizeof(utmp));
-		(void)time(&utmp.ut_time);
+		utmp.ut_time = time((time_t *)0);
 		strncpy(utmp.ut_name, username, sizeof(utmp.ut_name));
 		if (hostname)
 			strncpy(utmp.ut_host, hostname, sizeof(utmp.ut_host));

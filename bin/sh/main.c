@@ -184,7 +184,7 @@ exfile(BOOL prof)
 
 			if (mailp)
 			{
-				time(&curtime);
+				curtime = time((time_t *)0);
 
 				if ((curtime - mailtime) >= mailchk)
 				{

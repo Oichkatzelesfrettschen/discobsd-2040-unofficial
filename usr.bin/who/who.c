@@ -44,7 +44,7 @@ main(argc, argv)
             pw = getpwuid(getuid());
             strncpy(utmp.ut_name, pw ? pw->pw_name : "?", NMAX);
             strcpy(utmp.ut_line, "tty??");
-            time(&utmp.ut_time);
+            utmp.ut_time = time((time_t *)0);
             putline();
             exit(0);
         }
@@ -72,11 +72,12 @@ void
 putline()
 {
     register char *cbuf;
+    time_t login_time = utmp.ut_time;
 
     printf("%-*.*s %-*.*s",
         NMAX, NMAX, utmp.ut_name,
         LMAX, LMAX, utmp.ut_line);
-    cbuf = ctime(&utmp.ut_time);
+    cbuf = ctime(&login_time);
     printf("%.12s", cbuf+4);
     if (utmp.ut_host[0])
         printf("\t(%.*s)", HMAX, utmp.ut_host);

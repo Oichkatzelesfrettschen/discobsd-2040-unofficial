@@ -2975,3 +2975,29 @@ Runtime stack and heap high-water, descriptor/inode pressure under a complete
 extraction workload, directory-write recovery, persistent-media traffic,
 symbolic-link publication, conditional removal, directory metadata
 reacquisition, and physical-board behavior retain separate evidence states.
+
+## MATEzinho desktop gates
+
+`check-matezinho-host` (in check-host) executes the original state machine and
+band renderer under ASan/UBSan, compares incremental output with full scene
+reconstruction through 1500 seeded actions, checks view retention and input
+bounds, verifies pinned artwork bytes, and rejects malformed/truncated packs
+and image overwrite. Sparse 16 MiB, 32 MiB and approximately 32 GB images are
+host files, not SRAM. The test oracle's full frames are absent from the desktop.
+
+`check-matezinho-qemu` (in check-qemu) runs the same application sources as
+Thumb-1 on `qemu-arm -cpu cortex-m0`. Seven scripted frames must equal the
+host renderer byte for byte, and a note must save through Linux EABI. A linker
+MEMORY region contains the executable, static state, 16 KiB heap and 8 KiB
+stack within 192 KiB. This is a newlib application seam, not a DiscoBSD kernel
+boot, MPU test, timing measurement or RP2040 peripheral test. Directory APIs
+and exclusive shell launch are supplied only by the native/board backends.
+
+`check-matezinho-sd` is optional and outside the aggregate. .NET 8 compiles
+FileSD against test-only peripheral interface declarations, then the actual
+sdspi.c drives it through C-callable delegates. The gate checks identification,
+CSD capacity, last-sector read/write, read-only refusal and an absent-transport
+negative control for SDSC and SDHC sizes. It does not execute PL022 or Renode's
+scheduler. Renode integration uses the real peripheral interfaces through
+`tools/renode/matezinho.resc`; it is a separate evidence class. Physical board
+qualification remains opt-in and is not performed by any desktop gate.

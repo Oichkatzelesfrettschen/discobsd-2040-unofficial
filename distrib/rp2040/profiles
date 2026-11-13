@@ -183,3 +183,8 @@ profile developer toolchain toolchainlib
 profile games games puzzles
 profile full coremark toolchain toolchainlib games puzzles
 profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge
+
+# Opt-in desktop; the MATE artwork is supplied on external storage.
+closure matezinho needs closure lcdgfx sdcard
+closure matezinho needs path /usr/bin/matezinho /dev/lcdgfx /dev/rsd0
+profile matezinho games puzzles calc sdcard lcdgfx matezinho

@@ -1381,7 +1381,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-set-address-interface check-usb-get-descriptor \
 		check-flash-device-bounds check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
-		check-fs-profiles check-picocalc-host check-psram-pio
+		check-fs-profiles check-picocalc-host check-matezinho-host check-psram-pio
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
@@ -1679,6 +1679,7 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libc_contracts check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/c17_headers check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_aout check
+		${MAKE} check-matezinho-qemu
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.
@@ -1921,3 +1922,16 @@ installfs:
 .PHONY: check-sysctl-status
 
 .PHONY: check-passwd-header-contracts check-string-header-contracts
+
+# Original desktop rendering, retained views and external artwork validation.
+check-matezinho-host: check-python
+	${MAKE} -C tests/matezinho check
+
+check-matezinho-qemu: check-python
+	${MAKE} -C tests/matezinho check-qemu
+
+# Optional .NET protocol seam: actual sdspi.c against the file-backed card.
+check-matezinho-sd: check-python
+	${MAKE} -C tests/matezinho check-sd
+
+.PHONY: check-matezinho-host check-matezinho-qemu check-matezinho-sd

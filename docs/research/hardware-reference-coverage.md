@@ -197,7 +197,14 @@ with the incompatibility list. OpenOCD's `target/stm32f1x.cfg` expects
 ST's ID codes, so hypothesis: SWD to U201 through OpenOCD needs
 `CPUTAPID` set to the part's reported value or to 0; the falsifier is an
 `openocd -f interface/cmsis-dap.cfg -f target/stm32f1x.cfg` session on
-the owner's board that examines the core without that override.
+the owner's board that examines the core without that override. SWD
+itself is hard to reach on this board: no schematic net is named SWDIO or
+SWCLK, the debug header J702 and test points TP1-TP6 carry UART0,
+M_UART1, M_USB, MCU_3V3 and GND only, and the firmware drives PA13 and
+PA14 as outputs (`picocalc_keyboard.ino` lines 471 and 503), which on the
+STM32duino core it builds with releases them from SWD (hypothesis: the
+core source is not held). A session needs wires on U201 pins 46 and 49
+and NRST, and connect-under-reset.
 
 ### Bus and card specifications the PicoCalc drivers rest on
 
@@ -219,15 +226,15 @@ reach names the board observation that reaches it.
 | Ref | Claim | Verdict | Discriminating evidence | Board observation that decides |
 | --- | --- | --- | --- | --- |
 | U301 | ESP-PSRAM64H sheet describes the part | supported | the part number the schematic prints | not needed |
-| U301 | LY68L6400 shares the specification | limits and opcodes supported; command semantics differ | every timing, current and opcode row equal (tCHD 20 ns, tCPH 50 ns, tACLK 2-6 ns, ICC 40 mA, absolute maximum 4.2 V); LY68L6400's command table adds note 2, "Linear burst is prohibited", which the ESP sheets lack; page 5 of the ESP V1.1 PDF carries an invisible text layer from Lyontek's LY68S3200, a different part, which shows a shared Lyontek template, not derivation from the LY68L6400 sheet | die origin: none in documents |
+| U301 | LY68L6400 shares the specification | limits and opcodes supported; command semantics differ | every timing, current and opcode row equal (tCHD 20 ns, tCPH 50 ns, tACLK 2-6 ns, ICC 40 mA, absolute maximum 4.2 V); LY68L6400's command table (page 8) adds note 2, "Linear burst is prohibited", to one cell, SPI-mode Write 02h at 133 MHz, which the ESP sheets lack; the port writes with 38h in quad mode at 31.25 MHz in 64-byte chunks inside one 1 KB page, so the note does not bear on the driver; page 5 of the ESP V1.1 PDF carries an invisible text layer from Lyontek's LY68S3200, a different part, which shows a shared Lyontek template, not derivation from the LY68L6400 sheet | die origin: none in documents |
 | U301 | APS6404L-3SQR is the same specification | refuted | tCHD 3.0 vs 20 ns, tCPH 18 vs 50 ns, tACLK and tHZ 5.5 vs 6 ns, ICC 7 vs 40 mA, absolute maximum 4.0 vs 4.2 V; opcodes, MF 0x0D, KGD 0x5D, 1 KB page and SOP8 pin order agree, so it stays a family member | a 9-byte Read ID (9Fh after the 66h/99h reset) compared with reference APS6404L and LY68L6400 parts; only APS defines EID[47:45] = 010 for 64 Mb |
 | U102 | WS4603 (printed WAS4603) | pin map confirmed; prefix undecided | SOT-23-5 pins 1 OUT/PICO_VSYS, 2 GND, 3 ISET/R104, 4 EN/PICO_EN active high, 5 IN/IPS; I_OC = 6.8 kOhm / 3.4 kOhm = 2.0 A (datasheet page 8) | top mark |
 | U502, U503 | AW8010 A, B or D | undecided | all three print the same 3x3 ball map, and all nine balls agree with the schematic; gain 315 kOhm / 47 kOhm = 6.7 V/V | top mark: `A1A` A, `LCV` B, `U0J` D |
 | U401, U601 | TPS61160 or TPS61161 | pin map confirmed; variant undecided | six pins and pad agree; I_LED = 200 mV / R: LCD 5.1 Ohm gives 39.2 mA, keyboard 20 Ohm gives 10.0 mA; the keyboard string is 6 LEDs in series (54 LEDs, 9 parallel per column), inside both OVP limits; 25 V output capacitors weakly favor the 26 V-OVP TPS61160 | top mark `BZQ` 61160, `BZR` 61161, or LEDA voltage at full brightness |
 | U702 | CH340C | confirmed against CH340G/T/R; CH340B not excluded | SOP-16 pin map agrees; pins 7 and 8 carry no crystal, which CH340G/T/R require | top mark |
 | U201 | CKS32F103 in LQFP64 | pin map confirmed | 64 of 64 pins agree with the CKS LQFP64 table | not needed |
-| U201 | flash size letter 8, B, C or E | undecided | the x8/xB and xC-xE LQFP64 pin columns are identical | top mark, or the flash-size word at 0x1FFFF7E0 |
-| U201 | Cortex-M3 r1p1 or r2p1 | undecided; documents conflict | the CKS manual gives TAP ID 0x3BA00477 (r1p1) in 22.6.3 and IDCODE 0x4BA00477 (r2p1) in table 92; CKS's difference list says r2p1 | CPUID at 0xE000ED00 over SWD: 0x411FC231 r1p1, 0x412FC231 r2p1 |
+| U201 | flash size letter 8, B, C or E | undecided | the x8/xB and xC-xE LQFP64 pin columns are identical | top mark, or the flash-size word at 0x1FFFF7E0 read through the system bootloader: SW701 in the keyboard-flash position raises BOOT0 and routes the CH340C to M_UART1, the vendor wiki's `stm32flash` path (`stm32flash` is not installed on the build host) |
+| U201 | Cortex-M3 r1p1 or r2p1 | undecided; documents conflict | the CKS manual gives TAP ID 0x3BA00477 (r1p1) in 22.6.3 and IDCODE 0x4BA00477 (r2p1) in table 92; CKS's difference list says r2p1 | CPUID at 0xE000ED00: 0x411FC231 r1p1, 0x412FC231 r2p1, read over SWD wired to pins 46 and 49 under reset, or reported by a firmware build; the bootloader's device ID does not carry the core revision |
 | U701, U703 | WAS7227Q | confirmed | all 10 pins agree; OE tied low; SEL low selects D1, matching `docs/picocalc/INDEX.md` | not needed |
 | U501 | NC7WZ16 | pin map confirmed; package undecided | six pins agree | top mark `Z16MG` SC-88, `C7KK` SIP6/UDFN6 |
 | U19 (Pico W) | BCM43439 is the Broadcom name | refuted as documented | no held document prints it; the CYW43438 sheet maps only BCM43438; the SDK loads firmware for the 43439A0 die | not needed |
@@ -267,9 +274,10 @@ repository keeps the vendor's name until then.
 
 - CYW43439 version 07_00: Infineon's download link loops in a signed-in
   session; Rev. \*D is the newest public copy.
-- Read the top marks of U102, U201, U401, U501, U502, U601 and U702, the
-  R701 and R702 sites, and U201's CPUID (0xE000ED00) and flash-size word
-  (0x1FFFF7E0) over SWD on the owner's board.
+- Read the top marks of U102, U201, U401, U501, U502, U601 and U702 and
+  the R701 and R702 sites on the owner's board; read U201's flash-size word
+  (0x1FFFF7E0) through the USART1 bootloader, and its CPUID (0xE000ED00)
+  over wired SWD or from a firmware build.
 - The panel module datasheet, the 0.5-40PBSX connector, the JC101GV01
   volume potentiometer and the TP-1221U-K9K5325 switch have no source
   that served them; the notes repository's

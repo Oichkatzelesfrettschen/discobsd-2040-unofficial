@@ -37,7 +37,8 @@ the retained copies. Version 1.1 changed only the marking appendix
 tSP, the maximum clocks and the command table) agree. The Espressif sheet
 is the one the board's part number names. Its timing, current and opcode
 rows equal those of Lyontek's LY68L6400 Rev. 1.2, whose command table adds
-one note the Espressif sheet lacks ("Linear burst is prohibited"), and
+one note the Espressif sheet lacks ("Linear burst is prohibited", on the
+SPI-mode 02h write at 133 MHz, a command the driver does not issue), and
 page 5 of the V1.1 PDF carries a hidden text layer from Lyontek's
 LY68S3200, so the Espressif sheet was built on a Lyontek template. AP Memory's APS6404L-3SQR shares the opcodes and the Read
 ID bytes (MF 0x0D, KGD 0x5D) but prints different limits (tCHD 3.0 ns,

@@ -21,6 +21,9 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <paths.h>
+#include <grp.h>
+
+#include "daemons.h"
 
 //#undef KERN_SECURELVL
 
@@ -61,6 +64,7 @@ jmp_buf	sjbuf, shutpass;
 time_t	time0;
 
 void	reset();
+void	dalarm(int sig);
 void	setsecuritylevel();
 int	getsecuritylevel();
 extern	int errno;
@@ -68,6 +72,23 @@ extern	int errno;
 struct	sigvec rvec = { reset, sigmask (SIGHUP), 0 };
 
 jmp_buf	idlebuf;
+
+/*
+ * Supervised daemons from /etc/daemons (daemons.h). init forks each entry,
+ * so its pid is known and its exit reaches multiple() or idle(). dalarm()
+ * only records that a restart deadline passed; multiple() then calls
+ * dschedule() outside signal context, because the SIGALRM handler can
+ * interrupt malloc(), stdio and the utmp update in rmut(). The handler is
+ * installed with SV_INTERRUPT so that the alarm ends wait(2) with EINTR
+ * instead of restarting it. merge() changes dtab as the SIGHUP handler,
+ * as it changes itab, with SIGALRM in its sigvec mask.
+ */
+struct	dtab *dtab;
+int	didle;		/* idle(): reap and schedule, start nothing */
+volatile sig_atomic_t dtimer;	/* dalarm(): a restart deadline passed */
+
+void	dschedule(void);
+int	dreap(int pid, int status);
 
 /*
  * fork() returns -1 with ENOMEM when swap cannot hold the child and with
@@ -195,6 +216,301 @@ rmut(p)
 	}
 }
 
+/* One line straight to the console: no syslogd runs on a small root. */
+void
+dconsole(msg)
+	const char *msg;
+{
+	register int f;
+
+	f = open(ctty, O_WRONLY);
+	if (f >= 0) {
+		write(f, msg, strlen(msg));
+		close(f);
+	}
+}
+
+/*
+ * The child's path from fork to execve. Every descriptor init holds is
+ * closed and stdio reads and writes /dev/null. The command path resolves
+ * inside the chroot, since execve(2) looks it up after chroot(2) and the
+ * kernel offers no exec by descriptor. Groups go before gid and gid before
+ * uid, because each call needs the root privilege the next one removes
+ * (setgroups() in sys/kern/kern_prot.c, setgid() and setuid() in
+ * kern_prot2.c); a failure, or a uid that can still become root, ends the
+ * child before exec.
+ */
+void
+dexec(d)
+	register struct dtab *d;
+{
+	char buf[DCMDSIZ], msg[DCMDSIZ + 48], *argv[DNARGS], *envp[1];
+	const char *step;
+	register int fd, con, nfd;
+	gid_t groups[1];
+
+	signal(SIGTERM, SIG_DFL);
+	signal(SIGHUP, SIG_DFL);
+	signal(SIGALRM, SIG_DFL);
+	signal(SIGTSTP, SIG_DFL);
+	sigsetmask(0L);
+
+	/* The console descriptor reports a failure and closes on exec. */
+	con = open(ctty, O_WRONLY);
+	if (con >= 0 && con < 3) {
+		fd = fcntl(con, F_DUPFD, 3);
+		close(con);
+		con = fd;
+	}
+	if (con >= 0)
+		fcntl(con, F_SETFD, FD_CLOEXEC);
+	nfd = getdtablesize();
+	for (fd = 0; fd < nfd; fd++)
+		if (fd != con)
+			close(fd);
+	step = _PATH_DEVNULL;
+	if (open(_PATH_DEVNULL, O_RDWR) != 0 || dup2(0, 1) != 1 ||
+	    dup2(0, 2) != 2)
+		goto fail;
+	step = "chroot";
+	if (d->root[0] != '\0' && chroot(d->root) < 0)
+		goto fail;
+	if (chdir("/") < 0)
+		goto fail;
+	step = "setgroups";
+	groups[0] = d->gid;
+	if (setgroups(1, groups) < 0)
+		goto fail;
+	step = "setgid";
+	if (setgid(d->gid) < 0)
+		goto fail;
+	step = "setuid";
+	if (setuid(d->uid) < 0)
+		goto fail;
+	step = "credential check";
+	if (getuid() != d->uid || geteuid() != d->uid ||
+	    getgid() != d->gid || getegid() != d->gid)
+		goto fail;
+	if (d->uid != 0 && setuid(0) == 0)
+		goto fail;
+	strcpy(buf, d->cmd);
+	dtab_argv(buf, argv);
+	envp[0] = 0;
+	step = "exec";
+	execve(argv[0], argv, envp);
+fail:
+	if (con >= 0) {
+		snprintf(msg, sizeof(msg), "init: %s: %s: %s\n", d->cmd, step,
+		    strerror(errno));
+		write(con, msg, strlen(msg));
+	}
+	_exit(127);
+}
+
+/* Records an exit or a refused fork and reports it on the console. */
+void
+dfailed(d, status)
+	register struct dtab *d;
+	int status;
+{
+	char msg[DCMDSIZ + 64];
+	int delay;
+
+	delay = dtab_exited(d, time((time_t *)0));
+	dtab_describe(msg, sizeof(msg), d, status, delay);
+	dconsole(msg);
+}
+
+/* A refused fork counts as a failed run, so the entry backs off. */
+void
+dstart(d)
+	register struct dtab *d;
+{
+	register int pid;
+
+	d->started = time((time_t *)0);
+	pid = fork();
+	if (pid == 0)
+		dexec(d);
+	if (pid < 0) {
+		dfailed(d, -1);
+		return;
+	}
+	d->pid = pid;
+}
+
+/* Starts every entry whose deadline has passed and arms the next alarm. */
+void
+dschedule()
+{
+	register struct dtab *d;
+	time_t now, soonest;
+
+	if (didle)
+		return;
+	now = time((time_t *)0);
+	soonest = 0;
+	for (d = dtab; d; d = d->next) {
+		if (d->pid != -1 || d->disabled)
+			continue;
+		if (d->next_try <= now)
+			dstart(d);
+		if (d->pid == -1 && (soonest == 0 || d->next_try < soonest))
+			soonest = d->next_try;
+	}
+	alarm(soonest ? (unsigned)(soonest > now ? soonest - now : 1) : 0);
+}
+
+void
+dalarm(sig)
+	int sig;
+{
+	dtimer = 1;
+}
+
+/*
+ * sigvec() in lib/libc/compat/sigcompat.c flips SV_INTERRUPT in the
+ * caller's structure, so each call fills a fresh one.
+ */
+void
+dalarm_install()
+{
+	struct sigvec sv;
+
+	sv.sv_handler = dalarm;
+	sv.sv_mask = sigmask(SIGHUP);
+	sv.sv_flags = SV_INTERRUPT;
+	sigvec(SIGALRM, &sv, (struct sigvec *)0);
+}
+
+/* Runs the restarts a passed deadline recorded, with SIGHUP blocked. */
+void
+dtimer_run()
+{
+	long omask;
+
+	if (!dtimer)
+		return;
+	omask = sigblock(sigmask(SIGHUP) | sigmask(SIGALRM));
+	dtimer = 0;
+	dschedule();
+	sigsetmask(omask);
+}
+
+/* Matches a reaped pid against the table; returns nonzero on a match. */
+int
+dreap(pid, status)
+	int pid, status;
+{
+	register struct dtab *d;
+
+	for (d = dtab; d; d = d->next)
+		if (d->pid == pid) {
+			dfailed(d, status);
+			dschedule();
+			return (1);
+		}
+	return (0);
+}
+
+int
+dpending()
+{
+	register struct dtab *d;
+
+	for (d = dtab; d; d = d->next)
+		if (d->pid == -1 && !d->disabled)
+			return (1);
+	return (0);
+}
+
+void
+dfree()
+{
+	register struct dtab *d;
+
+	alarm(0);
+	dtimer = 0;
+	while ((d = dtab) != 0) {
+		dtab = d->next;
+		free(d);
+	}
+}
+
+/*
+ * Rereads /etc/daemons. An entry whose line is unchanged keeps running and
+ * a disabled one is enabled again; a removed or changed entry gets SIGTERM
+ * and leaves the table, and a changed line enters as a new entry. A
+ * malformed or overlong line is reported and skipped, so it never runs.
+ */
+void
+dmerge()
+{
+	register struct dtab *d, *n, **link;
+	struct dtab parsed;
+	char line[DCMDSIZ + DROOTSIZ + 32], msg[64];
+	FILE *f;
+	int lineno, r;
+
+	for (d = dtab; d; d = d->next)
+		d->xflag = 0;
+	f = fopen(DAEMONS_FILE, "r");
+	for (lineno = 1; f && fgets(line, sizeof(line), f); lineno++) {
+		if (strchr(line, '\n') == 0 && !feof(f)) {
+			while (strchr(line, '\n') == 0 &&
+			    fgets(line, sizeof(line), f))
+				;
+			r = -1;
+		} else
+			r = dtab_parse(line, &parsed);
+		if (r == 0)
+			continue;
+		if (r < 0) {
+			snprintf(msg, sizeof(msg), "init: %s:%d: bad entry\n",
+			    DAEMONS_FILE, lineno);
+			dconsole(msg);
+			continue;
+		}
+		for (d = dtab; d; d = d->next)
+			if (!d->xflag && dtab_same(d, &parsed))
+				break;
+		if (d) {
+			d->xflag = 1;
+			if (d->disabled) {
+				d->disabled = 0;
+				d->fails = 0;
+				d->pid = -1;
+				d->next_try = 0;
+			}
+			continue;
+		}
+		n = (struct dtab *)malloc(sizeof(*n));
+		if (n == 0) {
+			dconsole("init: no space for a daemon entry\n");
+			continue;
+		}
+		*n = parsed;
+		n->xflag = 1;
+		n->pid = -1;
+		for (link = &dtab; *link; link = &(*link)->next)
+			;
+		*link = n;
+	}
+	if (f)
+		fclose(f);
+	for (link = &dtab; (d = *link) != 0; ) {
+		if (d->xflag) {
+			link = &d->next;
+			continue;
+		}
+		if (d->pid > 0)
+			kill(d->pid, SIGTERM);
+		*link = d->next;
+		free(d);
+	}
+	dschedule();
+}
+
 void
 idle (sig)
 	int sig;
@@ -202,15 +518,26 @@ idle (sig)
 	register struct tab *p;
 	register int pid;
 
+	int status;
+	long omask;
+
 	signal (SIGHUP, idlehup);
+	didle = 1;
 	for (;;) {
-		if (setjmp(idlebuf))
+		if (setjmp(idlebuf)) {
+			/* The alarm interrupts the wait(2) multiple() resumes. */
+			didle = 0;
+			alarm(1);
 			return;
-		pid = wait((int *) 0);
+		}
+		pid = wait(&status);
 		if (pid == -1) {
 			sigpause(0L);
 			continue;
 		}
+		omask = sigblock(sigmask(SIGALRM));
+		dreap(pid, status);
+		sigsetmask(omask);
 		for (p=itab; p; p=p->next) {
 			/* if window system dies, mark it for restart */
 			if (p->wpid == pid)
@@ -291,6 +618,7 @@ shutdown(void)
 		p = p1;
 	}
 	itab = (struct tab *)0;
+	dfree();
 	signal(SIGALRM, shutreset);
 	(void) kill(-1, SIGTERM);	/* one chance to catch it */
 	sleep(1);
@@ -523,7 +851,9 @@ multiple()
 	register struct tab *p;
 	register int pid;
 	long omask;
-        static struct	sigvec	mvec = { merge, sigmask(SIGTERM), 0 };
+	int status;
+	static struct	sigvec	mvec = { merge,
+	    sigmask(SIGTERM) | sigmask(SIGALRM), 0 };
 
 	/*
 	 * If the administrator has not set the security level to -1
@@ -536,10 +866,23 @@ multiple()
 
 	sigvec(SIGHUP, &mvec, (struct sigvec *)0);
 	for (;;) {
-		pid = wait((int *)0);
-		if (pid == -1)
+		dtimer_run();
+		pid = wait(&status);
+		if (pid == -1) {
+			/* With no child left, a pending restart waits for its alarm. */
+			if (errno == EINTR)
+				continue;
+			if (dpending()) {
+				sigpause(0L);
+				continue;
+			}
 			return;
-		omask = sigblock(sigmask(SIGHUP));
+		}
+		omask = sigblock(sigmask(SIGHUP) | sigmask(SIGALRM));
+		if (dreap(pid, status)) {
+			sigsetmask(omask);
+			continue;
+		}
 		for (p=itab; p; p=p->next) {
 			/* must restart window system BEFORE emulator */
 			if (p->wpid == pid || p->wpid == -1)
@@ -618,6 +961,7 @@ main(argc, argv)
 			single();
 		if (runcom(oldhowto) == 0)
 			continue;
+		dalarm_install();
 		merge(0);
 		multiple();
 	}
@@ -774,6 +1118,7 @@ void merge(int signum)
 		}
 		p1 = p;
 	}
+	dmerge();
 }
 
 void

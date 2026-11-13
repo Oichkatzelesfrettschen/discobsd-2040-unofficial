@@ -32,7 +32,7 @@ FILES=		COPYRIGHT gettytab group motd rc.local ttys
 # manifest (distrib/rp2040/mi.rp2040) names /etc/menu and only its build
 # needs the file installed into DESTDIR.
 MDFILES!=	if [ x"${MACHINE}" = x"rp2040" ] ; then \
-			echo "menu" ; \
+			echo "menu daemons" ; \
 		else \
 			echo "" ; \
 		fi

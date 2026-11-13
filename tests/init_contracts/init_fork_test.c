@@ -4,7 +4,9 @@
  * marker that term() and wterm() must never turn into kill(-1, ...).
  * init.c compiles from the tree against the tree's headers; the system
  * calls it makes are answered here from scripted results and recorded, so
- * no process is created and no signal is sent.
+ * no process is created and no signal is sent. The daemon supervisor's
+ * fork, reap and alarm path (dstart(), dreap(), dschedule()) runs here on
+ * the same doubles.
  */
 
 #include <errno.h>
@@ -13,6 +15,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+#include "daemons.h"
 
 struct tab {
 	char	line[8];
@@ -35,6 +40,14 @@ extern void dfork(struct tab *);
 extern void wstart(struct tab *);
 extern void term(struct tab *);
 extern void wterm(struct tab *);
+extern struct dtab *dtab;
+extern int didle;
+extern void dstart(struct dtab *);
+extern void dschedule(void);
+extern int dreap(int, int);
+extern volatile int dtimer;
+extern void dalarm(int);
+extern void dtimer_run(void);
 
 int test_errno;
 
@@ -42,6 +55,8 @@ int test_errno;
 static int fork_script[SCRIPT], fork_count, fork_calls;
 static int wait_script[SCRIPT], wait_count, wait_calls;
 static int sleep_calls, sleep_seconds, syslog_calls, kill_calls;
+static int alarm_calls;
+static unsigned alarm_last;
 static int kill_pid[SCRIPT], kill_sig[SCRIPT];
 static int failures, checks;
 
@@ -53,6 +68,8 @@ reset(void)
 {
 	fork_count = fork_calls = wait_count = wait_calls = 0;
 	sleep_calls = sleep_seconds = syslog_calls = kill_calls = 0;
+	alarm_calls = 0;
+	alarm_last = 0;
 	test_errno = 0;
 }
 
@@ -122,7 +139,7 @@ int test_dup2(int a, int b) { (void)a; return b; }
 long test_sigsetmask(long m) { return m; }
 long test_sigblock(long m) { return m; }
 int test_sigpause(long m) { (void)m; return -1; }
-unsigned int test_alarm(unsigned int s) { (void)s; return 0; }
+unsigned int test_alarm(unsigned int s) { alarm_calls++; alarm_last = s; return 0; }
 int test_sysctl(int *n, unsigned l, void *o, size_t *ol, void *nw, size_t nl)
 {
 	(void)n; (void)l; (void)o; (void)ol; (void)nw; (void)nl;
@@ -280,6 +297,85 @@ refused_window_system_leaves_the_restart_marker(void)
 	CHECK(t.wpid == 0);
 }
 
+static void
+refused_daemon_fork_backs_off_and_arms_the_alarm(void)
+{
+	struct dtab d;
+
+	CHECK(dtab_parse("/update -f 1:1 /var/update backoff", &d) == 1);
+	d.pid = -1;
+	dtab = &d;
+	reset();
+	dschedule();
+	CHECK(fork_calls == 1);
+	CHECK(d.pid == -1 && d.fails == 1);
+	CHECK(d.next_try > 0);
+	CHECK(alarm_calls == 1 && alarm_last == 1);
+	CHECK(sleep_calls == 0);
+	dtab = 0;
+}
+
+static void
+reaped_daemon_waits_for_its_backoff(void)
+{
+	static const int pids[] = { 7 };
+	struct dtab d;
+
+	CHECK(dtab_parse("/update -f 1:1 /var/update backoff", &d) == 1);
+	d.pid = -1;
+	dtab = &d;
+	reset();
+	script_fork(1, pids);
+	dschedule();
+	CHECK(d.pid == 7 && fork_calls == 1);
+	CHECK(alarm_last == 0);
+
+	CHECK(dreap(8, 0) == 0);
+	CHECK(dreap(7, 9) == 1);
+	CHECK(d.pid == -1 && d.fails == 1);
+	/* The restart lies 1 s ahead: no fork now, an alarm for it. */
+	CHECK(fork_calls == 1);
+	CHECK(alarm_last == 1);
+	dtab = 0;
+}
+
+/* The SIGALRM handler forks nothing; the main loop runs the restart. */
+static void
+alarm_handler_only_records_the_deadline(void)
+{
+	static const int pids[] = { 11 };
+	struct dtab d;
+
+	CHECK(dtab_parse("/update -f 1:1 /var/update backoff", &d) == 1);
+	d.pid = -1;
+	dtab = &d;
+	reset();
+	script_fork(1, pids);
+	dalarm(SIGALRM);
+	CHECK(fork_calls == 0);
+	CHECK(dtimer == 1);
+	dtimer_run();
+	CHECK(fork_calls == 1 && d.pid == 11);
+	CHECK(dtimer == 0);
+	dtab = 0;
+}
+
+static void
+idle_starts_no_daemon(void)
+{
+	struct dtab d;
+
+	CHECK(dtab_parse("/update -f 1:1 /var/update backoff", &d) == 1);
+	d.pid = -1;
+	dtab = &d;
+	didle = 1;
+	reset();
+	dschedule();
+	CHECK(fork_calls == 0);
+	didle = 0;
+	dtab = 0;
+}
+
 int
 main(void)
 {
@@ -291,6 +387,10 @@ main(void)
 	single_retries_until_a_shell_starts();
 	refused_getty_leaves_the_restart_marker();
 	refused_window_system_leaves_the_restart_marker();
+	refused_daemon_fork_backs_off_and_arms_the_alarm();
+	reaped_daemon_waits_for_its_backoff();
+	alarm_handler_only_records_the_deadline();
+	idle_starts_no_daemon();
 	if (failures) {
 		printf("init fork refusal: %d of %d checks failed\n", failures,
 		    checks);

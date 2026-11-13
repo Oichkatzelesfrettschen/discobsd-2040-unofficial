@@ -12,6 +12,7 @@
 #include "alloca.h"
 #include "tzfile.h"
 #include "paths.h"
+#include "offtime.h"
 
 char *
 ctime(const time_t *timestamp)
@@ -23,7 +24,8 @@ ctime(const time_t *timestamp)
 }
 
 char *tztab(int, int);
-static struct tm *offtime(const time_t *, long);
+/* The object gmtime() and localtime() return. */
+static struct tm time_result;
 
 struct ttinfo {				/* time type information */
 	long		tt_gmtoff;	/* GMT offset in seconds */
@@ -323,7 +325,8 @@ localtime(const time_t *time_pointer)
 	** you'd replace the statement below with
 	**	result = offtime((time_t) (timestamp + time_type->tt_gmtoff), 0L);
 	*/
-	result = offtime(&timestamp, time_type->tt_gmtoff);
+	result = __discobsd_offtime(&timestamp, time_type->tt_gmtoff,
+	    &time_result);
 	result->tm_isdst = time_type->tt_isdst;
 	tzname[result->tm_isdst] = &s.chars[time_type->tt_abbrind];
 	result->tm_zone = &s.chars[time_type->tt_abbrind];
@@ -335,24 +338,21 @@ gmtime(const time_t *timestamp)
 {
 	struct tm *result;
 
-	result = offtime(timestamp, 0L);
+	result = __discobsd_offtime(timestamp, 0L, &time_result);
 	tzname[0] = "GMT";
 	result->tm_zone = "GMT";		/* UCT ? */
 	return result;
 }
 
-static struct tm *
-offtime(const time_t *timestamp, long offset)
+struct tm *
+__discobsd_offtime(const time_t *timestamp, long offset, struct tm *result)
 {
-	struct tm *result;
 	long days;
 	long remainder;
 	int year;
 	int leap_year;
 	const unsigned char *month_length;
-	static struct tm time_result;
 
-	result = &time_result;
 	days = *timestamp / SECS_PER_DAY;
 	remainder = *timestamp % SECS_PER_DAY;
 	remainder += offset;

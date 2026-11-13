@@ -63,7 +63,7 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-vis check-printf-g check-huge-val \
 	check-qsort check-strtox check-string-security check-array-memory-line \
 	check-getgrent check-bounded-string check-exit-lifecycle check-quick-exit \
-	check-qsort-context
+	check-qsort-context check-dbm-open
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 ARRAY_MEMORY_CFLAGS= -std=c17 -Wall -Wextra -Werror
@@ -138,6 +138,26 @@ qsort_context_test_san: ${QSORT_CONTEXT_INPUTS} .PHONY
 
 check-qsort-context-cross:
 	${PYTHON} ${.CURDIR}/qsort_context_target.py ${TOPSRC} ${ARM_COMPILER} --host ${HOSTCC:Q}
+
+DBM_OPEN_INPUTS= dbm_open.py dbm_open_test.c ${TOPSRC}/include/ndbm.h \
+	${TARGET_DIR}/ndbm.c
+
+check-dbm-open: dbm_open_test
+	${TEST_EXECUTION} run libc.dbm-open.native -- ./dbm_open_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} dbm_open_test32
+	${TEST_EXECUTION} run libc.dbm-open.ilp32 -- ./dbm_open_test32
+.else
+	${TEST_EXECUTION} skip libc.dbm-open.ilp32 "check-libc-dbm-open: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+
+dbm_open_test: ${DBM_OPEN_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/dbm_open.py ${TOPSRC} ${HOSTCC:Q} $@
+
+dbm_open_test32: ${DBM_OPEN_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/dbm_open.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+.PHONY: check-dbm-open
 
 check-array-memory-line: reallocarray_contract_test memmem_contract_test \
 	line_reading_contract_test
@@ -1327,6 +1347,7 @@ header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
 clean:
 	rm -f qsort_context_test qsort_context_test32 qsort_context_test_san
 	rm -f bounded_string_test bounded_string_test32 bounded_string_test_san
+	rm -f dbm_open_test dbm_open_test32
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
 	rm -f exit_lifecycle_test exit_lifecycle_test32 quick_exit_test quick_exit_test32
 	rm -f alarm_contract_test alarm_contract.o
@@ -1425,6 +1446,7 @@ check-qemu:
 	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/dbm_open.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 .endif
 
 qemu_support_direct.o: ${QEMU_SUPPORT}
@@ -1505,7 +1527,7 @@ all: check
 	check-scanf-llong check-string-security \
 	check-array-memory-line-cross check-string-security-cross check-strtox \
 	check-syslog check-vis check-getgrent check-getgrent-cross check-exit-lifecycle \
-	check-quick-exit check-quick-exit-cross check-qsort-context-cross \
+	check-quick-exit check-quick-exit-cross check-qsort-context-cross check-dbm-open \
 	check-qemu clean
 
 # The C17 stdio surface outside the read and write path: the mode strings

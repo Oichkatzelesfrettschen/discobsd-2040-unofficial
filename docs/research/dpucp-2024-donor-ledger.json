@@ -1052,6 +1052,84 @@
       "residual": "Donor source supplies a mechanism candidate, not a proof that local vfork or spawn is implementable with the same ownership. Kernel prerequisites remain visible."
     },
     {
+      "id": "libc-ndbm-open-admission",
+      "requirements": [
+        "dpucp-2024:base-definition:ndbm.h",
+        "dpucp-2024:system-interface:dbm_open"
+      ],
+      "roles": [
+        "public ndbm declaration ownership",
+        "database pathname admission",
+        "staged descriptor and allocation ownership",
+        "directory bit-index extent admission"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "include/ndbm.h",
+          "sha256": "334574c7a21f079f7c5982361399768102531cb2061c70dc63c62cfc4ef33d60",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/db/hash/ndbm.c",
+          "sha256": "d0a0cd4a947d805869b94dabdc3a42230f36fe549086d37b11494d7642be6dbe",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "freebsd-src",
+          "path": "lib/libc/db/hash/ndbm.c",
+          "sha256": "15115751b8c59541b6f14dbb1b07a0a52ab2fcddb747640e18e4836d28ec3dfd",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "netbsd-src",
+          "path": "lib/libc/db/hash/ndbm.c",
+          "sha256": "1d818deeef009b0f5fbd7b4da38883fa1b42878c26aad86f4507c374b30ebad0",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "openbsd-src",
+          "path": "lib/libc/db/hash/ndbm.c",
+          "sha256": "1b52adbce7627c19bd245737420f61fcf474a8770d0b3bf2f5f4c6a2ec39cb9b",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "Reject a basename before allocation or I/O unless both four-byte suffixes and the terminator fit the 1,024-byte buffer; acquire two files transactionally; admit the directory extent before publishing its maximum bit index.",
+      "invariants": [
+        "A basename length above 1,019 returns ENAMETOOLONG without allocation or file operations.",
+        "Each failure releases exactly the allocation and descriptors already acquired and preserves the failing stage's errno.",
+        "An empty directory publishes -1; positive extent n publishes 8 * (n - 1) + 7 only when the result fits long.",
+        "The public constructor type is DBM *dbm_open(const char *, int, mode_t)."
+      ],
+      "algorithm": "Use one bounded scan, direct suffix copies, descriptor sentinels and an overflow-free positive-extent form. The composition retains the local two-file representation and avoids formatter linkage.",
+      "dependencies": [
+        "sys/types.h mode_t",
+        "malloc and free",
+        "open, close and fstat",
+        "errno, ENAMETOOLONG, ENOMEM and EFBIG"
+      ],
+      "c_language": "The public header and constructor seam use complete C17-compatible prototypes; the remainder of ndbm.c retains old-style definitions under a separate migration-open row.",
+      "c17_rewrite": "Retain the historical storage representation and notices; type the exported boundary, close the two maintained two-argument callers and make admission arithmetic explicit.",
+      "archive_members": [
+        "ndbm.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "native libc archive bytes",
+          "shipped program text/data/BSS and packed bytes",
+          "packed root blocks",
+          "maximum constructor stack and allocation extent"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Run check-libc-dbm-open, check-qemu, full native and target libc builds, caller closure, matched clean distributions and resource comparison before promotion.",
+      "disposition": "candidate",
+      "residual": "Focused native, ILP32 and ARMv6-M constructor witnesses pass. Complete resource qualification, aggregate gates, integration, remaining ndbm semantics and physical-board behavior remain open."
+    },
+    {
       "id": "libc-bounded-strings",
       "requirements": [
         "dpucp-2024:system-interface:strnlen",
@@ -1231,6 +1309,13 @@
       "requirements": [
         "dpucp-2024:system-interface:posix_spawn",
         "dpucp-2024:system-interface:posix_spawnp"
+      ]
+    },
+    "libc-ndbm-open-admission": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:base-definition:ndbm.h",
+        "dpucp-2024:system-interface:dbm_open"
       ]
     },
     "libc-bounded-strings": {

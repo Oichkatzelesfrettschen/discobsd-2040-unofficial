@@ -4505,6 +4505,44 @@
       "aliases": [
         "check-libc-qsort-context"
       ]
+    },
+    {
+      "id": "libc.dbm-open.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-dbm-open",
+      "root_target": "check-libc-host-contracts",
+      "program": "dbm_open_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "dbm_open_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.dbm-open.native -- ./dbm_open_test",
+      "aliases": [
+        "check-libc-dbm-open"
+      ]
+    },
+    {
+      "id": "libc.dbm-open.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-dbm-open",
+      "root_target": "check-libc-host-contracts",
+      "program": "dbm_open_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "dbm_open_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.dbm-open.ilp32 -- ./dbm_open_test32",
+      "aliases": [
+        "check-libc-dbm-open"
+      ]
     }
   ]
 }

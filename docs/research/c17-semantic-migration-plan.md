@@ -122,6 +122,16 @@ host/ILP32/Thumb-1 witnesses. Their ledger rows remain partial while the
 aggregate qualification and integration remain open. The lifecycle
 interfaces retain their separate dependency and resource decisions.
 
+The [database-open admission record](libc-dbm-open-admission.md) repairs the
+existing ndbm constructor without expanding the shipped interface set. The
+public header owns complete prototypes and `mode_t`; the constructor admits a
+basename only when the suffix and terminator fit its 1,024-byte buffer, and it
+publishes a database only after both descriptors and the directory extent are
+valid. Host, available ILP32 and ARMv6-M QEMU witnesses reject eight independent
+header, bound, cleanup and arithmetic mutations. Record parsing, page mutation,
+iteration, locking, full resource qualification and physical-board execution
+remain separate open leaves.
+
 Every requirement leaf records edition/option authority, declarations/types,
 input and state transitions, outputs/errors, ownership/cleanup, signal and
 concurrency interactions, archive/caller/kernel dependencies, complexity and

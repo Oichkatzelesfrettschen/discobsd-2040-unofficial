@@ -670,7 +670,7 @@ jobs:
             --status .build-logs/macos-lint.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-lint
-      # The host tier owns PTY completion, terminal nohup and libc quick-exit witnesses.
+      # The host tier owns PTY completion, terminal nohup, libc quick-exit and ndbm constructor witnesses.
       - name: Run the host tier
         timeout-minutes: 27
         run: |

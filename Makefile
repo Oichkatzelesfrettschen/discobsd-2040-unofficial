@@ -697,6 +697,11 @@ check-libc-qsort-context-cross: check-python
 check-libc-qsort:
 		${MAKE} -C tests/libc_contracts check-qsort
 
+check-libc-dbm-open:
+		${MAKE} -C tests/libc_contracts check-dbm-open
+
+.PHONY: check-libc-dbm-open
+
 check-libc-random:
 		${MAKE} -C tests/libc_contracts check-random
 

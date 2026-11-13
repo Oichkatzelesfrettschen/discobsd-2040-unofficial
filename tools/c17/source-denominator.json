@@ -18555,14 +18555,17 @@
     },
     {
       "path": "include/ndbm.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "include",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "libc-ndbm-public-header",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/libc-dbm-open-admission.md",
+        "tests/libc_contracts/dbm_open.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -18579,9 +18582,7 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -41051,14 +41052,17 @@
     },
     {
       "path": "lib/libc/gen/ndbm.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "lib",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "libc-ndbm",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/libc-dbm-open-admission.md",
+        "tests/libc_contracts/dbm_open.py"
+      ],
+      "blocker": "The dbm_open admission seam is typed and witnessed; the record parser, page mutation, iteration, and remaining old-style definitions require separate review.",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -41074,7 +41078,8 @@
           "inline_assembly": [],
           "integer": [
             "integer-cast",
-            "shift-expression"
+            "shift-expression",
+            "width-sensitive-sizeof"
           ],
           "object_lifetime": [
             "dynamic-storage"

@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <limits.h>
 #include <ndbm.h>
 
 #define BYTESIZ 8
@@ -94,38 +95,57 @@ makdatum(buf, n)
 }
 
 DBM *
-dbm_open(file, flags, mode)
-	char *file;
-	int flags, mode;
+dbm_open(const char *file, int flags, mode_t mode)
 {
 	struct stat statb;
-	register DBM *db;
+	DBM *db;
+	size_t length;
+	int saved_errno;
+
+	/* Both suffixes include four bytes and the terminating NUL. */
+	length = strnlen(file, sizeof(db->dbm_pagbuf) - sizeof(".pag") + 1);
+	if (length > sizeof(db->dbm_pagbuf) - sizeof(".pag")) {
+		errno = ENAMETOOLONG;
+		return NULL;
+	}
 
 	if ((db = (DBM *)malloc(sizeof *db)) == 0) {
 		errno = ENOMEM;
 		return ((DBM *)0);
 	}
+	db->dbm_pagf = -1;
+	db->dbm_dirf = -1;
 	db->dbm_flags = (flags & 03) == O_RDONLY ? _DBM_RDONLY : 0;
 	if ((flags & 03) == O_WRONLY)
 		flags = (flags & ~03) | O_RDWR;
-	strcpy(db->dbm_pagbuf, file);
-	strcat(db->dbm_pagbuf, ".pag");
+	memcpy(db->dbm_pagbuf, file, length);
+	memcpy(db->dbm_pagbuf + length, ".pag", sizeof(".pag"));
 	db->dbm_pagf = open(db->dbm_pagbuf, flags, mode);
 	if (db->dbm_pagf < 0)
 		goto bad;
-	strcpy(db->dbm_pagbuf, file);
-	strcat(db->dbm_pagbuf, ".dir");
+	memcpy(db->dbm_pagbuf + length, ".dir", sizeof(".dir"));
 	db->dbm_dirf = open(db->dbm_pagbuf, flags, mode);
 	if (db->dbm_dirf < 0)
-		goto bad1;
-	fstat(db->dbm_dirf, &statb);
-	db->dbm_maxbno = statb.st_size*BYTESIZ-1;
+		goto bad;
+	if (fstat(db->dbm_dirf, &statb) < 0)
+		goto bad;
+	if (statb.st_size < 0 || statb.st_size > LONG_MAX / BYTESIZ + 1) {
+		errno = EFBIG;
+		goto bad;
+	}
+	/* Admission keeps every intermediate within the signed bit-index range. */
+	db->dbm_maxbno = statb.st_size == 0 ? -1 :
+	    (long)(statb.st_size - 1) * BYTESIZ + (BYTESIZ - 1);
 	db->dbm_pagbno = db->dbm_dirbno = -1;
 	return (db);
-bad1:
-	(void) close(db->dbm_pagf);
 bad:
+	saved_errno = errno;
+	if (db->dbm_dirf >= 0)
+		(void) close(db->dbm_dirf);
+	if (db->dbm_pagf >= 0)
+		(void) close(db->dbm_pagf);
 	free((char *)db);
+	errno = saved_errno;
 	return ((DBM *)0);
 }
 

@@ -32,6 +32,7 @@ in this order, because each later row needs the earlier device.
 | A UFS partition on the card mounts beside the flash root; `fdisk` and `mkfs` through `rsd0` | console procedure in `PICOCALC.md` | not run |
 | The pulled-card sequence | `tests/rp2040/sd_detach/board_sd_detach.py` behind its opt-in | not run |
 | PSRAM Read ID 0x0D, quad mode and readback at 31.25 MHz | `psram0` probe | not run |
+| PSRAM 48-bit EID read and compared with reference APS6404L and LY68L6400 parts | `psram0: read id` line; ledger row U301 | not run |
 | The kernel swaps to PSRAM and falls back to `fl1` when the part is absent | boot with and without the part | not run |
 
 ## When a row leaves

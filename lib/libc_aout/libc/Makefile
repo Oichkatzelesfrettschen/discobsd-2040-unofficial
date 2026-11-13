@@ -73,6 +73,11 @@ OBJS            += bcopy.o bzero.o ffs.o memcpy.o memmove.o memset.o \
 
 # libc/$(MACHINE_ARCH)/gen
 OBJS            += _setjmp.o htonl.o htons.o
+.if ${MACHINE} == "rp2040"
+OBJS            += aeabi_div.o
+.else
+OBJS            += aeabi_div_idiv.o
+.endif
 
 # libc/gen
 OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
@@ -85,7 +90,7 @@ OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
                    getttyent.o getttynam.o getusershell.o getwd.o \
                    initgroups.o isatty.o isinff.o isnanf.o ldexp.o malloc.o mktemp.o \
                    modff.o ndbm.o nlist.o knlist.o opendir.o perror.o popen.o \
-                   psignal.o qsort.o raise.o random.o readdir.o regex.o scandir.o \
+                   psignal.o qsort.o qsort_r.o raise.o random.o readdir.o regex.o scandir.o \
                    seekdir.o setmode.o sethostname.o setenv.o setpgid.o siglist.o \
                    signal.o siginterrupt.o sigsetops.o \
                    sleep.o strcasecmp.o strftime.o swab.o sysconf.o sysctl.o syslog.o system.o \
@@ -104,7 +109,8 @@ OBJS            += fgetc.o fgets.o fputc.o fputs.o puts.o \
                    remove.o feof.o ferror.o fileno.o
 
 # libc/stdlib
-OBJS            += getopt.o getsubopt.o strtol.o strtoul.o strtod.o
+OBJS            += iso_exit.o at_quick_exit.o quick_exit.o \
+                   getopt.o getsubopt.o strtol.o strtoul.o strtod.o
 
 # libc/string
 OBJS            += explicit_bzero.o strcspn.o strerror.o strlcat.o strlcpy.o \
@@ -145,8 +151,11 @@ all:            ../libc.a
 		${AOUT_AR} rc $@ ${OBJS}
 		${AOUT_RANLIB} $@
 
+qsort_r.o: ${LIBCDIR}/gen/qsort.c
+
 vfprintf.o fputs.o: ${LIBCDIR}/stdio/output.h
 atexit.o exit.o: ${LIBCDIR}/stdio/atexit.h
+at_quick_exit.o quick_exit.o: ${LIBCDIR}/stdlib/quick_exit.h
 
 ${OBJS}:	FRC
 

@@ -43,6 +43,7 @@
 #ifndef _STDLIB_H_
 #define _STDLIB_H_
 
+#include <_featuretest.h>
 #include <sys/cdefs.h>
 #ifndef __dead
 /* A hosted test can reach the host's <sys/cdefs.h>, which has no __dead. */
@@ -79,6 +80,7 @@ __dead void abort (void);
 int     abs (int);
 void    *aligned_alloc (size_t, size_t);
 int     atexit (void (*)(void));
+int     at_quick_exit (void (*)(void));
 int     atoi (const char *);
 long    atol (const char *);
 void    *calloc (size_t, size_t);
@@ -97,6 +99,10 @@ void    *bsearch (const void *, const void *, size_t, size_t,
 int     heapsort (void *, size_t, size_t,
             int (*)(const void *, const void *));
 void    qsort (void *, size_t, size_t, int (*)(const void *, const void *));
+#if _DISCOBSD_BSD_VISIBLE || _DISCOBSD_POSIX_VISIBLE >= 202405L
+void    qsort_r (void *, size_t, size_t,
+            int (*)(const void *, const void *, void *), void *);
+#endif
 int     rand (void);
 void    *realloc (void*, size_t);
 void    *reallocarray (void *, size_t, size_t);
@@ -107,6 +113,7 @@ size_t  wcstombs (char *, const wchar_t *, size_t);
 int     wctomb (char *, wchar_t);
 
 __dead void _Exit (int);
+__dead void quick_exit (int);
 
 /*
  * Smaller C, the native compiler, has no 64-bit integer type, so it sees

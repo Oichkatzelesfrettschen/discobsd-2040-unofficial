@@ -238,10 +238,11 @@ jobs:
               CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" \
               check-changed-text
 
-      # check-host includes compiler-matrix identity, ownership and bounded PTY completion.
+      # check-host owns compiler-matrix identity, ownership and bounded PTY completion.
       # It also checks the fixed Git-tree repository coverage ledger and rejection fixtures.
-      # libc bounded strings execute calibrated native, ILP32 and sanitizer cases;
-      # check-qemu executes the same bytewise functions as Thumb-1 code.
+      # Libc strings and exit registries execute calibrated host and ILP32 cases;
+      # strings and context sorting add sanitizers; the libc QEMU tier replays
+      # strings, quick exit and context sorting as Thumb-1.
       - name: Run the host tier
         timeout-minutes: 20
         run: |
@@ -681,7 +682,7 @@ jobs:
             --status .build-logs/macos-lint.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-lint
-      # The host tier owns PTY completion and the terminal nohup consumer.
+      # The host tier owns PTY completion, terminal nohup and libc quick-exit witnesses.
       - name: Run the host tier
         timeout-minutes: 27
         run: |

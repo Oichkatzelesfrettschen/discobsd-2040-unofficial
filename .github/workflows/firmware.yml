@@ -11,6 +11,18 @@ on:
       - 'feat/**'
       - 'ci/**'
   pull_request:
+  # The nightly run checks out main and runs every job and every host gate;
+  # pull requests skip the heavy host suites their changes cannot reach
+  # (tools/select-host-gates.sh) and the macOS job.
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+
+# A newer push to a pull request supersedes its running jobs; pushes to main
+# and scheduled runs each finish.
+concurrency:
+  group: firmware-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -42,7 +54,12 @@ jobs:
           EVENT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           EVENT_HEAD: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        # A scheduled or dispatched run carries no event base; the head's
+        # first parent, the prior tip of main, gives the last merge's range.
         run: |
+          if [ -z "$EVENT_BASE" ]; then
+            EVENT_BASE=$(git rev-parse "$EVENT_HEAD^")
+          fi
           read -r resolved_base resolved_head < <(
             sh tools/resolve-changed-comment-range.sh . \
               "$EVENT_BASE" "$EVENT_HEAD" \
@@ -51,6 +68,26 @@ jobs:
           test -n "$resolved_base" && test -n "$resolved_head"
           echo "CHANGED_COMMENT_BASE=$resolved_base" >> "$GITHUB_ENV"
           echo "CHANGED_COMMENT_HEAD=$resolved_head" >> "$GITHUB_ENV"
+
+      # A pull request skips the heavy host suites its changed paths cannot
+      # reach; every other event runs them all. HOST_GATE_SKIP reaches
+      # check-host through the environment, which bmake reads as a variable,
+      # so the logged host command stays the one check_build_observability.py
+      # pins. The script prints an empty
+      # list when the range is unreadable or a shared input changed.
+      - name: Select the host gates for this change
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          base=$(git merge-base "$PR_BASE" "$PR_HEAD" 2>/dev/null || true)
+          skip=
+          if [ -n "$base" ]; then
+            skip=$(sh tools/select-host-gates.sh "$base" "$PR_HEAD")
+          fi
+          echo "host gates skipped for this change: ${skip:-none}"
+          echo "HOST_GATE_SKIP=$skip" >> "$GITHUB_ENV"
 
       # bmake drives the tree; share/mk/sys.mk picks byacc over bison on
       # Linux, flex as LEX, mandoc for the manual pages and "vim -es -u
@@ -570,6 +607,7 @@ jobs:
   # warning-free kernel, world and flash image.
   rp2040-macos:
     name: rp2040 kernel, flash image on macOS
+    if: github.event_name != 'pull_request'
     runs-on: macos-latest
     timeout-minutes: 60
     steps:

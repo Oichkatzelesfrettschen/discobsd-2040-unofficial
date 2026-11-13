@@ -74650,8 +74650,10 @@
         "source_kind": "translation-unit",
         "build_surface": "test-only",
         "required_mode": "strict-c17-and-gnu17",
-        "extension_policy": "portable-only",
-        "extension_signals": [],
+        "extension_policy": "gnu-extension-review",
+        "extension_signals": [
+          "gnu-attribute"
+        ],
         "risk_family": "portable-leaf",
         "risk_tier": "unreviewed",
         "risk_tier_basis": "caller-closure-required",

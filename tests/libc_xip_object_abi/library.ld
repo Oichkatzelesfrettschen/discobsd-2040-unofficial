@@ -1,6 +1,7 @@
 OUTPUT_FORMAT("elf32-littlearm")
 OUTPUT_ARCH(arm)
 ENTRY(shared_errno_address)
+absolute_zero = 0;
 PHDRS
 {
     text PT_LOAD FLAGS(5);

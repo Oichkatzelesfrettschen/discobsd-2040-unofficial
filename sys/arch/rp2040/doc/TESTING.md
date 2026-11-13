@@ -1759,8 +1759,10 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 experimental PIC library and links five application layouts with executable-tail
 state. ELF inspection and actual a.out conversion check BSS containment and final
 end symbols; Cortex-M0 QEMU execution checks public object identity, initialized
-pointers and callbacks. Seven controls reject incorrect addresses, GOT base,
-relocation, segment/end bounds, non-PIC references and interposition. Linux
+pointers, callbacks and null weak/absolute imports. Eleven controls reject
+incorrect addresses, GOT base, relocation, segment/end bounds, non-PIC
+references, interposition, relocated fixed GOT entries, missing or conflicting
+GOT ownership and unresolved strong imports. Linux
 `firmware.yml` owns the gate through `check-qemu`; Python `pyelftools`, ARM GNU
 tools, QEMU user mode and the built `elf2aout` converter are required. The
 [experiment record](../../../../docs/research/xip-shared-libc/object-abi/README.md)

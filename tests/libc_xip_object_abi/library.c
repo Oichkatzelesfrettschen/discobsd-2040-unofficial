@@ -4,6 +4,8 @@
 
 extern const char *_curbrk;
 extern const char *__progname;
+extern int optional_object __attribute__((weak));
+extern int absolute_zero __attribute__((weak));
 
 int *library_errno_pointer = &errno;
 FILE *library_stream_pointer = &_iob[2];
@@ -36,7 +38,8 @@ shared_environ_address(void)
 int
 shared_initial_state(const char *end)
 {
-	return library_errno_pointer == &errno &&
+	return &optional_object == NULL && &absolute_zero == NULL &&
+	    library_errno_pointer == &errno &&
 	    library_stream_pointer == &_iob[2] && library_null_pointer == NULL &&
 	    _iob[0]._flag == _IOREAD && _iob[0]._file == 0 &&
 	    _iob[1]._flag == _IOWRT && _iob[1]._file == 1 &&

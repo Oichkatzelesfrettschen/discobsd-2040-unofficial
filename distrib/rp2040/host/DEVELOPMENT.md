@@ -37,7 +37,7 @@ on Windows); a symlink named `discobsd-term`, `discobsd-web` or
 | --- | --- | --- |
 | Ubuntu, Debian | `apt install python3-serial python3-pytest` or the venv above | `apt install bmake build-essential gcc-arm-none-eabi binutils-arm-none-eabi byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc`; picotool 2.3.1 built from source (see `.github/workflows/firmware.yml`) |
 | Arch, CachyOS | `pacman -S python-pyserial python-pytest ruff` | `pacman -S bmake arm-none-eabi-gcc arm-none-eabi-binutils byacc bison flex libbsd fuse2 pkgconf mandoc`; picotool 2.3.1 (the 2.3.0 in the AUR aborts on every RP2040) |
-| macOS | `brew install pipx` then `pipx install -e .` or the venv above; Apple's Python 3.9 works but has no pyserial | `brew install bmake byacc bison flex groff mandoc pkgconf picotool cflow cscope shellcheck ruff coreutils cpio` (the host gates read GNU cpio from its keg) and `brew install --cask gcc-arm-embedded` |
+| macOS | `brew install pipx` then `pipx install -e .` or the venv above; Apple's Python 3.9 works but has no pyserial | `brew install bmake byacc bison flex groff mandoc pkgconf picotool cflow cscope shellcheck ruff coreutils cpio jq` (the host gates read GNU cpio from its keg) and `brew install --cask gcc-arm-embedded` |
 | Windows | the venv above from python.org's Python; `pytest` and `ruff` run the same | not supported; build in WSL with the Ubuntu column |
 
 macOS particulars, each verified on macOS 26 with Apple silicon:

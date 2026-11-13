@@ -898,10 +898,11 @@ check-init-contracts:
 check-init-daemons:
 		${MAKE} -C tests/init_daemons check
 
-# tools/select-host-gates.sh against its calibration cases, including the
-# fail-closed ones that must run every gate.
-check-host-gate-selection:
-		sh tools/select_host_gates_test.sh
+# The failed-job list of tools/report-nightly-failure.sh against its
+# calibration cases: a passing run prints nothing, and a failed, timed-out
+# or cancelled job prints with its steps.
+check-nightly-report:
+		sh tools/report_nightly_failure_test.sh
 
 # tools/mutant_pool.py, which the fourfall, puzzlebox and calc mutant runners
 # share: list order, serial timing mutants alone, MUTANT_JOBS, and a known-bad
@@ -1462,7 +1463,7 @@ check-elf2aout:	tools
 # the shell against the host's headers, so those two reach nothing under
 # include.
 HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed-exec-pair-summary check-rp2040-storage-delta \
-		check-agent-instructions check-uf2-validator check-host-gate-selection check-mutant-pool \
+		check-agent-instructions check-uf2-validator check-nightly-report check-mutant-pool \
 		check-kernel-headroom-validator \
 		check-run-logging check-compiler-matrix-harness check-callgraph-capture check-battlestar-generation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
@@ -1664,13 +1665,8 @@ check-fs-profiles:	check-python .WAIT
 		    --append=distrib/rp2040/md.rp2040
 		sh distrib/rp2040/check-image-selection.sh ${MAKE}
 
-# HOST_GATE_SKIP removes named gates from check-host. Pull-request CI sets
-# it from tools/select-host-gates.sh, which lists only heavy suites the
-# change cannot reach; the nightly and main-branch runs leave it empty.
-HOST_GATE_SKIP?=
 check-host:	check-python .WAIT symlinks .WAIT \
-		${HOST_GATES:${HOST_GATE_SKIP:@g@N${g}@:ts:}} \
-		${HOST_PROGRAM_GATES:${HOST_GATE_SKIP:@g@N${g}@:ts:}}
+		${HOST_GATES} ${HOST_PROGRAM_GATES}
 
 # The kernel formatter and neighboring contracts use target-width integer and
 # pointer assumptions. The gate runs them in a 32-bit userspace binary. A host

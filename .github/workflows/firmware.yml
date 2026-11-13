@@ -2,18 +2,21 @@
 # groups (sys/arch/rp2040/doc/TESTING.md). The build log is gated on its
 # warnings: the build must emit none. The discobsd-host package has its
 # own workflow, host.yml, which is the check-host-package tier.
+#
+# A pull request and a push to main run the rp2040 job's fixed short set:
+# the warning-free build, the kernel headroom, the flash image, the UF2
+# validation, the lint tier, the changed-comment and changed-text checks
+# and the Renode UART0 boot. The nightly run, on main, and a manual
+# dispatch, on the ref it names, add every other tier and every other job
+# (FULL_GATES); a nightly that fails opens or updates one issue (the
+# nightly-report job).
 name: firmware
 
 on:
   push:
     branches:
       - main
-      - 'feat/**'
-      - 'ci/**'
   pull_request:
-  # The nightly run checks out main and runs every job and every host gate;
-  # pull requests skip the heavy host suites their changes cannot reach
-  # (tools/select-host-gates.sh) and the macOS job.
   schedule:
     - cron: '17 9 * * *'
   workflow_dispatch:
@@ -41,6 +44,11 @@ env:
   # the SHA-256 the release page publishes for that archive.
   RENODE_VERSION: '1.17.0'
   RENODE_SHA256: 'd64cffde48e72064ba9e87ff34e186cb7aa8d8f296dec9bbbcd6a8b76ae7fd76'
+  # 'true' on the nightly schedule and on a manual dispatch, the two events
+  # that run every tier. A step outside the short set carries
+  # "if: env.FULL_GATES == 'true'"; a job outside it repeats the event test,
+  # since a job-level condition cannot read env.
+  FULL_GATES: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
 
 jobs:
   rp2040:
@@ -74,26 +82,6 @@ jobs:
           echo "CHANGED_COMMENT_BASE=$resolved_base" >> "$GITHUB_ENV"
           echo "CHANGED_COMMENT_HEAD=$resolved_head" >> "$GITHUB_ENV"
 
-      # A pull request skips the heavy host suites its changed paths cannot
-      # reach; every other event runs them all. HOST_GATE_SKIP reaches
-      # check-host through the environment, which bmake reads as a variable,
-      # so the logged host command stays the one check_build_observability.py
-      # pins. The script prints an empty
-      # list when the range is unreadable or a shared input changed.
-      - name: Select the host gates for this change
-        if: github.event_name == 'pull_request'
-        env:
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          base=$(git merge-base "$PR_BASE" "$PR_HEAD" 2>/dev/null || true)
-          skip=
-          if [ -n "$base" ]; then
-            skip=$(sh tools/select-host-gates.sh "$base" "$PR_HEAD")
-          fi
-          echo "host gates skipped for this change: ${skip:-none}"
-          echo "HOST_GATE_SKIP=$skip" >> "$GITHUB_ENV"
-
       # bmake drives the tree; share/mk/sys.mk picks byacc over bison on
       # Linux, flex as LEX, mandoc for the manual pages and "vim -es -u
       # NONE" where no ex is installed, and pulls the BSD string and
@@ -114,7 +102,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            bmake make build-essential cmake git clang cflow cscope ripgrep \
+            bmake make build-essential cmake git clang cflow cscope ripgrep jq \
             gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
             python3 libusb-1.0-0-dev \
@@ -289,6 +277,7 @@ jobs:
       # QEMU tier replays strings, quick exit, context sorting and absolute values
       # as Thumb-1. Native archive omission controls cover callable abs/labs.
       - name: Run the host tier
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 20
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -303,6 +292,7 @@ jobs:
       # It also calibrates explicit shared-libc API/provider closure with ARM
       # object archives through check-libc-shared-closure on both platforms.
       - name: Run the cross tier
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 20
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -313,6 +303,7 @@ jobs:
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross
 
       - name: Enumerate V7 transfer prefixes at a one-block parent
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 10
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -327,6 +318,7 @@ jobs:
       # then seventeen kernels rebuilt from mutated source that must fail;
       # python3-unicorn above is its one dependency beyond the cross tier.
       - name: Run the core 1 emulation tier
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -337,6 +329,7 @@ jobs:
             -- bmake MACHINE=rp2040 check-core1-emulation
 
       - name: Run the qemu tier
+        if: env.FULL_GATES == 'true'
         # Includes the executable-tail libc object ABI experiment with real
         # ELF/a.out conversion and calibrated QEMU identity checks.
         timeout-minutes: 5
@@ -349,6 +342,7 @@ jobs:
             -- bmake MACHINE=rp2040 check-qemu
 
       - name: Run the board-build tier
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -399,6 +393,7 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode
       - name: Run the Renode table exhaustion tier
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -408,6 +403,7 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-capacity
       - name: Run the Renode image identity tier
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -417,6 +413,7 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-identity
       - name: Run the Renode PicoCalc tier
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -428,6 +425,7 @@ jobs:
       # savecore ships in the picocalc profile, so the crash-dump tier boots
       # the PICOCALC board's root image.
       - name: Build the PicoCalc flash image
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -438,6 +436,7 @@ jobs:
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 \
             BOARD=PICOCALC flash
       - name: Run the Renode PicoCalc crash-dump tier
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 25
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -447,6 +446,7 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 1440 \
             -- bmake MACHINE=rp2040 check-renode-picocalc-dump
       - name: Run the Renode union kernel tier
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -497,6 +497,7 @@ jobs:
       # must be removed by a clean target or named in
       # tools/clean-residue-allow.txt.
       - name: Check that cleanall leaves no residue
+        if: env.FULL_GATES == 'true'
         timeout-minutes: 10
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -516,6 +517,7 @@ jobs:
   # warning line in the log fails the job.
   stm32:
     name: stm32 kernels and userland
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -567,6 +569,7 @@ jobs:
   # receipts distinguish assertion results from optional local skips.
   posix-sh:
     name: Required ILP32 execution (shell, kernel, libc and utilities)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -635,7 +638,7 @@ jobs:
   # warning-free kernel, world and flash image.
   rp2040-macos:
     name: rp2040 kernel, flash image on macOS
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -646,7 +649,7 @@ jobs:
           fetch-depth: 0
       - name: Install the host toolchain
         run: |
-          brew install bmake byacc bison flex groff mandoc pkgconf picotool cflow cscope \
+          brew install bmake byacc bison flex groff mandoc pkgconf picotool cflow cscope jq \
             shellcheck ruff coreutils cpio ripgrep
           case "$(uname -m)" in
             arm64)
@@ -816,6 +819,7 @@ jobs:
   # secret, and it runs on a pull request from a fork.
   flash-id:
     name: flash-id against the Pico SDK
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -860,3 +864,25 @@ jobs:
           path: .build-logs/
           include-hidden-files: true
           if-no-files-found: warn
+
+  # A scheduled run reports to nobody, so its result goes to one issue:
+  # tools/report-nightly-failure.sh opens it, or adds a comment to the open
+  # one, with the failed jobs and steps and the merges since the last
+  # scheduled run that passed, and closes it when a later nightly passes.
+  nightly-report:
+    name: Report the nightly result
+    if: always() && github.event_name == 'schedule'
+    needs: [rp2040, stm32, posix-sh, rp2040-macos, flash-id]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Open, update or close the nightly failure issue
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh tools/report-nightly-failure.sh

@@ -1221,6 +1221,7 @@ check-netbsd-imports: check-python
 		${PYTHON} tools/netbsd_imports.py verify
 
 check-storage-recovery: check-python
+		${PYTHON} tests/storage_recovery/host_build_test.py
 		${PYTHON} tests/storage_recovery/storage_trace_test.py
 		${PYTHON} tests/storage_recovery/v7fs_backend_test.py
 		${PYTHON} tests/storage_recovery/v7_image_test.py

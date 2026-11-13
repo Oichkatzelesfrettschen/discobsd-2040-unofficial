@@ -232,6 +232,22 @@ aggregate. Pull request 471 remains draft pending hosted checks and refreshed
 review of the repaired published head. This acceptance update changes only
 the evidence document.
 
+Review of `89336585` reports that Ubuntu Clang 20.1.8 returns a missing
+path from `--print-runtime-dir` while its installed UBSan library remains
+usable. The host helper rejects that layout before either storage backend
+runs. Local compiler-query fixtures reproduce the rejected directory and
+calibrate target-directory Linux, architecture-suffix Linux, macOS dynamic
+runtime and missing-library cases. The repaired helper asks Clang for the
+installed shared library with `-print-file-name`; Linux runtime suffixes come
+from the compiler-selected compiler-rt builtins name. Its parent directory
+supplies the runtime search path. The six resolver cases pass, including the
+missing-library rejection; the directory-only implementation fails calibration.
+Actual Clang 23 and GCC 13 each pass all 19 backend cases. The full Clang
+storage and transaction-model gates pass in 106.3 seconds under
+`storage-runtime-focused`, after a passing logged build. Ubuntu Clang 20 is
+not installed locally; its exact package layout remains reviewer evidence.
+Final aggregate and hosted acceptance must refresh for the runtime repair.
+
 Only one item carries active implementation focus. Product jobs use the
 worktree's logged execution lock. Physical-board access, raw-device writes,
 power interruption, production keys, and provider execution remain outside

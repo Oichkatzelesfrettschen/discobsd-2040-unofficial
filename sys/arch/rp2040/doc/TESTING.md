@@ -1550,7 +1550,11 @@ loads host declarations before replacing call names, so fortified libc aliases
 cannot route a descriptor read around the injection boundary. Backend cases
 run with both default host flags and explicit `_FORTIFY_SOURCE=3`. Python-loaded
 Clang libraries link the shared sanitizer runtime and record its compiler-selected
-runtime directory as a loader search path; GCC retains its driver-managed linkage.
+library directory as a loader search path; GCC retains its driver-managed linkage.
+Runtime-resolution calibration covers target-directory and architecture-suffix
+Linux layouts, macOS dynamic libraries, and rejection of a missing runtime.
+The compiler resolves the shared library with `-print-file-name`; its reported
+`--print-runtime-dir` need not name an installed directory.
 
 The interface records sequence, layer, operation kind, address domain,
 offset, length, phase, transferred bytes and result. Calibrations exercise

@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "profile_id": "DPUCP-2024",
   "claim": "Candidate donor mechanisms inform measured DiscoBSD/Pico compatibility work; this ledger makes no POSIX or UNIX conformance claim.",
   "selection_rule": "Prefer bounded algorithms, invariants, and tests. Admit code only after license, dependency, C17, ABI, RAM, linked-image, packed-root, and runtime gates agree.",
@@ -35,6 +35,96 @@
     "LiteBSD-2": {
       "origin": "https://github.com/Oichkatzelesfrettschen/LiteBSD-2.git",
       "revision": "25b8a3ff7ad21b426214964eb91786f63e34e5a4"
+    },
+    "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56": {
+      "origin": "https://github.com/DragonFlyBSD/DragonFlyBSD.git",
+      "revision": "805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "checkout": "DragonFlyBSD"
+    },
+    "211bsd@dff9640c6e8d4e7fcc3ca83b0ec7716cfe9f447d": {
+      "origin": "https://github.com/AaronJackson/2.11BSD.git",
+      "revision": "dff9640c6e8d4e7fcc3ca83b0ec7716cfe9f447d",
+      "checkout": "211bsd"
+    },
+    "386bsd@9eaf3b3359255f461055b8f582131dd4695e750d": {
+      "origin": "https://github.com/386bsd/386bsd.git",
+      "revision": "9eaf3b3359255f461055b8f582131dd4695e750d",
+      "checkout": "386bsd"
+    },
+    "BSDRP@c3d134a3036a763a6698d806e00c210a5fa9514a": {
+      "origin": "https://github.com/ocochard/BSDRP.git",
+      "revision": "c3d134a3036a763a6698d806e00c210a5fa9514a",
+      "checkout": "BSDRP"
+    },
+    "LiteBSD-2@25b8a3ff7ad21b426214964eb91786f63e34e5a4": {
+      "origin": "https://github.com/sergev/LiteBSD.git",
+      "revision": "25b8a3ff7ad21b426214964eb91786f63e34e5a4",
+      "checkout": "LiteBSD-2"
+    },
+    "NextBSD@2adf5a5551b6f55db78ffc0c44069b57469ca43c": {
+      "origin": "https://github.com/NextBSD/NextBSD.git",
+      "revision": "2adf5a5551b6f55db78ffc0c44069b57469ca43c",
+      "checkout": "NextBSD"
+    },
+    "cheribsd@88f39900c32928d807dba245fba138808c666f34": {
+      "origin": "https://github.com/CTSRD-CHERI/cheribsd.git",
+      "revision": "88f39900c32928d807dba245fba138808c666f34",
+      "checkout": "cheribsd"
+    },
+    "freebsd-src@f3ec447a1c0697f024dcf12929552e4ee9a420e0": {
+      "origin": "https://git.FreeBSD.org/src.git",
+      "revision": "f3ec447a1c0697f024dcf12929552e4ee9a420e0",
+      "checkout": "freebsd-src"
+    },
+    "hardenedBSD@f00d21450c56a835db29968f4afc7e8554ece95d": {
+      "origin": "https://github.com/HardenedBSD/hardenedBSD.git",
+      "revision": "f00d21450c56a835db29968f4afc7e8554ece95d",
+      "checkout": "hardenedBSD"
+    },
+    "midnightbsd-src@c73632db218b1039d5bb0fd6685b6fc37ae997c8": {
+      "origin": "https://github.com/MidnightBSD/src.git",
+      "revision": "c73632db218b1039d5bb0fd6685b6fc37ae997c8",
+      "checkout": "midnightbsd-src"
+    },
+    "netbsd-src@dc5f6b2d8a00d0780c9a3f1ae12a02d78d60e745": {
+      "origin": "https://github.com/NetBSD/src.git",
+      "revision": "dc5f6b2d8a00d0780c9a3f1ae12a02d78d60e745",
+      "checkout": "netbsd-src"
+    },
+    "openbsd-src@e408428c254f7060d257bc302f7d62c5988f90ec": {
+      "origin": "https://github.com/openbsd/src.git",
+      "revision": "e408428c254f7060d257bc302f7d62c5988f90ec",
+      "checkout": "openbsd-src"
+    },
+    "opnsense-core@855dbea44aef4b88712b6e4008998a8fa6d0d697": {
+      "origin": "https://github.com/opnsense/core.git",
+      "revision": "855dbea44aef4b88712b6e4008998a8fa6d0d697",
+      "checkout": "opnsense-core"
+    },
+    "opnsense-src@1633399de9ddbceb1474b7c095eeb5ef8c2f9ca8": {
+      "origin": "https://github.com/opnsense/src.git",
+      "revision": "1633399de9ddbceb1474b7c095eeb5ef8c2f9ca8",
+      "checkout": "opnsense-src"
+    },
+    "pfsense@9363ac5b8651a1c7a333180425ce7719070f95f9": {
+      "origin": "https://github.com/pfsense/pfsense.git",
+      "revision": "9363ac5b8651a1c7a333180425ce7719070f95f9",
+      "checkout": "pfsense"
+    },
+    "pfsense-freebsd-src@220e9a7e8d1f8d11dac87d7f1ffe1a1e10dade10": {
+      "origin": "https://github.com/pfsense/FreeBSD-src.git",
+      "revision": "220e9a7e8d1f8d11dac87d7f1ffe1a1e10dade10",
+      "checkout": "pfsense-freebsd-src"
+    },
+    "retrobsd@e7a6580d755f2fa9675ac1313cad097dae8ffea0": {
+      "origin": "https://github.com/RetroBSD/retrobsd.git",
+      "revision": "e7a6580d755f2fa9675ac1313cad097dae8ffea0",
+      "checkout": "retrobsd"
+    },
+    "rtems-libbsd@8efc40e412187d9bea4200e4f7b14fd5a38f66c2": {
+      "origin": "https://gitlab.rtems.org/rtems/pkg/rtems-libbsd.git",
+      "revision": "8efc40e412187d9bea4200e4f7b14fd5a38f66c2",
+      "checkout": "rtems-libbsd"
     }
   },
   "candidates": [
@@ -643,6 +733,514 @@
       "deciding_gate": "Admit a shared compact BRE provider first, then pass selector, logical-page, formatting, invalid-BRE, byte-locale, link-map, and packed-root witnesses.",
       "disposition": "deferred",
       "residual": "The target lacks a shared compact BRE provider; keep pBRE open until the later BRE/ERE family closes that prerequisite."
+    },
+    {
+      "id": "libc-duplicate-aware-sort",
+      "requirements": [
+        "dpucp-2024:system-interface:qsort",
+        "dpucp-2024:system-interface:qsort_r"
+      ],
+      "roles": [
+        "libc mechanism comparison",
+        "source evidence with target-specific falsifiers"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/stdlib/qsort.c",
+          "sha256": "1bffe62f9898b7a380207e0e2cf5d1277edf47ab193c3500d83abcf3a6e43abf",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "Partition comparator-equal records together and carry typed comparator context per call.",
+      "invariants": [
+        "Equal-key blocks leave the recursive partitions.",
+        "The target recurses only into the smaller partition, bounding stack depth by log2(element count).",
+        "Nested comparator calls preserve independent contexts; callback casts cannot substitute for compatible types."
+      ],
+      "algorithm": "Bentley-McIlroy three-way partitioning and sampled pivots. Compose equal-key grouping with local smaller-side recursion; evaluate an introspective depth budget and allocation-free byte-swap heap fallback for worst-case comparison bounds.",
+      "dependencies": [
+        "size_t multiplication and address-span contracts",
+        "public Issue 8 context-last qsort_r declaration",
+        "existing local qsort and allocating heapsort implementations"
+      ],
+      "c_language": "Donor C and private BSD interfaces require target GNU17 compilation, strict C17 mechanism checks and separate Smaller C declaration acceptance.",
+      "c17_rewrite": "Use typed context-last callbacks for Issue 8. The donor uses context-first callbacks and always recurses left, so neither its public signature nor its recursion policy transfers unchanged.",
+      "archive_members": [
+        "qsort.o",
+        "qsort_r.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "kernel flash and SRAM",
+          "application text/data/BSS and alignment",
+          "peak stack and simultaneous allocations",
+          "packed root blocks",
+          "swap traffic"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Compare exhaustive small arrays and large equal-heavy, sorted, reverse, periodic and comparator-adversarial inputs against an independent order/permutation oracle; test nested contexts, count comparisons and measure target stack/text and clean consumer artifacts.",
+      "disposition": "candidate",
+      "residual": "The algorithms have prior art. Port-specific composition remains unimplemented and resource-unmeasured; the existing allocating heapsort cannot silently supply a non-failing fallback."
+    },
+    {
+      "id": "libc-fixed-memory-stream",
+      "requirements": [
+        "dpucp-2024:system-interface:fmemopen"
+      ],
+      "roles": [
+        "libc mechanism comparison",
+        "source evidence with target-specific falsifiers"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/stdio/fmemopen.c",
+          "sha256": "2b542253570d1ef7e32d6cf2999f5687d2ca1e68246402590158e1d81f2a492d",
+          "license": "BSD-2-Clause"
+        }
+      ],
+      "behavior": "Expose fixed-capacity storage through stdio with explicit cursor, logical extent and termination rules.",
+      "invariants": [
+        "The cursor and every backing-buffer access remain inside the admitted extent.",
+        "Capacity, logical extent and terminating-byte placement remain distinct.",
+        "Append selects its contractually defined write position after seek."
+      ],
+      "algorithm": "Backend cookie tracks fixed storage; translate callbacks through a private target FILE backend and its existing buffering/lifetime rules.",
+      "dependencies": [
+        "local FILE representation",
+        "fflush/fclose/fseek error and lifetime paths",
+        "mode parser",
+        "shared mutable stdio ABI decision"
+      ],
+      "c_language": "Donor C and private BSD interfaces require target GNU17 compilation, strict C17 mechanism checks and separate Smaller C declaration acceptance.",
+      "c17_rewrite": "Rederive read and write bounds from the standard. The donor read callback uses the remaining capacity rather than the logical extent; donor output alone is not an independent oracle.",
+      "archive_members": [
+        "fmemopen.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "kernel flash and SRAM",
+          "application text/data/BSS and alignment",
+          "peak stack and simultaneous allocations",
+          "packed root blocks",
+          "swap traffic"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Exercise all modes, embedded NULs, zero/full capacities, exact-full writes, append-after-seek, flush/close termination, allocation failure and cleanup against explicit normative cases.",
+      "disposition": "candidate",
+      "residual": "Private backend design and shared-libc state ownership precede implementation; host behavior does not establish target memory use."
+    },
+    {
+      "id": "libc-growing-memory-stream",
+      "requirements": [
+        "dpucp-2024:system-interface:open_memstream"
+      ],
+      "roles": [
+        "libc mechanism comparison",
+        "source evidence with target-specific falsifiers"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/stdio/open_memstream.c",
+          "sha256": "b8c95e4a19a945f998b3f75a2a163c04537b6d50147130afe979e0d53d4f7e1e",
+          "license": "BSD-2-Clause"
+        }
+      ],
+      "behavior": "Publish caller-owned pointer and length at the required stdio synchronization boundaries.",
+      "invariants": [
+        "Capacity, logical extent, cursor and published pointer/length are separate state.",
+        "Growth failure preserves the owned allocation and a coherent stream.",
+        "Every admitted growth accounts for the old-plus-new moving-realloc peak and a terminating byte."
+      ],
+      "algorithm": "Adapt the cookie mechanism with checked geometric capacity growth for amortized linear copying; the donor exact-size allocation can copy quadratically during repeated small writes.",
+      "dependencies": [
+        "private FILE backend",
+        "checked size and offset arithmetic",
+        "allocator ownership",
+        "fflush and fclose publication semantics"
+      ],
+      "c_language": "Donor C and private BSD interfaces require target GNU17 compilation, strict C17 mechanism checks and separate Smaller C declaration acceptance.",
+      "c17_rewrite": "Keep stream position and logical end independent of allocated capacity and publication; use overflow-checked conversions before growth or seeking.",
+      "archive_members": [
+        "open_memstream.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "kernel flash and SRAM",
+          "application text/data/BSS and alignment",
+          "peak stack and simultaneous allocations",
+          "packed root blocks",
+          "swap traffic"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Test backward overwrite, seek holes, embedded NULs, maximal offsets, failed growth, flush/close publication and cleanup; count copied bytes over append sequences and measure target peak allocations.",
+      "disposition": "candidate",
+      "residual": "The growth strategy is established prior art. Publication details and target resource admission remain open; allocation savings do not replace peak-memory evidence."
+    },
+    {
+      "id": "libc-byte-locale-conversion",
+      "requirements": [
+        "dpucp-2024:system-interface:mbrtowc",
+        "dpucp-2024:system-interface:wcrtomb"
+      ],
+      "roles": [
+        "libc mechanism comparison",
+        "source evidence with target-specific falsifiers"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/locale/none.c",
+          "sha256": "62ea1f20268784446947682f8dc283f75c26ae22cfc8d9011ff9f92397e85160",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/locale/utf8.c",
+          "sha256": "5b0271d7a3dca0fcd3c0345e56363d55d7e836322877544253c84c03e9f81d13",
+          "license": "BSD-2-Clause"
+        }
+      ],
+      "behavior": "Establish the C/POSIX byte locale and restartable conversion state before a later UTF-8 profile.",
+      "invariants": [
+        "Byte conversion handles NUL, reset and zero available bytes explicitly.",
+        "A selected encoding defines high-byte acceptance and invalid wide values.",
+        "A later UTF-8 state tracks partial scalar, remaining continuation bytes and the shortest-form lower bound."
+      ],
+      "algorithm": "Stateless unsigned-byte mapping is the initial candidate. Retain the UTF-8 state-machine comparison separately; validate Unicode scalar exclusions as well as shortest forms.",
+      "dependencies": [
+        "truthful setlocale and localeconv",
+        "public wchar_t and mbstate_t ownership",
+        "shared per-process locale state",
+        "restartable conversion pointer and errno rules"
+      ],
+      "c_language": "Donor C and private BSD interfaces require target GNU17 compilation, strict C17 mechanism checks and separate Smaller C declaration acceptance.",
+      "c17_rewrite": "Implement the selected byte contract first. A later UTF-8 parser explicitly rejects surrogate scalars and values above U+10FFFF; the donor range predicate alone admits surrogates.",
+      "archive_members": [
+        "mbrtowc.o",
+        "wcrtomb.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "kernel flash and SRAM",
+          "application text/data/BSS and alignment",
+          "peak stack and simultaneous allocations",
+          "packed root blocks",
+          "swap traffic"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Exercise every byte, NUL/reset/incomplete states, null state/output, invalid wide values and source-pointer publication. A later UTF-8 gate exercises every split and malformed sequence class.",
+      "disposition": "candidate",
+      "residual": "UTF-8 remains outside the initial byte-locale contract. Neither source file establishes target type layout, concurrency semantics or runtime resource cost."
+    },
+    {
+      "id": "libc-calendar-field-parsing",
+      "requirements": [
+        "dpucp-2024:system-interface:strptime"
+      ],
+      "roles": [
+        "libc mechanism comparison",
+        "source evidence with target-specific falsifiers"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/stdtime/strptime.c",
+          "sha256": "6e847b65edd0856bbd75a5e8fdd8e13707642cd25ffbaed67a6c6e308f615e33",
+          "license": "BSD-2-Clause"
+        }
+      ],
+      "behavior": "Parse calendar fields with explicit presence flags and derive only the fields supported by the parsed inputs.",
+      "invariants": [
+        "Unspecified fields retain their required state.",
+        "Century and year composition follows field-presence rules.",
+        "Parsing reports the correct trailing input and rejects invalid directives or values."
+      ],
+      "algorithm": "Presence flags separate primary parsed fields from derived calendar fields; reconcile century, leap-year and week calculations after parsing.",
+      "dependencies": [
+        "struct tm layout",
+        "C/POSIX locale names",
+        "calendar arithmetic bounds",
+        "format recursion limits"
+      ],
+      "c_language": "Donor C and private BSD interfaces require target GNU17 compilation, strict C17 mechanism checks and separate Smaller C declaration acceptance.",
+      "c17_rewrite": "Rederive directive ranges, omitted-field rules and composite recursion. The donor rejects centuries below 19, so its accepted domain cannot define the target contract.",
+      "archive_members": [
+        "strptime.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "kernel flash and SRAM",
+          "application text/data/BSS and alignment",
+          "peak stack and simultaneous allocations",
+          "packed root blocks",
+          "swap traffic"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Test omitted fields, centuries below and above 19, leap dates, week/year boundaries, composite directives, trailing percent, trailing input and overflow with independent calendar oracles.",
+      "disposition": "candidate",
+      "residual": "Calendar parsing stays separate from kernel clocks, monotonic time and interrupted sleep."
+    },
+    {
+      "id": "libc-ordered-process-actions",
+      "requirements": [
+        "dpucp-2024:system-interface:posix_spawn",
+        "dpucp-2024:system-interface:posix_spawnp"
+      ],
+      "roles": [
+        "libc mechanism comparison",
+        "source evidence with target-specific falsifiers"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/gen/posix_spawn.c",
+          "sha256": "a304f5298d0424efce1e3a060c3bbd9986d5613561984c7bb9f5009826ab5535",
+          "license": "BSD-2-Clause"
+        }
+      ],
+      "behavior": "Apply ordered descriptor and process-state actions before executable admission and communicate launch errors with explicit ownership.",
+      "invariants": [
+        "File actions replay in insertion order.",
+        "Parent and child retain defined ownership of action storage, stack and failure communication.",
+        "Exec failure and interrupted waits preserve cleanup and child-reaping contracts."
+      ],
+      "algorithm": "Ordered action list and staged attributes provide reusable structure. The donor vfork/shared-stack error channel needs a separate proof for the flat process window.",
+      "dependencies": [
+        "descriptor/namei contracts",
+        "signals and process groups",
+        "exec failure reporting",
+        "fork/vfork memory ownership",
+        "ordered action allocation and cleanup"
+      ],
+      "c_language": "Donor C and private BSD interfaces require target GNU17 compilation, strict C17 mechanism checks and separate Smaller C declaration acceptance.",
+      "c17_rewrite": "Use native error-number returns and typed action records. Investigate donor allocation-failure return -1 against the POSIX error-number contract; avoid importing the donor error convention.",
+      "archive_members": [
+        "posix_spawn.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "kernel flash and SRAM",
+          "application text/data/BSS and alignment",
+          "peak stack and simultaneous allocations",
+          "packed root blocks",
+          "swap traffic"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Test descriptor collisions, CLOEXEC, ordered open/close/dup, signal defaults/masks, action and exec failures, allocation exhaustion, parent stack integrity and child reaping in the target process model.",
+      "disposition": "candidate",
+      "residual": "Donor source supplies a mechanism candidate, not a proof that local vfork or spawn is implementable with the same ownership. Kernel prerequisites remain visible."
+    },
+    {
+      "id": "libc-bounded-strings",
+      "requirements": [
+        "dpucp-2024:system-interface:strnlen",
+        "dpucp-2024:system-interface:strndup",
+        "dpucp-2024:system-interface:stpcpy",
+        "dpucp-2024:system-interface:stpncpy"
+      ],
+      "roles": [
+        "bounded byte-string operations",
+        "end-pointer copy operations"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/string/strnlen.c",
+          "sha256": "55cf317adfcabac6fd4dbbe65126db401548aa6460dbe681c58587643aa466ce",
+          "license": "BSD-2-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/string/strndup.c",
+          "sha256": "e83ea2541f738aa89442b99791638f8f8d4b6d7e3c51b36ba864a37340bed38a",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/string/stpcpy.c",
+          "sha256": "5733e25e9c582c1310cb03a7016a7c0cc28dbdc84a71955cb3920670578f1788",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/string/stpncpy.c",
+          "sha256": "3f8b1051dc01ce3cd0d150f15da032b2a918fbbdf8554c13cb9dc986f8ecbe1f",
+          "license": "BSD-2-Clause"
+        }
+      ],
+      "behavior": "Bound scans and duplication by the supplied extent; return the copied terminator or the end of the bounded destination; pad stpncpy through exactly n bytes.",
+      "invariants": [
+        "strnlen reads at most maxlen bytes and stops at the first NUL.",
+        "strndup admits length plus one before allocation and terminates the successful result.",
+        "stpcpy returns the copied NUL address; stpncpy returns the first written NUL or destination plus n.",
+        "All state is per call; nonallocating operations preserve errno."
+      ],
+      "algorithm": "Use bytewise loops and one bounded-length allocation. Distinguish the first terminator position from the padding cursor.",
+      "dependencies": [
+        "size_t",
+        "malloc and ENOMEM",
+        "memcpy",
+        "strnlen for strndup"
+      ],
+      "c_language": "The definitions use strict C17 prototypes and restrict; public declarations remain accepted by Smaller C.",
+      "c17_rewrite": "Preserve the donor notices and bytewise loops; replace private restrict spelling and reject SIZE_MAX before adding the terminator byte.",
+      "archive_members": [
+        "strnlen.o",
+        "strndup.o",
+        "stpcpy.o",
+        "stpncpy.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "native archive bytes",
+          "shipped packed bytes and blocks",
+          "kernel flash and SRAM",
+          "process occupancy",
+          "static frames and allocation extent"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Run check-libc-bounded-string, check-string-header-contracts, native archive linkage, Thumb-1 execution, matched clean distributions and resource comparison before promotion.",
+      "disposition": "candidate",
+      "residual": "The implementation and calibrated behavior fixtures exist. Matched static captures measure 692 additional native archive bytes with all other measured surfaces unchanged; docs/research/libc-bounded-string-resource-exception.md binds the receipts and pending review. Runtime resource qualification, aggregate gates and integration remain open; the unmeasured size state retains that incomplete qualification."
     }
-  ]
+  ],
+  "candidate_bindings": {
+    "libc-reallocarray": {
+      "repository": "netbsd-src",
+      "requirements": [
+        "dpucp-2024:system-interface:reallocarray"
+      ]
+    },
+    "libc-memmem": {
+      "repository": "netbsd-src",
+      "requirements": []
+    },
+    "libc-getdelim-getline": {
+      "repository": "netbsd-src",
+      "requirements": [
+        "dpucp-2024:system-interface:getdelim",
+        "dpucp-2024:system-interface:getline"
+      ]
+    },
+    "shell-getopts": {
+      "repository": "4.4BSD-Lite2",
+      "requirements": [
+        "dpucp-2024:utility:getopts"
+      ]
+    },
+    "shell-command": {
+      "repository": "freebsd-src",
+      "requirements": [
+        "dpucp-2024:utility:command"
+      ]
+    },
+    "utility-printf": {
+      "repository": "freebsd-src",
+      "requirements": [
+        "dpucp-2024:utility:printf"
+      ]
+    },
+    "utility-readlink": {
+      "repository": "openbsd-src",
+      "requirements": [
+        "dpucp-2024:utility:readlink"
+      ]
+    },
+    "utility-realpath": {
+      "repository": "freebsd-src",
+      "requirements": [
+        "dpucp-2024:utility:realpath"
+      ]
+    },
+    "utility-timeout": {
+      "repository": "freebsd-src",
+      "requirements": [
+        "dpucp-2024:utility:timeout"
+      ]
+    },
+    "utility-uudecode": {
+      "repository": "netbsd-src",
+      "requirements": [
+        "dpucp-2024:utility:uudecode"
+      ]
+    },
+    "utility-nl-bre": {
+      "repository": "freebsd-src",
+      "requirements": [
+        "dpucp-2024:utility:nl"
+      ]
+    },
+    "libc-duplicate-aware-sort": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:system-interface:qsort",
+        "dpucp-2024:system-interface:qsort_r"
+      ]
+    },
+    "libc-fixed-memory-stream": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:system-interface:fmemopen"
+      ]
+    },
+    "libc-growing-memory-stream": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:system-interface:open_memstream"
+      ]
+    },
+    "libc-byte-locale-conversion": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:system-interface:mbrtowc",
+        "dpucp-2024:system-interface:wcrtomb"
+      ]
+    },
+    "libc-calendar-field-parsing": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:system-interface:strptime"
+      ]
+    },
+    "libc-ordered-process-actions": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:system-interface:posix_spawn",
+        "dpucp-2024:system-interface:posix_spawnp"
+      ]
+    },
+    "libc-bounded-strings": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:system-interface:strnlen",
+        "dpucp-2024:system-interface:strndup",
+        "dpucp-2024:system-interface:stpcpy",
+        "dpucp-2024:system-interface:stpncpy"
+      ]
+    }
+  }
 }

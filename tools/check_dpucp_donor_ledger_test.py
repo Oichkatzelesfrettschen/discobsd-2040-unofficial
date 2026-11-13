@@ -3,11 +3,100 @@
 import copy
 import hashlib
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 import check_dpucp_donor_ledger as donors
+
+
+def check_inventory_controls(root):
+    inventory = donors.load_json(root / donors.DONOR_INVENTORY)
+    donors.validate_inventory(inventory)
+    cases = []
+
+    def change(label, keys, value):
+        changed = copy.deepcopy(inventory)
+        target = changed
+        for key in keys[:-1]:
+            target = target[key]
+        target[keys[-1]] = value
+        cases.append((label, changed))
+
+    record = ["repositories", "DragonFlyBSD"]
+    change("schema", ["schema_version"], True)
+    change("UTC time", ["observed_utc"], "2026-11-12T19:00:00")
+    change("claim", ["claim"], "All donors pass semantic audit")
+    change("contradictory claim", ["claim"],
+           inventory["claim"] + " All repositories have completed semantic audit.")
+    changed = copy.deepcopy(inventory)
+    del changed["repositories"]["LiteBSD"]
+    cases.append(("denominator", changed))
+    change("next action", record + ["next_action"], "")
+    change("HEAD", record + ["local", "head"], "0" * 40)
+    change("status digest", record + ["local", "status_porcelain"], "")
+    change("origin credentials", record + ["local", "origin"],
+           "https://user:password@example.invalid/source.git")
+    change("revision", record + ["development", "revision"], "a" * 40)
+    change("authority", record + ["development", "source_url"],
+           "https://example.invalid/source.git")
+    change("receipt", record + ["sync_attempts"], [])
+    change("exit type", record + ["sync_attempts", 0, "fetch_exit"], False)
+    change("failure claim", record + ["sync_attempts", 0, "fetch_exit"], 1)
+    change("preservation", record + ["sync_attempts", 0, "local_after", "head"], "a" * 40)
+    change("unresolved source", ["repositories", "LiteBSD", "development", "revision"],
+           "a" * 40)
+    for label, changed in cases:
+        try:
+            donors.validate_inventory(changed)
+        except donors.DonorError:
+            continue
+        raise AssertionError(f"inventory mutation passes: {label}")
+    return len(cases)
+
+
+def check_revision_workspace():
+    """Authenticate two revisions of one path without depending on checkout HEAD."""
+    with tempfile.TemporaryDirectory(prefix="donor-revisions-") as directory:
+        workspace = Path(directory)
+        checkout = workspace / "ExampleBSD"
+        checkout.mkdir()
+
+        def git(*arguments):
+            return subprocess.check_output(
+                ["git", "-c", "user.name=Donor Fixture", "-c",
+                 "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false",
+                 *arguments], cwd=checkout, stderr=subprocess.PIPE,
+            ).decode().strip()
+
+        git("init", "--quiet")
+        document = {"repositories": {}, "candidates": []}
+        for contents in (b"first source\n", b"second source\n"):
+            (checkout / "source.c").write_bytes(contents)
+            git("add", "source.c")
+            git("commit", "--quiet", "-m", "Record fixture source")
+            revision = git("rev-parse", "HEAD")
+            identity = "ExampleBSD@" + revision
+            document["repositories"][identity] = {
+                "checkout": "ExampleBSD", "revision": revision,
+                "origin": "https://example.invalid/ExampleBSD.git",
+            }
+            document["candidates"].append({"id": identity, "sources": [{
+                "repository": identity, "path": "source.c",
+                "sha256": hashlib.sha256(contents).hexdigest(),
+            }]})
+        (checkout / "source.c").write_bytes(b"uncommitted source\n")
+        donors.verify_workspace(document, workspace)
+        document["candidates"][0]["sources"][0]["sha256"] = (
+            document["candidates"][1]["sources"][0]["sha256"]
+        )
+        try:
+            donors.verify_workspace(document, workspace)
+        except donors.DonorError:
+            pass
+        else:
+            raise AssertionError("cross-revision hash substitution passes")
 
 
 def expect_failure(name, root, document, requirement_ids):
@@ -642,8 +731,65 @@ def main():
     changed["candidates"][0]["c17_rewrite"] = True
     cases.append(("nontext C17 rewrite", changed))
 
+    extension = document["candidates"][-1]
+    extension_id = extension["id"]
+    repository_id = extension["repository"]
+
+    def extension_mutation(label, keys, value):
+        changed = copy.deepcopy(document)
+        target = changed
+        for key in keys[:-1]:
+            target = target[key]
+        target[keys[-1]] = value
+        cases.append((label, changed))
+
+    extension_mutation("extension placeholder hash", ["candidates", -1, "sources", 0, "sha256"],
+                       "0" * 64)
+    extension_mutation("extension path escape", ["repositories", repository_id, "checkout"],
+                       "../DragonFlyBSD")
+    extension_mutation("extension mutable revision", ["repositories", repository_id, "revision"],
+                       "master")
+    extension_mutation("extension identity mismatch", ["repositories", repository_id, "revision"],
+                       "a" * 40)
+    extension_mutation("extension credentials", ["repositories", repository_id, "origin"],
+                       "https://user:password@example.invalid/source.git")
+    extension_mutation("extension unobserved authority", ["repositories", repository_id, "origin"],
+                       "https://example.invalid/source.git")
+    extension_mutation("extension requirement binding", ["candidate_bindings", extension_id,
+                       "requirements"], [])
+    extension_mutation("extension premature promotion", ["candidates", -1, "disposition"],
+                       "promoted")
+    extension_mutation("extension premature measurement", ["candidates", -1,
+                       "size_estimate", "status"], "measured")
+    extension_mutation("extension missing source", ["candidates", -1, "repository"],
+                       "netbsd-src")
+    extension_mutation("extension missing deciding gate", ["candidates", -1, "deciding_gate"], "")
+    changed = copy.deepcopy(document)
+    del changed["candidate_bindings"][extension_id]
+    cases.append(("unregistered extension", changed))
+    changed = copy.deepcopy(document)
+    changed["candidates"].pop()
+    cases.append(("missing registered extension", changed))
+    changed = copy.deepcopy(document)
+    changed["candidate_bindings"][extension_id]["requirements"] = []
+    changed["candidates"][-1]["requirements"] = []
+    cases.append(("extension loses standard binding", changed))
+
+    added = copy.deepcopy(document)
+    candidate = copy.deepcopy(extension)
+    candidate["id"] = "libc-additional-revision-fixture"
+    added["candidates"].append(candidate)
+    added["candidate_bindings"][candidate["id"]] = {
+        "repository": candidate["repository"], "requirements": candidate["requirements"],
+    }
+    donors.validate_document(root, added, requirement_ids)
+    inventory_mutations = check_inventory_controls(root)
+    check_revision_workspace()
+
     testing_path = root / "sys/arch/rp2040/doc/TESTING.md"
     testing_text = testing_path.read_text(encoding="utf-8")
+    if f"{inventory_mutations} inventory mutations reject" not in testing_text:
+        raise AssertionError("donor inventory calibration documentation differs")
     require_documented_mutation_count(testing_text, len(cases))
     known_bad_documentation = testing_text.replace(
         f"{len(cases)} mutations reject",
@@ -666,6 +812,8 @@ def main():
         raise AssertionError("mutations passed: " + ", ".join(passed_mutations))
 
     print(f"PASS DPUCP donor calibration: {len(cases)} mutations rejected")
+    print(f"PASS donor inventory: {inventory_mutations} mutations rejected; "
+          "two revision-specific sources authenticate despite dirty checkout bytes")
     return 0
 
 

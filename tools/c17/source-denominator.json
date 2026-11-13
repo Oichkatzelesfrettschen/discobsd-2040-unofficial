@@ -17740,6 +17740,40 @@
       }
     },
     {
+      "path": "include/_featuretest.h",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "libc-string-public-header",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "sys/arch/rp2040/doc/research/string-header-visibility.md",
+        "tools/c17/string_header_contracts.py"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "libc-public-header",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "include/a.out.h",
       "class": "unreviewed",
       "scope": "unreviewed",
@@ -19059,14 +19093,17 @@
     },
     {
       "path": "include/string.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "include",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "libc-string-public-header",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "sys/arch/rp2040/doc/research/string-header-visibility.md",
+        "tools/c17/string_header_contracts.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -41743,6 +41780,68 @@
       }
     },
     {
+      "path": "lib/libc/gen/stpcpy.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "lib",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "libc-public-header",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "lib/libc/gen/stpncpy.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "lib",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "libc-public-header",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "lib/libc/gen/strcasecmp.c",
       "class": "unreviewed",
       "scope": "unreviewed",
@@ -42072,6 +42171,70 @@
           "prototype": [
             "old-style-definition"
           ],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "lib/libc/gen/strndup.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "lib",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "libc-public-header",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [
+            "dynamic-storage"
+          ],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "lib/libc/gen/strnlen.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "lib",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "libc-public-header",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -71772,7 +71935,9 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [],
-          "object_lifetime": [],
+          "object_lifetime": [
+            "dynamic-storage"
+          ],
           "pointer": [],
           "prototype": [],
           "variadic": []
@@ -71996,6 +72161,72 @@
           "inline_assembly": [],
           "integer": [],
           "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/libc_contracts/bounded_string_overflow_test.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "tests",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/libc_contracts/bounded_string_test.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "tests",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [
+            "dynamic-storage"
+          ],
           "pointer": [],
           "prototype": [],
           "variadic": []

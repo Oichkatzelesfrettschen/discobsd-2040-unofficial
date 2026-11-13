@@ -72,7 +72,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            bmake make build-essential cmake git clang cflow cscope \
+            bmake make build-essential cmake git clang cflow cscope ripgrep \
             gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
             python3 libusb-1.0-0-dev \
@@ -238,7 +238,9 @@ jobs:
               CHANGED_COMMENT_HEAD="$CHANGED_COMMENT_HEAD" \
               check-changed-text
 
-      # check-host includes the compiler-matrix identity and ownership fixture.
+      # check-host includes compiler-matrix identity, ownership and bounded PTY completion.
+      # libc bounded strings execute calibrated native, ILP32 and sanitizer cases;
+      # check-qemu executes the same bytewise functions as Thumb-1 code.
       - name: Run the host tier
         timeout-minutes: 20
         run: |
@@ -249,6 +251,8 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 1140 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
+      # check-cross owns the string namespace/signature and expanded Smaller C
+      # header gate on both host platforms; runtime behavior stays separate.
       - name: Run the cross tier
         timeout-minutes: 20
         run: |
@@ -559,7 +563,7 @@ jobs:
       - name: Install the host toolchain
         run: |
           brew install bmake byacc bison flex groff mandoc pkgconf picotool cflow cscope \
-            shellcheck ruff coreutils cpio
+            shellcheck ruff coreutils cpio ripgrep
           case "$(uname -m)" in
             arm64)
               arm_toolchain_version=15.3.rel1
@@ -665,6 +669,7 @@ jobs:
             --status .build-logs/macos-lint.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-lint
+      # The host tier owns PTY completion and the terminal nohup consumer.
       - name: Run the host tier
         timeout-minutes: 27
         run: |

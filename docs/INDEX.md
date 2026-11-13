@@ -74,6 +74,7 @@ artifact points at.
 | `menu-shell.md` | the Rockbox-shaped menu shell and its line editing | `bin/sh/edit.c` |
 | `posix-tools.md` | what `textbox` carries, from sbase | `sbin/textbox/`, `distrib/rp2040/mi.rp2040` |
 | `rockbox-ui.md` | Rockbox measured as a UI source for this board | `usr.bin/menu/` |
+| `string-header-visibility.md` | string declaration selectors, edition boundaries and compiler/native-input evidence | `check-string-header-contracts`, `include/_featuretest.h` |
 | `sh-posix-audit.md` | the POSIX ledger for `bin/sh`, row by row | `bin/sh/tests/posix-sh.sh` tests its rows; its xfail cases pin the open items |
 | `utilbox.md` | what `utilbox` and `adminbox` carry | `sbin/utilbox/`, `sbin/adminbox/` |
 | `v7-tools.md` | the V6/V7 disk images, their licenses, and two ports | `sbin/textbox/Makefile`, `legacy/pdp11-v6/distrib/rp2040/mi.rp2040` |
@@ -142,6 +143,7 @@ Grouped by what they investigate.
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
 | `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
 | `c17-shipped-build-baseline.md` | configuration-specific shipped source membership, artifact-bound static resource receipts and the acceptance states left open |
+| `kernel-checksum-capture.md` | in-place kernel checksum stamping, retained pre/post ELF identities and calibrated source attribution |
 | `libc-passwd-header-inclusion.md` | repeated password-header inclusion, preserved public types/layout, captured callers, native compatibility and paired static resources |
 | `shipped-archive-selection-comparison.md` | complete kernel, packed-program and native archive selection; schema-2 comparison, historical receipts and calibrated dependency-growth rejection |
 | `syscall-dispatch-header-contract.md` | generated private syscall declarations, configuration-selected dispatch checks and native-header boundaries |
@@ -185,6 +187,8 @@ Grouped by what they investigate.
 | `board-capacity-acceptance.md` | board-only sampled-stack probe, calibration, exact image boundaries, the shared-break repair runs and open physical resource measurements; `board-capacity-acceptance-93b709fc.txt` holds the merged-source run transcript and `board-capacity-acceptance-passwd-edges.txt` the passwd edge-case steps |
 | `kernel-uio-typed-interfaces.md` | four typed transfer definitions, caller preconditions and calibrated kernel inventory |
 | `libc-scandir-allocation-contract.md` | selected-entry allocation, compact self-describing records, typed per-call sorting, calibrated failure gates and paired target resource evidence |
+| `libc-bounded-string-contracts.md` | bounded scan/duplication, end-pointer copy and padding invariants, calibrated byte-domain witnesses and resource qualification |
+| `libc-bounded-string-resource-exception.md` | matched native archive growth, retained resource receipts, alternatives and exception decision |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |
 | `STYLE-GUIDE.md` | the constrained-C and C17 migration proposal: resource accounts, C17isms, POSIX/BSD boundaries, quarantined historical sources, smaller-system evidence, and the proof a size claim owes |
 | `211bsd-patch-scope.md` | bounded 2.11BSD textual candidates, historical comparison measurements, patch 499's measured stdio cost, and the measured `_doscan` migration unit |
@@ -211,6 +215,9 @@ Grouped by what they investigate.
 | `dpucp-2024-profile.json` | versioned DPUCP-2024 identity, denominator, language modes, hardware limits, state counts and witness catalog |
 | `dpucp-2024-requirements.tsv` | 1,518 Issue 8 requirement rows with applicability, implementation, evidence, residual and next-action states |
 | `dpucp-2024-donor-ledger.json` | pinned BSD donor mechanisms, licenses, invariants, dependency closures, C17 rewrites, promotion state, size evidence and deciding gates |
+| `bsd-donor-inventory.json` | all 20 BSD checkout observations, authoritative development refs, retained fetch attempts and unresolved immediate-source identities |
+| `posix-archive-donor-frontier.md`, `posix-archive-donor-frontier.json` | 13 additional archive roots, 23 content-identified investigations, per-file permission boundaries, reusable invariants, conflicts and deciding experiments |
+| `coherent-donor-review.md` | pinned Coherent sources, libc/archive/FILE/regex mechanisms, exec/fork/ABI ownership, C17 conflicts and deciding experiments |
 | `dpucp-2024-multicall-composition.md` | the seven-box shipped-name denominator, archive-member closure, 433-block standalone comparison and zero-block `logname` root delta |
 | `dpucp-2024-multicall-composition.json` | machine-checked multicall dispatch, link-map, packed-image, root-accounting and source-identity evidence |
 | `dpucp-2024-multicall-libc-members.tsv` | the 192-member libc archive closure for seven multicall boxes and the shell |

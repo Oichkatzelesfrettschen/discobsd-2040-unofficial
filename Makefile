@@ -172,6 +172,8 @@ check-dpucp-donor-ledger: check-python
 		${PYTHON} tools/measurement_source_identity_test.py
 		${PYTHON} tools/check_dpucp_donor_ledger_test.py
 		${PYTHON} tools/check_dpucp_donor_ledger.py --root ${TOPSRC}
+		${PYTHON} tools/check_archive_donor_frontier_test.py
+		${PYTHON} tools/check_archive_donor_frontier.py --root ${TOPSRC}
 
 build:		check-python .WAIT symlinks tools
 		$(MAKE) kernel
@@ -340,6 +342,12 @@ check-passwd-header-contracts: check-python .WAIT symlinks
 		${PYTHON} tools/c17/passwd_header_contracts.py --root ${TOPSRC:Q} \
 		    --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/passwd-header-contracts.json
+
+check-string-header-contracts: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/string_header_contracts.py --root ${TOPSRC:Q} \
+		    --host-cc ${HOST_CC:Ucc:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/string-header-contracts.json
 
 check-c17-smaller-c:	check-python .WAIT symlinks
 		${MAKE} -C usr.bin/smlrc test
@@ -673,6 +681,11 @@ check-libc-aout-contracts:	${BOARDLIBC_WORK}/libc.a
 check-libc-malloc:
 		${MAKE} -C tests/libc_contracts check-malloc
 
+check-libc-bounded-string:
+		${MAKE} -C tests/libc_contracts check-bounded-string
+
+.PHONY: check-libc-bounded-string
+
 check-libc-qsort:
 		${MAKE} -C tests/libc_contracts check-qsort
 
@@ -914,6 +927,9 @@ check-libc-string-security-cross:
 
 check-id-aliases:
 		${MAKE} -C tests/id_aliases check
+
+check-pty-runner: check-python
+		${PYTHON} tools/ptyrun_test.py
 
 check-tiny-utility-multicall:
 		${MAKE} -C tests/tiny_utility_multicall check
@@ -1351,7 +1367,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-touch-contracts check-printf-contracts \
 		check-recovery-utility-contracts check-timeout-contracts \
 		check-libc-tempfiles check-libcalc check-libbn check-dcbc \
-		check-id-aliases check-tiny-utility-multicall \
+		check-id-aliases check-pty-runner check-tiny-utility-multicall \
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
@@ -1372,7 +1388,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host
-CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts \
+CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts \
@@ -1723,8 +1739,11 @@ check-host-package:	check-python .WAIT
 check-board-build:	symlinks
 		${MAKE} -C tests/rp2040 all
 
-check:		check-lint check-host check-posix-sh check-cross check-qemu \
-		check-host-package check-board-build
+# Cross composition cleans program directories used by host and QEMU tests.
+# Tier barriers preserve those executables throughout each suite's lifetime.
+check:		check-lint .WAIT check-host .WAIT check-posix-sh .WAIT \
+		check-cross .WAIT check-qemu .WAIT check-host-package .WAIT \
+		check-board-build
 
 fs:		check-python .WAIT $(FSIMG)
 
@@ -1866,7 +1885,7 @@ installfs:
 		check-unifdef-contracts-cross check-libc-string-security \
 		check-libc-string-security-cross check-id-aliases \
 		check-find-contracts check-find-contracts-cross \
-		check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout check-hsx-decoder \
+		check-pty-runner check-tiny-utility-multicall check-fgrep-capacity check-crc32 check-hsaout check-hsx-decoder \
 		check-config-makefile check-portable-utilities \
 		check-architecture-isolation legacy-non-arm-verify \
 		legacy-pdp11-v6-build legacy-pdp11-v6-install \
@@ -1901,4 +1920,4 @@ installfs:
 
 .PHONY: check-sysctl-status
 
-.PHONY: check-passwd-header-contracts
+.PHONY: check-passwd-header-contracts check-string-header-contracts

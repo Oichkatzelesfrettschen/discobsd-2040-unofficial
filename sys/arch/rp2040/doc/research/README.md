@@ -3,6 +3,8 @@
 This directory holds the documents the port's code, Makefiles and root
 manifest cite as the authority for a shipped mechanism:
 
+- string-header-visibility.md -- feature selectors, declaration visibility and
+  compiler/native-input evidence for the public string header.
 - audit-findings.md and audit-response.md -- the read-only audit ledger and
   the response that records how each ranked item was resolved or deferred.
 - float-libs.md and board-libc.md -- the Boot ROM float provider contract and

@@ -89,6 +89,7 @@ OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
                    seekdir.o setmode.o sethostname.o setenv.o setpgid.o siglist.o \
                    signal.o siginterrupt.o sigsetops.o \
                    sleep.o strcasecmp.o strftime.o swab.o sysconf.o sysctl.o syslog.o system.o \
+                   stpcpy.o stpncpy.o strndup.o strnlen.o \
                    strcat.o strncat.o strcpy.o strncpy.o strncmp.o \
                    telldir.o time.o timezone.o ttyname.o ttyslot.o ualarm.o usleep.o \
                    strdup.o uname.o vis.o wait.o wait3.o waitpid.o

@@ -605,18 +605,62 @@ def check_icode_toolchain_selector(root, make, scratch):
     print("PASS icode relocation gate uses the selected root compiler prefix")
 
 
+def check_tier_order(root, make, scratch):
+    tiers = ("check-lint", "check-host", "check-posix-sh", "check-cross",
+             "check-qemu", "check-host-package", "check-board-build")
+    lines = (root / "Makefile").read_text().splitlines()
+    start = next(index for index, line in enumerate(lines) if line.startswith("check:"))
+    block = [lines[start]]
+    while block[-1].endswith("\\"):
+        block.append(lines[start + len(block)])
+    production = "\n".join(block) + "\n"
+
+    def exercise(rule, label, failing=None):
+        directory = scratch / label
+        directory.mkdir()
+        recipes = []
+        for index, tier in enumerate(tiers):
+            recipes.append(f"{tier}:\n")
+            if index:
+                recipes.append(f"\t@test -f {tiers[index - 1]}.done || "
+                               "{ echo 'tier overlap'; exit 1; }\n")
+            if tier == failing:
+                recipes.append("\t@echo 'injected tier failure'; exit 1\n")
+            else:
+                recipes.append(f"\t@sleep 0.1; touch {tier}.done\n")
+        (directory / "Makefile").write_text(
+            rule + "\n.PHONY: check " + " ".join(tiers) + "\n" + "".join(recipes))
+        result = run([*make, "-j8", "check"], directory, {})
+        completed = [tier for tier in tiers if (directory / (tier + ".done")).exists()]
+        return result, completed
+
+    result, completed = exercise(production, "production")
+    expect(result.returncode == 0 and completed == list(tiers),
+           "aggregate tiers overlap or omit a tier", result.stdout)
+    result, _ = exercise(production.replace(".WAIT", ""), "overlap")
+    expect(result.returncode != 0 and "tier overlap" in result.stdout,
+           "aggregate tier overlap control lacks behavioral rejection", result.stdout)
+    for index, tier in enumerate(tiers):
+        result, completed = exercise(production, "fail-" + tier, tier)
+        expect(result.returncode != 0 and "injected tier failure" in result.stdout
+               and completed == list(tiers[:index]),
+               f"aggregate runs a successor after {tier} fails", result.stdout)
+    print("PASS aggregate tiers: parallel jobs preserve lifetimes; overlap control rejects; "
+          "each failed tier blocks its successors")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--make", default=os.environ.get("MAKE", "bmake"))
-    parser.add_argument("--only", choices=("lib", "kernel", "params", "version", "icode"))
+    parser.add_argument("--only", choices=("lib", "kernel", "params", "version", "icode", "tiers"))
     args = parser.parse_args()
     make = shlex.split(args.make)
     root = args.root.resolve()
     failures = 0
     for name, check in (("lib", check_lib), ("kernel", check_kernel),
                         ("params", check_params), ("version", check_version_identity),
-                        ("icode", check_icode_toolchain_selector)):
+                        ("icode", check_icode_toolchain_selector), ("tiers", check_tier_order)):
         if args.only and args.only != name:
             continue
         with tempfile.TemporaryDirectory(prefix=f"discobsd-build-failure-{name}-") as tmp:

@@ -185,6 +185,8 @@ BOARDLIBC_GCCPREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
 
 ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/distrib/rp2040/boardlibc-members \
+				${TOPSRC}/include/string.h \
+				${TOPSRC}/include/_featuretest.h \
 				${TOPSRC}/lib/libc/arm/gen/rom_float_members \
 				${TOPSRC}/lib/libc/arm/gen/rom_float.inc \
 				${TOPSRC}/lib/libc/arm/gen/rom_float_*.S \
@@ -199,6 +201,10 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/gen/ctermid.c \
 				${TOPSRC}/lib/libc/gen/difftime.c \
 				${TOPSRC}/lib/libc/gen/raise.c \
+				${TOPSRC}/lib/libc/gen/stpcpy.c \
+				${TOPSRC}/lib/libc/gen/stpncpy.c \
+				${TOPSRC}/lib/libc/gen/strndup.c \
+				${TOPSRC}/lib/libc/gen/strnlen.c \
 				${TOPSRC}/lib/libc/gen/sysconf.c \
 				${TOPSRC}/lib/libc/gen/vis.c \
 				${TOPSRC}/lib/libc/string/explicit_bzero.c \

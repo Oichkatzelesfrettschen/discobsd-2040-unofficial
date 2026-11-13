@@ -230,7 +230,7 @@ SYSTEM_LD_HEAD=	rm -f $@ $@.elf $@.hex $@.bin $@.dis $@.uf2 vers.o vers.su && \
 		${CC} ${CFLAGS} -c vers.c
 SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
-SYSTEM_LD_TAIL=	${SIZE} $@ && ${KERNSUM} $@ && cp $@ $@.elf && \
+SYSTEM_LD_TAIL=	${SIZE} $@ && ${C17_CAPTURE_PREFIX} ${KERNSUM} $@ && cp $@ $@.elf && \
 		${OBJCOPY} --gap-fill=0 -O ihex $@ $@.hex.tmp && mv $@.hex.tmp $@.hex && \
 		${OBJCOPY} -O binary $@ $@.bin.tmp && mv $@.bin.tmp $@.bin && \
 		${OBJDUMP} -d -S $@ > $@.dis.tmp && mv $@.dis.tmp $@.dis && \

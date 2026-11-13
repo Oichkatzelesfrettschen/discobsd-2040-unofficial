@@ -62,9 +62,9 @@ rather than the shared GitHub account's authorship field.
 - [x] Fetch origin main, inspect its delta and merge it into the owned branch
   while preserving the fixed audit baseline and other agents' work.
 - [x] Run focused gates for reconciled changes and resolve their failures.
-- [ ] Run final logged-build, logged-check and logged-ilp32; bind receipts to
+- [x] Run final logged-build, logged-check and logged-ilp32; bind receipts to
   the tested head, base, configuration and resulting tree.
-- [ ] Review the final diff, push to origin and open the owned pull request;
+- [x] Review the final diff, push to origin and open the owned pull request;
   keep it in draft while acceptance requirements remain open.
 - [ ] Watch hosted CI, address review findings and refresh affected checks
   after every relevant source or base change.
@@ -218,6 +218,19 @@ The successful-descendant fixture ignores hangup to preserve its lifetime
 across the parent's exit. All 47 execution-runner tests pass on the temporary
 candidate before its identical bytes enter the worktree; lint also passes.
 The running aggregate finishes before that source update.
+
+Candidate `6b090b6e45fe5a7e2d7f909658eff66abf5f1526` has tree
+`ba93297e2ecc08fda9462317f0b38e1376a203ad` and integrates main
+`01c8dbfde957fcfddfbd6b892d39af65265ab8f1`. Aggregate invocation
+`rp2040-check-local-20261113T041947Z-1813640-8226634a` completes both
+build and check with exit zero in 1,099.298 seconds. The worktree remains
+clean after completion. The prior ILP32 receipt retains its 196/196 result:
+production sources, execution-runner implementation and inventory definitions
+remain unchanged from `e9a808d9`. The repaired candidate passes all 47
+execution-runner tests and the default/fortified storage backends in the
+aggregate. Pull request 471 remains draft pending hosted checks and refreshed
+review of the repaired published head. This acceptance update changes only
+the evidence document.
 
 Only one item carries active implementation focus. Product jobs use the
 worktree's logged execution lock. Physical-board access, raw-device writes,

@@ -121,6 +121,14 @@ zone_timezone.o
 zone_timezone32.o
 zone_timezone_san.o
 mktime_contract_test
+mktime_contract_test_san
+mktime_contract_test32_san
+mktime_mktime_san.o
+mktime_mktime32_san.o
+mktime_ctime_san.o
+mktime_ctime32_san.o
+mktime_timezone_san.o
+mktime_timezone32_san.o
 mktime_contract_test32
 mktime_mktime.o
 mktime_mktime32.o

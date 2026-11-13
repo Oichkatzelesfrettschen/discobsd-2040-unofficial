@@ -190,6 +190,9 @@ non-libc packed-program dependencies. Schema-1 records keep their historical
 scope; complete new comparisons require schema-2 captures. The password-header
 inclusion unit records its independent ABI/native and paired static acceptance
 in `libc-passwd-header-inclusion.md`.
+The accounting-header unit in `libc-accounting-header-inclusion.md` extends
+standalone/repeated inclusion to six record families while retaining their
+existing layouts and independent namespace/runtime obligations.
 
 `syscall-dispatch-header-contract.md` records the generated callable
 header boundary: generated handler declarations, compatible systm/glob entry

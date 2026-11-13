@@ -58,8 +58,9 @@ dir /var/run
 #
 # /dev/swap, /dev/mem and /dev/kmem read and write kernel state, so they
 # belong to group 2 (kmem in /etc/group) with mode 0640: root writes them
-# and only /bin/ps, set-group-id kmem, reads them. The image default group
-# 0 is wheel, which lists operator.
+# and the group reads them. No shipped program runs set-group-id kmem; ps
+# reads the kernel's process records through sysctl(3). The image default
+# group 0 is wheel, which lists operator.
 #
 bdev /dev/swap
 major 4             # Virtual swap device, mapped to real swap partition
@@ -226,8 +227,6 @@ filemode 0775
 pack /bin/sh
 pack /bin/ed
 pack /bin/ps
-mode 02751
-group 2
 pack /bin/box
 pack /bin/sysbox
 pack /bin/tar

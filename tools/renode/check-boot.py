@@ -176,15 +176,30 @@ STALL_LINES = [
     "machdep.core1_restarts=0",
 ]
 
-# The ps row of init: the pid, a tty field, minutes
-# and seconds of processor time, and the command. init is swapped out. A
-# kernel with the SwapRAM tier holds its image in the pool, so ps reads its
-# fields through machdep.swapram_psinfo, has no stack to read arguments
-# from and prints the name in parentheses; a kernel without the tier holds
-# it on the swap device and ps prints its arguments.
 MEMORY_DEVICES = ("mem", "kmem", "swap")
 
-PS_INIT_ROW = re.compile(r"^ *1 \S+ +\d+:\d\d +(\(init\)|init( .*)?)$", re.M)
+# The BSD ps row of init: the pid, a tty field, minutes and seconds of
+# processor time, and the command. init belongs to root, so the kernel
+# withholds its arguments from operator and ps prints the command name in
+# brackets.
+PS_INIT_ROW = re.compile(r"^ *1 \S+ +\d+:\d\d +\[\S*init\]$", re.M)
+
+# One row of "ps -A -o pid= -o comm=": every header is empty, so ps prints
+# no header line.
+PS_ROW = re.compile(r"^ *(\d+) (\S.*)$")
+
+# The processes a booted operator shell always has, by pid or by the last
+# path component of the command name: the swapper, init, update, the
+# login shell and ps itself. Each lives in a different place -- resident,
+# on flash or in the pool -- when ps runs, so a reader that loses any
+# residency state loses a row here.
+PS_REQUIRED = (
+    ("pid 0", lambda pid, name: pid == 0 and name == "swapper"),
+    ("init", lambda pid, name: pid == 1 and name == "init"),
+    ("update", lambda pid, name: name == "update"),
+    ("the operator shell", lambda pid, name: name.lstrip("-") == "sh"),
+    ("ps itself", lambda pid, name: name == "ps"),
+)
 
 ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
@@ -263,20 +278,38 @@ CORE1_CONFIGS = ("PICO_UART",)
 
 
 def check_ps(console: Console) -> None:
-    """Require the ps row of the swapped-out init to carry its time and name.
+    """Require a ps row for every process, wherever its image lives.
 
-    ps resolves kernel symbols through the CPU_NLIST sysctl, which carries
-    the symbol name in the MIB and takes no new value, so the operator shell
-    runs it without root.
+    ps reads the kernel's process records (KERN_PROC), which the kernel
+    fills for a resident process, an image on the swap device and one in
+    the SwapRAM pool, so operator runs it without privilege and no row is
+    dropped. The POSIX listing must hold every process of PS_REQUIRED
+    exactly once; the BSD listing must hold init with its time.
     """
     start = console.cursor
-    console.type_line("ps -ax; echo ps-end")
+    console.type_line("ps -A -o pid= -o comm=; echo ps-end")
     console.wait_for("\nps-end", "process list", COMMAND_BUDGET_SECONDS)
-    rows = console.text()[start:console.cursor]
-    if not PS_INIT_ROW.search(rows):
-        console.fail(f"process list: no row for init with a time and its name in {rows!r}")
+    lines = console.text()[start:console.cursor].splitlines()
+    rows = [(int(m.group(1)), m.group(2).rsplit("/", 1)[-1])
+            for m in map(PS_ROW.match, lines) if m]
+    for what, wanted in PS_REQUIRED:
+        found = [row for row in rows if wanted(*row)]
+        if len(found) != 1:
+            console.fail(f"process list: {len(found)} rows for {what} in {lines!r}")
+            raise StageFailed("process list")
+    if len({pid for pid, _ in rows}) != len(rows):
+        console.fail(f"process list: a pid appears twice in {lines!r}")
         raise StageFailed("process list")
     console.wait_for("$", "operator shell after the process list", COMMAND_BUDGET_SECONDS)
+
+    start = console.cursor
+    console.type_line("ps ax; echo ps-end")
+    console.wait_for("\nps-end", "BSD process list", COMMAND_BUDGET_SECONDS)
+    rows_text = console.text()[start:console.cursor]
+    if not PS_INIT_ROW.search(rows_text):
+        console.fail(f"BSD process list: no row for init with a time and its name in {rows_text!r}")
+        raise StageFailed("BSD process list")
+    console.wait_for("$", "operator shell after the BSD process list", COMMAND_BUDGET_SECONDS)
     print(f"check-renode: process list after {console.virtual:.1f} virtual seconds")
 
 
@@ -284,8 +317,8 @@ def check_memory_devices(console: Console) -> None:
     """Require the operator shell to be refused every kernel memory device.
 
     /dev/mem, /dev/kmem and /dev/swap are mode 0640 root:kmem and operator
-    is outside kmem, so each open fails; ps reaches them only through its
-    setgid kmem bit, which check_ps exercises from the same shell. The
+    is outside kmem, so each open fails, while check_ps lists every process
+    from the same shell without them. The
     console echoes the typed loop, so a verdict line is matched with the
     device name spelled out, which the echoed "$d" never carries. The loop
     stays within ED_MAX in bin/sh/edit.c, 126 bytes, past which the shell's

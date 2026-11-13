@@ -1773,25 +1773,28 @@ numbers.
 
 `check-renode` runs tools/renode/check-boot.sh, which boots the UART0
 console kernel from the real RP2040 boot ROM, asserts the console through
-the device probe, logs in, runs `uname`, `ps -ax` as operator, tries to
+the device probe, logs in, runs `uname`, `ps -A` and `ps ax` as operator, tries to
 open the kernel memory devices as operator, `sysctl kern.capacity`, `mputest` and `mputest residue`, reads core 1's
 state, then holds the Renode log to a fixed set of warning classes.
 
-The process-list stage requires the row of init, which is swapped out while
-ps runs, to carry a processor time and init's name. The
-PICO_UART kernel has no SwapRAM tier, so init's image is on the swap device
-and ps(1) prints its arguments. The union kernel of `check-renode-union`
-has the tier: init's image is in the pool with a zero `p_addr`, ps reads
-its fields through `machdep.swapram_psinfo.<pid>` and prints
-`(init)`. A union kernel without that node was run once as the known-bad
-input: its ps read block 0 of the swap device for init and the stage failed
-on a row with an empty name.
+The process-list stage runs `ps -A -o pid= -o comm=` and requires exactly
+one row each for pid 0 (`swapper`), init, `update`, the operator's shell and
+ps itself, and no pid twice. While ps runs, ps and pid 0 are resident and
+init, `update` and the shell are swapped out, on the swap device in the
+PICO_UART kernel and in the SwapRAM pool in the union kernel of
+`check-renode-union`, so a reader that loses any residency state loses a
+row. The BSD listing of `ps ax` must then hold init with a processor time
+and `[init]`: init belongs to root, so the kernel withholds its arguments
+from operator. The image built before ps read the kernel's process records
+was run as the known-bad input, and the stage failed with no row for pid 0;
+that ps read user areas through /dev/mem and /dev/swap and dropped the
+resident pid 0 and ps rows on every boot and a folded-swap row on some.
 
 The kernel memory device stage follows from the same operator shell. The
 image ships `/dev/mem`, `/dev/kmem` and `/dev/swap` mode 0640 root:kmem and
-`/bin/ps` setgid kmem, so the process-list stage reaches the devices only
-through ps, and the stage requires a direct open of each device from the
-shell to fail. An image with the devices mode 0664 in group 0 (wheel, which
+no set-group-id program, and the stage requires a direct open of each
+device from the shell to fail while the process-list stage has listed
+every process without them. An image with the devices mode 0664 in group 0 (wheel, which
 holds operator) was run once as the known-bad input: all three opens
 succeeded and the stage failed. The typed loop stays within the 126-byte
 `ED_MAX` line of `bin/sh/edit.c`.

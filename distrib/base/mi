@@ -101,7 +101,7 @@ bdev /dev/mr0
 major 3             # Volatile disk - MRAM on SPI port (mrams)
 minor 0
 # /dev/swap, /dev/mem and /dev/kmem belong to group 2 (kmem) with mode
-# 0640, and /bin/ps reads them set-group-id kmem.
+# 0640; ps reads process records through sysctl(3), not these devices.
 bdev /dev/swap
 major 4             # Virtual swap device, mapped to real swap partition
 minor 64
@@ -530,8 +530,6 @@ file /usr/bin/pr
 file /usr/bin/printenv
 file /usr/bin/printf
 file /bin/ps
-mode 02751
-group 2
 file /bin/pwd
 file /usr/bin/ranlib
 file /usr/bin/re
@@ -803,7 +801,6 @@ file /usr/include/mtab.h
 file /usr/include/ndbm.h
 file /usr/include/nlist.h
 file /usr/include/paths.h
-file /usr/include/psout.h
 file /usr/include/pwd.h
 file /usr/include/ranlib.h
 file /usr/include/readline/history.h

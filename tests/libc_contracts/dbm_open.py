@@ -88,7 +88,10 @@ def build(root, compiler, work, arm, source):
     renames = ["-D" + name + "=dbm_test_" + name
                for name in ("malloc", "free", "open", "close", "fstat")]
     obj = work / "ndbm.o"
-    compile_command(compiler + flags + renames + ["-c", str(source), "-o", str(obj)])
+    # The retained record operations still use C17-permitted K&R definitions.
+    # Keep their Clang compatibility exception outside the typed fixture/header.
+    compile_command(compiler + flags + ["-Wno-deprecated-non-prototype"] + renames +
+                    ["-c", str(source), "-o", str(obj)])
     fixture = work / "fixture.o"
     compile_command(compiler + flags + ["-c", str(root / "tests/libc_contracts/dbm_open_test.c"),
                                        "-o", str(fixture)])
@@ -100,9 +103,9 @@ def build(root, compiler, work, arm, source):
                         "-fomit-frame-pointer", "-c", str(root / "tests/libbn/qemu_support.c"),
                         "-o", str(support)])
         objects.append(str(support))
-        link = ["-nostartfiles", "-Wl,-Ttext=0x20000", "-lc", "-lgcc"]
+        link = ["-Wl,--gc-sections", "-nostartfiles", "-Wl,-Ttext=0x20000", "-lc", "-lgcc"]
     program = work / "dbm_open"
-    compile_command(compiler + (ARM if arm else []) + ["-Wl,--gc-sections"] + objects +
+    compile_command(compiler + (ARM if arm else []) + objects +
                     link + ["-o", str(program)])
     return program
 

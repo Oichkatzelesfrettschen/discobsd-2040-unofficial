@@ -86,6 +86,15 @@ ignore `fstat`, corrupt cleanup errno, leak descriptor zero, omit the last bit
 and select the wrong suffix. The accepted source passes each positive case and
 every control fails at its named observation.
 
+The host driver links the complete database translation unit without
+platform-specific dead-code elimination flags. The ARM witness alone requests
+ELF section collection with its minimal startup support. Clang's
+`-Wno-deprecated-non-prototype` applies only to the retained database source,
+whose record operations still use C17-permitted old-style definitions; the
+header and typed fixture retain their strict diagnostics. GCC, Clang, ILP32
+and ARMv6-M QEMU runs pass the 3,180 cases and reject the eight controls.
+Apple linker execution remains a hosted macOS qualification requirement.
+
 The witness establishes public declarations and constructor behavior under
 its injected allocation and I/O schedules. Database page parsing, hashing,
 fetch/store/delete/iteration semantics, concurrent access, crash persistence,

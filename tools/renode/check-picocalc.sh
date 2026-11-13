@@ -104,11 +104,14 @@ mkdir -p "$OUTPUT"
 # The driver exits 1 on a failed assertion and 2 when the emulator stops
 # answering; both end the gate, but the log is worth reading either way.
 status=0
+# -u: tools/run_logged_gate.py ends a run that prints nothing for its idle
+# limit, and Python block-buffers a piped stdout until exit, so every
+# stage line must reach the log as it is printed.
 if [ -n "$DUMP" ]; then
-	"$PYTHON" -I "$SCRIPT_DIR/check-picocalc.py" renode "$KERNEL" "$IMAGE" \
+	"$PYTHON" -I -u "$SCRIPT_DIR/check-picocalc.py" renode "$KERNEL" "$IMAGE" \
 	    "$OUTPUT" "$OUTPUT/card.img" "$FSUTIL" || status=$?
 else
-	"$PYTHON" -I "$SCRIPT_DIR/check-picocalc.py" renode "$KERNEL" "$IMAGE" \
+	"$PYTHON" -I -u "$SCRIPT_DIR/check-picocalc.py" renode "$KERNEL" "$IMAGE" \
 	    "$OUTPUT" || status=$?
 fi
 

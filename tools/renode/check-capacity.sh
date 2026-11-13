@@ -90,4 +90,7 @@ cp "$DISK" "$OUTPUT/disk.img"
 "$FLASHIMG" "$OUTPUT/disk.img" "$OUTPUT/flash.bin" >"$OUTPUT/flashimg.txt"
 
 "$PYTHON" -I "$SCRIPT_DIR/renode_monitor.py" --self-test
-"$PYTHON" -I "$SCRIPT_DIR/check-capacity.py" renode "$KERNEL" "$OUTPUT/flash.bin" "$OUTPUT"
+# -u: tools/run_logged_gate.py ends a run that prints nothing for its idle
+# limit, and Python block-buffers a piped stdout until exit, so every
+# stage line must reach the log as it is printed.
+"$PYTHON" -I -u "$SCRIPT_DIR/check-capacity.py" renode "$KERNEL" "$OUTPUT/flash.bin" "$OUTPUT"

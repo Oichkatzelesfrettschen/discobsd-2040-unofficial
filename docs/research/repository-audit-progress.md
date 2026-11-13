@@ -201,6 +201,24 @@ fortified GCC run passes storage gates and source-inventory calibration in
 this test-boundary repair. The production sources and ILP32 inventory inputs
 remain identical to their passing acceptance revision.
 
+Aggregate invocation `rp2040-check-local-20261113T040105Z-1201520-fce03780`
+passes build and check on `492352d0` in 931.785 seconds overall. The original
+hosted macOS run independently fails the successful-descendant cleanup test:
+the runner returns success, but the descendant's SIGTERM marker is absent.
+A two-second handler delay reproduces that assertion after valid forced
+termination. The hosted log does not identify the terminating signal, so that
+specific scheduling history remains unknown.
+
+The cleanup oracle checks the recorded process group directly with signal zero
+and requires `ProcessLookupError`, after verifying the fixture reached its
+ready state. Success, direct timeout, nested timeout and aggregate timeout
+share that oracle. A slow-handler case verifies forced termination; an
+omitted-cleanup control leaves a live descendant and must fail the oracle.
+The successful-descendant fixture ignores hangup to preserve its lifetime
+across the parent's exit. All 47 execution-runner tests pass on the temporary
+candidate before its identical bytes enter the worktree; lint also passes.
+The running aggregate finishes before that source update.
+
 Only one item carries active implementation focus. Product jobs use the
 worktree's logged execution lock. Physical-board access, raw-device writes,
 power interruption, production keys, and provider execution remain outside

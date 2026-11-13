@@ -24,6 +24,7 @@ EXPECTED_LABELS = {
     "linux-renode-picocalc",
     "linux-renode-union",
     "linux-stm32-build",
+    "linux-storage-prefix",
     "linux-uf2",
     "macos-board-build",
     "macos-build",
@@ -64,6 +65,9 @@ EXPECTED_COMMANDS = {
     "linux-renode-picocalc": "bmake MACHINE=rp2040 check-renode-picocalc",
     "linux-renode-union": "bmake MACHINE=rp2040 check-renode-union",
     "linux-stm32-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=stm32 build',
+    "linux-storage-prefix": (
+        "bmake MACHINE=rp2040 STORAGE_PREFIX_PARENT_BLOCKS=1 check-storage-recovery-prefix"
+    ),
     "linux-uf2": "bmake MACHINE=rp2040 check-uf2-images",
     "macos-board-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build',
     "macos-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build',

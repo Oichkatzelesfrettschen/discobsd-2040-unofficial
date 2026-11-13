@@ -15,6 +15,169 @@
 #include <sys/storage_stats.h>
 #include <sys/map.h>
 #include <sys/proc.h>
+#include <sys/inode.h>
+
+_Static_assert(ELAST <= 0xffffU, "block inode errors fit their transient field");
+
+/* Driver interruption returns to its owner with the caller's checkpoint intact. */
+static int
+device_driver_call(dev_t dev, int flags, int mode, int opening)
+{
+    label_t saved_checkpoint = u.u_qsave;
+    int error;
+
+    if (setjmp(&u.u_qsave))
+        error = opening || u.u_error == 0 ? EINTR : u.u_error;
+    else if (opening && mode == IFCHR)
+        error = (*cdevsw[major(dev)].d_open)(dev, flags, mode);
+    else if (opening)
+        error = (*bdevsw[major(dev)].d_open)(dev, flags, mode);
+    else if (mode == IFCHR)
+        error = (*cdevsw[major(dev)].d_close)(dev, flags, mode);
+    else
+        error = (*bdevsw[major(dev)].d_close)(dev, flags, mode);
+    u.u_qsave = saved_checkpoint;
+    return error;
+}
+
+int
+cdev_driver_open(dev_t dev, int flags)
+{
+    return device_driver_call(dev, flags, IFCHR, 1);
+}
+
+int
+bdev_driver_open(dev_t dev, int flags)
+{
+    return device_driver_call(dev, flags, IFBLK, 1);
+}
+
+int
+dev_driver_close(dev_t dev, int flags, int mode)
+{
+    return device_driver_call(dev, flags, mode, 0);
+}
+
+static dev_t
+inode_block_device(struct inode *ip)
+{
+    switch (ip->i_mode & IFMT) {
+    case IFBLK:
+        return ip->i_rdev;
+    case IFCHR:
+        return chrtoblk(ip->i_rdev);
+    default:
+        return NODEV;
+    }
+}
+
+/* Hold an inode reference while sleeping on a unit's device-operation lock. */
+void
+bdevlock(struct inode *holder)
+{
+    struct inode *alias;
+    struct mount *device_mount;
+    dev_t device = inode_block_device(holder), alias_device;
+    int priority;
+
+retry:
+    priority = splbio();
+    for (device_mount = mount; device_mount < &mount[NMOUNT]; device_mount++) {
+        if (device_mount->m_device_lock == 0 ||
+            !blkdev_same_unit(device_mount->m_dev, device))
+            continue;
+        sleep((caddr_t)device_mount, PRIBIO + 1);
+        splx(priority);
+        goto retry;
+    }
+    for (alias = inode; alias < &inode[NINODE]; alias++) {
+        if (alias->i_count == 0 ||
+            ((alias->i_mode & IFMT) != IFBLK && (alias->i_mode & IFMT) != IFCHR) ||
+            (alias->i_bdev_state & IBDEV_LOCKED) == 0)
+            continue;
+        alias_device = inode_block_device(alias);
+        if (alias_device == NODEV || !blkdev_same_unit(alias_device, device))
+            continue;
+        sleep((caddr_t)alias, PRIBIO + 1);
+        splx(priority);
+        goto retry;
+    }
+    holder->i_bdev_state |= IBDEV_LOCKED;
+    splx(priority);
+}
+
+void
+bdevunlock(struct inode *holder)
+{
+    holder->i_bdev_state &= ~IBDEV_LOCKED;
+    wakeup((caddr_t)holder);
+}
+
+/* Unmount releases its device pathname while the filesystem still serves it. */
+void
+bdev_mount_take_lock(struct mount *device_mount, struct inode *holder)
+{
+    int priority = splbio();
+
+    device_mount->m_device_lock = 1;
+    holder->i_bdev_state &= ~IBDEV_LOCKED;
+    wakeup((caddr_t)holder);
+    splx(priority);
+}
+
+void
+bdev_mount_unlock(struct mount *device_mount)
+{
+    int priority = splbio();
+
+    device_mount->m_device_lock = 0;
+    if (device_mount->m_inodp == NULL)
+        device_mount->m_dev = 0;
+    wakeup((caddr_t)device_mount);
+    splx(priority);
+}
+
+int
+bdev_other_open(struct inode *holder)
+{
+    struct inode *alias;
+
+    for (alias = inode; alias < &inode[NINODE]; alias++)
+        if (alias->i_count != 0 && (alias->i_mode & IFMT) == IFBLK &&
+            alias->i_rdev == holder->i_rdev &&
+            (alias->i_bdev_state & IBDEV_REFS) > (alias == holder ? 1U : 0U))
+            return 1;
+    return 0;
+}
+
+/* Device aliases and mounts retain the first failure after a buffer is freed. */
+int
+bdev_write_error(dev_t dev)
+{
+    struct mount *mount_entry;
+    struct inode *alias;
+
+    for (mount_entry = mount; mount_entry < &mount[NMOUNT]; mount_entry++)
+        if (mount_entry->m_inodp != NULL && mount_entry->m_dev == dev &&
+            mount_entry->m_write_error != 0)
+            return mount_entry->m_write_error;
+    for (alias = inode; alias < &inode[NINODE]; alias++)
+        if (alias->i_count != 0 && (alias->i_mode & IFMT) == IFBLK &&
+            alias->i_bdev_state != 0 &&
+            alias->i_rdev == dev && alias->i_bdev_error != 0)
+            return alias->i_bdev_error;
+    return 0;
+}
+
+void
+bdev_clear_write_error(dev_t dev)
+{
+    struct inode *alias;
+
+    for (alias = inode; alias < &inode[NINODE]; alias++)
+        if ((alias->i_mode & IFMT) == IFBLK && alias->i_rdev == dev)
+            alias->i_bdev_error = 0;
+}
 
 /*
  * Read in (if necessary) the block and return a buffer pointer.
@@ -376,12 +539,14 @@ void
 biodone(register struct buf *bp)
 {
     struct mount *mount_entry;
-    int write_error;
+    struct inode *alias;
+    int write_error, priority;
 
     if (bp->b_flags & B_DONE)
         panic("dup biodone");
     bp->b_flags |= B_DONE;
     if ((bp->b_flags & (B_READ | B_ERROR)) == B_ERROR) {
+        priority = splbio();
         write_error = geterror(bp);
         for (mount_entry = mount;
             mount_entry < &mount[NMOUNT]; mount_entry++) {
@@ -392,6 +557,12 @@ biodone(register struct buf *bp)
                 mount_entry->m_write_error = write_error;
             break;
         }
+        for (alias = inode; alias < &inode[NINODE]; alias++)
+            if (alias->i_count != 0 && (alias->i_mode & IFMT) == IFBLK &&
+                alias->i_bdev_state != 0 &&
+                alias->i_rdev == bp->b_dev && alias->i_bdev_error == 0)
+                alias->i_bdev_error = write_error;
+        splx(priority);
     }
     if (bp->b_flags & B_ASYNC)
         brelse(bp);
@@ -478,6 +649,31 @@ loop:
     }
     splx(s);
     return (first_error);
+}
+
+/* Drain a held cooked device, including writes still owned by its driver. */
+int
+bdevsync(dev_t dev)
+{
+    struct buf *pending;
+    int error, first_error = 0, priority;
+
+retry:
+    error = bflush(dev);
+    if (first_error == 0)
+        first_error = error;
+    priority = splbio();
+    for (pending = buf; pending < &buf[NBUF]; pending++) {
+        if (pending->b_dev != dev || (pending->b_flags & B_BUSY) == 0)
+            continue;
+        pending->b_flags |= B_WANTED;
+        sleep((caddr_t)pending, PRIBIO + 1);
+        splx(priority);
+        goto retry;
+    }
+    splx(priority);
+    error = bdev_write_error(dev);
+    return error != 0 ? error : first_error;
 }
 
 /*

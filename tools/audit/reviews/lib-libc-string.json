@@ -1,0 +1,141 @@
+{
+  "baseline": "1e9864463c57f11c3a45db37d393652023843171",
+  "paths": [
+    "lib/libc/string/Makefile",
+    "lib/libc/string/explicit_bzero.c",
+    "lib/libc/string/memmem.c",
+    "lib/libc/string/strcspn.c",
+    "lib/libc/string/strerror.c",
+    "lib/libc/string/strlcat.c",
+    "lib/libc/string/strlcpy.c",
+    "lib/libc/string/strpbrk.c",
+    "lib/libc/string/strsep.c",
+    "lib/libc/string/strspn.c",
+    "lib/libc/string/strstr.c",
+    "lib/libc/string/strtok.c",
+    "lib/libc/string/strtok_r.c",
+    "lib/libc/string/timingsafe_bcmp.c"
+  ],
+  "method": "Read immutable Git objects and compare valid-input arithmetic, bounds, conversion state, representation, lifetime and cleanup against public declarations. Trace in-corpus scanner wrappers and preserve excluded primitive/allocator/syscall dependencies.",
+  "failure_classes": [
+    "integer overflow and pointer-domain violation",
+    "conversion grammar/end-pointer errors",
+    "bounds and termination",
+    "ownership and state reuse"
+  ],
+  "source_evidence": [
+    "lib/libc/string/Makefile",
+    "lib/libc/string/explicit_bzero.c",
+    "lib/libc/string/memmem.c",
+    "lib/libc/string/strcspn.c",
+    "lib/libc/string/strerror.c",
+    "lib/libc/string/strlcat.c",
+    "lib/libc/string/strlcpy.c",
+    "lib/libc/string/strpbrk.c",
+    "lib/libc/string/strsep.c",
+    "lib/libc/string/strspn.c",
+    "lib/libc/string/strstr.c",
+    "lib/libc/string/strtok.c",
+    "lib/libc/string/strtok_r.c",
+    "lib/libc/string/timingsafe_bcmp.c",
+    "include/stdlib.h",
+    "include/string.h",
+    "include/strings.h",
+    "include/ctype.h",
+    "sys/sys/types.h"
+  ],
+  "tests": [],
+  "findings": [],
+  "limitations": [
+    "Source inspection only; tests and builds were excluded.",
+    "Per-path residuals preserve excluded implementations, callers, compiler arithmetic and locale/type dependencies.",
+    "Caller-invalid strings, NULL pointers, prohibited overlaps, invalid comparators, unrepresentable absolute values/quotients and zero division are outside the stated valid-input review.",
+    "Shared narrow/wide scanner agreement supplies one shared implementation assumption rather than an independent oracle."
+  ],
+  "path_dispositions": [
+    {
+      "path": "lib/libc/string/Makefile",
+      "blob": "bf19287c4e64e39043ea7475e015764694be0597",
+      "mode": "100644",
+      "disposition": "Source/object membership agrees; compiler policy, install and archive dependency behavior remain separate."
+    },
+    {
+      "path": "lib/libc/string/explicit_bzero.c",
+      "blob": "144dc23aa4f48b0af5149d24556aa80f37cad650",
+      "mode": "100644",
+      "disposition": "Volatile byte writes over supplied range reviewed; generated code, register copies and physical persistence remain unmeasured."
+    },
+    {
+      "path": "lib/libc/string/memmem.c",
+      "blob": "eb06089870405b9fcd42f9f24bbebd8c1f678559",
+      "mode": "100644",
+      "disposition": "Empty/short/single-byte cases and final candidate bound reviewed for valid object ranges; primitive correctness and quadratic worst-case work remain dependencies."
+    },
+    {
+      "path": "lib/libc/string/strcspn.c",
+      "blob": "e988ad0de86e7ecad83978a6db0b734ef64b4dc7",
+      "mode": "100644",
+      "disposition": "Stops at source NUL or reject-byte match for valid strings; huge pointer-difference representability remains residual."
+    },
+    {
+      "path": "lib/libc/string/strerror.c",
+      "blob": "7b17952fd836fbffe0d9009498a88b942bc3c5b3",
+      "mode": "100644",
+      "disposition": "Static 64-byte sysctl output and bounded unsigned-decimal fallback reviewed; sysctl termination remains dependency; later call overwrites result."
+    },
+    {
+      "path": "lib/libc/string/strlcat.c",
+      "blob": "c94e90deeeeb6ac7f13d4b9535b259676a40b37e",
+      "mode": "100644",
+      "disposition": "Bounded destination scan, NUL reservation and attempted length reviewed for disjoint objects; source termination, NULL extension and length-sum overflow remain residuals."
+    },
+    {
+      "path": "lib/libc/string/strlcpy.c",
+      "blob": "2fa498c3978bc4a99d04433281766a805b3bf3ef",
+      "mode": "100644",
+      "disposition": "Bounded copying/termination and complete source-length scan reviewed; source termination and prohibited overlap remain caller obligations."
+    },
+    {
+      "path": "lib/libc/string/strpbrk.c",
+      "blob": "a33bc3288ce404f0d7c88c1ceff667555e14fc79",
+      "mode": "100644",
+      "disposition": "NUL-bounded search excludes NUL as a match; equality reviewed for matching byte representations and valid strings."
+    },
+    {
+      "path": "lib/libc/string/strsep.c",
+      "blob": "e71334e54112ec39f483f84c804a6f87e2f62d0a",
+      "mode": "100644",
+      "disposition": "Empty tokens, delimiter replacement and caller continuation reviewed; returned pointer borrows writable source lifetime."
+    },
+    {
+      "path": "lib/libc/string/strspn.c",
+      "blob": "edadc91cd4ccecc12cbe47889b67ced63973ba49",
+      "mode": "100644",
+      "disposition": "Advances through non-NUL accepted bytes for valid strings; large pointer differences remain residual."
+    },
+    {
+      "path": "lib/libc/string/strstr.c",
+      "blob": "0907385238537ed7f4376851216148c35b2f56d7",
+      "mode": "100644",
+      "disposition": "Empty needle, first-byte scan and suffix comparison reviewed conditional on strlen/strncmp; repeated prefixes can cause quadratic work."
+    },
+    {
+      "path": "lib/libc/string/strtok.c",
+      "blob": "78635542e3d21ef20bf895363fd2688150668a04",
+      "mode": "100644",
+      "disposition": "Delimiter skipping, in-place termination and static continuation reviewed; nested/interleaved scans overwrite state."
+    },
+    {
+      "path": "lib/libc/string/strtok_r.c",
+      "blob": "3b5465dc71ca7d90525f384d042aafa8c2175dea",
+      "mode": "100644",
+      "disposition": "Caller continuation and token termination reviewed for distinct save states and valid writable storage."
+    },
+    {
+      "path": "lib/libc/string/timingsafe_bcmp.c",
+      "blob": "82d6fb2531258655b5faed107595f7e33e558130",
+      "mode": "100644",
+      "disposition": "Volatile read of every byte and OR-reduced mismatch reviewed; generated timing and side channels remain separate evidence."
+    }
+  ]
+}

@@ -239,6 +239,7 @@ jobs:
               check-changed-text
 
       # check-host owns compiler-matrix identity, ownership and bounded PTY completion.
+      # It also checks the fixed Git-tree repository coverage ledger and rejection fixtures.
       # Libc strings and exit registries execute calibrated host and ILP32 cases;
       # strings and context sorting add sanitizers; the libc QEMU tier replays
       # strings, quick exit and context sorting as Thumb-1.
@@ -265,6 +266,17 @@ jobs:
             --status .build-logs/linux-cross.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 900 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross
+
+      - name: Enumerate V7 transfer prefixes at a one-block parent
+        timeout-minutes: 10
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-storage-prefix \
+            --log .build-logs/linux-storage-prefix.log \
+            --status .build-logs/linux-storage-prefix.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 540 \
+            -- bmake MACHINE=rp2040 STORAGE_PREFIX_PARENT_BLOCKS=1 \
+              check-storage-recovery-prefix
 
       # The linked kernel's core 0 and core 1 code on two emulated cores,
       # then seventeen kernels rebuilt from mutated source that must fail;

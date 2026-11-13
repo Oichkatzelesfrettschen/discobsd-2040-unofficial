@@ -650,6 +650,7 @@ check-libc-contracts:
 		${MAKE} -C tests/libc_contracts check
 
 check-libc-assert: check-python
+		HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q} ${PYTHON} tests/libc_contracts/assert_check_test.py
 		HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q} ${PYTHON} tests/libc_contracts/assert_check.py
 		HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q}' -DDISCOBSD_ASSERT_TEST=1' \
 		    ${PYTHON} tests/libc_contracts/assert_check.py
@@ -1219,6 +1220,29 @@ check-netbsd-imports: check-python
 		${PYTHON} tools/netbsd_imports.py selftest
 		${PYTHON} tools/netbsd_imports.py verify
 
+check-storage-recovery: check-python
+		${PYTHON} tests/storage_recovery/host_build_test.py
+		${PYTHON} tests/storage_recovery/storage_trace_test.py
+		${PYTHON} tests/storage_recovery/v7fs_backend_test.py
+		${PYTHON} tests/storage_recovery/v7_image_test.py
+		${PYTHON} tests/storage_recovery/v7fs_fault_matrix_test.py
+
+.PHONY: check-storage-recovery
+
+STORAGE_PREFIX_PARENT_BLOCKS?=	1 10 138
+check-storage-recovery-prefix: check-python
+		${PYTHON} tests/storage_recovery/prefix_matrix.py \
+		    --parent-blocks ${STORAGE_PREFIX_PARENT_BLOCKS:@block@${block:Q}@}
+
+.PHONY: check-storage-recovery-prefix
+
+check-storage-recovery-models: check-python
+		${PYTHON} tests/storage_recovery/transaction_models_test.py
+		${PYTHON} tests/storage_recovery/dhara_backend_test.py
+		${PYTHON} tests/storage_recovery/compare_policies.py
+
+.PHONY: check-storage-recovery-models
+
 check-v7fs-core: check-python
 		${MAKE} -C tests/v7fs_core check PYTHON=${PYTHON:Q}
 
@@ -1369,7 +1393,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-swapram-link-verifier \
 		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
-		check-test-execution \
+		check-test-execution check-repository-coverage \
 		check-libc-host-contracts check-libc-assert check-c17-headers \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
@@ -1388,7 +1412,8 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
-		check-netbsd-imports check-v7fs-core check-msdosfs-core \
+		check-netbsd-imports check-v7fs-core check-storage-recovery \
+		check-storage-recovery-models check-msdosfs-core \
 		check-corering check-core1 \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
@@ -1608,6 +1633,12 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 
 check-test-execution: check-python
 		${PYTHON} tools/test_execution_test.py
+
+check-repository-coverage: check-python
+		${PYTHON} tools/repository_coverage_test.py
+		${PYTHON} tools/repository_coverage.py
+
+.PHONY: check-repository-coverage
 
 .PHONY: check-ilp32-execution check-ilp32-execution-recipes check-test-execution \
 	check-sh-heap-boundary

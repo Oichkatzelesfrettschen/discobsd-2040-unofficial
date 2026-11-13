@@ -6,9 +6,10 @@
 # A pull request and a push to main run the rp2040 job's fixed short set:
 # the warning-free build, the kernel headroom, the flash image, the UF2
 # validation, the lint tier, the changed-comment and changed-text checks
-# and the Renode UART0 boot. The nightly run and a manual dispatch check
-# out main and add every other tier and every other job (FULL_GATES); a
-# nightly that fails opens or updates one issue (the nightly-report job).
+# and the Renode UART0 boot. The nightly run, on main, and a manual
+# dispatch, on the ref it names, add every other tier and every other job
+# (FULL_GATES); a nightly that fails opens or updates one issue (the
+# nightly-report job).
 name: firmware
 
 on:

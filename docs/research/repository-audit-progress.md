@@ -62,7 +62,7 @@ rather than the shared GitHub account's authorship field.
 - [x] Fetch origin main, inspect its delta and merge it into the owned branch
   while preserving the fixed audit baseline and other agents' work.
 - [x] Run focused gates for reconciled changes and resolve their failures.
-- [ ] Run final logged-build, logged-check and logged-ilp32; bind receipts to
+- [x] Run final logged-build, logged-check and logged-ilp32; bind receipts to
   the tested head, base, configuration and resulting tree.
 - [ ] Review the final diff, push to origin and open the owned pull request;
   keep it in draft while acceptance requirements remain open.
@@ -162,6 +162,17 @@ sorting on host and cross configurations, C17 headers on host and cross,
 a.out linkage, the source denominator, execution inventory and retained
 coverage ledger. These checks establish the affected interface contracts;
 final aggregate and ILP32 receipts remain required for the combined candidate.
+
+Candidate `e9a808d909874de082b7ae563c0c22ccafb40603` has tree
+`d832665a865709e73d720a07d1d56372affd5e43` and integrated main base
+`88abf7151e25b4fc1c01682587561f7c9197f7bc`. Its final aggregate receipt
+`rp2040-check-local-20261113T031404Z-3932925-591a2915` records completed
+build and check stages with exit zero in 1,097.232 seconds overall. Its final
+ILP32 receipt `rp2040-ilp32-local-20261113T033238Z-452143-86bca3fd` records
+196 of 196 passing execution-inventory entries in 369.355 seconds. The
+worktree remains clean throughout both runs. The subsequent acceptance-record
+edit changes documentation only; product and test inputs retain these tested
+identities. Publication, hosted checks, review and integration remain open.
 
 Only one item carries active implementation focus. Product jobs use the
 worktree's logged execution lock. Physical-board access, raw-device writes,

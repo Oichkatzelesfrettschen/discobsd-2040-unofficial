@@ -176,6 +176,7 @@ Predicted boot lines and what each settles:
 | --- | --- |
 | `lcd0: ST7365P 320x320 on SPI1, ...` | panel attach; ledger panel row |
 | `kbd0: keyboard controller at I2C1 0x1f, firmware M.m` | the installed keyboard firmware version; the vendor source in the notes repository sets `BIOSVERSION` 0x16, which prints 1.6 |
+| `psram0: read id 0d/5d eid` and twelve hex digits | the part's 48-bit EID, printed whenever Read ID completed; ledger row U301 |
 | `psram0: ESP-PSRAM64H 8192 kbytes on PIO0, swap` | Read ID 0x0D with a passing die; `PICOCALC.md` row "The part answers Read ID 0x0D" |
 | `psram0: id M/K is not an ESP-PSRAM64H, swap stays on fl1` | a different manufacturer or a failing die, with the bytes read |
 
@@ -183,10 +184,13 @@ Then, at the shell: `sysctl machdep.picocalc` reads the battery, charging
 and backlight registers (`PICOCALC.md` row "The controller answers the
 battery, backlight and power-off registers").
 
-The driver reads the manufacturer and known-good-die bytes only, so this
-boot does not separate the ESP-PSRAM64H and LY68L6400 from the APS6404L
-(ledger row U301); that needs the 48-bit EID that `psram_read_id()` does
-not collect.
+The `read id` line carries the 48-bit EID. Only the APS6404L sheet assigns
+it a field: EID[47:45] = 010 for 64 Mbit. The ESP-PSRAM64H and LY68L6400
+sheets leave all 48 bits undefined. The EID therefore separates the three
+parts only against the same read of reference parts (ledger row U301). A
+first EID whose top three bits read 010 is consistent with an AP Memory
+die, which this boot alone cannot confirm. Record the twelve digits in the
+ledger row.
 
 ## Panel rows
 

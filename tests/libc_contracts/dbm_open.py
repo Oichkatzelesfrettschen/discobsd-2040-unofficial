@@ -85,12 +85,23 @@ def header_contract(compiler, work):
 def build(root, compiler, work, arm, source):
     # Unselected legacy record functions use the BSD spelling for SEEK_SET.
     flags = FLAGS + (ARM + ["-DL_SET=SEEK_SET"] if arm else []) + ["-I" + str(work)]
-    renames = ["-D" + name + "=dbm_test_" + name
-               for name in ("malloc", "free", "open", "close", "fstat")]
+    hooks = work / "hooks.h"
+    # Fortified header wrappers retain their real-symbol aliases; redirect only
+    # source calls after the host declarations and inline bodies are complete.
+    hooks.write_text(
+        "#include <sys/types.h>\n#include <sys/stat.h>\n"
+        "#include <stdlib.h>\n#include <unistd.h>\n#include <fcntl.h>\n"
+        "void *dbm_test_malloc(size_t);\nvoid dbm_test_free(void *);\n"
+        "int dbm_test_open(const char *, int, ...);\n"
+        "int dbm_test_close(int);\n"
+        "int dbm_test_fstat(int, struct stat *);\n" +
+        "".join("#define " + name + " dbm_test_" + name + "\n"
+                for name in ("malloc", "free", "open", "close", "fstat"))
+    )
     obj = work / "ndbm.o"
     # The retained record operations still use C17-permitted K&R definitions.
     # Keep their Clang compatibility exception outside the typed fixture/header.
-    compile_command(compiler + flags + ["-Wno-deprecated-non-prototype"] + renames +
+    compile_command(compiler + flags + ["-Wno-deprecated-non-prototype", "-include", str(hooks)] +
                     ["-c", str(source), "-o", str(obj)])
     fixture = work / "fixture.o"
     compile_command(compiler + flags + ["-c", str(root / "tests/libc_contracts/dbm_open_test.c"),
@@ -112,8 +123,8 @@ def build(root, compiler, work, arm, source):
 
 def execute(program, arm):
     prefix = ["qemu-arm", "-cpu", "cortex-m0"] if arm else []
-    return subprocess.run(prefix + [str(program)], capture_output=True, text=True,
-                          timeout=90, check=False)
+    return subprocess.run(prefix + [str(program)], cwd=program.parent,
+                          capture_output=True, text=True, timeout=90, check=False)
 
 
 def mode_promotions(root, compiler, work, arm):
@@ -183,6 +194,14 @@ def main():
         mode_promotions(root, compiler, work, args.arm)
         accepted = work / "accepted"
         shutil.copy2(program, accepted)
+        if not args.arm:
+            fortified = compiler + ["-U_FORTIFY_SOURCE", "-D_FORTIFY_SOURCE=3"]
+            program = build(root, fortified, work, False, source)
+            result = execute(program, False)
+            require(result.returncode == 0 and not result.stderr and
+                    result.stdout == "dbm-open: 3180 cases pass\n",
+                    "dbm-open fortified injection fails: " + result.stdout + result.stderr)
+            print("dbm-open fortified injection: 3180 cases pass")
         original = source.read_text()
         for name, anchor, replacement, rejection in MUTATIONS:
             require(original.count(anchor) == 1, name + " mutation anchor differs")

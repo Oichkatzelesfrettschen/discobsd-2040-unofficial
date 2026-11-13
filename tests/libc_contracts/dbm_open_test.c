@@ -12,7 +12,8 @@
 static char name[4096];
 static size_t name_length;
 static int flags, failure, allocations, frees, opens, closes, stats;
-static mode_t mode;
+static mode_t mode, observed_mode;
+static int observed_flags;
 static unsigned live_descriptors, faults, cases;
 static off_t extent;
 
@@ -67,6 +68,8 @@ dbm_test_open(const char *path, int actual_flags, ...)
     va_start(arguments, actual_flags);
     actual_mode = read_mode(&arguments);
     va_end(arguments);
+    observed_mode = actual_mode;
+    observed_flags = actual_flags;
     if ((expected_flags & O_ACCMODE) == O_WRONLY)
         expected_flags = (expected_flags & ~O_ACCMODE) | O_RDWR;
     if (opens > 1 || strlen(path) != name_length + 4 ||
@@ -117,6 +120,8 @@ exercise(size_t length, int stage, off_t bytes, long expected_max, int access)
     int expected_errno = 0, expected_opens = 2, expected_closes = 2;
     int expected_allocations = 1, expected_frees = 1, expected_stats = 1;
     const char *label = "success";
+    long observed_max = 0, observed_page = 0, observed_directory = 0;
+    int observed_readonly = 0, open_errno;
 
     name_length = length;
     memset(name, 'a', length);
@@ -127,6 +132,8 @@ exercise(size_t length, int stage, off_t bytes, long expected_max, int access)
     failure = stage;
     allocations = frees = opens = closes = stats = 0;
     live_descriptors = faults = 0;
+    observed_mode = 0;
+    observed_flags = 0;
     cases++;
     if (length > 1019) {
         label = "long-name";
@@ -155,12 +162,17 @@ exercise(size_t length, int stage, off_t bytes, long expected_max, int access)
     }
     errno = 0;
     db = dbm_open(name, flags, mode);
+    open_errno = errno;
     if (expected_errno) {
         if (db || errno != expected_errno)
             faults++;
     } else if (!db) {
         faults++;
     } else {
+        observed_max = db->dbm_maxbno;
+        observed_page = db->dbm_pagbno;
+        observed_directory = db->dbm_dirbno;
+        observed_readonly = !!dbm_rdonly(db);
         if (db->dbm_maxbno != expected_max || db->dbm_pagbno != -1 ||
             db->dbm_dirbno != -1 || live_descriptors != 3 ||
             !!dbm_rdonly(db) != (access == O_RDONLY))
@@ -172,6 +184,15 @@ exercise(size_t length, int stage, off_t bytes, long expected_max, int access)
         stats != expected_stats) {
         printf("FAIL dbm-open %s length=%lu stage=%d bytes=%ld\n", label,
                (unsigned long)length, stage, (long)bytes);
+        printf("observed faults=%u live=%u allocations=%d/%d frees=%d/%d "
+               "opens=%d/%d closes=%d/%d stats=%d/%d errno=%d/%d\n",
+               faults, live_descriptors, allocations, expected_allocations,
+               frees, expected_frees, opens, expected_opens, closes, expected_closes,
+               stats, expected_stats, open_errno, expected_errno);
+        printf("observed max=%ld/%ld page=%ld directory=%ld readonly=%d/%d "
+               "flags=%d mode=%lu/%lu\n", observed_max, expected_max,
+               observed_page, observed_directory, observed_readonly, access == O_RDONLY,
+               observed_flags, (unsigned long)observed_mode, (unsigned long)mode);
         return 1;
     }
     return 0;

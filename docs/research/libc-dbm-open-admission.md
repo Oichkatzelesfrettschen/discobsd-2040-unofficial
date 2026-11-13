@@ -95,6 +95,17 @@ header and typed fixture retain their strict diagnostics. GCC, Clang, ILP32
 and ARMv6-M QEMU runs pass the 3,180 cases and reject the eight controls.
 Apple linker execution remains a hosted macOS qualification requirement.
 
+Host injection includes system headers before defining typed allocation and I/O
+hooks. Ubuntu GCC 13 enables `_FORTIFY_SOURCE=3` at optimization levels; glibc's
+inline `open` wrapper retains an assembler alias to the real `open` symbol.
+A command-line rename changes the wrapper name but leaves that alias intact,
+so the fixture observes zero injected opens and real file acquisition instead.
+The post-header hooks redirect constructor calls without changing those inline
+bodies or disabling fortification. An explicit fortified host cohort repeats
+all 3,180 cases. Each execution uses its temporary build directory, confining
+accidental filesystem effects from a broken injection boundary. Failure output
+reports ownership counters, admitted metadata, access flags and creation mode.
+
 The injected variadic `open` reads the creation mode using its default-promoted
 integer type. C17 6.5.2.2 applies integer promotions to variadic arguments;
 reading a narrow `mode_t` directly with `va_arg` has undefined behavior. Unary

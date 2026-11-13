@@ -125,10 +125,12 @@ VBUS on; a missing CC pull-down explains the observation only on a board
 that leaves R701 and R702 unfitted, which a look at the two sites
 settles. The explanation the schematic leaves standing:
 
-- The AXP2101 needs a power-key press or a battery to start, through
-  power-on defaults the board does not change; the power key SW102 sits
-  on its PWRON pin. A cell-less board that stays off on USB-C and starts
-  after a press of the power key confirms it.
+- Hypothesis: the AXP2101 needs a power-key press or a battery to start.
+  Its datasheet (V1.4, 6.5.4.2) lists VBUS rising as a power-on source
+  only "configured by customization", and the power key SW102 sits on its
+  PWRON pin; this board's customization is unrecorded. A cell-less board
+  that stays off on USB-C and starts after a press of the power key
+  confirms it; one that starts on USB-C alone refutes it.
 
 `docs/research/hardware-reference-coverage.md` holds the schematic's
 designator-to-part map behind this reading.

@@ -35,10 +35,11 @@ returned an HTML page to a command-line client, so the two mirrors above are
 the retained copies. Version 1.1 changed only the marking appendix
 (release notes), and the values compared across the two (tCEM, tCPH, tCHD,
 tSP, the maximum clocks and the command table) agree. The Espressif sheet
-is the one the board's part number names. Its timing, current and command
-rows equal those of Lyontek's LY68L6400 Rev. 1.2, and page 5 of the V1.1
-PDF carries a hidden LY68S3200 text layer, so the Espressif sheet derives
-from Lyontek's. AP Memory's APS6404L-3SQR shares the opcodes and the Read
+is the one the board's part number names. Its timing, current and opcode
+rows equal those of Lyontek's LY68L6400 Rev. 1.2, whose command table adds
+one note the Espressif sheet lacks ("Linear burst is prohibited"), and
+page 5 of the V1.1 PDF carries a hidden text layer from Lyontek's
+LY68S3200, so the Espressif sheet was built on a Lyontek template. AP Memory's APS6404L-3SQR shares the opcodes and the Read
 ID bytes (MF 0x0D, KGD 0x5D) but prints different limits (tCHD 3.0 ns,
 tCPH 18 ns, tACLK 5.5 ns), so it is a family member, not this part's
 specification; `docs/research/hardware-reference-coverage.md` holds the

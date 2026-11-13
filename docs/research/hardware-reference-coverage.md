@@ -1,9 +1,9 @@
 # Hardware reference coverage: Pico, Pico W, RP2040 and the PicoCalc
 
-This ledger tests a claim: that the tree's owner holds, on the build host,
-the reference document for every part of the Raspberry Pi Pico, the Pico W,
-the RP2040 and the ClockworkPi PicoCalc, along with an installed Pico SDK.
-Tested on 2026-11-12, the claim was false: the notes repository held the
+The claim under test: the build host holds the reference document for
+every part of the Raspberry Pi Pico, the Pico W, the RP2040 and the
+ClockworkPi PicoCalc, along with an installed Pico SDK. Tested on
+2026-11-12, the claim was false: the notes repository held the
 RP2040 and Pico datasheets and the PicoCalc's schematic, panel and PMU
 documents, the flash and PSRAM datasheets sat uncommitted in one checkout,
 no Pico W document beyond the CYW43439 product brief existed, seven of the
@@ -13,7 +13,7 @@ host. The Arch `pico-sdk` package had been removed on 2026-10-10, and
 `tools/pico-sdk/vendor`, where `tools/pico-sdk/fetch-pico-sdk.sh` writes,
 was absent from the primary checkout and from every worktree.
 
-The rows below give the state after the gaps were filled: the AUR
+The coverage tables record the state after the gaps were filled: the AUR
 `pico-sdk` 2.3.1-1 package supplies `/usr/share/pico-sdk` with every
 submodule, the fetch script pins the same 2.3.1 release, and the notes
 repository holds every document a manufacturer, standards body or
@@ -22,13 +22,13 @@ and in the notes repository's `docs/NOT-FETCHED.tsv`.
 
 ## Method
 
-Each row names a part, the place its document lives, and one of these
-states:
+A coverage entry names a part, the place its document lives, and one of
+these states:
 
 | State | Meaning |
 | --- | --- |
 | tracked | committed in the named repository |
-| local only | on disk under the notes repository's ignored `docs/local/`, because its license forbids copies on another server; `docs/specs/README.md` there records its digest |
+| local only | on disk under the notes repository's ignored `docs/local/`, kept off the server for the reason its README row states (a license forbidding copies, or account terms not yet read); the README of the matching directory there records its digest |
 | read, not kept | an earlier note fetched and cited it; no local copy exists |
 | absent | no source served it, or no copy exists |
 | installed | a host package provides it; version given |
@@ -92,7 +92,7 @@ its frequency.
 | J1 | 690-005-298-486 | micro-USB receptacle | EDAC drawing 690-005-298-486 issue 2, 2015-09-01, `rp2040/edac_690_005_298_486_micro_usb_5pin_b_type_drawing.pdf` | tracked, notes |
 | SW1 | TP-1221U-K9K5325 | BOOTSEL switch on QSPI_SS | the Pico BOM names it "Tact switch 4.2x3.4mm"; no manufacturer sheet found | absent |
 | D2 | green LED | GPIO25 | no part number printed | not applicable |
-| guides | Hardware design with RP2040; Getting started with Pico-series; Pico-series C/C++ SDK | reference circuit, setup, SDK API | `rp2040/hardware_design_with_rp2040_rp008279.pdf`, `getting_started_with_pico_series_rp008276.pdf`, `pico_series_c_cpp_sdk_rp009085.pdf` | tracked, notes |
+| guides | Hardware design with RP2040; Getting started with Pico-series; Pico-series C/C++ SDK | reference circuit, setup, SDK API | `rp2040/hardware_design_with_rp2040_rp008279.pdf`, `rp2040/getting_started_with_pico_series_rp008276.pdf`, `rp2040/pico_series_c_cpp_sdk_rp009085.pdf` | tracked, notes |
 
 ### Inside the RP2040
 
@@ -142,7 +142,7 @@ layer. The Pico seated in J301 and J302 is covered above. Paths in
 
 | Ref | Part as printed | Role | Document | State |
 | --- | --- | --- | --- | --- |
-| board | mainboard V2.0 | schematic, Gerbers, assembly guide | `picocalc/clockwork_Mainboard_V2.0_Schematic.pdf`, `pcb/CPI_V2.0_Gerber.7z`, `Clockwork_PicoCalc_Assembly_Guidelines.pdf` | tracked, notes |
+| board | mainboard V2.0 | schematic, Gerbers, assembly guide | `picocalc/clockwork_Mainboard_V2.0_Schematic.pdf`, `picocalc/pcb/CPI_V2.0_Gerber.7z`, `picocalc/Clockwork_PicoCalc_Assembly_Guidelines.pdf` | tracked, notes |
 | U101 | AXP2101 | PMU: VBUS, battery, DCDC1, ALDO1-4, BLDO1-2 | X-Powers datasheet V1.4, `picocalc/AXP2101_Datasheet_V1.4.pdf` | tracked, notes |
 | U102 | WAS4603 | current-limited load switch, IPS to PICO_VSYS, enable PICO_EN | Will Semiconductor WS4603 Rev 1.2, `picocalc/parts/willsemi_ws4603_datasheet_rev1.2.pdf`; no document carries the printed WAS prefix (Part identity verdicts, below) | tracked, notes |
 | U201 | CKS32F103Rx | keyboard controller: matrix, backlights, PMU I2C, I2C1 target at 0x1F | CKS32F103x8/xB datasheet v1.15 (Chinese, LCSC copy) and an undated English CKS32F103xx datasheet (third-party copy); ST DS5319 Rev 20, RM0008 Rev 21, PM0056 Rev 7, ES096 Rev 15 (x8/xB) and ES0340 (xC/D/E), all in `picocalc/parts/` | tracked, notes; the CKS32F103x8/xB reference manual (458 pages, V1.1 per sekorm.com) local only, `local/picocalc/parts/`, while the sekorm account terms it came under are unread |
@@ -219,7 +219,7 @@ reach names the board observation that reaches it.
 | Ref | Claim | Verdict | Discriminating evidence | Board observation that decides |
 | --- | --- | --- | --- | --- |
 | U301 | ESP-PSRAM64H sheet describes the part | supported | the part number the schematic prints | not needed |
-| U301 | LY68L6400 is the same specification | supported | every timing, current and command row equal (tCHD 20 ns, tCPH 50 ns, tACLK 2-6 ns, ICC 40 mA, absolute maximum 4.2 V); page 5 of the ESP V1.1 PDF carries an invisible LY68S3200 text layer with Lyontek's address | die origin: none in documents |
+| U301 | LY68L6400 shares the specification | limits and opcodes supported; command semantics differ | every timing, current and opcode row equal (tCHD 20 ns, tCPH 50 ns, tACLK 2-6 ns, ICC 40 mA, absolute maximum 4.2 V); LY68L6400's command table adds note 2, "Linear burst is prohibited", which the ESP sheets lack; page 5 of the ESP V1.1 PDF carries an invisible text layer from Lyontek's LY68S3200, a different part, which shows a shared Lyontek template, not derivation from the LY68L6400 sheet | die origin: none in documents |
 | U301 | APS6404L-3SQR is the same specification | refuted | tCHD 3.0 vs 20 ns, tCPH 18 vs 50 ns, tACLK and tHZ 5.5 vs 6 ns, ICC 7 vs 40 mA, absolute maximum 4.0 vs 4.2 V; opcodes, MF 0x0D, KGD 0x5D, 1 KB page and SOP8 pin order agree, so it stays a family member | a 9-byte Read ID (9Fh after the 66h/99h reset) compared with reference APS6404L and LY68L6400 parts; only APS defines EID[47:45] = 010 for 64 Mb |
 | U102 | WS4603 (printed WAS4603) | pin map confirmed; prefix undecided | SOT-23-5 pins 1 OUT/PICO_VSYS, 2 GND, 3 ISET/R104, 4 EN/PICO_EN active high, 5 IN/IPS; I_OC = 6.8 kOhm / 3.4 kOhm = 2.0 A (datasheet page 8) | top mark |
 | U502, U503 | AW8010 A, B or D | undecided | all three print the same 3x3 ball map, and all nine balls agree with the schematic; gain 315 kOhm / 47 kOhm = 6.7 V/V | top mark: `A1A` A, `LCV` B, `U0J` D |
@@ -231,12 +231,18 @@ reach names the board observation that reaches it.
 | U701, U703 | WAS7227Q | confirmed | all 10 pins agree; OE tied low; SEL low selects D1, matching `docs/picocalc/INDEX.md` | not needed |
 | U501 | NC7WZ16 | pin map confirmed; package undecided | six pins agree | top mark `Z16MG` SC-88, `C7KK` SIP6/UDFN6 |
 | U19 (Pico W) | BCM43439 is the Broadcom name | refuted as documented | no held document prints it; the CYW43438 sheet maps only BCM43438; the SDK loads firmware for the 43439A0 die | not needed |
-| panel | Tianxianwei TXW392001B0 base model, ST7365P, SPI/MCU interface | supported as the base model, second-hand | a forum post relays the supplier naming the ST7365P for the TXW392001B0 page, and a second calls TXW392001B0 the same base model at a higher resolution; ClockworkPi ships the ST7365P specification, and the vendor drivers program 320x320 | the module's FPC or back label |
+| panel | Tianxianwei TXW392001B0 base model, ST7365P, SPI/MCU interface | supported as the base model, one source | both forum posts rest on the same TXW listing and supplier statement, so they count once: one relays the supplier naming the ST7365P for the TXW392001B0 page, the other calls TXW392001B0 the same base model at a higher resolution; ClockworkPi ships the ST7365P specification, and the vendor drivers program 320x320 | the module's FPC or back label |
 | panel | the listing's 480x480 glass, of which the PicoCalc uses 320x320 | refuted horizontally, open vertically | the ST7365P has 320 RGB source outputs (specification page 1), so 160 of 480 columns would have no driver; the controller has 480 gate lines and the drivers show 320 (VSCRDEF 0/320/160), so the vertical half of the hypothesis survives documents | pixel pitch: a 3.92 inch square is 70.4 mm a side, 0.220 mm per pixel at 320 and 0.147 mm at 480; or fill frame-memory rows 320-479 and watch whether any row lights |
 
 Schematic findings from the same read: U201 drives PICO_EN from PA13 and
-PA_EN from PA14, the SWDIO and SWCLK pins, which RM0008 puts in input
-pull-up and pull-down after reset; on an ST part PICO_EN therefore reads
+PA_EN from PA14. Each net label on the U201 symbol sits about 2 pt above
+its pin name in the PDF's text layer, so pairing labels with the nearest
+pin name shifts every net one pin up; the silicon-fixed functions decide
+the pairing (M_UART1_TX/RX on PA9/PA10 and M_USB_DM/DP on PA11/PA12, the
+USART1 and USB pins), and the vendor firmware drives PA13 as the Pico
+enable and PA14 as PA_EN (`picocalc_keyboard.ino`). PA13 and PA14 are
+the SWDIO and SWCLK pins, which RM0008 puts in input pull-up and pull-down
+after reset; on an ST part PICO_EN therefore reads
 high and both amplifiers stay shut down until firmware remaps SWJ_CFG
 (hypothesis for the CKS part). M_I2C1 uses the I2C1 remap pins PB8/PB9.
 The audio input capacitors are 15 nF against 47 kOhm, a 225 Hz corner.

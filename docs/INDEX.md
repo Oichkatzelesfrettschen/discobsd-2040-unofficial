@@ -83,6 +83,12 @@ artifact points at.
 
 ## Research corpus: `docs/research`
 
+The [graph-layout experiment](research/graph-layout-experiment.md) provides a
+host-only graph heat-diffusion, QUBO/Ising and ideal-QAOA locality study with
+synthetic calibration fixtures. It establishes model behavior, not board speed.
+The [implementation audit](research/implementation-scope.md) maps every
+discussed performance/security track to executable work and remaining evidence.
+
 Carried with their history from the notes repository, and added to since.
 Grouped by what they investigate.
 

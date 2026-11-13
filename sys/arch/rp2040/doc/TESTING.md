@@ -3268,3 +3268,32 @@ Runtime stack and heap high-water, descriptor/inode pressure under a complete
 extraction workload, directory-write recovery, persistent-media traffic,
 symbolic-link publication, conditional removal, directory metadata
 reacquisition, and physical-board behavior retain separate evidence states.
+
+## Optional graph layout research tier
+
+`check-graph-layout` runs `tools/graph_layout_test.py` and
+`tools/graph_layout_trace_test.py` and `tools/performance_lab_test.py` with the
+selected `${PYTHON}`. It requires the pinned NumPy/SciPy research dependencies,
+and is outside the aggregate firmware
+checks. `.github/workflows/graph-layout.yml` runs these same host commands
+on changes to the tool, fixtures or workflow. This tier establishes model
+algebra, trace admission and cache-hypothesis behavior, not target compilation
+or physical timing. It includes all-state QUBO/Ising checks, a changed-edge
+optimum, an independent dense QAOA mixer oracle, invalid input controls,
+LRU/FIFO distinguishing accesses, crossing-line fetches, and a host GNU linker
+ordering fixture. The linker case explicitly skips without cc, ld and nm;
+a skipped case establishes no linker result. Full acquisition and relink/board
+admission are described in `docs/research/graph-layout-experiment.md`.
+The performance tests additionally check Bellman solutions against a direct
+linear solve, transport against every small assignment, offload contention
+and capacity controls, profile dependency/union costs, drift-diffusion against
+an analytic absorption law, MPS Schmidt loss, conserved walk probabilities,
+tail parameter recovery and emitted QASM against independent gate evolution.
+
+`check-layout-extensions` requires the pinned extended requirements and runs
+the MILP/enumeration, fixed-cardinality noisy-circuit and tensor-only MPS
+controls. The graph-layout CI also compiles the production HSX decoder for
+M0+ with a pinned Zig toolchain and executes it under Unicorn, accepting
+traces only after decoded bytes and return length match. This establishes
+compiled algorithm behavior under emulation, not a booted kernel or board
+cache timing. Its artifacts retain the ELF, symbol map, traces and report.

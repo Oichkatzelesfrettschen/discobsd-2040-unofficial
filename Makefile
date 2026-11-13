@@ -80,6 +80,17 @@ SUBDIR=		share lib bin usr.bin sbin libexec usr.sbin games benchmarks
 
 all:		build
 
+# Optional host research tier; NumPy is not a firmware-build dependency.
+.PHONY: check-graph-layout
+check-graph-layout: check-python
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/graph_layout_test.py
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/graph_layout_trace_test.py
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/performance_lab_test.py
+
+.PHONY: check-layout-extensions
+check-layout-extensions: check-python
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/layout_solver_extensions_test.py
+
 check-python:
 		@if [ -z "${PYTHON}" ]; then \
 			echo "PYTHON must name the interpreter for this target" >&2; \

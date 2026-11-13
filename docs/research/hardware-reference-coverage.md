@@ -86,11 +86,11 @@ its frequency.
 | U1 | RP2040, silicon B2 | the MCU | RP2040 Datasheet, build `3184e62-clean`, 2025-02-20, errata in appendix B, `rp2040/rp2040-datasheet.pdf` | tracked, notes |
 | U2 | RT6150B-33GQW | buck-boost SMPS, VSYS to 3V3, PS on GPIO23, EN on 3V3_EN | Richtek DS6150A/B-06, `rp2040/richtek_rt6150a_b_ds6150ab_06.pdf` | tracked, notes |
 | U3 | W25Q16JVUXIQ | 2 MiB QSPI flash | Winbond W25Q16JV revision G, 2018-03-22, whose table 9.1 gives `W25Q16JV-IQ/JQ` manufacturer `EFh` and JEDEC device `4015h`, the `ef 40 15` the measured board returns (`DEVICE-INVENTORY.md`), `rp2040/W25Q16JV_Datasheet.pdf` | tracked, notes |
-| X1 | 12 MHz; ABM8-272-T3 in the datasheet text | crystal | Abracon ABM8 family sheet, `rp2040/abracon_abm8_ceramic_smd_crystal.pdf`; the ABM8-272-T3 part sheet only distributors host | family sheet tracked, notes |
+| X1 | 12 MHz; ABM8-272-T3 in the datasheet text | crystal | Abracon ABM8-272-T3 source control drawing 456603 Rev B, 2024-09-16, sheets 2, 4 and 6 of 9 as Abracon publishes them, `rp2040/abracon_abm8_272_t3_source_control_drawing_456603_revb.pdf`; ABM8 family sheet | tracked, notes |
 | D1 | MBR120VLSFT1G | VBUS to VSYS Schottky | onsemi MBR120VLSFT1/D Rev. 5, `rp2040/onsemi_mbr120vlsft1_d.pdf` | tracked, notes |
 | Q1 | DMG1012T | ADC3 isolation FET on GPIO29 | Diodes DS31783, `rp2040/diodes_dmg1012t_ds31783.pdf` | tracked, notes |
-| J1 | 690-005-298-486 | micro-USB receptacle | EDAC drawing | absent |
-| SW1 | TP-1221U-K9K5325 | BOOTSEL switch on QSPI_SS | no manufacturer identified | absent |
+| J1 | 690-005-298-486 | micro-USB receptacle | EDAC drawing 690-005-298-486 issue 2, 2015-09-01, `rp2040/edac_690_005_298_486_micro_usb_5pin_b_type_drawing.pdf` | tracked, notes |
+| SW1 | TP-1221U-K9K5325 | BOOTSEL switch on QSPI_SS | the Pico BOM names it "Tact switch 4.2x3.4mm"; no manufacturer sheet found | absent |
 | D2 | green LED | GPIO25 | no part number printed | not applicable |
 | guides | Hardware design with RP2040; Getting started with Pico-series; Pico-series C/C++ SDK | reference circuit, setup, SDK API | `rp2040/hardware_design_with_rp2040_rp008279.pdf`, `getting_started_with_pico_series_rp008276.pdf`, `pico_series_c_cpp_sdk_rp009085.pdf` | tracked, notes |
 
@@ -122,13 +122,13 @@ the Pico apply unchanged.
 | board | Raspberry Pi Pico W Rev3 | the module | Pico W Datasheet, Release 7, build `d4e0f1799616`, `rp2040/pico_w_datasheet_rp008312.pdf`; product brief, April 2024, `rp2040/pico_w_product_brief_rp008313.pdf` | tracked, notes |
 | board | design files | layout and schematic source; the ZIP carries no schematic PDF | `rp2040/design-files/rpi_picow_public_20220607_rp008380.zip` | tracked, notes |
 | U2 | RT6154AGQW | buck-boost SMPS, PS/SYNC on WL_GPIO1 | Richtek DS6154A/B-05, `rp2040/richtek_rt6154a_b_ds6154ab_05.pdf` | tracked, notes |
-| U19 | CYW43439KUBG | Wi-Fi and Bluetooth, gSPI to the RP2040 | Infineon CYW43439 datasheet, served only to a signed-in myInfineon account; the product brief is in a private document store | datasheet absent |
+| U19 | CYW43439KUBG | Wi-Fi and Bluetooth, gSPI to the RP2040 | Infineon 002-30348 Rev. \*D, 2023-04-17, LCSC copy, `rp2040/infineon_cyw43439_datasheet_002_30348_rev_d_lcsc_c5359496.pdf`; Infineon lists version 07_00 of 2024-05-29 for myInfineon accounts only | Rev. \*D tracked, notes; 07_00 absent |
 | software | Wi-Fi and Bluetooth connectivity on Pico W-series (formerly "Connecting to the Internet") | wireless SDK use | `rp2040/wifi_bluetooth_connectivity_pico_w_series_rp008257.pdf`, Release 9 | tracked, notes |
-| X1 | 12 MHz | RP2040 crystal | ABM8 family sheet as on the Pico | family sheet tracked, notes |
+| X1 | 12 MHz | RP2040 crystal | ABM8-272-T3 drawing as on the Pico | tracked, notes |
 | X2 | 37.4 MHz | CYW43439 reference crystal | no part number printed | not applicable |
-| FL1 | LFB212G45CG7D227 | 2.45 GHz band-pass filter in the antenna path | Murata datasheet | absent |
-| FB8, FB9 | BLM18AG601SN1, BLM03AG601SN1 | ferrites on the CYW43439 supplies | Murata datasheets | absent |
-| L9 | CML0306-4N7-H-NH | RF matching inductor | datasheet | absent |
+| FL1 | LFB212G45CG7D227 | 2.45 GHz band-pass filter in the antenna path | Murata product data sheet, 2022-03-13, LCSC copy; murata.com answers HTTP 500 | tracked, notes |
+| FB8, FB9 | BLM18AG601SN1, BLM03AG601SN1 | ferrites on the CYW43439 supplies | Murata product data sheet (BLM18AG601SN1) and reference specification JENF243A-0020AD-01 (BLM03AG), distributor copies | tracked, notes |
+| L9 | CML0306-4N7-H-NH | RF matching inductor | Cyntec 0201 thin-film inductor sheet CYNP-8Z-031 rev A5, LCSC copy | tracked, notes |
 | D2 | green LED | WL_GPIO0 | no part number printed | not applicable |
 
 ## ClockworkPi PicoCalc mainboard V2.0
@@ -160,17 +160,35 @@ layer. The Pico seated in J301 and J302 is covered above. Paths in
 | panel | ST7365P controller, 320x320 IPS | display | Sitronix ST7365P V1.0, `picocalc/ST7365P_SPEC_V1.0.pdf`; the panel module's own datasheet (glass, backlight current) | controller tracked, notes; module absent |
 | J501, SW501 | PJ-327C, JC101GV01 | headphone jack and its contact | HOOYA PJ-327C drawing, LCSC C2939157; JC101GV01 absent | jack tracked, notes |
 | J701 | TYPEC-31-M-12 | USB-C receptacle | Korean Hroparts drawing, LCSC C165948 | tracked, notes |
-| SW102, SW701 | K2-1112SA, EM-02KP | power key on AXP2101 PWRON; USB and BOOT0 routing | Korean Hroparts K2-1112SA-A4DW-01 drawing, LCSC C961745; EM-02KP absent | K2-1112SA tracked, notes |
+| SW102, SW701 | K2-1112SA, EM-02KP | power key on AXP2101 PWRON; USB and BOOT0 routing | Korean Hroparts K2-1112SA-A4DW-01 drawing, LCSC C961745; HRO EM-series DIP switch drawing, LCSC C129078 | tracked, notes |
 
 ### Inside U201
 
 | Block | Document | State |
 | --- | --- | --- |
-| Cortex-M3 core | Cortex-M3 TRM DDI 0337E (r1p1, the STM32F103 core revision) and DDI 0337H (r2p0); Armv7-M ARM DDI 0403E.e, all in `arm/` | tracked, notes |
+| Cortex-M3 core | Cortex-M3 TRM document 100165 (r2p1, the revision CKS states for CKS32F103C8/B), DDI 0337E (r1p1, the STM32F103 core) and DDI 0337H (r2p0); Armv7-M ARM DDI 0403E.e, all in `arm/` | tracked, notes |
 
-Neither CKS32F103 document states pin or register compatibility with
+Neither CKS32F103 datasheet states pin or register compatibility with
 STM32F103: the English copy claims compatibility only among CKS32F103xx
 members (section 2.2, page 10), and the Chinese v1.15 names no STM32 part.
+CKS's own list of differences from STM32F103C8/B
+(`picocalc/parts/cks_cks32f103c8_b_stm32_incompatibility_list.pdf`)
+names seven: `GPIO_PinRemapConfig` writing SWJ_CFG disables the debug
+port; an access outside the documented peripheral map raises HardFault
+where the ST part ignores it; SPI and timer pins lack open-drain output;
+the core is Cortex-M3 r2p1, so a programmer that checks the ST core ID
+refuses the part; BOOT0 carries an internal pull-down of about 40 kOhm,
+so an external pull-up must stay at or below 15 kOhm; plus a dual-ADC
+trigger note and an early-package NC pin. On the mainboard, SW701
+switches SEL1/BOOT0 to MCU_3V3 through R705 (10 kOhm) while R703
+(100 kOhm) pulls the same node down; with the internal pull-down of about
+40 kOhm in parallel with R703, BOOT0 sits at about 3.3 V x 28.6 / 38.6, or
+2.45 V, above the 2 V input-high minimum the English CKS datasheet gives
+for FT pins (I/O characteristics table, page 41), so the selection works
+with about 0.45 V of margin while the internal pull-down stays near its
+stated value. The reference manual itself
+is absent: `cksic.com` does not resolve, and the one listing found
+(sekorm.com document 1471113) sits behind a captcha and an account.
 
 ### Bus and card specifications the PicoCalc drivers rest on
 
@@ -196,10 +214,11 @@ repository keeps the vendor's name until then.
 
 ## Pending checks
 
-- The CYW43439 full datasheet, once a myInfineon session exists.
+- CYW43439 version 07_00: Infineon's download link loops in a signed-in
+  session; Rev. \*D is the newest public copy.
 - Read the U201 and U102 markings, the AW8010 suffix and the R701 and R702
   sites on the owner's board.
-- The panel module datasheet, the EDAC 690-005-298-486, 0.5-40PBSX,
-  JC101GV01, EM-02KP and KS18650X2 drawings, the TP-1221U-K9K5325 switch,
-  the Murata FL1, FB8 and FB9 parts and the CKS32F103 reference manual
-  have no source that served them.
+- The panel module datasheet, the 0.5-40PBSX, JC101GV01 and KS18650X2
+  drawings, the TP-1221U-K9K5325 switch and the CKS32F103 reference
+  manual have no source that served them; the notes repository's
+  `docs/NOT-FETCHED.tsv` records each search.

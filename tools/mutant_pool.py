@@ -7,18 +7,24 @@ prints one verdict line per result as ordered() yields it, which keeps the
 logged gate's idle timer fed. A timing mutant is visible only when the host
 schedules the game inside a gap the case leaves, so the serial ones run one
 at a time after the pool drains, with no sibling mutant competing for the
-CPU. MUTANT_JOBS overrides the pool size; 1 restores a serial run.
+CPU. The pool takes one worker per CPU the process may use, its affinity
+bounded by its cgroup's CPU quota (available_cpus.py); MUTANT_JOBS
+overrides the size, and 1 restores a serial run.
 """
 
 import concurrent.futures
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from available_cpus import available_cpus  # noqa: E402
 
 
 def workers():
     value = os.environ.get("MUTANT_JOBS", "")
     if value:
         return max(1, int(value))
-    return max(1, os.cpu_count() or 1)
+    return available_cpus()
 
 
 def ordered(items, check, serial=frozenset(), name=lambda item: item[0]):

@@ -331,8 +331,8 @@ aligned_alloc_test_arm: aligned_alloc_test.c arm_arena.o \
 	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -o $@ aligned_alloc_test.c \
 	    arm_arena.o arm_aligned_alloc.o ${QEMU_SUPPORT} ${QEMU_ARM_LIBS}
 
-host_Exit.o: ${STDLIB_DIR}/_Exit.c
-	${HOSTCC} ${HOST_FLAGS} -D_Exit=db_Exit -c -o $@ ${STDLIB_DIR}/_Exit.c
+host_Exit.o: ${STDLIB_DIR}/iso_exit.c
+	${HOSTCC} ${HOST_FLAGS} -D_Exit=db_Exit -c -o $@ ${STDLIB_DIR}/iso_exit.c
 
 exit_probe: exit_probe.c host_Exit.o
 	${HOSTCC} ${HOST_FLAGS} -o $@ exit_probe.c host_Exit.o
@@ -391,8 +391,8 @@ ctype_double_eval.mutant/ctype.h: ${TOPSRC}/include/ctype.h
 	@mkdir -p ctype_double_eval.mutant
 	${MUTATE} ${TOPSRC}/include/ctype.h $@ \
 	    "((_ctype_+1)[(int)(c)]&(_U|_L|_N))" "(isalpha(c) || isdigit(c))"
-exit_runs_handlers.mutant.c: ${STDLIB_DIR}/_Exit.c
-	${MUTATE} ${STDLIB_DIR}/_Exit.c $@ "	_exit(status);" "	exit(status);"
+exit_runs_handlers.mutant.c: ${STDLIB_DIR}/iso_exit.c
+	${MUTATE} ${STDLIB_DIR}/iso_exit.c $@ "	_exit(status);" "	exit(status);"
 mbtowc_sign_extend.mutant.c: ${STDLIB_DIR}/mbtowc.c
 	${MUTATE} ${STDLIB_DIR}/mbtowc.c $@ \
 	    "(wchar_t)(unsigned char)*s" "(wchar_t)*s"

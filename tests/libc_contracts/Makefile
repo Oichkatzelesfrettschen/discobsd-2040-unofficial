@@ -1121,7 +1121,7 @@ check-quick-exit-cross:
 QUICK_EXIT_INPUTS= quick_exit.py quick_exit_test.c quick_exit_termination_test.c \
 	${STDIO_DIR}/exit.c ${STDIO_DIR}/atexit.c ${STDIO_DIR}/atexit.h \
 	${STDLIB_DIR}/at_quick_exit.c ${STDLIB_DIR}/quick_exit.c \
-	${STDLIB_DIR}/quick_exit.h ${STDLIB_DIR}/_Exit.c
+	${STDLIB_DIR}/quick_exit.h ${STDLIB_DIR}/iso_exit.c
 
 quick_exit_test: ${QUICK_EXIT_INPUTS} .PHONY
 	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${HOSTCC:Q} $@

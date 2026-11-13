@@ -45,7 +45,7 @@ do
 		exit 2
 	fi
 	for required_source in \
-	    "$source_root/lib/libc/stdlib/_Exit.c" \
+	    "$source_root/lib/libc/stdlib/iso_exit.c" \
 	    "$source_root/lib/libc/stdlib/at_quick_exit.c" \
 	    "$source_root/lib/libc/stdlib/quick_exit.c" \
 	    "$source_root/lib/libc/stdlib/quick_exit.h" \
@@ -68,7 +68,7 @@ do
 		fi
 	done
 	for required_member in confstr.o ctermid.o difftime.o explicit_bzero.o \
-	    _Exit.o at_quick_exit.o quick_exit.o \
+	    iso_exit.o at_quick_exit.o quick_exit.o \
 	    raise.o sysconf.o strnlen.o strndup.o stpcpy.o stpncpy.o \
 	    timingsafe_bcmp.o vis.o
 	do
@@ -100,7 +100,7 @@ do
 		printf '%s\n' "$undefined_symbols" >&2
 		exit 1
 	fi
-	for missing_member in strnlen strndup stpcpy stpncpy _Exit at_quick_exit quick_exit
+	for missing_member in strnlen strndup stpcpy stpncpy iso_exit at_quick_exit quick_exit
 	do
 		damaged_archive=$temporary_directory/damaged.a
 		cp "$archive_path" "$damaged_archive"
@@ -112,7 +112,9 @@ do
 			echo "$archive_path: missing $missing_member still links" >&2
 			exit 1
 		fi
-		if ! grep -F "$missing_member" "$temporary_directory/damaged.log" >/dev/null; then
+		missing_symbol=$missing_member
+		if [ "$missing_member" = iso_exit ]; then missing_symbol=_Exit; fi
+		if ! grep -F "$missing_symbol" "$temporary_directory/damaged.log" >/dev/null; then
 			echo "$archive_path: missing-member control fails for another reason" >&2
 			cat "$temporary_directory/damaged.log" >&2
 			exit 1

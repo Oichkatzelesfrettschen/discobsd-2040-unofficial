@@ -643,7 +643,6 @@ file /sbin/mknod
 file /usr/sbin/mkpasswd
 file /sbin/mount
 file /usr/sbin/pstat
-mode 02755
 file /sbin/reboot
 file /sbin/shutdown
 mode 04750

@@ -1792,9 +1792,13 @@ sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
 # open_files gives every caller another user's descriptors; no_cwd drops
 # the working-directory record; bare_pipe leaves a pipe without its inode;
 # sum_from_rate fills VM_STATS's since-boot events from the last second's;
-# unended_disk copies a disk name to the end of its field with no NUL.
+# unended_disk copies a disk name to the end of its field with no NUL;
+# open_tables gives every caller the inode table, the file table and the
+# console terminal; pipe_locks reads a pipe's lock counts from its select
+# union; special_size reports a special file's size for its device.
 SYSCTL_PROC_MUTANTS=	no_identity no_recheck open_args drop_marked \
-			open_files no_cwd bare_pipe sum_from_rate unended_disk
+			open_files no_cwd bare_pipe sum_from_rate unended_disk \
+			open_tables pipe_locks special_size
 SYSCTL_PROC_SED_no_identity=	s/if (up->u_procp != p)/if (0)/
 SYSCTL_PROC_SED_no_recheck=	s/if (proc_changed(p, pid))/if (proc_changed(p, pid) < 0)/
 SYSCTL_PROC_SED_open_args=	s/caller == kp->kp_ruid)/caller == kp->kp_ruid || kp->kp_size != 0)/
@@ -1804,6 +1808,9 @@ SYSCTL_PROC_SED_no_cwd=	s/fd = KF_FD_CWD; fd < NOFILE/fd = 0; fd < NOFILE/
 SYSCTL_PROC_SED_bare_pipe=	s/fp->f_type == DTYPE_PIPE)/0)/
 SYSCTL_PROC_SED_sum_from_rate=	s/KINFO_VMEVENTS(vs.vs_sum, sum);/KINFO_VMEVENTS(vs.vs_sum, rate);/
 SYSCTL_PROC_SED_unended_disk=	s/i < KI_DISKNAMESZ - 1 \&\& dk_name/i < KI_DISKNAMESZ \&\& dk_name/
+SYSCTL_PROC_SED_open_tables=	s/if (u.u_procp->p_uid != 0)/if (u.u_procp->p_uid == (uid_t)-1)/
+SYSCTL_PROC_SED_pipe_locks=	s/if (!(ip->i_flag \& IPIPE)) {/if (1) {/
+SYSCTL_PROC_SED_special_size=	s/ki.ki_isize = ip->i_rdev;/ki.ki_isize = ip->i_size;/
 
 check-sysctl-proc-mutants: sysctl_test_compact
 .for mutation in ${SYSCTL_PROC_MUTANTS}

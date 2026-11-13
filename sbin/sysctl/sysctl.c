@@ -284,6 +284,7 @@ parse(char *string, int flags)
 			return (1);
 		case KERN_INODE:
 		case KERN_TEXT:
+		case KERN_TTY:
 			if (flags == 0)
 				return (0);
 			fprintf(stderr,

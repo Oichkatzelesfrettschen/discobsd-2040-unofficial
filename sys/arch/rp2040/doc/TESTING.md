@@ -1819,7 +1819,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-ufs-prototypes` | every UFS function the kernel links has a prototype |
 | `check-c17-kernel-inventory` | `tools/c17/kernel-ledger.txt` equals the union of two K&R oracles over `sys/kern/*.c` and `sys/sys/*.h`: `kr_scan.py`, which reads every conditional branch, and the cross compiler's `-Wold-style-definition`/`-Wstrict-prototypes` diagnostics with the evaluated PICO and PICO_UART flags, which see active code only. A compiler finding the scan lacks fails as a calibration gap. `kr_scan_test.py` first requires the scan to report exactly the marked lines of `tools/c17/fixtures/kr_shapes.c` (identifier lists, empty lists, `__unused` and `__attribute__` in declaration lists, pointer returns, a definition after `#endif`, an inactive branch, unprototyped function pointers), keeps the host compiler inside those marks, and rejects an attribute-blind scan, a scan without declaration lists and a reconciliation handed a finding the scan lacks. Rows marked `scan` are inactive code or files neither configuration compiles; the ledger counts interfaces, not defects |
 | `check-c17-source-denominator` | The canonical JSON ledger and Git contain identical sorted sets of tracked `.c` and `.h` paths. Each excluded archive or guest row has an exact SHA-256 entry in the quarantine manifest. Nine synthetic mutations reject a missing or duplicate row, unknown class, missing field, path traversal, accepted row without evidence, accepted state with an unreviewed class or scope, changed quarantine bytes and a closure claim with an unreviewed row. The ordinary pass establishes finite source accounting only; `--closure` separately rejects unreviewed and migration-open rows |
-| `check-capacity-corpus` | The 24-case capacity registry binds each active value to the RP2040 production header; requires unique identifiers, existing fixtures, identified retained receipts, valid execution classes, acyclic dependencies and board plus Renode declarations for every admission obligation; and keeps allocator exhaustion separate from counter attribution. Eleven mutations reject an omitted row, duplicate key, stale fixture, invalid execution class, unadmitted reduction, production-value drift, omitted allocator exhaustion, a missing receipt, an open deciding dependency, a hardware dependency without a retained receipt and a dependency cycle. A `reduce-approved` row requires retained board and Renode receipts for every resource obligation and completed transitive dependencies. A pass establishes the declared corpus and retained decisions, not completion of open hardware cases |
+| `check-capacity-corpus` | The 24-case capacity registry binds each active value to the RP2040 production header; requires unique identifiers, existing fixtures, identified retained receipts, valid execution classes, acyclic dependencies and board plus Renode declarations for every admission obligation; and keeps allocator exhaustion separate from counter attribution. Twelve mutations reject an omitted row, duplicate key, stale fixture, invalid execution class, unadmitted reduction, production-value drift, omitted allocator exhaustion, a missing receipt, an open deciding dependency, a hardware dependency without a retained receipt, a dependency cycle and a Renode clist case without its bound. The Renode class declares a bound in place of exhaustion for `NCLIST` and `NBUF` (`CLASS_OBLIGATIONS`): the emulated image has one live terminal, which `sys/kern/tty.c` asserts fits the pool, and its workload never makes `getblk()` wait. A `reduce-approved` row requires retained board and Renode receipts for every resource obligation and completed transitive dependencies. A pass establishes the declared corpus and retained decisions, not completion of open hardware cases |
 | `check-user-window-contract` | `USER_DATA_SIZE` in `machparam.h` is the one source of the user-window bound: `MAXMEM` and `USER_DATA_START` there, `USER_TOP` and `USER_WINDOW_MAX` in `sys/sys/systm.h`, the `USERRAM` and `RAM` regions of `conf/RP2040.ld`, the two user regions of `mpu.c`, and the window each host fixture models (the exec admission and surrounding-contract tests, the user-copy and rwuio tests, the qemu a.out loader and the user-copy model) must state the same bound. Twelve mutations reject a production macro or `MAXMEM` that grants bytes past the window, a short linker or MPU window, a kernel RAM origin off the window end, and each fixture keeping the 144 KiB bound. A pass establishes source agreement, not run-time behavior |
 | `check-swapram-link-verifier` | `tools/verify_rp2040_swapram_link.sh` runs over synthetic `nm -S` and `objdump -r` listings. A 16-KiB SwapRAM kernel and a kernel without SwapRAM pass; thirteen mutations fail, each with the diagnostic naming its defect: an unaligned pool, a pool before `_ebss`, above or below kernel RAM or of the wrong size, an absent `_ebss` or kernel RAM bound, an unlinked tier entry, a missing `vm_swap.o` relocation, a moved codec workspace, an oversized compact table, a retired epoch symbol, and tier symbols in a kernel without SwapRAM. A pass establishes the verifier's verdicts, not any linked kernel's layout |
 | `check-kernel-printf-formats` | every literal format passed to `printf()`, `uprintf()`, `tprintf()`, `log()` or the `DEBUG`/`DEBUG1`..`DEBUG9` wrappers (which expand to `printf()` under `GLOBAL_DEBUG`) in the PICO and PICO_UART sources uses only `%[-+#0]*(digits\|*)?(.(digits\|*))?(l?[douxX]\|[cps])` or `%%` after escape decoding, the conversions where `prf()` and GCC's `format(printf)` checking agree, and every such call's format is a literal. The `sys/sys/systm.h` attributes make GCC and Clang reject type mismatches and `prf()`'s `%D` in the kernel build; this check closes the conversions they accept but `prf()` lacks or reads differently (`%i`, floating, `hh`/`h`/`ll`/`j`/`z`/`t`, `%n`, and `%b`, which they read as C23's one-argument binary conversion). `kernel_format_check_test.py` requires exactly the marked calls of `tools/c17/fixtures/kernel_formats.c` to be reported and rejects a checker accepting every conversion and one accepting non-literal formats |
@@ -2062,6 +2062,13 @@ An image whose fstat read `/dev/kmem` was run as the known-bad input: it
 printed `/dev/kmem: Permission denied` and the stage failed with no `wd`
 row.
 
+After the residue probe the shell catches the SIGTERM it sends itself
+(`trap` takes numbers below 26 only, `bin/sh/defs.h`), so the kernel builds a signal frame on the
+user stack and returns through `sigreturn`; `sig-caught` must print. The
+u-area row of a final `kern.capacity`, read after the faults, exec, swaps
+and signal of the whole run, must then show a nonzero kernel-stack peak,
+free bytes left and `saturated 0`.
+
 The core 1 stage waits five seconds and requires `machdep.core1=1` with
 zero restarts, zero faults and zero stalls. The model has a second CPU that
 runs the same boot ROM and an inter-core FIFO, so a pass means the ROM's
@@ -2292,6 +2299,30 @@ and a failure count above the starting one, and a process occupancy equal
 to its starting value. A `PROCTABTEST INCONCLUSIVE` verdict, swap exhausted
 before the table, fails the gate, as does `INOTABTEST INCONCLUSIVE`, too
 few free process or file slots for the holders.
+
+`clistbound` runs after `proctab`. It stops its terminal's output
+(`TIOCSTOP`), forks a writer of 60 numbered 20-byte lines that blocks at
+the high-water mark, and sleeps while the driver types a `#` and 600 more
+bytes into the stopped terminal, past `TTYHOG`, so the input is echoed
+onto the stopped output queue and answered with a bell there once the
+input queues are full. It then restarts output and reaps the writer. The
+gate requires `CLISTBOUND OK`, no clist refusal across the run, and all 60
+lines once each in order. The clist and buffer rows of the final
+`kern.capacity` must show their failure counters unchanged across the run,
+so no clist refusal and no `getblk()` wait for a buffer under the heaviest
+file-system and swap load of any tier; their peaks are printed. The bound
+was measured before it was made a gate: the clist pool peaked at 18 of its
+32 blocks, 10 of them in use while output was stopped, with no refusal,
+against a prediction of exhaustion from the echo and bell arithmetic;
+why fewer blocks were held than that arithmetic gives is not established.
+
+The image also carries the kernel-record readers under /tmp, from the
+build: `vmstat`, `iostat` and `pstat`. As root, `pstat -i`, `-f` and `-t`
+must print the inode table, the file table and the console terminal; then,
+as operator, outside the kmem group, `pstat -T` and `-p`, `vmstat`,
+`vmstat -s` and `-f`, and `iostat` must print their records, which readers
+that opened `/dev/kmem` could not, and `pstat -i` must be refused with
+EPERM.
 
 The claim is the emulated kernel's table accounting, errno attribution and
 recovery at the configured `NPROC`, `NINODE` and `NFILE`; it is the Renode

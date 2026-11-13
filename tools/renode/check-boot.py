@@ -127,6 +127,11 @@ LOGIN_LINES = [
 # size agrees. These stable fragments pin every fixed-table limit and the
 # u-area geometry without treating one emulator workload's dynamic peaks as
 # board headroom.
+# The u-area row of kern.capacity: kernel stack peak use, the least free
+# space seen, and whether the stack ever reached its end.
+UAREA_ROW = re.compile(r"^uarea bytes \d+ user \d+ stack \d+ peak (\d+) "
+                       r"min-free (\d+) saturated (\d+)$", re.M)
+
 CAPACITY_LINES = [
     "kern.capacity=version 1 size 100",
     "proc limit 16 current",
@@ -419,6 +424,44 @@ def check_fstat(console: Console) -> None:
     print(f"check-renode: fstat after {console.virtual:.1f} virtual seconds")
 
 
+def check_uarea_paths(console: Console) -> None:
+    """Require a signal round trip and an unsaturated u-area afterward.
+
+    The shell catches the SIGTERM it sends itself, so the kernel builds a signal
+    frame on the user stack and returns through sigreturn. By now the run
+    has also taken mputest's deliberate faults and its exec, swapped images
+    out and in (to the pool in the union kernel), and switched between
+    processes throughout. The u-area row read last must then show the
+    kernel stack's peak use with free bytes left and no saturation, the
+    capacity record's account of every one of those paths.
+    """
+    start = console.cursor
+    # bin/sh's trap takes signal numbers below MAXTRAP (26, bin/sh/defs.h)
+    # only, so the stage catches 15, SIGTERM (sys/signal.h).
+    console.type_line("trap 'echo sig-caught' 15; kill -15 $$; trap 15; echo sig-end")
+    console.wait_for("\nsig-end", "signal round trip", COMMAND_BUDGET_SECONDS)
+    if "\nsig-caught" not in console.text()[start:console.cursor]:
+        console.fail("signal round trip: the shell's SIGUSR1 handler did not run")
+        raise StageFailed("signal round trip")
+    console.wait_for("$", "operator shell after the signal", COMMAND_BUDGET_SECONDS)
+
+    start = console.cursor
+    console.type_line("sysctl kern.capacity; echo cap-end")
+    console.wait_for("\ncap-end", "final capacity record", COMMAND_BUDGET_SECONDS)
+    found = UAREA_ROW.search(console.text()[start:console.cursor])
+    if found is None:
+        console.fail("final capacity record: no u-area row")
+        raise StageFailed("final capacity record")
+    peak, min_free, saturated = (int(value) for value in found.groups())
+    print(f"check-renode: u-area stack peak {peak} min-free {min_free} "
+          f"saturated {saturated}")
+    if peak == 0 or min_free == 0 or saturated != 0:
+        console.fail(f"final capacity record: u-area peak {peak} min-free {min_free} "
+                     f"saturated {saturated}")
+        raise StageFailed("final capacity record")
+    console.wait_for("$", "operator shell after the capacity record", COMMAND_BUDGET_SECONDS)
+
+
 def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.wait_lines([f"DiscoBSD 2.7 ({config})"] + CPU_LINES + BOARD_LINES[config]
                        + STORAGE_LINES, "device probe", PROBE_BUDGET_SECONDS)
@@ -454,6 +497,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     # bytes reports a surviving count and fails here.
     console.type_line("mputest residue")
     console.wait_lines(["RESIDUE OK"], "exec residue probe", COMMAND_BUDGET_SECONDS)
+    check_uarea_paths(console)
     if config not in CORE1_CONFIGS:
         return
     # The PICO_UART kernel launches core 1 through the boot ROM a second

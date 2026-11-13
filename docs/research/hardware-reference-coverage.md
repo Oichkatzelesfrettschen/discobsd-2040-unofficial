@@ -144,7 +144,7 @@ layer. The Pico seated in J301 and J302 is covered above. Paths in
 | board | mainboard V2.0 | schematic, Gerbers, assembly guide | `picocalc/clockwork_Mainboard_V2.0_Schematic.pdf`, `pcb/CPI_V2.0_Gerber.7z`, `Clockwork_PicoCalc_Assembly_Guidelines.pdf` | tracked, notes |
 | U101 | AXP2101 | PMU: VBUS, battery, DCDC1, ALDO1-4, BLDO1-2 | X-Powers datasheet V1.4, `picocalc/AXP2101_Datasheet_V1.4.pdf` | tracked, notes |
 | U102 | WAS4603 | current-limited load switch, IPS to PICO_VSYS, enable PICO_EN | no `WAS4603` document exists; Will Semiconductor WS4603 Rev 1.2, `picocalc/parts/willsemi_ws4603_datasheet_rev1.2.pdf`, an unconfirmed match | tracked, notes |
-| U201 | CKS32F103Rx | keyboard controller: matrix, backlights, PMU I2C, I2C1 target at 0x1F | CKS32F103x8/xB datasheet v1.15 (Chinese, LCSC copy) and an undated English CKS32F103xx datasheet (third-party copy); ST DS5319 Rev 20, RM0008 Rev 21, PM0056 Rev 7, ES096 Rev 15 (x8/xB) and ES0340 (xC/D/E), all in `picocalc/parts/` | tracked, notes; the CKS32F103 reference manual absent |
+| U201 | CKS32F103Rx | keyboard controller: matrix, backlights, PMU I2C, I2C1 target at 0x1F | CKS32F103x8/xB datasheet v1.15 (Chinese, LCSC copy) and an undated English CKS32F103xx datasheet (third-party copy); ST DS5319 Rev 20, RM0008 Rev 21, PM0056 Rev 7, ES096 Rev 15 (x8/xB) and ES0340 (xC/D/E), all in `picocalc/parts/` | tracked, notes; the CKS32F103x8/xB reference manual (458 pages, V1.1 per sekorm.com) local only, `local/picocalc/parts/`, while the sekorm account terms it came under are unread |
 | U301 | ESP-PSRAM64H | 8 MB quad PSRAM | Espressif ESP-PSRAM64/64H V1.0, 2018-06, `picocalc/esp-psram64_esp-psram64h_datasheet_en.pdf` | tracked, notes |
 | U401, U601 | TPS6116x | LCD and keyboard backlight boost converters | TI SLVS791E, covering TPS61160 and TPS61161 | tracked, notes |
 | U501 | NC7WZ16 | dual buffer, PWM_L and PWM_R to the audio filters | onsemi NC7WZ16/D Rev 8 | tracked, notes |
@@ -186,9 +186,16 @@ switches SEL1/BOOT0 to MCU_3V3 through R705 (10 kOhm) while R703
 2.45 V, above the 2 V input-high minimum the English CKS datasheet gives
 for FT pins (I/O characteristics table, page 41), so the selection works
 with about 0.45 V of margin while the internal pull-down stays near its
-stated value. The reference manual itself
-is absent: `cksic.com` does not resolve, and the one listing found
-(sekorm.com document 1471113) sits behind a captcha and an account.
+stated value. The reference manual
+(sekorm.com document 1471113, `cksic.com` being unreachable) contradicts
+itself on the core: section 22.6.3 gives the Cortex-M3 TAP ID
+`0x3BA00477` and calls it r1p1, the value ST's RM0008 gives, while table
+92 gives IDCODE `0x4BA00477`, "ARM Cortex-M3 r2p1-01rel0", which agrees
+with the incompatibility list. OpenOCD's `target/stm32f1x.cfg` expects
+ST's ID codes, so hypothesis: SWD to U201 through OpenOCD needs
+`CPUTAPID` set to the part's reported value or to 0; the falsifier is an
+`openocd -f interface/cmsis-dap.cfg -f target/stm32f1x.cfg` session on
+the owner's board that examines the core without that override.
 
 ### Bus and card specifications the PicoCalc drivers rest on
 
@@ -219,6 +226,6 @@ repository keeps the vendor's name until then.
 - Read the U201 and U102 markings, the AW8010 suffix and the R701 and R702
   sites on the owner's board.
 - The panel module datasheet, the 0.5-40PBSX, JC101GV01 and KS18650X2
-  drawings, the TP-1221U-K9K5325 switch and the CKS32F103 reference
-  manual have no source that served them; the notes repository's
+  drawings and the TP-1221U-K9K5325 switch have no source that served
+  them; the notes repository's
   `docs/NOT-FETCHED.tsv` records each search.

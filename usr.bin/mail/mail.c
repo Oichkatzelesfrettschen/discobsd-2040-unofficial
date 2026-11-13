@@ -391,7 +391,7 @@ copylet(n, f, type)
         break;
 
     case FORWARD:
-        fprintf(f, forwmsg);
+        fputs(forwmsg, f);
         break;
 
     case ORDINARY:

@@ -17,6 +17,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools"))
+import mutant_pool  # noqa: E402  tools/mutant_pool.py, beside this tree's other tools
+
 CC = os.environ.get("HOSTCC", "cc")
 FLAGS = [
     "-std=c17",
@@ -1143,36 +1146,40 @@ def main():
             print("baseline: the unmutated pty tests do not pass")
             return 1
         print("baseline: the unmutated program passes both suites")
-        tried = rejected = 0
-        for name, subs, line, play, san in mutants:
-            tried += 1
+        def check(mutant):
+            """Build one mutant in its own directory and run its suites;
+            returns (verdict, rejected, failed)."""
+            name, subs, line, play, san = mutant
             mutated = text
-            bad = None
             for old, new in subs:
                 if mutated.count(old) != 1:
-                    bad = "anchor occurs %d times: %r" % (mutated.count(old), old[:60])
-                    break
+                    return (
+                        "ERROR: anchor occurs %d times: %r" % (mutated.count(old), old[:60]),
+                        0,
+                        1,
+                    )
                 mutated = mutated.replace(old, new)
-            if bad:
-                print("mutant %-48s ERROR: %s" % (name, bad))
-                failures += 1
-                continue
-            (tmp / "calc.c").write_text(mutated)
-            rc, err = build(swork if san else work, str(tmp / "calc.c"), exe, san)
+            own = Path(tempfile.mkdtemp(dir=tmp))
+            (own / "calc.c").write_text(mutated)
+            mexe = str(own / "calc-mutant")
+            rc, err = build(swork if san else work, str(own / "calc.c"), mexe, san)
             if rc != 0:
-                print("mutant %-48s ERROR: does not build\n%s" % (name, err[:400]))
-                failures += 1
-                continue
-            how = run_suite(exe, line, play, san)
+                return "ERROR: does not build\n%s" % err[:400], 0, 1
+            how = run_suite(mexe, line, play, san)
             if how is None and name in TIMING_MUTANTS and sys.platform == "darwin":
-                print("mutant %-48s UNOBSERVED: timing mutant on a macOS host" % name)
-                rejected += 1
-            elif how is None:
-                print("mutant %-48s SURVIVED" % name)
-                failures += 1
-            else:
-                rejected += 1
-                print("mutant %-48s rejected: %s" % (name, how))
+                return "UNOBSERVED: timing mutant on a macOS host", 1, 0
+            if how is None:
+                return "SURVIVED", 0, 1
+            return "rejected: %s" % how, 1, 0
+
+        tried = rejected = 0
+        for mutant, (verdict, ok, failed) in mutant_pool.ordered(
+            mutants, check, serial=TIMING_MUTANTS
+        ):
+            tried += 1
+            rejected += ok
+            failures += failed
+            print("mutant %-48s %s" % (mutant[0], verdict))
     print("mutants: %d tried, %d rejected, %d failures" % (tried, rejected, failures))
     return 1 if failures else 0
 

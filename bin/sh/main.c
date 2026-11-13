@@ -114,8 +114,8 @@ static void chkmail(void);
 static void
 exfile(BOOL prof)
 {
-	volatile long mailtime = 0;
-	long    curtime = 0;
+	volatile time_t mailtime = 0;
+	time_t  curtime = 0;
 	register int    userid;
 
 	/*

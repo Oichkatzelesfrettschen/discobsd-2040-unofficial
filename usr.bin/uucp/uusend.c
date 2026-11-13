@@ -85,7 +85,7 @@ char	**argv;
 	extern char **environ;
 
 #ifdef DEBUG
-	long t;
+	time_t t;
 	umask(022);
 	dout = fopen(DEBUG, "a");
 	if (dout == NULL) {

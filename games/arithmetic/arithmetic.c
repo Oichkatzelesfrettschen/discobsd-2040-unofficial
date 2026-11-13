@@ -15,9 +15,9 @@ int	right[MAX];
 int	left[MAX];
 int	rights;
 int	wrongs;
-long	stvec;
-long	etvec;
-long	dtvec;
+time_t	stvec;
+time_t	etvec;
+time_t	dtvec;
 
 void score()
 {
@@ -29,7 +29,7 @@ void score()
 	if (rights == 0)
                 return;
 	printf("Total time %ld seconds; %.1f seconds per problem\n\n\n",
-		etvec - stvec,
+		(long)(etvec - stvec),
 		(etvec - stvec) / (rights + 0.));
 
 	sleep(3);

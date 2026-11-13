@@ -7841,14 +7841,15 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
+            "integer-cast",
             "shift-expression"
           ],
           "object_lifetime": [],
           "pointer": [
+            "integer-pointer-cast",
             "pointer-integer-cast"
           ],
           "prototype": [
-            "old-style-declaration",
             "old-style-definition"
           ],
           "variadic": []
@@ -85573,10 +85574,13 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
+            "integer-cast",
             "shift-expression"
           ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [
             "old-style-definition"
           ],

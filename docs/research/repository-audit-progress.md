@@ -104,6 +104,24 @@ cached-inode reactivation. The deciding fixture exercises those lifetimes;
 physical persistence and arbitrary scheduling interleavings remain separate
 claims. Final aggregate and ILP32 receipts remain required before publication.
 
+Commit `78861103e04e750c6fd19db7ef3d20d1eea3db75` records that evidence
+without changing production or test code. Its logged ILP32 invocation
+`rp2040-ilp32-local-20261113T021500Z-1425242-c73384db` passes all 189
+execution-inventory entries in 758.151 seconds. Its aggregate invocation
+`rp2040-check-local-20261113T013437Z-15170-48c83867` passes the build stage
+and fails the check stage: `games/pzcommon/tests/mutants.py` reports
+`baseline flood: the real sources do not pass: timeout` at its unchanged
+30-second execution bound. The standalone Flood baseline earlier in that
+aggregate passes 3,227 checks.
+
+An instrumented reproduction invokes the mutation runner's `build_support`
+and `run_logic` with its address/undefined sanitizer selection and existing
+timeout. It passes the same 3,227 checks in 14.051 seconds wall time and
+7.150 seconds child CPU, including compilation. The host reports a one-minute
+load of 22.01 with 12 online CPUs. Scheduling pressure remains a hypothesis;
+the passing reproduction does not replace the failed aggregate. The aggregate
+requires a complete passing rerun, with its timeout and acceptance unchanged.
+
 Only one item carries active implementation focus. Product jobs use the
 worktree's logged execution lock. Physical-board access, raw-device writes,
 power interruption, production keys, and provider execution remain outside

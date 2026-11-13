@@ -182,6 +182,8 @@ STALL_LINES = [
 # fields through machdep.swapram_psinfo, has no stack to read arguments
 # from and prints the name in parentheses; a kernel without the tier holds
 # it on the swap device and ps prints its arguments.
+MEMORY_DEVICES = ("mem", "kmem", "swap")
+
 PS_INIT_ROW = re.compile(r"^ *1 \S+ +\d+:\d\d +(\(init\)|init( .*)?)$", re.M)
 
 ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
@@ -278,6 +280,32 @@ def check_ps(console: Console) -> None:
     print(f"check-renode: process list after {console.virtual:.1f} virtual seconds")
 
 
+def check_memory_devices(console: Console) -> None:
+    """Require the operator shell to be refused every kernel memory device.
+
+    /dev/mem, /dev/kmem and /dev/swap are mode 0640 root:kmem and operator
+    is outside kmem, so each open fails; ps reaches them only through its
+    setgid kmem bit, which check_ps exercises from the same shell. The
+    console echoes the typed loop, so a verdict line is matched with the
+    device name spelled out, which the echoed "$d" never carries. The loop
+    stays within ED_MAX in bin/sh/edit.c, 126 bytes, past which the shell's
+    line editor rings the bell and drops the rest of the line.
+    """
+    start = console.cursor
+    console.type_line("for d in mem kmem swap; do (:</dev/$d) 2>/dev/null"
+                      " && echo $d-open || echo $d-shut; done; echo dev-end")
+    console.wait_for("\ndev-end", "kernel memory devices", COMMAND_BUDGET_SECONDS)
+    output = console.text()[start:console.cursor]
+    for device in MEMORY_DEVICES:
+        if f"\n{device}-shut" not in output:
+            console.fail(f"kernel memory devices: operator open of /dev/{device} was not refused "
+                         f"in {output!r}")
+            raise StageFailed("kernel memory devices")
+    console.wait_for("$", "operator shell after the device opens", COMMAND_BUDGET_SECONDS)
+    print(f"check-renode: kernel memory devices refused after {console.virtual:.1f} "
+          "virtual seconds")
+
+
 def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.wait_lines([f"DiscoBSD 2.7 ({config})"] + CPU_LINES + BOARD_LINES[config]
                        + STORAGE_LINES, "device probe", PROBE_BUDGET_SECONDS)
@@ -293,6 +321,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.type_line("uname -sr")
     console.wait_lines(["DiscoBSD 2.7"], "uname", COMMAND_BUDGET_SECONDS)
     check_ps(console)
+    check_memory_devices(console)
     console.type_line("sysctl kern.capacity")
     console.wait_lines(CAPACITY_LINES, "capacity record", COMMAND_BUDGET_SECONDS)
     console.type_line("sysctl machdep.image_length machdep.image_crc machdep.image_crc_stored")

@@ -1610,6 +1610,18 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 
 ## qemu tier
 
+`check-libc-xip-object-abi` compiles production libc data owners into an
+experimental PIC library and links five application layouts with executable-tail
+state. ELF inspection and actual a.out conversion check BSS containment and final
+end symbols; Cortex-M0 QEMU execution checks public object identity, initialized
+pointers and callbacks. Seven controls reject incorrect addresses, GOT base,
+relocation, segment/end bounds, non-PIC references and interposition. Linux
+`firmware.yml` owns the gate through `check-qemu`; Python `pyelftools`, ARM GNU
+tools, QEMU user mode and the built `elf2aout` converter are required. The
+[experiment record](../../../../docs/research/xip-shared-libc/object-abi/README.md)
+owns replay commands and evidence limits. Its runtime-only RWX process envelope
+establishes neither MPU protection nor a production shared executable ABI.
+
 This tier runs **user-mode** qemu, which is not an emulated machine.
 qemu-arm loads one Arm program and translates its instructions on the host
 processor, turning each Linux system call the program makes into the host

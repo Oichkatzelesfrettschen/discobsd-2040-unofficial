@@ -1680,12 +1680,19 @@ check-exec-dispatch-qemu: check-python
 
 .PHONY: check-exec-dispatch-qemu
 
+check-libc-xip-object-abi: check-python
+		${PYTHON} tests/libc_xip_object_abi/run.py \
+		    --cc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc
+
+.PHONY: check-libc-xip-object-abi
+
 check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} check-aeabi-copy-qemu
 		${MAKE} check-ucall-qemu
 		${MAKE} check-packed-exec-control-qemu
 		${MAKE} check-exec-dispatch-qemu
+		${MAKE} check-libc-xip-object-abi
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test

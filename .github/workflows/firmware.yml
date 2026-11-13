@@ -65,7 +65,10 @@ jobs:
           echo "CHANGED_COMMENT_HEAD=$resolved_head" >> "$GITHUB_ENV"
 
       # A pull request skips the heavy host suites its changed paths cannot
-      # reach; every other event runs them all. The script prints an empty
+      # reach; every other event runs them all. HOST_GATE_SKIP reaches
+      # check-host through the environment, which bmake reads as a variable,
+      # so the logged host command stays the one check_build_observability.py
+      # pins. The script prints an empty
       # list when the range is unreadable or a shared input changed.
       - name: Select the host gates for this change
         if: github.event_name == 'pull_request'
@@ -281,8 +284,7 @@ jobs:
             --log .build-logs/linux-host.log \
             --status .build-logs/linux-host.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 1140 \
-            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 \
-            HOST_GATE_SKIP="${HOST_GATE_SKIP-}" check-host
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
       # check-cross owns the string namespace/signature and expanded Smaller C
       # header gate on both host platforms; runtime behavior stays separate.
@@ -727,8 +729,7 @@ jobs:
             --log .build-logs/macos-host.log \
             --status .build-logs/macos-host.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 1500 \
-            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 \
-            HOST_GATE_SKIP="${HOST_GATE_SKIP-}" check-host
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
       - name: Run the cross tier
         timeout-minutes: 20
         run: |

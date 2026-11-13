@@ -1,15 +1,25 @@
 """Calibration for tools/available_cpus.py and tools/online-cpus.sh.
 
-Both read fixture hierarchies: a /proc/self stand-in (status with
-Cpus_allowed_list, cgroup) and a cgroup root. A quota on the process's own
-cgroup, one on an ancestor only, a fractional quota (rounded up), cgroup
-v1, "max", a malformed cpu.max and an affinity list with ranges must each
-give the expected count, and the two implementations must agree on this
-host. Four mutants must fail: a walk that skips ancestors and a quota
-rounded down, in each language.
+Both counters read fixture hierarchies: a /proc/self stand-in (status
+with Cpus_allowed_list, cgroup) and a cgroup root. The shell counter takes
+the online count from ONLINE_CPUS_ONLINE and the Python counter its
+affinity from an argument, both 64, so every verdict holds on a host of
+any size. A quota on the process's own cgroup, a tighter one on an
+ancestor, one on an ancestor only, a fractional quota (rounded up),
+cgroup v1 under each mount name and beside an empty sibling, v1 ancestors,
+"max", malformed files and an affinity list with ranges must each give the
+expected count. On the host, both counters must agree, and under
+`taskset -c 0` (where present) both must print 1.
+
+Mutants that must fail: in each language a walk that skips ancestors, a
+quota rounded down and the first quota taken in place of the tightest;
+in Python an affinity ignored (under taskset); in the shell one v1 mount
+name dropped and a lax cpu.max pattern. mutant_pool.workers() must equal available_cpus()
+when MUTANT_JOBS is unset.
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,8 +28,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import available_cpus as ac  # noqa: E402
+import mutant_pool  # noqa: E402
 
 SCRIPT = HERE / "online-cpus.sh"
+ONLINE = 64
 failures = 0
 
 
@@ -30,7 +42,11 @@ def check(cond, what):
         failures += 1
 
 
-def build(base, cgroup_line, files, allowed="0-7"):
+def clean_env():
+    return {k: v for k, v in os.environ.items() if not k.startswith("ONLINE_CPUS_")}
+
+
+def build(base, cgroup_line, files, allowed="0-63"):
     """Write a fixture: base/self/{status,cgroup} and base/cg/<files>."""
     self_dir = base / "self"
     self_dir.mkdir(parents=True)
@@ -40,101 +56,241 @@ def build(base, cgroup_line, files, allowed="0-7"):
     root.mkdir()
     for rel, text in files.items():
         path = root / rel
+        if text is None:
+            path.mkdir(parents=True, exist_ok=True)
+            continue
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
     return self_dir, root
 
 
 def shell_count(self_dir, root, script=SCRIPT):
-    env = dict(os.environ, ONLINE_CPUS_PROC_SELF=str(self_dir), ONLINE_CPUS_CGROUP_ROOT=str(root))
+    env = dict(
+        clean_env(),
+        ONLINE_CPUS_PROC_SELF=str(self_dir),
+        ONLINE_CPUS_CGROUP_ROOT=str(root),
+        ONLINE_CPUS_ONLINE=str(ONLINE),
+    )
     out = subprocess.run(["sh", str(script)], env=env, capture_output=True, text=True, check=True)
     return int(out.stdout.strip())
 
 
-V2_NESTED = (
+def python_count(self_dir, root):
+    return ac.available_cpus(self_dir / "cgroup", root, affinity=ONLINE)
+
+
+def v1(quota, period="100000\n"):
+    return quota, period
+
+
+# name, cgroup line, files, affinity list, expected quota, expected count
+NESTED = (
     "0::/a/b",
     {"cpu.max": "max 100000\n", "a/cpu.max": "400000 100000\n", "a/b/cpu.max": "150000 100000\n"},
 )
-V2_ANCESTOR = ("0::/a/b", {"a/cpu.max": "300000 100000\n", "a/b/cpu.max": "max 100000\n"})
+TIGHT_ANCESTOR = ("0::/a/b", {"a/cpu.max": "100000 100000\n", "a/b/cpu.max": "300000 100000\n"})
+ANCESTOR_ONLY = ("0::/a/b", {"a/cpu.max": "300000 100000\n", "a/b/cpu.max": "max 100000\n"})
+V1_CPU_MOUNT = (
+    "4:cpu,cpuacct:/x/y",
+    {
+        "cpu/x/cpu.cfs_quota_us": "200000\n",
+        "cpu/x/cpu.cfs_period_us": "100000\n",
+        "cpu/x/y/cpu.cfs_quota_us": "-1\n",
+        "cpu/x/y/cpu.cfs_period_us": "100000\n",
+    },
+)
+V1_SWAPPED_BESIDE_EMPTY = (
+    "4:cpuacct,cpu:/x",
+    {
+        "cpu": None,
+        "cpuacct,cpu/x/cpu.cfs_quota_us": "300000\n",
+        "cpuacct,cpu/x/cpu.cfs_period_us": "100000\n",
+    },
+)
 CASES = [
-    # name, cgroup line, files, affinity list, expected quota, expected shell count
-    ("own cgroup 1.5 CPUs under an ancestor's 4", *V2_NESTED, "0-7", 1.5, 2),
-    ("ancestor-only quota of 3", *V2_ANCESTOR, "0-7", 3.0, 3),
-    ("no quota anywhere", "0::/a", {"a/cpu.max": "max 100000\n"}, "0-7", None, 8),
+    ("own 1.5 CPUs under an ancestor's 4", *NESTED, "0-63", 1.5, 2),
+    ("ancestor's 1 over own 3", *TIGHT_ANCESTOR, "0-63", 1.0, 1),
+    ("ancestor-only quota of 3", *ANCESTOR_ONLY, "0-63", 3.0, 3),
+    ("no quota anywhere", "0::/a", {"a/cpu.max": "max 100000\n"}, "0-63", None, ONLINE),
     (
-        "cgroup v1 quota of 2",
+        "cgroup v1 under cpu,cpuacct",
         "4:cpu,cpuacct:/x",
         {
             "cpu,cpuacct/x/cpu.cfs_quota_us": "200000\n",
             "cpu,cpuacct/x/cpu.cfs_period_us": "100000\n",
         },
-        "0-7",
+        "0-63",
         2.0,
         2,
     ),
+    ("cgroup v1 ancestor under cpu", *V1_CPU_MOUNT, "0-63", 2.0, 2),
+    ("cgroup v1 under cpuacct,cpu beside an empty cpu", *V1_SWAPPED_BESIDE_EMPTY, "0-63", 3.0, 3),
     (
         "cgroup v1 quota -1",
         "4:cpu,cpuacct:/x",
         {"cpu,cpuacct/x/cpu.cfs_quota_us": "-1\n", "cpu,cpuacct/x/cpu.cfs_period_us": "100000\n"},
-        "0-7",
+        "0-63",
         None,
-        8,
+        ONLINE,
     ),
-    ("malformed cpu.max", "0::/a", {"a/cpu.max": "garbage\n"}, "0-7", None, 8),
+    (
+        "cgroup v1 quota with a unit",
+        "4:cpu,cpuacct:/x",
+        {
+            "cpu,cpuacct/x/cpu.cfs_quota_us": "200abc\n",
+            "cpu,cpuacct/x/cpu.cfs_period_us": "100000\n",
+        },
+        "0-63",
+        None,
+        ONLINE,
+    ),
+    ("malformed cpu.max", "0::/a", {"a/cpu.max": "garbage\n"}, "0-63", None, ONLINE),
+    (
+        "cpu.max period with a unit",
+        "0::/a",
+        {"a/cpu.max": "200000 100000abc\n"},
+        "0-63",
+        None,
+        ONLINE,
+    ),
+    (
+        "cpu.max with a third field",
+        "0::/a",
+        {"a/cpu.max": "200000 100000 9\n"},
+        "0-63",
+        None,
+        ONLINE,
+    ),
     ("affinity 0-3,8,10-11 counts 7", "0::/", {"cpu.max": "max 100000\n"}, "0-3,8,10-11", None, 7),
 ]
 
-online = int(
-    subprocess.run(["getconf", "_NPROCESSORS_ONLN"], capture_output=True, text=True).stdout
-)
-
 with tempfile.TemporaryDirectory() as tmp:
+    fixtures = {}
     for i, (name, line, files, allowed, quota, count) in enumerate(CASES):
         self_dir, root = build(Path(tmp) / str(i), line, files, allowed)
+        fixtures[name] = (self_dir, root)
         got_quota = ac.cgroup_cpu_quota(self_dir / "cgroup", root)
         check(got_quota == quota, f"python quota, {name}: {got_quota}")
-        expected = min(count, online)
+        if allowed == "0-63":
+            got = python_count(self_dir, root)
+            check(got == count, f"python count, {name}: {got}")
         got = shell_count(self_dir, root)
-        check(got == expected, f"shell count, {name}: {got}")
+        check(got == count, f"shell count, {name}: {got}")
 
-    # Mutants: each must change a verdict above.
-    nested = build(Path(tmp) / "m1", *V2_NESTED)
-    ancestor = build(Path(tmp) / "m2", *V2_ANCESTOR)
+    # Shell mutants: each must change at least one shell verdict above.
     text = SCRIPT.read_text()
     shell_mutants = {
-        "shell walk without ancestors": (text.replace("node=${node%/*}", "break"), ancestor, 3),
-        "shell quota rounded down": (text.replace("if (c < q) c++; ", ""), nested, 2),
+        "walk without ancestors": text.replace("node=${node%/*}", "break"),
+        "quota rounded down": text.replace(
+            "q = $1 / $2; c = int(q); if (c < q) c++;", "q = $1 / $2; c = int(q);"
+        ),
+        "first quota taken": text.replace(
+            'for quota in $(cgroup_quotas < "$proc_self/cgroup"); do',
+            'for quota in $(cgroup_quotas < "$proc_self/cgroup" | head -n 1); do',
+        ),
+        "cpuacct,cpu mount dropped": text.replace(' \\\n\t\t    "$cgroup_root/cpuacct,cpu"', ""),
+        "lax cpu.max period": text.replace("$2 ~ /^[0-9]+$/ && $1 > 0", "$1 > 0"),
     }
-    for name, (mutant_text, fixture, expected) in shell_mutants.items():
+    for name, mutant_text in shell_mutants.items():
         if mutant_text == text:
-            check(False, f"{name}: mutation did not apply")
+            check(False, f"shell mutant {name}: mutation did not apply")
             continue
         mutant = Path(tmp) / "mutant.sh"
         mutant.write_text(mutant_text)
-        check(shell_count(*fixture, script=mutant) != min(expected, online), f"{name} is rejected")
+        caught = any(shell_count(*fixtures[case[0]], script=mutant) != case[5] for case in CASES)
+        check(caught, f"shell mutant {name} is rejected")
+
+    # Python mutants, applied by patching the module.
+    def python_caught():
+        return any(
+            ac.cgroup_cpu_quota(fixtures[c[0]][0] / "cgroup", fixtures[c[0]][1]) != c[4]
+            or (c[3] == "0-63" and python_count(*fixtures[c[0]]) != c[5])
+            for c in CASES
+        )
 
     shipped_ancestors = ac._ancestors
     ac._ancestors = lambda mount, path: shipped_ancestors(mount, path)[:1]
     try:
-        check(
-            ac.cgroup_cpu_quota(ancestor[0] / "cgroup", ancestor[1]) != 3.0,
-            "python walk without ancestors is rejected",
-        )
+        check(python_caught(), "python mutant walk without ancestors is rejected")
     finally:
         ac._ancestors = shipped_ancestors
     shipped_ceil = ac.math.ceil
     ac.math.ceil = int
     try:
-        check(
-            ac.available_cpus(nested[0] / "cgroup", nested[1]) != min(2, ac.available_cpus()),
-            "python quota rounded down is rejected",
-        )
+        check(python_caught(), "python mutant quota rounded down is rejected")
     finally:
         ac.math.ceil = shipped_ceil
+    shipped_quota = ac.cgroup_cpu_quota
 
-# The two implementations agree on this host's real affinity and cgroup.
-real_shell = int(subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True).stdout)
+    def first_quota(proc_cgroup=ac.PROC_SELF_CGROUP, cgroup_root=ac.CGROUP_ROOT):
+        quotas = []
+        for line in proc_cgroup.read_text().splitlines():
+            hierarchy, controllers, path = line.split(":", 2)
+            if hierarchy == "0" and controllers == "":
+                for node in ac._ancestors(cgroup_root, path):
+                    q = ac._v2_quota(node / "cpu.max")
+                    if q is not None:
+                        quotas.append(q)
+        return quotas[0] if quotas else shipped_quota(proc_cgroup, cgroup_root)
+
+    ac.cgroup_cpu_quota = first_quota
+    try:
+        check(python_caught(), "python mutant first quota taken is rejected")
+    finally:
+        ac.cgroup_cpu_quota = shipped_quota
+
+# The pool's default is the quota-aware count.
+saved_jobs = os.environ.pop("MUTANT_JOBS", None)
+try:
+    check(
+        mutant_pool.workers() == ac.available_cpus(),
+        "mutant_pool's default equals available_cpus()",
+    )
+finally:
+    if saved_jobs is not None:
+        os.environ["MUTANT_JOBS"] = saved_jobs
+
+# On the host, both counters agree, and pinned to one CPU both print 1.
+real_shell = int(
+    subprocess.run(
+        ["sh", str(SCRIPT)], env=clean_env(), capture_output=True, text=True, check=True
+    ).stdout
+)
 check(real_shell == ac.available_cpus(), f"shell and python agree on this host ({real_shell})")
+if shutil.which("taskset") and hasattr(os, "sched_getaffinity"):
+    pinned_shell = subprocess.run(
+        ["taskset", "-c", "0", "sh", str(SCRIPT)],
+        env=clean_env(),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    pinned_python = subprocess.run(
+        ["taskset", "-c", "0", sys.executable, "-I", str(HERE / "available_cpus.py")],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    check(pinned_shell == "1" and pinned_python == "1", "both print 1 under taskset -c 0")
+    host_quota = ac.cgroup_cpu_quota()
+    if (os.cpu_count() or 1) > 1 and (host_quota is None or host_quota > 1):
+        with tempfile.TemporaryDirectory() as tmp:
+            mutant = Path(tmp) / "available_cpus.py"
+            source = (HERE / "available_cpus.py").read_text()
+            mutant.write_text(
+                source.replace("len(os.sched_getaffinity(0)) or 1", "os.cpu_count() or 1")
+            )
+            pinned_mutant = subprocess.run(
+                ["taskset", "-c", "0", sys.executable, "-I", str(mutant)],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+        check(pinned_mutant != "1", "python mutant affinity ignored is rejected under taskset -c 0")
+    else:
+        print("SKIP affinity mutant: this process's CPU count or quota is 1, so it cannot differ")
+else:
+    print("SKIP taskset -c 0: taskset or sched_getaffinity absent on this host")
 
 print(f"available_cpus: {failures} failed")
 sys.exit(1 if failures else 0)

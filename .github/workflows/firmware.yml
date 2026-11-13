@@ -165,7 +165,8 @@ jobs:
       # the complete process group at the idle or hard deadline. GitHub's
       # step and job deadlines remain independent outer bounds.
       # tools/online-cpus.sh resolves getconf, BSD sysctl and GNU nproc in
-      # that order, then returns one when a host exposes none of them.
+      # that order, then returns one when a host exposes none of them; on
+      # Linux it bounds the count by affinity and the cgroup CPU quota.
       # Measured on a 12-thread host: the kernel alone
       # 8.07 s to 1.55 s, the whole world 136.94 s to 31.10 s. Two -j runs
       # of the world differ from each other in 9 of 3736 artifacts, all of
@@ -680,7 +681,8 @@ jobs:
           bmake -V MAKE_VERSION
           picotool version
       # tools/online-cpus.sh resolves getconf, BSD sysctl and GNU nproc in
-      # that order, then returns one when a host exposes none of them.
+      # that order, then returns one when a host exposes none of them; on
+      # Linux it bounds the count by affinity and the cgroup CPU quota.
       # Measured on a 12-thread host: the kernel alone
       # 8.07 s to 1.55 s, the whole world 136.94 s to 31.10 s. Two -j runs
       # of the world differ from each other in 9 of 3736 artifacts, all of

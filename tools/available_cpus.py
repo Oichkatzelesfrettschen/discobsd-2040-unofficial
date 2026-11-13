@@ -16,12 +16,14 @@ Usage: $PYTHON tools/available_cpus.py   (prints the count)
 
 import math
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Optional
 
 PROC_SELF_CGROUP = Path("/proc/self/cgroup")
 CGROUP_ROOT = Path("/sys/fs/cgroup")
+V1_CPU_MOUNTS = ("cpu", "cpu,cpuacct", "cpuacct,cpu")
 
 
 def cgroup_cpu_quota(
@@ -34,9 +36,12 @@ def cgroup_cpu_quota(
     microseconds, "max" for none) under cgroup_root/path and in every
     ancestor up to the root. A cgroup v1 line whose controllers include cpu
     places cpu.cfs_quota_us (-1 for none) and cpu.cfs_period_us under the
-    cpu controller mount, cgroup_root/cpu or cgroup_root/cpu,cpuacct. An
+    cpu controller mount; every name in V1_CPU_MOUNTS that exists under
+    cgroup_root is walked, so an empty sibling directory hides nothing. An
     ancestor's quota binds its descendants, so the minimum over the walk is
-    the grant. An unreadable or malformed file counts as no quota there.
+    the grant. An unreadable or malformed file counts as no quota there. A
+    v1 controller mounted outside cgroup_root under another name is not
+    found (/proc/self/mountinfo would name it).
     """
     try:
         lines = proc_cgroup.read_text().splitlines()
@@ -54,14 +59,14 @@ def cgroup_cpu_quota(
                 if quota is not None:
                     quotas.append(quota)
         elif "cpu" in controllers.split(","):
-            for mount in (cgroup_root / "cpu", cgroup_root / "cpu,cpuacct"):
+            for name in V1_CPU_MOUNTS:
+                mount = cgroup_root / name
                 if not mount.is_dir():
                     continue
                 for node in _ancestors(mount, path):
                     quota = _v1_quota(node / "cpu.cfs_quota_us", node / "cpu.cfs_period_us")
                     if quota is not None:
                         quotas.append(quota)
-                break
     return min(quotas) if quotas else None
 
 
@@ -71,29 +76,52 @@ def _ancestors(mount: Path, path: str) -> list[Path]:
     return [mount.joinpath(*parts[:depth]) for depth in range(len(parts), -1, -1)]
 
 
-def _v2_quota(cpu_max: Path) -> Optional[float]:
+# The kernel writes each file as one line of decimal digits; the shell
+# counter's awk reads the same first line with the same patterns, so a
+# malformed file (a sign, a unit, an underscore, a third field) counts as
+# no quota in both.
+DIGITS = re.compile(r"[0-9]+")
+SIGNED_DIGITS = re.compile(r"-?[0-9]+")
+
+
+def _first_line(path: Path) -> Optional[str]:
     try:
-        quota_text, period_text = cpu_max.read_text().split()
-        if quota_text == "max":
-            return None
-        quota, period = int(quota_text), int(period_text)
-    except (OSError, ValueError):
+        lines = path.read_text().splitlines()
+    except OSError:
         return None
+    return lines[0] if lines else None
+
+
+def _v2_quota(cpu_max: Path) -> Optional[float]:
+    line = _first_line(cpu_max)
+    fields = line.split() if line is not None else []
+    if len(fields) != 2 or not all(DIGITS.fullmatch(f) for f in fields):
+        return None
+    quota, period = int(fields[0]), int(fields[1])
     return quota / period if quota > 0 and period > 0 else None
 
 
 def _v1_quota(quota_file: Path, period_file: Path) -> Optional[float]:
-    try:
-        quota = int(quota_file.read_text().strip())
-        period = int(period_file.read_text().strip())
-    except (OSError, ValueError):
+    quota_text, period_text = _first_line(quota_file), _first_line(period_file)
+    if quota_text is None or period_text is None:
         return None
+    if not SIGNED_DIGITS.fullmatch(quota_text) or not DIGITS.fullmatch(period_text):
+        return None
+    quota, period = int(quota_text), int(period_text)
     return quota / period if quota > 0 and period > 0 else None
 
 
-def available_cpus(proc_cgroup: Path = PROC_SELF_CGROUP, cgroup_root: Path = CGROUP_ROOT) -> int:
-    """The affinity count bounded by the cgroup quota, rounded up, at least 1."""
-    if hasattr(os, "sched_getaffinity"):
+def available_cpus(
+    proc_cgroup: Path = PROC_SELF_CGROUP,
+    cgroup_root: Path = CGROUP_ROOT,
+    affinity: Optional[int] = None,
+) -> int:
+    """The affinity count bounded by the cgroup quota, rounded up, at least
+    1. affinity replaces the process's own count; the calibration passes it
+    so its fixtures do not depend on the host's CPUs."""
+    if affinity is not None:
+        available = affinity
+    elif hasattr(os, "sched_getaffinity"):
         available = len(os.sched_getaffinity(0)) or 1
     else:
         available = os.cpu_count() or 1

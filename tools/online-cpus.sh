@@ -8,7 +8,8 @@
 # stays usable. tools/available_cpus.py applies the same bounds in Python, and
 # tools/available_cpus_test.py holds both to fixture hierarchies through
 # ONLINE_CPUS_PROC_SELF and ONLINE_CPUS_CGROUP_ROOT, which default to
-# /proc/self and /sys/fs/cgroup.
+# /proc/self and /sys/fs/cgroup, and ONLINE_CPUS_ONLINE, which replaces the
+# probed online count so a fixture's verdict does not depend on the host.
 set -eu
 
 proc_self=${ONLINE_CPUS_PROC_SELF:-/proc/self}
@@ -21,8 +22,8 @@ valid_count() {
 	return 0
 }
 
-online_count=
-if command -v getconf >/dev/null 2>&1; then
+online_count=${ONLINE_CPUS_ONLINE:-}
+if ! valid_count "$online_count" && command -v getconf >/dev/null 2>&1; then
 	online_count=$(getconf _NPROCESSORS_ONLN 2>/dev/null || :)
 fi
 if ! valid_count "$online_count" && command -v sysctl >/dev/null 2>&1; then
@@ -65,25 +66,37 @@ cgroup_quotas() {
 			esac
 			kind=v1
 			mount=
-			for candidate in "$cgroup_root/cpu" "$cgroup_root/cpu,cpuacct"; do
-				if [ -d "$candidate" ]; then
-					mount=$candidate
-					break
-				fi
-			done
-			[ -n "$mount" ] || continue
 		fi
+		cgroup_walk
+	done
+}
+
+# Walk path from the process's cgroup to the root under each mount that
+# holds the hierarchy: the v2 root, or every name a v1 cpu controller is
+# mounted under, so an empty sibling directory hides nothing.
+cgroup_walk() {
+	if [ "$kind" = v2 ]; then
+		set -- "$mount"
+	else
+		set -- "$cgroup_root/cpu" "$cgroup_root/cpu,cpuacct" \
+		    "$cgroup_root/cpuacct,cpu"
+	fi
+	for mount in "$@"; do
+		[ -d "$mount" ] || continue
 		node=${path%/}
 		while :; do
 			dir=$mount$node
 			if [ "$kind" = v2 ] && [ -r "$dir/cpu.max" ]; then
-				awk '$1 ~ /^[0-9]+$/ && $1 > 0 && $2 > 0 {
+				awk 'NR == 1 && NF == 2 && $1 ~ /^[0-9]+$/ &&
+				    $2 ~ /^[0-9]+$/ && $1 > 0 && $2 > 0 {
 					q = $1 / $2; c = int(q); if (c < q) c++; print c
 				}' "$dir/cpu.max" 2>/dev/null || :
 			elif [ "$kind" = v1 ] && [ -r "$dir/cpu.cfs_quota_us" ] &&
 			    [ -r "$dir/cpu.cfs_period_us" ]; then
-				awk 'NR == FNR { q = $1; next } q > 0 && $1 > 0 {
-					r = q / $1; c = int(r); if (c < r) c++; print c
+				awk 'FNR == 1 && NR == 1 { q = $0; next }
+				    FNR == 1 && q ~ /^[0-9]+$/ && $0 ~ /^[0-9]+$/ &&
+				    q > 0 && $0 > 0 {
+					r = q / $0; c = int(r); if (c < r) c++; print c
 				}' "$dir/cpu.cfs_quota_us" "$dir/cpu.cfs_period_us" \
 				    2>/dev/null || :
 			fi

@@ -541,7 +541,7 @@ IMPORT_FLAGS=	${TARGET_FLAGS} -fno-common
 strtoull.imports=	errno
 strtoll.imports=	errno __discobsd_strtou64
 atoll.imports=		strtoll
-_Exit.imports=		_exit
+iso_exit.imports=	_exit
 aligned_alloc.imports=	errno free malloc realloc
 imaxdiv.imports=
 imaxabs.imports=
@@ -554,7 +554,7 @@ mbstowcs.imports=	strlen
 wcstombs.imports=
 wcstoumax.imports=	errno
 wcstoimax.imports=	errno __discobsd_wcstou64
-IMPORT_STDLIB=	strtoull strtoll atoll _Exit imaxdiv imaxabs strtoimax \
+IMPORT_STDLIB=	strtoull strtoll atoll iso_exit imaxdiv imaxabs strtoimax \
 		strtoumax mblen mbtowc wctomb mbstowcs wcstombs wcstoumax \
 		wcstoimax
 isctype.imports=	_ctype_

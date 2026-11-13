@@ -687,6 +687,11 @@ check-libc-bounded-string:
 
 .PHONY: check-libc-bounded-string
 
+check-libc-absolute-value:
+		${MAKE} -C tests/libc_contracts check-absolute-value
+
+.PHONY: check-libc-absolute-value
+
 check-libc-qsort-context:
 		${MAKE} -C tests/libc_contracts check-qsort-context
 

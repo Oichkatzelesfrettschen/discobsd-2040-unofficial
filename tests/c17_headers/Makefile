@@ -551,6 +551,8 @@ iso_exit.imports=	_exit
 aligned_alloc.imports=	errno free malloc realloc
 imaxdiv.imports=
 imaxabs.imports=
+abs.imports=
+labs.imports=
 strtoimax.imports=	strtoll
 strtoumax.imports=	strtoull
 mblen.imports=
@@ -560,7 +562,7 @@ mbstowcs.imports=	strlen
 wcstombs.imports=
 wcstoumax.imports=	errno
 wcstoimax.imports=	errno __discobsd_wcstou64
-IMPORT_STDLIB=	strtoull strtoll atoll iso_exit imaxdiv imaxabs strtoimax \
+IMPORT_STDLIB=	abs labs strtoull strtoll atoll iso_exit imaxdiv imaxabs strtoimax \
 		strtoumax mblen mbtowc wctomb mbstowcs wcstombs wcstoumax \
 		wcstoimax
 isctype.imports=	_ctype_

@@ -9,6 +9,7 @@
 # malloc, the common syscalls, signal, exec, wait, stat, time, errno,
 # perror, qsort, the strtol family, and getenv -- what libc-sink.c calls.
 #
+abs
 aeabi_div
 at_quick_exit
 atoi
@@ -30,6 +31,7 @@ execve
 explicit_bzero
 _exit
 iso_exit
+labs
 exit
 fakcu
 fgetc

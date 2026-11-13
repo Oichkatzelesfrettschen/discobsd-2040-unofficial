@@ -97674,16 +97674,12 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [
             "dynamic-storage"
           ],
-          "pointer": [
-            "integer-pointer-cast",
-            "pointer-integer-cast"
-          ],
+          "pointer": [],
           "prototype": [
             "old-style-declaration",
             "old-style-definition"

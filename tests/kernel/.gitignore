@@ -102,7 +102,7 @@ sysctl_kernel_compact.o
 sysctl_kernel_wide.o
 sysctl_vmswp_compact.o
 sysctl_vmswp_wide.o
-sysctl_uarea_*.mutant.*
+sysctl_proc_*.mutant.*
 sysctl_shim.o
 ialloc_test
 ialloc_test_pico

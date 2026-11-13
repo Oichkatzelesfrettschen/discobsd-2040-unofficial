@@ -1358,11 +1358,32 @@ geteblk() or in the transfer is noticed after the sleep, and the one that
 came back is read in place. A device error and a zombie both report uid
 -2. The compact binary is built with SWAPRAM and reads a pooled process
 through the pool decoder rather than swap block zero. Every case checks
-that the buffer is returned aged exactly once. `check-sysctl-uarea-mutants`
-requires a failure from a copy that drops the u_procp check and from one
-that drops the rechecks. The reader the gate replaced, which handed the raw
-p_addr to the strategy routine, fails 13 of 3543 checks in the compact
-binary, the folded block among them.
+that the buffer is returned aged exactly once. The reader the gate
+replaced, which handed the raw p_addr to the strategy routine, fails 13 of
+3543 checks in the compact binary, the folded block among them.
+
+`KERN_PROC` returns a pointer-free `struct kinfo_proc` (sys/sys/sysctl.h)
+built through the same reader for every process or one pid, and the gate builds a process table that
+holds an image in each place one can live: resident, on flash at a folded
+block and at an unfolded one, in the pool in the compact binary, and
+exited, beside an embryonic slot. Every live and exited process appears
+exactly once, the embryonic one never, and each record's credentials,
+times, terminal, sizes, command name and arguments come from its own user
+area. No four bytes of the output equal an address of the fixture's
+process table, user areas or terminal. Arguments reach root and a caller
+whose effective uid is the process's real or effective uid, and nobody
+else. A failed read and a slot that changes during the read each leave
+the row with its process-table fields and the reason in kp_error. A pid
+query reads one user area; a selector other than KERN_PROC_ALL and
+KERN_PROC_PID, a record size below the four-byte prefix or above DEV_BSIZE, and a name of
+the wrong length are refused. A record size smaller than the kernel's
+takes each record's prefix and a larger one leaves each tail untouched; a
+size query and a short buffer report room for a full table, and a new
+value is refused before the node runs. `check-sysctl-proc-mutants`
+requires a failure from four copies of kern_sysctl.c: one without the
+u_procp check, one without the rechecks, one that gives every caller the
+arguments, and one that leaves out a row whose user area could not be
+read.
 
 The two actual-source binaries, `sysctl_test_compact` and
 `sysctl_test_wide`, execute as `kernel.sysctl-compact.ilp32` and

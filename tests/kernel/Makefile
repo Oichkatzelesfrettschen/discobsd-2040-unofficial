@@ -1743,32 +1743,36 @@ sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
 	    ${SWAP_RING_IO_LDFLAGS} -o $@ sysctl_test.c \
 	    sysctl_kernel_wide.o sysctl_vmswp_wide.o sysctl_shim.o hostkern32.o
 
-# Each mutant removes one acceptance rule of proc_uarea() from a copy of
+# Each mutant removes one rule of the process path from a copy of
 # kern_sysctl.c, and the compact gate has to fail on it. no_identity accepts
-# a block whatever image its u_procp names; no_recheck accepts a block after
-# the process exited or its slot changed during the read.
-SYSCTL_UAREA_MUTANTS=	no_identity no_recheck
-SYSCTL_UAREA_SED_no_identity=	s/if (up->u_procp != p)/if (0)/
-SYSCTL_UAREA_SED_no_recheck=	s/if (proc_changed(p, pid))/if (proc_changed(p, pid) < 0)/
+# a user-area block whatever image its u_procp names; no_recheck accepts a
+# block after the process exited or its slot changed during the read;
+# open_args gives every caller the argument prefix; drop_marked leaves out
+# a process whose user area could not be read, as the raw-memory ps did.
+SYSCTL_PROC_MUTANTS=	no_identity no_recheck open_args drop_marked
+SYSCTL_PROC_SED_no_identity=	s/if (up->u_procp != p)/if (0)/
+SYSCTL_PROC_SED_no_recheck=	s/if (proc_changed(p, pid))/if (proc_changed(p, pid) < 0)/
+SYSCTL_PROC_SED_open_args=	s/caller == kp->kp_ruid)/caller == kp->kp_ruid || kp->kp_size != 0)/
+SYSCTL_PROC_SED_drop_marked=	s/kinfo_fill(p, &kp);/kinfo_fill(p, \&kp); if (kp.kp_error) continue;/
 
-check-sysctl-uarea-mutants: sysctl_test_compact
-.for mutation in ${SYSCTL_UAREA_MUTANTS}
-	@sed '${SYSCTL_UAREA_SED_${mutation}}' ${SYSCTL_SRC} \
-	    > sysctl_uarea_${mutation}.mutant.c; \
-	if cmp -s ${SYSCTL_SRC} sysctl_uarea_${mutation}.mutant.c; then \
-		echo "sysctl uarea mutant ${mutation}: no source change" >&2; \
+check-sysctl-proc-mutants: sysctl_test_compact
+.for mutation in ${SYSCTL_PROC_MUTANTS}
+	@sed '${SYSCTL_PROC_SED_${mutation}}' ${SYSCTL_SRC} \
+	    > sysctl_proc_${mutation}.mutant.c; \
+	if cmp -s ${SYSCTL_SRC} sysctl_proc_${mutation}.mutant.c; then \
+		echo "sysctl proc mutant ${mutation}: no source change" >&2; \
 		exit 1; fi; \
 	${HOST_CC} ${KERN_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} -c \
-	    -o sysctl_uarea_${mutation}.mutant.o \
-	    sysctl_uarea_${mutation}.mutant.c && \
+	    -o sysctl_proc_${mutation}.mutant.o \
+	    sysctl_proc_${mutation}.mutant.c && \
 	${HOST_CC} ${GATE_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
-	    ${SWAP_RING_IO_LDFLAGS} -o sysctl_uarea_${mutation}.mutant.test \
-	    sysctl_test.c sysctl_uarea_${mutation}.mutant.o \
+	    ${SWAP_RING_IO_LDFLAGS} -o sysctl_proc_${mutation}.mutant.test \
+	    sysctl_test.c sysctl_proc_${mutation}.mutant.o \
 	    sysctl_vmswp_compact.o sysctl_shim.o hostkern32.o || exit 1; \
-	if ./sysctl_uarea_${mutation}.mutant.test \
-	    > sysctl_uarea_${mutation}.mutant.out 2>&1; then \
-		echo "sysctl uarea mutant ${mutation}: SURVIVED" >&2; exit 1; fi; \
-	echo "sysctl uarea mutant ${mutation}: rejected"
+	if ./sysctl_proc_${mutation}.mutant.test \
+	    > sysctl_proc_${mutation}.mutant.out 2>&1; then \
+		echo "sysctl proc mutant ${mutation}: SURVIVED" >&2; exit 1; fi; \
+	echo "sysctl proc mutant ${mutation}: rejected"
 .endfor
 
 # The inode allocator in the three shapes the tree configures it in: the
@@ -2972,7 +2976,7 @@ check-ilp32:
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
 	    exec_elf_text_ownership_mutant \
-	    sysctl_test_compact sysctl_test_wide check-sysctl-uarea-mutants \
+	    sysctl_test_compact sysctl_test_wide check-sysctl-proc-mutants \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
 	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
@@ -3256,7 +3260,7 @@ clean:
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
 	    exec_elf_text_ownership_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
-	rm -f sysctl_vmswp_compact.o sysctl_vmswp_wide.o sysctl_uarea_*.mutant.*
+	rm -f sysctl_vmswp_compact.o sysctl_vmswp_wide.o sysctl_proc_*.mutant.*
 	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o
 	rm -f ialloc_shim.o ialloc_shim_pico.o
@@ -3316,7 +3320,7 @@ clean:
 	@if [ -d ${CONSOLE_C17_MACHINE} ]; then rmdir ${CONSOLE_C17_MACHINE}; fi
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
-	check-rmap-ring-mutants check-swap-ring-io check-sysctl-uarea-mutants \
+	check-rmap-ring-mutants check-swap-ring-io check-sysctl-proc-mutants \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
 	check-buffer-busy-mutants \
 	check-rwuio-mutants check-rwuio-sanitizer \

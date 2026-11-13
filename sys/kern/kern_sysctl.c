@@ -275,6 +275,8 @@ kern_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 	case KERN_INODE:
 		return (sysctl_inode(oldp, oldlenp));
 	case KERN_PROC:
+		if (newp != NULL)
+			return (EPERM);
 		return (sysctl_doproc(name + 1, namelen - 1, oldp, oldlenp));
 	case KERN_FILE:
 		return (sysctl_file(oldp, oldlenp));
@@ -751,124 +753,6 @@ sysctl_inode(char *where, size_t *sizep)
 	return (0);
 }
 
-/*
- * Try overestimating by 5 procs.
- */
-#define KERN_PROCSLOP	(5 * sizeof(struct kinfo_proc))
-
-int
-sysctl_doproc(int *name, u_int namelen, char *where, size_t *sizep)
-{
-	struct proc *p;
-	struct kinfo_proc *dp = (struct kinfo_proc *)where;
-	size_t needed = 0;
-	size_t buflen = where != NULL ? *sizep : 0;
-	int doingzomb;
-	struct eproc eproc;
-	int error = 0;
-	dev_t ttyd;
-	uid_t ruid;
-	struct tty *ttyp;
-
-	if (namelen != 2 && !(namelen == 1 && name[0] == KERN_PROC_ALL))
-		return (EINVAL);
-	p = (struct proc *)allproc;
-	doingzomb = 0;
-again:
-	for (; p != NULL; p = p->p_nxt) {
-		/*
-		 * Skip embryonic processes.
-		 */
-		if (p->p_stat == SIDL)
-			continue;
-		/*
-		 * TODO: sysctl_oproc - make more efficient (see notes below).
-		 * do by session.
-		 */
-		switch (name[0]) {
-		case KERN_PROC_PID:
-			/* Could do this with just a lookup. */
-			if (p->p_pid != (pid_t)name[1])
-				continue;
-			break;
-
-		case KERN_PROC_PGRP:
-			/* Could do this by traversing pgrp. */
-			if (p->p_pgrp != (pid_t)name[1])
-				continue;
-			break;
-
-		case KERN_PROC_TTY:
-			fill_from_u(p, &ruid, &ttyp, &ttyd);
-			if (!ttyp || ttyd != (dev_t)name[1])
-				continue;
-			break;
-
-		case KERN_PROC_UID:
-			if (p->p_uid != (uid_t)name[1])
-				continue;
-			break;
-
-		case KERN_PROC_RUID:
-			fill_from_u(p, &ruid, &ttyp, &ttyd);
-			if (ruid != (uid_t)name[1])
-				continue;
-			break;
-
-		case KERN_PROC_ALL:
-			break;
-
-		default:
-			return (EINVAL);
-		}
-		if (buflen >= sizeof(struct kinfo_proc)) {
-			fill_eproc(p, &eproc);
-			if ((error = copyout((caddr_t)p,
-			    (caddr_t)&dp->kp_proc, sizeof(struct proc))))
-				return (error);
-			if ((error = copyout((caddr_t)&eproc,
-			    (caddr_t)&dp->kp_eproc, sizeof(eproc))))
-				return (error);
-			dp++;
-			buflen -= sizeof(struct kinfo_proc);
-		}
-		needed += sizeof(struct kinfo_proc);
-	}
-	if (doingzomb == 0) {
-		p = zombproc;
-		doingzomb++;
-		goto again;
-	}
-	if (where != NULL) {
-		*sizep = (caddr_t)dp - where;
-		if (needed > *sizep)
-			return (ENOMEM);
-	} else {
-		needed += KERN_PROCSLOP;
-		*sizep = needed;
-	}
-	return (0);
-}
-
-/*
- * Fill in an eproc structure for the specified process.  Slightly
- * inefficient because we have to access the u area again for the
- * information not kept in the proc structure itself.  Can't afford
- * to expand the proc struct so we take a slight speed hit here.
- */
-void
-fill_eproc(struct proc *p, struct eproc *ep)
-{
-	struct tty *ttyp;
-
-	ep->e_paddr = p;
-	fill_from_u(p, &ep->e_ruid, &ttyp, &ep->e_tdev);
-	if (ttyp)
-		ep->e_tpgid = ttyp->t_pgrp;
-	else
-		ep->e_tpgid = 0;
-}
-
 /* True when slot p no longer holds live process pid. */
 static int
 proc_changed(const struct proc *p, int pid)
@@ -969,4 +853,130 @@ fill_from_u(struct proc *p, uid_t *rup, struct tty **ttp, dev_t *tdp)
 		*ttp = ttyp;
 	if (tdp)
 		*tdp = ttyd;
+}
+
+_Static_assert(sizeof(struct kinfo_proc) == 184,
+    "struct kinfo_proc is 183 bytes and one of tail padding");
+_Static_assert(offsetof(struct kinfo_proc, kp_comm) == 67,
+    "kinfo_proc packs its fixed fields without interior padding");
+_Static_assert(sizeof(((struct user *)0)->u_comm) == KI_COMMSZ,
+    "kp_comm carries the whole command name");
+_Static_assert(sizeof(((struct user *)0)->u_psargs) == KI_ARGSZ,
+    "kp_args carries the whole exec argument prefix");
+
+/*
+ * Fill *kp for live or zombie process p. The process-table fields need no
+ * sleep and come first. The user-area groups follow through proc_uarea(),
+ * which may sleep and checks the process again after it; when it refuses,
+ * the record keeps the process-table fields and names the reason.
+ * Arguments go to root and to a caller whose effective uid is the
+ * process's real or effective uid.
+ */
+static void
+kinfo_fill(struct proc *p, struct kinfo_proc *kp)
+{
+	const struct user *up;
+	struct buf *bp;
+	uid_t caller = u.u_procp->p_uid;
+	int error;
+
+	bzero(kp, sizeof(*kp));
+	kp->kp_size = sizeof(*kp);
+	kp->kp_uid = p->p_uid;
+	kp->kp_tdev = NODEV;
+	kp->kp_pid = p->p_pid;
+	kp->kp_ppid = p->p_ppid;
+	kp->kp_flag = p->p_flag;
+	kp->kp_stat = p->p_stat;
+	if (p->p_stat == SZOMB) {
+		kp->kp_utime = p->p_ru.ru_utime;
+		kp->kp_stime = p->p_ru.ru_stime;
+		kp->kp_valid = KP_VALID_TIMES;
+		return;
+	}
+	kp->kp_pgid = p->p_pgrp;
+	if (p->p_tip != NULL)
+		kp->kp_tsize = p->p_tsize;
+	kp->kp_dsize = p->p_dsize;
+	kp->kp_ssize = p->p_ssize;
+	kp->kp_pri = p->p_pri;
+	kp->kp_cpu = p->p_cpu;
+	kp->kp_nice = p->p_nice;
+	kp->kp_valid = KP_VALID_LIVE;
+
+	error = proc_uarea(p, &up, &bp);
+	if (error != 0) {
+		kp->kp_error = error;
+		proc_uarea_release(bp);
+		return;
+	}
+	kp->kp_ruid = up->u_ruid;
+	kp->kp_gid = up->u_groups[0];
+	kp->kp_rgid = up->u_rgid;
+	kp->kp_start = up->u_start;
+	kp->kp_utime = up->u_ru.ru_utime;
+	kp->kp_stime = up->u_ru.ru_stime;
+	kp->kp_ctime = up->u_cru.ru_utime + up->u_cru.ru_stime;
+	if (up->u_ttyp != NULL) {
+		kp->kp_tdev = up->u_ttyd;
+		kp->kp_tpgid = up->u_ttyp->t_pgrp;
+	}
+	bcopy(up->u_comm, kp->kp_comm, sizeof(kp->kp_comm) - 1);
+	kp->kp_valid |= KP_VALID_TIMES | KP_VALID_CRED | KP_VALID_START |
+	    KP_VALID_TTY | KP_VALID_COMM;
+	if (caller == 0 || caller == kp->kp_uid || caller == kp->kp_ruid) {
+		bcopy(up->u_psargs, kp->kp_args, sizeof(kp->kp_args) - 1);
+		kp->kp_valid |= KP_VALID_ARGS;
+	}
+	proc_uarea_release(bp);
+}
+
+/*
+ * KERN_PROC: {selector, argument, record size} after the KERN_PROC
+ * component (sys/sysctl.h). KERN_PROC_ALL returns every process and
+ * KERN_PROC_PID the one whose id is the argument; the pid test runs before
+ * kinfo_fill(), so a single-process query reads one user area. Every other
+ * projection is the caller's, over the full table. The walk runs over the
+ * slots of proc[], so it holds no list cursor across the sleeps in
+ * kinfo_fill(); a process keeps its slot for its life, so one alive for the
+ * whole call appears exactly once. A buffer too short for every record
+ * reports the length of a full table, which __sysctl() turns into ENOMEM.
+ */
+int
+sysctl_doproc(int *name, u_int namelen, char *where, size_t *sizep)
+{
+	struct kinfo_proc kp;
+	size_t stride, copy, done = 0;
+	int selector, slot, error;
+
+	if (namelen != 3)
+		return (EINVAL);
+	selector = name[0];
+	stride = (u_int)name[2];
+	if ((u_int)selector > KERN_PROC_PID || stride < KI_PROC_MINSIZE ||
+	    stride > DEV_BSIZE)
+		return (EINVAL);
+	if (where == NULL) {
+		*sizep = NPROC * stride;
+		return (0);
+	}
+	copy = stride < sizeof(kp) ? stride : sizeof(kp);
+	for (slot = 0; slot < NPROC; slot++) {
+		struct proc *p = &proc[slot];
+
+		if (p->p_stat == 0 || p->p_stat == SIDL)
+			continue;
+		if (selector == KERN_PROC_PID && p->p_pid != name[1])
+			continue;
+		if (*sizep - done < stride) {
+			*sizep = NPROC * stride;
+			return (0);
+		}
+		kinfo_fill(p, &kp);
+		if ((error = copyout((caddr_t)&kp, where + done, copy)) != 0)
+			return (error);
+		done += stride;
+	}
+	*sizep = done;
+	return (0);
 }

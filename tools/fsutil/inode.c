@@ -160,7 +160,7 @@ int fs_inode_save (fs_inode_t *inode, int force)
     offset = (inode->number + BSDFS_INODES_PER_BLOCK - 1) *
         BSDFS_BSIZE / BSDFS_INODES_PER_BLOCK;
 
-    time (&inode->atime);
+    inode->atime = fs_clock ();
 
     if (! fs_seek (inode->fs, offset))
         return 0;
@@ -465,7 +465,7 @@ int fs_inode_write (fs_inode_t *inode, unsigned long offset,
     unsigned long n;
     unsigned int bn, inblock_offset;
 
-    time (&inode->mtime);
+    inode->mtime = fs_clock ();
     while (bytes != 0) {
         inblock_offset = offset % BSDFS_BSIZE;
         n = BSDFS_BSIZE - inblock_offset;
@@ -660,7 +660,7 @@ create_file:
     inode->nlink = 1;
     inode->uid = 0;
     inode->flags = 0;
-    time (&inode->ctime);
+    inode->ctime = fs_clock ();
     if ((inode->mode & INODE_MODE_FMT) == INODE_MODE_FDIR) {
         /* Make link '.' */
         struct {

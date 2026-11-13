@@ -1345,6 +1345,13 @@ record invocation counts and requested extents. The original greater-than
 comparison rejects only oversized inputs; the expanded tests reject its
 undersized copies through assertions rather than a host memory fault.
 
+A successful call returns 0, as sysctl(3) documents, with the length in
+`*oldlenp` alone: the syscall cases check `u_rval` after a read, a
+replacement, a `KERN_PROC` read and a `KERN_FILE` size query. The kernel
+before that rule, which returned the length as 4.4BSD did, fails 6 of 3985
+checks in the compact binary; ps and w, which test for 0, read the clock
+rate only under the rule.
+
 Configurable failures exercise helper copyout and copyin, syscall name and
 length copyin, value transfers, final length copyout, and node-error
 precedence. The authorization double can deny a write with EPERM before

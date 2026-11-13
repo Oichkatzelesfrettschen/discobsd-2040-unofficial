@@ -195,11 +195,13 @@ __sysctl()
 	 */
 	if (error == 0 && uap->old != NULL && savelen < oldlen)
 		error = ENOMEM;
-	if (error) {
+	/*
+	 * Success returns 0, as sysctl(3) documents: the length reaches the
+	 * caller through *oldlenp alone, and syscall() has already zeroed
+	 * u_rval.
+	 */
+	if (error)
 		u.u_error = error;
-		return;
-	}
-	u.u_rval = oldlen;
 }
 
 /*

@@ -1,14 +1,14 @@
 # PicoCalc work that waits on hardware
 
-The branch `picocalc-wip-pending-hardware` holds every change whose claim a
-ClockworkPi PicoCalc decides: a change that a bare Pico, a host gate and
-Renode can establish lands through the working branch and `main`, and a
-change that needs the carrier's panel, keyboard controller, SD socket, PSRAM
-or power path waits here until a board run is recorded. This file is the
-branch's ledger. Each row names the claim, the artifact that carries it, the
-measurement that decides it and the state.
+A ClockworkPi PicoCalc decides two kinds of open claim: a change that is
+held back until the carrier's panel, keyboard controller, SD socket, PSRAM
+or power path has run it, and a claim whose code is on `main` under build,
+host and Renode evidence with its board row still "not run". This file
+lists both, each with the measurement that decides it.
+`picocalc-first-power-up.md` orders the first session's observations and
+states each one's prediction.
 
-## Changes held on this branch
+## Changes held until a board run
 
 | Change | Artifact | Deciding measurement | State |
 | --- | --- | --- | --- |
@@ -34,10 +34,10 @@ in this order, because each later row needs the earlier device.
 | PSRAM Read ID 0x0D, quad mode and readback at 31.25 MHz | `psram0` probe | not run |
 | The kernel swaps to PSRAM and falls back to `fl1` when the part is absent | boot with and without the part | not run |
 
-## Rules for this branch
+## When a row leaves
 
-- A new PicoCalc-only change starts here when its claim needs the carrier.
-  A change that touches PicoCalc files but is decided by a host gate or
-  Renode goes through the working branch.
-- The branch follows `main` by merge. A row leaves the tables when its board
-  run is recorded in `PICOCALC.md` and its change has merged.
+A held change lands through a pull request once its deciding measurement is
+recorded, and its row leaves the first table with that merge. A claim row
+leaves the second table when `PICOCALC.md` records its board run. A new
+PicoCalc change enters the first table only when the carrier decides its
+claim; one that a host gate or Renode decides lands directly.

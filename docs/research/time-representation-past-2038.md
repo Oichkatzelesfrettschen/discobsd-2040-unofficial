@@ -226,8 +226,34 @@ alternative not excluded: a build of `fca28c6a` with
 arm-none-eabi-gcc 16.2.0 links the compiler at 47,460 bytes of text, 1,140 of
 data and 26,312 of bss (`arm-none-eabi-size usr.bin/smlrc/smlrc.elf`),
 74,912 in a 192 KiB process window (`machparam.h`);
-`usr.bin/smlrc/README.rp2040.md` records an earlier build's figures. The
-cost of the 64-bit type in it is unmeasured.
+`usr.bin/smlrc/README.rp2040.md` records an earlier build's figures.
+
+A source reading of the compiler, with no implementation, describes what
+that alternative would take. The compiler holds every expression value
+in one machine word (`int stack[STACK_SIZE][2]`, `smlrc.c`) and one
+working register, and `cgthumb.c` emits no add-with-carry instruction.
+It does pass and return a structure by value: `NO_STRUCT_BY_VAL` is
+defined only under `NO_EXTRAS`, which no build sets. A 64-bit value
+could therefore travel inside an expression as the address of an 8-byte
+frame temporary, the way a structure value does, with each operator
+lowered to a helper call as the floating-point operators are. The
+procedure call standard still asks for a register pair in three places
+the compiler has no mechanism for: a 64-bit call result, a 64-bit
+return value, and a 64-bit argument among the first four argument
+words, which must start at an even register; the call path in
+`cgthumb.c` loads those words into `r0` to `r3` one by one and pads
+none. `libc.a` defines the 32-bit `__aeabi_idiv`, `__aeabi_idivmod`,
+`__aeabi_uidiv` and `__aeabi_uidivmod` and no 64-bit multiply, divide
+or shift helper (`arm-none-eabi-nm lib/libc.a`), so a program that
+multiplies or divides a 64-bit count needs new library members, and
+every 64-bit operation in a compiled program becomes a helper call and
+a frame temporary. The reading projects several hundred changed source
+lines across the type parser, each operator branch of the expression
+evaluator and the call and return paths; that figure is a projection
+with no implementation or size measurement behind it. The cost of the
+libc wrappers is unmeasured as well, so the two are not ranked by size.
+The wrappers stay the chosen course for a different reason: they leave
+the compiler that builds every program on the board unchanged.
 Converting in the kernel instead, with old and new system calls side by
 side, keeps two user interfaces as well and spends kernel text for a clock
 that stays 32 bits wide; `check-kernel-headroom` at `fca28c6a` reports
@@ -362,3 +388,19 @@ at stop point P3.0 on the sparse image (P8b) and the board baseline
   the host tools that stamp an image (`tools/fsutil`, `sbin/mkfs`).
 - No target execution: qemu-user, Renode and the board did not run the
   repaired `timegm()` or `mktime()`.
+- The RP2040 has a real-time clock peripheral (datasheet section 4.8,
+  `sys/arch/rp2040/doc/DATASHEET-INDEX.md`) that divides the `clk_rtc`
+  reference to one hertz; the section names no supply apart from the
+  chip's own. The port leaves it unused. Whether it keeps counting
+  through a PicoCalc power-off, where a battery is present, is
+  unmeasured; on a bare Pico a power cycle resets it, so it would not
+  replace the superblock time at a cold boot there.
+- The flash part on the measured board answers JEDEC `EFh 4015h`, a
+  Winbond W25Q16JV. Its datasheet (revision G, features list and AC
+  characteristics) gives a minimum of 100,000 program-erase cycles per
+  sector, more than 20 years of data retention, and a 4 KB sector erase
+  time of 45 ms typical and 400 ms maximum; the board measured 29,072
+  microseconds for one erase (`tools/flash-semantics`, recorded in
+  `renode-rp2040-upstream-reports.md`). Those figures are the
+  budget the storage-wear items above are judged against, and no wear
+  count has been measured on the board.

@@ -24,6 +24,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/param.h>
+#include <limits.h>
 #include <sys/syslog.h>
 
 #define	REBOOT	"/sbin/reboot"
@@ -189,6 +190,15 @@ main(argc,argv)
 	}
 	nowtime = time((time_t *)0);
 	sdt = getsdt(argv[0]);
+	/*
+	 * The minute count printed below and the delay warning() computes
+	 * are ints, so a shutdown further off than an int of seconds is
+	 * refused here rather than announced with a wrapped figure.
+	 */
+	if (sdt - nowtime > INT_MAX) {
+		fprintf(stderr, "shutdown: time is too far in the future\n");
+		finish(0);
+	}
 	argc--, argv++;
 	nolog2[0] = '\0';
 	while (argc-- > 0) {

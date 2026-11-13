@@ -1,5 +1,6 @@
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
@@ -14,10 +15,17 @@ aout_contract_probe(void)
 	char visual[8];
 	char runtime_path[32];
 	char secret[4] = { 1, 2, 3, 4 };
+	char bounded[8];
+	char *duplicate = strndup("abc", 2);
+	int string_contract = strnlen("abc", 2) == 2 &&
+	    stpcpy(bounded, "abc") == bounded + 3 &&
+	    stpncpy(bounded, "a", sizeof(bounded)) == bounded + 1 &&
+	    duplicate != NULL;
+	free(duplicate);
 
 	explicit_bzero(secret, sizeof(secret));
 	aout_contract_elapsed = difftime((time_t)1, (time_t)0);
-	return (ctermid(terminal_name) == terminal_name) + raise(0) +
+	return string_contract + (ctermid(terminal_name) == terminal_name) + raise(0) +
 	    confstr(_CS_PATH, runtime_path, sizeof(runtime_path)) +
 	    sysconf(_SC_OPEN_MAX) +
 	    (nvis(visual, sizeof(visual), '\n', VIS_CSTYLE, '\0') != visual) +

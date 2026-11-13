@@ -75,6 +75,9 @@ touch_string_ctype(void)
 	sink += (long)strcat(b, "");
 	sink += (long)strncat(b, "", 0);
 	sink += strlen(a);
+	sink += strnlen(a, sizeof(a));
+	sink += (long)stpcpy(b, a);
+	sink += (long)stpncpy(b, a, sizeof(b));
 	sink += strcmp(a, b);
 	sink += strncmp(a, b, 4);
 	sink += strcasecmp(a, b);
@@ -83,6 +86,9 @@ touch_string_ctype(void)
 	sink += (long)strstr(a, "ll");
 	sink += (long)strtok(b, " ");
 	dup = strdup(a);
+	sink += (long)dup;
+	free(dup);
+	dup = strndup(a, sizeof(a));
 	sink += (long)dup;
 	free(dup);
 	sink += (long)memcpy(b, a, sizeof(a));

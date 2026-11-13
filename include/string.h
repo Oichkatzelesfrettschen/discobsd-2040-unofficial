@@ -53,6 +53,13 @@ char		*strerror(int);
 char		*strdup(const char *);
 #endif
 
+#if _DISCOBSD_BSD_VISIBLE || _DISCOBSD_POSIX_VISIBLE >= 200809L
+size_t		 strnlen(const char *, size_t);
+char		*strndup(const char *, size_t);
+char		*stpcpy(char *, const char *);
+char		*stpncpy(char *, const char *, size_t);
+#endif
+
 #if _DISCOBSD_BSD_VISIBLE || _DISCOBSD_POSIX_VISIBLE >= 199506L
 char		*strtok_r(char *, const char *, char **);
 #endif

@@ -16,13 +16,23 @@ The Pico on the bench runs the PICO kernel from its UFS root (`fl0a`).
 Save its flash before it goes near the PicoCalc, through its own
 micro-USB port:
 
-    mkdir -p "$NOTES/docs/local/picocalc"
+    set -o noclobber
+    LOCAL="$NOTES/docs/local/picocalc"
+    STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+    PICO_IMAGE="$LOCAL/pico-flash-before-$STAMP.bin"
+    mkdir -p "$LOCAL"
     discobsd-flash --bootsel
-    picotool save -r 0x10000000 0x10200000 \
-        "$NOTES/docs/local/picocalc/pico-flash-before-$(date -u +%Y%m%d).bin"
+    picotool save -r 0x10000000 0x10200000 "$PICO_IMAGE" &&
+        [ "$(wc -c < "$PICO_IMAGE")" -eq 2097152 ] &&
+        sha256sum "$PICO_IMAGE" > "$PICO_IMAGE.sha256" &&
+        echo saved
     discobsd-flash --eject
 
-where `$NOTES` names the discobsd-2040-notes checkout. Keep the Pico out
+where `$NOTES` names the discobsd-2040-notes checkout. The second-resolution
+name keeps an earlier image, `noclobber` makes the shell refuse to replace
+an existing file, and the image counts as saved only when the command
+prints `saved`: picotool succeeded, the file holds the whole 2 Mbytes
+(0x10000000 to 0x10200000), and its digest sits beside it. Keep the Pico out
 of the PicoCalc until "PicoCalc kernel boot": every power-off below cuts
 its supply without a `sync`, and with U201 held in its bootloader PA13
 (PICO_EN) floats to its reset pull-up, which enables the Pico's supply
@@ -67,9 +77,14 @@ between the two cells to limit it.
 3. Hold the power key for one second and watch the power LED; Alt+B
    flashes it three, two or one times for high, medium or low charge
    (assembly guide, "Check the battery level").
-4. Power the board off (hold the key) and disconnect USB-C. Fit the
-   second cell only when the two read within about 0.05 V of each other,
-   or charge the first through USB-C until they do.
+4. Power the board off (hold the key) and disconnect USB-C. Let a freshly
+   charged cell rest before measuring, then fit the second cell only when
+   both are undamaged, within the cell maker's limits for parallel use,
+   and read within about 0.05 V of each other; charge the first through
+   USB-C until they do. The 0.05 V figure is an engineering judgment: the
+   assembly guide gives no threshold, and at 20 to 60 mOhm summed
+   internal resistance it still allows a transient of roughly 0.8 to
+   2.5 A.
 
 Prediction: the board starts on one cell and the keyboard backlight
 answers Alt+Space. A board that stays dark with a cell measured above
@@ -99,24 +114,34 @@ Memory; `check-picocalc-kbd-bootloader` calibrates it.
    `/dev/ttyUSB0`; this host has no other `ttyUSB` device.
 3. Hold the power key one second, so the controller resets with BOOT0
    high.
-4. Run, from the repository root:
+4. Run, from the repository root, in the shell that set `LOCAL` and
+   `noclobber` above:
 
+       STAMP=$(date -u +%Y%m%dT%H%M%SZ)
        $PYTHON tools/picocalc/kbd_bootloader_id.py /dev/ttyUSB0 \
-           --dump "$NOTES/docs/local/picocalc/kbd-flash-$(date -u +%Y%m%d).bin" \
-           > "$NOTES/docs/local/picocalc/kbd-bootloader-id-$(date -u +%Y%m%d).json"
+           --dump "$LOCAL/kbd-flash-$STAMP.bin" \
+           > "$LOCAL/kbd-bootloader-id-$STAMP.json"
+       sha256sum "$LOCAL/kbd-bootloader-id-$STAMP.json"
 
-   The tool stops sending at the first reply outside the protocol, and the
-   dump stays inside the flash size the part reports.
+   The tool stops sending at the first reply outside the protocol, refuses
+   a dump file that exists, and keeps the dump inside the flash size the
+   part reports; the JSON records the dump's sha256. A sync that fails
+   with "run again" (an ACK that may belong to the first 0x7F) is rerun
+   with a new `STAMP`, whose first 0x7F returns the parser to its command
+   state.
 5. Power off, disconnect USB-C, set SW701 switch 1 OFF, power on.
 
 Predictions: exit 0; bootloader version 0x22 and product ID 0x410, as in
 the vendor wiki's log of its own board; a flash-size word of 64 or 128
 Kbytes (the x8 or xB letter), since 0x410 is the ST medium-density ID; a
 dump whose length equals that size. A product ID of 0x414 points at the
-xC-xE letters; exit 3 means the Read Memory command byte itself was
-refused, the mark of readout protection, and the dump stays unattempted;
-exit 1 with a refusal at the address stage means the bootloader rejected
-that address. The CPUID and DBGMCU_IDCODE reads are attempts: an ST
+xC-xE letters; exit 3 means Get listed Read Memory and its command byte
+was refused, and the dump stays unattempted (hypothesis: readout
+protection, AN3155, which the notes repository does not hold; whether the
+CKS bootloader refuses that byte for another reason is unknown); exit 1
+with the memory reads "not run" means Get listed no Read Memory; exit 1
+with a refusal at the address stage means the bootloader rejected that
+address. The CPUID and DBGMCU_IDCODE reads are attempts: an ST
 bootloader may refuse the private peripheral bus, and on ST silicon
 DBGMCU_IDCODE reads zero outside debug mode (ES096 2.2.2), so a nonzero
 value there distinguishes the CKS part from ST behavior.
@@ -132,9 +157,10 @@ images.
 
 This step writes the Pico's flash and waits for the owner's opt-in.
 
-1. Confirm the saved image from "The Pico's flash image, first" exists.
-   The present kernel is PICO (`uname`: `DiscoBSD pico 2.7 PICO#1
-   rp2040`).
+1. Confirm the saved image from "The Pico's flash image, first":
+   `sha256sum -c` on its `.sha256` file under `$LOCAL` prints `OK`, and
+   the image holds 2097152 bytes. The present kernel is PICO (`uname`:
+   `DiscoBSD pico 2.7 PICO#1 rp2040`).
 2. Seat the Pico in the PicoCalc with the board off. Its micro-USB port
    stays the console and BOOTSEL path once cells are fitted
    (`PICOCALC.md`).

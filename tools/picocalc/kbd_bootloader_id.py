@@ -23,33 +23,41 @@ Reads, in order:
     0x1FFFF7E8, 12 bytes    unique device ID (RM0008 30.2)
     0x1FFFF800, 16 bytes    option bytes (RM0008 Table 4 and its peers,
                             information block): RDP, USER, WRP
-    0xE000ED00, 4 bytes     CPUID: 0x411FC231 r1p1, 0x412FC231 r2p1
-                            (Cortex-M3 TRM, CPUID Base Register)
+    0xE000ED00, 4 bytes     CPUID: 0x411FC231 r1p1 (DDI0337E, CPUID
+                            Base Register); 0x412FC231 r2p1, the same
+                            fields with variant 2 and revision 1
     0xE0042000, 4 bytes     DBGMCU_IDCODE: DEV_ID and REV_ID
                             (RM0008 31.6.1)
 
-Readout protection refuses the Read Memory command byte itself; a NACK
-after the address or the length is the bootloader rejecting that frame.
-The flash-size word decides the verdict; the CPUID and DBGMCU_IDCODE
-reads are attempts recorded apart, because an ST bootloader may refuse
-the private peripheral bus and ES096 2.2.2 makes DBGMCU_IDCODE read
-0x00000000 outside debug mode on ST silicon, so a nonzero value is
-itself an observation about the CKS part.
+A NACK after the address or the length is the bootloader rejecting that
+frame; a NACK of the Read Memory command byte itself is read as readout
+protection (hypothesis: AN3155, which the notes repository does not hold).
+A bootloader that leaves Read Memory out of Get's command list would
+refuse the same byte for another reason, so the memory reads run only
+when Get answers and lists 0x11. The flash-size word decides the verdict;
+the CPUID and DBGMCU_IDCODE reads are attempts recorded apart, because an
+ST bootloader may refuse the private peripheral bus and ES096 2.2.2 makes
+DBGMCU_IDCODE read 0x00000000 outside debug mode on ST silicon, so a
+nonzero value is itself an observation about the CKS part.
 
 --dump FILE copies the application flash from 0x08000000 through the same
-Read Memory command, 256 bytes per request, for the length the flash-size
-word gives (or a --dump-length no larger), and records the copy's sha256: a backup of
-the installed keyboard firmware and the bytes that identify its version.
+Read Memory command, 256 bytes per request, for the length the
+flash-size word gives (or a --dump-length no larger), and records the
+copy's sha256: a backup of the installed keyboard firmware and the bytes
+that identify its version. FILE must not exist yet, so a rerun never
+replaces an earlier copy.
 The vendor wiki's own session (`Setting-Up-Arduino-Development-for-PicoCalc-
 keyboard.md` in the notes repository) shows 57600 baud 8E1, bootloader
 version 0x22 and device ID 0x0410, so 57600 is the default rate.
 
 Exit status: 0 when Get ID and the flash-size word both read; 3 when Get
-ID answers and the flash-size read is refused at its command byte
-(readout protection); 1 for any other refusal of that read, any protocol
-failure (a silent port included; the session then sends nothing more), an
-unopenable port and a dump that cannot complete; 2 for a usage error, a
-missing pyserial and a --dump-length outside 1 to the flash size. The record is
+lists Read Memory, Get ID answers and the flash-size read is refused at
+its command byte (hypothesis: readout protection); 1 for any other
+refusal of that read, Read Memory absent from Get's list, any protocol
+failure (a silent port and an ambiguous sync included; the
+session then sends nothing more), an unopenable port and a dump that
+cannot complete; 2 for a usage error, a missing pyserial, an existing
+dump file and a --dump-length outside 1 to the flash size. The record is
 printed as JSON on standard output.
 
 Usage: $PYTHON tools/picocalc/kbd_bootloader_id.py /dev/ttyUSB0
@@ -59,6 +67,7 @@ Calibration: $PYTHON tools/picocalc/kbd_bootloader_id_test.py
 import argparse
 import hashlib
 import json
+import os
 import sys
 import time
 
@@ -131,13 +140,22 @@ class Bootloader:
             raise ProtocolError(f"{what}: byte 0x{b:02x} is neither ACK nor NACK")
 
     def sync(self):
-        """Send the baud-rate detection byte. A bootloader synced by an
-        earlier session takes 0x7F as a command byte and waits for its
-        complement, so a silent first byte gets a second 0x7F, whose
-        failed complement check draws the NACK that marks it synced."""
+        """Send the baud-rate detection byte and leave the parser waiting
+        for a command byte.
+
+        A fresh bootloader answers 0x7F with ACK. One synced by an earlier
+        session takes 0x7F as a command byte and waits for its complement,
+        so a silent first byte gets a second 0x7F, whose failed complement
+        check draws NACK and returns the parser to its command state; a
+        NACK to either byte marks the parser idle. An ACK to the second
+        byte is ambiguous: it may be the first byte's late ACK with the
+        second 0x7F still pending as a command byte, so the session stops,
+        and a rerun's first 0x7F completes that pending byte with NACK.
+        """
         self.port.write(bytes([SYNC]))
         reply = self.port.read(1)
-        if not reply:
+        retried = not reply
+        if retried:
             self.port.write(bytes([SYNC]))
             reply = self.port.read(1)
         if len(reply) != 1:
@@ -145,6 +163,8 @@ class Bootloader:
         b = reply[0]
         if b not in (ACK, NACK):
             raise ProtocolError(f"sync: byte 0x{b:02x} is neither ACK nor NACK")
+        if retried and b == ACK:
+            raise ProtocolError("sync: an ACK after the second 0x7F may be the first's; run again")
 
     def send_command(self, cmd):
         if cmd not in ALLOWED_COMMANDS:
@@ -240,18 +260,25 @@ def identify(port):
         return EXIT_PROTOCOL, record
     if flash["status"] == "ok":
         return EXIT_OK, record
-    if flash.get("stage") == "command":
+    if flash.get("stage") == "command" and record["get"]["status"] == "ok":
         return EXIT_PROTECTED, record
     return EXIT_PROTOCOL, record
 
 
+MEMORY_READS = ("flash_size_kbytes", "unique_id", "option_bytes", "cpuid", "dbgmcu_idcode")
+
+
 def _identify_reads(bl, record):
-    attempt(record, "get", bl.get)
+    listed = attempt(record, "get", bl.get)
     attempt(record, "get_version", bl.get_version)
     pid = attempt(record, "product_id", bl.get_id)
     if pid is not None:
         record["product_id"]["hex"] = f"0x{pid:03x}"
         record["product_id"]["meaning"] = PRODUCT_IDS.get(pid, "not in the ST F1 table")
+    if listed is not None and CMD_READ_MEMORY not in listed["commands"]:
+        for key in MEMORY_READS:
+            record[key] = {"status": "not run", "detail": "Get lists no Read Memory (0x11)"}
+        return
     attempt(
         record,
         "flash_size_kbytes",
@@ -313,6 +340,9 @@ def main(argv):
         "--dump-length", type=int, help="bytes to copy, 1 to the flash size; default the flash size"
     )
     args = ap.parse_args(argv)
+    if args.dump and os.path.lexists(args.dump):
+        print(f"kbd_bootloader_id: {args.dump} exists; name a new file", file=sys.stderr)
+        return EXIT_USAGE
     try:
         import serial  # pyserial
     except ImportError:
@@ -349,7 +379,7 @@ def main(argv):
                     record["dump"] = {"status": "failed", "detail": str(e)}
                     status = EXIT_PROTOCOL
                 else:
-                    with open(args.dump, "wb") as fh:
+                    with open(args.dump, "xb") as fh:
                         fh.write(image)
                     record["dump"] = {
                         "status": "ok",

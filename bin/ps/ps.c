@@ -632,6 +632,8 @@ cell(const struct kinfo_proc *kp, enum column col, char *buf, size_t n)
 	unsigned times = kp->kp_valid & KP_VALID_TIMES;
 	unsigned long cpu = (unsigned long)kp->kp_utime + kp->kp_stime;
 	long elapsed = now - kp->kp_start;
+	/* Only fork sets a start time, so pid 0, which never forked, has none. */
+	unsigned started = (kp->kp_valid & KP_VALID_START) && kp->kp_start != 0;
 
 	switch (col) {
 	case C_F:
@@ -692,7 +694,7 @@ cell(const struct kinfo_proc *kp, enum column col, char *buf, size_t n)
 		    ((unsigned long)kp->kp_dsize + kp->kp_ssize + 1023) / 1024);
 		return (buf);
 	case C_STIME:
-		if (kp->kp_valid & KP_VALID_START) {
+		if (started) {
 			time_t start = kp->kp_start;
 			struct tm tm = *localtime(&start);
 			static const char months[] =
@@ -731,14 +733,14 @@ cell(const struct kinfo_proc *kp, enum column col, char *buf, size_t n)
 		snprintf(buf, n, "%3lu:%02lu", cpu / 60, cpu % 60);
 		return (buf);
 	case C_ETIME:
-		if (!(kp->kp_valid & KP_VALID_START) || elapsed < 0)
+		if (!started || elapsed < 0)
 			return ("-");
 		put_duration(buf, n, (unsigned long)elapsed, 1);
 		return (buf);
 	case C_PCPU: {
 		unsigned long permille;
 
-		if (!times || !(kp->kp_valid & KP_VALID_START) || elapsed < 0)
+		if (!times || !started || elapsed < 0)
 			return ("-");
 		permille = elapsed == 0 ? 0 :
 		    cpu * 1000 / ((unsigned long)elapsed * hz);
@@ -874,6 +876,14 @@ read_context(void)
 			my_tty = st.st_rdev;
 			break;
 		}
+	/*
+	 * A descriptor on /dev/console carries the redirector's own device
+	 * number, while the session's records carry the device cnopen()
+	 * substitutes (tty_name() above), so the caller's terminal is that.
+	 */
+	if (my_tty != NODEV && consdev != NODEV &&
+	    stat("/dev/console", &st) == 0 && st.st_rdev == my_tty)
+		my_tty = consdev;
 	my_uid = getuid();
 	my_euid = geteuid();
 	now = time(NULL);

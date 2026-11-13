@@ -184,6 +184,13 @@ MEMORY_DEVICES = ("mem", "kmem", "swap")
 # brackets.
 PS_INIT_ROW = re.compile(r"^ *1 \S+ +\d+:\d\d +\[\S*init\]$", re.M)
 
+# The caller's own ps row in the default BSD listing: pid, terminal, time,
+# and the command with its arguments.
+PS_OWN_ROW = re.compile(r"^ *\d+ co +\d+:\d\d ps$", re.M)
+
+# "ps -o pid= -o stime= -o etime= -p 0": the swapper's row, with no start.
+PS_SWAPPER_START = re.compile(r"^ *0 +- +-$", re.M)
+
 # One row of "ps -A -o pid= -o comm=": every header is empty, so ps prints
 # no header line.
 PS_ROW = re.compile(r"^ *(\d+) (\S.*)$")
@@ -310,6 +317,35 @@ def check_ps(console: Console) -> None:
         console.fail(f"BSD process list: no row for init with a time and its name in {rows_text!r}")
         raise StageFailed("BSD process list")
     console.wait_for("$", "operator shell after the BSD process list", COMMAND_BUDGET_SECONDS)
+
+    # With no selection, both grammars list the caller's processes on the
+    # caller's terminal. The shell sits on the console, whose sessions carry
+    # the device the redirector substitutes, so a ps that matched the
+    # terminal by /dev/console's own number would list nothing here.
+    start = console.cursor
+    console.type_line("ps; ps -o pid= -o comm=; echo ps-end")
+    console.wait_for("\nps-end", "default process lists", COMMAND_BUDGET_SECONDS)
+    lines = console.text()[start:console.cursor].splitlines()
+    if not PS_OWN_ROW.search("\n".join(lines)):
+        console.fail(f"default process lists: no BSD row for ps itself in {lines!r}")
+        raise StageFailed("default process lists")
+    if not any(m and m.group(2) == "ps" for m in map(PS_ROW.match, lines)):
+        console.fail(f"default process lists: no POSIX row for ps itself in {lines!r}")
+        raise StageFailed("default process lists")
+    console.wait_for("$", "operator shell after the default process lists",
+                     COMMAND_BUDGET_SECONDS)
+
+    # fork sets u_start, and the swapper never forked: its record reports
+    # start 0, so its start and elapsed time print as "-" rather than as
+    # times reckoned from the epoch.
+    start = console.cursor
+    console.type_line("ps -o pid= -o stime= -o etime= -p 0; echo ps0-end")
+    console.wait_for("\nps0-end", "swapper start", COMMAND_BUDGET_SECONDS)
+    text = console.text()[start:console.cursor]
+    if not PS_SWAPPER_START.search(text):
+        console.fail(f"swapper start: no row with '-' start and elapsed time in {text!r}")
+        raise StageFailed("swapper start")
+    console.wait_for("$", "operator shell after the swapper start", COMMAND_BUDGET_SECONDS)
     print(f"check-renode: process list after {console.virtual:.1f} virtual seconds")
 
 

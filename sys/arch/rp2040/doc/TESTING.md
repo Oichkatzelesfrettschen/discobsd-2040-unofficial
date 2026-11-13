@@ -1789,7 +1789,7 @@ numbers.
 
 `check-renode` runs tools/renode/check-boot.sh, which boots the UART0
 console kernel from the real RP2040 boot ROM, asserts the console through
-the device probe, logs in, runs `uname`, `ps -A` and `ps ax` as operator, tries to
+the device probe, logs in, runs `uname` and five ps listings as operator, tries to
 open the kernel memory devices as operator, `sysctl kern.capacity`, `mputest` and `mputest residue`, reads core 1's
 state, then holds the Renode log to a fixed set of warning classes.
 
@@ -1805,6 +1805,15 @@ from operator. The image built before ps read the kernel's process records
 was run as the known-bad input, and the stage failed with no row for pid 0;
 that ps read user areas through /dev/mem and /dev/swap and dropped the
 resident pid 0 and ps rows on every boot and a folded-swap row on some.
+With no selection, `ps` and `ps -o pid= -o comm=` must each list ps
+itself: the shell's terminal is the console, whose sessions carry the
+device the redirector substitutes, so ps must match the caller's terminal
+by that device rather than by `/dev/console`'s own number. An image whose
+ps compared `/dev/console`'s number failed the stage, printing only the
+header line. `ps -o pid= -o stime= -o etime= -p 0` must then print `-` for
+both times, since only fork sets the start time and the swapper's record
+reports none; a ps that formats a start of 0 failed the stage, printing
+`0 Dec31 20770-04:55:49`.
 
 The kernel memory device stage follows from the same operator shell. The
 image ships `/dev/mem`, `/dev/kmem` and `/dev/swap` mode 0640 root:kmem and

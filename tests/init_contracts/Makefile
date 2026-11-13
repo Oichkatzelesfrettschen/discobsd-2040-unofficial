@@ -25,7 +25,7 @@ GC_SECTIONS!= if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
 # a named check. mutate.sh requires its pattern to match exactly once.
 MUTANTS= term-kills-marker wterm-kills-marker spawn-no-delay \
 	runcom-waits-after-refusal daemon-refusal-no-backoff \
-	alarm-handler-schedules
+	alarm-handler-schedules alarm-handler-no-rearm
 
 check: init_fork_test ${MUTANTS:@m@init_${m}.test@}
 	./init_fork_test
@@ -70,7 +70,10 @@ init_daemon-refusal-no-backoff.c: ${INIT_SRC} mutate.sh
 	sh ./mutate.sh ${INIT_SRC} $@ 'dfailed(d, -1);\n\t\treturn;' 'return;'
 
 init_alarm-handler-schedules.c: ${INIT_SRC} mutate.sh
-	sh ./mutate.sh ${INIT_SRC} $@ '\tdtimer = 1;\n}' '\tdtimer = 1;\n\tdschedule();\n}'
+	sh ./mutate.sh ${INIT_SRC} $@ '\tdtimer = 1;\n\talarm(1);\n}' '\tdtimer = 1;\n\talarm(1);\n\tdschedule();\n}'
+
+init_alarm-handler-no-rearm.c: ${INIT_SRC} mutate.sh
+	sh ./mutate.sh ${INIT_SRC} $@ '\tdtimer = 1;\n\talarm(1);\n}' '\tdtimer = 1;\n}'
 
 .for m in ${MUTANTS}
 init_${m}.test: init_fork_test.c init_${m}.c daemons.o

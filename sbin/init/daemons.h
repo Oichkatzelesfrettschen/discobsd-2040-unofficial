@@ -40,7 +40,7 @@
 #define	DHEALTHY_RUN	60
 
 struct dtab {
-	char	cmd[DCMDSIZ];	/* path and arguments, single-space separated */
+	char	cmd[DCMDSIZ];	/* path and at most DNARGS - 2 arguments */
 	char	root[DROOTSIZ];	/* chroot directory, "" for none */
 	uid_t	uid;
 	gid_t	gid;

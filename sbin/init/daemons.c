@@ -53,7 +53,7 @@ dtab_parse(const char *line, struct dtab *d)
 {
 	size_t end, start, len, colon, i, out;
 	long uid, gid;
-	int blank;
+	int blank, words;
 
 	end = strlen(line);
 	while (end > 0 && (line[end - 1] == '\n' || line[end - 1] == '\r'))
@@ -106,12 +106,16 @@ dtab_parse(const char *line, struct dtab *d)
 		return (-1);
 	out = 0;
 	blank = 0;
+	words = 1;
 	for (; i < end; i++) {
 		if (ISBLANK(line[i])) {
 			blank = 1;
 			continue;
 		}
 		if (out + blank + 1 >= DCMDSIZ)
+			return (-1);
+		/* dtab_argv() passes at most DNARGS - 1 words to execve(). */
+		if (blank && ++words > DNARGS - 1)
 			return (-1);
 		if (blank)
 			d->cmd[out++] = ' ';

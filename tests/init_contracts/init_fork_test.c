@@ -354,9 +354,13 @@ alarm_handler_only_records_the_deadline(void)
 	dalarm(SIGALRM);
 	CHECK(fork_calls == 0);
 	CHECK(dtimer == 1);
+	/* The repeat alarm covers a deadline that lands just before wait(2). */
+	CHECK(alarm_calls == 1 && alarm_last == 1);
 	dtimer_run();
 	CHECK(fork_calls == 1 && d.pid == 11);
 	CHECK(dtimer == 0);
+	/* With nothing pending, dschedule() cancels the repeat. */
+	CHECK(alarm_last == 0);
 	dtab = 0;
 }
 

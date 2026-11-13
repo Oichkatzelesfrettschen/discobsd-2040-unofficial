@@ -113,6 +113,18 @@ rejects_fields_that_do_not_fit(void)
 	strcpy(line + n + 1, " 1:1 - backoff");
 	CHECK(dtab_parse(line, &d) == -1);
 
+	/* A word past the argv slots would be dropped, so the line is refused. */
+	strcpy(line, "/x");
+	for (n = 1; n < DNARGS - 1; n++)
+		strcat(line, " a");
+	strcat(line, " 1:1 - backoff");
+	CHECK(dtab_parse(line, &d) == 1);
+	strcpy(line, "/x");
+	for (n = 1; n < DNARGS; n++)
+		strcat(line, " a");
+	strcat(line, " 1:1 - backoff");
+	CHECK(dtab_parse(line, &d) == -1);
+
 	n = DROOTSIZ - 1;
 	strcpy(line, "/x 1:1 /");
 	memset(line + 8, 'r', n - 1);

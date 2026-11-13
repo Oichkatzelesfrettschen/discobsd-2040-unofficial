@@ -255,6 +255,14 @@ dexec(d)
 	signal(SIGTSTP, SIG_DFL);
 	sigsetmask(0L);
 
+	/*
+	 * ttyopen() in sys/kern/tty.c gives a process whose p_pgrp is 0 the
+	 * opened tty as its controlling terminal and joins its process group,
+	 * so the child leaves init's group 0 before it opens the console;
+	 * console interrupts and hangups then never reach the daemon.
+	 */
+	setpgrp(0, getpid());
+
 	/* The console descriptor reports a failure and closes on exec. */
 	con = open(ctty, O_WRONLY);
 	if (con >= 0 && con < 3) {
@@ -361,11 +369,19 @@ dschedule()
 	alarm(soonest ? (unsigned)(soonest > now ? soonest - now : 1) : 0);
 }
 
+/*
+ * The handler records the deadline and re-arms a one-second alarm, both
+ * safe in signal context. An alarm that lands after multiple() tests dtimer
+ * but before wait(2) blocks is then repeated within a second, and the
+ * repeat interrupts that wait; dschedule() replaces the one-second alarm
+ * with the next real deadline.
+ */
 void
 dalarm(sig)
 	int sig;
 {
 	dtimer = 1;
+	alarm(1);
 }
 
 /*
@@ -431,6 +447,8 @@ dfree()
 
 	alarm(0);
 	dtimer = 0;
+	/* reset() leaves idle() by longjmp, past its own clearing of didle. */
+	didle = 0;
 	while ((d = dtab) != 0) {
 		dtab = d->next;
 		free(d);
@@ -532,7 +550,9 @@ idle (sig)
 		}
 		pid = wait(&status);
 		if (pid == -1) {
-			sigpause(0L);
+			/* An interrupted wait still has children to reap. */
+			if (errno != EINTR)
+				sigpause(0L);
 			continue;
 		}
 		omask = sigblock(sigmask(SIGALRM));
@@ -869,13 +889,23 @@ multiple()
 		dtimer_run();
 		pid = wait(&status);
 		if (pid == -1) {
-			/* With no child left, a pending restart waits for its alarm. */
 			if (errno == EINTR)
 				continue;
-			if (dpending()) {
-				sigpause(0L);
+			/*
+			 * With no child left, a pending restart waits for its
+			 * alarm. merge() frees entries, so the table is read
+			 * with SIGHUP and SIGALRM blocked, and sigpause()
+			 * restores the mask and waits in one step, so an alarm
+			 * after the test still ends the pause.
+			 */
+			omask = sigblock(sigmask(SIGHUP) | sigmask(SIGALRM));
+			if (dtimer || dpending()) {
+				if (!dtimer)
+					sigpause(omask);
+				sigsetmask(omask);
 				continue;
 			}
+			sigsetmask(omask);
 			return;
 		}
 		omask = sigblock(sigmask(SIGHUP) | sigmask(SIGALRM));

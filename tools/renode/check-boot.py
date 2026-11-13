@@ -121,7 +121,6 @@ STORAGE_LINES = [
 LOGIN_LINES = [
     "Automatic boot in progress: starting file system checks.",
     "/dev/fl0a:",
-    "Starting daemons:  update",
 ]
 
 # The formatter accepts the versioned kernel structure only when its compiled
@@ -183,6 +182,9 @@ STALL_LINES = [
 # from and prints the name in parentheses; a kernel without the tier holds
 # it on the swap device and ps prints its arguments.
 PS_INIT_ROW = re.compile(r"^ *1 \S+ +\d+:\d\d +(\(init\)|init( .*)?)$", re.M)
+# init starts update from /etc/daemons (sbin/init/init.8), so update's row
+# shows the supervisor ran its table.
+PS_UPDATE_ROW = re.compile(r"^ *\d+ \S+ +\d+:\d\d +(\(update\)|/?update( .*)?)$", re.M)
 
 ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
@@ -273,6 +275,9 @@ def check_ps(console: Console) -> None:
     rows = console.text()[start:console.cursor]
     if not PS_INIT_ROW.search(rows):
         console.fail(f"process list: no row for init with a time and its name in {rows!r}")
+        raise StageFailed("process list")
+    if not PS_UPDATE_ROW.search(rows):
+        console.fail(f"process list: no row for the supervised update in {rows!r}")
         raise StageFailed("process list")
     console.wait_for("$", "operator shell after the process list", COMMAND_BUDGET_SECONDS)
     print(f"check-renode: process list after {console.virtual:.1f} virtual seconds")

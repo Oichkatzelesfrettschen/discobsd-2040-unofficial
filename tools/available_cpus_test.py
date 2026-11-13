@@ -9,8 +9,9 @@ ancestor, one on an ancestor only, a fractional quota (rounded up),
 cgroup v1 under each mount name and beside an empty sibling, v1 ancestors,
 a hybrid host's v1 line beside a v2 line under unified/,
 "max", malformed files and an affinity list with ranges must each give the
-expected count. On the host, both counters must agree, and under
-`taskset -c 0` (where present) both must print 1.
+expected count. On the host, both counters must agree, and pinned by
+`taskset` (where present) to the lowest CPU in the process's affinity
+mask, which a cpuset that excludes CPU 0 still allows, both must print 1.
 
 Mutants that must fail: in each language a walk that skips ancestors, a
 quota rounded down and the first quota taken in place of the tightest;
@@ -230,11 +231,11 @@ with tempfile.TemporaryDirectory() as tmp:
     finally:
         ac._ancestors = shipped_ancestors
     shipped_ceil = ac.math.ceil
-    ac.math.ceil = int
+    setattr(ac.math, "ceil", int)  # noqa: B010 (mypy refuses int for an overload)
     try:
         check(python_caught(), "python mutant quota rounded down is rejected")
     finally:
-        ac.math.ceil = shipped_ceil
+        setattr(ac.math, "ceil", shipped_ceil)  # noqa: B010
     shipped_quota = ac.cgroup_cpu_quota
 
     def first_quota(proc_cgroup=ac.PROC_SELF_CGROUP, cgroup_root=ac.CGROUP_ROOT):
@@ -273,20 +274,21 @@ real_shell = int(
 )
 check(real_shell == ac.available_cpus(), f"shell and python agree on this host ({real_shell})")
 if shutil.which("taskset") and hasattr(os, "sched_getaffinity"):
+    pin = str(min(os.sched_getaffinity(0)))
     pinned_shell = subprocess.run(
-        ["taskset", "-c", "0", "sh", str(SCRIPT)],
+        ["taskset", "-c", pin, "sh", str(SCRIPT)],
         env=clean_env(),
         capture_output=True,
         text=True,
         check=True,
     ).stdout.strip()
     pinned_python = subprocess.run(
-        ["taskset", "-c", "0", sys.executable, "-I", str(HERE / "available_cpus.py")],
+        ["taskset", "-c", pin, sys.executable, "-I", str(HERE / "available_cpus.py")],
         capture_output=True,
         text=True,
         check=True,
     ).stdout.strip()
-    check(pinned_shell == "1" and pinned_python == "1", "both print 1 under taskset -c 0")
+    check(pinned_shell == "1" and pinned_python == "1", f"both print 1 under taskset -c {pin}")
     host_quota = ac.cgroup_cpu_quota()
     if (os.cpu_count() or 1) > 1 and (host_quota is None or host_quota > 1):
         with tempfile.TemporaryDirectory() as tmp:
@@ -296,16 +298,19 @@ if shutil.which("taskset") and hasattr(os, "sched_getaffinity"):
                 source.replace("len(os.sched_getaffinity(0)) or 1", "os.cpu_count() or 1")
             )
             pinned_mutant = subprocess.run(
-                ["taskset", "-c", "0", sys.executable, "-I", str(mutant)],
+                ["taskset", "-c", pin, sys.executable, "-I", str(mutant)],
                 capture_output=True,
                 text=True,
                 check=True,
             ).stdout.strip()
-        check(pinned_mutant != "1", "python mutant affinity ignored is rejected under taskset -c 0")
+        check(
+            pinned_mutant != "1",
+            f"python mutant affinity ignored is rejected under taskset -c {pin}",
+        )
     else:
         print("SKIP affinity mutant: this process's CPU count or quota is 1, so it cannot differ")
 else:
-    print("SKIP taskset -c 0: taskset or sched_getaffinity absent on this host")
+    print("SKIP taskset pin: taskset or sched_getaffinity absent on this host")
 
 print(f"available_cpus: {failures} failed")
 sys.exit(1 if failures else 0)

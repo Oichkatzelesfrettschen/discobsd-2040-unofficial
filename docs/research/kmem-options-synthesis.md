@@ -151,3 +151,35 @@ The owner decided four questions:
   compile to nothing without SD. The dump device moves off the live flash
   swap. The panic-time writer and `savecore` are a separate series.
 - `ps -r` and `include/psout.h` are retired.
+
+## As built
+
+The series implements the decided design with three changes found while
+building it, each measured on PICO (`arm-none-eabi-size`, `nm -S`):
+
+- **Kernel selection.** `KERN_PROC` keeps `KERN_PROC_ALL` and
+  `KERN_PROC_PID`. The group, terminal and user selectors had no caller in
+  the tree, and filtering a 16-row table is a projection the caller does
+  over the full table; dropping them and `kp_where` (residency is `SLOAD`
+  in `kp_flag` and `kp_stat`) took `sysctl_doproc()` from 628 to 504
+  bytes. The pid test runs before the user-area read, and the room check
+  for a short buffer runs before it too, so neither costs a sleeping read.
+- **Record.** `struct kinfo_proc` is 184 bytes: 183 of fields and one of
+  tail padding. It carries exact text, data and stack sizes, which the
+  board capacity tests need, and `kp_ctime`, the reaped children's time
+  that `w(1)` documents for its job column.
+- **Arguments.** `u_psargs` is 52 bytes, the whole slack, so `struct
+  user` is exactly `UAREA_STACK_OFFSET`, which `subr_capacity.c` asserts.
+
+Text size across the series, start to end:
+
+| Kernel | Before | After | Change |
+|---|---:|---:|---:|
+| PICO | 99,662 | 99,838 | +176 |
+| PICO_UART | 90,300 | 90,692 | +392 |
+
+The SwapRAM kernels recover 216 bytes from the retired
+`machdep.swapram_psinfo` node; PICO_UART has no pool node to retire. The
+`ps` a.out grows from 14,062 to 16,763 bytes, most of it local time for
+STIME and `getopt()` for the POSIX grammar, and its bss falls from 5,164 to
+1,308 bytes.

@@ -222,6 +222,7 @@ dconsole(msg)
 	const char *msg;
 {
 	register int f;
+	long omask;
 
 	/*
 	 * ttyopen() in sys/kern/tty.c makes the opened tty the controlling
@@ -231,11 +232,15 @@ dconsole(msg)
 	 * otherwise init would join the login shell's group, take console
 	 * signals and pass the console to every child, and getty could no
 	 * longer start a login on it. Gettys inherit group 0 from init, which
-	 * lets each one claim its own line.
+	 * lets each one claim its own line. reset() and idlehup() leave by
+	 * longjmp, so SIGTERM, SIGHUP and SIGTSTP wait until init is back in
+	 * group 0.
 	 */
+	omask = sigblock(sigmask(SIGHUP) | sigmask(SIGTERM) | sigmask(SIGTSTP));
 	setpgrp(0, 1);
 	f = open(ctty, O_WRONLY);
 	setpgrp(0, 0);
+	sigsetmask(omask);
 	if (f >= 0) {
 		write(f, msg, strlen(msg));
 		close(f);

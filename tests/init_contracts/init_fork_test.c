@@ -151,8 +151,14 @@ int test_setpgrp(pid_t p, pid_t g)
 int test_creat(const char *p, int m) { (void)p; (void)m; return -1; }
 int test_close(int d) { (void)d; return 0; }
 int test_dup2(int a, int b) { (void)a; return b; }
-long test_sigsetmask(long m) { return m; }
-long test_sigblock(long m) { return m; }
+long test_sigsetmask(long m) { trace_add("r"); return m; }
+long test_sigblock(long m)
+{
+	long need = sigmask(SIGHUP) | sigmask(SIGTERM) | sigmask(SIGTSTP);
+
+	trace_add((m & need) == need ? "b" : "s");
+	return m;
+}
 int test_sigpause(long m) { (void)m; return -1; }
 unsigned int test_alarm(unsigned int s) { alarm_calls++; alarm_last = s; return 0; }
 int test_sysctl(int *n, unsigned l, void *o, size_t *ol, void *nw, size_t nl)
@@ -382,14 +388,15 @@ alarm_handler_only_records_the_deadline(void)
 /*
  * init lives in process group 0, where ttyopen() would attach the console
  * and move init into the login shell's group; the console opens from group
- * 1 and init returns to group 0 before anything else runs.
+ * 1, and init returns to group 0 before SIGHUP, SIGTERM or SIGTSTP can
+ * longjmp out of the switch.
  */
 static void
 console_message_leaves_init_detached(void)
 {
 	reset();
 	dconsole("init: test\n");
-	CHECK(strcmp(trace, "1o0") == 0);
+	CHECK(strcmp(trace, "b1o0r") == 0);
 }
 
 static void

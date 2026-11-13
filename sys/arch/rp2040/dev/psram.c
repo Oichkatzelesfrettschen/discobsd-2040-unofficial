@@ -104,6 +104,10 @@ psramprobe(struct conf_device *config __unused)
 		return 0;
 	psram_hw_init();
 	err = psram_device_init();
+	if (psram_id_read)
+		printf("psram0: read id %02x/%02x eid %02x%02x%02x%02x%02x%02x\n",
+		    psram_mfid, psram_kgd, psram_eid[0], psram_eid[1],
+		    psram_eid[2], psram_eid[3], psram_eid[4], psram_eid[5]);
 	if (err == PSRAM_E_ID)
 		printf("psram0: id %x/%x is not an ESP-PSRAM64H, swap stays on fl1\n",
 		    psram_mfid, psram_kgd);

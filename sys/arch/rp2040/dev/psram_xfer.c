@@ -74,7 +74,8 @@
 #define	PSRAM_READ_WAIT		6	/* datasheet 5.4, truth table, EBh */
 #define	PSRAM_ID_WAIT		1	/* 0 cycles, one released early */
 
-unsigned char psram_mfid, psram_kgd;
+unsigned char psram_mfid, psram_kgd, psram_eid[PSRAM_EID_BYTES];
+int psram_id_read;
 
 /*
  * The frame buffers are file scope: a swap transfer runs on a kernel stack
@@ -205,28 +206,37 @@ psram_cmd_quad(unsigned int cmd)
  * Read ID, serial mode: the command, then 23 address bits; the 24th
  * address clock, which the device ignores, is a turnaround clock so the
  * state machine has released SIO0 before the device drives SIO1 with the
- * first ID bit. Each nibble read carries one ID bit in its bit 1.
+ * first ID bit. Each nibble read carries one ID bit in its bit 1, so each
+ * RX word holds one byte: the manufacturer, the known-good die, then the
+ * six EID bytes. The 96-clock frame holds CS low about 3 us at 31.25 MHz,
+ * inside tCEM, and under the 33 MHz the APS6404L sheet allows for 9Fh.
  */
 static int
 psram_read_id(void)
 {
-	unsigned int w, k, mf = 0, kgd = 0;
+	unsigned char id[2 + PSRAM_EID_BYTES];
+	unsigned int w, k, i, b;
 	int err;
 
-	psram_tx[0] = PSRAM_CTRL_WORD(31, PSRAM_ID_WAIT, 16);
+	psram_tx[0] = PSRAM_CTRL_WORD(31, PSRAM_ID_WAIT, 8 * sizeof(id));
 	psram_tx[1] = psram_serial_word(PSRAM_CMD_READID);
 	psram_tx[2] = psram_tx[3] = psram_tx[4] = 0;
-	err = psram_frame(psram_tx, 5, psram_rx, 2);
+	err = psram_frame(psram_tx, 5, psram_rx, sizeof(id));
 	if (err != 0)
 		return err;
-	for (k = 0; k < 8; k++) {
-		w = (psram_rx[0] >> (28 - 4 * k)) & 0xf;
-		mf = (mf << 1) | ((w >> 1) & 1);
-		w = (psram_rx[1] >> (28 - 4 * k)) & 0xf;
-		kgd = (kgd << 1) | ((w >> 1) & 1);
+	for (i = 0; i < sizeof(id); i++) {
+		b = 0;
+		for (k = 0; k < 8; k++) {
+			w = (psram_rx[i] >> (28 - 4 * k)) & 0xf;
+			b = (b << 1) | ((w >> 1) & 1);
+		}
+		id[i] = (unsigned char)b;
 	}
-	psram_mfid = (unsigned char)mf;
-	psram_kgd = (unsigned char)kgd;
+	psram_mfid = id[0];
+	psram_kgd = id[1];
+	for (i = 0; i < PSRAM_EID_BYTES; i++)
+		psram_eid[i] = id[2 + i];
+	psram_id_read = 1;
 	return 0;
 }
 
@@ -346,23 +356,30 @@ psram_write(unsigned int addr, const unsigned char *src, unsigned int len)
  * cut short that the device does not execute. Then the identification
  * must read manufacturer 0x0d and a passing known-good die, and a pattern
  * written across a 64-byte frame boundary and a page boundary must read
- * back through quad mode.
+ * back through quad mode. The APS6404L sheet (section 12) admits Read ID
+ * only right after the reset, so a Read ID whose eight-word reply overran
+ * the RX FIFO repeats the reset with it.
  */
 int
 psram_device_init(void)
 {
 	unsigned char pat[PSRAM_SELFTEST], back[PSRAM_SELFTEST];
-	unsigned int i;
+	unsigned int i, tries;
 	int err;
 
-	PSRAM_DELAY_US(PSRAM_RECOVERY_US);
-	if ((err = psram_cmd_quad(PSRAM_CMD_RSTEN)) != 0 ||
-	    (err = psram_cmd_quad(PSRAM_CMD_RST)) != 0 ||
-	    (err = psram_cmd_serial(PSRAM_CMD_RSTEN)) != 0 ||
-	    (err = psram_cmd_serial(PSRAM_CMD_RST)) != 0)
-		return err;
-	PSRAM_DELAY_US(PSRAM_RECOVERY_US);
-	if ((err = psram_read_id()) != 0)
+	psram_id_read = 0;
+	for (tries = 0; tries <= PSRAM_RETRIES; tries++) {
+		PSRAM_DELAY_US(PSRAM_RECOVERY_US);
+		if ((err = psram_cmd_quad(PSRAM_CMD_RSTEN)) != 0 ||
+		    (err = psram_cmd_quad(PSRAM_CMD_RST)) != 0 ||
+		    (err = psram_cmd_serial(PSRAM_CMD_RSTEN)) != 0 ||
+		    (err = psram_cmd_serial(PSRAM_CMD_RST)) != 0)
+			return err;
+		PSRAM_DELAY_US(PSRAM_RECOVERY_US);
+		if ((err = psram_read_id()) != PSRAM_E_STALL)
+			break;
+	}
+	if (err != 0)
 		return err;
 	if (psram_mfid != PSRAM_MFID || psram_kgd != PSRAM_KGD_PASS)
 		return PSRAM_E_ID;

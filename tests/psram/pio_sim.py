@@ -178,13 +178,19 @@ class Device:
     commands the driver uses, in serial and quad mode."""
 
     def __init__(
-        self, kgd=0x5D, mfid=0x0D, stuck_low_sio=None, absent=False, seed=1
+        self,
+        kgd=0x5D,
+        mfid=0x0D,
+        stuck_low_sio=None,
+        absent=False,
+        seed=1,
+        eid=bytes([0xC0, 0xDE, 0x12, 0x34, 0x56, 0x78]),
     ):
         rnd = random.Random(seed)
         self.mem = bytearray(rnd.getrandbits(8) for _ in range(4096)) * (
             SIZE // 4096
         )
-        self.eid = bytes([0xC0, 0xDE, 0x12, 0x34, 0x56, 0x78])
+        self.eid = bytes(eid)
         self.kgd, self.mfid = kgd, mfid
         self.stuck_low_sio = stuck_low_sio
         self.absent = absent
@@ -592,8 +598,12 @@ class Pio:
         access_ticks=6,
         out_gated=False,
         in_gated=False,
+        forced_stalls=(),
     ):
         self.dev = dev
+        # Chip-select frames, by index into dev.frames, whose completion
+        # reports FDEBUG.RXSTALL once, as an RX FIFO overrun would.
+        self.forced_stalls = set(forced_stalls)
         self.out_ns, self.in_ns = out_ns, in_ns
         self.out_gated, self.in_gated = out_gated, in_gated
         self.access_ticks = access_ticks
@@ -687,7 +697,12 @@ class Pio:
             v |= 1 if len(self.rx) >= self._rx_depth() else 0
             return v
         if off == 0x008:
-            return (1 if self.rxstall else 0) | (1 << 16 if self.txover else 0)
+            forced = len(self.dev.frames) - 1 in self.forced_stalls
+            if forced:
+                self.forced_stalls.discard(len(self.dev.frames) - 1)
+            return (1 if self.rxstall or forced else 0) | (
+                1 << 16 if self.txover else 0
+            )
         if off == 0x020:
             if not self.rx:
                 raise RuntimeError("RX FIFO read while empty")

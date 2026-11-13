@@ -897,14 +897,18 @@ ESP-PSRAM64H (8 MB) on GP2-GP5, GP20 and GP21 is not a hardware SPI pin
 set, so PIO0 state machine 0 clocks it; `docs/research/picocalc-psram.md`
 holds the datasheet pages, the program, the timing derivation and the
 evidence. `psramprobe()` runs from `config()`, before `init_main()` opens
-`swapdev`: it resets the part, reads its ID, requires manufacturer 0x0D and
-a passing known-good die, enters quad mode and writes and reads back a
-pattern. A part that passes becomes block device major 3 and replaces `fl1`
-as `swapdev`, so swap is 8 MB behind the SWAPRAM tier and the 384 KB flash
-swap region goes unused; a part that does not pass prints one `psram0:` line
-and leaves `swapdev` on `fl1`. SCK runs at 31.25 MHz (`PSRAM_CLKDIV` in
-`psram_pio.h`), a frame holds CS low for under 5 us against the 8 us tCEM,
-and interrupts are masked for that long per frame.
+`swapdev`: it resets the part, reads its ID (manufacturer, known-good die
+and the 48-bit EID, printed as `psram0: read id 0d/5d eid` and twelve hex
+digits), requires manufacturer 0x0D and a passing known-good die, enters
+quad mode and writes and reads back a pattern. A part that passes becomes
+block device major 3 and replaces `fl1` as `swapdev`, so swap is 8 MB
+behind the SWAPRAM tier and the 384 KB flash swap region goes unused; a
+part that does not pass prints a second `psram0:` line and leaves
+`swapdev` on `fl1`. The EID tells the ESP-PSRAM64H, LY68L6400 and APS6404L
+apart only against reads of reference parts: the APS6404L sheet alone
+defines a field, EID[47:45] = 010 for 64 Mbit. SCK runs at 31.25 MHz
+(`PSRAM_CLKDIV` in `psram_pio.h`), a frame holds CS low for under 5 us
+against the 8 us tCEM, and interrupts are masked for that long per frame.
 
 Open for the board run: the read sampling margin depends on pad delays no
 datasheet gives and on whether the output and input register stages run on

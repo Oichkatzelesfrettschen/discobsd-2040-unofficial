@@ -275,9 +275,9 @@ def _identify_reads(bl, record):
     if pid is not None:
         record["product_id"]["hex"] = f"0x{pid:03x}"
         record["product_id"]["meaning"] = PRODUCT_IDS.get(pid, "not in the ST F1 table")
-    if listed is not None and CMD_READ_MEMORY not in listed["commands"]:
+    if listed is None or CMD_READ_MEMORY not in listed["commands"]:
         for key in MEMORY_READS:
-            record[key] = {"status": "not run", "detail": "Get lists no Read Memory (0x11)"}
+            record[key] = {"status": "not run", "detail": "Get did not list Read Memory (0x11)"}
         return
     attempt(
         record,

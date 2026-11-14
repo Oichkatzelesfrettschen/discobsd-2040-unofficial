@@ -35,7 +35,8 @@ DEFS		= -Wall -ffreestanding
 # calls the kernel's entry points directly rather than through a wrapper.
 # The 64-bit members name their own view: each time64_*.c member replaces
 # this definition, and gen/Makefile and compat/Makefile build NAME64.o
-# from NAME.c with _TIME_BITS redefined as 64.
+# from NAME.c, and syslog.o, which converts the clock for its log line,
+# with _TIME_BITS redefined as 64.
 DEFS		+= -D_TIME_BITS=32
 
 # The zone in force comes from one kernel field unless the installation

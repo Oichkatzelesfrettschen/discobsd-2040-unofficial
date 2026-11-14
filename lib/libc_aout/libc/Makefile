@@ -195,6 +195,11 @@ ${member}64.o: ${LIBCDIR}/compat/${member}.c
 		    ${LIBCDIR}/compat/${member}.c
 .endfor
 
+# syslog.o at the 64-bit view, as lib/libc/gen/Makefile builds it.
+syslog.o: ${LIBCDIR}/gen/syslog.c
+		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o syslog.o \
+		    ${LIBCDIR}/gen/syslog.c
+
 vfprintf.o fputs.o: ${LIBCDIR}/stdio/output.h
 atexit.o exit.o: ${LIBCDIR}/stdio/atexit.h
 at_quick_exit.o quick_exit.o: ${LIBCDIR}/stdlib/quick_exit.h

@@ -90,6 +90,12 @@ ${member}64.o: ${member}.c
 		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o $@ ${.CURDIR}/${member}.c
 .endfor
 
+# syslog() stamps each message with the clock converted to local time, and
+# its interface carries no time, so its one member takes the 64-bit view and
+# reads the clock past 2038 for callers of either width.
+syslog.o: syslog.c
+		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o $@ ${.CURDIR}/syslog.c
+
 tags:
 		cwd=`pwd`; \
 		for i in ${SRCS}; do \

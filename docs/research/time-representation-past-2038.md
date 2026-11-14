@@ -682,7 +682,8 @@ What stays limited:
   instant in any other zone) with a refusal, because it compared
   `timegm()`'s answer with (time_t)-1 alone. It now sets the probe's
   `tm_wday` to -1 before each `timegm()` call and takes -1 as a refusal
-  only while the sentinel stands. `mktime64.o` goes from 678 to 698
+  only while the sentinel stands. With the fields read once (the last
+  residual below), `mktime64.o` goes from 678 to 714
   bytes; the other twenty 64-bit members and the 32-bit `mktime.o` are
   byte-identical (`md5sum`). `tests/time64_calendar` converts that second
   in GMT and five hours west, natively, at ILP32 and as Thumb-1 under
@@ -766,7 +767,12 @@ at stop point P3.0 on the sparse image (P8b) and the board baseline
 - `mktime()` calls `localtime()` and so overwrites the object a caller's
   earlier `localtime()` returned; C permits that only of the functions that
   return such a pointer. The shared conversion now takes a caller-supplied
-  struct, which is the piece a repair needs.
+  struct, which is the piece a repair needs. The answer no longer depends
+  on it: the 64-bit `mktime()` read the caller's struct again after its
+  own `localtime()` call, so `mktime(localtime(&t))` returned the instant
+  one zone offset away outside GMT; it now reads the fields once, before
+  the search, as the 32-bit one does (`tests/time64_calendar`, with a
+  mutant).
 - The 64-bit interface's cost is measured with the compiler's own 64-bit
   division; with the seven-bit split and with every call site converted
   it is unmeasured.

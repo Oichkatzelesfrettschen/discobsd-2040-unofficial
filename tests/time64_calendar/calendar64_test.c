@@ -264,6 +264,11 @@ check_zone(void)
 		    local.tm_yday == utc.tm_yday, v->count);
 		local.tm_isdst = -1;
 		CHECK(mktime(&local) == t, v->count);
+		/*
+		 * The object localtime() returns is a valid argument: mktime()
+		 * reads the fields before its own localtime() calls reuse it.
+		 */
+		CHECK(mktime(localtime(&t)) == t, v->count);
 
 		fill(&local, v->year, v->mon, v->mday, v->hour, v->min, v->sec);
 		t = mktime(&local);

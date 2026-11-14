@@ -404,17 +404,24 @@ mktime(struct tm *tm)
 time_t
 mktime(struct tm *tm)
 {
-	struct tm probe, *back;
+	struct tm fields, probe, *back;
 	time_t guess;
 	long offset;
 	int pass;
+
+	/*
+	 * The caller may pass the object localtime() returns, which the
+	 * search's own localtime() calls overwrite, so the fields are read
+	 * once, here.
+	 */
+	fields = *tm;
 
 	/*
 	 * The answer as though the fields were UTC, which starts the search.
 	 * timegm() rewrites tm_wday only for a time it accepts, so the
 	 * sentinel tells its refusal from the count -1.
 	 */
-	probe = *tm;
+	probe = fields;
 	probe.tm_wday = -1;
 	guess = timegm(&probe);
 	if (guess == TIME_REFUSED && probe.tm_wday == -1)
@@ -431,7 +438,7 @@ mktime(struct tm *tm)
 		 */
 		offset = back->tm_gmtoff;
 
-		probe = *tm;
+		probe = fields;
 		probe.tm_isdst = back->tm_isdst;
 		probe.tm_wday = -1;
 		guess = timegm(&probe);

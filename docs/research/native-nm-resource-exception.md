@@ -59,4 +59,7 @@ cleanup. Further size optimization needs its own measured candidate.
 
 The requested exception covers exactly the positive deltas above for the
 optional native executable, with no growth on the 162 shipped measures.
-Approval remains pending. Main `f6020463` supplies the rollback point.
+The owner approves these exact limits on 2026-11-14 and authorizes continued
+review and qualification. The approval covers this measured candidate and
+these limits; additional growth requires a new decision. Main `f6020463`
+supplies the rollback point.

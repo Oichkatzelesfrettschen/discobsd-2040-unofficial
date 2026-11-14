@@ -254,4 +254,5 @@ Those counts establish accounting, not complete C17 semantic acceptance.
 The optional native executable's positive deltas are recorded separately in
 [native-nm-resource-exception.md](native-nm-resource-exception.md). Shipped
 resource equality does not absorb that executable's 1,140-byte loaded growth.
-Its exact exception remains pending user approval.
+The owner approves its exact exception on 2026-11-14; final CI and integration
+remain open.

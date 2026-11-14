@@ -884,12 +884,18 @@ the last row, after the console line; the loader's stage stays intact and
 its menu stays reachable from the keyboard at power-on. PICOCALC_PSRAM with
 a working PSRAM swaps there instead and does not need fl1.
 
+`SystemClock_Config()` moves clk_sys to clk_ref and stops the aux-only
+clocks before it resets and reprograms either PLL, because the loader's
+stage may leave clk_sys running from PLL_SYS (datasheet 2.15.3.2 and
+2.18.3).
+
 Evidence: `check-loader-stamp` proves the decode, the bound and the swap
 writer against the bound on the host, and the wiring of the two
 primitives in the source. The bare route's boot is the Renode boot of
 `check-renode`. No kernel has been booted from the loader on a board or in
-Renode, so the stamped path stands on source reading and the host gate
-alone. Two further collisions stay open: the loader's path text at
+Renode, so the stamped path stands on source reading and the host gate,
+and the clock sequence entered from the loader's stage on source and
+datasheet reading. Two further collisions stay open: the loader's path text at
 0x118-0x12b overlays the image identity words, and an application flashed
 later from the menu erases the flash root above 128 KB.
 

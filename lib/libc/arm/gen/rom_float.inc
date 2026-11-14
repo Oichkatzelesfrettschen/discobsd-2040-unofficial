@@ -30,6 +30,41 @@ symbol:
 #define ROM_FLOAT_CELL_NAME(member) __rp2040_rom_float_##member##_cell
 #define ROM_FLOAT_FIRST_NAME(member) Lrp2040_rom_float_##member##_first
 
+#ifdef DISCOBSD_SHARED_LIBC
+#if DISCOBSD_SHARED_LIBC != 1
+#error DISCOBSD_SHARED_LIBC requires value 1
+#endif
+/* Shared descriptor bit 6 selects a GOT offset; TESTING.md records its gate. */
+#define ROM_FLOAT_CELL_ADDRESS(member, destination, scratch) \
+	ldr destination, 9f; \
+	mov scratch, r9; \
+	ldr destination, [scratch, destination]
+#define ROM_FLOAT_GOT_LITERAL(member) \
+	.p2align 2; \
+9:	.word ROM_FLOAT_CELL_NAME(member)(GOT)
+#define ROM_FLOAT_DESCRIPTOR_CELL(member) ROM_FLOAT_CELL_NAME(member)(GOT)
+#define ROM_FLOAT_DESCRIPTOR_FEATURE(feature) ((feature) | 0x40)
+#define ROM_FLOAT_DOUBLE_BRANCH(member) \
+	push {r2, r3}; \
+	ROM_FLOAT_CELL_ADDRESS(member, r3, r2); \
+	ldr r3, [r3]; \
+	mov ip, r3; \
+	pop {r2, r3}; \
+	bx ip
+#else
+#define ROM_FLOAT_CELL_ADDRESS(member, destination, scratch) \
+	ldr destination, =ROM_FLOAT_CELL_NAME(member)
+#define ROM_FLOAT_GOT_LITERAL(member)
+#define ROM_FLOAT_DESCRIPTOR_CELL(member) ROM_FLOAT_CELL_NAME(member)
+#define ROM_FLOAT_DESCRIPTOR_FEATURE(feature) feature
+#define ROM_FLOAT_DOUBLE_BRANCH(member) \
+	push {r3, r4}; \
+	ldr r3, =ROM_FLOAT_CELL_NAME(member); \
+	ldr r3, [r3]; \
+	str r3, [sp, #4]; \
+	pop {r3, pc}
+#endif
+
 /*
  * The resolver reads the descriptor at lr - 1, the byte after the bl, with
  * a word load, so the word must sit on a four-byte boundary. mov ip, lr is
@@ -46,12 +81,13 @@ symbol:
 ROM_FLOAT_FIRST_NAME(member):; \
 	mov ip, lr; \
 	bl __rp2040_rom_float_resolve; \
-	.word ROM_FLOAT_CELL_NAME(member); \
+	.word ROM_FLOAT_DESCRIPTOR_CELL(member); \
 	.hword table_code; \
 	.byte table_offset; \
-	.byte feature; \
+	.byte ROM_FLOAT_DESCRIPTOR_FEATURE(feature); \
 	.size ROM_FLOAT_FIRST_NAME(member), . - ROM_FLOAT_FIRST_NAME(member); \
 	.pool; \
+	ROM_FLOAT_GOT_LITERAL(member); \
 	.data; \
 	.p2align 2; \
 	.globl ROM_FLOAT_CELL_NAME(member); \
@@ -67,7 +103,7 @@ ROM_FLOAT_CELL_NAME(member):; \
 #define ROM_FLOAT_SINGLE_TARGET(member, symbol, table_code, table_offset, feature) \
 	ROM_FLOAT_TEXT; \
 	ROM_FLOAT_FUNCTION(symbol); \
-	ldr r2, =ROM_FLOAT_CELL_NAME(member); \
+	ROM_FLOAT_CELL_ADDRESS(member, r2, r3); \
 	ldr r3, [r2]; \
 	bx r3; \
 	ROM_FLOAT_FUNCTION_END(symbol); \
@@ -76,10 +112,6 @@ ROM_FLOAT_CELL_NAME(member):; \
 #define ROM_FLOAT_DOUBLE_TARGET(member, symbol, table_code, table_offset, feature) \
 	ROM_FLOAT_TEXT; \
 	ROM_FLOAT_FUNCTION(symbol); \
-	push {r3, r4}; \
-	ldr r3, =ROM_FLOAT_CELL_NAME(member); \
-	ldr r3, [r3]; \
-	str r3, [sp, #4]; \
-	pop {r3, pc}; \
+	ROM_FLOAT_DOUBLE_BRANCH(member); \
 	ROM_FLOAT_FUNCTION_END(symbol); \
 	ROM_FLOAT_TARGET_DESCRIPTOR(member, table_code, table_offset, feature)

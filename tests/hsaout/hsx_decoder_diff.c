@@ -57,6 +57,24 @@ static int quick, stopfirst;
     } while (0)
 
 static uint32_t rstate = 0x9e3779b9u;
+
+/* hsx_stream's ring runs must keep both decoder writes and CRC reads inside
+ * the contiguous suffix declared by hsx_decoder.h, even when an overflow into
+ * consumed staging bytes would preserve the output and its CRC. */
+unsigned
+hsx_checked_run (struct hsx_dec *d, unsigned char *base, unsigned mask,
+    unsigned room)
+{
+    if (mask == HSXD_WINDOW - 1) {
+        if (base != d->win || room > HSXD_WINDOW - (d->pos & mask)) {
+            CHECK (0, "history ring run crosses end: position %u room %u",
+                d->pos, room);
+            return 0;
+        }
+    }
+    return hsx_dec_run (d, base, mask, room);
+}
+
 static unsigned
 rnd (void)
 {
@@ -791,6 +809,25 @@ put (struct bits *b, unsigned val, unsigned width)
 }
 
 static void
+ring_limits (void)
+{
+    struct bits *b = malloc (sizeof *b);
+    unsigned extra, i;
+    char name[64];
+
+    if (b == NULL)
+        exit (2);
+    for (extra = 1; extra <= 8; extra++) {
+        b->n = 0;
+        for (i = 0; i < HSXD_WINDOW + extra; i++)
+            put (b, 256 | (i & 255), 9);
+        snprintf (name, sizeof name, "ring boundary plus %u", extra);
+        compare_exec (name, b->buf, (b->n + 7) / 8, HSXD_WINDOW + extra);
+    }
+    free (b);
+}
+
+static void
 handmade (void)
 {
     struct bits *b = malloc (sizeof *b);
@@ -837,11 +874,13 @@ main (int argc, char **argv)
             quick = 1;
         else if (strcmp (argv[i], "-s") == 0)
             stopfirst = 1;
-        else {
-            aouts (argv[i], &nfiles);
+        else
             dirs++;
-        }
     }
+    ring_limits ();
+    for (i = 1; i < argc; i++)
+        if (strcmp (argv[i], "-q") != 0 && strcmp (argv[i], "-s") != 0)
+            aouts (argv[i], &nfiles);
     CHECK (dirs == 0 || nfiles != 0, "no a.out files under the named directories");
     CHECK (sizeof (struct hsx_work) <= HSX_WORK_SIZE, "work area");
     random_data ();

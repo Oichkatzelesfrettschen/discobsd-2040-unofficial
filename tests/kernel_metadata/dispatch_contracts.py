@@ -245,9 +245,13 @@ def check(root, host_cc):
                 'numeric assembly differs')
         for configuration in ['PICO', 'PICO_UART']:
             build = root / 'sys/arch/rp2040/compile' / configuration
+            # Detached flag queries cannot use the parent's closed jobserver pipes.
+            query_environment = os.environ.copy()
+            query_environment.pop('MAKEFLAGS', None)
+            query_environment.pop('MFLAGS', None)
             evaluated = subprocess.check_output(
                 ['bmake', '-C', str(build), '-V', '${CC} ${CFLAGS} ${INCLUDES} ${PARAM} -DKERNEL'],
-                text=True)
+                text=True, env=query_environment)
             flags = shlex.split(evaluated)
             require(all(flag in flags for flag in ['-std=gnu17', '-Wall', '-Wextra',
                     '-Werror', '-mcpu=cortex-m0plus', '-mthumb', '-mfloat-abi=soft']),

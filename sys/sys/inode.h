@@ -32,9 +32,9 @@ struct icommon1 {
 };
 
 struct icommon2 {
-    time_t  ic_atime;       /* time last accessed */
-    time_t  ic_mtime;       /* time last modified */
-    time_t  ic_ctime;       /* time created */
+    utime32_t ic_atime;     /* time last accessed */
+    utime32_t ic_mtime;     /* time last modified */
+    utime32_t ic_ctime;     /* time created */
 };
 
 struct fs;
@@ -76,6 +76,10 @@ struct inode {
     } i_un0;
     union {
         struct proc *I_wsel;        /* pipe write select */
+        struct {
+            u_short I_error;       /* block device's first write error */
+            u_short I_state;       /* open count and device-operation lock */
+        } I_block;
     } i_un1;
     union {
         daddr_t I_addr[NADDR];      /* normal file/directory */
@@ -136,6 +140,12 @@ struct dinode {
 #define i_exlockc   i_un0.i_l.I_exlockc
 #define i_rsel      i_un0.I_rsel
 #define i_wsel      i_un1.I_wsel
+#define i_bdev_error i_un1.I_block.I_error
+#define i_bdev_state i_un1.I_block.I_state
+
+/* Disk nodes share the lock bit; cooked opens use the count and error fields. */
+#define IBDEV_LOCKED 0x8000U
+#define IBDEV_REFS   0x7fffU
 #define i_db        i_un2.i_f.I_db
 #define i_ib        i_un2.i_f.I_ib
 #define i_atime     i_ic2.ic_atime
@@ -234,6 +244,7 @@ int openi (struct inode *ip, int mode);
  * Close inode: call the device driver for special (IBLK, ICHR) files.
 */
 int closei (struct inode *ip, int flag);
+int vn_close(struct inode *ip, int flags);
 
 /*
  * Convert a pathname into a pointer to a locked inode.
@@ -409,8 +420,8 @@ struct vattr {
     uid_t   va_uid;
     gid_t   va_gid;
     off_t   va_size;
-    time_t  va_atime;
-    time_t  va_mtime;
+    utime32_t va_atime;
+    utime32_t va_mtime;
     u_int   va_flags;
     u_int   va_vaflags;
 };

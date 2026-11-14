@@ -316,7 +316,7 @@ char *file;
                 if (cflag) {
                     if (nfile>1)
                         printf("%s:", file);
-                    printf("%D\n", tln);
+                    printf("%ld\n", tln);
                     fflush(stdout);
                 }
                 return;

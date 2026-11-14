@@ -376,7 +376,7 @@ nouser:
 		void login(struct utmp *);
 
 		bzero((char *)&utmp, sizeof(utmp));
-		(void)time(&utmp.ut_time);
+		utmp.ut_time = (utime32_t)time((time_t *)0);
 		strncpy(utmp.ut_name, username, sizeof(utmp.ut_name));
 		if (hostname)
 			strncpy(utmp.ut_host, hostname, sizeof(utmp.ut_host));
@@ -558,8 +558,11 @@ dolastlog(int quiet)
 		if (!quiet) {
 			if (read(fd, (char *)&ll, sizeof(ll)) == sizeof(ll) &&
 			    ll.ll_time != 0) {
+				/* The record's 32-bit count (<lastlog.h>). */
+				time_t last = (time_t)ll.ll_time;
+
 				(void)printf("Last login: %.*s ",
-				    24-5, (char *)ctime(&ll.ll_time));
+				    24-5, (char *)ctime(&last));
 				if (*ll.ll_host != '\0')
 					(void)printf("from %.*s\n",
 					    sizeof(ll.ll_host), ll.ll_host);
@@ -570,7 +573,7 @@ dolastlog(int quiet)
 			(void)lseek(fd, (off_t)pwd->pw_uid * sizeof(ll), L_SET);
 		}
 		bzero((char *)&ll, sizeof(ll));
-		(void)time(&ll.ll_time);
+		ll.ll_time = (utime32_t)time((time_t *)0);
 		strncpy(ll.ll_line, tty, sizeof(ll.ll_line));
 		if (hostname)
 			strncpy(ll.ll_host, hostname, sizeof(ll.ll_host));

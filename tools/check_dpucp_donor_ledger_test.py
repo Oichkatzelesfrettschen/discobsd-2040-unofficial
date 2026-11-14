@@ -648,6 +648,17 @@ def main():
     cases.append(("measured size without evidence", changed))
 
     changed = copy.deepcopy(document)
+    ndbm_candidate = next(
+        candidate
+        for candidate in changed["candidates"]
+        if candidate["id"] == "libc-ndbm-open-admission"
+    )
+    ndbm_candidate["size_estimate"]["evidence"] = (
+        "docs/research/context-sort-resource-exception.md"
+    )
+    cases.append(("ndbm measurement with unrelated evidence", changed))
+
+    changed = copy.deepcopy(document)
     changed["candidates"][0]["deciding_gate"] = ""
     cases.append(("candidate without deciding gate", changed))
 

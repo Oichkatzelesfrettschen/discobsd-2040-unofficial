@@ -92,8 +92,6 @@ typedef struct _rlib {
 static RLIB *rhead, **pnext;
 
 static FILE *fp;
-static long symcnt;			/* symbol count */
-static long tsymlen;			/* total string length */
 static int verbose;
 
 static void
@@ -244,12 +242,10 @@ rexec(int rfd, int wfd)
 		rp->symlen = symlen;
 		rp->sym = (char*) emalloc(symlen + 1);
 		memcpy(rp->sym, name, (size_t)symlen + 1);
-		tsymlen += symlen;
 
 		/* Build in forward order for "ar -m" command. */
 		*pnext = rp;
 		pnext = &rp->next;
-		++symcnt;
 	}
 bad1:	(void)lseek(rfd, (off_t)r_off, SEEK_SET);
 }
@@ -267,6 +263,7 @@ symobj(void)
 	char hb[2 * sizeof(struct ar_hdr)];
 	long ransize, baseoff;
 	mode_t creation_mask;
+	unsigned int table_uid, table_gid, table_mode;
 
 	/* Rewind the archive, leaving the magic number. */
 	if (fseek(fp, (off_t)SARMAG, SEEK_SET) == (off_t)-1)
@@ -282,8 +279,34 @@ symobj(void)
 	/* Put out the ranlib archive file header. */
 	creation_mask = umask(0);
 	(void)umask(creation_mask);
-	(void)snprintf(hb, sizeof hb, HDR2, RANLIBMAG, 0L, getuid(), getgid(),
-	    0666 & ~creation_mask, ransize, ARFMAG);
+	table_uid = getuid();
+	table_gid = getgid();
+	table_mode = 0666 & ~creation_mask;
+#ifdef CROSS
+	/*
+	 * Under a well-formed SOURCE_DATE_EPOCH the host build records the
+	 * ids and mode usr.bin/ar records for a member (member_owner in
+	 * ar/archive.c), so the table header is the same on every host.
+	 */
+	{
+		const char *text = getenv("SOURCE_DATE_EPOCH");
+		char *end;
+		unsigned long long epoch;
+
+		if (text != NULL && *text >= '0' && *text <= '9') {
+			errno = 0;
+			epoch = strtoull(text, &end, 10);
+			if (errno == 0 && *end == '\0' &&
+			    epoch <= AR_DATE_MAX) {
+				table_uid = 0;
+				table_gid = 0;
+				table_mode = 0644;
+			}
+		}
+	}
+#endif
+	(void)snprintf(hb, sizeof hb, HDR2, RANLIBMAG, 0UL, table_uid,
+	    table_gid, table_mode, ransize, ARFMAG);
 	if (! fwrite(hb, sizeof(struct ar_hdr), 1, fp))
 		error(tname);
 
@@ -333,18 +356,62 @@ free_symbol_list(void)
 	rhead = NULL;
 }
 
+/*
+ * source_clock --
+ *	The present as a stored date (see stored_date in ar/archive.c),
+ *	bounded in the host build by SOURCE_DATE_EPOCH, the same bound
+ *	tools/fsutil puts on the file times of an image, so equal objects
+ *	give equal archives.  *bounded tells whether the variable set the
+ *	result.  An absent or malformed value leaves the clock, as does one
+ *	above AR_DATE_MAX, the end of the range an archive header holds.
+ */
+static unsigned long
+source_clock(int *bounded)
+{
+	unsigned long now = stored_date(time((time_t *)NULL));
+#ifdef CROSS
+	const char *text = getenv("SOURCE_DATE_EPOCH");
+	char *end;
+	unsigned long long epoch;
+
+	if (text != NULL && *text >= '0' && *text <= '9') {
+		errno = 0;
+		epoch = strtoull(text, &end, 10);
+		if (errno == 0 && *end == '\0' && epoch <= AR_DATE_MAX &&
+		    now > epoch) {
+			*bounded = 1;
+			return ((unsigned long)epoch);
+		}
+	}
+#endif
+	*bounded = 0;
+	return (now);
+}
+
+/*
+ * settime --
+ *	Date the symbol table.  ld reads an archive as sorted only while
+ *	the file is at most two seconds newer than this date, so it leads
+ *	the clock by RANLIBSKEW, up to the end of the stored range.
+ */
 static void
 settime(int afd)
 {
 	struct ar_hdr *hdr;
 	off_t size;
 	char buf[50];
+	int bounded;
+	unsigned long date;
 
 	size = SARMAG + sizeof(hdr->ar_name);
 	if (lseek(afd, size, SEEK_SET) == (off_t)-1)
 		error(archive);
-	(void)snprintf(buf, sizeof(buf), "%-12ld",
-	    time((time_t *)NULL) + RANLIBSKEW);
+	date = source_clock(&bounded);
+	if (date > AR_DATE_MAX - RANLIBSKEW)
+		date = AR_DATE_MAX;
+	else
+		date += RANLIBSKEW;
+	(void)snprintf(buf, sizeof(buf), "%-12lu", date);
 	write_bytes(afd, buf, sizeof(hdr->ar_date), archive);
 }
 
@@ -399,7 +466,6 @@ build(void)
 
 	/* Read through the archive, creating list of symbols. */
 	pnext = &rhead;
-	symcnt = tsymlen = 0;
 	while(get_arobj(afd)) {
 		if (strcmp(chdr.name, RANLIBMAG) == 0) {
 			skip_arobj(afd);
@@ -469,6 +535,24 @@ touch(void)
 	copy_ar(&cf, payload_size, 0);
 	settime(replacement_fd);
 	commit_archive_rewrite(afd, replacement_fd);
+#ifdef CROSS
+	/*
+	 * An installed archive whose table date came from SOURCE_DATE_EPOCH
+	 * takes that time as its own, so the image fsutil stages from it
+	 * holds a file no newer than its table whatever the epoch is when
+	 * the image is made.
+	 */
+	{
+		struct timeval times[2];
+		int bounded;
+
+		times[0].tv_sec = source_clock(&bounded);
+		times[0].tv_usec = 0;
+		times[1] = times[0];
+		if (bounded && utimes(archive, times) < 0)
+			error(archive);
+	}
+#endif
 	return(0);
 }
 

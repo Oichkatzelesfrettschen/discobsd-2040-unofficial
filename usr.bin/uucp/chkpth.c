@@ -36,7 +36,7 @@ char *path, *logname, *mchname;
 
 	/* Allow only rooted pathnames.  Security wish.  rti!trt */
 	if (*path != '/') {
-		DEBUG(4, "filename doesn't begin with /\n", CNULL);
+		DEBUG(4, "filename doesn't begin with /\n");
 		return FAIL;
 	}
 
@@ -64,7 +64,7 @@ char *path, *logname, *mchname;
 	/*  check for /../ in path name  */
 	for (s = path; *s != '\0'; s++) {
 		if (prefix("/../",s)) {
-			DEBUG(4, "filename has /../ in it\n", CNULL);
+			DEBUG(4, "filename has /../ in it\n");
 			return FAIL;
 		}
 	}
@@ -73,7 +73,7 @@ char *path, *logname, *mchname;
 	for (p = u->us_path; *p != NULL; p++)
 		if (prefix(*p, path))
 			return SUCCESS;
-	DEBUG(4, "filename not in list\n", CNULL);
+	DEBUG(4, "filename not in list\n");
 
 	/* path name not valid */
 	return FAIL;
@@ -105,14 +105,14 @@ rdpth()
 
 		u = (struct userpath *)malloc(sizeof (struct userpath));
 		if (u == NULL) {
-			DEBUG (1, "*** Userpath malloc failed\n", 0);
+			DEBUG (1, "*** Userpath malloc failed\n");
 			fclose (uf);
 			return;
 		}
 		if ((pc = (char *)calloc((unsigned)strlen(buf) + 1, sizeof (char)))
 			== NULL) {
 			/* can not allocate space */
-			DEBUG (1, "Userpath calloc 1 failed\n", 0);
+			DEBUG (1, "Userpath calloc 1 failed\n");
 			fclose(uf);
 			return;
 		}
@@ -142,7 +142,7 @@ rdpth()
 		cp = (char **)calloc((unsigned)(nargs-i+1), sizeof(char *));
 		if (cp == NULL) {
 			/*  can not allocate space */
-			DEBUG (1, "Userpath calloc 2 failed!\n", 0);
+			DEBUG (1, "Userpath calloc 2 failed!\n");
 			fclose(uf);
 			return;
 		}

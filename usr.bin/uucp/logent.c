@@ -83,7 +83,6 @@ register FILE *fp;
 {
 	static int pid = 0;
 	register struct tm *tp;
-	extern struct tm *localtime();
 
 	if (text == NULL)
 		text = "";
@@ -150,7 +149,6 @@ syslog(text)
 char *text;
 {
 	register struct tm *tp;
-	extern struct tm *localtime();
 #ifdef LOGBYSITE
 	char lfile[MAXFULLNAME];
 	static char SLogRmtname[64];
@@ -201,11 +199,12 @@ char *text;
 #ifdef USG
 	fprintf(Sp, "(%d/%d-%2.2d:%2.2d) ", tp->tm_mon + 1,
 		tp->tm_mday, tp->tm_hour, tp->tm_min);
-	fprintf(Sp, "(%ld) %s\n", Now.time, text);
+	fprintf(Sp, "(%lu) %s\n", (unsigned long)Now.time, text);
 #else
 	fprintf(Sp, "(%d/%d-%02d:%02d) ", tp->tm_mon + 1,
 		tp->tm_mday, tp->tm_hour, tp->tm_min);
-	fprintf(Sp, "(%ld.%02u) %s\n", Now.time, Now.millitm/10, text);
+	fprintf(Sp, "(%lu.%02u) %s\n", (unsigned long)Now.time,
+	    Now.millitm/10, text);
 #endif
 
 	/* Position at end and flush */

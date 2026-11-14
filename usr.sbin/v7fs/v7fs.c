@@ -373,7 +373,7 @@ cmd_put(struct image *im, const char *local, const char *path, bool directory)
 	struct v7fs_inode parent, inode, original_inode;
 	struct copy c = { -1, true };
 	struct stat st;
-	uint64_t needed;
+	uint64_t needed, parent_size;
 	v7fs_ino_t dir, ino;
 	int error, cleanup_error;
 
@@ -406,8 +406,9 @@ cmd_put(struct image *im, const char *local, const char *path, bool directory)
 	if ((error = v7fs_inode_load(im->fs, &parent, dir)) != 0)
 		goto out;
 	needed = directory ? 1 : blocks_for((uint64_t)st.st_size);
-	if (v7fs_inode_filesize(&parent) % V7FS_BSIZE == 0)
-		needed++;
+	parent_size = v7fs_inode_filesize(&parent);
+	needed += blocks_for(parent_size + sizeof(struct v7fs_dirent)) -
+	    blocks_for(parent_size);
 	if (needed > im->fs->superblock.total_freeblock) {
 		error = ENOSPC;
 		goto out;

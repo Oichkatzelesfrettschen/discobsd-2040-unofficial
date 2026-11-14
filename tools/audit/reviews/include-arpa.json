@@ -1,0 +1,32 @@
+{
+  "baseline": "1e9864463c57f11c3a45db37d393652023843171",
+  "paths": [
+    "include/arpa/inet.h"
+  ],
+  "method": "Read immutable Git objects and compare width, prototype, operand grouping/evaluation, include prerequisite, ownership-declaration and serialization boundaries. Follow only named support headers; retain excluded implementation dependencies as open review actions.",
+  "failure_classes": [
+    "type/ABI mismatch",
+    "macro grouping and repeated evaluation",
+    "missing include prerequisite or reinclusion guard",
+    "serialized/native layout confusion",
+    "installation error suppression"
+  ],
+  "source_evidence": [
+    "include/arpa/inet.h"
+  ],
+  "tests": [],
+  "findings": [],
+  "limitations": [
+    "Source inspection only; execution, actual callers and unlisted symlink targets were excluded.",
+    "Per-path residuals require implementation or interface evidence before behavioral closure.",
+    "A header declaration does not establish implementation correctness, hardware behavior or supported whole-standard conformance."
+  ],
+  "path_dispositions": [
+    {
+      "path": "include/arpa/inet.h",
+      "blob": "14d7287d99dd46847c1dcf8d7bac4a99e44ca7bf",
+      "mode": "100644",
+      "disposition": "Conversion declarations reviewed; sys/endian.h owns macro evaluation and byte order."
+    }
+  ]
+}

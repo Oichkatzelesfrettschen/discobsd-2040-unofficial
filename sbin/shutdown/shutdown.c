@@ -24,6 +24,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/param.h>
+#include <limits.h>
 #include <sys/syslog.h>
 
 #define	REBOOT	"/sbin/reboot"
@@ -44,7 +45,7 @@ void	nolog(time_t);
 
 struct	utmp utmp;
 int	sint;
-long	stogo;
+long	stogo;			/* seconds to go, bounded by main() */
 char	tpath[] =	"/dev/";
 int	nlflag = 1;		/* nolog yet to be done */
 int	killflg = 1;
@@ -106,7 +107,7 @@ warning(term, sdt, now, type)
 	char *type;
 {
 	char *ts;
-	register int delay = sdt - now;
+	register int delay = (int)(sdt - now);
 
 	if (delay > 8)
 		while (delay % 5)
@@ -187,15 +188,24 @@ main(argc,argv)
 		fprintf(stderr, "NOT super-user\n");
 		finish(0);
 	}
-	nowtime = time((long *)0);
+	nowtime = time((time_t *)0);
 	sdt = getsdt(argv[0]);
+	/*
+	 * The minute count printed below and the delay warning() computes
+	 * are ints, so a shutdown further off than an int of seconds is
+	 * refused here rather than announced with a wrapped figure.
+	 */
+	if (sdt - nowtime > INT_MAX) {
+		fprintf(stderr, "shutdown: time is too far in the future\n");
+		finish(0);
+	}
 	argc--, argv++;
 	nolog2[0] = '\0';
 	while (argc-- > 0) {
 		(void) strcat(nolog2, " ");
 		(void) strcat(nolog2, *argv++);
 	}
-	m = ((stogo = sdt - nowtime) + 30)/60;
+	m = ((stogo = (long)(sdt - nowtime)) + 30)/60;
 	h = m/60;
 	m %= 60;
 	ts = ctime(&sdt);
@@ -240,7 +250,7 @@ main(argc,argv)
 		}
 		if (sint >= stogo || sint == 0)
 			f = "FINAL ";
-		nowtime = time((long *)0);
+		nowtime = time((time_t *)0);
 		(void) lseek(ufd, 0L, 0);
 		while (read(ufd,(char *)&utmp,sizeof utmp)==sizeof utmp)
 		if (utmp.ut_name[0] &&
@@ -290,9 +300,9 @@ main(argc,argv)
 				doitfast();
 #ifndef DEBUG
 			if (doreboot)
-				execle(REBOOT, "reboot", "-l", nosync, 0, 0);
+				execle(REBOOT, "reboot", "-l", nosync, (char *)0, (char **)0);
 			if (halt)
-				execle(HALT, "halt", "-l", nosync, 0, 0);
+				execle(HALT, "halt", "-l", nosync, (char *)0, (char **)0);
 			(void) kill(1, SIGTERM);	/* to single user */
 #else
 			if (doreboot)
@@ -309,7 +319,7 @@ main(argc,argv)
 #endif
 			finish(0);
 		}
-		stogo = sdt - time((long *) 0);
+		stogo = (long)(sdt - time((time_t *)0));
 		if (stogo > 0 && sint > 0)
 			sleep((unsigned)(sint<stogo ? sint : stogo));
 		stogo -= sint;
@@ -321,7 +331,8 @@ time_t
 getsdt(s)
 	register char *s;
 {
-	time_t t, t1, tim;
+	long t, tim;		/* seconds from now, or into today */
+	time_t t1;
 	register char c;
 	struct tm *lt;
 
@@ -339,8 +350,7 @@ getsdt(s)
 		if (t <= 0)
 			t = 5;
 		t *= 60;
-		tim = time((long *) 0) + t;
-		return(tim);
+		return(time((time_t *)0) + t);
 	}
 	t = 0;
 	while (strlen(s) > 2 && isdigit(*s))
@@ -357,7 +367,7 @@ getsdt(s)
 		goto badform;
 	tim += t;
 	tim *= 60;
-	t1 = time((long *) 0);
+	t1 = time((time_t *)0);
 	lt = localtime(&t1);
 	t = lt->tm_sec + lt->tm_min*60 + (long)lt->tm_hour*3600;
 	if (tim < t || tim >= ((long)24*3600)) {

@@ -14,6 +14,7 @@ EXPECTED_LABELS = {
     "linux-cross",
     "linux-core1-emulation",
     "linux-flash",
+    "linux-flash-picocalc",
     "linux-host",
     "linux-kernel-headroom",
     "linux-lint",
@@ -22,8 +23,10 @@ EXPECTED_LABELS = {
     "linux-renode-capacity",
     "linux-renode-identity",
     "linux-renode-picocalc",
+    "linux-renode-picocalc-dump",
     "linux-renode-union",
     "linux-stm32-build",
+    "linux-storage-prefix",
     "linux-uf2",
     "macos-board-build",
     "macos-build",
@@ -54,7 +57,12 @@ EXPECTED_COMMANDS = {
     "linux-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
     "linux-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',
     "linux-host": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host',
-    "linux-kernel-headroom": "bmake MACHINE=rp2040 check-kernel-headroom",
+    "linux-flash-picocalc": (
+        'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 BOARD=PICOCALC flash'
+    ),
+    "linux-kernel-headroom": (
+        "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link"
+    ),
     "linux-lint": "bmake MACHINE=rp2040 check-lint",
     "linux-qemu": "bmake MACHINE=rp2040 check-qemu",
     "linux-core1-emulation": "bmake MACHINE=rp2040 check-core1-emulation",
@@ -62,15 +70,21 @@ EXPECTED_COMMANDS = {
     "linux-renode-capacity": "bmake MACHINE=rp2040 check-renode-capacity",
     "linux-renode-identity": "bmake MACHINE=rp2040 check-renode-identity",
     "linux-renode-picocalc": "bmake MACHINE=rp2040 check-renode-picocalc",
+    "linux-renode-picocalc-dump": "bmake MACHINE=rp2040 check-renode-picocalc-dump",
     "linux-renode-union": "bmake MACHINE=rp2040 check-renode-union",
     "linux-stm32-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=stm32 build',
+    "linux-storage-prefix": (
+        "bmake MACHINE=rp2040 STORAGE_PREFIX_PARENT_BLOCKS=1 check-storage-recovery-prefix"
+    ),
     "linux-uf2": "bmake MACHINE=rp2040 check-uf2-images",
     "macos-board-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build',
     "macos-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build',
     "macos-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
     "macos-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',
     "macos-host": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host',
-    "macos-kernel-headroom": "bmake MACHINE=rp2040 check-kernel-headroom",
+    "macos-kernel-headroom": (
+        "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link"
+    ),
     "macos-lint": "bmake MACHINE=rp2040 check-lint",
     "macos-smaller-c": "bmake -C usr.bin/smlrc test",
     "macos-uf2": "bmake MACHINE=rp2040 check-uf2-images",

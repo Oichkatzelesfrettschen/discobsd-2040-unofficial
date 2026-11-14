@@ -170,8 +170,10 @@ for order in pdp little; do
 	"$work/v7fs_fixed" "$work/fixed-$order.img" "$order" ||
 	    fail "fixed descriptor backend ($order)"
 done
-"$work/v7fs_fixed" "$work/fixed-regress.img" little regress ||
-    fail "fixed descriptor backend regressions"
+for order in pdp little; do
+	"$work/v7fs_fixed" "$work/fixed-regress-$order.img" "$order" regress ||
+	    fail "fixed descriptor backend regressions ($order)"
+done
 tree=$work/scratch-exhaustion
 mkdir -p "$tree/sys/fs" "$tree/sbin"
 cp -R "$v7fs" "$tree/sys/fs/"
@@ -237,6 +239,29 @@ got=0
     { cat "$work/mutant.log" >&2; fail "directory-name overread mutant"; }
 echo "v7fs_core: directory-name overread mutant rejected"
 
+mutant symlink-inode-write sys/fs/v7fs/v7fs_file_util.c \
+    'return v7fs_inode_writeback(fs, p);' \
+    'v7fs_inode_writeback(fs, p);\n\treturn 0;'
+got=0
+"$work/symlink-inode-write.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-symlink-writeback:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "symlink inode write mutant"; }
+echo "v7fs_core: hidden symlink inode write error mutant rejected"
+
+mutant inode-address-truncation sys/fs/v7fs/v7fs_inode.c \
+    'for (i = 0; i < V7FS_NADDR; i++)\n\t\tif (mem->addr[i] > V7FS_DADDR_MAX)\n\t\t\treturn EFBIG;' \
+    'for (i = 0; i < V7FS_NADDR; i++)\n\t\t(void)mem->addr[i];'
+got=0
+"$work/inode-address-truncation.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-inode-address-width:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "inode address truncation mutant"
+}
+echo "v7fs_core: out-of-range inode address mutant rejected"
+
 mutant rename-inode-read sys/fs/v7fs/v7fs_file_util.c \
     'if ((error = v7fs_inode_load(fs, &inode, from_ino)) != 0)\n\t\treturn error;' \
     'if ((error = v7fs_inode_load(fs, &inode, from_ino)) != 0)\n\t\treturn ENOENT;'
@@ -257,20 +282,116 @@ got=0
     { cat "$work/mutant.log" >&2; fail "rename parent read mutant"; }
 echo "v7fs_core: hidden rename parent read error mutant rejected"
 
-mutant rename-inode-write sys/fs/v7fs/v7fs_file_util.c \
-    'if ((error = v7fs_inode_writeback(fs, &inode)) != 0)\n\t\t\treturn error;' \
-    'if ((error = v7fs_inode_writeback(fs, &inode)) != 0)\n\t\t\treturn 0;'
+mutant rename-same-inode sys/fs/v7fs/v7fs_file_util.c \
+    'if (to_ino == from_ino)\n\t\t\treturn 0;' \
+    'if (to_ino == 0)\n\t\t\treturn 0;'
 got=0
-"$work/rename-inode-write.bin" "$work/mutant.img" little regress \
+"$work/rename-same-inode.bin" "$work/mutant.img" little regress \
     >"$work/mutant.log" 2>&1 || got=$?
-[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename:' "$work/mutant.log" ||
-    { cat "$work/mutant.log" >&2; fail "rename inode write mutant"; }
-echo "v7fs_core: hidden rename inode write error mutant rejected"
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename-same-path:' \
+    "$work/mutant.log" && \
+    grep -q '^FAIL regress-rename-same-inode-alias:' "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "rename same-inode identity mutant"
+}
+echo "v7fs_core: missing rename same-inode identity guard mutant rejected"
+
+mutant rename-target-add-compensation sys/fs/v7fs/v7fs_file_util.c \
+    'if (target_removed) {\n\t\t\trestore_error = restore_rename_target(fs, parent_to,\n\t\t\t    &target_inode, to, tolen);\n\t\t\treturn restore_error != 0 ? restore_error : error;\n\t\t}\n\t\treturn error;' \
+    'return error;'
+got=0
+"$work/rename-target-add-compensation.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && \
+    grep -q '^FAIL regress-rename-replacement-compensation:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "rename displaced-target add compensation mutant"
+}
+echo "v7fs_core: missing displaced-target add compensation mutant rejected"
+
+mutant rename-source-compensation sys/fs/v7fs/v7fs_file_util.c \
+    'restore_error = v7fs_directory_remove_entry(fs, parent_to, to,\n\t\t    tolen);\n\t\tif (restore_error != 0 || !target_removed)\n\t\t\treturn restore_error != 0 ? restore_error : error;\n\t\trestore_error = restore_rename_target(fs, parent_to, &target_inode,\n\t\t    to, tolen);\n\t\treturn restore_error != 0 ? restore_error : error;' \
+    'return error;'
+got=0
+"$work/rename-source-compensation.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename-write-compensation:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "rename source compensation mutant"
+}
+echo "v7fs_core: missing rename source compensation mutant rejected"
+
+mutant rename-parent-compensation sys/fs/v7fs/v7fs_file_util.c \
+    'restore_error = v7fs_directory_add_entry(fs, parent_from,\n\t\t\t    from_ino, from, fromlen);\n\t\t\tif (restore_error != 0)\n\t\t\t\treturn restore_error;' \
+    'restore_error = 0;'
+got=0
+"$work/rename-parent-compensation.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename-write-compensation:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "rename parent compensation mutant"
+}
+echo "v7fs_core: missing rename parent compensation mutant rejected"
+
+mutant rename-target-parent-compensation sys/fs/v7fs/v7fs_file_util.c \
+    'if (restore_error != 0 || !target_removed)\n\t\t\t\treturn restore_error != 0 ? restore_error : error;\n\t\t\trestore_error = restore_rename_target(fs, parent_to,\n\t\t\t    &target_inode, to, tolen);\n\t\t\treturn restore_error != 0 ? restore_error : error;' \
+    'return error;'
+got=0
+"$work/rename-target-parent-compensation.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename-replacement-compensation:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "rename displaced-target parent compensation mutant"
+}
+echo "v7fs_core: missing displaced-target parent compensation mutant rejected"
+
+tree=$work/rename-hierarchy-late
+mkdir -p "$tree/sys/fs" "$tree/sbin"
+cp -R "$v7fs" "$tree/sys/fs/"
+cp -R "$newfs" "$tree/sbin/"
+"$PYTHON" - "$tree/sys/fs/v7fs/v7fs_file_util.c" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text(encoding="utf-8")
+validation = """\t/* Check directory hierarchy. t_vnops rename_dir(5) */
+\tif (dir_move && (error = can_dirmove(fs, from_ino,
+\t    parent_to->inode_number))) {
+\t\tDPRINTF("dst '%.*s' is child dir of '%.*s'. error=%d\\n",
+\t\t    (int)tolen, to, (int)fromlen, from, error);
+\t\treturn error;
+\t}
+"""
+publication = "\tif ((error = v7fs_directory_add_entry(fs, parent_to, from_ino, to,\n"
+if source.count(validation) != 1 or source.count(publication) != 1:
+    raise SystemExit("rename hierarchy mutation anchor mismatch")
+source = source.replace(validation, "", 1)
+source = source.replace(publication, validation + "\n" + publication, 1)
+path.write_text(source, encoding="utf-8")
+PY
+build "$tree" "$work/rename-hierarchy-late.bin"
+got=0
+"$work/rename-hierarchy-late.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-rename-hierarchy:' \
+    "$work/mutant.log" || {
+	cat "$work/mutant.log" >&2
+	fail "late rename hierarchy validation mutant"
+}
+echo "v7fs_core: late rename hierarchy validation mutant rejected"
 
 # The local regression scenarios hold; reversals and mutants below must
 # fail the corresponding scenario by name with the assertion status.
-"$work/v7fs_core" "$work/regress.img" little regress >"$work/regress.log" ||
-    { cat "$work/regress.log" >&2; fail "regression scenarios"; }
+for order in pdp little; do
+	"$work/v7fs_core" "$work/regress-$order.img" "$order" regress \
+	    >"$work/regress.log" ||
+	    { cat "$work/regress.log" >&2; fail "regression scenarios ($order)"; }
+done
 
 # unpatched NAME PATCH LABEL...: the imported sources with PATCH reversed,
 # built as $work/NAME, must fail every LABEL in regress mode.
@@ -326,7 +447,30 @@ PY
 }
 unpatched no-newfs-patch newfs_v7fs-main.patch regress-ilist
 unpatched no-inode-patch v7fs_inode.patch regress-last-inode regress-inode-bound
-unpatched no-superblock-patch v7fs_superblock.patch regress-superblock regress-inode-read regress-superblock-writeback regress-volume-read
+unpatched no-superblock-patch v7fs_superblock.patch regress-superblock regress-inode-read regress-superblock-writeback regress-volume-read regress-superblock-time
+unpatched no-superblock-util-patch v7fs_superblock_util.patch regress-superblock-time
+
+# Upstream's sanity check refuses a negative update_time as a signed 32-bit
+# value; restoring that one clause rejects a volume dated after January 2038.
+mutant superblock-time-sign sys/fs/v7fs/v7fs_superblock.c \
+    '((sb->nfreeblock == 0) && (sb->total_freeblock != 0)) ||\n' \
+    '((sb->nfreeblock == 0) && (sb->total_freeblock != 0)) ||\n\t    (sb->update_time < 0) ||\n'
+got=0
+"$work/superblock-time-sign.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-superblock-time:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "superblock time sign mutant"; }
+echo "v7fs_core: superblock time sign clause mutant rejected"
+
+# Printing the count as a signed time_t shows 1910 for a clock past 2038.
+mutant superblock-dump-signed sys/fs/v7fs/v7fs_superblock_util.c \
+    'time_t t = (uint32_t)sb->update_time;' 'time_t t = sb->update_time;'
+got=0
+"$work/superblock-dump-signed.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-superblock-time:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "superblock dump signed mutant"; }
+echo "v7fs_core: signed superblock dump mutant rejected"
 unpatched no-datablock-patch v7fs_datablock.patch regress-block-read regress-block-write regress-freeblock-refill regress-grow-writeback regress-grow-rollback regress-indirect-read regress-indirect-writeback regress-address-range regress-size-overflow regress-single-transition regress-double-transition
 grep -q '^FAIL regress-single-transition: data block has no owner' \
     "$work/mutant.log" || fail "single-transition ownership oracle missed a lost block"
@@ -637,6 +781,73 @@ status 0 "$tool" df "$work/full.img"
 [ "$(cat "$work/cmd.out")" = "$before" ] || fail "refused put changed free counts"
 status 1 "$tool" cat "$work/full.img" /b
 echo "v7fs_core: oversized put refused with exact free counts"
+
+# A parent at an indirect-address boundary needs index blocks as well as its
+# next data block. The capacity preflight must account for those blocks before
+# the command allocates an inode or changes persistent bytes.
+"$PYTHON" - "$topsrc/usr.sbin/v7fs/v7fs.c" \
+    "$work/v7fs-parent-under-count.c" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+old = ("\tparent_size = v7fs_inode_filesize(&parent);\n"
+       "\tneeded += blocks_for(parent_size + sizeof(struct v7fs_dirent)) -\n"
+       "\t    blocks_for(parent_size);")
+new = ("\tparent_size = v7fs_inode_filesize(&parent);\n"
+       "\tif (parent_size % V7FS_BSIZE == 0)\n"
+       "\t\tneeded++;")
+if source.count(old) != 1:
+    raise SystemExit("parent capacity mutation anchor count")
+Path(sys.argv[2]).write_text(source.replace(old, new), encoding="utf-8")
+PY
+compile -D_DEFAULT_SOURCE -DSTATIC_BUFFER \
+    -include "$compat/netbsd_compat.h" -I"$compat/compat" \
+    -I"$compat" -isystem "$v7fs" -isystem "$newfs" \
+    -c "$work/v7fs-parent-under-count.c" \
+    -o "$work/v7fs-parent-under-count.o" ||
+    fail "parent capacity mutant compilation"
+set --
+for object in "$topsrc/usr.sbin/v7fs/host.obj/"*.o; do
+	[ "$(basename "$object")" = v7fs.o ] || set -- "$@" "$object"
+done
+${CC:-cc} -fsanitize=address,undefined -o "$work/v7fs-parent-under-count" \
+    "$@" "$work/v7fs-parent-under-count.o" ||
+    fail "parent capacity mutant link"
+for blocks in 10 138; do
+	case "$blocks" in
+	10)	expected_free=2028; payload_blocks=2010 ;;
+	138)	expected_free=1899; payload_blocks=1882 ;;
+	esac
+	dd if=/dev/zero of="$work/pat/parent-$blocks" bs=512 \
+	    count="$payload_blocks" 2>/dev/null
+	for order in little pdp; do
+		flag=
+		[ "$order" = pdp ] && flag=-p
+		img=$work/parent-$blocks-$order.img
+		"$work/v7fs_core" "$img" "$order" parent "$blocks" ||
+		    fail "parent boundary fixture ($blocks, $order)"
+		# shellcheck disable=SC2086  # $flag is empty or one word.
+		status 0 "$tool" $flag df "$img"
+		[ "$(awk '{print $6}' "$work/cmd.out")" -eq "$expected_free" ] ||
+		    fail "parent boundary free count ($blocks, $order)"
+		cp "$img" "$work/parent-$blocks-$order.ref"
+		# shellcheck disable=SC2086  # $flag is empty or one word.
+		status 1 "$tool" $flag put "$img" "$work/pat/parent-$blocks" /boundary
+		cmp -s "$img" "$work/parent-$blocks-$order.ref" ||
+		    fail "parent capacity refusal changed the image ($blocks, $order)"
+		cp "$work/parent-$blocks-$order.ref" \
+		    "$work/parent-$blocks-$order-mutant.img"
+		# shellcheck disable=SC2086  # $flag is empty or one word.
+		status 1 "$work/v7fs-parent-under-count" $flag put \
+		    "$work/parent-$blocks-$order-mutant.img" \
+		    "$work/pat/parent-$blocks" /boundary
+		cmp -s "$work/parent-$blocks-$order-mutant.img" \
+		    "$work/parent-$blocks-$order.ref" &&
+		    fail "parent capacity under-count mutant survived ($blocks, $order)"
+	done
+done
+echo "v7fs_core: parent capacity includes direct and indirect growth"
 
 # get truncates nothing it should not: a directory source, the image as
 # its own destination, and a hard link to the image are refused, and each

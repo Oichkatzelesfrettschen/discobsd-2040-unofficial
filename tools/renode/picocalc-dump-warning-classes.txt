@@ -1,0 +1,20 @@
+# Warning classes the PicoCalc crash-dump run (check-picocalc.sh --dump)
+# produces beyond picocalc-warning-classes.txt, which it reads after this
+# file, so a pattern here wins over the same family there. The run boots
+# twice and types about four times as many lines as the PicoCalc tier.
+#
+# Format: CEILING  PATTERN, as in warning-classes.txt.
+
+# SSPICR (PL022 offset 0x20) is not modeled; picocalc-warning-classes.txt
+# explains the write. Two boots and the longer session gave 114,825
+# occurrences; the ceiling is about twice that.
+230000  ^spi1: Unhandled write to offset 0xN, value 0xN\.
+
+# reboot -d ends in a SYSRESETREQ write to AIRCR. The machine has no reset
+# macro, and the RP2040 models reset the core themselves: the next boot
+# reaches its login prompt, which the run requires. One per reboot.
+2       ^No action for reset - macro rp2040_discobsd\.reset is not registered\.
+
+# The panic stage moves the PC to panic() from the monitor; Renode reports
+# that it sets the Thumb state for the new PC. One per injected panic.
+2       ^cpu0: Patching PC 0xN for Thumb mode\.

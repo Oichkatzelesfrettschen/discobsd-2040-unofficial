@@ -9,11 +9,17 @@
 /*
  * Structure returned by times()
  */
+/*
+ * Each field counts sixtieths of a second of CPU time
+ * (lib/libc/compat/times.c), not seconds since 1970, so it is a long under
+ * every view of time_t (sys/_time_t.h) and the structure keeps one layout
+ * for programs built with either width.
+ */
 struct tms {
-    time_t  tms_utime;      /* user time */
-    time_t  tms_stime;      /* system time */
-    time_t  tms_cutime;     /* user time, children */
-    time_t  tms_cstime;     /* system time, children */
+    long    tms_utime;      /* user time */
+    long    tms_stime;      /* system time */
+    long    tms_cutime;     /* user time, children */
+    long    tms_cstime;     /* system time, children */
 };
 
 int times(struct tms *tmsp);

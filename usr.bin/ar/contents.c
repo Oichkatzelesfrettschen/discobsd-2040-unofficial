@@ -63,6 +63,7 @@ contents(char **argv)
 {
 	register int afd, all;
 	struct tm *tp;
+	time_t when;
 	char *file, buf[25];
 
 	afd = open_archive(O_RDONLY);
@@ -76,7 +77,13 @@ contents(char **argv)
 			(void)strmode(chdr.mode, buf);
 			(void)printf("%s %6d/%-6d %8ld ",
 			    buf + 1, chdr.uid, chdr.gid, (long) chdr.size);
-			tp = localtime(&chdr.date);
+			/*
+			 * A four-byte signed time_t prints a count with bit 31
+			 * set as a date before 1970; the 64-bit view prints it
+			 * whole.
+			 */
+			when = (time_t)chdr.date;
+			tp = localtime(&when);
 #ifdef	bloat
 			(void)strftime(buf, sizeof(buf), "%b %e %H:%M %Y", tp);
 			(void)printf("%s %s\n", buf, file);

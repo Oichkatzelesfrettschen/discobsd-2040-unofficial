@@ -1,5 +1,42 @@
 # include "ldefs.h"
 
+/*
+ * Each table below has a fixed size chosen before the grammar is read
+ * (pchar: pchlen bytes, %k; positions: maxpos entries, %p; nchar and nexts:
+ * ntrans entries, %a). A store that would land past the end reports the
+ * table by name and exits before the store happens, because the entry after
+ * the table is the allocator's header for the next block.
+ */
+static void
+putpchar(int c)
+{
+	if(pcptr >= pchar + pchlen)
+		error("Too many packed character classes");
+	*pcptr++ = c;
+}
+
+static void
+toomanypos(void)
+{
+	error("Too many positions %s",(maxpos== MAXPOS?"\nTry using %p num":""));
+}
+
+static void
+toomanytrans(void)
+{
+	error("Too many transitions %s",(ntrans==NTRANS?"\nTry using %a num":""));
+}
+
+/* append one transition: character c in nchar[nptr], target s in nexts[nptr+1] */
+static void
+puttrans(int c, int s)
+{
+	if(nptr + 1 >= ntrans)
+		toomanytrans();
+	nchar[nptr] = c;
+	nexts[++nptr] = s;
+}
+
 void
 cfoll(int v)
 {
@@ -32,11 +69,9 @@ cfoll(int v)
 						for(k=0;p+k < pcptr; k++)
 							if(cindex[j] == *(p+k))
 								break;
-						if(p+k >= pcptr)*pcptr++ = cindex[j];
+						if(p+k >= pcptr)putpchar(cindex[j]);
 					}
-				*pcptr++ = 0;
-				if(pcptr > pchar + pchlen)
-					error("Too many packed character classes");
+				putpchar(0);
 				ptr[v] = p;
 				name[v] = RCCL;	/* RNCCL eliminated */
 # ifdef DEBUG
@@ -100,13 +135,18 @@ add(int **array, int n)
 	temp = nxtpos;
 	ctemp = tmpstat;
 	array[n] = nxtpos;		/* note no packing is done in positions */
+	if(temp >= positions+maxpos)
+		toomanypos();
 	*temp++ = count;
 	for(i=0;i<tptr;i++)
-		if(ctemp[i] == TRUE)
+		if(ctemp[i] == TRUE){
+			if(temp >= positions+maxpos)
+				toomanypos();
 			*temp++ = i;
+		}
 	nxtpos = temp;
 	if(nxtpos >= positions+maxpos)
-		error("Too many positions %s",(maxpos== MAXPOS?"\nTry using %p num":""));
+		toomanypos();
 }
 
 void
@@ -283,7 +323,7 @@ cgoto(void)
 				xstate = notin(stnum);
 				if(xstate == -2) warning("bad state  %d %o",s,i);
 				else if(xstate == -1){
-					if(stnum >= nstates)
+					if(stnum + 1 >= nstates)	/* state[] holds nstates entries */
 						error("Too many states %s",(nstates == NSTATES ? "\nTry using %n num":""));
 					add(state,++stnum);
 # ifdef DEBUG
@@ -467,6 +507,8 @@ packtrans(int st, uchar *tch, int *tst, int cnt, int tryit)
 # endif
 # ifdef PS
 	if(cmin != -1){ /* if we can use st cmin */
+		if(nptr >= ntrans)
+			toomanytrans();
 		gotof[st] = nptr;
 		k = 0;
 		sfall[st] = cmin;
@@ -477,8 +519,7 @@ packtrans(int st, uchar *tch, int *tst, int cnt, int tryit)
 			/* st may be "larger" than cmin, however */
 			while(ach[j] < nchar[p-1] && ach[j]){
 				k++;
-				nchar[nptr] = ach[j];
-				nexts[++nptr] = ast[j];
+				puttrans(ach[j], ast[j]);
 				j++;
 			}
 			if(nchar[p-1] == 0)break;
@@ -489,15 +530,14 @@ packtrans(int st, uchar *tch, int *tst, int cnt, int tryit)
 			/* ach[j] == nchar[p-1] */
 			if(ast[j] != nexts[p] || ast[j] == -1 || (cpackflg[st] && ach[j] != match[ach[j]])){
 				k++;
-				nchar[nptr] = ach[j];
-				nexts[++nptr] = ast[j];
+				puttrans(ach[j], ast[j]);
 			}
 			p++;
 			j++;
 		}
 		while(ach[j]){
-			nchar[nptr] = ach[j];
-			nexts[++nptr] = ast[j++];
+			puttrans(ach[j], ast[j]);
+			j++;
 			k++;
 		}
 		nexts[gotof[st]] = cnt = k;
@@ -506,12 +546,12 @@ packtrans(int st, uchar *tch, int *tst, int cnt, int tryit)
 # endif
 nopack:
 	/* stick it in */
+		if(nptr >= ntrans)
+			toomanytrans();
 		gotof[st] = nptr;
 		nexts[nptr] = cnt;
-		for(i=0;i<cnt;i++){
-			nchar[nptr] = ach[i];
-			nexts[++nptr] = ast[i];
-		}
+		for(i=0;i<cnt;i++)
+			puttrans(ach[i], ast[i]);
 		nchar[nptr++] = 0;
 # ifdef PS
 	}
@@ -519,9 +559,7 @@ nopack:
 	if(cnt < 1){
 		gotof[st] = -1;
 		nptr--;
-	} else
-		if(nptr > ntrans)
-			error("Too many transitions %s",(ntrans==NTRANS?"\nTry using %a num":""));
+	}
 }
 
 # ifdef DEBUG
@@ -837,6 +875,8 @@ padd(int **array, int n)
 
 	array[n] = nxtpos;
 	if(count == 0){
+		if(nxtpos + 1 >= positions+maxpos)
+			toomanypos();
 		*nxtpos++ = 0;
 		return;
 	}

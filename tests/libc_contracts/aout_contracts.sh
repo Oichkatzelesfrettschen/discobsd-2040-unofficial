@@ -27,8 +27,11 @@ do
 	fi
 done
 
+# The probe stands for a program linked on the board against these
+# archives, whose members carry the 32-bit names Smaller C binds, so it is
+# compiled with that view of time (sys/_time_t.h).
 "$arm_compiler" -std=gnu17 -Wall -Wextra -Werror -mcpu=cortex-m0plus -mabi=aapcs \
-    -mlittle-endian -mthumb -mfloat-abi=soft -nostdinc \
+    -D_TIME_BITS=32 -mlittle-endian -mthumb -mfloat-abi=soft -nostdinc \
     -I"$source_root/include" -Os -ffreestanding -fno-builtin \
     -fno-jump-tables -S "$script_directory/aout_link_contract.c" \
     -o "$temporary_directory/aout_link_contract.s"
@@ -36,6 +39,11 @@ done
     -o "$temporary_directory/aout_link_contract.o"
 
 archive_index=0
+rejected_members=0
+case "$target_machine" in
+rp2040) divider_member=aeabi_div ;;
+*) divider_member=aeabi_div_idiv ;;
+esac
 for archive_path in \
     "$source_root/lib/libc_aout/libc.a" \
     "$source_root/distrib/obj/boardlibc.$target_machine/libc.a"
@@ -45,10 +53,19 @@ do
 		exit 2
 	fi
 	for required_source in \
+	    "$source_root/lib/libc/stdlib/abs.c" \
+	    "$source_root/lib/libc/stdlib/labs.c" \
+	    "$source_root/lib/libc/stdlib/iso_exit.c" \
+	    "$source_root/lib/libc/stdlib/at_quick_exit.c" \
+	    "$source_root/lib/libc/stdlib/quick_exit.c" \
+	    "$source_root/lib/libc/stdlib/quick_exit.h" \
 	    "$source_root/lib/libc/gen/confstr.c" \
 	    "$source_root/lib/libc/gen/ctermid.c" \
 	    "$source_root/lib/libc/gen/difftime.c" \
 	    "$source_root/lib/libc/gen/raise.c" \
+	    "$source_root/lib/libc/gen/qsort.c" \
+	    "$source_root/lib/libc/gen/qsort_r.c" \
+	    "$source_root/lib/libc/arm/gen/$divider_member.S" \
 	    "$source_root/lib/libc/gen/strnlen.c" \
 	    "$source_root/lib/libc/gen/strndup.c" \
 	    "$source_root/lib/libc/gen/stpcpy.c" \
@@ -64,7 +81,9 @@ do
 		fi
 	done
 	for required_member in confstr.o ctermid.o difftime.o explicit_bzero.o \
-	    raise.o sysconf.o strnlen.o strndup.o stpcpy.o stpncpy.o \
+	    abs.o labs.o iso_exit.o at_quick_exit.o quick_exit.o \
+	    "$divider_member.o" qsort.o qsort_r.o raise.o sysconf.o \
+	    strnlen.o strndup.o stpcpy.o stpncpy.o \
 	    timingsafe_bcmp.o vis.o
 	do
 		member_count=$(
@@ -95,7 +114,7 @@ do
 		printf '%s\n' "$undefined_symbols" >&2
 		exit 1
 	fi
-	for missing_member in strnlen strndup stpcpy stpncpy
+	for missing_member in abs labs strnlen strndup stpcpy stpncpy iso_exit at_quick_exit quick_exit qsort qsort_r "$divider_member"
 	do
 		damaged_archive=$temporary_directory/damaged.a
 		cp "$archive_path" "$damaged_archive"
@@ -107,13 +126,19 @@ do
 			echo "$archive_path: missing $missing_member still links" >&2
 			exit 1
 		fi
-		if ! grep -F "$missing_member" "$temporary_directory/damaged.log" >/dev/null; then
+		case "$missing_member" in
+		iso_exit) required_symbol=_Exit ;;
+		aeabi_div*) required_symbol=__aeabi_uidiv ;;
+		*) required_symbol=$missing_member ;;
+		esac
+		if ! grep -F "$required_symbol" "$temporary_directory/damaged.log" >/dev/null; then
 			echo "$archive_path: missing-member control fails for another reason" >&2
 			cat "$temporary_directory/damaged.log" >&2
 			exit 1
 		fi
+		rejected_members=$((rejected_members + 1))
 	done
 	archive_index=$((archive_index + 1))
 done
 
-echo "a.out libc contract tests passed; eight missing-string-member controls reject"
+echo "a.out libc contracts pass; $rejected_members missing-member controls reject"

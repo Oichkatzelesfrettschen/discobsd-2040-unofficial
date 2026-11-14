@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "source_commit": "66ce7c5b57a691fed604f26d14449996f0887743",
+  "execution_class": "Renode PICO_UART static-image model",
+  "artifacts": {
+    "sys/arch/rp2040/compile/PICO_UART/unix.bin": "7c67dc35b9d9b7b688f8c6cd2cfc47404199fdc25d9d9c475b15f541f51e5b9f",
+    "distrib/rp2040/flash.bin": "6c3205782dee5e1d901462012fd3b9db49a31c929292a6d23e14e902ccc5c766",
+    "tools/renode/vendor/Renode_RP2040/emulation/bin/Release/net8.0/Peripherals.dll": "c2b3197bd5831ccb7e8683b770fe803a8bdf2e9ff484045b1cc8261d1b0e7e85"
+  },
+  "gate_log_sha256": "b7031108fec4280f4f9f332bdf2a7ab6ab96fc91e3588e3874a17fe1fcde849a",
+  "model_revision": "205a5e4b25440582008a4292074bb07f80a72328",
+  "renode_version": "1.17.0+20260907gitf1dd1b4af",
+  "warnings": 82887,
+  "bounded_warning_classes": 19,
+  "errors": 0,
+  "result": "pass",
+  "physical_board_execution": false,
+  "shared_executable_execution": false
+}

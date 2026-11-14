@@ -104,11 +104,12 @@ closure calc needs path /usr/bin/calc
 #
 # The PicoCalc's SD card is block major 5 and raw major 11 of the PICOCALC
 # kernels (sys/arch/rp2040/rp2040/conf.c). The sdcard closure carries the
-# /mnt mount point and the nodes for the whole card and its first two
-# partitions; it needs no other closure, and the PICO board's kernel has no
-# driver behind those majors, so only the picocalc profile names it.
+# /mnt mount point, the nodes for the whole card and its first two
+# partitions, and savecore(8), which copies a crash dump off the card's
+# dump partition; it needs no other closure, and the PICO board's kernel
+# has no driver behind those majors, so only the picocalc profile names it.
 #
-closure sdcard needs path /mnt /dev/sd0 /dev/sd0a /dev/sd0b /dev/rsd0 /dev/rsd0a /dev/rsd0b
+closure sdcard needs path /mnt /dev/sd0 /dev/sd0a /dev/sd0b /dev/rsd0 /dev/rsd0a /dev/rsd0b /sbin/savecore
 
 #
 # The PicoCalc's pixel device is minor 1 of character major 10, the console's
@@ -146,7 +147,7 @@ cost bc 40 2
 cost dc 21 1
 cost calc-bignum 60 3
 cost calc 33 1
-cost sdcard 1 7
+cost sdcard 11 8
 cost lcdgfx 0 1
 cost gamesdir 1 1
 cost games 24 2

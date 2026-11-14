@@ -43,10 +43,7 @@ typedef int     ssize_t;
 #define _SSIZE_T
 #endif
 #endif
-#ifndef _TIME_T
-#define _TIME_T
-typedef long    time_t;
-#endif
+#include <sys/_time_t.h>
 typedef int     dev_t;
 #ifndef _OFF_T
 #define _OFF_T

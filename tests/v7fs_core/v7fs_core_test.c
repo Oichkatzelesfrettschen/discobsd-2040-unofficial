@@ -29,9 +29,10 @@
  *
  * Two further modes let check.sh drive usr.sbin/v7fs through the same
  * checks: "v7fs_core_test DIR - patterns" writes the three files (hello, big,
- * inner) into DIR, and "v7fs_core_test IMAGE ORDER verify" skips formatting
- * and writing and checks an image that already holds /hello, /big and
- * /sub/inner.
+ * inner) into DIR, "v7fs_core_test IMAGE ORDER verify" skips formatting and
+ * writing and checks an image that already holds /hello, /big and /sub/inner,
+ * and "v7fs_core_test IMAGE ORDER parent BLOCKS" creates a root directory at
+ * an indirect-address boundary for the command-line capacity checks.
  *
  * Exit status: 0 when every check holds, 1 when a check fails (each
  * failure prints "FAIL <label>: ..."), 2 when the environment fails.
@@ -43,11 +44,13 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "v7fs.h"
@@ -310,6 +313,8 @@ le24(const uint8_t *p)
 #define	SB_NFREE	le16(SB + 6)
 #define	SB_FREE(i)	le32(SB + 8 + 4 * (i))
 #define	SB_NINODE	le16(SB + 208)
+#define	SB_TIME_OFFSET	414
+#define	SB_TIME		le32(SB + SB_TIME_OFFSET)
 #define	SB_TFREE	le32(SB + 418)
 #define	SB_TINODE	le16(SB + 422)
 
@@ -524,25 +529,42 @@ reader_index_ownership(uint32_t block, unsigned level, const char *label)
 	}
 }
 
-/* Account every root inode pointer and every raw free-list entry. */
 static void
-reader_root_ownership(const char *label)
+reader_inode_ownership(unsigned ino, const char *label)
 {
-	const uint8_t *root = dinode(2);
-	uint32_t block, link, free_count = 0;
-	unsigned index, count;
+	const uint8_t *inode = dinode(ino);
+	uint32_t block;
+	unsigned index;
 
-	memset(owner, 0, sizeof(owner));
 	for (index = 0; index < 10; index++) {
-		block = le24(root + 12 + index * 3);
+		block = le24(inode + 12 + index * 3);
 		if (block != 0)
 			(void)claim(block, 1, label);
 	}
 	for (index = 0; index < 3; index++) {
-		block = le24(root + 12 + (10 + index) * 3);
+		block = le24(inode + 12 + (10 + index) * 3);
 		if (block != 0)
 			reader_index_ownership(block, index + 1, label);
 	}
+}
+
+static void
+reader_selected_ownership_set(const char *label, unsigned first_inode,
+    unsigned second_inode, unsigned third_inode)
+{
+	uint32_t block, link, free_count = 0;
+	unsigned index, count;
+
+	memset(owner, 0, sizeof(owner));
+	reader_inode_ownership(V7FS_ROOT_INODE, label);
+	if (first_inode != 0 && first_inode != V7FS_ROOT_INODE)
+		reader_inode_ownership(first_inode, label);
+	if (second_inode != 0 && second_inode != V7FS_ROOT_INODE &&
+	    second_inode != first_inode)
+		reader_inode_ownership(second_inode, label);
+	if (third_inode != 0 && third_inode != V7FS_ROOT_INODE &&
+	    third_inode != first_inode && third_inode != second_inode)
+		reader_inode_ownership(third_inode, label);
 	count = SB_NFREE;
 	if (count > 50) {
 		fail(label, "free cache exceeds its bounds");
@@ -576,6 +598,19 @@ reader_root_ownership(const char *label)
 		}
 }
 
+/* Account selected inode pointers and every raw free-list entry. */
+static void
+reader_selected_ownership(const char *label, unsigned extra_inode)
+{
+	reader_selected_ownership_set(label, extra_inode, 0, 0);
+}
+
+static void
+reader_root_ownership(const char *label)
+{
+	reader_selected_ownership(label, 0);
+}
+
 /*
  * Regression scenarios for the local patches under tools/netbsd-patches,
  * each reported under its own label; check.sh calibrates selected scenarios
@@ -586,6 +621,49 @@ put16(uint8_t *p, unsigned v)
 {
 	p[0] = (uint8_t)v;
 	p[1] = (uint8_t)(v >> 8);
+}
+
+/* The inverse of le32() for the byte order under test. */
+static void
+put32(uint8_t *p, uint32_t v)
+{
+	if (byte_order == PDP_ENDIAN) {
+		put16(p, v >> 16);
+		put16(p + 2, v & 0xffff);
+		return;
+	}
+	put16(p, v & 0xffff);
+	put16(p + 2, v >> 16);
+}
+
+/*
+ * The text v7fs_superblock_dump() prints for the mounted superblock, which
+ * goes to stdout, captured through a temporary file; 0 on success.
+ */
+static int
+dump_text(const struct v7fs_self *fs, char *text, size_t size)
+{
+	FILE *capture = tmpfile();
+	size_t length;
+	int saved;
+
+	if (capture == NULL || size < 2)
+		return EIO;
+	fflush(stdout);
+	if ((saved = dup(STDOUT_FILENO)) == -1 ||
+	    dup2(fileno(capture), STDOUT_FILENO) == -1) {
+		fclose(capture);
+		return EIO;
+	}
+	v7fs_superblock_dump(fs);
+	fflush(stdout);
+	dup2(saved, STDOUT_FILENO);
+	close(saved);
+	rewind(capture);
+	length = fread(text, 1, size - 1, capture);
+	text[length] = '\0';
+	fclose(capture);
+	return 0;
 }
 
 static int
@@ -605,6 +683,84 @@ format_image(int fd, int32_t files, uint8_t fill)
 	device.sectors = SECTORS;
 	device.endian = byte_order;
 	return v7fs_newfs(&device, files);
+}
+
+struct directory_fill {
+	unsigned slot;
+	v7fs_ino_t target;
+};
+
+static int
+fill_directory_block(struct v7fs_self *fs, void *context,
+    v7fs_daddr_t block, size_t length)
+{
+	struct directory_fill *fill = context;
+	uint8_t buffer[V7FS_BSIZE];
+	uint16_t disk_inode;
+	unsigned slot;
+	char *name;
+
+	if (length != sizeof(buffer))
+		return V7FS_ITERATOR_ERROR;
+	memset(buffer, 0, sizeof(buffer));
+	for (slot = 0; slot < V7FS_BSIZE / sizeof(struct v7fs_dirent);
+	    slot++, fill->slot++) {
+		disk_inode = V7FS_VAL16(fs, fill->slot < 2 ?
+		    V7FS_ROOT_INODE : fill->target);
+		memcpy(buffer + slot * sizeof(struct v7fs_dirent), &disk_inode,
+		    sizeof(disk_inode));
+		name = (char *)(buffer + slot * sizeof(struct v7fs_dirent) +
+		    sizeof(disk_inode));
+		if (fill->slot < 2)
+			strcpy(name, fill->slot == 0 ? "." : "..");
+		else if (fill->slot == 2)
+			strcpy(name, "seed");
+		else
+			(void)snprintf(name, V7FS_NAME_MAX, "f%06u", fill->slot);
+	}
+	return fs->io.write(fs->io.cookie, buffer, block) ? 0 :
+	    V7FS_ITERATOR_ERROR;
+}
+
+static int
+write_parent_fixture(int fd, unsigned blocks)
+{
+	struct v7fs_self *fs;
+	struct v7fs_inode parent, target;
+	struct directory_fill fill;
+	v7fs_ino_t target_number;
+	int error;
+
+	if (blocks == 0 || blocks > 138)
+		return EINVAL;
+	if ((error = format_image(fd, 64, 0)) != 0)
+		return error;
+	if ((fs = mount_image(fd)) == NULL)
+		return EIO;
+	error = make_node(fs, V7FS_ROOT_INODE, "seed", V7FS_IFREG | 0644,
+	    NULL, 0, &target_number);
+	if (error == 0)
+		error = v7fs_inode_load(fs, &parent, V7FS_ROOT_INODE);
+	if (error == 0)
+		error = v7fs_inode_load(fs, &target, target_number);
+	if (error == 0)
+		error = v7fs_datablock_expand(fs, &parent,
+		    (size_t)blocks * V7FS_BSIZE - parent.filesize);
+	fill.slot = 0;
+	fill.target = target_number;
+	if (error == 0 && v7fs_datablock_foreach(fs, &parent,
+	    fill_directory_block, &fill) != V7FS_ITERATOR_END)
+		error = EIO;
+	if (error == 0) {
+		target.nlink = (int16_t)(fill.slot - 2);
+		error = v7fs_inode_writeback(fs, &target);
+	}
+	if (error == 0)
+		error = v7fs_inode_writeback(fs, &parent);
+	if (error == 0)
+		error = v7fs_superblock_writeback(fs);
+	v7fs_io_fini(fs);
+	return error;
 }
 
 static int
@@ -990,7 +1146,7 @@ regress_lookup_full_name(int fd)
 static void
 regress_rename_failures(int fd)
 {
-	unsigned scenario, successful_writes = 0;
+	unsigned scenario;
 
 	for (scenario = 0; scenario < 4; scenario++) {
 		struct v7fs_self *fs;
@@ -1014,47 +1170,469 @@ regress_rename_failures(int fd)
 			return;
 		}
 		saved_sector_read = fs->io.read;
-		saved_sector_write = fs->io.write;
-		sector_reads = sector_writes = 0;
-		failed_read_number = scenario == 1 ? 2 : 5;
-		failed_write_number = scenario == 3 ? successful_writes : (unsigned)-1;
-		fail_after_write = false;
-		if (scenario == 1 || scenario == 2)
+		sector_reads = 0;
+		failed_read_number = scenario == 1 ? 2 : scenario == 2 ? 4 : 6;
+		if (scenario != 0)
 			fs->io.read = fail_selected_read;
-		else
-			fs->io.write = fail_selected_write;
 		error = v7fs_file_rename(fs, &source_parent, "src", 3,
 		    &target_parent, "new", 3);
 		fs->io.read = saved_sector_read;
-		fs->io.write = saved_sector_write;
 		if (scenario == 0) {
-			successful_writes = sector_writes;
-			check(error == 0 && successful_writes != 0,
+			check(error == 0,
 			    "regress-rename", "control rename failed");
 		} else {
 			check(error == EIO, "regress-rename",
 			    "injected rename failure must return EIO");
 		}
-		if (scenario == 1 || scenario == 2) {
-			check(sector_reads == failed_read_number &&
-			    (scenario != 2 || failed_read_sector ==
-			    (daddr_t)target_parent.addr[0]) &&
-			    v7fs_file_lookup_by_name(fs, &source_parent, "src", 3,
-			    &found) == 0 && found == source_ino &&
-			    v7fs_file_lookup_by_name(fs, &target_parent, "new", 3,
+		if (scenario != 0) {
+			check(sector_reads == failed_read_number, "regress-rename",
+			    "injected read was not reached exactly once");
+			check(scenario == 1 || failed_read_sector ==
+			    (daddr_t)target_parent.addr[0], "regress-rename",
+			    "target-directory read was not reached");
+			check(v7fs_file_lookup_by_name(fs, &source_parent, "src", 3,
+			    &found) == 0 && found == source_ino, "regress-rename",
+			    "failed lookup removed its source");
+			check(v7fs_file_lookup_by_name(fs, &target_parent, "new", 3,
 			    &found) == ENOENT, "regress-rename",
-			    "failed lookup changed directory entries");
+			    "failed lookup published its target");
 		} else {
-			if (scenario == 3)
-				check(sector_writes == successful_writes &&
-				    failed_write_sector == V7FS_ILIST_SECTOR,
-				    "regress-rename", "final inode write was not reached");
 			check(v7fs_file_lookup_by_name(fs, &source_parent, "src", 3,
 			    &found) == ENOENT &&
 			    v7fs_file_lookup_by_name(fs, &target_parent, "new", 3,
 			    &found) == 0 && found == source_ino,
 			    "regress-rename", "published rename entries differ");
 		}
+		v7fs_io_fini(fs);
+	}
+}
+
+static void
+regress_rename_same_inode(int fd)
+{
+	unsigned scenario;
+
+	for (scenario = 0; scenario < 2; scenario++) {
+		const char *label = scenario == 0 ? "regress-rename-same-path" :
+		    "regress-rename-same-inode-alias";
+		const char *target = scenario == 0 ? "source" : "alias";
+		const size_t target_length = strlen(target);
+		struct v7fs_self *fs;
+		struct v7fs_inode root, source;
+		v7fs_ino_t source_ino, found;
+		int16_t source_nlink;
+		int error;
+
+		if (format_image(fd, 64, 0) != 0 ||
+		    (fs = mount_image(fd)) == NULL) {
+			fail(label, "format or mount failed");
+			return;
+		}
+		if (make_node(fs, V7FS_ROOT_INODE, "source", V7FS_IFREG | 0644,
+		    NULL, 0, &source_ino) != 0 || v7fs_inode_load(fs, &root,
+		    V7FS_ROOT_INODE) != 0 || v7fs_inode_load(fs, &source,
+		    source_ino) != 0 || (scenario != 0 && v7fs_file_link(fs, &root,
+		    &source, target, target_length) != 0) ||
+		    v7fs_superblock_writeback(fs) != 0) {
+			fail(label, "fixture creation failed");
+			v7fs_io_fini(fs);
+			return;
+		}
+		source_nlink = source.nlink;
+		saved_sector_write = fs->io.write;
+		sector_writes = 0;
+		failed_write_number = UINT_MAX;
+		fail_after_write = false;
+		fs->io.write = fail_selected_write;
+		error = v7fs_file_rename(fs, &root, "source", 6, &root, target,
+		    target_length);
+		fs->io.write = saved_sector_write;
+		check(error == 0, label, "same-inode rename failed");
+		check(sector_writes == 0, label, "same-inode rename issued a write");
+		check(v7fs_file_lookup_by_name(fs, &root, "source", 6, &found) ==
+		    0 && found == source_ino, label, "same-inode rename lost source");
+		check(v7fs_file_lookup_by_name(fs, &root, target, target_length,
+		    &found) == 0 && found == source_ino, label,
+		    "same-inode rename lost target alias");
+		check(v7fs_inode_load(fs, &source, source_ino) == 0 &&
+		    source.nlink == source_nlink, label,
+		    "same-inode rename changed the link count");
+		v7fs_io_fini(fs);
+		if (load_raw(fd) != 0) {
+			fail(label, "image reload failed");
+			return;
+		}
+		reader_selected_ownership(label, source_ino);
+		fs = mount_image(fd);
+		if (fs == NULL || v7fs_inode_load(fs, &root,
+		    V7FS_ROOT_INODE) != 0 || v7fs_inode_load(fs, &source,
+		    source_ino) != 0 || source.nlink != source_nlink ||
+		    v7fs_file_lookup_by_name(fs, &root, "source", 6, &found) != 0 ||
+		    found != source_ino || v7fs_file_lookup_by_name(fs, &root,
+		    target, target_length, &found) != 0 || found != source_ino) {
+			fail(label, "fresh mount changed same-inode names");
+			if (fs != NULL)
+				v7fs_io_fini(fs);
+			continue;
+		}
+		v7fs_io_fini(fs);
+	}
+}
+
+static bool
+rename_state(struct v7fs_self *fs, v7fs_ino_t source_ino,
+    v7fs_ino_t target_parent_ino, int16_t root_nlink,
+    int16_t target_nlink, int16_t source_nlink, bool renamed)
+{
+	struct v7fs_inode root, source, target_parent;
+	v7fs_ino_t found, parent;
+
+	if (v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0 ||
+	    v7fs_inode_load(fs, &source, source_ino) != 0 ||
+	    v7fs_inode_load(fs, &target_parent, target_parent_ino) != 0)
+		return false;
+	if (source.nlink != source_nlink || root.nlink !=
+	    root_nlink - (renamed ? 1 : 0) || target_parent.nlink !=
+	    target_nlink + (renamed ? 1 : 0))
+		return false;
+	if (renamed)
+		return v7fs_file_lookup_by_name(fs, &root, "src", 3, &found) ==
+		    ENOENT && v7fs_file_lookup_by_name(fs, &target_parent, "new", 3,
+		    &found) == 0 && found == source_ino &&
+		    v7fs_file_lookup_by_name(fs, &source, "..", 2, &parent) == 0 &&
+		    parent == target_parent_ino;
+	return v7fs_file_lookup_by_name(fs, &root, "src", 3, &found) == 0 &&
+	    found == source_ino && v7fs_file_lookup_by_name(fs, &target_parent,
+	    "new", 3, &found) == ENOENT && v7fs_file_lookup_by_name(fs,
+	    &source, "..", 2, &parent) == 0 && parent == V7FS_ROOT_INODE;
+}
+
+static void
+regress_rename_write_compensation(int fd)
+{
+	const char *label = "regress-rename-write-compensation";
+	struct v7fs_self *fs = NULL;
+	struct v7fs_inode source_parent, target_parent;
+	v7fs_ino_t source_ino, target_parent_ino;
+	int16_t root_nlink, target_nlink, source_nlink;
+	unsigned control_writes, failure_write;
+	char detail[96];
+	int error;
+
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL ||
+	    make_node(fs, V7FS_ROOT_INODE, "src", V7FS_IFDIR | 0755,
+	    NULL, 0, &source_ino) != 0 || make_node(fs, V7FS_ROOT_INODE, "dst",
+	    V7FS_IFDIR | 0755, NULL, 0, &target_parent_ino) != 0 ||
+	    v7fs_inode_load(fs, &source_parent, V7FS_ROOT_INODE) != 0 ||
+	    v7fs_inode_load(fs, &target_parent, target_parent_ino) != 0 ||
+	    v7fs_superblock_writeback(fs) != 0) {
+		fail(label, "control fixture creation failed");
+		if (fs != NULL)
+			v7fs_io_fini(fs);
+		return;
+	}
+	root_nlink = source_parent.nlink;
+	target_nlink = target_parent.nlink;
+	if (v7fs_inode_load(fs, &source_parent, source_ino) != 0) {
+		fail(label, "control source load failed");
+		v7fs_io_fini(fs);
+		return;
+	}
+	source_nlink = source_parent.nlink;
+	if (v7fs_inode_load(fs, &source_parent, V7FS_ROOT_INODE) != 0) {
+		fail(label, "control parent reload failed");
+		v7fs_io_fini(fs);
+		return;
+	}
+	saved_sector_write = fs->io.write;
+	sector_writes = 0;
+	failed_write_number = UINT_MAX;
+	fail_after_write = false;
+	fs->io.write = fail_selected_write;
+	error = v7fs_file_rename(fs, &source_parent, "src", 3, &target_parent,
+	    "new", 3);
+	fs->io.write = saved_sector_write;
+	control_writes = sector_writes;
+	check(error == 0 && control_writes != 0 && rename_state(fs, source_ino,
+	    target_parent_ino, root_nlink, target_nlink, source_nlink, true),
+	    label, "control rename failed");
+	v7fs_io_fini(fs);
+
+	for (failure_write = 1; failure_write <= control_writes; failure_write++) {
+		fs = NULL;
+		if (format_image(fd, 64, 0) != 0 ||
+		    (fs = mount_image(fd)) == NULL || make_node(fs,
+		    V7FS_ROOT_INODE, "src", V7FS_IFDIR | 0755, NULL, 0,
+		    &source_ino) != 0 || make_node(fs, V7FS_ROOT_INODE, "dst",
+		    V7FS_IFDIR | 0755, NULL, 0, &target_parent_ino) != 0 ||
+		    v7fs_inode_load(fs, &source_parent, V7FS_ROOT_INODE) != 0 ||
+		    v7fs_inode_load(fs, &target_parent, target_parent_ino) != 0 ||
+		    v7fs_superblock_writeback(fs) != 0) {
+			fail(label, "failure fixture creation failed");
+			if (fs != NULL)
+				v7fs_io_fini(fs);
+			return;
+		}
+		root_nlink = source_parent.nlink;
+		target_nlink = target_parent.nlink;
+		if (v7fs_inode_load(fs, &source_parent, source_ino) != 0) {
+			fail(label, "failure source load failed");
+			v7fs_io_fini(fs);
+			return;
+		}
+		source_nlink = source_parent.nlink;
+		if (v7fs_inode_load(fs, &source_parent, V7FS_ROOT_INODE) != 0) {
+			fail(label, "failure parent reload failed");
+			v7fs_io_fini(fs);
+			return;
+		}
+		saved_sector_write = fs->io.write;
+		sector_writes = 0;
+		failed_write_number = failure_write;
+		fail_after_write = false;
+		fs->io.write = fail_selected_write;
+		error = v7fs_file_rename(fs, &source_parent, "src", 3,
+		    &target_parent, "new", 3);
+		fs->io.write = saved_sector_write;
+		snprintf(detail, sizeof(detail),
+		    "write %u was not reported and activated", failure_write);
+		check(error == EIO && sector_writes >= failure_write, label, detail);
+		v7fs_io_fini(fs);
+		if (load_raw(fd) != 0)
+			fail(label, "recovered image read failed");
+		else
+			reader_selected_ownership_set(label, source_ino,
+			    target_parent_ino, 0);
+
+		fs = mount_image(fd);
+		if (fs == NULL || !rename_state(fs, source_ino, target_parent_ino,
+		    root_nlink, target_nlink, source_nlink, false) ||
+		    v7fs_inode_load(fs, &source_parent,
+		    V7FS_ROOT_INODE) != 0 || v7fs_inode_load(fs, &target_parent,
+		    target_parent_ino) != 0) {
+			snprintf(detail, sizeof(detail),
+			    "write %u did not recover the old namespace", failure_write);
+			fail(label, detail);
+			if (fs != NULL)
+				v7fs_io_fini(fs);
+			return;
+		}
+		error = v7fs_file_rename(fs, &source_parent, "src", 3,
+		    &target_parent, "new", 3);
+		check(error == 0 && rename_state(fs, source_ino, target_parent_ino,
+		    root_nlink, target_nlink, source_nlink, true), label,
+		    "recovered image did not accept a retry");
+		v7fs_io_fini(fs);
+	}
+}
+
+static bool
+rename_replacement_state(struct v7fs_self *fs, v7fs_ino_t source_ino,
+    v7fs_ino_t target_parent_ino, v7fs_ino_t replaced_ino,
+    int16_t root_nlink, int16_t target_parent_nlink,
+    int16_t source_nlink, int16_t replaced_nlink, bool renamed)
+{
+	struct v7fs_inode root, source, target_parent, replaced;
+	v7fs_ino_t found, parent;
+
+	if (v7fs_inode_load(fs, &root, V7FS_ROOT_INODE) != 0 ||
+	    v7fs_inode_load(fs, &source, source_ino) != 0 ||
+	    v7fs_inode_load(fs, &target_parent, target_parent_ino) != 0 ||
+	    v7fs_inode_load(fs, &replaced, replaced_ino) != 0 ||
+	    root.nlink != root_nlink - (renamed ? 1 : 0) ||
+	    target_parent.nlink != target_parent_nlink ||
+	    source.nlink != source_nlink ||
+	    replaced.nlink != (renamed ? 0 : replaced_nlink))
+		return false;
+	if (renamed)
+		return v7fs_file_lookup_by_name(fs, &root, "src", 3, &found) ==
+		    ENOENT && v7fs_file_lookup_by_name(fs, &target_parent, "new", 3,
+		    &found) == 0 && found == source_ino &&
+		    v7fs_file_lookup_by_name(fs, &source, "..", 2, &parent) == 0 &&
+		    parent == target_parent_ino;
+	return v7fs_file_lookup_by_name(fs, &root, "src", 3, &found) == 0 &&
+	    found == source_ino && v7fs_file_lookup_by_name(fs, &target_parent,
+	    "new", 3, &found) == 0 && found == replaced_ino &&
+	    v7fs_file_lookup_by_name(fs, &source, "..", 2, &parent) == 0 &&
+	    parent == V7FS_ROOT_INODE && v7fs_file_lookup_by_name(fs, &replaced,
+	    "..", 2, &parent) == 0 && parent == target_parent_ino;
+}
+
+static void
+regress_rename_replacement_compensation(int fd)
+{
+	const char *label = "regress-rename-replacement-compensation";
+	struct v7fs_self *fs = NULL;
+	struct v7fs_inode source_parent, target_parent, inode;
+	v7fs_ino_t source_ino, target_parent_ino, replaced_ino;
+	int16_t root_nlink, target_parent_nlink, source_nlink, replaced_nlink;
+	unsigned control_writes, failure_write;
+	char detail[96];
+	int error;
+
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL ||
+	    make_node(fs, V7FS_ROOT_INODE, "src", V7FS_IFDIR | 0755,
+	    NULL, 0, &source_ino) != 0 || make_node(fs, V7FS_ROOT_INODE, "dst",
+	    V7FS_IFDIR | 0755, NULL, 0, &target_parent_ino) != 0 ||
+	    make_node(fs, target_parent_ino, "new", V7FS_IFDIR | 0755,
+	    NULL, 0, &replaced_ino) != 0 || v7fs_inode_load(fs, &source_parent,
+	    V7FS_ROOT_INODE) != 0 || v7fs_inode_load(fs, &target_parent,
+	    target_parent_ino) != 0 || v7fs_superblock_writeback(fs) != 0) {
+		fail(label, "control fixture creation failed");
+		if (fs != NULL)
+			v7fs_io_fini(fs);
+		return;
+	}
+	root_nlink = source_parent.nlink;
+	target_parent_nlink = target_parent.nlink;
+	if (v7fs_inode_load(fs, &inode, source_ino) != 0) {
+		fail(label, "control source load failed");
+		v7fs_io_fini(fs);
+		return;
+	}
+	source_nlink = inode.nlink;
+	if (v7fs_inode_load(fs, &inode, replaced_ino) != 0) {
+		fail(label, "control target load failed");
+		v7fs_io_fini(fs);
+		return;
+	}
+	replaced_nlink = inode.nlink;
+	saved_sector_write = fs->io.write;
+	sector_writes = 0;
+	failed_write_number = UINT_MAX;
+	fail_after_write = false;
+	fs->io.write = fail_selected_write;
+	error = v7fs_file_rename(fs, &source_parent, "src", 3, &target_parent,
+	    "new", 3);
+	fs->io.write = saved_sector_write;
+	control_writes = sector_writes;
+	check(error == 0 && control_writes != 0 && rename_replacement_state(fs,
+	    source_ino, target_parent_ino, replaced_ino, root_nlink,
+	    target_parent_nlink, source_nlink, replaced_nlink, true), label,
+	    "control replacement failed");
+	v7fs_io_fini(fs);
+
+	for (failure_write = 1; failure_write <= control_writes; failure_write++) {
+		fs = NULL;
+		if (format_image(fd, 64, 0) != 0 ||
+		    (fs = mount_image(fd)) == NULL || make_node(fs,
+		    V7FS_ROOT_INODE, "src", V7FS_IFDIR | 0755, NULL, 0,
+		    &source_ino) != 0 || make_node(fs, V7FS_ROOT_INODE, "dst",
+		    V7FS_IFDIR | 0755, NULL, 0, &target_parent_ino) != 0 ||
+		    make_node(fs, target_parent_ino, "new", V7FS_IFDIR | 0755,
+		    NULL, 0, &replaced_ino) != 0 || v7fs_inode_load(fs,
+		    &source_parent, V7FS_ROOT_INODE) != 0 || v7fs_inode_load(fs,
+		    &target_parent, target_parent_ino) != 0 ||
+		    v7fs_superblock_writeback(fs) != 0 || v7fs_inode_load(fs,
+		    &inode, source_ino) != 0) {
+			fail(label, "failure fixture creation failed");
+			if (fs != NULL)
+				v7fs_io_fini(fs);
+			return;
+		}
+		root_nlink = source_parent.nlink;
+		target_parent_nlink = target_parent.nlink;
+		source_nlink = inode.nlink;
+		if (v7fs_inode_load(fs, &inode, replaced_ino) != 0) {
+			fail(label, "failure target load failed");
+			v7fs_io_fini(fs);
+			return;
+		}
+		replaced_nlink = inode.nlink;
+		saved_sector_write = fs->io.write;
+		sector_writes = 0;
+		failed_write_number = failure_write;
+		fail_after_write = false;
+		fs->io.write = fail_selected_write;
+		error = v7fs_file_rename(fs, &source_parent, "src", 3,
+		    &target_parent, "new", 3);
+		fs->io.write = saved_sector_write;
+		snprintf(detail, sizeof(detail),
+		    "write %u was not reported and activated", failure_write);
+		check(error == EIO && sector_writes >= failure_write, label, detail);
+		v7fs_io_fini(fs);
+		if (load_raw(fd) != 0)
+			fail(label, "recovered image read failed");
+		else
+			reader_selected_ownership_set(label, source_ino,
+			    target_parent_ino, replaced_ino);
+		fs = mount_image(fd);
+		if (fs == NULL || !rename_replacement_state(fs, source_ino,
+		    target_parent_ino, replaced_ino, root_nlink,
+		    target_parent_nlink, source_nlink, replaced_nlink, false) ||
+		    v7fs_inode_load(fs, &source_parent, V7FS_ROOT_INODE) != 0 ||
+		    v7fs_inode_load(fs, &target_parent, target_parent_ino) != 0) {
+			snprintf(detail, sizeof(detail),
+			    "write %u did not restore the displaced target", failure_write);
+			fail(label, detail);
+			if (fs != NULL)
+				v7fs_io_fini(fs);
+			return;
+		}
+		error = v7fs_file_rename(fs, &source_parent, "src", 3,
+		    &target_parent, "new", 3);
+		check(error == 0 && rename_replacement_state(fs, source_ino,
+		    target_parent_ino, replaced_ino, root_nlink,
+		    target_parent_nlink, source_nlink, replaced_nlink, true), label,
+		    "recovered replacement did not accept a retry");
+		v7fs_io_fini(fs);
+	}
+}
+
+static void
+regress_rename_hierarchy(int fd)
+{
+	struct v7fs_self *fs;
+	struct v7fs_inode source_parent, target_parent, victim_before, victim_after;
+	v7fs_ino_t source, descendant, victim, found;
+	int error;
+
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-rename-hierarchy", "format or mount failed");
+		return;
+	}
+	if (make_node(fs, V7FS_ROOT_INODE, "source", V7FS_IFDIR | 0755,
+	    NULL, 0, &source) != 0 ||
+	    make_node(fs, source, "descendant", V7FS_IFDIR | 0755,
+	    NULL, 0, &descendant) != 0 ||
+	    make_node(fs, descendant, "victim", V7FS_IFDIR | 0755,
+	    NULL, 0, &victim) != 0 ||
+	    v7fs_inode_load(fs, &source_parent, V7FS_ROOT_INODE) != 0 ||
+	    v7fs_inode_load(fs, &target_parent, descendant) != 0 ||
+	    v7fs_inode_load(fs, &victim_before, victim) != 0) {
+		fail("regress-rename-hierarchy", "fixture creation failed");
+		v7fs_io_fini(fs);
+		return;
+	}
+	error = v7fs_file_rename(fs, &source_parent, "source", 6,
+	    &target_parent, "victim", 6);
+	check(error == EINVAL, "regress-rename-hierarchy",
+	    "descendant move must fail with EINVAL");
+	check(v7fs_file_lookup_by_name(fs, &source_parent, "source", 6,
+	    &found) == 0 && found == source, "regress-rename-hierarchy",
+	    "rejected move removed its source");
+	check(v7fs_file_lookup_by_name(fs, &target_parent, "victim", 6,
+	    &found) == 0 && found == victim &&
+	    v7fs_inode_load(fs, &victim_after, victim) == 0 &&
+	    inode_equal(&victim_after, &victim_before),
+	    "regress-rename-hierarchy", "rejected move changed its target");
+	check(v7fs_superblock_writeback(fs) == 0, "regress-rename-hierarchy",
+	    "superblock writeback failed");
+	v7fs_io_fini(fs);
+	fs = mount_image(fd);
+	if (fs == NULL) {
+		fail("regress-rename-hierarchy", "fresh mount failed");
+	} else if (v7fs_inode_load(fs, &source_parent, V7FS_ROOT_INODE) != 0 ||
+	    v7fs_inode_load(fs, &target_parent, descendant) != 0) {
+		fail("regress-rename-hierarchy", "fresh inode load failed");
+		v7fs_io_fini(fs);
+	} else {
+		check(v7fs_file_lookup_by_name(fs, &source_parent, "source", 6,
+		    &found) == 0 && found == source, "regress-rename-hierarchy",
+		    "fresh mount lost the source");
+		check(v7fs_file_lookup_by_name(fs, &target_parent, "victim", 6,
+		    &found) == 0 && found == victim, "regress-rename-hierarchy",
+		    "fresh mount lost the target");
 		v7fs_io_fini(fs);
 	}
 }
@@ -1115,6 +1693,113 @@ regress_create_failure(int fd, bool directory, bool full_parent,
 		fail(label, "image reload failed");
 	else
 		reader_root_ownership(label);
+}
+
+static void
+regress_symlink_writeback(int fd)
+{
+	static const char target[] = "destination";
+	struct v7fs_self *fs;
+	struct v7fs_inode inode;
+	v7fs_ino_t ino;
+	void *buffer;
+	int error;
+
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-symlink-writeback", "format or mount failed");
+		return;
+	}
+	if (make_node(fs, V7FS_ROOT_INODE, "link", V7FSBSD_IFLNK | 0777,
+	    NULL, 0, &ino) != 0 || v7fs_inode_load(fs, &inode, ino) != 0) {
+		fail("regress-symlink-writeback", "fixture creation failed");
+		v7fs_io_fini(fs);
+		return;
+	}
+	saved_sector_write = fs->io.write;
+	inode_writes = 0;
+	failed_inode_write_number = 2;
+	fs->io.write = fail_nth_inode_write;
+	error = v7fs_file_symlink(fs, &inode, target);
+	fs->io.write = saved_sector_write;
+	check(error == EIO && inode_writes == failed_inode_write_number,
+	    "regress-symlink-writeback",
+	    "final inode write failure must be reported");
+	check(v7fs_superblock_writeback(fs) == 0,
+	    "regress-symlink-writeback", "superblock writeback failed");
+	v7fs_io_fini(fs);
+
+	fs = mount_image(fd);
+	if (fs == NULL || v7fs_inode_load(fs, &inode, ino) != 0 ||
+	    (buffer = scratch_read(fs, inode.addr[0])) == NULL) {
+		fail("regress-symlink-writeback", "fresh symlink load failed");
+		if (fs != NULL)
+			v7fs_io_fini(fs);
+		return;
+	}
+	check(inode.filesize == sizeof(target) && strcmp(buffer, target) == 0,
+	    "regress-symlink-writeback",
+	    "reported write failure damaged the persisted symlink");
+	scratch_free(fs, buffer);
+	v7fs_io_fini(fs);
+	if (load_raw(fd) != 0)
+		fail("regress-symlink-writeback", "image reload failed");
+	else
+		reader_selected_ownership("regress-symlink-writeback", ino);
+}
+
+static void
+regress_inode_address_width(int fd)
+{
+	struct v7fs_self *fs;
+	struct v7fs_inode inode, original, loaded;
+	uint8_t before[V7FS_BSIZE], after[V7FS_BSIZE];
+	off_t sector_offset = (off_t)V7FS_ILIST_SECTOR * V7FS_BSIZE;
+	unsigned slot;
+	char detail[96];
+	int error;
+
+	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
+		fail("regress-inode-address-width", "format or mount failed");
+		return;
+	}
+	if (v7fs_inode_load(fs, &inode, V7FS_ROOT_INODE) != 0) {
+		fail("regress-inode-address-width", "root inode load failed");
+		v7fs_io_fini(fs);
+		return;
+	}
+	original = inode;
+	for (slot = 0; slot < V7FS_NADDR; slot++) {
+		inode = original;
+		inode.addr[slot] = V7FS_DADDR_MAX;
+		error = v7fs_inode_writeback(fs, &inode);
+		if (error == 0)
+			error = v7fs_inode_load(fs, &loaded, V7FS_ROOT_INODE);
+		snprintf(detail, sizeof(detail),
+		    "address slot %u did not round-trip the 24-bit maximum", slot);
+		check(error == 0 && loaded.addr[slot] == V7FS_DADDR_MAX,
+		    "regress-inode-address-width", detail);
+		check(v7fs_inode_writeback(fs, &original) == 0,
+		    "regress-inode-address-width", "fixture restoration failed");
+
+		if (pread(fd, before, sizeof(before), sector_offset) !=
+		    (ssize_t)sizeof(before)) {
+			fail("regress-inode-address-width", "inode sector read failed");
+			break;
+		}
+		inode = original;
+		inode.addr[slot] = V7FS_DADDR_MAX + 1u;
+		error = v7fs_inode_writeback(fs, &inode);
+		if (pread(fd, after, sizeof(after), sector_offset) !=
+		    (ssize_t)sizeof(after)) {
+			fail("regress-inode-address-width", "inode sector reread failed");
+			break;
+		}
+		snprintf(detail, sizeof(detail),
+		    "address slot %u truncated outside the 24-bit domain", slot);
+		check(error == EFBIG && memcmp(before, after, sizeof(before)) == 0,
+		    "regress-inode-address-width", detail);
+	}
+	v7fs_io_fini(fs);
 }
 
 static void
@@ -1379,7 +2064,7 @@ regress(int fd)
 	struct v7fs_self *fs;
 	struct v7fs_inode root, inode;
 	struct v7fs_fileattr attr;
-	char name[8];
+	char name[8], dump[512];
 	v7fs_ino_t ino;
 	unsigned i, allocated;
 	uint8_t before[512];
@@ -1591,6 +2276,10 @@ regress(int fd)
 	regress_shrink_transition(fd, 139, 137, "regress-shrink-double");
 	regress_shrink_write_failure(fd);
 	regress_rename_failures(fd);
+	regress_rename_same_inode(fd);
+	regress_rename_write_compensation(fd);
+	regress_rename_replacement_compensation(fd);
+	regress_rename_hierarchy(fd);
 	regress_lookup_full_name(fd);
 #ifdef STATIC_BUFFER
 	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
@@ -1645,6 +2334,8 @@ regress(int fd)
 		regress_create_failure(fd, true, false, i);
 	for (i = 2; i <= 4; i++)
 		regress_create_failure(fd, false, true, i);
+	regress_symlink_writeback(fd);
+	regress_inode_address_width(fd);
 	regress_remove_failure(fd, 0);
 	regress_remove_failure(fd, 1);
 	regress_remove_failure(fd, 2);
@@ -1960,6 +2651,48 @@ regress(int fd)
 			v7fs_io_fini(fs);
 		}
 	}
+
+	/*
+	 * The superblock time is an unsigned 32-bit count of seconds; a count
+	 * with bit 31 set is a date after January 2038 and must mount, and
+	 * must survive a writeback into the field s_time of filsys.h.
+	 */
+	if (format_image(fd, 64, 0) != 0 || load_raw(fd) != 0) {
+		fail("regress-superblock-time", "format failed");
+	} else {
+		put32(SB + SB_TIME_OFFSET, 0x90000000u);
+		if (lseek(fd, 512, SEEK_SET) != 512 ||
+		    write(fd, image + 512, 512) != 512) {
+			fail("regress-superblock-time", "superblock write failed");
+		} else if ((fs = mount_image(fd)) == NULL) {
+			fail("regress-superblock-time",
+			    "a superblock time past January 2038 does not mount");
+		} else {
+			check((uint32_t)fs->superblock.update_time == 0x90000000u,
+			    "regress-superblock-time",
+			    "the mounted time is not the stored count");
+			/* 0x90000000 is 2046-07-23 00:38:24 UTC; read as a signed
+			 * count it would print a date in 1910. */
+			setenv("TZ", "UTC", 1);
+			tzset();
+			check(dump_text(fs, dump, sizeof(dump)) == 0 &&
+			    strstr(dump, "Mon Jul 23 00:38:24 2046") != NULL,
+			    "regress-superblock-time",
+			    "the superblock dump does not print July 2046");
+			fs->superblock.update_time = (v7fs_time_t)0xffffffffu;
+			fs->superblock.modified = 1;
+			check(v7fs_superblock_writeback(fs) == 0 &&
+			    load_raw(fd) == 0 && SB_TIME == 0xffffffffu,
+			    "regress-superblock-time",
+			    "the written time is not the count stored");
+			v7fs_io_fini(fs);
+			if ((fs = mount_image(fd)) == NULL)
+				fail("regress-superblock-time",
+				    "the largest count does not mount");
+			else
+				v7fs_io_fini(fs);
+		}
+	}
 }
 
 static int
@@ -1984,6 +2717,8 @@ main(int argc, char **argv)
 	struct v7fs_self *fs;
 	struct v7fs_inode root;
 	v7fs_ino_t inos[4];
+	char *end;
+	unsigned long parent_blocks;
 	int fd, error, verify;
 
 	fill_patterns();
@@ -1993,8 +2728,9 @@ main(int argc, char **argv)
 		    write_pattern(argv[1], "inner", inner, sizeof(inner)) ? 2 : 0;
 	verify = argc == 4 && strcmp(argv[3], "verify") == 0;
 	if (argc == 4 && strcmp(argv[3], "regress") == 0 &&
-	    strcmp(argv[2], "little") == 0) {
-		byte_order = LITTLE_ENDIAN;
+	    (strcmp(argv[2], "little") == 0 || strcmp(argv[2], "pdp") == 0)) {
+		byte_order = strcmp(argv[2], "pdp") == 0 ?
+		    PDP_ENDIAN : LITTLE_ENDIAN;
 		if ((fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0600)) == -1) {
 			perror(argv[1]);
 			return 2;
@@ -2006,10 +2742,28 @@ main(int argc, char **argv)
 		printf("v7fs_core: regression scenarios hold\n");
 		return 0;
 	}
+	if (argc == 5 && strcmp(argv[3], "parent") == 0 &&
+	    (strcmp(argv[2], "little") == 0 || strcmp(argv[2], "pdp") == 0)) {
+		errno = 0;
+		parent_blocks = strtoul(argv[4], &end, 10);
+		if (errno != 0 || *end != '\0' || parent_blocks > UINT_MAX)
+			return 2;
+		byte_order = strcmp(argv[2], "pdp") == 0 ?
+		    PDP_ENDIAN : LITTLE_ENDIAN;
+		if ((fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0600)) == -1) {
+			perror(argv[1]);
+			return 2;
+		}
+		error = write_parent_fixture(fd, (unsigned)parent_blocks);
+		if (close(fd) != 0 && error == 0)
+			error = errno;
+		return error == 0 ? 0 : 1;
+	}
 	if ((argc != 3 && !verify) || (strcmp(argv[2], "little") != 0 &&
 	    strcmp(argv[2], "pdp") != 0)) {
 		fprintf(stderr, "usage: v7fs_core_test IMAGE little|pdp [verify]\n"
-		    "       v7fs_core_test IMAGE little regress\n"
+		    "       v7fs_core_test IMAGE little|pdp regress\n"
+		    "       v7fs_core_test IMAGE little|pdp parent BLOCKS\n"
 		    "       v7fs_core_test DIR - patterns\n");
 		return 2;
 	}

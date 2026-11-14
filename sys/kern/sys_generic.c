@@ -467,9 +467,7 @@ retry:
         goto done;
     s = splhigh();
     if (uap->ts) {
-        /* this should be timercmp(&time, &atv, >=) */
-        if ((time.tv_sec > atv.tv_sec || (time.tv_sec == atv.tv_sec
-            && lbolt * usechz >= atv.tv_usec))) {
+        if (wall_reached(&atv, time.tv_sec, lbolt * usechz)) {
             splx(s);
             goto done;
         }

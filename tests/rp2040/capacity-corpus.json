@@ -254,28 +254,28 @@
       "recovery": "Closing holders permits a subsequent falloc allocation."
     },
     {
-      "id": "clist-pool-renode-exhaustion",
+      "id": "clist-pool-renode-bound",
       "resources": ["NCLIST"],
-      "obligations": ["normal", "exhaustion", "recovery"],
-      "fixture": "tests/kernel/clist_test.c",
+      "obligations": ["normal", "bound", "recovery"],
+      "fixture": "tests/rp2040/capacity_exhaustion/clistbound.c",
       "execution_class": "renode",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/renode-capacity-bounds-9809ec65.txt",
       "dependencies": ["capacity-counter-exact-source"],
-      "expected": "Emulated terminal traffic fills the clist pool and attributes refusal to the clist counter.",
-      "recovery": "Draining the queue preserves byte order and permits a subsequent terminal write."
+      "expected": "With output stopped and a writer blocked at the high-water mark, input typed past TTYHOG is echoed and answered with bells on the stopped queue; the pool records its peak and refuses no block, the bound sys/kern/tty.c asserts for the one live terminal the emulated image has.",
+      "recovery": "Restarting output delivers every writer line once and in order, and the clist failure counter is unchanged."
     },
     {
-      "id": "buffer-cache-renode-exhaustion",
+      "id": "buffer-cache-renode-bound",
       "resources": ["NBUF"],
-      "obligations": ["normal", "exhaustion", "writeback", "recovery"],
-      "fixture": "sys/kern/ufs_bio.c",
+      "obligations": ["normal", "bound", "recovery"],
+      "fixture": "tools/renode/check-capacity.py",
       "execution_class": "renode",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/renode-capacity-bounds-9809ec65.txt",
       "dependencies": ["capacity-counter-exact-source"],
-      "expected": "An emulated workload holds every buffer busy, attributes the wait and preserves delayed-write data.",
-      "recovery": "Releasing one buffer wakes the waiter, completes writeback and permits a subsequent allocation."
+      "expected": "The table-exhaustion programs and clistbound drive file-system and swap traffic; every buffer is busy at once, a peak equal to NBUF, and no getblk() waits.",
+      "recovery": "The buffer failure counter is unchanged across the run, and every program exits 0."
     },
     {
       "id": "uarea-renode-paths",
@@ -283,8 +283,8 @@
       "obligations": ["normal", "signal", "deliberate-fault", "swapram", "context-switch", "geometry", "recovery"],
       "fixture": "tools/renode/check-boot.py",
       "execution_class": "renode",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/renode-uarea-paths-9809ec65.txt",
       "dependencies": ["mpu-deliberate-fault", "uarea-exchange-geometry"],
       "expected": "The bounded emulator workload drives signal, fault, SwapRAM and context-switch paths while sampling the complete u-area geometry.",
       "recovery": "Every injected path returns to an answering shell with an unsaturated final capacity snapshot."
@@ -321,7 +321,7 @@
       "state": "retain",
       "greatest_observed_peak": 22,
       "reserve_rule": "Require putc and b_to_q exhaustion, byte-order recovery, bounded physical terminal traffic and a positive measured reserve.",
-      "deciding_cases": ["capacity-counter-exact-source", "stdio-board-workload", "clist-pool-exhaustion", "clist-pool-board-exhaustion", "clist-pool-renode-exhaustion"]
+      "deciding_cases": ["capacity-counter-exact-source", "stdio-board-workload", "clist-pool-exhaustion", "clist-pool-board-exhaustion", "clist-pool-renode-bound"]
     },
     {
       "resource": "NBUF",
@@ -329,7 +329,7 @@
       "state": "retain",
       "greatest_observed_peak": 3,
       "reserve_rule": "Preserve exec-spool and packed-decoder lifetimes; require all-busy attribution, delayed-write recovery and zero unexpected waits in Renode and board runs.",
-      "deciding_cases": ["capacity-counter-exact-source", "buffer-all-busy", "exec-spool-fallback", "buffer-cache-board-pressure", "buffer-cache-board-exhaustion", "buffer-cache-renode-exhaustion"]
+      "deciding_cases": ["capacity-counter-exact-source", "buffer-all-busy", "exec-spool-fallback", "buffer-cache-board-pressure", "buffer-cache-board-exhaustion", "buffer-cache-renode-bound"]
     },
     {
       "resource": "USIZE",

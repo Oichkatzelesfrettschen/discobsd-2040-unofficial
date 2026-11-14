@@ -77,7 +77,6 @@ main(argc, argv)
 	register struct afile *fp;
 	struct sgttyb sgbuf;
 	int ch, i;
-	time_t time();
 	void cfree();
 
 	Aflg = !getuid();

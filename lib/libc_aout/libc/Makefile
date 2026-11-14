@@ -18,9 +18,14 @@ VPATH=	${LIBCDIR}/${MACHINE_ARCH}/sys ${LIBCDIR}/${MACHINE_ARCH}/string \
 	${LIBCDIR}/compat ${LIBCDIR}/runtime
 
 # The RP2040 assembles its own objects with the tree's Thumb assembler,
-# which -B puts ahead of the cross toolchain's own as.
+# which -B puts ahead of the cross toolchain's own as. An a.out object has
+# one text segment and the target ld keeps whole members, so the
+# -ffunction-sections of share/mk/sys.mk has nothing to collect here; it
+# only moves each function to its own alignment boundary, where the ELF
+# layout usr.bin/as/tests/thumb-link.sh compares against places it
+# differently. -fno-function-sections keeps one .text per unit.
 COPTS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "-Wa,-x -B${TOOLBINDIR}/" ; \
+		echo "-Wa,-x -B${TOOLBINDIR}/ -fno-function-sections" ; \
 	else \
 		echo "" ; \
 	fi
@@ -31,7 +36,9 @@ ASOPTS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 		echo "" ; \
 	fi
 
-DEFS		= -Wall -ffreestanding
+# The 32-bit view of time for every member but the 64-bit ones, as in
+# lib/libc/Makefile, whose comment gives the reason.
+DEFS		= -Wall -ffreestanding -D_TIME_BITS=32
 CFLAGS		= ${DEFS} -Os -Wno-attributes -Wno-attribute-alias ${COPTS}
 ASFLAGS		= ${DEFS} -I${LIBCDIR}/${MACHINE_ARCH}/sys ${ASOPTS}
 
@@ -73,6 +80,26 @@ OBJS            += bcopy.o bzero.o ffs.o memcpy.o memmove.o memset.o \
 
 # libc/$(MACHINE_ARCH)/gen
 OBJS            += _setjmp.o htonl.o htons.o
+.if ${MACHINE} == "rp2040"
+OBJS            += aeabi_div.o
+.else
+OBJS            += aeabi_div_idiv.o
+.endif
+
+# libc/gen, the system calls of the 64-bit view of time
+OBJS            += time64_widen_stat.o time64_widen_rusage.o time64_stat.o time64_lstat.o \
+                   time64_fstat.o time64_gettimeofday.o time64_settimeofday.o time64_adjtime.o \
+                   time64_select.o time64_pselect.o time64_utimes.o time64_futimes.o \
+                   time64_getitimer.o time64_setitimer.o time64_getrusage.o time64_wait4.o
+
+# libc/gen and libc/compat, the members of the 64-bit view of time that
+# are a second build of a narrow source: NAME64.o is NAME.c compiled with
+# _TIME_BITS defined as 64, as in lib/libc/gen/Makefile and
+# lib/libc/compat/Makefile. This archive carries no mktime.o, so no
+# mktime64.o.
+WIDEGENOBJS     = ctime64.o time64.o difftime64.o wait364.o
+WIDECOMPATOBJS  = utime64.o ftime64.o
+OBJS            += ${WIDEGENOBJS} ${WIDECOMPATOBJS}
 
 # libc/gen
 OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
@@ -85,13 +112,13 @@ OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
                    getttyent.o getttynam.o getusershell.o getwd.o \
                    initgroups.o isatty.o isinff.o isnanf.o ldexp.o malloc.o mktemp.o \
                    modff.o ndbm.o nlist.o knlist.o opendir.o perror.o popen.o \
-                   psignal.o qsort.o raise.o random.o readdir.o regex.o scandir.o \
+                   psignal.o qsort.o qsort_r.o raise.o random.o readdir.o regex.o scandir.o \
                    seekdir.o setmode.o sethostname.o setenv.o setpgid.o siglist.o \
                    signal.o siginterrupt.o sigsetops.o \
                    sleep.o strcasecmp.o strftime.o swab.o sysconf.o sysctl.o syslog.o system.o \
                    stpcpy.o stpncpy.o strndup.o strnlen.o \
                    strcat.o strncat.o strcpy.o strncpy.o strncmp.o \
-                   telldir.o time.o timezone.o ttyname.o ttyslot.o ualarm.o usleep.o \
+                   telldir.o time.o timezone.o tzset.o ttyname.o ttyslot.o ualarm.o usleep.o \
                    strdup.o uname.o vis.o wait.o wait3.o waitpid.o
 
 # libc/stdio
@@ -104,7 +131,8 @@ OBJS            += fgetc.o fgets.o fputc.o fputs.o puts.o \
                    remove.o feof.o ferror.o fileno.o
 
 # libc/stdlib
-OBJS            += getopt.o getsubopt.o strtol.o strtoul.o strtod.o
+OBJS            += abs.o labs.o iso_exit.o at_quick_exit.o quick_exit.o \
+                   getopt.o getsubopt.o strtol.o strtoul.o strtod.o
 
 # libc/string
 OBJS            += explicit_bzero.o strcspn.o strerror.o strlcat.o strlcpy.o \
@@ -145,8 +173,36 @@ all:            ../libc.a
 		${AOUT_AR} rc $@ ${OBJS}
 		${AOUT_RANLIB} $@
 
+qsort_r.o: ${LIBCDIR}/gen/qsort.c
+
+# The retained gen/abs.c belongs to the historical implementation; native
+# archives use the maintained typed provider from stdlib. An explicit local
+# output keeps .PATH lookup from replacing the cross-library ELF object.
+abs.o: ${LIBCDIR}/stdlib/abs.c
+		${CC} ${CFLAGS} -c -o abs.o ${LIBCDIR}/stdlib/abs.c
+
+# Each output is named here rather than by $@, which .PATH would resolve to
+# the ELF member of the same name in ${LIBCDIR}/gen or ${LIBCDIR}/compat,
+# as for abs.o above.
+.for member in ${WIDEGENOBJS:S/64.o$//}
+${member}64.o: ${LIBCDIR}/gen/${member}.c
+		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o ${member}64.o \
+		    ${LIBCDIR}/gen/${member}.c
+.endfor
+.for member in ${WIDECOMPATOBJS:S/64.o$//}
+${member}64.o: ${LIBCDIR}/compat/${member}.c
+		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o ${member}64.o \
+		    ${LIBCDIR}/compat/${member}.c
+.endfor
+
+# syslog.o at the 64-bit view, as lib/libc/gen/Makefile builds it.
+syslog.o: ${LIBCDIR}/gen/syslog.c
+		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o syslog.o \
+		    ${LIBCDIR}/gen/syslog.c
+
 vfprintf.o fputs.o: ${LIBCDIR}/stdio/output.h
 atexit.o exit.o: ${LIBCDIR}/stdio/atexit.h
+at_quick_exit.o quick_exit.o: ${LIBCDIR}/stdlib/quick_exit.h
 
 ${OBJS}:	FRC
 

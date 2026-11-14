@@ -1,0 +1,41 @@
+{
+  "source_head": "8181737031bc0b6ff52c247f65f728840c313303",
+  "records": [
+    {
+      "path": ".build-logs/shared-libc-calendar-lto-default-register/experiment-summary.json",
+      "sha256": "e1a7c5f8c22768763bbf9704a9d455cb68c0b66a94ca1148f90ac37c795f9c16"
+    },
+    {
+      "path": ".build-logs/shared-libc-state-layout/summary.json",
+      "sha256": "7c22fab02464e0c093d32cff5e2fade400a38bcccbb50fe3ca66c038cb99805e"
+    },
+    {
+      "path": ".build-logs/shared-libc-state-layout/bounded-layout-controls.json",
+      "sha256": "afcbac5c5601a5f0f2bd4c10a91dbb73acd25822f999446a95d8da4d56a942f3"
+    },
+    {
+      "path": ".build-logs/shared-public-header-denominator/receipt.json",
+      "sha256": "ba696605cf910c797afaff4351549b15b2db21679538b176c7217009c477f2bf"
+    },
+    {
+      "path": ".build-logs/shared-public-header-denominator/prerequisite-controls.json",
+      "sha256": "e8bae2148ad7ffc5b1da901c0bd9b431de970fb608aec99c60c11ed129f44316"
+    },
+    {
+      "path": ".build-logs/shared-header-provider-link/receipt.json",
+      "sha256": "d8ae7066e8560534d2bc101b3c3446343b6e6d3f80dd670c01e435b00612e48d"
+    },
+    {
+      "path": ".build-logs/shared-libc-compact-slots/receipt.json",
+      "sha256": "f5c01d01623079fb4788575499c6758e685d029108f1570c4093bf7814490124"
+    },
+    {
+      "path": ".build-logs/shared-libc-compact-slots/link-boundary-controls.json",
+      "sha256": "6b3f8236c37e8156c02852ecb5f69ea5f8fa3d3d864a420aacbc2deb229568db"
+    },
+    {
+      "path": ".build-logs/shared-libc-calendar-lto/minimal/fixed-register-comparison.json",
+      "sha256": "32a740fa375674214435605f50c892d9ecb445597a77baaed7c439970a95d89b"
+    }
+  ]
+}

@@ -52,10 +52,32 @@ Makefiles are tracked; synchronize both when generation inputs change.
   32-bit POSIX shell, cross,
   qemu-user, host-package and board-build tiers. `check-renode` boots a
   PICO_UART kernel and stands outside the aggregate. `logged-ilp32` runs the
-  ILP32 execution inventory, which also stands outside it and which hosted CI
-  requires; run it before a push. Board execution requires
+  ILP32 execution inventory, which also stands outside it and which the
+  nightly hosted run requires. Board execution requires
   explicit opt-in. `sys/arch/rp2040/doc/TESTING.md` owns each gate's execution
   class and claim; add new gates there and to the root Makefile and CI owner.
+- Iterative local validation covers the changed files: build the touched
+  programs or kernels, run the gates whose inputs include those files (the
+  owning `check-*` target, its mutants, `ruff` or `shellcheck` on a changed
+  script, the C17 ledger after a C edit) and, for a change the target runs, the
+  Renode stage that exercises it after `logged-distribution` and
+  `logged-flash`, since `check-renode` boots the flash image. Hosted CI runs
+  a fixed short set on each pull request and push to `main` (warning-free
+  build, kernel headroom, flash image, lint, changed-comment and
+  changed-text checks, the Renode UART0 boot) and every tier nightly and on
+  manual dispatch; a failed nightly opens the issue "Nightly gates failed".
+  The local gates over the changed files are therefore the evidence a merge
+  has for every tier outside the short set.
+- The full local chain -- `bmake clean`, `logged-build`, `logged-check`,
+  `logged-ilp32`, `logged-distribution`, `logged-flash`, `check-renode`,
+  `check-renode-union` -- takes about an hour serialized, 40 minutes of it in
+  `logged-check`. It runs when the owner requests it, or, after an
+  AskUserQuestion that the owner answers yes, following a sweeping change: a
+  shared header, libc, the build system or the kernel across subsystems.
+- Pass `-j"$(sh tools/online-cpus.sh)"` to `build`, `flash`, `check-host` and
+  `check-cross` and their logged forms, as hosted CI does
+  (`.github/workflows/firmware.yml`); the logged wrappers pass the parent's
+  job server through. A target CI runs serially stays serial locally.
 - Logged local targets allocate immutable invocation directories under
   `.build-logs`, update a label-specific latest receipt and share one worktree
   product lock. `logged-check` applies one total deadline across build and
@@ -129,6 +151,15 @@ issues, or research notes. Name related symbols and files when they clarify
 the mechanism. Comment length follows the mechanism's explanatory needs;
 individual words such as "this", "now" or "previously" do not decide whether
 a comment describes implementation behavior or investigation history.
+
+Inherited legacy text stays: the dated change notes, SCCS and version
+lines, author initials and usage lines that BSD, RetroBSD and upstream
+DiscoBSD sources carry at the top of a file or above a routine are
+provenance, with the same standing as a copyright header. A rewrite keeps
+every such line verbatim. It may move the block to the top of the file or
+regroup it for formatting, and it states the current behavior in a new
+comment beside it, never by editing or deleting the inherited lines. The
+rule for new comments above governs only text written for this port.
 
 A TODO names the missing mechanism, the constraint that defers it and its
 durable tracking artifact. New work lands complete.

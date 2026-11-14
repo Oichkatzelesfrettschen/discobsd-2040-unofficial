@@ -78,6 +78,7 @@ class Consts:
         self.e_range = macro(xfer_text, "PSRAM_E_RANGE")
         self.e_id = macro(xfer_text, "PSRAM_E_ID")
         self.e_quad = macro(xfer_text, "PSRAM_E_QUAD")
+        self.e_size = macro(xfer_text, "PSRAM_E_SIZE")
 
     def ctrl(self, nout, wait, nin):
         return self.lib.psram_host_ctrl_word(nout, wait, nin)
@@ -361,7 +362,7 @@ def new_rig(lib_path, **kw):
     dkw = {
         k: kw.pop(k)
         for k in list(kw)
-        if k in ("kgd", "mfid", "stuck_low_sio", "absent", "seed")
+        if k in ("kgd", "mfid", "stuck_low_sio", "absent", "seed", "eid", "size")
     }
     return rigmod.Rig(lib_path, device=pio_sim.Device(**dkw), **kw)
 
@@ -493,6 +494,10 @@ def test_driver(lib_path, c, access_ticks=6, quiet=False, **rig_kw):
     err = r.device_init()
     check(err == 0, "device init returned %d" % err)
     check(r.ids() == (0x0D, 0x5D), "ids %s" % (r.ids(),))
+    check(
+        r.eid() == (bytes(r.dev.eid), 1),
+        "EID %s read %d, want %s" % (r.eid()[0].hex(), r.eid()[1], r.dev.eid.hex()),
+    )
     check(r.dev.qpi, "device is in quad mode after init")
     seq = [f["cmd"] for f in r.dev.frames]
     check(
@@ -570,6 +575,70 @@ def test_faults(lib_path, c):
             not r.dev.violations,
             "%s: violations %s" % (name, r.dev.violations[:3]),
         )
+
+
+def test_eid(lib_path, c):
+    """Read ID returns 48 EID bits after MF and KGD; each byte position
+    and bit order must reach psram_eid, on a passing part and on parts the
+    probe refuses, and an RX overrun during Read ID repeats the reset."""
+    aps_like = bytes([0x5A, 0x01, 0x80, 0xFF, 0x00, 0x7E])
+    for name, kw, want_err in (
+        ("APS-style density 010", dict(eid=aps_like), 0),
+        ("known-good-die fail keeps its EID", dict(eid=aps_like, kgd=0x55), c.e_id),
+        ("absent part reads zeros", dict(absent=True), c.e_id),
+    ):
+        r = new_rig(lib_path, **kw)
+        r.hw_init()
+        e = r.device_init()
+        want = bytes(6) if kw.get("absent") else aps_like
+        check(e == want_err, "%s: init %d, want %d" % (name, e, want_err))
+        check(
+            r.eid() == (want, 1),
+            "%s: EID %s read %d" % (name, r.eid()[0].hex(), r.eid()[1]),
+        )
+    # The full Read ID runs 31 clocks out, three with the pins released and
+    # 64 in, and holds CS low inside tCEM.
+    r = new_rig(lib_path)
+    r.hw_init()
+    r.device_init()
+    f = r.dev.frames[4]
+    check(
+        f["cmd"] == 0x9F and f["pulses"] == 31 + 3 + 64,
+        "full Read ID frame: command %s, %d clocks" % (f["cmd"], f["pulses"]),
+    )
+    low = f["t_rise"] - f["t_fall"]
+    check(low < pio_sim.T_CEM, "full Read ID holds CS low %.0f ns" % low)
+    # Frames 0-3 are the two reset pairs; frame 4 is the first Read ID.
+    r = new_rig(lib_path, forced_stalls=(4,))
+    r.hw_init()
+    e = r.device_init()
+    seq = [f["cmd"] for f in r.dev.frames]
+    check(e == 0, "an overrun Read ID is retried: init %d" % e)
+    check(
+        seq[4] == 0x9F and seq[5:9] in ([None, None, 0x66, 0x99], [0x66, 0x99, 0x66, 0x99])
+        and seq[9] == 0x9F,
+        "the retry resets the part before Read ID again: %s" % seq[:10],
+    )
+    check(r.eid() == (bytes(r.dev.eid), 1), "the retried Read ID decodes the EID")
+    r = new_rig(lib_path, forced_stalls=(4, 9, 14))
+    r.hw_init()
+    e = r.device_init()
+    check(
+        e == c.e_stall and r.eid()[1] == 0,
+        "three overrun Read IDs give up with %d (read %d)" % (e, r.eid()[1]),
+    )
+
+
+def test_extent(lib_path, c):
+    """A part that answers 0d/5d with fewer than 23 address bits wraps its
+    addresses; the probe must refuse it before swap does, and accept the
+    full 8 MB part."""
+    for size in (1 << 10, 1 << 16, 1 << 20, 2 << 20, 4 << 20, 8 << 20):
+        r = new_rig(lib_path, size=size)
+        r.hw_init()
+        e = r.device_init()
+        want = 0 if size == pio_sim.SIZE else c.e_size
+        check(e == want, "a %d-byte part: init %d, want %d" % (size, e, want))
 
 
 def test_cpu_speed(lib_path, c):
@@ -688,6 +757,8 @@ def main():
         ),
     }
     test_faults(a.lib, c)
+    test_eid(a.lib, c)
+    test_extent(a.lib, c)
     test_cpu_speed(a.lib, c)
     test_pad_delay(a.lib, c)
     results["stage_gating"] = test_stage_gating(a.lib, c)

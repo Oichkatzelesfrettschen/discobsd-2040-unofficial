@@ -17,6 +17,35 @@ layout with a fixed 192 KiB window and a kernel-resident SwapRAM pool.
 
 ## Shared-library implementation contract
 
+The [executable-tail object experiment](object-abi/README.md) supplies compiler,
+linker, a.out conversion and QEMU witnesses for process-local object identity.
+Its five application layouts and eleven calibrated rejection controls establish
+that prerequisite. Full-libc sizing, versioned admission and runtime lifecycle
+qualification remain separate implementation work.
+
+The [export-closure checker](export-closure/README.md) resolves explicit API
+roots through compiled archive providers. Its calibration rejects a selection
+that drops a required interface merely because installed programs never call it.
+The all-global screening receipt retains input-section costs and leaves public
+ABI selection and final PIC sizing open.
+
+The [calendar PIC envelope](export-closure/calendar-pic-envelope.md) records
+the integrated 449-member compilation and 646-global link. The experimental
+image occupies 62,396 flash bytes, exceeding the fixed reservation by 13,244
+bytes. Hidden visibility supplies no flash savings. The measured size requires
+explicit ABI closure and implementation reductions before image admission.
+
+The [mechanism cost experiments](../libc-mechanism-costs.md) compare compiler
+size flags and shared syscall error factoring. The factored link saves 976
+bytes and passes a calibrated syscall instruction model, while remaining
+12,092 bytes over the reservation before slots. Production adoption remains
+subject to the object-ABI and lifecycle gates.
+
+The [native-call veneer experiment](../native-call-veneers.md) checks a
+12-byte Thumb encoding with eight bytes of temporary stack storage, canonical
+flash pointer identity, and native/GNU assembler agreement. Automatic branch
+redirection, stable slots, and final shared layout remain implementation work.
+
 The accepted implementation keeps multicall executables and static native
 output while adding an explicit shared-link mode. The initial libc reservation
 is 48 KiB immediately after the 128 KiB kernel. Raw Dhara space becomes
@@ -391,3 +420,7 @@ and swap growth are unmeasured, and the PIC data design's run-time cost rests
 on object sizes alone. The LARGE-epoch defect rests on source plus one
 retained board transcript of the denied address, not on a LARGE run with the
 MPU enabled.
+
+The [full-library state experiments](full-library-state.md) record LTO sizing,
+process-state relocation controls, installed-header discovery and compact
+callable-slot execution. The fixed reservation remains a failed size gate.

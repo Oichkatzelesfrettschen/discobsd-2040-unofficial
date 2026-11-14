@@ -21,7 +21,9 @@
  * arising out of or in connection with the use or performance of
  * this software.
  */
+#include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -263,6 +265,86 @@ int fs_open (fs_t *fs, const char *filename, int writable, unsigned pindex)
     return 1;
 }
 
+/*
+ * The image stores every time as an unsigned 32-bit count of seconds since
+ * 1970 (the kernel's utime32_t), so a time setting holds 0 through
+ * FS_TIME_MAX, which is the year 2106; a count with bit 31 set is a date
+ * after January 2038.
+ */
+#define FS_TIME_MAX 0xffffffffULL
+
+/*
+ * Read the time setting NAME, a decimal count of seconds in 0 through
+ * FS_TIME_MAX with no sign, space or suffix. Returns 1 and the count when
+ * the variable is set, and 0 when it is absent or, with EMPTY_UNSET, empty.
+ * A value outside the range exits with status 1 after a message on stderr,
+ * so a mistyped date never falls back to the host clock.
+ */
+static int env_seconds (const char *name, int empty_unset,
+    unsigned long long *seconds)
+{
+    const char *text = getenv (name);
+    char *end;
+
+    if (text == NULL || (empty_unset && *text == '\0'))
+        return 0;
+    if (*text >= '0' && *text <= '9') {
+        errno = 0;
+        *seconds = strtoull (text, &end, 10);
+        if (errno == 0 && *end == '\0' && *seconds <= FS_TIME_MAX)
+            return 1;
+    }
+    fprintf (stderr, "fsutil: %s must be a decimal count of seconds "
+        "from 0 to 4294967295, not \"%s\"\n", name, text);
+    exit (1);
+}
+
+/*
+ * Exit with a message when FSUTIL_CLOCK or SOURCE_DATE_EPOCH holds a bad
+ * value. A mode that writes an image calls it before it opens one, so a
+ * rejected value leaves no half-written image.
+ */
+void fs_clock_validate (void)
+{
+    unsigned long long seconds;
+
+    (void) env_seconds ("FSUTIL_CLOCK", 0, &seconds);
+    (void) env_seconds ("SOURCE_DATE_EPOCH", 1, &seconds);
+}
+
+/*
+ * The time written to an image in place of OBSERVED. With FSUTIL_CLOCK set
+ * to a count of seconds, every time is that count, whatever OBSERVED, the
+ * host clock and SOURCE_DATE_EPOCH hold, so a test can build an image dated
+ * past 2038. Otherwise SOURCE_DATE_EPOCH bounds the time: no time written to
+ * an image is later than it, so equal inputs give equal images, and a file
+ * is never newer than the table date ranlib writes into an archive from the
+ * same variable (ld reads an archive whose file is newer than its table as
+ * unsorted). ar and ranlib accept the whole range through 4294967295, the
+ * unsigned count the target ar, ranlib and ld read from an archive header,
+ * so the ordering holds for every value fsutil accepts. An empty
+ * SOURCE_DATE_EPOCH leaves the observed time.
+ */
+time_t fs_source_time (time_t observed)
+{
+    unsigned long long fixed, epoch;
+
+    if (env_seconds ("FSUTIL_CLOCK", 0, &fixed))
+        return (time_t) fixed;
+    if (env_seconds ("SOURCE_DATE_EPOCH", 1, &epoch) &&
+        (long long) observed > (long long) epoch)
+        return (time_t) epoch;
+    return observed;
+}
+
+/*
+ * The time fsutil stamps on what it creates or changes.
+ */
+time_t fs_clock (void)
+{
+    return fs_source_time (time (NULL));
+}
+
 int fs_sync (fs_t *fs, int force)
 {
     int i;
@@ -272,7 +354,7 @@ int fs_sync (fs_t *fs, int force)
     if (! force && ! fs->dirty)
         return 1;
 
-    time (&fs->utime);
+    fs->utime = fs_clock ();
     if (! fs_seek (fs, 0))
         return 0;
 

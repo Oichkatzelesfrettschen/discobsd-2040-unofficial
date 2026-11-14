@@ -57,8 +57,7 @@ sync(void)
  * There are two strategies based on the size of the file;
  * large files are those with more than NBUF/2 blocks.
  * Large files
- *  Walk through the buffer pool and push any dirty pages
- *  associated with the device on which the file resides.
+ *  Flush and drain the buffer pool for the file's containing device.
  * Small files
  *  Look up each block in the file to see if it is in the
  *  buffer pool writing any that are found to disk.
@@ -70,12 +69,17 @@ sync(void)
 int
 syncip(struct inode *ip)
 {
-    register struct buf *bp;
-    register struct buf *lastbufp;
     long lbn, lastlbn;
-    register int s;
     daddr_t blkno, mapped_block;
     int error;
+
+    /* A block node's size does not describe the represented device's buffers. */
+    if ((ip->i_mode & IFMT) == IFBLK) {
+        error = bdevsync(ip->i_rdev);
+        if (error)
+            return (error);
+        goto update_inode;
+    }
 
     lastlbn = howmany(ip->i_size, IN_BSIZE(ip));
     if (lastlbn < NBUF / 2) {
@@ -89,26 +93,11 @@ syncip(struct inode *ip)
                 return (error);
         }
     } else {
-        lastbufp = &buf[NBUF];
-        for (bp = buf; bp < lastbufp; bp++) {
-            if (bp->b_dev != INODE_DEVICE(ip) ||
-                (bp->b_flags & B_DELWRI) == 0)
-                continue;
-            s = splbio();
-            if (bp->b_flags & B_BUSY) {
-                bp->b_flags |= B_WANTED;
-                sleep((caddr_t)bp, PRIBIO+1);
-                splx(s);
-                bp--;
-                continue;
-            }
-            splx(s);
-            notavail(bp);
-            error = bwrite(bp);
-            if (error)
-                return (error);
-        }
+        error = bdevsync(INODE_DEVICE(ip));
+        if (error)
+            return (error);
     }
+update_inode:
     ip->i_flag |= ICHG;
     return (iupdat(ip, &time, &time, 1));
 }

@@ -59,6 +59,12 @@ the number of various devices that will be compiled into the kernel;
 swap configuration files, definitions for
 the disk areas to be used for swapping, the root file system,
 argument processing, and kernel dumps.
+The dump device defaults to the swap device;
+.Dq Li dumps on none
+configures a kernel that takes no crash dump, and
+.Va dumpdev
+is then
+.Dv NODEV .
 .Pp
 After running
 .Nm ,

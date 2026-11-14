@@ -31,8 +31,13 @@ static struct kernel_capacity_stats capacity_state;
 
 _Static_assert(USIZE == UAREA_BYTES,
     "assembly and C must use the same u-area size");
-_Static_assert(sizeof(struct user) <= UAREA_STACK_OFFSET,
-    "struct user overlaps the measured kernel-stack region");
+/*
+ * struct user ends exactly where the measured kernel stack begins: a larger
+ * struct overlaps the stack region, and a smaller one leaves bytes that
+ * u_psargs (PSARGSZ in sys/user.h) should hold.
+ */
+_Static_assert(sizeof(struct user) == UAREA_STACK_OFFSET,
+    "struct user must end at the measured kernel-stack region");
 
 static uint16_t
 capacity_live(enum capacity_kind kind)

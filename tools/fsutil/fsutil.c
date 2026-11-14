@@ -116,6 +116,11 @@ static void print_help (char *progname)
     printf ("  -V, --version       Print version information and then exit.\n");
     printf ("  -h, --help          Print this message.\n");
     printf ("\n");
+    printf ("Environment:\n");
+    printf ("  SOURCE_DATE_EPOCH=N No time written to an image is later than N.\n");
+    printf ("  FSUTIL_CLOCK=N      Every time written to an image is N.\n");
+    printf ("                      N is a count of seconds, 0 to 4294967295.\n");
+    printf ("\n");
     printf ("Report bugs to \"%s\".\n", program_bug_address);
 }
 
@@ -408,7 +413,7 @@ void add_device (fs_t *fs, char *name, int mode, int owner, int group,
     dev.addr[1] = majr << 8 | minr;
     dev.uid = owner;
     dev.gid = group;
-    time (&dev.mtime);
+    dev.mtime = fs_clock ();
     fs_inode_save (&dev, 1);
 }
 
@@ -524,7 +529,7 @@ void add_file (fs_t *fs, const char *path, const char *dirname,
     }
     file.inode.uid = owner;
     file.inode.gid = group;
-    file.inode.mtime = st.st_mtime;
+    file.inode.mtime = fs_source_time (st.st_mtime);
     file.inode.dirty = 1;
     fs_file_close (&file);
     fclose (fd);
@@ -552,7 +557,7 @@ void add_symlink (fs_t *fs, const char *path, const char *link,
     }
     file.inode.uid = owner;
     file.inode.gid = group;
-    time (&file.inode.mtime);
+    file.inode.mtime = fs_clock ();
     file.inode.dirty = 1;
     fs_file_close (&file);
 }
@@ -731,6 +736,8 @@ void create_partition_table (const char *filename, char *format)
             type = 0xb7;
         else if (strcmp (p, "swap") == 0)
             type = 0xb8;
+        else if (strcmp (p, "dump") == 0)
+            type = 0xb9;        /* DUMP_PART_TYPE, sys/arch/rp2040/include/dump.h */
         else {
             type = strtoul (p, &endptr, 16);
             if (*endptr != '\0') {
@@ -847,6 +854,8 @@ int main (int argc, char **argv)
         print_help (argv[0]);
         return -1;
     }
+    if (newfs || add || mount || repartition || (check && fix))
+        fs_clock_validate ();
 
     if (newfs) {
         /* Create new filesystem. */

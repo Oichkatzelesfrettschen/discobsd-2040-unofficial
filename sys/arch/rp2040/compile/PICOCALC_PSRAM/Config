@@ -50,6 +50,7 @@ options         CAPACITY_STATS              # fixed-table and u-area peaks
 # sd0 (see PICOCALC.md); a UFS partition on it mounts beside the root.
 config          unix    root on fl0a
                         swap on fl1
+                        dumps on none          # Never the live swap; sdprobe() arms the SD card (sys/arch/rp2040/include/dump.h).
 
 options         "NFL=2"                     # fl0 root, fl1 swap.
 options         "NMOUNT=2"                  # The flash root and one SD partition.

@@ -37,7 +37,7 @@ on Windows); a symlink named `discobsd-term`, `discobsd-web` or
 | --- | --- | --- |
 | Ubuntu, Debian | `apt install python3-serial python3-pytest` or the venv above | `apt install bmake build-essential gcc-arm-none-eabi binutils-arm-none-eabi byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc`; picotool 2.3.1 built from source (see `.github/workflows/firmware.yml`) |
 | Arch, CachyOS | `pacman -S python-pyserial python-pytest ruff` | `pacman -S bmake arm-none-eabi-gcc arm-none-eabi-binutils byacc bison flex libbsd fuse2 pkgconf mandoc`; picotool 2.3.1 (the 2.3.0 in the AUR aborts on every RP2040) |
-| macOS | `brew install pipx` then `pipx install -e .` or the venv above; Apple's Python 3.9 works but has no pyserial | `brew install bmake byacc bison flex groff mandoc pkgconf picotool cflow cscope shellcheck ruff coreutils cpio` (the host gates read GNU cpio from its keg) and `brew install --cask gcc-arm-embedded` |
+| macOS | `brew install pipx` then `pipx install -e .` or the venv above; Apple's Python 3.9 works but has no pyserial | `brew install bmake byacc bison flex groff mandoc pkgconf picotool cflow cscope shellcheck ruff coreutils cpio jq` (the host gates read GNU cpio from its keg) and `brew install --cask gcc-arm-embedded` |
 | Windows | the venv above from python.org's Python; `pytest` and `ruff` run the same | not supported; build in WSL with the Ubuntu column |
 
 macOS particulars, each verified on macOS 26 with Apple silicon:
@@ -82,6 +82,30 @@ sys/arch/rp2040/doc/TESTING.md leave it out on macOS.
 | `usr.bin/smlrc`, `usr.bin/stevie`, `games/keen` | pass (smlrc link-only: no qemu-arm on macOS; `REQUIRE_QEMU=1` refuses that run) | smlrc run from its output directory, under its 95-byte file name limit |
 | `bin/sh/tests/posix-sh.sh` | Linux x86-64 only: it builds a 32-bit host binary | none |
 | `tests/rp2040/uarea_exchange` | Linux only: needs qemu-arm user-mode emulation, which Homebrew's qemu does not build | none |
+
+## Image time stamps
+
+`tools/fsutil` writes every time in a root image (the superblock time and the
+inode times) as an unsigned 32-bit count of seconds since 1970, valid to
+2106. The build exports `SOURCE_DATE_EPOCH` (the committer date of HEAD
+unless the caller sets it), which bounds every time from above, so equal
+sources give equal images. The host `ar` and `ranlib` read the same variable
+over the same range, up to 4294967295, the largest date an archive header
+holds: the target `ar`, `ranlib` and `ld` read the header date field as an
+unsigned count, so archive dates follow the variable as the image does.
+`FSUTIL_CLOCK=N` replaces the bound with a fixed
+clock: every time `fsutil` stamps is the count N, whatever `SOURCE_DATE_EPOCH`
+and the host clock hold. The reserved inode 1 keeps zero modification and
+change times under either variable, and `--add` to an existing image leaves
+the times of the files already in it as stored. A test that boots with a clock past January 2038
+builds its image with `FSUTIL_CLOCK=2415919104` (0x90000000, July 2046) in
+the environment of `bmake MACHINE=rp2040 flash`. Both variables take a
+decimal count from 0 to 4294967295; any other value stops `fsutil` with
+status 1 before a mode that creates or writes an image (`--new`, `--add`,
+`--repartition`, `--mount`, `--check --fix`) opens one. The times a mounted
+image records follow the same rules. `fsutil -vvv IMAGE` prints the times in
+the image, and `TZ=UTC` makes the text independent of the host zone.
+`tests/fsutil_clock` gates the behavior (`check-fsutil-clock`).
 
 ## Reflashing
 

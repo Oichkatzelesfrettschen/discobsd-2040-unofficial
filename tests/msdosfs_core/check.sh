@@ -18,6 +18,9 @@ set -eu
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 : "${MAKE:?set MAKE to bmake}"
 
+# Detached flag queries cannot use the parent's closed jobserver pipes.
+unset MAKEFLAGS MFLAGS
+
 topsrc=$(cd "$(dirname "$0")/../.." && pwd)
 here=$topsrc/tests/msdosfs_core
 reader=$here/fat_reader.py

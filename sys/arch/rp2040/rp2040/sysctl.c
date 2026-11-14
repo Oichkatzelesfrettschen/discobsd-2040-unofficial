@@ -11,7 +11,6 @@
 #include <sys/user.h>
 #include <sys/ioctl.h>
 #include <sys/proc.h>
-#include <sys/buf.h>
 #include <sys/kernel.h>
 #include <sys/file.h>
 #include <sys/inode.h>
@@ -209,68 +208,6 @@ sc_msec(void)
 	u.u_rval = 0;
 }
 
-#ifdef SWAPRAM
-_Static_assert(sizeof(struct user) <= DEV_BSIZE,
-    "struct user must fit the buffer swapram_psinfo_read() decodes into");
-_Static_assert(sizeof(((struct user *)0)->u_comm) ==
-    sizeof(((struct swapram_psinfo *)0)->sp_comm),
-    "swapram_psinfo must carry the whole command name");
-
-/* A signal disposition as swapram_psinfo reports it. */
-static unsigned char
-psinfo_signal(sig_t handler)
-{
-	if (handler == SIG_DFL)
-		return SWAPRAM_PS_DEFAULT;
-	return handler == SIG_IGN ? SWAPRAM_PS_IGNORED : SWAPRAM_PS_CAUGHT;
-}
-
-/*
- * machdep.swapram_psinfo.<pid>: what ps(1) shows of a process whose image
- * the SwapRAM pool holds. Such a process has a zero p_addr, so /dev/swap
- * holds nothing of it. The record carries the command name, the times, the
- * sizes, the terminal and two signal dispositions and no kernel address,
- * so every user may read it. ESRCH answers a pid with no image in the
- * pool. geteblk() can sleep, so the lookup follows it and nothing between
- * the lookup and the decode sleeps.
- */
-static int
-swapram_psinfo_read(int pid, void *oldp, size_t *oldlenp, void *newp)
-{
-	struct swapram_psinfo info;
-	struct buf *bp;
-	struct proc *p;
-	struct user *up;
-	int error;
-
-	bp = geteblk();
-	p = pfind(pid);
-	if (p == NULL || !swapram_present(p))
-		error = ESRCH;
-	else if (swapram_uarea_prefix(p, bp->b_addr, sizeof(struct user)) != 0)
-		error = EIO;
-	else {
-		up = (struct user *)bp->b_addr;
-		bzero(&info, sizeof info);
-		info.sp_utime = up->u_ru.ru_utime;
-		info.sp_stime = up->u_ru.ru_stime;
-		info.sp_cutime = up->u_cru.ru_utime;
-		info.sp_cstime = up->u_cru.ru_stime;
-		info.sp_tsize = up->u_tsize;
-		info.sp_dsize = up->u_dsize;
-		info.sp_ssize = up->u_ssize;
-		info.sp_ttyd = up->u_ttyd;
-		info.sp_sigint = psinfo_signal(up->u_signal[SIGINT]);
-		info.sp_sigquit = psinfo_signal(up->u_signal[SIGQUIT]);
-		bcopy(up->u_comm, info.sp_comm, sizeof info.sp_comm);
-		error = sysctl_rdstruct(oldp, oldlenp, newp, &info,
-		    sizeof info);
-	}
-	bp->b_flags |= B_AGE;
-	brelse(bp);
-	return error;
-}
-#endif	/* SWAPRAM */
 
 /*
  * This was moved here when the TMSCP portion was added.  At that time it
@@ -484,10 +421,6 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return ENOTDIR;
 		i = swapram_images();
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
-	case CPU_SWAPRAM_PSINFO:
-		if (namelen != 2)
-			return ENOTDIR;
-		return swapram_psinfo_read(name[1], oldp, oldlenp, newp);
 #endif	/* SWAPRAM */
 
 	default:

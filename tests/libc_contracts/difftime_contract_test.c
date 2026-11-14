@@ -1,4 +1,3 @@
-#include <limits.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -10,14 +9,21 @@ struct difftime_case {
 	double expected;
 };
 
+/*
+ * time_t is the 32-bit view's unsigned count (sys/sys/_time_t.h), so an
+ * earlier end gives a negative difference, and the carry out of bit 31 in
+ * 2038 is one second like any other.
+ */
 static const struct difftime_case cases[] = {
 	{ 0, 0, 0.0 },
 	{ 1, 0, 1.0 },
 	{ 0, 1, -1.0 },
-	{ (time_t)INT_MAX, (time_t)INT_MIN, 4294967295.0 },
-	{ (time_t)INT_MIN, (time_t)INT_MAX, -4294967295.0 },
-	{ (time_t)INT_MAX, -1, 2147483648.0 },
-	{ -1, (time_t)INT_MAX, -2147483648.0 },
+	{ (time_t)0xffffffffUL, 0, 4294967295.0 },
+	{ 0, (time_t)0xffffffffUL, -4294967295.0 },
+	{ (time_t)0x80000000UL, (time_t)0x7fffffffUL, 1.0 },
+	{ (time_t)0x7fffffffUL, (time_t)0x80000000UL, -1.0 },
+	{ (time_t)0x90000000UL, (time_t)0x7fffffffUL, 268435457.0 },
+	{ (time_t)0x7fffffffUL, (time_t)0xfffffffeUL, -2147483647.0 },
 };
 
 int

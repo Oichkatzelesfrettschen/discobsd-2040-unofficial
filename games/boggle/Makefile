@@ -11,7 +11,7 @@ TOPSRC!=cd ../..; pwd
 WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS  	+= -O -Wall
+CFLAGS  	+= -Wall
 OBJS    	= boggle.o
 MAN             = boggle.0
 MANSRC          = boggle.6

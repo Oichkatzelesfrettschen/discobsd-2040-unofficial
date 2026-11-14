@@ -23,17 +23,18 @@ static volatile unsigned char witness;
 static int
 sample_extent(unsigned *extent)
 {
-    int name[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, 0 };
+    int name[5] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, 0,
+        sizeof(struct kinfo_proc) };
     size_t length = sizeof(process_info);
 
     name[3] = getpid();
     memset(&process_info, 0, sizeof(process_info));
-    if (sysctl(name, 4, &process_info, &length, NULL, 0) < 0)
+    if (sysctl(name, 5, &process_info, &length, NULL, 0) < 0)
         return -1;
-    if (length != sizeof(process_info) ||
-        process_info.kp_proc.p_pid != name[3])
+    if (length != sizeof(process_info) || process_info.kp_pid != name[3] ||
+        (process_info.kp_valid & KP_VALID_LIVE) == 0)
         return -1;
-    *extent = process_info.kp_proc.p_ssize;
+    *extent = process_info.kp_ssize;
     return 0;
 }
 

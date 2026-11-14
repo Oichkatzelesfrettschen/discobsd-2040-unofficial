@@ -283,8 +283,8 @@ parse(char *string, int flags)
 			    "%s is not supported in DiscoBSD\n", string);
 			return (1);
 		case KERN_INODE:
-		case KERN_FILE:
 		case KERN_TEXT:
+		case KERN_TTY:
 			if (flags == 0)
 				return (0);
 			fprintf(stderr,
@@ -295,6 +295,12 @@ parse(char *string, int flags)
 				return (0);
 			fprintf(stderr,
 			    "Use ps to view %s information\n", string);
+			return (1);
+		case KERN_FILE:
+			if (flags == 0)
+				return (0);
+			fprintf(stderr,
+			    "Use fstat to view %s information\n", string);
 			return (1);
 		case KERN_CLOCKRATE:
 			special |= CLOCK;
@@ -444,13 +450,17 @@ parse(char *string, int flags)
 		return (0);
 	}
 	if (special & BOOTTIME) {
-		struct timeval *btp = (struct timeval *)buf;
+		/*
+		 * The kernel copies out its own struct timeval, whose
+		 * second count is 32 bits read unsigned (sys/sys/time.h).
+		 */
+		struct __timeval32 *btp = (struct __timeval32 *)buf;
+		time_t boot = (time_t)(utime32_t)btp->tv_sec;
 
 		if (!nflag)
-			fprintf(stdout, "%s%s%s", string, equ,
-			    ctime(&btp->tv_sec));
+			fprintf(stdout, "%s%s%s", string, equ, ctime(&boot));
 		else
-			fprintf(stdout, "%ld\n", btp->tv_sec);
+			fprintf(stdout, "%lu\n", (unsigned long)btp->tv_sec);
 		return (0);
 	}
 	if (special & CONSDEV) {

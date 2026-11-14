@@ -124,20 +124,28 @@ sd_tail(const struct sdspi_ops *o, unsigned char *p, int n)
 		*p++ = o->xfer(0xff);
 }
 
-/* Receive a start token and n data bytes plus the CRC, which is ignored. */
+/*
+ * Receive a start token and n data bytes plus the CRC, which is ignored,
+ * keeping bytes off to off + len - 1 of the n in buf.
+ */
 static int
-sd_rx(const struct sdspi_ops *o, unsigned char *buf, unsigned n)
+sd_rx(const struct sdspi_ops *o, unsigned char *buf, unsigned n,
+    unsigned off, unsigned len)
 {
 	unsigned t0 = o->micros();
 	unsigned char b;
+	unsigned i;
 
 	while ((b = o->xfer(0xff)) == 0xff)
 		if (o->micros() - t0 >= READ_US)
 			return SDE_TIMEOUT;
 	if (b != TOKEN_START)
 		return SDE_IO;		/* A Data Error Token. */
-	while (n-- > 0)
-		*buf++ = o->xfer(0xff);
+	for (i = 0; i < n; i++) {
+		b = o->xfer(0xff);
+		if (i - off < len)
+			*buf++ = b;
+	}
 	(void)o->xfer(0xff);
 	(void)o->xfer(0xff);
 	return SDE_OK;
@@ -232,7 +240,7 @@ sdspi_init(struct sdspi *sd)
 	o->speed(1);
 
 	r = sd_cmd(o, CMD9, 0);
-	i = r == 0 ? sd_rx(o, csd, 16) : SDE_IO;
+	i = r == 0 ? sd_rx(o, csd, 16, 0, 16) : SDE_IO;
 	sd_done(o);
 	if (i == SDE_OK && (sd->nsectors = sdspi_csd_sectors(csd)) == 0)
 		i = SDE_IO;
@@ -251,13 +259,21 @@ sd_addr(const struct sdspi *sd, unsigned sector)
 int
 sdspi_read(struct sdspi *sd, unsigned sector, unsigned char *buf)
 {
+	return sdspi_read_span(sd, sector, buf, 0, SD_SECTOR);
+}
+
+int
+sdspi_read_span(struct sdspi *sd, unsigned sector, unsigned char *buf,
+    unsigned off, unsigned len)
+{
 	const struct sdspi_ops *o = sd->ops;
 	int err = SDE_IO;
 
-	if (sd->type == SD_NONE || sector >= sd->nsectors)
+	if (sd->type == SD_NONE || sector >= sd->nsectors ||
+	    off > SD_SECTOR || len > SD_SECTOR - off)
 		return SDE_IO;
 	if (sd_cmd(o, CMD17, sd_addr(sd, sector)) == 0)
-		err = sd_rx(o, buf, SD_SECTOR);
+		err = sd_rx(o, buf, SD_SECTOR, off, len);
 	sd_done(o);
 	return err;
 }
@@ -265,12 +281,20 @@ sdspi_read(struct sdspi *sd, unsigned sector, unsigned char *buf)
 int
 sdspi_write(struct sdspi *sd, unsigned sector, const unsigned char *buf)
 {
+	return sdspi_write_span(sd, sector, buf, SD_SECTOR, (unsigned *)0);
+}
+
+int
+sdspi_write_span(struct sdspi *sd, unsigned sector, const unsigned char *buf,
+    unsigned len, unsigned *crc)
+{
 	const struct sdspi_ops *o = sd->ops;
 	int err = SDE_IO;
 	unsigned t0;
 	unsigned i;
+	unsigned char b;
 
-	if (sd->type == SD_NONE || sector >= sd->nsectors)
+	if (sd->type == SD_NONE || sector >= sd->nsectors || len > SD_SECTOR)
 		return SDE_IO;
 	if (sd_cmd(o, CMD24, sd_addr(sd, sector)) != 0) {
 		sd_done(o);
@@ -278,8 +302,13 @@ sdspi_write(struct sdspi *sd, unsigned sector, const unsigned char *buf)
 	}
 	(void)o->xfer(0xff);
 	(void)o->xfer(TOKEN_START);
-	for (i = 0; i < SD_SECTOR; i++)
-		(void)o->xfer(buf[i]);
+	for (i = 0; i < SD_SECTOR; i++) {
+		/* One load per byte: the sum covers exactly the byte sent. */
+		b = i < len ? buf[i] : 0;
+		(void)o->xfer(b);
+		if (crc != (unsigned *)0 && i < len)
+			*crc = crc32_update(*crc, &b, 1);
+	}
 	(void)o->xfer(0xff);
 	(void)o->xfer(0xff);
 	if ((o->xfer(0xff) & DATA_RESP_MASK) == DATA_ACCEPTED) {

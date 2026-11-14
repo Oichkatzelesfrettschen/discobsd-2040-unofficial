@@ -335,6 +335,25 @@ chrtoblk(dev_t dev __unused)
 	return NODEV;
 }
 
+/* Partition setup and open masks belong to a unit before extents are known. */
+int
+blkdev_same_unit(dev_t a, dev_t b)
+{
+	if (a == b)
+		return 1;
+	if (major(a) != major(b) || (minor(a) >> 3) != (minor(b) >> 3))
+		return 0;
+	switch (major(a)) {
+	case 0:
+#ifdef SD_ENABLED
+	case SD_BMAJOR:
+#endif
+		return 1;
+	default:
+		return 0;
+	}
+}
+
 /*
  * Routine to determine whether two block devices address the same storage.
  *

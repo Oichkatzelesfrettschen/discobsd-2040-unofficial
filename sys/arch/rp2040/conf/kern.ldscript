@@ -225,4 +225,16 @@ SECTIONS {
 	    (usb_tx_ring >= ORIGIN(SCRATCH) &&
 	     usb_tx_ring + 8192 <= ORIGIN(SCRATCH) + LENGTH(SCRATCH)) : 1,
 	    "usb_tx_ring is not inside the SRAM4/SRAM5 scratch banks")
+	/*
+	 * DEFINED() stays true for a symbol whose input section --gc-sections
+	 * discarded, so the layout choices above would keep the USB and
+	 * SwapRAM arrangements while the storage they describe had left the
+	 * image. A defined owner therefore has to contribute its bytes:
+	 * usb_tx_ring is 8,192 bytes of .scratch (USB_TXRING in dev/usb.c)
+	 * and swapram_pool_mem is the whole of .swapram_pool.
+	 */
+	ASSERT(DEFINED(usb_tx_ring) ? SIZEOF(.scratch) >= 8192 : 1,
+	    "usb_tx_ring is defined but its section was discarded")
+	ASSERT(DEFINED(swapram_pool_mem) ? SIZEOF(.swapram_pool) > 0 : 1,
+	    "swapram_pool_mem is defined but its section was discarded")
 }

@@ -398,7 +398,9 @@ closei(register struct inode *ip, int flag)
 {
     register struct mount *mp;
     register struct file *fp;
+    struct inode *alias;
     int mode, error;
+    int flush_error = 0, raw_locked = 0;
     dev_t   dev;
 
     mode = ip->i_mode & IFMT;
@@ -406,15 +408,30 @@ closei(register struct inode *ip, int flag)
 
     switch (mode) {
     case IFCHR:
+        if (chrtoblk(dev) != NODEV) {
+            bdevlock(ip);
+            raw_locked = 1;
+        }
         break;
     case IFBLK:
+        bdevlock(ip);
+        if ((ip->i_bdev_state & IBDEV_REFS) == 0) {
+            bdevunlock(ip);
+            return EBADF;
+        }
         /*
          * We don't want to really close the device if it is mounted
          */
         /* MOUNT TABLE SHOULD HOLD INODE */
         for (mp = mount; mp < &mount[NMOUNT]; mp++)
-            if (mp->m_inodp != NULL && mp->m_dev == dev)
-                return(0);
+            if (mp->m_inodp != NULL && mp->m_dev == dev) {
+                error = bdev_write_error(dev);
+                goto release_block;
+            }
+        if (bdev_other_open(ip)) {
+            error = bdev_write_error(dev);
+            goto release_block;
+        }
         break;
     default:
         return(0);
@@ -424,12 +441,14 @@ closei(register struct inode *ip, int flag)
      * This is because the same device can be referenced by two
      * different inodes.
      */
-    for (fp = file; fp < file+NFILE; fp++) {
+    for (fp = file; mode == IFCHR && fp < file+NFILE; fp++) {
         if (fp->f_type != DTYPE_INODE)
             continue;
-        if (fp->f_count && (ip = (struct inode *)fp->f_data) &&
-            ip->i_rdev == dev && (ip->i_mode&IFMT) == mode)
-            return(0);
+        if (fp->f_count && (alias = (struct inode *)fp->f_data) &&
+            alias->i_rdev == dev && (alias->i_mode&IFMT) == mode) {
+            error = 0;
+            goto release_block;
+        }
     }
     if (mode == IFBLK) {
         /*
@@ -437,28 +456,19 @@ closei(register struct inode *ip, int flag)
          * we must invalidate any in core blocks, so that
          * we can, for instance, change floppy disks.
          */
-        bflush(dev);
+        flush_error = bdevsync(dev);
         binval(dev);
     }
-    /*
-     * NOTE:  none of the device drivers appear to either set u_error OR return
-     *    anything meaningful from their close routines.  It's a good thing
-     *    programs don't bother checking the error status on close() calls.
-     *    Apparently the only time "errno" is meaningful after a "close" is
-     *    when the process is interrupted.
-     */
-    int (*const cfunc)(dev_t, int, int) = mode == IFCHR ?
-        cdevsw[major(dev)].d_close : bdevsw[major(dev)].d_close;
-    if (setjmp (&u.u_qsave)) {
-        /*
-         * If device close routine is interrupted,
-         * must return so closef can clean up.
-         */
-        if ((error = u.u_error) == 0)
-            error = EINTR;
-    } else
-        error = (*cfunc)(dev, flag, mode);
-    return (error);
+    error = dev_driver_close(dev, flag, mode);
+    if (mode == IFBLK)
+        bdev_clear_write_error(dev);
+release_block:
+    if (mode == IFBLK) {
+        ip->i_bdev_state--;
+        bdevunlock(ip);
+    } else if (raw_locked)
+        bdevunlock(ip);
+    return flush_error != 0 ? flush_error : error;
 }
 
 /*
@@ -578,7 +588,7 @@ openi(register struct inode *ip, int mode)
     register dev_t dev = ip->i_rdev;
     register int maj = major(dev);
     dev_t bdev;
-    int error;
+    int error, priority;
 
     switch (ip->i_mode&IFMT) {
 
@@ -608,7 +618,17 @@ openi(register struct inode *ip, int mode)
                     return(EPERM);
             }
         }
-        return ((*cdevsw[maj].d_open)(dev, mode, S_IFCHR));
+        bdev = chrtoblk(dev);
+        if (bdev == NODEV)
+            return ((*cdevsw[maj].d_open)(dev, mode, S_IFCHR));
+        bdevlock(ip);
+        error = securelevel >= 2 && (mode & FWRITE) && isdisk(dev, IFCHR) ? EPERM : 0;
+        if (error == 0 && securelevel >= 1 && (mode & FWRITE))
+            error = ufs_mountedon(bdev);
+        if (error == 0)
+            error = cdev_driver_open(dev, mode);
+        bdevunlock(ip);
+        return error;
 
     case IFBLK:
         if (INODE_FILESYSTEM(ip)->fs_flags & MNT_NODEV)
@@ -631,9 +651,26 @@ openi(register struct inode *ip, int mode)
          * above restriction is fully effective.  On the otherhand
          * fsck should 1) use the raw device, 2) not do sync calls...
          */
-        if (securelevel > 0 && (error = ufs_mountedon(dev)))
-            return(error);
-        return ((*bdevsw[maj].d_open)(dev, mode, S_IFBLK));
+        bdevlock(ip);
+        error = securelevel >= 2 && (mode & FWRITE) && isdisk(dev, IFBLK) ? EPERM : 0;
+        if (error == 0 && securelevel > 0)
+            error = ufs_mountedon(dev);
+        if (error) {
+            bdevunlock(ip);
+            return error;
+        }
+        if ((ip->i_bdev_state & IBDEV_REFS) == IBDEV_REFS) {
+            bdevunlock(ip);
+            return ENFILE;
+        }
+        priority = splbio();
+        ip->i_bdev_error = bdev_write_error(dev);
+        splx(priority);
+        error = bdev_driver_open(dev, mode);
+        if (error == 0)
+            ip->i_bdev_state++;
+        bdevunlock(ip);
+        return error;
     }
     return (0);
 }

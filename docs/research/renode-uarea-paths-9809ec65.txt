@@ -1,0 +1,68 @@
+Renode u-area paths: signal, deliberate fault, exec, swap and SwapRAM, PICO_UART and union kernels
+
+source revision: 9809ec659961f6f01d047f0f08b56327e888704d plus the gate itself (tools/renode/check-boot.py; no kernel
+  or shipped userland source differs)
+commands: bmake MACHINE=rp2040 check-renode; bmake MACHINE=rp2040 check-renode-union
+emulator: Renode 1.17.0+20260907gitf1dd1b4af
+  models matgla/Renode_RP2040 205a5e4b25440582008a4292074bb07f80a72328
+kernels: PICO_UART unix.bin sha256 54d8c46077206d73f4b0c54667aa020d6315abfb72a7a2aaf198e19f84c31bb6
+  PICOCALC_PSRAM unix.bin sha256 bcb1a6c8536bc6052f7d946ec1d298e527df141070f775cf819abfe19da71551 (descriptor rewritten to a bare Pico on UART0)
+root: distrib/rp2040/flash.bin sha256 272cba98d49522e113dc89e921164edf8f28facbce0b8814af2c7e5708225c3c
+date: 2026-11-13
+redaction: the banner's builder and host name read builder@host; the line editor's redraws are folded
+evidence class: Renode with third-party peripheral models; not a board run
+
+---- driver output: PICO_UART (swap on flash) ----
+check-renode: Renode 1.17.0+20260907gitf1dd1b4af, models pinned at 205a5e4b25440582008a4292074bb07f80a72328
+check-renode: device probe after 0.5 virtual seconds
+check-renode: file system check and daemons after 1.5 virtual seconds
+check-renode: login prompt after 4.0 virtual seconds
+check-renode: shell prompt after 4.5 virtual seconds
+check-renode: uname after 5.0 virtual seconds
+check-renode: process list after 7.0 virtual seconds
+check-renode: kernel memory devices refused after 7.5 virtual seconds
+check-renode: fstat after 8.5 virtual seconds
+check-renode: capacity record after 9.0 virtual seconds
+check-renode: image identity after 9.5 virtual seconds
+check-renode: MPU fault test after 10.0 virtual seconds
+check-renode: exec residue probe after 10.5 virtual seconds
+check-renode: u-area stack peak 1600 min-free 448 saturated 0
+check-renode: core 1 answering pings after 17.0 virtual seconds
+check-renode: root shell after 17.5 virtual seconds
+check-renode: injected stall reported after 18.0 virtual seconds
+check-renode: pass
+check-renode: renode.log
+
+---- driver output: union kernel (swap to the SwapRAM pool) ----
+check-renode: Renode 1.17.0+20260907gitf1dd1b4af, models pinned at 205a5e4b25440582008a4292074bb07f80a72328
+check-renode: device probe after 0.5 virtual seconds
+check-renode: file system check and daemons after 2.5 virtual seconds
+check-renode: login prompt after 9.5 virtual seconds
+check-renode: shell prompt after 10.5 virtual seconds
+check-renode: uname after 11.5 virtual seconds
+check-renode: process list after 16.0 virtual seconds
+check-renode: kernel memory devices refused after 17.5 virtual seconds
+check-renode: fstat after 18.5 virtual seconds
+check-renode: capacity record after 19.0 virtual seconds
+check-renode: image identity after 19.5 virtual seconds
+check-renode: MPU fault test after 23.5 virtual seconds
+check-renode: exec residue probe after 24.0 virtual seconds
+check-renode: u-area stack peak 1568 min-free 480 saturated 0
+check-renode: pass
+check-renode: renode.log
+
+---- console excerpt: PICO_UART ----
+uarea bytes 3072 user 1024 stack 2048 peak 1600 min-free 448 saturated 0
+MPUTEST OK (mpu on)
+RESIDUE OK
+sig-caught
+sig-end
+uarea bytes 3072 user 1024 stack 2048 peak 1600 min-free 448 saturated 0
+
+---- console excerpt: union kernel ----
+uarea bytes 3072 user 1024 stack 2048 peak 1568 min-free 480 saturated 0
+MPUTEST OK (mpu on)
+RESIDUE OK
+sig-caught
+sig-end
+uarea bytes 3072 user 1024 stack 2048 peak 1568 min-free 480 saturated 0

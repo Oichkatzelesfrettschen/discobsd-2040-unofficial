@@ -181,7 +181,7 @@ int doname(p, reclevel, tval)
         for (q = lp->depp; q; q = q->nxtdepblock) {
             errstat += doname(q->depname, reclevel+1, &td1);
             if (dbgflag)
-                printf("TIME(%s)=%ld\n", q->depname->namep, td1);
+                printf("TIME(%s)=%lu\n", q->depname->namep, td1);
             if (td1 > td)
                 td = td1;
             if (ptime < td1)
@@ -241,7 +241,7 @@ int doname(p, reclevel, tval)
                             if (ptime < td)
                                 qchain = appendq(qchain, p2->namep);
                             if (dbgflag)
-                                printf("TIME(%s)=%ld\n", p2->namep, td);
+                                printf("TIME(%s)=%lu\n", p2->namep, td);
                             if (td > tdep)
                                 tdep = td;
                             setvar("*", prefix);

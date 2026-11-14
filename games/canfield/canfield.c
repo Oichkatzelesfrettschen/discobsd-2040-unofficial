@@ -823,7 +823,7 @@ void updatebettinginfo()
 	register long dollars;
 
 	time(&now);
-	dollars = (now - acctstart) / secondsperdollar;
+	dollars = (long)(now - acctstart) / secondsperdollar;
 	if (dollars > 0) {
 		acctstart += dollars * secondsperdollar;
 		if (dollars > maxtimecharge)

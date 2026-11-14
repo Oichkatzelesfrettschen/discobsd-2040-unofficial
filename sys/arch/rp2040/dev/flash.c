@@ -571,6 +571,17 @@ fl_sync(void)
 }
 
 /*
+ * The four 16-byte partition entries and the two-byte MBR_MAGIC occupy
+ * bytes 446 to 511 of the table sector.
+ */
+#define	FL_MBR_TAIL_OFFSET	446
+#define	FL_MBR_TAIL_BYTES	66
+
+_Static_assert(FL_MBR_TAIL_OFFSET + FL_MBR_TAIL_BYTES <= FLASH_UNIT_BYTES &&
+    FL_MBR_TAIL_BYTES == NPARTITIONS * 16 + 2,
+    "the MBR tail lies inside one Dhara page");
+
+/*
  * Bring the map up and read the partition table. Returns 0 on success.
  */
 static int
@@ -578,7 +589,8 @@ fl_setup(int unit)
 {
 	struct fldisk *du = &fldrives[unit];
 	dhara_error_t err = DHARA_E_NONE;
-	u_short partition_data[DEV_BSIZE / sizeof(u_short)];
+	u_short mbr_tail[FL_MBR_TAIL_BYTES / sizeof(u_short)];
+	dhara_page_t page;
 	u_int i;
 
 	if (unit == FL_UNIT_SWAP) {
@@ -611,17 +623,28 @@ fl_setup(int unit)
 	printf("fl%d: %u kbytes on QSPI flash, %u kbytes raw\n", unit,
 	    (u_int)flblocks, (u_int)(FLASH_FS_BYTES / 1024));
 
-	/* The table lives in the first 512 bytes of logical block 0. */
-	for (i = 0; i < DEV_BSIZE / FLASH_UNIT_BYTES; i++) {
-		err = DHARA_E_NONE;
-		if (dhara_map_read(&flmap, i,
-		    (u_char *)partition_data + i * FLASH_UNIT_BYTES, &err) < 0) {
-			printf("fl%d: cannot read partition table\n", unit);
-			return ENXIO;
-		}
+	/*
+	 * The table lives in the first 512 bytes of logical sector 0. Only
+	 * its tail is read, from the physical page Dhara maps the sector to,
+	 * so the frame holds 66 bytes rather than a whole sector. An unmapped
+	 * sector carries no table, as the blank page dhara_map_read would
+	 * return for it carries no MBR_MAGIC.
+	 */
+	err = DHARA_E_NONE;
+	if (dhara_map_find(&flmap, 0, &page, &err) < 0) {
+		if (err == DHARA_E_NOT_FOUND)
+			return 0;
+		printf("fl%d: cannot read partition table\n", unit);
+		return ENXIO;
 	}
-	if (partition_data[255] == MBR_MAGIC) {
-		bcopy(&partition_data[223], &du->part[1], 64);
+	err = DHARA_E_NONE;
+	if (dhara_nand_read(&flnand, page, FL_MBR_TAIL_OFFSET,
+	    FL_MBR_TAIL_BYTES, (u_char *)mbr_tail, &err) < 0) {
+		printf("fl%d: cannot read partition table\n", unit);
+		return ENXIO;
+	}
+	if (mbr_tail[FL_MBR_TAIL_BYTES / sizeof(u_short) - 1] == MBR_MAGIC) {
+		bcopy(mbr_tail, &du->part[1], 64);
 		for (i = 1; i <= NPARTITIONS; i++) {
 			if (du->part[i].dp_type != 0)
 				printf("fl%d%c: partition type %02x, "

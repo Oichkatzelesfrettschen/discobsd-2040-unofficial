@@ -18,16 +18,22 @@
  	DPRINTF("done. %d\n", error);
  
  	return error;
-@@ -122,18 +124,19 @@
+@@ -120,20 +122,24 @@
+ 	const struct v7fs_superblock *sb = &fs->superblock;
+ 	void *buf = 0;
  
++	/*
++	 * update_time is an unsigned 32-bit count of seconds, so a count with
++	 * bit 31 set, a date after January 2038, is a valid superblock time.
++	 */
  	if ((sb->volume_size < 128) || /* smaller than 64KB. */
  	    (sb->datablock_start_sector > sb->volume_size) ||
 -	    (sb->nfreeinode > V7FS_MAX_FREEINODE) ||
 -	    (sb->nfreeblock > V7FS_MAX_FREEBLOCK) ||
+-	    (sb->update_time < 0) ||
 +	    (sb->nfreeinode < 0) || (sb->nfreeinode > V7FS_MAX_FREEINODE) ||
 +	    (sb->nfreeblock < 0) || (sb->nfreeblock > V7FS_MAX_FREEBLOCK) ||
 +	    ((sb->nfreeblock == 0) && (sb->total_freeblock != 0)) ||
- 	    (sb->update_time < 0) ||
  	    (sb->total_freeblock > sb->volume_size) ||
  	    ((sb->nfreeinode == 0) && (sb->nfreeblock == 0) &&
 -		(sb->total_freeblock == 0) && (sb->total_freeinode == 0)) ||
@@ -44,7 +50,7 @@
  
  	return 0;
  }
-@@ -160,7 +163,9 @@
+@@ -160,7 +166,9 @@
  	}
  	DPRINTF("freeblock table#%d, nfree=%d\n", blk, fb->nfreeblock);
  
@@ -55,7 +61,7 @@
  	sb->nfreeblock = fb->nfreeblock;
  	sb->modified = true;
  	scratch_free(fs, buf);
-@@ -198,7 +203,6 @@
+@@ -198,7 +206,6 @@
  {
  	/* Assume superblock is locked by caller. */
  	struct v7fs_superblock *sb = &fs->superblock;
@@ -63,7 +69,7 @@
  	size_t i, j, k;
  	v7fs_ino_t ino;
  
-@@ -209,8 +213,7 @@
+@@ -209,8 +216,7 @@
  		void *buf;
  		if (!(buf = scratch_read(fs, i))) {
  			DPRINTF("block %zu I/O error.\n", i);
@@ -73,7 +79,7 @@
  		}
  		di = (struct v7fs_inode_diskimage *)buf;
  
-@@ -220,7 +223,7 @@
+@@ -220,7 +226,7 @@
  			if (v7fs_inode_allocated(di))
  				continue;
  			DPRINTF("free inode%d\n", ino);
@@ -82,7 +88,7 @@
  		}
  		scratch_free(fs, buf);
  	}
-@@ -241,16 +244,12 @@
+@@ -241,16 +247,12 @@
  	conv16(datablock_start_sector);
  	conv32(volume_size);
  	conv16(nfreeblock);

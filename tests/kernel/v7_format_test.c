@@ -59,6 +59,8 @@ struct namecache namecache[NNAMECACHE];
 struct file file[1];
 int lbolt;
 int securelevel;
+int hk_ipl;
+unsigned hk_ipl_raises;
 const struct bdevsw bdevsw[1];
 const struct cdevsw cdevsw[1];
 const int nblkdev = 0;
@@ -84,6 +86,80 @@ die(const char *what, long a, long b)
 {
     hk_note("v7_format_test: %s (%ld, %ld)", what, a, b);
     hk_host_exit(1);
+}
+
+/* The format gate exercises regular files; a special-device path fails it. */
+void
+bdevlock(struct inode *ip)
+{
+    (void)ip;
+    die("device lock reached", 0, 0);
+}
+
+void
+bdevunlock(struct inode *ip)
+{
+    (void)ip;
+    die("device unlock reached", 0, 0);
+}
+
+int
+bdev_other_open(struct inode *ip)
+{
+    (void)ip;
+    die("device alias lookup reached", 0, 0);
+    return (0);
+}
+
+int
+bdev_write_error(dev_t dev)
+{
+    (void)dev;
+    die("device error lookup reached", 0, 0);
+    return (0);
+}
+
+void
+bdev_clear_write_error(dev_t dev)
+{
+    (void)dev;
+    die("device error clear reached", 0, 0);
+}
+
+int
+bdevsync(dev_t dev)
+{
+    (void)dev;
+    die("device sync reached", 0, 0);
+    return (EIO);
+}
+
+int
+cdev_driver_open(dev_t dev, int flags)
+{
+    (void)dev;
+    (void)flags;
+    die("character-device open reached", 0, 0);
+    return (EIO);
+}
+
+int
+bdev_driver_open(dev_t dev, int flags)
+{
+    (void)dev;
+    (void)flags;
+    die("block-device open reached", 0, 0);
+    return (EIO);
+}
+
+int
+dev_driver_close(dev_t dev, int flags, int mode)
+{
+    (void)dev;
+    (void)flags;
+    (void)mode;
+    die("device close reached", 0, 0);
+    return (EIO);
 }
 
 static void

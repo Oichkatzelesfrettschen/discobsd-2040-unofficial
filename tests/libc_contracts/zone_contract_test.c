@@ -23,6 +23,10 @@
  *     be refused before localtime() sees it.
  *   - Each four-byte value is two's complement and long is wider than that
  *     on some hosts, so an offset west of Greenwich has to arrive negative.
+ *   - time_t is the unsigned 32-bit count of the 32-bit view
+ *     (sys/sys/_time_t.h) while a transition is the file's signed count, so
+ *     a transition before 1970 precedes every instant, and an instant with
+ *     bit 31 set follows every transition a first-version file can name.
  */
 #include <string.h>
 #include <time.h>
@@ -67,6 +71,25 @@ put32(unsigned char *p, long v)
 }
 
 /*
+ * creat(), not open(): the open flags this tree's fcntl.h spells are the
+ * target kernel's numbers rather than the host kernel's.
+ */
+static int
+store_zone(const unsigned char *buf, size_t len)
+{
+	int fd;
+
+	fd = creat(ZONE_PATH, 0644);
+	if (fd == -1)
+		return (-1);
+	if (write(fd, buf, len) != (ssize_t)len) {
+		(void)close(fd);
+		return (-1);
+	}
+	return (close(fd));
+}
+
+/*
  * A zone file with the counts and contents the caller asks for. isdst_of
  * gives each type's daylight flag, so a case can name one the file format
  * permits and the array bound does not.
@@ -77,7 +100,7 @@ write_zone(int timecnt, int typecnt, int charcnt, long gmtoff,
 {
 	unsigned char buf[4096];
 	unsigned char *p;
-	int fd, i;
+	int i;
 	size_t len;
 
 	memset(buf, 0, sizeof(buf));
@@ -87,7 +110,7 @@ write_zone(int timecnt, int typecnt, int charcnt, long gmtoff,
 	put32(buf + 40, charcnt);
 	p = buf + 44;
 	for (i = 0; i < timecnt; i++) {		/* transition times */
-		put32(p, (long)i * 86400L);
+		put32(p, (long)(i + 1) * 86400L);
 		p += 4;
 	}
 	for (i = 0; i < timecnt; i++)		/* their type indices */
@@ -102,18 +125,7 @@ write_zone(int timecnt, int typecnt, int charcnt, long gmtoff,
 		*p++ = (unsigned char)(i + 1 == charcnt ? '\0' : 'X');
 	len = (size_t)(p - buf);
 
-	/*
-	 * creat(), not open(): the open flags this tree's fcntl.h spells are
-	 * the target kernel's numbers rather than the host kernel's.
-	 */
-	fd = creat(ZONE_PATH, 0644);
-	if (fd == -1)
-		return (-1);
-	if (write(fd, buf, len) != (ssize_t)len) {
-		(void)close(fd);
-		return (-1);
-	}
-	return (close(fd));
+	return (store_zone(buf, len));
 }
 
 /* Load the file just written and answer what localtime() made of it. */
@@ -176,7 +188,7 @@ test_search_stops_at_typecnt(void)
 	/* An instant before the first transition, which is the branch. */
 	check(write_zone(MAX_TIMES, MAX_TYPES, 4, -3600L, isdst) == 0,
 	    "fixture: the all-daylight zone could not be written");
-	tm = load_and_read(-1000000L);
+	tm = load_and_read(1000);
 	check(tm != 0, "all-daylight: localtime refused the file");
 	if (tm != 0) {
 		/*
@@ -244,6 +256,57 @@ test_negative_offset(void)
 		check(tm->tm_year == 101 && tm->tm_mon == 8 &&
 		    tm->tm_mday == 8 && tm->tm_hour == 20,
 		    "negative offset: the instant landed in the wrong year");
+	}
+	use_gmt();
+}
+
+/*
+ * Two standard-time types, five hours west and one hour east, and two
+ * transitions to the eastern one: a day before the epoch, stored negative,
+ * and a day after it. Every instant follows the first, so every instant
+ * reads the eastern offset; the western type is the answer only for an
+ * instant before the first transition, which none is. A count with bit 31
+ * set read as a negative long, or a transition before 1970 read as a count
+ * near 2^32, lands on the western type instead.
+ */
+static void
+test_transition_before_epoch(void)
+{
+	static const time_t instants[] = {
+		0, 86399, 86400, 0x7fffffffUL, 0x80000000UL, 0x90000000UL,
+		0xfffffffeUL, 0xffffffffUL,
+	};
+	unsigned char buf[44 + 2 * 4 + 2 + 2 * 6 + 4];
+	unsigned char *p;
+	struct tm *tm;
+	size_t i;
+
+	memset(buf, 0, sizeof(buf));
+	memcpy(buf, "TZif", 4);
+	put32(buf + 32, 2);			/* tzh_timecnt */
+	put32(buf + 36, 2);			/* tzh_typecnt */
+	put32(buf + 40, 4);			/* tzh_charcnt */
+	p = buf + 44;
+	put32(p, -86400L);			/* 1969-12-31 00:00:00 */
+	put32(p + 4, 86400L);			/* 1970-01-02 00:00:00 */
+	p += 8;
+	*p++ = 1;				/* both to the eastern type */
+	*p++ = 1;
+	put32(p, -18000L);			/* type 0, standard, west */
+	p[4] = 0;
+	p[5] = 0;
+	put32(p + 6, 3600L);			/* type 1, standard, east */
+	p[10] = 0;
+	p[11] = 0;
+	p += 12;
+	memcpy(p, "XXX", 4);
+	p += 4;
+	check(store_zone(buf, (size_t)(p - buf)) == 0,
+	    "fixture: the pre-epoch transition zone could not be written");
+	for (i = 0; i < sizeof(instants) / sizeof(instants[0]); i++) {
+		tm = load_and_read(instants[i]);
+		check(tm != 0 && tm->tm_gmtoff == 3600L,
+		    "pre-epoch transition: an instant took the type before it");
 	}
 	use_gmt();
 }
@@ -348,6 +411,7 @@ main(void)
 	test_search_stops_at_typecnt();
 	test_daylight_flag_is_refused();
 	test_negative_offset();
+	test_transition_before_epoch();
 	test_counts_are_bounded();
 #else
 	test_no_file_is_read();

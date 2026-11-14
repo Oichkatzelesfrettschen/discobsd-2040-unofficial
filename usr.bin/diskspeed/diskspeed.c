@@ -41,7 +41,8 @@ unsigned current_msec()
     struct timeval t;
 
     gettimeofday(&t, 0);
-    return t.tv_sec * 1000 + t.tv_usec / 1000;
+    /* A millisecond count modulo 2^32, which elapsed_msec() subtracts. */
+    return (unsigned)t.tv_sec * 1000 + t.tv_usec / 1000;
 }
 
 unsigned elapsed_msec(unsigned t0)
@@ -50,7 +51,7 @@ unsigned elapsed_msec(unsigned t0)
     unsigned msec;
 
     gettimeofday (&t1, 0);
-    msec = t1.tv_sec * 1000 + t1.tv_usec / 1000;
+    msec = (unsigned)t1.tv_sec * 1000 + t1.tv_usec / 1000;
     msec -= t0;
     if (msec < 1)
         msec = 1;

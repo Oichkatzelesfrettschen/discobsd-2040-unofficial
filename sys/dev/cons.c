@@ -36,6 +36,20 @@ console_device(void)
 #endif
 }
 
+/*
+ * The terminal the console redirector forwards to: the d_ttys entry of the
+ * device console_device() names, or NULL when that driver keeps none.
+ * cnttys is the redirector's own cdevsw slot and carries no traffic.
+ */
+struct tty *
+cntty(void)
+{
+	dev_t dev = console_device();
+	struct tty *ttys = cdevsw[major(dev)].d_ttys;
+
+	return (ttys != NULL ? &ttys[minor(dev)] : NULL);
+}
+
 int
 cnopen(dev_t cn __unused, int flag, int mode)
 {

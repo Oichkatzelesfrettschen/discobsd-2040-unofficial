@@ -97,7 +97,10 @@ clock_catchup_apply(unsigned int owed, int ticks_per_second, int *tick_counter, 
 
 	*tick_counter += (int)owed;
 	if (*tick_counter >= ticks_per_second) {
-		*seconds += *tick_counter / ticks_per_second;
+		/* The wall clock counts modulo 2^32 (wall_advance(), sys/time.h). */
+		unsigned long carried = (unsigned long)(*tick_counter / ticks_per_second);
+
+		*seconds = (long)((unsigned long)*seconds + carried);
 		*tick_counter %= ticks_per_second;
 	}
 	for (p = head->c_next; p != 0 && ahead < owed; p = p->c_next) {

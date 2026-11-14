@@ -95,7 +95,11 @@ Grouped by what they investigate.
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
 | `picocalc-calculator-and-gui.md` | the calculator and tile-graphics plan for the PicoCalc: sources and licenses mined from this tree, the other BSDs and the vendor firmware, size estimates and a staged import order |
+| `hardware-reference-coverage.md` | which Pico, Pico W, RP2040 and PicoCalc parts, licensed blocks and bus specifications have a reference document on the build host, the state of the Pico SDK and the tools, the PicoCalc schematic's designator-to-part map, and the USB-C CC pull-downs the schematic shows |
+| `picocalc-first-power-up.md` | the ordered board observations for the PicoCalc's first run with cells: the cell-less power-key test, matched parallel cells, the charge LED, the keyboard controller's identity and firmware dump through its bootloader, the PicoCalc kernel's boot lines, the panel's lit height, the top marks, and the PSRAM probe points |
+| `picocalc-pending-hardware.md` | each PicoCalc change held until a board run and each claim on `main` whose board row reads "not run", with the measurement that decides it |
 | `picocalc-psram.md` | the PicoCalc's ESP-PSRAM64H as swap: datasheet facts with pages, the 19-word PIO program and its timing derivation, the boot-time swap selection with `fl1` as fallback, the alternatives with costs, and the host evidence |
+| `picocalc-psram-capture.md` | instruments that measure the PicoCalc PSRAM bus timing on the board, cheapest first: the RP2040 sampling its own pins from PIO1 at 125 MS/s with DMA, a second Pico on the Core GPIO header for sub-cycle edge statistics, and a commercial analyzer; with the sampling-margin prediction each one tests |
 | `picocalc-games-survey.md` | game sources surveyed for the PicoCalc with their licenses, the clean-room route for each excluded one, and the game plan |
 | `picocalc-renode-keyboard-registers.md` | the change that makes the Renode keyboard model condition backlight writes as the vendor firmware does, shipped as `picocalc-renode-keyboard-backlight.patch` because the model lives on another branch |
 | `rp2040-second-core.md` | how the port uses the RP2040's second core: big-lock SMP ruled out, DragonFly-style single-writer rings and MINIX-style supervision kept, three tiers and an ordered, falsifiable plan that fixes the single-core decoder first |
@@ -109,6 +113,7 @@ Grouped by what they investigate.
 | `calculator-and-games-review.md` | advisory review of the calculator library, bignum library and fourfall before integration, with each finding's disposition |
 | `calculator-and-games-review-round2.md` | adjudication of the second Codex and Grok reviews of the same branch: 28 merged findings with verdicts and probes, 17 defects both missed, and the commit that resolves each |
 | `copy-reviews/` | the copying reviews of `lib/libcalc` and `games/fourfall` against their excluded references, with calibration and shingle numbers |
+| `time-representation-past-2038.md` | the four-byte `time_t` and its 2038 limit: each claim of a widening proposal checked against the tree, the measured cost of a closed-form calendar in each direction, a 64-bit day split built from 32-bit divisions, the `timegm()` range defect and its repair, and the open choice of interface width |
 
 ### USB console
 
@@ -130,6 +135,7 @@ Grouped by what they investigate.
 | `rp2040-memory-wear-engineering-program.md` | the submitted SRAM and flash-wear audit turned into configuration-specific provenance, recovery, telemetry, SwapRAM, and durability gates |
 | `ram-compression.md` | the compression options against RAM and flash pressure, with measured costs |
 | `storage-techniques.md` | techniques from other small systems, and the SWAPRAM enable path |
+| `hsx-ring-call-contract.md` | deterministic history-ring caller bounds and the output-equivalence counterexample in decoder mutation calibration |
 | `xip-shared-libc/` | a shared execute-in-place libc kept with the multicall boxes, measured against static linking and position-independent loading: 502 to 288 packed blocks over 28 executables, r9-relative libc data relocated by crt0, the LARGE-epoch MPU gap, the libc flash admission requirement, the `box` naming decision, nine adversarially reviewed research streams and a replayable relink harness |
 | `swap-exhaustion/` | `panic("out of swap space")` at a LARGE-epoch fork: a read-only audit of every swap consumer, the scheduler's write-before-free exchange that needs 544 of 380 blocks under the observed occupancy, fork's documented ENOMEM, the unprivileged `TFALLOC` reservation and init's unchecked failed fork, with a ranked transactional-reservation design and its proposed gates `placement-study.md` compares placement policies for the raw-swap map on a host model that links the production allocator: a next-fit search that keeps one 196-block free run removes the fragmentation refusals of the 172 KiB fork that plain next-fit produces in about a third of the modeled requests. `placement-wear.md` adds accumulated wear and a ring topology for the map: the guarded search on the ring refuses none of those forks and its hottest sector takes 1.01 to 1.04 times the mean erases, against 1.13 to 1.24 for the kernel's next-fit; it also records the ring in the RP2040 kernel and the bare-Pico run in which the ring kernel admitted six of six 172 KiB forks that the interval kernel refused. |
 | `rp2040-single-kernel.md` | the four RP2040 kernel configurations tested against one kernel binary with a flash board descriptor: PSRAM already probes at runtime, PICO_UART exists for the USB-less Renode model, the PicoCalc pins need a presence decision first, and the user-window layout is the granularity that stays in the build |
@@ -184,11 +190,21 @@ Grouped by what they investigate.
 | `renode-capacity-exhaustion-083b35c3.txt` | the Renode transcript of the three exhaustion tests with the in-core inode table added: seven holders fill 24 inode slots, an open and a stat refuse with ENFILE, the inode counter rises by 2 and recovery succeeds |
 | `board-capacity-cases-65d7244c.txt` | the board run of the SwapRAM evacuation, signal-frame and storage-pressure cases at NPROC 16 and NFILE 18 |
 | `ps-kernel-memory-boundary-review.md` | design review of process listing for ordinary users: `operator` holds write access to `/dev/mem` and `/dev/kmem` through group 0, the options compared, and the recommended `kmem` boundary with a read-only symbol lookup and a compact SwapRAM process record |
+| `renode-sd-card-model-probe.md` | Renode's `SD.SDCard` in SPI mode as the PicoCalc's SD card: the working platform lines, why the GPIO chip select does not matter, persistence across reboot, buffered image writes, and the 2 GiB, keyboard FIFO and card-detect limits |
+| `kmem-options-synthesis.md` | why `ps` drops resident and folded-swap rows, the falsification table across BSD, SVR, RTOS, microkernel and Minix process-status designs, the invariants they share, and the reviewed and decided design for the kernel process record |
+| `kmem-options-bsd-corpus.md`, `kmem-options-titor-corpus.md`, `kmem-options-rtos-corpus.md`, `kmem-options-microkernel-corpus.md`, `kmem-options-minix-corpus.md` | per-corpus evidence behind the synthesis, each claim tagged as read or inferred |
+| `process-info-redesign-brief.md`, `process-info-redesign-review.md` | the design brief and the resulting architecture review: invariants, argument source, record layout, read paths, POSIX `ps`, boundary, crash dumps and byte budget |
 | `board-capacity-acceptance.md` | board-only sampled-stack probe, calibration, exact image boundaries, the shared-break repair runs and open physical resource measurements; `board-capacity-acceptance-93b709fc.txt` holds the merged-source run transcript and `board-capacity-acceptance-passwd-edges.txt` the passwd edge-case steps |
 | `kernel-uio-typed-interfaces.md` | four typed transfer definitions, caller preconditions and calibrated kernel inventory |
 | `libc-scandir-allocation-contract.md` | selected-entry allocation, compact self-describing records, typed per-call sorting, calibrated failure gates and paired target resource evidence |
 | `libc-bounded-string-contracts.md` | bounded scan/duplication, end-pointer copy and padding invariants, calibrated byte-domain witnesses and resource qualification |
 | `libc-bounded-string-resource-exception.md` | matched native archive growth, retained resource receipts, alternatives and exception decision |
+| `libc-lifecycle-integrated-resource-exception.md` | composed string and lifecycle archive costs, root block admission, packed executable limits and combined qualification |
+| `context-sort-contracts.md` | typed context-last sorting, nested-call and record invariants, donor ABI differences and caller resource isolation |
+| `libc-dbm-open-admission.md` | guarded ndbm declarations, bounded database path construction, staged open ownership, extent arithmetic and calibrated constructor witnesses |
+| `libc-absolute-value-contracts.md` | callable int/long magnitude providers, representability domain, archive ownership and calibrated address-taking witnesses |
+| `libc-absolute-value-resource-exception.md` | matched native archive growth, preserved program identities and resource admission limits for callable magnitude providers |
+| `search-bound-experiment/README.md` | unshipped tableless Two-Way search, calibrated finite work counts, target frames and replay driver |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |
 | `STYLE-GUIDE.md` | the constrained-C and C17 migration proposal: resource accounts, C17isms, POSIX/BSD boundaries, quarantined historical sources, smaller-system evidence, and the proof a size claim owes |
 | `211bsd-patch-scope.md` | bounded 2.11BSD textual candidates, historical comparison measurements, patch 499's measured stdio cost, and the measured `_doscan` migration unit |
@@ -218,6 +234,9 @@ Grouped by what they investigate.
 | `bsd-donor-inventory.json` | all 20 BSD checkout observations, authoritative development refs, retained fetch attempts and unresolved immediate-source identities |
 | `posix-archive-donor-frontier.md`, `posix-archive-donor-frontier.json` | 13 additional archive roots, 23 content-identified investigations, per-file permission boundaries, reusable invariants, conflicts and deciding experiments |
 | `coherent-donor-review.md` | pinned Coherent sources, libc/archive/FILE/regex mechanisms, exec/fork/ABI ownership, C17 conflicts and deciding experiments |
+| `quick-exit-contracts.md` | independent quick-exit registry, live-head callback ordering, allocation failure and target/native qualification boundaries |
+| `callback-allocation-accounting.md` | calibrated ILP32 callback-node extents, cold heap commitment, allocator alignment and storage-policy limits |
+| `qsort-partition-cost.md` | calibrated duplicate-key comparison counts, partition traces, adapted DragonFly control and Cortex-M0+ object costs |
 | `dpucp-2024-multicall-composition.md` | the seven-box shipped-name denominator, archive-member closure, 433-block standalone comparison and zero-block `logname` root delta |
 | `dpucp-2024-multicall-composition.json` | machine-checked multicall dispatch, link-map, packed-image, root-accounting and source-identity evidence |
 | `dpucp-2024-multicall-libc-members.tsv` | the 192-member libc archive closure for seven multicall boxes and the shell |

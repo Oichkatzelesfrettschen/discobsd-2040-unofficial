@@ -1,7 +1,7 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS          += -O -Wall
+CFLAGS          += -Wall
 
 OBJS		= readline.o
 HDRS		= readline/readline.h readline/history.h

@@ -11,9 +11,10 @@
 # a 64-byte block, a word whose comment no longer matches it, a
 # turnaround one pass too long, a block number that is multiplied before it
 # is bounded, a length that is not bounded against the device end, and a
-# pad drive strength ORed into the reset field, and a clock whose low
-# phase is twice its high phase. A gate that passed them would be checking
-# nothing.
+# pad drive strength ORed into the reset field, a clock whose low
+# phase is twice its high phase, an EID decoded one byte early, and a Read
+# ID overrun that is not retried. A gate that passed them would be
+# checking nothing.
 #
 TOPSRC!=	cd ../..; pwd
 
@@ -45,7 +46,8 @@ MUT=		@sh ./mutant.sh "${HOST_CC}" "${PYTHON}" "${DEV}"
 
 mutants: mutant-sideset mutant-setup mutant-cs mutant-wait mutant-address \
 	mutant-tcem mutant-block mutant-comment mutant-turnaround \
-	mutant-blkrange mutant-blklen mutant-drive mutant-duty
+	mutant-blkrange mutant-blklen mutant-drive mutant-duty mutant-eid \
+	mutant-eid-retry mutant-extent mutant-extent-half
 
 # Word 7's side-set value 2 raises SCK; 0 leaves it low (word and comment
 # agree, so only the waveform checks can catch it).
@@ -110,10 +112,27 @@ mutant-duty:
 	${MUT} psram_pio.h \
 	    's/0x6004,\(.*\)out pins, 4             side 0 /0x6104,\1out pins, 4             side 0 [1] /'
 
+# The EID taken one byte early: every EID byte shifts into the next.
+mutant-eid:
+	${MUT} psram_xfer.c 's/psram_eid\[i\] = id\[2 + i\];/psram_eid[i] = id[1 + i];/'
+
+# A Read ID that overruns the RX FIFO is not retried.
+mutant-eid-retry:
+	${MUT} psram_xfer.c 's/if ((err = psram_read_id()) != PSRAM_E_STALL)/if ((err = psram_read_id()) != PSRAM_E_STALL || 1)/'
+
+# The probe accepts any part that answers 0d/5d without testing its extent.
+mutant-extent:
+	${MUT} psram_xfer.c 's/return psram_check_extent();/return 0;/'
+
+# The extent tag sits at 2 MB, so a 4 MB part passes.
+mutant-extent-half:
+	${MUT} psram_xfer.c 's|psram_write(PSRAM_BYTES / 2,|psram_write(PSRAM_BYTES / 4,|; s|psram_read(PSRAM_BYTES / 2,|psram_read(PSRAM_BYTES / 4,|'
+
 clean:
 	rm -f libpsram.so
 
 .PHONY: all check mutants mutant-sideset mutant-setup mutant-cs mutant-wait \
 	mutant-address mutant-tcem mutant-block mutant-comment \
 	mutant-turnaround mutant-blkrange mutant-blklen mutant-drive \
-	mutant-duty clean
+	mutant-duty mutant-eid mutant-eid-retry mutant-extent \
+	mutant-extent-half clean

@@ -45,4 +45,5 @@ The fetched RP2040 model project emits 25 pre-existing third-party C# build
 warnings. FileSD compiled against real Renode interfaces without a new warning;
 its standalone driver-seam project treats warnings as errors. Existing model
 warnings during boot retain the limits already described by picocalc-emulation.md.
-The whole-system GUI capture is docs/screenshots/matezinho-renode.png.
+The whole-system GUI capture is
+third_party/mate-icon-theme/derived/screenshots/matezinho-renode.png.

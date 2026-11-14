@@ -50,9 +50,10 @@ changes neither buffer size.
 `storage.py --kind assets` puts the pack at byte zero. Such an image is a raw
 artwork volume, not a FAT/UFS filesystem. `--kind blank-sd` creates an empty
 card for later partitioning/formatting. Both operations refuse an existing
-output. Asset builds also create a companion `.artwork` directory containing
-the pinned source icons and complete notices; distribute it with the volume. Sparse allocation is a host-filesystem property; copying to real media
-requires its logical bytes. No image creation command writes a physical device.
+output. Asset builds also create a companion `.artwork` directory, a copy of
+`third_party/mate-icon-theme/`; distribute it with the volume. Sparse
+allocation is a host-filesystem property; copying to real media requires its
+logical bytes. No image creation command writes a physical device.
 
 Small FileSD cards use SD v2 standard-capacity byte addresses and CSD v1.
 Cards above 2 GiB use block addresses and CSD v2. The model covers CMD0, 8, 9,
@@ -105,18 +106,22 @@ uses aligned 1024-byte reads so `/dev/rsd0` satisfies its raw-I/O alignment rule
 No icon or full volume is loaded into user RAM.
 
 The selected nine PNGs, editable SVGs, generation-rule files, upstream AUTHORS
-and COPYING are in `share/matezinho/mate/upstream`. `provenance.json` pins their
-Git blobs and SHA-256 values at mate-icon-theme revision
-15df93ae1d5fbea067eb3d9d5d2a8b3b4a5cbec4. The pack selects the upstream
-CC BY-SA 3.0 alternative. The source PNGs/SVGs are unchanged; alpha flattening
-and RGB565 quantization happen reproducibly at build time. No moving network
-fetch is needed to build a pack. The builder verifies every retained source
-hash before conversion.
+and COPYING live in the independent third-party root
+`third_party/mate-icon-theme/`, under `upstream/`. Its `README.md` and
+`LICENSES/` carry the license (CC BY-SA 3.0, selected from the upstream
+LGPL v3 or CC BY-SA 3.0 offer), attribution, a per-file SHA-256 table and the
+regeneration command; `provenance.json` pins Git blobs and SHA-256 values at
+mate-icon-theme revision 15df93ae1d5fbea067eb3d9d5d2a8b3b4a5cbec4. The source
+PNGs/SVGs are unchanged; alpha flattening and RGB565 quantization happen
+reproducibly at build time, and no converted icon data is committed. No
+moving network fetch is needed to build a pack. The builder verifies every
+retained source hash before conversion, and `check-matezinho-host` fails when
+a file in that directory lacks a matching README row.
 
-Distribute `share/matezinho/mate/README.md`, AUTHORS, COPYING, provenance.json
-and the CC legal text alongside generated packs and screenshots. Source releases
-retain editable assets. The artwork does not acquire the original C code's BSD
-license. A distribution including the optional artwork is mixed-license.
+The shell and tools contain no artwork. A generated volume and any capture
+showing the icons are CC BY-SA 3.0 adaptations; the builder writes a copy of
+the third-party directory beside each volume. Root images and UF2 files carry
+no artwork.
 
 ## Desktop behavior and limits
 

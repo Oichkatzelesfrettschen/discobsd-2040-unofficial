@@ -29,7 +29,8 @@ def run():
         storage.create(volume, "rom16", "assets")
         notices = work / "icons.mzar.artwork"
         assert (notices / "upstream/AUTHORS").is_file()
-        assert (notices / "LICENSE-CC-BY-SA-3.0.txt").is_file()
+        assert (notices / "LICENSES/CC-BY-SA-3.0.txt").is_file()
+        assert (notices / "README.md").is_file()
         for profile in ("sd32", "sd32gb"):
             image = work / f"{profile}.img"
             storage.create(image, profile, "blank-sd")

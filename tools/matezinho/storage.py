@@ -11,7 +11,8 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
-ART = ROOT / "share/matezinho/mate"
+# Third-party artwork root; its README.md and LICENSES/ carry its terms.
+ART = ROOT / "third_party/mate-icon-theme"
 SIZES = {
     "compact": 19456,
     "rom16": 16 * 1024**2,

@@ -53,8 +53,6 @@ static struct open_directory open_directories[MAX_OPEN_DIRECTORIES];
 static struct direct reused_entry;
 static unsigned close_calls;
 static unsigned fstat_calls;
-static unsigned open_calls;
-static unsigned read_calls;
 static int close_errno;
 static int nested_scan_ran;
 static int test_failures;
@@ -151,8 +149,6 @@ reset_fixture(unsigned fail_at, int cleanup_errno_value)
 	reset_script(&nested_script, "nested");
 	close_calls = 0;
 	fstat_calls = 0;
-	open_calls = 0;
-	read_calls = 0;
 	close_errno = cleanup_errno_value;
 	nested_scan_ran = 0;
 	dirent_test_errno = 0;
@@ -201,7 +197,6 @@ test_opendir(const char *path)
 	struct directory_script *script;
 	unsigned slot_index;
 
-	++open_calls;
 	script = find_script(path);
 	if (script == NULL) {
 		dirent_test_errno = ENOENT;
@@ -246,7 +241,6 @@ test_readdir(DIR *directory)
 	struct scripted_entry *scripted;
 	unsigned name_length;
 
-	++read_calls;
 	opened = find_open_directory(directory);
 	if (opened == NULL) {
 		dirent_test_errno = EBADF;

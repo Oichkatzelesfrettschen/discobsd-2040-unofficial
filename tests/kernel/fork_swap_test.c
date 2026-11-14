@@ -50,8 +50,15 @@ static unsigned sched_wakeups, remrqs, requeues;
 static int swap_reads_allowed, sched_sleep_priority, requeued_flags;
 static caddr_t sched_sleep_channel, requeued;
 static int exchange_begin_expected;
+/*
+ * Only the aligned, swap-RAM scheduler scenario reads the extent the
+ * in-place exchange began on; other shapes never arm the probe.
+ */
+#if defined(SWAP_IMAGE_ALIGN) && defined(SWAPRAM)
+#define FORK_SWAP_EXCHANGE_PROBE
 static unsigned exchange_begins;
 static size_t exchange_begin_block;
+#endif
 static int child_resume, copy_consumed_reservation;
 #ifdef SWAP_IMAGE_ALIGN
 static int run_vfork;
@@ -143,14 +150,19 @@ swap_with_buf_result(struct buf *buffer, size_t block, size_t address,
     (void)address;
     (void)count;
     (void)flags;
+#ifndef FORK_SWAP_EXCHANGE_PROBE
+    (void)block;
+#endif
     /*
      * swap_exchange_inplace() copies sectors to window addresses the host
      * does not map. The scheduler scenario that reaches it ends at its first
      * media call, whose block names the extent being exchanged.
      */
     if (exchange_begin_expected) {
+#ifdef FORK_SWAP_EXCHANGE_PROBE
         exchange_begins++;
         exchange_begin_block = block;
+#endif
         panic("in-place exchange began");
     }
     panic("unexpected in-place exchange");
@@ -416,8 +428,10 @@ reset_fixture(void)
     swap_reads_allowed = sched_sleep_priority = requeued_flags = 0;
     sched_sleep_channel = requeued = NULL;
     exchange_begin_expected = 0;
+#ifdef FORK_SWAP_EXCHANGE_PROBE
     exchange_begins = 0;
     exchange_begin_block = 0;
+#endif
 #ifdef SWAPRAM
     swapram_services = 0;
 #endif

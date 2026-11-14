@@ -44,10 +44,10 @@ int securelevel;
 
 /*
  * The live swap device behind minor 64, whose open and strategy routines
- * count the requests swopen() and swstrategy() pass through, and the
- * temporary-unit transfer swap() performs.
+ * count the requests swopen() and swstrategy() pass through. swap() meets
+ * the declaration in swap_ioctl_extract.py; no contract here observes it.
  */
-static unsigned live_opens, live_transfers, temp_transfers, completions;
+static unsigned live_opens, live_transfers, completions;
 
 static int
 live_open(dev_t dev, int mode, int flag)
@@ -77,7 +77,6 @@ swap(size_t blkno, size_t coreaddr, int count, int rdflg)
     (void)coreaddr;
     (void)count;
     (void)rdflg;
-    temp_transfers++;
 }
 
 void

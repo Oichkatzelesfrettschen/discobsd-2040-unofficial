@@ -44,6 +44,19 @@ def fixtures():
                     True,
                     [(name, f"f1234567 A {symbol.decode()}"), ("tail.o", "00000002 A tail")],
                 )
+    for object_magic in (0o406, 0o407, 0o410):
+        symbol = object_bytes(b"offset_probe", 0x12345678)[32:]
+        sections = b"T" * 3 + b"D" * 5
+        if object_magic == 0o406:
+            sections += b"R" * 7 + b"S" * 9
+        payload = struct.pack("<8I", object_magic, 3, 5, 0, 7, 9, len(symbol), 0)
+        payload += sections + symbol
+        yield (
+            f"section-offset-{object_magic:o}",
+            magic + member("offset.o", payload),
+            True,
+            [("offset.o", "12345678 A offset_probe")],
+        )
     yield "empty", magic, True, []
     yield (
         "nonobject",

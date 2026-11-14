@@ -200,3 +200,31 @@ Hosted run `43639338429` completes successfully for candidate `ef4962ce`.
 That result precedes the merge of newer main and does not qualify the merged
 head. Review, final-head CI, and matched current-main resource qualification
 remain open before PR integration.
+
+## Matched main resource pair and section-offset witness
+
+Main `f602046341801b77feff61a2c3549c119ffb8d37` and candidate
+`785395bce94ad5a61f8832cf5a079e9d96ce1031` each complete a clean,
+instrumented distribution and shipped-closure check. Their retained receipts
+are `native-nm-resources-f6020463.json` and
+`native-nm-resources-785395bc.json`; the comparison is
+`native-nm-resources-f6020463-785395bc.json`. All 162 shipped numeric surfaces
+remain equal, with zero positive deltas. The distribution commands complete
+in 193.748 and 195.968 seconds respectively. Those elapsed times describe
+concurrent host builds, not a target-performance comparison. The older
+resource pair remains immutable historical evidence.
+
+The section-offset probe uses text, data, text relocation, and data relocation
+sizes of 3, 5, 7, and 9 bytes. `N_SYMOFF` in `sys/sys/exec_aout.h` includes
+relocation extents for RMAGIC and omits them for OMAGIC and NMAGIC. The
+registered fixture encodes all three cases independently and requires the
+same symbol value and name in four CLI modes. The prediction is twelve
+additional passing reader cases; a mutation replacing the text relocation
+extent with zero must fail `section-offset-406`. Host and Cortex-M0 execution
+confirm that prediction. The calibrated host and ILP32 suites pass 219 cases
+and seven mutation controls; Cortex-M0 QEMU passes 183 reader cases.
+
+These fixture additions change tests and documentation only. Production
+`nm.c` remains byte-identical to the measured candidate. Final-head CI and
+review remain required before integration; stack, heap, and physical-board
+measurements remain separate open evidence classes.

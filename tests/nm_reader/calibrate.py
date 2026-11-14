@@ -44,6 +44,12 @@ def main():
             "return payload + stored;",
             "FAIL valid-short.o-5-False",
         ),
+        (
+            "relocation-offset",
+            "mag_un.mag_exp.a_reltext : 0;",
+            "0 : 0;",
+            "FAIL section-offset-406",
+        ),
         ("numeric-nul", "end != buf + (len)", "*end != '\\0'", "FAIL nul-size"),
         ("silent-status", "errs = 1;", "errs = 0;", "FAIL partial-header"),
         ("symbol-padding", "if (getc(fi) != 0)", "if (getc(fi) == EOF)", "FAIL zero-symbol-name"),

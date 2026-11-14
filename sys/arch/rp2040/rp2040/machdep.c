@@ -328,6 +328,8 @@ swap_cursor_publish(size_t next)
 
 #define	CLOCKS_BASE		0x40008000UL
 #define	CLK_REF_CTRL		0x30
+#define	CLK_REF_CTRL_SRC	(3UL << 0)	/* Glitchless mux source. */
+#define	CLK_REF_CTRL_SRC_XOSC	(2UL << 0)
 #define	CLK_REF_SELECTED	0x38
 #define	CLK_SYS_CTRL		0x3c
 #define	CLK_SYS_CTRL_SRC_AUX	(1UL << 0)	/* Glitchless mux: aux, not ref. */
@@ -446,8 +448,14 @@ SystemClock_Config(void)
 	while ((MREG32(XOSC_BASE + XOSC_STATUS) & XOSC_STATUS_STABLE) == 0)
 		continue;
 
-	/* Run the reference clock from the crystal. */
-	MREG32(CLOCKS_BASE + CLK_REF_CTRL) = 2;		/* xosc_clksrc */
+	/*
+	 * Run the reference clock from the crystal. Only the glitchless mux
+	 * source changes, so an aux source an earlier image selected does
+	 * not change under the generator while the mux leaves it.
+	 */
+	MREG32(CLOCKS_BASE + CLK_REF_CTRL) =
+	    (MREG32(CLOCKS_BASE + CLK_REF_CTRL) & ~CLK_REF_CTRL_SRC) |
+	    CLK_REF_CTRL_SRC_XOSC;
 	while (MREG32(CLOCKS_BASE + CLK_REF_SELECTED) != (1UL << 2))
 		continue;
 

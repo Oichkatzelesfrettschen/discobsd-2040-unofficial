@@ -370,3 +370,24 @@ subcases. This host/ILP32 evidence remains separate from the focused signal
 provider and native-link closure gates, current-image Renode qualification,
 and physical-board execution. The original aggregate remains tied to its
 older source revision and requires its own terminal result.
+
+
+At clean source `5a77c46a90f5a07433f7148c9455e6b31b0d82bd`,
+`logged-flash` completes in 8.6 seconds and `check-renode` exits zero.
+Renode `1.17.0+20260907gitf1dd1b4af` uses model revision
+`205a5e4b25440582008a4292074bb07f80a72328` with the repository patches.
+The retained model assembly has SHA-256
+`789d85b68c88374e0c9b71df757d045985a75d59179e3b0c2b3358f34dae2032`.
+The gate exercises boot, filesystem checks, process listing, memory-device
+refusal, fstat, capacity and image identity, modeled MPU faults and exec
+residue, 2046 timestamps through native compilation, and core-1 lifecycle.
+Its warning classifier accepts 201,579 observations across 30 permitted
+model-warning classes and reports zero errors. This result supplies neither
+physical-board evidence nor a warning-free peripheral-model claim.
+
+| Retained artifact | SHA-256 |
+| --- | --- |
+| `distrib/rp2040/flash.bin` | `d17205e50d93bdcc002fdcb86bf21c73b78968847448d63df964b742f0b92666` |
+| `distrib/rp2040/flash.uf2` | `f1fb767181dbe0236143f56bd50e0450f018b6e7b591e691cd20304acfe1a59b` |
+| `sys/arch/rp2040/compile/PICO_UART/unix.bin` | `696f917925912a0694d6541a7806395a8c70120f2d5540a49fd4976d26a54deb` |
+| `tools/renode/vendor/results/boot/renode.log` | `2f976a77f0b85a58e01feb32d438fc31f0f7330cd1bf96d5c5f8ecb37e860ace` |

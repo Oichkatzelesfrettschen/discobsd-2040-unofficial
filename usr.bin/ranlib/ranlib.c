@@ -366,7 +366,9 @@ free_symbol_list(void)
  *	same bound tools/fsutil puts on the file times of an image, so
  *	equal objects give equal archives.  *bounded tells whether the
  *	variable set the result.  An absent or malformed value leaves the
- *	clock.
+ *	clock, as does one above 0x7fffffff, the largest date the target
+ *	ar and ld read from an archive header (see member_date in
+ *	ar/archive.c).
  */
 static time_t
 source_clock(int *bounded)

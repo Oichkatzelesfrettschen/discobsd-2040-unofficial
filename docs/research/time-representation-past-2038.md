@@ -335,6 +335,54 @@ cannot run and the cost of the conversion, in libc or in the kernel, is
 unmeasured; no variant was executed; one profile and one kernel
 configuration were measured.
 
+## The calendar functions of the 64-bit view
+
+libc builds the functions that convert or carry a count themselves a
+second time from their own source with `_TIME_BITS=64`: `ctime.c`
+(`__ctime64`, `__localtime64`, `__gmtime64`), `mktime.c` (`__mktime64`,
+`__timegm64`), `time.c`, `difftime.c` and `wait3.c` in `lib/libc/gen`, and
+`utime.c` and `ftime.c` in `lib/libc/compat`, whose declarations the new
+`include/utime.h` and `sys/sys/timeb.h` carry. The a.out archive gains the
+same members except `mktime64.o`, since it carries no `mktime.o`. The zone
+both widths read moved from `ctime.c` into `tzset.c` (`tzstate.h`), so a
+program of either width links one `tzset()` and one `tzname[]`. `struct
+tms` counts sixtieths of a second of CPU time (`lib/libc/compat/times.c`),
+so its fields are `long` at both widths and `times()` needs no second
+symbol.
+
+The 64-bit forward conversion is the closed form with the seven-bit split
+(`ctime.c`, `offtime.h`); the inverse sums the fields in 64 bits with no
+carry between them, so a field at either end of an `int` still reaches an
+instant inside the range. The range is every year an `int` `tm_year`
+holds, -67,768,040,609,740,800 to 67,768,036,191,676,799. No member
+imports a 64-bit multiply, divide or arithmetic-shift helper
+(`tests/time64_calendar/check.sh`, `arm-none-eabi-nm`).
+
+Text of each ELF member, `arm-none-eabi-size`, `arm-none-eabi-gcc` 16.2.0
+at the libc flags (measured):
+
+| Source | 32-bit member | 64-bit member |
+| --- | --- | --- |
+| `ctime.c` | 479 (`ctime.o`) | 663 (`ctime64.o`) |
+| `tzset.c`, both widths | 119 | -- |
+| `mktime.c` | 618 | 678 |
+| `time.c` | 32 | 38 |
+| `difftime.c` | 32 | 92 |
+| `wait3.c` | 18 | 18 |
+| `utime.c` | 26 | 42 |
+| `ftime.c` | 52 | 58 |
+
+`ctime.o` was 586 bytes with the zone in it; with the zone in `tzset.o`
+the pair is 598, 12 bytes more from `localtime()` addressing the state
+and its own result through two literals instead of one. Every other
+32-bit member is byte-identical to its build before the change.
+
+Two refusals remain in `mktime()` at both widths, both from its search
+starting at `timegm()` of the fields: the local time whose UTC reading is
+-1 is refused in any zone but GMT, since -1 is also the refusal; and a
+local time within the zone's offset of either end of the range is refused
+when the first probe of the search falls outside it.
+
 ## Plan
 
 Each step is one pull request. The first two are owed whichever width is

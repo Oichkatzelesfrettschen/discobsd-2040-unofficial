@@ -82,13 +82,12 @@ union wait  {
 
 int wait (int *istat);
 /*
- * wait3 exists in libc for the 32-bit struct rusage only, so the 64-bit
- * view of time (sys/_time_t.h) leaves it undeclared and a call fails to
- * compile; wait4 is the call that view provides.
+ * wait3 is wait4 for any child; in a unit built with the 64-bit view of
+ * time (sys/_time_t.h) it binds to __wait364, which wait3.c compiled with
+ * that view defines over the __wait464 wrapper.
  */
-#ifndef __TIME64_VIEW
-int wait3 (int *istat, int options, struct rusage *rup);
-#endif
+int wait3 (int *istat, int options, struct rusage *rup)
+           __TIME64_NAME(wait3);
 pid_t waitpid (pid_t pid, int *istat, int options);
 pid_t wait4 (pid_t pid, int *istat, int options, struct rusage *rup)
            __TIME64_NAME(wait4);

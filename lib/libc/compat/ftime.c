@@ -5,19 +5,18 @@
  */
 #include <sys/types.h>
 #include <sys/time.h>
+#include <sys/timeb.h>
 
 /*
  * Backwards compatible ftime.
  */
 
-/* from old timeb.h */
-struct timeb {
-	time_t	time;
-	u_short	millitm;
-	short	timezone;
-	short	dstflag;
-};
-
+/*
+ * struct timeb is declared by <sys/timeb.h>. ftime64.o
+ * (lib/libc/compat/Makefile) is this file built with _TIME_BITS defined
+ * as 64, where ftime() is __ftime64 and gettimeofday() the
+ * __gettimeofday64 wrapper.
+ */
 int
 ftime(tp)
 	register struct timeb *tp;

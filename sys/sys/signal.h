@@ -50,7 +50,15 @@ typedef int sig_atomic_t;
 #define SIG_DFL     (sig_t) 0
 #define SIG_IGN     (sig_t) 1
 
+/*
+ * sys/select.h declares pselect() with this type and is read from inside
+ * sys/types.h, which this file includes before it reaches this line, so
+ * both files carry the definition under one guard.
+ */
+#ifndef _SIGSET_T_DEFINED_
+#define _SIGSET_T_DEFINED_
 typedef unsigned long sigset_t;
+#endif
 
 /*
  * Signal vector "template" used in sigaction call.

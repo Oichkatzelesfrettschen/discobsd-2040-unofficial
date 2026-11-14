@@ -686,7 +686,12 @@ What stays limited:
   `gmtime`), `tzset.o`, `asctime.o`, `timezone.o`, which `tzset.o` calls,
   and `index.o`, which `timezone.o` calls. The archive grows from 45,314
   to 48,294 bytes and the packed root keeps 233 of its 988 blocks free
-  (236 with the earlier member list, same tree). It carries no `mktime.o`,
+  (236 with the earlier member list, same tree). `flags.o`, `tolower.o`
+  and `toupper.o`, which the list had omitted although
+  `distrib/rp2040/libc-sink.c` reaches them, bring it to 48,846 bytes
+  with 233 blocks still free: on the measured Pico a program calling
+  `fopen()` or `toupper()` stopped at the linker with `toupper` and
+  `_sflags` undefined, and links and runs with the three members. It carries no `mktime.o`,
   so a program compiled on the board converts a count to a date and not a
   date to a count. `check-board-libc-output` links a consumer of the five
   entry points against the archive, and `check-renode` compiles a program
@@ -722,53 +727,33 @@ What stays limited:
   under `t23_timeconvert` with the tier's stand-in clock.
 - Compiling that two-line program with the image's `cc` raises the
   Renode run's flash re-entries (one per program or erase command) from
-  about 7,660 to about 14,400. The compiler, assembler and linker write
-  their files under `/tmp` on the root file system, and each of the four
-  processes can be written to the raw swap region; the board's 31
-  seconds for the compile, against 3 virtual seconds in Renode, whose
-  flash model erases in no time, point at flash commands as the cost.
-  Which of the two paths carries the traffic is unmeasured, and a count of the program commands
-  by flash offset in the Renode log would decide it.
+  about 7,660 to about 14,400. Five boots, each with one workload in
+  place of the compile, attribute the 6,550 added commands
+  (`check-warnings.py` count of the `Unhandled operation: 0xN` class):
 
-## Plan
+  | Workload | Flash commands | Added |
+  | --- | --- | --- |
+  | the two `echo` lines that write the source | 7,850 | -- |
+  | twenty launches of `expr` | 11,193 | 3,343, or 167 a launch |
+  | `/usr/libexec/smlrc d.c d.s` | 8,106 | 256 |
+  | the same, then `as d.s -o d.o` | 9,955 | 1,849 for `as` |
+  | the same, then `ld` against `libc.a` | 12,516 | 2,561 for `ld` |
 
-Each step is one pull request. The first two are owed whichever width is
-chosen; neither makes the code width-independent. `mktime.c` asserts that
-`time_t` is a signed `long` and derives its range and day arithmetic from
-that, so the step that changes the type adapts it.
-
-1. `timegm()` range repair and the shared calendar (this change).
-2. Width assertions where a time meets a fixed layout: `struct dinode`,
-   `struct fs` and the V7 inode already assert their sizes; add the
-   signedness and width assertions that make a change of `time_t` a compile
-   error at each site that assumes four signed bytes
-   (`tests/kernel/balloc_test.c` and `usr.bin/touch/touch.c` have them;
-   `sys/kern/kern_time.c`'s `LONG_MIN`/`LONG_MAX` clamp, `difftime.c` and
-   the `tar`, `ar` and `ls` formatters do not).
-3. The width decision: 64 bits, recorded above.
-4. Unsigned on disk and in the kernel clock: `icommon2`, `fs_time`,
-   `time.tv_sec` and the `adjtime()` clamp. The gate is `balloc_test` and
-   `ialloc_test` with a clock past 2038, and a Renode boot from an image
-   whose `fs_time` is past 2038.
-5. A target-executed proof of the two-name design: one test program built
-   from a Smaller C object and a cross-compiled object, each reading the
-   clock and a file's times through its own width and agreeing on a value
-   with bit 31 set; with it, a bounded trial of `long long` in Smaller C.
-6. The 64-bit interface by the surviving design, with the forward
-   conversion moved to closed form and the seven-bit split.
-7. `date`, `touch`, `ls`, `tar`, `ar`, `ps` and the host tools
-   (`tools/libufs`, `sbin/mkfs`, `sbin/fsck`) read and print through the
-   chosen type.
-
-Step 6 for the programs the cross compiler builds, and the program half of
-step 7, are the section "Programs on the 64-bit view" above; `tar`, `ar`
-and the host tools compile at the wide view unedited, and their review
-for times past 2038 stays open with step 4.
-
-The storage-wear items of the proposal stay with their owner,
-`flash-storage-expectation-plan.md`: group commit is its phase P3 and waits
-at stop point P3.0 on the sparse image (P8b) and the board baseline
-(P0b.3).
+  A process launched from the shell costs 167 commands whatever it does:
+  `fork()` writes the parent's image to the swap region. Beyond its own
+  launch `smlrc` adds about 90, `as` about 1,680 and `ld` about 2,390;
+  `as` keeps its sections in `/tmp/tasXXXXXX` and `ld` in
+  `/tmp/ldaXXXXXX` (`usr.bin/as/as-thumb.c`, `usr.bin/ld/ld.c`), and
+  each seeks within the file it is writing. The three programs run
+  directly add 4,666; the `cc` script adds the other 1,884, about eleven
+  more launches (`basename`, `sed`, `expr`, `rm` and their subshells).
+  The measured Pico agrees in time: a launch of `true` takes 0.56
+  seconds, `smlrc` 1.02, `as` 7.43 and `ld` 9.47 run directly, 30.86
+  through `cc`, where a 24 KB `dd` to `/tmp` takes 3.68. Temporary files
+  therefore carry about 62 percent of a small compile's flash commands
+  and process launches about 36 percent. No remedy is applied: holding
+  the temporary sections in memory, a `cc` driver with fewer launches and
+  a swap path that keeps a waiting parent in RAM are separate designs.
 
 ## Residuals
 

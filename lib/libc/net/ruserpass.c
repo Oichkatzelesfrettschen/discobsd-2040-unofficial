@@ -766,7 +766,7 @@ char *mkenvkey(mch)
 	while (*p)
 		*sk++ = *p++;
 	*sk++ = mch;
-	sprintf(stemp, "%lu", (unsigned long)putmp->ut_time);
+	sprintf(stemp, "%ld", putmp->ut_time);
 	sreverse(stemp1, stemp);
 	p = stemp1;
 	while (*p)

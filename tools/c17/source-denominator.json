@@ -18307,14 +18307,17 @@
     },
     {
       "path": "include/grp.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "include",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "libc-record-public-headers",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/record-header-inclusion.md",
+        "tools/c17/record_header_contracts.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -18369,14 +18372,17 @@
     },
     {
       "path": "include/kmem.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "include",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "libc-record-public-headers",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/record-header-inclusion.md",
+        "tools/c17/record_header_contracts.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",
@@ -18393,23 +18399,24 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-declaration"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "include/lastlog.h",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "include",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "libc-record-public-headers",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/record-header-inclusion.md",
+        "tools/c17/record_header_contracts.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "header",
         "build_surface": "rp2040-userland",

@@ -2,6 +2,7 @@
 """Exercise real icons, malformed volumes, storage sizes and host/QEMU parity."""
 
 import argparse
+import hashlib
 import importlib.util
 import subprocess
 import tempfile
@@ -17,10 +18,37 @@ def load(name):
     return module
 
 
+ART = ROOT / "third_party/mate-icon-theme"
+
+
+def artwork_ledger_errors(art):
+    """Compare every file under the artwork root with its README.md row."""
+    rows = {}
+    for line in (art / "README.md").read_text(encoding="utf-8").splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) == 4 and cells[0].startswith("`") and cells[0].endswith("`"):
+            rows[cells[0].strip("`")] = cells[3].strip("`")
+    files = {
+        path.relative_to(art).as_posix(): path
+        for path in art.rglob("*")
+        if path.is_file() and path.relative_to(art).as_posix() != "README.md"
+    }
+    errors = [f"no README.md row: {name}" for name in sorted(files.keys() - rows.keys())]
+    errors += [f"row names a missing file: {name}" for name in sorted(rows.keys() - files.keys())]
+    for name in sorted(files.keys() & rows.keys()):
+        digest = hashlib.sha256(files[name].read_bytes()).hexdigest()
+        if digest != rows[name]:
+            errors.append(f"sha256 differs from README.md row: {name}")
+    return errors
+
+
 def run():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--qemu", action="store_true")
     args = parser.parse_args()
+    errors = artwork_ledger_errors(ART)
+    if errors:
+        raise SystemExit("matezinho artwork ledger: " + "; ".join(errors))
     builder, storage = load("build"), load("storage")
     host = builder.build("host")
     with tempfile.TemporaryDirectory() as directory:

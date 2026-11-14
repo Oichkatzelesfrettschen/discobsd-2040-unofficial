@@ -1931,7 +1931,13 @@ The syscall assembly checks cover a generated wrapper and the specialized
 `pipe`, `_brk`, `ptrace` and `sigaction` wrappers in static and shared modes.
 `DISCOBSD_SHARED_LIBC=1` selects GOT-based `errno` addressing through `r9`;
 other defined values fail preprocessing, and an undefined selector retains
-absolute addressing. QEMU invokes the shared error-return mechanism with an
+absolute addressing. Shared wrappers tail-branch through a literal Thumb pointer
+to one hidden `__libc_shared_error` COMDAT group. The helper preserves LR, SP
+and r9 and stores r0 through the process-local GOT before returning minus one.
+Ptrace retains a separate errno GOT literal for its pre-call clearing path.
+The gate verifies helper ownership and coalescing across five assembly inputs;
+two calibrated controls reject public visibility and missing COMDAT flags.
+Static objects contain no helper. QEMU invokes the shared error-return mechanism with an
 error value; it does not execute the DiscoBSD supervisor call or establish
 kernel error delivery. A static syscall error-path control also rejects an
 absolute state reference. Eleven existing controls reject

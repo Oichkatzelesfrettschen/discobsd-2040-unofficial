@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import io
 import json
 import pathlib
 import re
@@ -312,10 +313,29 @@ def linux_flat_image(source, destination):
     destination.chmod(source.stat().st_mode & 0o777)
 
 
+def shared_error_group(elf):
+    symbols = symbol_table(elf)
+    helper = symbols.get('__libc_shared_error')
+    require(helper is not None and helper['st_info']['bind'] == 'STB_GLOBAL' and
+            helper['st_other']['visibility'] == 'STV_HIDDEN' and
+            helper['st_info']['type'] == 'STT_FUNC' and helper['st_value'] & 1,
+            'shared error helper identity differs')
+    groups = [section for section in elf.iter_sections() if section['sh_type'] == 'SHT_GROUP'
+              and elf.get_section(section['sh_link']).get_symbol(section['sh_info']).name
+              == '__libc_shared_error']
+    require(len(groups) == 1, 'shared error helper group count differs')
+    group = groups[0]
+    words = struct.unpack('<' + 'I' * (group.data_size // 4), group.data())
+    require(words[0] == 1 and helper['st_shndx'] in words[1:],
+            'shared error helper lacks COMDAT ownership')
+    return helper, group
+
+
 def syscall_assembly_controls(compiler, runner):
     directory = ROOT / 'lib/libc/arm/sys'
     generated = runner.work / 'generated-close.S'
     generated.write_text('#include "SYS.h"\nSYS(close)\n')
+    shared_objects = []
     for source in [generated, *(directory / (name + '.S') for name in
                                ('pipe', '_brk', 'ptrace', 'sigaction'))]:
         for shared in (False, True):
@@ -335,6 +355,39 @@ def syscall_assembly_controls(compiler, runner):
                                      if table.get_symbol(relocation['r_info_sym']).name == 'errno')
                 require(kinds and set(kinds) == {26 if shared else 2},
                         source.name + ': errno relocation differs from selected state ownership')
+                if shared:
+                    shared_error_group(elf)
+                    shared_objects.append(target)
+                    require(len(kinds) == (2 if source.stem == 'ptrace' else 1),
+                            'shared errno literal count differs')
+                else:
+                    require('__libc_shared_error' not in symbol_table(elf),
+                            'static wrapper contains shared helper')
+    combined = runner.work / 'combined-syscalls.o'
+    runner.run([compiler.removesuffix('gcc') + 'ld', '-r', *shared_objects, '-o', combined])
+    content = combined.read_bytes()
+    with combined.open('rb') as handle:
+        elf = ELFFile(handle)
+        helper, group = shared_error_group(elf)
+        table = elf.get_section_by_name('.symtab')
+        helper_index = next(index for index, symbol in enumerate(table.iter_symbols())
+                            if symbol.name == helper.name)
+        visibility_offset = table['sh_offset'] + helper_index * table['sh_entsize'] + 13
+        group_offset = group['sh_offset']
+    for name, offset, replacement, verdict in (
+            ('visible-helper', visibility_offset, b'\x00',
+             'shared error helper identity differs'),
+            ('non-comdat-helper', group_offset, b'\x00' * 4,
+             'shared error helper lacks COMDAT ownership')):
+        mutated = bytearray(content)
+        mutated[offset:offset + len(replacement)] = replacement
+        try:
+            shared_error_group(ELFFile(io.BytesIO(mutated)))
+        except ValueError as error:
+            require(str(error) == verdict, name + ': unexpected rejection')
+        else:
+            raise ValueError(name + ': malformed helper survives inspection')
+    print('PASS coalesced shared helper and two rejected group controls', flush=True)
     print('PASS generated and specialized syscall errno relocations', flush=True)
 
 

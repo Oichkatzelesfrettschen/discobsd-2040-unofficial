@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "baseline_main": "9d820cd5",
+  "source_sha256": {
+    "lib/libc/arm/sys/SYS.h": "ac4eed6b709c5a211942ad4c5c2d9d651f1dec772b6ff3037920f06d798c4e94",
+    "lib/libc/arm/sys/ptrace.S": "1e9d7801c2a34b889537cbabd462a1891e8c03c25a5918f0ab8e75138bf837e8",
+    "tests/libc_xip_object_abi/run.py": "135cc5c5e0ec5cc5f8bb2792fbc8fec89847220e87d975dc0053711a4cc7a39b"
+  },
+  "evidence": [
+    {
+      "path": ".build-logs/shared-error-comdat-initial/receipt.json",
+      "sha256": "960880dd4c3ca4d57fc8a75933135e36bb228995ba9102803bb708029ba33cf4"
+    },
+    {
+      "path": ".build-logs/shared-syscall-comdat/production-static.log",
+      "sha256": "bc3bca963b15fa7f014d86bad2bab957758591bd5d632cde8bd96a7595cf1e37"
+    },
+    {
+      "path": ".build-logs/shared-syscall-comdat/production-static/receipt.json",
+      "sha256": "99cf9862ac206963c87a2211c1968fca95316520823f7fa2b102bfbd8e43c407"
+    },
+    {
+      "path": ".build-logs/shared-syscall-production/receipt.json",
+      "sha256": "15a407855f5945e29b40dd056c2fa0873d836ae9a68226ddc4a6a41e60aa87b2"
+    },
+    {
+      "path": ".build-logs/shared-syscall-production/dependency-reconciliation.json",
+      "sha256": "6a81057bc0c3bfb6b969ecb29036418e7280935050f2725435bca30f92cfe347"
+    },
+    {
+      "path": ".build-logs/shared-syscall-production/layout.json",
+      "sha256": "933ba53da8b19fba20591b6384d01b67d75267a9837a35e5d7b120c1c937a95a"
+    },
+    {
+      "path": ".build-logs/shared-syscall-production/exercise.py",
+      "sha256": "d10e7bb18777d509ae5df82a7da5b59884c596e6b46217d319d1f9a62cdeae07"
+    },
+    {
+      "path": ".build-logs/shared-syscall-production/runtime.json",
+      "sha256": "fe233ae333e67c36be68644b919fbe5874daef06291308a039f0f2b7866f712d"
+    },
+    {
+      "path": ".build-logs/shared-syscall-production/construction_control.py",
+      "sha256": "8aa00b934fa7b90914e8e676a78470fa9eecb0480c8a47abe4cd5e3c322b3bdb"
+    },
+    {
+      "path": ".build-logs/shared-syscall-production/construction-control.log",
+      "sha256": "fe709735aa48f48158f3fd523095928cc353a49faf192328ea6e130d81f23e08"
+    },
+    {
+      "path": ".build-logs/shared-error-production-review.md",
+      "sha256": "fd7c90e1209dc8c95106ed62dc4a73cf1dbf3654ebb494cfaa3c250bfcb58e17"
+    }
+  ],
+  "shared_link": {
+    "base_compile_head": "e36425ce00fefeab8ee78fefbe8a872c51645c4e",
+    "required_roots": 646,
+    "flash_bytes": 61244,
+    "flash_delta_from_inline_error": -976,
+    "state_bytes": 5344,
+    "helper_visibility": "STV_HIDDEN",
+    "elf_sha256": "5315bc4eaaefb530a3e7639d72229249640d5c7fb50547ce68a657a78a6e8b74"
+  },
+  "static_identical_objects": 125,
+  "qemu_application_layouts_passed": 5,
+  "new_group_controls_rejected": 2,
+  "modeled_syscall_execution": {
+    "elf_sha256": "5315bc4eaaefb530a3e7639d72229249640d5c7fb50547ce68a657a78a6e8b74",
+    "class": "Unicorn instruction execution with modeled SVC outcomes",
+    "results": [
+      {
+        "mode": "normal",
+        "state": "passed",
+        "calls": 32
+      },
+      {
+        "mode": "even-helper",
+        "state": "rejected",
+        "reason": "modeled execution: Invalid instruction (UC_ERR_INSN_INVALID)"
+      },
+      {
+        "mode": "wrong-helper",
+        "state": "rejected",
+        "reason": "return value differs"
+      },
+      {
+        "mode": "omit-relocations",
+        "state": "rejected",
+        "reason": "modeled execution: Invalid memory write (UC_ERR_WRITE_UNMAPPED)"
+      },
+      {
+        "mode": "wrong-owner",
+        "state": "rejected",
+        "reason": "errno differs"
+      },
+      {
+        "mode": "ptrace-literal-alias",
+        "state": "rejected",
+        "reason": "modeled execution: Invalid memory read (UC_ERR_READ_UNMAPPED)"
+      }
+    ]
+  },
+  "review": "no actionable finding in bounded source review",
+  "hardware": "not run; separate authorization required",
+  "remaining": "Production shared image fit, kernel admission and complete lifecycle qualification remain open."
+}

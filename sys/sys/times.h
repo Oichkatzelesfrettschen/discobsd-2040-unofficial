@@ -16,4 +16,11 @@ struct tms {
     time_t  tms_cstime;     /* system time, children */
 };
 
+/*
+ * times() fills four 32-bit fields, so the 64-bit view of time
+ * (sys/_time_t.h), under which this structure is four 64-bit fields,
+ * leaves it undeclared and a call fails to compile.
+ */
+#ifndef __TIME64_VIEW
 int times(struct tms *tmsp);
+#endif

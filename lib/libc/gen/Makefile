@@ -8,8 +8,20 @@ include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= ${DEFS} -Os
 
-SRCS		= ${STDSRC}
-OBJS		= ${STDOBJ}
+SRCS		= ${STDSRC} ${TIME64SRC}
+OBJS		= ${STDOBJ} ${TIME64OBJ}
+
+# The system calls of the 64-bit view of time (sys/_time_t.h): each member
+# defines one __NAME64 symbol over the 32-bit entry point, so a program
+# links only the wrappers it calls. time64.h states the conversion rules.
+TIME64SRC	= time64_widen_stat.c time64_widen_rusage.c time64_stat.c time64_lstat.c \
+		  time64_fstat.c time64_gettimeofday.c time64_settimeofday.c time64_adjtime.c \
+		  time64_select.c time64_pselect.c time64_utimes.c time64_futimes.c \
+		  time64_getitimer.c time64_setitimer.c time64_getrusage.c time64_wait4.c
+TIME64OBJ	= time64_widen_stat.o time64_widen_rusage.o time64_stat.o time64_lstat.o \
+		  time64_fstat.o time64_gettimeofday.o time64_settimeofday.o time64_adjtime.o \
+		  time64_select.o time64_pselect.o time64_utimes.o time64_futimes.o \
+		  time64_getitimer.o time64_setitimer.o time64_getrusage.o time64_wait4.o
 
 STDSRC		= abort.c alarm.c aligned_alloc.c assert_fail.c asctime.c atof.c atoi.c atol.c \
 		  basename.c bcmp.c bcopy.c ctermid.c \

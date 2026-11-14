@@ -1,4 +1,4 @@
-"""Prove the mktime contract rejects the two range-edge defects of mktime().
+"""Prove the mktime contract rejects the three range-edge defects of mktime().
 
 usage: mktime_contract_mutate.py ROOT COMPILE TEST OBJECT...
 
@@ -12,6 +12,9 @@ and each mutant of lib/libc/gen/mktime.c must fail:
    in a zone west of Greenwich and the last hours in a zone east of it;
  - value-only: an answer equal to TIME_REFUSED is taken as a refusal, which
    refuses the last count of the range, 4294967295, and leaves the struct.
+ - transition-edge: the answer found with the offset in force at the first
+   count of the range is dropped, which refuses a local time within an
+   offset's width of the start in a zone file whose offset changes there.
 """
 
 import pathlib
@@ -23,7 +26,12 @@ import tempfile
 PREFLIGHT_ANCHOR = "\t\tguess = days < 0 ? TIME_MIN : TIME_MAX;\n"
 VALUE_ANCHOR = "\t*tm = *localtime(&guess);\n"
 
+RETRY_ANCHOR = ("\t\t\tif (join_count(days, seconds, offset, &guess) == 0 &&\n"
+                "\t\t\t    localtime(&guess)->tm_gmtoff == offset)\n")
+
 MUTANTS = (
+    ("transition-edge", RETRY_ANCHOR,
+     RETRY_ANCHOR.replace("tm_gmtoff == offset", "tm_gmtoff != offset")),
     ("preflight", PREFLIGHT_ANCHOR, "\t\treturn (TIME_REFUSED);\n"),
     ("value-only", VALUE_ANCHOR,
      "\tif (guess == TIME_REFUSED)\n\t\treturn (TIME_REFUSED);\n"

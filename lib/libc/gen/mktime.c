@@ -382,10 +382,35 @@ mktime(struct tm *tm)
 		guess = days < 0 ? TIME_MIN : TIME_MAX;
 
 	/* localtime() reports the offset, seconds east of UTC, in tm_gmtoff. */
-	for (pass = 0; pass < 3; pass++)
+	for (pass = 0; pass < 3; pass++) {
 		if (join_count(days, seconds, localtime(&guess)->tm_gmtoff,
-		    &guess))
-			return (TIME_REFUSED);
+		    &guess) == 0)
+			continue;
+#ifdef TZ_ZONEINFO
+		/*
+		 * A zone file can change the offset between the guess and
+		 * the answer. Within an offset's width of the start of the
+		 * range the offset in force at the guess then moves an
+		 * answer that lies inside the range to before it, so the
+		 * offset in force at the first count is tried, and its
+		 * answer stands when localtime() reports that same offset
+		 * there. The end of the range has no such case: tzload()
+		 * reads a transition time as a signed 32-bit count, so none
+		 * lies past 2038 (BEFORE_TRANSITION() in ctime.c). The zone
+		 * built without a zone file has one offset and takes the
+		 * refusal as it comes.
+		 */
+		{
+			time_t start = TIME_MIN;
+			long offset = localtime(&start)->tm_gmtoff;
+
+			if (join_count(days, seconds, offset, &guess) == 0 &&
+			    localtime(&guess)->tm_gmtoff == offset)
+				continue;
+		}
+#endif
+		return (TIME_REFUSED);
+	}
 
 	/*
 	 * The caller's struct reports the time that was reached, normalized

@@ -905,6 +905,94 @@ round_trip_band(unsigned long first, unsigned long last, int *wrong)
 	}
 }
 
+/*
+ * A zone file with one transition: FIRST seconds east of UTC before the
+ * instant AT and SECOND from it on. tzload reads the transition time, the
+ * index of the type it starts, then the two types and their abbreviations.
+ */
+static int
+write_zone_transition(unsigned long at, long first, long second)
+{
+	unsigned char buf[69];
+	int fd;
+
+	memset(buf, 0, sizeof(buf));
+	memcpy(buf, "TZif", 4);
+	put32(buf + 32, 1);		/* tzh_timecnt */
+	put32(buf + 36, 2);		/* tzh_typecnt */
+	put32(buf + 40, 8);		/* tzh_charcnt */
+	put32(buf + 44, (long)at);	/* the transition */
+	buf[48] = 1;			/* the type it starts */
+	put32(buf + 49, first);
+	buf[53] = 0;
+	buf[54] = 0;
+	put32(buf + 55, second);
+	buf[59] = 0;
+	buf[60] = 4;
+	memcpy(buf + 61, "AAA\0BBB", 8);
+	fd = creat(ZONE_PATH, 0644);
+	if (fd == -1)
+		return (-1);
+	if (write(fd, buf, sizeof(buf)) != (ssize_t)sizeof(buf)) {
+		(void)close(fd);
+		return (-1);
+	}
+	return (close(fd));
+}
+
+/*
+ * An offset that changes within an hour of the start of the range: one
+ * hour east before the count 1800 and two hours east from it on. The local
+ * time 01:00:00 on 1970-01-01 is the count 0, and the search starts at the
+ * fields read as UTC, the count 3600, where the later offset is in force
+ * and moves the answer to before the range. Every count of the first day
+ * converts. A transition time with bit 31 set reads as an instant before
+ * 1970 (tzload), so the zone file has no such case at the end of the
+ * range, and the second zone shows the later offset in force throughout.
+ */
+static void
+test_zone_transition_edges(void)
+{
+	struct tm tm;
+	time_t zero = 0, last = (time_t)ORACLE_COUNT_MAX;
+	int wrong;
+
+	if (write_zone_transition(1800UL, 3600L, 7200L) != 0) {
+		check(0, "transition edges: the zone file could not be written");
+		return;
+	}
+	putenv("TZ=" ZONE_PATH);
+	db_tzset();
+	check(db_localtime(&zero)->tm_gmtoff == 3600L,
+	    "transition edges: the early offset is not in force at 0");
+	tm = *db_localtime(&zero);
+	tm.tm_isdst = -1;
+	tm.tm_wday = -1;
+	check(db_mktime(&tm) == zero && tm.tm_wday != -1,
+	    "transition edges: 01:00:00 one hour east did not convert to 0");
+	wrong = 0;
+	round_trip_band(0UL, 86399UL, &wrong);
+	check(wrong == 0,
+	    "transition edges: a count of the first day did not round-trip");
+
+	if (write_zone_transition(ORACLE_COUNT_MAX - 1800UL, -7200L,
+	    -3600L) != 0) {
+		check(0, "transition edges: the zone file could not be written");
+		return;
+	}
+	db_tzset();
+	check(db_localtime(&zero)->tm_gmtoff == -3600L &&
+	    db_localtime(&last)->tm_gmtoff == -3600L,
+	    "transition edges: a transition past 2038 took effect");
+	wrong = 0;
+	round_trip_band(ORACLE_COUNT_MAX - 86399UL, ORACLE_COUNT_MAX, &wrong);
+	check(wrong == 0,
+	    "transition edges: a count of the last day did not round-trip");
+
+	putenv("TZ=");
+	db_tzset();
+}
+
 static void
 test_zone_edges(void)
 {
@@ -993,6 +1081,7 @@ main(void)
 	test_timegm_zone_fields();
 	test_zone_offset();
 	test_zone_edges();
+	test_zone_transition_edges();
 
 	report("checks: ", check_count);
 	if (failure_count != 0) {

@@ -692,6 +692,18 @@ What stays limited:
   entry points against the archive, and `check-renode` compiles a program
   with the image's `cc` at a 2046 clock and reads the date `ctime()`
   prints.
+- A libc built with `TZ_ZONEINFO` reads zone files whose offset changes.
+  Where the change lies within an offset's width of the count 0, the
+  32-bit `mktime()` applied the offset in force at its first guess and
+  refused a local time inside the range: one hour east before the count
+  1800 and two hours east after it, 01:00:00 on 1970-01-01 is the count 0
+  and was refused. It now tries the offset in force at the first count
+  and keeps the answer when `localtime()` reports that offset there. The
+  end of the range has no such case, because `tzload()` reads a
+  transition time as a signed 32-bit count. The default libc, built
+  without the reader, has one offset; its `mktime.o` is unchanged at 636
+  bytes, and the zone-file build's is 676. `check-libc-mktime` runs the
+  first day of such a zone and rejects a mutant that drops the answer.
 - `timercmp()` and a program's own comparison of two `tv_sec` clock
   readings stay signed, since the field is shared with intervals.
 - `tests/rp2040/fptest` calls `difftime` at the 64-bit view, so its

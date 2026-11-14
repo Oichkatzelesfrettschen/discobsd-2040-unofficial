@@ -118,12 +118,12 @@ def flash_image(elf):
     return image
 
 
-def identity_spans(image, forget=()):
+def identity_spans(image, forget=(), extra=()):
     """Return the (start, end) spans of image that the CRC reads as zero.
 
-    forget names spans to leave out ("boot2", "stamp" or "board"): a
-    comparison built that way is a mutant, and the fixture requires it to
-    reject an image that the loader rewrote.
+    forget names spans to leave out ("boot2", "stamp" or "board") and extra
+    adds (start, end) spans: a comparison built either way is a mutant, and
+    the fixture requires it to fail the case that pins the excluded set.
     """
     board = struct.unpack_from("<I", image, BOARD_WORD)[0] - IMAGE_ADDRESS
     spans = {
@@ -132,28 +132,34 @@ def identity_spans(image, forget=()):
         "crc": (CRC_WORD, CRC_WORD + 4),
         "board": (board, board + BOARD_DESCRIPTOR_SIZE),
     }
-    return [span for name, span in spans.items() if name not in forget]
+    return [span for name, span in spans.items() if name not in forget] + list(extra)
 
 
-def identity_sum(image, forget=()):
+def identity_sum(image, forget=(), extra=()):
     """Return the CRC32 of image with its excluded spans read as zero."""
     summed = bytearray(image)
-    for start, end in identity_spans(image, forget):
+    for start, end in identity_spans(image, forget, extra):
         summed[start:end] = bytes(end - start)
     return zlib.crc32(summed)
 
 
-def identity_error(image, forget=()):
-    """Return why the identity words of a flash image are wrong, or None."""
+def identity_error(image, forget=(), extra=(), unchecked=()):
+    """Return why the identity words of a flash image are wrong, or None.
+
+    unchecked names a check to leave out ("alignment"), for the mutant that
+    the fixture requires a restamped, unaligned descriptor address to catch.
+    """
     if len(image) < BOARD_WORD + 4 + BOARD_DESCRIPTOR_SIZE:
         return "flash image ends before the identity words"
     length, crc = struct.unpack_from("<2I", image, LENGTH_WORD)
     board = struct.unpack_from("<I", image, BOARD_WORD)[0] - IMAGE_ADDRESS
     if length != len(image):
         return f"length word is {length}, flash image is {len(image)} bytes"
-    if board < BOARD_WORD + 4 or board + BOARD_DESCRIPTOR_SIZE > length or board & 255:
+    if board < BOARD_WORD + 4 or board + BOARD_DESCRIPTOR_SIZE > length:
         return "board descriptor address lies outside the flash image"
-    summed = identity_sum(image, forget)
+    if board & 255 and "alignment" not in unchecked:
+        return "board descriptor address is not 256-byte aligned"
+    summed = identity_sum(image, forget, extra)
     if crc != summed:
         return f"CRC word is {crc:08x}, flash image sums to {summed:08x}"
     return None

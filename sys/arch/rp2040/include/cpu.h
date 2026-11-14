@@ -115,8 +115,9 @@
  * are the words tools/kernsum stamped into vector entries 12 and 13;
  * image_crc is the CRC32 the kernel computed over its own flash at boot,
  * with the second stage, the PicoCalc UF2 loader's stamp span, the CRC
- * word and the board descriptor read as zero. The two sums differ when
- * the flash holds other bytes than the link produced.
+ * word and the board descriptor read as zero. The two sums differ when a
+ * covered byte of the flash, any byte outside those spans, is not the
+ * byte the link produced; a change confined to the spans moves neither.
  * image_length is zero for a kernel without the words.
  */
 #define	CPU_IMAGE_LENGTH	40	/* int: flash image bytes */

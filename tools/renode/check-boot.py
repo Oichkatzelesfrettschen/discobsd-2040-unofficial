@@ -158,9 +158,19 @@ BOARD_DESCRIPTOR_SIZE = 16
 
 
 def identity_sum(image: bytes) -> int:
-    """Return the CRC32 image_identify() computes over a kernel holding image."""
+    """Return the CRC32 image_identify() computes over a kernel holding image.
+
+    The board address word must address a 256-byte aligned descriptor after
+    itself and inside the image, as tools/kernsum requires; ValueError otherwise.
+    """
     work = bytearray(image)
+    if len(work) < BOARD_WORD_OFFSET + 4 + BOARD_DESCRIPTOR_SIZE:
+        raise ValueError("the image ends before the board address word")
     board = struct.unpack_from("<I", work, BOARD_WORD_OFFSET)[0] - IMAGE_ADDRESS
+    if (board < BOARD_WORD_OFFSET + 4 or board + BOARD_DESCRIPTOR_SIZE > len(work)
+            or board & 255):
+        raise ValueError(f"the board address word {board + IMAGE_ADDRESS:#x} does not address "
+                         "an aligned descriptor inside the image")
     work[:BOOT2_SIZE] = bytes(BOOT2_SIZE)
     work[STAMP_OFFSET:STAMP_OFFSET + STAMP_SIZE] = bytes(STAMP_SIZE)
     work[IDENTITY_OFFSET + 4:IDENTITY_OFFSET + 8] = bytes(4)

@@ -177,8 +177,9 @@ board_console(int *major_number, int *minor_number)
  * keeps one identity on every board. The loader also replaces the second
  * stage with its own, so the sum is the same whether the image was flashed
  * directly or through the loader. image_identify() recomputes the sum from
- * flash, so image_crc names the bytes that are executing and differs from
- * image_crc_stored when they are not the bytes that were linked.
+ * flash, so image_crc is the sum over the covered bytes of the flash that
+ * is executing, every byte outside those four spans, and differs from
+ * image_crc_stored when a covered byte is not the byte that was linked.
  * machdep.image_length, image_crc and image_crc_stored export the three
  * values; image_length is zero for a kernel without the words.
  */

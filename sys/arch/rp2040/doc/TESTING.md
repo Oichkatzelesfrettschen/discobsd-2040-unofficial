@@ -349,7 +349,19 @@ the first function byte and the last byte); and a checker, or a `kernsum`
 compiled from the source with one `memset` removed, that forgets the
 second-stage or the stamp exclusion fails it, which calibrates the case.
 The build gate keeps rejecting the stamped ELF, since a linked kernel holds
-zero in entries 4 to 10. The cross gate checks linked values, rather than exception
+zero in entries 4 to 10. The fixture also pins the excluded set: it inverts
+each byte of 0x000-0x1FF, one byte on each side of every span and the last
+byte, and requires the sum of the checker and of the Renode oracle
+(`identity_sum()` in tools/renode/check-boot.py), and `kernsum -c` where the
+ELF holds the byte, to ignore the byte exactly when it lies in one of the
+four spans; a checker, an oracle or a `kernsum` that also excludes 0x1C5
+fails that pin. A descriptor address of zero, below the word after the
+address word, past the end of the image or unaligned fails the checker,
+the oracle and `kernsum`; an unaligned address inside the image with a
+restamped CRC word is refused only by the alignment check, so a checker or
+a `kernsum` without it accepts that image and fails the case. The runtime
+sum of `image_identify()` runs only on a target; `check-renode-identity`
+is its gate. The cross gate checks linked values, rather than exception
 delivery or physical privilege behavior. Weak aliases may legitimately share
 the default-handler address.
 
@@ -2426,7 +2438,9 @@ in the first and the computed sum moved in the second. Each boot continues
 through the storage probe. The built kernel is read and never written; the
 copies live under tools/renode/vendor/results/identity.
 
-The four boots calibrate one another: a kernel that prints `differs` for
+`check-renode-identity` is the gate for the runtime `image_identify()` sum;
+`check-rp2040-vectors` holds the build-time and host implementations of the
+same function. The four boots calibrate one another: a kernel that prints `differs` for
 every image fails the first and the fourth, and one that never prints it
 fails the second and third. The built kernel holds zero in the stamp span,
 so the fourth boot alone shows that `image_identify()` skips it; the second

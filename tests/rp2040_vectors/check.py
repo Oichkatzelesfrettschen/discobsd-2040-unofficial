@@ -15,6 +15,7 @@ kernel, which calibrates the case.
 """
 
 import argparse
+import importlib.util
 import io
 import os
 import re
@@ -32,9 +33,11 @@ KERNSUM = ROOT / "tools/bin/rp2040/kernsum"
 IDENTITY_WORDS = 0x10000130
 sys.path.insert(0, str(ROOT / "tools"))
 from check_rp2040_vectors import (  # noqa: E402
+    BOARD_DESCRIPTOR_SIZE,
     BOARD_WORD,
     BOOT2_SIZE,
     CRC,
+    CRC_WORD,
     IMAGE_ADDRESS,
     LENGTH,
     SLOTS,
@@ -42,6 +45,7 @@ from check_rp2040_vectors import (  # noqa: E402
     STAMP_START,
     flash_image,
     identity_error,
+    identity_sum,
 )
 
 # What the checker reports for a changed identity word (entries 12 and 13).
@@ -142,6 +146,15 @@ def file_offset(elf, address, size=1):
     raise AssertionError(f"no loadable segment holds {address:#x}")
 
 
+def has_file_byte(elf, flash_offset):
+    """Return whether an ELF segment holds the flash byte; alignment gaps hold none."""
+    try:
+        file_offset(elf, IMAGE_ADDRESS + flash_offset)
+    except AssertionError:
+        return False
+    return True
+
+
 def write_flash(data, elf, flash_offset, content):
     """Write content over the flash image bytes from flash_offset, in the ELF bytes data."""
     start = file_offset(elf, IMAGE_ADDRESS + flash_offset, len(content))
@@ -172,13 +185,13 @@ def flip_image(image, offset):
     return copy
 
 
-def build_mutant_kernsum(directory, anchor):
-    """Compile tools/kernsum with the statement anchor removed; return the program."""
+def build_mutant_kernsum(directory, anchor, replacement=""):
+    """Compile tools/kernsum with the anchor replaced; return the program."""
     text = (ROOT / "tools/kernsum/kernsum.c").read_text(encoding="utf-8")
     if anchor not in text:
         raise AssertionError(f"kernsum mutation anchor is absent: {anchor}")
     source = Path(directory) / "kernsum-mutant.c"
-    source.write_text(text.replace(anchor, "", 1), encoding="utf-8")
+    source.write_text(text.replace(anchor, replacement, 1), encoding="utf-8")
     program = Path(directory) / "kernsum-mutant"
     subprocess.run([os.environ.get("CC", "cc"), "-o", str(program), str(source)], check=True)
     return program
@@ -264,6 +277,172 @@ def check_loader_state(kernel, original, elf, text_start, directory):
     run(elf_path, 1, "board address word differs")
 
 
+def load_oracle():
+    """Import tools/renode/check-boot.py, the Renode gate's identity oracle."""
+    path = ROOT / "tools/renode/check-boot.py"
+    sys.path.insert(0, str(path.parent))
+    spec = importlib.util.spec_from_file_location("check_boot", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def declared_spans(image):
+    """Return the four (start, end) spans the sum reads as zero."""
+    board = struct.unpack_from("<I", image, BOARD_WORD)[0] - IMAGE_ADDRESS
+    return [(0, BOOT2_SIZE), (STAMP_START, STAMP_END), (CRC_WORD, CRC_WORD + 4),
+            (board, board + BOARD_DESCRIPTOR_SIZE)]
+
+
+def probe_offsets(image):
+    """Return the bytes that pin the excluded set: the table's tail and the
+    padding after it, one byte on each side of every span and the last byte."""
+    offsets = set(range(BOARD_WORD, BOARD_WORD + 8)) | {len(image) - 1}
+    for start, end in declared_spans(image):
+        offsets |= {start - 1, start, end - 1, end} - {-1}
+    return sorted(offsets)
+
+
+def excluded_set_error(accepts, image, offsets):
+    """Return why accepts(offset), whether the sum still verifies with that
+    byte inverted, differs from membership in the declared spans, or None."""
+    spans = declared_spans(image)
+    for offset in offsets:
+        expected = any(start <= offset < end for start, end in spans)
+        if accepts(offset) != expected:
+            return f"byte {offset:#x} is {'excluded' if accepts(offset) else 'covered'}"
+    return None
+
+
+def kernsum_sum_is(path, crc, program=KERNSUM):
+    """Return whether kernsum -c reads the sum crc from the ELF at path.
+
+    It prints the sum on success and reports it as "image" when the stored
+    CRC word disagrees, so a flipped CRC word still reads the build's sum.
+    """
+    result = subprocess.run([str(program), "-c", str(path)], text=True, capture_output=True,
+                            check=False)
+    if result.returncode == 0:
+        return int(result.stdout.split()[1], 16) == crc
+    match = re.search(r"CRC word [0-9a-f]+, image ([0-9a-f]+)", result.stderr)
+    return result.returncode == 1 and match is not None and int(match.group(1), 16) == crc
+
+
+def check_excluded_set(original, elf, directory):
+    """Pin the excluded set of each implementation to the four declared spans."""
+    image = flash_image(elf)
+    oracle = load_oracle()
+    exhaustive = sorted(set(range(0x200)) | set(probe_offsets(image)))
+    # Alignment gaps between sections are zero fill with no byte in the ELF,
+    # so kernsum is probed only where the file holds the byte.
+    probes = [offset for offset in probe_offsets(image) if has_file_byte(elf, offset)]
+    extra = [(BOARD_WORD + 5, BOARD_WORD + 6)]
+    baseline = oracle.identity_sum(bytes(image))
+    assert baseline == identity_sum(image)
+
+    def oracle_accepts(offset, zeroed=None):
+        mutated = flip_image(image, offset)
+        if zeroed is not None:
+            mutated[zeroed] = 0
+        try:
+            return oracle.identity_sum(bytes(mutated)) == baseline
+        except ValueError:
+            return False
+
+    # "Accepted" means the byte does not move the sum: a flipped CRC word
+    # still fails the comparison with the stored one, but it is not summed.
+    def checker_accepts(offset, extra=()):
+        mutated = flip_image(image, offset)
+        error = identity_error(mutated, extra=extra)
+        if error is not None and not error.startswith("CRC word"):
+            return False
+        return identity_sum(mutated, extra=extra) == baseline
+
+    elf_path = Path(directory) / "excluded-set.elf"
+
+    def kernsum_flip_accepts(offset, program=KERNSUM):
+        elf_path.write_bytes(flip_elf(original, elf, offset))
+        return kernsum_sum_is(elf_path, baseline, program)
+
+    for label, accepts, offsets in (
+            ("checker", checker_accepts, exhaustive),
+            ("Renode oracle", oracle_accepts, exhaustive),
+            ("kernsum", kernsum_flip_accepts, probes)):
+        error = excluded_set_error(accepts, image, offsets)
+        if error is not None:
+            raise AssertionError(f"{label}: {error}")
+    # Calibration: an extra exclusion at 0x1C5 must fail the pin in each.
+    program = build_mutant_kernsum(directory, "memset(image, 0, BOOT2_SIZE);",
+                                   "memset(image, 0, BOOT2_SIZE); image[0x1c5] = 0;")
+    mutants = (
+        ("checker", lambda offset: checker_accepts(offset, extra), exhaustive),
+        ("Renode oracle", lambda offset: oracle_accepts(offset, zeroed=BOARD_WORD + 5), exhaustive),
+        ("kernsum", lambda offset: kernsum_flip_accepts(offset, program), probes),
+    )
+    for label, accepts, offsets in mutants:
+        if excluded_set_error(accepts, image, offsets) is None:
+            raise AssertionError(f"the pin accepts a {label} that also excludes 0x1c5")
+
+
+def set_flash_word(data, elf, offset, value):
+    """Return a copy of the ELF bytes data with the flash word at offset set."""
+    copy = bytearray(data)
+    write_flash(copy, elf, offset, struct.pack("<I", value))
+    return copy
+
+
+def check_board_address(original, elf, directory):
+    """Hold every implementation to a descriptor address inside the image, aligned."""
+    image = flash_image(elf)
+    oracle = load_oracle()
+    length = len(image)
+    board = struct.unpack_from("<I", image, BOARD_WORD)[0]
+    elf_path = Path(directory) / "board-word.elf"
+    bad = {
+        "zero": 0,
+        "below the first word after the address word": IMAGE_ADDRESS + BOARD_WORD,
+        "past the end of the image": IMAGE_ADDRESS + length,
+        "unaligned": board + 1,
+    }
+    for label, word in bad.items():
+        mutated = bytearray(image)
+        struct.pack_into("<I", mutated, BOARD_WORD, word)
+        if identity_error(mutated) is None:
+            raise AssertionError(f"checker accepts a descriptor address {label}")
+        try:
+            oracle.identity_sum(bytes(mutated))
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"Renode oracle sums a descriptor address {label}")
+        elf_path.write_bytes(set_flash_word(original, elf, BOARD_WORD, word))
+        kernsum(["-c", elf_path], 2, "board descriptor")
+    # An unaligned address inside the image whose CRC word is restamped to
+    # match: only the alignment check refuses it, so a comparison without
+    # that check accepts it.
+    unaligned = bytearray(image)
+    struct.pack_into("<I", unaligned, BOARD_WORD, board - 1)
+    restamped = identity_sum(unaligned)
+    struct.pack_into("<I", unaligned, CRC_WORD, restamped)
+    error = identity_error(unaligned)
+    if error is None or "aligned" not in error:
+        raise AssertionError(f"checker accepts a restamped unaligned address: {error}")
+    if identity_error(unaligned, unchecked=("alignment",)) is not None:
+        raise AssertionError("the unaligned case fails for a reason beyond alignment")
+    try:
+        oracle.identity_sum(bytes(unaligned))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Renode oracle sums a restamped unaligned address")
+    patched = set_flash_word(original, elf, BOARD_WORD, board - 1)
+    write_flash(patched, elf, CRC_WORD, struct.pack("<I", restamped))
+    elf_path.write_bytes(patched)
+    kernsum(["-c", elf_path], 2, "board descriptor")
+    program = build_mutant_kernsum(directory, " || (board & 255) != 0)", ")")
+    kernsum(["-c", elf_path], 0, program=program)
+
+
 def symbol_value(elf, name):
     return elf.get_section_by_name(".symtab").get_symbol_by_name(name)[0].entry.st_value
 
@@ -323,8 +502,10 @@ def main():
         check_kernsum(args.kernel, original, elf, directory)
         text_start = symbol_value(elf, "Reset_Handler") & ~1
         check_loader_state(args.kernel, original, elf, text_start - IMAGE_ADDRESS, directory)
+        check_excluded_set(original, elf, directory)
+        check_board_address(original, elf, directory)
     print("PASS RP2040 vectors: linked control, all slots, identity words, Thumb bits, kernsum, "
-          "loader state")
+          "loader state, excluded set, board address")
 
 
 if __name__ == "__main__":

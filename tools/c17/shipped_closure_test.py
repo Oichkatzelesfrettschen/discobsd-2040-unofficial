@@ -78,7 +78,7 @@ class ShippedClosureTest(unittest.TestCase):
         checksum = Path(__file__).resolve().parents[1] / "bin/rp2040/kernsum"
         self.assertTrue(checksum.is_file())
         (self.root / "kernel.S").write_text(
-            ".section .text\n.global _start\n_start:\n.space 0x128\n"
+            ".section .text\n.global _start\n_start:\n.space 0x1c0\n"
             ".long 0x10000200\n.space 0x200 - (. - _start)\n.space 16\n")
         (self.root / "kernel.ld").write_text(
             "PHDRS { flash PT_LOAD FLAGS(5); }\n"

@@ -1895,7 +1895,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-record-header-contracts` | Group, device and login-record header acceptance on ARM: 288 cases across production GNU17, GNU strict C17 and Clang strict C17, four namespace selectors, two time views and four inclusion orders. Each profile rejects eight header mutations and an extra kmemdev argument. Twenty-four cross-preprocessed Smaller C inputs compile and assemble with unchanged native layouts. Firmware CI owns the gate through check-cross; host-native layouts, on-device preprocessing and runtime behavior remain separate. |
 | `check-passwd-header-contracts` | Compiler acceptance for the password public header: standalone/repeated inclusion, sys/types and stddef include orders, seven field types/offsets, structure size/alignment, seven function-pointer signatures and both database keys. Five mandatory profiles cover the host compiler, native Clang, Clang ARM32 and production GNU ARM GNU17/strict C17. Two host ILP32 profiles probe availability and retain explicit unrun states. Every executed profile accepts four valid forms and rejects a removed guard, unsigned UID and incompatible lookup callback. Four profile-policy controls include a synthetic driver diagnostic; real compiler probes decide actual availability and source errors stay failures. Firmware CI runs the gate through check-cross on Linux and macOS; compilation establishes header/ABI acceptance rather than runtime password behavior. |
 | `check-libc-output-cross` | Exact fprintf, vfprintf, fputs, printf, vprintf, sprintf, vsprintf and doprnt implementations compile as C17 for Cortex-M0+ with warnings and old-style definitions treated as errors. Host semantics and target compilation retain separate receipts. |
-| `check-board-libc-output` | The cross compiler emits a fprintf consumer, the tree assembler produces a.out, and the tree linker resolves the consumer with the selected shipped libc archive and startup object. A temporary archive copy with vfprintf.o removed must fail the named dependency. The gate builds the selected archive when stale; it executes neither the consumer nor board hardware. |
+| `check-board-libc-output` | The cross compiler emits a fprintf consumer, the tree assembler produces a.out, and the tree linker resolves the consumer with the selected shipped libc archive and startup object. A temporary archive copy with vfprintf.o removed must fail the named dependency. A second consumer, compiled at the 32-bit time view the archive's members are built at, calls time, tzset, ctime, gmtime, localtime, asctime and timezone and must link; a copy with tzset.o removed must fail naming tzset. The gate builds the selected archive when stale; it executes neither the consumer nor board hardware. |
 | `check-cat-contracts-cross` | the exact cat source compiled as strict C17 for Cortex-M0+ with full warnings; its static assertions bind the transfer buffer to the target's BUFSIZ, MAXBSIZE and DEV_BSIZE |
 | `check-rmdir-contracts-cross` | the exact rmdir source compiled as strict C17 for Cortex-M0+ with full warnings |
 | `check-tee-contracts-cross` | the exact tee source compiled as strict C17 for Cortex-M0+ with full warnings |
@@ -2254,7 +2254,10 @@ boot that reaches a shell still produces some thirty-six thousand of them,
 so the gate cannot forbid warnings; tools/renode/warning-classes.txt names
 every class the boot is known to produce, says what the model is missing
 and what the kernel sees because of it, and caps how many times each may
-appear. An unlisted class fails, and so does a listed one over its ceiling,
+appear. tools/renode/boot-warning-classes.txt, read first by check-boot.sh
+alone, carries the ceilings of the eleven flash re-entry classes for a run
+whose clock stage compiles a program on the target, about twice the count
+of a run without one. An unlisted class fails, and so does a listed one over its ceiling,
 and any line the models log at error level fails on its own, because a
 boot that reaches a shell produces none.
 Three classes mark state the kernel reads and gets wrong -- RESETS is
@@ -2281,6 +2284,15 @@ between the image and its stack, execs, and asserts `RESIDUE OK`, which
 holds only when exec_clear has zeroed that span. Renode's Cortex-M0+ implements the
 region registers, so the emulator decides the register-level claim and the
 fault path; the board run decides the silicon. MPU.md has the map.
+
+The clock stage sets the clock to 2046-07-23 as root, a count with bit 31
+set, and requires `date -u` to read 2046, `touch -t` and `ls -l` to show a
+2045 file time and a 2046 creation time, and `sysctl -n kern.boottime` to
+print a number. It then writes a two-line C source with `echo`, compiles
+it with the image's `/usr/bin/cc` (Smaller C, the tree assembler and
+linker, `/usr/lib/libc.a`) and requires the program's `ctime()` line to
+read 2046, which executes the board archive's `ctime.o`, `tzset.o`,
+`timezone.o` and `asctime.o` on the emulated CPU.
 
 What `check-renode` does not decide is SSI concurrency. `Create Terminal
 Tester` pauses the emulation at every wait, which serializes the two CPU

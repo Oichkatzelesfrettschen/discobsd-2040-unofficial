@@ -69,4 +69,27 @@ with tempfile.TemporaryDirectory(prefix="board-output-") as directory:
     result = subprocess.run([*command, str(damaged)], capture_output=True, text=True)
     if result.returncode != 1 or "vfprintf" not in result.stdout + result.stderr:
         raise SystemExit("board output closure accepts missing vfprintf or fails unexpectedly")
+    # A program Smaller C compiles on the board binds the 32-bit time view,
+    # the one the archive's members are built at, so the calendar consumer
+    # is compiled at that view.
+    calendar_assembly = work / "calendar.s"
+    calendar_object = work / "calendar.o"
+    subprocess.run([args.compiler, "-std=c17", "-Wall", "-Wextra", "-Werror",
+                    "-fno-builtin", "-Os", "-ffreestanding", "-mcpu=cortex-m0plus",
+                    "-mthumb", "-mfloat-abi=soft", "-nostdinc", "-I" + str(root / "include"),
+                    "-D_TIME_BITS=32",
+                    "-S", str(root / "tests/libc_output/board_calendar_consumer.c"),
+                    "-o", str(calendar_assembly)], check=True)
+    subprocess.run([str(tools / "as"), str(calendar_assembly), "-o", str(calendar_object)],
+                   check=True)
+    calendar = [str(tools / "ld"), "-o", str(work / "calendar"), str(startup),
+                str(calendar_object)]
+    subprocess.run([*calendar, str(archive)], check=True)
+    shutil.copyfile(archive, damaged)
+    subprocess.run([str(tools / "ar"), "d", str(damaged), "tzset.o"], check=True)
+    subprocess.run([str(tools / "ranlib"), str(damaged)], check=True)
+    result = subprocess.run([*calendar, str(damaged)], capture_output=True, text=True)
+    if result.returncode != 1 or "tzset" not in result.stdout + result.stderr:
+        raise SystemExit("board calendar closure accepts missing tzset or fails unexpectedly")
 print("PASS stripped board archive output link and missing-vfprintf control")
+print("PASS board archive calendar link and missing-tzset control")

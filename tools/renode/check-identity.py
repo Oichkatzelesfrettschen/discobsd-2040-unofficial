@@ -27,7 +27,8 @@ loader stamp
     path, written over vector entries 4 to 10. The sum reads that span as
     zero, so the line equals the stamped kernel's. The built kernel holds
     zero there, so this boot alone shows that image_identify() skips the
-    span.
+    span. The kernel honors the stamped flash end, so this boot's storage
+    probe reports fl1 as 368 KB and the swap size as 364 KB.
 
 The expected sums are computed here from the bytes each boot loads, with the
 second stage, the stamp span, the CRC word and the board descriptor read as
@@ -55,6 +56,12 @@ sys.path.insert(0, HERE)
 from renode_monitor import Renode, RenodeError  # noqa: E402
 
 CONFIG = "PICO_UART"
+# The two storage lines that differ when the loader's stamp limits flash.
+LIMITED_STORAGE = {
+    "fl1: 384 kbytes raw QSPI flash for swap": "fl1: 368 kbytes raw QSPI flash for swap",
+    "swap size = 380 kbytes": "swap size = 364 kbytes",
+}
+
 # The loader's stamp: magic, flash end, then 20 bytes of the UF2 path.
 LOADER_STAMP = struct.pack("<2I", 0xE98CC638, 0x101FC000) + b"/pico1-apps/DiscoBSD"
 
@@ -67,7 +74,7 @@ def load_boot():
     return module
 
 
-def build_cases(boot, image: bytes) -> list[tuple[str, bytes, str]]:
+def build_cases(boot, image: bytes) -> list[tuple[str, bytes, str, list[str]]]:
     """Return (name, kernel bytes, expected console line) for the four boots."""
     length, stored = struct.unpack_from("<2I", image, boot.IDENTITY_OFFSET)
     crc = boot.identity_sum(image)
@@ -95,18 +102,25 @@ def build_cases(boot, image: bytes) -> list[tuple[str, bytes, str]]:
     if boot.identity_sum(bytes(stamped)) != crc:
         raise ValueError("the loader stamp moves the sum")
 
+    # Under the stamp the kernel ends fl1 at the stamped limit, 0x1fc000:
+    # 368 KB of the 384 KB region, one 4 KB sector of which holds no swap.
+    limited = [LIMITED_STORAGE.get(entry, entry) for entry in boot.STORAGE_LINES]
+    if limited == boot.STORAGE_LINES:
+        raise ValueError("the storage lines hold no fl1 or swap size line to limit")
     return [
-        ("stamped", image, f"image: {length} bytes, crc32 {crc:x}\n"),
+        ("stamped", image, f"image: {length} bytes, crc32 {crc:x}\n", boot.STORAGE_LINES),
         ("stored word", bytes(flipped),
-         f"image: {length} bytes, crc32 {crc:x}, stored {stored ^ 1:x} differs\n"),
+         f"image: {length} bytes, crc32 {crc:x}, stored {stored ^ 1:x} differs\n",
+         boot.STORAGE_LINES),
         ("image byte", bytes(altered),
-         f"image: {length} bytes, crc32 {altered_crc:x}, stored {stored:x} differs\n"),
-        ("loader stamp", bytes(stamped), f"image: {length} bytes, crc32 {crc:x}\n"),
+         f"image: {length} bytes, crc32 {altered_crc:x}, stored {stored:x} differs\n",
+         boot.STORAGE_LINES),
+        ("loader stamp", bytes(stamped), f"image: {length} bytes, crc32 {crc:x}\n", limited),
     ]
 
 
 def boot_case(boot, renode_path: str, flash_bin: str, outdir: str,
-              name: str, kernel: bytes, line: str) -> list[str]:
+              name: str, kernel: bytes, line: str, storage: list[str]) -> list[str]:
     """Boot kernel and return the failures of its image line and storage probe."""
     slug = name.replace(" ", "-")
     unix_bin = os.path.join(outdir, f"unix-{slug}.bin")
@@ -125,7 +139,7 @@ def boot_case(boot, renode_path: str, flash_bin: str, outdir: str,
         # board_report() prints the image line ahead of the banner.
         console.wait_for("image: ", f"{name}: image line", boot.PROBE_BUDGET_SECONDS)
         start = console.cursor - len("image: ")
-        console.wait_lines([f"DiscoBSD 2.7 ({CONFIG})"] + boot.STORAGE_LINES,
+        console.wait_lines([f"DiscoBSD 2.7 ({CONFIG})"] + storage,
                            f"{name}: banner and storage probe", boot.PROBE_BUDGET_SECONDS)
         text = console.text()
         printed = text[start:text.index("\n", start) + 1]
@@ -153,10 +167,10 @@ def main(argv: list[str]) -> int:
         return 2
     os.makedirs(outdir, exist_ok=True)
     failed = False
-    for name, kernel, line in cases:
+    for name, kernel, line, storage in cases:
         try:
             failed = bool(boot_case(boot, renode_path, flash_bin, outdir,
-                                    name, kernel, line)) or failed
+                                    name, kernel, line, storage)) or failed
         except RenodeError as error:
             print(f"check-identity: {error}", file=sys.stderr)
             return 2

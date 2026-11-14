@@ -16,7 +16,8 @@ root uses 682 data blocks and reports 297 free blocks, compared with 692 and
 records the complete kernel, process, archive and root measurements.
 The archive also carries the calendar conversions a date-printing program
 needs -- `asctime`, `ctime` (with `gmtime` and `localtime`), `timezone`,
-`tzset` and `index` -- at 48,294 bytes against 45,314 without them, with
+`tzset` and `index` -- and `flags`, `tolower` and `toupper`, which
+`libc-sink.c` reaches: 48,846 bytes against 45,314 without the eight, with
 233 of 988 root blocks free against 236
 ([time-representation-past-2038.md](../../../../../docs/research/time-representation-past-2038.md)).
 The historical construction report follows.

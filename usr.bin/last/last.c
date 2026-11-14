@@ -38,7 +38,12 @@ int nameargs;
 
 struct  utmp buf[128];
 char    ttnames[MAXTTYS][LMAX+1];
-long    logouts[MAXTTYS];
+/*
+ * The logout time seen for each line, 0 for none yet, and negated after a
+ * shutdown or crash record. A record's time is the kernel's 32-bit count
+ * (<utmp.h>), which a time_t holds with room for the sign.
+ */
+time_t  logouts[MAXTTYS];
 
 void
 onintr(signo)
@@ -77,7 +82,7 @@ main(ac, av)
     char wtmpfile[256];
     char progname[256];
     register struct utmp *bp;
-    long otime;
+    time_t otime;
     time_t when;
     struct stat stb;
     int print;
@@ -87,7 +92,7 @@ main(ac, av)
     long outrec = 0;
     long maxrec = 0x7fffffffL;
 
-    buf[0].ut_time = time((time_t *)0);
+    buf[0].ut_time = (utime32_t)time((time_t *)0);
     strcpy(wtmpfile, _PATH_WTMP);
     strcpy(progname,av[0]);
     ac--, av++;
@@ -171,7 +176,8 @@ main(ac, av)
                 else if (otime == 0)
                     printf("  still logged in\n");
                 else {
-                    time_t delta;
+                    long delta;
+                    time_t span;
                     if (otime < 0) {
                         otime = -otime;
                         printf("- %s", crmsg);
@@ -180,14 +186,15 @@ main(ac, av)
                         printf("- %5.5s",
                             ctime(&when)+11);
                     }
-                    delta = otime - bp->ut_time;
+                    delta = (long)(otime - (time_t)bp->ut_time);
+                    span = delta;
                     if (delta < SECDAY)
                         printf("  (%5.5s)\n",
-                        asctime(gmtime(&delta))+11);
+                        asctime(gmtime(&span))+11);
                     else
                         printf(" (%ld+%5.5s)\n",
-                        (long)(delta / SECDAY),
-                        asctime(gmtime(&delta))+11);
+                        delta / SECDAY,
+                        asctime(gmtime(&span))+11);
                 }
                 fflush(stdout);
                 if (++outrec >= maxrec)
@@ -195,7 +202,7 @@ main(ac, av)
             }
             if (lineq(bp->ut_line, "~")) {
                 for (i = 0; i < MAXTTYS; i++)
-                    logouts[i] = -bp->ut_time;
+                    logouts[i] = -(time_t)bp->ut_time;
                 if (nameq(bp->ut_name, "shutdown"))
                     crmsg = "down ";
                 else

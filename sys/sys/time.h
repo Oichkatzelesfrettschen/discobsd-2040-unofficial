@@ -10,18 +10,10 @@
 #include <sys/types.h>
 
 /*
- * Structure returned by gettimeofday(2) system call,
- * and used in other calls.
- */
-#ifdef __TIME64_VIEW
-struct timeval {
-    time_t  tv_sec;         /* seconds */
-    long    tv_usec;        /* and microseconds */
-};
-
-/*
- * The layouts the kernel reads and writes, which the wrappers of the
- * 64-bit view convert to and from (lib/libc/gen/time64.h).
+ * The layouts the kernel reads and writes, in every view of time: the
+ * wrappers of the 64-bit view convert to and from them
+ * (lib/libc/gen/time64.h), and a program that reads a kernel structure
+ * holding one (the KERN_BOOTTIME payload of sysctl) names it.
  */
 struct __timeval32 {
     long    tv_sec;
@@ -31,6 +23,16 @@ struct __timeval32 {
 struct __timespec32 {
     utime32_t tv_sec;
     long    tv_nsec;
+};
+
+/*
+ * Structure returned by gettimeofday(2) system call,
+ * and used in other calls.
+ */
+#ifdef __TIME64_VIEW
+struct timeval {
+    time_t  tv_sec;         /* seconds */
+    long    tv_usec;        /* and microseconds */
 };
 #else
 struct timeval {

@@ -91,5 +91,29 @@ with tempfile.TemporaryDirectory(prefix="board-output-") as directory:
     result = subprocess.run([*calendar, str(damaged)], capture_output=True, text=True)
     if result.returncode != 1 or "tzset" not in result.stdout + result.stderr:
         raise SystemExit("board calendar closure accepts missing tzset or fails unexpectedly")
+    # distrib/rp2040/libc-sink.c calls every entry point the archive is
+    # meant to serve, so the archive must resolve the whole program: a
+    # member the list omits shows here as an undefined symbol, where the
+    # two consumers above reach only their own closures.
+    sink_assembly = work / "sink.s"
+    sink_object = work / "sink.o"
+    subprocess.run([args.compiler, "-std=c17", "-Wall", "-Wextra", "-Werror",
+                    "-fno-builtin", "-Os", "-ffreestanding", "-mcpu=cortex-m0plus",
+                    "-mthumb", "-mfloat-abi=soft", "-nostdinc", "-I" + str(root / "include"),
+                    "-S", str(root / "distrib/rp2040/libc-sink.c"),
+                    "-o", str(sink_assembly)], check=True)
+    subprocess.run([str(tools / "as"), str(sink_assembly), "-o", str(sink_object)], check=True)
+    sink = [str(tools / "ld"), "-o", str(work / "sink"), str(startup), str(sink_object)]
+    result = subprocess.run([*sink, str(archive)], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise SystemExit("board archive does not resolve distrib/rp2040/libc-sink.c:\n"
+                         + result.stdout + result.stderr)
+    shutil.copyfile(archive, damaged)
+    subprocess.run([str(tools / "ar"), "d", str(damaged), "toupper.o"], check=True)
+    subprocess.run([str(tools / "ranlib"), str(damaged)], check=True)
+    result = subprocess.run([*sink, str(damaged)], capture_output=True, text=True)
+    if result.returncode != 1 or "toupper" not in result.stdout + result.stderr:
+        raise SystemExit("board sink closure accepts missing toupper or fails unexpectedly")
 print("PASS stripped board archive output link and missing-vfprintf control")
+print("PASS board archive resolves the reference program; missing-toupper control")
 print("PASS board archive calendar link and missing-tzset control")

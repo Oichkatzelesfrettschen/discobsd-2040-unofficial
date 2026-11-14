@@ -83,18 +83,22 @@ done
 # the translation unit UNIT.
 link_fsutil()
 {
-	compile "$2" "$work/obj/replaced_$(basename "$3").o"
-	objects=
+	replaced_unit=$1
+	binary=$3
+	replaced=$work/obj/replaced_$(basename "$binary").o
+	compile "$2" "$replaced"
+	# The object paths hold TMPDIR, so they travel as positional parameters.
+	set --
 	for unit in $units; do
-		if [ "$unit" = "$1" ]; then
-			objects="$objects $work/obj/replaced_$(basename "$3").o"
+		if [ "$unit" = "$replaced_unit" ]; then
+			set -- "$@" "$replaced"
 		else
-			objects="$objects $work/obj/$unit.o"
+			set -- "$@" "$work/obj/$unit.o"
 		fi
 	done
-	# shellcheck disable=SC2086  # the object and library lists are word lists
-	${CC:-cc} -o "$3" $objects "$libhsaout" $libbsd_libs ||
-	    env_fail "link of $3"
+	# shellcheck disable=SC2086  # the library list is a word list
+	${CC:-cc} -o "$binary" "$@" "$libhsaout" $libbsd_libs ||
+	    env_fail "link of $binary"
 }
 
 asctime_of()

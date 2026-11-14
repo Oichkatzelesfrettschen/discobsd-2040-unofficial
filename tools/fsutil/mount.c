@@ -704,6 +704,15 @@ int op_utime(const char *path, struct utimbuf *ubuf)
 
     printlog("--- op_utime(path=\"%s\", ubuf=%p)\n", path, ubuf);
 
+    /* The inode holds each time as an unsigned 32-bit count of seconds. */
+    if ((long long) ubuf->actime < 0 ||
+        (long long) ubuf->actime > 0xffffffffLL ||
+        (long long) ubuf->modtime < 0 ||
+        (long long) ubuf->modtime > 0xffffffffLL) {
+        printlog("--- time out of range\n");
+        return -EINVAL;
+    }
+
     /* Open the file. */
     if (! fs_inode_lookup (fs, &inode, path)) {
         printlog("--- file not found\n");

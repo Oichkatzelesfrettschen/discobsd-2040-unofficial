@@ -1215,3 +1215,9 @@ witnesses cover the defined representability domain. Native archive omission
 controls reject each missing member. Matched whole-image resources and complete
 qualification remain open; the shared-libc export contract retains its separate
 public-root audit and fixed flash reservation.
+
+The [record-header inclusion contracts](record-header-inclusion.md) track
+group, device and login-record prerequisites, target layout, native compiler
+input and caller closure. Inclusion repair preserves the existing signed group
+identifier and time-selected login-record ABI; POSIX type and namespace
+conformance remain separate requirements.

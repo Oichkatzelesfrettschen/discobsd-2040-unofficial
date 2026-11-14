@@ -178,8 +178,9 @@ ctime_text() {
 run_suite() {
     view=$1
     tar=$2
-    suite=$work/suite-$view
-    mkdir -p "$suite"
+    # Each run gets its own directory: a later run that met the files an
+    # earlier one left would fail on them and count as a rejected mutant.
+    suite=$(mktemp -d "$work/suite-$view.XXXXXX")
     cd "$suite"
     suite_failures=$failures
 
@@ -354,6 +355,11 @@ for view in $views; do
         continue
     fi
     run_suite "$view" "$tar_binary" || true
+    # The path a mutant takes, with the unchanged build: it must pass, or a
+    # mutant's failure would say nothing about the mutation.
+    if ! (run_suite "$view" "$tar_binary") >/dev/null 2>&1; then
+        note_failure "$view: the unchanged build fails a repeated suite run"
+    fi
 done
 
 mutants=0

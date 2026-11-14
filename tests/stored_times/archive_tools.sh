@@ -263,8 +263,9 @@ PY
 run_suite() {
     view=$1
     bin=$2
-    suite=$work/suite-$view
-    mkdir -p "$suite"
+    # Each run gets its own directory: a later run that met the files an
+    # earlier one left would fail on them and count as a rejected mutant.
+    suite=$(mktemp -d "$work/suite-$view.XXXXXX")
     cd "$suite"
     : > .keep
     suite_failures=$failures
@@ -427,8 +428,11 @@ lib.o 2415919104" "$(archive_dates table.a 2>&1 || echo failed)"
         "$(as_seen 4294967000)" "$(file_mtime table.a)"
 
     # ld treats an archive as sorted while its file time is at most two
-    # seconds after the table date, whatever the date.
+    # seconds after the table date, whatever the date. The two rows that
+    # straddle 2147483648 separate an unsigned compare from a signed one:
+    # with both dates on one side of it the two orders agree.
     for row in "1700000000 3 warn" "2415919104 2 quiet" \
+        "2147483646 3 warn" "2147483649 -3 quiet" \
         "2415919104 3 warn" "4294967292 3 warn" "4294967292 2 quiet" \
         "4294967294 1 quiet"; do
         set -- $row
@@ -534,6 +538,11 @@ for view in $views; do
         continue
     fi
     run_suite "$view" "$out" || true
+    # The path a mutant takes, with the unchanged build: it must pass, or a
+    # mutant's failure would say nothing about the mutation.
+    if ! (run_suite "$view" "$out") >/dev/null 2>&1; then
+        note_failure "$view: the unchanged build fails a repeated suite run"
+    fi
 done
 
 # Calibration: each mutant restores one signed or narrow reading and must

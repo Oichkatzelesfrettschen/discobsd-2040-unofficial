@@ -343,3 +343,30 @@ calls. Profile, donor, archive-frontier, and C17 accounting gates pass. The
 C17 ledger remains at 153 accepted, 543 excluded, 62 migration-open, and
 2,265 unreviewed paths. The direct repaired archive contains 170 members and
 49,286 bytes; a matched clean distribution still decides its complete cost.
+
+## Integrated native package qualification
+
+The clean resource capture at `5ad4b868` confirms a 49,286-byte native
+archive with 170 members. Relative to main `0c021420`, the complete repair
+adds 440 archive bytes and two root data blocks, leaving 231 free blocks.
+The approved executable deltas remain unchanged. The owner approves the
+additional native provider cost recorded in `signal-set-resource-exception.md`;
+the matched receipts retain the incomplete package as historical evidence.
+
+At clean source `855b35d7eb87a5095566068a36356cf4c81e3a53`,
+`PYTHON=/usr/bin/python3 bmake MACHINE=rp2040 logged-ilp32` completes with
+213/213 inventory recipes passing in 1,260.322 seconds. The terminal receipt
+is `.build-logs/rp2040-ilp32-local-20261114T224551Z-757453-837af89b/status.json`.
+Its retained `gate.log` has SHA-256
+`b677d4521cbfb25f5aeeba5cd43d8ef56be56f9c0d9fa50b1604092c5df6e6b2`.
+The initial sandbox invocation terminates at the compiler's ILP32 execution
+probe with SIGSYS. Execution outside that sandbox supplies the passing run;
+the failed invocation remains retained separately.
+
+The inventory reports three explicit time32 subcase skips: tar display after
+January 2038, tar dates outside the stored range, and ar display after January
+2038. The 213 recipe verdicts supply no execution claim for those skipped
+subcases. This host/ILP32 evidence remains separate from the focused signal
+provider and native-link closure gates, current-image Renode qualification,
+and physical-board execution. The original aggregate remains tied to its
+older source revision and requires its own terminal result.

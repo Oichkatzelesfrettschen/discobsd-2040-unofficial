@@ -139,7 +139,7 @@ operations, exact public declarations, requested-bit membership, and checked
 signal-number shifts. Host and Cortex-M0 controls exercise the provider;
 Smaller C-generated calls exercise native header input. Fixed-mask callers
 retain their target code size. The [resource request](signal-set-resource-exception.md)
-records the approved shipped-program costs and the pending reduced-native
+records the approved shipped-program costs and the approved reduced-native
 archive amendment: 408 additional archive bytes and one root block close
 the native provider dependency. Final image qualification and integration
 remain open; kernel signal delivery remains a separate requirement.

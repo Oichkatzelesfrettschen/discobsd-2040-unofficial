@@ -124,7 +124,9 @@ selection changes consist of the same 18 program imports plus the native
 archive's added `sigsetops.o`; its `signal.o` also changes as in `907b47fb`.
 
 The requested amendment covers the additional 408 native archive bytes,
-the native provider selection, and one root block. Approval remains pending.
+the native provider selection, and one root block. The owner approves these
+exact additional limits on 2026-11-14 for measured candidate `5ad4b868`
+and the amendment recorded at `855b35d7`.
 The original approval remains valid for its exact historical vector.
 Omitting the provider reproduces the native link failure. This amendment
 makes that dependency explicit rather than assigning shared-libc savings

@@ -222,3 +222,26 @@ The registered `check-signal-sets-qemu` target passes after that build,
 including the native-generated caller and all caller mutation controls.
 Source accounting adds the caller fixture as unreviewed (2,265 unreviewed
 paths); runtime witnesses remain separate from that accounting.
+
+## Profile and image qualification
+
+The profile records the five signal-set interfaces as partial with QEMU-user
+witnesses. Host calibration remains a separate witness entry. The generated
+profile hash and counts match the requirement rows; profile calibration rejects
+all 53 mutations. The flash-image build completes successfully for candidate
+`0abfb33d`. Fresh cross and QEMU signal-set gates pass, including the native
+caller and caller mutation controls. Changed-comment and changed-text checks
+pass over `d01ef4a0..0abfb33d`.
+
+The local Renode model build uses pinned revision
+`205a5e4b25440582008a4292074bb07f80a72328` and the repository patch series.
+It completes with 27 warnings, including unavailable NuGet audit data,
+assembly-version conflicts, and donor compiler diagnostics. This result
+establishes model compilation with warnings. The confined boot invocation
+exits before boot with a Renode configuration-lock exception. An invocation
+outside filesystem confinement reaches the login prompt, shell, and uname;
+its remaining stages await a terminal verdict. These observations establish
+neither complete emulator qualification nor physical-board behavior.
+
+`signal-set-resource-exception.md` and the optimized resource receipts record
+the measured admission request. Resource approval remains pending.

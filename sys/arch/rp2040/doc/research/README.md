@@ -33,3 +33,6 @@ Every other note written during the port (option surveys, backport and size
 audits, tuning reports, handback notes, USB and storage investigations)
 lives in docs/research at the top of this tree. docs/INDEX.md maps both
 directories.
+
+MATEZINHO.md in the parent directory owns the desktop asset format, emulator
+profiles, RAM boundary, optional distribution closure and reproduction commands.

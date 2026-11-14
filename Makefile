@@ -1401,6 +1401,19 @@ check-fsutil-clock: check-python
 check-msdosfs-core: check-python
 		${MAKE} -C tests/msdosfs_core check PYTHON=${PYTHON:Q}
 
+# The loader composite (a kernel UF2 followed by the root image, built by
+# tools/picocalc/mkloaderuf2.py) and the host-tested locator that finds its
+# tail on a FAT32 card, sys/arch/rp2040/dev/fat32tail.c: volumes the msdosfs
+# tool writes at three cluster sizes, damaged volumes for each error, and
+# mutants of the locator that must fail; tests/fat32tail/check.sh states each.
+check-fat32-tail: check-python
+		${MAKE} -C tests/fat32tail check PYTHON=${PYTHON:Q}
+
+# check-hsaout and check-fsutil-clock also build tools/hsaout/libhsaout.a, so
+# a parallel host tier runs this gate after them rather than beside them.
+.ORDER: check-hsaout check-fat32-tail
+.ORDER: check-fsutil-clock check-fat32-tail
+
 # The inter-core rings and SIO FIFO doorbell of corering.c against a model
 # of the FIFO registers, under the address, undefined-behavior and thread
 # sanitizers, with sixteen mutants that must fail.
@@ -1478,6 +1491,13 @@ check-picocalc-host:	check-python
 # states each.
 check-psram-pio:	check-python
 		${MAKE} -C tests/psram check
+
+# The PicoCalc loader's flash limit: the stamp decode and the flash
+# erase/program bound against exhaustive sweeps and a whole-chip NOR model,
+# the boot ROM writers' wiring in flash.c, and calibrating mutants;
+# tests/loader_stamp/Makefile states each.
+check-loader-stamp:
+		${MAKE} -C tests/loader_stamp check
 
 # The keyboard controller's bootloader identity reader against a model of
 # the STM32 USART bootloader: readable, readout-protected, already-synced,
@@ -1569,7 +1589,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
 		check-netbsd-imports check-v7fs-core check-storage-recovery \
-		check-storage-recovery-models check-msdosfs-core check-fsutil-clock \
+		check-storage-recovery-models check-msdosfs-core check-fat32-tail check-fsutil-clock \
 		check-corering check-core1 \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
@@ -1579,8 +1599,8 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-set-address-interface check-usb-get-descriptor \
 		check-flash-device-bounds check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
-		check-fs-profiles check-picocalc-host check-psram-pio \
-		check-picocalc-kbd-bootloader
+		check-fs-profiles check-picocalc-host check-matezinho-host check-psram-pio \
+		check-loader-stamp check-picocalc-kbd-bootloader
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
@@ -1925,6 +1945,7 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/time64_calendar check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/c17_headers check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_aout check
+		${MAKE} check-matezinho-qemu
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.
@@ -1971,9 +1992,10 @@ check-renode-capacity:
 		sh tools/renode/check-capacity.sh ${FSIMG}
 
 # The boot-time image comparison on the emulated PICO_UART kernel:
-# tools/renode/check-identity.sh boots the stamped kernel and two altered
+# tools/renode/check-identity.sh boots the stamped kernel and three altered
 # copies on ${FLASHBIN} and requires the image line of each, so the
-# "differs" branch of image_identify() runs. Outside "check" for the reason
+# "differs" branch of image_identify() runs and the loader's stamp span is
+# shown to be skipped. Outside "check" for the reason
 # check-renode is.
 check-renode-identity:
 		sh tools/renode/check-identity.sh ${FLASHBIN}
@@ -2117,7 +2139,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \
@@ -2185,3 +2207,16 @@ installfs:
 .PHONY: check-sysctl-status
 
 .PHONY: check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-public-header-inclusion check-network-header-contracts
+
+# Original desktop rendering, retained views and external artwork validation.
+check-matezinho-host: check-python
+	${MAKE} -C tests/matezinho check
+
+check-matezinho-qemu: check-python
+	${MAKE} -C tests/matezinho check-qemu
+
+# Optional .NET protocol seam: actual sdspi.c against the file-backed card.
+check-matezinho-sd: check-python
+	${MAKE} -C tests/matezinho check-sd
+
+.PHONY: check-matezinho-host check-matezinho-qemu check-matezinho-sd

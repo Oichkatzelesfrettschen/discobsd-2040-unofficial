@@ -5,9 +5,9 @@ int
 getrusage(int who, struct rusage *usage)
 {
     struct __rusage32 narrow;
-    int result = __sys_getrusage(who, &narrow);
+    int result = __sys_getrusage(who, usage ? &narrow : 0);
 
-    if (result == 0)
+    if (result == 0 && usage)
         __time64_widen_rusage(usage, &narrow);
     return result;
 }

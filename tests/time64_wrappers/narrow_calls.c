@@ -28,6 +28,7 @@ long narrow_seen_sub[NARROW_SLOTS];
 unsigned long narrow_give_sec[NARROW_SLOTS];
 long narrow_give_sub[NARROW_SLOTS];
 int narrow_result;
+int narrow_stopped;
 
 int pselect(int, fd_set *, fd_set *, fd_set *, const struct timespec *,
     const sigset_t *);
@@ -40,6 +41,7 @@ narrow_reset(void)
 	narrow_null = 0;
 	narrow_old_null = 0;
 	narrow_result = 0;
+	narrow_stopped = 0;
 	memset(narrow_seen_sec, 0, sizeof narrow_seen_sec);
 	memset(narrow_seen_sub, 0, sizeof narrow_seen_sub);
 	errno = 0;
@@ -63,6 +65,9 @@ static int
 fill_stat(struct stat *sb)
 {
 	narrow_calls++;
+	narrow_null = sb == 0;
+	if (sb == 0)
+		return -1;
 	memset(sb, 0, sizeof *sb);
 	sb->st_dev = 3;
 	sb->st_ino = 77;
@@ -111,6 +116,9 @@ int
 adjtime(const struct timeval *delta, struct timeval *olddelta)
 {
 	narrow_calls++;
+	narrow_null = delta == 0;
+	if (delta == 0)
+		return -1;
 	see(0, delta);
 	narrow_old_null = olddelta == 0;
 	if (olddelta)
@@ -163,6 +171,9 @@ getitimer(int which, struct itimerval *value)
 {
 	(void)which;
 	narrow_calls++;
+	narrow_null = value == 0;
+	if (value == 0)
+		return -1;
 	give(0, &value->it_interval);
 	give(1, &value->it_value);
 	return narrow_result;
@@ -202,6 +213,9 @@ getrusage(int who, struct rusage *usage)
 {
 	(void)who;
 	narrow_calls++;
+	narrow_null = usage == 0;
+	if (usage == 0)
+		return -1;
 	fill_rusage(usage);
 	return narrow_result;
 }
@@ -212,9 +226,10 @@ wait4(pid_t pid, int *status, int options, struct rusage *usage)
 	(void)pid; (void)options;
 	narrow_calls++;
 	narrow_null = usage == 0;
+	/* As the kernel does: a stopped child reports its status alone. */
 	if (status)
-		*status = 0x300;
-	if (usage)
+		*status = narrow_stopped ? 0177 : 0x300;
+	if (usage && !narrow_stopped)
 		fill_rusage(usage);
 	return narrow_result;
 }

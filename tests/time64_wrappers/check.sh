@@ -88,9 +88,13 @@ expect_rejected rusage-counters-dropped time64_widen_rusage.c \
 expect_rejected pselect-negative-timeout time64_pselect.c \
     's/ || timeout->tv_sec < 0) {/) {/'
 expect_rejected wait4-fills-without-a-child time64_wait4.c \
-    's/if (result > 0 \&\& usage)/if (usage)/'
+    's/if (result > 0 \&\& usage \&\& !WIFSTOPPED/if (usage \&\& !WIFSTOPPED/'
 expect_rejected failed-stat-overwrites time64_stat.c \
-    's/if (result == 0)/if (1)/'
+    's/if (result == 0 \&\& sb)/if (sb)/'
+expect_rejected null-stat-gets-a-buffer time64_lstat.c \
+    's/__sys_lstat(path, sb ? \&narrow : 0)/__sys_lstat(path, \&narrow)/'
+expect_rejected stopped-child-usage-widened time64_wait4.c \
+    's/ \&\& !WIFSTOPPED(\*status))/)/'
 
 if [ "$failures" -ne 0 ]; then
 	echo "time64 wrappers: $failures calibration failures"

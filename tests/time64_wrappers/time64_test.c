@@ -22,8 +22,6 @@
 #include "narrow_calls.h"
 
 int printf(const char *, ...);
-int pselect(int, fd_set *, fd_set *, fd_set *, const struct timespec *,
-    const sigset_t *) __TIME64_NAME(pselect);
 
 _Static_assert(sizeof(time_t) == 8, "time_t is 64 bits in this unit");
 _Static_assert(sizeof(struct timeval) == 16, "the wide timeval is 16 bytes");
@@ -72,6 +70,13 @@ stat_family(void)
 	narrow_result = -1;
 	sb.st_mtime = 42;
 	CHECK(stat("f", &sb) == -1 && sb.st_mtime == 42);
+	/* A null structure reaches the entry point as null. */
+	narrow_reset();
+	CHECK(stat("f", 0) == -1 && narrow_null && narrow_calls == 1);
+	narrow_reset();
+	CHECK(lstat("f", 0) == -1 && narrow_null);
+	narrow_reset();
+	CHECK(fstat(3, 0) == -1 && narrow_null);
 }
 
 static void
@@ -143,6 +148,8 @@ interval_calls(void)
 	narrow_reset();
 	CHECK(adjtime(&tv, 0) == 0 && narrow_old_null);
 	narrow_reset();
+	CHECK(adjtime(0, &old) == -1 && narrow_null && narrow_calls == 1);
+	narrow_reset();
 	tv.tv_sec = 2147483648LL;
 	CHECK(adjtime(&tv, &old) == -1 && errno == EINVAL && narrow_calls == 0);
 	narrow_reset();
@@ -186,6 +193,8 @@ interval_calls(void)
 	CHECK(getitimer(0, &value) == 0);
 	CHECK(value.it_interval.tv_sec == 2 && value.it_interval.tv_usec == 3);
 	CHECK(value.it_value.tv_sec == 4 && value.it_value.tv_usec == 5);
+	narrow_reset();
+	CHECK(getitimer(0, 0) == -1 && narrow_null && narrow_calls == 1);
 
 	narrow_reset();
 	narrow_give_sec[2] = 6;
@@ -226,6 +235,8 @@ usage_calls(void)
 	CHECK(usage.ru_stime.tv_sec == 9 && usage.ru_stime.tv_usec == 10);
 	CHECK(usage.ru_maxrss == 11 && usage.ru_minflt == 12);
 	CHECK(usage.ru_nivcsw == 13 && usage.ru_ixrss == 0);
+	narrow_reset();
+	CHECK(getrusage(0, 0) == -1 && narrow_null && narrow_calls == 1);
 
 	narrow_reset();
 	narrow_result = 42;
@@ -236,6 +247,21 @@ usage_calls(void)
 	narrow_reset();
 	narrow_result = 42;
 	CHECK(wait4(-1, &status, 0, 0) == 42 && narrow_null);
+	/*
+	 * A stopped child: the entry point writes no usage, so the caller's
+	 * structure stays as it was, with or without a status pointer.
+	 */
+	narrow_reset();
+	narrow_result = 42;
+	narrow_stopped = 1;
+	usage.ru_nivcsw = 77;
+	usage.ru_utime.tv_sec = 5;
+	CHECK(wait4(-1, &status, 2, &usage) == 42 && status == 0177);
+	CHECK(usage.ru_nivcsw == 77 && usage.ru_utime.tv_sec == 5);
+	narrow_reset();
+	narrow_result = 42;
+	narrow_stopped = 1;
+	CHECK(wait4(-1, 0, 2, &usage) == 42 && usage.ru_nivcsw == 77);
 	/* No child reported: the caller's structure stays as it was. */
 	narrow_reset();
 	usage.ru_nivcsw = 99;

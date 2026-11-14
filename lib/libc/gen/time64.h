@@ -15,7 +15,9 @@
  *    time) widens sign-extended and narrows only from the range of a long.
  *
  * A value outside its range fails with EINVAL before the kernel is
- * entered, so no call acts on a truncated time.
+ * entered, so no call acts on a truncated time. A null pointer goes to
+ * the entry point as null, so the kernel's own answer to it (EFAULT, or
+ * the meaning the call gives a null time) is the wrapper's too.
  */
 #ifndef _LIBC_TIME64_H_
 #define _LIBC_TIME64_H_
@@ -58,9 +60,6 @@ int __sys_setitimer(int, const struct __itimerval32 *,
     struct __itimerval32 *) __asm__("setitimer");
 int __sys_getrusage(int, struct __rusage32 *) __asm__("getrusage");
 pid_t __sys_wait4(pid_t, int *, int, struct __rusage32 *) __asm__("wait4");
-
-int pselect(int, fd_set *, fd_set *, fd_set *, const struct timespec *,
-    const sigset_t *) __TIME64_NAME(pselect);
 
 static inline time_t
 __time64_epoch(long seconds)

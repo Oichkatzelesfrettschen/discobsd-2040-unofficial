@@ -16,6 +16,7 @@ extern long narrow_seen_sub[NARROW_SLOTS];
 extern unsigned long narrow_give_sec[NARROW_SLOTS];
 extern long narrow_give_sub[NARROW_SLOTS];
 extern int narrow_result;
+extern int narrow_stopped;		/* wait4 reports a stopped child */
 
 void narrow_reset(void);
 

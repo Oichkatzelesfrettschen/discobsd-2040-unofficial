@@ -122,12 +122,15 @@ compile_tools() {
     ct_flags=$(view_flags "$ct_view")
     mkdir -p "$ct_out"
     # Every definition is a separate word; none holds a space.
+    # STORED_TIMES_CFLAGS follows the gate's own flags, for a compiler whose
+    # default warnings go beyond the ones these sources are kept clean of.
     # shellcheck disable=SC2046
     set -- $ct_flags $(view_defines "$ct_view") \
         -Os -Wall -Wextra -Wundef -Wformat-security -Werror -std=gnu89 \
         -fno-builtin -DCROSS \
         -I"$ct_root/usr.bin/ar" -I"$ct_root/usr.bin/ranlib" \
-        -I"$top/tools/aoututils/include" -idirafter "$top/include"
+        -I"$top/tools/aoututils/include" -idirafter "$top/include" \
+        ${STORED_TIMES_CFLAGS:-}
     $cc $(view_flags "$ct_view") "-Dtime(t)=stored_times_time(t)" \
         $(shim_defines "$ct_view") \
         -c -o "$ct_out/stat_shim.o" "$here/stat_shim.c" || return 1

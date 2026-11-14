@@ -3,16 +3,26 @@
  * This file may be freely redistributed provided that this
  * notice remains attached.
  */
-#include "sys/param.h"
+/*
+ * The forward calendar conversion: ctime(), localtime() and gmtime(), and
+ * __discobsd_offtime(), which they and mktime.c share (offtime.h). The
+ * zone they read is tzset.c's.
+ *
+ * The file is compiled once for each width of time_t (sys/_time_t.h):
+ * ctime.o at the program default, and ctime64.o with _TIME_BITS defined
+ * as 64 (lib/libc/gen/Makefile), where <time.h> binds the three public
+ * names to __ctime64, __localtime64 and __gmtime64 and offtime.h binds the
+ * conversion to __discobsd_offtime64. Each build returns its own struct
+ * tm, and only the 64-bit build can fail: its range is bounded by the int
+ * tm_year rather than by time_t.
+ */
 #include "sys/time.h"
-#include "stdlib.h"
-#include "string.h"
-#include "unistd.h"
-#include "fcntl.h"
-#include "alloca.h"
-#include "tzfile.h"
-#include "paths.h"
 #include "offtime.h"
+#include "tzstate.h"
+#ifdef __TIME64_VIEW
+#include "errno.h"
+#include "stdint.h"
+#endif
 
 char *
 ctime(const time_t *timestamp)
@@ -23,262 +33,8 @@ ctime(const time_t *timestamp)
 	return local_time == 0 ? 0 : asctime(local_time);
 }
 
-char *tztab(int, int);
 /* The object gmtime() and localtime() return. */
 static struct tm time_result;
-
-struct ttinfo {				/* time type information */
-	long		tt_gmtoff;	/* GMT offset in seconds */
-	int		tt_isdst;	/* used to set tm_isdst */
-	int		tt_abbrind;	/* abbreviation list index */
-};
-
-/*
-** The zone in force. TZ_ZONEINFO selects the form that reads a zone file:
-** ats[] and types[] hold that file's transitions and ttis[] the local time
-** types it switches between, which is 2033 bytes of zero-initialized data
-** per process and a second 2033 on the stack while tzload() parses.
-**
-** Without it the zone is one offset, which is what the kernel keeps and
-** gettimeofday(2) reports, so a single type is the whole state: 68 bytes.
-** An image that ships no zone file can reach no other answer -- this port's
-** manifest ships neither /etc/localtime nor /usr/share/zoneinfo, and
-** share/zoneinfo builds the files an installation would have to add. A
-** system that adds them builds libc with TZ_ZONEINFO defined.
-*/
-struct state {
-	int		timecnt;
-	int		typecnt;
-	int		charcnt;
-#ifdef TZ_ZONEINFO
-	time_t		ats[TZ_MAX_TIMES];
-	unsigned char	types[TZ_MAX_TIMES];
-	struct ttinfo	ttis[TZ_MAX_TYPES];
-#else
-	struct ttinfo	ttis[1];
-#endif
-	char		chars[TZ_MAX_CHARS + 1];
-};
-
-static struct state	s;
-
-static int		tz_is_set;
-
-char *			tzname[2] = {
-	"GMT",
-	"GMT"
-};
-
-#ifdef USG_COMPAT
-time_t			timezone = 0;
-int			daylight = 0;
-#endif /* USG_COMPAT */
-
-#ifdef TZ_ZONEINFO
-static long
-detzcode(const char *code_pointer)
-{
-	unsigned long result;
-	int byte_index;
-
-	result = 0;
-	for (byte_index = 0; byte_index < 4; ++byte_index)
-		result = (result << 8) | (code_pointer[byte_index] & 0xff);
-	/*
-	** A zone file stores each value as four bytes of two's complement,
-	** so the sign lives in bit 31 and has to be carried into the rest of
-	** a long wider than four bytes. Where long is four bytes the
-	** correction below is the identity; where it is eight, its absence
-	** delivers every offset west of Greenwich and every transition
-	** before the epoch as a value near 2^32.
-	*/
-	if (result & 0x80000000UL)
-		return ((long)(result - 0x80000000UL) - 0x7fffffffL - 1L);
-	return ((long)result);
-}
-
-static int
-tzload(const char *name)
-{
-	int index;
-	int file_descriptor;
-
-	if (name == 0 && (name = _PATH_LOCALTIME) == 0)
-		return -1;
-	{
-		const char *zone_directory;
-		int require_access_check;
-		char *full_name;
-
-		require_access_check = name[0] == '/';
-		if (!require_access_check) {
-			if ((zone_directory = _PATH_ZONEINFO) == 0)
-				return -1;
-			if ((strlen(zone_directory) + strlen(name) + 1) >= MAXPATHLEN)
-				return -1;
-			full_name = alloca(MAXPATHLEN);
-			(void)strcpy(full_name, zone_directory);
-			(void)strcat(full_name, "/");
-			(void)strcat(full_name, name);
-			/*
-			** Set doaccess if '.' (as in "../") shows up in name.
-			*/
-			while (*name != '\0')
-				if (*name++ == '.')
-					require_access_check = 1;
-			name = full_name;
-		}
-		if (require_access_check && access(name, 4) != 0)
-			return -1;
-		if ((file_descriptor = open(name, 0)) == -1)
-			return -1;
-	}
-	{
-		char *cursor;
-		struct tzhead *header;
-		char *buffer;
-		ssize_t bytes_read;
-
-		buffer = alloca(sizeof s);
-		bytes_read = read(file_descriptor, buffer, sizeof s);
-		if (close(file_descriptor) != 0 || bytes_read < 0 ||
-		    (size_t)bytes_read < sizeof *header)
-			return -1;
-		header = (struct tzhead *)buffer;
-		s.timecnt = (int)detzcode(header->tzh_timecnt);
-		s.typecnt = (int)detzcode(header->tzh_typecnt);
-		s.charcnt = (int)detzcode(header->tzh_charcnt);
-		if (s.timecnt < 0 || s.timecnt > TZ_MAX_TIMES ||
-			s.typecnt <= 0 ||
-			s.typecnt > TZ_MAX_TYPES ||
-			s.charcnt < 0 || s.charcnt > TZ_MAX_CHARS)
-				return -1;
-		if ((size_t)bytes_read < sizeof *header +
-			s.timecnt * (4 + sizeof (char)) +
-			s.typecnt * (4 + 2 * sizeof (char)) +
-			s.charcnt * sizeof (char))
-				return -1;
-		cursor = buffer + sizeof *header;
-		for (index = 0; index < s.timecnt; ++index) {
-			s.ats[index] = detzcode(cursor);
-			cursor += 4;
-		}
-		for (index = 0; index < s.timecnt; ++index)
-			s.types[index] = (unsigned char)*cursor++;
-		for (index = 0; index < s.typecnt; ++index) {
-			struct ttinfo *time_type;
-
-			time_type = &s.ttis[index];
-			time_type->tt_gmtoff = detzcode(cursor);
-			cursor += 4;
-			time_type->tt_isdst = (unsigned char)*cursor++;
-			time_type->tt_abbrind = (unsigned char)*cursor++;
-		}
-		for (index = 0; index < s.charcnt; ++index)
-			s.chars[index] = *cursor++;
-		s.chars[index] = '\0';	/* ensure '\0' at end */
-	}
-	/*
-	** Check that all the local time type indices are valid.
-	*/
-	for (index = 0; index < s.timecnt; ++index)
-		if (s.types[index] >= s.typecnt)
-			return -1;
-	/*
-	** Check that all abbreviation indices are valid, and that each
-	** daylight flag is one of the two values it is read as: localtime()
-	** indexes tzname[2] with it, so a file naming any other value would
-	** have a pointer written past the end of that array.
-	*/
-	for (index = 0; index < s.typecnt; ++index)
-		if (s.ttis[index].tt_abbrind >= s.charcnt ||
-			(s.ttis[index].tt_isdst != 0 &&
-			s.ttis[index].tt_isdst != 1))
-				return -1;
-	/*
-	** Set tzname elements to initial values.
-	*/
-	tzname[0] = tzname[1] = &s.chars[0];
-#ifdef USG_COMPAT
-	timezone = s.ttis[0].tt_gmtoff;
-	daylight = 0;
-#endif /* USG_COMPAT */
-	for (index = 1; index < s.typecnt; ++index) {
-		struct ttinfo *time_type;
-
-		time_type = &s.ttis[index];
-		if (time_type->tt_isdst) {
-			tzname[1] = &s.chars[time_type->tt_abbrind];
-#ifdef USG_COMPAT
-			daylight = 1;
-#endif /* USG_COMPAT */
-		} else {
-			tzname[0] = &s.chars[time_type->tt_abbrind];
-#ifdef USG_COMPAT
-			timezone = time_type->tt_gmtoff;
-#endif /* USG_COMPAT */
-		}
-	}
-	return 0;
-}
-
-#endif /* TZ_ZONEINFO */
-
-static int
-tzsetkernel(void)
-{
-	struct timeval	tv;
-	struct timezone	tz;
-
-	if (gettimeofday(&tv, &tz))
-		return -1;
-	s.timecnt = 0;		/* UNIX counts *west* of Greenwich */
-	s.typecnt = 1;		/* the one type installed just below */
-	s.ttis[0].tt_gmtoff = tz.tz_minuteswest * -SECS_PER_MIN;
-	s.ttis[0].tt_abbrind = 0;
-	(void)strcpy(s.chars, tztab(tz.tz_minuteswest, 0));
-	tzname[0] = tzname[1] = s.chars;
-#ifdef USG_COMPAT
-	timezone = tz.tz_minuteswest * 60;
-	daylight = tz.tz_dsttime;
-#endif /* USG_COMPAT */
-	return 0;
-}
-
-static void
-tzsetgmt(void)
-{
-	s.timecnt = 0;
-	s.typecnt = 1;		/* the one type installed just below */
-	s.ttis[0].tt_gmtoff = 0;
-	s.ttis[0].tt_abbrind = 0;
-	(void) strcpy(s.chars, "GMT");
-	tzname[0] = tzname[1] = s.chars;
-#ifdef USG_COMPAT
-	timezone = 0;
-	daylight = 0;
-#endif /* USG_COMPAT */
-}
-
-void
-tzset(void)
-{
-	const char *name;
-
-	tz_is_set = 1;
-	name = getenv("TZ");
-	if (!name || *name) {			/* did not request GMT */
-#ifdef TZ_ZONEINFO
-		if (name && !tzload(name))	/* requested name worked */
-			return;
-		if (!tzload(0))			/* default name worked */
-			return;
-#endif
-		if (!tzsetkernel())		/* kernel guess worked */
-			return;
-	}
-	tzsetgmt();				/* GMT is default */
-}
 
 struct tm *
 localtime(const time_t *time_pointer)
@@ -288,7 +44,7 @@ localtime(const time_t *time_pointer)
 	int index;
 	time_t timestamp;
 
-	if (!tz_is_set)
+	if (!__discobsd_zone_set)
 		tzset();
 	timestamp = *time_pointer;
 #ifndef TZ_ZONEINFO
@@ -298,7 +54,8 @@ localtime(const time_t *time_pointer)
 	*/
 	index = 0;
 #else
-	if (s.timecnt == 0 || timestamp < s.ats[0]) {
+	if (__discobsd_zone.timecnt == 0 ||
+	    timestamp < __discobsd_zone.ats[0]) {
 		/*
 		** The first standard-time type, for an instant before the
 		** first transition. The walk is over ttis[], which holds
@@ -307,19 +64,19 @@ localtime(const time_t *time_pointer)
 		** bounding by it would read past the end of ttis[].
 		*/
 		index = 0;
-		while (s.ttis[index].tt_isdst)
-			if (++index >= s.typecnt) {
+		while (__discobsd_zone.ttis[index].tt_isdst)
+			if (++index >= __discobsd_zone.typecnt) {
 				index = 0;
 				break;
 			}
 	} else {
-		for (index = 1; index < s.timecnt; ++index)
-			if (timestamp < s.ats[index])
+		for (index = 1; index < __discobsd_zone.timecnt; ++index)
+			if (timestamp < __discobsd_zone.ats[index])
 				break;
-		index = s.types[index - 1];
+		index = __discobsd_zone.types[index - 1];
 	}
 #endif /* TZ_ZONEINFO */
-	time_type = &s.ttis[index];
+	time_type = &__discobsd_zone.ttis[index];
 	/*
 	** To get (wrong) behavior that's compatible with System V Release 2.0
 	** you'd replace the statement below with
@@ -327,9 +84,14 @@ localtime(const time_t *time_pointer)
 	*/
 	result = __discobsd_offtime(&timestamp, time_type->tt_gmtoff,
 	    &time_result);
+#ifdef __TIME64_VIEW
+	if (result == 0)
+		return 0;
+#endif
 	result->tm_isdst = time_type->tt_isdst;
-	tzname[result->tm_isdst] = &s.chars[time_type->tt_abbrind];
-	result->tm_zone = &s.chars[time_type->tt_abbrind];
+	tzname[result->tm_isdst] =
+	    &__discobsd_zone.chars[time_type->tt_abbrind];
+	result->tm_zone = &__discobsd_zone.chars[time_type->tt_abbrind];
 	return result;
 }
 
@@ -339,11 +101,20 @@ gmtime(const time_t *timestamp)
 	struct tm *result;
 
 	result = __discobsd_offtime(timestamp, 0L, &time_result);
+#ifdef __TIME64_VIEW
+	if (result == 0)
+		return 0;
+#endif
 	tzname[0] = "GMT";
 	result->tm_zone = "GMT";		/* UCT ? */
 	return result;
 }
 
+#ifndef __TIME64_VIEW
+/*
+ * A four-byte count spans at most 68 years from 1970, so the conversion
+ * walks a year at a time.
+ */
 struct tm *
 __discobsd_offtime(const time_t *timestamp, long offset, struct tm *result)
 {
@@ -399,3 +170,104 @@ __discobsd_offtime(const time_t *timestamp, long offset, struct tm *result)
 	result->tm_gmtoff = offset;
 	return result;
 }
+#else /* __TIME64_VIEW */
+/*
+ * Divide *value by divisor, which is below 2^16, leave the quotient in
+ * *value and return the remainder. The division runs over 16-bit limbs:
+ * a remainder below the divisor shifted left by 16 stays inside 32 bits,
+ * so each of the three steps is one 32-bit division.
+ */
+static uint32_t
+divide_small(uint64_t *value, uint32_t divisor)
+{
+	uint32_t high = (uint32_t)(*value >> 32);
+	uint32_t low = (uint32_t)*value;
+	uint32_t quotient_high, quotient_mid, quotient_low, step;
+
+	quotient_high = high / divisor;
+	step = (high % divisor) << 16 | low >> 16;
+	quotient_mid = step / divisor;
+	step = (step % divisor) << 16 | (low & 0xffffU);
+	quotient_low = step / divisor;
+	*value = (uint64_t)quotient_high << 32 |
+	    (uint32_t)(quotient_mid << 16 | quotient_low);
+	return step % divisor;
+}
+
+/*
+ * 1 March of year 0 fell on a Wednesday, CAL64_EPOCH_DAYS before the
+ * Thursday that began 1970, and so did the first day of every era.
+ */
+#define ERA_WDAY	((EPOCH_WDAY + DAYS_PER_WEEK - \
+			    CAL64_EPOCH_DAYS % DAYS_PER_WEEK) % DAYS_PER_WEEK)
+
+/*
+ * A 64-bit count spans more years than tm_year holds, so the conversion is
+ * the closed form of offtime.h. The instant moved by offset is checked
+ * against CAL64_MIN and CAL64_MAX before any field is written, and biased
+ * by CAL64_BIAS_DAYS days, which leaves a non-negative count below 2^57.
+ * 86400 seconds are 128 * 675, so the low seven bits of the count are the
+ * low seven of the second of the day and one division by 675 gives the
+ * day; the day divided by 189 and then by 773 gives the era and the day
+ * within it.
+ *
+ * Within the era the year, month and day follow from 32-bit divisions.
+ * The year is assembled modulo 2^32, since the era times 400 leaves an int
+ * at the top of the range while the year itself, checked above, does not.
+ */
+struct tm *
+__discobsd_offtime(const time_t *timestamp, long offset, struct tm *result)
+{
+	uint64_t count;
+	uint32_t second, day_of_era, year_of_era, day_of_year, month, era;
+	int leap_year;
+
+	if (*timestamp < CAL64_MIN - offset ||
+	    *timestamp > CAL64_MAX - offset) {
+		errno = EOVERFLOW;
+		return 0;
+	}
+	count = (uint64_t)(*timestamp + offset) + CAL64_BIAS_DAYS * 86400ULL;
+	second = (uint32_t)count & 127U;
+	count >>= 7;
+	second |= divide_small(&count, SECS_PER_DAY / 128) << 7;
+	day_of_era = divide_small(&count, CAL64_ERA_FACTOR_LOW);
+	day_of_era += divide_small(&count, CAL64_ERA_FACTOR_HIGH) *
+	    CAL64_ERA_FACTOR_LOW;
+	era = (uint32_t)count;
+
+	result->tm_hour = (int)(second / SECS_PER_HOUR);
+	second %= SECS_PER_HOUR;
+	result->tm_min = (int)(second / SECS_PER_MIN);
+	result->tm_sec = (int)(second % SECS_PER_MIN);
+	result->tm_wday = (int)((day_of_era + ERA_WDAY) % DAYS_PER_WEEK);
+
+	/* The day count before each year of the era omits its leap days. */
+	year_of_era = (day_of_era - day_of_era / 1460 + day_of_era / 36524 -
+	    day_of_era / 146096) / DAYS_PER_NYEAR;
+	day_of_year = day_of_era - (DAYS_PER_NYEAR * year_of_era +
+	    year_of_era / 4 - year_of_era / 100);
+	/* March is month 0, and the days before a month are (153 m + 2) / 5. */
+	month = (5 * day_of_year + 2) / 153;
+	result->tm_mday = (int)(day_of_year - (153 * month + 2) / 5 + 1);
+	if (month < 10) {
+		/* March to December follow any 29 February of the year. */
+		leap_year = (year_of_era & 3) == 0 &&
+		    (year_of_era % 100 != 0 || year_of_era == 0);
+		result->tm_mon = (int)month + TM_MARCH;
+		result->tm_yday = (int)day_of_year + 59 + leap_year;
+	} else {
+		/* January and February belong to the next calendar year. */
+		result->tm_mon = (int)month - 10;
+		result->tm_yday = (int)day_of_year - 306;
+		year_of_era++;
+	}
+	result->tm_year = (int)(year_of_era +
+	    (era - (uint32_t)CAL64_BIAS_ERAS) * (uint32_t)CAL64_ERA_YEARS -
+	    TM_YEAR_BASE);
+	result->tm_isdst = 0;
+	result->tm_zone = "";
+	result->tm_gmtoff = offset;
+	return result;
+}
+#endif /* __TIME64_VIEW */

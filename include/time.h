@@ -35,24 +35,24 @@ struct tm {
 };
 
 /*
- * The functions that pass a time_t exist in libc at the 32-bit width only,
- * so the 64-bit view (sys/_time_t.h) leaves them undeclared: a unit built
- * with that view fails to compile a call instead of binding a 64-bit
- * argument to a 32-bit function.
+ * Each function that passes a time_t binds, in a unit built with the
+ * 64-bit view (sys/_time_t.h), to a second symbol, __NAME64, which libc
+ * builds from the same source with that view (lib/libc/gen/Makefile).
+ * Its gmtime() and localtime() cover every year an int tm_year holds and
+ * answer a null pointer with errno EOVERFLOW outside it; mktime() and
+ * timegm() answer (time_t)-1 there (lib/libc/gen/offtime.h).
  */
-#ifndef __TIME64_VIEW
-struct tm *gmtime(const time_t *);
-struct tm *localtime(const time_t *);
-time_t mktime(struct tm *);
+struct tm *gmtime(const time_t *) __TIME64_NAME(gmtime);
+struct tm *localtime(const time_t *) __TIME64_NAME(localtime);
+time_t mktime(struct tm *) __TIME64_NAME(mktime);
 /*
  * timegm reads the fields as UTC. It is the part of the inverse that has a
  * closed form, and mktime searches with it; lib/libc/gen/mktime.c says how.
  */
-time_t timegm(struct tm *);
-char *ctime(const time_t *);
-double difftime(time_t, time_t);
-time_t time(time_t *);
-#endif
+time_t timegm(struct tm *) __TIME64_NAME(timegm);
+char *ctime(const time_t *) __TIME64_NAME(ctime);
+double difftime(time_t, time_t) __TIME64_NAME(difftime);
+time_t time(time_t *) __TIME64_NAME(time);
 char *asctime(const struct tm *);
 char *timezone(int, int);
 void tzset(void);

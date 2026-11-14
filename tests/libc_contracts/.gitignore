@@ -136,6 +136,17 @@ mktime_ctime.o
 mktime_ctime32.o
 mktime_timezone.o
 mktime_timezone32.o
+ctime_tzset.o
+ctime_tzset32.o
+zone_tzset.o
+zone_tzset32.o
+zone_tzset_san.o
+zone_tzset_fixed.o
+mktime_tzset.o
+mktime_tzset32.o
+mktime_tzset_san.o
+mktime_tzset32_san.o
+tzset_target.o
 zone_contract_test_fixed
 zone_ctime_fixed.o
 zone_timezone_fixed.o

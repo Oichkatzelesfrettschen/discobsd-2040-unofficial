@@ -29,6 +29,9 @@
 #include "time.h"
 #include "limits.h"
 #include "offtime.h"
+#ifdef __TIME64_VIEW
+#include "stdint.h"
+#endif
 
 #define SECSPERMIN	60
 #define MINSPERHOUR	60
@@ -38,6 +41,7 @@
 #define MONSPERYEAR	12
 #define TM_YEAR_BASE	1900
 
+#ifndef __TIME64_VIEW
 /*
  * The range check in timegm() derives its bounds from time_t, and the
  * derivation reads time_t as a signed type of long's width, which
@@ -137,6 +141,84 @@ days_before_month(long tm_year, int tm_mon)
 		return ((long)(days - BIAS_DAYS) - 1);
 	return (-(long)(BIAS_DAYS - days) - 1);
 }
+#else /* __TIME64_VIEW */
+/*
+ * mktime64.o, this file compiled with _TIME_BITS defined as 64: time_t is
+ * a signed 64-bit count, and the range is the calendar's, every instant
+ * whose year an int tm_year holds (offtime.h), rather than time_t's.
+ */
+_Static_assert((time_t)-1 < 0 && sizeof(time_t) == 8,
+    "the 64-bit build reads time_t as a signed 64-bit count");
+#define TIME_MAX	((time_t)CAL64_MAX)
+#define TIME_MIN	((time_t)CAL64_MIN)
+
+/*
+ * The product of value and a factor below 2^16, modulo 2^64. Each partial
+ * product of a 16-bit piece stays inside 32 bits, so Thumb-1 forms it
+ * without the compiler's 64-bit multiply helper, which libc does not carry.
+ * A negative count passes as its two's complement and comes back as one.
+ */
+static uint64_t
+multiply_small(uint64_t value, uint32_t factor)
+{
+	uint32_t high = (uint32_t)(value >> 32);
+	uint32_t low = (uint32_t)value;
+
+	return ((uint64_t)(high * factor) << 32) +
+	    ((uint64_t)((low >> 16) * factor) << 16) + (low & 0xffffU) * factor;
+}
+
+/* The floored quotient of value by a positive divisor; *rest gets the remainder. */
+static int
+floor_divide(int value, int divisor, int *rest)
+{
+	int quotient = value / divisor;
+
+	*rest = value % divisor;
+	if (*rest < 0) {
+		*rest += divisor;
+		quotient--;
+	}
+	return (quotient);
+}
+
+/*
+ * The days from the epoch to the day before the first of the given month,
+ * for any tm_year and any tm_mon, which folds into the year. The year
+ * (tm_year + 1900, plus that carry) can leave an int, so tm_year and the
+ * carry are each split into eras and years of the era in 32 bits, and the
+ * era count, biased by CAL64_BIAS_ERAS, is multiplied into days by the two
+ * factors of an era's 146097. The answer lies within 2^40 of the epoch.
+ */
+static long long
+days_before_month(int tm_year, int tm_mon)
+{
+	int carry, month, year, carry_year, era;
+	uint32_t day_of_era;
+
+	carry = floor_divide(tm_mon, MONSPERYEAR, &month);
+	era = floor_divide(tm_year, (int)CAL64_ERA_YEARS, &year) +
+	    floor_divide(carry, (int)CAL64_ERA_YEARS, &carry_year);
+	/* 1900 is four eras and 300 years. */
+	era += 4;
+	year += carry_year + TM_YEAR_BASE - 4 * (int)CAL64_ERA_YEARS;
+	if (month < 2) {
+		/* January and February close the year that began in March. */
+		year--;
+		month += 10;
+	} else
+		month -= 2;
+	while (year >= (int)CAL64_ERA_YEARS) {
+		year -= (int)CAL64_ERA_YEARS;
+		era++;
+	}
+	day_of_era = (uint32_t)year * 365 + (uint32_t)year / 4 -
+	    (uint32_t)year / 100 + (153 * (uint32_t)month + 2) / 5;
+	return ((long long)(multiply_small(((uint32_t)era +
+	    (uint32_t)CAL64_BIAS_ERAS) * (uint32_t)CAL64_ERA_FACTOR_LOW,
+	    CAL64_ERA_FACTOR_HIGH) + day_of_era - CAL64_BIAS_DAYS) - 1);
+}
+#endif /* __TIME64_VIEW */
 
 /*
  * The calendar conversion with no zone: the fields name a UTC time and the
@@ -156,6 +238,7 @@ days_before_month(long tm_year, int tm_mon)
 time_t
 timegm(struct tm *tm)
 {
+#ifndef __TIME64_VIEW
 	long days, seconds;
 	time_t result;
 
@@ -183,6 +266,28 @@ timegm(struct tm *tm)
 	    result > TIME_MAX - seconds)
 		return ((time_t)-1);
 	result += seconds;
+#else
+	/*
+	 * Every field enters the count as it stands, with no carry between
+	 * fields that an int could overflow: the day count is 64 bits wide
+	 * for any tm_year, tm_mon and tm_mday, and the products by a day, an
+	 * hour and a minute stay within 2^63 for any int field, so the sum
+	 * formed modulo 2^64 is the true count. One comparison against the
+	 * calendar's range then decides it, and the conversion back
+	 * normalizes the fields.
+	 */
+	uint64_t count;
+	time_t result;
+
+	count = multiply_small((uint64_t)(days_before_month(tm->tm_year,
+	    tm->tm_mon) + tm->tm_mday), SECSPERDAY / 128) << 7;
+	count += multiply_small((uint64_t)(long long)tm->tm_hour, SECSPERHOUR);
+	count += multiply_small((uint64_t)(long long)tm->tm_min, SECSPERMIN);
+	count += (uint64_t)(long long)tm->tm_sec;
+	result = (time_t)count;
+	if (result < TIME_MIN || result > TIME_MAX)
+		return ((time_t)-1);
+#endif
 
 	__discobsd_offtime(&result, 0L, tm)->tm_zone = "GMT";
 	return (result);
@@ -200,8 +305,16 @@ mktime(struct tm *tm)
 	long offset;
 	int pass;
 
+	/*
+	 * The 64-bit build searches from the fields as they stand: its
+	 * timegm() sums them without a carry, where a carry into an int could
+	 * refuse an instant inside the range, and the struct is rewritten
+	 * only with the answer.
+	 */
+#ifndef __TIME64_VIEW
 	if (normalize(tm))
 		return ((time_t)-1);
+#endif
 
 	/* The answer as though the fields were UTC, which starts the search. */
 	probe = *tm;

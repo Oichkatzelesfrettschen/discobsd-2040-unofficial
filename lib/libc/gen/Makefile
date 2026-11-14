@@ -9,7 +9,7 @@ include ${TOPSRC}/share/mk/sys.mk
 CFLAGS		+= ${DEFS} -Os
 
 SRCS		= ${STDSRC} ${TIME64SRC}
-OBJS		= ${STDOBJ} ${TIME64OBJ}
+OBJS		= ${STDOBJ} ${TIME64OBJ} ${WIDEOBJ}
 
 # The system calls of the 64-bit view of time (sys/_time_t.h): each member
 # defines one __NAME64 symbol over the 32-bit entry point, so a program
@@ -22,6 +22,14 @@ TIME64OBJ	= time64_widen_stat.o time64_widen_rusage.o time64_stat.o time64_lstat
 		  time64_fstat.o time64_gettimeofday.o time64_settimeofday.o time64_adjtime.o \
 		  time64_select.o time64_pselect.o time64_utimes.o time64_futimes.o \
 		  time64_getitimer.o time64_setitimer.o time64_getrusage.o time64_wait4.o
+
+# The calendar functions of the 64-bit view, and wait3(): ctime.c,
+# mktime.c, time.c, difftime.c and wait3.c compiled a second time with
+# _TIME_BITS defined as 64, where <time.h> and <sys/wait.h> bind each public
+# name to __NAME64 and offtime.h the shared conversion to
+# __discobsd_offtime64. NAME64.o is the member built from NAME.c; the zone
+# both widths read is tzset.o's.
+WIDEOBJ		= ctime64.o mktime64.o time64.o difftime64.o wait364.o
 
 STDSRC		= abort.c alarm.c aligned_alloc.c assert_fail.c asctime.c atof.c atoi.c atol.c \
 		  basename.c bcmp.c bcopy.c ctermid.c \
@@ -42,7 +50,7 @@ STDSRC		= abort.c alarm.c aligned_alloc.c assert_fail.c asctime.c atof.c atoi.c 
 		  stpcpy.c stpncpy.c strcat.c strcmp.c strcpy.c strdup.c \
 		  strndup.c strnlen.c strftime.c strlen.c \
 		  strncat.c strncmp.c strncpy.c swab.c sysconf.c sysctl.c syslog.c \
-		  system.c telldir.c time.c timezone.c tolower.c toupper.c \
+		  system.c telldir.c time.c timezone.c tolower.c toupper.c tzset.c \
 		  ttyname.c ttyslot.c \
 		  ualarm.c uname.c unvis.c usleep.c vis.c \
 		  wait.c wait3.c waitpid.c
@@ -66,7 +74,7 @@ STDOBJ		= abort.o alarm.o aligned_alloc.o assert_fail.o asctime.o atof.o atoi.o 
 		  stpcpy.o stpncpy.o strcat.o strcmp.o strcpy.o strdup.o \
 		  strndup.o strnlen.o strftime.o strlen.o \
 		  strncat.o strncmp.o strncpy.o swab.o sysconf.o sysctl.o syslog.o \
-		  system.o telldir.o time.o timezone.o tolower.o toupper.o \
+		  system.o telldir.o time.o timezone.o tolower.o toupper.o tzset.o \
 		  ttyname.o ttyslot.o \
 		  ualarm.o uname.o unvis.o usleep.o vis.o \
 		  wait.o wait3.o waitpid.o
@@ -76,6 +84,11 @@ gen.a:		${OBJS}
 		@${AR} cr gen.a ${OBJS}
 
 qsort_r.o: qsort.c
+
+.for member in ${WIDEOBJ:S/64.o$//}
+${member}64.o: ${member}.c
+		${CC} ${CFLAGS} -D_TIME_BITS=64 -c -o $@ ${.CURDIR}/${member}.c
+.endfor
 
 tags:
 		cwd=`pwd`; \

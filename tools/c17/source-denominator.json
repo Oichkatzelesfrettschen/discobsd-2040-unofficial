@@ -19610,6 +19610,37 @@
       }
     },
     {
+      "path": "include/utime.h",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "include",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "libc-public-header",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "include/utmp.h",
       "class": "unreviewed",
       "scope": "unreviewed",
@@ -38657,9 +38688,7 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -39275,17 +39304,13 @@
         "risk_tier_basis": "boundary-family-conservative",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [
-            "cast-dereference"
-          ],
+          "aliasing": [],
           "inline_assembly": [],
           "integer": [
             "integer-cast",
             "shift-expression"
           ],
-          "object_lifetime": [
-            "dynamic-storage"
-          ],
+          "object_lifetime": [],
           "pointer": [
             "integer-pointer-cast"
           ],
@@ -40943,7 +40968,8 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast"
+            "integer-cast",
+            "shift-expression"
           ],
           "object_lifetime": [],
           "pointer": [
@@ -41117,16 +41143,22 @@
         "source_kind": "header",
         "build_surface": "rp2040-userland",
         "required_mode": "strict-c17-and-gnu17",
-        "extension_policy": "portable-only",
-        "extension_signals": [],
+        "extension_policy": "gnu-extension-review",
+        "extension_signals": [
+          "inline-assembly"
+        ],
         "risk_family": "libc-public-header",
         "risk_tier": "T1",
         "risk_tier_basis": "boundary-family-conservative",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
           "aliasing": [],
-          "inline_assembly": [],
-          "integer": [],
+          "inline_assembly": [
+            "inline-assembly"
+          ],
+          "integer": [
+            "integer-cast"
+          ],
           "object_lifetime": [],
           "pointer": [],
           "prototype": [],
@@ -43316,6 +43348,77 @@
           "prototype": [
             "old-style-definition"
           ],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "lib/libc/gen/tzset.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "lib",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "libc-public-header",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [
+            "cast-dereference"
+          ],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "shift-expression"
+          ],
+          "object_lifetime": [
+            "dynamic-storage"
+          ],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "lib/libc/gen/tzstate.h",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "lib",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "libc-public-header",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -67775,6 +67878,37 @@
           "pointer": [
             "integer-pointer-cast"
           ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "sys/sys/timeb.h",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "sys",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-kernel",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "kernel-syscall",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
           "prototype": [],
           "variadic": []
         }

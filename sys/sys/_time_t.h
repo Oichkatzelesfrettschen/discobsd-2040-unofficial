@@ -12,12 +12,15 @@
  * with _TIME_BITS defined as 64. Then time_t is 64 bits wide, the
  * structures that hold one (struct timeval, struct timespec, struct stat,
  * struct rusage) take the wider layout, and __TIME64_NAME() binds each
- * function that passes one to a second symbol, __NAME64, which libc
- * defines as a wrapper around the 32-bit entry point (lib/libc/gen/
- * time64_*.c). The existing symbol names keep the 32-bit layouts, which
- * are the kernel's and the ones a program compiled by Smaller C on the
- * board declares; that compiler has no 64-bit integer, so the wide view is
- * closed to it.
+ * function that passes one to a second symbol, __NAME64. libc defines it
+ * as a wrapper around the 32-bit entry point (lib/libc/gen/time64_*.c)
+ * or, for a function that converts or carries the count itself (ctime,
+ * mktime, time, utime and the others), as the function's own source
+ * compiled a second time with this view (NAME64.o in lib/libc/gen/Makefile
+ * and lib/libc/compat/Makefile). The existing symbol names keep the 32-bit
+ * layouts, which are the kernel's and the ones a program compiled by
+ * Smaller C on the board declares; that compiler has no 64-bit integer, so
+ * the wide view is closed to it.
  */
 #ifndef _SYS__TIME_T_H_
 #define _SYS__TIME_T_H_

@@ -17,8 +17,8 @@ stored word
 image byte
     The first byte of the padding that follows the board address word at
     0x100001C0 set. The four bytes sit between the vector table and the
-    first function, hold zero in the link, and no instruction fetch or data
-    read reaches them, so the kernel runs unchanged while the sum over its
+    first function, hold zero in the link, and nothing but the sum reads
+    them, so the kernel runs unchanged while the sum over its
     bytes moves and the stamped word stays.
 loader stamp
     The stamp the PicoCalc UF2 loader (pelrun/uf2loader) writes over flash

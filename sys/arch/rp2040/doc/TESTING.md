@@ -341,8 +341,8 @@ source-handler substitution, every changed vector word and every cleared
 handler Thumb bit. It also builds the kernel as the loader leaves flash, with
 the second stage replaced (every byte of 0-255 inverted) and the stamp
 `0xe98cc638`, `0x101fc000`, `/pico1-apps/DiscoBSD` over 0x110-0x12B, which
-reads 0x2f737070, 0x63736944 and 0x4453426f where the identity words used to
-sit. The checker and `kernsum -c` verify that image and report the build's
+overlays vector entries 4 to 10 and reads 0x2f737070, 0x63736944 and
+0x4453426f at 0x120-0x12B. The checker and `kernsum -c` verify that image and report the build's
 identity; each fails the image with any one covered byte changed (the
 boundaries of both spans, the descriptor address word, the padding after it,
 the first function byte and the last byte); and a checker, or a `kernsum`
@@ -2415,9 +2415,9 @@ the file as built; a copy with one bit of the stamped CRC32 word (vector
 entry 13) inverted; a copy with the first of the four padding bytes after
 the board address word (0x100001C4) set; and a copy with the PicoCalc UF2
 loader's stamp written over bytes 0x110-0x12B. The padding byte is covered
-by the sum, zero in the link and read by no instruction or data access, so
-the kernel boots unchanged while the sum moves. (Vector entry 12, the
-reserved word the earlier copy used, now holds the length.) The checker
+by the sum, zero in the link and read by nothing but the sum, so the kernel
+boots unchanged while the sum moves; vector entry 12 holds the length and
+is not a free byte. The checker
 computes each copy's sum the way `tools/kernsum` does and requires
 the exact console line of `image_identify()`: `image: N bytes, crc32 X` for
 the built kernel and for the stamped copy, and the same line ending
@@ -2592,7 +2592,8 @@ board runs. With `DISCOBSD_BOARD_IMAGE_IDENTITY=run` it reads
 `machdep.image_length`, `machdep.image_crc` and `machdep.image_crc_stored`
 over the USB console and compares them with the values computed from a host
 `unix.bin`; it flashes nothing. The claim is that the kernel bytes in the
-board's flash are the bytes of that file, the board descriptor aside. The
+board's flash are the bytes of that file, the board descriptor, the second
+stage and the PicoCalc UF2 loader's stamp span aside. The
 root file system has no such word; `/etc/release` names its build.
 
 

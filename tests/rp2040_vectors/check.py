@@ -191,7 +191,7 @@ def check_loader_state(kernel, original, elf, text_start, directory):
     loader_image = flash_image(ELFFile(io.BytesIO(bytes(loader))))
     if len(loader_image) != len(image) or loader_image[:BOOT2_SIZE] == image[:BOOT2_SIZE]:
         raise AssertionError("the loader-state kernel keeps its second stage")
-    # The stamp lands on the three words the identity once occupied.
+    # The stamp overlays vector entries 4 to 10, so 0x120-0x12B read path text.
     if struct.unpack_from("<3I", loader_image, 0x120) != (0x2F737070, 0x63736944, 0x4453426F):
         raise AssertionError("the loader stamp does not overlay vector entries 8 to 10")
     if identity_error(image) is not None:
@@ -310,8 +310,8 @@ def main():
             else:
                 diagnostic = f"vector {index} differs from {SLOTS[index]}"
             run(mutant, 1, diagnostic)
-        # The Thumb bit belongs to handler entries; the identity words and
-        # the descriptor address are data.
+        # The Thumb bit belongs to handler entries; the identity words are
+        # data.
         for index, value in enumerate(words[1:], 1):
             if value & 1 and isinstance(SLOTS[index], str) and SLOTS[index].endswith("_Handler"):
                 modified = bytearray(original)

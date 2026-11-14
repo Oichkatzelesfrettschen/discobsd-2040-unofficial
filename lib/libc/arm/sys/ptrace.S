@@ -8,16 +8,12 @@
 ENTRY(ptrace)
 	/* ptrace may return -1 on success, so errno carries the error verdict. */
 	push	{r0-r3}
-	ldr	r1, =errno
+	SYS_ERRNO_ADDRESS
 	mov	r2, #0
 	str	r2, [r1]
 	pop	{r0-r3}
 	svc	#SYS_ptrace
 	bcs	1f
 	bx	lr
-1:	ldr	r1, =errno
-	str	r0, [r1]
-	mov	r0, #0
-	mvn	r0, r0
-	bx	lr
+1:	SYS_ERROR
 END(ptrace)

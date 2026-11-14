@@ -531,6 +531,14 @@ check-kernel-printf-formats:	check-python
 check-aout:
 		${MAKE} -C tests/aout_header check
 
+check-native-linker: check-python
+		${MAKE} -C tools/aoututils/ld all
+		${PYTHON} tests/native_linker/readers.py
+		${PYTHON} tests/native_linker/branches.py
+		${PYTHON} tests/native_linker/calibrate.py
+
+.PHONY: check-native-linker
+
 # The host filesystem library every root image is built with, exercised
 # through the allocation patterns that break one and checked with the
 # tree's own consistency checker after each round.
@@ -1493,7 +1501,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-rmdir-contracts check-tee-contracts check-time-contracts \
 		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
-		check-aout check-kernel check-fs-stress check-fsck-inode-range \
+		check-aout check-native-linker check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts check-backgammon-contracts \
@@ -1819,6 +1827,16 @@ check-libc-xip-object-abi: check-python
 
 .PHONY: check-libc-xip-object-abi
 
+check-libc-xip-rom: check-python
+		${PYTHON} tests/libc_xip_rom/run.py
+
+.PHONY: check-libc-xip-rom
+
+check-native-call-veneer: check-python
+		${PYTHON} tests/native_linker/veneers.py
+
+.PHONY: check-native-call-veneer
+
 check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} check-aeabi-copy-qemu
@@ -1826,6 +1844,8 @@ check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-packed-exec-control-qemu
 		${MAKE} check-exec-dispatch-qemu
 		${MAKE} check-libc-xip-object-abi
+		${MAKE} check-libc-xip-rom
+		${MAKE} check-native-call-veneer
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test

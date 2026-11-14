@@ -18,6 +18,14 @@ ROM_FLOAT_FUNCTION(__rp2040_rom_float_resolve)
 	mov	r3, ip
 	str	r3, [sp, #20]
 
+#ifdef DISCOBSD_SHARED_LIBC
+	/* Shared descriptors mark a GOT displacement rather than a RAM address. */
+	ldrb	r1, [r4, #7]
+	movs	r2, #0x40
+	tst	r1, r2
+	beq	Lrom_float_invalid
+#endif
+
 	/* Validate the public magic, compatibility byte and version floor. */
 	movs	r0, #0x10
 	ldrb	r1, [r0, #0]
@@ -30,14 +38,40 @@ ROM_FLOAT_FUNCTION(__rp2040_rom_float_resolve)
 	cmp	r1, #1
 	bne	Lrom_float_invalid
 	ldrb	r1, [r4, #7]
+#ifdef DISCOBSD_SHARED_LIBC
+	lsls	r1, r1, #26
+	lsrs	r1, r1, #26
+#else
 	lsls	r1, r1, #25
 	lsrs	r1, r1, #25
+#endif
 	ldrb	r2, [r0, #3]
 	cmp	r2, r1
 	bcc	Lrom_float_invalid
 
 	/* A corrupted descriptor cannot publish outside the user RAM window. */
 	ldr	r1, [r4, #0]
+#ifdef DISCOBSD_SHARED_LIBC
+	movs	r2, #3
+	tst	r1, r2
+	bne	Lrom_float_invalid
+	ldr	r2, =__libc_got_size
+	cmp	r1, r2
+	bcs	Lrom_float_invalid
+	mov	r2, r9
+	adds	r1, r2, r1
+	bcs	Lrom_float_invalid
+	movs	r2, #3
+	tst	r1, r2
+	bne	Lrom_float_invalid
+	ldr	r2, =USER_DATA_START
+	cmp	r1, r2
+	bcc	Lrom_float_invalid
+	ldr	r2, =USER_DATA_END - 4
+	cmp	r1, r2
+	bhi	Lrom_float_invalid
+	ldr	r1, [r1]
+#endif
 	movs	r2, #3
 	tst	r1, r2
 	bne	Lrom_float_invalid
@@ -126,6 +160,10 @@ Lrom_float_validate_target:
 	bne	Lrom_float_invalid
 
 	ldr	r1, [r4, #0]
+#ifdef DISCOBSD_SHARED_LIBC
+	mov	r2, r9
+	ldr	r1, [r2, r1]
+#endif
 	str	r3, [r1]
 	mov	ip, r3
 	ldr	r4, [sp, #20]

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "source_commit": "b39e4709c20502268791aae36cfa675ba6fdbdf7",
+  "main_commit": "9561fd1c",
+  "logs": {
+    "build.log": "6e552e5fdae3f7963120f4bace0ad4599724f40c082475c1372944ec99ce55e5",
+    "calendar-host.log": "59bd1e48deed063b8b9bcd41fd1514a9fc3f1660679bf2f4e46a069a3ce6946a",
+    "calendar-sandbox.log": "536aa4de23b1d5a03f4cdba017fe9617224c01298ea8924838add14d5faeb107",
+    "gates.log": "f8274bbb77915d0e22518293b356c5239235a93b998fcce7aee39ed8046f8af9"
+  },
+  "passed": [
+    "logged-build",
+    "check-libc-xip-rom",
+    "check-libc-xip-object-abi",
+    "check-native-linker",
+    "check-c17-source-denominator",
+    "calendar64.native",
+    "calendar64.ilp32",
+    "calendar64.sanitized",
+    "calendar64.sanitized-ilp32"
+  ],
+  "calendar_checks_per_variant": 28465,
+  "calendar_compiler": "clang",
+  "calendar_execution": "outside sandbox; sandbox compiler probes receive Bad system call",
+  "resource_status": "matched latest-main resource recapture remains pending",
+  "hardware_execution": false
+}

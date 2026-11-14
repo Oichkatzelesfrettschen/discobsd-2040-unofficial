@@ -16,7 +16,7 @@ from elftools.elf.relocation import RelocationSection
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 FUNCTIONS = ('shared_errno_address', 'shared_stream_address', 'shared_environ_address',
-             'shared_initial_state', 'shared_callback')
+             'shared_initial_state', 'shared_callback', 'shared_syscall_error')
 OBJECTS = ('errno', '_iob', 'environ', '__progname', '_curbrk',
            'library_errno_pointer', 'library_stream_pointer', 'library_null_pointer')
 PUBLIC_OBJECTS = OBJECTS[:5]
@@ -312,24 +312,72 @@ def linux_flat_image(source, destination):
     destination.chmod(source.stat().st_mode & 0o777)
 
 
+def syscall_assembly_controls(compiler, runner):
+    directory = ROOT / 'lib/libc/arm/sys'
+    generated = runner.work / 'generated-close.S'
+    generated.write_text('#include "SYS.h"\nSYS(close)\n')
+    for source in [generated, *(directory / (name + '.S') for name in
+                               ('pipe', '_brk', 'ptrace', 'sigaction'))]:
+        for shared in (False, True):
+            target = runner.work / (source.stem + ('-shared.o' if shared else '-static.o'))
+            runner.run([compiler, '-mcpu=cortex-m0plus', '-mthumb', '-nostdinc',
+                        '-I' + str(ROOT / 'include'), '-I' + str(directory),
+                        *(['-DDISCOBSD_SHARED_LIBC=1'] if shared else []),
+                        '-c', source, '-o', target])
+            with target.open('rb') as handle:
+                elf = ELFFile(handle)
+                kinds = []
+                for section in elf.iter_sections():
+                    if isinstance(section, RelocationSection):
+                        table = elf.get_section(section['sh_link'])
+                        kinds.extend(relocation['r_info_type']
+                                     for relocation in section.iter_relocations()
+                                     if table.get_symbol(relocation['r_info_sym']).name == 'errno')
+                require(kinds and set(kinds) == {26 if shared else 2},
+                        source.name + ': errno relocation differs from selected state ownership')
+    print('PASS generated and specialized syscall errno relocations', flush=True)
+
+
 def execute(args, runner):
     prefix = args.cc.removesuffix('gcc')
     require(prefix != args.cc, 'compiler must name a GCC driver')
     compiler = args.cc
     runner.run([compiler, '--version'])
     runner.run([args.qemu, '--version'])
+    syscall_assembly_controls(compiler, runner)
     objects = []
     for index, source in enumerate([HERE / 'library.c', *(ROOT / name for name in PRODUCTION)]):
         target = runner.work / f'library-{index}.o'
         runner.run([compiler, *FLAGS, *PIC, '-ffunction-sections', '-fdata-sections',
                     '-c', source, '-o', target])
         objects.append(target)
+    syscall_object = runner.work / 'syscall-error.o'
+    runner.run([compiler, '-mcpu=cortex-m0plus', '-mthumb',
+                '-nostdinc', '-I' + str(ROOT / 'include'),
+                '-I' + str(ROOT / 'lib/libc/arm/sys'),
+                '-DDISCOBSD_SHARED_LIBC=1', '-c', HERE / 'syscall-error.S',
+                '-o', syscall_object])
+    objects.append(syscall_object)
     library = runner.work / 'library.elf'
     library_link = [prefix + 'ld', '--fatal-warnings', '-z', 'noexecstack',
                     '--gc-sections', '--emit-relocs', '-T', HERE / 'library.ld',
                     *(f'--undefined={name}' for name in FUNCTIONS)]
     runner.run([*library_link, '-o', library, *objects])
     layout = library_layout(library)
+    static_syscall = runner.work / 'syscall-error-static.o'
+    runner.run([compiler, '-mcpu=cortex-m0plus', '-mthumb', '-nostdinc',
+                '-I' + str(ROOT / 'include'), '-I' + str(ROOT / 'lib/libc/arm/sys'),
+                '-c', HERE / 'syscall-error.S', '-o', static_syscall])
+    runner.run([*library_link, '-o', 'static-syscall-library.elf',
+                *objects[:-1], static_syscall])
+    try:
+        library_layout(runner.work / 'static-syscall-library.elf')
+    except ValueError as error:
+        require(str(error) == 'code contains an absolute process-state reference',
+                'static syscall control reaches a different rejection')
+    else:
+        raise ValueError('absolute syscall errno reference escapes inspection')
+    print('PASS rejected static syscall error state reference', flush=True)
     (runner.work / 'layout.json').write_text(json.dumps(layout, indent=2) + '\n')
     got_ownership_controls(library, runner)
     runner.run([prefix + 'objcopy', '-O', 'binary', '--only-section=.text',
@@ -440,8 +488,11 @@ def main():
         parser.error(str(error))
     runner = Runner(work)
     inputs = [*(ROOT / name for name in PRODUCTION), ROOT / 'lib/elf32-arm.ld',
+              ROOT / 'lib/libc/arm/sys/SYS.h',
               ROOT / 'tools/generate_multicall_bss_overlay.sh',
               ROOT / 'tools/bin/rp2040/elf2aout',
+              *(ROOT / 'lib/libc/arm/sys' / (name + '.S')
+                for name in ('pipe', '_brk', 'ptrace', 'sigaction')),
               *(path for path in HERE.iterdir() if path.suffix in ('.c', '.S', '.ld', '.py'))]
     receipt = {'state': 'failed', 'sources': {
         str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()

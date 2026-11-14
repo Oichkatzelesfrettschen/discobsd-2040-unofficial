@@ -162,12 +162,14 @@ compile_tools() {
     # directory follows it (-idirafter).
     # shellcheck disable=SC2046
     $cc $(view_flags "$ct_view") -O1 -w -std=gnu89 \
+        -include "$here/host_signal_names.h" \
         -I"$ct_root/usr.bin/make" -I"$ct_root/usr.bin/ar" \
         -I"$top/tools/aoututils/include" -idirafter "$top/include" \
         -c -o "$ct_out/make-doname.o" \
         "$ct_root/usr.bin/make/doname.c" || return 1
     # shellcheck disable=SC2046
     $cc $(view_flags "$ct_view") -O1 -Wall -Wextra -Werror -std=gnu89 \
+        -include "$here/host_signal_names.h" \
         -I"$ct_root/usr.bin/make" -I"$ct_root/usr.bin/ar" \
         -I"$top/tools/aoututils/include" -idirafter "$top/include" \
         -c -o "$ct_out/make-order.o" "$here/make_order.c" || return 1

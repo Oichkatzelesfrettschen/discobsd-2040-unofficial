@@ -19,6 +19,13 @@ collection, while whole-archive input fails in both cases. The direct full
 link resolves the helpers. This observation bounds a toolchain interaction;
 it does not establish the compiler plugin's internal cause.
 
+The [archive compiler-root qualification](export-closure/compiler-root-qualification.json)
+records a successful full-archive link at source `1734dcc7`. Explicit undefined
+roots for the five compiler-owned imports resolve the helper references while
+retaining all 646 screening roots. The [archive closure record](export-closure/README.md#compiler-owned-link-roots)
+owns the omission controls, image comparison and separate runtime evidence.
+The unrooted archive failure remains a reproducible toolchain interaction.
+
 The installed GCC ARM Options manual specifies r9 as the single PIC base for
 EABI targets. Omitting the redundant explicit `-mpic-register=r9` option
 removes the LTO diagnostic in the minimal probe; its disassembly retains the

@@ -55,6 +55,8 @@ def fixture(header, form, wide, smaller=False):
             # ll_time is the kernel's 32-bit count (utime32_t), so the record
             # keeps one layout under both views of time_t.
             width = 4
+            # The view the case names is the view it compiles with.
+            conditions["time_t width"] = f"sizeof(time_t) == {8 if wide else 4}"
             conditions.update({"lastlog size": f"sizeof(struct lastlog) == {width + 24}",
                                "lastlog alignment": f"_Alignof(struct lastlog) == {width}",
                                "lastlog time type":
@@ -141,7 +143,7 @@ def native_cases(root, workspace, host, cross):
                 label = f"{header}.{form}.time{64 if wide else 32}"
                 source = workspace / "input.c"
                 source.write_text(fixture(header, form, wide, smaller=True))
-                flags = ["-D_TIME_BITS=64"] if wide else []
+                flags = ["-D_TIME_BITS=64"] if wide else ["-D_TIME_BITS=32"]
                 cases.append(command_case(
                     [cross, "-E", "-P", "-nostdinc", "-I" + str(root / "include"),
                      "-U__GNUC__", "-U__PCC__", "-D__SMALLER_C__=0x0100", "-D__SMALLER_C_32__",
@@ -199,7 +201,7 @@ def run(root, host_cc):
                 for form in FORMS:
                     for wide in (False, True):
                         source.write_text(fixture(header, form, wide))
-                        time_flags = ["-D_TIME_BITS=64"] if wide else []
+                        time_flags = ["-D_TIME_BITS=64"] if wide else ["-D_TIME_BITS=32"]
                         for mode, flags in MODES.items():
                             label = f"{profile}.{header}.{form}.{mode}.time{64 if wide else 32}"
                             cases.append(compile_case([*arguments, *flags, *time_flags],
@@ -209,7 +211,7 @@ def run(root, host_cc):
                 mutated.mkdir(exist_ok=True)
                 (mutated / header).write_text(content)
                 source.write_text(fixture(header, form, wide))
-                flags = ["-D_TIME_BITS=64"] if wide else []
+                flags = ["-D_TIME_BITS=64"] if wide else ["-D_TIME_BITS=32"]
                 cases.append(compile_case([arguments[0], "-I" + str(mutated), *arguments[1:],
                                            *flags], source, profile + "." + label, diagnostic))
             source.write_text("#include <kmem.h>\nint main(void) { return kmemdev(1); }\n")

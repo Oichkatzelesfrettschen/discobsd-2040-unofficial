@@ -191,7 +191,7 @@ propagation and ordering, not partially completed real-copy atomicity.
 
 Patches 456, 458 and 461 frame separate questions about clean state,
 superblock time and shutdown ordering. Trace dirty inodes/superblocks through
-sync, buffer completion, `flstrategy`, `fl_sync`, `dhara_map_sync` and reset.
+sync, buffer completion, `flstrategy`, `fl_checkpoint`, `dhara_map_sync` and reset.
 `sync()` can skip locked state and discards `ufs_sync()` errors; `B_BUSY`
 clears after failed writes as well as successful writes. `m_write_error`
 records an error since mount, not necessarily one caused by shutdown.

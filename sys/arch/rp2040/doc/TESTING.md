@@ -7,6 +7,30 @@ tiers run after `bmake MACHINE=rp2040 build`, which leaves
 the kernels and distribution tree the gates read. `check-cross` builds the
 reduced board libc when its source closure is newer than the archive.
 
+`check-native-nm` belongs to `check-host`, owned by the Linux and macOS
+host-tier jobs in `.github/workflows/firmware.yml`. It exercises the host build
+of the native reader with 172 archive/object cases and eleven option cases, including exact member
+prefixes, numeric-field grammar, section boundaries, short headers, and
+zero-filled symbol tails. Nonzero text, data, and relocation extents check
+all three accepted object magics against their symbol offsets. A GNU17 UBSan build repeats those cases and adds
+four allocation ownership controls and 32 stream controls. The stream controls
+inject failure at each of 31 executed seek, position, read, close, and flush
+operations after a successful control; each failure requires a diagnostic,
+nonzero reader status, and zero outstanding allocations.
+Seven warning-clean compiled mutations
+must fail their named fixtures. The gate requires a host C compiler with
+UBSan and the caller-selected `PYTHON`. Retained control sources, compiler
+logs, execution logs, and source hashes live under `.build-logs` in uniquely
+named invocation directories. The gate establishes host reader behavior;
+ARM execution and resource qualification remain separate checks.
+
+`check-native-nm-qemu` belongs to `check-qemu` and executes all 183 reader
+cases as Thumb-1 code using the Cortex-M0 model. The fixture links newlib
+and the shared Linux syscall support with an actual seek syscall for regular
+inputs. It requires `arm-none-eabi-gcc`, newlib, and `qemu-arm`; missing QEMU
+fails the requested gate. This establishes ARM reader execution with newlib,
+separately from DiscoBSD stdio, kernel execution, or physical-board behavior.
+
 A tier that compiles creates `include/machine` first. `share/mk/sys.mk`
 compiles with `-nostdinc -I${TOPSRC}/include`, and `sys/sys/param.h` and
 `sys/sys/types.h` reach `<machine/machparam.h>` and `<machine/types.h>`
@@ -325,14 +349,43 @@ not access hardware or establish the complete resource measurement contract.
 `check-rp2040-vectors` compares all 48 linked vector words with the named
 symbols and reserved zero slots, checks the boot2 vector address, initial
 stack alignment, handler Thumb bits and executable load mappings for each
-RP2040 kernel. Entries 8, 9 and 10 are the image identity words
-(`BOOT-MAP.md`, "Image identity"): the gate rebuilds the flash image from the
-PT_LOAD segments, requires the length word to equal its size and the CRC word
-to equal its sum, and requires its own comparison to reject the image with
-its first byte, its last byte, the length word or the CRC word changed and to
-accept a rewritten board descriptor. The PICO fixture checks the source slot list and rejects a
+RP2040 kernel. Entries 12 and 13 are the image identity words, and the word
+after the table at 0x100001C0 is the board descriptor address
+(`BOOT-MAP.md`, "Image identity"); entries 4 to 10 stay zero because the
+PicoCalc UF2 loader stamps bytes 0x110-0x12B. The gate rebuilds the flash
+image from the PT_LOAD segments, requires the length word to equal its size
+and the CRC word to equal its sum, requires the address word to equal
+`__board_start`, and requires its own comparison to reject the image with its
+last byte, its first vector byte, a byte beside the loader's stamp, the first
+text byte, the length word, the CRC word or the address word changed and to
+accept the image with its first byte, the last byte of the second stage, the
+first or last byte of the stamp span or the board descriptor rewritten. The
+PICO fixture checks the source slot list and rejects a
 source-handler substitution, every changed vector word and every cleared
-handler Thumb bit. The cross gate checks linked values, rather than exception
+handler Thumb bit. It also builds the kernel as the loader leaves flash, with
+the second stage replaced (every byte of 0-255 inverted) and the stamp
+`0xe98cc638`, `0x101fc000`, `/pico1-apps/DiscoBSD` over 0x110-0x12B, which
+overlays vector entries 4 to 10 and reads 0x2f737070, 0x63736944 and
+0x4453426f at 0x120-0x12B. The checker and `kernsum -c` verify that image and report the build's
+identity; each fails the image with any one covered byte changed (the
+boundaries of both spans, the descriptor address word, the padding after it,
+the first function byte and the last byte); and a checker, or a `kernsum`
+compiled from the source with one `memset` removed, that forgets the
+second-stage or the stamp exclusion fails it, which calibrates the case.
+The build gate keeps rejecting the stamped ELF, since a linked kernel holds
+zero in entries 4 to 10. The fixture also pins the excluded set: it inverts
+each byte of 0x000-0x1FF, one byte on each side of every span and the last
+byte, and requires the sum of the checker and of the Renode oracle
+(`identity_sum()` in tools/renode/check-boot.py), and `kernsum -c` where the
+ELF holds the byte, to ignore the byte exactly when it lies in one of the
+four spans; a checker, an oracle or a `kernsum` that also excludes 0x1C5
+fails that pin. A descriptor address of zero, below the word after the
+address word, past the end of the image or unaligned fails the checker,
+the oracle and `kernsum`; an unaligned address inside the image with a
+restamped CRC word is refused only by the alignment check, so a checker or
+a `kernsum` without it accepts that image and fails the case. The runtime
+sum of `image_identify()` runs only on a target; `check-renode-identity`
+is its gate. The cross gate checks linked values, rather than exception
 delivery or physical privilege behavior. Weak aliases may legitimately share
 the default-handler address.
 
@@ -860,7 +913,7 @@ tier 325 s, the qemu tier 99 s and the build 98 s.
 | `check-stdio-bounds`, `check-stdio-bounds-cross` | `gets(3)` is absent from the tree in the two places that make a caller impossible: `<stdio.h>` does not declare it, so a call fails at its implicit declaration, and neither `lib/libc/stdio/Makefile` nor `lib/libc_aout/libc/Makefile` builds an object, so a caller that declares it itself fails at the link. The cross form reads the built `lib/libc.a` for the symbol as well, which also catches an incremental tree where `ar` still holds a `gets.o` no rule rebuilds. `fgets` is the control at every step, so an unusable include path or an empty archive fails the gate rather than passing it. Restoring the declaration, either Makefile entry, or a rebuilt archive containing the object each fails one check. No source sweep: the two facts above leave nothing for one to add beyond a heuristic that cannot tell a call from a line of comment |
 | `check-libc-zone` | the zone file reader, which is the one part of libc that decodes bytes a caller names through TZ. Runs in both shapes it is built in: the file-backed one, where every count in the file bounds a walk over a fixed-size array, and the default one, which asserts a zone file named in TZ is not opened and the answer is the kernel's single offset. A file whose first transition is stored negative, before 1970, is read at eight counts from 0 to 4294967295, which all follow it: the 32-bit view's `time_t` is unsigned while a transition is the file's signed count, so neither a count with bit 31 set nor a transition before 1970 may compare as the other sign. Host width, ILP32, and under the address and undefined sanitizers. A build that reached a file anyway does not compile, tzload() being undeclared there |
 | `check-libc-ctime`, `check-libc-ctime-cross` | the exact fixed-width formatter and UTC decomposition compiled as C17 at host, ILP32 and Cortex-M0+ widths: canonical output, one-digit day padding, four-digit year and leap-second boundaries, null input, both sides of every field range, unchanged static output after rejection, decomposition of the 32-bit view's unsigned count (`time_t` is `utime32_t`, `sys/sys/_time_t.h`) at the epoch, a leap day, both sides of the carry out of bit 31, 0x90000000 and the last two counts of 2106, and 3,027 counts (27 named, 3,000 seeded over the whole range and its upper half) against CPython's `datetime` (`tests/libc_contracts/calendar32_vectors.py`), an exact freestanding production compile that accepts libc's `%D` extension, a supplemental builtin-remapped target overflow compile and calibrated negative formatter, and a behavioral control that accepts invalid fields. GCC reserves builtin format and object-size analysis for the explicit diagnostic lane because its printf grammar omits the shipped `%D` conversion |
-| `check-libc-mktime` | `timegm` and `mktime` of the 32-bit view, linked with the `ctime.c` they invert, at host and ILP32 widths and under address and undefined sanitizers at both: the range is 0..4294967295 (`time_t` is `utime32_t`, `sys/sys/_time_t.h`) and the refusal is (time_t)-1, the count 4294967295, which the `tm_wday` sentinel tells from the legitimate last second; `mktime.c` writes the bound as a 32-bit constant, so the eight-byte host refuses with the same count. Named dates (2038 on both sides of bit 31, 0x90000000, 2100's missing leap day, the second before 2106-02-07 06:28:15), the 3,027 counts and 37 field sets outside their ranges of `tests/libc_contracts/calendar32_vectors.py` against CPython's `datetime`, every whole day from 1970-01-01 to 2106-02-06 against a calendar that only counts, the epoch and the last second with one second and one day on each side, normalization, carry overflow, and round trips through `localtime` and `gmtime` in GMT and in a zone file five hours west. At both ends of the range `mktime` must convert every count of the first and the last day (0..86,399 and 4,294,880,896..4,294,967,295) through `localtime` and back with the struct rewritten, in GMT and in zone files eight hours west, one hour east and fourteen hours east, where the local fields read as UTC fall before 1970 or after 2106-02-07 06:28:15, the last count included though it equals the refusal; the local fields of instants one second and one day outside each end are refused with the `tm_wday` sentinel left (40 vectors from the same oracle). `mktime_contract_mutate.py` builds the unchanged `mktime.c` (it must pass) and two mutants that must fail: the fields refused as UTC before the zone offset is applied, and an answer equal to (time_t)-1 taken as a refusal. Host execution; `check-c17-smaller-c` runs `t23_timeconvert`, which also converts its counts through `mktime` in GMT, as Thumb-1 under qemu-user |
+| `check-libc-mktime` | `timegm` and `mktime` of the 32-bit view, linked with the `ctime.c` they invert, at host and ILP32 widths and under address and undefined sanitizers at both: the range is 0..4294967295 (`time_t` is `utime32_t`, `sys/sys/_time_t.h`) and the refusal is (time_t)-1, the count 4294967295, which the `tm_wday` sentinel tells from the legitimate last second; `mktime.c` writes the bound as a 32-bit constant, so the eight-byte host refuses with the same count. Named dates (2038 on both sides of bit 31, 0x90000000, 2100's missing leap day, the second before 2106-02-07 06:28:15), the 3,027 counts and 37 field sets outside their ranges of `tests/libc_contracts/calendar32_vectors.py` against CPython's `datetime`, every whole day from 1970-01-01 to 2106-02-06 against a calendar that only counts, the epoch and the last second with one second and one day on each side, normalization, carry overflow, and round trips through `localtime` and `gmtime` in GMT and in a zone file five hours west. At both ends of the range `mktime` must convert every count of the first and the last day (0..86,399 and 4,294,880,896..4,294,967,295) through `localtime` and back with the struct rewritten, in GMT and in zone files eight hours west, one hour east and fourteen hours east, where the local fields read as UTC fall before 1970 or after 2106-02-07 06:28:15, the last count included though it equals the refusal; the local fields of instants one second and one day outside each end are refused with the `tm_wday` sentinel left (40 vectors from the same oracle). `mktime_contract_mutate.py` builds the unchanged `mktime.c` (it must pass) and two mutants that must fail: the fields refused as UTC before the zone offset is applied, and an answer equal to (time_t)-1 taken as a refusal. Host execution; `check-c17-smaller-c` runs `t23_timeconvert`, which also converts its counts through `mktime` in GMT, as Thumb-1 under qemu-user A zone file whose offset changes at the count 1800 (one hour east, then two), and one that changes at 600 and at 1800, must convert every count of the first day; a mutant that drops the answer found with one of the file's offsets and a mutant that tries the first offset alone must fail. |
 | `check-libc-calendar64` | the calendar functions of the 64-bit view of time: the tree's `ctime.c`, `mktime.c` and `difftime.c` compiled with `_TIME_BITS=64` (symbols `__gmtime64`, `__localtime64`, `__ctime64`, `__timegm64`, `__mktime64`, `__difftime64`) beside the 32-bit `tzset.c`, `timezone.c` and `asctime.c`, run by `tests/time64_calendar/calendar64_test.c` natively, at ILP32 and under address and undefined sanitizers at both widths. The oracle is `tests/time64_calendar/vectors.py`, which reads each instant with CPython's `datetime.date` moved by whole 400-year eras into years 1 to 9999 and so shares no arithmetic with the tree: 3,545 instants (named boundaries at 1970, 2038, 2106, 1900, 1600, year 0, year 9999 and both ends of the range, plus seeded uniform and log-uniform samples) for `gmtime` and `timegm`, the range ends one second past each bound and at both ends of a 64-bit count refused with `EOVERFLOW`, 21 field sets outside their ranges (each field at `INT_MIN` and `INT_MAX`) for `timegm` and `mktime`, `localtime` and `mktime` in a zone five hours west read from the kernel offset, eleven `ctime` lines, and `difftime` on counts a double cannot separate; 28,465 checks per variant. The range is every year an `int` `tm_year` holds, from -67,768,040,609,740,800 to 67,768,036,191,676,799 (`lib/libc/gen/offtime.h`); the oracle derives both bounds itself. It establishes the calendar arithmetic at the host's widths; `tests/time64_calendar` runs the same test as Thumb-1 and holds the mutants. |
 | `check-libc-random`, `check-libc-random-cross` | random, srandom, initstate and setstate compiled as strict C17 at host, under the undefined-behavior sanitizer, at ILP32 and Cortex-M0+ widths: an independent 32-bit reference checks four seeds across every state-size boundary; state switching, canaries, alignment, undersized buffers and malformed metadata pin commit-before-use behavior. A fixture that installs malformed metadata calibrates rejection. The target object must remain allocation-free and import neither division helpers nor stdio |
 | `check-libc-runtime-limits`, `check-libc-runtime-limits-cross` | the ten selected DiscoBSD `sysconf` selectors and `_CS_PATH` at host, ILP32 and Cortex-M0+ widths: exact values, unsupported-option `errno` preservation, invalid-selector `EINVAL`, size queries, every truncated length, null output and unchanged output after an unknown selector. A permissive-selector fixture and five focused source mutations calibrate rejection. Separate target objects must use constant storage and import only `errno`; the a.out archive gate proves both APIs remain available to on-device links. `_SC_CHILD_MAX` remains absent until `fork1()` enforces a matching real-UID bound |
@@ -2392,22 +2445,32 @@ procedure that would.
 ## Renode image identity tier
 
 `check-renode-identity` runs tools/renode/check-identity.sh, which boots
-the PICO_UART kernel three times on the selected board's root flash image
+the PICO_UART kernel four times on the selected board's root flash image
 through the machine, console and virtual-time slicing of the UART0 tier.
-tools/renode/check-identity.py derives the three kernels from `unix.bin`:
-the file as built, a copy with one bit of the stamped CRC32 word (vector
-entry 9) inverted, and a copy with one byte of the reserved vector entry 12
-set. It computes each copy's sum the way `tools/kernsum` does and requires
+tools/renode/check-identity.py derives the four kernels from `unix.bin`:
+the file as built; a copy with one bit of the stamped CRC32 word (vector
+entry 13) inverted; a copy with the first of the four padding bytes after
+the board address word (0x100001C4) set; and a copy with the PicoCalc UF2
+loader's stamp written over bytes 0x110-0x12B. The padding byte is covered
+by the sum, zero in the link and read by nothing but the sum, so the kernel
+boots unchanged while the sum moves; vector entry 12 holds the length and
+is not a free byte. The checker
+computes each copy's sum the way `tools/kernsum` does and requires
 the exact console line of `image_identify()`: `image: N bytes, crc32 X` for
-the built kernel, and the same line ending `stored Y differs` for each
-altered copy, with the stored value moved in the first and the computed
-sum moved in the second. Each boot continues through the storage probe.
-The built kernel is read and never written; the copies live under
-tools/renode/vendor/results/identity.
+the built kernel and for the stamped copy, and the same line ending
+`stored Y differs` for the two altered copies, with the stored value moved
+in the first and the computed sum moved in the second. Each boot continues
+through the storage probe. The built kernel is read and never written; the
+copies live under tools/renode/vendor/results/identity.
 
-The three boots calibrate one another: a kernel that prints `differs` for
-every image fails the first, and one that never prints it fails the other
-two. The claim is the emulated kernel's comparison over the flash model's
+`check-renode-identity` is the gate for the runtime `image_identify()` sum;
+`check-rp2040-vectors` holds the build-time and host implementations of the
+same function. The four boots calibrate one another: a kernel that prints `differs` for
+every image fails the first and the fourth, and one that never prints it
+fails the second and third. The built kernel holds zero in the stamp span,
+so the fourth boot alone shows that `image_identify()` skips it; the second
+stage is zeroed in the sum on both sides, so a kernel that covered it would
+disagree with the host sum in the first boot. The claim is the emulated kernel's comparison over the flash model's
 bytes; a board that reports `differs` is a separate evidence class and has
 no receipt.
 
@@ -2568,7 +2631,8 @@ board runs. With `DISCOBSD_BOARD_IMAGE_IDENTITY=run` it reads
 `machdep.image_length`, `machdep.image_crc` and `machdep.image_crc_stored`
 over the USB console and compares them with the values computed from a host
 `unix.bin`; it flashes nothing. The claim is that the kernel bytes in the
-board's flash are the bytes of that file, the board descriptor aside. The
+board's flash are the bytes of that file, the board descriptor, the second
+stage and the PicoCalc UF2 loader's stamp span aside. The
 root file system has no such word; `/etc/release` names its build.
 
 

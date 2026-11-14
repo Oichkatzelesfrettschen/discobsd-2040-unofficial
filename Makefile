@@ -574,6 +574,18 @@ check-native-linker: check-python
 
 .PHONY: check-native-linker
 
+check-native-nm: check-python
+		${MAKE} -C tools/aoututils/nm all
+		${PYTHON} tools/check_nm_reader.py tools/aoututils/nm/nm
+		${PYTHON} tests/nm_reader/calibrate.py
+
+.PHONY: check-native-nm
+
+check-native-nm-qemu: check-python
+		${MAKE} -C tests/nm_reader check-qemu
+
+.PHONY: check-native-nm-qemu
+
 # The host filesystem library every root image is built with, exercised
 # through the allocation patterns that break one and checked with the
 # tree's own consistency checker after each round.
@@ -1546,7 +1558,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-rmdir-contracts check-tee-contracts check-time-contracts \
 		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
-		check-aout check-native-linker check-kernel check-fs-stress check-fsck-inode-range \
+		check-aout check-native-linker check-native-nm check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts check-backgammon-contracts \
@@ -1893,6 +1905,7 @@ check-native-call-veneer: check-python
 .PHONY: check-native-call-veneer
 
 check-qemu:	check-python .WAIT symlinks
+		${MAKE} check-native-nm-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} check-aeabi-copy-qemu
 		${MAKE} check-ucall-qemu
@@ -1959,9 +1972,10 @@ check-renode-capacity:
 		sh tools/renode/check-capacity.sh ${FSIMG}
 
 # The boot-time image comparison on the emulated PICO_UART kernel:
-# tools/renode/check-identity.sh boots the stamped kernel and two altered
+# tools/renode/check-identity.sh boots the stamped kernel and three altered
 # copies on ${FLASHBIN} and requires the image line of each, so the
-# "differs" branch of image_identify() runs. Outside "check" for the reason
+# "differs" branch of image_identify() runs and the loader's stamp span is
+# shown to be skipped. Outside "check" for the reason
 # check-renode is.
 check-renode-identity:
 		sh tools/renode/check-identity.sh ${FLASHBIN}

@@ -132,6 +132,7 @@ Grouped by what they investigate.
 | --- | --- |
 | `memory-ownership-plan.md` | memory ownership chosen over instruction tuning, and what landed |
 | `hardware-review-reconciliation.md` | twenty-one outside hardware, optimization and mathematics reviews checked against the datasheet and the kernels linked at `7a270276`: the corrected hardware facts, the disposition of every proposal, the ideas that survive in another form, and the ordered instrument-first roadmap |
+| `rp2040-flash-traffic-per-workload.md` | storage counters on the measured Pico and Renode flash-command counts for the stages of a compile on the board, against the W25Q16JV's rated erase cycles |
 | `rp2040-memory-wear-engineering-program.md` | the submitted SRAM and flash-wear audit turned into configuration-specific provenance, recovery, telemetry, SwapRAM, and durability gates |
 | `ram-compression.md` | the compression options against RAM and flash pressure, with measured costs |
 | `storage-techniques.md` | techniques from other small systems, and the SWAPRAM enable path |

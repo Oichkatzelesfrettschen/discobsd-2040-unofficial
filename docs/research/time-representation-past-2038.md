@@ -762,10 +762,11 @@ What stays limited:
   9.47 run directly, 30.86 through `cc`, where a 24 KB `dd` to `/tmp`
   takes 3.68. By workload, then, `as` and `ld` beyond their launches
   account for about 62 percent of a small compile's flash commands and
-  launches at the measured rate for about 36 percent. No remedy is
-  applied: holding the temporary sections in memory, a `cc` driver with
-  fewer launches and a swap path that keeps a waiting parent in RAM are
-  separate designs.
+  launches at the measured rate for about 36 percent.
+  `rp2040-flash-traffic-per-workload.md` carries the measurement that
+  separates the paths, storage counters on the Pico: root writes account
+  for 83 percent of a compile's sector erases, each 1 KiB root write
+  costing two, and it supersedes the split estimated here.
 
 ## Residuals
 

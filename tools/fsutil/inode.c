@@ -160,7 +160,8 @@ int fs_inode_save (fs_inode_t *inode, int force)
     offset = (inode->number + BSDFS_INODES_PER_BLOCK - 1) *
         BSDFS_BSIZE / BSDFS_INODES_PER_BLOCK;
 
-    inode->atime = fs_clock ();
+    if (! inode->atime_explicit)
+        inode->atime = fs_clock ();
 
     if (! fs_seek (inode->fs, offset))
         return 0;

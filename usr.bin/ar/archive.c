@@ -520,6 +520,9 @@ copy_ar(CF *cfp, off_t size, int lname)
  *	ar bounds it by SOURCE_DATE_EPOCH, as tools/fsutil bounds the file
  *	times of the image, so equal objects give equal archives.  An
  *	absent or malformed value leaves the file's modification time.
+ *	A value above 0x7fffffff does too: the target ar parses the date
+ *	field with strtol and ld reads it into a long, both 32 bits there,
+ *	while tools/fsutil accepts up to 4294967295 for its unsigned fields.
  */
 static long
 member_date(struct stat *sb)

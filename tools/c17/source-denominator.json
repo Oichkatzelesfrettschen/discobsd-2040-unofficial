@@ -63830,7 +63830,9 @@
           "inline_assembly": [],
           "integer": [],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }
@@ -80679,6 +80681,7 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
+            "integer-cast",
             "shift-expression",
             "width-sensitive-sizeof"
           ],

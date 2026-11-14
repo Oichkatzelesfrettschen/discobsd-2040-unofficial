@@ -317,10 +317,13 @@ void fs_clock_validate (void)
  * to a count of seconds, every time is that count, whatever OBSERVED, the
  * host clock and SOURCE_DATE_EPOCH hold, so a test can build an image dated
  * past 2038. Otherwise SOURCE_DATE_EPOCH bounds the time: no time written to
- * an image is later than it, so equal inputs give equal images, and a file
- * is never newer than the table date ranlib writes into an archive from the
- * same variable (ld reads an archive whose file is newer than its table as
- * unsorted). An empty SOURCE_DATE_EPOCH leaves the observed time.
+ * an image is later than it, so equal inputs give equal images, and, for a
+ * value up to 0x7fffffff, a file is never newer than the table date ranlib
+ * writes into an archive from the same variable (ld reads an archive whose
+ * file is newer than its table as unsorted). ar and ranlib ignore a larger
+ * value, so their archive dates then follow the build environment and the
+ * ordering holds only for a value they accept. An empty SOURCE_DATE_EPOCH
+ * leaves the observed time.
  */
 time_t fs_source_time (time_t observed)
 {

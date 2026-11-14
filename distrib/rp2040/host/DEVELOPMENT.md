@@ -89,7 +89,11 @@ sys/arch/rp2040/doc/TESTING.md leave it out on macOS.
 inode times) as an unsigned 32-bit count of seconds since 1970, valid to
 2106. The build exports `SOURCE_DATE_EPOCH` (the committer date of HEAD
 unless the caller sets it), which bounds every time from above, so equal
-sources give equal images. `FSUTIL_CLOCK=N` replaces the bound with a fixed
+sources give equal images. The host `ar` and `ranlib` read the same variable
+only up to 2147483647 (0x7fffffff), the largest date the target `ar` and `ld`
+read from an archive header; above it they ignore it, archive dates follow the
+build environment, and the image is not reproducible from that variable
+alone. `FSUTIL_CLOCK=N` replaces the bound with a fixed
 clock: every time in the image is the count N, whatever `SOURCE_DATE_EPOCH`
 and the host clock hold. A test that boots with a clock past January 2038
 builds its image with `FSUTIL_CLOCK=2415919104` (0x90000000, July 2046) in

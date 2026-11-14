@@ -40,7 +40,8 @@ application `_end`. Initialized application pointers require no runtime text
 patching. Callback execution crosses into the application and back into the
 library while preserving the same object identities.
 
-The tested library uses 264 bytes of state, including fixture-specific objects.
+The tested library uses 272 bytes of state, including fixture-specific objects
+and GOT entries for the null-import controls.
 That value measures neither full-libc residency nor available process capacity.
 Function addresses come from the linked fixture rather than stable ABI slots.
 The layout description is experimental and lacks a production compatibility
@@ -49,10 +50,21 @@ identity and complete object-alignment metadata.
 ## Deciding observations
 
 The compiler's `R_ARM_GOT32` displacements use `.got` as their origin in the
-tested layout. `.got` begins at offset 208; `_GLOBAL_OFFSET_TABLE_` belongs to
-`.got.plt` at offset 240. The driver checks displacement alignment, containment
-and the referenced value for each observed GOT relocation. A guessed base is
-insufficient even when the resulting pointer stays inside reserved state.
+tested layout. The driver derives this origin from the linked ELF, then checks
+displacement alignment, containment and the referenced value for each observed
+GOT relocation. A guessed base is insufficient even when the resulting pointer
+stays inside reserved state.
+
+Every GOT cell requires a symbol owner from a retained relocation. Allocated
+writable sections inside the state reservation identify relocatable objects;
+allocated fixed sections belong to the flash image. Undefined weak symbols
+retain null values, and absolute symbols retain fixed values. The named `_end`
+symbol identifies the state end and relocates with it. Conflicting ownership,
+unclassified cells and unresolved strong imports fail inspection. A pointer
+value alone cannot distinguish a state object at offset zero from a null import.
+The fixture exercises both an undefined weak import and an absolute-zero import
+alongside the defined state object at offset zero. Weak declarations preserve
+the compiler's nullable-address contract for these linker experiments.
 
 The production executable's adjacent RX and RW segments share a Linux page.
 Direct Linux ELF loading removes execute permission from the entry page. The
@@ -76,7 +88,7 @@ Five successful layouts cover zero application data/BSS, initialized pointers,
 ends all application/overlay storage before it, and converts to an a.out whose
 `a_bss` reaches the same final `_end`.
 
-Seven controls have named rejection paths:
+Eleven controls have named rejection paths:
 
 | Control | Required observation |
 | --- | --- |
@@ -87,6 +99,10 @@ Seven controls have named rejection paths:
 | `_end` before reserved state | Layout rejection names `_end` |
 | One non-PIC library function beside valid PIC code | Relocation inspection rejects an absolute state reference |
 | Application definition of imported `errno` | Import inspection rejects interposition |
+| Relocation of fixed GOT entries | QEMU exit 15, null-import initialization |
+| Missing GOT relocation owner | Inspection rejects an unclassified cell |
+| Conflicting GOT relocation owners | Inspection rejects conflicting state/fixed ownership |
+| Undefined strong GOT import | Inspection rejects the unsupported unresolved import |
 
 The host needs Python with `pyelftools`, ARM GNU GCC/binutils, QEMU user mode,
 POSIX shell and built `tools/bin/rp2040/elf2aout`. The observed toolchain is

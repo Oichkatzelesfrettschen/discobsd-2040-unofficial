@@ -55,6 +55,29 @@ def symbol_table(elf):
     return {symbol.name: symbol for symbol in table.iter_symbols() if symbol.name}
 
 
+def got_symbol_is_state(elf, symbol, extent, flash_end):
+    index = symbol['st_shndx']
+    if symbol.name == '_end':
+        require(symbol['st_value'] == extent, 'state end symbol differs')
+        return True
+    if index == 'SHN_UNDEF':
+        require(symbol['st_info']['bind'] == 'STB_WEAK' and symbol['st_value'] == 0,
+                'GOT contains an unresolved strong or nonzero import')
+        return False
+    if index == 'SHN_ABS':
+        return False
+    require(isinstance(index, int), 'GOT symbol lacks a supported section owner')
+    owner = elf.get_section(index)
+    require(owner['sh_flags'] & 2, 'GOT symbol belongs to an unallocated section')
+    start, end = owner['sh_addr'], owner['sh_addr'] + owner['sh_size']
+    if owner['sh_flags'] & 1:
+        require(end <= extent, 'GOT state owner leaves the state reservation')
+        return True
+    require(0x10020000 <= start <= end <= flash_end,
+            'GOT fixed owner leaves the flash image')
+    return False
+
+
 def library_layout(path):
     with path.open('rb') as handle:
         elf = ELFFile(handle)
@@ -75,6 +98,7 @@ def library_layout(path):
                     and offset + size <= extent, 'invalid object extent: ' + name)
             entries[name] = {'offset': offset, 'size': size}
         relocations = set()
+        got_owners = {}
         for section in elf.iter_sections():
             if not isinstance(section, RelocationSection):
                 continue
@@ -98,22 +122,26 @@ def library_layout(path):
                                 'GOT relocation leaves the compiler base interval')
                         require(struct.unpack_from('<I', got.data(), displacement)[0]
                                 == symbol['st_value'], 'GOT relocation names a different object')
+                        state = got_symbol_is_state(elf, symbol, extent, flash_end)
+                        require(got_owners.setdefault(displacement, state) == state,
+                                'GOT cell has conflicting symbol ownership')
                     continue
                 if not target['sh_flags'] & 2:
                     continue
                 require(relocation['r_info_type'] == 2, 'unsupported writable relocation')
                 if state_reference:
                     relocations.add(relocation['r_offset'])
-        for index in range(0, got['sh_size'], 4):
-            value = struct.unpack_from('<I', got.data(), index)[0]
-            if value <= extent:
-                relocations.add(got['sh_addr'] + index)
-            else:
-                require(0x10020000 <= value < flash_end, 'GOT names an unowned address')
+        require(set(got_owners) == set(range(0, got['sh_size'], 4)),
+                'GOT cell lacks relocation ownership')
+        for displacement, state in got_owners.items():
+            if state:
+                relocations.add(got['sh_addr'] + displacement)
         require(all(offset % 4 == 0 and offset + 4 <= initialized for offset in relocations),
                 'relocation escapes initialized state')
         return {'state_size': extent, 'initialized_size': initialized,
                 'got_offset': got_offset, 'objects': entries,
+                'fixed_got_offsets': sorted(got_offset + offset
+                                            for offset, state in got_owners.items() if not state),
                 'relocations': sorted(relocations), 'functions': list(FUNCTIONS)}
 
 
@@ -138,12 +166,15 @@ INSERT AFTER .bss;
 '''
 
 
-def state_header(layout, omit_pointer=False, wrong_base=False):
+def state_header(layout, omit_pointer=False, wrong_base=False, relocate_fixed=False):
     relocations = layout['relocations']
     if omit_pointer:
         offset = layout['objects']['library_stream_pointer']['offset']
         require(offset in relocations, 'pointer relocation control anchor is absent')
         relocations = [entry for entry in relocations if entry != offset]
+    if relocate_fixed:
+        require(layout['fixed_got_offsets'], 'fixed GOT control anchor is absent')
+        relocations = sorted(relocations + layout['fixed_got_offsets'])
     return (f'#define ABI_STATE_SIZE {layout["state_size"]}u\n'
             f'#define ABI_GOT_OFFSET {layout["got_offset"] + (4 if wrong_base else 0)}u\n'
             f'#define ABI_RELOCATION_COUNT {len(relocations)}u\n'
@@ -195,6 +226,54 @@ def layout_controls(source, layout, runner):
             require(str(error) == diagnostic, name + ' reaches a different rejection')
         else:
             raise ValueError(name + ' escapes the layout verifier')
+        print('PASS rejected ' + name + ': ' + diagnostic, flush=True)
+
+
+def got_ownership_controls(source, runner):
+    with source.open('rb') as handle:
+        elf = ELFFile(handle)
+        references = {}
+        for section in elf.iter_sections():
+            if not isinstance(section, RelocationSection):
+                continue
+            table = elf.get_section(section['sh_link'])
+            for index, relocation in enumerate(section.iter_relocations()):
+                if relocation['r_info_type'] != 26:
+                    continue
+                symbol_index = relocation['r_info_sym']
+                symbol = table.get_symbol(symbol_index)
+                location = section['sh_offset'] + index * section['sh_entsize']
+                references.setdefault(symbol.name, []).append((location, relocation, symbol,
+                    table['sh_offset'] + symbol_index * table['sh_entsize']))
+        require(len(references.get('optional_object', [])) == 1,
+                'weak GOT control requires one reference')
+        location, relocation, symbol, symbol_location = references['optional_object'][0]
+        zero_state_references = [reference for name in OBJECTS
+                                 for reference in references.get(name, [])
+                                 if reference[2]['st_value'] == 0]
+        require(zero_state_references, 'state-zero GOT control anchor is absent')
+        state_location, _, state_symbol, _ = zero_state_references[0]
+        require(symbol['st_value'] == state_symbol['st_value'] == 0,
+                'null and state-zero control anchors differ')
+        controls = [
+            ('missing-got-owner', location + 4, '<I', relocation['r_info'] & ~255,
+             'GOT cell lacks relocation ownership'),
+            ('conflicting-got-owner', state_location, '<I', relocation['r_offset'],
+             'GOT cell has conflicting symbol ownership'),
+            ('strong-undefined-got', symbol_location + 12, '<B', 0x10,
+             'GOT contains an unresolved strong or nonzero import')]
+    for name, offset, encoding, value, diagnostic in controls:
+        content = bytearray(source.read_bytes())
+        struct.pack_into(encoding, content, offset, value)
+        path = runner.work / (name + '.elf')
+        path.write_bytes(content)
+        try:
+            library_layout(path)
+        except ValueError as error:
+            require(str(error) == diagnostic,
+                    name + ' reaches a different rejection: ' + str(error))
+        else:
+            raise ValueError(name + ' escapes the GOT ownership verifier')
         print('PASS rejected ' + name + ': ' + diagnostic, flush=True)
 
 
@@ -252,6 +331,7 @@ def execute(args, runner):
     runner.run([*library_link, '-o', library, *objects])
     layout = library_layout(library)
     (runner.work / 'layout.json').write_text(json.dumps(layout, indent=2) + '\n')
+    got_ownership_controls(library, runner)
     runner.run([prefix + 'objcopy', '-O', 'binary', '--only-section=.text',
                 '--only-section=.rodata', library, 'flash.bin'])
     runner.run([prefix + 'objcopy', '-O', 'binary', '--only-section=.data',
@@ -278,10 +358,12 @@ fixture_init_end:
                 ('odd-bss', 31, 1, False), ('large-bss', 4097, 1, False),
                 ('overlay', 13, 1, True), ('wrong-import', 31, 1, False),
                 ('wrong-got-base', 31, 1, False),
-                ('missing-relocation', 31, 1, False)]
+                ('missing-relocation', 31, 1, False),
+                ('relocated-fixed-got', 31, 1, False)]
     for name, bss, data, overlay in variants:
         (runner.work / 'state.h').write_text(state_header(
-            layout, name == 'missing-relocation', name == 'wrong-got-base'))
+            layout, name == 'missing-relocation', name == 'wrong-got-base',
+            name == 'relocated-fixed-got'))
         (runner.work / 'imports.ld').write_text(imports(layout, name == 'wrong-import'))
         runner.run([compiler, *FLAGS, '-ffixed-r9', '-I' + str(runner.work),
                     f'-DAPP_BSS={bss}', f'-DAPP_DATA={data}', '-c', HERE / 'application.c',
@@ -307,7 +389,7 @@ fixture_init_end:
         runner.run([ROOT / 'tools/bin/rp2040/elf2aout', image, name + '.aout'])
         verify_aout(runner.work / (name + '.aout'), end)
         expected = {'wrong-import': 13, 'wrong-got-base': 13,
-                    'missing-relocation': 15}.get(name, 0)
+                    'missing-relocation': 15, 'relocated-fixed-got': 15}.get(name, 0)
         runtime_image = runner.work / (name + '.runtime.elf')
         linux_flat_image(image, runtime_image)
         runner.run([args.qemu, '-cpu', 'cortex-m0', runtime_image], expected=expected)

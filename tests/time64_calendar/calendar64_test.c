@@ -205,6 +205,29 @@ check_denormal(void)
 }
 
 /*
+ * The second before 1970 in GMT: mktime() answers the count -1, which is
+ * also its refusal, and rewrites the struct, so the tm_wday sentinel reads
+ * Wednesday. Fields outside the calendar still leave the sentinel.
+ */
+static void
+check_second_before_epoch(void)
+{
+	struct tm tm;
+	time_t got;
+
+	select_zone("", 0);
+	fill(&tm, 69, 11, 31, 23, 59, 59);
+	got = mktime(&tm);
+	CHECK(got == -1 && tm.tm_wday == 3 && tm.tm_yday == 364, -1);
+	fill(&tm, 69, 11, 31, 23, 59, 59);
+	got = timegm(&tm);
+	CHECK(got == -1 && tm.tm_wday == 3, -1);
+	fill(&tm, INT_MAX, 11, 31, 23, 59, 60);
+	got = mktime(&tm);
+	CHECK(got == -1 && tm.tm_wday == -1, -1);
+}
+
+/*
  * A zone five hours west, from the kernel's offset: localtime() reads each
  * instant five hours earlier, mktime() inverts it, and the fields of a
  * vector read as local time name the instant five hours later. An instant
@@ -241,18 +264,21 @@ check_zone(void)
 		    local.tm_yday == utc.tm_yday, v->count);
 		local.tm_isdst = -1;
 		CHECK(mktime(&local) == t, v->count);
+		/*
+		 * The object localtime() returns is a valid argument: mktime()
+		 * reads the fields before its own localtime() calls reuse it.
+		 */
+		CHECK(mktime(localtime(&t)) == t, v->count);
 
 		fill(&local, v->year, v->mon, v->mday, v->hour, v->min, v->sec);
 		t = mktime(&local);
 		/*
-		 * mktime() starts its search from timegm() of the fields and
-		 * takes an answer of -1 as a refusal, so the local time whose
-		 * UTC reading is the second before 1970 is refused in any zone
-		 * but GMT. The 32-bit build shares the search and the refusal.
+		 * mktime() starts its search from timegm() of the fields; the
+		 * local time whose UTC reading is the second before 1970 makes
+		 * that start the count -1, which is an answer and not a
+		 * refusal, so it converts like every other vector.
 		 */
-		if (v->count == -1)
-			CHECK(t == -1, v->count);
-		else if (v->count - ZONE_OFFSET > ORACLE_CAL_MAX)
+		if (v->count - ZONE_OFFSET > ORACLE_CAL_MAX)
 			CHECK(t == -1 && local.tm_wday == -1, v->count);
 		else
 			CHECK(t == v->count - ZONE_OFFSET &&
@@ -322,6 +348,7 @@ main(void)
 	check_timegm();
 	check_range();
 	check_denormal();
+	check_second_before_epoch();
 	check_zone();
 	check_ctime();
 	check_difftime();

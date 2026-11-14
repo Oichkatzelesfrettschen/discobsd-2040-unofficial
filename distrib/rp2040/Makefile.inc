@@ -204,6 +204,7 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/stdio/fprintf.c \
 				${TOPSRC}/lib/libc/stdio/vfprintf.c \
 				${TOPSRC}/lib/libc/stdio/output.h \
+				${TOPSRC}/lib/libc/stdio/flags.c \
 				${TOPSRC}/lib/libc/stdio/fputs.c \
 				${TOPSRC}/lib/libc/gen/confstr.c \
 				${TOPSRC}/lib/libc/gen/ctermid.c \
@@ -213,6 +214,8 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/gen/index.c \
 				${TOPSRC}/lib/libc/gen/offtime.h \
 				${TOPSRC}/lib/libc/gen/timezone.c \
+				${TOPSRC}/lib/libc/gen/tolower.c \
+				${TOPSRC}/lib/libc/gen/toupper.c \
 				${TOPSRC}/lib/libc/gen/tzset.c \
 				${TOPSRC}/lib/libc/gen/tzstate.h \
 				${TOPSRC}/lib/libc/gen/raise.c \

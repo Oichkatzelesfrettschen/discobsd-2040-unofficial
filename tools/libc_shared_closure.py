@@ -6,11 +6,14 @@ import hashlib
 import io
 import json
 import re
+import struct
 import subprocess
 from pathlib import Path
 
 from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
+from elftools.elf.relocation import RelocationSection
+from elftools.elf.sections import SymbolTableSection
 
 SYMBOL = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 MEMBER = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*\.o\Z")
@@ -36,6 +39,115 @@ def command(argv):
     return result.stdout
 
 
+def comdat_groups(elf, table, member_name):
+    """Normalize owned storage and relocation identities before accepting duplicates."""
+    owners, groups = {}, {}
+    for group_index, section in enumerate(elf.iter_sections()):
+        if section["sh_type"] != "SHT_GROUP":
+            continue
+        require(section["sh_link"] == elf.get_section_index(".symtab"),
+                f"{member_name}: group uses an unsupported symbol table")
+        data = section.data()
+        require(len(data) >= 8 and len(data) % 4 == 0,
+                f"{member_name}: malformed COMDAT group")
+        words = struct.unpack("<" + "I" * (len(data) // 4), data)
+        require(words[0] == 1, f"{member_name}: unsupported section group flags")
+        require(section["sh_flags"] == 0 and section["sh_entsize"] == 4 and
+                0 < section["sh_info"] < table.num_symbols(),
+                f"{member_name}: malformed COMDAT header")
+        signature = table.get_symbol(section["sh_info"]).name
+        require(signature and signature not in groups,
+                f"{member_name}: invalid or duplicate COMDAT signature")
+        indexes = words[1:]
+        require(len(indexes) == len(set(indexes)), f"{member_name}: repeated group member")
+        names = set()
+        for index in indexes:
+            require(group_index < index < elf.num_sections() and index not in owners,
+                    f"{member_name}: invalid or overlapping group ownership")
+            target = elf.get_section(index)
+            require(target["sh_flags"] & 0x200,
+                    f"{member_name}: group member lacks SHF_GROUP")
+            require(target.name not in names, f"{member_name}: ambiguous group section names")
+            names.add(target.name)
+            owners[index] = signature
+        groups[signature] = {"indexes": indexes}
+    for index, section in enumerate(elf.iter_sections()):
+        require(not section["sh_flags"] & 0x200 or index in owners,
+                f"{member_name}: orphan SHF_GROUP section")
+        if isinstance(section, RelocationSection):
+            target_owner = owners.get(section["sh_info"])
+            require(target_owner is None or owners.get(index) == target_owner,
+                    f"{member_name}: relocation bypasses COMDAT ownership")
+            require(0 < section["sh_link"] < elf.num_sections(),
+                    f"{member_name}: invalid relocation symbol table")
+            relocation_table = elf.get_section(section["sh_link"])
+            require(isinstance(relocation_table, SymbolTableSection),
+                    f"{member_name}: invalid relocation symbol table")
+            for relocation in section.iter_relocations():
+                require(relocation["r_info_sym"] < relocation_table.num_symbols(),
+                        f"{member_name}: invalid relocation symbol index")
+                symbol = relocation_table.get_symbol(relocation["r_info_sym"])
+                symbol_owner = owners.get(symbol["st_shndx"])
+                require(symbol["st_info"]["bind"] != "STB_LOCAL" or symbol_owner is None or
+                        owners.get(section["sh_info"]) == symbol_owner,
+                        f"{member_name}: external reference to a COMDAT local symbol")
+        for target in [section["sh_link"],
+                       *([section["sh_info"]] if section["sh_flags"] & 0x40 else [])]:
+            require(target not in owners or owners.get(index) == owners[target],
+                    f"{member_name}: external section reference to COMDAT storage")
+
+    def symbol_identity(symbol, signature):
+        index = symbol["st_shndx"]
+        identity = [symbol.name, symbol["st_info"]["bind"], symbol["st_info"]["type"],
+                    symbol["st_other"]["visibility"], symbol["st_size"]]
+        if isinstance(index, int) and owners.get(index) == signature:
+            return identity + ["group", elf.get_section(index).name, symbol["st_value"]]
+        if symbol["st_info"]["bind"] == "STB_LOCAL":
+            # A local outside the group belongs to this object even when its name matches.
+            return identity + ["local-owner", member_name, index, symbol["st_value"]]
+        return identity + ["external-name"]
+
+    for signature, group in groups.items():
+        normalized, allocated = [], collections.Counter()
+        for index in group["indexes"]:
+            section = elf.get_section(index)
+            row = {"name": section.name, "type": section["sh_type"],
+                   "flags": section["sh_flags"], "alignment": section["sh_addralign"],
+                   "entry_size": section["sh_entsize"], "size": section["sh_size"]}
+            if isinstance(section, RelocationSection):
+                require(section["sh_info"] in group["indexes"] and
+                        section["sh_link"] == elf.get_section_index(".symtab"),
+                        f"{member_name}: relocation leaves its COMDAT group")
+                row["target"] = elf.get_section(section["sh_info"]).name
+                row["relocations"] = []
+                for relocation in section.iter_relocations():
+                    entry = [relocation["r_offset"], relocation["r_info_type"],
+                             symbol_identity(table.get_symbol(relocation["r_info_sym"]),
+                                             signature)]
+                    if section.is_RELA():
+                        entry.append(relocation["r_addend"])
+                    row["relocations"].append(entry)
+            else:
+                require(section["sh_type"] in ("SHT_PROGBITS", "SHT_NOBITS") and
+                        section["sh_link"] == 0 and section["sh_info"] == 0,
+                        f"{member_name}: unsupported COMDAT storage metadata")
+                row["bytes_sha256"] = (hashlib.sha256(section.data()).hexdigest()
+                                       if section["sh_type"] != "SHT_NOBITS" else None)
+            if section["sh_flags"] & 2:
+                allocated[section.name] += section["sh_size"]
+            normalized.append(row)
+        exports = [symbol_identity(symbol, signature) for symbol in table.iter_symbols()
+                   if isinstance(symbol["st_shndx"], int) and
+                   owners.get(symbol["st_shndx"]) == signature and
+                   symbol["st_info"]["bind"] in ("STB_GLOBAL", "STB_WEAK")]
+        payload = {"sections": sorted(normalized, key=lambda row: row["name"]),
+                   "definitions": sorted(exports)}
+        group["sha256"] = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+        group["input_section_bytes"] = dict(sorted(allocated.items()))
+        del group["indexes"]
+    return owners, groups
+
+
 def read_member(name, content):
     try:
         elf = ELFFile(io.BytesIO(content))
@@ -43,6 +155,7 @@ def read_member(name, content):
                 and elf["e_type"] == "ET_REL", f"{name}: expected ARM ELF32 relocatable")
         table = elf.get_section_by_name(".symtab")
         require(table is not None, f"{name}: symbol table is absent")
+        group_owners, groups = comdat_groups(elf, table, name)
         definitions = {}
         strong, weak = set(), set()
         for symbol in table.iter_symbols():
@@ -72,13 +185,17 @@ def read_member(name, content):
             require(symbol.name not in definitions, f"{name}: duplicate symbol {symbol.name}")
             definitions[symbol.name] = {"kind": kind, "mutable": mutable,
                                         "binding": binding, "size": symbol["st_size"]}
+            if index in group_owners:
+                signature = group_owners[index]
+                definitions[symbol.name]["comdat"] = {
+                    "signature": signature, "sha256": groups[signature]["sha256"]}
         sections = collections.Counter()
         for section in elf.iter_sections():
             if section["sh_flags"] & 2:
                 sections[section.name] += section["sh_size"]
         return {"sha256": hashlib.sha256(content).hexdigest(), "definitions": definitions,
                 "strong_imports": sorted(strong), "weak_imports": sorted(weak),
-                "input_section_bytes": dict(sorted(sections.items()))}
+                "input_section_bytes": dict(sorted(sections.items())), "comdat_groups": groups}
     except (ELFError, KeyError, IndexError) as error:
         raise ClosureError(f"{name}: malformed ELF: {error}") from error
 
@@ -146,7 +263,12 @@ def provider(graph, symbol, candidates=None):
     strong = [name for name in names
               if graph["members"][name]["definitions"][symbol]["binding"] == "STB_GLOBAL"]
     choices = strong or names
-    require(len(choices) <= 1, f"conflicting providers for {symbol}: {', '.join(choices)}")
+    if len(choices) > 1:
+        identities = [graph["members"][name]["definitions"][symbol].get("comdat")
+                      for name in choices]
+        require(identities[0] is not None and all(item == identities[0] for item in identities),
+                f"conflicting providers for {symbol}: {', '.join(choices)}")
+        choices = sorted(choices)
     return choices[0] if choices else None
 
 
@@ -170,7 +292,8 @@ def verify(graph, specification, selection):
         require(graph["members"][member]["definitions"][root["symbol"]]["kind"] == root["kind"],
                 f"API kind differs for {root['symbol']}")
     outside, optional = set(), set()
-    sections = collections.Counter()
+    sections, discarded = collections.Counter(), collections.Counter()
+    groups = {}
     for name in sorted(selected):
         member = graph["members"][name]
         for symbol in member["definitions"]:
@@ -185,10 +308,20 @@ def verify(graph, specification, selection):
             if provider(graph, symbol, selected) is None:
                 optional.add(symbol)
         sections.update(member["input_section_bytes"])
+        for signature, group in member.get("comdat_groups", {}).items():
+            if signature in groups:
+                require(group["sha256"] == groups[signature]["sha256"],
+                        "conflicting COMDAT groups: " + signature)
+                discarded.update(group["input_section_bytes"])
+            else:
+                groups[signature] = group
     return {"schema": 1, "archive_sha256": graph["archive_sha256"],
             "contract": specification, "members": sorted(selected),
             "external_imports": sorted(outside), "unresolved_weak": sorted(optional),
-            "input_section_bytes": dict(sorted(sections.items()))}
+            "input_section_bytes": dict(sorted(sections.items())),
+            "coalesced_input_section_bytes": {
+                name: size - discarded[name] for name, size in sorted(sections.items())},
+            "comdat_groups": groups}
 
 
 def resolve(graph, specification):

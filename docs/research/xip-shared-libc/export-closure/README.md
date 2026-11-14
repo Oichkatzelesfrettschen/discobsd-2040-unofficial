@@ -22,15 +22,17 @@ object, and each external symbol names its owner and a reason:
 ```
 
 For required symbols R and selected members M, resolution starts with M empty.
-Each required symbol contributes its unique provider member and that member's
+Each required symbol contributes its resolved provider member and that member's
 strong undefined symbols. Every member enters M at most once, so cycles reach
 a finite fixed point. Verification checks the complete selected set again,
 including required kinds, conflicting providers and unresolved dependencies.
 Input-section accounting counts each member once, including BSS separately.
 
 The provider policy prefers a unique strong definition over a weak fallback.
-Multiple strong providers or ambiguous weak providers require an explicit
-ownership decision and fail. This policy constructs a candidate closure; it
+Multiple providers require an explicit ownership decision unless their complete
+COMDAT group identities agree. Equivalent groups use the lexicographically first
+member as the deterministic candidate provider; ordinary duplicate strong or
+weak definitions still fail. This policy constructs a candidate closure; it
 does not emulate a static linker's order-dependent archive extraction. Weak
 imports remain optional and visible. A named external owner can satisfy a strong
 dependency, but cannot substitute for a public API root or an archive definition.
@@ -43,6 +45,39 @@ The inspector rejects empty, duplicate, unsafe and case-alias member names,
 COMMON storage and unsupported ELF targets. Explicit ELF object types remain
 objects even in executable sections. Untyped assembly symbols use section flags
 as a classification heuristic and require later ABI review.
+
+## COMDAT ownership and accounting
+
+The [ELF ABI section-group rules](https://gabi.xinuos.com/elf/03-sheader.html#section-groups)
+define a group as an indivisible linker selection unit. The linker may discard
+duplicate groups by signature. The inspector additionally requires equal
+normalized group contents before it treats their providers as interchangeable;
+it rejects differing implementations even when the linker accepts their common
+signature. This is an ownership policy for reproducible closure, rather than a
+claim that every rejected group is invalid ELF.
+
+The normalized identity includes section names, types, flags, alignment, entry
+sizes, contents, exported symbol layouts and visibility, and relocation types,
+addends and target identities. Symbol-table indexes do not enter that identity.
+Local symbols within a group resolve through their section and offset. Local
+references outside the group retain their archive-member owner, so two groups
+that address different private state cannot silently coalesce. Initialized and
+zero-fill storage both contribute to the group identity.
+
+The inspector requires exclusive group membership, valid COMDAT metadata and
+relocation ownership in both directions. A relocation section outside a group
+cannot modify storage inside it. References from outside a group to its local
+symbols or through section-header indexes also fail. Groups support ordinary
+PROGBITS/NOBITS storage and REL/RELA relocations; unsupported storage metadata
+fails explicitly. Different group definitions with the same signature fail
+even when their exported symbol names do not overlap.
+
+`input_section_bytes` preserves gross selected-member accounting.
+`coalesced_input_section_bytes` subtracts duplicate group storage once per
+signature; it leaves ordinary member storage unchanged. These fields are input
+costs before garbage collection, relaxation, output alignment and final image
+placement. They establish no final flash or process-state size. The JSON output
+also records normalized group digests and per-group input-section costs.
 
 ## Replay and calibration
 
@@ -68,13 +103,27 @@ JSON fields fail. Successful output contains the archive hash, normalized
 contract, member set, unresolved weak symbols, named external imports and input
 section sums. Diagnostics go to stderr with a nonzero exit status.
 
-Twenty tests cover transitive dependencies, dormant APIs, missing dependencies,
+Thirty-three tests cover transitive dependencies, dormant APIs, missing dependencies,
 cycles, optional weak imports, external owners, object/function confusion,
 provider collisions, duplicate/case-alias/unsafe member names, objects in text,
 strong-over-weak selection, malformed contracts, thin archives, COMMON storage,
 ambiguous weak providers, deterministic accounting and the CLI JSON boundary.
 The thin-archive control requires the explicit embedded-archive diagnostic.
 The precheck also makes archive identity independent of `ar` path formatting.
+COMDAT cases compare coalesced section sizes with GNU `ld -r`, resolve the
+production shared syscall wrappers, and distinguish code, relocation targets,
+visibility, RELA addends and private-state owners. Negative controls cover group metadata,
+relocations outside group ownership, incoming local-symbol and section-index
+references, and signature collisions with disjoint exports. Zero-fill storage
+counts once, archive reversal preserves the chosen equivalent provider, and
+group signatures retain the ELF naming domain independently of API identifiers.
+
+The [COMDAT qualification receipt](comdat-qualification.json) binds the 33-test
+run, the bounded review and its repaired relocation-ownership finding, and the
+ELF specification snapshot. The existing 449-member static archive retains
+identical provider metadata and gross costs, apart from additive empty group
+metadata. Shared syscall selection has an explicit two-wrapper witness; broader
+shared-archive build wiring and ABI selection remain open.
 
 ## Reproducing the all-global screen
 

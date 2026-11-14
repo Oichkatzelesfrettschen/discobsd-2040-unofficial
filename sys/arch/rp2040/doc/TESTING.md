@@ -1814,7 +1814,13 @@ establishes coverage of that baseline; later changes require delta review.
 compiler-produced ARM ELF32 archives. Its controls cover explicit dormant API
 roots, transitive and cyclic dependencies, weak imports, strong/weak provider
 ownership, function/object kinds, COMMON storage, invalid member names, duplicate
-and case-alias members, thin archives and duplicate contract fields. The gate
+and case-alias members, thin archives and duplicate contract fields. COMDAT
+controls verify whole-group contents and relocation identities, exclusive
+ownership in both directions, rejection of incoming local and section-index
+references, and distinct code/state targets. GNU `ld -r` supplies the independent
+coalesced-size oracle; production shared syscall wrappers supply a caller
+witness. Ordinary duplicate providers remain rejected. Gross member-section
+sums and coalesced group-section sums are reported separately. The gate
 requires the caller-selected `PYTHON` with `pyelftools` and ARM GNU GCC/binutils;
 `SHARED_CLOSURE_CC` and `SHARED_CLOSURE_AR` select direct test invocations, while
 the root gate derives both from the target compiler prefix. Linux and macOS

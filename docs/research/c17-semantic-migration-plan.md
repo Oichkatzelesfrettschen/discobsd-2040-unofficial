@@ -190,8 +190,10 @@ authorization; each representative shared-libc workload must stay within a
 10% regression limit with measurement uncertainty reported.
 The [export-closure record](xip-shared-libc/export-closure/README.md) adds a
 calibrated prerequisite: explicit public roots determine archive membership,
-and input-section screening stays separate from final PIC size. Public ABI
-selection, complete state layout and runtime admission remain open.
+and input-section screening stays separate from final PIC size. COMDAT-aware
+provider closure checks complete group and relocation identity and distinguishes
+gross input storage from coalesced storage. Public ABI selection, shared-archive
+build wiring, complete state layout and runtime admission remain open.
 The [declaration frontier](shared-libc-declaration-frontier.md) records bounded
 header/provider comparison and callable-math gaps for the export-selection
 queue. Whole-header coverage and semantic acceptance remain open.

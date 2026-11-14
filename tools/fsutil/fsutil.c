@@ -854,7 +854,7 @@ int main (int argc, char **argv)
         print_help (argv[0]);
         return -1;
     }
-    if (newfs || add || mount || (check && fix))
+    if (newfs || add || mount || repartition || (check && fix))
         fs_clock_validate ();
 
     if (newfs) {

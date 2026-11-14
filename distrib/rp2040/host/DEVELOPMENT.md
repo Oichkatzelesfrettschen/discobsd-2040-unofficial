@@ -95,7 +95,9 @@ and the host clock hold. A test that boots with a clock past January 2038
 builds its image with `FSUTIL_CLOCK=2415919104` (0x90000000, July 2046) in
 the environment of `bmake MACHINE=rp2040 flash`. Both variables take a
 decimal count from 0 to 4294967295; any other value stops `fsutil` with
-status 1 before it opens an image. `fsutil -vvv IMAGE` prints the times in
+status 1 before a mode that creates or writes an image (`--new`, `--add`,
+`--repartition`, `--mount`, `--check --fix`) opens one. The times a mounted
+image records follow the same rules. `fsutil -vvv IMAGE` prints the times in
 the image, and `TZ=UTC` makes the text independent of the host zone.
 `tests/fsutil_clock` gates the behavior (`check-fsutil-clock`).
 

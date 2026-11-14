@@ -739,8 +739,9 @@ What stays limited:
   | the same, then `as d.s -o d.o` | 9,955 | 1,849 for `as` |
   | the same, then `ld` against `libc.a` | 12,516 | 2,561 for `ld` |
 
-  A process launched from the shell costs 167 commands whatever it does:
-  `fork()` writes the parent's image to the swap region. Beyond its own
+  A process launched from the shell costs 167 commands whatever it does;
+  the count fits `fork()` writing the parent's image to the swap region,
+  which this measurement does not observe directly. Beyond its own
   launch `smlrc` adds about 90, `as` about 1,680 and `ld` about 2,390;
   `as` keeps its sections in `/tmp/tasXXXXXX` and `ld` in
   `/tmp/ldaXXXXXX` (`usr.bin/as/as-thumb.c`, `usr.bin/ld/ld.c`), and

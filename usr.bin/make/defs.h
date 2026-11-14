@@ -11,7 +11,15 @@
 
 #define SHELLCOM "/bin/sh"
 
-typedef time_t TIMETYPE;
+/*
+ * A modification time as the kernel and the file system hold it: seconds
+ * since 1970 as an unsigned count, so dates after January 2038 order after
+ * earlier ones whatever the width and sign of time_t.  Zero marks a file
+ * that does not exist.  A four-byte time_t carries the count in its bits,
+ * so the conversion from time_t wraps a negative value to its stored form.
+ */
+typedef unsigned long TIMETYPE;
+#define STORED_TIME(t)  ((TIMETYPE)(t))
 
 /*  to install metering, add a statement like
  * #define METERFILE "/usr/sif/make/Meter"

@@ -90,10 +90,10 @@ inode times) as an unsigned 32-bit count of seconds since 1970, valid to
 2106. The build exports `SOURCE_DATE_EPOCH` (the committer date of HEAD
 unless the caller sets it), which bounds every time from above, so equal
 sources give equal images. The host `ar` and `ranlib` read the same variable
-only up to 2147483647 (0x7fffffff), the largest date the target `ar` and `ld`
-read from an archive header; above it they ignore it, archive dates follow the
-build environment, and the image is not reproducible from that variable
-alone. `FSUTIL_CLOCK=N` replaces the bound with a fixed
+over the same range, up to 4294967295, the largest date an archive header
+holds: the target `ar`, `ranlib` and `ld` read the header date field as an
+unsigned count, so archive dates follow the variable as the image does.
+`FSUTIL_CLOCK=N` replaces the bound with a fixed
 clock: every time `fsutil` stamps is the count N, whatever `SOURCE_DATE_EPOCH`
 and the host clock hold. The reserved inode 1 keeps zero modification and
 change times under either variable, and `--add` to an existing image leaves

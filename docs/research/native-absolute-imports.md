@@ -27,7 +27,10 @@ the next length field retains the existing end-of-symbol-stream convention;
 complete container-bound validation remains a separate obligation.
 
 Sparse relocation records require complete flags, address, and external index
-fields. The address reader uses the same unsigned word assembly. Before reading
+fields. The caller passes the already-read flags byte to the decoder; symbol
+decoding likewise receives its length byte directly. The input byte has one
+owner, eliminating pushback and its `ungetc` archive dependency. The address
+reader uses the same unsigned word assembly. Before reading
 an external index, the relocation loop requires the entire eight-byte record
 inside the declared relocation extent. Before applying a patch, it requires
 `addr <= len` and `width <= len - addr`, where BL and absolute words occupy four
@@ -115,7 +118,11 @@ bmake MACHINE=rp2040 logged-build
 bmake MACHINE=rp2040 check-native-linker
 ```
 
-The reader probe requires a host C compiler with UBSan and, on Linux,
+The reader probe checks undefined symbols with `nm` and rejects a decoder that
+imports `ungetc`. The recorded candidate with pushback fails this witness.
+An isolated `nm` returning empty output also fails: import evidence must include
+the linker's `malloc` and `fseek` dependencies before absence counts.
+The reader probe requires a host C compiler with UBSan, `nm`, and, on Linux,
 pkg-config and libbsd development files. The branch probe accepts explicit
 `--linker` and `--assembler` paths for negative controls or compiler comparison.
 Its source hash identifies the worktree source; an externally supplied linker

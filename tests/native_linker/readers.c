@@ -36,10 +36,10 @@ main(int argc, char **argv)
     } else if (strcmp(argv[1], "relocation") == 0) {
         struct reloc record;
 
-        fgetrel_thumb(stdin, &record);
+        fgetrel_thumb(stdin, &record, getc(stdin));
         printf("%u %u %u\n", record.flags, record.addr, record.index);
     } else if (strcmp(argv[1], "symbol") == 0) {
-        int length = fgetsym(stdin, &symbol);
+        int length = fgetsym(stdin, &symbol, getc(stdin));
 
         if (length == 0) {
             puts("end");

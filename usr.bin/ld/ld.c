@@ -200,11 +200,11 @@ fputhdr(struct exec *hdr, FILE *coutb)
  * Read a Thumb sparse relocation record: 5 or 8 bytes.
  * The record carries the segment offset it patches, so a BL split across
  * a word boundary and a halfword branch both address their own bytes.
+ * The caller supplies the flags byte; the stream starts at the address field.
  */
 void
-fgetrel_thumb(FILE *f, struct reloc *r)
+fgetrel_thumb(FILE *f, struct reloc *r, int flags)
 {
-        int flags = getc(f);
         unsigned char index[3];
 
         if (flags == EOF)
@@ -273,15 +273,15 @@ error(int n, const char *s, ...)
 	errlev = n;
 }
 
+/* The caller supplies the length byte before the type, value, and name. */
 int
-fgetsym(FILE *text, struct nlist *sym)
+fgetsym(FILE *text, struct nlist *sym, int length)
 {
 	register int c;
 
-	c = getc (text);
-	if (c <= 0)
+	if (length <= 0)
 		return 0;
-	sym->n_len = c;
+	sym->n_len = length;
 	sym->n_name = malloc (sym->n_len + 1);
 	if (! sym->n_name)
 		error (2, "out of memory");
@@ -317,9 +317,7 @@ fgetsym_bounded(FILE *input, struct nlist *symbol, unsigned *remaining)
         }
         if ((unsigned)length + 6 > *remaining)
                 error(2, "symbol exceeds declared table extent");
-        if (ungetc(length, input) == EOF)
-                error(2, "cannot restore input symbol length");
-        consumed = fgetsym(input, symbol);
+        consumed = fgetsym(input, symbol, length);
         *remaining -= consumed;
         return consumed;
 }
@@ -567,8 +565,7 @@ look_absolute(unsigned int sn, unsigned int symbols_at)
                 if ((unsigned)length + 6 > remaining)
                         error(2, "truncated input symbol extent");
                 if (index == sn) {
-                        if (fseek(text, -1L, SEEK_CUR) != 0 ||
-                            !fgetsym(text, &symbol))
+                        if (!fgetsym(text, &symbol, length))
                                 error(2, "cannot read input symbol");
                         if (symbol.n_type == N_EXT + N_ABS)
                                 for (entry = symtab; entry < symtab + symindex; entry++)
@@ -796,12 +793,12 @@ relocate_thumb(struct local *lp, FILE *b1, FILE *b2, unsigned int len,
          */
         for (n = 0; relsize - n >= 5; ) {
                 c = getc(reloc);
-                if (c == EOF || ungetc(c, reloc) == EOF)
+                if (c == EOF)
                         error(2, "truncated input relocation flags");
                 record_size = ((c & RSMASK) == REXT) ? 8 : 5;
                 if (record_size > relsize - n)
                         error(2, "truncated relocation record extent");
-                fgetrel_thumb (reloc, &rel);
+                fgetrel_thumb (reloc, &rel, c);
                 n += record_size;
                 switch (rel.flags & RTFMASK) {
                 case RTABS32:

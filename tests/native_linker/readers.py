@@ -44,6 +44,14 @@ def main():
     (work / 'build.log').write_bytes(build.stdout + build.stderr)
     if build.returncode or build.stderr:
         raise RuntimeError('reader build fails; see ' + str(work / 'build.log'))
+    imports = subprocess.check_output(['nm', '-u', str(binary)], text=True)
+    (work / 'undefined-symbols.txt').write_text(imports)
+    symbols = {line.split()[-1].split('@')[0].lstrip('_')
+               for line in imports.splitlines() if line.split()}
+    if not {'malloc', 'fseek'} <= symbols:
+        raise RuntimeError('undefined-symbol evidence lacks the linker dependencies')
+    if 'ungetc' in symbols:
+        raise RuntimeError('decoder imports ungetc instead of retaining its input byte')
     cases = []
     for value in (0, 1, 0x7fffffff, 0x80000000, 0xffffffff, 0x12345678):
         cases.append(('word', struct.pack('<I', value), 0, f'{value}\n'))

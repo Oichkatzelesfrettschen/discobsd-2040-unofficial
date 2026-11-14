@@ -228,3 +228,30 @@ These fixture additions change tests and documentation only. Production
 `nm.c` remains byte-identical to the measured candidate. Final-head CI and
 review remain required before integration; stack, heap, and physical-board
 measurements remain separate open evidence classes.
+
+## Reader review and optional executable cost
+
+The parent source review follows `nm_get_arobj`, `nextel`, `fgetsym`,
+`compare`, and `namelist` in `usr.bin/nm/nm.c`, and checks their layout
+assumptions against `sys/sys/exec_aout.h` and `usr.bin/ar/archive.h`.
+`usr.bin/nm/Makefile` supplies the native archive-header include directory;
+the cross build selects the same archive definitions through its explicit
+include. The review finds no additional actionable defect in these paths.
+This is a parent review, not an independent model review.
+
+| Claim | Source invariant and falsifier | Evidence |
+| --- | --- | --- |
+| Archive position stays in the input | `nextel` checks stored bytes and parity against the remaining file extent before adding them; truncated storage falsifies admission | Short/extended names, both parities, malformed header/body/padding cases and archive-padding mutation |
+| Symbol offset follows the object format | Each section consumes only remaining member extent; relocation sizes participate only for RMAGIC | Three nonzero-section fixtures and relocation-offset mutation |
+| Partial decoding preserves ownership | The first pass bounds count and allocation multiplication; the second pass checks capacity before storing, and failure frees completed names | Allocation and stream failure schedules with zero outstanding allocation checks |
+| ARM reverse ordering preserves direction | `rflg` is explicitly signed and each numeric branch returns its sign | Option oracle on host, ILP32, and Cortex-M0; unsigned-direction mutation |
+| Output failure reaches process status | Failed final flush or stream error calls the common error path | Injected stream-failure schedule and nonzero-status oracle |
+
+The C17 source-denominator gate passes its 21 rejection controls and reports
+153 accepted, 543 excluded, 62 migration-open, and 2,261 unreviewed paths.
+Those counts establish accounting, not complete C17 semantic acceptance.
+
+The optional native executable's positive deltas are recorded separately in
+[native-nm-resource-exception.md](native-nm-resource-exception.md). Shipped
+resource equality does not absorb that executable's 1,140-byte loaded growth.
+Its exact exception remains pending user approval.

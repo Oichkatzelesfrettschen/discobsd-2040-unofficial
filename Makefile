@@ -497,6 +497,22 @@ check-rp2040-nlist: check-python
 check-debug-paths: check-python
 		MAKE=${MAKE:Q} ${PYTHON} tools/check_debug_paths.py
 
+# Every cross-compiled program and library object a build leaves reaches
+# the __NAME64 symbol of each time function sys/sys/_time_t.h binds, never
+# the 32-bit entry point libc keeps for its own members and for programs
+# Smaller C compiles on the board. The test calibrates the check on a unit
+# at the default view, one built with _TIME_BITS=32 and one that declares
+# time() by hand; the check then reads the objects of the last build, so it
+# runs after build and fails when it finds none.
+check-time-binding: check-python
+		ARM_GCC=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    ARM_NM=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-nm \
+		    ${PYTHON} tools/check_time_binding_test.py
+		${PYTHON} tools/check_time_binding.py \
+		    --nm ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-nm
+
+.PHONY: check-time-binding
+
 check-rp2040-target-flags: check-python
 		${PYTHON} tests/compiler_matrix/target_flags.py \
 		    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
@@ -1537,7 +1553,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times
-CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts \
+CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \

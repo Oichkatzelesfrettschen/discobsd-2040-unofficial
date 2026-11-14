@@ -27,7 +27,8 @@
  * and the kernel's layouts. libc compiles its members with _TIME_BITS
  * defined as 32 (lib/libc/Makefile), and a program compiled by Smaller C
  * on the board declares these names by hand; that compiler has no 64-bit
- * integer, so the wide view is closed to it.
+ * integer, so the wide view is closed to it. tools/check_time_binding.py
+ * rejects a cross-compiled program object that reaches one of them.
  */
 #ifndef _SYS__TIME_T_H_
 #define _SYS__TIME_T_H_

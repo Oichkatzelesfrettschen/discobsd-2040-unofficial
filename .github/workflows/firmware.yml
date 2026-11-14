@@ -689,10 +689,11 @@ jobs:
           echo "/Applications/ArmGNUToolchain/$arm_toolchain_version/arm-none-eabi/bin" \
             >> "$GITHUB_PATH"
           # The divider verifier reads the kernels through capstone and
-          # pyelftools; Homebrew's Python refuses pip installs into itself,
-          # so they live in a venv the tiers name as PYTHON.
+          # pyelftools, and check-matezinho-host converts the artwork through
+          # Pillow; Homebrew's Python refuses pip installs into itself, so
+          # they live in a venv the tiers name as PYTHON.
           python3 -m venv "$HOME/gates-venv"
-          "$HOME/gates-venv/bin/pip" install --quiet capstone pyelftools
+          "$HOME/gates-venv/bin/pip" install --quiet capstone pyelftools pillow
           echo "PYTHON=$HOME/gates-venv/bin/python3" >> "$GITHUB_ENV"
       - name: Report the toolchain
         run: |

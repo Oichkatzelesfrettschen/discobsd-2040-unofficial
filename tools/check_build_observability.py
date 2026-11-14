@@ -18,6 +18,7 @@ EXPECTED_LABELS = {
     "linux-host",
     "linux-kernel-headroom",
     "linux-lint",
+    "linux-matezinho-sd",
     "linux-qemu",
     "linux-renode",
     "linux-renode-capacity",
@@ -64,6 +65,7 @@ EXPECTED_COMMANDS = {
         "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link"
     ),
     "linux-lint": "bmake MACHINE=rp2040 check-lint",
+    "linux-matezinho-sd": "bmake MACHINE=rp2040 check-matezinho-sd",
     "linux-qemu": "bmake MACHINE=rp2040 check-qemu",
     "linux-core1-emulation": "bmake MACHINE=rp2040 check-core1-emulation",
     "linux-renode": "bmake MACHINE=rp2040 check-renode",

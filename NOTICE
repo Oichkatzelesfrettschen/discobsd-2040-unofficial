@@ -461,3 +461,12 @@ Renode, the arm-none-eabi toolchain, qemu, bmake, shellcheck, ruff and
 the Python packages distrib/rp2040/host depends on are installed by a
 package manager under their own terms and are named in
 sys/arch/rp2040/doc/TESTING.md beside the tier that needs each.
+
+------------------------------------------------------------------------
+Third-party artwork outside the firmware
+
+third_party/mate-icon-theme holds the MATE icon theme artwork that the
+MATEzinho desktop reads from a separate artwork volume. No kernel, root
+image or UF2 file contains it. Its terms, attribution and per-file
+hashes are in that directory's README.md and LICENSES/, which travel with
+any copy of the artwork.

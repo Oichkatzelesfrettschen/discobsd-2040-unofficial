@@ -45,7 +45,7 @@ void	nolog(time_t);
 
 struct	utmp utmp;
 int	sint;
-time_t	stogo;
+long	stogo;			/* seconds to go, bounded by main() */
 char	tpath[] =	"/dev/";
 int	nlflag = 1;		/* nolog yet to be done */
 int	killflg = 1;
@@ -107,7 +107,7 @@ warning(term, sdt, now, type)
 	char *type;
 {
 	char *ts;
-	register int delay = sdt - now;
+	register int delay = (int)(sdt - now);
 
 	if (delay > 8)
 		while (delay % 5)
@@ -205,7 +205,7 @@ main(argc,argv)
 		(void) strcat(nolog2, " ");
 		(void) strcat(nolog2, *argv++);
 	}
-	m = ((stogo = sdt - nowtime) + 30)/60;
+	m = ((stogo = (long)(sdt - nowtime)) + 30)/60;
 	h = m/60;
 	m %= 60;
 	ts = ctime(&sdt);
@@ -319,7 +319,7 @@ main(argc,argv)
 #endif
 			finish(0);
 		}
-		stogo = sdt - time((time_t *)0);
+		stogo = (long)(sdt - time((time_t *)0));
 		if (stogo > 0 && sint > 0)
 			sleep((unsigned)(sint<stogo ? sint : stogo));
 		stogo -= sint;
@@ -331,7 +331,8 @@ time_t
 getsdt(s)
 	register char *s;
 {
-	time_t t, t1, tim;
+	long t, tim;		/* seconds from now, or into today */
+	time_t t1;
 	register char c;
 	struct tm *lt;
 

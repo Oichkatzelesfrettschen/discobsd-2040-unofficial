@@ -56,7 +56,7 @@ atot(p, store)
 {
 	register char *t, **mp;
 	static struct tm *lt;
-	time_t tval, time();
+	time_t tval;
 	int day, month, year;
 
 	if (!*p) {

@@ -1522,7 +1522,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
-		check-compress-host
+		check-compress-host check-archive-stored-times
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
@@ -1635,6 +1635,14 @@ check-sh-heap-boundary: check-python
 		${PYTHON} bin/sh/tests/target_heap_boundary.py --self-test
 		${PYTHON} bin/sh/tests/target_heap_boundary.py bin/sh/sh.dis
 
+# The archive tools read and write file times as the unsigned 32-bit count
+# the kernel stores, valid through 4294967295. The gate builds ar, ranlib and
+# ld from their target sources for three views of time and needs no built
+# tree.
+check-archive-stored-times: check-python
+		${PYTHON} tools/test_execution.py run archive.stored-times.native -- \
+		    sh tests/stored_times/archive_tools.sh
+
 check-tar-host:
 		sh bin/tar/tests/tartest.sh
 		PYTHON=${PYTHON:Q} sh bin/tar/tests/timestamp_identity_test.sh
@@ -1721,7 +1729,7 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-dd-contracts check-umount-contracts check-fsck-inode-range \
 		check-backgammon-contracts check-libc-host-contracts check-scandir-contracts \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
-		check-tar-host check-cpio-host \
+		check-tar-host check-cpio-host check-archive-stored-times \
 		check-libtcl-contracts check-printf-contracts \
 		check-printf-contracts-ilp32 check-recovery-utility-contracts \
 		check-timeout-contracts check-libcalc check-libbn
@@ -2072,6 +2080,7 @@ installfs:
 		check-puzzlebox-host check-calc-host check-sh-editor check-tar-host \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \
+		check-archive-stored-times \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump check-renode-union \

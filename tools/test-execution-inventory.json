@@ -250,6 +250,11 @@
       "kind": "HOST_PROGRAM_GATES member"
     },
     {
+      "from": "check-host",
+      "to": "check-archive-stored-times",
+      "kind": "HOST_PROGRAM_GATES member"
+    },
+    {
       "from": "check-ilp32-execution",
       "to": "check-ilp32-execution-recipes",
       "kind": "detached submake with fresh receipts"
@@ -651,6 +656,11 @@
     },
     {
       "from": "check-ilp32-execution-recipes",
+      "to": "check-archive-stored-times",
+      "kind": "required archive stored-time native variants"
+    },
+    {
+      "from": "check-ilp32-execution-recipes",
       "to": "check-libbn",
       "kind": "required libbn variants"
     },
@@ -807,6 +817,31 @@
       ],
       "recipe": "${PYTHON} tools/test_execution.py run tar.regular-publication.native -- sh bin/tar/tests/regular_publication_identity_test.sh",
       "script": "bin/tar/tests/regular_publication_identity_test.sh",
+      "aliases": []
+    },
+    {
+      "id": "archive.stored-times.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler; the 32-bit views need a multilib compiler and report SKIP without one",
+      "directory": ".",
+      "makefile": "Makefile",
+      "target": "check-archive-stored-times",
+      "root_target": "check-archive-stored-times",
+      "program": "sh",
+      "condition": "unconditional; archive_tools.sh reports SKIP for each four-byte-long view the compiler cannot build and run",
+      "prerequisites": [
+        "usr.bin/ar/archive.c",
+        "usr.bin/ar/archive.h",
+        "usr.bin/ar/extract.c",
+        "usr.bin/ar/replace.c",
+        "usr.bin/ranlib/ranlib.c",
+        "usr.bin/ld/ld.c",
+        "tests/stored_times/archive_tools.sh",
+        "tests/stored_times/stat_shim.c"
+      ],
+      "recipe": "${PYTHON} tools/test_execution.py run archive.stored-times.native -- sh tests/stored_times/archive_tools.sh",
+      "script": "tests/stored_times/archive_tools.sh",
       "aliases": []
     },
     {

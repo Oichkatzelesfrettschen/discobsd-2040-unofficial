@@ -189,3 +189,8 @@ recorded source revisions. Main's calendar changes require a new matched
 resource capture before the integrated candidate receives a resource verdict.
 The recorded checks establish neither full aggregate qualification nor shared
 physical-board execution.
+
+The [calendar-baseline resource comparison](../../native-linker-resource-review.md)
+supplies the subsequent matched clean capture. It reproduces the pending linker
+exception and identifies changed program and kernel artifacts for renewed
+runtime qualification; it grants no resource approval.

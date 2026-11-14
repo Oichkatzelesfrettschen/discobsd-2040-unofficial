@@ -1,5 +1,41 @@
 # Native linker resource review
 
+## Calendar baseline qualification
+
+Candidate `66ce7c5b57a691fed604f26d14449996f0887743` includes main
+`9561fd1cf05d823d1b93b9236448a65ff1c99abc`. The matched
+[baseline](native-linker-calendar-resource-baseline.json),
+[candidate](native-linker-calendar-resource-candidate.json), and
+[comparison](native-linker-calendar-resource-comparison.json) bind separate
+clean distributions and complete shipped dependency closures to identical
+measurement tools. Historical receipts remain unchanged.
+
+The five positive surfaces reproduce the image-clock comparison exactly:
+1,324 additional linker loaded/raw bytes, 918 additional packed bytes, one
+additional linker allocation block and one additional root data block. The
+last two counts describe the same stored growth at different levels. The
+other 157 of 162 measured surfaces remain unchanged. Every selected archive
+member and hash matches the paired baseline. The candidate has 239 free root
+blocks. Resource approval remains pending; the default comparator rejects the
+five positive surfaces as designed.
+
+The shared syscall and ROM selectors remain disabled in shipped static builds.
+Their implementation adds no measured static-image cost beyond the linker
+candidate. Eleven program hashes and both kernel hashes differ from the older
+image-clock candidate. The older runtime qualification remains evidence for
+its recorded artifacts. The
+[shared-ROM integration receipt](xip-shared-libc/object-abi/rom-main-qualification.json)
+records focused contract and calendar checks after the main merge.
+
+
+The refreshed flash image build and PICO_UART Renode gate pass. The
+[runtime receipt](native-linker-calendar-runtime.json) binds the loaded kernel,
+root image and peripheral-model assembly to SHA-256 identities. The gate checks
+MPU faults, exec residue, core-1 pings and injected stall reporting. Its warning
+classifier accepts 82,887 model warnings across 19 bounded classes with zero
+errors. This execution covers the static emulator image; shared executables and
+physical-board behavior remain separate qualifications.
+
 ## Image-clock baseline qualification
 
 Candidate `6c08eaab4f14eb02ccdddc2cdc4c13ad50aec2bf` includes main
@@ -153,6 +189,9 @@ Target undefined-symbol inspection confirms that `ungetc` disappears. These
 object and relink results establish no packed-block or whole-distribution
 claim; a clean captured distribution remains the deciding measurement.
 
-Native execution regression, resource approval, review, and integration remain
-open. The baseline commit supplies the rollback point. Shared-library veneers
-and the wider XIP ABI retain their own implementation and qualification work.
+The [authorized read-only review](native-linker-approved-review.json) covers
+main `9561fd1c` through candidate `66ce7c5b` and reports no actionable
+correctness defects. The reviewer runs no tests; the qualification records
+above own executed evidence. Resource approval and integration remain open.
+Shared-library veneers and the wider XIP ABI retain their own implementation
+and qualification work.

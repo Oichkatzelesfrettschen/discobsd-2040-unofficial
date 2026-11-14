@@ -19,7 +19,8 @@ member and hash matches the paired baseline. The candidate has 239 free root
 blocks. The owner approves these exact limits for candidate `66ce7c5b` against
 baseline `9561fd1c`. The default comparator continues to reject the five
 positive surfaces as designed; the approval supplies the measured exception.
-Aggregate qualification and reviewed integration remain open.
+The aggregate and separate ILP32 qualifications pass; reviewed integration
+remains open.
 
 The shared syscall and ROM selectors remain disabled in shipped static builds.
 Their implementation adds no measured static-image cost beyond the linker
@@ -197,3 +198,17 @@ correctness defects. The reviewer runs no tests; the qualification records
 above own executed evidence. Resource approval and integration remain open.
 Shared-library veneers and the wider XIP ABI retain their own implementation
 and qualification work.
+
+## Aggregate qualification at the approved implementation
+
+The logged build and aggregate check pass at `81817370` with exit status 0
+in 3,537.686 seconds. The invocation
+`rp2040-check-local-20261114T031737Z-2453331-237293d3` completes at
+`2026-11-14T04:16:35Z`. Its terminal receipt has SHA-256
+`193f99c77d652d5c03e0cd821c35836cdbc83eb4eec0c9d7707ae0c1f8b9481b`.
+The receipt covers the aggregate tiers, including board compilation; physical
+board execution remains outside its evidence. The separate ILP32 inventory passes all 207 entries in 667.791 seconds at
+the same source commit. Its invocation
+`rp2040-ilp32-local-20261114T040905Z-3835923-948f9329` completes at
+`2026-11-14T04:20:13Z` with terminal receipt SHA-256
+`1e09f6f618117144492b8f0f6d12d06c1bb5a048022766ff8bb3e18431f878a4`.

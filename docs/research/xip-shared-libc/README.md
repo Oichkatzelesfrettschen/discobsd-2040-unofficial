@@ -414,3 +414,7 @@ and swap growth are unmeasured, and the PIC data design's run-time cost rests
 on object sizes alone. The LARGE-epoch defect rests on source plus one
 retained board transcript of the denied address, not on a LARGE run with the
 MPU enabled.
+
+The [full-library state experiments](full-library-state.md) record LTO sizing,
+process-state relocation controls, installed-header discovery and compact
+callable-slot execution. The fixed reservation remains a failed size gate.

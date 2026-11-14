@@ -134,6 +134,15 @@ full cross libc archive grows by 92 bytes. Record parsing, page mutation,
 iteration, locking, runtime resource qualification and physical-board execution
 remain separate open leaves.
 
+The [signal-set contract](signal-set-contracts.md) covers five callable scalar
+operations, exact public declarations, requested-bit membership, and checked
+signal-number shifts. Host and Cortex-M0 controls exercise the provider;
+Smaller C-generated calls exercise native header input. Fixed-mask callers
+retain their target code size. The [resource request](signal-set-resource-exception.md)
+records the approved archive and shipped-program costs. Final image
+qualification and integration remain open; kernel signal delivery remains a
+separate requirement.
+
 Every requirement leaf records edition/option authority, declarations/types,
 input and state transitions, outputs/errors, ownership/cleanup, signal and
 concurrency interactions, archive/caller/kernel dependencies, complexity and

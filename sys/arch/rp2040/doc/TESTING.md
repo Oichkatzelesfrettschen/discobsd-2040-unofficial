@@ -7,6 +7,29 @@ tiers run after `bmake MACHINE=rp2040 build`, which leaves
 the kernels and distribution tree the gates read. `check-cross` builds the
 reduced board libc when its source closure is newer than the archive.
 
+`check-signal-sets` belongs to `check-host`. It runs 31,981 scalar-provider
+checks under strict C17 and UBSan, including a finite mask/signal domain,
+singleton/full sets, errno preservation, invalid-number admission, and unchanged
+sets on failure. Seven warning-clean mutations must reach named rejection
+cases. Every invocation retains generated controls and their build/run logs.
+`check-signal-sets-cross` belongs to `check-cross`: it compiles the real public
+header and provider under strict C17 for Cortex-M0+, rejects an incompatible
+membership prototype, and compiles/assembles the expanded header fixture with
+Smaller C. A malformed native input must fail with its syntax diagnostic.
+`check-signal-sets-qemu` belongs to `check-qemu` and executes the real-header
+fixture under Cortex-M0 with newlib/Linux syscall support. It checks function
+addresses, const membership, single evaluation, invalid errors, and adjacent
+storage preservation. The same QEMU gate executes the Smaller C-generated
+caller and observes six instrumented abort/system scenarios: abort fallback,
+parent completion, fork failure, child exec failure, wait failure, and null
+command. Wrong abort/child masks and omitted mask restoration must each return
+the named failure status. These caller fixtures replace process and signal
+services with observers; they establish masks and call ordering, not kernel
+signal delivery. Missing required tools fail the selected gate. These
+gates establish their named host/compiler/emulator evidence; native on-device
+preprocessing, DiscoBSD kernel execution, runtime peaks, and physical-board
+behavior remain separate.
+
 `check-native-nm` belongs to `check-host`, owned by the Linux and macOS
 host-tier jobs in `.github/workflows/firmware.yml`. It exercises the host build
 of the native reader with 172 archive/object cases and eleven option cases, including exact member

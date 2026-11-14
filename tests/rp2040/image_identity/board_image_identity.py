@@ -11,9 +11,10 @@ the USB console and reads machdep.image_length, machdep.image_crc and
 machdep.image_crc_stored, the identity the kernel computed over its own
 flash at boot (image_identify() in sys/arch/rp2040/rp2040/board.c), and
 compares them with the same three values computed from UNIX_BIN by
-image_identity() of tools/renode/check-boot.py. The sum leaves the board
-descriptor out, so a board-specific copy of one build answers like the
-build.
+image_identity() of tools/renode/check-boot.py. The sum leaves the second
+stage, the stamp span the PicoCalc UF2 loader writes and the board
+descriptor out, so a board-specific copy of one build, or the build flashed
+through the loader, answers like the build.
 
 Checks: a root shell answers; the three lines equal the host's; the stored
 sum equals the computed one. A board running another build fails the

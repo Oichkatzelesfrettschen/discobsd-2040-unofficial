@@ -1952,9 +1952,10 @@ check-renode-capacity:
 		sh tools/renode/check-capacity.sh ${FSIMG}
 
 # The boot-time image comparison on the emulated PICO_UART kernel:
-# tools/renode/check-identity.sh boots the stamped kernel and two altered
+# tools/renode/check-identity.sh boots the stamped kernel and three altered
 # copies on ${FLASHBIN} and requires the image line of each, so the
-# "differs" branch of image_identify() runs. Outside "check" for the reason
+# "differs" branch of image_identify() runs and the loader's stamp span is
+# shown to be skipped. Outside "check" for the reason
 # check-renode is.
 check-renode-identity:
 		sh tools/renode/check-identity.sh ${FLASHBIN}

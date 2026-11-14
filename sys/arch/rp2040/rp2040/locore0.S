@@ -225,9 +225,16 @@ InfiniteLoop:
  * The RP2040 vector table: ARMv6-M's 16 system entries followed by the
  * chip's 32 interrupts. ARMv6-M defines neither the MemManage, BusFault,
  * and UsageFault entries nor DebugMon, so those slots stay reserved.
- * Entries 8, 9 and 10 identify the flash image: tools/kernsum stamps its
- * length and CRC32 into 8 and 9 after the link, and 10 addresses the board
- * descriptor that sum leaves out. image_identify() in board.c reads them.
+ *
+ * The PicoCalc UF2 loader (pelrun/uf2loader) replaces flash bytes 0-255
+ * with its own second stage and, after flashing, stamps bytes 0x110-0x12B
+ * (entries 4 to 10) with a magic word, the end of its flash area and the
+ * first 20 bytes of the UF2 path. Entries 4 to 10 therefore stay zero,
+ * and the image identity lives outside that span: tools/kernsum stamps
+ * the image length into entry 12 and its CRC32 into entry 13, both
+ * reserved on ARMv6-M, and g_boardAddress after the table holds the
+ * address of the board descriptor that sum leaves out. image_identify()
+ * in board.c reads them.
  */
 	.section	.isr_vector, "a", %progbits
 	.type	g_pfnVectors, %object
@@ -240,13 +247,13 @@ g_pfnVectors:
 	.word	0			/* Reserved on ARMv6-M. */
 	.word	0			/* Reserved on ARMv6-M. */
 	.word	0			/* Reserved on ARMv6-M. */
-	.word	0
+	.word	0			/* Reserved on ARMv6-M. */
+	.word	0			/* Reserved on ARMv6-M. */
+	.word	0			/* Reserved on ARMv6-M. */
+	.word	0			/* Reserved on ARMv6-M. */
+	.word	SVC_Handler
 	.word	0			/* Image length; tools/kernsum. */
 	.word	0			/* Image CRC32; tools/kernsum. */
-	.word	__board_start		/* Board descriptor address. */
-	.word	SVC_Handler
-	.word	0			/* Reserved on ARMv6-M. */
-	.word	0
 	.word	PendSV_Handler
 	.word	SysTick_Handler
 
@@ -285,6 +292,12 @@ g_pfnVectors:
 	.word	SPARE_IRQ_5_Handler
 
 	.size	g_pfnVectors, . - g_pfnVectors
+
+/* The board descriptor address, the first word after the 48-entry table. */
+	.type	g_boardAddress, %object
+g_boardAddress:
+	.word	__board_start
+	.size	g_boardAddress, . - g_boardAddress
 
 /*
  * Every handler is weak and aliases Default_Handler, so a driver defines the

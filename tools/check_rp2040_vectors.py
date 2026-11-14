@@ -1,11 +1,17 @@
 """Check linked RP2040 exception-vector slots against their named symbols.
 
-Entries 8, 9 and 10 are the image identity words of tools/kernsum: the
-length of the flash image, its CRC32 with the CRC word and the board
-descriptor read as zero, and the descriptor's address. The check rebuilds
-the flash image from the PT_LOAD segments and recomputes both, then
-requires its own comparison to reject that image with one byte changed and
-with each word changed, so a comparison that accepts everything fails here.
+Entries 12 and 13 are the image identity words of tools/kernsum: the length
+of the flash image and its CRC32. The word after the 48-entry table,
+0x100001C0, addresses the board descriptor. Entries 4 to 10 hold zero: the
+PicoCalc UF2 loader writes its stamp over bytes 0x110-0x12B after it
+flashes an application, and replaces bytes 0-255 with its own second stage.
+The CRC reads those spans, the CRC word and the board descriptor as zero.
+The check rebuilds the flash image from the PT_LOAD segments and recomputes
+the sum, then requires its own comparison to reject that image with one
+covered byte changed and with each word changed, and to accept it with a
+loader stamp, a replaced second stage or a rewritten descriptor, so a
+comparison that accepts everything or rejects the loader's writes fails
+here.
 """
 
 import argparse
@@ -22,11 +28,15 @@ from elftools.elf.elffile import ELFFile
 VECTOR_ADDRESS = 0x10000100
 IMAGE_ADDRESS = 0x10000000
 BOARD_DESCRIPTOR_SIZE = 16
+BOOT2_SIZE = 0x100
+# The loader's stamp: vector entries 4 to 10, flash bytes 0x110-0x12B.
+STAMP_START = 0x110
+STAMP_END = 0x12C
 LENGTH = object()
 CRC = object()
 SLOTS = (
     "_estack", "Reset_Handler", "NMI_Handler", "HardFault_Handler",
-    None, None, None, None, LENGTH, CRC, "__board_start", "SVC_Handler", None, None,
+    None, None, None, None, None, None, None, "SVC_Handler", LENGTH, CRC,
     "PendSV_Handler", "SysTick_Handler",
     "TIMER_IRQ_0_Handler", "TIMER_IRQ_1_Handler", "TIMER_IRQ_2_Handler",
     "TIMER_IRQ_3_Handler", "PWM_IRQ_WRAP_Handler", "USBCTRL_IRQ_Handler",
@@ -39,6 +49,10 @@ SLOTS = (
     "SPARE_IRQ_0_Handler", "SPARE_IRQ_1_Handler", "SPARE_IRQ_2_Handler",
     "SPARE_IRQ_3_Handler", "SPARE_IRQ_4_Handler", "SPARE_IRQ_5_Handler",
 )
+# The word after the table holds the address of the board descriptor.
+BOARD_WORD = VECTOR_ADDRESS - IMAGE_ADDRESS + 4 * len(SLOTS)
+LENGTH_WORD = VECTOR_ADDRESS - IMAGE_ADDRESS + 4 * SLOTS.index(LENGTH)
+CRC_WORD = VECTOR_ADDRESS - IMAGE_ADDRESS + 4 * SLOTS.index(CRC)
 
 
 def check(path):
@@ -62,10 +76,6 @@ def check(path):
             continue
         if name is LENGTH or name is CRC:
             continue
-        if name == "__board_start":
-            if value != symbol(table, name, "STT_NOTYPE"):
-                raise ValueError(f"vector {index} differs from {name}")
-            continue
         kind = "STT_NOTYPE" if index == 0 else "STT_FUNC"
         expected = symbol(table, name, kind)
         if value != expected:
@@ -77,7 +87,19 @@ def check(path):
             if not value & 1:
                 raise ValueError(f"vector {index} lacks the Thumb bit")
             offset_for(elf, data, value & ~1, 2, executable=True)
-    check_identity(elf)
+    check_board_word(elf, data, table)
+    text_start = symbol(table, "Reset_Handler", "STT_FUNC") & ~1
+    check_identity(elf, text_start - IMAGE_ADDRESS)
+
+
+def check_board_word(elf, data, table):
+    """Require the word after the table to address the board descriptor."""
+    word = symbol(table, "g_boardAddress", "STT_OBJECT", 4)
+    if word != VECTOR_ADDRESS + 4 * len(SLOTS):
+        raise ValueError("board address word does not follow the vector table")
+    value = struct.unpack_from("<I", data, offset_for(elf, data, word, 4))[0]
+    if value != symbol(table, "__board_start", "STT_NOTYPE"):
+        raise ValueError("board address word differs from __board_start")
 
 
 def flash_image(elf):
@@ -96,50 +118,86 @@ def flash_image(elf):
     return image
 
 
-def identity_error(image):
+def identity_spans(image, forget=()):
+    """Return the (start, end) spans of image that the CRC reads as zero.
+
+    forget names spans to leave out ("boot2", "stamp" or "board"): a
+    comparison built that way is a mutant, and the fixture requires it to
+    reject an image that the loader rewrote.
+    """
+    board = struct.unpack_from("<I", image, BOARD_WORD)[0] - IMAGE_ADDRESS
+    spans = {
+        "boot2": (0, BOOT2_SIZE),
+        "stamp": (STAMP_START, STAMP_END),
+        "crc": (CRC_WORD, CRC_WORD + 4),
+        "board": (board, board + BOARD_DESCRIPTOR_SIZE),
+    }
+    return [span for name, span in spans.items() if name not in forget]
+
+
+def identity_sum(image, forget=()):
+    """Return the CRC32 of image with its excluded spans read as zero."""
+    summed = bytearray(image)
+    for start, end in identity_spans(image, forget):
+        summed[start:end] = bytes(end - start)
+    return zlib.crc32(summed)
+
+
+def identity_error(image, forget=()):
     """Return why the identity words of a flash image are wrong, or None."""
-    words = VECTOR_ADDRESS - IMAGE_ADDRESS + 4 * SLOTS.index(LENGTH)
-    if len(image) < words + 12:
+    if len(image) < BOARD_WORD + 4 + BOARD_DESCRIPTOR_SIZE:
         return "flash image ends before the identity words"
-    length, crc, board = struct.unpack_from("<3I", image, words)
-    board -= IMAGE_ADDRESS
+    length, crc = struct.unpack_from("<2I", image, LENGTH_WORD)
+    board = struct.unpack_from("<I", image, BOARD_WORD)[0] - IMAGE_ADDRESS
     if length != len(image):
         return f"length word is {length}, flash image is {len(image)} bytes"
-    if board < words + 12 or board + BOARD_DESCRIPTOR_SIZE > length:
+    if board < BOARD_WORD + 4 or board + BOARD_DESCRIPTOR_SIZE > length or board & 255:
         return "board descriptor address lies outside the flash image"
-    summed = bytearray(image)
-    summed[words + 4:words + 8] = bytes(4)
-    summed[board:board + BOARD_DESCRIPTOR_SIZE] = bytes(BOARD_DESCRIPTOR_SIZE)
-    if crc != zlib.crc32(summed):
-        return f"CRC word is {crc:08x}, flash image sums to {zlib.crc32(summed):08x}"
+    summed = identity_sum(image, forget)
+    if crc != summed:
+        return f"CRC word is {crc:08x}, flash image sums to {summed:08x}"
     return None
 
 
-def check_identity(elf):
+def check_identity(elf, text_start):
     image = flash_image(elf)
     error = identity_error(image)
     if error is not None:
         raise ValueError(error)
-    words = VECTOR_ADDRESS - IMAGE_ADDRESS + 4 * SLOTS.index(LENGTH)
-    board = struct.unpack_from("<I", image, words + 8)[0] - IMAGE_ADDRESS
-    mutants = {
+    board = struct.unpack_from("<I", image, BOARD_WORD)[0] - IMAGE_ADDRESS
+    # Covered bytes: any change must be caught.
+    rejected = {
         "a changed last byte": (len(image) - 1, 1),
-        "a changed first byte": (0, 1),
-        "a changed length word": (words, 4),
-        "a changed CRC word": (words + 4, 4),
+        "a changed first vector byte": (BOOT2_SIZE, 1),
+        "a changed byte before the loader's stamp": (STAMP_START - 1, 1),
+        "a changed byte after the loader's stamp": (STAMP_END, 1),
+        "a changed length word": (LENGTH_WORD, 4),
+        "a changed CRC word": (CRC_WORD, 4),
+        "a changed board address word": (BOARD_WORD, 4),
+        "a changed first text byte": (text_start, 1),
     }
-    for label, (offset, size) in mutants.items():
+    for label, (offset, size) in rejected.items():
         mutant = bytearray(image)
         for position in range(offset, offset + size):
             mutant[position] ^= 0xFF
         if identity_error(mutant) is None:
             raise ValueError(f"identity check accepts {label}")
-    # The descriptor is outside the sum by design: a board-specific copy of
-    # the image keeps the identity of the build.
-    patched = bytearray(image)
-    patched[board + 8] ^= 0xFF
-    if identity_error(patched) is not None:
-        raise ValueError("identity check rejects a rewritten board descriptor")
+    # Excluded bytes: a rewrite must be accepted, so that a board-specific
+    # copy of the image or an image the loader flashed keeps the identity of
+    # the build.
+    accepted = {
+        "a rewritten board descriptor": (board + 8, 1),
+        "a changed first byte": (0, 1),
+        "a changed last second-stage byte": (BOOT2_SIZE - 1, 1),
+        "a changed first stamp byte": (STAMP_START, 1),
+        "a changed last stamp byte": (STAMP_END - 1, 1),
+    }
+    for label, (offset, size) in accepted.items():
+        patched = bytearray(image)
+        for position in range(offset, offset + size):
+            patched[position] ^= 0xFF
+        if identity_error(patched) is not None:
+            raise ValueError(f"identity check rejects {label}")
 
 
 def main():

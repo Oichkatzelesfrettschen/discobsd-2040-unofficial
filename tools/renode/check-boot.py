@@ -142,22 +142,38 @@ CAPACITY_LINES = [
     "uarea bytes 3072 user 1024 stack 2048 peak",
 ]
 
-# The identity words of a flash image: vector entries 8, 9 and 10 at
-# 0x10000100, as tools/kernsum/kernsum.c lays them out.
+# The identity words of a flash image, as tools/kernsum/kernsum.c lays them
+# out: the length and CRC32 in vector entries 12 and 13 of the table at
+# 0x10000100, and the address of the board descriptor in the word after the
+# 48-entry table. The sum reads four spans as zero: the second stage, the
+# stamp the PicoCalc UF2 loader writes over vector entries 4 to 10, the CRC
+# word and the board descriptor.
 IMAGE_ADDRESS = 0x10000000
-IDENTITY_OFFSET = 0x120
+IDENTITY_OFFSET = 0x130
+BOARD_WORD_OFFSET = 0x1C0
+BOOT2_SIZE = 0x100
+STAMP_OFFSET = 0x110
+STAMP_SIZE = 0x1C
 BOARD_DESCRIPTOR_SIZE = 16
+
+
+def identity_sum(image: bytes) -> int:
+    """Return the CRC32 image_identify() computes over a kernel holding image."""
+    work = bytearray(image)
+    board = struct.unpack_from("<I", work, BOARD_WORD_OFFSET)[0] - IMAGE_ADDRESS
+    work[:BOOT2_SIZE] = bytes(BOOT2_SIZE)
+    work[STAMP_OFFSET:STAMP_OFFSET + STAMP_SIZE] = bytes(STAMP_SIZE)
+    work[IDENTITY_OFFSET + 4:IDENTITY_OFFSET + 8] = bytes(4)
+    work[board:board + BOARD_DESCRIPTOR_SIZE] = bytes(BOARD_DESCRIPTOR_SIZE)
+    return zlib.crc32(work)
 
 
 def image_identity(path: str) -> list[str]:
     """Return the three machdep.image lines a kernel running PATH prints."""
-    image = bytearray(open(path, "rb").read())
-    length, stored, board = struct.unpack_from("<3I", image, IDENTITY_OFFSET)
-    board -= IMAGE_ADDRESS
-    image[IDENTITY_OFFSET + 4:IDENTITY_OFFSET + 8] = bytes(4)
-    image[board:board + BOARD_DESCRIPTOR_SIZE] = bytes(BOARD_DESCRIPTOR_SIZE)
+    image = open(path, "rb").read()
+    length, stored = struct.unpack_from("<2I", image, IDENTITY_OFFSET)
     # sysctl prints an int, so a sum with the top bit set reads negative.
-    crc = struct.unpack("<i", struct.pack("<I", zlib.crc32(image)))[0]
+    crc = struct.unpack("<i", struct.pack("<I", identity_sum(image)))[0]
     stored = struct.unpack("<i", struct.pack("<I", stored))[0]
     if length != len(image) or stored != crc:
         raise ValueError(f"{path}: identity words do not describe the file")

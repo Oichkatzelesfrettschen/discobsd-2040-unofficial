@@ -167,48 +167,72 @@ board_console(int *major_number, int *minor_number)
 
 #ifndef BOARD_DESC_HOST
 /*
- * The identity of the flash image this kernel runs from. Vector entries 8
- * and 9, at IMAGE_WORDS, hold the image's length and its CRC32 as
- * tools/kernsum stamped them after the link. The sum covers the image from
- * the first byte of boot2 with the CRC word and the board descriptor read
- * as zero: mkboarduf2.py rewrites the descriptor per board, so one build
- * keeps one identity on every board. image_identify() recomputes the sum
- * from flash, so image_crc names the bytes that are executing and differs
- * from image_crc_stored when they are not the bytes that were linked.
+ * The identity of the flash image this kernel runs from. Vector entries 12
+ * and 13, at IMAGE_WORDS, hold the image's length and its CRC32 as
+ * tools/kernsum stamped them after the link. The sum covers the image
+ * with four spans read as zero: the second stage (IMAGE_BOOT2_END), the
+ * stamp the PicoCalc UF2 loader (pelrun/uf2loader) writes over vector
+ * entries 4 to 10 after it flashes an application, the CRC word, and the
+ * board descriptor, which mkboarduf2.py rewrites per board so one build
+ * keeps one identity on every board. The loader also replaces the second
+ * stage with its own, so the sum is the same whether the image was flashed
+ * directly or through the loader. image_identify() recomputes the sum from
+ * flash, so image_crc names the bytes that are executing and differs from
+ * image_crc_stored when they are not the bytes that were linked.
  * machdep.image_length, image_crc and image_crc_stored export the three
  * values; image_length is zero for a kernel without the words.
  */
 #define IMAGE_BASE	0x10000000U
-#define IMAGE_WORDS	(IMAGE_BASE + 0x120U)
+#define IMAGE_WORDS	(IMAGE_BASE + 0x130U)
+#define IMAGE_BOOT2_END	0x100U
+#define IMAGE_STAMP	0x110U
+#define IMAGE_STAMP_END	0x12cU
 
 unsigned int image_length;
 unsigned int image_crc;
 unsigned int image_crc_stored;
 
+/* Continue a CRC32 over length bytes that read as zero. */
+static unsigned int
+image_crc32_zeros(unsigned int crc, unsigned int length)
+{
+	static const unsigned char zero[sizeof(struct board_desc)];
+
+	while (length > sizeof zero) {
+		crc = board_crc32_run(crc, zero, sizeof zero);
+		length -= sizeof zero;
+	}
+	return board_crc32_run(crc, zero, length);
+}
+
 static void
 image_identify(void)
 {
-	static const unsigned char zero[sizeof(struct board_desc)];
 	const volatile unsigned int *words =
 	    (const volatile unsigned int *)IMAGE_WORDS;
 	const volatile unsigned char *base =
 	    (const volatile unsigned char *)IMAGE_BASE;
 	unsigned int crc_at = IMAGE_WORDS + 4 - IMAGE_BASE;
 	unsigned int board = (unsigned int)&rp2040_board_desc - IMAGE_BASE;
+	unsigned int size = sizeof(struct board_desc);
 	unsigned int length = words[0];
 	unsigned int crc;
 
-	if (length < board + sizeof zero ||
+	if (length < board + size ||
 	    length > (unsigned int)__kernel_flash_end - IMAGE_BASE) {
 		printf("image: no identity words\n");
 		return;
 	}
-	crc = board_crc32_run(CRC32_INIT, base, crc_at);
-	crc = board_crc32_run(crc, zero, 4);
+	crc = image_crc32_zeros(CRC32_INIT, IMAGE_BOOT2_END);
+	crc = board_crc32_run(crc, base + IMAGE_BOOT2_END,
+	    IMAGE_STAMP - IMAGE_BOOT2_END);
+	crc = image_crc32_zeros(crc, IMAGE_STAMP_END - IMAGE_STAMP);
+	crc = board_crc32_run(crc, base + IMAGE_STAMP_END,
+	    crc_at - IMAGE_STAMP_END);
+	crc = image_crc32_zeros(crc, 4);
 	crc = board_crc32_run(crc, base + crc_at + 4, board - crc_at - 4);
-	crc = board_crc32_run(crc, zero, sizeof zero);
-	crc = board_crc32_run(crc, base + board + sizeof zero,
-	    length - board - sizeof zero);
+	crc = image_crc32_zeros(crc, size);
+	crc = board_crc32_run(crc, base + board + size, length - board - size);
 	image_length = length;
 	image_crc = CRC32_FIN(crc);
 	image_crc_stored = words[1];

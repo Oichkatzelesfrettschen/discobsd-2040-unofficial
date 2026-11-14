@@ -325,14 +325,31 @@ not access hardware or establish the complete resource measurement contract.
 `check-rp2040-vectors` compares all 48 linked vector words with the named
 symbols and reserved zero slots, checks the boot2 vector address, initial
 stack alignment, handler Thumb bits and executable load mappings for each
-RP2040 kernel. Entries 8, 9 and 10 are the image identity words
-(`BOOT-MAP.md`, "Image identity"): the gate rebuilds the flash image from the
-PT_LOAD segments, requires the length word to equal its size and the CRC word
-to equal its sum, and requires its own comparison to reject the image with
-its first byte, its last byte, the length word or the CRC word changed and to
-accept a rewritten board descriptor. The PICO fixture checks the source slot list and rejects a
+RP2040 kernel. Entries 12 and 13 are the image identity words, and the word
+after the table at 0x100001C0 is the board descriptor address
+(`BOOT-MAP.md`, "Image identity"); entries 4 to 10 stay zero because the
+PicoCalc UF2 loader stamps bytes 0x110-0x12B. The gate rebuilds the flash
+image from the PT_LOAD segments, requires the length word to equal its size
+and the CRC word to equal its sum, requires the address word to equal
+`__board_start`, and requires its own comparison to reject the image with its
+last byte, its first vector byte, a byte beside the loader's stamp, the first
+text byte, the length word, the CRC word or the address word changed and to
+accept the image with its first byte, the last byte of the second stage, the
+first or last byte of the stamp span or the board descriptor rewritten. The
+PICO fixture checks the source slot list and rejects a
 source-handler substitution, every changed vector word and every cleared
-handler Thumb bit. The cross gate checks linked values, rather than exception
+handler Thumb bit. It also builds the kernel as the loader leaves flash, with
+the second stage replaced (every byte of 0-255 inverted) and the stamp
+`0xe98cc638`, `0x101fc000`, `/pico1-apps/DiscoBSD` over 0x110-0x12B, which
+reads 0x2f737070, 0x63736944 and 0x4453426f where the identity words used to
+sit. The checker and `kernsum -c` verify that image and report the build's
+identity; each fails the image with any one covered byte changed (the
+boundaries of both spans, the descriptor address word, the padding after it,
+the first function byte and the last byte); and a checker, or a `kernsum`
+compiled from the source with one `memset` removed, that forgets the
+second-stage or the stamp exclusion fails it, which calibrates the case.
+The build gate keeps rejecting the stamped ELF, since a linked kernel holds
+zero in entries 4 to 10. The cross gate checks linked values, rather than exception
 delivery or physical privilege behavior. Weak aliases may legitimately share
 the default-handler address.
 
@@ -2391,22 +2408,30 @@ procedure that would.
 ## Renode image identity tier
 
 `check-renode-identity` runs tools/renode/check-identity.sh, which boots
-the PICO_UART kernel three times on the selected board's root flash image
+the PICO_UART kernel four times on the selected board's root flash image
 through the machine, console and virtual-time slicing of the UART0 tier.
-tools/renode/check-identity.py derives the three kernels from `unix.bin`:
-the file as built, a copy with one bit of the stamped CRC32 word (vector
-entry 9) inverted, and a copy with one byte of the reserved vector entry 12
-set. It computes each copy's sum the way `tools/kernsum` does and requires
+tools/renode/check-identity.py derives the four kernels from `unix.bin`:
+the file as built; a copy with one bit of the stamped CRC32 word (vector
+entry 13) inverted; a copy with the first of the four padding bytes after
+the board address word (0x100001C4) set; and a copy with the PicoCalc UF2
+loader's stamp written over bytes 0x110-0x12B. The padding byte is covered
+by the sum, zero in the link and read by no instruction or data access, so
+the kernel boots unchanged while the sum moves. (Vector entry 12, the
+reserved word the earlier copy used, now holds the length.) The checker
+computes each copy's sum the way `tools/kernsum` does and requires
 the exact console line of `image_identify()`: `image: N bytes, crc32 X` for
-the built kernel, and the same line ending `stored Y differs` for each
-altered copy, with the stored value moved in the first and the computed
-sum moved in the second. Each boot continues through the storage probe.
-The built kernel is read and never written; the copies live under
-tools/renode/vendor/results/identity.
+the built kernel and for the stamped copy, and the same line ending
+`stored Y differs` for the two altered copies, with the stored value moved
+in the first and the computed sum moved in the second. Each boot continues
+through the storage probe. The built kernel is read and never written; the
+copies live under tools/renode/vendor/results/identity.
 
-The three boots calibrate one another: a kernel that prints `differs` for
-every image fails the first, and one that never prints it fails the other
-two. The claim is the emulated kernel's comparison over the flash model's
+The four boots calibrate one another: a kernel that prints `differs` for
+every image fails the first and the fourth, and one that never prints it
+fails the second and third. The built kernel holds zero in the stamp span,
+so the fourth boot alone shows that `image_identify()` skips it; the second
+stage is zeroed in the sum on both sides, so a kernel that covered it would
+disagree with the host sum in the first boot. The claim is the emulated kernel's comparison over the flash model's
 bytes; a board that reports `differs` is a separate evidence class and has
 no receipt.
 

@@ -1,12 +1,13 @@
 #!/bin/sh
 # Run the Renode image identity gate, or say exactly what is missing and stop.
 #
-# The gate boots the UART0-console kernel three times on the same root flash
-# image: as built, with one bit of its stamped CRC32 word inverted, and with
-# one byte of a reserved vector entry set. check-identity.py writes the two
-# altered kernels under tools/renode/vendor/results/identity, which git
-# ignores, and requires the boot-time image line of each. The built kernel
-# is read and never written.
+# The gate boots the UART0-console kernel four times on the same root flash
+# image: as built, with one bit of its stamped CRC32 word inverted, with one
+# covered byte after the board address word set, and with the PicoCalc UF2
+# loader's stamp written over flash bytes 0x110-0x12B. check-identity.py
+# writes the three altered kernels under tools/renode/vendor/results/identity,
+# which git ignores, and requires the boot-time image line of each. The
+# built kernel is read and never written.
 #
 # Usage: sh tools/renode/check-identity.sh [FLASH_IMAGE]
 #

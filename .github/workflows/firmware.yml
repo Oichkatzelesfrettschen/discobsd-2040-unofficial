@@ -272,6 +272,7 @@ jobs:
               check-changed-text
 
       # check-host owns compiler-matrix identity, ownership and bounded PTY completion.
+      # check-native-nm covers archive boundaries and calibrated reader failures.
       # It also checks the fixed Git-tree repository coverage ledger and rejection fixtures.
       # Libc strings and exit registries execute calibrated host and ILP32 cases;
       # strings, context sorting and absolute values add sanitizers; the libc

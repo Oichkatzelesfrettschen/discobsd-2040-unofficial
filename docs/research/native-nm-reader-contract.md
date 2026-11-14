@@ -1,0 +1,173 @@
+# Native nm archive and symbol boundaries
+
+## Baseline and deciding experiment
+
+The implementation baseline is remote main `09b7845c8ffacaf1b53d5221241205a33907efd3`.
+The qualification branch advances to remote main
+`b74c522b449142ae3a06cb989abbe29ed15305f2`, incorporating calendar archive
+closure and test fixes. The reader patch reapplies without unresolved conflicts.
+`usr.bin/nm/nm.c` supplies both the native program and the host shim in
+`tools/aoututils/nm/nm.c`. Source inspection of `nextel`, `nm_get_arobj`,
+`fgetword`, `fgetsym`, and `namelist` identifies coupled traversal, extent,
+record decoding, and error propagation defects.
+
+`tools/check_nm_reader.py` encodes minimal relocatable objects directly from
+the eight-word header in `sys/sys/exec_aout.h` and compact symbol records
+described by `fgetsym`. Expected symbol values and names come from the fixture
+generator, independently of reader output. The high-bit value `0xf1234567`
+also exercises the fourth byte of word decoding.
+
+The GNU17 host baseline passes 12 of 104 calls. Twelve valid archive layouts
+cross short, 17-byte and 18-byte names with both payload parities and the
+presence of a symbol index. Empty and non-object archives add two valid cases.
+Twelve malformed cases cover truncated headers, trailers, names, bodies,
+padding, numeric sizes, symbol records, and section extents. Four CLI modes
+exercise each case: default, `-g`, `-o`, and `-go`.
+
+The expected repair changes all 104 verdicts to pass. A positive malformed
+exit requires a diagnostic; a signal or successful silent exit fails the
+oracle. Valid output requires exact symbol order, value, and name after
+removing the optional member prefix. Prefix identity, additional CLI flags,
+native execution, allocation failures, I/O failures, and mutation controls
+remain required additions before the fixture becomes a registered gate.
+
+Replay the current baseline with a caller-selected interpreter:
+
+```sh
+: "${PYTHON:?select the interpreter}"
+export PYTHON
+cc -std=gnu17 -Wall -Wextra -Werror -DCROSS \
+    -Itools/aoututils/include -idirafter include \
+    usr.bin/nm/nm.c -o /tmp/discobsd-nm-reader-baseline
+"$PYTHON" tools/check_nm_reader.py /tmp/discobsd-nm-reader-baseline
+```
+
+The failing verdict establishes the repair boundary. It does not qualify a
+production change. Ruff checking and formatting pass for the fixture.
+
+## Reader invariants
+
+Archive traversal uses the stored size S, including any extended name L.
+For a header at H with a 60-byte header, the next header is
+`H + 60 + S + (S & 1)`. The payload starts at `H + 60 + L` and has size
+`S - L`. Admission establishes `L <= S` and containment in the file before
+forming either position. Every admitted member advances the cursor.
+
+The header parser distinguishes exact EOF from a partial header or read
+failure. Fixed-width numeric fields accept only the format's digit and
+padding grammar, with overflow checked during accumulation. Conversion
+precedes narrowing to internal fields. Seek and position errors propagate
+to the process status. Empty archives terminate successfully.
+
+Object admission distinguishes an ordinary non-object member from a
+recognized object whose header or sections are incomplete. Symbol indexes
+and ordinary non-object members skip deliberately. A recognized object
+keeps every file-backed section and its symbol table inside the member.
+Executable and relocatable objects use their respective `N_SYMOFF`
+semantics; checked accumulation prevents the macro's unchecked arithmetic
+from deciding admission.
+
+A compact symbol has one length byte, one type byte, four little-endian
+value bytes, and the declared name bytes. The reader validates the remaining
+symbol-table extent before consuming the record. Each byte read distinguishes
+EOF from a byte value. Unsigned shifts construct the value. A name length
+of zero begins the zero-filled symbol-table tail. Every remaining byte must
+be zero. `usr.bin/as/as-thumb.c` computes `stalign` in `middle` and emits
+those bytes in `makesymtab`; `usr.bin/ld/ld.c:fgetsym_bounded` validates that
+same tail. The original fixture assumption that every zero length is malformed
+is refuted by the freshly built native archive and these two producers/readers.
+
+The two-pass symbol selection requires bounded record counts, checked
+allocation sizes, checked rewinds, and complete cleanup after partial name
+allocation. A failed member emits a diagnostic and sets the final exit
+status. Continuation to a later member requires a separately validated next
+header position. The repair preserves option sorting and filtering behavior.
+
+## Qualification still required
+
+The option oracle adds eleven standalone invocations over local, absolute,
+undefined, and common symbols with tied and high-bit values. The ARM baseline
+fails reverse, numeric-reverse, and external-numeric-reverse ordering: plain
+`char` makes `rflg` unsigned on ARM, so assigning -1 produces 255. Explicit
+`signed char` preserves its one-byte representation and restores comparator
+direction. The unsigned-direction mutation fails the named reverse-order
+control. All 171 reader calls pass on Cortex-M0 QEMU; the host suite passes
+207 reader/allocation/stream calls and rejects all six compiled mutations.
+The production build including the stream-error and signed-direction repairs
+passes in 26.491 seconds on the refreshed main baseline. Its receipt is
+`.build-logs/rp2040-build-local-20261114T204304Z-60-f5164abd/status.json`.
+The generated C17 source ledger includes all three new C fixtures and passes
+validation; its unreviewed disposition remains distinct from runtime evidence.
+
+The working candidate passes all 104 fixture calls with GNU17,
+`-Wall -Wextra -Werror`, and undefined-behavior sanitization with recovery
+disabled. Checked symbol reads distinguish EOF from data and assemble values
+with unsigned shifts. Archive admission includes extended-name bytes and
+stored-size padding. Object section accumulation checks the remaining member
+extent before each addition. The candidate preserves the unsigned archive
+date limit through `AR_DATE_MAX` independently of the signed seek limit.
+
+The expanded reader matrix contains 140 calls. Short recognized object headers
+at four lengths appear both alone and inside archives; an index whose bytes
+resemble object magic remains a deliberate skip. The candidate before the
+header repair passes 112/140; the repaired candidate passes 140/140 with the
+same undefined-behavior instrumentation.
+
+The selected-symbol count checks both `INT_MAX` and the allocation-size limit
+before incrementing. The second pass decodes into local values before checking
+capacity and writing a selected record. Partial name allocation releases all
+completed names and the list before returning an error. The allocation fixture
+in `tests/nm_reader/allocation.c` injects failure at each of three allocation
+sites for a two-symbol object and checks allocation counts and zero outstanding
+allocations. Its successful control and three failure controls pass, giving
+144/144 calls when supplied through `--allocation-binary`.
+
+A warning-clean `-m32` host build passes all 140 reader cases outside the
+execution sandbox. The identical binary receives SIGSYS on every invocation
+inside that sandbox; those 140 signals count as failed execution, not reader
+validation. The outside-sandbox replay isolates the environment difference.
+ILP32 host execution remains separate from ARM target execution.
+
+Exact archive/member prefixes now participate in the output oracle. An
+embedded NUL followed by garbage in a numeric field fails all four CLI modes
+before the parser requires consumption of the entire fixed-width field; the
+corrected parser rejects all four. Four zero-padding lengths add sixteen
+valid reader calls. The candidate passes 160/160 reader cases under UBSan
+and reads the freshly built native libc archive with zero status and no
+diagnostic, producing 2,184 output lines. This archive check establishes
+successful enumeration, not independent verification of every emitted symbol.
+
+`logged-build` completes with status zero in 39.143 seconds at the
+pre-padding candidate. Its immutable receipt is
+`.build-logs/rp2040-build-local-20261114T203145Z-46-7ea1d22e/status.json`.
+That build establishes production compilation, including the ARM executable;
+the subsequent padding correction requires a refreshed production build.
+
+The refreshed production build completes with status zero in 26.993 seconds;
+its receipt is
+`.build-logs/rp2040-build-local-20261114T203355Z-45-b2ae8724/status.json`.
+`check-native-nm` belongs to the host tier and passes its production host
+reader cases, UBSan reader cases, and allocation ownership controls. Five
+warning-clean mutations each reach a named rejection: omitted archive
+padding, embedded-NUL numeric acceptance, suppressed error status, nonzero
+symbol padding acceptance, and incorrect member prefixes. Calibration retains
+the generated source, build log, run log, and source hash for each invocation.
+
+The stream fixture in `tests/nm_reader/io.c` counts every executed seek,
+position, buffered read, byte read, close, and flush operation on an archive
+with an extended member name and symbol padding. Injection at the input close
+initially preserves successful status, exposing an unchecked close result.
+The repair diagnoses failed input close and failed final output flush.
+The successful control and all 31 injected failures pass, with zero outstanding
+allocations and a diagnostic for each failed operation. Calibration passes
+196 combined reader, allocation, and stream cases plus its five mutations.
+`check-native-nm-qemu` passes all 160 reader cases with code compiled for
+Cortex-M0+ and executed under QEMU's Cortex-M0 model. Its newlib runtime uses
+the existing Linux syscall support plus a seek implementation. The execution
+does not exercise DiscoBSD stdio or kernel services. These schedules establish
+the exercised failure paths; they do not simulate every possible concurrent
+file mutation.
+
+Additional fault coverage, caller closure, native execution, matched resource receipts, review, and
+integration remain open. The host fixture supplies no board observation.
+Resource approval follows the compatibility profile after exact deltas exist.

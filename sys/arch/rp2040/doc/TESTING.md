@@ -7,6 +7,29 @@ tiers run after `bmake MACHINE=rp2040 build`, which leaves
 the kernels and distribution tree the gates read. `check-cross` builds the
 reduced board libc when its source closure is newer than the archive.
 
+`check-native-nm` belongs to `check-host`, owned by the Linux and macOS
+host-tier jobs in `.github/workflows/firmware.yml`. It exercises the host build
+of the native reader with 160 archive/object cases and eleven option cases, including exact member
+prefixes, numeric-field grammar, section boundaries, short headers, and
+zero-filled symbol tails. A GNU17 UBSan build repeats those cases and adds
+four allocation ownership controls and 32 stream controls. The stream controls
+inject failure at each of 31 executed seek, position, read, close, and flush
+operations after a successful control; each failure requires a diagnostic,
+nonzero reader status, and zero outstanding allocations.
+Six warning-clean compiled mutations
+must fail their named fixtures. The gate requires a host C compiler with
+UBSan and the caller-selected `PYTHON`. Retained control sources, compiler
+logs, execution logs, and source hashes live under `.build-logs` in uniquely
+named invocation directories. The gate establishes host reader behavior;
+ARM execution and resource qualification remain separate checks.
+
+`check-native-nm-qemu` belongs to `check-qemu` and executes all 171 reader
+cases as Thumb-1 code using the Cortex-M0 model. The fixture links newlib
+and the shared Linux syscall support with an actual seek syscall for regular
+inputs. It requires `arm-none-eabi-gcc`, newlib, and `qemu-arm`; missing QEMU
+fails the requested gate. This establishes ARM reader execution with newlib,
+separately from DiscoBSD stdio, kernel execution, or physical-board behavior.
+
 A tier that compiles creates `include/machine` first. `share/mk/sys.mk`
 compiles with `-nostdinc -I${TOPSRC}/include`, and `sys/sys/param.h` and
 `sys/sys/types.h` reach `<machine/machparam.h>` and `<machine/types.h>`

@@ -391,3 +391,21 @@ physical-board evidence nor a warning-free peripheral-model claim.
 | `distrib/rp2040/flash.uf2` | `f1fb767181dbe0236143f56bd50e0450f018b6e7b591e691cd20304acfe1a59b` |
 | `sys/arch/rp2040/compile/PICO_UART/unix.bin` | `696f917925912a0694d6541a7806395a8c70120f2d5540a49fd4976d26a54deb` |
 | `tools/renode/vendor/results/boot/renode.log` | `2f976a77f0b85a58e01feb32d438fc31f0f7330cd1bf96d5c5f8ecb37e860ace` |
+
+
+The original clean candidate `6f2cf986f5b0b8e413df62aca5e4de35238860c3`
+completes `logged-check` with build and check stages both exiting zero.
+The invocation lasts 4,836.798 seconds; its check stage lasts 4,714.3 seconds.
+The retained receipt is
+`.build-logs/rp2040-check-local-20261114T220549Z-60102-22e7c933/status.json`;
+its `check.log` SHA-256 is
+`58f9494d43b5a315a76db8a61f18f1a33685ca0fcc1c014b1861a831caa756e3`.
+This aggregate qualifies that original source, while the integrated native
+repair has the separate focused, ILP32, resource, and Renode records above.
+
+Remote main `abe6db173ecc72251a76cf277c5bceec5161e5cb` adds kernel,
+loader, GUI, and other changes after the measured `0c021420` baseline.
+Integration against that main requires a fresh matched resource comparison
+and affected qualification. The prior approvals bind their exact recorded
+vectors; the main advance supplies no implicit allowance for additional
+signal-set growth.

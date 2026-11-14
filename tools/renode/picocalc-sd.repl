@@ -1,0 +1,5 @@
+// Optional file-backed card. Existing PicoCalc carrier owns the other pins.
+sdcard: SPI.FileSD @ spi0
+
+gpio:
+    17 -> sdcard@0

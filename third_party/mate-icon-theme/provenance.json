@@ -1,0 +1,245 @@
+{
+  "repository": "https://github.com/mate-desktop/mate-icon-theme",
+  "revision": "15df93ae1d5fbea067eb3d9d5d2a8b3b4a5cbec4",
+  "license_declared": "LGPL-3.0 OR CC-BY-SA-3.0",
+  "license_selected": "CC-BY-SA-3.0",
+  "files": {
+    "mate/24x24/places/folder.png": {
+      "sha256": "65f112134722adc0a1b38646a773f215997bd35848c86e764ae911ecb8ea69b7",
+      "git_blob": "52def34d53629e51cb4c02e69c6e31248f48bbe2"
+    },
+    "src/folders.svg": {
+      "sha256": "d2d441df9dd93ba9324caab13a42ba6435cb7d5181a0fe93e890d5baad1be2b6",
+      "git_blob": "223a14c19b4074b6549127bf5a895727e3689132"
+    },
+    "mate/24x24/places/Makefile.am": {
+      "sha256": "3ae6f2b0690af037bb24ef353338d371d92b66fffd3fd0f7c74b401680ce3e87",
+      "git_blob": "f0cad83e0425a37e508b4e35b7bcede06f6dc8ad"
+    },
+    "mate/24x24/apps/accessories-text-editor.png": {
+      "sha256": "b3aa0be5e2a250ea155a4d9ad7afc07e4388f5459bb3b178dc2221560dab60fd",
+      "git_blob": "c09cc38cc64734eb688b615ae6e006addc0627f3"
+    },
+    "src/accessories-text-editor.svg": {
+      "sha256": "fb0fd868afdd16c4cbe82b5c740260212e49db2af112d3927174a68c44597e93",
+      "git_blob": "3ce9b6bb4c3820e9041e2ff898f1678132a345ac"
+    },
+    "mate/24x24/apps/Makefile.am": {
+      "sha256": "91447dfbcb77fd876d901cee3b853d83306975a1e86f5abacaac80c917234024",
+      "git_blob": "86d783d2d5a80cb37eb97816f29934f4077db998"
+    },
+    "mate/24x24/apps/utilities-system-monitor.png": {
+      "sha256": "a5bb30c2202823f7f222ce1cd9329085571e18fad56af59a4485deb4360c4f01",
+      "git_blob": "18351506a47b56f1b15a199ecc0cf53d6c6e8877"
+    },
+    "src/terminals.svg": {
+      "sha256": "a4221c80a850d80733d10684d536d1779a6f444c23336ae0455242d0fccf6e42",
+      "git_blob": "2b2cd40244eb17770a5ecb45f92eb388a1b2c4a4"
+    },
+    "mate/24x24/apps/accessories-calculator.png": {
+      "sha256": "445dd8ba7ae60669318d5a0d9375775507038b9812bf0871683e8d0cf168ea1b",
+      "git_blob": "0c166734497f04bb2e13387e9a445d37e56160de"
+    },
+    "src/accessories-calculator.svg": {
+      "sha256": "5a57357f6cb7c1f4732d43925e98fb28238a356d7096b704b39220b6aeaf0d58",
+      "git_blob": "74cfb1d9415092f0c524beabe39f0f06c4a2de19"
+    },
+    "mate/24x24/categories/preferences-system.png": {
+      "sha256": "daa306645c9bb455c4236490c4410aabff65369785bca593074b21e26d40c18a",
+      "git_blob": "1e2e131d79354feff87d71c97e030067ca248065"
+    },
+    "src/preferences-system.svg": {
+      "sha256": "000ec818ab75b47b770dad803607e9e962ff0d444171e319dd56464871a1bf68",
+      "git_blob": "1f664425a04fcdf41364142c0b5a6abfc4dd6ec3"
+    },
+    "mate/24x24/categories/Makefile.am": {
+      "sha256": "9f10b942beba18cb2ba8952bb429b35241a16480aa67fe58fd9db17d518d3550",
+      "git_blob": "94326007b703610715c2c763bd84148de00d094e"
+    },
+    "mate/24x24/status/appointment-soon.png": {
+      "sha256": "c0db5fa611e316ef31cb2e7bf0c6daea1d64e61ac993b0236b29585e53a0a22b",
+      "git_blob": "c0de1e4eda68ff6755e6518ccdb9ba81e7eb5425"
+    },
+    "src/clocks.svg": {
+      "sha256": "af93c89681dce203f4c51f3700008e8bfa1c1f315934a4d133d325dc1e6ce5b0",
+      "git_blob": "f3768038633920afe5a0f1af3cef552741632d33"
+    },
+    "mate/24x24/status/Makefile.am": {
+      "sha256": "8f5caf7e5162c77897ee3b62fb99c42c167a31a938962a674db33baa79086c62",
+      "git_blob": "aa9994bfb5dee183ed37a4051afdd9d9e3f782f5"
+    },
+    "mate/24x24/apps/utilities-terminal.png": {
+      "sha256": "75bbc64beb4d425437db3aa081a6a4f69f78d46305c07b4adcc56fa3692e97e7",
+      "git_blob": "19acc864c30e11347e4f13527d1649a4b7b894bc"
+    },
+    "mate/24x24/actions/help-contents.png": {
+      "sha256": "5503ece1c2b524da853fc9764fc8cc1f5369971eda712014a0c63c35fca2fcb8",
+      "git_blob": "071685fd7ec9540bf5be9be7f8f17fbd005cedd5"
+    },
+    "src/help-contents.svg": {
+      "sha256": "51641fc586ff4da1005b5bc93bac1bfb07756993ccc0e0ae04bd6e183c96d493",
+      "git_blob": "c09b121ba8053a2d4518dae20e1731a57ff8c813"
+    },
+    "mate/24x24/actions/Makefile.am": {
+      "sha256": "cc7ec1124abd446edd94e71f769b77a79d95c3fb19b0f6804c3d269097a7ac07",
+      "git_blob": "c2f7c5fac887458feddaa56ae1a736a1538ee65f"
+    },
+    "mate/24x24/devices/drive-harddisk.png": {
+      "sha256": "5ed133011bf70bdace8c7ce31ad68eaad774eeed58e747c172a0829ea7aa9bfe",
+      "git_blob": "c55431590b611b3e99a7e32372ce4baa96605528"
+    },
+    "src/drive-harddisk.svg": {
+      "sha256": "5ea41c58a728efa9cebd181657c60e9b9f77c22913ad328dbb38cf16e09bcdf5",
+      "git_blob": "45873fbe9627ae4eda6128c31375e5b538d05e90"
+    },
+    "mate/24x24/devices/Makefile.am": {
+      "sha256": "0b76a5e437bf91c2d810398a569b9cd78e23d0aed4c94caadd46438b5b1a3c68",
+      "git_blob": "8e0cc20431f20457e4666045d6787f1e6afc95b2"
+    },
+    "COPYING": {
+      "sha256": "31138451a6046a755497578b2220e3dbdd998774bea9ec037214846ad3a52035"
+    },
+    "AUTHORS": {
+      "sha256": "7f11632490358a747e45f639ab0df5dda8520bcc5bade09f2efb1c343a7fb29c"
+    }
+  },
+  "icons": [
+    {
+      "name": "Files",
+      "png": "mate/24x24/places/folder.png",
+      "editable_source": "src/folders.svg",
+      "license_selected": "CC-BY-SA-3.0",
+      "source_titles": [
+        "Lapo Calamandrei",
+        "Folders!"
+      ],
+      "modifications": [
+        "alpha flattening on RGB565 0x2124 surface",
+        "RGB565 quantization",
+        "2048-byte record padding"
+      ]
+    },
+    {
+      "name": "Notes",
+      "png": "mate/24x24/apps/accessories-text-editor.png",
+      "editable_source": "src/accessories-text-editor.svg",
+      "license_selected": "CC-BY-SA-3.0",
+      "source_titles": [
+        "Jakub Steiner",
+        "Text Editor",
+        "Lapo Calamandrei"
+      ],
+      "modifications": [
+        "alpha flattening on RGB565 0x2124 surface",
+        "RGB565 quantization",
+        "2048-byte record padding"
+      ]
+    },
+    {
+      "name": "System",
+      "png": "mate/24x24/apps/utilities-system-monitor.png",
+      "editable_source": "src/terminals.svg",
+      "license_selected": "CC-BY-SA-3.0",
+      "source_titles": [
+        "Lapo Calamandrei",
+        "Terminal",
+        "Jakub Steiner"
+      ],
+      "modifications": [
+        "alpha flattening on RGB565 0x2124 surface",
+        "RGB565 quantization",
+        "2048-byte record padding"
+      ]
+    },
+    {
+      "name": "Calculator",
+      "png": "mate/24x24/apps/accessories-calculator.png",
+      "editable_source": "src/accessories-calculator.svg",
+      "license_selected": "CC-BY-SA-3.0",
+      "source_titles": [
+        "Calculator",
+        "Jakub Steiner",
+        "Lapo Calamandrei"
+      ],
+      "modifications": [
+        "alpha flattening on RGB565 0x2124 surface",
+        "RGB565 quantization",
+        "2048-byte record padding"
+      ]
+    },
+    {
+      "name": "Settings",
+      "png": "mate/24x24/categories/preferences-system.png",
+      "editable_source": "src/preferences-system.svg",
+      "license_selected": "CC-BY-SA-3.0",
+      "source_titles": [
+        "Lapo Calamandrei",
+        "Settings"
+      ],
+      "modifications": [
+        "alpha flattening on RGB565 0x2124 surface",
+        "RGB565 quantization",
+        "2048-byte record padding"
+      ]
+    },
+    {
+      "name": "Clock",
+      "png": "mate/24x24/status/appointment-soon.png",
+      "editable_source": "src/clocks.svg",
+      "license_selected": "CC-BY-SA-3.0",
+      "source_titles": [
+        "Lapo Calamandrei",
+        "Clocks"
+      ],
+      "modifications": [
+        "alpha flattening on RGB565 0x2124 surface",
+        "RGB565 quantization",
+        "2048-byte record padding"
+      ]
+    },
+    {
+      "name": "Console",
+      "png": "mate/24x24/apps/utilities-terminal.png",
+      "editable_source": "src/terminals.svg",
+      "license_selected": "CC-BY-SA-3.0",
+      "source_titles": [
+        "Lapo Calamandrei",
+        "Terminal",
+        "Jakub Steiner"
+      ],
+      "modifications": [
+        "alpha flattening on RGB565 0x2124 surface",
+        "RGB565 quantization",
+        "2048-byte record padding"
+      ]
+    },
+    {
+      "name": "Help",
+      "png": "mate/24x24/actions/help-contents.png",
+      "editable_source": "src/help-contents.svg",
+      "license_selected": "CC-BY-SA-3.0",
+      "source_titles": [],
+      "modifications": [
+        "alpha flattening on RGB565 0x2124 surface",
+        "RGB565 quantization",
+        "2048-byte record padding"
+      ]
+    },
+    {
+      "name": "Storage",
+      "png": "mate/24x24/devices/drive-harddisk.png",
+      "editable_source": "src/drive-harddisk.svg",
+      "license_selected": "CC-BY-SA-3.0",
+      "source_titles": [
+        "Jakub Steiner",
+        "Hard Drive",
+        "Lapo Calamandrei"
+      ],
+      "modifications": [
+        "alpha flattening on RGB565 0x2124 surface",
+        "RGB565 quantization",
+        "2048-byte record padding"
+      ]
+    }
+  ]
+}

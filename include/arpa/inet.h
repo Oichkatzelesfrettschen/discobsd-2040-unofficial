@@ -15,12 +15,15 @@
  * WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+#ifndef _ARPA_INET_H_
+#define _ARPA_INET_H_
+
+#include <netinet/in.h>
+
 /*
  * External definitions for
  * functions in inet(3N)
  */
-struct  in_addr;
-
 unsigned long inet_addr (char *);
 char    *inet_ntoa (struct in_addr);
 struct  in_addr inet_makeaddr (long, long);
@@ -45,3 +48,5 @@ unsigned ntohs (unsigned netshort);
 #define htons(x)	htobe16(x)
 #define ntohl(x)	be32toh(x)
 #define ntohs(x)	be16toh(x)
+
+#endif /* _ARPA_INET_H_ */

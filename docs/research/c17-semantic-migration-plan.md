@@ -1223,3 +1223,9 @@ group, device and login-record prerequisites, target layout, native compiler
 input and caller closure. Inclusion repair preserves the existing signed group
 identifier and time-selected login-record ABI; POSIX type and namespace
 conformance remain separate requirements.
+
+The [network-header inclusion contracts](network-header-inclusion.md) cover
+standalone, repeated and reordered internet-header inputs while preserving
+existing ARM layouts and byte-order declarations. The calibrated compiler and
+Smaller C lanes precede clean consumer and resource qualification; added POSIX
+types and revised signatures remain separate work.

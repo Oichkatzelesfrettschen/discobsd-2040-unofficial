@@ -1,4 +1,4 @@
-Source reading at `aec36799`, `arm-none-eabi-gcc` 16.2.0 object sizes, host runs of `tests/libc_contracts/mktime_contract_test.c`, and three clean distribution builds that differ in the type of `time_t`, each through the packed root image; no qemu-user, Renode or board run.
+Source reading at `aec36799`, `arm-none-eabi-gcc` 16.2.0 object sizes, host runs of `tests/libc_contracts/mktime_contract_test.c`, and three clean distribution builds that differ in the type of `time_t`, each through the packed root image; for the section on programs at the 64-bit view, builds of `9561fd1c` and of the change through `bmake flash`, the qemu-user gates and one Renode boot; no board run.
 
 # Time representation past 2038: verified claims, measurements and plan
 
@@ -383,6 +383,174 @@ starting at `timegm()` of the fields: the local time whose UTC reading is
 local time within the zone's offset of either end of the range is refused
 when the first probe of the search falls outside it.
 
+## Programs on the 64-bit view
+
+`sys/sys/_time_t.h` gives the 64-bit view to every unit the cross
+compiler builds outside the kernel and Smaller C: with `_TIME_BITS`
+undefined, a compiler that defines `__ARM_EABI__` and not `__unix__` gets
+`long long time_t` and the `__NAME64` bindings; `_TIME_BITS=32` is the
+opt-out and `_TIME_BITS=64` the explicit request. The default is keyed to
+the target compiler because about fifty host contract tests read the
+tree's headers and link the host's libc, which defines the existing names
+(`stat`, `time`) and, on 32-bit glibc, some `__NAME64` names with its own
+layouts; under a header default for every compiler those builds failed to
+link (61 undefined references to `__stat64` in one `check-host` run) or
+bound to glibc's symbols.
+
+libc compiles every member with `_TIME_BITS=32` (`lib/libc/Makefile`,
+`lib/libc_aout/libc/Makefile`, `distrib/rp2040/mkboardlibc.py`): the
+members that define the existing names keep the kernel's layouts for
+programs Smaller C compiles on the board, and a member whose interface
+carries no time (stdio's `fstat`, `sleep`'s `setitimer`, `waitpid`'s
+`wait4`) calls the kernel's entry point without a wrapper, which keeps
+the board archive's member closure as it was. With the default still
+32-bit, that selection compiled all 1,084 ELF, a.out and board members
+byte-identical to the parent. The `time64_*.c` members replace the
+selection with 64 themselves, and the `NAME64.o` rules undefine it first.
+`syslog.o` is built at the 64-bit view as well: it stamps each message
+with `time()` and `localtime()` and carries no time in its interface, so
+at the 32-bit view its log lines would read a clock past 2038 as 1901.
+The other members that reach a 32-bit entry point internally (`devname`,
+`getcwd`, `getwd`, `getusershell`, `mktemp`, `ndbm`, `opendir`,
+`scandir`, `ttyname`, stdio's `filbuf`, `flsbuf` and `remove`, `alarm`,
+`ualarm`, `sleep`, `usleep`, `wait`, `waitpid`; `arm-none-eabi-nm -u`)
+read only fields or intervals the 32-bit layouts carry. `sleep` compares
+two clock readings signed, so a sleep that spans the 2038 carry returns 0
+early once; it has slept its full interval by then.
+Test builds that compile libc members from source (`tests/libc_contracts`,
+`tests/dirent_contracts`, `tests/time64_*`, the a.out probe) select the
+32-bit view the same way.
+
+`tools/check_time_binding.py` (`check-time-binding`, in the cross tier)
+reads the undefined symbols of every ARM relocatable object a build
+leaves under the program and library trees, `lib/libc` excepted, and
+rejects a reference to any name a `__TIME64_NAME()` declaration binds
+(24 names). It found one binding the compiler did not: uucp declared its
+own `struct timeb` and called `ftime` without `<sys/timeb.h>`, so
+`cntrl.o` and `gio.o` reached the 32-bit `ftime` with a 16-byte
+structure. Pointed at `lib/libc/gen`, which it excludes, it lists the
+members above as the control that it reads what it should. It is
+calibrated on a unit at the default view (passes), the same unit with
+`_TIME_BITS=32` and a unit declaring `long time();` by hand (each
+rejected), and a host object (skipped).
+
+What the programs needed, by class (measured with `-Wall -Wextra
+-Werror` at the 64-bit default):
+
+- Kernel payloads: `KERN_BOOTTIME` is the kernel's 8-byte `struct
+  timeval`; `sysctl`, `w` and `vmstat` read it as `struct __timeval32`,
+  which `sys/sys/time.h` now declares in every view. `vmstat` checked the
+  payload size and would have exited on the 16-byte wide structure. `ps`
+  widened `kp_start`, an `int32_t`, with its sign and now reads it
+  unsigned. Each installed header compiled at both views with
+  `-g -fno-eliminate-unused-debug-types` and compared with `pahole
+  --sizes` changes seven structures only: `timeval` (8 to 16 bytes),
+  `timespec` (8 to 16), `itimerval` (16 to 32), `stat` (56 to 72),
+  `rusage` (72 to 88), `timeb` (12 to 16) and `utimbuf` (8 to 16), each
+  passed only to a function with a `__NAME64` symbol; `kinfo_proc` (184),
+  `proc` (100), `statfs` (236), `tty` (100), `utmp` (44) and `lastlog`
+  (28) keep their sizes.
+- Disk records: `utmp.ut_time` and `lastlog.ll_time` are `utime32_t`, with
+  the 44- and 28-byte record sizes asserted where `long` is four bytes.
+  `date` (`bin/date2`) passed `&wtmp[1].ut_time` to `time()` through a
+  `(time_t *)` cast, which at the wide view writes eight bytes into a
+  four-byte field; `login`, `last`, `who`, `init`, `reboot`, `logwtmp` and
+  `logout` read or write the field through `utime32_t`. `last` keeps its
+  per-line logout times as `time_t`, since it marks a crash by negating
+  one and a count past 2038 is negative as a `long`.
+- Formats: the shipped programs print a time with `%lu` of an `unsigned
+  long`, which holds every count the kernel can hold, rather than `%lld`:
+  `_doprnt` prints `?` for any `ll` conversion unless the program links
+  `doprnt_llong.o` (`PRINTF_LLONG=yes`, about 200 bytes). The uucp status
+  file and log, zmodem's octal file time, Tcl's `file mtime` and
+  `sysctl -n kern.boottime` keep their text formats; uucp reads the time
+  field back with `%lu`, which also reads a negative count an older
+  program wrote after 2038 as the same unsigned count.
+- 64-bit division: an interval kept in `time_t` brings in
+  `__aeabi_ldivmod` and libgcc's `__divdi3` (about 900 bytes in
+  `adminbox`, which then exceeded its 25-block packed watermark).
+  `shutdown`, `w`, `uusnap`, `tip`, `canfield`, `last`, `find` and
+  `touch` keep intervals and day counts in `long` or `unsigned long`;
+  `find -mtime` divides the magnitude of a difference of two kernel counts,
+  which is below 2^32, as an `unsigned long`.
+- `timeout` holds its durations as two `long`s; a `struct timeval` member
+  grew `main`'s frame from 128 to 160 bytes, past the limit
+  `tests/timeout_contracts/stack_test.py` holds.
+- `touch` counts seconds in `time_t` and derives its bounds for any width
+  up to `long long`; `-t` and `-d` reach 2106, the kernel's limit.
+- A `-Wconversion` pass over the 126 sources that read a time, at the
+  64-bit view, found two absolute times narrowed to `long`: `shutdown
+  +minutes` returned the shutdown time through a `long`, and the shell
+  kept each mail file's modification time in a `long` and compared it
+  with `st_mtime`, which past 2038 would announce new mail at every
+  check. Both now hold `time_t`. The remaining conversions it reports
+  store a clock reading in a disk field of the kernel's width (`fsck`,
+  `mkfs`), seed a random generator or time a benchmark (games,
+  `basic`, unixbench), measure an interval (`tip`, Tcl's `time`), or sit
+  in sources the build does not compile (`bin/csh`, `bin/date`). Sources
+  that need their own include paths were not reached by the pass, among
+  them uucp, `newfs_v7fs` (whose V7 inode stores an `int` time) and
+  `retro` (a 32-bit Forth cell).
+- Hand-written declarations (`time_t time();` and the like) in `ls`,
+  `chpass`, `rogue`, `pom`, `dhrystone`, uucp and libutil give way to the
+  headers. GCC keeps a header's assembler label on a later block-scope
+  redeclaration, so most of them were already bound; `rz` had no header
+  and passed a `time_t[2]` to `utime()`, now a `struct utimbuf`.
+
+Sizes, `bmake flash` of the `full` profile before (`9561fd1c`) and after,
+`arm-none-eabi-gcc` 16.2.0 (measured; a.out text and file bytes of the 35
+programs the manifest ships):
+
+| Program | Text before | Text after | Change |
+| --- | --- | --- | --- |
+| `/bin/sysbox` | 27,744 | 28,364 | +620 |
+| `/bin/tar` | 27,432 | 28,048 | +616 |
+| `/bin/box` | 29,572 | 30,136 | +564 |
+| `/sbin/adminbox` | 26,296 | 26,804 | +508 |
+| `/usr/bin/find` | 15,636 | 16,136 | +500 |
+| `/sbin/init` | 16,464 | 16,944 | +480 |
+| `/usr/bin/utilbox` | 53,700 | 54,144 | +444 |
+| `/bin/ps` | 15,488 | 15,860 | +372 |
+| `/usr/bin/login` | 19,636 | 19,980 | +344 |
+| `/sbin/fsck` | 26,504 | 26,836 | +332 |
+| all 35 | 703,672 | 710,692 | +7,020 (file bytes +7,028) |
+
+The root image keeps 238 of its 988 blocks free (240 before), `adminbox`
+packs to 24 blocks against its watermark of 25 (24 before; 25 in a build
+where `syslog` converted the clock at the 32-bit view and so linked both
+calendars), and every
+kernel's text, data and bss are unchanged (PICO 99,763 text,
+`check-kernel-headroom` 30,832 bytes free in the PICO region); the kernel
+images differ only in the version string and its checksum. The growth is
+smaller than the prototype's 7 blocks because the calendar members use the
+seven-bit split and libc's own callers stay on the 32-bit entry points
+(an inference from the members each program links, not a measurement).
+
+`check-renode` (PICO_UART kernel under Renode 1.17.0 with the pinned
+RP2040 models, measured) now sets the clock as root with `date -u
+4607230038` and reads it back: `date -u` printed `Mon Jul 23 00:38:01 GMT
+2046`; `touch -t 204501020304` and a file created at that clock listed as
+`Jan  2  2045` and `Jul 22 16:38` (the kernel's zone, eight hours west);
+and `sysctl -n kern.boottime` printed 2415919069, a count with bit 31
+set, since the kernel moves its boot time with a step of the clock. Each flash program or erase re-enters XIP
+through the boot ROM, which ten warning classes count. On this branch the
+boot run without the stage counted 5,935 against ceilings of 6,000, with
+`date -u 4607230038` alone 6,530, and with the whole stage 7,660, so the
+clock step and the file operations account for about 600 and 1,100
+re-entries; `tools/renode/warning-classes.txt` raises those ceilings by
+half in a commit of its own. `main` was not run, so whether it sat as
+near its ceilings is unmeasured. One earlier run of the date-only variant
+printed nothing on UART0 within 20 virtual seconds while another
+session's Renode ran on the host, and the immediate rerun passed; the
+cause is not identified. No board ran this change.
+
+The narrow view stays a signed `long`. Making it `utime32_t`, so that a
+program compiled on the board also reads to 2106, changes `mktime.c`'s
+32-bit range derivation (it asserts a signed `long`), the ctime, mktime
+and difftime contract tests, which run the 32-bit members natively where
+`unsigned long` is 64 bits wide, and the Smaller C test `t22_timewidth`;
+it is not part of this change.
+
 ## Plan
 
 Each step is one pull request. The first two are owed whichever width is
@@ -412,6 +580,11 @@ that, so the step that changes the type adapts it.
 7. `date`, `touch`, `ls`, `tar`, `ar`, `ps` and the host tools
    (`tools/libufs`, `sbin/mkfs`, `sbin/fsck`) read and print through the
    chosen type.
+
+Step 6 for the programs the cross compiler builds, and the program half of
+step 7, are the section "Programs on the 64-bit view" above; `tar`, `ar`
+and the host tools compile at the wide view unedited, and their review
+for times past 2038 stays open with step 4.
 
 The storage-wear items of the proposal stay with their owner,
 `flash-storage-expectation-plan.md`: group commit is its phase P3 and waits

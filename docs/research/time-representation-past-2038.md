@@ -677,10 +677,16 @@ four zones; `t23_timeconvert`, which now also converts each count through
 
 What stays limited:
 
-- The 64-bit `mktime()` keeps the value-only check, since its member is
-  held byte-identical: it refuses the local time whose fields read in UTC
-  as the count -1, one second before 1970 in GMT and the corresponding
-  instant in any other zone.
+- The 64-bit `mktime()` answered the local time whose fields read in UTC
+  as the count -1 (one second before 1970 in GMT, the corresponding
+  instant in any other zone) with a refusal, because it compared
+  `timegm()`'s answer with (time_t)-1 alone. It now sets the probe's
+  `tm_wday` to -1 before each `timegm()` call and takes -1 as a refusal
+  only while the sentinel stands. `mktime64.o` goes from 678 to 698
+  bytes; the other twenty 64-bit members and the 32-bit `mktime.o` are
+  byte-identical (`md5sum`). `tests/time64_calendar` converts that second
+  in GMT and five hours west, natively, at ILP32 and as Thumb-1 under
+  qemu-arm, and rejects a mutant of each call site.
 - The board's `/usr/lib/libc.a` (`distrib/rp2040/boardlibc-members`)
   carries the forward conversion: `ctime.o` (`ctime`, `localtime`,
   `gmtime`), `tzset.o`, `asctime.o`, `timezone.o`, which `tzset.o` calls,

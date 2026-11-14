@@ -49,6 +49,12 @@ Both donors carry shared Berkeley ancestry; they supply alternative current
 mechanisms at these retained local revisions, not independent proofs or a
 claim that these revisions match live upstream.
 
+The machine-checked donor ledger binds DragonFly to its authenticated fetch
+pin `805ca132aededa6ae4c8b3499a2d5c934d78fe56`. Git-object inspection finds
+identical signal-set file bytes at that pin and the local `94448f62` revision
+above. This equality authenticates the selected mechanism without claiming a
+new upstream synchronization or independent ancestry.
+
 ## Implementation and qualification boundary
 
 The repair preserves the scalar public representation and the kernel ABI.
@@ -259,3 +265,45 @@ Its captured gate output has SHA-256
 The classifier reports 201,579 observations across 30 permitted warning
 classes and zero errors; the count is model diagnostic evidence, not a
 warning-free peripheral implementation claim.
+
+## Provider static review
+
+Clang static analysis targets ARM Cortex-M0+ with strict C17, warnings as
+errors, and the repository headers. It reports zero diagnostics for
+`lib/libc/gen/sigsetops.c`. The broad clang-tidy analyzer/bugprone pass reports
+50 diagnostics: 46 reserved identifiers in implementation headers, one
+inherited `SIG_ERR` macro-parentheses diagnostic, and three signed shift-count
+diagnostics. The three counts evaluate `signo - 1` only after admission proves
+`1 <= signo < NSIG`; the left operand has unsigned `sigset_t` type. Those
+expressions satisfy the defined scalar shift domain. Implementation headers
+own their reserved identifiers. The inherited macro remains outside this
+provider repair.
+
+A provider-scoped clang-tidy run with `--header-filter='^$'`,
+`--checks='-*,clang-analyzer-*,bugprone-*,-bugprone-signed-bitwise'`, and
+`--warnings-as-errors='*'` exits successfully. It suppresses the 47 inherited
+header diagnostics and excludes the explicitly reviewed signed-count rule.
+This scoped result is distinct from a clean broad clang-tidy verdict and
+from runtime behavior. The calibrated host and target witnesses remain the
+behavioral evidence.
+
+## Main integration baseline
+
+Main `0c021420f631cd69522fba7c51c263ca98d6bec6` includes the board-libc
+member closure and 64-bit calendar repairs from PRs 540 and 535. Its clean
+resource capture and comparison to `d01ef4a0` reside in
+`signal-set-resources-0c021420.json` and
+`signal-set-resources-d01ef4a0-0c021420.json`. The native archive grows by
+552 bytes to 48,846 bytes; all other 161 numeric resource surfaces remain
+unchanged and the root retains 233 free blocks. The comparator rejects the
+added archive dependencies as expected. These changes belong to the main
+baseline; the signal-set integration requires its own matched comparison.
+
+The donor ledger records the scalar mechanism with its five requirement
+bindings and immutable source identities. Workspace verification authenticates
+all 21 candidates. Calibration rejects 39 ledger and 16 inventory mutations.
+The extension fixture explicitly clears measurement state for a new candidate;
+its contradictory-state control exercises the opposite of the selected
+candidate's measured state. This preserves calibration when a measured entry
+occupies the final ledger position. Ruff reports no errors in the two changed
+validator files.

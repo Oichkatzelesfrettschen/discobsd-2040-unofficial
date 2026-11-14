@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "source_head": "b53cdce10a737373454d74dc30e43a963b695769",
+  "baseline_head": "66ce7c5b57a691fed604f26d14449996f0887743",
+  "main_head": "8016576b4362a5a6aef6fe074375ede8548d4e59",
+  "baseline_equivalence": "git diff --name-only 66ce7c5b..8016576b contains documentation only",
+  "evidence": [
+    {
+      "path": ".build-logs/record-header-contracts.json",
+      "sha256": "5ed827663f094781193933364f27e63d4061cfef4a311d062bc4dc991414af13"
+    },
+    {
+      "path": ".build-logs/record-header-review.md",
+      "sha256": "dd4fa0742c2f2f04e6c97651be0897cae252ae11814372693155cbcf667c7421"
+    },
+    {
+      "path": ".build-logs/record-header-devupdate-comparison.json",
+      "sha256": "7cf27d1717ffe4ceb800f19eb9bfe47106eacf0e1b6951c788a53809c4ef6994"
+    },
+    {
+      "path": ".build-logs/shared-public-header-denominator/receipt.json",
+      "sha256": "eacf89e91741674ba2650db9302290c72facbb9e9bf14de162708bb515a12b0b"
+    },
+    {
+      "path": ".build-logs/shared-public-header-denominator/scan.py",
+      "sha256": "f092481835f3d96d1c5533565fe4f6b67822e009890b7b7ae069cfd2043ce48f"
+    },
+    {
+      "path": ".build-logs/record-header-resources/closure.json",
+      "sha256": "400c5e5b8c2cc3d3ed1200078e0853524f01d9e064197be9eababfc285382dc7"
+    },
+    {
+      "path": ".build-logs/record-header-resources/distribution.json",
+      "sha256": "080119991dd4e41bd3cdb35a12ff7e9b44b4ee148c5f45f2e89a6d3817d43784"
+    },
+    {
+      "path": ".build-logs/record-header-resources/clean.json",
+      "sha256": "231ae5c485ea2f2c53f3817afb8989860d38a641eff5dd03498c67a71b2c1228"
+    },
+    {
+      "path": ".build-logs/record-header-renode.log",
+      "sha256": "c3f6997a974f66f9852efacf1cfa4d98470d8fb8c5c8da713c466dde0aefeea3"
+    },
+    {
+      "path": "tools/renode/vendor/results/boot/renode.log",
+      "sha256": "23060ce2a6cc20dae7feef92723c72589b57a088d6198a0fd4c682127b50f895"
+    },
+    {
+      "path": "tools/renode/vendor/results/boot/uart0.txt",
+      "sha256": "2de7e4fef3ffacc48f6c044213dbfddd7a379a9034fefc65c4d22e5fcad1bfa8"
+    },
+    {
+      "path": ".build-logs/shared-public-header-denominator/repair-delta.json",
+      "sha256": "e6004717009afab81154304552566f36023a28562af4972aeac48ca2e35bb7e5"
+    }
+  ],
+  "compiler_cases": {
+    "valid": 288,
+    "rejected": 27,
+    "smaller_c_inputs": 24,
+    "syntax_verdict_controls": 4
+  },
+  "discovery": {
+    "headers": 54,
+    "modes": 4,
+    "clean_per_mode": 54,
+    "default_external_names": 578,
+    "scope": "Installed top-level and arpa headers only; parsing is not API conformance or export selection"
+  },
+  "resources": {
+    "unchanged_surfaces": 162,
+    "positive_deltas": 0,
+    "all_selected_archive_member_hashes_unchanged": true,
+    "root_free_blocks": 239
+  },
+  "excluded_consumer": "devupdate baseline and candidate compilation fail with identical diagnostics",
+  "review": "One negative-verdict finding is repaired and verified; no remaining actionable finding in bounded review",
+  "remaining": [
+    "aggregate qualification",
+    "ILP32 qualification",
+    "reviewed integration"
+  ],
+  "hardware": "unrun",
+  "renode": {
+    "state": "passed",
+    "class": "Renode UART0 boot and runtime probes",
+    "model_revision": "205a5e4b25440582008a4292074bb07f80a72328"
+  }
+}

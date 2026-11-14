@@ -37,8 +37,9 @@ outside the maintained `usr.sbin` selection; its separate compilation belongs
 in caller evidence, without treating it as a shipped program. The excluded consumer fails compilation with identical diagnostics against
 baseline and candidate headers: incomplete legacy types and warning-policy
 violations remain. This comparison establishes no executable devupdate
-qualification. Complete shipped caller rebuild and matched resource comparison
-remain pending.
+qualification. The complete clean shipped build and dependency closure pass. The generated
+image manifest owns the installed aliases; the unfiltered source manifest also
+names optional components and therefore supplies a different denominator.
 
 ## Calibrated gate
 
@@ -68,5 +69,33 @@ bmake MACHINE=rp2040 check-record-header-contracts
 ```
 
 The focused local gate passes 288 valid cases and 27 rejection controls; all
-24 Smaller C inputs compile and assemble. Resource and runtime qualification
-remain open. No physical-board execution forms part of this repair.
+24 Smaller C inputs compile and assemble. The matched resource comparison and Renode UART0 qualification also pass.
+Aggregate and separate ILP32 qualification remain open. No physical-board execution forms part of this repair.
+
+
+## Clean distribution and resource evidence
+
+Candidate `b53cdce1` has a complete clean distribution and shipped dependency
+closure. The [resource receipt](record-header-resources.json) and
+[comparison](record-header-resource-comparison.json) bind it to the retained
+baseline in [native-linker-calendar-resource-candidate.json](native-linker-calendar-resource-candidate.json).
+That baseline's implementation at `66ce7c5b` matches main `8016576b`; the
+`git diff --name-only 66ce7c5b..8016576b` range contains documentation only.
+All 162 resource surfaces and every selected archive-member hash remain
+unchanged. The root image retains 239 free blocks. No resource exception is
+required for this candidate.
+
+The [qualification record](record-header-qualification.json) binds local
+receipts by hash. The installed top-level/arpa scan parses all 54 headers in
+each of four selector modes, compared with 51 at the baseline. Its default
+view discovers 578 external names. Seven newly discoverable names already
+have libc definitions: endgrent, getgrent, getgrgid, getgrnam, kmemdev,
+setgrent and setgroups. System/netinet/machine header subtrees remain outside
+that exploratory denominator; successful parsing establishes neither full API
+conformance nor an approved shared-library export set.
+
+Renode boots the freshly built UART0 kernel and flash image and passes its
+runtime probes with the pinned peripheral model. An initial invocation stops
+on the missing model dependency before execution; the verified retained model
+supplies that dependency for the successful run. Physical-board behavior
+remains unmeasured.

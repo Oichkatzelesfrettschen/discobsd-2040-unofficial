@@ -325,7 +325,9 @@ PY
 }
 
 views=
-for candidate in native i386-time32 i386-time64; do
+# STORED_TIMES_VIEWS restricts the views tried, so a host with a 32-bit libc
+# can run the suite as a host without one does (STORED_TIMES_VIEWS=native).
+for candidate in ${STORED_TIMES_VIEWS:-native i386-time32 i386-time64}; do
     if view_works "$candidate"; then
         views="$views $candidate"
     else

@@ -512,7 +512,9 @@ mutant_tree() {
 }
 
 views=
-for candidate in native i386-time32 i386-time64; do
+# STORED_TIMES_VIEWS restricts the views tried, so a host with a 32-bit libc
+# can run the suite as a host without one does (STORED_TIMES_VIEWS=native).
+for candidate in ${STORED_TIMES_VIEWS:-native i386-time32 i386-time64}; do
     if view_works "$candidate"; then
         views="$views $candidate"
     else
@@ -577,7 +579,7 @@ while IFS='@' read -r name needs32 file old new; do
 done <<'MUTANTS'
 ar-parse-signed@yes@usr.bin/ar/archive.c@chdr.date = parse_archive_unsigned(hdr->ar_date, sizeof(hdr->ar_date),\n\t    DECIMAL);@chdr.date = (unsigned long)parse_archive_number(hdr->ar_date,\n\t    sizeof(hdr->ar_date), DECIMAL);
 ar-epoch-bound@no@usr.bin/ar/archive.c@epoch <= AR_DATE_MAX &&\n\t\t    date > epoch@epoch <= 0x7fffffffULL &&\n\t\t    date > epoch
-ar-minus-whitespace@no@usr.bin/ar/archive.c@for (digits = number; *digits == ' ' || (*digits >= '\\t' &&\n\t    *digits <= '\\r'); digits++)@for (digits = number; *digits == ' '; digits++)
+ar-minus-whitespace@yes@usr.bin/ar/archive.c@for (digits = number; *digits == ' ' || (*digits >= '\\t' &&\n\t    *digits <= '\\r'); digits++)@for (digits = number; *digits == ' '; digits++)
 ar-extract-all-ones@no@usr.bin/ar/extract.c@chdr.date == AR_DATE_MAX)@chdr.date == AR_DATE_MAX + 1)
 ld-date-unchecked@no@usr.bin/ld/ld.c@if (! fgetardate (buf, &h->ar_date))\n\t\tgoto failed;@h->ar_date = strtoul (buf, 0, 10); (void) fgetardate;
 ar-extract-signed@yes@usr.bin/ar/extract.c@stored_date(sb.st_mtime) > chdr.date@sb.st_mtime > (time_t)chdr.date

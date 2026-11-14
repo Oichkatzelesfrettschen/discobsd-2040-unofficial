@@ -30,7 +30,7 @@ STD=	_featuretest.h a.out.h alloca.h ar.h assert.h \
 	stdalign.h stdarg.h stddef.h stdint.h stdio.h stdlib.h stdnoreturn.h \
 	string.h strings.h struct.h syscall.h sysexits.h \
 	term.h time.h ttyent.h tzfile.h \
-	unistd.h utmp.h vis.h vmf.h
+	unistd.h utime.h utmp.h vis.h vmf.h
 
 LINKS=	errno.h signal.h stdbool.h stdint.h syslog.h
 

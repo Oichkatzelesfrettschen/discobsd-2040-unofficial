@@ -9,6 +9,12 @@
  */
 #include <sys/types.h>
 #include <sys/time.h>
+/*
+ * <time.h> declares time(), which in a build with _TIME_BITS defined as 64
+ * (time64.o, lib/libc/gen/Makefile) binds the definition below to __time64
+ * and its gettimeofday() call to the __gettimeofday64 wrapper.
+ */
+#include <time.h>
 
 time_t
 time(t)

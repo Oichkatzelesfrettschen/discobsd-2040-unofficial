@@ -667,6 +667,12 @@ check-libc-zone:
 check-libc-mktime:
 		${MAKE} -C tests/libc_contracts check-mktime
 
+# The calendar functions of the 64-bit view of time (ctime.c, mktime.c and
+# difftime.c built with _TIME_BITS=64) against fields CPython's datetime
+# derives, natively and at ILP32 (tests/time64_calendar/vectors.py).
+check-libc-calendar64:
+		${MAKE} -C tests/libc_contracts check-calendar64
+
 check-libc-ctime-cross:
 		${MAKE} -C tests/libc_contracts check-ctime-cross
 
@@ -1829,6 +1835,7 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/dcbc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libc_contracts check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/time64_wrappers check
+		REQUIRE_QEMU=1 ${MAKE} -C tests/time64_calendar check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/c17_headers check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_aout check
 
@@ -2036,6 +2043,7 @@ installfs:
 		check-timeout-contracts-cross check-timeout-target-link \
 		check-libc-tempfiles check-libc-ctime \
 		check-libc-ctime-cross check-libc-zone check-libc-mktime \
+		check-libc-calendar64 \
 		check-libc-runtime-limits check-libc-runtime-limits-cross \
 		check-libc-difftime check-libc-difftime-cross check-libc-contracts \
 		check-libc-host-contracts check-libc-alarm-cross \

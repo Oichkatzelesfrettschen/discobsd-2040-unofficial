@@ -90,6 +90,15 @@ OBJS            += time64_widen_stat.o time64_widen_rusage.o time64_stat.o time6
                    time64_select.o time64_pselect.o time64_utimes.o time64_futimes.o \
                    time64_getitimer.o time64_setitimer.o time64_getrusage.o time64_wait4.o
 
+# libc/gen and libc/compat, the members of the 64-bit view of time that
+# are a second build of a narrow source: NAME64.o is NAME.c compiled with
+# _TIME_BITS defined as 64, as in lib/libc/gen/Makefile and
+# lib/libc/compat/Makefile. This archive carries no mktime.o, so no
+# mktime64.o.
+WIDEGENOBJS     = ctime64.o time64.o difftime64.o wait364.o
+WIDECOMPATOBJS  = utime64.o ftime64.o
+OBJS            += ${WIDEGENOBJS} ${WIDECOMPATOBJS}
+
 # libc/gen
 OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
                    calloc.o closedir.o confstr.o crypt.o ctime.o ctype_.o \
@@ -107,7 +116,7 @@ OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
                    sleep.o strcasecmp.o strftime.o swab.o sysconf.o sysctl.o syslog.o system.o \
                    stpcpy.o stpncpy.o strndup.o strnlen.o \
                    strcat.o strncat.o strcpy.o strncpy.o strncmp.o \
-                   telldir.o time.o timezone.o ttyname.o ttyslot.o ualarm.o usleep.o \
+                   telldir.o time.o timezone.o tzset.o ttyname.o ttyslot.o ualarm.o usleep.o \
                    strdup.o uname.o vis.o wait.o wait3.o waitpid.o
 
 # libc/stdio
@@ -169,6 +178,20 @@ qsort_r.o: ${LIBCDIR}/gen/qsort.c
 # output keeps .PATH lookup from replacing the cross-library ELF object.
 abs.o: ${LIBCDIR}/stdlib/abs.c
 		${CC} ${CFLAGS} -c -o abs.o ${LIBCDIR}/stdlib/abs.c
+
+# Each output is named here rather than by $@, which .PATH would resolve to
+# the ELF member of the same name in ${LIBCDIR}/gen or ${LIBCDIR}/compat,
+# as for abs.o above.
+.for member in ${WIDEGENOBJS:S/64.o$//}
+${member}64.o: ${LIBCDIR}/gen/${member}.c
+		${CC} ${CFLAGS} -D_TIME_BITS=64 -c -o ${member}64.o \
+		    ${LIBCDIR}/gen/${member}.c
+.endfor
+.for member in ${WIDECOMPATOBJS:S/64.o$//}
+${member}64.o: ${LIBCDIR}/compat/${member}.c
+		${CC} ${CFLAGS} -D_TIME_BITS=64 -c -o ${member}64.o \
+		    ${LIBCDIR}/compat/${member}.c
+.endfor
 
 vfprintf.o fputs.o: ${LIBCDIR}/stdio/output.h
 atexit.o exit.o: ${LIBCDIR}/stdio/atexit.h

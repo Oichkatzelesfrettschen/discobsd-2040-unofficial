@@ -162,3 +162,7 @@ layouts. An absolute-address error-return fixture fails the code-state
 relocation verifier before runtime. The supervisor-call transition, kernel
 carry flag delivery and shared signal return remain separate obligations.
 The shared selector is experimental and has no production build-mode wiring.
+
+[The ROM dispatch register experiment](rom-dispatch-registers.md) establishes a
+hot-call candidate with preserved double-precision operands and identifies the
+paired cold-descriptor and resolver changes that remain before integration.

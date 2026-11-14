@@ -8,10 +8,13 @@
 # shell logs some forty-five thousand warnings.
 #
 # Ceilings count occurrences, with Renode's folded "(N)" lines expanded, and
-# sit at about twice the count a passing run produces. The counts
-# track how many times the boot ROM re-enters XIP, which moves by a percent
-# or two between runs, so a tight ceiling would fail on scheduling rather
-# than on behavior. Lowering one after a model improvement is the intended
+# sit above the count a passing run produces. The counts track how many
+# times the boot ROM re-enters XIP, once per flash program or erase, which
+# moves by a percent or two between runs, so a tight ceiling would fail on
+# scheduling rather than on behavior. The run that ends at the injected
+# stall with the clock stage of check-boot.py (a clock set past 2038, two
+# files touched and removed) re-enters XIP about 7,660 times; without that
+# stage, 5,935. Lowering one after a model improvement is the intended
 # direction; raising one records that something started warning more.
 #
 # Each entry says what the model is missing and what the kernel sees because
@@ -36,18 +39,18 @@
 # QSPI continuation mode a previous XIP session left the flash in, W25QXX
 # decodes no such command, and the mode bytes that follow land here. Silicon
 # ignores them the same way, so the sequence works regardless.
-6000    ^(xip_ssi\.xip_flash: )?Unhandled operation while processing byte: 0x0
+9000    ^(xip_ssi\.xip_flash: )?Unhandled operation while processing byte: 0x0
 # Any other operation type is one the model decoded and then failed to
 # serve. Status reads were 0x7 here until patch 0004 served them, so a
 # single occurrence is a regression.
 0       ^(xip_ssi\.xip_flash: )?Unhandled operation while processing byte:
 # The 0xff of flash_exit_xip itself, rejected by RecognizeOperation.
-6000    ^(xip_ssi\.xip_flash: )?Unhandled operation: 0xN
+9000    ^(xip_ssi\.xip_flash: )?Unhandled operation: 0xN
 
 # RP2040XIPSSI signals chip select from its SSIENR and SER write callbacks
 # as well as through the pad, so the flash model takes a second deassert
 # while already idle and reports the state it was in.
-18000   ^(xip_ssi\.xip_flash: )?Transmission finished in unexpected state: RecognizeOperation
+27000   ^(xip_ssi\.xip_flash: )?Transmission finished in unexpected state: RecognizeOperation
 
 # RESETS (datasheet 2.14) is absent from the platform. Its RESET_DONE reads
 # back all-ones from the SVD tag, so every wait-for-reset loop in the boot
@@ -56,17 +59,17 @@
 # the boot ROM uses to reset io_qspi and pads_qspi -- reach nothing. The
 # models come up already usable, so a kernel that forgot to bring a
 # peripheral out of reset would still pass here.
-6000    ^sysbus: \(tag: 'RESET_DONE'\) ReadDoubleWord from non existing peripheral at 0x4000C008,
-6000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x4000E000,
-6000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x4000F000,
+9000    ^sysbus: \(tag: 'RESET_DONE'\) ReadDoubleWord from non existing peripheral at 0x4000C008,
+9000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x4000E000,
+9000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x4000F000,
 
 # XIP_CTRL:FLUSH (datasheet 2.6.3) is decoded from the SVD with no behavior,
 # and its SET alias at XIP_CTRL+0x2000 reaches nothing. The model serves
 # flash reads straight through with no cache in front of them, so a flush
 # that does nothing returns the same bytes a real flush would.
-6000    ^sysbus: WriteDoubleWord .*XIP_CTRL:FLUSH
-6000    ^sysbus: ReadDoubleWord .*XIP_CTRL:FLUSH
-6000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x14002000,
+9000    ^sysbus: WriteDoubleWord .*XIP_CTRL:FLUSH
+9000    ^sysbus: ReadDoubleWord .*XIP_CTRL:FLUSH
+9000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x14002000,
 
 # SYSCFG:PROC0_NMI_MASK is decoded from the SVD with no behavior. The boot
 # ROM clears both masks, and a kernel built with "options CORE1" writes
@@ -74,13 +77,13 @@
 # in machdep.c withdraws and restores the route of core 1's probe
 # interrupt), so the count is twice the per-operation classes above. The
 # model delivers no NMI either way, which leaves the probe unexercised here.
-12000   ^sysbus: WriteDoubleWord .*SYSCFG:PROC[01]_NMI_MASK
+18000   ^sysbus: WriteDoubleWord .*SYSCFG:PROC[01]_NMI_MASK
 
 # The QSPI pad model implements neither the slew-rate bit the boot ROM sets
 # when it raises the flash clock nor, on the GPIO bank, the input-enable and
 # a few reserved offsets. Pad drive strength has no meaning in an emulator
 # whose flash answers instantly.
-6000    ^qspi_pads: Unhandled write to offset 0xN\. Unhandled bits: \[0\] .*SLEWFAST
+9000    ^qspi_pads: Unhandled write to offset 0xN\. Unhandled bits: \[0\] .*SLEWFAST
 16      ^pads: Unhandled (read from|write to) offset 0xN \(unknown\)
 8       ^pads: Unhandled write to offset 0xN\. Unhandled bits: \[6\] .*IE
 

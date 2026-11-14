@@ -631,7 +631,12 @@ cell(const struct kinfo_proc *kp, enum column col, char *buf, size_t n)
 	unsigned cred = kp->kp_valid & KP_VALID_CRED;
 	unsigned times = kp->kp_valid & KP_VALID_TIMES;
 	unsigned long cpu = (unsigned long)kp->kp_utime + kp->kp_stime;
-	long elapsed = now - kp->kp_start;
+	/*
+	 * kp_start is the kernel's 32-bit clock count, which reads unsigned
+	 * (utime32_t), so it widens without its sign.
+	 */
+	time_t start = (time_t)(utime32_t)kp->kp_start;
+	long elapsed = (long)(now - start);
 	/* Only fork sets a start time, so pid 0, which never forked, has none. */
 	unsigned started = (kp->kp_valid & KP_VALID_START) && kp->kp_start != 0;
 
@@ -695,7 +700,6 @@ cell(const struct kinfo_proc *kp, enum column col, char *buf, size_t n)
 		return (buf);
 	case C_STIME:
 		if (started) {
-			time_t start = kp->kp_start;
 			struct tm tm = *localtime(&start);
 			static const char months[] =
 			    "JanFebMarAprMayJunJulAugSepOctNovDec";

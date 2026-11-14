@@ -204,7 +204,7 @@ int op_create(const char *path, mode_t mode, struct fuse_file_info *fi)
         fi->fh = 0;
         return -EIO;
     }
-    fh->inode.mtime = time(0);
+    fh->inode.mtime = fs_clock ();
     fh->inode.dirty = 1;
     fs_file_close (fh);
     fi->fh = (intptr_t) fh;
@@ -252,7 +252,7 @@ int op_write(const char *path, const char *buf, size_t size, off_t offset,
         printlog("--- read failed\n");
         return -EIO;
     }
-    fh->inode.mtime = time(0);
+    fh->inode.mtime = fs_clock ();
     fh->inode.dirty = 1;
     return size;
 }
@@ -295,7 +295,7 @@ int op_truncate(const char *path, off_t newsize)
         return -EINVAL;
     }
     fs_inode_truncate (&f.inode, newsize);
-    f.inode.mtime = time(0);
+    f.inode.mtime = fs_clock ();
     f.inode.dirty = 1;
     fs_file_close (&f);
     return 0;
@@ -319,7 +319,7 @@ int op_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
         return -EINVAL;
     }
     fs_inode_truncate (&fh->inode, offset);
-    fh->inode.mtime = time(0);
+    fh->inode.mtime = fs_clock ();
     fh->inode.dirty = 1;
     fs_file_close (fh);
     return 0;
@@ -567,7 +567,7 @@ int op_mknod(const char *path, mode_t mode, dev_t dev)
     if (S_ISCHR(mode) || S_ISBLK(mode)) {
         inode.addr[1] = major(dev) << 8 | minor(dev);
     }
-    inode.mtime = time(0);
+    inode.mtime = fs_clock ();
     inode.dirty = 1;
     if (! fs_inode_save (&inode, 0)) {
         printlog("--- create failed\n");
@@ -637,7 +637,7 @@ int op_symlink(const char *path, const char *newpath)
         printlog("--- write failed\n");
         return -EIO;
     }
-    inode.mtime = time(0);
+    inode.mtime = fs_clock ();
     inode.dirty = 1;
     if (! fs_inode_save (&inode, 0)) {
         printlog("--- create failed\n");
@@ -704,15 +704,26 @@ int op_utime(const char *path, struct utimbuf *ubuf)
 
     printlog("--- op_utime(path=\"%s\", ubuf=%p)\n", path, ubuf);
 
+    /* The inode holds each time as an unsigned 32-bit count of seconds. */
+    if ((long long) ubuf->actime < 0 ||
+        (long long) ubuf->actime > 0xffffffffLL ||
+        (long long) ubuf->modtime < 0 ||
+        (long long) ubuf->modtime > 0xffffffffLL) {
+        printlog("--- time out of range\n");
+        return -EINVAL;
+    }
+
     /* Open the file. */
     if (! fs_inode_lookup (fs, &inode, path)) {
         printlog("--- file not found\n");
         return -ENOENT;
     }
 
-    /* Modify the access and modification times. */
-    inode.atime = ubuf->actime;
-    inode.mtime = ubuf->modtime;
+    /* Modify the access and modification times, bounded or fixed as the
+     * image-building modes bound them. */
+    inode.atime = fs_source_time (ubuf->actime);
+    inode.atime_explicit = 1;
+    inode.mtime = fs_source_time (ubuf->modtime);
     inode.dirty = 1;
     fs_inode_save (&inode, 0);
     return 0;

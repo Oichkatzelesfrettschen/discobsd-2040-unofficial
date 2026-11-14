@@ -1330,6 +1330,12 @@ check-v7fs-core: check-python
 check-v7-format: check-python
 		${MAKE} -C tests/kernel check-v7-format PYTHON=${PYTHON:Q}
 
+# The time stamps tools/fsutil writes into an image, including a clock past
+# January 2038 from FSUTIL_CLOCK, read back with fsutil itself; the gate
+# compiles fsutil and four mutants of superblock.c from the tree.
+check-fsutil-clock: check-python
+		${MAKE} -C tests/fsutil_clock check PYTHON=${PYTHON:Q}
+
 check-msdosfs-core: check-python
 		${MAKE} -C tests/msdosfs_core check PYTHON=${PYTHON:Q}
 
@@ -1501,7 +1507,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
 		check-netbsd-imports check-v7fs-core check-storage-recovery \
-		check-storage-recovery-models check-msdosfs-core \
+		check-storage-recovery-models check-msdosfs-core check-fsutil-clock \
 		check-corering check-core1 \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \

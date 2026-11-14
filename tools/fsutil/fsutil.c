@@ -116,6 +116,11 @@ static void print_help (char *progname)
     printf ("  -V, --version       Print version information and then exit.\n");
     printf ("  -h, --help          Print this message.\n");
     printf ("\n");
+    printf ("Environment:\n");
+    printf ("  SOURCE_DATE_EPOCH=N No time written to an image is later than N.\n");
+    printf ("  FSUTIL_CLOCK=N      Every time written to an image is N.\n");
+    printf ("                      N is a count of seconds, 0 to 4294967295.\n");
+    printf ("\n");
     printf ("Report bugs to \"%s\".\n", program_bug_address);
 }
 
@@ -849,6 +854,8 @@ int main (int argc, char **argv)
         print_help (argv[0]);
         return -1;
     }
+    if (newfs || add || mount || repartition || (check && fix))
+        fs_clock_validate ();
 
     if (newfs) {
         /* Create new filesystem. */

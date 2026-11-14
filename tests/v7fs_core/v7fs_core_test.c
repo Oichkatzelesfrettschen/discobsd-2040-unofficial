@@ -50,6 +50,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "v7fs.h"
@@ -312,6 +313,8 @@ le24(const uint8_t *p)
 #define	SB_NFREE	le16(SB + 6)
 #define	SB_FREE(i)	le32(SB + 8 + 4 * (i))
 #define	SB_NINODE	le16(SB + 208)
+#define	SB_TIME_OFFSET	414
+#define	SB_TIME		le32(SB + SB_TIME_OFFSET)
 #define	SB_TFREE	le32(SB + 418)
 #define	SB_TINODE	le16(SB + 422)
 
@@ -618,6 +621,49 @@ put16(uint8_t *p, unsigned v)
 {
 	p[0] = (uint8_t)v;
 	p[1] = (uint8_t)(v >> 8);
+}
+
+/* The inverse of le32() for the byte order under test. */
+static void
+put32(uint8_t *p, uint32_t v)
+{
+	if (byte_order == PDP_ENDIAN) {
+		put16(p, v >> 16);
+		put16(p + 2, v & 0xffff);
+		return;
+	}
+	put16(p, v & 0xffff);
+	put16(p + 2, v >> 16);
+}
+
+/*
+ * The text v7fs_superblock_dump() prints for the mounted superblock, which
+ * goes to stdout, captured through a temporary file; 0 on success.
+ */
+static int
+dump_text(const struct v7fs_self *fs, char *text, size_t size)
+{
+	FILE *capture = tmpfile();
+	size_t length;
+	int saved;
+
+	if (capture == NULL || size < 2)
+		return EIO;
+	fflush(stdout);
+	if ((saved = dup(STDOUT_FILENO)) == -1 ||
+	    dup2(fileno(capture), STDOUT_FILENO) == -1) {
+		fclose(capture);
+		return EIO;
+	}
+	v7fs_superblock_dump(fs);
+	fflush(stdout);
+	dup2(saved, STDOUT_FILENO);
+	close(saved);
+	rewind(capture);
+	length = fread(text, 1, size - 1, capture);
+	text[length] = '\0';
+	fclose(capture);
+	return 0;
 }
 
 static int
@@ -2018,7 +2064,7 @@ regress(int fd)
 	struct v7fs_self *fs;
 	struct v7fs_inode root, inode;
 	struct v7fs_fileattr attr;
-	char name[8];
+	char name[8], dump[512];
 	v7fs_ino_t ino;
 	unsigned i, allocated;
 	uint8_t before[512];
@@ -2603,6 +2649,48 @@ regress(int fd)
 			fail("regress-superblock",
 			    "an empty block cache with free blocks mounts");
 			v7fs_io_fini(fs);
+		}
+	}
+
+	/*
+	 * The superblock time is an unsigned 32-bit count of seconds; a count
+	 * with bit 31 set is a date after January 2038 and must mount, and
+	 * must survive a writeback into the field s_time of filsys.h.
+	 */
+	if (format_image(fd, 64, 0) != 0 || load_raw(fd) != 0) {
+		fail("regress-superblock-time", "format failed");
+	} else {
+		put32(SB + SB_TIME_OFFSET, 0x90000000u);
+		if (lseek(fd, 512, SEEK_SET) != 512 ||
+		    write(fd, image + 512, 512) != 512) {
+			fail("regress-superblock-time", "superblock write failed");
+		} else if ((fs = mount_image(fd)) == NULL) {
+			fail("regress-superblock-time",
+			    "a superblock time past January 2038 does not mount");
+		} else {
+			check((uint32_t)fs->superblock.update_time == 0x90000000u,
+			    "regress-superblock-time",
+			    "the mounted time is not the stored count");
+			/* 0x90000000 is 2046-07-23 00:38:24 UTC; read as a signed
+			 * count it would print a date in 1910. */
+			setenv("TZ", "UTC", 1);
+			tzset();
+			check(dump_text(fs, dump, sizeof(dump)) == 0 &&
+			    strstr(dump, "Mon Jul 23 00:38:24 2046") != NULL,
+			    "regress-superblock-time",
+			    "the superblock dump does not print July 2046");
+			fs->superblock.update_time = (v7fs_time_t)0xffffffffu;
+			fs->superblock.modified = 1;
+			check(v7fs_superblock_writeback(fs) == 0 &&
+			    load_raw(fd) == 0 && SB_TIME == 0xffffffffu,
+			    "regress-superblock-time",
+			    "the written time is not the count stored");
+			v7fs_io_fini(fs);
+			if ((fs = mount_image(fd)) == NULL)
+				fail("regress-superblock-time",
+				    "the largest count does not mount");
+			else
+				v7fs_io_fini(fs);
 		}
 	}
 }

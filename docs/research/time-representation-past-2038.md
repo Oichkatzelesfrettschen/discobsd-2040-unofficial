@@ -739,22 +739,26 @@ What stays limited:
   | the same, then `as d.s -o d.o` | 9,955 | 1,849 for `as` |
   | the same, then `ld` against `libc.a` | 12,516 | 2,561 for `ld` |
 
-  A process launched from the shell costs 167 commands whatever it does;
-  the count fits `fork()` writing the parent's image to the swap region,
-  which this measurement does not observe directly. Beyond its own
-  launch `smlrc` adds about 90, `as` about 1,680 and `ld` about 2,390;
-  `as` keeps its sections in `/tmp/tasXXXXXX` and `ld` in
-  `/tmp/ldaXXXXXX` (`usr.bin/as/as-thumb.c`, `usr.bin/ld/ld.c`), and
-  each seeks within the file it is writing. The three programs run
-  directly add 4,666; the `cc` script adds the other 1,884, about eleven
-  more launches (`basename`, `sed`, `expr`, `rm` and their subshells).
-  The measured Pico agrees in time: a launch of `true` takes 0.56
-  seconds, `smlrc` 1.02, `as` 7.43 and `ld` 9.47 run directly, 30.86
-  through `cc`, where a 24 KB `dd` to `/tmp` takes 3.68. Temporary files
-  therefore carry about 62 percent of a small compile's flash commands
-  and process launches about 36 percent. No remedy is applied: holding
-  the temporary sections in memory, a `cc` driver with fewer launches and
-  a swap path that keeps a waiting parent in RAM are separate designs.
+  A launch of `expr` from the shell costs 167 commands; the count fits
+  `fork()` writing the parent's image to the swap region, which this
+  measurement does not observe. Beyond one such launch `smlrc` adds about
+  90, `as` about 1,680 and `ld` about 2,390. Those remainders are each
+  program's own flash activity taken together: the file it writes, the
+  temporary file `as` and `ld` keep under `/tmp` (`/tmp/tasXXXXXX` in
+  `usr.bin/as/as-thumb.c`, `/tmp/ldaXXXXXX` in `usr.bin/ld/ld.c`) and
+  any swapping of its own image. The count carries no flash offset, so
+  the share of each within a program is unmeasured; a count of program
+  commands by flash offset would give it. The three programs run
+  directly add 4,666; the `cc` script adds the other 1,884, which is
+  about eleven launches at 167. The measured Pico agrees in time: a
+  launch of `true` takes 0.56 seconds, `smlrc` 1.02, `as` 7.43 and `ld`
+  9.47 run directly, 30.86 through `cc`, where a 24 KB `dd` to `/tmp`
+  takes 3.68. By workload, then, `as` and `ld` beyond their launches
+  account for about 62 percent of a small compile's flash commands and
+  launches at the measured rate for about 36 percent. No remedy is
+  applied: holding the temporary sections in memory, a `cc` driver with
+  fewer launches and a swap path that keeps a waiting parent in RAM are
+  separate designs.
 
 ## Residuals
 

@@ -1,0 +1,178 @@
+{
+  "schema": 1,
+  "source_revision": "1734dcc73adcc9000c85eab4bf07c7e3634a9d9d",
+  "experiment": "Full shared PIC/LTO archive with explicit compiler-owned roots",
+  "archive_sha256": "33209433e1ecc7e6f350ed21b0c80dfdeb92b31c5ef7bd87d20c95b8bba8eecf",
+  "qualification": {
+    "baseline_link_exit": 1,
+    "explicit_compiler_roots_link_exit": 0,
+    "trace_with_fatal_warnings_exit": 1,
+    "trace_without_fatal_warnings_exit": 0,
+    "trace_output_elf_identical": true,
+    "elf_sha256": "02d639e403e11023306c1b6a31be5c2c8f7b7cfe20e87e4706c06de4e25908ac",
+    "flash_extent_bytes": 61244,
+    "state_bytes": 5344,
+    "reservation_bytes": 49152,
+    "excess_before_slots_bytes": 12092,
+    "claim": "Explicit compiler roots resolve this archive link; internal LTO extraction cause remains unproven."
+  },
+  "omission_controls": [
+    {
+      "omitted": "__aeabi_llsl",
+      "exit_code": 1,
+      "expected_missing_symbol": true
+    },
+    {
+      "omitted": "__aeabi_llsr",
+      "exit_code": 1,
+      "expected_missing_symbol": true
+    },
+    {
+      "omitted": "__gnu_thumb1_case_sqi",
+      "exit_code": 1,
+      "expected_missing_symbol": true
+    },
+    {
+      "omitted": "__gnu_thumb1_case_uhi",
+      "exit_code": 1,
+      "expected_missing_symbol": true
+    },
+    {
+      "omitted": "__gnu_thumb1_case_uqi",
+      "exit_code": 1,
+      "expected_missing_symbol": true
+    }
+  ],
+  "syscall_runtime": {
+    "elf_sha256": "02d639e403e11023306c1b6a31be5c2c8f7b7cfe20e87e4706c06de4e25908ac",
+    "class": "Unicorn instruction execution with modeled SVC outcomes",
+    "results": [
+      {
+        "mode": "normal",
+        "state": "passed",
+        "calls": 32
+      },
+      {
+        "mode": "even-helper",
+        "state": "rejected",
+        "reason": "modeled execution: Invalid instruction (UC_ERR_INSN_INVALID)"
+      },
+      {
+        "mode": "wrong-helper",
+        "state": "rejected",
+        "reason": "return value differs"
+      },
+      {
+        "mode": "omit-relocations",
+        "state": "rejected",
+        "reason": "modeled execution: Invalid memory write (UC_ERR_WRITE_UNMAPPED)"
+      },
+      {
+        "mode": "wrong-owner",
+        "state": "rejected",
+        "reason": "errno differs"
+      },
+      {
+        "mode": "ptrace-literal-alias",
+        "state": "rejected",
+        "reason": "modeled execution: Invalid memory read (UC_ERR_READ_UNMAPPED)"
+      }
+    ]
+  },
+  "state_runtime": [
+    {
+      "mode": "normal",
+      "result": "passed",
+      "calls": 522
+    },
+    {
+      "mode": "omit-state-relocations",
+      "result": "rejected",
+      "reason": "invalid memory access 20 address=0x9d8 size=4 value=0x20010006 pc=0x1002909c r9=0x2000136c"
+    },
+    {
+      "mode": "reuse-first-state",
+      "result": "rejected",
+      "reason": "inactive process state changes"
+    },
+    {
+      "mode": "relocate-fixed-pointers",
+      "result": "rejected",
+      "reason": "invalid memory access 19 address=0x3002f1a8 size=1 value=0x0 pc=0x10022988 r9=0x2000136c"
+    }
+  ],
+  "evidence": [
+    {
+      "path": ".build-logs/shared-archive-link/compiler-root-qualification.json",
+      "sha256": "1b535beb6927b998250c309259893c399760ef4b2250c7bd6e5c7b3dd6125b87"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/compiler-root-omission-controls.json",
+      "sha256": "d15f277afdc9413b652ba892db248a4a3676e5e232883112047536aa24f29f06"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/direct-image-comparison.json",
+      "sha256": "2dbba56b00f1e856816ea7a37b78cebabf2683aada5cc71ef98b02ae2dc74579"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/symbol-layout-delta.json",
+      "sha256": "44c5c6a17b1227d9980e9db2444344c91dc9145b300651eba86afa8a0227cc01"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/explicit-compiler-roots-no-trace/command.json",
+      "sha256": "f73fd2dbf06687b64eb0c732b1f929dec59c5394c5602f6414d917578c63dd1f"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/explicit-compiler-roots-no-trace/layout.json",
+      "sha256": "b7534a51a824d52b9cb685d43b0657f441ff033661c04d3e6781f5258b57a468"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/explicit-compiler-roots-no-trace/runtime.json",
+      "sha256": "32b9dd00013c8bfe5a8dc9ec8cc762d1cf97203ef0a52fd94c4811df855fd8f2"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/explicit-compiler-roots-no-trace/state-runtime.json",
+      "sha256": "a2eb279a6bf0a849a28ca5b214402cf732f0756f2250908dea55871bec4aa753"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/explicit-compiler-roots-no-trace/exercise.py",
+      "sha256": "d10e7bb18777d509ae5df82a7da5b59884c596e6b46217d319d1f9a62cdeae07"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/explicit-compiler-roots-no-trace/exercise_state.py",
+      "sha256": "0ad91d244ad098ce213f7a64bd07c03751b3a2381baacb1408b9f6f1a3a1d926"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/explicit-compiler-roots-no-trace/derive_bounded_state_layout.py",
+      "sha256": "5eb1181a405cf9606f64bd038ac7da7604693584989370f2d3097f7c13e9b94b"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/explicit-compiler-roots-no-trace/state-construction-control.json",
+      "sha256": "58bedb2a1294f0eda5096a0a76636eb1e4328290e040b04a69206d5c388ae4ba"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/explicit-compiler-roots-no-trace/state-construction-control.log",
+      "sha256": "60229b5fd65753468dd4eebaa6f19e479430d7d477c845426053979ee9bde383"
+    },
+    {
+      "path": ".build-logs/shared-archive-closure/weak-fallback-comparison.json",
+      "sha256": "c95097dd63f58f8468f7b07284f17432007d13dd5897f23c34c1563ae28d3ca1"
+    },
+    {
+      "path": ".build-logs/shared-archive-link/explicit-compiler-roots-no-trace/root-validation.json",
+      "sha256": "e48f7ed01776f29a4d95aff5c32c56b26b6edb7bed521d29349ad2c564c696d7"
+    }
+  ],
+  "limits": [
+    "All 646 retained globals remain screening roots; public ABI selection remains open.",
+    "Runtime uses Unicorn with modeled SVC and divider outcomes, without kernel or physical-board execution.",
+    "Explicit roots resolve this fixture; compiler-plugin internals remain unproven.",
+    "Equal image sizes do not establish byte identity or complete semantic equivalence.",
+    "The 48 KiB reservation remains exceeded before callable slots."
+  ],
+  "root_validation": {
+    "required_roots": 646,
+    "missing_roots": [],
+    "undefined_symbols": []
+  }
+}

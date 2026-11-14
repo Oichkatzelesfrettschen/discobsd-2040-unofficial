@@ -125,6 +125,50 @@ identical provider metadata and gross costs, apart from additive empty group
 metadata. Shared syscall selection has an explicit two-wrapper witness; broader
 shared-archive build wiring and ABI selection remain open.
 
+## Compiler-owned link roots
+
+The [compiler-root qualification receipt](compiler-root-qualification.json)
+binds an experimental 449-member shared PIC/LTO archive, its link inputs and
+runtime probes at source `1734dcc7`. All 646 screening roots remain required.
+The closure selects 448 members because the strong `_cleanup` provider
+supersedes `fakcu.o`; omitting that fallback from the direct-object link leaves
+its ELF byte-identical. Archive closure and final linker extraction remain
+distinct mechanisms.
+
+The whole-archive link reports unresolved references to `__aeabi_llsl`,
+`__aeabi_llsr`, `__gnu_thumb1_case_sqi`, `__gnu_thumb1_case_uhi` and
+`__gnu_thumb1_case_uqi`. Supplying `-Wl,--undefined=SYMBOL` for each of those
+compiler-owned imports produces a successful diagnostic-free link with the
+existing fatal-warning policy. Five separate controls remove one root at a
+time; each link rejects the corresponding unresolved helper. The ownership
+contract supplies these names explicitly. A future build generator must retain
+that ownership boundary and reject an unclassified dependency.
+
+The linker trace identifies definitions in GCC 16.2.0's
+`thumb/v6-m/nofp/libgcc.a`. A traced link with `--fatal-warnings` exits with
+status 1 despite reporting the definitions and references. The same traced
+link with that diagnostic policy disabled succeeds and produces a byte-identical
+ELF to the successful untraced link. The nonfatal run serves only to inspect
+extraction; the accepted experimental link retains `--fatal-warnings`.
+These controls establish root sufficiency for this fixture and an instrumentation
+interaction, while the compiler plugin's internal cause remains unproven.
+
+The archive image occupies 61,244 flash bytes and 5,344 state bytes. Those sizes
+match the direct-object image, but allocated bytes and symbol addresses differ.
+Separate execution therefore qualifies the archive image: 32 modeled syscall
+calls across two state areas pass, and five syscall mutations reject; 522
+tokenizer, numeric-conversion and byte-classification calls pass, and three
+state-ownership mutations reject. The state probe propagates construction-time
+Unicorn errors instead of crediting them as expected runtime rejection.
+These probes exercise modeled SVC and divider behavior, without kernel, signal,
+swap or physical-board qualification.
+
+The fixed 49,152-byte reservation remains exceeded by 12,092 bytes before
+callable slots. Explicit compiler roots provide reproducible archive linking,
+not capacity savings, public ABI selection or production shared-build wiring.
+The receipt hashes local evidence files; their ignored paths identify retained
+experiments rather than distributed acceptance gates.
+
 ## Reproducing the all-global screen
 
 The following discovery contract selects every defined global; its reasons

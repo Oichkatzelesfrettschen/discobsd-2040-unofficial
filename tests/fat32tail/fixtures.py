@@ -248,6 +248,21 @@ def apply_patch(vol: Volume, kind: str, args: list[str]) -> None:
         slot = vol.find(TARGET)
         first = vol.entry_cluster(slot)
         vol.set_fat(first + int(args[0]), int(args[1], 0))
+    elif kind == "alias-chain":
+        # alias-chain COUNT: every subdirectory entry of the root names one
+        # chain of COUNT clusters whose entries are all deleted, so each scan
+        # of a sibling runs the whole chain and finds nothing.
+        count = int(args[0])
+        start = 20000
+        for cluster in range(start, start + count):
+            vol.set_fat(cluster, cluster + 1 if cluster + 1 < start + count else EOC)
+            base = vol.cluster_offset(cluster)
+            for slot in range(base, base + vol.spc * 512, 32):
+                m[slot] = 0xE5
+        for slot in vol.slots(vol.root):
+            live = m[slot] != 0xE5 and m[slot + 11] & 0x3F != 0x0F
+            if live and m[slot + 11] & 0x10 and m[slot] != 0x2E:
+                vol.set_entry_cluster(slot, start)
     elif kind == "file-attr":
         slot = vol.find(TARGET)
         m[slot + 11] = int(args[0], 0)

@@ -22,12 +22,13 @@
 # over a subdirectory copy; a deleted directory and a volume label that
 # carry the name; an entry stored in lower case; a live FAT other than the
 # first. Known-bad volumes make each error the locator reports: not FAT32
-# (FAT16, exFAT, a zeroed sector, eleven damaged BPB fields), a failed read
+# (FAT16, exFAT, a zeroed sector, thirteen BPB images damaged in eleven fields), a failed read
 # at every read the walk makes, an absent file, a file whose clusters are
 # not one run (made by filling a volume, freeing two holes and writing a file
 # larger than either), a damaged UF2 head, a tail that is empty, short or not
-# whole sectors, a tail without the file-system magic, and chains that loop,
-# leave the volume or end early. A seeded run damages sectors the walk reads
+# whole sectors, a tail without the file-system magic, chains that loop,
+# leave the volume or end early, and sixteen sibling directories that share
+# one long chain (the search's read budget). A seeded run damages sectors the walk reads
 # and requires a defined result inside a read budget, under the address and
 # undefined-behavior sanitizers.
 #
@@ -85,14 +86,14 @@ fail()
 	exit 1
 }
 
-# The volumes hold about 0.55 GB of data; a full work directory is an
-# environment failure, not a failed case.
+# The volumes hold about 0.55 GB of data. Too little room is a skip, not a
+# failed case: nothing is built and the gate says so.
 need_kib=900000
 free_kib=$(df -Pk "$work" | awk 'NR == 2 { print $4 }')
 echo "fat32tail: work directory on $(df -P "$work" | awk 'NR == 2 { print $1 }'), $free_kib KiB free"
 if [ "$free_kib" -lt "$need_kib" ]; then
-	echo "fat32tail: ERROR: $free_kib KiB free in $work, $need_kib KiB needed; set TMPDIR" >&2
-	exit 2
+	echo "fat32tail: skip: not run, $free_kib KiB free in $work and $need_kib KiB needed; set TMPDIR"
+	exit 0
 fi
 
 # ---- tools ----
@@ -341,6 +342,10 @@ variant nf-fats base-root "error notfat32" bpb 16 1 0
 variant nf-few-clusters base-root "error notfat32" bpb 32 4 66110
 variant nf-small-fat base-root "error notfat32" bpb 36 4 100
 variant nf-live-fat base-root "error notfat32" bpb 40 2 0x0089
+variant nf-reserved-zero base-root "error notfat32" bpb 14 2 0
+variant nf-root-cluster-0 base-root "error notfat32" bpb 44 4 0
+variant nf-root-cluster-1 base-root "error notfat32" bpb 44 4 1
+variant nf-root-cluster-high base-root "error notfat32" bpb 44 4 0x0FFFFFF0
 variant nf-exfat base-root "error notfat32" exfat-like
 "$msdosfs" newfs "$work/fat16.img" 20000 16 >/dev/null || fail "newfs FAT16"
 put "$work/fat16.img" "$work/small.uf2" /discobsd.uf2
@@ -396,6 +401,22 @@ variant corrupt-subdirectory base-apps "error corrupt" subdir-first 0x0FFFFFF0
 variant fragmented-link base-root "error fragmented" file-fat 2 5
 variant uf2head-size-0 base-root "error uf2head" file-size 0
 variant uf2head-size-100 base-root "error uf2head" file-size 100
+
+# Sixteen sibling directories whose entries name one chain of deleted entries:
+# the search stops at its read budget (the 4000-cluster chain costs about 4,000
+# reads to scan once and 64,000 over sixteen siblings); with a chain of 100
+# clusters it ends with the file absent.
+for length in 4000 100; do
+	volume aliased-$length 1 70000
+	n=1
+	while [ "$n" -le 16 ]; do
+		mkd "$work/aliased-$length.img" "/subdirectory $n"
+		n=$((n + 1))
+	done
+	fixtures patch "$work/aliased-$length.img" 0 alias-chain "$length"
+done
+add_case aliased-chains-over-budget "$work/aliased-4000.img" 0 "error corrupt"
+add_case aliased-chains-in-budget "$work/aliased-100.img" 0 "error absent"
 
 # UF2 head, tail and magic: files the builder refuses, put in a blank volume.
 volume blank 1 70000
@@ -634,15 +655,19 @@ if command -v arm-none-eabi-gcc >/dev/null 2>&1; then
 	# that no parameter or macro of the locator collides with a kernel name
 	# (-Wshadow -Werror rejects a parameter named read).
 	kernel_dir=$topsrc/sys/arch/rp2040/compile/PICOCALC
-	kernel_flags=$("$MAKE" -C "$kernel_dir" -V '${CFLAGS}' | sed 's/-g -gdwarf-4//; s/-fdebug-prefix-map=[^ ]*//')
-	kernel_defs=$("$MAKE" -C "$kernel_dir" -V '${DEFS}' | sed 's/-MT [^ ]* -MP -MD -MF [^ ]*//')
-	[ -n "$kernel_flags" ] && [ -n "$kernel_defs" ] || fail "no CFLAGS or DEFS from $kernel_dir"
-	# shellcheck disable=SC2086  # the flag variables are word lists
-	(cd "$kernel_dir" && arm-none-eabi-gcc $kernel_flags $kernel_defs \
-	    -include sys/param.h -include sys/systm.h \
-	    -c -o "$work/obj/fat32tail_kernel.o" ../../dev/fat32tail.c) ||
-	    fail "build of fat32tail.c with the PICOCALC kernel flags and headers"
-	echo "fat32tail: the locator builds with the PICOCALC kernel flags after <sys/param.h> and <sys/systm.h>"
+	if [ ! -e "$kernel_dir/machine" ] || [ ! -e "$kernel_dir/sys" ]; then
+		echo "fat32tail: kernel-flag build skip: not run, sys/arch/rp2040/compile/PICOCALC has no machine and sys links yet; bmake MACHINE=rp2040 kernel makes them"
+	else
+		kernel_flags=$("$MAKE" -C "$kernel_dir" -V '${CFLAGS}' | sed 's/-g -gdwarf-4//; s/-fdebug-prefix-map=[^ ]*//')
+		kernel_defs=$("$MAKE" -C "$kernel_dir" -V '${DEFS}' | sed 's/-MT [^ ]* -MP -MD -MF [^ ]*//')
+		[ -n "$kernel_flags" ] && [ -n "$kernel_defs" ] || fail "no CFLAGS or DEFS from $kernel_dir"
+		# shellcheck disable=SC2086  # the flag variables are word lists
+		(cd "$kernel_dir" && arm-none-eabi-gcc $kernel_flags $kernel_defs \
+		    -include sys/param.h -include sys/systm.h \
+		    -c -o "$work/obj/fat32tail_kernel.o" ../../dev/fat32tail.c) ||
+		    fail "build of fat32tail.c with the PICOCALC kernel flags and headers"
+		echo "fat32tail: the locator builds with the PICOCALC kernel flags after <sys/param.h> and <sys/systm.h>"
+	fi
 else
 	echo "fat32tail: Cortex-M0+ builds not run: arm-none-eabi-gcc absent"
 fi
@@ -673,7 +698,7 @@ PY
 		fail "mutant $name passed the suite"
 	fi
 	nmutants=$((nmutants + 1))
-	echo "fat32tail: mutant rejected: $name ($(head -n 1 "$work/suite.out" | cut -c1-70))"
+	echo "fat32tail: mutant rejected: $name ($(grep -c '^FAIL' "$work/suite.out") failures, first: $(head -n 1 "$work/suite.out" | cut -c1-70))"
 }
 
 mutant no-contiguity-check '\t\tif (next != c + 1)\n' '\t\tif (0)\n'
@@ -687,7 +712,9 @@ mutant no-tail-alignment-check 'if (f.size % FT32_SECTOR != 0 || nsect < headsec
 mutant no-tail-minimum 'nsect < headsec + FS_TAIL_SECTORS)' 'nsect <= headsec)'
 mutant fat12-threshold '#define\tFAT32_MIN_CLUSTERS\t65525u' '#define\tFAT32_MIN_CLUSTERS\t4085u'
 mutant no-fat-capacity-check 'fatsz < (v->nclusters + 2 + FAT_PER_SECTOR - 1) / FAT_PER_SECTOR)' '0)'
-mutant no-chain-bound 'if (steps >= v->nclusters || !clus_ok(v, clus))' 'if (steps >= 0xffffffffu || !clus_ok(v, clus))'
+mutant no-search-budget 'if (v->budget == 0)' 'if (0)'
+mutant no-reserved-sectors-check 'rsvd == 0 || ' ''
+mutant no-root-cluster-check 'if (!clus_ok(v, v->root))\n\t\treturn FT32_E_NOTFAT32;' ''
 mutant read-error-ignored 'if (v->readfn(v->ctx, n, v->buf) != 0)' 'if ((v->readfn(v->ctx, n, v->buf), 0))'
 mutant no-last-block-check 'if ((r = uf2_block(&v, nblocks - 1, nblocks, first)) != FT32_OK)' 'if (0)'
 mutant no-block-count-bound 'if (nblocks == 0 || nblocks > nsect)' 'if (nblocks == 0)'

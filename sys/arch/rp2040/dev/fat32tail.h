@@ -19,15 +19,16 @@
  * loader composite file.
  *
  * The PicoCalc UF2 loader (pelrun/uf2loader) lists the .uf2 files of the
- * /pico1-apps directory on the SD card, programs every valid UF2 block of
- * the selected file into flash and ignores each 512-byte chunk that fails
- * its block checks. The composite file exploits that: it is the kernel's
- * UF2 blocks, zero padding, and the root file system image after them.
- * tools/picocalc/mkloaderuf2.py writes it; fat32tail_find() locates the
- * root image from inside the running kernel, with a read-only walk of the
- * card's FAT32 file system.
+ * /pico1-apps directory on the SD card and programs the blocks of the
+ * selected file that pass its block checks into flash (a block at XIP_BASE
+ * is dropped, because the loader keeps its own boot2). It ignores each
+ * 512-byte chunk that fails the checks. The composite file exploits that:
+ * it is the kernel's UF2 blocks, zero padding, and the root file system
+ * image after them. tools/picocalc/mkloaderuf2.py writes it;
+ * fat32tail_find() locates the root image from inside the running kernel,
+ * with a read-only walk of the card's FAT32 file system.
  *
- * Layout (one definition, shared with the builder):
+ * Layout (two definitions the gate compares: this header and the builder):
  *
  *	file offset 0		N UF2 blocks of 512 bytes; N is the numBlocks
  *				field of the first block

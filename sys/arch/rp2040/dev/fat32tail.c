@@ -19,10 +19,12 @@
  * fat32tail.h for the file layout. Section names refer to the Microsoft
  * FAT32 File System Specification, version 1.03 (fatgen103).
  *
- * Every loop is bounded by the volume: a directory chain visits at most
- * one cluster per data cluster, and the file walk raises its cluster number
- * on every step. The walk reads sectors through one caller buffer and
- * allocates nothing.
+ * Every loop is bounded. The directory search stops with FT32_E_CORRUPT
+ * after FT32_SEARCH_READS sector reads in all, whatever the chains hold
+ * (a looping chain, or sibling entries that alias one long chain), and the
+ * file walk raises its cluster number on every step and stays inside the
+ * volume. The walk reads sectors through one caller buffer and allocates
+ * nothing.
  */
 
 #include "fat32tail.h"
@@ -50,11 +52,22 @@
 #define	DIR_END			0x00	/* "FAT Directory Structure": no entry follows. */
 #define	DIR_FREE		0xe5	/* A deleted entry. */
 
-#define	FAT_EOC			0x0ffffff8u	/* "FAT Type Determination" end of chain. */
+#define	FAT_EOC			0x0ffffff8u	/* "FAT Data Structure": end of chain. */
 #define	FAT32_MIN_CLUSTERS	65525u
 #define	FAT_PER_SECTOR		(FT32_SECTOR / 4)
 
 #define	NOENT			(-1)	/* dir_scan: no match; never an FT32 result. */
+
+/*
+ * Sector reads the directory search may make. The bound is the root
+ * directory scanned twice (files, then subdirectories) and 16 subdirectories,
+ * each of up to 512 sectors (8192 entries), with one FAT read per cluster on
+ * volumes whose clusters are one sector: 18 * 512 * 2 = 18432, rounded up.
+ * A directory chain is not limited otherwise, so 16 entries that share one
+ * long chain cost 16 full scans without it.
+ */
+#define	FT32_SEARCH_READS	20000u
+#define	NO_BUDGET		0xffffffffu
 
 struct vol {
 	fat32tail_read_fn	readfn;
@@ -68,6 +81,7 @@ struct vol {
 	unsigned		spc;		/* Sectors per cluster. */
 	unsigned		shift;		/* log2 of the bytes per cluster. */
 	unsigned		root;		/* First cluster of the root directory. */
+	unsigned		budget;		/* Sector reads left. */
 };
 
 struct found {
@@ -95,6 +109,9 @@ rd(struct vol *v, unsigned n)
 	if (v->valid && v->bufno == n)
 		return FT32_OK;
 	v->valid = 0;
+	if (v->budget == 0)
+		return FT32_E_CORRUPT;
+	v->budget--;
 	if (v->readfn(v->ctx, n, v->buf) != 0)
 		return FT32_E_IO;
 	v->bufno = n;
@@ -130,8 +147,9 @@ fat_next(struct vol *v, unsigned clus, unsigned *next)
  * "Boot Sector and BPB": the sector at lba must describe a FAT32 volume.
  * "FAT Type Determination": the count of data clusters alone separates
  * FAT32 from FAT12 and FAT16, so a BPB with the FAT32 fields and fewer than
- * 65525 clusters is refused. exFAT zeroes the BPB bytes before offset 64 and
- * fails the bytes-per-sector test.
+ * 65525 clusters is refused. An exFAT boot sector (exFAT specification,
+ * "Main Boot Sector") holds zeros at offsets 11 through 63, so its
+ * bytes-per-sector field reads 0 and fails the sector-size test.
  */
 static int
 bpb(struct vol *v, unsigned lba)
@@ -178,7 +196,7 @@ bpb(struct vol *v, unsigned lba)
 	return FT32_OK;
 }
 
-/* "FAT Short Directory Entry": the 11-byte name "DISCOBSDUF2", any case. */
+/* "FAT Directory Structure": the 11-byte name "DISCOBSDUF2", any case. */
 static int
 name_match(const unsigned char *e)
 {
@@ -214,11 +232,11 @@ static int
 dir_scan(struct vol *v, unsigned clus, int subdirs, struct found *f)
 {
 	const unsigned char *e;
-	unsigned steps, s, i, sector;
+	unsigned s, i, sector;
 	int r;
 
-	for (steps = 0; ; steps++) {
-		if (steps >= v->nclusters || !clus_ok(v, clus))
+	for (;;) {
+		if (!clus_ok(v, clus))
 			return FT32_E_CORRUPT;
 		for (s = 0; s < v->spc; s++) {
 			sector = clus_sector(v, clus) + s;
@@ -308,11 +326,13 @@ fat32tail_find(fat32tail_read_fn readfn, void *ctx, unsigned volume_lba,
 	v.ctx = ctx;
 	v.buf = buf;
 	v.valid = 0;
+	v.budget = FT32_SEARCH_READS;
 	if ((r = bpb(&v, volume_lba)) != FT32_OK)
 		return r;
 	r = dir_scan(&v, v.root, 0, &f);
 	if (r == NOENT)
 		r = dir_scan(&v, v.root, 1, &f);
+	v.budget = NO_BUDGET;
 	if (r == NOENT)
 		return FT32_E_ABSENT;
 	if (r != FT32_OK)

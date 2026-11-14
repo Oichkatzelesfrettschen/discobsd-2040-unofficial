@@ -106,7 +106,7 @@ jobs:
             bmake make build-essential cmake git clang cflow cscope ripgrep jq \
             gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
-            python3 libusb-1.0-0-dev \
+            python3 python3-pil libusb-1.0-0-dev \
             shellcheck pipx qemu-user python3-capstone python3-pyelftools \
             python3-unicorn gcc-multilib
           pipx install ruff
@@ -383,6 +383,15 @@ jobs:
       # recorded build cannot drift apart.
       - name: Confirm the Renode build the gates were verified against
         run: sh tools/renode/check-renode-pin.sh
+      - name: Check file-backed SD against production SPI protocol
+        timeout-minutes: 10
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-matezinho-sd \
+            --log .build-logs/linux-matezinho-sd.log \
+            --status .build-logs/linux-matezinho-sd.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 540 \
+            -- bmake MACHINE=rp2040 check-matezinho-sd
       - name: Fetch and build the Renode RP2040 models
         timeout-minutes: 10
         run: sh tools/renode/fetch-renode-rp2040.sh
@@ -680,10 +689,11 @@ jobs:
           echo "/Applications/ArmGNUToolchain/$arm_toolchain_version/arm-none-eabi/bin" \
             >> "$GITHUB_PATH"
           # The divider verifier reads the kernels through capstone and
-          # pyelftools; Homebrew's Python refuses pip installs into itself,
-          # so they live in a venv the tiers name as PYTHON.
+          # pyelftools, and check-matezinho-host converts the artwork through
+          # Pillow; Homebrew's Python refuses pip installs into itself, so
+          # they live in a venv the tiers name as PYTHON.
           python3 -m venv "$HOME/gates-venv"
-          "$HOME/gates-venv/bin/pip" install --quiet capstone pyelftools
+          "$HOME/gates-venv/bin/pip" install --quiet capstone pyelftools pillow
           echo "PYTHON=$HOME/gates-venv/bin/python3" >> "$GITHUB_ENV"
       - name: Report the toolchain
         run: |

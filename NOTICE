@@ -7,8 +7,13 @@ is the "documentation and/or other materials provided with the
 distribution" that each license names. A copy lives on the root as
 /etc/COPYRIGHT in short form and points here.
 
-Every component below is under a permissive license. None is under the
-GNU General Public License. The GCC runtime library (libgcc) linked into
+The base firmware components listed below use permissive licenses. The
+optional MATEzinho artwork in share/matezinho/mate is a separate CC BY-SA
+3.0 component, excluded from the base firmware manifest. A release bundling
+that artwork is mixed-license and must carry its README, AUTHORS, COPYING,
+provenance ledger and CC BY-SA license. The original shell remains BSD-licensed.
+No MATE or Mint program or widget-theme implementation is imported. The GCC
+runtime library (libgcc) linked into
 every program and the kernel is covered by the GCC Runtime Library
 Exception, version 3.1, which permits distributing the combined binaries
 under these terms.
@@ -461,3 +466,13 @@ Renode, the arm-none-eabi toolchain, qemu, bmake, shellcheck, ruff and
 the Python packages distrib/rp2040/host depends on are installed by a
 package manager under their own terms and are named in
 sys/arch/rp2040/doc/TESTING.md beside the tier that needs each.
+
+------------------------------------------------------------------------
+Optional MATEzinho artwork pack (not part of the base firmware)
+License selected: Creative Commons Attribution-ShareAlike 3.0 Unported
+Source: mate-desktop/mate-icon-theme, revision
+15df93ae1d5fbea067eb3d9d5d2a8b3b4a5cbec4
+Attribution: MATE and GNOME artists, retained in
+share/matezinho/mate/upstream/AUTHORS and editable SVG metadata.
+The upstream alternative license declaration, CC legal text, exact file
+hashes and conversion description are in share/matezinho/mate/.

@@ -334,3 +334,6 @@ names; a correction goes in a new document rather than in the ledger.
 | `tools/analysis/README.md` | the analysis runners and where their handbacks land |
 | `tests/rp2040/*/README.md` | one per board test, on what that test proves |
 | `share/man/` | the manual pages the image ships |
+
+- `sys/arch/rp2040/doc/MATEZINHO.md`: native desktop, artwork provenance,
+  virtual storage, QEMU application tier and Renode carrier integration.

@@ -1,0 +1,49 @@
+{
+  "baseline": "11a3f970",
+  "native": {
+    "text": 13863,
+    "data": 204,
+    "bss": 8024,
+    "total": 22091,
+    "runtime_stack": "not included in ELF total"
+  },
+  "qemu": {
+    "cpu": "cortex-m0",
+    "text": 43684,
+    "data": 1760,
+    "bss": 37952,
+    "total": 83396,
+    "reserved_heap": 16384,
+    "reserved_stack": 8192,
+    "user_region": 196608,
+    "resident_arguments": 4608
+  },
+  "passed": [
+    "logged-build",
+    "check-matezinho-host (ASAN_OPTIONS=detect_leaks=0; LeakSanitizer unsupported under execution host ptrace)",
+    "check-matezinho-qemu",
+    "check-matezinho-sd",
+    "check-fs-profiles",
+    "check-lint",
+    "interactive Tk/QEMU Notes type/save/home/quit in Xvfb",
+    "QEMU CPU model controls: Thumb-2 SIGILL and unaligned-load SIGBUS on cortex-m0",
+    "C17 source denominator plus 21 negative controls",
+    "Renode PICOCALC boot and keyboard launch; original Files icon card matched, 75 SPI SD sector reads",
+    "Captured Renode Notes text body matched native reference (maximum RGB difference 2)",
+    "Renode frame oracle rejected a corrupted pixel"
+  ],
+  "blocked": [
+    "logged-ilp32: host cannot compile/execute an ILP32 binary; missing 32-bit runtime and compiler libraries",
+    "check-architecture-isolation: existing STM32 /usr/bin cross-compiler path absent and picotool-generated UF2 absent"
+  ],
+  "board": "not run; no flash or serial access",
+  "renode": {
+    "version": "1.17.0+20260907gitf1dd1b4af",
+    "rp2040_models": "205a5e4b25440582008a4292074bb07f80a72328 plus repository patches",
+    "login_virtual_seconds": 10.5,
+    "sd_sector_reads": 75,
+    "scope": "functional integration, not board timing",
+    "upstream_model_build_warnings": 25,
+    "upstream_warnings": "pre-existing third-party model fields and references; no new FileSD compile warnings"
+  }
+}

@@ -1,0 +1,7 @@
+# Set $sd_image to the artwork volume (rom16) or an SD image before inclusion.
+# $flash_bin must contain a root built with IMAGE_WITH=matezinho.
+include $ORIGIN/picocalc-machine.resc
+include $ORIGIN/picocalc/file_sd.cs
+machine LoadPlatformDescription $ORIGIN/picocalc-sd.repl
+sysbus.spi0.sdcard LoadImage $sd_image true
+# Start manually after attaching UART or panel inspection.

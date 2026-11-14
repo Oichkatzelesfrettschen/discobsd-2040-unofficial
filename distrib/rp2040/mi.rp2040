@@ -590,3 +590,9 @@ default
 filemode 0644
 file /var/log/messages
 file /var/log/wtmp
+
+#closure matezinho
+# Original shell only; artwork is an external file or read-only SD volume.
+pack /usr/bin/matezinho
+mode 0775
+#endclosure matezinho

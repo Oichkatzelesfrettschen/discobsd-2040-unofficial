@@ -26,9 +26,8 @@
  * put there. A caller that must tell a refusal from the legitimate time
  * (time_t)-1 (one second before 1970 in the 64-bit view, 2106-02-07
  * 06:28:15 UTC in the 32-bit view) sets tm_wday to -1 and reads it back,
- * which is what usr.bin/touch does (<time.h>). In the 32-bit view mktime()
- * answers that last count like any other; the 64-bit mktime() refuses the
- * local time whose fields read in UTC as the count -1.
+ * which is what usr.bin/touch does (<time.h>). mktime() of either view
+ * answers that count like any other.
  */
 #include "time.h"
 #include "limits.h"
@@ -434,21 +433,33 @@ mktime(struct tm *tm)
  * The 64-bit build searches from the fields as they stand: its timegm()
  * sums them without a carry, where a carry into an int could refuse an
  * instant inside the range, and the struct is rewritten only with the
- * answer. A local time whose fields read in UTC as the count -1, which is
- * also the refusal, is refused.
+ * answer. The count -1, one second before 1970, is an answer like any
+ * other: a refusal leaves tm_wday as the caller set it (<time.h>).
  */
 time_t
 mktime(struct tm *tm)
 {
-	struct tm probe, *back;
+	struct tm fields, probe, *back;
 	time_t guess;
 	long offset;
 	int pass;
 
-	/* The answer as though the fields were UTC, which starts the search. */
-	probe = *tm;
+	/*
+	 * The caller may pass the object localtime() returns, which the
+	 * search's own localtime() calls overwrite, so the fields are read
+	 * once, here.
+	 */
+	fields = *tm;
+
+	/*
+	 * The answer as though the fields were UTC, which starts the search.
+	 * timegm() rewrites tm_wday only for a time it accepts, so the
+	 * sentinel tells its refusal from the count -1.
+	 */
+	probe = fields;
+	probe.tm_wday = -1;
 	guess = timegm(&probe);
-	if (guess == TIME_REFUSED)
+	if (guess == TIME_REFUSED && probe.tm_wday == -1)
 		return (TIME_REFUSED);
 
 	for (pass = 0; pass < 3; pass++) {
@@ -462,10 +473,11 @@ mktime(struct tm *tm)
 		 */
 		offset = back->tm_gmtoff;
 
-		probe = *tm;
+		probe = fields;
 		probe.tm_isdst = back->tm_isdst;
+		probe.tm_wday = -1;
 		guess = timegm(&probe);
-		if (guess == TIME_REFUSED)
+		if (guess == TIME_REFUSED && probe.tm_wday == -1)
 			return (TIME_REFUSED);
 		/*
 		 * The fields are in range as UTC; the instant they name in

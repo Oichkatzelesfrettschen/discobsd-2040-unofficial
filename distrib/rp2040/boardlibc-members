@@ -9,8 +9,14 @@
 # malloc, the common syscalls, signal, exec, wait, stat, time, errno,
 # perror, qsort, the strtol family, and getenv -- what libc-sink.c calls.
 #
+# asctime, ctime (with gmtime and localtime), timezone, tzset and index
+# print a date for a program compiled on the board; they are the 32-bit
+# view's members, the only view Smaller C binds
+# (docs/research/time-representation-past-2038.md).
+#
 abs
 aeabi_div
+asctime
 at_quick_exit
 atoi
 atol
@@ -21,6 +27,7 @@ calloc
 close
 confstr
 ctermid
+ctime
 ctype_
 difftime
 doprnt
@@ -51,6 +58,7 @@ getdtablesize
 getenv
 getpid
 gettimeofday
+index
 ioctl
 isatty
 isinff
@@ -112,7 +120,9 @@ __sysctl
 sysctl
 sysconf
 time
+timezone
 timingsafe_bcmp
+tzset
 ungetc
 unlink
 vfprintf

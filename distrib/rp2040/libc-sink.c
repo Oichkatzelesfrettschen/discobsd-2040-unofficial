@@ -4,11 +4,21 @@
  * This file calls no useful computation; it only takes the address of, or
  * calls, every libc entry point a small board program is expected to need:
  * stdio without floating-point conversion, the string and ctype families,
- * malloc, the common syscalls, signal, exec, wait, stat, time, errno and
- * perror, qsort, the strtol family, and getenv. Linking it against the
+ * malloc, the common syscalls, signal, exec, wait, stat, time and the
+ * calendar conversions that print it, errno and perror, qsort, the strtol
+ * family, and getenv. Linking it against the
  * full lib/libc.a and reading the linker map (see the sink: rule) names
  * the exact set of .o members the reduced board archive must carry.
  */
+
+/*
+ * The board archive holds the 32-bit view's members, the view Smaller C
+ * binds, so the closure is read at that view: without the selection the
+ * cross compiler's default binds the time functions to their 64-bit names
+ * (sys/sys/_time_t.h) and the map names ctime64.o for ctime.o.
+ */
+#define _TIME_BITS 32
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -170,6 +180,7 @@ touch_syscalls(void)
 {
 	struct stat st;
 	pid_t pid;
+	time_t now;
 	int status;
 
 	sink += stat("/tmp", &st);
@@ -191,6 +202,12 @@ touch_syscalls(void)
 	sink += (long)signal(SIGINT, SIG_IGN);
 	sink += time(NULL);
 	floating_sink = difftime((time_t)1, (time_t)0);
+	now = time(NULL);
+	tzset();
+	sink += ctime(&now)[0];
+	sink += asctime(localtime(&now))[0];
+	sink += asctime(gmtime(&now))[0];
+	sink += timezone(0, 0)[0];
 	sink += sleep(0);
 }
 

@@ -1,0 +1,24 @@
+# Ceilings of the flash re-entry classes for check-boot.sh, read before
+# warning-classes.txt so that these patterns are tallied here.
+#
+# check-warnings.py tallies a warning against the first pattern that
+# matches across its class files. The clock stage of check-boot.py compiles
+# a C program with the image's cc, whose compiler, assembler and linker
+# write under /tmp, so a check-boot.sh run re-enters XIP about 14,400 times
+# where the run without the compile re-enters it about 7,660 times.
+# warning-classes.txt keeps the ceilings of that smaller count for the
+# gates that run no compile (check-picocalc.sh); the eleven classes that
+# count once, twice or three times per re-entry carry their check-boot.sh
+# ceilings here. warning-classes.txt says what each one marks.
+#
+18000    ^(xip_ssi\.xip_flash: )?Unhandled operation while processing byte: 0x0
+18000    ^(xip_ssi\.xip_flash: )?Unhandled operation: 0xN
+54000   ^(xip_ssi\.xip_flash: )?Transmission finished in unexpected state: RecognizeOperation
+18000    ^sysbus: \(tag: 'RESET_DONE'\) ReadDoubleWord from non existing peripheral at 0x4000C008,
+18000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x4000E000,
+18000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x4000F000,
+18000    ^sysbus: WriteDoubleWord .*XIP_CTRL:FLUSH
+18000    ^sysbus: ReadDoubleWord .*XIP_CTRL:FLUSH
+18000    ^sysbus: WriteDoubleWord to non existing peripheral at 0x14002000,
+36000   ^sysbus: WriteDoubleWord .*SYSCFG:PROC[01]_NMI_MASK
+18000    ^qspi_pads: Unhandled write to offset 0xN\. Unhandled bits: \[0\] .*SLEWFAST

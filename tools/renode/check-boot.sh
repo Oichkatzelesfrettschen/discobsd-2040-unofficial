@@ -124,7 +124,8 @@ status=0
 # every console line still arrives.
 if [ -r "$OUTPUT/renode.log" ]; then
 	echo "check-renode: renode.log"
-	set -- "$SCRIPT_DIR/warning-classes.txt"
+	set -- "$SCRIPT_DIR/boot-warning-classes.txt" \
+		"$SCRIPT_DIR/warning-classes.txt"
 	[ -z "$BOARD_CLASSES" ] || set -- "$@" "$BOARD_CLASSES"
 	"$PYTHON" -I "$SCRIPT_DIR/check-warnings.py" "$@" "$OUTPUT/renode.log" ||
 		status=1

@@ -799,7 +799,8 @@ check-difftime: difftime_contract_test
 # sleep() at the 32-bit view against two replayed clock readings
 # (sleep_contract_test.c). The negative control compares the readings
 # signed, which only a four-byte long exposes, so it runs as ILP32.
-SLEEP_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+SLEEP_CFLAGS=	-std=c17 -Wall -Wextra -Werror \
+	-Wno-deprecated-non-prototype -nostdinc \
 	-isystem ${TOPSRC}/include -Dsleep=db_sleep \
 	-Dgettimeofday=test_gettimeofday -Dselect=test_select ${NARROW_TIME}
 

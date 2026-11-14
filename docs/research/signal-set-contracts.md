@@ -244,4 +244,5 @@ its remaining stages await a terminal verdict. These observations establish
 neither complete emulator qualification nor physical-board behavior.
 
 `signal-set-resource-exception.md` and the optimized resource receipts record
-the measured admission request. Resource approval remains pending.
+the measured admission request. The owner approves its exact limits on
+2026-11-14; terminal image qualification and reviewed integration remain open.

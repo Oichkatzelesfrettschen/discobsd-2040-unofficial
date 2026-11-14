@@ -139,8 +139,8 @@ operations, exact public declarations, requested-bit membership, and checked
 signal-number shifts. Host and Cortex-M0 controls exercise the provider;
 Smaller C-generated calls exercise native header input. Fixed-mask callers
 retain their target code size. The [resource request](signal-set-resource-exception.md)
-records the remaining archive and shipped-program costs. Approval, final image
-qualification, and integration remain open; kernel signal delivery remains a
+records the approved archive and shipped-program costs. Final image
+qualification and integration remain open; kernel signal delivery remains a
 separate requirement.
 
 Every requirement leaf records edition/option authority, declarations/types,

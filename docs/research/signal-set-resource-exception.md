@@ -70,6 +70,8 @@ folding macros introduce another header/compiler mechanism and do not establish
 savings without a separate calibrated candidate. Shared XIP libc remains a
 separate program and supplies no present resource credit.
 
-Approval remains pending for exactly this vector and the 18 new member
-selections. Main `d01ef4a0` supplies the rollback point. Physical-board execution
-remains unrun; this exception does not authorize it.
+The owner approves exactly this vector and the 18 new member selections on
+2026-11-14. The approval applies to candidate `0abfb33d` against `d01ef4a0`;
+additional growth requires its own measured admission. Main `d01ef4a0` supplies
+the rollback point. Physical-board execution remains unrun; this exception
+does not authorize it.

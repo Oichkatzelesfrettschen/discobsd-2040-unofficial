@@ -36,11 +36,14 @@
  *
  *	head = roundup(N * 512, FT32_HEAD_ALIGN)
  *
- * The walk reads the boot sector, finds the 8.3 short entry DISCOBSD.UF2 in
- * the root directory or in one subdirectory of it, requires the file's
- * cluster chain to be one contiguous run, checks the UF2 head and the
- * alignment of the tail, and checks the DiscoBSD file-system magic words in
- * the tail. Section names refer to the Microsoft FAT32 File System
+ * The walk reads the boot sector, finds the 8.3 short entry DISCOBSD.UF2
+ * (any letter case; deleted entries, labels and long-name parts never match)
+ * in the root directory, else in the first subdirectory of the root that
+ * holds it, requires the file's cluster chain to be one contiguous run,
+ * checks the UF2 head and the whole-sector length of the tail, and checks
+ * the DiscoBSD file-system magic words in the tail. The head is a multiple
+ * of 32 KiB, so the tail starts on a sector whatever the cluster size.
+ * Section names refer to the Microsoft FAT32 File System
  * Specification (version 1.03; "fatgen103"). The file includes no kernel
  * header, so tests/fat32tail links it against a sector callback over an
  * image, as tests/picocalc does for sdspi.c.

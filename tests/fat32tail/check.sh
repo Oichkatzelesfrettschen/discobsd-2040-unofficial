@@ -39,7 +39,10 @@
 # when arm-none-eabi-gcc is present, for Cortex-M0+ with the kernel's flags.
 #
 # Set TMPDIR to a directory with 0.5 GB free (a tmpfs is fine); the work
-# directory holds the volumes and is emptied on exit.
+# directory holds the volumes and is emptied on exit. FAT32TAIL_KERNEL_UF2
+# names a kernel UF2 for the real-kernel case; the default is the
+# PICOCALC_PSRAM image of this tree, and the case is skipped, saying so,
+# when the file is absent.
 #
 # Exit status: 0 when every case holds and every mutant fails, 1 otherwise.
 
@@ -330,7 +333,7 @@ variant nf-few-clusters base-root "error notfat32" bpb 32 4 66110
 variant nf-small-fat base-root "error notfat32" bpb 36 4 100
 variant nf-live-fat base-root "error notfat32" bpb 40 2 0x0089
 variant nf-exfat base-root "error notfat32" exfat-like
-"$msdosfs" newfs "$work/fat16.img" 20000 16 || fail "newfs FAT16"
+"$msdosfs" newfs "$work/fat16.img" 20000 16 >/dev/null || fail "newfs FAT16"
 put "$work/fat16.img" "$work/small.uf2" /discobsd.uf2
 oracle check "$work/fat16.img" 0 >"$work/oracle.out" || fail "FAT16 volume: $(cat "$work/oracle.out")"
 add_case nf-fat16 "$work/fat16.img" 0 "error notfat32"
@@ -469,18 +472,65 @@ put "$work/fragmented.img" "$work/small.uf2" /discobsd.uf2
 kind_is "$work/fragmented.img" 0 fragmented
 add_case fragmented "$work/fragmented.img" 0 "error fragmented"
 
+# Volumes written by independent software (dosfstools' mkfs.fat and mtools'
+# mmd and mcopy), which store the short entries in their own forms, are cases
+# too, and fsck.fat agrees with each; each tool absent is reported.
+mkfs_fat=$(command -v mkfs.fat || true)
+mcopy_tool=$(command -v mcopy || true)
+mmd_tool=$(command -v mmd || true)
+fsck_fat=$(command -v fsck.fat || true)
+if [ -n "$mkfs_fat" ] && [ -n "$mcopy_tool" ] && [ -n "$mmd_tool" ]; then
+	build_composite "$work/root16m.img"
+	for geometry in 512:1:70000 4k:8:600000 32k:64:4194900; do
+		name=${geometry%%:*}
+		rest=${geometry#*:}
+		spc=${rest%%:*}
+		sectors=${rest#*:}
+		for place in root apps; do
+			label=x$name-$place
+			image=$work/$label.img
+			"$PYTHON" -c 'import sys
+open(sys.argv[1], "wb").truncate(int(sys.argv[2]) * 512)' "$image" "$sectors"
+			"$mkfs_fat" -F 32 -s "$spc" -S 512 "$image" >/dev/null ||
+			    fail "mkfs.fat $label"
+			if [ "$place" = root ]; then
+				MTOOLS_SKIP_CHECK=1 "$mcopy_tool" -i "$image" "$work/discobsd.uf2" ::discobsd.uf2 ||
+				    fail "mcopy $label"
+			else
+				MTOOLS_SKIP_CHECK=1 "$mmd_tool" -i "$image" ::/pico1-apps || fail "mmd $label"
+				MTOOLS_SKIP_CHECK=1 "$mcopy_tool" -i "$image" "$work/discobsd.uf2" \
+				    ::/pico1-apps/DISCOBSD.UF2 || fail "mcopy $label"
+			fi
+			if [ -n "$fsck_fat" ]; then
+				"$fsck_fat" -n "$image" >"$work/fsck.out" 2>&1 ||
+				    { cat "$work/fsck.out" >&2; fail "fsck.fat rejects $label"; }
+			fi
+			oracle check "$image" 0 >"$work/oracle.out" ||
+			    fail "$label: the reader rejects the volume: $(cat "$work/oracle.out")"
+			kind_is "$image" 0 contiguous
+			add_case "$label" "$image" 0 "$(ok_extent "$image" 0 "$work/root16m.img")"
+		done
+	done
+	echo "fat32tail: 6 volumes written by mkfs.fat and mcopy are cases"
+else
+	echo "fat32tail: independent-writer volumes not run: mkfs.fat, mmd or mcopy absent (dosfstools, mtools)"
+fi
+if [ -z "$fsck_fat" ]; then
+	echo "fat32tail: fsck.fat cross-check not run: dosfstools absent"
+fi
+
 # A real kernel image, when one is built: the builder accepts it and the
 # locator finds the tail.
-kernel_uf2=$topsrc/sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2
+kernel_uf2=${FAT32TAIL_KERNEL_UF2:-$topsrc/sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2}
 if [ -f "$kernel_uf2" ]; then
 	builder -o "$work/discobsd.uf2" "$kernel_uf2" "$work/root512.img" ||
 	    fail "builder rejects $kernel_uf2"
 	volume realkernel 8 600000
 	put "$work/realkernel.img" "$work/discobsd.uf2" /discobsd.uf2
 	add_case real-kernel "$work/realkernel.img" 0 "$(ok_extent "$work/realkernel.img" 0 "$work/root512.img")"
-	echo "fat32tail: a real PICOCALC_PSRAM kernel image is a case"
+	echo "fat32tail: a real kernel image is a case"
 else
-	echo "fat32tail: real kernel case not run: $kernel_uf2 is not built"
+	echo "fat32tail: real kernel case not run: no kernel UF2 at the default path or in FAT32TAIL_KERNEL_UF2"
 fi
 
 # Reads fail at every position, and sectors the walk reads are damaged.

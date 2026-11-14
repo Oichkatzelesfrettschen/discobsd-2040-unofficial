@@ -54,7 +54,7 @@
 #define	FAT32_MIN_CLUSTERS	65525u
 #define	FAT_PER_SECTOR		(FT32_SECTOR / 4)
 
-#define	NOENT			(-1)	/* Not a result: no match in this directory. */
+#define	NOENT			(-1)	/* dir_scan: no match; never an FT32 result. */
 
 struct vol {
 	fat32tail_read_fn	read;

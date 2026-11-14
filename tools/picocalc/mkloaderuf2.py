@@ -3,10 +3,11 @@
 usage: mkloaderuf2.py [-o OUTPUT] KERNEL.uf2 ROOT.img
 
 The PicoCalc UF2 loader (pelrun/uf2loader) lists the .uf2 files of the
-/pico1-apps directory on the SD card, programs every valid UF2 block of the
-selected file into flash and ignores each 512-byte chunk that fails its block
-checks. The output file is therefore both a UF2 the loader flashes and a
-container for the root file system:
+/pico1-apps directory on the SD card and programs the blocks of the selected
+file that pass its block checks into flash (a block at XIP_BASE is dropped,
+because the loader keeps its own boot2). It ignores each 512-byte chunk that
+fails the checks. The output file is therefore both a UF2 the loader flashes
+and a container for the root file system:
 
     offset 0            the kernel's N UF2 blocks (512 bytes each)
     N * 512 ... head    zero padding
@@ -15,17 +16,24 @@ container for the root file system:
     head = roundup(N * 512, 32768)
 
 sys/arch/rp2040/dev/fat32tail.c finds the root image at boot from the FAT32
-directory entry DISCOBSD.UF2; FT32_HEAD_ALIGN in fat32tail.h is HEAD_ALIGN
-here. The output name defaults to discobsd.uf2: the loader accepts a
+directory entry DISCOBSD.UF2. The head alignment is defined twice, as
+FT32_HEAD_ALIGN in fat32tail.h and as HEAD_ALIGN here, and the gate
+(tests/fat32tail/check.sh) compares the two. The output name defaults to
+discobsd.uf2: the loader accepts a
 selection only when the path ends in the lowercase text ".uf2", and an 8.3
 name needs no long-name directory entry.
 
 The kernel UF2 must hold N blocks that the loader accepts: the UF2 magic
 words, no not-main-flash flag, the RP2040 family, a 256-byte payload at a
 256-byte-aligned address in flash below the loader's own 16 KiB, consecutive
-block numbers 0 .. N-1, a first block in flash sector 0, and nothing after
-block N-1. The root image must start a DiscoBSD file system (the magic words
-of struct fs in sys/sys/fs.h) and must not hold a 512-byte-aligned block
+block numbers 0 .. N-1, and nothing after block N-1. The builder also
+requires the first block to lie in flash sector 0, so that the file is an
+image of the flash from XIP_BASE; the loader itself accepts another first
+block and then skips its boot2 handling. The root image must be a whole
+DiscoBSD file system: the magic words of struct fs in sys/sys/fs.h, a length
+equal to fs_fsize blocks of 1024 bytes, and the minimums tools/fsutil/fsutil.c
+and create.c enforce (fs_fsize at least 10, fs_isize from 2 up to fs_fsize
+exclusive). It must not hold a 512-byte-aligned block
 that the loader would act on while it skips the tail: a block for RAM.
 """
 
@@ -67,8 +75,13 @@ FS_MAGIC1 = b"FS<<"
 FS_MAGIC2 = b">>FS"
 FS_SUPER_BYTES = 1024
 FS_MIN_BYTES = 2 * UF2_BLOCK
-# fs_fsize, the size of the volume in 1024-byte blocks, is the third word.
-FS_SIZE_OFFSET = 8
+# fs_isize (blocks before the data area) and fs_fsize (the volume in 1024-byte
+# blocks) are the second and third words of struct fs. tools/fsutil/fsutil.c
+# refuses a volume of fewer than 10 blocks ("Need at least 10 blocks") and
+# tools/fsutil/create.c gives every volume an i-list of at least 2 blocks.
+FS_ISIZE_OFFSET = 4
+FS_MIN_BLOCKS = 10
+FS_MIN_ISIZE = 2
 
 # FAT 8.3 short-name characters other than letters and digits.
 SHORT_PUNCT = "!#$%&'()-@^_`{}~"
@@ -110,7 +123,7 @@ def validate_kernel(data: bytes) -> int:
         if number != index or total != blocks:
             raise BuildError(f"{where}: numbered {number} of {total}, expected {index} of {blocks}")
         if index == 0 and target >= XIP_BASE + FLASH_SECTOR:
-            raise BuildError(f"{where}: the first block must lie in flash sector 0")
+            raise BuildError(f"{where}: the builder requires the first block in flash sector 0")
     return blocks
 
 
@@ -120,8 +133,14 @@ def validate_root(data: bytes) -> None:
         raise BuildError("root image size is not a multiple of 512 of at least 1024 bytes")
     if data[:4] != FS_MAGIC1 or data[FS_SUPER_BYTES - 4 : FS_SUPER_BYTES] != FS_MAGIC2:
         raise BuildError("root image does not start with the DiscoBSD file-system magic words")
-    (blocks,) = struct.unpack_from("<I", data, FS_SIZE_OFFSET)
-    if blocks * FS_SUPER_BYTES > len(data):
+    isize, blocks = struct.unpack_from("<2I", data, FS_ISIZE_OFFSET)
+    if blocks < FS_MIN_BLOCKS:
+        raise BuildError(f"root image superblock claims {blocks} blocks, at least {FS_MIN_BLOCKS}")
+    if not FS_MIN_ISIZE <= isize < blocks:
+        raise BuildError(
+            f"root image i-list size {isize} is outside {FS_MIN_ISIZE} .. {blocks - 1}"
+        )
+    if blocks * FS_SUPER_BYTES != len(data):
         raise BuildError(
             f"root image holds {len(data)} bytes, its superblock claims {blocks} blocks"
         )

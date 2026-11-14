@@ -35,7 +35,7 @@ def root_image(blocks_kib: int = 512) -> bytes:
     size = blocks_kib * 1024
     data = bytearray(size)
     data[:4] = b"FS<<"
-    struct.pack_into("<I", data, 8, blocks_kib)
+    struct.pack_into("<2I", data, 4, 2, blocks_kib)
     data[1020:1024] = b">>FS"
     for i in range(1024, size, 997):
         data[i] = i & 0xFF
@@ -111,7 +111,20 @@ def root_rules() -> None:
     refused(kernel, good[:512], "multiple of 512")
     refused(kernel, bytes(4) + good[4:], "magic words")
     refused(kernel, good[:1020] + bytes(4) + good[1024:], "magic words")
+    # The superblock's size and i-list must describe the image exactly.
     refused(kernel, good[:-512], "claims")
+    refused(kernel, good[:-1024], "claims")
+    refused(kernel, good + bytes(1024), "claims")
+    for blocks in (0, 1, 9):
+        data = bytearray(good)
+        struct.pack_into("<I", data, 8, blocks)
+        refused(kernel, bytes(data), "at least 10")
+    for isize in (0, 1, 512, 513):
+        data = bytearray(good)
+        struct.pack_into("<I", data, 4, isize)
+        refused(kernel, bytes(data), "i-list size")
+    # The smallest volume fsutil creates is accepted.
+    builder.build(kernel, root_image(10))
 
 
 def ram_block(target: int, flags: int = 0x2000, family: int = 0xE48BFF56) -> bytes:

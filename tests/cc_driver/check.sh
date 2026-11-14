@@ -100,7 +100,7 @@ expect driver 0 \
     'smlrc one.c tmp.one.s;as tmp.one.s -o tmp.one.o;smlrc two.c tmp.two.s;as tmp.two.s -o tmp.two.o;ld -o a.out crt0.o tmp.one.o tmp.two.o libc.a;rm;' \
     -lm one.c two.c
 expect driver 1 'smlrc fail.c tmp.fail.s;rm;' fail.c
-expect driver 1 '' 
+expect driver 1 ''
 expect driver 1 '' -o x -c a.c b.c
 expect driver 1 '' -Wall a.c
 expect driver 1 '' a.x

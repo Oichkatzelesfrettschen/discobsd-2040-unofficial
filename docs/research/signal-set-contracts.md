@@ -70,3 +70,85 @@ shipped-resource comparison, and the profile's exception process for growth.
 The membership experiment establishes a defect and a falsifier. Implementation,
 complete public-header contracts, resource admission, and integration remain
 open. Physical-board execution retains its separate authorization boundary.
+
+## Provider candidate and initial witnesses
+
+The branch incorporates main `d01ef4a0`, which merges the native nm repair.
+The first header fixture fails at baseline because address-taking exposes all
+five absent declarations. The behavior fixture reports membership failures;
+its first invalid add at `INT_MIN` triggers UBSan signed-overflow detection
+in the baseline's `signo - 1`. These failures precede the provider edit.
+
+The candidate declares the five callable interfaces, modernizes their function
+definitions, and uses a const-qualified membership input. User-facing add,
+delete, and membership resolve to validated providers. Kernel macros preserve
+their trusted-input behavior; empty/full user macros retain their single-store
+operation alongside callable providers. Each validated provider admits
+`0 < signo < NSIG` before subtracting or shifting, uses an unsigned set bit,
+and returns `-1` with `EINVAL` on rejection without mutating the set.
+
+The strict-C17 host UBSan fixture passes 31,981 checks across bounded masks,
+singleton/full sets, add/delete restoration, valid-call errno preservation,
+and six invalid-number boundaries. The target-header fixture compiles with
+strict C17, warnings as errors, real port headers, repeated signal-header
+inclusion, and signal/select type coexistence. A Cortex-M0 QEMU invocation
+links that fixture and the real-header provider objects with the established
+newlib/Linux syscall support and exits zero. It covers exact function-pointer
+types, callable/macro empty/full agreement, single evaluation, const membership,
+invalid errors, and preservation of adjacent storage. Its support-code link
+requires the repository's `-Os` setting to keep `r7` available for syscalls.
+
+These are initial witnesses, not admission. Calibrated mutations, native
+Smaller C input, full caller rebuild, registered gates, source-ledger refresh,
+matched resources, review, and integration remain open. No physical board
+executes this candidate.
+
+## Mutation calibration and native input
+
+`tests/libc_contracts/signal_set_calibrate.py` compiles the good provider and
+seven warning-clean mutations under strict C17 with UBSan. Complemented
+membership, incorrect empty/full results, wrong add/delete operators, incorrect
+errno, and zero-signal admission each reach their named rejection. The good
+control requires all 31,981 checks and empty stderr. The zero-admission mutant
+requires a sanitizer diagnostic; a compile failure does not count as rejection.
+Each invocation retains the generated source, commands, build/run logs, and
+source/fixture hashes in its unique build-log directory.
+
+The header witness uses a constant-size typedef assertion accepted by both
+C17 and Smaller C. The host-built Thumb Smaller C compiler accepts the
+cross-preprocessed real-header fixture; GNU assembler accepts the output for
+Cortex-M0+. A malformed declaration fails with `Unexpected token {`, supplying
+the negative control. The first invocation with absolute input/output paths
+hits Smaller C's path-length check before parsing. Running from the fixture
+directory with `input.i` and `output.s` reaches the actual header check and
+passes. This evidence establishes preprocessing/compiler/assembler acceptance;
+on-device preprocessing and native runtime remain separate.
+
+Gate registration, production caller builds, source-ledger refresh, resource
+qualification, and review remain required before this candidate is integrated.
+
+## Registered-gate and caller-build qualification
+
+The root Makefile registers `check-signal-sets` in the host tier,
+`check-signal-sets-cross` in the cross tier, and `check-signal-sets-qemu` in
+the QEMU tier. `sys/arch/rp2040/doc/TESTING.md` owns their execution claims;
+the firmware workflow records their tier ownership. Missing required tools
+fail the selected runner. Cross/native runs retain both valid input and
+required prototype/syntax rejection controls.
+
+A logged clean removes prior caller objects before `logged-build` compiles
+and links the maintained programs with the validated provider calls. The
+build succeeds in 86.522 seconds; its receipt is
+`.build-logs/rp2040-build-local-20261114T212901Z-3861504-fadb785a/status.json`.
+All three registered Makefile targets pass after that build. Separate strict
+C17 UBSan invocations under GCC ILP32 and Clang each pass the good provider
+and seven named mutation controls. The source ledger adds the three new
+C/header fixtures as unreviewed and reports 153 accepted, 543 excluded,
+62 migration-open, and 2,264 unreviewed paths. Its lexical classification
+removes the provider's old-style-definition candidate and records the explicit
+shift expressions; these labels remain review candidates rather than defects.
+
+Matched source/resource captures, archive-provider closure, affected-caller
+runtime checks, emulator image qualification, review, and integration remain
+open. The build result establishes caller compilation/linkage, not zero
+resource growth or physical-board behavior.

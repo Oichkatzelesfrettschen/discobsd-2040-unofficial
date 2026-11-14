@@ -1,5 +1,32 @@
 # Native linker resource review
 
+## Image-clock baseline qualification
+
+Candidate `6c08eaab4f14eb02ccdddc2cdc4c13ad50aec2bf` includes main
+`641d40b297eaeb3d7468a08d6a2be3c3ce9014e1`, whose filesystem image tools support
+the extended unsigned clock range. The matched
+[baseline](native-linker-image-clock-resource-baseline.json),
+[candidate](native-linker-image-clock-resource-candidate.json), and
+[comparison](native-linker-image-clock-resource-comparison.json) bind fresh
+clean distributions, complete shipped closures, and identical measurement
+tools within the pair.
+
+All five positive deltas exactly match the byte-reuse table below; the other
+157 measured surfaces remain unchanged. Selected archive members and hashes
+match the paired baseline. Every measured program hash also matches candidate
+`a435ac8d`; both kernel hashes differ, so the earlier emulator run remains
+historical evidence. The requested limits remain unchanged and approval
+remains pending.
+
+The logged build, native-linker gate, native-call veneer gate, filesystem-clock
+gate, C17 source accounting, profile calibration, and flash image build pass on
+this baseline. The PICO_UART Renode boot gate passes on the refreshed images,
+including signal/u-area behavior and injected core-1 stall detection. Its
+warning classifier accepts the run with zero errors. The veneer
+gate establishes the instruction mechanism described in
+[native-call-veneers.md](native-call-veneers.md), with automatic shared-link
+insertion still open. Main `641d40b2` supplies this pair's rollback point.
+
 ## Byte-reuse candidate admission
 
 Candidate `a435ac8deba2c9e71a0adb1ad0591ea4ba3ebc57` includes main at

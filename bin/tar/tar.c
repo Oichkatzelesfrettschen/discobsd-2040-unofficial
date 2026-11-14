@@ -1543,6 +1543,10 @@ longt(const struct stat *st)
     pmode(st);
     printf("%3d/%1d", st->st_uid, st->st_gid);
     printf("%7ld", (long)st->st_size);
+    /*
+     * A four-byte signed time_t prints a count with bit 31 set as a date
+     * before 1970; the 64-bit view prints it whole.
+     */
     cp = ctime(&st->st_mtime);
     printf(" %-12.12s %-4.4s ", cp+4, cp+20);
 }
@@ -2971,6 +2975,19 @@ set_descriptor_times(int descriptor, const char *display_path,
 {
     struct timeval tv[2];
 
+    /*
+     * The kernel reads the count 4294967295 as "leave this time alone"
+     * (VNOVAL) and reports success, while the 64-bit view of time refuses
+     * it (lib/libc/gen/time64.h). tar reports it as a time that cannot be
+     * stored and does not call, so both widths behave alike.
+     */
+    if (modification_time == STORED_TIME_MAX) {
+        fprintf(stderr,
+            "tar: cannot set modification time on %s: "
+            "the count 4294967295 cannot be stored\n", display_path);
+        operation_failed = 1;
+        return;
+    }
     tv[0].tv_sec = time((time_t *) 0);
     tv[1].tv_sec = (time_t)modification_time;
     tv[0].tv_usec = tv[1].tv_usec = 0;

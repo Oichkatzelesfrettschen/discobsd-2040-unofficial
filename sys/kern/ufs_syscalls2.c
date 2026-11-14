@@ -7,6 +7,8 @@
 #include <sys/user.h>
 #include <sys/inode.h>
 #include <sys/buf.h>
+#include <sys/conf.h>
+#include <sys/disk.h>
 #include <sys/fs.h>
 #include <sys/namei.h>
 #include <sys/mount.h>
@@ -158,16 +160,39 @@ syncinodes(struct fs *fs)
 }
 
 /*
+ * Ask the driver of dev to make the writes it has completed survive a reset
+ * (DIOCCHECKPOINT in sys/disk.h). A driver that answers the ioctl itself with
+ * an error has no checkpoint to take, as noioctl() and the drivers without
+ * the command do; the checkpoint's own failure arrives in the argument.
+ */
+static int
+checkpoint_device(dev_t dev)
+{
+    int error = 0;
+
+    if ((*bdevsw[major(dev)].d_ioctl)(dev, DIOCCHECKPOINT,
+        (caddr_t)&error, 0) != 0)
+        return (0);
+    return (error);
+}
+
+/*
  * 'ufs_sync' is the routine which syncs a single filesystem.  This was
  * created to replace 'update' which 'unmount' called.  It seemed silly to
  * sync _every_ filesystem when unmounting just one filesystem.
+ *
+ * The device checkpoint comes last and runs whether or not this call wrote
+ * anything or failed, so it covers every write that reached the driver before
+ * it: bwrite() waits for each write here, and the flash driver completes a
+ * request before its strategy routine returns. A checkpoint failure latches
+ * in m_write_error like a failed buffer write.
  */
 int
 ufs_sync(register struct mount *mp)
 {
     register struct fs *fs;
     struct  buf *bp;
-    int error, flush_error;
+    int error, flush_error, checkpoint_error;
 
     fs = &mp->m_filsys;
     if (fs->fs_fmod && (mp->m_flags & MNT_RDONLY)) {
@@ -179,7 +204,7 @@ ufs_sync(register struct mount *mp)
     if (error == 0)
         error = flush_error;
     if (error)
-        return (error);
+        goto checkpoint;
     /*
      * And lastly the superblock, if the filesystem was modified.
      * Write back modified superblocks. Consistency check that the superblock
@@ -205,6 +230,12 @@ ufs_sync(register struct mount *mp)
     }
     if (error == 0)
         error = mp->m_write_error;
+checkpoint:
+    checkpoint_error = checkpoint_device(mp->m_dev);
+    if (checkpoint_error != 0 && mp->m_write_error == 0)
+        mp->m_write_error = checkpoint_error;
+    if (error == 0)
+        error = checkpoint_error;
     return(error);
 }
 

@@ -1,0 +1,1189 @@
+{
+  "schema": 1,
+  "source_head": "1b132129e9f7462e8cea8fee52e849e46579523b",
+  "archive_sha256": "57c915c791b7d78e12babdda48455d8fb2cc284a43cdad196ca117d86be9f694",
+  "members": 441,
+  "pic_flags": [
+    "-fPIC",
+    "-msingle-pic-base",
+    "-mpic-register=r9",
+    "-mno-pic-data-is-text-relative"
+  ],
+  "input_sections": {
+    "static": {
+      "text": 51030,
+      "writable_init": 795,
+      "bss": 3749,
+      "readonly": 3507
+    },
+    "pic": {
+      "text": 54738,
+      "writable_init": 867,
+      "bss": 3749,
+      "readonly": 3431
+    }
+  },
+  "allocated_relocation_types": {
+    "2": 273,
+    "10": 1154,
+    "26": 408
+  },
+  "readonly_absolute_mutable_relocations": [
+    {
+      "member": "__sysctl.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "_brk.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "accept.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "access.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "adjtime.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "bind.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "chdir.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "chflags.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "chmod.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "chown.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "chroot.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "close.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "connect.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "dup.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "dup2.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "execve.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "fchdir.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "fchflags.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "fchmod.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "fchown.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "fcntl.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "flock.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "fork.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "fstat.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "fstatfs.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "fsync.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "ftruncate.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "futimes.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getdtablesize.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getegid.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "geteuid.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getfsstat.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getgid.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getgroups.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getitimer.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getpeername.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getpgrp.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getpid.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getppid.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getpriority.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getrlimit.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getrusage.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getsockname.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getsockopt.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "gettimeofday.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "getuid.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "ioctl.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "kill.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "killpg.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "kmemdev.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "link.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "linkat_beneath.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "listen.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "lseek.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "lstat.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "mkdir.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "mkdirat_beneath.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "mknod.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "mount.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "msec.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "open.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "openat.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "openat_beneath.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "pipe.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "profil.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "pselect.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "ptrace.o",
+      "section": ".text",
+      "offset": 28,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "publishat_beneath.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "quota.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "rdglob.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "read.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "readlink.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "readv.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "reboot.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "recv.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "recvfrom.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "recvmsg.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "rename.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "rmdir.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "rom_float_clz.o",
+      "section": ".text",
+      "offset": 8,
+      "symbol": "__rp2040_rom_float_clz_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_d2f.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_d2f_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_d2f.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_d2f_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_d2uiz.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_d2uiz_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_d2uiz.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_d2uiz_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_d2ulz.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_d2ulz_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_d2ulz.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_d2ulz_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_dadd.o",
+      "section": ".text",
+      "offset": 20,
+      "symbol": "__rp2040_rom_float_dadd_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_dadd.o",
+      "section": ".text",
+      "offset": 28,
+      "symbol": "__rp2040_rom_float_dadd_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_ddiv.o",
+      "section": ".text",
+      "offset": 20,
+      "symbol": "__rp2040_rom_float_ddiv_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_ddiv.o",
+      "section": ".text",
+      "offset": 28,
+      "symbol": "__rp2040_rom_float_ddiv_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_dmul.o",
+      "section": ".text",
+      "offset": 20,
+      "symbol": "__rp2040_rom_float_dmul_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_dmul.o",
+      "section": ".text",
+      "offset": 28,
+      "symbol": "__rp2040_rom_float_dmul_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_dsub.o",
+      "section": ".text",
+      "offset": 20,
+      "symbol": "__rp2040_rom_float_dsub_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_dsub.o",
+      "section": ".text",
+      "offset": 28,
+      "symbol": "__rp2040_rom_float_dsub_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_f2d.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_f2d_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_f2d.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_f2d_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_f2uiz.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_f2uiz_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_f2uiz.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_f2uiz_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_f2ulz.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_f2ulz_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_f2ulz.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_f2ulz_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_fadd.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_fadd_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_fadd.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_fadd_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_fdiv.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_fdiv_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_fdiv.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_fdiv_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_fmul.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_fmul_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_fmul.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_fmul_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_fsub.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_fsub_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_fsub.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_fsub_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_i2d.o",
+      "section": ".text",
+      "offset": 44,
+      "symbol": "__rp2040_rom_float_clz_cell",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "rom_float_i2f.o",
+      "section": ".text",
+      "offset": 64,
+      "symbol": "__rp2040_rom_float_clz_cell",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "rom_float_l2d.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_l2d_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_l2d.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_l2d_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_l2f.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_l2f_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_l2f.o",
+      "section": ".text",
+      "offset": 36,
+      "symbol": "__rp2040_rom_float_l2f_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_ui2d.o",
+      "section": ".text",
+      "offset": 40,
+      "symbol": "__rp2040_rom_float_clz_cell",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "rom_float_ui2f.o",
+      "section": ".text",
+      "offset": 56,
+      "symbol": "__rp2040_rom_float_clz_cell",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "rom_float_ul2d.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "__rp2040_rom_float_ul2d_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_ul2d.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_ul2d_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_ul2f.o",
+      "section": ".text",
+      "offset": 24,
+      "symbol": "__rp2040_rom_float_ul2f_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "rom_float_ul2f.o",
+      "section": ".text",
+      "offset": 36,
+      "symbol": "__rp2040_rom_float_ul2f_cell",
+      "symbol_section": 3
+    },
+    {
+      "member": "select.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "send.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "sendmsg.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "sendto.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "setegid.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "seteuid.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "setgid.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "setgroups.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "setitimer.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "setpgrp.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "setpriority.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "setquota.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "setrlimit.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "setsockopt.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "settimeofday.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "setuid.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "shutdown.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "sigaction.o",
+      "section": ".text",
+      "offset": 28,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "sigaltstack.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "sigpending.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "sigprocmask.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "sigstack.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "sigsuspend.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "sigwait.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "socket.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "socketpair.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "stat.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "statfs.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "symlink.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "sync.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "truncate.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "ucall.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "ufetch.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "umask.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "umount.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "unlink.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "unlinkat_beneath.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "ustore.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "utimes.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "vfork.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "vhangup.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "wait4.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "wrglob.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "write.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    },
+    {
+      "member": "writev.o",
+      "section": ".text",
+      "offset": 16,
+      "symbol": "errno",
+      "symbol_section": "SHN_UNDEF"
+    }
+  ],
+  "scope": "All archive members; input sections only, without link garbage collection, veneers, GOT allocation, compiler helpers or stable slots. Relocation list includes known mutable providers and startup objects; it does not prove complete relocation safety."
+}

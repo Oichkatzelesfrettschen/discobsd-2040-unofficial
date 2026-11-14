@@ -169,3 +169,11 @@ provider ownership and separate resource accounting under the DiscoBSD ABI.
 Graph reachability, weak symbol resolution and archive inspection have
 established prior art. The checker claims neither a new algorithm nor a
 complete shared-libc implementation.
+
+## Full-archive PIC compilation
+
+[The PIC input-section experiment](pic-input-sections.md) maps every shipped
+ARM libc member to captured inputs, recompiles 441 members, and identifies
+absolute assembly references that still require process-local state access.
+Its section sums remain pre-link measurements; they do not establish that the
+shared image fits the reserved flash interval.

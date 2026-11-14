@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "archive_sha256": "57c915c791b7d78e12babdda48455d8fb2cc284a43cdad196ca117d86be9f694",
+  "pic_archive_sha256": "4927702d793ea2cad59c987712f30379aa273c0c206df952cff397edbbe6559b",
+  "libgcc_sha256": "919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d",
+  "linked_elf_sha256": "d25f33df627776e02883fc956026f69ed64aac559aece6839d824690bce3cf20",
+  "sections": [
+    {
+      "name": ".text",
+      "address": 268566528,
+      "size": 54928,
+      "type": "SHT_PROGBITS",
+      "flags": 6
+    },
+    {
+      "name": ".rodata",
+      "address": 268621456,
+      "size": 3312,
+      "type": "SHT_PROGBITS",
+      "flags": 2
+    },
+    {
+      "name": ".data",
+      "address": 0,
+      "size": 876,
+      "type": "SHT_PROGBITS",
+      "flags": 3
+    },
+    {
+      "name": ".got",
+      "address": 876,
+      "size": 844,
+      "type": "SHT_PROGBITS",
+      "flags": 3
+    },
+    {
+      "name": ".got.plt",
+      "address": 1720,
+      "size": 12,
+      "type": "SHT_PROGBITS",
+      "flags": 3
+    },
+    {
+      "name": ".bss",
+      "address": 1732,
+      "size": 3772,
+      "type": "SHT_NOBITS",
+      "flags": 3
+    }
+  ],
+  "loads": [
+    {
+      "vaddr": 268566528,
+      "paddr": 268566528,
+      "filesz": 58240,
+      "memsz": 58240
+    },
+    {
+      "vaddr": 0,
+      "paddr": 268624768,
+      "filesz": 1732,
+      "memsz": 5504
+    }
+  ],
+  "state_bytes": 5504,
+  "initialized_state_bytes": 1732,
+  "flash_end": 268624768,
+  "flash_bytes_including_initialization": 59972,
+  "scope": "Whole archive, no section collection; startup state definitions mirror crt0.c; no runtime initialization, stable slots, assembly state rewrite or admission. Not a shippable shared image."
+}

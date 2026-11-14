@@ -92,8 +92,6 @@ typedef struct _rlib {
 static RLIB *rhead, **pnext;
 
 static FILE *fp;
-static long symcnt;			/* symbol count */
-static long tsymlen;			/* total string length */
 static int verbose;
 
 static void
@@ -244,12 +242,10 @@ rexec(int rfd, int wfd)
 		rp->symlen = symlen;
 		rp->sym = (char*) emalloc(symlen + 1);
 		memcpy(rp->sym, name, (size_t)symlen + 1);
-		tsymlen += symlen;
 
 		/* Build in forward order for "ar -m" command. */
 		*pnext = rp;
 		pnext = &rp->next;
-		++symcnt;
 	}
 bad1:	(void)lseek(rfd, (off_t)r_off, SEEK_SET);
 }
@@ -470,7 +466,6 @@ build(void)
 
 	/* Read through the archive, creating list of symbols. */
 	pnext = &rhead;
-	symcnt = tsymlen = 0;
 	while(get_arobj(afd)) {
 		if (strcmp(chdr.name, RANLIBMAG) == 0) {
 			skip_arobj(afd);

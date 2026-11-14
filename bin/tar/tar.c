@@ -314,7 +314,6 @@ static int vflag;
 static int tflag;
 static int cflag;
 static int mflag;
-static int fflag;
 static int iflag;
 static int oflag;
 static int pflag;
@@ -425,7 +424,6 @@ main(int argc, char **argv)
                 usage();
             }
             usefile = *argv++;
-            fflag++;
             break;
 
         case 'c':

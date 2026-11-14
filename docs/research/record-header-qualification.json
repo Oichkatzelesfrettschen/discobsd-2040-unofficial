@@ -75,15 +75,28 @@
   },
   "excluded_consumer": "devupdate baseline and candidate compilation fail with identical diagnostics",
   "review": "One negative-verdict finding is repaired and verified; no remaining actionable finding in bounded review",
-  "remaining": [
-    "aggregate qualification",
-    "ILP32 qualification",
-    "reviewed integration"
-  ],
   "hardware": "unrun",
   "renode": {
     "state": "passed",
     "class": "Renode UART0 boot and runtime probes",
     "model_revision": "205a5e4b25440582008a4292074bb07f80a72328"
-  }
+  },
+  "aggregate": {
+    "source_head": "e36425ce00fefeab8ee78fefbe8a872c51645c4e",
+    "state": "passed",
+    "elapsed_seconds": 857.855,
+    "invocation_id": "rp2040-check-local-20261114T044642Z-572687-7da82917",
+    "completed_at": "2026-11-14T05:01:00Z",
+    "receipt_sha256": "25ffb4872d5863038bb0e053b3a6bb90ed26b18987180936e44b2beefe79bab9"
+  },
+  "ilp32": {
+    "source_head": "b53cdce10a737373454d74dc30e43a963b695769",
+    "state": "passed",
+    "elapsed_seconds": 548.374,
+    "invocation_id": "rp2040-ilp32-local-20261114T044338Z-517402-27f8c213",
+    "completed_at": "2026-11-14T04:52:46Z",
+    "receipt_sha256": "b7780e952546876ed91f69b6963a9ce7d7ba0e2bb12456c3e71ab6bf078177fc",
+    "inventory_passed": 207
+  },
+  "integration_authority": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/518"
 }

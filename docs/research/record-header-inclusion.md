@@ -34,10 +34,12 @@ types. The inherited provenance and all public fields remain intact.
 The matched distribution's captured consumers identify 17 distinct group-header
 sources and the login program's login-record include. `devupdate` remains
 outside the maintained `usr.sbin` selection; its separate compilation belongs
-in caller evidence, without treating it as a shipped program. The excluded consumer fails compilation with identical diagnostics against
+in caller evidence, without treating it as a shipped program. The excluded
+consumer fails compilation with identical diagnostics against
 baseline and candidate headers: incomplete legacy types and warning-policy
 violations remain. This comparison establishes no executable devupdate
-qualification. The complete clean shipped build and dependency closure pass. The generated
+qualification. The complete clean shipped build and dependency closure pass.
+The generated
 image manifest owns the installed aliases; the unfiltered source manifest also
 names optional components and therefore supplies a different denominator.
 
@@ -69,9 +71,9 @@ bmake MACHINE=rp2040 check-record-header-contracts
 ```
 
 The focused local gate passes 288 valid cases and 27 rejection controls; all
-24 Smaller C inputs compile and assemble. The matched resource comparison and Renode UART0 qualification also pass.
-Aggregate and separate ILP32 qualification remain open. No physical-board execution forms part of this repair.
-
+24 Smaller C inputs compile and assemble. The matched resource comparison,
+Renode UART0 execution, aggregate qualification and separate ILP32 inventory
+also pass. No physical-board execution forms part of this repair.
 
 ## Clean distribution and resource evidence
 
@@ -99,3 +101,9 @@ runtime probes with the pinned peripheral model. An initial invocation stops
 on the missing model dependency before execution; the verified retained model
 supplies that dependency for the successful run. Physical-board behavior
 remains unmeasured.
+
+The aggregate completes at `e36425ce` in 857.855 seconds with build and check
+exit status zero. The separate ILP32 inventory at implementation `b53cdce1`
+passes 207 entries in 548.374 seconds. The range between these commits changes
+documentation only. The qualification record binds both terminal receipts;
+the pull request owns reviewed integration state.

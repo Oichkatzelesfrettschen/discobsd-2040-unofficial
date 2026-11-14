@@ -95,6 +95,7 @@ setjmp
 sigaction
 sigprocmask
 sigsetjmp
+sigsetops
 signal
 sleep
 snprintf

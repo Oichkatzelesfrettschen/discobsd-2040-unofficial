@@ -88,3 +88,8 @@ rise from 746 to 747, leaving 232 free blocks. The same exact approved limits
 therefore cover this integration without an additional resource allowance.
 The generic nonpositive-growth comparator still rejects the added dependencies;
 its rejection remains distinct from the owner's measured exception.
+
+The subsequent reduced-native closure test identifies an omitted
+`sigsetops.o` dependency in that measured integration. Selecting the missing
+member changes the candidate's cost. The approved vector remains historical;
+the repaired native package requires a fresh measured exception before merge.

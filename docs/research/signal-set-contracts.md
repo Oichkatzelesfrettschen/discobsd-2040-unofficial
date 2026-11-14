@@ -316,3 +316,30 @@ blocks. `signal-set-resource-exception.md` binds the preserved limits to the
 new baseline. No additional resource allowance follows from unrelated main
 changes. Integrated focused gates and the separate ILP32 inventory retain
 their own qualification obligations.
+
+## Reduced native archive dependency
+
+The integrated `check-board-libc-output` gate rejects candidate `b4c6a32e`:
+`distrib/rp2040/libc-sink.c` links `signal.o`, whose validated membership call
+requires `sigismember`, but the reduced `boardlibc-members` list omits
+`sigsetops`. Full cross-library and QEMU witnesses do not establish this
+reduced native archive's closure. The exact repeated resource vector measures
+that incomplete package and supplies no complete capability admission.
+
+The repair selects `sigsetops` in the reduced archive and links the existing
+real-header signal fixture against native startup and that archive. Native
+startup owns errno in this link; the QEMU fixture retains its own errno.
+A damaged archive with `sigsetops.o` removed must fail naming `sigismember`.
+The prediction is successful reference-program and five-provider fixture links
+with a named omission rejection. A fresh resource capture determines the
+additional archive cost; the earlier approval authorizes no extra bytes.
+
+The repaired board-archive gate passes the sink, calendar, stdio, and
+five-provider signal fixture links and their named omission controls. The
+host linker emits its existing archive-date warning for the good archive;
+link success remains distinct from a warning-free archive-metadata claim.
+The changed fixture passes cross compilation and both GCC and Smaller C QEMU
+calls. Profile, donor, archive-frontier, and C17 accounting gates pass. The
+C17 ledger remains at 153 accepted, 543 excluded, 62 migration-open, and
+2,265 unreviewed paths. The direct repaired archive contains 170 members and
+49,286 bytes; a matched clean distribution still decides its complete cost.

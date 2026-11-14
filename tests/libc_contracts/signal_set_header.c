@@ -11,7 +11,9 @@ int (*signal_add_provider)(sigset_t *, int) = (sigaddset);
 int (*signal_delete_provider)(sigset_t *, int) = (sigdelset);
 int (*signal_member_provider)(const sigset_t *, int) = (sigismember);
 
+#ifndef SIGNAL_SET_EXTERNAL_ERRNO
 int errno;
+#endif
 static sigset_t sets[2];
 static unsigned pointer_calls, number_calls;
 

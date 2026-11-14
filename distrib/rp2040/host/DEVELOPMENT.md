@@ -94,8 +94,10 @@ only up to 2147483647 (0x7fffffff), the largest date the target `ar` and `ld`
 read from an archive header; above it they ignore it, archive dates follow the
 build environment, and the image is not reproducible from that variable
 alone. `FSUTIL_CLOCK=N` replaces the bound with a fixed
-clock: every time in the image is the count N, whatever `SOURCE_DATE_EPOCH`
-and the host clock hold. A test that boots with a clock past January 2038
+clock: every time `fsutil` stamps is the count N, whatever `SOURCE_DATE_EPOCH`
+and the host clock hold. The reserved inode 1 keeps zero modification and
+change times under either variable, and `--add` to an existing image leaves
+the times of the files already in it as stored. A test that boots with a clock past January 2038
 builds its image with `FSUTIL_CLOCK=2415919104` (0x90000000, July 2046) in
 the environment of `bmake MACHINE=rp2040 flash`. Both variables take a
 decimal count from 0 to 4294967295; any other value stops `fsutil` with

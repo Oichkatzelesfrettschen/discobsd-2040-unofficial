@@ -56,7 +56,7 @@ include ${TOPSRC}/tools/qemu-arm.mk
 check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
 	check-unistd-prototypes check-alarm-contract \
 	check-waitpid-contract \
-	check-mktime check-calendar64 check-difftime \
+	check-mktime check-calendar64 check-difftime check-sleep \
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-scanf-llong check-rwmode \
 	check-ansi check-syslog \
@@ -594,6 +594,10 @@ check-zone: zone_contract_test zone_contract_test_fixed
 
 check-mktime: mktime_contract_test
 	${TEST_EXECUTION} run libc.mktime.native -- ./mktime_contract_test
+	${PYTHON} ${.CURDIR}/mktime_contract_mutate.py ${TOPSRC} \
+	    ${HOSTCC:Q}\ ${MKTIME_CFLAGS:Q}\ -I.\ ${GC_SECTIONS} \
+	    ${.CURDIR}/mktime_contract_test.c mktime_ctime.o mktime_tzset.o \
+	    mktime_timezone.o
 .if ${ILP32_OK} == "yes"
 	@${MAKE} mktime_contract_test32
 	${TEST_EXECUTION} run libc.mktime.ilp32 -- ./mktime_contract_test32
@@ -792,11 +796,41 @@ check-difftime: difftime_contract_test
 	${TEST_EXECUTION} skip libc.difftime.negative "check-libc-difftime: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
+# sleep() at the 32-bit view against two replayed clock readings
+# (sleep_contract_test.c). The negative control compares the readings
+# signed, which only a four-byte long exposes, so it runs as ILP32.
+SLEEP_CFLAGS=	-std=c17 -Wall -Wextra -Werror -nostdinc \
+	-isystem ${TOPSRC}/include -Dsleep=db_sleep \
+	-Dgettimeofday=test_gettimeofday -Dselect=test_select ${NARROW_TIME}
+
+check-sleep: sleep_contract_test
+	${TEST_EXECUTION} run libc.sleep.native -- ./sleep_contract_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} sleep_contract_test32 sleep_bad_test32
+	${TEST_EXECUTION} run libc.sleep.ilp32 -- ./sleep_contract_test32
+	${TEST_EXECUTION} run libc.sleep.negative -- ./sleep_bad_test32
+.else
+	${TEST_EXECUTION} skip libc.sleep.ilp32 "check-libc-sleep: ${HOSTCC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip libc.sleep.negative "check-libc-sleep: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+
+sleep_contract_test: sleep_contract_test.c ${TARGET_DIR}/sleep.c
+	${HOSTCC} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
+	    ${TARGET_DIR}/sleep.c
+
+sleep_contract_test32: sleep_contract_test.c ${TARGET_DIR}/sleep.c
+	${HOSTCC} ${ILP32} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
+	    ${TARGET_DIR}/sleep.c
+
+sleep_bad_test32: sleep_contract_test.c sleep_signed_bad.c
+	${HOSTCC} ${ILP32} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
+	    sleep_signed_bad.c
+
 check-difftime-cross: difftime_target.o
 	@test "$$(${GCCPREFIX}-nm -u difftime_target.o | wc -l)" -eq 2
-	@${GCCPREFIX}-nm -u difftime_target.o | grep -q ' U __aeabi_i2d$$'
+	@${GCCPREFIX}-nm -u difftime_target.o | grep -q ' U __aeabi_ui2d$$'
 	@${GCCPREFIX}-nm -u difftime_target.o | grep -q ' U __aeabi_dsub$$'
-	@echo "difftime Cortex-M0+ object converts endpoints before ROM double subtraction"
+	@echo "difftime Cortex-M0+ object converts unsigned endpoints before ROM double subtraction"
 
 difftime_contract_test: difftime_contract_test.c difftime_difftime.o
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -o $@ \
@@ -836,12 +870,20 @@ asctime_asctime.o: ${TARGET_DIR}/asctime.c
 asctime_bad.o: asctime_bad.c
 	${HOSTCC} ${ASCTIME_CFLAGS} -c -o $@ asctime_bad.c
 
-ctime_contract_test: ctime_contract_test.c ctime_ctime.o ctime_tzset.o
-	${HOSTCC} ${CTIME_CFLAGS} ${GC_SECTIONS} -o $@ \
+# The fields of the 32-bit view's counts by CPython's datetime, which the
+# ctime and mktime gates check gmtime() and timegm() against.
+calendar32_vectors.h: ${.CURDIR}/calendar32_vectors.py
+	: "$${PYTHON:?set PYTHON to the intended interpreter}"
+	"$${PYTHON}" ${.CURDIR}/calendar32_vectors.py $@
+
+ctime_contract_test: ctime_contract_test.c calendar32_vectors.h ctime_ctime.o \
+    ctime_tzset.o
+	${HOSTCC} ${CTIME_CFLAGS} -I. ${GC_SECTIONS} -o $@ \
 	    ctime_contract_test.c ctime_ctime.o ctime_tzset.o
 
-ctime_contract_test32: ctime_contract_test.c ctime_ctime32.o ctime_tzset32.o
-	${HOSTCC} ${ILP32} ${CTIME_CFLAGS} ${GC_SECTIONS} -o $@ \
+ctime_contract_test32: ctime_contract_test.c calendar32_vectors.h \
+    ctime_ctime32.o ctime_tzset32.o
+	${HOSTCC} ${ILP32} ${CTIME_CFLAGS} -I. ${GC_SECTIONS} -o $@ \
 	    ctime_contract_test.c ctime_ctime32.o ctime_tzset32.o
 
 zone_contract_test: zone_contract_test.c zone_ctime.o zone_tzset.o \
@@ -920,15 +962,15 @@ zone_timezone32.o: ${TARGET_DIR}/timezone.c
 # tzset.c's tzsetkernel() names tztab(), which timezone.c defines, and the
 # gate reaches it because no zone file is named and that is the path a bare
 # environment takes.
-mktime_contract_test: mktime_contract_test.c mktime_mktime.o mktime_ctime.o \
-    mktime_tzset.o mktime_timezone.o
-	${HOSTCC} ${MKTIME_CFLAGS} ${GC_SECTIONS} -o $@ \
+mktime_contract_test: mktime_contract_test.c calendar32_vectors.h \
+    mktime_mktime.o mktime_ctime.o mktime_tzset.o mktime_timezone.o
+	${HOSTCC} ${MKTIME_CFLAGS} -I. ${GC_SECTIONS} -o $@ \
 	    mktime_contract_test.c mktime_mktime.o mktime_ctime.o \
 	    mktime_tzset.o mktime_timezone.o
 
-mktime_contract_test32: mktime_contract_test.c mktime_mktime32.o \
-    mktime_ctime32.o mktime_tzset32.o mktime_timezone32.o
-	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${GC_SECTIONS} -o $@ \
+mktime_contract_test32: mktime_contract_test.c calendar32_vectors.h \
+    mktime_mktime32.o mktime_ctime32.o mktime_tzset32.o mktime_timezone32.o
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} -I. ${GC_SECTIONS} -o $@ \
 	    mktime_contract_test.c mktime_mktime32.o mktime_ctime32.o \
 	    mktime_tzset32.o mktime_timezone32.o
 
@@ -944,15 +986,17 @@ mktime_timezone32.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${MKTIME_TZ_WARN} -c -o $@ \
 	    ${TARGET_DIR}/timezone.c
 
-mktime_contract_test_san: mktime_contract_test.c mktime_mktime_san.o \
-    mktime_ctime_san.o mktime_tzset_san.o mktime_timezone_san.o
-	${HOSTCC} ${MKTIME_CFLAGS} ${ZONE_SAN} -o $@ \
+mktime_contract_test_san: mktime_contract_test.c calendar32_vectors.h \
+    mktime_mktime_san.o mktime_ctime_san.o mktime_tzset_san.o \
+    mktime_timezone_san.o
+	${HOSTCC} ${MKTIME_CFLAGS} -I. ${ZONE_SAN} -o $@ \
 	    mktime_contract_test.c mktime_mktime_san.o mktime_ctime_san.o \
 	    mktime_tzset_san.o mktime_timezone_san.o
 
-mktime_contract_test32_san: mktime_contract_test.c mktime_mktime32_san.o \
-    mktime_ctime32_san.o mktime_tzset32_san.o mktime_timezone32_san.o
-	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${ZONE_SAN} -o $@ \
+mktime_contract_test32_san: mktime_contract_test.c calendar32_vectors.h \
+    mktime_mktime32_san.o mktime_ctime32_san.o mktime_tzset32_san.o \
+    mktime_timezone32_san.o
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} -I. ${ZONE_SAN} -o $@ \
 	    mktime_contract_test.c mktime_mktime32_san.o \
 	    mktime_ctime32_san.o mktime_tzset32_san.o mktime_timezone32_san.o
 
@@ -1582,7 +1626,8 @@ clean:
 	rm -f calendar64_test calendar64_test32 calendar64_test_san \
 		calendar64_test32_san calendar64_vectors.h cal64_*.o
 	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_tzset.o \
-		ctime_ctime32.o ctime_tzset32.o
+		ctime_ctime32.o ctime_tzset32.o calendar32_vectors.h
+	rm -f sleep_contract_test sleep_contract_test32 sleep_bad_test32
 	rm -f zone_contract_test zone_contract_test32 \
 		zone_ctime.o zone_tzset.o zone_ctime32.o zone_tzset32.o \
 		zone_timezone.o zone_timezone32.o

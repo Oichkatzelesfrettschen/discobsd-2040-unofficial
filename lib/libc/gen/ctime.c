@@ -24,6 +24,21 @@
 #include "stdint.h"
 #endif
 
+#ifdef TZ_ZONEINFO
+/*
+ * Nonzero when the instant precedes a zone file's transition. A transition
+ * is the signed four-byte count the file stores (tzstate.h), so in the
+ * 32-bit view, where time_t is the unsigned utime32_t, a transition before
+ * 1970 precedes every instant and is never compared as a count near 2^32.
+ */
+#ifdef __TIME64_VIEW
+#define BEFORE_TRANSITION(timestamp, at)	((timestamp) < (at))
+#else
+#define BEFORE_TRANSITION(timestamp, at) \
+	((at) >= 0 && (timestamp) < (time_t)(at))
+#endif
+#endif /* TZ_ZONEINFO */
+
 char *
 ctime(const time_t *timestamp)
 {
@@ -55,7 +70,7 @@ localtime(const time_t *time_pointer)
 	index = 0;
 #else
 	if (__discobsd_zone.timecnt == 0 ||
-	    timestamp < __discobsd_zone.ats[0]) {
+	    BEFORE_TRANSITION(timestamp, __discobsd_zone.ats[0])) {
 		/*
 		** The first standard-time type, for an instant before the
 		** first transition. The walk is over ttis[], which holds
@@ -71,7 +86,8 @@ localtime(const time_t *time_pointer)
 			}
 	} else {
 		for (index = 1; index < __discobsd_zone.timecnt; ++index)
-			if (timestamp < __discobsd_zone.ats[index])
+			if (BEFORE_TRANSITION(timestamp,
+			    __discobsd_zone.ats[index]))
 				break;
 		index = __discobsd_zone.types[index - 1];
 	}
@@ -112,20 +128,26 @@ gmtime(const time_t *timestamp)
 
 #ifndef __TIME64_VIEW
 /*
- * A four-byte count spans at most 68 years from 1970, so the conversion
- * walks a year at a time.
+ * The count is the kernel's unsigned 32-bit clock (utime32_t), which spans
+ * 136 years from 1970, so the conversion walks a year at a time. Every
+ * count converts; an offset west of Greenwich can move the first hours
+ * back into 1969. The count is read through its low 32 bits, which is
+ * every bit on the target and keeps a host build whose long is eight
+ * bytes (tests/libc_contracts) to the same range.
  */
 struct tm *
 __discobsd_offtime(const time_t *timestamp, long offset, struct tm *result)
 {
+	utime32_t count;
 	long days;
 	long remainder;
 	int year;
 	int leap_year;
 	const unsigned char *month_length;
 
-	days = *timestamp / SECS_PER_DAY;
-	remainder = *timestamp % SECS_PER_DAY;
+	count = *timestamp & 0xffffffffUL;
+	days = (long)(count / SECS_PER_DAY);
+	remainder = (long)(count % SECS_PER_DAY);
 	remainder += offset;
 	while (remainder < 0) {
 		remainder += SECS_PER_DAY;

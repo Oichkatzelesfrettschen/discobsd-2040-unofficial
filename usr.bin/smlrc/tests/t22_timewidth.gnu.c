@@ -25,12 +25,12 @@ struct wide_timeval {
 
 /*
  * The narrow entry points as their definitions declare them: time() in
- * lib/libc/gen/time.c returns the count as a long, and the execution tier's
- * gettimeofday() takes two object pointers. The wrappers convert the count
- * to unsigned before widening.
+ * lib/libc/gen/time.c returns the 32-bit view's time_t, the kernel's
+ * unsigned count, and the execution tier's gettimeofday() takes two object
+ * pointers. The wrappers widen the unsigned count zero-extended.
  */
 int gettimeofday(void *, void *);
-long time(long *);
+unsigned long time(unsigned long *);
 
 int wide_gettimeofday(struct wide_timeval *, void *);
 long long wide_time(long long *);
@@ -54,7 +54,7 @@ wide_gettimeofday(struct wide_timeval *tv, void *tz)
 long long
 wide_time(long long *t)
 {
-	long long now = (long long)(unsigned long)time(0);
+	long long now = (long long)time(0);
 
 	if (t != 0)
 		*t = now;

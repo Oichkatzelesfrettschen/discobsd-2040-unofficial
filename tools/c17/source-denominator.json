@@ -73697,7 +73697,9 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "width-sensitive-sizeof"
+          ],
           "object_lifetime": [],
           "pointer": [],
           "prototype": [],
@@ -74781,6 +74783,75 @@
           "variadic": [
             "variadic-interface"
           ]
+        }
+      }
+    },
+    {
+      "path": "tests/libc_contracts/sleep_contract_test.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "tests",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/libc_contracts/sleep_signed_bad.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "tests",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
         }
       }
     },
@@ -93624,6 +93695,41 @@
           ],
           "prototype": [],
           "variadic": []
+        }
+      }
+    },
+    {
+      "path": "usr.bin/smlrc/tests/t23_timeconvert.c",
+      "class": "B",
+      "scope": "maintained",
+      "owner": "usr.bin/smlrc",
+      "profile": "native-smaller-c-implementation",
+      "native_input": "yes",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/STYLE-GUIDE.md"
+      ],
+      "blocker": "File-level C17 and native-suite acceptance remain unreviewed.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "native-smaller-c",
+        "required_mode": "c17-migration",
+        "extension_policy": "native-subset-separated",
+        "extension_signals": [],
+        "risk_family": "native-compiler",
+        "risk_tier": "T1",
+        "risk_tier_basis": "native-compiler-input",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": [
+            "variadic-interface"
+          ]
         }
       }
     },

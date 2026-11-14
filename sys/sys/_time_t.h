@@ -23,12 +23,20 @@
  * second time with this view (NAME64.o in lib/libc/gen/Makefile and
  * lib/libc/compat/Makefile).
  *
- * The existing symbol names keep the 32-bit view: a signed long time_t
- * and the kernel's layouts. libc compiles its members with _TIME_BITS
- * defined as 32 (lib/libc/Makefile), and a program compiled by Smaller C
- * on the board declares these names by hand; that compiler has no 64-bit
- * integer, so the wide view is closed to it. tools/check_time_binding.py
- * rejects a cross-compiled program object that reaches one of them.
+ * The existing symbol names keep the 32-bit view: the kernel's layouts,
+ * with time_t the kernel's own utime32_t, so a count with bit 31 set is a
+ * time after January 2038 and the last one is 2106-02-07 06:28:15 UTC.
+ * (time_t)-1 is that last count, the error answer of time(), mktime()
+ * and timegm(), and the value utimes() reads as "leave this time alone".
+ * There a time_t holds no negative count: a difference of two counts
+ * converts to a signed type or goes through difftime(). struct timeval
+ * keeps its signed long tv_sec, since the kernel passes intervals in it;
+ * a clock reading taken from it converts to time_t. libc compiles its
+ * members with _TIME_BITS defined as 32 (lib/libc/Makefile), and a program
+ * compiled by Smaller C on the board declares these names by hand; that
+ * compiler has no 64-bit integer, so the wide view is closed to it.
+ * tools/check_time_binding.py rejects a cross-compiled program object that
+ * reaches one of them.
  */
 #ifndef _SYS__TIME_T_H_
 #define _SYS__TIME_T_H_
@@ -55,12 +63,10 @@ typedef unsigned long   utime32_t;
 
 #ifndef _TIME_T
 #define _TIME_T
-#if defined(KERNEL)
-typedef utime32_t time_t;
-#elif defined(__TIME64_VIEW)
+#if defined(__TIME64_VIEW)
 typedef long long time_t;
 #else
-typedef long    time_t;
+typedef utime32_t time_t;
 #endif
 #endif
 

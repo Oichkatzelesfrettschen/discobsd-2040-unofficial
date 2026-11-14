@@ -373,6 +373,11 @@
       "kind": "recursive make"
     },
     {
+      "from": "check-libc-sleep",
+      "to": "tests/libc_contracts:check-sleep",
+      "kind": "recursive make"
+    },
+    {
       "from": "check-libc-difftime-cross",
       "to": "tests/libc_contracts:check-difftime-cross",
       "kind": "recursive make"
@@ -513,6 +518,7 @@
         "check-ctime",
         "check-runtime-limits",
         "check-difftime",
+        "check-sleep",
         "check-string-security",
         "check-vis",
         "check-getgrent",
@@ -1250,6 +1256,25 @@
       ]
     },
     {
+      "id": "libc.sleep.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-sleep",
+      "root_target": "check-libc-host-contracts",
+      "program": "sleep_contract_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "sleep_contract_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.sleep.native -- ./sleep_contract_test",
+      "aliases": [
+        "check-libc-sleep"
+      ]
+    },
+    {
       "id": "libc.string-security.native",
       "owner": "firmware/posix-sh",
       "width": "native",
@@ -1876,6 +1901,25 @@
       ]
     },
     {
+      "id": "libc.sleep.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-sleep",
+      "root_target": "check-libc-host-contracts",
+      "program": "sleep_contract_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "sleep_contract_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.sleep.ilp32 -- ./sleep_contract_test32",
+      "aliases": [
+        "check-libc-sleep"
+      ]
+    },
+    {
       "id": "libc.printf.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",
@@ -2295,6 +2339,26 @@
       "expected_exit": 1,
       "aliases": [
         "check-libc-difftime"
+      ]
+    },
+    {
+      "id": "libc.sleep.negative",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-sleep",
+      "root_target": "check-libc-host-contracts",
+      "program": "sleep_bad_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "sleep_bad_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.sleep.negative -- ./sleep_bad_test32",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libc-sleep"
       ]
     },
     {

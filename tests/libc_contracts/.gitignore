@@ -230,3 +230,7 @@ qsort_context_test_san
 absolute_value_test
 absolute_value_test32
 absolute_value_test_san
+calendar32_vectors.h
+sleep_contract_test
+sleep_contract_test32
+sleep_bad_test32

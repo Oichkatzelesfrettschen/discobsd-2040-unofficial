@@ -20,10 +20,12 @@ struct timeval {
 };
 
 /*
- * Hand-written, as on the board, and unsigned, the type the design gives the
- * narrow count. libc still defines time() over a long, so this object relies
- * on the two having one 32-bit representation and one register, which the
- * procedure call standard fixes and no header checks.
+ * Hand-written, as on the board, and unsigned: libc's time() returns the
+ * 32-bit view's time_t, which is the kernel's unsigned count (utime32_t,
+ * sys/sys/_time_t.h). struct timeval's tv_sec is a signed long in libc's
+ * headers, since the kernel also passes intervals in it; this object reads
+ * the clock from it unsigned, which the shared 32-bit representation and
+ * register of the procedure call standard make the same value.
  */
 int gettimeofday(struct timeval *tv, void *tz);
 unsigned long time(unsigned long *t);

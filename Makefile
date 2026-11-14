@@ -724,6 +724,9 @@ check-libc-difftime:
 check-libc-difftime-cross:
 		${MAKE} -C tests/libc_contracts check-difftime-cross
 
+check-libc-sleep:
+		${MAKE} -C tests/libc_contracts check-sleep
+
 check-libc-contracts:
 		${MAKE} -C tests/libc_contracts check
 
@@ -2103,7 +2106,8 @@ installfs:
 		check-libc-ctime-cross check-libc-zone check-libc-mktime \
 		check-libc-calendar64 \
 		check-libc-runtime-limits check-libc-runtime-limits-cross \
-		check-libc-difftime check-libc-difftime-cross check-libc-contracts \
+		check-libc-difftime check-libc-difftime-cross check-libc-sleep \
+		check-libc-contracts \
 		check-libc-host-contracts check-libc-alarm-cross \
 		check-libc-waitpid-cross \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-malloc \

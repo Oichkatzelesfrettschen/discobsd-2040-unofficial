@@ -10,6 +10,13 @@
  * against gmtime, and it also has a closed form, so a set of dates whose
  * second counts are known independently pins the arithmetic itself.
  *
+ * The library is compiled at the 32-bit view (sys/sys/_time_t.h), where
+ * time_t is the kernel's unsigned count: the range is 0 to 4294967295,
+ * 1970-01-01 00:00:00 to 2106-02-07 06:28:15 UTC, and the refusal is the
+ * count 4294967295, (time_t)-1 on the target. mktime.c writes that bound
+ * as a 32-bit constant, so a host whose unsigned long is eight bytes
+ * refuses with the same count and runs the same cases.
+ *
  * The gate fixes the zone to GMT, which tzset() selects when TZ is set and
  * empty: with TZ unset it would load the host's own zone file, and this
  * tree's tzload reads the first-version layout alone while a current host
@@ -25,8 +32,30 @@
 #include <limits.h>
 #include <stdlib.h>
 
+struct instant32_vector {
+	time_t	count;
+	int	year, mon, mday, hour, min, sec, wday, yday;
+};
+
+struct field32_vector {
+	int		year, mon, mday, hour, min, sec, accepted;
+	unsigned long	count;
+};
+
+struct zone32_edge_vector {
+	long		offset;
+	int		year, mon, mday, hour, min, sec, accepted;
+	unsigned long	count;
+};
+
+#define CALENDAR32_FIELDS
+#include "calendar32_vectors.h"
+
 int		creat(const char *, mode_t);
 void		db_tzset(void);
+
+/* timegm() and mktime() answer this count for a time they refuse. */
+#define REFUSED		((time_t)0xffffffffUL)
 
 time_t		db_mktime(struct tm *);
 time_t		db_timegm(struct tm *);
@@ -77,7 +106,7 @@ report(const char *message, long value)
  */
 struct known {
 	int	year, mon, mday, hour, min, sec;
-	long	secs;
+	time_t	secs;
 	int	wday, yday;
 };
 
@@ -96,8 +125,15 @@ static const struct known knowns[] = {
 	{ 2000,  3,  1,  0,  0,  0,   951868800L, 3,  60 },
 	/* A round billion. */
 	{ 2001,  9,  9,  1, 46, 40,  1000000000L, 0, 251 },
-	/* The last second a signed 32-bit time_t represents. */
-	{ 2038,  1, 19,  3, 14,  7,  2147483647L, 2,  18 },
+	/* The last count below bit 31, and the first with it set. */
+	{ 2038,  1, 19,  3, 14,  7, 2147483647UL, 2,  18 },
+	{ 2038,  1, 19,  3, 14,  8, 2147483648UL, 2,  18 },
+	/* The count 0x90000000. */
+	{ 2046,  7, 23,  0, 38, 24, 2415919104UL, 1, 203 },
+	/* 2100 is not a leap year, so 1 March follows 28 February. */
+	{ 2100,  3,  1,  0,  0,  0, 4107542400UL, 1,  59 },
+	/* One second before the last count, which is also the refusal. */
+	{ 2106,  2,  7,  6, 28, 14, 4294967294UL, 0,  37 },
 };
 
 #define NKNOWN	((int)(sizeof(knowns) / sizeof(knowns[0])))
@@ -124,7 +160,7 @@ test_timegm_known_dates(void)
 
 	for (i = 0; i < NKNOWN; i++) {
 		fill(&tm, &knowns[i]);
-		check(db_timegm(&tm) == (time_t)knowns[i].secs,
+		check(db_timegm(&tm) == knowns[i].secs,
 		    "timegm: wrong second count for a known date");
 		check(tm.tm_wday == knowns[i].wday,
 		    "timegm: wrong day of the week");
@@ -146,7 +182,7 @@ test_mktime_known_dates(void)
 
 	for (i = 0; i < NKNOWN; i++) {
 		fill(&tm, &knowns[i]);
-		check(db_mktime(&tm) == (time_t)knowns[i].secs,
+		check(db_mktime(&tm) == knowns[i].secs,
 		    "mktime: wrong second count for a known date");
 		check(tm.tm_wday == knowns[i].wday,
 		    "mktime: wrong day of the week");
@@ -160,9 +196,9 @@ test_mktime_known_dates(void)
  * second calendar. The step is prime, so the instants swept share no divisor
  * with a day, an hour or a year.
  */
-#define STEP	1999993L		/* prime, about 23 days */
-#define SWEEP_LO	(-2147000000L)
-#define SWEEP_HI	2147000000L
+#define STEP	1999993UL		/* prime, about 23 days */
+#define SWEEP_LO	0UL
+#define SWEEP_HI	ORACLE_COUNT_MAX
 
 /*
  * The sweep walks the instant itself rather than a multiplier, because long
@@ -174,7 +210,7 @@ test_round_trip(void)
 {
 	struct tm *back, copy;
 	time_t t, again;
-	long v;
+	unsigned long v;
 	int trips = 0;
 
 	for (v = SWEEP_LO; v <= SWEEP_HI - STEP; v += STEP) {
@@ -189,7 +225,7 @@ test_round_trip(void)
 		trips++;
 	}
 	report("round trip instants: ", trips);
-	check(trips > 2000, "mktime: the sweep covered too few instants");
+	check(trips > 2100, "mktime: the sweep covered too few instants");
 }
 
 /* The same statement against gmtime, which timegm inverts exactly. */
@@ -198,7 +234,7 @@ test_gm_round_trip(void)
 {
 	struct tm *back, copy;
 	time_t t, again;
-	long v;
+	unsigned long v;
 
 	for (v = SWEEP_LO; v <= SWEEP_HI - STEP; v += STEP) {
 		t = (time_t)v;
@@ -237,12 +273,19 @@ test_normalization(void)
 	    "normalize: day 32 left the fields wrong");
 
 	/* Day 0 of January is 31 December of the year before. */
+	fill(&tm, &knowns[2]);
+	tm.tm_mday = 0;
+	check(db_timegm(&tm) == (time_t)(31536000UL - 86400UL),
+	    "normalize: day 0 is not the last day of the year before");
+	check(tm.tm_year == 70 && tm.tm_mon == 11 && tm.tm_mday == 31,
+	    "normalize: day 0 left the fields wrong");
+
+	/* Day 0 of January 1970 lies before the range and is refused. */
 	fill(&tm, &knowns[0]);
 	tm.tm_mday = 0;
-	check(db_timegm(&tm) == (time_t)(-86400L),
-	    "normalize: day 0 is not the last day of the year before");
-	check(tm.tm_year == 69 && tm.tm_mon == 11 && tm.tm_mday == 31,
-	    "normalize: day 0 left the fields wrong");
+	tm.tm_wday = -1;
+	check(db_timegm(&tm) == REFUSED && tm.tm_wday == -1,
+	    "normalize: the day before the epoch was accepted");
 
 	/* Hour 24 is midnight of the following day. */
 	fill(&tm, &knowns[0]);
@@ -278,23 +321,27 @@ test_leap_year_rule(void)
 	tm.tm_mon = 11;
 	tm.tm_mday = 31;
 	tm.tm_isdst = -1;
-	check(db_timegm(&tm) != (time_t)-1, "leap: 2000-12-31 was refused");
+	check(db_timegm(&tm) != REFUSED, "leap: 2000-12-31 was refused");
 	check(tm.tm_yday == 365, "leap: 2000 was not a leap year");
 
 	/*
-	 * 2100 lies past the time_t this library is built with, so its
-	 * February is refused and the sentinel stays. The century rule is
-	 * measured where time_t reaches it: test_every_day() counts through
-	 * 2000, which the 400-year rule keeps a leap year, and through the
-	 * years on either side, whose day counts carry the century term.
+	 * 2100 is inside the range and is not a leap year: its 29 February
+	 * is 1 March, day 59, and its 31 December is day 364.
 	 */
 	memset(&tm, 0, sizeof(tm));
 	tm.tm_year = 200;
 	tm.tm_mon = 1;
 	tm.tm_mday = 29;
 	tm.tm_wday = -1;
-	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
-	    "leap: a date past time_t's range was accepted");
+	check(db_timegm(&tm) == (time_t)4107542400UL && tm.tm_mon == 2 &&
+	    tm.tm_mday == 1 && tm.tm_yday == 59,
+	    "leap: 2100-02-29 is not 2100-03-01");
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = 200;
+	tm.tm_mon = 11;
+	tm.tm_mday = 31;
+	check(db_timegm(&tm) != REFUSED && tm.tm_yday == 364,
+	    "leap: 2100 was a leap year");
 
 	/* 2004-12-31 is day 365 again. */
 	memset(&tm, 0, sizeof(tm));
@@ -302,13 +349,13 @@ test_leap_year_rule(void)
 	tm.tm_mon = 11;
 	tm.tm_mday = 31;
 	tm.tm_isdst = -1;
-	check(db_timegm(&tm) != (time_t)-1, "leap: 2004-12-31 was refused");
+	check(db_timegm(&tm) != REFUSED, "leap: 2004-12-31 was refused");
 	check(tm.tm_yday == 365, "leap: 2004 was not a leap year");
 }
 
 /*
- * A time that cannot be represented answers -1. A caller tells that from the
- * legitimate time -1 by a sentinel it reads back, which is what
+ * A time that cannot be represented answers REFUSED. A caller tells that
+ * from the legitimate last count by a sentinel it reads back, which is what
  * usr.bin/touch does with tm_wday.
  */
 static void
@@ -320,7 +367,7 @@ test_out_of_range(void)
 	tm.tm_year = 20000 - 1900;
 	tm.tm_mday = 1;
 	tm.tm_wday = -1;
-	check(db_timegm(&tm) == (time_t)-1,
+	check(db_timegm(&tm) == REFUSED,
 	    "range: a year past the representable span was accepted");
 	check(tm.tm_wday == -1,
 	    "range: a refused year past the span rewrote the sentinel");
@@ -329,7 +376,7 @@ test_out_of_range(void)
 	tm.tm_year = -20000 - 1900;
 	tm.tm_mday = 1;
 	tm.tm_wday = -1;
-	check(db_timegm(&tm) == (time_t)-1,
+	check(db_timegm(&tm) == REFUSED,
 	    "range: a year before the representable span was accepted");
 	check(tm.tm_wday == -1,
 	    "range: a refused year before the span rewrote the sentinel");
@@ -339,16 +386,16 @@ test_out_of_range(void)
 	tm.tm_year = INT_MAX;
 	tm.tm_mday = 1;
 	tm.tm_wday = -1;
-	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	check(db_timegm(&tm) == REFUSED && tm.tm_wday == -1,
 	    "range: the last year an int names was accepted");
 	memset(&tm, 0, sizeof(tm));
 	tm.tm_year = INT_MIN;
 	tm.tm_mday = 1;
 	tm.tm_wday = -1;
-	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	check(db_timegm(&tm) == REFUSED && tm.tm_wday == -1,
 	    "range: the first year an int names was accepted");
 
-	/* The legitimate time -1 is one second before the epoch. */
+	/* The second before the epoch has no count. */
 	memset(&tm, 0, sizeof(tm));
 	tm.tm_year = 69;
 	tm.tm_mon = 11;
@@ -357,18 +404,30 @@ test_out_of_range(void)
 	tm.tm_min = 59;
 	tm.tm_sec = 59;
 	tm.tm_wday = -1;
-	check(db_timegm(&tm) == (time_t)-1,
-	    "range: the second before the epoch is not -1");
-	check(tm.tm_wday != -1,
-	    "range: the legitimate -1 left the sentinel in place");
+	check(db_timegm(&tm) == REFUSED && tm.tm_wday == -1,
+	    "range: the second before the epoch was accepted");
+
+	/* The last count equals the refusal and rewrites the sentinel. */
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = 206;
+	tm.tm_mon = 1;
+	tm.tm_mday = 7;
+	tm.tm_hour = 6;
+	tm.tm_min = 28;
+	tm.tm_sec = 15;
+	tm.tm_wday = -1;
+	check(db_timegm(&tm) == REFUSED,
+	    "range: 2106-02-07 06:28:15 is not the last count");
+	check(tm.tm_wday == 0,
+	    "range: the legitimate last count left the sentinel in place");
 }
 
 /*
- * The two ends of time_t's range, which <limits.h> gives as LONG_MIN and
- * LONG_MAX, with instants one second and one day inside and outside each.
- * An instant past either end has no count, so it answers -1 and leaves the
- * tm_wday sentinel in place. The fields name each instant directly, so the
- * answers do not pass through gmtime.
+ * The two ends of the range, 0 and 4294967295, with instants one second and
+ * one day inside and outside each, and the carry out of bit 31 in 2038,
+ * which lies inside it. An instant past either end has no count, so it
+ * answers REFUSED and leaves the tm_wday sentinel in place. The fields name
+ * each instant directly, so the answers do not pass through gmtime.
  */
 struct edge {
 	int		year, mon, mday, hour, min, sec;
@@ -380,10 +439,16 @@ static const struct edge edges[] = {
 	{ 2038,  1, 19,  3, 14,  8,  2147483648LL },
 	{ 2038,  1, 19, 23,  0,  0,  2147554800LL },
 	{ 2038,  1, 20,  0,  0,  0,  2147558400LL },
+	{ 2106,  2,  7,  6, 28, 14,  4294967294LL },
+	{ 2106,  2,  7,  6, 28, 15,  4294967295LL },
+	{ 2106,  2,  7,  6, 28, 16,  4294967296LL },
+	{ 2106,  2,  7,  0,  0,  0,  4294944000LL },
+	{ 2106,  2,  8,  0,  0,  0,  4295030400LL },
+	{ 1970,  1,  1,  0,  0,  0,           0LL },
+	{ 1970,  1,  2,  0,  0,  0,       86400LL },
+	{ 1969, 12, 31, 23, 59, 59,          -1LL },
+	{ 1969, 12, 31,  0,  0,  0,      -86400LL },
 	{ 1901, 12, 13, 20, 45, 52, -2147483648LL },
-	{ 1901, 12, 13, 20, 45, 51, -2147483649LL },
-	{ 1901, 12, 13,  0,  0,  0, -2147558400LL },
-	{ 1901, 12, 12, 23, 59, 59, -2147558401LL },
 };
 
 static void
@@ -403,8 +468,8 @@ test_range_edges(void)
 		tm.tm_min = edges[i].min;
 		tm.tm_sec = edges[i].sec;
 		tm.tm_wday = -1;
-		fits = edges[i].secs >= (long long)LONG_MIN &&
-		    edges[i].secs <= (long long)LONG_MAX;
+		fits = edges[i].secs >= 0 &&
+		    edges[i].secs <= (long long)ORACLE_COUNT_MAX;
 		got = db_timegm(&tm);
 		if (fits) {
 			check((long long)got == edges[i].secs,
@@ -412,8 +477,8 @@ test_range_edges(void)
 			check(tm.tm_wday != -1,
 			    "edge: a representable instant left the sentinel");
 		} else {
-			check(got == (time_t)-1,
-			    "edge: an instant past time_t's range was accepted");
+			check(got == REFUSED,
+			    "edge: an instant past the range was accepted");
 			check(tm.tm_wday == -1,
 			    "edge: a refused instant rewrote the fields");
 		}
@@ -424,22 +489,98 @@ test_range_edges(void)
 	tm.tm_year = 70;
 	tm.tm_mday = INT_MAX;
 	got = db_timegm(&tm);
-	check(got == (time_t)-1,
+	check(got == REFUSED,
 	    "edge: the largest tm_mday was accepted");
 	memset(&tm, 0, sizeof(tm));
 	tm.tm_year = 70;
 	tm.tm_mday = INT_MIN;
 	got = db_timegm(&tm);
-	check(got == (time_t)-1,
+	check(got == REFUSED,
 	    "edge: the smallest tm_mday was accepted");
 }
 
 /*
- * Every whole day a four-byte time_t names, against a calendar that only counts:
- * it steps one day at a time from the epoch in each direction and carries
- * the month, year, weekday and day of the year by their own rules, sharing
- * no arithmetic with the library. timegm() must reach the day's count from
+ * The fields of each instant of calendar32_vectors.py, as CPython's
+ * datetime gives them, reach the instant's count through timegm(); the
+ * last count among them is also the refusal, told apart by the sentinel.
+ */
+static void
+test_instant_vectors(void)
+{
+	struct tm tm;
+	size_t i;
+	int wrong = 0;
+
+	for (i = 0; i < sizeof(instant32_vectors) /
+	    sizeof(instant32_vectors[0]); i++) {
+		const struct instant32_vector *vector = &instant32_vectors[i];
+
+		memset(&tm, 0, sizeof(tm));
+		tm.tm_year = vector->year;
+		tm.tm_mon = vector->mon;
+		tm.tm_mday = vector->mday;
+		tm.tm_hour = vector->hour;
+		tm.tm_min = vector->min;
+		tm.tm_sec = vector->sec;
+		tm.tm_wday = -1;
+		if (db_timegm(&tm) != vector->count ||
+		    tm.tm_wday != vector->wday || tm.tm_yday != vector->yday)
+			wrong++;
+	}
+	check(wrong == 0, "instant vectors: timegm disagrees with datetime");
+	check(i > 3000, "instant vectors: too few instants");
+}
+
+/*
+ * Fields as a caller passes them, some outside their ranges, against the
+ * count CPython's datetime gives them or a refusal (calendar32_vectors.py).
+ * An accepted case writes its fields back as gmtime() reads its count.
+ */
+static void
+test_field_vectors(void)
+{
+	struct tm tm, *back;
+	time_t got;
+	size_t i;
+	int wrong = 0;
+
+	for (i = 0; i < sizeof(field32_vectors) / sizeof(field32_vectors[0]);
+	    i++) {
+		const struct field32_vector *vector = &field32_vectors[i];
+
+		memset(&tm, 0, sizeof(tm));
+		tm.tm_year = vector->year;
+		tm.tm_mon = vector->mon;
+		tm.tm_mday = vector->mday;
+		tm.tm_hour = vector->hour;
+		tm.tm_min = vector->min;
+		tm.tm_sec = vector->sec;
+		tm.tm_wday = -1;
+		got = db_timegm(&tm);
+		if (!vector->accepted) {
+			if (got != REFUSED || tm.tm_wday != -1)
+				wrong++;
+			continue;
+		}
+		back = db_gmtime(&got);
+		if (got != (time_t)vector->count || back == 0 ||
+		    tm.tm_year != back->tm_year || tm.tm_mon != back->tm_mon ||
+		    tm.tm_mday != back->tm_mday ||
+		    tm.tm_hour != back->tm_hour || tm.tm_min != back->tm_min ||
+		    tm.tm_sec != back->tm_sec || tm.tm_wday != back->tm_wday ||
+		    tm.tm_yday != back->tm_yday)
+			wrong++;
+	}
+	check(wrong == 0, "field vectors: timegm disagrees with datetime");
+}
+
+/*
+ * Every whole day the 32-bit count names, against a calendar that only
+ * counts: it steps one day at a time from the epoch and carries the month,
+ * year, weekday and day of the year by their own rules, sharing no
+ * arithmetic with the library. timegm() must reach the day's count from
  * the fields, and gmtime() must read the same fields back from the count.
+ * The day before the epoch has no count, so its fields are refused.
  */
 static int
 month_days(int year, int mon)
@@ -457,7 +598,8 @@ check_day(long day, int year, int mon, int mday, int wday, int yday)
 {
 	struct tm tm, *back;
 	time_t t;
-	long second = (long)(((unsigned long)day * 7919UL) % 86400UL);
+	unsigned long second = ((unsigned long)day * 7919UL) % 86400UL;
+	time_t count = (time_t)((unsigned long)day * 86400UL + second);
 
 	memset(&tm, 0, sizeof(tm));
 	tm.tm_year = year - 1900;
@@ -468,13 +610,12 @@ check_day(long day, int year, int mon, int mday, int wday, int yday)
 	tm.tm_sec = (int)(second % 60);
 	tm.tm_wday = -1;
 	t = db_timegm(&tm);
-	check(t == (time_t)(day * 86400L + second),
-	    "every day: timegm has the wrong count");
+	check(t == count, "every day: timegm has the wrong count");
 	check(tm.tm_wday == wday && tm.tm_yday == yday &&
 	    tm.tm_year == year - 1900 && tm.tm_mon == mon &&
 	    tm.tm_mday == mday,
 	    "every day: timegm reported the wrong fields");
-	t = (time_t)(day * 86400L + second);
+	t = count;
 	back = db_gmtime(&t);
 	check(back != 0 && back->tm_year == year - 1900 &&
 	    back->tm_mon == mon && back->tm_mday == mday &&
@@ -485,12 +626,16 @@ check_day(long day, int year, int mon, int mday, int wday, int yday)
 	    "every day: gmtime read the wrong fields");
 }
 
-#define LAST_WHOLE_DAY	24854L		/* 2038-01-18 */
-#define FIRST_WHOLE_DAY	(-24855L)	/* 1901-12-14 */
+/*
+ * 2106-02-06, the last day whose every second has a count, so the second
+ * check_day() picks within it always has one; 2106-02-07 is in edges[].
+ */
+#define LAST_WHOLE_DAY	(ORACLE_LAST_DAY - 1)
 
 static void
 test_every_day(void)
 {
+	struct tm tm;
 	long day;
 	int year, mon, mday, wday, yday;
 
@@ -508,25 +653,17 @@ test_every_day(void)
 			}
 		}
 	}
-	check(year == 2038 && mon == 0 && mday == 19,
+	check(year == 2106 && mon == 1 && mday == 7,
 	    "every day: the counting calendar ended on the wrong date");
 
-	year = 1970; mon = 0; mday = 1; wday = 4; yday = 0;
-	for (day = -1; day >= FIRST_WHOLE_DAY; day--) {
-		wday = (wday + 6) % 7;
-		if (--mday < 1) {
-			if (--mon < 0) {
-				mon = 11;
-				year--;
-				yday = 365 + (month_days(year, 1) == 29);
-			}
-			mday = month_days(year, mon);
-		}
-		yday--;
-		check_day(day, year, mon, mday, wday, yday);
-	}
-	check(year == 1901 && mon == 11 && mday == 14,
-	    "every day: the counting calendar began on the wrong date");
+	memset(&tm, 0, sizeof(tm));
+	tm.tm_year = 69;
+	tm.tm_mon = 11;
+	tm.tm_mday = 31;
+	tm.tm_hour = 12;
+	tm.tm_wday = -1;
+	check(db_timegm(&tm) == REFUSED && tm.tm_wday == -1,
+	    "every day: the day before the epoch was accepted");
 }
 
 /*
@@ -547,7 +684,7 @@ test_carry_overflow(void)
 	tm.tm_mon = 12;
 	tm.tm_mday = 1;
 	tm.tm_wday = -1;
-	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	check(db_timegm(&tm) == REFUSED && tm.tm_wday == -1,
 	    "carry: a month carried past the last year was accepted");
 	check(tm.tm_year == INT_MAX && tm.tm_mon == 12,
 	    "carry: a refused month carry rewrote its fields");
@@ -559,7 +696,7 @@ test_carry_overflow(void)
 	tm.tm_min = INT_MAX;
 	tm.tm_sec = 60;
 	tm.tm_wday = -1;
-	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	check(db_timegm(&tm) == REFUSED && tm.tm_wday == -1,
 	    "carry: seconds carried past the last minute were accepted");
 
 	memset(&tm, 0, sizeof(tm));
@@ -567,7 +704,7 @@ test_carry_overflow(void)
 	tm.tm_mday = INT_MAX;
 	tm.tm_hour = 24;
 	tm.tm_wday = -1;
-	check(db_timegm(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	check(db_timegm(&tm) == REFUSED && tm.tm_wday == -1,
 	    "carry: hours carried past the last day were accepted");
 
 	memset(&tm, 0, sizeof(tm));
@@ -576,7 +713,7 @@ test_carry_overflow(void)
 	tm.tm_mday = 1;
 	tm.tm_isdst = -1;
 	tm.tm_wday = -1;
-	check(db_mktime(&tm) == (time_t)-1 && tm.tm_wday == -1,
+	check(db_mktime(&tm) == REFUSED && tm.tm_wday == -1,
 	    "carry: mktime accepted a month borrowed before the first year");
 }
 
@@ -620,7 +757,7 @@ put32(unsigned char *p, long v)
 }
 
 static int
-write_zone(void)
+write_zone(long offset)
 {
 	unsigned char buf[54];
 	int fd;
@@ -630,7 +767,7 @@ write_zone(void)
 	put32(buf + 32, 0);		/* tzh_timecnt */
 	put32(buf + 36, 1);		/* tzh_typecnt */
 	put32(buf + 40, 4);		/* tzh_charcnt */
-	put32(buf + 44, ZONE_OFFSET);	/* the one type's offset from GMT */
+	put32(buf + 44, offset);	/* the one type's offset from GMT */
 	buf[48] = 0;			/* tt_isdst */
 	buf[49] = 0;			/* tt_abbrind */
 	memcpy(buf + 50, "EST", 4);	/* the abbreviation and its terminator */
@@ -661,10 +798,10 @@ test_zone_offset(void)
 {
 	struct tm tm, *back, copy;
 	time_t local, utc, t, again;
-	long v;
+	unsigned long v;
 	int i, trips = 0;
 
-	if (write_zone() == -1) {
+	if (write_zone(ZONE_OFFSET) == -1) {
 		(void)write(STDERR_FILENO,
 		    "  zone file unavailable; offset cases skipped\n", 45);
 		return;
@@ -681,7 +818,7 @@ test_zone_offset(void)
 		local = db_mktime(&tm);
 		fill(&tm, &knowns[i]);
 		utc = db_timegm(&tm);
-		if (utc == (time_t)-1 || local == (time_t)-1)
+		if (utc == REFUSED || local == REFUSED)
 			continue;
 		/*
 		 * The fields name a local time, so the instant they name is
@@ -696,12 +833,13 @@ test_zone_offset(void)
 	 * the same fields read as this zone's local time five hours later
 	 * name an instant past it, which is refused.
 	 */
-	t = (time_t)LONG_MAX;
+	t = (time_t)ORACLE_COUNT_MAX;
 	back = db_localtime(&t);
 	if (back != 0) {
 		copy = *back;
 		copy.tm_isdst = -1;
-		check(db_mktime(&copy) == t,
+		copy.tm_wday = -1;
+		check(db_mktime(&copy) == t && copy.tm_wday == 0,
 		    "zone: the last instant of the range did not round-trip");
 	}
 	back = db_gmtime(&t);
@@ -709,7 +847,7 @@ test_zone_offset(void)
 		copy = *back;
 		copy.tm_isdst = -1;
 		copy.tm_wday = -1;
-		check(db_mktime(&copy) == (time_t)-1 && copy.tm_wday == -1,
+		check(db_mktime(&copy) == REFUSED && copy.tm_wday == -1,
 		    "zone: a local time past the range was accepted");
 	}
 
@@ -728,8 +866,104 @@ test_zone_offset(void)
 		trips++;
 	}
 	report("zone round trip instants: ", trips);
-	check(trips > 2000, "zone: the sweep covered too few instants");
+	check(trips > 2100, "zone: the sweep covered too few instants");
 
+	(void)unlink(ZONE_PATH);
+	putenv("TZ=");
+	db_tzset();
+}
+
+/*
+ * The first and the last day of the range in GMT and in zone files one
+ * offset each from calendar32_vectors.py: eight hours west (the kernel's
+ * default zone), one hour east and fourteen hours east. In a zone west of
+ * Greenwich the first hours of the range have local fields on 31 December
+ * 1969, and in a zone east of it the last hours have fields past
+ * 2106-02-07 06:28:15, so neither reads as a count when taken as UTC; each
+ * count must still come back from mktime(localtime(&t)) with the struct
+ * rewritten, the last count included, though it equals REFUSED. The local
+ * fields of instants one second and one day outside the range are refused
+ * with the tm_wday sentinel left in place.
+ */
+static void
+round_trip_band(unsigned long first, unsigned long last, int *wrong)
+{
+	struct tm *back, copy;
+	time_t t;
+	unsigned long v;
+
+	for (v = first;; v++) {
+		t = (time_t)v;
+		back = db_localtime(&t);
+		copy = *back;
+		copy.tm_isdst = -1;
+		copy.tm_wday = -1;
+		if (db_mktime(&copy) != t || copy.tm_wday != back->tm_wday)
+			(*wrong)++;
+		if (v == last)
+			break;
+	}
+}
+
+static void
+test_zone_edges(void)
+{
+	struct tm tm;
+	time_t got;
+	size_t zone, i;
+	int wrong, edges;
+
+	for (zone = 0; zone < sizeof(zone32_offsets) /
+	    sizeof(zone32_offsets[0]); zone++) {
+		if (zone32_offsets[zone] == 0)
+			putenv("TZ=");
+		else if (write_zone(zone32_offsets[zone]) == 0)
+			putenv("TZ=" ZONE_PATH);
+		else {
+			check(0, "zone edges: the zone file could not be written");
+			continue;
+		}
+		db_tzset();
+		got = 0;
+		check(db_localtime(&got)->tm_gmtoff == zone32_offsets[zone],
+		    "zone edges: the zone in force is not the one written");
+
+		wrong = 0;
+		round_trip_band(0UL, 86399UL, &wrong);
+		round_trip_band(ORACLE_COUNT_MAX - 86399UL, ORACLE_COUNT_MAX,
+		    &wrong);
+		check(wrong == 0,
+		    "zone edges: a count of the first or last day did not round-trip");
+
+		wrong = 0;
+		edges = 0;
+		for (i = 0; i < sizeof(zone32_edge_vectors) /
+		    sizeof(zone32_edge_vectors[0]); i++) {
+			const struct zone32_edge_vector *vector =
+			    &zone32_edge_vectors[i];
+
+			if (vector->offset != zone32_offsets[zone])
+				continue;
+			edges++;
+			memset(&tm, 0, sizeof(tm));
+			tm.tm_year = vector->year;
+			tm.tm_mon = vector->mon;
+			tm.tm_mday = vector->mday;
+			tm.tm_hour = vector->hour;
+			tm.tm_min = vector->min;
+			tm.tm_sec = vector->sec;
+			tm.tm_isdst = -1;
+			tm.tm_wday = -1;
+			got = db_mktime(&tm);
+			if (vector->accepted ? got != (time_t)vector->count ||
+			    tm.tm_wday == -1 :
+			    got != REFUSED || tm.tm_wday != -1)
+				wrong++;
+		}
+		check(wrong == 0,
+		    "zone edges: mktime disagrees with datetime at an end of the range");
+		check(edges == 10, "zone edges: the zone has the wrong vector count");
+	}
 	(void)unlink(ZONE_PATH);
 	putenv("TZ=");
 	db_tzset();
@@ -754,8 +988,11 @@ main(void)
 	test_range_edges();
 	test_carry_overflow();
 	test_every_day();
+	test_instant_vectors();
+	test_field_vectors();
 	test_timegm_zone_fields();
 	test_zone_offset();
+	test_zone_edges();
 
 	report("checks: ", check_count);
 	if (failure_count != 0) {

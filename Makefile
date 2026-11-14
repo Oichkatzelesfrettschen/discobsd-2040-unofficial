@@ -1383,6 +1383,14 @@ check-fsutil-clock: check-python
 check-msdosfs-core: check-python
 		${MAKE} -C tests/msdosfs_core check PYTHON=${PYTHON:Q}
 
+# The loader composite (a kernel UF2 followed by the root image, built by
+# tools/picocalc/mkloaderuf2.py) and the host-tested locator that finds its
+# tail on a FAT32 card, sys/arch/rp2040/dev/fat32tail.c: volumes the msdosfs
+# tool writes at three cluster sizes, damaged volumes for each error, and
+# mutants of the locator that must fail; tests/fat32tail/check.sh states each.
+check-fat32-tail: check-python
+		${MAKE} -C tests/fat32tail check PYTHON=${PYTHON:Q}
+
 # The inter-core rings and SIO FIFO doorbell of corering.c against a model
 # of the FIFO registers, under the address, undefined-behavior and thread
 # sanitizers, with sixteen mutants that must fail.
@@ -1551,7 +1559,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification \
 		check-netbsd-imports check-v7fs-core check-storage-recovery \
-		check-storage-recovery-models check-msdosfs-core check-fsutil-clock \
+		check-storage-recovery-models check-msdosfs-core check-fat32-tail check-fsutil-clock \
 		check-corering check-core1 \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \

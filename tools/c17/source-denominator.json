@@ -88829,6 +88829,7 @@
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
           "aliasing": [
+            "cast-dereference",
             "union-access"
           ],
           "inline_assembly": [],

@@ -42,7 +42,7 @@ static void *t_realloc(void *, size_t);
 static void *live[LIVE_MAX];
 static size_t live_size[LIVE_MAX];
 static int realloc_refusals;	/* refuse this many, then allow */
-static int malloc_calls, realloc_calls;
+static int realloc_calls;
 
 static int
 slot_of(const void *p)
@@ -61,7 +61,6 @@ t_malloc(size_t n)
 	void *p;
 	int i;
 
-	malloc_calls++;
 	if (realloc_refusals > 0) {
 		realloc_refusals--;
 		errno = ENOMEM;

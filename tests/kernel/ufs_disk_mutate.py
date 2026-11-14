@@ -200,6 +200,27 @@ MUTATIONS = {
         "    return (gone != 0);",
         "    return (gone == 0);",
     ),
+    # sys/kern/ufs_syscalls2.c
+    "device-checkpoint-omitted": (
+        "ufs_syscalls2.c",
+        "    checkpoint_error = checkpoint_device(mp->m_dev);",
+        "    checkpoint_error = 0 && checkpoint_device(mp->m_dev);",
+    ),
+    "device-checkpoint-error-hidden": (
+        "ufs_syscalls2.c",
+        "    if (error == 0)\n        error = checkpoint_error;",
+        "",
+    ),
+    "device-checkpoint-unsupported-fatal": (
+        "ufs_syscalls2.c",
+        "        (caddr_t)&error, 0) != 0)\n        return (0);",
+        "        (caddr_t)&error, 0) != 0)\n        return (EIO);",
+    ),
+    "device-checkpoint-skipped-on-error": (
+        "ufs_syscalls2.c",
+        "    if (error)\n        goto checkpoint;",
+        "    if (error)\n        return (error);\n    if (0)\n        goto checkpoint;",
+    ),
     # sys/kern/ufs_fio.c
     "exact-compare": (
         "ufs_fio.c",
@@ -252,6 +273,11 @@ MUTATIONS = {
         "flash.c",
         "(fldrives[unit].openpart & ~(1U << RAWPART)) != 0",
         "fldrives[unit].openpart != 0",
+    ),
+    "checkpoint-ioctl-omitted": (
+        "flash.c",
+        "		*(int *)addr = fl_checkpoint();\n		return 0;\n",
+        "		return EINVAL;\n",
     ),
     "reinit-first-partition-only": (
         "flash.c",

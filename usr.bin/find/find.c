@@ -34,7 +34,7 @@ short	*Buf, *Dbuf, *Wp;
 int	Bufsize = 5120;
 int	Wct = 2560;
 
-long	Newer;
+time_t	Newer;
 
 int	Xdev = 1;	/* true if SHOULD cross devices (file systems) */
 struct	stat Devstat;	/* stats of each argument path's file system */
@@ -387,18 +387,31 @@ struct anode *p;
 	return(1);
 }
 
+/*
+ * Whole days from then to now, truncated toward zero. Both are the
+ * kernel's 32-bit counts widened, so they differ by less than 2^32 and an
+ * unsigned long divides the magnitude without a 64-bit division.
+ */
+static int
+days_since(time_t then)
+{
+	if (Now >= then)
+		return((int)((unsigned long)(Now - then) / A_DAY));
+	return(-(int)((unsigned long)(then - Now) / A_DAY));
+}
+
 int
 mtime(p)
 register struct { int f, t, s; } *p;
 {
-	return(scomp((int)((Now - Statb.st_mtime) / A_DAY), p->t, p->s));
+	return(scomp(days_since(Statb.st_mtime), p->t, p->s));
 }
 
 int
 atime(p)
 register struct { int f, t, s; } *p;
 {
-	return(scomp((int)((Now - Statb.st_atime) / A_DAY), p->t, p->s));
+	return(scomp(days_since(Statb.st_atime), p->t, p->s));
 }
 
 int
@@ -539,7 +552,8 @@ struct anode *p;
 	hdr.h_dev = Statb.st_dev;
 	hdr.h_ino = Statb.st_ino;
 	hdr.h_mode = Statb.st_mode;
-	MKSHORT(hdr.h_mtime, Statb.st_mtime);
+	/* The binary cpio header holds the kernel's 32-bit count. */
+	MKSHORT(hdr.h_mtime, (long)Statb.st_mtime);
 	hdr.h_nlink = Statb.st_nlink;
 	fsz = hdr.h_mode & S_IFREG? Statb.st_size: 0L;
 	MKSHORT(hdr.h_filesize, fsz);
@@ -1149,7 +1163,7 @@ list(file, stp)
 	register struct stat *stp;
 {
 	char pmode[32], uname[32], gname[32], fsize[32], ftime[32];
-	char *getname(), *getgroup(), *ctime();
+	char *getname(), *getgroup();
 	static long special[] = { S_ISUID, 's', S_ISGID, 's', S_ISVTX, 't' };
 	static time_t sixmonthsago = -1;
 #ifdef	S_IFLNK

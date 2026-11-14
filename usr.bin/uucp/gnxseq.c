@@ -24,7 +24,6 @@ char *rmtname;
 {
 	int count = 0, ct, ret, i;
 	register struct tm *tp;
-	extern struct tm *localtime();
 	time_t clock;
 	register FILE *fp0, *fp1;
 	char buf[BUFSIZ], name[NAMESIZE];

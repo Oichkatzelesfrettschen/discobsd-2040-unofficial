@@ -148,7 +148,7 @@ main(int argc, char **argv)
     struct kinfo_vmstat vs;
     struct kinfo_disk cur[DK_NDRIVE];
     struct vmtotal total;
-    struct timeval tv;
+    struct __timeval32 tv;      /* the kernel's layout, sys/sys/time.h */
     struct clockinfo clock;
     size_t size;
     long pfree;
@@ -190,7 +190,7 @@ main(int argc, char **argv)
     mib[0] = CTL_KERN;
     mib[1] = KERN_BOOTTIME;
     fetch(mib, 2, &tv, sizeof tv, "kern.boottime");
-    boottime = tv.tv_sec;
+    boottime = (time_t)(utime32_t)tv.tv_sec;
     mib[1] = KERN_CLOCKRATE;
     size = sizeof clock;
     if (sysctl(mib, 2, &clock, &size, NULL, 0) < 0) {
@@ -205,7 +205,7 @@ main(int argc, char **argv)
     }
     dk_ndrive = fetchdisks(disks);
     time(&now);
-    nintv = now - boottime;
+    nintv = (long)(now - boottime);
     if (nintv <= 0 || nintv > 60L*60L*24L*365L*10L) {
         fprintf(stderr, "Time makes no sense... boot time must be wrong.\n");
         exit(1);

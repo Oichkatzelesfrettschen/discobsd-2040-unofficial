@@ -52,11 +52,16 @@ def fixture(header, form, wide, smaller=False):
                           "setgrent": "void (*)(void)", "endgrent": "void (*)(void)",
                           "setgroups": "int (*)(size_t, const gid_t *)"}
         elif header == "lastlog.h":
-            width = 8 if wide else 4
+            # ll_time is the kernel's 32-bit count (utime32_t), so the record
+            # keeps one layout under both views of time_t.
+            width = 4
+            # The view the case names is the view it compiles with.
+            conditions["time_t width"] = f"sizeof(time_t) == {8 if wide else 4}"
             conditions.update({"lastlog size": f"sizeof(struct lastlog) == {width + 24}",
                                "lastlog alignment": f"_Alignof(struct lastlog) == {width}",
                                "lastlog time type":
-                               "_Generic(&((struct lastlog *)0)->ll_time, time_t *: 1, default: 0)",
+                               "_Generic(&((struct lastlog *)0)->ll_time, "
+                               "unsigned long *: 1, default: 0)",
                                "lastlog time": "offsetof(struct lastlog, ll_time) == 0",
                                "lastlog line": f"offsetof(struct lastlog, ll_line) == {width}",
                                "lastlog host": f"offsetof(struct lastlog, ll_host) == {width + 8}",
@@ -88,7 +93,7 @@ def mutations(root):
          r"unknown type name"),
         ("group-signedness", "grp.h", "int     gr_gid;", "unsigned int gr_gid;",
          "standalone", False, r"static assertion failed.*group gr_gid type"),
-        ("lastlog-width", "lastlog.h", "time_t  ll_time;", "long ll_time;",
+        ("lastlog-width", "lastlog.h", "utime32_t ll_time;", "time_t ll_time;",
          "standalone", True, r"static assertion failed.*lastlog"),
         ("device-prototype", "kmem.h", "kmemdev(void)", "kmemdev()",
          "standalone", False, r"(?:strict-prototypes|without a prototype|isn't a prototype)"),
@@ -138,7 +143,7 @@ def native_cases(root, workspace, host, cross):
                 label = f"{header}.{form}.time{64 if wide else 32}"
                 source = workspace / "input.c"
                 source.write_text(fixture(header, form, wide, smaller=True))
-                flags = ["-D_TIME_BITS=64"] if wide else []
+                flags = ["-D_TIME_BITS=64"] if wide else ["-D_TIME_BITS=32"]
                 cases.append(command_case(
                     [cross, "-E", "-P", "-nostdinc", "-I" + str(root / "include"),
                      "-U__GNUC__", "-U__PCC__", "-D__SMALLER_C__=0x0100", "-D__SMALLER_C_32__",
@@ -196,7 +201,7 @@ def run(root, host_cc):
                 for form in FORMS:
                     for wide in (False, True):
                         source.write_text(fixture(header, form, wide))
-                        time_flags = ["-D_TIME_BITS=64"] if wide else []
+                        time_flags = ["-D_TIME_BITS=64"] if wide else ["-D_TIME_BITS=32"]
                         for mode, flags in MODES.items():
                             label = f"{profile}.{header}.{form}.{mode}.time{64 if wide else 32}"
                             cases.append(compile_case([*arguments, *flags, *time_flags],
@@ -206,7 +211,7 @@ def run(root, host_cc):
                 mutated.mkdir(exist_ok=True)
                 (mutated / header).write_text(content)
                 source.write_text(fixture(header, form, wide))
-                flags = ["-D_TIME_BITS=64"] if wide else []
+                flags = ["-D_TIME_BITS=64"] if wide else ["-D_TIME_BITS=32"]
                 cases.append(compile_case([arguments[0], "-I" + str(mutated), *arguments[1:],
                                            *flags], source, profile + "." + label, diagnostic))
             source.write_text("#include <kmem.h>\nint main(void) { return kmemdev(1); }\n")

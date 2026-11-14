@@ -42,7 +42,7 @@ FILE    *ut;
 dev_t   tty;
 long    hz = 60;        /* clock ticks per second, from kern.clockrate */
 char    doing[520];     /* process attached to terminal */
-time_t  proctime;       /* cpu time of process in doing */
+long    proctime;       /* cpu time of process in doing */
 unsigned int avenrun[3];
 extern  int errno, optind;
 
@@ -52,22 +52,26 @@ extern  int errno, optind;
 void     gettty();
 void     putline();
 long     findidle();
-void     prttime(time_t tim, char *tail);
+void     prttime(long tim, char *tail);
 void     prtat(struct tm *p);
 void     readpr();
 
 char    *program;
 int header = 1;     /* true if -h flag: don't print heading */
 int lflag = 1;      /* true if -l flag: long style output */
-time_t  idle;           /* number of minutes user is idle */
+long    idle;           /* number of minutes user is idle */
 int nusers;         /* number of users logged in now */
 char *  sel_user;       /* login of particular user selected */
 int     wcmd = 1;       /* running as the w command */
-time_t  jobtime;        /* total cpu time visible */
+long    jobtime;        /* total cpu time visible */
 time_t  now;            /* the current time of day */
 struct  tm *nowt;       /* current time as time struct */
-struct  timeval boottime;   /* time since last reboot */
-time_t  uptime;         /* elapsed time since */
+/*
+ * The KERN_BOOTTIME payload is the kernel's own struct timeval, whose
+ * second count is 32 bits read unsigned (sys/sys/time.h).
+ */
+struct  __timeval32 boottime;   /* time since last reboot */
+long    uptime;         /* elapsed time since */
 int np;         /* number of processes currently active */
 struct  utmp utmp;
 
@@ -134,7 +138,9 @@ main(argc, argv)
         size = sizeof (boottime);
         if (sysctl(mib, 2, &boottime, &size, NULL, 0) != -1 &&
             boottime.tv_sec != 0) {
-            uptime = now - boottime.tv_sec;
+            /* Both counts are the kernel's, so they differ by less than 2^32. */
+            uptime = (long)((unsigned long)now -
+                (unsigned long)boottime.tv_sec);
             days = uptime / (60L*60L*24L);
             uptime %= (60L*60L*24L);
             hrs = uptime / (60L*60L);
@@ -291,7 +297,8 @@ long
 findidle()
 {
     struct stat stbuf;
-    long lastaction, diff;
+    time_t lastaction;
+    long diff;
     char ttyname[20];
 
     strcpy(ttyname, "/dev/");
@@ -299,7 +306,7 @@ findidle()
     stat(ttyname, &stbuf);
     time(&now);
     lastaction = stbuf.st_atime;
-    diff = now - lastaction;
+    diff = (long)(now - lastaction);
     diff = DIV60(diff);
     if (diff < 0) diff = 0;
     return(diff);
@@ -312,7 +319,7 @@ findidle()
  */
 void
 prttime(tim, tail)
-    time_t tim;
+    long tim;
     char *tail;
 {
     register int didhrs = 0;
@@ -338,7 +345,7 @@ prtat(p)
     register struct tm *p;
 {
     register int pm;
-    time_t t;
+    long t;
 
     t = p -> tm_hour;
     pm = (t > 11);

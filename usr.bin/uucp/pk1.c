@@ -384,7 +384,7 @@ register int n;
 			if (r > 20000) {
 				tv.tv_sec = r / 1000000L;
 				tv.tv_usec = r % 1000000L;
-				DEBUG(11, "PKCGET stall for %ld", tv.tv_sec);
+				DEBUG(11, "PKCGET stall for %ld", (long)tv.tv_sec);
 				DEBUG(11, ".%06ld sec\n", tv.tv_usec);
 				(void) select (0, (fd_set*)0, (fd_set*)0, (fd_set*)0, &tv);
 			}

@@ -594,6 +594,10 @@ check-zone: zone_contract_test zone_contract_test_fixed
 
 check-mktime: mktime_contract_test
 	${TEST_EXECUTION} run libc.mktime.native -- ./mktime_contract_test
+	${PYTHON} ${.CURDIR}/mktime_contract_mutate.py ${TOPSRC} \
+	    ${HOSTCC:Q}\ ${MKTIME_CFLAGS:Q}\ -I.\ ${GC_SECTIONS} \
+	    ${.CURDIR}/mktime_contract_test.c mktime_ctime.o mktime_tzset.o \
+	    mktime_timezone.o
 .if ${ILP32_OK} == "yes"
 	@${MAKE} mktime_contract_test32
 	${TEST_EXECUTION} run libc.mktime.ilp32 -- ./mktime_contract_test32

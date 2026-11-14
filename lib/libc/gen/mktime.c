@@ -22,10 +22,13 @@
  * search only ever sees a proper date.
  *
  * On overflow both return (time_t)-1 without touching the caller's struct
- * beyond the normalization C requires. A caller that must tell that apart
- * from the legitimate time (time_t)-1 (one second before 1970 in the 64-bit
- * view, 2106-02-07 06:28:15 UTC in the 32-bit view) sets a field to a
- * sentinel and reads it back, which is what usr.bin/touch does with tm_wday.
+ * beyond the normalization C requires, so tm_wday keeps whatever the caller
+ * put there. A caller that must tell a refusal from the legitimate time
+ * (time_t)-1 (one second before 1970 in the 64-bit view, 2106-02-07
+ * 06:28:15 UTC in the 32-bit view) sets tm_wday to -1 and reads it back,
+ * which is what usr.bin/touch does (<time.h>). In the 32-bit view mktime()
+ * answers that last count like any other; the 64-bit mktime() refuses the
+ * local time whose fields read in UTC as the count -1.
  */
 #include "time.h"
 #include "limits.h"
@@ -228,6 +231,70 @@ days_before_month(int tm_year, int tm_mon)
 }
 #endif /* __TIME64_VIEW */
 
+#ifndef __TIME64_VIEW
+/*
+ * The fields as whole days from the epoch and the second within the day,
+ * which normalize() leaves in 0..86399. The day count is a long, so it
+ * holds the fields of any instant a zone offset can move into the range,
+ * where the count of seconds itself would leave 32 bits. Nonzero when a
+ * carry or the day count leaves its type; the fields are then as
+ * normalize() left them.
+ */
+static int
+split_fields(struct tm *tm, long *days, long *seconds)
+{
+	if (normalize(tm))
+		return (1);
+	if (tm->tm_year < TM_YEAR_MIN || tm->tm_year > TM_YEAR_MAX)
+		return (1);
+	*days = days_before_month(tm->tm_year, tm->tm_mon);
+	if (tm->tm_mday > 0 ? *days > LONG_MAX - tm->tm_mday :
+	    *days < LONG_MIN - tm->tm_mday)
+		return (1);
+	*days += tm->tm_mday;
+	*seconds = tm->tm_hour * (long)SECSPERHOUR + tm->tm_min * SECSPERMIN +
+	    tm->tm_sec;
+	return (0);
+}
+
+/*
+ * The count of the instant days and seconds name, moved offset seconds
+ * west, which is the UTC count of a local time in a zone offset seconds
+ * east of Greenwich. The offset is taken apart into whole days and a
+ * remainder below a day, so every step stays in a long and in 32 bits:
+ * the day count is compared before the offset's days are taken from it,
+ * the day of the answer before it is multiplied into seconds, and the
+ * seconds before the second of the day is added. Nonzero when the answer
+ * lies outside 0..TIME_MAX; *count is then unchanged.
+ */
+static int
+join_count(long days, long seconds, long offset, time_t *count)
+{
+	long offset_days = offset / SECSPERDAY;
+	time_t result;
+
+	seconds -= offset % SECSPERDAY;
+	if (seconds < 0) {
+		seconds += SECSPERDAY;
+		offset_days++;
+	} else if (seconds >= SECSPERDAY) {
+		seconds -= SECSPERDAY;
+		offset_days--;
+	}
+	if (offset_days > 0 ? days < LONG_MIN + offset_days :
+	    days > LONG_MAX + offset_days)
+		return (1);
+	days -= offset_days;
+	if (days < 0 || (time_t)days > TIME_MAX / SECSPERDAY)
+		return (1);
+	result = (time_t)days * SECSPERDAY;
+	if (result > TIME_MAX - (time_t)seconds)
+		return (1);
+	*count = result + (time_t)seconds;
+	return (0);
+}
+#endif /* !__TIME64_VIEW */
+
 /*
  * The calendar conversion with no zone: the fields name a UTC time and the
  * answer is the count of seconds from the epoch to it. Every field is then
@@ -235,13 +302,11 @@ days_before_month(int tm_year, int tm_mon)
  * a tm_mday outside its month and fills in tm_wday and tm_yday, as C
  * requires; tm_isdst is zero because no zone was consulted.
  *
- * A time outside the range answers TIME_REFUSED, (time_t)-1. Each
- * comparison is made before the operation it guards, against a bound the
- * operation cannot pass: the day count before tm_mday is added, the whole
- * days before they are multiplied into seconds, and the seconds before the
- * time of day is added. In the 32-bit view the range starts at the epoch,
- * so a day before it is refused whole, and the time of day, which
- * normalize() leaves in 0..86399, only moves the count up.
+ * A time outside the range answers TIME_REFUSED, (time_t)-1, and leaves
+ * tm_wday as the caller set it. In the 32-bit view the refusal is also the
+ * count of the last second of the range, which an accepted time answers
+ * with tm_wday rewritten, so a caller that sets tm_wday to -1 first tells
+ * the two apart (<time.h>).
  */
 time_t
 timegm(struct tm *tm)
@@ -250,25 +315,9 @@ timegm(struct tm *tm)
 	long days, seconds;
 	time_t result;
 
-	if (normalize(tm))
+	if (split_fields(tm, &days, &seconds) ||
+	    join_count(days, seconds, 0L, &result))
 		return (TIME_REFUSED);
-
-	if (tm->tm_year < TM_YEAR_MIN || tm->tm_year > TM_YEAR_MAX)
-		return (TIME_REFUSED);
-	days = days_before_month(tm->tm_year, tm->tm_mon);
-	if (tm->tm_mday > 0 ? days > LONG_MAX - tm->tm_mday :
-	    days < LONG_MIN - tm->tm_mday)
-		return (TIME_REFUSED);
-	days += tm->tm_mday;
-
-	seconds = tm->tm_hour * (long)SECSPERHOUR + tm->tm_min * SECSPERMIN +
-	    tm->tm_sec;
-	if (days < 0 || (time_t)days > TIME_MAX / SECSPERDAY)
-		return (TIME_REFUSED);
-	result = (time_t)days * SECSPERDAY;
-	if (result > TIME_MAX - (time_t)seconds)
-		return (TIME_REFUSED);
-	result += (time_t)seconds;
 #else
 	/*
 	 * Every field enters the count as it stands, with no carry between
@@ -299,6 +348,59 @@ timegm(struct tm *tm)
 /*
  * The same conversion through the local zone. The fields name a local time,
  * so the answer is the instant whose localtime() is those fields.
+ *
+ * Each pass asks what offset is in force at the current answer and moves
+ * the answer by it. Two passes settle every zone whose offset is piecewise
+ * constant; the third is the bound, so a zone file that is not gives up
+ * rather than looping.
+ */
+#ifndef __TIME64_VIEW
+/*
+ * The 32-bit view keeps the fields as days and a second of the day
+ * (split_fields()), so local fields that read as an instant outside the
+ * range in UTC still reach an answer inside it: the first hours of
+ * 1970-01-01 UTC in a zone west of Greenwich, whose fields fall on
+ * 31 December 1969, and the last hours before 2106-02-07 06:28:15 UTC in
+ * a zone east of it. The search starts at the fields read as UTC, held to
+ * the nearer end of the range, where localtime() reports the offset in
+ * force there. Every answer is a count join_count() accepted, so the last
+ * count of the range, which equals TIME_REFUSED, is an answer like any
+ * other and rewrites the struct; a refusal leaves tm_wday as the caller
+ * set it. localtime() of this view converts every count, so it is not
+ * checked for a null pointer.
+ */
+time_t
+mktime(struct tm *tm)
+{
+	time_t guess;
+	long days, seconds;
+	int pass;
+
+	if (split_fields(tm, &days, &seconds))
+		return (TIME_REFUSED);
+	if (join_count(days, seconds, 0L, &guess))
+		guess = days < 0 ? TIME_MIN : TIME_MAX;
+
+	/* localtime() reports the offset, seconds east of UTC, in tm_gmtoff. */
+	for (pass = 0; pass < 3; pass++)
+		if (join_count(days, seconds, localtime(&guess)->tm_gmtoff,
+		    &guess))
+			return (TIME_REFUSED);
+
+	/*
+	 * The caller's struct reports the time that was reached, normalized
+	 * and with tm_wday, tm_yday and tm_isdst filled in, as C requires.
+	 */
+	*tm = *localtime(&guess);
+	return (guess);
+}
+#else /* __TIME64_VIEW */
+/*
+ * The 64-bit build searches from the fields as they stand: its timegm()
+ * sums them without a carry, where a carry into an int could refuse an
+ * instant inside the range, and the struct is rewritten only with the
+ * answer. A local time whose fields read in UTC as the count -1, which is
+ * also the refusal, is refused.
  */
 time_t
 mktime(struct tm *tm)
@@ -308,35 +410,12 @@ mktime(struct tm *tm)
 	long offset;
 	int pass;
 
-	/*
-	 * The 64-bit build searches from the fields as they stand: its
-	 * timegm() sums them without a carry, where a carry into an int could
-	 * refuse an instant inside the range, and the struct is rewritten
-	 * only with the answer.
-	 */
-#ifndef __TIME64_VIEW
-	if (normalize(tm))
-		return (TIME_REFUSED);
-#endif
-
-	/*
-	 * The answer as though the fields were UTC, which starts the search.
-	 * Fields that read as an instant outside the range in UTC are refused
-	 * here even when the local time they name lies inside it: in the
-	 * 32-bit view, a local time in a zone west of Greenwich whose fields
-	 * fall before 1970-01-01 00:00:00, the first hours of the range there.
-	 */
+	/* The answer as though the fields were UTC, which starts the search. */
 	probe = *tm;
 	guess = timegm(&probe);
 	if (guess == TIME_REFUSED)
 		return (TIME_REFUSED);
 
-	/*
-	 * Each pass asks what offset is in force at the current answer and
-	 * moves the answer by it. Two passes settle every zone whose offset
-	 * is piecewise constant; the third is the bound, so a zone file that
-	 * is not gives up rather than looping.
-	 */
 	for (pass = 0; pass < 3; pass++) {
 		back = localtime(&guess);
 		if (back == NULL)
@@ -374,3 +453,4 @@ mktime(struct tm *tm)
 
 	return (guess);
 }
+#endif /* __TIME64_VIEW */

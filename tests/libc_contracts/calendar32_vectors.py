@@ -6,7 +6,7 @@ In the 32-bit view (sys/sys/_time_t.h) time_t is the kernel's unsigned
 CPython's datetime, which shares no arithmetic with lib/libc/gen/ctime.c
 or mktime.c.
 
-The header holds two tables and two constants:
+The header holds three tables, the zone offsets and two constants:
 
  - instant32_vectors: a second count and the UTC fields gmtime() must give
    for it, named counts at each end, at the 2038 carry out of bit 31 and
@@ -15,6 +15,13 @@ The header holds two tables and two constants:
  - field32_vectors: fields as a caller passes them to timegm(), some
    outside their ranges, with the count they name or a refusal, which
    every instant outside 0..4294967295 is; a test that reads them defines
+   CALENDAR32_FIELDS;
+ - zone32_edge_vectors, for each offset of ZONE32_OFFSETS (GMT, eight
+   hours west as the kernel's default zone, one hour east and fourteen
+   hours east): the local fields of instants one second and one day on
+   each side of both ends of the range, which mktime() in that zone
+   converts to the count inside the range and refuses outside it; a test
+   that reads them, the offsets and field32_vectors defines
    CALENDAR32_FIELDS;
  - ORACLE_COUNT_MAX and ORACLE_LAST_DAY, the last count and the day it
    falls on, which bound the tests' own sweeps.
@@ -132,6 +139,24 @@ def count_of_fields(year, mon, mday, hour, minute, sec):
     return count if 0 <= count <= COUNT_MAX else None
 
 
+ZONE32_OFFSETS = (0, -8 * 3600, 3600, 14 * 3600)
+
+
+def zone_edge_cases():
+    """(offset, local fields, accepted, count) at both ends of the range."""
+    out = []
+    for offset in ZONE32_OFFSETS:
+        for count in (-DAY, -1, 0, 1, DAY - 1, COUNT_MAX - DAY, COUNT_MAX - 1,
+                      COUNT_MAX, COUNT_MAX + 1, COUNT_MAX + DAY):
+            local = EPOCH + datetime.timedelta(seconds=count + offset)
+            accepted = 0 <= count <= COUNT_MAX
+            out.append((offset, (local.year - 1900, local.month - 1,
+                                 local.day, local.hour, local.minute,
+                                 local.second), accepted,
+                        count if accepted else 0))
+    return out
+
+
 def int_literal(value):
     """A C int constant; INT_MIN has no literal of its own."""
     require(INT_MIN <= value <= INT_MAX, "a field leaves an int")
@@ -160,7 +185,15 @@ def main():
         lines.append("\t{ %s, %d, %dUL }," % (
             ", ".join(int_literal(value) for value in case),
             int(count is not None), 0 if count is None else count))
-    lines += ["};", "#endif", ""]
+    lines += ["};", "",
+              "static const struct zone32_edge_vector zone32_edge_vectors[] = {"]
+    for offset, local, accepted, count in zone_edge_cases():
+        lines.append("\t{ %dL, %s, %d, %dUL }," % (
+            offset, ", ".join("%d" % value for value in local),
+            int(accepted), count))
+    lines += ["};", "",
+              "static const long zone32_offsets[] = { %s };" % ", ".join(
+                  "%dL" % offset for offset in ZONE32_OFFSETS), "#endif", ""]
     with open(sys.argv[1], "w", encoding="ascii") as output:
         output.write("\n".join(lines))
 

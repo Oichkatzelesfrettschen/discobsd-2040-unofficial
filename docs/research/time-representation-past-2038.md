@@ -569,8 +569,10 @@ What the type change asks of a caller, and what was chosen:
   also the value `utimes` reads as "leave this time alone". It stays the
   error answer of `time()`, `mktime()` and `timegm()`, as C defines it, so
   the last second of the range is ambiguous the way one second before
-  1970 was; a caller tells them apart by the `tm_wday` sentinel, as
-  `touch` does. A program that tests `t == (time_t)-1` is unchanged; one
+  1970 was; `mktime()` and `timegm()` leave `tm_wday` as the caller set
+  it when they refuse and rewrite it when they accept, so a caller tells
+  them apart by setting it to -1 first, as `touch` does (`<time.h>`). A
+  program that tests `t == (time_t)-1` is unchanged; one
   that tests `t < 0` never sees an error (no shipped program is built at
   this view; `check-time-binding` rejects one).
 - A difference of two counts in `time_t` wraps instead of going negative.
@@ -587,7 +589,7 @@ libc flags:
 | Member | ELF text before | after | a.out text before | after | Change |
 | --- | --- | --- | --- | --- | --- |
 | `ctime.o` | 479 | 479 | 448 | 448 | the count divided unsigned, through its low 32 bits; transitions compared by sign |
-| `mktime.o` | 618 | 544 | -- | -- | range 0..4294967295 as 32-bit constants; the negative-day path removed |
+| `mktime.o` | 618 | 636 | -- | -- | range 0..4294967295 as 32-bit constants; fields kept as days and a second of the day, so a zone offset reaches both ends of the range; the answer accepted by range, not by value (544 bytes before the range-edge repair below) |
 | `difftime.o` | 32 | 32 | 32 | 32 | imports `__aeabi_ui2d` in place of `__aeabi_i2d` |
 | `sleep.o` | 76 | 72 | 76 | 72 | elapsed time modulo 2^32 |
 | `time.o`, `tzset.o`, `ftime.o`, `utime.o` | 32, 119, 52, 26 | unchanged | 32, 112, 52, 28 | unchanged | byte-identical objects |
@@ -625,7 +627,8 @@ The tests (measured, host and qemu-user):
 - `check-libc-ctime` and `check-libc-mktime` read 3,027 counts and 37
   field sets of `tests/libc_contracts/calendar32_vectors.py` (CPython's
   `datetime`) and every whole day from 1970 to 2106-02-06 against a
-  counting calendar; 157,899 checks in the mktime gate per variant.
+  counting calendar; 157,910 checks in the mktime gate per variant, one
+  of which counts the round trips of a whole band.
   Built against the parent revision's headers and members, the new mktime
   gate fails 74,614 of 157,895 checks at ILP32 and 52,999 natively, and
   the ctime gate fails at both widths.
@@ -643,13 +646,41 @@ The tests (measured, host and qemu-user):
   against the parent revision's `libc.a` it prints Dec 13 1901, Jun 16
   1910 and Dec 31 1969 for the last four.
 
+`mktime()` at the 32-bit view converts both ends of the range in every
+zone. A first version started its search at `timegm()` of the fields and
+took an answer equal to `TIME_REFUSED` as a refusal, which refused three
+kinds of valid local time: in a zone west of Greenwich the first hours of
+1970-01-01 UTC, whose fields fall on 31 December 1969 (counts 0 to 28,799
+in the kernel's default zone, eight hours west); in a zone east of it the
+last hours before 2106-02-07 06:28:15 UTC, whose fields read past that
+instant as UTC; and in any zone the local time whose fields read in UTC
+as the count 4294967295 (in UTC+1 the local fields 2106-02-07 06:28:15,
+count 4294963695), GMT's last second among them. `split_fields()` now
+keeps the fields as a day count and a second of the day, both in a
+`long`, `join_count()` subtracts the zone offset as whole days and a
+remainder below a day, so every step stays in 32 bits, and the search
+starts at the fields read as UTC held to the nearer end of the range;
+an answer is accepted by its range alone, so the last count rewrites the
+struct like any other. `mktime.o` grows from 544 to 636 bytes and imports
+no 64-bit helper; `mktime64.o` is byte-identical (`md5sum`).
+`check-libc-mktime` round-trips every count of the first and the last day
+(0..86,399 and 4,294,880,896..4,294,967,295) through `localtime()` and
+`mktime()` in GMT and in zone files eight hours west, one hour east and
+fourteen hours east, requires the local fields of the instants one second
+and one day outside each end to be refused with the sentinel left
+(CPython `datetime` fields, 40 vectors), and rejects two mutants, the
+preflight before the offset and the value-only refusal check
+(`tests/libc_contracts/mktime_contract_mutate.py`). The gate built
+against the first version fails nine checks at ILP32 and natively, in all
+four zones; `t23_timeconvert`, which now also converts each count through
+`mktime()` in GMT, fails at the last count against it.
+
 What stays limited:
 
-- `mktime()` starts its search at `timegm()` of the fields, so in a zone
-  west of Greenwich the local times of the first hours of 1970-01-01 UTC,
-  whose fields fall on 31 December 1969, are refused; in the kernel's
-  default zone, eight hours west, that is counts 0 to 28,799. The parent
-  revision converted them. `check-libc-mktime` requires the refusal.
+- The 64-bit `mktime()` keeps the value-only check, since its member is
+  held byte-identical: it refuses the local time whose fields read in UTC
+  as the count -1, one second before 1970 in GMT and the corresponding
+  instant in any other zone.
 - The board's `/usr/lib/libc.a` (`distrib/rp2040/boardlibc-members`)
   carries `time`, `difftime` and `sleep` but no `ctime.o`, `tzset.o`,
   `asctime.o` or `mktime.o`, so a program compiled on the board cannot

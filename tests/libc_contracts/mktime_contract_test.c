@@ -42,6 +42,12 @@ struct field32_vector {
 	unsigned long	count;
 };
 
+struct zone32_edge_vector {
+	long		offset;
+	int		year, mon, mday, hour, min, sec, accepted;
+	unsigned long	count;
+};
+
 #define CALENDAR32_FIELDS
 #include "calendar32_vectors.h"
 
@@ -751,7 +757,7 @@ put32(unsigned char *p, long v)
 }
 
 static int
-write_zone(void)
+write_zone(long offset)
 {
 	unsigned char buf[54];
 	int fd;
@@ -761,7 +767,7 @@ write_zone(void)
 	put32(buf + 32, 0);		/* tzh_timecnt */
 	put32(buf + 36, 1);		/* tzh_typecnt */
 	put32(buf + 40, 4);		/* tzh_charcnt */
-	put32(buf + 44, ZONE_OFFSET);	/* the one type's offset from GMT */
+	put32(buf + 44, offset);	/* the one type's offset from GMT */
 	buf[48] = 0;			/* tt_isdst */
 	buf[49] = 0;			/* tt_abbrind */
 	memcpy(buf + 50, "EST", 4);	/* the abbreviation and its terminator */
@@ -795,7 +801,7 @@ test_zone_offset(void)
 	unsigned long v;
 	int i, trips = 0;
 
-	if (write_zone() == -1) {
+	if (write_zone(ZONE_OFFSET) == -1) {
 		(void)write(STDERR_FILENO,
 		    "  zone file unavailable; offset cases skipped\n", 45);
 		return;
@@ -845,39 +851,8 @@ test_zone_offset(void)
 		    "zone: a local time past the range was accepted");
 	}
 
-	/*
-	 * The first instants of the range, in a zone west of Greenwich, have
-	 * local fields on 31 December 1969, which mktime's first probe reads
-	 * as UTC before the epoch and refuses (lib/libc/gen/mktime.c). They
-	 * are refused rather than answered with another count, and the first
-	 * instant whose local fields fall on 1 January round-trips.
-	 */
-	for (v = 0; v < (unsigned long)-ZONE_OFFSET; v += 4999UL) {
-		t = (time_t)v;
-		back = db_localtime(&t);
-		if (back == 0)
-			continue;
-		copy = *back;
-		copy.tm_isdst = -1;
-		copy.tm_wday = -1;
-		check(db_mktime(&copy) == REFUSED && copy.tm_wday == -1,
-		    "zone: a local time before 1970 in the zone was answered");
-	}
-	t = (time_t)-ZONE_OFFSET;
-	back = db_localtime(&t);
-	if (back != 0) {
-		copy = *back;
-		copy.tm_isdst = -1;
-		check(db_mktime(&copy) == t,
-		    "zone: the first local midnight of 1970 did not round-trip");
-	}
-
-	/*
-	 * The round trip holds through the zone, which is the whole claim,
-	 * from the first instant past the refused band.
-	 */
-	for (v = SWEEP_LO + (unsigned long)-ZONE_OFFSET; v <= SWEEP_HI - STEP;
-	    v += STEP) {
+	/* The round trip holds through the zone, which is the whole claim. */
+	for (v = SWEEP_LO; v <= SWEEP_HI - STEP; v += STEP) {
 		t = (time_t)v;
 		back = db_localtime(&t);
 		if (back == 0)
@@ -893,6 +868,102 @@ test_zone_offset(void)
 	report("zone round trip instants: ", trips);
 	check(trips > 2100, "zone: the sweep covered too few instants");
 
+	(void)unlink(ZONE_PATH);
+	putenv("TZ=");
+	db_tzset();
+}
+
+/*
+ * The first and the last day of the range in GMT and in zone files one
+ * offset each from calendar32_vectors.py: eight hours west (the kernel's
+ * default zone), one hour east and fourteen hours east. In a zone west of
+ * Greenwich the first hours of the range have local fields on 31 December
+ * 1969, and in a zone east of it the last hours have fields past
+ * 2106-02-07 06:28:15, so neither reads as a count when taken as UTC; each
+ * count must still come back from mktime(localtime(&t)) with the struct
+ * rewritten, the last count included, though it equals REFUSED. The local
+ * fields of instants one second and one day outside the range are refused
+ * with the tm_wday sentinel left in place.
+ */
+static void
+round_trip_band(unsigned long first, unsigned long last, int *wrong)
+{
+	struct tm *back, copy;
+	time_t t;
+	unsigned long v;
+
+	for (v = first;; v++) {
+		t = (time_t)v;
+		back = db_localtime(&t);
+		copy = *back;
+		copy.tm_isdst = -1;
+		copy.tm_wday = -1;
+		if (db_mktime(&copy) != t || copy.tm_wday != back->tm_wday)
+			(*wrong)++;
+		if (v == last)
+			break;
+	}
+}
+
+static void
+test_zone_edges(void)
+{
+	struct tm tm;
+	time_t got;
+	size_t zone, i;
+	int wrong, edges;
+
+	for (zone = 0; zone < sizeof(zone32_offsets) /
+	    sizeof(zone32_offsets[0]); zone++) {
+		if (zone32_offsets[zone] == 0)
+			putenv("TZ=");
+		else if (write_zone(zone32_offsets[zone]) == 0)
+			putenv("TZ=" ZONE_PATH);
+		else {
+			check(0, "zone edges: the zone file could not be written");
+			continue;
+		}
+		db_tzset();
+		got = 0;
+		check(db_localtime(&got)->tm_gmtoff == zone32_offsets[zone],
+		    "zone edges: the zone in force is not the one written");
+
+		wrong = 0;
+		round_trip_band(0UL, 86399UL, &wrong);
+		round_trip_band(ORACLE_COUNT_MAX - 86399UL, ORACLE_COUNT_MAX,
+		    &wrong);
+		check(wrong == 0,
+		    "zone edges: a count of the first or last day did not round-trip");
+
+		wrong = 0;
+		edges = 0;
+		for (i = 0; i < sizeof(zone32_edge_vectors) /
+		    sizeof(zone32_edge_vectors[0]); i++) {
+			const struct zone32_edge_vector *vector =
+			    &zone32_edge_vectors[i];
+
+			if (vector->offset != zone32_offsets[zone])
+				continue;
+			edges++;
+			memset(&tm, 0, sizeof(tm));
+			tm.tm_year = vector->year;
+			tm.tm_mon = vector->mon;
+			tm.tm_mday = vector->mday;
+			tm.tm_hour = vector->hour;
+			tm.tm_min = vector->min;
+			tm.tm_sec = vector->sec;
+			tm.tm_isdst = -1;
+			tm.tm_wday = -1;
+			got = db_mktime(&tm);
+			if (vector->accepted ? got != (time_t)vector->count ||
+			    tm.tm_wday == -1 :
+			    got != REFUSED || tm.tm_wday != -1)
+				wrong++;
+		}
+		check(wrong == 0,
+		    "zone edges: mktime disagrees with datetime at an end of the range");
+		check(edges == 10, "zone edges: the zone has the wrong vector count");
+	}
 	(void)unlink(ZONE_PATH);
 	putenv("TZ=");
 	db_tzset();
@@ -921,6 +992,7 @@ main(void)
 	test_field_vectors();
 	test_timegm_zone_fields();
 	test_zone_offset();
+	test_zone_edges();
 
 	report("checks: ", check_count);
 	if (failure_count != 0) {

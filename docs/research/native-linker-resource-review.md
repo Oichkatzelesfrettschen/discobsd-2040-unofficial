@@ -47,8 +47,19 @@ executes the linked program and observes its required output. The
 cross-assembler fixture reports an out-of-date archive index warning. The
 baseline linker reproduces that warning on the same input archive; the native
 linker changes leave the archive timestamp check unchanged. C17 source
-accounting passes and its calibration rejects 21 faults. Review, resource
-approval, Renode, and integration remain open. Shared-call veneers and the complete
+accounting passes and its calibration rejects 21 faults. The flash image build
+and PICO_UART Renode boot gate pass, including image identity, MPU faults,
+exec residue, signal/u-area behavior, and core-1 supervision. The emulator
+uses Renode `1.17.0+20260907gitf1dd1b4af` and RP2040 models pinned at
+`205a5e4b25440582008a4292074bb07f80a72328` with the repository's patches.
+The model build reports 27 third-party warnings and zero errors. The runtime
+warning classifier accepts 82,775 warnings under its 19 bounded classes and
+reports zero errors. A sandboxed
+attempt aborts before kernel loading because Renode cannot lock its user
+configuration; the host-authorized rerun passes. Changed-comment and
+changed-text gates pass through documentation commit `a8bdb9c1`. Physical-board
+execution remains unrun. Review, resource approval, and integration remain
+open. Shared-call veneers and the complete
 shared-library ABI retain separate requirements.
 
 ## Historical candidate

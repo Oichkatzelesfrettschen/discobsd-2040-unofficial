@@ -20,6 +20,24 @@ def load(name):
 
 ART = ROOT / "third_party/mate-icon-theme"
 
+# Sizes MATEZINHO.md states, held apart from storage.SIZES so that a changed
+# profile table fails here.
+PROFILE_BYTES = {"rom16": 16777216, "sd32": 33554432, "sd32gb": 31999918080}
+ROW = 320 * 3
+HEADER = 15
+
+
+def require(condition, message):
+    """Fail the gate by an exit that python -O keeps."""
+    if not condition:
+        raise SystemExit(f"matezinho check: {message}")
+
+
+def result_band(frame):
+    """Pixel rows 137-145, where the calculator view draws its result."""
+    data = frame.read_bytes()
+    return data[HEADER + 137 * ROW : HEADER + 146 * ROW]
+
 
 def artwork_ledger_errors(art):
     """Compare every file under the artwork root with its README.md row."""
@@ -56,30 +74,32 @@ def run():
         volume = work / "icons.mzar"
         storage.create(volume, "rom16", "assets")
         notices = work / "icons.mzar.artwork"
-        assert (notices / "upstream/AUTHORS").is_file()
-        assert (notices / "LICENSES/CC-BY-SA-3.0.txt").is_file()
-        assert (notices / "README.md").is_file()
+        for name in ("upstream/AUTHORS", "LICENSES/CC-BY-SA-3.0.txt", "README.md"):
+            require((notices / name).is_file(), f"companion lacks {name}")
+        require(volume.stat().st_size == PROFILE_BYTES["rom16"], "rom16 volume size")
+        require(volume.stat().st_mode & 0o222 == 0, "rom16 asset volume is writable")
         for profile in ("sd32", "sd32gb"):
             image = work / f"{profile}.img"
             storage.create(image, profile, "blank-sd")
-            assert image.stat().st_size == storage.SIZES[profile]
-            assert image.stat().st_blocks * 512 < 1024 * 1024
+            require(image.stat().st_size == PROFILE_BYTES[profile], f"{profile} image size")
+            require(image.stat().st_blocks * 512 < 1024 * 1024, f"{profile} image is not sparse")
         # Refuse overwriting an existing image.
         try:
             storage.create(volume, "rom16", "assets")
         except FileExistsError:
             pass
         else:
-            raise AssertionError("existing volume overwritten")
+            raise SystemExit("matezinho check: existing volume overwritten")
         invalid = work / "invalid.mzar"
         invalid.write_bytes(b"not a pack" * 2048)
         bad = subprocess.run([host, invalid, work / "bad.ppm", "0"], capture_output=True)
-        assert bad.returncode != 0 and not (work / "bad.ppm").exists()
+        require(bad.returncode != 0 and not (work / "bad.ppm").exists(), "invalid volume accepted")
         trunc = work / "truncated.mzar"
         trunc.write_bytes(volume.read_bytes()[:1024])
-        assert (
+        require(
             subprocess.run([host, trunc, work / "trunc.ppm", "0"], capture_output=True).returncode
-            != 0
+            != 0,
+            "truncated volume accepted",
         )
         # Each case starts at the same deterministic initial state.
         cases = [
@@ -96,14 +116,30 @@ def run():
             subprocess.run(
                 [host, volume, frame, *map(str, keys or [0])], cwd=work, check=True, timeout=10
             )
-            assert frame.read_bytes().startswith(b"P6\n320 320\n255\n")
-            assert frame.stat().st_size == 320 * 320 * 3 + 15
+            require(frame.read_bytes().startswith(b"P6\n320 320\n255\n"), f"frame header {keys}")
+            require(frame.stat().st_size == 320 * ROW + HEADER, f"frame size {keys}")
+        # The result line of each expression equals that of a sum with the
+        # same value, and differs from that of a sum with another value.
+        bands = {}
+        for text in ("42+0", "13+0", "9-4", "5+0", "6*7", "84/2", "7/0", "99999+1", "6+7"):
+            subprocess.run(
+                [host, volume, frame, "259", "10", *(str(ord(c)) for c in text), "10"],
+                cwd=work,
+                check=True,
+                timeout=10,
+            )
+            bands[text] = result_band(frame)
+        require(bands["42+0"] != bands["13+0"], "result band does not show the value")
+        for text, same in (("9-4", "5+0"), ("6*7", "42+0"), ("84/2", "42+0"), ("6+7", "13+0")):
+            require(bands[text] == bands[same], f"calculator: {text} differs from {same}")
+        require(bands["7/0"] == bands["99999+1"], "calculator: 7/0 is not refused")
+        require(bands["7/0"] != bands["42+0"], "calculator: refusal reads as a value")
         # Notes save and subsequent session load retain the file.
         subprocess.run(
             [host, volume, frame, *map(str, [257, 10, 72, 105, 265])], cwd=work, check=True
         )
-        assert (work / "matezinho-note.txt").read_text() == "Hi"
-        assert not (work / "matezinho-note.txt.new").exists()
+        require((work / "matezinho-note.txt").read_text() == "Hi", "saved note text")
+        require(not (work / "matezinho-note.txt.new").exists(), "note temporary left behind")
         (work / "matezinho-note.txt").unlink()
         if args.qemu:
             arm = builder.build("qemu")
@@ -114,20 +150,20 @@ def run():
                 )
                 command = builder.run_command("qemu", arm, volume, qframe)
                 subprocess.run([*command, *map(str, keys or [0])], cwd=work, check=True, timeout=10)
-                assert frame.read_bytes() == qframe.read_bytes(), keys
+                require(frame.read_bytes() == qframe.read_bytes(), f"host/QEMU frames {keys}")
             subprocess.run(
                 [*builder.run_command("qemu", arm, volume, qframe), *map(str, [257, 10, 65, 265])],
                 cwd=work,
                 check=True,
             )
-            assert (work / "matezinho-note.txt").read_text() == "A"
+            require((work / "matezinho-note.txt").read_text() == "A", "QEMU note text")
             too_many = [
                 *builder.run_command("qemu", arm, volume, qframe),
                 *("0" for _ in range(130)),
             ]
-            assert subprocess.run(too_many, cwd=work).returncode == 71
+            require(subprocess.run(too_many, cwd=work).returncode == 71, "argument count bound")
             too_large = [*builder.run_command("qemu", arm, volume, qframe), "0" * 5000]
-            assert subprocess.run(too_large, cwd=work).returncode == 71
+            require(subprocess.run(too_large, cwd=work).returncode == 71, "argument size bound")
             print("matezinho QEMU: seven host/ARMv6-M frames identical; note save passed")
         print("matezinho assets: provenance, refusal paths and sparse SD capacities passed")
 

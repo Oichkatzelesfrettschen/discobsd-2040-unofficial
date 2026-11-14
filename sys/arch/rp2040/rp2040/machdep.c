@@ -327,6 +327,7 @@ swap_cursor_publish(size_t next)
 #define	PLL_PWR_VCOPD		(1UL << 5)
 
 #define	CLOCKS_BASE		0x40008000UL
+#define	CLK_GPOUT_CTRL(n)	(0x0c * (n))	/* clk_gpout0-3. */
 #define	CLK_REF_CTRL		0x30
 #define	CLK_REF_CTRL_SRC	(3UL << 0)	/* Glitchless mux source. */
 #define	CLK_REF_CTRL_SRC_XOSC	(2UL << 0)
@@ -431,10 +432,10 @@ SystemInit(void)
  * output may not be used while its dividers change (datasheet 2.15.2), so
  * every consumer leaves a PLL before the PLL is reset and reprogrammed by
  * the 2.18.3 sequence: clk_sys through its glitchless mux, polled through
- * SELECTED, and clk_peri, clk_usb, clk_adc and clk_rtc, which have only an
- * aux mux, by clearing ENABLE and waiting out two source cycles
- * (2.15.3.2). The kernel uses neither the ADC nor the RTC, so those two
- * stay stopped, as cold reset leaves them.
+ * SELECTED, and clk_peri, clk_usb, clk_adc, clk_rtc and clk_gpout0-3,
+ * which have only an aux mux, by clearing ENABLE and waiting out two
+ * source cycles (2.15.3.2). The kernel uses neither the ADC, the RTC nor a
+ * GPOUT pin, so those stay stopped, as cold reset leaves them.
  */
 static void
 SystemClock_Config(void)
@@ -469,11 +470,14 @@ SystemClock_Config(void)
 	rp_unreset(RESETS_TIMER | RESETS_SYSINFO | RESETS_BUSCTRL);
 
 	/*
-	 * Run clk_sys from clk_ref, undivided, and stop the aux-only clocks.
-	 * The SRC bit alone changes first, so the aux source in use does not
-	 * change under the generator. The slowest source an aux-only clock can
-	 * have is the ring oscillator, about 1.8 MHz at its lowest, and the
-	 * wait spans well over two of its cycles at the 12 MHz clk_sys has here.
+	 * Run clk_sys from clk_ref, undivided, and stop the aux-only clocks,
+	 * clk_gpout0-3 among them. The SRC bit alone changes first, so the aux
+	 * source in use does not change under the generator. The wait spans
+	 * at least 256 cycles of the 12 MHz clk_sys here (four or more per
+	 * pass), about 21 us, which is two cycles of any source of 100 kHz or
+	 * more: every internal source (the ring oscillator runs at about
+	 * 1.8 MHz at its lowest) and any GPIN clock that fast. A slower GPIN
+	 * source would need a longer wait; no DiscoBSD board drives one.
 	 */
 	MREG32(CLOCKS_BASE + CLK_SYS_CTRL) &= ~CLK_SYS_CTRL_SRC_AUX;
 	while (MREG32(CLOCKS_BASE + CLK_SYS_SELECTED) != (1UL << 0))
@@ -483,21 +487,24 @@ SystemClock_Config(void)
 	MREG32(CLOCKS_BASE + CLK_USB_CTRL) &= ~CLK_ENABLE;
 	MREG32(CLOCKS_BASE + CLK_ADC_CTRL) &= ~CLK_ENABLE;
 	MREG32(CLOCKS_BASE + CLK_RTC_CTRL) &= ~CLK_ENABLE;
+	for (i = 0; i < 4; i++)
+		MREG32(CLOCKS_BASE + CLK_GPOUT_CTRL(i)) &= ~CLK_ENABLE;
 	for (i = 0; i < 64; i++)
 		continue;
 
 	/*
 	 * Program the system PLL from reset: 12 * 125 / (6 * 2) == 125 MHz.
 	 * The reset returns the PLL to its powered-down state whatever an
-	 * earlier image left in it.
+	 * earlier image left in it. Datasheet 2.18.3 order, for both PLLs:
+	 * feedback divider, VCO power, lock, post dividers, their power.
 	 */
 	rp_reset(RESETS_PLL_SYS);
 	rp_unreset(RESETS_PLL_SYS);
 	MREG32(PLL_SYS_BASE + PLL_FBDIV_INT) = 125;
-	MREG32(PLL_SYS_BASE + PLL_PRIM) = (6UL << 16) | (2UL << 12);
 	MREG32(PLL_SYS_BASE + PLL_PWR) &= ~(PLL_PWR_PD | PLL_PWR_VCOPD);
 	while ((MREG32(PLL_SYS_BASE + PLL_CS) & PLL_CS_LOCK) == 0)
 		continue;
+	MREG32(PLL_SYS_BASE + PLL_PRIM) = (6UL << 16) | (2UL << 12);
 	MREG32(PLL_SYS_BASE + PLL_PWR) &= ~PLL_PWR_POSTDIVPD;
 
 	/*
@@ -525,10 +532,10 @@ SystemClock_Config(void)
 	rp_reset(RESETS_PLL_USB);
 	rp_unreset(RESETS_PLL_USB);
 	MREG32(PLL_USB_BASE + PLL_FBDIV_INT) = 100;
-	MREG32(PLL_USB_BASE + PLL_PRIM) = (5UL << 16) | (5UL << 12);
 	MREG32(PLL_USB_BASE + PLL_PWR) &= ~(PLL_PWR_PD | PLL_PWR_VCOPD);
 	while ((MREG32(PLL_USB_BASE + PLL_CS) & PLL_CS_LOCK) == 0)
 		continue;
+	MREG32(PLL_USB_BASE + PLL_PRIM) = (5UL << 16) | (5UL << 12);
 	MREG32(PLL_USB_BASE + PLL_PWR) &= ~PLL_PWR_POSTDIVPD;
 	MREG32(CLOCKS_BASE + CLK_USB_CTRL) = 0;
 	MREG32(CLOCKS_BASE + CLK_USB_CTRL) = CLK_USB_ENABLE;

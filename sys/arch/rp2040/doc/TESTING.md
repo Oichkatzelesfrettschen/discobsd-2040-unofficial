@@ -1595,6 +1595,14 @@ The sixth file is sys/kern/ufs_fio.c. `ufs_explicit_time_test` links
 `MNT_NOATIME` leaves an explicit atime request, a combined atime and mtime
 request, the no-timestamp case, and a read-only refusal distinct. A generated
 copy restores the inherited atime guard and must fail the same assertions.
+The test also holds the unsigned reading of a stored time: requests of
+2415919104 and 4294967294 reach `iupdat()` unchanged, and the count
+4294967295, which is `VNOVAL`, leaves its time alone, so it is the one count no
+file can be given (`lib/libc/gen/time64.h` refuses it before the call). A
+second generated copy reads the unset test as signed, which treats every time
+after January 2038 as unset, and must fail those assertions. The kernel of the
+parent revision passes the same assertions, so they record the behavior
+without a repair.
 
 `readlink_test` compiles the extracted production `readlink()` body at ILP32
 against controlled lookup and I/O stubs. It checks missing paths, non-symbolic

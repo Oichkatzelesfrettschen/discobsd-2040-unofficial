@@ -3064,6 +3064,26 @@
       ]
     },
     {
+      "id": "kernel.explicit-time-signed-negative.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "ufs_explicit_time_signed_bad",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "ufs_explicit_time_signed_bad"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.explicit-time-signed-negative.ilp32 -- ./ufs_explicit_time_signed_bad",
+      "expected_exit": 1,
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
       "id": "kernel.futimes.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

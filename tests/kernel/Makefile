@@ -2804,6 +2804,28 @@ ufs_explicit_time_bad: ufs_explicit_time_test.c ufs_fio_noatime_bad.c \
 	    ${UFS_EXPLICIT_TIME_LDFLAGS} -o $@ ufs_explicit_time_test.c \
 	    ufs_explicit_time_bad_kernel.o ufs_explicit_time_cred.o hostkern32.o
 
+# A signed reading of the "leave this time alone" test treats every count with
+# bit 31 set, a time after January 2038, as unset. The same executable must
+# reject it, since utimes(2) of 2415919104 has to store that time.
+ufs_fio_signed_unset_bad.c: ${UFS_EXPLICIT_TIME_SRC}
+	@awk 'BEGIN { changed = 0 } \
+	    !changed && $$0 == "#define VATTR_TIME_UNSET(value) ((value) == (utime32_t)VNOVAL)" { \
+	        print "#define VATTR_TIME_UNSET(value) ((long)(value) < 0)"; changed = 1; next \
+	    } \
+	    { print } \
+	    END { if (!changed) exit 1 }' ${UFS_EXPLICIT_TIME_SRC} > $@
+
+ufs_explicit_time_signed_bad: ufs_explicit_time_test.c \
+    ufs_fio_signed_unset_bad.c ufs_explicit_time_cred.o hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
+	    ${UFS_EXPLICIT_TIME_CFLAGS} -c \
+	    -o ufs_explicit_time_signed_bad_kernel.o ufs_fio_signed_unset_bad.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
+	    ${UFS_EXPLICIT_TIME_LDFLAGS} -o $@ ufs_explicit_time_test.c \
+	    ufs_explicit_time_signed_bad_kernel.o ufs_explicit_time_cred.o \
+	    hostkern32.o
+
 # rwuio's bound is a 32-bit fact: off_t, size_t and u_int are all four
 # bytes on the target, so the sum that wrapped is reproduced only here.
 rwuio_test32: rwuio_test.c rwuio_setjmp.h ${RWUIO_JUMP} ${RWUIO_SRC} \
@@ -3122,7 +3144,8 @@ check-ilp32:
 	    sysctl_test_compact sysctl_test_wide check-sysctl-proc-mutants \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
-	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
+	    ufs_explicit_time_test ufs_explicit_time_bad \
+	    ufs_explicit_time_signed_bad futimes_test32 \
 	    check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	    check-unlinkat-beneath-ilp32 check-unlinkat-beneath-mutants \
 	    check-publishat-beneath-ilp32 check-publishat-beneath-mutants \
@@ -3223,6 +3246,7 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.block-pico.ilp32 -- ./balloc_test_pico
 	${TEST_EXECUTION} run kernel.explicit-time.ilp32 -- ./ufs_explicit_time_test
 	${TEST_EXECUTION} run kernel.explicit-time-negative.ilp32 -- ./ufs_explicit_time_bad
+	${TEST_EXECUTION} run kernel.explicit-time-signed-negative.ilp32 -- ./ufs_explicit_time_signed_bad
 	${TEST_EXECUTION} run kernel.futimes.ilp32 -- ./futimes_test32
 	${TEST_EXECUTION} run kernel.capacity.ilp32 -- ./capacity_test
 	${TEST_EXECUTION} run kernel.buffer-busy.ilp32 -- ./buffer_busy_test
@@ -3412,8 +3436,10 @@ clean:
 	rm -f balloc_shim.o balloc_shim_pico.o
 	rm -f balloc_test balloc_test_pico
 	rm -f ufs_explicit_time_kernel.o ufs_explicit_time_bad_kernel.o \
-	    ufs_explicit_time_cred.o
-	rm -f ufs_explicit_time_test ufs_explicit_time_bad ufs_fio_noatime_bad.c
+	    ufs_explicit_time_signed_bad_kernel.o ufs_explicit_time_cred.o
+	rm -f ufs_explicit_time_test ufs_explicit_time_bad \
+	    ufs_explicit_time_signed_bad ufs_fio_noatime_bad.c \
+	    ufs_fio_signed_unset_bad.c
 	rm -f futimes_kernel32.o futimes_test32
 	rm -f futimes_*.mutant.c futimes_*.mutant.o futimes_*.mutant.test \
 	    futimes_*.mutant.out

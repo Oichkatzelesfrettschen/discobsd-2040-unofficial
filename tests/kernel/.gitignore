@@ -120,8 +120,10 @@ balloc_shim.o
 balloc_shim_pico.o
 ufs_explicit_time_test
 ufs_explicit_time_bad
+ufs_explicit_time_signed_bad
 ufs_explicit_time_cred.o
 ufs_fio_noatime_bad.c
+ufs_fio_signed_unset_bad.c
 futimes_kernel32.o
 futimes_test32
 futimes_*.mutant.c

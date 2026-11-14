@@ -130,14 +130,15 @@ has its own independent executable hash.
 
 ## Remaining qualification
 
-The candidate remains unmerged. The logged build completes successfully after
-the container and symbol-boundary repairs on the branch based on `f8f536b9`.
-Ruff accepts the native-linker Python
-probes. The relocation reader and section-span repairs compile for Cortex-M0+
-under GNU17 with warnings as errors, including the container admission and
-output-size repairs. Archive directory parsing remains outside this candidate's
-validated input contract. Matched
-clean distributions must measure the shipped linker and all constrained
-surfaces before any growth exception receives approval. Native callable
+The candidate remains unmerged. Candidate `a435ac8d` includes main `d4db62cc`;
+its clean distribution, logged build, registered native-linker gate, Ruff,
+and C17 source accounting pass. The cross-assembler gate compares 403 libc
+units against GNU assembler and executes its linked program under Unicorn.
+The [resource review](native-linker-resource-review.md) owns the matched
+distribution receipts, exact growth request, archive-index warning analysis,
+and remaining qualification. The relocation reader and section-span repairs
+compile for Cortex-M0+ under GNU17 with warnings as errors, including the
+container admission and output-size repairs. Archive directory parsing remains
+outside this candidate's validated input contract. Native callable
 veneers for the SRAM-to-flash distance remain a separate shared-library
 requirement; range rejection alone supplies no callable flash import.

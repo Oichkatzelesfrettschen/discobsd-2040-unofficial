@@ -10,6 +10,15 @@
  * full lib/libc.a and reading the linker map (see the sink: rule) names
  * the exact set of .o members the reduced board archive must carry.
  */
+
+/*
+ * The board archive holds the 32-bit view's members, the view Smaller C
+ * binds, so the closure is read at that view: without the selection the
+ * cross compiler's default binds the time functions to their 64-bit names
+ * (sys/sys/_time_t.h) and the map names ctime64.o for ctime.o.
+ */
+#define _TIME_BITS 32
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>

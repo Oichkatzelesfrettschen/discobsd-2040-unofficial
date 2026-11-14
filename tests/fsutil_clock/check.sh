@@ -14,10 +14,12 @@
 #
 # The reader is fsutil itself (-vvv prints the superblock and inode times
 # with ctime in UTC); the expected text comes from Python's asctime, which
-# shares no code with it. Four source mutants calibrate the cases: the old
+# shares no code with it. Seven source mutants calibrate the cases: the old
 # 0x7fffffff bound, a fixed clock that only caps the host time, a range
-# check without an upper bound, and a bad value that falls back to the host
-# clock. Each must fail the case named for it.
+# check without an upper bound, a bad value that falls back to the host
+# clock, a ceiling above 0x7fffffff that is ignored, an added file that
+# keeps its host modification time, and --repartition without the value
+# check. Each must fail the case named for it.
 #
 # Exit status: 0 when every case holds and every mutant is rejected, 1 on a
 # failed case or an escaped mutant, 2 when the environment fails.
@@ -30,11 +32,11 @@ topsrc=$(cd "$(dirname "$0")/../.." && pwd)
 src=$topsrc/tools/fsutil
 work=$(mktemp -d "${TMPDIR:-/tmp}/fsutil-clock.XXXXXX")
 
-# The work directory holds plain files and the two flat subdirectories obj
-# and dir, so each file is removed by name and each directory by rmdir.
+# The work directory holds plain files and the three flat subdirectories obj,
+# dir and high, so each file is removed by name and each directory by rmdir.
 cleanup()
 {
-	for sub in obj dir; do
+	for sub in obj dir high; do
 		for file in "$work/$sub"/*; do
 			if [ -f "$file" ]; then rm -f "$file"; fi
 		done
@@ -46,7 +48,7 @@ cleanup()
 	rmdir "$work" 2>/dev/null || true
 }
 trap cleanup EXIT HUP INT TERM
-mkdir "$work/obj" "$work/dir"
+mkdir "$work/obj" "$work/dir" "$work/high"
 
 env_fail()
 {
@@ -72,23 +74,27 @@ compile()
 	    -I"$src" -c -o "$2" "$1" || env_fail "build of $1"
 }
 
-units="fsutil inode create check file manifest block"
+units="fsutil inode create check file manifest block superblock"
 for unit in $units; do
 	compile "$src/$unit.c" "$work/obj/$unit.o"
 done
 
-# link_fsutil SUPERBLOCK_SOURCE BINARY
+# link_fsutil UNIT SOURCE BINARY: fsutil with SOURCE compiled in place of
+# the translation unit UNIT.
 link_fsutil()
 {
-	superblock=$work/obj/superblock_$(basename "$2").o
-	compile "$1" "$superblock"
+	compile "$2" "$work/obj/replaced_$(basename "$3").o"
 	objects=
 	for unit in $units; do
-		objects="$objects $work/obj/$unit.o"
+		if [ "$unit" = "$1" ]; then
+			objects="$objects $work/obj/replaced_$(basename "$3").o"
+		else
+			objects="$objects $work/obj/$unit.o"
+		fi
 	done
 	# shellcheck disable=SC2086  # the object and library lists are word lists
-	${CC:-cc} -o "$2" $objects "$superblock" "$libhsaout" $libbsd_libs ||
-	    env_fail "link of $2"
+	${CC:-cc} -o "$3" $objects "$libhsaout" $libbsd_libs ||
+	    env_fail "link of $3"
 }
 
 asctime_of()
@@ -103,6 +109,13 @@ printf 'clock\n' >"$work/dir/f"
 TZ=UTC touch -t 200101020304 "$work/dir/f"
 file_mtime=$(asctime_of 978404640)
 
+# A second host file, h, dated 3000000000 (after every ceiling the cases set
+# and after 2038), alone in its own directory.
+printf 'high\n' >"$work/high/h"
+"$PYTHON" -c 'import os, sys
+os.utime(sys.argv[1], (3000000000, 3000000000))' "$work/high/h"
+sample_dir=$work/dir
+
 # time_lines IMAGE: the time text of every line fsutil -vvv prints, one per line.
 time_lines()
 {
@@ -110,15 +123,24 @@ time_lines()
 	    sed -n -E 's/^ *(Last update time|Created|Modified|Last access): //p'
 }
 
-# image_with IMAGE [VAR=VALUE...]: a new 512-kbyte image from the sample
-# directory under the given environment; the status is fsutil's.
+# file_times IMAGE NAME: the Created, Modified and Last access text of the
+# file /NAME that fsutil -vvv prints, one per line.
+file_times()
+{
+	env -u FSUTIL_CLOCK -u SOURCE_DATE_EPOCH TZ=UTC "$bin" -vvv "$1" |
+	    sed -n "\\#^/$2 #,\\#^--------#p" |
+	    sed -n -E 's/^ *(Created|Modified|Last access): //p'
+}
+
+# image_with IMAGE [VAR=VALUE...]: a new 512-kbyte image from sample_dir
+# under the given environment; the status is fsutil's.
 image_with()
 {
 	image=$1
 	shift
 	rm -f "$image"
 	env -u FSUTIL_CLOCK -u SOURCE_DATE_EPOCH "$@" \
-	    "$bin" -n -s 512 "$image" "$work/dir" \
+	    "$bin" -n -s 512 "$image" "$sample_dir" \
 	    >"$work/create.out" 2>"$work/create.err"
 }
 
@@ -182,15 +204,18 @@ cases()
 		fi
 	fi
 
-	# A ceiling above the host clock is accepted and raises nothing.
+	# A ceiling above 2038 bounds a file dated past it: h, dated 3000000000,
+	# takes the ceiling 2415919104 as its modification time.
+	sample_dir=$work/high
 	status=0
 	image_with "$work/high.img" SOURCE_DATE_EPOCH=2415919104 || status=$?
+	sample_dir=$work/dir
 	if [ "$status" -ne 0 ]; then
-		bad ceiling-not-a-clock "SOURCE_DATE_EPOCH=2415919104 exited $status"
-	elif [ "$(time_lines "$work/high.img" | sed -n 1p)" = "$(asctime_of 2415919104)" ]; then
-		bad ceiling-not-a-clock "the ceiling raised the host time"
+		bad ceiling-above-2038 "SOURCE_DATE_EPOCH=2415919104 exited $status"
+	elif [ "$(file_times "$work/high.img" h | sed -n 2p)" = "$(asctime_of 2415919104)" ]; then
+		ok ceiling-above-2038
 	else
-		ok ceiling-not-a-clock
+		bad ceiling-above-2038 "the file dated past the ceiling kept its time"
 	fi
 
 	# Neither variable: the superblock time is the host clock.
@@ -240,29 +265,61 @@ sys.exit(0 if abs(time.time() - t) < 600 else 1)' "$stamped"; then
 		done
 	done
 
-	# --add stamps the added file with the fixed clock, and refuses a bad
-	# value before it opens the image.
+	# --add stamps the added file, whose host modification time is
+	# 3000000000, with the fixed clock in all three of its times, and
+	# refuses a bad value before it opens the image. The base image holds
+	# no h.
 	image_with "$work/base.img" FSUTIL_CLOCK=1700000000 ||
 	    env_fail "the base image for the --add case was not created"
-	printf 'added\n' >"$work/dir/g"
 	cp "$work/base.img" "$work/add.img"
 	status=0
-	(cd "$work/dir" && env FSUTIL_CLOCK=2415919104 "$bin" --add \
-	    "$work/add.img" g) >/dev/null 2>&1 || status=$?
-	if [ "$status" -eq 0 ] && ! cmp -s "$work/base.img" "$work/add.img" &&
-	    [ "$(time_lines "$work/add.img" | sed -n 1p)" = "$(asctime_of 2415919104)" ]; then
+	(cd "$work/high" && env FSUTIL_CLOCK=2415919104 "$bin" --add \
+	    "$work/add.img" h) >/dev/null 2>&1 || status=$?
+	file_times "$work/add.img" h >"$work/times.txt"
+	if [ "$status" -eq 0 ] && [ "$(wc -l <"$work/times.txt")" -eq 3 ] &&
+	    [ "$(grep -c -x -F "$(asctime_of 2415919104)" "$work/times.txt")" -eq 3 ]; then
 		ok add-uses-fixed-clock
 	else
-		bad add-uses-fixed-clock "exit $status, or the image or its time is wrong"
+		bad add-uses-fixed-clock "exit $status, or a time of h is not the fixed clock"
 	fi
 	cp "$work/base.img" "$work/add.img"
 	status=0
-	(cd "$work/dir" && env FSUTIL_CLOCK=4294967296 "$bin" --add \
-	    "$work/add.img" g) >/dev/null 2>&1 || status=$?
+	(cd "$work/high" && env FSUTIL_CLOCK=4294967296 "$bin" --add \
+	    "$work/add.img" h) >/dev/null 2>&1 || status=$?
 	if [ "$status" -eq 1 ] && cmp -s "$work/base.img" "$work/add.img"; then
 		ok reject-on-add
 	else
 		bad reject-on-add "exit $status or the image changed"
+	fi
+
+	# --repartition replaces or creates an image, so it refuses a bad value
+	# first: an existing image stays byte-identical and none is created.
+	# A good value creates one, which shows the refusal is the cause.
+	cp "$work/base.img" "$work/part.img"
+	status=0
+	env FSUTIL_CLOCK=4294967296 "$bin" --repartition=fs=1m "$work/part.img" \
+	    >/dev/null 2>&1 || status=$?
+	if [ "$status" -eq 1 ] && cmp -s "$work/base.img" "$work/part.img"; then
+		ok reject-on-repartition-existing
+	else
+		bad reject-on-repartition-existing "exit $status or the image changed"
+	fi
+	rm -f "$work/newpart.img"
+	status=0
+	env SOURCE_DATE_EPOCH=abc "$bin" --repartition=fs=1m "$work/newpart.img" \
+	    >/dev/null 2>&1 || status=$?
+	if [ "$status" -eq 1 ] && [ ! -e "$work/newpart.img" ]; then
+		ok reject-on-repartition-missing
+	else
+		bad reject-on-repartition-missing "exit $status or an image was created"
+	fi
+	status=0
+	env FSUTIL_CLOCK=2415919104 "$bin" --repartition=fs=1m "$work/newpart.img" \
+	    >/dev/null 2>&1 || status=$?
+	if [ "$status" -eq 0 ] && [ -e "$work/newpart.img" ]; then
+		ok repartition-with-good-clock
+	else
+		bad repartition-with-good-clock "exit $status or no image was created"
 	fi
 
 	# A mode that writes no time reads an image whatever the variables hold.
@@ -274,10 +331,10 @@ sys.exit(0 if abs(time.time() - t) < 600 else 1)' "$stamped"; then
 	fi
 }
 
-# mutate NAME OLD NEW: a copy of superblock.c with the one OLD replaced.
+# mutate UNIT NAME OLD NEW: a copy of UNIT.c with the one OLD replaced.
 mutate()
 {
-	"$PYTHON" - "$src/superblock.c" "$work/$1.c" "$2" "$3" <<'PY'
+	"$PYTHON" - "$src/$1.c" "$work/$2.c" "$3" "$4" <<'PY'
 from pathlib import Path
 import sys
 
@@ -305,7 +362,7 @@ rejected()
 	echo "fsutil_clock: mutant $name rejected: $*"
 }
 
-link_fsutil "$src/superblock.c" "$work/fsutil"
+link_fsutil superblock "$src/superblock.c" "$work/fsutil"
 cases "$work/fsutil" >"$work/fsutil.log"
 if grep -q '^FAIL' "$work/fsutil.log"; then
 	grep '^FAIL' "$work/fsutil.log" >&2
@@ -314,24 +371,39 @@ if grep -q '^FAIL' "$work/fsutil.log"; then
 fi
 echo "fsutil_clock: $(grep -c '^ok' "$work/fsutil.log") cases hold"
 
-mutate old-bound '*seconds <= FS_TIME_MAX' '*seconds <= 0x7fffffffULL'
-link_fsutil "$work/old-bound.c" "$work/old-bound"
+mutate superblock old-bound '*seconds <= FS_TIME_MAX' '*seconds <= 0x7fffffffULL'
+link_fsutil superblock "$work/old-bound.c" "$work/old-bound"
 rejected old-bound fixed-past-2038 fixed-maximum add-uses-fixed-clock
 
-mutate cap-only 'return (time_t) fixed;' \
+mutate superblock cap-only 'return (time_t) fixed;' \
     'return observed > (time_t) fixed ? (time_t) fixed : observed;'
-link_fsutil "$work/cap-only.c" "$work/cap-only"
+link_fsutil superblock "$work/cap-only.c" "$work/cap-only"
 rejected cap-only fixed-past-2038 fixed-maximum
 
-mutate no-upper-bound '*seconds <= FS_TIME_MAX' '1'
-link_fsutil "$work/no-upper-bound.c" "$work/no-upper-bound"
+mutate superblock no-upper-bound '*seconds <= FS_TIME_MAX' '1'
+link_fsutil superblock "$work/no-upper-bound.c" "$work/no-upper-bound"
 rejected no-upper-bound 'reject-FSUTIL_CLOCK-\[4294967296\]' \
     'reject-SOURCE_DATE_EPOCH-\[4294967296\]'
 
-mutate fall-back '    exit (1);
+mutate superblock fall-back '    exit (1);
 }' '    return 0;
 }'
-link_fsutil "$work/fall-back.c" "$work/fall-back"
+link_fsutil superblock "$work/fall-back.c" "$work/fall-back"
 rejected fall-back 'reject-FSUTIL_CLOCK-\[abc\]' reject-on-add
+
+mutate superblock ceiling-low-only '(long long) observed > (long long) epoch)' \
+    '(long long) epoch <= 0x7fffffffLL && (long long) observed > (long long) epoch)'
+link_fsutil superblock "$work/ceiling-low-only.c" "$work/ceiling-low-only"
+rejected ceiling-low-only ceiling-above-2038
+
+mutate fsutil added-keeps-host-time 'file.inode.mtime = fs_source_time (st.st_mtime);' \
+    'file.inode.mtime = st.st_mtime;'
+link_fsutil fsutil "$work/added-keeps-host-time.c" "$work/added-keeps-host-time"
+rejected added-keeps-host-time add-uses-fixed-clock
+
+mutate fsutil no-repartition-check 'mount || repartition ||' 'mount ||'
+link_fsutil fsutil "$work/no-repartition-check.c" "$work/no-repartition-check"
+rejected no-repartition-check reject-on-repartition-existing \
+    reject-on-repartition-missing
 
 echo "fsutil_clock: every case holds and every mutant is rejected"

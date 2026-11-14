@@ -205,7 +205,13 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/stdio/fputs.c \
 				${TOPSRC}/lib/libc/gen/confstr.c \
 				${TOPSRC}/lib/libc/gen/ctermid.c \
+				${TOPSRC}/lib/libc/gen/asctime.c \
+				${TOPSRC}/lib/libc/gen/ctime.c \
 				${TOPSRC}/lib/libc/gen/difftime.c \
+				${TOPSRC}/lib/libc/gen/offtime.h \
+				${TOPSRC}/lib/libc/gen/timezone.c \
+				${TOPSRC}/lib/libc/gen/tzset.c \
+				${TOPSRC}/lib/libc/gen/tzstate.h \
 				${TOPSRC}/lib/libc/gen/raise.c \
 				${TOPSRC}/lib/libc/gen/stpcpy.c \
 				${TOPSRC}/lib/libc/gen/stpncpy.c \

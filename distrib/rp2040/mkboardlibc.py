@@ -81,7 +81,7 @@ ARM_STRING_S = set("memmove strcmp".split())
 
 GEN_C = set(
     """
-abort alarm atof atoi atol basename bcmp bcopy bzero calloc closedir confstr crypt ctermid
+abort alarm asctime atof atoi atol basename bcmp bcopy bzero calloc closedir confstr crypt ctermid
 ctime ctype_ daemon devname difftime dirname ecvt err execvp fakcu ffs frexp fstab
 gcvt getenv getgrent getgrgid getgrnam getgrouplist gethostname getloadavg
 getlogin getmntinfo getpagesize getpass getpwent getttyent getttynam
@@ -90,7 +90,7 @@ mktemp modff modf ndbm nlist opendir perror popen psignal qsort qsort_r random
 raise readdir regex rindex scandir seekdir setenv sethostname setmode setpgid siginterrupt
 siglist signal sigsetops sleep stpcpy stpncpy strcasecmp strcat strcmp strcpy strdup strndup strnlen
 strftime strlen strncat strncmp strncpy swab sysconf sysctl syslog system telldir
-time timezone ttyname ttyslot ualarm uname usleep vis wait3 wait waitpid
+time timezone ttyname ttyslot tzset ualarm uname usleep vis wait3 wait waitpid
 """.split()
 )
 

@@ -50,7 +50,46 @@ bmake MACHINE=rp2040 check-network-header-contracts
 
 ## Caller and resource qualification
 
-The clean distribution and dependency capture decide whether existing consumers
-preserve their compiled behavior and resource costs. Standalone acceptance
-alone establishes no whole-system resource result. The full standards ledger
-and shared-library ABI selection retain their independent denominators.
+Candidate `ea2bb788` includes the wide-time main revision `c2ffd2d8`. Separate
+clean distributions and complete shipped dependency closures supply the
+[baseline](network-header-resource-baseline.json),
+[candidate](network-header-resources.json), and
+[comparison](network-header-resource-comparison.json). All 162 measured resource
+surfaces remain unchanged, with zero positive deltas and 236 free root blocks
+in each image. The header change requires no resource exception. The selected
+build manifest, `distrib/rp2040/_manifest`, supplies image membership; the raw
+source manifest also contains optional closures absent from the selected image.
+
+The [qualification record](network-header-qualification.json) binds source,
+tool and artifact identities to each result. On `ea2bb788`, the network-header
+gate repeats all 144 valid cases, 18 diagnostic-qualified rejections and 48
+Smaller C inputs. Record-header contracts also pass. The time-binding gate
+scans 952 ARM objects for 24 narrow time entry points and finds zero references.
+The separate ILP32 execution inventory passes all 210 required recipes.
+
+The full aggregate passes at initial candidate `e72af7bc` in 2,937.046 seconds,
+including its build stage. That result precedes the wide-time main merge and
+remains evidence for its recorded source. The merged candidate has fresh clean
+builds, matched resources, focused header and time-binding checks, the ILP32
+inventory, hosted CI and local Renode. A full aggregate run on that revision
+remains open. The merge preserves both cross-contract registrations.
+
+Local Renode boots the fresh PICO_UART kernel and root image, checks MPU faults,
+exec residue, process state and injected core-1 stalls, and reads clock and file
+times in 2046. Its classifier accepts 107,065 model warnings across 19 bounded
+classes with zero errors. Hosted CI also passes on `ea2bb788`. Physical-board
+execution remains unrun.
+
+Two sandbox restrictions have separate diagnostic witnesses. LeakSanitizer
+thread attachment fails with `EPERM` inside the sandbox and succeeds for the
+same executable outside it. A minimal ILP32 executable receives `SIGSYS` inside
+the sandbox and exits zero outside it. The unchanged aggregate and ILP32
+inventory pass outside the sandbox; these results establish execution-environment
+differences without suppressing their checks.
+
+The retained installed-header scan at `e72af7bc` covers 182 paths in four modes.
+Each mode improves from 143 to 144 clean headers and retains 38 failures.
+`netinet/in.h` accounts for the improvement, with no newly failing header.
+That discovery result precedes the wide-time merge. The full standards ledger,
+remaining header contracts and shared-library ABI selection retain their
+independent denominators.

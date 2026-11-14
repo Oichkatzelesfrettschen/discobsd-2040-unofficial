@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "source_head": "ea2bb788aeb062f49d3ef076957bbeffaac31135",
+  "baseline_head": "c2ffd2d837abe2a2c87078f021fc04ff367b447b",
+  "compiler_cases": {
+    "valid": 144,
+    "diagnostic_qualified_rejections": 18,
+    "smaller_c_compile_assemble_inputs": 48
+  },
+  "resources": {
+    "unchanged_surfaces": 162,
+    "positive_deltas": 0,
+    "root_free_blocks": 236,
+    "scope": "Matched clean baseline and candidate distributions; static resource accounting only"
+  },
+  "time_binding": {
+    "arm_objects": 952,
+    "narrow_time_names": 24,
+    "narrow_references": 0
+  },
+  "build": {
+    "invocation_id": "rp2040-build-local-20261114T075536Z-45-79d2ae4b",
+    "state": "completed",
+    "exit_code": 0,
+    "elapsed_seconds": 21.064,
+    "started_at": "2026-11-14T07:55:36Z",
+    "updated_at": "2026-11-14T07:55:57Z",
+    "receipt_sha256": "869423e20fa514d9c2a0775f55bfc45267243bf313424fecdda9e7f41f5d27da"
+  },
+  "aggregate": {
+    "source_head": "e72af7bc0a7255cc214cf6dcbd1198df6410a69f",
+    "invocation_id": "rp2040-check-local-20261114T065818Z-2893984-4eb582d9",
+    "state": "completed",
+    "exit_code": 0,
+    "elapsed_seconds": 2937.046,
+    "started_at": "2026-11-14T06:58:18Z",
+    "updated_at": "2026-11-14T07:47:15Z",
+    "receipt_sha256": "7ae3007fca0cc339b67b070ca0cd42fdc48c9f081ea3a3b339e3e1e5041c6540",
+    "scope": "Full aggregate before the wide-time main merge; not rerun in full at source_head"
+  },
+  "ilp32": {
+    "invocation_id": "rp2040-ilp32-local-20261114T075718Z-3918358-652116d5",
+    "state": "completed",
+    "exit_code": 0,
+    "elapsed_seconds": 620.712,
+    "started_at": "2026-11-14T07:57:18Z",
+    "updated_at": "2026-11-14T08:07:39Z",
+    "receipt_sha256": "5238be24fd85856eca0520d089d6fe6d0f1fa49a83cc11bda1b98b5f735786ab",
+    "inventory_passed": 210,
+    "inventory_required": 210
+  },
+  "hosted_ci": {
+    "conclusion": "success",
+    "created_at": "2026-11-14T07:52:35Z",
+    "head_sha": "ea2bb788aeb062f49d3ef076957bbeffaac31135",
+    "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/actions/runs/43573127209",
+    "id": 43573127209,
+    "status": "completed",
+    "updated_at": "2026-11-14T07:58:30Z"
+  },
+  "renode": {
+    "state": "passed",
+    "model_revision": "205a5e4b25440582008a4292074bb07f80a72328",
+    "warnings": 107065,
+    "warning_classes": 19,
+    "errors": 0,
+    "clock_year": 2046,
+    "artifacts": [
+      {
+        "path": "sys/arch/rp2040/compile/PICO_UART/unix.bin",
+        "sha256": "f543423627b2badbdd42dbf32042943b490bab730cdb6b735acc0eaacf89bc74"
+      },
+      {
+        "path": "distrib/rp2040/sdcard.img",
+        "sha256": "11e558437eac88bba7b7bfcc1877f2d7ed75df8a1dcad2e3ffbf5e1e880e1ae5"
+      },
+      {
+        "path": "distrib/rp2040/flash.bin",
+        "sha256": "2c2dd10abb4a70bcbd7eef57d64c39266ce7e5648d55654acfb18e3fb40a4152"
+      },
+      {
+        "path": "tools/renode/vendor/Renode_RP2040/emulation/bin/Release/net8.0/Peripherals.dll",
+        "sha256": "c2b3197bd5831ccb7e8683b770fe803a8bdf2e9ff484045b1cc8261d1b0e7e85"
+      }
+    ]
+  },
+  "installed_header_scan": {
+    "source_head": "e72af7bc0a7255cc214cf6dcbd1198df6410a69f",
+    "paths": 182,
+    "modes": 4,
+    "clean_before_per_mode": 143,
+    "clean_after_per_mode": 144,
+    "failures_after_per_mode": 38,
+    "scope": "Historical initial-candidate discovery; not a fresh scan after the wide-time merge"
+  },
+  "environment": {
+    "aggregate": "Sandbox LeakSanitizer thread attachment fails with EPERM; the same binary succeeds outside the sandbox and the unchanged aggregate rerun passes",
+    "ilp32": "Identical minimal ILP32 executable exits with SIGSYS (-31) inside the sandbox and zero outside; unchanged inventory passes outside",
+    "closure": "Raw source manifest includes optional ridge alias; selected build manifest _manifest supplies the admitted image closure"
+  },
+  "hardware": "not run; no physical-board authorization",
+  "review": "Bounded initial source review reports no actionable defect; parent reviews the merge conflict and reruns affected compiler and time-binding contracts",
+  "evidence": [
+    {
+      "path": ".build-logs/network-header-wide-time-baseline/source.json",
+      "sha256": "c72d0f26b5e0d54ff62e78f00d074ace119aca2bff88a35edcbb01bc76cc7918"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-baseline/clean.json",
+      "sha256": "cfe669de3244d6d6e3f4fbf80810597a8a3c6390de10e56d9ad971bcc8945dbc"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-baseline/distribution.json",
+      "sha256": "0cd3107943040ea00004b8ba5fd676b6ba12149a2a8483bf3627b89125526eaa"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-baseline/closure.json",
+      "sha256": "f72dd8fc2548a6de634bc815388a8cf4687bc8b9bd7e22d0d5b744a008ba4dd8"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-baseline/raw-manifest-rejection.log",
+      "sha256": "c973dbf94abb5b2d2cc203f7b6ddca599f704f180dc2438afe6cd383391dd507"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/source.json",
+      "sha256": "a05a819cc88a61aebc4ae835914e85d869cfc8514830127f1e7d4f399fc501f1"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/clean.json",
+      "sha256": "7a2bf768fa8259377b037f43357d8eda750827a6ea0faa7d234e1e3bb4198850"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/distribution.json",
+      "sha256": "178b9a7d6c2e244575a7622647ab3dfd28457683ac0fc234d87c5a8289b1aabc"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/closure.json",
+      "sha256": "6c5f21378947d6f990e0db087518e8e2ae3f78ba62ec5194e5971ec2724b95d1"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/header-contracts.json",
+      "sha256": "4d0d45a94955c165cafb6f812a062d18ae42204d720c6ab1ecd443623fb252e6"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/record-contracts.json",
+      "sha256": "83aec2a20f5e832deb96d69d8f77768e85ad72243c376cd5876451a3ec4e9b25"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/focused.log",
+      "sha256": "de569fb307ed545efcc21884a3627db72f066c78718c6937a18bacef5de9df10"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/build.json",
+      "sha256": "869423e20fa514d9c2a0775f55bfc45267243bf313424fecdda9e7f41f5d27da"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/ilp32.json",
+      "sha256": "5238be24fd85856eca0520d089d6fe6d0f1fa49a83cc11bda1b98b5f735786ab"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/ilp32-sandbox-failure.json",
+      "sha256": "ad5c2017cd3f2b5a6ae3086310390dd64be1c5cf7c613d02e8e8b4c07ba3d293"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/ilp32-probe-sandbox.json",
+      "sha256": "2b501425fd1779b1a24878df3ccaf996b8c683fad8d59db199d70bf76275e34b"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/ilp32-probe-unsandboxed.json",
+      "sha256": "afb828a33d0b5797d9591ff81b30745b046c0b847d1e874b609b4a10a5fe82cc"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/flash.json",
+      "sha256": "55269166979f5427bafd19e2ee4ccb0d8287895b5fde140a941071e37d21e1c4"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/renode.log",
+      "sha256": "f77978a03353c003ea823cf773b1ee66aa4ace455bcfc3ebfb472e3d1699aa9e"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/renode-results/renode.log",
+      "sha256": "062990abac4ccdd0523bdf349ba4f812e5723dad70bbbadb2a35c018447646f0"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/renode-results/uart0.txt",
+      "sha256": "ef144383d45c9953b39ea1d2ee3414cc18ae7d9f89931cfbed5b7edfee67e20a"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/hosted-ci.json",
+      "sha256": "8934200b9c3e3e6ed877cf5be32bf912153c78d1a3d7b4a1badbe99d7be92544"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/ruff.log",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/source-denominator.log",
+      "sha256": "f249831d5b62afc3e6fbb3e078676800a27b42bc0e6c183e822e11cecab77abd"
+    },
+    {
+      "path": ".build-logs/network-header-candidate/aggregate-result.json",
+      "sha256": "7ae3007fca0cc339b67b070ca0cd42fdc48c9f081ea3a3b339e3e1e5041c6540"
+    },
+    {
+      "path": ".build-logs/network-header-candidate/sanitizer-environment.json",
+      "sha256": "719970e4bf873feeecd5e7eb9c8446439aef673a698cfec46b4f39ba2af7db60"
+    },
+    {
+      "path": ".build-logs/network-header-contracts/review.md",
+      "sha256": "67b6e7dc32cf1982f50a69a2ed78a4a6adb222c48c064ba1fdccd713dbfaa657"
+    },
+    {
+      "path": ".build-logs/network-installed-header-inventory/report.json",
+      "sha256": "60e1296ddc837831c1a2eda8f6da42059528bd9de95969b1d72528e36cf29826"
+    },
+    {
+      "path": ".build-logs/network-installed-header-inventory/repair-delta.json",
+      "sha256": "7ee22d52fb8e7a5893ce695bd86831ff84390519e2ba5317d5db240161e20dc9"
+    }
+  ],
+  "integration_authority": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/524"
+}

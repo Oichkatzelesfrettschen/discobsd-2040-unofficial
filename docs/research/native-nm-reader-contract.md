@@ -171,3 +171,32 @@ file mutation.
 Additional fault coverage, caller closure, native execution, matched resource receipts, review, and
 integration remain open. The host fixture supplies no board observation.
 Resource approval follows the compatibility profile after exact deltas exist.
+
+## Resource receipts and merged-main qualification
+
+The retained resource pair binds baseline `b74c522b449142ae3a06cb989abbe29ed15305f2`
+to candidate `ef4962cee53ba6e665b9ca33ba065b4d07a227f9`.
+`native-nm-resource-baseline.json` and `native-nm-resource-candidate.json`
+contain the clean-distribution receipts; `native-nm-resource-comparison.json`
+records zero change across all 162 shipped numeric surfaces and an empty
+positive-delta list. The candidate root has 233 free blocks. The shipped
+manifest excludes `nm`, so this comparison establishes shipped-image cost
+only. Runtime stack and heap peaks remain unmeasured.
+
+Merge commit `63f40147` incorporates remote main `a30ed5f6`, including its
+calendar conversion changes. The resource pair above remains evidence for
+its named revisions; resource qualification against this newer main remains
+open. The merged branch passes `logged-build` in 39.912 seconds, with receipt
+`.build-logs/rp2040-build-local-20261114T205550Z-3528080-5ed7a346/status.json`.
+The registered `check-native-nm` gate passes 171 production-host cases,
+207 UBSan reader/allocation/stream cases, and all six mutation controls.
+`check-native-nm-qemu` passes 171 Cortex-M0 cases. An independent invocation
+of `tests/nm_reader/calibrate.py` with `CC='cc -m32'` passes all 207 cases
+and six mutation controls outside the execution sandbox. These checks qualify
+the exercised reader paths on the merged source; physical-board execution
+remains unrun.
+
+Hosted run `43639338429` completes successfully for candidate `ef4962ce`.
+That result precedes the merge of newer main and does not qualify the merged
+head. Review, final-head CI, and matched current-main resource qualification
+remain open before PR integration.

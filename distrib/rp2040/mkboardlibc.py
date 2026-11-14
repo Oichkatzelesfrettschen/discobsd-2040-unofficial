@@ -90,14 +90,14 @@ mktemp modff modf ndbm nlist opendir perror popen psignal qsort qsort_r random
 raise readdir regex rindex scandir seekdir setenv sethostname setmode setpgid siginterrupt
 siglist signal sigsetops sleep stpcpy stpncpy strcasecmp strcat strcmp strcpy strdup strndup strnlen
 strftime strlen strncat strncmp strncpy swab sysconf sysctl syslog system telldir
-time timezone ttyname ttyslot tzset ualarm uname usleep vis wait3 wait waitpid
+time timezone tolower toupper ttyname ttyslot tzset ualarm uname usleep vis wait3 wait waitpid
 """.split()
 )
 
 STDIO_C = set(
     """
 clrerr doprnt_float doprnt_llong doprnt doscan exit fdopen feof ferror fgetc fgets filbuf
-fileno findiop flsbuf fopen fprintf fputc fputs fread freopen fseek ftell
+fileno findiop flags flsbuf fopen fprintf fputc fputs fread freopen fseek ftell
 fwrite getchar gets getw printf putchar puts putw remove rew scanf setbuffer
 setbuf setvbuf snprintf sprintf strout ungetc vfprintf vprintf vsprintf
 """.split()

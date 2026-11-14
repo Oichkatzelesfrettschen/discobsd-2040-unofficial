@@ -22,6 +22,7 @@
 #endif
 #include <ar.h>
 #include <a.out.h>
+#include <limits.h>
 
 #ifdef CROSS
 #   include "../ar/archive.h"
@@ -31,7 +32,8 @@
 
 CHDR	chdr;
 
-char	gflg, nflg, oflg, pflg, uflg, rflg = 1, archive_input;
+char	gflg, nflg, oflg, pflg, uflg, archive_input;
+signed char rflg = 1;
 char	**xargv;
 
 union {
@@ -40,6 +42,7 @@ union {
 } mag_un;
 
 int	narg, errs;
+static long file_end;
 
 void
 error(char *s)
@@ -52,13 +55,6 @@ error(char *s)
 		fprintf(stderr, " ");
 	fprintf(stderr, "%s\n", s);
 	errs = 1;
-}
-
-static void
-fatal(char *s)
-{
-	error(s);
-	exit(2);
 }
 
 /*
@@ -90,17 +86,24 @@ nm_get_arobj(FILE *fp)
 		return(-1);
 
 /* Convert ar header field to an integer. */
-#define	AR_ATOI(from, to, len, base) { \
+#define	AR_ATOI(from, to, len, base, limit) { \
+	char *end; \
+	unsigned long number; \
 	bcopy(from, buf, len); \
 	buf[len] = '\0'; \
-	to = strtoul(buf, (char **)NULL, base); }
+	if (buf[0] < '0' || buf[0] > '9') return -1; \
+	errno = 0; \
+	number = strtoul(buf, &end, base); \
+	while (*end == ' ') end++; \
+	if (errno == ERANGE || end != buf + (len) || number > (unsigned long)(limit)) return -1; \
+	to = number; }
 
 	/* Convert the header into the internal format. */
-	AR_ATOI(hdr->ar_date, chdr.date, sizeof(hdr->ar_date), 10);
-	AR_ATOI(hdr->ar_uid, chdr.uid, sizeof(hdr->ar_uid), 10);
-	AR_ATOI(hdr->ar_gid, chdr.gid, sizeof(hdr->ar_gid), 10);
-	AR_ATOI(hdr->ar_mode, chdr.mode, sizeof(hdr->ar_mode), 8);
-	AR_ATOI(hdr->ar_size, chdr.size, sizeof(hdr->ar_size), 10);
+	AR_ATOI(hdr->ar_date, chdr.date, sizeof(hdr->ar_date), 10, AR_DATE_MAX);
+	AR_ATOI(hdr->ar_uid, chdr.uid, sizeof(hdr->ar_uid), 10, INT_MAX);
+	AR_ATOI(hdr->ar_gid, chdr.gid, sizeof(hdr->ar_gid), 10, INT_MAX);
+	AR_ATOI(hdr->ar_mode, chdr.mode, sizeof(hdr->ar_mode), 8, USHRT_MAX);
+	AR_ATOI(hdr->ar_size, chdr.size, sizeof(hdr->ar_size), 10, LONG_MAX);
 
 	/* Leading spaces should never happen. */
 	if (hdr->ar_name[0] == ' ')
@@ -111,9 +114,13 @@ nm_get_arobj(FILE *fp)
 	 * long name flag/size.
 	 */
 	if (!bcmp(hdr->ar_name, AR_EFMT1, sizeof(AR_EFMT1) - 1)) {
-		chdr.lname = len = atoi(hdr->ar_name + sizeof(AR_EFMT1) - 1);
+		AR_ATOI(hdr->ar_name + sizeof(AR_EFMT1) - 1, len,
+		    sizeof(hdr->ar_name) - (sizeof(AR_EFMT1) - 1), 10, MAXNAMLEN);
+		chdr.lname = len;
 		if (len <= 0 || len > MAXNAMLEN)
 			return(-1);
+		if (len > chdr.size)
+			return -1;
 		nr = fread(chdr.name, 1, (size_t)len, fp);
 		if (nr != len)
 			return(-1);
@@ -133,23 +140,29 @@ nm_get_arobj(FILE *fp)
 off_t
 nextel(FILE *af, off_t off)
 {
-	fseek(af, off, SEEK_SET);
-	if (nm_get_arobj(af) < 0)
+	long payload, stored;
+
+	chdr.name[0] = '\0';
+	if (off == file_end)
 		return 0;
-	off += sizeof (struct ar_hdr) + chdr.size + (chdr.lname & 1);
-	return off;
-}
-
-unsigned int
-fgetword(FILE *f)
-{
-        register unsigned int h;
-
-        h = getc (f);
-        h |= getc (f) << 8;
-        h |= getc (f) << 16;
-        h |= getc (f) << 24;
-        return h;
+	if (off < 0 || off > file_end ||
+	    file_end - off < (long)sizeof(struct ar_hdr) ||
+	    fseek(af, off, SEEK_SET) != 0 || nm_get_arobj(af) < 0) {
+		error("malformed archive header");
+		return 0;
+	}
+	payload = off + sizeof(struct ar_hdr);
+	if (chdr.size < 0 || chdr.size > LONG_MAX - chdr.lname) {
+		error("archive size overflow");
+		return 0;
+	}
+	stored = chdr.size + chdr.lname;
+	if (stored > file_end - payload ||
+	    (stored & 1) > file_end - payload - stored) {
+		error("truncated archive member");
+		return 0;
+	}
+	return payload + stored + (stored & 1);
 }
 
 /*
@@ -162,24 +175,39 @@ fgetword(FILE *f)
  *  N bytes: name
  */
 int
-fgetsym(FILE *fi, char *name, unsigned int *value, unsigned short *type)
+fgetsym(FILE *fi, char *name, unsigned int *value, unsigned short *type,
+    unsigned remaining)
 {
-        register int len;
-        unsigned nbytes;
+        unsigned char header[6];
+        unsigned length, i;
+        int byte;
 
-        len = getc (fi);
-        if (len <= 0)
+        if (remaining == 0 || (byte = getc(fi)) == EOF)
                 return -1;
-        *type = getc (fi);
-        *value = fgetword (fi);
-        nbytes = len + 6;
-        if (name) {
-                while (len-- > 0)
-                        *name++ = getc (fi);
-                *name = '\0';
-        } else
-                fseek (fi, len, SEEK_CUR);
-        return nbytes;
+        length = (unsigned)byte;
+        if (length == 0) {
+                while (--remaining != 0)
+                        if (getc(fi) != 0)
+                                return -1;
+                return 0;
+        }
+        if (remaining < sizeof(header) ||
+            length > remaining - sizeof(header) ||
+            fread(header + 1, 1, sizeof(header) - 1, fi) != sizeof(header) - 1)
+                return -1;
+        for (i = 0; i < length; i++) {
+                byte = getc(fi);
+                if (byte == EOF)
+                        return -1;
+                if (name)
+                        name[i] = (char)byte;
+        }
+        if (name)
+                name[length] = '\0';
+        *type = header[1];
+        *value = (unsigned)header[2] | ((unsigned)header[3] << 8) |
+            ((unsigned)header[4] << 16) | ((unsigned)header[5] << 24);
+        return (int)(length + sizeof(header));
 }
 
 int
@@ -274,9 +302,15 @@ namelist(void)
 		return;
 	}
 	setbuf(fi, ibuf);
+	if (fseek(fi, 0, SEEK_END) != 0 || (file_end = ftell(fi)) < 0 ||
+	    fseek(fi, 0, SEEK_SET) != 0) {
+		error("cannot determine file extent");
+		goto out;
+	}
 
 	off = 0;
-	if (fread((char *)&mag_un, 1, sizeof(mag_un), fi) != sizeof(mag_un)) {
+	memset(&mag_un, 0, sizeof(mag_un));
+	if (fread((char *)&mag_un, 1, SARMAG, fi) != SARMAG) {
 		error("read error");
 		goto out;
 	}
@@ -289,28 +323,78 @@ namelist(void)
 		error("bad format");
 		goto out;
 	}
-	rewind(fi);
+	if (fseek(fi, 0, SEEK_SET) != 0) {
+		error("cannot rewind input");
+		goto out;
+	}
 
 	if (archive_input) {
 		off = nextel(fi, off);
+		if (off == 0)
+			goto out;
 		if (narg > 1)
 			printf("\n%s:\n", *xargv);
 	}
 
 	do {
 		off_t	o, curpos;
-		register int i, n;
+		unsigned long extent, sections[4];
+		unsigned section, capacity;
+		register int i;
+		unsigned n;
 		struct nlist *symp = NULL;
 
 		curpos = ftell(fi);
-		if (fread((char *)&mag_un.mag_exp, 1,
-                    sizeof(struct exec), fi) != sizeof(struct exec))
+		if (curpos < 0) {
+			error("cannot locate object");
+			goto out;
+		}
+		extent = archive_input ? (unsigned long)chdr.size :
+		    (unsigned long)file_end;
+		if (archive_input &&
+		    (strcmp(chdr.name, "__.SYMDEF") == 0 ||
+		    strcmp(chdr.name, "__.SYMDEF SORTED") == 0))
 			continue;
+		if (extent < sizeof(mag_un.mag_exp.a_midmag)) {
+			if (!archive_input)
+				error("truncated object header");
+			continue;
+		}
+		if (fread(&mag_un.mag_exp.a_midmag, 1,
+		    sizeof(mag_un.mag_exp.a_midmag), fi) !=
+		    sizeof(mag_un.mag_exp.a_midmag)) {
+			error("cannot read object magic");
+			goto out;
+		}
 		if (N_BADMAG(mag_un.mag_exp))
 			continue;
+		if (extent < sizeof(struct exec) ||
+		    fread((char *)&mag_un.mag_exp + sizeof(mag_un.mag_exp.a_midmag),
+		    1, sizeof(struct exec) - sizeof(mag_un.mag_exp.a_midmag), fi) !=
+		    sizeof(struct exec) - sizeof(mag_un.mag_exp.a_midmag)) {
+			error("truncated object header");
+			goto out;
+		}
 
-		o = N_SYMOFF(mag_un.mag_exp);
-		fseek(fi, curpos + o, SEEK_SET);
+		o = sizeof(struct exec);
+		sections[0] = mag_un.mag_exp.a_text;
+		sections[1] = mag_un.mag_exp.a_data;
+		sections[2] = N_GETMAGIC(mag_un.mag_exp) == RMAGIC ?
+		    mag_un.mag_exp.a_reltext : 0;
+		sections[3] = N_GETMAGIC(mag_un.mag_exp) == RMAGIC ?
+		    mag_un.mag_exp.a_reldata : 0;
+		for (section = 0; section < 4; section++) {
+			if (sections[section] > extent - (unsigned long)o) {
+				error("object section exceeds member");
+				goto out;
+			}
+			o += sections[section];
+		}
+		if (mag_un.mag_exp.a_syms > extent - (unsigned long)o ||
+		    fseek(fi, curpos + o, SEEK_SET) != 0) {
+			error("invalid symbol table extent");
+			goto out;
+		}
 		n = mag_un.mag_exp.a_syms;
 		if (n == 0) {
 			error("no name list");
@@ -322,59 +406,96 @@ namelist(void)
 			unsigned value;
                         unsigned short type;
 
-                        int c = fgetsym (fi, 0, &value, &type);
-                        if (c <= 0)
+                        int c = fgetsym (fi, 0, &value, &type, n);
+                        if (c < 0) {
+                                error("malformed symbol table");
+                                goto out;
+                        }
+                        if (c == 0)
                                 break;
                         n -= c;
 			if (gflg && (type & N_EXT) == 0)
 				continue;
 			if (uflg && (type & N_TYPE) == N_UNDF && value != 0)
 				continue;
+			if (i == INT_MAX ||
+			    (size_t)i >= (size_t)-1 / sizeof(struct nlist)) {
+				error("too many symbols");
+				goto out;
+			}
 			i++;
 		}
 
-		fseek(fi, curpos + o, SEEK_SET);
-		symp = (struct nlist *)malloc((i+1) * sizeof (struct nlist));
-		if (symp == 0)
-			fatal("out of memory");
+		if (fseek(fi, curpos + o, SEEK_SET) != 0) {
+			error("cannot rewind symbol table");
+			goto out;
+		}
+		capacity = (unsigned)i;
+		if (capacity != 0) {
+			symp = malloc((size_t)capacity * sizeof(struct nlist));
+			if (symp == NULL) {
+				error("out of memory");
+				goto out;
+			}
+		}
 		i = 0;
 		n = mag_un.mag_exp.a_syms;
 		while (n > 0) {
 		        char name [256];
+                        unsigned value;
+                        unsigned short type;
 
-                        int c = fgetsym(fi, name, &symp[i].n_value, &symp[i].n_type);
-                        if (c <= 0)
+                        int c = fgetsym(fi, name, &value, &type, n);
+                        if (c < 0) {
+                                error("malformed symbol table");
+                                goto symbol_failure;
+                        }
+                        if (c == 0)
                                 break;
                         n -= c;
-			if (gflg && (symp[i].n_type & N_EXT) == 0)
+			if (gflg && (type & N_EXT) == 0)
 				continue;
-			if (uflg && (symp[i].n_type & N_TYPE) == N_UNDF &&
-                            symp[i].n_value != 0)
+			if (uflg && (type & N_TYPE) == N_UNDF && value != 0)
 				continue;
+			if ((unsigned)i == capacity) {
+				error("symbol table changes between reads");
+				goto symbol_failure;
+			}
 
                         symp[i].n_name = malloc(c - 5);
-                        if (! symp[i].n_name)
-				fatal("out of memory");
+                        if (! symp[i].n_name) {
+				error("out of memory");
+				goto symbol_failure;
+			}
+			symp[i].n_value = value;
+			symp[i].n_type = type;
 			memcpy(symp[i].n_name, name, c - 6);
 			symp[i].n_name[c - 6] = '\0';
 			i++;
 		}
 
-		if (pflg==0)
+		if (pflg==0 && i > 1)
 			qsort(symp, i, sizeof(struct nlist), compare);
 		if ((archive_input || narg>1) && oflg==0)
 			printf("\n%s:\n", archive_input ? chdr.name : *xargv);
 
 		psyms(symp, i);
 		if (symp) {
-		        for (n=0; n<i; n++)
+		        for (n=0; n<(unsigned)i; n++)
                                 free (symp[n].n_name);
 			free((char *)symp);
                         symp = NULL;
                 }
+		continue;
+symbol_failure:
+		while (i > 0)
+			free(symp[--i].n_name);
+		free(symp);
+		goto out;
 	} while(archive_input && (off = nextel(fi, off)) != 0);
 out:
-	fclose(fi);
+	if (fclose(fi) != 0)
+		error("cannot close input");
 }
 
 int
@@ -430,5 +551,7 @@ usage:                  fprintf (stderr, "Usage:\n");
 		++xargv;
 		namelist();
 	}
+	if (fflush(stdout) == EOF || ferror(stdout))
+		error("cannot write symbol output");
 	return(errs);
 }

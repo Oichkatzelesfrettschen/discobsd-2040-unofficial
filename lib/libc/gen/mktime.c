@@ -33,6 +33,9 @@
 #include "time.h"
 #include "limits.h"
 #include "offtime.h"
+#if defined(TZ_ZONEINFO) && !defined(__TIME64_VIEW)
+#include "tzstate.h"
+#endif
 #ifdef __TIME64_VIEW
 #include "stdint.h"
 #endif
@@ -382,10 +385,42 @@ mktime(struct tm *tm)
 		guess = days < 0 ? TIME_MIN : TIME_MAX;
 
 	/* localtime() reports the offset, seconds east of UTC, in tm_gmtoff. */
-	for (pass = 0; pass < 3; pass++)
+	for (pass = 0; pass < 3; pass++) {
 		if (join_count(days, seconds, localtime(&guess)->tm_gmtoff,
-		    &guess))
-			return (TIME_REFUSED);
+		    &guess) == 0)
+			continue;
+#ifdef TZ_ZONEINFO
+		/*
+		 * A zone file can change the offset between the guess and
+		 * the answer. Within an offset's width of the start of the
+		 * range the offset in force at the guess then moves an
+		 * answer that lies inside the range to before it, so each
+		 * offset the file holds is tried, and an answer stands when
+		 * localtime() reports that same offset there, which makes it
+		 * an instant whose local time is the fields. The end of the
+		 * range has no such case: tzload() reads a transition time
+		 * as a signed 32-bit count, so none lies past 2038
+		 * (BEFORE_TRANSITION() in ctime.c). The zone built without a
+		 * zone file has one offset and takes the refusal as it comes.
+		 */
+		{
+			int type;
+
+			for (type = 0; type < __discobsd_zone.typecnt; type++) {
+				long offset =
+				    __discobsd_zone.ttis[type].tt_gmtoff;
+
+				if (join_count(days, seconds, offset,
+				    &guess) == 0 &&
+				    localtime(&guess)->tm_gmtoff == offset)
+					break;
+			}
+			if (type < __discobsd_zone.typecnt)
+				continue;
+		}
+#endif
+		return (TIME_REFUSED);
+	}
 
 	/*
 	 * The caller's struct reports the time that was reached, normalized

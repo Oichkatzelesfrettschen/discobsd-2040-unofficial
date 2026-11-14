@@ -574,6 +574,18 @@ check-native-linker: check-python
 
 .PHONY: check-native-linker
 
+check-native-nm: check-python
+		${MAKE} -C tools/aoututils/nm all
+		${PYTHON} tools/check_nm_reader.py tools/aoututils/nm/nm
+		${PYTHON} tests/nm_reader/calibrate.py
+
+.PHONY: check-native-nm
+
+check-native-nm-qemu: check-python
+		${MAKE} -C tests/nm_reader check-qemu
+
+.PHONY: check-native-nm-qemu
+
 # The host filesystem library every root image is built with, exercised
 # through the allocation patterns that break one and checked with the
 # tree's own consistency checker after each round.
@@ -1474,6 +1486,13 @@ check-picocalc-host:	check-python
 check-psram-pio:	check-python
 		${MAKE} -C tests/psram check
 
+# The PicoCalc loader's flash limit: the stamp decode and the flash
+# erase/program bound against exhaustive sweeps and a whole-chip NOR model,
+# the boot ROM writers' wiring in flash.c, and calibrating mutants;
+# tests/loader_stamp/Makefile states each.
+check-loader-stamp:
+		${MAKE} -C tests/loader_stamp check
+
 # The keyboard controller's bootloader identity reader against a model of
 # the STM32 USART bootloader: readable, readout-protected, already-synced,
 # silent and garbled parts, the read-only command allow-list, and three
@@ -1552,7 +1571,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-rmdir-contracts check-tee-contracts check-time-contracts \
 		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
-		check-aout check-native-linker check-kernel check-fs-stress check-fsck-inode-range \
+		check-aout check-native-linker check-native-nm check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts check-backgammon-contracts \
@@ -1575,7 +1594,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-flash-device-bounds check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
 		check-fs-profiles check-picocalc-host check-psram-pio \
-		check-picocalc-kbd-bootloader
+		check-loader-stamp check-picocalc-kbd-bootloader
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
@@ -1899,6 +1918,7 @@ check-native-call-veneer: check-python
 .PHONY: check-native-call-veneer
 
 check-qemu:	check-python .WAIT symlinks
+		${MAKE} check-native-nm-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} check-aeabi-copy-qemu
 		${MAKE} check-ucall-qemu
@@ -1965,9 +1985,10 @@ check-renode-capacity:
 		sh tools/renode/check-capacity.sh ${FSIMG}
 
 # The boot-time image comparison on the emulated PICO_UART kernel:
-# tools/renode/check-identity.sh boots the stamped kernel and two altered
+# tools/renode/check-identity.sh boots the stamped kernel and three altered
 # copies on ${FLASHBIN} and requires the image line of each, so the
-# "differs" branch of image_identify() runs. Outside "check" for the reason
+# "differs" branch of image_identify() runs and the loader's stamp span is
+# shown to be skipped. Outside "check" for the reason
 # check-renode is.
 check-renode-identity:
 		sh tools/renode/check-identity.sh ${FLASHBIN}
@@ -2111,7 +2132,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

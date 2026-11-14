@@ -162,7 +162,12 @@ MUTANTS = [
     ),
     (
         "signal-reset-sequence-skipped",
-        [("\ttty_restore();\n\tput_fd(1, reset_seq, (size_t)reset_len);", "\ttty_restore();")],
+        [
+            (
+                "\ttty_restore();\n\tput_fd(1, reset_seq, (size_t)reset_len);",
+                "\ttty_restore();\n\tput_fd(1, reset_seq, (size_t)reset_len * 0);",
+            )
+        ],
         [],
         ["signals", "exit_paths"],
         False,

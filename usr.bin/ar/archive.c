@@ -372,7 +372,12 @@ parse_archive_unsigned(const char *field, size_t field_size, int base)
 	if (snprintf(number, sizeof(number), "%.*s", (int)field_size,
 	    field) != (int)field_size)
 		badfmt();
-	for (digits = number; *digits == ' '; digits++)
+	/*
+	 * strtoul skips every C-locale white-space byte before a sign and
+	 * wraps a negative value, so the sign test skips the same bytes.
+	 */
+	for (digits = number; *digits == ' ' || (*digits >= '\t' &&
+	    *digits <= '\r'); digits++)
 		;
 	if (*digits == '-')
 		badfmt();

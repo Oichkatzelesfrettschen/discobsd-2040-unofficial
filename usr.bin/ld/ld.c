@@ -43,6 +43,7 @@
 #   include <signal.h>
 #   include <unistd.h>
 #endif
+#include <errno.h>
 #include <stdarg.h>
 #include <a.out.h>
 #include <ar.h>
@@ -320,6 +321,42 @@ stored_time(time_t seconds)
 }
 
 /*
+ * Convert the date field of an archive header: a decimal count of seconds
+ * through 0xffffffff. A minus sign (strtoul wraps a negative value, after
+ * skipping every C-locale white-space byte), a field without digits, text
+ * after the number and a value beyond the stored range are refused, so a
+ * 64-bit host and a 32-bit target read the same set of fields.
+ */
+static int
+date_in_range (unsigned long long seconds)
+{
+	return (seconds <= 0xffffffffULL);
+}
+
+static int
+fgetardate (char *text, unsigned long *date)
+{
+	char *end;
+	char *digits = text;
+	unsigned long value;
+
+	while (*digits == ' ' || (*digits >= '\t' && *digits <= '\r'))
+		digits++;
+	if (*digits == '-')
+		return (0);
+	errno = 0;
+	value = strtoul (text, &end, 10);
+	if (errno == ERANGE || end == text)
+		return (0);
+	while (*end == ' ')
+		end++;
+	if (*end != '\0' || ! date_in_range (value))
+		return (0);
+	*date = value;
+	return (1);
+}
+
+/*
  * Read the file header of the archive.
  */
 int
@@ -369,7 +406,8 @@ fgetarhdr(FILE *fd, struct archdr *h)
 	if (nr != sizeof (hdr.ar_date))
 		goto failed;
         buf[nr] = 0;
-        h->ar_date = strtoul (buf, 0, 10);
+	if (! fgetardate (buf, &h->ar_date))
+		goto failed;
 
 	/* Read user id. */
 	nr = fread (buf, 1, sizeof (hdr.ar_uid), fd);

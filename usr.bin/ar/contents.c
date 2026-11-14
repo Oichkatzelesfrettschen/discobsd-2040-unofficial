@@ -77,6 +77,11 @@ contents(char **argv)
 			(void)strmode(chdr.mode, buf);
 			(void)printf("%s %6d/%-6d %8ld ",
 			    buf + 1, chdr.uid, chdr.gid, (long) chdr.size);
+			/*
+			 * A four-byte signed time_t prints a count with bit 31
+			 * set as a date before 1970; the 64-bit view prints it
+			 * whole.
+			 */
 			when = (time_t)chdr.date;
 			tp = localtime(&when);
 #ifdef	bloat

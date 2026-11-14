@@ -432,7 +432,11 @@ flash_erase(u_int offset, u_int len)
 	/*
 	 * Every flash write path (Dhara, raw swap, /dev/temp) reaches the chip
 	 * through this routine or flash_program(), so the writable end is
-	 * enforced here, before the boot ROM is called.
+	 * enforced here, before the boot ROM is called. A refusal reaches
+	 * Dhara as a bad block (dhara_nand_erase, dhara_nand_prog), whose
+	 * journal retries on other blocks up to DHARA_MAX_RETRIES times and
+	 * then fails the request, which flstrategy() reports as EIO; the raw
+	 * swap path fails its transfer with EIO directly.
 	 */
 	if (!flash_write_admitted(offset, len, flash_write_end))
 		return -1;

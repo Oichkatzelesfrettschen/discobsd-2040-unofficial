@@ -33,11 +33,15 @@
  * any other way carries no stamp and keeps the whole chip.
  *
  * With the stamp, everything at and above the stamped limit belongs to the
- * loader. A limit that is not sector aligned, lies inside the kernel's own
- * flash region, or lies past the chip, names no layout this kernel can
- * honor, so the decode fails closed: the writable end becomes the start of
- * the filesystem region, the lowest offset any flash write targets, and no
- * erase or program passes flash_write_admitted().
+ * loader. The kernel honors a limit only where it leaves the fixed layout
+ * whole and the loader's own stage intact: sector aligned, at or above
+ * FLASH_SWAP_OFFSET, so the root filesystem below it is never cut, and at
+ * or below the top of the chip less LOADER_RESERVED_BYTES, the 16 KB the
+ * stock loader keeps for its stage (pelrun/uf2loader stage3 link map). Any
+ * other limit names no layout this kernel can honor, so the decode fails
+ * closed: the writable end becomes the start of the filesystem region, the
+ * lowest offset any flash write targets, and no erase or program passes
+ * flash_write_admitted().
  *
  * Everything here is pure arithmetic on the two words, so the host gate
  * under tests/loader_stamp compiles this header unchanged.
@@ -46,6 +50,7 @@
 #define	LOADER_STAMP_MAGIC_OFFSET	0x110UL	/* Vector entry 4. */
 #define	LOADER_STAMP_LIMIT_OFFSET	0x114UL	/* Vector entry 5. */
 #define	LOADER_STAMP_MAGIC		0xe98cc638UL
+#define	LOADER_RESERVED_BYTES		(16UL * 1024)	/* The loader's stage. */
 
 #define	LOADER_STAMP_NONE	0	/* No magic: the whole chip is writable. */
 #define	LOADER_STAMP_VALID	1	/* Writable below the stamped limit. */
@@ -65,8 +70,8 @@ loader_stamp_decode(uint32_t magic, uint32_t limit, uint32_t *write_end)
 		return LOADER_STAMP_NONE;
 	}
 	offset = limit - FLASH_XIP_BASE;
-	if (limit >= FLASH_XIP_BASE && offset > FLASH_FS_OFFSET &&
-	    offset <= FLASH_TOTAL_BYTES &&
+	if (limit >= FLASH_XIP_BASE && offset >= FLASH_SWAP_OFFSET &&
+	    offset <= FLASH_TOTAL_BYTES - LOADER_RESERVED_BYTES &&
 	    (offset & (FLASH_SECTOR_BYTES - 1)) == 0) {
 		*write_end = offset;
 		return LOADER_STAMP_VALID;

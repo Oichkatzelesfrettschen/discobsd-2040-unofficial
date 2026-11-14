@@ -871,17 +871,21 @@ any device (`flash_limit_init()` in `dev/flash.c`; the decode is
 | Flash 0x110 and 0x114 | Writable flash | fl1 (raw swap) | Console |
 | --- | --- | --- | --- |
 | no magic (any image flashed through BOOTSEL) | 0x20000-0x1fffff | 384 KB | unchanged |
-| magic, limit 4 KB-aligned in (0x10020000, 0x10200000] | 0x20000 up to the limit | to the limit: 368 KB at 0x101fc000 | `fl1: 368 kbytes raw QSPI flash for swap` |
-| magic, any other limit | none | absent | `fl: loader stamp limit ... is outside the writable flash; flash writes refused` |
+| magic, limit 4 KB-aligned in [0x101a0000, 0x101fc000] | 0x20000 up to the limit | to the limit: 368 KB at 0x101fc000, none at 0x101a0000 | `fl1: 368 kbytes raw QSPI flash for swap` |
+| magic, any other limit (one that cuts the root below 0x101a0000, reaches into the loader's 16 KB above 0x101fc000, or is misaligned) | none | absent | `fl: loader stamp limit ... is outside the writable flash; flash writes refused` |
 
 `flash_erase()` and `flash_program()`, the only routines that call the boot
 ROM's erase and program, refuse any operation not wholly inside the
 writable range before the ROM call, so the Dhara root, raw swap,
-`/dev/tempN` and any later writer cannot reach the loader's stage. The swap
-region's start, and so the root filesystem's extent, is the same in every
-row. A configuration whose swap is fl1 stops at the `swap size` panic in
-the last row, after the console line; the loader's stage stays intact and
-its menu stays reachable from the keyboard at power-on. PICOCALC_PSRAM with
+`/dev/tempN` and any later writer cannot reach the loader's stage. A
+refused Dhara write reads to Dhara as a bad block: its journal retries on
+other blocks up to `DHARA_MAX_RETRIES` (8) times, then the request fails
+with EIO; a refused swap write fails with EIO at once. The swap region's
+start, and so the root filesystem's extent, is the same in every row, and
+an accepted limit never cuts the root. A configuration whose swap is fl1
+stops at the `swap size` panic when no swap is left (a limit of
+0x101a0000, or the last row, after its console line); the loader's stage
+stays intact and its menu stays reachable from the keyboard at power-on. PICOCALC_PSRAM with
 a working PSRAM swaps there instead and does not need fl1.
 
 Two more things the loader route changes are handled at boot.

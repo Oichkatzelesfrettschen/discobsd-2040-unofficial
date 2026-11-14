@@ -39,7 +39,8 @@ if ! "$cc" -std=gnu17 -O1 -w -I"$work" -o "$work/test" \
 	exit 2
 fi
 if "$work/test" > "$work/out" 2>&1 &&
-    sh "$here/check_choke.sh" "$work/rp2040/dev/flash.c" >> "$work/out" 2>&1
+    sh "$here/check_choke.sh" "$work/rp2040/dev/flash.c" \
+    "$src/../boot2/boot2_w25q080.S" >> "$work/out" 2>&1
 then
 	echo "mutant survived: $file: $script" >&2
 	exit 1

@@ -104,9 +104,14 @@ test_valid_stamp(void)
 	sweep(end, FLASH_SECTOR_BYTES, 32 * FLASH_SECTOR_BYTES, "loader 4K");
 	sweep(end, FLASH_PROG_BYTES, 4 * FLASH_SECTOR_BYTES, "loader 256");
 
-	/* Each limit the decode accepts, at sector granularity. */
-	for (limit = FLASH_XIP_BASE + FLASH_FS_OFFSET + FLASH_SECTOR_BYTES;
-	    limit <= FLASH_XIP_BASE + FLASH_TOTAL_BYTES;
+	/*
+	 * Each limit the decode accepts, at sector granularity: from the start
+	 * of the swap region, which keeps the root whole, to the loader's own
+	 * limit, which keeps its 16 KB stage out of reach.
+	 */
+	CHECK(LOADER_END == FLASH_TOTAL_BYTES - LOADER_RESERVED_BYTES);
+	for (limit = FLASH_XIP_BASE + FLASH_SWAP_OFFSET;
+	    limit <= FLASH_XIP_BASE + FLASH_TOTAL_BYTES - LOADER_RESERVED_BYTES;
 	    limit += FLASH_SECTOR_BYTES) {
 		end = 0;
 		CHECK(loader_stamp_decode(LOADER_STAMP_MAGIC, limit, &end) ==
@@ -159,6 +164,12 @@ test_invalid_stamps(void)
 		LOADER_LIMIT + 1,
 		LOADER_LIMIT - FLASH_PROG_BYTES,
 		FLASH_XIP_BASE + FLASH_FS_OFFSET,	/* Kernel region end. */
+		FLASH_XIP_BASE + FLASH_FS_OFFSET + 2 * FLASH_SECTOR_BYTES,
+						/* Cuts the root. */
+		FLASH_XIP_BASE + FLASH_SWAP_OFFSET - FLASH_SECTOR_BYTES,
+		LOADER_LIMIT + FLASH_SECTOR_BYTES,	/* Into the loader. */
+		FLASH_XIP_BASE + FLASH_TOTAL_BYTES - FLASH_SECTOR_BYTES,
+		FLASH_XIP_BASE + FLASH_TOTAL_BYTES,	/* The whole chip. */
 		FLASH_XIP_BASE + FLASH_SECTOR_BYTES,	/* Inside the kernel. */
 		FLASH_XIP_BASE,
 		0,
@@ -185,10 +196,11 @@ test_invalid_stamps(void)
 		CHECK(!flash_write_admitted(FLASH_FS_OFFSET, FLASH_SECTOR_BYTES,
 		    end));
 	}
-	/* The top of the chip is a valid limit: the whole chip. */
+	/* The lowest accepted limit keeps the root whole and leaves no swap. */
 	CHECK(loader_stamp_decode(LOADER_STAMP_MAGIC,
-	    FLASH_XIP_BASE + FLASH_TOTAL_BYTES, &end) == LOADER_STAMP_VALID);
-	CHECK(end == FLASH_TOTAL_BYTES);
+	    FLASH_XIP_BASE + FLASH_SWAP_OFFSET, &end) == LOADER_STAMP_VALID);
+	CHECK(end == FLASH_SWAP_OFFSET);
+	CHECK(flash_swap_extent(end) == 0);
 }
 
 static void
@@ -201,6 +213,10 @@ test_swap_extent(void)
 	    FLASH_SECTOR_BYTES);
 	CHECK(flash_swap_extent(LOADER_END) == LOADER_END - 0x1a0000UL);
 	CHECK(flash_swap_extent(FLASH_TOTAL_BYTES) == FLASH_SWAP_BYTES);
+	/* Ends past the chip are capped at the region's full extent. */
+	CHECK(flash_swap_extent(FLASH_TOTAL_BYTES + FLASH_SECTOR_BYTES) ==
+	    FLASH_SWAP_BYTES);
+	CHECK(flash_swap_extent(0xfffff000UL) == FLASH_SWAP_BYTES);
 }
 
 /*

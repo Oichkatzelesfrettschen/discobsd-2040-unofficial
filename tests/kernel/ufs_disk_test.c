@@ -630,10 +630,20 @@ fl_setup(int unit)
 	return 0;
 }
 
+/*
+ * The checkpoint stands in for dhara_map_sync(): it records how many writes
+ * the driver had completed when it ran, and answers with the error a test
+ * sets.
+ */
+static unsigned fl_checkpoint_calls, fl_checkpoint_writes;
+static int fl_checkpoint_error;
+
 static int
 fl_checkpoint(void)
 {
-	return 0;
+	fl_checkpoint_calls++;
+	fl_checkpoint_writes = fl_disk.nwrites;
+	return fl_checkpoint_error;
 }
 
 void
@@ -656,7 +666,10 @@ flstrategy(struct buf *bp)
 	}
 	if (bp->b_flags & B_READ)
 		bcopy(fl_disk.blocks[first], bp->b_addr, DEV_BSIZE);
-	else {
+	else if (fl_disk.fail_writes) {
+		bp->b_error = EIO;
+		bp->b_flags |= B_ERROR;
+	} else {
 		fl_disk.nwrites++;
 		bcopy(bp->b_addr, fl_disk.blocks[first], DEV_BSIZE);
 	}
@@ -959,6 +972,8 @@ boot_machine(void)
 	securelevel = 0;
 	npaths = 0;
 	fl_setup_calls = 0;
+	fl_checkpoint_calls = fl_checkpoint_writes = 0;
+	fl_checkpoint_error = 0;
 	hk_reset_output();
 
 	disk_reset(&sd_disk, 1, IOCTL_FULL);
@@ -1208,6 +1223,103 @@ test_write_error_on_present_media_is_fatal(void)
 	must_mount(SD_A)->m_write_error = 0;
 	HK_CHECK(do_umount("/dev/sd0a") == 0);
 	HK_CHECK(sd_disk.nclose == 1);
+}
+
+/*
+ * The flash root makes completed writes durable only at a checkpoint, which
+ * ufs_sync() requests through DIOCCHECKPOINT after its own writes. The
+ * checkpoint must follow the last write sync() starts, must run when no
+ * buffer is dirty (the driver may still hold uncheckpointed writes), and its
+ * failure must reach fsync and latch in the mount.
+ */
+static void
+dirty_root_block(daddr_t blkno, char value)
+{
+	struct buf *bp = getblk(FL_ROOT, blkno);
+
+	bzero(bp->b_addr, DEV_BSIZE);
+	bp->b_addr[0] = value;
+	bdwrite(bp);
+}
+
+static void
+test_sync_checkpoints_after_last_write(void)
+{
+	unsigned calls, writes;
+
+	boot_machine();
+	dirty_root_block(40, 'C');
+	HK_CHECK(delayed_buffers(FL_ROOT) == 1);
+	calls = fl_checkpoint_calls;
+	writes = fl_disk.nwrites;
+	sync();
+	HK_CHECK(delayed_buffers(FL_ROOT) == 0);
+	HK_CHECK(fl_disk.nwrites > writes);
+	HK_CHECK(fl_checkpoint_calls == calls + 1);
+	HK_CHECK(fl_checkpoint_writes == fl_disk.nwrites);
+}
+
+static void
+test_sync_checkpoints_clean_buffers(void)
+{
+	unsigned calls, writes;
+
+	boot_machine();
+	sync();
+	HK_CHECK(delayed_buffers(FL_ROOT) == 0);
+	calls = fl_checkpoint_calls;
+	writes = fl_disk.nwrites;
+	sync();
+	HK_CHECK(fl_disk.nwrites == writes);
+	HK_CHECK(fl_checkpoint_calls == calls + 1);
+}
+
+static void
+test_fsync_checkpoint_failure_latches(void)
+{
+	struct node node;
+	unsigned calls;
+
+	boot_machine();
+	HK_CHECK(open_node(&node, IFBLK | 0600, SD_A, FREAD | FWRITE) == 0);
+	node.ip->i_number = 4;
+	calls = fl_checkpoint_calls;
+	HK_CHECK(sync_node(&node) == 0);
+	HK_CHECK(fl_checkpoint_calls == calls + 1);
+	fl_checkpoint_error = EIO;
+	HK_CHECK(sync_node(&node) == EIO);
+	HK_CHECK(must_mount(FL_ROOT)->m_write_error == EIO);
+	/* A later successful checkpoint leaves the latched error in place. */
+	fl_checkpoint_error = 0;
+	HK_CHECK(sync_node(&node) == EIO);
+	must_mount(FL_ROOT)->m_write_error = 0;
+	HK_CHECK(sync_node(&node) == 0);
+	close_node(&node);
+}
+
+static void
+test_failed_flush_still_checkpoints(void)
+{
+	unsigned calls;
+
+	boot_machine();
+	dirty_root_block(41, 'F');
+	fl_disk.fail_writes = 1;
+	calls = fl_checkpoint_calls;
+	HK_CHECK(ufs_sync(must_mount(FL_ROOT)) == EIO);
+	HK_CHECK(fl_checkpoint_calls == calls + 1);
+	fl_disk.fail_writes = 0;
+	must_mount(FL_ROOT)->m_write_error = 0;
+}
+
+/* A driver without the command answers its ioctl with an error: no checkpoint. */
+static void
+test_sync_without_checkpoint_command(void)
+{
+	boot_machine();
+	HK_CHECK(do_mount("/dev/xd1", "/mnt", 0) == 0);
+	HK_CHECK(ufs_sync(must_mount(makedev(XD_MAJOR, 1))) == 0);
+	HK_CHECK(do_umount("/dev/xd1") == 0);
 }
 
 static void
@@ -2510,6 +2622,11 @@ main(void)
 	test_write_error_on_present_media_is_fatal();
 	test_cooked_device_explicit_flush_control();
 	test_cooked_device_fsync();
+	test_sync_checkpoints_after_last_write();
+	test_sync_checkpoints_clean_buffers();
+	test_fsync_checkpoint_failure_latches();
+	test_failed_flush_still_checkpoints();
+	test_sync_without_checkpoint_command();
 	test_cooked_same_device_fsync_control();
 	test_cooked_device_fsync_error();
 	test_cooked_device_syncip_error_return();

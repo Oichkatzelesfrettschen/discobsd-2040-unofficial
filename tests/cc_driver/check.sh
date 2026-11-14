@@ -2,7 +2,9 @@
 # Contract of the board's compile driver, distrib/rp2040/cc, under a POSIX sh.
 #
 # The driver's three tools are replaced by one stub that logs its name and
-# arguments and creates the file it was asked to write, and PATH holds one
+# arguments and creates the file it was asked to write (the compiler stub
+# also when it fails, as a compiler that stops midway leaves a partial
+# file), and PATH holds one
 # command, an rm that logs before it removes. A driver that starts any
 # other program (expr, basename, sed) therefore fails with "not found",
 # which is how the launch count is held: each case's log is the complete
@@ -27,10 +29,10 @@ name=${0##*/}
 echo "$name $*" >>"$CC_DRIVER_LOG"
 case $name in
 smlrc)
+	: >"$2"
 	case $1 in
 	*fail*) exit 1 ;;
 	esac
-	: >"$2"
 	;;
 *)
 	previous=

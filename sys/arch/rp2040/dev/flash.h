@@ -95,6 +95,11 @@
  * still fragment the remaining space; 256K failed a 70K image with 115K free
  * in three runs, so 384K keeps room for the largest image beside two others
  * and the gaps.
+ *
+ * FLASH_SWAP_BYTES is the region's full extent. Under the PicoCalc loader
+ * the region stops at the loader's stamped limit instead (loader_stamp.h),
+ * so fl1's size, the swap bound in fl_raw() and nswap come from
+ * flash_swap_extent() at boot; at the loader's limit 0x1fc000 that is 368K.
  */
 #define	FLASH_SWAP_BYTES	(384UL * 1024)
 #define	FLASH_SWAP_OFFSET	(FLASH_TOTAL_BYTES - FLASH_SWAP_BYTES)
@@ -139,6 +144,7 @@ struct buf;
 
 void	*rom_func_lookup(u_int code);
 int	flash_xip_cache(int request);
+void	flash_limit_init(void);
 
 int	flopen(dev_t dev, int flags, int mode);
 int	flclose(dev_t dev, int mode, int flag);

@@ -701,6 +701,12 @@ startup(void)
 #endif
 
 	/*
+	 * Fix the writable flash end from the PicoCalc loader's stamp before
+	 * any device can write flash.
+	 */
+	flash_limit_init();
+
+	/*
 	 * When User button is pressed - boot to single user mode.
 	 */
 	boothowto = 0;

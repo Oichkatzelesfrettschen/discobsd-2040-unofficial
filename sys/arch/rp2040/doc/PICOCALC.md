@@ -851,6 +851,48 @@ alone.
 Flashing follows `distrib/rp2040/host/DEVELOPMENT.md` and needs the
 board in BOOTSEL mode; a board run is an explicit opt-in.
 
+## Coexisting with the PicoCalc UF2 loader
+
+The PicoCalc ships with a UF2 loader (pelrun/uf2loader) that keeps its own
+stage in the top 16 KB of the Pico's flash, 0x101fc000-0x101fffff, and
+flashes applications from the SD card. After it programs an application it
+stamps two words into the application's vector table: the magic 0xe98cc638
+at flash 0x110 and, at 0x114, the first flash address the application may
+not write (0x101fc000; the loader's README calls the word a size, its code
+stores an address). Those are vector entries 4 and 5, which ARMv6-M
+reserves and every DiscoBSD image leaves zero. Its stage enters the
+application with VTOR at 0x10000100, past the loader's own second stage in
+flash bytes 0-255, which replaces DiscoBSD's.
+
+The kernel reads the stamp once, in `startup()` before `config()` attaches
+any device (`flash_limit_init()` in `dev/flash.c`; the decode is
+`dev/loader_stamp.h`):
+
+| Flash 0x110 and 0x114 | Writable flash | fl1 (raw swap) | Console |
+| --- | --- | --- | --- |
+| no magic (any image flashed through BOOTSEL) | 0x20000-0x1fffff | 384 KB | unchanged |
+| magic, limit 4 KB-aligned in (0x10020000, 0x10200000] | 0x20000 up to the limit | to the limit: 368 KB at 0x101fc000 | `fl1: 368 kbytes raw QSPI flash for swap` |
+| magic, any other limit | none | absent | `fl: loader stamp limit ... is outside the writable flash; flash writes refused` |
+
+`flash_erase()` and `flash_program()`, the only routines that call the boot
+ROM's erase and program, refuse any operation not wholly inside the
+writable range before the ROM call, so the Dhara root, raw swap,
+`/dev/tempN` and any later writer cannot reach the loader's stage. The swap
+region's start, and so the root filesystem's extent, is the same in every
+row. A configuration whose swap is fl1 stops at the `swap size` panic in
+the last row, after the console line; the loader's stage stays intact and
+its menu stays reachable from the keyboard at power-on. PICOCALC_PSRAM with
+a working PSRAM swaps there instead and does not need fl1.
+
+Evidence: `check-loader-stamp` proves the decode, the bound and the swap
+writer against the bound on the host, and the wiring of the two
+primitives in the source. The bare route's boot is the Renode boot of
+`check-renode`. No kernel has been booted from the loader on a board or in
+Renode, so the stamped path stands on source reading and the host gate
+alone. Two further collisions stay open: the loader's path text at
+0x118-0x12b overlays the image identity words, and an application flashed
+later from the menu erases the flash root above 128 KB.
+
 ## Next work, with designs and blockers
 
 Each item names what it needs, the design, and the check that would

@@ -53,6 +53,7 @@ check:
 .elif empty(QEMU_ARM)
 	@echo "SKIP time64 wrappers: qemu-arm unavailable; no ARM execution occurred"
 .else
+	${QEMU_ARM_CC} ${TREE_CFLAGS} -D_TIME_BITS=64 -fsyntax-only signal_first.c
 	@${MAKE} ${PREFIX}_time64_test_arm
 	${QEMU_ARM_RUN} ./${PREFIX}_time64_test_arm
 	@sh ./check.sh "${MAKE}" "${QEMU_ARM_RUN}" ${GCCPREFIX}-nm

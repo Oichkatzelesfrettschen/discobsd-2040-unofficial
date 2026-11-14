@@ -195,7 +195,8 @@ claim; a clean captured distribution remains the deciding measurement.
 The [authorized read-only review](native-linker-approved-review.json) covers
 main `9561fd1c` through candidate `66ce7c5b` and reports no actionable
 correctness defects. The reviewer runs no tests; the qualification records
-above own executed evidence. Resource approval and integration remain open.
+above own executed evidence. The approved limits appear under calendar
+baseline qualification; reviewed integration remains open.
 Shared-library veneers and the wider XIP ABI retain their own implementation
 and qualification work.
 
@@ -207,8 +208,8 @@ in 3,537.686 seconds. The invocation
 `2026-11-14T04:16:35Z`. Its terminal receipt has SHA-256
 `193f99c77d652d5c03e0cd821c35836cdbc83eb4eec0c9d7707ae0c1f8b9481b`.
 The receipt covers the aggregate tiers, including board compilation; physical
-board execution remains outside its evidence. The separate ILP32 inventory passes all 207 entries in 667.791 seconds at
-the same source commit. Its invocation
+board execution remains outside its evidence. The separate ILP32 inventory
+passes all 207 entries in 667.791 seconds at the same source commit. Its invocation
 `rp2040-ilp32-local-20261114T040905Z-3835923-948f9329` completes at
 `2026-11-14T04:20:13Z` with terminal receipt SHA-256
 `1e09f6f618117144492b8f0f6d12d06c1bb5a048022766ff8bb3e18431f878a4`.

@@ -266,27 +266,72 @@ int fs_open (fs_t *fs, const char *filename, int writable, unsigned pindex)
 }
 
 /*
- * Bound a timestamp by SOURCE_DATE_EPOCH. With the variable set to a
- * decimal count of seconds, no time written to an image is later than it,
- * so equal inputs give equal images, and a file is never newer than the
- * table date ranlib writes into an archive from the same variable (ld
- * reads an archive whose file is newer than its table as unsorted). The
- * image fits a time in 32 bits, which bounds the accepted value. An
- * absent or malformed value leaves the observed time.
+ * The image stores every time as an unsigned 32-bit count of seconds since
+ * 1970 (the kernel's utime32_t), so a time setting holds 0 through
+ * FS_TIME_MAX, which is the year 2106; a count with bit 31 set is a date
+ * after January 2038.
+ */
+#define FS_TIME_MAX 0xffffffffULL
+
+/*
+ * Read the time setting NAME, a decimal count of seconds in 0 through
+ * FS_TIME_MAX with no sign, space or suffix. Returns 1 and the count when
+ * the variable is set, and 0 when it is absent or, with EMPTY_UNSET, empty.
+ * A value outside the range exits with status 1 after a message on stderr,
+ * so a mistyped date never falls back to the host clock.
+ */
+static int env_seconds (const char *name, int empty_unset,
+    unsigned long long *seconds)
+{
+    const char *text = getenv (name);
+    char *end;
+
+    if (text == NULL || (empty_unset && *text == '\0'))
+        return 0;
+    if (*text >= '0' && *text <= '9') {
+        errno = 0;
+        *seconds = strtoull (text, &end, 10);
+        if (errno == 0 && *end == '\0' && *seconds <= FS_TIME_MAX)
+            return 1;
+    }
+    fprintf (stderr, "fsutil: %s must be a decimal count of seconds "
+        "from 0 to 4294967295, not \"%s\"\n", name, text);
+    exit (1);
+}
+
+/*
+ * Exit with a message when FSUTIL_CLOCK or SOURCE_DATE_EPOCH holds a bad
+ * value. A mode that writes an image calls it before it opens one, so a
+ * rejected value leaves no half-written image.
+ */
+void fs_clock_validate (void)
+{
+    unsigned long long seconds;
+
+    (void) env_seconds ("FSUTIL_CLOCK", 0, &seconds);
+    (void) env_seconds ("SOURCE_DATE_EPOCH", 1, &seconds);
+}
+
+/*
+ * The time written to an image in place of OBSERVED. With FSUTIL_CLOCK set
+ * to a count of seconds, every time is that count, whatever OBSERVED, the
+ * host clock and SOURCE_DATE_EPOCH hold, so a test can build an image dated
+ * past 2038. Otherwise SOURCE_DATE_EPOCH bounds the time: no time written to
+ * an image is later than it, so equal inputs give equal images, and a file
+ * is never newer than the table date ranlib writes into an archive from the
+ * same variable (ld reads an archive whose file is newer than its table as
+ * unsorted). An empty SOURCE_DATE_EPOCH leaves the observed time.
  */
 time_t fs_source_time (time_t observed)
 {
-    const char *text = getenv ("SOURCE_DATE_EPOCH");
-    char *end;
-    unsigned long long epoch;
+    unsigned long long fixed, epoch;
 
-    if (text == NULL || *text < '0' || *text > '9')
-        return observed;
-    errno = 0;
-    epoch = strtoull (text, &end, 10);
-    if (errno != 0 || *end != '\0' || epoch > 0x7fffffffULL)
-        return observed;
-    return observed > (time_t) epoch ? (time_t) epoch : observed;
+    if (env_seconds ("FSUTIL_CLOCK", 0, &fixed))
+        return (time_t) fixed;
+    if (env_seconds ("SOURCE_DATE_EPOCH", 1, &epoch) &&
+        (long long) observed > (long long) epoch)
+        return (time_t) epoch;
+    return observed;
 }
 
 /*

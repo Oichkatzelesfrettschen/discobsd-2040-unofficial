@@ -83,6 +83,22 @@ sys/arch/rp2040/doc/TESTING.md leave it out on macOS.
 | `bin/sh/tests/posix-sh.sh` | Linux x86-64 only: it builds a 32-bit host binary | none |
 | `tests/rp2040/uarea_exchange` | Linux only: needs qemu-arm user-mode emulation, which Homebrew's qemu does not build | none |
 
+## Image time stamps
+
+`tools/fsutil` writes every time in a root image (the superblock time and the
+inode times) as an unsigned 32-bit count of seconds since 1970, valid to
+2106. The build exports `SOURCE_DATE_EPOCH` (the committer date of HEAD
+unless the caller sets it), which bounds every time from above, so equal
+sources give equal images. `FSUTIL_CLOCK=N` replaces the bound with a fixed
+clock: every time in the image is the count N, whatever `SOURCE_DATE_EPOCH`
+and the host clock hold. A test that boots with a clock past January 2038
+builds its image with `FSUTIL_CLOCK=2415919104` (0x90000000, July 2046) in
+the environment of `bmake MACHINE=rp2040 flash`. Both variables take a
+decimal count from 0 to 4294967295; any other value stops `fsutil` with
+status 1 before it opens an image. `fsutil -vvv IMAGE` prints the times in
+the image, and `TZ=UTC` makes the text independent of the host zone.
+`tests/fsutil_clock` gates the behavior (`check-fsutil-clock`).
+
 ## Reflashing
 
 `discobsd-flash` (POSIX sh, Linux and macOS) and `discobsd-flash.ps1`

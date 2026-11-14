@@ -940,6 +940,39 @@ write_zone_transition(unsigned long at, long first, long second)
 	return (close(fd));
 }
 
+/* Two transitions and three types, at the counts 600 and 1800. */
+static int
+write_zone_transitions(void)
+{
+	unsigned char buf[84];
+	int fd;
+
+	memset(buf, 0, sizeof(buf));
+	memcpy(buf, "TZif", 4);
+	put32(buf + 32, 2);		/* tzh_timecnt */
+	put32(buf + 36, 3);		/* tzh_typecnt */
+	put32(buf + 40, 12);		/* tzh_charcnt */
+	put32(buf + 44, 600L);
+	put32(buf + 48, 1800L);
+	buf[52] = 1;			/* the type each transition starts */
+	buf[53] = 2;
+	put32(buf + 54, 3600L);
+	buf[59] = 0;
+	put32(buf + 60, 5400L);
+	buf[65] = 4;
+	put32(buf + 66, 7200L);
+	buf[71] = 8;
+	memcpy(buf + 72, "AAA\0BBB\0CCC", 12);
+	fd = creat(ZONE_PATH, 0644);
+	if (fd == -1)
+		return (-1);
+	if (write(fd, buf, sizeof(buf)) != (ssize_t)sizeof(buf)) {
+		(void)close(fd);
+		return (-1);
+	}
+	return (close(fd));
+}
+
 /*
  * An offset that changes within an hour of the start of the range: one
  * hour east before the count 1800 and two hours east from it on. The local
@@ -954,7 +987,7 @@ static void
 test_zone_transition_edges(void)
 {
 	struct tm tm;
-	time_t zero = 0, last = (time_t)ORACLE_COUNT_MAX;
+	time_t zero = 0, last = (time_t)ORACLE_COUNT_MAX, t900;
 	int wrong;
 
 	if (write_zone_transition(1800UL, 3600L, 7200L) != 0) {
@@ -988,6 +1021,30 @@ test_zone_transition_edges(void)
 	round_trip_band(ORACLE_COUNT_MAX - 86399UL, ORACLE_COUNT_MAX, &wrong);
 	check(wrong == 0,
 	    "transition edges: a count of the last day did not round-trip");
+
+	/*
+	 * Three offsets within the first hour: one hour east before the
+	 * count 600, ninety minutes east before 1800 and two hours east from
+	 * it on. 01:45:00 is the count 900 alone, which neither the offset
+	 * at the first guess nor the one at the count 0 reaches.
+	 */
+	if (write_zone_transitions() != 0) {
+		check(0, "transition edges: the zone file could not be written");
+		return;
+	}
+	db_tzset();
+	t900 = 900;
+	check(db_localtime(&t900)->tm_gmtoff == 5400L,
+	    "transition edges: the middle offset is not in force at 900");
+	tm = *db_localtime(&t900);
+	tm.tm_isdst = -1;
+	tm.tm_wday = -1;
+	check(db_mktime(&tm) == t900 && tm.tm_wday != -1,
+	    "transition edges: 01:45:00 between two changes did not convert");
+	wrong = 0;
+	round_trip_band(0UL, 86399UL, &wrong);
+	check(wrong == 0,
+	    "transition edges: a count beside two changes did not round-trip");
 
 	putenv("TZ=");
 	db_tzset();

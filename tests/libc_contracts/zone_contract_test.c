@@ -28,6 +28,7 @@
  *     a transition before 1970 precedes every instant, and an instant with
  *     bit 31 set follows every transition a first-version file can name.
  */
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -406,6 +407,8 @@ test_no_file_is_read(void)
 int
 main(void)
 {
+	char report[80];
+
 #ifdef TZ_ZONEINFO
 	test_well_formed_zone();
 	test_search_stops_at_typecnt();
@@ -418,10 +421,9 @@ main(void)
 #endif
 
 	(void)unlink(ZONE_PATH);
-	if (failure_count != 0) {
-		(void)write(STDERR_FILENO, "zone contract tests failed\n", 27);
-		return (1);
-	}
-	(void)write(STDERR_FILENO, "zone contract tests passed\n", 27);
-	return (0);
+	(void)snprintf(report, sizeof report, "zone contract tests %s: "
+	    "%d checks, %d failures\n", failure_count != 0 ? "failed" : "passed",
+	    check_count, failure_count);
+	(void)write(STDERR_FILENO, report, strlen(report));
+	return (failure_count != 0);
 }

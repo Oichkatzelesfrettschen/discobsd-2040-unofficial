@@ -376,6 +376,12 @@ check-passwd-header-contracts: check-python .WAIT symlinks
 		    --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/passwd-header-contracts.json
 
+check-record-header-contracts: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/record_header_contracts.py --root ${TOPSRC:Q} \
+		    --host-cc ${HOST_CC:Ucc:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/record-header-contracts.json
+
 check-string-header-contracts: check-python .WAIT symlinks
 		@mkdir -p .build-logs
 		${PYTHON} tools/c17/string_header_contracts.py --root ${TOPSRC:Q} \
@@ -530,6 +536,14 @@ check-kernel-printf-formats:	check-python
 
 check-aout:
 		${MAKE} -C tests/aout_header check
+
+check-native-linker: check-python
+		${MAKE} -C tools/aoututils/ld all
+		${PYTHON} tests/native_linker/readers.py
+		${PYTHON} tests/native_linker/branches.py
+		${PYTHON} tests/native_linker/calibrate.py
+
+.PHONY: check-native-linker
 
 # The host filesystem library every root image is built with, exercised
 # through the allocation patterns that break one and checked with the
@@ -1493,7 +1507,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-rmdir-contracts check-tee-contracts check-time-contracts \
 		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
-		check-aout check-kernel check-fs-stress check-fsck-inode-range \
+		check-aout check-native-linker check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts check-backgammon-contracts \
@@ -1523,7 +1537,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times
-CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts \
+CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
@@ -1829,6 +1843,16 @@ check-libc-xip-object-abi: check-python
 
 .PHONY: check-libc-xip-object-abi
 
+check-libc-xip-rom: check-python
+		${PYTHON} tests/libc_xip_rom/run.py
+
+.PHONY: check-libc-xip-rom
+
+check-native-call-veneer: check-python
+		${PYTHON} tests/native_linker/veneers.py
+
+.PHONY: check-native-call-veneer
+
 check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} check-aeabi-copy-qemu
@@ -1836,6 +1860,8 @@ check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-packed-exec-control-qemu
 		${MAKE} check-exec-dispatch-qemu
 		${MAKE} check-libc-xip-object-abi
+		${MAKE} check-libc-xip-rom
+		${MAKE} check-native-call-veneer
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
@@ -2106,4 +2132,4 @@ installfs:
 
 .PHONY: check-sysctl-status
 
-.PHONY: check-passwd-header-contracts check-string-header-contracts
+.PHONY: check-passwd-header-contracts check-string-header-contracts check-record-header-contracts

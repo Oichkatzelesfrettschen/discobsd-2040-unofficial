@@ -142,3 +142,55 @@ The engineering contribution is the verified composition of executable-tail
 object imports with DiscoBSD BSS overlays and a.out conversion. PIC, GOTs and
 link-time symbol imports have established prior art; this experiment establishes
 no new algorithm or full POSIX/UNIX conformance claim.
+
+## Shared syscall error state
+
+`SYS_ERROR` in `lib/libc/arm/sys/SYS.h` stores the error value from `r0` and
+returns `-1`. Explicit `DISCOBSD_SHARED_LIBC=1` assembly obtains the `errno`
+address from the process-local GOT through `r9`. The path uses caller-saved
+`r1` and `r2`, leaves `r9`, the stack and the return address intact, and places
+its GOT-offset literal after the return. Static assembly keeps the absolute
+literal. The specialized `pipe`, `_brk`, `ptrace` and `sigaction` paths share
+this mechanism; `ptrace` also uses the same address mechanism when clearing
+`errno` before its supervisor call, with argument registers saved.
+
+The gate checks static `R_ARM_ABS32` and shared `R_ARM_GOT_BREL` errno
+relocations in the generated and specialized wrappers. Its runtime fixture
+executes the production error-return macro with error value 9 and checks
+`-1`, the public `errno` value and object identity across five application
+layouts. An absolute-address error-return fixture fails the code-state
+relocation verifier before runtime. The supervisor-call transition, kernel
+carry flag delivery and shared signal return remain separate obligations.
+The shared selector is experimental and has no production build-mode wiring.
+
+[The ROM dispatch register experiment](rom-dispatch-registers.md) establishes a
+hot-call candidate with preserved double-precision operands and identifies the
+paired cold-descriptor and resolver changes that remain before integration.
+
+The production ROM macros and resolver provide the explicit shared selector.
+[The ROM gate contract](../../../../sys/arch/rp2040/doc/TESTING.md) owns its
+descriptor layout, bounds, modeled execution and remaining qualification.
+`check-libc-xip-rom` exercises the cold and hot paths; the earlier register
+experiment remains the retained isolated-sequence measurement.
+
+## Recorded ROM integration qualification
+
+Candidate `b39e4709c20502268791aae36cfa675ba6fdbdf7` includes main's calendar
+integration at `9561fd1c`. [Its receipt](rom-main-qualification.json) binds the
+logged build, shared-ROM and object-ABI gates, native-linker contracts and C17
+accounting to retained log hashes. Clang executes all four calendar variants
+outside the sandbox: native, ILP32, address/undefined sanitizer, and ILP32 with
+those sanitizers. Each executes 28,465 checks without failure. Sandboxed
+compiler probes receive `Bad system call` and skip these runtime variants;
+the unrestricted host rerun distinguishes that restriction from missing tools.
+
+The earlier static archive identity and PIC size measurements retain their
+recorded source revisions. Main's calendar changes require a new matched
+resource capture before the integrated candidate receives a resource verdict.
+The recorded checks establish neither full aggregate qualification nor shared
+physical-board execution.
+
+The [calendar-baseline resource comparison](../../native-linker-resource-review.md)
+supplies the subsequent matched clean capture. It reproduces the pending linker
+exception and identifies changed program and kernel artifacts for renewed
+runtime qualification; it grants no resource approval.

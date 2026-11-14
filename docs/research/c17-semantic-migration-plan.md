@@ -192,6 +192,13 @@ The [export-closure record](xip-shared-libc/export-closure/README.md) adds a
 calibrated prerequisite: explicit public roots determine archive membership,
 and input-section screening stays separate from final PIC size. Public ABI
 selection, complete state layout and runtime admission remain open.
+The [declaration frontier](shared-libc-declaration-frontier.md) records bounded
+header/provider comparison and callable-math gaps for the export-selection
+queue. Whole-header coverage and semantic acceptance remain open.
+The [native-call veneer record](native-call-veneers.md) establishes a calibrated
+instruction mechanism and the requirement to preserve canonical function
+pointers while redirecting branches. Automatic final-link insertion, stable
+slots, and shared-format emission remain the next native-linker dependencies.
 
 `c17-shipped-build-baseline.md` records the implemented capture/closure/resource
 foundation, first captured at `e7040aa1` and re-recorded at `3626ccf3`. Its
@@ -1208,3 +1215,9 @@ witnesses cover the defined representability domain. Native archive omission
 controls reject each missing member. Matched whole-image resources and complete
 qualification remain open; the shared-libc export contract retains its separate
 public-root audit and fixed flash reservation.
+
+The [record-header inclusion contracts](record-header-inclusion.md) track
+group, device and login-record prerequisites, target layout, native compiler
+input and caller closure. Inclusion repair preserves the existing signed group
+identifier and time-selected login-record ABI; POSIX type and namespace
+conformance remain separate requirements.

@@ -45,6 +45,7 @@
 #endif
 #include <errno.h>
 #include <stdarg.h>
+#include <limits.h>
 #include <a.out.h>
 #include <ar.h>
 #include <ranlib.h>
@@ -147,16 +148,17 @@ char    tfname [] = "/tmp/ldaXXXXXX";
 
 #define ALIGN(x,y)     ((x)+(y)-1-((x)+(y)-1)%(y))
 
+void error(int level, const char *format, ...);
+
 unsigned int
 fgetword(FILE *f)
 {
-        register unsigned int h;
+        unsigned char bytes[4];
 
-        h = getc (f);
-        h |= getc (f) << 8;
-        h |= getc (f) << 16;
-        h |= getc (f) << 24;
-        return h;
+        if (fread(bytes, 1, sizeof(bytes), f) != sizeof(bytes))
+                error(2, "truncated input word");
+        return (unsigned int)bytes[0] | (unsigned int)bytes[1] << 8 |
+               (unsigned int)bytes[2] << 16 | (unsigned int)bytes[3] << 24;
 }
 
 void
@@ -199,21 +201,24 @@ fputhdr(struct exec *hdr, FILE *coutb)
  * Read a Thumb sparse relocation record: 5 or 8 bytes.
  * The record carries the segment offset it patches, so a BL split across
  * a word boundary and a halfword branch both address their own bytes.
+ * The caller supplies the flags byte; the stream starts at the address field.
  */
 void
-fgetrel_thumb(FILE *f, struct reloc *r)
+fgetrel_thumb(FILE *f, struct reloc *r, int flags)
 {
-        r->flags = getc (f);
-        r->addr = getc (f);
-        r->addr |= getc (f) << 8;
-        r->addr |= getc (f) << 16;
-        r->addr |= getc (f) << 24;
+        unsigned char index[3];
+
+        if (flags == EOF)
+                error(2, "truncated input relocation flags");
+        r->flags = flags;
+        r->addr = fgetword(f);
         r->offset = 0;
         r->index = 0;
         if ((r->flags & RSMASK) == REXT) {
-                r->index = getc (f);
-                r->index |= getc (f) << 8;
-                r->index |= getc (f) << 16;
+                if (fread(index, 1, sizeof(index), f) != sizeof(index))
+                        error(2, "truncated input relocation index");
+                r->index = (unsigned)index[0] | (unsigned)index[1] << 8 |
+                           (unsigned)index[2] << 16;
         }
 }
 
@@ -269,24 +274,53 @@ error(int n, const char *s, ...)
 	errlev = n;
 }
 
+/* The caller supplies the length byte before the type, value, and name. */
 int
-fgetsym(FILE *text, struct nlist *sym)
+fgetsym(FILE *text, struct nlist *sym, int length)
 {
 	register int c;
 
-	c = getc (text);
-	if (c <= 0)
+	if (length <= 0)
 		return 0;
-	sym->n_len = c;
+	sym->n_len = length;
 	sym->n_name = malloc (sym->n_len + 1);
 	if (! sym->n_name)
 		error (2, "out of memory");
-	sym->n_type = getc (text);
+	c = getc (text);
+	if (c == EOF)
+		error (2, "truncated input symbol type");
+	sym->n_type = c;
 	sym->n_value = fgetword (text);
-	for (c=0; c<sym->n_len; c++)
-		sym->n_name [c] = getc (text);
+	if (fread(sym->n_name, 1, sym->n_len, text) != sym->n_len)
+		error (2, "truncated input symbol name");
 	sym->n_name [sym->n_len] = '\0';
 	return sym->n_len + 6;
+}
+
+int
+fgetsym_bounded(FILE *input, struct nlist *symbol, unsigned *remaining)
+{
+        int length, consumed;
+
+        if (*remaining == 0)
+                return 0;
+        length = getc(input);
+        if (length == EOF)
+                error(2, "truncated input symbol table");
+        if (length == 0) {
+                --*remaining;
+                while (*remaining != 0) {
+                        if (getc(input) != 0)
+                                error(2, "invalid input symbol padding");
+                        --*remaining;
+                }
+                return 0;
+        }
+        if ((unsigned)length + 6 > *remaining)
+                error(2, "symbol exceeds declared table extent");
+        consumed = fgetsym(input, symbol, length);
+        *remaining -= consumed;
+        return consumed;
 }
 
 void
@@ -572,13 +606,58 @@ reltype(int stype)
 }
 
 struct nlist *
-lookloc(struct local *lp, unsigned int sn)
+look_absolute(unsigned int sn, unsigned int symbols_at)
+{
+        long saved = ftell(text);
+        unsigned remaining = filhdr.a_syms, index = 0;
+        struct nlist symbol, *entry, *found = NULL;
+        int length;
+
+        if (saved < 0 || fseek(text, symbols_at, SEEK_SET) != 0)
+                error(2, "cannot seek input symbols");
+        while (remaining != 0) {
+                length = getc(text);
+                if (length <= 0)
+                        break;
+                if ((unsigned)length + 6 > remaining)
+                        error(2, "truncated input symbol extent");
+                if (index == sn) {
+                        if (!fgetsym(text, &symbol, length))
+                                error(2, "cannot read input symbol");
+                        if (symbol.n_type == N_EXT + N_ABS)
+                                for (entry = symtab; entry < symtab + symindex; entry++)
+                                        if (entry->n_type == symbol.n_type &&
+                                            entry->n_value == symbol.n_value &&
+                                            strcmp(entry->n_name, symbol.n_name) == 0) {
+                                                found = entry;
+                                                break;
+                                        }
+                        free(symbol.n_name);
+                        break;
+                }
+                if (fseek(text, length + 5L, SEEK_CUR) != 0)
+                        error(2, "cannot skip input symbol");
+                remaining -= length + 6;
+                index++;
+        }
+        if (fseek(text, saved, SEEK_SET) != 0)
+                error(2, "cannot restore input position");
+        return found;
+}
+
+struct nlist *
+lookloc(struct local *lp, unsigned int sn, unsigned int symbols_at)
 {
 	register struct local *clp;
+        struct nlist *absolute;
 
 	for (clp=local; clp<lp; clp++)
 		if (clp->locindex == sn)
 			return (clp->locsymbol);
+        /* Absolute definitions leave the bounded undefined-symbol table free. */
+        absolute = look_absolute(sn, symbols_at);
+        if (absolute != NULL)
+                return absolute;
 	if (trace) {
 		fprintf (stderr, "*** %u ***\n", sn);
 		for (clp=local; clp<lp; clp++)
@@ -629,11 +708,12 @@ signext(unsigned int v, int nbits)
  */
 void
 relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
-    unsigned int origin)
+    unsigned int origin, unsigned int symbols_at)
 {
         register struct nlist *sp = 0;
-        unsigned delta, hw1, hw2, word;
-        int addend, disp;
+        unsigned delta, hw1, hw2, word, disp;
+        unsigned incoming_segment = rel->flags & RSMASK;
+        int addend;
         long at = base + rel->addr;
 
         switch (rel->flags & RSMASK) {
@@ -647,13 +727,21 @@ relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
                 delta = cbrel;
                 break;
         case REXT:
-                sp = lookloc (lp, rel->index);
+                sp = lookloc (lp, rel->index, symbols_at);
                 if (sp->n_type == N_EXT+N_UNDF ||
                     sp->n_type == N_EXT+N_COMM) {
                         rel->index = nsym + (sp - symtab);
                         sp = 0;
                         delta = 0;
                 } else {
+                        /* A fixed target's displacement changes when the caller moves. */
+                        if (output_relinfo && sp->n_type == N_EXT + N_ABS &&
+                            ((rel->flags & RTFMASK) == RTCALL ||
+                             (rel->flags & RTFMASK) == RTJUMP11 ||
+                             (rel->flags & RTFMASK) == RTJUMP8)) {
+                                rel->index = nsym + (sp - symtab);
+                                return;
+                        }
                         rel->flags &= RTFMASK;
                         rel->flags |= reltype (sp->n_type);
                         delta = sp->n_value;
@@ -667,10 +755,7 @@ relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
         switch (rel->flags & RTFMASK) {
         case RTABS32:
                 fseek (b1, at, 0);
-                word = getc (b1) & 0xff;
-                word |= (getc (b1) & 0xff) << 8;
-                word |= (getc (b1) & 0xff) << 16;
-                word |= (getc (b1) & 0xff) << 24;
+                word = fgetword(b1);
                 word += delta;
                 fseek (b1, at, 0);
                 putc (word, b1);
@@ -688,7 +773,7 @@ relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
                  * time, so an RABS record is left alone. An unresolved
                  * external likewise keeps its addend for the next link.
                  */
-                if ((rel->flags & RSMASK) == RABS)
+                if (incoming_segment == RABS)
                         break;
                 if ((rel->flags & RSMASK) == REXT && ! sp)
                         break;
@@ -696,9 +781,8 @@ relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
                 hw2 = fpeekhalf (b1, at + 2);
                 addend = signext (((hw1 & 0x7ff) << 12) |
                                   ((hw2 & 0x7ff) << 1), 23);
-                disp = (int) ((addend + delta) & ~1u) -
-                       (int) (origin + rel->addr + 4);
-                if (disp < -(1 << 22) || disp >= (1 << 22))
+                disp = ((addend + delta) & ~1u) - (origin + rel->addr + 4);
+                if (disp + (1u << 22) >= (1u << 23))
                         error (2, "Thumb BL out of range");
                 fpokehalf (b1, at, 0xf000 | ((disp >> 12) & 0x7ff));
                 fpokehalf (b1, at + 2, 0xf800 | ((disp >> 1) & 0x7ff));
@@ -706,30 +790,28 @@ relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
                 break;
 
         case RTJUMP11:
-                if ((rel->flags & RSMASK) == RABS)
+                if (incoming_segment == RABS)
                         break;
                 if ((rel->flags & RSMASK) == REXT && ! sp)
                         break;
                 hw1 = fpeekhalf (b1, at);
                 addend = signext ((hw1 & 0x7ff) << 1, 12);
-                disp = (int) ((addend + delta) & ~1u) -
-                       (int) (origin + rel->addr + 4);
-                if (disp < -2048 || disp > 2046)
+                disp = ((addend + delta) & ~1u) - (origin + rel->addr + 4);
+                if (disp + 2048u >= 4096u)
                         error (2, "Thumb branch out of range");
                 fpokehalf (b1, at, 0xe000 | ((disp >> 1) & 0x7ff));
                 rel->flags = (rel->flags & RTFMASK) | RABS;
                 break;
 
         case RTJUMP8:
-                if ((rel->flags & RSMASK) == RABS)
+                if (incoming_segment == RABS)
                         break;
                 if ((rel->flags & RSMASK) == REXT && ! sp)
                         break;
                 hw1 = fpeekhalf (b1, at);
                 addend = signext ((hw1 & 0xff) << 1, 9);
-                disp = (int) ((addend + delta) & ~1u) -
-                       (int) (origin + rel->addr + 4);
-                if (disp < -256 || disp > 254)
+                disp = ((addend + delta) & ~1u) - (origin + rel->addr + 4);
+                if (disp + 256u >= 512u)
                         error (2, "Thumb conditional branch out of range");
                 fpokehalf (b1, at, (hw1 & 0xff00) | ((disp >> 1) & 0xff));
                 rel->flags = (rel->flags & RTFMASK) | RABS;
@@ -748,30 +830,62 @@ relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
  */
 void
 relocate_thumb(struct local *lp, FILE *b1, FILE *b2, unsigned int len,
-    unsigned int origin, unsigned int relsize)
+    unsigned int origin, unsigned int relsize, unsigned int symbols_at)
 {
         struct reloc rel;
-        unsigned n;
+        unsigned n, record_size, width;
         long base;
         int c;
 
         base = ftell (b1);
         for (n = 0; n < len; n++) {
                 c = getc (text);
-                putc (c == EOF ? 0 : c, b1);
+                if (c == EOF)
+                        error(2, "truncated input section");
+                putc (c, b1);
         }
         /*
          * The relocation section is padded to a word, so a tail shorter
          * than the smallest record is padding rather than a record.
          */
-        for (n = 0; n + 5 <= relsize; ) {
-                fgetrel_thumb (reloc, &rel);
-                n += ((rel.flags & RSMASK) == REXT) ? 8 : 5;
-                relthumb (lp, b1, &rel, base, origin);
+        for (n = 0; relsize - n >= 5; ) {
+                c = getc(reloc);
+                if (c == EOF)
+                        error(2, "truncated input relocation flags");
+                record_size = ((c & RSMASK) == REXT) ? 8 : 5;
+                if (record_size > relsize - n)
+                        error(2, "truncated relocation record extent");
+                fgetrel_thumb (reloc, &rel, c);
+                n += record_size;
+                switch (rel.flags & RTFMASK) {
+                case RTABS32:
+                case RTCALL:
+                        width = 4;
+                        break;
+                case RTJUMP11:
+                case RTJUMP8:
+                        width = 2;
+                        break;
+                default:
+                        error(2, "bad Thumb relocation format");
+                        return;
+                }
+                if (rel.addr > len || width > len - rel.addr)
+                        error(2, "relocation outside input section");
+                relthumb (lp, b1, &rel, base, origin, symbols_at);
                 if (output_relinfo) {
                         rel.addr += base;
                         fputrel_thumb (&rel, b2);
                 }
+        }
+        if (relsize - n > 3)
+                error(2, "invalid relocation padding extent");
+        for (; n < relsize; n++) {
+                c = getc(reloc);
+                if (c == EOF)
+                        error(2, "truncated relocation padding");
+                if (c != 0)
+                        error(2, "invalid relocation padding");
         }
         fseek (b1, base + len, 0);
 }
@@ -957,9 +1071,38 @@ slookup(char *s)
 void
 readhdr(unsigned int loc)
 {
-	fseek (text, loc, 0);
+        long end;
+        unsigned remaining, lengths[6], index;
+
+        if (fseek(text, 0, SEEK_END) != 0)
+                error(2, "cannot seek input end");
+        end = ftell(text);
+        if (end < 0 ||
+            (unsigned long)end > UINT_MAX || (unsigned long)loc > (unsigned long)end)
+                error(2, "cannot determine input extent");
+        remaining = (unsigned)end - loc;
+        if (loc != 0) {
+                if (archdr.ar_size < 0 || (unsigned long)archdr.ar_size > remaining)
+                        error(2, "archive member exceeds input extent");
+                remaining = archdr.ar_size;
+        }
+        if (remaining < HDRSZ)
+                error(2, "object header exceeds input extent");
+        if (fseek(text, loc, SEEK_SET) != 0)
+                error(2, "cannot seek input header");
 	if (! fgethdr (text, &filhdr))
 		error (2, "bad format");
+        lengths[0] = HDRSZ;
+        lengths[1] = filhdr.a_text;
+        lengths[2] = filhdr.a_data;
+        lengths[3] = filhdr.a_reltext;
+        lengths[4] = filhdr.a_reldata;
+        lengths[5] = filhdr.a_syms;
+        for (index = 0; index < 6; index++) {
+                if (lengths[index] > remaining)
+                        error(2, "object sections exceed input extent");
+                remaining -= lengths[index];
+        }
 	if (N_GETMAGIC(filhdr) != RMAGIC)
 		error (2, "bad magic");
 	/*
@@ -983,6 +1126,7 @@ load1(unsigned int loc, int libflg, int nloc)
 {
 	register struct nlist *sp;
 	int savindex, ndef, type, symlen, nsymbol;
+        unsigned remaining;
 
 	readhdr (loc);
 	if (N_GETMAGIC(filhdr) != RMAGIC) {
@@ -1004,8 +1148,9 @@ load1(unsigned int loc, int libflg, int nloc)
                 nsymbol = 1;
         else
                 nsymbol = 0;
+        remaining = filhdr.a_syms;
 	for (;;) {
-		symlen = fgetsym (text, &cursym);
+		symlen = fgetsym_bounded(text, &cursym, &remaining);
 		if (symlen == 0)
 			break;
 		type = cursym.n_type;
@@ -1419,7 +1564,7 @@ load2(unsigned int loc)
 	register struct local *lp;
 	register int symno;
 	int type;
-	unsigned count;
+	unsigned count, remaining;
 
 	readhdr (loc);
 	ctrel = torigin;
@@ -1438,9 +1583,10 @@ load2(unsigned int loc)
 	loc += HDRSZ;
 	fseek (text, loc + filhdr.a_text + filhdr.a_data +
                 filhdr.a_reltext + filhdr.a_reldata, 0);
+        remaining = filhdr.a_syms;
 	for (;;) {
 		symno++;
-		count = fgetsym (text, &cursym);
+		count = fgetsym_bounded(text, &cursym, &remaining);
 		if (count == 0)
 			break;
 		symreloc ();
@@ -1473,7 +1619,7 @@ load2(unsigned int loc)
 		if (cursym.n_type != sp->n_type ||
 			cursym.n_value != sp->n_value)
 		{
-			printf ("%s: ", cursym.n_name);
+			printf ("%s: ", sp->n_name);
 			error (1, "name redefined");
 		}
 	}
@@ -1485,14 +1631,14 @@ load2(unsigned int loc)
 	fseek (text, loc, 0);
 	fseek (reloc, count, 0);
 	relocate_thumb (lp, toutb, troutb, filhdr.a_text, torigin,
-		filhdr.a_reltext);
+		filhdr.a_reltext, count + filhdr.a_reltext + filhdr.a_reldata);
 
 	if (trace > 1)
 		printf ("-- data --\n");
 	fseek (text, loc + filhdr.a_text, 0);
 	fseek (reloc, count + filhdr.a_reltext, 0);
 	relocate_thumb (lp, doutb, droutb, filhdr.a_data, dorigin,
-		filhdr.a_reldata);
+		filhdr.a_reldata, count + filhdr.a_reltext + filhdr.a_reldata);
 
 	torigin += filhdr.a_text;
 	dorigin += filhdr.a_data;
@@ -1599,8 +1745,10 @@ finishout(void)
 		for (p=symtab; p<&symtab[symindex]; ++p)
 			fputsym (p, outb);
 		putc (0, outb);
-		while (ssize++ % AOUT_ALIGNMENT)
+		while (ssize % AOUT_ALIGNMENT) {
 			putc (0, outb);
+                        ssize++;
+                }
 	}
 	filhdr.a_midmag = output_relinfo ? RMAGIC : OMAGIC;
 	/*

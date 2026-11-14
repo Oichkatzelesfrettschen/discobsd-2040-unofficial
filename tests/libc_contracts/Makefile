@@ -508,10 +508,11 @@ ASCTIME_RENAMES=	-Dasctime=db_asctime -Derrno=asctime_test_errno
 ASCTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wformat=2 -nostdinc \
 	-isystem ${TOPSRC}/include ${ASCTIME_RENAMES}
 
-# ctime.c, mktime.c, difftime.c and tzset.c are tested here as libc builds
-# its 32-bit members (lib/libc/Makefile), with _TIME_BITS defined as 32;
-# under the default 64-bit view each public name would bind to its __NAME64
-# symbol, which no -D rename reaches and the host libc may define.
+# The libc members tested here are compiled as libc builds them
+# (lib/libc/Makefile), with _TIME_BITS defined as 32. The host compiler
+# already defaults to that view (sys/sys/_time_t.h); the cross compiler
+# defaults to 64 bits, where each public time name binds to its __NAME64
+# symbol, which no -D rename reaches and the test link does not define.
 NARROW_TIME=	-D_TIME_BITS=32
 CTIME_RENAMES=	-Dctime=db_ctime -Dlocaltime=db_localtime \
 	-Dgmtime=db_gmtime -Dtzset=db_tzset -Dtzname=db_tzname \

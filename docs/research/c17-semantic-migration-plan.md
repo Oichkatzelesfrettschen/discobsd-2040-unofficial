@@ -192,6 +192,9 @@ The [export-closure record](xip-shared-libc/export-closure/README.md) adds a
 calibrated prerequisite: explicit public roots determine archive membership,
 and input-section screening stays separate from final PIC size. Public ABI
 selection, complete state layout and runtime admission remain open.
+The [declaration frontier](shared-libc-declaration-frontier.md) records bounded
+header/provider comparison and callable-math gaps for the export-selection
+queue. Whole-header coverage and semantic acceptance remain open.
 The [native-call veneer record](native-call-veneers.md) establishes a calibrated
 instruction mechanism and the requirement to preserve canonical function
 pointers while redirecting branches. Automatic final-link insertion, stable

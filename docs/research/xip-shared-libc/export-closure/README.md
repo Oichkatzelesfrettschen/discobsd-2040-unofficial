@@ -152,6 +152,12 @@ for renamed libc members; an incremental `ar cr` update preserves omitted ones.
 
 ## Remaining ABI work
 
+The [declaration frontier](../../shared-libc-declaration-frontier.md) compares
+eight public-header roots with the compiled libc and libm providers. It records
+unprovided declarations and an executable signed-zero counterexample in the
+omitted legacy `fabs` source. Its bounded discovery set leaves export selection
+and the remaining headers open.
+
 The next contract derives selected public roots from reviewed declarations and
 the compatibility profile. Complete signatures, visibility, symbol eligibility,
 mutable-object alignment, stable slots, PIC provider closure, syscall/ROM-float

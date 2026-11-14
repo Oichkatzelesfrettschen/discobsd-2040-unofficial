@@ -19,20 +19,33 @@
  *
  * The flash image of a kernel is the bytes its PT_LOAD segments place from
  * 0x10000000 up, gaps zero-filled, which is what objcopy -O binary writes
- * to unix.bin. Three reserved words of the vector table at 0x10000100,
- * entries 8, 9 and 10, which ARMv6-M never fetches, identify that image:
+ * to unix.bin. Two reserved words of the vector table at 0x10000100,
+ * entries 12 and 13, which ARMv6-M never fetches, identify that image:
  *
- *   0x10000120  length of the image in bytes
- *   0x10000124  CRC32 of the image, as zlib's crc32() computes it, with
- *               this word and the board descriptor read as zero
- *   0x10000128  address of the 16-byte board descriptor, set by the linker
- *               from __board_start (locore0.S)
+ *   0x10000130  length of the image in bytes
+ *   0x10000134  CRC32 of the image, as zlib's crc32() computes it, over
+ *               the image with four spans read as zero (below)
  *
- * The descriptor is outside the sum because distrib/rp2040/mkboarduf2.py
- * rewrites it per board in a linked image, so one kernel build keeps one
- * identity on every board it is issued for. The kernel recomputes the sum
- * over its own flash at boot (image_identify() in board.c) and
- * tools/check_rp2040_vectors.py recomputes it from the ELF.
+ * The word after the 48-entry vector table, 0x100001C0, holds the address
+ * of the 16-byte board descriptor, set by the linker from __board_start
+ * (locore0.S); the length word and that address word are inside the sum.
+ *
+ * The spans the sum reads as zero are the bytes another party rewrites
+ * without changing the kernel that runs:
+ *
+ *   0x000-0x0FF  the second stage; the PicoCalc UF2 loader replaces it
+ *                with its own
+ *   0x110-0x12B  vector entries 4 to 10; the loader stamps a magic word,
+ *                the end of its flash area and the start of the UF2 path
+ *                there after it flashes an application
+ *   0x134-0x137  the CRC word itself
+ *   the board descriptor; distrib/rp2040/mkboarduf2.py rewrites it per
+ *                board in a linked image, so one kernel build keeps one
+ *                identity on every board it is issued for
+ *
+ * The kernel recomputes the sum over its own flash at boot
+ * (image_identify() in board.c) and tools/check_rp2040_vectors.py
+ * recomputes it from the ELF.
  *
  * Usage: kernsum unix       stamp the length and CRC words, both zero
  *        kernsum -c unix    check them; print the length and the CRC
@@ -50,9 +63,12 @@
 
 #define IMAGE_BASE	0x10000000UL
 #define IMAGE_LIMIT	0x00200000UL	/* the 2 MB flash */
-#define LENGTH_OFFSET	0x120UL
-#define CRC_OFFSET	0x124UL
-#define BOARD_OFFSET	0x128UL
+#define BOOT2_SIZE	0x100UL		/* the second stage, read as zero */
+#define STAMP_OFFSET	0x110UL		/* the loader's stamp, read as zero */
+#define STAMP_SIZE	0x1cUL		/* through 0x12b */
+#define LENGTH_OFFSET	0x130UL
+#define CRC_OFFSET	0x134UL
+#define BOARD_WORD	0x1c0UL		/* address of the board descriptor */
 #define BOARD_SIZE	16UL
 #define PT_LOAD		1UL
 
@@ -164,17 +180,20 @@ load(const char *file, const unsigned char *elf, unsigned long size,
 
 /*
  * Return the sum of an image of the given length, whose length word must
- * hold that length; the CRC word and the board descriptor read as zero.
+ * hold that length; the second stage, the loader's stamp, the CRC word and
+ * the board descriptor read as zero.
  */
 static unsigned long
 image_sum(const char *file, unsigned char *image, unsigned long length)
 {
-	unsigned long board = get32(image + BOARD_OFFSET);
+	unsigned long board = get32(image + BOARD_WORD);
 
-	if (length < BOARD_OFFSET + 4 + BOARD_SIZE ||
-	    board < IMAGE_BASE + BOARD_OFFSET + 4 ||
+	if (length < BOARD_WORD + 4 + BOARD_SIZE ||
+	    board < IMAGE_BASE + BOARD_WORD + 4 ||
 	    board - IMAGE_BASE > length - BOARD_SIZE || (board & 255) != 0)
-		refuse(file, "vector entry 10 does not address a board descriptor");
+		refuse(file, "the word after the vector table does not address a board descriptor");
+	memset(image, 0, BOOT2_SIZE);
+	memset(image + STAMP_OFFSET, 0, STAMP_SIZE);
 	put32(image + CRC_OFFSET, 0);
 	memset(image + (board - IMAGE_BASE), 0, BOARD_SIZE);
 	return crc32_zlib(image, length);

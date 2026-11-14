@@ -112,10 +112,11 @@
 
 /*
  * The flash image's identity, read-only. image_length and image_crc_stored
- * are the words tools/kernsum stamped into vector entries 8 and 9;
+ * are the words tools/kernsum stamped into vector entries 12 and 13;
  * image_crc is the CRC32 the kernel computed over its own flash at boot,
- * with the CRC word and the board descriptor read as zero. The two sums
- * differ when the flash holds other bytes than the link produced.
+ * with the second stage, the PicoCalc UF2 loader's stamp span, the CRC
+ * word and the board descriptor read as zero. The two sums differ when
+ * the flash holds other bytes than the link produced.
  * image_length is zero for a kernel without the words.
  */
 #define	CPU_IMAGE_LENGTH	40	/* int: flash image bytes */

@@ -1,30 +1,40 @@
 #!/usr/bin/env python3
-"""Boot a stamped kernel and two altered copies under Renode and read the image line.
+"""Boot a stamped kernel and three altered copies under Renode and read the image line.
 
 image_identify() in sys/arch/rp2040/rp2040/board.c sums the flash image at
 boot and prints one console line. The line ends after the sum when the sum
 equals the word tools/kernsum stamped, and carries the stamped word and
-"differs" when it does not. This driver boots three kernels on the same
+"differs" when it does not. This driver boots four kernels on the same
 root flash image and requires the exact line for each:
 
 stamped
     UNIX_BIN as built. The line names the file's length and sum and stops
     there.
 stored word
-    One bit of the stamped CRC32 word (vector entry 9) inverted. The sum
+    One bit of the stamped CRC32 word (vector entry 13) inverted. The sum
     reads that word as zero, so the computed sum is the file's and only the
     stored value moves.
 image byte
-    One byte of vector entry 12 set. ARMv6-M reserves the entry and the
-    processor never fetches it, so the kernel runs unchanged while the sum
-    over its bytes moves and the stamped word stays.
+    The first byte of the padding that follows the board address word at
+    0x100001C0 set. The four bytes sit between the vector table and the
+    first function, hold zero in the link, and nothing but the sum reads
+    them, so the kernel runs unchanged while the sum over its
+    bytes moves and the stamped word stays.
+loader stamp
+    The stamp the PicoCalc UF2 loader (pelrun/uf2loader) writes over flash
+    bytes 0x110-0x12B after it flashes an application: the magic word
+    0xe98cc638, the flash end 0x101fc000 and the first 20 bytes of the UF2
+    path, written over vector entries 4 to 10. The sum reads that span as
+    zero, so the line equals the stamped kernel's. The built kernel holds
+    zero there, so this boot alone shows that image_identify() skips the
+    span.
 
-The expected sums are computed here from the bytes each boot loads, with
-the CRC word and the board descriptor read as zero as tools/kernsum reads
-them. Each boot continues through the storage probe, so an altered image
-that reports and then stops fails. The stamped boot calibrates the two
-altered ones and they calibrate it: a kernel that always or never prints
-"differs" fails one side.
+The expected sums are computed here from the bytes each boot loads, with the
+second stage, the stamp span, the CRC word and the board descriptor read as
+zero as tools/kernsum reads them. Each boot continues through the storage
+probe, so an altered image that reports and then stops fails. The stamped
+boot calibrates the altered ones and they calibrate it: a kernel that
+always or never prints "differs" fails one side.
 
 The claim is the emulated kernel's comparison over the flash model's bytes.
 A board's result is a separate evidence class (sys/arch/rp2040/doc/TESTING.md).
@@ -38,7 +48,6 @@ import importlib.util
 import os
 import struct
 import sys
-import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -46,8 +55,8 @@ sys.path.insert(0, HERE)
 from renode_monitor import Renode, RenodeError  # noqa: E402
 
 CONFIG = "PICO_UART"
-VECTOR_OFFSET = 0x100
-RESERVED_ENTRY = 12
+# The loader's stamp: magic, flash end, then 20 bytes of the UF2 path.
+LOADER_STAMP = struct.pack("<2I", 0xE98CC638, 0x101FC000) + b"/pico1-apps/DiscoBSD"
 
 
 def load_boot():
@@ -58,33 +67,33 @@ def load_boot():
     return module
 
 
-def identity_sum(boot, image: bytes) -> int:
-    """Return the CRC32 image_identify() computes over a kernel holding image."""
-    work = bytearray(image)
-    board = struct.unpack_from("<I", work, boot.IDENTITY_OFFSET + 8)[0] - boot.IMAGE_ADDRESS
-    work[boot.IDENTITY_OFFSET + 4:boot.IDENTITY_OFFSET + 8] = bytes(4)
-    work[board:board + boot.BOARD_DESCRIPTOR_SIZE] = bytes(boot.BOARD_DESCRIPTOR_SIZE)
-    return zlib.crc32(work)
-
-
 def build_cases(boot, image: bytes) -> list[tuple[str, bytes, str]]:
-    """Return (name, kernel bytes, expected console line) for the three boots."""
+    """Return (name, kernel bytes, expected console line) for the four boots."""
     length, stored = struct.unpack_from("<2I", image, boot.IDENTITY_OFFSET)
-    crc = identity_sum(boot, image)
+    crc = boot.identity_sum(image)
     if length != len(image) or stored != crc:
         raise ValueError("identity words do not describe the file")
 
     flipped = bytearray(image)
     struct.pack_into("<I", flipped, boot.IDENTITY_OFFSET + 4, stored ^ 1)
 
-    reserved = VECTOR_OFFSET + 4 * RESERVED_ENTRY
-    if image[reserved:reserved + 4] != bytes(4):
-        raise ValueError(f"vector entry {RESERVED_ENTRY} is not zero")
+    padding = boot.BOARD_WORD_OFFSET + 4
+    if image[padding:padding + 4] != bytes(4):
+        raise ValueError(f"the bytes after the board address word at {padding:#x} are not zero")
     altered = bytearray(image)
-    altered[reserved] = 0x01
-    altered_crc = identity_sum(boot, altered)
+    altered[padding] = 0x01
+    altered_crc = boot.identity_sum(bytes(altered))
     if altered_crc == crc:
         raise ValueError("the altered image sums to the stamped value")
+
+    if len(LOADER_STAMP) != boot.STAMP_SIZE:
+        raise ValueError("the loader stamp does not fill its span")
+    if image[boot.STAMP_OFFSET:boot.STAMP_OFFSET + boot.STAMP_SIZE] != bytes(boot.STAMP_SIZE):
+        raise ValueError("the loader's stamp span of the kernel is not zero")
+    stamped = bytearray(image)
+    stamped[boot.STAMP_OFFSET:boot.STAMP_OFFSET + boot.STAMP_SIZE] = LOADER_STAMP
+    if boot.identity_sum(bytes(stamped)) != crc:
+        raise ValueError("the loader stamp moves the sum")
 
     return [
         ("stamped", image, f"image: {length} bytes, crc32 {crc:x}\n"),
@@ -92,6 +101,7 @@ def build_cases(boot, image: bytes) -> list[tuple[str, bytes, str]]:
          f"image: {length} bytes, crc32 {crc:x}, stored {stored ^ 1:x} differs\n"),
         ("image byte", bytes(altered),
          f"image: {length} bytes, crc32 {altered_crc:x}, stored {stored:x} differs\n"),
+        ("loader stamp", bytes(stamped), f"image: {length} bytes, crc32 {crc:x}\n"),
     ]
 
 

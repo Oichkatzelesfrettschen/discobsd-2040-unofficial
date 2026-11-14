@@ -49,6 +49,10 @@ difftime(time_t end, time_t beginning)
 	    end >= LLONG_MIN + beginning)
 		return (double)(end - beginning);
 #endif
-	/* Each endpoint converts before subtraction so time_t cannot overflow. */
+	/*
+	 * Each endpoint converts before subtraction, so a 32-bit unsigned
+	 * time_t gives a negative difference where its own subtraction would
+	 * wrap, and neither width can overflow.
+	 */
 	return (double)end - (double)beginning;
 }

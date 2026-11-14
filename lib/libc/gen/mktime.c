@@ -23,8 +23,9 @@
  *
  * On overflow both return (time_t)-1 without touching the caller's struct
  * beyond the normalization C requires. A caller that must tell that apart
- * from the legitimate time -1 sets a field to a sentinel and reads it back,
- * which is what usr.bin/touch does with tm_wday.
+ * from the legitimate time (time_t)-1 (one second before 1970 in the 64-bit
+ * view, 2106-02-07 06:28:15 UTC in the 32-bit view) sets a field to a
+ * sentinel and reads it back, which is what usr.bin/touch does with tm_wday.
  */
 #include "time.h"
 #include "limits.h"
@@ -43,14 +44,20 @@
 
 #ifndef __TIME64_VIEW
 /*
- * The range check in timegm() derives its bounds from time_t, and the
- * derivation reads time_t as a signed type of long's width, which
- * <time.h> declares and this assertion holds it to.
+ * The 32-bit view: time_t is the kernel's unsigned count (utime32_t), and
+ * the range is 0 to 4294967295, 1970-01-01 00:00:00 to 2106-02-07 06:28:15
+ * UTC. The refusal, TIME_REFUSED, is the last count of the range, which on
+ * the target is (time_t)-1, so a caller tells the two apart by the tm_wday
+ * sentinel. The bounds and the refusal are written as 32-bit constants
+ * rather than derived from time_t, so a host build whose unsigned long is
+ * eight bytes (tests/libc_contracts) accepts and refuses exactly what the
+ * target does.
  */
-_Static_assert((time_t)-1 < 0 && sizeof(time_t) == sizeof(long),
-    "timegm's range check reads time_t as a signed long");
-#define TIME_MAX	((time_t)LONG_MAX)
-#define TIME_MIN	((time_t)LONG_MIN)
+_Static_assert((time_t)-1 > 0 && sizeof(time_t) == sizeof(long),
+    "timegm's range check reads time_t as an unsigned long");
+#define TIME_MAX	((time_t)0xffffffffUL)
+#define TIME_MIN	((time_t)0)
+#define TIME_REFUSED	TIME_MAX
 
 /*
  * The Gregorian calendar repeats every 400 years, which are 146097 days
@@ -151,6 +158,7 @@ _Static_assert((time_t)-1 < 0 && sizeof(time_t) == 8,
     "the 64-bit build reads time_t as a signed 64-bit count");
 #define TIME_MAX	((time_t)CAL64_MAX)
 #define TIME_MIN	((time_t)CAL64_MIN)
+#define TIME_REFUSED	((time_t)-1)
 
 /*
  * The product of value and a factor below 2^16, modulo 2^64. Each partial
@@ -227,13 +235,13 @@ days_before_month(int tm_year, int tm_mon)
  * a tm_mday outside its month and fills in tm_wday and tm_yday, as C
  * requires; tm_isdst is zero because no zone was consulted.
  *
- * A time outside time_t's range answers (time_t)-1. Each comparison is made
- * before the operation it guards, against a bound the operation cannot
- * pass: the day count before tm_mday is added, the whole days before they
- * are multiplied into seconds, and the seconds before the time of day is
- * added. A negative day count is taken as the day after it less a day's
- * seconds, so the product and the sum move the same way and the first
- * second of time_t's range is reached without passing it.
+ * A time outside the range answers TIME_REFUSED, (time_t)-1. Each
+ * comparison is made before the operation it guards, against a bound the
+ * operation cannot pass: the day count before tm_mday is added, the whole
+ * days before they are multiplied into seconds, and the seconds before the
+ * time of day is added. In the 32-bit view the range starts at the epoch,
+ * so a day before it is refused whole, and the time of day, which
+ * normalize() leaves in 0..86399, only moves the count up.
  */
 time_t
 timegm(struct tm *tm)
@@ -243,29 +251,24 @@ timegm(struct tm *tm)
 	time_t result;
 
 	if (normalize(tm))
-		return ((time_t)-1);
+		return (TIME_REFUSED);
 
 	if (tm->tm_year < TM_YEAR_MIN || tm->tm_year > TM_YEAR_MAX)
-		return ((time_t)-1);
+		return (TIME_REFUSED);
 	days = days_before_month(tm->tm_year, tm->tm_mon);
 	if (tm->tm_mday > 0 ? days > LONG_MAX - tm->tm_mday :
 	    days < LONG_MIN - tm->tm_mday)
-		return ((time_t)-1);
+		return (TIME_REFUSED);
 	days += tm->tm_mday;
 
 	seconds = tm->tm_hour * (long)SECSPERHOUR + tm->tm_min * SECSPERMIN +
 	    tm->tm_sec;
-	if (days < 0) {
-		days++;
-		seconds -= SECSPERDAY;
-	}
-	if (days > TIME_MAX / SECSPERDAY || days < TIME_MIN / SECSPERDAY)
-		return ((time_t)-1);
+	if (days < 0 || (time_t)days > TIME_MAX / SECSPERDAY)
+		return (TIME_REFUSED);
 	result = (time_t)days * SECSPERDAY;
-	if (seconds < 0 ? result < TIME_MIN - seconds :
-	    result > TIME_MAX - seconds)
-		return ((time_t)-1);
-	result += seconds;
+	if (result > TIME_MAX - (time_t)seconds)
+		return (TIME_REFUSED);
+	result += (time_t)seconds;
 #else
 	/*
 	 * Every field enters the count as it stands, with no carry between
@@ -286,7 +289,7 @@ timegm(struct tm *tm)
 	count += (uint64_t)(long long)tm->tm_sec;
 	result = (time_t)count;
 	if (result < TIME_MIN || result > TIME_MAX)
-		return ((time_t)-1);
+		return (TIME_REFUSED);
 #endif
 
 	__discobsd_offtime(&result, 0L, tm)->tm_zone = "GMT";
@@ -313,14 +316,20 @@ mktime(struct tm *tm)
 	 */
 #ifndef __TIME64_VIEW
 	if (normalize(tm))
-		return ((time_t)-1);
+		return (TIME_REFUSED);
 #endif
 
-	/* The answer as though the fields were UTC, which starts the search. */
+	/*
+	 * The answer as though the fields were UTC, which starts the search.
+	 * Fields that read as an instant outside the range in UTC are refused
+	 * here even when the local time they name lies inside it: in the
+	 * 32-bit view, a local time in a zone west of Greenwich whose fields
+	 * fall before 1970-01-01 00:00:00, the first hours of the range there.
+	 */
 	probe = *tm;
 	guess = timegm(&probe);
-	if (guess == (time_t)-1)
-		return ((time_t)-1);
+	if (guess == TIME_REFUSED)
+		return (TIME_REFUSED);
 
 	/*
 	 * Each pass asks what offset is in force at the current answer and
@@ -331,7 +340,7 @@ mktime(struct tm *tm)
 	for (pass = 0; pass < 3; pass++) {
 		back = localtime(&guess);
 		if (back == NULL)
-			return ((time_t)-1);
+			return (TIME_REFUSED);
 
 		/*
 		 * localtime reports the zone's offset at that instant in
@@ -342,15 +351,15 @@ mktime(struct tm *tm)
 		probe = *tm;
 		probe.tm_isdst = back->tm_isdst;
 		guess = timegm(&probe);
-		if (guess == (time_t)-1)
-			return ((time_t)-1);
+		if (guess == TIME_REFUSED)
+			return (TIME_REFUSED);
 		/*
 		 * The fields are in range as UTC; the instant they name in
 		 * this zone lies offset seconds away and may not be.
 		 */
 		if (offset < 0 ? guess > TIME_MAX + offset :
 		    guess < TIME_MIN + offset)
-			return ((time_t)-1);
+			return (TIME_REFUSED);
 		guess -= offset;
 	}
 
@@ -360,7 +369,7 @@ mktime(struct tm *tm)
 	 */
 	back = localtime(&guess);
 	if (back == NULL)
-		return ((time_t)-1);
+		return (TIME_REFUSED);
 	*tm = *back;
 
 	return (guess);

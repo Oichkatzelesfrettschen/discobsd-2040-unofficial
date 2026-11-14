@@ -154,6 +154,12 @@ expect_rejected leap-era-start ctime.c \
     's/(year_of_era % 100 != 0 || year_of_era == 0);/(year_of_era % 100 != 0);/'
 expect_rejected negative-remainder-sign mktime.c \
     's/if (\*rest < 0) {/if (*rest < 0 \&\& 0) {/'
+expect_rejected start-refuses-count-minus-one mktime.c \
+    '/^\tguess = timegm(&probe);$/{n;s/if (guess == TIME_REFUSED \&\& probe.tm_wday == -1)/if (guess == TIME_REFUSED)/;}'
+expect_rejected search-refuses-count-minus-one mktime.c \
+    '/^\t\tguess = timegm(&probe);$/{n;s/if (guess == TIME_REFUSED \&\& probe.tm_wday == -1)/if (guess == TIME_REFUSED)/;}'
+expect_rejected search-rereads-the-caller-struct mktime.c \
+    's/^\t\tprobe = fields;$/\t\tprobe = *tm;/'
 expect_rejected range-max-off-by-one offtime.h \
     's/^#define CAL64_MAX\t\t67768036191676799LL$/#define CAL64_MAX\t\t67768036191676800LL/'
 expect_rejected range-min-off-by-one offtime.h \

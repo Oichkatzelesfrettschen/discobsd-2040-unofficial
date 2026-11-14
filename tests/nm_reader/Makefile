@@ -14,4 +14,7 @@ nm-arm: ${TOPSRC}/usr.bin/nm/nm.c qemu_support.c ${QEMU_SUPPORT}
 	    -I${TOPSRC}/tools/aoututils/include -idirafter ${TOPSRC}/include \
 	    ${TOPSRC}/usr.bin/nm/nm.c qemu_support.c ${QEMU_ARM_LIBS} -o $@
 
-.PHONY: check-qemu
+clean:
+	rm -f nm-arm
+
+.PHONY: check-qemu clean

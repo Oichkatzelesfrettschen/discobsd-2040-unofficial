@@ -14,6 +14,9 @@
 # view's members, the only view Smaller C binds
 # (docs/research/time-representation-past-2038.md).
 #
+# check-board-libc-output links libc-sink.c against the archive this list
+# builds, so a member the sink reaches and the list omits fails that gate.
+#
 abs
 aeabi_div
 asctime
@@ -45,6 +48,7 @@ fgetc
 fgets
 filbuf
 findiop
+flags
 flsbuf
 fopen
 fork
@@ -122,6 +126,8 @@ sysconf
 time
 timezone
 timingsafe_bcmp
+tolower
+toupper
 tzset
 ungetc
 unlink

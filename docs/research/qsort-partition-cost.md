@@ -8,6 +8,10 @@ The [migration queue](c17-semantic-migration-plan.md) keeps context-aware
 callbacks, duplicate partitioning and worst-case comparison bounds as distinct
 contracts. The source search is `rg -n 'qst|qcmp|thresh|compar' lib/libc/gen/qsort.c`.
 
+The [equal-band candidate comparison](libc-mechanism-costs.md) records bounded
+heap fallback, calibrated execution and the sorted-input tradeoff that keeps
+those candidates experimental.
+
 ## Measurement and falsifiers
 
 The fixture compiles the unchanged production source under the private name

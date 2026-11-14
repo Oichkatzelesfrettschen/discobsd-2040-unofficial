@@ -35,6 +35,12 @@ image occupies 62,396 flash bytes, exceeding the fixed reservation by 13,244
 bytes. Hidden visibility supplies no flash savings. The measured size requires
 explicit ABI closure and implementation reductions before image admission.
 
+The [mechanism cost experiments](../libc-mechanism-costs.md) compare compiler
+size flags and shared syscall error factoring. The factored link saves 976
+bytes and passes a calibrated syscall instruction model, while remaining
+12,092 bytes over the reservation before slots. Production adoption remains
+subject to the object-ABI and lifecycle gates.
+
 The [native-call veneer experiment](../native-call-veneers.md) checks a
 12-byte Thumb encoding with eight bytes of temporary stack storage, canonical
 flash pointer identity, and native/GNU assembler agreement. Automatic branch

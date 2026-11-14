@@ -18,8 +18,10 @@ check-sd:
 	LD_LIBRARY_PATH="${.CURDIR}:$${LD_LIBRARY_PATH:-}" \
 	    dotnet run --project sdtest
 
+# tools/matezinho/build.py writes the host and ARMv6-M executables that
+# check.py runs under tools/matezinho/out.
 clean:
 	rm -f core_test libsd_driver.so
-	rm -rf sdtest/bin sdtest/obj
+	rm -rf sdtest/bin sdtest/obj ${TOPSRC}/tools/matezinho/out
 
-.PHONY: check check-qemu clean
+.PHONY: check check-qemu check-sd clean

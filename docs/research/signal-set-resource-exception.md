@@ -93,3 +93,41 @@ The subsequent reduced-native closure test identifies an omitted
 `sigsetops.o` dependency in that measured integration. Selecting the missing
 member changes the candidate's cost. The approved vector remains historical;
 the repaired native package requires a fresh measured exception before merge.
+
+## Reduced native archive amendment
+
+Candidate `5ad4b868710563a958af7bd6a9c2a4066698da8a` selects
+`sigsetops.o` in the reduced native libc archive. The native `signal.o` calls
+`sigismember`; the complete archive sink fails to link without that provider.
+The real-header native fixture links with the repaired archive, and its
+missing-member control rejects an archive without `sigsetops.o`.
+
+The clean distribution and resource capture succeed. These receipts retain
+the repaired candidate, its comparison with main, and the repair increment:
+
+- `signal-set-resources-5ad4b868.json`
+- `signal-set-resources-0c021420-5ad4b868.json`
+- `signal-set-resources-907b47fb-5ad4b868.json`
+
+Relative to measured integration `907b47fb`, the repair adds exactly 408
+native archive bytes (48,878 to 49,286) and one 1 KiB root data block.
+The other 160 numeric surfaces remain unchanged. The native archive adds
+`sigsetops.o`; all shipped program member selections remain identical.
+
+Relative to main `0c021420`, the complete candidate adds 440 native archive
+bytes (48,846 to 49,286). Root data blocks rise from 746 to 748, leaving
+231 free blocks. One block belongs to adminbox as recorded above; the second
+belongs to the enlarged native archive. The approved per-program table,
+1,140 loaded/raw bytes, and 754 packed bytes remain unchanged. The other
+105 numeric surfaces remain unchanged, including kernel sizes. Archive
+selection changes consist of the same 18 program imports plus the native
+archive's added `sigsetops.o`; its `signal.o` also changes as in `907b47fb`.
+
+The requested amendment covers the additional 408 native archive bytes,
+the native provider selection, and one root block. Approval remains pending.
+The original approval remains valid for its exact historical vector.
+Omitting the provider reproduces the native link failure. This amendment
+makes that dependency explicit rather than assigning shared-libc savings
+that the current image does not realize. Runtime peaks and physical-board
+qualification remain open. The generic comparator rejects positive growth
+and added dependencies; that expected rejection supplies no passing verdict.

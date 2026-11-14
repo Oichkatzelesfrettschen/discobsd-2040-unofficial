@@ -15,7 +15,7 @@
 #include "curses.h"
 #include <stdarg.h>
 
-extern bool	_echoit, _rawmode, My_term, _endwin;
+extern int	_echoit, _rawmode, My_term, _endwin;
 
 extern char	ttytype[50], *_unctrl[];
 

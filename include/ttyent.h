@@ -4,6 +4,9 @@
  * specifies the terms and conditions for redistribution.
  */
 
+#ifndef _TTYENT_H_
+#define _TTYENT_H_
+
 struct ttyent {             /* see getttyent(3) */
     char    *ty_name;       /* terminal device name */
     char    *ty_getty;      /* command to execute, usually getty */
@@ -20,3 +23,5 @@ struct ttyent *getttyent (void);
 struct ttyent *getttynam (const char *name);
 void setttyent (void);
 void endttyent (void);
+
+#endif

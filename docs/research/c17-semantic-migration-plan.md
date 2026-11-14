@@ -1218,6 +1218,13 @@ controls reject each missing member. Matched whole-image resources and complete
 qualification remain open; the shared-libc export contract retains its separate
 public-root audit and fixed flash reservation.
 
+The [root-header inclusion contract](public-header-inclusion-contract.md)
+repairs six repeated-inclusion failures and separates curses integer storage
+from C17 boolean spelling. The candidate passes compiler and maintained-build
+checks; resource qualification and integration remain open. Smaller C accepts
+12 legacy inputs but rejects three stdbool inputs at its existing `_Bool`
+parser boundary. That native type mechanism remains an explicit compiler leaf.
+
 The [record-header inclusion contracts](record-header-inclusion.md) track
 group, device and login-record prerequisites, target layout, native compiler
 input and caller closure. Inclusion repair preserves the existing signed group

@@ -4,12 +4,15 @@
  * specifies the terms and conditions for redistribution.
  */
 #ifndef CURSES_H
+#define CURSES_H
 
 #include <stdio.h>
 #include <sgtty.h>
 #include <term.h>
 
-#define bool        int
+#ifndef bool
+typedef int bool;
+#endif
 
 #define TRUE        (1)
 #define FALSE       (0)
@@ -32,7 +35,7 @@ typedef struct sgttyb SGTTY;
 /*
  * Capabilities from termcap
  */
-extern bool AM, BS, CA, DA, DB, EO, HC, HZ, IN, MI, MS, NC, NS, OS, UL,
+extern int AM, BS, CA, DA, DB, EO, HC, HZ, IN, MI, MS, NC, NS, OS, UL,
             XB, XN, XT, XS, XX;
 extern char *AL, *BC, *BT, *CD, *CE, *CL, *CM, *CR, *CS, *DC, *DL,
             *DM, *DO, *ED, *EI, *K0, *K1, *K2, *K3, *K4, *K5, *K6,
@@ -47,7 +50,7 @@ extern char PC;
  * From the tty modes...
  */
 
-extern bool GT, NONL, UPPERCASE, normtty, _pfast;
+extern int GT, NONL, UPPERCASE, normtty, _pfast;
 
 struct _win_st {
     short       _cury, _curx;
@@ -55,9 +58,9 @@ struct _win_st {
     short       _begy, _begx;
     short       _flags;
     short       _ch_off;
-    bool        _clear;
-    bool        _leave;
-    bool        _scroll;
+    int         _clear;
+    int         _leave;
+    int         _scroll;
     char        **_y;
     short       *_firstch;
     short       *_lastch;
@@ -66,7 +69,7 @@ struct _win_st {
 
 #define WINDOW      struct _win_st
 
-extern bool     My_term, _echoit, _rawmode, _endwin;
+extern int     My_term, _echoit, _rawmode, _endwin;
 
 extern char     *Def_term, ttytype[];
 

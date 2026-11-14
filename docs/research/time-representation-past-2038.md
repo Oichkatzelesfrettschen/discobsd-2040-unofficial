@@ -1,4 +1,4 @@
-Source reading at `aec36799`, `arm-none-eabi-gcc` 16.2.0 object sizes, host runs of `tests/libc_contracts/mktime_contract_test.c`, and three clean distribution builds that differ in the type of `time_t`, each through the packed root image; for the section on programs at the 64-bit view, builds of `9561fd1c` and of the change through `bmake flash`, the qemu-user gates and one Renode boot; for the section on the 32-bit view, clean builds of `c2ffd2d8` and of the change through `bmake flash`, the host contract gates and the Smaller C tier under qemu-arm; for the board archive's calendar members, a clean build through `bmake flash` and one Renode boot that compiles a program on the target; no board run.
+Source reading at `aec36799`, `arm-none-eabi-gcc` 16.2.0 object sizes, host runs of `tests/libc_contracts/mktime_contract_test.c`, and three clean distribution builds that differ in the type of `time_t`, each through the packed root image; for the section on programs at the 64-bit view, builds of `9561fd1c` and of the change through `bmake flash`, the qemu-user gates and one Renode boot; for the section on the 32-bit view, clean builds of `c2ffd2d8` and of the change through `bmake flash`, the host contract gates and the Smaller C tier under qemu-arm; for the board archive's calendar members, a clean build through `bmake flash` and one Renode boot that compiles a program on the target and one run of the same program on the measured Pico; no other board run.
 
 # Time representation past 2038: verified claims, measurements and plan
 
@@ -697,17 +697,22 @@ What stays limited:
 - `tests/rp2040/fptest` calls `difftime` at the 64-bit view, so its
   `difftime` corpus runs `__difftime64`, not this member, and its comment
   still describes the 32-bit member's `__aeabi_i2d` path.
-- No board ran the 32-bit members. Renode ran `ctime.o`, `tzset.o`,
-  `timezone.o` and `asctime.o` of the board archive in the program
-  `check-renode` compiles on the target at a 2046 clock; qemu-user ran
-  the conversions, `mktime.o` included, under `t23_timeconvert` with the
-  tier's stand-in clock.
+- The board archive's `ctime.o`, `tzset.o`, `timezone.o` and `asctime.o`
+  ran in Renode, in the program `check-renode` compiles on the target at
+  a 2046 clock, and on the measured Pico (PICO kernel, USB console): with
+  the clock set to 2046-07-23 00:38 UTC, the same two-line program
+  compiled by `/usr/bin/cc` in 30.86 seconds of real time (3.63 system)
+  and printed `Sun Jul 22 16:38:44 2046`, the kernel zone's local time.
+  `mktime.o` is in neither archive the board ships; qemu-user ran it
+  under `t23_timeconvert` with the tier's stand-in clock.
 - Compiling that two-line program with the image's `cc` raises the
   Renode run's flash re-entries (one per program or erase command) from
   about 7,660 to about 14,400. The compiler, assembler and linker write
   their files under `/tmp` on the root file system, and each of the four
-  processes can be written to the raw swap region; which of the two
-  carries the traffic is unmeasured, and a count of the program commands
+  processes can be written to the raw swap region; the board's 31
+  seconds for the compile, against 3 virtual seconds in Renode, whose
+  flash model erases in no time, point at flash commands as the cost.
+  Which of the two paths carries the traffic is unmeasured, and a count of the program commands
   by flash offset in the Renode log would decide it.
 
 ## Plan

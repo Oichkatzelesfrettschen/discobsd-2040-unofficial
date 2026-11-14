@@ -166,3 +166,9 @@ The shared selector is experimental and has no production build-mode wiring.
 [The ROM dispatch register experiment](rom-dispatch-registers.md) establishes a
 hot-call candidate with preserved double-precision operands and identifies the
 paired cold-descriptor and resolver changes that remain before integration.
+
+The production ROM macros and resolver provide the explicit shared selector.
+[The ROM gate contract](../../../../sys/arch/rp2040/doc/TESTING.md) owns its
+descriptor layout, bounds, modeled execution and remaining qualification.
+`check-libc-xip-rom` exercises the cold and hot paths; the earlier register
+experiment remains the retained isolated-sequence measurement.

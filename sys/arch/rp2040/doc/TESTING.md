@@ -1931,6 +1931,39 @@ tools, QEMU user mode and the built `elf2aout` converter are required. The
 owns replay commands and evidence limits. Its runtime-only RWX process envelope
 establishes neither MPU protection nor a production shared executable ABI.
 
+`check-libc-xip-rom` compiles every member in `rom_float_members` with GNU
+Cortex-M0+ assembly and executes shared dispatch with Unicorn. The simulated
+ROM lookup and CLZ service establish resolver and conversion behavior; they
+supply no evidence for ROM floating-point arithmetic or silicon timing. Twelve
+single/double and wide-integer dispatch layouts check cold publication, a second hot call,
+argument registers, saved registers, return addresses and stack arguments.
+The model makes flash read-only and clobbers caller-saved registers across its
+lookup and CLZ services. Eighteen integer-conversion cases exercise all four CLZ consumers and both
+narrow 64-bit integer paths. Ten malformed
+or mixed-mode cases reject before ROM lookup. A compiled mutation removes the
+GOT limit check; a memory-read hook rejects the resulting out-of-range load,
+even when later pointer validation also rejects the descriptor.
+
+`DISCOBSD_SHARED_LIBC=1` selects the shared ROM assembly. Descriptor byte 7
+uses bit 7 for function-table selection, bit 6 for shared mode, and bits 0--5
+for the minimum ROM version. Its first word holds a GOT displacement with an
+`R_ARM_GOT_BREL` relocation. Static descriptors keep their absolute cell word
+and existing version interpretation; a static resolver rejects the shared
+marker as an unsupported version floor. A shared resolver requires the marker,
+checks offset alignment and the linker-defined `__libc_got_size` bound, checks
+the resulting slot address before loading, and applies the existing aligned
+user-window check to the cell before publication. The linker defines
+`__libc_got_size` as `SIZEOF(.got)`, with word-aligned GOT entries. Startup must
+establish `r9` and relocate each state-owned GOT cell before any hot dispatch.
+The hot path trusts that initialized state. The experimental selector has no
+production shared-mode wiring or kernel admission claim.
+
+The gate uses Python `pyelftools` and `unicorn`, ARM GNU tools, and the linked
+fixture in `tests/libc_xip_rom`. Linux `firmware.yml` owns it through
+`check-qemu`. Receipts and ELF files remain under `.build-logs/shared-rom-*`.
+Physical ROM behavior, shared signal/fork/swap execution and performance remain
+separate qualifications.
+
 The QEMU checks in this tier run **user-mode** qemu, which is not an emulated machine.
 qemu-arm loads one Arm program and translates its instructions on the host
 processor, turning each Linux system call the program makes into the host

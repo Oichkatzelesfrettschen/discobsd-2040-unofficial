@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_head": "ea2bb788aeb062f49d3ef076957bbeffaac31135",
+  "source_head": "c3038c725a56eb306cc83c74e67cac7653db2a89",
   "baseline_head": "c2ffd2d837abe2a2c87078f021fc04ff367b447b",
   "compiler_cases": {
     "valid": 144,
@@ -28,15 +28,15 @@
     "receipt_sha256": "869423e20fa514d9c2a0775f55bfc45267243bf313424fecdda9e7f41f5d27da"
   },
   "aggregate": {
-    "source_head": "e72af7bc0a7255cc214cf6dcbd1198df6410a69f",
-    "invocation_id": "rp2040-check-local-20261114T065818Z-2893984-4eb582d9",
+    "source_head": "c3038c725a56eb306cc83c74e67cac7653db2a89",
+    "invocation_id": "rp2040-check-local-20261114T081852Z-3973018-f4152499",
     "state": "completed",
     "exit_code": 0,
-    "elapsed_seconds": 2937.046,
-    "started_at": "2026-11-14T06:58:18Z",
-    "updated_at": "2026-11-14T07:47:15Z",
-    "receipt_sha256": "7ae3007fca0cc339b67b070ca0cd42fdc48c9f081ea3a3b339e3e1e5041c6540",
-    "scope": "Full aggregate before the wide-time main merge; not rerun in full at source_head"
+    "elapsed_seconds": 2473.941,
+    "started_at": "2026-11-14T08:18:52Z",
+    "updated_at": "2026-11-14T09:00:05Z",
+    "receipt_sha256": "057f2528c994daf3a1644bb714c96ca9b1872ed34895272bcb04c8559030240a",
+    "scope": "Full aggregate after the wide-time main merge and qualification-record commit"
   },
   "ilp32": {
     "invocation_id": "rp2040-ilp32-local-20261114T075718Z-3918358-652116d5",
@@ -196,6 +196,10 @@
     {
       "path": ".build-logs/network-header-wide-time-candidate/source-denominator.log",
       "sha256": "f249831d5b62afc3e6fbb3e078676800a27b42bc0e6c183e822e11cecab77abd"
+    },
+    {
+      "path": ".build-logs/network-header-wide-time-candidate/aggregate.json",
+      "sha256": "057f2528c994daf3a1644bb714c96ca9b1872ed34895272bcb04c8559030240a"
     },
     {
       "path": ".build-logs/network-header-candidate/aggregate-result.json",

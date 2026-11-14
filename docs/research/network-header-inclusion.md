@@ -67,12 +67,13 @@ Smaller C inputs. Record-header contracts also pass. The time-binding gate
 scans 952 ARM objects for 24 narrow time entry points and finds zero references.
 The separate ILP32 execution inventory passes all 210 required recipes.
 
-The full aggregate passes at initial candidate `e72af7bc` in 2,937.046 seconds,
-including its build stage. That result precedes the wide-time main merge and
-remains evidence for its recorded source. The merged candidate has fresh clean
-builds, matched resources, focused header and time-binding checks, the ILP32
-inventory, hosted CI and local Renode. A full aggregate run on that revision
-remains open. The merge preserves both cross-contract registrations.
+The full aggregate passes at qualified candidate `c3038c72` in 2,473.941
+seconds, including its build stage. That revision includes the wide-time main
+merge, matched resource records and their qualification document. The merged
+candidate also has focused header and time-binding checks, the ILP32 inventory,
+hosted CI and local Renode. The merge preserves both cross-contract
+registrations. The earlier aggregate at `e72af7bc` remains historical evidence
+for its recorded source.
 
 Local Renode boots the fresh PICO_UART kernel and root image, checks MPU faults,
 exec residue, process state and injected core-1 stalls, and reads clock and file

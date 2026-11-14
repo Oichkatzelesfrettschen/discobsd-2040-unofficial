@@ -29,6 +29,11 @@ that drops a required interface merely because installed programs never call it.
 The all-global screening receipt retains input-section costs and leaves public
 ABI selection and final PIC sizing open.
 
+The [native-call veneer experiment](../native-call-veneers.md) checks a
+12-byte Thumb encoding with eight bytes of temporary stack storage, canonical
+flash pointer identity, and native/GNU assembler agreement. Automatic branch
+redirection, stable slots, and final shared layout remain implementation work.
+
 The accepted implementation keeps multicall executables and static native
 output while adding an explicit shared-link mode. The initial libc reservation
 is 48 KiB immediately after the 128 KiB kernel. Raw Dhara space becomes

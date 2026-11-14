@@ -1815,6 +1815,11 @@ check-libc-xip-object-abi: check-python
 
 .PHONY: check-libc-xip-object-abi
 
+check-native-call-veneer: check-python
+		${PYTHON} tests/native_linker/veneers.py
+
+.PHONY: check-native-call-veneer
+
 check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} check-aeabi-copy-qemu
@@ -1822,6 +1827,7 @@ check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-packed-exec-control-qemu
 		${MAKE} check-exec-dispatch-qemu
 		${MAKE} check-libc-xip-object-abi
+		${MAKE} check-native-call-veneer
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test

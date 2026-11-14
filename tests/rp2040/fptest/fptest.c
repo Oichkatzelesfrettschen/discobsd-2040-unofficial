@@ -19,12 +19,14 @@
  * compiler emits a run-time __aeabi call instead of constant-folding the
  * table entry at build time, which would bypass the code under test.
  *
- * The last corpus checks the shipped difftime (lib/libc/gen/difftime.c),
- * which is the only libc member whose result depends on both helpers at
- * once: it converts each time_t endpoint through __aeabi_i2d and subtracts
- * through __aeabi_dsub. Its endpoints span the signed 32-bit range, where
- * the difference exceeds time_t, so an implementation that subtracts before
- * converting returns a wrapped result these bit patterns reject.
+ * The last corpus checks the shipped difftime (lib/libc/gen/difftime.c).
+ * This program is compiled at the 64-bit view of time_t, so the member it
+ * links is __difftime64 (difftime64.o), which subtracts the two 64-bit
+ * endpoints and converts the difference through __aeabi_l2d; a difference
+ * past a long long converts each endpoint and subtracts through
+ * __aeabi_dsub. Its endpoints span the signed 32-bit range, so a
+ * member that narrowed either endpoint or the difference to 32 bits
+ * returns a wrapped result these bit patterns reject.
  */
 #include <stdio.h>
 #include <string.h>
@@ -64,9 +66,9 @@ static const struct i2dcase integers[] = {
 };
 
 /*
- * The last three endpoints differ by more than time_t holds: 2^31 and
- * 2^32-1 in both directions. Subtracting before converting wraps to -2^31
- * and to -1, whose bit patterns are 0xc1e0000000000000 and
+ * The last three endpoints differ by more than 32 bits hold: 2^31 and
+ * 2^32-1 in both directions. A difference narrowed to 32 bits wraps to
+ * -2^31 and to -1, whose bit patterns are 0xc1e0000000000000 and
  * 0xbff0000000000000, so each case names its own falsifier.
  */
 static const struct dtcase difftimes[] = {

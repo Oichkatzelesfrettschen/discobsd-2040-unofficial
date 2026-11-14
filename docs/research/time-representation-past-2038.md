@@ -1,4 +1,4 @@
-Source reading at `aec36799`, `arm-none-eabi-gcc` 16.2.0 object sizes, host runs of `tests/libc_contracts/mktime_contract_test.c`, and three clean distribution builds that differ in the type of `time_t`, each through the packed root image; for the section on programs at the 64-bit view, builds of `9561fd1c` and of the change through `bmake flash`, the qemu-user gates and one Renode boot; no board run.
+Source reading at `aec36799`, `arm-none-eabi-gcc` 16.2.0 object sizes, host runs of `tests/libc_contracts/mktime_contract_test.c`, and three clean distribution builds that differ in the type of `time_t`, each through the packed root image; for the section on programs at the 64-bit view, builds of `9561fd1c` and of the change through `bmake flash`, the qemu-user gates and one Renode boot; for the section on the 32-bit view, clean builds of `c2ffd2d8` and of the change through `bmake flash`, the host contract gates and the Smaller C tier under qemu-arm; no board run.
 
 # Time representation past 2038: verified claims, measurements and plan
 
@@ -414,9 +414,9 @@ The other members that reach a 32-bit entry point internally (`devname`,
 `getcwd`, `getwd`, `getusershell`, `mktemp`, `ndbm`, `opendir`,
 `scandir`, `ttyname`, stdio's `filbuf`, `flsbuf` and `remove`, `alarm`,
 `ualarm`, `sleep`, `usleep`, `wait`, `waitpid`; `arm-none-eabi-nm -u`)
-read only fields or intervals the 32-bit layouts carry. `sleep` compares
-two clock readings signed, so a sleep that spans the 2038 carry returns 0
-early once; it has slept its full interval by then.
+read only fields or intervals the 32-bit layouts carry. `sleep` takes the
+difference of its two clock readings modulo 2^32 (see "The 32-bit view:
+unsigned to 2106" below).
 Test builds that compile libc members from source (`tests/libc_contracts`,
 `tests/dirent_contracts`, `tests/time64_*`, the a.out probe) select the
 32-bit view the same way.
@@ -544,12 +544,128 @@ printed nothing on UART0 within 20 virtual seconds while another
 session's Renode ran on the host, and the immediate rerun passed; the
 cause is not identified. No board ran this change.
 
-The narrow view stays a signed `long`. Making it `utime32_t`, so that a
-program compiled on the board also reads to 2106, changes `mktime.c`'s
-32-bit range derivation (it asserts a signed `long`), the ctime, mktime
-and difftime contract tests, which run the 32-bit members natively where
-`unsigned long` is 64 bits wide, and the Smaller C test `t22_timewidth`;
-it is not part of this change.
+The narrow view was a signed `long` in this change; the next section makes
+it the kernel's unsigned count.
+
+## The 32-bit view: unsigned to 2106
+
+`sys/sys/_time_t.h` gives the 32-bit view `typedef utime32_t time_t`, the
+type the kernel already had, so a program Smaller C compiles on the board
+and the libc members that define the existing names read a count with bit
+31 set as a time after January 2038, through 2106-02-07 06:28:15 UTC. No
+symbol and no layout changes: `time_t`, `struct stat`'s three times and
+`struct timespec`'s `tv_sec` keep four bytes, the 64-bit view's
+`__NAME64` members are byte-identical to their build before the change
+(the 47 `NAME64.o`, `time64_*.o` and `syslog.o` objects under `lib/libc` and `lib/libc_aout`, `md5sum`), and an object
+compiled before it links with the same bytes; only the reading of bit 31
+changes. `struct timeval` keeps its signed `long` `tv_sec`: the kernel
+passes intervals in it (`select` and `setitimer` timeouts, `adjtime`
+deltas, which go negative while the clock is slowed), so a program that
+reads the clock from it converts to `time_t`, as `time()` does.
+
+What the type change asks of a caller, and what was chosen:
+
+- `(time_t)-1` is the count 4294967295, 2106-02-07 06:28:15 UTC, which is
+  also the value `utimes` reads as "leave this time alone". It stays the
+  error answer of `time()`, `mktime()` and `timegm()`, as C defines it, so
+  the last second of the range is ambiguous the way one second before
+  1970 was; a caller tells them apart by the `tm_wday` sentinel, as
+  `touch` does. A program that tests `t == (time_t)-1` is unchanged; one
+  that tests `t < 0` never sees an error (no shipped program is built at
+  this view; `check-time-binding` rejects one).
+- A difference of two counts in `time_t` wraps instead of going negative.
+  `difftime()` converts each end to `double` first, so it gives the signed
+  difference; `sleep()` takes the difference modulo 2^32, which also
+  carries it across the 2106 wrap.
+- Times before 1970 have no count. `timegm()` and `mktime()` refuse them.
+
+The members, measured with `arm-none-eabi-size` (ELF, `lib/libc/gen`) and
+the tree's `size` (a.out, `lib/libc_aout/libc`) after a clean build of
+`main` (`c2ffd2d8`) and of the change, `arm-none-eabi-gcc` 16.2.0 at the
+libc flags:
+
+| Member | ELF text before | after | a.out text before | after | Change |
+| --- | --- | --- | --- | --- | --- |
+| `ctime.o` | 479 | 479 | 448 | 448 | the count divided unsigned, through its low 32 bits; transitions compared by sign |
+| `mktime.o` | 618 | 544 | -- | -- | range 0..4294967295 as 32-bit constants; the negative-day path removed |
+| `difftime.o` | 32 | 32 | 32 | 32 | imports `__aeabi_ui2d` in place of `__aeabi_i2d` |
+| `sleep.o` | 76 | 72 | 76 | 72 | elapsed time modulo 2^32 |
+| `time.o`, `tzset.o`, `ftime.o`, `utime.o` | 32, 119, 52, 26 | unchanged | 32, 112, 52, 28 | unchanged | byte-identical objects |
+
+After `bmake flash` of the `full` profile the root image keeps 236 of its
+988 blocks free, as before, and every kernel's text, data and bss are
+unchanged (PICO 99,763 text; `check-kernel-headroom` 30,832 bytes free in
+the PICO region). 64 staged programs differ: 49 of the 50 whose build
+leaves a disassembly define `sleep`, which `execvp` calls on `ETXTBSY`;
+the fiftieth, `pdc`, defines no time function and differs between two
+builds of one tree, so its difference is the build's own.
+
+No member imports a 64-bit helper (`arm-none-eabi-nm -u`: `ctime.o` and
+`mktime.o` import only the 32-bit `__aeabi_idiv`, `__aeabi_idivmod`,
+`__aeabi_uidiv` and `__aeabi_uidivmod`). The bound 0xffffffff is written
+as a constant, which costs nothing where `unsigned long` is four bytes
+and keeps a host build whose `unsigned long` is eight bytes
+(`tests/libc_contracts`) to the target's range and refusal: there the
+refusal is still the count 4294967295, not `(time_t)-1`, and
+`__discobsd_offtime()` reads the count through its low 32 bits. So the
+native host variants of the ctime, mktime, zone, difftime and sleep
+gates run the same cases as the ILP32 ones. Only the ILP32 variants are
+honest about a four-byte `long`: the parent revision's zone and difftime
+members and its sleep across the 2038 carry fail there and pass natively,
+where their signed `long` is eight bytes; natively the parent's sleep
+fails only across the 2106 wrap.
+
+`localtime()` with a zone file (`TZ_ZONEINFO`) compares the instant with
+each transition, which the file stores as a signed four-byte count:
+a transition before 1970 precedes every instant, and the comparison
+says so instead of reading it as a count near 2^32.
+
+The tests (measured, host and qemu-user):
+
+- `check-libc-ctime` and `check-libc-mktime` read 3,027 counts and 37
+  field sets of `tests/libc_contracts/calendar32_vectors.py` (CPython's
+  `datetime`) and every whole day from 1970 to 2106-02-06 against a
+  counting calendar; 157,899 checks in the mktime gate per variant.
+  Built against the parent revision's headers and members, the new mktime
+  gate fails 74,614 of 157,895 checks at ILP32 and 52,999 natively, and
+  the ctime gate fails at both widths.
+- `check-libc-zone` adds a file whose first transition is stored
+  negative; the parent revision fails it at ILP32.
+- `check-libc-difftime`'s cases span 0..4294967295 and the 2038 carry;
+  the parent revision fails four of nine at ILP32.
+- `check-libc-sleep` (new) replays clock readings across the 2038 carry
+  and the 2106 wrap; the parent revision fails the interrupted sleep
+  across the 2038 carry at ILP32 and the one across the 2106 wrap
+  natively.
+- `t23_timeconvert` (new, Smaller C under qemu-arm) prints
+  `asctime(gmtime())` of 0, 2147483647, 2147483648, 2415919104,
+  4294967294 and 4294967295 and converts each back through `timegm()`;
+  against the parent revision's `libc.a` it prints Dec 13 1901, Jun 16
+  1910 and Dec 31 1969 for the last four.
+
+What stays limited:
+
+- `mktime()` starts its search at `timegm()` of the fields, so in a zone
+  west of Greenwich the local times of the first hours of 1970-01-01 UTC,
+  whose fields fall on 31 December 1969, are refused; in the kernel's
+  default zone, eight hours west, that is counts 0 to 28,799. The parent
+  revision converted them. `check-libc-mktime` requires the refusal.
+- The board's `/usr/lib/libc.a` (`distrib/rp2040/boardlibc-members`)
+  carries `time`, `difftime` and `sleep` but no `ctime.o`, `tzset.o`,
+  `asctime.o` or `mktime.o`, so a program compiled on the board cannot
+  convert a count to a date at all; the full a.out archive carries all
+  but `mktime.o`. Adding the forward conversion would cost the board
+  archive the a.out members `ctime.o` (448 text, 32 data, 44 bss),
+  `tzset.o` (112, 16, 80), `asctime.o` (160, 108, 28) and `timezone.o`
+  (188, 236, 52), which `tzset.o` calls. Which members the board archive
+  carries is the owner's decision.
+- `timercmp()` and a program's own comparison of two `tv_sec` clock
+  readings stay signed, since the field is shared with intervals.
+- `tests/rp2040/fptest` calls `difftime` at the 64-bit view, so its
+  `difftime` corpus runs `__difftime64`, not this member, and its comment
+  still describes the 32-bit member's `__aeabi_i2d` path.
+- No board and no Renode run exercised the 32-bit members; qemu-user ran
+  them under `t23_timeconvert` with the tier's stand-in clock.
 
 ## Plan
 

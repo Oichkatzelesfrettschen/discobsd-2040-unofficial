@@ -1,0 +1,33 @@
+PASS time_t is an unsigned four-byte count
+0 Thu Jan  1 00:00:00 1970
+PASS timegm returns the count
+PASS timegm rewrites the tm_wday sentinel
+2147483647 Tue Jan 19 03:14:07 2038
+PASS timegm returns the count
+PASS timegm rewrites the tm_wday sentinel
+PASS the count follows the one before
+PASS the year is not before the one before
+2147483648 Tue Jan 19 03:14:08 2038
+PASS timegm returns the count
+PASS timegm rewrites the tm_wday sentinel
+PASS the count follows the one before
+PASS the year is not before the one before
+2415919104 Mon Jul 23 00:38:24 2046
+PASS timegm returns the count
+PASS timegm rewrites the tm_wday sentinel
+PASS the count follows the one before
+PASS the year is not before the one before
+4294967294 Sun Feb  7 06:28:14 2106
+PASS timegm returns the count
+PASS timegm rewrites the tm_wday sentinel
+PASS the count follows the one before
+PASS the year is not before the one before
+4294967295 Sun Feb  7 06:28:15 2106
+PASS timegm returns the count
+PASS timegm rewrites the tm_wday sentinel
+PASS the count follows the one before
+PASS the year is not before the one before
+PASS the carry out of bit 31 is one second
+PASS 0x90000000 is 268435457 seconds after 2147483647
+clock 2415919104 Mon Jul 23 00:38:24 2046
+PASS the clock reads after 2038

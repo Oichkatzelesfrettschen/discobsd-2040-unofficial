@@ -93699,6 +93699,41 @@
       }
     },
     {
+      "path": "usr.bin/smlrc/tests/t23_timeconvert.c",
+      "class": "B",
+      "scope": "maintained",
+      "owner": "usr.bin/smlrc",
+      "profile": "native-smaller-c-implementation",
+      "native_input": "yes",
+      "language_state": "migration-open",
+      "evidence": [
+        "docs/research/STYLE-GUIDE.md"
+      ],
+      "blocker": "File-level C17 and native-suite acceptance remain unreviewed.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "native-smaller-c",
+        "required_mode": "c17-migration",
+        "extension_policy": "native-subset-separated",
+        "extension_signals": [],
+        "risk_family": "native-compiler",
+        "risk_tier": "T1",
+        "risk_tier_basis": "native-compiler-input",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": [
+            "variadic-interface"
+          ]
+        }
+      }
+    },
+    {
       "path": "usr.bin/sort/sort.c",
       "class": "unreviewed",
       "scope": "unreviewed",

@@ -531,6 +531,14 @@ check-kernel-printf-formats:	check-python
 check-aout:
 		${MAKE} -C tests/aout_header check
 
+check-native-linker: check-python
+		${MAKE} -C tools/aoututils/ld all
+		${PYTHON} tests/native_linker/readers.py
+		${PYTHON} tests/native_linker/branches.py
+		${PYTHON} tests/native_linker/calibrate.py
+
+.PHONY: check-native-linker
+
 # The host filesystem library every root image is built with, exercised
 # through the allocation patterns that break one and checked with the
 # tree's own consistency checker after each round.
@@ -1481,7 +1489,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-rmdir-contracts check-tee-contracts check-time-contracts \
 		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
-		check-aout check-kernel check-fs-stress check-fsck-inode-range \
+		check-aout check-native-linker check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts check-backgammon-contracts \

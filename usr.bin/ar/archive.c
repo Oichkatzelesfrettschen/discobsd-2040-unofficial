@@ -58,6 +58,7 @@
 #   include <errno.h>
 #   include <fcntl.h>
 #endif
+#include <limits.h>
 #include <ar.h>
 #include "archive.h"
 #include "extern.h"
@@ -340,27 +341,86 @@ close_archive(int fd)
 		error(archive);
 }
 
-static long
-parse_archive_number(const char *field, size_t field_size, int base)
+/*
+ * date_in_range --
+ *	A count of seconds lies in the stored range.  The parameter is the
+ *	widest unsigned type, so the compare holds where unsigned long is the
+ *	stored width itself.
+ */
+static int
+date_in_range(unsigned long long seconds)
+{
+	return(seconds <= AR_DATE_MAX);
+}
+
+/*
+ * parse_archive_unsigned --
+ *	The unsigned number in a header field.  A minus sign, an empty
+ *	field, trailing text and a value beyond unsigned long are format
+ *	errors; the 12-digit date field reads through AR_DATE_MAX with it.
+ */
+static unsigned long
+parse_archive_unsigned(const char *field, size_t field_size, int base)
 {
 	char number[21];
 	char *end;
-	long value;
+	const char *digits;
+	unsigned long value;
 
 	if (field_size >= sizeof(number))
 		badfmt();
 	if (snprintf(number, sizeof(number), "%.*s", (int)field_size,
 	    field) != (int)field_size)
 		badfmt();
+	for (digits = number; *digits == ' '; digits++)
+		;
+	if (*digits == '-')
+		badfmt();
 	errno = 0;
-	value = strtol(number, &end, base);
-	if (errno == ERANGE || end == number || value < 0)
+	value = strtoul(number, &end, base);
+	if (errno == ERANGE || end == number)
 		badfmt();
 	while (*end == ' ')
 		end++;
 	if (*end != '\0')
 		badfmt();
 	return(value);
+}
+
+/*
+ * parse_archive_number --
+ *	A header field that the target holds in a signed long.
+ */
+static long
+parse_archive_number(const char *field, size_t field_size, int base)
+{
+	unsigned long value;
+
+	value = parse_archive_unsigned(field, field_size, base);
+	if (value > (unsigned long)LONG_MAX)
+		badfmt();
+	return((long)value);
+}
+
+/*
+ * stored_date --
+ *	A time as the kernel and the file system hold it, seconds since
+ *	1970 as an unsigned count.  A four-byte time_t carries the count in
+ *	its bits, so a negative value is a time after January 2038 and reads
+ *	back through the unsigned type; a wider time_t holds the count
+ *	itself, and a time outside 0..AR_DATE_MAX has no stored form and
+ *	clamps to the nearest end.
+ */
+unsigned long
+stored_date(time_t seconds)
+{
+	if (sizeof(time_t) > 4) {
+		if (seconds < 0)
+			return(0);
+		if (!date_in_range((unsigned long long)seconds))
+			return(AR_DATE_MAX);
+	}
+	return((unsigned long)seconds);
 }
 
 /*
@@ -392,9 +452,9 @@ get_arobj(int fd)
 #define	DECIMAL	10
 #define	OCTAL	 8
 
-	value = parse_archive_number(hdr->ar_date, sizeof(hdr->ar_date), DECIMAL);
-	chdr.date = (time_t)value;
-	if ((long)chdr.date != value)
+	chdr.date = parse_archive_unsigned(hdr->ar_date, sizeof(hdr->ar_date),
+	    DECIMAL);
+	if (!date_in_range(chdr.date))
 		badfmt();
 	value = parse_archive_number(hdr->ar_uid, sizeof(hdr->ar_uid), DECIMAL);
 	chdr.uid = (int)value;
@@ -519,14 +579,14 @@ copy_ar(CF *cfp, off_t size, int lname)
  *	The date recorded for a member read from disk.  The host build of
  *	ar bounds it by SOURCE_DATE_EPOCH, as tools/fsutil bounds the file
  *	times of the image, so equal objects give equal archives.  An
- *	absent or malformed value leaves the file's modification time.
- *	A value above 0x7fffffff does too: the target ar parses the date
- *	field with strtol and ld reads it into a long, both 32 bits there,
- *	while tools/fsutil accepts up to 4294967295 for its unsigned fields.
+ *	absent or malformed value leaves the file's modification time, as
+ *	does one above AR_DATE_MAX, the end of the stored range that
+ *	get_arobj reads from a header.
  */
-static long
+static unsigned long
 member_date(struct stat *sb)
 {
+	unsigned long date = stored_date(sb->st_mtime);
 #ifdef CROSS
 	const char *text = getenv("SOURCE_DATE_EPOCH");
 	char *end;
@@ -535,12 +595,12 @@ member_date(struct stat *sb)
 	if (text != NULL && *text >= '0' && *text <= '9') {
 		errno = 0;
 		epoch = strtoull(text, &end, 10);
-		if (errno == 0 && *end == '\0' && epoch <= 0x7fffffffULL &&
-		    (unsigned long long)sb->st_mtime > epoch)
-			return ((long)epoch);
+		if (errno == 0 && *end == '\0' && epoch <= AR_DATE_MAX &&
+		    date > epoch)
+			return ((unsigned long)epoch);
 	}
 #endif
-	return ((long)sb->st_mtime);
+	return (date);
 }
 
 /*
@@ -569,7 +629,7 @@ member_owner(struct stat *sb, unsigned int *uid, unsigned int *gid,
 			errno = 0;
 			epoch = strtoull(text, &end, 10);
 			if (errno == 0 && *end == '\0' &&
-			    epoch <= 0x7fffffffULL) {
+			    epoch <= AR_DATE_MAX) {
 				*uid = 0;
 				*gid = 0;
 				*mode = (sb->st_mode & S_IFMT) |

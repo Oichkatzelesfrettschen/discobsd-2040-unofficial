@@ -135,7 +135,7 @@ replace(char **argv)
 			}
 			if (fstat(sfd, &sb) < 0)
 				error(file);
-			if (options & AR_U && sb.st_mtime <= chdr.date) {
+			if (options & AR_U && stored_date(sb.st_mtime) <= chdr.date) {
 				if (close(sfd) < 0)
 					error(file);
 				goto useold;

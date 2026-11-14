@@ -301,7 +301,7 @@ symobj(void)
 			errno = 0;
 			epoch = strtoull(text, &end, 10);
 			if (errno == 0 && *end == '\0' &&
-			    epoch <= 0x7fffffffULL) {
+			    epoch <= AR_DATE_MAX) {
 				table_uid = 0;
 				table_gid = 0;
 				table_mode = 0644;
@@ -309,7 +309,7 @@ symobj(void)
 		}
 	}
 #endif
-	(void)snprintf(hb, sizeof hb, HDR2, RANLIBMAG, 0L, table_uid,
+	(void)snprintf(hb, sizeof hb, HDR2, RANLIBMAG, 0UL, table_uid,
 	    table_gid, table_mode, ransize, ARFMAG);
 	if (! fwrite(hb, sizeof(struct ar_hdr), 1, fp))
 		error(tname);
@@ -362,18 +362,17 @@ free_symbol_list(void)
 
 /*
  * source_clock --
- *	The present, bounded in the host build by SOURCE_DATE_EPOCH, the
- *	same bound tools/fsutil puts on the file times of an image, so
- *	equal objects give equal archives.  *bounded tells whether the
- *	variable set the result.  An absent or malformed value leaves the
- *	clock, as does one above 0x7fffffff, the largest date the target
- *	ar and ld read from an archive header (see member_date in
- *	ar/archive.c).
+ *	The present as a stored date (see stored_date in ar/archive.c),
+ *	bounded in the host build by SOURCE_DATE_EPOCH, the same bound
+ *	tools/fsutil puts on the file times of an image, so equal objects
+ *	give equal archives.  *bounded tells whether the variable set the
+ *	result.  An absent or malformed value leaves the clock, as does one
+ *	above AR_DATE_MAX, the end of the range an archive header holds.
  */
-static time_t
+static unsigned long
 source_clock(int *bounded)
 {
-	time_t now = time((time_t *)NULL);
+	unsigned long now = stored_date(time((time_t *)NULL));
 #ifdef CROSS
 	const char *text = getenv("SOURCE_DATE_EPOCH");
 	char *end;
@@ -382,10 +381,10 @@ source_clock(int *bounded)
 	if (text != NULL && *text >= '0' && *text <= '9') {
 		errno = 0;
 		epoch = strtoull(text, &end, 10);
-		if (errno == 0 && *end == '\0' && epoch <= 0x7fffffffULL &&
-		    (unsigned long long)now > epoch) {
+		if (errno == 0 && *end == '\0' && epoch <= AR_DATE_MAX &&
+		    now > epoch) {
 			*bounded = 1;
-			return ((time_t)epoch);
+			return ((unsigned long)epoch);
 		}
 	}
 #endif
@@ -397,7 +396,7 @@ source_clock(int *bounded)
  * settime --
  *	Date the symbol table.  ld reads an archive as sorted only while
  *	the file is at most two seconds newer than this date, so it leads
- *	the clock by RANLIBSKEW.
+ *	the clock by RANLIBSKEW, up to the end of the stored range.
  */
 static void
 settime(int afd)
@@ -406,12 +405,17 @@ settime(int afd)
 	off_t size;
 	char buf[50];
 	int bounded;
+	unsigned long date;
 
 	size = SARMAG + sizeof(hdr->ar_name);
 	if (lseek(afd, size, SEEK_SET) == (off_t)-1)
 		error(archive);
-	(void)snprintf(buf, sizeof(buf), "%-12ld",
-	    (long)source_clock(&bounded) + RANLIBSKEW);
+	date = source_clock(&bounded);
+	if (date > AR_DATE_MAX - RANLIBSKEW)
+		date = AR_DATE_MAX;
+	else
+		date += RANLIBSKEW;
+	(void)snprintf(buf, sizeof(buf), "%-12lu", date);
 	write_bytes(afd, buf, sizeof(hdr->ar_date), archive);
 }
 

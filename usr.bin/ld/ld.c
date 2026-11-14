@@ -62,7 +62,7 @@ struct exec filhdr;             /* aout header */
 struct archdr {                 /* archive header */
 	char *  ar_name;
 	int     ar_lname;       /* extended name bytes stored after the header */
-	long	ar_date;
+	unsigned long	ar_date;        /* seconds since 1970, an unsigned count */
 	int     ar_uid;
 	int     ar_gid;
 	int	ar_mode;
@@ -301,6 +301,25 @@ fputsym(struct nlist *s, FILE *file)
 }
 
 /*
+ * A file time as the archive header holds it: seconds since 1970 as an
+ * unsigned count.  A four-byte time_t carries the count in its bits, so a
+ * negative value is a time after January 2038 and reads back through the
+ * unsigned type; a wider time_t holds the count itself, clamped to the
+ * stored range.
+ */
+static unsigned long
+stored_time(time_t seconds)
+{
+	if (sizeof (time_t) > 4) {
+		if (seconds < 0)
+			return (0);
+		if ((unsigned long long) seconds > 0xffffffffULL)
+			return (0xffffffffUL);
+	}
+	return ((unsigned long) seconds);
+}
+
+/*
  * Read the file header of the archive.
  */
 int
@@ -350,7 +369,7 @@ fgetarhdr(FILE *fd, struct archdr *h)
 	if (nr != sizeof (hdr.ar_date))
 		goto failed;
         buf[nr] = 0;
-        h->ar_date = strtol (buf, 0, 10);
+        h->ar_date = strtoul (buf, 0, 10);
 
 	/* Read user id. */
 	nr = fread (buf, 1, sizeof (hdr.ar_uid), fd);
@@ -800,7 +819,8 @@ getfile(char *cp)
         }
         free (archdr.ar_name);
 	fstat (fileno (text), &x);
-	if (x.st_mtime > archdr.ar_date + 2)
+	if (stored_time (x.st_mtime) > archdr.ar_date &&
+	    stored_time (x.st_mtime) - archdr.ar_date > 2)
 		return (3);     /* out of date archive */
 	return (2);             /* randomized archive */
 }

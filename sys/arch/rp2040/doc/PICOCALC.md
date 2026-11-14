@@ -884,20 +884,26 @@ the last row, after the console line; the loader's stage stays intact and
 its menu stays reachable from the keyboard at power-on. PICOCALC_PSRAM with
 a working PSRAM swaps there instead and does not need fl1.
 
+Two more things the loader route changes are handled at boot.
 `SystemClock_Config()` moves clk_sys to clk_ref and stops the aux-only
 clocks before it resets and reprograms either PLL, because the loader's
 stage may leave clk_sys running from PLL_SYS (datasheet 2.15.3.2 and
-2.18.3).
+2.18.3). The loader's second stage runs the flash clock at clk_sys / 4
+where DiscoBSD's runs it at clk_sys / 2, and `flash_enter_xip()` re-runs
+that second stage after every erase and program, so with the magic present
+the kernel restores BAUDR 2 and RX_SAMPLE_DLY 1 from RAM at boot and after
+each re-entry.
 
 Evidence: `check-loader-stamp` proves the decode, the bound and the swap
 writer against the bound on the host, and the wiring of the two
 primitives in the source. The bare route's boot is the Renode boot of
 `check-renode`. No kernel has been booted from the loader on a board or in
-Renode, so the stamped path stands on source reading and the host gate,
-and the clock sequence entered from the loader's stage on source and
-datasheet reading. Two further collisions stay open: the loader's path text at
-0x118-0x12b overlays the image identity words, and an application flashed
-later from the menu erases the flash root above 128 KB.
+Renode: the stamped path rests on the host gate and source reading, and
+the clock sequence entered from the loader's stage and the restored XIP
+divider on source and datasheet reading. Two further collisions stay open:
+the loader's path text at 0x118-0x12b overlays the image identity words,
+and an application flashed later from the menu erases the flash root
+above 128 KB.
 
 ## Next work, with designs and blockers
 

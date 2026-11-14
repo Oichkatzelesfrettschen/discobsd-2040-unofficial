@@ -760,8 +760,9 @@ startup(void)
 #endif
 
 	/*
-	 * Fix the writable flash end from the PicoCalc loader's stamp before
-	 * any device can write flash.
+	 * Fix the writable flash end from the PicoCalc loader's stamp, and
+	 * restore the XIP clock divider its second stage lowered, before any
+	 * device can write flash.
 	 */
 	flash_limit_init();
 

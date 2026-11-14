@@ -101,7 +101,9 @@ ptrace arguments and successful minus-one results, and sigaction's trampoline
 argument. Flash remains read/execute during execution. Five controls reject an
 even helper address, wrong helper target, omitted state relocation, wrong
 process base and ptrace literal aliasing. Mutation-construction failures remain
-fatal rather than counting as successful rejection.
+fatal rather than counting as successful rejection. A separate fault injection
+raises a Unicorn memory error while constructing the first helper mutation;
+the experiment terminates before assigning that mutation a verdict.
 
 The model supplies instruction-execution evidence under injected syscall
 outcomes. Kernel exception entry, signals, fork, swap restoration and board

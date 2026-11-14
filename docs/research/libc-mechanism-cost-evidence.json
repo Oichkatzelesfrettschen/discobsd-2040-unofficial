@@ -40,11 +40,19 @@
     },
     {
       "path": ".build-logs/shared-syscall-tail/exercise.py",
-      "sha256": "63187323d2cda129caed75881262c8474c7222c1b3a279104f6488072b7c5e44"
+      "sha256": "d10e7bb18777d509ae5df82a7da5b59884c596e6b46217d319d1f9a62cdeae07"
     },
     {
       "path": ".build-logs/shared-syscall-tail/runtime.json",
-      "sha256": "462b0ee762c49b9d92b76db089fabac9f952b7903b0ce1f7e5d0343085975504"
+      "sha256": "65502d36efc71ccfc563543186370bc9ab0a5065a0e617f816fd41ab0a1e20a2"
+    },
+    {
+      "path": ".build-logs/shared-syscall-tail/construction_control.py",
+      "sha256": "8aa00b934fa7b90914e8e676a78470fa9eecb0480c8a47abe4cd5e3c322b3bdb"
+    },
+    {
+      "path": ".build-logs/shared-syscall-tail/construction-control.log",
+      "sha256": "fe709735aa48f48158f3fd523095928cc353a49faf192328ea6e130d81f23e08"
     }
   ],
   "compiler_options": [
@@ -91,7 +99,7 @@
       {
         "mode": "even-helper",
         "state": "rejected",
-        "reason": "Invalid instruction (UC_ERR_INSN_INVALID)"
+        "reason": "modeled execution: Invalid instruction (UC_ERR_INSN_INVALID)"
       },
       {
         "mode": "wrong-helper",
@@ -101,7 +109,7 @@
       {
         "mode": "omit-relocations",
         "state": "rejected",
-        "reason": "Invalid memory write (UC_ERR_WRITE_UNMAPPED)"
+        "reason": "modeled execution: Invalid memory write (UC_ERR_WRITE_UNMAPPED)"
       },
       {
         "mode": "wrong-owner",
@@ -111,7 +119,7 @@
       {
         "mode": "ptrace-literal-alias",
         "state": "rejected",
-        "reason": "Invalid memory read (UC_ERR_READ_UNMAPPED)"
+        "reason": "modeled execution: Invalid memory read (UC_ERR_READ_UNMAPPED)"
       }
     ]
   },

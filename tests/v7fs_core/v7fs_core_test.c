@@ -312,6 +312,8 @@ le24(const uint8_t *p)
 #define	SB_NFREE	le16(SB + 6)
 #define	SB_FREE(i)	le32(SB + 8 + 4 * (i))
 #define	SB_NINODE	le16(SB + 208)
+#define	SB_TIME_OFFSET	414
+#define	SB_TIME		le32(SB + SB_TIME_OFFSET)
 #define	SB_TFREE	le32(SB + 418)
 #define	SB_TINODE	le16(SB + 422)
 
@@ -618,6 +620,19 @@ put16(uint8_t *p, unsigned v)
 {
 	p[0] = (uint8_t)v;
 	p[1] = (uint8_t)(v >> 8);
+}
+
+/* The inverse of le32() for the byte order under test. */
+static void
+put32(uint8_t *p, uint32_t v)
+{
+	if (byte_order == PDP_ENDIAN) {
+		put16(p, v >> 16);
+		put16(p + 2, v & 0xffff);
+		return;
+	}
+	put16(p, v & 0xffff);
+	put16(p + 2, v >> 16);
 }
 
 static int
@@ -2603,6 +2618,40 @@ regress(int fd)
 			fail("regress-superblock",
 			    "an empty block cache with free blocks mounts");
 			v7fs_io_fini(fs);
+		}
+	}
+
+	/*
+	 * The superblock time is an unsigned 32-bit count of seconds; a count
+	 * with bit 31 set is a date after January 2038 and must mount, and
+	 * must survive a writeback into the field s_time of filsys.h.
+	 */
+	if (format_image(fd, 64, 0) != 0 || load_raw(fd) != 0) {
+		fail("regress-superblock-time", "format failed");
+	} else {
+		put32(SB + SB_TIME_OFFSET, 0x90000000u);
+		if (lseek(fd, 512, SEEK_SET) != 512 ||
+		    write(fd, image + 512, 512) != 512) {
+			fail("regress-superblock-time", "superblock write failed");
+		} else if ((fs = mount_image(fd)) == NULL) {
+			fail("regress-superblock-time",
+			    "a superblock time past January 2038 does not mount");
+		} else {
+			check((uint32_t)fs->superblock.update_time == 0x90000000u,
+			    "regress-superblock-time",
+			    "the mounted time is not the stored count");
+			fs->superblock.update_time = (v7fs_time_t)0xffffffffu;
+			fs->superblock.modified = 1;
+			check(v7fs_superblock_writeback(fs) == 0 &&
+			    load_raw(fd) == 0 && SB_TIME == 0xffffffffu,
+			    "regress-superblock-time",
+			    "the written time is not the count stored");
+			v7fs_io_fini(fs);
+			if ((fs = mount_image(fd)) == NULL)
+				fail("regress-superblock-time",
+				    "the largest count does not mount");
+			else
+				v7fs_io_fini(fs);
 		}
 	}
 }

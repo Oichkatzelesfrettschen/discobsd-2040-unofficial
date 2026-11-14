@@ -88,6 +88,8 @@ EOF
 }
 
 # compile_tar VIEW SOURCE OUTPUT
+# STORED_TIMES_CFLAGS follows the gate's own flags, for a compiler whose
+# default warnings go beyond the ones tar.c is kept clean of.
 compile_tar() {
     ct_view=$1
     ct_source=$2
@@ -97,6 +99,7 @@ compile_tar() {
         -D_DEFAULT_SOURCE -DTAR_PATH_LIMIT=256 -std=c17 -O1 \
         -Wall -Wextra -Werror -Wpedantic -Wstrict-prototypes \
         -Wold-style-definition -Wconversion -Wsign-conversion \
+        ${STORED_TIMES_CFLAGS:-} \
         -include "$here/rooted_link_host.h" \
         -o "$ct_output" "$ct_source" "$here/rooted_link_host.c" "$shim_object"
 }
@@ -403,7 +406,7 @@ done <<'MUTANTS'
 create-negative#yes#!file_time_is_stored(sp->st_mtime)#(sp->st_mtime < 0 || file_time_is_stored(sp->st_mtime) == 2)
 list-long-max#yes#!stored_time_in_range(time_value) ||#time_value > LONG_MAX ||
 header-unbounded#no#!stored_time_in_range(time_value) ||#0 ||
-range-unchecked#no#return seconds >= 0 &&\n            stored_time_in_range((unsigned long long)seconds);#return seconds != 0 || seconds == 0;
+range-unchecked#no#return seconds >= 0 &&\n            stored_time_in_range((unsigned long long)seconds);#return seconds >= 0;
 set-all-ones#no#modification_time == STORED_TIME_MAX#modification_time == STORED_TIME_MAX + 1
 update-signed#yes#stored_time(stbuf.st_mtime) > newest#stbuf.st_mtime > (time_t)newest
 directory-time-dropped#no#metadata.restore_time = mflag == 0;#metadata.restore_time = 0;

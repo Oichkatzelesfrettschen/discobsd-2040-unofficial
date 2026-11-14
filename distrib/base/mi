@@ -858,6 +858,7 @@ file /usr/include/sys/syslimits.h
 file /usr/include/sys/syslog.h
 file /usr/include/sys/systm.h
 file /usr/include/sys/time.h
+file /usr/include/sys/timeb.h
 file /usr/include/sys/times.h
 file /usr/include/sys/ttychars.h
 file /usr/include/sys/ttydev.h
@@ -877,6 +878,7 @@ file /usr/include/time.h
 file /usr/include/ttyent.h
 file /usr/include/tzfile.h
 file /usr/include/unistd.h
+file /usr/include/utime.h
 file /usr/include/utmp.h
 file /usr/include/vmf.h
 

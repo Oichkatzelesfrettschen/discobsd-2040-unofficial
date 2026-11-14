@@ -37,6 +37,8 @@ def main():
         ('symbol-extent', 'if ((unsigned)length + 6 > *remaining)',
          'if (0 && (unsigned)length + 6 > *remaining)', 1,
          'invalid input symbol padding'),
+        ('absolute-index-capped', 'if (index == sn)',
+         'if (index == sn && index < NSYMPR)', 1, 'bad symbol reference'),
     ]
     rows = []
     for name, old, new, count, diagnostic in controls:

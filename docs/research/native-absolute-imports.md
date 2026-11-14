@@ -78,12 +78,17 @@ record-extent, section-span, section-copy, or padding rejection, or restore a
 signed high-byte shift.
 Every mutation must violate its named input's output or diagnostic contract.
 
-`tests/native_linker/branches.py` assembles real objects and runs 126 tool
+`tests/native_linker/branches.py` assembles real objects and runs 136 tool
 commands. BL, B, and BEQ resolve a near absolute target, reject a distant flash
 target, retain the target after two partial links and a 16-byte caller shift,
 and accept an absolute definition supplied only at final link. Capacity cases
 admit 501 and 800 absolute definitions and mixtures with 499 or 500 undefined
 symbols; a mixture with 501 undefined symbols retains its overflow rejection.
+For each branch form, an absolute provider preceding the caller places the
+target after 800 definitions. The witness checks that the first partial link
+retains an external relocation index of at least 800, then requires the target
+to remain fixed across another partial link and final link. This exercises
+the fallback lookup beyond the bounded undefined-symbol table.
 The unmodified linker fails the first near-target comparison. Additional cases
 cover exact signed displacement limits, positive and negative instruction
 addends, ordinary text symbols, already-applied relocations, and data words.
@@ -98,7 +103,9 @@ filled tables preserve their boundaries, and a nonzero padding byte rejects.
 resolved absolute branches, apply absolute branches during partial links, or
 charge absolute definitions against the undefined-symbol table. Two additional
 mutations disable container admission or inflate the output symbol extent. A
-sixth mutation disables the symbol-record bound. Each must fail
+sixth mutation disables the symbol-record bound. A seventh incorrectly caps
+absolute symbol indexes at the per-input undefined-symbol limit; the high-index
+partial-link witness rejects it. Each must fail
 its named regression. Successful
 receipts retain source/tool hashes and command outputs beneath `.build-logs`.
 

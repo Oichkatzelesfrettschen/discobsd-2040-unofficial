@@ -57,6 +57,9 @@ def main():
     prefix = assemble('prefix', '.text\n.space 8\n')
     near = assemble('near', '.global target\n.equ target, 0x20000041\n')
     far = assemble('far', '.global target\n.equ target, 0x10020001\n')
+    high_index = assemble('high-index', ''.join(
+        f'.global a{i}\n.equ a{i}, {i}\n' for i in range(800))
+        + '.global target\n.equ target, 0x20000041\n')
     for instruction in ('bl', 'b', 'beq'):
         caller = assemble(instruction, '.syntax unified\n.thumb\n.text\n.global _start\n'
                           f'.thumb_func\n_start:\n{instruction} target\nmovs r0, #1\nbx lr\n')
@@ -120,6 +123,18 @@ def main():
             run([linker, '-o', final, prefix, moved])
             if target(final, instruction, 16) != 0x20000040 + addend:
                 raise RuntimeError(instruction + ': instruction addend differs')
+
+        run([linker, '-r', '-o', partial, high_index, caller])
+        data = partial.read_bytes()
+        header = struct.unpack_from('<8I', data)
+        relocation_at = 32 + header[1] + header[2]
+        index = int.from_bytes(data[relocation_at + 5:relocation_at + 8], 'little')
+        if data[relocation_at] & 0x70 != 0x70 or index < 800:
+            raise RuntimeError(instruction + ': fixture lacks high external symbol index')
+        run([linker, '-r', '-o', moved, prefix, partial])
+        run([linker, '-o', final, prefix, moved])
+        if target(final, instruction, 16) != 0x20000040:
+            raise RuntimeError(instruction + ': high-index absolute target differs')
 
     word = assemble('word-import', '.text\n.global _start\n_start:\n.word target\n')
     word_partial, word_moved, word_final = [work / name for name in

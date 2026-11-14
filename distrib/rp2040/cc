@@ -71,38 +71,42 @@ fi
 # stem FILE: set base to FILE without its directory and its .c/.s/.o
 # suffix. The last field between slashes is the name; a name that ends in
 # one of the three suffixes is rejoined from its fields between dots, less
-# the last. Empty fields do not survive the splitting, so a name with two
-# dots in a row or a leading dot goes through basename and sed, the two
-# processes the common case avoids.
+# the last. Field splitting also expands a pattern against the working
+# directory, and empty fields do not survive it, so a path that holds a
+# pattern character, and a name with two dots in a row or a leading dot,
+# go through basename and sed, the two processes the common case avoids.
 stem() {
-	saved_ifs=$IFS
-	IFS=/
-	for field in $1; do
-		base=$field
-	done
-	case $base in
-	*..*|.*)
-		IFS=$saved_ifs
+	case $1 in
+	*[*?[]*|*..*|.*|*/.*)
 		base=`basename "$1" | sed 's/\.[cso]$//'`
 		;;
-	*.c|*.s|*.o)
-		IFS=.
-		joined=
-		held=
-		count=0
-		for field in $base; do
-			case $count in
-			0)	count=1 ;;
-			1)	joined=$held
-				count=2 ;;
-			*)	joined=$joined.$held ;;
-			esac
-			held=$field
+	*)
+		saved_ifs=$IFS
+		IFS=/
+		for field in $1; do
+			base=$field
 		done
-		base=$joined
+		case $base in
+		*.c|*.s|*.o)
+			IFS=.
+			joined=
+			held=
+			count=0
+			for field in $base; do
+				case $count in
+				0)	count=1 ;;
+				1)	joined=$held
+					count=2 ;;
+				*)	joined=$joined.$held ;;
+				esac
+				held=$field
+			done
+			base=$joined
+			;;
+		esac
+		IFS=$saved_ifs
 		;;
 	esac
-	IFS=$saved_ifs
 }
 
 objs=

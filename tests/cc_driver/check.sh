@@ -108,8 +108,9 @@ expect driver 1 '' -Wall a.c
 expect driver 1 '' a.x
 expect driver 1 '' -o
 
-# A name with a leading dot or two dots in a row takes the basename and
-# sed route, so those two commands join PATH for these cases; the log still
+# A name with a leading dot or two dots in a row, and a path that holds a
+# pattern character (with a file in the directory that the pattern would
+# match), take the basename and sed route, so those two commands join PATH for these cases; the log still
 # lists every other process.
 for tool in basename sed; do
 	ln -s "$(command -v "$tool")" "$work/bin/$tool"
@@ -117,6 +118,11 @@ done
 expect driver 0 'smlrc .hidden.c .hidden.s;' -S .hidden.c
 expect driver 0 'smlrc sub/x..c x..s;' -S sub/x..c
 expect driver 0 'as x..s -o x..o;' -c x..s
+: >"$work/run/xa"
+: >"$work/run/a1"
+expect driver 0 'smlrc dir/x[ab].c x[ab].s;' -S 'dir/x[ab].c'
+expect driver 0 'smlrc a[12].c a[12].s;' -S 'a[12].c'
+expect driver 0 'smlrc d?r/m.c m.s;' -S 'd?r/m.c'
 rm "$work/bin/basename" "$work/bin/sed"
 
 if [ "$failures" -ne 0 ]; then

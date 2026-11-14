@@ -127,6 +127,16 @@ int bdevsync(dev_t dev)
     device_sync_device = dev;
     return device_sync_error;
 }
+/* A driver without DIOCCHECKPOINT: ufs_sync()'s request has nothing to do. */
+static int
+no_checkpoint_ioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
+{
+    (void)dev; (void)cmd; (void)addr; (void)flag;
+    return EINVAL;
+}
+const struct bdevsw bdevsw[] = {
+    { 0, 0, 0, 0, no_checkpoint_ioctl, 0 },
+};
 /*
  * Like the production iupdat(), a failure leaves the dirty flags set, and a
  * delayed update leaves the inode block for bflush() to write.

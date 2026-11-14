@@ -606,7 +606,7 @@ xdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
  * consulting the open mask.
  */
 static int fl_setup(int unit);
-static int fl_sync(void);
+static int fl_checkpoint(void);
 
 #ifndef UFS_DISK_FLASH_INCLUDE
 #define UFS_DISK_FLASH_INCLUDE "ufs_disk_flash_functions.c"
@@ -631,7 +631,7 @@ fl_setup(int unit)
 }
 
 static int
-fl_sync(void)
+fl_checkpoint(void)
 {
 	return 0;
 }

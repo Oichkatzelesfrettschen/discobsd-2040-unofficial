@@ -152,3 +152,73 @@ Matched source/resource captures, archive-provider closure, affected-caller
 runtime checks, emulator image qualification, review, and integration remain
 open. The build result establishes caller compilation/linkage, not zero
 resource growth or physical-board behavior.
+
+## Resource observation and fixed-signal caller hypothesis
+
+Clean main `d01ef4a0` and candidate `ec6f9773` complete instrumented
+distributions and shipped dependency captures. The retained
+`signal-set-resources-d01ef4a0.json`, `signal-set-resources-ec6f9773.json`,
+and paired comparison bind the observations to those sources. Eighteen
+shipped programs acquire `sigsetops.o`; the nonpositive-growth comparator
+rejects those additions pending measured review. The native archive grows
+32 bytes, root data blocks grow from 746 to 747, and free blocks fall to 232.
+Most affected programs gain 40 loaded bytes. These costs are unapproved.
+
+Source inspection locates constant signal-set construction in `abort.c` and
+`system.c`: the former removes known `SIGABRT` from a full set, and the latter
+forms the singleton `SIGCHLD` set. Those internal values are compile-time
+constants rather than untrusted signal-number inputs. Replacing their calls
+with equivalent scalar mask construction can preserve the original generated
+operations while retaining validation for public callers. The proposed
+invariant requires compile-time admission of each constant within
+`0 < signal < NSIG`, and identical syscall-visible masks and ordering.
+
+The deciding experiment compares target object code and relocation identities
+against main, then executes caller fixtures that observe masks, signal actions,
+and cleanup. A fresh matched resource capture decides the actual savings.
+The prediction is removal of repeated `sigsetops.o` dependencies attributable
+solely to these fixed-signal constructions. A differing mask, reordered caller
+effect, or unchanged dependency count refutes the corresponding prediction.
+No resource savings enter the accepted budget before those checks pass.
+
+The inspected Issue 8 function specifications at
+`https://pubs.opengroup.org/onlinepubs/9799919799/functions/` require the stated
+successful results. They permit `EINVAL` detection for invalid or unsupported
+numbers in add, delete, and membership; empty/full define no errors. The port
+chooses that permitted error detection as its stronger contract. The validation
+repair does not represent optional error detection as a mandatory POSIX clause.
+
+The fixed-signal target experiment compiles main and the proposed internal
+mask construction with identical GNU17 Cortex-M0+ optimization flags. Both
+text bytes and relocation entries match: 62 text bytes for `abort`, 172 for
+`system`. The candidate applies those equivalent constructions with compile-time
+signal-domain assertions. This supports the tested target code-generation
+claim; fresh caller fixtures and resource captures still decide admission.
+The signal-set manual describes callable interfaces, const membership, and
+the selected invalid-number error contract without changing its provenance.
+
+## Fixed-signal caller qualification
+
+`signal_callers_test.c` links the real `abort.c` and `system.c` bodies with
+instrumented process and signal operations. Six Cortex-M0 scenarios observe
+masks, arguments, saved dispositions, restoration, and event ordering across
+abort fallback, system parent completion, fork failure, child exec failure,
+wait failure, and null command. All six pass. Three warning-clean mutations
+must fail their named scenario: setting the abort bit, selecting SIGINT instead
+of SIGCHLD, and omitting saved-mask restoration. All three controls reject.
+The registered QEMU gate also executes the Smaller C-generated real-header
+caller with the provider; its successful exit is distinct from the earlier
+compile-and-assemble-only evidence. The fixtures model process/signal services
+and do not establish kernel delivery or fork execution.
+
+`tools/bin/rp2040/nm lib/libc_aout/libc.a` locates one text definition of each
+of the five callable signal-set operations in the generated native archive.
+Undefined references in consumer members remain distinct from those providers.
+Fresh resource capture still decides the optimized candidate's actual costs.
+
+The revised production build passes in 41.39 seconds,
+with receipt `.build-logs/rp2040-build-local-20261114T214304Z-4090050-196e22e7/status.json`.
+The registered `check-signal-sets-qemu` target passes after that build,
+including the native-generated caller and all caller mutation controls.
+Source accounting adds the caller fixture as unreviewed (2,265 unreviewed
+paths); runtime witnesses remain separate from that accounting.

@@ -19,7 +19,13 @@ Smaller C. A malformed native input must fail with its syntax diagnostic.
 `check-signal-sets-qemu` belongs to `check-qemu` and executes the real-header
 fixture under Cortex-M0 with newlib/Linux syscall support. It checks function
 addresses, const membership, single evaluation, invalid errors, and adjacent
-storage preservation. Missing required tools fail the selected gate. These
+storage preservation. The same QEMU gate executes the Smaller C-generated
+caller and observes six instrumented abort/system scenarios: abort fallback,
+parent completion, fork failure, child exec failure, wait failure, and null
+command. Wrong abort/child masks and omitted mask restoration must each return
+the named failure status. These caller fixtures replace process and signal
+services with observers; they establish masks and call ordering, not kernel
+signal delivery. Missing required tools fail the selected gate. These
 gates establish their named host/compiler/emulator evidence; native on-device
 preprocessing, DiscoBSD kernel execution, runtime peaks, and physical-board
 behavior remain separate.

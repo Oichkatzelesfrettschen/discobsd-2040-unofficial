@@ -112,6 +112,23 @@ __time64_narrow_epoch(struct __timeval32 *narrow, const struct timeval *wide)
     return 0;
 }
 
+/*
+ * A file time to set. The kernel reads the count 4294967295 in utimes and
+ * futimes as "leave this time alone" (VNOVAL, sys/kern/ufs_fio.c), so the
+ * largest file time a program can set is one second earlier; the wrapper
+ * refuses the sentinel instead of reporting a time as set that was not.
+ * Returns 0, or -1 with errno set.
+ */
+static inline int
+__time64_narrow_file_time(struct __timeval32 *narrow, const struct timeval *wide)
+{
+    if (wide->tv_sec == 0xffffffffLL) {
+        errno = EINVAL;
+        return -1;
+    }
+    return __time64_narrow_epoch(narrow, wide);
+}
+
 void __time64_widen_stat(struct stat *, const struct __stat32 *);
 void __time64_widen_rusage(struct rusage *, const struct __rusage32 *);
 

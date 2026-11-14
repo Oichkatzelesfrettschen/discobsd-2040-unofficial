@@ -124,6 +124,18 @@ clock_calls(void)
 	pair[1].tv_sec = 1;
 	pair[0].tv_sec = 4294967296LL;
 	CHECK(futimes(3, pair) == -1 && errno == EINVAL && narrow_calls == 0);
+	/* The last count is the kernel's "leave alone" value for a file time. */
+	narrow_reset();
+	pair[0].tv_sec = 4294967294LL;
+	pair[1].tv_sec = 4294967294LL;
+	CHECK(utimes("f", pair) == 0 && narrow_seen_sec[1] == 0xfffffffeUL);
+	narrow_reset();
+	pair[1].tv_sec = 4294967295LL;
+	CHECK(utimes("f", pair) == -1 && errno == EINVAL && narrow_calls == 0);
+	narrow_reset();
+	pair[1].tv_sec = 1;
+	pair[0].tv_sec = 4294967295LL;
+	CHECK(futimes(3, pair) == -1 && errno == EINVAL && narrow_calls == 0);
 	narrow_reset();
 	CHECK(utimes("f", 0) == 0 && narrow_null);
 	CHECK(futimes(3, 0) == 0 && narrow_null && narrow_calls == 2);

@@ -93,6 +93,8 @@ expect_rejected failed-stat-overwrites time64_stat.c \
     's/if (result == 0 \&\& sb)/if (sb)/'
 expect_rejected null-stat-gets-a-buffer time64_lstat.c \
     's/__sys_lstat(path, sb ? \&narrow : 0)/__sys_lstat(path, \&narrow)/'
+expect_rejected file-time-sentinel-accepted time64.h \
+    's/if (wide->tv_sec == 0xffffffffLL) {/if (wide->tv_sec == -2) {/'
 expect_rejected stopped-child-usage-widened time64_wait4.c \
     's/ \&\& !WIFSTOPPED(\*status))/)/'
 

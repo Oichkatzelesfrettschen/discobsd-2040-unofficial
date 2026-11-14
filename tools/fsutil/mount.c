@@ -722,6 +722,7 @@ int op_utime(const char *path, struct utimbuf *ubuf)
     /* Modify the access and modification times, bounded or fixed as the
      * image-building modes bound them. */
     inode.atime = fs_source_time (ubuf->actime);
+    inode.atime_explicit = 1;
     inode.mtime = fs_source_time (ubuf->modtime);
     inode.dirty = 1;
     fs_inode_save (&inode, 0);

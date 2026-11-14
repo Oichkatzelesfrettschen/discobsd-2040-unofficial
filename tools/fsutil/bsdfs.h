@@ -132,6 +132,7 @@ typedef struct {
     time_t          atime;              /* time last accessed */
     time_t          mtime;              /* time last modified */
     time_t          ctime;              /* time created */
+    int             atime_explicit;     /* fs_inode_save keeps atime */
 } fs_inode_t;
 
 typedef struct {

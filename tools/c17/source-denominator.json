@@ -63293,7 +63293,9 @@
           "inline_assembly": [],
           "integer": [],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }

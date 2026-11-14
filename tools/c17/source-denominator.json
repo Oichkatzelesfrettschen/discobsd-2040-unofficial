@@ -1512,7 +1512,8 @@
           ],
           "object_lifetime": [],
           "pointer": [
-            "integer-pointer-cast"
+            "integer-pointer-cast",
+            "pointer-integer-cast"
           ],
           "prototype": [
             "old-style-definition"
@@ -97889,7 +97890,6 @@
           "object_lifetime": [],
           "pointer": [],
           "prototype": [
-            "old-style-declaration",
             "old-style-definition"
           ],
           "variadic": []
@@ -98570,7 +98570,6 @@
           "object_lifetime": [],
           "pointer": [],
           "prototype": [
-            "old-style-declaration",
             "old-style-definition"
           ],
           "variadic": []
@@ -98676,7 +98675,6 @@
           "object_lifetime": [],
           "pointer": [],
           "prototype": [
-            "old-style-declaration",
             "old-style-definition"
           ],
           "variadic": []
@@ -98813,12 +98811,14 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
+            "integer-cast",
             "shift-expression"
           ],
           "object_lifetime": [
             "dynamic-storage"
           ],
           "pointer": [
+            "integer-pointer-cast",
             "pointer-integer-cast"
           ],
           "prototype": [
@@ -98983,9 +98983,13 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "integer-cast"
+          ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [
             "old-style-definition"
           ],
@@ -100043,12 +100047,15 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
+            "integer-cast",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [
             "dynamic-storage"
           ],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [
             "old-style-declaration",
             "old-style-definition"

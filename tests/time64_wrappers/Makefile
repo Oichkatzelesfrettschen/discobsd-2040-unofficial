@@ -3,10 +3,10 @@
 #
 # time64_test.c is compiled with _TIME_BITS=64 against the tree's headers,
 # so its calls bind to the __NAME64 wrappers; narrow_calls.c is compiled
-# with the default view and stands in for the 32-bit entry points the
-# wrappers call. No kernel runs: the gate establishes the conversions of
-# the wrappers, compiled by the cross compiler for the target instruction
-# set, and nothing about the system calls behind them.
+# with _TIME_BITS=32, as libc's members are, and stands in for the 32-bit
+# entry points the wrappers call. No kernel runs: the gate establishes the
+# conversions of the wrappers, compiled by the cross compiler for the target
+# instruction set, and nothing about the system calls behind them.
 #
 # TIME64_SRC names the directory holding time64.h and the members, and
 # PREFIX the names of the products; check.sh sets both to build each
@@ -41,7 +41,7 @@ ${PREFIX}_test.o: time64_test.c narrow_calls.h ${VIEW_HEADERS}
 	${QEMU_ARM_CC} ${TREE_CFLAGS} -c -o $@ time64_test.c
 
 ${PREFIX}_narrow.o: narrow_calls.c narrow_calls.h ${VIEW_HEADERS}
-	${QEMU_ARM_CC} ${TREE_CFLAGS} -c -o $@ narrow_calls.c
+	${QEMU_ARM_CC} ${TREE_CFLAGS} -D_TIME_BITS=32 -c -o $@ narrow_calls.c
 
 ${PREFIX}_time64_test_arm: ${OBJS} ${QEMU_SUPPORT}
 	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -o $@ ${OBJS} ${QEMU_SUPPORT} \

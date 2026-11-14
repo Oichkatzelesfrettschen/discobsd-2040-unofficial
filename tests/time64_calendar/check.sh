@@ -93,7 +93,7 @@ done
 
 cleanup
 # shellcheck disable=SC2086 # $compile is a compiler and its flags
-$compile -c -o "$here/calibration_narrow.o" "$source/ctime.c"
+$compile -D_TIME_BITS=32 -c -o "$here/calibration_narrow.o" "$source/ctime.c"
 if wide_verdict "$here/calibration_narrow.o" \
     "__ctime64 __discobsd_offtime64 __gmtime64 __localtime64 " >/dev/null; then
 	echo "time64 calendar: FAIL: a 32-bit ctime.o passed the symbol check"

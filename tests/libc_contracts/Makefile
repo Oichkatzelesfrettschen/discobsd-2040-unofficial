@@ -508,16 +508,22 @@ ASCTIME_RENAMES=	-Dasctime=db_asctime -Derrno=asctime_test_errno
 ASCTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wformat=2 -nostdinc \
 	-isystem ${TOPSRC}/include ${ASCTIME_RENAMES}
 
+# ctime.c, mktime.c, difftime.c and tzset.c are tested here as libc builds
+# its 32-bit members (lib/libc/Makefile), with _TIME_BITS defined as 32;
+# under the default 64-bit view each public name would bind to its __NAME64
+# symbol, which no -D rename reaches and the host libc may define.
+NARROW_TIME=	-D_TIME_BITS=32
 CTIME_RENAMES=	-Dctime=db_ctime -Dlocaltime=db_localtime \
 	-Dgmtime=db_gmtime -Dtzset=db_tzset -Dtzname=db_tzname \
 	-Dtztab=db_tztab
 CTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-ffunction-sections -fdata-sections -nostdinc \
-	-isystem ${TOPSRC}/include ${CTIME_RENAMES}
+	-isystem ${TOPSRC}/include ${CTIME_RENAMES} ${NARROW_TIME}
 CTIME_TARGET_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wformat=2 \
 	-Wformat-overflow=2 -Wold-style-definition -fno-common \
 	-mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian -mthumb \
-	-mfloat-abi=soft -ffreestanding -nostdinc -I${TOPSRC}/include -Os
+	-mfloat-abi=soft -ffreestanding -nostdinc -I${TOPSRC}/include -Os \
+	${NARROW_TIME}
 CTIME_TARGET_DIAGNOSTIC_CFLAGS=	${CTIME_TARGET_CFLAGS} \
 	-Dsnprintf=__builtin_snprintf
 CTIME_TARGET_BAD_CFLAGS=	${CTIME_TARGET_CFLAGS} \
@@ -527,7 +533,7 @@ CTIME_TARGET_BAD_CFLAGS=	${CTIME_TARGET_CFLAGS} \
 # bounds a walk over a fixed-size array here.
 ZONE_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-ffunction-sections -fdata-sections -nostdinc \
-	-isystem ${TOPSRC}/include ${CTIME_RENAMES}
+	-isystem ${TOPSRC}/include ${CTIME_RENAMES} ${NARROW_TIME}
 ZONE_TZ_WARN=	-Wno-old-style-definition -Wno-deprecated-non-prototype
 
 # mktime inverts ctime.c's localtime, so the two compile and link together
@@ -538,7 +544,7 @@ MKTIME_RENAMES=	-Dmktime=db_mktime -Dtimegm=db_timegm ${CTIME_RENAMES} \
 		-DTZ_ZONEINFO
 MKTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-ffunction-sections -fdata-sections -nostdinc \
-	-isystem ${TOPSRC}/include ${MKTIME_RENAMES}
+	-isystem ${TOPSRC}/include ${MKTIME_RENAMES} ${NARROW_TIME}
 
 RUNTIME_LIMITS_RENAMES=	-Dsysconf=db_sysconf -Dconfstr=db_confstr \
 	-Derrno=runtime_limits_errno
@@ -550,7 +556,7 @@ RUNTIME_LIMITS_TARGET_CFLAGS=	${RUNTIME_LIMITS_CFLAGS} -fno-common \
 	-mfloat-abi=soft -ffreestanding -Os
 DIFFTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
 	-Wmissing-prototypes -Wold-style-definition -nostdinc \
-	-isystem ${TOPSRC}/include -Ddifftime=db_difftime
+	-isystem ${TOPSRC}/include -Ddifftime=db_difftime ${NARROW_TIME}
 DIFFTIME_TARGET_CFLAGS=	${DIFFTIME_CFLAGS} -fno-common \
 	-mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian -mthumb \
 	-mfloat-abi=soft -ffreestanding -Os
@@ -671,20 +677,20 @@ cal64_${variant}_${member}64.o: ${TARGET_DIR}/${member}.c ${CAL64_HEADERS}
 
 cal64_${variant}_tzset.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
 	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} ${CAL64_ZONE} \
-	    -c -o $@ ${TARGET_DIR}/tzset.c
+	    ${NARROW_TIME} -c -o $@ ${TARGET_DIR}/tzset.c
 
 cal64_${variant}_timezone.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} ${MKTIME_TZ_WARN} \
-	    -c -o $@ ${TARGET_DIR}/timezone.c
+	    ${NARROW_TIME} -c -o $@ ${TARGET_DIR}/timezone.c
 
 cal64_${variant}_asctime.o: ${TARGET_DIR}/asctime.c
 	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} \
-	    -c -o $@ ${TARGET_DIR}/asctime.c
+	    ${NARROW_TIME} -c -o $@ ${TARGET_DIR}/asctime.c
 
 cal64_${variant}_zone_hooks.o: ${CAL64_DIR}/zone_hooks.c \
     ${CAL64_DIR}/zone_hooks.h
 	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} -DDEFINE_ERRNO \
-	    -c -o $@ ${CAL64_DIR}/zone_hooks.c
+	    ${NARROW_TIME} -c -o $@ ${CAL64_DIR}/zone_hooks.c
 
 ${CAL64_PROG.${variant}}: ${CAL64_DIR}/calendar64_test.c calendar64_vectors.h \
     ${CAL64_DIR}/zone_hooks.h ${CAL64_OBJS.${variant}}
@@ -1652,7 +1658,9 @@ clean:
 # reach _impure_ptr, whose stdio would collide with the tree's. The c17
 # header gate holds that pair to glibc and to newlib, so this run shows
 # the scanner agreeing with a verified conversion on Thumb-1.
-QEMU_OBJCFLAGS=	-Os ${QEMU_ARM_CPUFLAGS} -fno-common
+# Each object is a libc member, compiled with the 32-bit view of time as
+# lib/libc/Makefile compiles it (NARROW_TIME above).
+QEMU_OBJCFLAGS=	-Os ${QEMU_ARM_CPUFLAGS} -fno-common ${NARROW_TIME}
 QEMU_TESTS=	strtox_test_arm random_contract_test_arm printf_contract_test_arm \
 		scanf_llong_test_arm
 QEMU_STRTOX_OBJS= strtox_strtol_arm.o strtox_strtoul_arm.o
@@ -1920,7 +1928,7 @@ include ${TOPSRC}/tools/host-test.mk
 PRINTF_ORACLE_ARM_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -Os \
 		-mcpu=cortex-m0plus -mthumb -mfloat-abi=soft -ffreestanding \
 		-nostdinc -isystem ${TOPSRC}/include ${PRINTF_ORACLE_RENAMES} \
-		-Disnan=tree_isnan -Disinf=tree_isinf
+		-Disnan=tree_isnan -Disinf=tree_isinf ${NARROW_TIME}
 
 .for _m in ${PRINTF_ORACLE_MEMBERS}
 pg_arm_${_m}.o: ${PRINTF_DIR}/${_m}.c
@@ -2005,7 +2013,7 @@ hv_${_m}.o: ${TOPSRC}/lib/libc/stdlib/${_m}.c ${TOPSRC}/include/math.h
 
 HV_ARM_CFLAGS=	-std=gnu89 -w -Os -mcpu=cortex-m0plus -mthumb -mfloat-abi=soft \
 		-ffreestanding -fno-builtin -nostdinc -Istrtox_include \
-		-isystem ${TOPSRC}/include ${HV_RENAMES}
+		-isystem ${TOPSRC}/include ${HV_RENAMES} ${NARROW_TIME}
 
 .for _m in ${HV_LIBM}
 hv_arm_${_m}.o: ${TOPSRC}/lib/libm/${_m}.c ${TOPSRC}/include/math.h

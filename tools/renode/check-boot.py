@@ -462,6 +462,60 @@ def check_uarea_paths(console: Console) -> None:
     console.wait_for("$", "operator shell after the capacity record", COMMAND_BUDGET_SECONDS)
 
 
+# The clock past 2038: 4607230038 is yymmddhhmm for 2046-07-23 00:38 UTC
+# (bin/date2/date.c reads a two-digit year below 70 as 20yy), 2,415,919,080
+# seconds, which has bit 31 set. A program that read the kernel's count as a
+# signed long would print a year before 1970.
+CLOCK_SET = "date -u 4607230038"
+CLOCK_ROW = re.compile(r"^\w{3} Jul 23 00:3[89]:\d\d \S+ 2046$", re.M)
+# touch -t reads local time and ls -l prints a time over six months old
+# with its year; the file is dated 2045-01-02, well past 2038.
+TOUCHED_ROW = re.compile(r"^-\S+ .* Jan +2 +2045 /tmp/y2045$", re.M)
+# A file created now is dated 2046-07-22 or -23 in the kernel's zone.
+CREATED_ROW = re.compile(r"^-\S+ .* Jul 2[23] \d\d:\d\d /tmp/n2046$", re.M)
+BOOTTIME_ROW = re.compile(r"^\d+$", re.M)
+
+
+def check_clock_past_2038(console: Console) -> None:
+    """Set the clock to 2046 as root and read it back through the programs.
+
+    date sets the clock with settimeofday() and reads it with
+    gettimeofday() through the 64-bit wrappers, which widen the kernel's
+    unsigned count. touch -t writes a 2045 file time through utimes(), and
+    ls -l reads the file times back through stat(); a count that wrapped
+    or was read signed shows as a year before 1970. sysctl -n prints the
+    boot time as a number, which shows a question mark if a conversion
+    reached printf's 64-bit directive without its digit member.
+    """
+    console.type_line("su")
+    console.wait_lines(["#"], "root shell for the clock", COMMAND_BUDGET_SECONDS)
+    start = console.cursor
+    console.type_line(f"{CLOCK_SET} >/dev/null; date -u; echo clock-end")
+    console.wait_for("\nclock-end", "clock past 2038", COMMAND_BUDGET_SECONDS)
+    output = console.text()[start:console.cursor]
+    if not CLOCK_ROW.search(output):
+        console.fail(f"clock past 2038: date -u does not read 2046 in {output!r}")
+        raise StageFailed("clock past 2038")
+    # The shell's line editor takes about 127 characters, so the steps go
+    # on lines of their own.
+    console.type_line("touch -t 204501020304 /tmp/y2045; touch /tmp/n2046; echo touch-end")
+    console.wait_for("\ntouch-end", "files touched past 2038", COMMAND_BUDGET_SECONDS)
+    start = console.cursor
+    console.type_line("ls -l /tmp/y2045 /tmp/n2046; sysctl -n kern.boottime; "
+                      "echo files-end")
+    console.wait_for("\nfiles-end", "file times past 2038", COMMAND_BUDGET_SECONDS)
+    output = console.text()[start:console.cursor]
+    for row, what in ((TOUCHED_ROW, "touch -t 2045"), (CREATED_ROW, "a file created in 2046"),
+                      (BOOTTIME_ROW, "kern.boottime as a number")):
+        if not row.search(output):
+            console.fail(f"file times past 2038: no {what} row in {output!r}")
+            raise StageFailed("file times past 2038")
+    print(f"check-renode: clock and file times read 2046 after {console.virtual:.1f} "
+          "virtual seconds")
+    console.type_line("rm -f /tmp/y2045 /tmp/n2046; exit")
+    console.wait_for("$", "operator shell after the clock", COMMAND_BUDGET_SECONDS)
+
+
 def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.wait_lines([f"DiscoBSD 2.7 ({config})"] + CPU_LINES + BOARD_LINES[config]
                        + STORAGE_LINES, "device probe", PROBE_BUDGET_SECONDS)
@@ -498,6 +552,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.type_line("mputest residue")
     console.wait_lines(["RESIDUE OK"], "exec residue probe", COMMAND_BUDGET_SECONDS)
     check_uarea_paths(console)
+    check_clock_past_2038(console)
     if config not in CORE1_CONFIGS:
         return
     # The PICO_UART kernel launches core 1 through the boot ROM a second

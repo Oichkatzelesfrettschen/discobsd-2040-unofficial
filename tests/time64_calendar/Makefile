@@ -30,6 +30,8 @@ PREFIX?=	good
 TREE_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -Os ${QEMU_ARM_CPUFLAGS} \
 		-ffreestanding -fno-common -nostdinc -I${TOPSRC}/include
 WIDE=		-D_TIME_BITS=64
+# The 32-bit members, built as lib/libc/Makefile builds them.
+NARROW=		-D_TIME_BITS=32
 ZONE_RENAMES=	-Dgetenv=calendar_getenv -Dgettimeofday=calendar_zone_gettimeofday
 # The headers that carry the two views; an object is rebuilt when one moves.
 VIEW_HEADERS=	${TOPSRC}/sys/sys/_time_t.h ${TOPSRC}/include/time.h \
@@ -53,7 +55,7 @@ OBJS=		${CAL_MEMBERS:S,^,${PREFIX}_,:S,$,64.o,} \
 		${PREFIX}_tzset.o ${PREFIX}_timezone.o ${PREFIX}_asctime.o \
 		${PREFIX}_zone_hooks.o ${PREFIX}_narrow.o ${PREFIX}_test.o \
 		${PREFIX}_calls.o
-# The same members at the default width, read by check.sh alone.
+# The same members at the 32-bit width, read by check.sh alone.
 NARROW_OBJS=	${CAL_MEMBERS:S,^,${PREFIX}_,:S,$,32.o,} \
 		${GEN_MEMBERS:S,^,${PREFIX}_,:S,$,32.o,} \
 		${COMPAT_MEMBERS:S,^,${PREFIX}_,:S,$,32.o,}
@@ -68,21 +70,21 @@ calendar64_vectors.h: vectors.py
 ${PREFIX}_${member}64.o: ${CAL_SRC}/${member}.c ${CAL_HEADERS}
 	${QEMU_ARM_CC} ${TREE_CFLAGS} ${WIDE} -c -o $@ ${CAL_SRC}/${member}.c
 ${PREFIX}_${member}32.o: ${CAL_SRC}/${member}.c ${CAL_HEADERS}
-	${QEMU_ARM_CC} ${TREE_CFLAGS} -c -o $@ ${CAL_SRC}/${member}.c
+	${QEMU_ARM_CC} ${TREE_CFLAGS} ${NARROW} -c -o $@ ${CAL_SRC}/${member}.c
 .endfor
 
 .for member in ${GEN_MEMBERS}
 ${PREFIX}_${member}64.o: ${GEN}/${member}.c ${VIEW_HEADERS}
 	${QEMU_ARM_CC} ${TREE_CFLAGS} ${WIDE} -c -o $@ ${GEN}/${member}.c
 ${PREFIX}_${member}32.o: ${GEN}/${member}.c ${VIEW_HEADERS}
-	${QEMU_ARM_CC} ${TREE_CFLAGS} -c -o $@ ${GEN}/${member}.c
+	${QEMU_ARM_CC} ${TREE_CFLAGS} ${NARROW} -c -o $@ ${GEN}/${member}.c
 .endfor
 
 .for member in ${COMPAT_MEMBERS}
 ${PREFIX}_${member}64.o: ${COMPAT}/${member}.c ${VIEW_HEADERS}
 	${QEMU_ARM_CC} ${TREE_CFLAGS} ${WIDE} -c -o $@ ${COMPAT}/${member}.c
 ${PREFIX}_${member}32.o: ${COMPAT}/${member}.c ${VIEW_HEADERS}
-	${QEMU_ARM_CC} ${TREE_CFLAGS} -c -o $@ ${COMPAT}/${member}.c
+	${QEMU_ARM_CC} ${TREE_CFLAGS} ${NARROW} -c -o $@ ${COMPAT}/${member}.c
 .endfor
 
 .for member in ${WRAPPER_MEMBERS}
@@ -91,21 +93,23 @@ ${PREFIX}_${member}.o: ${GEN}/${member}.c ${GEN}/time64.h ${VIEW_HEADERS}
 .endfor
 
 ${PREFIX}_tzset.o: ${CAL_SRC}/tzset.c ${CAL_HEADERS}
-	${QEMU_ARM_CC} ${TREE_CFLAGS} ${ZONE_RENAMES} -c -o $@ ${CAL_SRC}/tzset.c
+	${QEMU_ARM_CC} ${TREE_CFLAGS} ${NARROW} ${ZONE_RENAMES} -c -o $@ \
+	    ${CAL_SRC}/tzset.c
 
 ${PREFIX}_timezone.o: ${GEN}/timezone.c
-	${QEMU_ARM_CC} ${TREE_CFLAGS} -Wno-old-style-definition \
+	${QEMU_ARM_CC} ${TREE_CFLAGS} ${NARROW} -Wno-old-style-definition \
 	    -Wno-deprecated-non-prototype -c -o $@ ${GEN}/timezone.c
 
 ${PREFIX}_asctime.o: ${GEN}/asctime.c
-	${QEMU_ARM_CC} ${TREE_CFLAGS} -c -o $@ ${GEN}/asctime.c
+	${QEMU_ARM_CC} ${TREE_CFLAGS} ${NARROW} -c -o $@ ${GEN}/asctime.c
 
 ${PREFIX}_zone_hooks.o: zone_hooks.c zone_hooks.h ${VIEW_HEADERS}
-	${QEMU_ARM_CC} ${TREE_CFLAGS} -c -o $@ zone_hooks.c
+	${QEMU_ARM_CC} ${TREE_CFLAGS} ${NARROW} -c -o $@ zone_hooks.c
 
 ${PREFIX}_narrow.o: ${WRAPPERS}/narrow_calls.c ${WRAPPERS}/narrow_calls.h \
     ${VIEW_HEADERS}
-	${QEMU_ARM_CC} ${TREE_CFLAGS} -c -o $@ ${WRAPPERS}/narrow_calls.c
+	${QEMU_ARM_CC} ${TREE_CFLAGS} ${NARROW} -c -o $@ \
+	    ${WRAPPERS}/narrow_calls.c
 
 ${PREFIX}_test.o: calendar64_test.c calendar64_vectors.h zone_hooks.h \
     ${VIEW_HEADERS}

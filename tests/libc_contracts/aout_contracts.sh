@@ -27,8 +27,11 @@ do
 	fi
 done
 
+# The probe stands for a program linked on the board against these
+# archives, whose members carry the 32-bit names Smaller C binds, so it is
+# compiled with that view of time (sys/_time_t.h).
 "$arm_compiler" -std=gnu17 -Wall -Wextra -Werror -mcpu=cortex-m0plus -mabi=aapcs \
-    -mlittle-endian -mthumb -mfloat-abi=soft -nostdinc \
+    -D_TIME_BITS=32 -mlittle-endian -mthumb -mfloat-abi=soft -nostdinc \
     -I"$source_root/include" -Os -ffreestanding -fno-builtin \
     -fno-jump-tables -S "$script_directory/aout_link_contract.c" \
     -o "$temporary_directory/aout_link_contract.s"

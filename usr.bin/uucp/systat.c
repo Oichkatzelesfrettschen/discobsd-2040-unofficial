@@ -57,7 +57,13 @@ int type;
 
 	fp = fopen(filename, "w");
 	ASSERT(fp != NULL, "SYSTAT OPEN FAIL", filename, 0);
-	fprintf(fp, "%d %d %ld %ld %s %s\n", type, count, prestime, rtry, text, name);
+	/*
+	 * The status file holds the time of the call as the kernel's
+	 * 32-bit count, unsigned, and the retry interval as a long;
+	 * callok() reads the same two fields back.
+	 */
+	fprintf(fp, "%d %d %lu %ld %s %s\n", type, count,
+	    (unsigned long)prestime, (long)rtry, text, name);
 	fclose(fp);
 	return;
 }
@@ -90,7 +96,8 @@ char *name;
 	char filename[MAXFULLNAME], line[S_SIZE];
 	register FILE *fp;
 	time_t lasttime, prestime, retrytime;
-	long t1, t2;
+	unsigned long t1;
+	long t2;
 	int count, type;
 
 	STATNAME(filename, name);
@@ -107,7 +114,7 @@ char *name;
 
 	fclose(fp);
 	time(&prestime);
-	sscanf(line, "%d%d%ld%ld", &type, &count, &t1, &t2);
+	sscanf(line, "%d%d%lu%ld", &type, &count, &t1, &t2);
 	lasttime = t1;
 	retrytime = t2;
 
@@ -131,7 +138,7 @@ char *name;
 
 		if (prestime - lasttime < retrytime) {
 			logent("RETRY TIME NOT REACHED", "NO CALL");
-			DEBUG(4, "RETRY TIME (%ld) NOT REACHED\n", retrytime);
+			DEBUG(4, "RETRY TIME (%ld) NOT REACHED\n", (long)retrytime);
 			if (Debug) {
 				logent("debugging", "continuing anyway");
 				return SS_OK;

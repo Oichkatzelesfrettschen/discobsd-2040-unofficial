@@ -190,6 +190,10 @@ def main():
         "-Wformat=2",
         "-ffreestanding",
         "-fno-jump-tables",
+        # The archive serves programs Smaller C compiles on the board, which
+        # bind the existing names with the 32-bit layouts; lib/libc/Makefile
+        # selects the same view for every member it builds.
+        "-D_TIME_BITS=32",
     ]
     as_tool = os.path.join(args.toolbindir, "as")
     ar_tool = os.path.join(args.toolbindir, "ar")

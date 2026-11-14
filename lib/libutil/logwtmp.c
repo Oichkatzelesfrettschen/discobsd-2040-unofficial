@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <utmp.h>
 #include <paths.h>
 
@@ -31,7 +32,6 @@ logwtmp(line, name, host)
 	struct utmp ut;
 	struct stat buf;
 	int fd;
-	time_t time();
 	char *strncpy();
 
 	if ((fd = open(_PATH_WTMP, O_WRONLY|O_APPEND, 0)) < 0)
@@ -40,7 +40,8 @@ logwtmp(line, name, host)
 		(void)strncpy(ut.ut_line, line, sizeof(ut.ut_line));
 		(void)strncpy(ut.ut_name, name, sizeof(ut.ut_name));
 		(void)strncpy(ut.ut_host, host, sizeof(ut.ut_host));
-		ut.ut_time = time((time_t *)0);
+		/* The record holds the kernel's 32-bit count (<utmp.h>). */
+		ut.ut_time = (utime32_t)time((time_t *)0);
 		if (write(fd, (char *)&ut, sizeof(struct utmp)) !=
 		    sizeof(struct utmp))
 			(void)ftruncate(fd, buf.st_size);

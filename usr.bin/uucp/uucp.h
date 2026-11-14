@@ -5,15 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <sys/timeb.h>
 #include <unistd.h>
 
-
-struct timeb {
-        time_t  time;
-        u_short millitm;
-        short   timezone;
-        short   dstflag;
-};
 
 /*
  * Determine local uucp name of this machine.

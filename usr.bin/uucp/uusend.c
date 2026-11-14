@@ -45,7 +45,7 @@ FILE	*in, *out;
 FILE	*dout;
 
 extern FILE	*popen();
-extern char	*index(), *strcpy(), *strcat(), *ctime();
+extern char	*index(), *strcpy(), *strcat();
 
 #ifdef	RUUSEND
 int	rsend;

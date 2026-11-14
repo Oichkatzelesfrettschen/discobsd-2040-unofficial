@@ -914,7 +914,6 @@ char *string;
 	time_t clock;
 	register char *s = string;
 	int i, tl, th, tn, dayok=0;
-	struct tm *localtime();
 	struct tm *tp;
 	char *p, MGrade;
 

@@ -267,7 +267,7 @@ void
 md_gct(rt_buf)
         struct rogue_time *rt_buf;
 {
-	struct tm *t, *localtime();
+	struct tm *t;
 	time_t seconds;
 
 	time(&seconds);

@@ -362,7 +362,8 @@ main(argc,argv)
 	if (!argc)
 		goto display;
 
-	wtmp[0].ut_time = tv.tv_sec;
+	/* A wtmp record holds the kernel's 32-bit count (<utmp.h>). */
+	wtmp[0].ut_time = (utime32_t)tv.tv_sec;
 	if (gtime(*argv)) {
 		fputs(usage,stderr);
 		retval = 1;
@@ -384,7 +385,7 @@ main(argc,argv)
 		if ((wf = open(_PATH_WTMP, O_WRONLY | O_APPEND)) < 0)
 			fputs("date: can't write wtmp file.\n",stderr);
 		else {
-			(void)time((time_t *)&wtmp[1].ut_time);
+			wtmp[1].ut_time = (utime32_t)time((time_t *)0);
 			/*NOSTRICT*/
 			(void)write(wf,(char *)wtmp,sizeof(wtmp));
 			(void)close(wf);

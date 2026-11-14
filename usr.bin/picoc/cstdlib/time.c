@@ -14,6 +14,18 @@ static int CLK_PER_SECValue = CLK_PER_SEC;
 static int CLK_TCKValue = CLK_TCK;
 #endif
 
+/*
+ * An interpreted program holds a time as a 32-bit int (the time_t of
+ * StdTimeDefs below), the kernel's count of seconds in its bits. libc's
+ * time_t is wider under the 64-bit view of time (sys/_time_t.h), so every
+ * bridge passes libc a native object: the count read unsigned from the
+ * interpreted int, or written back to it.
+ */
+static time_t InterpretedTime(const void *Pointer)
+{
+    return (time_t)*(const unsigned int *)Pointer;
+}
+
 void StdAsctime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
     ReturnValue->Val->Pointer = asctime(Param[0]->Val->Pointer);
@@ -28,7 +40,9 @@ void StdClock(struct ParseState *Parser, struct Value *ReturnValue, struct Value
 
 void StdCtime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Pointer = ctime(Param[0]->Val->Pointer);
+    time_t Native = InterpretedTime(Param[0]->Val->Pointer);
+
+    ReturnValue->Val->Pointer = ctime(&Native);
 }
 
 #ifndef NO_FP
@@ -36,19 +50,23 @@ void StdDifftime(struct ParseState *Parser, struct Value *ReturnValue, struct Va
 {
     (void)Parser;
     (void)NumArgs;
-    ReturnValue->Val->FP = difftime((time_t)Param[0]->Val->Integer,
-        (time_t)Param[1]->Val->Integer);
+    ReturnValue->Val->FP = difftime((time_t)(unsigned int)Param[0]->Val->Integer,
+        (time_t)(unsigned int)Param[1]->Val->Integer);
 }
 #endif
 
 void StdGmtime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Pointer = gmtime(Param[0]->Val->Pointer);
+    time_t Native = InterpretedTime(Param[0]->Val->Pointer);
+
+    ReturnValue->Val->Pointer = gmtime(&Native);
 }
 
 void StdLocaltime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Pointer = localtime(Param[0]->Val->Pointer);
+    time_t Native = InterpretedTime(Param[0]->Val->Pointer);
+
+    ReturnValue->Val->Pointer = localtime(&Native);
 }
 
 /* We don't have mktime
@@ -60,7 +78,11 @@ void StdMktime(struct ParseState *Parser, struct Value *ReturnValue, struct Valu
 
 void StdTime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Integer = (int)time(Param[0]->Val->Pointer);
+    time_t Native = time(NULL);
+
+    if (Param[0]->Val->Pointer != NULL)
+        *(unsigned int *)Param[0]->Val->Pointer = (unsigned int)Native;
+    ReturnValue->Val->Integer = (int)(unsigned int)Native;
 }
 
 void StdStrftime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)

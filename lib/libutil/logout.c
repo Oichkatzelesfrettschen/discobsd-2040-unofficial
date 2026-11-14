@@ -20,6 +20,7 @@
 #include <sys/time.h>
 
 #include <fcntl.h>
+#include <time.h>
 #include <utmp.h>
 #include <unistd.h>
 #include <paths.h>
@@ -34,7 +35,6 @@ logout(char *line)
 	UTMP ut;
 	int rval;
 	off_t lseek();
-	time_t time();
 
 	if ((fd = open(_PATH_UTMP, O_RDWR)) < 0)
 		return (0);
@@ -44,7 +44,8 @@ logout(char *line)
 			continue;
 		memset(ut.ut_name, 0, UT_NAMESIZE);
 		memset(ut.ut_host, 0, UT_HOSTSIZE);
-		ut.ut_time = time((time_t *)0);
+		/* The record holds the kernel's 32-bit count (<utmp.h>). */
+		ut.ut_time = (utime32_t)time((time_t *)0);
 		(void)lseek(fd, -(long)sizeof(UTMP), L_INCR);
 		(void)write(fd, (char *)&ut, sizeof(UTMP));
 		rval = 1;

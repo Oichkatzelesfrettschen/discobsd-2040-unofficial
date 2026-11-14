@@ -90,13 +90,19 @@ source_date_epoch(void)
 	const char *text = getenv("SOURCE_DATE_EPOCH");
 	char *end;
 	unsigned long value;
+	time_t as_time;
 
 	if (text == NULL || *text < '0' || *text > '9')
 		return -1;
 	errno = 0;
 	value = strtoul(text, &end, 10);
-	if (errno != 0 || *end != '\0' || (time_t)value < 0 ||
-	    (unsigned long)(time_t)value != value)
+	/*
+	 * The value as a time_t, which holds every unsigned long where
+	 * time_t is wider and turns negative or changes where it is not.
+	 */
+	as_time = (time_t)value;
+	if (errno != 0 || *end != '\0' || as_time < 0 ||
+	    (unsigned long)as_time != value)
 		return -1;
 	return (long long)value;
 }

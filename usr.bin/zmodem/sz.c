@@ -744,8 +744,13 @@ char *name;
 
 #ifdef STAT
 #ifndef XX
+		/*
+		 * The header carries the file time in octal; the kernel's
+		 * 32-bit count, which fstat() widens, fits an unsigned long.
+		 */
 		if (fstat(fileno(in), &f)!= -1)
-			sprintf(p, "%lu %lo %o 0 %d %ld", f.st_size, f.st_mtime,
+			sprintf(p, "%lu %lo %o 0 %d %ld", f.st_size,
+			  (unsigned long)f.st_mtime,
 			  f.st_mode, Filesleft, Totalleft);
 		Totalleft -= f.st_size;
 #endif

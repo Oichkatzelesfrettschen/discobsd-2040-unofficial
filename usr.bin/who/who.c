@@ -44,7 +44,7 @@ main(argc, argv)
             pw = getpwuid(getuid());
             strncpy(utmp.ut_name, pw ? pw->pw_name : "?", NMAX);
             strcpy(utmp.ut_line, "tty??");
-            utmp.ut_time = time((time_t *)0);
+            utmp.ut_time = (utime32_t)time((time_t *)0);
             putline();
             exit(0);
         }

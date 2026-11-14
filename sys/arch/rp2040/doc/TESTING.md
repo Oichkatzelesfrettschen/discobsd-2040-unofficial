@@ -1913,7 +1913,15 @@ owns the mechanism, replay command, and remaining shared-link integration work.
 experimental PIC library and links five application layouts with executable-tail
 state. ELF inspection and actual a.out conversion check BSS containment and final
 end symbols; Cortex-M0 QEMU execution checks public object identity, initialized
-pointers, callbacks and null weak/absolute imports. Eleven controls reject
+pointers, callbacks, syscall error-state writes and null weak/absolute imports.
+The syscall assembly checks cover a generated wrapper and the specialized
+`pipe`, `_brk`, `ptrace` and `sigaction` wrappers in static and shared modes.
+`DISCOBSD_SHARED_LIBC=1` selects GOT-based `errno` addressing through `r9`;
+other defined values fail preprocessing, and an undefined selector retains
+absolute addressing. QEMU invokes the shared error-return mechanism with an
+error value; it does not execute the DiscoBSD supervisor call or establish
+kernel error delivery. A static syscall error-path control also rejects an
+absolute state reference. Eleven existing controls reject
 incorrect addresses, GOT base, relocation, segment/end bounds, non-PIC
 references, interposition, relocated fixed GOT entries, missing or conflicting
 GOT ownership and unresolved strong imports. Linux

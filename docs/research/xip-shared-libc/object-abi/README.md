@@ -142,3 +142,23 @@ The engineering contribution is the verified composition of executable-tail
 object imports with DiscoBSD BSS overlays and a.out conversion. PIC, GOTs and
 link-time symbol imports have established prior art; this experiment establishes
 no new algorithm or full POSIX/UNIX conformance claim.
+
+## Shared syscall error state
+
+`SYS_ERROR` in `lib/libc/arm/sys/SYS.h` stores the error value from `r0` and
+returns `-1`. Explicit `DISCOBSD_SHARED_LIBC=1` assembly obtains the `errno`
+address from the process-local GOT through `r9`. The path uses caller-saved
+`r1` and `r2`, leaves `r9`, the stack and the return address intact, and places
+its GOT-offset literal after the return. Static assembly keeps the absolute
+literal. The specialized `pipe`, `_brk`, `ptrace` and `sigaction` paths share
+this mechanism; `ptrace` also uses the same address mechanism when clearing
+`errno` before its supervisor call, with argument registers saved.
+
+The gate checks static `R_ARM_ABS32` and shared `R_ARM_GOT_BREL` errno
+relocations in the generated and specialized wrappers. Its runtime fixture
+executes the production error-return macro with error value 9 and checks
+`-1`, the public `errno` value and object identity across five application
+layouts. An absolute-address error-return fixture fails the code-state
+relocation verifier before runtime. The supervisor-call transition, kernel
+carry flag delivery and shared signal return remain separate obligations.
+The shared selector is experimental and has no production build-mode wiring.

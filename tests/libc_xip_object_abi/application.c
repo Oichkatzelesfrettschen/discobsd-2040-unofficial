@@ -19,6 +19,7 @@ FILE *shared_stream_address(void);
 char ***shared_environ_address(void);
 int shared_initial_state(const char *);
 int shared_callback(int, int (*)(int));
+int shared_syscall_error(int);
 void _start(void);
 
 #if APP_BSS > 0
@@ -80,5 +81,8 @@ _start(void)
 		fixture_exit(15);
 	if (shared_callback(40, callback) != 126 || errno != 41 || _iob[2]._cnt != 42)
 		fixture_exit(16);
+	if (shared_syscall_error(9) != -1 || errno != 9 ||
+	    shared_errno_address() != &errno)
+		fixture_exit(17);
 	fixture_exit(0);
 }

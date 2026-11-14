@@ -239,10 +239,23 @@ It completes with 27 warnings, including unavailable NuGet audit data,
 assembly-version conflicts, and donor compiler diagnostics. This result
 establishes model compilation with warnings. The confined boot invocation
 exits before boot with a Renode configuration-lock exception. An invocation
-outside filesystem confinement reaches the login prompt, shell, and uname;
-its remaining stages await a terminal verdict. These observations establish
-neither complete emulator qualification nor physical-board behavior.
+outside filesystem confinement completes `check-renode` successfully. The
+UART0 boot exercises process listing, memory-device refusal, fstat, image
+identity, MPU faults, exec residue, post-2038 timestamps, native compilation,
+and core-1 lifecycle. The warning classifier accepts its modeled warning
+classes. This emulator result supplies no physical-board evidence.
 
 `signal-set-resource-exception.md` and the optimized resource receipts record
 the measured admission request. The owner approves its exact limits on
-2026-11-14; terminal image qualification and reviewed integration remain open.
+2026-11-14. Aggregate local qualification, hosted CI, and reviewed integration
+remain open.
+
+The passing PICO_UART run binds `unix.bin` SHA-256
+`ec6c51e61e360f7e9447d5864baeea3eb8e6c901aadd9cd674258224c10429b7`
+and `flash.bin` SHA-256
+`db89d7949ba7524e72db4b4139c19f2e06aeccb2af7895ff0c187aff9090fa1a`.
+Its captured gate output has SHA-256
+`5c5a8391dde9a33b5e37c6c3d4553c7eb4db44e6da8508f09a08f39ba1a1d0ed`.
+The classifier reports 201,579 observations across 30 permitted warning
+classes and zero errors; the count is model diagnostic evidence, not a
+warning-free peripheral implementation claim.

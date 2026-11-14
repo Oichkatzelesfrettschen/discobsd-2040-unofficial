@@ -474,6 +474,15 @@ TOUCHED_ROW = re.compile(r"^-\S+ .* Jan +2 +2045 /tmp/y2045$", re.M)
 # A file created now is dated 2046-07-22 or -23 in the kernel's zone.
 CREATED_ROW = re.compile(r"^-\S+ .* Jul 2[23] \d\d:\d\d /tmp/n2046$", re.M)
 BOOTTIME_ROW = re.compile(r"^\d+$", re.M)
+# A program the image's own compiler builds: Smaller C reads no header, so
+# the source declares what it calls, and its long is the 32-bit count the
+# members of /usr/lib/libc.a take (distrib/rp2040/boardlibc-members).
+NATIVE_SOURCE = (
+    "char *ctime(long *); long time(long *); int printf(char *, ...);",
+    'int main(void) { long t = time(0); printf("%s", ctime(&t)); return 0; }',
+)
+NATIVE_ROW = re.compile(r"^\w{3} Jul 2[23] \d\d:\d\d:\d\d 2046$", re.M)
+NATIVE_BUDGET_SECONDS = 240.0
 
 
 def check_clock_past_2038(console: Console) -> None:
@@ -512,7 +521,22 @@ def check_clock_past_2038(console: Console) -> None:
             raise StageFailed("file times past 2038")
     print(f"check-renode: clock and file times read 2046 after {console.virtual:.1f} "
           "virtual seconds")
-    console.type_line("rm -f /tmp/y2045 /tmp/n2046; exit")
+    # /usr/bin/cc compiles a program that prints the clock through ctime(),
+    # which links ctime.o, tzset.o, timezone.o and asctime.o from the
+    # image's libc.a and reads the count unsigned.
+    for index, line in enumerate(NATIVE_SOURCE):
+        console.type_line(f"echo '{line}' >{'>' if index else ''}/tmp/d.c; echo line-end")
+        console.wait_for("\nline-end", "native source line", COMMAND_BUDGET_SECONDS)
+    start = console.cursor
+    console.type_line("cc -o /tmp/d /tmp/d.c && /tmp/d; echo native-end")
+    console.wait_for("\nnative-end", "program compiled on the target", NATIVE_BUDGET_SECONDS)
+    output = console.text()[start:console.cursor]
+    if not NATIVE_ROW.search(output):
+        console.fail(f"program compiled on the target: no 2046 date in {output!r}")
+        raise StageFailed("program compiled on the target")
+    print("check-renode: a program compiled on the target prints 2046 through ctime() "
+          f"after {console.virtual:.1f} virtual seconds")
+    console.type_line("rm -f /tmp/y2045 /tmp/n2046 /tmp/d /tmp/d.c; exit")
     console.wait_for("$", "operator shell after the clock", COMMAND_BUDGET_SECONDS)
 
 

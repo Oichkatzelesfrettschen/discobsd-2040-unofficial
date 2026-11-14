@@ -13,8 +13,13 @@ The clean RP2040 distribution archive measures 43,010 bytes, down from 54,086
 bytes at base commit `145e19b7470ce6c783299ca7d7e4e33b72f57317`. The packed
 root uses 682 data blocks and reports 297 free blocks, compared with 692 and
 287 at the base. [libc-process-runtime-interfaces.md](../../../../../docs/research/libc-process-runtime-interfaces.md)
-records the complete kernel, process, archive and root measurements. The
-historical construction report follows.
+records the complete kernel, process, archive and root measurements. 
+The archive also carries the calendar conversions a date-printing program
+needs -- `asctime`, `ctime` (with `gmtime` and `localtime`), `timezone`,
+`tzset` and `index` -- at 48,294 bytes against 45,314 without them, with
+233 of 988 root blocks free against 236
+([time-representation-past-2038.md](../../../../../docs/research/time-representation-past-2038.md)).
+The historical construction report follows.
 
 Worktree: `~/worktrees/discobsd/board-libc`, branch `board-libc`, off
 `rp2040-port` at `3fcbdb41`. Board not touched; every check below runs on

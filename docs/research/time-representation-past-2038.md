@@ -682,14 +682,16 @@ What stays limited:
   as the count -1, one second before 1970 in GMT and the corresponding
   instant in any other zone.
 - The board's `/usr/lib/libc.a` (`distrib/rp2040/boardlibc-members`)
-  carries `time`, `difftime` and `sleep` but no `ctime.o`, `tzset.o`,
-  `asctime.o` or `mktime.o`, so a program compiled on the board cannot
-  convert a count to a date at all; the full a.out archive carries all
-  but `mktime.o`. Adding the forward conversion would cost the board
-  archive the a.out members `ctime.o` (448 text, 32 data, 44 bss),
-  `tzset.o` (112, 16, 80), `asctime.o` (160, 108, 28) and `timezone.o`
-  (188, 236, 52), which `tzset.o` calls. Which members the board archive
-  carries is the owner's decision.
+  carries the forward conversion: `ctime.o` (`ctime`, `localtime`,
+  `gmtime`), `tzset.o`, `asctime.o`, `timezone.o`, which `tzset.o` calls,
+  and `index.o`, which `timezone.o` calls. The archive grows from 45,314
+  to 48,294 bytes and the packed root keeps 233 of its 988 blocks free
+  (236 with the earlier member list, same tree). It carries no `mktime.o`,
+  so a program compiled on the board converts a count to a date and not a
+  date to a count. `check-board-libc-output` links a consumer of the five
+  entry points against the archive, and `check-renode` compiles a program
+  with the image's `cc` at a 2046 clock and reads the date `ctime()`
+  prints.
 - `timercmp()` and a program's own comparison of two `tv_sec` clock
   readings stay signed, since the field is shared with intervals.
 - `tests/rp2040/fptest` calls `difftime` at the 64-bit view, so its

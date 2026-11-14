@@ -229,6 +229,7 @@ daddr_t	dumplo = (daddr_t)1024;
 #define	RESETS_BASE		0x4000c000UL
 #define	RESETS_RESET		0x0
 #define	RESETS_DONE		0x8
+#define	RESETS_SET		0x2000		/* Atomic set alias. */
 #define	RESETS_CLR		0x3000		/* Atomic clear alias. */
 #define	RESETS_BUSCTRL		(1UL << 1)
 #define	RESETS_PLL_SYS		(1UL << 12)
@@ -329,11 +330,17 @@ swap_cursor_publish(size_t next)
 #define	CLK_REF_CTRL		0x30
 #define	CLK_REF_SELECTED	0x38
 #define	CLK_SYS_CTRL		0x3c
+#define	CLK_SYS_CTRL_SRC_AUX	(1UL << 0)	/* Glitchless mux: aux, not ref. */
+#define	CLK_SYS_DIV		0x40
+#define	CLK_DIV_INT_1		(1UL << 8)	/* Integer divisor 1, no fraction. */
 #define	CLK_SYS_SELECTED	0x44
 #define	CLK_PERI_CTRL		0x48
 #define	CLK_PERI_ENABLE		(1UL << 11)
 #define	CLK_USB_CTRL		0x54
 #define	CLK_USB_ENABLE		(1UL << 11)	/* Aux source 0 is PLL_USB. */
+#define	CLK_ADC_CTRL		0x60
+#define	CLK_RTC_CTRL		0x6c
+#define	CLK_ENABLE		(1UL << 11)	/* ENABLE of every aux-only clock. */
 
 #define	IO_QSPI_BASE		0x40018000UL
 #define	IO_QSPI_SS_CTRL		0x0c		/* GPIO_QSPI_SS control. */
@@ -366,6 +373,12 @@ swap_cursor_publish(size_t next)
 
 #define	TIMER_BASE		0x40054000UL
 #define	TIMER_TIMERAWL		0x28		/* Free-running microseconds. */
+
+static void
+rp_reset(u_int mask)
+{
+	MREG32(RESETS_BASE + RESETS_SET + RESETS_RESET) = mask;
+}
 
 static void
 rp_unreset(u_int mask)
@@ -407,10 +420,25 @@ SystemInit(void)
  * written against its register map rather than ported. The Pico carries a
  * 12 MHz crystal; multiplying by 125 gives a 1500 MHz VCO, and dividing by
  * six and then two gives the 125 MHz the SDK also selects.
+ *
+ * The sequence assumes nothing about the clocks it inherits. From cold reset
+ * clk_sys runs from clk_ref and both PLLs are held in reset, but a kernel
+ * started by another image (the PicoCalc UF2 loader's stage, a pico-sdk
+ * program) or by a warm AIRCR reset, which leaves the clocks block running,
+ * may find clk_sys on PLL_SYS and the aux-only clocks enabled. A PLL's
+ * output may not be used while its dividers change (datasheet 2.15.2), so
+ * every consumer leaves a PLL before the PLL is reset and reprogrammed by
+ * the 2.18.3 sequence: clk_sys through its glitchless mux, polled through
+ * SELECTED, and clk_peri, clk_usb, clk_adc and clk_rtc, which have only an
+ * aux mux, by clearing ENABLE and waiting out two source cycles
+ * (2.15.3.2). The kernel uses neither the ADC nor the RTC, so those two
+ * stay stopped, as cold reset leaves them.
  */
 static void
 SystemClock_Config(void)
 {
+	volatile int i;
+
 	/* Start the crystal oscillator and wait for it to settle. */
 	MREG32(XOSC_BASE + XOSC_STARTUP) = 47;	/* About 1 ms. */
 	MREG32(XOSC_BASE + XOSC_CTRL) =
@@ -432,7 +460,30 @@ SystemClock_Config(void)
 	 */
 	rp_unreset(RESETS_TIMER | RESETS_SYSINFO | RESETS_BUSCTRL);
 
-	/* Program the system PLL: 12 * 125 / (6 * 2) == 125 MHz. */
+	/*
+	 * Run clk_sys from clk_ref, undivided, and stop the aux-only clocks.
+	 * The SRC bit alone changes first, so the aux source in use does not
+	 * change under the generator. The slowest source an aux-only clock can
+	 * have is the ring oscillator, about 1.8 MHz at its lowest, and the
+	 * wait spans well over two of its cycles at the 12 MHz clk_sys has here.
+	 */
+	MREG32(CLOCKS_BASE + CLK_SYS_CTRL) &= ~CLK_SYS_CTRL_SRC_AUX;
+	while (MREG32(CLOCKS_BASE + CLK_SYS_SELECTED) != (1UL << 0))
+		continue;
+	MREG32(CLOCKS_BASE + CLK_SYS_DIV) = CLK_DIV_INT_1;
+	MREG32(CLOCKS_BASE + CLK_PERI_CTRL) &= ~CLK_ENABLE;
+	MREG32(CLOCKS_BASE + CLK_USB_CTRL) &= ~CLK_ENABLE;
+	MREG32(CLOCKS_BASE + CLK_ADC_CTRL) &= ~CLK_ENABLE;
+	MREG32(CLOCKS_BASE + CLK_RTC_CTRL) &= ~CLK_ENABLE;
+	for (i = 0; i < 64; i++)
+		continue;
+
+	/*
+	 * Program the system PLL from reset: 12 * 125 / (6 * 2) == 125 MHz.
+	 * The reset returns the PLL to its powered-down state whatever an
+	 * earlier image left in it.
+	 */
+	rp_reset(RESETS_PLL_SYS);
 	rp_unreset(RESETS_PLL_SYS);
 	MREG32(PLL_SYS_BASE + PLL_FBDIV_INT) = 125;
 	MREG32(PLL_SYS_BASE + PLL_PRIM) = (6UL << 16) | (2UL << 12);
@@ -442,21 +493,28 @@ SystemClock_Config(void)
 	MREG32(PLL_SYS_BASE + PLL_PWR) &= ~PLL_PWR_POSTDIVPD;
 
 	/*
-	 * Switch clk_sys onto the PLL. Source 1 selects the auxiliary mux,
-	 * whose source 0 is the system PLL.
+	 * Switch clk_sys onto the PLL. The aux source is set while the
+	 * glitchless mux still selects clk_ref; source 1 then selects the
+	 * auxiliary mux, whose source 0 is the system PLL.
 	 */
 	MREG32(CLOCKS_BASE + CLK_SYS_CTRL) = 0;
-	MREG32(CLOCKS_BASE + CLK_SYS_CTRL) = 1;
+	MREG32(CLOCKS_BASE + CLK_SYS_CTRL) = CLK_SYS_CTRL_SRC_AUX;
 	while (MREG32(CLOCKS_BASE + CLK_SYS_SELECTED) != (1UL << 1))
 		continue;
 
-	/* The peripheral clock, which the UART divides for its baud rate. */
+	/*
+	 * The peripheral clock, which the UART divides for its baud rate. The
+	 * aux source (0, clk_sys) is set while the generator is stopped, and
+	 * the generator is enabled after it.
+	 */
+	MREG32(CLOCKS_BASE + CLK_PERI_CTRL) = 0;
 	MREG32(CLOCKS_BASE + CLK_PERI_CTRL) = CLK_PERI_ENABLE;
 
 	/*
 	 * The USB PLL: 12 * 100 / (5 * 5) == 48 MHz, the rate the USB
 	 * controller requires of clk_usb (datasheet 4.1.2.1).
 	 */
+	rp_reset(RESETS_PLL_USB);
 	rp_unreset(RESETS_PLL_USB);
 	MREG32(PLL_USB_BASE + PLL_FBDIV_INT) = 100;
 	MREG32(PLL_USB_BASE + PLL_PRIM) = (5UL << 16) | (5UL << 12);
@@ -464,6 +522,7 @@ SystemClock_Config(void)
 	while ((MREG32(PLL_USB_BASE + PLL_CS) & PLL_CS_LOCK) == 0)
 		continue;
 	MREG32(PLL_USB_BASE + PLL_PWR) &= ~PLL_PWR_POSTDIVPD;
+	MREG32(CLOCKS_BASE + CLK_USB_CTRL) = 0;
 	MREG32(CLOCKS_BASE + CLK_USB_CTRL) = CLK_USB_ENABLE;
 
 	/* The LED is a plain output driven from the single-cycle IO block. */
@@ -699,6 +758,13 @@ startup(void)
 #if defined(UART_ENABLED) || defined(UART0_ENABLED)
 	uartinit(0);
 #endif
+
+	/*
+	 * Fix the writable flash end from the PicoCalc loader's stamp, and
+	 * restore the XIP clock divider its second stage lowered, before any
+	 * device can write flash.
+	 */
+	flash_limit_init();
 
 	/*
 	 * When User button is pressed - boot to single user mode.

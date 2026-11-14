@@ -60,6 +60,7 @@
 
 #include <rp2040/dev/flash.h>
 #include <rp2040/dev/flash_swap.h>
+#include <rp2040/dev/loader_stamp.h>
 #include <rp2040/dhara/map.h>
 #include <rp2040/rp2040/clock_catchup.h>
 
@@ -134,6 +135,19 @@ struct flash_rom {
 
 static struct flash_rom flrom;
 static int flrom_ready;
+
+/*
+ * The writable flash end and the raw swap extent below it, which
+ * flash_limit_init() sets from the PicoCalc loader's stamp before any flash
+ * device opens. Both start at zero in bss, where flash_write_admitted()
+ * refuses every erase and program, so a write issued before the stamp is
+ * read fails rather than reaching the loader's flash. flash_loader_boot2
+ * records that the stamp's magic is present: the loader then replaced flash
+ * bytes 0-255 with its own second stage, which boot2_copy holds.
+ */
+static uint32_t flash_write_end;
+static uint32_t flswap_bytes;
+static u_char flash_loader_boot2;
 
 /*
  * The second stage, copied out so XIP can be restored after a write.
@@ -320,9 +334,47 @@ flash_xip_cache(int request)
 }
 
 /*
+ * The SSI that serves execute-in-place, datasheet 4.10. BAUDR divides clk_sys
+ * down to the flash clock and is written only while SSIENR is 0 (4.10.4 and
+ * the DW_apb_ssi programming sequence in 4.10). boot2/boot2_w25q080.S sets
+ * the divider to 2 and the receive sample delay to 1; the PicoCalc UF2
+ * loader's second stage (pelrun/uf2loader stage3/boot2_custom.S) builds the
+ * same continuous-read configuration with a divider of 4.
+ */
+#define	XIP_SSI_REG(off)	(*(volatile u_int *)(0x18000000UL + (off)))
+#define	SSI_SSIENR		0x08
+#define	SSI_BAUDR		0x14
+#define	SSI_SR			0x28
+#define	SSI_SR_BUSY		1U
+#define	SSI_RX_SAMPLE_DLY	0xf0
+#define	SSI_XIP_CLKDIV		2
+#define	SSI_XIP_SAMPLE_DLY	1
+
+/*
+ * Put the XIP read clock back to boot2_w25q080.S's divider after the loader's
+ * second stage has run. The SSI serves no fetch while disabled, so this runs
+ * from RAM, and its callers mask interrupts, whose vectors are in flash. The
+ * flash stays in continuous-read mode throughout: only the clock divider and
+ * sample point change, and the next XIP access carries the same address and
+ * mode bits.
+ */
+static __ramfunc void
+flash_ssi_restore(void)
+{
+	while ((XIP_SSI_REG(SSI_SR) & SSI_SR_BUSY) != 0)
+		continue;
+	XIP_SSI_REG(SSI_SSIENR) = 0;
+	XIP_SSI_REG(SSI_BAUDR) = SSI_XIP_CLKDIV;
+	XIP_SSI_REG(SSI_RX_SAMPLE_DLY) = SSI_XIP_SAMPLE_DLY;
+	XIP_SSI_REG(SSI_SSIENR) = 1;
+}
+
+/*
  * Re-enter execute-in-place by calling the copied second stage. It returns to
  * its caller when entered with a non-zero link register, which is how the
- * Pico SDK re-enables XIP after a write, and is why the copy is kept.
+ * Pico SDK re-enables XIP after a write, and is why the copy is kept. Under
+ * the PicoCalc loader the copy is the loader's second stage, whose divider
+ * flash_ssi_restore() replaces.
  */
 static __ramfunc void
 flash_enter_xip(void)
@@ -330,6 +382,36 @@ flash_enter_xip(void)
 	if (flash_xip_uncached)
 		XIP_CTRL_REG &= ~XIP_CTRL_EN;
 	((void (*)(void))((u_int)boot2_copy + 1))();
+	if (flash_loader_boot2)
+		flash_ssi_restore();
+}
+
+/*
+ * Read the PicoCalc loader's stamp from vector entries 4 and 5 and fix the
+ * writable flash end for the life of the kernel; loader_stamp.h states the
+ * stamp and the decode. startup() calls this once, after the console and
+ * before config() attaches any device, so no flash write precedes it.
+ */
+void
+flash_limit_init(void)
+{
+	const volatile u_int *xip = (const volatile u_int *)FLASH_XIP_BASE;
+	uint32_t magic, limit, end;
+	int s;
+
+	magic = xip[LOADER_STAMP_MAGIC_OFFSET / sizeof(u_int)];
+	limit = xip[LOADER_STAMP_LIMIT_OFFSET / sizeof(u_int)];
+	if (loader_stamp_decode(magic, limit, &end) == LOADER_STAMP_INVALID)
+		printf("fl: loader stamp limit %x is outside the writable "
+		    "flash; flash writes refused\n", (u_int)limit);
+	flswap_bytes = flash_swap_extent(end);
+	flash_write_end = end;
+	if (magic == LOADER_STAMP_MAGIC) {
+		flash_loader_boot2 = 1;
+		s = splhigh();
+		flash_ssi_restore();
+		splx(s);
+	}
 }
 
 /*
@@ -347,6 +429,13 @@ flash_erase(u_int offset, u_int len)
 {
 	int s;
 
+	/*
+	 * Every flash write path (Dhara, raw swap, /dev/temp) reaches the chip
+	 * through this routine or flash_program(), so the writable end is
+	 * enforced here, before the boot ROM is called.
+	 */
+	if (!flash_write_admitted(offset, len, flash_write_end))
+		return -1;
 	s = splhigh();
 	storage_note(offset >= FLASH_SWAP_OFFSET ?
 	    STORAGE_SWAP_ERASE_SECTORS : STORAGE_ROOT_ERASE_SECTORS,
@@ -367,13 +456,15 @@ flash_erase(u_int offset, u_int len)
 
 /*
  * Program len bytes at offset, a multiple of the chip page, under the same
- * constraints as the erase above.
+ * constraints and the same writable end as the erase above.
  */
 static __ramfunc int
 flash_program(u_int offset, const u_char *data, u_int len)
 {
 	int s;
 
+	if (!flash_write_admitted(offset, len, flash_write_end))
+		return -1;
 	s = splhigh();
 	storage_note(offset >= FLASH_SWAP_OFFSET ?
 	    STORAGE_SWAP_PROGRAM_PAGES : STORAGE_ROOT_PROGRAM_PAGES,
@@ -435,8 +526,12 @@ dhara_nand_erase(const struct dhara_nand *n __unused, dhara_block_t b,
 		dhara_set_error(err, DHARA_E_BAD_BLOCK);
 		return -1;
 	}
-	return flash_erase(FLASH_FS_OFFSET + b * FLASH_ERASE_BYTES,
-	    FLASH_ERASE_BYTES);
+	if (flash_erase(FLASH_FS_OFFSET + b * FLASH_ERASE_BYTES,
+	    FLASH_ERASE_BYTES) != 0) {
+		dhara_set_error(err, DHARA_E_BAD_BLOCK);
+		return -1;
+	}
+	return 0;
 }
 
 int
@@ -450,8 +545,12 @@ dhara_nand_prog(const struct dhara_nand *n __unused, dhara_page_t p,
 		return -1;
 	}
 	offset = p * FLASH_UNIT_BYTES;
-	return flash_program(FLASH_FS_OFFSET + offset, data,
-	    FLASH_UNIT_BYTES);
+	if (flash_program(FLASH_FS_OFFSET + offset, data,
+	    FLASH_UNIT_BYTES) != 0) {
+		dhara_set_error(err, DHARA_E_BAD_BLOCK);
+		return -1;
+	}
+	return 0;
 }
 
 int
@@ -594,12 +693,18 @@ fl_setup(int unit)
 	u_int i;
 
 	if (unit == FL_UNIT_SWAP) {
+		/*
+		 * The region ends at the writable end, and with no writable
+		 * flash above FLASH_SWAP_OFFSET the unit does not exist.
+		 */
+		if (flswap_bytes == 0)
+			return ENXIO;
 		flash_rom_init();
 		bzero(du->part, sizeof(du->part));
 		du->part[RAWPART].dp_offset = 0;
-		du->part[RAWPART].dp_nsectors = FLASH_SWAP_BYTES / 512;
+		du->part[RAWPART].dp_nsectors = flswap_bytes / 512;
 		printf("fl%d: %u kbytes raw QSPI flash for swap\n", unit,
-		    (u_int)(FLASH_SWAP_BYTES / 1024));
+		    (u_int)(flswap_bytes / 1024));
 		return 0;
 	}
 
@@ -720,7 +825,7 @@ fl_raw(struct buf *bp, u_int off, u_int len)
 	u_int base;
 	int s;
 
-	if (off > FLASH_SWAP_BYTES || len > FLASH_SWAP_BYTES - off)
+	if (off > flswap_bytes || len > flswap_bytes - off)
 		return 1;
 	base = FLASH_SWAP_OFFSET + off;
 

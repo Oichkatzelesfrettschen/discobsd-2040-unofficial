@@ -11,9 +11,8 @@
 # files. It counts its inputs and takes a name apart with case and field
 # splitting, where expr, basename and sed would each be a process; a name
 # those built-ins cannot take apart exactly (stem below) still goes
-# through basename and sed. On the measured Pico the three processes
-# saved shorten a two-line compile from 30.86 to 25.14 seconds and leave
-# its flash swap erases as they were
+# through basename and sed. The three processes saved shorten a compile
+# on the board; its flash swap erases stay as they were
 # (sys/arch/rp2040/doc/research/flash-traffic-per-workload.md).
 #
 #   cc [-o out] [-S | -c] file.c ... file.s ... file.o ...

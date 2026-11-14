@@ -16,8 +16,10 @@ additional linker allocation block and one additional root data block. The
 last two counts describe the same stored growth at different levels. The
 other 157 of 162 measured surfaces remain unchanged. Every selected archive
 member and hash matches the paired baseline. The candidate has 239 free root
-blocks. Resource approval remains pending; the default comparator rejects the
-five positive surfaces as designed.
+blocks. The owner approves these exact limits for candidate `66ce7c5b` against
+baseline `9561fd1c`. The default comparator continues to reject the five
+positive surfaces as designed; the approval supplies the measured exception.
+Aggregate qualification and reviewed integration remain open.
 
 The shared syscall and ROM selectors remain disabled in shipped static builds.
 Their implementation adds no measured static-image cost beyond the linker

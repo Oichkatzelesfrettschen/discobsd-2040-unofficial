@@ -29,6 +29,12 @@ that drops a required interface merely because installed programs never call it.
 The all-global screening receipt retains input-section costs and leaves public
 ABI selection and final PIC sizing open.
 
+The [calendar PIC envelope](export-closure/calendar-pic-envelope.md) records
+the integrated 449-member compilation and 646-global link. The experimental
+image occupies 62,396 flash bytes, exceeding the fixed reservation by 13,244
+bytes. Hidden visibility supplies no flash savings. The measured size requires
+explicit ABI closure and implementation reductions before image admission.
+
 The [native-call veneer experiment](../native-call-veneers.md) checks a
 12-byte Thumb encoding with eight bytes of temporary stack storage, canonical
 flash pointer identity, and native/GNU assembler agreement. Automatic branch

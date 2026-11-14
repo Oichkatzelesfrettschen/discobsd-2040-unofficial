@@ -92,7 +92,8 @@ v7fs_superblock_dump(const struct v7fs_self *fs)
 	print(modified);
 	print(readonly);
 #if !defined _KERNEL
-	time_t t = sb->update_time;
+	/* update_time is an unsigned count of seconds, valid to 2106. */
+	time_t t = (uint32_t)sb->update_time;
 	printf("%s", ctime(&t));
 #endif
 	print(total_freeblock);

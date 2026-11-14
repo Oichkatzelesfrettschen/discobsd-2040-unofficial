@@ -448,6 +448,7 @@ PY
 unpatched no-newfs-patch newfs_v7fs-main.patch regress-ilist
 unpatched no-inode-patch v7fs_inode.patch regress-last-inode regress-inode-bound
 unpatched no-superblock-patch v7fs_superblock.patch regress-superblock regress-inode-read regress-superblock-writeback regress-volume-read regress-superblock-time
+unpatched no-superblock-util-patch v7fs_superblock_util.patch regress-superblock-time
 
 # Upstream's sanity check refuses a negative update_time as a signed 32-bit
 # value; restoring that one clause rejects a volume dated after January 2038.
@@ -460,6 +461,16 @@ got=0
 [ "$got" -eq 1 ] && grep -q '^FAIL regress-superblock-time:' \
     "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "superblock time sign mutant"; }
 echo "v7fs_core: superblock time sign clause mutant rejected"
+
+# Printing the count as a signed time_t shows 1910 for a clock past 2038.
+mutant superblock-dump-signed sys/fs/v7fs/v7fs_superblock_util.c \
+    'time_t t = (uint32_t)sb->update_time;' 'time_t t = sb->update_time;'
+got=0
+"$work/superblock-dump-signed.bin" "$work/mutant.img" little regress \
+    >"$work/mutant.log" 2>&1 || got=$?
+[ "$got" -eq 1 ] && grep -q '^FAIL regress-superblock-time:' \
+    "$work/mutant.log" || { cat "$work/mutant.log" >&2; fail "superblock dump signed mutant"; }
+echo "v7fs_core: signed superblock dump mutant rejected"
 unpatched no-datablock-patch v7fs_datablock.patch regress-block-read regress-block-write regress-freeblock-refill regress-grow-writeback regress-grow-rollback regress-indirect-read regress-indirect-writeback regress-address-range regress-size-overflow regress-single-transition regress-double-transition
 grep -q '^FAIL regress-single-transition: data block has no owner' \
     "$work/mutant.log" || fail "single-transition ownership oracle missed a lost block"

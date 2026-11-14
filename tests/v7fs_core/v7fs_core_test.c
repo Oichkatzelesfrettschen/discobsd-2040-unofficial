@@ -50,6 +50,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "v7fs.h"
@@ -633,6 +634,36 @@ put32(uint8_t *p, uint32_t v)
 	}
 	put16(p, v & 0xffff);
 	put16(p + 2, v >> 16);
+}
+
+/*
+ * The text v7fs_superblock_dump() prints for the mounted superblock, which
+ * goes to stdout, captured through a temporary file; 0 on success.
+ */
+static int
+dump_text(const struct v7fs_self *fs, char *text, size_t size)
+{
+	FILE *capture = tmpfile();
+	size_t length;
+	int saved;
+
+	if (capture == NULL || size < 2)
+		return EIO;
+	fflush(stdout);
+	if ((saved = dup(STDOUT_FILENO)) == -1 ||
+	    dup2(fileno(capture), STDOUT_FILENO) == -1) {
+		fclose(capture);
+		return EIO;
+	}
+	v7fs_superblock_dump(fs);
+	fflush(stdout);
+	dup2(saved, STDOUT_FILENO);
+	close(saved);
+	rewind(capture);
+	length = fread(text, 1, size - 1, capture);
+	text[length] = '\0';
+	fclose(capture);
+	return 0;
 }
 
 static int
@@ -2033,7 +2064,7 @@ regress(int fd)
 	struct v7fs_self *fs;
 	struct v7fs_inode root, inode;
 	struct v7fs_fileattr attr;
-	char name[8];
+	char name[8], dump[512];
 	v7fs_ino_t ino;
 	unsigned i, allocated;
 	uint8_t before[512];
@@ -2640,6 +2671,14 @@ regress(int fd)
 			check((uint32_t)fs->superblock.update_time == 0x90000000u,
 			    "regress-superblock-time",
 			    "the mounted time is not the stored count");
+			/* 0x90000000 is 2046-07-23 00:38:24 UTC; read as a signed
+			 * count it would print a date in 1910. */
+			setenv("TZ", "UTC", 1);
+			tzset();
+			check(dump_text(fs, dump, sizeof(dump)) == 0 &&
+			    strstr(dump, "Mon Jul 23 00:38:24 2046") != NULL,
+			    "regress-superblock-time",
+			    "the superblock dump does not print July 2046");
 			fs->superblock.update_time = (v7fs_time_t)0xffffffffu;
 			fs->superblock.modified = 1;
 			check(v7fs_superblock_writeback(fs) == 0 &&

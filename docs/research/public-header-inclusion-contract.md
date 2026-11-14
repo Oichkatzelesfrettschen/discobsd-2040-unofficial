@@ -87,3 +87,26 @@ SHA-256 `4982ae8a8471f4070197a8fb9d5a0a0cc1b56798ab0970f4716421df58850cf3`;
 `e56aa89aac295359d333153caa555b79cca793e4f4f890def632331470daaf94`.
 This comparison establishes those two provider objects under that profile;
 matched distributions still decide total image and installed-header costs.
+
+
+## Matched main qualification
+
+Candidate `576eb09901af689872109bd54c58443125bfd18e` includes main
+`abe6db173ecc72251a76cf277c5bceec5161e5cb`. Its logged build and registered
+header gate pass. The matrix retains 926 compiler cases, 12 accepted native
+inputs, and three unsupported native boolean inputs. Source accounting reports
+153 accepted, 543 excluded, 62 migration-open, and 2,273 unreviewed paths;
+its calibration rejects all 21 controls.
+
+The matched clean distributions produce zero deltas across all 162 measured
+resource surfaces and unchanged archive membership. The resource comparator
+exits zero. Root free space remains 233 blocks. These receipts retain the
+baseline, candidate, and comparison:
+
+- `public-header-resources-abe6db17.json`
+- `public-header-resources-576eb099.json`
+- `public-header-resources-abe6db17-576eb099.json`
+
+The measurement requires no positive-growth exception. Runtime stack, heap,
+and storage traffic remain unmeasured. Emulator qualification, hosted CI, and
+reviewed integration remain open; the compiler matrix supplies no board claim.

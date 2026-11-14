@@ -20,7 +20,7 @@
 # 3000000000 (a directory), 4294967294 and 4294967295, rejection of a header
 # time above 4294967295, creation from files dated past 2038 and refusal of
 # a file time outside the stored range, and the u modifier's ordering of a
-# file against an archived entry. Six source mutants, each restoring a signed
+# file against an archived entry. Seven source mutants, each restoring a signed
 # or narrow reading, must each fail a case; a mutant that passes every view
 # fails the gate. TAR_TEST_SOURCE names another tar.c (an earlier revision)
 # to run the suite against, which skips the mutants.
@@ -66,6 +66,13 @@ view_defines() {
         echo "-Dstat(p,b)=stored_times_stat(p,b)" \
             "-Dlstat(p,b)=stored_times_lstat(p,b)" \
             "-Dfstat(d,b)=stored_times_fstat(d,b)"
+    fi
+}
+
+# Only the four-byte time_t view calls the shim's statx() half.
+shim_defines() {
+    if [ "$1" != i386-time32 ]; then
+        echo "-DSTORED_TIMES_NO_STATX"
     fi
 }
 
@@ -217,6 +224,33 @@ h" "$("$tar" tf list.a 2>&1 || echo "exit $?")"
     check "tar x sets a directory time past 2038" "$(as_seen 3000000000)" \
         "$(file_mtime extract/d 2>/dev/null || echo none)"
 
+    # A member dated 4294967295 is the kernel's "leave this time alone", so a
+    # four-byte view silently keeps the extraction time and the 64-bit view
+    # refuses it. tar reports the member and fails the operation in every
+    # view without calling the time-setting function; the file keeps a
+    # time of this decade.
+    craft_archive ones.a "d/:5:4294967295:" "d/f:0:4294967295:abc"
+    mkdir ones
+    status=0
+    errors=$(cd ones && "$tar" xf ../ones.a 2>&1) || status=$?
+    check "tar x of members dated 4294967295 fails the operation" 1 "$status"
+    case $errors in
+    *"cannot set modification time on d/f: the count 4294967295 cannot be stored"*)
+        seen=reported ;;
+    *) seen="silent [$errors]" ;;
+    esac
+    check "tar x names a file dated 4294967295" reported "$seen"
+    for member in ones/d/f ones/d; do
+        mtime=$(file_mtime "$member" 2>/dev/null || echo none)
+        if [ "$mtime" != none ] && [ "$mtime" -gt 1700000000 ] &&
+            [ "$mtime" -lt 4000000000 ]; then
+            seen=current
+        else
+            seen=$mtime
+        fi
+        check "tar x leaves $member at the extraction time" current "$seen"
+    done
+
     # Creation writes the stored count.
     mkdir create
     mkdir create/dir
@@ -309,7 +343,8 @@ for view in $views; do
     # shellcheck disable=SC2046
     shim_object=$work/shim-$view.o
     # shellcheck disable=SC2046
-    $cc $(view_flags "$view") -c -o "$shim_object" "$shim" ||
+    $cc $(view_flags "$view") $(shim_defines "$view") -c -o "$shim_object" \
+        "$shim" ||
         { note_failure "$view: the stat shim does not build"; continue; }
     tar_binary=$work/tar-$view
     if ! compile_tar "$view" "$tar_source" "$tar_binary"; then
@@ -361,6 +396,7 @@ create-negative#yes#!file_time_is_stored(sp->st_mtime)#(sp->st_mtime < 0 || file
 list-long-max#yes#!stored_time_in_range(time_value) ||#time_value > LONG_MAX ||
 header-unbounded#no#!stored_time_in_range(time_value) ||#0 ||
 range-unchecked#no#return seconds >= 0 &&\n            stored_time_in_range((unsigned long long)seconds);#return seconds != 0 || seconds == 0;
+set-all-ones#no#modification_time == STORED_TIME_MAX#modification_time == STORED_TIME_MAX + 1
 update-signed#yes#stored_time(stbuf.st_mtime) > newest#stbuf.st_mtime > (time_t)newest
 directory-time-dropped#no#metadata.restore_time = mflag == 0;#metadata.restore_time = 0;
 MUTANTS

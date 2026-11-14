@@ -25,7 +25,7 @@
 # u modifier, the date ar writes, the SOURCE_DATE_EPOCH bound, the symbol
 # table date ranlib writes (clamped at 4294967295), ld's test of an archive
 # against its symbol table, and make's choice to rebuild a target whose time
-# and whose dependency's time lie on either side of January 2038. Eleven
+# and whose dependency's time lie on either side of January 2038. Fourteen
 # source mutants, each restoring one signed or narrow reading, must each fail
 # at least one case under the view that exposes it; a mutant that passes
 # every view fails the gate.
@@ -78,10 +78,21 @@ view_flags() {
     esac
 }
 
-# The stat family the program calls by name becomes the shim's under the
+# Only the four-byte time_t view calls the shim's statx() half.
+shim_defines() {
+    if [ "$1" != i386-time32 ]; then
+        echo "-DSTORED_TIMES_NO_STATX"
+    fi
+}
+
+# time() the program calls by name becomes the shim's in every view (the
+# shim, built with the same definition, defines it under the symbol the
+# view binds time() to, so no linker option is needed and the mechanism is
+# the same on every host). The stat family becomes the shim's under the
 # four-byte time_t view; the other views read times through their own
-# 64-bit time_t. time() is replaced at link time (see compile_tools).
+# 64-bit time_t.
 view_defines() {
+    echo "-Dtime(t)=stored_times_time(t)"
     if [ "$1" = i386-time32 ]; then
         echo "-Dstat(p,b)=stored_times_stat(p,b)" \
             "-Dlstat(p,b)=stored_times_lstat(p,b)" \
@@ -117,8 +128,9 @@ compile_tools() {
         -fno-builtin -DCROSS \
         -I"$ct_root/usr.bin/ar" -I"$ct_root/usr.bin/ranlib" \
         -I"$top/tools/aoututils/include" -idirafter "$top/include"
-    $cc $(view_flags "$ct_view") -c -o "$ct_out/stat_shim.o" \
-        "$here/stat_shim.c" || return 1
+    $cc $(view_flags "$ct_view") "-Dtime(t)=stored_times_time(t)" \
+        $(shim_defines "$ct_view") \
+        -c -o "$ct_out/stat_shim.o" "$here/stat_shim.c" || return 1
     for ct_source in append ar archive contents delete extract misc move \
         print replace strmode; do
         $cc "$@" -c -o "$ct_out/ar-$ct_source.o" \
@@ -132,10 +144,9 @@ compile_tools() {
     $cc "$@" -c -o "$ct_out/ranlib-main.o" \
         "$ct_root/usr.bin/ranlib/ranlib.c" || return 1
     # shellcheck disable=SC2046
-    # The 64-bit time_t view binds time() to the symbol __time64.
-    $cc $(view_flags "$ct_view") -Wl,--wrap=time -Wl,--wrap=__time64 \
-        -o "$ct_out/ranlib" "$ct_out/ranlib-archive.o" \
-        "$ct_out/ranlib-main.o" "$ct_out/stat_shim.o" || return 1
+    $cc $(view_flags "$ct_view") -o "$ct_out/ranlib" \
+        "$ct_out/ranlib-archive.o" "$ct_out/ranlib-main.o" \
+        "$ct_out/stat_shim.o" || return 1
     $cc "$@" -c -o "$ct_out/ld.o" "$ct_root/usr.bin/ld/ld.c" || return 1
     # shellcheck disable=SC2046
     $cc $(view_flags "$ct_view") -o "$ct_out/ld" "$ct_out/ld.o" \
@@ -275,10 +286,37 @@ c.o 4294967295" "$(archive_dates read.a)"
     status=0
     "$bin/ar" t over.a >/dev/null 2>&1 || status=$?
     check "ar t refuses 4294967296" 1 "$status"
-    craft_archive minus.a "a.o:-1:abcd"
+    # strtoul skips every C white-space byte before a sign, so each of
+    # these is a negative count that would wrap to a stored time.
+    for sign in "-1" "$(printf '\t-1')" "$(printf '\r-1')" "$(printf '\v-1')"; do
+        craft_archive minus.a "a.o:$sign:abcd"
+        status=0
+        "$bin/ar" t minus.a >/dev/null 2>&1 || status=$?
+        check "ar t refuses the date [$sign]" 1 "$status"
+    done
+
+    # A member dated 4294967295 is the kernel's "leave this time alone", so
+    # a four-byte view silently keeps the extraction time and the 64-bit view
+    # refuses it. ar reports the member and does not set the time, in every
+    # view; the file keeps a time of this decade.
+    craft_archive ones.a "a.o:4294967295:abcd"
+    mkdir ones
     status=0
-    "$bin/ar" t minus.a >/dev/null 2>&1 || status=$?
-    check "ar t refuses a minus sign" 1 "$status"
+    errors=$(cd ones && "$bin/ar" xo ../ones.a a.o 2>&1) || status=$?
+    check "ar xo of a member dated 4294967295 exits" 0 "$status"
+    case $errors in
+    *"a.o: utimes: time 4294967295 cannot be stored"*) seen=reported ;;
+    *) seen="silent [$errors]" ;;
+    esac
+    check "ar xo reports a member dated 4294967295" reported "$seen"
+    mtime=$(file_mtime ones/a.o)
+    if [ "$mtime" -gt 1700000000 ] && [ "$mtime" -lt 4000000000 ]; then
+        seen=current
+    else
+        seen=$mtime
+    fi
+    check "ar xo leaves a member dated 4294967295 at the extraction time" \
+        current "$seen"
 
     # The listing prints the date through a time_t that holds it.
     if [ "$view" = i386-time32 ]; then
@@ -411,6 +449,22 @@ lib.o 2415919104" "$(archive_dates table.a 2>&1 || echo failed)"
             "$seen"
     done
 
+    # A table date ld cannot read as a stored count (a minus sign behind any
+    # white space, a value beyond 4294967295, trailing text) makes the file
+    # no archive, so the link fails; 64-bit and 32-bit longs agree.
+    for bad in "-1" "$(printf '\t-1')" "$(printf '\r-1')" "4294967296" \
+        "12abc" "99999999999"; do
+        rm -f ld.a
+        (cd write && "$bin/ar" rc ../ld.a lib.o) >/dev/null 2>&1 || true
+        "$bin/ranlib" ld.a >/dev/null 2>&1 || true
+        set_table_date ld.a "$bad"
+        set_times ld.a 1700000000
+        status=0
+        "$bin/ld" -o ld.out m.o ld.a >/dev/null 2>&1 || status=$?
+        if [ "$status" -ne 0 ]; then seen=refused; else seen=linked; fi
+        check "ld refuses the table date [$bad]" refused "$seen"
+    done
+
     # make rebuilds a target older than its dependency, by stored count.
     for row in "2000000000 2415919104 rebuilt" \
         "4294967290 2415919104 current" "2415919104 2000000000 current" \
@@ -485,7 +539,7 @@ done
 mutants=0
 mutant_survivors=
 [ "$tools_root" = "$top" ] || : > "$work/no-mutants"
-while IFS='|' read -r name needs32 file old new; do
+while IFS='@' read -r name needs32 file old new; do
     [ -n "$name" ] || continue
     [ ! -e "$work/no-mutants" ] || continue
     case $views in
@@ -521,17 +575,20 @@ while IFS='|' read -r name needs32 file old new; do
         mutant_survivors="$mutant_survivors $name"
     fi
 done <<'MUTANTS'
-ar-parse-signed|yes|usr.bin/ar/archive.c|chdr.date = parse_archive_unsigned(hdr->ar_date, sizeof(hdr->ar_date),\n\t    DECIMAL);|chdr.date = (unsigned long)parse_archive_number(hdr->ar_date,\n\t    sizeof(hdr->ar_date), DECIMAL);
-ar-epoch-bound|no|usr.bin/ar/archive.c|epoch <= AR_DATE_MAX &&\n\t\t    date > epoch|epoch <= 0x7fffffffULL &&\n\t\t    date > epoch
-ar-extract-signed|yes|usr.bin/ar/extract.c|stored_date(sb.st_mtime) > chdr.date|sb.st_mtime > (time_t)chdr.date
-ar-replace-signed|yes|usr.bin/ar/replace.c|stored_date(sb.st_mtime) <= chdr.date|sb.st_mtime <= (time_t)chdr.date
-ar-write-signed|yes|usr.bin/ar/archive.h|#define\tHDR2\t"%-16.16s%-12lu|#define\tHDR2\t"%-16.16s%-12ld
-ranlib-no-clamp|no|usr.bin/ranlib/ranlib.c|if (date > AR_DATE_MAX - RANLIBSKEW)\n\t\tdate = AR_DATE_MAX;\n\telse\n\t\tdate += RANLIBSKEW;|date += RANLIBSKEW;
-ranlib-epoch-bound|no|usr.bin/ranlib/ranlib.c|epoch <= AR_DATE_MAX &&\n\t\t    now > epoch|epoch <= 0x7fffffffULL &&\n\t\t    now > epoch
-ld-parse-signed|yes|usr.bin/ld/ld.c|h->ar_date = strtoul (buf, 0, 10);|h->ar_date = (unsigned long) strtol (buf, 0, 10);
-ld-sum-wraps|yes|usr.bin/ld/ld.c|if (stored_time (x.st_mtime) > archdr.ar_date &&\n\t    stored_time (x.st_mtime) - archdr.ar_date > 2)|if (stored_time (x.st_mtime) > archdr.ar_date + 2)
-ld-signed-compare|yes|usr.bin/ld/ld.c|if (stored_time (x.st_mtime) > archdr.ar_date &&\n\t    stored_time (x.st_mtime) - archdr.ar_date > 2)|if ((long) stored_time (x.st_mtime) > (long) archdr.ar_date + 2)
-make-signed-time|yes|usr.bin/make/defs.h|typedef unsigned long TIMETYPE;|typedef time_t TIMETYPE;
+ar-parse-signed@yes@usr.bin/ar/archive.c@chdr.date = parse_archive_unsigned(hdr->ar_date, sizeof(hdr->ar_date),\n\t    DECIMAL);@chdr.date = (unsigned long)parse_archive_number(hdr->ar_date,\n\t    sizeof(hdr->ar_date), DECIMAL);
+ar-epoch-bound@no@usr.bin/ar/archive.c@epoch <= AR_DATE_MAX &&\n\t\t    date > epoch@epoch <= 0x7fffffffULL &&\n\t\t    date > epoch
+ar-minus-whitespace@no@usr.bin/ar/archive.c@for (digits = number; *digits == ' ' || (*digits >= '\\t' &&\n\t    *digits <= '\\r'); digits++)@for (digits = number; *digits == ' '; digits++)
+ar-extract-all-ones@no@usr.bin/ar/extract.c@chdr.date == AR_DATE_MAX)@chdr.date == AR_DATE_MAX + 1)
+ld-date-unchecked@no@usr.bin/ld/ld.c@if (! fgetardate (buf, &h->ar_date))\n\t\tgoto failed;@h->ar_date = strtoul (buf, 0, 10); (void) fgetardate;
+ar-extract-signed@yes@usr.bin/ar/extract.c@stored_date(sb.st_mtime) > chdr.date@sb.st_mtime > (time_t)chdr.date
+ar-replace-signed@yes@usr.bin/ar/replace.c@stored_date(sb.st_mtime) <= chdr.date@sb.st_mtime <= (time_t)chdr.date
+ar-write-signed@yes@usr.bin/ar/archive.h@#define\tHDR2\t"%-16.16s%-12lu@#define\tHDR2\t"%-16.16s%-12ld
+ranlib-no-clamp@no@usr.bin/ranlib/ranlib.c@if (date > AR_DATE_MAX - RANLIBSKEW)\n\t\tdate = AR_DATE_MAX;\n\telse\n\t\tdate += RANLIBSKEW;@date += RANLIBSKEW;
+ranlib-epoch-bound@no@usr.bin/ranlib/ranlib.c@epoch <= AR_DATE_MAX &&\n\t\t    now > epoch@epoch <= 0x7fffffffULL &&\n\t\t    now > epoch
+ld-parse-signed@yes@usr.bin/ld/ld.c@value = strtoul (text, &end, 10);@value = (unsigned long) strtol (text, &end, 10);
+ld-sum-wraps@yes@usr.bin/ld/ld.c@if (stored_time (x.st_mtime) > archdr.ar_date &&\n\t    stored_time (x.st_mtime) - archdr.ar_date > 2)@if (stored_time (x.st_mtime) > archdr.ar_date + 2)
+ld-signed-compare@yes@usr.bin/ld/ld.c@if (stored_time (x.st_mtime) > archdr.ar_date &&\n\t    stored_time (x.st_mtime) - archdr.ar_date > 2)@if ((long) stored_time (x.st_mtime) > (long) archdr.ar_date + 2)
+make-signed-time@yes@usr.bin/make/defs.h@typedef unsigned long TIMETYPE;@typedef time_t TIMETYPE;
 MUTANTS
 
 if [ -n "$mutant_survivors" ]; then

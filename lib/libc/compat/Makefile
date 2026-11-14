@@ -30,7 +30,7 @@ compat.a:	${OBJS}
 
 .for member in ${WIDEOBJ:S/64.o$//}
 ${member}64.o: ${member}.c
-		${CC} ${CFLAGS} -D_TIME_BITS=64 -c -o $@ ${.CURDIR}/${member}.c
+		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o $@ ${.CURDIR}/${member}.c
 .endfor
 
 tags:

@@ -36,7 +36,9 @@ ASOPTS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
 		echo "" ; \
 	fi
 
-DEFS		= -Wall -ffreestanding
+# The 32-bit view of time for every member but the 64-bit ones, as in
+# lib/libc/Makefile, whose comment gives the reason.
+DEFS		= -Wall -ffreestanding -D_TIME_BITS=32
 CFLAGS		= ${DEFS} -Os -Wno-attributes -Wno-attribute-alias ${COPTS}
 ASFLAGS		= ${DEFS} -I${LIBCDIR}/${MACHINE_ARCH}/sys ${ASOPTS}
 
@@ -184,12 +186,12 @@ abs.o: ${LIBCDIR}/stdlib/abs.c
 # as for abs.o above.
 .for member in ${WIDEGENOBJS:S/64.o$//}
 ${member}64.o: ${LIBCDIR}/gen/${member}.c
-		${CC} ${CFLAGS} -D_TIME_BITS=64 -c -o ${member}64.o \
+		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o ${member}64.o \
 		    ${LIBCDIR}/gen/${member}.c
 .endfor
 .for member in ${WIDECOMPATOBJS:S/64.o$//}
 ${member}64.o: ${LIBCDIR}/compat/${member}.c
-		${CC} ${CFLAGS} -D_TIME_BITS=64 -c -o ${member}64.o \
+		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o ${member}64.o \
 		    ${LIBCDIR}/compat/${member}.c
 .endfor
 

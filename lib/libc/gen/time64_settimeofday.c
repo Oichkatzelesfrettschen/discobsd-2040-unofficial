@@ -1,3 +1,4 @@
+#undef _TIME_BITS
 #define _TIME_BITS 64
 #include "time64.h"
 

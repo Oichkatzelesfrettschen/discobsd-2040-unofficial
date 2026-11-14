@@ -2,7 +2,9 @@
  * Shared by the time64_*.c members: the wrappers that give a program built
  * with the 64-bit view of time (sys/_time_t.h) its system calls.
  *
- * Each wrapper is defined under the ordinary function name, which the
+ * Each member opens by replacing the 32-bit view the libc build selects
+ * for every other member (lib/libc/Makefile) with _TIME_BITS defined as
+ * 64. Each wrapper is defined under the ordinary function name, which the
  * public header binds to the symbol __NAME64. It calls the 32-bit entry
  * point, declared here under a __sys_ name bound to the existing symbol,
  * with the layout the kernel reads and writes, and converts each count of

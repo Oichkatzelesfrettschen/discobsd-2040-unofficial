@@ -16,4 +16,8 @@ ENTRY(ptrace)
 	bcs	1f
 	bx	lr
 1:	SYS_ERROR
+#ifdef DISCOBSD_SHARED_LIBC
+	/* The prologue's GOT offset has a distinct literal from the error helper. */
+	SYS_ERRNO_LITERAL
+#endif
 END(ptrace)

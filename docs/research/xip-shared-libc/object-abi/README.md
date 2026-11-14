@@ -146,22 +146,54 @@ no new algorithm or full POSIX/UNIX conformance claim.
 ## Shared syscall error state
 
 `SYS_ERROR` in `lib/libc/arm/sys/SYS.h` stores the error value from `r0` and
-returns `-1`. Explicit `DISCOBSD_SHARED_LIBC=1` assembly obtains the `errno`
-address from the process-local GOT through `r9`. The path uses caller-saved
-`r1` and `r2`, leaves `r9`, the stack and the return address intact, and places
-its GOT-offset literal after the return. Static assembly keeps the absolute
-literal. The specialized `pipe`, `_brk`, `ptrace` and `sigaction` paths share
-this mechanism; `ptrace` also uses the same address mechanism when clearing
-`errno` before its supervisor call, with argument registers saved.
+returns `-1`. Explicit `DISCOBSD_SHARED_LIBC=1` emits a tail branch to the hidden
+`__libc_shared_error` helper. Each assembly input supplies an identical ELF
+COMDAT group; the GNU linker retains one group. The helper obtains `errno`
+from the process-local GOT through `r9`, using caller-saved `r1` and `r2`
+while preserving `r9`, SP and LR. Static assembly retains the inline absolute
+address path and emits no helper group or additional archive member.
+
+The specialized `pipe`, `_brk`, `ptrace` and `sigaction` paths share this
+mechanism. Ptrace saves its argument registers while clearing errno before
+its supervisor call. Its distinct GOT-offset literal remains in the wrapper;
+the error branch's helper pointer uses a separate numeric label.
 
 The gate checks static `R_ARM_ABS32` and shared `R_ARM_GOT_BREL` errno
-relocations in the generated and specialized wrappers. Its runtime fixture
-executes the production error-return macro with error value 9 and checks
-`-1`, the public `errno` value and object identity across five application
-layouts. An absolute-address error-return fixture fails the code-state
-relocation verifier before runtime. The supervisor-call transition, kernel
-carry flag delivery and shared signal return remain separate obligations.
-The shared selector is experimental and has no production build-mode wiring.
+relocations, hidden Thumb helper identity, COMDAT ownership and group
+coalescing across five wrappers. Controls reject visible helper identity and
+missing COMDAT flags. The runtime fixture executes the production error
+return with error value 9 and checks minus one, public errno and object identity
+across five application layouts. An absolute-address error-return fixture
+fails the code-state relocation verifier before runtime. The supervisor-call
+transition, kernel carry delivery and shared signal return remain separate
+obligations. The shared selector remains experimental; the shipped executable
+build remains static.
+
+The [shared error qualification](../shared-error-qualification.json) binds the
+implementation to five QEMU application layouts, two helper-group rejection
+controls and 125 byte-identical static objects. The full shared link retains
+646 roots and occupies 61,244 flash bytes with 5,344 writable-state bytes,
+saving 976 flash bytes against the inline-error link. Of 412 captured libc
+dependencies, 410 remain unchanged; the two changed assembly inputs are rebuilt.
+A separate Unicorn model passes 32 success/error calls across two process
+states and rejects five constructed mutants. Its setup-failure control requires
+mutation-construction errors to remain fatal. The fixed 48 KiB reservation
+still has a 12,092-byte deficit before function slots; these results establish
+no production image fit or kernel/hardware execution.
+
+The clean distribution, flash-image build, registered object-ABI gate,
+20-test closure checker and Renode UART0 gate pass at `f0461e3a`. The initial
+sandboxed Renode launch fails on its host configuration lock before loading
+the kernel; the unrestricted emulator run supplies the runtime evidence.
+The retained qualification distinguishes that launch failure from target behavior.
+
+The archive closure inspector consumes the static archive and retains its
+single-strong-provider rule. A two-wrapper shared archive reproduces its
+conflicting-provider rejection for the coalesced helper. Before shared-archive
+build wiring, the inspector needs COMDAT ownership and equivalence handling,
+with positive duplicate-group and negative conflicting-group controls. GNU
+linker coalescing and the explicit-object shared link do not establish that
+archive-inspection capability.
 
 [The ROM dispatch register experiment](rom-dispatch-registers.md) establishes a
 hot-call candidate with preserved double-precision operands and identifies the

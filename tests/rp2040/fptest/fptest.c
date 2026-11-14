@@ -24,9 +24,9 @@
  * links is __difftime64 (difftime64.o), which subtracts the two 64-bit
  * endpoints and converts the difference through __aeabi_l2d; a difference
  * past a long long converts each endpoint and subtracts through
- * __aeabi_dsub. Its endpoints span the signed 32-bit range, so a
- * member that narrowed either endpoint or the difference to 32 bits
- * returns a wrapped result these bit patterns reject.
+ * __aeabi_dsub. Its endpoints fit the signed 32-bit range and their
+ * differences leave it, so a member that narrowed the difference to 32
+ * bits returns a wrapped result these bit patterns reject.
  */
 #include <stdio.h>
 #include <string.h>

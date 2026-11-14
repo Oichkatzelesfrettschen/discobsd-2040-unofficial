@@ -1391,6 +1391,11 @@ check-msdosfs-core: check-python
 check-fat32-tail: check-python
 		${MAKE} -C tests/fat32tail check PYTHON=${PYTHON:Q}
 
+# check-hsaout and check-fsutil-clock also build tools/hsaout/libhsaout.a, so
+# a parallel host tier runs this gate after them rather than beside them.
+.ORDER: check-hsaout check-fat32-tail
+.ORDER: check-fsutil-clock check-fat32-tail
+
 # The inter-core rings and SIO FIFO doorbell of corering.c against a model
 # of the FIFO registers, under the address, undefined-behavior and thread
 # sanitizers, with sixteen mutants that must fail.

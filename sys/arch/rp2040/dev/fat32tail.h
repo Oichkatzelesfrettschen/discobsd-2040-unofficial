@@ -88,7 +88,7 @@ struct fat32tail {
  * sector buffer the walk uses. On FT32_OK, *out holds the extent; any other
  * result leaves *out unchanged.
  */
-int	fat32tail_find(fat32tail_read_fn read, void *ctx, unsigned volume_lba,
+int	fat32tail_find(fat32tail_read_fn readfn, void *ctx, unsigned volume_lba,
 	    unsigned char buf[FT32_SECTOR], struct fat32tail *out);
 
 #endif /* !_FAT32TAIL_H */

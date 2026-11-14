@@ -57,7 +57,7 @@
 #define	NOENT			(-1)	/* dir_scan: no match; never an FT32 result. */
 
 struct vol {
-	fat32tail_read_fn	read;
+	fat32tail_read_fn	readfn;
 	void			*ctx;
 	unsigned char		*buf;
 	int			valid;		/* buf holds sector bufno. */
@@ -95,7 +95,7 @@ rd(struct vol *v, unsigned n)
 	if (v->valid && v->bufno == n)
 		return FT32_OK;
 	v->valid = 0;
-	if (v->read(v->ctx, n, v->buf) != 0)
+	if (v->readfn(v->ctx, n, v->buf) != 0)
 		return FT32_E_IO;
 	v->bufno = n;
 	v->valid = 1;
@@ -296,7 +296,7 @@ uf2_block(struct vol *v, unsigned n, unsigned total, unsigned first_sector)
 }
 
 int
-fat32tail_find(fat32tail_read_fn read, void *ctx, unsigned volume_lba,
+fat32tail_find(fat32tail_read_fn readfn, void *ctx, unsigned volume_lba,
     unsigned char buf[FT32_SECTOR], struct fat32tail *out)
 {
 	struct vol v;
@@ -304,7 +304,7 @@ fat32tail_find(fat32tail_read_fn read, void *ctx, unsigned volume_lba,
 	unsigned first, nsect, nblocks, headsec;
 	int r;
 
-	v.read = read;
+	v.readfn = readfn;
 	v.ctx = ctx;
 	v.buf = buf;
 	v.valid = 0;

@@ -36,9 +36,10 @@
 # magic check, a cluster base one cluster off, and the other single-point
 # edits listed below. Calibration: the shipped source passes and each mutant
 # fails. The locator also compiles strict C17 with the host compiler and,
-# when arm-none-eabi-gcc is present, for Cortex-M0+ with the kernel's flags.
+# when arm-none-eabi-gcc is present, for Cortex-M0+ with no standard header
+# and with the PICOCALC kernel's flags behind <sys/param.h> and <sys/systm.h>.
 #
-# Set TMPDIR to a directory with 0.5 GB free (a tmpfs is fine); the work
+# Set TMPDIR to a directory with 0.9 GB free (a tmpfs is fine); the work
 # directory holds the volumes and is emptied on exit. FAT32TAIL_KERNEL_UF2
 # names a kernel UF2 for the real-kernel case; the default is the
 # PICOCALC_PSRAM image of this tree, and the case is skipped, saying so,
@@ -84,7 +85,15 @@ fail()
 	exit 1
 }
 
-echo "fat32tail: work directory on $(df -P "$work" | awk 'NR == 2 { print $1, $4 " KiB free" }')"
+# The volumes hold about 0.55 GB of data; a full work directory is an
+# environment failure, not a failed case.
+need_kib=900000
+free_kib=$(df -Pk "$work" | awk 'NR == 2 { print $4 }')
+echo "fat32tail: work directory on $(df -P "$work" | awk 'NR == 2 { print $1 }'), $free_kib KiB free"
+if [ "$free_kib" -lt "$need_kib" ]; then
+	echo "fat32tail: ERROR: $free_kib KiB free in $work, $need_kib KiB needed; set TMPDIR" >&2
+	exit 2
+fi
 
 # ---- tools ----
 
@@ -537,6 +546,19 @@ fi
 sweeps="g512-apps-upper g4k-root-lower g32k-apps-lower base-apps"
 fuzzes="g512-root-lower:1 g4k-apps-upper:2 base-apps:3 base-root:4 g32k-root-upper:5"
 
+# The oracle rejects a wrong root image and a damaged one before its verdicts
+# count: the extent of a volume holding root512 is not root1024's, and one
+# changed byte of the tail fails the comparison.
+if oracle extent "$work/base-root.img" 0 "$work/root1024.img" >"$work/oracle.out"; then
+	fail "the oracle accepted the wrong root image"
+fi
+cp "$work/root512.img" "$work/root-flipped.img"
+printf 'X' | dd of="$work/root-flipped.img" bs=1 seek=70000 conv=notrunc 2>/dev/null
+if oracle extent "$work/base-root.img" 0 "$work/root-flipped.img" >"$work/oracle.out"; then
+	fail "the oracle accepted a root image that differs by one byte"
+fi
+echo "fat32tail: the oracle rejects a wrong root image and a one-byte difference"
+
 # ---- the suite ----
 
 timeout_cmd=
@@ -581,6 +603,7 @@ suite()
 	return $bad
 }
 
+echo "fat32tail: the work directory holds $(du -sk "$work" | awk '{ print $1 }') KiB"
 ncases=$(wc -l <"$cases" | tr -d ' ')
 if ! suite "$work/cli" >"$work/suite.out"; then
 	cat "$work/suite.out" >&2
@@ -607,8 +630,21 @@ if command -v arm-none-eabi-gcc >/dev/null 2>&1; then
 	if command -v arm-none-eabi-size >/dev/null 2>&1; then
 		echo "fat32tail: Cortex-M0+ -Os text size: $(arm-none-eabi-size "$work/obj/fat32tail_arm.o" | awk 'NR == 2 { print $1, "bytes" }')"
 	fi
+	# With the PICOCALC kernel's own flags and the kernel headers in front, so
+	# that no parameter or macro of the locator collides with a kernel name
+	# (-Wshadow -Werror rejects a parameter named read).
+	kernel_dir=$topsrc/sys/arch/rp2040/compile/PICOCALC
+	kernel_flags=$("$MAKE" -C "$kernel_dir" -V '${CFLAGS}' | sed 's/-g -gdwarf-4//; s/-fdebug-prefix-map=[^ ]*//')
+	kernel_defs=$("$MAKE" -C "$kernel_dir" -V '${DEFS}' | sed 's/-MT [^ ]* -MP -MD -MF [^ ]*//')
+	[ -n "$kernel_flags" ] && [ -n "$kernel_defs" ] || fail "no CFLAGS or DEFS from $kernel_dir"
+	# shellcheck disable=SC2086  # the flag variables are word lists
+	(cd "$kernel_dir" && arm-none-eabi-gcc $kernel_flags $kernel_defs \
+	    -include sys/param.h -include sys/systm.h \
+	    -c -o "$work/obj/fat32tail_kernel.o" ../../dev/fat32tail.c) ||
+	    fail "build of fat32tail.c with the PICOCALC kernel flags and headers"
+	echo "fat32tail: the locator builds with the PICOCALC kernel flags after <sys/param.h> and <sys/systm.h>"
 else
-	echo "fat32tail: Cortex-M0+ build not run: arm-none-eabi-gcc absent"
+	echo "fat32tail: Cortex-M0+ builds not run: arm-none-eabi-gcc absent"
 fi
 
 # ---- mutants ----
@@ -652,7 +688,7 @@ mutant no-tail-minimum 'nsect < headsec + FS_TAIL_SECTORS)' 'nsect <= headsec)'
 mutant fat12-threshold '#define\tFAT32_MIN_CLUSTERS\t65525u' '#define\tFAT32_MIN_CLUSTERS\t4085u'
 mutant no-fat-capacity-check 'fatsz < (v->nclusters + 2 + FAT_PER_SECTOR - 1) / FAT_PER_SECTOR)' '0)'
 mutant no-chain-bound 'if (steps >= v->nclusters || !clus_ok(v, clus))' 'if (steps >= 0xffffffffu || !clus_ok(v, clus))'
-mutant read-error-ignored 'if (v->read(v->ctx, n, v->buf) != 0)' 'if ((v->read(v->ctx, n, v->buf), 0))'
+mutant read-error-ignored 'if (v->readfn(v->ctx, n, v->buf) != 0)' 'if ((v->readfn(v->ctx, n, v->buf), 0))'
 mutant no-last-block-check 'if ((r = uf2_block(&v, nblocks - 1, nblocks, first)) != FT32_OK)' 'if (0)'
 mutant no-block-count-bound 'if (nblocks == 0 || nblocks > nsect)' 'if (nblocks == 0)'
 mutant no-block-number-check 'le32(b + 20) != n ||' '0 ||'

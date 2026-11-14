@@ -21,7 +21,8 @@
  *	fat32tail_cli IMAGE VOLUME_LBA sweep      a read failure at every read
  *	fat32tail_cli IMAGE VOLUME_LBA fuzz SEED COUNT
  *
- * The locate prints "ok LBA NSECTORS READS" or "error NAME READS"; the
+ * The locate prints "ok LBA NSECTORS READS", "error NAME READS" or, when the
+ * walk passes the read budget, "error budget READS"; the
  * sweep fails the Nth read for each N the locate makes and requires the
  * I/O error every time, then requires the unfailed locate to repeat its
  * answer. The fuzz run damages bytes of four of the sectors a clean walk
@@ -44,6 +45,12 @@
 #include <unistd.h>
 
 #include "fat32tail.h"
+
+/*
+ * No walk of a sound volume makes more than a few hundred reads; a walk that
+ * passes this budget has lost its bound, and the driver stops it and says so.
+ */
+#define READ_BUDGET	(1ul << 20)
 
 struct dev {
 	int		fd;
@@ -111,6 +118,7 @@ locate(struct dev *d, unsigned volume, struct fat32tail *out)
 	unsigned char buf[FT32_SECTOR];
 
 	d->reads = 0;
+	d->exceeded = 0;
 	return fat32tail_find(dev_read, d, volume, buf, out);
 }
 
@@ -125,6 +133,11 @@ sweep(struct dev *d, unsigned volume)
 	for (n = 1; n <= total; n++) {
 		d->fail_at = n;
 		code = locate(d, volume, &got);
+		if (d->exceeded != 0) {
+			printf("FAIL read %lu of %lu failed and the walk passed the read budget\n",
+			    n, total);
+			return 1;
+		}
 		if (code != FT32_E_IO) {
 			printf("FAIL read %lu of %lu failed and the walk said %s\n",
 			    n, total, name(code));
@@ -203,6 +216,7 @@ main(int argc, char **argv)
 		return 2;
 	size = lseek(d.fd, 0, SEEK_END);
 	d.nsectors = (unsigned long long)size / FT32_SECTOR;
+	d.budget = READ_BUDGET;
 	if (argc == 4 && strcmp(argv[3], "sweep") == 0)
 		return sweep(&d, volume);
 	if (argc == 6 && strcmp(argv[3], "fuzz") == 0)
@@ -211,7 +225,9 @@ main(int argc, char **argv)
 	if (argc != 3)
 		return 2;
 	code = locate(&d, volume, &ext);
-	if (code == FT32_OK)
+	if (d.exceeded != 0)
+		printf("error budget %lu\n", d.reads);
+	else if (code == FT32_OK)
 		printf("ok %u %u %lu\n", ext.lba, ext.nsectors, d.reads);
 	else
 		printf("error %s %lu\n", name(code), d.reads);

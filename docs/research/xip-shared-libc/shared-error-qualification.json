@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "baseline_main": "9d820cd5",
+  "baseline_main": "9d820cd56abffdf945989f7305da1b1cdd9445ca",
   "source_sha256": {
     "lib/libc/arm/sys/SYS.h": "ac4eed6b709c5a211942ad4c5c2d9d651f1dec772b6ff3037920f06d798c4e94",
     "lib/libc/arm/sys/ptrace.S": "1e9d7801c2a34b889537cbabd462a1891e8c03c25a5918f0ab8e75138bf837e8",
@@ -50,6 +50,38 @@
     {
       "path": ".build-logs/shared-error-production-review.md",
       "sha256": "fd7c90e1209dc8c95106ed62dc4a73cf1dbf3654ebb494cfaa3c250bfcb58e17"
+    },
+    {
+      "path": ".build-logs/shared-error-clean.log",
+      "sha256": "6e3af6cf44fa4df519417517103f443a0ad61e05ea0827625f8190e2d30d1078"
+    },
+    {
+      "path": ".build-logs/shared-error-final-gates.log",
+      "sha256": "3d4e8e20278ffb13da3732dd72032866e935f61104f35016bced3972d575cea5"
+    },
+    {
+      "path": ".build-logs/shared-error-closure.log",
+      "sha256": "8c18fffe9ef0d79ecccc44ebcddc1fca5aa092487a17e2d7d6d5409bcadfd1fe"
+    },
+    {
+      "path": ".build-logs/shared-error-renode.log",
+      "sha256": "c3f6997a974f66f9852efacf1cfa4d98470d8fb8c5c8da713c466dde0aefeea3"
+    },
+    {
+      "path": ".build-logs/shared-error-renode-sandbox.log",
+      "sha256": "35a015d7a9e7a382a18cd4b65706bb88f9a956b4d51a8a80335284e889b28e96"
+    },
+    {
+      "path": ".build-logs/shared-error-renode-config-lock.log",
+      "sha256": "b96372e5ca269d5bae9d80a76464ed2a248d3d8e151118f5739c06eb3b610a38"
+    },
+    {
+      "path": ".build-logs/shared-error-production-review-followup.md",
+      "sha256": "fdeb4a038fc383479bf9feb1c5ff05d0412af4f445fe2ecae913b84988caa769"
+    },
+    {
+      "path": ".build-logs/shared-syscall-comdat/archive-inspection-control.log",
+      "sha256": "24c37445b33a468576bb59bd52e59dcb801d740c2a6b89ef58089fb1db86df69"
     }
   ],
   "shared_link": {
@@ -102,5 +134,31 @@
   },
   "review": "no actionable finding in bounded source review",
   "hardware": "not run; separate authorization required",
-  "remaining": "Production shared image fit, kernel admission and complete lifecycle qualification remain open."
+  "remaining": "Production shared image fit, kernel admission and complete lifecycle qualification remain open.",
+  "qualification_head": "f0461e3a13ad50083891ff38f6b3f7949476af2a",
+  "build": {
+    "state": "passed",
+    "invocation_id": "rp2040-build-local-20261114T052911Z-45-73b84a55",
+    "elapsed_seconds": 52.529,
+    "receipt_sha256": "7ff31a51f29d3166763241e6bdf18a84b77bf0d8b40793e7c30ef16c750d2648"
+  },
+  "distribution": {
+    "state": "passed",
+    "invocation_id": "rp2040-distribution-local-20261114T053127Z-9181-575a7e91",
+    "elapsed_seconds": 70.836,
+    "receipt_sha256": "2cdb54a0cfe61b330cc8855c9a04d02b858820f244856203237747581a34f788"
+  },
+  "flash": {
+    "state": "passed",
+    "invocation_id": "rp2040-flash-local-20261114T053254Z-45-9791fda5",
+    "elapsed_seconds": 2.159,
+    "receipt_sha256": "fce9df3f28475a15b44fb08d51914c3ee7741fb9c4c6573c396ba1acd6dc7b6f"
+  },
+  "renode": {
+    "state": "passed",
+    "execution": "outside filesystem sandbox after config-lock launch failure",
+    "model_revision": "205a5e4b25440582008a4292074bb07f80a72328",
+    "warning_budget_errors": 0
+  },
+  "shared_archive_inspector": "Current static-archive caller passes; future shared-archive input requires COMDAT-aware provider resolution."
 }

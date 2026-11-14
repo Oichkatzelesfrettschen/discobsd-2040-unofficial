@@ -181,6 +181,20 @@ mutation-construction errors to remain fatal. The fixed 48 KiB reservation
 still has a 12,092-byte deficit before function slots; these results establish
 no production image fit or kernel/hardware execution.
 
+The clean distribution, flash-image build, registered object-ABI gate,
+20-test closure checker and Renode UART0 gate pass at `f0461e3a`. The initial
+sandboxed Renode launch fails on its host configuration lock before loading
+the kernel; the unrestricted emulator run supplies the runtime evidence.
+The retained qualification distinguishes that launch failure from target behavior.
+
+The archive closure inspector consumes the static archive and retains its
+single-strong-provider rule. A two-wrapper shared archive reproduces its
+conflicting-provider rejection for the coalesced helper. Before shared-archive
+build wiring, the inspector needs COMDAT ownership and equivalence handling,
+with positive duplicate-group and negative conflicting-group controls. GNU
+linker coalescing and the explicit-object shared link do not establish that
+archive-inspection capability.
+
 [The ROM dispatch register experiment](rom-dispatch-registers.md) establishes a
 hot-call candidate with preserved double-precision operands and identifies the
 paired cold-descriptor and resolver changes that remain before integration.

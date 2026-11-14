@@ -244,16 +244,27 @@ board_loop(struct mz_io *io,const char *note_path)
             else if(key==0x81)key=MZ_MENU;
             else if(key==0x85)key=MZ_REFRESH;
             if(state.active==6 && key==LCD_KEY_ENTER) {
-                int pid,wait_status;
+                int pid,reaped,wait_status;
                 ioctl(0,LCDIOC_KEYEVS,&off);
                 ioctl(0,TIOCSETP,&saved);
                 close(backend.display); backend.display=-1;
                 pid=fork();
-                if(pid==0) { execl("/bin/sh","sh",(char *)0); _exit(127); }
-                if(pid>0) while(wait(&wait_status)!=pid && errno==EINTR) { }
+                if(pid==0) {
+                    close(backend.assets);
+                    execl("/bin/sh","sh",(char *)0); _exit(127);
+                }
+                if(pid>0) do reaped=wait(&wait_status);
+                    while(reaped!=pid && (reaped>=0 || errno==EINTR));
                 backend.display=open("/dev/lcdgfx",O_WRONLY);
-                if(backend.display<0 || ioctl(0,TIOCSETP,&raw)<0 ||
-                    ioctl(0,LCDIOC_KEYEVS,&on)<0) { own=0; status=-1; stopped=1; break; }
+                if(backend.display<0 || ioctl(0,TIOCSETP,&raw)<0) {
+                    own=0; status=-1; stopped=1; break;
+                }
+                /* The tty is RAW here; a refused key session leaves no owner
+                 * to undo that at the end of the loop. */
+                if(ioctl(0,LCDIOC_KEYEVS,&on)<0) {
+                    ioctl(0,TIOCSETP,&saved);
+                    own=0; status=-1; stopped=1; break;
+                }
                 mz_all(&state);
             } else apply(key,note_path);
         }

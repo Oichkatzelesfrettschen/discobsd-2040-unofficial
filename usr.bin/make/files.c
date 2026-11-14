@@ -278,13 +278,13 @@ TIMETYPE exists(pname)
         return(lookarch(filename));
 
     if (stat(filename, &buf) >= 0)
-        return(buf.st_mtime);
+        return(STORED_TIME(buf.st_mtime));
 
     s = findfl(filename);
     if (s != (char *)-1) {
         pname->alias = copys(s);
         if(stat(pname->alias, &buf) == 0)
-            return(buf.st_mtime);
+            return(STORED_TIME(buf.st_mtime));
     }
     return(0);
 }
@@ -293,7 +293,7 @@ TIMETYPE prestime()
 {
     TIMETYPE t;
 
-    t = time((time_t *)0);
+    t = STORED_TIME(time((time_t *)0));
     return(t);
 }
 
@@ -494,7 +494,7 @@ int meteron = 0;    /* default: metering off */
 void meter(file)
     char *file;
 {
-    TIMETYPE tvec;
+    time_t tvec;
     char *p;
     FILE *mout;
     struct passwd *pwd;

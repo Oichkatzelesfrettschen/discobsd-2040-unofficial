@@ -68,7 +68,18 @@ typedef struct fd_set {
 
 /* According to POSIX.1-2001 */
 struct timeval;
-int	select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
+int	select(int, fd_set *, fd_set *, fd_set *, struct timeval *)
+	    __TIME64_NAME(select);
+#ifdef __TIME64_VIEW
+/*
+ * pselect has a 32-bit entry point and no declaration under the default
+ * view; the 64-bit view declares it so that a call binds to the wrapper.
+ */
+#include <sys/signal.h>
+struct timespec;
+int	pselect(int, fd_set *, fd_set *, fd_set *, const struct timespec *,
+	    const sigset_t *) __TIME64_NAME(pselect);
+#endif
 
 #endif	/* !KERNEL */
 

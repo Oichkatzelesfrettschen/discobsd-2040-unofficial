@@ -170,9 +170,9 @@ mode_t  getmode(void *set, mode_t mode);
 void    *setmode(char *mode_str);
 
 struct stat;
-int     stat (const char *path, struct stat *buf);
-int     fstat (int fd, struct stat *buf);
-int     lstat (const char *path, struct stat *buf);
+int     stat (const char *path, struct stat *buf) __TIME64_NAME(stat);
+int     fstat (int fd, struct stat *buf) __TIME64_NAME(fstat);
+int     lstat (const char *path, struct stat *buf) __TIME64_NAME(lstat);
 
 int     execl (const char *path, const char *arg0, ... /* NULL */);
 int     execle (const char *path, const char *arg0, ... /* NULL, char *envp[] */);

@@ -13,10 +13,31 @@
  * Structure returned by gettimeofday(2) system call,
  * and used in other calls.
  */
+#ifdef __TIME64_VIEW
+struct timeval {
+    time_t  tv_sec;         /* seconds */
+    long    tv_usec;        /* and microseconds */
+};
+
+/*
+ * The layouts the kernel reads and writes, which the wrappers of the
+ * 64-bit view convert to and from (lib/libc/gen/time64.h).
+ */
+struct __timeval32 {
+    long    tv_sec;
+    long    tv_usec;
+};
+
+struct __timespec32 {
+    utime32_t tv_sec;
+    long    tv_nsec;
+};
+#else
 struct timeval {
     long    tv_sec;         /* seconds */
     long    tv_usec;        /* and microseconds */
 };
+#endif
 
 /*
  * POSIX.4 time value with nanoseconds instead of microseconds.
@@ -140,13 +161,22 @@ int hzto (struct timeval *tv);
 #else
 #include <time.h>
 
-int gettimeofday (struct timeval *tv, struct timezone *tz);
-int settimeofday (const struct timeval *tv, const struct timezone *tz);
-int utimes (const char *filename, const struct timeval times[2]);
-int futimes (int fd, const struct timeval times[2]);
-int getitimer (int which, struct itimerval *curr_value);
+int gettimeofday (struct timeval *tv, struct timezone *tz)
+           __TIME64_NAME(gettimeofday);
+int settimeofday (const struct timeval *tv, const struct timezone *tz)
+           __TIME64_NAME(settimeofday);
+int utimes (const char *filename, const struct timeval times[2])
+           __TIME64_NAME(utimes);
+int futimes (int fd, const struct timeval times[2])
+           __TIME64_NAME(futimes);
+int getitimer (int which, struct itimerval *curr_value)
+           __TIME64_NAME(getitimer);
 int setitimer (int which, const struct itimerval *new_value,
-           struct itimerval *old_value);
+           struct itimerval *old_value) __TIME64_NAME(setitimer);
+#ifdef __TIME64_VIEW
+int adjtime (const struct timeval *delta, struct timeval *olddelta)
+           __TIME64_NAME(adjtime);
+#endif
 char *tztab (int zone, int dst);
 
 #endif

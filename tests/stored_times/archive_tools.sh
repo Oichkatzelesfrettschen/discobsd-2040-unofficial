@@ -155,16 +155,20 @@ compile_tools() {
     $cc $(view_flags "$ct_view") -o "$ct_out/ld" "$ct_out/ld.o" \
         "$ct_out/stat_shim.o" || return 1
     # make's source is legacy K&R C: doname.c compiles without warnings as
-    # errors, the fixture with them.
+    # errors, the fixture with them. Both compile without CROSS, under which
+    # usr.bin/make/defs.h names the host's <stdio.h> and <ctype.h> by the
+    # absolute path /usr/include, a directory a macOS host lacks; the search
+    # path finds the host's headers first because the tree's include
+    # directory follows it (-idirafter).
     # shellcheck disable=SC2046
-    $cc $(view_flags "$ct_view") -O1 -w -std=gnu89 -DCROSS \
+    $cc $(view_flags "$ct_view") -O1 -w -std=gnu89 \
         -I"$ct_root/usr.bin/make" -I"$ct_root/usr.bin/ar" \
         -I"$top/tools/aoututils/include" -idirafter "$top/include" \
         -c -o "$ct_out/make-doname.o" \
         "$ct_root/usr.bin/make/doname.c" || return 1
     # shellcheck disable=SC2046
     $cc $(view_flags "$ct_view") -O1 -Wall -Wextra -Werror -std=gnu89 \
-        -DCROSS -I"$ct_root/usr.bin/make" -I"$ct_root/usr.bin/ar" \
+        -I"$ct_root/usr.bin/make" -I"$ct_root/usr.bin/ar" \
         -I"$top/tools/aoututils/include" -idirafter "$top/include" \
         -c -o "$ct_out/make-order.o" "$here/make_order.c" || return 1
     # shellcheck disable=SC2046

@@ -338,6 +338,11 @@
       "kind": "recursive make"
     },
     {
+      "from": "check-libc-calendar64",
+      "to": "tests/libc_contracts:check-calendar64",
+      "kind": "recursive make"
+    },
+    {
       "from": "check-libc-ctime-cross",
       "to": "tests/libc_contracts:check-ctime-cross",
       "kind": "recursive make"
@@ -499,6 +504,7 @@
         "check-syslog",
         "check-zone",
         "check-mktime",
+        "check-calendar64",
         "check-ctime",
         "check-runtime-limits",
         "check-difftime",
@@ -1677,6 +1683,82 @@
       "recipe": "${TEST_EXECUTION} run libc.mktime.sanitized-ilp32 -- ./mktime_contract_test32_san",
       "aliases": [
         "check-libc-mktime"
+      ]
+    },
+    {
+      "id": "libc.calendar64.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-calendar64",
+      "root_target": "check-libc-host-contracts",
+      "program": "calendar64_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "calendar64_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.calendar64.native -- ./calendar64_test",
+      "aliases": [
+        "check-libc-calendar64"
+      ]
+    },
+    {
+      "id": "libc.calendar64.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-calendar64",
+      "root_target": "check-libc-host-contracts",
+      "program": "calendar64_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "calendar64_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.calendar64.ilp32 -- ./calendar64_test32",
+      "aliases": [
+        "check-libc-calendar64"
+      ]
+    },
+    {
+      "id": "libc.calendar64.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native address and undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-calendar64",
+      "root_target": "check-libc-host-contracts",
+      "program": "calendar64_test_san",
+      "condition": "sanitizer compile and runtime probe == yes",
+      "prerequisites": [
+        "calendar64_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.calendar64.sanitized -- ./calendar64_test_san",
+      "aliases": [
+        "check-libc-calendar64"
+      ]
+    },
+    {
+      "id": "libc.calendar64.sanitized-ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 address and undefined sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-calendar64",
+      "root_target": "check-libc-host-contracts",
+      "program": "calendar64_test32_san",
+      "condition": "MKTIME_SAN32_OK == yes; compiler-probe.sh compiles and executes ILP32 address and undefined sanitizers",
+      "prerequisites": [
+        "calendar64_test32_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.calendar64.sanitized-ilp32 -- ./calendar64_test32_san",
+      "aliases": [
+        "check-libc-calendar64"
       ]
     },
     {

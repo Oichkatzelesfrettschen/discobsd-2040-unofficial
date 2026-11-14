@@ -136,6 +136,12 @@ mktime_ctime.o
 mktime_ctime32.o
 mktime_timezone.o
 mktime_timezone32.o
+calendar64_test
+calendar64_test32
+calendar64_test_san
+calendar64_test32_san
+calendar64_vectors.h
+cal64_*.o
 ctime_tzset.o
 ctime_tzset32.o
 zone_tzset.o

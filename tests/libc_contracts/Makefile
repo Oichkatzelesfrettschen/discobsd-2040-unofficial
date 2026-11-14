@@ -56,7 +56,7 @@ include ${TOPSRC}/tools/qemu-arm.mk
 check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
 	check-unistd-prototypes check-alarm-contract \
 	check-waitpid-contract \
-	check-mktime check-difftime \
+	check-mktime check-calendar64 check-difftime \
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-scanf-llong check-rwmode \
 	check-ansi check-syslog \
@@ -605,6 +605,92 @@ check-mktime: mktime_contract_test
 .else
 	${TEST_EXECUTION} skip libc.mktime.sanitized-ilp32 "check-libc-mktime: ${HOSTCC} cannot execute ILP32 address/undefined sanitizers"
 .endif
+
+# The calendar functions of the 64-bit view of time: ctime.c, mktime.c and
+# difftime.c compiled with _TIME_BITS=64 beside the 32-bit tzset.c,
+# timezone.c and asctime.c, run by tests/time64_calendar/calendar64_test.c
+# against the fields its vectors.py derives with CPython's datetime. The
+# 64-bit members bind to __NAME64 symbols, which no -D rename reaches; the
+# renames keep the shared 32-bit members and errno apart from the host's,
+# and tzset.c reads TZ and the kernel offset through that directory's
+# zone_hooks.c. The ILP32 runs are the ones whose long is four bytes, as on
+# the target; tests/time64_calendar runs the same test as Thumb-1.
+CAL64_DIR=	${TOPSRC}/tests/time64_calendar
+CAL64_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
+	-nostdinc -isystem ${TOPSRC}/include -Dtzset=db_tzset \
+	-Dtzname=db_tzname -Dtztab=db_tztab -Dasctime=db_asctime \
+	-Derrno=calendar64_errno
+CAL64_ZONE=	-Dgetenv=calendar_getenv -Dgettimeofday=calendar_zone_gettimeofday
+CAL64_HEADERS=	${TARGET_DIR}/offtime.h ${TARGET_DIR}/tzstate.h \
+	${TOPSRC}/include/time.h ${TOPSRC}/sys/sys/_time_t.h
+CAL64_PROG.native=	calendar64_test
+CAL64_PROG.ilp32=	calendar64_test32
+CAL64_PROG.san=		calendar64_test_san
+CAL64_PROG.ilp32san=	calendar64_test32_san
+CAL64_FLAGS.native=
+CAL64_FLAGS.ilp32=	${ILP32}
+CAL64_FLAGS.san=	${ZONE_SAN}
+CAL64_FLAGS.ilp32san=	${ILP32} ${ZONE_SAN}
+
+check-calendar64: calendar64_test
+	${TEST_EXECUTION} run libc.calendar64.native -- ./calendar64_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} calendar64_test32
+	${TEST_EXECUTION} run libc.calendar64.ilp32 -- ./calendar64_test32
+.else
+	${TEST_EXECUTION} skip libc.calendar64.ilp32 "check-libc-calendar64: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ZONE_SAN_OK} == "yes"
+	@${MAKE} calendar64_test_san
+	${TEST_EXECUTION} run libc.calendar64.sanitized -- ./calendar64_test_san
+.else
+	${TEST_EXECUTION} skip libc.calendar64.sanitized "check-libc-calendar64: no sanitizer runtime"
+.endif
+.if ${MKTIME_SAN32_OK} == "yes"
+	@${MAKE} calendar64_test32_san
+	${TEST_EXECUTION} run libc.calendar64.sanitized-ilp32 -- ./calendar64_test32_san
+.else
+	${TEST_EXECUTION} skip libc.calendar64.sanitized-ilp32 "check-libc-calendar64: ${HOSTCC} cannot execute ILP32 address/undefined sanitizers"
+.endif
+
+calendar64_vectors.h: ${CAL64_DIR}/vectors.py
+	: "$${PYTHON:?set PYTHON to the intended interpreter}"
+	"$${PYTHON}" ${CAL64_DIR}/vectors.py $@
+
+.for variant in native ilp32 san ilp32san
+CAL64_OBJS.${variant}=	cal64_${variant}_ctime64.o cal64_${variant}_mktime64.o \
+	cal64_${variant}_difftime64.o cal64_${variant}_tzset.o \
+	cal64_${variant}_timezone.o cal64_${variant}_asctime.o \
+	cal64_${variant}_zone_hooks.o
+
+.for member in ctime mktime difftime
+cal64_${variant}_${member}64.o: ${TARGET_DIR}/${member}.c ${CAL64_HEADERS}
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} -D_TIME_BITS=64 \
+	    -c -o $@ ${TARGET_DIR}/${member}.c
+.endfor
+
+cal64_${variant}_tzset.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} ${CAL64_ZONE} \
+	    -c -o $@ ${TARGET_DIR}/tzset.c
+
+cal64_${variant}_timezone.o: ${TARGET_DIR}/timezone.c
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} ${MKTIME_TZ_WARN} \
+	    -c -o $@ ${TARGET_DIR}/timezone.c
+
+cal64_${variant}_asctime.o: ${TARGET_DIR}/asctime.c
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} \
+	    -c -o $@ ${TARGET_DIR}/asctime.c
+
+cal64_${variant}_zone_hooks.o: ${CAL64_DIR}/zone_hooks.c \
+    ${CAL64_DIR}/zone_hooks.h
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} -DDEFINE_ERRNO \
+	    -c -o $@ ${CAL64_DIR}/zone_hooks.c
+
+${CAL64_PROG.${variant}}: ${CAL64_DIR}/calendar64_test.c calendar64_vectors.h \
+    ${CAL64_DIR}/zone_hooks.h ${CAL64_OBJS.${variant}}
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} -I. -o $@ \
+	    ${CAL64_DIR}/calendar64_test.c ${CAL64_OBJS.${variant}}
+.endfor
 
 check-ctime: check-asctime ctime_contract_test
 	${TEST_EXECUTION} run libc.ctime.native -- ./ctime_contract_test
@@ -1486,6 +1572,8 @@ clean:
 	rm -f getgrent_contract_test grent_getgrent.o
 	rm -f asctime_contract_test asctime_contract_bad_test \
 		asctime_asctime.o asctime_bad.o
+	rm -f calendar64_test calendar64_test32 calendar64_test_san \
+		calendar64_test32_san calendar64_vectors.h cal64_*.o
 	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_tzset.o \
 		ctime_ctime32.o ctime_tzset32.o
 	rm -f zone_contract_test zone_contract_test32 \
@@ -1660,7 +1748,7 @@ scanf_llong_test_arm: scanf_llong_test.c ${QEMU_SCANF_OBJS} \
 
 all: check
 
-.PHONY: all check check-host check-aout check-asctime check-ctime \
+.PHONY: all check check-host check-aout check-asctime check-calendar64 check-ctime \
 	check-ctime-cross check-difftime check-difftime-cross \
 	check-alarm-contract check-alarm-contract-cross \
 	check-waitpid-contract check-waitpid-contract-cross \

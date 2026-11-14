@@ -307,3 +307,12 @@ its contradictory-state control exercises the opposite of the selected
 candidate's measured state. This preserves calibration when a measured entry
 occupies the final ledger position. Ruff reports no errors in the two changed
 validator files.
+
+The integrated candidate `907b47fb` reproduces the approved resource vector
+against main `0c021420`: every numeric delta, libc-member change, and
+all-archive selection change equals the retained approved comparison. The
+native archive grows by 32 bytes to 48,878, and the root retains 232 free
+blocks. `signal-set-resource-exception.md` binds the preserved limits to the
+new baseline. No additional resource allowance follows from unrelated main
+changes. Integrated focused gates and the separate ILP32 inventory retain
+their own qualification obligations.

@@ -75,3 +75,16 @@ The owner approves exactly this vector and the 18 new member selections on
 additional growth requires its own measured admission. Main `d01ef4a0` supplies
 the rollback point. Physical-board execution remains unrun; this exception
 does not authorize it.
+
+## Integrated main comparison
+
+Candidate `907b47fb1b4062aedecf4bf50db23d0a95f44a36` includes main
+`0c021420f631cd69522fba7c51c263ca98d6bec6`. Its matched clean receipts are
+`signal-set-resources-907b47fb.json` and
+`signal-set-resources-0c021420-907b47fb.json`. Every numeric delta and
+per-program libc member change equals the approved `d01ef4a0..0abfb33d`
+vector. The native archive rises from 48,846 to 48,878 bytes; root data blocks
+rise from 746 to 747, leaving 232 free blocks. The same exact approved limits
+therefore cover this integration without an additional resource allowance.
+The generic nonpositive-growth comparator still rejects the added dependencies;
+its rejection remains distinct from the owner's measured exception.

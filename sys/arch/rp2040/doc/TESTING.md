@@ -3502,7 +3502,9 @@ stack within 192 KiB. This is a newlib application seam, not a DiscoBSD kernel
 boot, MPU test, timing measurement or RP2040 peripheral test. Directory APIs
 and exclusive shell launch are supplied only by the native/board backends.
 
-`check-matezinho-sd` is optional and outside the aggregate. .NET 8 compiles
+`check-matezinho-sd` stands outside the `logged-check` aggregate because it
+needs the .NET 8 SDK; the firmware workflow runs it on every pull request as
+the logged `linux-matezinho-sd` step after the Renode pin check. .NET 8 compiles
 FileSD against test-only peripheral interface declarations, then the actual
 sdspi.c drives it through C-callable delegates. The gate checks identification,
 CSD capacity, last-sector read/write, read-only refusal and an absent-transport

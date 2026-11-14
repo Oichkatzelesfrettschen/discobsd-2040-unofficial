@@ -384,7 +384,14 @@ jobs:
       - name: Confirm the Renode build the gates were verified against
         run: sh tools/renode/check-renode-pin.sh
       - name: Check file-backed SD against production SPI protocol
-        run: bmake MACHINE=rp2040 check-matezinho-sd
+        timeout-minutes: 10
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-matezinho-sd \
+            --log .build-logs/linux-matezinho-sd.log \
+            --status .build-logs/linux-matezinho-sd.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 540 \
+            -- bmake MACHINE=rp2040 check-matezinho-sd
       - name: Fetch and build the Renode RP2040 models
         timeout-minutes: 10
         run: sh tools/renode/fetch-renode-rp2040.sh

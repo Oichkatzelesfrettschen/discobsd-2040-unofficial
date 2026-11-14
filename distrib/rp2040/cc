@@ -11,7 +11,7 @@
 # this board writes the shell's image to the swap region of the flash, so
 # the driver counts its inputs and takes a file name apart with case and
 # field splitting where expr, basename and sed would each be a process
-# (docs/research/rp2040-flash-traffic-per-workload.md).
+# (sys/arch/rp2040/doc/research/flash-traffic-per-workload.md).
 #
 #   cc [-o out] [-S | -c] file.c ... file.s ... file.o ...
 #
@@ -72,7 +72,8 @@ fi
 # suffix. The last field between slashes is the name; a name that ends in
 # one of the three suffixes is rejoined from its fields between dots, less
 # the last. Empty fields do not survive the splitting, so a name with two
-# dots in a row or a leading dot is left whole.
+# dots in a row or a leading dot goes through basename and sed, the two
+# processes the common case avoids.
 stem() {
 	saved_ifs=$IFS
 	IFS=/
@@ -81,6 +82,8 @@ stem() {
 	done
 	case $base in
 	*..*|.*)
+		IFS=$saved_ifs
+		base=`basename "$1" | sed 's/\.[cso]$//'`
 		;;
 	*.c|*.s|*.o)
 		IFS=.

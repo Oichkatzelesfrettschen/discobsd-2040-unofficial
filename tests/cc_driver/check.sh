@@ -6,8 +6,10 @@
 # command, an rm that logs before it removes. A driver that starts any
 # other program (expr, basename, sed) therefore fails with "not found",
 # which is how the launch count is held: each case's log is the complete
-# list of processes the driver started. The mutant restores the earlier
-# stem(), a basename and sed pipeline, and must fail.
+# list of processes the driver started. Three cases with unusual names
+# (a leading dot, two dots in a row) add basename and sed to PATH, the
+# route the driver keeps for them. The mutant restores the earlier stem(),
+# a basename and sed pipeline for every name, and must fail.
 #
 # usage: check.sh DRIVER
 set -eu
@@ -105,6 +107,17 @@ expect driver 1 '' -o x -c a.c b.c
 expect driver 1 '' -Wall a.c
 expect driver 1 '' a.x
 expect driver 1 '' -o
+
+# A name with a leading dot or two dots in a row takes the basename and
+# sed route, so those two commands join PATH for these cases; the log still
+# lists every other process.
+for tool in basename sed; do
+	ln -s "$(command -v "$tool")" "$work/bin/$tool"
+done
+expect driver 0 'smlrc .hidden.c .hidden.s;' -S .hidden.c
+expect driver 0 'smlrc sub/x..c x..s;' -S sub/x..c
+expect driver 0 'as x..s -o x..o;' -c x..s
+rm "$work/bin/basename" "$work/bin/sed"
 
 if [ "$failures" -ne 0 ]; then
 	echo "cc driver: $failures of $checks cases failed"

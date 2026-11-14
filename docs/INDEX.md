@@ -78,6 +78,7 @@ artifact points at.
 | `sh-posix-audit.md` | the POSIX ledger for `bin/sh`, row by row | `bin/sh/tests/posix-sh.sh` tests its rows; its xfail cases pin the open items |
 | `utilbox.md` | what `utilbox` and `adminbox` carry | `sbin/utilbox/`, `sbin/adminbox/` |
 | `v7-tools.md` | the V6/V7 disk images, their licenses, and two ports | `sbin/textbox/Makefile`, `legacy/pdp11-v6/distrib/rp2040/mi.rp2040` |
+| `flash-traffic-per-workload.md` | storage counters on the measured Pico and Renode flash-command counts for the stages of a compile on the board, against the W25Q16JV's rated erase cycles | `distrib/rp2040/cc`, `sys/arch/rp2040/dev/flash.c` |
 | `zswap.md` | the compressed RAM tier in front of flash swap | `compile/PICO/Config`, `heatshrink/heatshrink_config.h` |
 | `v7-format-descriptor.md` | the per-mount format descriptor that mounts Seventh Edition volumes through the native inode layer under the `V7FS` option, the checks a foreign volume gets and the option's measured cost | `sys/sys/fsgeom.h`, `sys/kern/ufs_v7.c` |
 
@@ -132,7 +133,6 @@ Grouped by what they investigate.
 | --- | --- |
 | `memory-ownership-plan.md` | memory ownership chosen over instruction tuning, and what landed |
 | `hardware-review-reconciliation.md` | twenty-one outside hardware, optimization and mathematics reviews checked against the datasheet and the kernels linked at `7a270276`: the corrected hardware facts, the disposition of every proposal, the ideas that survive in another form, and the ordered instrument-first roadmap |
-| `rp2040-flash-traffic-per-workload.md` | storage counters on the measured Pico and Renode flash-command counts for the stages of a compile on the board, against the W25Q16JV's rated erase cycles |
 | `rp2040-memory-wear-engineering-program.md` | the submitted SRAM and flash-wear audit turned into configuration-specific provenance, recovery, telemetry, SwapRAM, and durability gates |
 | `ram-compression.md` | the compression options against RAM and flash pressure, with measured costs |
 | `storage-techniques.md` | techniques from other small systems, and the SWAPRAM enable path |

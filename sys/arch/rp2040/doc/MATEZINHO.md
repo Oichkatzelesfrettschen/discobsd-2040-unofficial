@@ -63,14 +63,36 @@ timing. Unsupported commands report illegal-command status. Reset retains the
 backing bytes. Dispose releases the backing file.
 
 A 32 GB card is not a promise of a single 32 GB DiscoBSD filesystem. Existing
-signed 32-bit file offsets, the compact UFS format and the NMOUNT=1 kernel
-remain constraints. Raw device I/O above 2 GiB and simultaneous root plus SD
-mounts require separate kernel/filesystem work. The model's last-sector tests
+signed 32-bit file offsets and the compact UFS format remain constraints. The
+PICOCALC and PICOCALC_PSRAM kernels set NMOUNT=2, the flash root plus one SD
+partition, so a second SD filesystem cannot mount at the same time. Raw device
+I/O above 2 GiB requires separate kernel work. The model's last-sector tests
 exercise the SD protocol directly and do not bypass that distinction. For the
 initial PicoCalc image, use the raw read-only card as artwork storage and keep
 notes on the writable root; a compact pack can later live in an independently
 qualified SD filesystem. Do not overwrite a populated physical SD card with a
 raw artwork image merely to install icons.
+
+### Shared card with the vendor FAT32 partition
+
+Requirement: DiscoBSD keeps its own 16 MiB carve-out of the SD card, while
+the same card keeps the vendor's FAT32 partition and the other firmware
+images on it. The storage profiles above do not yet meet it. Each profile is
+a whole-card image without an MBR: an asset image holds the pack at card byte
+zero and is read through `/dev/rsd0` (minor 0, the whole card), and Renode's
+FileSD presents the image file as the whole card. On a vendor card, sector 0
+holds the MBR, so `matezinho /dev/rsd0` finds no `MZAR0001` header and exits,
+and writing an asset image to the card replaces the MBR and the FAT32 volume.
+
+`sd.c` maps minors 1 to 4 to the four primary MBR entries without a type
+filter and offsets each transfer by the entry's first sector, and the reader
+issues aligned 1024-byte reads. A 16 MiB entry beside the FAT32 entry, with
+the pack written at its first byte and opened as `/dev/rsd0b` (or `rsd0c` or
+`rsd0d` after `mknod`), therefore matches the reader by source inspection.
+No tier exercises that layout, no tool here shrinks the vendor partition or
+writes a pack at a partition offset, the carve-out's MBR type is unassigned
+(0xB7 marks a DiscoBSD UFS partition and 0xB9 the crash-dump partition), and
+the `matezinho` closure names only `/dev/rsd0`.
 
 ## Artwork format and provenance
 

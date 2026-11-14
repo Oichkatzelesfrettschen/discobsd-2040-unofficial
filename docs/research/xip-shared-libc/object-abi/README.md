@@ -172,3 +172,20 @@ The production ROM macros and resolver provide the explicit shared selector.
 descriptor layout, bounds, modeled execution and remaining qualification.
 `check-libc-xip-rom` exercises the cold and hot paths; the earlier register
 experiment remains the retained isolated-sequence measurement.
+
+## Recorded ROM integration qualification
+
+Candidate `b39e4709c20502268791aae36cfa675ba6fdbdf7` includes main's calendar
+integration at `9561fd1c`. [Its receipt](rom-main-qualification.json) binds the
+logged build, shared-ROM and object-ABI gates, native-linker contracts and C17
+accounting to retained log hashes. Clang executes all four calendar variants
+outside the sandbox: native, ILP32, address/undefined sanitizer, and ILP32 with
+those sanitizers. Each executes 28,465 checks without failure. Sandboxed
+compiler probes receive `Bad system call` and skip these runtime variants;
+the unrestricted host rerun distinguishes that restriction from missing tools.
+
+The earlier static archive identity and PIC size measurements retain their
+recorded source revisions. Main's calendar changes require a new matched
+resource capture before the integrated candidate receives a resource verdict.
+The recorded checks establish neither full aggregate qualification nor shared
+physical-board execution.

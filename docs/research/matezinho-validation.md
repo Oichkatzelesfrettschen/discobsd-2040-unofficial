@@ -7,7 +7,7 @@ owned by sys/arch/rp2040/doc/MATEZINHO.md. No physical device was accessed.
 | Evidence | Result |
 | --- | --- |
 | Full `logged-build` | Passed; the installed native app was also rebuilt after its final input-adapter change |
-| Native app ELF | 13,863 text + 204 data + 8,024 BSS = 22,091 bytes; runtime stack excluded |
+| Native app ELF | 13,259 text + 204 data + 8,024 BSS = 21,487 bytes (arm-none-eabi-gcc 16.2.0, `-Os`); runtime stack excluded |
 | QEMU app ELF | 43,684 text + 1,760 data + 37,952 BSS = 83,396 bytes; includes 16 KiB heap, 8 KiB stack, bounded argument bytes/pointers |
 | Host state/render gate | Passed ASan/UBSan, 1500 seeded actions, bounded note input and incremental/full equality |
 | Asset/storage gate | Passed hash verification, malformed/truncated refusal, existing-image refusal, sparse capacities and notice companion creation |

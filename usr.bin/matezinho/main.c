@@ -256,7 +256,10 @@ board_loop(struct mz_io *io,const char *note_path)
                 if(pid>0) do reaped=wait(&wait_status);
                     while(reaped!=pid && (reaped>=0 || errno==EINTR));
                 backend.display=open("/dev/lcdgfx",O_WRONLY);
-                if(backend.display<0 || ioctl(0,TIOCSETP,&raw)<0) {
+                /* A tty whose foreground group changed during the shell
+                 * keeps the modes its new owner set. */
+                if(backend.display<0 || ioctl(0,TIOCGPGRP,&pgrp)<0 ||
+                    pgrp!=getpgrp() || ioctl(0,TIOCSETP,&raw)<0) {
                     own=0; status=-1; stopped=1; break;
                 }
                 /* The tty is RAW here; a refused key session leaves no owner

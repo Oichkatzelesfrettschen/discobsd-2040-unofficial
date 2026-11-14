@@ -187,13 +187,12 @@ sandboxed Renode launch fails on its host configuration lock before loading
 the kernel; the unrestricted emulator run supplies the runtime evidence.
 The retained qualification distinguishes that launch failure from target behavior.
 
-The archive closure inspector consumes the static archive and retains its
-single-strong-provider rule. A two-wrapper shared archive reproduces its
-conflicting-provider rejection for the coalesced helper. Before shared-archive
-build wiring, the inspector needs COMDAT ownership and equivalence handling,
-with positive duplicate-group and negative conflicting-group controls. GNU
-linker coalescing and the explicit-object shared link do not establish that
-archive-inspection capability.
+The [archive closure inspector](../export-closure/README.md) supports the static
+archive and equivalent COMDAT groups in shared archive inputs. Its normalized
+group identity includes storage and relocation targets, and its controls reject
+conflicting groups before provider selection receives credit. The production
+shared syscall pair resolves with one counted helper group. Shared-archive
+build wiring and final ABI export selection remain separate requirements.
 
 [The ROM dispatch register experiment](rom-dispatch-registers.md) establishes a
 hot-call candidate with preserved double-precision operands and identifies the

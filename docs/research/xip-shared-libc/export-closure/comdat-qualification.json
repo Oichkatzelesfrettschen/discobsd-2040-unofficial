@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "baseline_head": "e13f80758bcd1f7b883a6583fabd3ba8d24a0da4",
+  "source_sha256": {
+    "tools/libc_shared_closure.py": "c915f617fca9acaa8e1b09766f07143b0d9cb11f2cfe5feb01e09b61cd3e9471",
+    "tools/libc_shared_closure_test.py": "dbe41b3f4b8bf63ba35b4af8e025fa6438191b8c1f938cb6728abc382a66aa47"
+  },
+  "evidence": [
+    {
+      "path": ".build-logs/comdat-closure-tests.log",
+      "sha256": "5e22d90fcf4dac33ab89e46e61f0baa776168d82728cde294c1979610e81558d"
+    },
+    {
+      "path": ".build-logs/comdat-closure-registered.log",
+      "sha256": "f17852c162384e7c298db4aa7e80e78dcd8318f67ffcd4b9f489701efc87c1c8"
+    },
+    {
+      "path": ".build-logs/comdat-static-comparison.json",
+      "sha256": "f97ec3b68ec7fcd6baa3236467ec152dccf5a8fe4284a3a2448ef957bbcd145f"
+    },
+    {
+      "path": ".build-logs/comdat-closure-review.md",
+      "sha256": "743cab4320a65179e8395a9a7d445c02834887e06a8db6e17f9f1f4c2e02a400"
+    },
+    {
+      "path": ".build-logs/comdat-closure-resolution-review.md",
+      "sha256": "5e0b5a442aaa91e4d3aa8186f30b8ec2f503220f20491cca257dc461b1778772"
+    },
+    {
+      "path": ".build-logs/comdat-closure-final-review.md",
+      "sha256": "c1c631d5bcbfe15e0f069c648ded8fdd3acf6090333835d1a93e004f7c77b3e9"
+    },
+    {
+      "path": ".build-logs/comdat-elf-section-groups.html",
+      "sha256": "aeb299017bea7432933d1336e374ab1ab406bc70631f52086f14092e99616c3b"
+    },
+    {
+      "path": ".build-logs/comdat-weak-provider-control.log",
+      "sha256": "b5e81ac48bab42a135a346c85ed14970a353aa443d069ccc1741f503299ef0d9"
+    }
+  ],
+  "authority": "https://gabi.xinuos.com/elf/03-sheader.html#section-groups",
+  "tests_passed": 33,
+  "static_archive_comparison": {
+    "members": 449,
+    "archive_sha256": "aaf126d3aeeaaf39b7090cf93bb62490d7520aea1759c806db9758e18528a9f8",
+    "unchanged_static_report": true,
+    "before_sha256": "d494a88e345444056fad8e181ae0c46aacfef7847dd9b086ff5c6e197ae8ad93",
+    "after_sha256": "98717c9507ad716234338b20297d200f4e4a1723d7522672bb1f9efa218f3420"
+  },
+  "review": "relocation ownership finding repaired and calibrated; final bounded review reports no actionable finding",
+  "claim_class": "Host archive inspection with compiler-produced ARM objects and GNU relocatable-link oracle; no target runtime or final PIC image-size claim",
+  "remaining": "Shared-archive build wiring, public ABI selection, image fit and runtime admission remain open."
+}

@@ -520,9 +520,11 @@ check-time-binding: check-python
 .PHONY: check-time-binding
 
 # check-control-char-contracts deletes and rebuilds four objects of the
-# last build in place, and check-time-binding reads every object of that
-# build through nm, so a parallel cross tier runs the reader first.
+# last build in place, check-sh-c17-contracts cleans and rebuilds bin/sh,
+# and check-time-binding reads every object of that build through nm, so a
+# parallel cross tier runs the reader before either rebuild.
 .ORDER: check-time-binding check-control-char-contracts
+.ORDER: check-time-binding check-sh-c17-contracts
 
 check-rp2040-target-flags: check-python
 		${PYTHON} tests/compiler_matrix/target_flags.py \

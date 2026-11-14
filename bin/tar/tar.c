@@ -130,6 +130,54 @@ struct extracted_identity {
 };
 
 /*
+ * A file time as the header, the kernel and the disk hold it: seconds since
+ * 1970 as an unsigned count through STORED_TIME_MAX (February 2106). The
+ * mtime field of a header holds every such count in eleven octal digits.
+ * A four-byte time_t carries the count in its bits, so a negative value is a
+ * time after January 2038; a wider time_t holds the count itself.
+ */
+typedef unsigned long stored_time_t;
+#define STORED_TIME_MAX 4294967295UL
+
+/*
+ * A count read from a header or a wider time_t lies in the stored range. The
+ * parameter is the widest unsigned type, so the compare holds on a target
+ * where unsigned long is the stored width itself.
+ */
+static int
+stored_time_in_range(unsigned long long seconds)
+{
+    return seconds <= STORED_TIME_MAX;
+}
+
+/*
+ * The stored form of a time_t. A four-byte time_t is inside the range by its
+ * bits and converts by value; a wider one holds the count itself, and a time
+ * outside the range has no stored form, so it clamps to the nearer end.
+ * file_time_is_stored() lets a writer refuse such a time instead.
+ */
+static stored_time_t
+stored_time(time_t seconds)
+{
+    if (sizeof(time_t) > 4) {
+        if (seconds < 0)
+            return 0;
+        if (!stored_time_in_range((unsigned long long)seconds))
+            return STORED_TIME_MAX;
+    }
+    return (stored_time_t)seconds;
+}
+
+static int
+file_time_is_stored(time_t seconds)
+{
+    if (sizeof(time_t) > 4)
+        return seconds >= 0 &&
+            stored_time_in_range((unsigned long long)seconds);
+    return 1;
+}
+
+/*
  * Regular-file and symbolic-link provenance share one identity list so an
  * extraction-owned path can change between those types when a later archive
  * member wins. Each target allocation remains 16 bytes including its
@@ -143,8 +191,9 @@ struct extracted_directory {
     ino_t inode;
     dev_t device;
     struct extracted_directory *next;
-    time_t directory_modification_time;
+    stored_time_t directory_modification_time;
     unsigned short directory_mode;
+    unsigned char directory_time_set;
     unsigned char owned;
 };
 
@@ -170,7 +219,8 @@ static struct extracted_directory *extracted_directories;
  */
 static char dirstack[PATHSIZ];
 #define NTIM (PATHSIZ / 2 + 1)
-static time_t dirmtime[NTIM];
+static stored_time_t dirmtime[NTIM];
+static unsigned char dirmtime_set[NTIM];
 static unsigned short dirmode[NTIM];
 
 static void usage(void);
@@ -214,7 +264,8 @@ static void mterr(const char *, ssize_t, int);
 static ssize_t bread(int, char *, size_t);
 static void getbuf(void);
 struct directory_metadata {
-    time_t modification_time;
+    stored_time_t modification_time;
+    int restore_time;
     mode_t mode;
 };
 
@@ -222,7 +273,7 @@ static void storedirmetadata(char *, const struct directory_metadata *);
 static void setdirmetadata(char *, const struct directory_metadata *);
 static void setdirmetadata_at_parent(const char *, const char *,
     const struct stat *, const struct directory_metadata *);
-static void set_descriptor_times(int, const char *, time_t);
+static void set_descriptor_times(int, const char *, stored_time_t);
 static int contains_control_character(const char *);
 static int archive_path_is_safe(const char *);
 static int copy_normalized_creation_path(char *, size_t, const char *);
@@ -828,14 +879,15 @@ top:
     if ((unsigned long)(mode_t)mode_value != mode_value ||
         (unsigned long)(uid_t)uid_value != uid_value ||
         (unsigned long)(gid_t)gid_value != gid_value ||
-        size_value > LONG_MAX || time_value > LONG_MAX ||
+        size_value > LONG_MAX ||
+        !stored_time_in_range(time_value) ||
         checksum_value > INT_MAX)
         archive_error("archive numeric field exceeds the target type");
     sp->st_mode = (mode_t)mode_value;
     sp->st_uid = (uid_t)uid_value;
     sp->st_gid = (gid_t)gid_value;
     sp->st_size = (off_t)size_value;
-    sp->st_mtime = (time_t)time_value;
+    sp->st_mtime = (time_t)(stored_time_t)time_value;
     chksum = (int)checksum_value;
     if (chksum != (i = checksum())) {
         fprintf(stderr, "tar: directory checksum error (%d != %d)\n",
@@ -895,7 +947,7 @@ top:
 
     if (tfile != NULL)
         fprintf(tfile, "%s %lo\n", curname,
-            (unsigned long)stbuf.st_mtime);
+            stored_time(stbuf.st_mtime));
 }
 
 /*
@@ -1299,15 +1351,14 @@ doxtract(char **argv)
 
             directory_owned = open_verified_directory(leaf_name,
                 stbuf.st_mode & 0777, 0, 1, 0, 1, NULL);
-            metadata.modification_time = stbuf.st_mtime;
+            metadata.modification_time = stored_time(stbuf.st_mtime);
+            metadata.restore_time = mflag == 0;
             metadata.mode = stbuf.st_mode & 0777;
             if (!pflag)
                 metadata.mode &= ~extraction_creation_mask;
-            if (mflag != 0)
-                metadata.modification_time = (time_t)-1;
             if (!directory_owned) {
                 metadata.mode = (mode_t)-1;
-                metadata.modification_time = (time_t)-1;
+                metadata.restore_time = 0;
             }
             record_directory_metadata(leaf_name, directory_owned, &metadata);
             {
@@ -1415,7 +1466,7 @@ doxtract(char **argv)
             archive_path_error("set output mode", curname);
         if (mflag == 0)
             set_descriptor_times(output_descriptor, curname,
-                stbuf.st_mtime);
+                stored_time(stbuf.st_mtime));
         if (extraction_root_descriptor >= 0) {
             if (publishat_beneath(extraction_root_descriptor,
                 output_staging_path,
@@ -1820,7 +1871,8 @@ directory_ready:
         ((creation_mode & 0777) & ~creation_mask) | S_IRWXU) < 0)
         archive_path_error("set created directory mode", name);
     if (created) {
-        metadata.modification_time = (time_t)-1;
+        metadata.modification_time = 0;
+        metadata.restore_time = 0;
         metadata.mode = (creation_mode & 0777) & ~creation_mask;
         record_directory_metadata(name, 1, &metadata);
     } else if (report_owned) {
@@ -1889,6 +1941,7 @@ enter_parent_directories_raw(int root_descriptor, char *path,
             if (directory != NULL) {
                 dirmtime[depth] =
                     directory->directory_modification_time;
+                dirmtime_set[depth] = directory->directory_time_set;
                 dirmode[depth] = directory->directory_mode;
             }
         }
@@ -2214,6 +2267,7 @@ record_directory_metadata(const char *name, int owned,
         directory->owned = 1;
     }
     directory->directory_modification_time = metadata->modification_time;
+    directory->directory_time_set = metadata->restore_time != 0;
     directory->directory_mode = metadata->mode == (mode_t)-1 ? USHRT_MAX :
         (unsigned short)metadata->mode;
 }
@@ -2283,12 +2337,12 @@ tomodes(const struct stat *sp)
     putoctal(dblock.dbuf.mode, sizeof(dblock.dbuf.mode), sp->st_mode & 07777);
     putoctal(dblock.dbuf.uid, sizeof(dblock.dbuf.uid), sp->st_uid);
     putoctal(dblock.dbuf.gid, sizeof(dblock.dbuf.gid), sp->st_gid);
-    if (sp->st_size < 0 || sp->st_mtime < 0)
+    if (sp->st_size < 0 || !file_time_is_stored(sp->st_mtime))
         archive_error("file metadata cannot be represented in octal");
     putoctal(dblock.dbuf.size, sizeof(dblock.dbuf.size),
         (unsigned long)sp->st_size);
     putoctal(dblock.dbuf.mtime, sizeof(dblock.dbuf.mtime),
-        (unsigned long)sp->st_mtime);
+        stored_time(sp->st_mtime));
 }
 
 /*
@@ -2555,7 +2609,7 @@ checkupdate(const char *arg)
     }
     if (ferror(tfile))
         done(2);
-    return !found || stbuf.st_mtime > (time_t)newest;
+    return !found || stored_time(stbuf.st_mtime) > newest;
 }
 
 static _Noreturn void
@@ -2829,11 +2883,12 @@ storedirmetadata(char *name, const struct directory_metadata *metadata)
         end--;
         if (*end != '/')
             continue;
-        if (dirmtime[unwind_depth] != (time_t)-1 ||
+        if (dirmtime_set[unwind_depth] != 0 ||
             dirmode[unwind_depth] != USHRT_MAX) {
             struct directory_metadata saved_metadata;
 
             saved_metadata.modification_time = dirmtime[unwind_depth];
+            saved_metadata.restore_time = dirmtime_set[unwind_depth] != 0;
             saved_metadata.mode = dirmode[unwind_depth] == USHRT_MAX ?
                 (mode_t)-1 : (mode_t)dirmode[unwind_depth];
             *end = '\0';
@@ -2851,13 +2906,15 @@ storedirmetadata(char *name, const struct directory_metadata *metadata)
                 archive_error("directory nesting exceeds metadata stack");
             } else {
                 depth++;
-                dirmtime[depth] = (time_t)-1;
+                dirmtime[depth] = 0;
+                dirmtime_set[depth] = 0;
                 dirmode[depth] = USHRT_MAX;
             }
         }
     }
     if (metadata != NULL) {
         dirmtime[depth] = metadata->modification_time;
+        dirmtime_set[depth] = metadata->restore_time != 0;
         dirmode[depth] = metadata->mode == (mode_t)-1 ? USHRT_MAX :
             (unsigned short)metadata->mode;
     }
@@ -2897,7 +2954,7 @@ setdirmetadata_at_parent(const char *name, const char *display_path,
         descriptor_status.st_dev != path_status.st_dev ||
         descriptor_status.st_ino != path_status.st_ino)
         archive_error("directory changed before metadata restoration");
-    if (metadata->modification_time != (time_t)-1) {
+    if (metadata->restore_time != 0) {
         set_descriptor_times(descriptor, display_path,
             metadata->modification_time);
     }
@@ -2910,12 +2967,12 @@ setdirmetadata_at_parent(const char *name, const char *display_path,
 
 static void
 set_descriptor_times(int descriptor, const char *display_path,
-    time_t modification_time)
+    stored_time_t modification_time)
 {
     struct timeval tv[2];
 
     tv[0].tv_sec = time((time_t *) 0);
-    tv[1].tv_sec = modification_time;
+    tv[1].tv_sec = (time_t)modification_time;
     tv[0].tv_usec = tv[1].tv_usec = 0;
     if (futimes(descriptor, tv) < 0) {
         int saved_errno = errno;

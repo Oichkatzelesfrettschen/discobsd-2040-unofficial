@@ -820,6 +820,28 @@
       "aliases": []
     },
     {
+      "id": "tar.stored-time.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler; the 32-bit views need a multilib compiler and report SKIP without one",
+      "directory": ".",
+      "makefile": "Makefile",
+      "target": "check-tar-host",
+      "root_target": "check-tar-host",
+      "program": "sh",
+      "condition": "unconditional; stored_time_test.sh reports SKIP for each four-byte-long view the compiler cannot build and run",
+      "prerequisites": [
+        "bin/tar/tar.c",
+        "bin/tar/tests/stored_time_test.sh",
+        "bin/tar/tests/rooted_link_host.c",
+        "bin/tar/tests/rooted_link_host.h",
+        "tests/stored_times/stat_shim.c"
+      ],
+      "recipe": "${PYTHON} tools/test_execution.py run tar.stored-time.native -- sh bin/tar/tests/stored_time_test.sh",
+      "script": "bin/tar/tests/stored_time_test.sh",
+      "aliases": []
+    },
+    {
       "id": "archive.stored-times.native",
       "owner": "firmware/posix-sh",
       "width": "native",

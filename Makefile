@@ -1650,6 +1650,8 @@ check-tar-host:
 		    sh bin/tar/tests/hardlink_identity_test.sh
 		${PYTHON} tools/test_execution.py run tar.regular-publication.native -- \
 		    sh bin/tar/tests/regular_publication_identity_test.sh
+		${PYTHON} tools/test_execution.py run tar.stored-time.native -- \
+		    sh bin/tar/tests/stored_time_test.sh
 
 check-textbox-host:
 		sh usr.bin/textbox/tests/run.sh
@@ -2078,9 +2080,9 @@ installfs:
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-sh-editor check-tar-host \
+		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \
-		check-archive-stored-times \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump check-renode-union \

@@ -52,11 +52,14 @@ def fixture(header, form, wide, smaller=False):
                           "setgrent": "void (*)(void)", "endgrent": "void (*)(void)",
                           "setgroups": "int (*)(size_t, const gid_t *)"}
         elif header == "lastlog.h":
-            width = 8 if wide else 4
+            # ll_time is the kernel's 32-bit count (utime32_t), so the record
+            # keeps one layout under both views of time_t.
+            width = 4
             conditions.update({"lastlog size": f"sizeof(struct lastlog) == {width + 24}",
                                "lastlog alignment": f"_Alignof(struct lastlog) == {width}",
                                "lastlog time type":
-                               "_Generic(&((struct lastlog *)0)->ll_time, time_t *: 1, default: 0)",
+                               "_Generic(&((struct lastlog *)0)->ll_time, "
+                               "unsigned long *: 1, default: 0)",
                                "lastlog time": "offsetof(struct lastlog, ll_time) == 0",
                                "lastlog line": f"offsetof(struct lastlog, ll_line) == {width}",
                                "lastlog host": f"offsetof(struct lastlog, ll_host) == {width + 8}",
@@ -88,7 +91,7 @@ def mutations(root):
          r"unknown type name"),
         ("group-signedness", "grp.h", "int     gr_gid;", "unsigned int gr_gid;",
          "standalone", False, r"static assertion failed.*group gr_gid type"),
-        ("lastlog-width", "lastlog.h", "time_t  ll_time;", "long ll_time;",
+        ("lastlog-width", "lastlog.h", "utime32_t ll_time;", "time_t ll_time;",
          "standalone", True, r"static assertion failed.*lastlog"),
         ("device-prototype", "kmem.h", "kmemdev(void)", "kmemdev()",
          "standalone", False, r"(?:strict-prototypes|without a prototype|isn't a prototype)"),

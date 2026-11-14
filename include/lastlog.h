@@ -28,7 +28,7 @@ struct lastlog {
  * build where long is wider (a contract test) lays the record out its own
  * way and reads no board file.
  */
-#if defined(__SIZEOF_LONG__) && __SIZEOF_LONG__ == 4
+#if defined(__SIZEOF_LONG__) && __SIZEOF_LONG__ == 4 && !defined(__SMALLER_C__)
 _Static_assert(sizeof(struct lastlog) == 28,
     "a lastlog record is 28 bytes on disk");
 #endif

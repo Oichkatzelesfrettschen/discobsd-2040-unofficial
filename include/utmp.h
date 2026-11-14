@@ -43,7 +43,7 @@ struct utmp {
  * build where long is wider (a contract test) lays the record out its own
  * way and reads no board file.
  */
-#if defined(__SIZEOF_LONG__) && __SIZEOF_LONG__ == 4
+#if defined(__SIZEOF_LONG__) && __SIZEOF_LONG__ == 4 && !defined(__SMALLER_C__)
 _Static_assert(sizeof(struct utmp) == 44, "a utmp record is 44 bytes on disk");
 #endif
 

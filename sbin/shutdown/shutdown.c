@@ -350,8 +350,7 @@ getsdt(s)
 		if (t <= 0)
 			t = 5;
 		t *= 60;
-		tim = time((time_t *)0) + t;
-		return(tim);
+		return(time((time_t *)0) + t);
 	}
 	t = 0;
 	while (strlen(s) > 2 && isdigit(*s))

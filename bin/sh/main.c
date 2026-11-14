@@ -104,7 +104,8 @@ struct fileblk *standin = &stdfile;
 int mailchk = 0;
 
 static char     *mailp;
-static long     *mod_time = (long *)NIL;
+/* The modification time last seen for each mail file, 0 before the first. */
+static time_t   *mod_time = (time_t *)NIL;
 
 
 static void      exfile(BOOL);
@@ -422,7 +423,7 @@ chkmail(void)
 	register char   *s = mailp;
 	register char   *save;
 
-	long    *ptr = mod_time;
+	time_t  *ptr = mod_time;
 	char    *start;
 	BOOL    flg;
 	struct stat     statb;
@@ -486,7 +487,7 @@ setmail(char *mailpath)
 	register char   *s = mailpath;
 	register int    cnt = 1;
 
-	long    *ptr;
+	time_t  *ptr;
 
 	free(mod_time);
 	if ((mailp = mailpath))
@@ -499,7 +500,7 @@ setmail(char *mailpath)
 			s++;
 		}
 
-		ptr = mod_time = (long *)alloc(sizeof(long) * cnt);
+		ptr = mod_time = (time_t *)alloc(sizeof(time_t) * cnt);
 
 		while (cnt)
 		{

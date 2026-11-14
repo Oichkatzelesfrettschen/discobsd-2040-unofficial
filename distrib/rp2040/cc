@@ -6,11 +6,14 @@
 # arithmetic, no $( ) substitution, no ${var%pattern} editing and no
 # ! in an if condition.
 #
-# Every step but the compiler, the assembler, the linker and the final rm
-# is a shell built-in. A process the shell starts costs a fork, which on
-# this board writes the shell's image to the swap region of the flash, so
-# the driver counts its inputs and takes a file name apart with case and
-# field splitting where expr, basename and sed would each be a process
+# For an ordinary file name the driver starts four processes: the
+# compiler, the assembler, the linker and one rm for the intermediate
+# files. It counts its inputs and takes a name apart with case and field
+# splitting, where expr, basename and sed would each be a process; a name
+# those built-ins cannot take apart exactly (stem below) still goes
+# through basename and sed. On the measured Pico the three processes
+# saved shorten a two-line compile from 30.86 to 25.14 seconds and leave
+# its flash swap erases as they were
 # (sys/arch/rp2040/doc/research/flash-traffic-per-workload.md).
 #
 #   cc [-o out] [-S | -c] file.c ... file.s ... file.o ...

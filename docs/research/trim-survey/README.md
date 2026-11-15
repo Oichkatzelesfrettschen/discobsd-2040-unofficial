@@ -68,6 +68,14 @@ run's, which prints from sector 32; the first two runs printed from sector
 reached the console before the board reset. The result is in
 `sys/arch/rp2040/doc/research/flash-traffic-per-workload.md`.
 
+`board/swap/spread/`: three runs of the 24 compiles on the union kernel
+(`fcd49239`, `STORAGE_STATS=yes`) with `swap-who-wear-probe.patch`, each
+from a freshly flashed root: the erase count of all 96 swap sectors and
+the swap-outs of each command by tier and span, printed on the console at
+each `sysctl machdep.storage_stats`. Escape sequences and line-editor
+redraws are removed. `summarize.py runN.txt...` prints the per-run
+differences the record cites.
+
 `board/swap/admission/`: `sysctl machdep.storage_stats` before and after 24
 compiles on a `STORAGE_STATS=yes` kernel that counts SwapRAM refusal
 reasons and swap-out spans, from a freshly flashed root, with the shell

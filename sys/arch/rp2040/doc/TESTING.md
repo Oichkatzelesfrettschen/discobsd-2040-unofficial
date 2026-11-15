@@ -1060,6 +1060,22 @@ instead of its opened descriptor. The positive run and five negative controls
 establish the named host compatibility witnesses, not complete Issue 8 utility
 conformance or target execution.
 
+`check-posix-sh` then runs bin/sh/tests/board-break.sh through
+`tools/test_execution.py` as inventory variant `shell.board-break.ilp32`,
+whose receipt names the fixed shell it builds. The harness rebuilds the
+shell with `sbrk` routed to bin/sh/tests/board_break.c, a fixed arena that
+models the RP2040 break: a store past the break succeeds because the MPU
+grants the whole process window, and growth zeroes the range it grants, as
+`brk()` in sys/kern/kern_mman.c does. Three cases run: the issue 544 line
+after 1 to 150 leading assignments, a 9000-byte expanded word, and an
+interactive shell that exhausts the arena and must answer the next command
+without `no stack space`. That shell reads its commands from a FIFO named
+as its command file, which keeps the host's /etc/profile out of the run. Three mutants calibrate them, one per guard
+(addblok()'s growth, `stakroom()` and setbrk()'s refusal path), and each
+must fail its own case; the shell from before those guards fails all
+three. The model establishes the break semantics it states; MPU behavior,
+swap and the board's arena layout remain board evidence.
+
 ### Repository instruction safety
 
 `check-agent-instructions` calibrates and checks the two-file instruction

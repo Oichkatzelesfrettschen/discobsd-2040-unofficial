@@ -88,6 +88,7 @@ comsubst(void)
 		close(pv[OTPIPE]);
 	}
 	tdystak(savptr);
+	brkroom(stakbot + length(savptr));
 	staktop = movstr(savptr, stakbot);
 	while ((d = readc()))
 		/* @@@ pushstak(d | quote); */

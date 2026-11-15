@@ -119,6 +119,14 @@ and reject all four provider omissions. A matched clean distribution after the
 repair supplies the resource vector; the earlier 48-byte archive-only increase
 describes the incomplete candidate and supplies no admission limit.
 
+Complete candidate `51dcf8e1` passes both archive links and all 36 removed-member
+controls. The [resource record](callable-character-io-resource-exception.md)
+binds the matched clean distributions, the 500-byte native archive increase,
+unchanged 161 remaining shipped measures and separate native caller probes.
+Whole-member native linkage and final text alignment introduce a caller cost
+that cross-link garbage collection removes from existing shipped programs.
+Resource approval and complete qualification remain open.
+
 The bounded fixture omits timestamp effects, the complete POSIX errno set,
 signal-interruption schedules, thread synchronization and runtime stack peaks.
 The six standards rows therefore remain partial/open with host witnesses.

@@ -1447,18 +1447,20 @@
         "putchar.o"
       ],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
           "native archive bytes",
           "per-program loaded/raw/packed bytes",
           "root blocks",
-          "compiler frames"
+          "compiler frames",
+          "selected native probe loaded/raw/packed bytes",
+          "compiler local frames"
         ],
-        "evidence": ""
+        "evidence": "docs/research/callable-character-io-resource-exception.md"
       },
       "deciding_gate": "Require calibrated header, runtime, Smaller C and archive closure, a clean caller rebuild, matched resource admission and review.",
       "disposition": "candidate",
-      "residual": "Focused header and runtime witnesses pass. Clean caller/native rebuild, measured resource admission and reviewed integration remain open; concurrency and full POSIX error/timestamp facets retain separate requirements."
+      "residual": "The six callable entries pass header, byte/backend, Smaller C, native archive and emulator witnesses. Matched resources record 500 native archive bytes and the separate native-probe vector. Resource approval, complete qualification and review remain open; concurrency and full POSIX error/timestamp facets remain partial."
     }
   ],
   "candidate_bindings": {

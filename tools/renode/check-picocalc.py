@@ -326,6 +326,132 @@ def check_spi_fifo(run: Run) -> None:
         run.fail(message)
 
 
+LOGO_COLS, LOGO_ROWS = 14, 10
+CELL_W, CELL_H = 6, 10
+
+
+def logo_squares() -> set[tuple[int, int]]:
+    """The mirror ball usr.bin/picofetch/picofetch.c computes, as 3 by 3
+    pixel squares: (column, row) of each square it draws."""
+    glint = {(0, 7), (27, 5), (0, 26), (27, 28)}
+    squares = set()
+    for y in range(LOGO_ROWS * 3):
+        for x in range(LOGO_COLS * 2):
+            dx, dy = 2 * x - 28, 2 * y - 33
+            if dx * dx + dy * dy <= 625:
+                if not (x % 4 == 2 or y % 3 == 0):
+                    squares.add((x, y))
+            elif (y < 4 and x == 14) or (x, y) in glint:
+                squares.add((x, y))
+    return squares
+
+
+def logo_failures(width: int, pixels: bytes, top_row: int) -> list[str]:
+    """Compare the panel pixels of the logo's cells with logo_squares().
+
+    The logo's first cell row is console row top_row. A mosaic square is 3
+    by 3 panel pixels; the tenth pixel line of a cell repeats the ninth, so
+    the bottom squares of a cell are four lines tall. A square is lit when
+    its center pixel is not black, and the facets must show more than one
+    color, which a console that ignored SGR would not.
+    """
+    want = logo_squares()
+    wrong = 0
+    colors = set()
+    for y in range(LOGO_ROWS * 3):
+        for x in range(LOGO_COLS * 2):
+            px = x * 3 + 1
+            py = (top_row + y // 3) * CELL_H + (y % 3) * 3 + 1
+            at = (py * width + px) * 3
+            pixel = bytes(pixels[at:at + 3])
+            lit = pixel != b"\0\0\0"
+            if lit:
+                colors.add(pixel)
+            if lit != ((x, y) in want):
+                wrong += 1
+    failures = []
+    if wrong:
+        failures.append(f"picofetch: {wrong} of {LOGO_COLS * 2 * LOGO_ROWS * 3} logo "
+                        "squares differ from the mirror ball")
+    if len(colors) < 6:
+        failures.append(f"picofetch: the logo shows {len(colors)} colors, expected the "
+                        "six facet colors and more")
+    return failures
+
+
+def logo_frame(shift: int = 0, mono: bool = False) -> tuple[int, bytes]:
+    """A 320-pixel-wide frame holding the logo at row 0, for the self-test."""
+    width = 320
+    pixels = bytearray(width * LOGO_ROWS * CELL_H * 3)
+    palette = [(255, 0, 255), (92, 92, 255), (0, 255, 255), (0, 255, 0), (255, 255, 0),
+               (255, 0, 0), (255, 255, 255)]
+    for x, y in logo_squares():
+        color = palette[0] if mono else palette[((x // 2 + 1) // 2 + y // 3) % 7]
+        for line in range(4 if y % 3 == 2 else 3):
+            for col in range(3):
+                at = (((y // 3) * CELL_H + (y % 3) * 3 + line) * width
+                      + (x + shift) * 3 + col) * 3
+                pixels[at:at + 3] = bytes(color)
+    return width, bytes(pixels)
+
+
+def check_monitors(run: Run) -> None:
+    """Run picofetch and picotop when the image carries them.
+
+    picofetch must print its readings from this kernel's sysctl nodes beside
+    the logo drawn from the glyph bank; picotop must draw two frames and
+    exit. An image without the programs (any profile but picocalc) skips
+    the stage and says so.
+    """
+    # The keyboard model's FIFO holds 31 events, so a command longer than
+    # fifteen keys goes in through picocalc_dump.Console, which types in
+    # chunks and waits for each to drain.
+    console = picocalc_dump.Console(run)
+    console.type("ls /usr/bin/picofetch || echo fetch-none")
+    run.wait_until(lambda: run.has_line("/usr/bin/picofetch") or run.has_line("fetch-none"),
+                   "picofetch probe", "the path or fetch-none", KEY_BUDGET_SECONDS)
+    if run.has_line("fetch-none"):
+        print("check-picocalc: skip picofetch and picotop: the image carries neither "
+              "(the picocalc profile does)")
+        return
+    run.type_line("picofetch")
+    run.wait_for(["Reset  "], "picofetch report", KEY_BUDGET_SECONDS)
+    run.wait_for_prompt("prompt after picofetch", KEY_BUDGET_SECONDS)
+    run.snapshot("picofetch")
+    for text in ("OS       DiscoBSD 2.7", "Kernel   PICOCALC", "CPU      125.000 MHz, ",
+                 "SRAM     264K, process window 192K", "MPU      on, ",
+                 "Display  318x320 px, 53x32 cells", "Tables   proc "):
+        run.expect(run.has(text), f"picofetch: no {text!r} on the panel")
+    for label in ("Memory  ", "Swap    ", "Root    ", "Battery ", "Flash    image "):
+        run.expect(run.has(label), f"picofetch: no {label!r} line on the panel")
+    # Renode's ADC is a model, so the line's form is checked and its values
+    # are not.
+    run.expect(any(re.match(r"Sensors  -?\d+\.\d C, VSYS \d+\.\d\d V", line)
+                   for line in run.lines),
+               "picofetch: no Sensors line with a temperature and VSYS on the panel")
+    run.expect(not run.has("read failed"), "picofetch: a sysctl read failed")
+    # The title row, not a prompt: a prompt carries the shell's $.
+    title = [i for i, line in enumerate(run.lines)
+             if "operator@" in line and "$" not in line]
+    if not title:
+        run.fail("picofetch: no operator@host title on the panel")
+    else:
+        width, _, pixels = picocalc_fb.read_ppm(os.path.join(run.outdir, "picofetch.ppm"))
+        for message in logo_failures(width, pixels, title[-1]):
+            run.fail(message)
+    console.type("picotop -c 2 -d 1")
+    run.wait_for(["q quit"], "picotop frame", KEY_BUDGET_SECONDS)
+    run.wait_until(lambda: any(line.rstrip().endswith("$") for line in run.lines[-2:]),
+                   "prompt after picotop", "a shell prompt on the last rows",
+                   KEY_BUDGET_SECONDS)
+    run.snapshot("picotop")
+    for text in (" picotop  ", "CPU  ", "Mem  ", "Swp  ", "/    ", "Bat  ", "Evt  cs ",
+                 "CPU%   TIME COMMAND"):
+        run.expect(run.has(text), f"picotop: no {text!r} on the panel")
+    run.expect(any(line.rstrip().endswith("picotop") and " R+ " in line for line in run.lines),
+               "picotop: no running, in-core picotop row in the process table")
+
+
 # A Status line the model printed after a passing boot (st7365p.cs Status()).
 GOOD_STATUS = (
     "display on, sleep out, invert on, madctl 0x48, colmod 0x66, "
@@ -360,8 +486,20 @@ def self_test() -> int:
     if len(spi_fifo_failures(levels, accepted, dropped, sent)) < 3:
         print("self-test: the unbounded FIFO observation was not rejected", file=sys.stderr)
         return 1
+    width, pixels = logo_frame()
+    if logo_failures(width, pixels, 0):
+        print("self-test: the drawn mirror ball failed its own comparison", file=sys.stderr)
+        return 1
+    width, pixels = logo_frame(shift=1)
+    if not any("squares differ" in m for m in logo_failures(width, pixels, 0)):
+        print("self-test: a logo shifted one square was not rejected", file=sys.stderr)
+        return 1
+    width, pixels = logo_frame(mono=True)
+    if not any("colors" in m for m in logo_failures(width, pixels, 0)):
+        print("self-test: a one-color logo was not rejected", file=sys.stderr)
+        return 1
     print("check-picocalc self-test: ok (good line, sleeping panel and four other mutants, "
-          "good and unbounded FIFO)")
+          "good and unbounded FIFO, good, shifted and one-color logo)")
     return 0
 
 
@@ -417,6 +555,7 @@ def main(argv: list[str]) -> int:
         transactions = monitor_int(renode, "sysbus.i2c1.kbd Transactions")
         run.expect(transactions > 0, "keyboard: no I2C transaction reached 0x1f")
         check_spi_fifo(run)
+        check_monitors(run)
         if card is not None:
             elf = os.path.splitext(unix_bin)[0] + ".elf"
             picocalc_dump.run_dump_stages(run, os.path.abspath(card), elf)

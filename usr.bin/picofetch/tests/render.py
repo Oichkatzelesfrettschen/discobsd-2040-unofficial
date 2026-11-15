@@ -405,6 +405,8 @@ def test_top_plain(top):
     at = next(i for i, x in enumerate(pid) if "COMMAND" in x)
     pids = [int(x.split()[0]) for x in pid[at + 1:]]
     check(pids == sorted(pids) and len(pids) == 7, "-s pid orders by process id")
+    check(pid[at + 1].split()[0] == "0" and pid[at + 1].split()[-1] == "swapper",
+          "pid 0 has no kernel command name and shows swapper")
     row = next(x for x in pid if x.split()[-1] == "cc")
     check(row.split()[4] == "147K" and row.split()[-2] == "0:03", "size and time columns")
     two = frames(run(top, args=["-c", "2", "-d", "1"], fixture="pico")[0])[1]

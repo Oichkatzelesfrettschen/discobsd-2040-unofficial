@@ -121,3 +121,8 @@ It admits no allocation-block, archive-selection, root-capacity or kernel
 growth. Main `cc71239c` supplies the rollback point. Additional growth requires
 its own matched measurement and decision. The record supplies no complete
 POSIX, runtime-peak or physical-board acceptance claim.
+
+The [qualification record](stdio-eof-fixed-point-qualification.md) binds the
+accepted source review and completed non-hardware gates to frozen source
+`e92025c1`. Its clean production capture reproduces the approved delta JSON
+byte-for-byte; the later main integration changes research documentation only.

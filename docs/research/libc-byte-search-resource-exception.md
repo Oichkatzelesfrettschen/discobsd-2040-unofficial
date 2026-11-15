@@ -143,8 +143,10 @@ system-call policy rejects their probes. The host rerun executes those
 variants and reports no configured skips. The independent pinned source
 review reports no actionable defect. Clean db0ea8e7 passes all 216 required
 inventory variants, matched flash creation, both Renode boot gates and hosted
-CI. The complete revised aggregate and reviewed integration remain open;
-the [qualification record](libc-byte-search-qualification.json) retains each
+CI. Its complete serial aggregate passes in 3,563.426 seconds. The host-only
+query repair passes a separate complete parallel cross tier on clean
+768be134. Reviewed integration remains the delivery step; the
+[qualification record](libc-byte-search-qualification.json) retains each
 execution class and its configured limitations.
 
 The owner approves the exact revised vector. Approval covers exactly this vector,

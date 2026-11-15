@@ -61,7 +61,6 @@
       "usr.bin/smlrc/tests/t24_byte_search.c": "6e76ae6efa6f516a365f34a463303eb6bbb4b6cbe3d516220cc9f427d00c039b"
     },
     "remaining": [
-      "complete aggregate",
       "reviewed integration",
       "physical-board execution (separate authorization)"
     ],
@@ -170,7 +169,13 @@
         "PICO_UART": "4d0e4352c2190ae53a649219bac59e8d267ad81d57daa9a5ce8f2eb1d9b1f915",
         "PICOCALC_PSRAM": "c5f00f9c3fc1c9994c32fe667d7e885aee1e8e22a0185ec7c5118e1bd1175ffa"
       },
-      "scope": "Boot, filesystem, login, selected runtime probes and native compilation through ctime past 2038; byte-search case coverage remains in its separate fixtures."
+      "scope": "Boot, filesystem, login, selected runtime probes and native compilation through ctime past 2038; byte-search case coverage remains in its separate fixtures.",
+      "kernel_hash_role": "Compiler-output hashes precede the union UART descriptor rewrite. Exercised hashes identify the exact images loaded by the gates.",
+      "exercised_kernel_sha256": {
+        "PICO_UART": "4d0e4352c2190ae53a649219bac59e8d267ad81d57daa9a5ce8f2eb1d9b1f915",
+        "PICOCALC_PSRAM": "a64ad14251722ceb99c4fb71ce3b10f4860b31f3ddacb7da6016a1d574875280"
+      },
+      "input_retention": "Exact original kernels, the exercised UART-patched union kernel and flash inputs remain retained locally with digest-verified copies; original kernels also remain in immutable resource-capture artifacts."
     },
     "source_review": {
       "source_commit": "d1b55dd38634469ae281c1ff68ce340821e43f4c",
@@ -205,7 +210,7 @@
         "baseline_commit": "e64e2150f3d4e4c570efc9cfbabb950fe3739ce2",
         "finding": "Detached compiler-profile queries inherit closed parent jobserver descriptors. The parallel aggregate fails when the sorting caller rejects the warning; the user-copy query also emits it.",
         "counterfactual": "Clean baseline query with fixed closed jobserver descriptors reproduces the warning. Removing MAKEFLAGS and MFLAGS returns identical compiler flags without the warning.",
-        "disposition": "Both helpers use the existing detached-query policy and pass the owning parallel gates. Independent follow-up review remains open. Production libc, kernel, native archives and delivered program sources remain unchanged.",
+        "disposition": "Both helpers use the existing detached-query policy. Local adversarial diff review, original failing controls, preserved default-profile output, clean focused gates and the complete clean parallel cross tier qualify this host-only repair. Production source files remain unchanged.",
         "pre_change_prediction": "Clearing MAKEFLAGS and MFLAGS for detached queries makes the six selected environment cases pass; direct bmake with closed inherited descriptors retains its named warning.",
         "calibration": {
           "red_failures": 4,
@@ -225,6 +230,28 @@
           "elapsed_seconds": 28.563,
           "terminal_queue_dropped_bytes": 0,
           "log_sha256": "977d29a59b9536d2ac34542952d566ca07c93577a8f716fd1ab24e4e296395c6"
+        },
+        "clean_focused": {
+          "source_commit": "768be134d641e657f04c959b2bf6512478bd5631",
+          "source_state": "clean and frozen during qualification",
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 28.242,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "14bf7136c302c75d0591656ec419133914ea4ea40b22422e47f03f5c23adae1d"
+        },
+        "parallel_cross": {
+          "source_commit": "768be134d641e657f04c959b2bf6512478bd5631",
+          "source_state": "clean and frozen during qualification",
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 509.161,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "19ad3c4e3578a21817727139ed31fa31e4c1180ad8ad9ae2ea4e71f22b41d50c"
+        },
+        "optional_external_review": {
+          "state": "not_run",
+          "reason": "Additional source-transmission approval remains unanswered; no new external transmission occurs."
         }
       },
       {
@@ -233,6 +260,17 @@
         "probes": "A zero core limit and a header-only core-memory filter each retain the delay under a five-second bounded probe. Their timeout rejections falsify those proposed environment remedies.",
         "disposition": "No host settings or shell source change. Signal semantics remain covered by completed suite execution; collector delay stays a host-environment observation."
       }
-    ]
+    ],
+    "complete_aggregate": {
+      "source_commit": "db0ea8e770d4eda738e51e69e73f050e6beb93f1",
+      "source_state": "clean and frozen during qualification",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 3563.426,
+      "record": "libc-byte-search-aggregate.json",
+      "configured_skip_count": 3,
+      "expected_shell_failure_count": 9,
+      "configured_skip_count_scope": "Three emitted SKIP records; additional reference/namespace limits remain enumerated in the aggregate record and immutable log."
+    }
   }
 }

@@ -121,14 +121,26 @@ The [byte search contract](libc-byte-search-contracts.md) decomposes the
 explicit-length production candidate and its native archive closure.
 `memchr` receives independent unsigned-byte/int-conversion witnesses.
 `memmem` retains remembered-prefix Two-Way search with a remaining extent.
-Resource admission, clean qualification and reviewed integration remain open;
-the lazy-NUL `strstr` investigation retains a separate deciding experiment.
+The owner approves the exact guarded-prefix resource vector against main
+e64e2150: 748 native archive bytes, 376 loaded textbox bytes and two root
+blocks, leaving 227 free blocks. Clean db0ea8e7 passes the complete serial
+aggregate, all 216 required inventory variants and both Renode boot gates.
+The lazy-NUL `strstr` investigation retains its separate deciding experiment
+and its existing worst-case work; runtime resource peaks remain unmeasured.
 The [primary factorization correspondence](libc-byte-search-factorization.md)
 resolves the one-byte donor shift difference and includes guarded-prefix work
 in the comparison budget. The original tableless variant passes its aggregate;
 common-case instruction evidence selects a separately qualified fast-path
-revision on current main. Historical resource limits stay bound to their
-measured source rather than migrating to that revision.
+revision on current main. The pinned production review finds no actionable
+defect. A detached make-query repair passes calibrated controls, clean focused
+checks and the complete parallel cross tier on 768be134. Its host-only source
+change leaves the production providers unchanged; optional external review
+remains separate from its local verification. Reviewed integration completes
+this explicit-length search delivery. Historical resource limits stay bound
+to their measured source. Shared XIP implementation retains its independent
+48 KiB admission gate and the remaining ABI/lifecycle experiments. Its namespace
+closure also resolves the skipped coremark source owner under benchmarks and
+calibrates omission of a required program before claiming complete coverage.
 
 The [bidirectional sorting experiment](sort-bound-experiment/README.md)
 combines equal bands, ordered pivot samples, smaller-side recursion and a

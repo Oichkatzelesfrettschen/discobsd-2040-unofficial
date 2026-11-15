@@ -49,6 +49,109 @@
         }
       },
       "scope": "Guarded-prefix provider; parallel aggregate fails because the existing sorting-caller query rejects inherited closed-jobserver diagnostics. Shell SIGABRT case and SHTEST OK complete after a host core-collector delay. Remaining cross jobs abort after the first error; QEMU, host package and board-build tiers do not run in this attempt."
+    },
+    {
+      "source_commit": "db0ea8e770d4eda738e51e69e73f050e6beb93f1",
+      "source_state": "clean and frozen during qualification",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 3563.426,
+      "invocation": "bmake MACHINE=rp2040 logged-check",
+      "stages": {
+        "build": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 86.602,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "23cc51e656baf6f8a3e1bbb7796a7ac1df58ee4ff24deb6775a85bca55cfae5f"
+        },
+        "check": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 3476.822,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "3fc776a39a0145c47dcfe54778383ec6d53b7bd757c7429c1e7ed1dd746fc0c5"
+        }
+      },
+      "configured_skips": [
+        "SKIP tar stored time: i386-time32: tar tv prints through a four-byte time_t, which holds no date after January 2038",
+        "SKIP tar stored time: i386-time32: a four-byte time_t holds no time beyond the stored range",
+        "SKIP stored-times archive: i386-time32: ar tv prints through a four-byte time_t, which holds no date after January 2038"
+      ],
+      "expected_failures": [
+        {
+          "case": "tilde_home",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "cmdsub_dollar_paren",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "cmdsub_dollar_paren_nested",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_simple",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_leading_paren",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_vs_subshell_group",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "redir_readwrite",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "redir_clobber_override",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "status_negation",
+          "class": "existing shell conformance gap"
+        }
+      ],
+      "scope": "Guarded-prefix production sources; build, lint, host, POSIX shell, cross, QEMU, host package and board-build tiers complete. Configured skips and shell XFAILs retain their narrower claims. Host-only query repair on 768be134 receives separate clean focused and complete parallel-cross qualification. Physical execution remains unauthorized.",
+      "variant_limits": [
+        {
+          "family": "libc export namespace",
+          "state": "partial",
+          "checked_programs": 39,
+          "unreviewed_programs": [
+            "coremark"
+          ],
+          "reason": "The source-directory lookup omits the benchmarks family; it emits an unbuilt-closure skip. Shared-XIP namespace acceptance still requires this owner to close.",
+          "deciding_experiment": "Resolve the executed manifest entry to benchmarks/coremark, inspect its complete target object globals, and calibrate omission of that required source directory."
+        },
+        {
+          "family": "host complex reference grid",
+          "state": "not_run",
+          "reason": "The host C library lacks the required Annex G branch cuts."
+        },
+        {
+          "family": "printf exact-tie host comparisons",
+          "state": "reference_cases_omitted",
+          "cases": 30,
+          "reason": "The gate retains its documented exact-tie reference boundary."
+        },
+        {
+          "family": "ARM time-binding object census",
+          "state": "scope_filter",
+          "non_arm_objects_excluded": 76,
+          "reason": "These inputs are not ARM relocatable objects."
+        },
+        {
+          "family": "optional calc namespace",
+          "state": "scope_filter",
+          "host_objects_excluded": 16,
+          "reason": "Host-format objects do not participate in the target namespace scan."
+        }
+      ]
     }
   ]
 }

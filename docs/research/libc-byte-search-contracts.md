@@ -201,9 +201,22 @@ kernel and image hashes separately from byte-search fixture execution. Hosted
 CI run 43689715154 passes on the same source. The parallel aggregate fails
 at a detached make query after a successful clean build. Its complete receipt
 remains in the [aggregate record](libc-byte-search-aggregate.json).
-The documented serial aggregate runs on frozen clean db0ea8e7 in an isolated
-checkout; its terminal receipt and reviewed integration remain open.
-Physical-board execution stays unauthorized.
+The documented serial aggregate passes on frozen clean db0ea8e7 in
+3,563.426 seconds: build and every configured non-hardware tier exit zero,
+with no terminal queue loss. Its three explicit four-byte timestamp SKIP
+records, nine existing shell XFAILs and enumerated reference/namespace limits
+retain their narrower claims. Ownership releases
+with no pending process groups. Reviewed integration remains the delivery
+step. Physical-board execution stays unauthorized.
+
+The namespace gate checks 39 programs and skips coremark because its source
+lookup omits the benchmarks family. Shared-XIP namespace acceptance retains
+that unresolved owner and its deciding experiment. The host complex reference
+grid and 30 exact-tie formatting comparisons retain their documented reference
+limits. The ARM object census and optional calculator namespace scan separately
+filter objects built for the host. These observations narrow their respective
+claims; byte-search fixture execution and static resource receipts retain
+their own complete selected denominators.
 
 The parallel aggregate exposes an existing make-query diagnostic in
 tests/rp2040/usercopy_span/check.py. Its unchanged subprocess helper closes
@@ -221,8 +234,13 @@ compiler profiles; inherited parent scheduling flags supply no query input.
 This diagnostic supplies no application or compiler failure claim.
 The repaired helpers pass their owning gates under actual parallel make,
 including all caller-type controls, user-copy cases, the known-bad direct
-query and source/execution accounting. The complete production aggregate and
-focused helper qualification retain separate source and execution identities.
+query and source/execution accounting. Clean 768be134 passes the complete
+parallel cross tier in 509.161 seconds and its clean focused checks in
+28.242 seconds. The complete production aggregate and helper qualification
+retain separate source and execution identities. The original independent
+review covers the production provider. The host-only repair receives local
+adversarial review and calibrated execution; its optional external follow-up
+remains unlaunched while the additional transmission approval is unanswered.
 
 The deliberate shell SIGABRT case waits in the host core collector and then
 passes with SHTEST OK. Five-second probes with a zero core limit and a

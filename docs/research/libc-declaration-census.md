@@ -79,6 +79,31 @@ multiple archive providers and 15 have no provider in that corpus.
 The installed view contains 575 names and excludes the two termios declarations
 from the source-only header. All selections remain unreviewed for the shared ABI.
 
+The [complete receipt](libc-declaration-census.json) binds clean-start generator
+source `aaefae19` to all 448 compiler cases, header/dependency hashes, observed
+declarations, tool identities and archive bytes. The
+[qualification record](libc-declaration-census-qualification.json) preserves
+25 census calibration tests, 33 archive-closure tests, 47 inventory checks,
+profile calibration and repository lint. The complete parallel cross tier
+passes in 215.814 seconds with zero terminal queue loss. Its tracked source
+stays frozen; the generated census receipt remains the sole untracked artifact
+outside build inputs. That run preserves the existing CoreMark namespace
+omission, which separate PR 560 repairs.
+
+| Selector mode | Time view | Tracked-root names | Installed-view names |
+| --- | ---: | ---: | ---: |
+| Default BSD | 32 | 576 | 574 |
+| Default BSD | 64 | 577 | 575 |
+| ISO selector | 32 | 563 | 561 |
+| ISO selector | 64 | 564 | 562 |
+| Issue 7 selector | 32 | 569 | 567 |
+| Issue 7 selector | 64 | 570 | 568 |
+| Issue 8 selector | 32 | 573 | 571 |
+| Issue 8 selector | 64 | 574 | 572 |
+
+The labels name compiler selectors. Their counts establish observed exposure,
+rather than a verdict on standard namespace visibility.
+
 | Observed names | Source-backed interpretation | Deciding next action |
 | --- | --- | --- |
 | `environ`, `__progname` | Startup supplies these objects outside the examined archives | Bind executable-tail state to the generated object ABI and its lifecycle witnesses |

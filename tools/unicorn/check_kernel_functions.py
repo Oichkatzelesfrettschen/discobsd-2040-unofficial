@@ -43,6 +43,7 @@ import platform
 import re
 import struct
 import sys
+import tempfile
 import time
 import zlib
 from pathlib import Path
@@ -56,6 +57,7 @@ try:
     import unicorn
     from hypothesis import HealthCheck, Phase, example, given, settings
     from hypothesis import strategies as st
+    from hypothesis.configuration import set_hypothesis_home_dir
     from kernel_emulator import (
         NOP,
         CallFailure,
@@ -115,28 +117,29 @@ def expect(condition: bool, message: str) -> None:
 # Strategies.
 
 
-def tokens_strategy(lookahead: int, most: int):
+def tokens_strategy(lookahead: int, least: int, most: int):
     literal = st.tuples(st.just("lit"), st.integers(0, 255))
     reference = st.tuples(
         st.just("ref"),
         st.one_of(st.integers(1, 16), st.integers(1, 512)),
         st.integers(1, 1 << lookahead),
     )
-    return st.lists(st.one_of(literal, reference), max_size=most)
+    return st.lists(st.one_of(literal, reference), min_size=least, max_size=most)
 
 
 @st.composite
-def stream_strategy(draw, lookahead=None, most=500):
+def stream_strategy(draw, lookahead=None, most=500, least=0):
     """(lookahead, stream bytes, chunk cut points, expansion); a stream of
-    up to most bytes, raw, or serialized from up to most / 2 tokens, when
+    least to most bytes, raw, or serialized from least / 2 to most / 2
+    tokens, when
     expansion holds the bytes the tokens stand for (None for raw bytes)."""
     if lookahead is None:
         lookahead = draw(st.one_of(st.sampled_from([3, 8]), st.integers(1, 8)))
     expansion = None
     if draw(st.booleans()):
-        stream = draw(st.binary(max_size=most))
+        stream = draw(st.binary(min_size=least, max_size=most))
     else:
-        tokens = draw(tokens_strategy(lookahead, most // 2))
+        tokens = draw(tokens_strategy(lookahead, least // 2, most // 2))
         stream = heatshrink_model.encode_tokens(tokens, lookahead, draw(st.integers(0, 255)))
         expansion = heatshrink_model.expand_tokens(tokens)
     cuts = sorted(set(draw(st.lists(st.integers(0, len(stream)), max_size=5))))
@@ -395,7 +398,15 @@ def prop_round_trip(emu: KernelEmulator):
 
 
 def prop_expand(emu: KernelEmulator):
-    @given(case=stream_strategy(lookahead=HSX_LOOKAHEAD, most=1500), data=st.data())
+    # Streams past one stage (HSX_STAGE bytes) take several fill() calls,
+    # and outputs past one window wrap the ring.
+    @given(
+        case=st.one_of(
+            stream_strategy(lookahead=HSX_LOOKAHEAD, most=400),
+            stream_strategy(lookahead=HSX_LOOKAHEAD, least=2 * STAGE, most=1500),
+        ),
+        data=st.data(),
+    )
     def test(case, data):
         emu.release()
         _, stream, _, _ = case
@@ -671,6 +682,10 @@ def main() -> int:
     parser.add_argument("--only", action="append", default=[])
     args = parser.parse_args()
     sys.stdout.reconfigure(line_buffering=True)
+    # Hypothesis keeps a constants cache under its home directory; a
+    # private temporary one keeps the checkout clean.
+    home = tempfile.TemporaryDirectory(prefix="unicorn-kernel-hypothesis-")
+    set_hypothesis_home_dir(home.name)
 
     print(
         f"unicorn-kernel: Python {platform.python_version()}, unicorn {unicorn.__version__}, "
@@ -737,7 +752,7 @@ def main() -> int:
                 survivors.append(label)
                 continue
             killed += 1
-            by_memory += outcome[0] in ("memory", "fault")
+            by_memory += outcome[0] in ("memory", "fault", "alignment")
         problems = []
         if killed == 0:
             problems.append("no mutant killed")

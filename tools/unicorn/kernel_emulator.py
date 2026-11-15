@@ -17,8 +17,9 @@ arguments in r0-r3, the rest on the stack at an 8-byte aligned sp, the
 return address in lr with the Thumb bit set and the result in r0. The
 return address is a trap page outside the RP2040 map; reaching it ends the
 call. A call fails when it faults, exceeds its instruction budget, stops
-anywhere but the trap, or touches memory outside the policy the caller
-installs. The policy is byte exact and complements the guard pages that
+anywhere but the trap, makes an unaligned halfword or word access (which
+Unicorn performs and ARMv6-M faults), or touches memory outside the policy
+the caller installs. The policy is byte exact and complements the guard pages that
 surround every scratch buffer: Unicorn maps whole 4 KiB pages, so a guard
 page alone catches an overrun only on the side where a buffer sits flush.
 
@@ -329,6 +330,12 @@ class KernelEmulator:
     ) -> None:
         policy = self.policy
         if policy is None or self.violation is not None:
+            return
+        if address % size:
+            # ARMv6-M faults every unaligned halfword or word access (ARM
+            # DDI 0419, "Alignment support"); Unicorn performs it, so the
+            # hook refuses it.
+            self._violate(f"unaligned {size}-byte access at {address:#010x}", "alignment")
             return
         if STACK_BASE <= address < STACK_BASE + STACK_SIZE:
             return

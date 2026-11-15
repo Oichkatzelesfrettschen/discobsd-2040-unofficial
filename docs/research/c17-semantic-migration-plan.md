@@ -115,6 +115,14 @@ text, frame and work-count costs. The experiment stays outside shipped libc;
 general work bounds, workload timing and complete resource/caller admission
 remain prerequisites to a replacement.
 
+The [bidirectional sorting experiment](sort-bound-experiment/README.md)
+combines equal bands, ordered pivot samples, smaller-side recursion and a
+partition budget with allocation-free heap fallback. Its expanded host,
+ILP32, sanitizer and ARMv6-M QEMU matrices exercise 708,596 cases per entry
+variant. The measured sorted and duplicate-key families improve comparator
+work; ARM text and partition-frame growth remain explicit costs. Production
+replacement requires complete stack, resource and workload admission.
+
 The [bounded-string contract](libc-bounded-string-contracts.md) records the four
 small string implementations, their DragonFlyBSD provenance and calibrated
 host/ILP32/Thumb-1 witnesses. Their ledger rows remain partial while the

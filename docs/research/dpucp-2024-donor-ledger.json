@@ -784,7 +784,7 @@
       },
       "deciding_gate": "Compare exhaustive small arrays and large equal-heavy, sorted, reverse, periodic and comparator-adversarial inputs against an independent order/permutation oracle; test nested contexts, count comparisons and measure target stack/text and clean consumer artifacts.",
       "disposition": "candidate",
-      "residual": "The algorithms have prior art. Port-specific composition remains unimplemented and resource-unmeasured; the existing allocating heapsort cannot silently supply a non-failing fallback."
+      "residual": "The algorithms have prior art. docs/research/sort-bound-experiment/README.md and evidence.json retain an implemented research composition, calibrated host/ILP32/sanitizer/ARMv6-M execution, comparison counts and ARM object/frame costs. Production composition, complete caller stack and matched shipped-resource admission remain open; the candidate uses its own allocation-free heap fallback."
     },
     {
       "id": "libc-fixed-memory-stream",

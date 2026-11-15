@@ -2340,8 +2340,8 @@ every class the boot is known to produce, says what the model is missing
 and what the kernel sees because of it, and caps how many times each may
 appear. tools/renode/boot-warning-classes.txt, read first by check-boot.sh
 alone, carries the ceilings of the eleven flash re-entry classes for a run
-whose clock stage compiles a program on the target, about twice the count
-of a run without one. An unlisted class fails, and so does a listed one over its ceiling,
+whose clock stage compiles a program on the target: about 7,840 re-entries
+against a ceiling of 12,000. An unlisted class fails, and so does a listed one over its ceiling,
 and any line the models log at error level fails on its own, because a
 boot that reaches a shell produces none.
 Three classes mark state the kernel reads and gets wrong -- RESETS is

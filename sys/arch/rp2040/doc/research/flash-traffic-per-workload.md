@@ -106,31 +106,53 @@ root from swap and erases from programs.
 ## Against the rated endurance
 
 The root region is 1,536 KB, 384 sectors; at the rated minimum that is
-38.4 million sector erases if Dhara spreads them evenly, which these
-counters do not observe. With a checkpoint per request, a 1 KiB write
-spends two of them, so the budget is 19.2 million writes, and one compile
-of the two-line program spends 324 to 350: about 110,000 such compiles.
-The swap region is 384 KB, 96 sectors, written in place with no leveling;
-one compile erases 73. Spread evenly that budget is 9.6 million erases,
-about 130,000 compiles; how the swap allocator distributes its extents
-over the sectors is unmeasured, and a concentration on a few sectors
-shortens it in proportion.
+38.4 million sector erases. Dhara writes its journal as one circular log
+over those sectors, so the erases fall on them in turn; the counters here
+sum the region and do not observe a sector. The swap region is 384 KB, 96
+sectors, 9.6 million erases at the rated minimum, written in place with no
+leveling.
+
+One compile of the two-line program, `cc -o d d.c; sync`, on the measured
+Pico. The first row is the kernel and tools of `0c021420`; each later row
+adds one change to the row above and is the mean of 24 compiles after a
+fresh flash, read from `sysctl machdep.storage_stats`:
+
+| Tree | Root writes | Root sector erases | Compiles in the root budget | Mean time |
+| --- | ---: | ---: | ---: | ---: |
+| checkpoint per request, every image sector mapped | 162 to 175 | 324 to 350 | about 110,000 | 25 s |
+| checkpoint on sync; free blocks left out of the image's map | 163.8 | 183.9 | about 209,000 | 18.3 s |
+| assembler and linker streams in memory | 44.1 | 45.6 | about 842,000 | 10.8 s |
+| collection started by the live sector count, less one checkpoint group (the merged trigger) | 44.2 | 39.3 | about 977,000 | 10.4 s |
+
+The last row is a run of its own. `dhara-gc-trigger.md` records the same
+image under the trigger without the checkpoint-group term at 44.3 writes,
+38.3 erases and 10.33 s; the merged `gc_trigger()` gives up one more group
+to stay inside the safety margin and measured the row above. The two
+kernels differ by that term alone, and one erase per compile lies inside
+the spread of a run (14 to 80 erases across its 24 compiles).
+
+Swap erases stay at 69 to 75 per compile in every row. Spread evenly over
+the 96 swap sectors that is about 137,000 compiles, so swap, not the root,
+now bounds the life of the part for this workload, by a factor of seven;
+how the swap allocator distributes its extents over the sectors is
+unmeasured, and a concentration on a few sectors shortens that figure in
+proportion.
+
+Two changes were measured and left out. Unmapping a block when the file
+system frees it (trim at free) cost 1,592 root erases over eight compiles
+against 1,374 without, because a trim runs Dhara's collector as a write
+does and the free list hands the block out again at once; a sweep of the
+free list at sync did no better in the host model
+(`docs/research/trim-cost-model.md`). A reserve of a fifth of the live
+sectors in the collection trigger saved more than the shipped quarter
+(138.3 against 153.0 erases per compile on the second row's tree) and can
+reach into Dhara's safety margin (`dhara-gc-trigger.md`).
 
 ## Open
 
-- The checkpoint policy: the owner chose a checkpoint on `sync(2)` and on
-  group fill in place of one per request; the change and its reset
-  evidence are separate work.
-- The assembler's and linker's temporary files. The tables above describe the
-  tools of commit `0c021420`. The tree's `as` creates no temporary file for an
-  assembly that fits its 32 KiB stream budget and its `ld` writes text and
-  data at their final offsets (`usr.bin/as/README.md`). Host `strace` counts
-  of `write`, `lseek`, file-creating `open`, `unlink` and `ftruncate` on the
-  two-line program of `tools/renode/check-boot.py` (`d.s` of 704 bytes, linked
-  with `crt0.o` and the board `libc.a` built by `distrib/rp2040/mkboardlibc.py`):
-  `as` 27, 81, 14, 12, 6 before and 2, 3, 1, 0, 0 after; `ld` 269, 1,221, 5, 3,
-  0 before and 11, 520, 1, 0, 0 after, with identical `d.o` and `d` bytes. The
-  root counters of the new tools on the Pico, and with them the fraction of
-  the 66 and 86 root writes that the file creations carried, are not yet
-  measured; a third fewer root writes is an inference from the creation count.
-- Erases per physical sector, for the root and for swap.
+- Swap traffic: 69 to 75 sector erases per compile, more than the root
+  spends, on a quarter of the sectors and with no leveling. The admission
+  policy of SwapRAM and the placement of swap extents decide it.
+- Erases per physical sector for swap; the root's are even by the
+  journal's construction and unobserved.
+- Workloads other than the two-line compile.

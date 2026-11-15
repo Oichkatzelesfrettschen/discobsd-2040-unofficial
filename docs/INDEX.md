@@ -142,6 +142,7 @@ Grouped by what they investigate.
 | `rp2040-single-kernel.md` | the four RP2040 kernel configurations tested against one kernel binary with a flash board descriptor: PSRAM already probes at runtime, PICO_UART exists for the USB-less Renode model, the PicoCalc pins need a presence decision first, and the user-window layout is the granularity that stays in the build |
 | `board-descriptor-brief.md` | the work brief the board descriptor was built from: the decided design (one kernel, a checksummed `.board` section patched into `unix.uf2` per board), the ordered work items and their acceptance; `board-descriptor.md` holds the result |
 | `flash-storage-expectation-plan.md` | the storage expectation audit verified against source: per-request Dhara checkpoint padding as the cost driver, the `fs_fmod` gap in `sync()`, and a phased plan with gates and predictions |
+| `trim-cost-model.md` | the host-model cost of trim at free and of deferred free-list sweeps against no trim, by workload: a trim costs a write (`auto_gc()` before `try_delete()`), so trimming blocks reused within a burst is pure loss |
 | `libc-size-audit.md` | where the C library's bytes go, across the shipped programs |
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 192 KB process window |

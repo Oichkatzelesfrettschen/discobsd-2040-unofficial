@@ -20,9 +20,13 @@
 /*
  * The RP2040 carries two UARTs, both ARM PL011 rather than the ST USART the
  * other targets drive. The tty half of dev/uart.c is unchanged; only the
- * register access below differs.
+ * register access below differs. NUART sizes the tty table; a configuration
+ * that declares only uart0 sets options "NUART=1" and saves UART1's tty.
  */
+#ifndef NUART
 #define	NUART	2
+#endif
+_Static_assert(NUART == 1 || NUART == 2, "the RP2040 has UART0 and UART1");
 
 #ifdef KERNEL
 

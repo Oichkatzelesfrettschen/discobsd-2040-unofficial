@@ -440,7 +440,15 @@ Steps:
 
 Predictions (host model): after P8b the shipped image's trace d moves from
 100 to about 73 percent live, the batched cost from 6.28 to about 1.2
-pages per write, and the isolated cost stays at 8.00. Adding files raises
+pages per write, and the isolated cost stays at 8.00.
+
+Result (P8b): the `full` PICO image built with the sparse `flashimg` maps
+758 of 989 sectors (76.6 percent: 756 used blocks, 1 chain block and the
+partition table; 231 free blocks unwritten), not 73 percent, because the
+image grew since the 719-sector count above. Trace d at 758 live sectors
+gives 1.20 pages per batched write against 6.28 at 989, and 8.00 isolated,
+as predicted. The free-list walk in `flashimg` replaces the `tools/libufs`
+count the step names. Adding files raises
 the share past the knee (75 to 90 percent), so the benefit narrows as the
 root fills.
 
@@ -530,7 +538,7 @@ that closes it. Hardware rows need explicit opt-in.
 | P6.2 | Release manifest with distinct kernel artifacts and SHA-256 list | release-manifest gate | P6.1 | proposed |
 | P7.1 | Rationale comments for `physio()`, end-of-device zeroing, last close | `check-comment-hygiene` | P2.1 | proposed |
 | P7.2 | `rawrw()` and neighbors to C17 prototypes | `check-c17-kernel-inventory` ledger shrinks | P2.1 | proposed |
-| P8a | Live, chain and free block counts per profile | build-class report | -- | proposed |
-| P8b | Sparse `flashimg` that keeps chain blocks | sparse readback gate | P8a | proposed |
+| P8a | Live, chain and free block counts per profile | build-class report | -- | `full` (PICO) measured by `flashimg`'s own free-list walk: 756 used, 1 chain, 231 free of 988 blocks, 758 of 989 sectors live (76.6 percent); other profiles not built |
+| P8b | Sparse `flashimg` that keeps chain blocks | sparse readback gate | P8a | implemented; `check-flash-sparse` |
 | P8c | Free-path trim excluding chain blocks | free-path trim gate | P2.3, P8b | proposed |
 | L1 | Read-only-root guard in `rp2040_shutdown_sync()` | shutdown fixture case | a reachable read-only root | latent |

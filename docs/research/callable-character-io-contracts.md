@@ -133,7 +133,10 @@ binds the matched clean distributions, the 500-byte native archive increase,
 unchanged 161 remaining shipped measures and separate native caller probes.
 Whole-member native linkage and final text alignment introduce a caller cost
 that cross-link garbage collection removes from existing shipped programs.
-Resource approval and complete qualification remain open.
+The owner-approved callable-I/O vector and its complete non-hardware
+qualification close at `358efb11`. The
+[EOF fixed-point resource record](stdio-eof-fixed-point-resource-exception.md)
+owns the later normalization cost and its separate pending decision.
 
 The bounded fixture omits timestamp effects, the complete POSIX errno set,
 signal-interruption schedules, thread synchronization and runtime stack peaks.

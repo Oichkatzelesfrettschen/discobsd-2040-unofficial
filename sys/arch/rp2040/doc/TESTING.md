@@ -1961,6 +1961,33 @@ establishes coverage of that baseline; later changes require delta review.
 
 ## Cross tier
 
+`check-libc-pic-replay` calibrates `tools/libc_pic_replay.py` with real
+ARM compiler captures, a writable-state GOT relocation, and generated assembly
+supplied through retained standard input. Twenty-four tests reject stale source,
+missing/ambiguous/failed captures, wrong compiler/dependency/snapshot identities,
+response operands, escaped source/dependency/output paths, changed retained input,
+unknown capture versions, unreviewed options, compiler failure and
+capture/snapshot/archive changes during
+replay. A failed replay publishes no success receipt. Repeated `-c` options keep
+their compiler meaning; one captured output owns each replayed object.
+The caller selects `PYTHON`; ARM GCC/binutils, Git and pyelftools are required.
+The root gate derives `LIBC_PIC_CC`, `LIBC_PIC_AR` and `LIBC_PIC_READELF`
+from the target prefix. Both firmware cross tiers own the calibration.
+
+The full replay accepts `--root`, `--records`, `--snapshot`, `--archive`,
+`--output`, and optional `--compiler`/`--ar`. Captures come from the opt-in
+command recorder and one unchanged tracked-source snapshot. Each actual archive
+member matches a successful compile by name and byte identity. Source operands,
+dependencies, tool bytes and retained standard input validate before execution;
+unclassified compiler options reject. Output occupies a fresh directory below
+the selected root's `.build-logs`; static products remain unchanged. Replay adds
+the shared-library define and r9 PIC flags, checks every resulting ARM object,
+and retains member hashes plus the PIC archive and receipt. Source, verifier,
+capture, tool and archive identities remain unchanged across the operation.
+This evidence establishes compiler acceptance and member identity. Final linking,
+ABI root selection, flash admission, state relocation and execution require
+their separate witnesses. The research envelope retains revision-specific sizes.
+
 `check-libc-shared-closure` calibrates `tools/libc_shared_closure.py` against
 compiler-produced ARM ELF32 archives. Its controls cover explicit dormant API
 roots, transitive and cyclic dependencies, weak imports, strong/weak provider

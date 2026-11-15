@@ -104,6 +104,14 @@ next independent row starts.
 | 13 | Utility and shell closure | Delivered libc mechanisms and typed shell input | Selected utility behavior, archive identity, eval/source/trap/nesting/failure contracts and multicall lifetime/resource receipts |
 | 14 | Remaining maintained system | Finite standards/source denominators and shipped closure | Per-family feasibility and deciding experiments for filesystems, terminals, signals, networking, realtime, threads, native C, optional languages, host tools and hardware/persistence ownership |
 
+The [declaration census](libc-declaration-census.md) supplies the shared-ABI
+selection frontier across all tracked root headers, the installed root subset,
+four feature modes and both time widths. Public C names and linker identities
+remain separate. Standalone/macro differences, uninstalled termios declarations,
+legacy regex signatures and libc/Tcl environment overlaps retain deciding
+actions. The census preserves every API row as unreviewed; final export
+selection and runtime ownership remain implementation requirements.
+
 Each row expands through requirement facets, caller closure, donor comparison,
 calibrated behavior tests, complete implementation, clean rebuild, matched
 resource comparison, documentation and reviewed integration. Configuration-keyed

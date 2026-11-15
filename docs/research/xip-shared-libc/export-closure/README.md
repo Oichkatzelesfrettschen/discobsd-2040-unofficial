@@ -245,6 +245,13 @@ for renamed libc members; an incremental `ar cr` update preserves omitted ones.
 
 ## Remaining ABI work
 
+The [root-header declaration census](../../libc-declaration-census.md) expands
+discovery to tracked and installed root headers across four feature modes and
+both time widths. It preserves standalone/macro differences, resolves compiled
+providers by linker name and exposes overlapping libc/Tcl environment providers.
+Every API selection remains unreviewed; a provider match supplies no automatic
+export eligibility or shared-state ownership.
+
 The [declaration frontier](../../shared-libc-declaration-frontier.md) compares
 eight public-header roots with the compiled libc and libm providers. It records
 unprovided declarations and an executable signed-zero counterexample in the

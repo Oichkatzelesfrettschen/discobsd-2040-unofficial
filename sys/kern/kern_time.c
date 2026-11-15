@@ -58,7 +58,7 @@ setthetime (register struct timeval *tv)
  * the time-of-day.
  */
 void
-gettimeofday()
+gettimeofday(void)
 {
     register struct a {
         struct  timeval *tp;
@@ -89,7 +89,7 @@ gettimeofday()
 }
 
 void
-settimeofday()
+settimeofday(void)
 {
     register struct a {
         struct  timeval *tv;
@@ -116,7 +116,7 @@ settimeofday()
 }
 
 void
-adjtime()
+adjtime(void)
 {
     register struct a {
         struct timeval *delta;
@@ -208,7 +208,7 @@ tvticks(struct timeval *tv, int *ticks)
 }
 
 void
-getitimer()
+getitimer(void)
 {
     register struct a {
         u_int   which;
@@ -258,7 +258,7 @@ getitimer()
 }
 
 void
-setitimer()
+setitimer(void)
 {
     register struct a {
         u_int   which;

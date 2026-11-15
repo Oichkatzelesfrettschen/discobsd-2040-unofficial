@@ -179,9 +179,10 @@ RUN for p in \$PIPX_PACKAGES; do pipx install "\$p"; done
 EOF
 	printf '%s: building %s (%s packages)\n' "$me" "$image" \
 		"$(printf '%s\n' $apt_all | wc -l | tr -d ' ')" >&2
-	pull=
-	[ "$rebuild" = yes ] && pull=--pull
-	"$engine" build $pull -t "$image" \
+	# A build happens only for a new tag or --rebuild, and both mean the
+	# packages are to be fetched again: the engine's layer cache would
+	# otherwise replay an old apt or pipx install under the new tag.
+	"$engine" build --pull --no-cache -t "$image" \
 		--build-arg "APT_PACKAGES=$apt_all" \
 		--build-arg "PIPX_PACKAGES=$pipx_all" \
 		-f "$ctx/Containerfile" "$ctx" >&2

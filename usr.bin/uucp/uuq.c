@@ -54,7 +54,7 @@ struct job {
 
 struct sys *syshead;
 struct sys *getsys();
-int jcompare();
+int jcompare(const void *, const void *);
 char *sysname;
 char *user;
 char *rmjob;
@@ -172,9 +172,10 @@ char **argv;
 	exit(0);
 }
 
-jcompare(j1, j2)
-struct job **j1, **j2;
+int
+jcompare(const void *left, const void *right)
 {
+	struct job *const *j1 = left, *const *j2 = right;
 	int delta;
 
 	delta = (*j1)->j_grade - (*j2)->j_grade;

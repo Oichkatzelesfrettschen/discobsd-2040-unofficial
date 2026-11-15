@@ -1,0 +1,474 @@
+{
+  "evidence_class": "compiler-static-frame-measurement",
+  "compiler": "arm-none-eabi-gcc 16.2.0",
+  "profile": "evaluated MACHINE=rp2040 CC/CFLAGS; inherited caller warning profiles; additional -fstack-usage",
+  "receipt": ".build-logs/bounded-sort-qualification/stack-receipt.json",
+  "receipt_sha256": "2e9e0704a3729e858f5a2fa165aaaee915130420cf2c224ae33399e88d56bf2d",
+  "modules": [
+    {
+      "path": "lib/libc/gen/qsort.c",
+      "source_sha256": "3253ba4905191b997b672c7edc2eb82e06cc671d26e2aaa177d93c91809ef3d3",
+      "frames": [
+        {
+          "function": "swap",
+          "bytes": 12,
+          "kind": "static"
+        },
+        {
+          "function": "sift",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "partition",
+          "bytes": 56,
+          "kind": "static"
+        },
+        {
+          "function": "sort",
+          "bytes": 48,
+          "kind": "static"
+        },
+        {
+          "function": "qsort",
+          "bytes": 24,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "lib/libc/gen/qsort_r.c",
+      "source_sha256": "bd59a0ea16ddf0573947060bd3897ba92b1a30fef7d4491ca39af53982ddd578",
+      "frames": [
+        {
+          "function": "swap",
+          "bytes": 12,
+          "kind": "static"
+        },
+        {
+          "function": "sift",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "partition",
+          "bytes": 56,
+          "kind": "static"
+        },
+        {
+          "function": "sort",
+          "bytes": 48,
+          "kind": "static"
+        },
+        {
+          "function": "qsort_r",
+          "bytes": 32,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "bin/ls/ls.c",
+      "source_sha256": "9e49893b83371eae61256477a503546fe6f1a9118926507b2c39f68765793076",
+      "frames": [
+        {
+          "function": "fcmp",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "ls_color",
+          "bytes": 0,
+          "kind": "static"
+        },
+        {
+          "function": "cat",
+          "bytes": 24,
+          "kind": "static"
+        },
+        {
+          "function": "savestr",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "gstat",
+          "bytes": 1200,
+          "kind": "static"
+        },
+        {
+          "function": "getdir",
+          "bytes": 120,
+          "kind": "static"
+        },
+        {
+          "function": "fmtinum",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "fmtsize",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "fmtmode",
+          "bytes": 20,
+          "kind": "static"
+        },
+        {
+          "function": "getname",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "getgroup",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "fmtlstuff",
+          "bytes": 232,
+          "kind": "static"
+        },
+        {
+          "function": "fmtentry",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "formatf",
+          "bytes": 64,
+          "kind": "static"
+        },
+        {
+          "function": "formatd",
+          "bytes": 56,
+          "kind": "static"
+        },
+        {
+          "function": "main",
+          "bytes": 40,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "bin/ps/ps.c",
+      "source_sha256": "7ac7ea999dad066d89bf597a889d0e69756a7df1afd6db48cb4c710a4f3c014b",
+      "frames": [
+        {
+          "function": "in_list",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "has_tty",
+          "bytes": 0,
+          "kind": "static"
+        },
+        {
+          "function": "tty_name",
+          "bytes": 12,
+          "kind": "static"
+        },
+        {
+          "function": "printable",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "row_order",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "tty_dev",
+          "bytes": 160,
+          "kind": "static"
+        },
+        {
+          "function": "tty_id",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "usage",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "print_line",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "digits",
+          "bytes": 20,
+          "kind": "static"
+        },
+        {
+          "function": "user_id",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "number",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "add_col.part.0",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "add_col",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "put_duration.constprop",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "id_name.constprop",
+          "bytes": 32,
+          "kind": "static"
+        },
+        {
+          "function": "add_col.constprop",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "add_id.isra",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "parse_list",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "main",
+          "bytes": 2424,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "usr.bin/menu/menu.c",
+      "source_sha256": "d24fcd5f80302083a8f96937018b6e7ea73a8749f20c18c62aae216376a9ca43",
+      "frames": [
+        {
+          "function": "entry_label",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "prog_cmp",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "list_draw_row",
+          "bytes": 56,
+          "kind": "static"
+        },
+        {
+          "function": "list_draw",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "list_move",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "draw_chrome",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "read_key.constprop",
+          "bytes": 24,
+          "kind": "static"
+        },
+        {
+          "function": "enable_raw_mode.constprop",
+          "bytes": 48,
+          "kind": "static"
+        },
+        {
+          "function": "disable_raw_mode.constprop",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "run_command",
+          "bytes": 32,
+          "kind": "static"
+        },
+        {
+          "function": "at_exit_restore",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "main",
+          "bytes": 256,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "usr.bin/nm/nm.c",
+      "source_sha256": "62e88d6c8bb6187b5021309fed0218e1e2be4ff2462dcffb1210c15ea1f6c33e",
+      "frames": [
+        {
+          "function": "compare",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "error",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "nm_get_arobj",
+          "bytes": 56,
+          "kind": "static"
+        },
+        {
+          "function": "nextel",
+          "bytes": 32,
+          "kind": "static"
+        },
+        {
+          "function": "fgetsym",
+          "bytes": 48,
+          "kind": "static"
+        },
+        {
+          "function": "psyms",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "namelist",
+          "bytes": 1352,
+          "kind": "static"
+        },
+        {
+          "function": "main",
+          "bytes": 16,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "usr.bin/diff/diffdir.c",
+      "source_sha256": "9924363c7f30f50af98e1ff05e26fa5ed1933a3dc0987c297c62d9b99f192e29",
+      "frames": [
+        {
+          "function": "entcmp",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "setfile",
+          "bytes": 24,
+          "kind": "static"
+        },
+        {
+          "function": "scanpr",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "only",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "setupdir",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "calldiff",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "ascii",
+          "bytes": 1032,
+          "kind": "static"
+        },
+        {
+          "function": "compare",
+          "bytes": 2224,
+          "kind": "static"
+        },
+        {
+          "function": "useless",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "diffdir",
+          "bytes": 56,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "usr.bin/uucp/uuq.c",
+      "source_sha256": "1c0c832123cb156bd7130c53a2c9adbd873d6a937b15aba9800e0e9b00d0f8c4",
+      "frames": [
+        {
+          "function": "jcompare",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "getsys",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "analjob",
+          "bytes": 776,
+          "kind": "static"
+        },
+        {
+          "function": "gather",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "main",
+          "bytes": 1112,
+          "kind": "static"
+        }
+      ]
+    }
+  ],
+  "limits": {
+    "entry_ordinary": 24,
+    "entry_context": 32,
+    "recursive": 48,
+    "partition": 56,
+    "heap_sift": 40,
+    "byte_swap": 12
+  },
+  "residuals": [
+    "Frame reports omit external callback/callee frames unless separately named.",
+    "Runtime process peaks, recursive traversal, heap/stack interaction and target timing require their own evidence."
+  ]
+}

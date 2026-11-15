@@ -136,7 +136,8 @@ absolute_value_test_san: ${ABSOLUTE_VALUE_INPUTS} .PHONY
 
 .PHONY: check-absolute-value
 
-QSORT_CONTEXT_INPUTS= qsort_context.py qsort_context_test.c \
+QSORT_CONTEXT_INPUTS= qsort_context.py qsort_context_test.c qsort_bounds_test.c \
+	qsort_callers.py \
 	${TARGET_DIR}/qsort.c ${TARGET_DIR}/qsort_r.c
 
 check-qsort-context: qsort_context_test

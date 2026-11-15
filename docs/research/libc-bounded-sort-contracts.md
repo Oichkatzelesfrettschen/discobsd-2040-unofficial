@@ -1,0 +1,136 @@
+# Bounded sorting contracts
+
+The production baseline at main `efb4a05a` uses 265,582 comparator calls for
+1,024 alternating keys. The independent order/permutation fixture succeeds,
+but `qsort_bounds_test.c` rejects the comparison budget with exit 4 and the
+`comparison bound:` diagnostic. The retained observation is the production
+red log for this baseline; the research replay pins its historical source.
+
+The implementation hypothesis combines ordered pivot samples, bidirectional
+equal bands, smaller-side recursion and a budget consumed on every partition.
+Allocation-free heap fallback bounds worst-case comparator work without
+introducing a failure return or record-sized allocation. The existing typed
+ordinary and POSIX context-last callbacks preserve their declarations and
+per-call state. Byte swaps preserve arbitrary object representations.
+
+The deciding commands are the ordinary/context sort gates, their ILP32,
+sanitizer and ARMv6-M executions, native declaration/archive checks, and the
+new comparison-bound fixture. The predicted movement is the named duplicate
+comparison failure from exit 4 to complete 56-case success. Existing ordering,
+permutation, record-byte, nested-callback and visibility witnesses continue to
+pass. A calibrated omitted-heap control and disabled-counter control reject
+through their named oracles. A different failure refutes this prediction.
+
+The [research mechanism](sort-bound-experiment/README.md) derives partition,
+recursion and work bounds and records the source inspection. Production
+admission still requires complete callback stack analysis, matched clean
+resources, profile approval for positive constrained deltas, and runtime
+qualification. The research object/frame costs provide no implicit resource
+allowance. Physical-board execution retains its separate authorization.
+
+
+## Comparator caller closure
+
+The selected archive closure imports ordinary qsort in `/bin/box`, `/bin/ps`
+and `/usr/bin/menu`. The maintained build additionally contains direct calls
+in `nm`, directory `diff`, and `uuq`. The csh sources contain qsort calls but
+`bin/Makefile` explicitly leaves csh outside the selected build. Commented
+picoc registration is separate from an active call. Source search uses
+`rg -n` for qsort calls and each comparator definition; archive-member receipts
+supply the shipped selection independently.
+
+The ps, menu and nm callbacks already use exact `const void *` parameters.
+The ls, diff and uuq definitions use old-style record-pointer parameters.
+An exact callback prototype prepended to the real ls translation unit rejects
+with a prototype mismatch. A Cortex-M0 QEMU probe executes its existing
+comparator: ascending names compare correctly, while reverse names fail
+with exit 2. The direction flag stores -1 in target-unsigned plain char.
+The hypothesis gives that flag signed-char storage and gives all three
+callbacks exact prototypes with read-only record access. Type probes predict
+acceptance; the reverse witness predicts exit zero; a plain-char substitution
+must reproduce exit 2. This fixes a caller contract rather than assigning
+library correctness to an incompatible callback.
+
+
+The real-module target probes pass after the caller repair. Mutable-void
+callback controls reject all three exact prototypes. ARMv6-M QEMU executes
+name order, reverse order, timestamp order, directory grouping, job grade and
+job-number ordering through the real callbacks and production qsort. A
+plain-char direction substitution reproduces the ls reverse failure with
+exit 2. These witnesses retain the existing warning profiles of the legacy
+caller modules; they establish their callback contracts without claiming a
+complete C17 migration of each translation unit. Uucp's existing C90 build
+selection remains an explicit migration prerequisite.
+
+The initial seven work-count families fail to detect a disabled partition
+budget. The eighth family places even keys in alternating lower/upper halves,
+then the odd keys. It permutes the admitted integer range. At 1,024 records,
+the unbudgeted mutant uses 205,644 comparisons and rejects the same finite
+budget; the production candidate passes all 64 pattern cases. This deciding
+input strengthens the production gate beyond the retained research matrix.
+
+
+## Partition scratch lifetime
+
+The initial integrated candidate keeps partition variables in each 64-byte
+recursive frame. A state-only factoring retains that frame size and raises
+text; an unannotated separate partition helper also inlines into the recursive
+frame. Those variants supply no stack saving. The selected implementation
+keeps a separate partition call on the qualified GNU/Clang profiles. Its
+56-byte partition scratch frame returns before either recursive child call.
+The recursive frame returns to 48 bytes. Ordinary/context entry frames are
+24/32 bytes; the heap sift and byte-swap frames are 40/12 bytes. ARM text is
+800/826 bytes, with zero persistent data/BSS. No divider or allocator import
+participates in the new sort.
+
+A guarded noinline attribute controls this resource boundary on the qualified
+compilers. The underlying sorting semantics remain C17 when another compiler
+omits that attribute; that compiler's stack profile requires separate
+qualification. The target gate reads static `.su` records, admits every known
+frame only within its measured limit, and rejects an actual compiled control
+with an additional 64-byte recursive stack object passed to an external
+opaque function. The control never links or enters production. A new or
+nonstatic frame fails qualification rather than acquiring an assumed cost.
+
+The entry, recursive, partition, heap/swap and comparator frames compose along
+call paths. Within one sort invocation, partition scratch returns before a recursive
+child enters. Callback-driven nested sorts contribute their own chains. The
+static measurements establish compiler-local frames, separately from actual
+process peaks. The shipped selection is box/ls, ps and menu. Ps has a
+2,424-byte main frame and a 16-byte comparator frame; menu's main/comparator
+frames are 256/8 bytes; ls main/formatd/comparator frames are 40/56/16 bytes.
+Recursive directory traversal adds its existing formatd frames. Runtime peaks
+and matched process resources retain separate deciding measurements.
+
+The inherited qsort header stays byte-identical. Its historical performance
+note belongs to the retained source provenance and supplies no timing claim
+for this implementation. The retained [research experiment](sort-bound-experiment/README.md)
+keeps its 64-byte-frame candidate and exact historical results; the production
+lifetime factoring receives its own measurements.
+
+## Native divider witness
+
+Removing qsort's divider dependency makes the original archive omission
+fixture link successfully without the divider member. That observation
+refutes the fixture's implicit dependency assumption. The repaired fixture
+performs an explicit division of volatile unsigned operands. Both native
+archives then reject all 24 member-omission controls, including their divider
+providers, while the optimized qsort remains independent of division helpers.
+The inherited native-linker archive-date warnings remain visible; these
+results supply no warning-free native metadata claim.
+
+
+The selected candidate passes the registered ordinary/context sort gates,
+the cross/header/Smaller C gate and calibrated frame check, both native
+archive gates, source accounting and its 21 controls. The separate direct
+host, ILP32, Clang sanitizer and ARMv6-M QEMU gates also pass. Retained logs
+and hashes reside under `.build-logs/bounded-sort-qualification/`; the
+[static frame receipt](libc-bounded-sort-stack.json) binds the compiler facts
+to exact source hashes. Analyzer-only clang-tidy checks pass for both provider
+variants; Ruff passes for the changed Python gates. Full broad clang-tidy
+and physical-board results remain separate claims.
+
+A clean resource comparison, current-image emulator qualification, final
+head checks and reviewed integration remain open. Additional behavior and
+stronger evidence are recorded separately from the existing qsort interfaces;
+this work introduces no standards entity or full-conformance claim.

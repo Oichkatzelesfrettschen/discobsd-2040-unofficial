@@ -157,7 +157,7 @@ static void
 exhaustive(void)
 {
     static const size_t widths[] = { 1, 3, 7, 48 };
-    unsigned char keys[8];
+    unsigned char keys[10];
     size_t count, width_index, word, words = 1, i;
 
     for (count = 0; count <= sizeof keys; count++) {

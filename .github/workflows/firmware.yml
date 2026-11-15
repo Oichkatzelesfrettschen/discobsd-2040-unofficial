@@ -294,6 +294,7 @@ jobs:
       # check-signal-sets-qemu owns real-header Cortex-M0 set execution.
       # check-cross owns the string namespace/signature and expanded Smaller C
       # header gate on both host platforms; runtime behavior stays separate.
+      # It also owns root-header inclusion and curses integer ABI calibration.
       # It also calibrates explicit shared-libc API/provider closure with ARM
       # object archives through check-libc-shared-closure on both platforms.
       - name: Run the cross tier

@@ -42,4 +42,20 @@ int	lcdgfx_isopen(void);
  */
 int	lcdcons_gfx(int on);
 
+#ifdef LCD_PANELTEST
+/*
+ * The panel register test (doc/PANELTEST.md). lcdgfx_panel_set() and
+ * lcdgfx_panel_read() return EBUSY unless /dev/lcdgfx is open, so the
+ * console draws nothing while they reprogram or read the panel; the last
+ * close programs set 0 again when another set is in force. st7365p.c
+ * supplies the sets and the readback.
+ */
+struct picocalc_panel_read;
+int	lcdgfx_panel_set(int n);
+int	lcdgfx_panel_read(struct picocalc_panel_read *rb);
+int	st7365p_set(int n);
+int	st7365p_set_current(void);
+void	st7365p_readback(struct picocalc_panel_read *rb);
+#endif
+
 #endif /* !_LCDGFX_H */

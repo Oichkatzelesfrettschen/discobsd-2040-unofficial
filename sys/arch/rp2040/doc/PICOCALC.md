@@ -920,8 +920,16 @@ first entry of type b7:
 The root filesystem for the card is `bmake MACHINE=rp2040
 BOARD=PICOCALC_PSRAM sdroot`, which writes
 `distrib/rp2040/sdroot-PICOCALC_PSRAM.img` (`tools/picocalc/mksdroot.sh`):
-the files of the flash root as a bare 32 MiB filesystem (`SDROOT_KBYTES`)
-with no partition table, the block and raw nodes of all four card
+every file of the install tree as a bare 32 MiB filesystem
+(`SDROOT_KBYTES`) with no partition table and one inode per 8 kbytes,
+where the flash root carries its profile's selection.
+`distrib/rp2040/mksdmanifest.py` extends the flash root's composed manifest,
+which keeps its owners, modes, setuid bits, links and nodes, with every
+other directory, file and symbolic link of the tree, owned by root. The
+image then holds about 1,700 files in 15.5 MB, among them MATEzinho's icon
+pack in `/usr/share/matezinho` (with its CC BY-SA 3.0 notices and the
+source art as `artwork.tar`) and the `desktop` command that starts it, and
+`paneltest` (`doc/PANELTEST.md`). It also holds the block and raw nodes of all four card
 partitions, an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because
 `fsck -p` and `mount -a` in `/etc/rc` read it, and a getty on tty0, the
 USB-C port's serial line at 115200 baud, beside the panel's console login. It is written at the first

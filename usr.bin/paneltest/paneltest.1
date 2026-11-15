@@ -1,0 +1,42 @@
+.Dd November 15, 2026
+.Dt PANELTEST 1
+.Os
+.Sh NAME
+.Nm paneltest
+.Nd step the PicoCalc panel controller through register sets
+.Sh SYNOPSIS
+.Nm
+.Sh DESCRIPTION
+.Nm
+opens
+.Pa /dev/lcdgfx ,
+reads the ST7365P panel controller's registers back through
+.Va machdep.picocalc.panel_read ,
+and draws calibration patterns while
+.Va machdep.picocalc.panel_variant
+selects one of the register sets compiled into a kernel built with
+.Dv LCD_PANELTEST .
+Other kernels refuse both variables and
+.Nm
+then shows the patterns under the shipped settings only.
+It needs the superuser.
+.Pp
+Keys:
+.Bl -tag -width "1-7" -compact
+.It Cm n , p
+next or previous register set
+.It Cm 1 Ns - Ns Cm 7
+pattern: text and readback, black and white edges, gray bars,
+subpixel columns, 50% gray flicker, crosstalk square, scroll lines
+.It Cm r
+read the registers back and show them
+.It Cm q
+quit; closing the device programs the shipped set again
+.El
+.Sh FILES
+.Bl -tag -width "/var/log/paneltest.log" -compact
+.It Pa /var/log/paneltest.log
+every set change and readback, appended
+.El
+.Sh SEE ALSO
+.Xr sysctl 8

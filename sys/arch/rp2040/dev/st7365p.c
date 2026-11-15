@@ -334,18 +334,60 @@ lcd_gfx_reset(void)
 	clear_margin();
 }
 
+/* Send a table of command byte, parameter count, parameters; select held. */
+static void
+run_seq(const u_char *p, u_int len)
+{
+	const u_char *end = p + len;
+	u_int n;
+
+	while (p < end) {
+		lcd_command(*p++);
+		for (n = *p++; n > 0; n--)
+			spi_put(*p++);
+	}
+}
+
 /*
- * Reset the panel and program it, leaving the display off. The reset pulse
- * exceeds TRW, 10 us (page 59). The 120 ms after reset release covers note
- * 7 of page 60: 5 ms before any command and 120 ms before SLPOUT. The
- * 120 ms after SLPOUT exceeds the 5 ms page 165 requires before the next
- * command.
+ * Reset the panel and program it with the nseq tables, leaving the display
+ * off. The reset pulse exceeds TRW, 10 us (page 59). The 120 ms after
+ * reset release covers note 7 of page 60: 5 ms before any command and
+ * 120 ms before SLPOUT. The 120 ms after SLPOUT exceeds the 5 ms page 165
+ * requires before the next command.
  */
+static void
+panel_program(const u_char *const *seq, const u_short *len, int nseq)
+{
+	int i;
+
+	mdelay(1);
+	pc_gpio_put(PICOCALC_LCD_RST, 0);
+	mdelay(1);
+	pc_gpio_put(PICOCALC_LCD_RST, 1);
+	mdelay(120);
+
+	lcd_select();
+	for (i = 0; i < nseq; i++)
+		run_seq(seq[i], len[i]);
+	lcd_command(CMD_SLPOUT);
+	lcd_deselect();
+	mdelay(120);
+
+	lcd_select();
+	lcd_command(CMD_VSCRDEF);
+	put16(0);				/* Top fixed area. */
+	put16(LCD_LINES);			/* Scroll area. */
+	put16(LCD_GRAM_LINES - LCD_LINES);	/* Bottom fixed area. */
+	lcd_command(CMD_VSCSAD);
+	put16(0);
+	lcd_deselect();
+}
+
 void
 st7365p_init(void)
 {
-	const u_char *p = init_seq;
-	u_int n;
+	static const u_char *const seq[] = { init_seq };
+	static const u_short len[] = { sizeof(init_seq) };
 
 	pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 | PC_RESET_SPI1);
 
@@ -361,30 +403,7 @@ st7365p_init(void)
 	pc_gpio_output(PICOCALC_LCD_DC, 1);
 	pc_gpio_output(PICOCALC_LCD_RST, 1);
 
-	mdelay(1);
-	pc_gpio_put(PICOCALC_LCD_RST, 0);
-	mdelay(1);
-	pc_gpio_put(PICOCALC_LCD_RST, 1);
-	mdelay(120);
-
-	lcd_select();
-	while (p < init_seq + sizeof(init_seq)) {
-		lcd_command(*p++);
-		for (n = *p++; n > 0; n--)
-			spi_put(*p++);
-	}
-	lcd_command(CMD_SLPOUT);
-	lcd_deselect();
-	mdelay(120);
-
-	lcd_select();
-	lcd_command(CMD_VSCRDEF);
-	put16(0);				/* Top fixed area. */
-	put16(LCD_LINES);			/* Scroll area. */
-	put16(LCD_GRAM_LINES - LCD_LINES);	/* Bottom fixed area. */
-	lcd_command(CMD_VSCSAD);
-	put16(0);
-	lcd_deselect();
+	panel_program(seq, len, 1);
 
 	/* The two columns right of the last cell; lcdterm clears the cells. */
 	clear_margin();
@@ -416,3 +435,194 @@ st7365p_abort(void)
 	pc_gpio_put(PICOCALC_LCD_CS, 1);
 	pc_gpio_put(PICOCALC_LCD_DC, 1);
 }
+
+#ifdef LCD_PANELTEST
+/*
+ * The panel register test (doc/PANELTEST.md): register sets compiled from
+ * paneltest_sets.h and a readback of the controller's read commands. Only
+ * lcdgfx.c calls these, with /dev/lcdgfx open, so lcdterm draws nothing and
+ * no other transfer is in flight.
+ */
+#include <sys/errno.h>
+#include <machine/picocalcvar.h>
+#include <rp2040/dev/paneltest_sets.h>
+#include <rp2040/dev/lcdgfx.h>
+
+#define	CMD_CSCON		0xf0
+#define	CMD_SPIRC		0xfb
+#define	LCD_READ_SCR		19		/* 125 / (2 * 20) == 3.125 MHz. */
+
+static const u_char NONE[] = { 0x00, 0 };	/* NOP (page 145). */
+static const u_char UNLOCK[] = { CMD_CSCON, 1, 0xc3, CMD_CSCON, 1, 0x96 };
+#define	DRIVER	init_seq
+static const u_char VENDOR[] = {
+	0xc5, 1, 0x1c,
+	0xb0, 0,
+	0xb4, 1, 0x01,
+	CMD_INVON, 0,
+	0xb6, 3, 0x80, 0x02, 0x3b,
+	0xb7, 1, 0xc6,
+	CMD_CSCON, 1, 0xc3, CMD_CSCON, 1, 0x96,
+	CMD_MADCTL, 1, MADCTL_MX_BGR,
+};
+static const u_char GAMMA_DEFAULT[] = {
+	0xe0, 14, 0xf0, 0x03, 0x05, 0x09, 0x0c, 0x0f, 0x3e, 0x77,
+		  0x4f, 0x0f, 0x17, 0x17, 0x21, 0x23,
+	0xe1, 14, 0xf0, 0x03, 0x05, 0x09, 0x0c, 0x0f, 0x3e, 0x77,
+		  0x4f, 0x0f, 0x17, 0x17, 0x21, 0x23,
+};
+static const u_char GAMMA_V63_ZERO[] = {
+	0xe0, 14, 0x00, 0x03, 0x05, 0x09, 0x0c, 0x0f, 0x3e, 0x77,
+		  0x4f, 0x0f, 0x17, 0x17, 0x21, 0x23,
+	0xe1, 14, 0x00, 0x03, 0x05, 0x09, 0x0c, 0x0f, 0x3e, 0x77,
+		  0x4f, 0x0f, 0x17, 0x17, 0x21, 0x23,
+};
+/* init_seq's knots 2-14 behind the datasheet's first byte. */
+static const u_char GAMMA_SHIFT[] = {
+	0xe0, 14, 0xf0, 0x03, 0x09, 0x08, 0x16, 0x0a, 0x3f, 0x78,
+		  0x4c, 0x09, 0x0a, 0x08, 0x16, 0x1a,
+	0xe1, 14, 0xf0, 0x16, 0x19, 0x03, 0x0f, 0x05, 0x32, 0x45,
+		  0x46, 0x04, 0x0e, 0x0d, 0x35, 0x37,
+};
+static const u_char GAMMA_ZERO[] = {
+	0xe0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0xe1, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
+static const u_char INV_COLUMN[] = { 0xb4, 1, 0x00 };
+static const u_char INV_DOT1[] = { 0xb4, 1, 0x01 };
+static const u_char PWR3_AA[] = { 0xc2, 1, 0xaa };
+static const u_char PWR3_AF[] = { 0xc2, 1, 0xaf };
+static const u_char VCOM_12[] = { 0xc5, 1, 0x12 };
+static const u_char VCOM_1C[] = { 0xc5, 1, 0x1c };
+static const u_char VCOM_30[] = { 0xc5, 1, 0x30 };
+static const u_char VCOM_3F[] = { 0xc5, 1, 0x3f };
+static const u_char FRAME_31HZ[] = { 0xb1, 1, 0x00 };
+static const u_char MADCTL_40[] = { CMD_MADCTL, 1, 0x40 };
+static const u_char MADCTL_08[] = { CMD_MADCTL, 1, 0x08 };
+
+#define	SEQ_LEN(t)	((u_short)sizeof(t))
+
+#define	PANELTEST_ROW(name, pre, base, post) \
+	{ { pre, base, post }, { SEQ_LEN(pre), SEQ_LEN(base), SEQ_LEN(post) } },
+static const struct {
+	const u_char *seq[3];
+	u_short len[3];
+} panel_sets[] = { PANELTEST_SETS(PANELTEST_ROW) };
+
+_Static_assert(sizeof(panel_sets) / sizeof(panel_sets[0]) == PANELTEST_NSETS,
+    "one row per register set");
+
+static int panel_set_now;
+
+/*
+ * Reset the panel and program register set n, then return it to the
+ * format and scroll state lcdgfx.c expects: COLMOD 66h, the 320-line
+ * scroll area at start 0, cleared margin, display on.
+ */
+int
+st7365p_set(int n)
+{
+	if (n < 0 || n >= PANELTEST_NSETS)
+		return EINVAL;
+	panel_program(panel_sets[n].seq, panel_sets[n].len, 3);
+	lcd_gfx_colmod(COLMOD_RGB666);
+	clear_margin();
+	st7365p_display_on();
+	panel_set_now = n;
+	return 0;
+}
+
+int
+st7365p_set_current(void)
+{
+	return panel_set_now;
+}
+
+static u_int
+spi_xfer(u_int b)
+{
+	spi_put(b);
+	while ((SPI_REG(SSPSR) & SSPSR_RNE) == 0)
+		continue;
+	return SPI_REG(SSPDR);
+}
+
+static void
+spi_clock(u_int scr)
+{
+	spi_wait_idle();
+	SPI_REG(SSPCR1) = 0;
+	SPI_REG(SSPCR0) = SSPCR0_SCR(scr) | SSPCR0_DSS_8;
+	SPI_REG(SSPCR1) = SSPCR1_SSE;
+}
+
+/*
+ * One read command (page 94): the command byte with D/CX low, then n bytes
+ * clocked with D/CX high while the panel shifts SDO, sampled on the rising
+ * edge as the PL022 does in mode 0. lcd_command() drains the byte received
+ * during the command. The clock drops to 3.125 MHz, inside TSCYCR (150 ns,
+ * page 77), and returns to the write clock after.
+ */
+static void
+lcd_read(u_int cmd, u_int fb, u_char *out, u_int n)
+{
+	u_int i;
+
+	if (fb != 0) {
+		lcd_select();
+		lcd_command(CMD_SPIRC);
+		spi_put(fb);
+		lcd_deselect();
+	}
+	spi_clock(LCD_READ_SCR);
+	lcd_select();
+	lcd_command(cmd);
+	for (i = 0; i < n; i++)
+		out[i] = (u_char)spi_xfer(0);
+	lcd_deselect();
+	spi_clock(LCD_SCR);
+	if (fb != 0) {
+		lcd_select();
+		lcd_command(CMD_SPIRC);
+		spi_put(0);
+		lcd_deselect();
+	}
+}
+
+/*
+ * The readback list: the ID and status reads first (04h, 09h, 0Ah-0Fh,
+ * DAh-DCh, D3h; Command Table 1 and RDID4), the known-good calibration,
+ * two bytes for each 8-bit read: the command tables show a dummy read
+ * cycle before the data (page 151) and the SPI figure on page 94 none,
+ * then Command Table 2 registers through SPI Read Control. If SPIRC does
+ * not take effect, those reads clock zero parameter bytes into B4h, B1h,
+ * C5h, B7h or E0h, so paneltest programs its set again after a readback.
+ */
+static const u_char panel_reads[][3] = {
+	{ 0x04, 0, 4 }, { 0x09, 0, 5 }, { 0x0a, 0, 2 }, { 0x0b, 0, 2 },
+	{ 0x0c, 0, 2 }, { 0x0d, 0, 2 }, { 0x0e, 0, 2 }, { 0x0f, 0, 2 },
+	{ 0xda, 0, 2 }, { 0xdb, 0, 2 }, { 0xdc, 0, 2 }, { 0xd3, 0, 4 },
+	{ 0xb4, 0x10, 2 }, { 0xb4, 0x11, 2 }, { 0xb1, 0x10, 2 },
+	{ 0xc5, 0x10, 2 }, { 0xb7, 0x10, 2 }, { 0xe0, 0x10, 2 },
+	{ 0xe0, 0x11, 2 }, { 0xe0, 0x1d, 2 },
+};
+_Static_assert(sizeof(panel_reads) / sizeof(panel_reads[0]) <= PANEL_READ_N,
+    "the readback fits struct picocalc_panel_read");
+
+void
+st7365p_readback(struct picocalc_panel_read *rb)
+{
+	u_int i;
+
+	bzero(rb, sizeof(*rb));
+	rb->variant = panel_set_now;
+	rb->nent = sizeof(panel_reads) / sizeof(panel_reads[0]);
+	for (i = 0; i < (u_int)rb->nent; i++) {
+		rb->ent[i].cmd = panel_reads[i][0];
+		rb->ent[i].fb = panel_reads[i][1];
+		rb->ent[i].n = panel_reads[i][2];
+		lcd_read(panel_reads[i][0], panel_reads[i][1], rb->ent[i].data,
+		    panel_reads[i][2]);
+	}
+}
+#endif /* LCD_PANELTEST */

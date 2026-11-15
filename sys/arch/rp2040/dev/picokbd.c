@@ -66,6 +66,10 @@
 
 #include <machine/cpu.h>
 #include <machine/picocalcvar.h>
+#ifdef LCD_PANELTEST
+#include <rp2040/dev/lcdgfx.h>
+#include <rp2040/dev/paneltest_sets.h>
+#endif
 
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
@@ -646,6 +650,32 @@ picocalc_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 				poweroff_seconds = v;
 		}
 		return error;
+#ifdef LCD_PANELTEST
+	case CPU_PICOCALC_PANEL_VARIANT:
+		if (!suser())
+			return EPERM;
+		v = st7365p_set_current();
+		error = sysctl_int(oldp, oldlenp, newp, newlen, &v);
+		if (error == 0 && newp != NULL) {
+			if (((u_int)v >> 16) != PANELTEST_ARM)
+				return EINVAL;
+			error = lcdgfx_panel_set(v & 0xffff);
+		}
+		return error;
+	case CPU_PICOCALC_PANEL_READ: {
+		/* Static: the readback outgrows the u-area stack margin. */
+		static struct picocalc_panel_read rb;
+
+		if (!suser())
+			return EPERM;
+		if (newp != NULL)
+			return EPERM;
+		error = lcdgfx_panel_read(&rb);
+		if (error)
+			return error;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &rb, sizeof rb);
+	}
+#endif
 	default:
 		return EOPNOTSUPP;
 	}

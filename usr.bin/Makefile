@@ -7,9 +7,10 @@ TOPSRC!=cd ..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 # Both maintained machines build the Thumb native toolchain. RP2040 also
-# carries the MPU diagnostic; STM32 has no matching sysctl interface.
+# carries the MPU diagnostic and the PicoCalc panel register test;
+# STM32 has no matching sysctl interface.
 MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "lex smlrc as ld mputest matezinho" ; \
+		echo "lex smlrc as ld mputest paneltest matezinho" ; \
 	else \
 		echo "lex smlrc as ld" ; \
 	fi

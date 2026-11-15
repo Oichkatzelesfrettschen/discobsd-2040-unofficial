@@ -1,0 +1,31 @@
+{
+  "inputs": {
+    "big.s": "4401272f3706856b0078fe72a1e40f578bc8e1f90fd83d1ea1338ccd294d6bfb",
+    "lib1.s": "c18053567c2825e8372b6e7b72da5f90724f1b4f1542386a23cfe89eaa03ad4e",
+    "lib2.s": "a2a4a06963e08e76d69e0b0f8b00ec83655f20a9d094bc0f9bbeac824811bdfe",
+    "mid.s": "f3dde635d6d57dbd8145d2a1cc6366f9a657686c1609c9d611d09c6c6e207ea0",
+    "small.s": "0f85884dc6bfb7308cd51fc8c0efaef2677c35d30ad030978e1523f3b644a4b7",
+    "unused.s": "4ea84a70533f1f3d65f6cfad84201de282e8650f59af5697a9b845722bdf89c2"
+  },
+  "outputs": {
+    "as -X mid.o": "a0c8c0f816692da96de2163224f6241b3c283e4f403a61c58eced9c1742155d4",
+    "as -x big.o": "f996d83514f7fa4bfac4b769e82b0b42f01f998f446e2bae8a79df69338a2cf3",
+    "as big.o": "a8d18998e1a81f495436a9d39347663b0f36a723b225a07074f6b146367b8403",
+    "as lib1.o": "61e747454af5ce17480d6b7d8f205c97c073d6538a0da7185daff1f5346dfe1c",
+    "as lib2.o": "b34bd0534c4bb84eafb30f79824dda974905f2ae498fe85bee8870785d51fc18",
+    "as mid.o": "a0c8c0f816692da96de2163224f6241b3c283e4f403a61c58eced9c1742155d4",
+    "as small.o": "7d842da5fc94c6058e35113ca0ccf8f16ab5698b0044536457f89130c7647540",
+    "as unused.o": "b3ee77f1e70e8c929cbafb39fe84fcbb08f94af0b38d2caf5beeb781e9c7b08d",
+    "ld link -X big": "fd6518baef9585fbebd846fa06cbdaaf0a1b61d43623264ed8d7dee2960e5feb",
+    "ld link -r -x small mid": "c1dfcd1e4823b64ae8e51a2e04ef59d17040d6acd0da5a2cf509c8cd84ec95ec",
+    "ld link -r small big": "51f043ab253125692a6e59c4fefa61ce67a68cc983b2dcba6535eb0d61db1e3a",
+    "ld link -r small mid": "2f70bf0785dae9b5a6920ac6e976b7a19e91f8e38f7860c8f70a8c90a555689e",
+    "ld link -s mid": "875174706097d48ceb4779f648e1b23cb24d68f9b065387d37cca4bad775541b",
+    "ld link -x mid": "6482bceb7a45b16e0d2b24a6becc75b6853a6b89fc9fd139922e33b0b8109925",
+    "ld link big mid small lib": "dc4f8f77120b54f5d175f6bc22197b2e4fa92813f0a4b10b4fdaa155fb63b4b4",
+    "ld link small big lib": "fd6518baef9585fbebd846fa06cbdaaf0a1b61d43623264ed8d7dee2960e5feb",
+    "ld link small mid lib": "e5e638ce0a48ce254b6eb10a859072fb4a82687211f15b5ad7e6574390dcc7b3",
+    "ld partial then final": "ce160cacd949673f696ed038650498199b049a02ef6f906bd9e19e638e5dfc58"
+  },
+  "provenance": "Objects and executables of usr.bin/as and usr.bin/ld at commit 270422ca (host build of tools/aoututils) on the inputs gen_inputs.py writes."
+}

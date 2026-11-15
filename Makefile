@@ -578,7 +578,16 @@ check-native-linker: check-python
 		${PYTHON} tests/native_linker/branches.py
 		${PYTHON} tests/native_linker/calibrate.py
 
-.PHONY: check-native-linker
+# The assembler's scratch streams and the linker's output regions: identical
+# object and executable bytes against the recorded outputs of the tools that
+# kept every segment in temporary files, and strace counts of write, lseek,
+# file creation, unlink and ftruncate under ceilings that those tools exceed.
+# Linux only; another host prints a SKIP.
+check-as-ld-scratch: check-python
+		${MAKE} -C tools/aoututils/ar all
+		${PYTHON} tests/as_ld_scratch/check.py
+
+.PHONY: check-native-linker check-as-ld-scratch
 
 check-signal-sets: check-python
 		${PYTHON} tests/libc_contracts/signal_set_calibrate.py
@@ -1596,7 +1605,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-rmdir-contracts check-tee-contracts check-time-contracts \
 		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
-		check-aout check-native-linker check-native-nm check-kernel check-fs-stress check-fsck-inode-range \
+		check-aout check-native-linker check-as-ld-scratch check-native-nm check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
 		check-libc-environment check-libc-sysctl \
 		check-umount-contracts check-backgammon-contracts \

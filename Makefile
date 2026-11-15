@@ -1956,6 +1956,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-board-descriptor .WAIT check-core1-image .WAIT \
 		check-kernel-headroom
 
+# Divider fixtures calibrate instruction windows and ELF alias extents.
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test
 		${MAKE} -C tests/rp2040/divider_ownership check

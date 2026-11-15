@@ -2760,8 +2760,9 @@ buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
 # the clist pool's static assertion holds for a 32-bit block pointer only.
 # Modeled processes sleep on their own ucontext stacks (usb_console_sched.c).
 # Each mutant restores one lost wakeup -- a path that clears tx_busy and leaves
-# TS_BUSY set, or the low-water test ahead of the drain in usbstart() -- and
-# must fail the fixed sequence that names it.
+# TS_BUSY set, or the low-water test ahead of the drain in usbstart() -- or one
+# lost halt-wait key (usbgetc polling an open tty), and must fail the fixed
+# sequence that names it.
 USB_CONSOLE_SRC=	${TOPSRC}/sys/arch/rp2040/dev/usb.c
 USB_CONSOLE_DRIVER=	usb_console_driver.c
 # The target's char is unsigned; tty.c compares chars with 0377 and clang
@@ -2772,7 +2773,8 @@ USB_CONSOLE_CFLAGS=	${USB_CONSOLE_KERN} -nostdinc -DUARTUSB_ENABLED \
 USB_CONSOLE_OBJS=	usb_console_tty.o usb_console_clist.o \
 			usb_console_sched.o usb_console_hk_kern.o hostkern32.o
 USB_CONSOLE_MUTANTS=	recover-kick configure-kick setif-kick skip-controller-reset \
-			owake-before-drain
+			owake-before-drain halt-wait-open halt-wait-sticks \
+			pollc-late
 
 ${USB_CONSOLE_DRIVER}: usb_console_extract.py ${USB_CONSOLE_SRC}
 	${PYTHON} usb_console_extract.py --source ${USB_CONSOLE_SRC} --output $@
@@ -2824,6 +2826,9 @@ check-usb-console: usb_console_test \
 		setif-kick) expected='FAIL echo, then SET_INTERFACE' ;; \
 		skip-controller-reset) expected='FAIL controller reset' ;; \
 		owake-before-drain) expected='FAIL writer above the high-water mark across a bus reset' ;; \
+		halt-wait-open) expected='FAIL halt wait with the tty open' ;; \
+		pollc-late) expected='FAIL halt wait with a key typed during the halt message' ;; \
+		halt-wait-sticks) expected='FAIL key after the halt wait reaches the tty' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" usb_console_$$mutation.mutant.out >/dev/null; then \

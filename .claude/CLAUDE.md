@@ -28,8 +28,9 @@ is the fallback. With one board attached, resolve its port through
 reports USB serial `<16 hex digits>-rp2040`; one that cannot, or an older
 kernel, reports `rp2040`, and two such boards enumerate alike (2e8a:000a).
 With two boards attached, name the USB port (`--usb-port 1-3` or
-`DISCOBSD_USB_PORT` for `discobsd-flash` and `discobsd-connect`) whatever
-their serials; both tools refuse to act on an unnamed board then.
+`DISCOBSD_USB_PORT` for `discobsd-flash`, `discobsd-connect`, `discobsd-term`
+and `discobsd-web`) whatever their serials; all four refuse to act on an
+unnamed board then.
 
 ## Build, image, flash
 

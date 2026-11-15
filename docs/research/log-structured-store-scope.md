@@ -95,7 +95,8 @@ touches (SIT, NAT, summary, node, data), in blocks of the format's size:
 
 The hypothetical 2-log row leaves 1.6 to 3 KB of the 10.6 to 11.1 KB free on
 the SD kernels and nothing for a file system's own tables; the real-geometry
-row exceeds every kernel's free SRAM (39.9 KB on PICO_UART at most). Six open
+row exceeds the free SRAM of the PICO kernel (23.2 KB) and of both SD
+kernels, and fits only PICO_UART (39.9 KB), which has no SD driver. Six open
 logs hold 96 blocks, 9.7 percent of the 989-block volume.
 
 The measured budget (M, `bmake MACHINE=rp2040 kernel`, `arm-none-eabi-size`,
@@ -120,7 +121,8 @@ Text estimates (E, anchored on M and C figures): a stripped F2FS-like store
 C-cited NetBSD v7fs core 7,947 B and msdosfs 26,149 B (compile-only,
 `tiny-rump-components.md:36-38`). Against 8.7 to 11.4 KB of PICOCALC headroom
 the estimate does not fit without removing other features. In SRAM, the
-real-geometry floor of about 32 KiB exceeds the free SRAM of every kernel,
+real-geometry floor of about 32 KiB exceeds the free SRAM of every kernel
+except PICO_UART, which carries no SD driver,
 and the hypothetical 1 KiB-block floor of 8 to 13 KiB leaves at most 3 KB on
 the SD kernels.
 
@@ -302,7 +304,10 @@ without a new on-disk format:
 
 - Prefree set applied at sync. Hook: divert `free()` into a bounded per-mount
   list and release it after the inode's `iupdat`, inside `ufs_sync()`
-  (`ufs_syscalls2.c:166`, between `bflush` and the superblock write). A full
+  (`ufs_syscalls2.c:166`), ahead of `bflush`: on an `MNT_ASYNC` mount
+  `free()` writes a chain node with a delayed write when the in-core list
+  is full (`ufs_alloc.c`), so a release after `bflush` could let the
+  superblock name a chain block that has not been written. A full
   bitmap for a 1 GB SD partition of 1 KiB blocks is 128 KiB (D) and does not
   fit; a bounded array of 64 entries is about 256 B (E) with a forced early
   release when full. Needs the inode-first order in `itrunc()` first.
@@ -339,14 +344,19 @@ Ranked, at most five. Each estimate is E unless marked.
    the measured random-write rate of step 2 is unchanged by alignment.
 4. CMD25 multi-block write with the Stop Tran token for adjacent sectors of
    one buffer pair. RAM 0; text 200 to 400 B. Falsifier: step 2 shows no
-   latency or throughput gain over two CMD24; with `NBUF` of 4 the longest run
-   is two sectors, so the gain is expected to be small. Skip if step 2 says so.
+   latency or throughput gain over two CMD24; through the buffer cache the longest run
+   is the two sectors of one 1 KiB buffer, so the gain there is expected to
+   be small; raw-device I/O passes the caller's whole request to
+   `sdstrategy()` (`physio()`, `sys/kern/vm_swp.c`), so runs there are as
+   long as the request. Skip if step 2 says so.
 5. Bounded prefree list with AU-batched CMD38 erase at sync, on SD only, built
    after steps 1 and 2. RAM 256 to 512 B; text 1 to 2 KB. Falsifier: with the
    erase on and off, step 2's workload shows no improvement in worst-case
    write latency, or a card rejects CMD38 with argument zero in SPI mode. The
-   NOR half (trim at free into Dhara) waits for a board run: the host model
-   shows trim raising page writes from 5.99 to 10.38 per file block.
+   NOR half (trim at free into Dhara) is refuted for compile workloads: the
+   host model shows trim raising page writes from 5.99 to 10.38 per file
+   block, and on the measured Pico eight compiles cost 1,592 root sector
+   erases with trim at free against 1,374 without.
 
 Do not build:
 - An F2FS port or clone: GPL source, 4 KiB block minimum (about 32 KiB

@@ -6,6 +6,15 @@
 # arithmetic, no $( ) substitution, no ${var%pattern} editing and no
 # ! in an if condition.
 #
+# For an ordinary file name the driver starts four processes: the
+# compiler, the assembler, the linker and one rm for the intermediate
+# files. It counts its inputs and takes a name apart with case and field
+# splitting, where expr, basename and sed would each be a process; a name
+# those built-ins cannot take apart exactly (stem below) still goes
+# through basename and sed. The three processes saved shorten a compile
+# on the board; its flash swap erases stay as they were
+# (sys/arch/rp2040/doc/research/flash-traffic-per-workload.md).
+#
 #   cc [-o out] [-S | -c] file.c ... file.s ... file.o ...
 #
 # -l options are accepted and ignored: libc.a is the only library.
@@ -23,6 +32,7 @@ stop_o=0
 srcs=
 nsrcs=0
 tmp=/tmp/cc$$
+made_tmp=0
 
 while [ $# -gt 0 ]; do
 	case $1 in
@@ -43,35 +53,75 @@ while [ $# -gt 0 ]; do
 		;;
 	*)
 		srcs="$srcs $1"
-		nsrcs=`expr $nsrcs + 1`
+		case $nsrcs in
+		0)	nsrcs=1 ;;
+		*)	nsrcs=many ;;
+		esac
 		;;
 	esac
 	shift
 done
-if [ "$nsrcs" -eq 0 ]; then
+if [ "$nsrcs" = 0 ]; then
 	echo "cc: no input files" >&2
 	exit 1
 fi
-if [ -n "$out" ] && [ "$nsrcs" -gt 1 ] && [ "$stop_s$stop_o" != 00 ]; then
+if [ -n "$out" ] && [ "$nsrcs" = many ] && [ "$stop_s$stop_o" != 00 ]; then
 	echo "cc: -o with -c or -S takes exactly one input file" >&2
 	exit 1
 fi
 
-# stem FILE: FILE without its directory and its .c/.s/.o suffix.
+# stem FILE: set base to FILE without its directory and its .c/.s/.o
+# suffix. The last field between slashes is the name; a name that ends in
+# one of the three suffixes is rejoined from its fields between dots, less
+# the last. Field splitting also expands a pattern against the working
+# directory, and empty fields do not survive it, so a path that holds a
+# pattern character, and a name with two dots in a row or a leading dot,
+# go through basename and sed, the two processes the common case avoids.
 stem() {
-	basename "$1" | sed 's/\.[cso]$//'
+	case $1 in
+	*[*?[]*|*..*|.*|*/.*)
+		base=`basename "$1" | sed 's/\.[cso]$//'`
+		;;
+	*)
+		saved_ifs=$IFS
+		IFS=/
+		for field in $1; do
+			base=$field
+		done
+		case $base in
+		*.c|*.s|*.o)
+			IFS=.
+			joined=
+			held=
+			count=0
+			for field in $base; do
+				case $count in
+				0)	count=1 ;;
+				1)	joined=$held
+					count=2 ;;
+				*)	joined=$joined.$held ;;
+				esac
+				held=$field
+			done
+			base=$joined
+			;;
+		esac
+		IFS=$saved_ifs
+		;;
+	esac
 }
 
 objs=
 status=0
 for src in $srcs; do
-	base=`stem "$src"`
+	stem "$src"
 	case $src in
 	*.c)
 		if [ "$stop_s" -eq 1 ]; then
 			asfile=${out:-$base.s}
 		else
 			asfile=$tmp.$base.s
+			made_tmp=1
 		fi
 		if "$smlrc" "$src" "$asfile"; then
 			:
@@ -100,6 +150,7 @@ for src in $srcs; do
 		ofile=${out:-$base.o}
 	else
 		ofile=$tmp.$base.o
+		made_tmp=1
 	fi
 	if "$as" "$asfile" -o "$ofile"; then
 		:
@@ -115,5 +166,8 @@ done
 if [ "$status" -eq 0 ] && [ "$stop_s$stop_o" = 00 ]; then
 	"$ld" -o "${out:-a.out}" "$crt0" $objs "$libc" || status=1
 fi
-rm -f $tmp.*
+# rm is a process, started only when an intermediate file was named.
+if [ "$made_tmp" -eq 1 ]; then
+	rm -f $tmp.*
+fi
 exit $status

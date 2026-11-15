@@ -1600,7 +1600,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
-		check-compress-host check-archive-stored-times
+		check-compress-host check-archive-stored-times check-cc-driver
 CROSS_CONTRACT_GATES=	check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-network-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
@@ -1721,6 +1721,13 @@ check-archive-stored-times: check-python
 		${PYTHON} tools/test_execution.py run archive.stored-times.native -- \
 		    sh tests/stored_times/archive_tools.sh
 
+# The board's compile driver, distrib/rp2040/cc, run under the host's sh
+# with stub tools and a PATH that holds rm alone: each case's log is the
+# complete list of processes the driver started, so a driver that starts
+# expr, basename or sed fails. It needs no built tree.
+check-cc-driver:
+		sh tests/cc_driver/check.sh distrib/rp2040/cc
+
 check-tar-host:
 		sh bin/tar/tests/tartest.sh
 		PYTHON=${PYTHON:Q} sh bin/tar/tests/timestamp_identity_test.sh
@@ -1810,6 +1817,7 @@ check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
 		check-backgammon-contracts check-libc-host-contracts check-scandir-contracts \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
 		check-tar-host check-cpio-host check-archive-stored-times \
+		check-cc-driver \
 		check-libtcl-contracts check-printf-contracts \
 		check-printf-contracts-ilp32 check-recovery-utility-contracts \
 		check-timeout-contracts check-libcalc check-libbn

@@ -212,7 +212,7 @@ def main():
         summary = FSCK_SUMMARY.search(boot)
         print("boot fsck: %s" % (summary.group(0).strip() if summary else "no summary line"))
         console.check(
-            "the boot's fsck -p reports a clean root and the boot goes on",
+            "the boot's fsck -p reports a clean root and the boot reaches login",
             summary is not None
             and re.search(r"login: ?$", boot[summary.end() :], re.M) is not None
             and "\n---" not in boot,

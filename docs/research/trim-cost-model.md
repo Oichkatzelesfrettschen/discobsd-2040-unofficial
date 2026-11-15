@@ -4,9 +4,9 @@
 
 Trim at free is refuted for compile workloads in the host model and on the
 board, and is not merged. The work lives on two unmerged branches:
-`rp2040/trim-freed-blocks` (the inode-first order in `itrunc()`, trim in
+`archive/rp2040-trim-freed-blocks` (the inode-first order in `itrunc()`, trim in
 `free()` through `DIOCTRIM`, and `check-trim-order`) and
-`rp2040/free-list-sweep` (a lookup before each trim, `tests/kernel/trim_cost.c`
+`archive/rp2040-free-list-sweep` (a lookup before each trim, `tests/kernel/trim_cost.c`
 and the deferred-sweep arms). On the measured Pico, 8 compiles cost 1,592
 root erase sectors with trim at free, against 1,374 without it and 1,128
 with the later collector trigger that main now carries
@@ -25,12 +25,12 @@ mapped. With 2,550 trims in the one-file rounds, trim added 11,182 pages,
 (14,230 against 13,826) and inode writes (600 in both) barely changed.
 
 `auto_gc()` runs before the lookup, so a trim of an unmapped sector also
-collects; the `fl_trim()` of `rp2040/free-list-sweep` calls
+collects; the `fl_trim()` of `archive/rp2040-free-list-sweep` calls
 `dhara_map_find()` first.
 
 ## Method
 
-`tests/kernel/trim_cost.c` on `rp2040/free-list-sweep` (`bmake -C
+`tests/kernel/trim_cost.c` on `archive/rp2040-free-list-sweep` (`bmake -C
 tests/kernel trim-cost-report FSUTIL=...`) runs the production `ufs_inode.c`, `ufs_alloc.c`, `ufs_bmap.c`,
 `ufs_bio.c`, `ufs_subr.c` and `ufs_syscalls2.c` over the vendored Dhara map
 with the `dev/flash.h` geometry, on a 988 KiB fsutil image loaded as

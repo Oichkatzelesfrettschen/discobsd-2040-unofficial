@@ -15,7 +15,7 @@ medium: a trim runs Dhara's collector as a write does and the free list
 hands the block out again at once, so eight compiles on the measured Pico
 erased 1,592 root sectors with trim at free against 1,374 without
 (`trim-cost-model.md`). The code stays on the branches
-`rp2040/trim-freed-blocks` and `rp2040/free-list-sweep`. The ordering is
+`archive/rp2040-trim-freed-blocks` and `archive/rp2040-free-list-sweep`. The ordering is
 the prerequisite for an erase or discard at free on an SD card
 (`log-structured-store-scope.md`), where the 2.11BSD order this tree
 inherited would let a reset leave a file naming erased blocks.
@@ -120,7 +120,7 @@ restored inode references to read back its data.
   inodes in both directions, so it is safe only directly after a completed
   sync with the list locked. It remains the one way to unmap blocks that
   fsck returned to the list after a reset and blocks freed before a kernel
-  that trims. It was built on `rp2040/free-list-sweep` and never won in the
+  that trims. It was built on `archive/rp2040-free-list-sweep` and never won in the
   host model (`trim-cost-model.md`).
 
 ## Cleaning cost against the live share

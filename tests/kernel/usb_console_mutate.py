@@ -3,15 +3,20 @@
 Each mutation restores one way tty output loses its wakeup: a path that ends
 a bulk IN packet by clearing tx_busy alone, leaving TS_BUSY set with no
 completion to clear it, or usbstart() testing the low-water mark before it
-moves the queue into the ring. A mutation is a list of original and
-replacement pairs, each of which must match once. usb_console_test must
-reject every one.
+moves the queue into the ring; or usbinit() releasing the controller reset
+without asserting it, so a warm reboot keeps the previous device state. A
+mutation is a list of original and replacement pairs, each of which must
+match once. usb_console_test must reject every one.
 """
 
 import argparse
 from pathlib import Path
 
 MUTATIONS = {
+    "skip-controller-reset": (
+        "\tREG32(RESETS_BASE + RESETS_SET) = RESETS_USBCTRL;\n",
+        "",
+    ),
     "recover-kick": (
         "\t\tusb_tx_recovered++;\n\t\tusb_tx_idle();\n",
         "\t\tusbd.tx_busy = 0;\n\t\tusb_tx_recovered++;\n\t\tusb_tx_kick();\n",

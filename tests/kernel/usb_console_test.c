@@ -268,12 +268,42 @@ model_ints(void)
 	return raw & model_regs[USB_INTE / 4];
 }
 
+/*
+ * RESETS: the SET and CLR aliases land in their own words, and the next
+ * register access folds them into the held mask. A release of USBCTRL
+ * counts as a cycle only while the model holds it in reset, so a driver
+ * that clears the bit without asserting it first is seen.
+ */
+static u_int model_resets_held;
+static u_int model_resets_set, model_resets_clr, model_resets_done;
+static int model_usbctrl_cycles;
+
+static void
+model_fold_resets(void)
+{
+	model_resets_held |= model_resets_set;
+	if (model_resets_clr & model_resets_held & RESETS_USBCTRL)
+		model_usbctrl_cycles++;
+	model_resets_held &= ~model_resets_clr;
+	model_resets_set = 0;
+	model_resets_clr = 0;
+}
+
 volatile u_int *
 usb_host_reg32(u_long address)
 {
 	u_long offset;
 
 	model_fold_alias();
+	model_fold_resets();
+	if (address == RESETS_BASE + RESETS_SET)
+		return &model_resets_set;
+	if (address == RESETS_BASE + RESETS_CLR)
+		return &model_resets_clr;
+	if (address == RESETS_BASE + RESETS_DONE) {
+		model_resets_done = ~model_resets_held;
+		return &model_resets_done;
+	}
 	if (address >= USB_REGS_BASE && address < USB_REGS_BASE + 0x4000) {
 		offset = address - USB_REGS_BASE;
 		if (offset >= USB_REG_CLR) {
@@ -925,6 +955,20 @@ run_fixed(void)
 		} else
 			hk_note("PASS %s", f->name);
 	}
+
+	/* A warm reboot leaves the controller out of reset. */
+	model_resets_held = 0;
+	model_usbctrl_cycles = 0;
+	usb_controller_reset();
+	model_fold_resets();
+	hk_checks++;
+	if (model_usbctrl_cycles != 1 ||
+	    (model_resets_held & RESETS_USBCTRL) != 0) {
+		hk_note("FAIL controller reset: %d assert-release cycles, "
+		    "held 0x%x", model_usbctrl_cycles, model_resets_held);
+		hk_failures++;
+	} else
+		hk_note("PASS controller reset asserted before release");
 	return hk_verdict("usb console transmit state");
 }
 

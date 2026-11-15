@@ -518,7 +518,7 @@ upload and hidden-file inclusion.
 | renode PicoCalc crash dump | `check-renode-picocalc-dump` | the `check-renode-picocalc` requirements, `FSUTIL`, the PICOCALC kernel's `unix.elf`, and `distrib/rp2040/flash-PICOCALC.bin` (`BOARD=PICOCALC flash`) | yes: the `firmware/rp2040` job, after the PicoCalc step and a `BOARD=PICOCALC flash` step | no |
 | renode union | `check-renode-union` | Renode, the fetched RP2040 models, a built PICOCALC_PSRAM kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the PicoCalc Renode step | no |
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
-| host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
+| host package | `check-host-package` | ruff, pytest; pyelftools and a built kernel ELF for the `discobsd-sramdump` decode cases, which skip without one | host.yml on Ubuntu, Windows and macOS | host.yml |
 | board build | `check-board-build` | arm-none-eabi toolchain, a built tree | yes | yes |
 | UF2 image pair (block magic, RP2040 family, 256-byte payloads, numbering, kernel bounds, exact root coverage) | `check-uf2-images` | `${PYTHON}`, built `unix.uf2` and the selected board's flash UF2 (`flash.uf2` for `BOARD=PICO`, `flash-${BOARD}.uf2` otherwise) | yes, after the flash build | yes, after the flash build |
 | board descriptor reader and UF2 patch | `check-board-descriptor` | host cc, `${PYTHON}`, built `PICOCALC_PSRAM/unix.uf2` | yes, through `check-cross` after the build | yes, through `check-cross` after the build |

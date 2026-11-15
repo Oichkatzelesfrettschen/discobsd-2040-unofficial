@@ -11,8 +11,8 @@ browser on the local network.
 
 | command | what it does |
 | --- | --- |
-| `discobsd-term` | attach the current terminal; reattaches across board reboots; Ctrl-] is the escape (`q` quits); `--probe` checks the board answers; `--list` prints attached boards |
-| `discobsd-web` | serve the console as a browser terminal on port 7681; a non-loopback bind requires a token, from `DISCOBSD_WEB_TOKEN`, a systemd credential named `web-token`, or the deprecated `--token` |
+| `discobsd-term` | attach the current terminal; reattaches across board reboots; Ctrl-] is the escape (`q` quits); `--probe` checks the board answers; `--list` prints attached boards; `--usb-port PORT` names one of several (Linux) |
+| `discobsd-web` | serve the console as a browser terminal on port 7681; `--usb-port PORT` names one of several boards (Linux); a non-loopback bind requires a token, from `DISCOBSD_WEB_TOKEN`, a systemd credential named `web-token`, or the deprecated `--token` |
 | `discobsd-link` | redirect a short URL (port 42069) to the tokenized console URL, built from `--host` and the same token, or the deprecated `--to` |
 | `discobsd-console` | `up`, `down`, `status`: run web and link detached, or through the systemd user units when installed |
 | `discobsd-connect` | POSIX shell wrapper that launches tio, picocom, minicom, or cu on the board; `--usb-port PORT` names one of several boards by its USB port (Linux) |
@@ -130,7 +130,10 @@ Internet, because the short link hands out the token. On a ufw host:
     sudo ufw allow from 10.0.0.0/24 to any port 7681 proto tcp
     sudo ufw allow from 10.0.0.0/24 to any port 42069 proto tcp
 
-Set `DISCOBSD_PORT` to a device path to bypass discovery.
+Set `DISCOBSD_PORT` to a device path to bypass discovery. With two boards
+attached, `discobsd-term` and `discobsd-web` refuse to choose; name the board
+with `--usb-port 1-3` or `DISCOBSD_USB_PORT=1-3` (Linux; see
+`DEVELOPMENT.md`, "Two boards on one host").
 
 The console serves one viewer at a time. Leaving the page releases it at
 once; a viewer that vanishes without closing (a tab the browser kept in

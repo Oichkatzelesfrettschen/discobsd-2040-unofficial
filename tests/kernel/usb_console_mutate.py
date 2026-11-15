@@ -6,7 +6,8 @@ completion to clear it, or usbstart() testing the low-water mark before it
 moves the queue into the ring; or usbinit() releasing the controller reset
 without asserting it, so a warm reboot keeps the previous device state. Two
 more restore a lost halt-wait key: the receive path handing a polled byte to
-an open tty, and usbgetc() leaving rx_polled set after its read. A mutation
+an open tty, usbgetc() leaving rx_polled set after its read, and usbpollc()
+not raising it ahead of the halt messages. A mutation
 is a list of original and replacement pairs, each of which must match once.
 usb_console_test must reject every one.
 """
@@ -36,6 +37,10 @@ MUTATIONS = {
     "halt-wait-open": (
         "(tp->t_state & TS_ISOPEN) && usbd.rx_polled == 0",
         "(tp->t_state & TS_ISOPEN)",
+    ),
+    "pollc-late": (
+        "\tif (on)\n\t\tusbd.rx_polled++;\n",
+        "\tif (on)\n\t\t(void)on;\n",
     ),
     "halt-wait-sticks": (
         "\t\tusb_service();\n\tusbd.rx_polled--;\n",

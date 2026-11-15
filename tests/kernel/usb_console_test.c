@@ -1032,9 +1032,46 @@ check_polled_read(const char *name, int tty_open)
 		hk_note("PASS key after the halt wait reaches the tty");
 }
 
+/*
+ * boot() enters polled input before its halt messages. A key that arrives
+ * while they print is serviced by usbputc, ahead of usbgetc, and must still
+ * come back from the read with the tty open.
+ */
+static void
+check_polled_read_early(const char *name)
+{
+	struct tty *tp = &usbttys[0];
+	dev_t dev = makedev(UARTUSB_MAJOR, 0);
+	int got = -1, ok = 0;
+
+	scenario_start();
+	hk_ipl = 1;
+	usbpollc(1);
+	if (host_out_masked('k')) {
+		usbputc(dev, 'h');
+		model_poll_budget = 64;
+		if (!hk_catch(polled_read_body)) {
+			got = polled_got;
+			ok = 1;
+		}
+		model_poll_budget = 0;
+	}
+	usb_service_depth = 0;
+	usbpollc(0);
+	hk_ipl = 0;
+	hk_checks++;
+	if (!ok || got != 'k' || tp->t_rawq.c_cc != 0) {
+		hk_note("FAIL %s: read %s, 0x%x, %d bytes in the tty queue",
+		    name, ok ? "returned" : "ran dry", got, tp->t_rawq.c_cc);
+		hk_failures++;
+	} else
+		hk_note("PASS %s", name);
+}
+
 static void
 run_polled_read(void)
 {
+	check_polled_read_early("halt wait with a key typed during the halt message");
 	check_polled_read("halt wait with the tty closed", 0);
 	check_polled_read("halt wait with the tty open", 1);
 }

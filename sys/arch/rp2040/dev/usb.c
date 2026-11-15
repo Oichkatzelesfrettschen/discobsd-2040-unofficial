@@ -1386,6 +1386,25 @@ usbpoll(void)
 }
 
 /*
+ * Enter (on) or leave (off) polled console input before the read itself:
+ * boot() raises it ahead of the halt messages, whose usbputc calls service
+ * the controller, so a key that arrives while they print reaches rx_ring
+ * and not the open tty's queue. A counter, so it nests with usbgetc.
+ */
+void
+usbpollc(int on)
+{
+	int s;
+
+	s = spltty();
+	if (on)
+		usbd.rx_polled++;
+	else if (usbd.rx_polled != 0)
+		usbd.rx_polled--;
+	splx(s);
+}
+
+/*
  * Console input: poll the controller until a byte arrives. PRIMASK is set
  * for the whole read (boot() has called splhigh before its halt wait), so
  * usbintr never runs and usb_service here is what moves a received packet

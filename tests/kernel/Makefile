@@ -2773,7 +2773,8 @@ USB_CONSOLE_CFLAGS=	${USB_CONSOLE_KERN} -nostdinc -DUARTUSB_ENABLED \
 USB_CONSOLE_OBJS=	usb_console_tty.o usb_console_clist.o \
 			usb_console_sched.o usb_console_hk_kern.o hostkern32.o
 USB_CONSOLE_MUTANTS=	recover-kick configure-kick setif-kick skip-controller-reset \
-			owake-before-drain halt-wait-open halt-wait-sticks
+			owake-before-drain halt-wait-open halt-wait-sticks \
+			pollc-late
 
 ${USB_CONSOLE_DRIVER}: usb_console_extract.py ${USB_CONSOLE_SRC}
 	${PYTHON} usb_console_extract.py --source ${USB_CONSOLE_SRC} --output $@
@@ -2826,6 +2827,7 @@ check-usb-console: usb_console_test \
 		skip-controller-reset) expected='FAIL controller reset' ;; \
 		owake-before-drain) expected='FAIL writer above the high-water mark across a bus reset' ;; \
 		halt-wait-open) expected='FAIL halt wait with the tty open' ;; \
+		pollc-late) expected='FAIL halt wait with a key typed during the halt message' ;; \
 		halt-wait-sticks) expected='FAIL key after the halt wait reaches the tty' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \

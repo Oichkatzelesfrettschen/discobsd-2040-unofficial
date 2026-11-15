@@ -118,6 +118,36 @@ picotool's own wait after a forced reboot is shorter than macOS takes to
 enumerate the boot ROM, which is why `picotool info -f` fails there and
 the two-step form does not.
 
+### Two boards on one host
+
+A bare Pico and a PicoCalc both enumerate as 2e8a:000a with the serial
+string `rp2040`; the `/dev/serial/by-id` link names whichever enumerated
+last, and a picotool call without `--bus` and `--address` may act on either
+board. `discobsd-flash` and `discobsd-connect` therefore stop before any
+reset, load or terminal launch when more than one 2e8a device (kernel or
+BOOTSEL) is attached and no board is named, and print each candidate's USB
+port, product id, bus and address. Name the board by USB port, the path
+under `/sys/bus/usb/devices` (`1-3`, or `1-2.4` behind a hub):
+
+    discobsd-flash --usb-port 1-3 sys/arch/rp2040/compile/PICO/unix.uf2
+    DISCOBSD_USB_PORT=1-3 discobsd-connect
+
+With a port, every picotool call carries the `--bus` and `--address` that the
+port's sysfs node holds at that moment, because the address changes at each
+re-enumeration (kernel, BOOTSEL, kernel). BOOTSEL is recognized from the
+port's product id (0003), the volume unmounted is the one behind that port,
+and the run stops before the next step if a device on another port changes
+address or product. `discobsd-connect` opens the tty of the port's
+interface 0. A device path argument to `discobsd-connect` names the board
+itself and skips the check. `tests/test_board_select.py` gates both tools with
+a stub picotool and a fake sysfs (`DISCOBSD_SYSFS_USB`, `DISCOBSD_DEVFS`);
+the per-port unmount runs only on a real board, because a fake sysfs has no
+block nodes. Limit: the selector and the refusal read Linux sysfs. On macOS and
+in `discobsd-flash.ps1` the tools address picotool's one device as before and
+cannot tell a second board apart; flash with one board attached there.
+`discobsd-term`, `discobsd-web` and `discobsd-link` still take the first board
+that `discobsd-term --list` prints.
+
     discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2       # kernel only
     discobsd-flash distrib/rp2040/flash.uf2                   # root only
     discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2

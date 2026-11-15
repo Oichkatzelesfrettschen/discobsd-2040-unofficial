@@ -13,8 +13,85 @@
 # (brew install tio picocom minicom); Windows users run discobsd-term.
 set -eu
 
-port="${1:-}"
-if [ -z "$port" ]; then
+# Two boards on one host enumerate alike (2e8a:000a, serial "rp2040"); the
+# by-id link and discobsd-term --list name whichever enumerated last. With
+# more than one 2e8a device attached and no board named, this stops and lists
+# the candidates. --usb-port PORT (or DISCOBSD_USB_PORT) names the board by
+# its USB port, such as 1-3, and opens the tty that belongs to that port.
+# An explicit device path names the board itself. Linux only: macOS has no
+# sysfs, so there the selector is refused and discovery is unchanged.
+# DISCOBSD_SYSFS_USB and DISCOBSD_DEVFS replace /sys/bus/usb/devices and /dev
+# for tests.
+sysfs_usb=${DISCOBSD_SYSFS_USB:-/sys/bus/usb/devices}
+devfs=${DISCOBSD_DEVFS:-/dev}
+usb_port=
+opt_port=
+
+die() {
+	echo "discobsd-connect: $*" >&2
+	exit 1
+}
+
+sysattr() {
+	cat "$sysfs_usb/$1/$2" 2>/dev/null || true
+}
+
+port=
+while [ $# -gt 0 ]; do
+	case $1 in
+	--usb-port)
+		[ $# -ge 2 ] || die "--usb-port needs a port such as 1-3"
+		opt_port=$2
+		shift 2
+		;;
+	*)
+		port=$1
+		break
+		;;
+	esac
+done
+
+if [ -n "$opt_port" ]; then
+	[ -z "$port" ] || die "give a device path or --usb-port, not both"
+	usb_port=$opt_port
+elif [ -z "$port" ]; then
+	usb_port=${DISCOBSD_USB_PORT:-}
+fi
+
+if [ -n "$usb_port" ]; then
+	# The port is joined into a sysfs path: bus-port[.port...] and nothing else.
+	case $usb_port in
+	*[!0-9.-]* | *..* | *. | -* | *-*-* | *-) die "$usb_port is not a USB port path such as 1-3 or 1-2.4" ;;
+	[0-9]*-[0-9]*) ;;
+	*) die "$usb_port is not a USB port path such as 1-3 or 1-2.4" ;;
+	esac
+	[ "$(uname -s)" = Linux ] || die "--usb-port reads Linux sysfs; this host has none"
+	[ "$(sysattr "$usb_port" idVendor)" = 2e8a ] || die "USB port $usb_port holds no 2e8a device"
+	# Interface 0 of the kernel's configuration is the console (by-id if00).
+	for t in "$sysfs_usb/$usb_port/$usb_port":1.0/tty/*; do
+		[ -e "$t" ] || continue
+		port=$devfs/${t##*/}
+		break
+	done
+	[ -n "$port" ] || die "port $usb_port holds 2e8a:$(sysattr "$usb_port" idProduct), which has no console tty"
+elif [ -z "$port" ]; then
+	devs=
+	for d in "$sysfs_usb"/*; do
+		[ -e "$d/idVendor" ] || continue
+		n=${d##*/}
+		[ "$(sysattr "$n" idVendor)" = 2e8a ] || continue
+		devs="$devs$n 2e8a:$(sysattr "$n" idProduct) $(sysattr "$n" product)
+"
+	done
+	case $devs in
+	*'
+'*'
+'*)
+		echo "discobsd-connect: more than one 2e8a device is attached; name the board with --usb-port PORT or DISCOBSD_USB_PORT:" >&2
+		printf '%s' "$devs" | sed 's/^/  /' >&2
+		exit 2
+		;;
+	esac
 	# Linux names the console by identity under /dev/serial/by-id; macOS
 	# presents it as a cu.usbmodem node. discobsd-term --list, from the
 	# discobsd-host package, resolves either by USB identity.

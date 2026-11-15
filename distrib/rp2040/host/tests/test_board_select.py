@@ -1,0 +1,347 @@
+"""Board selection in discobsd-flash and discobsd-connect with two boards attached.
+
+A bare Pico and a PicoCalc both enumerate as 2e8a:000a with the serial
+string "rp2040", so only the USB port tells them apart. The scripts run
+against a fake sysfs tree and a PATH that holds stub picotool, terminal,
+uname, findmnt and sleep programs and symlinks to the few coreutils the
+scripts use; no real picotool or serial node is reachable. The stub picotool
+changes the fake sysfs the way a real reset does (the product id flips and
+the bus address advances), so a call that carries a stale address finds no
+device. Each rule has a mutant: the script is copied with the rule removed
+and the scenario check must then fail.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+HOST = Path(__file__).resolve().parents[1]
+FLASH = HOST / "discobsd-flash"
+CONNECT = HOST / "discobsd-connect"
+
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell scripts")
+
+COREUTILS = ("cat", "head", "sed", "tr", "wc")
+
+STUB_PICOTOOL = """#!/bin/sh
+# Fake picotool over the fake sysfs. Logs argv and the device it reached.
+root=$DISCOBSD_SYSFS_USB
+cmd=$1
+bus= addr= up=
+for a in "$@"; do
+	case $prev in
+	--bus) bus=$a ;;
+	--address) addr=$a ;;
+	esac
+	case $a in -u) up=1 ;; esac
+	prev=$a
+done
+dev=
+for d in "$root"/*; do
+	[ -e "$d/idVendor" ] || continue
+	if [ -n "$bus" ]; then
+		[ "$(cat "$d/busnum")" = "$bus" ] && [ "$(cat "$d/devnum")" = "$addr" ] || continue
+	fi
+	dev=$d
+	break
+done
+echo "$* => ${dev##*/}" >> "$PT_LOG"
+[ -n "$dev" ] || exit 1
+bump() {
+	echo $(($(cat "$dev/devnum") + 1)) > "$dev/devnum"
+}
+case $cmd in
+info)
+	[ "$(cat "$dev/idProduct")" = 0003 ]
+	;;
+reboot)
+	if [ -n "$up" ]; then
+		echo 0003 > "$dev/idProduct"
+	else
+		[ "$(cat "$dev/idProduct")" = 0003 ] || exit 1
+		echo 000a > "$dev/idProduct"
+	fi
+	bump
+	;;
+load)
+	[ "$(cat "$dev/idProduct")" = 0003 ] || exit 1
+	bump
+	if [ -n "${STUB_BUMP_OTHER:-}" ]; then
+		for o in "$root"/*; do
+			[ "$o" = "$dev" ] || echo 99 > "$o/devnum"
+		done
+	fi
+	;;
+esac
+"""
+
+
+def _stub(path: Path, text: str) -> None:
+    path.write_text(text)
+    path.chmod(0o755)
+
+
+def make_world(tmp: Path, devices: dict[str, tuple[str, int]]):
+    """Fake sysfs with devices {port: (product, address)}, stubs and a log."""
+    sysfs = tmp / "sys"
+    devfs = tmp / "dev"
+    bindir = tmp / "bin"
+    for d in (sysfs, devfs, bindir):
+        d.mkdir()
+    for n, (product, addr) in devices.items():
+        node = sysfs / n
+        node.mkdir()
+        (node / "idVendor").write_text("2e8a\n")
+        (node / "idProduct").write_text(product + "\n")
+        (node / "busnum").write_text("1\n")
+        (node / "devnum").write_text(f"{addr}\n")
+        (node / "product").write_text(f"board {n}\n")
+        tty = node / f"{n}:1.0" / "tty" / f"ttyACM{n[-1]}"
+        tty.mkdir(parents=True)
+        (devfs / f"ttyACM{n[-1]}").write_text("")
+    for name in COREUTILS:
+        found = shutil.which(name)
+        if found:
+            (bindir / name).symlink_to(found)
+    _stub(bindir / "picotool", STUB_PICOTOOL)
+    _stub(bindir / "sleep", "#!/bin/sh\nexit 0\n")
+    _stub(bindir / "uname", "#!/bin/sh\necho Linux\n")
+    _stub(bindir / "findmnt", "#!/bin/sh\nexit 1\n")
+    _stub(bindir / "udisksctl", "#!/bin/sh\nexit 0\n")
+    _stub(bindir / "tio", '#!/bin/sh\necho "tio $*" >> "$TERM_LOG"\n')
+    # What the unaddressed path would pick: the first board's node.
+    _stub(bindir / "discobsd-term", f'#!/bin/sh\necho "{devfs}/ttyACM3"\n')
+    (devfs / "ttyACM3").write_text("")
+    uf2 = tmp / "image.uf2"
+    uf2.write_text("uf2")
+    return sysfs, devfs, bindir, uf2
+
+
+def run(script: Path, args, tmp: Path, sysfs: Path, devfs: Path, bindir: Path, **extra):
+    env = {
+        "PATH": str(bindir),
+        "DISCOBSD_SYSFS_USB": str(sysfs),
+        "DISCOBSD_DEVFS": str(devfs),
+        "PT_LOG": str(tmp / "picotool.log"),
+        "TERM_LOG": str(tmp / "term.log"),
+    }
+    env.update(extra)
+    return subprocess.run(
+        ["/bin/sh", str(script), *args],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+
+def log(tmp: Path, name: str = "picotool.log") -> list[str]:
+    p = tmp / name
+    return p.read_text().splitlines() if p.exists() else []
+
+
+def mutate(script: Path, tmp: Path, old: str, new: str) -> Path:
+    text = script.read_text()
+    if old not in text:
+        raise AssertionError(f"mutant anchor missing from {script.name}: {old!r}")
+    out = tmp / f"mutant-{script.name}"
+    out.write_text(text.replace(old, new, 1))
+    return out
+
+
+# --- discobsd-flash scenarios; each returns normally when the rule holds ---
+
+
+def scenario_flash_single(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, uf2 = make_world(tmp, {"1-3": ("000a", 7)})
+    r = run(script, [str(uf2)], tmp, sysfs, devfs, bindir)
+    assert r.returncode == 0, r.stderr
+    assert log(tmp) == [
+        "info => 1-3",
+        "reboot -u -f => 1-3",
+        "info => 1-3",
+        f"load {uf2} => 1-3",
+        "reboot => 1-3",
+    ]
+
+
+def scenario_flash_refuses(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, uf2 = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
+    r = run(script, [str(uf2)], tmp, sysfs, devfs, bindir)
+    assert r.returncode == 2, r.stderr
+    assert log(tmp) == []
+    assert "1-3" in r.stderr and "1-4" in r.stderr
+    # BOOTSEL devices count too, and every mode refuses.
+    for args in (["--bootsel"], ["--eject"]):
+        r = run(script, args, tmp, sysfs, devfs, bindir)
+        assert r.returncode == 2 and log(tmp) == []
+
+
+def scenario_flash_selected(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, uf2 = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
+    r = run(script, ["--usb-port", "1-3", str(uf2)], tmp, sysfs, devfs, bindir)
+    assert r.returncode == 0, r.stderr
+    # The address advances at every call; each call carries the current one.
+    assert log(tmp) == [
+        "reboot -u -f --bus 1 --address 7 => 1-3",
+        f"load {uf2} --bus 1 --address 8 => 1-3",
+        "reboot --bus 1 --address 9 => 1-3",
+    ]
+    assert (sysfs / "1-4" / "devnum").read_text() == "3\n"
+    assert not any("--address 3" in line for line in log(tmp))
+
+
+def scenario_flash_environment_selector(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, uf2 = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
+    r = run(script, [str(uf2)], tmp, sysfs, devfs, bindir, DISCOBSD_USB_PORT="1-4")
+    assert r.returncode == 0, r.stderr
+    assert log(tmp)[0] == "reboot -u -f --bus 1 --address 3 => 1-4"
+    assert all("=> 1-4" in line for line in log(tmp))
+
+
+def scenario_flash_bystander_moves(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, uf2 = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
+    r = run(script, ["--usb-port", "1-3", str(uf2)], tmp, sysfs, devfs, bindir, STUB_BUMP_OTHER="1")
+    assert r.returncode != 0
+    assert "another USB port changed" in r.stderr
+    # The load ran; the reboot that follows it did not.
+    assert [line.split()[0] for line in log(tmp)] == ["reboot", "load"]
+
+
+FLASH_SCENARIOS = {
+    "single": scenario_flash_single,
+    "refuses": scenario_flash_refuses,
+    "selected": scenario_flash_selected,
+    "environment": scenario_flash_environment_selector,
+    "bystander": scenario_flash_bystander_moves,
+}
+
+
+@pytest.mark.parametrize("name", sorted(FLASH_SCENARIOS))
+def test_flash_scenario(name, tmp_path):
+    FLASH_SCENARIOS[name](FLASH, tmp_path)
+
+
+def test_flash_selector_rejects_a_path_escape(tmp_path):
+    sysfs, devfs, bindir, uf2 = make_world(tmp_path, {"1-3": ("000a", 7)})
+    for bad in ("../1-3", "1-3/..", "1-3 ", "-3", "1-", "usb1", "1-3-4", "1-3."):
+        r = run(FLASH, ["--usb-port", bad, str(uf2)], tmp_path, sysfs, devfs, bindir)
+        assert r.returncode == 1 and log(tmp_path) == [], bad
+
+
+def test_flash_selector_on_empty_port_stops_without_picotool(tmp_path):
+    sysfs, devfs, bindir, uf2 = make_world(tmp_path, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
+    r = run(FLASH, ["--usb-port", "1-5", str(uf2)], tmp_path, sysfs, devfs, bindir)
+    assert r.returncode == 1 and log(tmp_path) == []
+
+
+FLASH_MUTANTS = {
+    # rule: the selector-less run refuses when several 2e8a devices are attached
+    "refuses": ("else\n\trefuse_ambiguous\nfi", "else\n\t:\nfi"),
+    # rule: every picotool call carries the resolved bus and address
+    "selected": ('picotool "$@" --bus "$dev_bus" --address "$dev_addr"', 'picotool "$@"'),
+    # rule: the address is read again at each call
+    "selected-cached": ("\tresolve_port || {", '\t[ -n "${dev_addr:-}" ] || resolve_port || {'),
+    # rule: another port's device must not change during the run
+    "bystander": ('[ "$now" = "$others_before" ] ||', "true ||"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(FLASH_MUTANTS))
+def test_flash_mutant_is_caught(name, tmp_path):
+    old, new = FLASH_MUTANTS[name]
+    scenario = FLASH_SCENARIOS["bystander" if name == "bystander" else name.split("-")[0]]
+    mutant = mutate(FLASH, tmp_path, old, new)
+    with pytest.raises(AssertionError):
+        scenario(mutant, tmp_path / "run")
+
+
+@pytest.fixture(autouse=True)
+def _run_dirs(tmp_path):
+    (tmp_path / "run").mkdir()
+
+
+# --- discobsd-connect ---
+
+
+def scenario_connect_single(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, _ = make_world(tmp, {"1-3": ("000a", 7)})
+    r = run(script, [], tmp, sysfs, devfs, bindir)
+    assert r.returncode == 0, r.stderr
+    assert log(tmp, "term.log") == [f"tio -b 115200 -d 8 -p none -s 1 -f none {devfs}/ttyACM3"]
+
+
+def scenario_connect_refuses(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, _ = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("0003", 3)})
+    r = run(script, [], tmp, sysfs, devfs, bindir)
+    assert r.returncode == 2, r.stderr
+    assert log(tmp, "term.log") == []
+    assert "1-3" in r.stderr and "1-4" in r.stderr
+    # An explicit device path names the board itself.
+    r = run(script, [str(devfs / "ttyACM4")], tmp, sysfs, devfs, bindir)
+    assert r.returncode == 0, r.stderr
+
+
+def scenario_connect_selected(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, _ = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
+    r = run(script, ["--usb-port", "1-4"], tmp, sysfs, devfs, bindir)
+    assert r.returncode == 0, r.stderr
+    assert log(tmp, "term.log") == [f"tio -b 115200 -d 8 -p none -s 1 -f none {devfs}/ttyACM4"]
+    r = run(script, [], tmp, sysfs, devfs, bindir, DISCOBSD_USB_PORT="1-3")
+    assert r.returncode == 0, r.stderr
+    assert log(tmp, "term.log")[-1].endswith(f"{devfs}/ttyACM3")
+
+
+CONNECT_SCENARIOS = {
+    "single": scenario_connect_single,
+    "refuses": scenario_connect_refuses,
+    "selected": scenario_connect_selected,
+}
+
+
+@pytest.mark.parametrize("name", sorted(CONNECT_SCENARIOS))
+def test_connect_scenario(name, tmp_path):
+    CONNECT_SCENARIOS[name](CONNECT, tmp_path)
+
+
+def test_connect_bootsel_port_has_no_console(tmp_path):
+    sysfs, devfs, bindir, _ = make_world(tmp_path, {"1-3": ("0003", 7), "1-4": ("000a", 3)})
+    for t in (sysfs / "1-3" / "1-3:1.0" / "tty").iterdir():
+        t.rmdir()
+    r = run(CONNECT, ["--usb-port", "1-3"], tmp_path, sysfs, devfs, bindir)
+    assert r.returncode == 1 and "no console tty" in r.stderr
+    assert log(tmp_path, "term.log") == []
+
+
+def test_connect_rejects_option_and_path_together(tmp_path):
+    sysfs, devfs, bindir, _ = make_world(tmp_path, {"1-3": ("000a", 7)})
+    r = run(CONNECT, ["--usb-port", "1-3", "/dev/null"], tmp_path, sysfs, devfs, bindir)
+    assert r.returncode == 1
+
+
+CONNECT_MUTANTS = {
+    "refuses": ("\t\texit 2\n", "\t\t:\n"),
+    "selected": (
+        'for t in "$sysfs_usb/$usb_port/$usb_port":1.0/tty/*; do',
+        'for t in "$sysfs_usb"/*/*:1.0/tty/*; do',
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(CONNECT_MUTANTS))
+def test_connect_mutant_is_caught(name, tmp_path):
+    old, new = CONNECT_MUTANTS[name]
+    mutant = mutate(CONNECT, tmp_path, old, new)
+    with pytest.raises(AssertionError):
+        CONNECT_SCENARIOS[name](mutant, tmp_path / "run")
+
+
+def test_scripts_are_executable():
+    assert os.access(FLASH, os.X_OK) and os.access(CONNECT, os.X_OK)

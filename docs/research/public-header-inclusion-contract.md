@@ -167,3 +167,13 @@ all 162 numeric deltas are zero and archive membership stays unchanged.
 The root retains 231 free blocks, including main's approved signal costs.
 The earlier emulator records retain their source identities. Combined focused
 qualification and exact-head hosted CI govern integration of this merge.
+
+
+At `bf1723ff`, the combined logged build and focused gates exit zero:
+`check-public-header-inclusion`, `check-signal-sets`, `check-signal-sets-cross`,
+`check-signal-sets-qemu`, `check-board-libc-output`,
+`check-c17-source-denominator`, and `check-cc-driver`. Source accounting reports
+153 accepted, 543 excluded, 62 migration-open, and 2,277 unreviewed paths.
+The README correction changes documentation only and preserves the historical
+compiler footprint while identifying the measured current image and missing
+native type mechanisms.

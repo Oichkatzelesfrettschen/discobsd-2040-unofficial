@@ -819,6 +819,14 @@ check-libc-bounded-string:
 
 .PHONY: check-libc-bounded-string
 
+check-libc-byte-search:
+		${MAKE} -C tests/libc_contracts check-byte-search
+
+check-libc-byte-search-instructions:
+		${MAKE} -C tests/libc_contracts check-byte-search-instructions
+
+.PHONY: check-libc-byte-search check-libc-byte-search-instructions
+
 check-libc-absolute-value:
 		${MAKE} -C tests/libc_contracts check-absolute-value
 
@@ -1521,6 +1529,7 @@ check-namei-user-path: check-python
 		sh tests/rp2040/namei_path/check.sh
 
 check-rp2040-usercopy-span: check-python
+		${PYTHON} tests/libc_contracts/make_query_test.py
 		${PYTHON} tests/rp2040/usercopy_span/check.py \
 		    --root ${TOPSRC:Q} --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/usercopy-span-contracts.json
@@ -1992,6 +2001,7 @@ check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-libc-xip-object-abi
 		${MAKE} check-libc-xip-rom
 		${MAKE} check-native-call-veneer
+		${MAKE} check-libc-byte-search-instructions
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test

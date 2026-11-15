@@ -1,0 +1,140 @@
+{
+  "evidence_class": "modeled ARM instruction execution; cycles and board timing unmeasured",
+  "baseline_commit": "cfe41205235bfc677e6fdf1a53a395aae2f6cb71",
+  "unicorn_version": "2.1.4",
+  "pyelftools_version": "0.33",
+  "compiler_version": "arm-none-eabi-gcc (Arch Repository) 16.2.0",
+  "flags": [
+    "-std=c17",
+    "-pedantic-errors",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fno-builtin",
+    "-mcpu=cortex-m0plus",
+    "-mthumb",
+    "-mfloat-abi=soft",
+    "-Os"
+  ],
+  "source_sha256": {
+    "lib/libc/string/memmem.c": "0b28b6d96b85c83a9f3e29a70fc7cedf636607b99c594a4e43483eea178541e7",
+    "lib/libc/compat/memchr.c": "b1045e37164b9d6a558c70eac08229c94849e286a302c7bd09cff4e44082706b",
+    "lib/libc/compat/memcmp.c": "8aa34495d0b8f1dc670222e937f630e906cb840b1a1ff9b75bc86843bf69184b"
+  },
+  "images": {
+    "baseline.elf": "2f68e0bf08da575078a6e2567b25a825d3283e046799eb7fdf45c2713788e78e",
+    "candidate.elf": "a6e4b43c25df72dfd88767aefcc76369b59ef403e4e0ce1b0d74ea90db18c2e1"
+  },
+  "cases": [
+    {
+      "case": "empty",
+      "class": "common",
+      "haystack_bytes": 0,
+      "needle_bytes": 0,
+      "baseline": 7,
+      "candidate": 9
+    },
+    {
+      "case": "oversized",
+      "class": "common",
+      "haystack_bytes": 1,
+      "needle_bytes": 2,
+      "baseline": 10,
+      "candidate": 13
+    },
+    {
+      "case": "single-first",
+      "class": "common",
+      "haystack_bytes": 6,
+      "needle_bytes": 1,
+      "baseline": 30,
+      "candidate": 24
+    },
+    {
+      "case": "single-middle",
+      "class": "common",
+      "haystack_bytes": 7,
+      "needle_bytes": 1,
+      "baseline": 37,
+      "candidate": 31
+    },
+    {
+      "case": "single-absent",
+      "class": "common",
+      "haystack_bytes": 4096,
+      "needle_bytes": 1,
+      "baseline": 28699,
+      "candidate": 28694
+    },
+    {
+      "case": "single-last",
+      "class": "common",
+      "haystack_bytes": 4096,
+      "needle_bytes": 1,
+      "baseline": 28695,
+      "candidate": 28689
+    },
+    {
+      "case": "pair-first",
+      "class": "common",
+      "haystack_bytes": 10,
+      "needle_bytes": 2,
+      "baseline": 48,
+      "candidate": 28
+    },
+    {
+      "case": "pair-absent",
+      "class": "common",
+      "haystack_bytes": 4096,
+      "needle_bytes": 2,
+      "baseline": 28682,
+      "candidate": 28689
+    },
+    {
+      "case": "pair-false-prefix",
+      "class": "common",
+      "haystack_bytes": 4096,
+      "needle_bytes": 2,
+      "baseline": 131057,
+      "candidate": 40974
+    },
+    {
+      "case": "binary-first",
+      "class": "common",
+      "haystack_bytes": 1024,
+      "needle_bytes": 16,
+      "baseline": 146,
+      "candidate": 163
+    },
+    {
+      "case": "binary-last",
+      "class": "common",
+      "haystack_bytes": 1040,
+      "needle_bytes": 16,
+      "baseline": 7314,
+      "candidate": 7331
+    },
+    {
+      "case": "periodic-absent",
+      "class": "adversarial",
+      "haystack_bytes": 4096,
+      "needle_bytes": 64,
+      "baseline": 954051,
+      "candidate": 92712
+    },
+    {
+      "case": "repeat-prefix-absent",
+      "class": "adversarial",
+      "haystack_bytes": 2048,
+      "needle_bytes": 128,
+      "baseline": 1755811,
+      "candidate": 51217
+    }
+  ],
+  "controls": [
+    "bypass fast paths",
+    "quadratic scan",
+    "wrong result",
+    "disabled counter"
+  ]
+}

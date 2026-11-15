@@ -71,8 +71,10 @@ kill
 lseek
 lstat
 malloc
+memchr
 memcmp
 memcpy
+memmem
 memmove
 memset
 open

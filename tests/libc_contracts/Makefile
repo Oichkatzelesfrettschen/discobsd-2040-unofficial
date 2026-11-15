@@ -63,7 +63,7 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-vis check-printf-g check-huge-val \
 	check-qsort check-strtox check-string-security check-array-memory-line \
 	check-getgrent check-bounded-string check-exit-lifecycle check-quick-exit \
-	check-qsort-context check-dbm-open check-absolute-value
+	check-qsort-context check-dbm-open check-absolute-value check-byte-search
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 ARRAY_MEMORY_CFLAGS= -std=c17 -Wall -Wextra -Werror
@@ -135,6 +135,40 @@ absolute_value_test_san: ${ABSOLUTE_VALUE_INPUTS} .PHONY
 	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
 
 .PHONY: check-absolute-value
+
+BYTE_SEARCH_INPUTS= byte_search.py byte_search_test.c \
+	${STRING_DIR}/memmem.c ${TOPSRC}/lib/libc/compat/memchr.c
+
+check-byte-search: byte_search_test
+	${TEST_EXECUTION} run libc.byte-search.native -- ./byte_search_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} byte_search_test32
+	${TEST_EXECUTION} run libc.byte-search.ilp32 -- ./byte_search_test32
+.else
+	${TEST_EXECUTION} skip libc.byte-search.ilp32 "check-libc-byte-search: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} byte_search_test_san
+	${TEST_EXECUTION} run libc.byte-search.sanitized -- ./byte_search_test_san
+.else
+	${TEST_EXECUTION} skip libc.byte-search.sanitized "check-libc-byte-search: sanitizer runtime unavailable"
+.endif
+
+byte_search_test: ${BYTE_SEARCH_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/byte_search.py ${TOPSRC} ${HOSTCC:Q} $@ --calibrate
+
+byte_search_test32: ${BYTE_SEARCH_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/byte_search.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@ --calibrate
+
+byte_search_test_san: ${BYTE_SEARCH_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/byte_search.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@ --calibrate
+
+.PHONY: check-byte-search
+
+check-byte-search-instructions:
+	${PYTHON} ${.CURDIR}/byte_search_instructions.py ${TOPSRC} ${ARM_COMPILER:Q}
+
+.PHONY: check-byte-search-instructions
 
 QSORT_CONTEXT_INPUTS= qsort_context.py qsort_context_test.c qsort_bounds_test.c \
 	qsort_callers.py \
@@ -1616,6 +1650,7 @@ header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
 
 clean:
 	rm -f absolute_value_test absolute_value_test32 absolute_value_test_san
+	rm -f byte_search_test byte_search_test32 byte_search_test_san
 	rm -f qsort_context_test qsort_context_test32 qsort_context_test_san
 	rm -f bounded_string_test bounded_string_test32 bounded_string_test_san
 	rm -f dbm_open_test dbm_open_test32
@@ -1733,6 +1768,7 @@ check-qemu:
 	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/byte_search.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm --calibrate
 	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/dbm_open.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 .endif

@@ -1324,6 +1324,60 @@
       "deciding_gate": "Require calibrated host, strict C17, ILP32, real-header Smaller C and QEMU witnesses, approved per-program resource limits, complete image qualification and reviewed integration.",
       "disposition": "candidate",
       "residual": "The exact resource vector receives owner approval. Aggregate qualification and reviewed integration remain open; kernel delivery, runtime peaks and physical-board behavior remain separate requirements."
+    },
+    {
+      "id": "libc-guarded-byte-search",
+      "requirements": [
+        "dpucp-2024:system-interface:memmem"
+      ],
+      "roles": [
+        "bounded byte-subsequence search",
+        "native byte-search closure"
+      ],
+      "repository": "freebsd-src@f3ec447a1c0697f024dcf12929552e4ee9a420e0",
+      "sources": [
+        {
+          "repository": "freebsd-src@f3ec447a1c0697f024dcf12929552e4ee9a420e0",
+          "path": "lib/libc/string/memmem.c",
+          "sha256": "cb0fd325441b8268d6aca15020c7561db019fb13bb5fc9d7022ac853b067d02c",
+          "license": "MIT"
+        }
+      ],
+      "behavior": "Locate the first byte-sequence occurrence, return the haystack for an empty needle, and retain explicit extent containment for every valid object.",
+      "invariants": [
+        "Critical factorization and the suffix period justify every candidate shift.",
+        "Remembered prefix state belongs to one call and uses constant auxiliary storage.",
+        "Single-byte conversion binds the independent unsigned memchr contract.",
+        "Pointer subtraction occurs only inside an admitted ptrdiff_t extent; the remaining-length core handles larger valid extents.",
+        "One initial probe and both maximal-suffix passes fit the complete 2n+7m comparison budget."
+      ],
+      "algorithm": "Use direct one/two-byte paths and one guarded prefix probe, then remembered-prefix tableless Two-Way search.",
+      "dependencies": [
+        "size_t, ptrdiff_t and uintmax_t",
+        "memchr",
+        "private per-call suffix/period/memory state",
+        "native member and source-family registries"
+      ],
+      "c_language": "The donor retains musl MIT provenance and optional automatic skip tables; the adaptation retains the critical-factorization mechanism without those tables.",
+      "c17_rewrite": "Use typed C17 definitions, unsigned bytes, overflow-safe suffix bounds, one order result per suffix pair and a guarded optional pointer-difference filter.",
+      "archive_members": [
+        "memmem.o",
+        "memchr.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "installed native archive bytes",
+          "per-program loaded/raw/packed sizes",
+          "compiler local frames",
+          "packed root blocks",
+          "modeled instruction work"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Require complete calibrated byte/result/work and instruction matrices, native archive and Smaller C closure, matched clean resource approval, current-main qualification and reviewed integration.",
+      "disposition": "candidate",
+      "residual": "The production revision passes source-level experiment matrices and calibrated instruction controls. Its complete current-main installed resource vector, qualification and review remain open. The historical linear-scan promotion and immutable source identities remain separate records; algorithm priority stays with established Two-Way prior art."
     }
   ],
   "candidate_bindings": {
@@ -1462,6 +1516,12 @@
         "dpucp-2024:system-interface:sigaddset",
         "dpucp-2024:system-interface:sigdelset",
         "dpucp-2024:system-interface:sigismember"
+      ]
+    },
+    "libc-guarded-byte-search": {
+      "repository": "freebsd-src@f3ec447a1c0697f024dcf12929552e4ee9a420e0",
+      "requirements": [
+        "dpucp-2024:system-interface:memmem"
       ]
     }
   }

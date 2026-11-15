@@ -1,0 +1,36 @@
+/dev/fl0a: 102 files, 751 used, 228 free
+--- Errors repaired, rebooting...
+killing processes...echo ready; echo __DO''NE__
+ done
+1368 by
+
+2.11 BSD UNIX (pico) (console)
+
+login: operator
+DiscoBSD 2.7 -- Raspberry Pi Pico (RP2040)
+
+You are operator, in /home/operator, which starts empty; the system is
+under /bin, /usr/bin and /usr/games. "menu" lists every program, "ls"
+colors directories blue, and "vi FILE" edits
+UNIX, "su" makes you root. Type "sync" before "exit" or unplugging.
+operator@pico:~$ echo ready; echo __DO''NE__
+ready
+__DONE__
+operator@pico:~$ su
+root@pico:/home/operator# cd /home/operator; ls -a | tr '\\n' ' '; cat t3; echo __DO''NE__
+.
+..
+.profile
+t1
+t3
+synced-p3
+__DONE__
+root@pico:/home/operator# ls /lost+found | wc -l; df / | tail -1; echo __DO''NE__
+       1
+root              979      752      227    76%    /
+__DONE__
+root@pico:/home/operator# sysctl kern.boottime machdep.watchdog_reason; echo __DO''NE__
+kern.boottime=Sat Nov 14 16:17:47 2026
+machdep.watchdog_reason=1
+__DONE__
+root@pico:/home/operator#

@@ -53313,7 +53313,9 @@
       "profile": "unreviewed",
       "native_input": "unreviewed",
       "language_state": "unreviewed",
-      "evidence": [],
+      "evidence": [
+        "docs/research/descriptor-set-initialization.md"
+      ],
       "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
       "classification": {
         "source_kind": "translation-unit",
@@ -53334,6 +53336,7 @@
           ],
           "object_lifetime": [],
           "pointer": [
+            "integer-pointer-cast",
             "pointer-integer-cast"
           ],
           "prototype": [
@@ -67788,7 +67791,9 @@
       "profile": "unreviewed",
       "native_input": "unreviewed",
       "language_state": "unreviewed",
-      "evidence": [],
+      "evidence": [
+        "docs/research/descriptor-set-initialization.md"
+      ],
       "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
       "classification": {
         "source_kind": "header",
@@ -74513,6 +74518,47 @@
           "pointer": [],
           "prototype": [],
           "variadic": []
+        }
+      }
+    },
+    {
+      "path": "tests/libc_contracts/fd_set_test.c",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "descriptor-set-contracts",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/descriptor-set-initialization.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "test-only",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [
+            "cast-dereference"
+          ],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast"
+          ],
+          "object_lifetime": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
+          "prototype": [],
+          "variadic": [
+            "variadic-interface"
+          ]
         }
       }
     },

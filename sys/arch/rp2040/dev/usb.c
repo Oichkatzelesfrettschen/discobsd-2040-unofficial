@@ -64,6 +64,7 @@
 #define	DPRAM8(off)	(*(volatile u_char *)(USB_DPRAM_BASE + (off)))
 
 #define	RESETS_BASE	0x4000c000UL
+#define	RESETS_SET	0x2000UL
 #define	RESETS_CLR	0x3000UL
 #define	RESETS_DONE	0x8
 #define	RESETS_USBCTRL	(1UL << 24)
@@ -335,6 +336,7 @@ static struct {
 
 	u_int		rx_head, rx_tail;
 	u_char		rx_ring[USB_RXRING];
+	u_int		rx_polled;	/* usbgetc is polling: ring every byte. */
 
 	u_char		reply[64];	/* Small control replies. */
 } usbd;
@@ -904,7 +906,7 @@ usb_rx_done(void)
 	n = DPRAM32(USB_DPRAM_BUF_CTRL(EP_DATA, 0)) & USB_BUF_CTRL_LEN_MASK;
 	for (i = 0; i < n; i++) {
 		c = DPRAM8(BUF_DATA_OUT + i);
-		if (tp->t_state & TS_ISOPEN) {
+		if ((tp->t_state & TS_ISOPEN) && usbd.rx_polled == 0) {
 			ttyinput(c, tp);
 		} else if (usbd.rx_head - usbd.rx_tail < USB_RXRING) {
 			usbd.rx_ring[usbd.rx_head % USB_RXRING] = c;
@@ -1149,6 +1151,24 @@ USBCTRL_IRQ_Handler(void)
 }
 
 /*
+ * Hold the controller in reset, then release it, as the Pico SDK's
+ * rp2040_usb_init() does. A warm reboot through AIRCR.SYSRESETREQ resets
+ * the core alone (datasheet 2.4.2.9), and the boot ROM's flash boot path
+ * resets only IO_QSPI, PADS_QSPI and TIMER, so without the assert the
+ * controller keeps the previous device address, endpoint state and D+
+ * pull-up. The assert clears them; the host sees a disconnect until
+ * usbinit() pulls D+ up again and enumerates the device from address 0.
+ */
+static void
+usb_controller_reset(void)
+{
+	REG32(RESETS_BASE + RESETS_SET) = RESETS_USBCTRL;
+	REG32(RESETS_BASE + RESETS_CLR) = RESETS_USBCTRL;
+	while ((REG32(RESETS_BASE + RESETS_DONE) & RESETS_USBCTRL) == 0)
+		continue;
+}
+
+/*
  * Bring the controller up as a full-speed device. machdep.c has already
  * started clk_usb. The sequence is the datasheet's 4.1.3.2.1.
  */
@@ -1158,9 +1178,7 @@ usbinit(void)
 	const u_char *jedec, *unique;
 	u_int i;
 
-	REG32(RESETS_BASE + RESETS_CLR) = RESETS_USBCTRL;
-	while ((REG32(RESETS_BASE + RESETS_DONE) & RESETS_USBCTRL) == 0)
-		continue;
+	usb_controller_reset();
 
 	for (i = 0; i < USB_DPRAM_SIZE; i += 4)
 		DPRAM32(i) = 0;
@@ -1368,7 +1386,32 @@ usbpoll(void)
 }
 
 /*
- * Console input: poll the controller until a byte arrives.
+ * Enter (on) or leave (off) polled console input before the read itself:
+ * boot() raises it ahead of the halt messages, whose usbputc calls service
+ * the controller, so a key that arrives while they print reaches rx_ring
+ * and not the open tty's queue. A counter, so it nests with usbgetc.
+ */
+void
+usbpollc(int on)
+{
+	int s;
+
+	s = spltty();
+	if (on)
+		usbd.rx_polled++;
+	else if (usbd.rx_polled != 0)
+		usbd.rx_polled--;
+	splx(s);
+}
+
+/*
+ * Console input: poll the controller until a byte arrives. PRIMASK is set
+ * for the whole read (boot() has called splhigh before its halt wait), so
+ * usbintr never runs and usb_service here is what moves a received packet
+ * out of the controller. usb_rx_done hands a byte to the tty while a process
+ * holds it open; rx_polled redirects every byte to rx_ring for the length of
+ * the read, because nothing drains the tty's input queue in that context and
+ * the read would never see it.
  */
 char
 usbgetc(dev_t dev __unused)
@@ -1376,8 +1419,10 @@ usbgetc(dev_t dev __unused)
 	int s, c;
 
 	s = spltty();
+	usbd.rx_polled++;
 	while (usbd.rx_tail == usbd.rx_head)
 		usb_service();
+	usbd.rx_polled--;
 	c = usbd.rx_ring[usbd.rx_tail % USB_RXRING];
 	usbd.rx_tail++;
 	splx(s);

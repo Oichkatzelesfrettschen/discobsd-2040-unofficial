@@ -265,6 +265,14 @@ complete shared-libc implementation.
 
 ## Full-archive PIC compilation
 
+[The captured replay envelope](pic-replay-envelope.md) binds a reusable
+24-test compiler instrument to a clean latest-main-based implementation.
+All 449 members compile with their actual captured source and generated inputs.
+The 647-root experimental link occupies 62,604 flash bytes and 5,648 state
+bytes, exceeding the fixed reservation by 13,452 bytes before slots. A smaller
+omission image loses memmem and fails its original root contract. Public ABI
+selection, implementation reductions and runtime admission remain open.
+
 [The PIC input-section experiment](pic-input-sections.md) maps every shipped
 ARM libc member to captured inputs, recompiles 441 members, and identifies
 absolute assembly references that still require process-local state access.

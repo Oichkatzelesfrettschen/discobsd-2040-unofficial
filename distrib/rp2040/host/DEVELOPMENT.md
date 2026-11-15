@@ -162,8 +162,11 @@ serial open (`discobsd-web` per browser session, `discobsd-term` per
 reattach), because `/dev/ttyACMn` is renumbered when the boards re-enumerate;
 only a device path is used as given. `discobsd-term --list` still
 prints every board. `discobsd-link` only redirects to a URL and opens no board,
-so it takes no selector; `discobsd-console up` passes its environment on, so
-`DISCOBSD_USB_PORT` reaches the `discobsd-web` it starts.
+so it takes no selector; `discobsd-console up` carries `DISCOBSD_USB_PORT` from its own
+environment to `discobsd-web`: a detached web inherits it, and with the
+systemd user units it is written to `web.env` (the unit's EnvironmentFile)
+and removed from that file when the variable is unset; a value that is not a
+USB port path makes `up` exit 1 before it writes anything.
 `tests/test_tool_usb_port.py` gates both tools against the same fake sysfs.
 
     discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2       # kernel only

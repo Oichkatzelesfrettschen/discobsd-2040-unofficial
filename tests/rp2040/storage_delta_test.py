@@ -12,11 +12,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import summarize_rp2040_storage_delta as storage  # noqa: E402
 
 
-def snapshot(values=None, *, saturated=0, dirty=0, peak=0, version=1):
+def snapshot(values=None, *, saturated=0, dirty=0, peak=0, version=2):
     values = values or {}
     lines = [f"machdep.storage_stats=version {version} saturated {saturated} "
              f"dirty {dirty} peak {peak}"]
-    lines.extend(f"{name} {values.get(name, 0)}" for name in storage.METRICS)
+    metrics = storage.METRICS_BY_VERSION.get(version, storage.METRICS)
+    lines.extend(f"{name} {values.get(name, 0)}" for name in metrics)
     return "\n".join(lines) + "\n"
 
 
@@ -57,10 +58,33 @@ class StorageDeltaTest(unittest.TestCase):
         self.assertEqual(result["dirty_current"], [1, 0])
         self.assertEqual(result["dirty_peak"], [2, 3])
 
+    def test_each_version_parses_its_own_metric_set(self):
+        for version, count in ((1, 26), (2, len(storage.METRICS))):
+            with self.subTest(version=version):
+                before = snapshot({"root_writes": 1}, version=version)
+                after = snapshot({"root_writes": 4}, version=version)
+                result = storage.summarize(before, after, "boot-1", "boot-1", ["root_writes"])
+                self.assertEqual(result["schema"], version)
+                self.assertEqual(len(result["counter_deltas"]), count)
+                self.assertEqual(result["counter_deltas"]["root_writes"], 3)
+        probe = snapshot(version=1) + "swapram_refused_closed 0\n"
+        with self.assertRaises(ValueError):
+            storage.summarize(snapshot(version=1), probe, "boot-1", "boot-1", [])
+        short = snapshot(version=2).replace("swapram_flash_span_12 0\n", "")
+        with self.assertRaises(ValueError):
+            storage.summarize(snapshot(version=2), short, "boot-1", "boot-1", [])
+
+    def test_mixed_versions_are_rejected(self):
+        with self.assertRaises(ValueError):
+            storage.summarize(snapshot(version=1), snapshot(version=2), "boot-1", "boot-1", [])
+        with self.assertRaises(ValueError):
+            storage.summarize(snapshot(version=2), snapshot(version=1), "boot-1", "boot-1", [])
+
     def test_invalid_snapshots_are_rejected(self):
         before = snapshot({"root_writes": 2})
         for after in (snapshot({"root_writes": 1}), snapshot(saturated=1),
-                      snapshot(version=2), snapshot(dirty=2, peak=1),
+                      snapshot(version=3), snapshot(version=0),
+                      snapshot(dirty=2, peak=1),
                       snapshot() + "root_reads 0\n", snapshot().replace("root_reads 0\n", ""),
                       snapshot().replace("root_reads 0\n", "root_reads -1\n"),
                       snapshot().replace("root_reads 0\n", "root_reads 4294967296\n")):

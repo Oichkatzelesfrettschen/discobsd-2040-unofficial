@@ -3,7 +3,8 @@
 
 #include <sys/stdint.h>
 
-#define STORAGE_STATS_VERSION 1
+/* Version 2 appends the SwapRAM admission probe; version 1 ended at STORAGE_SWAPRAM_ADMISSIONS. */
+#define STORAGE_STATS_VERSION 2
 
 enum storage_metric {
     STORAGE_ROOT_READS,

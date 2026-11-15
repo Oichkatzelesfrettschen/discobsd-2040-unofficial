@@ -66,6 +66,14 @@ MUTATIONS = {
         '    if (0)\n        panic ("swap image: cancel state");',
     ),
     "omit-text-release": ("    iput(ip);", "    (void)ip;"),
+    # The exchange completion count belongs after the sector loop: counted
+    # at entry, a swap-out that stops at its first media call looks finished.
+    "early-exchange-count": (
+        "    storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);\n#endif\n    bp = geteblk ();",
+        "    storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);\n"
+        "    storage_note (STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS, 1);\n#endif\n"
+        "    bp = geteblk ();",
+    ),
     # swapin() restoring a RAM-tier image frees pool capacity and must wake
     # the swapper after the pool holds it.
     "omit-swapin-ram-wakeup": (

@@ -585,8 +585,6 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
     }
 #ifdef SWAPRAM
     storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
-    storage_note (STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS, 1);
-    SWAP_NOTE_SPAN (STORAGE_SWAPRAM_FLASH_SPAN_01, reservation->span);
 #endif
     bp = geteblk ();
     for (completed = 0; completed < sector_count; completed++) {
@@ -615,6 +613,11 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
         swap_exchange_done[candidate] = 1;
     }
     brelse (bp);
+#ifdef SWAPRAM
+    /* Completion is counted once every sector has been transferred. */
+    storage_note (STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS, 1);
+    SWAP_NOTE_SPAN (STORAGE_SWAPRAM_FLASH_SPAN_01, reservation->span);
+#endif
 
     if (swaptext (incoming) && exec_text_restore (incoming,
         __user_data_start, swaptext (incoming)) != 0) {
@@ -665,13 +668,8 @@ swap_image_copy_out (struct swap_image_reservation *reservation,
         panic ("swap image: copy owner");
 #ifdef SWAPRAM
     storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
-    if (ram) {
+    if (ram)
         storage_note (STORAGE_SWAPRAM_ADMISSIONS, 1);
-        SWAP_NOTE_SPAN (STORAGE_SWAPRAM_RAM_SPAN_01, reservation->span);
-    } else {
-        storage_note (STORAGE_SWAPRAM_FLASH_SWAPOUTS, 1);
-        SWAP_NOTE_SPAN (STORAGE_SWAPRAM_FLASH_SPAN_01, reservation->span);
-    }
 #endif
     p->p_flag |= SLOCK;
     if (odata) {
@@ -720,6 +718,15 @@ swap_image_copy_out (struct swap_image_reservation *reservation,
     } else
 #endif
     swap (a[2], p->p_addr, USIZE, SWAP_IMAGE_WRITE);
+#ifdef SWAPRAM
+    /* Completion is counted once the last segment has reached its backing. */
+    if (ram) {
+        SWAP_NOTE_SPAN (STORAGE_SWAPRAM_RAM_SPAN_01, reservation->span);
+    } else {
+        storage_note (STORAGE_SWAPRAM_FLASH_SWAPOUTS, 1);
+        SWAP_NOTE_SPAN (STORAGE_SWAPRAM_FLASH_SPAN_01, reservation->span);
+    }
+#endif
     reservation->state = SWAP_IMAGE_COPIED;
 }
 

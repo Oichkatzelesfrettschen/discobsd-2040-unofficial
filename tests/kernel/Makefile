@@ -3533,7 +3533,8 @@ FORK_SWAP_MUTANTS= ignore-reservation-refusal publish-allproc-early \
     refusal-result-child write-empty-data-segment write-empty-stack-segment \
     accept-unreserved-state sched-drop-sload-restore sched-drop-requeue \
     sched-swapin-after-refusal sched-unreserved-swapout \
-    sched-sleep-after-refusal sched-reselect-refused sched-keep-refused-marks
+    sched-sleep-after-refusal sched-reselect-refused sched-keep-refused-marks \
+    early-exchange-count
 # The unaligned fixture drops SwapRAM and SWAP_IMAGE_ALIGN so the three-extent
 # malloc3() arms of vm_swap.c execute; its mutants live in those arms.
 FORK_SWAP_UNALIGNED_MUTANTS= omit-release-segment-free omit-cancel-segment-free
@@ -3743,6 +3744,7 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		sched-sleep-after-refusal) expected='no_sleep_before_exchange' ;; \
 		sched-reselect-refused) expected='reached_next_candidate' ;; \
 		sched-keep-refused-marks) expected='refusal_accounted' ;; \
+		early-exchange-count) expected='STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \

@@ -333,6 +333,18 @@ reasons_before(const uint32_t *saved)
         saved[STORAGE_SWAPRAM_REFUSED_FRAGMENT];
 }
 
+/* Completed swap-outs the span histogram has counted for flash. */
+static uint32_t
+flash_span_total(const uint32_t *counts)
+{
+    uint32_t total = 0;
+    unsigned int bin;
+
+    for (bin = 0; bin < 12; bin++)
+        total += counts[STORAGE_SWAPRAM_FLASH_SPAN_01 + bin];
+    return total;
+}
+
 /*
  * Exact expectations cover the swap-out counters that predate the probe;
  * the probe's own counters take the observed values and are checked by
@@ -676,6 +688,8 @@ successful_forks(void)
         HK_CHECK(cnt.v_swpout == 1);
         HK_CHECK(storage_counts[STORAGE_SWAPRAM_ATTEMPTS] == 1);
         HK_CHECK(storage_counts[STORAGE_SWAPRAM_ADMISSIONS] == 0);
+        HK_CHECK(storage_counts[STORAGE_SWAPRAM_FLASH_SWAPOUTS] == 1);
+        HK_CHECK(flash_span_total(storage_counts) == 1);
         HK_CHECK(forkstat.cntfork == (use_vfork ? 0U : 1U));
         HK_CHECK(forkstat.cntvfork == (use_vfork ? 1U : 0U));
         HK_CHECK(descriptor.f_count == 2);
@@ -1644,14 +1658,17 @@ sched_next_candidate_case(int in_core_state)
             same_bytes(&sr_map, &sched_before.pool, sizeof(sr_map)) &&
             same_bytes(sr_pool, sched_before.pool_bytes, sizeof(sr_pool));
 
-        /* One refusal and the start of one exchange. */
+        /* One refusal and the start of one exchange, counted as an attempt. */
         bcopy(sched_before.storage, expected_storage, sizeof(storage_counts));
         expected_storage[STORAGE_SWAPRAM_ATTEMPTS] += 2;
         probe_ignore(expected_storage);
         HK_CHECK(storage_counts[STORAGE_SWAPRAM_SCHED_REFUSALS] -
             sched_before.storage[STORAGE_SWAPRAM_SCHED_REFUSALS] == 1);
+        /* The fixture stops at the first media call: no completion yet. */
         HK_CHECK(storage_counts[STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS] -
-            sched_before.storage[STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS] == 1);
+            sched_before.storage[STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS] == 0);
+        HK_CHECK(flash_span_total(storage_counts) ==
+            flash_span_total(sched_before.storage));
         HK_CHECK(refusal_reasons() - reasons_before(sched_before.storage) == 2);
         {
             int attempts_accounted = same_bytes(storage_counts,

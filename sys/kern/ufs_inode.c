@@ -588,7 +588,8 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
     struct buf *bp;
     int offset, level;
     struct inode tip;
-    int aflags;
+    struct mount *mp;
+    int aflags, error;
 
     if (length < 0) {
         u.u_error = EINVAL;
@@ -673,6 +674,21 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
         }
     for (i = FS_NDADDR(INODE_FILESYSTEM(oip)) - 1; i > lastblock; i--)
         IADDR_DB_SET(oip, i, 0);
+    /*
+     * iupdat() with waitfor set submits the inode through bwrite() whatever
+     * the mount's MNT_ASYNC flag, so the write that drops the pointers
+     * reaches the driver before free() trims a block (free_trim() in
+     * ufs_alloc.c). A failure latches in the mount, which leaves the
+     * blocks freed below untrimmed.
+     */
+    oip->i_flag |= ICHG|IUPD;
+    error = iupdat(oip, &time, &time, 1);
+    if (error) {
+        mp = (struct mount *)((caddr_t)INODE_FILESYSTEM(oip) -
+            offsetof(struct mount, m_filsys));
+        if (mp->m_write_error == 0)
+            mp->m_write_error = error;
+    }
 
     /*
      * Indirect blocks first.
@@ -715,6 +731,7 @@ done:
             panic("itrunc2");
 /* END PARANOIA */
 #endif
+    return;
 
 doquotaupd:
 updret:

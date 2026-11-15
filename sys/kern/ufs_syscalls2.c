@@ -178,6 +178,19 @@ bdev_checkpoint(dev_t dev)
 }
 
 /*
+ * Tell the driver of dev that block blkno holds nothing anyone will read
+ * (DIOCTRIM in sys/disk.h). free() calls it; the caller has already
+ * submitted the write that removed the block's last reference. A driver
+ * without the command, or one whose trim fails, keeps the block, which
+ * costs the device wear and nothing else, so the answer is ignored.
+ */
+void
+bdev_trim(dev_t dev, daddr_t blkno)
+{
+    (void)(*bdevsw[major(dev)].d_ioctl)(dev, DIOCTRIM, (caddr_t)&blkno, 0);
+}
+
+/*
  * 'ufs_sync' is the routine which syncs a single filesystem.  This was
  * created to replace 'update' which 'unmount' called.  It seemed silly to
  * sync _every_ filesystem when unmounting just one filesystem.

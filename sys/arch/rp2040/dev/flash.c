@@ -687,6 +687,35 @@ fl_checkpoint(void)
 }
 
 /*
+ * Drop the Dhara sectors of DEV_BSIZE block blkno of partition p from the
+ * map (DIOCTRIM). dhara_map_trim() rewrites a neighbor's radix path into
+ * the journal, so the trim reaches flash in request order with the writes
+ * around it and a reset restores it only with every earlier request. The
+ * bracket is flstrategy()'s: a trim may copy pages for garbage collection.
+ */
+static int
+fl_trim(const struct diskpart *p, daddr_t blkno)
+{
+	dhara_error_t err = DHARA_E_NONE;
+	u_int per_blk = DEV_BSIZE / FLASH_UNIT_BYTES;
+	u_int sector, i;
+	int s, error = 0;
+
+	if (!flmap_ready || blkno < 0 || blkno >= (daddr_t)(p->dp_nsectors >> 1))
+		return EINVAL;
+	sector = ((u_int)blkno + (p->dp_offset >> 1)) * per_blk;
+	s = splbio();
+	flscratch_take(FLS_MAP);
+	for (i = 0; i < per_blk && error == 0; i++)
+		if (dhara_map_trim(&flmap, sector + i, &err) < 0)
+			error = EIO;
+	flscratch_owner = FLS_FREE;
+	clock_catchup();
+	splx(s);
+	return error;
+}
+
+/*
  * The four 16-byte partition entries and the two-byte MBR_MAGIC occupy
  * bytes 446 to 511 of the table sector.
  */
@@ -1044,6 +1073,14 @@ flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 			return EBADF;
 		*(int *)addr = fl_checkpoint();
 		return 0;
+
+	case DIOCTRIM:
+		/* Kernel-internal: ioctl(2) passes the open flags, free() none. */
+		if (flag != 0)
+			return EPERM;
+		if (unit == FL_UNIT_SWAP)
+			return EINVAL;
+		return fl_trim(dp, *(daddr_t *)addr);
 	}
 	return EINVAL;
 }

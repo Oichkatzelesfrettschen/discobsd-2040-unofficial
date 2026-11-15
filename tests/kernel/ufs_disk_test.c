@@ -607,6 +607,7 @@ xdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
  */
 static int fl_setup(int unit);
 static int fl_checkpoint(void);
+static int fl_trim(const struct diskpart *p, daddr_t blkno);
 
 #ifndef UFS_DISK_FLASH_INCLUDE
 #define UFS_DISK_FLASH_INCLUDE "ufs_disk_flash_functions.c"
@@ -637,6 +638,15 @@ fl_setup(int unit)
  */
 static unsigned fl_checkpoint_calls, fl_checkpoint_writes;
 static int fl_checkpoint_error;
+
+/* The RAM disk keeps every block; check-trim-order owns trim behavior. */
+static int
+fl_trim(const struct diskpart *p, daddr_t blkno)
+{
+	(void)p;
+	(void)blkno;
+	return 0;
+}
 
 static int
 fl_checkpoint(void)

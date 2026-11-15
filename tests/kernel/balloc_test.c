@@ -192,6 +192,14 @@ gate_record_write(struct buf *bp)
 	}
 }
 
+/* free() trims what it frees; this gate's device keeps every block. */
+void
+bdev_trim(dev_t dev, daddr_t blkno)
+{
+	(void)dev;
+	(void)blkno;
+}
+
 int
 bwrite(struct buf *bp)
 {

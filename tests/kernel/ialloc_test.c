@@ -117,6 +117,14 @@ bread(dev_t dev, daddr_t blkno)
 	return &gate_buf;
 }
 
+/* free() trims what it frees; this gate's device keeps every block. */
+void
+bdev_trim(dev_t dev, daddr_t blkno)
+{
+	(void)dev;
+	(void)blkno;
+}
+
 void
 brelse(struct buf *bp)
 {

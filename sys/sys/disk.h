@@ -72,5 +72,14 @@ struct diskpart {                   /* the partition table */
  * means the device has no checkpoint to take.
  */
 #define DIOCCHECKPOINT   _IOR('d', 5, int)              /* make writes durable */
+/*
+ * DIOCTRIM tells the driver that the contents of the DEV_BSIZE block whose
+ * partition-relative number the argument holds are dead, so a translation
+ * layer may stop keeping them. It is kernel-internal: free() in
+ * sys/kern/ufs_alloc.c issues it through bdev_trim(), and a driver refuses
+ * it from ioctl(2), which passes the descriptor's open flags. A driver
+ * without the command keeps the block; any errno it returns is ignored.
+ */
+#define DIOCTRIM         _IOW('d', 6, daddr_t)          /* contents dead */
 
 #endif /* _SYS_DISK_H_ */

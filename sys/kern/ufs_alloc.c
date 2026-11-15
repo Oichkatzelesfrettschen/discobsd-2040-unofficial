@@ -281,6 +281,42 @@ fromtop:
 }
 
 /*
+ * Trim a block free() is about to return to the free list.
+ *
+ * A device restores a trim after a reset only together with every request
+ * submitted before it: the flash root's Dhara journal keeps one request
+ * order and restores a prefix of it. The rule every BSD that trims keeps,
+ * a discard after the durable write that removes the block's last
+ * reference and before the allocator can hand the block out, therefore
+ * reduces to submission order. Each caller of free() has submitted that
+ * write first: itrunc() writes the inode and indirtrunc() the zeroed
+ * indirect block before freeing, and bmap() frees a block no pointer
+ * named. The trim precedes the push and the chain write in free(), so a
+ * block that becomes a free-list chain node is mapped again by that
+ * write, and alloc() cannot return the block before free() pushes it.
+ *
+ * A latched write error on the mount means a releasing write may have
+ * failed, so the block stays mapped. A filesystem whose block is smaller
+ * than the device block (V7FS) shares the device block with a neighbor
+ * and is not trimmed.
+ */
+static void
+free_trim(struct inode *ip, struct fs *fs, daddr_t bno)
+{
+    struct mount *mp;
+
+    (void)ip;       /* INODE_DEVICE() ignores it under SINGLE_UFS_ROOT. */
+#ifdef V7FS
+    if (FS_DBSHIFT(fs) != 0)
+        return;
+#endif
+    mp = (struct mount *)((caddr_t)fs - offsetof(struct mount, m_filsys));
+    if (mp->m_write_error != 0)
+        return;
+    bdev_trim(INODE_DEVICE(ip), FSBTODB(fs, bno));
+}
+
+/*
  * Free a block or fragment.
  *
  * Place the specified disk block back on the free list of the
@@ -298,6 +334,7 @@ free(struct inode *ip, daddr_t bno)
         printf("bad block %ld, ino %d\n", bno, ip->i_number);
         return;
     }
+    free_trim(ip, fs, bno);
     while (fs->fs_flock)
         sleep((caddr_t)&fs->fs_flock, PINOD);
     if (fs->fs_nfree <= 0) {

@@ -111,6 +111,14 @@ bdev_other_open(struct inode *ip)
     return (0);
 }
 
+/* free() trims what it frees; this gate's device keeps every block. */
+void
+bdev_trim(dev_t dev, daddr_t blkno)
+{
+	(void)dev;
+	(void)blkno;
+}
+
 int
 bdev_write_error(dev_t dev)
 {

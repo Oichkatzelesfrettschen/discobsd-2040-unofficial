@@ -800,8 +800,14 @@ flopen(dev_t dev, int flags __unused, int mode __unused)
 	return 0;
 }
 
+/*
+ * The last close of a node checkpoints the map on the terms DIOCCHECKPOINT
+ * sets: closef() passes the descriptor's open flags and unmount passes the
+ * mount's, so a node held for reading alone forces no padding programs, and
+ * the swap unit keeps no map.
+ */
 int
-flclose(dev_t dev, int mode __unused, int flag __unused)
+flclose(dev_t dev, int flag, int mode __unused)
 {
 	int unit = flunit(dev);
 	int part = flpart(dev);
@@ -809,6 +815,8 @@ flclose(dev_t dev, int mode __unused, int flag __unused)
 	if (unit >= NFL || part > NPARTITIONS)
 		return ENXIO;
 	fldrives[unit].openpart &= ~(1 << part);
+	if (unit == FL_UNIT_SWAP || (flag != 0 && (flag & FWRITE) == 0))
+		return 0;
 	return fl_checkpoint();
 }
 

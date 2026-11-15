@@ -588,6 +588,19 @@ test_idle_checkpoint(void)
 	expect(flioctl(ROOT_DEV, DIOCCHECKPOINT, (caddr_t)&status,
 	    FREAD | FWRITE) == 0 && status == 0, t,
 	    "a writable descriptor can force a checkpoint");
+	/* The last close follows the same terms as the ioctl. */
+	write_block(t, 31, 2);
+	attempts = stats[STORAGE_CHECKPOINT_ATTEMPTS];
+	pages = program_pages;
+	expect(flclose(ROOT_DEV, FREAD, 0) == 0 &&
+	    flclose(SWAP_DEV, FREAD | FWRITE, 0) == 0, t,
+	    "read-only and swap closes");
+	expect(stats[STORAGE_CHECKPOINT_ATTEMPTS] == attempts &&
+	    program_pages == pages, t,
+	    "a read-only close and a swap close force no checkpoint");
+	expect(flclose(ROOT_DEV, FREAD | FWRITE, 0) == 0 &&
+	    stats[STORAGE_CHECKPOINT_ATTEMPTS] == attempts + 1, t,
+	    "a writable close forces one");
 	expect(model_faults == 0, t, "NOR contract kept");
 }
 

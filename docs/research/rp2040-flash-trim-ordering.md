@@ -140,7 +140,9 @@ or under 0.8; above that every write also consumes reserve.
 | 1.00 | bounded by the cleaner at 6 | 6.86 | 6.28 to 8.00 |
 
 The model sits under the closed form at 0.75 and 0.80, where a burst has not
-yet wrapped the journal, and within 11 percent of it from 0.85 up. Both put
+yet wrapped the journal. From 0.85 up it exceeds the bare closed form by 21
+to 26 percent and the column that adds the checkpoint page by 6 to 11
+percent; the remaining excess is not explained. Both put
 the knee at a live share of about 0.8: 791 of the 989 sectors. The shipped
 `full` image maps 758 sectors once free blocks stay out of the map, 33 below
 the knee.

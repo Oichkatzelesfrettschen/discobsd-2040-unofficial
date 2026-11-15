@@ -122,7 +122,14 @@ fresh flash, read from `sysctl machdep.storage_stats`:
 | checkpoint per request, every image sector mapped | 162 to 175 | 324 to 350 | about 110,000 | 25 s |
 | checkpoint on sync; free blocks left out of the image's map | 163.8 | 183.9 | about 209,000 | 18.3 s |
 | assembler and linker streams in memory | 44.1 | 45.6 | about 842,000 | 10.8 s |
-| collection started by the live sector count | 44.2 | 39.3 | about 977,000 | 10.4 s |
+| collection started by the live sector count, less one checkpoint group (the merged trigger) | 44.2 | 39.3 | about 977,000 | 10.4 s |
+
+The last row is a run of its own. `dhara-gc-trigger.md` records the same
+image under the trigger without the checkpoint-group term at 44.3 writes,
+38.3 erases and 10.33 s; the merged `gc_trigger()` gives up one more group
+to stay inside the safety margin and measured the row above. The two
+kernels differ by that term alone, and one erase per compile lies inside
+the spread of a run (14 to 80 erases across its 24 compiles).
 
 Swap erases stay at 69 to 75 per compile in every row. Spread evenly over
 the 96 swap sectors that is about 137,000 compiles, so swap, not the root,

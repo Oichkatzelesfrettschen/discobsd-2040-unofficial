@@ -156,9 +156,12 @@ compiles and the mean sector after about 128,000. Sectors 90 to 95 were
 never printed; they are bounded only through the unprinted means, which
 match the printed ones, so 104,000 is an upper bound on the life that a
 hotter sector among those six would lower. Swap bounds the part's life at
-roughly a ninth of the root's 977,000 compiles. Among the 90 observed
-sectors placement has little left to give; fewer or smaller swap-outs
-reaching flash lengthen it.
+roughly a ninth of the root's 977,000 compiles, if the observed rate
+persists. Perfect leveling of the observed sectors would move the hottest
+from 23 erases to the mean, 104,000 compiles to 128,000, a gain of at most
+a quarter; whether the six unprinted sectors leave more for placement to
+recover is open. Fewer or smaller swap-outs reaching flash lengthen the
+life in proportion.
 
 The counter patch and the three console captures are
 `docs/research/trim-survey/board/swap/`.
@@ -176,8 +179,10 @@ reach into Dhara's safety margin (`dhara-gc-trigger.md`).
 ## Open
 
 - Swap traffic: 69 to 75 sector erases per compile, more than the root
-  spends, on a quarter of the sectors. The erases are spread evenly, so the
-  admission policy of SwapRAM and the size of what is swapped decide it.
+  spends, on a quarter of the sectors. The erases of the 90 observed
+  sectors lie within 25 percent of the mean, so the admission policy of
+  SwapRAM and the size of what is swapped decide most of it; placement can
+  add at most a quarter there.
 - Erases of swap sectors 90 to 95 singly, and of the root's sectors, which
   are even by the journal's construction and unobserved.
 - Workloads other than the two-line compile.

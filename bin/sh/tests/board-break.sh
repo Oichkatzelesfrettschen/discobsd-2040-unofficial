@@ -60,7 +60,7 @@ build_shell()
 		# shellcheck disable=SC2086
 		$HOST_CC $CFLAGS -c -o "$objects/$unit.o" "$2/$unit.c"
 	done
-	$HOST_CC -m32 -o "$OUT/$1.sh" "$objects"/*.o \
+	$HOST_CC -m32 -o "$objects/sh" "$objects"/*.o \
 	    "$OUT/hostshim.o" "$OUT/board_break.o"
 }
 
@@ -113,16 +113,23 @@ case_longword()
 }
 
 # An error discards the input already buffered, so the second command
-# arrives after the first has failed. The shell reads the host's
-# /etc/profile first, as it does for a "-i" first operand; the case reads
-# only the lines the two commands produce.
+# arrives through a FIFO after the first has failed. The shell reads the
+# FIFO as its command file: with commands on standard input, $0 is the
+# "-i" option word and its leading "-" makes the shell read /etc/profile
+# as a login shell would.
 case_exhaust()
 {
-	out=$(cd "$WORK" && {
+	fifo=$WORK/exhaust.$$
+	mkfifo "$fifo"
+	{
 		printf '%s\n' 'a=xxxxxxxxxxxxxxxx; while :; do a=$a$a; done'
 		sleep 1
 		printf '%s\n' 'echo after-exhaust'
-	} | env -i PATH=/usr/bin:/bin "$1" -i 2>&1) || :
+	} > "$fifo" &
+	out=$(cd "$WORK" && env -i PATH=/usr/bin:/bin "$1" -i "$fifo" \
+	    2>&1 < /dev/null) || :
+	wait
+	rm -f "$fifo"
 	case $out in
 	*"no stack space"*) return 1 ;;
 	*"no space"*"after-exhaust"*) return 0 ;;
@@ -170,7 +177,7 @@ status=0
 for pair in addblok:heap stakroom:longword setbrk:exhaust; do
 	mutant=${pair%%:*}
 	want=${pair#*:}
-	got=$(verdicts "$OUT/$mutant.sh")
+	got=$(verdicts "$OUT/$mutant/sh")
 	case " $got " in
 	*" $want "*)
 		echo "PASS mutant $mutant fails:$got"
@@ -182,7 +189,7 @@ for pair in addblok:heap stakroom:longword setbrk:exhaust; do
 	esac
 done
 
-got=$(verdicts "$OUT/shell.sh")
+got=$(verdicts "$OUT/shell/sh")
 if [ -n "$got" ]; then
 	echo "FAIL shell:$got"
 	status=1

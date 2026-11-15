@@ -195,7 +195,37 @@ want=${rev:-HEAD}
 commit=$(git rev-parse --verify --end-of-options "$want^{commit}") ||
 	die "revision \"$want\" does not name a commit"
 git -C "$tree" init -q
-printf '%s\n' "$objects" >"$tree/.git/objects/info/alternates"
+# Every object store the host repository reads: its own and, transitively,
+# the ones its info/alternates name (a --shared or --reference clone keeps
+# most objects there). The private tree borrows all of them and each is
+# mounted read-only at its own path.
+stores=$work/stores
+(cd "$objects" && pwd -P) >"$stores"
+i=1
+while :; do
+	d=$(sed -n "${i}p" "$stores")
+	[ -n "$d" ] || break
+	if [ -f "$d/info/alternates" ]; then
+		while IFS= read -r a; do
+			case $a in
+			'' | '#'*) continue ;;
+			/*) ;;
+			*) a=$d/$a ;;
+			esac
+			r=$(cd "$a" 2>/dev/null && pwd -P) || continue
+			grep -qxF "$r" "$stores" || printf '%s\n' "$r" >>"$stores"
+		done <"$d/info/alternates"
+	fi
+	i=$((i + 1))
+done
+store_mounts=
+while IFS= read -r d; do
+	case $d in
+	*[!A-Za-z0-9_./+-]*) die "object store path has a character a mount option cannot carry: $d" ;;
+	esac
+	store_mounts="$store_mounts -v $d:$d:ro"
+done <"$stores"
+cp "$stores" "$tree/.git/objects/info/alternates"
 git -C "$tree" update-ref refs/heads/main "$commit"
 git -C "$tree" symbolic-ref HEAD refs/heads/main
 git for-each-ref --format='%(objectname) %(refname)' refs/remotes/origin |
@@ -236,14 +266,15 @@ exec bmake MACHINE=rp2040 "$@"'
 start=$(date +%s)
 {
 	set +e
-	# $user_args holds fixed option words only.
+	# $user_args holds fixed option words only; $store_mounts holds paths
+	# checked against an allow-list above.
 	# shellcheck disable=SC2086
 	"$engine" run --rm $user_args \
 		--security-opt label=disable \
 		-e HOME=/tmp/home -e TERM=dumb \
 		-e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
 		-e 'GIT_CONFIG_VALUE_0=*' \
-		-v "$tree:/work" -v "$objects:$objects:ro" \
+		-v "$tree:/work" $store_mounts \
 		-w /work "$image" \
 		sh -c "mkdir -p /tmp/home && $inner" sh "$skip_build" "$@" 2>&1
 	echo $? >"$status_file"

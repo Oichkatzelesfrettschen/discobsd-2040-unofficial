@@ -138,7 +138,8 @@ re-enumeration (kernel, BOOTSEL, kernel). BOOTSEL is recognized from the
 port's product id (0003), the volume unmounted is the one behind that port,
 and the run stops before the next step if a device on another port changes
 address or product. `discobsd-connect` opens the tty of the port's
-interface 0. A device path argument to `discobsd-connect` names the board
+interface 0, by its `/dev/serial/by-path` name when udev made one, because
+`/dev/ttyACMn` is renumbered at each re-enumeration. A device path argument to `discobsd-connect` names the board
 itself and skips the check. `tests/test_board_select.py` gates both tools with
 a stub picotool and a fake sysfs (`DISCOBSD_SYSFS_USB`, `DISCOBSD_DEVFS`);
 the per-port unmount runs only on a real board, because a fake sysfs has no

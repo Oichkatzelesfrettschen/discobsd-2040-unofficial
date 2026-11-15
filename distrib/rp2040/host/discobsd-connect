@@ -71,6 +71,16 @@ if [ -n "$usb_port" ]; then
 	for t in "$sysfs_usb/$usb_port/$usb_port":1.0/tty/*; do
 		[ -e "$t" ] || continue
 		port=$devfs/${t##*/}
+		# /dev/ttyACMn is renumbered at every re-enumeration and may name the
+		# other board next time; the terminal reopens the same name after a
+		# reset. udev's by-path link for the same interface follows the
+		# physical port, so it replaces the tty name whenever it points at it.
+		for l in "$devfs"/serial/by-path/*-usb-*:"${usb_port#*-}":1.0; do
+			if [ -e "$l" ] && [ "$l" -ef "$port" ]; then
+				port=$l
+				break
+			fi
+		done
 		break
 	done
 	[ -n "$port" ] || die "port $usb_port holds 2e8a:$(sysattr "$usb_port" idProduct), which has no console tty"

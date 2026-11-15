@@ -43,6 +43,10 @@ die() {
 	exit 1
 }
 
+# A guard failure must reach the user even when the caller silences the
+# picotool call it wraps, so it writes to a saved copy of stderr.
+exec 3>&2
+
 sysattr() {
 	cat "$sysfs_usb/$1/$2" 2>/dev/null || true
 }
@@ -88,26 +92,35 @@ resolve_port() {
 	esac
 }
 
-# picotool, addressed to the selected port when there is one. A port with no
-# 2e8a device fails the call; it never falls back to an unaddressed picotool.
-pt() {
-	if [ -z "$usb_port" ]; then
-		picotool "$@"
-		return
-	fi
-	resolve_port || {
-		echo "discobsd-flash: USB port $usb_port holds no 2e8a device right now" >&2
-		return 1
-	}
-	picotool "$@" --bus "$dev_bus" --address "$dev_addr"
-}
-
 # The other boards must neither move nor change mode while this one is flashed.
 others_before=
 check_others() {
 	[ -n "$usb_port" ] || return 0
 	now=$(list_other_devices)
-	[ "$now" = "$others_before" ] || die "a device on another USB port changed during the run (before: $others_before; now: $now)"
+	[ "$now" = "$others_before" ] || {
+		echo "discobsd-flash: a device on another USB port changed during the run (before: $others_before; now: $now)" >&3
+		exit 1
+	}
+}
+
+# picotool, addressed to the selected port when there is one. A port with no
+# 2e8a device fails the call; it never falls back to an unaddressed picotool.
+# The other ports are checked before and after the call, so a change stops
+# every later operation; picotool's own exit status is the call's status.
+pt() {
+	if [ -z "$usb_port" ]; then
+		picotool "$@"
+		return
+	fi
+	check_others
+	resolve_port || {
+		echo "discobsd-flash: USB port $usb_port holds no 2e8a device right now" >&2
+		return 1
+	}
+	rc=0
+	picotool "$@" --bus "$dev_bus" --address "$dev_addr" || rc=$?
+	check_others
+	return "$rc"
 }
 
 in_bootsel() {
@@ -265,7 +278,6 @@ case "$1" in
 		case "$f" in *.uf2) ;; *) die "$f is not a .uf2 file" ;; esac
 	done
 	enter_bootsel
-	check_others
 	# The volume goes first: picotool loads through PICOBOOT, and a volume
 	# still mounted during the write is a stale view of the flash anyway.
 	eject
@@ -273,7 +285,6 @@ case "$1" in
 		echo "discobsd-flash: loading $f" >&2
 		pt load "$f"
 	done
-	check_others
 	echo "discobsd-flash: rebooting into the kernel" >&2
 	pt reboot >/dev/null 2>&1 || true
 	;;

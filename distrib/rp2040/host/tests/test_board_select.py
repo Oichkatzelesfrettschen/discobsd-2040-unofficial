@@ -56,12 +56,15 @@ echo "$* => ${dev##*/}" >> "$PT_LOG"
 bump() {
 	echo $(($(cat "$dev/devnum") + 1)) > "$dev/devnum"
 }
+act() {
 case $cmd in
 info)
 	[ "$(cat "$dev/idProduct")" = 0003 ]
 	;;
 reboot)
+	key=reboot
 	if [ -n "$up" ]; then
+		key=bootsel
 		echo 0003 > "$dev/idProduct"
 	else
 		[ "$(cat "$dev/idProduct")" = 0003 ] || exit 1
@@ -71,14 +74,21 @@ reboot)
 	;;
 load)
 	[ "$(cat "$dev/idProduct")" = 0003 ] || exit 1
+	key=load
 	bump
-	if [ -n "${STUB_BUMP_OTHER:-}" ]; then
-		for o in "$root"/*; do
-			[ "$o" = "$dev" ] || echo 99 > "$o/devnum"
-		done
-	fi
 	;;
 esac
+}
+rc=0
+act || rc=$?
+# STUB_BUMP_OTHER names the call (load, bootsel or reboot) after which the
+# device on the other port gets a new address.
+if [ -n "${STUB_BUMP_OTHER:-}" ] && [ "$STUB_BUMP_OTHER" = "${key:-}" ]; then
+	for o in "$root"/*; do
+		[ "$o" = "$dev" ] || echo 99 > "$o/devnum"
+	done
+fi
+exit $rc
 """
 
 
@@ -208,11 +218,42 @@ def scenario_flash_environment_selector(script: Path, tmp: Path) -> None:
 
 def scenario_flash_bystander_moves(script: Path, tmp: Path) -> None:
     sysfs, devfs, bindir, uf2 = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
-    r = run(script, ["--usb-port", "1-3", str(uf2)], tmp, sysfs, devfs, bindir, STUB_BUMP_OTHER="1")
+    second = tmp / "second.uf2"
+    second.write_text("uf2")
+    args = ["--usb-port", "1-3", str(uf2), str(second)]
+    r = run(script, args, tmp, sysfs, devfs, bindir, STUB_BUMP_OTHER="load")
     assert r.returncode != 0
     assert "another USB port changed" in r.stderr
-    # The load ran; the reboot that follows it did not.
+    # The first load ran; neither the second load nor the reboot did.
     assert [line.split()[0] for line in log(tmp)] == ["reboot", "load"]
+
+
+def scenario_flash_bystander_in_other_modes(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, _ = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
+    r = run(
+        script,
+        ["--usb-port", "1-3", "--bootsel"],
+        tmp,
+        sysfs,
+        devfs,
+        bindir,
+        STUB_BUMP_OTHER="bootsel",
+    )
+    assert r.returncode != 0 and "another USB port changed" in r.stderr
+    assert [line.split()[0] for line in log(tmp)] == ["reboot"]
+    # --eject: the guard speaks although the caller discards picotool's output.
+    (tmp / "eject").mkdir()
+    sysfs, devfs, bindir, _ = make_world(tmp / "eject", {"1-3": ("0003", 7), "1-4": ("000a", 3)})
+    r = run(
+        script,
+        ["--usb-port", "1-3", "--eject"],
+        tmp / "eject",
+        sysfs,
+        devfs,
+        bindir,
+        STUB_BUMP_OTHER="reboot",
+    )
+    assert r.returncode != 0 and "another USB port changed" in r.stderr
 
 
 FLASH_SCENARIOS = {
@@ -221,6 +262,7 @@ FLASH_SCENARIOS = {
     "selected": scenario_flash_selected,
     "environment": scenario_flash_environment_selector,
     "bystander": scenario_flash_bystander_moves,
+    "modes": scenario_flash_bystander_in_other_modes,
 }
 
 
@@ -251,16 +293,24 @@ FLASH_MUTANTS = {
     "selected-cached": ("\tresolve_port || {", '\t[ -n "${dev_addr:-}" ] || resolve_port || {'),
     # rule: another port's device must not change during the run
     "bystander": ('[ "$now" = "$others_before" ] ||', "true ||"),
+    # rule: the check follows every picotool call, so it stops a later load
+    "bystander-after": ("|| rc=$?\n\tcheck_others\n", "|| rc=$?\n"),
 }
 
 
 @pytest.mark.parametrize("name", sorted(FLASH_MUTANTS))
 def test_flash_mutant_is_caught(name, tmp_path):
     old, new = FLASH_MUTANTS[name]
-    scenario = FLASH_SCENARIOS["bystander" if name == "bystander" else name.split("-")[0]]
     mutant = mutate(FLASH, tmp_path, old, new)
-    with pytest.raises(AssertionError):
-        scenario(mutant, tmp_path / "run")
+    scenarios = {
+        "bystander": ("bystander", "modes"),
+        "bystander-after": ("modes",),
+    }.get(name, (name.split("-")[0],))
+    for key in scenarios:
+        run_dir = tmp_path / f"run-{key}"
+        run_dir.mkdir()
+        with pytest.raises(AssertionError):
+            FLASH_SCENARIOS[key](mutant, run_dir)
 
 
 @pytest.fixture(autouse=True)
@@ -299,7 +349,26 @@ def scenario_connect_selected(script: Path, tmp: Path) -> None:
     assert log(tmp, "term.log")[-1].endswith(f"{devfs}/ttyACM3")
 
 
+def scenario_connect_by_path(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, _ = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
+    by_path = devfs / "serial" / "by-path"
+    by_path.mkdir(parents=True)
+    (by_path / "pci-0000:00:14.0-usb-0:3:1.0").symlink_to("../../ttyACM3")
+    (by_path / "pci-0000:00:14.0-usb-0:4:1.0").symlink_to("../../ttyACM4")
+    r = run(script, ["--usb-port", "1-4"], tmp, sysfs, devfs, bindir)
+    assert r.returncode == 0, r.stderr
+    want = f"tio -b 115200 -d 8 -p none -s 1 -f none {by_path}/pci-0000:00:14.0-usb-0:4:1.0"
+    assert log(tmp, "term.log") == [want]
+    # A by-path link that names another tty is not the port's console.
+    (by_path / "pci-0000:00:14.0-usb-0:4:1.0").unlink()
+    (by_path / "pci-0000:00:14.0-usb-0:4:1.0").symlink_to("../../ttyACM3")
+    r = run(script, ["--usb-port", "1-4"], tmp, sysfs, devfs, bindir)
+    assert r.returncode == 0, r.stderr
+    assert log(tmp, "term.log")[-1].endswith(f" {devfs}/ttyACM4")
+
+
 CONNECT_SCENARIOS = {
+    "by-path": scenario_connect_by_path,
     "single": scenario_connect_single,
     "refuses": scenario_connect_refuses,
     "selected": scenario_connect_selected,
@@ -332,6 +401,7 @@ CONNECT_MUTANTS = {
         'for t in "$sysfs_usb/$usb_port/$usb_port":1.0/tty/*; do',
         'for t in "$sysfs_usb"/*/*:1.0/tty/*; do',
     ),
+    "by-path": ('"$devfs"/serial/by-path/', '"$devfs"/serial/gone/'),
 }
 
 

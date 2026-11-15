@@ -121,7 +121,13 @@ partition budget with allocation-free heap fallback. Its expanded host,
 ILP32, sanitizer and ARMv6-M QEMU matrices exercise 708,596 cases per entry
 variant. The measured sorted and duplicate-key families improve comparator
 work; ARM text and partition-frame growth remain explicit costs. Production
-replacement requires complete stack, resource and workload admission.
+replacement requires complete stack, resource and workload admission. The
+[production sorting contracts](libc-bounded-sort-contracts.md) preserve the
+48-byte recursive frame by returning partition scratch before recursion,
+repair exact callback types and ls reverse ordering, and calibrate adversarial
+work bounds. The [production resource request](libc-bounded-sort-resource-exception.md)
+records matched latest-main measurements, including maintained unshipped
+callers; approval, image qualification and reviewed integration remain open.
 
 The [bounded-string contract](libc-bounded-string-contracts.md) records the four
 small string implementations, their DragonFlyBSD provenance and calibrated

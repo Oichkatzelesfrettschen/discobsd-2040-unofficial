@@ -130,7 +130,9 @@ to exact source hashes. Analyzer-only clang-tidy checks pass for both provider
 variants; Ruff passes for the changed Python gates. Full broad clang-tidy
 and physical-board results remain separate claims.
 
-A clean resource comparison, current-image emulator qualification, final
-head checks and reviewed integration remain open. Additional behavior and
+The [matched resource comparison](libc-bounded-sort-resource-exception.md)
+records the exact positive costs against main `a849d47a`. Current-image
+emulator qualification, aggregate gates, resource approval, final head checks
+and reviewed integration remain open. Additional behavior and
 stronger evidence are recorded separately from the existing qsort interfaces;
 this work introduces no standards entity or full-conformance claim.

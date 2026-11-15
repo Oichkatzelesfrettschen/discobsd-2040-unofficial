@@ -84,6 +84,18 @@ nostrategy(struct buf *bp)
 	(void)bp;
 }
 
+/*
+ * usbinit() builds the serial string from the flash identity; the gate
+ * never calls usbinit(), so the model reports the identity unread.
+ */
+int
+flash_identity(const unsigned char **jedec, const unsigned char **unique)
+{
+	(void)jedec;
+	(void)unique;
+	return -1;
+}
+
 /* ttioctl() resolves process groups; the gate issues no ioctl. */
 struct proc *
 pfind(int pid)

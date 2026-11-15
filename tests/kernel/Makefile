@@ -277,7 +277,10 @@ UFS_DISK_EXTRA_MUTANTS+= device-inheritance-unmasked sys_inode \
 UFS_DISK_EXTRA_MUTANTS+= device-checkpoint-omitted ufs_syscalls2 \
 	device-checkpoint-error-hidden ufs_syscalls2 \
 	device-checkpoint-unsupported-fatal ufs_syscalls2 \
-	device-checkpoint-skipped-on-error ufs_syscalls2
+	device-checkpoint-skipped-on-error ufs_syscalls2 \
+	device-sync-write-checkpoint-omitted sys_inode \
+	device-sync-write-checkpoint-error-hidden sys_inode \
+	device-async-write-checkpoints sys_inode
 UFS_DISK_CONF_MUTANTS=	ignore-unit ignore-major touching start-only \
 			whole-device-disjoint failed-query-disjoint device-unit-guard-exact-only
 UFS_DISK_FLASH_MUTANTS=	reinit-unguarded reinit-counts-whole-device \

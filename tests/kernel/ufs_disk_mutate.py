@@ -221,6 +221,24 @@ MUTATIONS = {
         "    if (error)\n        goto checkpoint;",
         "    if (error)\n        return (error);\n    if (0)\n        goto checkpoint;",
     ),
+    # sys/kern/sys_inode.c
+    "device-sync-write-checkpoint-omitted": (
+        "sys_inode.c",
+        "        error = bdev_checkpoint(dev);",
+        "        error = 0;",
+    ),
+    "device-sync-write-checkpoint-error-hidden": (
+        "sys_inode.c",
+        "        error = bdev_checkpoint(dev);",
+        "        (void)bdev_checkpoint(dev);",
+    ),
+    "device-async-write-checkpoints": (
+        "sys_inode.c",
+        "    if (!error && uio->uio_rw == UIO_WRITE && (ioflag & IO_SYNC) &&\n"
+        "        type == IFBLK)\n",
+        "    if (!error && uio->uio_rw == UIO_WRITE &&\n"
+        "        type == IFBLK)\n",
+    ),
     # sys/kern/ufs_fio.c
     "exact-compare": (
         "ufs_fio.c",

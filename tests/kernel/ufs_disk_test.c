@@ -802,7 +802,7 @@ write_cooked_byte(struct node *node, char value)
 }
 
 static int
-write_cooked_block(struct node *node)
+write_cooked_block_flags(struct node *node, int ioflag)
 {
 	char data[DEV_BSIZE];
 	struct iovec vector = { data, sizeof(data) };
@@ -817,7 +817,13 @@ write_cooked_block(struct node *node)
 	transfer.uio_resid = sizeof(data);
 	transfer.uio_rw = UIO_WRITE;
 	u.u_error = 0;
-	return rwip(node->ip, &transfer, 0);
+	return rwip(node->ip, &transfer, ioflag);
+}
+
+static int
+write_cooked_block(struct node *node)
+{
+	return write_cooked_block_flags(node, 0);
 }
 
 /* Read a block of the device through the buffer cache. */
@@ -1310,6 +1316,54 @@ test_failed_flush_still_checkpoints(void)
 	HK_CHECK(fl_checkpoint_calls == calls + 1);
 	fl_disk.fail_writes = 0;
 	must_mount(FL_ROOT)->m_write_error = 0;
+}
+
+/*
+ * A write that carries IO_SYNC (a descriptor opened O_FSYNC) to a block device
+ * node has no filesystem for rwip() to sync. It returns after the buffer
+ * write with one checkpoint of that device, and a checkpoint failure is the
+ * write's error. A write without IO_SYNC takes none.
+ */
+static void
+test_sync_device_write_checkpoints(void)
+{
+	struct node node;
+	unsigned calls, writes;
+
+	boot_machine();
+	HK_CHECK(open_node(&node, IFBLK | 0600, FL_ROOT, FREAD | FWRITE) == 0);
+	node.ip->i_number = 4;
+	calls = fl_checkpoint_calls;
+	writes = fl_disk.nwrites;
+	HK_CHECK(write_cooked_block_flags(&node, IO_SYNC) == 0);
+	HK_CHECK(fl_disk.nwrites == writes + 1);
+	HK_CHECK(fl_checkpoint_calls == calls + 1);
+	HK_CHECK(fl_checkpoint_writes == fl_disk.nwrites);
+	HK_CHECK(fl_disk.blocks[6][0] == 'Q');
+	/* A checkpoint failure is the write's error; the data already reached the driver. */
+	fl_checkpoint_error = EIO;
+	writes = fl_disk.nwrites;
+	calls = fl_checkpoint_calls;
+	HK_CHECK(write_cooked_block_flags(&node, IO_SYNC) == EIO);
+	HK_CHECK(fl_disk.nwrites == writes + 1);
+	HK_CHECK(fl_checkpoint_calls == calls + 1);
+	fl_checkpoint_error = 0;
+	/* A failed buffer write returns its own error and takes no checkpoint. */
+	fl_disk.fail_writes = 1;
+	calls = fl_checkpoint_calls;
+	HK_CHECK(write_cooked_block_flags(&node, IO_SYNC) == EIO);
+	HK_CHECK(fl_checkpoint_calls == calls);
+	fl_disk.fail_writes = 0;
+	must_mount(FL_ROOT)->m_write_error = 0;
+	node.ip->i_bdev_error = 0;
+	/* Writes without IO_SYNC, delayed and asynchronous, take none. */
+	calls = fl_checkpoint_calls;
+	HK_CHECK(write_cooked_block_flags(&node, 0) == 0);
+	HK_CHECK(write_cooked_byte(&node, 'R') == 0);
+	HK_CHECK(fl_checkpoint_calls == calls);
+	HK_CHECK(bflush(FL_ROOT) == 0);
+	HK_CHECK(fl_checkpoint_calls == calls);
+	close_node(&node);
 }
 
 /* A driver without the command answers its ioctl with an error: no checkpoint. */
@@ -2626,6 +2680,7 @@ main(void)
 	test_sync_checkpoints_clean_buffers();
 	test_fsync_checkpoint_failure_latches();
 	test_failed_flush_still_checkpoints();
+	test_sync_device_write_checkpoints();
 	test_sync_without_checkpoint_command();
 	test_cooked_same_device_fsync_control();
 	test_cooked_device_fsync_error();

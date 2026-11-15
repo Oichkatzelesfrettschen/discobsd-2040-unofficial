@@ -6,8 +6,9 @@ The claim under test: every part of the Raspberry Pi Pico and of the
 ClockworkPi PicoCalc that software can reach has a driver in this tree, and
 each driver's constants agree with the part's datasheet. The claim holds for
 the parts the kernels drive, with the exceptions listed under "Findings".
-It fails as a statement about completeness: the ADC, RTC, DMA, I2C0 and
-PIO1 blocks have no driver in any kernel, and no PicoCalc driver has run
+It fails as a statement about completeness: at the audited revision the
+ADC, RTC, DMA, I2C0 and PIO1 blocks had no driver in any kernel (the ADC
+has gained one since; its row says so), and no PicoCalc driver has run
 on a PicoCalc
 (`picocalc-pending-hardware.md`). `hardware-reference-coverage.md` holds
 the document for each part; this file holds the driver for each part and
@@ -60,7 +61,7 @@ repository's ignored `docs/local/specs`.
 | PWM | `dev/picoaudio.c`, slice 5; `dev/picopcm.c`, slices 5 and 6 | PICOCALC, PICOCALC_PSRAM | match; the sample device was added after this audit |
 | PIO0 | `dev/psram_xfer.c`, `psram_pio.h` | PICOCALC_PSRAM | match |
 | SYSINFO, SYSCFG, BUSCTRL, PSM, ROSC | `machdep.c`, `sysctl.c`, `core1.c` | all | not audited here |
-| ADC (four pins, temperature sensor, VSYS/3 on GPIO29) | none; `clk_adc` stays off | none | no driver |
+| ADC (four pins, temperature sensor, VSYS/3 on GPIO29) | `dev/adc.c`: one-shot conversions behind `machdep.adc_temp_mc` and `machdep.adc_vsys_mv`; `clk_adc` and the block start at the first read | all | added after this audit; conversions host-checked (`check-adc-conversion`), register path unexecuted |
 | RTC | none; `clk_rtc` stays off | none | no driver |
 | I2C0, PIO1, DMA | none | none | no driver |
 | VREG_AND_CHIP_RESET, TBMAN | none; reset values kept | none | no software surface needed |

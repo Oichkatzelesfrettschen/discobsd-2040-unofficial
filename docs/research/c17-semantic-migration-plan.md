@@ -129,6 +129,13 @@ production receipts preserve the owner-approved eight-byte archive and
 per-program vector after complete non-hardware qualification. The six stdio
 standards rows retain their partial status and the remaining facets above.
 
+The [callable slot identity experiment](xip-shared-libc/slot-identity.md)
+gives public slots exact ELF function extents while preserving implementation
+aliases and canonical pointers. Its four compiler/link variants exercise
+independent process state, weak aliases, SRAM application imports and callbacks.
+The calibrated experiment precedes authoritative ABI generation and leaves
+complete API ownership, flash fit and production shared-exec admission open.
+
 The [tableless search experiment](search-bound-experiment/README.md) retains
 the next search-bound comparison and its replay driver. The finite host and
 ARMv6-M matrices preserve earliest-match behavior while exposing the separate

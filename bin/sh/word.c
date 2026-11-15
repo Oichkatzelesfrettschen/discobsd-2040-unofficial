@@ -49,20 +49,20 @@ word(void)
 			if (c == LITERAL)
 			{
 				quote_seen = TRUE;
-				*argp++ = (DQUOTE);
+				stakput(argp, DQUOTE);
 				while ((c = readc()) && c != LITERAL)
 				{
 					/* @@@ *argp++ = (c | QUOTE); */
-					*argp++ = qmask(c);
+					stakput(argp, qmask(c));
 
 					if (c == NL)
 						chkpr();
 				}
-				*argp++ = (DQUOTE);
+				stakput(argp, DQUOTE);
 			}
 			else
 			{
-				*argp++ = (c);
+				stakput(argp, c);
 				if (c == '=')
 					wdset |= alpha;
 				if (!alphanum(c))
@@ -71,7 +71,7 @@ word(void)
 				{
 					quote_seen = TRUE;
 					d = c;
-					while ((*argp++ = (c = nextc(d))) && c != d)
+					while ((stakput(argp, c = nextc(d))) && c != d)
 					{
 						if (c == NL)
 							chkpr();

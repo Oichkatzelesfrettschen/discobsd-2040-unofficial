@@ -2702,6 +2702,22 @@ console's 53x32 text with the kernel's own font table
 lines each stage expects. Virtual time is the budget; a wall-clock limit
 bounds a hung emulator.
 
+Before the kernel runs, the same script clocks the ST7365P read commands
+through the model: RDDID, RDDST, RDDPM, RDDMADCTL, RDDCOLMOD, RDDIM, RDDSM,
+RDDSDR and RDID1 to RDID3, at power-on, after the bytes of `init_seq`, SLPOUT,
+VSCRDEF, VSCSAD and DISPON that `st7365p.c` sends, and after SWRESET. The
+expected values are the datasheet's default tables and field layouts
+(ST7365P_SPEC_V1.0 pages 147 to 162 and 215 to 217; the dummy clock cycle of
+RDDID and RDDST is page 95), written out in the script, and the read commands
+must not count as unmodeled. The model's reply to a read before this stage
+was zero, so the stage fails against it; `--readback` runs this stage alone
+without a boot, and `--self-test` rejects a model that answers zeros, one
+without the dummy cycle and two wrong register states. The stage tests the
+model, not the kernel: the main-line driver reads no panel register. Command
+Table 2 reads (SPI Read Control, RDID4) remain unmodeled and answer zero; the
+bits of RDDST and RDDIM that report vertical scroll mode stay zero because the
+datasheet does not say when they set.
+
 When the root image carries them (the `picocalc` profile does; any other
 image prints a skip line), the same run then types `picofetch` and
 `picotop -c 2 -d 1` through the keyboard model. It requires the report's

@@ -115,6 +115,24 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
             sync.check(self.root)
 
+    def test_diagnostic_variant_without_systrace_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_DIAG/Config",
+                    "options         SYSTRACE                    # kern.systrace console trace\n", "")
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_DIAG: Config must equal"):
+            sync.check(self.root)
+
+    def test_diagnostic_variant_without_capacity_stats_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_DIAG/Config",
+                    "options         CAPACITY_STATS              # fixed-table and u-area peaks\n", "")
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_DIAG: Config must equal"):
+            sync.check(self.root)
+
+    def test_lean_union_carrying_a_diagnostic_option_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_PSRAM/Config", "device          psram\n",
+                    "device          psram\noptions         SYSTRACE\n")
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
+            sync.check(self.root)
+
     def test_production_identity_is_preserved(self):
         self.mutate(sync.COMPILE / "PICO/Config", 'board           "PICO"',
                     'board           "SYNTHETIC"')

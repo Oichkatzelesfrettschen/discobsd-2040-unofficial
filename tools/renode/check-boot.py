@@ -38,7 +38,11 @@ carries the free-running measurement that does.
 
 CONFIG names the kernel configuration the banner must carry and defaults to
 PICO_UART. PICOCALC_PSRAM is the union kernel booted with a bare-Pico UART0
-descriptor (check-boot.sh patches it in). The probe stage asserts the lines
+descriptor (check-boot.sh patches it in); PICOCALC_DIAG is the same kernel
+with the SYSTRACE and CAPACITY_STATS options. PICO_UART and PICOCALC_DIAG
+serve kern.capacity and are asserted on its record; PICOCALC_PSRAM omits the
+node and is asserted to refuse it with EOPNOTSUPP, which sysctl reports as
+"value is not available". The probe stage asserts the lines
 the descriptor decides: the console device it names, and for the union the
 USB attach beside it and the absence of every PicoCalc device line, since
 that kernel links the panel, keyboard, PSRAM and SD drivers and only the
@@ -92,6 +96,7 @@ BOARD_LINES = {
         "uartusb: CDC-ACM on the USB device controller, interrupt 5",
     ],
 }
+BOARD_LINES["PICOCALC_DIAG"] = BOARD_LINES["PICOCALC_PSRAM"]
 
 # Device lines a bare-Pico descriptor must suppress, matched at the start of
 # a console line: lcdcons.c prints lcd0 and kbd0, psram.c psram0 and sd.c sd0
@@ -100,6 +105,7 @@ ABSENT_PREFIXES = {
     "PICO_UART": (),
     "PICOCALC_PSRAM": ("lcd0:", "kbd0:", "psram0:", "sd0:"),
 }
+ABSENT_PREFIXES["PICOCALC_DIAG"] = ABSENT_PREFIXES["PICOCALC_PSRAM"]
 
 STORAGE_LINES = [
     # fl0 prints only after rom_func_lookup() has resolved the ROM's flash
@@ -131,6 +137,12 @@ LOGIN_LINES = [
 # space seen, and whether the stack ever reached its end.
 UAREA_ROW = re.compile(r"^uarea bytes \d+ user \d+ stack \d+ peak (\d+) "
                        r"min-free (\d+) saturated (\d+)$", re.M)
+
+# The configurations whose Config carries CAPACITY_STATS. Any other kernel
+# omits KERN_CAPACITY, so kern_sysctl() answers EOPNOTSUPP and sysctl prints
+# ABSENT_CAPACITY_LINE.
+CAPACITY_CONFIGS = ("PICO_UART", "PICOCALC_DIAG")
+ABSENT_CAPACITY_LINE = "kern.capacity: value is not available"
 
 CAPACITY_LINES = [
     "kern.capacity=version 1 size 100",
@@ -450,7 +462,7 @@ def check_fstat(console: Console) -> None:
     print(f"check-renode: fstat after {console.virtual:.1f} virtual seconds")
 
 
-def check_uarea_paths(console: Console) -> None:
+def check_uarea_paths(console: Console, config: str) -> None:
     """Require a signal round trip and an unsaturated u-area afterward.
 
     The shell catches the SIGTERM it sends itself, so the kernel builds a signal
@@ -459,7 +471,8 @@ def check_uarea_paths(console: Console) -> None:
     out and in (to the pool in the union kernel), and switched between
     processes throughout. The u-area row read last must then show the
     kernel stack's peak use with free bytes left and no saturation, the
-    capacity record's account of every one of those paths.
+    capacity record's account of every one of those paths. A kernel without
+    CAPACITY_STATS has no record to read; it must refuse the node instead.
     """
     start = console.cursor
     # bin/sh's trap takes signal numbers below MAXTRAP (26, bin/sh/defs.h)
@@ -475,6 +488,14 @@ def check_uarea_paths(console: Console) -> None:
     console.type_line("sysctl kern.capacity; echo cap-end")
     console.wait_for("\ncap-end", "final capacity record", COMMAND_BUDGET_SECONDS)
     found = UAREA_ROW.search(console.text()[start:console.cursor])
+    if config not in CAPACITY_CONFIGS:
+        if found is not None or ABSENT_CAPACITY_LINE not in console.text()[start:console.cursor]:
+            console.fail("final capacity record: a kernel without CAPACITY_STATS "
+                         "served the record or did not refuse the node")
+            raise StageFailed("final capacity record")
+        print("check-renode: kern.capacity refused, as this configuration omits it")
+        console.wait_for("$", "operator shell after the capacity refusal", COMMAND_BUDGET_SECONDS)
+        return
     if found is None:
         console.fail("final capacity record: no u-area row")
         raise StageFailed("final capacity record")
@@ -584,7 +605,8 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     check_memory_devices(console)
     check_fstat(console)
     console.type_line("sysctl kern.capacity")
-    console.wait_lines(CAPACITY_LINES, "capacity record", COMMAND_BUDGET_SECONDS)
+    console.wait_lines(CAPACITY_LINES if config in CAPACITY_CONFIGS else [ABSENT_CAPACITY_LINE],
+                       "capacity record", COMMAND_BUDGET_SECONDS)
     console.type_line("sysctl machdep.image_length machdep.image_crc machdep.image_crc_stored")
     console.wait_lines(identity, "image identity", COMMAND_BUDGET_SECONDS)
     # usr.bin/mputest forks children that read kernel RAM, kernel text, SIO,
@@ -601,7 +623,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     # bytes reports a surviving count and fails here.
     console.type_line("mputest residue")
     console.wait_lines(["RESIDUE OK"], "exec residue probe", COMMAND_BUDGET_SECONDS)
-    check_uarea_paths(console)
+    check_uarea_paths(console, config)
     check_clock_past_2038(console)
     if config not in CORE1_CONFIGS:
         return

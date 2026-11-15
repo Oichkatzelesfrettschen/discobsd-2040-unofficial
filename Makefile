@@ -259,6 +259,7 @@ check-dump-writer-link: check-python
 		@set -e; c=sys/arch/rp2040/compile; \
 		${PYTHON} tools/check_dump_writer_link.py \
 		    --with $$c/PICOCALC/unix.elf --with $$c/PICOCALC_PSRAM/unix.elf \
+		    --with $$c/PICOCALC_DIAG/unix.elf \
 		    --without $$c/PICO/unix.elf --without $$c/PICO_UART/unix.elf; \
 		rc=0; \
 		${PYTHON} tools/check_dump_writer_link.py \
@@ -568,9 +569,9 @@ check-swapram-link-verifier:
 		sh tools/verify_rp2040_swapram_link_test.sh
 
 # Literal formats passed to the kernel's printf(), uprintf(), tprintf() and
-# log() in the sources of the PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM
-# kernels use only conversions where prf() and GCC's format(printf) checking
-# agree; the fixture calibrates the checker.
+# log() in the sources of the PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM and
+# PICOCALC_DIAG kernels use only conversions where prf() and GCC's
+# format(printf) checking agree; the fixture calibrates the checker.
 check-kernel-printf-formats:	check-python
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-kernel-printf-formats requires MACHINE=rp2040" >&2; \
@@ -581,7 +582,8 @@ check-kernel-printf-formats:	check-python
 		    --build sys/arch/rp2040/compile/PICO \
 		    --build sys/arch/rp2040/compile/PICO_UART \
 		    --build sys/arch/rp2040/compile/PICOCALC \
-		    --build sys/arch/rp2040/compile/PICOCALC_PSRAM
+		    --build sys/arch/rp2040/compile/PICOCALC_PSRAM \
+		    --build sys/arch/rp2040/compile/PICOCALC_DIAG
 
 check-aout:
 		${MAKE} -C tests/aout_header check
@@ -2074,6 +2076,12 @@ check-renode:
 check-renode-union:
 		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_PSRAM
 
+# The diagnostic union kernel (PICOCALC_DIAG) under the same machine and
+# descriptor: it serves the kern.capacity record that PICOCALC_PSRAM omits.
+# Outside "check" for the reason check-renode is.
+check-renode-union-diag:
+		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_DIAG
+
 # The PICOCALC kernel under Renode with the ST7365P panel and the keyboard
 # controller modeled: the boot banner, the panel's registers, a login and a
 # command typed through the I2C keyboard, all read back from the decoded
@@ -2297,6 +2305,7 @@ installfs:
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump check-renode-union \
+		check-renode-union-diag \
 		check-host-package check-board-build check symlinks etc-distribution \
 		multicall-staging \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \

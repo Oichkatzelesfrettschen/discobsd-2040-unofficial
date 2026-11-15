@@ -58,6 +58,7 @@
 
 #include "regmodel.h"
 
+#include <rp2040/dev/psram.h>
 #include <rp2040/dev/sd.h>
 #include <rp2040/dev/sdspi.h>
 
@@ -77,13 +78,19 @@ static int failures;
 
 static int init_fail;		/* sdspi_init() finds no card. */
 
+/*
+ * The capacity the card reports. The swap cases raise it past the stored
+ * sectors, which only the partition table's bounds read.
+ */
+static unsigned card_nsectors = CARD_SECTORS;
+
 int
 sdspi_init(struct sdspi *sd)
 {
 	if (init_fail)
 		return SDE_NOCARD;
 	sd->type = SD_HC;
-	sd->nsectors = CARD_SECTORS;
+	sd->nsectors = card_nsectors;
 	return SDE_OK;
 }
 
@@ -165,6 +172,7 @@ sdspi_write_span(struct sdspi *sd __attribute__((unused)), unsigned sector,
 }
 
 dev_t dumpdev = NODEV;
+dev_t swapdev;
 
 struct buf *
 geteblk(void)
@@ -454,6 +462,97 @@ write_case(const char *name, struct req r, unsigned first_sector,
 }
 
 static unsigned touched(const unsigned *count);
+static void error_case(const char *name, struct req r, int want_errno);
+
+/*
+ * Swap transfers. swap_with_buf_result() asks for an image segment's exact
+ * byte count; on the swap device the last sector is padded on a write and
+ * cut on a read, and every other device still refuses the count. Partition
+ * 1 starts at card sector 8 and its block 1 at sector 10.
+ */
+static void
+swapio_cases(void)
+{
+	struct req r;
+	struct buf b;
+	unsigned i;
+	unsigned char pat[sizeof(xbuf)], want[SD_SECTOR];
+	dev_t before = swapdev;
+
+	swapdev = (dev_t)1;
+	for (i = 0; i < sizeof(pat); i++)
+		pat[i] = (unsigned char)(0x80 | (i * 3));
+
+	memset(nread, 0, sizeof(nread));
+	r = (struct req){ 1, B_READ, 1, 1300 };
+	issue(&r, &b, NULL);
+	check("swap read 1300: error flag", (b.b_flags & B_ERROR) != 0, 0);
+	check("swap read 1300: done", (b.b_flags & B_DONE) != 0, 1);
+	check("swap read 1300: b_resid", (long)b.b_resid, 0);
+	check_touched("swap read 1300", nread, 10, 3);
+	for (i = 0; i < 1300; i++)
+		if (xbuf[i] != saved[10 + i / SD_SECTOR][i % SD_SECTOR])
+			break;
+	check("swap read 1300: bytes that match the card", (long)i, 1300);
+	for (i = 1300; i < sizeof(xbuf) && xbuf[i] == GUARD; i++)
+		continue;
+	check("swap read 1300: memory past the count kept", (long)i,
+	    (long)sizeof(xbuf));
+
+	memset(nwrite, 0, sizeof(nwrite));
+	r = (struct req){ 1, B_WRITE, 1, 1300 };
+	issue(&r, &b, pat);
+	check("swap write 1300: error flag", (b.b_flags & B_ERROR) != 0, 0);
+	check("swap write 1300: b_resid", (long)b.b_resid, 0);
+	check_touched("swap write 1300", nwrite, 10, 3);
+	check("swap write 1300: whole sectors",
+	    memcmp(card[10], pat, 2 * SD_SECTOR), 0);
+	memset(want, 0, sizeof(want));
+	memcpy(want, pat + 2 * SD_SECTOR, 1300 - 2 * SD_SECTOR);
+	check("swap write 1300: last sector padded with zeros",
+	    memcmp(card[12], want, SD_SECTOR), 0);
+	check("swap write 1300: next sector kept",
+	    memcmp(card[13], saved[13], SD_SECTOR), 0);
+	memcpy(card, saved, sizeof(card));
+
+	memset(nwrite, 0, sizeof(nwrite));
+	r = (struct req){ 1, B_WRITE, 0, 100 };
+	issue(&r, &b, pat);
+	check("swap write 100: error flag", (b.b_flags & B_ERROR) != 0, 0);
+	check_touched("swap write 100", nwrite, 8, 1);
+	memset(want, 0, sizeof(want));
+	memcpy(want, pat, 100);
+	check("swap write 100: sector", memcmp(card[8], want, SD_SECTOR), 0);
+	memcpy(card, saved, sizeof(card));
+
+	/* A failed last sector leaves its bytes in the residual. */
+	memset(nread, 0, sizeof(nread));
+	fail_sector = 12;
+	r = (struct req){ 1, B_READ, 1, 1300 };
+	issue(&r, &b, NULL);
+	fail_sector = -1;
+	check("swap read, last sector fails: error flag",
+	    (b.b_flags & B_ERROR) != 0, 1);
+	check("swap read, last sector fails: errno", b.b_error, EIO);
+	check("swap read, last sector fails: b_resid", (long)b.b_resid,
+	    1300 - 2 * SD_SECTOR);
+	check("swap read, last sector fails: memory past the sectors kept",
+	    xbuf[2 * SD_SECTOR], GUARD);
+
+	/* Block 16 holds the partition's one last sector: the rest is short. */
+	memset(nread, 0, sizeof(nread));
+	r = (struct req){ 1, B_READ, 16, 600 };
+	issue(&r, &b, NULL);
+	check("swap read past the last sector: error flag",
+	    (b.b_flags & B_ERROR) != 0, 0);
+	check("swap read past the last sector: b_resid", (long)b.b_resid, 88);
+	check_touched("swap read past the last sector", nread, 8 + 32, 1);
+
+	/* Another partition keeps the whole-sector rule. */
+	r = (struct req){ 2, B_READ, 0, 1300 };
+	error_case("1300 bytes off the swap device", r, EINVAL);
+	swapdev = before;
+}
 
 /*
  * A request refused before any card command: the error flag and errno, the
@@ -1180,6 +1279,151 @@ root_cases(void)
 	test_loader = 0;
 }
 
+/* MBR entry n: its type, first sector and sector count. */
+static void
+set_part(int n, unsigned type, unsigned offset, unsigned nsectors)
+{
+	unsigned char *e = &card[0][446 + 16 * (n - 1)];
+
+	e[4] = (unsigned char)type;
+	memcpy(e + 8, &offset, 4);
+	memcpy(e + 12, &nsectors, 4);
+}
+
+#define	FL1		makedev(0, 8)
+#define	SWAP_MIN	(2 * SWAP_IMAGE_GUARD + SWAP_IMAGE_ALIGN)
+
+/*
+ * One call of sdswapattach() from a closed card with swap on fl1 or on
+ * `from`. A card that took swap holds that partition open with its table
+ * read, so the open main() makes reads nothing; every other path leaves the
+ * card closed. The helper closes the partition again.
+ */
+static void
+swap_attach(const char *name, dev_t from)
+{
+	char what[96];
+
+	swapdev = from;
+	nread[0] = 0;
+	sdswapattach();
+	if (major(swapdev) == SD_BMAJOR) {
+		unsigned reads = nread[0];
+
+		snprintf(what, sizeof(what), "%s: partition held open", name);
+		check(what, sdsize(swapdev) != 0, 1);
+		snprintf(what, sizeof(what), "%s: open by main", name);
+		check(what, sdopen(swapdev, 0, S_IFBLK), 0);
+		snprintf(what, sizeof(what), "%s: table not read again", name);
+		check(what, (long)nread[0], (long)reads);
+		sdclose(swapdev, 0, S_IFBLK);
+	}
+	snprintf(what, sizeof(what), "%s: card closed afterwards", name);
+	check(what, (long)sdsize(makedev(SD_BMAJOR, 0)), 0);
+}
+
+/*
+ * Swap selection (sdswapattach()): which device holds swap after the
+ * service ran, and the size sdsize() reports to init_main() for it.
+ */
+static void
+swapdev_cases(void)
+{
+	card_nsectors = 1U << 22;
+
+	/* A bare Pico has no socket: fl1 stays and the card is not read. */
+	fill_card();
+	set_part(4, PTYPE_SWAP, 4096, 2 * 8192);
+	test_board = BOARD_ID_PICO;
+	swap_attach("bare Pico", FL1);
+	check("bare Pico: swapdev kept", (long)swapdev, (long)FL1);
+	check("bare Pico: card not read", (long)nread[0], 0);
+	test_board = BOARD_ID_PICOCALC;
+
+	/* The PSRAM took swap at probe: it keeps it and the card is not read. */
+	swap_attach("psram", makedev(PSRAM_MAJOR, 0));
+	check("psram: swapdev kept", (long)swapdev,
+	    (long)makedev(PSRAM_MAJOR, 0));
+	check("psram: card not read", (long)nread[0], 0);
+
+	/* No card in the socket. */
+	init_fail = 1;
+	swap_attach("no card", FL1);
+	check("no card: swapdev kept", (long)swapdev, (long)FL1);
+	init_fail = 0;
+
+	/* The table cannot be read. */
+	fail_sector = 0;
+	swap_attach("unreadable table", FL1);
+	check("unreadable table: swapdev kept", (long)swapdev, (long)FL1);
+	fail_sector = -1;
+
+	/* The b8 entry in slot 4 behind two entries of another type. */
+	swap_attach("slot 4", FL1);
+	check("slot 4: swapdev", (long)swapdev, (long)makedev(SD_BMAJOR, 4));
+	check("slot 4: card read", nread[0] != 0, 1);
+	check("slot 4: swap opens", sdopen(swapdev, 0, S_IFBLK), 0);
+	check("slot 4: swap size", (long)sdsize(swapdev), 8192);
+	sdclose(swapdev, 0, S_IFBLK);
+
+	/* No b8 entry: types b7 and b9 beside it are not swap. */
+	set_part(4, PTYPE_BSDFFS, 4096, 2 * 8192);
+	swap_attach("b7 only", FL1);
+	check("b7 only: swapdev kept", (long)swapdev, (long)FL1);
+	set_part(4, DUMP_PART_TYPE, 4096, 2 * 8192);
+	swap_attach("b9 only", FL1);
+	check("b9 only: swapdev kept", (long)swapdev, (long)FL1);
+
+	/* One block short of two full images: passed over. */
+	set_part(4, PTYPE_SWAP, 4096, 2 * (SWAP_MIN - 1));
+	swap_attach("short", FL1);
+	check("short: swapdev kept", (long)swapdev, (long)FL1);
+	set_part(4, PTYPE_SWAP, 4096, 2 * SWAP_MIN);
+	swap_attach("minimum", FL1);
+	check("minimum: swapdev", (long)swapdev, (long)makedev(SD_BMAJOR, 4));
+
+	/* A short b8 entry first, a usable one after it. */
+	set_part(3, PTYPE_SWAP, 2048, 2 * 64);
+	set_part(4, PTYPE_SWAP, 4096, 2 * 8192);
+	swap_attach("short then usable", FL1);
+	check("short then usable: swapdev", (long)swapdev,
+	    (long)makedev(SD_BMAJOR, 4));
+
+	/* Two usable entries: the first one. */
+	set_part(3, PTYPE_SWAP, 4096 + 2 * 8192, 2 * 4096);
+	swap_attach("two usable", FL1);
+	check("two usable: swapdev", (long)swapdev, (long)makedev(SD_BMAJOR, 3));
+
+	/*
+	 * A partition past the swap map's reach reports the largest aligned
+	 * 16-bit count, and one that is not a whole number of images loses
+	 * its tail; a partition that is not swap reports its own size.
+	 */
+	set_part(3, PTYPE_BSDFFS, 4096, 2 * 100001);
+	set_part(4, PTYPE_SWAP, 4096 + 2 * 100001, 2 * 100001);
+	swap_attach("large", FL1);
+	check("large: swapdev", (long)swapdev, (long)makedev(SD_BMAJOR, 4));
+	check("large: swap opens", sdopen(swapdev, 0, S_IFBLK), 0);
+	check("large: root opens", sdopen(makedev(SD_BMAJOR, 3), 0, S_IFBLK), 0);
+	check("large: swap size", (long)sdsize(swapdev), 65532);
+	check("large: other size", (long)sdsize(makedev(SD_BMAJOR, 3)), 100001);
+	sdclose(makedev(SD_BMAJOR, 3), 0, S_IFBLK);
+	sdclose(swapdev, 0, S_IFBLK);
+	set_part(4, PTYPE_SWAP, 4096 + 2 * 100001, 2 * 8191);
+	swap_attach("unaligned", FL1);
+	check("unaligned: swap opens", sdopen(swapdev, 0, S_IFBLK), 0);
+	check("unaligned: swap size", (long)sdsize(swapdev), 8188);
+	sdclose(swapdev, 0, S_IFBLK);
+
+	/* An entry that runs past the card is no entry. */
+	set_part(4, PTYPE_SWAP, card_nsectors - 16, 2 * 8192);
+	swap_attach("past the card", FL1);
+	check("past the card: swapdev kept", (long)swapdev, (long)FL1);
+
+	card_nsectors = CARD_SECTORS;
+	swapdev = FL1;
+}
+
 int
 main(void)
 {
@@ -1196,6 +1440,7 @@ main(void)
 	check("probe on a PicoCalc", sddriver.probe(NULL), 1);
 
 	root_cases();
+	swapdev_cases();
 
 	fill_card();
 
@@ -1256,6 +1501,7 @@ main(void)
 	error_case("513 bytes", r, EINVAL);
 	r = (struct req){ 0, B_WRITE, 0, 100 };
 	error_case("100 bytes", r, EINVAL);
+	swapio_cases();
 
 	/*
 	 * A card error surfaces as EIO with the failed sector and every sector

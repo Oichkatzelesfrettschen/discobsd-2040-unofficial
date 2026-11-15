@@ -22,8 +22,10 @@ struct conf_device conf_device_init[] = {
 	{ 0 }
 };
 void sdrootattach(void);
+void sdswapattach(void);
 
 struct conf_service conf_service_init[] = {
 	{ sdrootattach },
+	{ sdswapattach },
 	{ 0 }
 };

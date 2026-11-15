@@ -300,10 +300,12 @@ swap_cursor_publish(size_t next)
 		index = 0;
 	else
 		index = (next - SWAP_IMAGE_ALIGN) / SWAP_IMAGE_ALIGN;
-#ifdef PSRAM_ENABLED
-	/* The sector index is one byte of the scratch word; PSRAM has more. */
+	/*
+	 * The sector index is one byte of the scratch word. fl1 has 95
+	 * sectors; the PSRAM and a card partition have more, and a folded
+	 * index only moves where the next boot starts allocating.
+	 */
 	index &= 0xff;
-#endif
 	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH0) = SWAP_CURSOR_TAG | index;
 }
 

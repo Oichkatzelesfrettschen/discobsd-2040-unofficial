@@ -61,6 +61,8 @@ class Run:
         self.virtual = 0.0
         self.frame = 0
         self.lines: list[str] = []
+        # Every line a frame has shown; boot text scrolls off a 32-row panel.
+        self.seen: set[str] = set()
         self.failures: list[str] = []
 
     def advance(self, seconds: float = SLICE_SECONDS) -> list[str]:
@@ -69,6 +71,7 @@ class Run:
         path = os.path.join(self.outdir, "frame.ppm")
         self.renode.command(f"sysbus.spi1.lcd DumpPpm @{path}")
         self.lines = picocalc_fb.screen_text(path).split("\n")
+        self.seen.update(line.rstrip() for line in self.lines)
         if os.environ.get("CHECK_PICOCALC_VERBOSE"):
             last = [line for line in self.lines if line.strip()][-1:] or [""]
             print(f"check-picocalc: t={self.virtual:.1f}s {last[0]!r}", flush=True)
@@ -84,6 +87,10 @@ class Run:
 
     def has(self, text: str) -> bool:
         return any(text in line for line in self.lines)
+
+    def saw(self, text: str) -> bool:
+        """Whether any frame since the run began showed text."""
+        return any(text in line for line in self.seen)
 
     def has_line(self, text: str) -> bool:
         return any(line.strip() == text for line in self.lines)
@@ -525,8 +532,14 @@ def main(argv: list[str]) -> int:
         renode.command(f"sysbus.uart0 CreateFileBackend @{os.path.join(outdir, 'uart0.txt')} true")
         init_trace = expected_init_trace()
         renode.command(f"sysbus.spi1.lcd TraceBytes {len(init_trace)}")
-        run.wait_for(BANNER_LINES, "banner", BOOT_BUDGET_SECONDS)
+        run.wait_until(lambda: all(run.saw(text) for text in BANNER_LINES),
+                       "banner", repr(BANNER_LINES), BOOT_BUDGET_SECONDS)
         run.snapshot("banner")
+        if card is not None:
+            picocalc_dump.check_swap_boot(run)
+        else:
+            run.wait_until(lambda: run.saw("swap dev  = (0,8)"), "swap on fl1",
+                           "'swap dev  = (0,8)'", BOOT_BUDGET_SECONDS)
         check_panel_registers(run)
         # The monitor echoes prompts and command lines around its output.
         traced = [line for line in renode.command("sysbus.spi1.lcd Trace").splitlines()

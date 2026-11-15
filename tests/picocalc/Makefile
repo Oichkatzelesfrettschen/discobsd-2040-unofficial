@@ -65,9 +65,10 @@
 # requests physio() and the buffer cache make, calls the probe under each
 # board identity, and writes crash dumps through sddump() and the kernel's
 # dump stream (rp2040/dump.c) onto the card's dump partition, mounted,
-# beside a mount, undersized, failing and replaced, and runs sdrootattach()
-# with and without the PicoCalc loader's stamp; sixty-one mutants of sd.c
-# and dump.c must fail it.
+# beside a mount, undersized, failing and replaced, runs sdrootattach()
+# with and without the PicoCalc loader's stamp, and runs sdswapattach() over
+# the cards and boards that decide the swap device and reads the size
+# sdsize() gives it; seventy-seven mutants of sd.c and dump.c must fail it.
 #
 # dump_test writes a dump with the kernel's dump stream into a partition
 # image and runs savecore(8) on it from the host: a saved dump, a damaged
@@ -1330,7 +1331,23 @@ sdstrat-mutants: \
 	sdstrat-mutant-root-type-ignored \
 	sdstrat-mutant-root-pipedev-kept \
 	sdstrat-mutant-root-board-ungated \
-	sdstrat-mutant-root-missing-tolerated
+	sdstrat-mutant-root-missing-tolerated \
+	sdstrat-mutant-swap-board-ungated \
+	sdstrat-mutant-swap-psram-overridden \
+	sdstrat-mutant-swap-type-ignored \
+	sdstrat-mutant-swap-short-accepted \
+	sdstrat-mutant-swap-minimum-refused \
+	sdstrat-mutant-swap-size-unclamped \
+	sdstrat-mutant-swap-size-unaligned \
+	sdstrat-mutant-swap-clamp-everywhere \
+	sdstrat-mutant-swap-tail-refused \
+	sdstrat-mutant-swap-tail-everywhere \
+	sdstrat-mutant-swap-tail-unpadded \
+	sdstrat-mutant-swap-tail-read-whole \
+	sdstrat-mutant-swap-tail-resid-dropped \
+	sdstrat-mutant-swap-tail-past-partition \
+	sdstrat-mutant-swap-left-closed \
+	sdstrat-mutant-swap-refusal-left-open
 
 # sdrootattach(): the root a kernel the PicoCalc loader started takes.
 sdstrat-mutant-root-stamp-ignored:
@@ -1353,9 +1370,75 @@ sdstrat-mutant-root-missing-tolerated:
 	${SDSTRAT_MUT} sd.c \
 	    's/panic("root: no partition of type b7 on sd0");/(void)0;/' ${SDSTRAT_SRC}
 
+# sdswapattach() and the swap partition's size: the device that holds swap.
+sdstrat-mutant-swap-board-ungated:
+	${SDSTRAT_MUT} sd.c \
+	    's/board_id() != BOARD_ID_PICOCALC || major(swapdev) == PSRAM_MAJOR/major(swapdev) == PSRAM_MAJOR/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-psram-overridden:
+	${SDSTRAT_MUT} sd.c \
+	    's/board_id() != BOARD_ID_PICOCALC || major(swapdev) == PSRAM_MAJOR/board_id() != BOARD_ID_PICOCALC/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-type-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/sdpt\[i\].dp_type == PTYPE_SWAP \&\&/1 \&\&/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-short-accepted:
+	${SDSTRAT_MUT} sd.c \
+	    's/>= SD_SWAP_MIN_BLOCKS)/>= 1)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-minimum-refused:
+	${SDSTRAT_MUT} sd.c \
+	    's/>= SD_SWAP_MIN_BLOCKS)/> SD_SWAP_MIN_BLOCKS)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-size-unclamped:
+	${SDSTRAT_MUT} sd.c \
+	    's/blocks = SD_SWAP_MAX_BLOCKS;/(void)0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-size-unaligned:
+	${SDSTRAT_MUT} sd.c \
+	    's/blocks \&= ~(daddr_t)(SWAP_IMAGE_ALIGN - 1);/(void)0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-clamp-everywhere:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (dev == swapdev) {/if (1) {/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-left-closed:
+	${SDSTRAT_MUT} sd.c \
+	    's/sd_blkopen |= 1U << i;/sdcard.type = SD_NONE;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-refusal-left-open:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (i > MAXPARTITIONS) {/sd_blkopen |= 1U; if (i > MAXPARTITIONS) {/' ${SDSTRAT_SRC}
+
+# The last sector of a swap transfer, sd_tail_io() and its callers.
+sdstrat-mutant-swap-tail-refused:
+	${SDSTRAT_MUT} sd.c \
+	    's/(tail != 0 \&\& bp->b_dev != swapdev)/(tail != 0)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-tail-everywhere:
+	${SDSTRAT_MUT} sd.c \
+	    's/(tail != 0 \&\& bp->b_dev != swapdev)/(0)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-tail-unpadded:
+	${SDSTRAT_MUT} sd.c \
+	    's/bzero(sd_tail + len, SD_SECTOR - len);/(void)0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-tail-read-whole:
+	${SDSTRAT_MUT} sd.c \
+	    's/bcopy(sd_tail, addr, len);/bcopy(sd_tail, addr, SD_SECTOR);/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-tail-resid-dropped:
+	${SDSTRAT_MUT} sd.c \
+	    's/bp->b_resid += (n - i) \* SD_SECTOR + tail;/bp->b_resid += (n - i) * SD_SECTOR;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-tail-past-partition:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (n >= avail) {/if (n > avail) {/' ${SDSTRAT_SRC}
+
 sdstrat-mutant-whole-block-only:
 	${SDSTRAT_MUT} sd.c \
-	    's/(bp->b_bcount \& (SD_SECTOR - 1))/(bp->b_bcount \& (DEV_BSIZE - 1))/' ${SDSTRAT_SRC}
+	    's/tail = bp->b_bcount \& (SD_SECTOR - 1);/tail = bp->b_bcount \& (DEV_BSIZE - 1);/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-stale-resid:
 	${SDSTRAT_MUT} sd.c \
@@ -1363,11 +1446,11 @@ sdstrat-mutant-stale-resid:
 
 sdstrat-mutant-truncation-resid:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid = (n - avail) \* SD_SECTOR;/(void)0;/' ${SDSTRAT_SRC}
+	    's/bp->b_resid = (n - avail) \* SD_SECTOR + tail;/(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-truncation-clamp:
 	${SDSTRAT_MUT} sd.c \
-	    's/if (n > avail) {/if (0) {/' ${SDSTRAT_SRC}
+	    's/if (n >= avail) {/if (0) {/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-eof-resid:
 	${SDSTRAT_MUT} sd.c \
@@ -1436,15 +1519,15 @@ sdstrat-mutant-reject-resid:
 
 sdstrat-mutant-failure-resid:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid += (n - i) \* SD_SECTOR;/(void)0;/' ${SDSTRAT_SRC}
+	    's/bp->b_resid += (n - i) \* SD_SECTOR + tail;/(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-failure-resid-off-by-one:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid += (n - i) \* SD_SECTOR;/bp->b_resid += (n - i - 1) * SD_SECTOR;/' ${SDSTRAT_SRC}
+	    's/bp->b_resid += (n - i) \* SD_SECTOR + tail;/bp->b_resid += (n - i - 1) * SD_SECTOR;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-failure-resid-truncation:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid += (n - i) \* SD_SECTOR;/bp->b_resid = (n - i) * SD_SECTOR;/' ${SDSTRAT_SRC}
+	    's/bp->b_resid += (n - i) \* SD_SECTOR + tail;/bp->b_resid = (n - i) * SD_SECTOR;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-sector-replaced:
 	${SDSTRAT_MUT} sd.c \

@@ -20,7 +20,8 @@ The PICOCALC configuration (`sys/arch/rp2040/compile/PICOCALC/Config`)
 runs DiscoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
 PicoCalc mainboard V2.0. Its console is the board's own 320x320 panel and
 keyboard. Root and swap stay on the Pico's QSPI flash, the same layout as
-the PICO board (`STORAGE.md`). The PICOCALC_PSRAM configuration
+the PICO board (`STORAGE.md`), unless the SD card carries a swap partition,
+which then takes swap ("Swap on the card" below). The PICOCALC_PSRAM configuration
 (`sys/arch/rp2040/compile/PICOCALC_PSRAM/Config`) is the same kernel with the
 board's PSRAM driver linked in; swap moves to the PSRAM when it identifies
 itself at boot (below). This document is the authority for the pin
@@ -78,9 +79,12 @@ name a file there, with a page for a PDF.
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
 | The SD socket's card-detect polarity, the fast clock at 12.5 MHz on this board's traces, and the busy times of real cards | board | not run |
 | The crash-dump writer (`sddump()`, `rp2040/dump.c`, `dumpsys()`) links into PICOCALC and PICOCALC_PSRAM only | build | observed by `check-dump-writer-link` on the symbol tables of all four kernels, with a swapped-role control that exits 1 |
-| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (56 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (30 mutants of `sdspi.c` rejected) |
+| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (77 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (30 mutants of `sdspi.c` rejected) |
 | `savecore` saves a dump the kernel's stream wrote, names a different running kernel, advances the bounds file, and leaves the dump on the card for a damaged segment, header checksum, version, segment count or length, one byte too little space with and without a reserve, and a copy that cannot be written; an unfinished dump reads as none | host | observed by `check-picocalc-host` (`dump_test`, 9 mutants of `savecore.c` rejected) |
-| On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 48,136, two u areas of 3,072, `dump.0` 55,808 bytes; a kernel that dumps only on the reset path fails the panic stage |
+| On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 49,304, two u areas of 3,072, `dump.0` 56,832 bytes; a kernel that dumps only on the reset path fails the panic stage |
+| `sdswapattach()` leaves swap on `fl1` on a bare Pico, with the PSRAM holding swap, with no card, an unreadable table, no type 0xb8 entry or one under 396 blocks, and otherwise selects the first 0xb8 entry of at least 396 blocks and holds it open so the open `main()` makes reads no table; `sdsize()` reports a swap partition capped at 65,532 blocks and cut to a multiple of four; `sdstrategy()` on the swap device moves a count that ends inside a sector (the last sector zero-padded on a write, cut on a read, counted in `b_resid` when it fails or lies past the partition) and refuses such a count on every other partition | host | observed by `check-picocalc-host`: `sdstrat_test`, with 16 of its 77 mutants on these rules |
+| On Renode's SD card model a PICOCALC kernel prints `swap: sd0c` and `swap dev  = (5,3)` for a card with a 2 MiB type 0xb8 entry, runs the console, `picofetch`, `picotop` and crash-dump stages on it, and leaves swapped images on that partition; without a card it prints `swap dev  = (0,8)` | Renode | observed by `check-renode-picocalc-dump`: 81 of the partition's 512 4 KiB units nonzero after the run; a kernel whose `sdstrategy()` refuses a partial sector panics `hard err: swap` at the first swap-out and fails the gate; the no-card line by `check-renode-picocalc` |
+| Swap on a real card: selection at boot, swap traffic under a compile, a card pulled while it holds images | board | not run; a pulled card panics `hard err: swap` at the next swap transfer until the swapper handles a failed device |
 | A panic on the board writes a dump that `savecore` saves | board | not run: the bench board is a Pico without the PicoCalc's SD socket |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
 | `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, the 98-clock Read ID with its 48-bit EID, 40 random transfers, four injected faults, parts of 1 KB to 4 MB that wrap their addresses, the four placements of the two register stages and seventeen mutants | host | observed by `check-psram-pio` (1,226 checks); the model's pad delays and the clock of the two register stages are assumptions. `psram.c` is not compiled on the host: its probe lines rest on the PICOCALC_PSRAM build, the format gate and the source (host test tracked at https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/issues/508) |
@@ -791,6 +795,36 @@ route; they use only the disk ioctls the driver answers
 (`DIOCGETMEDIASIZE`, `DIOCGETPART`, `DIOCREINIT`; `umount` adds
 `DIOCMEDIAGONE`) but have not run against it, so a closure that ships them waits on a board run.
 
+### Swap on the card
+
+A PICOCALC or PICOCALC_PSRAM kernel on a PicoCalc whose PSRAM did not take
+the swap device looks for swap on the SD card before `main()` opens
+`swapdev`. `sdswapattach()` (`dev/sd.c`, the `sdswap` service) brings the
+card up, reads the partition entries of sector 0 and takes the first entry
+of type 0xb8 (`PTYPE_SWAP`) that holds at least 396 KB, two process images
+of `SWAP_IMAGE_GUARD` blocks behind the map's reserved first run. It prints
+`swap: sd0c` for the third entry and holds that partition open. With no
+card, no such entry or a card that does not answer, swap stays on `fl1`.
+The order is therefore the SwapRAM pool, then the PSRAM when it identifies
+itself, then the card, then raw flash, and the choice is made once per boot.
+
+    fsutil --repartition=fs=64m:dump=1m:swap=32m card.img
+    fsutil --new --partition=1 card.img
+
+makes a card with a file system on `sd0a`, a dump partition on `sd0b` and
+swap on `sd0c`. The swap map's compact descriptors hold 16-bit block
+numbers, so `sdsize()` reports at most 65,532 blocks of a swap partition
+(64 MB) and a whole number of four-block units; a larger partition is used
+up to that size. The swapper transfers an image segment's exact byte count,
+and `sdstrategy()` completes the last sector of such a transfer through a
+512-byte buffer, for the swap device only.
+
+The card stays the swap device until the next boot. A card pulled while it
+holds swap fails every later transfer, and the swapper panics `hard err:
+swap` on the first one; the crash dump of that panic has no card to go to.
+Flash under a card that holds swap takes no swap erases, which is the
+reason for the order: `fl1` has no wear leveling.
+
 ### Crash dumps
 
 A PICOCALC kernel on a PicoCalc takes a crash dump on the SD card. The
@@ -807,8 +841,9 @@ from `.data` to the end of the SwapRAM pool, and the two u areas, each
 with a CRC-32 computed over the bytes as they leave for the card, which
 keeps the current u area, where the writer's own stack runs, consistent.
 Sector 0 is zeroed first and written last, so an unfinished dump reads as
-none. A PICOCALC dump is 109 sectors (55,808 bytes), 48,136 of them kernel
-RAM; a PICOCALC_PSRAM dump is 110.
+none. A PICOCALC dump is 111 sectors (56,832 bytes), 49,304 of them kernel
+RAM; a PICOCALC_PSRAM dump is a sector or two longer by its kernel's data
+and has not been measured since the swap tail buffer joined both.
 
     fsutil --repartition=fs=64m:dump=1m card.img
     fsutil --new --partition=1 card.img

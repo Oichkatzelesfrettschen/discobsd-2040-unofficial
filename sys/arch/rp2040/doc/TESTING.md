@@ -2682,14 +2682,30 @@ its command argument there and no high-capacity card runs in this tier;
 the block addressing a 32 GB card takes is `sdspi_test`'s `sdhc` scenario
 in `check-picocalc-host`, and `sdstrat_test` runs `sdrootattach()` itself
 with and without the stamp, on the slot-3 layout, with two b7 entries,
-none, no card and a bare Pico.
+none, no card and a bare Pico. It runs `sdswapattach()` the same way: a
+bare Pico, swap already on the PSRAM, no card, an unreadable table, entries
+of type b7 and b9 only, a b8 entry one block under and exactly at 396
+blocks, a short entry before a usable one, two usable entries, and the
+size `sdsize()` reports for a swap partition past 65,532 blocks and for
+one that is not a multiple of four. It then issues the swapper's
+byte-counted transfers: a 1,300-byte read and write, a 100-byte write, a
+failed last sector and a count past the partition's last sector on the
+swap device, and the same count refused on another partition. Sixteen
+mutants cover these rules.
 
 `check-renode-picocalc-dump` runs the script of `check-renode-picocalc`
 (next paragraph) with `--dump`. It boots
 the PICOCALC root image of the picocalc profile, which carries `savecore`,
 and adds Renode's own SD card model (`SD.SDCard`, SPI mode, persistent
 writes) on SPI0 with an 8 MiB image that `fsutil` makes: a UFS partition at
-`sd0a` and a 1 MiB dump partition of type 0xb9 at `sd0b`. The model needs no
+`sd0a`, a 1 MiB dump partition of type 0xb9 at `sd0b` and a 2 MiB swap
+partition of type 0xb8 at `sd0c`. The kernel must print `swap: sd0c` and
+`swap dev  = (5,3)`, so every later stage runs with swap on the card, and
+after Renode exits the swap partition must hold nonzero 4 KiB units; the
+run without a card (`check-renode-picocalc`) must print `swap dev  =
+(0,8)`. The boot text of a card with three entries scrolls the banner off
+the 32-row panel, so the boot checks read every frame's lines since the
+run began. The model needs no
 patch: patch 0008 hands it SPI0's frames, and its SPI state returns to idle
 after each response, so the chip select the driver drives from a SIO pin is
 not needed; card detect (GP22) has no model, so a replaced card is not

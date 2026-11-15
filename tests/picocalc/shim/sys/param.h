@@ -13,6 +13,8 @@
 
 typedef int		daddr_t;
 
+#undef major
+#define	major(dev)	(((dev) >> 8) & 0xff)
 #undef minor
 #undef makedev
 #define	minor(dev)	((dev) & 0xff)
@@ -21,6 +23,9 @@ typedef int		daddr_t;
 #define	DEV_BSHIFT	10
 #define	btod(x)		(((x) + DEV_BSIZE - 1) >> DEV_BSHIFT)
 #define	HZ		1000
+/* The image alignment and the largest image, machine/machparam.h. */
+#define	SWAP_IMAGE_ALIGN	4
+#define	SWAP_IMAGE_GUARD	196
 #define	NODEV		((dev_t)-1)
 /* Register access goes to the model in tests/picocalc/regmodel.h. */
 extern volatile unsigned *shim_reg(unsigned long addr);

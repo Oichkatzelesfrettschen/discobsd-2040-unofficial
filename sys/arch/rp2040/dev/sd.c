@@ -87,6 +87,7 @@
 #include <rp2040/dev/flash.h>
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
+#include <rp2040/dev/psram.h>
 #include <rp2040/dev/sdspi.h>
 #include <rp2040/dev/sd.h>
 
@@ -119,6 +120,18 @@ _Static_assert(SD_PRESCALE_FAST >= 2 && SD_PRESCALE_FAST <= 254 &&
     SD_PRESCALE_FAST % 2 == 0, "CPSDVSR is even, 2 to 254");
 
 #define	SD_DET_DEBOUNCE_US	50000
+
+/*
+ * The swap partition's bounds in DEV_BSIZE blocks. The swap map's compact
+ * descriptors (COMPACT_SWAPMAP, sys/map.h) hold 16-bit sizes and addresses,
+ * and every image is a whole number of SWAP_IMAGE_ALIGN blocks, so the map
+ * never names more than the largest aligned 16-bit count. A partition that
+ * cannot hold two images of SWAP_IMAGE_GUARD blocks behind the reserved
+ * first run is no better than fl1, whose 380 blocks hold one, and is passed
+ * over.
+ */
+#define	SD_SWAP_MAX_BLOCKS	((daddr_t)(0xffff & ~(SWAP_IMAGE_ALIGN - 1)))
+#define	SD_SWAP_MIN_BLOCKS	(2 * SWAP_IMAGE_GUARD + SWAP_IMAGE_ALIGN)
 
 #define	sdunit(dev)		(minor(dev) >> 3)
 #define	sdpart(dev)		(minor(dev) & 7)
@@ -316,13 +329,52 @@ sdclose(dev_t dev, int flag __unused, int mode)
 	return 0;
 }
 
+/*
+ * The last sector of a swap transfer. swap_with_buf_result() (vm_swp.c)
+ * moves an image segment's exact byte count, which the flash and PSRAM swap
+ * devices accept, while the card moves whole sectors. An image extent is a
+ * whole number of DEV_BSIZE blocks, so the sector that holds the last bytes
+ * belongs to the extent: a write pads it with zeros and a read copies out
+ * the bytes asked for, leaving the memory past them alone. The polled
+ * strategy routine runs one request at a time, so one buffer serves.
+ */
+static u_char sd_tail[SD_SECTOR];
+
+static int
+sd_tail_io(struct buf *bp, u_int sector, u_char *addr, u_int len)
+{
+	if (sd_replaced())
+		return EIO;
+	if (bp->b_flags & B_READ) {
+		if (sdspi_read(&sdcard, sector, sd_tail) != SDE_OK)
+			return EIO;
+		bcopy(sd_tail, addr, len);
+		return 0;
+	}
+	bcopy(addr, sd_tail, len);
+	bzero(sd_tail + len, SD_SECTOR - len);
+	return sdspi_write(&sdcard, sector, sd_tail) != SDE_OK ? EIO : 0;
+}
+
 /* Size in DEV_BSIZE blocks, which is what the block layer asks for. */
 daddr_t
 sdsize(dev_t dev)
 {
+	daddr_t blocks;
+
 	if (sdunit(dev) != 0 || sdpart(dev) > MAXPARTITIONS || sd_openpart == 0)
 		return 0;
-	return sdpt[sdpart(dev)].dp_nsectors >> 1;
+	blocks = sdpt[sdpart(dev)].dp_nsectors >> 1;
+	/*
+	 * init_main() frees this many blocks into the swap map, so the swap
+	 * partition reports what the map can name and whole images only.
+	 */
+	if (dev == swapdev) {
+		if (blocks > SD_SWAP_MAX_BLOCKS)
+			blocks = SD_SWAP_MAX_BLOCKS;
+		blocks &= ~(daddr_t)(SWAP_IMAGE_ALIGN - 1);
+	}
+	return blocks;
 }
 
 void
@@ -330,7 +382,7 @@ sdstrategy(struct buf *bp)
 {
 	int part = sdpart(bp->b_dev);
 	struct diskpart *p;
-	u_int first, avail, blocks, sector, i, n;
+	u_int first, avail, blocks, sector, i, n, tail;
 	u_char *addr = (u_char *)bp->b_addr;
 	int changed;
 
@@ -346,7 +398,9 @@ sdstrategy(struct buf *bp)
 		goto refused;
 	}
 	changed = sd_replaced();
-	if (changed || (bp->b_bcount & (SD_SECTOR - 1)) != 0) {
+	/* A count that ends inside a sector is the swapper's alone. */
+	tail = bp->b_bcount & (SD_SECTOR - 1);
+	if (changed || (tail != 0 && bp->b_dev != swapdev)) {
 		bp->b_error = changed ? EIO : EINVAL;
 		goto refused;
 	}
@@ -365,9 +419,10 @@ sdstrategy(struct buf *bp)
 	first = (u_int)bp->b_blkno * (DEV_BSIZE / SD_SECTOR);
 	avail = p->dp_nsectors - first;
 	n = bp->b_bcount / SD_SECTOR;
-	if (n > avail) {
-		bp->b_resid = (n - avail) * SD_SECTOR;
+	if (n >= avail) {
+		bp->b_resid = (n - avail) * SD_SECTOR + tail;
 		n = avail;
+		tail = 0;
 	}
 	sector = p->dp_offset + first;
 	/*
@@ -381,11 +436,13 @@ sdstrategy(struct buf *bp)
 		    sdspi_write(&sdcard, sector + i, addr)) != SDE_OK)
 			break;
 	}
-	if (i == n) {
+	if (i == n && tail != 0 && sd_tail_io(bp, sector + n, addr, tail) == 0)
+		tail = 0;
+	if (i == n && tail == 0) {
 		biodone(bp);
 		return;
 	}
-	bp->b_resid += (n - i) * SD_SECTOR;
+	bp->b_resid += (n - i) * SD_SECTOR + tail;
 	bp->b_error = EIO;
 	goto failed;
 refused:
@@ -627,4 +684,42 @@ sdrootattach(void)
 		printf("root: sd0 error %d\n", error);
 		panic("root: sd0 unusable");
 	}
+}
+
+/*
+ * Swap on the card. A PicoCalc whose PSRAM did not take the swap device
+ * (psramprobe() in psram.c) swaps to the first MBR entry of type PTYPE_SWAP
+ * (b8) that holds SD_SWAP_MIN_BLOCKS, so raw QSPI flash, which has no wear
+ * leveling under fl1, takes no swap traffic while such a card is in the
+ * socket. With no card, no such entry or a card that does not answer, the
+ * configured fl1 stays. main() runs this after sdrootattach() and before it
+ * opens swapdev. The chosen partition is held open from here, so that open
+ * finds the card up and the table read; every other path leaves the card
+ * closed. sdsize() bounds what the swap map is given.
+ */
+void
+sdswapattach(void)
+{
+	int i, error;
+
+	if (board_id() != BOARD_ID_PICOCALC || major(swapdev) == PSRAM_MAJOR)
+		return;
+	if ((error = sd_setup()) != 0) {
+		sdcard.type = SD_NONE;
+		if (error != ENODEV)
+			printf("swap: sd0 error %d, swap stays on fl1\n", error);
+		return;
+	}
+	for (i = 1; i <= MAXPARTITIONS; i++) {
+		if (sdpt[i].dp_type == PTYPE_SWAP &&
+		    (sdpt[i].dp_nsectors >> 1) >= SD_SWAP_MIN_BLOCKS)
+			break;
+	}
+	if (i > MAXPARTITIONS) {
+		sdcard.type = SD_NONE;
+		return;
+	}
+	sd_blkopen |= 1U << i;
+	swapdev = makedev(SD_BMAJOR, i);
+	printf("swap: sd0%c\n", 'a' + i - 1);
 }

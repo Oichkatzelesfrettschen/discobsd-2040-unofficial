@@ -133,8 +133,51 @@ static const unsigned char dec_graphics[LT_ACS_N][LT_GLYPH_ROWS] = {
 	{ 0x00, 0x00, 0x00, 0x30, 0x30, 0x00, 0x00, 0x00, 0x00 },	/* 0x7e bullet */
 };
 
-/* The bank is RAM; lcdterm_init() and ESC c fill it. */
-static unsigned char glyph_bank[LT_GLYPH_N][LT_GLYPH_ROWS];
+/*
+ * The bank is RAM; lcdterm_init() and ESC c fill it. A glyph row carries six
+ * pixels (LT_GLYPH_MASK), so a glyph's nine rows pack into 54 bits, stored
+ * least significant bit first in LT_GLYPH_PACKED bytes: 896 bytes for the
+ * bank instead of 1,152.
+ */
+#define	LT_GLYPH_BITS	6
+#define	LT_GLYPH_SHIFT	2		/* Bits 7-2 of a row are the pixels. */
+#define	LT_GLYPH_PACKED	((LT_GLYPH_ROWS * LT_GLYPH_BITS + 7) / 8)
+_Static_assert(LT_GLYPH_MASK == (((1u << LT_GLYPH_BITS) - 1) << LT_GLYPH_SHIFT),
+    "the packed bank holds bits 7-2 of each row");
+static unsigned char glyph_bank[LT_GLYPH_N][LT_GLYPH_PACKED];
+
+static void
+glyph_pack(unsigned char *packed, const unsigned char *rows)
+{
+	unsigned acc = 0;
+	int i, nbits = 0, k = 0;
+
+	for (i = 0; i < LT_GLYPH_ROWS; i++) {
+		acc |= (unsigned)(rows[i] >> LT_GLYPH_SHIFT) << nbits;
+		for (nbits += LT_GLYPH_BITS; nbits >= 8; nbits -= 8) {
+			packed[k++] = (unsigned char)acc;
+			acc >>= 8;
+		}
+	}
+	if (nbits > 0)
+		packed[k] = (unsigned char)acc;
+}
+
+static void
+glyph_unpack(unsigned char *rows, const unsigned char *packed)
+{
+	unsigned acc = 0;
+	int i, nbits = 0, k = 0;
+
+	for (i = 0; i < LT_GLYPH_ROWS; i++) {
+		for (; nbits < LT_GLYPH_BITS; nbits += 8)
+			acc |= (unsigned)packed[k++] << nbits;
+		rows[i] = (unsigned char)((acc & ((1u << LT_GLYPH_BITS) - 1)) <<
+		    LT_GLYPH_SHIFT);
+		acc >>= LT_GLYPH_BITS;
+		nbits -= LT_GLYPH_BITS;
+	}
+}
 
 static int
 phys(int r)
@@ -172,20 +215,20 @@ panel_top(int prow)
 static void
 glyph_defaults(void)
 {
-	int i, j;
+	int i;
 
 	for (i = 0; i < LT_GLYPH_N; i++)
-		for (j = 0; j < LT_GLYPH_ROWS; j++)
-			glyph_bank[i][j] = i < LT_ACS_N ? dec_graphics[i][j] :
-			    lcdfont['?' - LCDFONT_FIRST][j];
+		glyph_pack(glyph_bank[i], i < LT_ACS_N ? dec_graphics[i] :
+		    lcdfont['?' - LCDFONT_FIRST]);
 }
 
-const unsigned char *
-lcdterm_glyph(int code)
+int
+lcdterm_glyph(int code, unsigned char rows[LT_GLYPH_ROWS])
 {
 	if (code < LT_GLYPH_FIRST || code >= LT_GLYPH_FIRST + LT_GLYPH_N)
 		return 0;
-	return glyph_bank[code - LT_GLYPH_FIRST];
+	glyph_unpack(rows, glyph_bank[code - LT_GLYPH_FIRST]);
+	return 1;
 }
 
 static void
@@ -946,7 +989,6 @@ lcdterm_putc(int c)
 int
 lcdterm_setglyph(int code, const unsigned char *rows)
 {
-	unsigned char *g;
 	int i, r, c;
 
 	if (code < LT_GLYPH_FIRST || code >= LT_GLYPH_FIRST + LT_GLYPH_N)
@@ -954,9 +996,7 @@ lcdterm_setglyph(int code, const unsigned char *rows)
 	for (i = 0; i < LT_GLYPH_ROWS; i++)
 		if ((rows[i] & ~LT_GLYPH_MASK) != 0)
 			return -1;
-	g = glyph_bank[code - LT_GLYPH_FIRST];
-	for (i = 0; i < LT_GLYPH_ROWS; i++)
-		g[i] = rows[i];
+	glyph_pack(glyph_bank[code - LT_GLYPH_FIRST], rows);
 	cursor_hide();
 	for (r = 0; r < LT_ROWS; r++)
 		for (c = 0; c < LT_COLS; c++)

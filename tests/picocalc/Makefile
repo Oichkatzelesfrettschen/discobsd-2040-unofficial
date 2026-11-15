@@ -242,7 +242,7 @@ font-sync:
 # Each mutant is the shipped source with one line changed by sed; the
 # sed must change the file, and the test built from it must fail.
 mutants: mutant-scroll mutant-region mutant-ctrl mutant-reverse-erase \
-	mutant-bright mutant-bell mutant-bell-any mutant-bank-store \
+	mutant-bright mutant-bell mutant-bell-any mutant-bank-store mutant-bank-pack \
 	mutant-bank-redraw mutant-bank-ascii mutant-bank-c1 \
 	mutant-bank-acs-shift mutant-bank-ris mutant-bank-rows \
 	mutant-bank-code mutant-gfx-gate-cell mutant-gfx-gate-fill \
@@ -280,7 +280,11 @@ mutant-bell-any:
 
 mutant-bank-store:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
-	    's/^\t\tg\[i\] = rows\[i\];/\t\t(void)g;/'
+	    's/^\tglyph_pack(glyph_bank\[code - LT_GLYPH_FIRST\], rows);/\t(void)rows;/'
+
+mutant-bank-pack:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/^\t\tacc >>= LT_GLYPH_BITS;/\t\tacc >>= LT_GLYPH_BITS - 1;/'
 
 mutant-bank-redraw:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -1660,7 +1664,7 @@ clean:
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
-	mutant-bell-any mutant-bank-store mutant-bank-redraw \
+	mutant-bell-any mutant-bank-store mutant-bank-pack mutant-bank-redraw \
 	mutant-bank-ascii mutant-bank-c1 mutant-bank-acs-shift \
 	mutant-bank-ris mutant-bank-rows mutant-bank-code clean \
 	mutant-gfx-gate-cell mutant-gfx-gate-fill mutant-gfx-gate-top \

@@ -25,16 +25,35 @@
 # cannot load a net9.0 assembly, while a host whose oldest runtime is newer
 # rolls Renode and the net8.0 models forward together.
 #
+# cores/rp2040.repl applies Renode's RP2040 register description (an SVD
+# file) to the system bus by URL, which makes every emulator start depend on
+# that server. The fetch below downloads the archive once, requires its
+# SHA-256, unpacks it beside the platform file and rewrites the URL to that
+# local path. The archive is kept beside dest-dir, where a later run or a CI
+# cache finds it and skips the download.
+#
 # Usage: sh fetch-renode-rp2040.sh [dest-dir]
 # Default dest-dir is tools/renode/vendor/Renode_RP2040, ignored by git.
+# RENODE_SVD_ARCHIVE names the kept archive (default: RP2040.svd.gz beside
+# dest-dir).
 
 set -eu
 
 RP2040_REPO=https://github.com/matgla/Renode_RP2040.git
 RP2040_COMMIT=205a5e4b25440582008a4292074bb07f80a72328
 
+RP2040_SVD_URL=https://dl.antmicro.com/projects/renode/svd/RP2040.svd.gz
+RP2040_SVD_SHA256=7ab4407a73275cf37099e3e451a7d393f25513ee819ca2c48fe546dac38cc4e1
+
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 DEST=${1:-"$SCRIPT_DIR/vendor/Renode_RP2040"}
+SVD_ARCHIVE=${RENODE_SVD_ARCHIVE:-"$(dirname "$DEST")/RP2040.svd.gz"}
+
+svd_archive_matches() {
+	[ -r "$SVD_ARCHIVE" ] &&
+		printf '%s  %s\n' "$RP2040_SVD_SHA256" "$SVD_ARCHIVE" |
+		sha256sum --check --status
+}
 
 # --force because the patches below overlap: once 0002 has rewritten lines
 # 0001 introduced, neither one applies to nor reverses out of the resulting
@@ -79,6 +98,41 @@ for patch in "$SCRIPT_DIR"/patches/*.patch; do
 	git -C "$DEST" apply "$patch"
 	echo "$name: applied"
 done
+
+if svd_archive_matches; then
+	echo "RP2040.svd.gz: kept archive matches $RP2040_SVD_SHA256"
+else
+	mkdir -p "$(dirname "$SVD_ARCHIVE")"
+	curl --fail --location --silent --show-error --retry 5 \
+		--output "$SVD_ARCHIVE.part" "$RP2040_SVD_URL"
+	mv "$SVD_ARCHIVE.part" "$SVD_ARCHIVE"
+	svd_archive_matches || {
+		echo "RP2040.svd.gz from $RP2040_SVD_URL is not" >&2
+		echo "$RP2040_SVD_SHA256; the pin and the file have to move together." >&2
+		exit 1
+	}
+	echo "RP2040.svd.gz: fetched"
+fi
+SVD_FILE=$(cd "$DEST/cores" && pwd)/RP2040.svd
+gunzip -c "$SVD_ARCHIVE" > "$SVD_FILE"
+# The path lands in a sed replacement and in a Renode monitor command, so it
+# is held to characters neither one interprets.
+case $SVD_FILE in
+*[!A-Za-z0-9_./+-]*)
+	echo "$SVD_FILE: the models' path may hold only letters, digits and _ . / + -" >&2
+	exit 1
+	;;
+esac
+sed -i "s#ApplySVD @$RP2040_SVD_URL\$#ApplySVD @$SVD_FILE#" "$DEST/cores/rp2040.repl"
+grep -q "ApplySVD @$SVD_FILE\$" "$DEST/cores/rp2040.repl" || {
+	echo "cores/rp2040.repl at $RP2040_COMMIT has no ApplySVD line for" >&2
+	echo "$RP2040_SVD_URL; the pin and this rewrite have to move together." >&2
+	exit 1
+}
+if grep -q 'https\{0,1\}://' "$DEST/cores/rp2040.repl"; then
+	echo "cores/rp2040.repl still names a URL an emulator start would fetch" >&2
+	exit 1
+fi
 
 dotnet build "$DEST/emulation/Peripherals.csproj" -c Release
 

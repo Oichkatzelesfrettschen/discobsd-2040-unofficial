@@ -14,7 +14,8 @@ and armv6m_check() applies the same rule statically to a whole function.
 
 call() follows the AAPCS (ARM IHI 0042, section 6): the first four word
 arguments in r0-r3, the rest on the stack at an 8-byte aligned sp, the
-return address in lr with the Thumb bit set and the result in r0. The
+return address in lr with the Thumb bit set and the result in r0; r4-r11
+and sp must come back unchanged. The
 return address is a trap page outside the RP2040 map; reaching it ends the
 call. A call fails when it faults, exceeds its instruction budget, stops
 anywhere but the trap, makes an unaligned halfword or word access (which
@@ -56,12 +57,22 @@ from unicorn import (
     UcError,
 )
 from unicorn.arm_const import (
+    UC_ARM_REG_APSR_NZCV,
     UC_ARM_REG_LR,
     UC_ARM_REG_PC,
     UC_ARM_REG_R0,
     UC_ARM_REG_R1,
     UC_ARM_REG_R2,
     UC_ARM_REG_R3,
+    UC_ARM_REG_R4,
+    UC_ARM_REG_R5,
+    UC_ARM_REG_R6,
+    UC_ARM_REG_R7,
+    UC_ARM_REG_R8,
+    UC_ARM_REG_R9,
+    UC_ARM_REG_R10,
+    UC_ARM_REG_R11,
+    UC_ARM_REG_R12,
     UC_ARM_REG_SP,
     UC_CPU_ARM_CORTEX_M0,
 )
@@ -79,6 +90,16 @@ TRAP_BASE = 0x3FF00000
 RETURN_ADDRESS = TRAP_BASE
 CALLBACK_BASE = TRAP_BASE + 0x100
 ARGUMENT_REGISTERS = (UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3)
+CALLEE_SAVED = (
+    UC_ARM_REG_R4,
+    UC_ARM_REG_R5,
+    UC_ARM_REG_R6,
+    UC_ARM_REG_R7,
+    UC_ARM_REG_R8,
+    UC_ARM_REG_R9,
+    UC_ARM_REG_R10,
+    UC_ARM_REG_R11,
+)
 BX_LR = b"\x70\x47"
 NOP = b"\x00\xbf"
 
@@ -271,6 +292,7 @@ class KernelEmulator:
         self.next_scratch = SCRATCH_BASE
         self.policy: Policy | None = None
         self.violation: str | None = None
+        self.calls = 0
         self.violation_kind = "memory"
         self.checked_blocks: set[int] = set()
         self.memory_hook = self.uc.hook_add(UC_HOOK_MEM_READ | UC_HOOK_MEM_WRITE, self._access)
@@ -390,8 +412,19 @@ class KernelEmulator:
         hook, for a helper outside the test (the encoder that builds a
         stream), where a Python call per access would dominate the run."""
         entry = self.image.function(name).address
+        # Every register a caller may not rely on gets a fresh value per
+        # call: the unused argument registers, r12 and the NZCV flags, so
+        # code that reads one before writing it cannot borrow the previous
+        # call's value. r4-r11 get values the AAPCS requires back.
+        self.calls += 1
+        mix = (self.calls * 0x9E3779B9) & 0xFFFFFFFF
         for register in ARGUMENT_REGISTERS:
-            self.uc.reg_write(register, 0)
+            self.uc.reg_write(register, mix ^ register)
+        self.uc.reg_write(UC_ARM_REG_R12, mix ^ 0x5C5C5C5C)
+        self.uc.reg_write(UC_ARM_REG_APSR_NZCV, (mix >> 28) << 28)
+        preserved = {register: mix ^ (0x01010101 * register) for register in CALLEE_SAVED}
+        for register, value in preserved.items():
+            self.uc.reg_write(register, value)
         for register, value in zip(ARGUMENT_REGISTERS, arguments[:4]):
             self.uc.reg_write(register, value & 0xFFFFFFFF)
         stacked = arguments[4:]
@@ -424,6 +457,11 @@ class KernelEmulator:
             raise CallFailure(
                 "budget", f"{name} stopped at {pc:#010x} after at most {budget} instructions"
             )
+        for register, value in preserved.items():
+            if self.uc.reg_read(register) != value:
+                raise CallFailure(
+                    "abi", f"{name} returned with callee-saved register {register} changed"
+                )
         if self.uc.reg_read(UC_ARM_REG_SP) != sp:
             raise CallFailure(
                 "abi",

@@ -312,12 +312,15 @@ permissions. `check-flash-checkpoint` holds the driver to these properties
 over a NOR model, `kernel.ufs-disk.ilp32` holds the filesystem's sync paths
 to issuing the checkpoint, and `check-rp2040-shutdown` holds shutdown to
 forcing it. One board observation exists, on the measured Pico with the PICO
-kernel and image of this policy: five warm resets forced through the USB
+kernel and image of this policy: seven warm resets forced through the USB
 reset interface (`picotool reboot -f`), no power interruption. A directory
 followed by sync(2) survived; a file written 45 seconds before the reset, with
 no sync(2) call, survived by the update(8) checkpoint; directories made
 seconds before a reset were lost or salvaged, `fsck -p` repaired the root and
-rebooted, and the following boot checked clean each time. The reset matrix
+rebooted, and the following boot checked clean each time. One boot after
+such a repair gave no USB console output until the next forced reset, which
+checked clean; the cause is not established and five later resets did not
+repeat it. The reset matrix
 over write, erase and checkpoint phases and every power interruption (W03 of
 `docs/research/rp2040-memory-wear-engineering-program.md`) has not been run.
 Production

@@ -110,3 +110,47 @@ baseline, candidate, and comparison:
 The measurement requires no positive-growth exception. Runtime stack, heap,
 and storage traffic remain unmeasured. Emulator qualification, hosted CI, and
 reviewed integration remain open; the compiler matrix supplies no board claim.
+
+
+## Native driver baseline and emulator qualification
+
+Candidate `7f4883ec88c990c034109c0c28fb4ab2204f1da9` includes main
+`df48d76ddca80ea40278f2b4ff40854b84b3f532`. The registered header matrix,
+source accounting, and cc-driver contract pass after a logged build. The
+matrix retains 926 compiler cases, 12 accepted Smaller C inputs, and three
+unsupported native boolean inputs. The cc-driver fixture passes 18 cases
+and rejects its basename-and-sed mutant.
+
+The matched clean resource comparator exits zero with all 162 deltas zero
+and unchanged archive membership. Receipts are
+`public-header-resources-df48d76d.json`,
+`public-header-resources-7f4883ec.json`, and
+`public-header-resources-df48d76d-7f4883ec.json`.
+Hosted run [43657326122](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/actions/runs/43657326122)
+passes the maintained build, flash, lint and Renode UART0 tier at this head.
+Other optional hosted jobs report skipped, including ILP32 execution.
+
+The local logged flash build and Renode gate also exit zero. Renode
+`1.17.0+20260907gitf1dd1b4af` uses model revision
+`205a5e4b25440582008a4292074bb07f80a72328` with the retained patches;
+the model assembly SHA-256 is
+`789d85b68c88374e0c9b71df757d045985a75d59179e3b0c2b3358f34dae2032`.
+The gate exercises boot, filesystem and process checks, memory-device refusal,
+fstat, capacity and image identity, modeled MPU faults and exec residue,
+signal handling, native compilation with 2046 dates, and core-1 ping/stall
+reporting. The warning classifier accepts 192523 observations across
+30 permitted classes and reports zero errors. These are emulator
+observations, separate from physical-board behavior and runtime peak bounds.
+
+Retained copies in `.build-logs/header-image-7f4883ec/` match these hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `distrib/rp2040/flash.bin` | `47b9ef3bc80854affbc9a1c60252bc1314500cf015427efacf2f32536f3f9abc` |
+| `distrib/rp2040/flash.uf2` | `11ce9cebf9150d8796bac40158a3ca109fc5793448c9eef968d3ec5a80ae62af` |
+| `sys/arch/rp2040/compile/PICO_UART/unix.bin` | `e469dd56881d2279725a58d30e59fc98fe80bc21969c9241ec24fb7da4e84d6b` |
+| `tools/renode/vendor/results/boot/renode.log` | `a30ad545b90954fc5ba8edb8460ae03d6ea254b096aa256a6b5f1b5ff945e4d8` |
+
+The [native boolean type mechanism](native-boolean-type.md) decomposes the
+remaining Smaller C parser, normalization, storage and ABI work. Its calibrated
+starting witnesses establish an unsupported type, not a completed compiler feature.

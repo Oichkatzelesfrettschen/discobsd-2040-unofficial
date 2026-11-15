@@ -1440,13 +1440,13 @@
       "c17_rewrite": "Use one portable statement macro with C90-compatible declarations for GNU17, strict C17 and Smaller C consumers; initialize the real caller.",
       "archive_members": [],
       "size_estimate": {
-        "status": "unmeasured",
+        "status": "measured",
         "surfaces": [
           "per-program loaded/raw/packed sizes",
           "root blocks",
           "kernel regions"
         ],
-        "evidence": ""
+        "evidence": "docs/research/descriptor-set-resource-exception.md"
       },
       "deciding_gate": "Require calibrated fd-set cross/host/qemu gates, matched clean resource comparison, profile approval for positive growth, and reviewed integration.",
       "disposition": "candidate",

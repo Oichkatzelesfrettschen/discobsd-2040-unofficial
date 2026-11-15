@@ -156,6 +156,7 @@ Grouped by what they investigate.
 | `kernel-footprint-handoff.md` | the measured kernel and libc footprint work queue: never-returning libc entry points, `struct user` load reach, unreferenced kernel functions, the `adjtime` 64-bit divide, a lean PICO beside PICO_DIAG, the `-O2` capacity-index block, kernel LTO blockers and unprototyped designs, each with location, bytes and acceptance |
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
 | `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
+| `c17-posix-program-state.md` | observed main, 32 merged and six open program PRs, all fourteen work-package dispositions, resource/evidence boundaries and restart ownership |
 | `c17-shipped-build-baseline.md` | configuration-specific shipped source membership, artifact-bound static resource receipts and the acceptance states left open |
 | `kernel-checksum-capture.md` | in-place kernel checksum stamping, retained pre/post ELF identities and calibrated source attribution |
 | `libc-passwd-header-inclusion.md` | repeated password-header inclusion, preserved public types/layout, captured callers, native compatibility and paired static resources |

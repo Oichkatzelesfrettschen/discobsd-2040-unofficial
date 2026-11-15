@@ -43,7 +43,10 @@ int main(void)
                 if (before[i] != after[i])
                     return 2;
             if (calls < n - 1)
+            {
+                fprintf(stderr, "comparison counter: insufficient calls\n");
                 return 3;
+            }
             unsigned lg = 0;
             for (size_t v = n; v > 1; v /= 2)
                 lg++;
@@ -56,5 +59,6 @@ int main(void)
             printf("%u %zu %zu\n", mode, n, calls);
         }
     }
+    printf("qsort counts: 56 pattern cases pass\n");
     return 0;
 }

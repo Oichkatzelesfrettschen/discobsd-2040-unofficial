@@ -59,7 +59,11 @@ def main():
         ["git", "-C", str(root), "show", BASELINE + ":lib/libc/gen/qsort.c"],
     )
     (work / "baseline.c").write_text(baseline)
-    fixture = (root / "tests/libc_contracts/qsort_context_test.c").read_text()
+    fixture = run(
+        work,
+        "fixture-source",
+        ["git", "-C", str(root), "show", BASELINE + ":tests/libc_contracts/qsort_context_test.c"],
+    )
     if fixture.count("unsigned char keys[8];") != 1:
         raise RuntimeError("exhaustive fixture anchor differs")
     fixture = fixture.replace("unsigned char keys[8];", "unsigned char keys[10];")
@@ -183,7 +187,26 @@ def main():
             name + "-link",
             ["cc", *FLAGS, "-O2", str(work / "counts.c"), str(obj), "-o", str(binary)],
         )
-        run(work, name + "-run", [str(binary)], expected, diagnostic)
+        run(
+            work,
+            name + "-run",
+            [str(binary)],
+            expected,
+            diagnostic,
+            "qsort counts: 56 pattern cases pass" if expected == 0 else None,
+        )
+    if counts.count("calls++;") != 1:
+        raise RuntimeError("counter mutation anchor differs")
+    counter = work / "counter-disabled.c"
+    counter.write_text(counts.replace("calls++;", "(void)0;"))
+    binary = work / "counter-disabled"
+    run(
+        work,
+        "counter-disabled-compile",
+        ["cc", *FLAGS, "-O2", str(counter), str(work / "candidate-counts.o"), "-o", str(binary)],
+    )
+    run(work, "counter-disabled-run", [str(binary)], 3, "comparison counter:")
+    print("PASS control: comparison counter", flush=True)
     arm = ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft", "-Os"]
     if args.arm:
         support = work / "support.o"

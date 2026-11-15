@@ -79,10 +79,11 @@ Both the normal partition entry and a forced zero-budget heap entry pass
 QEMU execution. QEMU links newlib and the repository's Linux-EABI support;
 it supplies instruction execution separately from DiscoBSD exec admission.
 
-Four host controls compile warning-clean and reject through named behavior:
+Five host controls compile warning-clean and reject through named behavior:
 unchanged input violates order, a null substituted context loses identity,
-a changed last key loses multiplicity, and an omitted heap fallback violates
-order. The initial omitted-fallback control reaches the earlier no-comparator
+a changed last key loses multiplicity, an omitted heap fallback violates
+order, and a disabled comparison counter reports insufficient calls. The
+positive comparison run requires its complete 56-pattern marker. The initial omitted-fallback control reaches the earlier no-comparator
 assertion; its revised construction retains comparator calls to reach the
 intended ordering oracle. Compiler errors and unrelated failures supply no
 calibration. LeakSanitizer remains disabled for sandbox compatibility;
@@ -129,7 +130,7 @@ markers decide acceptance. The final receipt records source hashes, the immutabl
 versions and whether ARM execution occurs. The checked-in `evidence.json`
 retains the compact result and hashes of its local artifacts. An unavailable selected tool fails;
 unselected ARM execution records `not run`. The frozen successful replay is
-`.build-logs/bidirectional-sort-3a8k38af/`. This research replay remains outside
+`.build-logs/bidirectional-sort-c6z3g5pc/`. This research replay remains outside
 the required production execution inventory.
 
 ```sh
@@ -151,3 +152,33 @@ C files remain unreviewed for production migration. The donor frontier retains
 for both comparator variants with warnings treated as errors; this scoped
 analysis supplies no broad clang-tidy or runtime verdict. Ruff lint and format
 checks pass for the replay driver.
+
+## Production admission sequence
+
+1. Preserve the inherited `lib/libc/gen/qsort.c` provenance and expose the
+   candidate through its existing ordinary/context-last provider selection.
+   `qsort_r.c` retains the shared-source build and its exact public signature.
+2. Extend the existing context fixture across the partition cutoff and register
+   the 56-pattern comparison-bound fixture in the owning libc sort gate. The
+   current production source reaches the known comparison-budget failure.
+3. Adapt the source mutations in `tests/libc_contracts/qsort_context.py` to the
+   new mechanism. Preserve separate rejection of lost context, reversed order,
+   skipped sorting, shared recursive state, and damaged record bytes. Add the
+   budget/fallback and disabled-counter controls without treating compilation
+   failure as rejection.
+4. Run ordinary/context behavior, strict C17 and GNU17 compilation, ILP32,
+   sanitizer, ARMv6-M QEMU, public target headers and Smaller C declarations.
+   Verify native archive consumers and symbol selection separately.
+5. Compose entry, recursive partition, heap/swap and comparator stack paths.
+   Include multicall consumers and largest admitted process records; local
+   `.su` figures alone supply no peak-stack admission.
+6. Capture matched clean distributions against refreshed main. Compare each
+   kernel, executable, native artifact and root-block surface independently.
+   Any positive constrained delta follows the profile's measured exception
+   process before integration.
+7. Retain separate workload-operation counts, emulator/runtime checks and
+   timing measurements. Physical-board execution requires its own authorization.
+   Shared-libc qualification keeps its separately agreed 10% workload limit.
+8. Update the donor, source and standards records with the delivered behavior,
+   register any new required gate with its Makefile/testing/CI owners, and
+   integrate through a reviewed PR with current-head checks.

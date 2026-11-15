@@ -5,7 +5,8 @@ native libc archive. It adds `getchar.o` and `putchar.o` to that archive and
 adds `getc`/`putc` to existing members. The other 161 of 162 shipped numeric
 surfaces stay unchanged. All 34 shipped program records, including artifact
 hashes, remain identical. The root retains 752 data blocks, 227 free blocks and
-29 free inodes. Approval remains pending.
+29 free inodes. The owner approves this exact vector on 2026-11-15 and directs
+continued integration. The approval supplies no allowance for later growth.
 
 The [profile](dpucp-2024.md) requires exact deltas, examined alternatives,
 remaining margins, user benefit, a rollback point and reviewer approval.
@@ -106,7 +107,7 @@ macro expansion leaves callable symbols unavailable. Compiler aliases and
 combined source ownership introduce separate compiler/address/provenance
 obligations; neither has qualified a lower complete cost here.
 
-The requested exception admits exactly 500 additional native archive bytes,
+The approved exception admits exactly 500 additional native archive bytes,
 the two named selected members, and the separate native-probe deltas above.
 It admits no growth on the other 161 shipped numeric surfaces. The baseline
 source supplies the rollback point. Additional growth requires its own
@@ -115,5 +116,7 @@ runtime acceptance claim.
 
 The focused header, byte/backend, native/ILP32/sanitizer, Smaller C and Cortex-M0
 QEMU witnesses pass. Both native archives pass with all 36 missing-member
-controls rejected. Complete aggregate, required-inventory, Renode, hosted CI
-and bounded external review retain their separate qualification states.
+controls rejected. Complete aggregate, all 219 required-inventory variants,
+UART and union Renode, hosted CI and bounded external review pass at
+qualification head `358efb11`. Physical-board execution remains outside this
+change's authorization.

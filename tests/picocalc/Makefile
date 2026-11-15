@@ -68,7 +68,7 @@
 # beside a mount, undersized, failing and replaced, runs sdrootattach()
 # with and without the PicoCalc loader's stamp, and runs sdswapattach() over
 # the cards and boards that decide the swap device and reads the size
-# sdsize() gives it; seventy-seven mutants of sd.c and dump.c must fail it.
+# sdsize() gives it; seventy-eight mutants of sd.c and dump.c must fail it.
 #
 # dump_test writes a dump with the kernel's dump stream into a partition
 # image and runs savecore(8) on it from the host: a saved dump, a damaged
@@ -1347,6 +1347,7 @@ sdstrat-mutants: \
 	sdstrat-mutant-swap-tail-resid-dropped \
 	sdstrat-mutant-swap-tail-past-partition \
 	sdstrat-mutant-swap-left-closed \
+	sdstrat-mutant-swap-hold-closable \
 	sdstrat-mutant-swap-refusal-left-open
 
 # sdrootattach(): the root a kernel the PicoCalc loader started takes.
@@ -1405,11 +1406,15 @@ sdstrat-mutant-swap-clamp-everywhere:
 
 sdstrat-mutant-swap-left-closed:
 	${SDSTRAT_MUT} sd.c \
-	    's/sd_blkopen |= 1U << i;/sdcard.type = SD_NONE;/' ${SDSTRAT_SRC}
+	    's/sd_swaphold = 1U << i;/sdcard.type = SD_NONE;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-hold-closable:
+	${SDSTRAT_MUT} sd.c \
+	    's/sd_swaphold = 1U << i;/sd_open[1] |= 1U << i;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-swap-refusal-left-open:
 	${SDSTRAT_MUT} sd.c \
-	    's/if (i > MAXPARTITIONS) {/sd_blkopen |= 1U; if (i > MAXPARTITIONS) {/' ${SDSTRAT_SRC}
+	    's/if (i > MAXPARTITIONS) {/sd_swaphold = 1U; if (i > MAXPARTITIONS) {/' ${SDSTRAT_SRC}
 
 # The last sector of a swap transfer, sd_tail_io() and its callers.
 sdstrat-mutant-swap-tail-refused:

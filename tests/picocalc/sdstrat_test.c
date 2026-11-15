@@ -1296,8 +1296,9 @@ set_part(int n, unsigned type, unsigned offset, unsigned nsectors)
 /*
  * One call of sdswapattach() from a closed card with swap on fl1 or on
  * `from`. A card that took swap holds that partition open with its table
- * read, so the open main() makes reads nothing; every other path leaves the
- * card closed. The helper closes the partition again.
+ * read, so the open main() makes reads nothing, and the close that
+ * swclose() forwards for /dev/swap leaves it open and able to transfer;
+ * every other path leaves the card closed. swap_release() ends the hold.
  */
 static void
 swap_attach(const char *name, dev_t from)
@@ -1317,9 +1318,21 @@ swap_attach(const char *name, dev_t from)
 		snprintf(what, sizeof(what), "%s: table not read again", name);
 		check(what, (long)nread[0], (long)reads);
 		sdclose(swapdev, 0, S_IFBLK);
+		snprintf(what, sizeof(what), "%s: held across a close", name);
+		check(what, sdsize(swapdev) != 0, 1);
+		return;
 	}
 	snprintf(what, sizeof(what), "%s: card closed afterwards", name);
 	check(what, (long)sdsize(makedev(SD_BMAJOR, 0)), 0);
+}
+
+/* A call on a bare Pico, which selects nothing, ends the previous hold. */
+static void
+swap_release(void)
+{
+	test_board = BOARD_ID_PICO;
+	swap_attach("release", FL1);
+	test_board = BOARD_ID_PICOCALC;
 }
 
 /*
@@ -1365,6 +1378,22 @@ swapdev_cases(void)
 	check("slot 4: swap opens", sdopen(swapdev, 0, S_IFBLK), 0);
 	check("slot 4: swap size", (long)sdsize(swapdev), 8192);
 	sdclose(swapdev, 0, S_IFBLK);
+	{
+		/*
+		 * The strategy routine still accepts the partition after the
+		 * open and close of /dev/swap; the 64-sector model card holds
+		 * no sector this far out, so the request ends at the card.
+		 */
+		struct buf b;
+		struct req r = { minor(swapdev), B_READ, 0, 1024 };
+		dev_t dev = swapdev;
+
+		swapdev = (dev_t)minor(dev);
+		issue(&r, &b, NULL);
+		check("slot 4: request reaches the card after a close",
+		    b.b_error, EIO);
+		swapdev = dev;
+	}
 
 	/* No b8 entry: types b7 and b9 beside it are not swap. */
 	set_part(4, PTYPE_BSDFFS, 4096, 2 * 8192);
@@ -1420,6 +1449,7 @@ swapdev_cases(void)
 	swap_attach("past the card", FL1);
 	check("past the card: swapdev kept", (long)swapdev, (long)FL1);
 
+	swap_release();
 	card_nsectors = CARD_SECTORS;
 	swapdev = FL1;
 }

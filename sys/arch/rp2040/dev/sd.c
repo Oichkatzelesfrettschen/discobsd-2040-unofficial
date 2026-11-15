@@ -185,8 +185,15 @@ static struct diskpart sdpt[MAXPARTITIONS + 1];	/* [0] is the whole card. */
  * must not drop a partition a mounted filesystem still holds.
  */
 static u_int sd_open[2];
-#define	sd_openpart	(sd_open[0] | sd_open[1])
-#define	sd_blkopen	sd_open[1]
+/*
+ * The swap partition sdswapattach() chose, held for the life of the boot.
+ * It counts as a block open that no close ends: swclose() (sys/dev/swap.c)
+ * forwards the close of /dev/swap to sdclose(), and the open bits are not
+ * counted, so a bit of sd_open alone would go with the first such close.
+ */
+static u_int sd_swaphold;
+#define	sd_blkopen	(sd_open[1] | sd_swaphold)
+#define	sd_openpart	(sd_open[0] | sd_blkopen)
 #define	sd_kind(mode)	((mode) == S_IFBLK)
 
 /*
@@ -693,15 +700,17 @@ sdrootattach(void)
  * leveling under fl1, takes no swap traffic while such a card is in the
  * socket. With no card, no such entry or a card that does not answer, the
  * configured fl1 stays. main() runs this after sdrootattach() and before it
- * opens swapdev. The chosen partition is held open from here, so that open
- * finds the card up and the table read; every other path leaves the card
- * closed. sdsize() bounds what the swap map is given.
+ * opens swapdev. The chosen partition is held in sd_swaphold from here, so
+ * that open finds the card up and the table read and no close releases it;
+ * every other path leaves the card closed. sdsize() bounds what the swap map
+ * is given.
  */
 void
 sdswapattach(void)
 {
 	int i, error;
 
+	sd_swaphold = 0;
 	if (board_id() != BOARD_ID_PICOCALC || major(swapdev) == PSRAM_MAJOR)
 		return;
 	if ((error = sd_setup()) != 0) {
@@ -719,7 +728,7 @@ sdswapattach(void)
 		sdcard.type = SD_NONE;
 		return;
 	}
-	sd_blkopen |= 1U << i;
+	sd_swaphold = 1U << i;
 	swapdev = makedev(SD_BMAJOR, i);
 	printf("swap: sd0%c\n", 'a' + i - 1);
 }

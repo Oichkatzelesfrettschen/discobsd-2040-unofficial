@@ -2737,7 +2737,8 @@ size `sdsize()` reports for a swap partition past 65,532 blocks and for
 one that is not a multiple of four. It then issues the swapper's
 byte-counted transfers: a 1,300-byte read and write, a 100-byte write, a
 failed last sector and a count past the partition's last sector on the
-swap device, and the same count refused on another partition. Sixteen
+swap device, and the same count refused on another partition; the chosen
+partition must stay open across an open and close of it. Seventeen
 mutants cover these rules.
 
 `check-renode-picocalc-dump` runs the script of `check-renode-picocalc`

@@ -110,7 +110,10 @@ show_files(const struct kinfo_proc *kp, const char *user)
 	static struct kinfo_file kf[NOFILE + 1];
 	int mib[5] = { CTL_KERN, KERN_FILE, KERN_FILE_BYPID, kp->kp_pid,
 	    sizeof(kf[0]) };
-	const char *comm = (kp->kp_valid & KP_VALID_COMM) ? kp->kp_comm : "-";
+	/* Pid 0 runs no image and carries no name; it prints as swapper. */
+	const char *comm = !(kp->kp_valid & KP_VALID_COMM) ? "-" :
+	    (kp->kp_pid == 0 && kp->kp_comm[0] == '\0') ? "swapper" :
+	    kp->kp_comm;
 	size_t len = sizeof(kf);
 
 	if (sysctl(mib, 5, kf, &len, NULL, 0) < 0) {

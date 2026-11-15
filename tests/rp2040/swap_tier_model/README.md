@@ -105,6 +105,17 @@ The erase count is not independent agreement: every refused image erases
 its span, so 1,412 is 49 x 5 + 192 x 6 + 15 and 58.8 erases a compile
 restate the span bins (`test_board_identities`).
 
+**The boot prefix.** The records before the first snapshot are not
+fitted, and they set the pool layout every compile starts from. Against
+the "before" block of `fixed-sh.txt` the model's prefix makes 28 attempts
+(board 33), admits 18 (25) and refuses 10 by fragment (8); refusals see
+11,608 free bytes and a 5,880-byte largest run on average (8,572 and
+4,674); RAM spans of 1, 2, 3 and 5 sectors are 0, 1, 5, 12 (1, 3, 3, 18)
+and flash spans 0 of 3 sectors and 10 of 5 (2 and 6). The board sent two
+3-sector images to flash at boot where the model keeps init's class in the
+pool, and init's place there makes the hole below it. Variants 1, 2 and 3
+act on that layout and inherit this disagreement.
+
 **The miss.** No model produces the twelve refusals short by 5 to 6 KiB.
 `refused_data_fits` agrees in count: on the board 59 refusals have
 compressed data and stack larger than the largest run, as many as the

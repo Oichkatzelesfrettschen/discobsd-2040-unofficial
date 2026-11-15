@@ -203,7 +203,6 @@ def generate(workload):
                     # swaps the pass out for it (vm_sched.c: in core at
                     # least a second, update out at least two).
                     image = w.compiler if j == 0 else w.command
-                    e.emit("in", pid=update, name="update")
                     e.out(cpid, names[j], image, incoming=update)
                     e.out(update, "update", w.update, incoming=cpid)
                 if w.driver_swaps:

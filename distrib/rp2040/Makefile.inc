@@ -196,6 +196,7 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/stdlib/quick_exit.h \
 				${TOPSRC}/distrib/rp2040/boardlibc-members \
 				${TOPSRC}/include/string.h \
+				${TOPSRC}/include/stdio.h \
 				${TOPSRC}/include/time.h \
 				${TOPSRC}/include/tzfile.h \
 				${TOPSRC}/include/_featuretest.h \
@@ -204,6 +205,10 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/arm/gen/rom_float_*.S \
 				${TOPSRC}/lib/libc/stdio/doprnt.c \
 				${TOPSRC}/lib/libc/stdio/printf.c \
+				${TOPSRC}/lib/libc/stdio/fgetc.c \
+				${TOPSRC}/lib/libc/stdio/fputc.c \
+				${TOPSRC}/lib/libc/stdio/getchar.c \
+				${TOPSRC}/lib/libc/stdio/putchar.c \
 				${TOPSRC}/lib/libc/stdio/sprintf.c \
 				${TOPSRC}/lib/libc/stdio/fprintf.c \
 				${TOPSRC}/lib/libc/stdio/vfprintf.c \

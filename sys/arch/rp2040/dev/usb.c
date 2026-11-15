@@ -275,17 +275,26 @@ static const u_char usb_config_desc[CONFIG_DESC_LEN] = {
 	RESET_INTERFACE_PROTOCOL, 5,
 };
 
+#define	USB_STRING_SERIAL	3	/* usb_device_desc's serial index. */
+
 static const char *const usb_strings[] = {
 	0,				/* 0: language list, built below. */
 	"DiscoBSD",
 	"DiscoBSD RP2040 console",
-	"rp2040",
+	0,				/* 3: usb_serial, built by usbinit(). */
 	"Console",
 	"Reset",
 };
 #define	NSTRINGS	(sizeof(usb_strings) / sizeof(usb_strings[0]))
 _Static_assert(NSTRINGS == USB_STRING_DESCRIPTOR_COUNT,
 	"USB string descriptor count must match the validated index range");
+
+/*
+ * The serial number string: the flash chip's unique ID, so that two boards
+ * on one host enumerate under different names (flash_serial_string() in
+ * flash.h gives the form), or "rp2040" when the ID cannot be read.
+ */
+static char usb_serial[FLASH_SERIAL_CHARS];
 
 /*
  * Device state.
@@ -367,6 +376,7 @@ static int usb_service_depth;
 static u_int usb_sof_us;		/* TIMERAWL at the last SOF interrupt. */
 
 static void usb_tx_kick(void);
+static void usb_tx_idle(void);
 
 /*
  * Buffer control words are shared with the controller, which runs from a
@@ -504,7 +514,7 @@ usb_string_desc(u_int index, u_int wlength)
 		usb_ep0_send(usbd.reply, 4, wlength);
 		return;
 	}
-	s = usb_strings[index];
+	s = index == USB_STRING_SERIAL ? usb_serial : usb_strings[index];
 	for (n = 0; s[n] != '\0' && 2 + 2 * n < sizeof(usbd.reply) - 1; n++)
 		continue;
 	usbd.reply[0] = 2 + 2 * n;
@@ -527,7 +537,6 @@ usb_configure(int on)
 {
 	usbd.configured = on;
 	usbd.dtr = 0;
-	usbd.tx_busy = 0;
 	usbd.tx_pending = 0;
 	usbd.data_in_pid = 0;
 	usbd.data_out_pid = 0;
@@ -542,9 +551,10 @@ usb_configure(int on)
 		 * the packet most likely to land in the critical window.
 		 */
 		USBSET(USB_INTE) = USB_INTS_DEV_SOF;
-		usb_tx_kick();
 	} else
 		USBCLR(USB_INTE) = USB_INTS_DEV_SOF;
+	/* Any packet in flight is abandoned with no completion to come. */
+	usb_tx_idle();
 }
 
 static int
@@ -733,7 +743,7 @@ usb_setup(void)
 			}
 			usb_ep0_ack();
 			if (windex == ITF_CDC_DATA)
-				usb_tx_kick();
+				usb_tx_idle();
 			return;
 		case REQ_SET_FEATURE:
 			/*
@@ -849,6 +859,31 @@ usb_tx_kick(void)
 		usb_buf_arm_word(USB_DPRAM_BUF_CTRL(EP_DATA, 1), ctrl);
 }
 
+/*
+ * The bulk IN endpoint holds no packet: send the next one or, with the ring
+ * empty, release the tty. TS_BUSY tells the tty layer a packet is
+ * outstanding, usbstart() returns while it is set, and only this routine
+ * clears it, so every path that ends a packet -- its completion, a recovered
+ * arm, SET_CONFIGURATION, a bus reset, SET_INTERFACE -- comes here. A path
+ * that cleared tx_busy alone with the ring empty would leave TS_BUSY with no
+ * completion to clear it: tty output and echo would queue in t_outq, and a
+ * writer past the high-water mark or a last close in ttywait() would sleep,
+ * until a kernel printf refilled the ring.
+ */
+static void
+usb_tx_idle(void)
+{
+	struct tty *tp = &usbttys[0];
+
+	usbd.tx_busy = 0;
+	led_control(LED_TTY, 0);
+	usb_tx_kick();
+	if (! usbd.tx_busy && (tp->t_state & TS_BUSY)) {
+		tp->t_state &= ~TS_BUSY;
+		ttstart(tp);
+	}
+}
+
 /* Queue one byte for the host, dropping the oldest when nobody drains. */
 static void
 usb_tx_put(u_char c)
@@ -941,9 +976,8 @@ usb_tx_recover_if_idle(void)
 	bc = DPRAM32(USB_DPRAM_BUF_CTRL(EP_DATA, 1));
 	if ((bc & (USB_BUF_CTRL_AVAIL | USB_BUF_CTRL_FULL)) == 0 &&
 	    (USBREG(USB_BUFF_STATUS) & USB_BUFF_STATUS_BIT(EP_DATA, 1)) == 0) {
-		usbd.tx_busy = 0;
 		usb_tx_recovered++;
-		usb_tx_kick();
+		usb_tx_idle();
 	}
 }
 
@@ -962,7 +996,6 @@ usb_tx_recover_if_idle(void)
 static void
 usb_service(void)
 {
-	struct tty *tp = &usbttys[0];
 	u_int ints, done, i;
 
 	/*
@@ -1048,13 +1081,7 @@ usb_service(void)
 		}
 		if (done & USB_BUFF_STATUS_BIT(EP_DATA, 1)) {
 			/* Bulk IN went out: send more, or wake the tty. */
-			usbd.tx_busy = 0;
-			led_control(LED_TTY, 0);
-			usb_tx_kick();
-			if (! usbd.tx_busy && (tp->t_state & TS_BUSY)) {
-				tp->t_state &= ~TS_BUSY;
-				ttstart(tp);
-			}
+			usb_tx_idle();
 		}
 		if (done & USB_BUFF_STATUS_BIT(EP_DATA, 0))
 			usb_rx_done();
@@ -1128,6 +1155,7 @@ USBCTRL_IRQ_Handler(void)
 void
 usbinit(void)
 {
+	const u_char *jedec, *unique;
 	u_int i;
 
 	REG32(RESETS_BASE + RESETS_CLR) = RESETS_USBCTRL;
@@ -1137,6 +1165,10 @@ usbinit(void)
 	for (i = 0; i < USB_DPRAM_SIZE; i += 4)
 		DPRAM32(i) = 0;
 	bzero(&usbd, sizeof(usbd));
+
+	/* Before the pull-up: the host asks for the serial at enumeration. */
+	flash_serial_string(usb_serial,
+	    flash_identity(&jedec, &unique) == 0 ? unique : (const u_char *)0);
 
 	/* Default line coding: 115200 8N1, reported back if asked. */
 	usbd.line_coding[0] = 115200 & 0xff;
@@ -1256,7 +1288,6 @@ usbstart(struct tty *tp)
 		splx(s);
 		return;
 	}
-	ttyowake(tp);
 	while (tp->t_outq.c_cc != 0 &&
 	    usbd.tx_head - usbd.tx_tail < USB_TXRING)
 		usb_tx_put(getc(&tp->t_outq));
@@ -1265,6 +1296,14 @@ usbstart(struct tty *tp)
 		tp->t_state |= TS_BUSY;
 		led_control(LED_TTY, 1);
 	}
+	/*
+	 * The queue has just moved into the ring, so the low-water test sees
+	 * what is left. Tested before the move, a full queue woke nobody, and
+	 * when the moved bytes left without setting TS_BUSY -- the controller
+	 * unconfigured after a bus reset -- no later call came to wake the
+	 * writer or the closer sleeping on t_outq.
+	 */
+	ttyowake(tp);
 	splx(s);
 }
 

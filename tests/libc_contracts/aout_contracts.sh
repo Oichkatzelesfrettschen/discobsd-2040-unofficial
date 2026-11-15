@@ -53,6 +53,10 @@ do
 		exit 2
 	fi
 	for required_source in \
+	    "$source_root/lib/libc/stdio/fgetc.c" \
+	    "$source_root/lib/libc/stdio/fputc.c" \
+	    "$source_root/lib/libc/stdio/getchar.c" \
+	    "$source_root/lib/libc/stdio/putchar.c" \
 	    "$source_root/lib/libc/compat/memchr.c" \
 	    "$source_root/lib/libc/string/memmem.c" \
 	    "$source_root/lib/libc/stdlib/abs.c" \
@@ -83,6 +87,7 @@ do
 		fi
 	done
 	for required_member in confstr.o ctermid.o difftime.o explicit_bzero.o \
+	    fgetc.o fputc.o getchar.o putchar.o \
 	    abs.o labs.o memchr.o memmem.o iso_exit.o at_quick_exit.o quick_exit.o \
 	    "$divider_member.o" qsort.o qsort_r.o raise.o sysconf.o \
 	    strnlen.o strndup.o stpcpy.o stpncpy.o \
@@ -116,7 +121,7 @@ do
 		printf '%s\n' "$undefined_symbols" >&2
 		exit 1
 	fi
-	for missing_member in abs labs memchr memmem strnlen strndup stpcpy stpncpy iso_exit at_quick_exit quick_exit qsort qsort_r "$divider_member"
+	for missing_member in abs labs memchr memmem strnlen strndup stpcpy stpncpy iso_exit at_quick_exit quick_exit qsort qsort_r fgetc fputc getchar putchar "$divider_member"
 	do
 		damaged_archive=$temporary_directory/damaged.a
 		cp "$archive_path" "$damaged_archive"

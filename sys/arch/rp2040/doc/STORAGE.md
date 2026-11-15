@@ -175,6 +175,24 @@ SwapRAM attempts and admissions identify compression-path use separately
 from raw-swap transfers. Admission is counted after reservation succeeds;
 it is not a measurement of compression time or bytes saved.
 
+The admission probe counters (the `swapram_*` names after
+`swapram_admissions`, snapshot version 2; version 1 ended at
+`swapram_admissions`, and `tools/summarize_rp2040_storage_delta.py` reads each
+version with its own metric set and rejects a pair of two versions) explain a refused attempt. Each `swapram_reserve()`
+call ends in an admission or in one `swapram_refused_*` reason: admission
+closed, packed-text decoder held, encoder error, fewer free pool bytes than
+the reservation (`nospace`), or enough free bytes without one run
+(`fragment`). The want, free and largest sums, the `swapram_short_*` bins and
+`swapram_refused_data_fits` describe the pool refusals; the scan, zero and
+chunk counters describe the data and stack bytes of every call, split by
+outcome. `swapram_ram_span_NN` and `swapram_flash_span_NN` count completed
+swap-outs by image length in 4 KiB sectors, the unit a flash swap-out erases.
+Attempts equal admissions plus `swapram_flash_swapouts`,
+`swapram_exchange_swapouts` and `swapram_sched_refusals`. A refused fork
+counts its reservation reasons but no attempt. The counters add 208 bytes
+of data and about 560 bytes of text to the PICO kernel, and the snapshot grows
+from 124 to 332 bytes.
+
 Use paired captures for a clean idle interval, partial-block overwrites,
 full-block rewrites, sequential and random reads, linker scratch traffic,
 and explicit synchronous writes. Keep buffer configuration, image contents
@@ -320,8 +338,10 @@ no sync(2) call, survived by the update(8) checkpoint; directories made
 seconds before a reset were lost or salvaged, `fsck -p` repaired the root and
 rebooted, and the following boot checked clean each time. One boot after
 such a repair gave no USB console output until the next forced reset, which
-checked clean; the cause is not established and five later resets did not
-repeat it. The reset matrix
+checked clean; the cause is not established. Five later resets through
+the same repair path and fourteen further forced-reset trials, nine of
+which took it, did not repeat it (issue #569 holds the captures and the
+ranked hypotheses). The reset matrix
 over write, erase and checkpoint phases and every power interruption (W03 of
 `docs/research/rp2040-memory-wear-engineering-program.md`) has not been run.
 Production

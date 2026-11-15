@@ -32,7 +32,7 @@ alone.
 | Inode-before-free order alone | 8aa41175 | The ordering half without the trim | Safe under Dhara by call order (`rp2040-flash-trim-ordering.md`); it changes no wear figure, so it has no measured benefit | Issue #571 decides it; a file system with a discard needs it first |
 | Reset-cut tests of truncate trims | b28daef4 | `tests/kernel/trim_order_test.c` replays a truncate that trims with a reset at every cut point over Dhara | Passes on the branch; exercises only the unmerged trim | Trim at free reopens |
 | Lookup before trim | 00f5c04d | `fl_trim()` calls `dhara_map_find()` so that a trim of an unmapped sector runs no collection; `tests/kernel/trim_cost.c` | Removes the cost of trimming unmapped sectors, not the 4.4 pages a mapped trim costs | Any trim path reopens: this is its first commit |
-| Deferred free-list sweep and trim cost by arm | bf1f3981 | Sweeps the free list at sync and trims blocks that stayed free; arms A to E in the host model | The sweep never beat leaving freed blocks mapped in any modeled workload (`trim-cost-model.md`) | A workload whose freed blocks stay free across many root rewrites, measured first with the same arms |
+| Deferred free-list sweep and trim cost by arm | bf1f3981 | Sweeps the free list at sync and trims blocks that stayed free; arms A, B, C and D(K) in the host model | The sweep never beat leaving freed blocks mapped in any modeled workload (`trim-cost-model.md`) | A workload whose freed blocks stay free across many root rewrites, measured first with the same arms |
 | Trim-on-free document section | 2d154315 | Per-caller audit of `free()` and the model cost | Superseded by `trim-cost-model.md` | -- |
 
 ## Related records
@@ -45,7 +45,11 @@ alone.
 
 ## Reproducing a row
 
-`git worktree add ../trim archive/rp2040-free-list-sweep`, then the
-commands each note names (`bmake -C tests/kernel trim-cost-report` for the
-arms). The branches predate later `main` changes to `flash.c`; they build
-at their own tips and need a rebase before any reuse.
+In a worktree of `archive/rp2040-free-list-sweep`, build the host tools
+(`bmake MACHINE=rp2040 tools`), then run the root gate
+`bmake MACHINE=rp2040 check-trim-order`, which passes `FSUTIL` to
+`tests/kernel`, or the cost report directly:
+`bmake -C tests/kernel trim-cost-report FSUTIL=<tools bin>/fsutil`
+(`trim-cost-model.md`, Method). The branches predate later `main` changes
+to `flash.c`; they build at their own tips and need a rebase before any
+reuse.

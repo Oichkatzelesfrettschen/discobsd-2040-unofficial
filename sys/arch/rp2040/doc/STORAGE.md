@@ -261,10 +261,11 @@ one, and so does the driver's last close; a checkpoint with nothing pending
 programs nothing. An `IO_SYNC` write (a descriptor opened `O_FSYNC`) to a block
 device node has no filesystem to sync, so `rwip()` calls `bdev_checkpoint()` on
 the written device after the buffer write and returns its error; a write
-without `IO_SYNC` takes none. fsync(2) on a block device descriptor syncs the
-filesystem that holds the device node, so its checkpoint goes to that
-filesystem's device: the same Dhara map while the node lives on the flash root,
-as `/dev` does on the shipped image. A
+without `IO_SYNC` takes none. fsync(2) on a block device descriptor drains the
+represented device's buffers, then checkpoints that device with
+`bdev_checkpoint()` and returns its error, before `ufs_sync()` syncs and
+checkpoints the filesystem that holds the node, which may sit on another
+device. A
 reset or power loss discards the writes since the last checkpoint, forced
 or written by a group fill, and `dhara_map_resume()` returns the device to
 the state that checkpoint recorded. Because a filled group checkpoints

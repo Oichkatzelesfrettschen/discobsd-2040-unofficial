@@ -1438,8 +1438,8 @@ check-dhara-gc-trigger: check-python
 # The shipped SwapRAM pool, swapram.c, flash_swap.c and the swap-map ring
 # driven from Python by a swap trace calibrated to the board's admission
 # counters; tests/rp2040/swap_tier_model/check.sh states the properties,
-# the calibration and its mutants. A host without cffi, hypothesis, pytest
-# or numpy prints a SKIP.
+# the calibration and its mutants. A host without cffi, hypothesis or
+# pytest prints a SKIP.
 check-swap-tier-model: check-python
 		${MAKE} -C tests/rp2040/swap_tier_model check PYTHON=${PYTHON:Q}
 

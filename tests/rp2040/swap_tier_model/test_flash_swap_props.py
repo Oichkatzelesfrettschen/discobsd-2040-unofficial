@@ -9,7 +9,6 @@ page-aligned ranges through the spare sector, as fl_raw() does for
 """
 
 import hypothesis.strategies as st
-import numpy as np
 from hypothesis import given, settings
 from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 
@@ -29,13 +28,14 @@ class FlashMachine(RuleBasedStateMachine):
         super().__init__()
         self.nor = Nor(BASE, SECTORS * SECTOR)
         self.driver = FlashSwapDriver(self.nor)
-        # numpy: a shadow of the bytes the writer must have left, and a
-        # mask of the bytes whose value is known.
-        self.shadow = np.zeros(SECTORS * SECTOR, dtype=np.uint8)
-        self.known = np.zeros(SECTORS * SECTOR, dtype=bool)
+        # A shadow of the bytes the writer must have left, and a mask that
+        # holds 0xff where the shadow's byte is known; the invariant
+        # compares them as integers, one AND per check.
+        self.shadow = bytearray(SECTORS * SECTOR)
+        self.known = bytearray(SECTORS * SECTOR)
 
     def _flash(self):
-        return np.frombuffer(bytes(self.nor.data), dtype=np.uint8)
+        return bytes(self.nor.data)
 
     @rule(data=st.data(),
           lengths=st.lists(st.integers(0, 5000), min_size=1, max_size=3),
@@ -67,11 +67,10 @@ class FlashMachine(RuleBasedStateMachine):
             assert delta == (1 if s in reached else 0), (s, delta, reached)
         # An erased sector forgets its old bytes; the image's pieces are known.
         for s in reached:
-            self.known[s * SECTOR:(s + 1) * SECTOR] = False
+            self.known[s * SECTOR:(s + 1) * SECTOR] = bytes(SECTOR)
         for rel, payload in pieces:
-            self.shadow[rel:rel + len(payload)] = np.frombuffer(
-                payload, dtype=np.uint8)
-            self.known[rel:rel + len(payload)] = True
+            self.shadow[rel:rel + len(payload)] = payload
+            self.known[rel:rel + len(payload)] = b"\xff" * len(payload)
 
     @rule(data=st.data(), seed=st.integers(0, 255))
     def rewrite(self, data, seed):
@@ -81,25 +80,24 @@ class FlashMachine(RuleBasedStateMachine):
                                              start_page)))
         offset = BASE + start_page * PAGE
         payload = bytes((seed + k * 13) & 0xff for k in range(pages * PAGE))
-        before = self._flash().copy()
+        before = self._flash()
         assert self.driver.rewrite(offset, payload, SPARE) == 0, \
             self.nor.violations
         assert not self.nor.violations
         after = self._flash()
         lo, hi = offset - BASE, offset - BASE + len(payload)
-        assert after[lo:hi].tobytes() == payload
+        assert after[lo:hi] == payload
         # Every other byte outside the spare sector keeps its value.
-        outside = np.ones(SECTORS * SECTOR, dtype=bool)
-        outside[:SECTOR] = False
-        outside[lo:hi] = False
-        assert np.array_equal(after[outside], before[outside])
-        self.shadow[lo:hi] = np.frombuffer(payload, dtype=np.uint8)
-        self.known[lo:hi] = True
+        assert after[SECTOR:lo] == before[SECTOR:lo]
+        assert after[hi:] == before[hi:]
+        self.shadow[lo:hi] = payload
+        self.known[lo:hi] = b"\xff" * len(payload)
 
     @invariant()
     def bytes_hold(self):
-        flash = self._flash()
-        assert np.array_equal(flash[self.known], self.shadow[self.known])
+        mask = int.from_bytes(self.known, "big")
+        flash = int.from_bytes(self._flash(), "big")
+        assert flash & mask == int.from_bytes(self.shadow, "big") & mask
 
 
 TestFlash = FlashMachine.TestCase

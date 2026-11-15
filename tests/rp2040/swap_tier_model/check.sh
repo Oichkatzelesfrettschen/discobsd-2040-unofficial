@@ -4,14 +4,14 @@
 # swapram.c, flash_swap.c and subr_rmap.c, compiled unmodified into one host
 # shared object, must pass the property, calibration, document-oracle and
 # variant tests, and every mutant mutants.py names must fail them. A host
-# without cffi, hypothesis, pytest or numpy reports a skip naming the
+# without cffi, hypothesis or pytest reports a skip naming the
 # missing module; a skip is not a pass.
 
 set -eu
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 
 here=$(cd "$(dirname "$0")" && pwd)
-for module in cffi hypothesis pytest numpy; do
+for module in cffi hypothesis pytest; do
 	if ! "$PYTHON" -c "import $module" >/dev/null 2>&1; then
 		echo "SKIP check-swap-tier-model: Python module $module is" \
 		    "absent for $PYTHON (install the distribution's" \

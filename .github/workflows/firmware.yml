@@ -99,6 +99,8 @@ jobs:
       # packages no ruff and pip refuses the system interpreter. gcc-multilib
       # gives check-storage-correctness the -m32 build its wall clock cases
       # need. The 32-bit shell conformance run is the posix-sh job below.
+      # cffi, hypothesis and pytest run check-swap-tier-model in the host
+      # tier, which prints a SKIP without them.
       - name: Install the host toolchain
         run: |
           sudo apt-get update
@@ -108,7 +110,8 @@ jobs:
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
             python3 python3-pil libusb-1.0-0-dev \
             shellcheck pipx qemu-user python3-capstone python3-pyelftools \
-            python3-unicorn gcc-multilib strace
+            python3-unicorn gcc-multilib strace \
+            python3-cffi python3-hypothesis python3-pytest
           pipx install ruff
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"

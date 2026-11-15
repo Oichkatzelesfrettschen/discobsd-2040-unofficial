@@ -112,3 +112,14 @@ the profile's exact decision. Renode and physical execution remain separate.
 The independent descriptor-set macro repair stays preserved in its own draft
 PR. This unit changes type ownership and leaves its clearing macro intact;
 integration reconciles both changes without discarding either invariant.
+
+Implementation `43e6d7ee` passes the full compiler/native matrix, existing
+wrapper execution, clean aggregate, required 216-variant inventory, hosted CI,
+and both Renode gates. The
+[`public-time-type-qualification.json`](public-time-type-qualification.json)
+record preserves their exact source and artifact identities. The
+[`public-time-type-resources.md`](public-time-type-resources.md) record binds
+zero changes across all 162 shipped resource surfaces and all 278 built-program
+size/block comparisons, installed staging closure, and native archive metadata
+decomposition. No resource exception applies to that measured vector. The
+bounded source review and full-header semantic obligations remain open.

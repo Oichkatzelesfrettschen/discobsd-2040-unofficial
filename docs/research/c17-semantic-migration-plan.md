@@ -89,6 +89,12 @@ the observed failures, target ABI table, donor mechanisms, compiler/native
 matrix, and remaining narrow-layout and clock-interface obligations. This
 header unit advances type completeness while preserving the independent
 descriptor-set repair and shared ABI review queue.
+Its `43e6d7ee` implementation passes the clean aggregate, all 216 required
+inventory variants, hosted CI, both Renode kernels, and calibrated type/alias
+controls. All 162 shipped resource deltas are zero; all 278 built-program
+size/block comparisons remain unchanged. The resource record keeps archive
+date metadata separate from unchanged native member payloads. Source review
+remains open, and the header families retain partial standards claims.
 
 The queue below owns program order for the C17/POSIX expansion. The historical ordered work queue later
 in this document records delivered units and their residuals; it does not

@@ -183,6 +183,47 @@ sectors in the collection trigger saved more than the shipped quarter
 (138.3 against 153.0 erases per compile on the second row's tree) and can
 reach into Dhara's safety margin (`dhara-gc-trigger.md`).
 
+## Why swap-outs reach flash
+
+A `STORAGE_STATS` kernel also counts, for every SwapRAM reservation that is
+refused, the reason, the shortfall of the largest free run, and the span of
+each completed swap-out in 4 KiB sectors (`sys/sys/storage_stats.h`). Two
+runs of the 24 compiles on the measured Pico, each from a freshly flashed
+root with the same kernel, differ only in `bin/sh`: the shell before the
+break-growth fix and the shell with it.
+
+| Over 24 compiles | Shell before the fix | Shell with the fix |
+| --- | ---: | ---: |
+| Swap sectors erased | 1,604 | 1,412 |
+| Swap bytes written | 5,865,824 | 4,986,464 |
+| SwapRAM attempts, admitted | 303, 61 | 305, 63 |
+| Refused: no single free run, too few free bytes | 240, 2 | 196, 46 |
+| Refused swap-outs by span | 192 of 7 sectors, 49 of 5 | 192 of 6 sectors, 49 of 5 |
+| Shortfall under 1 KiB, 1 to 2 KiB, 3 to 4 KiB | 0, 184, 48 | 172, 8, 47 |
+| Root sectors erased | 934 | 930 |
+
+Eight swap-outs a compile are one image class, refused every time; a second
+class of 5 sectors is admitted about half the time. The probe records no
+process name. The `cc` driver is a shell script, so the dominant class is
+most likely its shell, swapped out while it waits on a pass; that is an
+inference from the size. Closed admission, a held codec and encoder failure
+never occur. The pool (`SWAPRAM_KB=16`) refuses for want of one free run:
+the request is the compressed data and stack plus `SR_WORST(USIZE)`, 3,460
+bytes held for the u area, which compresses to about 1 KiB when admitted
+(64,012 bytes over 63 admissions). The dominant class misses by under
+2 KiB, so reserving the u area at its compressed size would admit it; that
+change is not built.
+
+The shell with the fix erases 12 percent fewer swap sectors because its
+dominant image is one sector smaller. The per-sector counters were not in
+this kernel, so the hottest-sector bound above is not re-measured; if the
+spread is unchanged, 58.8 erases a compile in place of 66.8 lengthens it in
+proportion. These two runs start from a fresh root and admit a fifth of the
+attempts; the three runs above started from a used root and admitted over a
+third, so absolute counts compare only inside one table.
+
+The captures are `docs/research/trim-survey/board/swap/admission/`.
+
 ## Open
 
 - Swap traffic: 69 to 75 sector erases per compile, more than the root

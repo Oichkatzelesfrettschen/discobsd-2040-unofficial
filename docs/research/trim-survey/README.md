@@ -67,3 +67,9 @@ run's, which prints from sector 32; the first two runs printed from sector
 0, 16 and 8 counters to a line. Each `runN.txt` ends with the lines that
 reached the console before the board reset. The result is in
 `sys/arch/rp2040/doc/research/flash-traffic-per-workload.md`.
+
+`board/swap/admission/`: `sysctl machdep.storage_stats` before and after 24
+compiles on a `STORAGE_STATS=yes` kernel that counts SwapRAM refusal
+reasons and swap-out spans, from a freshly flashed root, with the shell
+before the break-growth fix (`main-sh.txt`) and with it (`fixed-sh.txt`).
+Escape sequences are removed.

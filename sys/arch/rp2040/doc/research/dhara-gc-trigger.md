@@ -128,7 +128,7 @@ trim), from 758 live sectors, in pages per file block:
 
 Erases follow the pages: 0.76 per block for W2 with the stock trigger,
 0.50 with cap - 64 - L/5. These tables came from a copy of `map.c` with the
-trigger replaced, on the unmerged branch `rp2040/free-list-sweep`
+trigger replaced, on the unmerged branch `archive/rp2040-free-list-sweep`
 (`tests/rp2040/dhara_trigger/run.sh` and `tests/kernel/trim_cost.c` there).
 The model counts Dhara pages, not board wear. `check-dhara-gc-trigger`
 records the live/4 trigger at 4.67 pages per write for uniform rewrites at

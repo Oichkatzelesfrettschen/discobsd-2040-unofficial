@@ -64,7 +64,15 @@ typedef struct fd_set {
 #ifdef	KERNEL
 #define	FD_ZERO(p)	bzero((char *)(p), sizeof(*(p)))
 #else
-#define	FD_ZERO(p)	memset((char *)(p), 0, sizeof(*(p)))
+#define	FD_ZERO(p) do {						\
+	fd_set *__fd_set = (p);					\
+	unsigned int __fd_word;					\
+								\
+	for (__fd_word = 0;					\
+	    __fd_word < sizeof(__fd_set->fds_bits) /		\
+	    sizeof(__fd_set->fds_bits[0]); ++__fd_word)		\
+		__fd_set->fds_bits[__fd_word] = 0;			\
+} while (0)
 #endif
 
 #ifndef	KERNEL

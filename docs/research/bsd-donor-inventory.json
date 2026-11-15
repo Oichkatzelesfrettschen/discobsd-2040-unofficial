@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "observed_utc": "2026-11-15T12:17:32.512748+00:00",
+  "observed_utc": "2026-11-15T11:18:49.045221+00:00",
   "claim": "The inventory records checkout identity and fetch evidence for a finite 20-repository corpus. Git object reads establish source identity; fetched revisions do not establish semantic audit completion.",
   "repositories": {
     "211bsd": {
@@ -180,7 +180,7 @@
           "research_revision": "e0f962ddd750a94049c962632074b1b240ceb40e"
         }
       ],
-      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+      "next_action": "Preserve the checkout; compare the pinned descriptor-set initialization mechanism through the calibrated local header and caller gates."
     },
     "LiteBSD": {
       "local": {
@@ -376,7 +376,7 @@
           "research_revision": "6871285f194d3f83fd270b4b5d5783503c2b86d6"
         }
       ],
-      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+      "next_action": "Preserve the checkout; compare the pinned descriptor-set initialization mechanism through the calibrated local header and caller gates."
     },
     "hardenedBSD": {
       "local": {
@@ -480,7 +480,7 @@
         "status": "fetched",
         "source_url": "https://github.com/NetBSD/src.git",
         "source_branch": "trunk",
-        "revision": "dc5f6b2d8a00d0780c9a3f1ae12a02d78d60e745"
+        "revision": "43604aca965597330ebc7c4e39c288acc3a0431e"
       },
       "sync_attempts": [
         {
@@ -499,9 +499,26 @@
           },
           "fetch_exit": 0,
           "research_revision": "dc5f6b2d8a00d0780c9a3f1ae12a02d78d60e745"
+        },
+        {
+          "observed_utc": "2026-11-15T11:18:49.043727+00:00",
+          "source_url": "https://github.com/NetBSD/src.git",
+          "source_branch": "trunk",
+          "local_before": {
+            "head": "1e8e727e461bb760bf82162f33b64afea02da2f3",
+            "index_sha256": "1ef60b94301969e8a00025b150e7080151598f3677baaa757b6a4d9f082a042f",
+            "status_sha256": "a7546ea8c099c0317b989101fc2f3e99e9681a85d99935f61453758e18d69c83"
+          },
+          "local_after": {
+            "head": "1e8e727e461bb760bf82162f33b64afea02da2f3",
+            "index_sha256": "1ef60b94301969e8a00025b150e7080151598f3677baaa757b6a4d9f082a042f",
+            "status_sha256": "a7546ea8c099c0317b989101fc2f3e99e9681a85d99935f61453758e18d69c83"
+          },
+          "fetch_exit": 0,
+          "research_revision": "43604aca965597330ebc7c4e39c288acc3a0431e"
         }
       ],
-      "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
+      "next_action": "Preserve the checkout; compare the pinned descriptor-set initialization mechanism through the calibrated local header and caller gates."
     },
     "openbsd-src": {
       "local": {

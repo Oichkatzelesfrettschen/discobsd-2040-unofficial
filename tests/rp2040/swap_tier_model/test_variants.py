@@ -53,7 +53,34 @@ def test_smallest_flash_that_never_refuses():
     fewer than 124 blocks: 128 KB never refuses and 96 KB does."""
     for kb, refuses in ((128, False), (96, True)):
         rows = variants.measure(model.Config(flash_kb=kb), sessions=4)
-        assert (sum(r["refusals"] for r in rows) > 0) == refuses, kb
+        assert all((r["refusing"] > 0) == refuses for r in rows), kb
+
+
+def test_flash_refusal_stops_the_replay():
+    """ENOMEM leaves both images where they were (sched() keeps the
+    outgoing process resident, newproc() creates no child), so the replay
+    stops at the refused record and reports no completed workload."""
+    m = run(model.Config(flash_kb=64))
+    r = m.refused
+    assert r is not None and r["op"] == "out"
+    assert r["pid"] not in m.where
+    if r.get("incoming") is not None:
+        assert r["incoming"] in m.where
+    try:
+        m.delta()
+    except model.Refused:
+        pass
+    else:
+        raise AssertionError("a refused replay reported a delta")
+
+
+def test_refusal_share_does_not_scale_with_sessions():
+    for kb in (384, 96, 64):
+        one = [r["refusing"] for r in variants.measure(
+            model.Config(flash_kb=kb), sessions=1)]
+        four = [r["refusing"] for r in variants.measure(
+            model.Config(flash_kb=kb), sessions=4)]
+        assert one == four, kb
 
 
 def test_waiting_driver_removed():

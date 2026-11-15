@@ -18,34 +18,48 @@ spread to 27 percent above the mean, flash-traffic-per-workload.md). Life
 is 100,000 rated cycles over the hottest figure. The baseline's 159,000
 compiles is that long-run figure at 59 erases a compile; the board note's
 104,000 is the hottest observed sector of single sessions at 69 to 75
-erases a compile on an older tree, and the two do not compare directly. Peak blocks is the
-largest number of raw-swap blocks in use at once. Extra RAM is exact for a
+erases a compile on an older tree, and the two do not compare directly.
+Peak blocks is the largest number of raw-swap blocks in use at once.
+Sessions refused is the share of sessions in which the swap map could not
+hold an image. The kernel then refuses the fork (`newproc()` returns -1)
+or keeps the outgoing process resident and defers the swap-in (`sched()`),
+so the traced workload does not complete: the replay stops at that record
+and a row with any refused session carries no erase or wear figure; its
+peak blocks are those reached before the refusal.
+
+Changed from the first published table: the refusal column was a count
+summed over every session and fit, so it scaled with `--sessions`; it is
+now the share of sessions. The 96 KB and 64 KB rows replayed on past a
+refused image as if the transition had succeeded and reported 58.4 and
+57.7 to 57.9 erases a compile with lives of 39,240 and 25,540 compiles;
+they now refuse the workload in every session and report no wear figure.
+No other row changed. Extra RAM is exact for a
 buffer size; text is an estimate whose basis `variants.TEXT_BASIS` states.
 
 ## Variants
 
-| Variant | Admitted | Erases/compile | Hottest sector erases/compile | Life (compiles) | Peak blocks | Flash refusals | Extra RAM | Text (est.) | Erases saved/compile | Saved per KB RAM | Saved per KB text |
+| Variant | Admitted | Erases/compile | Hottest sector erases/compile | Life (compiles) | Peak blocks | Sessions refused | Extra RAM | Text (est.) | Erases saved/compile | Saved per KB RAM | Saved per KB text |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| baseline (PICO kernel) | 62 to 63 | 59.0 | 0.627 to 0.629 | 159,217 | 104 | 0 | 0 | 0 | 0.0 | -- | -- |
-| 1 u area reserved at compressed size + 64 | 159 to 160 | 34.8 | 0.369 | 271,186 | 104 | 0 | 0 | 120 | 24.2 | -- | 206.6 |
-| 2 compaction on refusal | 154 to 159 | 35.2 to 36.4 | 0.374 to 0.387 | 264,718 | 104 | 0 | 0 | 200 | 23.5 | -- | 120.5 |
-| 3a pool 24 KB | 110 to 113 | 48.6 to 49.2 | 0.517 to 0.527 | 191,121 | 84 | 0 | 8192 | 0 | 10.0 | 1.25 | -- |
-| 3b pool 32 KB | 210 to 298 | 2.2 to 24.0 | 0.026 to 0.255 | 1,175,750 | 60 | 0 | 16384 | 0 | 51.2 | 3.20 | -- |
-| 4 refused images compressed on flash | 62 to 63 | 20.3 | 0.219 to 0.221 | 454,438 | 32 | 0 | 0 | 600 | 38.7 | -- | 66.1 |
-| 5 zero-sector elision on flash | 62 to 63 | 59.0 | 0.627 to 0.629 | 159,217 | 104 | 0 | 32 | 80 | 0.0 | 0.00 | 0.0 |
-| 6 cc driver shell never swaps out (upper bound) | 54 to 56 | 11.5 to 11.7 | 0.125 to 0.127 | 797,011 | 80 | 0 | 0 | 0 | 47.5 | -- | -- |
-| 1+2 | 116 to 209 | 24.6 to 47.9 | 0.261 to 0.509 | 309,528 | 84 | 0 | 0 | 320 | 28.6 | -- | 91.5 |
-| 1+2+4 | 116 to 209 | 8.1 to 15.9 | 0.088 to 0.172 | 916,905 | 24 | 0 | 0 | 920 | 49.0 | -- | 54.5 |
-| 8 swap off NOR (PSRAM or SD) | 62 to 63 | 0.0 | 0.000 | unbounded | 0 | 0 | 0 | 0 | 59.0 | -- | -- |
+| baseline (PICO kernel) | 62 to 63 | 59.0 | 0.627 to 0.629 | 159,217 | 104 | 0% | 0 | 0 | 0.0 | -- | -- |
+| 1 u area reserved at compressed size + 64 | 159 to 160 | 34.8 | 0.369 | 271,186 | 104 | 0% | 0 | 120 | 24.2 | -- | 206.6 |
+| 2 compaction on refusal | 154 to 159 | 35.2 to 36.4 | 0.374 to 0.387 | 264,718 | 104 | 0% | 0 | 200 | 23.5 | -- | 120.5 |
+| 3a pool 24 KB | 110 to 113 | 48.6 to 49.2 | 0.517 to 0.527 | 191,121 | 84 | 0% | 8192 | 0 | 10.0 | 1.25 | -- |
+| 3b pool 32 KB | 210 to 298 | 2.2 to 24.0 | 0.026 to 0.255 | 1,175,750 | 60 | 0% | 16384 | 0 | 51.2 | 3.20 | -- |
+| 4 refused images compressed on flash | 62 to 63 | 20.3 | 0.219 to 0.221 | 454,438 | 32 | 0% | 0 | 600 | 38.7 | -- | 66.1 |
+| 5 zero-sector elision on flash | 62 to 63 | 59.0 | 0.627 to 0.629 | 159,217 | 104 | 0% | 32 | 80 | 0.0 | 0.00 | 0.0 |
+| 6 cc driver shell never swaps out (upper bound) | 54 to 56 | 11.5 to 11.7 | 0.125 to 0.127 | 797,011 | 80 | 0% | 0 | 0 | 47.5 | -- | -- |
+| 1+2 | 116 to 209 | 24.6 to 47.9 | 0.261 to 0.509 | 309,528 | 84 | 0% | 0 | 320 | 28.6 | -- | 91.5 |
+| 1+2+4 | 116 to 209 | 8.1 to 15.9 | 0.088 to 0.172 | 916,905 | 24 | 0% | 0 | 920 | 49.0 | -- | 54.5 |
+| 8 swap off NOR (PSRAM or SD) | 62 to 63 | 0.0 | 0.000 | unbounded | 0 | 0% | 0 | 0 | 59.0 | -- | -- |
 
-| Raw swap | Sectors | Erases/compile | Mean sector erases/compile | Hottest | Hottest/mean | Life (compiles) | Peak blocks | Flash refusals |
+| Raw swap | Sectors | Erases/compile | Mean sector erases/compile | Hottest | Hottest/mean | Life (compiles) | Peak blocks | Sessions refused |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 384 KB | 95 | 59.0 | 0.621 | 0.628 | 1.01 | 159,217 | 104 | 0 |
-| 256 KB | 63 | 59.0 | 0.937 | 0.991 | 1.06 | 100,920 | 104 | 0 |
-| 192 KB | 47 | 59.0 | 1.256 | 1.273 | 1.01 | 78,566 | 104 | 0 |
-| 128 KB | 31 | 59.0 | 1.905 | 1.940 | 1.02 | 51,538 | 104 | 0 |
-| 96 KB | 23 | 58.4 | 2.540 | 2.548 | 1.00 | 39,240 | 68 | 800 |
-| 64 KB | 15 | 57.7 to 57.9 | 3.849 | 3.915 | 1.02 | 25,540 | 44 | 3000 |
+| 384 KB | 95 | 59.0 | 0.621 | 0.628 | 1.01 | 159,217 | 104 | 0% |
+| 256 KB | 63 | 59.0 | 0.937 | 0.991 | 1.06 | 100,920 | 104 | 0% |
+| 192 KB | 47 | 59.0 | 1.256 | 1.273 | 1.01 | 78,566 | 104 | 0% |
+| 128 KB | 31 | 59.0 | 1.905 | 1.940 | 1.02 | 51,538 | 104 | 0% |
+| 96 KB | 23 | refuses the workload | -- | -- | -- | -- | 68 | 100% |
+| 64 KB | 15 | refuses the workload | -- | -- | -- | -- | 44 | 100% |
 
 Variant 5 saves nothing in the model because the traces carry no all-zero
 sector; the board bounds it instead. `swapram_refuse_zero_chunks` counted
@@ -72,8 +86,8 @@ the erases a compile stay at 59 while each sector takes more of them.
 Shrinking saves no erase; it trades part life for root capacity.
 
 Under the compile trace at most 104 blocks are in use at once, so 128 KB
-(124 usable blocks) is the smallest size that never refuses and 96 KB
-refuses. That bound covers this workload only. `SWAP_IMAGE_GUARD`
+(124 usable blocks) is the smallest size that never refuses; at 96 KB
+every session refuses an image and the compiles do not complete. That bound covers this workload only. `SWAP_IMAGE_GUARD`
 (`machine/machparam.h`) is 196 blocks, the largest image a fork can ask
 for, so a region below about 200 KB cannot hold a fork of a full 192 KiB
 process at all; and `dev/flash.h` records 256 KB failing a 70 KiB image

@@ -53,6 +53,11 @@ class Config:
 SHIPPED = Config()
 
 
+class Refused(Exception):
+    """The swap map could not hold an image: the kernel would refuse the
+    fork or defer the swap, so the traced workload does not complete."""
+
+
 @dataclass
 class Counters:
     values: dict = field(default_factory=dict)
@@ -76,7 +81,8 @@ class Model:
         self.sectors = self.nswap // ALIGN_BLOCKS
         self.erases = [0] * self.sectors
         self.where = {}               # pid -> ("ram", off, res, sizes)
-        self.counters = Counters()    # | ("flash", base, span) | ("lost",)
+        self.counters = Counters()    # | ("flash", base, span)
+        self.refused = None           # the record the flash map refused
         self.peak_blocks = 0
         self.phase = "prefix"
         self.snapshots = []
@@ -165,9 +171,14 @@ class Model:
                 return
         got = self.map.alloc(*shape)
         if got is None:
+            # ENOMEM from the reservation: newproc() returns -1 before the
+            # child exists (kern_fork.c), and sched() keeps the outgoing
+            # process resident and the incoming one swapped out until
+            # capacity changes (vm_sched.c). Neither leaves the transition
+            # the trace records, so the replay stops here.
             self.note("flash_refusals")
-            self.where[r["pid"]] = ("lost",)
-            return
+            self.refused = r
+            raise Refused(r)
         base, span = got
         self._erase(base, sum(shape), skip, shape)
         self.where[r["pid"]] = ("flash", base, span)
@@ -249,10 +260,15 @@ class Model:
             self.release(r["incoming"])
 
     def replay(self, records):
+        """Replay records; a flash refusal ends the replay (Refused) with
+        self.refused naming the record and both images left in place."""
         for r in records:
             op = r["op"]
             if op == "out":
-                self.out(r)
+                try:
+                    self.out(r)
+                except Refused:
+                    break
             elif op in ("in", "exit"):
                 self.release(r["pid"])
             elif op == "mark":
@@ -260,7 +276,10 @@ class Model:
         return self
 
     def delta(self):
-        """Counter and per-sector erase deltas between the two snapshots."""
+        """Counter and per-sector erase deltas between the two snapshots.
+        A replay the flash map refused completed no workload: Refused."""
+        if self.refused is not None:
+            raise Refused(self.refused)
         (c0, e0), (c1, e1) = self.snapshots[0], self.snapshots[-1]
         names = set(c0) | set(c1)
         counters = {n: c1.get(n, 0) - c0.get(n, 0) for n in names}
@@ -272,4 +291,4 @@ def run(records, config=None, cursor_sector=0, nor=False):
     return Model(config, cursor_sector, nor).replay(records)
 
 
-__all__ = ["Config", "Model", "run", "sr_worst", "SECTOR"]
+__all__ = ["Config", "Model", "Refused", "run", "sr_worst", "SECTOR"]

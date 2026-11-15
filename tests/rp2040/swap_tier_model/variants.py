@@ -2,8 +2,11 @@
 
 Each variant is a model Config, a workload change, or both. For each the
 table reports admissions, flash erases per compile, the hottest sector's
-erases per compile over many sessions, peak flash blocks in use, flash
-refusals, and the kernel RAM and text the change would add. RAM is exact
+erases per compile over many sessions, peak flash blocks in use, the
+share of sessions the swap map refused, and the kernel RAM and text the
+change would add. A refused session stops its replay where the kernel
+would refuse the fork or defer the swap (model.Refused), so a row with any
+refused session reports no erase or wear figure. RAM is exact
 where the change is a buffer size; text is an estimate, and TEXT_BASIS says
 what each estimate rests on.
 
@@ -75,41 +78,46 @@ def ensemble():
     return list(calibrate.ENSEMBLE)
 
 
-def session(workload, config, cursor_sector=0):
-    m = Model(config, cursor_sector).replay(trace.generate(workload))
-    counters, erases = m.delta()
-    return m, counters, erases
-
-
 def measure(config, transform=None, sessions=SESSIONS, seed=7):
     rows = []
     for workload in ensemble():
         if transform is not None:
             workload = transform(workload)
-        nsectors = (config.flash_kb * 1024 // 1024 - 4) // 4
+        nsectors = (config.flash_kb - 4) // 4
         rng = random.Random(seed)
         total = None
-        peak = refusals = 0
+        peak = refused = 0
         first = None
         for _ in range(sessions):
             cursor = rng.randrange(nsectors)
-            m, counters, erases = session(workload, config, cursor)
+            m = Model(config, cursor).replay(trace.generate(workload))
+            peak = max(peak, m.peak_blocks)
+            if m.refused is not None:
+                refused += 1
+                continue
+            counters, erases = m.delta()
             if first is None:
                 first = counters
             total = erases if total is None else \
                 [a + b for a, b in zip(total, erases)]
-            peak = max(peak, m.peak_blocks)
-            refusals += counters.get("flash_refusals", 0)
         compiles = workload.compiles
-        hottest = max(total[1:]) / sessions / compiles if total else 0.0
-        mean = sum(total[1:]) / max(1, len(total) - 1) / sessions / compiles
-        rows.append({
-            "admitted": first.get("swapram_admissions", 0),
-            "erases": first.get("swap_erase_sectors", 0) / compiles,
-            "hottest": hottest, "mean": mean, "peak_blocks": peak,
-            "refusals": refusals,
-        })
+        row = {"peak_blocks": peak, "refusing": refused / sessions,
+               "admitted": None, "erases": None, "hottest": None,
+               "mean": None}
+        if not refused:
+            row.update({
+                "admitted": first.get("swapram_admissions", 0),
+                "erases": first.get("swap_erase_sectors", 0) / compiles,
+                "hottest": max(total[1:]) / sessions / compiles,
+                "mean": sum(total[1:]) / max(1, len(total) - 1) /
+                sessions / compiles})
+        rows.append(row)
     return rows
+
+
+def refusing(rows):
+    """Share of sessions the swap map refused, over the fits."""
+    return span([r["refusing"] for r in rows], "{:.0%}")
 
 
 def span(values, fmt):
@@ -124,13 +132,17 @@ def table(sessions=SESSIONS):
     base_erases = sum(r["erases"] for r in base) / len(base)
     base_hot = sum(r["hottest"] for r in base) / len(base)
     out.append("| Variant | Admitted | Erases/compile | Hottest sector "
-               "erases/compile | Life (compiles) | Peak blocks | Flash "
-               "refusals | Extra RAM | Text (est.) | Erases saved/compile "
+               "erases/compile | Life (compiles) | Peak blocks | Sessions "
+               "refused | Extra RAM | Text (est.) | Erases saved/compile "
                "| Saved per KB RAM | Saved per KB text |")
     out.append("|" + " --- |" * 12)
     results = {}
     for name, config, transform, ram, text in VARIANTS:
         rows = measure(config, transform, sessions)
+        if any(r["refusing"] for r in rows):
+            out.append(f"| {name} | refuses the workload in "
+                       f"{refusing(rows)} of sessions |" + " -- |" * 10)
+            continue
         erases = sum(r["erases"] for r in rows) / len(rows)
         hot = sum(r["hottest"] for r in rows) / len(rows)
         saved = base_erases - erases
@@ -143,23 +155,28 @@ def table(sessions=SESSIONS):
             f"{span([r['erases'] for r in rows], '{:.1f}')} | "
             f"{span([r['hottest'] for r in rows], '{:.3f}')} | {life} | "
             f"{max(r['peak_blocks'] for r in rows)} | "
-            f"{sum(r['refusals'] for r in rows)} | {ram} | {text} | "
+            f"{refusing(rows)} | {ram} | {text} | "
             f"{saved:.1f} | {per_ram} | {per_text} |")
     out.append("")
     out.append("| Raw swap | Sectors | Erases/compile | Mean sector "
                "erases/compile | Hottest | Hottest/mean | Life (compiles) "
-               "| Peak blocks | Flash refusals |")
+               "| Peak blocks | Sessions refused |")
     out.append("|" + " --- |" * 9)
     for kb in FLASH_SIZES:
         rows = measure(Config(flash_kb=kb), sessions=sessions)
+        peak = max(r["peak_blocks"] for r in rows)
+        if any(r["refusing"] for r in rows):
+            out.append(f"| {kb} KB | {(kb - 4) // 4} | refuses the "
+                       f"workload | -- | -- | -- | -- | {peak} | "
+                       f"{refusing(rows)} |")
+            continue
         hot = sum(r["hottest"] for r in rows) / len(rows)
         mean = sum(r["mean"] for r in rows) / len(rows)
         out.append(
             f"| {kb} KB | {(kb - 4) // 4} | "
             f"{span([r['erases'] for r in rows], '{:.1f}')} | {mean:.3f} | "
             f"{hot:.3f} | {hot / mean:.2f} | {ENDURANCE / hot:,.0f} | "
-            f"{max(r['peak_blocks'] for r in rows)} | "
-            f"{sum(r['refusals'] for r in rows)} |")
+            f"{peak} | {refusing(rows)} |")
     return "\n".join(out), results, base_hot
 
 

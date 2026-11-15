@@ -156,7 +156,7 @@ submitted to the driver, including requests that subsequently fail. Map
 writes count Dhara mapping attempts. Checkpoint attempts, successes and
 errors count forced checkpoints, the `dhara_map_sync()` calls of
 `fl_checkpoint()` that `DIOCCHECKPOINT` and the last close of a root node
-held for writing make,
+that an open held for writing make,
 including a successful no-op on an already clean map. The checkpoint Dhara
 writes itself when a write fills a group is not counted. They are not counts
 of checkpoint pages written. NOR program
@@ -258,8 +258,9 @@ and 350).
 checkpoint. `ufs_sync()` ends with `DIOCCHECKPOINT`, which runs
 `fl_checkpoint()`, so sync(2), the 30-second update(8) call, fsync(2),
 `IO_SYNC` writes to files and directories, unmount and shutdown each force
-one, and so does the last close of a root-unit node held for writing (a
-read-only close and a close of the swap unit force none); a checkpoint with
+one, and so does the last close of a root-unit node that any open since its
+previous last close held for writing (a node held only for reading and the
+swap unit force none); a checkpoint with
 nothing pending programs nothing. An `IO_SYNC` write (a descriptor opened `O_FSYNC`) to a block
 device node has no filesystem to sync, so `rwip()` calls `bdev_checkpoint()` on
 the written device after the buffer write and returns its error; a write

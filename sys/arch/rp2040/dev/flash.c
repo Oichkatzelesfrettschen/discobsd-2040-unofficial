@@ -646,6 +646,7 @@ dhara_nand_copy(const struct dhara_nand *n, dhara_page_t src,
 struct fldisk {
 	struct diskpart	part[NPARTITIONS + 1];	/* [0] is the whole device. */
 	u_int		openpart;		/* Bit per open partition. */
+	u_int		wrpart;			/* Opened for writing since its last close. */
 };
 
 static struct fldisk fldrives[NFL];
@@ -780,7 +781,7 @@ fl_setup(int unit)
 }
 
 int
-flopen(dev_t dev, int flags __unused, int mode __unused)
+flopen(dev_t dev, int flags, int mode __unused)
 {
 	int unit = flunit(dev);
 	int part = flpart(dev);
@@ -797,25 +798,31 @@ flopen(dev_t dev, int flags __unused, int mode __unused)
 			return error;
 	}
 	du->openpart |= 1 << part;
+	if (flags & FWRITE)
+		du->wrpart |= 1 << part;
 	return 0;
 }
 
 /*
- * The last close of a node checkpoints the map on the terms DIOCCHECKPOINT
- * sets: closef() passes the descriptor's open flags and unmount passes the
- * mount's, so a node held for reading alone forces no padding programs, and
- * the swap unit keeps no map.
+ * The last close of a root-unit node checkpoints the map when any open since
+ * the node's previous last close asked for writing. The last descriptor's own
+ * flags do not decide it: a writer may close first and leave a reader to make
+ * the last close. A node only ever held for reading forces no padding
+ * programs, and the swap unit keeps no map.
  */
 int
-flclose(dev_t dev, int flag, int mode __unused)
+flclose(dev_t dev, int flag __unused, int mode __unused)
 {
 	int unit = flunit(dev);
 	int part = flpart(dev);
+	u_int written;
 
 	if (unit >= NFL || part > NPARTITIONS)
 		return ENXIO;
+	written = fldrives[unit].wrpart & (1U << part);
 	fldrives[unit].openpart &= ~(1 << part);
-	if (unit == FL_UNIT_SWAP || (flag != 0 && (flag & FWRITE) == 0))
+	fldrives[unit].wrpart &= ~(1U << part);
+	if (unit == FL_UNIT_SWAP || written == 0)
 		return 0;
 	return fl_checkpoint();
 }

@@ -138,15 +138,24 @@ mutate "$flash" "$work/flash-any-opener.c" \
 build "$work/flash-any-opener.c" "$work/oracle-any-opener"
 rejects "$work/oracle-any-opener" idle-checkpoint
 
-# A close that ignores the unit and the open flags checkpoints for a reader.
+# A close that ignores the unit and the open history checkpoints for a reader.
 mutate "$flash" "$work/flash-any-close.c" \
-	'	if (unit == FL_UNIT_SWAP || (flag != 0 && (flag & FWRITE) == 0))
+	'	if (unit == FL_UNIT_SWAP || written == 0)
 		return 0;
 	return fl_checkpoint();' \
-	'	(void)flag;
+	'	(void)written;
 	return fl_checkpoint();'
 build "$work/flash-any-close.c" "$work/oracle-any-close"
 rejects "$work/oracle-any-close" idle-checkpoint
+
+# An open that records no writer leaves a writer's blocks pending at the
+# last close.
+mutate "$flash" "$work/flash-no-writer.c" \
+	'	if (flags & FWRITE)
+		du->wrpart |= 1 << part;' \
+	'	(void)flags;'
+build "$work/flash-no-writer.c" "$work/oracle-no-writer"
+rejects "$work/oracle-no-writer" checkpoint-then-reset idle-checkpoint
 
 # The NOR model refuses an erase or a program in the swap region. Comparing
 # the offset after the subtraction, which wraps past the end of the root
@@ -169,5 +178,5 @@ rejects "$work/oracle-model-program" model-range
 
 echo "flash_checkpoint: PASS (reset, checkpoint, group fill, flush without" \
 	"a write, wear bound, idle checkpoint; per-request, missing-ioctl," \
-	"no-op checkpoint, read-only-opener, any-close and swap-range model mutations" \
+	"no-op checkpoint, read-only-opener, any-close, unrecorded-writer and swap-range model mutations" \
 	"rejected)"

@@ -378,9 +378,10 @@ test_checkpoint_then_reset(void)
 	expect(checkpoint() == 0, t, "checkpoint");
 	power_cycle(t);
 	expect(block_is(9, 1), t, "the write survives the reset");
-	/* The driver's last close forces one too. */
+	/* The last close of a node opened for writing forces one too. */
+	expect(flopen(ROOT_DEV, FREAD | FWRITE, 0) == 0, t, "open for writing");
 	write_block(t, 10, 2);
-	expect(flclose(ROOT_DEV, 0, 0) == 0, t, "close");
+	expect(flclose(ROOT_DEV, FREAD | FWRITE, 0) == 0, t, "close");
 	power_cycle(t);
 	expect(block_is(10, 2), t, "the write before close survives");
 	expect(model_faults == 0, t, "NOR contract kept");
@@ -589,19 +590,33 @@ test_idle_checkpoint(void)
 	expect(flioctl(ROOT_DEV, DIOCCHECKPOINT, (caddr_t)&status,
 	    FREAD | FWRITE) == 0 && status == 0, t,
 	    "a writable descriptor can force a checkpoint");
-	/* The last close follows the same terms as the ioctl. */
+	/*
+	 * The last close checkpoints only a root node that some open since
+	 * its previous last close held for writing.
+	 */
+	expect(flclose(ROOT_DEV, 0, 0) == 0, t, "close the harness open");
 	write_block(t, 31, 2);
 	attempts = stats[STORAGE_CHECKPOINT_ATTEMPTS];
 	pages = program_pages;
-	expect(flclose(ROOT_DEV, FREAD, 0) == 0 &&
+	expect(flopen(ROOT_DEV, FREAD, 0) == 0 &&
+	    flclose(ROOT_DEV, FREAD, 0) == 0 &&
+	    flopen(SWAP_DEV, FREAD | FWRITE, 0) == 0 &&
 	    flclose(SWAP_DEV, FREAD | FWRITE, 0) == 0, t,
-	    "read-only and swap closes");
+	    "read-only and swap opens and closes");
 	expect(stats[STORAGE_CHECKPOINT_ATTEMPTS] == attempts &&
 	    program_pages == pages, t,
 	    "a read-only close and a swap close force no checkpoint");
-	expect(flclose(ROOT_DEV, FREAD | FWRITE, 0) == 0 &&
+	/* The writer closes first; the reader makes the last close. */
+	expect(flopen(ROOT_DEV, FREAD | FWRITE, 0) == 0 &&
+	    flopen(ROOT_DEV, FREAD, 0) == 0 &&
+	    flclose(ROOT_DEV, FREAD, 0) == 0 &&
 	    stats[STORAGE_CHECKPOINT_ATTEMPTS] == attempts + 1, t,
-	    "a writable close forces one");
+	    "a last close after a writable open forces one");
+	expect(flclose(ROOT_DEV, FREAD, 0) == 0 &&
+	    stats[STORAGE_CHECKPOINT_ATTEMPTS] == attempts + 1, t,
+	    "the next read-only close forces none");
+	power_cycle(t);
+	expect(block_is(31, 2), t, "the write before that close survives");
 	expect(model_faults == 0, t, "NOR contract kept");
 }
 

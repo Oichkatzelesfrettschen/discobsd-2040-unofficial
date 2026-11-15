@@ -47,8 +47,8 @@ FLASH_STATE_START = "#define\tNPARTITIONS\tFLASH_PARTITION_COUNT\n"
 FLASH_STATE_END = "static struct fldisk fldrives[NFL];\n"
 
 FLASH_FUNCTIONS = (
-    ("flopen", "int\nflopen(dev_t dev, int flags __unused, int mode __unused)"),
-    ("flclose", "int\nflclose(dev_t dev, int mode __unused, int flag __unused)"),
+    ("flopen", "int\nflopen(dev_t dev, int flags, int mode __unused)"),
+    ("flclose", "int\nflclose(dev_t dev, int flag __unused, int mode __unused)"),
     (
         "flioctl",
         "int\nflioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)",

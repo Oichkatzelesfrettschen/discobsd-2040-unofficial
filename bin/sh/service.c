@@ -139,14 +139,14 @@ catpath(char *path, char *name)
 	register char   *argp = locstak();
 
 	while (*scanp && *scanp != COLON)
-		*argp++ = *scanp++;
+		stakput(argp, *scanp++);
 	if (scanp != path)
-		*argp++ = '/';
+		stakput(argp, '/');
 	if (*scanp == COLON)
 		scanp++;
 	path = (*scanp ? scanp : NIL);
 	scanp = name;
-	while ((*argp++ = *scanp++))
+	while ((stakput(argp, *scanp++)))
 		;
 	return(path);
 }
@@ -525,7 +525,7 @@ split(char *s)
 		sigchk();
 		argp = locstak() + BYTESPERWORD;
 		while ((c = *s++, !any(c, ifsnod.namval) && c))
-			*argp++ = c;
+			stakput(argp, c);
 		if (argp == staktop + BYTESPERWORD)
 		{
 			if (c)

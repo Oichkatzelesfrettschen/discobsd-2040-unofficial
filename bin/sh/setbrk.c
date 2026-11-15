@@ -10,6 +10,8 @@ setbrk(int incr)
 {
 	register char *a = sbrk(incr);
 
-	brkend = a + incr;
+	/* A refused request leaves the break, and so brkend, where it was. */
+	if (a != (char *)-1)
+		brkend = a + incr;
 	return(a);
 }

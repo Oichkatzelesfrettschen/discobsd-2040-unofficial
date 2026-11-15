@@ -187,5 +187,45 @@ cross, ARM QEMU and modeled-instruction results. The
 [instruction receipt](libc-byte-search-instructions.json) retains all 13
 case counts, independent results and four rejecting controls. The owner
 approves the exact revised resource vector and the bounded immutable source
-review. Complete aggregate/inventory/emulator qualification and the review
-verdict remain open. Physical-board execution stays unauthorized.
+review. The review finds no actionable valid-object defect in pinned d1b55dd3;
+it executes no gates and independently retrieves neither the external proof
+nor the donor. Parent source inspection and executable qualification supply
+their separate evidence.
+
+Clean db0ea8e7 passes all 216 required inventory variants in 631.332 seconds.
+The configured i386-time32 archive-display skip remains outside those required
+variants. The matched flash build passes in 1.784 seconds. PICO_UART and
+PICOCALC_PSRAM Renode gates pass in 558.272 and 477.505 seconds respectively,
+including native compilation and ctime output in 2046. Their receipts bind
+kernel and image hashes separately from byte-search fixture execution. Hosted
+CI run 43689715154 passes on the same source. The parallel aggregate fails
+at a detached make query after a successful clean build. Its complete receipt
+remains in the [aggregate record](libc-byte-search-aggregate.json).
+The documented serial aggregate runs on frozen clean db0ea8e7 in an isolated
+checkout; its terminal receipt and reviewed integration remain open.
+Physical-board execution stays unauthorized.
+
+The parallel aggregate exposes an existing make-query diagnostic in
+tests/rp2040/usercopy_span/check.py. Its unchanged subprocess helper closes
+jobserver descriptors while retaining MAKEFLAGS. A query on clean main with
+closed descriptors reproduces the warning; clearing MAKEFLAGS and MFLAGS
+removes it and returns identical compiler flags. The helper environment
+correction uses the existing detached-query environment policy from
+tests/warning_policy/check.py and tests/kernel_metadata/dispatch_contracts.py.
+The pre-change make-query regression rejects four query cases through the
+named jobserver diagnostic. The prediction is that clearing both MAKEFLAGS
+and MFLAGS for detached queries makes all selected environment variants pass,
+while the unsanitized direct-make control retains its named warning.
+The explicit MACHINE=rp2040 route and source Makefiles own these default
+compiler profiles; inherited parent scheduling flags supply no query input.
+This diagnostic supplies no application or compiler failure claim.
+The repaired helpers pass their owning gates under actual parallel make,
+including all caller-type controls, user-copy cases, the known-bad direct
+query and source/execution accounting. The complete production aggregate and
+focused helper qualification retain separate source and execution identities.
+
+The deliberate shell SIGABRT case waits in the host core collector and then
+passes with SHTEST OK. Five-second probes with a zero core limit and a
+header-only core filter each retain the delay. These results refute those
+two environment remedies. Host settings and shell source remain unchanged;
+the completed signal test supplies its behavioral evidence.

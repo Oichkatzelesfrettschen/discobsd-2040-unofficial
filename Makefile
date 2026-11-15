@@ -1526,6 +1526,7 @@ check-namei-user-path: check-python
 		sh tests/rp2040/namei_path/check.sh
 
 check-rp2040-usercopy-span: check-python
+		${PYTHON} tests/libc_contracts/make_query_test.py
 		${PYTHON} tests/rp2040/usercopy_span/check.py \
 		    --root ${TOPSRC:Q} --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/usercopy-span-contracts.json

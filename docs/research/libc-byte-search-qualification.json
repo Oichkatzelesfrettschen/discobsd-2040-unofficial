@@ -61,10 +61,8 @@
       "usr.bin/smlrc/tests/t24_byte_search.c": "6e76ae6efa6f516a365f34a463303eb6bbb4b6cbe3d516220cc9f427d00c039b"
     },
     "remaining": [
-      "independent source review",
-      "aggregate",
-      "ILP32 inventory",
-      "Renode",
+      "complete aggregate",
+      "reviewed integration",
       "physical-board execution (separate authorization)"
     ],
     "configured_skips": [],
@@ -118,6 +116,122 @@
         "log_sha256": "c3015aa097d1c212150b4f197c53d75544fba71478ccdb193734ba5ab1be9d35",
         "execution_environment": "sandbox",
         "finding": "ILP32 compiler probe receives Bad system call before test recipes; identical ILP32 and sanitizer probes pass outside the sandbox. Host inventory qualification remains required."
+      }
+    ],
+    "required_inventory": {
+      "source_commit": "db0ea8e770d4eda738e51e69e73f050e6beb93f1",
+      "source_state": "clean and frozen during qualification",
+      "required_variants": 216,
+      "passed_variants": 216,
+      "report_sha256": "14653e17e528e2443997faca28463b8217f7680128ddb1d7879b8452f1901de1",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 631.332,
+      "terminal_queue_dropped_bytes": 0,
+      "receipt_sha256": "de4bfa04ee011c4e0dbea8facba1db45ce9b4b112354aa3c64daffb4aa09a764",
+      "log_sha256": "28da5922ee488578e2752c505744a28ddb7e858637125c09b74294892640de94"
+    },
+    "flash_image": {
+      "source_commit": "db0ea8e770d4eda738e51e69e73f050e6beb93f1",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 1.784,
+      "terminal_queue_dropped_bytes": 0,
+      "receipt_sha256": "71a133c134592878785bb2e9ff80d78596e7ffaf54e98af1580c7b0994315174",
+      "log_sha256": "a96f04931d23289dc1dff2316f3eb2596cc9d9fe2968d11ca0a566517f8a9dee",
+      "flash_bin_sha256": "9d5ce2d1833e155833b57c3b9a9af5c8fb580f55780de0823cc77fa1fa56fade",
+      "flash_uf2_sha256": "bd7fefb17914b971b203af257b5970383b6c73c2472ff8b901cb45a363e1bf0d",
+      "scope": "Image creation only; no device access."
+    },
+    "emulator": {
+      "source_commit": "db0ea8e770d4eda738e51e69e73f050e6beb93f1",
+      "evidence_class": "Renode peripheral model; physical hardware remains unmeasured",
+      "renode_version": "1.17.0+20260907gitf1dd1b4af",
+      "models_commit": "205a5e4b25440582008a4292074bb07f80a72328",
+      "runs": {
+        "PICO_UART": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 558.272,
+          "terminal_queue_dropped_bytes": 0,
+          "receipt_sha256": "397e4d91147b4d0ecd9a676547bb23959e873f76513ebc90a140b3e23888afd1",
+          "log_sha256": "0cf633bb2be59ee6ebd8fb31207bdfa534a4ceaf4d197c2efacd03142967b535"
+        },
+        "PICOCALC_PSRAM": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 477.505,
+          "terminal_queue_dropped_bytes": 0,
+          "receipt_sha256": "ea8e1ccdf6d3c8258649922a837264aaeb70e391c94d9321e47c307640f229c3",
+          "log_sha256": "7a42ccd7aa7b2bf4d552abf3ceeb22f2372243c49a56a6bae6ba0011f36e7507"
+        }
+      },
+      "kernel_sha256": {
+        "PICO_UART": "4d0e4352c2190ae53a649219bac59e8d267ad81d57daa9a5ce8f2eb1d9b1f915",
+        "PICOCALC_PSRAM": "c5f00f9c3fc1c9994c32fe667d7e885aee1e8e22a0185ec7c5118e1bd1175ffa"
+      },
+      "scope": "Boot, filesystem, login, selected runtime probes and native compilation through ctime past 2038; byte-search case coverage remains in its separate fixtures."
+    },
+    "source_review": {
+      "source_commit": "d1b55dd38634469ae281c1ff68ce340821e43f4c",
+      "base_commit": "e64e2150f3d4e4c570efc9cfbabb950fe3739ce2",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "tier": "standard",
+      "sandbox": "read-only",
+      "cli_version": "0.169.0",
+      "state": "completed",
+      "exit_code": 0,
+      "actionable_findings": 0,
+      "log_sha256": "38823dfc723afa17709d4b2081f16b93e9f5832ba42491ec7dfb2f2cbdddffa0",
+      "brief_sha256": "084d96ab8d93b97cb87beb5abc2f06ae72cde68fa08e07490b459f011c9a885d",
+      "result": "The pinned diff reveals no actionable valid-object defect in search semantics, suffix arithmetic, shifts, extent containment, archive integration, instrumentation or calibrated controls.",
+      "residuals": [
+        "Review executes no gates.",
+        "External proof and donor provenance are not independently retrieved by the reviewer."
+      ],
+      "parent_acceptance": "Parent inspection checks wrapper domains, suffix sentinel normalization, both shift branches, remaining-extent containment, native imports and independent scalar-oracle/counter instrumentation; focused host and ARM gates pass separately."
+    },
+    "hosted_ci": {
+      "source_commit": "db0ea8e770d4eda738e51e69e73f050e6beb93f1",
+      "run_id": 43689715154,
+      "state": "completed",
+      "conclusion": "success"
+    },
+    "qualification_observations": [
+      {
+        "mechanism": "parallel make variable query",
+        "source": "tests/libc_contracts/qsort_callers.py:158 and tests/rp2040/usercopy_span/check.py:202",
+        "baseline_commit": "e64e2150f3d4e4c570efc9cfbabb950fe3739ce2",
+        "finding": "Detached compiler-profile queries inherit closed parent jobserver descriptors. The parallel aggregate fails when the sorting caller rejects the warning; the user-copy query also emits it.",
+        "counterfactual": "Clean baseline query with fixed closed jobserver descriptors reproduces the warning. Removing MAKEFLAGS and MFLAGS returns identical compiler flags without the warning.",
+        "disposition": "Both helpers use the existing detached-query policy and pass the owning parallel gates. Independent follow-up review remains open. Production libc, kernel, native archives and delivered program sources remain unchanged.",
+        "pre_change_prediction": "Clearing MAKEFLAGS and MFLAGS for detached queries makes the six selected environment cases pass; direct bmake with closed inherited descriptors retains its named warning.",
+        "calibration": {
+          "red_failures": 4,
+          "red_log_sha256": "6bdd7e5ec1dc77c1cd238736dab35374ec1478fb646b1c527dbb511c9ce9c1d0",
+          "green_tests": 3,
+          "green_log_sha256": "31e8723aede5dcde9becd1e796248e5a4f68c861515c10680365283e88245922",
+          "variants": [
+            "MAKEFLAGS",
+            "MFLAGS",
+            "both"
+          ],
+          "negative_control": "Unsanitized direct bmake emits Invalid internal option -J."
+        },
+        "focused": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 28.563,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "977d29a59b9536d2ac34542952d566ca07c93577a8f716fd1ab24e4e296395c6"
+        }
+      },
+      {
+        "mechanism": "host SIGABRT core collection",
+        "finding": "The deliberately aborted shell waits while CoreDumping=1 and a write to the host collector pipe blocks; the original aggregate later reports PASS status_sigabrt_default and SHTEST OK.",
+        "probes": "A zero core limit and a header-only core-memory filter each retain the delay under a five-second bounded probe. Their timeout rejections falsify those proposed environment remedies.",
+        "disposition": "No host settings or shell source change. Signal semantics remain covered by completed suite execution; collector delay stays a host-environment observation."
       }
     ]
   }

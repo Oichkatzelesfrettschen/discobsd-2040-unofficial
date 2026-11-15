@@ -140,8 +140,12 @@ analysis. The earlier aggregate remains bound to the original implementation.
 The focused run binds clean e6b2b417 and unchanged provider hashes. The earlier
 70.881-second sandbox run skips ILP32 and sanitizer variants because its
 system-call policy rejects their probes. The host rerun executes those
-variants and reports no configured skips. Complete revised qualification and
-independent source review remain open.
+variants and reports no configured skips. The independent pinned source
+review reports no actionable defect. Clean db0ea8e7 passes all 216 required
+inventory variants, matched flash creation, both Renode boot gates and hosted
+CI. The complete revised aggregate and reviewed integration remain open;
+the [qualification record](libc-byte-search-qualification.json) retains each
+execution class and its configured limitations.
 
 The owner approves the exact revised vector. Approval covers exactly this vector,
 the two added native members, the optional cut limits and the 48-byte local

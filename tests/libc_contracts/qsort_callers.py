@@ -156,6 +156,9 @@ def calibrate_type_rejection():
 
 
 def run(arguments, *, cwd=None, reject=None):
+    environment = dict(os.environ, LC_ALL="C")
+    environment.pop("MAKEFLAGS", None)
+    environment.pop("MFLAGS", None)
     result = subprocess.run(
         arguments,
         cwd=cwd,
@@ -163,7 +166,7 @@ def run(arguments, *, cwd=None, reject=None):
         text=True,
         timeout=90,
         check=False,
-        env=dict(os.environ, LC_ALL="C"),
+        env=environment,
     )
     if reject is None:
         if result.returncode or result.stderr:

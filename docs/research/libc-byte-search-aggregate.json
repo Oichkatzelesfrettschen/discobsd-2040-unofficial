@@ -24,6 +24,31 @@
         }
       },
       "scope": "Original312-byte/40-frame tableless provider; common-case instruction finding requires separate guarded-prefix qualification. Configured skips remain in immutable logs. Physical execution remains unauthorized."
+    },
+    {
+      "source_commit": "db0ea8e770d4eda738e51e69e73f050e6beb93f1",
+      "source_state": "clean and frozen during qualification",
+      "state": "failed",
+      "exit_code": 2,
+      "elapsed_seconds": 1139.57,
+      "invocation": "bmake -j12 MACHINE=rp2040 logged-check",
+      "stages": {
+        "build": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 78.79,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "ce3921579f2243fe608280bb0239f9898800fc79f372e15e5d8433ef7b79e37a"
+        },
+        "check": {
+          "state": "failed",
+          "exit_code": 2,
+          "elapsed_seconds": 1060.777,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "afb6515da865a8994eaa0425fa2e7fbe47ebc4240606fceca4b49be841f58fa8"
+        }
+      },
+      "scope": "Guarded-prefix provider; parallel aggregate fails because the existing sorting-caller query rejects inherited closed-jobserver diagnostics. Shell SIGABRT case and SHTEST OK complete after a host core-collector delay. Remaining cross jobs abort after the first error; QEMU, host package and board-build tiers do not run in this attempt."
     }
   ]
 }

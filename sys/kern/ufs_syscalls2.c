@@ -292,7 +292,10 @@ lseek(void)
 }
 
 /*
- * Synch an open file.
+ * Synch an open file. A block device node belongs to the filesystem that
+ * holds it, whose ufs_sync() checkpoints that filesystem's device; the
+ * device the node represents may be another one, so its own checkpoint
+ * follows syncip() draining its buffers.
  */
 void
 fsync(void)
@@ -311,6 +314,8 @@ fsync(void)
     ilock(ip);
     error = syncip(ip);
     iunlock(ip);
+    if (error == 0 && (ip->i_mode & IFMT) == IFBLK)
+        error = bdev_checkpoint(ip->i_rdev);
     if (error == 0)
         error = ufs_sync(mp);
     if (error)

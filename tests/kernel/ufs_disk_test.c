@@ -1366,6 +1366,38 @@ test_sync_device_write_checkpoints(void)
 	close_node(&node);
 }
 
+/*
+ * fsync() on a block device descriptor syncs the filesystem that holds the
+ * node, here a mount on a driver with no checkpoint command, so the device
+ * the node represents takes its own checkpoint after its buffers drain, and
+ * that checkpoint's failure is the fsync error.
+ */
+static void
+test_fsync_device_node_checkpoints_represented_device(void)
+{
+	struct node node;
+	unsigned calls;
+
+	boot_machine();
+	HK_CHECK(do_mount("/dev/xd1", "/mnt", 0) == 0);
+	HK_CHECK(open_node(&node, IFBLK | 0600, FL_ROOT, FREAD | FWRITE) == 0);
+	node.ip->i_number = 4;
+	node.ip->i_fs = &must_mount(makedev(XD_MAJOR, 1))->m_filsys;
+	HK_CHECK(write_cooked_byte(&node, 'Q') == 0);
+	calls = fl_checkpoint_calls;
+	HK_CHECK(sync_node(&node) == 0);
+	HK_CHECK(fl_checkpoint_calls == calls + 1);
+	HK_CHECK(fl_checkpoint_writes == fl_disk.nwrites);
+	fl_checkpoint_error = EIO;
+	calls = fl_checkpoint_calls;
+	HK_CHECK(sync_node(&node) == EIO);
+	HK_CHECK(fl_checkpoint_calls == calls + 1);
+	fl_checkpoint_error = 0;
+	HK_CHECK(sync_node(&node) == 0);
+	close_node(&node);
+	HK_CHECK(do_umount("/dev/xd1") == 0);
+}
+
 /* A driver without the command answers its ioctl with an error: no checkpoint. */
 static void
 test_sync_without_checkpoint_command(void)
@@ -2681,6 +2713,7 @@ main(void)
 	test_fsync_checkpoint_failure_latches();
 	test_failed_flush_still_checkpoints();
 	test_sync_device_write_checkpoints();
+	test_fsync_device_node_checkpoints_represented_device();
 	test_sync_without_checkpoint_command();
 	test_cooked_same_device_fsync_control();
 	test_cooked_device_fsync_error();

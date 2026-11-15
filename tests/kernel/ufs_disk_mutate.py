@@ -221,6 +221,11 @@ MUTATIONS = {
         "    if (error)\n        goto checkpoint;",
         "    if (error)\n        return (error);\n    if (0)\n        goto checkpoint;",
     ),
+    "device-fsync-represented-checkpoint-omitted": (
+        "ufs_syscalls2.c",
+        "        error = bdev_checkpoint(ip->i_rdev);",
+        "        error = 0;",
+    ),
     # sys/kern/sys_inode.c
     "device-sync-write-checkpoint-omitted": (
         "sys_inode.c",

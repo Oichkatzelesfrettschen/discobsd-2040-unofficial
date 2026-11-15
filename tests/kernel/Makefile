@@ -278,6 +278,7 @@ UFS_DISK_EXTRA_MUTANTS+= device-checkpoint-omitted ufs_syscalls2 \
 	device-checkpoint-error-hidden ufs_syscalls2 \
 	device-checkpoint-unsupported-fatal ufs_syscalls2 \
 	device-checkpoint-skipped-on-error ufs_syscalls2 \
+	device-fsync-represented-checkpoint-omitted ufs_syscalls2 \
 	device-sync-write-checkpoint-omitted sys_inode \
 	device-sync-write-checkpoint-error-hidden sys_inode \
 	device-async-write-checkpoints sys_inode

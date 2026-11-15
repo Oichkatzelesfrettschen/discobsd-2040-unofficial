@@ -206,6 +206,20 @@ def umask_case(as_bin, ld_bin, work, expected):
     elif os.stat(target).st_mode & 0o777 != 0o777 & ~0o222:
         problems.append("ld under umask 0222 left mode %s, base leaves %s" % (
             oct(os.stat(target).st_mode & 0o777), oct(0o777 & ~0o222)))
+    # A relocatable link over an existing file keeps that file's mode, as
+    # the base tool's truncating open does.
+    kept = work / "kept.o"
+    kept.write_bytes(b"")
+    os.chmod(kept, 0o600)
+    result = subprocess.run(
+        [ld_bin, "-r", "-o", "kept.o", "small.o", "mid.o"], cwd=work,
+        capture_output=True, text=True, check=False, timeout=300)
+    if result.returncode != 0:
+        problems.append("ld -r over an existing file exited %d: %s" % (
+            result.returncode, result.stdout.strip()))
+    elif os.stat(kept).st_mode & 0o777 != 0o600:
+        problems.append("ld -r over a mode 0600 file left mode %s" % oct(
+            os.stat(kept).st_mode & 0o777))
     return problems
 
 

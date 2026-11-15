@@ -14,6 +14,7 @@ from __future__ import annotations
 import types
 
 import pytest
+from test_web import masked
 
 from discobsd_host import ports, term, web
 
@@ -77,15 +78,13 @@ def launch(monkeypatch, tmp_path):
         for key, value in env.items():
             monkeypatch.setenv(key, value)
         FakeSerial.opened = []
-        seen = []
         if tool == "term":
             rc = term.main(["--probe", *argv])
             device = FakeSerial.opened[0] if FakeSerial.opened else None
         else:
 
             class FakeServer:
-                def __init__(self, address, device, token, open_serial=None):
-                    seen.append(device)
+                def __init__(self, address, device, token, open_serial=None, usb_port=None):
                     self.token = token
                     self.is_loopback = True
 
@@ -97,8 +96,15 @@ def launch(monkeypatch, tmp_path):
 
             monkeypatch.setattr(web, "ConsoleServer", FakeServer)
             rc = web.main(argv)
-            device = seen[0] if seen else None
-        return rc, device, capsys.readouterr().err
+            device = None
+        err = capsys.readouterr().err
+        if tool == "web":
+            # The banner names the board resolved at startup.
+            marker = "DiscoBSD web console for "
+            for line in err.splitlines():
+                if line.startswith(marker):
+                    device = line[len(marker) :]
+        return rc, device, err
 
     return run
 
@@ -216,3 +222,135 @@ def test_term_waits_while_the_named_port_has_no_console(monkeypatch, tmp_path):
     with pytest.raises(ports.BoardSelectionError) as info:
         term.current_board("not-a-port")
     assert info.value.kind == "invalid"
+
+
+def _wait_closed(line, tries=60):
+    import threading
+
+    while not line.closed and tries:
+        threading.Event().wait(0.05)
+        tries -= 1
+    return line.closed
+
+
+def test_web_resolves_the_selector_before_each_serial_open(monkeypatch, tmp_path):
+    """Port 1-3 holds ttyACM0, then both boards re-enumerate and 1-3 moves to
+    ttyACM1 while 1-4 takes ttyACM0. A session after the move must open 1-3's
+    tty, not the name cached at startup."""
+    import threading
+
+    from test_web import FakeLine, read_frames, ws_connect
+
+    env = make_tree(tmp_path, {PORT_A: "ttyACM0", PORT_B: "ttyACM1"})
+    # Start: 1-3 -> ttyACM0, 1-4 -> ttyACM1. Both nodes exist in devfs.
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    for name in (ports.ENV_PORT, ports.ENV_USB_PORT):
+        monkeypatch.delenv(name, raising=False)
+    opened = []
+    lines = []
+
+    def opener(device):
+        opened.append(device)
+        line = FakeLine()
+        lines.append(line)
+        return line
+
+    httpd = web.ConsoleServer(
+        ("127.0.0.1", 0), None, "tok", open_serial=opener, usb_port=PORT_A
+    )
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        port = httpd.server_address[1]
+        s, status = ws_connect(port)
+        read_frames(s, b"login: ", got=status)
+        s.sendall(masked(b"", opcode=0x8))
+        s.close()
+        assert _wait_closed(lines[0])
+        devfs = tmp_path / "dev"
+        assert opened == [str(devfs / "ttyACM0")]
+
+        sysfs = tmp_path / "sys"
+        tty_a = sysfs / PORT_A / f"{PORT_A}:1.0" / "tty"
+        tty_b = sysfs / PORT_B / f"{PORT_B}:1.0" / "tty"
+        (tty_a / "ttyACM0").rename(tty_a / "ttyACM1")
+        (tty_b / "ttyACM1").rename(tty_b / "ttyACM0")
+
+        s, status = ws_connect(port)
+        read_frames(s, b"login: ", got=status)
+        s.close()
+        assert opened[-1] == str(devfs / "ttyACM1")
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_web_session_refuses_when_the_named_port_is_gone(monkeypatch, tmp_path):
+    import threading
+
+    from test_web import ws_connect
+
+    env = make_tree(tmp_path, {PORT_A: "ttyACM0", PORT_B: "ttyACM1"})
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    for name in (ports.ENV_PORT, ports.ENV_USB_PORT):
+        monkeypatch.delenv(name, raising=False)
+    opened = []
+    httpd = web.ConsoleServer(
+        ("127.0.0.1", 0), None, "tok", open_serial=opened.append, usb_port=PORT_A
+    )
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        (tmp_path / "sys" / PORT_A / "idVendor").write_text("0000\n")
+        s, status = ws_connect(httpd.server_address[1])
+        from test_web import read_frames
+
+        got = read_frames(s, b"holds no 2e8a device", got=status)
+        assert b"holds no 2e8a device" in got
+        assert opened == []
+        s.close()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_web_main_hands_the_selector_not_a_path_to_the_server(monkeypatch, tmp_path):
+    env = make_tree(tmp_path, {PORT_A: "ttyACM0", PORT_B: "ttyACM1"})
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    for name in (ports.ENV_PORT, ports.ENV_USB_PORT, ports.TOKEN_ENV):
+        monkeypatch.delenv(name, raising=False)
+    got = {}
+
+    class FakeServer:
+        is_loopback = True
+
+        def __init__(self, address, device, token, open_serial=None, usb_port=None):
+            got.update(device=device, usb_port=usb_port)
+
+        def serve_forever(self):
+            raise KeyboardInterrupt()
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr(web, "ConsoleServer", FakeServer)
+    assert web.main(["--usb-port", PORT_B]) == 0
+    assert got == {"device": None, "usb_port": PORT_B}
+    assert web.main(["/dev/pinned"]) == 0
+    assert got == {"device": "/dev/pinned", "usb_port": None}
+
+
+def test_term_reattach_resolves_the_port_again(monkeypatch, tmp_path):
+    env = make_tree(tmp_path, {PORT_A: "ttyACM0", PORT_B: "ttyACM1"})
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    for name in (ports.ENV_PORT, ports.ENV_USB_PORT):
+        monkeypatch.delenv(name, raising=False)
+    devfs = tmp_path / "dev"
+    assert term.wait_for_board(False, PORT_A) == str(devfs / "ttyACM0")
+    tty_a = tmp_path / "sys" / PORT_A / f"{PORT_A}:1.0" / "tty"
+    tty_b = tmp_path / "sys" / PORT_B / f"{PORT_B}:1.0" / "tty"
+    (tty_a / "ttyACM0").rename(tty_a / "ttyACM1")
+    (tty_b / "ttyACM1").rename(tty_b / "ttyACM0")
+    assert term.wait_for_board(False, PORT_A) == str(devfs / "ttyACM1")

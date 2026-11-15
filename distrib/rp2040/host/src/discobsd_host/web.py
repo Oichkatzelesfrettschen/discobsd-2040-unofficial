@@ -349,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             return
         try:
-            device = srv.device or ports.find_board()
+            device = srv.device or ports.find_board(usb_port=srv.usb_port)
             if not device:
                 raise OSError("no board found")
             ser = srv.open_serial(device)
@@ -441,9 +441,17 @@ class ConsoleServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, device, token, open_serial=ports.open_serial):
+    def __init__(
+        self, address, device, token, open_serial=ports.open_serial, usb_port=None
+    ):
         super().__init__(address, Handler)
+        # A device path names the board itself and is opened as given. With
+        # none, every session resolves the board again from `usb_port` (the
+        # --usb-port operand) or DISCOBSD_USB_PORT, because /dev/ttyACMn is
+        # renumbered when the boards re-enumerate and a path cached at
+        # startup can then name the other board.
         self.device = device
+        self.usb_port = usb_port
         self.token = token
         self.is_loopback = is_loopback(address[0])
         self.console_lock = threading.Lock()
@@ -518,7 +526,9 @@ def main(argv=None) -> int:
             "Set DISCOBSD_WEB_TOKEN or a systemd credential named web-token\n"
         )
         return 1
-    httpd = ConsoleServer((args.bind, args.port), device, token)
+    httpd = ConsoleServer(
+        (args.bind, args.port), args.device, token, usb_port=args.usb_port
+    )
     q = ("?token=" + token) if token else ""
     sys.stderr.write(f"DiscoBSD web console for {device}\n")
     if httpd.is_loopback:

@@ -157,7 +157,10 @@ A named port that holds no 2e8a device, or a malformed port, exits 1;
 `discobsd-term` waits when the named port exists but its console has not
 re-enumerated yet. `DISCOBSD_PORT` (a device path) and a device path argument
 to `discobsd-web` name the board itself and skip the check, and `discobsd-web`
-refuses a device path together with `--usb-port`. `discobsd-term --list` still
+refuses a device path together with `--usb-port`. Both tools resolve the selector again at every
+serial open (`discobsd-web` per browser session, `discobsd-term` per
+reattach), because `/dev/ttyACMn` is renumbered when the boards re-enumerate;
+only a device path is used as given. `discobsd-term --list` still
 prints every board. `discobsd-link` only redirects to a URL and opens no board,
 so it takes no selector; `discobsd-console up` passes its environment on, so
 `DISCOBSD_USB_PORT` reaches the `discobsd-web` it starts.

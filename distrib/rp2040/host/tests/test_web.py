@@ -287,7 +287,7 @@ def test_cli_reads_token_from_the_environment(capsys, monkeypatch):
     monkeypatch.setenv(web.ports.TOKEN_ENV, "from-env")
 
     class FakeServer:
-        def __init__(self, address, device, token, open_serial=None):
+        def __init__(self, address, device, token, open_serial=None, usb_port=None):
             self.token = token
             self.is_loopback = True
 
@@ -306,7 +306,7 @@ def test_cli_argv_token_is_deprecated_but_still_works(capsys, monkeypatch):
     monkeypatch.delenv(web.ports.TOKEN_ENV, raising=False)
 
     class FakeServer:
-        def __init__(self, address, device, token, open_serial=None):
+        def __init__(self, address, device, token, open_serial=None, usb_port=None):
             assert token == "argv-tok"
             self.is_loopback = False
 

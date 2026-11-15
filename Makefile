@@ -1676,7 +1676,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-sh-editor \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
 CROSS_CONTRACT_GATES=	check-signal-sets-cross check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-character-io-headers check-public-header-inclusion check-network-header-contracts \
@@ -1780,6 +1780,12 @@ check-puzzlebox-host:
 
 check-calc-host: check-python .WAIT symlinks
 		${MAKE} -C usr.bin/calc test
+
+# picofetch and picotop over fixture readings: the renderers, their three
+# drawing tiers and the glyph shapes, then the mutants. The sysctl collector
+# of usr.bin/picofetch/hwinfo_sysctl.c runs on no host.
+check-picofetch-host: check-python
+		${MAKE} -C usr.bin/picofetch test
 
 check-sh-editor:
 		${MAKE} -C bin/sh/tests test
@@ -2261,7 +2267,7 @@ installfs:
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-sh-editor check-tar-host \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-sh-editor check-tar-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \

@@ -256,6 +256,12 @@ pack /usr/bin/dc
 #closure calc
 pack /usr/bin/calc
 #endclosure calc
+#closure picofetch
+pack /usr/bin/picofetch
+#endclosure picofetch
+#closure picotop
+pack /usr/bin/picotop
+#endclosure picotop
 pack /usr/bin/sed
 pack /usr/bin/grepbox
 pack /usr/bin/find

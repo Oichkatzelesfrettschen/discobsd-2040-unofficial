@@ -30,6 +30,7 @@ in this order, because each later row needs the earlier device.
 | Battery, backlight and power-off registers; split-phase key polling | `sysctl machdep.picocalc` | not run |
 | SD card-detect polarity, the 12.5 MHz clock and busy times of real cards | `sd0` probe and transfers | not run |
 | A UFS partition on the card mounts beside the flash root; `fdisk` and `mkfs` through `rsd0` | console procedure in `PICOCALC.md` | not run |
+| CMD59 accepted by real cards, reads and writes with CRC checking on at 12.5 MHz, and the CMD13 status after each write | `sd0` probe and transfers; a refused CMD59 leaves the card unchecked | not run |
 | The pulled-card sequence | `tests/rp2040/sd_detach/board_sd_detach.py` behind its opt-in | not run |
 | Whether the Command Table 2 writes of `init_seq` take effect without CSCON `F0h`, and what the out-of-table values (15 gamma bytes, `C1h 41h`, three `C5h` bytes, `F7h`) do; `docs/research/driver-datasheet-audit.md` | the register sets and readback of the `rp2040-picocalc-panel-register-test` branch | not run |
 | PSRAM CE# level between reset and `psram_hw_init()`, and the part's tCEM grade against the 4.6 us read frame | probe RAM_CS at power-up; `psram0: read id` line | not run |

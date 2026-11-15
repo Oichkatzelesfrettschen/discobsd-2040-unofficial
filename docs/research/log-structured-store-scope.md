@@ -6,7 +6,8 @@ behind any number here. Tree: built and read at 270422ca. `origin/main` has
 since advanced to a849d47a (PR #548); `git diff --stat 270422ca origin/main`
 shows tool, test and documentation changes and no change under `sys/` code, so
 the kernel figures stand (M). Every number carries a tag:
-M (measured here, command named), C (cited from a named source), D (derived
+M (measured here, command named, or read from this tree's source where the
+tag says "by reading"), C (cited from a named source), D (derived
 by arithmetic shown), E (estimate or inference, stated as such).
 
 ## Finding
@@ -17,7 +18,7 @@ measured facts decide it, and one cited fact redirects the SD work.
 1. The kernels that carry the SD driver have no room. PICOCALC and
    PICOCALC_PSRAM leave 11,408 and 8,712 bytes of kernel text headroom (M)
    and about 11.1 KB and 10.6 KB of unassigned SRAM below the u-areas (M, D).
-   A LittleFS-class store, the smallest candidate measured, compiles to
+   A LittleFS-class store, the one candidate compiled here, compiles to
    15,330 bytes of text before any block glue or kernel adapter (M).
 2. The root already sits on a log. Dhara is a log-structured translation
    layer with its own journal and cleaner. A second log above it multiplies
@@ -63,7 +64,7 @@ the cleaning unit, the background trigger and the discard unit (C, read
 from both). The segment is 512 blocks of 4 KiB, 2 MiB, fixed by the
 64-byte bitmap (D-doc On-disk Layout); the kernel's minimum block size is
 4 KiB, so a 1 KiB-block F2FS does not exist. Paper utilization results
-(P 3.2.4, 3.2.5, 120 GB SATA SSD): about 30 percent loss at 97.5 percent
+(P 3.2.4, 3.2.5, a 120 GB partition of a 250 GB SATA SSD): about 30 percent loss at 97.5 percent
 full, and adaptive logging reduces the loss at 94 percent full from 48 to
 22 percent.
 
@@ -76,7 +77,7 @@ format, so its entry sizes (12 B SIT, 9 B NAT) are assumptions.
 | Volume | Segments | SIT (2 copies) | NAT (2 copies) | SSA | Checkpoint | Metadata |
 | --- | ---: | --- | --- | --- | --- | --- |
 | 989 KiB, 16-block segments | 61 | 2 blocks | 18 blocks | 6.8 KiB dense (989 x 7 B) | 2 segments | 7 segments, 112 KiB, 11.3 percent (dense SSA); 10 segments, 16.2 percent with one summary block per segment |
-| 1 GiB, 2 MiB segments | 512 | 80 KiB | 4.5 MiB | 2 MiB | 4 MiB | 18 MiB after whole-segment alignment, 1.76 percent |
+| 1 GiB, 2 MiB segments | 512 | 80 KiB | 4.5 MiB | 2 MiB | 4 MiB | 14.5 to 20 MiB by the alignment rule applied (unaligned NAT; each copy rounded to a segment), 1.4 to 2.0 percent |
 | 8 GiB | 4,096 | 600 KiB | 36 MiB | 16 MiB | 4 MiB | 60 MiB, 0.73 percent |
 | 32 GiB | 16,384 | 2.3 MiB | 144 MiB | 64 MiB | 4 MiB | 216 MiB, 0.66 percent |
 
@@ -182,8 +183,9 @@ v6.00 mirrored copy (sha256 in Sources read), fetched 2026-11-15; confirmed by g
   Erase, Discard (value 00000001h) or FULE (00000002h); Section 4.3.5.2 states
   that Discard "is supported for SDHC and SDXC cards only and not supported
   through SPI interface", and the SPI table row for CMD38 repeats that FULE
-  and Discard are not supported. Discard and FULE first appear in v6.00 (its
-  revision history); the v4.10 text read has neither (C).
+  and Discard are not supported. Discard and FULE first appear in the Simplified series at v6.00 (its
+  revision history; section 4.19.1 of the same text says the full
+  specification defined them in version 5.10); the v4.10 text read has neither (C).
 - Section 7.2.15: in SPI mode "the host shall treat the card as Class 0 no
   matter what Class is indicated in SD Status." The speed-class write
   guarantees (sequential write in recording-unit multiples through free
@@ -221,7 +223,7 @@ benefit (sequential append) from the cost (a segment buffer, which a
 | --- | --- | --- | --- | --- | --- |
 | 4.4BSD-Lite2 LFS (`sys/ufs/lfs`; `lfs_segment.c` is 1,166 lines) | default segment 1 MiB, minimum 64 KiB, block 1 KiB to 4 KiB (`sbin/newlfs/config.h:121-136`) | one segment of block buffers, each block malloc'd separately (`lfs_segment.c:1036-1048`); one 64 KiB minimum segment of blocks is about 64 KiB (E, not read from the allocation path beyond :835) | superblock copies (up to ten, `lfs.h:141`) plus checkpoint; no roll-forward file in the directory | none found by grep | UC Regents notice with four clauses in `lfs_segment.c` (advertising clause 3); read for that file only |
 | NetBSD LFS (`sys/ufs/lfs`, 31,802 lines) | same family, adds `lfs_rfw.c` | as above, larger | roll-forward file present (`lfs_rfw.c`) | `fdiscard` vnode op stubbed unsupported (`lfs_vnops.c:199`) | NetBSD Foundation two-clause block plus a UC Regents three-clause block in `lfs_segment.c` |
-| LittleFS v2.11.2 | erasable block (any size), cache_size multiple of read and program size | two caches plus lookahead plus one cache per open file; `lfs_t` 128 B, `lfs_file_t` 84 B, `lfs_dir_t` 52 B (M, ARM `nm -S`); with 512 B caches about 1.3 KiB for one file (D) | metadata pairs, copy-on-write, commit by checksum; falls back to last good state (DESIGN.md) | none; freeing is "drop it on the floor" and the allocator scans for free blocks (DESIGN.md) | BSD 3-clause, Arm Limited 2017 and the littlefs authors 2022 |
+| LittleFS v2.11.2 | erasable block (any size), cache_size multiple of read and program size | two caches plus lookahead plus one cache per open file; `lfs_t` 128 B, `lfs_file_t` 84 B, `lfs_dir_t` 52 B (M, ARM `nm -S`); with 512 B caches about 1.7 KiB for one file (2 x 512 + 512 + 128 + 84 = 1,748 B, D) | metadata pairs, copy-on-write, commit by checksum; falls back to last good state (DESIGN.md) | none; freeing is "drop it on the floor" and the allocator scans for free blocks (DESIGN.md) | BSD 3-clause, Arm Limited 2017 and the littlefs authors 2022 |
 | NILFS2 | log of partial segments, user-space cleaner `nilfs_cleanerd` | cleaner in user space; a kernel segment constructor (no number read) | checkpoint per few seconds or per synchronous write; recovery uses segment boundary flags | `discard` mount option, default off | GPL-2.0+ (SPDX line of `fs/nilfs2/segment.c`) |
 | F2FS (section 1) | 2 MiB segment, 4 KiB block | section 2 | checkpoint pair plus roll-forward of fsync | discard after checkpoint, prefree set | GPL-2.0 (kernel); f2fs-tools GPL-2 with LGPL-2.1 on listed files |
 
@@ -235,12 +237,14 @@ library over the raw SD device, which costs no kernel text and no kernel
 SRAM (E), at the price of a separate namespace.
 
 License boundary. The kernel and f2fs-tools licenses were fetched from their
-primary files: kernel `COPYING` is GPL-2.0 with the Linux syscall note, all 35
+primary files: kernel `COPYING` is GPL-2.0 with the Linux syscall note, the sampled
 `fs/f2fs` files and the header carry GPL-2.0 identifiers, and f2fs-tools
 `COPYING` states GPL-2 with LGPL-2.1 for seven named files (file headers
 say "GPL or LGPL version 2" and one unlisted dual-licensed
 file). No patent grant was found in those texts. This tree is BSD and ISC, so
-no GPL text, record layout or comment enters the port. A BSD-licensed donor is expected to be
+no GPL text, record layout or comment enters the port. The entry sizes
+tagged "C, source" in section 1 were read from the GPL kernel and f2fs-tools
+sources as plain byte counts; no code, layout or comment text was copied. A BSD-licensed donor is expected to be
 compatible; 4.4BSD-Lite2 `lfs_segment.c` carries the advertising clause
 (clause 3), so the compatibility is a decision for the owner, and NetBSD's `lfs_segment.c` carries a UC Regents three-clause block
 beside the Foundation block.
@@ -249,7 +253,7 @@ beside the Foundation block.
 
 Status of the code. At 270422ca none of these changes is on main. At
 origin/main a849d47a (`git merge-base --is-ancestor`, M) the sparse-image pair
-b7c30c9b and b395ff51 has merged through PR #548; the others have not:
+b7c30c9b and b395ff51, with its gate 12eb3102 and the partition bound 1913625f, has merged through PR #548; the others have not:
 7da13433 (checkpoint on sync, documentation), fd5c5e6b (the change), 8aa41175
 (inode before free with trim) and b28daef4 (reset-cut test) sit on local
 branches. 84aa9b3a, 40c24b3a and b7ab3899 carry the subjects of the merged
@@ -265,7 +269,7 @@ comment promises that pointers reach disk before frees while the only
 | --- | --- | --- |
 | Checkpoint on sync, not per request | Board counters, one kernel, single runs: per-request checkpoint 8.00 units per write, sync policy 5.65 to 6.76 (C; a unit is 1 KiB, four program pages, converted here from the logged counters). The sync-policy log has no commit identity and commit 7da13433's text says board evidence is not yet run | Mechanism does not carry: it removes Dhara's padding of an 8-page group. The principle does: batch durability points. An SD write has no checkpoint but waits for programming per command |
 | Free blocks out of the image's map | Board: first compile after flashing 1.20 units against model 6.28 at 989 live; 758 of 989 mapped. The 1.20 appears as both a board and a model number | Carries as a tool rule: an SD image writer skips unused AUs; erasing them first needs the SD-mode host or a CMD38 pass (E) |
-| Inode before free, trim at free | Host-model and crash-cut test; no board run. The same note records host-model cost: create-and-delete costs 10.38 pages per file block with trim against 5.99 without | Carries as a precondition. Erase in SPI mode (CMD32/33/38) returns zeros or ones afterward by the SCR bit; a restored inode pointing at an erased block loses data under the 2.11BSD order, the same hazard as on NOR (D). Erase-per-free is costly: the specification gives 250 ms per partially erased AU (4.6.2.3), so frees must batch at AU granularity (C, D) |
+| Inode before free, trim at free | Host-model and crash-cut test; no board run. The expectation plan on the trim branch (`docs/research/flash-storage-expectation-plan.md`) records host-model cost: create-and-delete with 732 of 989 sectors live costs 10.38 pages per file block with trim against 5.99 without | Carries as a precondition. Erase in SPI mode (CMD32/33/38) returns zeros or ones afterward by the SCR bit; a restored inode pointing at an erased block loses data under the 2.11BSD order, the same hazard as on NOR (D). Erase-per-free is costly: the specification adds 250 ms per partially erased AU to the erase timeout (4.14.1, 4.14.4), so frees must batch at AU granularity (C, D) |
 | Cleaning-cost knee near live share 0.8 | The knee is Dhara's cleaner cap: 5 steps, so u at most 0.8 keeps pace (D). The closed form is smooth: 2.69 at 0.80. The phrase "within 11 percent of FIFO from 0.85 up" in two drafts compares against the checkpoint column; against the closed form it is 26 percent high at 0.85 and 21 at 0.90 (recomputed here from the closed form) | Does not carry: the card's FTL is a black box with its own policy. The model carries only to a host-run cleaner, unmeasured on SD |
 
 Flash traffic (C, `flash-traffic-per-workload.md`, board counters, one run per
@@ -361,16 +365,13 @@ Do not build:
   headroom of 8,712 B (M).
 
 Measured in this tree: section 2 budget table, LittleFS text and struct sizes,
-Dhara object sizes, SD driver command set, `itrunc()` order. Cited: the F2FS,
+Dhara object sizes. Read from this tree's source: SD driver command set,
+`itrunc()` order. Cited: the F2FS,
 SD, LittleFS, NILFS2 and BSD LFS facts, the prior-result numbers. Inferred:
 every E tag.
 
 ## Open questions for the owner
 
-- Does the read of kernel and f2fs-tools source for entry sizes sit within the
-  intended license boundary? The planned sources were the paper and
-  `f2fs.rst`; the kernel header and tools source were also read. Only per-entry
-  byte totals entered this note.
 - Is a four-clause 4.4BSD-Lite2 file acceptable as a named donor?
 - May a board run characterize an SD card (step 2)?
 - The sdcard.org PDF is behind a terms click-through. Reading a copy needs a

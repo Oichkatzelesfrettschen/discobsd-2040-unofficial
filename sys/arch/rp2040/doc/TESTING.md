@@ -2064,6 +2064,44 @@ tools, QEMU user mode and the built `elf2aout` converter are required. The
 owns replay commands and evidence limits. Its runtime-only RWX process envelope
 establishes neither MPU protection nor a production shared executable ABI.
 
+`check-libc-xip-slots` compiles C17 and ARMv6-M assembly providers and gives
+public callable slots ownership of their function symbols. The provider's
+private alias retains its implementation entry; checked ELF32 symbol separation
+changes its public definition into an import while preserving section contents
+and relocation indexes. A weak function alias shares its owning slot. An
+unlowered LTO input rejects; GCC lowers LTO to native relocatable ELF before
+separation. Four images cover ordinary and LTO compilation, each with and
+without `-fno-semantic-interposition`.
+
+ELF inspection checks exact public Thumb addresses, 12-byte function extents,
+hidden implementation owners, complete GOT classification and state relocation
+containment. A separately linked SRAM application imports only the public
+symbols through `--just-symbols`. Unicorn executes 888 calls across two
+independent state areas, three stack placements and three unsigned input
+families. Calls cover six arguments, aliases, initialized and returned pointers,
+cross-object calls and a flash-to-SRAM callback that calls the flash library.
+Each call checks SP, r4-r11, stack arguments and inactive process state.
+
+Seventeen controls reject missing implementation aliases, executable or raw LTO
+inputs, mismatched implementation owners, non-function providers, omitted
+separation, conflicting public definitions, inherited or incorrect symbol
+extents, split alias slots, bypassed returned/initialized pointers, corrupted
+argument registers and wrong slot targets. Alias-group checks require a common
+implementation section, address and extent. All application imports retain
+their corresponding library addresses. Three controls also reject an alias
+group whose individual pairs remain consistent, an unrelated private collision
+as evidence of public interposition, and an incorrect application import address.
+Each linker collision requires the named public symbol under the C locale.
+Each rejection requires its named
+diagnostic; an emulator setup failure fails the gate. Linux `firmware.yml`
+owns this gate through `check-qemu`, with Python `pyelftools`/Unicorn 2 or later
+and the ARM GNU toolchain. Sources and fresh receipts live in
+`tests/libc_xip_slots` and `.build-logs/xip-callable-identity-*` respectively.
+The [callable identity record](../../../../docs/research/xip-shared-libc/slot-identity.md)
+owns the mechanism and residuals. The fixture supplies functional instruction
+evidence; production ABI generation, flash fit, native imports, kernel admission,
+lifecycle and physical-board qualification remain separate.
+
 `check-libc-xip-rom` compiles every member in `rom_float_members` with GNU
 Cortex-M0+ assembly and executes shared dispatch with Unicorn. The simulated
 ROM lookup and CLZ service establish resolver and conversion behavior; they

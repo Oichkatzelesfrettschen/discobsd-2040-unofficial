@@ -2001,6 +2001,13 @@ check-libc-xip-rom: check-python
 
 .PHONY: check-libc-xip-rom
 
+check-libc-xip-slots: check-python
+		${PYTHON} tests/libc_xip_slots/run.py \
+		    --cc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    --objcopy ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-objcopy
+
+.PHONY: check-libc-xip-slots
+
 check-native-call-veneer: check-python
 		${PYTHON} tests/native_linker/veneers.py
 
@@ -2016,6 +2023,7 @@ check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-exec-dispatch-qemu
 		${MAKE} check-libc-xip-object-abi
 		${MAKE} check-libc-xip-rom
+		${MAKE} check-libc-xip-slots
 		${MAKE} check-native-call-veneer
 		${MAKE} check-libc-byte-search-instructions
 		${MAKE} -C tests/rp2040/uarea_exchange check

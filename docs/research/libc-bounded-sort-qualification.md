@@ -15,9 +15,10 @@ remains unrun and unauthorized.
 | Compiler frames | All fourteen module hashes and the retained frame-receipt hash match `libc-bounded-sort-stack.json`. |
 | Clean distribution | `libc-bounded-sort-resource-complete.json` binds completed instrumented capture to `5b823bb3`; its entire paired comparison equals the approved shipped vector. |
 | Resource admission | The owner approves the original vector at `caee317e` and the additional six optional consumers at `f4ec52c6`, as recorded in `libc-bounded-sort-resource-exception.md`. |
-| Logged build | Current caller/record candidate completes the maintained warning-profile build with exit zero. |
+| Logged build | Frozen head `9f289c67` completes the maintained warning-profile build with exit zero in 84.544 seconds. |
+| Logged aggregate | The same clean head completes all selected non-hardware tiers with exit zero in 2,504.262 check seconds and 2,588.813 total seconds. All 21 calculator mutations reject, with zero unjudged cases; peak-heap checks pass. |
 | ILP32 inventory | Record head `f4ec52c6`, rp2040-ilp32-local-20261115T024510Z-210542-676dd421, completes with exit zero in 854.238 seconds. The ordinary/context suites include the 708,596-case native, ILP32 and sanitizer matrix and calibrated work-bound controls. |
-| Hosted CI | Firmware runs `43668978350`, `43670454608` and `43672713116` pass for source repair `5b823bb3`, admission record head `59f07e60` and emulator record head `38626ed1`, respectively. Later publication heads retain their own CI requirement. |
+| Hosted CI | Firmware runs `43668978350`, `43670454608`, `43672713116` and `43675364234` pass for source repair `5b823bb3`, admission record head `59f07e60`, emulator record head `38626ed1` and aggregate head `9f289c67`, respectively. Later publication heads retain their own CI requirement. |
 | Image distribution/flash | Both logged targets pass at record head `59f07e60`. The sparse flash image reports 761 of 989 sectors live, including one retained free-list chain block; 228 free sectors remain unwritten. |
 | UART Renode | `rp2040-sort-renode` completes with exit zero in 742.0 seconds. Boot, process/file/memory/capacity checks, MPU/residue probes, native compilation through 2046, core-1 checks and warning ceilings pass. |
 | Union Renode | `rp2040-sort-renode-union` completes with exit zero in 578.01 seconds against the same root and the descriptor-patched union kernel. Its applicable boot/native/clock/fault and warning checks pass. |
@@ -29,10 +30,14 @@ The status/log hashes bind this result without publishing local paths from
 execution receipts. Caller-selected PYTHON is the system Python 3.14.9 interpreter;
 target compilation uses ARM GCC 16.2.0 and the evaluated RP2040 profiles.
 
-## Open qualification
+## Aggregate identity and integration
 
-The final full logged-check aggregate and final publication-head CI remain
-open. The branch includes refreshed main `a1b31e55`, whose gate-order repair
+The [aggregate receipt](libc-bounded-sort-aggregate.json) binds the clean
+source commit and tree, exact stage durations and five retained file hashes.
+All fourteen frame-source hashes match the recorded measurements. Configured
+skips and expected shell failures remain explicit in the complete log; the
+aggregate pass establishes its selected checks rather than complete standards
+coverage. The branch includes refreshed main `a1b31e55`, whose gate-order repair
 places the host FAT32 tail check before the cross hsaout check across the
 aggregate's wait boundary. These main changes alter documentation and gate
 ordering; the sorting production sources and resource approval remain intact.
@@ -58,13 +63,17 @@ to publish each existing progress message immediately through the log pipe.
 The correction preserves the mutation set, assertions, child deadlines,
 600-second output-idle limit and 5,400-second aggregate deadline. A pipe
 probe distinguishes buffered and unbuffered publication before process exit;
-the next full aggregate decides qualification. The timeout supplies no pass.
+its source, result and log remain under the qualification directory's
+`progress-publication/` subdirectory. The completed aggregate validates this
+recipe correction. The earlier timeout supplies no pass.
 
 Compiler-local and conditional stack bounds, finite algorithm matrices,
 emulator instruction execution and silicon measurements retain their own
 claims. General workload timing, runtime process peaks, storage traffic and
-physical-board qualification remain open. Final merge and canonical main
-synchronization follow qualification and review.
+physical-board qualification remain open. Reviewed integration requires green
+publication-head CI and a fresh remote-main check; canonical main then
+fast-forwards to the reviewed merge commit. The aggregate record introduces
+no production source, image-layout or resource-allowance change.
 
 The emulator is Renode `1.17.0+20260907gitf1dd1b4af`, with model revision
 `205a5e4b25440582008a4292074bb07f80a72328` and Peripherals.dll SHA-256

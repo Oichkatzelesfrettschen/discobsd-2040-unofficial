@@ -73,3 +73,8 @@ compiles on a `STORAGE_STATS=yes` kernel that counts SwapRAM refusal
 reasons and swap-out spans, from a freshly flashed root, with the shell
 before the break-growth fix (`main-sh.txt`) and with it (`fixed-sh.txt`).
 Escape sequences are removed.
+The probe that produced them printed its expanded metric set under
+version 1; the layout has been version 2 since, so
+`tools/summarize_rp2040_storage_delta.py` rejects these files.
+`python3 delta.py main-sh.txt fixed-sh.txt` in that directory reads them
+as they stand and prints the deltas the record tabulates.

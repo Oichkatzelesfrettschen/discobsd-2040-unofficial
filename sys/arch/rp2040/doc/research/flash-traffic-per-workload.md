@@ -199,7 +199,7 @@ break-growth fix and the shell with it.
 | SwapRAM attempts, admitted | 303, 61 | 305, 63 |
 | Refused: no single free run, too few free bytes | 240, 2 | 196, 46 |
 | Refused swap-outs by span | 192 of 7 sectors, 49 of 5, 1 of 12 or more | 192 of 6 sectors, 49 of 5, 1 of 12 or more |
-| Shortfall under 1 KiB, 1 to 2 KiB, 3 to 4 KiB | 0, 184, 48 | 172, 8, 47 |
+| Shortfall bins of 1, 2, 3, 4, 6 and 7 KiB | 0, 184, 9, 48, 0, 1 | 172, 8, 2, 47, 12, 1 |
 | Root sectors erased | 934 | 930 |
 
 Eight swap-outs a compile are one image class, refused every time; a second
@@ -210,10 +210,15 @@ most likely its shell, swapped out while it waits on a pass; that is an
 inference from the size. Closed admission, a held codec and encoder failure
 never occur. The pool (`SWAPRAM_KB=16`) refuses for want of one free run:
 the request is the compressed data and stack plus `SR_WORST(USIZE)`, 3,460
-bytes held for the u area, which compresses to about 1 KiB when admitted
-(64,012 bytes over 63 admissions). The dominant class misses by under
-2 KiB, so reserving the u area at its compressed size would admit it; that
-change is not built.
+bytes held for the u area. Where a swap-out is admitted the u area takes
+about 1 KiB (64,012 bytes over 63 admissions), about 2.4 KiB less than the
+reservation. In the run with the fix 180 refusals fall in the two lowest
+shortfall bins and in the run before it 184, against 192 swap-outs of the
+dominant class, so a reservation at the compressed size of the u area would
+admit some of them. How many is a hypothesis: the histograms do not tie a
+shortfall to a span, an admitted image's u area does not give a refused
+one's, and each admission leaves less room for the next. The change is not
+built.
 
 The shell with the fix erases 12 percent fewer swap sectors because its
 dominant image is one sector smaller. The per-sector counters were not in

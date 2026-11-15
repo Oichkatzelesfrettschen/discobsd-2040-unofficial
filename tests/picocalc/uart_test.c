@@ -40,7 +40,7 @@ static volatile unsigned shim_reg_sink;
 #include <string.h>
 
 #define	FIFO		32
-#define	TRIGGER		16
+#define	TRIGGER		16	/* UART_IFLS_TX_HALF, which uartinit() programs. */
 #define	MAXBYTES	4096
 
 struct shim_user u;

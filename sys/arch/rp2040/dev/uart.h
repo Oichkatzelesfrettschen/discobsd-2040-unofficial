@@ -49,6 +49,9 @@
 #define	UART_FR_RXFF		0x0040
 #define	UART_FR_TXFE		0x0080
 
+#define	UART_IFLS_RX_HALF	(2u << 3)	/* RXIFLSEL: RX FIFO >= 1/2 full. */
+#define	UART_IFLS_TX_HALF	(2u << 0)	/* TXIFLSEL: TX FIFO <= 1/2 full. */
+
 #define	UART_LCR_H_FEN		0x0010		/* FIFOs enabled. */
 #define	UART_LCR_H_WLEN_8	0x0060		/* Eight data bits. */
 

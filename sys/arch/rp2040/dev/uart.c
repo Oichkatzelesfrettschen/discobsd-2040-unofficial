@@ -129,6 +129,12 @@ uart_set_baud(u_int base, u_int baud)
     REG32(base + UART_FBRD) = fbrd;
     /* Writing LCR_H latches the divisors. */
     REG32(base + UART_LCR_H) = UART_LCR_H_WLEN_8 | UART_LCR_H_FEN;
+    /*
+     * Both FIFO triggers at half full (16 of 32 entries), the reset value
+     * (RP2040 datasheet 4.2.8, UARTIFLS), written so that uartstart()'s
+     * refill rule does not rest on whatever the boot ROM or a loader left.
+     */
+    REG32(base + UART_IFLS) = UART_IFLS_RX_HALF | UART_IFLS_TX_HALF;
 }
 
 void

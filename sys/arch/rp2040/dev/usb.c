@@ -335,6 +335,7 @@ static struct {
 
 	u_int		rx_head, rx_tail;
 	u_char		rx_ring[USB_RXRING];
+	u_int		rx_polled;	/* usbgetc is polling: ring every byte. */
 
 	u_char		reply[64];	/* Small control replies. */
 } usbd;
@@ -904,7 +905,7 @@ usb_rx_done(void)
 	n = DPRAM32(USB_DPRAM_BUF_CTRL(EP_DATA, 0)) & USB_BUF_CTRL_LEN_MASK;
 	for (i = 0; i < n; i++) {
 		c = DPRAM8(BUF_DATA_OUT + i);
-		if (tp->t_state & TS_ISOPEN) {
+		if ((tp->t_state & TS_ISOPEN) && usbd.rx_polled == 0) {
 			ttyinput(c, tp);
 		} else if (usbd.rx_head - usbd.rx_tail < USB_RXRING) {
 			usbd.rx_ring[usbd.rx_head % USB_RXRING] = c;
@@ -1368,7 +1369,13 @@ usbpoll(void)
 }
 
 /*
- * Console input: poll the controller until a byte arrives.
+ * Console input: poll the controller until a byte arrives. PRIMASK is set
+ * for the whole read (boot() has called splhigh before its halt wait), so
+ * usbintr never runs and usb_service here is what moves a received packet
+ * out of the controller. usb_rx_done hands a byte to the tty while a process
+ * holds it open; rx_polled redirects every byte to rx_ring for the length of
+ * the read, because nothing drains the tty's input queue in that context and
+ * the read would never see it.
  */
 char
 usbgetc(dev_t dev __unused)
@@ -1376,8 +1383,10 @@ usbgetc(dev_t dev __unused)
 	int s, c;
 
 	s = spltty();
+	usbd.rx_polled++;
 	while (usbd.rx_tail == usbd.rx_head)
 		usb_service();
+	usbd.rx_polled--;
 	c = usbd.rx_ring[usbd.rx_tail % USB_RXRING];
 	usbd.rx_tail++;
 	splx(s);

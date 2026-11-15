@@ -3,7 +3,9 @@
 Each mutation restores one way tty output loses its wakeup: a path that ends
 a bulk IN packet by clearing tx_busy alone, leaving TS_BUSY set with no
 completion to clear it, or usbstart() testing the low-water mark before it
-moves the queue into the ring. A mutation is a list of original and
+moves the queue into the ring. Two more restore a lost halt-wait key: the
+receive path handing a polled byte to an open tty, and usbgetc() leaving
+rx_polled set after its read. A mutation is a list of original and
 replacement pairs, each of which must match once. usb_console_test must
 reject every one.
 """
@@ -25,6 +27,14 @@ MUTATIONS = {
         "\tsplx(s);\n}\n",
         "\twhile (tp->t_outq.c_cc != 0 &&\n\t    usbd.tx_head",
         "\tttyowake(tp);\n\twhile (tp->t_outq.c_cc != 0 &&\n\t    usbd.tx_head",
+    ),
+    "halt-wait-open": (
+        "(tp->t_state & TS_ISOPEN) && usbd.rx_polled == 0",
+        "(tp->t_state & TS_ISOPEN)",
+    ),
+    "halt-wait-sticks": (
+        "\t\tusb_service();\n\tusbd.rx_polled--;\n",
+        "\t\tusb_service();\n",
     ),
     "setif-kick": (
         "\t\t\tif (windex == ITF_CDC_DATA)\n\t\t\t\tusb_tx_idle();\n",

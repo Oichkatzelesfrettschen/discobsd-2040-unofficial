@@ -1421,8 +1421,13 @@ check-fat32-tail: check-python
 		${MAKE} -C tests/fat32tail check PYTHON=${PYTHON:Q}
 
 # check-hsaout and check-fsutil-clock also build tools/hsaout/libhsaout.a, so
-# a parallel host tier runs this gate after them rather than beside them.
-.ORDER: check-hsaout check-fat32-tail
+# the three never run beside one another. check-fsutil-clock shares the host
+# tier and runs first. check-hsaout belongs to the cross tier, which the
+# aggregate `check' starts after the host tier's .WAIT; this gate is ordered
+# ahead of it, because the opposite order would defer a host gate on a
+# cross gate that the .WAIT holds back, and bmake would stop with both
+# unbuilt.
+.ORDER: check-fat32-tail check-hsaout
 .ORDER: check-fsutil-clock check-fat32-tail
 
 # The inter-core rings and SIO FIFO doorbell of corering.c against a model

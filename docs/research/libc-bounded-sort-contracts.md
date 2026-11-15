@@ -174,3 +174,46 @@ its call through production qsort; the ls unsigned-direction control still
 rejects. Static frame collection uses each module's own evaluated CC/CFLAGS,
 including libtcl's own warning profile. These measured caller frames remain
 separate from transitive runtime peaks.
+
+## Conditional stack envelope
+
+Let n be the record count and D(n) the conservative number of simultaneously
+live recursive sort frames. Every partition removes at least its pivot's
+equal band. Its smaller strict side therefore contains at most
+floor((n-1)/2) records. Tail iterations reuse their current frame. A leaf of
+at most eight records uses insertion sort in that same frame.
+
+For 2 <= n <= 8, D(n)=1. A second live frame first occurs at n=9. For a
+third or later frame, the smaller child itself requires a partition, so the
+minimum record counts satisfy N(2)=9 and N(d)=2*N(d-1)+1. Thus
+N(d)=5*2^(d-1)-1 for d>=2 and
+
+    D(n) <= 1 + floor(log2((n+1)/5)), n >= 9.
+
+An independent recurrence calculation checks this closed bound at every
+integer count from 2 through 196,608. The resulting maximum is sixteen sort
+frames. This limit conservatively allows one-byte records to occupy the
+entire fixed process window; actual executable and data occupancy reduce
+that available record count.
+
+Let C be the complete transitive stack cost of one comparator invocation,
+including any nested sort. The qualified ordinary/context entry frames are
+24/32 bytes; each recursive frame is 48 bytes. Partition scratch occupies
+56 bytes and returns before a recursive child enters. The sift frame is
+40 bytes and its swap leaf is 12 bytes; that path fits inside the larger
+partition-plus-leaf bound. The resulting conditional library envelopes are
+
+    S_ordinary(n,C) <= 24 + 48*D(n) + 56 + max(C,12)
+    S_context(n,C)  <= 32 + 48*D(n) + 56 + max(C,12).
+
+At the conservative process-window record limit these become 848/856 bytes
+plus max(C,12). These expressions use measured compiler-local frames and a
+source-derived recursion bound. They exclude the caller's stack, heap, kernel
+execution and interrupt context, and they supply no runtime peak measurement.
+Arbitrary nested callbacks keep C caller-dependent. The target contribution
+is the lifetime composition: partition scratch contributes once to the active
+call path rather than once per recursive level. The algorithm and recurrence
+retain established sorting prior art.
+
+The [finite recurrence receipt](libc-bounded-sort-stack-envelope.json) binds
+that calculation to the provider source hash and its complete count domain.

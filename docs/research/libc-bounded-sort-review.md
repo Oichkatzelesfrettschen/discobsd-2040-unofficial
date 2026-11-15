@@ -40,3 +40,18 @@ this caller closure; its cleanup receipt requires the documented recovery tool,
 which releases ownership after host inspection finds no surviving groups.
 That interrupted run supplies no aggregate pass. Follow-up review and full
 qualification remain open.
+
+
+## Callback repair follow-up
+
+The owner explicitly authorizes a follow-up review of repair `5b823bb3` and
+its expanded source payload on 2026-11-15 UTC. The CLI/model/effort/sandbox
+match the first review. The immutable parent-to-repair review reports:
+
+No actionable findings survive the immutable parent-to-repair review of callback compatibility, pointer representation, ordering, test controls, profile ownership, caller closure and provenance; all 14 recorded source hashes match. The fixtures provide finite comparator coverage, not general correctness proof; pre-existing legacy defects, invalid comparator inputs and permitted equal-key instability remain outside scope. No builds or tests ran, underlying stack-capture measurements were not independently verified, optional-consumer resource approval remains pending without extending the original approval, and aggregate/runtime/physical-board qualification remains unresolved.
+
+The parent independently runs the eight-module cross and ARM witnesses and
+collects the expanded local frames. A matched clean capture confirms equality
+with all approved shipped resource deltas. The complete optional-consumer
+amendment owns the additional six-program costs; its approval remains pending.
+The follow-up source verdict supplies no aggregate or runtime measurement.

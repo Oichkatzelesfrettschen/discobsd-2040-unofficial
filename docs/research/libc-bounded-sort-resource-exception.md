@@ -117,3 +117,58 @@ compiler frame limits. The approval binds the request recorded at `caee317e`
 and measured candidate `0aa86d7d`; further growth needs a new measured
 decision. Aggregate/image qualification, review and integration remain open.
 Main `a849d47a` is the rollback source.
+
+
+## Complete maintained optional consumer amendment
+
+The complete source/disassembly inventory contains twelve target executables.
+The initial optional-program table omits standalone ls, tclsh and four games;
+its approval retains the exact original three-program scope. Candidate
+`5b823bb3e304e5db151ed40373d078beafd9deee` repairs the additional incompatible
+atc, boggle and wump callback definitions. Tcl and robots already have exact
+callback parameter types. The expanded real-module cross and ARM witnesses
+pass; the follow-up source review reports no actionable findings in the repair.
+
+The [complete clean candidate](libc-bounded-sort-resource-complete.json) and
+[paired comparison](libc-bounded-sort-resource-complete-comparison.json) retain
+the new source identity against the same main `a849d47a`. The complete
+comparison object equals the approved comparison, including every one of 162
+numeric deltas and all archive selections. Root free space stays 229 blocks.
+The generic comparator continues to reject the same approved positive entries.
+The [complete optional receipt](libc-bounded-sort-resource-optional-complete.json)
+adds exact matched measurements for all nine unshipped target consumers.
+The nm, directory diff and uuq deltas equal their approved limits.
+
+The additional request covers only these six previously omitted programs:
+
+| Maintained optional program | Loaded bytes, baseline to candidate | Loaded/raw delta | Packed bytes, baseline to candidate | Raw/packed block delta if installed |
+| --- | ---: | ---: | ---: | ---: |
+| Standalone ls | 20,744 to 21,064 | +320 / +320 | 13,197 to 13,467 | +1 / +1 |
+| tclsh | 65,536 to 65,856 | +320 / +320 | 54,069 to 54,375 | 0 / +1 |
+| atc | 48,092 to 48,412 | +320 / +320 | 33,421 to 33,669 | 0 / 0 |
+| boggle | 32,188 to 32,508 | +320 / +320 | 13,242 to 13,502 | 0 / +1 |
+| robots | 28,544 to 28,864 | +320 / +320 | 19,273 to 19,534 | 0 / +1 |
+| wump | 10,056 to 10,376 | +320 / +320 | 7,614 to 7,884 | 0 / 0 |
+
+Each program adds 320 text bytes and preserves data/BSS. Their six packed
+increments are 270, 306, 248, 260, 261 and 270 bytes (1,615 total).
+Loaded/raw increments total 1,920 bytes. Raw and packed installations are
+alternatives: the raw form adds one optional ls block, while the packed form
+adds four optional blocks across ls, tclsh, boggle and robots. These programs
+remain outside the shipped manifest and add no root-image block. The shipped
+libc/archive vector and existing nm/diff/uuq limits require no new allowance.
+
+The expanded [frame receipt](libc-bounded-sort-stack.json) includes all added
+caller modules. Tcl's comparator and Tcl_LsortCmd have 8/32-byte local frames;
+tclsh main has 8. Atc's comparator has 8 bytes and its inherited log_score
+frame has 56,496. Boggle main/comparator/wordcomp frames have 48/8/16 bytes;
+robots score/comparator have 40/0; wump main/comparator have 40/0. These local
+measurements exclude transitive calls and runtime process peaks. The added
+frame inventory preserves the approved library frame limits.
+
+The amendment remains pending. Retaining the old sort in these programs
+leaves the same comparison-work defect and introduces a second library
+selection policy. Excluding them from the shipped manifest already contains
+their root cost, but their maintained target output still needs truthful
+resource admission. Main `a849d47a` remains the rollback source. Qualification,
+workload timing and physical-board boundaries remain as recorded above.

@@ -354,3 +354,35 @@ def test_term_reattach_resolves_the_port_again(monkeypatch, tmp_path):
     (tty_a / "ttyACM0").rename(tty_a / "ttyACM1")
     (tty_b / "ttyACM1").rename(tty_b / "ttyACM0")
     assert term.wait_for_board(False, PORT_A) == str(devfs / "ttyACM1")
+
+
+def test_web_session_refuses_a_second_board_attached_after_startup(monkeypatch, tmp_path):
+    """Started with one board and no selector, the server resolves the board
+    for every session, so a second board attached later is refused there
+    instead of being opened by whichever name discovery returns first."""
+    import threading
+
+    from test_web import read_frames, ws_connect
+
+    env = make_tree(tmp_path, {PORT_A: "ttyACM0"})
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    for name in (ports.ENV_PORT, ports.ENV_USB_PORT):
+        monkeypatch.delenv(name, raising=False)
+    opened = []
+    httpd = web.ConsoleServer(("127.0.0.1", 0), None, "tok", open_serial=opened.append)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        late = tmp_path / "sys" / PORT_B
+        (late / f"{PORT_B}:1.0" / "tty" / "ttyACM1").mkdir(parents=True)
+        (late / "idVendor").write_text("2e8a\n")
+        (late / "idProduct").write_text("000a\n")
+        (late / "product").write_text("DiscoBSD RP2040 console\n")
+        s, status = ws_connect(httpd.server_address[1])
+        got = read_frames(s, b"more than one 2e8a device", got=status)
+        assert b"more than one 2e8a device" in got
+        assert opened == []
+        s.close()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()

@@ -104,10 +104,20 @@ supplies the stream state transitions.
 
 The native a.out contract takes initialized addresses of all six functions
 and links against both full and reduced archives. Removing any of the four
-provider members must reject with the corresponding missing symbol. Existing
-member selection requires no new member name. The clean distribution rebuild
-and measured resource comparison remain pending until their immutable receipts
-identify the candidate.
+provider members must reject with the corresponding missing symbol. The full
+archive already selects all four members; the reduced archive initially selects
+only `fgetc.o` and `fputc.o`. At `4b1b0fc1` the new gate rejects the reduced
+archive for missing `getchar.o`. Source lookup in `boardlibc-members` and
+`mkboardlibc.py` distinguishes the selected-member list from the source-family
+registry: the registry already recognizes both missing members, while the list
+omits them. The deciding repair adds `getchar` and `putchar` to the selected
+list and adds macro-suppressed calls to the closure reference program.
+The archive target also depends on the four provider sources and `stdio.h`,
+so changes to these inputs rebuild the reduced archive.
+The prediction is that both native archives link all six initialized addresses
+and reject all four provider omissions. A matched clean distribution after the
+repair supplies the resource vector; the earlier 48-byte archive-only increase
+describes the incomplete candidate and supplies no admission limit.
 
 The bounded fixture omits timestamp effects, the complete POSIX errno set,
 signal-interruption schedules, thread synchronization and runtime stack peaks.

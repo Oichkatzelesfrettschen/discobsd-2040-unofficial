@@ -1076,6 +1076,34 @@ must fail its own case; the shell from before those guards fails all
 three. The model establishes the break semantics it states; MPU behavior,
 swap and the board's arena layout remain board evidence.
 
+### Reproducing a nightly-only gate in the runner's image
+
+A gate outside the pull-request set runs first on the hosted Ubuntu 24.04
+runner, whose compiler (GCC 13) and C library (Ubuntu's newlib) differ from a
+developer host's. Run the gate there before pushing a fix for a nightly
+failure, or before merging a new nightly gate:
+
+    sh tools/hosted-runner-container.sh check-qemu
+    sh tools/hosted-runner-container.sh --rev REV check-libc-byte-search-instructions
+
+The script builds, once per package list, an `ubuntu:24.04` image from the
+apt and pipx lists in the "Install the host toolchain" step of
+`.github/workflows/firmware.yml` (read at run time, so the image follows the
+workflow), plus `python3-setuptools`, which `python3-unicorn` imports. It
+exports a private copy of the tree (`--rev` names the commit; without it, HEAD
+plus the tracked changes of the working tree, untracked files excluded) whose
+object store borrows the host's read-only, so a gate that reads a baseline
+commit with `git show` finds it and the host tree is never written. It runs
+`bmake MACHINE=rp2040 build`, then the named targets, under `podman` (else
+`docker`), and writes the log to `.build-logs/hosted-runner-STAMP.XXXXXX`. The
+exit status is the gate's. `--skip-build` omits the build for a target that
+needs no objects; neither engine installed reports `not run`. picotool is
+absent, so `flash` and `check-uf2-images` are out of scope, and the
+workflow's per-step deadlines are not applied. The container establishes
+toolchain and package behavior under that image; it does not stand in for the
+hosted run's other steps, and `--rev` on the commit before a fix is the known-bad
+calibration for a gate that fix repaired.
+
 ### Repository instruction safety
 
 `check-agent-instructions` calibrates and checks the two-file instruction

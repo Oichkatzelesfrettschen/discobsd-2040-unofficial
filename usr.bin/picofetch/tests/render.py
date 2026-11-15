@@ -459,10 +459,29 @@ def test_top_bank(top, dumpdir):
           "a 20-row terminal has no graph")
 
 
+def tty_modes(fd):
+    """The attributes of a tty as POSIX defines them.
+
+    4.4BSD-derived kernels (macOS, FreeBSD) set the non-POSIX lflag bit
+    PENDIN when tcsetattr turns ICANON back on, and clear it only when the
+    queued input is next processed (xnu bsd/kern/tty.c, TIOCSETA and
+    ttypend). A tcgetattr after a restore therefore reads PENDIN with no
+    reader in between. Linux never sets it, so its comparison stays exact.
+    """
+    attrs = termios.tcgetattr(fd)
+    if sys.platform != "linux":
+        attrs[3] &= ~getattr(termios, "PENDIN", 0)
+    return attrs
+
+
+def same_modes(after, before, what):
+    check(after == before, f"{what}: before={before!r} after={after!r}")
+
+
 def test_top_keys(top):
     """On a pty: keys change the order and the interval, q restores the tty."""
     master, slave = pty.openpty()
-    before = termios.tcgetattr(slave)
+    before = tty_modes(slave)
     env = {"PATH": os.environ.get("PATH", ""), "PICO_FIXTURE": "picocalc", "TERM": "xterm"}
     p = subprocess.Popen([top, "-d", "60"], stdin=slave, stdout=slave, stderr=slave, env=env)
     seen = b""
@@ -489,13 +508,13 @@ def test_top_keys(top):
         expect(b" 59s", "- shortens the interval")
         os.write(master, b"q")
         check(p.wait(timeout=10) == 0, "q exits 0")
-        check(termios.tcgetattr(slave) == before, "the tty modes are restored")
+        same_modes(tty_modes(slave), before, "the tty modes are restored")
         p2 = subprocess.Popen([top, "-d", "60"], stdin=slave, stdout=slave, stderr=slave,
                               env=env)
         expect(b">CPU%", "second run")
         p2.terminate()
         check(p2.wait(timeout=10) == 128 + 15, "SIGTERM exits 143")
-        check(termios.tcgetattr(slave) == before, "a signal restores the tty modes")
+        same_modes(tty_modes(slave), before, "a signal restores the tty modes")
     finally:
         if p.poll() is None:
             p.kill()

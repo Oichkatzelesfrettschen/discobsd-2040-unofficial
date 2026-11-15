@@ -45,7 +45,7 @@
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
 #include <rp2040/dev/lcdterm.h>
-#include <rp2040/dev/picopcm.h>
+#include "picopcm.h"
 
 #define	PWM_SLICE5		(0x40050000UL + 5 * 0x14)
 #define	PWM_CSR			0x00

@@ -44,6 +44,7 @@
 
 #include <sys/param.h>
 #include <sys/systm.h>
+#include <sys/errno.h>
 #include <sys/user.h>
 #include <sys/proc.h>
 #include <sys/uio.h>
@@ -52,7 +53,7 @@
 
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
-#include <rp2040/dev/picopcm.h>
+#include "picopcm.h"
 
 #define	PWM_BASE		0x40050000UL
 #define	PWM_SLICE(n)		(PWM_BASE + (n) * 0x14)

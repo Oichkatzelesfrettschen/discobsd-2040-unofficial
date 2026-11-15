@@ -57,7 +57,7 @@ repository's ignored `docs/local/specs`.
 | SPI0 | `dev/sdspi.c`, `dev/sd.c` | PICOCALC, PICOCALC_PSRAM | match |
 | SPI1 | `dev/st7365p.c` | PICOCALC, PICOCALC_PSRAM | bus match; panel register values below |
 | I2C1 | `dev/picokbd.c` | PICOCALC, PICOCALC_PSRAM | match |
-| PWM | `dev/picoaudio.c`, slice 5 | PICOCALC, PICOCALC_PSRAM | match; a tone only |
+| PWM | `dev/picoaudio.c`, slice 5; `dev/picopcm.c`, slices 5 and 6 | PICOCALC, PICOCALC_PSRAM | match; the sample device was added after this audit |
 | PIO0 | `dev/psram_xfer.c`, `psram_pio.h` | PICOCALC_PSRAM | match |
 | SYSINFO, SYSCFG, BUSCTRL, PSM, ROSC | `machdep.c`, `sysctl.c`, `core1.c` | all | not audited here |
 | ADC (four pins, temperature sensor, VSYS/3 on GPIO29) | none; `clk_adc` stays off | none | no driver |

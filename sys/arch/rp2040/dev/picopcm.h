@@ -82,7 +82,6 @@ pcm_level(unsigned char sample)
 	return sample * PCM_LEVELS >> 8;
 }
 
-#ifdef KERNEL
 struct uio;
 
 int	pcmopen(dev_t dev, int flag, int mode);
@@ -93,6 +92,5 @@ int	pcmwrite(dev_t dev, struct uio *uio, int flag);
 /* picoaudio.c: nonzero while /dev/audio owns the slice; BEL is absorbed. */
 extern int picoaudio_pcm;
 void	picoaudio_mute(void);
-#endif
 
 #endif /* !_PICOPCM_H */

@@ -107,7 +107,8 @@ SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 all: check
 
 check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
-	sdspi_test sdstrat_test dump_test picoaudio_test font-sync
+	sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
+	font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./kbdreq_test
@@ -117,9 +118,10 @@ check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	./sdstrat_test
 	./dump_test
 	./picoaudio_test
+	./picopcm_test
 	${MAKE} mutants gfx-mutants kbdreq-mutants kbdevq-mutants \
 	    gametile-mutants sdspi-mutants sdstrat-mutants dump-mutants \
-	    picoaudio-mutants
+	    picoaudio-mutants picopcm-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -222,6 +224,11 @@ dump-mutant-temp-kept:
 picoaudio_test: picoaudio_test.c regmodel.h ${DEV}/picoaudio.c \
 	    ${DEV}/picocalc_reg.h
 	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ picoaudio_test.c ${DEV}/picoaudio.c
+
+picopcm_test: picopcm_test.c regmodel.h ${DEV}/picopcm.c ${DEV}/picopcm.h \
+	    ${DEV}/picoaudio.c ${DEV}/picocalc_reg.h
+	${HOST_CC} ${KCSTD} ${SAN} -g -I${DEV} -o $@ picopcm_test.c \
+	    ${DEV}/picopcm.c ${DEV}/picoaudio.c
 
 font-sync:
 	@if [ -z "${PYTHON}" ]; then \
@@ -1513,6 +1520,72 @@ sdstrat-mutant-dump-table-dropped:
 PICOAUDIO_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
 		picoaudio_test.c
 
+PICOPCM_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
+		picopcm_test.c
+PICOPCM_SRC=	picopcm.c picopcm.h picoaudio.c
+
+picopcm-mutants: \
+	picopcm-mutant-unacknowledged \
+	picopcm-mutant-level-scale \
+	picopcm-mutant-ring-overfill \
+	picopcm-mutant-underrun-level \
+	picopcm-mutant-any-board \
+	picopcm-mutant-shared-open \
+	picopcm-mutant-unbounded-write \
+	picopcm-mutant-no-drain \
+	picopcm-mutant-close-unmuted \
+	picopcm-mutant-clock-left-on \
+	picopcm-mutant-bell-not-absorbed \
+	picopcm-mutant-bell-stop-mutes
+
+picopcm-mutant-unacknowledged:
+	${PICOPCM_MUT} picopcm.c \
+	    '/^PWM_IRQ_WRAP_Handler/,/^}/s/PC_REG32(PWM_INTR) = 1UL << PCM_CLOCK_SLICE;/(void)0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-level-scale:
+	${PICOPCM_MUT} picopcm.h \
+	    's/return sample \* PCM_LEVELS >> 8;/return sample * PCM_LEVELS >> 7;/' ${PICOPCM_SRC}
+
+picopcm-mutant-ring-overfill:
+	${PICOPCM_MUT} picopcm.h \
+	    's/return PCM_RING - 1 - pcm_fill(r);/return PCM_RING - pcm_fill(r);/' ${PICOPCM_SRC}
+
+picopcm-mutant-underrun-level:
+	${PICOPCM_MUT} picopcm.h \
+	    's/^		return PCM_SILENCE;/		return 0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-any-board:
+	${PICOPCM_MUT} picopcm.c \
+	    's/if (minor(dev) != 0 || board_id() != BOARD_ID_PICOCALC)/if (minor(dev) != 0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-shared-open:
+	${PICOPCM_MUT} picopcm.c \
+	    's/^	if (picoaudio_pcm)$$/	if (0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-unbounded-write:
+	${PICOPCM_MUT} picopcm.c \
+	    's/if (++naps > PCM_STALL_NAPS)/if (++naps < 0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-no-drain:
+	${PICOPCM_MUT} picopcm.c \
+	    's/pcm_fill(&pcm) != 0 \&\& naps < PCM_STALL_NAPS/naps < 0/' ${PICOPCM_SRC}
+
+picopcm-mutant-close-unmuted:
+	${PICOPCM_MUT} picopcm.c \
+	    's/^	picoaudio_mute();$$/	(void)0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-clock-left-on:
+	${PICOPCM_MUT} picopcm.c \
+	    's/PC_REG32(PWM_INTE) = 0;/(void)0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-bell-not-absorbed:
+	${PICOPCM_MUT} picoaudio.c \
+	    's/^	if (picoaudio_pcm)$$/	if (0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-bell-stop-mutes:
+	${PICOPCM_MUT} picoaudio.c \
+	    's/if (!picoaudio_pcm)/if (1)/' ${PICOPCM_SRC}
+
 picoaudio-mutants: \
 	picoaudio-mutant-left-override \
 	picoaudio-mutant-right-override \
@@ -1523,31 +1596,31 @@ picoaudio-mutants: \
 
 picoaudio-mutant-left-override:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_L)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c
+	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_L)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c picopcm.h
 
 picoaudio-mutant-right-override:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_R)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c
+	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_R)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c picopcm.h
 
 picoaudio-mutant-override-high:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/(2UL << 8)/(3UL << 8)/' picoaudio.c
+	    's/(2UL << 8)/(3UL << 8)/' picoaudio.c picopcm.h
 
 picoaudio-mutant-slice-left-on:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/PWM_REG(PWM_CSR) = 0;/(void)0;/' picoaudio.c
+	    's/PWM_REG(PWM_CSR) = 0;/(void)0;/' picoaudio.c picopcm.h
 
 picoaudio-mutant-override-kept:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/^\tpc_pin(PICOCALC_AUDIO_L, PC_FUNC_PWM, 0);$$/\t(void)0;/' picoaudio.c
+	    's/^\tpc_pin(PICOCALC_AUDIO_L, PC_FUNC_PWM, 0);$$/\t(void)0;/' picoaudio.c picopcm.h
 
 picoaudio-mutant-busy-kept:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/bell_on = 0;$$/(void)0;/' picoaudio.c
+	    's/bell_on = 0;$$/(void)0;/' picoaudio.c picopcm.h
 
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
-	    sdspi_test sdstrat_test dump_test picoaudio_test
+	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \

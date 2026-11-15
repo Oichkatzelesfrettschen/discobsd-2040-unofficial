@@ -1521,6 +1521,18 @@ check-core1-emulation: check-python
 
 .PHONY: check-core1 check-core1-image check-core1-emulation
 
+# check-unicorn-kernel calls single functions of a built kernel's unix.elf
+# (KERNEL_CONFIGURATION, PICO by default) on an emulated Cortex-M0, compares
+# them with Python references under Hypothesis, then requires each property
+# to reject mutated copies of its function's machine code
+# (tools/unicorn/check_kernel_functions.py). CI installs no Hypothesis, so
+# the target stays on demand, outside "check" and every aggregate.
+check-unicorn-kernel: check-python
+		${PYTHON} tools/unicorn/check_kernel_functions.py \
+		    --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf
+
+.PHONY: check-unicorn-kernel
+
 # The rump-kernel size measurement behind docs/research/tiny-rump-components.md.
 # It needs a NetBSD checkout, which CI lacks, so it stays outside check:
 # NETBSD_SRC defaults to BSD_Workspace/netbsd-src beside the primary checkout,

@@ -18,8 +18,11 @@ reaches both.
 | Raspberry Pi Pico | GP2-GP22, GP26-GP28 | GP0, GP1 (UART0); GP23 (regulator mode), GP24 (VBUS sense), GP25 (LED), GP29 (VSYS divider) |
 | PicoCalc | GP8, GP9, GP28 (the expansion header) | every other pin: `PICOCALC.md`, "Pin map" |
 
-The union kernel reads the board from its descriptor (`board_id()`), so
-one image applies the right row. A request that names a held pin has no
+The device is part of a kernel configured with the PicoCalc console and
+the SD driver, whose character majors 10 and 11 fix its own at 12; that is
+the union kernel every board runs. The PICO and PICO_UART configurations
+keep majors 0-9 and have no such device. The union kernel reads the board
+from its descriptor (`board_id()`), so one image applies the right row. A request that names a held pin has no
 effect on it, and `GPIO_POLL` reports held pins as zero.
 
 ## Requests
@@ -45,5 +48,5 @@ outlives the close. The PIC32 driver's text interface (`echo ..1. >
 | Claim | Class | State |
 | --- | --- | --- |
 | Pin masks, port mapping and request validation | host | `check-gpio-requests`, six mutants rejected |
-| The four kernels compile and link the driver | build | observed |
+| The PICOCALC and PICOCALC_PSRAM kernels compile and link the driver; PICO and PICO_UART keep majors 0-9 | build | observed; `check-kernel-metadata` pins the rows |
 | A configured output drives its pin; an input reads its level; a held pin stays untouched | board | not run |

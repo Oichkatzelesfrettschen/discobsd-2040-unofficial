@@ -22,6 +22,19 @@ the User Portability Utilities option, and `vi` also requires
 mark limits the conformance claim; constrained RAM or storage does not remove
 the requirement inside a selected option.
 
+## Callable character-I/O contracts
+
+ISO C17 7.1.4 and 7.21.7 require callable forms of `getc`, `putc`, `getchar`
+and `putchar` alongside their optional macros. Issue 7 and Issue 8 XSH
+`functions/getc.html`, `putc.html`, `getchar.html`, `putchar.html`, `fgetc.html`
+and `fputc.html` retain the byte/EOF and standard-stream requirements.
+The [bounded contract](callable-character-io-contracts.md) records exact
+types, macro suppression, address-taking, all-byte conversion, EOF/error and
+backend witnesses. `check-character-io-headers`, `check-libc-character-io`
+and native archive omission controls own the separate evidence classes.
+The six DPUCP rows stay partial/open: full POSIX errno, timestamp, signal and
+concurrency facets retain independent deciding witnesses.
+
 ## Selected utility contracts
 
 | Utility | Issue 7 clause and mark | Issue 8 clause and delta | DiscoBSD owner and evidence | Disposition |

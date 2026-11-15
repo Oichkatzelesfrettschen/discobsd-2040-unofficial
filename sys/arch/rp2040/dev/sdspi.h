@@ -55,6 +55,7 @@ struct sdspi {
 	const struct sdspi_ops	*ops;
 	unsigned char		type;		/* SD_NONE until initialized. */
 	unsigned		nsectors;	/* Capacity in SD_SECTOR units. */
+	unsigned char		crc;		/* The card checks CRCs (CMD59). */
 };
 
 int	sdspi_init(struct sdspi *sd);

@@ -124,6 +124,32 @@ resource comparison, documentation and reviewed integration. Configuration-keyed
 dependency capture, compiler/analysis coverage and trust-boundary checks apply
 throughout the queue. A declaration or stub cannot close a runtime requirement.
 
+The [callable character-I/O contract](callable-character-io-contracts.md)
+closes a public-function prerequisite exposed by shared-libc API selection.
+`getc` and `putc` gain typed callable providers in the existing `fgetc.o` and
+`fputc.o` members. Four public declarations expose callable/address-taking forms
+while preserving macro expressions and FILE layout. Calibrated headers, byte
+operations, EOF/error handling and standard-stream identity supply focused
+witnesses; clean caller/native closure, matched resources and review retain
+their separate completion states. Six Issue 8 rows advance to host-witnessed
+partial status. POSIX error/timestamp/concurrency facets and physical execution
+remain open.
+
+The [EOF fixed-point qualification](stdio-eof-fixed-point-qualification.md)
+closes the repeated-read counter defect in `_filbuf`: every established-EOF
+return restores the count to zero before the next `getc` decrement. A sixth
+compiled character-I/O mutation removes only that normalization. Matched
+production receipts preserve the owner-approved eight-byte archive and
+per-program vector after complete non-hardware qualification. The six stdio
+standards rows retain their partial status and the remaining facets above.
+
+The [callable slot identity experiment](xip-shared-libc/slot-identity.md)
+gives public slots exact ELF function extents while preserving implementation
+aliases and canonical pointers. Its four compiler/link variants exercise
+independent process state, weak aliases, SRAM application imports and callbacks.
+The calibrated experiment precedes authoritative ABI generation and leaves
+complete API ownership, flash fit and production shared-exec admission open.
+
 The [tableless search experiment](search-bound-experiment/README.md) retains
 the next search-bound comparison and its replay driver. The finite host and
 ARMv6-M matrices preserve earliest-match behavior while exposing the separate

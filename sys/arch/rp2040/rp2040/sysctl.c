@@ -32,6 +32,7 @@
 #include <machine/board.h>
 #include <machine/mpuvar.h>
 #include <machine/watchdog.h>
+#include <rp2040/dev/adc.h>
 #include <rp2040/dev/flash.h>
 #ifdef CORE1
 #include <rp2040/rp2040/core1.h>
@@ -281,6 +282,22 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		i = (int)(name[0] == CPU_IMAGE_LENGTH ? image_length :
 		    name[0] == CPU_IMAGE_CRC ? image_crc : image_crc_stored);
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+	case CPU_ADC_TEMP:
+	case CPU_ADC_VSYS:
+		{
+			u_int raw;
+
+			if (namelen != 1)
+				return ENOTDIR;
+			if (adc_read(name[0] == CPU_ADC_TEMP ? ADC_INPUT_TEMP :
+			    ADC_INPUT_VSYS, &raw) != 0)
+				return EIO;
+			i = name[0] == CPU_ADC_TEMP ?
+			    adc_temp_millicelsius(raw) :
+			    (int)adc_vsys_millivolts(raw);
+			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
+			    sizeof i);
+		}
 #ifdef CORE1
 	case CPU_CORE1:
 	case CPU_CORE1_RESTARTS:

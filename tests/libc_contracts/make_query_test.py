@@ -34,6 +34,12 @@ class MakeQueryTest(unittest.TestCase):
             check=False,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        # A bmake that warns about inherited job-server descriptors it cannot
+        # use is the hazard the queries below are isolated from. An older
+        # bmake (Ubuntu 24.04's) takes them without a word, so there the
+        # hazard is absent and the control has nothing to show.
+        if result.stderr == "" and result.stdout.strip():
+            self.skipTest("this bmake accepts closed job-server descriptors silently")
         self.assertIn('Invalid internal option "-J"', result.stderr)
 
     def test_sort_caller_query(self):

@@ -75,8 +75,8 @@ refuse_ambiguous() {
 	case $devs in
 	*'
 '*)
-		echo "discobsd-flash: more than one 2e8a device is attached; name the board with --usb-port PORT or DISCOBSD_USB_PORT:" >&2
-		echo "$devs" | sed 's/^/  /' >&2
+		echo "discobsd-flash: more than one 2e8a device is attached; name the board with --usb-port PORT or DISCOBSD_USB_PORT:" >&3
+		echo "$devs" | sed 's/^/  /' >&3
 		exit 2
 		;;
 	esac
@@ -107,8 +107,11 @@ check_others() {
 # 2e8a device fails the call; it never falls back to an unaddressed picotool.
 # The other ports are checked before and after the call, so a change stops
 # every later operation; picotool's own exit status is the call's status.
+# Without a port, a second 2e8a device that appears mid-run (a board in
+# BOOTSEL after a failed reset) stops the run before the next call.
 pt() {
 	if [ -z "$usb_port" ]; then
+		refuse_ambiguous
 		picotool "$@"
 		return
 	fi

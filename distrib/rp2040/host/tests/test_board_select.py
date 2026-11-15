@@ -27,7 +27,7 @@ CONNECT = HOST / "discobsd-connect"
 
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell scripts")
 
-COREUTILS = ("cat", "head", "sed", "tr", "wc")
+COREUTILS = ("cat", "head", "mkdir", "sed", "tr", "wc")
 
 STUB_PICOTOOL = """#!/bin/sh
 # Fake picotool over the fake sysfs. Logs argv and the device it reached.
@@ -59,6 +59,7 @@ bump() {
 act() {
 case $cmd in
 info)
+	key=info
 	[ "$(cat "$dev/idProduct")" = 0003 ]
 	;;
 reboot)
@@ -87,6 +88,15 @@ if [ -n "${STUB_BUMP_OTHER:-}" ] && [ "$STUB_BUMP_OTHER" = "${key:-}" ]; then
 	for o in "$root"/*; do
 		[ "$o" = "$dev" ] || echo 99 > "$o/devnum"
 	done
+fi
+# STUB_ADD_DEVICE names the call after which a second board appears on 1-5.
+if [ -n "${STUB_ADD_DEVICE:-}" ] && [ "$STUB_ADD_DEVICE" = "${key:-}" ]; then
+	mkdir -p "$root/1-5"
+	echo 2e8a > "$root/1-5/idVendor"
+	echo 0003 > "$root/1-5/idProduct"
+	echo 1 > "$root/1-5/busnum"
+	echo 11 > "$root/1-5/devnum"
+	echo board 1-5 > "$root/1-5/product"
 fi
 exit $rc
 """
@@ -182,6 +192,15 @@ def scenario_flash_single(script: Path, tmp: Path) -> None:
     ]
 
 
+def scenario_flash_second_device_appears(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, uf2 = make_world(tmp, {"1-3": ("000a", 7)})
+    r = run(script, [str(uf2)], tmp, sysfs, devfs, bindir, STUB_ADD_DEVICE="info")
+    assert r.returncode == 2, r.stderr
+    # Only the first call ran; the reset that would follow stays unissued.
+    assert log(tmp) == ["info => 1-3"]
+    assert "1-5" in r.stderr
+
+
 def scenario_flash_refuses(script: Path, tmp: Path) -> None:
     sysfs, devfs, bindir, uf2 = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
     r = run(script, [str(uf2)], tmp, sysfs, devfs, bindir)
@@ -259,6 +278,7 @@ def scenario_flash_bystander_in_other_modes(script: Path, tmp: Path) -> None:
 FLASH_SCENARIOS = {
     "single": scenario_flash_single,
     "refuses": scenario_flash_refuses,
+    "appears": scenario_flash_second_device_appears,
     "selected": scenario_flash_selected,
     "environment": scenario_flash_environment_selector,
     "bystander": scenario_flash_bystander_moves,
@@ -286,7 +306,9 @@ def test_flash_selector_on_empty_port_stops_without_picotool(tmp_path):
 
 FLASH_MUTANTS = {
     # rule: the selector-less run refuses when several 2e8a devices are attached
-    "refuses": ("else\n\trefuse_ambiguous\nfi", "else\n\t:\nfi"),
+    "refuses": ('\t[ -z "$usb_port" ] || return 0\n\tdevs=', "\treturn 0\n\tdevs="),
+    # rule: the selector-less run checks again before every picotool call
+    "appears": ("\t\trefuse_ambiguous\n\t\tpicotool", "\t\tpicotool"),
     # rule: every picotool call carries the resolved bus and address
     "selected": ('picotool "$@" --bus "$dev_bus" --address "$dev_addr"', 'picotool "$@"'),
     # rule: the address is read again at each call
@@ -305,6 +327,7 @@ def test_flash_mutant_is_caught(name, tmp_path):
     scenarios = {
         "bystander": ("bystander", "modes"),
         "bystander-after": ("modes",),
+        "refuses": ("refuses", "appears"),
     }.get(name, (name.split("-")[0],))
     for key in scenarios:
         run_dir = tmp_path / f"run-{key}"

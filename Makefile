@@ -1476,6 +1476,14 @@ measure-tiny-rump:
 check-storage-counters: tools
 		sh tools/verify_storage_counters.sh
 
+# The sparse flash image: tools/flashimg leaves free UFS blocks other than
+# the free-list chain blocks out of the Dhara map; tests/rp2040/flash_sparse
+# reads an fsutil image back through the map and calibrates the comparison
+# with two flashimg mutations.
+check-flash-sparse: check-python tools
+		${MAKE} -C tests/rp2040/flash_sparse check PYTHON=${PYTHON:Q} \
+		    FSUTIL=${TOOLBINDIR:Q}/fsutil
+
 check-storage-correctness: check-python
 		${PYTHON} tests/kernel/check_correctness.py
 
@@ -1601,6 +1609,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-dhara-metadata check-dhara-amplification \
 		check-netbsd-imports check-v7fs-core check-storage-recovery \
 		check-storage-recovery-models check-msdosfs-core check-fat32-tail check-fsutil-clock \
+		check-flash-sparse \
 		check-corering check-core1 \
 		check-namei-user-path check-rp2040-usercopy-span \
 		check-storage-correctness \
@@ -2153,7 +2162,7 @@ installfs:
 		@[ -f $(FSIMG) ] || $(MAKE) $(FSIMG)
 		sudo dd bs=1M if=${FSIMG} of=${SDCARD}
 
-.PHONY:		check-clean-residue check-storage-counters check-storage-correctness check-python check-icode-relocation check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-dpucp-board-acceptance check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
+.PHONY:		check-clean-residue check-storage-counters check-flash-sparse check-storage-correctness check-python check-icode-relocation check-sus-discovery check-sus-requirement-corpus check-dpucp-profile check-dpucp-donor-ledger check-dpucp-board-acceptance check-warning-policy-host check-warning-policy-cross check-sh-gnu17 check-sh-c17-contracts \
 		check-control-char-contracts check-build-failure check-analysis all \
 		build distribution release tools kernel check-divider check-swapram \
 		check-archive-identity \

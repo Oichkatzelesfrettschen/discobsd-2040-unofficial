@@ -108,7 +108,7 @@ def main():
     # the same inputs must satisfy.
     file_binary = work / 'readers-file-path'
     file_command = [file_binary if part == str(binary) else part for part in command]
-    file_command.insert(1, '-DRELOC_BUFFER=0')
+    file_command.insert(len(compiler), '-DRELOC_BUFFER=0')
     build = subprocess.run([str(part) for part in file_command], capture_output=True,
                            check=False)
     (work / 'build-file-path.log').write_bytes(build.stdout + build.stderr)
@@ -180,7 +180,7 @@ def main():
                            str(executable) if part == str(binary) else part)
                           for part in command]
         for flag in extra[0] if extra else []:
-            mutant_command.insert(1, flag)
+            mutant_command.insert(len(compiler), flag)
         build = subprocess.run(mutant_command, capture_output=True, check=False)
         (work / (name + '.build.log')).write_bytes(build.stdout + build.stderr)
         if build.returncode or build.stderr:

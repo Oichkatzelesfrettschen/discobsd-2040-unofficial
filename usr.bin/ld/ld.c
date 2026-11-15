@@ -76,6 +76,7 @@ FILE *text, *reloc;             /* input management */
                                 /* output management */
 FILE *outb, *toutb, *doutb, *troutb, *droutb, *soutb;
 FILE *tailb;                    /* the stream that writes after the data */
+int	outmode = -1;           /* mode the umask gives the output, once created */
 
                                 /* symbol management */
 struct local {
@@ -258,6 +259,8 @@ void
 delexit(int sig)
 {
 	(void)sig;
+	if (outmode >= 0)
+		chmod (ofilename, outmode);
 	if (default_output_created)
 		unlink ("l.out");
 	if (! delarg && ! rflag)
@@ -1610,10 +1613,21 @@ void
 setupout(void)
 {
 	unsigned long tail = HDRSZ + (unsigned long) tsize + dtot;
+	int mask;
 
 	tcreat (&outb, 0);
 	if (! ofilfnd)
 		default_output_created = 1;
+	/*
+	 * The regional streams reopen the output for update, which a umask
+	 * without owner write (0222 gives 0444) refuses. The owner gets write
+	 * access while they are open; finishout and delexit put back the mode
+	 * the umask gave.
+	 */
+	mask = umask (0);
+	umask (mask);
+	outmode = 0666 & ~mask;
+	chmod (ofilename, outmode | 0200);
 	tregion (&toutb, HDRSZ);
 	tregion (&doutb, HDRSZ + (unsigned long) tsize);
 	if (output_relinfo) {
@@ -1872,6 +1886,7 @@ finishout(void)
 	fseek (outb, 0, 0);
 	fputhdr (&filhdr, outb);
 	fclose (outb);
+	chmod (ofilename, outmode);
 }
 
 int

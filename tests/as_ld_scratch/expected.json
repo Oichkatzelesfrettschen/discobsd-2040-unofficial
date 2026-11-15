@@ -27,5 +27,8 @@
     "ld link small mid lib": "e5e638ce0a48ce254b6eb10a859072fb4a82687211f15b5ad7e6574390dcc7b3",
     "ld partial then final": "ce160cacd949673f696ed038650498199b049a02ef6f906bd9e19e638e5dfc58"
   },
-  "provenance": "Objects and executables of usr.bin/as and usr.bin/ld at commit 270422ca (host build of tools/aoututils) on the inputs gen_inputs.py writes."
+  "provenance": "Objects and executables of usr.bin/as and usr.bin/ld at commit 270422ca (host build of tools/aoututils) on the inputs gen_inputs.py writes; umask_modes holds the base linker's bytes for the umask case, run under the ordinary umask.",
+  "umask_modes": {
+    "ld digest": "e5e638ce0a48ce254b6eb10a859072fb4a82687211f15b5ad7e6574390dcc7b3"
+  }
 }

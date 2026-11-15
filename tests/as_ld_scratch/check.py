@@ -125,8 +125,12 @@ def mutate(source_path, edits, work, name):
     return path
 
 
-def scenarios(as_bin, ld_bin, ar_bin, work):
-    """Produce every output of the fixed set and return {name: sha256}."""
+def scenarios(as_bin, ld_bin, ar_bin, work, strict=True):
+    """Produce every output of the fixed set and return {name: sha256}.
+
+    strict makes any nonzero exit of the assembler or linker an error; only
+    a calibration mutant that is expected to fail runs without it.
+    """
     out = {}
     for name in ("small", "mid", "big", "lib1", "lib2", "unused"):
         run([as_bin, name + ".s", "-o", name + ".o"], work)
@@ -152,13 +156,57 @@ def scenarios(as_bin, ld_bin, ar_bin, work):
     }
     for name, arguments in links.items():
         target = "out-" + re.sub(r"\W+", "-", name) + ".out"
-        run([ld_bin, "-o", target, *arguments], work, check=False)
+        run([ld_bin, "-o", target, *arguments], work, check=strict)
         out["ld " + name] = digest(work / target)
     # A partial link is a valid input of a later link.
-    run([ld_bin, "-r", "-o", "part.o", "small.o", "mid.o"], work, check=False)
-    run([ld_bin, "-o", "out-final.out", "part.o", "big.o", "lib.a"], work, check=False)
+    run([ld_bin, "-r", "-o", "part.o", "small.o", "mid.o"], work, check=strict)
+    run([ld_bin, "-o", "out-final.out", "part.o", "big.o", "lib.a"], work, check=strict)
     out["ld partial then final"] = digest(work / "out-final.out")
     return out
+
+
+def under_umask(mask):
+    def apply():
+        os.umask(mask)
+    return apply
+
+
+def umask_case(as_bin, ld_bin, work, expected):
+    """Assemble and link under umask 0222; return the problems found.
+
+    A umask without owner write creates the output 0444, which a reopen for
+    update refuses unless the tool holds write access itself. The linker's
+    bytes must be the base tool's and its final mode 0777 & ~umask, which the
+    base delexit() sets. Neither base tool can run under this umask on a
+    host whose mkstemp applies it (each reopens its temporary file by name),
+    so the base bytes come from a run under the ordinary umask and the modes
+    from the creation rules: the assembler's output keeps 0444.
+    """
+    problems = []
+    for name in ("small", "mid", "lib1"):
+        run([as_bin, name + ".s", "-o", name + ".o"], work)
+    result = subprocess.run(
+        [as_bin, "small.s", "-o", "locked.o"], cwd=work, capture_output=True,
+        text=True, check=False, timeout=300, preexec_fn=under_umask(0o222))
+    if result.returncode != 0:
+        problems.append("as under umask 0222 exited %d" % result.returncode)
+    elif oct(os.stat(work / "locked.o").st_mode & 0o777) != oct(0o444):
+        problems.append("as under umask 0222 left mode %s" % oct(
+            os.stat(work / "locked.o").st_mode & 0o777))
+    result = subprocess.run(
+        [ld_bin, "-o", "locked.out", "small.o", "mid.o", "lib1.o"], cwd=work,
+        capture_output=True, text=True, check=False, timeout=300,
+        preexec_fn=under_umask(0o222))
+    target = work / "locked.out"
+    if result.returncode != 0:
+        problems.append("ld under umask 0222 exited %d: %s" % (
+            result.returncode, result.stdout.strip()))
+    elif digest(target) != expected["umask_modes"]["ld digest"]:
+        problems.append("ld under umask 0222 changed the bytes")
+    elif os.stat(target).st_mode & 0o777 != 0o777 & ~0o222:
+        problems.append("ld under umask 0222 left mode %s, base leaves %s" % (
+            oct(os.stat(target).st_mode & 0o777), oct(0o777 & ~0o222)))
+    return problems
 
 
 def strace_usable():
@@ -175,8 +223,9 @@ def count_calls(strace, command, work):
     result = subprocess.run([strace, "-o", str(log), "-e", "trace=" + TRACED,
                              *map(str, command)], cwd=work, capture_output=True,
                             text=True, check=False, timeout=300)
-    if result.returncode > 1:
-        raise RuntimeError("traced command failed: %s" % result.stderr)
+    if result.returncode != 0:
+        raise RuntimeError("traced command exited %d: %s" % (result.returncode,
+                                                            result.stderr))
     counts = {"write": 0, "lseek": 0, "create": 0, "unlink": 0, "ftruncate": 0}
     for line in log.read_text().splitlines():
         match = re.match(r"(\w+)\(", line)
@@ -222,12 +271,20 @@ def record(args):
     try:
         run([sys.executable, HERE / "gen_inputs.py", work], work)
         inputs = {p.name: digest(p) for p in sorted(work.glob("*.s"))}
-        outputs = scenarios(str(Path(args.as_bin).resolve()),
-                            str(Path(args.ld_bin).resolve()),
-                            str(Path(args.ar).resolve()), work)
+        as_bin = str(Path(args.as_bin).resolve())
+        ld_bin = str(Path(args.ld_bin).resolve())
+        outputs = scenarios(as_bin, ld_bin, str(Path(args.ar).resolve()), work)
+        locked = work / "locked"
+        locked.mkdir()
+        for name in ("small", "mid", "lib1"):
+            shutil.copy(work / (name + ".s"), locked)
+            run([as_bin, name + ".s", "-o", name + ".o"], locked)
+        subprocess.run([ld_bin, "-o", "locked.out", "small.o", "mid.o", "lib1.o"],
+                       cwd=locked, check=True)
+        modes = {"ld digest": digest(locked / "locked.out")}
         (HERE / "expected.json").write_text(json.dumps({
-            "provenance": args.provenance, "inputs": inputs, "outputs": outputs},
-            indent=2, sort_keys=True) + "\n")
+            "provenance": args.provenance, "inputs": inputs, "outputs": outputs,
+            "umask_modes": modes}, indent=2, sort_keys=True) + "\n")
     finally:
         shutil.rmtree(work, ignore_errors=True)
     print("recorded %d outputs" % len(outputs))
@@ -279,6 +336,12 @@ def gate(args, strace, expected, work):
         "tregion (&doutb, HDRSZ + (unsigned long) tsize);",
         "tregion (&doutb, HDRSZ + (unsigned long) tsize + 4);")],
         build, "ld-late-data")
+    # Correct bytes with a failing exit status.
+    exit_fail = mutate(ld_src, [("delarg = errlev;", "delarg = 3;")], build,
+                       "ld-exit-3")
+    # A reopen for update with no owner write access held.
+    plain_reopen = mutate(ld_src, [("\tchmod (ofilename, outmode | 0200);\n", "")],
+                          build, "ld-plain-reopen")
     # The old path for the symbol records: a temporary file, copied after
     # the data. The bytes stay the same; the file creations and the unlink
     # come back.
@@ -306,13 +369,21 @@ def gate(args, strace, expected, work):
         compile_tool(lsrc, tools[name][1], ldef, build)
     late_ld = build / "late-data-ld"
     compile_tool(late_data, late_ld, [], build)
+    exit_ld = build / "exit-3-ld"
+    compile_tool(exit_fail, exit_ld, [], build)
+    reopen_ld = build / "plain-reopen-ld"
+    compile_tool(plain_reopen, reopen_ld, [], build)
 
     failures = []
     ar_bin = str(Path(args.ar).resolve())
     for name, (as_bin, ld_bin) in tools.items():
         run_dir = work / ("run-" + name)
         shutil.copytree(inputs_dir, run_dir)
-        got = scenarios(str(as_bin), str(ld_bin), ar_bin, run_dir)
+        try:
+            got = scenarios(str(as_bin), str(ld_bin), ar_bin, run_dir)
+        except RuntimeError as error:
+            failures.append("%s: %s" % (name, str(error).splitlines()[0]))
+            continue
         for key, value in got.items():
             if expected["outputs"].get(key) != value:
                 failures.append("%s: %s differs from the recorded bytes" % (name, key))
@@ -322,12 +393,48 @@ def gate(args, strace, expected, work):
     # four bytes late.
     bad_dir = work / "run-late-data"
     shutil.copytree(inputs_dir, bad_dir)
-    bad = scenarios(str(tools["candidate"][0]), str(late_ld), ar_bin, bad_dir)
+    bad = scenarios(str(tools["candidate"][0]), str(late_ld), ar_bin, bad_dir,
+                    strict=False)
     changed = [k for k, v in bad.items() if expected["outputs"].get(k) != v]
     if not changed:
         failures.append("calibration: a linker with a late data region matched every digest")
     else:
         print("calibration: late-data linker changes %d outputs, rejected" % len(changed))
+
+    # Known-bad for the exit status: the bytes are right and the linker
+    # reports failure.
+    exit_dir = work / "run-exit-3"
+    shutil.copytree(inputs_dir, exit_dir)
+    lax = scenarios(str(tools["candidate"][0]), str(exit_ld), ar_bin, exit_dir,
+                    strict=False)
+    if any(expected["outputs"].get(k) != v for k, v in lax.items()):
+        failures.append("calibration: the exit-3 linker changed bytes")
+    try:
+        scenarios(str(tools["candidate"][0]), str(exit_ld), ar_bin,
+                  work / "run-exit-3", strict=True)
+        failures.append("calibration: a linker with correct bytes and exit 3 passed")
+    except RuntimeError:
+        print("calibration: correct bytes with exit 3 rejected")
+
+    if os.geteuid() == 0:
+        print("SKIP umask case: running as root, which ignores file modes; "
+              "no verdict on a restrictive umask")
+    else:
+        for name, ld_bin in (("candidate", tools["candidate"][1]),
+                             ("plain-reopen", reopen_ld)):
+            umask_dir = work / ("umask-" + name)
+            shutil.copytree(inputs_dir, umask_dir)
+            found = umask_case(str(tools["candidate"][0]), str(ld_bin), umask_dir,
+                               expected)
+            if name == "candidate":
+                for message in found:
+                    failures.append("umask 0222: " + message)
+                print("umask 0222: candidate " +
+                      ("fails" if found else "links, bytes and mode as base"))
+            elif found:
+                print("calibration: plain r+ reopen fails under umask 0222, rejected")
+            else:
+                failures.append("calibration: a plain r+ reopen survived umask 0222")
 
     counts = {}
     for name in ("candidate", "as-budget-0", "ld-buffer-0", "ld-temp-symbols"):

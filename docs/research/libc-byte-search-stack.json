@@ -74,5 +74,35 @@
       ]
     }
   },
-  "compiler_version": "arm-none-eabi-gcc (Arch Repository) 16.2.0"
+  "compiler_version": "arm-none-eabi-gcc (Arch Repository) 16.2.0",
+  "guarded_prefix": {
+    "source_commit": "d1b55dd38634469ae281c1ff68ce340821e43f4c",
+    "providers": {
+      "lib/libc/string/memmem.c": {
+        "source_sha256": "0b28b6d96b85c83a9f3e29a70fc7cedf636607b99c594a4e43483eea178541e7",
+        "object_sha256": "e239f0149f77c2282abdfa6294e11c170f6b80ee6b6f4c6a148a112dbb5c53d1",
+        "frames": [
+          {
+            "function": "memmem",
+            "bytes": 48,
+            "kind": "static"
+          }
+        ]
+      },
+      "lib/libc/compat/memchr.c": {
+        "source_sha256": "b1045e37164b9d6a558c70eac08229c94849e286a302c7bd09cff4e44082706b",
+        "object_sha256": "05be4d62ab49f4b64ff482260b0e18102bfe456b5e31ad6635dc75dc93217275",
+        "frames": [
+          {
+            "function": "memchr",
+            "bytes": 0,
+            "kind": "static"
+          }
+        ]
+      }
+    },
+    "provider_chain_bytes": 48,
+    "baseline_provider_chain_bytes": 36,
+    "scope": "Compiler local frames and direct provider call chain; transitive callers and runtime peaks remain unmeasured."
+  }
 }

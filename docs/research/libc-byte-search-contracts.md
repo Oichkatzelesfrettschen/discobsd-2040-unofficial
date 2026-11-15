@@ -166,10 +166,22 @@ its common cases and one quarter of baseline on its adversarial cases. Its
 state. Four controls reject bypassed fast paths, quadratic scanning, wrong
 results and disabled instruction counting. The pinned baseline is cfe41205;
 this is a controlled algorithm reference, distinct from the current resource
-baseline on main 17b10cb2.
+baseline on main e64e2150.
 
 The original resource request and source-review scope bind their exact earlier
-candidate. They grant no admission for the guarded-prefix revision. A fresh
-clean distribution, resource vector, calibrated focused/inventory/emulator
-qualification and independent review remain open on the merged main.
-Physical-board execution stays unauthorized.
+candidate. They grant no admission for the guarded-prefix revision. The clean
+distribution on d1b55dd3 and the refreshed main e64e2150 establish the
+[revised resource vector](libc-byte-search-resource-exception.md): 748 native
+archive bytes, 376 loaded textbox bytes and two root blocks, leaving 227 free
+blocks. Standalone cut adds 376 loaded bytes with unchanged allocations.
+The 48-byte direct provider chain replaces the baseline's conservative
+36-byte sum; process runtime peaks remain unmeasured.
+
+The 19.012-second logged build and 70.881-second focused qualification pass
+on clean d1b55dd3. The [qualification record](libc-byte-search-qualification.json)
+binds source hashes, script and full-log hashes to the host, ILP32, sanitized,
+cross, ARM QEMU and modeled-instruction results. The
+[instruction receipt](libc-byte-search-instructions.json) retains all 13
+case counts, independent results and four rejecting controls. Resource
+admission, complete aggregate/inventory/emulator qualification and independent
+review remain open. Physical-board execution stays unauthorized.

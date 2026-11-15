@@ -32,5 +32,41 @@
     "ILP32 inventory",
     "Renode",
     "physical-board execution (separate authorization)"
-  ]
+  ],
+  "guarded_prefix": {
+    "source_commit": "d1b55dd38634469ae281c1ff68ce340821e43f4c",
+    "source_state": "clean and frozen during qualification",
+    "execution_class": [
+      "host",
+      "ilp32",
+      "sanitizer",
+      "cross",
+      "qemu-user",
+      "modeled ARM instructions"
+    ],
+    "focused": {
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 70.881,
+      "terminal_queue_dropped_bytes": 0
+    },
+    "log_sha256": "4b860e7f1d856adaee991965435e7a9df21e44363cdd3729c7afca86f7ea55f3",
+    "script_sha256": "a3331c715390f4dd8dfa70a93c956d952ab9fa77dc925b022361f3f019f64045",
+    "script": "#!/bin/sh\nset -eu\n: \"${PYTHON:?select the interpreter}\"\nexport PYTHON\nbmake MACHINE=rp2040 check-libc-byte-search check-libc-byte-search-instructions check-libc-array-memory-line \\\n    check-libc-array-memory-line-cross check-libc-aout-contracts check-board-libc-output check-string-header-contracts \\\n    check-c17-headers-cross check-c17-smaller-c check-c17-source-denominator \\\n    check-test-execution check-dpucp-profile check-changed-text check-changed-comments \\\n    CHANGED_COMMENT_BASE=e64e2150f3d4e4c570efc9cfbabb950fe3739ce2 \\\n    CHANGED_COMMENT_HEAD=HEAD\n\"$PYTHON\" tests/libc_contracts/byte_search.py . arm-none-eabi-gcc --arm --calibrate\nclang-tidy -quiet -checks='-*,clang-analyzer-core.*,clang-analyzer-unix.*' \\\n    -warnings-as-errors='*' lib/libc/string/memmem.c lib/libc/compat/memchr.c \\\n    -- -target arm-none-eabi -mcpu=cortex-m0plus -mthumb -std=c17 -nostdinc -Iinclude\n",
+    "source_hashes": {
+      "lib/libc/string/memmem.c": "0b28b6d96b85c83a9f3e29a70fc7cedf636607b99c594a4e43483eea178541e7",
+      "lib/libc/compat/memchr.c": "b1045e37164b9d6a558c70eac08229c94849e286a302c7bd09cff4e44082706b",
+      "tests/libc_contracts/byte_search.py": "5d5dd6f1f067a11285f40046d832a43e7d7294d1d1416aa42be1b127356ef42a",
+      "tests/libc_contracts/byte_search_test.c": "9e1d79037dba602eb57497239e936d5ad82c8173c7c0525e6f9887c244730ed0",
+      "usr.bin/smlrc/tests/t24_byte_search.c": "6e76ae6efa6f516a365f34a463303eb6bbb4b6cbe3d516220cc9f427d00c039b"
+    },
+    "remaining": [
+      "resource admission",
+      "independent source review",
+      "aggregate",
+      "ILP32 inventory",
+      "Renode",
+      "physical-board execution (separate authorization)"
+    ]
+  }
 }

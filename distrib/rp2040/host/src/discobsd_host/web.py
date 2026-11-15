@@ -471,6 +471,7 @@ def parser() -> argparse.ArgumentParser:
         description="Serve the DiscoBSD RP2040 console as a browser terminal.",
     )
     p.add_argument("device", nargs="?", help="serial device (default: find the board)")
+    ports.add_usb_port_argument(p)
     p.add_argument("--port", type=int, default=7681, help="TCP port (default 7681)")
     p.add_argument("--bind", default="127.0.0.1", help="bind address (default 127.0.0.1)")
     p.add_argument(
@@ -490,7 +491,14 @@ def main(argv=None) -> int:
     except ImportError:
         sys.stderr.write(f"discobsd-web: {ports.pyserial_hint()}\n")
         return 1
-    device = args.device or ports.find_board()
+    if args.device and args.usb_port is not None:
+        sys.stderr.write("discobsd-web: give a device path or --usb-port, not both\n")
+        return 1
+    try:
+        device = args.device or ports.find_board(usb_port=args.usb_port)
+    except ports.BoardSelectionError as exc:
+        sys.stderr.write(f"discobsd-web: {exc}\n")
+        return exc.exit_code
     if not device:
         sys.stderr.write("discobsd-web: no board found (plug it in, or set DISCOBSD_PORT)\n")
         return 1

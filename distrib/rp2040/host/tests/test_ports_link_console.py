@@ -94,7 +94,7 @@ def test_term_cli_list_and_probe(capsys, monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(ports, "find_board", lambda: "FAKE")
+    monkeypatch.setattr(ports, "find_board", lambda **_: "FAKE")
     assert term.probe(open_line=lambda dev: Line(), seconds=0.2) == 0
     assert "reachable" in capsys.readouterr().err
 

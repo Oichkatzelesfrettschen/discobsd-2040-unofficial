@@ -251,35 +251,37 @@ const struct cdevsw cdevsw[] = {
 		NOCDEV
 #endif
 	},
-	{	/* 10 - PicoCalc panel and keyboard console */
 #ifdef PICOCALC_ENABLED
+	{	/* 10 - PicoCalc panel and keyboard console */
 #if LCDCONS_MAJOR != 10
 #error Wrong LCDCONS_MAJOR value!
 #endif
 		lcdopen,	lcdclose,	lcdread,	lcdwrite,
 		lcdioctl,	nullstop,	lcdttys,	lcdselect,
 		nostrategy,	lcdgetc,	lcdputc,
-#else
-		NOCDEV
-#endif
 	},
-	{	/* 11 - raw sd */
+#endif
 #ifdef SD_ENABLED
+	{	/* 11 - raw sd */
 #if SD_CMAJOR != 11
 #error Wrong SD_CMAJOR value!
 #endif
 		sdopen,		sdclose,	sdread,		sdwrite,
 		sdioctl,	nullstop,	0,		seltrue,
 		sdstrategy,	0,		0,
-#else
-		NOCDEV
-#endif
 	},
+#endif
+#if defined(PICOCALC_ENABLED) && defined(SD_ENABLED)
+	/*
+	 * The majors past 11 exist where 10 and 11 do, which fixes their
+	 * numbers: the union kernel every board runs.
+	 */
 	{	/* 12 - general-purpose pins, porta and portb */
 		gpioopen,	nullclose,	gpiorw,		gpiorw,
 		gpioioctl,	nullstop,	0,		seltrue,
 		nostrategy,	0,		0,
 	},
+#endif
 	/*
 	 * End the list with a blank entry.
 	 */

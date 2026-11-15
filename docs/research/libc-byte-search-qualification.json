@@ -1,0 +1,36 @@
+{
+  "source_commit": "e608a3f1",
+  "source_state": "clean during qualification",
+  "execution_class": [
+    "host",
+    "ilp32",
+    "sanitizer",
+    "cross",
+    "qemu-user"
+  ],
+  "command": "sh byte-search-focused.sh (recorded command list in libc-byte-search-contracts.md)",
+  "focused": {
+    "state": "completed",
+    "exit_code": 0,
+    "elapsed_seconds": 61.815,
+    "terminal_queue_dropped_bytes": 0
+  },
+  "log_sha256": "6dfe5609245a9c1087769ca396270b4accf183df006b35b0d6837f13d3090459",
+  "script_sha256": "fa726a52f5db8110c636ddeea269705437a1e186efa55908d18470c164141abe",
+  "script": "#!/bin/sh\nset -eu\n: \"${PYTHON:?select the interpreter}\"\nexport PYTHON\nbmake MACHINE=rp2040 check-libc-byte-search check-libc-array-memory-line \\\n    check-libc-aout-contracts check-board-libc-output check-string-header-contracts \\\n    check-c17-headers-cross check-c17-smaller-c check-c17-source-denominator \\\n    check-test-execution check-dpucp-profile check-changed-text check-changed-comments \\\n    CHANGED_COMMENT_BASE=cfe41205235bfc677e6fdf1a53a395aae2f6cb71 \\\n    CHANGED_COMMENT_HEAD=HEAD\n\"$PYTHON\" tests/libc_contracts/byte_search.py . arm-none-eabi-gcc --arm --calibrate\nclang-tidy -quiet -checks='-*,clang-analyzer-core.*,clang-analyzer-unix.*' \\\n    -warnings-as-errors='*' lib/libc/string/memmem.c lib/libc/compat/memchr.c \\\n    -- -target arm-none-eabi -mcpu=cortex-m0plus -mthumb -std=c17 -nostdinc -Iinclude\n",
+  "source_hashes": {
+    "lib/libc/string/memmem.c": "2d55effb1bea14509e53318563ba4a85f0a012ca2837750dbeb7d46f93009e93",
+    "lib/libc/compat/memchr.c": "b1045e37164b9d6a558c70eac08229c94849e286a302c7bd09cff4e44082706b",
+    "tests/libc_contracts/byte_search.py": "875c459767c41d157c2ba0334db742613f5231627f8a68a87887db18a174eeb8",
+    "tests/libc_contracts/byte_search_test.c": "9e1d79037dba602eb57497239e936d5ad82c8173c7c0525e6f9887c244730ed0",
+    "usr.bin/smlrc/tests/t24_byte_search.c": "6e76ae6efa6f516a365f34a463303eb6bbb4b6cbe3d516220cc9f427d00c039b"
+  },
+  "remaining": [
+    "resource admission",
+    "independent source review",
+    "aggregate",
+    "ILP32 inventory",
+    "Renode",
+    "physical-board execution (separate authorization)"
+  ]
+}

@@ -125,5 +125,10 @@ ARM execution. The first focused run stops at the C17 classification ledger:
 memchr's prototype repair removes its old-style-definition hazard. The source
 ledger generator also discovers the new function-pointer fixture hazards and
 two new test translation units. Its exact delta retains every existing row,
-refreshes those two classifications and adds the two unreviewed test rows.
-A replacement clean-head focused run remains required.
+refreshes those two classifications and adds two test rows: the host fixture stays unreviewed, while the native
+fixture follows the existing migration-open Smaller C classification.
+The replacement focused run passes on clean head e608a3f1 in 61.8 seconds,
+after a successful 18.9-second logged build. The required execution-tool
+calibration, profile controls, changed text/comments and ARM static analysis
+also pass. The ARM matrix includes the seventh zero-budget control.
+Aggregate, ILP32 inventory and Renode qualification remain open.

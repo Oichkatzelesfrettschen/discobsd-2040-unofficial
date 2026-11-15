@@ -275,17 +275,26 @@ static const u_char usb_config_desc[CONFIG_DESC_LEN] = {
 	RESET_INTERFACE_PROTOCOL, 5,
 };
 
+#define	USB_STRING_SERIAL	3	/* usb_device_desc's serial index. */
+
 static const char *const usb_strings[] = {
 	0,				/* 0: language list, built below. */
 	"DiscoBSD",
 	"DiscoBSD RP2040 console",
-	"rp2040",
+	0,				/* 3: usb_serial, built by usbinit(). */
 	"Console",
 	"Reset",
 };
 #define	NSTRINGS	(sizeof(usb_strings) / sizeof(usb_strings[0]))
 _Static_assert(NSTRINGS == USB_STRING_DESCRIPTOR_COUNT,
 	"USB string descriptor count must match the validated index range");
+
+/*
+ * The serial number string: the flash chip's unique ID, so that two boards
+ * on one host enumerate under different names (flash_serial_string() in
+ * flash.h gives the form), or "rp2040" when the ID cannot be read.
+ */
+static char usb_serial[FLASH_SERIAL_CHARS];
 
 /*
  * Device state.
@@ -505,7 +514,7 @@ usb_string_desc(u_int index, u_int wlength)
 		usb_ep0_send(usbd.reply, 4, wlength);
 		return;
 	}
-	s = usb_strings[index];
+	s = index == USB_STRING_SERIAL ? usb_serial : usb_strings[index];
 	for (n = 0; s[n] != '\0' && 2 + 2 * n < sizeof(usbd.reply) - 1; n++)
 		continue;
 	usbd.reply[0] = 2 + 2 * n;
@@ -1146,6 +1155,7 @@ USBCTRL_IRQ_Handler(void)
 void
 usbinit(void)
 {
+	const u_char *jedec, *unique;
 	u_int i;
 
 	REG32(RESETS_BASE + RESETS_CLR) = RESETS_USBCTRL;
@@ -1155,6 +1165,10 @@ usbinit(void)
 	for (i = 0; i < USB_DPRAM_SIZE; i += 4)
 		DPRAM32(i) = 0;
 	bzero(&usbd, sizeof(usbd));
+
+	/* Before the pull-up: the host asks for the serial at enumeration. */
+	flash_serial_string(usb_serial,
+	    flash_identity(&jedec, &unique) == 0 ? unique : (const u_char *)0);
 
 	/* Default line coding: 115200 8N1, reported back if asked. */
 	usbd.line_coding[0] = 115200 & 0xff;

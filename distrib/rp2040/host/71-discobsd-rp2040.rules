@@ -1,13 +1,15 @@
 # Stable, resilient host handle for the DiscoBSD RP2040 console.
 #
-# The board keeps the USB serial number "rp2040" across every reboot, so
+# The board keeps one USB serial number across every reboot (its flash
+# chip's unique ID and the suffix "-rp2040", or "rp2040" alone), so
 # udev names it by that rather than by the ttyACMn that drifts each time
 # the device re-enumerates. Install as /etc/udev/rules.d/71-discobsd-rp2040.rules
 # and reload with "udevadm control --reload".
 #
-# ATTRS{serial}=="rp2040" matches the running kernel; the BOOTSEL bootrom
-# presents a different serial and is left to picotool. /dev/discobsd points
-# at the live console. TAG+="uaccess" has systemd-logind grant the user at
+# ATTRS{serial}=="*rp2040" matches the running kernel; the BOOTSEL bootrom
+# and a Pico SDK program present a serial without the suffix and are left
+# alone. /dev/discobsd points at the live console, the one that enumerated
+# last when two boards are attached; /dev/serial/by-id names each. TAG+="uaccess" has systemd-logind grant the user at
 # the local seat an ACL on the node the moment it appears, so a desktop
 # user opens the console with no group membership and no re-login; the
 # discobsd group covers users who are not at the seat, such as a service
@@ -16,5 +18,5 @@
 # absorb during a session. ID_MM_DEVICE_IGNORE keeps ModemManager, which
 # Ubuntu and Mint run by default, from probing the console as a modem and
 # holding it for its first seconds after it appears.
-SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", ATTRS{serial}=="rp2040", SYMLINK+="discobsd", GROUP="discobsd", MODE="0660", TAG+="uaccess", TAG+="systemd", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", ATTRS{serial}=="*rp2040", SYMLINK+="discobsd", GROUP="discobsd", MODE="0660", TAG+="uaccess", TAG+="systemd", ENV{ID_MM_DEVICE_IGNORE}="1"
 ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", TEST=="power/control", ATTR{power/control}="on"

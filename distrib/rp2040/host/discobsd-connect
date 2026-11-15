@@ -13,8 +13,10 @@
 # (brew install tio picocom minicom); Windows users run discobsd-term.
 set -eu
 
-# Two boards on one host enumerate alike (2e8a:000a, serial "rp2040"); the
-# by-id link and discobsd-term --list name whichever enumerated last. With
+# Two boards on one host share 2e8a:000a. A kernel that reads its flash
+# chip reports a serial of its own, so each has a by-id link, but boards
+# running older kernels both report "rp2040" and share one, and
+# discobsd-term --list still returns a first match. With
 # more than one 2e8a device attached and no board named, this stops and lists
 # the candidates. --usb-port PORT (or DISCOBSD_USB_PORT) names the board by
 # its USB port, such as 1-3, and opens the tty that belongs to that port. An
@@ -122,7 +124,7 @@ elif [ -z "$port" ]; then
 		port=$(discobsd-term --list 2>/dev/null | head -1) || port=""
 	fi
 	if [ -z "$port" ]; then
-		for p in /dev/serial/by-id/usb-DiscoBSD_DiscoBSD_RP2040_console_rp2040-if00 \
+		for p in /dev/serial/by-id/usb-DiscoBSD_*rp2040-if00 \
 		    /dev/discobsd /dev/cu.usbmodem*; do
 			if [ -e "$p" ]; then
 				port="$p"

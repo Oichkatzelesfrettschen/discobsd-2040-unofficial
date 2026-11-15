@@ -26,11 +26,11 @@
 # rolls Renode and the net8.0 models forward together.
 #
 # cores/rp2040.repl applies Renode's RP2040 register description (an SVD
-# file) to the system bus by URL, so every emulator start fetched it and a
-# gate failed when that server timed out. The fetch below downloads the
-# archive once, requires its SHA-256, unpacks it beside the platform file
-# and rewrites the URL to that local path. The archive is kept beside
-# dest-dir, where a later run or a CI cache finds it and skips the download.
+# file) to the system bus by URL, which makes every emulator start depend on
+# that server. The fetch below downloads the archive once, requires its
+# SHA-256, unpacks it beside the platform file and rewrites the URL to that
+# local path. The archive is kept beside dest-dir, where a later run or a CI
+# cache finds it and skips the download.
 #
 # Usage: sh fetch-renode-rp2040.sh [dest-dir]
 # Default dest-dir is tools/renode/vendor/Renode_RP2040, ignored by git.

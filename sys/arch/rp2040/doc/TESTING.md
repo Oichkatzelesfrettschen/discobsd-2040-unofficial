@@ -2313,7 +2313,7 @@ build differs from `VERIFIED_RENODE`, when the two gate scripts name different
 builds, or when the build is not one of `RENODE_VERSION`, so the pin and the
 verified build move together. The models are fetched at the commit
 `fetch-renode-rp2040.sh` pins. The models' platform file applies Renode's
-RP2040 register description by URL, which made every emulator start depend on
+RP2040 register description by URL, which makes every emulator start depend on
 that server; the fetch script downloads the archive once, requires its pinned
 SHA-256, and rewrites the platform file to the unpacked local copy, and the
 job caches the archive under a key derived from the script. The four Renode gates run in that job after

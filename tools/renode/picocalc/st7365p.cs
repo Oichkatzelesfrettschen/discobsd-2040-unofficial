@@ -23,6 +23,20 @@
  * the dump header instead of being applied, and MADCTL MV (row/column
  * exchange) is not modeled. Nothing here establishes the panel's colors,
  * contrast, timing or backlight; those are board observations.
+ *
+ * Read commands answer from the registers above. Each read command byte
+ * (D/C low) arms a bit stream that the following data bytes (D/C high)
+ * consume most significant bit first, which is what the PL022 returns for
+ * 8-bit frames in SPI mode 0. RDID1, RDID2, RDID3, RDDPM, RDDMADCTL,
+ * RDDCOLMOD, RDDIM, RDDSM and RDDSDR answer one byte that starts with the
+ * first clock after the command (ST7365P_SPEC_V1.0 page 95, "8-bit read").
+ * RDDID (04h, 24 bits) and RDDST (09h, 32 bits) leave one dummy clock cycle
+ * before D23 or D31 (page 95), so the first bit of the first byte read is
+ * the dummy cycle. The stream is zero in the dummy cycle and after the last
+ * data bit; the datasheet leaves SDO high-impedance there and the board's
+ * MISO pull is unmeasured (hypothesis: the model reads zero). Command
+ * Table 2 reads through SPI Read Control (FBh) and RDID4 (D3h) are not
+ * modeled and answer zeros.
  */
 
 using System;
@@ -72,10 +86,12 @@ namespace Antmicro.Renode.Peripherals.SPI
                 bottomFixed = 0;
                 scrollStart = 0;
                 madctl = 0;
-                colmod = 0x66;
+                colmod = 0x06;
                 displayOn = false;
                 sleeping = true;
                 inverted = false;
+                readBits = null;
+                readPos = 0;
                 pixelPhase = 0;
                 pixelHi = 0;
                 pixelBytes = new byte[3];
@@ -125,6 +141,10 @@ namespace Antmicro.Renode.Peripherals.SPI
                 {
                     trace.AppendFormat("{0}{1:x2} ", dc ? 'd' : 'c', data);
                     traceLimit--;
+                }
+                if(dc && readBits != null)
+                {
+                    return NextReadByte();
                 }
                 Byte(data, dc);
             }
@@ -295,12 +315,12 @@ namespace Antmicro.Renode.Peripherals.SPI
             commandCounts.TryGetValue(cmd, out n);
             commandCounts[cmd] = n + 1;
             pixelPhase = 0;
+            readBits = null;
+            readPos = 0;
 
             switch(cmd)
             {
-            case 0x01:  /* SWRESET */
-                madctl = 0;
-                colmod = 0x66;
+            case 0x01:  /* SWRESET: MADCTL and COLMOD keep their values (pages 156, 157). */
                 topFixed = 0;
                 scrollArea = GramLines;
                 bottomFixed = 0;
@@ -324,6 +344,10 @@ namespace Antmicro.Renode.Peripherals.SPI
                 break;
             case 0x2a: case 0x2b: case 0x33: case 0x36: case 0x37: case 0x3a:
                 break;
+            case 0x04: case 0x09: case 0x0a: case 0x0b: case 0x0c: case 0x0d:
+            case 0x0e: case 0x0f: case 0xda: case 0xdb: case 0xdc:
+                ArmRead(cmd);
+                break;
             default:
                 if(!IsConfigurationCommand(cmd))
                 {
@@ -332,6 +356,73 @@ namespace Antmicro.Renode.Peripherals.SPI
                 }
                 break;
             }
+        }
+
+        /*
+         * Build the bit stream a read command shifts out on SDO: one dummy
+         * clock cycle for RDDID and RDDST, then the register, D7 (D23, D31)
+         * first. Values are ST7365P_SPEC_V1.0 sections 9.2.3 and 9.2.5 to
+         * 9.2.11 (pages 147 to 162) and 9.2.47 to 9.2.49 (pages 215 to 217).
+         */
+        private void ArmRead(byte cmd)
+        {
+            byte[] data;
+            var dummy = 0;
+            switch(cmd)
+            {
+            case 0x04:  /* RDDID: ID1, ID2 and ID3, FFh after any reset (page 147). */
+                data = new byte[] { 0xff, 0xff, 0xff };
+                dummy = 1;
+                break;
+            case 0x09:  /* RDDST: ST31..ST0 (page 150). */
+                data = new byte[] { (byte)((Booster ? 0x80 : 0) | ((madctl & 0xf8) >> 1)),
+                    (byte)(((colmod & 0x07) << 4) | (sleeping ? 0 : 0x02) | 0x01),
+                    (byte)((inverted ? 0x20 : 0) | (displayOn ? 0x04 : 0)),
+                    0x00 };
+                dummy = 1;
+                break;
+            case 0x0a:  /* RDDPM: BSTON, IDMON, PTLON, SLPOUT, NORON, DISON (page 153). */
+                data = new byte[] { (byte)((Booster ? 0x80 : 0) | (sleeping ? 0 : 0x10) | 0x08
+                    | (displayOn ? 0x04 : 0)) };
+                break;
+            case 0x0b:  /* RDDMADCTL: MY, MX, MV, ML, RGB, MH; D1 and D0 read 0 (page 155). */
+                data = new byte[] { (byte)(madctl & 0xfc) };
+                break;
+            case 0x0c:  /* RDDCOLMOD: RGB interface D6..D4, control interface D2..D0 (page 157). */
+                data = new byte[] { (byte)(colmod & 0x77) };
+                break;
+            case 0x0d:  /* RDDIM: INVON; VSSON and the gamma curve stay 0 (page 159). */
+                data = new byte[] { (byte)(inverted ? 0x20 : 0) };
+                break;
+            case 0x0e:  /* RDDSM: no TE line, no RGB interface signals (page 160). */
+            case 0x0f:  /* RDDSDR: 00h after any reset (page 162). */
+                data = new byte[] { 0x00 };
+                break;
+            default:    /* RDID1, RDID2, RDID3: FFh (pages 215 to 217). */
+                data = new byte[] { 0xff };
+                break;
+            }
+            readBits = new bool[dummy + data.Length * 8];
+            for(var i = 0; i < data.Length * 8; i++)
+            {
+                readBits[dummy + i] = ((data[i / 8] >> (7 - i % 8)) & 1) != 0;
+            }
+            readPos = 0;
+        }
+
+        /* The DC/DC converter runs in sleep out and stops in sleep in (pages 163, 164). */
+        private bool Booster { get { return !sleeping; } }
+
+        private byte NextReadByte()
+        {
+            var value = 0;
+            for(var i = 0; i < 8; i++)
+            {
+                var bit = readPos < readBits.Length && readBits[readPos];
+                readPos++;
+                value = (value << 1) | (bit ? 1 : 0);
+            }
+            return (byte)value;
         }
 
         /* Bring-up registers that change the glass, not the pixel image. */
@@ -499,5 +590,7 @@ namespace Antmicro.Renode.Peripherals.SPI
         private int pixelPhase;
         private byte pixelHi;
         private byte[] pixelBytes;
+        private bool[] readBits;
+        private int readPos;
     }
 }

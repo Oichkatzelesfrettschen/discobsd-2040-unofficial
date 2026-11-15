@@ -178,6 +178,17 @@ Panel model behavior, by the specification page that decides it
 - MADCTL MX and BGR, and INVON, are recorded in the PPM header and not
   applied: they compensate the board's panel wiring, and the model has no
   panel. MADCTL MV is not modeled and warns.
+- Read commands (RDDID 04h, RDDST 09h, RDDPM 0Ah, RDDMADCTL 0Bh, RDDCOLMOD
+  0Ch, RDDIM 0Dh, RDDSM 0Eh, RDDSDR 0Fh, RDID1 to RDID3 DAh to DCh) answer
+  from the registers above when the data byte follows with D/C high. The
+  reply is a bit stream, most significant bit first, with one dummy clock
+  cycle before the data of RDDID and RDDST and none before the 8-bit reads
+  (page 95). BSTON follows sleep state (SLPOUT starts and SLPIN stops the
+  DC/DC converter, pages 163 and 164), COLMOD reads 06h after a reset and keeps
+  its value through SWRESET with MADCTL (pages 156, 157). Not modeled: SPI
+  Read Control (FBh) reads of Command Table 2, RDID4 (D3h), the vertical
+  scroll mode bits (RDDST ST15, RDDIM VSSON) and what MISO reads outside the
+  data bits.
 
 Keyboard model behavior, from `picocalc_keyboard.ino` and `conf_app.h`:
 

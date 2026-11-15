@@ -166,7 +166,10 @@ robots score/comparator have 40/0; wump main/comparator have 40/0. These local
 measurements exclude transitive calls and runtime process peaks. The added
 frame inventory preserves the approved library frame limits.
 
-The amendment remains pending. Retaining the old sort in these programs
+The owner approves these exact additional limits on 2026-11-15 UTC for
+measured candidate `5b823bb3` and the amendment recorded at `f4ec52c6`.
+The existing shipped and nm/diff/uuq approval retains its exact scope.
+Retaining the old sort in these programs
 leaves the same comparison-work defect and introduces a second library
 selection policy. Excluding them from the shipped manifest already contains
 their root cost, but their maintained target output still needs truthful

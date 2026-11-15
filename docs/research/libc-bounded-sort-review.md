@@ -53,5 +53,5 @@ No actionable findings survive the immutable parent-to-repair review of callback
 The parent independently runs the eight-module cross and ARM witnesses and
 collects the expanded local frames. A matched clean capture confirms equality
 with all approved shipped resource deltas. The complete optional-consumer
-amendment owns the additional six-program costs; its approval remains pending.
+amendment owns the additional six-program costs; the owner approves its exact additional vector recorded at `f4ec52c6`.
 The follow-up source verdict supplies no aggregate or runtime measurement.

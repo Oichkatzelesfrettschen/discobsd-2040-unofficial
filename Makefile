@@ -532,6 +532,12 @@ check-time-binding: check-python
 .ORDER: check-time-binding check-control-char-contracts
 .ORDER: check-time-binding check-sh-c17-contracts
 
+# check-sh-heap-boundary reads bin/sh/sh.dis, which check-sh-c17-contracts
+# removes and rebuilds. The .WAIT between them in CROSS_CONTRACT_GATES does
+# not hold once the .ORDER above has deferred the rebuild, so the reader is
+# ordered after the rebuild here as well.
+.ORDER: check-sh-c17-contracts check-sh-heap-boundary
+
 check-rp2040-target-flags: check-python
 		${PYTHON} tests/compiler_matrix/target_flags.py \
 		    --gcc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \

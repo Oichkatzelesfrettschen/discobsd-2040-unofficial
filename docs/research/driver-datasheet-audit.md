@@ -129,7 +129,11 @@ state the driver did not write. `usb-outwedge.md` records a bulk-OUT wedge
 that only a full chip reset clears and eliminates three source-level
 causes; whether that wedge survives a warm reboot today, and stops
 surviving it with the assert, is the measurement that connects the two. Decided by:
-board, under its opt-in.
+board, under its opt-in. `usb_controller_reset()` in `usb.c` now asserts the
+reset before the release; `check-usb-console` calls it against a RESETS
+model and rejects the `skip-controller-reset` mutant. The board observation
+(a warm reboot re-enumerates from address 0, and the bulk-OUT wedge does not
+survive it) is not yet recorded.
 
 ### Flash operations mask interrupts longer than a USB control stage
 

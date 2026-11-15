@@ -34,8 +34,8 @@ forms part of these checks.
   access-order, call, stack and missing-entry controls.
 - [x] Compare production/model object contents and native assembly outputs;
   execute existing arithmetic-model and adjacent shared-owner gates.
-- [ ] Record source and tool identities, review, measured resource disposition
-  and integration through the owned remote.
+- [x] Record source/tool identities and measured resource disposition.
+- [ ] Complete bounded source review and integration through the owned remote.
 
 The rebuilt archive contains 702 positive, section-contained function
 definitions: 611 global, two weak and 89 local. The census also finds zero
@@ -126,9 +126,13 @@ Retained local evidence lives under `.build-logs/divider-extents/`: the four
 and `production-baseline/receipt.json`. Unique
 `.build-logs/divider-extent-controls-*` directories retain metadata controls.
 The committed measurement receipt sanitizes local paths and records immutable
-source hashes. Final committed-source qualification and bounded review remain
-required before integration; the measurements above originate from the candidate
-source hashes recorded in that receipt.
+source hashes. The [qualification receipt](divider-function-extents-qualification.json)
+binds clean source `1f2d140a` on refreshed main `96653cca` to the repeated focused
+checks. The four kernel scans also pass on that baseline before the commit;
+all 234 scanned source/header files report zero divider references. Bounded
+review and final PR-head CI remain required before integration. Full aggregate
+and ILP32 tiers remain unrun for this metadata-only change, and physical-board
+execution retains its separate authorization boundary.
 
 The generated ABI description, private-alias generation, full export selection,
 48 KiB image fit, native shared linking, exec admission and lifecycle remain

@@ -494,6 +494,7 @@ upload and hidden-file inclusion.
 | renode table exhaustion | `check-renode-capacity` | Renode, the fetched RP2040 models, a built PICO_UART kernel, the selected board's disk image (`${FSIMG}`), `fsutil` and `flashimg`, `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
 | renode image identity | `check-renode-identity` | Renode, the fetched RP2040 models, a built PICO_UART kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the table exhaustion step | no |
 | core 1 emulation | `check-core1-emulation` | Unicorn and pyelftools under `${PYTHON}`, the arm-none-eabi toolchain, a built PICO_UART kernel | yes: the `firmware/rp2040` job installs `python3-unicorn` | no |
+| kernel functions under Unicorn | `check-unicorn-kernel` | Hypothesis, Unicorn, capstone and pyelftools under `${PYTHON}`, a built kernel (`KERNEL_CONFIGURATION`, PICO by default) | no: on demand, outside `check` and every aggregate, because `firmware.yml` installs no Hypothesis | no |
 | renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
 | renode PicoCalc crash dump | `check-renode-picocalc-dump` | the `check-renode-picocalc` requirements, `FSUTIL`, the PICOCALC kernel's `unix.elf`, and `distrib/rp2040/flash-PICOCALC.bin` (`BOARD=PICOCALC flash`) | yes: the `firmware/rp2040` job, after the PicoCalc step and a `BOARD=PICOCALC flash` step | no |
 | renode union | `check-renode-union` | Renode, the fetched RP2040 models, a built PICOCALC_PSRAM kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the PicoCalc Renode step | no |
@@ -2565,6 +2566,85 @@ from the datasheet. It establishes nothing about silicon timing, the real
 boot ROM, NMI delivery through `PROC0_NMI_MASK`, or SRAM write ordering
 between two real cores. `sys/arch/rp2040/doc/CORE1.md` lists the board
 procedure that would.
+
+## Kernel functions under Unicorn
+
+`check-unicorn-kernel` runs tools/unicorn/check_kernel_functions.py on
+`sys/arch/rp2040/compile/${KERNEL_CONFIGURATION}/unix.elf` (PICO when
+`KERNEL_CONFIGURATION` is unset). It stands outside `check` and every
+aggregate because it imports Hypothesis, which `firmware.yml` does not
+install; Unicorn, capstone and pyelftools are the other modules. The
+measured versions are Python 3.14.4, Hypothesis 6.151.5 (apt package
+`python3-hypothesis`), Unicorn 2.1.4 (`python3-unicorn`), capstone 5.0.7
+(`python3-capstone`) and pyelftools 0.32 (`python3-pyelftools`).
+
+tools/unicorn/kernel_emulator.py loads every `PT_LOAD` segment of the
+linked image at its address, flash read and execute only, SRAM read and
+write only, and calls one function by the AAPCS: four register arguments,
+the rest on an 8-byte aligned stack, and a return trap outside the RP2040
+map. Each call starts with fresh values in r1-r3 beyond its arguments,
+r12 and the NZCV flags, so code cannot borrow a previous call's register.
+A call fails on a fault, an instruction budget overrun, a stop away
+from the trap, a changed stack pointer or r4-r11, an unaligned halfword
+or word access (ARMv6-M faults one; Unicorn performs it), or any data
+access outside the
+byte-exact spans its property allows (the input, the structure fields,
+the bytes already produced, the output span, the stack and flash reads);
+every scratch buffer also sits between unmapped guard pages. Unicorn
+2.1.4 executes Thumb-2 instructions (RBIT, MLA, ADD.W, UDIV) under its
+`UC_CPU_ARM_CORTEX_M0` model, so the model alone does not confine
+execution to ARMv6-M: a block hook disassembles each translated block
+through capstone and fails the call on a 32-bit encoding outside BL, MSR,
+MRS, DMB, DSB and ISB, and the gate first shows that hook refusing RBIT.
+A function pointer argument names a `bx lr` stub whose code hook runs a
+Python model of the callback.
+
+| property | function | reference |
+| --- | --- | --- |
+| differential | `hsx_dec_run` | tools/unicorn/heatshrink_model.py, written from the stream layout in `machine/hsx_decoder.h`; lookahead 1 to 8, input in chunks, linear and ring output, a second call after a stall producing nothing |
+| memory | `hsx_dec_run` | arbitrary bytes under the same calls; only the access policy, the fault and budget checks and `n <= room` apply |
+| round trip | `hsx_dec_run` | the linked `heatshrink_encoder_*` stream decodes to its input through the model and the kernel |
+| contract | `hsx_expand` | `machine/hsx_decoder.h`: 0 exactly when the stream yields `rlen` bytes, `*crc` equal to `zlib.crc32`, `fill()` asked only for `[off, off + clen)` into the stage |
+| CRC-32 | `crc32_update`, `board_crc32_run` | `zlib.crc32` from any start value, and the check value 0xcbf43926 of "123456789" |
+| bstring | `bzero`, `bcopy`, `bcmp` | `share/man/man3/bstring.3`; `bcopy` on disjoint spans, as the machdep.c comment limits it |
+
+The model also checks itself: a token list Hypothesis draws, serialized
+and decoded, equals the bytes the tokens stand for. Hypothesis runs with a
+fixed seed (`--seed`, 20261115 by default), no example database and no
+deadline; a failure prints the seed and the `--only` command that repeats
+it.
+
+Calibration follows each property. Every conditional branch of the
+function under test is inverted, and every other instruction except push,
+pop and the return replaced by NOP, one mutant kernel at a time; for the
+CRC properties the `crc32_nibble` copy each function's literal pool names
+is corrupted too. A property that kills no mutant fails, the memory
+property must kill one through an access violation or fault, and each CRC
+property must be killed by its own table copy and not by the other.
+With 300 examples per property and 150 per mutant, the PICO and
+PICOCALC_PSRAM kernels took about thirteen minutes each, almost all of it
+in calibration, and killed the same mutants. Kills per property (killed
+of generated; in parentheses those through an access violation,
+alignment refusal or fault): `hsx_dec_run` differential 143/145 (62),
+memory 91/145 (73), round trip 119/145 (47); `hsx_expand` 102/109 (34);
+`crc32_update` and `board_crc32_run` 20/21 (9 and 9 on PICO, 9 and 8 on
+PICOCALC_PSRAM), the survivor a `mov r8, r8` padding instruction; `bzero`
+51/55 (27); `bcopy` 54/56 (33); `bcmp` 23/28 (11). The memory property
+kills only through the access policy, so a mutant that changes values
+alone survives it by design. Inference from the disassembly, not a run:
+the two differential survivors are equivalent mutants, since without
+`cmp r7, #0` the entry takes the copy path with a zero count, and without
+`cmp r2, #6` the refill runs early, which the `sh >= 0` bound keeps exact.
+The run prints every survivor by function offset and instruction. The
+inputs are bounded: streams of up to 500 bytes (1500 for `hsx_expand`),
+a linear destination of up to 3000 bytes, at most 48 calls per stream,
+in-contract parameters only. Within those bounds no drawn stream made
+`hsx_dec_run` or `hsx_expand` touch a byte outside its contract.
+
+This is emulation of the linked instructions with no peripheral: it
+establishes the functions' results and memory footprint for the drawn
+inputs on the ARMv6-M instruction semantics Unicorn implements, nothing
+about cycle counts, flash wait states or the board.
 
 ## Renode image identity tier
 

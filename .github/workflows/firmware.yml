@@ -400,6 +400,15 @@ jobs:
             --status .build-logs/linux-matezinho-sd.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 540 \
             -- bmake MACHINE=rp2040 check-matezinho-sd
+      # The fetch script requires the register description archive's
+      # SHA-256 whether it comes from this cache or from the vendor's
+      # server, and the script's own text is the key, so a moved pin misses
+      # the cache and downloads the new file.
+      - name: Cache the RP2040 register description archive
+        uses: actions/cache@v4
+        with:
+          path: tools/renode/vendor/RP2040.svd.gz
+          key: renode-rp2040-svd-${{ hashFiles('tools/renode/fetch-renode-rp2040.sh') }}
       - name: Fetch and build the Renode RP2040 models
         timeout-minutes: 10
         run: sh tools/renode/fetch-renode-rp2040.sh

@@ -44,6 +44,27 @@
 #include <string.h>
 #include <errno.h>
 
+/*
+ * The kernel's type and function names below are also names some hosts'
+ * C library headers declare with other types (Darwin's daddr_t is 32 bits
+ * wide and its <string.h> declares bzero() and bcopy()), so each is mapped
+ * to a name of this file before its kernel definition. check.sh supplies
+ * the <sys/ioctl.h> that disk.h names, which keeps the host's own, and the
+ * system types it would declare, out of the driver's text.
+ */
+#define	u_char		model_u_char
+#define	u_short		model_u_short
+#define	u_int		model_u_int
+#define	daddr_t		model_daddr_t
+#define	dev_t		model_dev_t
+#define	caddr_t		model_caddr_t
+#define	bzero		model_bzero
+#define	bcopy		model_bcopy
+#undef	__unused
+#undef	major
+#undef	minor
+#undef	makedev
+
 typedef unsigned char	u_char;
 typedef unsigned short	u_short;
 typedef unsigned int	u_int;

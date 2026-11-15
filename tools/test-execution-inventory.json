@@ -3610,6 +3610,25 @@
       "aliases": []
     },
     {
+      "id": "shell.board-break.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": ".",
+      "makefile": "Makefile",
+      "target": "check-posix-sh",
+      "root_target": "check-posix-sh",
+      "program": "sh",
+      "condition": "compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "bin/sh/tests/board-break.sh:build_shell"
+      ],
+      "recipe": "PYTHON=${PYTHON:Q} ${PYTHON} tools/test_execution.py run shell.board-break.ilp32 -- sh bin/sh/tests/board-break.sh",
+      "script": "bin/sh/tests/board-break.sh",
+      "subject": "bin/sh/tests/out-board/shell/sh",
+      "aliases": []
+    },
+    {
       "id": "textbox.getline.ilp32",
       "owner": "firmware/posix-sh",
       "width": "ilp32",

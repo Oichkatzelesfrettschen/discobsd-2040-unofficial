@@ -23,8 +23,21 @@ def test_board_is_selected_by_usb_identity():
         # Windows: the PnP manager upper-cases the instance ID the serial
         # number is read from, and usbser.sys exposes no product string.
         info("COM3", ports.USB_VID, ports.USB_PID, "RP2040", None),
+        # A kernel that read its flash chip reports the unique ID before
+        # the suffix, upper-cased on Windows.
+        info("/dev/ttyACM5", ports.USB_VID, ports.USB_PID, "e66488c15f098435-rp2040", None),
+        info("COM9", ports.USB_VID, ports.USB_PID, "E66488C15F098435-RP2040", None),
+        # A Pico SDK program shares the vendor and product and reports the
+        # bare ID.
+        info("COM11", ports.USB_VID, ports.USB_PID, "E66488C15F098435", None),
     ]
-    assert ports.list_boards(lambda: listing) == ["/dev/ttyACM3", "COM3", "COM7"]
+    assert ports.list_boards(lambda: listing) == [
+        "/dev/ttyACM3",
+        "/dev/ttyACM5",
+        "COM3",
+        "COM7",
+        "COM9",
+    ]
     assert ports.find_board(lambda: listing, environ={}) == "/dev/ttyACM3"
 
 

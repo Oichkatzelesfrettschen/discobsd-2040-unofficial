@@ -1,13 +1,16 @@
 """Find and open the DiscoBSD RP2040 console on any host operating system.
 
-The kernel enumerates as USB vendor 0x2e8a, product 0x000a, with the fixed
-serial number "rp2040" and the product string "DiscoBSD RP2040 console".
+The kernel enumerates as USB vendor 0x2e8a, product 0x000a, with a serial
+number that ends in "rp2040" (the flash chip's unique ID in hex, a hyphen
+and that suffix; "rp2040" alone from a kernel that cannot read the ID or
+predates it) and the product string "DiscoBSD RP2040 console".
 pyserial's port enumeration exposes those on Linux, Windows, and macOS, so
 identity, not the drifting device number, selects the board. Windows
 reports the serial number from the device instance ID, which the PnP
 manager upper-cases ("RP2040"), and its inbox usbser driver exposes no
-product string, so the serial number is compared without regard to case
-and the product string is only a second chance. The DISCOBSD_PORT
+product string, so the serial number's ending is compared without regard
+to case and the product string is only a second chance. A Pico SDK program
+on the same vendor and product reports the bare hex ID and is not matched. The DISCOBSD_PORT
 environment variable overrides discovery for a board behind an adapter
 or a test fixture.
 """
@@ -40,7 +43,7 @@ def _is_board(info) -> bool:
     serial_number = getattr(info, "serial_number", None) or ""
     product = getattr(info, "product", None) or ""
     if vid == USB_VID and pid == USB_PID:
-        return serial_number.lower() == USB_SERIAL or "DiscoBSD" in product
+        return serial_number.lower().endswith(USB_SERIAL) or "DiscoBSD" in product
     return False
 
 

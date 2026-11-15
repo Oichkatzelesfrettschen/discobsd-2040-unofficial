@@ -6,8 +6,9 @@ The claim under test: every part of the Raspberry Pi Pico and of the
 ClockworkPi PicoCalc that software can reach has a driver in this tree, and
 each driver's constants agree with the part's datasheet. The claim holds for
 the parts the kernels drive, with the exceptions listed under "Findings".
-It fails as a statement about completeness: the ADC, RTC, DMA, I2C0 and
-PIO1 blocks have no driver in any kernel, and no PicoCalc driver has run
+It fails as a statement about completeness: at the audited revision the
+ADC, RTC, DMA, I2C0 and PIO1 blocks had no driver in any kernel (the ADC
+has gained one since; its row says so), and no PicoCalc driver has run
 on a PicoCalc
 (`picocalc-pending-hardware.md`). `hardware-reference-coverage.md` holds
 the document for each part; this file holds the driver for each part and
@@ -49,7 +50,7 @@ repository's ignored `docs/local/specs`.
 | TIMER | `machdep.c`: `TIMERAWL` as a microsecond counter; no alarm | all | match |
 | PPB (SysTick, NVIC, MPU, SCB) | `systick.c`, `mpu.c`, `fault.c`, `locore0.S` | all | SysTick match; the rest not audited here, see `MPU.md` |
 | SIO | GPIO25 LED, core 1 FIFO and launch (`core1.c`), the divider the boot ROM uses | all | LED match; `core1.c` not audited here, see `CORE1.md` |
-| IO_BANK0, PADS_BANK0 | per-driver pin setup only | all | no user-visible GPIO device |
+| IO_BANK0, PADS_BANK0 | per-driver pin setup; `dev/gpio.c` for the pins a board leaves free (`GPIO.md`) | all | GPIO device added after this audit; register path unexecuted |
 | UART0 | `dev/uart.c`, PL011 | all | match; 115,207 baud from IBRD 67, FBRD 52 |
 | UART1 | pin setup exists in `uart.c`; no kernel configures `uart1` | none | no device |
 | USB, USB_DPRAM | `dev/usb.c`, CDC-ACM | PICO, PICOCALC, PICOCALC_PSRAM | match, with the two risks below |
@@ -57,10 +58,10 @@ repository's ignored `docs/local/specs`.
 | SPI0 | `dev/sdspi.c`, `dev/sd.c` | PICOCALC, PICOCALC_PSRAM | match |
 | SPI1 | `dev/st7365p.c` | PICOCALC, PICOCALC_PSRAM | bus match; panel register values below |
 | I2C1 | `dev/picokbd.c` | PICOCALC, PICOCALC_PSRAM | match |
-| PWM | `dev/picoaudio.c`, slice 5 | PICOCALC, PICOCALC_PSRAM | match; a tone only |
+| PWM | `dev/picoaudio.c`, slice 5; `dev/picopcm.c`, slices 5 and 6 | PICOCALC, PICOCALC_PSRAM | match; the sample device was added after this audit |
 | PIO0 | `dev/psram_xfer.c`, `psram_pio.h` | PICOCALC_PSRAM | match |
 | SYSINFO, SYSCFG, BUSCTRL, PSM, ROSC | `machdep.c`, `sysctl.c`, `core1.c` | all | not audited here |
-| ADC (four pins, temperature sensor, VSYS/3 on GPIO29) | none; `clk_adc` stays off | none | no driver |
+| ADC (four pins, temperature sensor, VSYS/3 on GPIO29) | `dev/adc.c`: one-shot conversions behind `machdep.adc_temp_mc` and `machdep.adc_vsys_mv`; `clk_adc` and the block start at the first read | all | added after this audit; conversions host-checked (`check-adc-conversion`), register path unexecuted |
 | RTC | none; `clk_rtc` stays off | none | no driver |
 | I2C0, PIO1, DMA | none | none | no driver |
 | VREG_AND_CHIP_RESET, TBMAN | none; reset values kept | none | no software surface needed |

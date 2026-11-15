@@ -55,8 +55,12 @@
 #include <stdint.h>
 
 #define MEMMEM_MAX(a, b) ((a) > (b) ? (a) : (b))
+/*
+ * Every operand is an unsigned char, so the int difference is exact and
+ * its sign orders the bytes; a compare against zero is one instruction.
+ */
 #ifndef MEMMEM_ORDER
-#define MEMMEM_ORDER(a, b) (((a) > (b)) - ((a) < (b)))
+#define MEMMEM_ORDER(a, b) ((int)(a) - (int)(b))
 #endif
 
 static int

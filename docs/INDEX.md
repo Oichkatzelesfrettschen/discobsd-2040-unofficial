@@ -48,6 +48,7 @@ page in those files without carrying them here.
 | `CAPACITY.md` | compact kernel metadata, fixed-table and u-area counters, and the evidence required before a limit changes | the metadata generator, `sys/kern/subr_capacity.c`, `sbin/sysctl` |
 | `CORE1.md` | core 1 as the kernel's observer: launch and park, the tick-record observer, the NMI probe, the reset record, the supervisor, word ownership, cost and the evidence class of each claim | `sys/arch/rp2040/rp2040/core1.c`, `core1.h`, `compile/PICO/Config`, `compile/PICO_UART/Config` |
 | `DATASHEET-INDEX.md` | datasheet section to page number, for both the RP2040 and Pico documents | every hardware citation in the tree |
+| `GPIO.md` | the pins `/dev/porta` and `/dev/portb` reach on each board, the requests they take and what is refused | `sys/arch/rp2040/dev/gpio.c`, `sys/arch/rp2040/include/gpio.h`, `distrib/rp2040/mi.rp2040` |
 | `MPU.md` | the Cortex-M0+ MPU map the kernel programs, the registers it reads back, and the fault test that proves it | `sys/arch/rp2040/rp2040/mpu.c`, `usr.bin/mputest` |
 | `MULTICALL-BSS-OVERLAY.md` | how applets in one multicall binary share a BSS lifetime | the multicall `*.c.in` generators |
 | `PICOCALC.md` | the PicoCalc pin map, the console drivers' timing and protocol choices, the evidence each has, and the next board work | `sys/arch/rp2040/dev/picocalc.h`, `compile/PICOCALC/Config` |
@@ -212,6 +213,8 @@ Grouped by what they investigate.
 | `libc-absolute-value-contracts.md` | callable int/long magnitude providers, representability domain, archive ownership and calibrated address-taking witnesses |
 | `callable-character-io-contracts.md` | six callable stdio names, preserved macro/FILE contracts, existing archive ownership and calibrated header/byte/backend witnesses |
 | `callable-character-io-resource-exception.md` | matched native archive and native caller costs, unchanged shipped program identities, alignment/frame boundaries and exact admission request |
+| `stdio-eof-fixed-point-resource-exception.md` | repeated-EOF counter normalization, matched archive and shipped-program costs, preserved stack and capacity margins, alternatives and exact admission request |
+| `stdio-eof-fixed-point-qualification.md`, `stdio-eof-fixed-point-review.md` | frozen-source aggregate, required inventory, restored resource vector, emulator and bounded source-review evidence for repeated-EOF counter normalization |
 | `libc-absolute-value-resource-exception.md` | matched native archive growth, preserved program identities and resource admission limits for callable magnitude providers |
 | `search-bound-experiment/README.md` | unshipped tableless Two-Way search, calibrated finite work counts, target frames and replay driver |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |

@@ -311,7 +311,16 @@ opened read-only with `EBADF`, and opening the node requires the node's
 permissions. `check-flash-checkpoint` holds the driver to these properties
 over a NOR model, `kernel.ufs-disk.ilp32` holds the filesystem's sync paths
 to issuing the checkpoint, and `check-rp2040-shutdown` holds shutdown to
-forcing it. A board reset test of the new policy has not been run. Production
+forcing it. One board observation exists, on the measured Pico with the PICO
+kernel and image of this policy: five warm resets forced through the USB
+reset interface (`picotool reboot -f`), no power interruption. A directory
+followed by sync(2) survived; a file written 45 seconds before the reset, with
+no sync(2) call, survived by the update(8) checkpoint; directories made
+seconds before a reset were lost or salvaged, `fsck -p` repaired the root and
+rebooted, and the following boot checked clean each time. The reset matrix
+over write, erase and checkpoint phases and every power interruption (W03 of
+`docs/research/rp2040-memory-wear-engineering-program.md`) has not been run.
+Production
 `dhara_nand_prog()` passes one 1 KiB extent to `flash_program()` while
 `dhara_nand_copy()` passes four 256-byte extents, so the equivalent count is
 neither a wrapper-call count nor a ROM-command count. N writes followed by one checkpoint
@@ -319,10 +328,12 @@ program `8 * ceil(N / 7)` pages while the journal stays below the
 `auto_gc()` threshold. An image that maps all 989 sectors puts
 the journal at that threshold: rewriting recently written sectors in
 batches then costs about 6.3 pages per write, because each write first
-copies live tail pages. On the shipped image, checkpointing on sync rather
+copies live tail pages. At full occupancy, checkpointing on sync rather
 than per request therefore saves about a fifth of the programs (8 to about
 6.3 pages per write in that trace, 6.0 in `check-flash-checkpoint`'s), not
-the six sevenths a journal below the threshold gives. With 75 percent or less of the capacity live, the
+the six sevenths a journal below the threshold gives. The shipped image
+leaves its free blocks unmapped (`check-flash-sparse`) and starts below
+full occupancy; a root that has since written every free block reaches it. With 75 percent or less of the capacity live, the
 same traces stay below the threshold and cost 1.2 pages per write. These are
 host-model counts for the exercised traces; electrical completion, command
 execution inside the ROM and physical-sector wear require separate board

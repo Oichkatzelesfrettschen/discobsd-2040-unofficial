@@ -493,8 +493,9 @@ test_wear(void)
 }
 
 /*
- * The shipped image keeps every sector live, which holds the journal at the
- * auto_gc() threshold: each write first copies live tail pages. The trace
+ * A map with every sector live holds the journal at the auto_gc()
+ * threshold: each write first copies live tail pages. The shipped image
+ * leaves its free blocks unmapped and starts below that state. The trace
  * of check-dhara-amplification (trace d) is repeated through the driver
  * and printed, not asserted: fill the capacity, rewrite the 20 most recent
  * sectors until three capacities are written, then measure 140 writes each

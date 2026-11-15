@@ -259,6 +259,24 @@ flash_program(u_int offset, const u_char *data, u_int len)
 	return 0;
 }
 
+/*
+ * The chip identity comes from an SSI exchange outside the extracted
+ * driver; the model answers as a W25Q16JV so that fl_report_identity()
+ * takes its reporting path.
+ */
+static int
+flash_identity(const u_char **jedec, const u_char **unique)
+{
+	static const u_char model_jedec[FLASH_JEDEC_BYTES] =
+	    { 0xef, 0x40, 0x15 };
+	static const u_char model_unique[FLASH_UNIQUE_BYTES] =
+	    { 0xe6, 0x61, 0x41, 0x03, 0xe7, 0x0a, 0x9b, 0xf0 };
+
+	*jedec = model_jedec;
+	*unique = model_unique;
+	return 0;
+}
+
 #define	printf	quiet_printf
 #include FLASH_CHECKPOINT_DRIVER
 #undef	printf

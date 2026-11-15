@@ -72,7 +72,7 @@ declared()
 {
 	awk '
 	FNR == 1 { armed = 0 }
-	/watchdog_site\(WD_SITE_FLASH_(ERASE|PROGRAM)/ { armed = 1 }
+	/watchdog_site\(WD_SITE_FLASH_(ERASE|PROGRAM|COMMAND)/ { armed = 1 }
 	/watchdog_site\(WD_SITE_NONE/ { armed = 0 }
 	/exit_xip\(\);/ {
 		calls++

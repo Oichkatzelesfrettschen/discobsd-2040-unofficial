@@ -39,6 +39,7 @@
 
 #ifdef PICOCALC_ENABLED
 #include <rp2040/dev/picocalc.h>
+#include <rp2040/dev/picopcm.h>
 #endif
 
 #ifdef SD_ENABLED
@@ -279,6 +280,11 @@ const struct cdevsw cdevsw[] = {
 	{	/* 12 - general-purpose pins, porta and portb */
 		gpioopen,	nullclose,	gpiorw,		gpiorw,
 		gpioioctl,	nullstop,	0,		seltrue,
+		nostrategy,	0,		0,
+	},
+	{	/* 13 - PicoCalc sample audio */
+		pcmopen,	pcmclose,	pcmread,	pcmwrite,
+		noioctl,	nullstop,	0,		seltrue,
 		nostrategy,	0,		0,
 	},
 #endif

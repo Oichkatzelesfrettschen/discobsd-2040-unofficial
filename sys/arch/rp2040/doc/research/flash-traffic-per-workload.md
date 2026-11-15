@@ -137,34 +137,31 @@ now bounds the life of the part for this workload.
 
 The spread was measured. A kernel of main (`a706c0b8`) with one added
 counter per swap sector, incremented in `flash_erase()` and printed by
-`boot()`, ran the 24 compiles twice on the measured Pico after a fresh
-kernel flash. The board reset before the print finished, so each run shows
-the leading sectors and the region total gives the rest:
+`boot()`, ran the 24 compiles three times on the measured Pico, each after
+a fresh kernel flash. The board reset before any print finished, so the
+first two runs printed from sector 0 and the third from sector 32:
 
-    run 1, 1,781 swap erases        run 2, 1,794 swap erases
-    0 19 19 17 16 17 17 17          0 18 18 19 19 18 18 18
-    18 17 16 15 17 17 19 20         18 18 18 18 18 18 18 18
-    20 20 21 21 21 19 19 19         18 19 19 18 19 18 17 17
-    20 20 18 17 17 18 18 18         17 17 18 18 19 19 19 17
-    18 18 18 18 17 19 19 21         17 19 19 19 20 21 23 22
-    20 19 18 18 20 20 18 18         21 20 22 22 22 22 23 23
-    18 18 18 16 15 15 15 17
-    17 17 17 20 19 19 18 20
+| Run | Swap erases | Sectors printed | Erases per printed sector | Mean of the unprinted sectors |
+| --- | ---: | --- | --- | ---: |
+| 1 | 1,781 | 0 to 63 | sector 0: none; others 15 to 21, mean 18.2 | 19.9 over 32 |
+| 2 | 1,794 | 0 to 47 | sector 0: none; others 17 to 23, mean 19.1 | 18.7 over 48 |
+| 3 | 1,799 | 32 to 89 | 14 to 22, mean 18.8 | 19.2 over 37, sector 0 taken as none |
 
-| Run | Sectors printed | Erases per printed sector (first excluded) | Mean of the unprinted sectors |
-| --- | ---: | --- | ---: |
-| 1 | 64 | 15 to 21, mean 18.2 | 19.9 over 32 sectors |
-| 2 | 48 | 17 to 23, mean 19.1 | 18.7 over 48 sectors |
-
-The first swap sector was never erased. Every other printed sector lies
-within 25 percent of the mean, so the swap allocator already spreads its
-extents and the even-spread figure stands: the hottest printed sector took
-23 erases in 24 compiles, about 104,000 compiles at the rated minimum, and
-the mean sector about 128,000. Sectors 64 to 95 were not observed singly;
-their mean is known and an outlier among them is not excluded. Swap bounds
-the part's life at roughly a ninth of the root's 977,000 compiles, and
-placement has nothing left to give: only fewer or smaller swap-outs
+Ninety of the 96 sectors were observed singly in at least one run. The
+first swap sector was never erased; every other observed sector took 14 to
+23 erases in 24 compiles, within 25 percent of the run's mean, so the swap
+allocator already spreads its extents. The hottest observed sector, 23
+erases in 24 compiles, reaches the rated minimum after about 104,000
+compiles and the mean sector after about 128,000. Sectors 90 to 95 were
+never printed; they are bounded only through the unprinted means, which
+match the printed ones, so 104,000 is an upper bound on the life that a
+hotter sector among those six would lower. Swap bounds the part's life at
+roughly a ninth of the root's 977,000 compiles. Among the 90 observed
+sectors placement has little left to give; fewer or smaller swap-outs
 reaching flash lengthen it.
+
+The counter patch and the three console captures are
+`docs/research/trim-survey/board/swap/`.
 
 Two changes were measured and left out. Unmapping a block when the file
 system frees it (trim at free) cost 1,592 root erases over eight compiles
@@ -181,6 +178,6 @@ reach into Dhara's safety margin (`dhara-gc-trigger.md`).
 - Swap traffic: 69 to 75 sector erases per compile, more than the root
   spends, on a quarter of the sectors. The erases are spread evenly, so the
   admission policy of SwapRAM and the size of what is swapped decide it.
-- Erases of swap sectors 64 to 95 singly, and of the root's sectors, which
+- Erases of swap sectors 90 to 95 singly, and of the root's sectors, which
   are even by the journal's construction and unobserved.
 - Workloads other than the two-line compile.

@@ -191,11 +191,18 @@ flash_rom_init(void)
 /* flash_limit_init() sets the raw swap extent; a plain Pico has all of it. */
 static uint32_t flswap_bytes = FLASH_SWAP_BYTES;
 
+/*
+ * Both entry points accept only an aligned range inside the root region,
+ * [FLASH_FS_OFFSET, FLASH_SWAP_OFFSET). The offset is compared before the
+ * subtraction: an offset past the end of the region would wrap the unsigned
+ * difference and pass the length test.
+ */
 static int
 flash_erase(u_int offset, u_int len)
 {
 	if (offset % FLASH_SECTOR_BYTES != 0 || len % FLASH_SECTOR_BYTES != 0 ||
-	    offset < FLASH_FS_OFFSET || len > FLASH_SWAP_OFFSET - offset) {
+	    offset < FLASH_FS_OFFSET || offset >= FLASH_SWAP_OFFSET ||
+	    len > FLASH_SWAP_OFFSET - offset) {
 		model_fault("erase outside the root region");
 		return 0;
 	}
@@ -212,7 +219,8 @@ flash_program(u_int offset, const u_char *data, u_int len)
 	u_int i;
 
 	if (offset % FLASH_PROG_BYTES != 0 || len % FLASH_PROG_BYTES != 0 ||
-	    offset < FLASH_FS_OFFSET || len > FLASH_SWAP_OFFSET - offset) {
+	    offset < FLASH_FS_OFFSET || offset >= FLASH_SWAP_OFFSET ||
+	    len > FLASH_SWAP_OFFSET - offset) {
 		model_fault("program outside the root region");
 		return 0;
 	}
@@ -583,9 +591,51 @@ test_idle_checkpoint(void)
 	expect(model_faults == 0, t, "NOR contract kept");
 }
 
+/*
+ * The model must report an erase or a program aimed into the raw swap region
+ * as a fault and leave the chip untouched. The swap bytes start as 0xa5, which
+ * an erase would clear and a program over unerased cells would also fault.
+ */
+static void
+test_model_range(void)
+{
+	static const u_int offsets[] = {
+		FLASH_SWAP_OFFSET, FLASH_SWAP_OFFSET + FLASH_SECTOR_BYTES,
+		FLASH_TOTAL_BYTES - FLASH_SECTOR_BYTES
+	};
+	static const u_char page[FLASH_PROG_BYTES];
+	static u_char copy[FLASH_TOTAL_BYTES - FLASH_SWAP_OFFSET];
+	const char *t = "model-range";
+	unsigned i;
+
+	fresh_chip(t);
+	memset(nor + FLASH_SWAP_OFFSET, 0xa5, sizeof(copy));
+	memcpy(copy, nor + FLASH_SWAP_OFFSET, sizeof(copy));
+	for (i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++) {
+		spl_level = 1;
+		flash_erase(offsets[i], FLASH_SECTOR_BYTES);
+		flash_program(offsets[i], page, FLASH_PROG_BYTES);
+		spl_level = 0;
+	}
+	expect(model_faults == 2 * (sizeof(offsets) / sizeof(offsets[0])), t,
+	    "every erase and program into the swap region is a model fault");
+	expect(erase_sectors == 0 && program_pages == 0, t,
+	    "a refused range is neither erased nor programmed");
+	expect(memcmp(copy, nor + FLASH_SWAP_OFFSET, sizeof(copy)) == 0, t,
+	    "the swap region is untouched");
+	/* The last root sector is still accepted. */
+	model_faults = 0;
+	spl_level = 1;
+	flash_erase(FLASH_SWAP_OFFSET - FLASH_SECTOR_BYTES, FLASH_SECTOR_BYTES);
+	spl_level = 0;
+	expect(model_faults == 0 && erase_sectors == 1, t,
+	    "the last sector of the root region is accepted");
+}
+
 int
 main(void)
 {
+	test_model_range();
 	test_reset_before_checkpoint();
 	test_checkpoint_then_reset();
 	test_group_fill();

@@ -30,9 +30,10 @@ fail()
 mkdir -p "$work/shim/sys"
 echo '#include <stdint.h>' >"$work/shim/sys/stdint.h"
 
-# build FLASH_SOURCE BINARY: the oracle over the driver text extracted from
-# FLASH_SOURCE, as strict C17 under the address and undefined-behavior
-# sanitizers.
+# build FLASH_SOURCE BINARY [TEST_SOURCE]: the oracle over the driver text
+# extracted from FLASH_SOURCE, as strict C17 under the address and
+# undefined-behavior sanitizers. TEST_SOURCE replaces the oracle's own text
+# when a mutation targets the NOR model.
 build()
 {
 	"$PYTHON" "$here/extract.py" --source "$1" --output "$2.driver.c" ||
@@ -42,7 +43,7 @@ build()
 	    -fsanitize=address,undefined \
 	    -DFLASH_CHECKPOINT_DRIVER="\"$2.driver.c\"" \
 	    -I"$work/shim" -iquote "$topsrc/sys/sys" -I"$topsrc/sys/arch" \
-	    -o "$2" "$here/flash_checkpoint_test.c" \
+	    -o "$2" "${3:-$here/flash_checkpoint_test.c}" \
 	    "$dhara/error.c" "$dhara/journal.c" "$dhara/map.c" ||
 		fail "strict C17 sanitizer build of $1"
 }
@@ -137,6 +138,26 @@ mutate "$flash" "$work/flash-any-opener.c" \
 build "$work/flash-any-opener.c" "$work/oracle-any-opener"
 rejects "$work/oracle-any-opener" idle-checkpoint
 
+# The NOR model refuses an erase or a program in the swap region. Comparing
+# the offset after the subtraction, which wraps past the end of the root
+# region, admits one; the model-range scenario must catch it for each entry.
+test_source=$here/flash_checkpoint_test.c
+mutate "$test_source" "$work/model-erase.c" \
+	'len % FLASH_SECTOR_BYTES != 0 ||
+	    offset < FLASH_FS_OFFSET || offset >= FLASH_SWAP_OFFSET ||' \
+	'len % FLASH_SECTOR_BYTES != 0 ||
+	    offset < FLASH_FS_OFFSET ||'
+build "$flash" "$work/oracle-model-erase" "$work/model-erase.c"
+rejects "$work/oracle-model-erase" model-range
+mutate "$test_source" "$work/model-program.c" \
+	'len % FLASH_PROG_BYTES != 0 ||
+	    offset < FLASH_FS_OFFSET || offset >= FLASH_SWAP_OFFSET ||' \
+	'len % FLASH_PROG_BYTES != 0 ||
+	    offset < FLASH_FS_OFFSET ||'
+build "$flash" "$work/oracle-model-program" "$work/model-program.c"
+rejects "$work/oracle-model-program" model-range
+
 echo "flash_checkpoint: PASS (reset, checkpoint, group fill, flush without" \
 	"a write, wear bound, idle checkpoint; per-request, missing-ioctl," \
-	"no-op checkpoint and read-only-opener mutations rejected)"
+	"no-op checkpoint, read-only-opener and swap-range model mutations" \
+	"rejected)"

@@ -2036,15 +2036,16 @@ check-renode-picocalc-dump:
 		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
-# The PICOCALC kernel as the PicoCalc UF2 loader leaves it (the stamp in
-# vector entries 4 to 10, foreign bytes over the flash root) with Renode's
-# SD card model holding ${SDROOTIMG} in MBR slot 3, type b7: root lines,
-# login and mount on the panel, the flash root untouched, and a panic when
-# the card has no b7 entry (tools/renode/check-picocalc-sdroot.py).
-check-renode-picocalc-sdroot:	sdroot
+# The board's kernel UF2, the file the PicoCalc UF2 loader programs, as the
+# loader leaves it (the stamp in vector entries 4 to 10, foreign bytes over
+# the flash root) with Renode's SD card model holding ${SDROOTIMG} in MBR
+# slot 3, type b7: root lines, login and mount on the panel, a login on
+# tty0, the flash root untouched, and a panic when the card has no b7 entry
+# (tools/renode/check-picocalc-sdroot.py). BOARD is PICOCALC or
+# PICOCALC_PSRAM.
+check-renode-picocalc-sdroot:	sdroot ${BOARD_KERNEL_UF2}
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py \
-		    "$$(command -v renode)" \
-		    ${TOPSRC}/sys/arch/rp2040/compile/PICOCALC/unix.bin \
+		    "$$(command -v renode)" ${BOARD_KERNEL_UF2} \
 		    ${SDROOTIMG} tools/renode/vendor/results/picocalc-sdroot
 
 # The process, in-core inode and system file tables filled on the emulated PICO_UART

@@ -24,7 +24,6 @@
  */
 #define	SD_BMAJOR		5	/* bdevsw index, rp2040/conf.c. */
 #define	SD_CMAJOR		11	/* cdevsw index, rp2040/conf.c. */
-#define	SD_ROOT_PART_TYPE	0xb7	/* MBR type of a DiscoBSD UFS partition */
 
 struct uio;
 

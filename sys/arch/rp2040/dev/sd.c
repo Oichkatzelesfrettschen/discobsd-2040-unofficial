@@ -594,7 +594,7 @@ struct driver sddriver = {
  * UF2 and lends the flash above it to every other application, so the fl0
  * root region holds foreign bytes and a Dhara resume over them would treat
  * them as a journal. A kernel the loader started therefore takes its root
- * from the first MBR entry of type SD_ROOT_PART_TYPE on the card, and stops
+ * from the first MBR entry of type PTYPE_BSDFFS (b7) on the card, and stops
  * when there is none rather than open fl0. main() copied rootdev into
  * pipedev before services attach, so pipedev moves with it. The card state
  * returns to closed afterwards; the root mount opens it again through
@@ -611,7 +611,7 @@ sdrootattach(void)
 	if (board_id() == BOARD_ID_PICOCALC && (error = sd_setup()) == 0) {
 		for (i = 1; i <= MAXPARTITIONS; i++) {
 			if (sdpt[i].dp_nsectors != 0 &&
-			    sdpt[i].dp_type == SD_ROOT_PART_TYPE)
+			    sdpt[i].dp_type == PTYPE_BSDFFS)
 				break;
 		}
 		if (i <= MAXPARTITIONS) {

@@ -13,12 +13,13 @@
 # receives the bare filesystem, with no partition table, ready to be
 # written at the partition's first sector.
 #
-# Two things differ from the flash root: /etc/fstab names /dev/sd0PART,
+# Three things differ from the flash root: /etc/fstab names /dev/sd0PART,
 # because fsck -p and mount -a in /etc/rc read it and the fl0 region under
-# the loader holds other applications' bytes, and the image carries the
-# block and raw nodes of all four MBR partitions, which the flash root
-# leaves to mknod for want of inodes. The inode count is fsutil's default,
-# one per 16 kbytes.
+# the loader holds other applications' bytes; /etc/ttys runs a getty on
+# tty0, the USB-C serial port; and the image carries the block and raw
+# nodes of all four MBR partitions, which the flash root leaves to mknod
+# for want of inodes. The inode count is fsutil's default, one per 16
+# kbytes.
 
 set -eu
 
@@ -54,6 +55,19 @@ cp -pR "$DESTDIR" "$WORK/tree"
 chmod u+w "$WORK/tree/etc" "$WORK/tree/etc/fstab" 2>/dev/null || true
 printf '/dev/sd0%s\t/\tufs\trw,async,noaccesstime\t1\t1\n' "$PART" \
     > "$WORK/tree/etc/fstab"
+
+# A login on tty0 as well as the panel: UART0 reaches the USB-C port
+# through the board's CH340C, so a host can watch and drive the system
+# while the panel is the kernel's console. Like the console it is marked
+# insecure, so root logs in through operator and su.
+chmod u+w "$WORK/tree/etc/ttys"
+sed 's/^\(tty0[[:space:]].*[[:space:]]\)off[[:space:]][[:space:]]*secure$/\1on insecure/' \
+    "$WORK/tree/etc/ttys" > "$WORK/ttys"
+[ "$(grep -c '^tty0[[:space:]].*[[:space:]]on insecure$' "$WORK/ttys")" -eq 1 ] || {
+	echo "mksdroot: /etc/ttys has no tty0 line of the form ... off secure" >&2
+	exit 1
+}
+cp "$WORK/ttys" "$WORK/tree/etc/ttys"
 
 # The manifest keeps every entry of the flash root; the partition nodes it
 # lacks follow, each named once.

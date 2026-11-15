@@ -922,8 +922,9 @@ BOARD=PICOCALC_PSRAM sdroot`, which writes
 `distrib/rp2040/sdroot-PICOCALC_PSRAM.img` (`tools/picocalc/mksdroot.sh`):
 the files of the flash root as a bare 32 MiB filesystem (`SDROOT_KBYTES`)
 with no partition table, the block and raw nodes of all four card
-partitions, and an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because
-`fsck -p` and `mount -a` in `/etc/rc` read it. It is written at the first
+partitions, an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because
+`fsck -p` and `mount -a` in `/etc/rc` read it, and a getty on tty0, the
+USB-C port's serial line at 115200 baud, beside the panel's console login. It is written at the first
 sector of the card's b7 partition, and `distrib/rp2040/unix-PICOCALC_PSRAM.uf2`
 goes into the loader's `/pico1-apps/` under a name with a lower-case
 `.uf2` extension, which the menu requires.
@@ -937,16 +938,20 @@ accept.
 Evidence: `check-loader-stamp` proves the decode, the bound and the swap
 writer against the bound on the host, and the wiring of the two
 primitives in the source. `check-renode-identity` boots a stamped kernel
-in Renode. `check-renode-picocalc-sdroot` boots the PICOCALC kernel with
-the stamp, a foreign byte pattern over the flash root and Renode's SD card
-model holding the SD root in slot 3 behind a FAT32 and a Linux entry: the
-root lines, `root dev  = (5,3)`, a keyboard login and `mount` naming
-`/dev/sd0c` reach the panel, sampled words of the flash root region still
-read the foreign pattern, and the same card with its b7 entry retyped 83
-stops at the panic line. No kernel has been booted from the loader on a
-board: the clock sequence entered from the loader's stage, the restored
-XIP divider and the card as the loader leaves it rest on source,
-datasheet and emulation.
+in Renode. `check-renode-picocalc-sdroot` boots the board's kernel UF2
+with the stamp, a foreign byte pattern over the flash root and Renode's SD
+card model holding the SD root in slot 3 between a FAT32 and a Linux
+entry: the root lines, `root dev  = (5,3)`, a keyboard login and `mount`
+naming `/dev/sd0c` reach the panel, UART0 carries the tty0 login, sampled
+words of the flash root region still read the foreign pattern, and the
+card with its b7 entry retyped 83 stops at the panic line. Renode's card
+model is standard-capacity at every size, so the block addressing of a
+high-capacity card such as the PicoCalc's 32 GB one rests on
+`sdspi_test`'s `sdhc` scenario, and `sdstrat_test` runs `sdrootattach()`
+on the host for each row of the table above. No kernel has been booted
+from the loader on a board: the clock sequence entered from the loader's
+stage, the restored XIP divider and the card as the loader leaves it rest
+on source, datasheet and emulation.
 
 ## Next work, with designs and blockers
 

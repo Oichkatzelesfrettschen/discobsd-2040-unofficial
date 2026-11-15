@@ -8,20 +8,31 @@ sys/arch/rp2040/dev/sd.c then takes the root from the card's first MBR
 partition of type b7. This driver models that end state under Renode: the
 kernel image carries the stamp, the flash root region holds a foreign byte
 pattern in place of a Dhara journal, and the SD card model holds a card laid
-out as the owner's PicoCalc card is (a FAT32 entry, a Linux entry, then the
-b7 entry in slot 3), scaled down.
+out as the owner's PicoCalc card is: a FAT32 entry, then the b7 entry in
+slot 3, then a Linux entry in slot 2 at the card's end.
 
 Cases, each a fresh emulator:
-  sdroot    the stamped kernel prints the two root lines, reaches login on
-            the panel, a keyboard login runs mount, which names /dev/sd0c
-            on /, and the flash root region still holds the foreign pattern
-  nob7      the same kernel and a card whose b7 entry is retyped 83 stops
-            with the panic line naming the missing partition
+  sdroot    a 40 MiB card: the stamped kernel prints the two root lines,
+            the card line and root dev (5,3), reaches login on the panel,
+            a keyboard login runs mount, which names /dev/sd0c on /, the
+            flash root region still holds the foreign pattern, and UART0
+            carries the tty0 login prompt
+  nob7      the same card with its b7 entry retyped 83 stops with the
+            panic line naming the missing partition
+
+Renode's SD card model answers CMD58 without CCS at every capacity and
+block size (measured with Renode 1.17.0+20260907gitf1dd1b4af: an 8 GiB
+card, with and without blockSize Block512, reads "SD 2.0"), so the card
+here is standard-capacity and byte-addressed. The high-capacity path a
+32 GB card takes, CCS set and the sector number as the command argument,
+is tests/picocalc/sdspi_test.c's sdhc scenario.
 
 The unstamped kernel's flash root is check-picocalc.sh's case and is not
 repeated here.
 
-Usage: check-picocalc-sdroot.py RENODE UNIX_BIN SDROOT_IMG OUTPUT_DIR
+Usage: check-picocalc-sdroot.py RENODE KERNEL SDROOT_IMG OUTPUT_DIR
+KERNEL is a flat unix.bin or a kernel UF2 such as the board image
+distrib/rp2040/unix-PICOCALC_PSRAM.uf2 that goes on the card.
 Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 """
 
@@ -52,20 +63,43 @@ FOREIGN = 0xA5
 FOREIGN_SAMPLES = [0x10020000 + i * 0x40000 for i in range(6)] + [0x1019FFFC]
 
 SECTOR = 512
-P1 = (0x0C, 2048, 4096)  # FAT32 LBA, left empty
-P2 = (0x83, 6144, 2048)  # Linux
-P3_START = 8192  # b7, the root image
+# Card layouts: total sectors and the start of the b7 entry. The FAT32
+# entry runs from sector 2048 up to the root and the Linux entry, 2048
+# sectors, follows it, as on the owner's card.
+LAYOUTS = {
+    "small": (81920, 8192, "sd0: SD 2.0, 40960 kbytes"),
+}
+UF2_MAGIC = (0x0A324655, 0x9E5D5157, 0x0AB16F30)
 
 # Virtual seconds for the card stage: SPI at 398 kHz through
 # identification, then sector reads of the table and the superblock.
 SD_BUDGET_SECONDS = 60.0
 
+# Both PicoCalc kernels; the board name in parentheses differs.
+BANNER = "DiscoBSD 2.7 (PICOCALC"
 ROOT_LINES = ["root: started by the PicoCalc loader, root on sd0", "root: sd0c"]
 NO_B7_LINE = "panic: root: no partition of type b7 on sd0"
 
 
-def stamped_kernel(unix_bin, path):
-    image = bytearray(open(unix_bin, "rb").read())
+def flat_kernel(path):
+    """The flash bytes from 0x10000000 of a unix.bin or a contiguous UF2."""
+    data = open(path, "rb").read()
+    if not path.endswith(".uf2"):
+        return bytearray(data)
+    image = bytearray()
+    for off in range(0, len(data), 512):
+        head = struct.unpack_from("<8I", data, off)
+        end = struct.unpack_from("<I", data, off + 508)[0]
+        if (head[0], head[1], end) != UF2_MAGIC or head[4] != 256:
+            raise ValueError(f"UF2 block at {off:#x}")
+        if head[3] != 0x10000000 + len(image):
+            raise ValueError(f"UF2 block at {off:#x} is not contiguous")
+        image += data[off + 32 : off + 32 + 256]
+    return image
+
+
+def stamped_kernel(kernel, path):
+    image = flat_kernel(kernel)
     if len(LOADER_STAMP) != 28 or len(image) < STAMP_OFFSET + 28:
         raise ValueError("stamp or kernel size")
     image[STAMP_OFFSET : STAMP_OFFSET + 28] = LOADER_STAMP
@@ -82,21 +116,24 @@ def mbr_entry(kind, start, count):
     return struct.pack("<B3sB3sII", 0, b"\0\0\0", kind, b"\0\0\0", start, count)
 
 
-def make_card(path, root_img, p3_type):
+def make_card(path, root_img, p3_type, layout):
     root = open(root_img, "rb").read()
     if len(root) % SECTOR:
         raise ValueError("root image is not whole sectors")
-    p3 = (p3_type, P3_START, len(root) // SECTOR)
-    total = P3_START * SECTOR + len(root)
-    total = (total + 0xFFFFF) & ~0xFFFFF  # whole MiB
-    table = b"".join(mbr_entry(*p) for p in (P1, P2, p3)) + bytes(16)
+    sectors, p3_start = LAYOUTS[layout][:2]
+    p3 = (p3_type, p3_start, len(root) // SECTOR)
+    p2 = (0x83, p3_start + p3[2], 2048)
+    p1 = (0x0C, 2048, p3_start - 2048)
+    if p2[1] + p2[2] > sectors:
+        raise ValueError("layout does not hold the root image")
+    table = b"".join(mbr_entry(*p) for p in (p1, p2, p3)) + bytes(16)
     with open(path, "wb") as stream:
-        stream.truncate(total)
+        stream.truncate(sectors * SECTOR)
         stream.seek(446)
         stream.write(table + b"\x55\xaa")
-        stream.seek(P3_START * SECTOR)
+        stream.seek(p3_start * SECTOR)
         stream.write(root)
-    return total
+    return sectors * SECTOR
 
 
 def boot(renode_path, kernel, flash, card, capacity, outdir):
@@ -113,16 +150,16 @@ def boot(renode_path, kernel, flash, card, capacity, outdir):
     return renode, cp.Run(renode, outdir)
 
 
-def case_sdroot(renode_path, kernel, flash, root_img, outdir):
+def case_root(renode_path, kernel, flash, root_img, outdir, layout):
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")
-    capacity = make_card(card, root_img, 0xB7)
+    capacity = make_card(card, root_img, 0xB7, layout)
     renode, run = boot(renode_path, kernel, flash, card, capacity, outdir)
     try:
         # The banner scrolls off the 32-row panel before the card answers,
-        # so the two waits run one after the other.
-        run.wait_for(cp.BANNER_LINES[:1], "banner", cp.BOOT_BUDGET_SECONDS)
-        run.wait_for(ROOT_LINES, "root lines", SD_BUDGET_SECONDS)
+        # so the waits run one after the other.
+        run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
+        run.wait_for(ROOT_LINES + [LAYOUTS[layout][2]], "root lines", SD_BUDGET_SECONDS)
         run.snapshot("root")
         run.wait_for(["root dev  = (5,3)"], "root device sd0c", SD_BUDGET_SECONDS)
         run.wait_for(["login:"], "login prompt", cp.LOGIN_BUDGET_SECONDS)
@@ -142,6 +179,13 @@ def case_sdroot(renode_path, kernel, flash, root_img, outdir):
                 f"check-picocalc-sdroot: flash root region intact at "
                 f"{len(FOREIGN_SAMPLES)} sampled words"
             )
+        # The SD root's /etc/ttys runs a getty on tty0, UART0, which the
+        # PicoCalc's USB-C port carries.
+        with open(os.path.join(outdir, "uart0.txt"), "rb") as stream:
+            uart = stream.read()
+        run.expect(b"login:" in uart, "tty0: no login prompt on UART0")
+        if b"login:" in uart:
+            print("check-picocalc-sdroot: login prompt on tty0 (UART0)")
     except cp.StageFailed:
         pass
     finally:
@@ -152,7 +196,7 @@ def case_sdroot(renode_path, kernel, flash, root_img, outdir):
 def case_nob7(renode_path, kernel, flash, root_img, outdir):
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")
-    capacity = make_card(card, root_img, 0x83)
+    capacity = make_card(card, root_img, 0x83, "small")
     renode, run = boot(renode_path, kernel, flash, card, capacity, outdir)
     try:
         run.wait_for(
@@ -182,9 +226,13 @@ def main(argv):
     foreign_flash(flash)
     failures = []
     try:
-        for name, case in (("sdroot", case_sdroot), ("nob7", case_nob7)):
+        cases = (
+            ("sdroot", lambda d: case_root(renode_path, kernel, flash, root_img, d, "small")),
+            ("nob7", lambda d: case_nob7(renode_path, kernel, flash, root_img, d)),
+        )
+        for name, case in cases:
             print(f"check-picocalc-sdroot: case {name}", flush=True)
-            got = case(renode_path, kernel, flash, root_img, os.path.join(outdir, name))
+            got = case(os.path.join(outdir, name))
             failures += [f"{name}: {f}" for f in got]
     except RenodeError as error:
         print(f"check-picocalc-sdroot: {error}", file=sys.stderr)

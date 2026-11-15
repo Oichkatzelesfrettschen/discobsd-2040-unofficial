@@ -64,8 +64,9 @@
 # requests physio() and the buffer cache make, calls the probe under each
 # board identity, and writes crash dumps through sddump() and the kernel's
 # dump stream (rp2040/dump.c) onto the card's dump partition, mounted,
-# beside a mount, undersized, failing and replaced; fifty-six mutants of
-# sd.c and dump.c must fail it.
+# beside a mount, undersized, failing and replaced, and runs sdrootattach()
+# with and without the PicoCalc loader's stamp; sixty-one mutants of sd.c
+# and dump.c must fail it.
 #
 # dump_test writes a dump with the kernel's dump stream into a partition
 # image and runs savecore(8) on it from the host: a saved dump, a damaged
@@ -1281,7 +1282,33 @@ sdstrat-mutants: \
 	sdstrat-mutant-dump-sum-dropped \
 	sdstrat-mutant-dump-size-unchecked \
 	sdstrat-mutant-dump-length-short \
-	sdstrat-mutant-dump-table-dropped
+	sdstrat-mutant-dump-table-dropped \
+	sdstrat-mutant-root-stamp-ignored \
+	sdstrat-mutant-root-type-ignored \
+	sdstrat-mutant-root-pipedev-kept \
+	sdstrat-mutant-root-board-ungated \
+	sdstrat-mutant-root-missing-tolerated
+
+# sdrootattach(): the root a kernel the PicoCalc loader started takes.
+sdstrat-mutant-root-stamp-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (!flash_loader_started())/if (0)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-type-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/sdpt\[i\].dp_type == PTYPE_BSDFFS)/1)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-pipedev-kept:
+	${SDSTRAT_MUT} sd.c \
+	    's/rootdev = pipedev = makedev/rootdev = makedev/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-board-ungated:
+	${SDSTRAT_MUT} sd.c \
+	    's/board_id() == BOARD_ID_PICOCALC \&\& (error = sd_setup())/(error = sd_setup())/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-missing-tolerated:
+	${SDSTRAT_MUT} sd.c \
+	    's/panic("root: no partition of type b7 on sd0");/(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-whole-block-only:
 	${SDSTRAT_MUT} sd.c \

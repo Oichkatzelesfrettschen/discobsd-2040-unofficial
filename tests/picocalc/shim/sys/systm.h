@@ -25,6 +25,8 @@ extern void shim_splx(int s);
 
 extern const char *panicstr;
 extern dev_t dumpdev;
+extern dev_t rootdev, pipedev;
+void panic(const char *msg) __attribute__((noreturn));
 void timeout(void (*fn)(char *), char *arg, int ticks);
 
 #endif

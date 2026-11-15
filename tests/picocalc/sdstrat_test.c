@@ -39,6 +39,7 @@
  * of a request.
  */
 
+#include <setjmp.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -247,6 +248,29 @@ board_id(void)
 }
 
 extern struct driver sddriver;
+
+/*
+ * Root selection under the PicoCalc loader (sdrootattach()): whether the
+ * loader's stamp is present, the root and pipe devices it sets, and panic()
+ * as a return to the case that expects it, with the message kept.
+ */
+static int test_loader;
+dev_t rootdev, pipedev;
+static jmp_buf panic_return;
+static const char *panic_message;
+
+int
+flash_loader_started(void)
+{
+	return test_loader;
+}
+
+void
+panic(const char *msg)
+{
+	panic_message = msg;
+	longjmp(panic_return, 1);
+}
 
 static void
 check(const char *what, long got, long want)
@@ -1069,6 +1093,93 @@ dump_cases(void)
 	close_all();
 }
 
+/* Set MBR entry n (1 to 4) of the card in sector 0 to a type. */
+static void
+set_type(int n, unsigned type)
+{
+	card[0][446 + 16 * (n - 1) + 4] = (unsigned char)type;
+}
+
+/*
+ * One call of sdrootattach() from a closed card. Returns 1 when it
+ * panicked, with the message in panic_message. Every return leaves the card
+ * closed: sdsize() of the whole card reads 0.
+ */
+static int
+root_attach(const char *name)
+{
+	char what[96];
+	volatile int panicked = 0;
+
+	panic_message = NULL;
+	rootdev = pipedev = makedev(0, 1);
+	if (setjmp(panic_return) == 0)
+		sdrootattach();
+	else
+		panicked = 1;
+	snprintf(what, sizeof(what), "%s: card closed afterwards", name);
+	check(what, (long)sdsize(makedev(SD_BMAJOR, 0)), 0);
+	return panicked;
+}
+
+static void
+root_cases(void)
+{
+	/* No stamp: the configured root stays and the card is not read. */
+	fill_card();
+	test_loader = 0;
+	check("no stamp: no panic", root_attach("no stamp"), 0);
+	check("no stamp: rootdev kept", (long)rootdev, (long)makedev(0, 1));
+	check("no stamp: card not read", (long)nread[0], 0);
+
+	/*
+	 * The stamp and the owner's card layout: a FAT32 entry, a Linux entry,
+	 * then the b7 entry in slot 3.
+	 */
+	test_loader = 1;
+	fill_card();
+	set_type(1, 0x0c);
+	set_type(2, 0x83);
+	set_type(3, PTYPE_BSDFFS);
+	memcpy(&card[0][446 + 32 + 8], &(unsigned){ 50 }, 4);
+	memcpy(&card[0][446 + 32 + 12], &(unsigned){ 10 }, 4);
+	check("slot 3: no panic", root_attach("slot 3"), 0);
+	check("slot 3: rootdev", (long)rootdev, (long)makedev(SD_BMAJOR, 3));
+	check("slot 3: pipedev", (long)pipedev, (long)makedev(SD_BMAJOR, 3));
+	check("slot 3: root opens", sdopen(rootdev, 0, S_IFBLK), 0);
+	check("slot 3: root size", (long)sdsize(rootdev), 5);
+	sdclose(rootdev, 0, S_IFBLK);
+
+	/* The first b7 entry wins when two are present. */
+	fill_card();
+	check("two b7: no panic", root_attach("two b7"), 0);
+	check("two b7: rootdev", (long)rootdev, (long)makedev(SD_BMAJOR, 1));
+
+	/* No b7 entry: the panic, and the configured root is not taken. */
+	fill_card();
+	set_type(1, 0x83);
+	set_type(2, 0x0c);
+	check("no b7: panic", root_attach("no b7"), 1);
+	check("no b7: message", panic_message != NULL &&
+	    strcmp(panic_message, "root: no partition of type b7 on sd0") == 0, 1);
+
+	/* No card in the socket. */
+	fill_card();
+	init_fail = 1;
+	check("no card: panic", root_attach("no card"), 1);
+	check("no card: message", panic_message != NULL &&
+	    strcmp(panic_message, "root: sd0 unusable") == 0, 1);
+	init_fail = 0;
+
+	/* The stamp on a board without the socket. */
+	fill_card();
+	test_board = BOARD_ID_PICO;
+	check("bare Pico: panic", root_attach("bare Pico"), 1);
+	check("bare Pico: card not read", (long)nread[0], 0);
+	test_board = BOARD_ID_PICOCALC;
+	test_loader = 0;
+}
+
 int
 main(void)
 {
@@ -1083,6 +1194,8 @@ main(void)
 	check("registers reached by the declined probe", model_n, 0);
 	test_board = BOARD_ID_PICOCALC;
 	check("probe on a PicoCalc", sddriver.probe(NULL), 1);
+
+	root_cases();
 
 	fill_card();
 

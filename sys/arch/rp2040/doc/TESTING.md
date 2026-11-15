@@ -496,7 +496,7 @@ upload and hidden-file inclusion.
 | core 1 emulation | `check-core1-emulation` | Unicorn and pyelftools under `${PYTHON}`, the arm-none-eabi toolchain, a built PICO_UART kernel | yes: the `firmware/rp2040` job installs `python3-unicorn` | no |
 | renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
 | renode PicoCalc crash dump | `check-renode-picocalc-dump` | the `check-renode-picocalc` requirements, `FSUTIL`, the PICOCALC kernel's `unix.elf`, and `distrib/rp2040/flash-PICOCALC.bin` (`BOARD=PICOCALC flash`) | yes: the `firmware/rp2040` job, after the PicoCalc step and a `BOARD=PICOCALC flash` step | no |
-| renode PicoCalc SD root | `check-renode-picocalc-sdroot` | the `check-renode-picocalc` requirements, a built PICOCALC kernel and the selected board's SD root (`sdroot`, built from `${FSIMG}` by `tools/picocalc/mksdroot.sh`) | no: the `firmware/rp2040` job does not run it | no |
+| renode PicoCalc SD root | `check-renode-picocalc-sdroot` | the `check-renode-picocalc` requirements, `BOARD=PICOCALC` or `PICOCALC_PSRAM` with its kernel UF2 and SD root (`sdroot`, built from `${FSIMG}` by `tools/picocalc/mksdroot.sh`) | no: the `firmware/rp2040` job does not run it | no |
 | renode union | `check-renode-union` | Renode, the fetched RP2040 models, a built PICOCALC_PSRAM kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the PicoCalc Renode step | no |
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
 | host package | `check-host-package` | ruff, pytest | host.yml on Ubuntu, Windows and macOS | host.yml |
@@ -2562,20 +2562,32 @@ tools/renode/vendor/results/capacity.
 ## Renode PicoCalc tier
 
 `check-renode-picocalc-sdroot` runs tools/renode/check-picocalc-sdroot.py
-on the PICOCALC kernel as the PicoCalc UF2 loader leaves it: vector
-entries 4 to 10 carry the loader's stamp (0xe98cc638, 0x101fc000,
-`/pico1-apps/discobsd`), and the 1536 KiB at 0x10020000 hold the byte 0xa5
-in place of a Dhara journal. Renode's `SD.SDCard` model holds a card laid
-out as the PicoCalc's card is, scaled down: a type 0x0c entry, a type 0x83
-entry, and the selected board's SD root (`sdroot`) in slot 3 as type b7.
-The panel must show the banner, `root: started by the PicoCalc loader,
-root on sd0`, `root: sd0c` and `root dev  = (5,3)`, the login prompt after
-`fsck -p` on `/dev/sd0c`, and, after a keyboard login as operator, `mount`
-naming `/dev/sd0c on /`; seven words sampled across the flash root region
-must still read 0xa5a5a5a5. A second emulator boots the same kernel with
-the b7 entry retyped 0x83 and must show `panic: root: no partition of type
-b7 on sd0` and no login prompt. The kernel started without the stamp is
-`check-renode-picocalc`'s boot.
+on the selected board's kernel UF2 (`distrib/rp2040/unix-${BOARD}.uf2`,
+the file the PicoCalc UF2 loader programs), flattened and placed as the
+loader leaves it: vector entries 4 to 10 carry the loader's stamp
+(0xe98cc638, 0x101fc000, `/pico1-apps/discobsd`), and the 1536 KiB at
+0x10020000 hold the byte 0xa5 in place of a Dhara journal. Renode's
+`SD.SDCard` model holds a card laid out as the PicoCalc's card is: a type
+0x0c entry from sector 2048, the selected board's SD root (`sdroot`) in
+slot 3 as type b7, and a type 0x83 entry after it, 40 MiB in all. The
+panel must show the banner, `root: started by the PicoCalc loader, root on
+sd0`, `root: sd0c`, `sd0: SD 2.0, 40960 kbytes` and `root dev  = (5,3)`,
+the login prompt after `fsck -p` on `/dev/sd0c`, and, after a keyboard
+login as operator, `mount` naming `/dev/sd0c on /`; seven words sampled
+across the flash root region must still read 0xa5a5a5a5, and UART0, the
+USB-C port's serial line, must carry the tty0 login prompt the SD root's
+`/etc/ttys` enables. A second emulator boots the same card with the b7
+entry retyped 0x83 and must show `panic: root: no partition of type b7 on
+sd0` and no login prompt. The kernel started without the stamp is
+`check-renode-picocalc`'s boot. Renode's card model answers CMD58 without
+CCS at every capacity and block size (an 8 GiB card, with and without
+`blockSize: BlockLength.Block512`, reads `SD 2.0` under Renode
+1.17.0+20260907gitf1dd1b4af), so a byte-addressed card past 4 GiB wraps
+its command argument there and no high-capacity card runs in this tier;
+the block addressing a 32 GB card takes is `sdspi_test`'s `sdhc` scenario
+in `check-picocalc-host`, and `sdstrat_test` runs `sdrootattach()` itself
+with and without the stamp, on the slot-3 layout, with two b7 entries,
+none, no card and a bare Pico.
 
 `check-renode-picocalc-dump` runs the script of `check-renode-picocalc`
 (next paragraph) with `--dump`. It boots

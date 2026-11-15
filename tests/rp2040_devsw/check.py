@@ -62,25 +62,28 @@ def main():
     swap_open = struct.unpack_from("<I", data, block_offset + 4 * 6 * 4)[0]
     struct.pack_into("<I", modified, block_offset, swap_open)
     reject(modified, obj, "bdevsw field 0 differs")
+    # Every table and count shares the kernel's flash output section and load
+    # segment, so one flip of each flag reaches the first table checked.
+    header = elf.header
+    entry = elf.get_section_by_name(".symtab").get_symbol_by_name("bdevsw")[0].entry
+    flags_offset = header.e_shoff + entry.st_shndx * header.e_shentsize + 8
+    modified = bytearray(data)
+    flags = struct.unpack_from("<I", modified, flags_offset)[0]
+    struct.pack_into("<I", modified, flags_offset, flags | checker.SHF_WRITE)
+    reject(modified, obj, "bdevsw linked section is writable")
+    covered = [index for index, segment in enumerate(elf.iter_segments())
+               if segment.header.p_type == "PT_LOAD" and
+               segment.header.p_vaddr <= entry.st_value < segment.header.p_vaddr +
+               segment.header.p_filesz]
+    if len(covered) != 1:
+        raise AssertionError("bdevsw load segment is not unique")
+    flags_offset = header.e_phoff + covered[0] * header.e_phentsize + 24
+    modified = bytearray(data)
+    flags = struct.unpack_from("<I", modified, flags_offset)[0]
+    struct.pack_into("<I", modified, flags_offset, flags | checker.PF_W)
+    reject(modified, obj, "bdevsw load segment is writable")
+    object_elf = ELFFile(io.BytesIO(obj))
     for name in ("bdevsw", "cdevsw", "nblkdev", "nchrdev"):
-        entry = elf.get_section_by_name(".symtab").get_symbol_by_name(name)[0].entry
-        header = elf.header
-        flags_offset = header.e_shoff + entry.st_shndx * header.e_shentsize + 8
-        modified = bytearray(data)
-        flags = struct.unpack_from("<I", modified, flags_offset)[0]
-        struct.pack_into("<I", modified, flags_offset, flags | checker.SHF_WRITE)
-        reject(modified, obj, f"{name} linked section is writable")
-        for index, segment in enumerate(elf.iter_segments()):
-            covered = segment.header.p_type == "PT_LOAD" and \
-                segment.header.p_vaddr <= entry.st_value < \
-                segment.header.p_vaddr + segment.header.p_filesz
-            if covered:
-                flags_offset = header.e_phoff + index * header.e_phentsize + 24
-                modified = bytearray(data)
-                flags = struct.unpack_from("<I", modified, flags_offset)[0]
-                struct.pack_into("<I", modified, flags_offset, flags | checker.PF_W)
-                reject(modified, obj, f"{name} load segment is writable")
-        object_elf = ELFFile(io.BytesIO(obj))
         source = object_elf.get_section_by_name(".symtab").get_symbol_by_name(name)[0].entry
         flags_offset = (object_elf.header.e_shoff +
                         source.st_shndx * object_elf.header.e_shentsize + 8)

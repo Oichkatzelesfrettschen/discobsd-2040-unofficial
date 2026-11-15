@@ -804,6 +804,11 @@ check-libc-bounded-string:
 
 .PHONY: check-libc-bounded-string
 
+check-libc-byte-search:
+		${MAKE} -C tests/libc_contracts check-byte-search
+
+.PHONY: check-libc-byte-search
+
 check-libc-absolute-value:
 		${MAKE} -C tests/libc_contracts check-absolute-value
 

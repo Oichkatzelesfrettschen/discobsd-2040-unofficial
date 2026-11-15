@@ -117,6 +117,13 @@ text, frame and work-count costs. The experiment stays outside shipped libc;
 general work bounds, workload timing and complete resource/caller admission
 remain prerequisites to a replacement.
 
+The [byte search contract](libc-byte-search-contracts.md) decomposes the
+explicit-length production candidate and its native archive closure.
+`memchr` receives independent unsigned-byte/int-conversion witnesses.
+`memmem` retains remembered-prefix Two-Way search with a remaining extent.
+Resource admission, clean qualification and reviewed integration remain open;
+the lazy-NUL `strstr` investigation retains a separate deciding experiment.
+
 The [bidirectional sorting experiment](sort-bound-experiment/README.md)
 combines equal bands, ordered pivot samples, smaller-side recursion and a
 partition budget with allocation-free heap fallback. Its expanded host,

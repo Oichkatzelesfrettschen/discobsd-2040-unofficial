@@ -27,28 +27,153 @@
  * SUCH DAMAGE.
  */
 
+/*-
+ * SPDX-License-Identifier: MIT
+ *
+ * Copyright (c) 2005-2014 Rich Felker, et al.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 #include <string.h>
+
+#define MEMMEM_MAX(a, b) ((a) > (b) ? (a) : (b))
+#ifndef MEMMEM_ORDER
+#define MEMMEM_ORDER(a, b) (((a) > (b)) - ((a) < (b)))
+#endif
+
+static int
+prefix_order(const unsigned char *a, const unsigned char *b, size_t count)
+{
+	for (size_t i = 0; i < count; ++i) {
+		int order = MEMMEM_ORDER(a[i], b[i]);
+		if (order)
+			return order;
+	}
+	return 0;
+}
+
+static void *
+search(const unsigned char *haystack, size_t remaining,
+    const unsigned char *needle, size_t length)
+{
+	size_t suffix, candidate, k, period, split_suffix, saved_period;
+	size_t memory, memory_after_period;
+
+	/*
+	 * SIZE_MAX represents suffix -1; suffix + 1 is the split count.
+	 * Each comparison stays inside the needle: k < length - candidate.
+	 */
+	suffix = (size_t)-1;
+	candidate = 0;
+	k = period = 1;
+	while (k < length - candidate) {
+		if (MEMMEM_ORDER(needle[suffix + k], needle[candidate + k]) == 0) {
+			if (k == period) {
+				candidate += period;
+				k = 1;
+			} else
+				k++;
+		} else if (MEMMEM_ORDER(needle[suffix + k], needle[candidate + k]) > 0) {
+			candidate += k;
+			k = 1;
+			period = candidate - suffix;
+		} else {
+			suffix = candidate++;
+			k = period = 1;
+		}
+	}
+	split_suffix = suffix;
+	saved_period = period;
+
+	/* The opposite byte order supplies the other maximal suffix. */
+	suffix = (size_t)-1;
+	candidate = 0;
+	k = period = 1;
+	while (k < length - candidate) {
+		if (MEMMEM_ORDER(needle[suffix + k], needle[candidate + k]) == 0) {
+			if (k == period) {
+				candidate += period;
+				k = 1;
+			} else
+				k++;
+		} else if (MEMMEM_ORDER(needle[suffix + k], needle[candidate + k]) < 0) {
+			candidate += k;
+			k = 1;
+			period = candidate - suffix;
+		} else {
+			suffix = candidate++;
+			k = period = 1;
+		}
+	}
+	if (suffix + 1 > split_suffix + 1)
+		split_suffix = suffix;
+	else
+		period = saved_period;
+
+	/*
+	 * The selected suffix period bounds the prefix comparison within
+	 * the needle. Periodic shifts preserve the matched prefix length.
+	 */
+	if (prefix_order(needle, needle + period, split_suffix + 1)) {
+		memory_after_period = 0;
+		period = MEMMEM_MAX(split_suffix, length - split_suffix - 1) + 1;
+	} else
+		memory_after_period = length - period;
+	memory = 0;
+
+	for (;;) {
+		/* Every admitted shift stays within the remaining byte extent. */
+		if (remaining < length)
+			return NULL;
+
+		/* A right mismatch advances past all excluded candidate starts. */
+		for (k = MEMMEM_MAX(split_suffix + 1, memory); k < length &&
+		    MEMMEM_ORDER(needle[k], haystack[k]) == 0; k++)
+			;
+		if (k < length) {
+			size_t shift = k - split_suffix;
+			haystack += shift;
+			remaining -= shift;
+			memory = 0;
+			continue;
+		}
+		/* The remembered prefix already matches after a period shift. */
+		for (k = split_suffix + 1; k > memory &&
+		    MEMMEM_ORDER(needle[k - 1], haystack[k - 1]) == 0; k--)
+			;
+		if (k <= memory)
+			return (void *)haystack;
+		haystack += period;
+		remaining -= period;
+		memory = memory_after_period;
+	}
+}
 
 void *
 memmem(const void *haystack_pointer, size_t haystack_length,
     const void *needle_pointer, size_t needle_length)
 {
-	const unsigned char *candidate;
-	const unsigned char *last_candidate;
-	const unsigned char *haystack = haystack_pointer;
-	const unsigned char *needle = needle_pointer;
-
 	if (needle_length == 0)
-		return (void *)haystack;
+		return (void *)haystack_pointer;
 	if (haystack_length < needle_length)
 		return NULL;
-	if (needle_length == 1)
-		return memchr(haystack, needle[0], haystack_length);
-
-	last_candidate = haystack + haystack_length - needle_length;
-	for (candidate = haystack; candidate <= last_candidate; candidate++)
-		if (candidate[0] == needle[0] &&
-		    memcmp(candidate, needle, needle_length) == 0)
-			return (void *)candidate;
-	return NULL;
+	return search(haystack_pointer, haystack_length, needle_pointer,
+	    needle_length);
 }

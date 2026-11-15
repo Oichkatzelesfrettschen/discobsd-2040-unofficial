@@ -242,7 +242,7 @@ program-page equivalents, at every map occupancy measured. Production
 `dhara_nand_copy()` passes four 256-byte extents, so the equivalent count is
 neither a wrapper-call count nor a ROM-command count. N writes followed by one sync
 program `8 * ceil(N / 7)` pages while the journal stays below the
-`auto_gc()` threshold. The shipped image writes all 989 sectors, which puts
+`auto_gc()` threshold. An image that maps all 989 sectors puts
 the journal at that threshold: rewriting recently written sectors in
 batches then costs about 6.3 pages per write, because each write first
 copies live tail pages. With 75 percent or less of the capacity live, the
@@ -250,3 +250,23 @@ same traces stay below the threshold and cost 1.2 pages per write. These are
 host-model counts for the exercised traces; electrical completion, command
 execution inside the ROM and physical-sector wear require separate board
 measurements.
+
+`flashimg` therefore maps only what the system reads. It walks the free list
+of each UFS partition of the disk image (superblock entries, then each chain
+block that entry 0 names) and writes every 1 KiB sector except the free
+blocks that do not chain the list; those stay unmapped and read as 0xff
+bytes. Nothing reads such a block before it is allocated: `alloc()` in
+`sys/kern/ufs_alloc.c` reads only the chain block and takes a data block
+through `getblk()` without a read, `pass5()` in `sbin/fsck/pass5.c` reads
+only chain blocks, and `expanddir()` in `sbin/fsck/dir.c` reads a block it
+has just allocated and overwrites all of it. The walk must account for the
+superblock's `fs_tfree` blocks exactly, or `flashimg` refuses the image. The
+`full` PICO image built at this change has 988 filesystem blocks: 756 in
+use, 1 chain block and 231 free blocks left unwritten, so with the partition
+table 758 of the 989 capacity sectors are live (76.6 percent) where all 989
+were. Repeating the host model's trace at 758 live sectors gives 1.20 pages
+per batched write
+against 6.28 at 989, and 8.00 per write with a checkpoint after each, as
+before. The share grows as the system allocates blocks, since a written
+block stays live after it is freed until the kernel trims it.
+`check-flash-sparse` reads a flashimg region back through the map.

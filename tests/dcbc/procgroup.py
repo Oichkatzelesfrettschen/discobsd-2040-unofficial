@@ -25,6 +25,7 @@ once with run_group itself (the scan must find nothing).
 
 import argparse
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -189,7 +190,7 @@ def _make_probe_program(probe):
     its own program. Where it is one name of a multicall binary (uutils
     coreutils on Ubuntu 26.04), the copy exits at once with "unknown
     program", so the copy is run once and, when it fails, the probe is
-    compiled from PROBE_SOURCE with ${CC:-cc}. Both programs ignore their
+    compiled from PROBE_SOURCE with HOSTCC, CC or cc. Both programs ignore their
     operand's meaning beyond a number of seconds.
     """
     bc = os.path.join(probe, "bc")
@@ -205,13 +206,15 @@ def _make_probe_program(probe):
         except (OSError, subprocess.TimeoutExpired):
             pass
         os.unlink(bc)
-    compiler = shutil.which(os.environ.get("CC") or "cc")
-    if compiler is None:
+    # HOSTCC is the compiler the dcbc Makefile builds its host programs with
+    # and may carry flags ("cc -O1"), so it is split into an argument list.
+    compiler = shlex.split(os.environ.get("HOSTCC") or os.environ.get("CC") or "cc")
+    if not compiler or shutil.which(compiler[0]) is None:
         return None
     source = os.path.join(probe, "bc.c")
     with open(source, "w", encoding="ascii") as handle:
         handle.write(PROBE_SOURCE)
-    built = subprocess.run([compiler, "-o", bc, source], stdin=subprocess.DEVNULL,
+    built = subprocess.run([*compiler, "-o", bc, source], stdin=subprocess.DEVNULL,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     return bc if built.returncode == 0 and os.path.exists(bc) else None
 

@@ -137,7 +137,9 @@ INSTALL=	${TOOLBINDIR}/binstall -U
 
 # The flash region image and its UF2, from the disk image above. flashimg
 # writes the whole 1536K region so stale journal blocks from an earlier
-# image cannot survive beside the new one.
+# image cannot survive beside the new one; inside it, Dhara maps every
+# sector of the disk image except the free UFS blocks that do not chain the
+# free list (sys/arch/rp2040/doc/STORAGE.md, "Checkpoint cost").
 FLASHIMG=	${TOOLBINDIR}/flashimg
 FLASHBIN=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}.bin
 FLASHUF2=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}.uf2

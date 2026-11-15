@@ -41,6 +41,13 @@ bytes and passes a calibrated syscall instruction model, while remaining
 12,092 bytes over the reservation before slots. Production adoption remains
 subject to the object-ABI and lifecycle gates.
 
+The [captured PIC replay](export-closure/pic-replay-envelope.md) replaces
+per-experiment compiler reconstruction with an owned-source, archive-member
+and generated-input instrument. Its main-based 647-global link measures
+62,604 flash bytes and 5,648 state bytes. The 13,452-byte excess before slots
+keeps the 48 KiB admission question open. A missing-root control distinguishes
+smaller storage from preservation of the required interface set.
+
 The [native-call veneer experiment](../native-call-veneers.md) checks a
 12-byte Thumb encoding with eight bytes of temporary stack storage, canonical
 flash pointer identity, and native/GNU assembler agreement. Automatic branch

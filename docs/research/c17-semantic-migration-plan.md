@@ -258,6 +258,14 @@ and input-section screening stays separate from final PIC size. COMDAT-aware
 provider closure checks complete group and relocation identity and distinguishes
 gross input storage from coalesced storage. Public ABI selection, shared-archive
 build wiring, complete state layout and runtime admission remain open.
+The [captured PIC replay envelope](xip-shared-libc/export-closure/pic-replay-envelope.md)
+adds a calibrated compiler instrument with actual archive-member, source,
+dependency, tool and generated-input ownership. A clean main-based 449-member
+replay and 647-global experimental link occupy 62,604 flash bytes and 5,648
+state bytes. The fixed reservation remains exceeded by 13,452 bytes before
+function slots; omitting memmem produces a smaller image that fails the same
+required-root contract. Reviewed API selection and interface-preserving
+implementation reductions remain the deciding work.
 The [declaration frontier](shared-libc-declaration-frontier.md) records bounded
 header/provider comparison and callable-math gaps for the export-selection
 queue. Whole-header coverage and semantic acceptance remain open.

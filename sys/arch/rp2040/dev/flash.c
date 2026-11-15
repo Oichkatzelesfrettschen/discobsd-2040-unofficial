@@ -388,6 +388,121 @@ flash_enter_xip(void)
 }
 
 /*
+ * Chip identity. JEDEC ID (9Fh) returns the manufacturer and two device
+ * bytes, the second of which is the capacity as a power of two; Read Unique
+ * ID (4Bh) returns 64 factory-set bits after four dummy bytes
+ * (W25Q16JV revision G, instruction set table 1 and section 8.2.24).
+ *
+ * The boot ROM has no entry for an arbitrary command, so the exchange runs
+ * on the SSI directly, as the Pico SDK's flash_do_cmd() does: the ROM's
+ * exit_xip leaves the SSI in eight-bit serial mode, chip select is held low
+ * through the IO_QSPI output override because the SSI releases it whenever
+ * its transmit FIFO empties, and the ROM's flush routine returns the
+ * override to normal before the second stage restores execute-in-place.
+ * At most 14 bytes are in flight, under the 16-entry receive FIFO. The loop
+ * is bounded: an SSI that stops answering leaves the identity unread
+ * instead of stopping the kernel under splhigh(). The exchange is a
+ * declared section like an erase or a program (watchdog_site()), so core 1
+ * reads the stopped clock as declared and its NMI, whose vector is in
+ * flash, stays withdrawn; startup() captures the previous boot's record
+ * before the first exchange overwrites the scratch pair.
+ */
+#define	IO_QSPI_SS_CTRL_REG	(*(volatile u_int *)0x4001800cUL)
+#define	QSPI_SS_OUTOVER_MASK	(3U << 8)
+#define	QSPI_SS_OUTOVER_LOW	(2U << 8)
+#define	SSI_DR0			0x60
+#define	SSI_SR_TFNF		2U
+#define	SSI_SR_RFNE		8U
+#define	FLASH_CMD_INFLIGHT	14
+#define	FLASH_CMD_SPINS		200000U
+
+#define	FLASH_CMD_JEDEC_ID	0x9f
+#define	FLASH_CMD_UNIQUE_ID	0x4b
+#define	FLASH_UNIQUE_DUMMY	4
+
+static u_char flash_jedec[FLASH_JEDEC_BYTES];
+static u_char flash_unique[FLASH_UNIQUE_BYTES];
+static signed char flash_id_state;	/* 0 unread, 1 read, -1 unreadable. */
+
+/*
+ * Clock count bytes of frame out and replace each with the byte the chip
+ * returned during it. Returns 0 once every byte has come back.
+ */
+static __ramfunc int
+flash_cmd(u_char *frame, u_int count)
+{
+	const u_char *out = frame;
+	u_char *in = frame;
+	u_int tx = count, rx = count, spins = FLASH_CMD_SPINS, sr;
+	int s;
+
+	s = splhigh();
+	watchdog_site(WD_SITE_FLASH_COMMAND, frame[0]);
+	flrom.connect();
+	flrom.exit_xip();
+	IO_QSPI_SS_CTRL_REG = (IO_QSPI_SS_CTRL_REG & ~QSPI_SS_OUTOVER_MASK) |
+	    QSPI_SS_OUTOVER_LOW;
+	while (rx != 0 && --spins != 0) {
+		sr = XIP_SSI_REG(SSI_SR);
+		if ((sr & SSI_SR_TFNF) != 0 && tx != 0 &&
+		    rx - tx < FLASH_CMD_INFLIGHT) {
+			XIP_SSI_REG(SSI_DR0) = *out++;
+			tx--;
+		}
+		if ((sr & SSI_SR_RFNE) != 0) {
+			*in++ = (u_char)XIP_SSI_REG(SSI_DR0);
+			rx--;
+		}
+	}
+	flrom.flush();
+	flash_enter_xip();
+	watchdog_site(WD_SITE_NONE, 0);
+	splx(s);
+	return rx == 0 ? 0 : -1;
+}
+
+/*
+ * Read the identity once and keep it. A reply of all zeros or all ones is a
+ * bus with no chip driving it, and counts as unread. Returns 0 when jedec
+ * and unique hold the chip's answers. Interrupts are masked for the
+ * exchange and core 1 executes from RAM alone (rp2040/core1.c), so nothing
+ * fetches from flash while execute-in-place is down.
+ */
+int
+flash_identity(const u_char **jedec, const u_char **unique)
+{
+	u_char frame[1 + FLASH_UNIQUE_DUMMY + FLASH_UNIQUE_BYTES];
+	u_int i;
+
+	if (flash_id_state == 0) {
+		flash_rom_init();
+		flash_id_state = -1;
+		bzero(frame, sizeof(frame));
+		frame[0] = FLASH_CMD_JEDEC_ID;
+		if (flash_cmd(frame, 1 + FLASH_JEDEC_BYTES) == 0 &&
+		    flash_id_plausible(frame + 1, FLASH_JEDEC_BYTES)) {
+			for (i = 0; i < FLASH_JEDEC_BYTES; i++)
+				flash_jedec[i] = frame[1 + i];
+			bzero(frame, sizeof(frame));
+			frame[0] = FLASH_CMD_UNIQUE_ID;
+			if (flash_cmd(frame, sizeof(frame)) == 0 &&
+			    flash_id_plausible(frame + 1 + FLASH_UNIQUE_DUMMY,
+			    FLASH_UNIQUE_BYTES)) {
+				for (i = 0; i < FLASH_UNIQUE_BYTES; i++)
+					flash_unique[i] =
+					    frame[1 + FLASH_UNIQUE_DUMMY + i];
+				flash_id_state = 1;
+			}
+		}
+	}
+	if (flash_id_state != 1)
+		return -1;
+	*jedec = flash_jedec;
+	*unique = flash_unique;
+	return 0;
+}
+
+/*
  * Read the PicoCalc loader's stamp from vector entries 4 and 5 and fix the
  * writable flash end for the life of the kernel; loader_stamp.h states the
  * stamp and the decode. startup() calls this once, after the console and
@@ -699,6 +814,31 @@ _Static_assert(FL_MBR_TAIL_OFFSET + FL_MBR_TAIL_BYTES <= FLASH_UNIT_BYTES &&
     "the MBR tail lies inside one Dhara page");
 
 /*
+ * Print the chip's identity and say so when its capacity byte disagrees
+ * with the layout flash.h fixes.
+ */
+static void
+fl_report_identity(int unit)
+{
+	const u_char *jedec, *unique;
+	u_int i;
+
+	if (flash_identity(&jedec, &unique) != 0) {
+		printf("fl%d: chip identity unread\n", unit);
+		return;
+	}
+	printf("fl%d: JEDEC id %02x%02x%02x, unique id ", unit,
+	    jedec[0], jedec[1], jedec[2]);
+	for (i = 0; i < FLASH_UNIQUE_BYTES; i++)
+		printf("%02x", unique[i]);
+	printf("\n");
+	if (!flash_capacity_matches(jedec[2]))
+		printf("fl%d: capacity code %02x is not the %u kbytes this "
+		    "kernel lays out\n", unit, jedec[2],
+		    (u_int)(FLASH_TOTAL_BYTES / 1024));
+}
+
+/*
  * Bring the map up and read the partition table. Returns 0 on success.
  */
 static int
@@ -745,6 +885,7 @@ fl_setup(int unit)
 	du->part[RAWPART].dp_nsectors = (u_int)flblocks * 2;
 	printf("fl%d: %u kbytes on QSPI flash, %u kbytes raw\n", unit,
 	    (u_int)flblocks, (u_int)(FLASH_FS_BYTES / 1024));
+	fl_report_identity(unit);
 
 	/*
 	 * The table lives in the first 512 bytes of logical sector 0. Only

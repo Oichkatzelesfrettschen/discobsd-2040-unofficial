@@ -64,6 +64,7 @@
 #define	DPRAM8(off)	(*(volatile u_char *)(USB_DPRAM_BASE + (off)))
 
 #define	RESETS_BASE	0x4000c000UL
+#define	RESETS_SET	0x2000UL
 #define	RESETS_CLR	0x3000UL
 #define	RESETS_DONE	0x8
 #define	RESETS_USBCTRL	(1UL << 24)
@@ -1150,6 +1151,24 @@ USBCTRL_IRQ_Handler(void)
 }
 
 /*
+ * Hold the controller in reset, then release it, as the Pico SDK's
+ * rp2040_usb_init() does. A warm reboot through AIRCR.SYSRESETREQ resets
+ * the core alone (datasheet 2.4.2.9), and the boot ROM's flash boot path
+ * resets only IO_QSPI, PADS_QSPI and TIMER, so without the assert the
+ * controller keeps the previous device address, endpoint state and D+
+ * pull-up. The assert clears them; the host sees a disconnect until
+ * usbinit() pulls D+ up again and enumerates the device from address 0.
+ */
+static void
+usb_controller_reset(void)
+{
+	REG32(RESETS_BASE + RESETS_SET) = RESETS_USBCTRL;
+	REG32(RESETS_BASE + RESETS_CLR) = RESETS_USBCTRL;
+	while ((REG32(RESETS_BASE + RESETS_DONE) & RESETS_USBCTRL) == 0)
+		continue;
+}
+
+/*
  * Bring the controller up as a full-speed device. machdep.c has already
  * started clk_usb. The sequence is the datasheet's 4.1.3.2.1.
  */
@@ -1159,9 +1178,7 @@ usbinit(void)
 	const u_char *jedec, *unique;
 	u_int i;
 
-	REG32(RESETS_BASE + RESETS_CLR) = RESETS_USBCTRL;
-	while ((REG32(RESETS_BASE + RESETS_DONE) & RESETS_USBCTRL) == 0)
-		continue;
+	usb_controller_reset();
 
 	for (i = 0; i < USB_DPRAM_SIZE; i += 4)
 		DPRAM32(i) = 0;

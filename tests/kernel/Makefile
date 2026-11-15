@@ -2772,7 +2772,7 @@ USB_CONSOLE_CFLAGS=	${USB_CONSOLE_KERN} -nostdinc -DUARTUSB_ENABLED \
 			-I${TOPSRC}/sys/arch/rp2040/dhara/compat
 USB_CONSOLE_OBJS=	usb_console_tty.o usb_console_clist.o \
 			usb_console_sched.o usb_console_hk_kern.o hostkern32.o
-USB_CONSOLE_MUTANTS=	recover-kick configure-kick setif-kick \
+USB_CONSOLE_MUTANTS=	recover-kick configure-kick setif-kick skip-controller-reset \
 			owake-before-drain halt-wait-open halt-wait-sticks
 
 ${USB_CONSOLE_DRIVER}: usb_console_extract.py ${USB_CONSOLE_SRC}
@@ -2823,6 +2823,7 @@ check-usb-console: usb_console_test \
 		recover-kick) expected='FAIL echo, then its bulk IN returns with no completion' ;; \
 		configure-kick) expected='FAIL echo, then SET_CONFIGURATION' ;; \
 		setif-kick) expected='FAIL echo, then SET_INTERFACE' ;; \
+		skip-controller-reset) expected='FAIL controller reset' ;; \
 		owake-before-drain) expected='FAIL writer above the high-water mark across a bus reset' ;; \
 		halt-wait-open) expected='FAIL halt wait with the tty open' ;; \
 		halt-wait-sticks) expected='FAIL key after the halt wait reaches the tty' ;; \

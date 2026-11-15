@@ -113,6 +113,8 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 | `dc` | 21 | 1 | OpenBSD `dc` (18,644 bytes packed); PicoCalc only |
 | `calc-bignum` (`bc` + `dc`) | 60 | 3 | the three files above |
 | `calc` | 33 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
+| `picofetch` | 14 | 1 | `/usr/bin/picofetch` (15,644 bytes before packing); PicoCalc profile |
+| `picotop` | 15 | 1 | `/usr/bin/picotop` (15,944 bytes before packing); PicoCalc profile |
 | `sdcard` | 11 | 8 | `/mnt`, the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`, and `/sbin/savecore` (9,141 bytes packed); PicoCalc only |
 | `lcdgfx` | 0 | 1 | the device node `/dev/lcdgfx` (character major 10, minor 1, mode 666); PicoCalc only |
 | `gamesdir` | 1 | 1 | `/usr/games` |
@@ -202,7 +204,7 @@ the pack's unused blocks occupy no flash.
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's, including `puzzles` | 241 | 32 |
-| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx` and `ridge`, so also `puzzles` | 140 | 20 |
+| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch` and `picotop`, so also `puzzles` | 140 before the last two (90 and 14 with them, below) | 20 |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
@@ -216,6 +218,15 @@ inodes before `time` joined `utilbox` (446 afterwards), 447 and 42 with
 holds 148 free blocks and 20 free inodes when built with
 `IMAGE_WITHOUT=ridge`; the row reads 140 and 20 as shipped: `ridge` takes
 eight blocks and no inode, because its entry point is a hard link.
+
+`picofetch` and `picotop` joined the `picocalc` profile on a later tree, on
+which `base` measured 440 free blocks and 40 free inodes: 426 and 39 with
+`picofetch`, 425 and 39 with `picotop`, 411 and 38 with both. The `picocalc`
+image measured 119 free blocks and 16 free inodes with
+`IMAGE_WITHOUT="picofetch picotop"` and 90 and 14 as shipped, and `full`
+227 and 29. The profile table above predates that tree. Both programs run on
+every kernel, so `IMAGE_WITH="picofetch picotop"` adds them to another
+profile.
 
 `/usr/bin/time` is a hard link to `/usr/bin/utilbox`, a member of the base
 system. `utilbox` grows from 44,716 to 45,052 packed bytes (54,989 to 55,389

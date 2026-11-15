@@ -204,6 +204,7 @@ Grouped by what they investigate.
 | `libc-scandir-allocation-contract.md` | selected-entry allocation, compact self-describing records, typed per-call sorting, calibrated failure gates and paired target resource evidence |
 | `libc-bounded-string-contracts.md` | bounded scan/duplication, end-pointer copy and padding invariants, calibrated byte-domain witnesses and resource qualification |
 | `descriptor-set-initialization.md` | standalone descriptor-set clearing, portable word stores, getty set ownership, donor comparison, and calibrated header/caller witnesses |
+| `descriptor-set-resource-exception.md` | exact shipped and optional packed-byte limits, paired clean receipts, the complete built-program comparison, and qualification boundaries |
 | `libc-bounded-string-resource-exception.md` | matched native archive growth, retained resource receipts, alternatives and exception decision |
 | `libc-lifecycle-integrated-resource-exception.md` | composed string and lifecycle archive costs, root block admission, packed executable limits and combined qualification |
 | `context-sort-contracts.md` | typed context-last sorting, nested-call and record invariants, donor ABI differences and caller resource isolation |

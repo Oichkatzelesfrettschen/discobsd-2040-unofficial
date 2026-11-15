@@ -77,7 +77,10 @@ an adjacent-storage overwrite, or a caller that passes stray descriptors.
 
 DiscoBSD has a one-word `fd_set`, default `FD_SETSIZE=32`, and
 `OPEN_MAX=30` in `sys/sys/syslimits.h`. Valid admitted descriptors are 0--29.
-The fixture derives its descriptor loop from `OPEN_MAX`. A signed shift into
+The fixture derives its descriptor loop from `OPEN_MAX`. Its bit-set witnesses
+exercise representable indices without opening those descriptors; the typed
+I/O hooks model ready stdin. They establish neither kernel descriptor admission
+nor real-device readiness. A signed shift into
 bit 31 does not establish a valid-domain defect on this target. Configurable
 capacity, other macro interfaces, and complete `select`/`pselect` semantics
 remain separate audit leaves. Getty retains both `nfds=32` arguments; reducing
@@ -97,3 +100,16 @@ resource costs require a matched capture; positive deltas require the profile's
 exact reviewer approval. Existing byte-search approvals cover their recorded
 costs only. Host, cross, qemu-user, Renode, and board evidence remain distinct;
 physical-board execution stays unrun.
+
+Candidate `15113728` passes 240 valid header compilations, six compiler
+rejection controls, 80 Smaller C inputs, and 2,304 caller combinations on host,
+ILP32 host, and Cortex-M0 qemu-user, with four runtime defect controls in each
+runtime profile. Existing getty contracts, Clang analyzer, repository lint,
+source accounting, and donor/profile calibration pass. The clean aggregate,
+required 216-variant inventory, hosted CI, UART Renode, and union-kernel Renode
+also pass. The [qualification receipt](descriptor-set-qualification.json)
+binds their source/artifact identities and preserves the inventory retention
+boundary. The [resource exception](descriptor-set-resource-exception.md)
+records one positive shipped packed-byte delta and two positive optional
+standalone deltas; their exact approval and the bounded source review remain
+open. These witnesses retain partial standards claims.

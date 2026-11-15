@@ -29,6 +29,16 @@ fail()
 # the C library's <stdint.h>.
 mkdir -p "$work/shim/sys"
 echo '#include <stdint.h>' >"$work/shim/sys/stdint.h"
+# sys/disk.h names <sys/ioctl.h> for the command encoding. The host's header
+# brings the host's system types with it, which differ from the kernel's on
+# some hosts, so the oracle gets the encoding alone.
+cat >"$work/shim/sys/ioctl.h" <<'IOCTL'
+#define	_IO(g, n)	(0x20000000u | ((g) << 8) | (n))
+#define	_IOR(g, n, t)	(0x40000000u | ((sizeof(t) & 0xffffu) << 16) | \
+			    ((g) << 8) | (n))
+#define	_IOW(g, n, t)	(0x80000000u | ((sizeof(t) & 0xffffu) << 16) | \
+			    ((g) << 8) | (n))
+IOCTL
 
 # build FLASH_SOURCE BINARY [TEST_SOURCE]: the oracle over the driver text
 # extracted from FLASH_SOURCE, as strict C17 under the address and

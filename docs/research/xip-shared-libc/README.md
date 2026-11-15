@@ -23,6 +23,12 @@ Its five application layouts and eleven calibrated rejection controls establish
 that prerequisite. Full-libc sizing, versioned admission and runtime lifecycle
 qualification remain separate implementation work.
 
+The [callable identity fixture](slot-identity.md) separates public slot symbols
+from private provider aliases. Its C17, assembly and LTO images check exact
+function extents, canonical pointers, weak aliases and callbacks through a
+separately linked SRAM application. Production slot generation and complete
+provider ownership remain separate implementation work.
+
 The [export-closure checker](export-closure/README.md) resolves explicit API
 roots through compiled archive providers. Its calibration rejects a selection
 that drops a required interface merely because installed programs never call it.

@@ -1,0 +1,7 @@
+picofetch
+picofetch-host
+picofetch-host32
+*.o
+*.elf
+*.dis
+__pycache__/

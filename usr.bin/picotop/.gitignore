@@ -1,0 +1,6 @@
+picotop
+picotop-host
+picotop-host32
+*.o
+*.elf
+*.dis

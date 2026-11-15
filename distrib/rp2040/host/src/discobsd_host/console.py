@@ -28,7 +28,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from . import __version__
+from . import __version__, ports
 
 WEB_PORT = 7681
 LINK_PORT = 42069
@@ -197,6 +197,15 @@ def _http_answers(url: str, timeout: float = 3.0) -> bool:
 
 
 def cmd_up(args) -> int:
+    # The board selector reaches a systemd user unit only through web.env, an
+    # EnvironmentFile; a value that is not a USB port path could add lines to
+    # it, so it is checked before anything is written.
+    usb_port = os.environ.get("DISCOBSD_USB_PORT") or None
+    if usb_port is not None and not ports.USB_PORT_RE.fullmatch(usb_port):
+        sys.stderr.write(
+            "discobsd-console: DISCOBSD_USB_PORT must be a USB port path such as 1-3\n"
+        )
+        return 1
     conf = config_dir()
     env_path = conf / "web.env"
     values = read_env(env_path)
@@ -206,7 +215,10 @@ def cmd_up(args) -> int:
     ip = args.host_ip or os.environ.get("DISCOBSD_HOST_IP") or values.get("DISCOBSD_HOST_IP")
     if not ip:
         ip = lan_ip()
-    write_env(env_path, {"DISCOBSD_WEB_TOKEN": token, "DISCOBSD_HOST_IP": ip})
+    env_values = {"DISCOBSD_WEB_TOKEN": token, "DISCOBSD_HOST_IP": ip}
+    if usb_port:
+        env_values["DISCOBSD_USB_PORT"] = usb_port
+    write_env(env_path, env_values)
     links = urls(ip, token, args.port, args.link_port)
     if systemd_units_installed() and not args.detached:
         subprocess.call(["systemctl", "--user", "daemon-reload"])

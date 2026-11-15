@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "d22b08e2f6dfb3bafc21aae477ccdf49c2cfeb2d77177c46212344ac826d6894"
+    "ordered_row_sha256": "061984f06e9dc0f1def5e1132cbabcd7d62e3b1baa57e8376d3dca0e4f4925fc"
   },
   "state_counts": {
     "applicability": {
@@ -51,18 +51,18 @@
       "environment-constrained": 0
     },
     "implementation": {
-      "unreviewed": 1442,
+      "unreviewed": 1438,
       "present": 3,
-      "partial": 73,
+      "partial": 77,
       "absent": 0,
       "divergent": 0
     },
     "evidence": {
-      "none": 1442,
+      "none": 1438,
       "static": 37,
       "host": 34,
       "cross": 0,
-      "qemu-user": 5,
+      "qemu-user": 9,
       "renode": 0,
       "board": 0
     },
@@ -198,6 +198,12 @@
       "evidence": "host",
       "known_good": "tests/libc_contracts/character_io_test.c",
       "known_bad": "tests/libc_contracts/character_io.py"
+    },
+    "descriptor-set-qemu-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-fd-set-qemu",
+      "evidence": "qemu-user",
+      "known_good": "tests/libc_contracts/fd_set_test.c",
+      "known_bad": "tools/c17/fd_set_contracts.py"
     }
   },
   "growth_policy": {

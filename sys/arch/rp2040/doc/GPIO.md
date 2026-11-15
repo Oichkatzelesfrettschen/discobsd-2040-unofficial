@@ -49,4 +49,13 @@ outlives the close. The PIC32 driver's text interface (`echo ..1. >
 | --- | --- | --- |
 | Pin masks, port mapping and request validation | host | `check-gpio-requests`, six mutants rejected |
 | The PICOCALC and PICOCALC_PSRAM kernels compile and link the driver; PICO and PICO_UART keep majors 0-9 | build | observed; `check-kernel-metadata` pins the rows |
-| A configured output drives its pin; an input reads its level; a held pin stays untouched | board | not run |
+| A configured output drives its pin; an input reads its level; a held pin stays untouched | board | not run; `tests/rp2040/gpioprobe` decides it |
+
+`tests/rp2040/gpioprobe` drives GP2 of a bare Pico high and low through
+`/dev/porta` and reads it back, requests the UART0 pins and checks that
+the poll leaves them out, and expects `EINVAL` for open drain, `ENXIO` for
+port 2 and `ENODEV` for `read`. Each step prints `gpio.<step>=pass|fail`;
+the exit status counts the failures. GP2 must be unconnected while it
+runs. Stage it with a `file /usr/bin/gpioprobe` line in
+`distrib/rp2040/mi.rp2040` for a test image and revert that line before
+committing.

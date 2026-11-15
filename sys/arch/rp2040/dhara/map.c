@@ -300,11 +300,37 @@ static int try_recover(struct dhara_map *m, dhara_error_t cause,
 	return 0;
 }
 
+/* DiscoBSD local change: collection starts when the journal holds
+ * capacity - safety margin - count / gc_ratio user pages, a reserve sized
+ * by the sectors actually live, instead of at dhara_map_capacity(). More
+ * garbage stays in the journal, so a write copies fewer live pages. The
+ * journal must still never fill: collecting a live tail run of R pages
+ * grows it by R / (gc_ratio + 1), and it settles near
+ * count * (gc_ratio + 1) / gc_ratio, so the peak is at most
+ * max(T + R / (gc_ratio + 1), count * (gc_ratio + 1) / gc_ratio) plus one
+ * checkpoint group of tail_sync lag, which keeps the safety margin for
+ * count >= 140 with gc_ratio 4. dhara_map_capacity(), which the map
+ * advertises and prepare_write() enforces, is unchanged. See
+ * sys/arch/rp2040/doc/research/dhara-gc-trigger.md.
+ */
+static dhara_page_t gc_trigger(const struct dhara_map *m)
+{
+	const dhara_page_t cap = dhara_journal_capacity(&m->journal);
+	const dhara_page_t reserve = m->count / m->gc_ratio;
+	const dhara_page_t safety_margin =
+		DHARA_MAX_RETRIES << m->journal.nand->log2_ppb;
+
+	if (reserve + safety_margin >= cap)
+		return 0;
+
+	return cap - reserve - safety_margin;
+}
+
 static int auto_gc(struct dhara_map *m, dhara_error_t *err)
 {
 	int i;
 
-	if (dhara_journal_size(&m->journal) < dhara_map_capacity(m))
+	if (dhara_journal_size(&m->journal) < gc_trigger(m))
 		return 0;
 
 	for (i = 0; i <= m->gc_ratio; i++)

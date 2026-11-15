@@ -401,7 +401,11 @@ flash_enter_xip(void)
  * override to normal before the second stage restores execute-in-place.
  * At most 14 bytes are in flight, under the 16-entry receive FIFO. The loop
  * is bounded: an SSI that stops answering leaves the identity unread
- * instead of stopping the kernel under splhigh().
+ * instead of stopping the kernel under splhigh(). The exchange is a
+ * declared section like an erase or a program (watchdog_site()), so core 1
+ * reads the stopped clock as declared and its NMI, whose vector is in
+ * flash, stays withdrawn; startup() captures the previous boot's record
+ * before the first exchange overwrites the scratch pair.
  */
 #define	IO_QSPI_SS_CTRL_REG	(*(volatile u_int *)0x4001800cUL)
 #define	QSPI_SS_OUTOVER_MASK	(3U << 8)
@@ -433,6 +437,7 @@ flash_cmd(u_char *frame, u_int count)
 	int s;
 
 	s = splhigh();
+	watchdog_site(WD_SITE_FLASH_COMMAND, frame[0]);
 	flrom.connect();
 	flrom.exit_xip();
 	IO_QSPI_SS_CTRL_REG = (IO_QSPI_SS_CTRL_REG & ~QSPI_SS_OUTOVER_MASK) |
@@ -451,6 +456,7 @@ flash_cmd(u_char *frame, u_int count)
 	}
 	flrom.flush();
 	flash_enter_xip();
+	watchdog_site(WD_SITE_NONE, 0);
 	splx(s);
 	return rx == 0 ? 0 : -1;
 }

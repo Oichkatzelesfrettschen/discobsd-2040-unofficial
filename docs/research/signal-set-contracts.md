@@ -409,3 +409,33 @@ Integration against that main requires a fresh matched resource comparison
 and affected qualification. The prior approvals bind their exact recorded
 vectors; the main advance supplies no implicit allowance for additional
 signal-set growth.
+
+
+## Refreshed main qualification
+
+Clean candidate `da59b7022de9fb1fb9cbb00e5e034c934ebd7d3b` includes main
+`abe6db173ecc72251a76cf277c5bceec5161e5cb`. Its logged build, signal-set host,
+cross and QEMU gates, reduced native archive closure, compatibility profile,
+donor ledger, and C17 source accounting pass. The matched resource comparison
+preserves the exact approved amendment as recorded in the resource exception.
+
+The candidate's logged flash build and Renode boot gate exit zero. The same
+pinned model and emulator version above exercise boot, filesystem, process
+listing, memory-device refusal, fstat, capacity and image identity, modeled
+MPU and exec residue, signal handling, native compilation with 2046 dates,
+and core-1 ping and injected-stall reporting. Warning classification accepts
+201,581 observations across 30 permitted classes and reports zero errors.
+The original aggregate and ILP32 results retain their earlier source identities;
+this focused qualification does not relabel them as current-head full runs.
+Physical-board execution and runtime resource peaks remain open.
+
+The retained copies reside in `.build-logs/signal-image-da59b702/` and match
+these source artifact hashes. Earlier repaired-image copies remain in
+`.build-logs/signal-image-5a77c46a/` with the hashes already recorded above.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `distrib/rp2040/flash.bin` | `cc0cbd20f4bd8bee25125f2032154ee0aad3592bd08738dfcbd7e76bbcbc0635` |
+| `distrib/rp2040/flash.uf2` | `ab1e1a2ea405be45206ba8efd835a4ac0ca7191c4b46fc73d34bd610a73715fc` |
+| `sys/arch/rp2040/compile/PICO_UART/unix.bin` | `3e2b8a9a307c32aee4f0162b72d216e381fee5ab6dfc92de33395d75b92b56ec` |
+| `tools/renode/vendor/results/boot/renode.log` | `1378b1e3c8b3609c7e3397d1c07c754f1d3f5dde8a46199921664e49231c401b` |

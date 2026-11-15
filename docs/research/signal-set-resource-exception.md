@@ -133,3 +133,18 @@ makes that dependency explicit rather than assigning shared-libc savings
 that the current image does not realize. Runtime peaks and physical-board
 qualification remain open. The generic comparator rejects positive growth
 and added dependencies; that expected rejection supplies no passing verdict.
+
+
+## Refreshed main resource comparison
+
+Candidate `da59b7022de9fb1fb9cbb00e5e034c934ebd7d3b` includes main
+`abe6db173ecc72251a76cf277c5bceec5161e5cb`. Matched clean distributions
+retain their receipts in `signal-set-resources-abe6db17.json`,
+`signal-set-resources-da59b702.json`, and
+`signal-set-resources-abe6db17-da59b702.json`. All 162 numeric deltas,
+archive membership changes, and archive-selection changes exactly match
+`signal-set-resources-0c021420-5ad4b868.json`. The existing owner approvals
+therefore cover this candidate without an additional allowance. The native
+archive grows 440 bytes and root allocation grows two blocks, leaving 231
+free blocks. The per-program table remains unchanged. The generic comparator
+still rejects the added dependencies; the measured exception supplies admission.

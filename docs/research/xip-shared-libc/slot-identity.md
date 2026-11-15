@@ -99,12 +99,29 @@ identity prerequisite into executable behavior and rejection controls.
   collisions, split aliases, incorrect extents, bypassed pointers and wrong calls.
 - [x] Register the gate with the root Makefile, testing specification and Linux
   `check-qemu` CI owner; run focused qualification and existing adjacent gates.
-- [ ] Record exact source/tool identities and bounded review before PR integration.
+- [x] Record exact source/tool identities and bounded review before PR integration.
 
 The [source review record](slot-identity-review.md) binds the approved immutable
 review and the parent's executed counterexamples and repairs. The initial
 fourteen-control result leaves three validation gaps. Their reproductions and
 added controls establish the seventeen-control qualification boundary.
+
+The [qualification receipt](slot-identity-qualification.json) binds clean source
+`16d9a0fb` on main `d9ed7d75` to four images, 888 successful calls and seventeen
+required rejections. Each finite image occupies 224 text/read-only bytes plus
+a 40-byte initialization image, totaling 264 flash bytes, and 40 state bytes.
+Those fixture costs supply no full-library capacity estimate. The merged-source
+logged build passes at `4c5b8145`; the later source-set correction changes only
+the ledger. Adjacent object-ABI, ROM-dispatch, native-veneer and 33-test archive
+closure checks, denominator calibration and changed-comment/text checks pass.
+
+The integrated-main denominator initially rejects `bin/sh/tests/board_break.c`,
+which main tracks without a ledger row. The explicit source-set generator adds
+that single row, retains its unreviewed state and restores complete path
+accounting. The failed invocation remains in the qualification receipt.
+The full aggregate, dedicated ILP32 inventory and local Renode gates remain
+unrun for this test-only change. Hosted CI retains its own head and execution
+scope; physical-board execution remains unrun.
 
 An unexpected pointer or extent falsifies the proposed ABI mechanism. An emulator
 setup error remains a failed execution; it cannot count as mutation rejection.

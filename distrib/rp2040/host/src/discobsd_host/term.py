@@ -86,15 +86,30 @@ def note(msg: str) -> None:
     sys.stderr.flush()
 
 
-def wait_for_board(first: bool) -> str:
-    device = ports.find_board()
+def current_board(usb_port=None):
+    """The board's device now, or None while it is absent or re-enumerating.
+
+    A named USB port that holds no console yet counts as absent, so the
+    session waits for it; several boards with none named, or a malformed
+    port, is an error the caller reports, because waiting cannot resolve it.
+    """
+    try:
+        return ports.find_board(usb_port=usb_port)
+    except ports.BoardSelectionError as exc:
+        if exc.kind == "absent":
+            return None
+        raise
+
+
+def wait_for_board(first: bool, usb_port=None) -> str:
+    device = current_board(usb_port)
     if device:
         return device
     if first:
         note("waiting for the board -- plug it in, or it is rebooting")
     while True:
         time.sleep(0.5)
-        device = ports.find_board()
+        device = current_board(usb_port)
         if device:
             return device
 
@@ -105,7 +120,7 @@ def translate_windows_key(prefix: int, code: int) -> bytes:
     return WIN_KEYS.get(code, b"")
 
 
-def _session_posix(open_line) -> None:
+def _session_posix(open_line, usb_port=None) -> None:
     import os
     import select
     import termios
@@ -118,7 +133,7 @@ def _session_posix(open_line) -> None:
     try:
         first = True
         while True:
-            device = wait_for_board(first)
+            device = wait_for_board(first, usb_port)
             first = False
             try:
                 line = open_line(device)
@@ -172,7 +187,7 @@ def _enable_windows_vt() -> None:
         kernel32.SetConsoleMode(handle, mode.value | 0x0004)  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
 
 
-def _session_windows(open_line) -> None:
+def _session_windows(open_line, usb_port=None) -> None:
     import msvcrt
 
     _enable_windows_vt()
@@ -206,7 +221,7 @@ def _session_windows(open_line) -> None:
     threading.Thread(target=keyboard, daemon=True).start()
     first = True
     while not quit_flag.is_set():
-        device = wait_for_board(first)
+        device = wait_for_board(first, usb_port)
         first = False
         try:
             line = open_line(device)
@@ -243,22 +258,30 @@ def _session_windows(open_line) -> None:
     note("bye")
 
 
-def run(open_line=ports.open_serial) -> int:
+def run(open_line=ports.open_serial, usb_port=None) -> int:
     if not sys.stdin.isatty():
         note("stdin is not a terminal; run this from an interactive shell")
         return 1
     note("Ctrl-] q quits; Ctrl-] ? lists the escapes. Log in as operator, no password.")
-    if sys.platform == "win32":
-        _session_windows(open_line)
-    else:
-        _session_posix(open_line)
+    try:
+        if sys.platform == "win32":
+            _session_windows(open_line, usb_port)
+        else:
+            _session_posix(open_line, usb_port)
+    except ports.BoardSelectionError as exc:
+        note(str(exc).replace("\n", "\r\n"))
+        return exc.exit_code
     return 0
 
 
-def probe(open_line=ports.open_serial, seconds: float = 3.0) -> int:
+def probe(open_line=ports.open_serial, seconds: float = 3.0, usb_port=None) -> int:
     """Connect, poke, read for a few seconds, and report, with no raw terminal.
     Answers "is the board reachable?" and is how a host install is tested."""
-    device = ports.find_board()
+    try:
+        device = ports.find_board(usb_port=usb_port)
+    except ports.BoardSelectionError as exc:
+        note(str(exc))
+        return exc.exit_code
     if not device:
         note("no board found")
         return 1
@@ -294,6 +317,7 @@ def parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--probe", action="store_true", help="report whether the board answers")
     p.add_argument("--list", action="store_true", help="list attached boards and exit")
+    ports.add_usb_port_argument(p)
     p.add_argument("--version", action="version", version="discobsd-term " + __version__)
     return p
 
@@ -311,8 +335,15 @@ def main(argv=None) -> int:
             print(b)
         return 0 if boards else 1
     if args.probe:
-        return probe()
-    return run()
+        return probe(usb_port=args.usb_port)
+    # Name the refusal before the terminal goes raw. An unattached board
+    # waits, as it always has; an unnamed second board or a bad port stops.
+    try:
+        current_board(args.usb_port)
+    except ports.BoardSelectionError as exc:
+        note(str(exc))
+        return exc.exit_code
+    return run(usb_port=args.usb_port)
 
 
 if __name__ == "__main__":

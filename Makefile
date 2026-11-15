@@ -382,6 +382,23 @@ check-network-header-contracts: check-python .WAIT symlinks
 		    --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/network-header-contracts.json
 
+check-fd-set-cross: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/fd_set_contracts.py cross --root ${TOPSRC:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/fd-set-cross.json
+
+check-fd-set-host: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/fd_set_contracts.py host --root ${TOPSRC:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/fd-set-host.json
+
+check-fd-set-qemu: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/fd_set_contracts.py qemu --root ${TOPSRC:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/fd-set-qemu.json
+
+.PHONY: check-fd-set-cross check-fd-set-host check-fd-set-qemu
+
 check-public-header-inclusion: check-python .WAIT symlinks
 		@mkdir -p .build-logs
 		${PYTHON} tools/c17/public_header_inclusion.py --root ${TOPSRC:Q} \
@@ -1652,7 +1669,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
-		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets \
+		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts check-init-daemons \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
@@ -1691,11 +1708,11 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
-CROSS_CONTRACT_GATES=	check-signal-sets-cross check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-character-io-headers check-public-header-inclusion check-network-header-contracts \
+CROSS_CONTRACT_GATES=	check-signal-sets-cross check-fd-set-cross check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-character-io-headers check-public-header-inclusion check-network-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
-		check-c17-headers-cross check-libc-shared-closure check-libc-declaration-census \
+		check-c17-headers-cross check-libc-shared-closure check-libc-declaration-census check-libc-pic-replay \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-libc-getgrent-cross \
@@ -1732,6 +1749,14 @@ check-libc-declaration-census: check-python .WAIT symlinks
 		    --ar ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-ar
 
 .PHONY: check-libc-declaration-census
+
+check-libc-pic-replay: check-python
+		env LIBC_PIC_CC=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    LIBC_PIC_AR=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-ar \
+		    LIBC_PIC_READELF=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-readelf \
+		    ${PYTHON} tools/libc_pic_replay_test.py
+
+.PHONY: check-libc-pic-replay
 
 # No object of a shipped program defines a global symbol that lib/libc.a also
 # defines, because `ld --just-symbols` against a shared libc image rebinds such
@@ -2041,6 +2066,7 @@ check-native-call-veneer: check-python
 
 check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-signal-sets-qemu
+		${MAKE} check-fd-set-qemu
 		${MAKE} check-native-nm-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} check-aeabi-copy-qemu

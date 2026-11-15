@@ -274,6 +274,7 @@ int	usbioctl(dev_t dev, u_int cmd, caddr_t addr, int flag);
 int	usbselect(dev_t dev, int rw);
 void	usbputc(dev_t dev, char c);
 char	usbgetc(dev_t dev);
+void	usbpollc(int on);
 
 extern struct tty usbttys[];
 

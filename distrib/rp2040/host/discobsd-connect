@@ -22,7 +22,7 @@ if [ -z "$port" ]; then
 		port=$(discobsd-term --list 2>/dev/null | head -1) || port=""
 	fi
 	if [ -z "$port" ]; then
-		for p in /dev/serial/by-id/usb-DiscoBSD_DiscoBSD_RP2040_console_rp2040-if00 \
+		for p in /dev/serial/by-id/usb-DiscoBSD_*rp2040-if00 \
 		    /dev/discobsd /dev/cu.usbmodem*; do
 			if [ -e "$p" ]; then
 				port="$p"

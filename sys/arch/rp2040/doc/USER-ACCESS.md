@@ -9,10 +9,17 @@ find it by identity.
 
 ## Finding the board
 
-The kernel reports the USB serial "rp2040", so udev exposes a name that
-does not change when the device re-enumerates on reboot:
+The kernel reports a USB serial made of its flash chip's 64-bit unique ID
+in hex and the suffix `-rp2040` (`flash_serial_string()` in
+`sys/arch/rp2040/dev/flash.h`), so udev exposes a name that is the board's
+own and does not change when the device re-enumerates on reboot:
 
-    /dev/serial/by-id/usb-DiscoBSD_DiscoBSD_RP2040_console_rp2040-if00
+    /dev/serial/by-id/usb-DiscoBSD_DiscoBSD_RP2040_console_<16 hex digits>-rp2040-if00
+
+Two boards on one host get two names; the pattern
+`/dev/serial/by-id/*DiscoBSD*rp2040-if00` matches each of them. A kernel
+that cannot read the chip's ID reports the serial "rp2040" and the name
+ends in `console_rp2040-if00`, as kernels before the unique serial did.
 
 Use that path, not /dev/ttyACMn: the number increments on every
 re-enumeration and a stale node from a prior connection returns EIO.

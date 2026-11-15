@@ -152,7 +152,8 @@ input_matrix(int entry, int unbuffered)
 		return 12;
 	calls = read_calls;
 	result = entry == 2 ? standard_input() : input_function(stream);
-	if (result != EOF || read_calls != calls || wrong_descriptor || allocations)
+	if (result != EOF || stream->_cnt != 0 || read_calls != calls ||
+	    wrong_descriptor || allocations)
 		return 13;
 	reset(stream, buffer, _IOREAD | (unbuffered ? _IONBF : 0), 5);
 	io_failure = 1;

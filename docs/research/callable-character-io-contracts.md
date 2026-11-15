@@ -89,10 +89,18 @@ inputs compile and assemble. FILE size/alignment remain 24/4 on ARM.
 actual six source files against controlled read/write dependencies. Native,
 ILP32 and sanitizer variants enter the required execution inventory. Each
 accepted executable performs 3,963 character operations. Separate compilations
-reject five mutations: changed input byte, narrowed EOF, suppressed output
-error, wrong getchar stream and wrong putchar stream. The QEMU owner runs the
-same driver with the Cortex-M0 instruction model. Compiler acceptance and
-runtime execution retain separate receipts.
+reject six mutations: changed input byte, narrowed EOF, suppressed output
+error, wrong getchar stream, wrong putchar stream and missing EOF counter
+normalization. The QEMU owner runs the same driver with the Cortex-M0
+instruction model. Compiler acceptance and runtime execution retain separate
+receipts.
+
+The `getc` macro decrements `_cnt` before `_filbuf` handles an established EOF.
+The `_IOEOF` return resets `_cnt` to zero, so repeated calls traverse the fixed
+point `(EOF, 0) -> (EOF, -1) -> (EOF, 0)` instead of eventually overflowing a
+signed counter. The fixture checks the restored counter before another backend
+read, and the `eof-counter` mutant removes only that normalization. `clearerr`
+continues to control when a later read may observe appended input.
 
 The fixture isolates production public names from host/newlib stdio through
 private assembler symbol names in a generated test-only header. Exact public
@@ -125,7 +133,10 @@ binds the matched clean distributions, the 500-byte native archive increase,
 unchanged 161 remaining shipped measures and separate native caller probes.
 Whole-member native linkage and final text alignment introduce a caller cost
 that cross-link garbage collection removes from existing shipped programs.
-Resource approval and complete qualification remain open.
+The owner-approved callable-I/O vector and its complete non-hardware
+qualification close at `358efb11`. The
+[EOF fixed-point resource record](stdio-eof-fixed-point-resource-exception.md)
+owns the later normalization cost and its separate owner-approved vector.
 
 The bounded fixture omits timestamp effects, the complete POSIX errno set,
 signal-interruption schedules, thread synchronization and runtime stack peaks.

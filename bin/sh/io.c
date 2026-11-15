@@ -231,7 +231,7 @@ copy(struct ionod *ioparg)
 
 				while (!eolchar(c))
 				{
-					*clinep++ = c;
+					stakput(clinep, c);
 					c = readc();
 				}
 			}
@@ -244,11 +244,12 @@ copy(struct ionod *ioparg)
 
 				while (!eolchar(c))
 				{
-					*clinep++ = c;
+					stakput(clinep, c);
 					c = nextc(*ends);
 				}
 			}
 
+			stakroom(clinep);
 			*clinep = 0;
 			if (eof || eq(cline, ends))
 			{
@@ -257,7 +258,7 @@ copy(struct ionod *ioparg)
 				break;
 			}
 			else
-				*clinep++ = NL;
+				stakput(clinep, NL);
 
 			if ((i = clinep - start) < CPYSIZ)
 				cline = clinep;

@@ -27,10 +27,14 @@ in this order, because each later row needs the earlier device.
 | The keyboard controller answers at 0x1F and its events type | console login | not run |
 | `/dev/lcdgfx` shapes, timings and text restore | `tests/rp2040/lcdgfxtest` | not run |
 | The tone is audible, 1 kHz for 100 ms at 25 percent duty | console bell | not run |
+| `/dev/audio` plays 8 kHz samples at a usable level with no audible carrier, and a root write pauses it without losing samples | `cat` of a sample file to `/dev/audio` during a `dd` to the root | not run |
 | Battery, backlight and power-off registers; split-phase key polling | `sysctl machdep.picocalc` | not run |
 | SD card-detect polarity, the 12.5 MHz clock and busy times of real cards | `sd0` probe and transfers | not run |
 | A UFS partition on the card mounts beside the flash root; `fdisk` and `mkfs` through `rsd0` | console procedure in `PICOCALC.md` | not run |
+| CMD59 accepted by real cards, reads and writes with CRC checking on at 12.5 MHz, and the CMD13 status after each write | `sd0` probe and transfers; a refused CMD59 leaves the card unchecked | not run |
 | The pulled-card sequence | `tests/rp2040/sd_detach/board_sd_detach.py` behind its opt-in | not run |
+| Whether the Command Table 2 writes of `init_seq` take effect without CSCON `F0h`, and what the out-of-table values (15 gamma bytes, `C1h 41h`, three `C5h` bytes, `F7h`) do; `docs/research/driver-datasheet-audit.md` | the register sets and readback of the `rp2040-picocalc-panel-register-test` branch | not run |
+| PSRAM CE# level between reset and `psram_hw_init()`, and the part's tCEM grade against the 4.6 us read frame | probe RAM_CS at power-up; `psram0: read id` line | not run |
 | PSRAM Read ID 0x0D, quad mode and readback at 31.25 MHz | `psram0` probe | not run |
 | PSRAM 48-bit EID read and compared with reference APS6404L and LY68L6400 parts | `psram0: read id` line; ledger row U301 | not run |
 | The kernel swaps to PSRAM and falls back to `fl1` when the part is absent | boot with and without the part | not run |

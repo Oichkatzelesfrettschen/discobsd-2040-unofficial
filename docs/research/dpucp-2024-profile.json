@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "d1b78ed224edb1b2f59223e47bbadd0c1f7548cfc2cbaaa42e2cfce4a4e0dca2"
+    "ordered_row_sha256": "d61e624f858e56b1296197cfe47f8136032fa0ba5478cbe204dd42c8dc7bd048"
   },
   "state_counts": {
     "applicability": {
@@ -51,16 +51,16 @@
       "environment-constrained": 0
     },
     "implementation": {
-      "unreviewed": 1441,
+      "unreviewed": 1437,
       "present": 3,
-      "partial": 74,
+      "partial": 78,
       "absent": 0,
       "divergent": 0
     },
     "evidence": {
-      "none": 1441,
-      "static": 39,
-      "host": 28,
+      "none": 1437,
+      "static": 37,
+      "host": 34,
       "cross": 5,
       "qemu-user": 5,
       "renode": 0,
@@ -192,6 +192,12 @@
       "evidence": "host",
       "known_good": "tests/libc_contracts/qsort_bounds_test.c",
       "known_bad": "tests/libc_contracts/qsort_context.py"
+    },
+    "character-io-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-character-io",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/character_io_test.c",
+      "known_bad": "tests/libc_contracts/character_io.py"
     },
     "public-time-type-cross-contract": {
       "command": ": \"${PYTHON:?select the interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-public-time-types",

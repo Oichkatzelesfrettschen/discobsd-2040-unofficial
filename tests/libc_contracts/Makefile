@@ -63,7 +63,8 @@ check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds 
 	check-vis check-printf-g check-huge-val \
 	check-qsort check-strtox check-string-security check-array-memory-line \
 	check-getgrent check-bounded-string check-exit-lifecycle check-quick-exit \
-	check-qsort-context check-dbm-open check-absolute-value check-byte-search
+	check-qsort-context check-dbm-open check-absolute-value check-byte-search \
+	check-character-io
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 ARRAY_MEMORY_CFLAGS= -std=c17 -Wall -Wextra -Werror
@@ -169,6 +170,37 @@ check-byte-search-instructions:
 	${PYTHON} ${.CURDIR}/byte_search_instructions.py ${TOPSRC} ${ARM_COMPILER:Q}
 
 .PHONY: check-byte-search-instructions
+
+CHARACTER_IO_INPUTS= character_io.py character_io_test.c \
+	${STDIO_DIR}/fgetc.c ${STDIO_DIR}/fputc.c ${STDIO_DIR}/getchar.c \
+	${STDIO_DIR}/putchar.c ${STDIO_DIR}/filbuf.c ${STDIO_DIR}/flsbuf.c \
+	${TOPSRC}/include/stdio.h
+
+check-character-io: character_io_test
+	${TEST_EXECUTION} run libc.character-io.native -- ./character_io_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} character_io_test32
+	${TEST_EXECUTION} run libc.character-io.ilp32 -- ./character_io_test32
+.else
+	${TEST_EXECUTION} skip libc.character-io.ilp32 "check-libc-character-io: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} character_io_test_san
+	${TEST_EXECUTION} run libc.character-io.sanitized -- ./character_io_test_san
+.else
+	${TEST_EXECUTION} skip libc.character-io.sanitized "check-libc-character-io: sanitizer runtime unavailable"
+.endif
+
+character_io_test: ${CHARACTER_IO_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/character_io.py --compiler ${HOSTCC:Q} --program ${.CURDIR}/$@
+
+character_io_test32: ${CHARACTER_IO_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/character_io.py --compiler ${HOSTCC:Q}\ -m32 --program ${.CURDIR}/$@
+
+character_io_test_san: ${CHARACTER_IO_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/character_io.py --compiler "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" --program ${.CURDIR}/$@
+
+.PHONY: check-character-io
 
 QSORT_CONTEXT_INPUTS= qsort_context.py qsort_context_test.c qsort_bounds_test.c \
 	qsort_callers.py \
@@ -1655,6 +1687,7 @@ header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
 clean:
 	rm -f absolute_value_test absolute_value_test32 absolute_value_test_san
 	rm -f byte_search_test byte_search_test32 byte_search_test_san
+	rm -f character_io_test character_io_test32 character_io_test_san
 	rm -f qsort_context_test qsort_context_test32 qsort_context_test_san
 	rm -f bounded_string_test bounded_string_test32 bounded_string_test_san
 	rm -f dbm_open_test dbm_open_test32
@@ -1773,6 +1806,7 @@ check-qemu:
 	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/byte_search.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm --calibrate
+	${PYTHON} ${.CURDIR}/character_io.py --compiler ${QEMU_ARM_CC:Q} --target
 	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/dbm_open.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 .endif

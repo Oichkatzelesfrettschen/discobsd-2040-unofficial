@@ -48,6 +48,7 @@ page in those files without carrying them here.
 | `CAPACITY.md` | compact kernel metadata, fixed-table and u-area counters, and the evidence required before a limit changes | the metadata generator, `sys/kern/subr_capacity.c`, `sbin/sysctl` |
 | `CORE1.md` | core 1 as the kernel's observer: launch and park, the tick-record observer, the NMI probe, the reset record, the supervisor, word ownership, cost and the evidence class of each claim | `sys/arch/rp2040/rp2040/core1.c`, `core1.h`, `compile/PICO/Config`, `compile/PICO_UART/Config` |
 | `DATASHEET-INDEX.md` | datasheet section to page number, for both the RP2040 and Pico documents | every hardware citation in the tree |
+| `GPIO.md` | the pins `/dev/porta` and `/dev/portb` reach on each board, the requests they take and what is refused | `sys/arch/rp2040/dev/gpio.c`, `sys/arch/rp2040/include/gpio.h`, `distrib/rp2040/mi.rp2040` |
 | `MPU.md` | the Cortex-M0+ MPU map the kernel programs, the registers it reads back, and the fault test that proves it | `sys/arch/rp2040/rp2040/mpu.c`, `usr.bin/mputest` |
 | `MULTICALL-BSS-OVERLAY.md` | how applets in one multicall binary share a BSS lifetime | the multicall `*.c.in` generators |
 | `PICOCALC.md` | the PicoCalc pin map, the console drivers' timing and protocol choices, the evidence each has, and the next board work | `sys/arch/rp2040/dev/picocalc.h`, `compile/PICOCALC/Config` |
@@ -99,6 +100,7 @@ Grouped by what they investigate.
 | `picocalc-calculator-and-gui.md` | the calculator and tile-graphics plan for the PicoCalc: sources and licenses mined from this tree, the other BSDs and the vendor firmware, size estimates and a staged import order |
 | `hardware-reference-coverage.md` | which Pico, Pico W, RP2040 and PicoCalc parts, licensed blocks and bus specifications have a reference document on the build host, the state of the Pico SDK and the tools, the PicoCalc schematic's designator-to-part map, and the USB-C CC pull-downs the schematic shows |
 | `picocalc-first-power-up.md` | the ordered board observations for the PicoCalc's first run with cells: the cell-less power-key test, matched parallel cells, the charge LED, the keyboard controller's identity and firmware dump through its bootloader, the PicoCalc kernel's boot lines, the panel's lit height, the top marks, and the PSRAM probe points |
+| `driver-datasheet-audit.md` | each RP2040 block and each Pico and PicoCalc part with a software surface against the driver that owns it, the driver constants checked against the datasheet text, the findings with what decides each, and the blocks that have no driver |
 | `picocalc-pending-hardware.md` | each PicoCalc change held until a board run and each claim on `main` whose board row reads "not run", with the measurement that decides it |
 | `picocalc-psram.md` | the PicoCalc's ESP-PSRAM64H as swap: datasheet facts with pages, the 19-word PIO program and its timing derivation, the boot-time swap selection with `fl1` as fallback, the alternatives with costs, and the host evidence |
 | `picocalc-psram-capture.md` | instruments that measure the PicoCalc PSRAM bus timing on the board, cheapest first: the RP2040 sampling its own pins from PIO1 at 125 MS/s with DMA, a second Pico on the Core GPIO header for sub-cycle edge statistics, and a commercial analyzer; with the sampling-margin prediction each one tests |
@@ -146,6 +148,7 @@ Grouped by what they investigate.
 | `flash-storage-expectation-plan.md` | the storage expectation audit verified against source: per-request Dhara checkpoint padding as the cost driver, the `fs_fmod` gap in `sync()`, and a phased plan with gates and predictions |
 | `trim-cost-model.md` | trim at free and deferred free-list sweeps against no trim, by workload, in the host model, with the board result that refutes trim at free for compiles; the trim work stays on unmerged branches `rp2040/trim-freed-blocks` and `rp2040/free-list-sweep` |
 | `rp2040-flash-trim-ordering.md` | when a freed block may be discarded: the inode-before-free rule across the BSD lineages, where Linux and embedded file systems issue discards, why Dhara reduces the rule to call order, the FIFO cleaning-cost knee at a live share of 0.8, and the outcome (safe, not merged for wear) |
+| `trim-survey/` | the survey reports and bare Pico console captures behind the discard-ordering note, the trim cost model and the flash wear table, with the scripts that recompute the per-compile figures |
 | `libc-size-audit.md` | where the C library's bytes go, across the shipped programs |
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 192 KB process window |
@@ -210,6 +213,10 @@ Grouped by what they investigate.
 | `context-sort-contracts.md` | typed context-last sorting, nested-call and record invariants, donor ABI differences and caller resource isolation |
 | `libc-dbm-open-admission.md` | guarded ndbm declarations, bounded database path construction, staged open ownership, extent arithmetic and calibrated constructor witnesses |
 | `libc-absolute-value-contracts.md` | callable int/long magnitude providers, representability domain, archive ownership and calibrated address-taking witnesses |
+| `callable-character-io-contracts.md` | six callable stdio names, preserved macro/FILE contracts, existing archive ownership and calibrated header/byte/backend witnesses |
+| `callable-character-io-resource-exception.md` | matched native archive and native caller costs, unchanged shipped program identities, alignment/frame boundaries and exact admission request |
+| `stdio-eof-fixed-point-resource-exception.md` | repeated-EOF counter normalization, matched archive and shipped-program costs, preserved stack and capacity margins, alternatives and exact admission request |
+| `stdio-eof-fixed-point-qualification.md`, `stdio-eof-fixed-point-review.md` | frozen-source aggregate, required inventory, restored resource vector, emulator and bounded source-review evidence for repeated-EOF counter normalization |
 | `libc-absolute-value-resource-exception.md` | matched native archive growth, preserved program identities and resource admission limits for callable magnitude providers |
 | `search-bound-experiment/README.md` | unshipped tableless Two-Way search, calibrated finite work counts, target frames and replay driver |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |

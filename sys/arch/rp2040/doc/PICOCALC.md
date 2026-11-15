@@ -59,7 +59,7 @@ name a file there, with a page for a PDF.
 | Both run on the PICOCALC kernel, read its sysctl nodes without a failed read and draw through the bank on the modeled panel | Renode | observed by `check-renode-picocalc` on `flash-PICOCALC.bin`: the report's lines, the logo's 840 squares against the panel pixels, picotop's frame and process row; the battery, XIP and bus values are model constants |
 | `picofetch` and `picotop` on the panel: glyph shapes, colors, the battery and backlight readings, the swap exchanges a picotop refresh costs beside a running job | board | not run |
 | Core 1 state and counters in both programs | build | PICOCALC and PICOCALC_PSRAM carry no `CORE1` option (`CORE1.md`), so both print `core1 not in this kernel` there; the PICO kernel's values are shown from the fixture only |
-| Die temperature and VSYS in both programs | build | compiled in when `<machine/cpu.h>` defines `CPU_ADC_TEMP`, which this tree does not; both print `not in this kernel` |
+| Die temperature and VSYS in both programs | Renode | both read `machdep.adc_temp_mc` and `machdep.adc_vsys_mv` (`CPU_ADC_TEMP`, `CPU_ADC_VSYS`); `check-renode-picocalc` holds the form of the `Sensors` line, and the values there (25.7 C, 0.00 V) come from Renode's ADC model, so the board's readings are unmeasured |
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
 | The keyboard controller answers at 0x1F and its events type | board | not run |
 | The board runs from USB-C with no cells | board | observed by the owner: it stays off with no cells and runs with them (below) |

@@ -420,11 +420,15 @@ def check_monitors(run: Run) -> None:
     run.snapshot("picofetch")
     for text in ("OS       DiscoBSD 2.7", "Kernel   PICOCALC", "CPU      125.000 MHz, ",
                  "SRAM     264K, process window 192K", "MPU      on, ",
-                 "Display  318x320 px, 53x32 cells", "Sensors  not in this kernel",
-                 "Tables   proc "):
+                 "Display  318x320 px, 53x32 cells", "Tables   proc "):
         run.expect(run.has(text), f"picofetch: no {text!r} on the panel")
     for label in ("Memory  ", "Swap    ", "Root    ", "Battery ", "Flash    image "):
         run.expect(run.has(label), f"picofetch: no {label!r} line on the panel")
+    # Renode's ADC is a model, so the line's form is checked and its values
+    # are not.
+    run.expect(any(re.match(r"Sensors  -?\d+\.\d C, VSYS \d+\.\d\d V", line)
+                   for line in run.lines),
+               "picofetch: no Sensors line with a temperature and VSYS on the panel")
     run.expect(not run.has("read failed"), "picofetch: a sysctl read failed")
     # The title row, not a prompt: a prompt carries the shell's $.
     title = [i for i, line in enumerate(run.lines)

@@ -75,13 +75,6 @@ gets2(char *dst, int a, int b)
 }
 
 static void
-absent(struct rd_int *r)
-{
-	r->state = RD_ABSENT;
-	r->v = 0;
-}
-
-static void
 set(struct rd_int *r, long v)
 {
 	r->state = RD_OK;
@@ -306,13 +299,8 @@ collect_live(struct hwinfo *hw)
 	geti(&hw->core1_restarts, CTL_MACHDEP, CPU_CORE1_RESTARTS, -1);
 	geti(&hw->core1_stalls, CTL_MACHDEP, CPU_CORE1_STALLS, -1);
 	geti(&hw->core1_faults, CTL_MACHDEP, CPU_CORE1_FAULTS, -1);
-#ifdef CPU_ADC_TEMP
 	geti(&hw->temp_mc, CTL_MACHDEP, CPU_ADC_TEMP, -1);
 	geti(&hw->vsys_mv, CTL_MACHDEP, CPU_ADC_VSYS, -1);
-#else
-	absent(&hw->temp_mc);
-	absent(&hw->vsys_mv);
-#endif
 	geti(&hw->usb_bulkin_arms, CTL_MACHDEP, CPU_USB_BULKIN_ARMS, -1);
 	geti(&hw->usb_tx_recovered, CTL_MACHDEP, CPU_USB_TX_RECOVERED, -1);
 	collect_storage(hw);

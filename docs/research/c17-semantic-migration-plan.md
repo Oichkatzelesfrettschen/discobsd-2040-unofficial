@@ -121,6 +121,14 @@ their separate completion states. Six Issue 8 rows advance to host-witnessed
 partial status. POSIX error/timestamp/concurrency facets and physical execution
 remain open.
 
+The [EOF fixed-point qualification](stdio-eof-fixed-point-qualification.md)
+closes the repeated-read counter defect in `_filbuf`: every established-EOF
+return restores the count to zero before the next `getc` decrement. A sixth
+compiled character-I/O mutation removes only that normalization. Matched
+production receipts preserve the owner-approved eight-byte archive and
+per-program vector after complete non-hardware qualification. The six stdio
+standards rows retain their partial status and the remaining facets above.
+
 The [tableless search experiment](search-bound-experiment/README.md) retains
 the next search-bound comparison and its replay driver. The finite host and
 ARMv6-M matrices preserve earliest-match behavior while exposing the separate

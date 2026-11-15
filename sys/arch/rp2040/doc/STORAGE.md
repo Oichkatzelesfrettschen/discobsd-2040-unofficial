@@ -320,8 +320,10 @@ no sync(2) call, survived by the update(8) checkpoint; directories made
 seconds before a reset were lost or salvaged, `fsck -p` repaired the root and
 rebooted, and the following boot checked clean each time. One boot after
 such a repair gave no USB console output until the next forced reset, which
-checked clean; the cause is not established and five later resets did not
-repeat it. The reset matrix
+checked clean; the cause is not established. Five later resets through
+the same repair path and fourteen further forced-reset trials, nine of
+which took it, did not repeat it (issue #569 holds the captures and the
+ranked hypotheses). The reset matrix
 over write, erase and checkpoint phases and every power interruption (W03 of
 `docs/research/rp2040-memory-wear-engineering-program.md`) has not been run.
 Production

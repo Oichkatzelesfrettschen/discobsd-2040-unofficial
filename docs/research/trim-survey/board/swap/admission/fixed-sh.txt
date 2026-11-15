@@ -1,0 +1,228 @@
+### hostname; sysctl kern.version; df /
+pico
+kern.version=DiscoBSD 2.7 (PICO) #1 3481: Sun Nov 15 19:02:40 UTC 2026
+
+Filesystem  1K-blocks     Used    Avail Capacity  Mounted on
+root              979      756      223    77%    /
+operator@pico:~$
+### cd /tmp
+operator@pico:/tmp$
+### echo 'char *ctime(long *); long time(long *); int printf(char *, ...);' >d.c
+operator@pico:/tmp$
+### echo 'int main(void) { long t = time(0); printf("%s", ctime(&t)); return 0; }' >>d.c
+operator@pico:/tmp$
+### sync
+operator@pico:/tmp$
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 3
+root_reads 1973
+root_read_bytes 2020352
+root_writes 26
+root_write_bytes 26624
+swap_reads 21
+swap_read_bytes 108484
+swap_writes 26
+swap_write_bytes 123704
+map_writes 26
+checkpoint_attempts 3
+checkpoint_successes 3
+checkpoint_errors 0
+root_program_pages 192
+root_program_bytes 49152
+root_erase_sectors 12
+root_erase_bytes 49152
+swap_program_pages 492
+swap_program_bytes 125952
+swap_erase_sectors 36
+swap_erase_bytes 147456
+dirty_transitions 19
+dirty_rewrites 6
+eviction_writes 14
+buffer_waits 0
+swapram_attempts 33
+swapram_admissions 25
+swapram_refused_closed 0
+swapram_refused_codec 0
+swapram_refused_encode 0
+swapram_refused_nospace 0
+swapram_refused_fragment 8
+swapram_refused_want_bytes 52199
+swapram_refused_free_bytes 68580
+swapram_refused_largest_bytes 37392
+swapram_refused_data_fits 8
+swapram_short_1k 2
+swapram_short_2k 1
+swapram_short_3k 5
+swapram_short_4k 0
+swapram_short_5k 0
+swapram_short_6k 0
+swapram_short_7k 0
+swapram_short_more 0
+swapram_admitted_data_bytes 65696
+swapram_admitted_u_bytes 25078
+swapram_flash_swapouts 7
+swapram_exchange_swapouts 1
+swapram_sched_refusals 0
+swapram_admit_scan_bytes 274916
+swapram_admit_zero_bytes 213856
+swapram_refuse_scan_bytes 99128
+swapram_refuse_zero_bytes 76278
+swapram_refuse_data_chunks 14
+swapram_refuse_zero_chunks 0
+swapram_ram_span_01 1
+swapram_ram_span_02 3
+swapram_ram_span_03 3
+swapram_ram_span_04 0
+swapram_ram_span_05 18
+swapram_ram_span_06 0
+swapram_ram_span_07 0
+swapram_ram_span_08 0
+swapram_ram_span_09 0
+swapram_ram_span_10 0
+swapram_ram_span_11 0
+swapram_ram_span_12 0
+swapram_flash_span_01 0
+swapram_flash_span_02 0
+swapram_flash_span_03 2
+swapram_flash_span_04 0
+swapram_flash_span_05 6
+swapram_flash_span_06 0
+swapram_flash_span_07 0
+swapram_flash_span_08 0
+swapram_flash_span_09 0
+swapram_flash_span_10 0
+swapram_flash_span_11 0
+swapram_flash_span_12 0
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### cc -o d d.c; sync
+operator@pico:/tmp$
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 4
+root_reads 27024
+root_read_bytes 27672576
+root_writes 1064
+root_write_bytes 1089536
+swap_reads 1028
+swap_read_bytes 5390016
+swap_writes 1148
+swap_write_bytes 5110168
+map_writes 1064
+checkpoint_attempts 38
+checkpoint_successes 38
+checkpoint_errors 0
+root_program_pages 15072
+root_program_bytes 3858432
+root_erase_sectors 942
+root_erase_bytes 3858432
+swap_program_pages 20128
+swap_program_bytes 5152768
+swap_erase_sectors 1448
+swap_erase_bytes 5931008
+dirty_transitions 719
+dirty_rewrites 366
+eviction_writes 564
+buffer_waits 0
+swapram_attempts 338
+swapram_admissions 88
+swapram_refused_closed 0
+swapram_refused_codec 0
+swapram_refused_encode 0
+swapram_refused_nospace 46
+swapram_refused_fragment 204
+swapram_refused_want_bytes 2307133
+swapram_refused_free_bytes 2767500
+swapram_refused_largest_bytes 1882860
+swapram_refused_data_fits 191
+swapram_short_1k 174
+swapram_short_2k 9
+swapram_short_3k 7
+swapram_short_4k 47
+swapram_short_5k 0
+swapram_short_6k 12
+swapram_short_7k 1
+swapram_short_more 0
+swapram_admitted_data_bytes 274262
+swapram_admitted_u_bytes 89090
+swapram_flash_swapouts 158
+swapram_exchange_swapouts 92
+swapram_sched_refusals 0
+swapram_admit_scan_bytes 1018652
+swapram_admit_zero_bytes 754559
+swapram_refuse_scan_bytes 4342168
+swapram_refuse_zero_bytes 3006838
+swapram_refuse_data_chunks 796
+swapram_refuse_zero_chunks 4
+swapram_ram_span_01 1
+swapram_ram_span_02 14
+swapram_ram_span_03 3
+swapram_ram_span_04 0
+swapram_ram_span_05 70
+swapram_ram_span_06 0
+swapram_ram_span_07 0
+swapram_ram_span_08 0
+swapram_ram_span_09 0
+swapram_ram_span_10 0
+swapram_ram_span_11 0
+swapram_ram_span_12 0
+swapram_flash_span_01 0
+swapram_flash_span_02 0
+swapram_flash_span_03 2
+swapram_flash_span_04 0
+swapram_flash_span_05 55
+swapram_flash_span_06 192
+swapram_flash_span_07 0
+swapram_flash_span_08 0
+swapram_flash_span_09 0
+swapram_flash_span_10 0
+swapram_flash_span_11 0
+swapram_flash_span_12 1
+
+### ./d
+Sun Nov 15 11:08:43 2026
+operator@pico:/tmp$

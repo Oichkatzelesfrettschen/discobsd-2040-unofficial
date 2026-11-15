@@ -73,7 +73,7 @@ name a file there, with a page for a PDF.
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
 | The SD socket's card-detect polarity, the fast clock at 12.5 MHz on this board's traces, and the busy times of real cards | board | not run |
 | The crash-dump writer (`sddump()`, `rp2040/dump.c`, `dumpsys()`) links into PICOCALC and PICOCALC_PSRAM only | build | observed by `check-dump-writer-link` on the symbol tables of all four kernels, with a swapped-role control that exits 1 |
-| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (56 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (23 mutants of `sdspi.c` rejected) |
+| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (56 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (30 mutants of `sdspi.c` rejected) |
 | `savecore` saves a dump the kernel's stream wrote, names a different running kernel, advances the bounds file, and leaves the dump on the card for a damaged segment, header checksum, version, segment count or length, one byte too little space with and without a reserve, and a copy that cannot be written; an unfinished dump reads as none | host | observed by `check-picocalc-host` (`dump_test`, 9 mutants of `savecore.c` rejected) |
 | On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 48,136, two u areas of 3,072, `dump.0` 55,808 bytes; a kernel that dumps only on the reset path fails the panic stage |
 | A panic on the board writes a dump that `savecore` saves | board | not run: the bench board is a Pico without the PicoCalc's SD socket |
@@ -629,12 +629,17 @@ the source and this section cite its sections by title.
 
 Initialization (Mode Selection and Initialization; Card Initialization
 and Identification Process): 80 clocks with chip select high, CMD0
-(CRC 0x95) until R1 reads idle, CMD8 with 0x1AA (CRC 0x87), ACMD41 until the
+(CRC 0x95) until R1 reads idle, CMD8 with 0x1AA (CRC 0x87), CMD59 with
+option 1, ACMD41 until the
 card leaves idle within one second, CMD58 for the OCR, CMD16 to 512 bytes for
-a byte-addressed card, and CMD9 for the capacity. CMD0 and CMD8 are the
-only commands that carry a checked CRC in SPI mode (Bus Transfer
-Protection); every other
-command sends a dummy CRC and CRC checking stays off. CMD8 answered as an
+a byte-addressed card, and CMD9 for the capacity. Every command frame
+carries its computed CRC7 and every data block its CRC16 (Bus Transfer
+Protection). A card checks the CRC of CMD0 and CMD8 always; CMD59, sent
+before ACMD41 as that section asks, turns checking on for the rest, after
+which the card refuses a corrupted command or written block and the driver
+fails a read whose CRC16 disagrees with the bytes received (`EIO`). A card
+that answers CMD59 as illegal runs unchecked, as SPI mode does after reset.
+CMD8 answered as an
 illegal command marks a version 1.x card and the OCR's CCS bit marks
 block addressing for a version 2.0 or later card; an echo that does not
 return the voltage range and check pattern, an illegal CMD55 or ACMD41 (a
@@ -647,8 +652,10 @@ after one second. The clock runs at 398 kHz until initialization finishes
 
 A transfer is one 512-byte sector per command, CMD17 for a read and CMD24
 for a write. A read waits 100 ms for the 0xFE start token and fails on a
-data error token; a write checks the data response token and then waits for
-the card to stop signaling busy. Both busy waits, the wait for ready before
+data error token; a write checks the data response token, waits for
+the card to stop signaling busy and then reads the card's status with CMD13,
+because the data response accepts a block before the card programs it and
+only the R2 status reports a program that failed. Both busy waits, the wait for ready before
 each command and the initialization loop have a time limit in the model's
 and the kernel's microsecond clock, so a stuck card fails the transfer
 (`EIO`) instead of hanging the caller. The driver runs a transfer in the

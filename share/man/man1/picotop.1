@@ -1,0 +1,79 @@
+.TH PICOTOP 1 "November 15, 2026"
+.SH NAME
+picotop \- display processor, memory, storage and process activity
+.SH SYNOPSIS
+.B picotop
+[
+.B \-np
+] [
+.B \-d
+.I seconds
+] [
+.B \-c
+.I count
+] [
+.B \-s
+.I order
+]
+.SH DESCRIPTION
+.I Picotop
+redraws one screen of activity every few seconds: a bar of the processor
+time spent in user, niced and system state, a history graph of the busy
+share, level bars for the memory in core, swap, each mounted file system
+and the battery, the temperature and supply voltage, the transfer rate of
+each drive, the event rates and queue lengths, the state of the second
+core, and the process table.
+.PP
+A share is the change of a tick count between two refreshes divided by the
+change of the total; the first screen has no earlier reading and shows the
+shares since boot.
+A process marked
+.B +
+is in core.
+A reading the running kernel does not serve prints
+.BR "not in this kernel" .
+.PP
+One process is in core at a time on this system, so each refresh that
+finds another process running makes the kernel exchange the two with swap.
+A longer interval lowers that cost.
+.PP
+The options are:
+.TP
+.BI \-d " seconds"
+Seconds between refreshes, 1 to 60; the default is 2.
+.TP
+.BI \-c " count"
+Exit after that many screens.
+.TP
+.BI \-s " order"
+Order the processes by
+.B cpu
+(processor share, the default),
+.B mem
+(size) or
+.B pid.
+.TP
+.B \-n
+Write no color.
+.TP
+.B \-p
+Plain output: each screen as ASCII lines with no escape sequence, the
+default when the output is not a terminal.
+.PP
+While it runs on a terminal
+.I picotop
+reads these keys:
+.TP
+.B q
+Quit.
+.TP
+.B "c m p"
+Order the processes by processor share, size or process id.
+.TP
+.B "+ \-"
+Lengthen or shorten the interval by one second.
+.TP
+.B space
+Refresh at once.
+.SH "SEE ALSO"
+picofetch(1), ps(1), vmstat(1), sysctl(8)

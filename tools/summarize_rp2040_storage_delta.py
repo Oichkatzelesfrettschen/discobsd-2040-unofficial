@@ -14,11 +14,29 @@ METRICS = (
     "swap_program_pages", "swap_program_bytes", "swap_erase_sectors", "swap_erase_bytes",
     "dirty_transitions", "dirty_rewrites", "eviction_writes", "buffer_waits",
     "swapram_attempts", "swapram_admissions",
+    "swapram_refused_closed", "swapram_refused_codec", "swapram_refused_encode",
+    "swapram_refused_nospace", "swapram_refused_fragment", "swapram_refused_want_bytes",
+    "swapram_refused_free_bytes", "swapram_refused_largest_bytes",
+    "swapram_refused_data_fits", "swapram_short_1k", "swapram_short_2k",
+    "swapram_short_3k", "swapram_short_4k", "swapram_short_5k", "swapram_short_6k",
+    "swapram_short_7k", "swapram_short_more", "swapram_admitted_data_bytes",
+    "swapram_admitted_u_bytes", "swapram_flash_swapouts", "swapram_exchange_swapouts",
+    "swapram_sched_refusals", "swapram_admit_scan_bytes", "swapram_admit_zero_bytes",
+    "swapram_refuse_scan_bytes", "swapram_refuse_zero_bytes",
+    "swapram_refuse_data_chunks", "swapram_refuse_zero_chunks", "swapram_ram_span_01",
+    "swapram_ram_span_02", "swapram_ram_span_03", "swapram_ram_span_04",
+    "swapram_ram_span_05", "swapram_ram_span_06", "swapram_ram_span_07",
+    "swapram_ram_span_08", "swapram_ram_span_09", "swapram_ram_span_10",
+    "swapram_ram_span_11", "swapram_ram_span_12", "swapram_flash_span_01",
+    "swapram_flash_span_02", "swapram_flash_span_03", "swapram_flash_span_04",
+    "swapram_flash_span_05", "swapram_flash_span_06", "swapram_flash_span_07",
+    "swapram_flash_span_08", "swapram_flash_span_09", "swapram_flash_span_10",
+    "swapram_flash_span_11", "swapram_flash_span_12",
 )
 UINT32_MAX = 0xFFFFFFFF
 HEADER = re.compile(r"machdep\.storage_stats=version ([0-9]+) saturated ([0-9]+) "
                     r"dirty ([0-9]+) peak ([0-9]+)")
-METRIC = re.compile(r"([a-z_]+) ([0-9]+)")
+METRIC = re.compile(r"([a-z0-9_]+) ([0-9]+)")
 
 
 def parse_snapshot(text):

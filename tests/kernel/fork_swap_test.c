@@ -310,6 +310,60 @@ sr_expand(unsigned int off, unsigned int clen, caddr_t dst, unsigned int rlen,
     return rlen;
 }
 
+#ifdef SWAP_IMAGE_ALIGN
+/* Reservation calls the admission probe has counted as refused. */
+static uint32_t
+refusal_reasons(void)
+{
+    return storage_counts[STORAGE_SWAPRAM_REFUSED_CLOSED] +
+        storage_counts[STORAGE_SWAPRAM_REFUSED_CODEC] +
+        storage_counts[STORAGE_SWAPRAM_REFUSED_ENCODE] +
+        storage_counts[STORAGE_SWAPRAM_REFUSED_NOSPACE] +
+        storage_counts[STORAGE_SWAPRAM_REFUSED_FRAGMENT];
+}
+
+/* The same sum over a saved copy of the counters. */
+static uint32_t
+reasons_before(const uint32_t *saved)
+{
+    return saved[STORAGE_SWAPRAM_REFUSED_CLOSED] +
+        saved[STORAGE_SWAPRAM_REFUSED_CODEC] +
+        saved[STORAGE_SWAPRAM_REFUSED_ENCODE] +
+        saved[STORAGE_SWAPRAM_REFUSED_NOSPACE] +
+        saved[STORAGE_SWAPRAM_REFUSED_FRAGMENT];
+}
+
+/*
+ * Exact expectations cover the swap-out counters that predate the probe;
+ * the probe's own counters take the observed values and are checked by
+ * relation where a case needs them.
+ */
+static void
+probe_ignore(uint32_t *expected)
+{
+    unsigned int metric;
+
+    for (metric = STORAGE_SWAPRAM_ADMISSIONS + 1;
+        metric < STORAGE_METRIC_COUNT; metric++)
+        expected[metric] = storage_counts[metric];
+}
+#endif
+
+/*
+ * The admission probe scans process bytes through the logical addresses
+ * above; an empty range names no byte.
+ */
+static const unsigned char *
+fixture_logical_bytes(caddr_t source, size_t length)
+{
+    unsigned long offset = (unsigned long)(u_long)source - 0x20000000UL;
+
+    if (length == 0)
+        return NULL;
+    HK_CHECK(offset + length <= sizeof(parent_bytes));
+    return parent_bytes + offset;
+}
+
 /* Logical process addresses avoid host mappings of the RP2040 RAM window. */
 static int
 sr_encode(caddr_t source, size_t length, unsigned char *target,
@@ -474,6 +528,7 @@ recorded_refusals(void)
     struct forkstat saved_forkstat;
     struct vmrate saved_count;
     uint32_t saved_storage[STORAGE_METRIC_COUNT];
+    uint32_t saved_reasons;
     unsigned int map_index, blocks, cursor, use_vfork;
 
     for (map_index = 0; map_index < 3; map_index++)
@@ -498,6 +553,7 @@ recorded_refusals(void)
         bcopy(&forkstat, &saved_forkstat, sizeof(forkstat));
         bcopy(&cnt, &saved_count, sizeof(cnt));
         bcopy(storage_counts, saved_storage, sizeof(storage_counts));
+        saved_reasons = refusal_reasons();
         HK_CHECK(swap_image_reserve(&reservation, freeproc, &proc[0],
             X_OLDSIZE, X_OLDSIZE) == ENOMEM);
         HK_CHECK(reservation.state == SWAP_IMAGE_EMPTY);
@@ -525,7 +581,14 @@ recorded_refusals(void)
         HK_CHECK(same_bytes(&sr_map, &saved_pool, sizeof(sr_map)));
         HK_CHECK(same_bytes(&forkstat, &saved_forkstat, sizeof(forkstat)));
         HK_CHECK(same_bytes(&cnt, &saved_count, sizeof(cnt)));
-        HK_CHECK(same_bytes(storage_counts, saved_storage, sizeof(storage_counts)));
+        /*
+         * A refused fork leaves the swap-out accounting alone. The admission
+         * probe counts each refused reservation call by reason, and the
+         * explicit reserve above and the fork's own are two such calls.
+         */
+        HK_CHECK(same_bytes(storage_counts, saved_storage,
+            (STORAGE_SWAPRAM_ADMISSIONS + 1) * sizeof(storage_counts[0])));
+        HK_CHECK(refusal_reasons() - saved_reasons == 2);
         HK_CHECK(writes == 0);
         HK_CHECK(mpid == 100);
     }
@@ -1478,6 +1541,10 @@ sched_refusal_case(int in_core_state, unsigned int shape, unsigned int cursor)
         bcopy(sched_before.storage, expected_storage, sizeof(storage_counts));
 #ifdef SWAPRAM
         expected_storage[STORAGE_SWAPRAM_ATTEMPTS] += 2;
+        probe_ignore(expected_storage);
+        HK_CHECK(storage_counts[STORAGE_SWAPRAM_SCHED_REFUSALS] -
+            sched_before.storage[STORAGE_SWAPRAM_SCHED_REFUSALS] == 2);
+        HK_CHECK(refusal_reasons() - reasons_before(sched_before.storage) == 2);
 #endif
         {
             int refusal_accounted = same_bytes(storage_counts,
@@ -1580,6 +1647,12 @@ sched_next_candidate_case(int in_core_state)
         /* One refusal and the start of one exchange. */
         bcopy(sched_before.storage, expected_storage, sizeof(storage_counts));
         expected_storage[STORAGE_SWAPRAM_ATTEMPTS] += 2;
+        probe_ignore(expected_storage);
+        HK_CHECK(storage_counts[STORAGE_SWAPRAM_SCHED_REFUSALS] -
+            sched_before.storage[STORAGE_SWAPRAM_SCHED_REFUSALS] == 1);
+        HK_CHECK(storage_counts[STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS] -
+            sched_before.storage[STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS] == 1);
+        HK_CHECK(refusal_reasons() - reasons_before(sched_before.storage) == 2);
         {
             int attempts_accounted = same_bytes(storage_counts,
                 expected_storage, sizeof(storage_counts));

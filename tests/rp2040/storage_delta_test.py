@@ -42,11 +42,11 @@ class StorageDeltaTest(unittest.TestCase):
         header = (root / "sys/sys/storage_stats.h").read_text(encoding="utf-8")
         formatter = (root / "sbin/sysctl/sysctl.c").read_text(encoding="utf-8")
         enum = header.split("enum storage_metric {", 1)[1].split("STORAGE_METRIC_COUNT", 1)[0]
-        names = re.findall(r"\bSTORAGE_([A-Z_]+)\s*,", enum)
+        names = re.findall(r"\bSTORAGE_([A-Z0-9_]+)\s*,", enum)
         self.assertEqual(tuple(name.lower() for name in names), storage.METRICS)
         table = formatter.split("static const char *const names[STORAGE_METRIC_COUNT]", 1)[1]
         table = table.split("};", 1)[0]
-        self.assertEqual(tuple(re.findall(r'"([a-z_]+)"', table)), storage.METRICS)
+        self.assertEqual(tuple(re.findall(r'"([a-z0-9_]+)"', table)), storage.METRICS)
 
     def test_valid_snapshot_and_known_work(self):
         before = snapshot({"root_writes": 2}, dirty=1, peak=2)

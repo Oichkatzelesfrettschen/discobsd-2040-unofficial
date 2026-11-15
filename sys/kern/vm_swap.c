@@ -48,6 +48,29 @@ swap_image_span_geometry (size_t data_size, size_t stack_size,
 #endif
 }
 
+#if defined(STORAGE_STATS) && defined(SWAPRAM) && defined(SWAP_IMAGE_ALIGN)
+/*
+ * Admission probe histogram (sys/storage_stats.h): a completed swap-out
+ * counts once in the bin of its flash image length in erase sectors, whether
+ * or not the image went to flash, because the length is what flash would
+ * have erased.
+ */
+static void
+swap_note_span (enum storage_metric first, size_t span)
+{
+    size_t sectors = span / SWAP_IMAGE_ALIGN;
+
+    if (sectors < 1)
+        sectors = 1;
+    if (sectors > 12)
+        sectors = 12;
+    storage_note ((enum storage_metric) (first + (sectors - 1)), 1);
+}
+#define SWAP_NOTE_SPAN(first, span) swap_note_span ((first), (span))
+#else
+#define SWAP_NOTE_SPAN(first, span) ((void) 0)
+#endif
+
 #ifdef SWAP_IMAGE_ALIGN
 #define SWAP_IMAGE_WRITE (B_WRITE | B_SWAPIMAGE)
 #else
@@ -562,6 +585,8 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
     }
 #ifdef SWAPRAM
     storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
+    storage_note (STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS, 1);
+    SWAP_NOTE_SPAN (STORAGE_SWAPRAM_FLASH_SPAN_01, reservation->span);
 #endif
     bp = geteblk ();
     for (completed = 0; completed < sector_count; completed++) {
@@ -640,8 +665,13 @@ swap_image_copy_out (struct swap_image_reservation *reservation,
         panic ("swap image: copy owner");
 #ifdef SWAPRAM
     storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
-    if (ram)
+    if (ram) {
         storage_note (STORAGE_SWAPRAM_ADMISSIONS, 1);
+        SWAP_NOTE_SPAN (STORAGE_SWAPRAM_RAM_SPAN_01, reservation->span);
+    } else {
+        storage_note (STORAGE_SWAPRAM_FLASH_SWAPOUTS, 1);
+        SWAP_NOTE_SPAN (STORAGE_SWAPRAM_FLASH_SPAN_01, reservation->span);
+    }
 #endif
     p->p_flag |= SLOCK;
     if (odata) {

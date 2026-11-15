@@ -175,6 +175,21 @@ SwapRAM attempts and admissions identify compression-path use separately
 from raw-swap transfers. Admission is counted after reservation succeeds;
 it is not a measurement of compression time or bytes saved.
 
+The admission probe counters (the `swapram_*` names after
+`swapram_admissions`) explain a refused attempt. Each `swapram_reserve()`
+call ends in an admission or in one `swapram_refused_*` reason: admission
+closed, packed-text decoder held, encoder error, fewer free pool bytes than
+the reservation (`nospace`), or enough free bytes without one run
+(`fragment`). The want, free and largest sums, the `swapram_short_*` bins and
+`swapram_refused_data_fits` describe the pool refusals; the scan, zero and
+chunk counters describe the data and stack bytes of every call, split by
+outcome. `swapram_ram_span_NN` and `swapram_flash_span_NN` count completed
+swap-outs by image length in 4 KiB sectors, the unit a flash swap-out erases.
+Attempts equal admissions plus `swapram_flash_swapouts`,
+`swapram_exchange_swapouts` and `swapram_sched_refusals`. A refused fork
+counts its reservation reasons but no attempt. The counters add 208 bytes
+of data and about 560 bytes of text to the PICO kernel.
+
 Use paired captures for a clean idle interval, partial-block overwrites,
 full-block rewrites, sequential and random reads, linker scratch traffic,
 and explicit synchronous writes. Keep buffer configuration, image contents

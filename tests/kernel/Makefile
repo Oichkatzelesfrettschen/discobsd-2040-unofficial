@@ -1266,6 +1266,30 @@ trim_order_${mutation}.mutant.test: trim_order_${mutation}.mutant.c \
 	    hostkern32.o
 .endfor
 
+# Not a gate: the trim cost arms of docs/research/trim-cost-model.md.
+# Arm A links the inode-last itrunc and no trim, B the inode-first itrunc
+# and no trim, C the branch, D B with a sweep at sync below depth K.
+.for arm objs in A trim_order_inode-after-frees.mutant.o,trim_order_trim-skipped.mutant.o B trim_order_ufs_inode.o,trim_order_trim-skipped.mutant.o C trim_order_ufs_inode.o,trim_order_ufs_alloc.o
+trim_cost_${arm}: trim_cost.c trim_order_test.c ${objs:S/,/ /g} \
+    ${TRIM_ORDER_OBJECTS} ${TRIM_DHARA_OBJECTS} hostkern_kern.c hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${TRIM_ORDER_DEFS} ${ILP32} -Wl,--gc-sections \
+	    -o $@ trim_cost.c ${objs:S/,/ /g} trim_order_ufs_bio.o \
+	    trim_order_ufs_bmap.o trim_order_ufs_subr.o trim_order_ufs_syscalls2.o \
+	    ${TRIM_DHARA_OBJECTS} hostkern_kern.c hostkern32.o
+.endfor
+
+.for mutation in inode-after-frees trim-skipped
+trim_order_${mutation}.mutant.o: trim_order_${mutation}.mutant.c
+	${HOST_CC} ${KERN_CFLAGS} ${TRIM_ORDER_CFLAGS} ${ILP32} -c -o $@ \
+	    trim_order_${mutation}.mutant.c
+.endfor
+
+trim-cost-report: trim_cost_A trim_cost_B trim_cost_C trim_order.img
+	./trim_cost_A trim_order.img A
+	./trim_cost_B trim_order.img B
+	./trim_cost_C trim_order.img C
+	@for k in 000 032 064 128; do ./trim_cost_B trim_order.img D$$k $$k; done
+
 check-trim-order: trim_order_test trim_order.img \
     ${TRIM_ORDER_MUTANTS:@m@trim_order_${m}.mutant.test@}
 	./trim_order_test trim_order.img
@@ -3423,7 +3447,7 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
 
 clean:
 	rm -rf ${V7_FORMAT_WORK}
-	rm -f trim_order_test trim_order.img trim_order_*.o trim_dhara*.o \
+	rm -f trim_order_test trim_order.img trim_order_*.o trim_dhara*.o trim_cost_? \
 	    trim_order_*.mutant.c trim_order_*.mutant.test trim_order_*.mutant.out
 	rm -f pipe_rw_function.c pipe_rw_contract32 pipe_rw_contract_single32 \
 	    pipe_rw_*.mutant.c pipe_rw_*.mutant32.test
@@ -3578,7 +3602,7 @@ clean:
 	fi
 	@if [ -d ${CONSOLE_C17_MACHINE} ]; then rmdir ${CONSOLE_C17_MACHINE}; fi
 
-.PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants check-trim-order \
+.PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants check-trim-order trim-cost-report \
 	check-rmap-ring-mutants check-swap-ring-io check-sysctl-proc-mutants \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
 	check-buffer-busy-mutants \

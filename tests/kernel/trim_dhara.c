@@ -47,6 +47,15 @@ static const struct dhara_nand nand = {
 };
 static unsigned faults, pages;
 
+/*
+ * Cost accounting by the operation that caused it: Dhara pages programmed
+ * by a write (its own page plus the garbage-collection copies and
+ * checkpoint pages it triggers), by a trim, and by a checkpoint, and block
+ * erases. Copies are counted on their own as well.
+ */
+static int phase;
+static unsigned phase_pages[TD_PHASES], phase_copies[TD_PHASES], erases;
+
 int
 dhara_nand_is_bad(const struct dhara_nand *n, dhara_block_t b)
 {
@@ -69,6 +78,7 @@ dhara_nand_erase(const struct dhara_nand *n, dhara_block_t b,
 	(void)n;
 	(void)err;
 	memset(region + (size_t)b * FLASH_ERASE_BYTES, 0xff, FLASH_ERASE_BYTES);
+	erases++;
 	return 0;
 }
 
@@ -87,6 +97,7 @@ dhara_nand_prog(const struct dhara_nand *n, dhara_page_t p,
 	for (i = 0; i < FLASH_UNIT_BYTES; i++)
 		q[i] &= data[i];
 	pages++;
+	phase_pages[phase]++;
 	return 0;
 }
 
@@ -119,6 +130,7 @@ dhara_nand_copy(const struct dhara_nand *n, dhara_page_t src,
 {
 	uint8_t buf[FLASH_UNIT_BYTES];
 
+	phase_copies[phase]++;
 	dhara_nand_read(n, src, 0, sizeof(buf), buf, err);
 	return dhara_nand_prog(n, dst, buf, err);
 }
@@ -143,7 +155,9 @@ td_erase(void)
 			abort();
 	}
 	memset(region, 0xff, FLASH_FS_BYTES);
-	faults = pages = 0;
+	faults = pages = erases = 0;
+	memset(phase_pages, 0, sizeof(phase_pages));
+	memset(phase_copies, 0, sizeof(phase_copies));
 	td_reset();
 }
 
@@ -159,30 +173,70 @@ int
 td_write(unsigned sector, const unsigned char *data)
 {
 	dhara_error_t err = DHARA_E_NONE;
+	int r;
 
-	return dhara_map_write(&map, sector, data, &err);
+	phase = TD_WRITE;
+	r = dhara_map_write(&map, sector, data, &err);
+	phase = TD_OTHER;
+	return r;
 }
 
 int
 td_trim(unsigned sector)
 {
 	dhara_error_t err = DHARA_E_NONE;
+	int r;
 
-	return dhara_map_trim(&map, sector, &err);
+	dhara_page_t page_of;
+
+	/*
+	 * dhara_map_trim() runs auto_gc() before it looks the sector up, so a
+	 * trim of an unmapped sector still pays for collection; fl_trim()
+	 * looks it up first, and so does this model.
+	 */
+	if (dhara_map_find(&map, sector, &page_of, &err) < 0)
+		return err == DHARA_E_NOT_FOUND ? 0 : -1;
+	phase = TD_TRIM;
+	r = dhara_map_trim(&map, sector, &err);
+	phase = TD_OTHER;
+	return r;
 }
 
 int
 td_sync(void)
 {
 	dhara_error_t err = DHARA_E_NONE;
+	int r;
 
-	return dhara_map_sync(&map, &err);
+	phase = TD_SYNC;
+	r = dhara_map_sync(&map, &err);
+	phase = TD_OTHER;
+	return r;
 }
 
 unsigned
 td_live(void)
 {
 	return (unsigned)dhara_map_size(&map);
+}
+
+/* Pages and copies caused by one class of operation, and erases. */
+unsigned
+td_phase_pages(int which)
+{
+	return phase_pages[which];
+}
+
+unsigned
+td_phase_copies(int which)
+{
+	return phase_copies[which];
+}
+
+unsigned
+td_erases(void)
+{
+	return erases;
 }
 
 /* Dhara pages programmed since the last td_erase(). */

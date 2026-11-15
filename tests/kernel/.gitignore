@@ -276,3 +276,4 @@ trim_order.img
 trim_order_*.mutant.c
 trim_order_*.mutant.test
 trim_order_*.mutant.out
+trim_cost_?

@@ -99,6 +99,9 @@ static struct request {
 	u_char	data[DEV_BSIZE];
 } reqlog[LOG_MAX];
 static int nlog, log_on;
+/* Requests by kind, whether or not the log records them. */
+static unsigned meta_writes, data_writes, trims_issued;
+static struct fs *fs;
 static daddr_t fail_write = -1;
 
 static void
@@ -137,6 +140,10 @@ tdstrategy(struct buf *bp)
 		bp->b_error = EIO;
 		bp->b_flags |= B_ERROR;
 	} else {
+		if (fs != NULL && (u_int)bp->b_blkno < fs->fs_isize)
+			meta_writes++;
+		else
+			data_writes++;
 		log_request(REQ_WRITE, bp->b_blkno, (u_char *)bp->b_addr);
 		if (td_write((unsigned)bp->b_blkno, (u_char *)bp->b_addr) < 0) {
 			bp->b_error = EIO;
@@ -161,6 +168,7 @@ tdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 	case DIOCTRIM:
 		if (flag != 0)
 			return EPERM;
+		trims_issued++;
 		log_request(REQ_TRIM, *(daddr_t *)addr, NULL);
 		return td_trim((unsigned)*(daddr_t *)addr) < 0 ? EIO : 0;
 	case DIOCCHECKPOINT:
@@ -196,7 +204,6 @@ init_buffers(void)
 	}
 }
 
-static struct fs *fs;
 
 /* Boot over the device's current state: what mountfs() does for the root. */
 static void

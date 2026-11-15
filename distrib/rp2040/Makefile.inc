@@ -163,7 +163,8 @@ cleanflash:
 # The PicoCalc's root on its SD card, for a kernel the PicoCalc UF2 loader
 # starts (sdrootattach() in sys/arch/rp2040/dev/sd.c): every file of
 # ${DESTDIR}, with ${FSIMG}'s manifest for owners, modes and links
-# (mksdmanifest.py), as a bare filesystem of SDROOT_KBYTES with no
+# (mksdmanifest.py) and the board test programs of tests/rp2040 in
+# /usr/tests/rp2040, as a bare filesystem of SDROOT_KBYTES with no
 # partition table and an /etc/fstab naming /dev/sd0${SDROOT_PART}, the MBR
 # slot of the card's first type-b7 partition. Write it at that
 # partition's first sector.
@@ -175,6 +176,8 @@ sdroot:		${SDROOTIMG}
 
 ${SDROOTIMG}:	${FSIMG} ${TOPSRC}/tools/picocalc/mksdroot.sh \
 		    ${TOPSRC}/distrib/${MACHINE}/mksdmanifest.py
+		${MAKE} -C ${TOPSRC}/tests/rp2040 MACHINE=${MACHINE} \
+		    DESTDIR=${DESTDIR} install
 		${PYTHON} ${TOPSRC}/distrib/${MACHINE}/mksdmanifest.py \
 		    distrib/${MACHINE}/_manifest ${DESTDIR} \
 		    distrib/${MACHINE}/_manifest.sdroot

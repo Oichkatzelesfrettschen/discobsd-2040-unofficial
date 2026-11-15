@@ -926,10 +926,12 @@ where the flash root carries its profile's selection.
 `distrib/rp2040/mksdmanifest.py` extends the flash root's composed manifest,
 which keeps its owners, modes, setuid bits, links and nodes, with every
 other directory, file and symbolic link of the tree, owned by root. The
-image then holds about 1,700 files in 15.5 MB, among them MATEzinho's icon
+image then holds about 1,720 files in 15.6 MB, among them MATEzinho's icon
 pack in `/usr/share/matezinho` (with its CC BY-SA 3.0 notices and the
-source art as `artwork.tar`) and the `desktop` command that starts it, and
-`paneltest` (`doc/PANELTEST.md`). It also holds the block and raw nodes of all four card
+source art as `artwork.tar`) and the `desktop` command that starts it,
+`paneltest` (`doc/PANELTEST.md`), and the board test programs of
+`tests/rp2040` (`fptest`, `sigtest`, `lcdgfxtest`, `windowtest` and the
+rest) in `/usr/tests/rp2040`. It also holds the block and raw nodes of all four card
 partitions, an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because
 `fsck -p` and `mount -a` in `/etc/rc` read it, and a getty on tty0, the
 USB-C port's serial line at 115200 baud, beside the panel's console login. It is written at the first

@@ -21,7 +21,24 @@ build-${program}:
 		${MAKE} -C ${program} all
 .endfor
 
+# The executables the board runs, installed in /usr/tests/rp2040 for the
+# PicoCalc's SD root (distrib/rp2040/Makefile.inc, sdroot), which has the
+# space the flash root lacks. The host-side drivers (*.py) stay here.
+BOARD_BINS=	divtest/divtest exec_hsaout/textcrc fptest/fptest \
+		lcdgfxtest/lcdgfxtest romprobe/romprobe sigtest/sigtest \
+		streamtest/streamtest stdio_capacity/stdiocap \
+		swapmaptest/swapmaptest swapram_evacuate/evactest \
+		tartest/tartest tiledemo/tiledemo user_window/windowtest \
+		fork_refusal/forktest capacity_exhaustion/clistbound \
+		capacity_exhaustion/filetab capacity_exhaustion/inotab \
+		capacity_exhaustion/proctab
+
+install:	all
+		mkdir -p ${DESTDIR}/usr/tests/rp2040
+		for f in ${BOARD_BINS}; do \
+			cp $$f ${DESTDIR}/usr/tests/rp2040/ || exit 1; done
+
 clean:
 		-for i in ${BOARD_PROGS}; do ${MAKE} -C $$i clean; done
 
-.PHONY:		all clean ${BOARD_TARGETS}
+.PHONY:		all install clean ${BOARD_TARGETS}

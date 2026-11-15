@@ -211,6 +211,7 @@ Grouped by what they investigate.
 | `libc-absolute-value-contracts.md` | callable int/long magnitude providers, representability domain, archive ownership and calibrated address-taking witnesses |
 | `callable-character-io-contracts.md` | six callable stdio names, preserved macro/FILE contracts, existing archive ownership and calibrated header/byte/backend witnesses |
 | `callable-character-io-resource-exception.md` | matched native archive and native caller costs, unchanged shipped program identities, alignment/frame boundaries and exact admission request |
+| `stdio-eof-fixed-point-resource-exception.md` | repeated-EOF counter normalization, matched archive and shipped-program costs, preserved stack and capacity margins, alternatives and exact admission request |
 | `libc-absolute-value-resource-exception.md` | matched native archive growth, preserved program identities and resource admission limits for callable magnitude providers |
 | `search-bound-experiment/README.md` | unshipped tableless Two-Way search, calibrated finite work counts, target frames and replay driver |
 | `bsd-workspace-directory-stream-c17.md` | directory-stream ideas composed from six BSD trees into a 68-byte smaller C17 stream with allocation-free cookies and resident-buffer seeks |

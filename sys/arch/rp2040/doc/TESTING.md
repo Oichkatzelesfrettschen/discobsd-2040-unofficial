@@ -1078,7 +1078,7 @@ plus the tracked changes of the working tree, untracked files excluded) whose
 object store borrows the host's read-only, so a gate that reads a baseline
 commit with `git show` finds it and the host tree is never written. It runs
 `bmake MACHINE=rp2040 build`, then the named targets, under `podman` (else
-`docker`), and writes the log to `.build-logs/hosted-runner-STAMP.log`. The
+`docker`), and writes the log to `.build-logs/hosted-runner-STAMP.XXXXXX`. The
 exit status is the gate's. `--skip-build` omits the build for a target that
 needs no objects; neither engine installed reports `not run`. picotool is
 absent, so `flash` and `check-uf2-images` are out of scope, and the

@@ -25,7 +25,7 @@
 #
 # Sequence: `bmake -jN MACHINE=rp2040 build`, as the workflow's first step,
 # then `bmake MACHINE=rp2040 TARGET...` with PYTHON set to python3. The log
-# streams to .build-logs/hosted-runner-<stamp>.log under the host repository
+# streams to .build-logs/hosted-runner-<stamp>.XXXXXX under the host repository
 # and the exit status is the gate's. picotool is not installed, so targets
 # that convert UF2 images (flash, check-uf2-images) are out of scope. The
 # workflow's per-step deadlines are not applied.
@@ -135,8 +135,11 @@ done
 case $sum_tool in
 shasum) sum_tool="shasum -a 256" ;;
 esac
-hash=$(printf '%s|%s|%s|%s\n' "$BASE_IMAGE" "$apt_all" "$pipx_all" \
-	"$engine" | $sum_tool | cut -c1-12)
+# The ISO week is part of the tag: package names stay the same while the
+# archive and the hosted runner move to newer versions, so an image is
+# rebuilt at least weekly without --rebuild.
+hash=$(printf '%s|%s|%s|%s|%s\n' "$BASE_IMAGE" "$apt_all" "$pipx_all" \
+	"$engine" "$(date -u +%G-%V)" | $sum_tool | cut -c1-12)
 image=localhost/discobsd-hosted-runner:$hash
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/$me.XXXXXX")
@@ -208,7 +211,7 @@ fi
 
 mkdir -p .build-logs
 stamp=$(date +%Y%m%d-%H%M%S)
-log=.build-logs/hosted-runner-$stamp.log
+log=$(mktemp ".build-logs/hosted-runner-$stamp.XXXXXX")
 status_file=$work/status
 printf '%s: %s on %s, log %s\n' "$me" "$*" "$(printf '%.12s' "$commit")" \
 	"$log" >&2

@@ -198,12 +198,13 @@ break-growth fix and the shell with it.
 | Swap bytes written | 5,865,824 | 4,986,464 |
 | SwapRAM attempts, admitted | 303, 61 | 305, 63 |
 | Refused: no single free run, too few free bytes | 240, 2 | 196, 46 |
-| Refused swap-outs by span | 192 of 7 sectors, 49 of 5 | 192 of 6 sectors, 49 of 5 |
+| Refused swap-outs by span | 192 of 7 sectors, 49 of 5, 1 of 12 or more | 192 of 6 sectors, 49 of 5, 1 of 12 or more |
 | Shortfall under 1 KiB, 1 to 2 KiB, 3 to 4 KiB | 0, 184, 48 | 172, 8, 47 |
 | Root sectors erased | 934 | 930 |
 
 Eight swap-outs a compile are one image class, refused every time; a second
-class of 5 sectors is admitted about half the time. The probe records no
+class of 5 sectors is admitted about half the time, and one swap-out of 12
+or more sectors occurs once in each run. The probe records no
 process name. The `cc` driver is a shell script, so the dominant class is
 most likely its shell, swapped out while it waits on a pass; that is an
 inference from the size. Closed admission, a held codec and encoder failure

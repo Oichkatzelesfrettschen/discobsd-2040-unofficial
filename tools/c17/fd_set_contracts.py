@@ -197,9 +197,11 @@ def main():
     try:
         require(os.environ.get("PYTHON"), "PYTHON must explicitly select the interpreter")
         root = args.root.resolve()
-        cross = shutil.which("arm-none-eabi-gcc")
+        # The host mode runs natively; cross and qemu build for the M0+.
+        cross = shutil.which("arm-none-eabi-gcc") if args.mode != "host" else None
         host = shlex.split(os.environ.get("HOST_CC", "cc"))
-        require(cross and host and shutil.which(host[0]), "ARM and host compilers are required")
+        require(host and shutil.which(host[0]), "a host compiler is required")
+        require(cross or args.mode == "host", "the ARM compiler is required")
         host[0] = shutil.which(host[0])
         with tempfile.TemporaryDirectory(prefix="fd-set-contracts-") as directory:
             workspace = Path(directory)

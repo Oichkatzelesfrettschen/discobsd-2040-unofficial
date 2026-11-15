@@ -47,6 +47,9 @@ EXPECTED_REPOSITORIES = {
         "25b8a3ff7ad21b426214964eb91786f63e34e5a4",
     ),
 }
+# Candidates whose mechanism lives in headers alone and selects no archive
+# member; every other candidate names the members its footprint links.
+HEADER_ONLY_CANDIDATES = frozenset({"libc-descriptor-set-initialization"})
 EXPECTED_CANDIDATES = {
     "libc-reallocarray": (
         "netbsd-src",
@@ -2441,11 +2444,12 @@ def validate_document(root, document, requirement_ids):
         require(any(source["repository"] == candidate["repository"] for source in sources),
                 f"primary repository lacks source: {candidate_id}")
         archive_members = candidate["archive_members"]
-        # Header-only mechanisms select no archive members. Their caller
-        # footprints still require matched resource qualification.
+        # A header-only mechanism selects no archive member, and only a
+        # candidate named in HEADER_ONLY_CANDIDATES may; its caller footprint
+        # still requires matched resource qualification.
         require(
             isinstance(archive_members, list)
-            and (archive_members or candidate_id not in EXPECTED_CANDIDATES)
+            and bool(archive_members) != (candidate_id in HEADER_ONLY_CANDIDATES)
             and all(isinstance(member, str) and member for member in archive_members),
             f"bad archive members: {candidate_id}",
         )

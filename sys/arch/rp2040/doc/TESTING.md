@@ -1963,11 +1963,11 @@ establishes coverage of that baseline; later changes require delta review.
 
 `check-libc-pic-replay` calibrates `tools/libc_pic_replay.py` with real
 ARM compiler captures, a writable-state GOT relocation, and generated assembly
-supplied through retained standard input. Twenty-four tests reject stale source,
+supplied through retained standard input. Twenty-five tests reject stale source,
 missing/ambiguous/failed captures, wrong compiler/dependency/snapshot identities,
 response operands, escaped source/dependency/output paths, changed retained input,
 unknown capture versions, unreviewed options, compiler failure and
-capture/snapshot/archive changes during
+capture/snapshot/archive/source/dependency changes during
 replay. A failed replay publishes no success receipt. Repeated `-c` options keep
 their compiler meaning; one captured output owns each replayed object.
 The caller selects `PYTHON`; ARM GCC/binutils, Git and pyelftools are required.

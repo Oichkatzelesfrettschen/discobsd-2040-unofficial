@@ -17,17 +17,33 @@
 /*
  * Host test of the RP2040 UART's transmit path (sys/arch/rp2040/dev/uart.c,
  * included unchanged with UART_HOST_MODEL). The model is the PL011 as the
- * RP2040 datasheet 4.2.6.3 states it: a 32-byte transmit FIFO, the trigger
- * TXIFLSEL at its reset value, half full (16 bytes), and a transmit
- * interrupt that asserts only when the FIFO level falls through the
- * trigger, clears when writes lift the level above it or ICR clears it,
- * and reaches uartintr() only while IMSC unmasks it. The wire takes one
- * byte per tick. Each case queues output, calls the line's start routine
- * and then ticks with no received byte at all, which is how a login
- * prompt or a program's output reaches an idle terminal; every byte must
- * reach the wire in order. A driver that feeds the FIFO one byte per start
- * leaves the level below the trigger, gets no interrupt and stops after the
- * first byte, which is what the PicoCalc's USB-C console showed.
+ * RP2040 datasheet 4.2.6.3 and 4.2.8 state it: a 32-byte transmit FIFO
+ * feeding a shift register, the trigger TXIFLSEL at its reset value, half
+ * full (16 bytes), and a transmit interrupt that asserts only when the FIFO
+ * level falls through the trigger, clears when writes lift the level above
+ * it or ICR clears it, and reaches uartintr() only while IMSC unmasks it.
+ * UARTFR's TXFE reads an empty FIFO and BUSY a non-empty FIFO or a byte in
+ * the shift register. One step is one character time: the byte in the
+ * shift register reaches the wire and the FIFO's head moves into it. Every
+ * CLOCK steps a kernel tick runs the pending callout, as softclock() does
+ * (HZ 1000 against 86.8 us per character at 115200 baud).
+ *
+ * The output cases queue bytes, call the line's start routine and step
+ * with no received byte at all, which is how a login prompt or a program's
+ * output reaches an idle terminal; every byte must reach the wire in order.
+ * A driver that feeds the FIFO one byte per start leaves the level below
+ * the trigger, gets no interrupt and stops after the first byte, which is
+ * what the PicoCalc's USB-C console showed. The drain cases run tty.c's
+ * ttywait() loop against the model: it must return only once the FIFO and
+ * the shift register are empty, through the wakeup of the drain callout,
+ * and TS_BUSY must stay set at every step until then.
+ *
+ * The test serializes the driver against its interrupt and callout: spltty()
+ * is a no-op here, and uartintr() and the callout run only between steps.
+ * It establishes the transmit state machine, not interrupt safety, which
+ * rests on spltty() being a global PRIMASK disable on this port
+ * (sys/arch/rp2040/include/intr.h). It runs no uartinit(), receive path,
+ * interrupt nesting or hardware.
  */
 
 /* The hardware paths of uartinit() only, which this test never calls. */
@@ -38,15 +54,24 @@ static volatile unsigned shim_reg_sink;
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define	FIFO		32
 #define	TRIGGER		16	/* UART_IFLS_TX_HALF, which uartinit() programs. */
 #define	MAXBYTES	4096
+#define	CLOCK		11	/* Character times per kernel tick. */
 
 struct shim_user u;
 
 static unsigned char txfifo[FIFO];
 static int txlev, ris, imsc, enabled;
+static int shifting;
+static unsigned char shiftreg;
+static int steps;
+static void (*co_fun)(caddr_t);
+static caddr_t co_arg;
+static int co_ticks, co_pending, co_runs;
+static int asleep;
 static unsigned char wire[MAXBYTES];
 static int nwire;
 static unsigned char queue[MAXBYTES];
@@ -70,11 +95,20 @@ uart_tx_ready(u_int base)
 	return txlev < FIFO;
 }
 
+/* BUSY clear. */
 int
 uart_tx_idle(u_int base)
 {
 	(void)base;
-	return txlev == 0;
+	return txlev == 0 && !shifting;
+}
+
+/* TXFE set and BUSY clear. */
+int
+uart_tx_drained(u_int base)
+{
+	(void)base;
+	return txlev == 0 && !shifting;
 }
 
 int
@@ -146,20 +180,49 @@ uart_irq_clear(u_int base, u_int mask)
 	ris &= ~(int)mask;
 }
 
-/* One byte leaves the FIFO; a fall through the trigger asserts TX. */
+/*
+ * One character time: the shift register's byte reaches the wire and the
+ * FIFO's head moves into it; a fall through the trigger asserts TX.
+ */
 static void
 tick(void)
 {
 	int before = txlev;
 
+	if (shifting) {
+		if (nwire < MAXBYTES)
+			wire[nwire++] = shiftreg;
+		shifting = 0;
+	}
 	if (txlev == 0)
 		return;
-	if (nwire < MAXBYTES)
-		wire[nwire++] = txfifo[0];
+	shiftreg = txfifo[0];
+	shifting = 1;
 	memmove(txfifo, txfifo + 1, (size_t)(txlev - 1));
 	txlev--;
 	if (before > TRIGGER && txlev <= TRIGGER)
 		ris |= UART_INT_TX;
+}
+
+/* The kernel's callout list, held to the one entry the driver may own. */
+void
+timeout(void (*fun)(caddr_t), caddr_t arg, int t)
+{
+	if (co_pending) {
+		printf("FAIL a second callout while one is pending\n");
+		exit(1);
+	}
+	co_fun = fun;
+	co_arg = arg;
+	co_ticks = t;
+	co_pending = 1;
+}
+
+void
+untimeout(void (*fun)(caddr_t), caddr_t arg)
+{
+	if (co_pending && co_fun == fun && co_arg == arg)
+		co_pending = 0;
 }
 
 /* The tty layer the driver calls. */
@@ -179,11 +242,13 @@ ttstart(struct tty *tp)
 		(*tp->t_oproc)(tp);
 }
 
+/* tty.c wakes a ttywait() sleeper once t_outq is at its low mark. */
 void
 ttyowake(struct tty *tp)
 {
-	(void)tp;
 	owakes++;
+	if (asleep && tp->t_outq.c_cc == 0)
+		asleep = 0;
 }
 
 void ttyinput(int c, struct tty *tp) { (void)c; (void)tp; }
@@ -216,7 +281,15 @@ line(void)
 	tp->t_oproc = uartstart;
 	tp->t_state = TS_ISOPEN | TS_CARR_ON;
 	txlev = ris = imsc = nwire = qhead = qtail = interrupts = owakes = 0;
+	shifting = steps = co_pending = co_runs = asleep = 0;
+	memset(uart_txflags, 0, sizeof(uart_txflags));
 	return tp;
+}
+
+static int
+line_drained(void)
+{
+	return txlev == 0 && !shifting;
 }
 
 static void
@@ -228,19 +301,58 @@ queue_bytes(struct tty *tp, const unsigned char *p, int n)
 }
 
 /*
- * Run the wire with no received byte: tick, and enter uartintr() whenever
- * the model's masked status is set, as the NVIC would.
+ * One step with no received byte: a character time, uartintr() whenever
+ * the model's masked status is set, as the NVIC would enter it, and the
+ * pending callout on each kernel tick.
  */
 static void
-run_idle(int ticks)
+step(void)
 {
-	while (ticks-- > 0) {
-		tick();
-		if (uart_irq_status(0) != 0) {
-			interrupts++;
-			uartintr(makedev(UART_MAJOR, 0));
+	tick();
+	if (uart_irq_status(0) != 0) {
+		interrupts++;
+		uartintr(makedev(UART_MAJOR, 0));
+	}
+	if (++steps % CLOCK == 0 && co_pending && --co_ticks <= 0) {
+		co_pending = 0;
+		co_runs++;
+		(*co_fun)(co_arg);
+	}
+}
+
+static void
+run_idle(int n)
+{
+	while (n-- > 0)
+		step();
+}
+
+/*
+ * tty.c's ttywait(): call the start routine and sleep until ttyowake() while
+ * t_outq holds bytes or TS_BUSY is set. Returns the steps slept, or -1 when
+ * no wakeup came within the bound. *early counts the steps at which TS_BUSY
+ * read clear while the FIFO or shift register still held a byte.
+ */
+static int
+drain_wait(struct tty *tp, int bound, int *early)
+{
+	int slept = 0;
+
+	*early = 0;
+	while (tp->t_outq.c_cc != 0 || (tp->t_state & TS_BUSY)) {
+		(*tp->t_oproc)(tp);
+		if (tp->t_outq.c_cc == 0 && (tp->t_state & TS_BUSY) == 0)
+			break;
+		asleep = 1;
+		while (asleep) {
+			if (slept++ >= bound)
+				return -1;
+			step();
+			if ((tp->t_state & TS_BUSY) == 0 && !line_drained())
+				(*early)++;
 		}
 	}
+	return slept;
 }
 
 static void
@@ -260,6 +372,8 @@ case_text(const char *name, const unsigned char *p, int n)
 	snprintf(what, sizeof(what), "%s: the queue and TS_BUSY end clear",
 	    name);
 	check(tp->t_outq.c_cc == 0 && (tp->t_state & TS_BUSY) == 0, what);
+	snprintf(what, sizeof(what), "%s: no callout is left pending", name);
+	check(co_pending == 0, what);
 	snprintf(what, sizeof(what), "%s: the transmit interrupt ends masked",
 	    name);
 	check((imsc & UART_INT_TX) == 0, what);
@@ -267,12 +381,51 @@ case_text(const char *name, const unsigned char *p, int n)
 	    interrupts, owakes);
 }
 
+/*
+ * Queue n bytes, start the line and drain it at once, as close(2) and a
+ * TIOCSETP do through ttywait(): the wait ends only after the last byte
+ * leaves the shift register, TS_BUSY is set at every step until then, and
+ * the drain callout's wakeup ends the sleep with no received byte.
+ */
+static void
+case_drain(const char *name, const unsigned char *p, int n)
+{
+	struct tty *tp = line();
+	char what[96];
+	int slept, early;
+
+	queue_bytes(tp, p, n);
+	ttstart(tp);
+	check((tp->t_state & TS_BUSY) != 0,
+	    "drain: TS_BUSY is set while bytes remain to send");
+	slept = drain_wait(tp, 8 * n + 64, &early);
+	snprintf(what, sizeof(what), "%s: the drain wait is woken", name);
+	check(slept >= 0, what);
+	snprintf(what, sizeof(what),
+	    "%s: TS_BUSY never clears with a byte unsent (%d steps)", name,
+	    early);
+	check(early == 0, what);
+	snprintf(what, sizeof(what),
+	    "%s: the wait returns with the FIFO and shifter empty", name);
+	check(line_drained() && nwire == n && memcmp(wire, p, (size_t)n) == 0,
+	    what);
+	snprintf(what, sizeof(what), "%s: TS_BUSY, IMSC and the callout end clear",
+	    name);
+	check((tp->t_state & TS_BUSY) == 0 && (imsc & UART_INT_TX) == 0 &&
+	    co_pending == 0 && (uart_txflags[0] & UART_TX_DRAIN) == 0, what);
+	printf("%s: %d bytes, %d steps asleep, %d callouts, %d interrupts\n",
+	    name, nwire, slept, co_runs, interrupts);
+}
+
 int
 main(void)
 {
 	static unsigned char big[1000];
 	struct tty *tp;
-	int i;
+	int i, early;
+
+	/* A driver that loops in uartputc() ends here rather than hanging. */
+	alarm(20);
 
 	for (i = 0; i < (int)sizeof(big); i++)
 		big[i] = (unsigned char)('a' + i % 26);
@@ -306,6 +459,41 @@ main(void)
 	ttstart(tp);
 	run_idle(100);
 	check(nwire == 10, "the restarted line sends its queue");
+
+	case_drain("drain 1 byte", big, 1);
+	case_drain("drain 7 bytes", big, 7);
+	case_drain("drain 32 bytes", big, FIFO);
+	case_drain("drain 100 bytes", big, 100);
+
+	/*
+	 * Output queued while the FIFO drains goes out at once, before the
+	 * next kernel tick, behind the earlier bytes, and adds no callout.
+	 */
+	tp = line();
+	queue_bytes(tp, big, 3);
+	ttstart(tp);
+	run_idle(1);
+	queue_bytes(tp, (const unsigned char *)"tail", 4);
+	ttstart(tp);
+	run_idle(7);
+	check(steps < CLOCK && nwire == 7 && memcmp(wire, big, 3) == 0 &&
+	    memcmp(wire + 3, "tail", 4) == 0,
+	    "output appended during the drain leaves before the next tick");
+	check(drain_wait(tp, 64, &early) >= 0 && early == 0 && line_drained(),
+	    "the appended output drains");
+
+	/*
+	 * The console putc during the drain writes behind the queued bytes and
+	 * returns; the drain still ends through the callout.
+	 */
+	tp = line();
+	queue_bytes(tp, big, 3);
+	ttstart(tp);
+	run_idle(1);
+	uartputc(makedev(UART_MAJOR, 0), '!');
+	check(drain_wait(tp, 64, &early) >= 0 && early == 0 && nwire == 4 &&
+	    memcmp(wire, big, 3) == 0 && wire[3] == '!',
+	    "uartputc() during the drain follows the queued bytes");
 
 	if (failures) {
 		printf("uart_test: %d failures\n", failures);

@@ -80,11 +80,14 @@
 #
 # uart_test includes the RP2040 UART driver (uart.c) unchanged with
 # UART_HOST_MODEL, which replaces the PL011 register helpers of uart.h with
-# a model of the 32-byte transmit FIFO whose interrupt asserts only when the
-# level falls through the half-full trigger (RP2040 datasheet 4.2.6.3), and
-# requires output of 1 to 1000 bytes to reach the wire in order with no
-# received byte to run the interrupt handler; two mutants of uart.c (one
-# byte per start, TS_BUSY with an empty queue) must fail it.
+# a model of the 32-byte transmit FIFO and shift register whose interrupt
+# asserts only when the level falls through the half-full trigger (RP2040
+# datasheet 4.2.6.3), plus a one-entry callout list run each kernel tick.
+# It requires output of 1 to 1000 bytes to reach the wire in order with no
+# received byte to run the interrupt handler, and a ttywait() loop after 1,
+# 7, 32 and 100 bytes to return only once the FIFO and shift register are
+# empty, through the drain callout's wakeup. Eight mutants of uart.c must
+# fail it (see uart-mutants).
 #
 TOPSRC!=	cd ../..; pwd
 
@@ -1566,7 +1569,10 @@ uart_test: uart_test.c ${DEV}/uart.c ${DEV}/uart.h
 UART_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${UARTCSTD} ${SAN}" "${DEV}" \
 		uart_test.c
 
-uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty
+uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty \
+	uart-mutant-busy-early uart-mutant-drain-unchecked \
+	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
+	uart-mutant-putc-waits uart-mutant-timer-dup
 
 uart-mutant-one-byte:
 	${UART_MUT} uart.c \
@@ -1576,6 +1582,41 @@ uart-mutant-one-byte:
 uart-mutant-busy-empty:
 	${UART_MUT} uart.c \
 	    's/^    if (tp->t_outq.c_cc != 0) {$$/    if (1) {/' uart.h
+
+# TS_BUSY clears with bytes still in the FIFO, as before the drain phase.
+uart-mutant-busy-early:
+	${UART_MUT} uart.c \
+	    's/^    } else if (!uart_tx_drained(uip->base)) {$$/    } else if (0) {/' \
+	    uart.h
+
+# The drain callout clears TS_BUSY without reading UARTFR.
+uart-mutant-drain-unchecked:
+	${UART_MUT} uart.c \
+	    's/^    } else if (uart_tx_drained(uip->base)) {$$/    } else if (1) {/' \
+	    uart.h
+
+# The drain callout clears TS_BUSY without waking ttywait().
+uart-mutant-drain-no-wake:
+	${UART_MUT} uart.c \
+	    's/^        ttyowake(tp);$$/        (void)0;/' uart.h
+
+# uartstart() holds output queued during the drain until the callout.
+uart-mutant-drain-blocks:
+	${UART_MUT} uart.c \
+	    's/^        ((tp->t_state \& TS_BUSY) \&\& !(uart_txflags\[unit\] \& UART_TX_DRAIN))) {$$/        (tp->t_state \& TS_BUSY)) {/' \
+	    uart.h
+
+# uartputc() waits out the drain with PRIMASK set, where no callout runs.
+uart-mutant-putc-waits:
+	${UART_MUT} uart.c \
+	    's/^    if ((tp->t_state \& TS_BUSY) \&\& !(uart_txflags\[unit\] \& UART_TX_DRAIN)) {$$/    if (tp->t_state \& TS_BUSY) {/' \
+	    uart.h
+
+# A second drain callout is queued while one is pending.
+uart-mutant-timer-dup:
+	${UART_MUT} uart.c \
+	    's/^        if (!(uart_txflags\[unit\] \& UART_TX_TIMER)) {$$/        if (1) {/' \
+	    uart.h
 
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
@@ -1739,4 +1780,7 @@ clean:
 	sdstrat-mutant-dump-length-short \
 	sdstrat-mutant-dump-table-dropped
 
-.PHONY: uart-mutants uart-mutant-one-byte uart-mutant-busy-empty
+.PHONY: uart-mutants uart-mutant-one-byte uart-mutant-busy-empty \
+	uart-mutant-busy-early uart-mutant-drain-unchecked \
+	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
+	uart-mutant-putc-waits uart-mutant-timer-dup

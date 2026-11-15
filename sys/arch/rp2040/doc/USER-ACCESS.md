@@ -20,6 +20,9 @@ Two boards on one host get two names; the pattern
 `/dev/serial/by-id/*DiscoBSD*rp2040-if00` matches each of them. A kernel
 that cannot read the chip's ID reports the serial "rp2040" and the name
 ends in `console_rp2040-if00`, as kernels before the unique serial did.
+The udev rule and `discobsd-term` match the serial's `rp2040` ending, so a
+host package older than the unique serial finds such a board by its
+product string alone and its udev rule does not make `/dev/discobsd`.
 
 Use that path, not /dev/ttyACMn: the number increments on every
 re-enumeration and a stale node from a prior connection returns EIO.

@@ -25,8 +25,8 @@ W25Q16 flash, DiscoBSD `PICO` kernel built with `STORAGE_STATS=yes`), taken
 on 2026-11-14 and 2026-11-15. A `### command` line precedes the output of
 each command; `sysctl machdep.storage_stats` prints the cumulative counters
 and a result is the difference of two prints. The home directory in a prompt
-is the target's. Trailing blanks were removed from every line; nothing else
-was edited.
+is the target's. Trailing blanks were removed from every line; the reset
+captures were reduced as described below and nothing else was edited.
 
 `board/arms/`: one file per kernel and root image, each a fresh flash
 followed by `cc -o d d.c; sync` repeated.
@@ -40,10 +40,10 @@ followed by `cc -o d d.c; sync` repeated.
 | `A-B.txt`, `A-G4.txt` | as `B` and `G4`, root image with the in-memory assembler and linker streams | 24 |
 | `A-F.txt` | the merged trigger, same root image | 24 |
 
-`python3 board/arms/sum.py FILE...` prints writes, erases and seconds per
-compile for each file; `table.py` prints the per-step differences. `sum.py`
-divides by the number of counter intervals, which in the 8-compile files
-includes the two file write and delete steps (`n=10`).
+`python3 board/arms/sum.py FILE...` prints, for each file, the root erases
+summed over its compile steps and the writes, erases and seconds per compile;
+the file write and delete steps of the 8-compile captures are left out.
+`table.py` prints the differences of every step.
 
 `board/wl*.txt`: workload traffic before the checkpoint change (`wl.txt`,
 `wl-cc.txt`, `wl-cc3.txt`, `wl-base.txt`: one checkpoint per map write) and
@@ -52,7 +52,8 @@ with two prototypes that group checkpoints (`wl-p3.txt`, `wl-ab.txt`:
 prototypes' source revisions were not recorded; the merged policy is the one
 `sys/arch/rp2040/doc/STORAGE.md` describes.
 
-`board/hard-*.log`: the same three kernels across a forced warm reset. The
+`board/hard-*.txt`: the same three kernels across a forced warm reset. The
 file without `-after` holds the writes made before the reset, the `-after`
-file the state `fsck -p` and the next boot left. The logs are raw terminal
-output and keep the line editor's escape sequences and character echo.
+file the state `fsck -p` and the next boot left. These were recorded from
+the raw terminal; each line is reduced to its final state, without the
+escape sequences and the per-keystroke redraws of the line editor.

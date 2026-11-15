@@ -538,7 +538,8 @@
         "check-exit-lifecycle",
         "check-quick-exit",
         "check-qsort-context",
-        "check-byte-search"
+        "check-byte-search",
+        "check-character-io"
       ],
       "kind": "prerequisites"
     },
@@ -714,6 +715,11 @@
     {
       "from": "check-libc-byte-search",
       "to": "tests/libc_contracts:check-byte-search",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-libc-character-io",
+      "to": "tests/libc_contracts:check-character-io",
       "kind": "recipe"
     }
   ],
@@ -4928,6 +4934,63 @@
       "recipe": "${TEST_EXECUTION} run libc.byte-search.sanitized -- ./byte_search_test_san",
       "aliases": [
         "check-libc-byte-search"
+      ]
+    },
+    {
+      "id": "libc.character-io.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-character-io",
+      "root_target": "check-libc-host-contracts",
+      "program": "character_io_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "character_io_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.character-io.native -- ./character_io_test",
+      "aliases": [
+        "check-libc-character-io"
+      ]
+    },
+    {
+      "id": "libc.character-io.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-character-io",
+      "root_target": "check-libc-host-contracts",
+      "program": "character_io_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "character_io_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.character-io.ilp32 -- ./character_io_test32",
+      "aliases": [
+        "check-libc-character-io"
+      ]
+    },
+    {
+      "id": "libc.character-io.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-character-io",
+      "root_target": "check-libc-host-contracts",
+      "program": "character_io_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "character_io_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.character-io.sanitized -- ./character_io_test_san",
+      "aliases": [
+        "check-libc-character-io"
       ]
     }
   ]

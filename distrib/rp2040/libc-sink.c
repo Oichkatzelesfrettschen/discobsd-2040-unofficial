@@ -58,6 +58,10 @@ touch_stdio(void)
 	sink += fputs(buf, stdout);
 	sink += fputc('x', stdout);
 	sink += fgetc(f);
+	sink += (getc)(f);
+	sink += (putc)('x', stdout);
+	sink += (getchar)();
+	sink += (putchar)('x');
 	sink += puts(buf);
 	sink += printf("%s %d %u %x %c\n", buf, 1, 2u, 3u, 'a');
 	sink += fprintf(stderr, "%s\n", buf);

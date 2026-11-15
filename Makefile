@@ -394,6 +394,14 @@ check-record-header-contracts: check-python .WAIT symlinks
 		    --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/record-header-contracts.json
 
+check-character-io-headers: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/character_io_headers.py --root ${TOPSRC:Q} \
+		    --host-cc ${HOST_CC:Ucc:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/character-io-headers.json
+
+.PHONY: check-character-io-headers
+
 check-string-header-contracts: check-python .WAIT symlinks
 		@mkdir -p .build-logs
 		${PYTHON} tools/c17/string_header_contracts.py --root ${TOPSRC:Q} \
@@ -826,6 +834,11 @@ check-libc-byte-search-instructions:
 		${MAKE} -C tests/libc_contracts check-byte-search-instructions
 
 .PHONY: check-libc-byte-search check-libc-byte-search-instructions
+
+check-libc-character-io:
+		${MAKE} -C tests/libc_contracts check-character-io
+
+.PHONY: check-libc-character-io
 
 check-libc-absolute-value:
 		${MAKE} -C tests/libc_contracts check-absolute-value
@@ -1666,7 +1679,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
-CROSS_CONTRACT_GATES=	check-signal-sets-cross check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-public-header-inclusion check-network-header-contracts \
+CROSS_CONTRACT_GATES=	check-signal-sets-cross check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-character-io-headers check-public-header-inclusion check-network-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \

@@ -110,6 +110,17 @@ resource comparison, documentation and reviewed integration. Configuration-keyed
 dependency capture, compiler/analysis coverage and trust-boundary checks apply
 throughout the queue. A declaration or stub cannot close a runtime requirement.
 
+The [callable character-I/O contract](callable-character-io-contracts.md)
+closes a public-function prerequisite exposed by shared-libc API selection.
+`getc` and `putc` gain typed callable providers in the existing `fgetc.o` and
+`fputc.o` members. Four public declarations expose callable/address-taking forms
+while preserving macro expressions and FILE layout. Calibrated headers, byte
+operations, EOF/error handling and standard-stream identity supply focused
+witnesses; clean caller/native closure, matched resources and review retain
+their separate completion states. Six Issue 8 rows advance to host-witnessed
+partial status. POSIX error/timestamp/concurrency facets and physical execution
+remain open.
+
 The [tableless search experiment](search-bound-experiment/README.md) retains
 the next search-bound comparison and its replay driver. The finite host and
 ARMv6-M matrices preserve earliest-match behavior while exposing the separate

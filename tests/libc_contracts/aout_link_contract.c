@@ -18,6 +18,12 @@ int (*volatile aout_abs)(int) = abs;
 long (*volatile aout_labs)(long) = labs;
 void *(*volatile aout_memchr)(const void *, int, size_t) = memchr;
 void *(*volatile aout_memmem)(const void *, size_t, const void *, size_t) = memmem;
+int (*volatile aout_fgetc)(FILE *) = (fgetc);
+int (*volatile aout_getc)(FILE *) = (getc);
+int (*volatile aout_getchar)(void) = (getchar);
+int (*volatile aout_fputc)(int, FILE *) = (fputc);
+int (*volatile aout_putc)(int, FILE *) = (putc);
+int (*volatile aout_putchar)(int) = (putchar);
 
 int
 aout_contract_probe(void)

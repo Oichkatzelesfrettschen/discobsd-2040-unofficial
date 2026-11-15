@@ -106,6 +106,14 @@ static int auto_gc'
 build "$work/map-late.c" "$work/model-late"
 expect_fail "$work/model-late" write adversary 30000 0
 
+# A reserve of a sixth of the live sectors lets the adversary's live tail
+# run grow the journal into the safety margin without filling it.
+mutate "$work/map-sixth.c" \
+	'	const dhara_page_t reserve = m->count / m->gc_ratio +' \
+	'	const dhara_page_t reserve = m->count / 6 +'
+build "$work/map-sixth.c" "$work/model-sixth"
+expect_fail "$work/model-sixth" margin adversary 30000 0
+
 echo "dhara_trigger: PASS (adversary within the margin, resets keep every" \
-	"sector, uniform rewrites under $CEILING/100 pages; stock-trigger and" \
-	"fixed-1150 mutations rejected)"
+	"sector, uniform rewrites under $CEILING/100 pages; stock-trigger," \
+	"fixed-1150 and sixth-reserve mutations rejected)"

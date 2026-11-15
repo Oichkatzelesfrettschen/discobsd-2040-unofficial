@@ -78,6 +78,16 @@ dhara_nand_erase(const struct dhara_nand *n, dhara_block_t b,
 	return 0;
 }
 
+/*
+ * A program over an unerased page breaks the model's own invariant. It ends
+ * the run at once: an error return would let journal.c treat the block as
+ * bad, skip it and finish the write. Each program also samples the journal
+ * with the page being programmed counted in, since collection inside one
+ * map write grows the journal before a checkpoint advances tail_sync.
+ */
+static void observe(unsigned long pending);
+static int observing;
+
 int
 dhara_nand_prog(const struct dhara_nand *n, dhara_page_t p,
     const uint8_t *data, dhara_error_t *err)
@@ -86,16 +96,18 @@ dhara_nand_prog(const struct dhara_nand *n, dhara_page_t p,
 	size_t i;
 
 	(void)n;
+	(void)err;
 	for (i = 0; i < FLASH_UNIT_BYTES; i++) {
 		if (q[i] != 0xff) {
-			fprintf(stderr, "FAIL program over unerased page %lu\n",
+			printf("FAIL program over unerased page %lu\n",
 			    (unsigned long)p);
-			dhara_set_error(err, DHARA_E_BAD_BLOCK);
-			return -1;
+			exit(1);
 		}
 	}
 	memcpy(q, data, FLASH_UNIT_BYTES);
 	pages++;
+	if (observing)
+		observe(1);
 	return 0;
 }
 
@@ -139,15 +151,17 @@ resume(void)
 
 	memset(&map, 0, sizeof(map));
 	dhara_map_init(&map, &nand, page, FLASH_GC_RATIO);
+	observing = 0;
 	(void)dhara_map_resume(&map, &err);
+	observing = 1;
 }
 
 static unsigned long peak_size, least_free;
 
 static void
-observe(void)
+observe(unsigned long pending)
 {
-	unsigned long size = dhara_journal_size(&map.journal);
+	unsigned long size = dhara_journal_size(&map.journal) + pending;
 	unsigned long cap = dhara_journal_capacity(&map.journal);
 
 	if (size > peak_size)
@@ -184,7 +198,7 @@ put(unsigned long sector, unsigned long version, unsigned long n)
 		fail("write", n, err);
 		return -1;
 	}
-	observe();
+	observe(0);
 	return 0;
 }
 
@@ -197,7 +211,7 @@ checkpoint(unsigned long n)
 		fail("checkpoint", n, err);
 		return -1;
 	}
-	observe();
+	observe(0);
 	return 0;
 }
 

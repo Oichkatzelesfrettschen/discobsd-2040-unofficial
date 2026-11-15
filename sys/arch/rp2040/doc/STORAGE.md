@@ -315,3 +315,54 @@ same traces stay below the threshold and cost 1.2 pages per write. These are
 host-model counts for the exercised traces; electrical completion, command
 execution inside the ROM and physical-sector wear require separate board
 measurements.
+
+## Trim on free
+
+A block the filesystem frees stays live in the Dhara map until it is
+written again, and every live sector is copied by garbage collection, so
+`free()` in `sys/kern/ufs_alloc.c` tells the device the block is dead:
+`free_trim()` issues `bdev_trim()` (`DIOCTRIM` in `sys/sys/disk.h`), which
+`flioctl()` serves with `dhara_map_trim()` under `flstrategy()`'s bracket.
+A driver without the command keeps the block; a failed trim leaves it
+mapped, which costs wear and nothing else, and is not counted (the storage
+counters' version 1 metric set is fixed, and
+`tools/summarize_rp2040_storage_delta.py` rejects any other).
+
+Every BSD that discards keeps one rule: a block's discard follows the
+durable write that removes its last reference and precedes the allocator
+handing the block out again (FreeBSD and NetBSD `ffs_blkfree`, DragonFly's
+`BUF_CMD_FREEBLKS`; 4.4BSD-Lite2 `ffs_truncate` writes the inode first).
+Dhara keeps a single request order and a reset restores a prefix of it, so
+"durable before" becomes "submitted before". The port meets it as follows.
+
+| Path that drops a block reference | Write that removes the last reference | Trim |
+| --- | --- | --- |
+| `itrunc()` direct blocks and the top indirect block (truncate, unlink at last close via `irele()`, `O_TRUNC`, `ufs_setattr()` size, directory shrink in `ufs_namei.c`, `rmdir`/`rename`, core dump, the `rwip()` rollback) | the inode, written by `iupdat(oip, ..., 1)` before the first `free()`; with waitfor set `iupdat()` calls `bwrite()` whatever `MNT_ASYNC` says | yes |
+| `indirtrunc()` children (`trsingle()` and the recursive levels) | the indirect block with the dropped pointers zeroed, `bwrite()` or `bawrite()` before its children are freed; the flash strategy completes either before it returns | yes |
+| `bmap()` rollback after a failed initialization write (`write_failed`) | none needed: no pointer to the block was published | no in practice: the failed write latched `m_write_error` |
+| any `free()` after a latched write error | a releasing write may have failed | no |
+| V7FS filesystems | the device block holds two V7 blocks | no |
+
+`itrunc()` wrote the inode last, after the frees, as 2.11BSD and RetroBSD
+do although their comment states the opposite; it now writes it between
+zeroing the pointers and the first free, where 4.4BSD-Lite2 does, and a
+failure of that write latches in the mount. The trim precedes the push and
+the chain write in `free()`, so a block that becomes a free-list chain node
+is mapped again by that write. `alloc()` cannot return the block before
+`free()` pushes it: the trim does not sleep, and `free()`'s waits on
+`fs_flock`, `getblk()` and the chain write all come before the push. On an
+`MNT_ASYNC` mount the chain write is delayed, as before, and reaches flash
+with the next sync.
+
+`check-trim-order` runs the production `ufs_inode.c`, `ufs_alloc.c`,
+`ufs_bmap.c`, `ufs_bio.c`, `ufs_subr.c` and `ufs_syscalls2.c` over the
+vendored Dhara map and rebuilds every prefix of a truncate's requests as a
+reset would leave it; no restored inode names a block that reads 0xff. In
+the same host model each trim journals one Dhara page (`try_delete()`
+rewrites a neighbor's page). With a static file holding 732 of 989 sectors
+live, create-and-delete rounds cost 10.38 Dhara pages per file block with
+trim against 5.99 without (one 16-block file per round), and 9.04 against
+6.48 (six 30-block files per round): the free list hands the freed blocks
+out again first, so trim lowers the live count between rounds but not
+while the next round writes. The board decides whether its workloads
+behave like these rounds; board evidence for trim has not been run.

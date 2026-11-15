@@ -454,6 +454,21 @@ Steps:
    block. Host gate over `ufs_alloc.c`: freed non-chain blocks are trimmed,
    chain blocks never are. This keeps the share from creeping back to 100
    percent as files are deleted.
+   Implemented (2026-11-14) after the BSD-lineage review: every BSD that
+   discards orders the discard after the durable write that removes the
+   block's last reference and before the allocator can reuse the block
+   (FreeBSD and NetBSD `ffs_blkfree`, DragonFly `BUF_CMD_FREEBLKS`,
+   4.4BSD-Lite2 `ffs_truncate` writing the inode first). With Dhara's single
+   request order and prefix restore that becomes submission order: `itrunc()`
+   now writes the inode before freeing (2.11BSD wrote it last),
+   `indirtrunc()` already wrote the zeroed indirect block first, and `free()`
+   trims before the push and the chain write, so a chain node is remapped by
+   its own write and needs no exclusion. STORAGE.md ("Trim on free") holds
+   the per-caller audit. Deviation (host model): each trim journals a Dhara
+   page, and with 732 of 989 sectors live create-and-delete rounds cost 10.38
+   pages per file block with trim against 5.99 without (9.04 against 6.48 for
+   six 30-block files per round), because the free list reuses the freed
+   blocks first. Board measurement decides whether trim stays enabled.
 4. P8d, alternative without code: shrink `FS_KBYTES` so the image leaves
    Dhara headroom. Its cost is visible capacity, so it is recorded as the
    comparison, not the recommendation.
@@ -552,5 +567,5 @@ that closes it. Hardware rows need explicit opt-in.
 | P7.2 | `rawrw()` and neighbors to C17 prototypes | `check-c17-kernel-inventory` ledger shrinks | P2.1 | proposed |
 | P8a | Live, chain and free block counts per profile | build-class report | -- | proposed |
 | P8b | Sparse `flashimg` that keeps chain blocks | sparse readback gate | P8a | proposed |
-| P8c | Free-path trim excluding chain blocks | free-path trim gate | P2.3, P8b | proposed |
+| P8c | Free-path trim excluding chain blocks | free-path trim gate | P2.3, P8b | implemented as trim-first in `free()` (chain blocks need no exclusion); `check-trim-order` |
 | L1 | Read-only-root guard in `rp2040_shutdown_sync()` | shutdown fixture case | a reachable read-only root | latent |

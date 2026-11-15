@@ -31,6 +31,7 @@
  * SD_ENABLED because that board can boot without one.
  */
 #include <rp2040/dev/flash.h>
+#include <machine/gpio.h>
 
 #ifdef PTY_ENABLED
 #include <sys/pty.h>
@@ -250,26 +251,35 @@ const struct cdevsw cdevsw[] = {
 		NOCDEV
 #endif
 	},
-#ifdef PICOCALC_ENABLED
 	{	/* 10 - PicoCalc panel and keyboard console */
+#ifdef PICOCALC_ENABLED
 #if LCDCONS_MAJOR != 10
 #error Wrong LCDCONS_MAJOR value!
 #endif
 		lcdopen,	lcdclose,	lcdread,	lcdwrite,
 		lcdioctl,	nullstop,	lcdttys,	lcdselect,
 		nostrategy,	lcdgetc,	lcdputc,
-	},
+#else
+		NOCDEV
 #endif
-#ifdef SD_ENABLED
+	},
 	{	/* 11 - raw sd */
+#ifdef SD_ENABLED
 #if SD_CMAJOR != 11
 #error Wrong SD_CMAJOR value!
 #endif
 		sdopen,		sdclose,	sdread,		sdwrite,
 		sdioctl,	nullstop,	0,		seltrue,
 		sdstrategy,	0,		0,
-	},
+#else
+		NOCDEV
 #endif
+	},
+	{	/* 12 - general-purpose pins, porta and portb */
+		gpioopen,	nullclose,	gpiorw,		gpiorw,
+		gpioioctl,	nullstop,	0,		seltrue,
+		nostrategy,	0,		0,
+	},
 	/*
 	 * End the list with a blank entry.
 	 */

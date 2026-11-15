@@ -160,11 +160,12 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	ufs_syscalls2.o vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o \
 	mem.o swap.o clock.o board.o conf.o fault.o machdep.o \
 	shutdown_sync.o mpu.o sig_machdep.o syscall.o sysctl.o systick.o \
-	uart.o usb.o lcdcons.o lcdgfx.o lcdrender.o lcdterm.o lcdfont.o \
-	st7365p.o picokbd.o picokbd_map.o picokbd_evq.o picokbd_req.o \
-	picoaudio.o sd.o sdspi.o dump.o subr_crc32.o flash.o \
-	flash_swap.o error.o journal.o map.o swapram.o swapram_pool.o \
-	heatshrink_encoder.o hsx_decoder.o exec_hsaout.o hsx_stream.o
+	gpio.o uart.o usb.o lcdcons.o lcdgfx.o lcdrender.o lcdterm.o \
+	lcdfont.o st7365p.o picokbd.o picokbd_map.o picokbd_evq.o \
+	picokbd_req.o picoaudio.o sd.o sdspi.o dump.o subr_crc32.o \
+	flash.o flash_swap.o error.o journal.o map.o swapram.o \
+	swapram_pool.o heatshrink_encoder.o hsx_decoder.o exec_hsaout.o \
+	hsx_stream.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/errlist.c \
@@ -189,11 +190,12 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/rp2040/rp2040/shutdown_sync.c \
 	$S/arch/rp2040/rp2040/mpu.c $S/arch/rp2040/rp2040/sig_machdep.c \
 	$S/arch/rp2040/rp2040/syscall.c $S/arch/rp2040/rp2040/sysctl.c \
-	$S/arch/rp2040/rp2040/systick.c $S/arch/rp2040/dev/uart.c \
-	$S/arch/rp2040/dev/usb.c $S/arch/rp2040/dev/lcdcons.c \
-	$S/arch/rp2040/dev/lcdgfx.c $S/arch/rp2040/dev/lcdterm.c \
-	$S/arch/rp2040/dev/lcdfont.c $S/arch/rp2040/dev/st7365p.c \
-	$S/arch/rp2040/dev/picokbd.c $S/arch/rp2040/dev/picokbd_map.c \
+	$S/arch/rp2040/rp2040/systick.c $S/arch/rp2040/dev/gpio.c \
+	$S/arch/rp2040/dev/uart.c $S/arch/rp2040/dev/usb.c \
+	$S/arch/rp2040/dev/lcdcons.c $S/arch/rp2040/dev/lcdgfx.c \
+	$S/arch/rp2040/dev/lcdterm.c $S/arch/rp2040/dev/lcdfont.c \
+	$S/arch/rp2040/dev/st7365p.c $S/arch/rp2040/dev/picokbd.c \
+	$S/arch/rp2040/dev/picokbd_map.c \
 	$S/arch/rp2040/dev/picokbd_evq.c \
 	$S/arch/rp2040/dev/picokbd_req.c $S/arch/rp2040/dev/picoaudio.c \
 	$S/arch/rp2040/dev/sd.c $S/arch/rp2040/dev/sdspi.c \
@@ -524,6 +526,9 @@ sysctl.o: $S/arch/rp2040/rp2040/sysctl.c
 	${COMPILE_C}
 
 systick.o: $S/arch/rp2040/rp2040/systick.c
+	${COMPILE_C}
+
+gpio.o: $S/arch/rp2040/dev/gpio.c
 	${COMPILE_C}
 
 uart.o: $S/arch/rp2040/dev/uart.c

@@ -170,6 +170,21 @@ cdev /dev/tty0
 major 6
 minor 0
 
+#
+# The pins a board leaves free, character major 12
+# (sys/arch/rp2040/dev/gpio.c, machine/gpio.h): GP0-GP15 and GP16-GP29.
+# The driver admits the superuser alone.
+#
+cdev /dev/porta
+major 12
+minor 0
+mode 600
+
+cdev /dev/portb
+major 12
+minor 1
+mode 600
+
 #closure lcdgfx
 #
 # The PicoCalc's pixel device, minor 1 of the console's character major 10

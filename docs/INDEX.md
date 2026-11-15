@@ -78,6 +78,7 @@ artifact points at.
 | `sh-posix-audit.md` | the POSIX ledger for `bin/sh`, row by row | `bin/sh/tests/posix-sh.sh` tests its rows; its xfail cases pin the open items |
 | `utilbox.md` | what `utilbox` and `adminbox` carry | `sbin/utilbox/`, `sbin/adminbox/` |
 | `v7-tools.md` | the V6/V7 disk images, their licenses, and two ports | `sbin/textbox/Makefile`, `legacy/pdp11-v6/distrib/rp2040/mi.rp2040` |
+| `dhara-gc-trigger.md` | where the vendored Dhara's collector starts: the live/4 trigger, its peak-journal bound, the adversarial runs and the host-model and board costs | `sys/arch/rp2040/dhara/map.c` (`gc_trigger()`) |
 | `flash-traffic-per-workload.md` | storage counters on the measured Pico and Renode flash-command counts for the stages of a compile on the board, against the W25Q16JV's rated erase cycles | `distrib/rp2040/cc`, `sys/arch/rp2040/dev/flash.c` |
 | `zswap.md` | the compressed RAM tier in front of flash swap | `compile/PICO/Config`, `heatshrink/heatshrink_config.h` |
 | `v7-format-descriptor.md` | the per-mount format descriptor that mounts Seventh Edition volumes through the native inode layer under the `V7FS` option, the checks a foreign volume gets and the option's measured cost | `sys/sys/fsgeom.h`, `sys/kern/ufs_v7.c` |
@@ -143,6 +144,7 @@ Grouped by what they investigate.
 | `rp2040-single-kernel.md` | the four RP2040 kernel configurations tested against one kernel binary with a flash board descriptor: PSRAM already probes at runtime, PICO_UART exists for the USB-less Renode model, the PicoCalc pins need a presence decision first, and the user-window layout is the granularity that stays in the build |
 | `board-descriptor-brief.md` | the work brief the board descriptor was built from: the decided design (one kernel, a checksummed `.board` section patched into `unix.uf2` per board), the ordered work items and their acceptance; `board-descriptor.md` holds the result |
 | `flash-storage-expectation-plan.md` | the storage expectation audit verified against source: per-request Dhara checkpoint padding as the cost driver, the `fs_fmod` gap in `sync()`, and a phased plan with gates and predictions |
+| `trim-cost-model.md` | trim at free and deferred free-list sweeps against no trim, by workload, in the host model, with the board result that refutes trim at free for compiles; the trim work stays on unmerged branches `rp2040/trim-freed-blocks` and `rp2040/free-list-sweep` |
 | `libc-size-audit.md` | where the C library's bytes go, across the shipped programs |
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 192 KB process window |

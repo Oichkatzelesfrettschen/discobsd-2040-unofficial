@@ -147,15 +147,20 @@ first two runs printed from sector 0 and the third from sector 32:
 | 2 | 1,794 | 0 to 47 | sector 0: none; others 17 to 23, mean 19.1 | 18.7 over 48 |
 | 3 | 1,799 | 32 to 89 | 14 to 22, mean 18.8 | 19.2 over 37, sector 0 taken as none |
 
+The counters run from boot, so each count also holds that sector's share
+of the 31 to 36 swap erases the boot and login made before the first
+compile and of the few after the last, about 2 percent of a run's total; a
+sector's rate per compile is therefore at most its count over 24.
+
 Ninety of the 96 sectors were observed singly in at least one run. The
 first swap sector was never erased; every other observed sector took 14 to
 23 erases in 24 compiles, within 25 percent of the run's mean, so the swap
-allocator already spreads its extents. The hottest observed sector, 23
-erases in 24 compiles, reaches the rated minimum after about 104,000
-compiles and the mean sector after about 128,000. Sectors 90 to 95 were
+allocator already spreads its extents. The hottest observed sector, at
+most 23 erases in 24 compiles, reaches the rated minimum after no fewer
+than about 104,000 compiles and the mean sector after about 128,000. Sectors 90 to 95 were
 never printed; they are bounded only through the unprinted means, which
-match the printed ones, so 104,000 is an upper bound on the life that a
-hotter sector among those six would lower. Swap bounds the part's life at
+match the printed ones, and a hotter sector among those six would lower
+the unit's life below the observed sectors' 104,000. Swap bounds the part's life at
 roughly a ninth of the root's 977,000 compiles, if the observed rate
 persists. Perfect leveling of the observed sectors would move the hottest
 from 23 erases to the mean, 104,000 compiles to 128,000, a gain of at most

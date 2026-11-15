@@ -123,8 +123,11 @@ explicit-length production candidate and its native archive closure.
 `memmem` retains remembered-prefix Two-Way search with a remaining extent.
 The owner approves the exact guarded-prefix resource vector against main
 e64e2150: 748 native archive bytes, 376 loaded textbox bytes and two root
-blocks, leaving 227 free blocks. Clean db0ea8e7 passes the complete serial
-aggregate, all 216 required inventory variants and both Renode boot gates.
+blocks, leaving 227 free blocks. Matched current main receipts on
+1111a0d8/74bd2df9 preserve all approved resource deltas. Clean 74bd2df9
+passes the complete parallel aggregate, all 216 required inventory variants
+and both Renode boot gates. The branch also includes main 493292ec;
+both exercised logs pass its stricter warning ceilings separately.
 The lazy-NUL `strstr` investigation retains its separate deciding experiment
 and its existing worst-case work; runtime resource peaks remain unmeasured.
 The [primary factorization correspondence](libc-byte-search-factorization.md)

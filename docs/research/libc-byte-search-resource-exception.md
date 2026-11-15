@@ -36,7 +36,7 @@ no resource admission.
 The native archive adds memchr.o and memmem.o. Textbox drops memchr.o because
 the tableless provider owns every needle length and imports no helper.
 Cpio retains memchr.o with the corrected unsigned conversion. The other 154
-numeric surfaces and 31 shipped program size records remain unchanged,
+numeric surfaces and 32 shipped program size records remain unchanged,
 including both kernels and native startup. Textbox's data/BSS stay unchanged.
 The native allocation and root block are one 1 KiB cost counted once. Loaded,
 raw and packed bytes describe overlapping representations. Cpio's saving
@@ -104,7 +104,7 @@ the complete 162-surface denominator and archive member identities.
 | Root allocated data blocks | 750 | 752 | +2 |
 | Root free blocks | 229 | 227 | -2 |
 
-The other 153 measured surfaces and 31 shipped program size records remain
+The other 153 measured surfaces and 32 shipped program size records remain
 unchanged, including both kernels and native startup. The native archive
 adds `memchr.o` and `memmem.o`. Textbox retains both members because its
 single-byte and optional first-byte filter use the independent byte provider.
@@ -155,3 +155,33 @@ provider-chain limit. Further growth requires a new measured decision.
 Static libc and existing multicall composition remain selected; shared XIP
 supplies no capacity credit. Main e64e2150 is the rollback source.
 Physical-board execution remains unauthorized.
+
+## Current main resource revalidation
+
+Matched clean distributions bind candidate `74bd2df9` to main `1111a0d8`,
+including the updated flash checkpoint policy. The
+[parent](libc-byte-search-checkpoint-resource-parent.json),
+[candidate](libc-byte-search-checkpoint-resource-candidate.json),
+[comparison](libc-byte-search-checkpoint-resource-comparison.json) and
+[optional cut](libc-byte-search-checkpoint-resource-optional.json) receipts
+preserve these revision-specific measurements. All 162 numeric deltas,
+archive additions and optional deltas equal the approved guarded-prefix
+vector. The native archive remains 50,690 bytes; the root retains 227 free
+blocks. These results require no additional resource exception.
+
+The selected manifest contains 34 program records. Cpio and textbox change;
+the other 32 records remain unchanged. The complete candidate program records
+also equal the earlier qualified candidate records, including binary hashes.
+Every selected native archive member retains its earlier payload hash;
+archive container hashes remain specific to each build.
+
+The complete parallel aggregate passes in 975.529 seconds, and all 216
+required inventory variants pass in 787.467 seconds on clean `74bd2df9`.
+Both Renode boot gates pass with the rebuilt kernels and root image.
+Main `493292ec` adds documentation and stricter emulator warning ceilings;
+the feature branch includes it as `626b26ee`. Both exercised logs pass those
+current ceilings separately. The production providers and their public
+headers retain the reviewed source identities. The qualification record
+preserves exact receipts, artifact hashes and configured limits. Reviewed
+integration remains the delivery step; physical execution retains its
+separate authorization boundary.

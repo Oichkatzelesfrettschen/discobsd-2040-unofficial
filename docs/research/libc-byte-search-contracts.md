@@ -247,3 +247,30 @@ passes with SHTEST OK. Five-second probes with a zero core limit and a
 header-only core filter each retain the delay. These results refute those
 two environment remedies. Host settings and shell source remain unchanged;
 the completed signal test supplies its behavioral evidence.
+
+The current main integration qualifies the flash checkpoint policy and the
+make-query repair together on clean `74bd2df9`. The complete parallel
+aggregate passes in 975.529 seconds, including every configured non-hardware
+tier. Its three timestamp skips, nine shell expected failures and reference
+and namespace limits retain the dispositions in the aggregate record.
+The required inventory passes all 216 variants in 787.467 seconds, with
+tracked source unchanged throughout execution. The matched distribution and
+flash creation pass separately in 125.123 and 6.879 seconds.
+
+The rebuilt PICO_UART and PICOCALC_PSRAM emulator gates pass in 513.613 and
+325.798 seconds. Exact kernels, the UART descriptor rewrite of the union
+kernel, root images and emulator logs remain retained with their hashes.
+The feature branch also includes main `493292ec` as `626b26ee`; its additional
+documentation and stricter warning ceilings leave production source intact.
+Both exercised logs pass the updated ceilings through a separate warning
+check. These modeled peripheral warnings remain classified limitations,
+even when their counts satisfy the gate.
+
+The [current main resource comparison](libc-byte-search-checkpoint-resource-comparison.json)
+preserves all 162 approved numeric deltas and archive changes. The manifest
+contains 34 program records; cpio and textbox change while 32 remain
+unchanged. Every candidate program record and native archive member payload
+also matches the earlier qualified implementation. The reviewed providers,
+string header and underlying integer header retain their source hashes.
+Reviewed integration remains the delivery step. Shared XIP, lazy-NUL string
+search and physical timing retain their separate deciding experiments.

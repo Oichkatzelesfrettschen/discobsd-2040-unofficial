@@ -152,6 +152,111 @@
           "reason": "Host-format objects do not participate in the target namespace scan."
         }
       ]
+    },
+    {
+      "source_commit": "74bd2df9ceb3e6ac3bc793d1a0e0714ef7df4b49",
+      "source_state": "clean and frozen during qualification",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 975.529,
+      "invocation": "bmake -j12 MACHINE=rp2040 logged-check",
+      "stages": {
+        "build": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 40.518,
+          "terminal_queue_dropped_bytes": 0,
+          "receipt_sha256": "f07b133a6d26881fd5f5415a17bee91f132f4f33e0395785623280ab6478b94a",
+          "log_sha256": "3c44e020c03daaa935240fecb2d4461ff51ae4a0bcf8763e38c61a058e7693d8"
+        },
+        "check": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 935.009,
+          "terminal_queue_dropped_bytes": 0,
+          "receipt_sha256": "5b15fb70c2425314a5120043af733bc4e06e22ae5ace196eec34567da1ee84fe",
+          "log_sha256": "f326251553fda74a9e5612d02da3da21253fd4df47c46c43e5f57877eb9839a7"
+        }
+      },
+      "configured_skips": [
+        "SKIP tar stored time: i386-time32: tar tv prints through a four-byte time_t, which holds no date after January 2038",
+        "SKIP tar stored time: i386-time32: a four-byte time_t holds no time beyond the stored range",
+        "SKIP stored-times archive: i386-time32: ar tv prints through a four-byte time_t, which holds no date after January 2038"
+      ],
+      "expected_failures": [
+        {
+          "case": "tilde_home",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "cmdsub_dollar_paren",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "cmdsub_dollar_paren_nested",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_simple",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_leading_paren",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_vs_subshell_group",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "redir_readwrite",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "redir_clobber_override",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "status_negation",
+          "class": "existing shell conformance gap"
+        }
+      ],
+      "variant_limits": [
+        {
+          "family": "libc export namespace",
+          "state": "partial",
+          "checked_programs": 39,
+          "unreviewed_programs": [
+            "coremark"
+          ],
+          "reason": "The source-directory lookup omits the benchmarks family; it emits an unbuilt-closure skip. Shared-XIP namespace acceptance still requires this owner to close.",
+          "deciding_experiment": "Resolve the executed manifest entry to benchmarks/coremark, inspect its complete target object globals, and calibrate omission of that required source directory."
+        },
+        {
+          "family": "host complex reference grid",
+          "state": "not_run",
+          "reason": "The host C library lacks the required Annex G branch cuts."
+        },
+        {
+          "family": "printf exact-tie host comparisons",
+          "state": "reference_cases_omitted",
+          "cases": 30,
+          "reason": "The gate retains its documented exact-tie reference boundary."
+        },
+        {
+          "family": "ARM time-binding object census",
+          "state": "scope_filter",
+          "non_arm_objects_excluded": 76,
+          "reason": "These inputs are not ARM relocatable objects."
+        },
+        {
+          "family": "optional calc namespace",
+          "state": "scope_filter",
+          "host_objects_excluded": 16,
+          "reason": "Host-format objects do not participate in the target namespace scan."
+        }
+      ],
+      "scope": "Guarded-prefix provider and detached-query repair with current main checkpoint policy; all configured non-hardware tiers complete under parallel make. Prior reference and namespace limits remain explicit. Physical execution remains unauthorized."
     }
   ]
 }

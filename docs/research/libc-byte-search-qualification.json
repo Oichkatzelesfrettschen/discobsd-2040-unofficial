@@ -272,5 +272,226 @@
       "expected_shell_failure_count": 9,
       "configured_skip_count_scope": "Three emitted SKIP records; additional reference/namespace limits remain enumerated in the aggregate record and immutable log."
     }
+  },
+  "current_main_qualification": {
+    "source_commit": "74bd2df9ceb3e6ac3bc793d1a0e0714ef7df4b49",
+    "source_state": "clean and frozen during qualification",
+    "base_commit": "1111a0d8dccf5b5e88ec4dc42bf7d75ac2da1186",
+    "latest_integrated_main": "493292ec215b93a94e7c39b756834a5058a76660",
+    "final_source_commit": "626b26eef0c6bdfbeb3a14eb662c4e63333e8e3e",
+    "final_delta_scope": "Main documentation and stricter Renode warning ceilings only; exercised logs pass the new ceilings separately.",
+    "complete_aggregate": {
+      "source_commit": "74bd2df9ceb3e6ac3bc793d1a0e0714ef7df4b49",
+      "source_state": "clean and frozen during qualification",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 975.529,
+      "invocation": "bmake -j12 MACHINE=rp2040 logged-check",
+      "stages": {
+        "build": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 40.518,
+          "terminal_queue_dropped_bytes": 0,
+          "receipt_sha256": "f07b133a6d26881fd5f5415a17bee91f132f4f33e0395785623280ab6478b94a",
+          "log_sha256": "3c44e020c03daaa935240fecb2d4461ff51ae4a0bcf8763e38c61a058e7693d8"
+        },
+        "check": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 935.009,
+          "terminal_queue_dropped_bytes": 0,
+          "receipt_sha256": "5b15fb70c2425314a5120043af733bc4e06e22ae5ace196eec34567da1ee84fe",
+          "log_sha256": "f326251553fda74a9e5612d02da3da21253fd4df47c46c43e5f57877eb9839a7"
+        }
+      },
+      "configured_skips": [
+        "SKIP tar stored time: i386-time32: tar tv prints through a four-byte time_t, which holds no date after January 2038",
+        "SKIP tar stored time: i386-time32: a four-byte time_t holds no time beyond the stored range",
+        "SKIP stored-times archive: i386-time32: ar tv prints through a four-byte time_t, which holds no date after January 2038"
+      ],
+      "expected_failures": [
+        {
+          "case": "tilde_home",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "cmdsub_dollar_paren",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "cmdsub_dollar_paren_nested",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_simple",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_leading_paren",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_vs_subshell_group",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "redir_readwrite",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "redir_clobber_override",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "status_negation",
+          "class": "existing shell conformance gap"
+        }
+      ],
+      "variant_limits": [
+        {
+          "family": "libc export namespace",
+          "state": "partial",
+          "checked_programs": 39,
+          "unreviewed_programs": [
+            "coremark"
+          ],
+          "reason": "The source-directory lookup omits the benchmarks family; it emits an unbuilt-closure skip. Shared-XIP namespace acceptance still requires this owner to close.",
+          "deciding_experiment": "Resolve the executed manifest entry to benchmarks/coremark, inspect its complete target object globals, and calibrate omission of that required source directory."
+        },
+        {
+          "family": "host complex reference grid",
+          "state": "not_run",
+          "reason": "The host C library lacks the required Annex G branch cuts."
+        },
+        {
+          "family": "printf exact-tie host comparisons",
+          "state": "reference_cases_omitted",
+          "cases": 30,
+          "reason": "The gate retains its documented exact-tie reference boundary."
+        },
+        {
+          "family": "ARM time-binding object census",
+          "state": "scope_filter",
+          "non_arm_objects_excluded": 76,
+          "reason": "These inputs are not ARM relocatable objects."
+        },
+        {
+          "family": "optional calc namespace",
+          "state": "scope_filter",
+          "host_objects_excluded": 16,
+          "reason": "Host-format objects do not participate in the target namespace scan."
+        }
+      ],
+      "scope": "Guarded-prefix provider and detached-query repair with current main checkpoint policy; all configured non-hardware tiers complete under parallel make. Prior reference and namespace limits remain explicit. Physical execution remains unauthorized."
+    },
+    "required_inventory": {
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 787.467,
+      "terminal_queue_dropped_bytes": 0,
+      "receipt_sha256": "f6301aaa49521451b1f18660fab6e1eeee8858fae0fdd7db178b6f3088679bb7",
+      "log_sha256": "322f6ce260609a97e62a714616ca32fc7cf8cde86ca294d7c81d52688458d6a2",
+      "required_variants": 216,
+      "passed_variants": 216,
+      "tracked_files_modified": false,
+      "report_sha256": "6485eb30b6b82fcc2d26e26eadb73619cbea275e46ccdd9203c7e123d6d5079e",
+      "configured_skip": "i386-time32 archive display outside the required post-2038 execution variants"
+    },
+    "distribution": {
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 125.123,
+      "terminal_queue_dropped_bytes": 0,
+      "receipt_sha256": "3b6512a39a83dfd42c3b8876f4bcd3b2126521c6d97d4343691b9c123752273d",
+      "log_sha256": "7575ef84459d92a3c3aec28fc41c39dbb9a642dfd035599367f15f35e97e9d14"
+    },
+    "flash_image": {
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 6.879,
+      "terminal_queue_dropped_bytes": 0,
+      "receipt_sha256": "c0acc4202e61e2d986c172c27346ced8aed3bb27f5b73d9535c91fa51e95b480",
+      "log_sha256": "d14a14856082274dc330305b8597032538e7714a7f73b79ed3d973a30e64b565",
+      "scope": "Image creation only; no physical device access."
+    },
+    "resource_revalidation": {
+      "record_prefix": "libc-byte-search-checkpoint-resource-",
+      "numeric_surfaces": 162,
+      "unchanged_numeric_surfaces": 153,
+      "shipped_programs": 34,
+      "changed_programs": [
+        "/usr/bin/cpio",
+        "/usr/bin/textbox"
+      ],
+      "unchanged_programs": 32,
+      "approved_numeric_vector_identical": true,
+      "approved_archive_changes_identical": true,
+      "approved_optional_vector_identical": true,
+      "all_program_records_identical_to_reviewed_candidate": true,
+      "native_member_payloads_identical_to_reviewed_candidate": true,
+      "native_archive_identity_scope": "Archive container hashes differ; every selected member payload hash matches the reviewed candidate."
+    },
+    "source_hashes": {
+      "lib/libc/string/memmem.c": "0b28b6d96b85c83a9f3e29a70fc7cedf636607b99c594a4e43483eea178541e7",
+      "lib/libc/compat/memchr.c": "b1045e37164b9d6a558c70eac08229c94849e286a302c7bd09cff4e44082706b",
+      "include/string.h": "dc8cda08de0a65b4804719d55a6e40536d82a20d5cb27449a462a36557f9ae4b",
+      "sys/sys/stdint.h": "80f5195ed52fa5cea750fbc02970ad4d7af0a1d42a5587a2fd2fc27a6b3bd5a4"
+    },
+    "emulator": {
+      "evidence_class": "Renode peripheral model; physical hardware remains unmeasured",
+      "renode_version": "1.17.0+20260907gitf1dd1b4af",
+      "models_commit": "205a5e4b25440582008a4292074bb07f80a72328",
+      "input_sha256": {
+        "PICO_UART.bin": "c01ae5420ba299deda9401361ee3f4eff64e078ec8650cfbe171ea098838b601",
+        "PICOCALC_PSRAM.bin": "59dc54f34129e98e5fc56888e0eda7da97d8ce3ab00ba1e49e6605e57576a03a",
+        "PICOCALC_PSRAM-uart.bin": "659250c265c44b3526c41fb66f042c6cef782d17a692dbe2cd02b7a7904b6a76",
+        "flash.bin": "b78097fb451a494f69a2621a0b3d11a5c0bee28c73aaa73da6d7f17f004eb227",
+        "flash.uf2": "5cbd5d7ef94efd0ac4933660fa6f7bb69f564c5d31a82a371a9d6aa2b7bfac51"
+      },
+      "runs": {
+        "PICO_UART": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 513.613,
+          "terminal_queue_dropped_bytes": 0,
+          "receipt_sha256": "dc46f6c137d99301b6633500fbd69af9bbe468f5541c0466d3925f1f46499c55",
+          "log_sha256": "3d67bc1db832a1a6c129c98d2c2f5f30df1b354ff508f9ec453f1d805bc9cd5e"
+        },
+        "PICOCALC_PSRAM": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 325.798,
+          "terminal_queue_dropped_bytes": 0,
+          "receipt_sha256": "1155b6b918e3d1a925550f6d7631c6e69786e05df856832bd7ae9d5a41d51fff",
+          "log_sha256": "9dcf0be0f1af50ab6cf6c18e5be55597fe142bfcfbf7cdf4d90ea03d552235b5"
+        }
+      },
+      "current_warning_policy": {
+        "PICO_UART": {
+          "state": "completed",
+          "exit_code": 0,
+          "input_log_sha256": "6595e35f3c0969b8b58158a11cb702d30e5ed7a6a0a51a85aae54f633c6f1e65",
+          "output_log_sha256": "96c97e7c49b1ab2fe7e955a71e0f40c17eb21f55fa6e5af8e73c9f4dadecab02",
+          "summary": "check-warnings: 109717 warnings, 30 classes, 0 errors"
+        },
+        "PICOCALC_PSRAM": {
+          "state": "completed",
+          "exit_code": 0,
+          "input_log_sha256": "12fbb8da15b2b5cee5c4bc2fa9c1f64c243f9e887ced146e57826f7b62ec6bce",
+          "output_log_sha256": "ca38efd817436fad9bb808a3558f69edc109493e5fda25c89b6f72374776dc76",
+          "summary": "check-warnings: 38672 warnings, 36 classes, 0 errors"
+        },
+        "classes_sha256": {
+          "boot-warning-classes.txt": "ffc37e87eced79cfb4b063c156d1f489b11e5d0358548c022682b7b1d630d3c0",
+          "warning-classes.txt": "0c6513919358e803d710014825353592057211b95beae57abc7c5d975c73b128",
+          "union-warning-classes.txt": "deb71360c52b9368496c93d6fa7a864e90c081606716697db75c676761578a91"
+        }
+      }
+    },
+    "remaining": [
+      "reviewed GitHub integration",
+      "physical-board execution and timing (separate authorization)"
+    ]
   }
 }

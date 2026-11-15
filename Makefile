@@ -654,7 +654,13 @@ check-swap-exchange-headroom:
 check-swap-exchange-inplace:
 		${MAKE} -C tests/kernel check-swap-exchange-inplace
 
-.PHONY: check-swap-exchange-headroom check-swap-exchange-inplace
+# The USB console driver and the tty layer under modeled bus events; see
+# sys/arch/rp2040/doc/TESTING.md. check-kernel includes it.
+check-usb-console:
+		${MAKE} -C tests/kernel check-usb-console
+
+.PHONY: check-swap-exchange-headroom check-swap-exchange-inplace \
+	check-usb-console
 
 # Verify callback types and dispatch against the production architecture sources.
 check-kernel-abi-contracts: check-python

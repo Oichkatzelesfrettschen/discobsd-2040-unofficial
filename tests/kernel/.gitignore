@@ -271,3 +271,7 @@ v7-format-work/
 rmap_ring_*.mutant.*
 swap_ring_io_test
 swap_ring_io*.mutant.*
+usb_console_driver.c
+usb_console_test
+usb_console_*.o
+usb_console_*.mutant.*

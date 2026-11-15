@@ -119,8 +119,9 @@ The link collector is an exploratory instrument with an explicit missing-root
 control. It measures this experimental layout; it is not an executable-admission
 gate. The replay gate participates in the firmware cross tiers. Focused gates,
 Ruff and the unchanged production archive identify this host-tooling scope;
-the complete aggregate, ILP32 runtime inventory, Renode and physical-board
-execution do not repeat for it.
+the local aggregate, ILP32 runtime inventory and Renode suites remain unrun for
+this host-tooling scope. Hosted publication CI runs its configured emulator
+stages separately. Physical-board execution remains unrun.
 
 The full-export image still fails the fixed flash limit. The next deciding
 work selects reviewed API roots from declarations and the compatibility

@@ -494,7 +494,7 @@ upload and hidden-file inclusion.
 | renode table exhaustion | `check-renode-capacity` | Renode, the fetched RP2040 models, a built PICO_UART kernel, the selected board's disk image (`${FSIMG}`), `fsutil` and `flashimg`, `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
 | renode image identity | `check-renode-identity` | Renode, the fetched RP2040 models, a built PICO_UART kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the table exhaustion step | no |
 | core 1 emulation | `check-core1-emulation` | Unicorn and pyelftools under `${PYTHON}`, the arm-none-eabi toolchain, a built PICO_UART kernel | yes: the `firmware/rp2040` job installs `python3-unicorn` | no |
-| renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0008, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
+| renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0009, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
 | renode PicoCalc crash dump | `check-renode-picocalc-dump` | the `check-renode-picocalc` requirements, `FSUTIL`, the PICOCALC kernel's `unix.elf`, and `distrib/rp2040/flash-PICOCALC.bin` (`BOARD=PICOCALC flash`) | yes: the `firmware/rp2040` job, after the PicoCalc step and a `BOARD=PICOCALC flash` step | no |
 | renode union | `check-renode-union` | Renode, the fetched RP2040 models, a built PICOCALC_PSRAM kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the PicoCalc Renode step | no |
 | flash-id | `check-flash-id` | cmake and a Pico SDK | yes: firmware.yml fetches the SDK at a pinned commit | no: the job runs on Ubuntu alone |
@@ -2358,6 +2358,21 @@ behavior, and SYSINFO:CHIP_ID answers from the SVD reset value, which is
 why the banner reports manufacturer 0x000 where silicon reports 0x493. The
 rest are pins and bits nothing reads back. Ceilings ratchet down as the
 models improve.
+
+The PL011 model follows datasheet 4.2.6.3 for the transmit interrupt (patch
+0009): a 32-entry level counter drains one character per character time, and
+the Transmit raw status is set only when the level falls through the TXIFLSEL
+trigger, so a driver that writes one byte per call and waits for the interrupt
+stalls under Renode as it does on the board. A model that differs from the
+datasheet hides the defect it differs on, so the known divergences are named
+with the host test that covers each:
+
+- The SD card model never sets CCS; `tests/picocalc/sdspi_test.c` (sdhc)
+  covers the high-capacity card path.
+- The ST7365P model reads zeros, since it has no SDO model; a panel read
+  command returns no data under Renode.
+- The I2C keyboard model queues 16 characters, so TypeLine of a longer line
+  drops the rest; split a longer line across calls.
 
 The login test reads `kern.capacity` first and asserts the versioned ABI size,
 all five retained fixed-table limits, and the 3,072-byte u-area geometry. The

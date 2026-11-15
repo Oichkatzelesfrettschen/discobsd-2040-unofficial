@@ -1,0 +1,265 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: eirikr <151315375+Oichkatzelesfrettschen@users.noreply.github.com>
+Date: Sun, 15 Nov 2026 11:40:00 -0800
+Subject: [PATCH 9/9] pl011: model the transmit FIFO level and raise the
+ transmit interrupt on its crossing
+
+The model reported TXFE always set, left TXFF and BUSY untagged, set the
+Transmit raw status at UARTEN, at reset and when FEN cleared, and set it
+again on every DATA write without ever clearing it, so an unmasked transmit
+interrupt always fired. RP2040 datasheet 4.2.6.3 states that the interrupt
+is based on a transition through a level: with FIFOs enabled it asserts
+when the level falls to or below the TXIFLSEL trigger, clears when writes
+raise the level above the trigger or ICR clears it, and stays clear when the
+UART and the interrupt are enabled before any data is written; with FIFOs
+disabled it asserts when the single location empties and clears on a write.
+
+DATA still reaches the backend at write time. A level counter of 32
+entries (one with FEN clear) stands for the characters the line has yet to
+shift out and loses one entry per character time, scheduled by a
+clock-source timer at the programmed divisors. TXFE reads level 0, TXFF
+level full and BUSY level non-zero. TXIFLSEL is stored, defaults to 0b010
+and selects 4, 8, 16, 24 or 28 entries; the trigger point is 0 with FIFOs
+disabled. A write to a full FIFO is reported and discarded, as on silicon.
+---
+ emulation/peripherals/uart/rp2040_uart.cs | 148 +++++++++++++++++++++++++-----
+ 1 file changed, 127 insertions(+), 21 deletions(-)
+
+diff --git a/emulation/peripherals/uart/rp2040_uart.cs b/emulation/peripherals/uart/rp2040_uart.cs
+index cd8c82a..3c3b32a 100644
+--- a/emulation/peripherals/uart/rp2040_uart.cs
++++ b/emulation/peripherals/uart/rp2040_uart.cs
+@@ -12,6 +12,8 @@ using Antmicro.Renode.Peripherals.Bus;
+ using Antmicro.Renode.Core;
+ using Antmicro.Renode.Logging;
+ using Antmicro.Renode.Core.Structure.Registers;
++using Antmicro.Renode.Time;
++using Antmicro.Renode.Peripherals.Timers;
+ using System.Linq;
+ 
+ namespace Antmicro.Renode.Peripherals.UART
+@@ -33,6 +35,8 @@ namespace Antmicro.Renode.Peripherals.UART
+             RegistersCollection = new DoubleWordRegisterCollection(this);
+             dreqGenerator = machine.ObtainManagedThread(TriggerTxDreq, 1000);
+             dreqGenerator.Stop();
++            transmitTimer = new LimitTimer(machine.ClockSource, 1000000000, this, "UARTTXFIFO", direction: Direction.Ascending, enabled: false, workMode: WorkMode.OneShot, eventEnabled: true, autoUpdate: true);
++            transmitTimer.LimitReached += DrainTransmitCharacter;
+ 
+             machine.GetSystemBus(this).Register(this, new BusMultiRegistration(address + xorAliasOffset, aliasSize, "XOR"));
+             machine.GetSystemBus(this).Register(this, new BusMultiRegistration(address + setAliasOffset, aliasSize, "SET"));
+@@ -145,9 +149,13 @@ namespace Antmicro.Renode.Peripherals.UART
+             receiveInterruptTriggerPoint = 0;
+             dreqGenerator.Stop();
+             dreqGeneratorEnabled = false;
++            transmitTimer.Enabled = false;
++            transmitLevel = 0;
++            transmitInterruptFifoLevelSelect.Value = 0b010;
+             // receiveFifoSize and receiveInterruptTriggerPoint depend on register values.
+             UpdateReceiveFifoSize();
+             UpdateReceiveInterruptTriggerPoint();
++            UpdateTransmitInterruptTriggerPoint();
+ 
+             System.Array.ForEach(interruptRawStatuses, status => status = false);
+             System.Array.ForEach(interruptMasks, mask => mask = false);
+@@ -256,18 +264,7 @@ namespace Antmicro.Renode.Peripherals.UART
+                 ;
+ 
+             Registers.Control.Define(this, 0x300)
+-                .WithFlag(0, out uartEnable, name: "UARTEN - UART enable",
+-                    changeCallback: (_, value) =>
+-                    {
+-                        if (value)
+-                        {
+-                            // Documentation states that the Transmit interrupt should be only set upon
+-                            // crossing the threshold and enabling/disabling FIFO, but some software
+-                            // requires it to be set after enabling UART
+-                            interruptRawStatuses[(int)Interrupts.Transmit] = true;
+-                            UpdateInterrupts();
+-                        }
+-                    })
++                .WithFlag(0, out uartEnable, name: "UARTEN - UART enable")
+                 .WithTaggedFlag("SIREN - SIR enable", 1)
+                 .WithTaggedFlag("SIRLP - IrDA SIR low power mode", 2)
+                 // These 4 bits can be written/read by software but there's no logic associated.
+@@ -288,11 +285,11 @@ namespace Antmicro.Renode.Peripherals.UART
+                 .WithTaggedFlag("CTS - Clear to send", 0)
+                 .WithTaggedFlag("DSR - Data set ready", 1)
+                 .WithTaggedFlag("DCD - Data carrier detect", 2)
+-                .WithTaggedFlag("BUSY - UART busy", 3)
++                .WithFlag(3, FieldMode.Read, name: "BUSY - UART busy", valueProviderCallback: _ => transmitLevel != 0)
+                 .WithFlag(4, FieldMode.Read, name: "RXFE - Receive FIFO empty", valueProviderCallback: _ => Count == 0)
+-                .WithTaggedFlag("TXFF - Transmit FIFO full", 5)
++                .WithFlag(5, FieldMode.Read, name: "TXFF - Transmit FIFO full", valueProviderCallback: _ => transmitLevel >= TransmitCapacity)
+                 .WithFlag(6, FieldMode.Read, name: "RXFF - Receive FIFO full", valueProviderCallback: _ => Count >= receiveFifoSize)
+-                .WithFlag(7, FieldMode.Read, name: "TXFE - Transmit FIFO empty", valueProviderCallback: _ => true)  // Always set.
++                .WithFlag(7, FieldMode.Read, name: "TXFE - Transmit FIFO empty", valueProviderCallback: _ => transmitLevel == 0)
+                 .WithTaggedFlag("RI - Ring indicator", 8)
+                 .WithReservedBits(9, 7)
+                 ;
+@@ -307,7 +304,7 @@ namespace Antmicro.Renode.Peripherals.UART
+                 .WithFlag(1, out parityEnable, name: "PEN - Parity enable")
+                 .WithFlag(2, out evenParitySelect, name: "EPS - Even parity select")
+                 .WithFlag(3, out twoStopBitsSelect, name: "STP2 - Two stop bits select")
+-                .WithFlag(4, out enableFifoBuffers, name: "FEN - Enable FIFOs", changeCallback: (_, __) => UpdateReceiveFifoSize())
++                .WithFlag(4, out enableFifoBuffers, name: "FEN - Enable FIFOs", changeCallback: (_, __) => UpdateFifoMode())
+                 .WithEnumField(5, 2, out wordLength, name: "WLEN - Word length")
+                 .WithFlag(7, out stickParitySelect, name: "SPS - Stick parity select")
+                 .WithReservedBits(8, 8)
+@@ -375,7 +372,8 @@ namespace Antmicro.Renode.Peripherals.UART
+                 ;
+ 
+             Registers.InterruptFIFOLevel.Define(this, 0b010010)  // The reset value is 2 for both fields.
+-                .WithValueField(0, 3, name: "TXIFLSEL - Transmit interrupt FIFO level select")  // Hush write warnings. Transmit interrupts are never triggered.
++                .WithValueField(0, 3, out transmitInterruptFifoLevelSelect, name: "TXIFLSEL - Transmit interrupt FIFO level select",
++                        changeCallback: (_, __) => UpdateTransmitInterruptTriggerPoint())
+                 .WithValueField(3, 3, out receiveInterruptFifoLevelSelect, name: "RXIFLSEL - Receive interrupt FIFO level select",
+                         changeCallback: (_, __) => UpdateReceiveInterruptTriggerPoint())
+                 .WithReservedBits(6, 10)
+@@ -461,8 +459,6 @@ namespace Antmicro.Renode.Peripherals.UART
+             {
+                 receiveFifoSize = 1;
+                 this.Log(LogLevel.Debug, "FIFO buffers disabled.");
+-                interruptRawStatuses[(int)Interrupts.Transmit] = true;
+-                UpdateInterrupts();
+             }
+             UpdateReceiveInterruptTriggerPoint();
+         }
+@@ -488,12 +484,116 @@ namespace Antmicro.Renode.Peripherals.UART
+             if (!loopbackEnable.Value)
+             {
+                 TransmitCharacter((byte)value);
+-                // we finished write, so we can request next data portion 
+             }
+-            interruptRawStatuses[(int)Interrupts.Transmit] = true;
++            QueueTransmitCharacter();
+             UpdateInterrupts();
+         }
+ 
++        // The transmit FIFO is a level counter: the bytes themselves go to the
++        // backend when DATA is written, and the counter stands for the
++        // characters the line would still be shifting out. It holds 32
++        // entries with FIFOs enabled and one without (RP2040 datasheet 4.2.2),
++        // counts the character in the shifter, and loses one entry per
++        // character time (start bit, data bits, parity bit, stop bits at
++        // the programmed divisors; 10 bit times for 8N1). A zero divisor
++        // gives 10 bit times at 115200 baud. The clock is the model's
++        // uartClockFrequency, not the system clock the firmware programs.
++        //
++        // The Transmit raw status follows datasheet 4.2.6.3: it is set when a
++        // drain step takes the level from above the trigger point to at or
++        // below it, and cleared by a write that raises the level above the
++        // trigger point or by ICR. The trigger point is 0 with FIFOs
++        // disabled, so the status is set when the single location empties and
++        // cleared by the next write. Nothing sets it at UARTEN or after reset,
++        // and a write that leaves the level at or below the trigger point
++        // leaves it alone.
++        private uint TransmitCapacity => enableFifoBuffers.Value ? TransmitFifoDepth : 1;
++
++        private uint TransmitTriggerPoint => enableFifoBuffers.Value ? transmitInterruptTriggerPoint : 0;
++
++        private void QueueTransmitCharacter()
++        {
++            if (transmitLevel >= TransmitCapacity)
++            {
++                this.Log(LogLevel.Warning, "DATA written while the transmit FIFO is full ({0} entries); the silicon discards the character.", transmitLevel);
++                return;
++            }
++            transmitLevel++;
++            if (transmitLevel == 1)
++            {
++                StartTransmitTimer();
++            }
++            if (transmitLevel > TransmitTriggerPoint)
++            {
++                interruptRawStatuses[(int)Interrupts.Transmit] = false;
++            }
++        }
++
++        private void DrainTransmitCharacter()
++        {
++            lock (innerLock)
++            {
++                if (transmitLevel == 0)
++                {
++                    return;
++                }
++                var previousLevel = transmitLevel;
++                transmitLevel--;
++                if (previousLevel > TransmitTriggerPoint && transmitLevel <= TransmitTriggerPoint)
++                {
++                    interruptRawStatuses[(int)Interrupts.Transmit] = true;
++                }
++                if (transmitLevel != 0)
++                {
++                    StartTransmitTimer();
++                }
++                UpdateInterrupts();
++            }
++        }
++
++        private void StartTransmitTimer()
++        {
++            transmitTimer.Enabled = false;
++            transmitTimer.Limit = CharacterTimeNanoseconds();
++            transmitTimer.Value = 0;
++            transmitTimer.Enabled = true;
++        }
++
++        private ulong CharacterTimeNanoseconds()
++        {
++            var divisor64 = 64UL * integerBaudRate + fractionalBaudRate;
++            if (divisor64 == 0 || uartClockFrequency == 0)
++            {
++                return FallbackCharacterTimeNanoseconds;
++            }
++            var bits = 1UL + 5UL + (ulong)(int)wordLength.Value + (parityEnable.Value ? 1UL : 0UL) + (twoStopBitsSelect.Value ? 2UL : 1UL);
++            var nanoseconds = bits * divisor64 * 1000000000UL / (4UL * uartClockFrequency);
++            return nanoseconds == 0 ? 1UL : nanoseconds;
++        }
++
++        private void UpdateFifoMode()
++        {
++            UpdateReceiveFifoSize();
++            // A change of FEN empties the transmit FIFO; no character time elapses.
++            transmitTimer.Enabled = false;
++            transmitLevel = 0;
++        }
++
++        private void UpdateTransmitInterruptTriggerPoint()
++        {
++            switch (transmitInterruptFifoLevelSelect.Value)
++            {
++                case 0b000: transmitInterruptTriggerPoint = TransmitFifoDepth / 8; break;
++                case 0b001: transmitInterruptTriggerPoint = TransmitFifoDepth / 4; break;
++                case 0b010: transmitInterruptTriggerPoint = TransmitFifoDepth / 2; break;
++                case 0b011: transmitInterruptTriggerPoint = TransmitFifoDepth * 3 / 4; break;
++                case 0b100: transmitInterruptTriggerPoint = TransmitFifoDepth * 7 / 8; break;
++                default:
++                    this.Log(LogLevel.Warning, "Transmit interrupt FIFO level select written with invalid value: {0}", transmitInterruptFifoLevelSelect.Value);
++                    return;
++            }
++        }
++
+         private uint InterruptMask => Renode.Utilities.BitHelper.GetValueFromBitsArray(interruptMasks);
+ 
+         private uint MaskedInterruptStatus => RawInterruptStatus & InterruptMask;
+@@ -513,6 +613,10 @@ namespace Antmicro.Renode.Peripherals.UART
+         private IFlagRegisterField twoStopBitsSelect;
+         private IFlagRegisterField uartEnable;
+         private IFlagRegisterField dmaRxEnable;
++        private IValueRegisterField transmitInterruptFifoLevelSelect;
++        private readonly LimitTimer transmitTimer;
++        private uint transmitLevel;
++        private uint transmitInterruptTriggerPoint;
+         private IEnumRegisterField<WordLength> wordLength;
+ 
+         private readonly uint hardwareFifoSize;
+@@ -526,6 +630,8 @@ namespace Antmicro.Renode.Peripherals.UART
+         private double receiveInterruptTriggerPoint;
+ 
+         private const uint InterruptsCount = 11;
++        private const uint TransmitFifoDepth = 32;
++        private const ulong FallbackCharacterTimeNanoseconds = 86806;
+         private IManagedThread dreqGenerator;
+         private bool dreqGeneratorEnabled;
+         private enum Interrupts

@@ -17,7 +17,7 @@ remains unrun and unauthorized.
 | Resource admission | The owner approves the original vector at `caee317e` and the additional six optional consumers at `f4ec52c6`, as recorded in `libc-bounded-sort-resource-exception.md`. |
 | Logged build | Current caller/record candidate completes the maintained warning-profile build with exit zero. |
 | ILP32 inventory | Record head `f4ec52c6`, rp2040-ilp32-local-20261115T024510Z-210542-676dd421, completes with exit zero in 854.238 seconds. The ordinary/context suites include the 708,596-case native, ILP32 and sanitizer matrix and calibrated work-bound controls. |
-| Hosted CI | Firmware run `43668978350` passes for source repair `5b823bb3`; run `43670454608` passes for admission record head `59f07e60`. Later publication heads retain their own CI requirement. |
+| Hosted CI | Firmware runs `43668978350`, `43670454608` and `43672713116` pass for source repair `5b823bb3`, admission record head `59f07e60` and emulator record head `38626ed1`, respectively. Later publication heads retain their own CI requirement. |
 | Image distribution/flash | Both logged targets pass at record head `59f07e60`. The sparse flash image reports 761 of 989 sectors live, including one retained free-list chain block; 228 free sectors remain unwritten. |
 | UART Renode | `rp2040-sort-renode` completes with exit zero in 742.0 seconds. Boot, process/file/memory/capacity checks, MPU/residue probes, native compilation through 2046, core-1 checks and warning ceilings pass. |
 | Union Renode | `rp2040-sort-renode-union` completes with exit zero in 578.01 seconds against the same root and the descriptor-patched union kernel. Its applicable boot/native/clock/fault and warning checks pass. |
@@ -32,11 +32,33 @@ target compilation uses ARM GCC 16.2.0 and the evaluated RP2040 profiles.
 ## Open qualification
 
 The final full logged-check aggregate and final publication-head CI remain
-open. The [image identities](libc-bounded-sort-image-artifacts.json) bind
+open. The branch includes refreshed main `a1b31e55`, whose gate-order repair
+places the host FAT32 tail check before the cross hsaout check across the
+aggregate's wait boundary. These main changes alter documentation and gate
+ordering; the sorting production sources and resource approval remain intact.
+The [image identities](libc-bounded-sort-image-artifacts.json) bind
 seven retained inputs to the emulator runs; the five original input hashes
 remain unchanged throughout those runs. The first aggregate
 run stops intentionally for caller closure and receives no pass. Its terminal
 cleanup receipt and inspected recovery remain retained separately.
+
+The aggregate at `38626ed1`, invocation
+`rp2040-check-local-20261115T033027Z-952453-4b76d25d`, ends with exit 124
+and `idle_timeout` after 2,096.546 seconds. Its build passes in 310.267
+seconds. The check stage ends after 1,786.278 seconds with the calculator
+mutation driver active. Host process snapshots show successive mutation
+children; termination flushes seventeen buffered rejection messages. These
+observations identify buffered progress rather than a stationary child as the
+output-idle mechanism. The terminal ownership receipt releases every recorded
+group. Complete logs and receipts remain retained under
+`.build-logs/bounded-sort-qualification/aggregate-idle-timeout/`.
+
+The calculator mutation recipe invokes the selected interpreter with `-u`
+to publish each existing progress message immediately through the log pipe.
+The correction preserves the mutation set, assertions, child deadlines,
+600-second output-idle limit and 5,400-second aggregate deadline. A pipe
+probe distinguishes buffered and unbuffered publication before process exit;
+the next full aggregate decides qualification. The timeout supplies no pass.
 
 Compiler-local and conditional stack bounds, finite algorithm matrices,
 emulator instruction execution and silicon measurements retain their own

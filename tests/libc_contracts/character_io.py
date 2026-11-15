@@ -104,6 +104,11 @@ def mutations(root, work):
          "(void)fputc(c, fp); return (unsigned char)c;", 27),
         ("getchar-stream", "getchar", "return getc(stdin);", "return getc(stdout);", 11),
         ("putchar-stream", "putchar", "return putc(c, stdout);", "return putc(c, stdin);", 21),
+        ("eof-counter", "filbuf",
+         "\t\t/* getc() decrements before calling; keep repeated EOF bounded. */\n"
+         "\t\tiop->_cnt = 0;",
+         "\t\t/* getc() decrements before calling; keep repeated EOF bounded. */",
+         13),
     )
     for label, name, before, after, status in specifications:
         source = (root / "lib/libc/stdio" / (name + ".c")).read_text()
@@ -174,7 +179,7 @@ def main():
         result = run(args.root.resolve(), shlex.split(args.compiler), args.target, args.program)
         if args.output:
             args.output.write_text(json.dumps(result, indent=2) + "\n")
-        print("PASS callable character I/O: 3963 operations and five rejected mutations")
+        print("PASS callable character I/O: 3963 operations and six rejected mutations")
         return 0
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print("character-io: " + str(error), file=sys.stderr)

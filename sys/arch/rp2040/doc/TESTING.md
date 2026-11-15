@@ -425,9 +425,13 @@ also accepts explicit network and glob selections for other configurations.
 sentinels and initialized counts with the matching configured `conf.o`
 relocations and constants. Function pointers must resolve to the named linked
 function with a Thumb bit and executable mapping; terminal pointers resolve to
-the named linked object. PICO and PICOCALC_PSRAM controls mutate every field,
-both counts, a same-signature handler and a source-object relocation, and
-reject truncated ELF input. The cross gate compares each linked image with
+the named linked object. Each table and count must sit in a section without
+`SHF_WRITE`, in both the object and the linked image, inside a load segment
+without `PF_W` in the flash window, so a table that moves to `.data` or RAM
+fails. PICO and PICOCALC_PSRAM controls mutate every field, both counts, a
+same-signature handler, a source-object relocation, the write flag of each
+table and count section in the image and the object, and the `PF_W` flag of
+its load segment, and reject truncated ELF input. The cross gate compares each linked image with
 its supplied object; a separate build identity must bind that object to the
 configuration and source. The gate does not execute device operations.
 

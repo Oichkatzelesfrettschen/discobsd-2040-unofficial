@@ -62,6 +62,33 @@ def main():
     swap_open = struct.unpack_from("<I", data, block_offset + 4 * 6 * 4)[0]
     struct.pack_into("<I", modified, block_offset, swap_open)
     reject(modified, obj, "bdevsw field 0 differs")
+    for name in ("bdevsw", "cdevsw", "nblkdev", "nchrdev"):
+        entry = elf.get_section_by_name(".symtab").get_symbol_by_name(name)[0].entry
+        header = elf.header
+        flags_offset = header.e_shoff + entry.st_shndx * header.e_shentsize + 8
+        modified = bytearray(data)
+        flags = struct.unpack_from("<I", modified, flags_offset)[0]
+        struct.pack_into("<I", modified, flags_offset, flags | checker.SHF_WRITE)
+        reject(modified, obj, f"{name} linked section is writable")
+        for index, segment in enumerate(elf.iter_segments()):
+            covered = segment.header.p_type == "PT_LOAD" and \
+                segment.header.p_vaddr <= entry.st_value < \
+                segment.header.p_vaddr + segment.header.p_filesz
+            if covered:
+                flags_offset = header.e_phoff + index * header.e_phentsize + 24
+                modified = bytearray(data)
+                flags = struct.unpack_from("<I", modified, flags_offset)[0]
+                struct.pack_into("<I", modified, flags_offset, flags | checker.PF_W)
+                reject(modified, obj, f"{name} load segment is writable")
+        object_elf = ELFFile(io.BytesIO(obj))
+        source = object_elf.get_section_by_name(".symtab").get_symbol_by_name(name)[0].entry
+        flags_offset = (object_elf.header.e_shoff +
+                        source.st_shndx * object_elf.header.e_shentsize + 8)
+        mutated_object = bytearray(obj)
+        flags = struct.unpack_from("<I", mutated_object, flags_offset)[0]
+        struct.pack_into("<I", mutated_object, flags_offset, flags | checker.SHF_WRITE)
+        reject(data, mutated_object, f"{name} object section is writable")
+        changed += 1
     object_elf = ELFFile(io.BytesIO(obj))
     object_table = object_elf.get_section_by_name(".symtab")
     cdev_section = object_table.get_symbol_by_name("cdevsw")[0].entry.st_shndx
@@ -89,7 +116,7 @@ def main():
                                 capture_output=True, text=True, check=False)
         if result.returncode != 1:
             raise AssertionError(f"truncated ELF exit {result.returncode}")
-    print(f"PASS RP2040 devsw: {changed} changed fields and count mutants rejected")
+    print(f"PASS RP2040 devsw: {changed} changed fields, count and writable-section mutants rejected")
 
 
 if __name__ == "__main__":

@@ -140,7 +140,10 @@ and the run stops before the next step if a device on another port changes
 address or product. `discobsd-connect` opens the tty of the port's
 interface 0, by its `/dev/serial/by-path` name when udev made one, because
 `/dev/ttyACMn` is renumbered at each re-enumeration. A device path argument to `discobsd-connect` names the board
-itself and skips the check. `tests/test_board_select.py` gates both tools with
+itself and skips the check. An empty `--usb-port` operand is an error; an empty
+`DISCOBSD_USB_PORT` counts as unset. Both tools repeat the one-board check
+before each picotool call, before any unmount and before the terminal launch,
+so a board that appears mid-run stops the run. `tests/test_board_select.py` gates both tools with
 a stub picotool and a fake sysfs (`DISCOBSD_SYSFS_USB`, `DISCOBSD_DEVFS`);
 the per-port unmount runs only on a real board, because a fake sysfs has no
 block nodes. Limit: the selector and the refusal read Linux sysfs. On macOS and

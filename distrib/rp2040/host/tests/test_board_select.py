@@ -132,11 +132,25 @@ def make_world(tmp: Path, devices: dict[str, tuple[str, int]]):
     _stub(bindir / "picotool", STUB_PICOTOOL)
     _stub(bindir / "sleep", "#!/bin/sh\nexit 0\n")
     _stub(bindir / "uname", "#!/bin/sh\necho Linux\n")
-    _stub(bindir / "findmnt", "#!/bin/sh\nexit 1\n")
-    _stub(bindir / "udisksctl", "#!/bin/sh\nexit 0\n")
+    # FAKE_MOUNT makes the boot ROM volume look mounted for a label lookup.
+    _stub(
+        bindir / "findmnt",
+        '#!/bin/sh\n[ -n "${FAKE_MOUNT:-}" ] || exit 1\n'
+        'case "$*" in *TARGET*) echo /mnt/boot ;; *SOURCE*) echo /dev/sdz1 ;; esac\n',
+    )
+    for name in ("udisksctl", "umount", "diskutil"):
+        _stub(bindir / name, f'#!/bin/sh\necho "{name} $*" >> "$UNMOUNT_LOG"\n')
     _stub(bindir / "tio", '#!/bin/sh\necho "tio $*" >> "$TERM_LOG"\n')
     # What the unaddressed path would pick: the first board's node.
-    _stub(bindir / "discobsd-term", f'#!/bin/sh\necho "{devfs}/ttyACM3"\n')
+    # TERM_ADD_DEVICE makes a second board appear while discovery runs.
+    _stub(
+        bindir / "discobsd-term",
+        '#!/bin/sh\nif [ -n "${TERM_ADD_DEVICE:-}" ]; then\n'
+        '\tmkdir -p "$DISCOBSD_SYSFS_USB/1-5"\n'
+        '\techo 2e8a > "$DISCOBSD_SYSFS_USB/1-5/idVendor"\n'
+        '\techo 000a > "$DISCOBSD_SYSFS_USB/1-5/idProduct"\nfi\n'
+        f'echo "{devfs}/ttyACM3"\n',
+    )
     (devfs / "ttyACM3").write_text("")
     uf2 = tmp / "image.uf2"
     uf2.write_text("uf2")
@@ -150,6 +164,7 @@ def run(script: Path, args, tmp: Path, sysfs: Path, devfs: Path, bindir: Path, *
         "DISCOBSD_DEVFS": str(devfs),
         "PT_LOG": str(tmp / "picotool.log"),
         "TERM_LOG": str(tmp / "term.log"),
+        "UNMOUNT_LOG": str(tmp / "unmount.log"),
     }
     env.update(extra)
     return subprocess.run(
@@ -199,6 +214,31 @@ def scenario_flash_second_device_appears(script: Path, tmp: Path) -> None:
     # Only the first call ran; the reset that would follow stays unissued.
     assert log(tmp) == ["info => 1-3"]
     assert "1-5" in r.stderr
+
+
+def scenario_flash_eject_second_board(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, _ = make_world(tmp, {"1-3": ("0003", 7)})
+    r = run(script, ["--eject"], tmp, sysfs, devfs, bindir, STUB_ADD_DEVICE="info", FAKE_MOUNT="1")
+    assert r.returncode == 2, r.stderr
+    assert log(tmp) == ["info => 1-3"]
+    assert log(tmp, "unmount.log") == []
+    # One board: the same run unmounts its volume and reboots it.
+    (tmp / "one").mkdir()
+    sysfs, devfs, bindir, _ = make_world(tmp / "one", {"1-3": ("0003", 7)})
+    r = run(script, ["--eject"], tmp / "one", sysfs, devfs, bindir, FAKE_MOUNT="1")
+    assert r.returncode == 0, r.stderr
+    assert log(tmp / "one", "unmount.log") == ["udisksctl unmount -b /dev/sdz1"]
+
+
+def scenario_flash_empty_selector(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, uf2 = make_world(tmp, {"1-3": ("000a", 7)})
+    # An empty option operand is an error, never "no selector".
+    r = run(script, ["--usb-port", "", str(uf2)], tmp, sysfs, devfs, bindir)
+    assert r.returncode == 1 and log(tmp) == []
+    # An empty environment variable is unset: one device runs unchanged.
+    r = run(script, [str(uf2)], tmp, sysfs, devfs, bindir, DISCOBSD_USB_PORT="")
+    assert r.returncode == 0, r.stderr
+    assert log(tmp)[0] == "info => 1-3"
 
 
 def scenario_flash_refuses(script: Path, tmp: Path) -> None:
@@ -279,6 +319,8 @@ FLASH_SCENARIOS = {
     "single": scenario_flash_single,
     "refuses": scenario_flash_refuses,
     "appears": scenario_flash_second_device_appears,
+    "eject": scenario_flash_eject_second_board,
+    "empty": scenario_flash_empty_selector,
     "selected": scenario_flash_selected,
     "environment": scenario_flash_environment_selector,
     "bystander": scenario_flash_bystander_moves,
@@ -309,6 +351,10 @@ FLASH_MUTANTS = {
     "refuses": ('\t[ -z "$usb_port" ] || return 0\n\tdevs=', "\treturn 0\n\tdevs="),
     # rule: the selector-less run checks again before every picotool call
     "appears": ("\t\trefuse_ambiguous\n\t\tpicotool", "\t\tpicotool"),
+    # rule: a volume is not unmounted once the device set has changed
+    "eject": ("\trecheck_devices\n\techo", "\techo"),
+    # rule: an empty --usb-port operand is refused
+    "empty": ('[ $# -ge 2 ] && [ -n "$2" ] ||', "[ $# -ge 2 ] ||"),
     # rule: every picotool call carries the resolved bus and address
     "selected": ('picotool "$@" --bus "$dev_bus" --address "$dev_addr"', 'picotool "$@"'),
     # rule: the address is read again at each call
@@ -372,6 +418,22 @@ def scenario_connect_selected(script: Path, tmp: Path) -> None:
     assert log(tmp, "term.log")[-1].endswith(f"{devfs}/ttyACM3")
 
 
+def scenario_connect_empty_selector(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, _ = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
+    r = run(script, ["--usb-port", ""], tmp, sysfs, devfs, bindir, DISCOBSD_USB_PORT="1-4")
+    assert r.returncode == 1 and log(tmp, "term.log") == []
+    # An empty environment variable is unset: two boards still refuse.
+    r = run(script, [], tmp, sysfs, devfs, bindir, DISCOBSD_USB_PORT="")
+    assert r.returncode == 2 and log(tmp, "term.log") == []
+
+
+def scenario_connect_second_board_during_discovery(script: Path, tmp: Path) -> None:
+    sysfs, devfs, bindir, _ = make_world(tmp, {"1-3": ("000a", 7)})
+    r = run(script, [], tmp, sysfs, devfs, bindir, TERM_ADD_DEVICE="1")
+    assert r.returncode == 2 and "1-5" in r.stderr
+    assert log(tmp, "term.log") == []
+
+
 def scenario_connect_by_path(script: Path, tmp: Path) -> None:
     sysfs, devfs, bindir, _ = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
     by_path = devfs / "serial" / "by-path"
@@ -391,6 +453,8 @@ def scenario_connect_by_path(script: Path, tmp: Path) -> None:
 
 
 CONNECT_SCENARIOS = {
+    "empty": scenario_connect_empty_selector,
+    "appears": scenario_connect_second_board_during_discovery,
     "by-path": scenario_connect_by_path,
     "single": scenario_connect_single,
     "refuses": scenario_connect_refuses,
@@ -425,6 +489,11 @@ CONNECT_MUTANTS = {
         'for t in "$sysfs_usb"/*/*:1.0/tty/*; do',
     ),
     "by-path": ('"$devfs"/serial/by-path/', '"$devfs"/serial/gone/'),
+    "empty": ('[ $# -ge 2 ] && [ -n "$2" ] ||', "[ $# -ge 2 ] ||"),
+    "appears": (
+        'elif [ -z "$named" ]; then\n\trefuse_ambiguous',
+        'elif [ -z "$named" ]; then\n\t:',
+    ),
 }
 
 

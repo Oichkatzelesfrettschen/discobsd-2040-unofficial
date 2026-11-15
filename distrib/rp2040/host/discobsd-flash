@@ -17,7 +17,9 @@
 #                                 for a copy by hand; --eject afterwards
 #   discobsd-flash --eject        unmount the volume, reboot into the kernel
 #   --usb-port PORT               act on the board at USB port PORT (such as
-#                                 1-3; DISCOBSD_USB_PORT does the same), Linux
+#                                 1-3; DISCOBSD_USB_PORT does the same), Linux;
+#                                 an empty --usb-port operand is an error and
+#                                 an empty DISCOBSD_USB_PORT counts as unset
 #
 # Two boards on one host enumerate alike (2e8a:000a, serial "rp2040"), and
 # an unaddressed picotool may act on either. With more than one 2e8a device
@@ -204,10 +206,22 @@ wait_mount() {
 	done
 }
 
+# The volume is found by label (or by the port's block device), and the
+# device set may have changed since the last picotool call: a second board in
+# BOOTSEL would put its volume under the same label.
+recheck_devices() {
+	if [ -n "$usb_port" ]; then
+		check_others
+	else
+		refuse_ambiguous
+	fi
+}
+
 eject() {
 	wait_mount
 	m=$(mounted_at)
 	[ -n "$m" ] || return 0
+	recheck_devices
 	echo "discobsd-flash: unmounting $m" >&2
 	case "$(uname -s)" in
 	Darwin)
@@ -238,7 +252,7 @@ command -v picotool >/dev/null 2>&1 || die "picotool is not installed (brew inst
 while [ $# -gt 0 ]; do
 	case $1 in
 	--usb-port)
-		[ $# -ge 2 ] || die "--usb-port needs a port such as 1-3"
+		[ $# -ge 2 ] && [ -n "$2" ] || die "--usb-port needs a port such as 1-3"
 		usb_port=$2
 		shift 2
 		;;
@@ -246,7 +260,7 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-[ $# -gt 0 ] || die "usage: discobsd-flash [--usb-port PORT] FILE.uf2 ... | --bootsel | --eject"
+[ $# -gt 0 ] || die "usage: discobsd-flash [--usb-port PORT] FILE.uf2 ... | --bootsel | --eject (an empty DISCOBSD_USB_PORT counts as unset)"
 
 if [ -n "$usb_port" ]; then
 	# The port is joined into a sysfs path: bus-port[.port...] and nothing else.

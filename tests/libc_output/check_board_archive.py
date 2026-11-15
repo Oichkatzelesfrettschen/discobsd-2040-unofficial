@@ -114,6 +114,26 @@ with tempfile.TemporaryDirectory(prefix="board-output-") as directory:
     result = subprocess.run([*sink, str(damaged)], capture_output=True, text=True)
     if result.returncode != 1 or "toupper" not in result.stdout + result.stderr:
         raise SystemExit("board sink closure accepts missing toupper or fails unexpectedly")
+    signal_assembly = work / "signal.s"
+    signal_object = work / "signal.o"
+    subprocess.run([args.compiler, "-std=c17", "-Wall", "-Wextra", "-Werror",
+                    "-fno-builtin", "-Os", "-ffreestanding", "-mcpu=cortex-m0plus",
+                    "-mthumb", "-mfloat-abi=soft", "-nostdinc", "-I" + str(root / "include"),
+                    "-DSIGNAL_SET_EXTERNAL_ERRNO=1", "-S",
+                    str(root / "tests/libc_contracts/signal_set_header.c"),
+                    "-o", str(signal_assembly)], check=True)
+    subprocess.run([str(tools / "as"), str(signal_assembly), "-o", str(signal_object)],
+                   check=True)
+    signal = [str(tools / "ld"), "-o", str(work / "signal"), str(startup),
+              str(signal_object)]
+    subprocess.run([*signal, str(archive)], check=True)
+    shutil.copyfile(archive, damaged)
+    subprocess.run([str(tools / "ar"), "d", str(damaged), "sigsetops.o"], check=True)
+    subprocess.run([str(tools / "ranlib"), str(damaged)], check=True)
+    result = subprocess.run([*signal, str(damaged)], capture_output=True, text=True)
+    if result.returncode != 1 or "sigismember" not in result.stdout + result.stderr:
+        raise SystemExit("board signal closure accepts missing sigsetops or fails unexpectedly")
 print("PASS stripped board archive output link and missing-vfprintf control")
 print("PASS board archive resolves the reference program; missing-toupper control")
 print("PASS board archive calendar link and missing-tzset control")
+print("PASS board archive signal-set link and missing-sigsetops control")

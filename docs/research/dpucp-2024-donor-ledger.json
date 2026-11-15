@@ -1261,6 +1261,69 @@
       "deciding_gate": "Run check-libc-absolute-value, check-c17-headers-cross, full/reduced native archive omission controls, Smaller C and matched clean resource captures.",
       "disposition": "candidate",
       "residual": "Cross objects each occupy eight text bytes with no imports, data or BSS. Whole-image resource admission and aggregate qualification remain open. docs/research/libc-absolute-value-contracts.md records source identities, defined-domain witnesses and limitations."
+    },
+    {
+      "id": "libc-scalar-signal-sets",
+      "requirements": [
+        "dpucp-2024:system-interface:sigemptyset",
+        "dpucp-2024:system-interface:sigfillset",
+        "dpucp-2024:system-interface:sigaddset",
+        "dpucp-2024:system-interface:sigdelset",
+        "dpucp-2024:system-interface:sigismember"
+      ],
+      "roles": [
+        "callable signal-set operations",
+        "public scalar signal ABI"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/gen/sigsetops.c",
+          "sha256": "582715e1a1eb109f89db743c69143b2d385dde6a6d4db60a5061cd330ec803bc",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "openbsd-src",
+          "path": "lib/libc/gen/sigsetops.c",
+          "sha256": "347b32b34b233938c932435b74be0fbab31be4d361ff13afbf0cf685f7594883",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "Construct empty and full sets, add or delete one signal, and test the requested bit; invalid signal numbers return -1 with errno set to EINVAL before any shift.",
+      "invariants": [
+        "Signal admission precedes subtraction and shifting.",
+        "The public scalar representation and existing kernel ABI remain unchanged.",
+        "Invalid add and delete operations preserve the set.",
+        "Callable and retained empty/full macro interfaces evaluate each argument once.",
+        "Shared Berkeley ancestry supplies one lineage rather than independent proof."
+      ],
+      "algorithm": "Use one unsigned scalar bit indexed by signo minus one after validating zero less than signo less than NSIG.",
+      "dependencies": [
+        "sigset_t and NSIG",
+        "errno and EINVAL",
+        "public declarations",
+        "native header input and archive membership"
+      ],
+      "c_language": "The donors use ANSI function definitions; DragonFly uses a multiword set and OpenBSD uses weak-symbol and namespace machinery.",
+      "c17_rewrite": "Retain the scalar ABI and provenance, use exact C17 prototypes and const membership, and validate signal numbers before unsigned shifts without importing donor namespace machinery.",
+      "archive_members": [
+        "sigsetops.o"
+      ],
+      "size_estimate": {
+        "status": "measured",
+        "surfaces": [
+          "native libc archive bytes",
+          "per-program loaded and raw bytes",
+          "per-program packed bytes and blocks",
+          "root data and free blocks",
+          "kernel sizes"
+        ],
+        "evidence": "docs/research/signal-set-resource-exception.md"
+      },
+      "deciding_gate": "Require calibrated host, strict C17, ILP32, real-header Smaller C and QEMU witnesses, approved per-program resource limits, complete image qualification and reviewed integration.",
+      "disposition": "candidate",
+      "residual": "The exact resource vector receives owner approval. Aggregate qualification and reviewed integration remain open; kernel delivery, runtime peaks and physical-board behavior remain separate requirements."
     }
   ],
   "candidate_bindings": {
@@ -1389,6 +1452,16 @@
       "requirements": [
         "dpucp-2024:system-interface:abs",
         "dpucp-2024:system-interface:labs"
+      ]
+    },
+    "libc-scalar-signal-sets": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:system-interface:sigemptyset",
+        "dpucp-2024:system-interface:sigfillset",
+        "dpucp-2024:system-interface:sigaddset",
+        "dpucp-2024:system-interface:sigdelset",
+        "dpucp-2024:system-interface:sigismember"
       ]
     }
   }

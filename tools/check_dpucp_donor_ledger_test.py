@@ -770,8 +770,11 @@ def main():
                        "requirements"], [])
     extension_mutation("extension premature promotion", ["candidates", -1, "disposition"],
                        "promoted")
-    extension_mutation("extension premature measurement", ["candidates", -1,
-                       "size_estimate", "status"], "measured")
+    opposite_measurement = (
+        "unmeasured" if extension["size_estimate"]["status"] == "measured" else "measured"
+    )
+    extension_mutation("extension measurement state", ["candidates", -1,
+                       "size_estimate", "status"], opposite_measurement)
     extension_mutation("extension missing source", ["candidates", -1, "repository"],
                        "netbsd-src")
     extension_mutation("extension missing deciding gate", ["candidates", -1, "deciding_gate"], "")
@@ -789,6 +792,7 @@ def main():
     added = copy.deepcopy(document)
     candidate = copy.deepcopy(extension)
     candidate["id"] = "libc-additional-revision-fixture"
+    candidate["size_estimate"].update(status="unmeasured", evidence="")
     added["candidates"].append(candidate)
     added["candidate_bindings"][candidate["id"]] = {
         "repository": candidate["repository"], "requirements": candidate["requirements"],

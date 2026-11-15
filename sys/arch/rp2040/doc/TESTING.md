@@ -7,6 +7,29 @@ tiers run after `bmake MACHINE=rp2040 build`, which leaves
 the kernels and distribution tree the gates read. `check-cross` builds the
 reduced board libc when its source closure is newer than the archive.
 
+`check-signal-sets` belongs to `check-host`. It runs 31,981 scalar-provider
+checks under strict C17 and UBSan, including a finite mask/signal domain,
+singleton/full sets, errno preservation, invalid-number admission, and unchanged
+sets on failure. Seven warning-clean mutations must reach named rejection
+cases. Every invocation retains generated controls and their build/run logs.
+`check-signal-sets-cross` belongs to `check-cross`: it compiles the real public
+header and provider under strict C17 for Cortex-M0+, rejects an incompatible
+membership prototype, and compiles/assembles the expanded header fixture with
+Smaller C. A malformed native input must fail with its syntax diagnostic.
+`check-signal-sets-qemu` belongs to `check-qemu` and executes the real-header
+fixture under Cortex-M0 with newlib/Linux syscall support. It checks function
+addresses, const membership, single evaluation, invalid errors, and adjacent
+storage preservation. The same QEMU gate executes the Smaller C-generated
+caller and observes six instrumented abort/system scenarios: abort fallback,
+parent completion, fork failure, child exec failure, wait failure, and null
+command. Wrong abort/child masks and omitted mask restoration must each return
+the named failure status. These caller fixtures replace process and signal
+services with observers; they establish masks and call ordering, not kernel
+signal delivery. Missing required tools fail the selected gate. These
+gates establish their named host/compiler/emulator evidence; native on-device
+preprocessing, DiscoBSD kernel execution, runtime peaks, and physical-board
+behavior remain separate.
+
 `check-native-nm` belongs to `check-host`, owned by the Linux and macOS
 host-tier jobs in `.github/workflows/firmware.yml`. It exercises the host build
 of the native reader with 172 archive/object cases and eleven option cases, including exact member
@@ -1951,7 +1974,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-record-header-contracts` | Group, device and login-record header acceptance on ARM: 288 cases across production GNU17, GNU strict C17 and Clang strict C17, four namespace selectors, two time views and four inclusion orders. Each profile rejects eight header mutations and an extra kmemdev argument. Twenty-four cross-preprocessed Smaller C inputs compile and assemble with unchanged native layouts. Firmware CI owns the gate through check-cross; host-native layouts, on-device preprocessing and runtime behavior remain separate. |
 | `check-passwd-header-contracts` | Compiler acceptance for the password public header: standalone/repeated inclusion, sys/types and stddef include orders, seven field types/offsets, structure size/alignment, seven function-pointer signatures and both database keys. Five mandatory profiles cover the host compiler, native Clang, Clang ARM32 and production GNU ARM GNU17/strict C17. Two host ILP32 profiles probe availability and retain explicit unrun states. Every executed profile accepts four valid forms and rejects a removed guard, unsigned UID and incompatible lookup callback. Four profile-policy controls include a synthetic driver diagnostic; real compiler probes decide actual availability and source errors stay failures. Firmware CI runs the gate through check-cross on Linux and macOS; compilation establishes header/ABI acceptance rather than runtime password behavior. |
 | `check-libc-output-cross` | Exact fprintf, vfprintf, fputs, printf, vprintf, sprintf, vsprintf and doprnt implementations compile as C17 for Cortex-M0+ with warnings and old-style definitions treated as errors. Host semantics and target compilation retain separate receipts. |
-| `check-board-libc-output` | The cross compiler emits a fprintf consumer, the tree assembler produces a.out, and the tree linker resolves the consumer with the selected shipped libc archive and startup object. A temporary archive copy with vfprintf.o removed must fail the named dependency. A second consumer, compiled at the 32-bit time view the archive's members are built at, calls time, tzset, ctime, gmtime, localtime, asctime and timezone and must link; a copy with tzset.o removed must fail naming tzset. The reference program `distrib/rp2040/libc-sink.c`, which calls every entry point the archive is meant to serve, must link against the archive with no undefined symbol, and a copy with toupper.o removed must fail naming toupper. The gate builds the selected archive when stale; it executes neither the consumer nor board hardware. |
+| `check-board-libc-output` | The cross compiler emits a fprintf consumer, the tree assembler produces a.out, and the tree linker resolves the consumer with the selected shipped libc archive and startup object. A temporary archive copy with vfprintf.o removed must fail the named dependency. A second consumer, compiled at the 32-bit time view the archive's members are built at, calls time, tzset, ctime, gmtime, localtime, asctime and timezone and must link; a copy with tzset.o removed must fail naming tzset. The reference program `distrib/rp2040/libc-sink.c`, which calls every entry point the archive is meant to serve, must link against the archive with no undefined symbol, and a copy with toupper.o removed must fail naming toupper. The real-header signal-set fixture links all five callable providers using native startup errno; removing sigsetops.o must fail naming sigismember. The gate builds the selected archive when stale; it executes neither the consumer nor board hardware. |
 | `check-cat-contracts-cross` | the exact cat source compiled as strict C17 for Cortex-M0+ with full warnings; its static assertions bind the transfer buffer to the target's BUFSIZ, MAXBSIZE and DEV_BSIZE |
 | `check-rmdir-contracts-cross` | the exact rmdir source compiled as strict C17 for Cortex-M0+ with full warnings |
 | `check-tee-contracts-cross` | the exact tee source compiled as strict C17 for Cortex-M0+ with full warnings |

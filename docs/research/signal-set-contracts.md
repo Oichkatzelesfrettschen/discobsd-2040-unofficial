@@ -439,3 +439,16 @@ these source artifact hashes. Earlier repaired-image copies remain in
 | `distrib/rp2040/flash.uf2` | `ab1e1a2ea405be45206ba8efd835a4ac0ca7191c4b46fc73d34bd610a73715fc` |
 | `sys/arch/rp2040/compile/PICO_UART/unix.bin` | `3e2b8a9a307c32aee4f0162b72d216e381fee5ab6dfc92de33395d75b92b56ec` |
 | `tools/renode/vendor/results/boot/renode.log` | `1378b1e3c8b3609c7e3397d1c07c754f1d3f5dde8a46199921664e49231c401b` |
+
+
+Main `df48d76d` changes the native cc driver and its host gate. Candidate
+`abf3892acd19d4ffe33fb04a8fb05b6708d54a6f` retains both the cc-driver host
+gate and signal-set cross gate through their adjacent Makefile conflict.
+`sh tests/cc_driver/check.sh distrib/rp2040/cc` passes. The clean distribution
+and matched resources preserve the approved comparison exactly. Hosted run
+[43657301357](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/actions/runs/43657301357)
+passes the maintained build, flash, lint and Renode UART0 tier at that exact
+candidate. The other optional hosted jobs report skipped, including the ILP32
+job; the retained local ILP32 run above supplies its separate evidence.
+The local Renode artifact table remains tied to `da59b702` and the hosted
+result qualifies the native-driver integration separately.

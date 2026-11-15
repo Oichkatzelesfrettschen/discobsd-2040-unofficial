@@ -148,3 +148,15 @@ therefore cover this candidate without an additional allowance. The native
 archive grows 440 bytes and root allocation grows two blocks, leaving 231
 free blocks. The per-program table remains unchanged. The generic comparator
 still rejects the added dependencies; the measured exception supplies admission.
+
+
+## Native driver main comparison
+
+Candidate `abf3892acd19d4ffe33fb04a8fb05b6708d54a6f` includes main
+`df48d76ddca80ea40278f2b4ff40854b84b3f532`. The matched clean receipts are
+`signal-set-resources-df48d76d.json`, `signal-set-resources-abf3892a.json`,
+and `signal-set-resources-df48d76d-abf3892a.json`. The complete comparison
+object equals `signal-set-resources-0c021420-5ad4b868.json`, including every
+numeric delta and archive-selection change. Both owner approvals retain their
+exact scope; no additional growth appears. The candidate retains 231 free
+root blocks. The generic comparator's dependency rejection remains expected.

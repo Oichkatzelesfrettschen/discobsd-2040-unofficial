@@ -81,6 +81,14 @@ closure and missing runtime functions open.
 
 ### Ordered modernization queue
 
+The installed-subdirectory header audit identifies a dependency in `FD_ZERO`
+and an uninitialized getty autobaud descriptor set. The bounded repair and its
+donor invariants, red/green predictions, compiler/native-input witnesses,
+and matched-resource obligations live in
+[`descriptor-set-initialization.md`](descriptor-set-initialization.md).
+This leaf advances header and caller ownership; complete select/pselect
+semantics and shared ABI selection retain their separate dispositions.
+
 The queue below owns program order for the C17/POSIX expansion. The historical ordered work queue later
 in this document records delivered units and their residuals; it does not
 restart those implementations. Each row expands into one caller-complete

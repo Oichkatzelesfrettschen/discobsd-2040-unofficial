@@ -2440,9 +2440,11 @@ def validate_document(root, document, requirement_ids):
         require(any(source["repository"] == candidate["repository"] for source in sources),
                 f"primary repository lacks source: {candidate_id}")
         archive_members = candidate["archive_members"]
+        # Header-only mechanisms select no archive members. Their caller
+        # footprints still require matched resource qualification.
         require(
             isinstance(archive_members, list)
-            and archive_members
+            and (archive_members or candidate_id not in EXPECTED_CANDIDATES)
             and all(isinstance(member, str) and member for member in archive_members),
             f"bad archive members: {candidate_id}",
         )

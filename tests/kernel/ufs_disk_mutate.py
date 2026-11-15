@@ -203,8 +203,8 @@ MUTATIONS = {
     # sys/kern/ufs_syscalls2.c
     "device-checkpoint-omitted": (
         "ufs_syscalls2.c",
-        "    checkpoint_error = checkpoint_device(mp->m_dev);",
-        "    checkpoint_error = 0 && checkpoint_device(mp->m_dev);",
+        "    checkpoint_error = bdev_checkpoint(mp->m_dev);",
+        "    checkpoint_error = 0;",
     ),
     "device-checkpoint-error-hidden": (
         "ufs_syscalls2.c",

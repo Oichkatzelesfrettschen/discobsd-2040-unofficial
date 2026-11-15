@@ -71,6 +71,8 @@ typedef char		*caddr_t;
 #define	B_READ		0x00001
 #define	B_DONE		0x00002
 #define	B_ERROR		0x00004
+#define	FREAD		0x0001		/* sys/fcntl.h */
+#define	FWRITE		0x0002
 
 struct buf {
 	int	b_flags;
@@ -571,6 +573,13 @@ test_idle_checkpoint(void)
 	    "a swap write touches neither Dhara nor a checkpoint");
 	expect(flioctl(SWAP_DEV, DIOCCHECKPOINT, (caddr_t)&status, 0) == EINVAL,
 	    t, "the swap unit has no checkpoint");
+	/* ioctl(2) passes the descriptor's flags; reading alone is refused. */
+	expect(flioctl(ROOT_DEV, DIOCCHECKPOINT, (caddr_t)&status, FREAD) ==
+	    EBADF, t, "a read-only descriptor cannot force a checkpoint");
+	status = -1;
+	expect(flioctl(ROOT_DEV, DIOCCHECKPOINT, (caddr_t)&status,
+	    FREAD | FWRITE) == 0 && status == 0, t,
+	    "a writable descriptor can force a checkpoint");
 	expect(model_faults == 0, t, "NOR contract kept");
 }
 

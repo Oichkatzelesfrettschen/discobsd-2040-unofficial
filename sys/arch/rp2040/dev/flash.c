@@ -50,6 +50,7 @@
 #include <sys/systm.h>
 #include <sys/buf.h>
 #include <sys/errno.h>
+#include <sys/fcntl.h>
 #include <sys/storage_stats.h>
 #include <sys/conf.h>
 #include <sys/dk.h>
@@ -997,7 +998,7 @@ bad:
 }
 
 int
-flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
+flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {
 	int unit = flunit(dev);
 	int part = flpart(dev);
@@ -1032,9 +1033,15 @@ flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 		return 0;
 
 	case DIOCCHECKPOINT:
-		/* The swap unit writes the chip directly and keeps no map. */
+		/*
+		 * The swap unit writes the chip directly and keeps no map.
+		 * ioctl(2) passes the descriptor's open flags, so a process must
+		 * hold the node open for writing; ufs_sync() passes none.
+		 */
 		if (unit == FL_UNIT_SWAP)
 			return EINVAL;
+		if (flag != 0 && (flag & FWRITE) == 0)
+			return EBADF;
 		*(int *)addr = fl_checkpoint();
 		return 0;
 	}

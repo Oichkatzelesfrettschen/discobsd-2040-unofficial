@@ -249,6 +249,13 @@ SwapRAM traffic attributable to update about twice per 30 s while a process
 is resident; the overwrite reaching flash within one tick after P1. A
 deviation is a stop point.
 
+Evidence for the per-request cost (board class): on the measured Pico, PICO
+kernel of `0c021420` with `STORAGE_STATS=yes`, every root write request cost
+32 program pages and 2 erase sectors (2 writes: 64 pages, 4 erases; 66
+writes: 2,112 and 132; 175 writes: 5,600 and 350), as predicted.
+`sys/arch/rp2040/doc/research/flash-traffic-per-workload.md` records the
+captures. The idle, overwrite and `cp` captures remain open.
+
 ### P2 -- Device capability field and flush contract
 
 Remove `B_TAPE` (`buf.h:190`) and its `bdwrite()` branch (`ufs_bio.c:139`).
@@ -328,6 +335,19 @@ as scoped. Its cost (a new durability contract, the caller audit, failure
 injection) buys about 21 percent fewer programs unless P8 lowers the live
 share, and P0b decides the board's real mix. Review decides whether P3
 proceeds alone, after P8, or not at all.
+
+Review (2026-11-14): the owner reviewed this stop point and decided
+"P3 + P8b + P8c". P3 is implemented as "checkpoint on sync and group fill":
+`flstrategy()` forces no checkpoint; `ufs_sync()` ends with the
+kernel-internal `DIOCCHECKPOINT` ioctl (`fl_checkpoint()`), so `sync()`,
+`fsync`, `IO_SYNC` writes and unmount flush, `rp2040_shutdown_sync()`
+forces the root's checkpoint after its `sync()`, and the driver's last close
+flushes. Every write class defers; no caller keeps a per-request checkpoint,
+which replaces the per-caller durability audit with the prefix property of
+the journal (the tail advances only at a checkpoint). STORAGE.md states the
+loss window, the error latch and the `sync()` limits; `check-flash-checkpoint`,
+`kernel.ufs-disk.ilp32` and `check-rp2040-shutdown` are its gates. Failure
+injection inside a program or erase and the board reset test remain open.
 
 ### P3b -- UFS full-block write policy (paired experiment)
 
@@ -518,10 +538,10 @@ that closes it. Hardware rows need explicit opt-in.
 | P0b.3 | Board captures: idle with update running and killed, 100-byte overwrite then 60 s idle, 20 KiB `cp`, multi-file `cc` | paired deltas, board class | P0b.1, P0b.2 | proposed |
 | P2.1 | Remove `B_TAPE` and its `bdwrite()` branch | build, `unix.elf` size delta | -- | proposed |
 | P2.2 | `d_flags` capability bits (`D_INLINE`, `D_WRITEBACK`, `D_TRIM`) in both maintained `bdevsw` tables | build both kernels and stm32 | P2.1 | proposed |
-| P2.3 | Kernel-internal flush and trim `d_ioctl` commands in `flash.c` | host flush-contract gate | P2.2 | proposed |
-| P3.0 | Decide P3's scope after P8 and P0b (F6 stop point) | review record | P8b, P0b.3 | open |
+| P2.3 | Kernel-internal flush and trim `d_ioctl` commands in `flash.c` | host flush-contract gate | P2.2 | flush implemented (`DIOCCHECKPOINT`, without the `d_flags` bits); trim with P8c |
+| P3.0 | Decide P3's scope after P8 and P0b (F6 stop point) | review record | P8b, P0b.3 | decided 2026-11-14: P3 + P8b + P8c |
 | P3.1 | Write-caller durability audit | research note, one row per caller | P2.3 | proposed |
-| P3.2 | Deferred checkpoint and device-dirty state in `flstrategy()` | A04 host case, failure injection | P3.0, P3.1 | proposed |
+| P3.2 | Deferred checkpoint and device-dirty state in `flstrategy()` | A04 host case, failure injection | P3.0, P3.1 | implemented; A04 host case passes, failure injection open |
 | P3b.1 | Paired kernels, `bawrite()` against delayed full-block writes | board counters | P0b.3 | proposed |
 | P4.1 | update predicate and deadline state machine | host state-machine gate | P3.2 | proposed |
 | P5.1 | `TAR_HAVE_MTIO` capability macro replacing `#ifndef __APPLE__` | host and qemu-user tar tests | -- | proposed |

@@ -18,8 +18,9 @@ command -v gh >/dev/null 2>&1 || die "not run: install the GitHub CLI (gh)"
 branch=${1:-$(git rev-parse --abbrev-ref HEAD)}
 [ "$branch" != HEAD ] || die "detached HEAD: name the branch"
 url=$(git remote get-url origin)
-repo=$(printf '%s\n' "$url" | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')
+repo=$(printf '%s\n' "$url" | sed -E 's#^(https://github\.com/|git@github\.com:|ssh://git@github\.com/)##; s#\.git$##')
 case "$repo" in
+*:* | */*/*) die "origin is not a GitHub repository: $url" ;;
 */*) ;;
 *) die "origin is not a GitHub repository: $url" ;;
 esac
@@ -34,5 +35,5 @@ number=$numbers
 head=$(gh pr view "$number" --repo "$repo" --json headRefName --jq .headRefName)
 [ "$head" = "$branch" ] || die "pull request $number has head $head, not $branch"
 gh pr comment "$number" --repo "$repo" --body "@codex review" >/dev/null
-gh pr edit "$number" --repo "$repo" --add-reviewer copilot-pull-request-reviewer >/dev/null
+gh pr edit "$number" --repo "$repo" --add-reviewer '@copilot' >/dev/null
 echo "pr-request-reviews: requested Codex and Copilot on $repo#$number ($branch)"

@@ -127,7 +127,8 @@ replacement requires complete stack, resource and workload admission. The
 repair exact callback types and ls reverse ordering, and calibrate adversarial
 work bounds. The [production resource request](libc-bounded-sort-resource-exception.md)
 records matched latest-main measurements, including maintained unshipped
-callers; approval, image qualification and reviewed integration remain open.
+callers. The owner approves that exact vector; image qualification and reviewed
+integration remain open.
 
 The [bounded-string contract](libc-bounded-string-contracts.md) records the four
 small string implementations, their DragonFlyBSD provenance and calibrated

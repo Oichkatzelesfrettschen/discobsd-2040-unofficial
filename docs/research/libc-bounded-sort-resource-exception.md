@@ -3,7 +3,8 @@
 The bounded ordinary and context sorts add 656 native archive bytes, 320
 loaded bytes to each shipped qsort consumer, and one root data block. The
 [compatibility profile](dpucp-2024.md) requires reviewer approval for these
-positive constrained deltas. This request remains pending. Earlier signal,
+positive constrained deltas. The owner approves this exact vector on
+2026-11-15 UTC and directs continued qualification and review. Earlier signal,
 native nm and sorting-interface approvals retain their exact historical scope.
 
 ## Matched source and receipts
@@ -112,5 +113,7 @@ open evidence leaves. Physical-board execution remains unrun and unauthorized.
 
 The requested exception covers exactly the positive shipped and optional
 program deltas above, unchanged archive selection sets, and the documented
-compiler frame limits. Resource approval, aggregate/image qualification,
-review and integration remain open. Main `a849d47a` is the rollback source.
+compiler frame limits. The approval binds the request recorded at `caee317e`
+and measured candidate `0aa86d7d`; further growth needs a new measured
+decision. Aggregate/image qualification, review and integration remain open.
+Main `a849d47a` is the rollback source.

@@ -132,7 +132,7 @@ and physical-board results remain separate claims.
 
 The [matched resource comparison](libc-bounded-sort-resource-exception.md)
 records the exact positive costs against main `a849d47a`. Current-image
-emulator qualification, aggregate gates, resource approval, final head checks
+emulator qualification, aggregate gates, final head checks
 and reviewed integration remain open. Additional behavior and
 stronger evidence are recorded separately from the existing qsort interfaces;
 this work introduces no standards entity or full-conformance claim.

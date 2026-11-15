@@ -51,7 +51,7 @@ FLASH_FUNCTIONS = (
     ("flclose", "int\nflclose(dev_t dev, int mode __unused, int flag __unused)"),
     (
         "flioctl",
-        "int\nflioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)",
+        "int\nflioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)",
     ),
 )
 

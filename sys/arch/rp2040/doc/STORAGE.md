@@ -265,18 +265,41 @@ itself, the completed requests a reset can lose are those in the open group:
 at most six 1 KiB requests, fewer when garbage-collection copies share the
 group, written since the last forced checkpoint or group fill. A forced
 checkpoint follows each sync(2), about one update(8) interval plus scheduling
-delay apart in ordinary operation, longer when `sync()` passes over a mount
-whose superblock lists are locked. The dirty buffers and inodes not yet
+delay apart in ordinary operation. The dirty buffers and inodes not yet
 written remain lost to a reset as before. A sync after one to six pending
 writes still pads a whole group, so writes spaced wider than the sync
-interval cost what they did under the per-request policy. A
-checkpoint failure reaches fsync(2), synchronous writes and unmount as
-`EIO` and latches in the mount's `m_write_error`; sync(2) returns no
-status, so its failure surfaces through that latch and the shutdown
-report. `check-flash-checkpoint` holds the driver to these properties over
-a NOR model, and `kernel.ufs-disk.ilp32` holds the filesystem's sync paths
-to issuing the checkpoint. A board reset test of the new policy has not
-been run. Production
+interval cost what they did under the per-request policy.
+
+sync(2) has two stated limits. `sync()` returns at once while another
+`sync()` holds `updlock`, and it passes over a mount whose superblock lists
+(`fs_ilock`, `fs_flock`) are locked; neither call then reaches that mount's
+`ufs_sync()` or its checkpoint. The writes it would have covered stay
+uncheckpointed until the next pass reaches the mount, normally the next
+update(8) call 30 seconds later, and a reset in between can lose them up to
+the open-group bound above. Shutdown does not depend on that pass:
+`rp2040_shutdown_sync()` forces the root device's checkpoint through
+`bdev_checkpoint()` after its `sync()` and buffer drain, whatever `sync()`
+did. `reboot -n` (`RB_NOSYNC`) skips both, as it skips the buffer flush.
+
+A checkpoint failure reaches fsync(2), synchronous writes and unmount as
+`EIO` and latches in the mount's `m_write_error`, under the rule that
+already governs a failed buffer write: the first error is kept, every later
+`ufs_sync()` of that mount returns it, and nothing clears it while the
+mount exists. The slot is reset only when a mount is made (`mountfs()` loads
+the device's recorded error) and by an unmount over media that
+`DIOCMEDIAGONE` reports removed; the flash driver reports no removal, so a
+flash mount with a latched error refuses unmount, and the root keeps the
+error until reboot. sync(2) returns no status, so its failure surfaces
+through that latch, a later fsync(2) and the shutdown report, which also
+prints a failed shutdown checkpoint.
+
+A process forces a checkpoint with `ioctl(fd, DIOCCHECKPOINT, &status)` on a
+flash block node it opened for writing; `flioctl()` refuses a descriptor
+opened read-only with `EBADF`, and opening the node requires the node's
+permissions. `check-flash-checkpoint` holds the driver to these properties
+over a NOR model, `kernel.ufs-disk.ilp32` holds the filesystem's sync paths
+to issuing the checkpoint, and `check-rp2040-shutdown` holds shutdown to
+forcing it. A board reset test of the new policy has not been run. Production
 `dhara_nand_prog()` passes one 1 KiB extent to `flash_program()` while
 `dhara_nand_copy()` passes four 256-byte extents, so the equivalent count is
 neither a wrapper-call count nor a ROM-command count. N writes followed by one checkpoint

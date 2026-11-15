@@ -541,7 +541,8 @@ SHUTDOWN_CHECKS=	check-shutdown-mutants check-shutdown-order
 .endif
 
 SHUTDOWN_MUTANTS=	unconditional_success missing_recount ignored_errors \
-		cleared_latch bypassed_guards
+		cleared_latch bypassed_guards checkpoint_omitted \
+		checkpoint_before_sync checkpoint_error_dropped
 
 # The read, write, readv and writev entry points. rwuio() calls the port's
 # setjmp on u_qsave and sleep() longjmps back to it, so rwuio_setjmp.h maps

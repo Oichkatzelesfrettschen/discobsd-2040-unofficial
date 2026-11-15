@@ -158,6 +158,7 @@ int incore (dev_t dev, daddr_t blkno);
 int bflush (dev_t dev);
 int bdevsync(dev_t dev);
 int bdev_write_error(dev_t dev);
+int bdev_checkpoint(dev_t dev);
 void bdev_clear_write_error(dev_t dev);
 void bdevlock(struct inode *holder);
 void bdevunlock(struct inode *holder);

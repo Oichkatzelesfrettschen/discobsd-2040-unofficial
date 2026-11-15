@@ -128,6 +128,15 @@ mutate "$flash" "$work/flash-noop.c" \
 build "$work/flash-noop.c" "$work/oracle-noop"
 rejects "$work/oracle-noop" checkpoint-then-reset flush-without-write
 
+# A checkpoint that ignores the descriptor's flags admits a read-only opener.
+mutate "$flash" "$work/flash-any-opener.c" \
+	'		if (flag != 0 && (flag & FWRITE) == 0)
+			return EBADF;
+' '		(void)flag;
+'
+build "$work/flash-any-opener.c" "$work/oracle-any-opener"
+rejects "$work/oracle-any-opener" idle-checkpoint
+
 echo "flash_checkpoint: PASS (reset, checkpoint, group fill, flush without" \
-	"a write, wear bound, idle checkpoint; per-request, missing-ioctl and" \
-	"no-op checkpoint mutations rejected)"
+	"a write, wear bound, idle checkpoint; per-request, missing-ioctl," \
+	"no-op checkpoint and read-only-opener mutations rejected)"

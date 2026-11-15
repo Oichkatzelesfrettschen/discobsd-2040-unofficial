@@ -33,6 +33,10 @@ static int sync_write_error;
 static int sync_reenters;
 static int nested_reentry_returned;
 static int root_available;
+static unsigned checkpoint_calls;
+static unsigned checkpoint_after_syncs, checkpoint_after_delays;
+static dev_t checkpoint_device;
+static int checkpoint_error;
 
 static void
 clear_busy_buffers(void)
@@ -74,6 +78,17 @@ sync(void)
 		mount[0].m_write_error = sync_write_error;
 }
 
+/* The root device's checkpoint: records when it ran and answers as told. */
+int
+bdev_checkpoint(dev_t device)
+{
+	checkpoint_calls++;
+	checkpoint_after_syncs = sync_calls;
+	checkpoint_after_delays = delay_calls;
+	checkpoint_device = device;
+	return checkpoint_error;
+}
+
 void
 mdelay(unsigned milliseconds)
 {
@@ -110,6 +125,10 @@ reset_case(void)
 	sync_reenters = 0;
 	nested_reentry_returned = 0;
 	root_available = 1;
+	checkpoint_calls = 0;
+	checkpoint_after_syncs = checkpoint_after_delays = 0;
+	checkpoint_device = 0;
+	checkpoint_error = 0;
 	hk_ipl = 0;
 	hk_ipl_raises = 0;
 	hk_reset_output();
@@ -128,6 +147,10 @@ check_immediate_idle(void)
 	HK_CHECK(delay_calls == 0);
 	HK_CHECK(hk_contains(hk_printf_text, "syncing disks... buffers idle\n"));
 	HK_CHECK(!hk_contains(hk_printf_text, "timeout"));
+	/* The stub sync() writes nothing, as one that met updlock returns. */
+	HK_CHECK(checkpoint_calls == 1);
+	HK_CHECK(checkpoint_after_syncs == 1);
+	HK_CHECK(checkpoint_device == rootdev);
 }
 
 static void
@@ -168,6 +191,46 @@ check_timeout(void)
 	HK_CHECK(hk_contains(hk_printf_text,
 	    "timeout: 2 buffers busy\n"));
 	HK_CHECK(!hk_contains(hk_printf_text, "buffers idle"));
+	/* The checkpoint follows the drain, so it covers what drained. */
+	HK_CHECK(checkpoint_calls == 1);
+	HK_CHECK(checkpoint_after_delays == MAX_DELAYS);
+}
+
+static void
+check_checkpoint_failure(void)
+{
+	reset_case();
+	mount[0].m_dev = 0301;
+	mount[0].m_inodp = &mounted_inodes[0];
+	checkpoint_error = EIO;
+	rp2040_shutdown_sync(0);
+	HK_CHECK(mount[0].m_write_error == EIO);
+	HK_CHECK(hk_contains(hk_printf_text,
+	    "recorded write error on dev 301: error 5\n"));
+}
+
+static void
+check_checkpoint_failure_keeps_first_error(void)
+{
+	reset_case();
+	mount[0].m_dev = 0301;
+	mount[0].m_inodp = &mounted_inodes[0];
+	mount[0].m_write_error = ENOSPC;
+	checkpoint_error = EIO;
+	rp2040_shutdown_sync(0);
+	HK_CHECK(mount[0].m_write_error == ENOSPC);
+	HK_CHECK(hk_contains(hk_printf_text,
+	    "recorded write error on dev 301: error 28\n"));
+}
+
+static void
+check_checkpoint_failure_unmounted_root(void)
+{
+	reset_case();
+	checkpoint_error = EIO;
+	rp2040_shutdown_sync(0);
+	HK_CHECK(hk_contains(hk_printf_text,
+	    "checkpoint error on dev 301: error 5\n"));
 }
 
 static void
@@ -282,6 +345,7 @@ check_no_sync(void)
 	HK_CHECK(sync_calls == 0);
 	HK_CHECK(hk_printf_calls == 0);
 	HK_CHECK(hk_ipl == 0);
+	HK_CHECK(checkpoint_calls == 0);
 }
 
 static void
@@ -303,6 +367,9 @@ main(void)
 	check_delayed_completion();
 	check_final_delay_completion();
 	check_timeout();
+	check_checkpoint_failure();
+	check_checkpoint_failure_keeps_first_error();
+	check_checkpoint_failure_unmounted_root();
 	check_write_errors();
 	check_inactive_mount();
 	check_error_recorded_by_sync();

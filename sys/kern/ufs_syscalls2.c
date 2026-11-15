@@ -164,9 +164,10 @@ syncinodes(struct fs *fs)
  * (DIOCCHECKPOINT in sys/disk.h). A driver that answers the ioctl itself with
  * an error has no checkpoint to take, as noioctl() and the drivers without
  * the command do; the checkpoint's own failure arrives in the argument.
+ * ufs_sync() and the rp2040 shutdown path call it.
  */
-static int
-checkpoint_device(dev_t dev)
+int
+bdev_checkpoint(dev_t dev)
 {
     int error = 0;
 
@@ -231,7 +232,7 @@ ufs_sync(register struct mount *mp)
     if (error == 0)
         error = mp->m_write_error;
 checkpoint:
-    checkpoint_error = checkpoint_device(mp->m_dev);
+    checkpoint_error = bdev_checkpoint(mp->m_dev);
     if (checkpoint_error != 0 && mp->m_write_error == 0)
         mp->m_write_error = checkpoint_error;
     if (error == 0)

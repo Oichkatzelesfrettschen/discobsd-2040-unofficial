@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import io
 import json
+import os
 import struct
 import subprocess
 import uuid
@@ -39,6 +40,13 @@ FLAGS = [
 PIC = ["-fPIC", "-msingle-pic-base", "-mno-pic-data-is-text-relative"]
 
 
+def require_collision(returncode, diagnostic, symbol):
+    require(
+        returncode != 0 and f"multiple definition of `{symbol}'".encode() in diagnostic,
+        "expected link rejection differs: " + symbol,
+    )
+
+
 class Case(TypedDict):
     name: str
     calls: int
@@ -71,16 +79,20 @@ class Runner:
 
     def command(self, argv, rejection=None, output=False):
         argv = [str(value) for value in argv]
-        result = subprocess.run(argv, cwd=self.work, capture_output=True, timeout=90, check=False)
+        result = subprocess.run(
+            argv,
+            cwd=self.work,
+            capture_output=True,
+            timeout=90,
+            check=False,
+            env={**os.environ, "LC_ALL": "C"},
+        )
         index = len(self.commands)
         self.commands.append({"argv": argv, "exit": result.returncode})
         (self.work / f"command-{index}.stdout").write_bytes(result.stdout)
         (self.work / f"command-{index}.stderr").write_bytes(result.stderr)
         if rejection is not None:
-            require(
-                result.returncode != 0 and rejection.encode() in result.stderr,
-                "expected link rejection differs: " + rejection,
-            )
+            require_collision(result.returncode, result.stderr, rejection)
         else:
             require(
                 result.returncode == 0 and not result.stderr and (output or not result.stdout),
@@ -128,7 +140,7 @@ class Runner:
         )
         split = work / "separated.o"
         if fault not in ("omitted-separation", "assignment"):
-            edits = separate(provider, split, PUBLIC)
+            edits = separate(provider, split, GROUPS)
             (work / "separation.json").write_text(
                 json.dumps(
                     {
@@ -186,7 +198,13 @@ class Runner:
         inputs = [split, work / "slots.o"]
         if fault == "interposition":
             target = work / "interposition.o"
-            self.command([self.cc, *FLAGS, "-c", HERE / "provider.S", "-o", target])
+            source = work / "public-only.S"
+            source.write_text(
+                ".syntax unified\n.cpu cortex-m0plus\n.thumb\n.text\n"
+                ".global api_xor\n.type api_xor,%function\n"
+                ".thumb_func\napi_xor:\n bx lr\n.size api_xor,.-api_xor\n"
+            )
+            self.command([self.cc, *FLAGS, "-c", source, "-o", target])
             inputs.append(target)
         image = work / "library.elf"
         self.command(
@@ -206,9 +224,7 @@ class Runner:
                 "-o",
                 image,
             ],
-            rejection="multiple definition"
-            if fault in ("omitted-separation", "interposition")
-            else None,
+            rejection={"omitted-separation": "api_sum", "interposition": "api_xor"}.get(fault),
         )
         return image, provider
 
@@ -302,7 +318,82 @@ def symbol_control(provider, work, field, change, expected):
     path = work / (field + ".o")
     with path.open("xb") as stream:
         stream.write(data)
-    reject(lambda: separate(path, work / (field + "-separated.o"), PUBLIC), expected)
+    reject(lambda: separate(path, work / (field + "-separated.o"), GROUPS), expected)
+
+
+def review_controls(runner, provider, image, application):
+    work = provider.parent
+    data = bytearray(provider.read_bytes())
+    elf = ELFFile(io.BytesIO(data))
+    table = elf.get_section_by_name(".symtab")
+    other = table.get_symbol_by_name("api_xor")[0]
+    changed = 0
+    for index, symbol in enumerate(table.iter_symbols()):
+        if symbol.name in ("api_alias", "__libc_impl_api_alias"):
+            offset = table["sh_offset"] + index * 16
+            fields = list(struct.unpack_from("<IIIBBH", data, offset))
+            fields[1], fields[2], fields[5] = (
+                other["st_value"],
+                other["st_size"],
+                other["st_shndx"],
+            )
+            struct.pack_into("<IIIBBH", data, offset, *fields)
+            changed += 1
+    require(changed == 2, "alias-group control construction differs")
+    bad = work / "conflicting-group.o"
+    bad.write_bytes(data)
+    reject(
+        lambda: separate(bad, work / "conflicting-group-separated.o", GROUPS),
+        "alias group implementation differs: api_alias",
+    )
+
+    source = work / "private-only.S"
+    source.write_text(
+        ".syntax unified\n.cpu cortex-m0plus\n.thumb\n.text\n"
+        ".global __libc_impl_api_xor\n.type __libc_impl_api_xor,%function\n"
+        ".thumb_func\n__libc_impl_api_xor:\n bx lr\n"
+    )
+    runner.command([runner.cc, *FLAGS, "-c", source, "-o", work / "private-only.o"])
+    runner.command(
+        [
+            runner.cc,
+            *FLAGS,
+            *PIC,
+            "-nostdlib",
+            "-Xlinker",
+            "--fatal-warnings",
+            "-Xlinker",
+            "-T",
+            "-Xlinker",
+            work / "library.ld",
+            work / "separated.o",
+            work / "slots.o",
+            work / "private-only.o",
+            "-o",
+            work / "private-collision.elf",
+        ],
+        rejection="__libc_impl_api_xor",
+    )
+    index = len(runner.commands) - 1
+    diagnostic = (runner.work / f"command-{index}.stderr").read_bytes()
+    reject(
+        lambda: require_collision(runner.commands[index]["exit"], diagnostic, "api_xor"),
+        "expected link rejection differs: api_xor",
+    )
+
+    data = bytearray(application.read_bytes())
+    elf = ELFFile(io.BytesIO(data))
+    table = elf.get_section_by_name(".symtab")
+    value = table.get_symbol_by_name("api_sum")[0]["st_value"]
+    changed = 0
+    for index, symbol in enumerate(table.iter_symbols()):
+        if symbol.name == "api_xor":
+            struct.pack_into("<I", data, table["sh_offset"] + index * 16 + 4, value)
+            changed += 1
+    require(changed == 1, "application import control construction differs")
+    bad = work / "incorrect-import.elf"
+    bad.write_bytes(data)
+    reject(lambda: exercise(image, bad), "application import address differs: api_xor")
 
 
 def main():
@@ -362,15 +453,23 @@ def main():
                 )
                 print(f"{name}: {calls} calls PASS", flush=True)
                 if name == "native-public":
+                    review_controls(runner, provider, inspected, application)
+                    receipt["controls"].extend(
+                        (
+                            "conflicting alias-group owner",
+                            "unrelated private collision",
+                            "incorrect application import address",
+                        )
+                    )
                     reject(
                         lambda provider=provider: separate(
-                            provider, work / "missing.o", ("api_missing",)
+                            provider, work / "missing.o", (("api_missing",),)
                         ),
                         "implementation alias is absent: api_missing",
                     )
                     receipt["controls"].append("missing implementation alias")
                     reject(
-                        lambda image=image: separate(image, work / "executable.o", PUBLIC),
+                        lambda image=image: separate(image, work / "executable.o", GROUPS),
                         "separation requires little-endian ARM ELF32 relocatable input",
                     )
                     receipt["controls"].append("executable separation input")
@@ -393,7 +492,7 @@ def main():
                 if name == "lto-public":
                     raw = image.parent / "provider.c.o"
                     reject(
-                        lambda raw=raw: separate(raw, work / "raw-lto.o", PUBLIC),
+                        lambda raw=raw: separate(raw, work / "raw-lto.o", GROUPS),
                         "LTO input requires native lowering before separation",
                     )
                     receipt["controls"].append("unlowered LTO input")

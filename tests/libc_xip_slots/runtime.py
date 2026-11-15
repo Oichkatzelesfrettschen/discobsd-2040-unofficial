@@ -27,7 +27,12 @@ def exercise(image, application):
                 machine.mem_write(base + address, data)
     with application.open("rb") as stream:
         elf = ELFFile(stream)
-        functions(elf, ("api_sum", "api_alias", "api_xor"), 12)
+        imports = functions(elf, ("api_sum", "api_alias", "api_xor"), 12)
+        for name, imported in imports.items():
+            require(
+                imported["st_value"] == image["symbols"][name],
+                "application import address differs: " + name,
+            )
         for symbol in elf.get_section_by_name(".symtab").iter_symbols():
             if symbol.name.startswith("app_"):
                 symbols[symbol.name] = symbol["st_value"]

@@ -19,7 +19,10 @@ GCC's `-fno-semantic-interposition` can preserve a direct local implementation
 call while public address expressions retain their public symbol. The fixture
 checks observable pointer and call behavior with and without that option and
 after LTO lowers to native relocatable ELF. ELF inspection rejects unsupported
-objects and conflicting implementation ownership before rewriting.
+objects and conflicting implementation ownership before writing the separated
+object. Every declared alias group has one implementation section, Thumb entry
+and extent; individually consistent public/private pairs cannot override that
+group contract.
 
 The experiment lives in `tests/libc_xip_slots`. Its symbol separation remains a
 test mechanism until full API selection and production build closure establish
@@ -43,7 +46,7 @@ retains its independent size, stack and timing decision.
 
 ## Replay and evidence boundaries
 
-The root gate supplies four compiled images and fourteen required rejection
+The root gate supplies four compiled images and seventeen required rejection
 controls. A selected Python needs `pyelftools` and Unicorn 2 or later; ARM GNU
 GCC, binutils and its LTO plugin supply compilation and linking. Run:
 
@@ -61,6 +64,9 @@ separate SRAM address imports a symbol-only ELF retaining the public function
 type, Thumb entry and extent. Direct calls, pointers, weak aliases and callbacks
 exercise the same slots. The linker supplies any application far-call veneers;
 native-linker veneer generation remains a separate work package.
+Every imported public address also equals its inspected library definition.
+The C-locale linker collision oracle requires the intended public symbol; an
+unrelated private-symbol error supplies no public-interposition evidence.
 
 Fresh UUID evidence directories under `.build-logs/xip-callable-identity-*`
 retain commands, diagnostics, native/LTO objects, separated objects, both linked
@@ -94,6 +100,11 @@ identity prerequisite into executable behavior and rejection controls.
 - [x] Register the gate with the root Makefile, testing specification and Linux
   `check-qemu` CI owner; run focused qualification and existing adjacent gates.
 - [ ] Record exact source/tool identities and bounded review before PR integration.
+
+The [source review record](slot-identity-review.md) binds the approved immutable
+review and the parent's executed counterexamples and repairs. The initial
+fourteen-control result leaves three validation gaps. Their reproductions and
+added controls establish the seventeen-control qualification boundary.
 
 An unexpected pointer or extent falsifies the proposed ABI mechanism. An emulator
 setup error remains a failed execution; it cannot count as mutation rejection.

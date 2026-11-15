@@ -28,7 +28,7 @@ def functions(elf, names, size):
     return result
 
 
-def separate(source, destination, names):
+def separate(source, destination, groups):
     """Replace reviewed public definitions with imports of their callable slots."""
     original = Path(source).read_bytes()
     data = bytearray(original)
@@ -44,6 +44,8 @@ def separate(source, destination, names):
         not any(section.name.startswith(".gnu.lto_") for section in elf.iter_sections()),
         "LTO input requires native lowering before separation",
     )
+    require(groups and all(groups), "alias groups differ")
+    names = tuple(name for group in groups for name in group)
     require(names and len(names) == len(set(names)), "public names differ")
     table = elf.get_section_by_name(".symtab")
     require(table is not None and table["sh_entsize"] == 16, "symbol table layout differs")
@@ -54,6 +56,7 @@ def separate(source, destination, names):
             require(symbol.name not in symbols, "duplicate symbol name: " + symbol.name)
             symbols[symbol.name] = (index, symbol)
     edits = []
+    owners = {}
     for name in names:
         private_name = "__libc_impl_" + name
         require(
@@ -85,6 +88,7 @@ def separate(source, destination, names):
             all(public[field] == private[field] for field in ("st_shndx", "st_value", "st_size")),
             "implementation alias owner differs: " + name,
         )
+        owners[name] = tuple(public[field] for field in ("st_shndx", "st_value", "st_size"))
         offset = table["sh_offset"] + index * 16
         fields = list(struct.unpack_from("<IIIBBH", data, offset))
         fields[1] = fields[2] = fields[5] = 0
@@ -99,6 +103,9 @@ def separate(source, destination, names):
                 "provider_size": public["st_size"],
             }
         )
+    for group in groups:
+        for name in group[1:]:
+            require(owners[name] == owners[group[0]], "alias group implementation differs: " + name)
     rewritten = ELFFile(io.BytesIO(data))
     for before, after in zip(elf.iter_sections(), rewritten.iter_sections()):
         if before.name != ".symtab":
@@ -116,6 +123,7 @@ def layout(path, groups):
         symbols = {symbol.name: symbol for symbol in table.iter_symbols() if symbol.name}
         for index, group in enumerate(groups):
             entries = functions(elf, group, 12)
+            implementation_owner = None
             for name, entry in entries.items():
                 require(
                     entry["st_value"] == 0x10020001 + index * 12,
@@ -129,8 +137,15 @@ def layout(path, groups):
                 private = symbols["__libc_impl_" + name]
                 require(
                     private["st_other"]["visibility"] == "STV_HIDDEN"
+                    and private["st_info"]["type"] == "STT_FUNC"
                     and private["st_value"] != entry["st_value"],
                     "implementation ownership differs: " + name,
+                )
+                owner = tuple(private[field] for field in ("st_shndx", "st_value", "st_size"))
+                if implementation_owner is None:
+                    implementation_owner = owner
+                require(
+                    owner == implementation_owner, "alias group implementation differs: " + name
                 )
         extent = symbols["__state_end"]["st_value"]
         initialized = symbols["__init_end"]["st_value"]

@@ -2066,11 +2066,17 @@ families. Calls cover six arguments, aliases, initialized and returned pointers,
 cross-object calls and a flash-to-SRAM callback that calls the flash library.
 Each call checks SP, r4-r11, stack arguments and inactive process state.
 
-Fourteen controls reject missing implementation aliases, executable or raw LTO
+Seventeen controls reject missing implementation aliases, executable or raw LTO
 inputs, mismatched implementation owners, non-function providers, omitted
 separation, conflicting public definitions, inherited or incorrect symbol
 extents, split alias slots, bypassed returned/initialized pointers, corrupted
-argument registers and wrong slot targets. Each rejection requires its named
+argument registers and wrong slot targets. Alias-group checks require a common
+implementation section, address and extent. All application imports retain
+their corresponding library addresses. Three controls also reject an alias
+group whose individual pairs remain consistent, an unrelated private collision
+as evidence of public interposition, and an incorrect application import address.
+Each linker collision requires the named public symbol under the C locale.
+Each rejection requires its named
 diagnostic; an emulator setup failure fails the gate. Linux `firmware.yml`
 owns this gate through `check-qemu`, with Python `pyelftools`/Unicorn 2 or later
 and the ARM GNU toolchain. Sources and fresh receipts live in

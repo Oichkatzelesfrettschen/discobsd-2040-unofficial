@@ -133,10 +133,38 @@ the spread of a run (14 to 80 erases across its 24 compiles).
 
 Swap erases stay at 69 to 75 per compile in every row. Spread evenly over
 the 96 swap sectors that is about 137,000 compiles, so swap, not the root,
-now bounds the life of the part for this workload, by a factor of seven;
-how the swap allocator distributes its extents over the sectors is
-unmeasured, and a concentration on a few sectors shortens that figure in
-proportion.
+now bounds the life of the part for this workload.
+
+The spread was measured. A kernel of main (`a706c0b8`) with one added
+counter per swap sector, incremented in `flash_erase()` and printed by
+`boot()`, ran the 24 compiles twice on the measured Pico after a fresh
+kernel flash. The board reset before the print finished, so each run shows
+the leading sectors and the region total gives the rest:
+
+    run 1, 1,781 swap erases        run 2, 1,794 swap erases
+    0 19 19 17 16 17 17 17          0 18 18 19 19 18 18 18
+    18 17 16 15 17 17 19 20         18 18 18 18 18 18 18 18
+    20 20 21 21 21 19 19 19         18 19 19 18 19 18 17 17
+    20 20 18 17 17 18 18 18         17 17 18 18 19 19 19 17
+    18 18 18 18 17 19 19 21         17 19 19 19 20 21 23 22
+    20 19 18 18 20 20 18 18         21 20 22 22 22 22 23 23
+    18 18 18 16 15 15 15 17
+    17 17 17 20 19 19 18 20
+
+| Run | Sectors printed | Erases per printed sector (first excluded) | Mean of the unprinted sectors |
+| --- | ---: | --- | ---: |
+| 1 | 64 | 15 to 21, mean 18.2 | 19.9 over 32 sectors |
+| 2 | 48 | 17 to 23, mean 19.1 | 18.7 over 48 sectors |
+
+The first swap sector was never erased. Every other printed sector lies
+within 25 percent of the mean, so the swap allocator already spreads its
+extents and the even-spread figure stands: the hottest printed sector took
+23 erases in 24 compiles, about 104,000 compiles at the rated minimum, and
+the mean sector about 128,000. Sectors 64 to 95 were not observed singly;
+their mean is known and an outlier among them is not excluded. Swap bounds
+the part's life at roughly a ninth of the root's 977,000 compiles, and
+placement has nothing left to give: only fewer or smaller swap-outs
+reaching flash lengthen it.
 
 Two changes were measured and left out. Unmapping a block when the file
 system frees it (trim at free) cost 1,592 root erases over eight compiles
@@ -151,8 +179,8 @@ reach into Dhara's safety margin (`dhara-gc-trigger.md`).
 ## Open
 
 - Swap traffic: 69 to 75 sector erases per compile, more than the root
-  spends, on a quarter of the sectors and with no leveling. The admission
-  policy of SwapRAM and the placement of swap extents decide it.
-- Erases per physical sector for swap; the root's are even by the
-  journal's construction and unobserved.
+  spends, on a quarter of the sectors. The erases are spread evenly, so the
+  admission policy of SwapRAM and the size of what is swapped decide it.
+- Erases of swap sectors 64 to 95 singly, and of the root's sectors, which
+  are even by the journal's construction and unobserved.
 - Workloads other than the two-line compile.

@@ -251,6 +251,24 @@ host-model counts for the exercised traces; electrical completion, command
 execution inside the ROM and physical-sector wear require separate board
 measurements.
 
+The threshold is a local change to the vendored Dhara (`auto_gc()` in
+`dhara/map.c`; `dhara/README.md` lists the local changes). Upstream starts
+collecting when the journal holds `dhara_map_capacity()` user pages (989),
+which leaves at most 989 minus the live count as garbage. The port starts
+at journal capacity less the 64-page safety margin less a quarter of the
+live sectors less one 8-page checkpoint group (1,316 - 64 - 758 / 4 - 8 =
+1,055 for the shipped image), so more
+garbage stays in the journal and a write copies fewer live pages. The
+capacity the map advertises stays 989. With this trigger the trace above
+costs 4.91 pages per write at 90 percent live, against 6.28 with
+upstream's, and 1.20 at 80 percent; at 100 percent it is unchanged.
+On the measured Pico, `cc -o d d.c; sync` repeated 24 times cost 153.0
+root erase sectors and 3.75 units per 1 KiB write per compile, against
+183.9 and 4.49 with the upstream trigger. `check-dhara-gc-trigger` holds the
+trigger to an adversarial workload that keeps the journal tail live
+without the journal filling or entering the safety margin.
+`research/dhara-gc-trigger.md` gives the bound and the measurements.
+
 `flashimg` therefore maps only what the system reads. It walks the free list
 of each UFS partition of the disk image (superblock entries, then each chain
 block that entry 0 names) and writes every 1 KiB sector except the free

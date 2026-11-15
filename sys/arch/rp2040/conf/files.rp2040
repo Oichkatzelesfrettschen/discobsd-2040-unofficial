@@ -83,6 +83,7 @@ arch/rp2040/rp2040/systick.c		standard
 # code under an ISC license; see arch/rp2040/dhara/LICENSE.
 #
 arch/rp2040/dev/adc.c			standard
+arch/rp2040/dev/gpio.c			optional sd
 arch/rp2040/dev/uart.c			optional uart
 arch/rp2040/dev/usb.c			optional uartusb
 arch/rp2040/dev/lcdcons.c		optional picocalc

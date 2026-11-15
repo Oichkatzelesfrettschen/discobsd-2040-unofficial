@@ -50,7 +50,7 @@ repository's ignored `docs/local/specs`.
 | TIMER | `machdep.c`: `TIMERAWL` as a microsecond counter; no alarm | all | match |
 | PPB (SysTick, NVIC, MPU, SCB) | `systick.c`, `mpu.c`, `fault.c`, `locore0.S` | all | SysTick match; the rest not audited here, see `MPU.md` |
 | SIO | GPIO25 LED, core 1 FIFO and launch (`core1.c`), the divider the boot ROM uses | all | LED match; `core1.c` not audited here, see `CORE1.md` |
-| IO_BANK0, PADS_BANK0 | per-driver pin setup only | all | no user-visible GPIO device |
+| IO_BANK0, PADS_BANK0 | per-driver pin setup; `dev/gpio.c` for the pins a board leaves free (`GPIO.md`) | all | GPIO device added after this audit; register path unexecuted |
 | UART0 | `dev/uart.c`, PL011 | all | match; 115,207 baud from IBRD 67, FBRD 52 |
 | UART1 | pin setup exists in `uart.c`; no kernel configures `uart1` | none | no device |
 | USB, USB_DPRAM | `dev/usb.c`, CDC-ACM | PICO, PICOCALC, PICOCALC_PSRAM | match, with the two risks below |

@@ -48,7 +48,7 @@ the file write and delete steps of the 8-compile captures are left out.
 `board/wl*.txt`: workload traffic before the checkpoint change (`wl.txt`,
 `wl-cc.txt`, `wl-cc3.txt`, `wl-base.txt`: one checkpoint per map write) and
 with two prototypes that group checkpoints (`wl-p3.txt`, `wl-ab.txt`:
-12 and 13 checkpoint attempts against 431 and 579 map writes). The
+13 and 12 checkpoint attempts against 431 and 579 map writes). The
 prototypes' source revisions were not recorded; the merged policy is the one
 `sys/arch/rp2040/doc/STORAGE.md` describes.
 

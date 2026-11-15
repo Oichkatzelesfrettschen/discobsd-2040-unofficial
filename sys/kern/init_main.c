@@ -118,7 +118,7 @@ main(void)
 	pipedev = rootdev;
 
 	/* Attach services. */
-	struct conf_service *svc;
+	const struct conf_service *svc;
 	for (svc = conf_service_init; svc->svc_attach != NULL; svc++)
 		(*svc->svc_attach)();
 

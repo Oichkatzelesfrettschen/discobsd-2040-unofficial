@@ -97,7 +97,7 @@ bad:
 }
 
 static int
-psramprobe(struct conf_device *config __unused)
+psramprobe(const struct conf_device *config __unused)
 {
 	int err;
 
@@ -127,6 +127,6 @@ psramprobe(struct conf_device *config __unused)
 	return 1;
 }
 
-struct driver psramdriver = {
+const struct driver psramdriver = {
 	"psram", psramprobe,
 };

@@ -52,9 +52,9 @@ ctlr_ioconf(FILE *fp)
     for (dp = dtab; dp != 0; dp = dp->d_next) {
         if (dp->d_type == SERVICE)
             continue;
-        fprintf(fp, "extern struct %s %sdriver;\n",
-            dp->d_type == CONTROLLER ? "controller_driver" : "driver",
-            dp->d_name);
+        fprintf(fp, "extern %s %sdriver;\n",
+            dp->d_type == CONTROLLER ? "struct controller_driver" :
+            "const struct driver", dp->d_name);
     }
     fprintf(fp, "\nstruct conf_ctlr conf_ctlr_init[] = {\n");
     fprintf(fp, "\t/* driver,\tunit,\taddr,\t\tpri,\tflags,\talive */\n");
@@ -88,7 +88,7 @@ service_ioconf(FILE *fp)
                 dp->d_name);
     }
 
-    fprintf(fp, "\nstruct conf_service conf_service_init[] = {\n");
+    fprintf(fp, "\nconst struct conf_service conf_service_init[] = {\n");
     for (dp = dtab; dp != NULL; dp = dp->d_next) {
         if (dp->d_type == SERVICE)
             fprintf(fp, "\t{ %sattach },\n", dp->d_name);
@@ -106,19 +106,16 @@ wnum(int num)
 }
 
 /*
- * RP2040 devices.
- *
- * Identical to stm32_ioconf apart from pin naming. The STM32 family names a
- * pin by a port letter and a bit, so that writer packs them as port<<8|bit
- * and rejects a bit above fifteen. The RP2040 numbers its pins GP0 through
- * GP29 with no ports, so a pin is emitted as the plain number it is.
+ * Write ioconf.c: the controller table, the device table and the service
+ * table. The device and service tables are const, so they link into flash;
+ * autoconfiguration only reads them. A device line that assigns pins is
+ * refused, since no driver reads a pin list from the device table.
  */
-void
-rp2040_ioconf(void)
+static void
+write_ioconf(void)
 {
     register struct device *dp, *mp;
     FILE *fp;
-    int i;
 
     fp = fopen("ioconf.c", "w");
     if (fp == 0) {
@@ -131,12 +128,16 @@ rp2040_ioconf(void)
 
     ctlr_ioconf(fp);
 
-    fprintf(fp, "\nstruct conf_device conf_device_init[] = {\n");
-    fprintf(fp,
-        "\t/* driver,\tctlr driver,\tunit,\tctlr,\tdrive,\tflags,\tpins,\talive */\n");
+    fprintf(fp, "\nconst struct conf_device conf_device_init[] = {\n");
+    fprintf(fp, "\t/* driver,\tctlr driver,\tunit,\tctlr,\tdrive,\tflags */\n");
     for (dp = dtab; dp != 0; dp = dp->d_next) {
         if (dp->d_type == CONTROLLER || dp->d_type == SERVICE)
             continue;
+        if (dp->d_npins > 0) {
+            printf("%s%s: pin assignments are not supported\n",
+                dp->d_name, wnum(dp->d_unit));
+            exit(1);
+        }
 
         mp = dp->d_conn;
         fprintf(fp, "\t{ &%sdriver,\t", dp->d_name);
@@ -146,18 +147,7 @@ rp2040_ioconf(void)
         } else {
             fprintf(fp, "0,\t\t%d,\t0,\t", dp->d_unit);
         }
-        fprintf(fp, "%d,\t0x%x,\t", dp->d_drive, dp->d_flags);
-        if (dp->d_npins > 0) {
-            fprintf(fp, "{");
-            for (i = dp->d_npins - 1; i >= 0; i--) {
-                fprintf(fp, "%d", dp->d_pins[i]);
-                if (i > 0)
-                    fprintf(fp, ",");
-            }
-            fprintf(fp, "},\t");
-        } else
-            fprintf(fp, "{0},\t");
-        fprintf(fp, "0 },\n");
+        fprintf(fp, "%d,\t0x%x },\n", dp->d_drive, dp->d_flags);
     }
     fprintf(fp, "\t{ 0 }\n};\n");
 
@@ -167,63 +157,13 @@ rp2040_ioconf(void)
 }
 
 void
+rp2040_ioconf(void)
+{
+    write_ioconf();
+}
+
+void
 stm32_ioconf(void)
 {
-    register struct device *dp, *mp;
-    FILE *fp;
-    int i;
-
-    fp = fopen("ioconf.c", "w");
-    if (fp == 0) {
-        perror("ioconf.c");
-        exit(1);
-    }
-    fprintf(fp, "#include <sys/types.h>\n");
-    fprintf(fp, "#include <sys/config.h>\n\n");
-    fprintf(fp, "#define C (char *)\n\n");
-
-    /* print controller initialization structures */
-    ctlr_ioconf(fp);
-
-    /* print devices connected to other controllers */
-    fprintf(fp, "\nstruct conf_device conf_device_init[] = {\n");
-    fprintf(fp,
-        "\t/* driver,\tctlr driver,\tunit,\tctlr,\tdrive,\tflags,\tpins,\talive */\n");
-    for (dp = dtab; dp != 0; dp = dp->d_next) {
-        if (dp->d_type == CONTROLLER || dp->d_type == SERVICE)
-            continue;
-
-        mp = dp->d_conn;
-        fprintf(fp, "\t{ &%sdriver,\t", dp->d_name);
-        if (mp) {
-            fprintf(fp, "&%sdriver,\t%d,\t%d,\t",
-                mp->d_name, dp->d_unit, mp->d_unit);
-        } else {
-            fprintf(fp, "0,\t\t%d,\t0,\t", dp->d_unit);
-        }
-        fprintf(fp, "%d,\t0x%x,\t", dp->d_drive, dp->d_flags);
-        if (dp->d_npins > 0) {
-            fprintf(fp, "{");
-            for (i=dp->d_npins-1; i>=0; i--) {
-                int bit = dp->d_pins[i] & 0xff;
-                int port = dp->d_pins[i] >> 8;
-                if (bit > 15 || port < 1 || port > 15) {
-                    printf("P%c%u: invalid pin name\n", 'A'+port-1, bit);
-                    exit(1);
-                }
-                fprintf(fp, "0x%x%x", port, bit);
-                if (i > 0)
-                    fprintf(fp, ",");
-            }
-            fprintf(fp, "},\t");
-        } else
-            fprintf(fp, "{0},\t");
-        fprintf(fp, "0 },\n");
-    }
-    fprintf(fp, "\t{ 0 }\n};\n");
-
-    /* print service initialization structures */
-    service_ioconf(fp);
-
-    fclose(fp);
+    write_ioconf();
 }

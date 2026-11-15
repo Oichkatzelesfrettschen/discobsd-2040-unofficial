@@ -452,7 +452,7 @@ uartgetc(dev_t dev)
  * Return true if found and initialized ok.
  */
 static int
-uartprobe(struct conf_device *config)
+uartprobe(const struct conf_device *config)
 {
     /*
      * The RP2040's blocks are UART0 and UART1 and uart[] is indexed the
@@ -491,6 +491,6 @@ uartprobe(struct conf_device *config)
     return 1;
 }
 
-struct driver uartdriver = {
+const struct driver uartdriver = {
     "uart", uartprobe,
 };

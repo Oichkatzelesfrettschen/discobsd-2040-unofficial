@@ -92,10 +92,41 @@ bmake -C usr.bin/smlrc MACHINE=rp2040 REQUIRE_QEMU=1 test
 "$PYTHON" tests/libc_contracts/absolute_value.py . arm-none-eabi-gcc --arm
 ```
 
-The compatibility rows remain partial with host evidence. The
-[resource review](libc-absolute-value-resource-exception.md) records matched
+The [resource review](libc-absolute-value-resource-exception.md) records matched
 clean distributions and exactly 240 additional native archive bytes with
-unchanged root blocks. The owner approves the exact growth limits; aggregate
-qualification and reviewed integration remain open. Existing string, lifecycle and context-sort approvals
-carry their exact limits; they authorize no additional absolute-provider growth.
+unchanged root blocks. The owner approves the exact growth limits. Main includes
+the qualified providers at `efe16f8b781c72a3a52ac7a75287c9c90214f5f2`
+([PR #470](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/470)).
+Existing string, lifecycle and context-sort approvals carry their exact limits;
+they authorize no additional absolute-provider growth.
+
+## Issue 8 requirement facets
+
+The `abs` and `labs` rows close for the selected static RP2040 profile. The
+closure combines the complete defined scalar argument domain, the source argument
+below and the calibrated executable witnesses. The profile retains host as
+the cataloged evidence class; the separately recorded ILP32, cross/native and
+QEMU results keep their own execution conditions. The closure supplies no
+whole-library, native C17 compiler or physical-board conformance claim.
+
+| Facet | Authority and deciding evidence | Falsifier |
+| --- | --- | --- |
+| Required interface | Issue 8 `abs` and `labs` require representable integer magnitude and define no errors. Their `<stdlib.h>` declarations use `int` and `long`, respectively. | A required type, result or error rule differs from the inspected page. |
+| Defined arithmetic | For an input x with representable magnitude, x >= 0 returns x. For x < 0, -x is representable by the domain premise, and the conditional evaluates that branch alone. The typed source performs exactly this operation. | A defined-domain input reaches overflowing arithmetic or returns a different magnitude. |
+| State and ownership | Both functions own only their by-value automatic argument. They allocate nothing, mutate no shared state and call no other function. | Source, undefined imports or generated code introduce a resource, dependency or persistent state. |
+| Public ABI | `stdlib.h`, strict C17 address-taking, LP64/ILP32 execution, ARMv6-M witnesses and the Smaller C `t21_absolute.c` fixture establish the selected types and callable symbols. | An exact declaration, address-taking or native call fails. |
+| Build selection | Explicit stdlib selection preserves the separate ELF, full a.out and reduced-native members. Both native archives reject either missing member through its named unresolved symbol. | A legacy provider replaces the typed source or an omission still links. |
+| Resource admission | The approved matched pair adds exactly 240 native archive bytes and leaves the other 157 measured surfaces unchanged. Later compositions retain their own approvals. | A new implementation or composition exceeds its separately approved vector. |
+| Executable behavior | Each fixture runs 131,088 checks through volatile function pointers; independent negative-input controls reject both faulty providers. | A valid result differs, an oracle negates an unrepresentable minimum or a control fails for an unrelated reason. |
+
+The canonical Issue 8 archive identity remains
+`9a1237e4b7d7b779c6013911377bebe632a7b6765d242eee51859db06355e3df`.
+Direct member inspection gives SHA-256
+`ca40c2bac1d57aa1670da8f84c7f6dc2da98258ba3c003fb7e77398b74ddc159`
+for `susv5-html/functions/abs.html` and
+`b59c158f08473e34b27c242627a54e5a8a8550ef0fdd6ae9feafdccd87f05e52`
+for `susv5-html/functions/labs.html`. The second page also describes `llabs`;
+that distinct entity retains its independent ledger disposition. Magnitudes
+outside the representable domain have undefined behavior under these pages
+and receive neither a saturation promise nor an invented error contract.
 Physical-board execution remains unrun and requires separate authorization.

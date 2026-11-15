@@ -26,8 +26,10 @@ The source denominator at that baseline contains 2,590 C/header paths:
 4 accepted, 64 migration-open, 543 excluded and 1,979 unreviewed. Those states
 measure review accounting rather than independent defects. The shell already
 passes its strict-C17 compilation gate; pointer-through-int transport and
-runtime resource acceptance remain separate obligations. The finite DPUCP
-ledger contains 1,518 Issue 8 rows, with one closed and 1,517 open.
+runtime resource acceptance remain separate obligations. The retained DPUCP
+snapshot at `efc6fb87` contains 1,518 Issue 8 rows, with one closed and 1,517
+open. Current counts derive from `dpucp-2024-profile.json`; delivery and facet
+review advance independently.
 
 ### Architecture and resource invariants
 
@@ -120,22 +122,29 @@ combines equal bands, ordered pivot samples, smaller-side recursion and a
 partition budget with allocation-free heap fallback. Its expanded host,
 ILP32, sanitizer and ARMv6-M QEMU matrices exercise 708,596 cases per entry
 variant. The measured sorted and duplicate-key families improve comparator
-work; ARM text and partition-frame growth remain explicit costs. Production
-replacement requires complete stack, resource and workload admission. The
+work; ARM text and partition-frame growth remain explicit costs. Intrinsic
+stack bounds, matched resources and calibrated comparison-work witnesses
+govern production admission. The
 [production sorting contracts](libc-bounded-sort-contracts.md) preserve the
 48-byte recursive frame by returning partition scratch before recursion,
 repair exact callback types and ls reverse ordering, and calibrate adversarial
 work bounds. The [production resource request](libc-bounded-sort-resource-exception.md)
 records matched latest-main measurements, including maintained unshipped
-callers. The owner approves that exact vector; image qualification and reviewed
-integration remain open.
+callers. Main includes the approved implementation at `efc6fb87`
+([PR #549](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/549)).
+The [qualification record](libc-bounded-sort-qualification.md) binds the complete
+aggregate, ILP32 inventory, image-qualified emulators and publication-head CI.
+General workload timing, callback-dependent runtime peaks and physical-board
+execution retain separate claims.
 
 The [bounded-string contract](libc-bounded-string-contracts.md) records the four
 small string implementations, their DragonFlyBSD provenance and calibrated
-host/ILP32/Thumb-1 witnesses. Their ledger rows remain partial while the
-[measured archive exception](libc-bounded-string-resource-exception.md),
-aggregate qualification and integration remain open. The lifecycle
-interfaces retain their separate dependency and resource decisions.
+host/ILP32/Thumb-1 witnesses. Main includes these interfaces at `11a3f970`
+([PR #463](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/463))
+with the approved [archive exception](libc-bounded-string-resource-exception.md).
+Their partial ledger states retain remaining facet review and target-runtime
+qualification; merge status supplies no additional semantic or physical evidence.
+The lifecycle interfaces retain their separate dependency and resource decisions.
 
 The [database-open admission record](libc-dbm-open-admission.md) repairs the
 existing ndbm constructor without expanding the shipped interface set. The
@@ -156,8 +165,10 @@ Smaller C-generated calls exercise native header input. Fixed-mask callers
 retain their target code size. The [resource request](signal-set-resource-exception.md)
 records the approved shipped-program costs and the approved reduced-native
 archive amendment: 408 additional archive bytes and one root block close
-the native provider dependency. Final image qualification and integration
-remain open; kernel signal delivery remains a separate requirement.
+the native provider dependency. Main includes the qualified scalar providers at
+`050eac89`
+([PR #542](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/542));
+kernel signal delivery and physical execution remain separate requirements.
 
 Every requirement leaf records edition/option authority, declarations/types,
 input and state transitions, outputs/errors, ownership/cleanup, signal and
@@ -1220,18 +1231,24 @@ omission controls and ARMv6-M QEMU qualification. Quick exit adds 624 native
 archive bytes; its composition with bounded strings consumes one additional
 root data block. The complete resource vector also carries normal exit's
 sixteen positive packed-byte entries. The owner approves the exact combined
-resource limits. The complete ILP32 inventory and combined aggregate pass.
-Hosted CI and reviewed integration remain open. Earlier approvals retain
-their exact candidate identities.
+resource limits. The complete ILP32 inventory, combined aggregate and hosted CI
+pass. Main includes the independent registries at `7566357e`
+([PR #464](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/464)).
+Remaining ledger facets and physical execution retain their own obligations;
+earlier approvals retain their exact candidate identities.
 
 ## Context-aware sort qualification
 
 The [context-sort contracts](context-sort-contracts.md) bind the Issue 8 callback
 signature, per-call ownership, existing smaller-side recursion and native archive
-closure. The candidate preserves the ordinary-sort cross object byte-for-byte
-and passes calibrated context/record witnesses. Its matched resources, complete
-qualification and reviewed integration remain open. Algorithm replacements keep
-their separate comparison, stack and resource acceptance requirements.
+closure. The initial source at `88abf715` preserves the ordinary-sort cross
+object byte-for-byte and passes calibrated context/record witnesses; its
+approved resources and qualification support
+[PR #465](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/465).
+The later bounded implementation at `efc6fb87` replaces both providers under
+its separate comparison, stack and resource acceptance record. The ordinary
+`qsort` interface predates this work; bounded work and stronger witnesses are
+additional behavior and evidence, respectively.
 
 ## Callable integer magnitude providers
 
@@ -1239,14 +1256,19 @@ The [absolute-value contracts](libc-absolute-value-contracts.md) close the
 `abs`/`labs` declaration-to-provider gap in the ELF and native archives.
 Volatile address-taking, strict C17, ILP32, sanitizer, Thumb-1 and Smaller C
 witnesses cover the defined representability domain. Native archive omission
-controls reject each missing member. Matched whole-image resources and complete
-qualification remain open; the shared-libc export contract retains its separate
-public-root audit and fixed flash reservation.
+controls reject each missing member. Main includes the approved, qualified
+providers at `efe16f8b`
+([PR #470](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/470)).
+Their Issue 8 facets close for the selected static profile under the documented
+representability rule. Shared-libc export ownership, whole-library conformance
+and physical-board execution retain separate claims and the fixed flash reservation.
 
 The [root-header inclusion contract](public-header-inclusion-contract.md)
 repairs six repeated-inclusion failures and separates curses integer storage
-from C17 boolean spelling. The candidate passes compiler and maintained-build
-checks; resource qualification and integration remain open. Smaller C accepts
+from C17 boolean spelling. Main includes its qualified zero-growth repair at
+`efb4a05a`
+([PR #546](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/546)).
+Smaller C accepts
 12 legacy inputs but rejects three stdbool inputs at its existing `_Bool`
 parser boundary. That native type mechanism remains an explicit compiler leaf.
 

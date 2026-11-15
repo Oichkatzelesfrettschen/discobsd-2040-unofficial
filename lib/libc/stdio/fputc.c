@@ -1,9 +1,13 @@
 #include <stdio.h>
 
 int
-fputc (c, fp)
-	register int c;
-	register FILE *fp;
+fputc(int c, FILE *fp)
 {
-	return putc (c, fp);
+	return putc(c, fp);
+}
+
+int
+(putc)(int c, FILE *fp)
+{
+	return fputc(c, fp);
 }

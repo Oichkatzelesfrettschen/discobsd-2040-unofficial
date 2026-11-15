@@ -334,6 +334,7 @@ int chrtoblk(dev_t dev) { (void)dev; return (NODEV); }
 int ufs_mountedon(dev_t dev) { (void)dev; return (0); }
 int vn_closefile(struct file *fp) { (void)fp; return (0); }
 int ufs_sync(struct mount *mp) { (void)mp; return (0); }
+int bdev_checkpoint(dev_t dev) { (void)dev; return (0); }
 int syncip(struct inode *ip) { (void)ip; return (0); }
 int hk_setjmp(label_t *env) { (void)env; return (0); }
 

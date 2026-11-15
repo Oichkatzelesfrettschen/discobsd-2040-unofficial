@@ -344,6 +344,18 @@ complete:
             }
         }
     }
+    /*
+     * A synchronous write returns after the device has made it durable.
+     * The block above covers files and directories through ufs_sync(); a
+     * block device node has no filesystem to sync, so its writes, which
+     * bwrite() has completed in the driver, take the device's own
+     * checkpoint (bdev_checkpoint(), DIOCCHECKPOINT) before the return. A
+     * driver without the command answers 0, and a checkpoint failure is the
+     * write's error.
+     */
+    if (!error && uio->uio_rw == UIO_WRITE && (ioflag & IO_SYNC) &&
+        type == IFBLK)
+        error = bdev_checkpoint(dev);
     return (error);
 }
 

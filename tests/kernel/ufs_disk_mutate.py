@@ -200,6 +200,50 @@ MUTATIONS = {
         "    return (gone != 0);",
         "    return (gone == 0);",
     ),
+    # sys/kern/ufs_syscalls2.c
+    "device-checkpoint-omitted": (
+        "ufs_syscalls2.c",
+        "    checkpoint_error = bdev_checkpoint(mp->m_dev);",
+        "    checkpoint_error = 0;",
+    ),
+    "device-checkpoint-error-hidden": (
+        "ufs_syscalls2.c",
+        "    if (error == 0)\n        error = checkpoint_error;",
+        "",
+    ),
+    "device-checkpoint-unsupported-fatal": (
+        "ufs_syscalls2.c",
+        "        (caddr_t)&error, 0) != 0)\n        return (0);",
+        "        (caddr_t)&error, 0) != 0)\n        return (EIO);",
+    ),
+    "device-checkpoint-skipped-on-error": (
+        "ufs_syscalls2.c",
+        "    if (error)\n        goto checkpoint;",
+        "    if (error)\n        return (error);\n    if (0)\n        goto checkpoint;",
+    ),
+    "device-fsync-represented-checkpoint-omitted": (
+        "ufs_syscalls2.c",
+        "        error = bdev_checkpoint(ip->i_rdev);",
+        "        error = 0;",
+    ),
+    # sys/kern/sys_inode.c
+    "device-sync-write-checkpoint-omitted": (
+        "sys_inode.c",
+        "        error = bdev_checkpoint(dev);",
+        "        error = 0;",
+    ),
+    "device-sync-write-checkpoint-error-hidden": (
+        "sys_inode.c",
+        "        error = bdev_checkpoint(dev);",
+        "        (void)bdev_checkpoint(dev);",
+    ),
+    "device-async-write-checkpoints": (
+        "sys_inode.c",
+        "    if (!error && uio->uio_rw == UIO_WRITE && (ioflag & IO_SYNC) &&\n"
+        "        type == IFBLK)\n",
+        "    if (!error && uio->uio_rw == UIO_WRITE &&\n"
+        "        type == IFBLK)\n",
+    ),
     # sys/kern/ufs_fio.c
     "exact-compare": (
         "ufs_fio.c",
@@ -252,6 +296,11 @@ MUTATIONS = {
         "flash.c",
         "(fldrives[unit].openpart & ~(1U << RAWPART)) != 0",
         "fldrives[unit].openpart != 0",
+    ),
+    "checkpoint-ioctl-omitted": (
+        "flash.c",
+        "		*(int *)addr = fl_checkpoint();\n		return 0;\n",
+        "		return EINVAL;\n",
     ),
     "reinit-first-partition-only": (
         "flash.c",

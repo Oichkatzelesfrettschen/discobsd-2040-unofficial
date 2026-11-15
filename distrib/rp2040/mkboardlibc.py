@@ -109,7 +109,7 @@ STDLIB_C = set(
 
 STRING_C = set(
     """
-explicit_bzero strcspn strerror strlcat strlcpy strpbrk strsep strspn strstr
+explicit_bzero memmem strcspn strerror strlcat strlcpy strpbrk strsep strspn strstr
 strtok strtok_r timingsafe_bcmp
 """.split()
 )

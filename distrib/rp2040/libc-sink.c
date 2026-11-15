@@ -58,6 +58,10 @@ touch_stdio(void)
 	sink += fputs(buf, stdout);
 	sink += fputc('x', stdout);
 	sink += fgetc(f);
+	sink += (getc)(f);
+	sink += (putc)('x', stdout);
+	sink += (getchar)();
+	sink += (putchar)('x');
 	sink += puts(buf);
 	sink += printf("%s %d %u %x %c\n", buf, 1, 2u, 3u, 'a');
 	sink += fprintf(stderr, "%s\n", buf);
@@ -105,6 +109,8 @@ touch_string_ctype(void)
 	sink += (long)memmove(b, a, sizeof(a));
 	sink += (long)memset(b, 0, sizeof(b));
 	sink += memcmp(a, b, sizeof(a));
+	sink += (long)memchr(a, 0x100, sizeof(a));
+	sink += (long)memmem(a, sizeof(a), b, sizeof(b));
 	sink += timingsafe_bcmp(a, b, sizeof(a));
 	explicit_bzero(b, sizeof(b));
 	sink += isalpha((unsigned char)a[0]);

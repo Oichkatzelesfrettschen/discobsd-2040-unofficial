@@ -126,6 +126,65 @@ flash_nand_range_valid(uint32_t page, size_t offset, size_t length)
 }
 
 /*
+ * Chip identity as flash_identity() returns it: the three JEDEC ID bytes
+ * (manufacturer, memory type, capacity) and the 64-bit unique ID. The
+ * capacity byte is the base-two logarithm of the size in bytes (15h for
+ * the W25Q16JV's 2 MB).
+ */
+#define	FLASH_JEDEC_BYTES	3
+#define	FLASH_UNIQUE_BYTES	8
+
+/* True when n identity bytes are neither all zeros nor all ones. */
+static inline int
+flash_id_plausible(const unsigned char *p, unsigned int n)
+{
+	unsigned int i, zeros = 0, ones = 0;
+
+	for (i = 0; i < n; i++) {
+		zeros += p[i] == 0x00;
+		ones += p[i] == 0xff;
+	}
+	return zeros != n && ones != n;
+}
+
+/* True when a JEDEC capacity byte names FLASH_TOTAL_BYTES. */
+static inline int
+flash_capacity_matches(unsigned int code)
+{
+	return code < 32 && (1UL << code) == FLASH_TOTAL_BYTES;
+}
+
+/*
+ * Write the board's USB serial string into out, which holds
+ * FLASH_SERIAL_CHARS bytes: the unique ID as 16 lowercase hex digits and
+ * the suffix "-rp2040", or "rp2040" alone when unique is null. The suffix
+ * keeps the /dev/serial/by-id name ending in "rp2040-if00", which the host
+ * tools match, while two boards on one host get two names.
+ */
+#define	FLASH_SERIAL_CHARS	(2 * FLASH_UNIQUE_BYTES + sizeof("-rp2040"))
+
+static inline void
+flash_serial_string(char *out, const unsigned char *unique)
+{
+	static const char digits[] = "0123456789abcdef";
+	static const char suffix[] = "-rp2040";
+	unsigned int i, n = 0;
+
+	if (unique != (const unsigned char *)0) {
+		for (i = 0; i < FLASH_UNIQUE_BYTES; i++) {
+			out[n++] = digits[unique[i] >> 4];
+			out[n++] = digits[unique[i] & 0xf];
+		}
+		i = 0;
+	} else {
+		i = 1;		/* Drop the hyphen. */
+	}
+	while (suffix[i] != '\0')
+		out[n++] = suffix[i++];
+	out[n] = '\0';
+}
+
+/*
  * A function carrying this attribute is linked into .data and copied to RAM
  * by locore0.S. Erasing or programming flash takes the QSPI interface out of
  * execute-in-place, so any function driving one must already be in RAM when
@@ -145,11 +204,13 @@ struct buf;
 
 void	*rom_func_lookup(u_int code);
 int	flash_xip_cache(int request);
+int	flash_identity(const unsigned char **jedec,
+	    const unsigned char **unique);
 void	flash_limit_init(void);
 int	flash_loader_started(void);
 
 int	flopen(dev_t dev, int flags, int mode);
-int	flclose(dev_t dev, int mode, int flag);
+int	flclose(dev_t dev, int flag, int mode);
 daddr_t	flsize(dev_t dev);
 void	flstrategy(struct buf *bp);
 int	flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag);

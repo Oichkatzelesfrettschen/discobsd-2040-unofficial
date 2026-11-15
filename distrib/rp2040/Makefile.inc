@@ -207,6 +207,8 @@ BOARDLIBC_GCCPREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
 		fi
 
 ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
+				${TOPSRC}/lib/libc/compat/memchr.c \
+				${TOPSRC}/lib/libc/string/memmem.c \
 				${TOPSRC}/lib/libc/stdlib/abs.c \
 				${TOPSRC}/lib/libc/stdlib/labs.c \
 				${TOPSRC}/lib/libc/stdlib/iso_exit.c \
@@ -215,6 +217,7 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/stdlib/quick_exit.h \
 				${TOPSRC}/distrib/rp2040/boardlibc-members \
 				${TOPSRC}/include/string.h \
+				${TOPSRC}/include/stdio.h \
 				${TOPSRC}/include/time.h \
 				${TOPSRC}/include/tzfile.h \
 				${TOPSRC}/include/_featuretest.h \
@@ -223,6 +226,10 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/arm/gen/rom_float_*.S \
 				${TOPSRC}/lib/libc/stdio/doprnt.c \
 				${TOPSRC}/lib/libc/stdio/printf.c \
+				${TOPSRC}/lib/libc/stdio/fgetc.c \
+				${TOPSRC}/lib/libc/stdio/fputc.c \
+				${TOPSRC}/lib/libc/stdio/getchar.c \
+				${TOPSRC}/lib/libc/stdio/putchar.c \
 				${TOPSRC}/lib/libc/stdio/sprintf.c \
 				${TOPSRC}/lib/libc/stdio/fprintf.c \
 				${TOPSRC}/lib/libc/stdio/vfprintf.c \

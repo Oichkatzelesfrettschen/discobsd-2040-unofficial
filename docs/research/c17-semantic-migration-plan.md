@@ -110,12 +110,66 @@ resource comparison, documentation and reviewed integration. Configuration-keyed
 dependency capture, compiler/analysis coverage and trust-boundary checks apply
 throughout the queue. A declaration or stub cannot close a runtime requirement.
 
+The [callable character-I/O contract](callable-character-io-contracts.md)
+closes a public-function prerequisite exposed by shared-libc API selection.
+`getc` and `putc` gain typed callable providers in the existing `fgetc.o` and
+`fputc.o` members. Four public declarations expose callable/address-taking forms
+while preserving macro expressions and FILE layout. Calibrated headers, byte
+operations, EOF/error handling and standard-stream identity supply focused
+witnesses; clean caller/native closure, matched resources and review retain
+their separate completion states. Six Issue 8 rows advance to host-witnessed
+partial status. POSIX error/timestamp/concurrency facets and physical execution
+remain open.
+
+The [EOF fixed-point qualification](stdio-eof-fixed-point-qualification.md)
+closes the repeated-read counter defect in `_filbuf`: every established-EOF
+return restores the count to zero before the next `getc` decrement. A sixth
+compiled character-I/O mutation removes only that normalization. Matched
+production receipts preserve the owner-approved eight-byte archive and
+per-program vector after complete non-hardware qualification. The six stdio
+standards rows retain their partial status and the remaining facets above.
+
+The [callable slot identity experiment](xip-shared-libc/slot-identity.md)
+gives public slots exact ELF function extents while preserving implementation
+aliases and canonical pointers. Its four compiler/link variants exercise
+independent process state, weak aliases, SRAM application imports and callbacks.
+The calibrated experiment precedes authoritative ABI generation and leaves
+complete API ownership, flash fit and production shared-exec admission open.
+
 The [tableless search experiment](search-bound-experiment/README.md) retains
 the next search-bound comparison and its replay driver. The finite host and
 ARMv6-M matrices preserve earliest-match behavior while exposing the separate
 text, frame and work-count costs. The experiment stays outside shipped libc;
 general work bounds, workload timing and complete resource/caller admission
 remain prerequisites to a replacement.
+
+The [byte search contract](libc-byte-search-contracts.md) decomposes the
+explicit-length production candidate and its native archive closure.
+`memchr` receives independent unsigned-byte/int-conversion witnesses.
+`memmem` retains remembered-prefix Two-Way search with a remaining extent.
+The owner approves the exact guarded-prefix resource vector against main
+e64e2150: 748 native archive bytes, 376 loaded textbox bytes and two root
+blocks, leaving 227 free blocks. Matched current main receipts on
+1111a0d8/74bd2df9 preserve all approved resource deltas. Clean 74bd2df9
+passes the complete parallel aggregate, all 216 required inventory variants
+and both Renode boot gates. The branch also includes main 493292ec;
+both exercised logs pass its stricter warning ceilings separately.
+The lazy-NUL `strstr` investigation retains its separate deciding experiment
+and its existing worst-case work; runtime resource peaks remain unmeasured.
+The [primary factorization correspondence](libc-byte-search-factorization.md)
+resolves the one-byte donor shift difference and includes guarded-prefix work
+in the comparison budget. The original tableless variant passes its aggregate;
+common-case instruction evidence selects a separately qualified fast-path
+revision on current main. The pinned production review finds no actionable
+defect. A detached make-query repair passes calibrated controls, clean focused
+checks and the complete parallel cross tier on 768be134. Its host-only source
+change leaves the production providers unchanged; optional external review
+remains separate from its local verification. Reviewed integration completes
+this explicit-length search delivery. Historical resource limits stay bound
+to their measured source. Shared XIP implementation retains its independent
+48 KiB admission gate and the remaining ABI/lifecycle experiments. Its namespace
+closure also resolves the skipped coremark source owner under benchmarks and
+calibrates omission of a required program before claiming complete coverage.
 
 The [bidirectional sorting experiment](sort-bound-experiment/README.md)
 combines equal bands, ordered pivot samples, smaller-side recursion and a

@@ -31,8 +31,8 @@ experiment costs four more text bytes than the end-pointer form and retains
 its 40-byte local ARM frame; final production costs require a fresh build.
 
 Pre-flight: `memmem` and `memchr` share the byte-domain contract, native
-archive selection and resource admission. The tableless provider owns its
-single-byte path, so `memchr` correctness remains independently testable.
+archive selection and resource admission. The single-byte path binds the independent memchr provider, so its byte
+conversion and extent contracts remain independently testable.
 Both native archives need explicit `memmem` selection; the reduced archive
 also needs `memchr`. The full native archive already contains `memchr`.
 
@@ -74,11 +74,13 @@ nonperiodic shift is `max(split-1, length-split)+1`. Valid shifts are positive
 and bounded by the admitted needle length, so subtracting each shift from
 remaining bytes preserves extent containment. Empty and oversized needles
 return before preprocessing. The implementation allocates no memory, owns no
-persistent state and imports no helper function in the measured ARM object.
+persistent state and imports no helper function in the original measured ARM object. The
+guarded-prefix revision imports memchr through its independent byte contract.
 
 The standard Two-Way proof provides the algorithmic premise. Crochemore and
 Perrin, JACM 38(3), 651-675 (1991), DOI 10.1145/116825.116845 identifies
-that prior art; its full paper remains unread. The inspected Charras/Lecroq
+that prior art; its original proof sections and a port correspondence are now available in
+[the factorization record](libc-byte-search-factorization.md). The inspected Charras/Lecroq
 [exposition](https://www-igm.univ-eiffel.fr/~lecroq/string/node26.html) and
 pinned donor use the critical-factorization/period mechanism. The exposition's
 suffix-length prose and code disagree on `001`; normalized code positions
@@ -107,7 +109,7 @@ The native baseline rejects the new archive fixture for missing memmem.o.
 Native, ILP32, sanitized and ARMv6-M QEMU matrices pass their result/domain
 checks and six mechanism mutations in the initial candidate. A seventh control
 sets the work budget to zero and requires the named comparison-bound failure.
-Current strict target objects contain 312 text bytes/40 local frame bytes for
+The original strict target objects contain 312 text bytes/40 local frame bytes for
 memmem and 22 text bytes/zero frame bytes for memchr. Source hashes, complete
 clean resource measurements and clean-head qualification remain required.
 
@@ -132,3 +134,42 @@ after a successful 18.9-second logged build. The required execution-tool
 calibration, profile controls, changed text/comments and ARM static analysis
 also pass. The ARM matrix includes the seventh zero-budget control.
 Aggregate, ILP32 inventory and Renode qualification remain open.
+
+## Guarded-prefix admission
+
+The original aggregate passes on clean source 5a74d74a: 67.020 seconds of
+build and 3,051.870 seconds of checks, 3,118.892 seconds total. All configured
+skips remain in its immutable logs. Independent instruction simulation then
+exposes a common-case cost: an absent one-byte needle in 4,096 bytes uses
+94,254 instructions versus 28,699 at baseline. The repeated-prefix case
+uses 52,002 versus 1,755,811. These counts separate common work from the
+worst-case comparison guarantee; they establish no board timing.
+
+The guarded-prefix revision adds single-byte memchr, cached two-byte matching,
+a first-byte filter guarded by the ptrdiff_t extent domain, and one complete
+initial probe. Each maximal-suffix comparison retains its order once.
+The [primary proof correspondence](libc-byte-search-factorization.md) includes
+all wrapper work in the existing 2n+7m budget. A forced unfiltered variant
+preserves the full valid-object domain. Native, ILP32, sanitizer and ARM
+experiments pass their complete case matrices; their maximum comparison
+measurement becomes 8,190 through the two-byte path. The per-input budget
+and nonzero-counter checks remain authoritative; the observed maximum is an
+informational value.
+
+The experimental target object uses 454 text bytes and a 48-byte local frame,
+with memchr as its sole import. One-byte long scans use 28,694 instructions
+versus 28,699 at baseline. The long binary match uses 7,331 versus 7,314;
+the repeated-prefix case uses 51,217 versus 1,755,811. The
+check-libc-byte-search-instructions gate enforces baseline+96 instructions on
+its common cases and one quarter of baseline on its adversarial cases. Its
+13-case corpus includes scalar result checks, read-only inputs and callee
+state. Four controls reject bypassed fast paths, quadratic scanning, wrong
+results and disabled instruction counting. The pinned baseline is cfe41205;
+this is a controlled algorithm reference, distinct from the current resource
+baseline on main 17b10cb2.
+
+The original resource request and source-review scope bind their exact earlier
+candidate. They grant no admission for the guarded-prefix revision. A fresh
+clean distribution, resource vector, calibrated focused/inventory/emulator
+qualification and independent review remain open on the merged main.
+Physical-board execution stays unauthorized.

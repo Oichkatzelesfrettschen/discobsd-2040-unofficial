@@ -52,6 +52,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #include <string.h>
+#include <stdint.h>
 
 #define MEMMEM_MAX(a, b) ((a) > (b) ? (a) : (b))
 #ifndef MEMMEM_ORDER
@@ -84,13 +85,14 @@ search(const unsigned char *haystack, size_t remaining,
 	candidate = 0;
 	k = period = 1;
 	while (k < length - candidate) {
-		if (MEMMEM_ORDER(needle[suffix + k], needle[candidate + k]) == 0) {
+		int order = MEMMEM_ORDER(needle[suffix + k], needle[candidate + k]);
+		if (order == 0) {
 			if (k == period) {
 				candidate += period;
 				k = 1;
 			} else
 				k++;
-		} else if (MEMMEM_ORDER(needle[suffix + k], needle[candidate + k]) > 0) {
+		} else if (order > 0) {
 			candidate += k;
 			k = 1;
 			period = candidate - suffix;
@@ -107,13 +109,14 @@ search(const unsigned char *haystack, size_t remaining,
 	candidate = 0;
 	k = period = 1;
 	while (k < length - candidate) {
-		if (MEMMEM_ORDER(needle[suffix + k], needle[candidate + k]) == 0) {
+		int order = MEMMEM_ORDER(needle[suffix + k], needle[candidate + k]);
+		if (order == 0) {
 			if (k == period) {
 				candidate += period;
 				k = 1;
 			} else
 				k++;
-		} else if (MEMMEM_ORDER(needle[suffix + k], needle[candidate + k]) < 0) {
+		} else if (order < 0) {
 			candidate += k;
 			k = 1;
 			period = candidate - suffix;
@@ -174,6 +177,42 @@ memmem(const void *haystack_pointer, size_t haystack_length,
 		return (void *)haystack_pointer;
 	if (haystack_length < needle_length)
 		return NULL;
-	return search(haystack_pointer, haystack_length, needle_pointer,
-	    needle_length);
+	if (needle_length == 1)
+		return memchr(haystack_pointer,
+		    *(const unsigned char *)needle_pointer, haystack_length);
+	const unsigned char *haystack = haystack_pointer;
+	const unsigned char *needle = needle_pointer;
+	/* Two-byte candidates need at most two comparisons per position. */
+	if (needle_length == 2) {
+		unsigned char first = needle[0], second = needle[1];
+		while (haystack_length >= 2) {
+			if (MEMMEM_ORDER(haystack[0], first) == 0 &&
+			    MEMMEM_ORDER(haystack[1], second) == 0)
+				return (void *)haystack;
+			haystack++;
+			haystack_length--;
+		}
+		return NULL;
+	}
+	/*
+	 * The optional filter subtracts pointers within ptrdiff_t's domain.
+	 * Larger extents use the remaining-length search directly.
+	 */
+	if ((uintmax_t)haystack_length <= (uintmax_t)PTRDIFF_MAX) {
+		const unsigned char *found = memchr(haystack, needle[0],
+		    haystack_length - needle_length + 1);
+		if (found == NULL)
+			return NULL;
+		haystack_length -= (size_t)(found - haystack);
+		haystack = found;
+	}
+	/* A complete initial match returns before suffix preprocessing. */
+	if (prefix_order(haystack, needle, needle_length) == 0)
+		return (void *)haystack;
+	/* The initial probe excludes its candidate before the bounded search. */
+	haystack++;
+	haystack_length--;
+	if (haystack_length < needle_length)
+		return NULL;
+	return search(haystack, haystack_length, needle, needle_length);
 }

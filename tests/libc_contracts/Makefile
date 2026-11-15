@@ -165,6 +165,11 @@ byte_search_test_san: ${BYTE_SEARCH_INPUTS} .PHONY
 
 .PHONY: check-byte-search
 
+check-byte-search-instructions:
+	${PYTHON} ${.CURDIR}/byte_search_instructions.py ${TOPSRC} ${ARM_COMPILER:Q}
+
+.PHONY: check-byte-search-instructions
+
 QSORT_CONTEXT_INPUTS= qsort_context.py qsort_context_test.c qsort_bounds_test.c \
 	qsort_callers.py \
 	${TARGET_DIR}/qsort.c ${TARGET_DIR}/qsort_r.c

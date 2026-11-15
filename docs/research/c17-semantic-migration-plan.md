@@ -123,6 +123,12 @@ explicit-length production candidate and its native archive closure.
 `memmem` retains remembered-prefix Two-Way search with a remaining extent.
 Resource admission, clean qualification and reviewed integration remain open;
 the lazy-NUL `strstr` investigation retains a separate deciding experiment.
+The [primary factorization correspondence](libc-byte-search-factorization.md)
+resolves the one-byte donor shift difference and includes guarded-prefix work
+in the comparison budget. The original tableless variant passes its aggregate;
+common-case instruction evidence selects a separately qualified fast-path
+revision on current main. Historical resource limits stay bound to their
+measured source rather than migrating to that revision.
 
 The [bidirectional sorting experiment](sort-bound-experiment/README.md)
 combines equal bands, ordered pivot samples, smaller-side recursion and a

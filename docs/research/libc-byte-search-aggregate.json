@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "runs": [
+    {
+      "source_commit": "5a74d74a91bffd29607ceba6bf47d39d73f43077",
+      "source_state": "clean and frozen during qualification",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 3118.892,
+      "stages": {
+        "build": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 67.02,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "81a1c2dc75f40d028219d770932bce324fcdd1a77fe23ad803b7d876fd975e0f"
+        },
+        "check": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 3051.87,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "eb85105db95f6fd3c7c43996dbe75c44ba0f6ebe9397f06a8acc877abe48d95c"
+        }
+      },
+      "scope": "Original312-byte/40-frame tableless provider; common-case instruction finding requires separate guarded-prefix qualification. Configured skips remain in immutable logs. Physical execution remains unauthorized."
+    }
+  ]
+}

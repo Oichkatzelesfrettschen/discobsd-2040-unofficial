@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -58,6 +59,12 @@ void *byte_find(const void *, int, size_t);
         objects.append(str(obj))
     obj = work / "fixture.o"
     fixture = root / "tests/libc_contracts/byte_search_test.c"
+    if not counter:
+        text = fixture.read_text()
+        require(text.count("search_comparisons++;") == 2,
+                "scalar counter control anchors differ")
+        fixture = work / "counter_control.c"
+        fixture.write_text(text.replace("search_comparisons++;", "(void)0;"))
     if bound_control:
         text = fixture.read_text()
         require(text.count("2 * n + 7 * m") == 1, "bound control anchor differs")
@@ -86,6 +93,15 @@ def execute(program, arm, case):
                           timeout=180, check=False, env=dict(os.environ, LC_ALL="C"))
 
 
+def complete_output(output, arm, case):
+    if case == "memchr":
+        return output == (f"memchr: {263170 if arm else 263427} conversion and "
+                          "extent cases pass\n")
+    marker = (f"byte search: {4206113 if arm else 4239266} earliest-match "
+              "and comparison-bound cases pass; maximum count ")
+    return re.fullmatch(re.escape(marker) + r"[1-9][0-9]*\n", output) is not None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
@@ -104,12 +120,8 @@ def main():
         cases = [args.case] if args.case else ["memchr", "memmem"]
         for case in cases:
             result = execute(program, args.arm, case)
-            marker = (f"memchr: {263170 if args.arm else 263427} conversion and "
-                      "extent cases pass\n" if case == "memchr" else
-                      f"byte search: {4206113 if args.arm else 4239266} earliest-match "
-                      "and comparison-bound cases pass; maximum count 5132\n")
             require(result.returncode == 0 and not result.stderr and
-                    result.stdout == marker,
+                    complete_output(result.stdout, args.arm, case),
                     "byte search " + case + " fails: " + result.stdout + result.stderr)
             print(result.stdout, end="", flush=True)
         if args.output:
@@ -128,6 +140,25 @@ def controls(root, compiler, work, arm):
          "return NULL;", "memmem", 1, "oracle:"),
         ("empty-needle", "memmem", search, "return (void *)haystack_pointer;",
          "return NULL;", "memmem", 1, "oracle:"),
+        ("single-extent", "memmem", search,
+         "*(const unsigned char *)needle_pointer, haystack_length);",
+         "*(const unsigned char *)needle_pointer, haystack_length - 1);",
+         "memmem", 1, "oracle:"),
+        ("pair-second-byte", "memmem", search,
+         "MEMMEM_ORDER(haystack[1], second) == 0",
+         "MEMMEM_ORDER(haystack[1], second) != 0",
+         "memmem", 1, "oracle:"),
+        ("filter-last-candidate", "memmem", search,
+         "haystack_length - needle_length + 1);",
+         "haystack_length - needle_length);",
+         "memmem", 1, "oracle:"),
+        ("initial-probe", "memmem", search,
+         "if (prefix_order(haystack, needle, needle_length) == 0)",
+         "if (needle_length > 2)", "memmem", 1, "oracle:"),
+        ("probe-next-candidate", "memmem", search,
+         "\thaystack++;\n\thaystack_length--;\n\tif (haystack_length < needle_length)",
+         "\thaystack += 2;\n\thaystack_length -= 2;\n\tif (haystack_length < needle_length)",
+         "memmem", 1, "oracle:"),
         ("int-conversion", "memchr", character, "unsigned char value = (unsigned char)c;",
          "int value = c;", "memchr", 5, "byte conversion:"),
         ("signed-byte", "memchr", character, "const unsigned char *s = vs;",
@@ -152,6 +183,16 @@ def controls(root, compiler, work, arm):
     require(result.returncode == 2 and "comparison bound:" in result.stderr,
             "zero work budget lacks named rejection: " + result.stdout + result.stderr)
     print("byte search control rejected: zero work budget", flush=True)
+    anchor = "(uintmax_t)haystack_length <= (uintmax_t)PTRDIFF_MAX"
+    require(search.count(anchor) == 1, "filter domain anchor differs")
+    source = work / "without_filter.c"
+    source.write_text(search.replace(anchor, "0"))
+    program = build(root, compiler, work, arm, ("memmem", source))
+    result = execute(program, arm, "memmem")
+    require(result.returncode == 0 and not result.stderr and
+            complete_output(result.stdout, arm, "memmem"),
+            "unfiltered full-domain path fails: " + result.stdout + result.stderr)
+    print("byte search: forced unfiltered domain passes", flush=True)
 
 
 if __name__ == "__main__":

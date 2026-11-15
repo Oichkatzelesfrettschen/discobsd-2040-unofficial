@@ -339,7 +339,8 @@ jobs:
         # Includes the executable-tail libc object ABI experiment with real
         # ELF/a.out conversion and calibrated QEMU identity checks, plus
         # native-call veneers and shared ROM dispatch under Unicorn with
-        # ARMv6-M encoding and malformed-descriptor controls.
+        # ARMv6-M encoding and malformed-descriptor controls. Byte-search
+        # instruction work has separate scalar, state and budget controls.
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \

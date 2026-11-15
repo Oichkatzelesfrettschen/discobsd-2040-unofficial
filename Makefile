@@ -822,7 +822,10 @@ check-libc-bounded-string:
 check-libc-byte-search:
 		${MAKE} -C tests/libc_contracts check-byte-search
 
-.PHONY: check-libc-byte-search
+check-libc-byte-search-instructions:
+		${MAKE} -C tests/libc_contracts check-byte-search-instructions
+
+.PHONY: check-libc-byte-search check-libc-byte-search-instructions
 
 check-libc-absolute-value:
 		${MAKE} -C tests/libc_contracts check-absolute-value
@@ -1987,6 +1990,7 @@ check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-libc-xip-object-abi
 		${MAKE} check-libc-xip-rom
 		${MAKE} check-native-call-veneer
+		${MAKE} check-libc-byte-search-instructions
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test

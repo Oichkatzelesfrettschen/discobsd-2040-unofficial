@@ -137,6 +137,19 @@ mutate "$flash" "$work/flash-any-opener.c" \
 build "$work/flash-any-opener.c" "$work/oracle-any-opener"
 rejects "$work/oracle-any-opener" idle-checkpoint
 
+# A trim that ioctl(2) can reach would let a process unmap live blocks.
+mutate "$flash" "$work/flash-user-trim.c" \
+	'		if (flag != 0)
+			return EPERM;
+		if (unit == FL_UNIT_SWAP)
+			return EINVAL;
+		return fl_trim' \
+	'		if (unit == FL_UNIT_SWAP)
+			return EINVAL;
+		return fl_trim'
+build "$work/flash-user-trim.c" "$work/oracle-user-trim"
+rejects "$work/oracle-user-trim" trim
+
 echo "flash_checkpoint: PASS (reset, checkpoint, group fill, flush without" \
 	"a write, wear bound, idle checkpoint; per-request, missing-ioctl," \
-	"no-op checkpoint and read-only-opener mutations rejected)"
+	"no-op checkpoint, read-only-opener and user-trim mutations rejected)"

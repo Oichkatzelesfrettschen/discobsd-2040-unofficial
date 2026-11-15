@@ -271,3 +271,8 @@ v7-format-work/
 rmap_ring_*.mutant.*
 swap_ring_io_test
 swap_ring_io*.mutant.*
+trim_order_test
+trim_order.img
+trim_order_*.mutant.c
+trim_order_*.mutant.test
+trim_order_*.mutant.out

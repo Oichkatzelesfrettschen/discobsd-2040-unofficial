@@ -1201,6 +1201,89 @@ check-shutdown-order: shutdown_sync_order_test.py ${MACHDEP_SRC}
 check-shutdown: shutdown_sync_test check-shutdown-mutants check-shutdown-order
 	./shutdown_sync_test
 
+# The order in which a truncate releases blocks, against the flash root's
+# reset semantics: the production ufs_inode.c, ufs_alloc.c, ufs_bmap.c,
+# ufs_bio.c, ufs_subr.c and ufs_syscalls2.c at the target's width in the PICO
+# configuration over the vendored Dhara map (trim_dhara.c), on an image the
+# tree's fsutil makes. trim_order_test.c states the claims. FSUTIL names the
+# fsutil binary; the root Makefile's check-trim-order passes it.
+FSUTIL?=
+TRIM_ORDER_SOURCES=	ufs_bio ufs_inode ufs_alloc ufs_bmap ufs_subr ufs_syscalls2
+TRIM_ORDER_DEFS=	-DSINGLE_UFS_ROOT -DNMOUNT=1 -DLINEAR_INODE_CACHE \
+			-DCOMPACT_INODE_FIELDS -DLINEAR_BUFFER_CACHE -Dfree=ufs_free \
+			-include ${.CURDIR}/ufs_disk_checkpoint.h
+TRIM_ORDER_CFLAGS=	-ffunction-sections -fdata-sections ${TRIM_ORDER_DEFS}
+TRIM_DHARA_DIR=		${TOPSRC}/sys/arch/rp2040/dhara
+TRIM_DHARA_CFLAGS=	-std=c17 -Wall -Wextra -Werror ${ILP32} \
+			-I${TRIM_DHARA_DIR} -I${TOPSRC}/sys/arch
+TRIM_ORDER_OBJECTS=	${TRIM_ORDER_SOURCES:@s@trim_order_${s}.o@}
+TRIM_DHARA_OBJECTS=	trim_dhara.o trim_dhara_error.o trim_dhara_journal.o \
+			trim_dhara_map.o
+TRIM_ORDER_MUTANTS=	inode-after-frees trim-after-chain trim-skipped \
+			inode-delayed-async
+
+.for source in ${TRIM_ORDER_SOURCES}
+trim_order_${source}.o: ${TOPSRC}/sys/kern/${source}.c ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${TRIM_ORDER_CFLAGS} ${ILP32} -c -o $@ \
+	    ${TOPSRC}/sys/kern/${source}.c
+.endfor
+
+trim_dhara.o: trim_dhara.c trim_dhara.h
+	${HOST_CC} ${TRIM_DHARA_CFLAGS} -c -o $@ trim_dhara.c
+.for part in error journal map
+trim_dhara_${part}.o: ${TRIM_DHARA_DIR}/${part}.c
+	${HOST_CC} ${TRIM_DHARA_CFLAGS} -c -o $@ ${TRIM_DHARA_DIR}/${part}.c
+.endfor
+
+trim_order_test: trim_order_test.c trim_dhara.h ${TRIM_ORDER_OBJECTS} \
+    ${TRIM_DHARA_OBJECTS} hostkern_kern.c hostkern32.o ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${TRIM_ORDER_DEFS} ${ILP32} -Wl,--gc-sections \
+	    -o $@ trim_order_test.c ${TRIM_ORDER_OBJECTS} ${TRIM_DHARA_OBJECTS} \
+	    hostkern_kern.c hostkern32.o
+
+trim_order.img: Makefile
+	@[ -n "${FSUTIL}" ] || { echo "FSUTIL is not set" >&2; exit 2; }
+	rm -f $@
+	FSUTIL_CLOCK=1700000000 ${FSUTIL} --new --size=988 $@ >/dev/null
+
+# Each mutant replaces ufs_inode.c or ufs_alloc.c for one build of the gate
+# and must fail it with the assertion status 1 and its own verdict line.
+.for mutation in ${TRIM_ORDER_MUTANTS}
+trim_order_${mutation}.mutant.c: trim_order_mutate.py \
+    ${TOPSRC}/sys/kern/ufs_inode.c ${TOPSRC}/sys/kern/ufs_alloc.c
+	${PYTHON} trim_order_mutate.py --root ${TOPSRC} --mutation ${mutation} \
+	    --output $@
+
+trim_order_${mutation}.mutant.test: trim_order_${mutation}.mutant.c \
+    trim_order_test.c ${TRIM_ORDER_OBJECTS} ${TRIM_DHARA_OBJECTS} \
+    hostkern_kern.c hostkern32.o
+	${HOST_CC} ${KERN_CFLAGS} ${TRIM_ORDER_CFLAGS} ${ILP32} -c -o \
+	    trim_order_${mutation}.mutant.o trim_order_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${TRIM_ORDER_DEFS} ${ILP32} -Wl,--gc-sections \
+	    -o $@ trim_order_test.c trim_order_${mutation}.mutant.o \
+	    `${PYTHON} trim_order_mutate.py --mutation ${mutation} --others \
+	    ${TRIM_ORDER_OBJECTS}` ${TRIM_DHARA_OBJECTS} hostkern_kern.c \
+	    hostkern32.o
+.endfor
+
+check-trim-order: trim_order_test trim_order.img \
+    ${TRIM_ORDER_MUTANTS:@m@trim_order_${m}.mutant.test@}
+	./trim_order_test trim_order.img
+	@set -eu; for mutation in ${TRIM_ORDER_MUTANTS}; do \
+		output=trim_order_$$mutation.mutant.out; \
+		if ./trim_order_$$mutation.mutant.test trim_order.img \
+		    >$$output 2>&1; then status=0; else status=$$?; fi; \
+		want=`${PYTHON} trim_order_mutate.py --mutation $$mutation --expect`; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "checks failed" $$output >/dev/null || \
+		    ! grep -F -- "$$want" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL trim-order mutation $$mutation" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS trim-order mutation $$mutation rejected"; \
+	done
+
 clist_test: clist_test.c ${CLIST_SRC} hostkern_kern.c hostkern.o hostkern.h \
     ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} -c -o clist_kernel.o ${CLIST_SRC}
@@ -3340,6 +3423,8 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
 
 clean:
 	rm -rf ${V7_FORMAT_WORK}
+	rm -f trim_order_test trim_order.img trim_order_*.o trim_dhara*.o \
+	    trim_order_*.mutant.c trim_order_*.mutant.test trim_order_*.mutant.out
 	rm -f pipe_rw_function.c pipe_rw_contract32 pipe_rw_contract_single32 \
 	    pipe_rw_*.mutant.c pipe_rw_*.mutant32.test
 	rm -f ${FORK_SWAP_FUNCTIONS} fork_swap_test fork_swap_test_compact \
@@ -3493,7 +3578,7 @@ clean:
 	fi
 	@if [ -d ${CONSOLE_C17_MACHINE} ]; then rmdir ${CONSOLE_C17_MACHINE}; fi
 
-.PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
+.PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants check-trim-order \
 	check-rmap-ring-mutants check-swap-ring-io check-sysctl-proc-mutants \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
 	check-buffer-busy-mutants \

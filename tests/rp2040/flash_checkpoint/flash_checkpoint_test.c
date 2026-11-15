@@ -583,6 +583,51 @@ test_idle_checkpoint(void)
 	expect(model_faults == 0, t, "NOR contract kept");
 }
 
+/* The kernel's trim request, as free() issues it through bdev_trim(). */
+static int
+trim(daddr_t blkno, int flag)
+{
+	return flioctl(ROOT_DEV, DIOCTRIM, (caddr_t)&blkno, flag);
+}
+
+/*
+ * g: DIOCTRIM unmaps a block through dhara_map_trim(), in request order
+ * with writes: a trim the last checkpoint does not cover is undone by a
+ * reset, a checkpointed one reads 0xff after it, and ioctl(2) and the swap
+ * unit are refused.
+ */
+static void
+test_trim(void)
+{
+	const char *t = "trim";
+	daddr_t blkno = 40;
+	uint32_t live;
+
+	fresh_chip(t);
+	write_block(t, blkno, 1);
+	expect(checkpoint() == 0, t, "checkpoint");
+	live = (uint32_t)dhara_map_size(&flmap);
+	expect(trim(blkno, FREAD | FWRITE) == EPERM, t,
+	    "ioctl(2) cannot trim");
+	expect(flioctl(SWAP_DEV, DIOCTRIM, (caddr_t)&blkno, 0) == EINVAL, t,
+	    "the swap unit has no trim");
+	expect(trim(blkno, 0) == 0, t, "kernel trim");
+	expect(block_is(blkno, 0), t, "a trimmed block reads 0xff");
+	expect((uint32_t)dhara_map_size(&flmap) == live - 1, t,
+	    "the map holds one sector fewer");
+	power_cycle(t);
+	expect(block_is(blkno, 1), t, "an uncheckpointed trim is undone by a reset");
+	expect(trim(blkno, 0) == 0 && checkpoint() == 0, t, "trim, checkpoint");
+	power_cycle(t);
+	expect(block_is(blkno, 0), t, "a checkpointed trim survives a reset");
+	write_block(t, blkno, 2);
+	expect(checkpoint() == 0, t, "rewrite");
+	power_cycle(t);
+	expect(block_is(blkno, 2), t, "a trimmed block written again reads back");
+	expect(trim(99999, 0) == EINVAL, t, "a block past the partition");
+	expect(model_faults == 0, t, "NOR contract kept");
+}
+
 int
 main(void)
 {
@@ -592,6 +637,7 @@ main(void)
 	test_flush_without_write();
 	test_wear();
 	test_idle_checkpoint();
+	test_trim();
 	test_full_occupancy();
 	if (failures != 0) {
 		printf("flash_checkpoint: %d expectations failed\n", failures);

@@ -37,7 +37,7 @@
  *
  * The filesystem is an unpartitioned image tools/fsutil makes, loaded the
  * way tools/flashimg writes one (free blocks other than chain blocks left
- * unmapped). Usage: trim_order_test IMAGE.
+ * unmapped). Usage: trim_order_test IMAGE [measure].
  */
 
 #include "hostkern.h"
@@ -740,8 +740,8 @@ test_failed_allocation(void)
 int
 main(int argc, char **argv)
 {
-	if (argc != 2) {
-		hk_note("usage: trim_order_test IMAGE\n");
+	if (argc != 2 && !(argc == 3 && hk_streq(argv[2], "measure"))) {
+		hk_note("usage: trim_order_test IMAGE [measure]\n");
 		return 2;
 	}
 	image = argv[1];
@@ -752,8 +752,14 @@ main(int argc, char **argv)
 	test_chain();
 	test_reuse();
 	test_live_share();
-	measure_occupancy(1, NDADDR + 12, 150);
-	measure_occupancy(6, 30, 20);
+	/*
+	 * The measurements follow a passing run, or any run given "measure"
+	 * (the trim-skipped mutant's figures): a broken free list hangs them.
+	 */
+	if (hk_failures == 0 || argc == 3) {
+		measure_occupancy(1, NDADDR + 12, 150);
+		measure_occupancy(6, 30, 20);
+	}
 	test_unlink_open();
 	test_failed_allocation();
 	HK_CHECK(td_faults() == 0);

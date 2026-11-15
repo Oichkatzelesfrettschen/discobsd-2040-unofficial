@@ -55,7 +55,8 @@
 #
 # sdspi_test runs the SD card protocol layer against a card model that
 # replays recorded command transcripts, including the crash dump's window
-# reads and summed span writes; twenty-three mutants of sdspi.c must fail
+# reads and summed span writes, and holds every command frame and data block to
+# CRC7 and CRC16 computed bit by bit; thirty mutants of sdspi.c must fail
 # it.
 #
 # sdstrat_test compiles the SD disk driver (sd.c) unchanged against the
@@ -1101,8 +1102,15 @@ SDSPI_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
 SDSPI_SRC=	sdspi.c sdspi.h ${CRC32}
 
 sdspi-mutants: \
-	sdspi-mutant-crc-cmd8 \
-	sdspi-mutant-crc-cmd0 \
+	sdspi-mutant-crc7-generator \
+	sdspi-mutant-crc7-end-bit \
+	sdspi-mutant-crc16-tap \
+	sdspi-mutant-crc16-unchecked \
+	sdspi-mutant-crc16-unsent \
+	sdspi-mutant-crc-refusal-ignored \
+	sdspi-mutant-crc-never-enabled \
+	sdspi-mutant-write-status-ignored \
+	sdspi-mutant-write-status-unsent \
 	sdspi-mutant-hcs \
 	sdspi-mutant-byte-address \
 	sdspi-mutant-echo-pattern \
@@ -1125,13 +1133,41 @@ sdspi-mutants: \
 	sdspi-mutant-span-padding \
 	sdspi-mutant-span-sum-late
 
-sdspi-mutant-crc-cmd8:
+sdspi-mutant-crc7-generator:
 	${SDSPI_MUT} sdspi.c \
-	    's/cmd == CMD8 ? 0x87/cmd == CMD8 ? 0x86/' ${SDSPI_SRC}
+	    's/(crc << 1) ^ 0x12 : crc << 1/(crc << 1) ^ 0x10 : crc << 1/' ${SDSPI_SRC}
 
-sdspi-mutant-crc-cmd0:
+sdspi-mutant-crc7-end-bit:
 	${SDSPI_MUT} sdspi.c \
-	    's/cmd == CMD0 ? 0x95/cmd == CMD0 ? 0x94/' ${SDSPI_SRC}
+	    's/return (unsigned char)(crc | 1);/return (unsigned char)crc;/' ${SDSPI_SRC}
+
+sdspi-mutant-crc16-tap:
+	${SDSPI_MUT} sdspi.c \
+	    's/(x << 12) ^ (x << 5) ^ x/(x << 12) ^ (x << 4) ^ x/' ${SDSPI_SRC}
+
+sdspi-mutant-crc16-unchecked:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (sd->crc \&\& sent != crc)/if (sd->crc \&\& sent == 0x10000)/' ${SDSPI_SRC}
+
+sdspi-mutant-crc16-unsent:
+	${SDSPI_MUT} sdspi.c \
+	    's/(void)o->xfer(crc16 >> 8);/(void)o->xfer(0xff);/' ${SDSPI_SRC}
+
+sdspi-mutant-crc-refusal-ignored:
+	${SDSPI_MUT} sdspi.c \
+	    's/sd->crc = r == R1_IDLE;/sd->crc = 1;/' ${SDSPI_SRC}
+
+sdspi-mutant-crc-never-enabled:
+	${SDSPI_MUT} sdspi.c \
+	    's/r = sd_cmd(o, CMD59, 1);/r = R1_NONE;/' ${SDSPI_SRC}
+
+sdspi-mutant-write-status-ignored:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (r != 0 || b != 0)/if (r != 0)/' ${SDSPI_SRC}
+
+sdspi-mutant-write-status-unsent:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (err == SDE_OK) {/if (0) {/' ${SDSPI_SRC}
 
 sdspi-mutant-hcs:
 	${SDSPI_MUT} sdspi.c \

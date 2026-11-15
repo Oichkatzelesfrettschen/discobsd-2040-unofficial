@@ -654,7 +654,13 @@ check-swap-exchange-headroom:
 check-swap-exchange-inplace:
 		${MAKE} -C tests/kernel check-swap-exchange-inplace
 
-.PHONY: check-swap-exchange-headroom check-swap-exchange-inplace
+# The USB console driver and the tty layer under modeled bus events; see
+# sys/arch/rp2040/doc/TESTING.md. check-kernel includes it.
+check-usb-console:
+		${MAKE} -C tests/kernel check-usb-console
+
+.PHONY: check-swap-exchange-headroom check-swap-exchange-inplace \
+	check-usb-console
 
 # Verify callback types and dispatch against the production architecture sources.
 check-kernel-abi-contracts: check-python
@@ -1597,6 +1603,12 @@ check-usb-get-descriptor:
 check-flash-device-bounds:
 		${MAKE} -C tests/rp2040/flash_device_bounds check
 
+check-adc-conversion:
+		${MAKE} -C tests/rp2040/adc_conversion check
+
+check-gpio-requests:
+		${MAKE} -C tests/rp2040/gpio_requests check
+
 check-clock-catchup:
 		${MAKE} -C tests/rp2040/clock_catchup check
 
@@ -1669,7 +1681,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-standard-requests \
 		check-usb-set-configuration \
 		check-usb-set-address-interface check-usb-get-descriptor \
-		check-flash-device-bounds check-clock-catchup \
+		check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-psram-pio \
 		check-loader-stamp check-picocalc-kbd-bootloader
@@ -1915,11 +1927,14 @@ check-repository-coverage: check-python
 # The POSIX conformance run of bin/sh builds the shell as a 32-bit host
 # binary (it keeps pointers in int), so it needs a Linux x86-64 host with
 # the 32-bit libraries and stands apart from the portable host tier.
+# board-break.sh rebuilds it against a model of the RP2040 break.
 check-posix-sh:
 		${PYTHON} tools/test_execution.py run shell.posix.ilp32 -- \
 		    sh bin/sh/tests/posix-sh.sh
 		${PYTHON} bin/sh/tests/check_shell_witnesses.py
 		${PYTHON} tests/sysctl_status/check_workload.py ${TOPSRC} bin/sh/tests/out/sh
+		PYTHON=${PYTHON:Q} ${PYTHON} tools/test_execution.py run shell.board-break.ilp32 -- \
+		    sh bin/sh/tests/board-break.sh
 
 # The arm cross toolchain and a built tree: isolated contract directories run
 # concurrently. Kernel gates stay ordered because they rebuild and inspect the
@@ -1998,6 +2013,13 @@ check-libc-xip-rom: check-python
 
 .PHONY: check-libc-xip-rom
 
+check-libc-xip-slots: check-python
+		${PYTHON} tests/libc_xip_slots/run.py \
+		    --cc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    --objcopy ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-objcopy
+
+.PHONY: check-libc-xip-slots
+
 check-native-call-veneer: check-python
 		${PYTHON} tests/native_linker/veneers.py
 
@@ -2013,6 +2035,7 @@ check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-exec-dispatch-qemu
 		${MAKE} check-libc-xip-object-abi
 		${MAKE} check-libc-xip-rom
+		${MAKE} check-libc-xip-slots
 		${MAKE} check-native-call-veneer
 		${MAKE} check-libc-byte-search-instructions
 		${MAKE} -C tests/rp2040/uarea_exchange check
@@ -2221,7 +2244,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-flash-checkpoint check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-flash-checkpoint check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

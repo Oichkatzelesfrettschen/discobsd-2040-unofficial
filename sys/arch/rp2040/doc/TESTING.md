@@ -2363,7 +2363,8 @@ The PL011 model follows datasheet 4.2.6.3 for the transmit interrupt (patch
 0009): a 32-entry level counter drains one character per character time, and
 the Transmit raw status is set only when the level falls through the TXIFLSEL
 trigger, so a driver that writes one byte per call and waits for the interrupt
-stalls under Renode as it does on the board. A model that differs from the
+stalls under Renode as it does on the board. A write to a full FIFO is
+discarded before it reaches the UART backend and leaves the level unchanged. A model that differs from the
 datasheet hides the defect it differs on, so the known divergences are named
 with the host test that covers each:
 

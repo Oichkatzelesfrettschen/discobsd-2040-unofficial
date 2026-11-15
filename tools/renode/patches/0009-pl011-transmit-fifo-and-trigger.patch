@@ -20,13 +20,15 @@ shift out and loses one entry per character time, scheduled by a
 clock-source timer at the programmed divisors. TXFE reads level 0, TXFF
 level full and BUSY level non-zero. TXIFLSEL is stored, defaults to 0b010
 and selects 4, 8, 16, 24 or 28 entries; the trigger point is 0 with FIFOs
-disabled. A write to a full FIFO is reported and discarded, as on silicon.
+disabled. A write to a full FIFO is reported and discarded before it
+reaches the backend, as on silicon: it changes neither the level nor the
+raw status.
 ---
- emulation/peripherals/uart/rp2040_uart.cs | 148 +++++++++++++++++++++++++-----
- 1 file changed, 127 insertions(+), 21 deletions(-)
+ emulation/peripherals/uart/rp2040_uart.cs | 153 ++++++++++++++++++++++++++----
+ 1 file changed, 132 insertions(+), 21 deletions(-)
 
 diff --git a/emulation/peripherals/uart/rp2040_uart.cs b/emulation/peripherals/uart/rp2040_uart.cs
-index cd8c82a..3c3b32a 100644
+index cd8c82a..d39ba0d 100644
 --- a/emulation/peripherals/uart/rp2040_uart.cs
 +++ b/emulation/peripherals/uart/rp2040_uart.cs
 @@ -12,6 +12,8 @@ using Antmicro.Renode.Peripherals.Bus;
@@ -124,14 +126,20 @@ index cd8c82a..3c3b32a 100644
              }
              UpdateReceiveInterruptTriggerPoint();
          }
-@@ -488,12 +484,116 @@ namespace Antmicro.Renode.Peripherals.UART
+@@ -485,15 +481,124 @@ namespace Antmicro.Renode.Peripherals.UART
+             }
+             WarnIfWordLengthIncorrect();
+ 
++            if (!TryQueueTransmitCharacter())
++            {
++                return;
++            }
              if (!loopbackEnable.Value)
              {
                  TransmitCharacter((byte)value);
 -                // we finished write, so we can request next data portion 
              }
 -            interruptRawStatuses[(int)Interrupts.Transmit] = true;
-+            QueueTransmitCharacter();
              UpdateInterrupts();
          }
  
@@ -152,17 +160,18 @@ index cd8c82a..3c3b32a 100644
 +        // disabled, so the status is set when the single location empties and
 +        // cleared by the next write. Nothing sets it at UARTEN or after reset,
 +        // and a write that leaves the level at or below the trigger point
-+        // leaves it alone.
++        // leaves it alone. A write to a full FIFO is discarded before it
++        // reaches the backend and changes neither the level nor the status.
 +        private uint TransmitCapacity => enableFifoBuffers.Value ? TransmitFifoDepth : 1;
 +
 +        private uint TransmitTriggerPoint => enableFifoBuffers.Value ? transmitInterruptTriggerPoint : 0;
 +
-+        private void QueueTransmitCharacter()
++        private bool TryQueueTransmitCharacter()
 +        {
 +            if (transmitLevel >= TransmitCapacity)
 +            {
 +                this.Log(LogLevel.Warning, "DATA written while the transmit FIFO is full ({0} entries); the silicon discards the character.", transmitLevel);
-+                return;
++                return false;
 +            }
 +            transmitLevel++;
 +            if (transmitLevel == 1)
@@ -173,6 +182,7 @@ index cd8c82a..3c3b32a 100644
 +            {
 +                interruptRawStatuses[(int)Interrupts.Transmit] = false;
 +            }
++            return true;
 +        }
 +
 +        private void DrainTransmitCharacter()
@@ -243,7 +253,7 @@ index cd8c82a..3c3b32a 100644
          private uint InterruptMask => Renode.Utilities.BitHelper.GetValueFromBitsArray(interruptMasks);
  
          private uint MaskedInterruptStatus => RawInterruptStatus & InterruptMask;
-@@ -513,6 +613,10 @@ namespace Antmicro.Renode.Peripherals.UART
+@@ -513,6 +618,10 @@ namespace Antmicro.Renode.Peripherals.UART
          private IFlagRegisterField twoStopBitsSelect;
          private IFlagRegisterField uartEnable;
          private IFlagRegisterField dmaRxEnable;
@@ -254,7 +264,7 @@ index cd8c82a..3c3b32a 100644
          private IEnumRegisterField<WordLength> wordLength;
  
          private readonly uint hardwareFifoSize;
-@@ -526,6 +630,8 @@ namespace Antmicro.Renode.Peripherals.UART
+@@ -526,6 +635,8 @@ namespace Antmicro.Renode.Peripherals.UART
          private double receiveInterruptTriggerPoint;
  
          private const uint InterruptsCount = 11;

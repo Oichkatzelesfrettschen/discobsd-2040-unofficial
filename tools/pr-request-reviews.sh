@@ -23,10 +23,11 @@ case "$repo" in
 */*) ;;
 *) die "origin is not a GitHub repository: $url" ;;
 esac
-owner=${repo%%/*}
+# GitHub owner names compare without case.
+owner=$(printf '%s\n' "${repo%%/*}" | tr '[:upper:]' '[:lower:]')
 numbers=$(gh pr list --repo "$repo" --state open --head "$branch" \
     --json number,headRepositoryOwner \
-    --jq ".[] | select(.headRepositoryOwner.login == \"$owner\") | .number")
+    --jq ".[] | select((.headRepositoryOwner.login | ascii_downcase) == \"$owner\") | .number")
 count=$(printf '%s\n' "$numbers" | grep -c . || true)
 [ "$count" -eq 1 ] || die "$count open pull requests in $repo have head $branch"
 number=$numbers

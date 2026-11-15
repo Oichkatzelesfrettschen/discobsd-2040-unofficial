@@ -154,3 +154,16 @@ Retained copies in `.build-logs/header-image-7f4883ec/` match these hashes:
 The [native boolean type mechanism](native-boolean-type.md) decomposes the
 remaining Smaller C parser, normalization, storage and ABI work. Its calibrated
 starting witnesses establish an unsupported type, not a completed compiler feature.
+
+
+## Signal-enabled main integration
+
+Candidate `fecd15b2` includes main `050eac89c76f291c44633bf6af6cce505d435c65`.
+The combined Makefile retains both header and signal-set cross gates.
+Matched clean distribution receipts are `public-header-resources-050eac89.json`,
+`public-header-resources-fecd15b2.json`, and
+`public-header-resources-050eac89-fecd15b2.json`. The comparator exits zero;
+all 162 numeric deltas are zero and archive membership stays unchanged.
+The root retains 231 free blocks, including main's approved signal costs.
+The earlier emulator records retain their source identities. Combined focused
+qualification and exact-head hosted CI govern integration of this merge.

@@ -26,8 +26,8 @@ increment and decrement need explicit witnesses because their stored value
 normalizes after arithmetic while the expression result follows C semantics.
 Object size/alignment and parameter/result interchange require target ABI
 fixtures with ARM GCC as an independent producer and consumer. Boolean
-bit-fields remain a separate compiler capability if the compiler lacks
-bit-field syntax generally; that limitation stays visible.
+bit-fields require a field layout/load/store mechanism; the executable probes
+below keep that prerequisite visible.
 
 The deciding fixture uses constant and volatile input, 0/1/2/256/-1/INT_MIN,
 float zero/fraction/NaN/infinity, null and non-null pointers, arrays and struct
@@ -97,3 +97,37 @@ one-byte alignment and two-byte storage for two boolean fields. Both reject
 an unsigned-int substitution with the named boolean-size diagnostic. This
 establishes the selected cross-compiler layout, separately from native ABI
 interchange, which remains open.
+
+## Conversion prerequisites exposed by source closure
+
+`exprval` rejects floating operands in compound multiplication, division,
+addition and subtraction before store conversion. `_Bool b = 0; b += 0.5f;`
+therefore needs both floating compound evaluation and final truth normalization.
+A boolean token alone does not close this valid input. The implementation
+must evaluate the lvalue address once, load its old value, apply the usual
+arithmetic conversion, perform the operation, normalize its result and store
+one byte. An independent witness counts lvalue-address evaluation and checks
+both the stored value and assignment-expression result.
+
+`InitScalar` emits ordinary integer constants through `GenIntData` and accepts
+relocatable address data only at machine-word width. A boolean initialized
+from a permitted constant address therefore needs a deliberate scalar
+normalization path before width-based data emission. Static `_Bool` values
+initialized from integer 256, fractional floating constants, null pointers,
+and addresses of ordinary objects/functions distinguish normalization from
+truncation and relocation emission. Weak-symbol extensions require their own
+contract if the native compiler admits them.
+
+The current source search locates no explicit bit-field mechanism. That
+negative is a lexical observation, not proof of absence. A declaration fixture
+for both unsigned-int and `_Bool` bit-fields decides parser admission. Any
+missing field layout/load/store mechanism remains a named prerequisite; the
+boolean work does not relabel it as optional or completed.
+
+Three executable probes refine the observation at source `7f4883ec`. The host
+C17 compiler accepts and executes unsigned-int and boolean bit-field fixtures
+and a float compound-add fixture. Smaller C rejects the unsigned bit-field at
+`:` and the boolean bit-field at `_Bool`, both with exit 1. The float fixture
+rejects with `Compound assignment not supported with floats`, also exit 1.
+These exact diagnostics identify separate parser and expression prerequisites;
+none supplies a completed native behavior claim.

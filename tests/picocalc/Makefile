@@ -78,6 +78,14 @@
 # under the PWM slice's double-buffered compare and the GPIO output
 # override; six mutants of picoaudio.c must fail it.
 #
+# uart_test includes the RP2040 UART driver (uart.c) unchanged with
+# UART_HOST_MODEL, which replaces the PL011 register helpers of uart.h with
+# a model of the 32-byte transmit FIFO whose interrupt asserts only when the
+# level falls through the half-full trigger (RP2040 datasheet 4.2.6.3), and
+# requires output of 1 to 1000 bytes to reach the wire in order with no
+# received byte to run the interrupt handler; two mutants of uart.c (one
+# byte per start, TS_BUSY with an empty queue) must fail it.
+#
 TOPSRC!=	cd ../..; pwd
 
 HOST_CC?=	cc
@@ -107,7 +115,7 @@ SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 all: check
 
 check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
-	sdspi_test sdstrat_test dump_test picoaudio_test font-sync
+	sdspi_test sdstrat_test dump_test picoaudio_test uart_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./kbdreq_test
@@ -117,9 +125,10 @@ check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	./sdstrat_test
 	./dump_test
 	./picoaudio_test
+	./uart_test
 	${MAKE} mutants gfx-mutants kbdreq-mutants kbdevq-mutants \
 	    gametile-mutants sdspi-mutants sdstrat-mutants dump-mutants \
-	    picoaudio-mutants
+	    picoaudio-mutants uart-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -1545,9 +1554,32 @@ picoaudio-mutant-busy-kept:
 	${PICOAUDIO_MUT} picoaudio.c \
 	    's/bell_on = 0;$$/(void)0;/' picoaudio.c
 
+# uart_test.c includes uart.c, found through -I${DEV} here and through the
+# mutant's private copy in uart-mutants, so UARTCSTD names no driver path.
+UARTCSTD=	-std=gnu17 -Wall -Wextra -Werror -DKERNEL -DUART_HOST_MODEL \
+		-DBUS_KHZ=125000 -DCPU_KHZ=125000 \
+		-I${TOPSRC}/tests/picocalc/shim-uart -I${TOPSRC}/sys/arch
+
+uart_test: uart_test.c ${DEV}/uart.c ${DEV}/uart.h
+	${HOST_CC} ${UARTCSTD} ${SAN} -g -I${DEV} -o $@ uart_test.c
+
+UART_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${UARTCSTD} ${SAN}" "${DEV}" \
+		uart_test.c
+
+uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty
+
+uart-mutant-one-byte:
+	${UART_MUT} uart.c \
+	    's/while (tp->t_outq.c_cc != 0 \&\& uart_tx_ready/if (tp->t_outq.c_cc != 0 \&\& uart_tx_ready/' \
+	    uart.h
+
+uart-mutant-busy-empty:
+	${UART_MUT} uart.c \
+	    's/^    if (tp->t_outq.c_cc != 0) {$$/    if (1) {/' uart.h
+
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
-	    sdspi_test sdstrat_test dump_test picoaudio_test
+	    sdspi_test sdstrat_test dump_test picoaudio_test uart_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
@@ -1706,3 +1738,5 @@ clean:
 	sdstrat-mutant-dump-size-unchecked \
 	sdstrat-mutant-dump-length-short \
 	sdstrat-mutant-dump-table-dropped
+
+.PHONY: uart-mutants uart-mutant-one-byte uart-mutant-busy-empty

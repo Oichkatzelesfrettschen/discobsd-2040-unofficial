@@ -66,8 +66,23 @@
 /*
  * The hardware layer the tty half calls. Each replaces one ST LL_USART entry
  * point, with PL011 semantics: the ST parts signal an empty holding register,
- * the PL011 signals a full or empty FIFO.
+ * the PL011 signals a full or empty FIFO. A host test that defines
+ * UART_HOST_MODEL supplies these functions as a model of the PL011
+ * (tests/picocalc/uart_test.c) and compiles uart.c unchanged.
  */
+#ifdef UART_HOST_MODEL
+int	uart_tx_ready(u_int base);
+int	uart_tx_idle(u_int base);
+int	uart_rx_ready(u_int base);
+void	uart_tx_put(u_int base, int c);
+int	uart_rx_get(u_int base);
+void	uart_enable(u_int base);
+void	uart_disable(u_int base);
+void	uart_irq_enable(u_int base, u_int mask);
+void	uart_irq_disable(u_int base, u_int mask);
+u_int	uart_irq_status(u_int base);
+void	uart_irq_clear(u_int base, u_int mask);
+#else
 static __inline int
 uart_tx_ready(u_int base)
 {
@@ -133,6 +148,7 @@ uart_irq_clear(u_int base, u_int mask)
 {
 	UART_REG(base, UART_ICR) = mask;
 }
+#endif	/* UART_HOST_MODEL */
 
 void		uartinit(int unit);
 int		uartopen(dev_t dev, int flag, int mode);

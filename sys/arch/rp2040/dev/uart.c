@@ -80,7 +80,10 @@ static const struct uart_inst uart[NUART] = {
 #define PADS_IE			(1UL << 6)	/* Input enable. */
 #define PADS_OD			(1UL << 7)	/* Output disable. */
 
+/* tests/picocalc/uart_test.c supplies its own REG32 for a host build. */
+#ifndef REG32
 #define REG32(a)	(*(volatile u_int *)(a))
+#endif
 
 static void
 uart_unreset(u_int mask)
@@ -341,6 +344,19 @@ uartintr(dev_t dev)
 
 /*
  * Start (restart) transmission on the given line.
+ *
+ * The PL011 raises its transmit interrupt only when the FIFO level falls
+ * through the TXIFLSEL trigger, half full (16 of 32 bytes) at reset, not
+ * while the level sits below it (RP2040 datasheet 4.2.6.3). A FIFO fed
+ * one byte per call never rises above the trigger, so the interrupt never
+ * comes and output would advance only when a received byte runs
+ * uartintr(). The start routine therefore moves bytes from the output
+ * queue until the queue is empty or the FIFO is full. Only bytes left in
+ * the queue need the interrupt: the FIFO then holds 32 bytes, its drain
+ * crosses the trigger, and uartintr() calls back here to refill it.
+ * Bytes already in the FIFO drain without software, and uartclose() leaves
+ * the UART enabled, so an empty queue needs neither TS_BUSY nor the
+ * interrupt.
  */
 void
 uartstart(struct tty *tp)
@@ -362,33 +378,24 @@ uartstart(struct tty *tp)
      * If it is currently active, or delaying, no need to do anything.
      */
     if (tp->t_state & (TS_TIMEOUT | TS_BUSY | TS_TTSTOP)) {
-out:
-        led_control(LED_TTY, 0);
         splx(s);
         return;
     }
 
-    /*
-     * Wake up any sleepers.
-     */
-    ttyowake(tp);
-
-    /*
-     * Now restart transmission unless the output queue is empty.
-     */
-    if (tp->t_outq.c_cc == 0)
-        goto out;
-
-    if (uart_tx_ready(uip->base)) {
+    while (tp->t_outq.c_cc != 0 && uart_tx_ready(uip->base)) {
         c = getc(&tp->t_outq);
         uart_tx_put(uip->base, c & 0xff);
-        tp->t_state |= TS_BUSY;
     }
 
-    /* Enable transmit interrupt. */
-    uart_irq_enable(uip->base, UART_INT_TX);
+    /* Wake writers waiting for the queue to drain below its low mark. */
+    ttyowake(tp);
 
-    led_control(LED_TTY, 1);
+    if (tp->t_outq.c_cc != 0) {
+        tp->t_state |= TS_BUSY;
+        uart_irq_enable(uip->base, UART_INT_TX);
+        led_control(LED_TTY, 1);
+    } else
+        led_control(LED_TTY, 0);
     splx(s);
 }
 

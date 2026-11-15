@@ -778,6 +778,16 @@ def main():
     extension_mutation("extension missing source", ["candidates", -1, "repository"],
                        "netbsd-src")
     extension_mutation("extension missing deciding gate", ["candidates", -1, "deciding_gate"], "")
+    extension_mutation("archive member type", ["candidates", -1, "archive_members"], None)
+    extension_mutation("archive member container", ["candidates", -1, "archive_members"], "x.o")
+    extension_mutation("archive member empty name", ["candidates", -1, "archive_members"], [""])
+    extension_mutation("extension archive members omitted", ["candidates", -1, "archive_members"],
+                       [])
+    changed = copy.deepcopy(document)
+    header_only = next(candidate for candidate in changed["candidates"]
+                       if candidate["id"] in donors.HEADER_ONLY_CANDIDATES)
+    header_only["archive_members"] = ["header-only.o"]
+    cases.append(("header-only candidate names a member", changed))
     changed = copy.deepcopy(document)
     del changed["candidate_bindings"][extension_id]
     cases.append(("unregistered extension", changed))

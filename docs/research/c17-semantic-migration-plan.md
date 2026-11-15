@@ -81,6 +81,20 @@ closure and missing runtime functions open.
 
 ### Ordered modernization queue
 
+The installed-subdirectory header audit identifies a dependency in `FD_ZERO`
+and an uninitialized getty autobaud descriptor set. The bounded repair and its
+donor invariants, red/green predictions, compiler/native-input witnesses,
+and matched-resource obligations live in
+[`descriptor-set-initialization.md`](descriptor-set-initialization.md).
+This leaf advances header and caller ownership; complete select/pselect
+semantics and shared ABI selection retain their separate dispositions.
+Its `15113728` candidate passes the clean aggregate, all 216 required inventory
+variants, hosted CI, both Renode kernels, and focused compiler/runtime controls.
+The paired 162-surface comparison preserves kernel/native/root/block sizes
+while gamebox gains three packed bytes. Optional coil and fourfall gain two
+and four packed bytes. The exact resource approval and bounded source review
+remain open; the mechanism and resource records preserve those decisions.
+
 The queue below owns program order for the C17/POSIX expansion. The historical ordered work queue later
 in this document records delivered units and their residuals; it does not
 restart those implementations. Each row expands into one caller-complete
@@ -168,8 +182,10 @@ remains separate from its local verification. Reviewed integration completes
 this explicit-length search delivery. Historical resource limits stay bound
 to their measured source. Shared XIP implementation retains its independent
 48 KiB admission gate and the remaining ABI/lifecycle experiments. Its namespace
-closure also resolves the skipped coremark source owner under benchmarks and
-calibrates omission of a required program before claiming complete coverage.
+closure [includes the CoreMark source owner under benchmarks](libc-export-namespace-coverage.md)
+and calibrates benchmark resolution, a colliding object and a missing required
+source. Historical receipts preserve their omitted-owner scope; final shared
+ABI selection and exact object ownership remain separate obligations.
 
 The [bidirectional sorting experiment](sort-bound-experiment/README.md)
 combines equal bands, ordered pivot samples, smaller-side recursion and a
@@ -284,6 +300,14 @@ and input-section screening stays separate from final PIC size. COMDAT-aware
 provider closure checks complete group and relocation identity and distinguishes
 gross input storage from coalesced storage. Public ABI selection, shared-archive
 build wiring, complete state layout and runtime admission remain open.
+The [captured PIC replay envelope](xip-shared-libc/export-closure/pic-replay-envelope.md)
+adds a calibrated compiler instrument with actual archive-member, source,
+dependency, tool and generated-input ownership. A clean main-based 449-member
+replay and 647-global experimental link occupy 62,604 flash bytes and 5,648
+state bytes. The fixed reservation remains exceeded by 13,452 bytes before
+function slots; omitting memmem produces a smaller image that fails the same
+required-root contract. Reviewed API selection and interface-preserving
+implementation reductions remain the deciding work.
 The [declaration frontier](shared-libc-declaration-frontier.md) records bounded
 header/provider comparison and callable-math gaps for the export-selection
 queue. Whole-header coverage and semantic acceptance remain open.

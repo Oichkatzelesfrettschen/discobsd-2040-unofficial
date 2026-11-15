@@ -77,6 +77,18 @@ the master and generated output.
 state never counts toward a POSIX row, and their absence never counts as a
 POSIX gap.
 
+## Descriptor sets
+
+The descriptor-set candidate binds `FD_ZERO`, `FD_SET`, `FD_CLR`, and
+`FD_ISSET` to calibrated ARM qemu-user witnesses while keeping all four rows
+partial and open. The user clearing macro owns its initialization without an
+application-provided `<string.h>` declaration. The target's admitted descriptor
+domain follows `OPEN_MAX`; standalone/reordered headers and Smaller C inputs
+have separate compiler witnesses. Namespace and configurable-capacity review,
+complete `select`/`pselect` semantics, resources, and physical-board execution
+retain separate dispositions in
+[`descriptor-set-initialization.md`](descriptor-set-initialization.md).
+
 ## Feature and limit reporting
 
 `include/unistd.h` exposes `_SC_ARG_MAX`, `_SC_CLK_TCK`,

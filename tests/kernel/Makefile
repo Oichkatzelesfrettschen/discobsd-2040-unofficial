@@ -274,10 +274,18 @@ UFS_DISK_EXTRA_MUTANTS+= device-inheritance-unmasked sys_inode \
 	device-block-policy-raise-ignored sys_inode \
 	device-raw-policy-raise-ignored sys_inode \
 	device-reuse-state-kept ufs_inode
+UFS_DISK_EXTRA_MUTANTS+= device-checkpoint-omitted ufs_syscalls2 \
+	device-checkpoint-error-hidden ufs_syscalls2 \
+	device-checkpoint-unsupported-fatal ufs_syscalls2 \
+	device-checkpoint-skipped-on-error ufs_syscalls2 \
+	device-fsync-represented-checkpoint-omitted ufs_syscalls2 \
+	device-sync-write-checkpoint-omitted sys_inode \
+	device-sync-write-checkpoint-error-hidden sys_inode \
+	device-async-write-checkpoints sys_inode
 UFS_DISK_CONF_MUTANTS=	ignore-unit ignore-major touching start-only \
 			whole-device-disjoint failed-query-disjoint device-unit-guard-exact-only
 UFS_DISK_FLASH_MUTANTS=	reinit-unguarded reinit-counts-whole-device \
-			reinit-first-partition-only
+			reinit-first-partition-only checkpoint-ioctl-omitted
 .if ${_HOST_OSNAME} == "Darwin"
 FUTIMES_LDFLAGS=	-Wl,-dead_strip
 .else
@@ -537,7 +545,8 @@ SHUTDOWN_CHECKS=	check-shutdown-mutants check-shutdown-order
 .endif
 
 SHUTDOWN_MUTANTS=	unconditional_success missing_recount ignored_errors \
-		cleared_latch bypassed_guards
+		cleared_latch bypassed_guards checkpoint_omitted \
+		checkpoint_before_sync checkpoint_error_dropped
 
 # The read, write, readv and writev entry points. rwuio() calls the port's
 # setjmp on u_qsave and sleep() longjmps back to it, so rwuio_setjmp.h maps

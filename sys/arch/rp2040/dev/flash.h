@@ -148,7 +148,7 @@ int	flash_xip_cache(int request);
 void	flash_limit_init(void);
 
 int	flopen(dev_t dev, int flags, int mode);
-int	flclose(dev_t dev, int mode, int flag);
+int	flclose(dev_t dev, int flag, int mode);
 daddr_t	flsize(dev_t dev);
 void	flstrategy(struct buf *bp);
 int	flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag);

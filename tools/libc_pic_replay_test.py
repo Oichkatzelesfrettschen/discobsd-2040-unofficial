@@ -222,6 +222,12 @@ class ReplayTests(unittest.TestCase):
             self.replay_with_mutation(lambda: (self.records / row["stdin_retained"]).write_text(
                 "changed retained input\n"))
 
+    def test_input_change_during_replay_rejects(self):
+        # The digest recheck runs before the snapshot check, so it decides
+        # for tracked and untracked inputs alike.
+        with self.assertRaisesRegex(ValueError, "compilation input changes"):
+            self.replay_with_mutation(lambda: self.source.write_text("int changed;\n"))
+
     def test_static_archive_change_during_replay_rejects(self):
         with self.assertRaisesRegex(ValueError, "static archive changes"):
             self.replay_with_mutation(lambda: self.archive.write_bytes(b"withheld archive"))

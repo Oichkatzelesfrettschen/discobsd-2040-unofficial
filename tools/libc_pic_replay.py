@@ -169,6 +169,13 @@ def replay(root, records, snapshot, archive, output, compiler, ar):
     require(digest(snapshot) == snapshot_hash, "snapshot receipt changes during replay")
     require(all(digest(item["record"]) == item["record_sha256"] for item in selected),
             "compilation receipt changes during replay")
+    # Every captured source and dependency, tracked or not: verify_snapshot
+    # covers only tracked files, so an untracked input that changes while
+    # the members compile would otherwise reach the receipt.
+    require(all(digest(contained(root, entry["path"])) == entry["sha256"]
+                for item in selected
+                for entry in item["row"]["sources"] + item["row"]["dependencies"]),
+            "compilation input changes during replay")
     require(all(hashlib.sha256(contained(records, item["row"]["stdin_retained"]).read_bytes())
                 .hexdigest() == item["row"]["stdin_sha256"]
                 for item in selected if item["stdin"] is not None),

@@ -921,7 +921,8 @@ run_fixed(void)
 
 #define	NCLASSES	64
 
-static enum event found_seq[NCLASSES][MAX_DEPTH];
+/* A random sample can be longer than an exhaustive one. */
+static enum event found_seq[NCLASSES][MAX_SEQUENCE];
 static int found_len[NCLASSES];
 static unsigned long found_count[NCLASSES];
 static unsigned long runs;
@@ -1013,10 +1014,7 @@ random_search(unsigned long seed, unsigned long count, int length)
 		}
 		runs++;
 		stuck = scenario_verdict();
-		if (stuck > 0 && len <= MAX_DEPTH)
-			record(stuck, seq, len);
-		else if (stuck > 0)
-			found_count[stuck]++;
+		record(stuck, seq, len);
 	}
 }
 

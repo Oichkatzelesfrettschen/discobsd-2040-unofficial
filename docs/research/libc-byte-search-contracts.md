@@ -115,3 +115,15 @@ Rulings and residuals: the scope retains existing strstr and keeps shared XIP,
 physical timing, transitive caller-stack peaks and storage traffic visible as
 separate obligations. An incorrect scope choice delays strstr's worst-case
 work improvement; it supplies no unsupported claim for that function.
+
+The clean distribution at 64b42d78 completes after the explicit native source
+registry receives memmem. Focused qualification passes all byte-search host,
+ILP32 and sanitizer matrices with seven calibrated controls, both native
+archive contracts with 28 omission controls, the complete board sink, public
+string visibility and cross-header checks, and all 24 Smaller C tests with
+ARM execution. The first focused run stops at the C17 classification ledger:
+memchr's prototype repair removes its old-style-definition hazard. The source
+ledger generator also discovers the new function-pointer fixture hazards and
+two new test translation units. Its exact delta retains every existing row,
+refreshes those two classifications and adds the two unreviewed test rows.
+A replacement clean-head focused run remains required.

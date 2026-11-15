@@ -1,0 +1,78 @@
+{
+  "status": "compiler local-frame measurements; process runtime peaks remain unmeasured",
+  "compiler": "arm-none-eabi-gcc",
+  "flags": [
+    "-std=c17",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fno-builtin",
+    "-mcpu=cortex-m0plus",
+    "-mthumb",
+    "-mfloat-abi=soft",
+    "-Os",
+    "-nostdinc",
+    "-Iinclude",
+    "-fstack-usage"
+  ],
+  "candidate": {
+    "lib/libc/string/memmem.c": {
+      "source_sha256": "2d55effb1bea14509e53318563ba4a85f0a012ca2837750dbeb7d46f93009e93",
+      "object_sha256": "23e4533832b61434573937219a2f414cd8ee5e5f92aea0a1372e3bafc43fceaf",
+      "frames": [
+        {
+          "function": "memmem",
+          "bytes": 40,
+          "kind": "static"
+        }
+      ]
+    },
+    "lib/libc/compat/memchr.c": {
+      "source_sha256": "b1045e37164b9d6a558c70eac08229c94849e286a302c7bd09cff4e44082706b",
+      "object_sha256": "05be4d62ab49f4b64ff482260b0e18102bfe456b5e31ad6635dc75dc93217275",
+      "frames": [
+        {
+          "function": "memchr",
+          "bytes": 0,
+          "kind": "static"
+        }
+      ]
+    }
+  },
+  "base": {
+    "lib/libc/string/memmem.c": {
+      "source_sha256": "5cf07e29095d5c7c388a6e12c2e5886577a88bcf19e8d58923e7ef7b05c32988",
+      "object_sha256": "05f74396875e76cefe5b8084c86742344bf73f43676a4e0bef864c10474d85a0",
+      "frames": [
+        {
+          "function": "memmem",
+          "bytes": 24,
+          "kind": "static"
+        }
+      ]
+    },
+    "lib/libc/compat/memchr.c": {
+      "source_sha256": "b0d2f5ec8295ac33b976f6bc07df5bc093152b493a0937a08cf7fbb4d73502ea",
+      "object_sha256": "7fc38db0b9a710abc6d197e92b0f04c192fb0c20c66a8122a10c878b1ec502f1",
+      "frames": [
+        {
+          "function": "memchr",
+          "bytes": 8,
+          "kind": "static"
+        }
+      ]
+    },
+    "lib/libc/compat/memcmp.c": {
+      "source_sha256": "8aa34495d0b8f1dc670222e937f630e906cb840b1a1ff9b75bc86843bf69184b",
+      "object_sha256": "e37eb546248c87207772ee09028763699544c88be2370c908320ddab38be5081",
+      "frames": [
+        {
+          "function": "memcmp",
+          "bytes": 12,
+          "kind": "static"
+        }
+      ]
+    }
+  },
+  "compiler_version": "arm-none-eabi-gcc (Arch Repository) 16.2.0"
+}

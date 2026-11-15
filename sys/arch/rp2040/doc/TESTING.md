@@ -1961,6 +1961,36 @@ establishes coverage of that baseline; later changes require delta review.
 
 ## Cross tier
 
+`check-libc-declaration-census` calibrates declaration discovery with Clang's
+ARM C17 AST and an independently compiled object's undefined alias symbol.
+Its fixtures reject invalid C, escaped dependencies, header traversal, missing
+header/declaration/profile/archive witnesses, hidden provider gaps and an
+automatic promotion of an unreviewed ABI row. It then scans every tracked
+root-level header in `include/` separately and together, in default BSD, ISO,
+Issue 7 and Issue 8 selector modes with each of the 32-bit and 64-bit time views.
+The installed root-header set comes from the expanded include Makefile
+selection and also receives its own combined-header parse. The union of those
+observations preserves macro-dependent and source-only exposure differences.
+Public C names and compiler linkage names remain separate; archive lookup uses
+the latter. These selector labels establish the requested compiler inputs,
+rather than namespace or standards conformance.
+
+The ten ARM ELF archives owned by `lib/Makefile` supply the provider corpus.
+The owner query excludes startup and native a.out libraries explicitly and
+fails when the declared owner set changes. Matching providers, multiple
+archive providers, kind mismatches and unprovided names retain distinct states
+and next actions. Provider records retain symbol size, binding and mutable
+storage observations; these properties establish no complete object layout.
+Every shared ABI selection remains unreviewed. The gate
+binds compiler/tool/header/dependency/archive hashes and retains compressed
+ASTs and a JSON receipt under a unique `.build-logs` directory. Existing
+receipts remain intact. Archive source provenance requires its separate clean
+build receipt. Macro contracts, subdirectory headers, exact signatures and
+layouts, Smaller C, export selection, PIC size and runtime admission remain
+separate obligations. Clang, bmake, ARM GNU binutils and caller-selected Python
+with pyelftools are required. Linux and macOS `firmware.yml` cross tiers own
+execution; the test-only `DECLARATION_CENSUS_NM` selects the symbol reader.
+
 `check-libc-pic-replay` calibrates `tools/libc_pic_replay.py` with real
 ARM compiler captures, a writable-state GOT relocation, and generated assembly
 supplied through retained standard input. Twenty-four tests reject stale source,

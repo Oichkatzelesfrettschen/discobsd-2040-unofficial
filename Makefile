@@ -1712,7 +1712,7 @@ CROSS_CONTRACT_GATES=	check-signal-sets-cross check-fd-set-cross check-warning-p
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
-		check-c17-headers-cross check-libc-shared-closure check-libc-pic-replay \
+		check-c17-headers-cross check-libc-shared-closure check-libc-declaration-census check-libc-pic-replay \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-libc-getgrent-cross \
@@ -1741,6 +1741,14 @@ check-libc-shared-closure: check-python
 		    ${PYTHON} tools/libc_shared_closure_test.py
 
 .PHONY: check-libc-shared-closure
+
+check-libc-declaration-census: check-python .WAIT symlinks
+		env DECLARATION_CENSUS_NM=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-nm \
+		    ${PYTHON} tools/libc_declaration_census_test.py
+		${PYTHON} tools/libc_declaration_census.py --root ${TOPSRC:Q} \
+		    --ar ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-ar
+
+.PHONY: check-libc-declaration-census
 
 check-libc-pic-replay: check-python
 		env LIBC_PIC_CC=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \

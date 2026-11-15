@@ -168,7 +168,10 @@ calculator to `full` (`sys/arch/rp2040/doc/PROFILES.md`):
 `distrib/rp2040/flash-${BOARD}.uf2` (and `sdcard-${BOARD}.img`), so the
 images of different boards coexist. `BOARD=PICOCALC_PSRAM` pairs the same
 root profile with the PicoCalc kernel that carries the PSRAM swap driver and
-writes `flash-PICOCALC_PSRAM.uf2`.
+writes `flash-PICOCALC_PSRAM.uf2`. `UNION_KERNEL=PICOCALC_DIAG` pairs a
+board's descriptor with the diagnostic union kernel, which adds
+`kern.systrace` and `kern.capacity`, and writes `unix[-BOARD]-DIAG.uf2` so
+the lean `unix[-BOARD].uf2` stays in place.
     discobsd-flash --bootsel      # for a copy by hand; then --eject
 
 `IMAGE_WITH` and `IMAGE_WITHOUT` add and remove closures for one build, for

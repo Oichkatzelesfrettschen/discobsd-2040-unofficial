@@ -37,8 +37,22 @@ BOARD_OUT_SUFFIX=	-${BOARD}
 .endif
 FSIMG=		${TOPSRC}/distrib/${MACHINE}/sdcard${BOARD_OUT_SUFFIX}.img
 MKBOARDUF2=	${TOPSRC}/distrib/rp2040/mkboarduf2.py
-UNION_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2
-BOARD_KERNEL_UF2=	${TOPSRC}/distrib/${MACHINE}/unix${BOARD_OUT_SUFFIX}.uf2
+# UNION_KERNEL names the compile directory whose unix.uf2 gets BOARD's
+# descriptor. PICOCALC_DIAG is the same union kernel plus kern.systrace and
+# kern.capacity, which PICOCALC_PSRAM omits; its output carries a -DIAG
+# suffix so a diagnostic kernel never replaces the board's lean one.
+UNION_KERNEL?=	PICOCALC_PSRAM
+UNION_KERNELS=	PICOCALC_PSRAM PICOCALC_DIAG
+.if empty(UNION_KERNELS:M${UNION_KERNEL})
+.error UNION_KERNEL must be one of ${UNION_KERNELS}, not ${UNION_KERNEL}
+.endif
+.if ${UNION_KERNEL} == "PICOCALC_DIAG"
+KERNEL_OUT_SUFFIX=	-DIAG
+.else
+KERNEL_OUT_SUFFIX=
+.endif
+UNION_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/${UNION_KERNEL}/unix.uf2
+BOARD_KERNEL_UF2=	${TOPSRC}/distrib/${MACHINE}/unix${BOARD_OUT_SUFFIX}${KERNEL_OUT_SUFFIX}.uf2
 
 ${BOARD_KERNEL_UF2}:	${UNION_KERNEL_UF2} ${MKBOARDUF2}
 		${PYTHON} ${MKBOARDUF2} --board=${BOARD} ${UNION_KERNEL_UF2} $@

@@ -81,6 +81,11 @@ refuse "closure gamebox is selected with none of its members" \
 accept IMAGE_WITHOUT="toolchain toolchainlib"
 accept BOARD=PICOCALC IMAGE_WITHOUT="calc-bignum calc"
 accept BOARD=PICOCALC IMAGE_WITHOUT=sdcard
+accept UNION_KERNEL=PICOCALC_DIAG
+members KERNEL_OUT_SUFFIX "-DIAG" UNION_KERNEL=PICOCALC_DIAG
+members KERNEL_OUT_SUFFIX ""
+members BOARD_KERNEL_UF2 "$(pwd)/distrib/rp2040/unix-PICOCALC-DIAG.uf2" BOARD=PICOCALC UNION_KERNEL=PICOCALC_DIAG
+refuse "UNION_KERNEL must be one of" UNION_KERNEL=PICOCALC
 accept PROFILE=base IMAGE_WITH=sdcard
 accept PROFILE=base IMAGE_WITH="gamesdir puzzlebox lightup"
 accept BOARD=PICOCALC IMAGE_WITHOUT="ridge lcdgfx"

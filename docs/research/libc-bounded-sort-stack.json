@@ -2,8 +2,8 @@
   "evidence_class": "compiler-static-frame-measurement",
   "compiler": "arm-none-eabi-gcc 16.2.0",
   "profile": "evaluated MACHINE=rp2040 CC/CFLAGS; inherited caller warning profiles; additional -fstack-usage",
-  "receipt": ".build-logs/bounded-sort-qualification/stack-receipt.json",
-  "receipt_sha256": "2e9e0704a3729e858f5a2fa165aaaee915130420cf2c224ae33399e88d56bf2d",
+  "receipt": ".build-logs/bounded-sort-qualification/complete-stack-receipt.json",
+  "receipt_sha256": "7202b2aca808a6b617964abade51ba57c5220712bb9b7094af99ab0079720ef7",
   "modules": [
     {
       "path": "lib/libc/gen/qsort.c",
@@ -454,6 +454,317 @@
         {
           "function": "main",
           "bytes": 1112,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "usr.bin/tclsh/tclsh.c",
+      "source_sha256": "4f2efeaa70f3abf2ee8a6d8fc2e41232a58b0c76fc43e174410b98f5603ef8d9",
+      "frames": [
+        {
+          "function": "help_cmd",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "echo_cmd",
+          "bytes": 32,
+          "kind": "static"
+        },
+        {
+          "function": "loop_cmd",
+          "bytes": 128,
+          "kind": "static"
+        },
+        {
+          "function": "tcl_main",
+          "bytes": 248,
+          "kind": "static"
+        },
+        {
+          "function": "main",
+          "bytes": 8,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "lib/libtcl/tclcmdil.c",
+      "source_sha256": "31dca040a6533f69c113e39eb171c0f6fd889b24943f0516060d78d2b510e9b4",
+      "frames": [
+        {
+          "function": "SortCompareProc",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_IfCmd",
+          "bytes": 48,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_IncrCmd",
+          "bytes": 72,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_InfoCmd",
+          "bytes": 64,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_JoinCmd",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_LindexCmd",
+          "bytes": 56,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_LinsertCmd",
+          "bytes": 56,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_ListCmd",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_LlengthCmd",
+          "bytes": 32,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_LrangeCmd",
+          "bytes": 48,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_LreplaceCmd",
+          "bytes": 64,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_LsearchCmd",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "Tcl_LsortCmd",
+          "bytes": 32,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "games/atc/log.c",
+      "source_sha256": "1ac824b9499b762c119b543185060d591b142ce27483091d60074b692d2f29fa",
+      "frames": [
+        {
+          "function": "compar",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "timestr",
+          "bytes": 32,
+          "kind": "static"
+        },
+        {
+          "function": "log_score",
+          "bytes": 56496,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "games/boggle/boggle.c",
+      "source_sha256": "1992a586d4fb996530f80fe6a64bd00f53bc35b0298f4c59d2eccbf02e10c737",
+      "frames": [
+        {
+          "function": "aputuword",
+          "bytes": 0,
+          "kind": "static"
+        },
+        {
+          "function": "aputword",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "timeout",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "getdword",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "getuword",
+          "bytes": 32,
+          "kind": "static"
+        },
+        {
+          "function": "interrupt",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "endline",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "goodbye",
+          "bytes": 24,
+          "kind": "static"
+        },
+        {
+          "function": "clearscreen",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "wordcomp",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "compare",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "printinst",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "setup",
+          "bytes": 48,
+          "kind": "static"
+        },
+        {
+          "function": "makelists",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "genboard",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "printboard",
+          "bytes": 32,
+          "kind": "static"
+        },
+        {
+          "function": "outword",
+          "bytes": 24,
+          "kind": "static"
+        },
+        {
+          "function": "tputword",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "printdiff",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "numways",
+          "bytes": 32,
+          "kind": "static"
+        },
+        {
+          "function": "evalboard",
+          "bytes": 64,
+          "kind": "static"
+        },
+        {
+          "function": "main",
+          "bytes": 48,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "games/robots/score.c",
+      "source_sha256": "754188e0e08e5a8ec80de82aa5902647cb42e654db6a516906ce11882b15c61d",
+      "frames": [
+        {
+          "function": "cmp_sc",
+          "bytes": 0,
+          "kind": "static"
+        },
+        {
+          "function": "set_name",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "score",
+          "bytes": 40,
+          "kind": "static"
+        },
+        {
+          "function": "show_score",
+          "bytes": 24,
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "path": "games/wump/wump.c",
+      "source_sha256": "c7c1bd480a6d2b945854b24ad3e8a6a33c5ae1de7d7616953c0f99f720558cec",
+      "frames": [
+        {
+          "function": "icomp",
+          "bytes": 0,
+          "kind": "static"
+        },
+        {
+          "function": "rnum",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "tunnel",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "rline",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "rin",
+          "bytes": 16,
+          "kind": "static"
+        },
+        {
+          "function": "near",
+          "bytes": 12,
+          "kind": "static"
+        },
+        {
+          "function": "drain",
+          "bytes": 8,
+          "kind": "static"
+        },
+        {
+          "function": "main",
+          "bytes": 40,
           "kind": "static"
         }
       ]

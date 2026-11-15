@@ -183,9 +183,9 @@ int near(ap, ahaz)
 	return(0);
 }
 
-int icomp(p1, p2)
-        int *p1, *p2;
+int icomp(const void *left, const void *right)
 {
+	const int *p1 = left, *p2 = right;
 	return(*p1 - *p2);
 }
 

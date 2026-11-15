@@ -62,6 +62,69 @@ CASES = [
     return rows[0] != &b || rows[1] != &a;
 """,
     ),
+    (
+        "games/atc/log.c",
+        "compar",
+        """
+    SCORE rows[3];
+    memset(rows, 0, sizeof(rows));
+    rows[0].planes = 1; rows[0].time = 100;
+    rows[1].planes = 2; rows[1].time = 100;
+    rows[2].planes = 2; rows[2].time = 200;
+    if (compar(&rows[0], &rows[1]) <= 0 ||
+        compar(&rows[1], &rows[2]) <= 0 || compar(&rows[0], &rows[0]) != 0)
+        return 1;
+    qsort(rows, 3, sizeof(rows[0]), compar);
+    return rows[0].time != 200 || rows[1].planes != 2 || rows[2].planes != 1;
+""",
+    ),
+    (
+        "games/boggle/boggle.c",
+        "compare",
+        """
+    char *rows[] = {"0dog", "0cat", "0bat"};
+    if (compare(&rows[0], &rows[1]) <= 0 ||
+        compare(&rows[0], &rows[0]) != 0) return 1;
+    qsort(rows, 3, sizeof(rows[0]), compare);
+    return rows[0][1] != 'b' || rows[1][1] != 'c' || rows[2][1] != 'd';
+""",
+    ),
+    (
+        "games/wump/wump.c",
+        "icomp",
+        """
+    int rows[] = {12, 1, 5};
+    if (icomp(&rows[0], &rows[1]) <= 0 ||
+        icomp(&rows[0], &rows[0]) != 0) return 1;
+    qsort(rows, 3, sizeof(rows[0]), icomp);
+    return rows[0] != 1 || rows[1] != 5 || rows[2] != 12;
+""",
+    ),
+    (
+        "games/robots/score.c",
+        "cmp_sc",
+        """
+    SCORE rows[3];
+    memset(rows, 0, sizeof(rows));
+    rows[0].s_score = 1; rows[1].s_score = 3; rows[2].s_score = 2;
+    if (cmp_sc(&rows[0], &rows[1]) <= 0 ||
+        cmp_sc(&rows[0], &rows[0]) != 0) return 1;
+    qsort(rows, 3, sizeof(rows[0]), cmp_sc);
+    return rows[0].s_score != 3 || rows[1].s_score != 2 || rows[2].s_score != 1;
+""",
+    ),
+    (
+        "lib/libtcl/tclcmdil.c",
+        "SortCompareProc",
+        """
+    unsigned char *rows[] = {(unsigned char *)"c", (unsigned char *)"a",
+                             (unsigned char *)"b"};
+    if (SortCompareProc(&rows[0], &rows[1]) <= 0 ||
+        SortCompareProc(&rows[0], &rows[0]) != 0) return 1;
+    qsort(rows, 3, sizeof(rows[0]), SortCompareProc);
+    return rows[0][0] != 'a' || rows[1][0] != 'b' || rows[2][0] != 'c';
+""",
+    ),
 ]
 
 
@@ -162,18 +225,19 @@ def check_callers(root, compiler, work, execute=False):
         command += ["-ffunction-sections", "-fdata-sections", "-I" + str(original.parent)]
         fixture = case / "fixture.c"
         obj = case / "fixture.o"
-        prefix = f"int {name}(const void *, const void *);\n#define main caller_program_main\n"
+        linkage = "static " if name in {"cmp_sc", "SortCompareProc"} else ""
+        prefix = (f"{linkage}int {name}(const void *, const void *);\n"
+                  "#define main caller_program_main\n")
         suffix = "\n#undef main\nint main(void)\n{\n" + body + "}\n"
         text = original.read_text()
         fixture.write_text(prefix + '#include "' + str(original) + '"\n' + suffix)
         run(command + ["-c", str(fixture), "-o", str(obj)])
-        anchor = name + "(const void *left, const void *right)"
-        if text.count(anchor) != 1:
-            raise RuntimeError("caller mutation anchor differs: " + path)
-        # The real module and its exact prototype reject a mutable-void callback.
+        # The incompatible declaration conflicts with the real callback type.
         damaged = case / original.name
-        damaged.write_text(text.replace(anchor, name + "(void *left, void *right)"))
-        fixture.write_text(prefix + '#include "' + str(damaged) + '"\n' + suffix)
+        incompatible = (prefix.replace("int " + name, "void " + name) if linkage
+                        else prefix.replace("const void *", "void *"))
+        fixture.write_text(incompatible +
+                           '#include "' + str(original) + '"\n' + suffix)
         run(command + ["-c", str(fixture), "-o", str(case / "bad.o")], reject=name)
         print("qsort caller type and incompatible control: " + path)
         if execute:
@@ -200,6 +264,7 @@ def check_callers(root, compiler, work, execute=False):
                 if text.count("signed char rflg = 1;") != 1:
                     raise RuntimeError("direction mutation anchor differs")
                 damaged.write_text(text.replace("signed char rflg = 1;", "char rflg = 1;"))
+                fixture.write_text(prefix + '#include "' + str(damaged) + '"\n' + suffix)
                 run(command + ["-c", str(fixture), "-o", str(case / "unsigned.o")])
                 run(
                     [

@@ -8,9 +8,9 @@
  */
 #include "include.h"
 
-int compar(a, b)
-	SCORE	*a, *b;
+int compar(const void *left, const void *right)
 {
+	const SCORE *a = left, *b = right;
 	if (b->planes == a->planes)
 		return (b->time - a->time);
 	else

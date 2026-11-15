@@ -151,9 +151,9 @@ register char *p, *q;
     return(*p-*q);
 }
 
-int compare (a, b)
-char **a, **b;
+int compare(const void *left, const void *right)
 {
+    char *const *a = left, *const *b = right;
     return(wordcomp(*a, *b));
 }
 
@@ -602,7 +602,7 @@ char **argv;
                 alarm(*timept++);
                 evalboard(getuword, aputuword);
                 clearscreen();
-                qsort(&word[0], wcount, sizeof (int), compare);
+                qsort(&word[0], wcount, sizeof word[0], compare);
                 for (i=0; i<wcount; i++)
                     if (i==0 || wordcomp(word[i], word[i-1])!=0) {
                         p = word[i];

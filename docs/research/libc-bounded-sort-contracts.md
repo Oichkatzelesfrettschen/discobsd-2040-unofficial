@@ -70,6 +70,37 @@ budget; the production candidate passes all 64 pattern cases. This deciding
 input strengthens the production gate beyond the retained research matrix.
 
 
+## Maintained consumer closure
+
+The read-only review identifies an omitted library-mediated consumer: tclsh
+registers Tcl_LsortCmd, which calls qsort in libtcl. A complete source search
+and linked disassembly inspection also identify maintained atc, boggle,
+robots, wump and standalone ls. The initial six-program caller inventory
+therefore supplies an incomplete maintained closure. The shipped archive
+receipt remains valid for its three selected consumers.
+
+The expanded target set contains box, ps, menu, standalone ls, nm, directory
+diff, uuq, tclsh, atc, boggle, robots and wump. Eleven final disassemblies
+contain `<qsort>:`; box's independently captured archive selection supplies
+the twelfth executable. Source search covers every qsort occurrence under
+lib, bin, usr.bin, sbin, usr.sbin, libexec, games and benchmarks. Csh stays
+outside the selected build. Fortune's strfile uses HOST_CC and host libc;
+fixture-only calls and commented picoc registration supply separate exclusions.
+
+Atc, boggle and wump have incompatible record-pointer callback definitions.
+Prepended exact prototypes reject all three real modules with argument/prototype
+diagnostics before repair. The governing qsort declaration requires two
+const-void pointers. The hypothesis gives each callback that exact definition
+and preserves its record comparison. Boggle uses the actual pointer-element
+width in its qsort call. The deciding cross/QEMU caller probes predict exact
+prototype acceptance and unchanged game-domain ordering; mutable-void
+prototypes must reject through the calibrated conflicting-type diagnostic.
+Tcl and robots already have compatible callback parameters and receive
+positive/negative type witnesses without a source behavior change. These
+checks preserve each module's existing warning/language profile and supply no
+whole-module C17 claim. All added optional costs require their own measured
+amendment; the existing owner approval retains its exact scope.
+
 ## Partition scratch lifetime
 
 The initial integrated candidate keeps partition variables in each 64-byte
@@ -136,3 +167,10 @@ emulator qualification, aggregate gates, final head checks
 and reviewed integration remain open. Additional behavior and
 stronger evidence are recorded separately from the existing qsort interfaces;
 this work introduces no standards entity or full-conformance claim.
+
+The expanded caller gate accepts all eight real modules and rejects each
+incompatible declaration. ARMv6-M QEMU executes every added comparator and
+its call through production qsort; the ls unsigned-direction control still
+rejects. Static frame collection uses each module's own evaluated CC/CFLAGS,
+including libtcl's own warning profile. These measured caller frames remain
+separate from transitive runtime peaks.

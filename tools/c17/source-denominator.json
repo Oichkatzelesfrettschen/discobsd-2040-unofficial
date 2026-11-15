@@ -83083,7 +83083,9 @@
             "integer-cast",
             "shift-expression"
           ],
-          "object_lifetime": [],
+          "object_lifetime": [
+            "dynamic-storage"
+          ],
           "pointer": [
             "integer-pointer-cast"
           ],

@@ -121,5 +121,16 @@ shortens it in proportion.
 - The checkpoint policy: the owner chose a checkpoint on `sync(2)` and on
   group fill in place of one per request; the change and its reset
   evidence are separate work.
-- The assembler's and linker's temporary files.
+- The assembler's and linker's temporary files. The tables above describe the
+  tools of commit `0c021420`. The tree's `as` creates no temporary file for an
+  assembly that fits its 32 KiB stream budget and its `ld` writes text and
+  data at their final offsets (`usr.bin/as/README.md`). Host `strace` counts
+  of `write`, `lseek`, file-creating `open`, `unlink` and `ftruncate` on the
+  two-line program of `tools/renode/check-boot.py` (`d.s` of 704 bytes, linked
+  with `crt0.o` and the board `libc.a` built by `distrib/rp2040/mkboardlibc.py`):
+  `as` 27, 81, 14, 12, 6 before and 2, 3, 1, 0, 0 after; `ld` 269, 1,221, 5, 3,
+  0 before and 11, 520, 1, 0, 0 after, with identical `d.o` and `d` bytes. The
+  root counters of the new tools on the Pico, and with them the fraction of
+  the 66 and 86 root writes that the file creations carried, are not yet
+  measured; a third fewer root writes is an inference from the creation count.
 - Erases per physical sector, for the root and for swap.

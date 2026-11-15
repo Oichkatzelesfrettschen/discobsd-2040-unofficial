@@ -103,18 +103,30 @@ def main():
         cases.append(('section', padded + padding, 4, 'invalid relocation padding'))
     cases.append(('section', struct.pack('<I', 4) + bytes(4), 4,
                   'invalid relocation padding extent'))
+    # The default build relocates a section in the linker's segment buffer;
+    # a zero-size buffer takes the path that patches the output file, which
+    # the same inputs must satisfy.
+    file_binary = work / 'readers-file-path'
+    file_command = [file_binary if part == str(binary) else part for part in command]
+    file_command.insert(len(compiler), '-DRELOC_BUFFER=0')
+    build = subprocess.run([str(part) for part in file_command], capture_output=True,
+                           check=False)
+    (work / 'build-file-path.log').write_bytes(build.stdout + build.stderr)
+    if build.returncode or build.stderr:
+        raise RuntimeError('reader build fails; see ' + str(work / 'build-file-path.log'))
     rows = []
     for number, case in enumerate(cases):
         mode, data, expected_exit, _ = case
-        result, passed = matches_case(binary, case)
-        row = {'case': number, 'mode': mode, 'bytes': len(data),
-               'exit': result.returncode, 'expected_exit': expected_exit,
-               'pass': passed}
-        rows.append(row)
-        if not row['pass']:
-            (work / 'failure.stdout').write_bytes(result.stdout)
-            (work / 'failure.stderr').write_bytes(result.stderr)
-            raise RuntimeError('reader contract fails: ' + json.dumps(row))
+        for candidate in (binary, file_binary):
+            result, passed = matches_case(candidate, case)
+            row = {'case': number, 'mode': mode, 'bytes': len(data),
+                   'exit': result.returncode, 'expected_exit': expected_exit,
+                   'pass': passed, 'segment_buffer': candidate == binary}
+            rows.append(row)
+            if not row['pass']:
+                (work / 'failure.stdout').write_bytes(result.stdout)
+                (work / 'failure.stderr').write_bytes(result.stderr)
+                raise RuntimeError('reader contract fails: ' + json.dumps(row))
     source = SOURCE.read_text()
     controls = [
         ('short-word', '!= sizeof(bytes)', '> sizeof(bytes)',
@@ -138,8 +150,14 @@ def main():
          'if (0 && (rel.addr > len || width > len - rel.addr))',
          ('section', struct.pack('<IBI', 5, 9, 7),
           4, 'relocation outside input section')),
-        ('section-zero-fill', 'error(2, "truncated input section");', 'c = 0;',
+        ('section-zero-fill', 'if (fread (segmem, 1, len, text) != len)',
+         'if (0 && fread (segmem, 1, len, text) != len)',
          ('short-section', struct.pack('<IB', 0, 0), 4, 'truncated input section')),
+        ('section-zero-fill-file-path',
+         '                                error(2, "truncated input section");',
+         '                                c = 0;',
+         ('short-section', struct.pack('<IB', 0, 0), 4, 'truncated input section'),
+         ['-DRELOC_BUFFER=0']),
         ('padding-zero-fill', 'error(2, "truncated relocation padding");', 'c = 0;',
          ('section', padded, 4, 'truncated relocation padding')),
         ('padding-value', 'if (c != 0)', 'if (0 && c != 0)',
@@ -149,7 +167,7 @@ def main():
           4, 'invalid relocation padding extent')),
     ]
     mutations = []
-    for name, old, new, case in controls:
+    for name, old, new, case, *extra in controls:
         if source.count(old) != 1:
             raise RuntimeError('mutation anchor differs: ' + name)
         mutant = work / (name + '.c')
@@ -161,6 +179,8 @@ def main():
                            if part.startswith('-DNATIVE_LINKER_SOURCE=') else
                            str(executable) if part == str(binary) else part)
                           for part in command]
+        for flag in extra[0] if extra else []:
+            mutant_command.insert(len(compiler), flag)
         build = subprocess.run(mutant_command, capture_output=True, check=False)
         (work / (name + '.build.log')).write_bytes(build.stdout + build.stderr)
         if build.returncode or build.stderr:

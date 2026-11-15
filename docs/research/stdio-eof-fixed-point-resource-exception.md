@@ -5,8 +5,9 @@ Twenty-five shipped programs that select `_filbuf` each add eight loaded and raw
 bytes. Twenty-four of those programs add 256 packed bytes in total; `fstat`
 retains its packed size. Every packed allocation-block delta is zero. The root
 retains 752 allocated data blocks, 227 free blocks and 29 free inodes. Both
-kernel resource vectors remain unchanged. Approval of this additional vector
-remains pending.
+kernel resource vectors remain unchanged. The owner approves this exact vector
+on 2026-11-15 and directs continued qualification and review. The approval
+supplies no allowance for later growth.
 
 The [compatibility profile](dpucp-2024.md) requires exact deltas, examined
 alternatives, remaining margins, a user benefit, a rollback point and reviewer
@@ -27,8 +28,8 @@ distributions. Their SHA-256 values are, respectively,
 `3bc5428438343da7d803731540181762c154f18f96aee24ba0f3954ccc2ec1d6`
 and `517a0d30d867d18fd4e715be8e93b6a9bd5c4d5b2c9118f9eae1426f4de98810`.
 The comparator reports 75 positive and 87 unchanged numeric surfaces in its
-162-surface denominator, then rejects the candidate because the exception lacks
-approval.
+162-surface denominator, then rejects the positive vector under its default
+zero-growth policy. The owner's explicit exception admits the vector below.
 
 | Shipped surface | Parent | Candidate | Delta |
 | --- | ---: | ---: | ---: |
@@ -108,13 +109,13 @@ six provider mutations.
 
 Changing the public `getc` macro would alter every call site and its fast path.
 Changing `_cnt` to an unsigned type would alter the internal FILE contract.
-Adding a conditional saturation branch carries more code and state transitions
-than the unconditional established-EOF normalization. Leaving the counter
-negative preserves the unbounded transition and fails the calibrated mutant.
-The single store therefore closes the defect with the smallest measured local
-mechanism among these candidates.
+A conditional saturation branch adds a condition to the EOF transition; its
+compiled cost remains unmeasured. Leaving the counter negative preserves the
+unbounded transition and fails the calibrated mutant. The single store closes
+the defect with an eight-byte measured local cost. The other alternatives
+remain source-level comparisons rather than independently measured candidates.
 
-The requested exception admits exactly eight native archive bytes, eight
+The approved exception admits exactly eight native archive bytes, eight
 loaded and raw bytes in each named program, and the named packed-byte vector.
 It admits no allocation-block, archive-selection, root-capacity or kernel
 growth. Main `cc71239c` supplies the rollback point. Additional growth requires

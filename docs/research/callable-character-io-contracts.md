@@ -136,7 +136,7 @@ that cross-link garbage collection removes from existing shipped programs.
 The owner-approved callable-I/O vector and its complete non-hardware
 qualification close at `358efb11`. The
 [EOF fixed-point resource record](stdio-eof-fixed-point-resource-exception.md)
-owns the later normalization cost and its separate pending decision.
+owns the later normalization cost and its separate owner-approved vector.
 
 The bounded fixture omits timestamp effects, the complete POSIX errno set,
 signal-interruption schedules, thread synchronization and runtime stack peaks.

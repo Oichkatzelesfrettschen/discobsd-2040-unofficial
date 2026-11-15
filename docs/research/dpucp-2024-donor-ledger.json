@@ -125,6 +125,16 @@
       "origin": "https://gitlab.rtems.org/rtems/pkg/rtems-libbsd.git",
       "revision": "8efc40e412187d9bea4200e4f7b14fd5a38f66c2",
       "checkout": "rtems-libbsd"
+    },
+    "DragonFlyBSD@e0f962ddd750a94049c962632074b1b240ceb40e": {
+      "origin": "https://github.com/DragonFlyBSD/DragonFlyBSD.git",
+      "revision": "e0f962ddd750a94049c962632074b1b240ceb40e",
+      "checkout": "DragonFlyBSD"
+    },
+    "freebsd-src@6871285f194d3f83fd270b4b5d5783503c2b86d6": {
+      "origin": "https://git.FreeBSD.org/src.git",
+      "revision": "6871285f194d3f83fd270b4b5d5783503c2b86d6",
+      "checkout": "freebsd-src"
     }
   },
   "candidates": [
@@ -1378,6 +1388,73 @@
       "deciding_gate": "Require complete calibrated byte/result/work and instruction matrices, native archive and Smaller C closure, matched clean resource approval, current-main qualification and reviewed integration.",
       "disposition": "candidate",
       "residual": "The production revision passes source-level experiment matrices and calibrated instruction controls. Its complete current-main installed resource vector, qualification and review remain open. The historical linear-scan promotion and immutable source identities remain separate records; algorithm priority stays with established Two-Way prior art."
+    },
+    {
+      "id": "libc-public-time-type-owners",
+      "requirements": [
+        "dpucp-2024:base-definition:time.h",
+        "dpucp-2024:base-definition:sys_select.h",
+        "dpucp-2024:base-definition:sys_types.h"
+      ],
+      "roles": [
+        "public time-type completeness",
+        "acyclic private type ownership"
+      ],
+      "repository": "DragonFlyBSD@e0f962ddd750a94049c962632074b1b240ceb40e",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@e0f962ddd750a94049c962632074b1b240ceb40e",
+          "path": "sys/sys/select.h",
+          "sha256": "4ada5b98004606b557f555084aa9e4be7ea787bb55213ae1fe3c590fbc8f2329",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@e0f962ddd750a94049c962632074b1b240ceb40e",
+          "path": "sys/sys/_timespec.h",
+          "sha256": "15dba28245bceaade96883c541ba1cbd7f45bcb309ebdbed272e3e7cec4a56fb",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@e0f962ddd750a94049c962632074b1b240ceb40e",
+          "path": "sys/sys/_timeval.h",
+          "sha256": "1008871307a4499347ebee6fb2abdf7a7130e78a8356750f92acda7c44fc1c0c",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "freebsd-src@6871285f194d3f83fd270b4b5d5783503c2b86d6",
+          "path": "sys/sys/_timespec.h",
+          "sha256": "477c7c03e96464a3de3c5339a5a2b52f0319ea81d7cb6b63f879c1c67fc708fd",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "Expose complete required time structures and scalar types while preserving each existing time-view layout and syscall alias.",
+      "invariants": [
+        "One private owner defines each scalar or aggregate type.",
+        "ISO time.h imports timespec without public syscall headers.",
+        "Kernel/narrow time records and the native compiler retain their existing ABI."
+      ],
+      "algorithm": "A private type dependency graph separates scalar policy and aggregate layout from public function declarations.",
+      "dependencies": [
+        "sys/_time_t.h",
+        "the existing types/select include cycle",
+        "installed sys-header wildcard closure"
+      ],
+      "c_language": "The BSD donor uses private type headers; the adaptation preserves local scalar representations and native C90-compatible input.",
+      "c17_rewrite": "Move the existing structures and signal typedef to guarded private owners and add signed-long suseconds_t without introducing an unimplemented function declaration.",
+      "archive_members": [],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "kernel regions",
+          "per-program loaded/raw/packed sizes",
+          "native archive bytes",
+          "root blocks"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Require calibrated standalone/order/layout/linkage/native-input witnesses, existing wrapper execution, clean matched resources, aggregate qualification, and reviewed integration.",
+      "disposition": "candidate",
+      "residual": "The bounded type mechanism has compiler evidence. Complete header visibility, narrow POSIX timeval signedness, clock APIs, select/pselect runtime semantics, resource acceptance and source review remain separate."
     }
   ],
   "candidate_bindings": {
@@ -1522,6 +1599,14 @@
       "repository": "freebsd-src@f3ec447a1c0697f024dcf12929552e4ee9a420e0",
       "requirements": [
         "dpucp-2024:system-interface:memmem"
+      ]
+    },
+    "libc-public-time-type-owners": {
+      "repository": "DragonFlyBSD@e0f962ddd750a94049c962632074b1b240ceb40e",
+      "requirements": [
+        "dpucp-2024:base-definition:time.h",
+        "dpucp-2024:base-definition:sys_select.h",
+        "dpucp-2024:base-definition:sys_types.h"
       ]
     }
   }

@@ -382,6 +382,14 @@ check-network-header-contracts: check-python .WAIT symlinks
 		    --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/network-header-contracts.json
 
+check-public-time-types: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/public_time_types.py --root ${TOPSRC:Q} \
+		    --host-cc ${HOST_CC:Ucc:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/public-time-types.json
+
+.PHONY: check-public-time-types
+
 check-public-header-inclusion: check-python .WAIT symlinks
 		@mkdir -p .build-logs
 		${PYTHON} tools/c17/public_header_inclusion.py --root ${TOPSRC:Q} \
@@ -1666,7 +1674,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
-CROSS_CONTRACT_GATES=	check-signal-sets-cross check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-public-header-inclusion check-network-header-contracts \
+CROSS_CONTRACT_GATES=	check-signal-sets-cross check-public-time-types check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-public-header-inclusion check-network-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \

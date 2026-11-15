@@ -446,6 +446,8 @@ FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/stdint.h ${TOPSRC}/sys/sys/syscall_dispatch.h \
 	${TOPSRC}/sys/sys/syslimits.h ${TOPSRC}/sys/sys/systm.h \
 	${TOPSRC}/sys/sys/time.h ${TOPSRC}/sys/sys/tty.h \
+	${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+	${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h \
 	${TOPSRC}/sys/sys/ttychars.h ${TOPSRC}/sys/sys/ttydev.h \
 	${TOPSRC}/sys/sys/types.h ${TOPSRC}/sys/sys/uio.h \
 	${PORT_INCLUDE}/elf_machdep.h ${PORT_INCLUDE}/intr.h \

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "observed_utc": "2026-11-12T19:44:07.881229+00:00",
+  "observed_utc": "2026-11-15T12:17:32.512748+00:00",
   "claim": "The inventory records checkout identity and fetch evidence for a finite 20-repository corpus. Git object reads establish source identity; fetched revisions do not establish semantic audit completion.",
   "repositories": {
     "211bsd": {
@@ -142,7 +142,7 @@
         "status": "fetched",
         "source_url": "https://github.com/DragonFlyBSD/DragonFlyBSD.git",
         "source_branch": "master",
-        "revision": "805ca132aededa6ae4c8b3499a2d5c934d78fe56"
+        "revision": "e0f962ddd750a94049c962632074b1b240ceb40e"
       },
       "sync_attempts": [
         {
@@ -161,6 +161,23 @@
           },
           "fetch_exit": 0,
           "research_revision": "805ca132aededa6ae4c8b3499a2d5c934d78fe56"
+        },
+        {
+          "observed_utc": "2026-11-15T11:18:48.430546+00:00",
+          "source_url": "https://github.com/DragonFlyBSD/DragonFlyBSD.git",
+          "source_branch": "master",
+          "local_before": {
+            "head": "94448f622a06cde90ba42d688e9cab2448ad9ab3",
+            "index_sha256": "beff4aa3ffec4e6a8ba07354d125918cf714c213307b9db859320984b094a99a",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "local_after": {
+            "head": "94448f622a06cde90ba42d688e9cab2448ad9ab3",
+            "index_sha256": "beff4aa3ffec4e6a8ba07354d125918cf714c213307b9db859320984b094a99a",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "fetch_exit": 0,
+          "research_revision": "e0f962ddd750a94049c962632074b1b240ceb40e"
         }
       ],
       "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."
@@ -304,7 +321,7 @@
         "status": "fetched",
         "source_url": "https://git.FreeBSD.org/src.git",
         "source_branch": "main",
-        "revision": "f3ec447a1c0697f024dcf12929552e4ee9a420e0"
+        "revision": "6871285f194d3f83fd270b4b5d5783503c2b86d6"
       },
       "sync_attempts": [
         {
@@ -340,6 +357,23 @@
           },
           "fetch_exit": 0,
           "research_revision": "f3ec447a1c0697f024dcf12929552e4ee9a420e0"
+        },
+        {
+          "observed_utc": "2026-11-15T11:18:48.712083+00:00",
+          "source_url": "https://git.FreeBSD.org/src.git",
+          "source_branch": "main",
+          "local_before": {
+            "head": "88e7371d9dc26f85dfc1b008cbe59ebc7e4a33da",
+            "index_sha256": "36c2239c26a7957a5544a113a1f3520165ce3993caf4b8ed6a5b54853924c0db",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "local_after": {
+            "head": "88e7371d9dc26f85dfc1b008cbe59ebc7e4a33da",
+            "index_sha256": "36c2239c26a7957a5544a113a1f3520165ce3993caf4b8ed6a5b54853924c0db",
+            "status_sha256": "d3a6fffcc0a63c0a72d097a9570bbf455104f595e80689de835ba25c3f8b5f53"
+          },
+          "fetch_exit": 0,
+          "research_revision": "6871285f194d3f83fd270b4b5d5783503c2b86d6"
         }
       ],
       "next_action": "Inspect the pinned development revision through Git objects; create an isolated research worktree before experiments that require a checkout. Record shared ancestry once and audit subsystem deltas with independent target witnesses."

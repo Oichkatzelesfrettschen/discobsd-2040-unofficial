@@ -203,6 +203,7 @@ Grouped by what they investigate.
 | `kernel-uio-typed-interfaces.md` | four typed transfer definitions, caller preconditions and calibrated kernel inventory |
 | `libc-scandir-allocation-contract.md` | selected-entry allocation, compact self-describing records, typed per-call sorting, calibrated failure gates and paired target resource evidence |
 | `libc-bounded-string-contracts.md` | bounded scan/duplication, end-pointer copy and padding invariants, calibrated byte-domain witnesses and resource qualification |
+| `public-time-type-ownership.md` | canonical private time/signal types, standalone and reordered public headers, preserved narrow/wide/native layouts, and linker-alias witnesses |
 | `libc-bounded-string-resource-exception.md` | matched native archive growth, retained resource receipts, alternatives and exception decision |
 | `libc-lifecycle-integrated-resource-exception.md` | composed string and lifecycle archive costs, root block admission, packed executable limits and combined qualification |
 | `context-sort-contracts.md` | typed context-last sorting, nested-call and record invariants, donor ABI differences and caller resource isolation |

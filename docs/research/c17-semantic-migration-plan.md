@@ -81,6 +81,15 @@ closure and missing runtime functions open.
 
 ### Ordered modernization queue
 
+The public time-type unit separates private scalar and aggregate owners so
+that time.h and sys/select.h supply their required complete types without
+importing syscall declarations through the ISO header. Its
+[`public-time-type-ownership.md`](public-time-type-ownership.md) record binds
+the observed failures, target ABI table, donor mechanisms, compiler/native
+matrix, and remaining narrow-layout and clock-interface obligations. This
+header unit advances type completeness while preserving the independent
+descriptor-set repair and shared ABI review queue.
+
 The queue below owns program order for the C17/POSIX expansion. The historical ordered work queue later
 in this document records delivered units and their residuals; it does not
 restart those implementations. Each row expands into one caller-complete

@@ -16,6 +16,7 @@ browser on the local network.
 | `discobsd-link` | redirect a short URL (port 42069) to the tokenized console URL, built from `--host` and the same token, or the deprecated `--to` |
 | `discobsd-console` | `up`, `down`, `status`: run web and link detached, or through the systemd user units when installed |
 | `discobsd-connect` | POSIX shell wrapper that launches tio, picocom, minicom, or cu on the board; `--usb-port PORT` names one of several boards by its USB port (Linux) |
+| `discobsd-sramdump` | `capture --usb-port PORT --force-reset` forces a board into the boot ROM and saves its SRAM and kernel flash with picotool (Linux; ends the running session); `decode ELF SRAM.BIN [--flash FLASH.BIN]` prints the kernel's process table, wait channels, console tty and USB driver state from the saved image (needs `pip install "discobsd-host[sramdump]"` or pyelftools) |
 | `discobsd-flash` | reflash with picotool: `[--usb-port PORT] FILE.uf2 ...`, `--bootsel`, `--eject`; unmounts the RPI-RP2 volume before every reboot out of BOOTSEL and waits for the boot ROM itself |
 
 Log in as `operator` with no password, then `su` to root. The console

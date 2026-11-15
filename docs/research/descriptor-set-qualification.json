@@ -6,7 +6,9 @@
   "qualified_tracked_source_clean": true,
   "focused": {
     "cross": {
-      "receipt_sha256": "0405092b4146d137a10f9bddbae9b057273728ea6d3c608ff086f1493eef9272",
+      "receipt_sha256": "ff61a22e37431dc46c371044acc56d517c4ed885406e3e57e5644dd2aabaf566",
+      "source_commit": "15113728a000ede7d57eeb829518445a8c341d27",
+      "receipt_origin": "frozen-aggregate",
       "compiler": {
         "sha256": "405ed9aa343f480802e34387cf1e2f5515d4dbfb72340fdbf84a720911ec07b9",
         "version": "arm-none-eabi-gcc (Arch Repository) 16.2.0"
@@ -23,7 +25,9 @@
       "smaller_invalid_rejected": true
     },
     "host": {
-      "receipt_sha256": "ff8ec42cf9088414d32189ffe4f242b287d58097082cf84d890ca1757c51e24e",
+      "receipt_sha256": "ec2b6a05aa6d35db05ccf3b79787ef3ed5e7ba5fb46f5c01c3964b66bfa91ff5",
+      "source_commit": "15113728a000ede7d57eeb829518445a8c341d27",
+      "receipt_origin": "frozen-aggregate",
       "compiler": {
         "sha256": "b0b49531b313e70aee0254fb5e69b050a781506184e16ebee6ebe68eee94a145",
         "version": "cc (GCC) 16.2.1 20260810"
@@ -70,7 +74,9 @@
       ]
     },
     "qemu": {
-      "receipt_sha256": "416433088dd7c820de39a1f4f179f6dc0c2f55d7e6b5fe43116ad595f15deb83",
+      "receipt_sha256": "b42c4ca0b66f937e48a441af999b84c39471c806052aa845661a682b705e7fbb",
+      "source_commit": "15113728a000ede7d57eeb829518445a8c341d27",
+      "receipt_origin": "frozen-aggregate",
       "compiler": {
         "sha256": "405ed9aa343f480802e34387cf1e2f5515d4dbfb72340fdbf84a720911ec07b9",
         "version": "arm-none-eabi-gcc (Arch Repository) 16.2.0"
@@ -118,6 +124,8 @@
     },
     "ilp32": {
       "receipt_sha256": "9b4ced6ba756ae90cd6ef150ccf38b2802118c6e2d39b642414531c3e9195419",
+      "source_commit": "15113728a000ede7d57eeb829518445a8c341d27",
+      "receipt_origin": "focused-ilp32",
       "compiler": {
         "sha256": "b0b49531b313e70aee0254fb5e69b050a781506184e16ebee6ebe68eee94a145",
         "version": "cc (GCC) 16.2.1 20260810"
@@ -2661,5 +2669,5 @@
   "physical_hardware": "unrun",
   "resource_approval": "pending",
   "external_source_review": "pending",
-  "collector_sha256": "219f62c4421a15d20da5ac6d66b19c3b96b5307b5a8dee9a711b484ef6a25a6a"
+  "collector_sha256": "a1c1a493d3501a0cc9c9aa40d561af4b87d6f090b34841765c02ba01aae435f3"
 }

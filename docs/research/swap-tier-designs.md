@@ -150,7 +150,16 @@ its u area) closes its files and frees its slot. The minimal change is:
 4. `sys/dev/swap.c` `swcread`, `swcwrite`, `swstrategy` unit paths: use
    `swap_result()` and return EIO; without this a user-reachable temporary
    device I/O still panics.
-5. `sys/arch/rp2040/dev/sd.c`: nothing for the kill itself; a swap-aware
+5. `sys/kern/exec_subr.c`: the exec argument spool is a swap consumer of
+   its own. `exec_spool_reserve_flash()` allocates from `swapmap` directly,
+   not through `swap_image_reserve_flash()`, so the device-failed flag of
+   step 3 does not reach it, and `exec_spool_flush()` and
+   `exec_spool_read()` call the panicking `swap_with_buf()`. The
+   reservation must test the same flag and fail the `exec` with ENOMEM,
+   and a failed flush or read must fail the `exec` (the image is not yet
+   committed, so the caller's error path applies) instead of panicking.
+   Keeping u areas in RAM (design 11) does not cover these transfers.
+6. `sys/arch/rp2040/dev/sd.c`: nothing for the kill itself; a swap-aware
    `sdclose`/re-accept is a separate decision (see "Open questions").
 
 Hole in the minimal change: a failed read of the u area. The process cannot
@@ -223,8 +232,12 @@ Cost: text estimate 0.15 to 0.3 KB; bss 0. Time estimate 0.2 to 0.5 ms
 for a 16 KB move (4 to 10 cycles per word at 125 MHz); unmeasured.
 
 Effect: upper bound 196 of 242 refusals, roughly 83 percent of erases,
-overlapping design 1; the two do not add. The floor under both is the 46
-`nospace` refusals, about 270 erases (19 percent of 1,412).
+overlapping design 1; the two do not add. With compaction alone the 46
+`nospace` refusals remain, about 270 erases (19 percent of 1,412). That
+is not a floor under both designs: `nospace` compares the reservation,
+which includes `SR_WORST(ulen)`, against the pool's free bytes, so design
+1 shrinks the reservation and can admit some of those 46 as well. The
+residual traffic with both applied is unmeasured.
 
 Failure: a move interrupted by a reset loses nothing (images are never read
 after a reboot, `swap-exhaustion/plan.md:23-24`).
@@ -337,8 +350,8 @@ Effect (hypothesis): steady-state erases fall to the cold set written once
 per boot, about 10 sectors (40 blocks) for three sleepers, if the hot set
 fits beside the pinned spools. The hot set is about 2 to 3 images of
 roughly 4.3 KB, close to the 16 KB pool, so the realized figure lies between
-this floor and the design 1 plus 2 bound (about 270 erases per 24
-compiles). The decisive number is the compressed hot working set: the
+this floor and the residual of designs 1 and 2 together, which is
+unmeasured (compaction alone leaves about 270 erases per 24 compiles). The decisive number is the compressed hot working set: the
 `admitted_data_bytes` and `admitted_u_bytes` counters over a run with the
 cold images evicted.
 
@@ -432,8 +445,13 @@ multiple write "faster" and that "some of the cards will be faster"
 
 Alignment: the allocation unit is 16 KB to 64 MB in the SD Status register
 (`log-structured-store-scope.md:195-196`, second-hand); a partition that
-starts on an AU multiple costs nothing and lets image extents inherit
-alignment from the partition. `fsutil` can place the swap partition on a
+starts on an AU multiple costs nothing, but it aligns only the partition.
+Image extents do not inherit it: `init_main()` frees the swap map from
+block `SWAP_IMAGE_ALIGN` (4) and `swap_image_reserve_flash()` rounds to
+the same 4 KiB, so the first extent starts 4 KiB into the partition and
+later ones fall on any 4 KiB multiple. Aligning each image to an AU is a
+separate allocator change with a capacity cost (a 16 KiB unit wastes up to
+12 KiB per image) and is not proposed here. `fsutil` can place the swap partition on a
 4 MiB multiple (8,192 sectors); whether it does is not checked here.
 
 Effect on NOR erases: none (the card is the target). On time: swap writes
@@ -496,7 +514,7 @@ Entries say build, defer, no or n.a., with the number that decides.
 | 6 LRU writeback | Build, highest value: converts the cold set to one write per boot; decide by compressed hot set against the 16 KB pool | No | Build: cold images to the card, hot in pool | No |
 | 7 Boot priority | n.a. | Shipped (`psram.c:124`) | Build; clamp `nswap` to 65,535 blocks; add no-swap mode | Build; PSRAM wins, SD swap partition ignored |
 | 8 Error kills owner | Build (small; panic today on a failed program) | Build | Build, required (pull while mounted) | Build |
-| 9 SD CMD25 and alignment | n.a. | n.a. | Alignment: build (free). CMD25: defer to a card measurement; 406 sectors a compile | Alignment only |
+| 9 SD CMD25 and alignment | n.a. | n.a. | Partition placement on an AU multiple: build (free; image extents stay 4 KiB-aligned). CMD25: defer to a card measurement; 406 sectors a compile | Partition placement only |
 | 10 SD erase or discard | n.a. | n.a. | No: Discard absent in SPI; erase costs 250 ms per partial AU | No |
 | 11 u area in RAM | n.a. | Not needed (module not hot-pulled) | Build with 8: the only design that retires the u-area hole | n.a. |
 

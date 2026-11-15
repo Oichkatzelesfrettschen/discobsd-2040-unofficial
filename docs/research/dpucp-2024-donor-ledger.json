@@ -1378,6 +1378,87 @@
       "deciding_gate": "Require complete calibrated byte/result/work and instruction matrices, native archive and Smaller C closure, matched clean resource approval, current-main qualification and reviewed integration.",
       "disposition": "candidate",
       "residual": "The production revision passes source-level experiment matrices and calibrated instruction controls. Its complete current-main installed resource vector, qualification and review remain open. The historical linear-scan promotion and immutable source identities remain separate records; algorithm priority stays with established Two-Way prior art."
+    },
+    {
+      "id": "libc-callable-character-io",
+      "requirements": [
+        "dpucp-2024:system-interface:fgetc",
+        "dpucp-2024:system-interface:getc",
+        "dpucp-2024:system-interface:getchar",
+        "dpucp-2024:system-interface:fputc",
+        "dpucp-2024:system-interface:putc",
+        "dpucp-2024:system-interface:putchar"
+      ],
+      "roles": [
+        "callable character-I/O providers",
+        "public macro and function correspondence"
+      ],
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "sources": [
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/stdio/getc.c",
+          "sha256": "db4dbf01390e20f2ba8ab4fca95d95a12f2d21ed7a2cb12a7c45dcdf22ffcd26",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/stdio/fgetc.c",
+          "sha256": "2349da380db09ee74c7fafafd02f0467f4cc4c232bbc78eec888ca893e4d5076",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/stdio/putc.c",
+          "sha256": "2bc2a01d507ac7f019611f5fe62c9d59ea266dddf2312085e5cbfbf2c8b9f2d1",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/stdio/getchar.c",
+          "sha256": "8e62679217a59168253c3a6e356b544999f01f52b857ba2eaff40aec92c6ebb5",
+          "license": "BSD-3-Clause"
+        },
+        {
+          "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+          "path": "lib/libc/stdio/putchar.c",
+          "sha256": "203507de50b6d35a8f54d8dae316c529076e1d1f068e711aeb75c13fdf58221e",
+          "license": "BSD-3-Clause"
+        }
+      ],
+      "behavior": "Expose six typed callable character entries while retaining public macro byte operations and standard-stream selection.",
+      "invariants": [
+        "Each byte returns its unsigned-char value as int; EOF stays distinct.",
+        "Function-like macros preserve their existing expressions and FILE layout.",
+        "Four existing archive members provide the six public callable names."
+      ],
+      "algorithm": "Delegate typed getc/putc wrappers to the existing fgetc/fputc byte path; retain per-stream state in the target FILE.",
+      "dependencies": [
+        "public stdio types and macros",
+        "filbuf/flsbuf lifetime and error paths",
+        "full and reduced native archives"
+      ],
+      "c_language": "The donor supplies typed entries over locked internal byte operations; thread and cancellation facilities belong to its runtime.",
+      "c17_rewrite": "Preserve the target byte backend and add portable typed delegation inside existing members; retain inherited comments and the target single-threaded contract.",
+      "archive_members": [
+        "fgetc.o",
+        "fputc.o",
+        "getchar.o",
+        "putchar.o"
+      ],
+      "size_estimate": {
+        "status": "unmeasured",
+        "surfaces": [
+          "native archive bytes",
+          "per-program loaded/raw/packed bytes",
+          "root blocks",
+          "compiler frames"
+        ],
+        "evidence": ""
+      },
+      "deciding_gate": "Require calibrated header, runtime, Smaller C and archive closure, a clean caller rebuild, matched resource admission and review.",
+      "disposition": "candidate",
+      "residual": "Focused header and runtime witnesses pass. Clean caller/native rebuild, measured resource admission and reviewed integration remain open; concurrency and full POSIX error/timestamp facets retain separate requirements."
     }
   ],
   "candidate_bindings": {
@@ -1522,6 +1603,17 @@
       "repository": "freebsd-src@f3ec447a1c0697f024dcf12929552e4ee9a420e0",
       "requirements": [
         "dpucp-2024:system-interface:memmem"
+      ]
+    },
+    "libc-callable-character-io": {
+      "repository": "DragonFlyBSD@805ca132aededa6ae4c8b3499a2d5c934d78fe56",
+      "requirements": [
+        "dpucp-2024:system-interface:fgetc",
+        "dpucp-2024:system-interface:getc",
+        "dpucp-2024:system-interface:getchar",
+        "dpucp-2024:system-interface:fputc",
+        "dpucp-2024:system-interface:putc",
+        "dpucp-2024:system-interface:putchar"
       ]
     }
   }

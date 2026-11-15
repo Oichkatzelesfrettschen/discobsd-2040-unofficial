@@ -77,7 +77,7 @@ format, so its entry sizes (12 B SIT, 9 B NAT) are assumptions.
 | Volume | Segments | SIT (2 copies) | NAT (2 copies) | SSA | Checkpoint | Metadata |
 | --- | ---: | --- | --- | --- | --- | --- |
 | 989 KiB, 16-block segments | 61 | 2 blocks | 18 blocks | 6.8 KiB dense (989 x 7 B) | 2 segments | 7 segments, 112 KiB, 11.3 percent (dense SSA); 10 segments, 16.2 percent with one summary block per segment |
-| 1 GiB, 2 MiB segments | 512 | 80 KiB | 4.5 MiB | 2 MiB | 4 MiB | 14.5 to 20 MiB by the alignment rule applied (unaligned NAT; each copy rounded to a segment), 1.4 to 2.0 percent |
+| 1 GiB, 2 MiB segments | 512 | 80 KiB | 4.5 MiB | 2 MiB | 4 MiB | 14.5 MiB with the NAT unaligned, 18 MiB with each copy rounded to a 2 MiB segment (4 SIT + 8 NAT + 2 SSA + 4 checkpoint), 1.4 to 1.8 percent |
 | 8 GiB | 4,096 | 600 KiB | 36 MiB | 16 MiB | 4 MiB | 60 MiB, 0.73 percent |
 | 32 GiB | 16,384 | 2.3 MiB | 144 MiB | 64 MiB | 4 MiB | 216 MiB, 0.66 percent |
 
@@ -307,7 +307,9 @@ without a new on-disk format:
   (`ufs_syscalls2.c:166`), ahead of `bflush`: on an `MNT_ASYNC` mount
   `free()` writes a chain node with a delayed write when the in-core list
   is full (`ufs_alloc.c`), so a release after `bflush` could let the
-  superblock name a chain block that has not been written. A full
+  superblock name a chain block that has not been written; the release
+  therefore completes, and its chain blocks reach the device, before the
+  superblock write. A full
   bitmap for a 1 GB SD partition of 1 KiB blocks is 128 KiB (D) and does not
   fit; a bounded array of 64 entries is about 256 B (E) with a forced early
   release when full. Needs the inode-first order in `itrunc()` first.
@@ -333,22 +335,31 @@ Ranked, at most five. Each estimate is E unless marked.
    whether `MNT_ASYNC` mounts keep the forced inode write; the drafts and the
    commit disagree.
 2. Characterize one SD card in SPI mode on the board, with the board opt-in
-   the repository requires and no driver change beyond a test image. Measure
+   the repository requires. The production driver has no interface for
+   SD Status, SCR or CMD32/33/38, so the run needs a test-only kernel
+   interface or a standalone firmware harness, whose cost is unmeasured and
+   stays out of the shipped kernel. Measure
    single-block write latency, sequential against random across 4 MiB
    regions, open-AU count, and CMD32/33/38 erase time by AU-aligned range
-   against a partial AU, and the SCR data-after-erase bit. RAM 0 and text 0 in
-   the kernel. Falsifier: sequential append across an AU shows no advantage over
+   against a partial AU, and the SCR data-after-erase bit, and the same
+   adjacent-sector workload through CMD24 pairs and through CMD25. RAM 0 and
+   text 0 in the shipped kernel. Falsifier: sequential append across an AU shows no advantage over
    random 1 KiB writes, which retires the log-structured motive for SD.
-3. Align the SD UFS partition start and the inode region to the AU (a
-   partition-table and image-tool change). RAM 0, kernel text 0. Falsifier:
+3. Align the SD UFS partition start and the end of the inode region (the
+   data boundary, `fs_isize`) to the AU. The inode table itself starts one
+   block after the partition start (`itod()` in `sys/sys/fs.h`, `mkfs`), so
+   its start cannot be aligned without a kernel geometry change; this step
+   is a partition-table and image-tool change only. RAM 0, kernel text 0. Falsifier:
    the measured random-write rate of step 2 is unchanged by alignment.
 4. CMD25 multi-block write with the Stop Tran token for adjacent sectors of
-   one buffer pair. RAM 0; text 200 to 400 B. Falsifier: step 2 shows no
-   latency or throughput gain over two CMD24; through the buffer cache the longest run
+   one buffer pair. RAM 0; text 200 to 400 B. Falsifier: step 2's paired
+   comparison on one card shows no latency or throughput gain of CMD25 over
+   two CMD24; through the buffer cache the longest run
    is the two sectors of one 1 KiB buffer, so the gain there is expected to
    be small; raw-device I/O passes the caller's whole request to
    `sdstrategy()` (`physio()`, `sys/kern/vm_swp.c`), so runs there are as
-   long as the request. Skip if step 2 says so.
+   long as the request, and batching two sectors is this step's scope, not
+   a driver limit. Skip if step 2 says so.
 5. Bounded prefree list with AU-batched CMD38 erase at sync, on SD only, built
    after steps 1 and 2. RAM 256 to 512 B; text 1 to 2 KB. Falsifier: with the
    erase on and off, step 2's workload shows no improvement in worst-case

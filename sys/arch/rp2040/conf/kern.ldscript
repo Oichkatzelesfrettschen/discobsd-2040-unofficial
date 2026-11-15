@@ -208,16 +208,18 @@ SECTIONS {
 	/*
 	 * The in-place swap exchange stages its 4,096-byte flash sector in
 	 * swap_exchange_sector[], a static array in .bss (sys/kern/vm_swap.c),
-	 * so the sector is already inside __kernel_ram_used_end. The 512
-	 * bytes kept past that end hold the panic message the Renode dump
-	 * stage writes at __kernel_ram_used_end + 256
-	 * (tools/renode/picocalc_dump.py inject_panic()); nothing else in the
-	 * kernel uses RAM past the end.
+	 * so the sector lies below __kernel_ram_used_end. No kernel object
+	 * lives past that symbol: reset zeroes the span with the rest of
+	 * kernel RAM, /dev/mem and /dev/kmem reach it up to
+	 * __kernel_data_end, and the Renode dump stage writes its panic
+	 * message at __kernel_ram_used_end + 256
+	 * (tools/renode/picocalc_dump.py inject_panic(), which checks the
+	 * message against these 512 bytes).
 	 */
 	__kernel_ram_used_end = DEFINED(swapram_pool_mem) ?
 	    swapram_pool_mem + SIZEOF(.swapram_pool) : _ebss;
 	ASSERT(__kernel_ram_used_end + 512 <= ORIGIN(RAM) + LENGTH(RAM),
-	    "kernel RAM must keep 512 bytes free past its end for the Renode dump stage")
+	    "kernel RAM must keep 512 bytes free past __kernel_ram_used_end for the Renode dump stage")
 	ASSERT(ORIGIN(RAM) + LENGTH(RAM) == ORIGIN(U0AREA),
 	    "RAM and U0AREA do not meet")
 	ASSERT(ORIGIN(U0AREA) + LENGTH(U0AREA) == ORIGIN(UAREA),

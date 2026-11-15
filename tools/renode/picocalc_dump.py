@@ -40,6 +40,11 @@ REBOOT_BUDGET = 150.0
 # Short enough that "panic: " and the message fit the panel line the panic
 # starts after the shell prompt.
 PANIC_MESSAGE = "renode panic"
+# inject_panic() writes the message, with its NUL, this far past
+# __kernel_ram_used_end, inside the END_RESERVE bytes kern.ldscript keeps
+# free past that symbol.
+PANIC_OFFSET = 256
+END_RESERVE = 512
 # A halted kernel spins in cngetc(), which Renode runs about 30 times slower
 # than an idle one, so the panic stage's budget is short.
 PANIC_BUDGET = 10.0
@@ -182,8 +187,15 @@ def inject_panic(run, elf):
     else:
         run.fail("panic: the CPU never stopped in idle()")
         return False
-    text = symbols["__kernel_ram_used_end"][0] + 256
-    for index, byte in enumerate(PANIC_MESSAGE.encode() + b"\0"):
+    message = PANIC_MESSAGE.encode() + b"\0"
+    if PANIC_OFFSET + len(message) > END_RESERVE:
+        run.fail(
+            f"panic: {len(message)} message bytes at +{PANIC_OFFSET} "
+            f"pass the {END_RESERVE}-byte reserve"
+        )
+        return False
+    text = symbols["__kernel_ram_used_end"][0] + PANIC_OFFSET
+    for index, byte in enumerate(message):
         renode.command(f"sysbus WriteByte {text + index:#x} {byte:#x}")
     renode.command(f"sysbus.cpu0 SetRegister 0 {text:#x}")
     renode.command(f"sysbus.cpu0 PC {symbols['panic'][0] & ~1:#x}")

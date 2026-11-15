@@ -142,8 +142,10 @@ remains separate from its local verification. Reviewed integration completes
 this explicit-length search delivery. Historical resource limits stay bound
 to their measured source. Shared XIP implementation retains its independent
 48 KiB admission gate and the remaining ABI/lifecycle experiments. Its namespace
-closure also resolves the skipped coremark source owner under benchmarks and
-calibrates omission of a required program before claiming complete coverage.
+closure [includes the CoreMark source owner under benchmarks](libc-export-namespace-coverage.md)
+and calibrates benchmark resolution, a colliding object and a missing required
+source. Historical receipts preserve their omitted-owner scope; final shared
+ABI selection and exact object ownership remain separate obligations.
 
 The [bidirectional sorting experiment](sort-bound-experiment/README.md)
 combines equal bands, ordered pivot samples, smaller-side recursion and a

@@ -2312,7 +2312,11 @@ to. `tools/renode/check-renode-pin.sh` then fails the job when the unpacked
 build differs from `VERIFIED_RENODE`, when the two gate scripts name different
 builds, or when the build is not one of `RENODE_VERSION`, so the pin and the
 verified build move together. The models are fetched at the commit
-`fetch-renode-rp2040.sh` pins. The four Renode gates run in that job after
+`fetch-renode-rp2040.sh` pins. The models' platform file applies Renode's
+RP2040 register description by URL, which made every emulator start depend on
+that server; the fetch script downloads the archive once, requires its pinned
+SHA-256, and rewrites the platform file to the unpacked local copy, and the
+job caches the archive under a key derived from the script. The four Renode gates run in that job after
 the board-build tier, reuse its PICO_UART, PICOCALC and PICOCALC_PSRAM
 kernels and flash image, and upload the Renode logs and UART0 transcripts as
 the `renode-results` artifact. The gates still stand outside `check`: a

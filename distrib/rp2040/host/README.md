@@ -5,7 +5,7 @@ Host tools for the DiscoBSD RP2040 console on Linux, Windows, and macOS.
 The Raspberry Pi Pico running DiscoBSD is a USB CDC-ACM serial device with
 no network stack. Every current operating system carries the CDC-ACM
 driver, so nothing kernel-side is installed: these tools find the board by
-its USB identity (vendor 2e8a, product 000a, serial `rp2040`), open the
+its USB identity (vendor 2e8a, product 000a, serial ending in `rp2040`), open the
 console at 115200 8N1, and either attach a terminal to it or serve it to a
 browser on the local network.
 

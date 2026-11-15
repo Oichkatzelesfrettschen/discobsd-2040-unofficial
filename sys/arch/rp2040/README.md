@@ -260,8 +260,11 @@ Because the bytes in flash are Dhara's journal rather than the filesystem,
 a disk image from `fsutil` cannot be programmed as it is. `tools/flashimg`
 runs the same vendored Dhara sources against a memory model of the region,
 writes the disk image through `dhara_map_write`, and emits the region for
-programming at 0x10020000. A separate Dhara instance resumes the emitted
-image and reads every sector back identical to the disk image.
+programming at 0x10020000. It leaves the free blocks of a UFS partition
+out of the map, except the blocks that chain the free list, so a free block
+reads back as 0xff and costs the cleaner nothing. A separate Dhara instance
+resumes the emitted image and reads every used and chain sector back
+identical to the disk image (`check-flash-sparse`).
 
 ## Userland
 

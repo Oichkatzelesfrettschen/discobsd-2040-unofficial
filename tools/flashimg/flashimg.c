@@ -81,12 +81,15 @@ word(const uint8_t *p, size_t offset)
  * Walk the free list of the filesystem whose block 0 is image unit base
  * and mark its blocks in state[]: UNIT_CHAIN for a block whose contents
  * continue the list (alloc() in sys/kern/ufs_alloc.c reads it when the
- * superblock's list runs out), UNIT_FREE for the others. The walk must
- * account for exactly the superblock's tfree blocks, each once and inside
- * the data area, or the image is refused rather than written partly.
+ * superblock's list runs out), UNIT_FREE for the others. The filesystem
+ * must fit the extent units its partition entry declares, so no unit of a
+ * later partition or of unpartitioned space is left unwritten, and the
+ * walk must account for exactly the superblock's tfree blocks, each once
+ * and inside the data area, or the image is refused rather than written
+ * partly.
  */
 static int
-mark_free_list(const uint8_t *image, unsigned long units, unsigned long base,
+mark_free_list(const uint8_t *image, unsigned long extent, unsigned long base,
     uint8_t *state, unsigned long *chains, unsigned long *frees)
 {
 	const uint8_t *sb = image + base * FLASH_UNIT_BYTES;
@@ -98,9 +101,9 @@ mark_free_list(const uint8_t *image, unsigned long units, unsigned long base,
 	isize = word(sb, SB_ISIZE);
 	fsize = word(sb, SB_FSIZE);
 	tfree = word(sb, SB_TFREE);
-	if (fsize > units - base || isize >= fsize) {
+	if (fsize > extent || isize >= fsize) {
 		fprintf(stderr, "flashimg: filesystem at unit %lu does not fit "
-		    "the image\n", base);
+		    "its partition of %lu units\n", base, extent);
 		return -1;
 	}
 	nfree = word(sb, SB_NFREE);
@@ -155,7 +158,7 @@ mark_free_blocks(const uint8_t *image, unsigned long units, uint8_t *state,
     unsigned long *chains, unsigned long *frees)
 {
 	const uint8_t *entry;
-	unsigned long base;
+	unsigned long base, extent;
 	uint32_t offset;
 	int i;
 
@@ -172,7 +175,10 @@ mark_free_blocks(const uint8_t *image, unsigned long units, uint8_t *state,
 		    word(image + base * FLASH_UNIT_BYTES, SB_MAGIC2) !=
 		    UFS_MAGIC2)
 			continue;
-		if (mark_free_list(image, units, base, state, chains, frees) < 0)
+		extent = word(entry, 12) / 2;
+		if (extent > units - base)
+			extent = units - base;
+		if (mark_free_list(image, extent, base, state, chains, frees) < 0)
 			return -1;
 	}
 	return 0;

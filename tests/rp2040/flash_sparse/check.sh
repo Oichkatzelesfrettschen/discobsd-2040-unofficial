@@ -153,6 +153,39 @@ read -r compare_status check_status <"$work/write-all.status"
     grep -q "^FAIL free-unwritten:" "$work/write-all.compare" ||
 	{ cat "$work/write-all.compare" >&2; fail "a fully written image passed the live-share check"; }
 
+# A partition entry shorter than its filesystem is refused: the free list
+# would name units beyond the declared extent. The entry is the one whose
+# type byte is 0xb7; its length is set to 200 sectors.
+"$PYTHON" - "$work/disk.img" "$work/short.img" <<'PY'
+import sys
+from pathlib import Path
+
+image = bytearray(Path(sys.argv[1]).read_bytes())
+entries = [446 + 16 * i for i in range(4) if image[446 + 16 * i + 4] == 0xB7]
+if len(entries) != 1:
+    raise SystemExit(f"expected one UFS partition entry, found {len(entries)}")
+image[entries[0] + 12 : entries[0] + 16] = (200).to_bytes(4, "little")
+Path(sys.argv[2]).write_bytes(image)
+PY
+if "$work/flashimg" "$work/short.img" "$work/short.region" \
+    >"$work/short.flashimg" 2>&1; then
+	fail "a filesystem longer than its partition entry was accepted"
+fi
+grep -q "does not fit its partition" "$work/short.flashimg" ||
+	{ cat "$work/short.flashimg" >&2; fail "short partition: wrong refusal"; }
+
+# A flashimg that bounds the filesystem by the image alone accepts it.
+mutate "$flashimg" "$work/image-bound.c" \
+	'		extent = word(entry, 12) / 2;
+		if (extent > units - base)
+			extent = units - base;' \
+	'		extent = units - base;'
+build "$work/image-bound.c" "$work/flashimg-image-bound"
+"$work/flashimg-image-bound" "$work/short.img" "$work/short.region" \
+    >"$work/short-mutant.flashimg" 2>&1 ||
+	fail "the image-bound mutant refused the short partition"
+
 echo "flash_sparse: PASS (used and chain blocks read back, free blocks" \
-	"unwritten, live share, fsutil --check; chain-skipping and" \
-	"write-everything mutations rejected)"
+	"unwritten, live share, fsutil --check; short partition entry" \
+	"refused; chain-skipping, write-everything and image-bound" \
+	"mutations rejected)"

@@ -23,7 +23,9 @@ struct conf_device conf_device_init[] = {
 	{ &uartusbdriver,	0,		-2,	0,	-2,	0x0,	{0},	0 },
 	{ 0 }
 };
+void sdrootattach(void);
 
 struct conf_service conf_service_init[] = {
+	{ sdrootattach },
 	{ 0 }
 };

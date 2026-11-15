@@ -160,6 +160,27 @@ cleanflash:
 
 .PHONY:		flash cleanflash
 
+# The PicoCalc's root on its SD card, for a kernel the PicoCalc UF2 loader
+# starts (sdrootattach() in sys/arch/rp2040/dev/sd.c): the same files as
+# ${FSIMG}, a bare filesystem of SDROOT_KBYTES with no partition table, and
+# an /etc/fstab naming /dev/sd0${SDROOT_PART}, the MBR slot of the card's
+# first type-b7 partition. Write it at that partition's first sector.
+SDROOT_KBYTES?=	32768
+SDROOT_PART?=	c
+SDROOTIMG=	${TOPSRC}/distrib/${MACHINE}/sdroot${BOARD_OUT_SUFFIX}.img
+
+sdroot:		${SDROOTIMG}
+
+${SDROOTIMG}:	${FSIMG} ${TOPSRC}/tools/picocalc/mksdroot.sh
+		sh ${TOPSRC}/tools/picocalc/mksdroot.sh ${TOOLBINDIR}/fsutil \
+		    ${DESTDIR} distrib/${MACHINE}/_manifest ${SDROOT_KBYTES} \
+		    ${SDROOT_PART} $@
+
+cleansdroot:
+		rm -f ${SDROOTIMG}
+
+.PHONY:		sdroot cleansdroot
+
 # The board's own /usr/lib/libc.a: distrib/rp2040/mkboardlibc.py compiles
 # just the members distrib/rp2040/boardlibc-members names (the closure
 # distrib/rp2040/libc-sink.c pulls out of the full, 331 KB lib/libc.a, read

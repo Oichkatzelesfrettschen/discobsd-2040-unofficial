@@ -84,6 +84,7 @@
 
 #include <machine/dump.h>
 
+#include <rp2040/dev/flash.h>
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
 #include <rp2040/dev/sdspi.h>
@@ -587,3 +588,43 @@ sdprobe(struct conf_device *config __unused)
 struct driver sddriver = {
 	"sd", sdprobe,
 };
+
+/*
+ * Root under the PicoCalc UF2 loader. The loader programs only the kernel's
+ * UF2 and lends the flash above it to every other application, so the fl0
+ * root region holds foreign bytes and a Dhara resume over them would treat
+ * them as a journal. A kernel the loader started therefore takes its root
+ * from the first MBR entry of type SD_ROOT_PART_TYPE on the card, and stops
+ * when there is none rather than open fl0. main() copied rootdev into
+ * pipedev before services attach, so pipedev moves with it. The card state
+ * returns to closed afterwards; the root mount opens it again through
+ * sdopen(). A kernel started any other way keeps the configured root.
+ */
+void
+sdrootattach(void)
+{
+	int i, error = ENXIO;
+
+	if (!flash_loader_started())
+		return;
+	printf("root: started by the PicoCalc loader, root on sd0\n");
+	if (board_id() == BOARD_ID_PICOCALC && (error = sd_setup()) == 0) {
+		for (i = 1; i <= MAXPARTITIONS; i++) {
+			if (sdpt[i].dp_nsectors != 0 &&
+			    sdpt[i].dp_type == SD_ROOT_PART_TYPE)
+				break;
+		}
+		if (i <= MAXPARTITIONS) {
+			rootdev = pipedev = makedev(SD_BMAJOR, i);
+			printf("root: sd0%c\n", 'a' + i - 1);
+		} else
+			error = ENOENT;
+	}
+	sdcard.type = SD_NONE;
+	if (error == ENOENT)
+		panic("root: no partition of type b7 on sd0");
+	if (error != 0) {
+		printf("root: sd0 error %d\n", error);
+		panic("root: sd0 unusable");
+	}
+}

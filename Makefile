@@ -2036,6 +2036,17 @@ check-renode-picocalc-dump:
 		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
+# The PICOCALC kernel as the PicoCalc UF2 loader leaves it (the stamp in
+# vector entries 4 to 10, foreign bytes over the flash root) with Renode's
+# SD card model holding ${SDROOTIMG} in MBR slot 3, type b7: root lines,
+# login and mount on the panel, the flash root untouched, and a panic when
+# the card has no b7 entry (tools/renode/check-picocalc-sdroot.py).
+check-renode-picocalc-sdroot:	sdroot
+		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py \
+		    "$$(command -v renode)" \
+		    ${TOPSRC}/sys/arch/rp2040/compile/PICOCALC/unix.bin \
+		    ${SDROOTIMG} tools/renode/vendor/results/picocalc-sdroot
+
 # The process, in-core inode and system file tables filled on the emulated PICO_UART
 # kernel: tools/renode/check-capacity.sh adds the three programs of
 # tests/rp2040/capacity_exhaustion to a copy of ${FSIMG}, boots it and
@@ -2240,7 +2251,8 @@ installfs:
 		check-lint check-host \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
-		check-renode-picocalc check-renode-picocalc-dump check-renode-union \
+		check-renode-picocalc check-renode-picocalc-dump \
+		check-renode-picocalc-sdroot check-renode-union \
 		check-host-package check-board-build check symlinks etc-distribution \
 		multicall-staging \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \

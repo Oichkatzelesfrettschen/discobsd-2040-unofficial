@@ -898,16 +898,55 @@ that second stage after every erase and program, so with the magic present
 the kernel restores BAUDR 2 and RX_SAMPLE_DLY 1 from RAM at boot and after
 each re-entry.
 
+### Root on the SD card under the loader
+
+The loader programs only the kernel's UF2 and lends the flash above it to
+every other application on its menu, so under the loader the fl0 region
+holds another application's bytes, and a Dhara resume over them would read
+them as a journal. A kernel the loader started therefore takes its root
+from the SD card. `sdrootattach()` in `dev/sd.c`, which the PICOCALC and
+PICOCALC_PSRAM configurations run as the service `sdroot` after `binit()`
+and before the root mount, reads the card's MBR and sets `rootdev` (and
+`pipedev`, which `main()` copied from it before services attach) to the
+first entry of type b7:
+
+| Started by | Card | Console | Root |
+| --- | --- | --- | --- |
+| BOOTSEL or `picotool` (no stamp magic) | any | nothing from `sdroot` | fl0a, as configured |
+| the loader | a type-b7 entry in slot N | `root: started by the PicoCalc loader, root on sd0`, the card and partition lines, `root: sd0` and the slot letter | sd0 and that letter |
+| the loader | no type-b7 entry | the same first lines, then `panic: root: no partition of type b7 on sd0` | none; fl0 is never opened |
+| the loader | no card, or a card that fails identification | `root: sd0 error N`, then `panic: root: sd0 unusable` | none |
+
+The root filesystem for the card is `bmake MACHINE=rp2040
+BOARD=PICOCALC_PSRAM sdroot`, which writes
+`distrib/rp2040/sdroot-PICOCALC_PSRAM.img` (`tools/picocalc/mksdroot.sh`):
+the files of the flash root as a bare 32 MiB filesystem (`SDROOT_KBYTES`)
+with no partition table, the block and raw nodes of all four card
+partitions, and an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because
+`fsck -p` and `mount -a` in `/etc/rc` read it. It is written at the first
+sector of the card's b7 partition, and `distrib/rp2040/unix-PICOCALC_PSRAM.uf2`
+goes into the loader's `/pico1-apps/` under a name with a lower-case
+`.uf2` extension, which the menu requires.
+
+The loader's two versions program the kernel differently: 2.4.1 erases the
+image's whole range at its first block and requires each later block to
+follow the one before, and 2.5 erases each sector as a block first reaches
+it. The kernel's UF2 is one contiguous run from 0x10000000, which both
+accept.
+
 Evidence: `check-loader-stamp` proves the decode, the bound and the swap
 writer against the bound on the host, and the wiring of the two
-primitives in the source. The bare route's boot is the Renode boot of
-`check-renode`. No kernel has been booted from the loader on a board or in
-Renode: the stamped path rests on the host gate and source reading, and
-the clock sequence entered from the loader's stage and the restored XIP
-divider on source and datasheet reading. Two further collisions stay open:
-the loader's path text at 0x118-0x12b overlays the image identity words,
-and an application flashed later from the menu erases the flash root
-above 128 KB.
+primitives in the source. `check-renode-identity` boots a stamped kernel
+in Renode. `check-renode-picocalc-sdroot` boots the PICOCALC kernel with
+the stamp, a foreign byte pattern over the flash root and Renode's SD card
+model holding the SD root in slot 3 behind a FAT32 and a Linux entry: the
+root lines, `root dev  = (5,3)`, a keyboard login and `mount` naming
+`/dev/sd0c` reach the panel, sampled words of the flash root region still
+read the foreign pattern, and the same card with its b7 entry retyped 83
+stops at the panic line. No kernel has been booted from the loader on a
+board: the clock sequence entered from the loader's stage, the restored
+XIP divider and the card as the loader leaves it rest on source,
+datasheet and emulation.
 
 ## Next work, with designs and blockers
 

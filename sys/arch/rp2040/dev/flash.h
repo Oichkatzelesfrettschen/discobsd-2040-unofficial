@@ -146,6 +146,7 @@ struct buf;
 void	*rom_func_lookup(u_int code);
 int	flash_xip_cache(int request);
 void	flash_limit_init(void);
+int	flash_loader_started(void);
 
 int	flopen(dev_t dev, int flags, int mode);
 int	flclose(dev_t dev, int mode, int flag);

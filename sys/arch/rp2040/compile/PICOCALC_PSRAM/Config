@@ -79,6 +79,12 @@ device          psram
 # SINGLE_UFS_ROOT (which needs NMOUNT=1) is not set.
 device          sd
 
+# Under the PicoCalc UF2 loader the flash above the kernel belongs to the
+# loader's other applications, so a kernel the loader started takes its
+# root from the card's first MBR partition of type b7 (dev/sd.c,
+# sdrootattach()); a kernel flashed directly keeps root on fl0a.
+service         sdroot
+
 # The USB-C port reaches UART0 on GP0 and GP1 through a CH340C bridge
 # while DIP switch SW701 is in its default position; it is /dev/tty0.
 device          uart0

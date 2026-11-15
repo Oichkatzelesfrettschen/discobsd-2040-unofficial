@@ -24,6 +24,7 @@
  */
 #define	SD_BMAJOR		5	/* bdevsw index, rp2040/conf.c. */
 #define	SD_CMAJOR		11	/* cdevsw index, rp2040/conf.c. */
+#define	SD_ROOT_PART_TYPE	0xb7	/* MBR type of a DiscoBSD UFS partition */
 
 struct uio;
 
@@ -34,6 +35,13 @@ daddr_t		sdsize(dev_t dev);
 int		sdread(dev_t dev, struct uio *uio, int flag);
 int		sdwrite(dev_t dev, struct uio *uio, int flag);
 int		sdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag);
+
+/*
+ * Take the root from the card when the PicoCalc loader started the kernel;
+ * main() calls it through conf_service_init (the Config line "service
+ * sdroot") after binit() and before it mounts root.
+ */
+void		sdrootattach(void);
 
 /* Sample the card-detect pin; called from the keyboard poll callout. */
 void		sd_detect_poll(void);

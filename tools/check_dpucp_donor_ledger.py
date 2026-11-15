@@ -47,6 +47,9 @@ EXPECTED_REPOSITORIES = {
         "25b8a3ff7ad21b426214964eb91786f63e34e5a4",
     ),
 }
+# Candidates whose mechanism lives in headers alone and selects no archive
+# member; every other candidate names the members its footprint links.
+HEADER_ONLY_CANDIDATES = frozenset({"libc-descriptor-set-initialization"})
 EXPECTED_CANDIDATES = {
     "libc-reallocarray": (
         "netbsd-src",
@@ -137,6 +140,7 @@ MEASURED_CANDIDATE_EVIDENCE = {
     "libc-ndbm-open-admission": "docs/research/libc-dbm-open-admission.md",
     "libc-scalar-signal-sets": "docs/research/signal-set-resource-exception.md",
     "libc-callable-character-io": "docs/research/callable-character-io-resource-exception.md",
+    "libc-descriptor-set-initialization": "docs/research/descriptor-set-resource-exception.md",
 }
 INVENTORY_CLAIM = (
     "The inventory records checkout identity and fetch evidence for a finite "
@@ -2441,9 +2445,12 @@ def validate_document(root, document, requirement_ids):
         require(any(source["repository"] == candidate["repository"] for source in sources),
                 f"primary repository lacks source: {candidate_id}")
         archive_members = candidate["archive_members"]
+        # A header-only mechanism selects no archive member, and only a
+        # candidate named in HEADER_ONLY_CANDIDATES may; its caller footprint
+        # still requires matched resource qualification.
         require(
             isinstance(archive_members, list)
-            and archive_members
+            and bool(archive_members) != (candidate_id in HEADER_ONLY_CANDIDATES)
             and all(isinstance(member, str) and member for member in archive_members),
             f"bad archive members: {candidate_id}",
         )

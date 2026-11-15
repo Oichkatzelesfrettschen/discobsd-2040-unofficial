@@ -294,6 +294,8 @@ jobs:
 
       # check-signal-sets-cross owns target signatures and Smaller C input;
       # check-signal-sets-qemu owns real-header Cortex-M0 set execution.
+      # check-fd-set-cross checks standalone macros and Smaller C input;
+      # check-fd-set-host/qemu check initialized sets and getty I/O ownership.
       # check-cross owns the string namespace/signature and expanded Smaller C
       # header gate on both host platforms; runtime behavior stays separate.
       # It also owns root-header inclusion and curses integer ABI calibration.

@@ -995,6 +995,12 @@ check-mutant-pool: check-python
 		${PYTHON} tools/mutant_pool_test.py
 		${PYTHON} tools/available_cpus_test.py
 
+# tools/exact_clifford_t_2q.py: the integer-only two-qubit Clifford+T
+# statevector over Z[w]. tools/exact_clifford_t_2q_test.py compares it with a
+# float reference and rejects a Hadamard without its scale and T as S.
+check-exact-clifford-t-2q: check-python
+		${PYTHON} tools/exact_clifford_t_2q_test.py
+
 check-cat-contracts-cross:
 		${MAKE} -C tests/cat_contracts check-cross
 
@@ -1571,6 +1577,7 @@ check-elf2aout:	tools
 # include.
 HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed-exec-pair-summary check-rp2040-storage-delta \
 		check-agent-instructions check-uf2-validator check-nightly-report check-mutant-pool \
+		check-exact-clifford-t-2q \
 		check-kernel-headroom-validator \
 		check-run-logging check-compiler-matrix-harness check-callgraph-capture check-battlestar-generation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \

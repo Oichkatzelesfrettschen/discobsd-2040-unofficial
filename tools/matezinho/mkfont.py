@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""Rasterize a font into a MATEzinho glyph table (C source).
+
+Usage: mkfont.py NAME OUTPUT.c ttf PATH PIXELS mono|aa4 [--gamma G]
+       mkfont.py NAME OUTPUT.c bdf PATH
+
+The table covers printable ASCII (32..126). Each glyph is a box of the font's
+line height by its own advance width, rows packed MSB first at 1 bit (mono) or
+4 bits (aa4, coverage 0..15) per pixel. A TrueType source is rasterized by
+FreeType through Pillow: mono uses FreeType's monochrome hinting, aa4 its
+grayscale renderer quantized to 16 levels after an optional gamma curve.
+"""
+
+import argparse
+
+from PIL import Image, ImageDraw, ImageFont
+
+FIRST, LAST = 32, 126
+
+
+def ttf_glyphs(path, px, mode, gamma):
+    font = ImageFont.truetype(path, px)
+    ascent, descent = font.getmetrics()
+    chars = [chr(c) for c in range(FIRST, LAST + 1)]
+    top = max(-font.getbbox(c, anchor="ls")[1] for c in chars if c != " ")
+    bottom = max(font.getbbox(c, anchor="ls")[3] for c in chars if c != " ")
+    height = top + bottom
+    glyphs = []
+    for c in chars:
+        adv = max(1, round(font.getlength(c)))
+        left = min(0, font.getbbox(c, anchor="ls")[0])
+        width = adv - left
+        img = Image.new("1" if mode == "mono" else "L", (width, height), 0)
+        draw = ImageDraw.Draw(img)
+        if mode == "mono":
+            draw.fontmode = "1"
+        draw.text((-left, top), c, font=font, fill=255, anchor="ls")
+        img = img.convert("L")
+        rows = []
+        for y in range(height):
+            row = []
+            for x in range(adv):
+                v = img.getpixel((x - left, y)) / 255.0 if x - left < width else 0
+                if mode == "mono":
+                    row.append(1 if v >= 0.5 else 0)
+                else:
+                    row.append(round((v ** (1.0 / gamma)) * 15))
+            rows.append(row)
+        glyphs.append(rows)
+    return height, top, glyphs
+
+
+def bdf_glyphs(path):
+    lines = open(path, errors="replace").read().split("\n")
+    fw = fh = fx = fy = 0
+    ascent = None
+    for ln in lines:
+        if ln.startswith("FONTBOUNDINGBOX"):
+            fw, fh, fx, fy = map(int, ln.split()[1:5])
+        if ln.startswith("FONT_ASCENT"):
+            ascent = int(ln.split()[1])
+    ascent = fh + fy if ascent is None else ascent
+    table = {}
+    i = 0
+    while i < len(lines):
+        if lines[i].startswith("ENCODING"):
+            code = int(lines[i].split()[1])
+            bw, bh, bx, by, dw = fw, fh, fx, fy, fw
+            while not lines[i].startswith("BITMAP"):
+                if lines[i].startswith("BBX"):
+                    bw, bh, bx, by = map(int, lines[i].split()[1:5])
+                if lines[i].startswith("DWIDTH"):
+                    dw = int(lines[i].split()[1])
+                i += 1
+            bits = []
+            i += 1
+            while not lines[i].startswith("ENDCHAR"):
+                bits.append(lines[i].strip())
+                i += 1
+            if FIRST <= code <= LAST:
+                rows = [[0] * dw for _ in range(fh)]
+                top = (fh + fy) - (bh + by)
+                for y, r in enumerate(bits):
+                    v, nb = int(r, 16), len(r) * 4
+                    for x in range(bw):
+                        if v & (1 << (nb - 1 - x)):
+                            tx, ty = x + bx - fx, top + y
+                            if 0 <= tx < dw and 0 <= ty < fh:
+                                rows[ty][tx] = 1
+                table[code] = rows
+        i += 1
+    glyphs = [table.get(c, table[ord("?")]) for c in range(FIRST, LAST + 1)]
+    return fh, ascent, glyphs
+
+
+def pack(rows, bpp):
+    out = []
+    for row in rows:
+        acc = nbits = 0
+        for v in row:
+            acc = (acc << bpp) | v
+            nbits += bpp
+            if nbits == 8:
+                out.append(acc)
+                acc = nbits = 0
+        if nbits:
+            out.append(acc << (8 - nbits))
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("name")
+    ap.add_argument("output")
+    ap.add_argument("kind", choices=("ttf", "bdf"))
+    ap.add_argument("path")
+    ap.add_argument("pixels", nargs="?", type=int)
+    ap.add_argument("mode", nargs="?", choices=("mono", "aa4"), default="mono")
+    ap.add_argument("--gamma", type=float, default=1.0)
+    ap.add_argument("--space", type=int, help="advance of the space glyph in pixels")
+    a = ap.parse_args()
+    if a.kind == "ttf":
+        height, ascent, glyphs = ttf_glyphs(a.path, a.pixels, a.mode, a.gamma)
+        bpp = 1 if a.mode == "mono" else 4
+    else:
+        height, ascent, glyphs = bdf_glyphs(a.path)
+        bpp = 1
+    if a.space:
+        glyphs[0] = [[0] * a.space for _ in glyphs[0]]
+    data, offsets, widths = [], [], []
+    for rows in glyphs:
+        offsets.append(len(data))
+        widths.append(len(rows[0]))
+        data += pack(rows, bpp)
+    with open(a.output, "w") as f:
+        f.write(f"/* Generated by tools/matezinho/mkfont.py from {a.path.split('/')[-1]}. */\n")
+        f.write('#include "mzfont.h"\n\n')
+        f.write(f"static const unsigned char w_{a.name}[{len(widths)}] = {{{','.join(map(str, widths))}}};\n")
+        f.write(f"static const unsigned short o_{a.name}[{len(offsets)}] = {{{','.join(map(str, offsets))}}};\n")
+        f.write(f"static const unsigned char b_{a.name}[{len(data)}] = {{")
+        for k, v in enumerate(data):
+            f.write(("\n\t" if k % 16 == 0 else "") + f"0x{v:02x},")
+        f.write("\n};\n")
+        f.write(
+            f"const struct mz_font mzfont_{a.name} = {{ {height}, {ascent}, {bpp}, "
+            f"w_{a.name}, o_{a.name}, b_{a.name} }};\n"
+        )
+    print(f"{a.name}: height {height} ascent {ascent} bpp {bpp} bytes {len(data)}")
+
+
+if __name__ == "__main__":
+    main()

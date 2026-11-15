@@ -1,6 +1,6 @@
 /* Original MATEzinho code is under the repository's BSD 3-Clause license. */
 #include "matezinho.h"
-#include "../../sys/arch/rp2040/dev/lcdfont.h"
+#include "mzfont.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -130,21 +130,61 @@ rect(int x,int y,int w,int h,uint16_t c)
     if(y1>clip_bottom)y1=clip_bottom;
     for(j=y;j<y1;j++) for(i=x;i<x1;i++) pixels[(j-band_y)*320+i]=c;
 }
-static void
-text(int x,int y,const char *p,uint16_t c,int scale)
+static uint16_t
+mix(uint16_t b,uint16_t f,unsigned a)
 {
-    int row,col,start=x;
-    unsigned ch;
-    while((ch=(unsigned char)*p++)!=0) {
-        if(ch=='\n') { x=start; y+=11*scale; continue; }
-        if(x+6*scale>310) { x=start; y+=11*scale; }
-        if(ch<32||ch>126) ch='?';
-        for(row=0;row<9;row++) for(col=0;col<6;col++)
-            if(lcdfont[ch-32][row] & (128u>>col))
-                rect(x+col*scale,y+row*scale,scale,scale,c);
-        x+=6*scale;
+    unsigned r=((b>>11)*(15-a)+(f>>11)*a+7)/15;
+    unsigned g=(((b>>5)&63)*(15-a)+((f>>5)&63)*a+7)/15;
+    unsigned l=((b&31)*(15-a)+(f&31)*a+7)/15;
+    return (uint16_t)(r<<11|g<<5|l);
+}
+static void
+dot(int x,int y,int scale,uint16_t c,unsigned a)
+{
+    int i,j;
+    for(j=y;j<y+scale;j++) {
+        if(j<band_y||j>=band_y+8||j>=clip_bottom) continue;
+        for(i=x;i<x+scale;i++) if(i>=0&&i<320) {
+            uint16_t *q=&pixels[(j-band_y)*320+i];
+            *q=a>=15?c:mix(*q,c,a);
+        }
     }
 }
+static int
+text_width(const struct mz_font *f,const char *p)
+{
+    int w=0;
+    unsigned ch;
+    while((ch=(unsigned char)*p++)!=0 && ch!='\n') {
+        if(ch<32||ch>126) ch='?';
+        w+=f->width[ch-32];
+    }
+    return w;
+}
+static int
+ftext(const struct mz_font *f,int x,int y,const char *p,uint16_t c,int scale)
+{
+    int row,col,start=x,w,stride;
+    unsigned ch,v;
+    const unsigned char *g;
+    while((ch=(unsigned char)*p++)!=0) {
+        if(ch=='\n') { x=start; y+=(f->height+2)*scale; continue; }
+        if(ch<32||ch>126) ch='?';
+        w=f->width[ch-32];
+        if(x+w*scale>310) { x=start; y+=(f->height+2)*scale; }
+        g=f->bits+f->offset[ch-32];
+        stride=(w*f->bpp+7)/8;
+        for(row=0;row<f->height;row++) for(col=0;col<w;col++) {
+            if(f->bpp==1) v=(g[row*stride+col/8]>>(7-col%8))&1u?15u:0u;
+            else v=(g[row*stride+col/2]>>(col%2?0:4))&15u;
+            if(v) dot(x+col*scale,y+row*scale,scale,c,v);
+        }
+        x+=w*scale;
+    }
+    return y+(f->height+2)*scale;
+}
+#define text(x,y,p,c,s) ftext(&MZ_FONT_UI,(x),(y),(p),(c),(s))
+#define mtext(x,y,p,c,s) ftext(&MZ_FONT_MONO,(x),(y),(p),(c),(s))
 static int
 icon(struct mz_io *io,int app,int x,int y)
 {
@@ -178,7 +218,7 @@ scene(struct mz *s,struct mz_io *io)
                 rect(x,y,2,80,GREEN); rect(x+94,y,2,80,GREEN);
             }
             if(icon(io,i,x+36,y+10)<0) return -1;
-            text(x+(96-(int)strlen(mz_names[i])*6)/2,y+42,mz_names[i],TEXT,1);
+            text(x+(96-text_width(&MZ_FONT_UI,mz_names[i]))/2,y+42,mz_names[i],TEXT,1);
             if(i==1) text(x+12,y+59,s->note_dirty?"Unsaved":"Editor",MUTED,1);
             else if(i==8) text(x+12,y+59,"Asset volume",MUTED,1);
             else if(i==2) text(x+12,y+59,"192 KiB/user",MUTED,1);
@@ -200,18 +240,18 @@ scene(struct mz *s,struct mz_io *io)
             break;
         case 1:
             clip_bottom=260;
-            text(16,70,s->note,TEXT,1);
+            mtext(16,70,s->note,TEXT,1);
             clip_bottom=320;
-            text(16,269,s->note_dirty?"Ctrl-S save | Unsaved":"Ctrl-S save",MUTED,1);
+            text(16,264,s->note_dirty?"Ctrl-S save | Unsaved":"Ctrl-S save",MUTED,1);
             break;
         case 2:
-            text(16,76,"RP2040 profile\n264 KiB physical SRAM\n192 KiB process window\n320 x 320 RGB565\n8-row render buffer: 5120 B",TEXT,1);
+            y=text(16,76,"RP2040 profile\n264 KiB physical SRAM\n192 KiB process window\n320 x 320 RGB565\n8-row render buffer: 5120 B",TEXT,1);
             snprintf(buf,sizeof(buf),"Shell state: %u B",(unsigned)sizeof(*s));
-            text(16,148,buf,MUTED,1); break;
+            text(16,y+4,buf,MUTED,1); break;
         case 3:
             text(16,76,"Integer: a + b, -, *, /",MUTED,1);
-            text(16,104,s->expr,TEXT,1);
-            text(16,137,s->result,GREEN,1); break;
+            mtext(16,104,s->expr,TEXT,1);
+            mtext(16,137,s->result,GREEN,1); break;
         case 4:
             text(16,84,"Space: toggle large headings\nOriginal dark theme\nMATE artwork: CC BY-SA 3.0\nSee artwork AUTHORS and COPYING",TEXT,1); break;
         case 5:
@@ -224,8 +264,8 @@ scene(struct mz *s,struct mz_io *io)
             text(16,78,"Arrows: select  Enter: open\nEsc: desktop  Tab: next task\nCtrl-W: close  Ctrl-S: save\nF1: applications  F5: refresh\nNotes: 1023 bytes, retained\nFiles: first 12 directory entries\nIcons: MATE/GNOME contributors\nCC BY-SA 3.0; upstream AUTHORS\nIndependent MATE-inspired shell",TEXT,1); break;
         case 8:
             snprintf(buf,sizeof(buf),"Asset capacity: %u MiB",s->asset_sectors/2048);
-            text(16,64,buf,GREEN,1);
-            text(16,78,"Read-only external asset pack\n1024-byte read cache\n16 MiB virtual ROM profile\n32 MiB development SD profile\n32 GB sparse SD profile\nStorage does not increase RAM.",TEXT,1); break;
+            y=text(16,64,buf,GREEN,1);
+            text(16,y,"Read-only external asset pack\n1024-byte read cache\n16 MiB virtual ROM profile\n32 MiB development SD profile\n32 GB sparse SD profile\nStorage does not increase RAM.",TEXT,1); break;
         }
         text(16,284,s->status,MUTED,1);
     }

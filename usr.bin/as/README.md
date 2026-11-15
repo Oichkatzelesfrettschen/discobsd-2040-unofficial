@@ -114,14 +114,32 @@ Built for the RP2040 with `bmake MACHINE=rp2040`, measured by
 
 | program | text  | data | bss   | total  |
 |---------|-------|------|-------|--------|
-| `as`    | 31664 | 765  | 30848 | 63277  |
-| `ld`    | 21964 | 745  | 41412 | 64121  |
+| `as`    | 28833 | 284  | 30824 | 59941  |
+| `ld`    | 20777 | 272  | 35408 | 56457  |
 
 A program on the RP2040 gets 192 kbytes for text, data, bss and stack
 together. The bss is nearly all fixed tables -- the symbol table,
-its string area and the two hash tables -- and neither program holds an
-input segment in memory: both passes stream through scratch files, as the
-MIPS assembler does.
+its string area and the two hash tables. Neither program holds a whole
+input in memory, and each adds a fixed ceiling on top of the table:
+
+- `as` keeps the three segments and the fixup and relocation streams in
+  memory, up to `SCRATCH_BUDGET` bytes (32 KiB) for all of them together. A
+  stream that would pass the budget moves to an unlinked file under `/tmp`
+  and continues there; every other stream stays in memory. A program whose
+  assembly fits the budget creates no temporary file, so the object is the
+  only file the assembler writes. Each file the assembler used to create
+  cost directory and inode writes on the flash-backed root file system on
+  top of its data.
+- `ld` writes text and data at their final offsets in the output, through
+  one stream per region, and copies nothing at the end. A segment of up to
+  `RELOC_BUFFER` bytes (32 KiB) is relocated in memory and written once; a
+  longer segment is patched in the output file record by record. A
+  relocatable (`-r`) link still sends its relocation streams and symbols
+  through temporary files, because their sizes are known only after pass 2.
+
+Both compile-time limits can be lowered to exercise the fallback paths:
+`tests/as_ld_scratch` builds the tools with a zero budget and a zero buffer
+and requires the same bytes as the default build.
 
 ## Tests
 

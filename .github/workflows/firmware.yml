@@ -108,7 +108,7 @@ jobs:
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
             python3 python3-pil libusb-1.0-0-dev \
             shellcheck pipx qemu-user python3-capstone python3-pyelftools \
-            python3-unicorn gcc-multilib
+            python3-unicorn gcc-multilib strace
           pipx install ruff
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"

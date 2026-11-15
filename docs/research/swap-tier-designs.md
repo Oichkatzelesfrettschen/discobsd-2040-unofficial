@@ -155,9 +155,18 @@ its u area) closes its files and frees its slot. The minimal change is:
    not through `swap_image_reserve_flash()`, so the device-failed flag of
    step 3 does not reach it, and `exec_spool_flush()` and
    `exec_spool_read()` call the panicking `swap_with_buf()`. The
-   reservation must test the same flag and fail the `exec` with ENOMEM,
-   and a failed flush or read must fail the `exec` (the image is not yet
-   committed, so the caller's error path applies) instead of panicking.
+   reservation must test the same flag and fail the `exec` with ENOMEM.
+   The two transfers differ in what an error may do. A flush happens
+   while the arguments are gathered, before the old image is given up, so
+   a failed flush can fail the `exec` with an ordinary error. A read
+   happens in `exec_setupstack()`, after `exec_estab()` has replaced the
+   image, so the caller cannot resume: a failed read must set
+   `EXEC_COMMITTED_FAILURE` (`sys/sys/exec.h:19`), which makes
+   `kern_exec.c` terminate the process as the loaders already do for a
+   post-commit load failure (`sys/kern/exec_aout.c:235`).
+   The SwapRAM evacuation (`swapram.c:336`) writes pool images to the
+   device and panics the same way; with the device failed it must stop
+   and leave the images in the pool.
    Keeping u areas in RAM (design 11) does not cover these transfers.
 6. `sys/arch/rp2040/dev/sd.c`: nothing for the kill itself; a swap-aware
    `sdclose`/re-accept is a separate decision (see "Open questions").
@@ -351,9 +360,12 @@ per boot, about 10 sectors (40 blocks) for three sleepers, if the hot set
 fits beside the pinned spools. The hot set is about 2 to 3 images of
 roughly 4.3 KB, close to the 16 KB pool, so the realized figure lies between
 this floor and the residual of designs 1 and 2 together, which is
-unmeasured (compaction alone leaves about 270 erases per 24 compiles). The decisive number is the compressed hot working set: the
-`admitted_data_bytes` and `admitted_u_bytes` counters over a run with the
-cold images evicted.
+unmeasured (compaction alone leaves about 270 erases per 24 compiles). The decisive number is the compressed hot working set, which
+the existing counters cannot give: `admitted_data_bytes` and
+`admitted_u_bytes` add up on every admission, so repeated swaps of one
+image raise the totals without raising occupancy. It needs the peak of
+simultaneously live compressed bytes, from a per-image occupancy trace or
+a high-water counter in the pool.
 
 ### 7. Boot-time device priority
 
@@ -395,8 +407,17 @@ Hazards found by reading:
 
 Described under "The minimal kill the owner change". Cost estimate: text
 0.3 to 0.5 KB; no bss. No wear effect. On PSRAM and bare flash it converts
-a panic into a kill for a failed frame or program; on SD it also handles a
-pulled card.
+a panic into a kill for a failed frame or program on the copy-out and
+swap-in paths only; on SD the same paths cover a pulled card. Three cases
+stay outside it on every device. A failed transfer of the u area itself
+leaves no way to run `exit()` (design 11 keeps the u area off the
+device). A failure inside the in-place exchange has no unwind, and the
+proposal above skips that tier only on a removable device, so on PSRAM or
+flash an exchange failure still loses both processes and still panics
+unless the tier is skipped there too. Process 1 does not die of SIGKILL
+(`issig()`, `sys/kern/kern_sig.c:474-487`), so an image of `init` lost
+with the device leaves a process with zero-filled data and no exit;
+design 6 must not evict `init` to a removable device.
 
 Failure behavior after the change: the device-failed flag stops new swap-outs
 to the dead device, so the system runs with only the pool and the resident
@@ -528,8 +549,13 @@ Entries say build, defer, no or n.a., with the number that decides.
    first.
 2. A pulled card cannot be survived by "kill the owner" alone: the u area
    is on the dead device and `exit()` needs it. Keeping u in the pool
-   (design 11) is the minimal complete fix; otherwise a kill leaks file and
-   inode references.
+   (design 11) closes that hole; otherwise a kill leaks file and inode
+   references. Designs 8 and 11 together are still not complete recovery
+   until three policies exist: the exec spool and the pool evacuation
+   (step 5 above), the in-place exchange on any device whose transfer can
+   fail, and process 1, which `issig()` exempts from default-action
+   signals including SIGKILL (`sys/kern/kern_sig.c:474-487`), so its image
+   must stay off a removable device or in the pool whole.
 3. On PSRAM boards SwapRAM likely costs more than it saves: a 16 KB pool, an
    estimated 4.1 KB of text, and an encode of 40 to 90 ms for a 12.4 KB image
    (`zswap.md:129`) against about 3 ms to move a 33 KB image through PSRAM

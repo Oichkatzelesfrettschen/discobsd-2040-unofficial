@@ -55,7 +55,8 @@
 #
 # sdspi_test runs the SD card protocol layer against a card model that
 # replays recorded command transcripts, including the crash dump's window
-# reads and summed span writes; twenty-three mutants of sdspi.c must fail
+# reads and summed span writes, and holds every command frame and data block to
+# CRC7 and CRC16 computed bit by bit; thirty mutants of sdspi.c must fail
 # it.
 #
 # sdstrat_test compiles the SD disk driver (sd.c) unchanged against the
@@ -108,7 +109,8 @@ SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 all: check
 
 check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
-	sdspi_test sdstrat_test dump_test picoaudio_test font-sync
+	sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
+	font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./kbdreq_test
@@ -118,9 +120,10 @@ check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	./sdstrat_test
 	./dump_test
 	./picoaudio_test
+	./picopcm_test
 	${MAKE} mutants gfx-mutants kbdreq-mutants kbdevq-mutants \
 	    gametile-mutants sdspi-mutants sdstrat-mutants dump-mutants \
-	    picoaudio-mutants
+	    picoaudio-mutants picopcm-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -223,6 +226,11 @@ dump-mutant-temp-kept:
 picoaudio_test: picoaudio_test.c regmodel.h ${DEV}/picoaudio.c \
 	    ${DEV}/picocalc_reg.h
 	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ picoaudio_test.c ${DEV}/picoaudio.c
+
+picopcm_test: picopcm_test.c regmodel.h ${DEV}/picopcm.c ${DEV}/picopcm.h \
+	    ${DEV}/picoaudio.c ${DEV}/picocalc_reg.h
+	${HOST_CC} ${KCSTD} ${SAN} -g -I${DEV} -o $@ picopcm_test.c \
+	    ${DEV}/picopcm.c ${DEV}/picoaudio.c
 
 font-sync:
 	@if [ -z "${PYTHON}" ]; then \
@@ -1102,8 +1110,15 @@ SDSPI_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
 SDSPI_SRC=	sdspi.c sdspi.h ${CRC32}
 
 sdspi-mutants: \
-	sdspi-mutant-crc-cmd8 \
-	sdspi-mutant-crc-cmd0 \
+	sdspi-mutant-crc7-generator \
+	sdspi-mutant-crc7-end-bit \
+	sdspi-mutant-crc16-tap \
+	sdspi-mutant-crc16-unchecked \
+	sdspi-mutant-crc16-unsent \
+	sdspi-mutant-crc-refusal-ignored \
+	sdspi-mutant-crc-never-enabled \
+	sdspi-mutant-write-status-ignored \
+	sdspi-mutant-write-status-unsent \
 	sdspi-mutant-hcs \
 	sdspi-mutant-byte-address \
 	sdspi-mutant-echo-pattern \
@@ -1126,13 +1141,41 @@ sdspi-mutants: \
 	sdspi-mutant-span-padding \
 	sdspi-mutant-span-sum-late
 
-sdspi-mutant-crc-cmd8:
+sdspi-mutant-crc7-generator:
 	${SDSPI_MUT} sdspi.c \
-	    's/cmd == CMD8 ? 0x87/cmd == CMD8 ? 0x86/' ${SDSPI_SRC}
+	    's/(crc << 1) ^ 0x12 : crc << 1/(crc << 1) ^ 0x10 : crc << 1/' ${SDSPI_SRC}
 
-sdspi-mutant-crc-cmd0:
+sdspi-mutant-crc7-end-bit:
 	${SDSPI_MUT} sdspi.c \
-	    's/cmd == CMD0 ? 0x95/cmd == CMD0 ? 0x94/' ${SDSPI_SRC}
+	    's/return (unsigned char)(crc | 1);/return (unsigned char)crc;/' ${SDSPI_SRC}
+
+sdspi-mutant-crc16-tap:
+	${SDSPI_MUT} sdspi.c \
+	    's/(x << 12) ^ (x << 5) ^ x/(x << 12) ^ (x << 4) ^ x/' ${SDSPI_SRC}
+
+sdspi-mutant-crc16-unchecked:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (sd->crc \&\& sent != crc)/if (sd->crc \&\& sent == 0x10000)/' ${SDSPI_SRC}
+
+sdspi-mutant-crc16-unsent:
+	${SDSPI_MUT} sdspi.c \
+	    's/(void)o->xfer(crc16 >> 8);/(void)o->xfer(0xff);/' ${SDSPI_SRC}
+
+sdspi-mutant-crc-refusal-ignored:
+	${SDSPI_MUT} sdspi.c \
+	    's/sd->crc = r == R1_IDLE;/sd->crc = 1;/' ${SDSPI_SRC}
+
+sdspi-mutant-crc-never-enabled:
+	${SDSPI_MUT} sdspi.c \
+	    's/r = sd_cmd(o, CMD59, 1);/r = R1_NONE;/' ${SDSPI_SRC}
+
+sdspi-mutant-write-status-ignored:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (r != 0 || b != 0)/if (r != 0)/' ${SDSPI_SRC}
+
+sdspi-mutant-write-status-unsent:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (err == SDE_OK) {/if (0) {/' ${SDSPI_SRC}
 
 sdspi-mutant-hcs:
 	${SDSPI_MUT} sdspi.c \
@@ -1540,6 +1583,72 @@ sdstrat-mutant-dump-table-dropped:
 PICOAUDIO_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
 		picoaudio_test.c
 
+PICOPCM_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
+		picopcm_test.c
+PICOPCM_SRC=	picopcm.c picopcm.h picoaudio.c
+
+picopcm-mutants: \
+	picopcm-mutant-unacknowledged \
+	picopcm-mutant-level-scale \
+	picopcm-mutant-ring-overfill \
+	picopcm-mutant-underrun-level \
+	picopcm-mutant-any-board \
+	picopcm-mutant-shared-open \
+	picopcm-mutant-unbounded-write \
+	picopcm-mutant-no-drain \
+	picopcm-mutant-close-unmuted \
+	picopcm-mutant-clock-left-on \
+	picopcm-mutant-bell-not-absorbed \
+	picopcm-mutant-bell-stop-mutes
+
+picopcm-mutant-unacknowledged:
+	${PICOPCM_MUT} picopcm.c \
+	    '/^PWM_IRQ_WRAP_Handler/,/^}/s/PC_REG32(PWM_INTR) = 1UL << PCM_CLOCK_SLICE;/(void)0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-level-scale:
+	${PICOPCM_MUT} picopcm.h \
+	    's/return sample \* PCM_LEVELS >> 8;/return sample * PCM_LEVELS >> 7;/' ${PICOPCM_SRC}
+
+picopcm-mutant-ring-overfill:
+	${PICOPCM_MUT} picopcm.h \
+	    's/return PCM_RING - 1 - pcm_fill(r);/return PCM_RING - pcm_fill(r);/' ${PICOPCM_SRC}
+
+picopcm-mutant-underrun-level:
+	${PICOPCM_MUT} picopcm.h \
+	    's/^		return PCM_SILENCE;/		return 0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-any-board:
+	${PICOPCM_MUT} picopcm.c \
+	    's/if (minor(dev) != 0 || board_id() != BOARD_ID_PICOCALC)/if (minor(dev) != 0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-shared-open:
+	${PICOPCM_MUT} picopcm.c \
+	    's/^	if (picoaudio_pcm)$$/	if (0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-unbounded-write:
+	${PICOPCM_MUT} picopcm.c \
+	    's/if (++naps > PCM_STALL_NAPS)/if (++naps < 0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-no-drain:
+	${PICOPCM_MUT} picopcm.c \
+	    's/pcm_fill(&pcm) != 0 \&\& naps < PCM_STALL_NAPS/naps < 0/' ${PICOPCM_SRC}
+
+picopcm-mutant-close-unmuted:
+	${PICOPCM_MUT} picopcm.c \
+	    's/^	picoaudio_mute();$$/	(void)0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-clock-left-on:
+	${PICOPCM_MUT} picopcm.c \
+	    's/PC_REG32(PWM_INTE) = 0;/(void)0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-bell-not-absorbed:
+	${PICOPCM_MUT} picoaudio.c \
+	    's/^	if (picoaudio_pcm)$$/	if (0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-bell-stop-mutes:
+	${PICOPCM_MUT} picoaudio.c \
+	    's/if (!picoaudio_pcm)/if (1)/' ${PICOPCM_SRC}
+
 picoaudio-mutants: \
 	picoaudio-mutant-left-override \
 	picoaudio-mutant-right-override \
@@ -1550,31 +1659,31 @@ picoaudio-mutants: \
 
 picoaudio-mutant-left-override:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_L)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c
+	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_L)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c picopcm.h
 
 picoaudio-mutant-right-override:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_R)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c
+	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_R)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c picopcm.h
 
 picoaudio-mutant-override-high:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/(2UL << 8)/(3UL << 8)/' picoaudio.c
+	    's/(2UL << 8)/(3UL << 8)/' picoaudio.c picopcm.h
 
 picoaudio-mutant-slice-left-on:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/PWM_REG(PWM_CSR) = 0;/(void)0;/' picoaudio.c
+	    's/PWM_REG(PWM_CSR) = 0;/(void)0;/' picoaudio.c picopcm.h
 
 picoaudio-mutant-override-kept:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/^\tpc_pin(PICOCALC_AUDIO_L, PC_FUNC_PWM, 0);$$/\t(void)0;/' picoaudio.c
+	    's/^\tpc_pin(PICOCALC_AUDIO_L, PC_FUNC_PWM, 0);$$/\t(void)0;/' picoaudio.c picopcm.h
 
 picoaudio-mutant-busy-kept:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/bell_on = 0;$$/(void)0;/' picoaudio.c
+	    's/bell_on = 0;$$/(void)0;/' picoaudio.c picopcm.h
 
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
-	    sdspi_test sdstrat_test dump_test picoaudio_test
+	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \

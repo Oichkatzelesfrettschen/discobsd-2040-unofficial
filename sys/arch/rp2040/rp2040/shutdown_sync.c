@@ -51,6 +51,34 @@ shutdown_report_write_errors(void)
 	}
 }
 
+/*
+ * sync() returns at once while another sync holds updlock and passes over a
+ * mount whose superblock lists are locked, so the root device's checkpoint
+ * (bdev_checkpoint(), DIOCCHECKPOINT) is forced here whatever sync() did:
+ * the flash root keeps completed writes only up to its last checkpoint. A
+ * failure latches in the root mount's m_write_error, which
+ * shutdown_report_write_errors() prints, or is printed here when no mount
+ * holds the root.
+ */
+static void
+shutdown_checkpoint_root(void)
+{
+	struct mount *mount_entry;
+	int error;
+
+	error = bdev_checkpoint(rootdev);
+	if (error == 0)
+		return;
+	for (mount_entry = mount; mount_entry < &mount[NMOUNT]; mount_entry++) {
+		if (mount_entry->m_inodp == NULL || mount_entry->m_dev != rootdev)
+			continue;
+		if (mount_entry->m_write_error == 0)
+			mount_entry->m_write_error = error;
+		return;
+	}
+	printf("checkpoint error on dev %o: error %d\n", rootdev, error);
+}
+
 void
 rp2040_shutdown_sync(int howto)
 {
@@ -81,5 +109,6 @@ rp2040_shutdown_sync(int howto)
 	else
 		printf("timeout: %d buffers busy\n", busy_count);
 
+	shutdown_checkpoint_root();
 	shutdown_report_write_errors();
 }

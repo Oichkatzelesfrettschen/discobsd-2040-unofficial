@@ -85,6 +85,7 @@
  * LR that core 0's NMI found stacked, zeros when the NMI went unanswered.
  */
 #define	WD_SITE_STALL		3	/* arg: PC, arg2: LR */
+#define	WD_SITE_FLASH_COMMAND	4	/* arg: the command byte */
 
 #ifdef KERNEL
 extern u_int watchdog_last_reason;	/* REASON at boot */
@@ -92,6 +93,7 @@ extern u_int watchdog_last_site;	/* SCRATCH1 at boot */
 extern u_int watchdog_last_arg;		/* SCRATCH2 at boot */
 extern u_int watchdog_last_arg2;	/* SCRATCH3 at boot */
 
+void watchdog_capture(void);
 void watchdog_init(void);
 void watchdog_site(u_int site, u_int arg);
 #endif

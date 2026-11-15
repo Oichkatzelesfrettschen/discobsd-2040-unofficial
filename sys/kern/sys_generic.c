@@ -279,6 +279,7 @@ ioctl(void)
     case DIOCGETMEDIASIZE:
     case DIOCGETPART:
     case DIOCMEDIAGONE:
+    case DIOCCHECKPOINT:
 #ifdef PICOCALC_ENABLED
     case LCDG_INFO:
     case LCDIOC_GETKEY:

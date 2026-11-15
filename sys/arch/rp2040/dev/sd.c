@@ -163,7 +163,7 @@ static const struct sdspi_ops sd_ops = {
 	sd_xfer, sd_select, sd_speed, sd_micros
 };
 
-static struct sdspi sdcard = { &sd_ops, SD_NONE, 0 };
+static struct sdspi sdcard = { &sd_ops, SD_NONE, 0, 0 };
 static struct diskpart sdpt[MAXPARTITIONS + 1];	/* [0] is the whole card. */
 
 /*
@@ -521,7 +521,7 @@ int
 sddump(dev_t dev, const struct dump_span *span, u_int nspan,
     u_int image, u_int when)
 {
-	struct sd_dumpdev dd = { { &sd_ops, SD_NONE, 0 }, 0 };
+	struct sd_dumpdev dd = { { &sd_ops, SD_NONE, 0, 0 }, 0 };
 	u_char tab[MAXPARTITIONS * 16 + 2];
 	struct diskpart dp;
 	int i, error;

@@ -55,6 +55,11 @@ name a file there, with a page for a PDF.
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) under the PICOCALC definitions | build | observed by `check-console-c17-cross` (`TESTING.md`); `sys/sys/exec.h` no longer declares an empty struct and `sys/sys/inode.h` includes `uio.h` instead of forward-declaring `enum uio_rw`, and `struct exec_params` keeps its 284-byte layout; the objects still build under the kernel's GNU17 profile |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
 | The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
+| `picofetch` and `picotop` (`usr.bin/picofetch`, `usr.bin/picotop`) draw their logo, bars and graph from 79 glyphs uploaded to the bank with `LCDIOC_SETGLYPH` under LITOUT, in the console's sixteen colors, and fall back to ASCII on a terminal without a bank | host | observed by `check-picofetch-host` over fixture readings, as 64-bit and as ILP32 host programs; 39 mutants fail it (`TESTING.md`) |
+| Both run on the PICOCALC kernel, read its sysctl nodes without a failed read and draw through the bank on the modeled panel | Renode | observed by `check-renode-picocalc` on `flash-PICOCALC.bin`: the report's lines, the logo's 840 squares against the panel pixels, picotop's frame and process row; the battery, XIP and bus values are model constants |
+| `picofetch` and `picotop` on the panel: glyph shapes, colors, the battery and backlight readings, the swap exchanges a picotop refresh costs beside a running job | board | not run |
+| Core 1 state and counters in both programs | build | PICOCALC and PICOCALC_PSRAM carry no `CORE1` option (`CORE1.md`), so both print `core1 not in this kernel` there; the PICO kernel's values are shown from the fixture only |
+| Die temperature and VSYS in both programs | Renode | both read `machdep.adc_temp_mc` and `machdep.adc_vsys_mv` (`CPU_ADC_TEMP`, `CPU_ADC_VSYS`); `check-renode-picocalc` holds the form of the `Sensors` line, and the values there (25.7 C, 0.00 V) come from Renode's ADC model, so the board's readings are unmeasured |
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
 | The keyboard controller answers at 0x1F and its events type | board | not run |
 | The board runs from USB-C with no cells | board | observed by the owner: it stays off with no cells and runs with them (below) |
@@ -73,7 +78,7 @@ name a file there, with a page for a PDF.
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
 | The SD socket's card-detect polarity, the fast clock at 12.5 MHz on this board's traces, and the busy times of real cards | board | not run |
 | The crash-dump writer (`sddump()`, `rp2040/dump.c`, `dumpsys()`) links into PICOCALC and PICOCALC_PSRAM only | build | observed by `check-dump-writer-link` on the symbol tables of all four kernels, with a swapped-role control that exits 1 |
-| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (56 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (23 mutants of `sdspi.c` rejected) |
+| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (56 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (30 mutants of `sdspi.c` rejected) |
 | `savecore` saves a dump the kernel's stream wrote, names a different running kernel, advances the bounds file, and leaves the dump on the card for a damaged segment, header checksum, version, segment count or length, one byte too little space with and without a reserve, and a copy that cannot be written; an unfinished dump reads as none | host | observed by `check-picocalc-host` (`dump_test`, 9 mutants of `savecore.c` rejected) |
 | On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 48,136, two u areas of 3,072, `dump.0` 55,808 bytes; a kernel that dumps only on the reset path fails the panic stage |
 | A panic on the board writes a dump that `savecore` saves | board | not run: the bench board is a Pico without the PicoCalc's SD socket |
@@ -98,7 +103,7 @@ table and the sources that agree):
 | UART1, expansion header | GP8 TX, GP9 RX | none |
 | ST7365P panel, SPI1 | GP10 SCK, GP11 TX, GP12 RX, GP13 CS, GP14 D/C, GP15 reset | `st7365p.c` |
 | SD card, SPI0 | GP16 RX, GP17 CS, GP18 SCK, GP19 TX, GP22 card detect | `sd.c`, `sdspi.c`, `sd0` and `rsd0` |
-| Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone |
+| Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone; `picopcm.c`, `/dev/audio` |
 
 The vendor's `sd_boot/config.h` puts left audio on GP28; the schematic
 wires PWM_L to GP26, and GP28 reaches only the expansion header.
@@ -629,12 +634,17 @@ the source and this section cite its sections by title.
 
 Initialization (Mode Selection and Initialization; Card Initialization
 and Identification Process): 80 clocks with chip select high, CMD0
-(CRC 0x95) until R1 reads idle, CMD8 with 0x1AA (CRC 0x87), ACMD41 until the
+(CRC 0x95) until R1 reads idle, CMD8 with 0x1AA (CRC 0x87), CMD59 with
+option 1, ACMD41 until the
 card leaves idle within one second, CMD58 for the OCR, CMD16 to 512 bytes for
-a byte-addressed card, and CMD9 for the capacity. CMD0 and CMD8 are the
-only commands that carry a checked CRC in SPI mode (Bus Transfer
-Protection); every other
-command sends a dummy CRC and CRC checking stays off. CMD8 answered as an
+a byte-addressed card, and CMD9 for the capacity. Every command frame
+carries its computed CRC7 and every data block its CRC16 (Bus Transfer
+Protection). A card checks the CRC of CMD0 and CMD8 always; CMD59, sent
+before ACMD41 as that section asks, turns checking on for the rest, after
+which the card refuses a corrupted command or written block and the driver
+fails a read whose CRC16 disagrees with the bytes received (`EIO`). A card
+that answers CMD59 as illegal runs unchecked, as SPI mode does after reset.
+CMD8 answered as an
 illegal command marks a version 1.x card and the OCR's CCS bit marks
 block addressing for a version 2.0 or later card; an echo that does not
 return the voltage range and check pattern, an illegal CMD55 or ACMD41 (a
@@ -647,8 +657,10 @@ after one second. The clock runs at 398 kHz until initialization finishes
 
 A transfer is one 512-byte sector per command, CMD17 for a read and CMD24
 for a write. A read waits 100 ms for the 0xFE start token and fails on a
-data error token; a write checks the data response token and then waits for
-the card to stop signaling busy. Both busy waits, the wait for ready before
+data error token; a write checks the data response token, waits for
+the card to stop signaling busy and then reads the card's status with CMD13,
+because the data response accepts a block before the card programs it and
+only the R2 status reports a program that failed. Both busy waits, the wait for ready before
 each command and the initialization loop have a time limit in the model's
 and the kernel's microsecond clock, so a stuck card fails the transfer
 (`EIO`) instead of hanging the caller. The driver runs a transfer in the
@@ -1042,9 +1054,23 @@ callout stops it 100 ms later; a BEL that arrives while the tone
 sounds is absorbed, and a panic suppresses it because callouts no longer
 run. The 25 percent duty and the 100 ms length are unmeasured choices:
 the board run sets the loudness and checks that the amplifier is silent
-between tones. A `/dev/audio` with a PCM ring is the larger piece that
-remains; it needs a DMA or interrupt-fed sample path on the same slice and
-a decision on sample rate and format.
+between tones.
+
+`/dev/audio` ships (`picopcm.c`, character major 13): write only, one
+opener, unsigned 8-bit mono at 8,000 samples per second on both channels.
+Slice 5 carries a 500 kHz carrier (`clk_sys` / 250) whose duty is the
+sample, in 250 steps; slice 6, which routes no pin, wraps 8,000 times a
+second and its wrap interrupt moves one byte from a 256-byte ring to slice
+5's compare register. An empty ring plays the rest level, half duty. The
+interrupt keeps the NVIC's reset priority, SysTick's, so the two never
+nest. A flash erase masks it for the erase's length, which pauses the
+sound and loses no sample. A writer that finds the ring full sleeps 4 ms
+at a time and fails with `EIO` after 500 ms without progress; the close
+plays what is queued, stops the sample clock and holds both pins low as
+the bell's stop does. A BEL while the device is open is absorbed, and the
+open fails with `ENXIO` on a bare Pico. The format, the rate and the
+carrier are choices no board has heard: the board run checks the level,
+the carrier's absence at the speaker, and the pause a root write causes.
 
 ### Calculator application and tile graphics
 

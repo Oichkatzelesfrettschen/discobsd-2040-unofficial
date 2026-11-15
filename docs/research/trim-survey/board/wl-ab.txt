@@ -1,0 +1,261 @@
+### uname -a; df / | tail -1
+DiscoBSD pico 2.7 PICO#1 rp2040
+root              979      750      229    76%    /
+[1;32moperator@pico[0m:[1;34m~[0m$ [K
+### cd /tmp
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### echo 'char *ctime(long *); long time(long *); int printf(char *, ...);' >d.c
+[1;32moperator@pico[0m:[1;34m/tmp[0m$
+### echo 'int main(void) { long t = time(0); printf("%s", ctime(&t)); return 0; }' >>d.c
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sync
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 3
+root_reads 1953
+root_read_bytes 1999872
+root_writes 28
+root_write_bytes 28672
+swap_reads 18
+swap_read_bytes 93144
+swap_writes 23
+swap_write_bytes 108916
+map_writes 28
+checkpoint_attempts 3
+checkpoint_successes 3
+checkpoint_errors 0
+root_program_pages 192
+root_program_bytes 49152
+root_erase_sectors 12
+root_erase_bytes 49152
+swap_program_pages 433
+swap_program_bytes 110848
+swap_erase_sectors 31
+swap_erase_bytes 126976
+dirty_transitions 21
+dirty_rewrites 7
+eviction_writes 15
+buffer_waits 0
+swapram_attempts 34
+swapram_admissions 27
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 3
+root_reads 2063
+root_read_bytes 2112512
+root_writes 28
+root_write_bytes 28672
+swap_reads 21
+swap_read_bytes 110572
+swap_writes 26
+swap_write_bytes 125832
+map_writes 28
+checkpoint_attempts 3
+checkpoint_successes 3
+checkpoint_errors 0
+root_program_pages 192
+root_program_bytes 49152
+root_erase_sectors 12
+root_erase_bytes 49152
+swap_program_pages 500
+swap_program_bytes 128000
+swap_erase_sectors 36
+swap_erase_bytes 147456
+dirty_transitions 21
+dirty_rewrites 7
+eviction_writes 15
+buffer_waits 0
+swapram_attempts 36
+swapram_admissions 28
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### time cc -o d d.c; sync
+12.36 real         0.03 user         2.69 sys
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 4
+root_reads 3526
+root_read_bytes 3610624
+root_writes 195
+root_write_bytes 199680
+swap_reads 73
+swap_read_bytes 436596
+swap_writes 82
+swap_write_bytes 440912
+map_writes 195
+checkpoint_attempts 5
+checkpoint_successes 5
+checkpoint_errors 0
+root_program_pages 992
+root_program_bytes 253952
+root_erase_sectors 62
+root_erase_bytes 253952
+swap_program_pages 1740
+swap_program_bytes 445440
+swap_erase_sectors 122
+swap_erase_bytes 499712
+dirty_transitions 117
+dirty_rewrites 276
+eviction_writes 83
+buffer_waits 0
+swapram_attempts 54
+swapram_admissions 34
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### cc -o d d.c; sync
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 4
+root_reads 4787
+root_read_bytes 4901888
+root_writes 358
+root_write_bytes 366592
+swap_reads 94
+swap_read_bytes 591088
+swap_writes 103
+swap_write_bytes 595404
+map_writes 358
+checkpoint_attempts 7
+checkpoint_successes 7
+checkpoint_errors 0
+root_program_pages 4608
+root_program_bytes 1179648
+root_erase_sectors 288
+root_erase_bytes 1179648
+swap_program_pages 2349
+swap_program_bytes 601344
+swap_erase_sectors 165
+swap_erase_bytes 675840
+dirty_transitions 209
+dirty_rewrites 545
+eviction_writes 149
+buffer_waits 0
+swapram_attempts 69
+swapram_admissions 42
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### cc -o d d.c; sync
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 4
+root_reads 6047
+root_read_bytes 6192128
+root_writes 519
+root_write_bytes 531456
+swap_reads 143
+swap_read_bytes 860268
+swap_writes 156
+swap_write_bytes 853640
+map_writes 519
+checkpoint_attempts 8
+checkpoint_successes 8
+checkpoint_errors 0
+root_program_pages 6656
+root_program_bytes 1703936
+root_erase_sectors 416
+root_erase_bytes 1703936
+swap_program_pages 3366
+swap_program_bytes 861696
+swap_erase_sectors 236
+swap_erase_bytes 966656
+dirty_transitions 300
+dirty_rewrites 814
+eviction_writes 215
+buffer_waits 0
+swapram_attempts 83
+swapram_admissions 45
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### dd if=/dev/zero of=z bs=1k count=24 2>/dev/null; sync
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 4
+root_reads 6433
+root_read_bytes 6587392
+root_writes 556
+root_write_bytes 569344
+swap_reads 152
+swap_read_bytes 914088
+swap_writes 165
+swap_write_bytes 908484
+map_writes 556
+checkpoint_attempts 10
+checkpoint_successes 10
+checkpoint_errors 0
+root_program_pages 7552
+root_program_bytes 1933312
+root_erase_sectors 472
+root_erase_bytes 1933312
+swap_program_pages 3583
+swap_program_bytes 917248
+swap_erase_sectors 251
+swap_erase_bytes 1028096
+dirty_transitions 331
+dirty_rewrites 834
+eviction_writes 218
+buffer_waits 0
+swapram_attempts 91
+swapram_admissions 50
+[1;32moperator@pico
+### echo x >one; sync
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 4
+root_reads 6666
+root_read_bytes 6825984
+root_writes 563
+root_write_bytes 576512
+swap_reads 158
+swap_read_bytes 949456
+swap_writes 171
+swap_write_bytes 942828
+map_writes 563
+checkpoint_attempts 11
+checkpoint_successes 11
+checkpoint_errors 0
+root_program_pages 7744
+root_program_bytes 1982464
+root_erase_sectors 484
+root_erase_bytes 1982464
+swap_program_pages 3719
+swap_program_bytes 952064
+swap_erase_sectors 261
+swap_erase_bytes 1069056
+dirty_transitions 335
+dirty_rewrites 835
+eviction_writes 220
+buffer_waits 0
+swapram_attempts 95
+swapram_admissions 52
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### rm -f d d.c z one; sync
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 4
+root_reads 7021
+root_read_bytes 7189504
+root_writes 579
+root_write_bytes 592896
+swap_reads 167
+swap_read_bytes 1000204
+swap_writes 180
+swap_write_bytes 993576
+map_writes 579
+checkpoint_attempts 12
+checkpoint_successes 12
+checkpoint_errors 0
+root_program_pages 8128
+root_program_bytes 2080768
+root_erase_sectors 508
+root_erase_bytes 2080768
+swap_program_pages 3920
+swap_program_bytes 1003520
+swap_erase_sectors 276
+swap_erase_bytes 1130496
+dirty_transitions 342
+dirty_rewrites 835
+eviction_writes 223
+buffer_waits 0
+swapram_attempts 101
+swapram_admissions 55
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### ./d 2>&1 | head -1; ls /tmp | wc -l
+./d: not found
+       0
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K

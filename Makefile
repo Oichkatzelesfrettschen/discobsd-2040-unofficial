@@ -394,6 +394,14 @@ check-record-header-contracts: check-python .WAIT symlinks
 		    --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/record-header-contracts.json
 
+check-character-io-headers: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/character_io_headers.py --root ${TOPSRC:Q} \
+		    --host-cc ${HOST_CC:Ucc:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/character-io-headers.json
+
+.PHONY: check-character-io-headers
+
 check-string-header-contracts: check-python .WAIT symlinks
 		@mkdir -p .build-logs
 		${PYTHON} tools/c17/string_header_contracts.py --root ${TOPSRC:Q} \
@@ -646,7 +654,13 @@ check-swap-exchange-headroom:
 check-swap-exchange-inplace:
 		${MAKE} -C tests/kernel check-swap-exchange-inplace
 
-.PHONY: check-swap-exchange-headroom check-swap-exchange-inplace
+# The USB console driver and the tty layer under modeled bus events; see
+# sys/arch/rp2040/doc/TESTING.md. check-kernel includes it.
+check-usb-console:
+		${MAKE} -C tests/kernel check-usb-console
+
+.PHONY: check-swap-exchange-headroom check-swap-exchange-inplace \
+	check-usb-console
 
 # Verify callback types and dispatch against the production architecture sources.
 check-kernel-abi-contracts: check-python
@@ -818,6 +832,19 @@ check-libc-bounded-string:
 		${MAKE} -C tests/libc_contracts check-bounded-string
 
 .PHONY: check-libc-bounded-string
+
+check-libc-byte-search:
+		${MAKE} -C tests/libc_contracts check-byte-search
+
+check-libc-byte-search-instructions:
+		${MAKE} -C tests/libc_contracts check-byte-search-instructions
+
+.PHONY: check-libc-byte-search check-libc-byte-search-instructions
+
+check-libc-character-io:
+		${MAKE} -C tests/libc_contracts check-character-io
+
+.PHONY: check-libc-character-io
 
 check-libc-absolute-value:
 		${MAKE} -C tests/libc_contracts check-absolute-value
@@ -1382,6 +1409,9 @@ check-dhara-metadata: check-python
 check-dhara-amplification: check-python
 		${MAKE} -C tests/rp2040/dhara_amplification check PYTHON=${PYTHON:Q}
 
+check-flash-checkpoint: check-python
+		${MAKE} -C tests/rp2040/flash_checkpoint check PYTHON=${PYTHON:Q}
+
 # The production collector trigger of sys/arch/rp2040/dhara/map.c against an
 # adversarial tail-live workload, resets with resume, and a rewrite-cost
 # ceiling; tests/rp2040/dhara_trigger/check.sh states each and its mutants.
@@ -1518,6 +1548,7 @@ check-namei-user-path: check-python
 		sh tests/rp2040/namei_path/check.sh
 
 check-rp2040-usercopy-span: check-python
+		${PYTHON} tests/libc_contracts/make_query_test.py
 		${PYTHON} tests/rp2040/usercopy_span/check.py \
 		    --root ${TOPSRC:Q} --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/usercopy-span-contracts.json
@@ -1571,6 +1602,12 @@ check-usb-get-descriptor:
 
 check-flash-device-bounds:
 		${MAKE} -C tests/rp2040/flash_device_bounds check
+
+check-adc-conversion:
+		${MAKE} -C tests/rp2040/adc_conversion check
+
+check-gpio-requests:
+		${MAKE} -C tests/rp2040/gpio_requests check
 
 check-clock-catchup:
 		${MAKE} -C tests/rp2040/clock_catchup check
@@ -1633,6 +1670,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger \
+		check-flash-checkpoint \
 		check-netbsd-imports check-v7fs-core check-storage-recovery \
 		check-storage-recovery-models check-msdosfs-core check-fat32-tail check-fsutil-clock \
 		check-flash-sparse \
@@ -1643,17 +1681,17 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-standard-requests \
 		check-usb-set-configuration \
 		check-usb-set-address-interface check-usb-get-descriptor \
-		check-flash-device-bounds check-clock-catchup \
+		check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-psram-pio \
 		check-loader-stamp check-picocalc-kbd-bootloader
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-sh-editor \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
-CROSS_CONTRACT_GATES=	check-signal-sets-cross check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-public-header-inclusion check-network-header-contracts \
+CROSS_CONTRACT_GATES=	check-signal-sets-cross check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-character-io-headers check-public-header-inclusion check-network-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
@@ -1754,6 +1792,12 @@ check-puzzlebox-host:
 
 check-calc-host: check-python .WAIT symlinks
 		${MAKE} -C usr.bin/calc test
+
+# picofetch and picotop over fixture readings: the renderers, their three
+# drawing tiers and the glyph shapes, then the mutants. The sysctl collector
+# of usr.bin/picofetch/hwinfo_sysctl.c runs on no host.
+check-picofetch-host: check-python
+		${MAKE} -C usr.bin/picofetch test
 
 check-sh-editor:
 		${MAKE} -C bin/sh/tests test
@@ -1889,11 +1933,14 @@ check-repository-coverage: check-python
 # The POSIX conformance run of bin/sh builds the shell as a 32-bit host
 # binary (it keeps pointers in int), so it needs a Linux x86-64 host with
 # the 32-bit libraries and stands apart from the portable host tier.
+# board-break.sh rebuilds it against a model of the RP2040 break.
 check-posix-sh:
 		${PYTHON} tools/test_execution.py run shell.posix.ilp32 -- \
 		    sh bin/sh/tests/posix-sh.sh
 		${PYTHON} bin/sh/tests/check_shell_witnesses.py
 		${PYTHON} tests/sysctl_status/check_workload.py ${TOPSRC} bin/sh/tests/out/sh
+		PYTHON=${PYTHON:Q} ${PYTHON} tools/test_execution.py run shell.board-break.ilp32 -- \
+		    sh bin/sh/tests/board-break.sh
 
 # The arm cross toolchain and a built tree: isolated contract directories run
 # concurrently. Kernel gates stay ordered because they rebuild and inspect the
@@ -1972,6 +2019,13 @@ check-libc-xip-rom: check-python
 
 .PHONY: check-libc-xip-rom
 
+check-libc-xip-slots: check-python
+		${PYTHON} tests/libc_xip_slots/run.py \
+		    --cc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    --objcopy ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-objcopy
+
+.PHONY: check-libc-xip-slots
+
 check-native-call-veneer: check-python
 		${PYTHON} tests/native_linker/veneers.py
 
@@ -1987,7 +2041,9 @@ check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-exec-dispatch-qemu
 		${MAKE} check-libc-xip-object-abi
 		${MAKE} check-libc-xip-rom
+		${MAKE} check-libc-xip-slots
 		${MAKE} check-native-call-veneer
+		${MAKE} check-libc-byte-search-instructions
 		${MAKE} -C tests/rp2040/uarea_exchange check
 		REQUIRE_QEMU=1 ${MAKE} -C tests/rp2040/divider_helpers check
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
@@ -2206,7 +2262,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-flash-checkpoint check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \
@@ -2246,7 +2302,7 @@ installfs:
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-sh-editor check-tar-host \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-sh-editor check-tar-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \

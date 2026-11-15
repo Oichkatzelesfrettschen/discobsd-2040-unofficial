@@ -5,7 +5,8 @@
 This document turns the memory and storage architecture audit into a bounded
 engineering program. It describes proposed work and acceptance contracts. It
 does not report that the watchdog, telemetry, 32 KiB SwapRAM pool, compressed
-flash format, checkpoint batching, or RAM-staged rewrite mechanism exists.
+flash format, or RAM-staged rewrite mechanism exists. Checkpoint batching
+exists as the A04 policy recorded below.
 
 The submitted audit snapshot is commit
 `728677b8ff4330decf579b8ea03693ee904bb592`. The size measurements and
@@ -304,6 +305,25 @@ write failures receive defined results.
 Completion requires a declared acknowledgment boundary even when ordinary
 writeback generates zero new device requests. Host-side evidence capture must
 not write its own result into the filesystem under test.
+
+Implemented policy: checkpoint on sync and group fill. `flstrategy()` no
+longer forces a checkpoint per write request. The explicit flush operation is
+the `DIOCCHECKPOINT` disk ioctl (`sys/sys/disk.h`), which `ufs_sync()` issues
+last, after its own writes and whether or not it wrote or failed, so `sync()`,
+update(8), `fsync()`, `IO_SYNC` writes, unmount and shutdown reach it; the
+flash driver's last close also forces one, and Dhara writes one when a write
+fills a group. The acknowledgment boundary is the return of `ufs_sync()`: a
+write completed before it is durable when it returns 0. A checkpoint failure
+is `EIO` to `fsync()`, synchronous writes and unmount and latches in
+`m_write_error`; `sync()` discards the status, so the latch carries it. A
+driver whose ioctl rejects the command has no checkpoint and syncs as before.
+`check-flash-checkpoint` runs the decisive case (a completed write, clean
+buffers, then the checkpoint alone) over the real driver and Dhara with a
+NOR model and simulated resets, and `kernel.ufs-disk.ilp32` checks the call
+map above with zero dirty buffers, after a failed flush and on failure. The
+host results do not cover torn programs, power loss inside an erase or
+program, read-only remount, or an audit of ordering-sensitive writers; the
+board reset test (W03) has not been run.
 
 ### H02 and H08 -- telemetry and coherent export
 

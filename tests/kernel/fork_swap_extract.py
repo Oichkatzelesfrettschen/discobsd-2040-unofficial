@@ -26,6 +26,17 @@ def main() -> None:
     offset_end = ram.index("} sr_tab[NPROC];", offset_start) + len("} sr_tab[NPROC];")
     ram_state += ram[offset_start:offset_end]
     ram_state += "\nstatic int sr_admit, swapramdebug;\n"
+    # The probe scan reads process bytes; the fixture keeps logical addresses,
+    # so its pointer is taken through the fixture's translation.
+    probe = ram[
+        ram.index("#ifdef STORAGE_STATS\n/*\n * Admission probe") : ram.index(
+            "/*\n * Claim pool space"
+        )
+    ]
+    scan_pointer = "const u_char *p = (const u_char *) src;"
+    if scan_pointer not in probe:
+        raise SystemExit("fork_swap_extract: probe scan pointer line changed")
+    ram_state += probe.replace(scan_pointer, "const u_char *p = fixture_logical_bytes (src, len);")
     ram_state += "static unsigned int sr_codec_owner;\n"
     ram_functions = "\n".join(
         extract_function(ram, signature, signature)

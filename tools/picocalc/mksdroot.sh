@@ -48,8 +48,13 @@ a) MINOR=1 ;; b) MINOR=2 ;; c) MINOR=3 ;; d) MINOR=4 ;;
 *) echo "mksdroot: PART must be one of a b c d" >&2; exit 2 ;;
 esac
 
+# The image is built beside OUT and renamed over it once both checks pass,
+# so a failed run leaves the previous OUT intact and no truncated target
+# for make to treat as current. The scratch tree copies read-only
+# directories, which chmod reopens before the plain recursive remove.
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/mksdroot.XXXXXX")
-trap 'chmod -R u+w "$WORK" 2>/dev/null; rm -rf "$WORK"' EXIT INT TERM
+NEW=$OUT.new.$$
+trap 'chmod -R u+w "$WORK" 2>/dev/null; rm -r "$WORK"; rm -f "$NEW"' EXIT HUP INT TERM
 
 cp -pR "$DESTDIR" "$WORK/tree"
 chmod u+w "$WORK/tree/etc" "$WORK/tree/etc/fstab" 2>/dev/null || true
@@ -86,13 +91,14 @@ for n in 1 2 3 4; do
 	done
 done
 
-rm -f "$OUT"
-"$FSUTIL" --new --size="$KBYTES" --manifest="$WORK/manifest" "$OUT" \
+rm -f "$NEW"
+"$FSUTIL" --new --size="$KBYTES" --manifest="$WORK/manifest" "$NEW" \
     "$WORK/tree" >/dev/null
-"$FSUTIL" --check "$OUT"
-size=$(wc -c < "$OUT")
+"$FSUTIL" --check "$NEW"
+size=$(wc -c < "$NEW")
 [ "$size" -eq $((KBYTES * 1024)) ] || {
 	echo "mksdroot: $OUT holds $size bytes, not $((KBYTES * 1024))" >&2
 	exit 1
 }
+mv "$NEW" "$OUT"
 echo "mksdroot: $OUT, $KBYTES kbytes, root /dev/sd0$PART (minor $MINOR)"

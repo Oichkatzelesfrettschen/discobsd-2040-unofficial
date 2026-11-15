@@ -625,6 +625,27 @@ test_trim(void)
 	power_cycle(t);
 	expect(block_is(blkno, 2), t, "a trimmed block written again reads back");
 	expect(trim(99999, 0) == EINVAL, t, "a block past the partition");
+	{
+		/*
+		 * At the auto_gc() threshold, where dhara_map_trim() would collect
+		 * before looking the sector up: all but the last sector written,
+		 * a few rewritten so the journal holds garbage.
+		 */
+		const daddr_t last = flblocks - 1;
+		unsigned long pages, erases;
+		daddr_t b;
+
+		for (b = 0; b < last; b++)
+			write_block(t, b, 3);
+		for (b = 0; b < 60; b++)
+			write_block(t, b, 4);
+		expect(checkpoint() == 0, t, "full checkpoint");
+		pages = program_pages;
+		erases = erase_sectors;
+		expect(trim(last, 0) == 0 && program_pages == pages &&
+		    erase_sectors == erases, t,
+		    "a trim of an unmapped block programs nothing");
+	}
 	expect(model_faults == 0, t, "NOR contract kept");
 }
 

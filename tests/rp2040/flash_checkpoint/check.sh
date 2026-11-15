@@ -150,6 +150,16 @@ mutate "$flash" "$work/flash-user-trim.c" \
 build "$work/flash-user-trim.c" "$work/oracle-user-trim"
 rejects "$work/oracle-user-trim" trim
 
+# A trim that skips the lookup runs auto_gc() for an unmapped sector.
+mutate "$flash" "$work/flash-trim-no-lookup.c" \
+	'			if (err != DHARA_E_NOT_FOUND)
+				error = EIO;
+			continue;' \
+	'			if (err != DHARA_E_NOT_FOUND)
+				error = EIO;'
+build "$work/flash-trim-no-lookup.c" "$work/oracle-trim-no-lookup"
+rejects "$work/oracle-trim-no-lookup" trim
+
 echo "flash_checkpoint: PASS (reset, checkpoint, group fill, flush without" \
 	"a write, wear bound, idle checkpoint; per-request, missing-ioctl," \
-	"no-op checkpoint, read-only-opener and user-trim mutations rejected)"
+	"no-op checkpoint, read-only-opener, user-trim and trim-lookup mutations rejected)"

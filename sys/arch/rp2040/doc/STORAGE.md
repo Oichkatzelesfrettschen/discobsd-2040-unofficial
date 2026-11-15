@@ -256,8 +256,15 @@ and 350).
 `flstrategy()` now returns after `dhara_map_write()` and forces no
 checkpoint. `ufs_sync()` ends with `DIOCCHECKPOINT`, which runs
 `fl_checkpoint()`, so sync(2), the 30-second update(8) call, fsync(2),
-`IO_SYNC` writes, unmount and shutdown each force one, and so does the
-driver's last close; a checkpoint with nothing pending programs nothing. A
+`IO_SYNC` writes to files and directories, unmount and shutdown each force
+one, and so does the driver's last close; a checkpoint with nothing pending
+programs nothing. An `IO_SYNC` write (a descriptor opened `O_FSYNC`) to a block
+device node has no filesystem to sync, so `rwip()` calls `bdev_checkpoint()` on
+the written device after the buffer write and returns its error; a write
+without `IO_SYNC` takes none. fsync(2) on a block device descriptor syncs the
+filesystem that holds the device node, so its checkpoint goes to that
+filesystem's device: the same Dhara map while the node lives on the flash root,
+as `/dev` does on the shipped image. A
 reset or power loss discards the writes since the last checkpoint, forced
 or written by a group fill, and `dhara_map_resume()` returns the device to
 the state that checkpoint recorded. Because a filled group checkpoints
@@ -282,7 +289,9 @@ the open-group bound above. Shutdown does not depend on that pass:
 did. `reboot -n` (`RB_NOSYNC`) skips both, as it skips the buffer flush.
 
 A checkpoint failure reaches fsync(2), synchronous writes and unmount as
-`EIO` and latches in the mount's `m_write_error`, under the rule that
+`EIO`. Through `ufs_sync()` it also latches in the mount's `m_write_error`
+(the synchronous block-device write above returns it without a latch, as it
+holds no mount), under the rule that
 already governs a failed buffer write: the first error is kept, every later
 `ufs_sync()` of that mount returns it, and nothing clears it while the
 mount exists. The slot is reset only when a mount is made (`mountfs()` loads

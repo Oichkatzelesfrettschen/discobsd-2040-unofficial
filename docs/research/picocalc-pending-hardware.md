@@ -27,6 +27,7 @@ in this order, because each later row needs the earlier device.
 | The keyboard controller answers at 0x1F and its events type | console login | not run |
 | `/dev/lcdgfx` shapes, timings and text restore | `tests/rp2040/lcdgfxtest` | not run |
 | The tone is audible, 1 kHz for 100 ms at 25 percent duty | console bell | not run |
+| `/dev/audio` plays 8 kHz samples at a usable level with no audible carrier, and a root write pauses it without losing samples | `cat` of a sample file to `/dev/audio` during a `dd` to the root | not run |
 | Battery, backlight and power-off registers; split-phase key polling | `sysctl machdep.picocalc` | not run |
 | SD card-detect polarity, the 12.5 MHz clock and busy times of real cards | `sd0` probe and transfers | not run |
 | A UFS partition on the card mounts beside the flash root; `fdisk` and `mkfs` through `rsd0` | console procedure in `PICOCALC.md` | not run |

@@ -98,7 +98,7 @@ table and the sources that agree):
 | UART1, expansion header | GP8 TX, GP9 RX | none |
 | ST7365P panel, SPI1 | GP10 SCK, GP11 TX, GP12 RX, GP13 CS, GP14 D/C, GP15 reset | `st7365p.c` |
 | SD card, SPI0 | GP16 RX, GP17 CS, GP18 SCK, GP19 TX, GP22 card detect | `sd.c`, `sdspi.c`, `sd0` and `rsd0` |
-| Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone |
+| Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone; `picopcm.c`, `/dev/audio` |
 
 The vendor's `sd_boot/config.h` puts left audio on GP28; the schematic
 wires PWM_L to GP26, and GP28 reaches only the expansion header.
@@ -1005,9 +1005,23 @@ callout stops it 100 ms later; a BEL that arrives while the tone
 sounds is absorbed, and a panic suppresses it because callouts no longer
 run. The 25 percent duty and the 100 ms length are unmeasured choices:
 the board run sets the loudness and checks that the amplifier is silent
-between tones. A `/dev/audio` with a PCM ring is the larger piece that
-remains; it needs a DMA or interrupt-fed sample path on the same slice and
-a decision on sample rate and format.
+between tones.
+
+`/dev/audio` ships (`picopcm.c`, character major 13): write only, one
+opener, unsigned 8-bit mono at 8,000 samples per second on both channels.
+Slice 5 carries a 500 kHz carrier (`clk_sys` / 250) whose duty is the
+sample, in 250 steps; slice 6, which routes no pin, wraps 8,000 times a
+second and its wrap interrupt moves one byte from a 256-byte ring to slice
+5's compare register. An empty ring plays the rest level, half duty. The
+interrupt keeps the NVIC's reset priority, SysTick's, so the two never
+nest. A flash erase masks it for the erase's length, which pauses the
+sound and loses no sample. A writer that finds the ring full sleeps 4 ms
+at a time and fails with `EIO` after 500 ms without progress; the close
+plays what is queued, stops the sample clock and holds both pins low as
+the bell's stop does. A BEL while the device is open is absorbed, and the
+open fails with `ENXIO` on a bare Pico. The format, the rate and the
+carrier are choices no board has heard: the board run checks the level,
+the carrier's absence at the speaker, and the pause a root write causes.
 
 ### Calculator application and tile graphics
 

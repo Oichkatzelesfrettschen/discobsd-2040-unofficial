@@ -185,6 +185,16 @@ major 12
 minor 1
 mode 600
 
+#
+# The PicoCalc's sample audio, character major 13
+# (sys/arch/rp2040/dev/picopcm.c): unsigned 8-bit mono at 8,000 samples per
+# second, write only, one opener. The open fails on a bare Pico.
+#
+cdev /dev/audio
+major 13
+minor 0
+mode 622
+
 #closure lcdgfx
 #
 # The PicoCalc's pixel device, minor 1 of the console's character major 10

@@ -27,8 +27,9 @@ def records(path: Path, fields: int) -> list[list[str]]:
     return records_text(path.read_text(), str(path), fields)
 
 
-# Character majors past 11 in the RP2040 cdevsw: 12, the general-purpose pins.
-UNION_CDEVSW_ROWS = 1
+# Character majors past 11 in the RP2040 cdevsw: 12, the general-purpose
+# pins, and 13, the PicoCalc sample audio.
+UNION_CDEVSW_ROWS = 2
 
 
 def count_initializer_rows(source: str, declaration: str) -> int:

@@ -1,0 +1,27 @@
+{
+  "evidence_class": "logged-non-hardware-aggregate",
+  "source_commit": "9f289c6710b42378efdb4b132edfcfae6d5e17c2",
+  "source_tree": "af4f5b4bba6b123b42953b8bec559d7c95ea3e92",
+  "included_main": "a1b31e557ffd39de828b5f59a4fe89a7a17a8c2f",
+  "invocation_id": "rp2040-check-local-20261115T040730Z-1581828-83ab6baa",
+  "state": "completed",
+  "exit_code": 0,
+  "elapsed_seconds": 2588.813,
+  "build_elapsed_seconds": 84.544,
+  "check_elapsed_seconds": 2504.262,
+  "retained_directory": ".build-logs/bounded-sort-qualification/aggregate-complete",
+  "sha256": {
+    "status.json": "aa26e0ef6a7fdcd87fff87f74d35d1f8655d1f63fab3c65d35e0598422481e37",
+    "build.status.json": "44d1b2cf970c48d6eeb14a4f5b0cabced754ec0b0f98153ac9d6314ad1dba833",
+    "build.log": "8e75d9432cea9777b9f892e72ad9678347c0b9f5e211dad0fb6fbeba55146a50",
+    "check.status.json": "1057494c1546014279d44ec944d17be012e5733fe76b2f856351d36d80acb46c",
+    "check.log": "1d8774df949dc32a3b0cca888541d5bf44a9d17368931550b9b12050b525d5c8"
+  },
+  "calculator_mutations": {
+    "rejected": 21,
+    "total": 21,
+    "unjudged": 0
+  },
+  "frame_source_hashes_checked": 14,
+  "scope": "Selected lint, host, POSIX shell, cross, qemu-user, host-package and board-build tiers; configured skips and expected shell failures remain in the log. No physical-board execution."
+}

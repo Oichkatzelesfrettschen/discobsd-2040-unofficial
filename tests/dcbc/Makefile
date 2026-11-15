@@ -167,7 +167,7 @@ check-peak:
 # The heap-leak mutants are rejected only by the -m32 peak run, so without
 # the 32-bit C library they are reported UNJUDGED; REQUIRE_ILP32=1 fails.
 MUTATE=		HOSTCC="${HOSTCC}" BISON="${BISON}" LEX_HOST="${LEX_HOST}" \
-		${PYTHON} -I mutate.py --root ${TOPSRC} --golden golden.json \
+		${PYTHON} -u -I mutate.py --root ${TOPSRC} --golden golden.json \
 		--work build/mutants
 
 check-mutants: build/native/dc/dc build/native/bc/bc

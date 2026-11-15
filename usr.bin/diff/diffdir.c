@@ -21,7 +21,7 @@ void		 setfile(char **fpp, char **epp, char *file);
 void		 scanpr(struct dir *, int, char *, char *, char *, char *, char *);
 void		 only(struct dir *, int);
 struct dir	*setupdir(char *);
-int		 entcmp();
+int		 entcmp(const void *, const void *);
 void		 compare(struct dir *);
 void		 calldiff(char *);
 int		 ascii(int);
@@ -224,9 +224,9 @@ setupdir(cp)
 }
 
 int
-entcmp(d1, d2)
-	struct dir *d1, *d2;
+entcmp(const void *left, const void *right)
 {
+	const struct dir *d1 = left, *d2 = right;
 	return (strcmp(d1->d_entry, d2->d_entry));
 }
 

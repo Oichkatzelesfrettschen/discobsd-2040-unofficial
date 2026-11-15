@@ -1,0 +1,15 @@
+{
+  "evidence_class": "finite-check-of-derived-stack-recurrence",
+  "source_sha256": "3253ba4905191b997b672c7edc2eb82e06cc671d26e2aaa177d93c91809ef3d3",
+  "count_domain": [
+    2,
+    196608
+  ],
+  "recurrence": "D(n)=1 for n<=8; otherwise 1+D(floor((n-1)/2)) when child>1",
+  "closed_bound": "D(n)=1 for 2<=n<=8; otherwise floor(log2((n+1)/5))+1",
+  "maximum_recursive_frames": 16,
+  "ordinary_envelope_excluding_callback_bytes": 848,
+  "context_envelope_excluding_callback_bytes": 856,
+  "additional_leaf_term": "max(C,12), where C is the callback full transitive stack cost",
+  "runtime": "unmeasured"
+}

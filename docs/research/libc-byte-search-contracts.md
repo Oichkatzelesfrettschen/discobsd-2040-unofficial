@@ -177,11 +177,15 @@ blocks. Standalone cut adds 376 loaded bytes with unchanged allocations.
 The 48-byte direct provider chain replaces the baseline's conservative
 36-byte sum; process runtime peaks remain unmeasured.
 
-The 19.012-second logged build and 70.881-second focused qualification pass
-on clean d1b55dd3. The [qualification record](libc-byte-search-qualification.json)
+The 19.012-second logged build passes on clean d1b55dd3. The 77.342-second
+focused host qualification passes on clean e6b2b417 with identical provider
+hashes and no configured skips. The earlier sandbox run skips ILP32 and
+sanitizer execution after blocked compiler probes; its narrower receipt stays
+retained. The [qualification record](libc-byte-search-qualification.json)
 binds source hashes, script and full-log hashes to the host, ILP32, sanitized,
 cross, ARM QEMU and modeled-instruction results. The
 [instruction receipt](libc-byte-search-instructions.json) retains all 13
-case counts, independent results and four rejecting controls. Resource
-admission, complete aggregate/inventory/emulator qualification and independent
-review remain open. Physical-board execution stays unauthorized.
+case counts, independent results and four rejecting controls. The owner
+approves the exact revised resource vector and the bounded immutable source
+review. Complete aggregate/inventory/emulator qualification and the review
+verdict remain open. Physical-board execution stays unauthorized.

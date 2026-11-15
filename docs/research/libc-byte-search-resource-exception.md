@@ -1,6 +1,6 @@
 # Byte search resource exception
 
-The current request covers guarded-prefix candidate `d1b55dd3` against main
+The approved current vector covers guarded-prefix candidate `d1b55dd3` against main
 `e64e2150`; its exact vector appears under Guarded-prefix revision below.
 The original request and its immutable receipts retain their measured scope.
 
@@ -8,7 +8,8 @@ The byte-search candidate adds 576 installed native archive bytes, 212 loaded
 bytes to textbox, and one root block against main
 `cfe41205235bfc677e6fdf1a53a395aae2f6cb71`. The compatibility profile
 [resource policy](dpucp-2024.md) requires reviewer approval for these positive
-constrained deltas. This request remains pending; qualification continues.
+constrained deltas. The owner approves this original vector and the separate
+guarded-prefix vector below; qualification binds each exact implementation.
 
 The measured source is `64b42d7816798725c4653470a5f2ab781c25a411`.
 Matched clean distributions use identical toolchain, collector and measurement
@@ -132,13 +133,17 @@ finite observations establish neither a universal timing bound nor board
 performance. The comparison bound remains independently calibrated at
 `2n+7m` including wrapper work.
 
-The current source passes a 19.012-second logged build and a 70.881-second
+The current source passes a 19.012-second logged build and a 77.342-second
 focused run covering host, ILP32, sanitizer, ARM QEMU, native archives,
 visibility, Smaller C, source accounting, instruction controls and static
 analysis. The earlier aggregate remains bound to the original implementation.
-Complete revised qualification and independent source review remain open.
+The focused run binds clean e6b2b417 and unchanged provider hashes. The earlier
+70.881-second sandbox run skips ILP32 and sanitizer variants because its
+system-call policy rejects their probes. The host rerun executes those
+variants and reports no configured skips. Complete revised qualification and
+independent source review remain open.
 
-The resource decision remains pending. Approval covers exactly this vector,
+The owner approves the exact revised vector. Approval covers exactly this vector,
 the two added native members, the optional cut limits and the 48-byte local
 provider-chain limit. Further growth requires a new measured decision.
 Static libc and existing multicall composition remain selected; shared XIP

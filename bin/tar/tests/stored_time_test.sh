@@ -387,8 +387,10 @@ while IFS='#' read -r name needs32 old new; do
     for view in $views; do
         shim_object=$work/shim-$view.o
         if ! compile_tar "$view" "$work/mutant-$name.c" \
-            "$work/mutant-$name-$view" >/dev/null 2>&1; then
+            "$work/mutant-$name-$view" >"$work/mutant-build.log" 2>&1; then
             note_failure "mutant $name: does not build as $view"
+            # The compiler's reason, since the work directory is removed.
+            sed 's/^/    /' "$work/mutant-build.log" >&2
             killed=error
             break
         fi

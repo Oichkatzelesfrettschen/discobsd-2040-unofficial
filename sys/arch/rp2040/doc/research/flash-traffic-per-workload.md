@@ -133,10 +133,45 @@ the spread of a run (14 to 80 erases across its 24 compiles).
 
 Swap erases stay at 69 to 75 per compile in every row. Spread evenly over
 the 96 swap sectors that is about 137,000 compiles, so swap, not the root,
-now bounds the life of the part for this workload, by a factor of seven;
-how the swap allocator distributes its extents over the sectors is
-unmeasured, and a concentration on a few sectors shortens that figure in
-proportion.
+now bounds the life of the part for this workload.
+
+The spread was measured. A kernel of main (`a706c0b8`) with one added
+counter per swap sector, incremented in `flash_erase()` and printed by
+`boot()`, ran the 24 compiles three times on the measured Pico, each after
+a fresh kernel flash. The board reset before any print finished, so the
+first two runs printed from sector 0 and the third from sector 32:
+
+| Run | Swap erases | Sectors printed | Erases per printed sector | Mean of the unprinted sectors |
+| --- | ---: | --- | --- | ---: |
+| 1 | 1,781 | 0 to 63 | sector 0: none; others 15 to 21, mean 18.2 | 19.9 over 32 |
+| 2 | 1,794 | 0 to 47 | sector 0: none; others 17 to 23, mean 19.1 | 18.7 over 48 |
+| 3 | 1,799 | 32 to 89 | 14 to 22, mean 18.8 | 19.2 over 37, sector 0 taken as none |
+
+The counters run from boot, so each count also holds that sector's share
+of the 31 to 36 swap erases the boot and login made before the first
+compile and of the few after the last, about 2 percent of a run's total; a
+sector's rate per compile is therefore at most its count over 24.
+
+Ninety of the 96 sectors were observed singly in at least one run. The
+first swap sector was never erased; every other observed sector took 14 to
+23 erases in 24 compiles, within 27 percent of its run's mean over the 95
+sectors other than the first (the widest: 14 against 18.9 in the third
+run), so the swap
+allocator already spreads its extents. The hottest observed sector, at
+most 23 erases in 24 compiles, reaches the rated minimum after no fewer
+than about 104,000 compiles and the mean sector after about 128,000. Sectors 90 to 95 were
+never printed; they are bounded only through the unprinted means, which
+match the printed ones, and a hotter sector among those six would lower
+the unit's life below the observed sectors' 104,000. Swap bounds the part's life at
+roughly a ninth of the root's 977,000 compiles, if the observed rate
+persists. Perfect leveling of the observed sectors would move the hottest
+from 23 erases to the mean, 104,000 compiles to 128,000, a gain of at most
+a quarter; whether the six unprinted sectors leave more for placement to
+recover is open. Fewer or smaller swap-outs reaching flash lengthen the
+life in proportion.
+
+The counter patch and the three console captures are
+`docs/research/trim-survey/board/swap/`.
 
 Two changes were measured and left out. Unmapping a block when the file
 system frees it (trim at free) cost 1,592 root erases over eight compiles
@@ -148,11 +183,61 @@ sectors in the collection trigger saved more than the shipped quarter
 (138.3 against 153.0 erases per compile on the second row's tree) and can
 reach into Dhara's safety margin (`dhara-gc-trigger.md`).
 
+## Why swap-outs reach flash
+
+A `STORAGE_STATS` kernel also counts, for every SwapRAM reservation that is
+refused, the reason, the shortfall of the largest free run, and the span of
+each completed swap-out in 4 KiB sectors (`sys/sys/storage_stats.h`). Two
+runs of the 24 compiles on the measured Pico, each from a freshly flashed
+root with the same kernel, differ only in `bin/sh`: the shell before the
+break-growth fix and the shell with it.
+
+| Over 24 compiles | Shell before the fix | Shell with the fix |
+| --- | ---: | ---: |
+| Swap sectors erased | 1,604 | 1,412 |
+| Swap bytes written | 5,865,824 | 4,986,464 |
+| SwapRAM attempts, admitted | 303, 61 | 305, 63 |
+| Refused: no single free run, too few free bytes | 240, 2 | 196, 46 |
+| Refused swap-outs by span | 192 of 7 sectors, 49 of 5, 1 of 12 or more | 192 of 6 sectors, 49 of 5, 1 of 12 or more |
+| Shortfall bins of 1, 2, 3, 4, 6 and 7 KiB | 0, 184, 9, 48, 0, 1 | 172, 8, 2, 47, 12, 1 |
+| Root sectors erased | 934 | 930 |
+
+Eight swap-outs a compile are one image class, refused every time; a second
+class of 5 sectors is admitted about half the time, and one swap-out of 12
+or more sectors occurs once in each run. The probe records no
+process name. The `cc` driver is a shell script, so the dominant class is
+most likely its shell, swapped out while it waits on a pass; that is an
+inference from the size. Closed admission, a held codec and encoder failure
+never occur. The pool (`SWAPRAM_KB=16`) refuses for want of one free run:
+the request is the compressed data and stack plus `SR_WORST(USIZE)`, 3,460
+bytes held for the u area. Where a swap-out is admitted the u area takes
+about 1 KiB (64,012 bytes over 63 admissions), about 2.4 KiB less than the
+reservation. In the run with the fix 180 refusals fall in the two lowest
+shortfall bins and in the run before it 184, against 192 swap-outs of the
+dominant class, so a reservation at the compressed size of the u area would
+admit some of them. How many is a hypothesis: the histograms do not tie a
+shortfall to a span, an admitted image's u area does not give a refused
+one's, and each admission leaves less room for the next. The change is not
+built.
+
+The shell with the fix erases 12 percent fewer swap sectors because its
+dominant image is one sector smaller. The per-sector counters were not in
+this kernel, so the hottest-sector bound above is not re-measured; if the
+spread is unchanged, 58.8 erases a compile in place of 66.8 lengthens it in
+proportion. These two runs start from a fresh root and admit a fifth of the
+attempts; the three runs above started from a used root and admitted over a
+third, so absolute counts compare only inside one table.
+
+The captures are `docs/research/trim-survey/board/swap/admission/`.
+
 ## Open
 
 - Swap traffic: 69 to 75 sector erases per compile, more than the root
-  spends, on a quarter of the sectors and with no leveling. The admission
-  policy of SwapRAM and the placement of swap extents decide it.
-- Erases per physical sector for swap; the root's are even by the
-  journal's construction and unobserved.
+  spends, on a quarter of the sectors. The first swap sector takes none;
+  the erases of the other 89 observed sectors lie within 27 percent of
+  their run's mean, so the admission policy of
+  SwapRAM and the size of what is swapped decide most of it; placement can
+  add at most a quarter there.
+- Erases of swap sectors 90 to 95 singly, and of the root's sectors, which
+  are even by the journal's construction and unobserved.
 - Workloads other than the two-line compile.

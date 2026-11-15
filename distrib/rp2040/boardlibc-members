@@ -58,6 +58,7 @@ fputs
 fseek
 fstat
 ftell
+getchar
 getdtablesize
 getenv
 getpid
@@ -80,6 +81,7 @@ memset
 open
 perror
 printf
+putchar
 puts
 qsort
 qsort_r

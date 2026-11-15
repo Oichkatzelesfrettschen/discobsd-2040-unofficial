@@ -44,6 +44,27 @@
 #include <string.h>
 #include <errno.h>
 
+/*
+ * The kernel's type and function names below are also names some hosts'
+ * C library headers declare with other types (Darwin's daddr_t is 32 bits
+ * wide and its <string.h> declares bzero() and bcopy()), so each is mapped
+ * to a name of this file before its kernel definition. check.sh supplies
+ * the <sys/ioctl.h> that disk.h names, which keeps the host's own, and the
+ * system types it would declare, out of the driver's text.
+ */
+#define	u_char		model_u_char
+#define	u_short		model_u_short
+#define	u_int		model_u_int
+#define	daddr_t		model_daddr_t
+#define	dev_t		model_dev_t
+#define	caddr_t		model_caddr_t
+#define	bzero		model_bzero
+#define	bcopy		model_bcopy
+#undef	__unused
+#undef	major
+#undef	minor
+#undef	makedev
+
 typedef unsigned char	u_char;
 typedef unsigned short	u_short;
 typedef unsigned int	u_int;
@@ -235,6 +256,24 @@ flash_program(u_int offset, const u_char *data, u_int len)
 	for (i = 0; i < len; i++)
 		nor[offset + i] &= data[i];
 	program_pages += len / FLASH_PROG_BYTES;
+	return 0;
+}
+
+/*
+ * The chip identity comes from an SSI exchange outside the extracted
+ * driver; the model answers as a W25Q16JV so that fl_report_identity()
+ * takes its reporting path.
+ */
+static int
+flash_identity(const u_char **jedec, const u_char **unique)
+{
+	static const u_char model_jedec[FLASH_JEDEC_BYTES] =
+	    { 0xef, 0x40, 0x15 };
+	static const u_char model_unique[FLASH_UNIQUE_BYTES] =
+	    { 0xe6, 0x61, 0x41, 0x03, 0xe7, 0x0a, 0x9b, 0xf0 };
+
+	*jedec = model_jedec;
+	*unique = model_unique;
 	return 0;
 }
 

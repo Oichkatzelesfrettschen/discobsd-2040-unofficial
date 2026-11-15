@@ -89,6 +89,22 @@ All `.o` files are archived with the tree's own `ar` (`rc`) and indexed
 with the tree's own `ranlib` -- a.out format end to end, since `usr.bin/ld`
 on the board reads a.out only.
 
+## Callable character entry selection
+
+`boardlibc-members` selects `fgetc`, `fputc`, `getchar` and `putchar` for
+the reduced native archive. `fgetc.o` also exports `getc`; `fputc.o` also
+exports `putc`. The source-family registry in `mkboardlibc.py` already names
+all four source files. The selected-member list determines archive inclusion.
+Public function-like macros retain their byte expressions; parenthesized calls
+and initialized function pointers bind the callable providers.
+
+`libc-sink.c` names all six callable entries, including macro-suppressed calls.
+`check-libc-aout-contracts` links initialized addresses of the six names with
+both full and reduced archives and rejects each removed provider member.
+The header, host/ILP32/sanitizer and Cortex-M0 QEMU gates retain separate
+execution classes in `TESTING.md`; native archive linkage establishes symbol
+closure rather than on-device runtime behavior.
+
 ## What was cut
 
 - **`picoc`**: dropped from the rp2040 build and manifest (67 KB), per the

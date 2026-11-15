@@ -154,7 +154,9 @@ sector's rate per compile is therefore at most its count over 24.
 
 Ninety of the 96 sectors were observed singly in at least one run. The
 first swap sector was never erased; every other observed sector took 14 to
-23 erases in 24 compiles, within 25 percent of the run's mean, so the swap
+23 erases in 24 compiles, within 27 percent of its run's mean over the 95
+sectors other than the first (the widest: 14 against 18.9 in the third
+run), so the swap
 allocator already spreads its extents. The hottest observed sector, at
 most 23 erases in 24 compiles, reaches the rated minimum after no fewer
 than about 104,000 compiles and the mean sector after about 128,000. Sectors 90 to 95 were
@@ -184,8 +186,9 @@ reach into Dhara's safety margin (`dhara-gc-trigger.md`).
 ## Open
 
 - Swap traffic: 69 to 75 sector erases per compile, more than the root
-  spends, on a quarter of the sectors. The erases of the 90 observed
-  sectors lie within 25 percent of the mean, so the admission policy of
+  spends, on a quarter of the sectors. The first swap sector takes none;
+  the erases of the other 89 observed sectors lie within 27 percent of
+  their run's mean, so the admission policy of
   SwapRAM and the size of what is swapped decide most of it; placement can
   add at most a quarter there.
 - Erases of swap sectors 90 to 95 singly, and of the root's sectors, which

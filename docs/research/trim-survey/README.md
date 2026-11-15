@@ -58,7 +58,8 @@ file the state `fsck -p` and the next boot left. These were recorded from
 the raw terminal; each line is reduced to its final state, without the
 escape sequences and the per-keystroke redraws of the line editor.
 
-`board/swap/`: the erase count of each swap sector over 24 compiles, three
+`board/swap/`: the erase count of each swap sector from boot through 24
+compiles (31 to 36 swap erases precede the first compile), three
 runs on main's kernel (`a706c0b8`, `STORAGE_STATS=yes`) with
 `swap-wear-probe.patch` applied, which adds one counter per swap sector in
 `flash_erase()` and prints 64 of them from `boot()`. The patch is the third

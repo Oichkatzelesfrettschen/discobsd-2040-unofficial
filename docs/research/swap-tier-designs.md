@@ -198,9 +198,23 @@ Mechanism: `swapram_reserve()` counts the data and stack exactly and
 reserves the u area at `SR_WORST(3072)` = 3,460 bytes because the clock
 interrupt rewrites accounting fields in the current process's u area between
 the count and the capture (`swapram.c:56,457-505`;
-`zswap.md:146-165`). Reserving at the measured size means encoding the u
-area once under `splclock()` and trimming to the length found, or reserving
-the counted length plus a bound on the changed bytes.
+`zswap.md:146-165`). Reserving at the measured size needs a protocol this note does not
+settle. One encode cannot be written before the block exists (the pool
+has no owned staging buffer, and a 3.5 KB one costs the RAM the change
+saves), and an allocation at the worst case followed by a trim is the
+present behavior and still refuses the image. A later source trace
+(unverified, lines at 35ac31b7) splits the two callers. On the swapper's
+path the u area captured is `u0` while the swapper runs in `u`, the clock
+writes only `u` (`sys/kern/kern_clock.c:189-295`) and nothing sleeps on
+the RAM tier, so a counting encode at reservation is exact at the put, as
+the data and stack counts already are. On the fork path the parent's live
+`u` is the source and `u_ssave`, `u_procp` at offset 0, the clock fields
+and the stack below `newproc()` all change between reservation and put
+(`sys/kern/kern_fork.c:165-179`); heatshrink parses greedily, so one
+changed byte can re-parse everything after it and no count-plus-slack is
+provable. The fork path therefore needs either the worst case as today or
+a bound that does not depend on the contents, for example encoding the
+dead stack region as zeros.
 
 Shipped: the size-then-allocate shape is zswap's (store only what the pool
 accepts, refuse otherwise); no system read for this note reserves a
@@ -341,7 +355,14 @@ cold pages proactively; zram writes idle pages to a backing device
 `writeback_limit` budget because of flash wear. Both are documented kernel
 behavior (see sources).
 
-Why it fits the measurement: the refused swap-outs are the hot class (8 a
+Assumption, not measurement: the retained counters carry no process
+identity, and the placement model cited below omits SwapRAM and places
+these sleepers on flash. Which images hold the pool and which are refused
+is the per-command swap-out table of a probe run; if the pool holds the
+hot images instead, LRU would write active images repeatedly and this
+design ranks last. The ranking below is conditional on that table.
+
+Why it would fit: the refused swap-outs are taken to be the hot class (8 a
 compile, the `cc` driver's shell asleep while a pass runs) because cold
 images, the login shell, `init` and `update`
 (20, 12 and 8 blocks in the placement model,
@@ -488,7 +509,7 @@ bound, not a prediction; only a card measurement decides.
 Cost: estimate text 0.5 to 0.8 KB (CMD25 framing, stop token, ACMD23);
 bss 0.
 
-### 10. TRIM and erase on an SPI-mode SD card (verified)
+### 10. TRIM and erase on an SPI-mode SD card (plain erase verified; Discard and FULE second-hand)
 
 The question "no TRIM on SPI-mode SD" has two answers by command:
 - CMD32, CMD33 and CMD38 (erase) are valid in SPI mode (v3.01 command table,
@@ -532,7 +553,7 @@ Entries say build, defer, no or n.a., with the number that decides.
 | 3 Size-class pool | No; revisit if pinned spools block compaction | No | No | No |
 | 4 Zero elision | No: 4 of 782 chunks zero (0.5 percent) | Defer | Measure at 512 B first (probe constant); build if zero sectors exceed the per-sector SD cost | Defer |
 | 5 Compressed writeback | Build only if 6 leaves erases above floor: 2 sectors against 5.8 | No: encode 40-90 ms (estimate) against about 1 ms PSRAM for the same image | No until SD write latency is measured | No |
-| 6 LRU writeback | Build, highest value: converts the cold set to one write per boot; decide by compressed hot set against the 16 KB pool | No | Build: cold images to the card, hot in pool | No |
+| 6 LRU writeback | Build if the per-command table shows cold images holding the pool; then highest value: converts the cold set to one write per boot; decide by compressed hot set against the 16 KB pool | No | Build: cold images to the card, hot in pool | No |
 | 7 Boot priority | n.a. | Shipped (`psram.c:124`) | Build; clamp `nswap` to 65,535 blocks; add no-swap mode | Build; PSRAM wins, SD swap partition ignored |
 | 8 Error kills owner | Build (small; panic today on a failed program) | Build | Build, required (pull while mounted) | Build |
 | 9 SD CMD25 and alignment | n.a. | n.a. | Partition placement on an AU multiple: build (free; image extents stay 4 KiB-aligned). CMD25: defer to a card measurement; 406 sectors a compile | Partition placement only |

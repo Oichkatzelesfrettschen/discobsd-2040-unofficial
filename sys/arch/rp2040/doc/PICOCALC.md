@@ -952,7 +952,9 @@ writer against the bound on the host, and the wiring of the two
 primitives in the source. `check-renode-identity` boots a stamped kernel
 in Renode. `check-renode-picocalc-sdroot` boots the board's kernel UF2
 with the stamp, a foreign byte pattern over the flash root and Renode's SD
-card model holding the SD root in slot 3 between a FAT32 and a Linux
+card model (a stamped-kernel SD-root test: flash bytes 0-255 remain the
+kernel's own second stage, so the loader's second stage and the XIP
+re-entry through it are `not run`) holding the SD root in slot 3 between a FAT32 and a Linux
 entry: the root lines, `root dev  = (5,3)`, a keyboard login and `mount`
 naming `/dev/sd0c` reach the panel, UART0 carries the tty0 login, sampled
 words of the flash root region still read the foreign pattern, and the
@@ -960,7 +962,8 @@ card with its b7 entry retyped 83 stops at the panic line. Renode's card
 model is standard-capacity at every size, so the block addressing of a
 high-capacity card such as the PicoCalc's 32 GB one rests on
 `sdspi_test`'s `sdhc` scenario, and `sdstrat_test` runs `sdrootattach()`
-on the host for each row of the table above. No kernel has been booted
+on the host for each row of the table above and requires the root open to
+refuse a slot or card that changed since the selection. No kernel has been booted
 from the loader on a board: the clock sequence entered from the loader's
 stage, the restored XIP divider and the card as the loader leaves it rest
 on source, datasheet and emulation.

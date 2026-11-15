@@ -75,6 +75,7 @@ FILE *text, *reloc;             /* input management */
 
                                 /* output management */
 FILE *outb, *toutb, *doutb, *troutb, *droutb, *soutb;
+FILE *tailb;                    /* the stream that writes after the data */
 
                                 /* symbol management */
 struct local {
@@ -128,6 +129,14 @@ int     default_output_created; /* linker owns the temporary l.out */
  * cumulative sizes set in pass 1
  */
 unsigned tsize, dsize, bsize, ssize, nsym;
+
+/*
+ * Bytes pass 2 copies from the loaded members, without the rounding of
+ * tsize and dsize. The text stream is padded to tsize and the data stream
+ * is followed at once by what comes after it, so these two fix where each
+ * output region starts.
+ */
+unsigned ttot, dtot;
 
 /*
  * symbol relocation; both passes
@@ -577,6 +586,21 @@ ldrsym(struct nlist *sp, unsigned int val, int type)
 	sp->n_value = val;
 }
 
+/*
+ * Open a stream on the output file, positioned at a byte offset. Each
+ * output region owns one, so a region is written once where it ends up
+ * and no temporary file or final copy is involved.
+ */
+void
+tregion(FILE **buf, unsigned long at)
+{
+	*buf = fopen (ofilename, "r+");
+	if (! *buf)
+		error (2, "cannot open output file");
+	if (fseek (*buf, (long) at, SEEK_SET) != 0)
+		error (2, "cannot position output file");
+}
+
 void
 tcreat(FILE **buf, int tempflg)
 {
@@ -669,6 +693,22 @@ lookloc(struct local *lp, unsigned int sn, unsigned int symbols_at)
 }
 
 /*
+ * A segment of at most RELOC_BUFFER bytes is relocated in memory and then
+ * written to the output once. Patching it in the output file instead takes
+ * a seek and a partial write for each record, and the target's cache holds
+ * four 1 KiB buffers (NBUF), so a dirty block reaches flash whenever another
+ * block takes its buffer. segmem holds the segment being relocated, segbase the
+ * output offset it will be written at and seglen its length; segmem is
+ * null when the segment is too large and relocations patch the output file.
+ */
+#ifndef RELOC_BUFFER
+#define RELOC_BUFFER    32768
+#endif
+unsigned char *segmem;
+long segbase;
+unsigned seglen;
+
+/*
  * Read and write a little-endian halfword at an absolute file offset.
  */
 unsigned int
@@ -676,6 +716,11 @@ fpeekhalf(FILE *f, long at)
 {
         unsigned h;
 
+        if (segmem) {
+                unsigned char *p = segmem + (at - segbase);
+
+                return p[0] | p[1] << 8;
+        }
         fseek (f, at, 0);
         h = getc (f) & 0xff;
         h |= (getc (f) & 0xff) << 8;
@@ -685,6 +730,13 @@ fpeekhalf(FILE *f, long at)
 void
 fpokehalf(FILE *f, long at, unsigned int h)
 {
+        if (segmem) {
+                unsigned char *p = segmem + (at - segbase);
+
+                p[0] = h;
+                p[1] = h >> 8;
+                return;
+        }
         fseek (f, at, 0);
         putc (h, f);
         putc (h >> 8, f);
@@ -754,14 +806,10 @@ relthumb(struct local *lp, FILE *b1, struct reloc *rel, long base,
 
         switch (rel->flags & RTFMASK) {
         case RTABS32:
-                fseek (b1, at, 0);
-                word = fgetword(b1);
+                word = fpeekhalf (b1, at) | fpeekhalf (b1, at + 2) << 16;
                 word += delta;
-                fseek (b1, at, 0);
-                putc (word, b1);
-                putc (word >> 8, b1);
-                putc (word >> 16, b1);
-                putc (word >> 24, b1);
+                fpokehalf (b1, at, word & 0xffff);
+                fpokehalf (b1, at + 2, word >> 16);
                 break;
 
         case RTCALL:
@@ -838,11 +886,18 @@ relocate_thumb(struct local *lp, FILE *b1, FILE *b2, unsigned int len,
         int c;
 
         base = ftell (b1);
-        for (n = 0; n < len; n++) {
-                c = getc (text);
-                if (c == EOF)
+        if (len != 0 && len <= RELOC_BUFFER && (segmem = malloc (len)) != 0) {
+                if (fread (segmem, 1, len, text) != len)
                         error(2, "truncated input section");
-                putc (c, b1);
+                segbase = base;
+                seglen = len;
+        } else {
+                for (n = 0; n < len; n++) {
+                        c = getc (text);
+                        if (c == EOF)
+                                error(2, "truncated input section");
+                        putc (c, b1);
+                }
         }
         /*
          * The relocation section is padded to a word, so a tail shorter
@@ -874,7 +929,9 @@ relocate_thumb(struct local *lp, FILE *b1, FILE *b2, unsigned int len,
                         error(2, "relocation outside input section");
                 relthumb (lp, b1, &rel, base, origin, symbols_at);
                 if (output_relinfo) {
-                        rel.addr += base;
+                        /* Offsets in the output record the segment's own start. */
+                        rel.addr += base - (b1 == toutb ? HDRSZ :
+                            HDRSZ + (long) tsize);
                         fputrel_thumb (&rel, b2);
                 }
         }
@@ -887,11 +944,17 @@ relocate_thumb(struct local *lp, FILE *b1, FILE *b2, unsigned int len,
                 if (c != 0)
                         error(2, "invalid relocation padding");
         }
-        fseek (b1, base + len, 0);
+        if (segmem) {
+                if (fwrite (segmem, 1, seglen, b1) != seglen)
+                        error(2, "cannot write output file");
+                free (segmem);
+                segmem = 0;
+        } else
+                fseek (b1, base + len, 0);
 }
 
 unsigned int
-copy_and_close(FILE *buf)
+copy_and_close(FILE *buf, FILE *dst)
 {
 	register int c;
 	unsigned nbytes;
@@ -899,7 +962,7 @@ copy_and_close(FILE *buf)
 	rewind (buf);
 	nbytes = 0;
 	while ((c = getc (buf)) != EOF) {
-                putc (c, outb);
+                putc (c, dst);
                 nbytes++;
         }
 	fclose (buf);
@@ -1198,6 +1261,8 @@ load1(unsigned int loc, int libflg, int nloc)
 	if (! libflg || ndef) {
 		tsize += filhdr.a_text;
 		dsize += filhdr.a_data;
+		ttot += filhdr.a_text;
+		dtot += filhdr.a_data;
 		bsize += filhdr.a_bss;
 		ssize += nloc;
 		nsym += nsymbol;
@@ -1532,29 +1597,41 @@ middle(void)
 	}
 }
 
+/*
+ * Lay the output out as header, text padded to tsize, data, then the
+ * relocation streams and the symbol table. Text and data are written at
+ * their final offsets. The symbol records follow the data directly, so a
+ * link that keeps no relocation records writes them there too; a relocatable
+ * output learns the size of its relocation streams only in pass 2, so those
+ * and the symbols they precede go through temporary files and are copied
+ * after the data.
+ */
 void
 setupout(void)
 {
+	unsigned long tail = HDRSZ + (unsigned long) tsize + dtot;
+
 	tcreat (&outb, 0);
 	if (! ofilfnd)
 		default_output_created = 1;
-	int fd = mkstemp (tfname);
-    if (fd == -1) {
-        error(2, "internal error: unable to create temporary file %s", tfname);
-    } else {
-        close(fd);
-    }
-
-	tcreat (&toutb, 1);
-	tcreat (&doutb, 1);
-
-	if (! sflag || ! xflag)
-                tcreat (&soutb, 1);
+	tregion (&toutb, HDRSZ);
+	tregion (&doutb, HDRSZ + (unsigned long) tsize);
 	if (output_relinfo) {
+		int fd = mkstemp (tfname);
+
+		if (fd == -1)
+			error (2, "internal error: unable to create temporary file %s", tfname);
+		else
+			close (fd);
+		tcreat (&soutb, 1);
 		tcreat (&troutb, 1);
 		tcreat (&droutb, 1);
+		fseek (outb, (long) tail, 0);
+		tailb = outb;
+	} else if (! sflag || ! xflag) {
+		tregion (&soutb, tail);
+		tailb = soutb;
 	}
-	fseek (outb, sizeof(filhdr), 0);
 }
 
 void
@@ -1721,35 +1798,46 @@ finishout(void)
         unsigned rtsize = 0, rdsize = 0;
         register unsigned n;
 
-	n = copy_and_close (toutb);
+	n = (unsigned) ftell (toutb) - HDRSZ;
+	if (n != ttot)
+		error (2, "internal error: text size differs between passes");
         while (n++ < tsize) {
                 /* Align text size. */
-                putc (0, outb);
+                putc (0, toutb);
         }
-	copy_and_close (doutb);
+	fclose (toutb);
+	if ((unsigned) ftell (doutb) - HDRSZ - tsize != dtot)
+		error (2, "internal error: data size differs between passes");
+	fclose (doutb);
 	if (output_relinfo) {
-		rtsize = copy_and_close (troutb);
+		rtsize = copy_and_close (troutb, tailb);
 		while (rtsize % AOUT_ALIGNMENT) {
-			putc (0, outb);
+			putc (0, tailb);
 			rtsize++;
                 }
-		rdsize = copy_and_close (droutb);
+		rdsize = copy_and_close (droutb, tailb);
 		while (rdsize % AOUT_ALIGNMENT) {
-			putc (0, outb);
+			putc (0, tailb);
 			rdsize++;
                 }
 	}
 	if (! sflag) {
-		if (! xflag)
-                        copy_and_close (soutb);
+		if (output_relinfo) {
+			if (! xflag)
+				copy_and_close (soutb, tailb);
+			else
+				fclose (soutb);
+		}
 		for (p=symtab; p<&symtab[symindex]; ++p)
-			fputsym (p, outb);
-		putc (0, outb);
+			fputsym (p, tailb);
+		putc (0, tailb);
 		while (ssize % AOUT_ALIGNMENT) {
-			putc (0, outb);
+			putc (0, tailb);
                         ssize++;
                 }
 	}
+	if (tailb != outb && tailb)
+		fclose (tailb);
 	filhdr.a_midmag = output_relinfo ? RMAGIC : OMAGIC;
 	/*
 	 * MID_ARM6 marks the sparse Thumb relocation stream, which only a

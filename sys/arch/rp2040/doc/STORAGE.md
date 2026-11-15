@@ -256,7 +256,8 @@ The threshold is a local change to the vendored Dhara (`auto_gc()` in
 collecting when the journal holds `dhara_map_capacity()` user pages (989),
 which leaves at most 989 minus the live count as garbage. The port starts
 at journal capacity less the 64-page safety margin less a quarter of the
-live sectors (1,316 - 64 - 758 / 4 = 1,063 for the shipped image), so more
+live sectors less one 8-page checkpoint group (1,316 - 64 - 758 / 4 - 8 =
+1,055 for the shipped image), so more
 garbage stays in the journal and a write copies fewer live pages. The
 capacity the map advertises stays 989. With this trigger the trace above
 costs 4.91 pages per write at 90 percent live, against 6.28 with

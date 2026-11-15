@@ -21,7 +21,9 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 Starting collection later lowers the pages programmed per write at every
 live share below full, with no trim. `auto_gc()` in
 `sys/arch/rp2040/dhara/map.c` now starts at
-`journal capacity - safety margin - count / gc_ratio` (gc_ratio is 4), a
+`journal capacity - safety margin - count / gc_ratio - 8` (gc_ratio is 4;
+8 pages are one checkpoint group, given up so the bound below holds at
+every live count), a
 local change to the vendored Dhara that `sys/arch/rp2040/dhara/README.md`
 lists. Fixed triggers of 1,150 and 1,250 user pages fill the journal under
 an adversarial workload; the live/4 trigger does not.
@@ -88,7 +90,7 @@ within a few pages of it. `check-dhara-gc-trigger`
 | --- | --- | --- | --- |
 | stock (989, 1,006 after the first wrap) | 1,243 | 1,240 | no failure |
 | fixed 1,043 | 1,248 | 1,244 | no failure |
-| cap - 64 - L/4 | at most cap - 64 for L >= 140 | 1,240 | no failure |
+| cap - 64 - L/4 | at most cap - 64 for L >= 140; the shipped trigger subtracts one more checkpoint group (8 pages), which extends that to every L | 1,240 | no failure |
 | cap - 64 - L/5 | cap - 64 + 7 | 1,256 | no failure; enters the margin by up to 7 pages |
 | fixed 1,150 | 1,355 | -- | journal full at write 344 |
 | fixed 1,250 | 1,455 | -- | journal full at write 343 |

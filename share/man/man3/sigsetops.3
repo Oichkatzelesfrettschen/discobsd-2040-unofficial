@@ -65,7 +65,7 @@
 .sp
 \fBsigismember\fP(set, signo)
 .br
-.I sigset_t *set;
+.I const sigset_t *set;
 .br
 .I int signo;
 .SH DESCRIPTION
@@ -105,21 +105,42 @@ function returns whether a specified signal
 .I signo
 is contained in the signal set.
 .PP
-These functions
-are provided as macros in the include file
+The
+.B sigemptyset
+and
+.B sigfillset
+operations are also provided as macros in
 .RI < signal.h >.
-Actual functions are available
-if their names are undefined (with #undef
-\fBname\fP).
+All five operations have callable functions.
+Parenthesizing a function name or undefining its macro selects the function.
+The add, delete, and membership functions validate the signal number before
+accessing the set.
 .SH RETURN VALUES
 The
 .B sigismember
 function returns 1
 if the signal is a member of the set,
 0 otherwise.
-The other functions return 0.
+The other functions return 0 on success.
+A rejected signal number returns -1 and sets
+.I errno
+to indicate the error.
 .SH ERRORS
-Currently no errors are detected.
+The
+.BR sigaddset ,
+.BR sigdelset ,
+and
+.B sigismember
+functions report
+.B EINVAL
+when the signal number is less than 1 or greater than or equal to
+.BR NSIG .
+A rejected operation leaves the set unchanged.
+The
+.B sigemptyset
+and
+.B sigfillset
+functions define no errors.
 .SH SEE ALSO
 kill(2), sigaction(2), sigsuspend(2)
 .SH STANDARDS

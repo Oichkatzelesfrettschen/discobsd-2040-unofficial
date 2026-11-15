@@ -273,6 +273,7 @@ jobs:
 
       # check-host owns compiler-matrix identity, ownership and bounded PTY completion.
       # check-native-nm covers archive boundaries and calibrated reader failures.
+      # check-signal-sets owns scalar set behavior and calibrated provider failures.
       # It also checks the fixed Git-tree repository coverage ledger and rejection fixtures.
       # Libc strings and exit registries execute calibrated host and ILP32 cases;
       # strings, context sorting and absolute values add sanitizers; the libc
@@ -289,6 +290,8 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 1140 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
+      # check-signal-sets-cross owns target signatures and Smaller C input;
+      # check-signal-sets-qemu owns real-header Cortex-M0 set execution.
       # check-cross owns the string namespace/signature and expanded Smaller C
       # header gate on both host platforms; runtime behavior stays separate.
       # It also owns root-header inclusion and curses integer ABI calibration.

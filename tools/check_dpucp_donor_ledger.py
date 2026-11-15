@@ -135,6 +135,7 @@ MEASURED_CANDIDATE_EVIDENCE = {
     "utility-timeout": TIMEOUT_MEASUREMENT,
     "utility-uudecode": RECOVERY_MEASUREMENT,
     "libc-ndbm-open-admission": "docs/research/libc-dbm-open-admission.md",
+    "libc-scalar-signal-sets": "docs/research/signal-set-resource-exception.md",
 }
 INVENTORY_CLAIM = (
     "The inventory records checkout identity and fetch evidence for a finite "

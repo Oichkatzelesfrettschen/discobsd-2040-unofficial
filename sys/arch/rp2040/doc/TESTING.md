@@ -2374,6 +2374,14 @@ with the host test that covers each:
   command returns no data under Renode.
 - The I2C keyboard model queues 16 characters, so TypeLine of a longer line
   drops the rest; split a longer line across calls.
+- The PL011 receive FIFO holds one entry (the model's `fifoSize` default)
+  where silicon holds 32, so the receive interrupt asserts on the first byte
+  rather than at the RXIFLSEL level. The model never sets the receive-timeout
+  status (`Interrupts.ReceiveTimeout` is declared and never raised), so at
+  depth 32 a lone keystroke below the level would raise no interrupt; the
+  depth stays 1 until the model times out a partial FIFO. No host test
+  covers the receive path: `tests/picocalc/uart_test.c` models transmit
+  only.
 
 The login test reads `kern.capacity` first and asserts the versioned ABI size,
 all five retained fixed-table limits, and the 3,072-byte u-area geometry. The

@@ -20,6 +20,33 @@ def get_entry(table, name):
     return entries[0]
 
 
+SHF_WRITE = 0x1
+SHF_ALLOC = 0x2
+PF_W = 0x2
+XIP_BASE = 0x10000000
+XIP_END = 0x11000000
+
+
+def require_read_only(image, entry, name, kind):
+    """Reject a switch or count whose section or load segment is writable."""
+    section = image.get_section(entry.st_shndx)
+    flags = section.header.sh_flags
+    if not flags & SHF_ALLOC or flags & SHF_WRITE:
+        raise ValueError(f"{name} {kind} section is writable")
+    if kind != "linked":
+        return
+    segments = [segment.header for segment in image.iter_segments()
+                if segment.header.p_type == "PT_LOAD" and
+                segment.header.p_vaddr <= entry.st_value and
+                entry.st_value + entry.st_size <= segment.header.p_vaddr + segment.header.p_filesz]
+    if len(segments) != 1:
+        raise ValueError(f"{name} lacks one load segment")
+    if segments[0].p_flags & PF_W:
+        raise ValueError(f"{name} load segment is writable")
+    if not (XIP_BASE <= entry.st_value and entry.st_value + entry.st_size <= XIP_END):
+        raise ValueError(f"{name} lies outside flash")
+
+
 def check_data(data, object_data):
     elf = ELFFile(io.BytesIO(data))
     obj = ELFFile(io.BytesIO(object_data))
@@ -37,6 +64,8 @@ def check_data(data, object_data):
         linked = get_entry(linked_symbols, table_name)
         if source.st_size != linked.st_size or not source.st_size or source.st_size % (stride * 4):
             raise ValueError(f"{table_name} size differs")
+        require_read_only(obj, source, table_name, "object")
+        require_read_only(elf, linked, table_name, "linked")
         source_section = obj.get_section(source.st_shndx)
         source_bytes = source_section.data()
         source_start = source.st_value
@@ -47,6 +76,8 @@ def check_data(data, object_data):
         source_count = get_entry(object_symbols, count_name)
         source_count_bytes = obj.get_section(source_count.st_shndx).data()
         declared = struct.unpack_from("<I", source_count_bytes, source_count.st_value)[0]
+        require_read_only(obj, source_count, count_name, "object")
+        require_read_only(elf, get_entry(linked_symbols, count_name), count_name, "linked")
         linked_count = symbol(linked_symbols, count_name, "STT_OBJECT", 4)
         actual_count = struct.unpack_from("<I", data, offset_for(elf, data, linked_count, 4))[0]
         if source_count.st_size != 4 or declared != expected_count or actual_count != declared:

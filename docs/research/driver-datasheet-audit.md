@@ -24,12 +24,15 @@ hardware-facing constant and sequence of the driver files and looked up the
 governing line in the `.txt` extraction beside each PDF in the sibling
 `discobsd-2040-notes` repository (`docs/SHA256SUMS` files there pin the
 documents). Each finding below was then reread at the driver line and the
-datasheet line named. A row marked "match" means the value agrees with the
-quoted document; it says nothing about the board.
+datasheet line named; one reported finding did not survive that reread
+and is recorded under "Refuted". A row marked "match" means the values a
+pass listed agree with the quoted document; it says nothing about the
+board, and the passes' match lists were not reread one by one.
 
-Not read: `lcdcons.c`, `lcdterm.c`, `lcdgfx.c` and `picokbd_evq.c`
-beyond their calls into the register-facing files (they hold no hardware
-constant), the CDC and PSTN class documents, the boot ROM source, and the
+Not audited: `core1.c`, `mpu.c`, `fault.c`, `sysctl.c`, `board.c` and the
+locore files, which `CORE1.md` and `MPU.md` cover with their own evidence;
+`lcdcons.c`, `lcdterm.c`, `lcdgfx.c` and `picokbd_evq.c` beyond their calls
+into the register-facing files and the scroll bounds of `lcdgfx.c`; the CDC and PSTN class documents, the boot ROM source, and the
 schematic at resistor level, whose text extraction does not carry net-level
 detail. The PSRAM Read ID value 0x0D and the EID density bits sit in figures
 of the PSRAM datasheets and are absent from their text, so those two
@@ -44,8 +47,8 @@ repository's ignored `docs/local/specs`.
 | XOSC, PLL_SYS, PLL_USB, CLOCKS, RESETS | `rp2040/machdep.c` (`SystemClock_Config`) | all | match |
 | WATCHDOG | `machdep.c`: 1 us tick, scratch words, reset reason; the timer itself stays disabled | all | match; no watchdog reset is armed |
 | TIMER | `machdep.c`: `TIMERAWL` as a microsecond counter; no alarm | all | match |
-| PPB (SysTick, NVIC, MPU, SCB) | `systick.c`, `mpu.c`, `fault.c`, `locore0.S` | all | match; `MPU.md` |
-| SIO | GPIO25 LED, core 1 FIFO and launch (`core1.c`), the divider the boot ROM uses | all | match |
+| PPB (SysTick, NVIC, MPU, SCB) | `systick.c`, `mpu.c`, `fault.c`, `locore0.S` | all | SysTick match; the rest not audited here, see `MPU.md` |
+| SIO | GPIO25 LED, core 1 FIFO and launch (`core1.c`), the divider the boot ROM uses | all | LED match; `core1.c` not audited here, see `CORE1.md` |
 | IO_BANK0, PADS_BANK0 | per-driver pin setup only | all | no user-visible GPIO device |
 | UART0 | `dev/uart.c`, PL011 | all | match; 115,207 baud from IBRD 67, FBRD 52 |
 | UART1 | pin setup exists in `uart.c`; no kernel configures `uart1` | none | no device |
@@ -56,7 +59,7 @@ repository's ignored `docs/local/specs`.
 | I2C1 | `dev/picokbd.c` | PICOCALC, PICOCALC_PSRAM | match |
 | PWM | `dev/picoaudio.c`, slice 5 | PICOCALC, PICOCALC_PSRAM | match; a tone only |
 | PIO0 | `dev/psram_xfer.c`, `psram_pio.h` | PICOCALC_PSRAM | match |
-| SYSINFO, SYSCFG, BUSCTRL, PSM, ROSC | `machdep.c`, `sysctl.c`, `core1.c` | all | match |
+| SYSINFO, SYSCFG, BUSCTRL, PSM, ROSC | `machdep.c`, `sysctl.c`, `core1.c` | all | not audited here |
 | ADC (four pins, temperature sensor, VSYS/3 on GPIO29) | none; `clk_adc` stays off | none | no driver |
 | RTC | none; `clk_rtc` stays off | none | no driver |
 | I2C0, PIO1, DMA | none | none | no driver |
@@ -66,9 +69,9 @@ repository's ignored `docs/local/specs`.
 
 | Part | Surface | Driver | State |
 | --- | --- | --- | --- |
-| Pico U3 W25Q16JV | erase, program, XIP | `flash.c`, boot2 | match; the JEDEC ID is never read |
+| Pico U3 W25Q16JV | erase, program, XIP | `flash.c`, boot2 | match; no kernel reads the JEDEC ID |
 | Pico U2 RT6150B, PS on GPIO23 | PWM or PFM mode | none | pin left at reset; the Pico datasheet reserves it |
-| Pico VBUS sense, GPIO24 | cable presence | none; `usb.c` forces `VBUS_DETECT` | the override the datasheet permits |
+| Pico VBUS sense, GPIO24 | cable presence | none; `usb.c` forces `VBUS_DETECT` through `USB_PWR` | the datasheet describes that override for boards whose VBUS reaches no GPIO; the Pico's reaches GPIO24, which stays unused |
 | Pico D2 LED, GPIO25 | activity | `led_control()` in `machdep.c` | match |
 | Pico SW1 BOOTSEL | read through `IO_QSPI` | `machdep.c` | match |
 | PicoCalc panel, ST7365P | SPI1, GP10-GP15 | `st7365p.c`, `lcdterm.c`, `lcdcons.c`, `lcdgfx.c` | timing match; register values below |
@@ -93,7 +96,7 @@ Against ST7365P_SPEC_V1.0 section 9.3:
 | Bytes sent | Datasheet | Difference |
 | --- | --- | --- |
 | `E0h` and `E1h` with 15 parameters each | PGC and NGC take 14 (9.3.19, 9.3.20, pages 240-241) | one byte past the table, and the field layout is the ILI9488's; the eighth `E0h` byte 78h sets a bit the table fixes at 0 |
-| `C1h 41h` | PWR2, `VRH` values 28h-3Fh reserved, table ends at 27h (9.3.11, page 231) | above every defined value |
+| `C1h 41h` | PWR2, `VRH[6:0]`, default 13h; the table defines 00h-27h and reserves 28h-3Fh (9.3.11, page 231) | 41h is past the last listed value; the table says nothing of 40h and above |
 | `C5h 00h 12h 80h` | VCMPCTL takes one parameter, default 1Ch for 1.0 V (9.3.13, page 234) | three bytes; the first sets the lowest VCOM step |
 | `C0h 17h 15h` | PWR1 first parameter has a zero low nibble (9.3.10, page 230) | low nibble 7 |
 | `F7h A9h 51h 2Ch 82h` | no `F7h` in the command table (searched the text for "F7h": no match) | undefined command; the file header and `PICOCALC.md` name E9h as the only undefined vendor command |
@@ -112,13 +115,19 @@ the only omission" is the one statement a source edit can correct.
 
 `boot()` restarts through `AIRCR.SYSRESETREQ`, which resets the core
 alone (RP2040 datasheet 2.4.2.9; `CORE1.md` relies on the same fact).
-`usbinit()` releases `RESETS_USBCTRL` and never asserts it, so after a
+`usbinit()` releases `RESETS_USBCTRL` and never asserts it, and the boot
+ROM's flash boot path resets only `IO_QSPI`, `PADS_QSPI` and `TIMER`
+(`bootrom_main.c` `main()`, B2 source in the notes repository; it resets
+`USBCTRL` only in `_usb_boot()`). So after a
 warm reboot the controller still holds the previous device address and
 endpoint state while `SystemClock_Config()` restarts `pll_usb` under it.
 Reboots re-enumerate on the measured board (`STORAGE.md`, seven warm
-resets), so this is a hypothesis about the unexplained console wedge of
-`usb-outwedge.md`, with the falsifier that a kernel asserting
-`RESETS_USBCTRL` before the release shows the same wedge rate. Decided by:
+resets), so the stale state is survivable in the exercised cases. Hypothesis: an
+assert of `RESETS_USBCTRL` before the release removes one source of
+state the driver did not write. `usb-outwedge.md` records a bulk-OUT wedge
+that only a full chip reset clears and eliminates three source-level
+causes; whether that wedge survives a warm reboot today, and stops
+surviving it with the assert, is the measurement that connects the two. Decided by:
 board, under its opt-in.
 
 ### Flash operations mask interrupts longer than a USB control stage
@@ -126,8 +135,7 @@ board, under its opt-in.
 `flash.c` erases under `splhigh()`: 8,192 bytes for a Dhara block, two
 sector erases of 45 ms typical and 400 ms maximum each (W25Q16JV revision
 G, AC characteristics, tSE). USB 2.0 section 9.2.6.4 allows 50 ms for a
-status stage of a standard request with no data stage. A control transfer in flight during an erase can time out;
-bulk traffic is retried by the host and is unaffected. The boot ROM
+status stage of a standard request with no data stage. A control transfer in flight during an erase can time out. The boot ROM
 routines poll the busy bit with no bound and the watchdog is disabled, so
 a flash part that never clears busy stops the kernel. Decided by: board
 (`machdep.usb_*` counters during a write load).
@@ -135,7 +143,8 @@ a flash part that never clears busy stops the kernel. Decided by: board
 ### Unbounded waits before the console exists
 
 `SystemClock_Config()` loops on `XOSC_STATUS.STABLE` and on each PLL lock
-with no limit. A crystal that fails to start leaves no output. The 1 ms
+with no limit, as the boot ROM's own clock setup does. A crystal that
+fails to start leaves no output. The 1 ms
 startup delay (count 47) matches datasheet 2.16.3.
 
 ### SD card: checks the specification permits skipping
@@ -163,29 +172,35 @@ so a read ending within three bytes of 8 MB would clock past the last
 address; `psram.c` reads whole blocks and never reaches that case.
 Decided by: board (`picocalc-psram-capture.md`).
 
-### Keyboard: held keys do not repeat on the console
+### Keyboard: bus speed and registers left unused
 
-The controller reports a held key as state 2 every 100 ms after 300 ms
-(`keyboard.ino`, `KEY_HOLD_TIME`). `picokbd_translate()` types only on
-state 1, and `tests/picocalc/lcdterm_test.c` pins "hold types nothing",
-so the console has no autorepeat while `PICOCALC.md` says the firmware
-"repeats held keys". The raw event queue does deliver the hold state. The
-I2C bus runs at 96 kHz where the vendor's reference driver uses 10 kHz,
-and a fast-phase read follows its register write by 2 ms where the vendor
-waits 16 ms; `PICOCALC.md` already lists both as board checks. Registers
-CFG, INT, KEY, DEB, FRQ and RST are never accessed. Decided by: host for
-autorepeat, once it is chosen.
+The I2C bus runs at 96 kHz where the vendor's reference driver uses
+10 kHz, and a fast-phase read follows its register write by 2 ms where the
+vendor waits 16 ms; `PICOCALC.md` already lists both as board checks.
+Registers CFG, INT, KEY, DEB, FRQ and RST are never accessed. Decided by:
+board.
 
 ### Parts trusted without identification
 
-No code reads the flash JEDEC ID (`9Fh`) or unique ID (`4Bh`):
-`flash.h` fixes 2 MB, and the USB serial-number string is the constant
+No kernel reads the flash JEDEC ID (`9Fh`) or unique ID (`4Bh`); the
+SDK-built probe of `tools/pico-sdk/check-flash-id.sh` does, outside the
+kernel. `flash.h` fixes 2 MB, and the USB serial-number string is the constant
 "rp2040". Two boards on one host are told apart only by port.
+
+## Refuted
+
+A pass reported that held keys do not repeat on the console, because
+`picokbd_translate()` types only on the pressed state. The controller
+firmware reports each repeat of a printable key, Enter, Tab, Delete,
+Backspace and the arrows as a pressed event (`keyboard.ino`, the
+`KEY_STATE_HOLD` branch of the key callback) and sends the hold state only
+for the remaining keys, Ctrl among them. The driver's handling and
+`PICOCALC.md`'s "repeats held keys" agree with that source.
 
 ## What has no driver, and what each would cost
 
-Flash headroom at this revision (`tools/check_kernel_headroom.py`, kernels
-built 2026-11-13): PICO 29,304, PICO_UART 38,576, PICOCALC 12,832,
+Flash headroom of the kernels built in the primary checkout on
+2026-11-13, before this revision (`tools/check_kernel_headroom.py`): PICO 29,304, PICO_UART 38,576, PICOCALC 12,832,
 PICOCALC_PSRAM 10,640 bytes of 130,816.
 
 | Missing | What it would give | Constraint |

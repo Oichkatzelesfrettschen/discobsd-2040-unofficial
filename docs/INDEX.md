@@ -143,6 +143,7 @@ Grouped by what they investigate.
 | `board-descriptor-brief.md` | the work brief the board descriptor was built from: the decided design (one kernel, a checksummed `.board` section patched into `unix.uf2` per board), the ordered work items and their acceptance; `board-descriptor.md` holds the result |
 | `flash-storage-expectation-plan.md` | the storage expectation audit verified against source: per-request Dhara checkpoint padding as the cost driver, the `fs_fmod` gap in `sync()`, and a phased plan with gates and predictions |
 | `trim-cost-model.md` | the host-model cost of trim at free and of deferred free-list sweeps against no trim, by workload: a trim costs a write (`auto_gc()` before `try_delete()`), so trimming blocks reused within a burst is pure loss |
+| `dhara-gc-trigger.md` | when Dhara's collector starts: a later trigger lowers pages per write at every live share below full; the derived peak-journal bound per trigger and the adversarial runs that refute fixed triggers of 1,150 and 1,250 |
 | `libc-size-audit.md` | where the C library's bytes go, across the shipped programs |
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 192 KB process window |

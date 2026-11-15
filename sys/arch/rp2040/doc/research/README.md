@@ -14,6 +14,9 @@ manifest cite as the authority for a shipped mechanism:
   rockbox-ui.md -- what each multicall binary in distrib/rp2040/mi.rp2040
   carries and why.
 - zswap.md and emulation.md -- the RAM-tier swap design and the Renode flow.
+- dhara-gc-trigger.md -- where the vendored Dhara's collector starts
+  (`gc_trigger()` in sys/arch/rp2040/dhara/map.c): the peak-journal bound,
+  the adversarial runs, and the host-model and board costs.
 - flash-traffic-per-workload.md -- storage counters on the measured Pico and
   Renode flash-command counts for the stages of a compile on the board,
   against the flash part's rated erase cycles (distrib/rp2040/cc).

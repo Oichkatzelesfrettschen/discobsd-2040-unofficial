@@ -63,5 +63,14 @@ struct diskpart {                   /* the partition table */
  * command (any errno) keeps a failed write-back fatal to unmount.
  */
 #define DIOCMEDIAGONE    _IOR('d', 4, int)              /* media removed? */
+/*
+ * DIOCCHECKPOINT makes every write the driver has completed survive a reset
+ * and stores the result, zero or an errno, in its int argument. ufs_sync()
+ * issues it after its own writes, so sync(2), fsync(2), synchronous writes,
+ * unmount and shutdown reach it. A driver whose completed writes are already
+ * durable does not implement the command; any errno the ioctl itself returns
+ * means the device has no checkpoint to take.
+ */
+#define DIOCCHECKPOINT   _IOR('d', 5, int)              /* make writes durable */
 
 #endif /* _SYS_DISK_H_ */

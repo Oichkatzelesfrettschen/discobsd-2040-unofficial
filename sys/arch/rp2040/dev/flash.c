@@ -50,6 +50,7 @@
 #include <sys/systm.h>
 #include <sys/buf.h>
 #include <sys/errno.h>
+#include <sys/fcntl.h>
 #include <sys/storage_stats.h>
 #include <sys/conf.h>
 #include <sys/dk.h>
@@ -171,13 +172,13 @@ static int flmap_ready;
 
 /*
  * One physical program page shared by the raw-swap tail and Dhara's page
- * copy. Both paths run inside flstrategy under splbio from entry to exit and
- * neither sleeps, since flash_erase and flash_program spin. flscratch_owner
- * names the path holding the page: each flstrategy path refuses to enter
- * while it is held, and dhara_nand_copy, which Dhara also reaches from
- * dhara_map_sync at close and from dhara_map_resume at setup, refuses to run
- * while the swap path holds it. The owner check turns a broken lifetime
- * argument into a panic rather than silent corruption.
+ * copy. Both paths run under splbio from entry to exit, inside flstrategy or
+ * fl_checkpoint, and neither sleeps, since flash_erase and flash_program
+ * spin. flscratch_owner names the path holding the page: each of those paths
+ * refuses to enter while it is held, and dhara_nand_copy, which Dhara also
+ * reaches from dhara_map_resume at setup, refuses to run while the swap path
+ * holds it. The owner check turns a broken lifetime argument into a panic
+ * rather than silent corruption.
  */
 /*
  * The linker places this physical program page outside ordinary SRAM:
@@ -645,32 +646,45 @@ dhara_nand_copy(const struct dhara_nand *n, dhara_page_t src,
 struct fldisk {
 	struct diskpart	part[NPARTITIONS + 1];	/* [0] is the whole device. */
 	u_int		openpart;		/* Bit per open partition. */
+	u_int		wrpart;			/* Opened for writing since its last close. */
 };
 
 static struct fldisk fldrives[NFL];
 
 /*
- * Dhara makes a write durable only at a checkpoint, which dhara_map_sync
- * forces, and a reset before one discards everything written since the
- * last. The root device is never closed, so every write request ends with
- * a sync. That costs a checkpoint page per request rather than per group,
- * which the root's write rate, fsck and /tmp, can afford; it runs in the
- * requester's context, where flash writes already run.
+ * Dhara makes a write durable only at a checkpoint: the metadata page that
+ * closes a checkpoint group of seven user pages, here one 8 KiB erase block.
+ * dhara_map_write() programs it whenever a write fills a group, and
+ * dhara_map_sync() pads the open group with copies of live pages until it
+ * can, so forcing a checkpoint after one isolated 1 KiB write costs a whole
+ * group: eight Dhara pages, 32 program pages and a block erase.
+ * flstrategy() therefore forces none. ufs_sync() asks for one through
+ * DIOCCHECKPOINT, which sync(2), update(8), fsync(2), synchronous writes,
+ * unmount and shutdown all reach, and the driver's last close takes one.
+ * A reset discards the writes since the last checkpoint, and
+ * dhara_map_resume() returns the map to the state that checkpoint recorded.
+ * The padding copies pages through flscratch and its programs stop the clock,
+ * so the bracket is flstrategy()'s. It runs in the requester's context.
  */
 static int
-fl_sync(void)
+fl_checkpoint(void)
 {
 	dhara_error_t err = DHARA_E_NONE;
+	int s, error = 0;
 
 	if (!flmap_ready)
 		return 0;
 	storage_note(STORAGE_CHECKPOINT_ATTEMPTS, 1);
-	if (dhara_map_sync(&flmap, &err) < 0) {
-		storage_note(STORAGE_CHECKPOINT_ERRORS, 1);
-		return EIO;
-	}
-	storage_note(STORAGE_CHECKPOINT_SUCCESSES, 1);
-	return 0;
+	s = splbio();
+	flscratch_take(FLS_MAP);
+	if (dhara_map_sync(&flmap, &err) < 0)
+		error = EIO;
+	flscratch_owner = FLS_FREE;
+	clock_catchup();
+	splx(s);
+	storage_note(error != 0 ? STORAGE_CHECKPOINT_ERRORS :
+	    STORAGE_CHECKPOINT_SUCCESSES, 1);
+	return error;
 }
 
 /*
@@ -767,7 +781,7 @@ fl_setup(int unit)
 }
 
 int
-flopen(dev_t dev, int flags __unused, int mode __unused)
+flopen(dev_t dev, int flags, int mode __unused)
 {
 	int unit = flunit(dev);
 	int part = flpart(dev);
@@ -784,19 +798,33 @@ flopen(dev_t dev, int flags __unused, int mode __unused)
 			return error;
 	}
 	du->openpart |= 1 << part;
+	if (flags & FWRITE)
+		du->wrpart |= 1 << part;
 	return 0;
 }
 
+/*
+ * The last close of a root-unit node checkpoints the map when any open since
+ * the node's previous last close asked for writing. The last descriptor's own
+ * flags do not decide it: a writer may close first and leave a reader to make
+ * the last close. A node only ever held for reading forces no padding
+ * programs, and the swap unit keeps no map.
+ */
 int
-flclose(dev_t dev, int mode __unused, int flag __unused)
+flclose(dev_t dev, int flag __unused, int mode __unused)
 {
 	int unit = flunit(dev);
 	int part = flpart(dev);
+	u_int written;
 
 	if (unit >= NFL || part > NPARTITIONS)
 		return ENXIO;
+	written = fldrives[unit].wrpart & (1U << part);
 	fldrives[unit].openpart &= ~(1 << part);
-	return fl_sync();
+	fldrives[unit].wrpart &= ~(1U << part);
+	if (unit == FL_UNIT_SWAP || written == 0)
+		return 0;
+	return fl_checkpoint();
 }
 
 /* Size in DEV_BSIZE blocks, which is what the block layer asks for. */
@@ -962,8 +990,6 @@ flstrategy(struct buf *bp)
 				fail = 1;
 		}
 	}
-	if (! (bp->b_flags & B_READ) && ! fail && fl_sync() != 0)
-		fail = 1;
 	flscratch_owner = FLS_FREE;
 	clock_catchup();
 	splx(s);
@@ -987,7 +1013,7 @@ bad:
 }
 
 int
-flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
+flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {
 	int unit = flunit(dev);
 	int part = flpart(dev);
@@ -1019,6 +1045,19 @@ flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 		if ((fldrives[unit].openpart & ~(1U << RAWPART)) != 0)
 			return EBUSY;
 		fldrives[unit].part[RAWPART].dp_nsectors = 0;
+		return 0;
+
+	case DIOCCHECKPOINT:
+		/*
+		 * The swap unit writes the chip directly and keeps no map.
+		 * ioctl(2) passes the descriptor's open flags, so a process must
+		 * hold the node open for writing; ufs_sync() passes none.
+		 */
+		if (unit == FL_UNIT_SWAP)
+			return EINVAL;
+		if (flag != 0 && (flag & FWRITE) == 0)
+			return EBADF;
+		*(int *)addr = fl_checkpoint();
 		return 0;
 	}
 	return EINVAL;

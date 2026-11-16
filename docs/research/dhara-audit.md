@@ -172,7 +172,7 @@ Damage needs every one of these:
 - **No reflash since.** A `flash.uf2` reflash rewrites the whole region (`distrib/rp2040/Makefile.inc:138-141`). picotool 2.3.1 keeps erased blocks in the UF2: an 8 KiB all-0xff input became 32 UF2 blocks (M).
 - **A kernel-only update onto that root.** `distrib/rp2040/host/DEVELOPMENT.md:173-174` shows a kernel flashed with and without the root.
 
-The recorded board history holds seven USB warm resets and later forced-reset trials, with no power-cut campaign (C, `STORAGE.md:333-344`). The power-loss oracle H09 is blocked (C, `rp2040-memory-wear-engineering-program.md:201`). The expected number of damaged roots in service is well below one. Either of these would change that:
+The recorded board history holds seven USB warm resets and later forced-reset trials, with no power-cut campaign (C, `STORAGE.md:333-344`). The power-loss oracle H09 is blocked (C, `rp2040-memory-wear-engineering-program.md:201`). That history bounds one board, not a deployed population: no count of deployed roots, of their power losses or of their dirty checkpoints is recorded, so the measured history shows no damaged root and the number in service stays unknown (inference). Either of these would show a damaged root:
 
 - a count-node gap found in a `picotool save` dump;
 - an old kernel that fails reads with EIO.
@@ -265,8 +265,8 @@ Builds (the CRC build adds a bitwise CRC-32 `crc32_update()` that matches
 
 Runs:
 
-    h img=t.img fresh resume w:0-699:1 sync w:0-9:2 tear:K sync   # exits 3
-    h img=t.img load resume check:700
+    ./h img=t.img fresh resume w:0-699:1 sync w:0-9:2 tear:K sync   # exits 3
+    ./h img=t.img load resume check:700
 
 Sweeps ran K from 0 to 1024. D26 images continued under the old journal with
 `load resume w:0-99:3 sync w:100-199:3 sync w:700-749:1 sync save`.
@@ -628,7 +628,8 @@ int main(int argc, char **argv)
 +
         dhara_set_error(err, DHARA_E_TOO_BAD);
         return -1;
- }```
+ }
+```
 
 ### CRC-32 rule, against PR 636
 
@@ -664,7 +665,8 @@ int main(int argc, char **argv)
 +       dhara_w32(j->page_buf + CP_CRC_OFF, crc32_update(0xffffffffU, j->page_buf, CP_CRC_OFF));
 
         if (dhara_nand_prog(j->nand, j->head + 1, j->page_buf, &my_err) < 0)
-                return recover_from(j, my_err, err);```
+                return recover_from(j, my_err, err);
+```
 
 ### D28 refusal, against PR 636 and `main`
 
@@ -678,7 +680,8 @@ int main(int argc, char **argv)
 -       dhara_set_error(err, DHARA_E_TOO_BAD);
 +       dhara_set_error(err, DHARA_E_NOT_FOUND);
         return -1;
- }--- a/sys/arch/rp2040/dev/flash.c
+ }
+--- a/sys/arch/rp2040/dev/flash.c
 +++ b/sys/arch/rp2040/dev/flash.c
 @@ -874,7 +874,12 @@
                  * reports by returning -1 after initializing an empty map.
@@ -693,4 +696,5 @@ int main(int argc, char **argv)
 +               }
                 flblocks = (daddr_t)dhara_map_capacity(&flmap) /
                     (DEV_BSIZE / FLASH_UNIT_BYTES);
-                flmap_ready = 1;```
+                flmap_ready = 1;
+```

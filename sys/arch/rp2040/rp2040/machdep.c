@@ -949,6 +949,14 @@ boot(dev_t dev __unused, int howto)
 			continue;
 		/* NOTREACHED */
 	}
+#if defined(HALTREBOOT) && defined(UARTUSB_ENABLED)
+	/*
+	 * The halt messages below reach usbputc, which services the controller
+	 * and would hand a key typed meanwhile to the open tty's queue; the
+	 * key wait must find it in the ring.
+	 */
+	usbpollc(1);
+#endif
 	printf("halted\n");
 
 #ifdef HALTREBOOT

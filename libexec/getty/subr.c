@@ -360,14 +360,15 @@ portselector()
 #include <sys/time.h>
 
 char *
-autobaud()
+autobaud(void)
 {
 	fd_set rfds;
 	struct timeval timeout;
 	char c, *type = "1200-baud";
 	int null = 0;
 
-	ioctl(0, TIOCFLUSH, &null);
+	ioctl(0, (int)TIOCFLUSH, &null);
+	FD_ZERO(&rfds);
 	FD_SET(0, &rfds);
 	timeout.tv_sec = 30;
 	timeout.tv_usec = 0;
@@ -378,7 +379,7 @@ autobaud()
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 20;
 	(void) select(32, (fd_set*)0, (fd_set*)0, (fd_set*)0, &timeout);
-	ioctl(0, TIOCFLUSH, &null);
+	ioctl(0, (int)TIOCFLUSH, &null);
 	switch (c & 0377) {
 
 	case 0200:		/* 300-baud */

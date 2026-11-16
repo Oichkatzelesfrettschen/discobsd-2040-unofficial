@@ -149,8 +149,25 @@ the per-port unmount runs only on a real board, because a fake sysfs has no
 block nodes. Limit: the selector and the refusal read Linux sysfs. On macOS and
 in `discobsd-flash.ps1` the tools address picotool's one device as before and
 cannot tell a second board apart; flash with one board attached there.
-`discobsd-term`, `discobsd-web` and `discobsd-link` still take the first board
-that `discobsd-term --list` prints.
+`discobsd-term` and `discobsd-web` apply the same rule through
+`ports.find_board()`: `--usb-port PORT` or `DISCOBSD_USB_PORT` names the
+board, the flag wins over the variable, and with more than one 2e8a device and
+none named they exit 2 with the candidate ports before opening a serial line.
+A named port that holds no 2e8a device, or a malformed port, exits 1;
+`discobsd-term` waits when the named port exists but its console has not
+re-enumerated yet. `DISCOBSD_PORT` (a device path) and a device path argument
+to `discobsd-web` name the board itself and skip the check, and `discobsd-web`
+refuses a device path together with `--usb-port`. Both tools resolve the selector again at every
+serial open (`discobsd-web` per browser session, `discobsd-term` per
+reattach), because `/dev/ttyACMn` is renumbered when the boards re-enumerate;
+only a device path is used as given. `discobsd-term --list` still
+prints every board. `discobsd-link` only redirects to a URL and opens no board,
+so it takes no selector; `discobsd-console up` carries `DISCOBSD_USB_PORT` from its own
+environment to `discobsd-web`: a detached web inherits it, and with the
+systemd user units it is written to `web.env` (the unit's EnvironmentFile)
+and removed from that file when the variable is unset; a value that is not a
+USB port path makes `up` exit 1 before it writes anything.
+`tests/test_tool_usb_port.py` gates both tools against the same fake sysfs.
 
     discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2       # kernel only
     discobsd-flash distrib/rp2040/flash.uf2                   # root only

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "source_commit": "5bb9f09da5cb6f4b4a233b3000af332af76eb571",
+  "base_commit": "a706c0b851daaa25b019639e8217dda5ac17095d",
+  "gates": {
+    "rp2040-build-local": {
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 18.645,
+      "receipt_sha256": "638b3d7123731d06f81426f15a98212ee026f2c721fd1abf4a412c256f2d7db8",
+      "log_sha256": "4a5094549d0e5eef6ddbb98abd622cea627f306377b5cd72925503cc3485d12e"
+    },
+    "libc-pic-qualified-clean": {
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 0.196,
+      "receipt_sha256": "b4e4e17b466244b2e3c91a6cde08cd08d1282e8baa1d00b2979676ed4b528bbc",
+      "log_sha256": "525a38e34a871275374832048f8aee1d83de200d81a47b50616873e76c86d20e"
+    },
+    "libc-pic-qualified-static": {
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 4.749,
+      "receipt_sha256": "bee6fef0418876a8f104b9bfbd0b01e83b696beb3bbe30368bbf5593a6bc160a",
+      "log_sha256": "88dfe9db84674a5c243d8df277c5030d8f0fff5684e2948473a656f783e8e86a"
+    },
+    "libc-pic-qualified-replay": {
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 9.478,
+      "receipt_sha256": "5cf8ed2864b3ad07d90931dc557c2395cac2be53cf0b920f73f2aeb70e8bf8f1",
+      "log_sha256": "798120f623d7a994070a3a2fbd8755a0da53fae8104ad8a3e96690b94348fe18"
+    }
+  },
+  "calibration_tests": 24,
+  "provider_closure_tests": 33,
+  "focused_log_sha256": "d270f9f3e60a646d895d4df227046c5b982984468c7ceebd8abb4f2b52db6b47",
+  "evidence_files": {
+    "pic-replay-envelope-link.json": "f6ec679d1e4f515195189599d9539251309ef30eea8e40489f0ce1cd46e9950e",
+    "pic-replay-envelope-members.json": "60ef40fb70d91cfcf0672a2815d3b4bd601968ac7e64198dd85595bb95fc03a4",
+    "pic-replay-register-control.json": "4c5aff64dd242ba43f452d5d57952786a15a4bbd35fa1bb3c635f13d3cc2beff"
+  },
+  "physical_hardware": "unrun",
+  "runtime": "unrun",
+  "claim": "Captured compiler replay and experimental linked layout only; flash admission fails and ABI/runtime qualification remains open."
+}

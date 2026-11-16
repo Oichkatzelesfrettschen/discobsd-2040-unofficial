@@ -147,3 +147,29 @@ Not run: a board run, which this task leaves untouched; `sleep 100000001` and a 
 1. **Also repair `select1()` in the kernel?** Options: (a) no, 0 bytes, the early return past 2,147,483 s stays reachable only by `select()` callers other than `sleep()` (none known); (b) drop the bound and re-read the clock after `EWOULDBLOCK`, +16 bytes of text, `select()` is correct for every duration. Recommended: (a); the kernel budget is tight and no caller needs it.
 2. **Repair `alarm()` and `setitimer(ITIMER_REAL)` above 100,000,000 s?** Options: (a) document the bound in `alarm.3` and `setitimer.2`, 0 bytes; (b) clamp in `itimerfix()`, a few bytes of text and an ABI behavior change (a timer that cannot reach its date); (c) refuse and keep. Recommended: (a) now, (b) when a caller appears.
 3. **Chunk size.** 1,000,000 s is safe to HZ 1000. A port with HZ above 1000 saturates below 2,147,483 s and the constant needs a derived form. Options: (a) leave the constant, valid for every maintained port; (b) derive it from `HZ` at build time. Recommended: (a).
+
+## 6. The kernel repair (owner decision D131)
+
+Decision. The owner chose to repair the kernel wait as well: `select()` keeps waiting past the tick saturation and past the 100,000,000 s bound, the deadline survives the 32-bit rollover if that fits the change, and `alarm()` and `setitimer()` clamp instead of failing. The libc loop stays (see "Why the libc loop stays" below).
+
+### Record before editing
+
+This record was written before the kernel and libc edits of this section.
+
+Observations (source, commit 11f26188).
+- O1. `select1()` (`sys/kern/sys_generic.c`) finishes when `tsleep()` returns `EWOULDBLOCK`, without testing the wall clock again; `hzto()` saturates at 0x7fffffff ticks (2,147,483.647 s at HZ 1000). A timeout above that returns early.
+- O2. `itimerfix()` (`sys/kern/kern_time.c:346-352`) refuses `tv_sec > 100000000`; `select1()` and `setitimer()` both use it. `setitimer()` then refuses a value above its own `tick_limit` (LONG_MAX seconds for ITIMER_REAL, LONG_MAX / hz for VIRTUAL and PROF), which the 100,000,000 s bound had made unreachable for REAL: `vsec + monosec` is not guarded against overflow of a long.
+- O3. The kernel's `struct timeval` holds `utime32_t` (unsigned); a negative userland `tv_sec` arrives as a value of 2^31 or more. The 100,000,000 s bound is therefore also the only test that refuses a negative timeout.
+- O4. `timevaladd()` forms the select deadline modulo 2^32 and `wall_reached()` reads one that wrapped below the clock as due; `hzto()` reads it as far in the past.
+- O5. `alarm(n)` passes `n` as `tv_sec` (a signed 32-bit long): above LONG_MAX it is negative and refused, and above 100,000,000 it is refused by `itimerfix()`; `alarm()` then returns (unsigned)-1.
+
+Governing rules. POSIX `alarm()` has no error return; `select()` and `sleep()` wait for the whole interval or until a signal; a negative timeout is invalid.
+
+Hypotheses and falsifiers.
+- K1. Re-testing the wall clock after `EWOULDBLOCK` and waiting again lets one `select()` wait any time the deadline allows. Falsifier: a wait of 100,000,000 s in the kernel model that ends before the clock has moved that far.
+- K2. Moving the `itimerfix()` bound from 100,000,000 to 0x7fffffff keeps negative timeouts refused and admits the rest. Falsifier: `tv_sec = 0x80000000` accepted, or 100,000,001 refused.
+- K3. A deadline that wraps past the last count is clamped to the last second (0xffffffff, 0): the wait ends there, never spins, and never sleeps a saturated 24.9 days after the clock wraps. Falsifier: the model clock reaching zero inside the wait, or a wait of more than the distance to the last second.
+- K4. `setitimer()` clamping each seconds field to its `tick_limit` (REAL: LONG_MAX / 2, so `monosec + vsec` cannot overflow before 34 years of uptime) accepts every non-negative value. Falsifier: any value from 0 to 0x7fffffff refused, a negative value accepted, or a clamped timer reading back more than the limit.
+- K5. `alarm()` clamping the request to 2,147,483,647 s never fails for size. Falsifier: `alarm(UINT_MAX)` returning (unsigned)-1 or a negative `tv_sec` reaching `setitimer()`.
+
+Predicted movement of the gates against the unchanged head (11f26188). In the new kernel cases (`select` waits and `setitimer` limits in `tests/kernel/itimer_test.c`, native and ILP32): the select waits of 100,000,000 s, 100,000,001 s and 0x7fffffff s and the wait across the rollover fail; the refusal of 0x80000000 and the interrupted wait pass. The rewritten `limits()` case (a value above 100,000,000 and above the REAL clamp accepted) fails. In `alarm_contract_test`, `alarm(UINT_MAX)` requesting 2,147,483,647 fails. All pass after the repair; each mutant (no re-test after `EWOULDBLOCK`, the old bound, no rollover clamp, an `EINVAL` instead of the clamp, an alarm without the clamp) fails at least one case. Kernel text grows by at most 40 bytes on every kernel and RAM does not move (prediction from the earlier measurement: the re-test costs 16 bytes).

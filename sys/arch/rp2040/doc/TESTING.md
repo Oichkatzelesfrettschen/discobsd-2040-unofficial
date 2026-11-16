@@ -334,7 +334,8 @@ qemu tier owns the gate.
 `check-kernel-abi-contracts` compiles controller, device and service callback
 types with the selected host compiler and rejects incompatible assignments.
 Host fixtures exercise RP2040 and STM32 driver dispatch, startup service order, privileged `ucall`
-authorization, argument order, result and priority restoration, and the ARM
+authorization, its refusal with `EPERM` at securelevel above 0 (the routine and the priority
+untouched), argument order, result and priority restoration, and the ARM
 EABI copy entry argument order. Mutations calibrate the exercised failure
 paths. The host tier does not execute ARM instructions, a kernel boot, or the
 physical board. Firmware CI owns the gate through `check-host`.
@@ -367,9 +368,10 @@ measure physical-board timing.
 
 `check-ucall-qemu` executes the extracted RP2040 and STM32 `ucall` bodies as
 Thumb-1 code compiled by GCC and Clang at all eight optimization levels. Stub
-privilege and priority functions expose authorization, asymmetric arguments,
-return values and saved-priority restoration. Authorization, argument-order
-and restoration mutants must return their specific fixture failure status.
+privilege and priority functions expose authorization, the securelevel refusal,
+asymmetric arguments, return values and saved-priority restoration.
+Authorization, argument-order, restoration and securelevel mutants must return
+their specific fixture failure status.
 Firmware CI owns the gate through `check-qemu`; the stubs do not establish a
 real privilege transition or interrupt-controller behavior.
 

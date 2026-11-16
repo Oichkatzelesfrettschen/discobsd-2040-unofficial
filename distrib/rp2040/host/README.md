@@ -107,6 +107,12 @@ token-revealing short link:
 
     discobsd-console up --bind 0.0.0.0
 
+`DISCOBSD_WEB_TOKEN`, `--host-ip` and every other web.env value are limited to
+letters, digits and `. _ ~ : -`: web.env is a systemd EnvironmentFile and the
+token travels unencoded in a URL query, where those characters are inert. A
+token with other characters (for example base64 `+ / =`) is refused; generate
+one with `discobsd-console up`, which writes a hex token.
+
 `--bind` takes an IPv4 address literal and nothing else. A host name is
 refused, because the check and each server would resolve it separately, and
 an IPv6 literal is refused, because the systemd units build the short link's

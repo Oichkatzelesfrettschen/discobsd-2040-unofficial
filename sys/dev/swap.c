@@ -66,7 +66,8 @@ extern void	swap(size_t blkno, size_t coreaddr, int count, int rdflg);
  * level 2, and a descriptor opened at level 0 survives the rise, so both
  * swopen() and every transfer in swstrategy() ask. The block name of the
  * same blocks (fl1 on a flash kernel) is refused a write open at level 1 by
- * openi() (kern/sys_inode.c). The kernel's own image traffic reaches
+ * openi() and a write through a descriptor held across the rise by rwip()
+ * (kern/sys_inode.c). The kernel's own image traffic reaches
  * swapdev's strategy routine directly and never comes here.
  */
 static int

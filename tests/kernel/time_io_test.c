@@ -17,6 +17,10 @@
 #include <sys/storage_stats.h>
 
 struct user u;
+/* What rwip() of sys_inode.c asks of the port before a block device write. */
+int securelevel;
+dev_t swapdev;
+int blkoverlap(dev_t a, dev_t b) { return a == b; }
 struct timeval time;
 int hz = 100, usechz = 10000, lbolt, adjdelta;
 long monosec, realsec = LONG_MAX;

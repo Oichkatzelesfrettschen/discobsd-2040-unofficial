@@ -158,6 +158,14 @@ independent process state, weak aliases, SRAM application imports and callbacks.
 The calibrated experiment precedes authoritative ABI generation and leaves
 complete API ownership, flash fit and production shared-exec admission open.
 
+The [divider extent contract](xip-shared-libc/divider-function-extents.md)
+closes the four zero-sized global function definitions in the measured static
+libc archive. Six metadata controls complement the existing instruction-window
+and arithmetic witnesses. Matched native assembly and selected-archive builds
+show zero size growth. The change supplies ELF ownership metadata; arithmetic
+semantics, shared ABI generation and physical-divider qualification retain
+their separate requirements.
+
 The [tableless search experiment](search-bound-experiment/README.md) retains
 the next search-bound comparison and its replay driver. The finite host and
 ARMv6-M matrices preserve earliest-match behavior while exposing the separate

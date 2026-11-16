@@ -301,6 +301,7 @@ jobs:
       # It also owns root-header inclusion and curses integer ABI calibration.
       # It also calibrates explicit shared-libc API/provider closure with ARM
       # object archives through check-libc-shared-closure on both platforms.
+      # check-cross-assembler owns divider-window and ELF alias-extent controls.
       # check-libc-declaration-census inventories root-header exposure and
       # linker-name providers across feature modes and both time widths.
       # check-libc-pic-replay calibrates captured compiler replay and source,

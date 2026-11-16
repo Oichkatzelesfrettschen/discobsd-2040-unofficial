@@ -99,6 +99,8 @@ The pacman "equal" rows follow from its package format: the hyphen starts the pa
 
 `newvers.sh:90-96` pipes `$GITREV $CV $OST $OSR $ID $S` through awk with whitespace splitting. Run with `OSR="Rev A"`: the output is `version[] = "GizmoBSD RevPICO (A) #1 ..."`, `osrelease[] = "Rev"`, `osversion[] = "A#1"`. A release value with a space needs a script change; a value without a space (`RevA`) does not.
 
+The S3 representation as specified, `Rev A` in `version[]` and `RevA` in `osrelease[]`, was built through two scratch variants of `newvers.sh` (Appendix A.2). A display value `OSD` that `version[]` prints and `osrelease[]` ignores, with `OSR="RevA"`, yields `version[] = "GizmoBSD Rev A (PICO) #1 ..."` and `osrelease[] = "RevA"`: 82 bytes of `.rodata`, +3 against DiscoBSD 2.7. Splitting the awk input on `|` instead of whitespace with `OSR="Rev A"` puts `Rev A` in both strings: 83 bytes, +4. The earlier +2 holds only for `RevA` in both. The +1 of the split form over the earlier row is the space in `version[]`; the +1 of the delimiter form over the split form is the space in `osrelease[]`. Compiler `arm-none-eabi-gcc 16.2.0`, the flags of the table below; `.data` and `.bss` are 0 in all three.
+
 ### Size cost (kernel text and kernel RAM)
 
 `vers.o` from `newvers.sh` with a stub `git` reporting 2999 commits and `SOURCE_DATE_EPOCH=1794700000`, compiled with `arm-none-eabi-gcc 16.2.0 -mcpu=cortex-m0plus -mthumb -Os -std=c17 -ffreestanding`, sizes by `arm-none-eabi-size -A` (Appendix A). The four strings are `const char` arrays, so they land in `.rodata` (flash); `.data` and `.bss` are 0 in every row, and the existing PICO build's `vers.o` also holds 0 and 0. The linked-kernel text change is not measured (kernel builds run on the remote build host and were not run); section alignment in the link can add padding to each delta.
@@ -110,7 +112,9 @@ The pacman "equal" rows follow from its package format: the hyphen starts the pa
 | GizmoBSD / 0.1.0 with S="-alpha" (label in the version string only, as today) | 89 | +10 | 0 |
 | GizmoBSD / 0.1.0-alpha as OSR (label in version and osrelease) | 95 | +16 | 0 |
 | GizmoBSD / 2026.11 (S2) | 87 | +8 | 0 |
-| GizmoBSD / RevA (S3) | 81 | +2 | 0 |
+| GizmoBSD / `Rev A` in `version`, `RevA` in `osrelease` (S3 as specified, needs a display value) | 82 | +3 | 0 |
+| GizmoBSD / `Rev A` in both strings (S3 with a delimiter fix only) | 83 | +4 | 0 |
+| GizmoBSD / `RevA` in both strings (earlier S3 row, no script change) | 81 | +2 | 0 |
 | GizmoBSD / 0.a | 79 | 0 | 0 |
 
 "GizmoBSD" and "DiscoBSD" have the same length, so the rename alone costs 0 bytes. A new sysctl node for an ABI epoch would add kernel text and is not proposed; every epoch below lives in a build-time file.
@@ -119,7 +123,7 @@ The pacman "equal" rows follow from its package format: the hyphen starts the pa
 
 ### S1: SemVer 2.0.0 initial-development band, 0.y.z
 
-- Rules. Three numeric fields. While X is 0, y increments when an item in the contract list changes incompatibly, z increments for compatible fixes, and a label (`-alpha` on trunk, `-beta` before the cut) follows SemVer item 9. The list (I): the a.out user ABI (header and magic, system-call numbers and argument layouts, layouts and fundamental-type widths in installed headers, libc symbols of the shared library); on-disk and flash formats (partition map, root-file-system layout, swap); the host-visible wire (USB identity, console framing, the sysctl names the host tools read). 1.0.0 is cut when the list has not changed incompatibly across two consecutive releases and the host-link wire is documented (I).
+- Rules. Three numeric fields. While X is 0, y increments when an item in the contract list changes incompatibly, z increments for compatible fixes, and a label (`-alpha` on trunk, `-beta` before the cut) follows SemVer item 9. The list (I): the a.out user ABI (header and magic, system-call numbers and argument layouts, layouts and fundamental-type widths in installed headers, the installed libc interface whatever its linkage: declarations in the installed headers and the function and data symbols with their calling conventions, which are `/usr/lib/libc.a` today (`distrib/rp2040/mi.rp2040:350`; the image ships no shared libc) and a shared libc if one is added (`docs/research/xip-shared-libc` is a design, not a shipped object). A removed export or an incompatible declaration breaks the rebuild of existing programs, so it moves y and a z increment cannot carry it); on-disk and flash formats (partition map, root-file-system layout, swap); the host-visible wire (USB identity, console framing, the sysctl names the host tools read). 1.0.0 is cut when the list has not changed incompatibly across two consecutive releases and the host-link wire is documented (I).
 - Release cycle. After a release the trunk moves to the next planned version with `-alpha` (0.2.0-alpha after 0.1.0), the cut candidate carries `-beta` (0.2.0-beta), and the release carries no label (0.2.0). SemVer item 11 orders these 0.1.0 < 0.2.0-alpha < 0.2.0-beta < 0.2.0, and PEP 440 agrees (measured below). The label `-dev` is excluded: ASCII order puts it above `-beta` under item 11 and below it under PEP 440. This replaces the inherited "keep the same number, append -current" step (`newvers.sh:18-20`), whose "0.1.0-current" sorts below 0.1.0.
 - First value. `GizmoBSD 0.1.0`, with `etc/COPYRIGHT` and motd stating "derived from DiscoBSD 2.7" (plan D3).
 - param.h. `GizmoBSD 202611` unchanged in role, returned by `KERN_OSREV` (plan D4); `GizmoBSD_0_1 1` joins `DiscoBSD_2_7`, which plan D4 keeps. The integer is monotone across the rename (202611 above 202608), which the string ordering "0.1.0" below "2.7" is not.
@@ -141,12 +145,12 @@ The pacman "equal" rows follow from its package format: the hyphen starts the pa
 ### S3: Revision letter, hardware style, "Rev A"
 
 - Rules. One uppercase letter names a change-controlled configuration. The letter advances when the contract list of S1 changes incompatibly; fixes inside a letter are identified by the build identity (`#N`, commit count). 26 letters bound the series; a continuation (AA) is a rule to add.
-- First value. `Rev A`, written `RevA` in `osrelease`.
+- First value. `Rev A` in the `version` string, written `RevA` in `osrelease`.
 - param.h. `GizmoBSD_REV 1` (A is 1) returned by `KERN_OSREV`. This loses the year-and-month value of D4 in that sysctl; the date moves to the build stamp. `sys/sys/sysctl.h:129` names `KERN_OSREV` "system revision", which the letter fits literally.
 - Host package. Independent SemVer, as in S1.
 - Answers to the critiques. Hickey and Hynek: the letter claims one bit and says so. Hyrum: the same contract list. ZeroVer: no 0.x band. Cost: no ordering of magnitude, no pre-release vocabulary, and tools that sort versions treat letters as in the table above.
-- Tree changes. As S1, plus the field-split fix if the printed form is "Rev A".
-- Cost. +2 bytes flash `.rodata`, 0 bytes RAM.
+- Tree changes. As S1, plus a second value in `newvers.sh`: a display value that `version[]` prints (`Rev A`) beside the unspaced `OSR` (`RevA`) that `osrelease[]` and `osversion[]` consume. The scratch variant changes four lines of the script (Appendix A.2); a delimiter change alone would put the space in both strings.
+- Cost. +3 bytes flash `.rodata` for the specified split, +4 with `Rev A` in both strings, 0 bytes RAM. The earlier +2 measured `RevA` in both strings, which is neither form.
 
 ### The owner's two candidates by name
 
@@ -185,6 +189,8 @@ Not run: kernel build and linked-kernel text size (remote build host), Renode st
 
 ## Appendix A: replay of the size measurement
 
+### A.1: the S1, S2 and baseline rows
+
 ```sh
 # Run from the repository root; arm-none-eabi-gcc 16.2.0 produced the figures above.
 set -eu
@@ -209,6 +215,38 @@ run s3 GizmoBSD RevA ""
 run zero-a GizmoBSD 0.a ""
 run rev-space GizmoBSD "Rev A" ""
 cat "$SP/rev-space/PICO/vers.c"
+```
+
+### A.2: replay of the S3 representation measurement
+
+The `Rev A` display with `RevA` in `osrelease` needs two values, so `newvers.sh` gains a display value (`OSD`, empty by default and falling back to `OSR`). The variant that keeps `Rev A` in both strings splits the awk input on `|` instead of whitespace. Both are scratch copies; no tree file changes. Run from the repository root with the `git` stub of A.1 on `PATH`.
+
+```sh
+set -eu
+ROOT=$(git rev-parse --show-toplevel)
+SP=$(mktemp -d); mkdir -p "$SP/bin"
+printf '#!/bin/sh\nprintf "2999\\n"\n' > "$SP/bin/git"; chmod +x "$SP/bin/git"
+sed -e 's|^OSR="2.7"|OSR="2.7"\nOSD=""|' \
+    -e 's|^awk -v date="\$NOW" |awk -v date="$NOW" -v osd="$OSD" |' \
+    -e 's|^    printf "const char version\[\] = \\"%s %s%s (%s) #%d %s: %s\\\\n\\";\\n", \\|    if (osd == "") osd = osr;\n&|' \
+    -e 's|^        ost, osr, status, id, cv, gitrev, date;|        ost, osd, status, id, cv, gitrev, date;|' \
+    "$ROOT/sys/conf/newvers.sh" > "$SP/newvers-split.sh"
+sed -e 's#^echo \$GITREV \$CV \$OST \$OSR \$ID \$S| \\#echo "$GITREV|$CV|$OST|$OSR|$ID|$S" | \\#' \
+    -e "s#^awk -v date=\"\$NOW\" '{#awk -F'|' -v date=\"\$NOW\" '{#" \
+    "$ROOT/sys/conf/newvers.sh" > "$SP/newvers-delim.sh"
+run() { # name ost osr osd script
+  d=$SP/$1/PICO; mkdir -p "$d"; cd "$d"
+  sed -e "s/^OST=.*/OST=\"$2\"/" -e "s/^OSR=.*/OSR=\"$3\"/" -e "s/^OSD=.*/OSD=\"$4\"/" "$5" > newvers.sh
+  PATH=$SP/bin:$PATH SOURCE_DATE_EPOCH=1794700000 sh newvers.sh > vers.c
+  arm-none-eabi-gcc -mcpu=cortex-m0plus -mthumb -Os -std=c17 -ffreestanding -c vers.c -o vers.o
+  printf '%-12s ' "$1"
+  arm-none-eabi-size -A vers.o | awk '/^\.rodata/ {print $1 "=" $2}'
+  grep 'version\[\]\|osrelease' vers.c | sed -n '1p;3p'
+}
+run base DiscoBSD 2.7 "" "$ROOT/sys/conf/newvers.sh"
+run s3-reva GizmoBSD RevA "" "$ROOT/sys/conf/newvers.sh"
+run s3-split GizmoBSD RevA "Rev A" "$SP/newvers-split.sh"
+run s3-both GizmoBSD "Rev A" "" "$SP/newvers-delim.sh"
 ```
 
 ## Appendix B: replay of the ordering measurements

@@ -30,6 +30,14 @@ struct sigframe {
 };
 
 /*
+ * sigaltstack() accepts any stack of MINSIGSTKSZ bytes or more, and sendsig
+ * places the frame below the top rounded down to eight bytes, so the frame
+ * and up to seven bytes of rounding must fit the smallest stack it accepts.
+ */
+_Static_assert(sizeof(struct sigframe) + 7U <= MINSIGSTKSZ,
+    "a minimum-size alternate stack must hold the signal frame");
+
+/*
  * Send an interrupt to process.
  *
  * Stack is set up to allow trampoline code stored at u.u_sigtramp (as

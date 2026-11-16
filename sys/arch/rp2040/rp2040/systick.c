@@ -106,7 +106,10 @@ systick(struct clockframe *frame, u_int exc_return)
 	 * ast() in syscall.c. A tick that interrupted the kernel needs no
 	 * trap: every return from the kernel to a process passes userret.
 	 * The terminal's interrupt character and every other psignal() from
-	 * an interrupt handler wait at most one tick here.
+	 * an interrupt handler wait at most one tick here. A masked signal
+	 * needs no trap even for a traced process: CURSIG() passes a traced
+	 * process to issignal(), but issignal() drops p_sigmask's signals
+	 * before it stops for the tracer, so the trap would deliver nothing.
 	 */
 	if (exc_return != EXC_RETURN_THREAD_PSP)
 		return;

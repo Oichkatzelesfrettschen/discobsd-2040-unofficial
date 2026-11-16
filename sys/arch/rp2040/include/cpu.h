@@ -130,7 +130,39 @@
  */
 #define	CPU_ADC_TEMP		43	/* int: die temperature, m degrees C */
 #define	CPU_ADC_VSYS		44	/* int: VSYS, millivolts */
-#define	CPU_MAXID		45	/* number of valid machdep ids */
+/*
+ * flash_id, read-only: the QSPI flash chip's identity as flash_identity()
+ * (dev/flash.c) holds it. jedec is the manufacturer, memory type and
+ * capacity bytes in the order the chip returns them; unique is the 64-bit
+ * unique ID, most significant byte first. valid is 0, with every other byte
+ * zero, when the chip returned no plausible answer at boot.
+ */
+#define	CPU_FLASH_ID		45	/* struct cpu_flash_id */
+/*
+ * pcm, read-only: the /dev/audio device (dev/picopcm.c). rate is samples per
+ * second; channels and bits describe the sample stream a writer supplies,
+ * which the driver plays on both amplifier pins. ring is the most samples
+ * the queue holds, queued the samples waiting for the sample interrupt, and
+ * open is 1 while a process holds the device. A kernel without the device,
+ * or one running on a board without the amplifier, answers EOPNOTSUPP.
+ */
+#define	CPU_PCM			46	/* struct cpu_pcm_info */
+#define	CPU_MAXID		47	/* number of valid machdep ids */
+
+struct cpu_flash_id {
+	unsigned char	valid;
+	unsigned char	jedec[3];
+	unsigned char	unique[8];
+};
+
+struct cpu_pcm_info {
+	unsigned int	rate;
+	unsigned int	channels;
+	unsigned int	bits;
+	unsigned int	ring;
+	unsigned int	queued;
+	unsigned int	open;
+};
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -179,5 +211,7 @@
 	{ "image_crc_stored", CTLTYPE_INT }, \
 	{ "adc_temp_mc", CTLTYPE_INT }, \
 	{ "adc_vsys_mv", CTLTYPE_INT }, \
+	{ "flash_id", CTLTYPE_STRUCT }, \
+	{ "pcm", CTLTYPE_STRUCT }, \
 }
 #endif	/* !KERNEL */

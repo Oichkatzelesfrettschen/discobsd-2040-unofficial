@@ -139,6 +139,8 @@ privilege can change the value.
 	kern.boottime	struct	no
 	vm.loadavg	struct	no
 	machdep.console_device	dev_t	no
+	machdep.flash_id	struct	no
+	machdep.pcm	struct	no
 	machdep.mscp.printf	integer	yes
 	machdep.tmscp.cache	integer	yes
 	machdep.tmscp.printf	integer	yes
@@ -174,6 +176,33 @@ privilege can change the value.
 	user.posix2_sw_dev	integer	no
 	user.posix2_upe	integer	no
 .fi
+.SH "RP2040 STRUCTURE NODES"
+.B machdep.flash_id
+prints the identity of the QSPI flash chip: its three JEDEC ID bytes
+(manufacturer, memory type, capacity) and its 64-bit unique ID, as
+.RS
+.nf
+machdep.flash_id=jedec ef4015 unique 0123456789abcdef
+.fi
+.RE
+or as
+.B unread
+when the chip returned no plausible answer at boot.
+.PP
+.B machdep.pcm
+prints the configuration of the PicoCalc's
+.I /dev/audio
+device: the sample rate in samples per second, the channels and bits per
+sample of the stream a writer supplies, the most samples the queue holds,
+the samples now queued and whether a process has the device open, as
+.RS
+.nf
+machdep.pcm=rate 8000 channels 1 bits 8 ring 255 queued 0 open 0
+.fi
+.RE
+A kernel without the device, or running on a board without the amplifier,
+reports that the value is not available.
+Both nodes are read-only.
 .SH EXAMPLES
 .PP
 For example, to retrieve the maximum number of processes allowed

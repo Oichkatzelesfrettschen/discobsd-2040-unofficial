@@ -68,6 +68,29 @@ int status_sysctl(int *name, u_int length, void *old, size_t *size,
         if (scenario && strcmp(scenario, "record-size") == 0) stats.size--;
         memcpy(old, &stats, sizeof(stats));
         *size = sizeof(stats);
+    } else if (name[0] == CTL_MACHDEP && name[1] == CPU_FLASH_ID) {
+        struct cpu_flash_id id;
+        memset(&id, 0, sizeof(id));
+        if (!(scenario && strcmp(scenario, "unread") == 0)) {
+            static const unsigned char jedec[3] = { 0xef, 0x40, 0x15 };
+            static const unsigned char unique[8] = {
+                0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef };
+            id.valid = 1;
+            memcpy(id.jedec, jedec, sizeof(jedec));
+            memcpy(id.unique, unique, sizeof(unique));
+        }
+        memcpy(old, &id, sizeof(id));
+        *size = sizeof(id);
+    } else if (name[0] == CTL_MACHDEP && name[1] == CPU_PCM) {
+        struct cpu_pcm_info pcm;
+        pcm.rate = 8000;
+        pcm.channels = 1;
+        pcm.bits = 8;
+        pcm.ring = 255;
+        pcm.queued = 7;
+        pcm.open = 1;
+        memcpy(old, &pcm, sizeof(pcm));
+        *size = sizeof(pcm);
     } else if ((name[0] == CTL_HW && name[1] == HW_NCPU) ||
         (name[0] == CTL_KERN && (name[1] == KERN_MAXPROC || name[1] == KERN_MAXFILES)) ||
         (name[0] == CTL_MACHDEP && name[1] == CPU_MPU)) {

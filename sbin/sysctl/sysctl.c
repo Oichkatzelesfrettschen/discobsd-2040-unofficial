@@ -574,6 +574,47 @@ parse(char *string, int flags)
         return (0);
     }
 #endif
+#ifdef CPU_FLASH_ID
+	if (mib[0] == CTL_MACHDEP && mib[1] == CPU_FLASH_ID) {
+		const struct cpu_flash_id *id = (const struct cpu_flash_id *)buf;
+		unsigned i;
+
+		if (size != sizeof(*id)) {
+			fprintf(stderr, "%s: unsupported flash id ABI\n", string);
+			return (1);
+		}
+		if (!nflag)
+			fprintf(stdout, "%s%s", string, equ);
+		if (!id->valid) {
+			fprintf(stdout, "unread\n");
+			return (0);
+		}
+		fprintf(stdout, "jedec %02x%02x%02x unique ",
+		    (unsigned)id->jedec[0], (unsigned)id->jedec[1],
+		    (unsigned)id->jedec[2]);
+		for (i = 0; i < sizeof(id->unique); i++)
+			fprintf(stdout, "%02x", (unsigned)id->unique[i]);
+		fprintf(stdout, "\n");
+		return (0);
+	}
+#endif /* CPU_FLASH_ID */
+#ifdef CPU_PCM
+	if (mib[0] == CTL_MACHDEP && mib[1] == CPU_PCM) {
+		const struct cpu_pcm_info *pcm = (const struct cpu_pcm_info *)buf;
+
+		if (size != sizeof(*pcm)) {
+			fprintf(stderr, "%s: unsupported pcm ABI\n", string);
+			return (1);
+		}
+		if (!nflag)
+			fprintf(stdout, "%s%s", string, equ);
+		fprintf(stdout,
+		    "rate %u channels %u bits %u ring %u queued %u open %u\n",
+		    pcm->rate, pcm->channels, pcm->bits, pcm->ring,
+		    pcm->queued, pcm->open);
+		return (0);
+	}
+#endif /* CPU_PCM */
 	if (special & CAPACITY) {
 		static const char *const metric_names[CAPACITY_KIND_COUNT] = {
 			"proc", "inode", "file", "clist", "buffer"

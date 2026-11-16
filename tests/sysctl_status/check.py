@@ -59,6 +59,9 @@ def verify(binary):
         (["net"], "", False),
         (["kern.proc"], "", False),
         (["machdep.mpu"], "", True),
+        (["machdep.flash_id"], "", True),
+        (["machdep.flash_id"], "unread", True),
+        (["machdep.pcm"], "", True),
         (["machdep.mpu.unknown"], "", False),
         (["vm.loadavg"], "load-failure", False),
         (["-a"], "unavailable", True),
@@ -68,6 +71,25 @@ def verify(binary):
     for node in ("kern.capacity", "machdep.storage_stats"):
         for scenario in ("unavailable", "version", "record-size", "length"):
             cases.append(([node], scenario, False))
+    for node in ("machdep.flash_id", "machdep.pcm"):
+        for scenario in ("unavailable", "length"):
+            cases.append(([node], scenario, False))
+    outputs = (
+        (["machdep.flash_id"], "", "machdep.flash_id=jedec ef4015 unique 0123456789abcdef\n"),
+        (["-n", "machdep.flash_id"], "", "jedec ef4015 unique 0123456789abcdef\n"),
+        (["machdep.flash_id"], "unread", "machdep.flash_id=unread\n"),
+        (["machdep.pcm"], "", "machdep.pcm=rate 8000 channels 1 bits 8 ring 255 queued 7 open 1\n"),
+        (["-n", "machdep.pcm"], "", "rate 8000 channels 1 bits 8 ring 255 queued 7 open 1\n"),
+    )
+    for operands, scenario, expected in outputs:
+        result = subprocess.run(
+            [str(binary), *operands],
+            text=True,
+            capture_output=True,
+            env=dict(os.environ, SCENARIO=scenario),
+        )
+        if result.returncode != 0 or result.stdout != expected:
+            raise AssertionError((operands, scenario, result.returncode, result.stdout))
     for operands, scenario, success in cases:
         result = subprocess.run(
             [str(binary), *operands],
@@ -92,6 +114,11 @@ text = source.read_text()
 for name, anchor, replacement in (
     ("status", "return (exit_status);", "(void)exit_status; return (0);"),
     ("operand", "parse(*argv++, 1)", "parse(*argv, 1)"),
+    ("flash-jedec-digits", '"jedec %02x%02x%02x unique "', '"jedec %02d%02d%02d unique "'),
+    ("flash-unread-as-valid", "if (!id->valid) {", "if (0) {"),
+    ("flash-size-unchecked", "if (size != sizeof(*id)) {", "if (0) {"),
+    ("pcm-size-unchecked", "if (size != sizeof(*pcm)) {", "if (0) {"),
+    ("pcm-queued-for-open", "pcm->queued, pcm->open);", "pcm->open, pcm->queued);"),
 ):
     assert text.count(anchor) == 1, (name, "mutation anchor")
     mutant = out / (name + ".c")
@@ -103,4 +130,4 @@ for name, anchor, replacement in (
     except AssertionError:
         continue
     raise AssertionError((name, "mutant escapes"))
-print(f"sysctl: {count} behavior cases pass; status and operand mutants fail")
+print(f"sysctl: {count} behavior cases pass; status, operand and node-output mutants fail")

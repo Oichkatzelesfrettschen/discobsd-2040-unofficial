@@ -45,6 +45,7 @@
 #endif
 #ifdef PICOCALC_ENABLED
 #include <machine/picocalcvar.h>
+#include <rp2040/dev/picopcm.h>
 #endif
 
 /*
@@ -298,6 +299,41 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
 			    sizeof i);
 		}
+	case CPU_FLASH_ID:
+		{
+			struct cpu_flash_id id;
+			const u_char *jedec, *unique;
+
+			if (namelen != 1)
+				return ENOTDIR;
+			bzero(&id, sizeof id);
+			if (flash_identity(&jedec, &unique) == 0) {
+				id.valid = 1;
+				bcopy(jedec, id.jedec, sizeof id.jedec);
+				bcopy(unique, id.unique, sizeof id.unique);
+			}
+			return sysctl_rdstruct(oldp, oldlenp, newp, &id,
+			    sizeof id);
+		}
+#ifdef PICOCALC_ENABLED
+	case CPU_PCM:
+		{
+			struct cpu_pcm_info pcm_info;
+
+			if (namelen != 1)
+				return ENOTDIR;
+			if (board_id() != BOARD_ID_PICOCALC)
+				return EOPNOTSUPP;
+			pcm_info.rate = PCM_RATE;
+			pcm_info.channels = PCM_CHANNELS;
+			pcm_info.bits = PCM_BITS;
+			pcm_info.ring = PCM_RING - 1;
+			pcm_info.queued = pcm_queued();
+			pcm_info.open = picoaudio_pcm != 0;
+			return sysctl_rdstruct(oldp, oldlenp, newp, &pcm_info,
+			    sizeof pcm_info);
+		}
+#endif
 #ifdef CORE1
 	case CPU_CORE1:
 	case CPU_CORE1_RESTARTS:

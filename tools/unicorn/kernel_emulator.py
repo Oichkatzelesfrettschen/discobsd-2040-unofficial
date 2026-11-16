@@ -9,8 +9,10 @@ UC_CPU_ARM_CORTEX_M0, yet Unicorn 2.1.4 executes Thumb-2 instructions
 under it (RBIT, MLA, ADD.W and UDIV all run, measured on the probe in
 thumb2_probe()), so the model alone does not confine execution to ARMv6-M.
 A block hook therefore disassembles every translated block once through
-capstone and fails the call on a 32-bit encoding outside the ARMv6-M set,
-and armv6m_check() applies the same rule statically to a whole function.
+capstone and fails the call on an encoding outside the ARMv6-M set (a
+32-bit one other than BL, MSR, MRS, DMB, DSB and ISB, an MRS or MSR naming a
+special register ARMv6-M lacks, CBZ, CBNZ and IT), and armv6m_check() applies
+the same rule statically to a whole function.
 
 call() follows the AAPCS (ARM IHI 0042, section 6): the first four word
 arguments in r0-r3, the rest on the stack at an 8-byte aligned sp, the
@@ -18,9 +20,11 @@ return address in lr with the Thumb bit set and the result in r0; r4-r11
 and sp must come back unchanged. The
 return address is a trap page outside the RP2040 map; reaching it ends the
 call. A call fails when it faults, exceeds its instruction budget, stops
-anywhere but the trap, makes an unaligned halfword or word access (which
-Unicorn performs and ARMv6-M faults), or touches memory outside the policy
-the caller installs. The policy is byte exact and complements the guard pages that
+anywhere but the trap, or, when the caller installs a policy, makes an
+unaligned halfword or word access (which Unicorn performs and ARMv6-M
+faults) or touches memory outside it. A call with policy=None, the helper
+that builds a test input, runs without the access hook and so without
+either check. The policy is byte exact and complements the guard pages that
 surround every scratch buffer: Unicorn maps whole 4 KiB pages, so a guard
 page alone catches an overrun only on the side where a buffer sits flush.
 
@@ -32,6 +36,7 @@ pointer calls back into the model.
 
 from __future__ import annotations
 
+import re
 import struct
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -104,8 +109,30 @@ BX_LR = b"\x70\x47"
 NOP = b"\x00\xbf"
 
 # ARMv6-M Thumb (ARM DDI 0419, section A5.1) admits 32-bit encodings only
-# for BL, MSR, MRS, DMB, DSB and ISB.
+# for BL, MSR, MRS, DMB, DSB and ISB. MRS and MSR name a special register
+# (B5.4.1 and B5.4.2); the ARMv7-M BASEPRI, BASEPRI_MAX and FAULTMASK, and
+# the DSP forms of the APSR mask, are not ARMv6-M. CBZ, CBNZ and IT are
+# 16-bit ARMv7-M encodings.
 ARMV6M_WIDE = frozenset({"bl", "msr", "mrs", "dmb", "dsb", "isb"})
+ARMV6M_SYSREGS = frozenset(
+    {"apsr", "iapsr", "eapsr", "xpsr", "ipsr", "epsr", "iepsr", "msp", "psp", "primask", "control"}
+)
+ARMV7M_NARROW = frozenset({"cbz", "cbnz"})
+IT_MNEMONIC = re.compile(r"it[te]{0,3}")
+
+
+def outside_armv6m(size: int, mnemonic: str, operands: str) -> bool:
+    """Whether a decoded instruction is not in ARMv6-M Thumb."""
+    base = mnemonic.split(".")[0]
+    if size == 2:
+        return base in ARMV7M_NARROW or IT_MNEMONIC.fullmatch(base) is not None
+    if base not in ARMV6M_WIDE:
+        return True
+    if base in ("mrs", "msr"):
+        fields = [field.strip() for field in operands.split(",")]
+        register = fields[1] if base == "mrs" else fields[0]
+        return register.removesuffix("_nzcvq") not in ARMV6M_SYSREGS
+    return False
 
 
 class CallFailure(Exception):
@@ -252,17 +279,17 @@ def block_violation(code: bytes, address: int) -> str | None:
         decoded = next(_THUMB.disasm(code[offset : offset + 4], address + offset, 1), None)
         if decoded is None:
             return f"undecodable instruction at {address + offset:#010x}"
-        if decoded.size == 4 and decoded.mnemonic.split(".")[0] not in ARMV6M_WIDE:
+        if outside_armv6m(decoded.size, decoded.mnemonic, decoded.op_str):
             return f"{decoded.mnemonic} {decoded.op_str} at {address + offset:#010x} is not ARMv6-M"
         offset += decoded.size
     return None
 
 
 def armv6m_check(image: KernelImage, name: str) -> int:
-    """Reject a 32-bit encoding outside the ARMv6-M set; return the count."""
+    """Reject an encoding outside the ARMv6-M set; return the count."""
     instructions = disassemble(image, name)
     for address, size, mnemonic, operands, _ in instructions:
-        if size == 4 and mnemonic not in ARMV6M_WIDE:
+        if outside_armv6m(size, mnemonic, operands):
             raise CallFailure(
                 "subset", f"{name} at {address:#x}: {mnemonic} {operands} is not ARMv6-M"
             )
@@ -470,6 +497,42 @@ class KernelEmulator:
         return self.uc.reg_read(UC_ARM_REG_R0)
 
 
+# Known-good and known-bad encodings for the subset filter: (bytes, text).
+SUBSET_ACCEPTED = (
+    (b"\xef\xf3\x10\x80", "mrs r0, primask"),
+    (b"\x80\xf3\x10\x88", "msr primask, r0"),
+    (b"\x80\xf3\x14\x88", "msr control, r0"),
+    (b"\xef\xf3\x08\x80", "mrs r0, msp"),
+    (b"\xef\xf3\x05\x80", "mrs r0, ipsr"),
+    (b"\x80\xf3\x00\x88", "msr apsr_nzcvq, r0"),
+    (b"\x00\xbf", "nop"),
+    (b"\x72\xb6", "cpsid i"),
+)
+SUBSET_REFUSED = (
+    (b"\x80\xf3\x11\x88", "msr basepri, r0"),
+    (b"\xef\xf3\x12\x80", "mrs r0, basepri_max"),
+    (b"\xef\xf3\x13\x80", "mrs r0, faultmask"),
+    (b"\x80\xf3\x00\x84", "msr apsr_g, r0"),
+    (b"\x90\xfa\xa0\xf0", "rbit r0, r0"),
+    (b"\x08\xb1", "cbz r0"),
+    (b"\x08\xbf", "it eq"),
+)
+
+
+def subset_probe() -> list[str]:
+    """The filter's own check: the failures among SUBSET_ACCEPTED (refused)
+    and SUBSET_REFUSED (accepted), empty when it sorts every encoding."""
+    failures = []
+    for code, text in SUBSET_ACCEPTED:
+        reason = block_violation(code, FLASH_BASE)
+        if reason is not None:
+            failures.append(f"refused {text}: {reason}")
+    for code, text in SUBSET_REFUSED:
+        if block_violation(code, FLASH_BASE) is None:
+            failures.append(f"accepted {text}")
+    return failures
+
+
 def thumb2_probe() -> tuple[bool, str]:
     """Run RBIT r0, r0 (fa90 f0a0, ARMv7-M only) under the Cortex-M0 model.
 
@@ -498,5 +561,6 @@ __all__ = [
     "armv6m_check",
     "disassemble",
     "literal_words",
+    "subset_probe",
     "thumb2_probe",
 ]

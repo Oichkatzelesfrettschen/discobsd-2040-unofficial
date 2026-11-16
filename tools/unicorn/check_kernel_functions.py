@@ -28,9 +28,13 @@ the result with a Python reference:
 Calibration: before a verdict counts, every property runs against each
 mutant kernel of its function, the linked bytes with one conditional
 branch inverted or one instruction replaced by NOP (push, pop and the
-return excluded), and each corrupted crc32_nibble table copy; a property
-that kills no mutant fails the gate, and the memory property must kill one
-through an access violation or fault. The seed is fixed (--seed), the
+return excluded), and each corrupted crc32_nibble table copy. A property
+calibrates only when it kills a mutant in the failure class of its
+obligation: a wrong result for the differential, round trip, CRC and
+bstring properties, an access violation, fault or misaligned access for the
+memory property, and both a wrong result and an access or contract breach
+for hsx_expand. A kill by an instruction budget, a callee-saved register or
+another class does not count toward those. The seed is fixed (--seed), the
 example database is off, and a failure prints the seed.
 Exit status: 0 pass, 1 a property or calibration failed, 2 setup.
 """
@@ -69,6 +73,7 @@ try:
         armv6m_check,
         disassemble,
         literal_words,
+        subset_probe,
         thumb2_probe,
     )
 except ImportError as missing:
@@ -89,7 +94,11 @@ DEC_SIZE = DEC_FIELDS + 512
 WORK_SIZE = 1024
 STAGE = WORK_SIZE - DEC_SIZE
 RING_MASK = 511
-MAX_RING_CALLS = 48
+# decode_case draws the room of its first MAX_DRAWN_CALLS calls; every later
+# call asks for all the space left, so a stream always runs to its stall or
+# to a full destination. MAX_CALLS bounds the whole decode and fails past it.
+MAX_DRAWN_CALLS = 48
+MAX_CALLS = 1000
 LINEAR_CAP = 3000
 
 
@@ -268,18 +277,24 @@ def decode_case(emu: KernelEmulator, case, data, check_output: bool) -> None:
     calls = 0
     for chunk in chunks_of(stream, cuts):
         session.offer(chunk)
-        while calls < MAX_RING_CALLS:
+        while True:
             space = session.space()
             if not ring and space == 0:
                 return
-            least = 1 if ring else 0
-            room = data.draw(
-                st.one_of(
-                    st.just(space), st.integers(least, min(space, 16)), st.integers(least, space)
-                ),
-                label="room",
-            )
+            if calls < MAX_DRAWN_CALLS:
+                least = 1 if ring else 0
+                room = data.draw(
+                    st.one_of(
+                        st.just(space),
+                        st.integers(least, min(space, 16)),
+                        st.integers(least, space),
+                    ),
+                    label="room",
+                )
+            else:
+                room = space
             calls += 1
+            expect(calls <= MAX_CALLS, f"the decode of one stream passed {MAX_CALLS} calls")
             if session.run(room, check_output) < room:
                 # A stall leaves no whole token in the chunk, so a second
                 # call on the same chunk produces nothing.
@@ -287,8 +302,6 @@ def decode_case(emu: KernelEmulator, case, data, check_output: bool) -> None:
                     again = session.run(session.space(), check_output)
                     expect(again == 0, f"{again} bytes from a chunk that had stalled")
                 break
-        else:
-            return
         if check_output:
             model = heatshrink_model.decode(session.offered, lookahead)
             expect(
@@ -427,12 +440,21 @@ def prop_expand(emu: KernelEmulator):
         base = data.draw(st.integers(0, 1 << 20), label="file offset")
         work = emu.alloc(WORK_SIZE)
         stage = work + DEC_SIZE
+        fail_at = data.draw(st.one_of(st.none(), st.integers(0, 3)), label="failing fill")
         dst = emu.alloc(rlen, low=low) if use_dst else 0
         crc_word = emu.alloc(4)
         ctx = 0x5EED0000
         high = [dst]
+        fills = [0]
+        # The work-buffer bytes the kernel or the fill callback has defined:
+        # a read of any other byte (an unfilled stage byte, one left by an
+        # earlier fill, a window slot not yet written) breaks the contract.
+        defined = bytearray(WORK_SIZE)
 
         def fill(context: int, offset: int, buffer: int, length: int) -> int:
+            fills[0] += 1
+            if fail_at is not None and fills[0] == fail_at + 1:
+                return U32
             if context != ctx or buffer != stage or not 0 < length <= STAGE:
                 emu.fail(f"fill(ctx {context:#x}, buf {buffer:#x}, len {length}) outside the stage")
                 return U32
@@ -443,15 +465,32 @@ def prop_expand(emu: KernelEmulator):
                 )
                 return U32
             emu.write(buffer, stream[offset - base : offset - base + length])
+            defined[DEC_SIZE:] = bytes(STAGE)
+            defined[DEC_SIZE : DEC_SIZE + length] = b"\x01" * length
             return 0
 
         def record(address: int, size: int) -> None:
             if dst <= address < dst + rlen:
                 high[0] = max(high[0], address + size)
+            if work <= address < work + WORK_SIZE:
+                defined[address - work : address - work + size] = b"\x01" * size
 
         def check_read(address: int, size: int) -> str | None:
             if dst and dst <= address < dst + rlen and address + size > high[0]:
                 return f"read at dst+{address - dst} beyond the bytes produced"
+            if work <= address < work + WORK_SIZE and not all(
+                defined[address - work : address - work + size]
+            ):
+                # Once dst holds rlen bytes, hsx_expand decodes on into the
+                # window to find a token past the promised length; the
+                # window then holds no output, and any byte it produces
+                # fails the stream whatever the history it read. Nothing
+                # else may read an undefined byte.
+                probing = bool(dst) and high[0] == dst + rlen
+                if not (
+                    probing and work + DEC_FIELDS <= address and address + size <= work + DEC_SIZE
+                ):
+                    return f"read of work+{address - work} before anything defined it"
             return None
 
         writes = [(work, work + DEC_SIZE), (crc_word, crc_word + 4)]
@@ -479,11 +518,13 @@ def prop_expand(emu: KernelEmulator):
             budget=budget,
         )
         ok = len(full) == rlen
+        refused = fail_at is not None and fail_at < -(-len(stream) // STAGE)
         expect(
-            result == (0 if ok else U32),
-            f"hsx_expand returned {result:#x} for a stream of {len(full)} bytes, rlen {rlen}",
+            result == (0 if ok and not refused else U32),
+            f"hsx_expand returned {result:#x} for a stream of {len(full)} bytes, rlen {rlen}"
+            + (f", fill call {fail_at} failing" if refused else ""),
         )
-        if ok:
+        if ok and not refused:
             crc = emu.word(crc_word)
             expect(
                 crc == zlib.crc32(full), f"*crc {crc:#010x}, zlib.crc32 {zlib.crc32(full):#010x}"
@@ -596,17 +637,30 @@ def prop_bcmp(emu: KernelEmulator):
     return test
 
 
-# (property name, function its mutants patch, builder, memory-only)
+# Failure classes of a killed mutant (the CallFailure kind, or "mismatch" for
+# a wrong result the reference comparison finds). RESULT is a wrong value, ACCESS
+# an access the policy refuses, a fault or a misaligned access, and CONTRACT a
+# breach of the callback contract.
+RESULT = frozenset({"mismatch"})
+ACCESS = frozenset({"memory", "fault", "alignment"})
+CONTRACT = frozenset({"contract"})
+
+# (property name, function its mutants patch, builder, kill classes). A
+# property calibrates only when, for each class set listed, at least one
+# mutant is killed in a class of that set: a differential property needs a
+# mutant it catches by a wrong result, not only by a fault or an exhausted
+# budget that any harness would report, and the memory property a mutant it
+# catches by an access violation.
 PROPERTIES = (
-    ("hsx_dec_run differential", "hsx_dec_run", prop_decoder(True), False),
-    ("hsx_dec_run memory", "hsx_dec_run", prop_decoder(False), True),
-    ("heatshrink round trip", "hsx_dec_run", prop_round_trip, False),
-    ("hsx_expand contract", "hsx_expand", prop_expand, False),
-    ("crc32_update", "crc32_update", prop_crc("crc32_update"), False),
-    ("board_crc32_run", "board_crc32_run", prop_crc("board_crc32_run"), False),
-    ("bzero", "bzero", prop_bzero, False),
-    ("bcopy", "bcopy", prop_bcopy, False),
-    ("bcmp", "bcmp", prop_bcmp, False),
+    ("hsx_dec_run differential", "hsx_dec_run", prop_decoder(True), (RESULT,)),
+    ("hsx_dec_run memory", "hsx_dec_run", prop_decoder(False), (ACCESS,)),
+    ("heatshrink round trip", "hsx_dec_run", prop_round_trip, (RESULT,)),
+    ("hsx_expand contract", "hsx_expand", prop_expand, (RESULT, ACCESS | CONTRACT)),
+    ("crc32_update", "crc32_update", prop_crc("crc32_update"), (RESULT,)),
+    ("board_crc32_run", "board_crc32_run", prop_crc("board_crc32_run"), (RESULT,)),
+    ("bzero", "bzero", prop_bzero, (RESULT,)),
+    ("bcopy", "bcopy", prop_bcopy, (RESULT,)),
+    ("bcmp", "bcmp", prop_bcmp, (RESULT,)),
 )
 
 
@@ -707,6 +761,15 @@ def main() -> int:
         f"PASS unicorn-kernel subset: the block check refuses RBIT ({refusal}); the bare "
         f"Cortex-M0 model {'executes' if executed else 'refuses'} it"
     )
+    sorted_wrong = subset_probe()
+    if sorted_wrong:
+        print(f"FAIL unicorn-kernel subset probe: {'; '.join(sorted_wrong)}")
+        return 1
+    print(
+        "PASS unicorn-kernel subset probe: the block check accepts MRS and MSR of PRIMASK, "
+        "CONTROL, MSP and IPSR, NOP and CPSID, and refuses BASEPRI, BASEPRI_MAX, "
+        "FAULTMASK, the DSP APSR mask, RBIT, CBZ and IT"
+    )
 
     try:
         image = KernelImage(args.kernel)
@@ -721,7 +784,7 @@ def main() -> int:
 
     failed = 0
     good = KernelEmulator(image)
-    for name, function, builder, memory_only in selected:
+    for name, function, builder, classes in selected:
         started = time.monotonic()
         verdict = run_property(builder, good, args.examples, args.seed, shrink=True)
         if verdict is not None:
@@ -740,7 +803,8 @@ def main() -> int:
         if function in tables:
             extra = [tables[function]]
             other = tables["board_crc32_run" if function == "crc32_update" else "crc32_update"]
-        killed, by_memory, survivors = 0, 0, []
+        counts: dict[str, int] = {}
+        survivors = []
         started = time.monotonic()
         for label, patches in mutants + extra:
             outcome = run_property(
@@ -753,13 +817,14 @@ def main() -> int:
             if outcome is None:
                 survivors.append(label)
                 continue
-            killed += 1
-            by_memory += outcome[0] in ("memory", "fault", "alignment")
+            counts[outcome[0]] = counts.get(outcome[0], 0) + 1
+        killed = sum(counts.values())
         problems = []
         if killed == 0:
             problems.append("no mutant killed")
-        if memory_only and by_memory == 0:
-            problems.append("no mutant killed through an access violation or fault")
+        for wanted in classes:
+            if not any(counts.get(kind, 0) for kind in wanted):
+                problems.append(f"no mutant killed as {' or '.join(sorted(wanted))}")
         if extra and extra[0][0] in survivors:
             problems.append(f"its own table mutant survived ({extra[0][0]})")
         if extra:
@@ -777,7 +842,7 @@ def main() -> int:
         status = "FAIL" if problems else "PASS"
         print(
             f"{status} unicorn-kernel {name} calibration: {killed}/{len(mutants) + len(extra)} "
-            f"mutants killed ({by_memory} by access violation or fault), "
+            f"mutants killed ({', '.join(f'{k} {v}' for k, v in sorted(counts.items()))}), "
             f"{time.monotonic() - started:.1f} s" + (f"; {'; '.join(problems)}" if problems else "")
         )
         for label in survivors:

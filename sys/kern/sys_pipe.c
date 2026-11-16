@@ -15,9 +15,9 @@
 #include <machine/frame.h>
 
 int
-readp (register struct file *fp, register struct uio *uio, int flag)
+readp(struct file *fp, struct uio *uio, int flag)
 {
-    register struct inode *ip;
+    struct inode *ip;
     int error;
 
     ip = (struct inode *)fp->f_data;
@@ -67,10 +67,10 @@ loop:
 }
 
 int
-writep (struct file *fp, register struct uio *uio, int flag)
+writep(struct file *fp, struct uio *uio, int flag)
 {
-    register struct inode *ip;
-    register int c;
+    struct inode *ip;
+    int c;
     int error = 0;
 
     ip = (struct inode *)fp->f_data;
@@ -133,7 +133,7 @@ done:       IUNLOCK(ip);
 }
 
 int
-pipe_rw (register struct file *fp, register struct uio *uio)
+pipe_rw(struct file *fp, struct uio *uio)
 {
     int flag = fp->f_flag & FNONBLOCK ? IO_NDELAY : 0;
 
@@ -150,9 +150,9 @@ pipe_rw (register struct file *fp, register struct uio *uio)
 int
 pipe_select (struct file *fp, int which)
 {
-    register struct inode *ip = (struct inode *)fp->f_data;
-    register struct proc *p;
-    register int retval = 0;
+    struct inode *ip = (struct inode *)fp->f_data;
+    struct proc *p;
+    int retval = 0;
     extern int selwait;
 
     ILOCK(ip);
@@ -199,7 +199,7 @@ pipe_select (struct file *fp, int which)
 int
 pipe_close(struct file *fp)
 {
-    register struct inode *ip = (struct inode *)fp->f_data;
+    struct inode *ip = (struct inode *)fp->f_data;
 
     ilock(ip);
 #ifdef  DIAGNOSTIC
@@ -239,8 +239,8 @@ const struct fileops pipeops = {
 void
 pipe(void)
 {
-    register struct inode *ip;
-    register struct file *rf, *wf;
+    struct inode *ip;
+    struct file *rf, *wf;
     static struct mount *mp;
     struct inode itmp;
     int r;
@@ -272,12 +272,12 @@ pipe(void)
     itmp.i_fs = &mp->m_filsys;
     itmp.i_dev = mp->m_dev;
 #endif
-    ip = ialloc (&itmp);
+    ip = ialloc(&itmp);
     if (ip == NULL)
         return;
     rf = falloc();
     if (rf == NULL) {
-        iput (ip);
+        iput(ip);
         return;
     }
     r = u.u_rval;
@@ -285,7 +285,7 @@ pipe(void)
     if (wf == NULL) {
         rf->f_count = 0;
         u.u_ofile[r] = NULL;
-        iput (ip);
+        iput(ip);
         return;
     }
 

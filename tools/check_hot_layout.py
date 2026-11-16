@@ -45,7 +45,9 @@ tool requires:
   it, because a clone lives in a section the list does not name;
 - at most one line of the listed symbols in any set.
 
-A name the configuration does not link is reported, not failed. Exit status: 0
+A name one configuration does not link is reported, not failed; a name that
+none of the kernels given links fails, and with a single kernel that check is
+reported as not made. Exit status: 0
 every kernel passes, 1 a kernel fails a requirement, 2 an input cannot be read.
 --self-test runs the checks on synthetic ELF images, one passing and one per
 requirement that must fail; an image whose ELF type is not an executable or
@@ -225,18 +227,32 @@ def run(paths: list[str], script: Path, way: int, line: int) -> int:
         print(f"check_hot_layout: {script}: {error}", file=sys.stderr)
         return 2
     status = 0
+    linked_anywhere: set[str] = set()
     for path in paths:
         try:
             symbols = read_symbols(Path(path).read_bytes())
         except (OSError, InputError, struct.error, ValueError) as error:
             print(f"check_hot_layout: {path}: {error}", file=sys.stderr)
             return 2
+        linked_anywhere.update(n for n in names if any(
+            t not in (STT_SECTION, STT_FILE) for _v, _s, t in symbols.get(n, [])))
         failures, notes = check(symbols, names, way, line)
         for failure in failures:
             print(f"FAIL hot-layout {path}: {failure}")
         if not failures:
             print(f"PASS hot-layout {path}: " + "; ".join(notes))
         status = max(status, 1 if failures else 0)
+    # A name one configuration omits is optional, but a name no kernel links
+    # is a renamed or removed function whose selector now places nothing.
+    nowhere = [n for n in names if n not in linked_anywhere]
+    if len(paths) < 2:
+        print(f"NOTE hot-layout: one kernel given; {len(nowhere)} listed names it does not "
+              "link are not checked against the other kernels (pass every kernel to check "
+              "that each listed name is linked somewhere)")
+    elif nowhere:
+        print(f"FAIL hot-layout: listed names linked by none of the {len(paths)} kernels: "
+              + " ".join(nowhere))
+        status = max(status, 1)
     return status
 
 
@@ -364,6 +380,25 @@ def self_test() -> int:
         print(f"self-test: a linker script without the hot block: exit {got}, expected 2: "
               + ("ok" if got == 2 else "WRONG"))
         status = status or (got != 2)
+        sets = (
+            ("a listed name absent from both of two kernels",
+             script_with("*(.text.absent_fn)"), [base, base], 1),
+            ("a listed name linked by one of two kernels",
+             script_with("*(.text.absent_fn)"),
+             [base, base + [("absent_fn", 0x10000c01, 0x10, STT_FUNC)]], 0),
+        )
+        for what, text, kernels, want in sets:
+            variant = Path(scratch) / "variant.ldscript"
+            variant.write_text(text)
+            paths = []
+            for n, symbols in enumerate(kernels):
+                path = Path(scratch) / f"k{n}.elf"
+                path.write_bytes(synthetic_elf(symbols))
+                paths.append(str(path))
+            got = run(paths, variant, WAY_BYTES, LINE_BYTES)
+            print(f"self-test: {what}: exit {got}, expected {want}: "
+                  + ("ok" if got == want else "WRONG"))
+            status = status or (got != want)
         for what, kwargs in (("an x86-64 machine field", {"machine": 62}),
                              ("a relocatable object", {"e_type": 1})):
             other = Path(scratch) / "other.elf"

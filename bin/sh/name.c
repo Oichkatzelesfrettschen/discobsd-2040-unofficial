@@ -651,6 +651,7 @@ staknam(struct namnod *n)
 {
 	register char	*p;
 
+	brkroom(staktop + length(n->namid) + length(n->namval));
 	p = movstr(n->namid, staktop);
 	p = movstr("=", p);
 	p = movstr(n->namval, p);

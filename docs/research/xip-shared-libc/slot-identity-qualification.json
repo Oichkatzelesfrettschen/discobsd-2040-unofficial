@@ -1,0 +1,130 @@
+{
+  "additional_checks": [
+    "Ruff lint and formatting",
+    "mypy --follow-imports=skip --ignore-missing-imports --check-untyped-defs",
+    "Python bytecode compilation",
+    "GNU17 GCC -fanalyzer -fsyntax-only for both C fixtures"
+  ],
+  "fixture_receipt": {
+    "path": ".build-logs/xip-callable-identity-38c286553e804d16a94151123550c81b/receipt.json",
+    "sha256": "da7a0dc80e8092bf836c88ad7f00f3a6863d45f62e281c572c42e0a0a73fc54c"
+  },
+  "fixture_sources": {
+    "tests/libc_xip_slots/consumer.c": "4b37c4294ab9fe51aa7fc4d43e6b6b8ec70f889dad6edd3b9963fccac5ca407e",
+    "tests/libc_xip_slots/library.ld": "108366ed5aba1c5fc8a34f1ad6c699d4ab4eb34717c911a18802404e46b99e10",
+    "tests/libc_xip_slots/provider.S": "ef3f0abc4a0908a3b74a7e153f4051d9d82ab6ed8a7174b1afea5c50b8fad76c",
+    "tests/libc_xip_slots/provider.c": "0976246c50f3584cde1b764509f36faa45c3aab4b08b807ab5433cc4582f944b",
+    "tests/libc_xip_slots/run.py": "b9e3174b8a54a7a38d0dc044c8960d8abfd60834d38f00d59e139fe6c4434d64",
+    "tests/libc_xip_slots/runtime.py": "8a8796547184de2afbee0b97990708a2e87e538a3fdd71eef289424b290ad0b5",
+    "tests/libc_xip_slots/symbols.py": "fa40884b5abb575c9e314050c77e027c369979ce0be8de3619077bb47f5e6a41"
+  },
+  "images": [
+    {
+      "application_sha256": "77eb613783b30c8ae1329be063e23288240b44a106ab9c6a6d0cdbe97e5e612e",
+      "calls": 222,
+      "elf_sha256": "82806418d7ac003352b57528886a79852ef6cd4391f1c401829fc16ba66e5b62",
+      "flash_bytes": 264,
+      "initialized_image_bytes": 40,
+      "name": "native-public",
+      "state_bytes": 40,
+      "text_image_bytes": 224
+    },
+    {
+      "application_sha256": "77eb613783b30c8ae1329be063e23288240b44a106ab9c6a6d0cdbe97e5e612e",
+      "calls": 222,
+      "elf_sha256": "5a07eb6069fb23214e3cb7b61fcc8b05c317047fdbf913c75ffc47b958e792fb",
+      "flash_bytes": 264,
+      "initialized_image_bytes": 40,
+      "name": "native-local-calls",
+      "state_bytes": 40,
+      "text_image_bytes": 224
+    },
+    {
+      "application_sha256": "77eb613783b30c8ae1329be063e23288240b44a106ab9c6a6d0cdbe97e5e612e",
+      "calls": 222,
+      "elf_sha256": "07df3119c98611e32a44ee5bf2e7cb4e4fc05c7dc49796c20929454dd7790d5b",
+      "flash_bytes": 264,
+      "initialized_image_bytes": 40,
+      "name": "lto-public",
+      "state_bytes": 40,
+      "text_image_bytes": 224
+    },
+    {
+      "application_sha256": "77eb613783b30c8ae1329be063e23288240b44a106ab9c6a6d0cdbe97e5e612e",
+      "calls": 222,
+      "elf_sha256": "7c4c88f0e4eaec2612b5b5893ab17b98a78f7e97b211612907467498929cb747",
+      "flash_bytes": 264,
+      "initialized_image_bytes": 40,
+      "name": "lto-local-calls",
+      "state_bytes": 40,
+      "text_image_bytes": 224
+    }
+  ],
+  "invocations": [
+    {
+      "elapsed_seconds": 25.461,
+      "exit_code": 0,
+      "invocation": "rp2040-build-local-20261115T201311Z-47-534b2331",
+      "label": "rp2040-build-local",
+      "log_sha256": "da26be737575a2539f50943a4790b0795bff4d1eb8f77af816a0cdba1667fb08",
+      "source_head": "4c5b81452667d2c4c2d20d48039d6833eea705ed",
+      "state": "completed",
+      "status_sha256": "8686ed170e66408740a3cc63b9ea91832d5ec86ecd33eede6c7b7f053c300604"
+    },
+    {
+      "elapsed_seconds": 19.667,
+      "exit_code": 0,
+      "invocation": "xip-slots-16d9a0fb-20261115T201744Z-3-0349f56b",
+      "label": "xip-slots-16d9a0fb",
+      "log_sha256": "15fc05800e985da4bde81afda4c381d8ee9164fce8b1159dce5af683d2fa9f8a",
+      "source_head": "16d9a0fbe51510bd4b9a30667bd2ba60e28a3848",
+      "state": "completed",
+      "status_sha256": "b01a3568311192e0767ebdbdfbe071a4d7d3f5b71a4b0477ea75714d67fe25f9"
+    },
+    {
+      "elapsed_seconds": 19.189,
+      "exit_code": 1,
+      "invocation": "xip-slots-main-4c5b8145-20261115T201425Z-3-71a9bf1a",
+      "label": "xip-slots-main-4c5b8145",
+      "log_sha256": "23f58ce12692726c12553bb9106231066b7e44ed0aa9d85f697ea852b95e38c8",
+      "source_head": "4c5b81452667d2c4c2d20d48039d6833eea705ed",
+      "state": "failed",
+      "status_sha256": "75da4b30ccac78129e021b3e2171c430e0e766fd7f212a11bfc71601afc850b8"
+    }
+  ],
+  "limits": [
+    "The linked sizes describe the finite fixture only.",
+    "The 4c5b8145 source-denominator failure precedes the generator-produced missing-row repair.",
+    "Full aggregate, dedicated ILP32 inventory, local Renode and physical-board execution are not repeated for this test-only change.",
+    "Kernel admission, production generation, native imports, full-library fit, runtime peaks, timing and lifecycle remain unqualified."
+  ],
+  "main_base": "d9ed7d75df82b0214e983200a9fbbb6543b19c98",
+  "required_rejections": [
+    "conflicting alias-group owner",
+    "unrelated private collision",
+    "incorrect application import address",
+    "missing implementation alias",
+    "executable separation input",
+    "conflicting implementation owner",
+    "non-function public provider",
+    "unlowered LTO input",
+    "omitted-separation",
+    "interposition",
+    "assignment",
+    "extent",
+    "split-alias",
+    "returned-pointer",
+    "initialized-pointer",
+    "argument-register",
+    "wrong-target"
+  ],
+  "schema": 1,
+  "source_head": "16d9a0fbe51510bd4b9a30667bd2ba60e28a3848",
+  "toolchain": {
+    "compiler": "arm-none-eabi-gcc (Arch Repository) 16.2.0",
+    "linker": "GNU ld (GNU Binutils) 2.47.20260726",
+    "pyelftools": "0.33",
+    "python": "3.14.9",
+    "unicorn": "2.1.4"
+  }
+}

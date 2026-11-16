@@ -5,18 +5,18 @@ Host tools for the DiscoBSD RP2040 console on Linux, Windows, and macOS.
 The Raspberry Pi Pico running DiscoBSD is a USB CDC-ACM serial device with
 no network stack. Every current operating system carries the CDC-ACM
 driver, so nothing kernel-side is installed: these tools find the board by
-its USB identity (vendor 2e8a, product 000a, serial `rp2040`), open the
+its USB identity (vendor 2e8a, product 000a, serial ending in `rp2040`), open the
 console at 115200 8N1, and either attach a terminal to it or serve it to a
 browser on the local network.
 
 | command | what it does |
 | --- | --- |
-| `discobsd-term` | attach the current terminal; reattaches across board reboots; Ctrl-] is the escape (`q` quits); `--probe` checks the board answers; `--list` prints attached boards |
-| `discobsd-web` | serve the console as a browser terminal on port 7681; a non-loopback bind requires a token, from `DISCOBSD_WEB_TOKEN`, a systemd credential named `web-token`, or the deprecated `--token` |
+| `discobsd-term` | attach the current terminal; reattaches across board reboots; Ctrl-] is the escape (`q` quits); `--probe` checks the board answers; `--list` prints attached boards; `--usb-port PORT` names one of several (Linux) |
+| `discobsd-web` | serve the console as a browser terminal on port 7681; `--usb-port PORT` names one of several boards (Linux); a non-loopback bind requires a token, from `DISCOBSD_WEB_TOKEN`, a systemd credential named `web-token`, or the deprecated `--token` |
 | `discobsd-link` | redirect a short URL (port 42069) to the tokenized console URL, built from `--host` and the same token, or the deprecated `--to` |
 | `discobsd-console` | `up`, `down`, `status`: run web and link detached, or through the systemd user units when installed |
-| `discobsd-connect` | POSIX shell wrapper that launches tio, picocom, minicom, or cu on the board |
-| `discobsd-flash` | reflash with picotool: `FILE.uf2 ...`, `--bootsel`, `--eject`; unmounts the RPI-RP2 volume before every reboot out of BOOTSEL and waits for the boot ROM itself |
+| `discobsd-connect` | POSIX shell wrapper that launches tio, picocom, minicom, or cu on the board; `--usb-port PORT` names one of several boards by its USB port (Linux) |
+| `discobsd-flash` | reflash with picotool: `[--usb-port PORT] FILE.uf2 ...`, `--bootsel`, `--eject`; unmounts the RPI-RP2 volume before every reboot out of BOOTSEL and waits for the boot ROM itself |
 
 Log in as `operator` with no password, then `su` to root. The console
 serves one session at a time; leave it cleanly as described under "Keys
@@ -82,6 +82,14 @@ the command always is, and the script does that. For a copy by hand,
 `discobsd-flash --bootsel` leaves the volume mounted and
 `discobsd-flash --eject` unmounts it and reboots.
 
+Two boards on one host (a bare Pico and a PicoCalc) both enumerate as
+2e8a:000a with the serial string `rp2040`, so an unaddressed picotool may
+act on either. On Linux, `discobsd-flash` and `discobsd-connect` stop when
+more than one 2e8a device is attached and no board is named, and print the
+candidates with their USB ports. Name the board with `--usb-port 1-3` or
+`DISCOBSD_USB_PORT=1-3`. macOS has no sysfs: there the tools address the one
+attached board as before and do not detect a second one.
+
 The release zip holds PyInstaller executables built on Apple silicon and
 signed ad hoc, not notarized. Run them from a terminal: an Intel Mac and
 a Finder double-click (which Gatekeeper refuses for an unnotarized
@@ -122,7 +130,10 @@ Internet, because the short link hands out the token. On a ufw host:
     sudo ufw allow from 10.0.0.0/24 to any port 7681 proto tcp
     sudo ufw allow from 10.0.0.0/24 to any port 42069 proto tcp
 
-Set `DISCOBSD_PORT` to a device path to bypass discovery.
+Set `DISCOBSD_PORT` to a device path to bypass discovery. With two boards
+attached, `discobsd-term` and `discobsd-web` refuse to choose; name the board
+with `--usb-port 1-3` or `DISCOBSD_USB_PORT=1-3` (Linux; see
+`DEVELOPMENT.md`, "Two boards on one host").
 
 The console serves one viewer at a time. Leaving the page releases it at
 once; a viewer that vanishes without closing (a tab the browser kept in

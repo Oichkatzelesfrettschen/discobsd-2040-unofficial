@@ -36,7 +36,7 @@ followed by `cc -o d d.c; sync` repeated.
 | `B.txt`, `L-B.txt` | the vendored Dhara trigger main carried before the change | 8, 24 |
 | `G4.txt`, `L-G4.txt` | cleaning starts at journal capacity - 64 - live sectors / 4 | 8, 24 |
 | `G5.txt`, `L-G5.txt` | cleaning starts at journal capacity - 64 - live sectors / 5 | 8, 24 |
-| `T.txt` | trim at free (branch `rp2040/trim-freed-blocks`) | 8 |
+| `T.txt` | trim at free (branch `archive/rp2040-trim-freed-blocks`) | 8 |
 | `A-B.txt`, `A-G4.txt` | as `B` and `G4`, root image with the in-memory assembler and linker streams | 24 |
 | `A-F.txt` | the merged trigger (the `G4` threshold less one checkpoint group of 8 pages; `sys/arch/rp2040/doc/research/dhara-gc-trigger.md`), same root image | 24 |
 
@@ -57,3 +57,24 @@ file without `-after` holds the writes made before the reset, the `-after`
 file the state `fsck -p` and the next boot left. These were recorded from
 the raw terminal; each line is reduced to its final state, without the
 escape sequences and the per-keystroke redraws of the line editor.
+
+`board/swap/`: the erase count of each swap sector from boot through 24
+compiles (31 to 36 swap erases precede the first compile), three
+runs on main's kernel (`a706c0b8`, `STORAGE_STATS=yes`) with
+`swap-wear-probe.patch` applied, which adds one counter per swap sector in
+`flash_erase()` and prints 64 of them from `boot()`. The patch is the third
+run's, which prints from sector 32; the first two runs printed from sector
+0, 16 and 8 counters to a line. Each `runN.txt` ends with the lines that
+reached the console before the board reset. The result is in
+`sys/arch/rp2040/doc/research/flash-traffic-per-workload.md`.
+
+`board/swap/admission/`: `sysctl machdep.storage_stats` before and after 24
+compiles on a `STORAGE_STATS=yes` kernel that counts SwapRAM refusal
+reasons and swap-out spans, from a freshly flashed root, with the shell
+before the break-growth fix (`main-sh.txt`) and with it (`fixed-sh.txt`).
+Escape sequences are removed.
+The probe that produced them printed its expanded metric set under
+version 1; the layout has been version 2 since, so
+`tools/summarize_rp2040_storage_delta.py` rejects these files.
+`python3 delta.py main-sh.txt fixed-sh.txt` in that directory reads them
+as they stand and prints the deltas the record tabulates.

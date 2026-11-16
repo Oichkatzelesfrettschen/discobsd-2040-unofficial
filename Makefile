@@ -382,6 +382,31 @@ check-network-header-contracts: check-python .WAIT symlinks
 		    --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/network-header-contracts.json
 
+check-public-time-types: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/public_time_types.py --root ${TOPSRC:Q} \
+		    --host-cc ${HOST_CC:Ucc:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/public-time-types.json
+
+.PHONY: check-public-time-types
+
+check-fd-set-cross: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/fd_set_contracts.py cross --root ${TOPSRC:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/fd-set-cross.json
+
+check-fd-set-host: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/fd_set_contracts.py host --root ${TOPSRC:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/fd-set-host.json
+
+check-fd-set-qemu: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/fd_set_contracts.py qemu --root ${TOPSRC:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/fd-set-qemu.json
+
+.PHONY: check-fd-set-cross check-fd-set-host check-fd-set-qemu
+
 check-public-header-inclusion: check-python .WAIT symlinks
 		@mkdir -p .build-logs
 		${PYTHON} tools/c17/public_header_inclusion.py --root ${TOPSRC:Q} \
@@ -654,7 +679,13 @@ check-swap-exchange-headroom:
 check-swap-exchange-inplace:
 		${MAKE} -C tests/kernel check-swap-exchange-inplace
 
-.PHONY: check-swap-exchange-headroom check-swap-exchange-inplace
+# The USB console driver and the tty layer under modeled bus events; see
+# sys/arch/rp2040/doc/TESTING.md. check-kernel includes it.
+check-usb-console:
+		${MAKE} -C tests/kernel check-usb-console
+
+.PHONY: check-swap-exchange-headroom check-swap-exchange-inplace \
+	check-usb-console
 
 # Verify callback types and dispatch against the production architecture sources.
 check-kernel-abi-contracts: check-python
@@ -1597,6 +1628,12 @@ check-usb-get-descriptor:
 check-flash-device-bounds:
 		${MAKE} -C tests/rp2040/flash_device_bounds check
 
+check-adc-conversion:
+		${MAKE} -C tests/rp2040/adc_conversion check
+
+check-gpio-requests:
+		${MAKE} -C tests/rp2040/gpio_requests check
+
 check-clock-catchup:
 		${MAKE} -C tests/rp2040/clock_catchup check
 
@@ -1640,7 +1677,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
-		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets \
+		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts check-init-daemons \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
@@ -1669,21 +1706,21 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-standard-requests \
 		check-usb-set-configuration \
 		check-usb-set-address-interface check-usb-get-descriptor \
-		check-flash-device-bounds check-clock-catchup \
+		check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-psram-pio \
 		check-loader-stamp check-picocalc-kbd-bootloader
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-sh-editor \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
-CROSS_CONTRACT_GATES=	check-signal-sets-cross check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-character-io-headers check-public-header-inclusion check-network-header-contracts \
+CROSS_CONTRACT_GATES=	check-signal-sets-cross check-fd-set-cross check-public-time-types check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-character-io-headers check-public-header-inclusion check-network-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
-		check-c17-headers-cross check-libc-shared-closure \
+		check-c17-headers-cross check-libc-shared-closure check-libc-declaration-census check-libc-pic-replay \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-libc-getgrent-cross \
@@ -1712,6 +1749,22 @@ check-libc-shared-closure: check-python
 		    ${PYTHON} tools/libc_shared_closure_test.py
 
 .PHONY: check-libc-shared-closure
+
+check-libc-declaration-census: check-python .WAIT symlinks
+		env DECLARATION_CENSUS_NM=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-nm \
+		    ${PYTHON} tools/libc_declaration_census_test.py
+		${PYTHON} tools/libc_declaration_census.py --root ${TOPSRC:Q} \
+		    --ar ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-ar
+
+.PHONY: check-libc-declaration-census
+
+check-libc-pic-replay: check-python
+		env LIBC_PIC_CC=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    LIBC_PIC_AR=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-ar \
+		    LIBC_PIC_READELF=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-readelf \
+		    ${PYTHON} tools/libc_pic_replay_test.py
+
+.PHONY: check-libc-pic-replay
 
 # No object of a shipped program defines a global symbol that lib/libc.a also
 # defines, because `ld --just-symbols` against a shared libc image rebinds such
@@ -1780,6 +1833,12 @@ check-puzzlebox-host:
 
 check-calc-host: check-python .WAIT symlinks
 		${MAKE} -C usr.bin/calc test
+
+# picofetch and picotop over fixture readings: the renderers, their three
+# drawing tiers and the glyph shapes, then the mutants. The sysctl collector
+# of usr.bin/picofetch/hwinfo_sysctl.c runs on no host.
+check-picofetch-host: check-python
+		${MAKE} -C usr.bin/picofetch test
 
 check-sh-editor:
 		${MAKE} -C bin/sh/tests test
@@ -1915,11 +1974,14 @@ check-repository-coverage: check-python
 # The POSIX conformance run of bin/sh builds the shell as a 32-bit host
 # binary (it keeps pointers in int), so it needs a Linux x86-64 host with
 # the 32-bit libraries and stands apart from the portable host tier.
+# board-break.sh rebuilds it against a model of the RP2040 break.
 check-posix-sh:
 		${PYTHON} tools/test_execution.py run shell.posix.ilp32 -- \
 		    sh bin/sh/tests/posix-sh.sh
 		${PYTHON} bin/sh/tests/check_shell_witnesses.py
 		${PYTHON} tests/sysctl_status/check_workload.py ${TOPSRC} bin/sh/tests/out/sh
+		PYTHON=${PYTHON:Q} ${PYTHON} tools/test_execution.py run shell.board-break.ilp32 -- \
+		    sh bin/sh/tests/board-break.sh
 
 # The arm cross toolchain and a built tree: isolated contract directories run
 # concurrently. Kernel gates stay ordered because they rebuild and inspect the
@@ -1941,6 +2003,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-board-descriptor .WAIT check-core1-image .WAIT \
 		check-kernel-headroom
 
+# Divider fixtures calibrate instruction windows and ELF alias extents.
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test
 		${MAKE} -C tests/rp2040/divider_ownership check
@@ -1998,6 +2061,13 @@ check-libc-xip-rom: check-python
 
 .PHONY: check-libc-xip-rom
 
+check-libc-xip-slots: check-python
+		${PYTHON} tests/libc_xip_slots/run.py \
+		    --cc ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    --objcopy ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-objcopy
+
+.PHONY: check-libc-xip-slots
+
 check-native-call-veneer: check-python
 		${PYTHON} tests/native_linker/veneers.py
 
@@ -2005,6 +2075,7 @@ check-native-call-veneer: check-python
 
 check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-signal-sets-qemu
+		${MAKE} check-fd-set-qemu
 		${MAKE} check-native-nm-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} check-aeabi-copy-qemu
@@ -2013,6 +2084,7 @@ check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-exec-dispatch-qemu
 		${MAKE} check-libc-xip-object-abi
 		${MAKE} check-libc-xip-rom
+		${MAKE} check-libc-xip-slots
 		${MAKE} check-native-call-veneer
 		${MAKE} check-libc-byte-search-instructions
 		${MAKE} -C tests/rp2040/uarea_exchange check
@@ -2221,7 +2293,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-flash-checkpoint check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-flash-checkpoint check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \
@@ -2261,7 +2333,7 @@ installfs:
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-sh-editor check-tar-host \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-sh-editor check-tar-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \

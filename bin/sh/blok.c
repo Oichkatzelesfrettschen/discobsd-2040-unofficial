@@ -66,11 +66,24 @@ alloc(unsigned int nbytes)
 void
 addblok(unsigned int reqd)
 {
+	char	*stakend;
+
 	if (stakbot == NIL)
 	{
 		brkbegin = setbrk(BRKINCR * 5);
 		bloktop = (struct blk *)brkbegin;
 	}
+
+	/*
+	 * Before any store, cover the new top block, its link word and the
+	 * current stack item with BRKINCR bytes beyond it, as locstak() does.
+	 */
+	reqd += brkincr;
+	reqd &= ~(brkincr - 1);
+	stakend = (stakbas != staktop) ?
+	    (char *)round(staktop + 1, BYTESPERWORD) : (char *)bloktop;
+	brkroom(stakend + reqd + 2 * sizeof(struct blk) +
+	    (staktop - stakbot) + 1 + BRKINCR);
 
 	if (stakbas != staktop)
 	{
@@ -85,8 +98,6 @@ addblok(unsigned int reqd)
 		bloktop->word = (struct blk *)(Rcheat(rndstak) | BUSY);
 		bloktop = (struct blk *)(rndstak);
 	}
-	reqd += brkincr;
-	reqd &= ~(brkincr - 1);
 	blokp = bloktop;
 	bloktop = bloktop->word = (struct blk *)(Rcheat(bloktop) + reqd);
 	bloktop->word = (struct blk *)(brkbegin + 1);

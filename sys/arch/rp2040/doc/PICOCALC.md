@@ -921,6 +921,8 @@ stops at the `swap size` panic when no swap is left (a limit of
 stays intact and its menu stays reachable from the keyboard at power-on. PICOCALC_PSRAM with
 a working PSRAM swaps there instead and does not need fl1.
 
+The loader offers no entry from a running system that this tree has read: `bootloader -y` enters the boot ROM's USB loader, which replaces the SD route for that session, and no command asks the loader's own menu to run. The menu stays a power-on, keyboard action.
+
 Two more things the loader route changes are handled at boot.
 `SystemClock_Config()` moves clk_sys to clk_ref and stops the aux-only
 clocks before it resets and reprograms either PLL, because the loader's

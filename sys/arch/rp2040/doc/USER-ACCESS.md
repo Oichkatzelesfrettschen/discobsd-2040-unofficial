@@ -122,8 +122,25 @@ Debian and Arch) serves any command as a web terminal:
 
 ## Getting to the bootloader
 
-To reflash, put the board in BOOTSEL: from a running kernel,
-`picotool reboot -u -f` uses the console's reset interface, or hold the
-BOOTSEL button while plugging the cable in. The bootrom presents a
-different USB serial, so the by-id console path above addresses only the
-running system and never the bootloader.
+To reflash, put the board in BOOTSEL: from the board's own shell, as root,
+`bootloader -y` (or `reboot -B -y`) syncs the disks and enters the boot ROM's
+USB loader (`boot()` in `rp2040/machdep.c`, `RB_BOOTLOADER`); the board
+reappears as the RPI-RP2 drive. Without `-y` the program refuses with exit
+64, and a non-root caller gets exit 77, in both cases before it logs, syncs
+or signals anything. From a host, `picotool reboot -u -f` uses the console's
+reset interface (`dev/usb.c`), or hold the BOOTSEL button while plugging the
+cable in. The same shell offers `reboot` and `halt` (no confirmation: both
+leave the flash as it is), `shutdown`, and, on a PicoCalc kernel,
+`sysctl -w machdep.picocalc.poweroff=1`.
+
+`boardinfo` prints the kernel, release, host name, CPU clock, image length
+and CRCs, the previous reset's watchdog reason, whether the PicoCalc
+registers answer, and the mounts. The flash chip's unique ID reaches only
+the USB serial string, so a host reads it from the by-id path above; no
+sysctl carries it, and `boardinfo` says so rather than guessing. There is no
+command to start the PicoCalc loader's menu: that loader's stage is entered
+at power-on from the keyboard (PICOCALC.md, Coexisting with the PicoCalc UF2
+loader), and no source read here shows a reboot request it honors.
+
+The bootrom presents a different USB serial, so the by-id console path
+above addresses only the running system and never the bootloader.

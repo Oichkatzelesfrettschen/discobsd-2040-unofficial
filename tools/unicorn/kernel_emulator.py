@@ -136,7 +136,9 @@ NOP = b"\x00\xbf"
 # for BL, MSR, MRS, DMB, DSB and ISB. MRS and MSR name a special register
 # (B5.4.1 and B5.4.2); the ARMv7-M BASEPRI, BASEPRI_MAX and FAULTMASK, and
 # the DSP forms of the APSR mask, are not ARMv6-M. CBZ, CBNZ and IT are
-# 16-bit ARMv7-M encodings.
+# 16-bit ARMv7-M encodings. MSR is defined for the same SYSm set as MRS
+# ({0..3, 5..9, 16, 20}); a write to IPSR or EPSR is architecturally ignored,
+# not UNPREDICTABLE (DDI 0419E section B4.2.3), so one allow-list serves both.
 ARMV6M_WIDE = frozenset({"bl", "msr", "mrs", "dmb", "dsb", "isb"})
 ARMV6M_SYSREGS = frozenset(
     {"apsr", "iapsr", "eapsr", "xpsr", "ipsr", "epsr", "iepsr", "msp", "psp", "primask", "control"}
@@ -526,6 +528,7 @@ SUBSET_ACCEPTED = (
     (b"\xef\xf3\x10\x80", "mrs r0, primask"),
     (b"\x80\xf3\x10\x88", "msr primask, r0"),
     (b"\x80\xf3\x14\x88", "msr control, r0"),
+    (b"\x80\xf3\x05\x88", "msr ipsr, r0"),
     (b"\xef\xf3\x08\x80", "mrs r0, msp"),
     (b"\xef\xf3\x05\x80", "mrs r0, ipsr"),
     (b"\x80\xf3\x00\x88", "msr apsr_nzcvq, r0"),

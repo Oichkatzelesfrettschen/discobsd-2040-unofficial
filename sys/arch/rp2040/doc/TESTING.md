@@ -2704,7 +2704,7 @@ MRS, DMB, DSB and ISB, on an MRS or MSR naming a special register ARMv6-M
 lacks (only APSR, IAPSR, EAPSR, XPSR, IPSR, EPSR, IEPSR, MSP, PSP, PRIMASK
 and CONTROL pass; BASEPRI, BASEPRI_MAX, FAULTMASK and the DSP APSR masks
 fail), and on the 16-bit ARMv7-M encodings CBZ, CBNZ and IT. The gate first
-shows that hook refusing RBIT, then sorts a probe of eight accepted and
+shows that hook refusing RBIT, then sorts a probe of nine accepted and
 seven refused encodings.
 A function pointer argument names a `bx lr` stub whose code hook runs a
 Python model of the callback.

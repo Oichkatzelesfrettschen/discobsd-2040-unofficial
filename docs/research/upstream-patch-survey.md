@@ -183,7 +183,12 @@ whole `u_int` to one `select(2)`. The kernel refuses a timeout above
 100,000,000 seconds: `select1()` calls `itimerfix()` and returns `EINVAL`
 (`sys/kern/sys_generic.c:454`, `sys/kern/kern_time.c:348-350`). `sleep` ignores
 the status, reads a clock that has not moved and returns the full request
-unslept, at once, for every request from 100,000,001 through `UINT_MAX`. The
+unslept, at once, for every request from 100,000,001 through `LONG_MAX`
+(2,147,483,647). libc builds `sleep.c` with `_TIME_BITS=32`
+(`lib/libc/Makefile:40`), so `tv_sec` is a signed 32-bit `long` on the target;
+a request above `LONG_MAX` converts to a negative `tv_sec` there, a range the
+host probe (64-bit `long`) did not exercise and that remains unmeasured on the
+target ABI. The
 host probe below executes that range against `sleep.c` (M, with a stub that
 applies the kernel bound). A second ceiling is read from source and not run:
 `hzto()` clamps a wait to `0x7fffffff` ticks, 2,147,483 seconds at `HZ` 1000
@@ -334,7 +339,7 @@ formatter vectors from the probe are gate work with no target cost.
   `devname` call per row removes that table from `ps`'s data (I), but only after
   `devname()` is repaired: `lib/libc/gen/devname.c:65-67` calls `closedir(dir)` and
   then returns `entry->d_name`, a pointer into `dd_buf`, which `closedir()` frees
-  with the `DIR` (`lib/libc/gen/closedir.c:16-25`, `include/dirent.h:64-67`). The
+  with the `DIR` (`lib/libc/gen/closedir.c:16-25`, `include/sys/dir.h:62-68`). The
   one shipped caller, `sbin/sysctl/sysctl.c:471`, already reads freed storage.
   Source reading, not executed.
 - **Kernel-derived device identity with a fallback (500.49).** `swapdevname(3)`

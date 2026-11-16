@@ -92,7 +92,8 @@ def main(argv=None) -> int:
         sys.stderr.write("discobsd-link: --to or --host is required\n")
         return 1
     httpd = RedirectServer((args.bind, args.port), target)
-    print("discobsd-link: http://%s:%d/ -> %s" % (args.bind, args.port, target), flush=True)
+    host = "[%s]" % args.bind if ":" in args.bind else args.bind
+    print("discobsd-link: http://%s:%d/ -> %s" % (host, args.port, target), flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

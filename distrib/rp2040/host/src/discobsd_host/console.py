@@ -108,12 +108,14 @@ def url_host(ip: str) -> str:
     return "[%s]" % ip if ":" in ip else ip
 
 
-def urls(ip: str, token: str, web_port: int, link_port: int) -> dict[str, str]:
+def urls(
+    ip: str, token: str, web_port: int, link_port: int, mdns: bool = True
+) -> dict[str, str]:
     host = url_host(ip)
     full = "http://%s:%d/?token=%s" % (host, web_port, token)
     out = {"short": "http://%s:%d/" % (host, link_port), "full": full}
     name = socket.gethostname().split(".")[0].lower()
-    if name:
+    if mdns and name:
         out["mdns"] = "http://%s.local:%d/" % (name, link_port)
     return out
 
@@ -226,8 +228,8 @@ def parse_bind(text: str):
     A host name would be resolved here for the loopback classification and
     again by every server that binds it, and the two answers can differ. The
     parsed address, as text, is the only value web.env and the child
-    processes receive. A scoped IPv6 literal is refused because the scope
-    separator is a specifier character in a systemd unit.
+    processes receive. An IPv6 literal is refused: the systemd units build
+    http://HOST:PORT/ from web.env without the brackets an IPv6 host needs.
     """
     try:
         address = ipaddress.ip_address(text)
@@ -236,8 +238,11 @@ def parse_bind(text: str):
             "%r is not an IP address; give an IP literal such as 127.0.0.1 "
             "for loopback or 0.0.0.0 for every interface" % text
         ) from None
-    if getattr(address, "scope_id", None):
-        raise ValueError("%r carries a scope id; give the address without it" % text)
+    if address.version == 6:
+        raise ValueError(
+            "%r is IPv6; the console's systemd units take an IPv4 literal such as "
+            "127.0.0.1 for loopback or 0.0.0.0 for every interface" % text
+        )
     return address
 
 
@@ -264,12 +269,13 @@ def cmd_up(args) -> int:
     if not token:
         token = secrets.token_hex(12)
     # An explicit --host-ip or DISCOBSD_HOST_IP always wins. Otherwise a
-    # loopback bind advertises its own address, and any other bind reuses the
+    # concrete bind (loopback or one interface) advertises its own address,
+    # since the servers listen nowhere else. A wildcard bind reuses the
     # address web.env kept from an earlier run unless that address is
     # loopback, which would send LAN clients to their own host; then the LAN
     # address is recomputed.
     ip = args.host_ip or os.environ.get("DISCOBSD_HOST_IP")
-    if not ip and bind.is_loopback:
+    if not ip and not bind.is_unspecified:
         ip = str(bind)
     if not ip:
         stored = values.get("DISCOBSD_HOST_IP")
@@ -278,6 +284,13 @@ def cmd_up(args) -> int:
         except ValueError:
             stored_loopback = False
         ip = stored if stored and not stored_loopback else lan_ip()
+    if ":" in ip:
+        sys.stderr.write(
+            "discobsd-console: the advertised address %r is IPv6; the systemd "
+            "units build http://HOST:PORT/ without brackets, so give an IPv4 "
+            "address\n" % ip
+        )
+        return 1
     env_values = {
         "DISCOBSD_WEB_TOKEN": token,
         "DISCOBSD_HOST_IP": ip,
@@ -290,7 +303,9 @@ def cmd_up(args) -> int:
     except ValueError as exc:
         sys.stderr.write("discobsd-console: %s\n" % exc)
         return 1
-    links = urls(ip, token, args.port, args.link_port)
+    # The mDNS name resolves to the host's LAN address, which only a
+    # wildcard bind serves.
+    links = urls(ip, token, args.port, args.link_port, mdns=bind.is_unspecified)
     if systemd_units_installed() and not args.detached:
         subprocess.call(["systemctl", "--user", "daemon-reload"])
         rc = subprocess.call(["systemctl", "--user", "restart", *UNITS])

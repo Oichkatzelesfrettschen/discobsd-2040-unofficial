@@ -536,9 +536,12 @@ def main(argv=None) -> int:
     q = ("?token=" + token) if token else ""
     sys.stderr.write(f"DiscoBSD web console for {device}\n")
     if httpd.is_loopback:
+        # The message names the address the server bound; an IPv6 literal
+        # takes brackets in a URL.
+        host = "[%s]" % args.bind if ":" in args.bind else args.bind
         sys.stderr.write(
-            "  open http://127.0.0.1:%d/%s (loopback only; pass --bind 0.0.0.0 "
-            "--token SECRET for the LAN) -- Ctrl-C to stop\n" % (args.port, q)
+            "  open http://%s:%d/%s (loopback only; pass --bind 0.0.0.0 "
+            "--token SECRET for the LAN) -- Ctrl-C to stop\n" % (host, args.port, q)
         )
     else:
         sys.stderr.write(

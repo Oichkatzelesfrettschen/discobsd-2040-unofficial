@@ -355,8 +355,7 @@ def _fail_on_resolve(monkeypatch):
     ("bind", "written"),
     [
         ("127.0.0.1", "127.0.0.1"),
-        ("::1", "::1"),
-        ("0:0:0:0:0:0:0:1", "::1"),
+        ("10.0.0.7", "10.0.0.7"),
         ("0.0.0.0", "0.0.0.0"),
     ],
 )
@@ -390,6 +389,8 @@ def test_up_passes_the_parsed_ip_literal_to_every_consumer(
         "",
         "fe80::1%eth0",
         "127.1",
+        "::1",
+        "0:0:0:0:0:0:0:1",
     ],
 )
 def test_up_refuses_a_bind_that_is_not_an_ip_literal(monkeypatch, tmp_path, capsys, bind):
@@ -408,8 +409,7 @@ def test_up_refuses_a_bind_that_is_not_an_ip_literal(monkeypatch, tmp_path, caps
     assert console.cmd_up(args) == 1
     err = capsys.readouterr().err
     assert "--bind" in err
-    if "%" not in bind:
-        assert "127.0.0.1" in err and "0.0.0.0" in err
+    assert "127.0.0.1" in err and "0.0.0.0" in err
     assert not (conf / "web.env").exists()
     assert lookups == []
 
@@ -489,3 +489,38 @@ def test_write_env_accepts_every_value_the_console_writes(tmp_path):
     assert console.read_env(path) == values
     console.write_env(path, {"DISCOBSD_HOST_IP": "pico-host.local"})
     assert console.read_env(path) == {"DISCOBSD_HOST_IP": "pico-host.local"}
+
+
+def test_up_concrete_bind_advertises_itself(monkeypatch, tmp_path):
+    # The servers listen only on the bound interface, so a stored or
+    # autodetected address elsewhere would advertise a dead endpoint.
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == "10.0.0.9"
+    assert _up_bind(monkeypatch, tmp_path, "10.0.0.7")["DISCOBSD_HOST_IP"] == "10.0.0.7"
+
+
+def test_urls_offer_mdns_only_when_asked():
+    assert "mdns" not in console.urls("127.0.0.1", "tok", 7681, 42069, mdns=False)
+
+
+@pytest.mark.parametrize("bind, mdns", [("127.0.0.1", False), ("0.0.0.0", True)])
+def test_up_prints_the_mdns_link_only_for_a_wildcard_bind(
+    monkeypatch, tmp_path, capsys, bind, mdns
+):
+    monkeypatch.setattr(console.socket, "gethostname", lambda: "pico-host")
+    _up_bind(monkeypatch, tmp_path, bind)
+    assert ("pico-host.local" in capsys.readouterr().out) == mdns
+
+
+def test_up_refuses_an_ipv6_advertised_address(monkeypatch, tmp_path, capsys):
+    import types
+
+    conf = tmp_path / "discobsd"
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: conf)
+    for name in ("DISCOBSD_WEB_TOKEN", "DISCOBSD_HOST_IP", "DISCOBSD_USB_PORT"):
+        monkeypatch.delenv(name, raising=False)
+    args = types.SimpleNamespace(
+        host_ip="fd00::5", port=7681, link_port=42069, bind="0.0.0.0", detached=False
+    )
+    assert console.cmd_up(args) == 1
+    assert "IPv6" in capsys.readouterr().err
+    assert not (conf / "web.env").exists()

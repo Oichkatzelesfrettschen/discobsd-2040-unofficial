@@ -18,6 +18,13 @@ from 512 consumed bytes), the byte budget the pool can actually grant
 50.5 ms instead of 402.2 ms; an admitted shell image pays 828 cycles, about
 7 us; none of the 281 program segments of the build is refused falsely.
 
+E0 and E1 change no outcome: they refuse earlier what the pool would refuse
+anyway. Rule R is a new admission policy. Today `swapram_reserve()` admits
+any image whose compressed segments plus the u area's worst case fit the
+largest free run, so 4 KB of random bytes, which encodes to 4,608 B, enters
+an empty pool. Under R it goes to the swap device instead; the section
+"What rule R changes" costs that trade.
+
 ## Method
 
 The measurement extends the Cortex-M0+ cycle model of
@@ -129,6 +136,27 @@ R dominates P: the two refuse at the same cost, because both have encoded the
 same bytes, but R's work on an admitted image is part of the pass it
 replaces, while P's is spent twice. H is cheap and blind to what this encoder
 cannot do. S and E4 address cases the corpus does not contain.
+
+## What rule R changes
+
+For a process whose data segment is the 4 KB random input, with the 4 KB
+synthetic stack and the 3 KB u area, on a board without the PSRAM (states B
+to D of `d2ffbd83:docs/research/memory-devices.md`):
+
+| | Today: admitted to an empty pool | Rule R from 512: refused, written to `fl1` |
+| --- | --- | --- |
+| Encoder time at swapout | counting pass 402.2 + 7.9 ms, writing pass about the same (I: #644's golden puts the two passes within 0.02 % of each other), u area 27.8 ms: about 0.85 s | 50.5 ms, then nothing |
+| Device time at swapout | none | 12 blocks: three 4 KB erases and 48 page programs, about 154 ms typical and 1.3 s worst case (DS arithmetic, W25Q16JV 45 ms and 400 ms per erase, 0.4 ms and 3 ms per page) |
+| Pool held | about 5 KB of 16 KB: 4,608 B of data (512 B more than raw), 108 B of stack, the u area | none |
+| Flash wear | none | three sector erases per swapout of this process |
+| Swapin | decode, about 2.4 ms (#644 golden: data 1.15, stack 0.68, u area 0.56 ms) | an XIP read of 12 KB, under 1 ms (I) |
+
+R turns about 0.85 s of encoding into about 0.2 s of encoding and flash
+programming, and leaves 5 KB of pool for images that compress, at the price
+of three erases each time such a process swaps out. With the card swap of
+#615 the device write is a few milliseconds and the trade is better; on a
+PicoCalc with the PSRAM the pool takes no images (D116) and the rule does
+not run.
 
 ## Recommendation
 

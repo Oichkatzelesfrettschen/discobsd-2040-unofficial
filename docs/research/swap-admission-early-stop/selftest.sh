@@ -30,9 +30,10 @@
 #
 # The known-good run builds rules.c as committed and must exit 0. The
 # known-bad run builds it with -DRULES_MUTANT_NO_STOP, which removes both
-# early exits of enc_stop(), and must exit nonzero: run.py refuses a model in
-# which the 1 KB budget does not stop the random input early, and the
-# outputs then differ from the committed files.
+# early exits of enc_stop(), and must be rejected by the model itself: build.sh
+# exits 1 and its log, kept as SCRATCH/bad.log, carries run.py's report that
+# the 1 KB budget did not stop the random input early. Any other failure, a
+# compile error among them, fails the self-test.
 set -eu
 
 : "${PYTHON:?set PYTHON to the intended interpreter}"
@@ -44,9 +45,11 @@ if ! sh "$HERE/build.sh" "$SCRATCH/good"; then
     echo "selftest: known-good build failed" >&2
     exit 1
 fi
-if BENCH_CFLAGS=-DRULES_MUTANT_NO_STOP sh "$HERE/build.sh" "$SCRATCH/bad" \
-    >/dev/null 2>&1; then
-    echo "selftest: known-bad build passed" >&2
+rc=0
+BENCH_CFLAGS=-DRULES_MUTANT_NO_STOP sh "$HERE/build.sh" "$SCRATCH/bad" \
+    >"$SCRATCH/bad.log" 2>&1 || rc=$?
+if [ "$rc" -ne 1 ] || ! grep -q 'did not stop early' "$SCRATCH/bad.log"; then
+    echo "selftest: the model did not reject the known-bad build (exit $rc; $SCRATCH/bad.log)" >&2
     exit 1
 fi
 echo "selftest: known-good passes, known-bad fails"

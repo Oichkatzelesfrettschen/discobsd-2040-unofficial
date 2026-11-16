@@ -64825,9 +64825,7 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -64867,9 +64865,7 @@
           ],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -64939,9 +64935,7 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -64974,9 +64968,7 @@
           ],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -65040,9 +65032,7 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -65075,9 +65065,7 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -65178,9 +65166,7 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -65254,9 +65240,7 @@
           ],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -65323,9 +65307,7 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -65362,9 +65344,7 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -65633,9 +65613,7 @@
           ],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -65707,9 +65685,7 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }

@@ -54,7 +54,7 @@ pfind (register int pid)
  * init the process queues
  */
 void
-pqinit()
+pqinit(void)
 {
     register struct proc *p;
 

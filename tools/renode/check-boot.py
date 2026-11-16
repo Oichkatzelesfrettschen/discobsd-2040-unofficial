@@ -594,7 +594,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.wait_lines([f"DiscoBSD 2.7 ({config})"] + CPU_LINES + BOARD_LINES[config]
                        + STORAGE_LINES, "device probe", PROBE_BUDGET_SECONDS)
     console.absent_before_cursor(ABSENT_PREFIXES[config], "descriptor-suppressed devices")
-    console.wait_lines(LOGIN_LINES, "file system check and daemons", LOGIN_BUDGET_SECONDS)
+    console.wait_lines(LOGIN_LINES, "file system check", LOGIN_BUDGET_SECONDS)
     # init opens /dev/console and forks getty, which needs a tty a process
     # can open rather than the kernel's own cnputc path.
     console.wait_lines(["login:"], "login prompt", LOGIN_BUDGET_SECONDS)

@@ -237,7 +237,7 @@ const struct fileops pipeops = {
  * file structures.  Put it all together with flags.
  */
 void
-pipe()
+pipe(void)
 {
     register struct inode *ip;
     register struct file *rf, *wf;

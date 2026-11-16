@@ -39,8 +39,12 @@ SRC = HOST / "src"
 NO_PATH = "/nonexistent-path-for-sramdump-tests"
 
 # The module runs with sleeps removed: the capture loops count polls, not time.
+# "python -c" puts the working directory first on sys.path, ahead of
+# PYTHONPATH; under pybuild that directory is the staged build tree, whose
+# discobsd_host would shadow a mutant copy, so the driver drops that entry.
 DRIVER = (
-    "import sys, time; time.sleep = lambda s: None; "
+    "import sys, time; sys.path[:] = [p for p in sys.path if p not in ('', '.')]; "
+    "time.sleep = lambda s: None; "
     "from discobsd_host import sramdump; sys.exit(sramdump.main(sys.argv[1:]))"
 )
 

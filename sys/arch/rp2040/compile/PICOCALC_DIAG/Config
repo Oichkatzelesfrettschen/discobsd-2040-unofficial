@@ -96,3 +96,9 @@ device          uartusb
 options        SWAPRAM                     # RAM tier ahead of fl1
 options        "SWAPRAM_KB=16"             # kbytes of bss for the pool
 options        EXEC_HSAOUT                 # packed a.out executables
+
+# On-chip and board peripherals, one line per driver.
+options         DEV_ADC                     # RP2040 ADC: temperature and VSYS sysctls
+options         DEV_GPIO                    # /dev/porta and /dev/portb, cdevsw 12
+options         DEV_LCDGFX                  # /dev/lcdgfx pixel and tile device
+options         DEV_PCM                     # /dev/audio sample output, cdevsw 13

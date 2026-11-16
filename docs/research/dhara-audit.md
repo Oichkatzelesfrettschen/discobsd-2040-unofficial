@@ -39,7 +39,7 @@ Revisions and paths:
 
 | Horizon | Design | Text (gcc 16.2.0, object) | RAM | Format | Falsifier | Deciding measurement |
 | --- | --- | --- | --- | --- | --- | --- |
-| Now | PR 636 tree walk. `fl_setup()` refuses a region that holds a checkpoint but no acceptable root, with a message, while a region whose blocks 0-7 read as erased still mounts empty (the appendix sketch lacks that erased test). Mount reports how many newer checkpoints it rejected. A host salvage scan is the recovery route | journal.o +396 B (PR 636); flash.o +92 B (refusal); the report is not built (I: tens of bytes) | static 0; resume stack 80 to 248 B (M) | unchanged | a D26 or torn image that the scan cannot rebuild before collection laps it; a fresh or `tools/flashimg` region that the refusal blocks | D26 rows in `check-flash-reset-cells` (an image damaged under the old `journal.c`, resumed under the new one); a fresh-region refusal case |
+| Now | PR 636 tree walk. `fl_setup()` refuses a region that holds a checkpoint but no acceptable root, with a message, while a region whose blocks 0-7 read as erased still mounts empty (the appendix sketch lacks that erased test). Mount reports how many newer checkpoints it rejected. A host salvage scan is the recovery route | journal.o +396 B (PR 636); flash.o +92 B (refusal sketch, lower bound); the report is not built (I: tens of bytes) | static 0; resume stack 80 to 248 B (M) | unchanged | a D26 or torn image that the scan cannot rebuild before collection laps it; a fresh or `tools/flashimg` region that the refusal blocks | D26 rows in `check-flash-reset-cells` (an image damaged under the old `journal.c`, resumed under the new one); a fresh-region refusal case |
 | Later, gated | Additive CRC-32 of each checkpoint page in its 80 erased padding bytes, checked first; the tree walk kept for pages whose CRC field is erased | journal.o +106 B over PR 636 (`crc32_update` is already linked) | 0 | additive: an old-journal kernel resumes a CRC-written root unchanged (M) | a board or richer power-loss model in which PR 636 accepts a page outside the permitted set; without one, the CRC buys nothing measured | H09's power-loss oracle and a board power-cut campaign |
 
 ## 1. Mechanism and tear windows
@@ -194,7 +194,7 @@ The recorded board history holds seven USB warm resets and later forced-reset tr
 | --- | --- | --- | --- |
 | Upstream fallback | mounts the old view (all classes) | +92 B | issue 619 returns for that root at every later checkpoint (M) |
 | Minimum-gap heal | erased-pointer class healed; torn-pointer class blank; short continuation still rolls back | +88 B | the first checkpoint after the heal is exposed (M, 3 of 1,025 cuts) |
-| Refuse with a message | the root does not mount and the region stays untouched; the short-continuation rollback is not caught, so mount also reports the number of newer checkpoints it rejected | shared with D28: +92 B; the report tens of bytes (I) | none to data; owner action needed |
+| Refuse with a message | the root does not mount and the region stays untouched; the short-continuation rollback is not caught, so mount also reports the number of newer checkpoints it rejected | shared with D28: +92 B for the sketch, a lower bound; the report tens of bytes (I) | none to data; owner action needed |
 | Host scan (salvage) | every measured class recovered until collection laps the lost pages (M) | 0 B kernel; a host tool | the prototype orders pages by (epoch, block), which mis-orders the split journal of section 4; a real tool follows the journal's own epoch search, and checks a torn newest page with the tree walk before trusting its ids |
 | Reflash | data lost unless salvaged first | none | none |
 
@@ -225,7 +225,7 @@ What "print and continue" does today (M):
 | Option | Behavior | Cost | Verdict |
 | --- | --- | --- | --- |
 | Print and continue | empty map; writes destroy old blocks and are themselves lost | a message only (I) | rejected (M above) |
-| Print and refuse | `fl_setup()` returns ENXIO with "no whole Dhara checkpoint (error N); root region left untouched", and `find_checkblock()` reports `DHARA_E_NOT_FOUND`, so a fresh region still mounts empty; the not-found exit needs an erased-region test first, because torn headers in blocks 0-7 reach the same exit (C, `journal.c:231-250`) | flash.o 3,437 to 3,529 B (+92, M); journal.o unchanged (M); 0 RAM | recommended |
+| Print and refuse | `fl_setup()` returns ENXIO with "no whole Dhara checkpoint (error N); root region left untouched", and `find_checkblock()` reports `DHARA_E_NOT_FOUND`, so a fresh region still mounts empty; the not-found exit needs an erased-region test first, because torn headers in blocks 0-7 reach the same exit (C, `journal.c:231-250`) | flash.o 3,437 to 3,529 B (+92, M) for the appendix sketch only, a lower bound: the erased-region test and the rejected-checkpoint report are not built or measured; journal.o unchanged (M); 0 RAM | recommended |
 | Rebuild in the kernel | scan metadata into a sector-to-page table and write a new journal | about 2 KB RAM for 989 two-byte entries, plus journal space to copy every live sector (I); PICOCALC has about 10 KB free (C, brief) | rejected; done on the host instead |
 
 Checks of the refusal (M):
@@ -239,7 +239,7 @@ Checks of the refusal (M):
 - **Now:** land PR 636 with the refusal, the `DHARA_E_NOT_FOUND` distinction (reported only for a region whose blocks 0-7 read as erased) and a mount report of rejected newer checkpoints. Make no format change. Write the host salvage scan over a `picotool save` dump, ordered by the journal's own epoch search.
   - Falsifiers: a D26 or torn image that the scan cannot rebuild before collection laps it; a fresh or `tools/flashimg` region that the refusal blocks; a healthy root that resumes differently.
   - Deciding measurement: D26 rows in `check-flash-reset-cells`. Each row damages an image with the old `journal.c`, continues it short and long, and resumes it with the new one. A long continuation expects the refusal, a short one the rollback report, and both a scan that rebuilds the old view. Add a fresh-region case for the refusal.
-  - Kernel cost: journal.o +396 B and flash.o +92 B (gcc 16.2.0, objects), so linked text near +490 B per kernel (I, from PR 636's equal object and kernel deltas). RAM: 0 static; resume stack +168 B.
+  - Kernel cost: journal.o +396 B and flash.o +92 B (gcc 16.2.0, objects; the flash.o figure is a lower bound, since the erased-region test and the rejected-checkpoint report are not built), so linked text near +490 B per kernel or more (I, from PR 636's equal object and kernel deltas). RAM: 0 static; resume stack +168 B.
 - **Later, gated on a measurement:** the additive CRC-32 in the checkpoint padding, keeping the tree walk for legacy pages. Land it only if H09's power-loss oracle or a board power-cut campaign shows PR 636 accepting a page outside the permitted set.
   - Falsifier of the gate: such a page, which the bit model of this note did not produce in 3,000 tries.
   - Cost: +106 B over PR 636 (M).

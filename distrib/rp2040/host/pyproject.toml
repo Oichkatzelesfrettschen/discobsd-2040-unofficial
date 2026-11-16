@@ -25,7 +25,9 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7", "ruff>=0.4"]
+test = ["pytest>=7", "ruff>=0.4", "pyelftools>=0.29"]
+# discobsd-sramdump decode reads the kernel ELF's DWARF; capture needs only picotool.
+sramdump = ["pyelftools>=0.29"]
 bundle = ["pyinstaller>=6"]
 
 [project.urls]
@@ -36,6 +38,7 @@ discobsd-term = "discobsd_host.term:main"
 discobsd-web = "discobsd_host.web:main"
 discobsd-link = "discobsd_host.link:main"
 discobsd-console = "discobsd_host.console:main"
+discobsd-sramdump = "discobsd_host.sramdump:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

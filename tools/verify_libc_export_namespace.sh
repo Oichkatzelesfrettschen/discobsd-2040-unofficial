@@ -15,7 +15,7 @@
 # MANIFEST (default ROOT/distrib/rp2040/mi.rp2040) names the shipped programs:
 # each `pack` entry must have a source directory with objects, and a `file`
 # entry that has objects is checked as well. A source directory is the first
-# of bin, sbin, usr.bin, usr.sbin, libexec and games holding NAME/Makefile,
+# of bin, sbin, usr.bin, usr.sbin, libexec, games and benchmarks holding NAME/Makefile,
 # which resolves the multicall boxes that live under sbin. Directory
 # usr.bin/find links only find.o; every other program links all of its *.o.
 #
@@ -154,7 +154,38 @@ selftest() {
         > /dev/null 2>&1; then
         die "selftest: stale allow-list entry accepted"
     fi
+
+    # Exercise manifest resolution through the command-line boundary.
+    fixture=$WORK/fixture
+    fixture_objects=$fixture/benchmarks/export_probe
+    mkdir -p "$fixture/lib" "$fixture_objects"
+    ln -s "$(cd "$(dirname "$libc")" && pwd)/libc.a" "$fixture/lib/libc.a"
+    : > "$fixture_objects/Makefile"
+    cp "$WORK/good/p.o" "$fixture_objects/p.o"
+    printf 'pack /usr/bin/export_probe\n' > "$WORK/fixture.manifest"
+    sh "$0" -m "$WORK/fixture.manifest" "$fixture" \
+        > "$WORK/fixture.out" 2>&1 || {
+            cat "$WORK/fixture.out" >&2
+            die "selftest: clean benchmark source rejected"
+        }
+    grep -q '1 programs, no program global collides' "$WORK/fixture.out" ||
+        die "selftest: benchmark source lacks a checked-program witness"
+    cp "$WORK/bad/p.o" "$fixture_objects/p.o"
+    if sh "$0" -m "$WORK/fixture.manifest" "$fixture" \
+        > "$WORK/fixture.out" 2>&1; then
+        die "selftest: benchmark collision accepted"
+    fi
+    grep -q "FAIL export_probe: defines libc export $clash" "$WORK/fixture.out" ||
+        die "selftest: benchmark collision lacks its diagnostic"
+    printf 'pack /usr/bin/missing_probe\n' > "$WORK/fixture.manifest"
+    if sh "$0" -m "$WORK/fixture.manifest" "$fixture" \
+        > "$WORK/fixture.out" 2>&1; then
+        die "selftest: missing required source accepted"
+    fi
+    grep -q 'no built objects for packed program missing_probe' "$WORK/fixture.out" ||
+        die "selftest: missing required source lacks its diagnostic"
     echo "libc-export-namespace selftest: clean accepted, collision on $clash rejected, allow-list rules enforced"
+    echo "libc-export-namespace selftest: benchmark source checked, collision and missing source rejected"
 }
 
 ALLOW=
@@ -197,7 +228,7 @@ awk '/^#closure / {open = 1; next}
 : > "$WORK/skipped"
 while read -r kind name; do
     dir=
-    for parent in bin sbin usr.bin usr.sbin libexec games; do
+    for parent in bin sbin usr.bin usr.sbin libexec games benchmarks; do
         if [ -f "$ROOT/$parent/$name/Makefile" ]; then
             dir=$ROOT/$parent/$name
             break

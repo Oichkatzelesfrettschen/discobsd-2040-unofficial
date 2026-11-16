@@ -36,7 +36,7 @@ followed by `cc -o d d.c; sync` repeated.
 | `B.txt`, `L-B.txt` | the vendored Dhara trigger main carried before the change | 8, 24 |
 | `G4.txt`, `L-G4.txt` | cleaning starts at journal capacity - 64 - live sectors / 4 | 8, 24 |
 | `G5.txt`, `L-G5.txt` | cleaning starts at journal capacity - 64 - live sectors / 5 | 8, 24 |
-| `T.txt` | trim at free (branch `rp2040/trim-freed-blocks`) | 8 |
+| `T.txt` | trim at free (branch `archive/rp2040-trim-freed-blocks`) | 8 |
 | `A-B.txt`, `A-G4.txt` | as `B` and `G4`, root image with the in-memory assembler and linker streams | 24 |
 | `A-F.txt` | the merged trigger (the `G4` threshold less one checkpoint group of 8 pages; `sys/arch/rp2040/doc/research/dhara-gc-trigger.md`), same root image | 24 |
 
@@ -67,6 +67,16 @@ run's, which prints from sector 32; the first two runs printed from sector
 0, 16 and 8 counters to a line. Each `runN.txt` ends with the lines that
 reached the console before the board reset. The result is in
 `sys/arch/rp2040/doc/research/flash-traffic-per-workload.md`.
+
+`board/swap/spread/`: three runs of the 24 compiles on the union kernel
+(`fcd49239`, `STORAGE_STATS=yes`) with `swap-who-wear-probe.patch`, each
+from a freshly flashed root: the erase count of all 96 swap sectors and
+the swap-outs of each command by path (pool, copy-out, in-place exchange)
+with exact sector sums and the smallest and largest span, printed on the
+console at each `sysctl machdep.storage_stats`. Escape sequences and line-editor
+redraws are removed. `summarize.py runN.txt...` prints the per-run
+differences the record cites and rejects a capture whose tables are
+incomplete or disagree with the kernel counters.
 
 `board/swap/admission/`: `sysctl machdep.storage_stats` before and after 24
 compiles on a `STORAGE_STATS=yes` kernel that counts SwapRAM refusal

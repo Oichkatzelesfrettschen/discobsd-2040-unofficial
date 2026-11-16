@@ -382,6 +382,31 @@ check-network-header-contracts: check-python .WAIT symlinks
 		    --host-cc ${HOST_CC:Ucc:Q} \
 		    --output ${TOPSRC:Q}/.build-logs/network-header-contracts.json
 
+check-public-time-types: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/public_time_types.py --root ${TOPSRC:Q} \
+		    --host-cc ${HOST_CC:Ucc:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/public-time-types.json
+
+.PHONY: check-public-time-types
+
+check-fd-set-cross: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/fd_set_contracts.py cross --root ${TOPSRC:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/fd-set-cross.json
+
+check-fd-set-host: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/fd_set_contracts.py host --root ${TOPSRC:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/fd-set-host.json
+
+check-fd-set-qemu: check-python .WAIT symlinks
+		@mkdir -p .build-logs
+		${PYTHON} tools/c17/fd_set_contracts.py qemu --root ${TOPSRC:Q} \
+		    --output ${TOPSRC:Q}/.build-logs/fd-set-qemu.json
+
+.PHONY: check-fd-set-cross check-fd-set-host check-fd-set-qemu
+
 check-public-header-inclusion: check-python .WAIT symlinks
 		@mkdir -p .build-logs
 		${PYTHON} tools/c17/public_header_inclusion.py --root ${TOPSRC:Q} \
@@ -1418,6 +1443,14 @@ check-flash-checkpoint: check-python
 check-dhara-gc-trigger: check-python
 		${MAKE} -C tests/rp2040/dhara_trigger check PYTHON=${PYTHON:Q}
 
+# The shipped SwapRAM pool, swapram.c, flash_swap.c and the swap-map ring
+# driven from Python by a swap trace calibrated to the board's admission
+# counters; tests/rp2040/swap_tier_model/check.sh states the properties,
+# the calibration and its mutants. A host without cffi, hypothesis or
+# pytest prints a SKIP.
+check-swap-tier-model: check-python
+		${MAKE} -C tests/rp2040/swap_tier_model check PYTHON=${PYTHON:Q}
+
 # NetBSD files imported verbatim match tools/netbsd-imports.manifest; the
 # selftest first shows verify rejects an altered byte, a missing file, an
 # unlisted file and a missing revision.
@@ -1652,7 +1685,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-comment-hygiene check-text-hygiene \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
-		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets \
+		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts check-init-daemons \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
@@ -1670,6 +1703,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger \
+		check-swap-tier-model \
 		check-flash-checkpoint \
 		check-netbsd-imports check-v7fs-core check-storage-recovery \
 		check-storage-recovery-models check-msdosfs-core check-fat32-tail check-fsutil-clock \
@@ -1691,11 +1725,11 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
-CROSS_CONTRACT_GATES=	check-signal-sets-cross check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-character-io-headers check-public-header-inclusion check-network-header-contracts \
+CROSS_CONTRACT_GATES=	check-signal-sets-cross check-fd-set-cross check-public-time-types check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-character-io-headers check-public-header-inclusion check-network-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
-		check-c17-headers-cross check-libc-shared-closure \
+		check-c17-headers-cross check-libc-shared-closure check-libc-declaration-census check-libc-pic-replay \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-libc-getgrent-cross \
@@ -1724,6 +1758,22 @@ check-libc-shared-closure: check-python
 		    ${PYTHON} tools/libc_shared_closure_test.py
 
 .PHONY: check-libc-shared-closure
+
+check-libc-declaration-census: check-python .WAIT symlinks
+		env DECLARATION_CENSUS_NM=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-nm \
+		    ${PYTHON} tools/libc_declaration_census_test.py
+		${PYTHON} tools/libc_declaration_census.py --root ${TOPSRC:Q} \
+		    --ar ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-ar
+
+.PHONY: check-libc-declaration-census
+
+check-libc-pic-replay: check-python
+		env LIBC_PIC_CC=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-gcc \
+		    LIBC_PIC_AR=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-ar \
+		    LIBC_PIC_READELF=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-readelf \
+		    ${PYTHON} tools/libc_pic_replay_test.py
+
+.PHONY: check-libc-pic-replay
 
 # No object of a shipped program defines a global symbol that lib/libc.a also
 # defines, because `ld --just-symbols` against a shared libc image rebinds such
@@ -1962,6 +2012,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-board-descriptor .WAIT check-core1-image .WAIT \
 		check-kernel-headroom
 
+# Divider fixtures calibrate instruction windows and ELF alias extents.
 check-cross-assembler:
 		${MAKE} -C usr.bin/as/tests test
 		${MAKE} -C tests/rp2040/divider_ownership check
@@ -2033,6 +2084,7 @@ check-native-call-veneer: check-python
 
 check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-signal-sets-qemu
+		${MAKE} check-fd-set-qemu
 		${MAKE} check-native-nm-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_cpu_model check
 		${MAKE} check-aeabi-copy-qemu
@@ -2250,7 +2302,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-flash-checkpoint check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

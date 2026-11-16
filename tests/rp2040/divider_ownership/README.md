@@ -38,14 +38,27 @@ exit 1 with its own finding. The window rule rests on the kernel switching
 processes and delivering signals only on the return from a system call or
 fault, which the kernel gate's no-consumer result and `MPU.md` argue.
 
-Run the integrated two-kernel gate from the repository root after selecting
+Each production helper alias also carries a Thumb entry and a positive ELF
+function extent. The verifier derives each extent from the next distinct
+entry or the text boundary and requires both aliases to share that owner.
+`helper_extent_mutants.py` changes only symbol-table fields and requires six
+named rejections: a missing extent, a short extent, overlap into the next
+owner, escape past text, an alias redirected to another valid owner, and a
+cleared Thumb bit. Unique `.build-logs/divider-extent-controls-*` directories
+retain each object, diagnostic and terminal receipt. The production fixture
+contains no literal pools; `DIVIDER_MODEL` arithmetic remains a separate gate.
+The [extent record](../../../docs/research/xip-shared-libc/divider-function-extents.md)
+owns the model-pool and native-archive identity measurements.
+
+Run the integrated kernel gate from the repository root after selecting
 the RP2040 machine:
 
 ```sh
 PYTHON=/usr/bin/python bmake MACHINE=rp2040 MACHINE_ARCH=arm check-divider
 ```
 
-The integrated target builds PICO and PICO_UART, scans both linked ELFs, and
-scans the source/header closure recorded in both `.deps` directories. The
+The integrated target builds PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM,
+scans their linked ELFs, and scans the source/header closure recorded in their
+`.deps` directories. The
 gate checks offline ownership. Interrupt injection and result preservation
 remain attended hardware tests.

@@ -25,7 +25,7 @@ Revisions and paths:
 
 ## Finding
 
-1. **The tear comes from the format, not from the fix.** One checkpoint page is four 256-byte chip programs, and recovery trusts its first four bytes. Under the prefix model, the old kernel keeps sector 0 readable only when the cut falls after the alt pointer that leads to sector 0. That band is the last 12 bytes of the root slot (cuts 932 to 943) for a root sector id of 13, and the last 4 bytes (940 to 943) for id 3 (M). For an id below 1,024 it is at most 36 bytes, about 14 microseconds of clocking (I, from the layout). Outside that band, cuts that fall inside the accepted but incomplete page (after its first four bytes and before the end of the root slot) leave sector 0 blank or unreadable (M), and `fl_setup()` then finds no partition table or returns ENXIO (`flash.c:898-909`). Cuts in the first four bytes reject the torn page and keep the previous checkpoint, and cuts after the root slot leave complete metadata (M, the cut table below); neither loses data. Such a root does not boot, and the user reflashes.
+1. **The tear comes from the format, not from the fix.** One checkpoint page is four 256-byte chip programs, and recovery trusts its first four bytes. Under the prefix model, the old kernel keeps sector 0 readable only when the cut falls after the alt pointer that leads from the root to sector 0. For a root sector id of 1 or more, that band is the last 4b bytes of the root slot, where b is the bit position of the highest set bit of the id: 12 bytes (cuts 932 to 943) for id 13, 4 bytes (940 to 943) for id 3 and 36 bytes (908 to 943) for id 601 (M). Below id 1,024 that is at most 36 bytes, about 14 microseconds of clocking (I, from the layout and those three runs). Root id 0 is the exception (M): the root already is sector 0, so no alt pointer leads there, and every cut from the end of the id field to the end of the slot (816 to 943) keeps sector 0 readable while 1 to 699 other sectors read blank or unreadable. That band is 128 bytes, about 49 microseconds of clocking (I), 3.6 times the id 1 and up maximum. How often a root carries id 0 is not measured: the last page of a checkpoint group must hold sector 0, as a write or a garbage-collection copy (I). Outside the band, cuts from byte 4 to the band's start leave sector 0 blank or unreadable (M), and `fl_setup()` then finds no partition table or returns ENXIO (`flash.c:898-909`). Cuts in the first four bytes reject the torn page and keep the previous checkpoint, and cuts after the root slot leave complete metadata (M, the cut table below); neither loses data. Such a root does not boot, and the user reflashes.
 2. **D26 is real; how many roots in service carry it is unknown (I).** A root that the old kernel kept using after such a tear carries a sector count above its node count in every later checkpoint, and the gap never closes (M). PR 636 treats it in one of three ways (M), depending on what followed the tear:
    - With eight or more blocks written since, it rejects every checkpoint in its window and resumes blank.
    - With fewer, it steps back to the checkpoint before the tear. The lost sectors return, but every write the old kernel acknowledged since is dropped without a message.
@@ -89,19 +89,30 @@ The scenario:
 3. Sync, and keep the first k bytes of that sync's checkpoint page.
 4. Resume.
 
-"prev" is the previous checkpoint's state and "new" the page's intended state. Rows are for rewrites of sectors 0 to 9, which give a root id of 13. Rewrites of 600 to 609, which give a root id of 3, move the sector-0 boundary from 932 to 940 and change nothing else.
+"prev" is the previous checkpoint's state and "new" the page's intended state. Rows are for rewrites of sectors 0 to 9, which give a root id of 13. Rewrites of 600 to 609, which give a root id of 3, move the sector-0 boundary from 932 to 940 and change nothing else; rewrites of 0 to 599, which give id 601, move it to 908. Rewrites of 1 to 6 give root id 0, and the table below that one gives the result (M; appendix sweeps). A count of blank or unreadable sectors covers sectors 0 to 699 that read blank, as an error or as garbage.
 
 | Cut k | Upstream `find_root()` | PR 636 |
 | --- | --- | --- |
 | 0-3 | prev (no magic) | prev |
 | 4-815, and every cut between chip commands | blank: the root id reads erased, so every sector is unmapped | prev |
-| 816-931 | 7 to 699 sectors blank or unreadable; sector 0 blank or unreadable | prev |
+| 816-931 | 15 to 699 sectors blank or unreadable; sector 0 blank or unreadable | prev |
 | 932-943 | 1 to 7 sectors blank or unreadable; sector 0 readable | prev |
 | 944-1024 | new | new |
 
+The band by root sector id (M, old journal; the PR 636 journal returns prev for every cut from 0 to 943 and new for 944 to 1024 in all four rows):
+
+| Root id | Rewrite | Sector 0 readable, damaged tree | Band (bytes) | Other sectors blank or unreadable |
+| --- | --- | --- | --- | --- |
+| 0 | 1-6 | 816-943 | 128 | 1 to 699 |
+| 3 | 600-609 | 940-943 | 4 | 1 |
+| 13 | 0-9 | 932-943 | 12 | 1 to 7 |
+| 601 | 0-599 | 908-943 | 36 | 1 to 187 |
+
+For id 1 and up the band is 4b bytes (b is the highest set bit; I, a fit to the three ids above and the layout: the alt pointer for bit b ends at byte 944 - 4b). Id 1 gives an empty band (I, not run). Id 0 has no differing bit, so the band is the whole alt array.
+
 - **Cut inside a pointer.** It leaves the pointer's high byte erased, so the pointer names no page. `metadata_page_valid()` (`journal.c:544-568`) reports `DHARA_E_CORRUPT_MAP`, and the old kernel fails reads and writes of the sectors behind that pointer with EIO.
 - **Cut on a field boundary.** It erases the pointer outright, and those sectors read blank instead.
-- **Timing (I).** Clocking takes about 100 microseconds for 260 bytes, and the whole four-program page about 1.5 ms (C, `flash-reset-recovery-cells.md` window table).
+- **Timing (I).** Clocking takes about 100 microseconds for 260 bytes (0.38 microseconds per byte), and the whole four-program page about 1.5 ms (C, `flash-reset-recovery-cells.md` window table). A band of 36 bytes clocks in about 14 microseconds, and the 128-byte band of root id 0 in about 49.
 - **Agreement.** PR 636's own sweep (C, `dhara-torn-checkpoint.md`) and its oracle agree. The oracle passes on the PR 636 tree here (M; appendix).
 
 ## 2. Alternatives
@@ -167,7 +178,7 @@ The classes above are prefix-shaped. A power cut, the only cause that reaches th
 
 Damage needs every one of these:
 
-- **A tear in the bootable band.** Under the reset model a reset must land in the at most 14 microseconds of the band. A USB-requested reset cannot land inside a flash request, because the driver masks interrupts across it, and core 1's watchdog cannot fire there either (C, `flash-reset-recovery-cells.md`, "What the board run needs"). That leaves the RUN pin, a debugger or the unbuilt reset hook, and no such campaign is recorded. Under power loss the fourth chip program's self-timed phase is the window: 375 microseconds per page program, measured on the board (C, `flash-traffic-per-workload.md:44-45`). The datasheet's only statement is that a power-off during a suspended program may corrupt its data (C, W25Q16JV datasheet, "Erase / Program Suspend (75h)").
+- **A tear in the bootable band.** Under the reset model a reset must land in the band: at most 14 microseconds for a root id of 1 or more, and 49 microseconds when the root id is 0 (I; the band widths are M, the appendix sweeps). A USB-requested reset cannot land inside a flash request, because the driver masks interrupts across it, and core 1's watchdog cannot fire there either (C, `flash-reset-recovery-cells.md`, "What the board run needs"). That leaves the RUN pin, a debugger or the unbuilt reset hook, and no such campaign is recorded. Under power loss the fourth chip program's self-timed phase is the window: 375 microseconds per page program, measured on the board (C, `flash-traffic-per-workload.md:44-45`). The datasheet's only statement is that a power-off during a suspended program may corrupt its data (C, W25Q16JV datasheet, "Erase / Program Suspend (75h)").
 - **An unplug that hits it.** A random unplug hits that window with a probability of about 375 microseconds over the checkpoint period. That is about 1.3 x 10^-5 when update(8) checkpoints a dirty root every 30 s (`STORAGE.md:277`), and less when idle.
 - **No reflash since.** A `flash.uf2` reflash rewrites the whole region (`distrib/rp2040/Makefile.inc:138-141`). picotool 2.3.1 keeps erased blocks in the UF2: an 8 KiB all-0xff input became 32 UF2 blocks (M).
 - **A kernel-only update onto that root.** `distrib/rp2040/host/DEVELOPMENT.md:173-174` shows a kernel flashed with and without the root.
@@ -256,25 +267,138 @@ The harness links `error.c`, `map.c` and one `journal.c` over a
 - The other commands run left to right: `img=FILE`, `fresh`, `load`, `save`, `resume`, `w:LO-HI:VERSION`, `sync`, `stats` (erases, programs, faults and failed writes), `check:N` (the version each sector reads; 0 blank, -9 a read error) and `scan:N`.
 - Every continuation that printed `stats` reported zero faults.
 
-Builds (the CRC build adds a bitwise CRC-32 `crc32_update()` that matches
-`sys/kern/subr_crc32.c`):
+Setup. Run from the root of a fresh checkout of this branch, in a POSIX
+shell, with a C compiler as `cc`. The old journal is the vendored
+`journal.c` (identical to `origin/main` f4066c03 at the time of writing).
+PR 636's journal comes from its pull-request ref, pinned by commit. The
+harness and the sweep script are extracted from the two headed code blocks
+below, and the CRC variant is the diff in its own section below, applied to
+PR 636's file:
 
+    T=$(mktemp -d)
     D=sys/arch/rp2040/dhara
-    cc -std=c17 -O1 -Wall -Wextra -Werror -iquote $D -o h harness.c \
-        $D/error.c JOURNAL.c $D/map.c
+    N=docs/research/dhara-audit.md
+    extract() { awk -v h="### $1" '$0 == h { f = 1; next } f && /^```/ { if (g) exit; g = 1; next } g' "$N"; }
+    extract harness.c > "$T/harness.c"
+    extract sweep.sh > "$T/sweep.sh"
+    git fetch origin refs/pull/636/head
+    git show c439e459:$D/journal.c > "$T/journal636.c"
+    extract crc.diff > "$T/crc.diff"
+    cp "$T/journal636.c" "$T/journalcrc.c"
+    patch -l "$T/journalcrc.c" < "$T/crc.diff"
+    sed '/^#include/d' sys/kern/subr_crc32.c > "$T/crc32.c"
+    cc -std=c17 -O1 -Wall -Wextra -Werror -iquote $D -o "$T/h_old" "$T/harness.c" \
+        $D/error.c $D/journal.c $D/map.c
+    cc -std=c17 -O1 -Wall -Wextra -Werror -iquote $D -o "$T/h_636" "$T/harness.c" \
+        $D/error.c "$T/journal636.c" $D/map.c
+    cc -std=c17 -O1 -Wall -Wextra -Werror -iquote $D -o "$T/h_crc" "$T/harness.c" \
+        $D/error.c "$T/journalcrc.c" $D/map.c "$T/crc32.c"
 
-Runs:
+Cut sweeps (K runs from 0 to 1024 inside `sweep.sh`; the two numbers are the
+first and last sector rewritten at version 2 before the cut checkpoint). The
+rewritten range picks the root sector id, because the last page of the group
+is a garbage-collection copy: `0 9` gives id 13, `600 609` id 3, `1 6` id 0
+and `0 599` id 601 under the old journal (M; the id is the first four bytes
+of slot 6 of the checkpoint page, byte 812 of the page):
 
-    ./h img=t.img fresh resume w:0-699:1 sync w:0-9:2 tear:K sync   # exits 3
-    ./h img=t.img load resume check:700
+    for v in old 636 crc; do
+        for r in "0 9" "600 609" "1 6" "0 599"; do
+            echo "== $v rewrite $r"
+            sh "$T/sweep.sh" "$T/h_$v" "$T" $r
+        done
+    done
 
-Sweeps ran K from 0 to 1024. D26 images continued under the old journal with
-`load resume w:0-99:3 sync w:100-199:3 sync w:700-749:1 sync save`.
+One cut by hand, and a read of the result (K is a number, here 932):
+
+    "$T/h_old" img="$T/t.img" fresh resume w:0-699:1 sync w:0-9:2 tear:932 sync   # exits 3
+    "$T/h_old" img="$T/t.img" load resume check:700
+
+A D26 image continued under the old journal, then resumed under PR 636:
+
+    "$T/h_old" img="$T/t.img" load resume w:0-99:3 sync w:100-199:3 sync w:700-749:1 sync save
+    "$T/h_636" img="$T/t.img" load resume check:750
+
+`sweep.sh` labels a cut "prev" when its sector vector equals the one of cut 0
+(no magic, so the previous checkpoint), "new" when it equals the one of cut
+1024, and "damaged" otherwise. `bad` counts the sectors among 0 to 699 that
+read blank (0), unreadable (-9) or garbage (-1). A harness exit other than 3
+stops the sweep.
+
+Recorded output (M; GCC 16.2.1, harness commit of this note). The run is
+the loop above, in a fresh worktree, with the extracted files:
+
+    == old rewrite 0 9
+    0-3 prev bad=0..0
+    4-815 damaged sector0=lost, all 700 sectors bad bad=700..700
+    816-931 damaged sector0=lost bad=15..699
+    932-943 damaged sector0=readable bad=1..7
+    944-1024 new bad=0..0
+    == old rewrite 600 609
+    0-3 prev bad=0..0
+    4-815 damaged sector0=lost, all 700 sectors bad bad=700..700
+    816-939 damaged sector0=lost bad=3..699
+    940-943 damaged sector0=readable bad=1..1
+    944-1024 new bad=0..0
+    == old rewrite 1 6
+    0-3 prev bad=0..0
+    4-815 damaged sector0=lost, all 700 sectors bad bad=700..700
+    816-943 damaged sector0=readable bad=1..699
+    944-1024 new bad=0..0
+    == old rewrite 0 599
+    0-3 prev bad=0..0
+    4-815 damaged sector0=lost, all 700 sectors bad bad=700..700
+    816-907 damaged sector0=lost bad=699..699
+    908-943 damaged sector0=readable bad=1..187
+    944-1024 new bad=0..0
+    == 636 rewrite 0 9
+    0-943 prev bad=0..0
+    944-1024 new bad=0..0
+    == 636 rewrite 600 609
+    0-943 prev bad=0..0
+    944-1024 new bad=0..0
+    == 636 rewrite 1 6
+    0-943 prev bad=0..0
+    944-1024 new bad=0..0
+    == 636 rewrite 0 599
+    0-943 prev bad=0..0
+    944-1024 new bad=0..0
+    == crc rewrite 0 9
+    0-943 prev bad=0..0
+    944-944 new bad=0..0
+    945-947 prev bad=0..0
+    948-1024 new bad=0..0
+    == crc rewrite 600 609
+    0-943 prev bad=0..0
+    944-944 new bad=0..0
+    945-947 prev bad=0..0
+    948-1024 new bad=0..0
+    == crc rewrite 1 6
+    0-943 prev bad=0..0
+    944-944 new bad=0..0
+    945-947 prev bad=0..0
+    948-1024 new bad=0..0
+    == crc rewrite 0 599
+    0-943 prev bad=0..0
+    944-944 new bad=0..0
+    945-947 prev bad=0..0
+    948-1024 new bad=0..0
+    # by hand, cut 932: torn page 815 at 932; resume rc 0 err 0 count 700 root 814
+    # check:700 -> sectors 0-7 read 2, sectors 8-12, 14 and 15 read 0, the rest 1; nodes 693 count 700
+    # D26 continuation: PR 636 prints resume rc -1 err 3 count 0; check:750 reads 0 everywhere, nodes 0 count 0
 
 Oracles, with `PYTHON=python3`, all exit 0:
 
 - `tests/rp2040/flash_reset_cells/check.sh` and `tests/rp2040/flash_checkpoint/check.sh` on the PR 636 tree.
 - The same two on that tree with the two D28 edits below.
+
+Reproducibility of the variants. The old journal, PR 636 and CRC rows of the
+cut tables reproduce from the commands above. The minimum-gap heal diff and
+the D28 diff are sketches. The heal diff elides hunks, and the D28 diff edits
+`flash.c`, which the host harness does not link. The heal figures (+88 B, stack
+264 B, the cut 932, 936 and 940 losses) and the D28 figures (flash.o +92 B, error 6
+against 3) therefore come from builds that this note does not carry (open:
+publish the heal and D28 variants as branches before an owner decision rests
+on them).
 
 Object sizes: the PICO compile lines from `bmake -n journal.o flash.o`,
 with `machine/` pointed at `sys/arch/rp2040/include`, then
@@ -493,6 +617,67 @@ int main(int argc, char **argv)
 
 Two defects of this sketch bind the salvage tool (owner decision D47) and each needs an oracle row before the tool counts. Two writes of one sector inside one checkpoint group share the key `(epoch, block)`, and the strict `key > best_key` comparison keeps the first, stale slot; the order must include the slot position, newest last. The key is numeric, so after the 8-bit epoch wraps from 255 to 0 the stale epoch-255 pages outrank the current ones; `newest_epoch` is computed but unused, and the order must be the modular distance from the newest accepted checkpoint (I, from the code above; no oracle row yet). The CRC sketch below also keeps `cp_tree_whole()` for every page, since the CRC covers only the checkpoint page and not the metadata pages its pointers reach.
 
+### sweep.sh
+
+```sh
+#!/bin/sh
+# usage: sweep.sh HARNESS WORKDIR LO HI
+# Cuts the checkpoint page that follows a rewrite of sectors LO..HI at every
+# byte K from 0 to 1024, resumes, reads sectors 0-699, and prints one line per
+# run of consecutive cuts that leave the same class of state.
+set -eu
+h=$1 w=$2 lo=$3 hi=$4
+: > "$w/raw.txt"
+k=0
+while [ "$k" -le 1024 ]; do
+	rc=0
+	"$h" img="$w/t.img" fresh resume w:0-699:1 sync "w:$lo-$hi:2" "tear:$k" sync >/dev/null || rc=$?
+	if [ "$rc" -ne 3 ]; then
+		echo "cut $k: harness exit $rc, expected 3" >&2
+		exit 1
+	fi
+	echo "$k $("$h" img="$w/t.img" load resume check:700 | tr '\n' ' ')" >> "$w/raw.txt"
+	k=$((k + 1))
+done
+awk '
+function flush() {
+	if (first >= 0)
+		printf "%d-%d %s\n", first, last, label (bmin >= 0 ? sprintf(" bad=%d..%d", bmin, bmax) : "")
+}
+{
+	row[NR] = $0
+	vec = ""
+	if ($0 ~ / resume rc 0 /) {
+		for (i = 1; i <= NF; i++) if ($i == "check") break
+		for (s = 0; s < 700; s++) vec = vec " " $(i + 1 + s)
+	}
+	v[NR] = vec
+	key[NR] = $1
+}
+END {
+	prevv = v[1]
+	newv = v[NR]
+	first = -1
+	for (n = 1; n <= NR; n++) {
+		split(v[n], x, " ")
+		bad = -1
+		if (v[n] == "") cls = "no-resume"
+		else {
+			bad = 0
+			for (s = 1; s <= 700; s++) if (x[s] == 0 || x[s] == -9 || x[s] == -1) bad++
+			if (v[n] == prevv) cls = "prev"
+			else if (v[n] == newv) cls = "new"
+			else cls = "damaged sector0=" ((x[1] == 1 || x[1] == 2) ? "readable" : "lost") (bad == 700 ? ", all 700 sectors bad" : "")
+		}
+		if (cls != label) { flush(); first = key[n]; label = cls; bmin = -1; bmax = -1 }
+		last = key[n]
+		if (bad >= 0) { if (bmin < 0 || bad < bmin) bmin = bad; if (bad > bmax) bmax = bad }
+	}
+	flush()
+}
+' "$w/raw.txt"
+```
+
 ### Minimum-gap heal (with an optional upstream fallback), against PR 636
 
 ```diff
@@ -633,7 +818,9 @@ Two defects of this sketch bind the salvage tool (owner decision D47) and each n
  }
 ```
 
-### CRC-32 rule, against PR 636
+### crc.diff
+
+The CRC-32 rule against PR 636 (c439e459), written with spaces for the source's tabs; apply it with `patch -l`. `crc32_update()` is the kernel's `sys/kern/subr_crc32.c` without its include line. An erased CRC field falls back to the tree walk.
 
 ```diff
 --- a/sys/arch/rp2040/dhara/journal.c
@@ -643,31 +830,32 @@ Two defects of this sketch bind the salvage tool (owner decision D47) and each n
  #include "bytes.h"
 
 +unsigned crc32_update(unsigned, const void *, unsigned);
-+#define CP_CRC_OFF     944
++#define CP_CRC_OFF      944
 +
  /************************************************************************
   * Metapage binary format
   */
 @@ -491,7 +494,10 @@
-                                     j->page_buf, err) &&
-                    hdr_is_checkpoint(j, j->page_buf) &&
-                    (hdr_get_epoch(j->page_buf) == epoch) &&
--                   cp_tree_whole(j, p - 1)) {
-+                   cp_tree_whole(j, p - 1) &&
-+                   (dhara_r32(j->page_buf + CP_CRC_OFF) == 0xffffffffU ||
-+                    dhara_r32(j->page_buf + CP_CRC_OFF) ==
-+                    crc32_update(0xffffffffU, j->page_buf, CP_CRC_OFF))) {
-                        j->root = p - 1;
-                        return 0;
-                }
-@@ -982,6 +988,7 @@
-        hdr_set_tail(j->page_buf, j->tail);
-        hdr_set_bb_current(j->page_buf, j->bb_current);
-        hdr_set_bb_last(j->page_buf, j->bb_last);
-+       dhara_w32(j->page_buf + CP_CRC_OFF, crc32_update(0xffffffffU, j->page_buf, CP_CRC_OFF));
+                                      j->page_buf, err) &&
+                     hdr_is_checkpoint(j, j->page_buf) &&
+                     (hdr_get_epoch(j->page_buf) == epoch) &&
+-                    cp_tree_whole(j, p - 1)) {
++                    cp_tree_whole(j, p - 1) &&
++                    (dhara_r32(j->page_buf + CP_CRC_OFF) == 0xffffffffU ||
++                     dhara_r32(j->page_buf + CP_CRC_OFF) ==
++                     crc32_update(0xffffffffU, j->page_buf, CP_CRC_OFF))) {
+                         j->root = p - 1;
+                         return 0;
+                 }
+@@ -982,6 +988,8 @@
+         hdr_set_tail(j->page_buf, j->tail);
+         hdr_set_bb_current(j->page_buf, j->bb_current);
+         hdr_set_bb_last(j->page_buf, j->bb_last);
++        dhara_w32(j->page_buf + CP_CRC_OFF,
++                  crc32_update(0xffffffffU, j->page_buf, CP_CRC_OFF));
 
-        if (dhara_nand_prog(j->nand, j->head + 1, j->page_buf, &my_err) < 0)
-                return recover_from(j, my_err, err);
+         if (dhara_nand_prog(j->nand, j->head + 1, j->page_buf, &my_err) < 0)
+                 return recover_from(j, my_err, err);
 ```
 
 ### D28 refusal, against PR 636 and `main`

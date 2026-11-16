@@ -143,7 +143,17 @@
  */
 #define	CPU_USB_TX_PEAK		47	/* int: greatest ring occupancy, bytes */
 #define	CPU_USB_TX_DROPPED	48	/* int: bytes discarded, saturating */
-#define	CPU_MAXID		49	/* number of valid machdep ids */
+/*
+ * The flash chip's 64-bit unique ID as two read-only ints: the first four
+ * bytes the chip returns (the first eight hex digits of the USB serial
+ * string), most significant byte first, and the last four. sysctl(8) prints
+ * an int signed, so a half with its top bit set reads negative; boardinfo
+ * formats both with printf %08x. EIO when the chip's identity did not read
+ * (flash_identity() in dev/flash.c).
+ */
+#define	CPU_FLASH_UNIQUE_HI	49	/* int: unique ID bytes 0-3 */
+#define	CPU_FLASH_UNIQUE_LO	50	/* int: unique ID bytes 4-7 */
+#define	CPU_MAXID		51	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -196,5 +206,7 @@
 	{ 0, 0 }, \
 	{ "usb_tx_peak", CTLTYPE_INT }, \
 	{ "usb_tx_dropped", CTLTYPE_INT }, \
+	{ "flash_unique_hi", CTLTYPE_INT }, \
+	{ "flash_unique_lo", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

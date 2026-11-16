@@ -458,6 +458,16 @@ select1(register struct pselect_args *uap, int is_pselect)
         s = splhigh();
         time.tv_usec = lbolt * usechz;
         timevaladd(&atv, &time);
+        /*
+         * The deadline is the clock plus the timeout modulo 2^32. One that
+         * wrapped below the clock lies beyond the clock's last count, which
+         * wall_reached() would read as already passed; it ends at the last
+         * second instead.
+         */
+        if ((unsigned long)atv.tv_sec < (unsigned long)time.tv_sec) {
+            atv.tv_sec = (long)0xffffffffUL;
+            atv.tv_usec = 0;
+        }
         splx(s);
     }
 retry:
@@ -493,9 +503,25 @@ retry:
         u.u_procp->p_sigmask = sigmsk;
     }
     error = tsleep ((caddr_t) &selwait, PSOCK | PCATCH, timo);
-    if (uap->maskp)
+    /*
+     * A wait that a signal ended leaves the temporary mask installed: the
+     * signal is dispatched under it, which is the mask the caller asked to
+     * wait with, and postsig() makes u_oldmask the mask the handler returns
+     * to (SAS_OLDMASK). Any other return puts the caller's mask back here and
+     * clears the flag, which a later signal would otherwise take for its
+     * own frame over any mask the caller set meanwhile.
+     */
+    if (uap->maskp && error != EINTR && error != ERESTART) {
         u.u_procp->p_sigmask = u.u_oldmask;
+        u.u_psflags &= ~SAS_OLDMASK;
+    }
     splx(s);
+    /*
+     * The tick count saturates in hzto(), so a timeout can expire before the
+     * deadline: the wall clock decides, at retry.
+     */
+    if (error == EWOULDBLOCK && uap->ts)
+        goto retry;
     if (error == 0)
         goto retry;
 done:

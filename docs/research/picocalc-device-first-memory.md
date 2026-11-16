@@ -67,9 +67,13 @@ Part identity is open. The schematic prints CKS32F103Rx; the vendor README
 names STM32F103R8T6; the LQFP64 pin map agrees with both, and the flash-size
 letter (8, B, C or E) awaits the top mark or the flash-size word at
 0x1FFFF7E0 (`hardware-reference-coverage.md:148`, `:235-236`, `:268-271`).
-SRAM is 20 KB on every candidate: ST DS5319 lists 20 Kbytes for the x8/xB
-devices (notes `st_ds5319...txt:21`, `:405`) and the CKS x8/xB sheet 20KB
-(notes `cks_cks32f103x8_xb...txt:14`, `:258`). Flash is 64 KB for the R8
+SRAM depends on that letter. For the 8 and B suffixes it is 20 KB: ST DS5319
+lists 20 Kbytes for the x8/xB devices (notes `st_ds5319...txt:21`, `:405`) and
+the CKS x8/xB sheet 20KB (notes `cks_cks32f103x8_xb...txt:14`, `:258`). The
+other two candidates are larger parts, 48 KB for RC and 64 KB for RE, from the
+STM32F103 family datasheet that the notes repository does not hold (I); the
+size stays open until the top mark or the flash-size word names the suffix.
+Flash is 64 KB for the R8
 the README names (DS5319 line 20 gives 64 or 128 Kbytes for the x8/xB
 family).
 
@@ -81,8 +85,8 @@ places only: BKL (0x05) and BK2 (0x0A) through `reg_set_value()` followed by
 a backlight update, and OFF (0x0E) through the power-off countdown
 `pmu_online`. A read or write of RST (0x08) resets the controller after a
 delay. The largest reply is the C64 matrix register, ten bytes. No register
-reads or writes the controller's SRAM, so the RP2040 can use none of the
-20 KB; the two writable bytes each change a backlight.
+reads or writes the controller's SRAM, so the RP2040 can use none of it,
+whatever its size; the two writable bytes each change a backlight.
 
 A firmware written to export SRAM is possible in principle and is not
 recommended. The bus runs near 96 kHz (`PICOCALC.md:640-643`), about 10 KB/s
@@ -126,7 +130,7 @@ itself), and battery state reads 0 both for an empty cell and for no cell
 | Watchdog scratch | 32 B | WATCHDOG_SCRATCH0-7 | swap cursor in scratch0 (`machdep.c:271-307`), reset reason | most of 28 B (I) | register | survives a watchdog reset |
 | PSRAM | 8 MB | PIO0 frames of 64 B, no memory mapping | swap (main); #624 splits it 2 MB swap and 6 MB `/tmp` (`8ed99d4a:psram_xfer.h:32`) | 0 when up | 64-B frame: CS low 4.45 us write, 4.72 us read; at most 5.2 us masked (`picocalc-psram.md:278-281`, simulator); about 12 MB/s (I) | none; ICC 40 mA active, ISB 200 uA (`hardware-reference-coverage.md:229`; notes PSRAM sheet line 876) |
 | Panel frame memory | 345,600 B (320x480x18 bit) | SPI1, RAMWR/RAMRD (2Eh) | lines 0-319 the console scroll area; lines 320-479 the bottom fixed area (`st7365p.c:384`) | 160 lines, 115,200 B of 18-bit pixels (I: unlit on the 320-line glass, `hardware-reference-coverage.md:242`) | write 66 ns per bit clock, read 150 ns (notes ST7365P lines 2564, 2568); about 1.2 MB/s write and 0.6 MB/s read of payload (I) | none; lost with panel power |
-| Controller SRAM | 20 KB | none (section above) | firmware | 0 usable | n/a | n/a |
+| Controller SRAM | 20 KB for the 8 and B suffixes; 48 KB (RC) or 64 KB (RE) if the part is larger (I) | none (section above) | firmware | 0 usable | n/a | n/a |
 
 The XIP cache, the controller SRAM and the AXP2101 buffer drop out on
 mechanism. The PSRAM is the only large store, and it is a block device
@@ -193,15 +197,20 @@ refusal 114.5 to 114.4 ms, awk swapout 92.7 to 92.4 ms and refusal 32.8 to
 32.6 ms; the 4 KB incompressible rows (771 and 386 ms) and the 3.1 ms sh
 swapin do not change at the printed precision.
 
-| Image (raw bytes) | Pool swapout | Pool refusal | Pool swapin | PSRAM each way | `fl1` swapout |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| sh (16,776 B, 2,001 compressed) | 255.9 ms | 114.4 ms | 3.13 ms | 1.4 ms (I) | 257 ms typical, 2.2 s maximum |
-| awk (20,236 B, 680 compressed) | 92.4 ms | 32.6 ms | 3.40 ms | 1.6 ms (I) | 257 ms typical, 2.2 s maximum |
-| 4 KB incompressible | 771 ms | 386 ms | 1.15 ms | 0.3 ms (I) | 51 ms typical |
+| Image (raw bytes) | Pool swapout | Pool refusal | Pool swapin | PSRAM each way | `fl1` device time | `fl1` after a pool refusal |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| sh (16,776 B, 2,001 compressed) | 255.9 ms | 114.4 ms | 3.13 ms | 1.4 ms (I) | 257 ms typical, 2.2 s maximum | 371 ms typical (114.4 + 257), 2.3 s maximum |
+| awk (20,236 B, 680 compressed) | 92.4 ms | 32.6 ms | 3.40 ms | 1.6 ms (I) | 257 ms typical, 2.2 s maximum | 290 ms typical (32.6 + 257), 2.2 s maximum |
+| 4 KB incompressible | 771 ms | 386 ms | 1.15 ms | 0.3 ms (I) | 51 ms typical | 437 ms typical (385.5 + 51) |
 
 Pool swapout sums the data and stack counting and writing passes and one
 u-area pass; a refusal is the two counting passes the flash path then
-follows. PSRAM figures multiply 64-byte frames by the simulator's 5.2 us.
+follows. The `fl1` device-time column is erase and program time alone. On a
+SWAPRAM kernel, which asks the pool first (states C and D below), an image
+the pool refuses pays its counting passes before the flash write, so the last
+column adds the refusal column to the device time; an image the pool admits
+never reaches `fl1`, and a kernel without SWAPRAM pays the device time only.
+PSRAM figures multiply 64-byte frames by the simulator's 5.2 us.
 `fl1` figures are datasheet arithmetic (I). A swap image owns an
 erase-aligned run of `fl1`, and `fl_raw()` hands a `B_SWAPIMAGE` write to
 `flash_swap_append()`, which erases each 4 KB sector as the write reaches it
@@ -240,7 +249,7 @@ output is stale; this note leaves it as it stands.
 | Pool (SRAM) | 256 ms in, 3 ms out (model) | none | 16 KB: 3 images at `compile/PICO/Config:64`'s count, 8 of this sh at 2,001 B | no | every kernel with SWAPRAM |
 | PSRAM | about 1.4 ms each way (I) | none | 8 MB, or 2 MB with #624 | no (mainboard part) | PicoCalc, when the probe passes |
 | SD 0xb8 | unmeasured, floor 10.7 ms | card FTL, unmeasured | up to 65,532 blocks (#615) | yes | PicoCalc with a prepared card |
-| `fl1` | 257 ms typical | 100,000 cycles per sector; the hottest swap sector binds the board (`swap-tier-designs.md:68-70`) | 384 KB | no | every board |
+| `fl1` | 257 ms typical device time; 371 ms after a pool refusal on a SWAPRAM kernel | 100,000 cycles per sector; the hottest swap sector binds the board (`swap-tier-designs.md:68-70`) | 384 KB | no | every board |
 | Panel lines 320-479 | about 15 ms in, 30 ms out (I) | none | 115 KB (I) | no | PicoCalc, unverified |
 
 ## Tier design per board state

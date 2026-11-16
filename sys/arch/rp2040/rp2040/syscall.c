@@ -191,8 +191,11 @@ __asm volatile (
  * clears DIRTY but leaves the operands and results readable, so a process
  * switched in must not find the last process's values there, nor lose its
  * own. divider_save() therefore copies all four registers and DIV_CSR into
- * the userframe at every entry; READY is awaited first, though the
- * exception entry alone outlasts the eight-cycle calculation.
+ * the userframe at every entry. Only a write starts a calculation, and a
+ * write sets DIRTY, so READY is awaited only when DIRTY is set (the
+ * exception entry alone outlasts the eight-cycle calculation); Renode's
+ * model reports READY clear until its first calculation, which an
+ * unconditional wait would spin on forever.
  * divider_restore() writes them back at every exit the way the Pico SDK's
  * hw_divider_restore_state() does: the operand writes start a calculation,
  * and the result writes that follow replace its results and set DIRTY; a
@@ -215,9 +218,10 @@ divider_save(struct divider_state *ds)
 	volatile u_int *div;
 
 	__asm volatile ("" : "=l" (div) : "0" (0xd0000060UL));
-	while ((div[6] & CSR_READY) == 0)
-		continue;
 	ds->ds_csr = div[6];
+	if (ds->ds_csr & DS_CSR_DIRTY)
+		while ((div[6] & CSR_READY) == 0)
+			continue;
 	ds->ds_dividend = div[0];
 	ds->ds_divisor = div[1];
 	ds->ds_remainder = div[5];

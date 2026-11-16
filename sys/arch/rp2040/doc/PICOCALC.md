@@ -110,6 +110,9 @@ name a file there, with a page for a PDF.
 | The Renode RP2040 model runs the PSRAM program | Renode | not run: the pinned model has PIO but no input synchronizer latency, the tree has no PSRAM peripheral, and `renode-test` cannot run on the build host (`docs/research/picocalc-psram.md`) |
 | The part answers Read ID 0x0D with a passing die, enters quad mode and returns what was written at 31.25 MHz | board | not run |
 | The kernel swaps to PSRAM and falls back to `fl1` when the part is absent | board | not run |
+| `mkfs -i 4096` over a 6144 KB file lays out 1,536 inodes in a 97-block list and a file system that `fsutil --check` accepts, with 6,045 free blocks and 1,533 free inodes | host | observed once, outside any gate: the a.out `sbin/mkfs/mkfs` run under `qemu-arm` user mode through `tests/qemu_aout/aoutrun`, which serves the file calls from Linux; this exercises the layout code at the sizes `/etc/rc.rp2040` passes and not the kernel's block-device path |
+| `mkfs`, the `/dev/psram1` node and the mount at `/tmp` run on the PSRAM's minor 1 | board | not run |
+| PICOCALC_PSRAM with `NMOUNT=3` grows bss by one mount record and shrinks no headroom | build | observed, arm-none-eabi-gcc 14.2.1 (15:14.2.rel1-1) at `-Os`: text 125,419 to 125,339, data 448, bss 56,064 to 57,288 (+1,224), kernel RAM free 10,048 to 8,824; the flash image is 125,648 bytes before and after, headroom 5,168 bytes; PICOCALC stays at 122,795 / 392 / 55,904 |
 
 ## Pin map
 
@@ -766,8 +769,9 @@ the debounce of that card's own insertion does not expire against it. The
 driver does not interpret the polarity; the first insertion on a board
 settles which level means present.
 
-`NMOUNT` is 2 and `SINGLE_UFS_ROOT` is unset in PICOCALC and PICOCALC_PSRAM
-(the two Configs differ in the board line and `device psram` alone), because
+`NMOUNT` is 2 in PICOCALC and 3 in PICOCALC_PSRAM, whose third slot holds the
+`/tmp` RAM disk (the two Configs differ in the board line, `device psram` and
+that count), and `SINGLE_UFS_ROOT` is unset in both, because
 `sys/mount.h` requires `NMOUNT=1` with that option. Without it the kernel keeps
 `i_dev` and `i_fs` in each of the 24 inodes and the mount names, and the
 generic mount code replaces the single-root shortcuts; that, with the
@@ -790,9 +794,10 @@ behind those majors.
 
 ### Putting a filesystem on a card
 
-The tree ships `sbin/mkfs` and `sbin/fdisk` as source but neither is in any
-root image, and adding them would spend flash blocks and inodes on tools
-no board run has exercised against the driver. The documented route is a
+The tree ships `sbin/mkfs` and `sbin/fdisk` as source. `mkfs` is in the
+`picocalc` root image through the `psramtmp` closure (below); `fdisk` is in no
+root image, and adding it would spend flash blocks and inodes on a tool no
+board run has exercised against the driver. The documented route is a
 host-side image with `tools/bin/rp2040/fsutil` (built with the tools),
 written to the card from the host. The partition layout is fsutil's: the
 table in sector 0, the first partition at sector 2.
@@ -980,7 +985,8 @@ let `umount` succeed without write-back and mount again after reinsertion
 `DISCOBSD_BOARD_SD_DETACH` is exactly `run`); and the largest raw read rate at 12.5 MHz,
 which decides whether the clock can rise toward 25 MHz. Not built: a
 multi-block transfer (CMD18 and CMD25), which would cut the per-sector
-command overhead, and an on-board `mkfs`/`fdisk` closure.
+command overhead, and an on-board `fdisk` closure (`mkfs` ships for the PSRAM's
+`/tmp`, not for the card).
 
 ### PSRAM as swap
 
@@ -1008,6 +1014,26 @@ apart only against reads of reference parts: the APS6404L sheet alone
 defines a field, EID[47:45] = 010 for 64 Mbit. SCK runs at 31.25 MHz
 (`PSRAM_CLKDIV` in `psram_pio.h`), a frame holds CS low for under 5 us
 against the 8 us tCEM, and interrupts are masked for that long per frame.
+
+Minor 1 becomes `/tmp` through userland. The `psramtmp` closure of the
+`picocalc` profile (both PicoCalc boards take that profile) ships `/dev/psram1`
+(block major 3, minor 1, mode 600) and `/sbin/mkfs`, and `/etc/rc.rp2040`, after
+`mount -a`, runs `mkfs -i 4096 /dev/psram1 6144`, mounts the device at `/tmp`
+with `async,noaccesstime,nosuid` and sets the new root's mode to 1777; a step
+that fails leaves `/tmp` as the root's own directory. The PICOCALC kernel has
+no driver behind major 3, and a PICOCALC_PSRAM kernel whose part failed its
+probe leaves the driver down, so the open fails with `ENXIO` and the chain
+stops at `mkfs`. One inode per 4,096 bytes is the density `mkfs(8)` documents
+(the source's own default is 16,384): 1,536 inodes in a 97-block inode list,
+which leaves 6,045 free blocks and 1,533 free inodes (`fsutil --check` of the
+layout `mkfs` wrote, below), where the source default gives 384 inodes in
+25 blocks. Each boot makes a fresh file system, because a reset empties the
+disk, and `/etc/fstab` does not list it, so `fsck -p` never checks it. The
+closure costs the root 9 blocks and 2 inodes (`PROFILES.md`), and the third
+mount slot costs PICOCALC_PSRAM 1,224 bytes of bss (one 0x4c8-byte mount
+record). The alternative, a kernel that lays the empty file system down when
+the part attaches, would drop `mkfs` and its blocks from the root and spend
+kernel text and RAM instead, and no board has run either route.
 
 Open for the board run: the read sampling margin depends on pad delays no
 datasheet gives and on whether the output and input register stages run on

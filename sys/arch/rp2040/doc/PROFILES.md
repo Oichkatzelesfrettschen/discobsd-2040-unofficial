@@ -42,12 +42,18 @@ split, so a profile or command that named `games`, `puzzles`, `toolchain` or
 | `calc-bignum` | `bc`, `dc` |
 
 The remaining closures stand alone: `coremark`, `calc`, `toolchainlib`,
-`sdcard`, `lcdgfx` and `ridge`. The `sdcard` closure carries the `/mnt` mount point
+`sdcard`, `lcdgfx`, `psramtmp` and `ridge`. The `sdcard` closure carries the `/mnt` mount point
 and the device nodes of the PicoCalc's SD card (block major 5, raw major 11 in
 `conf.c`); the `picocalc` profile names it, `full` does not, and the PICO
 kernels have no driver behind those majors. Its `needs path` line holds the
 mount point and all six nodes, so a manifest block that loses one stops the
-build. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
+build. The `psramtmp` closure carries the PSRAM's block node `/dev/psram1` (major 3,
+minor 1, mode 600) and `/sbin/mkfs`, which `/etc/rc.rp2040` runs over the
+node before it mounts the node at `/tmp`; its `needs path` line names both, so
+a manifest block that loses one stops the build. The `picocalc` profile names
+it, so both PicoCalc boards carry it: the PICOCALC kernel has no driver behind
+major 3, the open fails with `ENXIO` and `/tmp` stays on the root, so that
+board pays the nine blocks and two inodes for nothing. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
 console's character major 10, mode 666) that the PICOCALC kernels serve; the
 `picocalc` profile names it and no other does. The `ridge` closure carries the
 hard link `/usr/games/ridge` to `gamebox`, a member that draws through the tile
@@ -117,12 +123,13 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 | `picotop` | 15 | 1 | `/usr/bin/picotop` (15,944 bytes before packing); PicoCalc profile |
 | `sdcard` | 11 | 8 | `/mnt`, the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`, and `/sbin/savecore` (9,141 bytes packed); PicoCalc only |
 | `lcdgfx` | 0 | 1 | the device node `/dev/lcdgfx` (character major 10, minor 1, mode 666); PicoCalc only |
+| `psramtmp` | 9 | 2 | the block node `/dev/psram1` (major 3, minor 1, mode 600) and `/sbin/mkfs` (9,788 bytes before packing); PicoCalc only |
 | `gamesdir` | 1 | 1 | `/usr/games` |
 | `games` group | 24 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall`, `coil` |
 | `puzzles` group with `gamesdir` | 37 | 2 | `puzzlebox` and hard links `flood`, `samegame`, `unruly`, `lightup` |
 | `games` and `puzzles` | 60 | 3 | both groups |
 | `ridge` with `gamesdir`, `gamebox` and `lcdgfx` | 11 | 3 | the hard link `/usr/games/ridge` and what it needs (`gamebox` links `ridge` only when the selection keeps it); PicoCalc only |
-| all maintained closures (`picocalc`) | 307 | 23 | |
+| all maintained closures (`picocalc`) | 360 | 28 | measured on the tree that added `psramtmp`: `base` 437 free blocks and 37 free inodes, `picocalc` 77 and 9; the 307 and 23 of the earlier tree are not attributed here |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
@@ -204,7 +211,7 @@ the pack's unused blocks occupy no flash.
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's, including `puzzles` | 241 | 32 |
-| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch` and `picotop`, so also `puzzles` | 140 before the last two (90 and 14 with them, below) | 20 |
+| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch`, `picotop` and `psramtmp`, so also `puzzles` | 77 (86 with `IMAGE_WITHOUT=psramtmp`), measured on the tree that added `psramtmp` | 9 (11 without `psramtmp`) |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
@@ -218,6 +225,17 @@ inodes before `time` joined `utilbox` (446 afterwards), 447 and 42 with
 holds 148 free blocks and 20 free inodes when built with
 `IMAGE_WITHOUT=ridge`; the row reads 140 and 20 as shipped: `ridge` takes
 eight blocks and no inode, because its entry point is a hard link.
+
+The `psramtmp` cost is the difference between `base` (437 free blocks and 37
+free inodes) and `base` with the closure (428 and 35), built with `bmake
+MACHINE=rp2040 PROFILE=base IMAGE_WITH=psramtmp fs` and read with the same
+`fsutil --verbose --partition=1` command; `picocalc` measured 86 and 11 with
+`IMAGE_WITHOUT=psramtmp` and 77 and 9 as shipped. The inode cost is the
+block node and `mkfs`; the nine blocks are the packed `mkfs` (9,788 bytes
+before packing; its packed size is not measured separately) and the
+directory entries. The `base` row and the other rows of the table above
+were not measured again on that tree and sit above the figures `base` now
+reads.
 
 `picofetch` and `picotop` joined the `picocalc` profile on a later tree, on
 which `base` measured 440 free blocks and 40 free inodes: 426 and 39 with

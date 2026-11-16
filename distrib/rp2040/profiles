@@ -171,6 +171,7 @@ cost picofetch 14 1
 cost picotop 15 1
 cost sdcard 11 8
 cost lcdgfx 0 1
+cost psramtmp 9 2
 cost gamesdir 1 1
 cost games 24 2
 cost puzzles 37 2

@@ -25,7 +25,7 @@ Revisions and paths:
 
 ## Finding
 
-1. **The tear comes from the format, not from the fix.** One checkpoint page is four 256-byte chip programs, and recovery trusts its first four bytes. Under the prefix model, the old kernel keeps sector 0 readable only when the cut falls after the alt pointer that leads to sector 0. That band is the last 12 bytes of the root slot (cuts 932 to 943) for a root sector id of 13, and the last 4 bytes (940 to 943) for id 3 (M). For an id below 1,024 it is at most 36 bytes, about 14 microseconds of clocking (I, from the layout). Every other torn cut leaves sector 0 blank or unreadable (M), and `fl_setup()` then finds no partition table or returns ENXIO (`flash.c:898-909`). Such a root does not boot, and the user reflashes.
+1. **The tear comes from the format, not from the fix.** One checkpoint page is four 256-byte chip programs, and recovery trusts its first four bytes. Under the prefix model, the old kernel keeps sector 0 readable only when the cut falls after the alt pointer that leads to sector 0. That band is the last 12 bytes of the root slot (cuts 932 to 943) for a root sector id of 13, and the last 4 bytes (940 to 943) for id 3 (M). For an id below 1,024 it is at most 36 bytes, about 14 microseconds of clocking (I, from the layout). Outside that band, cuts that fall inside the accepted but incomplete page (after its first four bytes and before the end of the root slot) leave sector 0 blank or unreadable (M), and `fl_setup()` then finds no partition table or returns ENXIO (`flash.c:898-909`). Cuts in the first four bytes reject the torn page and keep the previous checkpoint, and cuts after the root slot leave complete metadata (M, the cut table below); neither loses data. Such a root does not boot, and the user reflashes.
 2. **D26 is real; how many roots in service carry it is unknown (I).** A root that the old kernel kept using after such a tear carries a sector count above its node count in every later checkpoint, and the gap never closes (M). PR 636 treats it in one of three ways (M), depending on what followed the tear:
    - With eight or more blocks written since, it rejects every checkpoint in its window and resumes blank.
    - With fewer, it steps back to the checkpoint before the tear. The lost sectors return, but every write the old kernel acknowledged since is dropped without a message.
@@ -491,6 +491,8 @@ int main(int argc, char **argv)
 }
 ```
 
+Two defects of this sketch bind the salvage tool (owner decision D47) and each needs an oracle row before the tool counts. Two writes of one sector inside one checkpoint group share the key `(epoch, block)`, and the strict `key > best_key` comparison keeps the first, stale slot; the order must include the slot position, newest last. The key is numeric, so after the 8-bit epoch wraps from 255 to 0 the stale epoch-255 pages outrank the current ones; `newest_epoch` is computed but unused, and the order must be the modular distance from the newest accepted checkpoint (I, from the code above; no oracle row yet). The CRC sketch below also keeps `cp_tree_whole()` for every page, since the CRC covers only the checkpoint page and not the metadata pages its pointers reach.
+
 ### Minimum-gap heal (with an optional upstream fallback), against PR 636
 
 ```diff
@@ -651,10 +653,10 @@ int main(int argc, char **argv)
                     hdr_is_checkpoint(j, j->page_buf) &&
                     (hdr_get_epoch(j->page_buf) == epoch) &&
 -                   cp_tree_whole(j, p - 1)) {
-+                   (dhara_r32(j->page_buf + CP_CRC_OFF) ==
-+                    crc32_update(0xffffffffU, j->page_buf, CP_CRC_OFF) ||
-+                    (dhara_r32(j->page_buf + CP_CRC_OFF) == 0xffffffffU &&
-+                     cp_tree_whole(j, p - 1)))) {
++                   cp_tree_whole(j, p - 1) &&
++                   (dhara_r32(j->page_buf + CP_CRC_OFF) == 0xffffffffU ||
++                    dhara_r32(j->page_buf + CP_CRC_OFF) ==
++                    crc32_update(0xffffffffU, j->page_buf, CP_CRC_OFF))) {
                         j->root = p - 1;
                         return 0;
                 }

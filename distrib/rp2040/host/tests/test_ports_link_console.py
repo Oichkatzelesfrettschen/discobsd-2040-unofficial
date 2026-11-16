@@ -445,7 +445,10 @@ def test_up_refuses_an_environment_file_value_outside_the_allow_list(
         host_ip=host_ip, port=7681, link_port=42069, bind="127.0.0.1", detached=False
     )
     assert console.cmd_up(args) == 1
-    assert "web.env" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "web.env" in err
+    # The refused value may be the token; it never reaches stderr.
+    assert value not in err
     assert not (conf / "web.env").exists()
 
 
@@ -530,11 +533,22 @@ def test_web_names_the_address_it_serves(monkeypatch, capsys, bind, shown):
     assert shown in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("stored", ["localhost", "pico-host.local", "127.0.0.1"])
-def test_up_wildcard_bind_recomputes_a_stored_name_or_loopback(monkeypatch, tmp_path, stored):
-    # A stored name or loopback address would send LAN clients to their own
-    # host; a wildcard bind recomputes the LAN address instead.
+@pytest.mark.parametrize(
+    "stored, advertised",
+    [
+        ("localhost", "10.0.0.9"),
+        ("app.localhost", "10.0.0.9"),
+        ("127.0.0.1", "10.0.0.9"),
+        ("pico-host.local", "pico-host.local"),
+        ("10.0.0.20", "10.0.0.20"),
+    ],
+)
+def test_up_wildcard_bind_keeps_a_stored_lan_name_and_drops_loopback(
+    monkeypatch, tmp_path, stored, advertised
+):
+    # A stored loopback literal or localhost name would send LAN clients to
+    # their own host and is recomputed; a stored LAN name or address is kept.
     conf = tmp_path / "discobsd"
     conf.mkdir(parents=True)
     console.write_env(conf / "web.env", {"DISCOBSD_HOST_IP": stored})
-    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == "10.0.0.9"
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == advertised

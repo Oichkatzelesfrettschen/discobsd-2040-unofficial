@@ -80,9 +80,10 @@ def write_env(path: Path, values: dict[str, str]) -> None:
     value falls outside ENV_VALUE_RE."""
     for key, value in values.items():
         if not ENV_VALUE_RE.fullmatch(value):
+            # The message names the key only: a refused value may be the
+            # console token, which must not reach a terminal or a log.
             raise ValueError(
-                "%s=%r: web.env values are limited to letters, digits and . _ ~ : -"
-                % (key, value)
+                "%s: web.env values are limited to letters, digits and . _ ~ : -" % key
             )
     path.parent.mkdir(parents=True, exist_ok=True)
     body = "".join(f"{k}={v}\n" for k, v in values.items())
@@ -216,6 +217,15 @@ def _http_answers(url: str, timeout: float = 3.0) -> bool:
         return False
 
 
+def is_loopback_host(host: str) -> bool:
+    """True for a loopback IP literal or a localhost name (RFC 6761 6.3)."""
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        name = host.lower().rstrip(".")
+        return name in ("localhost", "localhost.localdomain") or name.endswith(".localhost")
+
+
 def parse_bind(text: str):
     """Return the address object for a --bind value, which must be an IP literal.
 
@@ -272,15 +282,11 @@ def cmd_up(args) -> int:
     if not ip and not bind.is_unspecified:
         ip = str(bind)
     if not ip:
-        # A stored name (for example "localhost" from an earlier --host-ip)
-        # cannot be classified without resolving it, so only a stored
-        # non-loopback IP literal is reused; anything else is recomputed.
+        # A stored loopback address (a literal, or a localhost name from an
+        # earlier --host-ip) would send LAN clients to their own host, so it
+        # is recomputed; any other stored address or host name is kept.
         stored = values.get("DISCOBSD_HOST_IP")
-        try:
-            reusable = bool(stored) and not ipaddress.ip_address(stored).is_loopback
-        except ValueError:
-            reusable = False
-        ip = stored if reusable else lan_ip()
+        ip = stored if stored and not is_loopback_host(stored) else lan_ip()
     if ":" in ip:
         sys.stderr.write(
             "discobsd-console: the advertised address %r is IPv6; the systemd "

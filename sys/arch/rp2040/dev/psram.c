@@ -140,8 +140,10 @@ psramprobe(struct conf_device *config __unused)
 		return 0;
 	psram_up = 1;
 	swapdev = makedev(PSRAM_MAJOR, 0);
-	printf("psram0: ESP-PSRAM64H %u kbytes on PIO0, swap\n",
-	    (unsigned int)(PSRAM_BYTES / 1024));
+	printf("psram0: ESP-PSRAM64H %u kbytes on PIO0, swap %u kbytes, "
+	    "tmp %u kbytes\n", (unsigned int)(PSRAM_BYTES / 1024),
+	    (unsigned int)(PSRAM_SWAP_BYTES / 1024),
+	    (unsigned int)((PSRAM_BYTES - PSRAM_SWAP_BYTES) / 1024));
 	return 1;
 }
 

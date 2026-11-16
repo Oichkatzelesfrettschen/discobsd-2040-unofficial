@@ -2,7 +2,7 @@
 import argparse
 from pathlib import Path
 
-from exec_elf_admission_extract import extract_function
+from exec_elf_admission_extract import definition_signature, extract_function
 
 MUTATIONS = {
     "nonblock": ("fp->f_flag & FNONBLOCK ? IO_NDELAY : 0", "0"),
@@ -19,7 +19,9 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--mutant", choices=MUTATIONS)
     args = parser.parse_args()
-    function = extract_function(args.source.read_text(), "int\npipe_rw (")
+    source = args.source.read_text()
+    function = extract_function(
+        source, definition_signature(source, "int", "pipe_rw"), "pipe_rw")
     if args.mutant:
         original, replacement = MUTATIONS[args.mutant]
         if function.count(original) != 1:

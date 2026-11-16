@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import re
 from pathlib import Path
 
 SIGNATURE = "int\nexec_elf_check(struct exec_params *epp)"
@@ -51,10 +52,16 @@ TEXT_OWNERSHIP = """    exec_text_release(u.u_procp, NULL);
     u.u_procp->p_tsize = 0;"""
 
 
-def extract_function(source: str, signature: str) -> str:
-    """Return one uniquely named C function, including its closing brace."""
-    if source.count(signature) != 1:
-        raise ValueError("ELF loader signature is not unique")
+def extract_function(source: str, signature: str, label: str = "ELF loader") -> str:
+    """Return one uniquely named C function, including its closing brace.
+
+    label names the function in the errors, so a caller extracting another
+    function reports that function rather than the ELF loader."""
+    count = source.count(signature)
+    if count == 0:
+        raise ValueError(f"{label} signature not found")
+    if count != 1:
+        raise ValueError(f"{label} signature is not unique ({count} matches)")
     start = source.index(signature)
     opening = source.index("{", start)
     depth = 0
@@ -66,7 +73,20 @@ def extract_function(source: str, signature: str) -> str:
             depth -= 1
             if depth == 0:
                 return source[start : offset + 1]
-    raise ValueError("unterminated ELF loader function")
+    raise ValueError(f"unterminated {label} function")
+
+
+def definition_signature(source: str, return_type: str, name: str) -> str:
+    """Return the text that opens the one definition of name, which starts a
+    line after a line holding only return_type, with any spacing before the
+    parameter list ("pipe_rw(" and "pipe_rw (" alike)."""
+    pattern = re.compile(
+        rf"^{re.escape(return_type)}[ \t]*\n{re.escape(name)}[ \t]*\(", re.M)
+    found = pattern.findall(source)
+    if len(found) != 1:
+        raise ValueError(f"{name} definition {'not found' if not found else 'is not unique'}"
+                         f" ({len(found)} matches)")
+    return found[0]
 
 
 def main() -> None:

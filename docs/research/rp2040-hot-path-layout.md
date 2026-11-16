@@ -159,10 +159,25 @@ two sets: set 484 holds rwip+0x178, the line after dumpsys (the start of the
 baduaddr helpers in machdep.o) and the `nsysent` word of init_sysent.o;
 set 486 holds rwip+0x188, baduaddr_span+0xc and `syscall_handlers`+0xc. Each
 system call touches all three lines of each set, so two-way LRU misses three
-times per set per call: 6 and 3 misses per iteration. The PICO configuration,
-replayed through the same trace (rwip, writep and pipe_rw differ in size there
-and drop out), gives 6.62 misses for stock and 0.53 for swap path -O2, the
-sign of its +12%.
+times per set per call: 6 and 3 misses per iteration. The PICO configuration cannot be replayed whole through this
+trace: rwip, writep and pipe_rw have other sizes there, so 444,258 of the
+2,457,675 traced XIP events (18.1%) have no counterpart and `xipsim.py` now
+names them and exits 1 unless `--allow-omitted` is given. On the remaining
+81.9% the PICO layouts give 6.62 misses for stock, 0.53 for swap path -O2 and
+0.34 for both hot-region kernels; rwip is one of the conflicting sections, so
+these figures neither bound nor predict the PICO board counts, and the PICO
+conclusions rest on the board counters alone (13.74 misses per iteration
+stock, 1.44 swap path -O2). Every union replay cited here relocates all
+2,457,675 events with none omitted, and the virtual pads move sections without
+resizing them, so the union figures and the set analysis are unchanged.
+Calibration of the omission report: the union stock map replays with no
+omission (exit 0); the same map with `.text.rwip` one word longer omits
+exactly rwip's 360,256 events, 14.7% (exit 1).
+
+Evidence classes: the cause, the pad experiment, the repair and every
+before/after figure rest on board measurements (rates and XIP counters). The
+replay supplies only the identity of the conflicting sets and lines and the
+ranking of union layouts, which the counters confirm in sign and order.
 
 The model undercounts the board by about 4 misses per iteration on both
 conflicting union layouts (swap path -O2: 10.1 modeled, 14.3 measured; pad:
@@ -208,6 +223,9 @@ each program runs 10 s. Misses per iteration come from counters cleared before
 Spawn varies 4.0 to 4.9 between passes of every -O2 kernel, and the -Os
 kernels' pipe rate varies by up to 2% between passes while the -O2 kernels
 repeat to one loop; neither spread follows the hot region.
+
+The 0.34 PICO model figure above came from the truncated PICO replay
+described under the cache model and carries no weight.
 
 Against the predictions: the hot-region kernels miss 0.54 to 0.72 times per
 iteration (predicted at most 0.6 from the differential method; these figures

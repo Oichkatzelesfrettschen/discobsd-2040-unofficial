@@ -1742,7 +1742,7 @@ CROSS_CONTRACT_GATES=	check-signal-sets-cross check-fd-set-cross check-public-ti
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
-		check-c17-headers-cross check-libc-shared-closure check-libc-declaration-census check-libc-pic-replay \
+		check-c17-headers-cross check-libc-pic-replay \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-libc-getgrent-cross \
@@ -1795,6 +1795,12 @@ check-libc-pic-replay: check-python
 check-libc-export-namespace:
 		sh tools/verify_libc_export_namespace.sh --selftest ${TOPSRC:Q}
 		sh tools/verify_libc_export_namespace.sh ${TOPSRC:Q}
+
+# The shared-closure and declaration-census gates hash each lib/*.a before and
+# after reading it and fail when it changes. Contract gates such as
+# check-libcalc-cross and check-libbn-cross run make in lib/ and can rewrite
+# an archive, so these readers run in their own stage after the contract group.
+CROSS_ARCHIVE_READERS=	check-libc-shared-closure check-libc-declaration-census
 
 # Composition gates clean and relink shared program directories, so the cross
 # graph runs them after the parallel read-only contract group.
@@ -2034,6 +2040,7 @@ check-cross-assembler:
 		${MAKE} -C tests/rp2040/divider_ownership check
 
 check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
+		${CROSS_ARCHIVE_READERS} .WAIT \
 		check-libc-export-namespace .WAIT ${CROSS_COMPOSITION_GATES} .WAIT \
 		check-cross-kernel .WAIT \
 		check-cross-assembler

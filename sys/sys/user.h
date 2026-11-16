@@ -34,10 +34,6 @@
 struct user {
     struct  proc *u_procp;          /* pointer to proc structure */
     struct  trapframe *u_frame;     /* address of users saved frame */
-    char    u_comm[MAXCOMLEN + 1];  /* command file name */
-    label_t u_qsave;                /* for non-local gotos on interrupts */
-    label_t u_rsave;                /* save info when exchanging stacks */
-    label_t u_ssave;                /* label variable for swapping */
 
 /* syscall parameters and results */
     int     u_arg[6];               /* arguments to current system call */
@@ -103,11 +99,56 @@ struct user {
         ino_t nc_inumber;           /* inum of cached directory */
         dev_t nc_dev;               /* dev of cached directory */
     } u_ncache;
+
+/*
+ * Fields the kernel reaches by address -- the setjmp() save areas and the
+ * command and argument strings -- rather than by word loads. Placing them
+ * last leaves the offsets a Thumb-1 load reaches from &u to the system-call
+ * and credential fields above (U_THUMB1_WORD_REACH below).
+ */
+    char    u_comm[MAXCOMLEN + 1];  /* command file name */
+    label_t u_qsave;                /* for non-local gotos on interrupts */
+    label_t u_rsave;                /* save info when exchanging stacks */
+    label_t u_ssave;                /* label variable for swapping */
     char    u_psargs[PSARGSZ];      /* argument prefix exec recorded */
     int     u_stack[1];             /* kernel stack per user
                                      * extends from u + USIZE
                                      * backward not to reach here */
 };
+
+#ifdef KERNEL
+/*
+ * locore.S reads u_procp as [r2, #0] when it exchanges user areas, the
+ * one access to struct user by a numeric offset.
+ */
+_Static_assert(__builtin_offsetof(struct user, u_procp) == 0,
+    "u_procp must be the first word of the user area");
+
+#if defined(__thumb__) && !defined(__thumb2__)
+/*
+ * A Thumb-1 (ARMv6-M) "ldr rd, [rn, #imm]" encodes a five-bit word index,
+ * so it reaches offsets 0 to 124 from its base register. A field of u in
+ * that window loads from the one literal that holds &u; a field beyond it
+ * needs a literal or an address computation of its own. System-call
+ * dispatch reads u_frame, u_arg, u_rval and u_error on every call, and
+ * permission checks read the credentials, so each must stay in the window.
+ */
+#define U_THUMB1_WORD_REACH(member) \
+    _Static_assert(__builtin_offsetof(struct user, member) <= 124, \
+        #member " lies beyond the Thumb-1 word-load reach of &u")
+U_THUMB1_WORD_REACH(u_frame);
+U_THUMB1_WORD_REACH(u_arg[5]);
+U_THUMB1_WORD_REACH(u_rval);
+U_THUMB1_WORD_REACH(u_error);
+U_THUMB1_WORD_REACH(u_uid);
+U_THUMB1_WORD_REACH(u_svuid);
+U_THUMB1_WORD_REACH(u_ruid);
+U_THUMB1_WORD_REACH(u_svgid);
+U_THUMB1_WORD_REACH(u_rgid);
+U_THUMB1_WORD_REACH(u_groups[NGROUPS - 1]);
+#undef U_THUMB1_WORD_REACH
+#endif
+#endif /* KERNEL */
 
 #include <sys/errno.h>
 

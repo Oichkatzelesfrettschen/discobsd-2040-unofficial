@@ -826,6 +826,13 @@ check-libc-assert: check-python
 		HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q}' -DDISCOBSD_ASSERT_TEST=1' \
 		    ${PYTHON} tests/libc_contracts/assert_check.py
 
+# The err family (lib/libc/gen/err.c) against its owning header, with
+# calibrating mutants; check-libc-host-contracts runs it through check-host.
+check-libc-err: check-python
+		${MAKE} -C tests/libc_contracts check-err HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q}
+
+.PHONY: check-libc-err
+
 check-libc-host-contracts:
 		${MAKE} -C tests/libc_contracts check-host
 
@@ -1734,7 +1741,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-picofetch-host check-sh-editor \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-fstat-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
 CROSS_CONTRACT_GATES=	check-signal-sets-cross check-fd-set-cross check-public-time-types check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-character-io-headers check-public-header-inclusion check-network-header-contracts \
@@ -1860,6 +1867,9 @@ check-calc-host: check-python .WAIT symlinks
 # of usr.bin/picofetch/hwinfo_sysctl.c runs on no host.
 check-picofetch-host: check-python
 		${MAKE} -C usr.bin/picofetch test
+
+check-fstat-host: check-python
+		${MAKE} -C usr.bin/fstat/tests check
 
 check-sh-editor:
 		${MAKE} -C bin/sh/tests test
@@ -2354,7 +2364,7 @@ installfs:
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-picofetch-host check-sh-editor check-tar-host \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-fstat-host check-sh-editor check-tar-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host \

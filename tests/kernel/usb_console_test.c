@@ -21,6 +21,10 @@
  * a violation. "--search DEPTH" enumerates every sequence of the event
  * alphabet up to DEPTH and prints the shortest sequence reaching each class
  * of stuck state; "--random SEED COUNT LENGTH" samples longer sequences.
+ *
+ * check_ring_counts() also holds usb_tx_put()'s accounting, the source of
+ * machdep.usb_tx_peak and machdep.usb_tx_dropped, to exact counts at a full
+ * ring, past it, at the drop counter's limit and across the index wrap.
  */
 #include "hostkern.h"
 #include "usb_console_sched.h"
@@ -777,6 +781,8 @@ scenario_start(void)
 	usb_service_depth = 0;
 	usb_sof_us = 0;
 	usb_tx_recovered = 0;
+	usb_tx_peak = 0;
+	usb_tx_dropped = 0;
 	bzero(usbttys, sizeof(usbttys));
 	clist_reset();
 	ucs_reset();
@@ -1068,6 +1074,76 @@ check_polled_read_early(const char *name)
 		hk_note("PASS %s", name);
 }
 
+/*
+ * The ring's accounting. With the controller unconfigured nothing leaves
+ * the ring, so occupancy follows the bytes put exactly. The peak must reach
+ * the ring size and stay there, each byte past it must count one drop and
+ * discard the oldest, and the drop count must stop at USB_TX_DROPPED_MAX
+ * (INT_MAX, the largest value sysctl's CTLTYPE_INT reports without turning
+ * negative) instead of passing it. A second pass starts the indexes near the
+ * unsigned wrap, where the occupancy is a difference of two wrapped values.
+ */
+static void
+check_ring_counts(void)
+{
+	dev_t dev = makedev(UARTUSB_MAJOR, 0);
+	u_int i;
+
+	scenario_start();
+	usbd.configured = 0;
+	usb_tx_peak = 0;
+	usb_tx_dropped = 0;
+	for (i = 0; i < USB_TXRING; i++)
+		usbputc(dev, 'a');
+	hk_checks++;
+	if (usb_tx_peak != USB_TXRING || usb_tx_dropped != 0) {
+		hk_note("FAIL ring filled to its size: peak %u, dropped %u",
+		    usb_tx_peak, usb_tx_dropped);
+		hk_failures++;
+	} else
+		hk_note("PASS ring filled to its size");
+
+	usbputc(dev, 'b');
+	usbputc(dev, 'c');
+	hk_checks++;
+	if (usb_tx_dropped != 2 || usb_tx_peak != USB_TXRING ||
+	    usbd.tx_head - usbd.tx_tail != USB_TXRING) {
+		hk_note("FAIL ring overrun by two bytes: peak %u, dropped %u, "
+		    "held %u", usb_tx_peak, usb_tx_dropped,
+		    usbd.tx_head - usbd.tx_tail);
+		hk_failures++;
+	} else
+		hk_note("PASS ring overrun by two bytes");
+
+	usb_tx_dropped = USB_TX_DROPPED_MAX - 1;
+	usbputc(dev, 'd');
+	usbputc(dev, 'e');
+	usbputc(dev, 'f');
+	hk_checks++;
+	if (usb_tx_dropped != USB_TX_DROPPED_MAX) {
+		hk_note("FAIL drop count at the signed limit: %u",
+		    usb_tx_dropped);
+		hk_failures++;
+	} else
+		hk_note("PASS drop count saturates at the signed limit");
+
+	usbd.tx_head = (u_int)-1 - 1;
+	usbd.tx_tail = usbd.tx_head;
+	usb_tx_peak = 0;
+	usb_tx_dropped = 0;
+	usbputc(dev, 'g');
+	usbputc(dev, 'h');
+	usbputc(dev, 'i');
+	hk_checks++;
+	if (usb_tx_peak != 3 || usb_tx_dropped != 0 || usbd.tx_head != 1) {
+		hk_note("FAIL ring indexes across the unsigned wrap: peak %u, "
+		    "dropped %u, head %u", usb_tx_peak, usb_tx_dropped,
+		    usbd.tx_head);
+		hk_failures++;
+	} else
+		hk_note("PASS ring indexes across the unsigned wrap");
+}
+
 static void
 run_polled_read(void)
 {
@@ -1096,6 +1172,7 @@ run_fixed(void)
 			hk_note("PASS %s", f->name);
 	}
 	run_polled_read();
+	check_ring_counts();
 
 	/* A warm reboot leaves the controller out of reset. */
 	model_resets_held = 0;

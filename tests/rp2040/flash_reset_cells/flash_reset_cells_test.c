@@ -1335,9 +1335,20 @@ main(int argc, char **argv)
 		if (strcmp(cells[i].status, "host") == 0 ||
 		    strcmp(cells[i].status, "defect") == 0)
 			run_cell(&cells[i]);
-		else
+		else if (strcmp(cells[i].status, "n/a") == 0 ||
+		    strcmp(cells[i].status, "board-only") == 0 ||
+		    strcmp(cells[i].status, "unspecified") == 0)
 			printf("cell %s %s %s: %s\n", cells[i].id,
 			    cells[i].op, cells[i].hist, cells[i].status);
+		else {
+			/*
+			 * A misspelled or empty status would drop a required
+			 * row from the run while the oracle still passed.
+			 */
+			printf("FAIL cell %s: unknown status '%s'\n",
+			    cells[i].id, cells[i].status);
+			failures++;
+		}
 	}
 	if (failures != 0) {
 		printf("flash_reset_cells: %d expectations failed\n", failures);

@@ -248,6 +248,9 @@ def calibrate_compiler(root, work, compiler):
 def compile_headers(root, work, compiler, selectors, headers, label):
     require(headers and all(HEADER.fullmatch(h) and ".." not in h for h in headers),
             "invalid root-header spelling")
+    # dependency_paths() resolves symlinks; a root spelled through one (macOS
+    # temp directories under /var -> /private/var) must compare in that form.
+    root = root.resolve()
     source = "".join(f"#include <{header}>\n" for header in headers)
     dependency = work / (label + ".d")
     arguments = [compiler, *FLAGS, "-I" + str(root / "include"), *selectors,

@@ -1,7 +1,10 @@
 # Hybrid release verification
 
-`discobsd-release` requires OpenSSL 3.5 or newer with Ed25519 and ML-DSA-65.
-It adds no board code. Both signatures cover the same domain-separated,
+`discobsd-release` calls the `openssl` command and needs Ed25519 and ML-DSA-65
+support, which OpenSSL 3.5 and newer provide. It compares no version number:
+it detects support through the key type (the DER public-key prefix and length
+of each key) and the OpenSSL exit status of each sign or verify operation, and
+refuses when either fails. It adds no board code. Both signatures cover the same domain-separated,
 fixed-size binary manifest. Each release binds four kernel variants and one
 root image: PICO.uf2, PICO_UART.uf2, PICOCALC.uf2, PICOCALC_PSRAM.uf2 and
 root.uf2. The manifest carries version, key epoch, release sequence, source
@@ -30,7 +33,10 @@ provision an HSM, independently reproduce a build, or establish key custody.
 
 On the consuming host, pin public keys through a trusted installation path;
 never trust keys merely because they accompany a download. Create a private
-0700 directory for rollback state (on Windows use an owner-only ACL). Verification:
+0700 directory for rollback state. On POSIX the command refuses a state
+directory that the caller does not own or that has group or other permission
+bits; on Windows it checks nothing, and an owner-only ACL is an operator
+instruction. Verification:
 
 ```sh
 discobsd-release verify --directory artifacts --manifest release.bin --epoch 1 \
@@ -42,7 +48,9 @@ The command ships in the Python wheel (pipx install). The frozen Windows and
 macOS bundles carry only the four console tools and no discobsd-flash or
 OpenSSL 3.5, so they omit it by design.
 
-`verify` does not advance rollback state. On POSIX with the installed
+`verify` does not advance rollback state. The rollback check refuses a manifest
+whose sequence is lower than the recorded minimum and accepts an equal one, so
+reinstalling the current release is permitted. On POSIX with the installed
 discobsd-flash/picotool tools, replace `verify` with `flash` and add
 `--target PICO.uf2` to perform a verified operation. Private copies are
 created only after both signatures and all hashes pass. The root is loaded

@@ -80,9 +80,13 @@ SYM = struct.Struct("<IIIBBH")
 SHT_SYMTAB = 2
 ET_EXEC = 2
 EM_ARM = 40
-STT_OBJECT, STT_FUNC = 1, 2
+STT_OBJECT, STT_FUNC, STT_SECTION, STT_FILE = 1, 2, 3, 4
 
-HOT_ENTRY = re.compile(r"\*\(\.(?:text|rodata)\.([A-Za-z_][A-Za-z0-9_]*)\)")
+# One placement statement of the hot block: a symbol's own section, whose name
+# may carry a compiler clone suffix (`.text.rwip.constprop.0`), or a whole
+# input section of one file or archive member, which names no symbol.
+SYMBOL_ENTRY = re.compile(r"^\*\(\.(?:text|rodata)\.([A-Za-z_][A-Za-z0-9_.]*)\)$")
+FILE_ENTRY = re.compile(r"^\*[A-Za-z0-9_.:-]+\(\.text\)$")
 CLONE = re.compile(r"^(.*)\.(?:constprop|isra|part|cold)\.\d+$")
 
 
@@ -91,14 +95,27 @@ class InputError(Exception):
 
 
 def hot_names(script: str) -> list[str]:
-    """Return the symbol names the hot block of a linker script lists."""
+    """Return the symbol names the hot block of a linker script lists.
+
+    Every statement between the bounds must be a symbol section or a whole
+    file section; any other statement is refused, so an entry the checker
+    cannot read never drops out of the check unnoticed."""
     start = script.find("__hot_start = .;")
     end = script.find("__hot_end = .;")
     if start < 0 or end < 0 or end < start:
         raise InputError("linker script has no __hot_start ... __hot_end block")
-    names = HOT_ENTRY.findall(script[start:end])
+    if script.count("__hot_start = .;") != 1 or script.count("__hot_end = .;") != 1:
+        raise InputError("linker script defines the hot bounds more than once")
+    body = re.sub(r"/\*.*?\*/", "", script[start + len("__hot_start = .;"):end], flags=re.S)
+    names = []
+    for statement in body.split():
+        found = SYMBOL_ENTRY.match(statement)
+        if found:
+            names.append(found.group(1))
+        elif not FILE_ENTRY.match(statement):
+            raise InputError(f"hot block statement the checker cannot read: {statement}")
     if not names:
-        raise InputError("the hot block of the linker script lists no section")
+        raise InputError("the hot block of the linker script lists no symbol section")
     return names
 
 
@@ -144,7 +161,11 @@ def check(symbols: dict[str, list[tuple[int, int, int]]], names: list[str],
     bounds = [symbols.get(n) for n in ("__hot_start", "__hot_end")]
     if not bounds[0] or not bounds[1]:
         return ["no __hot_start or __hot_end: the kernel was linked without the hot block"], notes
+    if len(bounds[0]) != 1 or len(bounds[1]) != 1:
+        return ["__hot_start or __hot_end is defined more than once"], notes
     start, end = bounds[0][0][0], bounds[1][0][0]
+    if not (XIP_START <= start <= end <= XIP_END):
+        return [f"hot span {start:#x}-{end:#x} is not an ordered range in cached XIP flash"], notes
     span = end - start
     if start % line:
         failures.append(f"__hot_start {start:#x} is not aligned to a {line}-byte cache line")
@@ -154,25 +175,36 @@ def check(symbols: dict[str, list[tuple[int, int, int]]], names: list[str],
     absent = []
     listed = set(names)
     for name in names:
+        # Every definition counts, whatever its type: a section or file symbol
+        # never carries a listed name, and an untyped label is still the code.
         hits = [(v & ~1, s) for v, s, t in symbols.get(name, [])
-                if t in (STT_FUNC, STT_OBJECT) and XIP_START <= v < XIP_END]
+                if t not in (STT_SECTION, STT_FILE)]
         if not hits:
             absent.append(name)
             continue
         for value, size in hits:
-            if not (start <= value and value + max(size, 1) <= end):
+            if not XIP_START <= value < XIP_END:
+                failures.append(f"{name} is linked at {value:#x}, outside cached XIP flash")
+                continue
+            if size == 0:
+                failures.append(f"{name} at {value:#x} has no size, so its extent cannot be "
+                                "checked")
+                continue
+            if not (start <= value and value + size <= end):
                 failures.append(f"{name} at {value:#x}+{size} lies outside the hot span "
                                 f"{start:#x}-{end:#x}")
-            for addr in range(value - value % line, value + max(size, 1), line):
+            for addr in range(value - value % line, value + size, line):
                 occupancy.setdefault((addr // line) % (way // line), set()).add(addr)
     for name, entries in symbols.items():
         clone = CLONE.match(name)
-        if clone and clone.group(1) in listed:
+        if clone and clone.group(1) in listed and name not in listed:
             for value, _size, kind in entries:
-                if kind == STT_FUNC and XIP_START <= value < XIP_END and \
-                        not start <= (value & ~1) < end:
+                if kind not in (STT_SECTION, STT_FILE) and \
+                        not (XIP_START <= value < XIP_END and start <= (value & ~1) < end):
                     failures.append(f"{name}, a clone of listed {clone.group(1)}, lies outside "
                                     "the hot span; list its section")
+    if len(absent) == len(names):
+        failures.append("no listed symbol is linked: the list does not describe this kernel")
     crowded = sorted(s for s, lines in occupancy.items() if len(lines) > 1)
     if crowded:
         first = ", ".join(hex(a) for a in sorted(occupancy[crowded[0]]))
@@ -240,13 +272,21 @@ def synthetic_elf(symbols: list[tuple[str, int, int, int]], e_type: int = ET_EXE
 SELF_TEST_SCRIPT = """
 .text : {
     __hot_start = .;
+    /* a comment inside the block */
     *(.text.syscall)
     *(.text.rwip)
+    *locore.o(.text)
+    *libgcc.a:_thumb1_case_uqi.o(.text)
     *(.rodata.nsysent)
     __hot_end = .;
     *(.text*)
 }
 """
+
+
+def script_with(extra: str) -> str:
+    """The self-test script with one more statement at the end of the hot block."""
+    return SELF_TEST_SCRIPT.replace("    __hot_end = .;", f"    {extra}\n    __hot_end = .;")
 
 
 def self_test() -> int:
@@ -269,12 +309,35 @@ def self_test() -> int:
          base + [("rwip.constprop.0", 0x10005001, 0x40, STT_FUNC)], 1),
         ("a listed line one way above another listed line",
          replace("__hot_end", 0x10002200) + [("rwip", 0x100023f8, 0x10, STT_FUNC)], 1),
+        ("a listed function linked in RAM", replace("rwip", 0x20030001), 1),
+        ("a listed function in the uncached XIP alias", replace("rwip", 0x13000465), 1),
+        ("a listed function without a size", replace("rwip", 0x10000465, 0), 1),
+        ("a second __hot_start", base + [("__hot_start", 0x10000208, 0, 0)], 1),
+        ("bounds outside cached XIP", replace("__hot_start", 0x20000000), 1),
+        ("a clone of a listed function in RAM",
+         base + [("rwip.constprop.0", 0x20030101, 0x40, STT_FUNC)], 1),
+        ("no listed symbol linked",
+         [s for s in base if s[0] not in ("syscall", "rwip", "nsysent")], 1),
+    ]
+    script_cases = [
+        ("a listed name absent from the link, reported not failed",
+         script_with("*(.text.absent_fn)"), base, 0),
+        ("a listed clone section inside the span",
+         script_with("*(.text.rwip.constprop.0)"),
+         base + [("rwip.constprop.0", 0x10000a01, 0x40, STT_FUNC)], 0),
+        ("a listed clone section outside the span",
+         script_with("*(.text.rwip.constprop.0)"),
+         base + [("rwip.constprop.0", 0x10005001, 0x40, STT_FUNC)], 1),
+        ("a hot block statement the checker cannot read",
+         script_with("KEEP(*(.text.extra))"), base, 2),
+        ("hot bounds defined twice",
+         SELF_TEST_SCRIPT + "__hot_start = .;\n__hot_end = .;\n", base, 2),
     ]
     names = hot_names(SELF_TEST_SCRIPT)
+    status = 0
     if names != ["syscall", "rwip", "nsysent"]:
         print(f"self-test: hot block parsed as {names}", file=sys.stderr)
         return 1
-    status = 0
     with tempfile.TemporaryDirectory() as scratch:
         script = Path(scratch) / "kern.ldscript"
         script.write_text(SELF_TEST_SCRIPT)
@@ -286,6 +349,15 @@ def self_test() -> int:
             print(f"self-test: {what}: exit {got}, expected {want}: {verdict}")
             if got != want:
                 status = 1
+        for what, text, symbols, want in script_cases:
+            variant = Path(scratch) / "variant.ldscript"
+            variant.write_text(text)
+            elf = Path(scratch) / "unix.elf"
+            elf.write_bytes(synthetic_elf(symbols))
+            got = run([str(elf)], variant, WAY_BYTES, LINE_BYTES)
+            print(f"self-test: {what}: exit {got}, expected {want}: "
+                  + ("ok" if got == want else "WRONG"))
+            status = status or (got != want)
         bad_script = Path(scratch) / "empty.ldscript"
         bad_script.write_text(".text : { *(.text*) }\n")
         got = run([str(elf)], bad_script, WAY_BYTES, LINE_BYTES)

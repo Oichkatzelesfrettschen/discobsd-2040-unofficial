@@ -205,6 +205,7 @@ main(void)
 	lcd_bell();
 	check("open", pcmopen(0, 0, 0), 0);
 	check("second open", pcmopen(0, 0, 0), EBUSY);
+	check("an opened device queues no sample", pcm_queued(), 0);
 	check("carrier period", model_reg(SLICE(5) + TOP), PCM_LEVELS - 1);
 	check("carrier divider 1", model_reg(SLICE(5) + DIV), 1 << 4);
 	check("rest duty on both channels", model_reg(SLICE(5) + CC),
@@ -239,6 +240,7 @@ main(void)
 	nplayed = 0;
 	check("write", write_bytes(tune, sizeof tune), 0);
 	check("close", pcmclose(0, 0, 0), 0);
+	check("a drained device queues no sample", pcm_queued(), 0);
 	check("every sample played", nplayed >= sizeof tune, 1);
 	for (i = 0; i < sizeof tune && i < nplayed; i++)
 		if (played[i] != pcm_level(tune[i])) {

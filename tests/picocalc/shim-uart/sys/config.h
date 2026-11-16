@@ -10,6 +10,6 @@ struct conf_device {
 };
 struct driver {
 	const char	*d_name;
-	int		(*d_init)(struct conf_device *);
+	int		(*d_init)(const struct conf_device *);
 };
 #endif

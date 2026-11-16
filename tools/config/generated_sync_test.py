@@ -46,7 +46,7 @@ class GeneratedSyncTest(unittest.TestCase):
         sync.generate(generator, directory, "STM32 controller fixture")
         generated = (directory / "ioconf.c").read_text(encoding="utf-8")
         self.assertIn("extern struct controller_driver sdiodriver;", generated)
-        self.assertIn("extern struct driver sddriver;", generated)
+        self.assertIn("extern const struct driver sddriver;", generated)
         self.assertIn("&sddriver,\t&sdiodriver", generated)
 
     def test_synchronized_pair_without_kernel_or_include_link(self):

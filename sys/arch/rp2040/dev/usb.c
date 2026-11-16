@@ -1446,7 +1446,7 @@ usbgetc(dev_t dev __unused)
 }
 
 static int
-usbprobe(struct conf_device *config __unused)
+usbprobe(const struct conf_device *config __unused)
 {
 	int console_major, console_minor;
 
@@ -1459,6 +1459,6 @@ usbprobe(struct conf_device *config __unused)
 	return 1;
 }
 
-struct driver uartusbdriver = {
+const struct driver uartusbdriver = {
 	"uartusb", usbprobe,
 };

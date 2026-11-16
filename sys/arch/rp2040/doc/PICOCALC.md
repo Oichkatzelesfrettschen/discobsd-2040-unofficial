@@ -308,8 +308,10 @@ output near 8,000 characters per second before CPU overhead.
 The cell store is also a tile map. A cell code of 0x20-0x7e draws the ASCII
 glyph of `lcdfont.c`; a code of 0x80-0xff draws one of 128 glyphs from a RAM
 bank in `lcdterm.c`, nine rows of six pixels each, the leftmost column in
-bit 7, bits 1-0 zero. `lcd_draw_cell()` in `st7365p.c` asks `lcdterm_glyph()`
-for the rows and repeats the ninth as the tenth cell row (the underline
+bit 7, bits 1-0 zero. The bank stores each glyph's nine six-pixel rows
+packed into seven bytes, 896 bytes for the 128 glyphs. `lcd_draw_cell()` in
+`st7365p.c` asks `lcdterm_glyph()` to unpack the rows into a buffer on its
+stack and repeats the ninth as the tenth cell row (the underline
 still wins), so a tile fills its 6x10 cell and a vertical stroke on glyph
 rows 0 and 8 joins the cell above and below. Text and tiles share the
 attributes (16 foreground colors, 8 background), the scroll ring, the cursor

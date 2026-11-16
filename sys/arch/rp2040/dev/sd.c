@@ -565,7 +565,7 @@ sddump(dev_t dev, const struct dump_span *span, u_int nspan,
 }
 
 static int
-sdprobe(struct conf_device *config __unused)
+sdprobe(const struct conf_device *config __unused)
 {
 	if (board_id() != BOARD_ID_PICOCALC)
 		return 0;
@@ -584,6 +584,6 @@ sdprobe(struct conf_device *config __unused)
 	return 1;
 }
 
-struct driver sddriver = {
+const struct driver sddriver = {
 	"sd", sdprobe,
 };

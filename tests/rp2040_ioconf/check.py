@@ -37,7 +37,7 @@ def reject(data, obj, diagnostic):
 
 
 def check_driver_source(source, name):
-    match = re.search(r"\bstruct\s+driver\s+" + name +
+    match = re.search(r"\bconst\s+struct\s+driver\s+" + name +
                       r'\s*=\s*\{\s*"([a-z]+)"\s*,\s*([a-z]+)\s*,?\s*\}', source)
     expected_name, expected_probe = checker.DRIVERS[name]
     if match is None or match.groups() != (expected_name.decode("ascii"), expected_probe):
@@ -112,19 +112,32 @@ def main():
             break
     else:
         raise AssertionError("first driver relocation is absent")
-    section_index = elf.get_section_by_name(".symtab").get_symbol_by_name(
-        "conf_service_init")[0].entry.st_shndx
-    mutant = bytearray(data)
-    section_type_offset = elf.header.e_shoff + section_index * elf.header.e_shentsize + 4
-    struct.pack_into("<I", mutant, section_type_offset, 1)
-    reject(mutant, obj, "conf_ctlr_init is not zero-initialized")
     symbols = elf.get_section_by_name(".symtab")
+
+    def section_header(name):
+        index = symbols.get_symbol_by_name(name)[0].entry.st_shndx
+        return elf.header.e_shoff + index * elf.header.e_shentsize
+
+    mutant = bytearray(data)
+    struct.pack_into("<I", mutant, section_header("conf_ctlr_init") + 4, 1)
+    reject(mutant, obj, "conf_ctlr_init is not zero-initialized")
+    # The tables and descriptors can share one output section; a mutant per
+    # distinct section must be refused by whichever of them is checked first.
+    for flags in sorted({section_header(name) + 8 for name in
+                         ("conf_device_init", "conf_service_init", *names)}):
+        mutant = bytearray(data)
+        struct.pack_into("<I", mutant, flags, struct.unpack_from("<I", data, flags)[0] | 1)
+        reject(mutant, obj, " is writable")
+    service_start, _ = symbol_offset(elf, "conf_service_init")
+    mutant = bytearray(data)
+    struct.pack_into("<I", mutant, service_start, 4)
+    reject(mutant, obj, "conf_service_init is not an empty table")
     bss_index = next(index for index, item in enumerate(symbols.iter_symbols())
                      if item.name == "_sbss")
-    service = symbols.get_symbol_by_name("conf_service_init")[0].entry.st_value
+    ctlr = symbols.get_symbol_by_name("conf_ctlr_init")[0].entry.st_value
     mutant = bytearray(data)
     symbol_value = symbols.header.sh_offset + bss_index * symbols.header.sh_entsize + 4
-    struct.pack_into("<I", mutant, symbol_value, service + 4)
+    struct.pack_into("<I", mutant, symbol_value, ctlr + 4)
     reject(mutant, obj, "outside the startup bss range")
     with tempfile.TemporaryDirectory(prefix="rp2040-ioconf-") as directory:
         truncated = Path(directory) / "truncated.elf"

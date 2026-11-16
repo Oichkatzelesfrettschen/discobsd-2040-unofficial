@@ -18,7 +18,7 @@ FIXTURE = """\
 void cpuidentify(void) { }
 void watchdog_init(void) { }
 extern struct conf_ctlr conf_ctlr_init[];
-extern struct conf_device conf_device_init[];
+extern const struct conf_device conf_device_init[];
 static int events[8];
 static int count;
 static int wrong_pointer;
@@ -30,7 +30,7 @@ static int controller_probe(struct conf_ctlr *controller)
     events[count++] = controller->ctlr_unit;
     return controller->ctlr_unit == 1;
 }
-static int device_probe(struct conf_device *device)
+static int device_probe(const struct conf_device *device)
 {
     if (device->dev_unit < 10 || device->dev_unit > 14 ||
         device != &conf_device_init[device->dev_unit - 10])
@@ -39,13 +39,13 @@ static int device_probe(struct conf_device *device)
     return device->dev_unit != 14;
 }
 struct controller_driver controller_driver = { "controller", controller_probe };
-struct driver device_driver = { "device", device_probe };
+const struct driver device_driver = { "device", device_probe };
 struct conf_ctlr conf_ctlr_init[] = {
     { .ctlr_driver = &controller_driver, .ctlr_unit = 1 },
     { .ctlr_driver = &controller_driver, .ctlr_unit = 2 },
     { 0 }
 };
-struct conf_device conf_device_init[] = {
+const struct conf_device conf_device_init[] = {
     { .dev_driver = &device_driver, .dev_unit = 10 },
     { .dev_driver = &device_driver, .dev_cdriver = &controller_driver,
       .dev_unit = 11, .dev_ctlr = 1 },
@@ -67,10 +67,6 @@ int main(void)
         return 1;
     if (conf_ctlr_init[0].ctlr_alive != 1 || conf_ctlr_init[1].ctlr_alive != 0)
         return 2;
-    if (conf_device_init[0].dev_alive != 1 || conf_device_init[1].dev_alive != 1 ||
-        conf_device_init[2].dev_alive != 0 || conf_device_init[3].dev_alive != 0 ||
-        conf_device_init[4].dev_alive != 0)
-        return 3;
     return 0;
 }
 """

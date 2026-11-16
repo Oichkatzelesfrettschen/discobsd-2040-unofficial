@@ -15,19 +15,19 @@ LEVELS = ("O0", "O", "O1", "O2", "O3", "Og", "Os", "Oz")
 DEVICE_MISMATCH = """\
 #include <sys/config.h>
 static int controller_probe(struct conf_ctlr *controller) { return controller != 0; }
-struct driver device = { "wrong", controller_probe };
+const struct driver device = { "wrong", controller_probe };
 """
 CONTROLLER_MISMATCH = """\
 #include <sys/config.h>
-static int device_probe(struct conf_device *device) { return device != 0; }
+static int device_probe(const struct conf_device *device) { return device != 0; }
 struct controller_driver controller = { "wrong", device_probe };
 """
 MATCHING_CALLBACKS = """\
 #include <sys/config.h>
 static int controller_probe(struct conf_ctlr *controller) { return controller != 0; }
-static int device_probe(struct conf_device *device) { return device != 0; }
+static int device_probe(const struct conf_device *device) { return device != 0; }
 struct controller_driver controller = { "controller", controller_probe };
-struct driver device = { "device", device_probe };
+const struct driver device = { "device", device_probe };
 """
 
 
@@ -40,7 +40,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="discobsd-driver-callback-") as temporary:
         directory = Path(temporary)
         header = (ROOT / "sys/sys/config.h").read_text(encoding="utf-8")
-        typed_slot = "(*d_init)(struct conf_device *)"
+        typed_slot = "(*d_init)(const struct conf_device *)"
         if header.count(typed_slot) != 1:
             print("FAIL driver-callback-types: device callback type is absent or ambiguous")
             return 1

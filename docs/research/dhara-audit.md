@@ -308,6 +308,24 @@ of slot 6 of the checkpoint page, byte 812 of the page):
         done
     done
 
+Partial-bit sweeps. Each seed tears the last chip program of the checkpoint
+page with a seeded subset of its zero bits programmed (the seed picks the
+fraction: below 100000 about 1/2, 100000 to 199999 about 7/8, 200000 and up
+about 31/32), on the rewrite of sectors 0 to 9. Seeds per variant: PR 636, the
+CRC variant and the old journal use 1,000 seeds from 0 for 1/2. PR 636 adds
+1,000 from 100000 (7/8) and 1,000 from 200000 (31/32), the CRC variant 1,000
+from 200000, and the old journal 200 from 200000:
+
+    for r in "0 999" "200000 200199"; do echo "== old seeds $r"; sh "$T/sweep.sh" "$T/h_old" "$T" 0 9 $r; done
+    for r in "0 999" "100000 100999" "200000 200999"; do echo "== 636 seeds $r"; sh "$T/sweep.sh" "$T/h_636" "$T" 0 9 $r; done
+    for r in "0 999" "200000 200999"; do echo "== crc seeds $r"; sh "$T/sweep.sh" "$T/h_crc" "$T" 0 9 $r; done
+
+Expected verdicts (M): every PR 636 seed (3,000) and every CRC seed (2,000)
+classifies as prev, and every old-journal seed (1,200) classifies as damaged.
+The verdict is the class count in the printed line, so the sweep reports a
+deviation as a nonzero `new`, `damaged` or `no-resume` count for PR 636 or
+the CRC variant, or as a nonzero `prev` count for the old journal.
+
 One cut by hand, and a read of the result (K is a number, here 932):
 
     "$T/h_old" img="$T/t.img" fresh resume w:0-699:1 sync w:0-9:2 tear:932 sync   # exits 3
@@ -382,6 +400,20 @@ the loop above, in a fresh worktree, with the extracted files:
     944-944 new bad=0..0
     945-947 prev bad=0..0
     948-1024 new bad=0..0
+    == old seeds 0 999
+    seeds 0-999 (1/2 of the zero bits): prev=0 new=0 damaged=1000 no-resume=0
+    == old seeds 200000 200199
+    seeds 200000-200199 (31/32 of the zero bits): prev=0 new=0 damaged=200 no-resume=0
+    == 636 seeds 0 999
+    seeds 0-999 (1/2 of the zero bits): prev=1000 new=0 damaged=0 no-resume=0
+    == 636 seeds 100000 100999
+    seeds 100000-100999 (7/8 of the zero bits): prev=1000 new=0 damaged=0 no-resume=0
+    == 636 seeds 200000 200999
+    seeds 200000-200999 (31/32 of the zero bits): prev=1000 new=0 damaged=0 no-resume=0
+    == crc seeds 0 999
+    seeds 0-999 (1/2 of the zero bits): prev=1000 new=0 damaged=0 no-resume=0
+    == crc seeds 200000 200999
+    seeds 200000-200999 (31/32 of the zero bits): prev=1000 new=0 damaged=0 no-resume=0
     # by hand, cut 932: torn page 815 at 932; resume rc 0 err 0 count 700 root 814
     # check:700 -> sectors 0-7 read 2, sectors 8-12, 14 and 15 read 0, the rest 1; nodes 693 count 700
     # D26 continuation: PR 636 prints resume rc -1 err 3 count 0; check:750 reads 0 everywhere, nodes 0 count 0
@@ -621,25 +653,48 @@ Two defects of this sketch bind the salvage tool (owner decision D47) and each n
 
 ```sh
 #!/bin/sh
-# usage: sweep.sh HARNESS WORKDIR LO HI
-# Cuts the checkpoint page that follows a rewrite of sectors LO..HI at every
-# byte K from 0 to 1024, resumes, reads sectors 0-699, and prints one line per
-# run of consecutive cuts that leave the same class of state.
+# usage: sweep.sh HARNESS WORKDIR LO HI [FIRST LAST]
+# Rewrites sectors LO..HI at version 2 and tears the checkpoint page that
+# follows, then resumes and reads sectors 0-699.
+#   Without FIRST and LAST: one cut per byte K from 0 to 1024 (tear:K); prints
+#   one line per run of consecutive cuts that leave the same class of state.
+#   With FIRST and LAST: one partial-bit tear per seed (ptear:S, S from FIRST
+#   to LAST); prints the count of seeds in each class. The harness programs
+#   about 1/2 of the zero bits of the last chip program for seeds below
+#   100000, 7/8 for 100000 to 199999 and 31/32 from 200000.
+# Classes: prev (the sector vector of a clean tear:0 run, the previous
+# checkpoint), new (that of a tear:1024 run, the whole page), damaged (any
+# other vector) and no-resume (the journal found no checkpoint). A partial-bit
+# tear passes when its class is prev or new.
 set -eu
 h=$1 w=$2 lo=$3 hi=$4
+first=${5:-} last=${6:-}
 : > "$w/raw.txt"
-k=0
-while [ "$k" -le 1024 ]; do
+row() {	# row LABEL TEAR-COMMAND
 	rc=0
-	"$h" img="$w/t.img" fresh resume w:0-699:1 sync "w:$lo-$hi:2" "tear:$k" sync >/dev/null || rc=$?
+	"$h" img="$w/t.img" fresh resume w:0-699:1 sync "w:$lo-$hi:2" "$2" sync >/dev/null || rc=$?
 	if [ "$rc" -ne 3 ]; then
-		echo "cut $k: harness exit $rc, expected 3" >&2
+		echo "$2: harness exit $rc, expected 3" >&2
 		exit 1
 	fi
-	echo "$k $("$h" img="$w/t.img" load resume check:700 | tr '\n' ' ')" >> "$w/raw.txt"
-	k=$((k + 1))
-done
-awk '
+	echo "$1 $("$h" img="$w/t.img" load resume check:700 | tr '\n' ' ')" >> "$w/raw.txt"
+}
+if [ -n "$first" ]; then
+	row ref-prev tear:0
+	row ref-new tear:1024
+	s=$first
+	while [ "$s" -le "$last" ]; do
+		row "$s" "ptear:$s"
+		s=$((s + 1))
+	done
+else
+	k=0
+	while [ "$k" -le 1024 ]; do
+		row "$k" "tear:$k"
+		k=$((k + 1))
+	done
+fi
+awk -v seeds="$first" -v lastseed="$last" '
 function flush() {
 	if (first >= 0)
 		printf "%d-%d %s\n", first, last, label (bmin >= 0 ? sprintf(" bad=%d..%d", bmin, bmax) : "")
@@ -656,9 +711,9 @@ function flush() {
 }
 END {
 	prevv = v[1]
-	newv = v[NR]
+	newv = (seeds == "") ? v[NR] : v[2]
 	first = -1
-	for (n = 1; n <= NR; n++) {
+	for (n = (seeds == "") ? 1 : 3; n <= NR; n++) {
 		split(v[n], x, " ")
 		bad = -1
 		if (v[n] == "") cls = "no-resume"
@@ -669,11 +724,17 @@ END {
 			else if (v[n] == newv) cls = "new"
 			else cls = "damaged sector0=" ((x[1] == 1 || x[1] == 2) ? "readable" : "lost") (bad == 700 ? ", all 700 sectors bad" : "")
 		}
+		if (seeds != "") { count[cls ~ /^damaged/ ? "damaged" : cls]++; continue }
 		if (cls != label) { flush(); first = key[n]; label = cls; bmin = -1; bmax = -1 }
 		last = key[n]
 		if (bad >= 0) { if (bmin < 0 || bad < bmin) bmin = bad; if (bad > bmax) bmax = bad }
 	}
-	flush()
+	if (seeds != "")
+		printf "seeds %s-%s (%s of the zero bits): prev=%d new=%d damaged=%d no-resume=%d\n", seeds, lastseed,
+		    seeds + 0 >= 200000 ? "31/32" : seeds + 0 >= 100000 ? "7/8" : "1/2",
+		    count["prev"], count["new"], count["damaged"], count["no-resume"]
+	else
+		flush()
 }
 ' "$w/raw.txt"
 ```

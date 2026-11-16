@@ -178,3 +178,98 @@ three hot lines one way apart in one two-way set.
   (model 7.1 scaled by the measured 14.3/10.1) and runs pipe near 21,700/s.
 - Context switch and spawn move with swap-path -O2 (+48% to +50%) and not
   with the hot region; syscall stays within 1% of stock.
+
+## Board run 2: hot region, swap path -O2 and the layout-only arm (17:52Z-18:37Z)
+
+Same board and root; kernels built from this branch at GCC 14.2.1 on the
+benchmark base (every kernel source identical to 4b3eaf6c; symbol addresses
+equal to the benchmark images). Three alternated passes, two for the pad arm;
+each program runs 10 s. Misses per iteration come from counters cleared before
+`ub-pipe 10` and include its exec. Rates are per second.
+
+| Kernel | pipe | pipe passes | misses/iter | syscall | context1 | spawn |
+|---|---|---|---|---|---|---|
+| union stock | 23,870 | 23,658 / 23,793 / 24,158 | 1.10 | 44,177 | 3.37 | 3.23 |
+| union swap path -O2 | 21,271 | 21,271 / 21,272 / 21,271 | 14.92 | 43,848 | 4.97 | 4.53 |
+| union hot region | 23,959 | 23,856 / 23,767 / 24,255 | 0.61 | 44,177 | 3.37 | 3.27 |
+| union hot region, swap path -O2 | 24,255 | 24,256 / 24,255 / 24,255 | 0.54 | 44,177 | 4.97 | 4.43 |
+| union all -Os, 1,004-byte pad | 21,586 | 21,659 / 21,513 | 11.43 | 43,848 | 3.40 | 3.30 |
+| PICO stock | 21,222 | 21,530 / 21,044 / 21,092 | 13.74 | 44,176 | 3.37 | 3.30 |
+| PICO swap path -O2 | 24,082 | 24,082 / 24,082 / 24,082 | 1.44 | 44,175 | 4.93 | 4.30 |
+| PICO hot region | 23,945 | 24,283 / 23,784 / 23,769 | 0.72 | 44,175 | 3.27 | 3.23 |
+| PICO hot region, swap path -O2 | 24,283 | 24,282 / 24,283 / 24,284 | 0.61 | 44,175 | 4.97 | 4.17 |
+
+Spawn varies 4.0 to 4.9 between passes of every -O2 kernel, and the -Os
+kernels' pipe rate varies by up to 2% between passes while the -O2 kernels
+repeat to one loop; neither spread follows the hot region.
+
+Against the predictions: the hot-region kernels miss 0.54 to 0.72 times per
+iteration (predicted at most 0.6 from the differential method; these figures
+include exec) and run pipe at or above the faster of stock and swap path -O2
+in both configurations. The pad arm misses 11.4 times per iteration and runs
+21,586/s (predicted about 10 and 21,700): every file at -Os, one 1,004-byte
+pad, and the loss returns. Syscall, context switch and spawn follow the
+predictions.
+
+## Cause
+
+Three hot lines one cache way apart share one two-way set and evict each other
+on every system call. The XIP cache maps addresses equal modulo 8 KB to one
+set (datasheet 2.6.3.1-2.6.3.2); the input-order layout placed rwip
+(sys_inode.o) where it stays, while the machdep.o address checks, the system
+call entry and the init_sysent tables move with every byte the objects linked
+before them gain or lose. Swap path -O2 adds 1,004 bytes before machdep.o in
+the union kernel, which lands two pairs of those lines on rwip's sets: 14.3
+misses per pipe iteration on the board against 0.4-0.5, at 47 cycles each, the
+whole 11% loss. In the PICO kernel the stock layout already held such sets
+(13.7 misses) and the -O2 shift cleared them, which is the +12%. The
+deciding experiment is the pad arm: the stock -Os objects with 1,004 bytes of
+padding after vm_swap.o put every hot text address where swap path -O2 puts
+it, and pipe loses 9.6% with 11.4 misses per iteration. The repair removes it
+with a layout-only change while keeping swap path -O2: the union -O2 kernel
+with the hot region misses 0.54 times and runs 24,255/s, 14% above the same
+objects in input order.
+
+## Repair and cost
+
+`conf/kern.ldscript` opens .text with the input sections the two traces
+execute, in path order, followed by the read-only tables they load
+(`nsysent`, `syscall_nargs`, `syscall_handlers`, `Fops`, `pipeops`):
+6,264 to 6,520 bytes depending on the configuration, under one 8 KB way, so
+each of its lines owns a set and its addresses no longer depend on the size of
+any other object. GCC 14.2.1 text: PICO +8 bytes (100,819 to 100,827),
+PICOCALC +8, PICO_UART 0, PICOCALC_PSRAM 0, union swap path -O2 0, PICO swap
+path -O2 +8; RAM unchanged; long-branch veneers unchanged (9 union, 10 PICO).
+`tools/check_hot_layout.py` (`check-hot-layout`, with its validator) fails a
+kernel whose span exceeds one way, whose listed symbols or their compiler
+clones lie outside it, or whose listed lines share a set.
+
+The list covers the system call, pipe, `close(dup())`/getpid/getuid/umask and
+clock-tick paths that the traces execute. A path the list omits keeps its
+input-order placement; the context switch and spawn paths run in the swap
+codec and stay outside, and the cache model and the counters are the tools for
+extending the list.
+
+## Open: throughput with the XIP cache off
+
+With `machdep.xip_cache=0`, ub-pipe 4 ran 78 to 214 loops per second on -Os
+kernels (stock 78, 83, 214; hot region 98) and 367 to 1,215 on swap-path -O2
+kernels (1,204, 1,215; hot region 367). About 1,900 XIP accesses per iteration
+at about 54 cycles each predict 1,200/s, which only some -O2 runs reach, so the
+other runs spend most of the window elsewhere. The split follows neither
+layout nor swap flags cleanly. Hypothesis: a periodic daemon (update) wakes
+inside some windows and forces a swap round trip of ub-pipe, which uncached
+takes seconds at -Os; the same phase effect would explain the 2% pass-to-pass
+pipe spread of the cached -Os kernels. Falsifier: cache-off runs with update
+stopped, or with the swap counters read around the window, keep the spread.
+
+## Board session
+
+Taken 17:37:42Z (identity: hostname pico, PICOCALC_PSRAM#1), flash saved
+17:39Z (2 MiB, sha256 d7aaf62d922a318109b129cbb860e7be28902b6778434526fb752733f884a971),
+released 18:39:26Z after restoring origin/main b3f293a6: union kernel with the
+PICO descriptor (restore-unix.uf2, sha256 a8d883dc912dc3693a8ebf095da60fae371d9e88dab49de80d5d7792ae0445a3)
+and root (restore-flash.uf2, sha256 1fc5b15ceda66647cdff8154eb145396d16710329b708c3747ae41922e46ed23),
+both loaded in BOOTSEL and `picotool verify` OK before the first boot; the
+boot check reads PICOCALC_PSRAM#1, hostname pico, 72 /usr/bin entries. No
+filesystem benchmark ran.

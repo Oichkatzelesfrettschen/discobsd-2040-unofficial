@@ -23,17 +23,15 @@ keyboard. Root and swap stay on the Pico's QSPI flash, the same layout as
 the PICO board (`STORAGE.md`). The PICOCALC_PSRAM configuration
 (`sys/arch/rp2040/compile/PICOCALC_PSRAM/Config`) is the same kernel with the
 board's PSRAM driver linked in; swap moves to the PSRAM when it identifies
-itself at boot (below). Two more union kernels ship beside it and share its
-sources and options. PICOCALC_LEAN
-(`sys/arch/rp2040/compile/PICOCALC_LEAN/Config`) omits `SYSTRACE` and
-`CAPACITY_STATS` for builds where flash or RAM headroom matters, so it
-answers `EOPNOTSUPP` for `kern.systrace` and `kern.capacity`.
-PICOCALC_DIAG (`sys/arch/rp2040/compile/PICOCALC_DIAG/Config`) is
-PICOCALC_PSRAM plus the diagnostic options, none yet; the panel register test
-(`LCD_PANELTEST`) and later diagnostic options are added there. The kernels
-reach an image through `UNION_KERNEL` (`PICOCALC_PSRAM`, `PICOCALC_LEAN` or
-`PICOCALC_DIAG`; `unix[-BOARD].uf2`, `unix[-BOARD]-LEAN.uf2`,
-`unix[-BOARD]-DIAG.uf2`). This document is the authority for the pin
+itself at boot (below). PICOCALC and PICOCALC_PSRAM omit `SYSTRACE` and
+`CAPACITY_STATS`, so they answer `EOPNOTSUPP` for `kern.systrace` and
+`kern.capacity`. PICOCALC_DIAG
+(`sys/arch/rp2040/compile/PICOCALC_DIAG/Config`) shares PICOCALC_PSRAM's
+sources and options and adds those two diagnostic options; the panel register
+test (`LCD_PANELTEST`) and later diagnostic options are added there. The
+union kernels reach an image through `UNION_KERNEL` (`PICOCALC_PSRAM` or
+`PICOCALC_DIAG`; `unix[-BOARD].uf2` or `unix[-BOARD]-DIAG.uf2`). This
+document is the authority for the pin
 map in `sys/arch/rp2040/dev/picocalc.h`, the console drivers' timing
 choices, and the evidence each driver has.
 
@@ -864,7 +862,7 @@ before the level rises.
 
     : "${PYTHON:?set PYTHON to the intended interpreter}"
     export PYTHON
-    bmake MACHINE=rp2040 kernel        # PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM, PICOCALC_LEAN, PICOCALC_DIAG
+    bmake MACHINE=rp2040 kernel        # PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM, PICOCALC_DIAG
 
 `sys/arch/rp2040/compile/PICOCALC/unix.uf2` holds the kernel; the root
 image is any board's `flash*.uf2`, since every kernel boots every root.

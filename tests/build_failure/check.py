@@ -362,7 +362,7 @@ def check_params(root, make, scratch):
 
     exercise_default(template, scratch / "default-control")
     for route in ("PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM",
-                  "PICOCALC_LEAN", "PICOCALC_DIAG"):
+                  "PICOCALC_DIAG"):
         generated = (root / f"sys/arch/rp2040/compile/{route}/Makefile").read_text()
         exercise_default(generated, scratch / f"default-{route}")
     try:

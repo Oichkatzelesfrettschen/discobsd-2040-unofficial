@@ -50,8 +50,6 @@ check-divider:
 		    --elf PICOCALC/unix.elf --dependency-directory PICOCALC/.deps \
 		    --elf PICOCALC_PSRAM/unix.elf \
 		    --dependency-directory PICOCALC_PSRAM/.deps \
-		    --elf PICOCALC_LEAN/unix.elf \
-		    --dependency-directory PICOCALC_LEAN/.deps \
 		    --elf PICOCALC_DIAG/unix.elf \
 		    --dependency-directory PICOCALC_DIAG/.deps
 

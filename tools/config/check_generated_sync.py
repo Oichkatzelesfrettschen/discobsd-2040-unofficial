@@ -12,16 +12,14 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BOARDS = ("PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM", "PICOCALC_LEAN",
-          "PICOCALC_DIAG")
-# (variant, base, directives the variant adds to the base Config, directives
-# it removes from it). PICOCALC_DIAG adds its diagnostic options here as they
-# arrive.
+BOARDS = ("PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM", "PICOCALC_DIAG")
+# The diagnostic options a _DIAG kernel adds to its lean base; a further
+# diagnostic option joins this tuple.
+DIAGNOSTIC_OPTIONS = ("options SYSTRACE", "options CAPACITY_STATS")
+# (variant, base, directives the variant adds to the base Config).
 VARIANTS = (
-    ("PICOCALC_PSRAM", "PICOCALC", ("device psram",), ()),
-    ("PICOCALC_LEAN", "PICOCALC_PSRAM", (),
-     ("options SYSTRACE", "options CAPACITY_STATS")),
-    ("PICOCALC_DIAG", "PICOCALC_PSRAM", (), ()),
+    ("PICOCALC_PSRAM", "PICOCALC", ("device psram",)),
+    ("PICOCALC_DIAG", "PICOCALC_PSRAM", DIAGNOSTIC_OPTIONS),
 )
 COMPILE = Path("sys/arch/rp2040/compile")
 CONF = Path("sys/arch/rp2040/conf")
@@ -123,25 +121,18 @@ def check_variant_delta(root):
 
     config(8) has no include directive, so each variant repeats its base. The
     comparison is by directive: the board line carries the variant's name and
-    the listed directives are the only additions and removals.
+    the listed directives are the only additions.
     """
-    for variant, base, additions, removals in VARIANTS:
-        base_lines = option_lines(root / COMPILE / base / "Config")
-        for removal in removals:
-            if removal not in base_lines:
-                raise SyncError(f"{variant}: {base} Config lacks the directive "
-                                f"{removal} that the variant removes")
+    for variant, base, additions in VARIANTS:
         expected = [
             f'board "{variant}"' if line == f'board "{base}"' else line
-            for line in base_lines if line not in removals
+            for line in option_lines(root / COMPILE / base / "Config")
         ] + list(additions)
         actual = option_lines(root / COMPILE / variant / "Config")
         if sorted(expected) != sorted(actual):
-            delta = ([f"plus {line}" for line in additions]
-                     + [f"minus {line}" for line in removals]) or ["unchanged"]
             raise SyncError(
-                f"{variant}: Config must equal {base} Config ({', '.join(delta)}) "
-                f"and its own board line\n"
+                f"{variant}: Config must equal {base} Config plus "
+                f"{', '.join(additions)} and its own board line\n"
                 + "".join(difflib.unified_diff(
                     [line + "\n" for line in sorted(expected)],
                     [line + "\n" for line in sorted(actual)],

@@ -259,7 +259,6 @@ check-dump-writer-link: check-python
 		@set -e; c=sys/arch/rp2040/compile; \
 		${PYTHON} tools/check_dump_writer_link.py \
 		    --with $$c/PICOCALC/unix.elf --with $$c/PICOCALC_PSRAM/unix.elf \
-		    --with $$c/PICOCALC_LEAN/unix.elf \
 		    --with $$c/PICOCALC_DIAG/unix.elf \
 		    --without $$c/PICO/unix.elf --without $$c/PICO_UART/unix.elf; \
 		rc=0; \
@@ -595,9 +594,9 @@ check-swapram-link-verifier:
 		sh tools/verify_rp2040_swapram_link_test.sh
 
 # Literal formats passed to the kernel's printf(), uprintf(), tprintf() and
-# log() in the sources of the PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM,
-# PICOCALC_LEAN and PICOCALC_DIAG kernels use only conversions where prf() and
-# GCC's format(printf) checking agree; the fixture calibrates the checker.
+# log() in the sources of the PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM and
+# PICOCALC_DIAG kernels use only conversions where prf() and GCC's
+# format(printf) checking agree; the fixture calibrates the checker.
 check-kernel-printf-formats:	check-python
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-kernel-printf-formats requires MACHINE=rp2040" >&2; \
@@ -609,7 +608,6 @@ check-kernel-printf-formats:	check-python
 		    --build sys/arch/rp2040/compile/PICO_UART \
 		    --build sys/arch/rp2040/compile/PICOCALC \
 		    --build sys/arch/rp2040/compile/PICOCALC_PSRAM \
-		    --build sys/arch/rp2040/compile/PICOCALC_LEAN \
 		    --build sys/arch/rp2040/compile/PICOCALC_DIAG
 
 check-aout:
@@ -2126,20 +2124,15 @@ check-renode:
 # copy whose board descriptor distrib/rp2040/mkboarduf2.py rewrote to a bare
 # Pico with the UART0 console: the console the descriptor names carries the
 # boot, the USB attach returns on a machine with no controller model, and no
-# PicoCalc device probes. Outside "check" for the reason check-renode is.
+# PicoCalc device probes. The kernel omits CAPACITY_STATS, so the gate
+# asserts that it refuses kern.capacity. Outside "check" for the reason
+# check-renode is.
 check-renode-union:
 		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_PSRAM
 
-# The lean union kernel (PICOCALC_LEAN) under the same machine and
-# descriptor: it omits CAPACITY_STATS, so the gate asserts that it refuses
-# kern.capacity where PICOCALC_PSRAM serves the record. Outside "check" for
-# the reason check-renode is.
-check-renode-union-lean:
-		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_LEAN
-
 # The diagnostic union kernel (PICOCALC_DIAG) under the same machine and
-# descriptor: it carries PICOCALC_PSRAM's options plus the diagnostic ones,
-# so it serves the kern.capacity record. Outside "check" for the reason
+# descriptor: it carries PICOCALC_PSRAM's options plus SYSTRACE and
+# CAPACITY_STATS, so it serves the kern.capacity record. Outside "check" for the reason
 # check-renode is.
 check-renode-union-diag:
 		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_DIAG
@@ -2367,7 +2360,7 @@ installfs:
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump check-renode-union \
-		check-renode-union-lean check-renode-union-diag \
+		check-renode-union-diag \
 		check-host-package check-board-build check symlinks etc-distribution \
 		multicall-staging \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \

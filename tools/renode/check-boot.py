@@ -38,12 +38,11 @@ carries the free-running measurement that does.
 
 CONFIG names the kernel configuration the banner must carry and defaults to
 PICO_UART. PICOCALC_PSRAM is the union kernel booted with a bare-Pico UART0
-descriptor (check-boot.sh patches it in); PICOCALC_LEAN is the same kernel
-without the SYSTRACE and CAPACITY_STATS options and PICOCALC_DIAG is that
-kernel plus its diagnostic options. PICO_UART, PICOCALC_PSRAM and
-PICOCALC_DIAG serve kern.capacity and are asserted on its record;
-PICOCALC_LEAN omits the node and is asserted to refuse it with EOPNOTSUPP,
-which sysctl reports as "value is not available". The probe stage asserts
+descriptor (check-boot.sh patches it in), without the SYSTRACE and
+CAPACITY_STATS options; PICOCALC_DIAG is that kernel plus the two options.
+PICO_UART and PICOCALC_DIAG serve kern.capacity and are asserted on its
+record; PICOCALC_PSRAM omits the node and is asserted to refuse it with
+EOPNOTSUPP, which sysctl reports as "value is not available". The probe stage asserts
 the lines the descriptor decides: the console device it names, and for the union the
 USB attach beside it and the absence of every PicoCalc device line, since
 that kernel links the panel, keyboard, PSRAM and SD drivers and only the
@@ -97,7 +96,6 @@ BOARD_LINES = {
         "uartusb: CDC-ACM on the USB device controller, interrupt 5",
     ],
 }
-BOARD_LINES["PICOCALC_LEAN"] = BOARD_LINES["PICOCALC_PSRAM"]
 BOARD_LINES["PICOCALC_DIAG"] = BOARD_LINES["PICOCALC_PSRAM"]
 
 # Device lines a bare-Pico descriptor must suppress, matched at the start of
@@ -107,7 +105,6 @@ ABSENT_PREFIXES = {
     "PICO_UART": (),
     "PICOCALC_PSRAM": ("lcd0:", "kbd0:", "psram0:", "sd0:"),
 }
-ABSENT_PREFIXES["PICOCALC_LEAN"] = ABSENT_PREFIXES["PICOCALC_PSRAM"]
 ABSENT_PREFIXES["PICOCALC_DIAG"] = ABSENT_PREFIXES["PICOCALC_PSRAM"]
 
 STORAGE_LINES = [
@@ -144,7 +141,7 @@ UAREA_ROW = re.compile(r"^uarea bytes \d+ user \d+ stack \d+ peak (\d+) "
 # The configurations whose Config carries CAPACITY_STATS. Any other kernel
 # omits KERN_CAPACITY, so kern_sysctl() answers EOPNOTSUPP and sysctl prints
 # ABSENT_CAPACITY_LINE.
-CAPACITY_CONFIGS = ("PICO_UART", "PICOCALC_PSRAM", "PICOCALC_DIAG")
+CAPACITY_CONFIGS = ("PICO_UART", "PICOCALC_DIAG")
 ABSENT_CAPACITY_LINE = "kern.capacity: value is not available"
 
 CAPACITY_LINES = [

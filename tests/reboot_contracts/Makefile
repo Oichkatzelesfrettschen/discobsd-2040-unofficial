@@ -52,11 +52,10 @@ reboot_source.o: ${TOPSRC}/sbin/reboot/reboot.c
 	${HOSTCC} ${HOST_CFLAGS} ${REBOOT_RENAMES} -c -o $@ \
 	    ${TOPSRC}/sbin/reboot/reboot.c
 
-# reboot.c must compile where the C library lacks _PATH_WTMP and a kill()
-# in <sys/signal.h> (macOS); each shim fallback is calibrated by removing it.
+# The shim directory shadows only sys/reboot.h and utmp.h, and its two
+# fallbacks (_PATH_WTMP, kill) are calibrated by removing each.
 sdk-gap:
-	sh ${.CURDIR}/sdk_gap.sh "${HOSTCC}" "${HOST_CFLAGS}" \
-	    "${REBOOT_RENAMES}" ${TOPSRC}/sbin/reboot/reboot.c ${.CURDIR}
+	sh ${.CURDIR}/sdk_gap.sh "${HOSTCC}" "${HOST_CFLAGS}" ${.CURDIR}
 
 # Each mutant must fail the harness: no root check, no confirmation check,
 # confirmation always set, and a lost -y or -B option.

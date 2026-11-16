@@ -25,29 +25,66 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-# The harness build must not depend on what one C library happens to put in
-# its headers. gap/ shadows <paths.h> (no _PATH_WTMP) and <sys/signal.h> (no
-# kill) the way the macOS SDK lacks them. With the shim, reboot.c must compile
-# in that environment; with either shim fallback removed it must not, which
-# is the calibration that the fallbacks are what makes it compile.
-# usage: sdk_gap.sh HOSTCC HOST_CFLAGS RENAMES REBOOT_C DIR
+# The harness build must not depend on what one C library puts in its
+# headers, and must not shadow a header the C library's own headers include:
+# an include directory holding sys/signal.h or signal.h replaces the SDK's
+# version inside <signal.h> and <sys/wait.h> and breaks them (macOS).
+#
+#  1. The shim directory holds exactly sys/reboot.h and utmp.h. The check is
+#     calibrated by a copy with an added sys/signal.h, which it must reject.
+#  2. Two probes model a C library without _PATH_WTMP and without kill() in
+#     the shim's reach, with no header shadowed; each must compile with the
+#     shim and fail with the matching fallback removed.
+# usage: sdk_gap.sh HOSTCC HOST_CFLAGS DIR
 set -eu
 
 cc=$1
 cflags=$2
-renames=$3
-src=$4
-dir=$5
+dir=$3
 out=$dir/sdk_gap.o
 fail=0
 
-try() {	# try NAME WANT(0|1) EXTRA...
+shim_allowlist() {	# shim_allowlist SHIMDIR: print offenders, status 1 if any
+	bad=0
+	for f in $(cd "$1" && find . -type f | sort); do
+		case $f in
+		./sys/reboot.h | ./utmp.h) ;;
+		*) echo "$f"; bad=1 ;;
+		esac
+	done
+	return $bad
+}
+
+if shim_allowlist "$dir/shim" > "$dir/sdk_gap.out"; then
+	echo "sdk_gap: shim directory exposes only sys/reboot.h and utmp.h"
+else
+	echo "sdk_gap: shim directory exposes extra headers:" >&2
+	cat "$dir/sdk_gap.out" >&2
+	fail=1
+fi
+
+tmp=$dir/sdk_gap.tmp
+rm -rf "$tmp"
+mkdir -p "$tmp/sys"
+cp "$dir/shim/utmp.h" "$tmp/utmp.h"
+cp "$dir/shim/sys/reboot.h" "$tmp/sys/reboot.h"
+echo "/* shadow */" > "$tmp/sys/signal.h"
+if shim_allowlist "$tmp" > /dev/null; then
+	echo "sdk_gap: a shim copy holding sys/signal.h was not rejected" >&2
+	fail=1
+else
+	echo "sdk_gap: a shim copy holding sys/signal.h is rejected"
+fi
+rm -rf "$tmp"
+
+try() {	# try NAME WANT(0|1) SOURCE EXTRA...
 	name=$1
 	want=$2
-	shift 2
+	probe=$3
+	shift 3
 	set +e
 	# shellcheck disable=SC2086
-	"$cc" $cflags -Wno-error=unused-parameter -I"$dir/gap" "$@" $renames -c -o "$out" "$src" > "$dir/sdk_gap.out" 2>&1
+	"$cc" $cflags "$@" -c -o "$out" "$dir/$probe" > "$dir/sdk_gap.out" 2>&1
 	got=$?
 	set -e
 	if [ "$want" -eq 0 ] && [ "$got" -ne 0 ]; then
@@ -62,8 +99,9 @@ try() {	# try NAME WANT(0|1) EXTRA...
 	fi
 }
 
-try shim-with-fallbacks 0
-try no-signal-fallback 1 -DREBOOT_SHIM_NO_SIGNAL_H
-try no-wtmp-fallback 1 -DREBOOT_SHIM_NO_WTMP_FALLBACK
+try wtmp-fallback 0 probe_wtmp.c
+try no-wtmp-fallback 1 probe_wtmp.c -DREBOOT_SHIM_NO_WTMP_FALLBACK
+try signal-fallback 0 probe_kill.c
+try no-signal-fallback 1 probe_kill.c -DREBOOT_SHIM_NO_SIGNAL_H
 rm -f "$out" "$dir/sdk_gap.out"
 [ "$fail" -eq 0 ] || exit 1

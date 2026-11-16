@@ -8,3 +8,4 @@ mutant_*
 /boardinfo-stubs/
 sdk_gap.o
 sdk_gap.out
+sdk_gap.tmp

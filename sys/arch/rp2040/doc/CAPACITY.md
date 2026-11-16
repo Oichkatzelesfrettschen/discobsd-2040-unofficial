@@ -70,41 +70,47 @@ before and after the complete change.
 
 The RP2040 kernels expose `kern.capacity` when `CAPACITY_STATS` is enabled.
 The read-only, versioned structure records fixed-table occupancy, allocation
-failures, and overwritten kernel-stack bytes. PICO_DIAG, PICO_UART and
-PICOCALC_DIAG enable the option. PICO, PICOCALC and the PICOCALC_PSRAM union
-kernel omit it and the `SYSTRACE` hooks, and answer `EOPNOTSUPP` for
-`kern.capacity`, `kern.systrace` and `kern.systracepid`; `sysctl` reports
-that refusal as "value is not available", and `sbin/sysctl`,
-`usr.bin/picofetch` and `usr.sbin/pstat` treat it as an absent record.
-PICO_DIAG is PICO plus the two options (`compile/PICO_DIAG/unix.uf2`), and
-PICOCALC_DIAG is PICOCALC_PSRAM plus the two options; `bmake MACHINE=rp2040
-UNION_KERNEL=PICOCALC_DIAG flash` pairs it with a board's descriptor and
-writes `unix[-BOARD]-DIAG.uf2` beside the default `unix[-BOARD].uf2`. The
-counters collect evidence for a later
-capacity decision; they do not change `NPROC`, `NINODE`, `NFILE`, `NCLIST`,
-`NBUF`, `USIZE`, or the 8 KiB USB transmit ring.
+failures, and overwritten kernel-stack bytes. PICO_DIAG, PICO_UART, PICOCALC
+and PICOCALC_LEAN_DIAG enable the option. PICO and PICOCALC_LEAN omit it and
+the `SYSTRACE` hooks, and answer `EOPNOTSUPP` for `kern.capacity`,
+`kern.systrace` and `kern.systracepid`; `sysctl` reports that refusal as
+"value is not available", and `sbin/sysctl`, `usr.bin/picofetch` and
+`usr.sbin/pstat` treat it as an absent record. PICO_DIAG is PICO plus the
+two options (`compile/PICO_DIAG/unix.uf2`). PICOCALC, the full PicoCalc
+kernel and the default `UNION_KERNEL`, carries both, and PICOCALC_LEAN_DIAG
+is PICOCALC_LEAN plus the two options; `bmake MACHINE=rp2040
+UNION_KERNEL=PICOCALC_LEAN_DIAG flash` pairs it with a board's descriptor and
+writes `unix[-BOARD]-LEAN-DIAG.uf2` beside the default `unix[-BOARD].uf2`.
+The counters collect evidence for a later capacity decision; they do not
+change `NPROC`, `NINODE`, `NFILE`, `NCLIST`, `NBUF`, `USIZE`, or the 8 KiB
+USB transmit ring.
 
-The two options cost each kernel 2,540 bytes of text (2,532 in
-PICOCALC_PSRAM) and 2,560 bytes of flash image, and 96 bytes of bss where the
-alignment of later objects does not absorb them. The table compares
-`origin/main` 6af35afa with the commit that split PICO into PICO and
-PICO_DIAG, each kernel built from a clean tree by arm-none-eabi-gcc 14.2.1
-20241119 at the production flags. Text, data and bss are `arm-none-eabi-size
-unix.elf`; free RAM is `__kernel_data_end` minus `__kernel_ram_used_end`
-in `unix.map`; flash headroom is `tools/check_kernel_headroom.py` against
-the 130,816-byte FLASH region.
+The two options cost a kernel about 2,540 bytes of text (2,550 from PICO to
+PICO_DIAG, whose configuration name is five bytes longer; 2,542 from
+PICOCALC_LEAN to PICOCALC_LEAN_DIAG) and 2,560 bytes of flash image, and 96
+bytes of bss where the alignment of later objects does not absorb them. The
+table measures each kernel at the commit that split the PicoCalc kernels into
+PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG, built from a clean tree by
+arm-none-eabi-gcc 14.2.1 20241119 at the production flags. Text, data and bss
+are `arm-none-eabi-size unix.elf`; free RAM is `__kernel_data_end` minus
+`__kernel_ram_used_end` in `unix.map`; flash headroom is
+`tools/check_kernel_headroom.py` against the 130,816-byte FLASH region.
 
 | kernel | options | text | data | bss | free RAM | flash headroom |
 | --- | --- | --- | --- | --- | --- | --- |
-| PICO before | with both | 102,451 | 272 | 42,928 | 23,120 | 28,192 |
-| PICO | without | 99,911 | 272 | 42,928 | 23,120 | 30,752 |
-| PICO_DIAG | with both | 102,461 | 272 | 42,928 | 23,120 | 28,192 |
-| PICO_UART, before and after | `CAPACITY_STATS` only | 91,913 | 216 | 18,208 | 39,648 | 38,744 |
-| PICOCALC before | with both | 122,795 | 392 | 55,904 | 10,624 | 7,640 |
-| PICOCALC | without | 120,255 | 392 | 55,808 | 10,720 | 10,200 |
-| PICOCALC_PSRAM before | with both | 125,315 | 448 | 56,064 | 10,048 | 5,168 |
-| PICOCALC_PSRAM | without | 122,783 | 448 | 55,968 | 10,144 | 7,728 |
-| PICOCALC_DIAG | with both | 125,313 | 448 | 56,064 | 10,048 | 5,168 |
+| PICO | neither | 99,911 | 272 | 42,928 | 23,120 | 30,752 |
+| PICO_DIAG | both | 102,461 | 272 | 42,928 | 23,120 | 28,192 |
+| PICO_UART | `CAPACITY_STATS` only | 91,913 | 216 | 18,208 | 39,648 | 38,744 |
+| PICOCALC | both, PSRAM, four `DEV_*` | 125,303 | 448 | 56,064 | 10,048 | 5,168 |
+| PICOCALC_LEAN | neither, PSRAM, no `DEV_*` | 119,229 | 448 | 51,464 | 14,648 | 11,312 |
+| PICOCALC_LEAN_DIAG | both, PSRAM, no `DEV_*` | 121,771 | 448 | 51,560 | 14,552 | 8,752 |
+
+PICOCALC carries the options of the PSRAM union kernel with the two
+diagnostic options that preceded it (125,313 text and the same data, bss,
+free RAM and headroom; the ten bytes are its shorter configuration name in
+`version[]` and `osversion[]`).
+Against PICOCALC, PICOCALC_LEAN omits 6,074 bytes of text and 4,600 of bss:
+the two diagnostic options and the four `DEV_*` drivers.
 
 PICO's bss and free RAM do not move: `capacity_state` (100 bytes),
 `systrace` and `systrace_pid` leave `.bss`, and the fill before

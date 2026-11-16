@@ -56,6 +56,27 @@ sched()
         /* Perform swap-out/swap-in action. */
         spl0();
         exchange_refusal = 0;
+#ifdef SDSWAP_ENABLED
+        /*
+         * The swap device left since the last pass. The process selected
+         * for swap-out is still whole in core and goes back to the run
+         * queue; then every image the device held is retired, and selection
+         * starts over among what is left.
+         */
+        if (swap_lost == SWAP_LOST_NEW) {
+            s = splhigh ();
+            if (in_core) {
+                in_core->p_flag |= SLOAD;
+                if (in_core->p_stat == SRUN)
+                    setrq (in_core);
+            }
+            splx (s);
+            in_core = 0;
+            swapped_out = 0;
+            refusals = 0;
+            swap_lost_sweep ();
+        }
+#endif
 #ifdef SWAPRAM
         swapram_service ();
 #endif
@@ -111,9 +132,19 @@ sched()
         if (in_core && reservation.tier == SWAP_IMAGE_EXCHANGE)
             swap_exchange_inplace (&reservation, in_core, swapped_out);
         else {
-            if (in_core)
+            if (in_core) {
                 swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,
                     &reservation);
+                /*
+                 * A device that left during the copy leaves in_core
+                 * resident, so nothing may come in over it; the next pass
+                 * returns it to the run queue.
+                 */
+                if (reservation.state != SWAP_IMAGE_COMMITTED) {
+                    swapped_out = 0;
+                    continue;
+                }
+            }
             if (swapped_out)
                 swapin (swapped_out);
         }

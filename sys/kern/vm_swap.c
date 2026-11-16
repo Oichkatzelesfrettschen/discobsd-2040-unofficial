@@ -113,6 +113,9 @@ swap_image_reserve_flash (struct swap_image_reservation *reservation)
 #ifdef SWAP_IMAGE_ALIGN
     size_t next = swapnext;
 
+    if (swap_lost)
+        return ENOMEM;
+
     if (malloc3_contiguous_next (swapmap, reservation->data_blocks,
         reservation->stack_blocks, btod (USIZE),
         SWAP_IMAGE_ALIGN, &next, reservation->addr) == 0)
@@ -234,9 +237,15 @@ swap_exchange_switch (struct swap_image_reservation *reservation,
         return 0;
     }
 #endif
+    /*
+     * The in-place exchange has no unwind: a transfer that fails part way
+     * leaves each image half in the window and half on the device. A device
+     * that can leave therefore never takes it, and the outgoing image gets a
+     * fresh extent, whose failed write leaves the resident image whole.
+     */
     reservation->exchange_span = swap_image_span (incoming);
     spl = splhigh ();
-    if (! swap_exchange_tail_reserve (incoming->p_daddr,
+    if (swap_removable || ! swap_exchange_tail_reserve (incoming->p_daddr,
         reservation->exchange_span, reservation->span)) {
         splx (spl);
         reservation->exchange_span = 0;
@@ -385,6 +394,12 @@ swapin (register struct proc *p)
         swap (p->p_saddr, saddr, p->p_ssize, B_READ);
     }
     swap (p->p_addr, uaddr, USIZE, B_READ);
+    /*
+     * The device left: the window holds no image and the process stays
+     * out of core for swap_lost_sweep().
+     */
+    if (swap_lost)
+        return;
     swap_image_release (p);
     }
 
@@ -718,6 +733,20 @@ swap_image_copy_out (struct swap_image_reservation *reservation,
     } else
 #endif
     swap (a[2], p->p_addr, USIZE, SWAP_IMAGE_WRITE);
+    /*
+     * The device left during the copy. The image is still whole in core,
+     * so the reservation is given back and the caller keeps the process
+     * resident; state SWAP_IMAGE_EMPTY tells it so.
+     */
+    if (swap_lost
+#ifdef SWAPRAM
+        && ! ram
+#endif
+        ) {
+        p->p_flag &= ~SLOCK;
+        swap_image_cancel (reservation);
+        return;
+    }
 #ifdef SWAPRAM
     /* Completion is counted once the last segment has reached its backing. */
     if (ram) {
@@ -761,7 +790,11 @@ swap_image_commit (struct swap_image_reservation *reservation, struct proc *p)
     }
 }
 
-/* Every caller reserves the image first; swapout itself cannot fail. */
+/*
+ * Every caller reserves the image first, so capacity cannot fail. A swap
+ * device that left during the copy leaves the reservation canceled and the
+ * process resident; callers that can meet one read reservation->state.
+ */
 void
 swapout (register struct proc *p, int freecore __unused, u_int odata __unused,
     u_int ostack __unused, struct swap_image_reservation *reservation)
@@ -769,5 +802,97 @@ swapout (register struct proc *p, int freecore __unused, u_int odata __unused,
     if (reservation == NULL || reservation->state != SWAP_IMAGE_RESERVED)
         panic ("swapout: no reservation");
     swap_image_copy_out (reservation, p);
+    if (reservation->state != SWAP_IMAGE_COPIED)
+        return;
     swap_image_commit (reservation, p);
 }
+
+#ifdef SDSWAP_ENABLED
+/*
+ * Retire a process whose image went with the swap device. Its u area, and
+ * with it the open files, the current directory and the kernel stack, is on
+ * that device, so exit() cannot run for it: the process becomes a zombie
+ * that reports death by SIGKILL, its children pass to init and its parent is
+ * told, as exit() does, while the file and directory references it held stay
+ * counted until the next boot. A vfork child takes its parent along, whose
+ * data and stack were the lost image.
+ */
+static void
+swap_lost_retire (struct proc *p)
+{
+    struct proc *q, **pp;
+    int doingzomb = 0;
+
+    if (p->p_pid == 1)
+        panic ("init lost with the swap device");
+    printf ("swap: pid %d lost with the swap device\n", p->p_pid);
+    unsleep (p);
+    if (p->p_flag & SVFORK) {
+        /*
+         * newproc() sleeps in the parent until SVFORK clears and then
+         * takes the sizes back; they are zero, and SIGKILL ends the parent
+         * before it returns to an image it no longer has.
+         */
+        p->p_dsize = p->p_ssize = 0;
+        p->p_flag = (p->p_flag & ~SVFORK) | SLOAD;
+        psignal (p->p_pptr, SIGKILL);
+        wakeup ((caddr_t) p);
+    }
+    p->p_flag &= ~P_TRACED;
+    p->p_sigignore = ~0;
+    p->p_sig = 0;
+    exec_text_release (p, NULL);
+    if ((*p->p_prev = p->p_nxt) != NULL)
+        p->p_nxt->p_prev = p->p_prev;
+    p->p_nxt = zombproc;
+    if (p->p_nxt != NULL)
+        p->p_nxt->p_prev = &p->p_nxt;
+    p->p_prev = &zombproc;
+    zombproc = p;
+    p->p_stat = SZOMB;
+    for (pp = &pidhash[PIDHASH (p->p_pid)]; *pp != p; pp = &(*pp)->p_hash)
+        continue;
+    *pp = p->p_hash;
+    p->p_xstat = SIGKILL;
+    bzero (&p->p_ru, sizeof (p->p_ru));
+    q = allproc;
+again:
+    for (; q; q = q->p_nxt)
+        if (q->p_pptr == p) {
+            q->p_pptr = &proc[1];
+            q->p_ppid = 1;
+            wakeup ((caddr_t) &proc[1]);
+        }
+    if (! doingzomb) {
+        doingzomb = 1;
+        q = zombproc;
+        goto again;
+    }
+    psignal (p->p_pptr, SIGCHLD);
+    wakeup ((caddr_t) p->p_pptr);
+}
+
+/*
+ * Retire every process the lost device held: the ones out of core that the
+ * SwapRAM pool does not hold. sched() calls it with no process selected, so
+ * a process without SLOAD is a swapped one.
+ */
+void
+swap_lost_sweep (void)
+{
+    struct proc *p, *next;
+
+    for (p = allproc; p != NULL; p = next) {
+        next = p->p_nxt;
+        if (p->p_flag & (SLOAD | SSYS))
+            continue;
+#ifdef SWAPRAM
+        if (swapram_present (p))
+            continue;
+#endif
+        swap_lost_retire (p);
+    }
+    swap_lost = SWAP_LOST_SWEPT;
+    wakeup ((caddr_t) &runin);
+}
+#endif /* SDSWAP_ENABLED */

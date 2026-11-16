@@ -729,6 +729,10 @@ sdswapattach(void)
 		return;
 	}
 	sd_swaphold = 1U << i;
+#ifdef SDSWAP_ENABLED
+	/* The card can leave: a failed swap transfer is survivable (systm.h). */
+	swap_removable = 1;
+#endif
 	swapdev = makedev(SD_BMAJOR, i);
 	printf("swap: sd0%c\n", 'a' + i - 1);
 }

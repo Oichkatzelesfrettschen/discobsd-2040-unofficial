@@ -13,11 +13,18 @@
 #include <sys/uio.h>
 #include <sys/map.h>
 
+#ifdef SDSWAP_ENABLED
+char swap_removable, swap_lost;
+#endif
+
 int
 swap_with_buf_result (struct buf *bp, size_t blkno, size_t coreaddr, int count,
     int rdflg)
 {
     int s, transfer_count;
+
+    if (swap_lost)
+        return -1;
 
 //printf ("swap (%u, %08x, %d, %s)\n", blkno, coreaddr, count, (rdflg & B_READ) ? "R" : "W");
 #ifdef UCB_METER
@@ -50,8 +57,18 @@ swap_with_buf_result (struct buf *bp, size_t blkno, size_t coreaddr, int count,
         while ((bp->b_flags & B_DONE) == 0)
             sleep ((caddr_t)bp, PSWP);
         splx (s);
-        if ((bp->b_flags & B_ERROR) || bp->b_resid)
+        if ((bp->b_flags & B_ERROR) || bp->b_resid) {
+#ifdef SDSWAP_ENABLED
+            if (swap_removable && ! swap_lost) {
+                swap_lost = SWAP_LOST_NEW;
+                printf ("swap: device lost\n");
+                /* The swapper retires what the device held. */
+                wakeup ((caddr_t) &runout);
+                wakeup ((caddr_t) &runin);
+            }
+#endif
             return -1;
+        }
         count -= transfer_count;
         coreaddr += transfer_count;
         blkno += btod (transfer_count);
@@ -63,7 +80,8 @@ void
 swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr, int count,
     int rdflg)
 {
-    if (swap_with_buf_result (bp, blkno, coreaddr, count, rdflg) != 0)
+    if (swap_with_buf_result (bp, blkno, coreaddr, count, rdflg) != 0 &&
+        ! swap_lost)
         panic ("hard err: swap");
 }
 

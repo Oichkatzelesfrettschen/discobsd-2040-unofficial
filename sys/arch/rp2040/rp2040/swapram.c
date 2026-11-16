@@ -699,6 +699,9 @@ swapram_evacuate (void)
     size_t blocks[SR_NSEG], next;
     int i, images = 0, j, seg, n;
 
+    /* A swap device that left takes no image; the pool keeps them. */
+    if (swap_lost)
+        return -1;
     next = swapnext;
     for (i = 0; i < NPROC; i++) {
         e = &sr_tab[i];

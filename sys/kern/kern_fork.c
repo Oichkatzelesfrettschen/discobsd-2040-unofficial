@@ -184,9 +184,47 @@ again:
     child->p_addr = parent->p_addr;
     child->p_stat = SRUN;
     swapout (child, X_DONTFREE, X_OLDSIZE, X_OLDSIZE, &reservation);
-    child->p_flag |= SSWAP;
     parent->p_stat = SRUN;
     u.u_procp = parent;
+    if (reservation.state != SWAP_IMAGE_COMMITTED) {
+        /*
+         * The swap device left during the copy, so no child image exists.
+         * The references taken above go back through the parent's u area,
+         * the slot returns to freeproc and fork fails as a refused
+         * reservation does.
+         */
+        for (n = 0; n <= u.u_lastfile; n++) {
+            fp = u.u_ofile[n];
+            if (fp != NULL)
+                fp->f_count--;
+        }
+        u.u_cdir->i_count--;
+        if (u.u_rdir)
+            u.u_rdir->i_count--;
+        if (child->p_tip)
+            child->p_tip->i_count--;
+        child->p_tip = NULL;
+        {
+        struct proc **hash = &pidhash [PIDHASH (child->p_pid)];
+
+        while (*hash != child)
+            hash = &(*hash)->p_hash;
+        *hash = child->p_hash;
+        }
+        if ((*child->p_prev = child->p_nxt) != NULL)
+            child->p_nxt->p_prev = child->p_prev;
+        child->p_stat = 0;
+        child->p_pid = 0;
+        child->p_ppid = 0;
+        child->p_pptr = 0;
+        child->p_pgrp = 0;
+        child->p_flag = 0;
+        child->p_sigmask = child->p_sigcatch = child->p_sigignore = 0;
+        child->p_nxt = freeproc;
+        freeproc = child;
+        return -1;
+    }
+    child->p_flag |= SSWAP;
 
     if (isvfork) {
         /*

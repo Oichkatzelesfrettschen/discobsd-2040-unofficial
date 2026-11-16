@@ -36,6 +36,8 @@ exec_spool_reserve_flash (struct exec_params *epp)
     size_t addresses[3];
 #endif
 
+    if (swap_lost)
+        return ENOMEM;
     blocks = btod (epp->spool.size);
 #ifdef SWAP_IMAGE_ALIGN
     epp->spool.span = malloc3_contiguous_next (swapmap, blocks, 0, 0,
@@ -61,6 +63,13 @@ exec_spool_reserve_flash (struct exec_params *epp)
     epp->spool.readblock = EXEC_SPOOL_BLOCK_NONE;
     return 0;
 }
+
+/*
+ * The swap device left while it held the spool: swap_with_buf() moved no
+ * bytes, and what the spool buffer holds is not the arguments.
+ */
+#define exec_spool_gone(epp) \
+    (swap_lost && (epp)->spool.backing == EXEC_SPOOL_FLASH)
 
 static void
 exec_spool_flush (struct exec_params *epp)
@@ -290,9 +299,13 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     for (i = 0; i < epp->argc; i++) {
         argp[i] = (caddr_t)ucp;
         exec_spool_read (epp, &len, sizeof len);
+        if (exec_spool_gone (epp))
+            goto gone;
         if (len == 0 || len > (u_int)((caddr_t)topp - ucp))
             panic ("exec spool arg length");
         exec_spool_read (epp, ucp, len);
+        if (exec_spool_gone (epp))
+            goto gone;
         if (ucp[len - 1] != '\0')
             panic ("exec spool arg terminator");
         ucp += len;
@@ -303,9 +316,13 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     for (i = 0; i < epp->envc; i++) {
         envp[i] = ucp;
         exec_spool_read (epp, &len, sizeof len);
+        if (exec_spool_gone (epp))
+            goto gone;
         if (len == 0 || len > (u_int)((caddr_t)topp - ucp))
             panic ("exec spool env length");
         exec_spool_read (epp, ucp, len);
+        if (exec_spool_gone (epp))
+            goto gone;
         if (ucp[len - 1] != '\0')
             panic ("exec spool env terminator");
         ucp += len;
@@ -344,6 +361,15 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     }
 
     DEBUG("\texec_setupstack(): end\n");
+    return;
+
+gone:
+    /*
+     * The arguments went with the swap device after exec replaced the image,
+     * so no caller can take an error: SIGKILL ends the process before the
+     * new image runs.
+     */
+    psignal (u.u_procp, SIGKILL);
 }
 
 /*
@@ -733,6 +759,11 @@ exec_save_args (struct exec_params *epp)
         goto fail;
     }
     exec_spool_flush (epp);
+    /* The swap device left under the spool; exec has not committed. */
+    if (exec_spool_gone (epp)) {
+        error = EIO;
+        goto fail;
+    }
     epp->spool.pos = 0;
     DEBUG("\texec_save_args(): %u args, %u env, %u spool bytes\n",
         epp->argc, epp->envc, epp->spool.size);

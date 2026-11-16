@@ -50,6 +50,12 @@
  *           parent wakes every 2 ms to force switches between them; every
  *           quotient and remainder is compared with a shift-and-subtract
  *           division.
+ *   altstack  a SIGUSR1 handler runs on an alternate stack of exactly
+ *           MINSIGSTKSZ bytes whose base is 7 bytes past an eight-byte
+ *           boundary, the worst rounding sendsig() applies to the top;
+ *           the signal frame must stay inside it, so the guard bytes
+ *           below the base keep their fill and the handler's sp lies
+ *           within the stack.
  *
  * Each case prints "PREEMPT <case> OK" or a FAIL line; the exit status is
  * 0 only on OK.
@@ -68,6 +74,7 @@
 #define	DIVIDE_CAP	2000000UL
 
 int	preempt_regs(int misalign);
+int	sigaltstack(const struct sigaltstack *, struct sigaltstack *);
 volatile int preempt_done;
 unsigned preempt_saved_sp;
 
@@ -339,6 +346,71 @@ case_divide(void)
 	return fails;
 }
 
+#define	ALT_GUARD	71	/* guard bytes below the base; 71 % 8 == 7 */
+#define	ALT_FILL	0xa5
+
+static unsigned char alt_area[ALT_GUARD + MINSIGSTKSZ + 8]
+    __attribute__((aligned(8)));
+static volatile unsigned alt_sp;
+static volatile int alt_hits;
+
+static void
+alt_handler(int sig)
+{
+	register unsigned sp __asm__("sp");
+
+	(void)sig;
+	alt_sp = sp;
+	alt_hits++;
+}
+
+static int
+case_altstack(void)
+{
+	struct sigaltstack ss;
+	unsigned base = (unsigned)alt_area + ALT_GUARD;
+	int i, fails = 0, guard = 0;
+
+	memset(alt_area, ALT_FILL, sizeof(alt_area));
+	ss.ss_base = (char *)base;
+	ss.ss_size = MINSIGSTKSZ;
+	ss.ss_flags = 0;
+	if (sigaltstack(&ss, NULL) < 0) {
+		perror("sigaltstack");
+		return 2;
+	}
+	{
+		struct sigaction sa;
+
+		memset(&sa, 0, sizeof(sa));
+		sa.sa_handler = alt_handler;
+		sa.sa_flags = SA_ONSTACK;
+		if (sigaction(SIGUSR1, &sa, NULL) < 0) {
+			perror("sigaction");
+			return 2;
+		}
+	}
+	kill(getpid(), SIGUSR1);
+	for (i = 0; i < ALT_GUARD; i++)
+		if (alt_area[i] != ALT_FILL)
+			guard++;
+	printf("PREEMPT altstack size %d base %#x handler sp %#x "
+	    "guard bytes written %d\n", MINSIGSTKSZ, base, alt_sp, guard);
+	if (alt_hits != 1) {
+		printf("FAIL altstack: handler ran %d times\n", alt_hits);
+		fails++;
+	}
+	if (alt_sp < base || alt_sp >= base + MINSIGSTKSZ) {
+		printf("FAIL altstack: handler sp outside the alternate stack\n");
+		fails++;
+	}
+	if (guard != 0) {
+		printf("FAIL altstack: the signal frame reached below ss_base\n");
+		fails++;
+	}
+	return fails;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -346,7 +418,7 @@ main(int argc, char **argv)
 
 	setvbuf(stdout, NULL, _IOLBF, 0);
 	if (argc != 2) {
-		fprintf(stderr, "usage: preempt alarm|share|spin|regs|divide\n");
+		fprintf(stderr, "usage: preempt alarm|share|spin|regs|divide|altstack\n");
 		return 2;
 	}
 	if (strcmp(argv[1], "alarm") == 0) {
@@ -361,6 +433,8 @@ main(int argc, char **argv)
 		fails = case_regs();
 	else if (strcmp(argv[1], "divide") == 0)
 		fails = case_divide();
+	else if (strcmp(argv[1], "altstack") == 0)
+		fails = case_altstack();
 	else {
 		fprintf(stderr, "preempt: unknown case %s\n", argv[1]);
 		return 2;

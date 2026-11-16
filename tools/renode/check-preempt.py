@@ -53,6 +53,10 @@ divide
     two processes divide on the SIO divider while their handlers divide
     other operands and a third process forces switches every 2 ms; every
     result equals a software division: "PREEMPT divide OK".
+altstack
+    a handler on an alternate stack of exactly MINSIGSTKSZ bytes, its base
+    7 bytes past an eight-byte boundary, finds its sp inside that stack and
+    leaves the guard bytes below the base unwritten: "PREEMPT altstack OK".
 
 The claim is the emulated kernel's AST path. The third-party peripheral
 models carry the boot, and Renode's divider computes in zero cycles; a
@@ -84,6 +88,7 @@ CASES = {
     "intr": ("/tmp/preempt spin", ["PREEMPT spin start"], 130),
     "regs": ("/tmp/preempt regs", ["PREEMPT regs OK"], 0),
     "divide": ("/tmp/preempt divide", ["PREEMPT divide OK"], 0),
+    "altstack": ("/tmp/preempt altstack", ["PREEMPT altstack OK"], 0),
 }
 
 

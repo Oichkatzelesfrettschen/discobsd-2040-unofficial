@@ -9,14 +9,16 @@ from this shell with pid files under the per-user configuration directory:
 $XDG_CONFIG_HOME/discobsd on Linux and BSD, ~/Library/Application Support/
 discobsd on macOS, %APPDATA%\\discobsd on Windows.
 
-The configuration file web.env holds DISCOBSD_WEB_TOKEN and
-DISCOBSD_HOST_IP. It is created with owner-only permissions on the first
+The configuration file web.env holds DISCOBSD_WEB_TOKEN, DISCOBSD_HOST_IP
+and DISCOBSD_WEB_BIND. The servers listen on loopback unless --bind names
+another address. It is created with owner-only permissions on the first
 run and read by every later run and by the systemd units.
 """
 
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import os
 import secrets
 import shutil
@@ -197,6 +199,7 @@ def _http_answers(url: str, timeout: float = 3.0) -> bool:
 
 
 def cmd_up(args) -> int:
+    bind = ipaddress.ip_address(args.bind)
     # The board selector reaches a systemd user unit only through web.env, an
     # EnvironmentFile; a value that is not a USB port path could add lines to
     # it, so it is checked before anything is written.
@@ -213,9 +216,15 @@ def cmd_up(args) -> int:
     if not token:
         token = secrets.token_hex(12)
     ip = args.host_ip or os.environ.get("DISCOBSD_HOST_IP") or values.get("DISCOBSD_HOST_IP")
-    if not ip:
+    if bind.is_loopback:
+        ip = str(bind)
+    elif not ip:
         ip = lan_ip()
-    env_values = {"DISCOBSD_WEB_TOKEN": token, "DISCOBSD_HOST_IP": ip}
+    env_values = {
+        "DISCOBSD_WEB_TOKEN": token,
+        "DISCOBSD_HOST_IP": ip,
+        "DISCOBSD_WEB_BIND": str(bind),
+    }
     if usb_port:
         env_values["DISCOBSD_USB_PORT"] = usb_port
     write_env(env_path, env_values)
@@ -313,7 +322,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version="discobsd-console " + __version__)
     sub = p.add_subparsers(dest="command", required=True)
     up = sub.add_parser("up", help="start or restart the servers and print the URLs")
-    up.add_argument("--bind", default="0.0.0.0", help="bind address (default 0.0.0.0)")
+    up.add_argument("--bind", default="127.0.0.1", help="bind address (default 127.0.0.1)")
     up.add_argument("--port", type=int, default=WEB_PORT, help="web console port")
     up.add_argument("--link-port", type=int, default=LINK_PORT, help="short link port")
     up.add_argument("--host-ip", help="address to advertise (default: autodetect)")

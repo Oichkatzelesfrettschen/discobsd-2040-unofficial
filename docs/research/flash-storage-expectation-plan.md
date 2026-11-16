@@ -472,6 +472,17 @@ count the step names. Adding files raises
 the share past the knee (75 to 90 percent), so the benefit narrows as the
 root fills.
 
+Result (P8c): trim in `free()` was built with the inode written before the
+frees and `check-trim-order`, and measured on the bare Pico: 8 compiles
+erased 1,592 root sectors with trim against 1,374 without it. In the host
+model (`trim-cost-model.md`) each `dhara_map_trim()` journals a page and
+runs a collection step, and the LIFO free list hands most freed blocks out
+again within the same burst, so in compile-like bursts the trims buy no lasting free space. The
+later collector trigger
+(`sys/arch/rp2040/doc/research/dhara-gc-trigger.md`, 1,128 sectors) took
+P8c's place. `docs/research/unimplemented-storage-work.md` holds the
+archive branches and the condition that reopens the step.
+
 ## 3. Gates
 
 | Gate | Class | Phase | Known-bad input | State |
@@ -479,8 +490,8 @@ root fills.
 | `sync()` cases in `check-storage-correctness` | host | P1 | clean-superblock skip; one-list-locked visit | landed |
 | `check-dhara-amplification` | host | P0a | `log2_ppc = 1`; no sync loop | landed |
 | Dhara geometry table (`dhara-geometry.txt`) in the same gate | host | P0a | `unit_bytes 256` | landed |
-| Sparse image readback | host | P8b | chain blocks skipped | proposed |
-| Free-path trim selection | host | P8c | chain block trimmed | proposed |
+| Sparse image readback | host | P8b | chain blocks skipped | landed (`check-flash-sparse`) |
+| Free-path trim selection | host | P8c | chain block trimmed | built with P8c as `check-trim-order`; not merged with it |
 | Read-only root at shutdown | host | L1 | the unguarded `fs_fmod = 1` | proposed |
 | Flush contract, failure injection, flush-error propagation | host | P2, P3 | flush dropped; early erase; dirty cleared on failure | proposed |
 | update predicate/deadline state machine | host | P4 | deadline reset on each write; lost wakeup | proposed |
@@ -546,8 +557,8 @@ that closes it. Hardware rows need explicit opt-in.
 | P0b.3 | Board captures: idle with update running and killed, 100-byte overwrite then 60 s idle, 20 KiB `cp`, multi-file `cc` | paired deltas, board class | P0b.1, P0b.2 | proposed |
 | P2.1 | Remove `B_TAPE` and its `bdwrite()` branch | build, `unix.elf` size delta | -- | proposed |
 | P2.2 | `d_flags` capability bits (`D_INLINE`, `D_WRITEBACK`, `D_TRIM`) in both maintained `bdevsw` tables | build both kernels and stm32 | P2.1 | proposed |
-| P2.3 | Kernel-internal flush and trim `d_ioctl` commands in `flash.c` | host flush-contract gate | P2.2 | flush implemented (`DIOCCHECKPOINT`, without the `d_flags` bits); trim with P8c |
-| P3.0 | Decide P3's scope after P8 and P0b (F6 stop point) | review record | P8b, P0b.3 | decided 2026-11-14: P3 + P8b + P8c |
+| P2.3 | Kernel-internal flush and trim `d_ioctl` commands in `flash.c` | host flush-contract gate | P2.2 | flush implemented (`DIOCCHECKPOINT`, without the `d_flags` bits); trim built with P8c and not merged |
+| P3.0 | Decide P3's scope after P8 and P0b (F6 stop point) | review record | P8b, P0b.3 | decided 2026-11-14: P3 + P8b + P8c; P8c was later refuted on the board and not merged |
 | P3.1 | Write-caller durability audit | research note, one row per caller | P2.3 | proposed |
 | P3.2 | Deferred checkpoint and device-dirty state in `flstrategy()` | A04 host case, failure injection | P3.0, P3.1 | implemented; A04 host case passes, failure injection open |
 | P3b.1 | Paired kernels, `bawrite()` against delayed full-block writes | board counters | P0b.3 | proposed |
@@ -560,5 +571,5 @@ that closes it. Hardware rows need explicit opt-in.
 | P7.2 | `rawrw()` and neighbors to C17 prototypes | `check-c17-kernel-inventory` ledger shrinks | P2.1 | proposed |
 | P8a | Live, chain and free block counts per profile | build-class report | -- | `full` (PICO) measured by `flashimg`'s own free-list walk: 756 used, 1 chain, 231 free of 988 blocks, 758 of 989 sectors live (76.6 percent); other profiles not built |
 | P8b | Sparse `flashimg` that keeps chain blocks | sparse readback gate | P8a | implemented; `check-flash-sparse` |
-| P8c | Free-path trim excluding chain blocks | free-path trim gate | P2.3, P8b | proposed |
+| P8c | Free-path trim excluding chain blocks | free-path trim gate | P2.3, P8b | built and refuted: 1,592 root erase sectors over 8 board compiles against 1,374 without trim; not merged (`unimplemented-storage-work.md`) |
 | L1 | Read-only-root guard in `rp2040_shutdown_sync()` | shutdown fixture case | a reachable read-only root | latent |

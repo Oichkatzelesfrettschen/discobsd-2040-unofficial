@@ -35,40 +35,90 @@
 #        check-signal-traps.sh --selftest
 #
 # The scan rejects any trap command whose signal list names EXIT (or 0) and
-# also HUP, INT, TERM, QUIT or a signal number; a reset (trap - ...) passes.
-# --selftest first runs the scan over a conforming and a combined fixture
-# (the second must be rejected), then runs both fixtures under SIGTERM: the
+# also HUP, INT, TERM, QUIT or a signal number, wherever the command sits on
+# its line (after a separator, in a group) and whatever follows it (a
+# comment, a command, a redirection); a reset (trap - ...) passes.
+# --selftest first runs the scan over known-bad and known-good command
+# forms, including quoted # and signal names inside the action, then runs a
+# conforming and a combined fixture under SIGTERM: the
 # conforming one must exit 143 with its work directory removed, and the
 # combined one must resume and reach its completion marker, which ties the
 # scan's rule to the shell's behavior.
 set -eu
 
 # scan FILE: print each combined trap with its line number; status 1 if any.
+# The awk program tokenizes the file as a shell would for this purpose: quotes
+# (which may span lines), backslashes, a comment that starts a token, and the
+# command separators ; & | ( ). A command whose first word is trap is
+# combined when its operands name EXIT (or 0) and also HUP, INT, TERM, QUIT or
+# a signal number; the action operand is never read as a signal, so a quoted
+# action that mentions signal names, a trailing comment and a following
+# command do not change the verdict.
 scan() {
 	awk '
-	function in_list(w) {
-		return w ~ /^(EXIT|0|HUP|INT|TERM|QUIT|1|2|3|15)$/
+	function start_token() {
+		if (!intok) {
+			intok = 1
+			if (ntok == 0) { cmdline = NR; cmdtext = $0 }
+		}
 	}
+	function end_token() {
+		if (intok) { toks[++ntok] = tok; tok = ""; intok = 0 }
+	}
+	function end_command(   i, j, k, s, has_exit, has_sig) {
+		end_token()
+		i = 1
+		while (i <= ntok && (toks[i] == "{" || toks[i] == "!" || toks[i] == "then" || toks[i] == "do" || toks[i] == "else")) i++
+		if (i <= ntok && toks[i] == "trap") {
+			j = i + 1
+			if (toks[j] == "--") j++
+			if (j <= ntok && toks[j] != "-" && toks[j] !~ /^-[a-zA-Z]/) {
+				has_exit = 0; has_sig = 0
+				for (k = j + 1; k <= ntok; k++) {
+					s = toks[k]
+					sub(/^SIG/, "", s)
+					if (s == "EXIT" || s == "0") has_exit = 1
+					else if (s ~ /^(HUP|INT|TERM|QUIT|1|2|3|15)$/) has_sig = 1
+				}
+				if (has_exit && has_sig) {
+					printf "%s:%d: %s\n", FILENAME, cmdline, cmdtext
+					bad = 1
+				}
+			}
+		}
+		ntok = 0
+	}
+	BEGIN { SQ = "\047"; DQ = "\042"; BS = "\134" }
 	{
 		line = $0
-		n = split(line, f, /[ \t]+/)
-		while (n > 0 && f[n] == "") n--
-		tail = n
-		while (tail > 0 && in_list(f[tail])) tail--
-		if (n - tail < 2) next
-		has_exit = 0; has_sig = 0
-		for (i = tail + 1; i <= n; i++) {
-			if (f[i] == "EXIT" || f[i] == "0") has_exit = 1
-			else has_sig = 1
+		n = length(line)
+		for (p = 1; p <= n; p++) {
+			c = substr(line, p, 1)
+			if (in_s) { tok = tok c; if (c == SQ) in_s = 0; continue }
+			if (in_d) {
+				if (c == BS && p < n) { tok = tok c substr(line, p + 1, 1); p++; continue }
+				tok = tok c
+				if (c == DQ) in_d = 0
+				continue
+			}
+			if (c == BS) {
+				if (p == n) { cont = 1; break }
+				start_token(); tok = tok c substr(line, p + 1, 1); p++
+				continue
+			}
+			if (c == SQ) { start_token(); in_s = 1; tok = tok c; continue }
+			if (c == DQ) { start_token(); in_d = 1; tok = tok c; continue }
+			if (c == "#" && !intok) break
+			if (c == " " || c == "\t") { end_token(); continue }
+			if (c == ";" || c == "&" || c == "|" || c == ")" ||
+			    (c == "(" && substr(line, p - 1, 1) != "$")) { end_command(); continue }
+			start_token(); tok = tok c
 		}
-		if (!has_exit || !has_sig) next
-		if (line ~ /^[ \t]*trap[ \t]+-/) next
-		if (line ~ /^[ \t]*trap[ \t]/ || line ~ /[\x27"][ \t]+(EXIT|0|HUP|INT|TERM|QUIT|1|2|3|15)[ \t]/) {
-			printf "%s:%d: %s\n", FILENAME, NR, line
-			bad = 1
-		}
+		if (in_s || in_d) tok = tok "\n"
+		else if (cont) cont = 0
+		else end_command()
 	}
-	END { exit bad }
+	END { end_command(); exit bad }
 	' "$1"
 }
 
@@ -109,6 +159,21 @@ run_term() {
 	echo "$status"
 }
 
+# expect_scan VERDICT LABEL TEXT: write TEXT to a file and require the scan
+# to reject it (bad) or accept it (good).
+expect_scan() {
+	printf '%s\n' "$3" >"$dir/case.scan"
+	if scan "$dir/case.scan" >/dev/null; then
+		found=good
+	else
+		found=bad
+	fi
+	if [ "$found" != "$1" ]; then
+		echo "selftest: $2 ($3): expected $1, scan said $found" >&2
+		exit 1
+	fi
+}
+
 selftest() {
 	dir=$(mktemp -d)
 	trap 'rm -rf "$dir"' EXIT
@@ -122,15 +187,39 @@ selftest() {
 		echo "selftest: the combined trap was accepted" >&2
 		exit 1
 	fi
-	printf '%s\n' "trap - EXIT HUP INT TERM" >"$dir/reset.scan"
-	scan "$dir/reset.scan" >/dev/null || { echo "selftest: a trap reset was rejected" >&2; exit 1; }
-	printf '%s\n' "trap 'rm -f x' 0 2" >"$dir/numeric.scan"
-	if scan "$dir/numeric.scan" >/dev/null; then
-		echo "selftest: a combined trap on 0 and signal 2 was accepted" >&2
-		exit 1
-	fi
-	printf '%s\n' "trap 'rm -f x' EXIT" "trap 'exit 143' TERM" >"$dir/split.scan"
-	scan "$dir/split.scan" >/dev/null || { echo "selftest: split traps were rejected" >&2; exit 1; }
+	# Known-bad: each combines EXIT with a signal in one trap command.
+	expect_scan bad "trailing comment" "trap cleanup EXIT TERM # cleanup"
+	expect_scan bad "trailing command" "trap cleanup EXIT TERM; echo done"
+	expect_scan bad "trailing background" "trap cleanup EXIT INT &"
+	expect_scan bad "quoted # in the action" "trap 'echo # x' EXIT TERM"
+	expect_scan bad "double-quoted # in the action" 'trap "echo #" EXIT TERM'
+	expect_scan bad "after &&" "true && trap cleanup EXIT INT"
+	expect_scan bad "in a brace group" "{ trap cleanup EXIT HUP; }"
+	expect_scan bad "in a subshell" "(trap cleanup EXIT HUP)"
+	expect_scan bad "numeric signals" "trap 'rm -f x' 0 2"
+	expect_scan bad "SIG prefix" "trap cleanup EXIT SIGTERM"
+	expect_scan bad "after --" "trap -- cleanup EXIT TERM"
+	expect_scan bad "signals before EXIT" "trap cleanup INT EXIT"
+	expect_scan bad "redirected" "trap cleanup EXIT TERM 2>/dev/null"
+	expect_scan bad "indented" "	trap cleanup EXIT HUP INT TERM"
+	expect_scan bad "multi-line action" "trap 'rm -f a
+rm -f b' EXIT HUP"
+	expect_scan bad "continued line" "trap cleanup EXIT \\
+    TERM"
+	# Known-good: one signal class per command, or no trap command at all.
+	expect_scan good "reset" "trap - EXIT HUP INT TERM"
+	expect_scan good "split traps" "trap 'rm -f x' EXIT
+trap 'exit 143' TERM"
+	expect_scan good "two traps on a line" "trap cleanup EXIT; trap 'exit 143' TERM"
+	expect_scan good "exit trap with comment" "trap cleanup EXIT # EXIT TERM"
+	expect_scan good "signal names inside the action" "trap 'echo EXIT TERM' EXIT"
+	expect_scan good "signal names inside a double-quoted action" 'trap "echo EXIT TERM" EXIT'
+	expect_scan good "quoted # then comment" "trap 'echo # x' EXIT # TERM"
+	expect_scan good "signal-only trap with comment" "trap 'exit 143' TERM # EXIT"
+	expect_scan good "action word that names a signal" "trap INT EXIT"
+	expect_scan good "commented trap" "# trap cleanup EXIT TERM"
+	expect_scan good "trap in a quoted string" "printf '%s\n' 'trap cleanup EXIT TERM'"
+	expect_scan good "trap listing" "trap -p"
 	good_status=$(run_term good "$dir")
 	bad_status=$(run_term bad "$dir")
 	[ "$good_status" -eq 143 ] || { echo "selftest: conforming fixture exited $good_status, not 143" >&2; exit 1; }

@@ -200,7 +200,7 @@ the pack's unused blocks occupy no flash.
 | Profile | Closures | Free blocks | Free inodes |
 | --- | --- | --- | --- |
 | `base` | none | 446 | 43 |
-| `benchmark` | `coremark` | 433 | 42 |
+| `benchmark` | `coremark` | 431 | 42 |
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's, including `puzzles` | 241 | 32 |

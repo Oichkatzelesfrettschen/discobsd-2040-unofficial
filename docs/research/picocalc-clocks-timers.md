@@ -12,7 +12,7 @@ driver serves yet (decision D118). The findings lead:
   continues to come from the root superblock.
 - A `clock_gettime` and `clock_getres` with `CLOCK_REALTIME` and
   `CLOCK_MONOTONIC` at microsecond resolution measure 200 B of text in a
-  GCC 14.2.1 sizing build, plus 29 B of trace names, and 0 B of RAM. The
+  GCC 14.2.1 sizing build, plus at most 29 B of trace names, and 0 B of RAM. The
   kernel needs no 64-bit division for them.
 
 Evidence classes: data sheet (DS: RP2040 datasheet build 3184e62-clean,
@@ -38,8 +38,8 @@ to this note.
 | STM32F103 SysTick (DS5319 2.3.15, p. 19) | 24-bit; the Arduino core's 1 ms `millis()` | the 8 MHz crystal X201 (S; tolerance not stated on the schematic) | off when the PMU is off | firmware only: key repeat, the 20 s battery refresh and the I2C watchdog (SRC-FW `picocalc_keyboard.ino:45-50`, `:310`, `:636-640`) |
 | STM32F103 TIM1-TIM4 (DS5319 2.3.15, pp. 17-18) | 16-bit with 16-bit prescalers | the same | as above | firmware only: 10 kHz PWM on PA8 for the LCD backlight and on PC8 for the keyboard backlight (SRC-FW `backlight.ino:15-16`, `:43-44`) |
 | STM32F103 RTC and backup registers (DS5319 2.3.14, p. 17) | 32-bit seconds counter, 20-bit prescaler, alarm; ten 16-bit backup registers | the 32.768 kHz crystal X202 on PC14/PC15 (S) | the domain runs from VDD or from the VBAT pin (DS5319 2.3.14); on this board VBAT is wired to `MCU_3V3`, the PMU's DCDC1 output (S), so the domain loses power whenever the PMU powers off | unused by the firmware (no RTC or backup-register call in any file) and not exposed over I2C |
-| STM32F103 watchdogs (DS5319 2.3.15, p. 18) | IWDG 12-bit on a 40 kHz RC; WWDG 7-bit | internal RC; `clk` | IWDG runs in Stop and Standby | unused by the firmware |
-| AXP2101 timers (AXP2101 V1.4) | I2C watchdog 1-128 s (REG 19, p. 34); charge safety timers, 40-70 min pre-charge and 5-20 h total (6.7.4.1, p. 25; REG 67, p. 49); power-key levels (REG 27, p. 38); 64 s ADC sampling while off on battery (REG 36, p. 40) | internal | the PMU stays powered from the cell | reachable only by the keyboard controller; the firmware arms none of the watchdog settings |
+| STM32F103 watchdogs (DS5319 2.3.15, p. 18) | IWDG 12-bit on a 40 kHz RC; WWDG 7-bit | internal RC; `clk` | IWDG runs in Stop and Standby | unused by the firmware (a case-insensitive search of its sources for iwdg, wwdg and watchdog finds nothing) |
+| AXP2101 timers (AXP2101 V1.4) | I2C watchdog 1-128 s (REG 19, p. 34); charge safety timers, 40-70 min pre-charge and 5-20 h total (6.7.4.1, p. 25; REG 67, p. 49); power-key levels (REG 27, p. 38); 64 s ADC sampling while off on battery (REG 36, p. 40) | internal | the PMU stays powered from the cell | reachable only by the keyboard controller; the firmware never writes REG 18 bit 0 or REG 19 (the same search finds no watchdog call) |
 | AXP2101 RTC supply | none: `VRTC` (pin 28) and `VBACKUP` (pin 27) are not connected (S), so no backup cell and no RTC LDO output exist on this board (DS 6.12.2, p. 29) | | | |
 
 The ST7365P panel's tearing-effect output, a frame-rate timing source, is
@@ -122,15 +122,95 @@ A sizing build of the two handlers with the PICO kernel's options
 | --- | ---: | ---: |
 | `clock_gettime` handler | 148 B (B) | 0 |
 | `clock_getres` handler | 52 B (B) | 0 |
-| Trace names on `SYSTRACE` kernels: 25 B of pool, two 2 B spans | 29 B (I) | 0 |
+| Trace names on `SYSTRACE` kernels: 25 B of pool, two 2 B spans | at most 29 B (I: the pool overlaps names, so less if one shares a tail) | 0 |
 | An accessor for the tick stamp in `clock.c`, or the stamp made global | 0 to 12 B (I) | 0 |
 | Dispatch tables | 0 B in free slots, 10 B appended | 0 |
 | Total | about 230 B | 0 |
 
 For comparison, `gettimeofday` is 104 B and `settimeofday` 164 B in the same
 build (B). The estimate in `d2ffbd83:docs/research/memory-devices.md` was
-120 to 200 B. The sizing source declares the stamp as an external and was
-not linked; it is not committed.
+120 to 200 B. The sizing source follows, its comments shortened; it declares the stamp as an
+external and was compiled, not linked, with the options `bmake -n kern_time.o`
+prints in `sys/arch/rp2040/compile/PICO`, then measured with
+`arm-none-eabi-nm -S`:
+
+```c
+#include <sys/param.h>
+#include <sys/user.h>
+#include <sys/kernel.h>
+#include <sys/systm.h>
+#include <sys/errno.h>
+
+#define	CLOCK_REALTIME		0
+#define	CLOCK_MONOTONIC		3
+
+struct ktimespec {			/* the kernel's narrow layout */
+	u_int	tv_sec;
+	long	tv_nsec;
+};
+
+extern volatile u_int clock_stamp_us;	/* clkcatch.stamp_us in clock.c */
+#define	TIMERAWL	(*(volatile u_int *)0x40054028UL)
+#define	TICK_US		(1000000U / HZ)
+
+void clock_gettime(void);
+void clock_getres(void);
+
+void
+clock_gettime(void)
+{
+	struct a {
+		int	clock_id;
+		struct ktimespec *tp;
+	} *uap = (struct a *)u.u_arg;
+	struct ktimespec ts;
+	u_int us;
+	int s;
+
+	s = splhigh();
+	us = TIMERAWL - clock_stamp_us;
+	if (us >= TICK_US)
+		us = TICK_US - 1;
+	switch (uap->clock_id) {
+	case CLOCK_REALTIME:
+		ts.tv_sec = time.tv_sec;
+		us += lbolt * TICK_US;
+		break;
+	case CLOCK_MONOTONIC:
+		ts.tv_sec = monosec;
+		us += monotick * TICK_US;
+		break;
+	default:
+		splx(s);
+		u.u_error = EINVAL;
+		return;
+	}
+	splx(s);
+	ts.tv_nsec = (long)us * 1000;
+	u.u_error = copyout((caddr_t)&ts, (caddr_t)uap->tp, sizeof ts);
+}
+
+void
+clock_getres(void)
+{
+	struct a {
+		int	clock_id;
+		struct ktimespec *tp;
+	} *uap = (struct a *)u.u_arg;
+	struct ktimespec ts;
+
+	if (uap->clock_id != CLOCK_REALTIME &&
+	    uap->clock_id != CLOCK_MONOTONIC) {
+		u.u_error = EINVAL;
+		return;
+	}
+	if (uap->tp == NULL)
+		return;
+	ts.tv_sec = 0;
+	ts.tv_nsec = 1000;
+	u.u_error = copyout((caddr_t)&ts, (caddr_t)uap->tp, sizeof ts);
+}
+```
 
 `gettimeofday` can share the sub-tick read for about +16 to +32 B (I), so the
 two calls agree to the microsecond; left alone, `gettimeofday` keeps its 1 ms

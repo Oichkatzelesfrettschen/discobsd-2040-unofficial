@@ -1,0 +1,179 @@
+diff --git a/sys/arch/rp2040/dev/flash.c b/sys/arch/rp2040/dev/flash.c
+index 6f1185a1..fe406ae2 100644
+--- a/sys/arch/rp2040/dev/flash.c
++++ b/sys/arch/rp2040/dev/flash.c
+@@ -65,6 +65,8 @@
+ #include <rp2040/dhara/map.h>
+ #include <rp2040/rp2040/clock_catchup.h>
+ 
++u_short swap_wear_probe[FLASH_SWAP_BYTES / FLASH_SECTOR_BYTES];
++
+ #ifdef STORAGE_STATS
+ static struct storage_stats flstats = {
+     .version = STORAGE_STATS_VERSION,
+@@ -557,6 +559,13 @@ flash_erase(u_int offset, u_int len)
+ 	if (!flash_write_admitted(offset, len, flash_write_end))
+ 		return -1;
+ 	s = splhigh();
++	if (offset >= FLASH_SWAP_OFFSET) {
++		u_int probe_i;
++
++		for (probe_i = 0; probe_i < len / FLASH_SECTOR_BYTES; probe_i++)
++			swap_wear_probe[(offset - FLASH_SWAP_OFFSET) /
++			    FLASH_SECTOR_BYTES + probe_i]++;
++	}
+ 	storage_note(offset >= FLASH_SWAP_OFFSET ?
+ 	    STORAGE_SWAP_ERASE_SECTORS : STORAGE_ROOT_ERASE_SECTORS,
+ 	    len / FLASH_SECTOR_BYTES);
+diff --git a/sys/arch/rp2040/rp2040/sysctl.c b/sys/arch/rp2040/rp2040/sysctl.c
+index bcfc8101..6b21502c 100644
+--- a/sys/arch/rp2040/rp2040/sysctl.c
++++ b/sys/arch/rp2040/rp2040/sysctl.c
+@@ -236,6 +236,37 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
+ 			struct storage_stats stats;
+ 
+ 			storage_snapshot(&stats);
++			{
++				extern u_short swap_wear_probe[96];
++				extern struct swap_who_probe {
++					char name[8];
++					u_short count[3];
++					u_int sectors[3];
++					u_short span_min[3];
++					u_short span_max[3];
++				} swap_who_probe[16];
++				static const char *const path[3] = { "ram", "copy", "exch" };
++				int wi, k;
++
++				printf("\nswapwear");
++				for (wi = 0; wi < 96; wi++)
++					printf("%s%u", wi % 16 ? " " : "\nswapwear ",
++					    swap_wear_probe[wi]);
++				printf("\nswapwear end\n");
++				for (wi = 0; wi < 16; wi++) {
++					if (swap_who_probe[wi].name[0] == 0)
++						continue;
++					printf("swapwho %s", swap_who_probe[wi].name);
++					for (k = 0; k < 3; k++)
++						printf(" %s %u %u %u %u", path[k],
++						    swap_who_probe[wi].count[k],
++						    swap_who_probe[wi].sectors[k],
++						    swap_who_probe[wi].span_min[k],
++						    swap_who_probe[wi].span_max[k]);
++					printf("\n");
++				}
++				printf("swapwho end\n");
++			}
+ 			return sysctl_rdstruct(oldp, oldlenp, newp, &stats,
+ 			    sizeof stats);
+ 		}
+diff --git a/sys/kern/vm_swap.c b/sys/kern/vm_swap.c
+index 1d1783f7..8feef123 100644
+--- a/sys/kern/vm_swap.c
++++ b/sys/kern/vm_swap.c
+@@ -48,6 +48,68 @@ swap_image_span_geometry (size_t data_size, size_t stack_size,
+ #endif
+ }
+ 
++/*
++ * Measurement probe: completed swap-outs by command name and path. The
++ * name is copied before any transfer, because the in-place exchange puts
++ * the incoming process's u area where the outgoing one was. sectors[] holds
++ * exact sums of image spans in 4 KiB sectors, per path.
++ */
++#define SWAP_WHO_RAM    0
++#define SWAP_WHO_COPY   1
++#define SWAP_WHO_EXCH   2
++struct swap_who_probe {
++    char    name[8];
++    u_short count[3];
++    u_int   sectors[3];
++    u_short span_min[3];
++    u_short span_max[3];
++} swap_who_probe[16];
++
++static char swap_who_exchange_name[8], swap_who_copy_name[8];
++
++static void
++swap_who_name (struct proc *p, char *name)
++{
++    const char *comm = ((struct user *) p->p_addr)->u_comm;
++    int k;
++
++    for (k = 0; k < 7 && comm[k]; k++)
++        name[k] = comm[k];
++    if (k == 0)
++        name[k++] = '?';
++    name[k] = 0;
++}
++
++static void
++swap_who_note (const char *name, size_t span, int path)
++{
++    struct swap_who_probe *w;
++    u_int sectors = span / 4;
++    int i, k;
++
++    for (i = 0; i < 15; i++) {
++        w = &swap_who_probe[i];
++        if (w->name[0] == 0) {
++            for (k = 0; k < 8; k++)
++                w->name[k] = name[k];
++            break;
++        }
++        for (k = 0; k < 8 && w->name[k] == name[k] && name[k]; k++)
++            ;
++        if (k == 8 || w->name[k] == name[k])
++            break;
++    }
++    w = &swap_who_probe[i];
++    if (i == 15)
++        w->name[0] = '*';
++    w->count[path]++;
++    w->sectors[path] += sectors;
++    if (w->span_min[path] == 0 || sectors < w->span_min[path])
++        w->span_min[path] = sectors;
++    if (sectors > w->span_max[path])
++        w->span_max[path] = sectors;
++}
++
+ #if defined(STORAGE_STATS) && defined(SWAPRAM) && defined(SWAP_IMAGE_ALIGN)
+ /*
+  * Admission probe histogram (sys/storage_stats.h): a completed swap-out
+@@ -566,6 +628,7 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
+         reservation->state != SWAP_IMAGE_RESERVED ||
+         reservation->tier != SWAP_IMAGE_EXCHANGE)
+         panic ("swap exchange: reservation");
++    swap_who_name (outgoing, swap_who_exchange_name);
+     incoming_sectors = reservation->exchange_span / SWAP_IMAGE_ALIGN;
+     outgoing_sectors = reservation->span / SWAP_IMAGE_ALIGN;
+     sector_count = incoming_sectors > outgoing_sectors ? incoming_sectors :
+@@ -616,6 +679,7 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
+ #ifdef SWAPRAM
+     /* Completion is counted once every sector has been transferred. */
+     storage_note (STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS, 1);
++    swap_who_note (swap_who_exchange_name, reservation->span, SWAP_WHO_EXCH);
+     SWAP_NOTE_SPAN (STORAGE_SWAPRAM_FLASH_SPAN_01, reservation->span);
+ #endif
+ 
+@@ -666,6 +730,7 @@ swap_image_copy_out (struct swap_image_reservation *reservation,
+     if (reservation->owner != p ||
+         reservation->state != SWAP_IMAGE_RESERVED)
+         panic ("swap image: copy owner");
++    swap_who_name (p, swap_who_copy_name);
+ #ifdef SWAPRAM
+     storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
+     if (ram)
+@@ -726,6 +791,12 @@ swap_image_copy_out (struct swap_image_reservation *reservation,
+         storage_note (STORAGE_SWAPRAM_FLASH_SWAPOUTS, 1);
+         SWAP_NOTE_SPAN (STORAGE_SWAPRAM_FLASH_SPAN_01, reservation->span);
+     }
++#endif
++#ifdef SWAPRAM
++    swap_who_note (swap_who_copy_name, reservation->span,
++        ram ? SWAP_WHO_RAM : SWAP_WHO_COPY);
++#else
++    swap_who_note (swap_who_copy_name, reservation->span, SWAP_WHO_COPY);
+ #endif
+     reservation->state = SWAP_IMAGE_COPIED;
+ }

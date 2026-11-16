@@ -56500,7 +56500,8 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast"
+            "integer-cast",
+            "shift-expression"
           ],
           "object_lifetime": [],
           "pointer": [
@@ -60183,9 +60184,7 @@
           ],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -83238,9 +83237,7 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [
-            "shift-expression"
-          ],
+          "integer": [],
           "object_lifetime": [],
           "pointer": [],
           "prototype": [],

@@ -61,6 +61,7 @@ char bufdata[NBUF * MAXBSIZE];
 struct timeval time;
 int securelevel;
 dev_t rootdev;
+dev_t swapdev;
 static void (*sleep_completion)(caddr_t);
 static void (*driver_open_pause)(void), (*driver_close_pause)(void);
 static caddr_t scheduler_wait_channels[2];
@@ -1002,6 +1003,7 @@ boot_machine(void)
 	init_buffers();
 
 	rootdev = FL_ROOT;
+	swapdev = FL_SWAP;
 	fs = mountfs(FL_ROOT, MNT_NOATIME, 0);
 	HK_CHECK(fs != NULL);
 	/* The swap unit is set up once swapping starts; it holds no partition. */
@@ -2565,8 +2567,21 @@ test_overlap_flash(void)
 	HK_CHECK(try_open(FL_ROOT, IFBLK | 0600, FREAD) == EBUSY);
 	HK_CHECK(try_open(FL_WHOLE, IFBLK | 0600, FREAD) == EBUSY);
 	HK_CHECK(try_open(FL_WHOLE, IFBLK | 0600, FWRITE) == EBUSY);
-	/* fl1, the raw swap region, is another unit. */
+	/*
+	 * fl1, the raw swap region, is another unit than the mounted root, but
+	 * its blocks are swapdev's: a process may read them at any level and
+	 * write them at level 0 only, as the sw alias of swap.c.
+	 */
+	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FREAD) == 0);
+	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FWRITE) == EPERM);
+	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FREAD | FWRITE) == EPERM);
+	securelevel = 0;
 	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FWRITE) == 0);
+	securelevel = 2;
+	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FWRITE) == EPERM);
+	securelevel = 1;
+	/* The boot checks of the root, a different unit, keep their answers. */
+	HK_CHECK(try_open(FL_ROOT, IFBLK | 0600, FREAD) == EBUSY);
 	/* Another partition of the table that does not overlap the root. */
 	fldrives[0].part[2].dp_offset = 102;
 	fldrives[0].part[2].dp_nsectors = 20;

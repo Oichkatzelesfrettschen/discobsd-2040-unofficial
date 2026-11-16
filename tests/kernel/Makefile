@@ -274,6 +274,8 @@ UFS_DISK_EXTRA_MUTANTS+= device-inheritance-unmasked sys_inode \
 	device-block-policy-raise-ignored sys_inode \
 	device-raw-policy-raise-ignored sys_inode \
 	device-reuse-state-kept ufs_inode
+UFS_DISK_EXTRA_MUTANTS+= device-swapdev-write-admitted sys_inode \
+	device-swapdev-level-one-ignored sys_inode
 UFS_DISK_EXTRA_MUTANTS+= device-checkpoint-omitted ufs_syscalls2 \
 	device-checkpoint-error-hidden ufs_syscalls2 \
 	device-checkpoint-unsupported-fatal ufs_syscalls2 \

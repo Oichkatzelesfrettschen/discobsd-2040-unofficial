@@ -667,6 +667,14 @@ openi(register struct inode *ip, int mode)
         error = securelevel >= 2 && (mode & FWRITE) && isdisk(dev, IFBLK) ? EPERM : 0;
         if (error == 0 && securelevel > 0)
             error = ufs_mountedon(dev);
+        /*
+         * The swap blocks are as closed to a process write as the sw alias
+         * of swap.c: a node of swapdev's unit, fl1 on a flash kernel, is
+         * not mounted and isdisk() refuses it only at level 2.
+         */
+        if (error == 0 && securelevel > 0 && (mode & FWRITE) &&
+            blkoverlap(swapdev, dev))
+            error = EPERM;
         if (error) {
             bdevunlock(ip);
             return error;

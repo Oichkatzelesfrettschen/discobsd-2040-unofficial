@@ -67,3 +67,6 @@ options         "UART_BAUD=115200"          # default speed
 options        SWAPRAM                     # RAM tier ahead of fl1
 options        "SWAPRAM_KB=16"             # kbytes of bss for the pool
 options        EXEC_HSAOUT                 # packed a.out executables
+
+# On-chip and board peripherals, one line per driver.
+options         DEV_ADC                     # RP2040 ADC: temperature and VSYS sysctls

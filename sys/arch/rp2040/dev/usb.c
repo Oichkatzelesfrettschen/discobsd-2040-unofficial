@@ -361,6 +361,8 @@ u_int usb_e15_deferred;			/* Bulk IN arms the E15 guard held. */
 u_int usb_e15_bulkin_arms;		/* Bulk IN arms attempted, held or not. */
 u_int usb_service_reentered;		/* Services refused to a nested caller. */
 u_int usb_tx_recovered;			/* Bulk IN buffers freed from a lost arm. */
+u_int usb_tx_peak;			/* Greatest ring occupancy, bytes. */
+u_int usb_tx_dropped;			/* Bytes discarded from a full ring. */
 
 /*
  * Depth of usb_service. PRIMASK, which spltty and splhigh both set, raises
@@ -890,10 +892,18 @@ usb_tx_idle(void)
 static void
 usb_tx_put(u_char c)
 {
-	if (usbd.tx_head - usbd.tx_tail >= USB_TXRING)
+	u_int queued;
+
+	if (usbd.tx_head - usbd.tx_tail >= USB_TXRING) {
 		usbd.tx_tail++;
+		if (usb_tx_dropped < USB_TX_DROPPED_MAX)
+			usb_tx_dropped++;
+	}
 	usb_tx_ring[usbd.tx_head % USB_TXRING] = c;
 	usbd.tx_head++;
+	queued = usbd.tx_head - usbd.tx_tail;
+	if (queued > usb_tx_peak)
+		usb_tx_peak = queued;
 }
 
 /* A bulk OUT buffer has data from the host. */

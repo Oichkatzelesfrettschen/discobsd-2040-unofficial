@@ -26,8 +26,9 @@ It then runs, in order:
    kern.capacity counts a failure the snapshot before the workload lacks;
 4. recovery: the workload's files are removed, the board reboots, a root
    shell returns, the boot's own fsck -p printed its summary of the root
-   and went on to the daemons with no repair or failure line (/etc/rc
-   prints one beginning "---" for every other fsck status; securelevel 1
+   and the boot went on to the login prompt with no repair or failure line
+   (etc/rc.rp2040 prints one beginning "---" for every other fsck status,
+   and init, not /etc/rc, starts the daemons; securelevel 1
    refuses a second fsck of the mounted root), df reports the free space it
    reported before the workload, and a final command answers.
 
@@ -211,9 +212,9 @@ def main():
         summary = FSCK_SUMMARY.search(boot)
         print("boot fsck: %s" % (summary.group(0).strip() if summary else "no summary line"))
         console.check(
-            "the boot's fsck -p reports a clean root and the boot goes on",
+            "the boot's fsck -p reports a clean root and the boot reaches login",
             summary is not None
-            and "Starting daemons" in boot[summary.end() :]
+            and re.search(r"login: ?$", boot[summary.end() :], re.M) is not None
             and "\n---" not in boot,
             results,
         )

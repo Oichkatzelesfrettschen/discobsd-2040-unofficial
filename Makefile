@@ -826,6 +826,13 @@ check-libc-assert: check-python
 		HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q}' -DDISCOBSD_ASSERT_TEST=1' \
 		    ${PYTHON} tests/libc_contracts/assert_check.py
 
+# The err family (lib/libc/gen/err.c) against its owning header, with
+# calibrating mutants; check-libc-host-contracts runs it through check-host.
+check-libc-err: check-python
+		${MAKE} -C tests/libc_contracts check-err HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q}
+
+.PHONY: check-libc-err
+
 check-libc-host-contracts:
 		${MAKE} -C tests/libc_contracts check-host
 

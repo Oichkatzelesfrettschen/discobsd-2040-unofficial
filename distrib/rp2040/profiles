@@ -146,7 +146,7 @@ closure ridge needs closure lcdgfx
 # sys/arch/rp2040/doc/PROFILES.md holds the method, the marginal cost of
 # each multicall member inside the full set, and the profile totals.
 #
-cost coremark 16 1
+cost coremark 15 1
 cost as 25 1
 cost ld 18 1
 cost smlrc 42 1

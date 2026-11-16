@@ -32,6 +32,16 @@
 #ifndef REBOOT_SHIM_UTMP_H
 #define REBOOT_SHIM_UTMP_H
 
+/*
+ * The macOS SDK keeps _PATH_WTMP in its own <utmp.h>, which this shim
+ * replaces, so supply the path where <paths.h> lacks it.
+ * REBOOT_SHIM_NO_WTMP_FALLBACK removes the fallback for sdk_gap.sh.
+ */
+#include <paths.h>
+#if !defined(_PATH_WTMP) && !defined(REBOOT_SHIM_NO_WTMP_FALLBACK)
+#define _PATH_WTMP "/var/log/wtmp"
+#endif
+
 typedef long utime32_t;
 
 struct utmp {

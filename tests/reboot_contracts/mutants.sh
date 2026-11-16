@@ -28,14 +28,13 @@
 # Calibration of the reboot contract: each broken copy of reboot.c must make
 # the harness exit nonzero, and each sed must change the source, so a
 # pattern that stops matching fails here instead of passing silently.
-# usage: mutants.sh HOSTCC HOST_CFLAGS RENAMES REBOOT_C DIR
+# usage: mutants.sh HOSTCC HOST_CFLAGS REBOOT_C DIR
 set -eu
 
 cc=$1
 cflags=$2
-renames=$3
-src=$4
-dir=$5
+src=$3
+dir=$4
 
 fail=0
 n=0
@@ -50,7 +49,8 @@ mutate() {
 		return
 	fi
 	# shellcheck disable=SC2086
-	"$cc" $cflags -Wno-error $renames -c -o "$dir/mutant_$name.o" "$dir/mutant_$name.c"
+	"$cc" $cflags -Wno-error "-DREBOOT_SOURCE=\"$dir/mutant_$name.c\"" \
+	    -c -o "$dir/mutant_$name.o" "$dir/reboot_unit.c"
 	# shellcheck disable=SC2086
 	"$cc" $cflags -o "$dir/mutant_$name" "$dir/reboot_contract_test.c" \
 	    "$dir/mutant_$name.o"

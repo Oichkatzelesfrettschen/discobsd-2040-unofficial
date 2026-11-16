@@ -436,3 +436,16 @@ establishes physical-hardware protection for the 192 KB map.
 The Renode transcript in the Evidence section reads `programmed=3` from an
 earlier three-region map; the board transcript and `mpu.c` program four. The
 transcript stays as captured until the next `check-renode` run replaces it.
+
+## The privilege that the map does not close: `ucall`
+
+The map separates a process from the kernel by memory access. `ucall(2)`
+(`sys/arch/rp2040/rp2040/sysctl.c`) is a system call that lets the superuser
+run a function at a caller-given address at kernel privilege, where the map is
+the background map and every region is open. It is not a fault the map can
+raise, so the kernel gates it by the security level: `ucall()` returns
+`EPERM` when `securelevel` is above 0, which `init` sets on entering
+multiuser mode. At level 0, before that, and on a kernel built with
+`PERMANENTLY_INSECURE`, a superuser process holds kernel privilege through
+it. `check-ucall-qemu` covers the refusal; no fault test applies, because the
+refusal is a test in the call and not an MPU region.

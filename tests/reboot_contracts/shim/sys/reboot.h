@@ -33,4 +33,15 @@
  */
 #include "../../../../sys/sys/reboot.h"
 
+/*
+ * reboot.c includes <sys/signal.h> and calls kill(). Some C libraries (the
+ * macOS SDK) declare kill() only in <signal.h>, so the shim includes it:
+ * with -Dkill=test_kill the declaration is the one the harness defines.
+ * REBOOT_SHIM_NO_SIGNAL_H removes it for the sdk_gap.sh calibration.
+ */
+#ifndef REBOOT_SHIM_NO_SIGNAL_H
+#include <sys/types.h>
+#include <signal.h>
+#endif
+
 int reboot(int howto);

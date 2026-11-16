@@ -398,8 +398,8 @@ were. Repeating the host model's trace at 758 live sectors gives 1.20 pages
 per batched write
 against 6.28 at 989, and 8.00 per write with a checkpoint after each, as
 before. The share grows as the system allocates blocks, since a written
-block stays live after it is freed until it is written again: the kernel
-issues no trim, because trim at free cost more root erases on the board
+block keeps its Dhara sector mapped after it is freed: the kernel issues no
+trim, because trim at free cost more root erases on the board
 than leaving freed blocks mapped
 (`docs/research/unimplemented-storage-work.md`).
 `check-flash-sparse` reads a flashimg region back through the map.

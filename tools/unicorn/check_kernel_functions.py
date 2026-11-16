@@ -95,6 +95,7 @@ try:
         KernelImage,
         Policy,
         armv6m_check,
+        clobber_probe,
         disassemble,
         literal_words,
         subset_probe,
@@ -811,9 +812,19 @@ def main() -> int:
             count = armv6m_check(image, function)
             print(f"PASS unicorn-kernel armv6m {function}: {count} instructions, all ARMv6-M")
         tables = table_mutants(image)
+        wrong = clobber_probe(image)
     except CallFailure as failure:
         print(f"FAIL unicorn-kernel setup: {failure}")
         return 2 if failure.kind == "setup" else 1
+
+    if wrong:
+        print(f"FAIL unicorn-kernel callback model: {'; '.join(wrong)}")
+        return 1
+    print(
+        "PASS unicorn-kernel callback model: a callback returns with r1, r2, r3, r12 and the "
+        "flags changed; a function that keeps a value in one of them across the call is "
+        "exposed, one that saves it in r5-r7 passes"
+    )
 
     failed = 0
     good = KernelEmulator(image)

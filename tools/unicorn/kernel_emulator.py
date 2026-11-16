@@ -55,7 +55,11 @@ page alone catches an overrun only on the side where a buffer sits flush.
 A host callback is a code address in the trap page holding `bx lr`; a code
 hook runs the Python function there with the AAPCS argument registers and
 writes its result to r0, so a kernel function that takes a function
-pointer calls back into the model.
+pointer calls back into the model. The callback returns the way an AAPCS
+callee may: r1-r3, r12 and the NZCV flags leave it holding fresh varied
+values (clobber_caller_saved), so machine code that keeps live state in one
+of them across the call fails. clobber_probe() runs six synthetic functions,
+five of which do that, and requires the model to expose each.
 """
 
 from __future__ import annotations
@@ -346,6 +350,7 @@ class KernelEmulator:
         self.policy: Policy | None = None
         self.violation: str | None = None
         self.calls = 0
+        self.callbacks_run = 0
         self.violation_kind = "memory"
         self.checked_blocks: set[int] = set()
         self.memory_hook = self.uc.hook_add(UC_HOOK_MEM_READ | UC_HOOK_MEM_WRITE, self._access)
@@ -455,16 +460,39 @@ class KernelEmulator:
         if function is None:
             return
         arguments = [uc.reg_read(r) for r in ARGUMENT_REGISTERS]
-        result = function(*arguments)
-        uc.reg_write(UC_ARM_REG_R0, result & 0xFFFFFFFF)
+        result = function(*arguments) & 0xFFFFFFFF
+        self.callbacks_run += 1
+        # The modeled callee returns in r0 and, as the AAPCS lets any callee,
+        # leaves r1-r3, r12 and the flags undefined.
+        self.clobber_caller_saved((self.callbacks_run * 0x85EBCA6B) & 0xFFFFFFFF)
+        uc.reg_write(UC_ARM_REG_R0, result)
+
+    def clobber_caller_saved(self, salt: int) -> None:
+        """Give r1-r3, r12 and NZCV fresh values derived from the call count
+        and salt: the registers a callee may change without restoring them."""
+        mix = (self.calls * 0x9E3779B9 + salt) & 0xFFFFFFFF
+        for register in ARGUMENT_REGISTERS[1:]:
+            self.uc.reg_write(register, mix ^ register)
+        self.uc.reg_write(UC_ARM_REG_R12, mix ^ 0x5C5C5C5C)
+        self.uc.reg_write(UC_ARM_REG_APSR_NZCV, (mix >> 28) << 28)
 
     # The call.
 
-    def call(self, name: str, *arguments: int, policy: Policy | None, budget: int) -> int:
+    def call(
+        self,
+        name: str,
+        *arguments: int,
+        policy: Policy | None,
+        budget: int,
+        entry: int | None = None,
+    ) -> int:
         """Call a function. A policy of None runs it without the access
         hook, for a helper outside the test (the encoder that builds a
-        stream), where a Python call per access would dominate the run."""
-        entry = self.image.function(name).address
+        stream), where a Python call per access would dominate the run.
+        An entry address runs code outside the kernel image (the synthetic
+        functions of clobber_probe) under name."""
+        if entry is None:
+            entry = self.image.function(name).address
         # Every register a caller may not rely on gets a fresh value per
         # call: the unused argument registers, r12 and the NZCV flags, so
         # code that reads one before writing it cannot borrow the previous
@@ -560,6 +588,59 @@ def subset_probe() -> list[str]:
     return failures
 
 
+# Synthetic Thumb functions f(callback, a, b, c) for clobber_probe: each calls
+# the callback and returns a value. CLOBBER_GOOD keeps a, b and c in r5-r7
+# across the call and returns their sum, the AAPCS-conforming shape. Each
+# CLOBBER_BAD entry returns a register it did not save, which the AAPCS lets
+# the callee change: r1 (a), r2 (b), r3 (c), r12 (a, moved there first) and
+# the Z flag set by MOVS (expected 1, the value preserved flags would give).
+CLOBBER_ARGUMENTS = (0x11111111, 0x22222222, 0x33333333)
+CLOBBER_GOOD = bytes.fromhex("f0b504000d0016001f000020a047a819c019f0bd")
+CLOBBER_BAD = (
+    ("r1", bytes.fromhex("10b504000020a047080010bd"), 0x11111111),
+    ("r2", bytes.fromhex("10b504000020a047100010bd"), 0x22222222),
+    ("r3", bytes.fromhex("10b504000020a047180010bd"), 0x33333333),
+    ("r12", bytes.fromhex("10b504008c460020a047604610bd"), 0x11111111),
+    ("flags", bytes.fromhex("10b504000020a04701d0002010bd012010bd"), 1),
+)
+CLOBBER_CODE = TRAP_BASE + 0x800  # one 0x40-byte slot per function: Unicorn caches translations
+CLOBBER_RUNS = 8
+
+
+def clobber_probe(image: KernelImage) -> list[str]:
+    """Check the callback model against synthetic machine code: the failures
+    among the conforming function (it must return the sum of its arguments
+    on every run) and the five that read a caller-saved register after the
+    callback (each must return a wrong value on some run). Empty when the
+    model clobbers r1-r3, r12 and the flags and conforming code still passes."""
+    failures = []
+    emu = KernelEmulator(image)
+    callback = emu.callback(lambda *_arguments: 0)
+    expected = sum(CLOBBER_ARGUMENTS) & 0xFFFFFFFF
+
+    def run(slot: int, code: bytes) -> list[int]:
+        address = CLOBBER_CODE + 0x40 * slot
+        emu.write(address, code)
+        return [
+            emu.call(
+                "clobber_probe",
+                callback,
+                *CLOBBER_ARGUMENTS,
+                policy=None,
+                budget=200,
+                entry=address | 1,
+            )
+            for _ in range(CLOBBER_RUNS)
+        ]
+
+    if any(result != expected for result in run(0, CLOBBER_GOOD)):
+        failures.append("conforming function returned a wrong sum")
+    for slot, (label, code, preserved) in enumerate(CLOBBER_BAD, 1):
+        if all(result == preserved for result in run(slot, code)):
+            failures.append(f"{label} survived the callback in all {CLOBBER_RUNS} runs")
+    return failures
+
+
 def thumb2_probe() -> tuple[bool, str]:
     """Run RBIT r0, r0 (fa90 f0a0, ARMv7-M only) under the Cortex-M0 model.
 
@@ -586,6 +667,7 @@ __all__ = [
     "KernelImage",
     "Policy",
     "armv6m_check",
+    "clobber_probe",
     "disassemble",
     "literal_words",
     "subset_probe",

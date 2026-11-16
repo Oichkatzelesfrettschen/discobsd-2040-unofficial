@@ -2733,6 +2733,12 @@ write only, and calls one function by the AAPCS: four register arguments,
 the rest on an 8-byte aligned stack, and a return trap outside the RP2040
 map. Each call starts with fresh values in r1-r3 beyond its arguments,
 r12 and the NZCV flags, so code cannot borrow a previous call's register.
+A modeled callback returns the same way an AAPCS callee may: r1-r3, r12 and
+the flags hold fresh varied values afterward, so code that keeps live state
+in one of them across the call fails. Before the properties run, the gate
+calls six synthetic Thumb functions that call back (one saving its arguments
+in r5-r7, five returning r1, r2, r3, r12 or the Z flag after the callback) and
+requires the model to pass the first and expose each of the others.
 A call fails on a fault, an instruction budget overrun, a stop away
 from the trap, a changed stack pointer or r4-r11, an unaligned halfword
 or word access (ARMv6-M faults one; Unicorn performs it) or any data

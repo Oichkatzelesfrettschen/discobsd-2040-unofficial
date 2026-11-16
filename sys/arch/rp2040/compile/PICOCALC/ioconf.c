@@ -4,6 +4,7 @@
 #define C (char *)
 
 extern const struct driver picocalcdriver;
+extern const struct driver psramdriver;
 extern const struct driver sddriver;
 extern const struct driver uartdriver;
 extern const struct driver uartusbdriver;
@@ -16,6 +17,7 @@ struct conf_ctlr conf_ctlr_init[] = {
 const struct conf_device conf_device_init[] = {
 	/* driver,	ctlr driver,	unit,	ctlr,	drive,	flags */
 	{ &picocalcdriver,	0,		-2,	0,	-2,	0x0 },
+	{ &psramdriver,	0,		-2,	0,	-2,	0x0 },
 	{ &sddriver,	0,		-2,	0,	-2,	0x0 },
 	{ &uartdriver,	0,		0,	0,	-2,	0x0 },
 	{ &uartusbdriver,	0,		-2,	0,	-2,	0x0 },

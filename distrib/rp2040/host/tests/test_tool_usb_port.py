@@ -11,6 +11,7 @@ only redirects to a URL), so it takes no selector and has no case here.
 
 from __future__ import annotations
 
+import sys
 import types
 
 import pytest
@@ -23,7 +24,16 @@ PORT_B = "1-4"
 
 
 def make_tree(tmp_path, boards):
-    """Fake sysfs and devfs with {usb_port: tty_name} boards; returns the env."""
+    """Fake sysfs and devfs with {usb_port: tty_name} boards; returns the env.
+
+    The tree copies Linux sysfs, whose interface directories are named
+    "<port>:<config>.<interface>". Windows rejects ':' in a file name, and
+    the selector reads sysfs only on Linux, so a test built on this tree is
+    skipped there; test_selector_without_sysfs_is_unsupported covers the
+    selector on a host without sysfs.
+    """
+    if sys.platform == "win32":
+        pytest.skip("the fake tree models Linux sysfs; ':' is not a Windows file name character")
     sysfs = tmp_path / "sys"
     devfs = tmp_path / "dev"
     sysfs.mkdir()
@@ -386,3 +396,21 @@ def test_web_session_refuses_a_second_board_attached_after_startup(monkeypatch, 
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+@pytest.mark.parametrize("source", ["flag", "environment"])
+def test_selector_without_sysfs_is_unsupported(source, tmp_path):
+    """A host without the sysfs tree (macOS, Windows) refuses the selector.
+
+    The refusal names the missing tree instead of falling back to discovery,
+    so a named board is never replaced by whichever board enumerates first.
+    """
+    absent = str(tmp_path / "no-sysfs")
+    environ = {"DISCOBSD_SYSFS_USB": absent, "DISCOBSD_DEVFS": str(tmp_path)}
+    kwargs = {"usb_port": PORT_A} if source == "flag" else {}
+    if source == "environment":
+        environ["DISCOBSD_USB_PORT"] = PORT_A
+    with pytest.raises(ports.BoardSelectionError) as caught:
+        ports.find_board(comports=lambda: [], environ=environ, **kwargs)
+    assert caught.value.kind == "unsupported"
+    assert caught.value.exit_code == 1

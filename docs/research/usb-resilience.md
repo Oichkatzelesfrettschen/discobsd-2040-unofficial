@@ -45,6 +45,35 @@ console by identity rather than by an enumeration-order number.
   and usbdrain bounds the pre-reset flush. A host that stops reading slows
   the console but does not wedge the kernel.
 
+## A silent console: read the kernel's RAM before anything resets it
+
+A forced reboot into the boot ROM keeps the kernel's SRAM, so the state
+behind a console that has gone silent can be saved and read after the fact
+(issue 569 asks for exactly that capture at the next occurrence). The
+sequence, on a host with picotool and the board still attached:
+
+1. Leave the board alone. A power cycle, a reflash or a plain `picotool
+   reboot` discards the RAM that explains the silence.
+2. Find the board's USB port (`ls /sys/bus/usb/devices`, the `2e8a` entry;
+   with two boards attached the capture needs the port named whatever the
+   count) and run `discobsd-sramdump capture --usb-port PORT --force-reset
+   --out silent-1`. This ends the session, then writes `silent-1/sram.bin`
+   and `silent-1/flash.bin` and leaves the board in the boot ROM.
+3. Decode with the `unix.elf` of the build that was flashed:
+   `discobsd-sramdump decode UNIX.ELF silent-1/sram.bin --flash
+   silent-1/flash.bin > silent-1/decode.txt`. A mismatch between the flash
+   and the ELF stops it, which is the signal to find the right ELF.
+4. Attach `sram.bin`, `flash.bin` and `decode.txt` to the issue, with the
+   ELF's SHA-256.
+5. Restart the board: `picotool reboot --bus B --address A` with the numbers
+   the capture printed, or replug.
+
+What to read in `decode.txt`: the `FLAG:` line (tty `TS_BUSY` with
+`usbd.tx_busy` 0 is the hypothesis state), `usbd.configured` and `dtr`, the
+`machdep.usb_*` counters, and each process's wait channel (a login shell
+asleep in `usbttys+0x...` is waiting for input; one asleep elsewhere names
+what it waits for). `distrib/rp2040/host/DEVELOPMENT.md` describes the tool.
+
 ## Open: a device-side bulk-OUT wedge
 
 After heavy repeated open/write/close cycling the device can reach a state

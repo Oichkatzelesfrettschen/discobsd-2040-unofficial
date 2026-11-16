@@ -53,7 +53,7 @@ ILP32_CC= ${HOSTCC}
 include ${TOPSRC}/tools/test-execution.mk
 include ${TOPSRC}/tools/qemu-arm.mk
 
-check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
+check-host: check-err ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
 	check-unistd-prototypes check-alarm-contract \
 	check-waitpid-contract \
 	check-mktime check-calendar64 check-difftime check-sleep \
@@ -700,7 +700,9 @@ CAL64_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-Derrno=calendar64_errno
 CAL64_ZONE=	-Dgetenv=calendar_getenv -Dgettimeofday=calendar_zone_gettimeofday
 CAL64_HEADERS=	${TARGET_DIR}/offtime.h ${TARGET_DIR}/tzstate.h \
-	${TOPSRC}/include/time.h ${TOPSRC}/sys/sys/_time_t.h
+	${TOPSRC}/include/time.h ${TOPSRC}/sys/sys/_time_t.h \
+	${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+	${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h
 CAL64_PROG.native=	calendar64_test
 CAL64_PROG.ilp32=	calendar64_test32
 CAL64_PROG.san=		calendar64_test_san
@@ -863,16 +865,21 @@ check-difftime: difftime_contract_test
 	${TEST_EXECUTION} skip libc.difftime.negative "check-libc-difftime: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
-# sleep() at the 32-bit view against two replayed clock readings
-# (sleep_contract_test.c). The negative control compares the readings
-# signed, which only a four-byte long exposes, so it runs as ILP32.
+# sleep() at the 32-bit view against two replayed clock readings and against
+# a model of the kernel's timeout limits (sleep_contract_test.c). The
+# negative control that compares the readings signed only a four-byte long
+# exposes, so it runs as ILP32; the one that sleeps the whole request in a
+# single select() fails at any width.
 SLEEP_CFLAGS=	-std=c17 -Wall -Wextra -Werror \
 	-Wno-deprecated-non-prototype -nostdinc \
 	-isystem ${TOPSRC}/include -Dsleep=db_sleep \
-	-Dgettimeofday=test_gettimeofday -Dselect=test_select ${NARROW_TIME}
+	-Dgettimeofday=test_gettimeofday -Dselect=test_select \
+	-Dpselect=test_pselect -Dsigprocmask=test_sigprocmask ${NARROW_TIME}
 
-check-sleep: sleep_contract_test
+check-sleep: sleep_contract_test sleep_unchunked_bad_test sleep_unmasked_bad_test
 	${TEST_EXECUTION} run libc.sleep.native -- ./sleep_contract_test
+	${TEST_EXECUTION} run libc.sleep.unchunked-negative -- ./sleep_unchunked_bad_test
+	${TEST_EXECUTION} run libc.sleep.unmasked-negative -- ./sleep_unmasked_bad_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} sleep_contract_test32 sleep_bad_test32
 	${TEST_EXECUTION} run libc.sleep.ilp32 -- ./sleep_contract_test32
@@ -889,6 +896,18 @@ sleep_contract_test: sleep_contract_test.c ${TARGET_DIR}/sleep.c
 sleep_contract_test32: sleep_contract_test.c ${TARGET_DIR}/sleep.c
 	${HOSTCC} ${ILP32} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
 	    ${TARGET_DIR}/sleep.c
+
+# The negative control for the kernel cases: one select() of the whole
+# request, as before the chunked loop. It fails at any width.
+sleep_unchunked_bad_test: sleep_contract_test.c sleep_unchunked_bad.c
+	${HOSTCC} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
+	    sleep_unchunked_bad.c
+
+# The negative control for the signal cases: the chunked loop in select()
+# with the caller's mask untouched. It fails at any width.
+sleep_unmasked_bad_test: sleep_contract_test.c sleep_unmasked_bad.c
+	${HOSTCC} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
+	    sleep_unmasked_bad.c
 
 sleep_bad_test32: sleep_contract_test.c sleep_signed_bad.c
 	${HOSTCC} ${ILP32} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
@@ -1676,6 +1695,8 @@ ctermid.o: ${TARGET_DIR}/ctermid.c
 header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
     ${TOPSRC}/include/stdlib.h ${TOPSRC}/include/string.h \
     ${TOPSRC}/include/strings.h ${TOPSRC}/include/time.h \
+    ${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+    ${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h \
     ${TOPSRC}/include/vis.h ${TOPSRC}/include/_featuretest.h
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -ffreestanding -nostdinc \
 	    -isystem ${TOPSRC}/include -c -o $@ header_contract.c
@@ -1697,7 +1718,8 @@ clean:
 		calendar64_test32_san calendar64_vectors.h cal64_*.o
 	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_tzset.o \
 		ctime_ctime32.o ctime_tzset32.o calendar32_vectors.h
-	rm -f sleep_contract_test sleep_contract_test32 sleep_bad_test32
+	rm -f sleep_contract_test sleep_contract_test32 sleep_bad_test32 \
+	    sleep_unchunked_bad_test sleep_unmasked_bad_test
 	rm -f zone_contract_test zone_contract_test32 \
 		zone_ctime.o zone_tzset.o zone_ctime32.o zone_tzset32.o \
 		zone_timezone.o zone_timezone32.o
@@ -2155,3 +2177,8 @@ huge_val_contract_test_arm: huge_val_contract_test.c huge_val_header_arm.o \
 	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -o $@ huge_val_contract_test.c \
 	    huge_val_header_arm.o huge_val_stubs.c ${HV_ARM_OBJS} \
 	    ${PRINTF_ORACLE_ARM_OBJS} ${QEMU_SUPPORT} -lm ${QEMU_ARM_LIBS}
+
+check-err:
+	HOST_CC=${HOSTCC:Q} ${PYTHON} err_test.py
+
+.PHONY: check-err

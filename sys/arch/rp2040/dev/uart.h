@@ -53,6 +53,9 @@ _Static_assert(NUART == 1 || NUART == 2, "the RP2040 has UART0 and UART1");
 #define	UART_FR_RXFF		0x0040
 #define	UART_FR_TXFE		0x0080
 
+#define	UART_IFLS_RX_HALF	(2u << 3)	/* RXIFLSEL: RX FIFO >= 1/2 full. */
+#define	UART_IFLS_TX_HALF	(2u << 0)	/* TXIFLSEL: TX FIFO <= 1/2 full. */
+
 #define	UART_LCR_H_FEN		0x0010		/* FIFOs enabled. */
 #define	UART_LCR_H_WLEN_8	0x0060		/* Eight data bits. */
 
@@ -70,8 +73,24 @@ _Static_assert(NUART == 1 || NUART == 2, "the RP2040 has UART0 and UART1");
 /*
  * The hardware layer the tty half calls. Each replaces one ST LL_USART entry
  * point, with PL011 semantics: the ST parts signal an empty holding register,
- * the PL011 signals a full or empty FIFO.
+ * the PL011 signals a full or empty FIFO. A host test that defines
+ * UART_HOST_MODEL supplies these functions as a model of the PL011
+ * (tests/picocalc/uart_test.c) and compiles uart.c unchanged.
  */
+#ifdef UART_HOST_MODEL
+int	uart_tx_ready(u_int base);
+int	uart_tx_idle(u_int base);
+int	uart_tx_drained(u_int base);
+int	uart_rx_ready(u_int base);
+void	uart_tx_put(u_int base, int c);
+int	uart_rx_get(u_int base);
+void	uart_enable(u_int base);
+void	uart_disable(u_int base);
+void	uart_irq_enable(u_int base, u_int mask);
+void	uart_irq_disable(u_int base, u_int mask);
+u_int	uart_irq_status(u_int base);
+void	uart_irq_clear(u_int base, u_int mask);
+#else
 static __inline int
 uart_tx_ready(u_int base)
 {
@@ -82,6 +101,20 @@ static __inline int
 uart_tx_idle(u_int base)
 {
 	return (UART_REG(base, UART_FR) & UART_FR_BUSY) == 0;
+}
+
+/*
+ * The line has sent every byte written to it: the transmit FIFO is empty
+ * (TXFE) and the shift register has sent its stop bits (BUSY clear). BUSY
+ * is set while the FIFO holds data, so it alone decides on silicon (RP2040
+ * datasheet 4.2.8, UARTFR); TXFE is required as well so that a model whose
+ * BUSY tracks only the shift register cannot end the drain early.
+ */
+static __inline int
+uart_tx_drained(u_int base)
+{
+	return (UART_REG(base, UART_FR) & (UART_FR_TXFE | UART_FR_BUSY)) ==
+	    UART_FR_TXFE;
 }
 
 static __inline int
@@ -137,6 +170,7 @@ uart_irq_clear(u_int base, u_int mask)
 {
 	UART_REG(base, UART_ICR) = mask;
 }
+#endif	/* UART_HOST_MODEL */
 
 void		uartinit(int unit);
 int		uartopen(dev_t dev, int flag, int mode);

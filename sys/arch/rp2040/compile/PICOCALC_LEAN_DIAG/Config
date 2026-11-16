@@ -1,39 +1,53 @@
 #
-# Copyright (c) 2026 DiscoBSD
+# Copyright (c) 2026 GizmoBSD
+# All rights reserved.
 #
-# Permission to use, copy, modify, and distribute this software for any
-# purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
 #
-# ClockworkPi PicoCalc (mainboard V2.0) with a Raspberry Pi Pico, PSRAM swap
-# ==========================================================================
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-# The PICOCALC kernel plus the board's ESP-PSRAM64H driver. The two Config
-# files differ in the board line and the psram device only; the generated
-# sync gate (tools/config/check_generated_sync.py) holds them to that. The
-# board name is this directory's name, as for PICO_UART, so PARAM defines
-# -DPICOCALC_PSRAM; no source tests -DPICOCALC.
+# ClockworkPi PicoCalc (mainboard V2.0) with a Raspberry Pi Pico, lean with
+# diagnostics
+# =========================================================================
+#
+# The PICOCALC_LEAN kernel plus the options that gather diagnostic
+# evidence: the syscall and signal trace (SYSTRACE, kern.systrace and
+# kern.systracepid) and the fixed-table and u-area accounting
+# (CAPACITY_STATS, kern.capacity). The panel register test (LCD_PANELTEST,
+# branch rp2040-picocalc-panel-register-test) and later diagnostic options
+# join PICOCALC and this kernel together. This Config and PICOCALC_LEAN's
+# differ in the board line and those additions only; the generated sync gate
+# (tools/config/check_generated_sync.py) holds them to that. The board name
+# is this directory's name, so PARAM defines -DPICOCALC_LEAN_DIAG.
 #
 # To build the kernel, use:
-#   cd sys/arch/rp2040/compile/PICOCALC_PSRAM
+#   cd sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG
 #   tools/bin/config Config
 #   make clean
 #   make
 #
-# sys/arch/rp2040/doc/PICOCALC.md maps the board's pins and states what
-# each driver has and has not been observed doing on the hardware.
-#
 architecture    "rp2040"
 cpu             "RP2040"                    # Processor variant
-board           "PICOCALC_PSRAM"            # Board type
+board           "PICOCALC_LEAN_DIAG"        # Board type
 ldscript        "RP2040.ld"                 # Kernel memory linker script
 
 makeoptions     DEBUG="-g"                  # Debug symbols
@@ -64,14 +78,17 @@ options         "ROOT_MOUNT_FLAGS=MNT_NOATIME" # Reads do not dirty root inodes.
 
 # Console on the board's own panel and keyboard: the ST7365P on SPI1 and
 # the keyboard controller on I2C1, /dev/console as a 53x32 xterm-basic
-# terminal.
+# terminal. The same device serves the keyboard controller's battery,
+# charging, backlight and power-off registers as machdep.picocalc and sounds
+# the terminal bell on PWM slice 5.
 device          picocalc
 options         "CONS_MAJOR=LCDCONS_MAJOR"  # panel and keyboard
 options         "CONS_MINOR=0"
 
 # The board's ESP-PSRAM64H on GP2-GP5, GP20 and GP21, driven by PIO0. When it
 # identifies itself at boot it replaces fl1 as the 8 MB swap device behind the
-# SWAPRAM tier; otherwise swap stays on fl1.
+# SWAPRAM tier; any other probe outcome prints one line and leaves swap on
+# fl1, so the kernel also runs a PicoCalc whose PSRAM does not answer.
 device          psram
 
 # The SD card socket: SPI0 on GP16-GP19, card detect on GP22. A multi-mount
@@ -89,8 +106,8 @@ options         "NUART=1"                   # UART1's pins belong to the board
 # carries the reset interface picotool reboot -u uses.
 device          uartusb
 
-# Compressed RAM tier in front of the flash swap and packed executables,
+# Compressed RAM tier in front of the swap device and packed executables,
 # as on the PICO board.
-options        SWAPRAM                     # RAM tier ahead of fl1
+options        SWAPRAM                     # RAM tier ahead of the swap device
 options        "SWAPRAM_KB=16"             # kbytes of bss for the pool
 options        EXEC_HSAOUT                 # packed a.out executables

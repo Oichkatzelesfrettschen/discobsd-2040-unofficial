@@ -56,7 +56,7 @@ ufalloc(register int i)
  * System calls on descriptors.
  */
 void
-getdtablesize()
+getdtablesize(void)
 {
     u.u_rval = NOFILE;
 }
@@ -72,7 +72,7 @@ dupit(register int fd, register struct file *fp, int flags)
 }
 
 void
-dup()
+dup(void)
 {
     register struct a {
         int i;
@@ -90,7 +90,7 @@ dup()
 }
 
 void
-dup2()
+dup2(void)
 {
     register struct a {
         int i, j;
@@ -264,7 +264,7 @@ fsetown(struct file *fp, int value)
 }
 
 void
-close()
+close(void)
 {
     register struct a {
         int i;
@@ -280,7 +280,7 @@ close()
 }
 
 void
-fstat()
+fstat(void)
 {
     register struct file *fp;
     register struct a {
@@ -325,7 +325,7 @@ struct  file *lastf;
  * to point at the file structure.
  */
 struct file *
-falloc()
+falloc(void)
 {
     register struct file *fp;
     register int i;
@@ -401,7 +401,7 @@ closef(register struct file *fp)
  * Apply an advisory lock on a file descriptor.
  */
 void
-flock()
+flock(void)
 {
     register struct a {
         int fd;

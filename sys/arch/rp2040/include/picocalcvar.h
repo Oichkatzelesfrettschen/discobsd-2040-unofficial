@@ -20,8 +20,9 @@
 /*
  * machdep.picocalc: the PicoCalc keyboard controller's battery, backlight
  * and power-off registers (sys/arch/rp2040/dev/picokbd.c,
- * sys/arch/rp2040/doc/PICOCALC.md). Present in the PICOCALC kernel only;
- * the other kernels answer EOPNOTSUPP.
+ * sys/arch/rp2040/doc/PICOCALC.md). Present in the kernels with the
+ * picocalc device (PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG); the
+ * other kernels answer EOPNOTSUPP.
  */
 #ifdef KERNEL
 int	picocalc_sysctl(int *, u_int, void *, size_t *, void *, size_t);

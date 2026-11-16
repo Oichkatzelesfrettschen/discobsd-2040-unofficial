@@ -1,0 +1,113 @@
+{
+  "additional_checks": [
+    "Ruff lint",
+    "ShellCheck error severity",
+    "mypy --follow-imports=silent --ignore-missing-imports --check-untyped-defs",
+    "check-changed-comments and check-changed-text against main base",
+    "git diff --check"
+  ],
+  "archive_census": {
+    "archive_sha256": "262e5503d7b93d25f8ff033872deb8be97a0c391f04a8976a897b50f3ff7be4f",
+    "functions": 702,
+    "invalid_extents": [],
+    "members": 449,
+    "untyped_executable_globals": []
+  },
+  "invocations": [
+    {
+      "elapsed_seconds": 19.242,
+      "exit_code": 0,
+      "invocation": "rp2040-build-local-20261115T210823Z-49-03232a15",
+      "label": "rp2040-build-local",
+      "log_path": ".build-logs/rp2040-build-local-20261115T210823Z-49-03232a15/gate.log",
+      "log_sha256": "6468cd2de328ac77540543f19edd103bd426374bde11b270a9904fc78459bbf3",
+      "source_state": "uncommitted source; implementation matches qualified commit",
+      "state": "completed",
+      "status_sha256": "243f6fc4ceffb937e4b798478371cacf04780627941a665a28d1c6c3c5732243"
+    },
+    {
+      "elapsed_seconds": 53.968,
+      "exit_code": 0,
+      "invocation": "divider-extents-main-focused-20261115T210920Z-4-2f06e4ab",
+      "label": "divider-extents-main-focused",
+      "log_path": ".build-logs/divider-extents-main-focused-20261115T210920Z-4-2f06e4ab/gate.log",
+      "log_sha256": "abd76138ec35ac74c2a71f4494ca1f246d17c0880ad70e81ba17986e07fca063",
+      "source_state": "uncommitted source; implementation matches qualified commit",
+      "state": "completed",
+      "status_sha256": "0cda809bbf4905241546a173e34369fe561d85c435c449a579734892f59526c7"
+    },
+    {
+      "elapsed_seconds": 6.283,
+      "exit_code": 0,
+      "invocation": "divider-extents-main-arithmetic-20261115T211040Z-3-55f18462",
+      "label": "divider-extents-main-arithmetic",
+      "log_path": ".build-logs/divider-extents-main-arithmetic-20261115T211040Z-3-55f18462/gate.log",
+      "log_sha256": "0708d3135889ea69c61aa247d4b26b4153bd3fb97370c243fc4ccb3814bf269c",
+      "source_state": "uncommitted source; implementation matches qualified commit",
+      "state": "completed",
+      "status_sha256": "b65de7f1056b0c3f51c841b575eeffd9685253d686e91725966bc234f06ed3be"
+    },
+    {
+      "elapsed_seconds": 20.208,
+      "exit_code": 0,
+      "invocation": "divider-extents-main-adjacent-20261115T211046Z-1520-8196942a",
+      "label": "divider-extents-main-adjacent",
+      "log_path": ".build-logs/divider-extents-main-adjacent-20261115T211046Z-1520-8196942a/gate.log",
+      "log_sha256": "4afff84affdbda7b0aa725a20e61084a7108a4d9004d989232c088b2adf0b730",
+      "source_state": "uncommitted source; implementation matches qualified commit",
+      "state": "completed",
+      "status_sha256": "7169032091d33076f9ff1d90a6273fb690df9921c28d69015157e208666ac17f"
+    },
+    {
+      "elapsed_seconds": 44.836,
+      "exit_code": 0,
+      "invocation": "divider-extents-commit-focused-20261115T211155Z-3-be588176",
+      "label": "divider-extents-commit-focused",
+      "log_path": ".build-logs/divider-extents-commit-focused-20261115T211155Z-3-be588176/gate.log",
+      "log_sha256": "46306d8bae2ae9166daeea0c6fabe303dfb2141ff9d83456fcfea8a19c636bde",
+      "source_state": "clean qualified commit",
+      "state": "completed",
+      "status_sha256": "b91a7624a451e0407809ac0e0e88f60d8245650187930ec9382a639208da3a51"
+    }
+  ],
+  "limits": [
+    "No physical-board execution",
+    "Full aggregate and ILP32 tiers are not rerun for this metadata-only change",
+    "Bounded source review and final PR-head CI remain pending"
+  ],
+  "main_base": "96653cca4794956dc7875439cd7cdcdf0b04e7af",
+  "qualified_commit": "1f2d140a3026b48755196eceacb24becc4f863dd",
+  "qualified_tree_clean": true,
+  "resource_evidence": "divider-function-extents-measurements.json",
+  "results": {
+    "arithmetic_comparisons": 480800,
+    "arithmetic_controls_rejected": 11,
+    "arithmetic_model_steps": 356220,
+    "closure_unit_tests": 33,
+    "global_functions": 611,
+    "local_functions": 89,
+    "m4_controls_rejected": 2,
+    "metadata_controls_rejected": 6,
+    "native_missing_member_controls_rejected": 36,
+    "slot_calls": 888,
+    "slot_controls_rejected": 17,
+    "slot_images": 4,
+    "weak_functions": 2,
+    "window_controls_rejected": 9
+  },
+  "schema": 1,
+  "source_sha256": {
+    ".github/workflows/firmware.yml": "960b12dfaf3e5b50ee9ed35a69ceb5c70655624d453c7e29014626c7e15049f8",
+    "Makefile": "6145d0e023054a236a9c7b3db0aa9782f0252ab2f6d22a6060698e5b6c061bf9",
+    "docs/research/c17-semantic-migration-plan.md": "dc5843fd25420b7f0e17248fd4faeca5c31f446a0976e989186c6d6301b286d3",
+    "docs/research/xip-shared-libc/README.md": "ae83125f439899b69884c5b91833d18dd4e83b7a2afcabb7660a000a30b53d42",
+    "docs/research/xip-shared-libc/divider-function-extents-measurements.json": "c320b8bcdd60afc5614db426ac3c88c4613b4fca16902321c4ad835256fd869b",
+    "docs/research/xip-shared-libc/divider-function-extents.md": "c0e1f0e247ded66fc454e6b2bba973dd6432ad32e64c03a33464a5e50296ea8e",
+    "lib/libc/arm/gen/aeabi_div.S": "d8686c94c660f4e3149accc5e4b62ae24830d0eec7d2de736abece2763169974",
+    "sys/arch/rp2040/doc/TESTING.md": "fb7c345b7227ae07395a27959c4416a270de23874bdd2c308d44e02566fcf0a0",
+    "tests/rp2040/divider_ownership/README.md": "4fc6b234f9513e81db65336be5777205a1886959814b0bd5650bcc932a318c4e",
+    "tests/rp2040/divider_ownership/helper_extent_mutants.py": "7198894baeda25f08bc445b15f6bfae22796f5564a02a9cb931aee6010aa1779",
+    "tests/rp2040/divider_ownership/user_helper_mutants.sh": "593a8ba17d66cd395c4f123460735dd8fa977e17d632ced8a3cce307547b7560",
+    "tools/verify_rp2040_divider_ownership.py": "6853f019885d3dc6c0e010b970aa1873318389403a98b85714005b361eac6e9e"
+  }
+}

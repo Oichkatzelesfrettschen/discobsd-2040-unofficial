@@ -25,6 +25,7 @@ once with run_group itself (the scan must find nothing).
 
 import argparse
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -178,17 +179,55 @@ def _terminated_driver_leaves(probe, mode, command):
         _wait_gone(probe)
 
 
+PROBE_SOURCE = "#include <unistd.h>\nint main(void) { sleep(300); return 0; }\n"
+
+
+def _make_probe_program(probe):
+    """Return the path of a program named bc under probe that sleeps 300 s.
+
+    The scan finds a process by its executable path, so the probe must be a
+    file under the probe directory. A copy of sleep(1) serves where sleep is
+    its own program. Where it is one name of a multicall binary (uutils
+    coreutils on Ubuntu 26.04), the copy exits at once with "unknown
+    program", so the copy is run once and, when it fails, the probe is
+    compiled from PROBE_SOURCE with HOSTCC, CC or cc. Both programs ignore their
+    operand's meaning beyond a number of seconds.
+    """
+    bc = os.path.join(probe, "bc")
+    sleeper = shutil.which("sleep")
+    if sleeper is not None:
+        shutil.copyfile(sleeper, bc)
+        os.chmod(bc, 0o755)
+        try:
+            ran = subprocess.run([bc, "0"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, timeout=10.0, check=False)
+            if ran.returncode == 0:
+                return bc
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        os.unlink(bc)
+    # HOSTCC is the compiler the dcbc Makefile builds its host programs with
+    # and may carry flags ("cc -O1"), so it is split into an argument list.
+    compiler = shlex.split(os.environ.get("HOSTCC") or os.environ.get("CC") or "cc")
+    if not compiler or shutil.which(compiler[0]) is None:
+        return None
+    source = os.path.join(probe, "bc.c")
+    with open(source, "w", encoding="ascii") as handle:
+        handle.write(PROBE_SOURCE)
+    built = subprocess.run([*compiler, "-o", bc, source], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    return bc if built.returncode == 0 and os.path.exists(bc) else None
+
+
 def selftest(work):
     probe = os.path.join(os.path.abspath(work), "leakprobe")
     shutil.rmtree(probe, ignore_errors=True)
     os.makedirs(probe)
-    sleeper = shutil.which("sleep")
-    if sleeper is None:
-        print("SKIP dcbc process groups: no sleep program; no scan was calibrated")
+    bc = _make_probe_program(probe)
+    if bc is None:
+        print("SKIP dcbc process groups: no sleep program that runs under another name "
+              "and no C compiler to build one; no scan was calibrated")
         return 0
-    bc = os.path.join(probe, "bc")
-    shutil.copyfile(sleeper, bc)
-    os.chmod(bc, 0o755)
     # The shell is the direct child; bc is its background child.
     command = ["sh", "-c", '"$0" 300 & wait', bc]
 

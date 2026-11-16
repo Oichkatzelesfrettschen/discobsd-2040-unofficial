@@ -16,7 +16,8 @@ sys.path.insert(0, str(ROOT / "tools"))
 import check_rp2040_callout_roots as checker  # noqa: E402
 
 SOURCE_COUNTS = {"schedcpu": 1, "endtsleep": 1, "wakeup": 1, "kbd_poll": 3,
-                 "kbdreq_timeout": 1, "render_resume": 1, "bell_stop": 1}
+                 "kbdreq_timeout": 1, "render_resume": 1, "bell_stop": 1,
+                 "uartdrain": 2}
 
 
 def check_source(source, callback):
@@ -34,7 +35,8 @@ def main():
     data = (build / "unix.elf").read_bytes()
     ioconf = (build / "ioconf.o").read_bytes()
     objects = {name: (build / f"{name}.o").read_bytes()
-               for name in ("kern_synch", "tty", "picokbd", "lcdcons", "picoaudio")}
+               for name in ("kern_synch", "tty", "picokbd", "lcdcons", "picoaudio",
+                           "uart")}
     roots = checker.check_data(data, ioconf, objects)
     elf = ELFFile(io.BytesIO(data))
     symbols = elf.get_section_by_name(".symtab")

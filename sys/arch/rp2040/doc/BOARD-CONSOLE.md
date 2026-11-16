@@ -76,6 +76,12 @@ instead: `mputest` (`usr.bin/mputest`) faults on the first kernel RAM word
 above `USER_DATA_END` and reads the window's top word, and a test program
 whose image only a large enough window admits proves admission.
 
+A console that has gone silent still holds its explanation in SRAM:
+`discobsd-sramdump capture` forces the board into the boot ROM, which keeps
+the RAM, and saves it; `decode` prints the process table, wait channels and
+USB console state. The procedure and its limits are in
+`docs/research/usb-resilience.md` and `distrib/rp2040/host/DEVELOPMENT.md`.
+
 ## Test data must defeat SwapRAM compression
 
 A process image the scheduler or fork swaps out goes first to the SwapRAM

@@ -70,10 +70,54 @@ before and after the complete change.
 
 The RP2040 kernels expose `kern.capacity` when `CAPACITY_STATS` is enabled.
 The read-only, versioned structure records fixed-table occupancy, allocation
-failures, and overwritten kernel-stack bytes. The PICO and PICO_UART
-configurations enable the option. The counters collect evidence for a later
-capacity decision; they do not change `NPROC`, `NINODE`, `NFILE`, `NCLIST`,
-`NBUF`, `USIZE`, or the 8 KiB USB transmit ring.
+failures, and overwritten kernel-stack bytes. PICO_DIAG, PICO_UART, PICOCALC
+and PICOCALC_LEAN_DIAG enable the option. PICO and PICOCALC_LEAN omit it and
+the `SYSTRACE` hooks, and answer `EOPNOTSUPP` for `kern.capacity`,
+`kern.systrace` and `kern.systracepid`; `sysctl` reports that refusal as
+"value is not available", and `sbin/sysctl`, `usr.bin/picofetch` and
+`usr.sbin/pstat` treat it as an absent record. PICO_DIAG is PICO plus the
+two options (`compile/PICO_DIAG/unix.uf2`). PICOCALC, the full PicoCalc
+kernel and the default `UNION_KERNEL`, carries both, and PICOCALC_LEAN_DIAG
+is PICOCALC_LEAN plus the two options; `bmake MACHINE=rp2040
+UNION_KERNEL=PICOCALC_LEAN_DIAG flash` pairs it with a board's descriptor and
+writes `unix[-BOARD]-LEAN-DIAG.uf2` beside the default `unix[-BOARD].uf2`.
+The counters collect evidence for a later capacity decision; they do not
+change `NPROC`, `NINODE`, `NFILE`, `NCLIST`, `NBUF`, `USIZE`, or the 8 KiB
+USB transmit ring.
+
+The two options cost a kernel about 2,540 bytes of text (2,550 from PICO to
+PICO_DIAG, whose configuration name is five bytes longer; 2,542 from
+PICOCALC_LEAN to PICOCALC_LEAN_DIAG) and 2,560 bytes of flash image, and 96
+bytes of bss where the alignment of later objects does not absorb them. The
+table measures each kernel at the commit that split the PicoCalc kernels into
+PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG, built from a clean tree by
+arm-none-eabi-gcc 14.2.1 20241119 at the production flags. Text, data and bss
+are `arm-none-eabi-size unix.elf`; free RAM is `__kernel_data_end` minus
+`__kernel_ram_used_end` in `unix.map`; flash headroom is
+`tools/check_kernel_headroom.py` against the 130,816-byte FLASH region.
+
+| kernel | options | text | data | bss | free RAM | flash headroom |
+| --- | --- | --- | --- | --- | --- | --- |
+| PICO | neither | 99,911 | 272 | 42,928 | 23,120 | 30,752 |
+| PICO_DIAG | both | 102,461 | 272 | 42,928 | 23,120 | 28,192 |
+| PICO_UART | `CAPACITY_STATS` only | 91,913 | 216 | 18,208 | 39,648 | 38,744 |
+| PICOCALC | both, PSRAM, four `DEV_*` | 125,303 | 448 | 56,064 | 10,048 | 5,168 |
+| PICOCALC_LEAN | neither, PSRAM, no `DEV_*` | 119,229 | 448 | 51,464 | 14,648 | 11,312 |
+| PICOCALC_LEAN_DIAG | both, PSRAM, no `DEV_*` | 121,771 | 448 | 51,560 | 14,552 | 8,752 |
+
+PICOCALC carries the options of the PSRAM union kernel with the two
+diagnostic options that preceded it (125,313 text and the same data, bss,
+free RAM and headroom; the ten bytes are its shorter configuration name in
+`version[]` and `osversion[]`).
+Against PICOCALC, PICOCALC_LEAN omits 6,074 bytes of text and 4,600 of bss:
+the two diagnostic options and the four `DEV_*` drivers.
+
+PICO's bss and free RAM do not move: `capacity_state` (100 bytes),
+`systrace` and `systrace_pid` leave `.bss`, and the fill before
+`.bss.core1`, the 256-byte block of `core1.o` that `.bss` aligns to 256
+bytes, grows from 24 to 132 bytes in their place. The PicoCalc kernels link
+no `core1.o`. PICO_DIAG carries ten more bytes of text than the PICO it
+replaces, its longer configuration name, within the same flash image size.
 
 `sys/sys/capacity.h` defines ABI version 1. A consumer accepts the structure
 only when the returned length, `version`, and `size` match its compiled

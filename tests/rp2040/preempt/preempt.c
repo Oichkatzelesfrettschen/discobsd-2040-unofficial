@@ -349,8 +349,6 @@ case_divide(void)
 #define	ALT_GUARD	71	/* guard bytes below the base; 71 % 8 == 7 */
 #define	ALT_FILL	0xa5
 
-static unsigned char alt_area[ALT_GUARD + MINSIGSTKSZ + 8]
-    __attribute__((aligned(8)));
 static volatile unsigned alt_sp;
 static volatile int alt_hits;
 
@@ -364,9 +362,18 @@ alt_handler(int sig)
 	alt_hits++;
 }
 
+/*
+ * The stack lives in this frame, on the process stack: syscall() refuses a
+ * system call whose sp lies inside the data segment, sigtramp's sigreturn
+ * included, so a handler on a stack in .bss or the heap dies at its return
+ * whatever the frame size.
+ */
 static int
 case_altstack(void)
 {
+	unsigned char alt_area[ALT_GUARD + MINSIGSTKSZ + 8]
+	    __attribute__((aligned(8)));
+	volatile unsigned char *guard_bytes = alt_area;
 	struct sigaltstack ss;
 	unsigned base = (unsigned)alt_area + ALT_GUARD;
 	int i, fails = 0, guard = 0;
@@ -392,7 +399,7 @@ case_altstack(void)
 	}
 	kill(getpid(), SIGUSR1);
 	for (i = 0; i < ALT_GUARD; i++)
-		if (alt_area[i] != ALT_FILL)
+		if (guard_bytes[i] != ALT_FILL)
 			guard++;
 	printf("PREEMPT altstack size %d base %#x handler sp %#x "
 	    "guard bytes written %d\n", MINSIGSTKSZ, base, alt_sp, guard);

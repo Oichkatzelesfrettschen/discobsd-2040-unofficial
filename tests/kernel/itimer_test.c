@@ -18,6 +18,9 @@
 #include <sys/systm.h>
 #include <sys/inode.h>
 #include <sys/vm.h>
+#include <sys/file.h>
+#include <sys/uio.h>
+#include <sys/signalvar.h>
 
 struct user u;
 int hz = 1000, usechz = 1000;
@@ -91,6 +94,79 @@ int hk_fork_setjmp(label_t *env) { (void)env; return 0; }
 void log(int level, char *fmt, ...) { (void)level; (void)fmt; HK_CHECK(0); }
 
 void gate_settimeofday(void);
+
+/*
+ * What sys/kern/sys_generic.c names beyond the clock: the file operations of
+ * its select scan (none are reached with nd == 0), the wait channel calls,
+ * and the port's copy and range helpers. tsleep() models a kernel in which
+ * only the sleeping process runs: it advances the wall clock by the ticks
+ * it was asked to wait, as hardclock() would, and reports the timeout.
+ */
+static int stub_rw(struct file *f, struct uio *uio)
+{ (void)f; (void)uio; HK_CHECK(0); return EIO; }
+static int stub_ioctl(struct file *f, u_int com, char *data)
+{ (void)f; (void)com; (void)data; HK_CHECK(0); return ENOTTY; }
+static int stub_select(struct file *f, int flag)
+{ (void)f; (void)flag; HK_CHECK(0); return 0; }
+static int stub_close(struct file *f)
+{ (void)f; HK_CHECK(0); return 0; }
+const struct fileops inodeops = { stub_rw, stub_ioctl, stub_select, stub_close };
+const struct fileops pipeops = { stub_rw, stub_ioctl, stub_select, stub_close };
+struct file *getf(int f) { (void)f; HK_CHECK(0); return NULL; }
+int fset(struct file *f, int bit, int value)
+{ (void)f; (void)bit; (void)value; HK_CHECK(0); return 0; }
+int fgetown(struct file *f, int *valuep)
+{ (void)f; (void)valuep; HK_CHECK(0); return 0; }
+int fsetown(struct file *f, int value)
+{ (void)f; (void)value; HK_CHECK(0); return 0; }
+void unsleep(struct proc *p) { (void)p; }
+void setrun(struct proc *p) { (void)p; }
+int baduaddr_span(caddr_t addr, u_int nbytes)
+{ (void)addr; (void)nbytes; return 0; }
+int baduaddr_rspan(caddr_t addr, u_int nbytes)
+{ (void)addr; (void)nbytes; return 0; }
+int baduaddr(caddr_t addr) { (void)addr; return 0; }
+int ffs(u_long i)
+{
+    int n = 0;
+
+    if (i == 0)
+        return 0;
+    while (!(i & 1)) {
+        i >>= 1;
+        n++;
+    }
+    return n + 1;
+}
+
+static unsigned tsleep_calls;
+static unsigned tsleep_interrupt_at;	/* call that a signal ends; 0 never */
+static int tsleep_check_mask;		/* tsleep() runs under tsleep_expect_mask */
+static unsigned long tsleep_expect_mask;
+#define TSLEEP_RUNAWAY	20000U
+
+int
+tsleep(caddr_t ident, int priority, u_int timo)
+{
+    unsigned long long total;
+
+    (void)ident;
+    (void)priority;
+    tsleep_calls++;
+    HK_CHECK(timo != 0 && timo <= 0x7fffffffU);
+    if (tsleep_calls > TSLEEP_RUNAWAY) {
+        HK_CHECK(0);
+        return EINTR;
+    }
+    if (tsleep_check_mask)
+        HK_CHECK((u.u_procp->p_sigmask & 0xffffUL) == tsleep_expect_mask);
+    if (tsleep_interrupt_at != 0 && tsleep_calls == tsleep_interrupt_at)
+        return EINTR;
+    total = (unsigned long long)lbolt + timo;
+    time.tv_sec = wall_advance(time.tv_sec, (long)(total / (unsigned)hz));
+    lbolt = (int)(total % (unsigned)hz);
+    return EWOULDBLOCK;
+}
 
 /* The system call argument shapes that setitimer() and getitimer() read. */
 struct set_args { u_int which; struct itimerval *value, *old; };
@@ -610,12 +686,286 @@ limits(void)
         back.it_interval.tv_usec == 0);
     HK_CHECK(usec_of(back.it_value) == 1000000);
 
+    /* The old 100,000,000 s bound is gone: the next second is accepted. */
+    itv.it_value.tv_sec = 100000001L;
+    itv.it_value.tv_usec = 0;
     itv.it_interval.tv_sec = 100000001L;
     itv.it_interval.tv_usec = 0;
-    HK_CHECK(set_timeval(&proc[0], ITIMER_REAL, &itv) == EINVAL);
+    HK_CHECK(set_timeval(&proc[0], ITIMER_REAL, &itv) == 0);
+    back = get_timer(&proc[0], ITIMER_REAL);
+    HK_CHECK(back.it_interval.tv_sec == 100000001L &&
+        back.it_interval.tv_usec == 0);
+    HK_CHECK(usec_of(back.it_value) == 100000001LL * 1000000LL);
+
     itv.it_interval.tv_sec = 0;
     itv.it_value.tv_usec = 1000000;
     HK_CHECK(set_timeval(&proc[0], ITIMER_REAL, &itv) == EINVAL);
+}
+
+/*
+ * A value or interval above what the timer can hold is clamped, not refused:
+ * LONG_MAX / 2 seconds for ITIMER_REAL, so that the deadline added to the
+ * monotonic clock cannot overflow a long, and LONG_MAX / hz for VIRTUAL and
+ * PROF. The largest tv_sec the kernel's layout carries, 0x7fffffff, is
+ * accepted at either width; 2^31 and above is a negative userland value and
+ * stays invalid.
+ */
+static void
+clamps(void)
+{
+    struct itimerval itv, back;
+    long real_limit = LONG_MAX / 2;
+    long tick_limit = LONG_MAX / hz;
+    long want;
+    int which;
+
+    reset();
+    monosec = 12345;
+    monotick = 321;
+    bzero(&itv, sizeof itv);
+    itv.it_value.tv_sec = 0x7fffffffL;
+    itv.it_interval.tv_sec = 0x7fffffffL;
+    want = 0x7fffffffL > real_limit ? real_limit : 0x7fffffffL;
+    HK_CHECK(set_timeval(&proc[0], ITIMER_REAL, &itv) == 0);
+    back = get_timer(&proc[0], ITIMER_REAL);
+    HK_CHECK(back.it_interval.tv_sec == want && back.it_interval.tv_usec == 0);
+    HK_CHECK(usec_of(back.it_value) == (long long)want * 1000000LL);
+
+    /* The clamped deadline is a real deadline: the signal arrives then. */
+    reset();
+    bzero(&itv, sizeof itv);
+    itv.it_value.tv_sec = 5;
+    itv.it_value.tv_usec = 0;
+    HK_CHECK(set_timeval(&proc[0], ITIMER_REAL, &itv) == 0);
+    tick(5000);
+    HK_CHECK(nsigs == 0);
+    tick(1);
+    HK_CHECK(nsigs == 1);
+
+    for (which = ITIMER_VIRTUAL; which <= ITIMER_PROF; which++) {
+        reset();
+        bzero(&itv, sizeof itv);
+        itv.it_value.tv_sec = 0x7fffffffL;
+        itv.it_interval.tv_sec = 0x7fffffffL;
+        want = 0x7fffffffL > tick_limit ? tick_limit : 0x7fffffffL;
+        HK_CHECK(set_timeval(&proc[0], which, &itv) == 0);
+        back = get_timer(&proc[0], which);
+        HK_CHECK(back.it_value.tv_sec == want && back.it_value.tv_usec == 0);
+        HK_CHECK(back.it_interval.tv_sec == want &&
+            back.it_interval.tv_usec == 0);
+    }
+
+    /* Whole seconds at the limit plus a fraction round up past it: clamp. */
+    reset();
+    bzero(&itv, sizeof itv);
+    itv.it_value.tv_sec = tick_limit < 0x7fffffffL ? tick_limit : 0x7fffffffL;
+    itv.it_value.tv_usec = 1;
+    HK_CHECK(set_timeval(&proc[0], ITIMER_VIRTUAL, &itv) == 0);
+
+    /* A negative tv_sec arrives as 2^31 or more and is refused. */
+    reset();
+    bzero(&itv, sizeof itv);
+    itv.it_value.tv_sec = (long)0x80000000UL;
+    HK_CHECK(set_timeval(&proc[0], ITIMER_REAL, &itv) == EINVAL);
+    HK_CHECK(set_timeval(&proc[0], ITIMER_VIRTUAL, &itv) == EINVAL);
+    bzero(&itv, sizeof itv);
+    itv.it_interval.tv_sec = (long)0x80000000UL;
+    HK_CHECK(set_timeval(&proc[0], ITIMER_PROF, &itv) == EINVAL);
+}
+
+/* The select() system call: what u.u_arg holds for it. */
+struct select_args {
+    int nd;
+    fd_set *in, *ou, *ex;
+    struct timeval *tv;
+};
+
+/*
+ * One select() with no descriptors, from a wall clock at clock seconds, for
+ * tv_sec seconds. Returns u_error; the clock advance, in seconds modulo
+ * 2^32, is left in select_elapsed.
+ */
+static unsigned long select_elapsed;
+
+static int
+timed_select(unsigned long clock, unsigned long tv_sec, long tv_usec)
+{
+    struct timeval tv;
+    struct select_args *args;
+
+    reset();
+    time.tv_sec = (long)clock;
+    time.tv_usec = 0;
+    lbolt = 0;
+    tsleep_calls = 0;
+    args = (struct select_args *)u.u_arg;
+    tv.tv_sec = (long)tv_sec;
+    tv.tv_usec = tv_usec;
+    args->nd = 0;
+    args->in = args->ou = args->ex = NULL;
+    args->tv = &tv;
+    select();
+    select_elapsed = ((unsigned long)time.tv_sec - clock) & 0xffffffffUL;
+    return u.u_error;
+}
+
+/* The pselect() system call: what u.u_arg holds for it. */
+struct pselect_call {
+    int nd;
+    fd_set *in, *ou, *ex;
+    struct timespec *ts;
+    sigset_t *maskp;
+};
+
+/*
+ * A pselect() of sec seconds from a process whose mask is before, waiting
+ * under wait_mask. Returns u_error. The wait runs under the temporary mask
+ * and the caller's mask is back when pselect() returns.
+ */
+static int
+timed_pselect(unsigned long before, unsigned long wait_mask, long sec)
+{
+    struct timespec ts;
+    sigset_t mask = wait_mask;
+    struct pselect_call *args;
+
+    reset();
+    time.tv_sec = 1000;
+    time.tv_usec = 0;
+    lbolt = 0;
+    tsleep_calls = 0;
+    u.u_procp->p_sigmask = before;
+    tsleep_check_mask = 1;
+    tsleep_expect_mask = wait_mask;
+    ts.tv_sec = sec;
+    ts.tv_nsec = 0;
+    args = (struct pselect_call *)u.u_arg;
+    args->nd = 0;
+    args->in = args->ou = args->ex = NULL;
+    args->ts = &ts;
+    args->maskp = &mask;
+    pselect();
+    tsleep_check_mask = 0;
+    return u.u_error;
+}
+
+/*
+ * The mask a caught signal's frame restores: the expression of postsig()
+ * (sys/kern/kern_sig.c), which prefers the mask saved before a sigsuspend()
+ * or pselect() wait while SAS_OLDMASK is set.
+ */
+static unsigned long
+frame_return_mask(void)
+{
+    if (u.u_psflags & SAS_OLDMASK)
+        return (unsigned long)u.u_oldmask;
+    return (unsigned long)u.u_procp->p_sigmask;
+}
+
+/*
+ * A pselect() that times out leaves the saved-mask flag clear and the
+ * caller's mask in place, so a signal caught after the caller changed its
+ * mask returns to the new mask; one that a signal ended leaves the temporary
+ * mask installed and the flag set for postsig(), with the mask from before
+ * the wait as the mask the handler returns to.
+ */
+static void
+pselect_mask_state(void)
+{
+    HK_CHECK(timed_pselect(0x00f0UL, 0x0600UL, 5) == 0);
+    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x00f0UL);
+    HK_CHECK((u.u_psflags & SAS_OLDMASK) == 0);
+    u.u_procp->p_sigmask = 0x00f8UL;	/* the caller blocks another signal */
+    HK_CHECK(frame_return_mask() == 0x00f8UL);
+
+    /*
+     * A signal that ends the wait is dispatched while the temporary mask is
+     * in force, and the handler returns to the caller's mask from before
+     * the call, not to the temporary one.
+     */
+    tsleep_interrupt_at = 1;
+    HK_CHECK(timed_pselect(0x00f0UL, 0x0600UL, 5) == EINTR);
+    tsleep_interrupt_at = 0;
+    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x0600UL);
+    HK_CHECK((u.u_psflags & SAS_OLDMASK) != 0);
+    HK_CHECK((unsigned long)u.u_oldmask == 0x00f0UL);
+    HK_CHECK(frame_return_mask() == 0x00f0UL);
+
+    /* The same when the signal ends the second wait of a retried deadline. */
+    tsleep_interrupt_at = 2;
+    HK_CHECK(timed_pselect(0x00f0UL, 0x0600UL, 3000000) == EINTR);
+    tsleep_interrupt_at = 0;
+    HK_CHECK(tsleep_calls == 2);
+    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x0600UL);
+    HK_CHECK((u.u_psflags & SAS_OLDMASK) != 0);
+    HK_CHECK(frame_return_mask() == 0x00f0UL);
+
+    /* The wait that the signal ended began from the caller's mask. */
+    HK_CHECK(timed_pselect(0x0000UL, 0x0600UL, 3000000) == 0);
+    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x0000UL);
+
+    /* A timeout after a retry, past a saturated tick count, is a timeout too. */
+    HK_CHECK(timed_pselect(0x00f0UL, 0x0600UL, 3000000) == 0);
+    HK_CHECK(tsleep_calls == 2);
+    HK_CHECK((u.u_psflags & SAS_OLDMASK) == 0);
+    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x00f0UL);
+}
+
+/*
+ * select() waits the whole timeout, however long: a tick count that
+ * saturates in hzto() ends one tsleep(), and the wall clock decides whether
+ * the deadline has passed. The bound that refused a timeout above
+ * 100,000,000 s is the largest tv_sec of the kernel layout instead, and a
+ * deadline that would wrap past the last count of the clock ends at the
+ * last second.
+ */
+static void
+select_waits(void)
+{
+    static const struct { unsigned long clock, sec; } waits[] = {
+        { 1000UL, 1UL },
+        { 1000UL, 2147483UL },
+        { 1000UL, 2147484UL },		/* first saturated tick count */
+        { 1000UL, 100000000UL },	/* the old bound */
+        { 1000UL, 100000001UL },	/* the old refusal */
+        { 1800000000UL, 0x7fffffffUL },	/* the largest tv_sec */
+        { 0xffffff00UL, 100UL },	/* ends before the last count */
+    };
+    unsigned i;
+
+    for (i = 0; i < sizeof waits / sizeof waits[0]; i++) {
+        HK_CHECK(timed_select(waits[i].clock, waits[i].sec, 0) == 0);
+        HK_CHECK(select_elapsed >= waits[i].sec &&
+            select_elapsed <= waits[i].sec + 1);
+    }
+
+    /* One second needs one sleep; the longest needs a sleep per saturation. */
+    HK_CHECK(timed_select(1000UL, 1UL, 0) == 0 && tsleep_calls == 1);
+    HK_CHECK(timed_select(1000UL, 4294967UL, 0) == 0 && tsleep_calls == 2);
+
+    /*
+     * A deadline past the last count ends at the last second, once. The
+     * count wraps only where long has the target's width.
+     */
+    if (sizeof(long) == 4) {
+        HK_CHECK(timed_select(0xfffffff0UL, 100UL, 0) == 0);
+        HK_CHECK((unsigned long)time.tv_sec == 0xffffffffUL);
+        HK_CHECK(select_elapsed == 15 && tsleep_calls <= 2);
+        HK_CHECK(timed_select(0xffffffffUL, 1UL, 0) == 0);
+        HK_CHECK(tsleep_calls <= 2);
+    }
+
+    /* 2^31 and above is a negative tv_sec of the layout: invalid. */
+    HK_CHECK(timed_select(1000UL, 0x80000000UL, 0) == EINVAL);
+    HK_CHECK(tsleep_calls == 0 && select_elapsed == 0);
+    HK_CHECK(timed_select(1000UL, 0xffffffffUL, 0) == EINVAL);
+    HK_CHECK(timed_select(1000UL, 1UL, 1000000L) == EINVAL);
+
+    /* A signal ends the wait whenever it arrives. */
+    tsleep_interrupt_at = 3;
+    HK_CHECK(timed_select(1000UL, 100000000UL, 0) == EINTR);
+    HK_CHECK(tsleep_calls == 3);
+    tsleep_interrupt_at = 0;
 }
 
 /* VIRTUAL and PROF hold sec * hz + ceil(usec / usechz) and read back exact. */
@@ -802,7 +1152,10 @@ main(void)
     time_steps();
     catch_up();
     limits();
+    clamps();
     virtual_prof();
     wall_clock_carry();
+    select_waits();
+    pselect_mask_state();
     return hk_verdict("itimer");
 }

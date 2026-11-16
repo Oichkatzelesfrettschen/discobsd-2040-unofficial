@@ -29,8 +29,8 @@ card whose MBR type is
 provided that no mounted file system overlaps it.
 The dump format is
 .IR sys/arch/rp2040/include/dump.h .
-Only the PICOCALC and PICOCALC_PSRAM kernels running on a PicoCalc write a
-dump; every other configuration has no dump device.
+Only the PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG kernels running on a
+PicoCalc write a dump; every other configuration has no dump device.
 .PP
 .B savecore
 finds that partition through

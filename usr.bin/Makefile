@@ -10,7 +10,7 @@ include ${TOPSRC}/share/mk/sys.mk
 # carries the MPU diagnostic and, in picofetch and picotop, readers of its
 # machdep sysctl nodes; STM32 has no matching sysctl interface.
 MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "lex smlrc as ld mputest matezinho picofetch picotop" ; \
+		echo "lex smlrc as ld mputest boardinfo matezinho picofetch picotop" ; \
 	else \
 		echo "lex smlrc as ld" ; \
 	fi

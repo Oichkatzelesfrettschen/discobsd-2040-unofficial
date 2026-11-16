@@ -49,7 +49,11 @@ third-party peripheral models carry the boot; a Pico's result is the board
 receipt, a separate evidence class (sys/arch/rp2040/doc/CAPACITY.md).
 check-boot.sh owns the warning-class ceilings, measured for its shorter run.
 
-Usage: check-capacity.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR
+CONFIG names the kernel configuration the banner and the device probe lines
+must match and defaults to PICO_DIAG. A configuration without CAPACITY_STATS
+(PICO) fails at the first kern.capacity read, which calibrates the gate.
+
+Usage: check-capacity.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR [CONFIG]
 Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 """
 
@@ -63,8 +67,9 @@ sys.path.insert(0, HERE)
 
 from renode_monitor import Renode, RenodeError  # noqa: E402
 
-# The kernel configuration check-capacity.sh boots; it selects the probe lines.
-CONFIG = "PICO_UART"
+# The kernel configuration check-capacity.sh boots by default; the
+# configuration selects the banner and the probe lines.
+DEFAULT_CONFIG = "PICO_DIAG"
 PROGRAM_BUDGET_SECONDS = 900.0
 TABLES = {"proc", "inode", "file", "clist", "buffer"}
 ROW = re.compile(
@@ -116,6 +121,16 @@ def run_program(console, boot, name: str, verdict: str) -> None:
 # CB_INPUT_BYTES into the stopped terminal, past TTYHOG (255, sys/kern/tty.c),
 # in chunks one emulation slice apart so the UART model delivers each. The
 # writer's CB_LINES numbered lines must then arrive once each and in order.
+#
+# clistbound discards the input the terminal still holds before it exits
+# (TIOCFLUSH). Input that outlives it reaches the shell's line editor,
+# which reads one byte per redraw of its whole line, so TTYHOG bytes take
+# seconds of 115200-baud output to consume; a command typed meanwhile
+# overflows TTYHOG, ttyinput() answers the excess with bells and drops it,
+# carriage return included, and the next wait times out on a shell that is
+# idle with a partial line. The gate refuses residue as soon as the shell
+# echoes it, whatever the timing of the next command, so the failure names
+# its cause instead of depending on where the exit lands in a slice.
 CB_LINES = 60
 CB_INPUT_BYTES = 600
 CB_CHUNK = 60
@@ -123,6 +138,9 @@ CB_DRAIN_SECONDS = 3.0
 # Echoed input can land on the same console line as a writer line, so a
 # line is matched wherever it sits.
 CB_LINE = re.compile(r"CB(\d{4}) abcdefghijkl")
+# The line editor's redraw of the root prompt with residue after it: the
+# prompt's "# " and then the typed '#' that begins the input.
+CB_RESIDUE = re.compile(r"# #")
 
 
 def run_clistbound(console, boot) -> None:
@@ -132,16 +150,26 @@ def run_clistbound(console, boot) -> None:
     console.wait_for("\nCLISTBOUND STOP", "clistbound start", boot.COMMAND_BUDGET_SECONDS)
     for _ in range(int(CB_DRAIN_SECONDS / boot.SLICE_SECONDS)):
         console.advance()
-    # The input begins with '#', so the shell reads what the terminal kept
-    # of it as a comment once the program exits.
+    # The input begins with '#', which marks any of it the shell echoes
+    # after the exit (CB_RESIDUE) and would make such a line a comment.
     console.renode.command("sysbus.uart0 WriteChar 0x23")
     for _ in range(CB_INPUT_BYTES // CB_CHUNK):
         for _ in range(CB_CHUNK):
             console.renode.command("sysbus.uart0 WriteChar 0x78")
         console.advance()
     console.wait_for("\nrc=", "clistbound exit status", PROGRAM_BUDGET_SECONDS)
-    console.type_line("")
     console.wait_for("#", "prompt after clistbound", boot.COMMAND_BUDGET_SECONDS)
+    # One slice for the line editor to echo whatever input outlived the
+    # program; a residue echoes dozens of redraws in that time.
+    console.advance()
+    redraws = len(CB_RESIDUE.findall(output_since(console, console.cursor)))
+    if redraws:
+        console.fail(
+            f"clistbound: the shell is reading typed input clistbound left in the "
+            f"terminal ({redraws} line-editor redraws in one slice); a command typed "
+            f"now can overflow TTYHOG and lose its carriage return"
+        )
+        raise boot.StageFailed("clistbound residue")
     text = output_since(console, start)
     lines = text.split("\n")
     for line in lines:
@@ -212,11 +240,11 @@ def capacity_rows(console, boot) -> dict:
     return rows
 
 
-def run_stages(console, boot) -> None:
+def run_stages(console, boot, config: str) -> None:
     console.wait_lines(
-        [f"DiscoBSD 2.7 ({CONFIG})"]
+        [f"DiscoBSD 2.7 ({config})"]
         + boot.CPU_LINES
-        + boot.BOARD_LINES[CONFIG]
+        + boot.BOARD_LINES[config]
         + boot.STORAGE_LINES,
         "device probe",
         boot.PROBE_BUDGET_SECONDS,
@@ -272,11 +300,15 @@ def run_stages(console, boot) -> None:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 4:
+    if len(argv) not in (4, 5):
         print(__doc__, file=sys.stderr)
         return 2
     boot = load_boot()
-    renode_path, unix_bin, flash_bin, outdir = argv
+    renode_path, unix_bin, flash_bin, outdir = argv[:4]
+    config = argv[4] if len(argv) == 5 else DEFAULT_CONFIG
+    if config not in boot.BOARD_LINES:
+        print(f"check-capacity: no probe lines for {config}", file=sys.stderr)
+        return 2
     os.makedirs(outdir, exist_ok=True)
     transcript = os.path.join(outdir, "uart0.txt")
     if os.path.exists(transcript):
@@ -288,7 +320,7 @@ def main(argv: list[str]) -> int:
         renode.command(f"$flash_bin=@{flash_bin}")
         renode.command(f"include @{os.path.join(HERE, 'machine.resc')}")
         renode.command(f"sysbus.uart0 CreateFileBackend @{transcript} true")
-        run_stages(console, boot)
+        run_stages(console, boot, config)
     except boot.StageFailed:
         print(f"check-capacity: transcript in {transcript}", file=sys.stderr)
     except RenodeError as error:

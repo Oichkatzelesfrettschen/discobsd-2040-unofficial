@@ -485,7 +485,24 @@ run_steps(const char *steps)
 		if (s == ' ')
 			continue;
 		if (*p == '*') {
-			count = (unsigned)strtoul(p + 1, (char **)&p, 10);
+			char *end;
+			unsigned long n;
+
+			/*
+			 * strtoul stores its end pointer through a plain char *
+			 * object: converting the address of this const char *
+			 * to char ** would access it through an incompatible
+			 * type. A count is one or more digits, at least 1 and
+			 * at most MAX_WRITES (ERANGE returns ULONG_MAX, which
+			 * the bound rejects).
+			 */
+			if (p[1] < '0' || p[1] > '9')
+				panic("step repeat count missing");
+			n = strtoul(p + 1, &end, 10);
+			if (n == 0 || n > MAX_WRITES)
+				panic("step repeat count out of range");
+			count = (unsigned)n;
+			p = end;
 		}
 		while (count-- > 0) {
 			switch (s) {
@@ -901,17 +918,67 @@ struct cell {
 static struct cell cells[MAX_CELLS];
 static unsigned ncells;
 
+static unsigned table_line;
+static char table_msg[160];
+
+/* A table or manifest defect is a verdict (status 1), not a harness crash. */
+static void
+table_fatal(const char *msg)
+{
+	printf("FAIL table: ");
+	if (table_line != 0)
+		printf("line %u: ", table_line);
+	printf("%s\n", msg);
+	printf("flash_reset_cells: the table or manifest is unusable\n");
+	exit(1);
+}
+
 static const char *
 field_copy(char *dst, size_t size, const char *src)
 {
 	size_t n = strcspn(src, "\t\n");
 
-	if (n >= size)
-		panic("cells.tsv field too long");
+	if (n >= size) {
+		snprintf(table_msg, sizeof(table_msg),
+		    "a field exceeds %zu bytes", size - 1);
+		table_fatal(table_msg);
+	}
 	memcpy(dst, src, n);
 	dst[n] = '\0';
 	return src[n] == '\t' ? src + n + 1 : src + n;
 }
+
+/*
+ * Read one line of at most size - 1 bytes into line. Returns 0 at end of
+ * file. A line without its newline (a truncated file or an over-long line),
+ * a NUL byte and a read error each end the run.
+ */
+static int
+read_row(FILE *f, char *line, size_t size)
+{
+	size_t len;
+
+	if (fgets(line, (int)size, f) == NULL) {
+		if (ferror(f))
+			table_fatal("read error");
+		return 0;
+	}
+	table_line++;
+	len = strlen(line);
+	if (len == 0)
+		table_fatal("a NUL byte");
+	if (line[len - 1] != '\n') {
+		if (len == size - 1) {
+			snprintf(table_msg, sizeof(table_msg),
+			    "longer than %zu bytes", size - 2);
+			table_fatal(table_msg);
+		}
+		table_fatal("no final newline: the file is truncated");
+	}
+	return 1;
+}
+
+#define	CELL_FIELDS	10
 
 static void
 load_cells(const char *path)
@@ -919,18 +986,32 @@ load_cells(const char *path)
 	char line[2048];
 	FILE *f = fopen(path, "r");
 
-	if (f == NULL)
-		panic("cannot open cells.tsv");
-	while (fgets(line, sizeof(line), f) != NULL) {
+	table_line = 0;
+	if (f == NULL) {
+		snprintf(table_msg, sizeof(table_msg), "cannot open %s", path);
+		table_fatal(table_msg);
+	}
+	while (read_row(f, line, sizeof(line))) {
 		struct cell *c;
 		const char *p = line;
+		unsigned tabs = 0;
 
 		if (line[0] == '#' || line[0] == '\n')
 			continue;
-		if (ncells >= MAX_CELLS)
-			panic("too many cells");
+		for (p = line; *p != '\0'; p++)
+			tabs += *p == '\t';
+		if (tabs != CELL_FIELDS - 1) {
+			snprintf(table_msg, sizeof(table_msg),
+			    "%u fields, %d required", tabs + 1, CELL_FIELDS);
+			table_fatal(table_msg);
+		}
+		if (ncells >= MAX_CELLS) {
+			snprintf(table_msg, sizeof(table_msg),
+			    "more than %d rows", MAX_CELLS);
+			table_fatal(table_msg);
+		}
 		c = &cells[ncells++];
-		p = field_copy(c->id, sizeof(c->id), p);
+		p = field_copy(c->id, sizeof(c->id), line);
 		p = field_copy(c->op, sizeof(c->op), p);
 		p = field_copy(c->hist, sizeof(c->hist), p);
 		p = field_copy(c->script, sizeof(c->script), p);
@@ -940,8 +1021,108 @@ load_cells(const char *path)
 		p = field_copy(c->tear, sizeof(c->tear), p);
 		p = field_copy(c->status, sizeof(c->status), p);
 		(void)field_copy(c->basis, sizeof(c->basis), p);
+		if (c->id[0] == '\0')
+			table_fatal("an empty row id");
 	}
-	fclose(f);
+	if (fclose(f) != 0)
+		table_fatal("read error at close");
+	table_line = 0;
+}
+
+/* The status of a row the oracle executes. */
+static int
+runs(const struct cell *c)
+{
+	return strcmp(c->status, "host") == 0 ||
+	    strcmp(c->status, "defect") == 0;
+}
+
+static int
+skipped(const struct cell *c)
+{
+	return strcmp(c->status, "n/a") == 0 ||
+	    strcmp(c->status, "board-only") == 0 ||
+	    strcmp(c->status, "unspecified") == 0;
+}
+
+/*
+ * The manifest lists one row per line, "ID run" for a row the oracle
+ * executes (status host or defect) and "ID skip" for the rest. The table
+ * must hold exactly those rows, each once: a table that lost, repeated or
+ * gained a row, or moved a row between running and skipped, would otherwise
+ * run a smaller matrix and still pass. The manifest lives in check.sh,
+ * beside the gate that calibrates it, and never derives from the table.
+ */
+static void
+verify_table(const char *path)
+{
+	char line[128];
+	char seen[MAX_CELLS];
+	FILE *f = fopen(path, "r");
+	unsigned listed = 0, i, bad = 0;
+
+	memset(seen, 0, sizeof(seen));
+	table_line = 0;
+	if (f == NULL) {
+		snprintf(table_msg, sizeof(table_msg),
+		    "cannot open the manifest %s", path);
+		table_fatal(table_msg);
+	}
+	while (read_row(f, line, sizeof(line))) {
+		char id[16], kind[8];
+		char extra;
+		unsigned found = 0, at = 0;
+
+		if (sscanf(line, "%15s %7s %c", id, kind, &extra) != 2 ||
+		    (strcmp(kind, "run") != 0 && strcmp(kind, "skip") != 0))
+			table_fatal("manifest line is not 'ID run|skip'");
+		listed++;
+		for (i = 0; i < ncells; i++)
+			if (strcmp(cells[i].id, id) == 0) {
+				found++;
+				at = i;
+			}
+		for (i = 0; i < ncells; i++)
+			if (strcmp(cells[i].id, id) == 0)
+				seen[i] = 1;
+		if (found == 0) {
+			printf("FAIL table: row %s is missing\n", id);
+			bad++;
+		} else if (found > 1) {
+			printf("FAIL table: row %s appears %u times\n", id,
+			    found);
+			bad++;
+		} else {
+			if ((strcmp(kind, "run") == 0) != runs(&cells[at]) ||
+			    (!runs(&cells[at]) && !skipped(&cells[at]))) {
+				printf("FAIL table: row %s has status '%s', "
+				    "the manifest says %s\n", id,
+				    cells[at].status, kind);
+				bad++;
+			}
+		}
+	}
+	if (fclose(f) != 0)
+		table_fatal("read error at close of the manifest");
+	table_line = 0;
+	if (listed == 0)
+		table_fatal("the manifest lists no rows");
+	for (i = 0; i < ncells; i++)
+		if (seen[i] == 0) {
+			printf("FAIL table: row %s is not in the manifest\n",
+			    cells[i].id);
+			bad++;
+		}
+	if (ncells != listed) {
+		printf("FAIL table: %u rows, the manifest names %u\n", ncells,
+		    listed);
+		bad++;
+	}
+	if (bad != 0) {
+		printf("flash_reset_cells: the table differs from the "
+		    "manifest\n");
+		exit(1);
+	}
 }
 
 /*
@@ -962,6 +1143,8 @@ struct tally {
 	unsigned	tear_fail;	/* Failing cuts inside a checkpoint program. */
 	unsigned	between_fail;	/* Of those, between two chip commands. */
 	unsigned	other_fail;	/* Failing cuts anywhere else. */
+	unsigned	sig_miss;	/* Cuts that differ from the recorded tear. */
+	char		first_sig_what[320];
 	unsigned	first_fail_event;
 	unsigned	first_fail_prefix;
 	char		first_fail_what[320];
@@ -1010,6 +1193,45 @@ repair_converges(unsigned m)
 }
 
 /*
+ * The recorded checkpoint-tear defect, per cut inside a checkpoint page
+ * program of four 256-byte chip commands (cmd 0 to 3, prefix = bytes of that
+ * command clocked before the reset). Measured on the shipped driver and
+ * journal, the same on every defect row of cells.tsv:
+ *   - cmd 0 fails from prefix 4 on, the first byte past the three-byte magic
+ *     (prefixes 0, 1 and 3 leave a page recovery rejects), and with
+ *     prefixes 4 to 16 the resumed map then also fails to write and recover;
+ *   - cmd 1 and cmd 2 fail at every prefix;
+ *   - cmd 3 fails at every prefix but 255 (the whole page is on the chip);
+ *   - the recovered root is blank (prefix 0 of the history), except cmd 3
+ *     at prefixes 64 and 128, where it matches no prefix.
+ * A defect row passes only while its failures equal this set and class cut
+ * by cut. A cut that fails otherwise, a cut that stops failing, a refused
+ * resume or a NOR contract break inside the window is a different defect
+ * (or a partial fix) and fails the row.
+ */
+struct tear_signature {
+	int	fails;
+	int	resumed_map_fails;
+	int	partial_root;
+};
+
+static struct tear_signature
+tear_signature(unsigned cmd, unsigned prefix)
+{
+	struct tear_signature s;
+
+	if (cmd == 0)
+		s.fails = prefix >= 4;
+	else if (cmd == 3)
+		s.fails = prefix != 255;
+	else
+		s.fails = 1;
+	s.resumed_map_fails = cmd == 0 && prefix >= 4 && prefix <= 16;
+	s.partial_root = cmd == 3 && (prefix == 64 || prefix == 128);
+	return s;
+}
+
+/*
  * Judge one cut. Returns 0 when both the map and the content verdicts hold.
  * prediction is the exact set the checkpoint-cover model gives; the table's
  * must, may and tear columns give the documented bounds.
@@ -1023,6 +1245,7 @@ judge(const struct cell *c, struct tally *t, unsigned event, unsigned prefix,
 	unsigned long faults;
 	char what[200];
 	int bad = 0, map_bad = 0, content_bad = 0, predict_bad = 0;
+	int resume_refused = 0, resumed_fail = 0, nor_broken = 0;
 	u_char data[DEV_BSIZE], got[DEV_BSIZE];
 	unsigned n;
 
@@ -1042,7 +1265,7 @@ judge(const struct cell *c, struct tally *t, unsigned event, unsigned prefix,
 	what[0] = '\0';
 
 	if (v.resume != 0) {
-		map_bad = 1;
+		map_bad = resume_refused = 1;
 		snprintf(what, sizeof(what), "resume refused (error %d)",
 		    (int)v.resume_error);
 	}
@@ -1110,13 +1333,15 @@ judge(const struct cell *c, struct tally *t, unsigned event, unsigned prefix,
 			    memcmp(got, data, sizeof(got)) != 0)
 				map_bad = 1;
 		}
-		if (map_bad)
+		if (map_bad) {
+			resumed_fail = 1;
 			snprintf(what + strlen(what), sizeof(what) -
 			    strlen(what), "%s resumed map failed to write and "
 			    "recover", what[0] ? ";" : "");
+		}
 	}
 	if (model_faults != faults) {
-		map_bad = 1;
+		map_bad = nor_broken = 1;
 		snprintf(what + strlen(what), sizeof(what) - strlen(what),
 		    "%s NOR contract broken after resume", what[0] ? ";" : "");
 	}
@@ -1129,6 +1354,32 @@ judge(const struct cell *c, struct tally *t, unsigned event, unsigned prefix,
 	if (predict_bad)
 		t->predict_fail++;
 	bad = map_bad || content_bad || predict_bad;
+	if (tore && strcmp(c->status, "defect") == 0) {
+		struct tear_signature s = tear_signature(cut_what.cmd, prefix);
+		const char *miss = NULL;
+
+		if (cut_what.kind != EV_CKPT || cut_what.ncmd != 4)
+			miss = "not one of four checkpoint chip commands";
+		else if (bad != s.fails)
+			miss = s.fails ? "a cut the tear fails now passes" :
+			    "a cut the tear passes now fails";
+		else if (bad && resume_refused)
+			miss = "the resume is refused";
+		else if (bad && nor_broken)
+			miss = "the NOR contract breaks";
+		else if (bad && resumed_fail != s.resumed_map_fails)
+			miss = "the resumed map differs";
+		else if (bad && !content_bad)
+			miss = "the recovered prefix is permitted";
+		else if (bad && (s.partial_root ? v.m >= 0 : v.m != 0))
+			miss = s.partial_root ? "the root matches a prefix" :
+			    "the root is not blank";
+		if (miss != NULL && t->sig_miss++ == 0)
+			snprintf(t->first_sig_what, sizeof(t->first_sig_what),
+			    "%s at %c command %u/%u prefix %u: %s", miss,
+			    cut_what.kind, cut_what.cmd + 1, cut_what.ncmd,
+			    prefix, what[0] ? what : "no failure");
+	}
 	if (bad) {
 		if (tore) {
 			t->tear_fail++;
@@ -1289,6 +1540,11 @@ run_cell(struct cell *c)
 			printf("FAIL %s: %u failing cuts outside a checkpoint "
 			    "program, first: %s\n", c->id, t.other_fail,
 			    t.first_fail_what);
+		} else if (t.sig_miss != 0) {
+			failures++;
+			printf("FAIL %s: %u cuts differ from the recorded "
+			    "checkpoint-tear signature, first: %s\n", c->id,
+			    t.sig_miss, t.first_sig_what);
 		} else if (t.between_fail == 0) {
 			failures++;
 			printf("FAIL %s: the recorded defect no longer "
@@ -1332,32 +1588,32 @@ int
 main(int argc, char **argv)
 {
 	unsigned i;
-	const char *only = argc > 2 ? argv[2] : NULL;
+	const char *only = argc > 3 ? argv[3] : NULL;
 	int matched = 0;
 
-	if (argc < 2) {
-		fprintf(stderr, "usage: flash_reset_cells cells.tsv [id]\n");
+	if (argc < 3 || argc > 4) {
+		fprintf(stderr, "usage: flash_reset_cells cells.tsv manifest "
+		    "[id]\n");
 		return 2;
 	}
 	calibrate_payload();
 	atomic_ckpt = getenv("FLASH_RESET_CELLS_ATOMIC_CKPT") != NULL;
 	load_cells(argv[1]);
+	/* Before any filter: a targeted run still needs the exact table. */
+	verify_table(argv[2]);
 	for (i = 0; i < ncells; i++) {
 		if (only != NULL && strcmp(only, cells[i].id) != 0)
 			continue;
 		matched++;
-		if (strcmp(cells[i].status, "host") == 0 ||
-		    strcmp(cells[i].status, "defect") == 0)
+		if (runs(&cells[i]))
 			run_cell(&cells[i]);
-		else if (strcmp(cells[i].status, "n/a") == 0 ||
-		    strcmp(cells[i].status, "board-only") == 0 ||
-		    strcmp(cells[i].status, "unspecified") == 0)
+		else if (skipped(&cells[i]))
 			printf("cell %s %s %s: %s\n", cells[i].id,
 			    cells[i].op, cells[i].hist, cells[i].status);
 		else {
 			/*
-			 * A misspelled or empty status would drop a required
-			 * row from the run while the oracle still passed.
+			 * verify_table() rejects an unknown status, so this
+			 * branch guards a future edit of that check.
 			 */
 			printf("FAIL cell %s: unknown status '%s'\n",
 			    cells[i].id, cells[i].status);

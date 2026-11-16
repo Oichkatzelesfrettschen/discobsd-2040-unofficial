@@ -896,7 +896,7 @@ usb_tx_put(u_char c)
 
 	if (usbd.tx_head - usbd.tx_tail >= USB_TXRING) {
 		usbd.tx_tail++;
-		if (usb_tx_dropped != (u_int)-1)
+		if (usb_tx_dropped < USB_TX_DROPPED_MAX)
 			usb_tx_dropped++;
 	}
 	usb_tx_ring[usbd.tx_head % USB_TXRING] = c;

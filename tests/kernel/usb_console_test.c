@@ -1078,8 +1078,9 @@ check_polled_read_early(const char *name)
  * The ring's accounting. With the controller unconfigured nothing leaves
  * the ring, so occupancy follows the bytes put exactly. The peak must reach
  * the ring size and stay there, each byte past it must count one drop and
- * discard the oldest, and the drop count must stop at the largest unsigned
- * int instead of wrapping to zero. A second pass starts the indexes near the
+ * discard the oldest, and the drop count must stop at USB_TX_DROPPED_MAX
+ * (INT_MAX, the largest value sysctl's CTLTYPE_INT reports without turning
+ * negative) instead of passing it. A second pass starts the indexes near the
  * unsigned wrap, where the occupancy is a difference of two wrapped values.
  */
 static void
@@ -1114,17 +1115,17 @@ check_ring_counts(void)
 	} else
 		hk_note("PASS ring overrun by two bytes");
 
-	usb_tx_dropped = (u_int)-1 - 1;
+	usb_tx_dropped = USB_TX_DROPPED_MAX - 1;
 	usbputc(dev, 'd');
 	usbputc(dev, 'e');
 	usbputc(dev, 'f');
 	hk_checks++;
-	if (usb_tx_dropped != (u_int)-1) {
-		hk_note("FAIL drop count at the unsigned limit: %u",
+	if (usb_tx_dropped != USB_TX_DROPPED_MAX) {
+		hk_note("FAIL drop count at the signed limit: %u",
 		    usb_tx_dropped);
 		hk_failures++;
 	} else
-		hk_note("PASS drop count saturates at the unsigned limit");
+		hk_note("PASS drop count saturates at the signed limit");
 
 	usbd.tx_head = (u_int)-1 - 1;
 	usbd.tx_tail = usbd.tx_head;

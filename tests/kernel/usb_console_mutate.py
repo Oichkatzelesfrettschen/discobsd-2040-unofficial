@@ -59,7 +59,7 @@ MUTATIONS = {
         "\t\t\tusb_tx_dropped += 0;\n",
     ),
     "tx-drop-wraps": (
-        "\t\tif (usb_tx_dropped != (u_int)-1)\n\t\t\tusb_tx_dropped++;\n",
+        "\t\tif (usb_tx_dropped < USB_TX_DROPPED_MAX)\n\t\t\tusb_tx_dropped++;\n",
         "\t\tusb_tx_dropped++;\n",
     ),
     "tx-peak-wraps": (

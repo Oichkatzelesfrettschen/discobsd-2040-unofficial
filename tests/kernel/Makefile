@@ -2835,7 +2835,7 @@ check-usb-console: usb_console_test \
 		halt-wait-sticks) expected='FAIL key after the halt wait reaches the tty' ;; \
 		tx-peak-missing) expected='FAIL ring filled to its size' ;; \
 		tx-drop-missing) expected='FAIL ring overrun by two bytes' ;; \
-		tx-drop-wraps) expected='FAIL drop count at the unsigned limit' ;; \
+		tx-drop-wraps) expected='FAIL drop count at the signed limit' ;; \
 		tx-peak-wraps) expected='FAIL ring indexes across the unsigned wrap' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \

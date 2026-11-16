@@ -138,7 +138,8 @@
  * the greatest byte count the ring held, so a ring size can be set from what
  * a console actually queued before the host drained it. The dropped count is
  * the bytes usb_tx_put discarded because the ring was full with nobody
- * draining it, saturating at the largest unsigned int.
+ * draining it, saturating at INT_MAX, the largest value a CTLTYPE_INT
+ * reports without a sign change.
  */
 #define	CPU_USB_TX_PEAK		47	/* int: greatest ring occupancy, bytes */
 #define	CPU_USB_TX_DROPPED	48	/* int: bytes discarded, saturating */

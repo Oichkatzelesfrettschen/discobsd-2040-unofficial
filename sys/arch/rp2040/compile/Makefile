@@ -94,7 +94,16 @@ check-cache-footprint:
 		if NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
 		    --elf PICOCALC/unix.elf --layout multi --mounts 3 >/dev/null 2>&1; then \
 			echo "cache footprint verifier accepted PICOCALC as three-mount" >&2; exit 1; \
-		fi
+		fi; \
+		for count in 1 3; do \
+			status=0; \
+			NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
+			    --elf PICO/unix.elf --layout single --mounts $$count \
+			    >/dev/null 2>&1 || status=$$?; \
+			if [ "$$status" -ne 2 ]; then \
+				echo "cache footprint verifier exit $$status, expected usage error 2, for --mounts $$count with the single layout" >&2; exit 1; \
+			fi; \
+		done
 		${MAKE} -C "${CACHE_FOOTPRINT_TEST}" check \
 		    KERNEL_BUILD="${.CURDIR}/PICO"
 		${MAKE} -C "${EXEC_SPOOL_TEST}" check \

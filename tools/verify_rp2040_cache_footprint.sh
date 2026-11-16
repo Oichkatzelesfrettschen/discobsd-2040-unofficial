@@ -16,7 +16,12 @@ while [ $# -gt 0 ]; do
 	esac
 done
 case $layout in
-single) mounts=1 ;;
+single)
+	[ -z "$mounts" ] || {
+		echo "$0: --mounts applies only to --layout multi" >&2
+		exit 2
+	}
+	mounts=1 ;;
 multi)
 	case ${mounts:-2} in
 	2 | 3) mounts=${mounts:-2} ;;

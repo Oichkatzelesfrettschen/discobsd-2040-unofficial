@@ -195,6 +195,7 @@ Grouped by what they investigate.
 | `libc-ascii-casefold-contract.md` | exhaustive POSIX byte-locale mapping, signedness independence and measured table removal |
 | `stdio-output-wrapper-contract.md` | formatted output counts, temporary stream ownership, write-failure controls and selected archive closure |
 | `stdio-formatter-count-contract.md` | checked formatter arithmetic, logical counts, early stream failure and native consumer acceptance |
+| `sleep-timeout-bound.md` | why `sleep()` over 100,000,000 s returned at once and over 2,147,483 s woke 24.9 days early, how eight BSD trees bound and convert a timeout, the tick arithmetic of this kernel, and the chunked libc repair with its kernel-model gate and size cost |
 | `stdio-output-batch-capacity.md` | private 256-byte batching, frame and write-count tradeoffs, chunk failure controls |
 | `board-capacity-exhaustion-58ec71f1.txt` | the board transcript of the process-table and file-table exhaustion tests at NPROC 25 and NFILE 24: EAGAIN after 19 children, ENFILE at a full table, counters and recovery |
 | `renode-capacity-exhaustion-d76edd1a.txt` | the Renode transcript of the same two exhaustion tests on the emulated PICO_UART kernel, from `check-renode-capacity`: the counts equal the board's |

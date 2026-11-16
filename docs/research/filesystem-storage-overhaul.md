@@ -26,16 +26,17 @@ baseline `check-renode` gate passed on that build (exit 0).
 
 ## Finding and short answer
 
-**The clean flag does not pay on the flash root and does pay on SD
-filesystems, in proportion to their size.** On the Dhara root the whole
+**As 2.11BSD built it, the clean flag does not pay on the flash root,
+barely pays on the 32 MiB SD root of pull request #558, and pays on SD
+filesystems that are not the mounted root, in proportion to their size.** On the Dhara root the whole
 boot-time `fsck -p`, from rc's banner to fsck's summary line, takes
 0.08-0.10 virtual seconds of a 3.85-3.99-second boot to the login prompt
 under Renode (R, three runs, 0.02 s resolution; Renode counts one
 instruction per cycle at 125 MIPS and models no flash latency), and its
 host-measured I/O is 92 KiB of reads (H). A clean flag can remove at most
 that span, about 0.10 to 0.15 s on the board once the Cortex-M0+'s cycles
-per instruction are counted (I). It would add a whole reboot after every unclean stop that left the root
-consistent, because fsck's write of the clean bit on a mounted root counts
+per instruction are counted (I). It would add a whole reboot, 4.3-4.4 virtual s, after every unclean stop
+that left the root consistent, because fsck's write of the clean bit on a mounted root counts
 as a modification and `/etc/rc` answers exit 4 with `reboot -n`. On an SD
 filesystem the check grows with the inode table and the free-list chain:
 the host count of fsck's reads gives 0.4-0.6 s of SPI read time for an
@@ -47,7 +48,12 @@ about 58 MiB fsck's maps no longer fit its 16 in-core buffers and spill to
 swap every scratch rewrite erases two 4 KiB sectors, so checking a half-full
 1 GiB filesystem costs about 1,150 sector erases of `fl1`, and a filesystem
 over about 1 GiB cannot be checked at boot at all on a board whose swap is
-the 384 KiB flash region (H, M).
+the 384 KiB flash region (H, M). The SD root of #558 is itself a mounted
+root (its `/etc/fstab` names `/dev/sd0c`), so it pays the same reboot:
+its check of about 0.4-0.6 s of SPI time breaks even at one consistent
+unclean stop per 7-11 clean boots (M). A variant in which fsck hands a
+clean result on the mounted root to the kernel instead of writing it
+removes that reboot (section 8, decision 1).
 
 **The donor patch cannot be imported as written.** Its `MNT_CLEAN` value,
 0x2000, is this tree's `MNT_V7` (`sys/sys/mount.h:102`). Its mount-time
@@ -71,9 +77,10 @@ list behind the inodes, and fsck reported "ALLOCATED INODE(S) IN IFREE
 LIST", "34 DUP BLKS IN FREE LIST" and "BAD FREE LIST (SALVAGED)", then
 rebooted; the same workload followed by `sync` checked clean, and an
 in-place `dd conv=notrunc` rewrite cut the same way checked clean. The free
-list lives in the in-core superblock and reaches the medium only at a
-superblock write, so any allocation since the last `sync()` leaves fsck
-work, whatever the translation layer below does. The extra reboot costs
+list and the free-inode cache live in the in-core superblock and reach the
+medium only at a superblock write, so an allocation whose inode or data
+blocks reach flash before the next superblock write leaves fsck work,
+whatever the translation layer below does. The extra reboot costs
 4.3-4.4 virtual seconds from banner to banner (R), so on the root the donor
 semantics break even at about one consistent unclean stop per 45-55 clean
 boots.
@@ -98,7 +105,7 @@ and nineteen implementation slices after it. Six owner decisions remain
 | Buffer cache | `ufs_bio.c`: `bread` 186, `bwrite` 261, `bdwrite` 297, `brelse` 318, `getblk` 438, `biowait` 522, `biodone` 539, `bflush` 626, `bdevsync` 656 | 1 KiB blocks (`DEV_BSIZE`); `NBUF` 4 on this port (`include/machparam.h:56`) | `getblk` returns the buffer `B_BUSY` to the caller; `brelse` returns it; a `B_ASYNC` write is released by `biodone` | `splbio()`, which on the RP2040 is PRIMASK (`dev/sd.c:46-51`); `biowait` sleeps on the buffer until `B_DONE` | `B_ERROR` and `b_error`; `biodone` latches a write error into the mount and into open block inodes (`:545-566`) | `check-kernel`, `check-storage-correctness` (H) |
 | Block switch | `rp2040/conf.c:130-170` | majors 0 `fl`, 3 `psram`, 4 `swap`, 5 `sd`; character major 4 `temp` (`:205`) | passes the caller's buffer | none | none | `check-rp2040-devsw` (H) |
 | Flash driver | `dev/flash.c`: `flstrategy` 1033, `fl_raw` 995, `fl_checkpoint` 785, `flioctl` 1157 | Dhara logical 1 KiB sectors for `fl0`; raw bytes for `fl1`; `DIOCCHECKPOINT` (`:1191`) | completes the transfer and calls `biodone` before it returns: every request is synchronous | `splbio` around the map; the ROM calls run at `splhigh` with XIP down (`:559`, `:588`) | `EIO` on a map or ROM failure; a write past the writable end is refused before the ROM call (`:557`) | `check-flash-checkpoint`, `check-flash-sparse`, `check-flash-reset-cells`, `check-flash-device-bounds`, `check-dhara-*`, `check-flash-swap` (H); `check-renode` (R) |
-| Translation layer | `dhara/journal.c`, `dhara/map.c` (vendored, local changes in `dhara/README.md`) | a write is durable at the next checkpoint: a filled group or `dhara_map_sync()`; a reset returns the map to the last checkpoint, which is a prefix of the write order | none | under the driver's `splbio` | `DHARA_E_*` to the driver | as above; `docs/research/dhara-audit.md` |
+| Translation layer | `dhara/journal.c`, `dhara/map.c` (vendored, local changes in `dhara/README.md`) | a write is durable at the next checkpoint: a filled group or `dhara_map_sync()`; a reset returns the map to the last checkpoint, which covers the writes before it in the order the journal appended them (I, from the journal's append-only design; a torn checkpoint breaks it until pull request #636) | none | under the driver's `splbio` | `DHARA_E_*` to the driver | as above; `docs/research/dhara-audit.md` |
 | Raw swap and temporary units | `dev/flash_swap.c`: `flash_swap_append` 21, `flash_swap_rewrite` 62; `sys/dev/swap.c`: `swtemp_write_flags` 43, `TFALLOC` 265 | images append into erased sectors; a temporary unit appends from block 0 in order and rewrites through the spare sector from its first out-of-order write on | synchronous | `splbio` | `EIO` | `check-flash-swap`, `check-swap-*` (H) |
 | SD driver | `dev/sd.c`: `sdopen` 288, `sdstrategy` 328, `sdioctl` 432, `sddump` 520, `sd_detect_poll` 193 | 512-byte sectors under 1 KiB blocks, MBR partitions, `DIOCMEDIAGONE`, `DIOCREINIT` | synchronous; `b_resid` names every byte that did not move | `splbio` around the replaced flag only; transfers run with interrupts enabled (`:30-35`) | `EIO` on the first failed sector, no retry | `check-picocalc-host` (`sdstrat_test`, 56 mutants), `check-renode-picocalc-dump` (R) |
 | SD protocol | `dev/sdspi.c`: `sd_cmd` 122, `sd_rx` 174, `sdspi_init` 224, `sdspi_read_span` 322, `sdspi_write_span` 344 | SPI mode, CMD0/8/59/41/58/16/9, CMD17 and CMD24 only, CRC7 and CRC16 checked | n/a | none | `SDE_*` codes; time limits 1 s, 100 ms, 500 ms (`:55-57`) | `check-picocalc-host` (`sdspi_test`, 30 mutants) |
@@ -111,7 +118,8 @@ The root is mounted read-write before fsck runs, `async` and
 read-write mount (`ufs_mount.c:270`) and replaces the in-core `fs_flags`
 with the mount flags (`:275`), and `m_flags` is that same word
 (`sys/sys/mount.h:57`); the next `ufs_sync()` writes it to disk. On-disk
-`fs_flags` therefore holds the last mount's flags (0xc0 for the root) and
+`fs_flags` therefore holds the last mount's flags (0xc0 for the root after
+`mount -a` applies `async` and `noaccesstime`, I) and
 carries no state of its own today. The first Renode boot's fsck reports
 102 files and 756 blocks where the host check of the same image reports 101
 and 755, so one inode and one block are allocated between the root mount and
@@ -130,7 +138,7 @@ substring search for `fs_clean` had hidden behind `lfs_cleansz`.
 
 ### State machine
 
-| Event | 2.11BSD after 456, 458 and 461 | 4.4BSD-Lite2 and LiteBSD FFS |
+| Event | 2.11BSD after 456, 458 and 461 | 4.4BSD-Lite2 FFS (`ffs_vfsops.c` lines are Lite2's; LiteBSD lines where named) |
 | --- | --- | --- |
 | newfs | no change: the bit starts clear | `fs_clean = 1` (LiteBSD `sbin/newfs/mkfs.c:434`) |
 | read-write mount | `WASCLEAN` set if the disk said `CLEAN`; in-core flags become the mount flags (so `CLEAN` clear); `ufs_sync()` at once if `fs_fmod` (`ufs_mount.c` +2 lines) | `fs_clean = 0`, synchronous `ffs_sbupdate(MNT_WAIT)` (`ffs_vfsops.c:496-499`) |
@@ -163,7 +171,7 @@ in-core word is shared, so the donor's 0x2000 cannot be reused. 0x4000 and
 0x8000 are free and stay outside the statfs mask; no new superblock field
 is needed and the layout is unchanged.
 
-Older images stay readable and safe in both directions:
+Older images stay readable; one direction keeps a window:
 - An image written by any kernel or tool of this tree has neither bit set
   (fsutil writes 0, a kernel writes its mount flags), so a new kernel's
   fsck checks it once, marks it clean, and on the mounted root reboots once.
@@ -180,9 +188,10 @@ Older images stay readable and safe in both directions:
 ### Design constraints this tree adds
 
 1. The dirty mark must reach the medium before any other write of the
-   mount. On Dhara a checkpoint is a prefix of the write order, so a
-   synchronous `bwrite()` of the superblock issued first suffices without a
-   forced checkpoint: any later write that survives carries it. On SD the
+   mount. On Dhara a checkpoint covers the writes appended before it (I;
+   `dhara-audit.md` for the torn-checkpoint exception), so a synchronous
+   `bwrite()` of the superblock issued first suffices without a forced
+   checkpoint: any later write that survives carries it. On SD the
    card acknowledges CMD24 only after the data response and busy phase, so
    a synchronous write ordered first suffices too, short of the card's own
    power-loss behavior (I).
@@ -193,9 +202,15 @@ Older images stay readable and safe in both directions:
    checkpoint, and only when no buffer stayed busy, no `m_write_error` is
    latched and `panicstr` is NULL.
 3. The mount-time write keeps the on-disk `fs_time` (458's ordering).
-4. On a mounted root the clean mark costs a reboot (exit 4), so the
-   benefit on the root is the clean-boot saving minus the reboots added by
-   unclean stops that needed no repair (section 3).
+4. On a mounted root the clean mark costs a reboot: fsck's write of the
+   superblock sets `dfile.mod` (`sbin/fsck/utilities.c:244-246`), which
+   ends a mounted-root check in `sync(); exit(4)` (`main.c:259-262`), and
+   rc answers with `reboot -n`. That holds for the flash root and for the
+   SD root of #558 alike. The benefit on a root is the clean-boot saving
+   minus the reboots added by unclean stops that needed no repair
+   (section 3), unless fsck passes a clean result on the mounted root to
+   the kernel (a mount update that sets `WASCLEAN` in core) and writes
+   nothing, so the next orderly shutdown writes the mark.
 
 ## 3. Measured fsck cost and the clean-flag falsifiers
 
@@ -296,7 +311,9 @@ Three thresholds follow from fsck's sources (`sbin/fsck/main.c:73, 324-325`,
 - `/dev/temp0` is carved from the swap device. On a bare Pico and on a
   PicoCalc without PSRAM that is `fl1`, 380 KiB usable, part of it held by
   the swapped-out images of init and the rc shell while fsck runs, so a
-  filesystem of more than about 1 to 1.3 GiB cannot be checked at boot.
+  filesystem of more than about 1 to 1.3 GiB cannot be checked at boot
+  (M: the 290 KiB of scratch the 1 GiB rows allocate, scaled to the free
+  swap).
   On PicoCalc kernels whose swap is the PSRAM the scratch costs no erase.
 - Each scratch rewrite erases the one spare sector at
   `FLASH_SWAP_SCRATCH_OFFSET`, so one check of a half-full 1 GiB
@@ -307,8 +324,8 @@ Three thresholds follow from fsck's sources (`sbin/fsck/main.c:73, 324-325`,
 | Claim | Falsifier | Evidence | Verdict |
 | --- | --- | --- | --- |
 | "A clean flag saves boot time on the flash root" | the boot fsck span is small beside the boot, and the reboots added after unclean stops outweigh it | 0.08-0.10 virtual s against a login prompt at 3.85-3.99 virtual s (R); one added reboot costs 4.3-4.4 virtual s (R) | falsified for the root as a time saving; the root's check costs one exec and 92 KiB of XIP reads |
-| "Dhara's journal leaves fsck nothing to do after an unclean stop" | fsck repairs after a cut | board: directories made seconds before a forced reset lost or salvaged and repaired by `fsck -p` (B, `STORAGE.md`); Renode: both allocating cuts repaired, the in-place rewrite clean (R) | falsified: the free list and free-inode cache live in the in-core superblock, so any allocation since the last `sync()` leaves fsck work above any translation layer |
-| "A clean flag saves boot time on an SD filesystem" | the SD check is short beside the boot | 0.4-0.6 s for the empty 32 MiB SD root of #558 and 1.7-2.9 s half full; 55-92 s for 1 GiB half full plus about a minute of scratch rewrites on `fl1` (M) | holds above a few MiB; settled by a board timing of `fsck -p /dev/sd0a` |
+| "Dhara's journal leaves fsck nothing to do after an unclean stop" | fsck repairs after a cut | board: directories made seconds before a forced reset lost or salvaged and repaired by `fsck -p` (B, `STORAGE.md`); Renode: both allocating cuts repaired, the in-place rewrite clean (R) | falsified: the free list and free-inode cache live in the in-core superblock, so an allocation whose blocks reach flash before the next superblock write leaves fsck work above any translation layer |
+| "A clean flag saves boot time on an SD filesystem" | the SD check is short beside the boot | 0.4-0.6 s for the empty 32 MiB SD root of #558 and 1.7-2.9 s half full; 55-92 s for 1 GiB half full plus about a minute of scratch rewrites on `fl1` (M) | holds above a few MiB for a filesystem that is not the mounted root; on the SD root the exit-4 reboot offsets it unless fsck hands the result to the kernel; settled by a board timing of `fsck -p /dev/sd0a` |
 | "fsck can check any card the driver accepts" | a card filesystem whose maps exceed the scratch device | about 1 to 1.3 GiB on the 380 KiB raw swap (H, M) | falsified; the PSRAM swap or larger in-core maps lift it |
 
 The board measurements that settle the remaining numbers: on a bare Pico,
@@ -333,9 +350,9 @@ drivers.
 | Bus clock and transfer loop | 12.5 MHz, one byte per call, receive awaited before the next send | RetroBSD 12.5 MHz then 25 MHz with a CMD6 switch to 50 MHz (`sd.c:61-65, 427-458`); LiteBSD up to 50 MHz (`sd.c:54-58, 512-526`) | no 25 MHz (slice M10) and no FIFO pipelining; about 0.95 us per byte against 0.64 us on the wire | medium |
 | Timeouts | 1 s init, 100 ms read, 500 ms busy (`sdspi.c:55-57`) | RetroBSD per-phase limits with maxima published for sysctl (`sd.c:68-123`); FreeBSD 3 s (`mmcspi.c:101`) | limits present; no observed-maximum counters | low |
 | Retry policy | none: the first failed sector fails the buffer (`sd.c:376-389`) | FreeBSD retries every command and the stop (`mmcspi.c:100`, `:1439`, `:2082`); NetBSD retries identification (`sdmmc_mem.c:345`) | with CRC checking on, a single transfer error reaches the filesystem as `EIO` | high |
-| Card identification | CSD only; type SDSC v1, v2, SDHC (`sdspi.c:288`) | RetroBSD defines CMD10 (`sd.c:133`) and never issues it; NetBSD's `sdmmc_mem.c` reads and decodes the CID (`:37`, `:345-350`) | no CID, so no card identity for logs or for a replaced-card check at open | low |
+| Card identification | CSD only; type SDSC v1, v2, SDHC (`sdspi.c:288`) | RetroBSD defines CMD10 (`sd.c:133`) and never issues it; NetBSD's `sdmmc_mem.c` reads the CID during its scan (`:345-346`) | no CID, so no card identity for logs or for a replaced-card check at open | low |
 | Capacity classes | CSD v1 and v2, byte and block addressing, 32-bit sector count | same in all | none in the driver; the filesystem check caps usable card size (section 3) | medium (fsck) |
-| Partitions | MBR primary entries inside the card (`sd.c:243-271`) | RetroBSD MBR (`sd.c:5-11`); 2.11BSD `ra.c` disklabels | no extended or GPT tables | low |
+| Partitions | MBR primary entries inside the card (`sd.c:243-271`) | RetroBSD MBR (`sd.c:5-11`); 2.11BSD `ra.c` disklabels (`:32-57`) | no extended or GPT tables | low |
 | Removable media | card-detect debounce, replaced flag, `DIOCMEDIAGONE` (`sd.c:186-234`) | RetroBSD and LiteBSD have none; FreeBSD's `mmcspi.c` lists card presence detection as not implemented (`:68-69`) | ahead of the references; no event to userland | low |
 | Erase and discard | none | FreeBSD erase commands (`mmcspi.c:1059-1060, 1088`); NetBSD discard (`sdmmc_mem.c:2487`) | no TRIM path; the filesystem frees no blocks to the card | low |
 | Power-down | none; ALDO1 belongs to the PMU (memory-devices note) | FreeBSD's `mmcspi.c` leaves card power control unimplemented (`:70`) | none actionable from the RP2040 | low |
@@ -343,7 +360,7 @@ drivers.
 | Flash program and erase | ROM calls at `splhigh`, no read-back (`flash.c:544-604`) | NetBSD `spiflash.c` erases only when a sector needs it and never reads back (`:402-470`) | a NOR failure is invisible to Dhara, which treats only refusals as bad blocks (`:557`) | medium |
 | Flash wear | Dhara spreads the root; raw swap appends; temporary rewrites copy through one spare sector (`flash.c:1018`) | none comparable | the spare sector takes one erase per scratch rewrite (section 3) | medium |
 | Flash checkpoint integrity | torn-checkpoint fix in pull request #636 | `docs/research/dhara-audit.md` | owner decisions D26 and D28 open there | high (tracked) |
-| RAM disk | none on the root; PSRAM swap minor; a `/tmp` minor on #624 | 2.11BSD `ram.c` (153 lines); LiteBSD `vn.c` | none needed beyond #624 | low |
+| RAM disk and external RAM | none on the root; PSRAM swap minor; a `/tmp` minor on #624 | 2.11BSD `ram.c` (153 lines); RetroBSD `sdramp.c`, a swap device on external SDRAM (`:1-7`), the PSRAM driver's counterpart; LiteBSD `vn.c`, a file-backed disk (`:43-60`) | none needed beyond #624; a file-backed disk has no user on this port | low |
 
 ## 5. C17 census
 
@@ -355,13 +372,27 @@ files of `sys/kern/ufs_*.c`, `vfs_vnops.c`, `sys/dev/swap.c`, the flash, SD,
 PSRAM and FAT32 drivers, the Dhara core, `sbin/fsck`, `sbin/mount`,
 `sbin/mkfs` and `sbin/fdisk`.
 
-| Group | Files | Non-blank code lines | K&R definitions | `register` | `caddr_t` | Denominator state |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Kernel filesystem (`ufs_*`, `vfs_vnops`, `swap`) | 14 | 5,840 | 0 | 243 | 72 | 7 files `A, migration-open`, 7 `unreviewed` |
-| Port drivers (flash, flash_swap, sd, sdspi, psram, psram_xfer, fat32tail) | 7 | 2,204 | 0 | 0 | 2 | `unreviewed` |
-| Dhara core | 3 | 1,004 | 0 | 0 | 0 | `unreviewed`; already fixed-width types |
-| fsck | 12 | 2,621 | 66 | 69 | 0 | `unreviewed` |
-| mount, mkfs, fdisk | 5 | 1,169 | 33 | 23 | 0 | `unreviewed` |
+| Group | Files | Non-blank code lines | K&R definitions | `register` | `caddr_t` | `(struct buf *)` casts | BSD integer names / `<stdint.h>` names | Functions: external / internal / external but used only in their own file | Denominator state |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| Kernel filesystem (`ufs_*`, `vfs_vnops`, `swap`) | 14 | 5,840 | 0 | 243 | 72 | 2 | 210 / 0 | 126 / 13 / 8 | 7 files `A, migration-open`, 7 `unreviewed` |
+| Port drivers (flash, flash_swap, sd, sdspi, psram, psram_xfer, fat32tail) | 7 | 2,204 | 0 | 0 | 2 | 0 | 133 / 4 | 43 / 28 / 2 (fat32tail not linked) | `unreviewed` |
+| Dhara core | 3 | 1,004 | 0 | 0 | 0 | 0 | 0 / 41 | 24 / 20 / 6 (library entry points the port does not call) | `unreviewed` |
+| fsck | 12 | 2,621 | 66 | 69 | 0 | 0 | 91 / 0 | 64 / 0 / 22, `main` included | `unreviewed` |
+| mount, mkfs, fdisk | 5 | 1,169 | 33 | 23 | 0 | 0 | 17 / 0 | 27 / 6 / 25, three `main`s included | `unreviewed` |
+
+The function columns come from `arm-none-eabi-nm` (GCC 14.2.1) over the
+PICOCALC_PSRAM kernel objects and the world's userland objects at
+4b3eaf6c: external is a defined global text symbol, internal a local one,
+and the last figure counts external functions no other object of the same
+link references, the candidates for `static`. BSD integer names are
+`u_int`, `u_char`, `u_short`, `u_long`, `daddr_t`, `off_t` and `ino_t`.
+Implicit `int` is absent from every compiled file: the kernel and the
+utilities build with `-std=gnu17` (`share/mk/sys.mk:107`,
+`conf/Makefile.rp2040:43`), which GCC 14 rejects implicit `int` under by
+default, and no makefile relaxes it; `sbin/fsck/cross.c` is not compiled
+and was not checked. Missing `const` was not measured: it needs a tool
+pass (for example clang-tidy's `readability-non-const-parameter`) with the
+tree's include paths.
 
 Mechanical items, expected to leave object code unchanged (verify by
 comparing objects): the 99 K&R definitions in the utilities, `register`
@@ -400,7 +431,7 @@ conversion of the DiscoBSD ISC files.
 
 | Id | Defect | Evidence | Fix |
 | --- | --- | --- | --- |
-| F-1 | `setup.c:120-121` tests `if (! sfile.wfdes)` after `open()`; `-1` passes, so a missing or exhausted scratch device ends in "CANNOT SEEK: BLK 0" and exit 8 rather than "Unable to open temp device" | H: a 64 MiB image on a host without `/dev/temp0` prints "CANNOT SEEK: BLK 0", exit 8 | test `< 0` on both scratch opens |
+| F-1 | `setup.c:120-121` tests `if (! sfile.wfdes)` after `open()`; `-1` passes, so a failed open of the scratch device ends in "CANNOT SEEK: BLK 0" and exit 8 rather than "Unable to open temp device" | H: a 64 MiB image on a host without `/dev/temp0` prints "CANNOT SEEK: BLK 0", exit 8 | test `< 0` on both scratch opens |
 | F-2 | `main.c:283-288` accepts `-t file` into `scrfile`, and `setup.c:119` overwrites it with `/dev/temp0` | SRC | honor a given `-t` |
 | F-3 | `ckfini()` (`utilities.c:182-190`) tests descriptors for nonzero, so every check that never opened the scratch device issues `ioctl(0, TFALLOC)` on standard input, and a read-only check (`wfdes` -1) also calls `close(-1)` | SRC | test `>= 0`; release the extent only when one was allocated |
 | F-4 | `ufs_alloc.c:298` format mismatch and duplicate message | Cppcheck, SRC | `%u`, one message |
@@ -427,7 +458,7 @@ slice reports both, with the compiler named.
 | T1 | `renode_fsck_timing.py` as a Makefile target with a `TESTING.md` row, outside the aggregate like `check-renode` | `tools/renode`, `Makefile`, `TESTING.md` | 0, 0 | its own controls: the synced trial checks clean, the unlinked trial is repaired | Renode | none | none |
 | T2 | `fsck_io_model.py` as an on-demand host target | `tests`, `Makefile`, `TESTING.md` | 0, 0 | its calibration (strace equality, free-count repair, scratch open) | host | none | P1 |
 | A1 | clean flag, kernel half: `MNT_CLEAN` 0x4000 and `MNT_WASCLEAN` 0x8000, mount-time synchronous dirty write keeping `fs_time`, mark clean at unmount and at orderly shutdown only, with no busy buffer, no latched error and no panic | `ufs_mount.c`, `ufs_subr.c`, `ufs_syscalls2.c`, `shutdown_sync.c`, `mount.h` | +100 to +160 B, 0 B (the donor adds about 50 kernel lines) | `check-kernel` (`kernel.ufs-disk.ilp32`) over the state table of section 2; mutants: the bit at 0x2000, a clean mark after a panic, an asynchronous mount write, `fs_time` stamped from the unset clock | host | clean boot and cut boot on a Pico | owner decision 1 |
-| A2 | clean flag, fsck half: `-f`, skip on `CLEAN`, the mounted-root `WASCLEAN` rule, the mark after a check with no "no" answer | `sbin/fsck`, `fsck.8` | fsck +120 to +200 B | `check-fsck-inode-range` scenarios clean-skip, dirty-check, forced, answered-no stays dirty; mutant: mark despite a "no" | host | as A1 | A1 |
+| A2 | clean flag, fsck half: `-f`, skip on `CLEAN`, the mounted-root `WASCLEAN` rule, the mark after a check with no "no" answer, and (with decision 1's first option) the mounted-root hand-off instead of a write | `sbin/fsck`, `fsck.8`, and for the hand-off `ufs_mount.c` | fsck +120 to +200 B; hand-off +30 to +60 B kernel (I) | `check-fsck-inode-range` scenarios clean-skip, dirty-check, forced, answered-no stays dirty; `check-kernel` for the hand-off; mutants: mark despite a "no", a hand-off that writes the superblock | host | as A1, plus an SD-root boot under the loader | A1 |
 | A3 | new images born clean | `tools/fsutil`, `sbin/mkfs`, `tools/flashimg` | 0 kernel | `check-fs-profiles`, `check-flash-sparse`; mutant: an image with the bit clear must boot through the check in Renode | host, Renode | none | A1 |
 | A4 | fsck maps sized to the process window instead of 16 buffers | `sbin/fsck/main.c`, `setup.c` | fsck +50 to +100 B; user window only | `check-fsck-inode-range` at 256 MiB in core with no scratch device; known-bad: the 16-buffer pool needs the scratch | host | `time fsck` on a 256 MiB card | owner decision 3 |
 | A5 | scratch rewrites without one hot spare: rotate the spare through free swap sectors, or keep temporary units append-only with a remap | `flash.c`, `flash_swap.c`, `sys/dev/swap.c` | +80 to +200 B, +0 to +64 B | `check-flash-swap` with an erase-count oracle per sector; known-bad: the present single spare | host | `STORAGE_STATS` erase counts around one large fsck | owner decision 5 |
@@ -447,13 +478,20 @@ slice reports both, with the compiler named.
 ## 8. Residual owner decisions
 
 1. **Clean flag scope.**
-   - Every UFS filesystem, the root included, as the donor does: one
-     mechanism, but each unclean stop of the root that needed no repair
-     costs a reboot of 4.3-4.4 virtual s, and the clean boot saves 0.08-0.10
-     virtual s.
-   - Every UFS filesystem, with fsck checking a mounted flash root in full
-     regardless of the bit (recommended): the SD root of #558 and card
-     filesystems gain the saving, the flash root keeps today's single boot.
+   - Every UFS filesystem with a hand-off for a mounted root (recommended):
+     fsck writes the mark on a filesystem it checked unmounted, and on the
+     mounted root it passes a clean result to the kernel through a mount
+     update and writes nothing, so no exit-4 reboot follows; the flash root
+     saves 0.08-0.10 virtual s per clean boot, the SD root of #558 about
+     0.4-0.6 s of SPI time, and card filesystems their full check; costs a
+     small kernel hook beyond the donor.
+   - The donor's semantics, root included: the least new code, but each
+     unclean stop of a root that needed no repair costs a reboot of 4.3-4.4
+     virtual s, so the flash root loses time and the SD root breaks even at
+     one such stop per 7-11 clean boots.
+   - Every filesystem but the mounted root, which fsck always checks in
+     full: no reboot and no hand-off, but the SD root keeps paying its
+     check on every boot.
    - Not imported: no on-disk change; SD boots keep their full check, which
      A4 and B2-B4 shorten.
 2. **Bit values.** 0x4000 and 0x8000 in `fs_flags` (recommended: no layout
@@ -484,6 +522,11 @@ slice reports both, with the compiler named.
   rc's fsck on the first Renode boot was not traced.
 - The card's behavior across a power loss (whether a CMD24 the card
   acknowledged survives) is outside every model here.
+- Under the PicoCalc UF2 loader a reset re-enters the loader, which owns the
+  first 16 KiB of flash; whether it relaunches the kernel or stops at its
+  menu was not read, so the cost of an exit-4 reboot on the SD root there
+  may be larger than a bare reboot.
+- Missing `const` qualifiers were not counted.
 
 ## Files and commands
 

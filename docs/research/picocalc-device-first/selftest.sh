@@ -24,7 +24,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 #
-# Calibrate build.sh and run.py on known-bad input before their verdict
+# Calibrate build.sh, run.py and oracle.sh on known-bad input before their verdict
 # counts: an OUTDIR that aliases the golden file, a harness bzero that drifted
 # from machdep.c, a missing or incomplete production compile command, and a
 # decoder one byte short, which run.py must report as a FAIL row through its
@@ -109,6 +109,30 @@ fi
 cp "$T/base/run-output.tsv" "$T/h/run-output.tsv"
 golden=$(cksum <"$T/h/run-output.tsv")
 echo "selftest: baseline run produced the golden file for the cases below"
+
+# oracle.sh compares model output with the committed oracle. Each case derives
+# an oracle from the baseline output, so no case reruns the model.
+perturb() { # row column file
+    awk -v row="$1" -v col="$2" 'BEGIN { FS = OFS = "\t" }
+        $1 == row { $col = $col + 1 } { print }' "$3"
+}
+run_oracle() {
+    sh "$T/h/oracle.sh" --compare "$T/base/run-output.tsv" "$T/oracle.tsv"
+}
+cp "$T/base/run-output.tsv" "$T/oracle.tsv"
+expect_exit 0 "the model matches the oracle" "oracle: identical output" run_oracle
+perturb 'random 4 KB' 5 "$T/base/run-output.tsv" >"$T/oracle.tsv"
+expect_exit 1 "row 'random 4 KB' differs" "oracle: synthetic row off by one cycle" run_oracle
+sed 's/^# compiler .*/# compiler other-gcc 1.0/' "$T/base/run-output.tsv" >"$T/oracle.tsv"
+expect_exit 3 "SKIP: the oracle pins" "oracle: another compiler is a skip" run_oracle
+sed 's/^# cflags .*/# cflags -O2/' "$T/base/run-output.tsv" >"$T/oracle.tsv"
+expect_exit 1 "compiler options differs" "oracle: other compiler options" run_oracle
+perturb 'sh data+bss' 4 "$T/base/run-output.tsv" >"$T/oracle.tsv"
+expect_exit 1 "row 'sh data+bss' differs" "oracle: sh row off with equal inputs" run_oracle
+perturb 'sh data+bss' 4 "$T/base/run-output.tsv" |
+    sed 's/^# input sh sha256 .*/# input sh sha256 0/' >"$T/oracle.tsv"
+expect_exit 0 "NOTE: the sh and awk rows were not compared" \
+    "oracle: sh row off with other inputs" run_oracle
 
 # Known-bad: the golden file disagrees with the model output by one cycle.
 awk 'BEGIN { FS = OFS = "\t" } $1 == "sh data+bss" { $4 = $4 + 1 } { print }' \

@@ -22,7 +22,7 @@ compressed RAM tier (`options SWAPRAM`, `SWAPRAM_KB=16`) of PICOCALC_LEAN
 ESP-PSRAM64H answering at boot and without it.
 
 - PSRAM answers: the tier should take no swap image. On the cycle model a
-  shell-sized image costs 256 ms to enter the pool and about 1.4 ms to move
+  shell-sized image costs at least 256 ms to enter the pool and about 1.4 ms to move
   through the PSRAM (section "Transfer cost per image"), and the PSRAM has no
   wear for the pool to save. The pool keeps exec argument spools and the
   codec workspace keeps packed-text decoding. Cost: an estimated 12 to 24
@@ -163,7 +163,21 @@ text 33,852, data 2,432, bss 7,176) and `usr.bin/awk/awk` (fb9e44f2955ffbb0,
 3 KB u area of `sys/arch/rp2040/test/swapram/swapram_test.c:391-398`; 4 KB of
 zeros; 4 KB of random bytes. The model charges one cycle per instruction
 fetch, so a board running the encoder from the XIP cache can only be
-slower (I). The harness links the kernel's own `bzero()` and `bcopy()`
+slower (I).
+
+Every model time in this note is a lower bound for an SRAM workspace. The
+model links the encoder and decoder objects as static data in ordinary SRAM
+and calls neither `swapram_codec_acquire()` nor `swapram_codec_release()`
+(`swapram.h:119-123`). Production uses `swapram_codec_work`, which the
+linker script places at 0x50100740 in the USB DPSRAM, 1,040 bytes
+(`kern.ldscript:177,184`). The DPSRAM sits on the peripheral bus beside the
+USB controller, so the production encoder can see a data-access latency and
+contention from USB transfers that the model omits, and it runs the
+acquire and release instructions the model omits. None of these is modeled
+here, and this note has no estimate of them. The board measurement that
+settles the gap is falsifier 2: `pc_micros()` around one pool swapout of the
+same image, which reads above the model's 256 ms by the DPSRAM, ownership and
+contention cost together. The harness links the kernel's own `bzero()` and `bcopy()`
 (`machdep.c`, copied verbatim into `bench.c`; `build.sh` fails when either
 body or `UNALIGNED` differs from `machdep.c`), because the encoder's
 `memset()` and `memcpy()` reach them through `dhara/compat/string.h`. A
@@ -203,7 +217,7 @@ swapin do not change at the printed precision.
 | awk (20,236 B, 680 compressed) | 92.4 ms | 32.6 ms | 3.40 ms | 1.6 ms (I) | 257 ms typical, 2.2 s maximum | 290 ms typical (32.6 + 257), 2.2 s maximum |
 | 4 KB incompressible | 771 ms | 386 ms | 1.15 ms | 0.3 ms (I) | 51 ms typical | 437 ms typical (385.5 + 51) |
 
-Pool swapout sums the data and stack counting and writing passes and one
+All model figures are SRAM-workspace lower bounds (see above). Pool swapout sums the data and stack counting and writing passes and one
 u-area pass; a refusal is the two counting passes the flash path then
 follows. The `fl1` device-time column is erase and program time alone. On a
 SWAPRAM kernel, which asks the pool first (states C and D below), an image
@@ -246,7 +260,7 @@ output is stale; this note leaves it as it stands.
 
 | Store | Latency for a 17 KB image | Wear | Capacity | Removable | Present on |
 | --- | --- | --- | --- | --- | --- |
-| Pool (SRAM) | 256 ms in, 3 ms out (model) | none | 16 KB: 3 images at `compile/PICO/Config:64`'s count, 8 of this sh at 2,001 B | no | every kernel with SWAPRAM |
+| Pool (SRAM) | at least 256 ms in, 3 ms out (model lower bound) | none | 16 KB: 3 images at `compile/PICO/Config:64`'s count, 8 of this sh at 2,001 B | no | every kernel with SWAPRAM |
 | PSRAM | about 1.4 ms each way (I) | none | 8 MB, or 2 MB with #624 | no (mainboard part) | PicoCalc, when the probe passes |
 | SD 0xb8 | unmeasured, floor 10.7 ms | card FTL, unmeasured | up to 65,532 blocks (#615) | yes | PicoCalc with a prepared card |
 | `fl1` | 257 ms typical device time; 371 ms after a pool refusal on a SWAPRAM kernel | 100,000 cycles per sector; the hottest swap sector binds the board (`swap-tier-designs.md:68-70`) | 384 KB | no | every board |
@@ -287,7 +301,7 @@ workspace keeps packed-text decoding (`exec_hsaout.c:244-253`), and
 
 | Option | Kernel text | Kernel RAM | State A swapout (sh) | States B-D |
 | --- | ---: | ---: | --- | --- |
-| As built: pool in front everywhere | 0 | 0 | 256 ms (model) | pool in front |
+| As built: pool in front everywhere | 0 | 0 | at least 256 ms (model lower bound) | pool in front |
 | Bypass on PSRAM (recommended) | +12 to +24 B (I) | 0 | about 1.4 ms (I) | pool in front |
 | Bypass, and the pool extends the buffer cache when PSRAM answers | +150 to +400 B (I) | 0 | about 1.4 ms (I) | pool in front |
 | No SWAPRAM in LEAN | unmeasured (falsifier 7) | at least +16,384 B | about 1.4 ms (I) | unpooled `fl1` or card |
@@ -347,10 +361,11 @@ body, since the files that held them are outside the repository.
    `swapram_reserve()` plus `swapram_put()`, and around the
    `psramstrategy()` calls of one swapout, for the same sh image in one
    PICOCALC_LEAN run. The bypass stands while the pool time exceeds the
-   PSRAM time; a ratio below 1 refutes it. The model predicts about 180.
-2. Model fidelity: the pool timer alone against the model's 256 ms for
+   PSRAM time; a ratio below 1 refutes it. The model predicts at least 180.
+2. Model fidelity: the pool timer alone against the model's 256 ms (an SRAM-workspace lower bound) for
    this sh build; a board figure under half the model's flags the cost
-   table.
+   table, and one above it measures the DPSRAM, ownership and contention cost
+   the model omits.
 3. Bypass outcome: a 24-compile `STORAGE_STATS` run in state A with and
    without the bypass; the prediction is SwapRAM admissions 0, swap writes
    all on PSRAM, compile wall time lower.

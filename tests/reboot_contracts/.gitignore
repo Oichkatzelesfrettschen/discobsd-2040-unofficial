@@ -6,3 +6,5 @@ mutant_*
 /bi-mutant2.sh
 /bi-id*
 /boardinfo-stubs/
+sdk_gap.o
+sdk_gap.out

@@ -34,7 +34,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 HOSTCC?=	cc
 HOST_CFLAGS=	-std=gnu11 -D_GNU_SOURCE -Wall -Wextra -Werror \
-		-Wno-unused-parameter -I${.CURDIR}/shim
+		-Wno-unused-parameter -Wno-deprecated-non-prototype -I${.CURDIR}/shim
 REBOOT_RENAMES=	-Dmain=discobsd_reboot_main -Dreboot=test_reboot \
 		-Dkill=test_kill -Dsync=test_sync -Dsleep=test_sleep \
 		-Dgeteuid=test_geteuid -Dopen=test_open \
@@ -52,9 +52,15 @@ reboot_source.o: ${TOPSRC}/sbin/reboot/reboot.c
 	${HOSTCC} ${HOST_CFLAGS} ${REBOOT_RENAMES} -c -o $@ \
 	    ${TOPSRC}/sbin/reboot/reboot.c
 
+# reboot.c must compile where the C library lacks _PATH_WTMP and a kill()
+# in <sys/signal.h> (macOS); each shim fallback is calibrated by removing it.
+sdk-gap:
+	sh ${.CURDIR}/sdk_gap.sh "${HOSTCC}" "${HOST_CFLAGS}" \
+	    "${REBOOT_RENAMES}" ${TOPSRC}/sbin/reboot/reboot.c ${.CURDIR}
+
 # Each mutant must fail the harness: no root check, no confirmation check,
-# and the refusal moved behind the sync and the signals.
-mutants:
+# confirmation always set, and a lost -y or -B option.
+mutants: sdk-gap
 	sh ${.CURDIR}/mutants.sh "${HOSTCC}" "${HOST_CFLAGS}" \
 	    "${REBOOT_RENAMES}" ${TOPSRC}/sbin/reboot/reboot.c ${.CURDIR}
 

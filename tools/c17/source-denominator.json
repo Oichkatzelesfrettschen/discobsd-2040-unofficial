@@ -79032,7 +79032,7 @@
       }
     },
     {
-      "path": "tests/reboot_contracts/gap/paths.h",
+      "path": "tests/reboot_contracts/probe_kill.c",
       "class": "unreviewed",
       "scope": "unreviewed",
       "owner": "tests",
@@ -79042,7 +79042,7 @@
       "evidence": [],
       "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
       "classification": {
-        "source_kind": "header",
+        "source_kind": "translation-unit",
         "build_surface": "test-only",
         "required_mode": "strict-c17-and-gnu17",
         "extension_policy": "portable-only",
@@ -79063,7 +79063,7 @@
       }
     },
     {
-      "path": "tests/reboot_contracts/gap/sys/signal.h",
+      "path": "tests/reboot_contracts/probe_wtmp.c",
       "class": "unreviewed",
       "scope": "unreviewed",
       "owner": "tests",
@@ -79073,7 +79073,7 @@
       "evidence": [],
       "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
       "classification": {
-        "source_kind": "header",
+        "source_kind": "translation-unit",
         "build_surface": "test-only",
         "required_mode": "strict-c17-and-gnu17",
         "extension_policy": "portable-only",

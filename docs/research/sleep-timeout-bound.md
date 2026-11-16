@@ -111,17 +111,22 @@ Per program, from clean builds of main and of the repair on the build host (`arm
 
 ### Gates
 
+Exit codes read directly from the command, logs retained in the working session's scratch space and on the build host (not in the repository).
+
 | Gate | Where | Exit |
 |---|---|---|
-| `check-libc-sleep` | build host, native and `-m32` | 0 (4 variants pass) |
-| `check-libc-host-contracts` | build host | 0 (140 variants pass) |
-| `check-c17-source-denominator` after `--refresh-classification` and `--sync-paths --add-path` | build host | 0 |
-| `check-test-execution`, `check-repository-coverage`, `check-lint` | build host | 0 |
-| `check-changed-text`, `check-changed-comments` | build host, range `origin/main..HEAD` | 0 (three advisories for comment length) |
-| `check-c17-compile-profiles` | WSL build host | 0 |
+| `check-libc-sleep` | build host, native and `-m32` | 0 (four variants pass: native, ILP32, both negatives) |
+| `check-libc-host-contracts` | build host | 0 (140 variants pass, the four sleep variants among them) |
+| `check-c17-source-denominator`, after `--refresh-classification` and `--sync-paths --add-path` | build host | 0 |
+| `check-test-execution`, `check-repository-coverage`, `check-lint` | build host | 0, 0, 0 |
+| `check-changed-text`, `check-changed-comments`, range `4b3eaf6c..HEAD` | build host | 0, 0 (three advisories for comment length) |
 | `bmake MACHINE=rp2040 build`, main and repair | WSL build host | 0 and 0 |
+| `check-c17-compile-profiles` | WSL build host | 0 |
+| `logged-distribution`, `logged-flash`, `check-renode` on the repair | WSL build host | 0, 0, 0 |
 
-Not run: `check-libc-sleep` on silicon; a board run of `sleep 100000001` and of a 24.9-day sleep would take that long and needs the board, which this task leaves untouched.
+`check-renode` boots the PICO_UART kernel of the distribution on Renode's third-party peripheral models to the login prompt; it shows that the linked programs (`init`, `getty`, `login` and the others that call `sleep()`) start with the new function. It did not trace a `sleep()` call, so it is boot evidence, not a behavior test of the loop. The loop's behavior is established by the kernel-model gate above, which runs on the host with stand-in system calls.
+
+Not run: a board run, which this task leaves untouched; `sleep 100000001` and a 24.9-day sleep on silicon; `check-ucall-qemu` and the other gates that do not read `sleep.c`. The branch is based on `origin/main` 4b3eaf6c; `check-libc-sleep` and the denominator gates need a rerun after a rebase that moves `tools/c17/source-denominator.json`.
 
 ## 5. Residual decisions
 

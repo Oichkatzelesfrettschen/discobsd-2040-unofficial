@@ -227,10 +227,14 @@ def decode_read(cmd: int, raw: list[int]) -> int:
 
 def read_failures(state: str, values: dict[int, int],
                   want: dict[int, int]) -> list[str]:
-    """The registers of values that differ from want, under READ_MASKS."""
+    """The registers of values that differ from want, under READ_MASKS.
+
+    READ_STATE_MASKS adds the bits a register leaves unspecified in one state.
+    """
     failures = []
     for cmd, (name, _, _) in READ_COMMANDS.items():
         mask = READ_MASKS.get(cmd, 0xFFFFFFFF)
+        mask &= READ_STATE_MASKS.get(state, {}).get(cmd, 0xFFFFFFFF)
         got = values.get(cmd, -1)
         if got < 0 or got & mask != want[cmd] & mask:
             failures.append(f"panel read {state}: {name} (0x{cmd:02x}) returned "
@@ -332,6 +336,13 @@ READ_COMMANDS = {
 # Masks hold the bits the model leaves at zero because the datasheet does not
 # say when they set: ST15 of RDDST and VSSON of RDDIM (vertical scroll mode).
 READ_MASKS = {0x09: 0xFFFF7FFF, 0x0D: 0x7F}
+# RDDSDR reads 00h after a power-on, hardware or software reset (page 162).
+# Page 162 describes the register as the result of the self-diagnostic that
+# SLPOUT runs (page 165) and gives D7 (register loading detection) and D6
+# (functionality detection) no polarity for a passed diagnostic, so after the
+# driver's init sequence the check masks them; D5 to D1 stay 0 and D0 is the
+# checksum comparison.
+READ_STATE_MASKS = {"init": {0x0F: 0x3F}}
 READ_AFTER_RESET = {
     0x04: 0xFFFFFF, 0x09: 0x00610000, 0x0A: 0x08, 0x0B: 0x00, 0x0C: 0x06,
     0x0D: 0x00, 0x0E: 0x00, 0x0F: 0x00, 0xDA: 0xFF, 0xDB: 0xFF, 0xDC: 0xFF,
@@ -645,12 +656,24 @@ def self_test() -> int:
             for cmd, value in READ_AFTER_INIT.items()},
         "a sleeping panel": {**good, 0x0A: 0x08},
         "an unprogrammed MADCTL": {**good, 0x0B: 0x00},
+        "a diagnostic result with a reserved bit set": {**good, 0x0F: 0x20},
     }
     for name, values in read_mutants.items():
         if not read_failures("init", values, READ_AFTER_INIT):
             print(f"self-test: {name} was not rejected by the readback check",
                   file=sys.stderr)
             return 1
+    diagnosed = {**good, 0x0F: 0xC0}
+    if read_failures("init", diagnosed, READ_AFTER_INIT):
+        print("self-test: a diagnostic result with D7 and D6 set was rejected after SLPOUT",
+              file=sys.stderr)
+        return 1
+    undone = {cmd: decode_read(cmd, read_stream(cmd, value))
+              for cmd, value in READ_AFTER_RESET.items()}
+    if not read_failures("reset", {**undone, 0x0F: 0xC0}, READ_AFTER_RESET):
+        print("self-test: a diagnostic result with D7 and D6 set was accepted after a reset",
+              file=sys.stderr)
+        return 1
     width, pixels = logo_frame()
     if logo_failures(width, pixels, 0):
         print("self-test: the drawn mirror ball failed its own comparison", file=sys.stderr)
@@ -664,7 +687,7 @@ def self_test() -> int:
         print("self-test: a one-color logo was not rejected", file=sys.stderr)
         return 1
     print("check-picocalc self-test: ok (good line, sleeping panel and four other mutants, "
-          "good and unbounded FIFO, three good readbacks and four mutants, "
+          "good and unbounded FIFO, three good readbacks and five mutants, "
           "good, shifted and one-color logo)")
     return 0
 

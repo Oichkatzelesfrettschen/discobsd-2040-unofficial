@@ -395,7 +395,7 @@ namespace Antmicro.Renode.Peripherals.SPI
                 data = new byte[] { (byte)(inverted ? 0x20 : 0) };
                 break;
             case 0x0e:  /* RDDSM: no TE line, no RGB interface signals (page 160). */
-            case 0x0f:  /* RDDSDR: 00h after any reset (page 162). */
+            case 0x0f:  /* RDDSDR: 00h after any reset (page 162); the self-diagnostic result after SLPOUT has no stated polarity, so the model keeps 00h. */
                 data = new byte[] { 0x00 };
                 break;
             default:    /* RDID1, RDID2, RDID3: FFh (pages 215 to 217). */
@@ -410,7 +410,7 @@ namespace Antmicro.Renode.Peripherals.SPI
             readPos = 0;
         }
 
-        /* The DC/DC converter runs in sleep out and stops in sleep in (pages 163, 164). */
+        /* The DC/DC converter runs in sleep out and stops in sleep in (SLPIN page 163, SLPOUT page 165). */
         private bool Booster { get { return !sleeping; } }
 
         private byte NextReadByte()

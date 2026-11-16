@@ -2813,11 +2813,12 @@ RDDID and RDDST is page 95), written out in the script, and the read commands
 must not count as unmodeled. The model's reply to a read before this stage
 was zero, so the stage fails against it; `--readback` runs this stage alone
 without a boot, and `--self-test` rejects a model that answers zeros, one
-without the dummy cycle and two wrong register states. The stage tests the
+without the dummy cycle, three wrong register states and a self-diagnostic result with a reserved bit set, and accepts a result with D7 and D6 set after SLPOUT and rejects it after a reset. The stage tests the
 model, not the kernel: the main-line driver reads no panel register. Command
 Table 2 reads (SPI Read Control, RDID4) remain unmodeled and answer zero; the
 bits of RDDST and RDDIM that report vertical scroll mode stay zero because the
-datasheet does not say when they set.
+datasheet does not say when they set. The check masks D7 and D6 of RDDSDR after
+SLPOUT, because the datasheet gives a passed diagnostic no polarity for them.
 
 When the root image carries them (the `picocalc` profile does; any other
 image prints a skip line), the same run then types `picofetch` and

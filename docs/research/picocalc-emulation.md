@@ -183,9 +183,13 @@ Panel model behavior, by the specification page that decides it
   from the registers above when the data byte follows with D/C high. The
   reply is a bit stream, most significant bit first, with one dummy clock
   cycle before the data of RDDID and RDDST and none before the 8-bit reads
-  (page 95). BSTON follows sleep state (SLPOUT starts and SLPIN stops the
-  DC/DC converter, pages 163 and 164), COLMOD reads 06h after a reset and keeps
-  its value through SWRESET with MADCTL (pages 156, 157). Not modeled: SPI
+  (page 95). BSTON follows sleep state (SLPOUT starts, page 165, and SLPIN
+  stops, page 163, the DC/DC converter), COLMOD reads 06h after a reset and
+  keeps its value through SWRESET with MADCTL (pages 156, 157); the pixel
+  width of a following RAMWR therefore follows the COLMOD set before the
+  SWRESET, where the earlier model forced 66h. RDDSDR reads 00h; the
+  datasheet gives D7 and D6 no polarity for a passed self-diagnostic after
+  SLPOUT (pages 162, 165), so check-picocalc.py masks them there. Not modeled: SPI
   Read Control (FBh) reads of Command Table 2, RDID4 (D3h), the vertical
   scroll mode bits (RDDST ST15, RDDIM VSSON) and what MISO reads outside the
   data bits.

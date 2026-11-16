@@ -29,8 +29,12 @@
 # usage: PYTHON=python3 build.sh OUTDIR
 #
 # The encoder (sys/arch/rp2040/heatshrink) and decoder (rp2040/hsx_decoder.c)
-# compile with the kernel's -Os and include path; harness.ld from
-# rp2040-second-core-emulation links them at 0x20000000. run.py reads the
+# compile with the options and include path that "bmake -n" prints for their
+# rules in sys/arch/rp2040/compile/PICO (COMPILE_C), so the cycle counts are
+# those of the shipped objects; the golden file records them on its "# cflags"
+# line; bench.c compiles with them too, warnings as errors included.
+# harness.ld from rp2040-second-core-emulation links the objects at
+# 0x20000000. run.py reads the
 # data segments of bin/sh/sh and usr.bin/awk/awk, which a
 # "bmake MACHINE=rp2040 build" leaves in the tree (SH_AOUT and AWK_AOUT name
 # other copies), and prints one TSV row per
@@ -42,7 +46,7 @@
 # It also exits nonzero when bench.c's bzero, bcopy or UNALIGNED differ from
 # sys/arch/rp2040/rp2040/machdep.c, or when run.py reports a failed round
 # trip. BENCH_CFLAGS adds compiler flags (selftest.sh uses it for a mutant).
-# Needs arm-none-eabi-gcc, Unicorn and Capstone.
+# Needs arm-none-eabi-gcc, bmake (BMAKE names another), Unicorn and Capstone.
 set -eu
 
 : "${PYTHON:?set PYTHON to the intended interpreter}"
@@ -82,16 +86,47 @@ fi
 
 mkdir -p "$OUT/inc"
 ln -sfn "$ROOT/sys/arch/rp2040/include" "$OUT/inc/machine"
-KFLAGS="-DKERNEL -mcpu=cortex-m0plus -mthumb -ffreestanding -fno-builtin \
--fno-common -std=gnu17 -Os -nostdinc"
-KINC="-I$ROOT/sys -I$ROOT/sys/arch -I$OUT/inc \
--I$ROOT/sys/arch/rp2040/dhara/compat -I$HS -I$HS/compat"
+
+# prod_flags NAME prints the compiler options of the PICO kernel's NAME.o rule
+# as "bmake -n" expands COMPILE_C in sys/arch/rp2040/compile/PICO, without the
+# compiler path, the dependency-file options, the debug path map (a local
+# path that changes no instruction) and the -c operand.
+PICO=$ROOT/sys/arch/rp2040/compile/PICO
+prod_flags() {
+    (cd "$PICO" && "${BMAKE:-bmake}" MACHINE=rp2040 -n "$1.o") |
+        awk -v s="/$1.c" 'index($0, " -c ") && substr($0, length($0) - length(s) + 1) == s' |
+        tail -n 1 |
+        sed -e 's/^[^ ]*gcc //' -e 's/ -MT [^ ]*//' -e 's/ -MF [^ ]*//' \
+            -e 's/ -MP//' -e 's/ -MD//' -e 's/ -fdebug-prefix-map=[^ ]*//' \
+            -e 's/ -c [^ ]*$//'
+}
+PROD_FLAGS=$(prod_flags heatshrink_encoder)
+PROD_DEC=$(prod_flags hsx_decoder)
+case "$PROD_FLAGS" in
+'' | *\\* | *\"* | *\'*)
+    echo "build.sh: no usable compile command from bmake -n in $PICO" >&2
+    exit 2
+    ;;
+esac
+if [ "$PROD_FLAGS" != "$PROD_DEC" ]; then
+    echo "build.sh: the encoder and decoder compile with different options" >&2
+    exit 2
+fi
+case "$PROD_FLAGS" in
+*-fno-strict-aliasing*-fshort-enums* | *-fshort-enums*-fno-strict-aliasing*) ;;
+*)
+    echo "build.sh: derived options lack the kernel's code-generation flags" >&2
+    exit 2
+    ;;
+esac
+set -f
 for src in "$HERE/bench.c" "$HS/heatshrink_encoder.c" \
     "$ROOT/sys/arch/rp2040/rp2040/hsx_decoder.c"; do
     # shellcheck disable=SC2086
-    "$CC_ARM" $KFLAGS ${BENCH_CFLAGS:-} $KINC -Wno-implicit-fallthrough -c "$src" \
-        -o "$OUT/$(basename "$src" .c).o"
+    (cd "$PICO" && "$CC_ARM" $PROD_FLAGS ${BENCH_CFLAGS:-} -I"$OUT/inc" -c "$src" \
+        -o "$OUT/$(basename "$src" .c).o")
 done
+set +f
 "$CC_ARM" -mcpu=cortex-m0plus -mthumb -nostdlib -nostartfiles \
     -Wl,--no-warn-rwx-segments \
     -Wl,-T,"$ROOT/docs/research/rp2040-second-core-emulation/harness.ld" \
@@ -99,6 +134,7 @@ done
     "$OUT/hsx_decoder.o" -lgcc
 if ! {
     printf '# compiler %s\n' "$("$CC_ARM" --version | head -n 1)"
+    printf '# cflags %s\n' "$PROD_FLAGS"
     "$PYTHON" -I "$HERE/run.py" "$OUT/bench.elf" "$SH_AOUT" "$AWK_AOUT"
 } >"$OUT/run-output.tsv"; then
     echo "build.sh: run.py failed (see $OUT/run-output.tsv)" >&2

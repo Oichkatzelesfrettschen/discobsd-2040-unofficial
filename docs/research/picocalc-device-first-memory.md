@@ -145,7 +145,10 @@ Swapout and swapin run to completion with no context switch
 The cycle model ran the tree's encoder (`heatshrink_encoder.c`, window 9,
 lookahead 8, index off) and decoder (`hsx_decoder.c`) built for Cortex-M0+
 at `-Os` by GCC 16.2.0, the flags `COMPILE_C` gives both objects
-(`compile/PICO/Makefile:555-559`). Inputs: the data segment (a_data plus
+(`compile/PICO/Makefile:555-559`). `build.sh` takes those flags from the
+`bmake -n` expansion of the two rules in `compile/PICO`, compiles `bench.c`
+with them (warnings as errors) and records them on the `# cflags` line of
+`run-output.tsv`. Inputs: the data segment (a_data plus
 a_bss zeros) of the local `bin/sh/sh` (SHA-256 prefix 12d2c1314ce7cc5d,
 text 33,852, data 2,432, bss 7,176) and `usr.bin/awk/awk` (fb9e44f2955ffbb0,
 48,772 / 2,272 / 10,796), built 2026-11-13; the synthetic 4 KB stack and
@@ -176,6 +179,11 @@ cycles (before, after):
 | 4 KB random | 96,390,533 | 96,376,453 |
 
 Decode cycles did not move, since the decoder calls neither routine. The
+first harness compiled with a subset of the production options (no
+`-fno-strict-aliasing`, `-fshort-enums`, `-fno-delete-null-pointer-checks`,
+`-mabi=aapcs`, `-mfloat-abi=soft`, section options or configuration
+defines). The rebuild under the full derived set changed no cycle count in any
+column of any row, so every figure above stands for the production flags. The
 derived times move by 0.3 ms or less: sh pool swapout 256.2 to 255.9 ms,
 refusal 114.5 to 114.4 ms, awk swapout 92.7 to 92.4 ms and refusal 32.8 to
 32.6 ms; the 4 KB incompressible rows (771 and 386 ms) and the 3.1 ms sh

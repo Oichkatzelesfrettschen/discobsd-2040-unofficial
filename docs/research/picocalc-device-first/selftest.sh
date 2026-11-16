@@ -26,10 +26,11 @@
 #
 # Calibrate build.sh and run.py on known-bad input before their verdict
 # counts: an OUTDIR that aliases the golden file, a harness bzero that drifted
-# from machdep.c, and a decoder one byte short, which run.py must report as a
-# FAIL row through its exit status. The known-good run must pass. Each
-# known-bad case runs against a copy of this directory, so a defective gate
-# cannot damage the tracked golden file.
+# from machdep.c, a missing or incomplete production compile command, and a
+# decoder one byte short, which run.py must report as a FAIL row through its
+# exit status. The known-good run must pass. Each known-bad case runs against a
+# copy of this directory, so a defective gate cannot damage the tracked golden
+# file.
 #
 # usage: PYTHON=python3 selftest.sh
 set -eu
@@ -86,6 +87,15 @@ if cmp -s "$HERE/bench.c" "$T/h/bench.c"; then
 fi
 expect_status 2 "bzero differs from machdep.c" sh "$T/h/build.sh" "$T/drift"
 cp "$HERE/bench.c" "$T/h/bench.c"
+
+# Known-bad: the production compile command is unavailable, or lacks the
+# kernel's code-generation options.
+printf '#!/bin/sh\nexit 0\n' >"$T/bmake-empty"
+printf '#!/bin/sh\nexec bmake "$@" | sed "s/ -fshort-enums//"\n' >"$T/bmake-nofl"
+expect_status 2 "no compile command from bmake" \
+    env BMAKE="$T/bmake-empty" sh "$T/h/build.sh" "$T/noflags"
+expect_status 2 "derived options lack -fshort-enums" \
+    env BMAKE="$T/bmake-nofl" sh "$T/h/build.sh" "$T/nofl"
 
 # Known-bad: a decoder one byte short; run.py must exit nonzero.
 set +e

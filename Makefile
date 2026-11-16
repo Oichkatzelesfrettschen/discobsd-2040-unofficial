@@ -883,6 +883,11 @@ check-libc-absolute-value:
 
 .PHONY: check-libc-absolute-value
 
+check-libc-integer-division:
+		${MAKE} -C tests/libc_contracts check-integer-division
+
+.PHONY: check-libc-integer-division
+
 check-libc-qsort-context:
 		${MAKE} -C tests/libc_contracts check-qsort-context
 

@@ -76,6 +76,17 @@ typedef unsigned int wchar_t;		/* as <stddef.h> defines it */
 #endif
 #endif
 
+/* C17 7.22p2: the results of div and ldiv, quotient first. */
+typedef struct {
+	int	quot;
+	int	rem;
+} div_t;
+
+typedef struct {
+	long	quot;
+	long	rem;
+} ldiv_t;
+
 __dead void abort (void);
 int     abs (int);
 void    *aligned_alloc (size_t, size_t);
@@ -84,10 +95,12 @@ int     at_quick_exit (void (*)(void));
 int     atoi (const char *);
 long    atol (const char *);
 void    *calloc (size_t, size_t);
+div_t   div (int, int);
 __dead void exit (int);
 void    free (void *);
 char    *getenv (const char *);
 long    labs (long);
+ldiv_t  ldiv (long, long);
 void    *malloc (size_t);
 int     mblen (const char *, size_t);
 size_t  mbstowcs (wchar_t *, const char *, size_t);
@@ -120,7 +133,14 @@ __dead void quick_exit (int);
  * none of the long long conversions.
  */
 #ifndef __SMALLER_C__
+typedef struct {
+	long long	quot;
+	long long	rem;
+} lldiv_t;
+
 long long atoll (const char *);
+long long llabs (long long);
+lldiv_t lldiv (long long, long long);
 long long strtoll (const char *, char **, int);
 unsigned long long strtoull (const char *, char **, int);
 #endif

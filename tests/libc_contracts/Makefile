@@ -64,6 +64,7 @@ check-host: check-err ${PROG} header_contract.o check-ctime check-zone check-std
 	check-qsort check-strtox check-string-security check-array-memory-line \
 	check-getgrent check-bounded-string check-exit-lifecycle check-quick-exit \
 	check-qsort-context check-dbm-open check-absolute-value check-byte-search \
+	check-integer-division \
 	check-character-io
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
@@ -136,6 +137,36 @@ absolute_value_test_san: ${ABSOLUTE_VALUE_INPUTS} .PHONY
 	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
 
 .PHONY: check-absolute-value
+
+INTEGER_DIVISION_INPUTS= integer_division.py integer_division_test.c \
+	${STDLIB_DIR}/div.c ${STDLIB_DIR}/ldiv.c ${STDLIB_DIR}/lldiv.c \
+	${STDLIB_DIR}/llabs.c ${STDLIB_DIR}/imaxdiv.c
+
+check-integer-division: integer_division_test
+	${TEST_EXECUTION} run libc.integer-division.native -- ./integer_division_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} integer_division_test32
+	${TEST_EXECUTION} run libc.integer-division.ilp32 -- ./integer_division_test32
+.else
+	${TEST_EXECUTION} skip libc.integer-division.ilp32 "check-libc-integer-division: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} integer_division_test_san
+	${TEST_EXECUTION} run libc.integer-division.sanitized -- ./integer_division_test_san
+.else
+	${TEST_EXECUTION} skip libc.integer-division.sanitized "check-libc-integer-division: sanitizer runtime unavailable"
+.endif
+
+integer_division_test: ${INTEGER_DIVISION_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${HOSTCC:Q} $@
+
+integer_division_test32: ${INTEGER_DIVISION_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+integer_division_test_san: ${INTEGER_DIVISION_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-integer-division
 
 BYTE_SEARCH_INPUTS= byte_search.py byte_search_test.c \
 	${STRING_DIR}/memmem.c ${TOPSRC}/lib/libc/compat/memchr.c
@@ -1686,6 +1717,7 @@ header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
 
 clean:
 	rm -f absolute_value_test absolute_value_test32 absolute_value_test_san
+	rm -f integer_division_test integer_division_test32 integer_division_test_san
 	rm -f byte_search_test byte_search_test32 byte_search_test_san
 	rm -f character_io_test character_io_test32 character_io_test_san
 	rm -f qsort_context_test qsort_context_test32 qsort_context_test_san
@@ -1805,6 +1837,7 @@ check-qemu:
 	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/byte_search.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm --calibrate
 	${PYTHON} ${.CURDIR}/character_io.py --compiler ${QEMU_ARM_CC:Q} --target
 	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm

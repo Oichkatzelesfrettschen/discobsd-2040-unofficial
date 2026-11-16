@@ -230,6 +230,9 @@ qsort_context_test_san
 absolute_value_test
 absolute_value_test32
 absolute_value_test_san
+integer_division_test
+integer_division_test32
+integer_division_test_san
 calendar32_vectors.h
 sleep_contract_test
 sleep_contract_test32

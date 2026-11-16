@@ -713,6 +713,11 @@
       "kind": "recipe"
     },
     {
+      "from": "check-libc-integer-division",
+      "to": "tests/libc_contracts:check-integer-division",
+      "kind": "recipe"
+    },
+    {
       "from": "check-libc-byte-search",
       "to": "tests/libc_contracts:check-byte-search",
       "kind": "recipe"
@@ -4896,6 +4901,63 @@
       "recipe": "${TEST_EXECUTION} run libc.absolute-value.sanitized -- ./absolute_value_test_san",
       "aliases": [
         "check-libc-absolute-value"
+      ]
+    },
+    {
+      "id": "libc.integer-division.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-integer-division",
+      "root_target": "check-libc-host-contracts",
+      "program": "integer_division_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "integer_division_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.integer-division.native -- ./integer_division_test",
+      "aliases": [
+        "check-libc-integer-division"
+      ]
+    },
+    {
+      "id": "libc.integer-division.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-integer-division",
+      "root_target": "check-libc-host-contracts",
+      "program": "integer_division_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "integer_division_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.integer-division.ilp32 -- ./integer_division_test32",
+      "aliases": [
+        "check-libc-integer-division"
+      ]
+    },
+    {
+      "id": "libc.integer-division.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-integer-division",
+      "root_target": "check-libc-host-contracts",
+      "program": "integer_division_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "integer_division_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.integer-division.sanitized -- ./integer_division_test_san",
+      "aliases": [
+        "check-libc-integer-division"
       ]
     },
     {

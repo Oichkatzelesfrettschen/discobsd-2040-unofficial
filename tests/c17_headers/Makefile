@@ -20,7 +20,8 @@ MUTATE=		${PYTHON} ${.CURDIR}/mutate.py
 
 HEADER_CONTRACTS=	stddef_contract stdalign_contract stdnoreturn_contract \
 			limits_contract stdint_contract inttypes_contract \
-			ctype_contract stdlib_wide_contract errno_contract
+			ctype_contract stdlib_wide_contract errno_contract \
+			iso646_contract stdlib_div_contract
 HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
 			stdnoreturn_empty limits_llong_min_short \
 			stdint_unsigned_max stdint_narrow_intmax \
@@ -28,7 +29,9 @@ HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
 			inttypes_scn64_long ctype_no_isblank \
 			stddef_wchar_int limits_no_mb_len_max \
 			stdlib_no_mbtowc inttypes_no_wcstoimax \
-			errno_no_eilseq limits_ulong_uint
+			errno_no_eilseq limits_ulong_uint \
+			iso646_xor_or iso646_no_compl stdlib_no_lldiv \
+			stdlib_ldiv_int
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -126,6 +129,33 @@ inttypes_no_wcstoimax.mutant:
 	${MUTATE} ${TOPSRC}/include/inttypes.h $@/inttypes.h \
 	    "intmax_t	wcstoimax(const wchar_t *, wchar_t **, int);" ""
 inttypes_no_wcstoimax.contract= inttypes_contract
+
+# An xor bound to | still parses and agrees with ^ wherever the operands
+# share no bit, so the contract's operands share one.  A missing spelling
+# reaches the #error in front of the assertions.
+iso646_xor_or.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/iso646.h $@/iso646.h \
+	    "#define xor		^" "#define xor		|"
+iso646_xor_or.contract= iso646_contract
+iso646_no_compl.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/iso646.h $@/iso646.h \
+	    "#define compl		~" ""
+iso646_no_compl.contract= iso646_contract
+
+# ldiv_t with int members has the target's size and layout, because long
+# and int are both 32 bits there; only the member type differs.
+stdlib_no_lldiv.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/stdlib.h $@/stdlib.h \
+	    "lldiv_t lldiv (long long, long long);" ""
+stdlib_no_lldiv.contract= stdlib_div_contract
+stdlib_ldiv_int.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/stdlib.h $@/stdlib.h \
+	    "	long	quot;" "	int	quot;"
+stdlib_ldiv_int.contract= stdlib_div_contract
 
 # <errno.h> is a link to sys/sys/errno.h, which the mutant reads.
 errno_no_eilseq.mutant:
@@ -553,6 +583,12 @@ imaxdiv.imports=
 imaxabs.imports=
 abs.imports=
 labs.imports=
+llabs.imports=
+# One divide call yields both results; lldiv reaches the 64-bit divider
+# through imaxdiv rather than a compiler runtime routine.
+div.imports=		__aeabi_idivmod
+ldiv.imports=		__aeabi_idivmod
+lldiv.imports=		imaxdiv
 strtoimax.imports=	strtoll
 strtoumax.imports=	strtoull
 mblen.imports=
@@ -562,7 +598,7 @@ mbstowcs.imports=	strlen
 wcstombs.imports=
 wcstoumax.imports=	errno
 wcstoimax.imports=	errno __discobsd_wcstou64
-IMPORT_STDLIB=	abs labs strtoull strtoll atoll iso_exit imaxdiv imaxabs strtoimax \
+IMPORT_STDLIB=	abs labs llabs div ldiv lldiv strtoull strtoll atoll iso_exit imaxdiv imaxabs strtoimax \
 		strtoumax mblen mbtowc wctomb mbstowcs wcstombs wcstoumax \
 		wcstoimax
 isctype.imports=	_ctype_

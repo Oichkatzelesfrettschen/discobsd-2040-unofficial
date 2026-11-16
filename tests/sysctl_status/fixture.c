@@ -72,12 +72,11 @@ int status_sysctl(int *name, u_int length, void *old, size_t *size,
         struct cpu_flash_id id;
         memset(&id, 0, sizeof(id));
         if (!(scenario && strcmp(scenario, "unread") == 0)) {
-            static const unsigned char jedec[3] = { 0xef, 0x40, 0x15 };
-            static const unsigned char unique[8] = {
+            static const unsigned char bytes[11] = {
+                0xef, 0x40, 0x15,
                 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef };
             id.valid = 1;
-            memcpy(id.jedec, jedec, sizeof(jedec));
-            memcpy(id.unique, unique, sizeof(unique));
+            memcpy(id.id, bytes, sizeof(bytes));
         }
         memcpy(old, &id, sizeof(id));
         *size = sizeof(id);

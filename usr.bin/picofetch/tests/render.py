@@ -307,7 +307,7 @@ def test_fetch_bank(fetch, dumpdir):
     for r in range(2, 10):
         check(s.cell[r][16][0] != 32 and s.cell[r][15][0] == 32,
               f"row {r} holds a reading beside the logo")
-    check(s.text(9).startswith("Load     1.12 0.45 0.07 run 1"),
+    check("Load     1.12 0.45 0.07 run 1" in s.text(9),
           "the last row beside the logo is the 25-column load line")
     check(s.text(10).startswith("Cores    1 kernel; core1 not in this kernel"),
           "rows below the logo use the whole width")

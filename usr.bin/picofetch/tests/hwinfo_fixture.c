@@ -118,14 +118,13 @@ hw_collect(struct hwinfo *hw, int groups)
 		hw->flash_id.state = oldkernel ? RD_ABSENT : failed ? RD_FAILED :
 		    RD_OK;
 		if (hw->flash_id.state == RD_OK && !unread) {
-			static const unsigned char jedec[3] = { 0xef, 0x40, 0x15 };
-			static const unsigned char unique[8] = {
+			static const unsigned char id[11] = {
+				0xef, 0x40, 0x15,
 				0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef
 			};
 
 			hw->flash_id.valid = 1;
-			memcpy(hw->flash_id.jedec, jedec, sizeof jedec);
-			memcpy(hw->flash_id.unique, unique, sizeof unique);
+			memcpy(hw->flash_id.id, id, sizeof id);
 		}
 	}
 	if (groups & HWI_LIVE) {

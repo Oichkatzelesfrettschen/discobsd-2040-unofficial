@@ -75,9 +75,9 @@ def verify(binary):
         for scenario in ("unavailable", "length"):
             cases.append(([node], scenario, False))
     outputs = (
-        (["machdep.flash_id"], "", "machdep.flash_id=jedec ef4015 unique 0123456789abcdef\n"),
-        (["-n", "machdep.flash_id"], "", "jedec ef4015 unique 0123456789abcdef\n"),
-        (["machdep.flash_id"], "unread", "machdep.flash_id=unread\n"),
+        (["machdep.flash_id"], "", "machdep.flash_id=ef4015 0123456789abcdef\n"),
+        (["-n", "machdep.flash_id"], "", "ef4015 0123456789abcdef\n"),
+        (["machdep.flash_id"], "unread", "machdep.flash_id=000000 0000000000000000\n"),
         (["machdep.pcm"], "", "machdep.pcm=rate 8000 channels 1 bits 8 ring 255 queued 7 open 1\n"),
         (["-n", "machdep.pcm"], "", "rate 8000 channels 1 bits 8 ring 255 queued 7 open 1\n"),
     )
@@ -114,10 +114,9 @@ text = source.read_text()
 for name, anchor, replacement in (
     ("status", "return (exit_status);", "(void)exit_status; return (0);"),
     ("operand", "parse(*argv++, 1)", "parse(*argv, 1)"),
-    ("flash-jedec-digits", '"jedec %02x%02x%02x unique "', '"jedec %02d%02d%02d unique "'),
-    ("flash-unread-as-valid", "if (!id->valid) {", "if (0) {"),
-    ("flash-size-unchecked", "if (size != sizeof(*id)) {", "if (0) {"),
-    ("pcm-size-unchecked", "if (size != sizeof(*pcm)) {", "if (0) {"),
+    ("flash-digits", '"%s%02x", i == 3 ? " " : ""', '"%s%02d", i == 3 ? " " : ""'),
+    ("flash-split-misplaced", 'i == 3 ? " " : ""', 'i == 2 ? " " : ""'),
+    ("node-size-unchecked", "if (size != (mib[1] == CPU_PCM ? sizeof(*pcm) : sizeof(*id))) {", "if (0) {"),
     ("pcm-queued-for-open", "pcm->queued, pcm->open);", "pcm->open, pcm->queued);"),
 ):
     assert text.count(anchor) == 1, (name, "mutation anchor")

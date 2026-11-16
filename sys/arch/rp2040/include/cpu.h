@@ -133,9 +133,10 @@
 /*
  * flash_id, read-only: the QSPI flash chip's identity as flash_identity()
  * (dev/flash.c) holds it. jedec is the manufacturer, memory type and
- * capacity bytes in the order the chip returns them; unique is the 64-bit
- * unique ID, most significant byte first. valid is 0, with every other byte
- * zero, when the chip returned no plausible answer at boot.
+ * capacity bytes in the order the chip returns them, id[0] to id[2]; id[3]
+ * to id[10] are the 64-bit unique ID, most significant byte first. valid is
+ * 0, with every other byte zero, when the chip returned no plausible answer
+ * at boot.
  */
 #define	CPU_FLASH_ID		45	/* struct cpu_flash_id */
 /*
@@ -151,8 +152,7 @@
 
 struct cpu_flash_id {
 	unsigned char	valid;
-	unsigned char	jedec[3];
-	unsigned char	unique[8];
+	unsigned char	id[11];
 };
 
 struct cpu_pcm_info {

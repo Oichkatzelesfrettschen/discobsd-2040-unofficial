@@ -70,8 +70,7 @@ struct hwi_table {
 struct hwi_flash_id {
 	int		state;		/* enum rd_state */
 	int		valid;
-	unsigned char	jedec[3];
-	unsigned char	unique[8];
+	unsigned char	id[11];		/* JEDEC bytes, then the unique ID */
 };
 
 /* machdep.pcm: the /dev/audio device of a PicoCalc kernel. */

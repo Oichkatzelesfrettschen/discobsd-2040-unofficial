@@ -92,8 +92,7 @@ collect_flash_id(struct hwinfo *hw)
 	error = rd(mib, 2, &id, sizeof id);
 	hw->flash_id.state = error == 0 ? RD_OK : state_of(error);
 	hw->flash_id.valid = id.valid != 0;
-	memcpy(hw->flash_id.jedec, id.jedec, sizeof hw->flash_id.jedec);
-	memcpy(hw->flash_id.unique, id.unique, sizeof hw->flash_id.unique);
+	memcpy(hw->flash_id.id, id.id, sizeof hw->flash_id.id);
 }
 
 static void

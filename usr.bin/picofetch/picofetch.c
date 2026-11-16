@@ -288,12 +288,11 @@ build(void)
 		size_t n;
 
 		snprintf(l->text, sizeof l->text, "JEDEC %02x%02x%02x, id ",
-		    hw.flash_id.jedec[0], hw.flash_id.jedec[1],
-		    hw.flash_id.jedec[2]);
-		for (i = 0; i < 8; i++) {
+		    hw.flash_id.id[0], hw.flash_id.id[1], hw.flash_id.id[2]);
+		for (i = 3; i < 11; i++) {
 			n = strlen(l->text);
 			snprintf(l->text + n, sizeof l->text - n, "%02x",
-			    hw.flash_id.unique[i]);
+			    hw.flash_id.id[i]);
 		}
 	}
 

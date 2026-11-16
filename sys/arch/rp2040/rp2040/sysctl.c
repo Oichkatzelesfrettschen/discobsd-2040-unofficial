@@ -309,8 +309,9 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			bzero(&id, sizeof id);
 			if (flash_identity(&jedec, &unique) == 0) {
 				id.valid = 1;
-				bcopy(jedec, id.jedec, sizeof id.jedec);
-				bcopy(unique, id.unique, sizeof id.unique);
+				bcopy(jedec, id.id, FLASH_JEDEC_BYTES);
+				bcopy(unique, id.id + FLASH_JEDEC_BYTES,
+				    FLASH_UNIQUE_BYTES);
 			}
 			return sysctl_rdstruct(oldp, oldlenp, newp, &id,
 			    sizeof id);

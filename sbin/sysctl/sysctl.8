@@ -182,12 +182,10 @@ prints the identity of the QSPI flash chip: its three JEDEC ID bytes
 (manufacturer, memory type, capacity) and its 64-bit unique ID, as
 .RS
 .nf
-machdep.flash_id=jedec ef4015 unique 0123456789abcdef
+machdep.flash_id=ef4015 0123456789abcdef
 .fi
 .RE
-or as
-.B unread
-when the chip returned no plausible answer at boot.
+with all digits zero when the chip returned no plausible answer at boot.
 .PP
 .B machdep.pcm
 prints the configuration of the PicoCalc's

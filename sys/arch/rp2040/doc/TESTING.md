@@ -2636,7 +2636,8 @@ instead of the record (`sysctl kern.capacity` must print `kern.capacity:
 value is not available` and the u-area row must be absent), and a mutant
 that expects the record there fails. `check-renode-union-diag` boots
 `PICOCALC_LEAN_DIAG`, PICOCALC_LEAN plus the two options, and asserts the
-record; it runs outside the hosted jobs. The core 1 stages run for
+record; the hosted firmware job runs it under full gates, after the lean
+tier. The core 1 stages run for
 `PICO_UART` alone: the PicoCalc configurations link no `core1.c`, so they
 have no `machdep.core1` node, and a union image that replaces the PICO
 kernel needs the `core1` option first

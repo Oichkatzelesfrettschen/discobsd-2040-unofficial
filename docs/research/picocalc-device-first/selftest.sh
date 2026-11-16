@@ -64,15 +64,35 @@ expect_status() {
     fi
 }
 
+# expect_diag TEXT LABEL CMD...: CMD must exit 2 and print TEXT, so a case
+# cannot pass through an unrelated failure such as an unrunnable helper.
+expect_diag() {
+    text=$1
+    label=$2
+    shift 2
+    set +e
+    "$@" >"$T/log" 2>&1
+    got=$?
+    set -e
+    if [ "$got" -ne 2 ] || ! grep -qF -- "$text" "$T/log"; then
+        echo "selftest: $label: exit $got, want 2 with \"$text\"" >&2
+        cat "$T/log" >&2
+        fail=1
+    else
+        echo "selftest: $label: exit 2 with \"$text\" as required"
+    fi
+}
+
 # Known-bad: OUTDIR is the source directory, and a symlink to it.
 ln -s "$T/h" "$T/alias"
-expect_status 2 "OUTDIR is the source directory" sh "$T/h/build.sh" "$T/h"
-expect_status 2 "OUTDIR symlinks to the source directory" \
+expect_diag "aliases the golden" "OUTDIR is the source directory" \
+    sh "$T/h/build.sh" "$T/h"
+expect_diag "aliases the golden" "OUTDIR symlinks to the source directory" \
     sh "$T/h/build.sh" "$T/alias"
 # Known-bad: the output file is a link to the golden file.
 mkdir "$T/linked"
 ln -s "$T/h/run-output.tsv" "$T/linked/run-output.tsv"
-expect_status 2 "run-output.tsv links to the golden file" \
+expect_diag "aliases the golden" "run-output.tsv links to the golden file" \
     sh "$T/h/build.sh" "$T/linked"
 if [ "$(cksum <"$T/h/run-output.tsv")" != "$golden" ]; then
     echo "selftest: an aliased OUTDIR changed the golden file" >&2
@@ -85,16 +105,28 @@ if cmp -s "$HERE/bench.c" "$T/h/bench.c"; then
     echo "selftest: the bzero mutation changed nothing" >&2
     fail=1
 fi
-expect_status 2 "bzero differs from machdep.c" sh "$T/h/build.sh" "$T/drift"
+expect_diag "bench.c bzero differs from machdep.c" "bzero differs from machdep.c" \
+    sh "$T/h/build.sh" "$T/drift"
 cp "$HERE/bench.c" "$T/h/bench.c"
 
 # Known-bad: the production compile command is unavailable, or lacks the
 # kernel's code-generation options.
 printf '#!/bin/sh\nexit 0\n' >"$T/bmake-empty"
 printf '#!/bin/sh\nexec bmake "$@" | sed "s/ -fshort-enums//"\n' >"$T/bmake-nofl"
-expect_status 2 "no compile command from bmake" \
+chmod 755 "$T/bmake-empty" "$T/bmake-nofl"
+# The stripping helper must run and still print a compile command, or the
+# case below would test an unrunnable helper instead of the missing flag.
+if ! (cd "$ROOT/sys/arch/rp2040/compile/PICO" &&
+    "$T/bmake-nofl" MACHINE=rp2040 -n heatshrink_encoder.o) >"$T/helper.out" 2>&1 ||
+    ! grep -- ' -c ' "$T/helper.out" | grep -q -- '-fno-strict-aliasing' ||
+    grep -- ' -c ' "$T/helper.out" | grep -q -- '-fshort-enums'; then
+    echo "selftest: the stripping helper does not run as intended" >&2
+    fail=1
+fi
+expect_diag "no usable compile command" "no compile command from bmake" \
     env BMAKE="$T/bmake-empty" sh "$T/h/build.sh" "$T/noflags"
-expect_status 2 "derived options lack -fshort-enums" \
+expect_diag "lack the kernel's code-generation flags" \
+    "derived options lack -fshort-enums" \
     env BMAKE="$T/bmake-nofl" sh "$T/h/build.sh" "$T/nofl"
 
 # Known-bad: a decoder one byte short; run.py must exit nonzero.

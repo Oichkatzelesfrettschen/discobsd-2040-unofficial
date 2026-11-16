@@ -104,16 +104,28 @@ getfname(const char *filename)
 	return (1);
 }
 
+/*
+ * proc_comm names a process in the listing. Without KP_VALID_COMM the kernel
+ * gave no name, and "-" prints. Pid 0 runs no image and carries no name, so an
+ * empty name there prints as swapper.
+ */
+static const char *
+proc_comm(const struct kinfo_proc *kp)
+{
+	if (!(kp->kp_valid & KP_VALID_COMM))
+		return ("-");
+	if (kp->kp_pid == 0 && kp->kp_comm[0] == '\0')
+		return ("swapper");
+	return (kp->kp_comm);
+}
+
 static void
 show_files(const struct kinfo_proc *kp, const char *user)
 {
 	static struct kinfo_file kf[NOFILE + 1];
 	int mib[5] = { CTL_KERN, KERN_FILE, KERN_FILE_BYPID, kp->kp_pid,
 	    sizeof(kf[0]) };
-	/* Pid 0 runs no image and carries no name; it prints as swapper. */
-	const char *comm = !(kp->kp_valid & KP_VALID_COMM) ? "-" :
-	    (kp->kp_pid == 0 && kp->kp_comm[0] == '\0') ? "swapper" :
-	    kp->kp_comm;
+	const char *comm = proc_comm(kp);
 	size_t len = sizeof(kf);
 
 	if (sysctl(mib, 5, kf, &len, NULL, 0) < 0) {

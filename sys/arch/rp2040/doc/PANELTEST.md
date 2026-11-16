@@ -7,7 +7,7 @@ sequence but never sends CSCON F0h C3h/96h, which page 245 documents as the
 enable of command 2, and page 246 gives CSCON's power-on and reset defaults
 as N/A. Whether the shipped writes take effect is therefore open, and so is
 whether other settings render small text more crisply. The panel test
-answers both on the board: a kernel built with `-DLCD_PANELTEST` programs
+answers both on the board: the PICOCALC kernel (`options LCD_PANELTEST`) programs
 one of a fixed list of register sets on request and reads the controller's
 read commands back over SPI1 RX (GP12, the panel's SDO), and `paneltest`
 draws the calibration patterns.
@@ -35,15 +35,17 @@ draws the calibration patterns.
   page 246, SPI_REN in bit 4, the parameter number in bits 3-0). If SPIRC
   has no effect those reads clock zero bytes into the register as
   parameters, so `paneltest` programs its set again after every readback.
-- Kernels without the define compile none of this; their panel sequence is
+- PICO, PICO_DIAG and the PICOCALC_LEAN pair omit the option and compile
+  none of this; their panel sequence is
   unchanged (`panel_program()` runs the same `init_seq` bytes).
 
 ## Running it
 
-Load `discobsd-paneltest.uf2` from the loader menu (`/pico1-apps`), log in,
-`su`, run `paneltest`. Keys: `n`/`p` set, `1`-`7` pattern, `r` readback,
-`q` quit. `/var/log/paneltest.log` keeps every set change and readback.
-Return to the normal kernel by choosing `discobsd.uf2` in the loader menu.
+Boot the PICOCALC kernel, which carries `LCD_PANELTEST`, with `paneltest` in the
+root (the PicoCalc SD root installs it), log in, `su`, run `paneltest`. Keys: `n`/`p` set, `1`-`7`
+pattern, `r` readback, `q` quit. `/var/log/paneltest.log` keeps every set
+change and readback. A set stays in force until the last close of
+`/dev/lcdgfx` programs set 0 again.
 
 | Pattern | Draws | Experiment |
 | --- | --- | --- |

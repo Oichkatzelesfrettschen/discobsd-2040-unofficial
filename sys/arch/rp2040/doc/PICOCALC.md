@@ -26,12 +26,15 @@ below). PICOCALC is the full PicoCalc kernel: the PSRAM driver, every
 per-driver device option below, the keyboard controller's
 `machdep.picocalc` nodes, the SD card with the crash-dump writer, and the
 diagnostic options `SYSTRACE` and `CAPACITY_STATS` (`kern.systrace`,
-`kern.systracepid`, `kern.capacity`). PICOCALC_LEAN
+`kern.systracepid`, `kern.capacity`) and the panel register test
+(`LCD_PANELTEST`, `PANELTEST.md`). PICOCALC_LEAN
 (`sys/arch/rp2040/compile/PICOCALC_LEAN/Config`) omits the four device
-options and the two diagnostic options and answers `EOPNOTSUPP` for those
-nodes; PICOCALC_LEAN_DIAG (`sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/Config`)
-is PICOCALC_LEAN with the diagnostic options. The panel register test
-(`LCD_PANELTEST`) and later diagnostic options join PICOCALC and
+options, the two diagnostic options and the panel register test and answers
+`EOPNOTSUPP` for those nodes; PICOCALC_LEAN_DIAG
+(`sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/Config`) is PICOCALC_LEAN with the
+two diagnostic options. The panel register test runs through `/dev/lcdgfx`,
+which PICOCALC_LEAN_DIAG does not carry (`DEV_LCDGFX`), so it stays in
+PICOCALC; later diagnostic options that need no device join PICOCALC and
 PICOCALC_LEAN_DIAG. All three compile the PicoCalc board descriptor, and
 `UNION_KERNEL` pairs any of them with a board's descriptor
 (`unix[-BOARD].uf2`, `unix[-BOARD]-LEAN.uf2` or `unix[-BOARD]-LEAN-DIAG.uf2`).

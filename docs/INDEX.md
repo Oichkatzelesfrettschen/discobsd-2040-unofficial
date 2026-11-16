@@ -96,6 +96,7 @@ Grouped by what they investigate.
 | `bootsel-button.md` | BOOTSEL and USB re-entry on bare metal, with no debug probe |
 | `firmware-updates.md` | what firmware an original Pico (silicon B2) carries and what an owner can update |
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
+| `swapram-uart-echo-stall.md` | why the Renode capacity gate saw a console echo stall on SwapRAM kernels: `clistbound`'s typed residue overflowing `TTYHOG` under the line-paced PL011 model, the discriminating runs, the state at the stall, the board prediction and the fix with its calibration |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
 | `picocalc-calculator-and-gui.md` | the calculator and tile-graphics plan for the PicoCalc: sources and licenses mined from this tree, the other BSDs and the vendor firmware, size estimates and a staged import order |
 | `hardware-reference-coverage.md` | which Pico, Pico W, RP2040 and PicoCalc parts, licensed blocks and bus specifications have a reference document on the build host, the state of the Pico SDK and the tools, the PicoCalc schematic's designator-to-part map, and the USB-C CC pull-downs the schematic shows |

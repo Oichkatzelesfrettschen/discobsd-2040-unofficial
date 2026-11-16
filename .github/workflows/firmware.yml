@@ -977,6 +977,82 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
 
+  # The graph-layout research tier is host-only and imports NumPy, SciPy,
+  # Unicorn, pyelftools and a pip-installed Zig, none of which the rp2040
+  # job installs, so the same commands stay an on-demand Makefile target
+  # (check-graph-layout, check-layout-extensions) and these two jobs install
+  # the pinned requirements for the nightly. Neither job builds a kernel or
+  # touches a board.
+  graph-layout-model:
+    name: Graph layout model and linker controls
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select the interpreter
+        run: echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
+      - name: Install research dependencies
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" -m pip install -r tools/graph-layout-example/requirements.txt ruff==0.17.4
+      - name: Check research sources
+        timeout-minutes: 2
+        run: |
+          ruff check tools/graph_layout*.py tools/performance_lab*.py
+          ruff format --check tools/graph_layout*.py tools/performance_lab*.py
+      - name: Exercise mathematical and linker controls
+        timeout-minutes: 5
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          PYTHONWARNINGS: error
+        run: |
+          "$PYTHON" tools/graph_layout_test.py
+          "$PYTHON" tools/graph_layout_trace_test.py
+          "$PYTHON" tools/performance_lab_test.py
+
+  graph-layout-arm:
+    name: Graph layout compiled ARM traces under Unicorn
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select the interpreter
+        run: echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
+      - name: Install extended research dependencies
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" -m pip install -r tools/graph-layout-example/requirements-extended.txt ruff==0.17.4
+      - name: Lint the layout extensions
+        timeout-minutes: 2
+        run: ruff check tools/layout_*.py tools/arm_trace_experiment.py
+      - name: Exercise the MILP, noisy-circuit and tensor controls
+        timeout-minutes: 5
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          "$PYTHON" tools/layout_solver_extensions_test.py
+      - name: Compile the HSX decoder and trace it under Unicorn
+        timeout-minutes: 5
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          "$PYTHON" tools/arm_trace_experiment.py --output "${RUNNER_TEMP}/arm-trace"
+      - name: Retain the emulated ARM traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulated-arm-traces
+          path: ${{ runner.temp }}/arm-trace/
+          if-no-files-found: warn
+
   # A scheduled run reports to nobody, so its result goes to one issue:
   # tools/report-nightly-failure.sh opens it, or adds a comment to the open
   # one, with the failed jobs and steps and the merges since the last
@@ -984,7 +1060,7 @@ jobs:
   nightly-report:
     name: Report the nightly result
     if: always() && github.event_name == 'schedule'
-    needs: [rp2040, stm32, posix-sh, rp2040-macos, flash-id]
+    needs: [rp2040, stm32, posix-sh, rp2040-macos, flash-id, graph-layout-model, graph-layout-arm]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

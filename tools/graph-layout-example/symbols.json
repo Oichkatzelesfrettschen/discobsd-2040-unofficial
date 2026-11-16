@@ -1,0 +1,10 @@
+[
+  {"name": "fixture_entry", "bytes": 80},
+  {"name": "fixture_parse", "bytes": 120},
+  {"name": "fixture_lookup", "bytes": 64},
+  {"name": "fixture_read", "bytes": 96},
+  {"name": "fixture_encode", "bytes": 160},
+  {"name": "fixture_write", "bytes": 112},
+  {"name": "fixture_console", "bytes": 128},
+  {"name": "fixture_interrupt", "bytes": 48}
+]

@@ -226,12 +226,14 @@ blockers; a missing tool never becomes a passing check.
 - A subagent collects evidence read-only unless the task grants it more, and
   carries an explicit `model`. Synthesis, edits, commits and the final claim
   stay with the parent.
-- A new file written for this port carries `Copyright (c) <year> GizmoBSD`
-  and the BSD 3-Clause conditions as NOTICE section 1 words them, with
-  GizmoBSD as the holder (LICENSE is upstream's text and keeps its
-  placeholder). A file dated a year that NOTICE and etc/COPYRIGHT do not
-  yet name extends their GizmoBSD year range in the same commit. NOTICE section 1 names GizmoBSD files as a category beside the
-  earlier `Copyright (c) 2026 DiscoBSD` ISC files, so the header is the
+- A new source file under sys/arch/rp2040 written for this port carries
+  `Copyright (c) <year> GizmoBSD` and the BSD 3-Clause conditions as
+  NOTICE section 1 words them, with GizmoBSD as the holder (LICENSE is
+  upstream's text and keeps its placeholder); elsewhere the header is
+  optional, and data files, Makefiles and Markdown carry none. A file
+  dated a year that NOTICE and etc/COPYRIGHT do not yet name extends their
+  GizmoBSD year range in the same commit. NOTICE section 1 names GizmoBSD
+  files as a category beside the earlier `Copyright (c) 2026 DiscoBSD` ISC files, so the header is the
   grant a redistributor relies on rather than an invented attribution,
   and the global no-copyright-line rule yields to it here. A file that
   already carries the DiscoBSD ISC notice keeps it until the GizmoBSD

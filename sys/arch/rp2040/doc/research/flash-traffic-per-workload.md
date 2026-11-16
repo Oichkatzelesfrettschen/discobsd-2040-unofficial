@@ -266,8 +266,10 @@ In every run the probe's totals equal the kernel's own counters: the
 per-sector erases and the sector sums by command both equal
 `swap_erase_sectors`, and the copy-outs, exchanges and pool swap-outs
 equal `swapram_flash_swapouts`, `swapram_exchange_swapouts` and
-`swapram_admissions`. `summarize.py` refuses a capture where any of the
-five disagrees or a table is incomplete.
+`swapram_admissions`. `summarize.py` checks each of the two prints whole against the
+counters read with it and refuses a capture where any of the five
+disagrees, a wear table is short, or a command of the first print is
+missing from the second.
 
 `sh` is the name of the shell that runs the `cc` driver script
 (`distrib/rp2040/cc`); `-sh` is the login shell. A name covers more than

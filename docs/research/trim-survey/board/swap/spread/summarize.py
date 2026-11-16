@@ -57,6 +57,26 @@ def summarize(path):
         if len(wear) != SECTORS:
             raise SystemExit("%s: a swapwear table has %d entries, expected %d"
                              % (path, len(wear), SECTORS))
+    # Each print is checked whole against the counters read with it, so a
+    # missing row fails even when that command did nothing in the interval.
+    for label, wear, who, met in (("first", wear0, who0, met0), ("second", wear1, who1, met1)):
+        absolute = (
+            ("per-sector erases", sum(wear), met["swap_erase_sectors"]),
+            ("flash sectors by command",
+             sum(r["copy"][1] + r["exch"][1] for r in who.values()), met["swap_erase_sectors"]),
+            ("copy-outs", sum(r["copy"][0] for r in who.values()), met["swapram_flash_swapouts"]),
+            ("exchanges", sum(r["exch"][0] for r in who.values()),
+             met["swapram_exchange_swapouts"]),
+            ("RAM swap-outs", sum(r["ram"][0] for r in who.values()), met["swapram_admissions"]),
+        )
+        for what, got, want in absolute:
+            if got != want:
+                raise SystemExit("%s: %s print: %s %d disagrees with the kernel counter %d"
+                                 % (path, label, what, got, want))
+    gone = sorted(set(who0) - set(who1))
+    if gone:
+        raise SystemExit("%s: commands of the first print missing from the second: %s"
+                         % (path, ", ".join(gone)))
     delta = [b - a for a, b in zip(wear0, wear1)]
     used = [v for v in delta if v]
     mean = sum(used) / len(used)
@@ -66,35 +86,18 @@ def summarize(path):
           % (sum(delta), len(used), [i for i, v in enumerate(delta) if v == 0]))
     print("  hottest %d, least-used %d, mean %.2f, hottest/mean %.3f"
           % (max(delta), min(used), mean, max(delta) / mean))
-    totals = dict.fromkeys(PATHS, 0)
-    sectors = 0
     for name in sorted(who1):
         cells = []
         for p in PATHS:
             count1, sect1, low, high = who1[name][p]
             count0, sect0 = who0.get(name, {}).get(p, (0, 0, 0, 0))[:2]
-            totals[p] += count1 - count0
-            if p != "ram":
-                sectors += sect1 - sect0
             if count1 - count0:
                 cells.append("%s %d (%d sectors, spans %d-%d)"
                              % (p, count1 - count0, sect1 - sect0, low, high))
         if cells:
             print("  %-8s %s" % (name, "; ".join(cells)))
     print("  " + "; ".join("%s %d" % kv for kv in sorted(metric.items())))
-    checks = (
-        ("per-sector erases", sum(delta), metric["swap_erase_sectors"]),
-        ("flash sectors by command", sectors, metric["swap_erase_sectors"]),
-        ("copy-outs", totals["copy"], metric["swapram_flash_swapouts"]),
-        ("exchanges", totals["exch"], metric["swapram_exchange_swapouts"]),
-        ("RAM swap-outs", totals["ram"], metric["swapram_admissions"]),
-    )
-    for label, got, want in checks:
-        if got != want:
-            raise SystemExit("%s: %s %d disagrees with the kernel counter %d"
-                             % (path, label, got, want))
-    print("  cross-checks: %d of %d agree with the kernel counters" % (len(checks), len(checks)))
-
+    print("  cross-checks: both prints agree with the five kernel counters read with them")
 
 for arg in sys.argv[1:]:
     summarize(arg)

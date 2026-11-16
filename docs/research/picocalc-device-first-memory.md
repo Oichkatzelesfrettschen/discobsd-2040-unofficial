@@ -12,9 +12,11 @@ requests are cited by branch head: #637 kernel matrix (local `daa9228e`),
 
 ## Question and short answer
 
-Owner decision D42a asks for the function and interconnection of every
-PicoCalc device, the keyboard controller and any RAM it has included, and a
-memory design decomposed from those devices. The immediate case is the 16 KB
+Owner decision D42a asks the work to "research the interconnectivity and
+functionality of all the devices on the PicoCalc including the STM32 and any
+RAM it has and its functions and build out a device-first solution decomposed
+around that". The other owner decisions this note cites by number (D9, D11,
+D33, D42 to D45) are quoted under "Prior decisions" below. The immediate case is the 16 KB
 compressed RAM tier (`options SWAPRAM`, `SWAPRAM_KB=16`) of PICOCALC_LEAN
 (`daa9228e:sys/arch/rp2040/compile/PICOCALC_LEAN/Config:108-109`), with the
 ESP-PSRAM64H answering at boot and without it.
@@ -31,10 +33,12 @@ ESP-PSRAM64H answering at boot and without it.
   in front for the wear and card-pull reasons below.
 - The 16,384 bytes stay allocated in either state: the pool is a link-time
   NOLOAD section (`sys/arch/rp2040/conf/kern.ldscript:135-137`). Removing the
-  tier from LEAN returns 15,920 bytes of RAM and 4,778 bytes of text as the
-  orchestration record states them (BOARD.md entry 23, GCC 14.2.1; the record
-  names no build method, and this note did not rebuild), at the price of
-  unpooled flash swap on every PSRAM-absent board.
+  tier from LEAN returns at least that pool's 16,384 bytes of RAM and some
+  text. No public source records the exact figures: the PICOCALC_LEAN row of
+  `sys/arch/rp2040/doc/CAPACITY.md` on PR #637's branch (text 119,229, bss
+  51,464, free RAM 14,648, GCC 14.2.1) is the build the option would come out
+  of, and falsifier 7 names the measurement. The price is unpooled flash swap
+  on every PSRAM-absent board.
 
 ## Devices and their connections
 
@@ -208,7 +212,7 @@ each costs one erase of 45 ms typical and 400 ms maximum and sixteen
 programs of 0.4 and 3 ms (W25Q16JV, notes lines 3003-3005). SD has a bus floor of 10.7 ms for the sh image at
 12.5 MHz plus card busy time, which no run has measured.
 
-Prediction against measurement: `zswap.md:123-136` estimated 40 to 90 ms
+Prediction against measurement: `sys/arch/rp2040/doc/research/zswap.md:123-136` estimated 40 to 90 ms
 for an sh image of 12,416 bytes and a tier two to five times faster than
 flash, from host encode rates and a stated 100-to-200x host-to-M0+ ratio.
 Per pass, the model puts the sh data segment at 90 KB/s, inside that
@@ -277,10 +281,10 @@ workspace keeps packed-text decoding (`exec_hsaout.c:244-253`), and
 | As built: pool in front everywhere | 0 | 0 | 256 ms (model) | pool in front |
 | Bypass on PSRAM (recommended) | +12 to +24 B (I) | 0 | about 1.4 ms (I) | pool in front |
 | Bypass, and the pool extends the buffer cache when PSRAM answers | +150 to +400 B (I) | 0 | about 1.4 ms (I) | pool in front |
-| No SWAPRAM in LEAN | -4,778 B | +15,920 B | about 1.4 ms (I) | unpooled `fl1` or card |
+| No SWAPRAM in LEAN | unmeasured (falsifier 7) | at least +16,384 B | about 1.4 ms (I) | unpooled `fl1` or card |
 
-The compile-out row is the recorded figure quoted above; the other rows are
-unbuilt estimates. Under the bypass the 16,384 bytes hold only
+No row is a built figure: the compile-out row is bounded below by the pool's
+size and the others are estimates. Under the bypass the 16,384 bytes hold only
 spools while PSRAM answers. The buffer-cache option would carve up to 15
 more 1 KB buffers from the pool at `binit()` time (`init_main.c:244-270`;
 `buf[NBUF]` and `bufdata` are static, `machdep.c:130-134`), turning the
@@ -297,27 +301,36 @@ encoded before the cap (I), for an estimated +20 to +40 bytes of text.
 
 ## Prior decisions against this design
 
-- D9 (after a card pull, pool plus a small compressed flash tier of about
-  32 KB, research and review first): state E. Its writer pays the encode
-  cost above, so it suits rarely swapped images; `swap-tier-designs.md:309-342`
-  holds the compressed-writeback design.
-- D11 (per-board flash swap split): state A leaves `fl1` idle, and only
+Each decision is quoted from the owner's recorded answer or from PR #637's
+body, since the files that held them are outside the repository.
+
+- D9: "after a card pull, fall back to the compressed RAM pool and a small
+  compressed flash tier of about 32 KB, research and adversarial review first".
+  This is state E. Its writer pays the encode cost above, so it suits rarely
+  swapped images; `swap-tier-designs.md:309-342` holds the compressed-writeback
+  design.
+- D11: "per-board flash swap split". State A leaves `fl1` idle, and only
   states C and D need all of it. One LEAN binary serves every state, so the
   split is a per-board layout decision through the loader stamp
   (`PICOCALC.md:900-908`), not a kernel option.
-- D33 (UART buffers against every RAM kind): the scratch banks are full in
-  every configuration; the USB DPSRAM holds about 1.2 KB unclaimed on
-  SWAPRAM USB kernels (I), the one reachable spare that needs no new device;
-  the XIP cache, PSRAM and controller SRAM cannot hold kernel data.
-- D42-D45: D42's "swap is fast anyway" holds for PSRAM, and the model puts
-  the pool slower than the PSRAM by two orders of magnitude, which answers
-  the D42 follow-up with a bypass. D43 (panel descriptor default) leaves
-  the PSRAM probe unchanged, since `psramprobe()` tests the board identity
-  (`psram.c:104`). D44 keeps LEAN at two mounts while #624 gives the
-  PSRAM `/tmp` a third slot on the full kernel (`8ed99d4a`,
-  `PICOCALC_PSRAM/Config:57`), so on LEAN with a card the rc mount of
-  `/dev/psram1` and an SD mount take the same slot. D45's lean root image
-  needs no change from this design.
+- D33: "re-decompose UART buffers against every RAM kind". The scratch banks
+  are full in every configuration; the USB DPSRAM holds about 1.2 KB unclaimed
+  on SWAPRAM USB kernels (I), the one reachable spare that needs no new
+  device; the XIP cache, PSRAM and controller SRAM cannot hold kernel data.
+- D42 to D45, as PR #637 words them: "SWAPRAM 16 KB kept in LEAN (D42; how the
+  tier behaves with PSRAM present waits on the device-first memory
+  research)"; "PicoCalc kernels default to the panel when flashed directly
+  (D43)"; "NMOUNT=3 goes to PICOCALC and PICOCALC_LEAN_DIAG with #624 (D44)";
+  "LEAN gets its own root profile without the driver-dependent programs
+  (D45, follow-up commit)". D42 held SWAPRAM in LEAN pending this research,
+  and the model puts the pool slower than the PSRAM by two orders of
+  magnitude, which answers that wait with a bypass. D43 leaves the PSRAM
+  probe unchanged, since `psramprobe()` tests the board identity
+  (`psram.c:104`). D44 gives `NMOUNT=3` to PICOCALC (with #624's PSRAM
+  `/tmp` as the third slot, `8ed99d4a`, `PICOCALC_PSRAM/Config:57`) and to
+  PICOCALC_LEAN_DIAG, so plain PICOCALC_LEAN stays at two mounts, and on it
+  with a card the rc mount of `/dev/psram1` and an SD mount take the same
+  slot. D45's lean root image needs no change from this design.
 
 ## Falsifiers and the measurements that decide
 
@@ -351,9 +364,13 @@ encoded before the cap (I), for an estimated +20 to +40 bytes of text.
    removable card.
 5. Board time for measurements 1, 2 and 5 under the hardware opt-in.
 6. PICOCALC_LEAN with PSRAM and a card: the second mount slot goes to the
-   PSRAM `/tmp` or to the SD partition, or LEAN takes `NMOUNT=3` at the
-   1,224 bytes of bss the orchestration record measured for it (BOARD.md
-   entry 14).
+   PSRAM `/tmp` or to the SD partition, or LEAN takes `NMOUNT=3` at a
+   bss cost that no public source records and a build with the option set
+   measures (falsifier 7). Owner decision D44 already gives
+   `NMOUNT=3` to PICOCALC and PICOCALC_LEAN_DIAG.
+7. Kernel size of the options above: build PICOCALC_LEAN from PR #637's
+   branch with `SWAPRAM` removed, and with `NMOUNT=3`, and report text and bss
+   from `arm-none-eabi-size` against the CAPACITY.md row (GCC 14.2.1).
 
 ## Anomalies recorded
 
@@ -383,10 +400,9 @@ Notes repository files (SHA-256):
 | `docs/rp2040/rp2040-datasheet.txt` | 8de3ce7e60ea13e8b4c6e4fc45aafb11744039f2f1fcc2062de23e8e7cdb181f |
 | `docs/rp2040/W25Q16JV_Datasheet.txt` | 02533ae522f2ae25bd9ef3afcef6dec1389e9847a05262887bec94459be298b4 |
 
-Orchestration records outside the tree: `BOARD.md` entry 23 (SHA-256
-8845dafc0be7f178916f97ed2832e0c47cecb598426175acfe3db3226d5a7199) and
-`DECISIONS.md` D9, D11, D33, D42-D45 and D42a
-(4cdccb89204296010478c794089dc8bede39bfbeb306d94d07e821669c5da309).
+Kernel sizes and owner decisions come from PR #637 (head `daa9228e`): its
+body and the table in its `sys/arch/rp2040/doc/CAPACITY.md`, read from the
+branch `rp2040-picocalc-diag-kernel`. The decisions are quoted where used.
 
 Published sources: ClockworkPi PicoCalc repository and wiki,
 https://github.com/clockworkpi/PicoCalc (the keyboard firmware, schematic

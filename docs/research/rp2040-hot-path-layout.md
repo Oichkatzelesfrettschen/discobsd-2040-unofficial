@@ -164,6 +164,12 @@ replayed through the same trace (rwip, writep and pipe_rw differ in size there
 and drop out), gives 6.62 misses for stock and 0.53 for swap path -O2, the
 sign of its +12%.
 
+The model undercounts the board by about 4 misses per iteration on both
+conflicting union layouts (swap path -O2: 10.1 modeled, 14.3 measured; pad:
+7.1 and 11.4) and by none on the clean ones, so hot lines the trace does not
+reach (the USB interrupt the emulator lacks, or board-only paths) fall into the
+same sets; the ranking of layouts and the sets named above stand.
+
 H2 is refuted as a separate cause: a 4-byte shift changes nothing, while
 shifts that move whole lines between sets reproduce the loss. H1 is the cause:
 three hot lines one way apart in one two-way set.
@@ -205,8 +211,11 @@ repeat to one loop; neither spread follows the hot region.
 
 Against the predictions: the hot-region kernels miss 0.54 to 0.72 times per
 iteration (predicted at most 0.6 from the differential method; these figures
-include exec) and run pipe at or above the faster of stock and swap path -O2
-in both configurations. The pad arm misses 11.4 times per iteration and runs
+include exec). With swap path -O2 they run pipe above the faster of the two
+input-order layouts in both configurations (24,255 and 24,283 against 23,870
+and 24,082). The -Os hot-region kernels sit within the -Os pass-to-pass spread
+of the faster layout rather than above it: union 23,959 against stock 23,870,
+PICO 23,945 against swap path -O2 24,082, with -Os passes 23,769 to 24,283. The pad arm misses 11.4 times per iteration and runs
 21,586/s (predicted about 10 and 21,700): every file at -Os, one 1,004-byte
 pad, and the loss returns. Syscall, context switch and spawn follow the
 predictions.
@@ -257,7 +266,7 @@ kernels (stock 78, 83, 214; hot region 98) and 367 to 1,215 on swap-path -O2
 kernels (1,204, 1,215; hot region 367). About 1,900 XIP accesses per iteration
 at about 54 cycles each predict 1,200/s, which only some -O2 runs reach, so the
 other runs spend most of the window elsewhere. The split follows neither
-layout nor swap flags cleanly. Hypothesis: a periodic daemon (update) wakes
+layout nor swap flags cleanly. Untested hypothesis: a periodic daemon (update) wakes
 inside some windows and forces a swap round trip of ub-pipe, which uncached
 takes seconds at -Os; the same phase effect would explain the 2% pass-to-pass
 pipe spread of the cached -Os kernels. Falsifier: cache-off runs with update

@@ -583,6 +583,11 @@ class LoggedGateTest(unittest.TestCase):
         self.assertEqual(self.read_status()["termination"], "log_open_error")
 
     def test_concurrent_runner_cannot_truncate_active_log(self):
+        # The first runner's program holds the log until the test publishes
+        # the release file, so the second runner always meets a live owner
+        # however long a loaded host takes to start it. Its 75 s fallback
+        # outlasts the 30 s start wait plus the 30 s contender limit.
+        release = self.directory / "release-first-owner"
         first_command = [
             sys.executable,
             str(RUNNER),
@@ -590,13 +595,19 @@ class LoggedGateTest(unittest.TestCase):
             "--log", str(self.log),
             "--status", str(self.status),
             "--heartbeat-seconds", "0.05",
-            "--idle-timeout-seconds", "2",
-            "--timeout-seconds", "3",
+            "--idle-timeout-seconds", "100",
+            "--timeout-seconds", "120",
             "--",
             sys.executable,
             "-c",
-            "import time; print('FIRST-START', flush=True); "
-            "time.sleep(0.4); print('FIRST-END', flush=True)",
+            "import pathlib, sys, time\n"
+            "print('FIRST-START', flush=True)\n"
+            "release = pathlib.Path(sys.argv[1])\n"
+            "deadline = time.monotonic() + 75\n"
+            "while not release.exists() and time.monotonic() < deadline:\n"
+            "    time.sleep(0.01)\n"
+            "print('FIRST-END', flush=True)\n",
+            str(release),
         ]
         first = subprocess.Popen(
             first_command,
@@ -605,7 +616,7 @@ class LoggedGateTest(unittest.TestCase):
             text=True,
         )
         self.addCleanup(self.stop_runner, first)
-        deadline = time.monotonic() + 2
+        deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             if self.log.is_file() and "FIRST-START" in self.log.read_text(
                     encoding="utf-8"):
@@ -631,9 +642,10 @@ class LoggedGateTest(unittest.TestCase):
             text=True,
             capture_output=True,
             check=False,
-            timeout=TEST_HELPER_TIMEOUT_SECONDS,
+            timeout=30,
         )
-        first_output, _ = first.communicate(timeout=TEST_HELPER_TIMEOUT_SECONDS)
+        release.write_text("release", encoding="ascii")
+        first_output, _ = first.communicate(timeout=30)
 
         self.assertEqual(first.returncode, 0, first_output)
         self.assertEqual(second.returncode, runner.RUNNER_ERROR_EXIT)

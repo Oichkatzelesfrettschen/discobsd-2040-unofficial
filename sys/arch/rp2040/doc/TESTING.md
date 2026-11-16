@@ -3045,8 +3045,8 @@ research/ names them).
 
 `bmake MACHINE=rp2040 check-storage-correctness` links `kern_time.c`,
 `sys_inode.c`, `ufs_subr.c`, `ufs_syscalls2.c`, `kern_synch.c`, `vm_sched.c`,
-`kern_clock.c`, `kern_fork.c` and the credential
-sources against
+`kern_clock.c`, `kern_fork.c`, the credential
+sources and the resource accounting sources (`kern_resource.c`, `kern_proc.c`) against
 deterministic host I/O stubs. It checks the slew/step boundary, backward-step normalization,
 step overflow refusal, both fields of each interval timer, invalid timeval
 fields, whole-second and fractional CPU-timer overflow, interval overflow and
@@ -3065,6 +3065,14 @@ old-style-definition diagnostics under Werror. The same fixture runs under
 native address and undefined-behavior sanitizers, including alignment checks,
 when the compiler probe admits the runtime. The execution inventory records an
 explicit skipped state otherwise.
+
+The resource fixture (`tests/kernel/resource_test.c`) executes `ruadd()` over
+ten distinct counters, each given its own pair of operands, and `rucvt()` over a
+result pre-filled with 0xa5 bytes. Two calibrating mutants must fail it: `ruadd()`
+dropping the `ru_msgsnd` term, and `rucvt()` leaving its result uncleared.
+`ruadd()` adds each counter by name rather than walking from `k_ru_first` to
+`k_ru_last`, because pointer arithmetic across distinct struct members leaves
+C object bounds.
 
 The wall clock, `time.tv_sec`, counts seconds since 1970 modulo 2^32 and is
 read unsigned (`utime32_t`, `sys/types.h`), so it carries out of bit 31 in

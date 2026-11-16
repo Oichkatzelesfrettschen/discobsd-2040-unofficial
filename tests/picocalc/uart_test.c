@@ -52,10 +52,14 @@
  *
  * The test serializes the driver against its interrupt and callout: spltty()
  * is a no-op here, and uartintr() and the callout run only between steps.
- * It establishes the transmit state machine, not interrupt safety, which
- * rests on spltty() being a global PRIMASK disable on this port
- * (sys/arch/rp2040/include/intr.h). It runs no uartinit(), receive path,
- * interrupt nesting or hardware.
+ * It establishes the transmit state machine, not interrupt safety. The
+ * start routine, uartputc() and uartdrain() rely on spltty() being a global
+ * PRIMASK disable on this port (sys/arch/rp2040/include/intr.h); uartintr()
+ * runs without it and SysTick can preempt it with uartdrain(), a case the
+ * comment above uartstart() argues from the flags and this test never
+ * enters. It runs no uartinit(), receive path, interrupt nesting or
+ * hardware. Time advances only in step(), so a driver loop that polls the
+ * line without it ends by a bound on the register reads, not by a clock.
  */
 
 /* The hardware paths of uartinit() only, which this test never calls. */
@@ -66,7 +70,6 @@ static volatile unsigned shim_reg_sink;
 
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #define	FIFO		32
 #define	TRIGGER		16	/* UART_IFLS_TX_HALF, which uartinit() programs. */
@@ -90,6 +93,27 @@ static unsigned char queue[MAXBYTES];
 static int qhead, qtail;
 static int interrupts, owakes, failures;
 
+/*
+ * Register reads since the line last advanced. The model's time moves only
+ * in step(), so a driver loop that polls UARTFR without a step ending it
+ * (uartputc() waiting out a drain it cannot finish under PRIMASK) never
+ * returns. A bound on the reads ends that loop by count, which load on the
+ * host cannot change. The longest legitimate wait is two 30000-read polls
+ * of uartputc(), once per pass through its retry.
+ */
+#define	POLL_BOUND	1000000
+static long polls;
+
+static void
+poll_account(void)
+{
+	if (++polls > POLL_BOUND) {
+		printf("FAIL the driver polls the line %d times without it advancing\n",
+		    POLL_BOUND);
+		exit(1);
+	}
+}
+
 static void
 check(int cond, const char *what)
 {
@@ -104,6 +128,7 @@ int
 uart_tx_ready(u_int base)
 {
 	(void)base;
+	poll_account();
 	return txlev < FIFO;
 }
 
@@ -112,6 +137,7 @@ int
 uart_tx_idle(u_int base)
 {
 	(void)base;
+	poll_account();
 	return txlev == 0 && !shifting;
 }
 
@@ -120,6 +146,7 @@ int
 uart_tx_drained(u_int base)
 {
 	(void)base;
+	poll_account();
 	return txlev == 0 && !shifting;
 }
 
@@ -200,6 +227,8 @@ static void
 tick(void)
 {
 	int before = txlev;
+
+	polls = 0;
 
 	if (shifting) {
 		if (nwire < MAXBYTES)
@@ -435,9 +464,6 @@ main(void)
 	static unsigned char big[1000];
 	struct tty *tp;
 	int i, early;
-
-	/* A driver that loops in uartputc() ends here rather than hanging. */
-	alarm(20);
 
 	for (i = 0; i < (int)sizeof(big); i++)
 		big[i] = (unsigned char)('a' + i % 26);

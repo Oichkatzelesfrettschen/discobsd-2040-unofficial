@@ -1679,7 +1679,7 @@ UARTCSTD=	-std=gnu17 -Wall -Wextra -Werror -DKERNEL -DUART_HOST_MODEL \
 uart_test: uart_test.c ${DEV}/uart.c ${DEV}/uart.h
 	${HOST_CC} ${UARTCSTD} ${SAN} -g -I${DEV} -o $@ uart_test.c
 
-UART_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${UARTCSTD} ${SAN}" "${DEV}" \
+UART_MUT=	sh ./mutant_unit.sh "${HOST_CC}" "${UARTCSTD} ${SAN}" "${DEV}" \
 		uart_test.c
 
 uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty \
@@ -1688,47 +1688,47 @@ uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty \
 	uart-mutant-putc-waits uart-mutant-timer-dup
 
 uart-mutant-one-byte:
-	${UART_MUT} uart.c \
+	@MUTANT_EXPECT='FAIL login prompt: 1 of 7 bytes reach the wire' ${UART_MUT} uart.c \
 	    's/while (tp->t_outq.c_cc != 0 \&\& uart_tx_ready/if (tp->t_outq.c_cc != 0 \&\& uart_tx_ready/' \
 	    uart.h
 
 uart-mutant-busy-empty:
-	${UART_MUT} uart.c \
+	@MUTANT_EXPECT='FAIL one byte: the queue and TS_BUSY end clear' ${UART_MUT} uart.c \
 	    's/^    if (tp->t_outq.c_cc != 0) {$$/    if (1) {/' uart.h
 
 # uartstart() clears TS_BUSY on an empty queue while the FIFO or shift
 # register still holds bytes, so ttywait() returns before the last one leaves.
 uart-mutant-busy-early:
-	${UART_MUT} uart.c \
+	@MUTANT_EXPECT='FAIL drain: TS_BUSY is set while bytes remain to send' ${UART_MUT} uart.c \
 	    's/^    } else if (!uart_tx_drained(uip->base)) {$$/    } else if (0) {/' \
 	    uart.h
 
 # The drain callout clears TS_BUSY without reading UARTFR.
 uart-mutant-drain-unchecked:
-	${UART_MUT} uart.c \
+	@MUTANT_EXPECT='FAIL drain 32 bytes: TS_BUSY never clears with a byte unsent' ${UART_MUT} uart.c \
 	    's/^    } else if (uart_tx_drained(uip->base)) {$$/    } else if (1) {/' \
 	    uart.h
 
 # The drain callout clears TS_BUSY without waking ttywait().
 uart-mutant-drain-no-wake:
-	${UART_MUT} uart.c \
+	@MUTANT_EXPECT='FAIL drain 1 byte: the drain wait is woken' ${UART_MUT} uart.c \
 	    's/^        ttyowake(tp);$$/        (void)0;/' uart.h
 
 # uartstart() holds output queued during the drain until the callout.
 uart-mutant-drain-blocks:
-	${UART_MUT} uart.c \
+	@MUTANT_EXPECT='FAIL output appended during the drain leaves before the next tick' ${UART_MUT} uart.c \
 	    's/^        ((tp->t_state \& TS_BUSY) \&\& !(uart_txflags\[unit\] \& UART_TX_DRAIN))) {$$/        (tp->t_state \& TS_BUSY)) {/' \
 	    uart.h
 
 # uartputc() waits out the drain with PRIMASK set, where no callout runs.
 uart-mutant-putc-waits:
-	${UART_MUT} uart.c \
+	@MUTANT_EXPECT='FAIL the driver polls the line' ${UART_MUT} uart.c \
 	    's/^    if ((tp->t_state \& TS_BUSY) \&\& !(uart_txflags\[unit\] \& UART_TX_DRAIN)) {$$/    if (tp->t_state \& TS_BUSY) {/' \
 	    uart.h
 
 # A second drain callout is queued while one is pending.
 uart-mutant-timer-dup:
-	${UART_MUT} uart.c \
+	@MUTANT_EXPECT='FAIL a second callout while one is pending' ${UART_MUT} uart.c \
 	    's/^        if (!(uart_txflags\[unit\] \& UART_TX_TIMER)) {$$/        if (1) {/' \
 	    uart.h
 

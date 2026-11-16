@@ -430,7 +430,13 @@ uartdrain(caddr_t arg)
  * Once the queue is empty, TS_BUSY stays set until UARTFR reports the
  * FIFO and shift register empty, and uartdrain() clears it then (see
  * uart_txflags). spltty() is PRIMASK on this port (machine/intr.h), so
- * uartintr(), uartdrain() and this routine never interleave.
+ * this routine, uartputc() and uartdrain() never interleave with one
+ * another. uartintr() runs at the UART's priority without PRIMASK, and
+ * SysTick, which runs softclock() and so uartdrain(), preempts it. The
+ * preemption is harmless: uartintr() clears TS_BUSY only when UART_TX_DRAIN
+ * is clear, and uartdrain() with UART_TX_DRAIN clear changes only the
+ * callout flags. A start routine that preempts uartintr() returns early,
+ * since TS_BUSY is set and the drain phase is not.
  */
 void
 uartstart(struct tty *tp)

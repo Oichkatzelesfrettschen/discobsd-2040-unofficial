@@ -39,7 +39,7 @@ Revisions and paths:
 
 | Horizon | Design | Text (gcc 16.2.0, object) | RAM | Format | Falsifier | Deciding measurement |
 | --- | --- | --- | --- | --- | --- | --- |
-| Now | PR 636 tree walk. `fl_setup()` refuses a region that holds a checkpoint but no acceptable root, with a message, while a region with no checkpoint still mounts empty. Mount reports how many newer checkpoints it rejected. A host salvage scan is the recovery route | journal.o +396 B (PR 636); flash.o +92 B (refusal); the report is not built (I: tens of bytes) | static 0; resume stack 80 to 248 B (M) | unchanged | a D26 or torn image that the scan cannot rebuild before collection laps it; a fresh or `tools/flashimg` region that the refusal blocks | D26 rows in `check-flash-reset-cells` (an image damaged under the old `journal.c`, resumed under the new one); a fresh-region refusal case |
+| Now | PR 636 tree walk. `fl_setup()` refuses a region that holds a checkpoint but no acceptable root, with a message, while a region whose blocks 0-7 read as erased still mounts empty (the appendix sketch lacks that erased test). Mount reports how many newer checkpoints it rejected. A host salvage scan is the recovery route | journal.o +396 B (PR 636); flash.o +92 B (refusal); the report is not built (I: tens of bytes) | static 0; resume stack 80 to 248 B (M) | unchanged | a D26 or torn image that the scan cannot rebuild before collection laps it; a fresh or `tools/flashimg` region that the refusal blocks | D26 rows in `check-flash-reset-cells` (an image damaged under the old `journal.c`, resumed under the new one); a fresh-region refusal case |
 | Later, gated | Additive CRC-32 of each checkpoint page in its 80 erased padding bytes, checked first; the tree walk kept for pages whose CRC field is erased | journal.o +106 B over PR 636 (`crc32_update` is already linked) | 0 | additive: an old-journal kernel resumes a CRC-written root unchanged (M) | a board or richer power-loss model in which PR 636 accepts a page outside the permitted set; without one, the CRC buys nothing measured | H09's power-loss oracle and a board power-cut campaign |
 
 ## 1. Mechanism and tear windows
@@ -214,18 +214,18 @@ What "print and continue" does today (M):
 | Option | Behavior | Cost | Verdict |
 | --- | --- | --- | --- |
 | Print and continue | empty map; writes destroy old blocks and are themselves lost | a message only (I) | rejected (M above) |
-| Print and refuse | `fl_setup()` returns ENXIO with "no whole Dhara checkpoint (error N); root region left untouched", and `find_checkblock()` reports `DHARA_E_NOT_FOUND`, so a fresh region still mounts empty | flash.o 3,437 to 3,529 B (+92, M); journal.o unchanged (M); 0 RAM | recommended |
+| Print and refuse | `fl_setup()` returns ENXIO with "no whole Dhara checkpoint (error N); root region left untouched", and `find_checkblock()` reports `DHARA_E_NOT_FOUND`, so a fresh region still mounts empty; the not-found exit needs an erased-region test first, because torn headers in blocks 0-7 reach the same exit (C, `journal.c:231-250`) | flash.o 3,437 to 3,529 B (+92, M); journal.o unchanged (M); 0 RAM | recommended |
 | Rebuild in the kernel | scan metadata into a sector-to-page table and write a new journal | about 2 KB RAM for 989 two-byte entries, plus journal space to copy every live sector (I); PICOCALC has about 10 KB free (C, brief) | rejected; done on the host instead |
 
 Checks of the refusal (M):
 
 - A fresh region resumes with error 6 (`DHARA_E_NOT_FOUND`) under the edited journal, against 3 under PR 636.
 - With both edits on the PR 636 tree, `flash_checkpoint/check.sh` and `flash_reset_cells/check.sh` pass. The edits change none of their rows, the fresh-chip scenarios included.
-- No oracle row reaches the refusal itself.
+- No oracle row reaches the refusal itself. The refusal as sketched in the appendix is incomplete: the `DHARA_E_NOT_FOUND` exit of `find_checkblock()` is also reached when blocks 0-7 hold torn checkpoint headers (C, `journal.c:231-250`), so a complete refusal first tells an erased region from a torn one (section 4, appendix).
 
 ## 5. Recommendation
 
-- **Now:** land PR 636 with the refusal, the `DHARA_E_NOT_FOUND` distinction and a mount report of rejected newer checkpoints. Make no format change. Write the host salvage scan over a `picotool save` dump, ordered by the journal's own epoch search.
+- **Now:** land PR 636 with the refusal, the `DHARA_E_NOT_FOUND` distinction (reported only for a region whose blocks 0-7 read as erased) and a mount report of rejected newer checkpoints. Make no format change. Write the host salvage scan over a `picotool save` dump, ordered by the journal's own epoch search.
   - Falsifiers: a D26 or torn image that the scan cannot rebuild before collection laps it; a fresh or `tools/flashimg` region that the refusal blocks; a healthy root that resumes differently.
   - Deciding measurement: D26 rows in `check-flash-reset-cells`. Each row damages an image with the old `journal.c`, continues it short and long, and resumes it with the new one. A long continuation expects the refusal, a short one the rollback report, and both a scan that rebuilds the old view. Add a fresh-region case for the refusal.
   - Kernel cost: journal.o +396 B and flash.o +92 B (gcc 16.2.0, objects), so linked text near +490 B per kernel (I, from PR 636's equal object and kernel deltas). RAM: 0 static; resume stack +168 B.
@@ -670,7 +670,7 @@ int main(int argc, char **argv)
 
 ### D28 refusal, against PR 636 and `main`
 
-This sketch is incomplete. `find_checkblock()` also reaches its final exit when
+This sketch is incomplete (C, `journal.c:231-250`: each probe reads only the magic of a block's first checkpoint page, for at most `DHARA_MAX_RETRIES` blocks). `find_checkblock()` also reaches its final exit when
 blocks 0-7 hold programmed but invalid checkpoint pages (for example eight torn
 checkpoint headers) while later blocks keep recoverable checkpoints, so
 returning `DHARA_E_NOT_FOUND` there classifies that damaged region as fresh

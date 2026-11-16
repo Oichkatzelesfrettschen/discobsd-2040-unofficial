@@ -2810,7 +2810,9 @@ compares every SIO divider result of two dividing processes and their
 handlers with a software division while a third process forces switches
 every 2 ms; `altstack` runs a handler on an alternate stack of exactly
 `MINSIGSTKSZ` bytes based 7 bytes past an eight-byte boundary and requires
-the signal frame to stay inside it. origin/main at 4b3eaf6c fails all five (docs/research/rp2040-systick-ast.md
+the signal frame to stay inside it; `execdiv` execs from a sequence that
+left the divider DIRTY with known operands and requires the new image not
+to find them. origin/main at 4b3eaf6c fails all five (docs/research/rp2040-systick-ast.md
 holds the calibration). The claim is the emulated kernel's trap path;
 Renode's divider answers in zero cycles, so the eight-cycle window of the
 silicon divider is a board receipt, a separate evidence class.

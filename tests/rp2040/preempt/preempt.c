@@ -50,6 +50,10 @@
  *           parent wakes every 2 ms to force switches between them; every
  *           quotient and remainder is compared with a shift-and-subtract
  *           division.
+ *   execdiv execs this program from a sequence that left the SIO divider
+ *           DIRTY with known operands (preempt_regs.S); the new image,
+ *           "execdiv-child", must find neither operand in the divider,
+ *           which exec clears with the rest of the process state.
  *   altstack  a SIGUSR1 handler runs on an alternate stack of exactly
  *           MINSIGSTKSZ bytes whose base is 7 bytes past an eight-byte
  *           boundary, the worst rounding sendsig() applies to the top;
@@ -74,6 +78,7 @@
 #define	DIVIDE_CAP	2000000UL
 
 int	preempt_regs(int misalign);
+int	preempt_exec_dirty(const char *, char **);
 int	sigaltstack(const struct sigaltstack *, struct sigaltstack *);
 volatile int preempt_done;
 unsigned preempt_saved_sp;
@@ -418,6 +423,20 @@ case_altstack(void)
 	return fails;
 }
 
+static int
+case_execdiv_child(void)
+{
+	volatile unsigned *div = (volatile unsigned *)0xd0000060U;
+	unsigned dividend = div[0], divisor = div[1];
+
+	printf("PREEMPT execdiv dividend %#x divisor %#x\n", dividend, divisor);
+	if (dividend == 0x12345678U || divisor == 0x9abcU) {
+		printf("FAIL execdiv: the old image's divider operands survived exec\n");
+		return 1;
+	}
+	return 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -425,7 +444,7 @@ main(int argc, char **argv)
 
 	setvbuf(stdout, NULL, _IOLBF, 0);
 	if (argc != 2) {
-		fprintf(stderr, "usage: preempt alarm|share|spin|regs|divide|altstack\n");
+		fprintf(stderr, "usage: preempt alarm|share|spin|regs|divide|altstack|execdiv\n");
 		return 2;
 	}
 	if (strcmp(argv[1], "alarm") == 0) {
@@ -442,6 +461,17 @@ main(int argc, char **argv)
 		fails = case_divide();
 	else if (strcmp(argv[1], "altstack") == 0)
 		fails = case_altstack();
+	else if (strcmp(argv[1], "execdiv") == 0) {
+		static char *child_argv[] = { "/tmp/preempt", "execdiv-child", NULL };
+
+		fflush(stdout);
+		preempt_exec_dirty(child_argv[0], child_argv);
+		printf("FAIL execdiv: execv failed\n");
+		return 1;
+	} else if (strcmp(argv[1], "execdiv-child") == 0) {
+		fails = case_execdiv_child();
+		argv[1] = "execdiv";
+	}
 	else {
 		fprintf(stderr, "preempt: unknown case %s\n", argv[1]);
 		return 2;

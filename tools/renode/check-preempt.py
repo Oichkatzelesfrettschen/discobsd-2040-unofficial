@@ -57,6 +57,10 @@ altstack
     a handler on an alternate stack of exactly MINSIGSTKSZ bytes, its base
     7 bytes past an eight-byte boundary, finds its sp inside that stack and
     leaves the guard bytes below the base unwritten: "PREEMPT altstack OK".
+execdiv
+    the program execs itself from a sequence that left the SIO divider
+    DIRTY with known operands, and the new image must not find them:
+    "PREEMPT execdiv OK".
 
 The claim is the emulated kernel's AST path. The third-party peripheral
 models carry the boot, and Renode's divider computes in zero cycles; a
@@ -89,6 +93,7 @@ CASES = {
     "regs": ("/tmp/preempt regs", ["PREEMPT regs OK"], 0),
     "divide": ("/tmp/preempt divide", ["PREEMPT divide OK"], 0),
     "altstack": ("/tmp/preempt altstack", ["PREEMPT altstack OK"], 0),
+    "execdiv": ("/tmp/preempt execdiv", ["PREEMPT execdiv OK"], 0),
 }
 
 

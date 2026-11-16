@@ -138,3 +138,27 @@ out:
 	pop	{r4-r7, pc}
 	.ltorg
 	.size	preempt_regs, . - preempt_regs
+
+/*
+ * preempt_exec_dirty(path, argv): leave the SIO divider DIRTY with the
+ * operands 0x12345678 and 0x9abc and r12 holding 0xcccccccc, then make the
+ * execv system call (SYS_execv, 11) directly, so the kernel enters exec
+ * with this image's divider state live. Returns only when execv fails.
+ */
+	.align	2
+	.globl	preempt_exec_dirty
+	.type	preempt_exec_dirty, %function
+	.thumb_func
+preempt_exec_dirty:
+	movs	r3, #0xd0
+	lsls	r3, r3, #24		/* SIO base 0xd0000000 */
+	ldr	r2, =0x12345678
+	str	r2, [r3, #0x60]		/* DIV_UDIVIDEND */
+	ldr	r2, =0x9abc
+	str	r2, [r3, #0x64]		/* DIV_UDIVISOR; no quotient read */
+	ldr	r2, =0xcccccccc
+	mov	ip, r2
+	svc	#11			/* SYS_execv */
+	bx	lr
+	.ltorg
+	.size	preempt_exec_dirty, . - preempt_exec_dirty

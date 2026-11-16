@@ -1,0 +1,10 @@
+# compiler arm-none-eabi-gcc (Arch Repository) 16.2.0
+# input sh sha256 12d2c1314ce7cc5d6f62b51cfab43c289525963ae639bf0e736d23d915853ebe
+# input awk sha256 fb9e44f2955ffbb09754f420bf5299e5883ffec57c3924a2fe16379706c0b6d1
+segment	raw	compressed	count_cycles	write_cycles	decode_cycles	encode_cycles_per_byte	decode_cycles_per_byte	encode_ms	decode_ms	round_trip
+sh data+bss	9608	1535	13340163	13338469	235713	2776.7	24.5	213.43	1.89	ok
+awk data+bss	13068	214	3124118	3124146	270078	478.1	20.7	49.99	2.16	ok
+stack 4 KB synthetic	4096	108	969700	969677	84811	473.5	20.7	15.52	0.68	ok
+u area 3 KB synthetic	3072	358	3402114	3401662	70304	2214.8	22.9	54.43	0.56	ok
+zeros 4 KB	4096	36	219886	219984	83843	107.4	20.5	3.52	0.67	ok
+random 4 KB	4096	4608	48198935	48191598	144043	23532.8	35.2	771.12	1.15	ok

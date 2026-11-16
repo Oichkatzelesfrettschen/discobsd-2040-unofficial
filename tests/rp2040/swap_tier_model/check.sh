@@ -5,7 +5,8 @@
 # shared object, must pass the property, calibration, document-oracle and
 # variant tests, and every mutant mutants.py names must fail them. A host
 # without cffi, hypothesis or pytest reports a skip naming the
-# missing module; a skip is not a pass.
+# missing module; a skip is not a pass. SWAP_TIER_MODEL_REQUIRED=1, which
+# the hosted Linux host tier sets, turns that skip into a failure.
 
 set -eu
 : "${PYTHON:?set PYTHON to the intended interpreter}"
@@ -13,6 +14,12 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 for module in cffi hypothesis pytest; do
 	if ! "$PYTHON" -c "import $module" >/dev/null 2>&1; then
+		if [ "${SWAP_TIER_MODEL_REQUIRED:-}" = 1 ]; then
+			echo "FAIL check-swap-tier-model: Python module" \
+			    "$module is absent for $PYTHON and" \
+			    "SWAP_TIER_MODEL_REQUIRED=1" >&2
+			exit 1
+		fi
 		echo "SKIP check-swap-tier-model: Python module $module is" \
 		    "absent for $PYTHON (install the distribution's" \
 		    "python-$module package)"

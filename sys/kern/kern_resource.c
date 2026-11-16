@@ -14,7 +14,7 @@
  * Resource controls and accounting.
  */
 void
-getpriority()
+getpriority(void)
 {
     register struct a {
         int which;
@@ -82,7 +82,7 @@ donice(register struct proc *p, register int n)
 }
 
 void
-setpriority()
+setpriority(void)
 {
     register struct a {
         int which;
@@ -130,7 +130,7 @@ setpriority()
 }
 
 void
-setrlimit()
+setrlimit(void)
 {
     register struct a {
         u_int   which;
@@ -169,7 +169,7 @@ setrlimit()
 }
 
 void
-getrlimit()
+getrlimit(void)
 {
     register struct a {
         u_int   which;
@@ -196,7 +196,7 @@ getrlimit()
 }
 
 void
-getrusage()
+getrusage(void)
 {
     register struct a {
         int who;

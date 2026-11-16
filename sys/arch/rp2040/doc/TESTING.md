@@ -2749,9 +2749,16 @@ few free process or file slots for the holders.
 the high-water mark, and sleeps while the driver types a `#` and 600 more
 bytes into the stopped terminal, past `TTYHOG`, so the input is echoed
 onto the stopped output queue and answered with a bell there once the
-input queues are full. It then restarts output and reaps the writer. The
-gate requires `CLISTBOUND OK`, no clist refusal across the run, and all 60
-lines once each in order. The clist and buffer rows of the final
+input queues are full. It then restarts output, reaps the writer and
+discards the typed input the terminal still holds (`TIOCFLUSH` of
+`FREAD`). The gate requires `CLISTBOUND OK`, no clist refusal across the
+run, all 60 lines once each in order, and no echo of the typed input from
+the shell in the slice after the exit. Input left in the terminal reaches
+the shell's line editor, which redraws its whole line per byte, about
+38 KB and 3.3 seconds of 115200-baud output for `TTYHOG` bytes; a command
+typed meanwhile overflows `TTYHOG`, and `ttyinput()` drops the excess,
+carriage return included.
+The clist and buffer rows of the final
 `kern.capacity` must show their failure counters unchanged across the run,
 so no clist refusal and no `getblk()` wait for a buffer under the heaviest
 file-system and swap load of any tier; their peaks are printed. The bound

@@ -292,3 +292,36 @@ def test_up_refuses_a_malformed_usb_port_before_writing(monkeypatch, tmp_path, v
     assert rc == 1
     assert not env_path.exists()
     assert "DISCOBSD_USB_PORT" in capsys.readouterr().err
+
+
+def _up_bind(monkeypatch, tmp_path, bind, host_ip=None):
+    import types
+
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: tmp_path / "discobsd")
+    monkeypatch.delenv("DISCOBSD_WEB_TOKEN", raising=False)
+    monkeypatch.delenv("DISCOBSD_HOST_IP", raising=False)
+    monkeypatch.delenv("DISCOBSD_USB_PORT", raising=False)
+    monkeypatch.setattr(console, "systemd_units_installed", lambda home=None: True)
+    monkeypatch.setattr(console.subprocess, "call", lambda argv: 0)
+    monkeypatch.setattr(console.time, "sleep", lambda s: None)
+    monkeypatch.setattr(console, "_http_answers", lambda url, timeout=3.0: True)
+    monkeypatch.setattr(console, "lan_ip", lambda: "10.0.0.9")
+    args = types.SimpleNamespace(
+        host_ip=host_ip, port=7681, link_port=42069, bind=bind, detached=False
+    )
+    assert console.cmd_up(args) == 0
+    return console.read_env(tmp_path / "discobsd" / "web.env")
+
+
+def test_up_lan_after_loopback_advertises_the_lan_address(monkeypatch, tmp_path):
+    # A loopback run stores 127.0.0.1; a later LAN bind must not hand that
+    # address to LAN clients, which would reach their own host.
+    assert _up_bind(monkeypatch, tmp_path, "127.0.0.1")["DISCOBSD_HOST_IP"] == "127.0.0.1"
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == "10.0.0.9"
+    # A stored LAN address is kept for the next LAN run, and --host-ip wins.
+    monkeypatch.setattr(console, "lan_ip", lambda: "10.0.0.77")
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == "10.0.0.9"
+    assert (
+        _up_bind(monkeypatch, tmp_path, "0.0.0.0", host_ip="10.0.0.5")["DISCOBSD_HOST_IP"]
+        == "10.0.0.5"
+    )

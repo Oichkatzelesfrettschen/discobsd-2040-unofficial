@@ -436,7 +436,14 @@ elif cmd == "save":
 """
 
 
-def make_world(tmp: Path, devices=None, with_picotool=True):
+STUB_FINDMNT = """#!/bin/sh
+# The boot ROM volume of the board behind sdz and of the other board behind sdy.
+[ -n "${FAKE_MOUNT:-}" ] || exit 1
+case "$3" in */sdz1 | */sdy1) echo /mnt/boot ;; *) exit 1 ;; esac
+"""
+
+
+def make_world(tmp: Path, devices=None, with_picotool=True, volumes=None, udisks=True):
     """Fake sysfs with {port: (product, bus, address)}, and a bin dir with the fake picotool."""
     devices = devices or {"1-3": ("000a", 1, 7), "1-4": ("000a", 2, 9)}
     sysfs = tmp / "sys"
@@ -454,6 +461,17 @@ def make_world(tmp: Path, devices=None, with_picotool=True):
     # An unrelated device must not count as one of ours.
     (sysfs / "1-1").mkdir()
     (sysfs / "1-1" / "idVendor").write_text("046d\n")
+    # volumes: {port: disk name}, a block node under the port's USB interface.
+    for port, disk in (volumes or {}).items():
+        (sysfs / port / f"{port}:1.0" / "host0" / "target0:0:0" / "0:0:0:0" / "block" / disk).mkdir(
+            parents=True
+        )
+    stubs = {"findmnt": STUB_FINDMNT, "umount": '#!/bin/sh\necho "umount $*" >> "$PT_LOG"\n'}
+    if udisks:
+        stubs["udisksctl"] = '#!/bin/sh\necho "udisksctl $*" >> "$PT_LOG"\n[ -z "${UD_FAIL:-}" ]\n'
+    for name, text in stubs.items():
+        (bindir / name).write_text(text)
+        (bindir / name).chmod(0o755)
     if with_picotool:
         tool = bindir / "picotool"
         tool.write_text(FAKE_PICOTOOL.format(python=sys.executable))
@@ -461,11 +479,21 @@ def make_world(tmp: Path, devices=None, with_picotool=True):
     return sysfs, bindir
 
 
-def capture(tmp, args, devices=None, env=None, src: Path = SRC, with_picotool=True):
-    sysfs, bindir = make_world(tmp, devices, with_picotool)
+def capture(
+    tmp,
+    args,
+    devices=None,
+    env=None,
+    src: Path = SRC,
+    with_picotool=True,
+    volumes=None,
+    udisks=True,
+):
+    sysfs, bindir = make_world(tmp, devices, with_picotool, volumes, udisks)
     out = tmp / "out"
     full_env = {
         "DISCOBSD_SYSFS_USB": str(sysfs),
+        "DISCOBSD_DEVFS": str(tmp / "dev"),
         "PT_LOG": str(tmp / "picotool.log"),
     }
     full_env.update(env or {})
@@ -502,6 +530,53 @@ def scenario_capture_resume(src: Path, tmp: Path) -> None:
     assert r.returncode == 0, r.stderr
     assert picotool_log(tmp)[-1] == "reboot --bus 1 --address 8 => 1-3"
     assert (sysfs / "1-3" / "idProduct").read_text().strip() == "000a"
+
+
+def scenario_capture_resume_unmounts_the_named_volume(src: Path, tmp: Path) -> None:
+    volumes = {"1-3": "sdz", "1-4": "sdy"}
+    r, sysfs, _ = capture(
+        tmp,
+        ["--usb-port", "1-3", "--force-reset", "--resume"],
+        env={"FAKE_MOUNT": "1"},
+        volumes=volumes,
+        src=src,
+    )
+    assert r.returncode == 0, r.stderr
+    log = picotool_log(tmp)
+    # Only the named port's volume, after both saves and before the reboot.
+    assert log[-2:] == [f"udisksctl unmount -b {tmp}/dev/sdz1", "reboot --bus 1 --address 8 => 1-3"]
+    assert sum(line.startswith("udisksctl") for line in log) == 1
+    # A failed unmount stops the run before the board leaves the boot ROM.
+    (tmp / "f").mkdir()
+    r, sysfs, _ = capture(
+        tmp / "f",
+        ["--usb-port", "1-3", "--force-reset", "--resume"],
+        env={"FAKE_MOUNT": "1", "UD_FAIL": "1"},
+        volumes=volumes,
+        src=src,
+    )
+    assert r.returncode == 1 and "unmounting" in r.stderr
+    assert not any(line.startswith("reboot --bus") for line in picotool_log(tmp / "f"))
+    assert (sysfs / "1-3" / "idProduct").read_text().strip() == "0003"
+    # Without udisksctl the mount point goes to umount.
+    (tmp / "u").mkdir()
+    r, _, _ = capture(
+        tmp / "u",
+        ["--usb-port", "1-3", "--force-reset", "--resume"],
+        env={"FAKE_MOUNT": "1"},
+        volumes=volumes,
+        udisks=False,
+        src=src,
+    )
+    assert r.returncode == 0, r.stderr
+    assert picotool_log(tmp / "u")[-2] == "umount /mnt/boot"
+    # Nothing mounted: no unmount call at all.
+    (tmp / "n").mkdir()
+    r, _, _ = capture(
+        tmp / "n", ["--usb-port", "1-3", "--force-reset", "--resume"], volumes=volumes, src=src
+    )
+    assert r.returncode == 0, r.stderr
+    assert not any(line.split()[0].endswith("mount") for line in picotool_log(tmp / "n"))
 
 
 def scenario_capture_needs_the_port(src: Path, tmp: Path) -> None:
@@ -559,6 +634,9 @@ def scenario_capture_waits_for_the_boot_rom(src: Path, tmp: Path) -> None:
     assert r.returncode == 1
     assert picotool_log(tmp) == ["reboot -u -f --bus 1 --address 7 => 1-3"]
     assert "did not show product 0003" in r.stderr
+    # Replugging power-cycles the board and destroys the SRAM the run exists to keep.
+    assert "do not replug it" in r.stderr and "loses the SRAM" in r.stderr
+    assert "hold BOOTSEL" not in r.stderr
 
 
 def scenario_capture_from_the_boot_rom(src: Path, tmp: Path) -> None:
@@ -642,6 +720,7 @@ def scenario_decode_checks_identity(src: Path, tmp: Path) -> None:
 CAPTURE_SCENARIOS = {
     "saves": scenario_capture_saves_both_regions,
     "resume": scenario_capture_resume,
+    "unmount": scenario_capture_resume_unmounts_the_named_volume,
     "port": scenario_capture_needs_the_port,
     "force": scenario_capture_needs_force_reset,
     "neighbor": scenario_capture_stops_when_another_board_moves,
@@ -677,6 +756,27 @@ MUTANTS = {
         "        dev = self.target()\n        cmd = ",
         '        dev = self.__dict__.setdefault("_dev", self.target())\n        cmd = ',
         scenario_capture_saves_both_regions,
+    ),
+    "volume left mounted": (
+        "            self.unmount_volume()\n",
+        "            pass\n",
+        scenario_capture_resume_unmounts_the_named_volume,
+    ),
+    "every port's volume": (
+        'os.path.join(self.sysfs, self.port, "*", "host*"',
+        'os.path.join(self.sysfs, "*", "*", "host*"',
+        scenario_capture_resume_unmounts_the_named_volume,
+    ),
+    "failed unmount ignored": (
+        "            if done.returncode != 0:\n                raise ToolError(\n"
+        '                    "unmounting',
+        '            if False:\n                raise ToolError(\n                    "unmounting',
+        scenario_capture_resume_unmounts_the_named_volume,
+    ),
+    "replug advice": (
+        "not replug it or press BOOTSEL",
+        "hold BOOTSEL through a replug",
+        scenario_capture_waits_for_the_boot_rom,
     ),
     "other boards unchecked": (
         "        if now != self.others_before:",

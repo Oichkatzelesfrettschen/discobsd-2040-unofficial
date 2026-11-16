@@ -212,7 +212,11 @@ picotool call (`reboot -u -f`, then `save -r 0x20000000 0x20042000 sram.bin`
 and `save -r 0x10000000 0x10020000 flash.bin` after the port shows product
 0003), stops before the next call if a 2e8a device on another port changes
 address or product, and leaves the board in the boot ROM unless `--resume`
-restarts it with `picotool reboot`; a restart discards the RAM state. An
+restarts it with `picotool reboot`, after unmounting the named port's RPI-RP2
+volume (only block devices under that port's sysfs node; a failed unmount
+stops the run); a restart discards the RAM state. A boot ROM that never
+shows product 0003 stops the run with advice to keep the board powered and
+not replug it, since a power cycle destroys the SRAM. An
 output file that exists, or a picotool save of the wrong length, stops the
 run. Linux only, like `--usb-port` elsewhere.
 

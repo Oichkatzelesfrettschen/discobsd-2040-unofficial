@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import glob
 import os
 import shutil
 import subprocess
@@ -544,9 +545,54 @@ class Capture:
                 return
             time.sleep(POLL_SECONDS)
         raise ToolError(
-            "port %s did not show product %s after the reset; hold BOOTSEL through a replug"
-            % (self.port, BOOTROM_PRODUCT)
+            "port %s did not show product %s after the reset. Keep the board powered and do "
+            "not replug it or press BOOTSEL: its RAM still holds the evidence and a power "
+            "cycle destroys it. Check the USB attachment (cable, hub, dmesg) and rerun. "
+            "Replugging is the last resort and loses the SRAM." % (self.port, BOOTROM_PRODUCT)
         )
+
+    def volume_sources(self) -> list[str]:
+        """Block devices behind the named port's sysfs node, whole disk then partition 1.
+
+        The boot ROM's RPI-RP2 volume shares its label with the other board's, so only
+        devices under this port's own node are candidates.
+        """
+        devfs = os.environ.get(ports.ENV_DEVFS) or ports.DEFAULT_DEVFS
+        pattern = os.path.join(self.sysfs, self.port, "*", "host*", "target*", "*", "block", "*")
+        found = []
+        for node in sorted(glob.glob(pattern)):
+            name = os.path.basename(node)
+            found += [os.path.join(devfs, name), os.path.join(devfs, name + "1")]
+        return found
+
+    def unmount_volume(self) -> None:
+        """Unmount the named port's mounted boot ROM volume before the board leaves the boot ROM.
+
+        A volume left mounted when the device reboots stays as a stale mount. A failed
+        unmount stops the run before the reboot.
+        """
+        if shutil.which("findmnt") is None:
+            self.log(
+                "discobsd-sramdump: findmnt is missing; a mounted RPI-RP2 volume is not checked"
+            )
+            return
+        for dev in self.volume_sources():
+            found = _run(["findmnt", "-rn", "-S", dev, "-o", "TARGET"])
+            lines = found.stdout.splitlines()
+            if found.returncode != 0 or not lines:
+                continue
+            self.check_others("before unmounting the boot ROM volume")
+            if shutil.which("udisksctl"):
+                cmd = ["udisksctl", "unmount", "-b", dev]
+            else:
+                cmd = ["umount", lines[0]]
+            self.log("discobsd-sramdump: " + " ".join(cmd))
+            done = _run(cmd)
+            if done.returncode != 0:
+                raise ToolError(
+                    "unmounting %s failed (exit %d): %s; the board was not restarted"
+                    % (dev, done.returncode, (done.stderr or done.stdout).strip())
+                )
 
     def save(self, start: int, end: int, name: str, size: int) -> str:
         path = os.path.join(self.out_dir, name)
@@ -573,6 +619,7 @@ class Capture:
         sram = self.save(SRAM_BASE, SRAM_END, SRAM_FILE, SRAM_SIZE)
         flash = self.save(FLASH_BASE, FLASH_END, FLASH_FILE, FLASH_SIZE)
         if self.resume:
+            self.unmount_volume()
             self.picotool("reboot")
             self.log("discobsd-sramdump: the board restarted from flash; its RAM state is gone")
         else:
@@ -589,6 +636,15 @@ class Capture:
             "discobsd-sramdump: next: discobsd-sramdump decode UNIX.ELF %s --flash %s"
             % (sram, flash)
         )
+
+
+def _run(cmd: list[str]) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(
+            cmd, capture_output=True, text=True, timeout=PICOTOOL_TIMEOUT, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ToolError("cannot run %s: %s" % (cmd[0], exc)) from exc
 
 
 def _listing(devices: dict[str, Device]) -> str:

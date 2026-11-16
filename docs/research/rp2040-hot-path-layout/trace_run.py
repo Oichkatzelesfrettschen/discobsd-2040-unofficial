@@ -38,8 +38,12 @@ image holding COMMAND. The driver reuses tools/renode/check-boot.py's machine
 and console, logs in as operator, types COMMAND, lets WARM_SECONDS of virtual
 time pass and traces the next TRACE_SECONDS. RP2040_MODELS overrides the
 Renode_RP2040 model tree. Writes OUTDIR/uart0.txt, OUTDIR/renode.log and
-OUTDIR/trace.txt.
-Exit status: 0 traced, 1 the console never reached the command, 2 Renode stopped answering.
+OUTDIR/trace.txt. COMMAND runs between two echoed markers: the start marker
+must reach the console, and the end marker must not reach it before tracing
+starts or before it stops, so a command that is missing or exits early fails
+with status 1 and leaves no trace.
+Exit status: 0 traced while the command ran, 1 the command never started or
+ended before the trace finished, 2 Renode stopped answering.
 """
 import importlib.util
 import os
@@ -52,6 +56,24 @@ spec = importlib.util.spec_from_file_location(
     "check_boot", os.path.join(RENODE_DIR, "check-boot.py"))
 cb = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cb)
+
+
+# Shell output that brackets COMMAND on the console. Each is typed with an
+# empty quoted pair inside, so the echoed command line never holds the literal
+# text and only the shell's own output matches.
+START = "o14-trace-start"
+END = "o14-trace-end"
+
+
+def typed(text):
+    return f"echo {text[:4]}''{text[4:]}"
+
+
+def still_running(console, when):
+    """Fail when COMMAND has ended (its end marker reached the console)."""
+    if END in console.text()[console.cursor:]:
+        console.fail(f"{when}: the command ended, so the trace would not show it running")
+        raise cb.StageFailed(when)
 
 
 def main(argv):
@@ -74,18 +96,25 @@ def main(argv):
         console.wait_lines(["login:"], "login prompt", 400.0)
         console.type_line("operator")
         console.wait_lines(["$"], "shell prompt", 60.0)
-        console.type_line(command)
+        console.type_line(f"{typed(START)}; {command}; {typed(END)}")
+        console.wait_for(START, "command start", 30.0)
         t = 0.0
         while t < float(warm):
             console.advance()
             t += cb.SLICE_SECONDS
+        still_running(console, "before tracing")
         print(renode.command(f'sysbus.cpu0 CreateExecutionTracing "tr" @{trace} PCAndOpcode'))
         print(renode.command("tr TrackMemoryAccesses"))
         print(renode.command(f'emulation RunFor "{span}"'))
         print(renode.command("sysbus.cpu0 DisableExecutionTracing"))
         print(renode.command("sysbus.cpu0 PC"))
+        still_running(console, "after tracing")
     except cb.StageFailed:
         renode.close()
+        # A trace recorded while the command was not running is not evidence
+        # of it, so it is removed rather than left beside a failed status.
+        if os.path.exists(trace):
+            os.remove(trace)
         return 1
     except cb.RenodeError as error:
         print(f"trace_run: {error}", file=sys.stderr)

@@ -82,6 +82,39 @@ set(struct rd_int *r, long v)
 }
 
 static void
+collect_flash_id(struct hwinfo *hw)
+{
+	static const int mib[2] = { CTL_MACHDEP, CPU_FLASH_ID };
+	struct cpu_flash_id id;
+	int error;
+
+	memset(&id, 0, sizeof id);
+	error = rd(mib, 2, &id, sizeof id);
+	hw->flash_id.state = error == 0 ? RD_OK : state_of(error);
+	hw->flash_id.valid = id.valid != 0;
+	memcpy(hw->flash_id.jedec, id.jedec, sizeof hw->flash_id.jedec);
+	memcpy(hw->flash_id.unique, id.unique, sizeof hw->flash_id.unique);
+}
+
+static void
+collect_pcm(struct hwinfo *hw)
+{
+	static const int mib[2] = { CTL_MACHDEP, CPU_PCM };
+	struct cpu_pcm_info p;
+	int error;
+
+	memset(&p, 0, sizeof p);
+	error = rd(mib, 2, &p, sizeof p);
+	hw->pcm.state = error == 0 ? RD_OK : state_of(error);
+	hw->pcm.rate = (long)p.rate;
+	hw->pcm.channels = (long)p.channels;
+	hw->pcm.bits = (long)p.bits;
+	hw->pcm.ring = (long)p.ring;
+	hw->pcm.queued = (long)p.queued;
+	hw->pcm.open = p.open != 0;
+}
+
+static void
 collect_static(struct hwinfo *hw)
 {
 	int mib[2];
@@ -123,6 +156,7 @@ collect_static(struct hwinfo *hw)
 	geti(&hw->image_crc, CTL_MACHDEP, CPU_IMAGE_CRC, -1);
 	geti(&hw->image_crc_stored, CTL_MACHDEP, CPU_IMAGE_CRC_STORED, -1);
 	geti(&hw->watchdog_reason, CTL_MACHDEP, CPU_WATCHDOG_REASON, -1);
+	collect_flash_id(hw);
 
 	mib[0] = CTL_MACHDEP;
 	mib[1] = CPU_CONSDEV;
@@ -303,6 +337,7 @@ collect_live(struct hwinfo *hw)
 	geti(&hw->vsys_mv, CTL_MACHDEP, CPU_ADC_VSYS, -1);
 	geti(&hw->usb_bulkin_arms, CTL_MACHDEP, CPU_USB_BULKIN_ARMS, -1);
 	geti(&hw->usb_tx_recovered, CTL_MACHDEP, CPU_USB_TX_RECOVERED, -1);
+	collect_pcm(hw);
 	collect_storage(hw);
 	collect_capacity(hw);
 

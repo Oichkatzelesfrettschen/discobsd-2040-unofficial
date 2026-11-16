@@ -254,8 +254,9 @@ def test_fetch_plain(fetch):
         "Flash    image 113880 B crc 1234abcd ok",
         "XIP      cache on, hit 98.2%",
         "MPU      on, 4 of 8 regions",
-        "Battery  ######.. 75% charging",
-        "Light    panel 128, keys 16 of 240",
+        "Battery  ######.. 75% charging, panel 128 keys 16",
+        "Chip     JEDEC ef4015, id 0123456789abcdef",
+        "Audio    8000 Hz, 1 ch, 8 bit, idle, queue 0/255",
         "Sensors  not in this kernel",
         "Load     1.12 0.45 0.07 run 1",
         "Tables   proc 7/20 ino 12/24 file 9/20 buf 4/4",
@@ -275,18 +276,26 @@ def test_fetch_states(fetch):
 
     pico = lines("pico")
     check("Battery  not in this kernel" in pico, "an unserved node says so")
-    check("Light    not in this kernel" in pico, "an unserved node says so")
+    check("Audio    not in this kernel" in pico, "a kernel without the device says so")
     check("Cores    1 kernel; core1 observer r0 s3 f0" in pico, "core 1 counters")
     check("I/O      root w 612K swap w 12.0M er 47" in pico, "storage counters")
     check("USB      cdc in 5120, recovered 0" in pico, "USB counters")
     check("Disks    fl0 fl1" in pico, "two drives")
     check(not any(x.startswith("/mnt") for x in pico), "no card mount on the Pico")
-    check("Battery  read failed" in lines("failed"), "a failed read is not 'absent'")
+    failed = lines("failed")
+    check("Battery  read failed" in failed, "a failed read is not 'absent'")
+    check("Chip     read failed" in failed, "a failed flash identity read is not 'absent'")
+    check("Audio    read failed" in failed, "a failed pcm read is not 'absent'")
+    check("Chip     identity unread" in lines("unread"), "an unread chip is a served state")
+    check("Chip     not in this kernel" in lines("oldkernel"), "a kernel without the node says so")
+    check("CPU      125.000 MHz, 100 Hz tick, bus 62.500 MHz" in lines("busdiff"),
+          "a split peripheral clock shows")
     check("Sensors  31.4 C, VSYS 4.98 V" in lines("sensors"), "ADC readings")
     full = lines("full")
     check("Flash    image 113880 B crc 1234abcd MISMATCH" in full, "CRC mismatch shown")
     check("Reset    watchdog timeout" in full, "watchdog reason decoded")
-    check("Battery  #....... 9%" in full, "9 percent rounds to the first cell")
+    check("Battery  #....... 9%, panel 128 keys 16" in full, "9 percent rounds to the first cell")
+    check("Audio    8000 Hz, 1 ch, 8 bit, in use, queue 200/255" in full, "an open device with a queue")
     check("Memory   ######## 190K core, 301K all" in full, "a nearly full window")
 
 
@@ -298,6 +307,8 @@ def test_fetch_bank(fetch, dumpdir):
     for r in range(2, 10):
         check(s.cell[r][16][0] != 32 and s.cell[r][15][0] == 32,
               f"row {r} holds a reading beside the logo")
+    check(s.text(9).startswith("Load     1.12 0.45 0.07 run 1"),
+          "the last row beside the logo is the 25-column load line")
     check(s.text(10).startswith("Cores    1 kernel; core1 not in this kernel"),
           "rows below the logo use the whole width")
     check(b"\n" not in out.replace(b"\r\n", b""), "the bank tier ends each row with CR LF")

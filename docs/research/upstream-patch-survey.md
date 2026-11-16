@@ -23,7 +23,7 @@ Across 172 rows (2 upstream commits, 68 numbered patches 432 to 499, and the
 | --- | ---: | ---: | ---: | ---: |
 | upstream DiscoBSD | 0 | 0 | 0 | 2 |
 | 2.11BSD 432 to 499 | 12 | 9 | 8 | 39 |
-| 2.11BSD 500 items | 18 | 4 | 13 | 67 |
+| 2.11BSD 500 items | 17 | 4 | 14 | 67 |
 
 The applicable set is small and cheap. Five kernel items cost between -1603 and
 +80 bytes of kernel text and at most 4 bytes of kernel RAM; the shipped userland
@@ -129,16 +129,15 @@ mode, sysctl, tar, umount and inode-rescan work. The survey adds these:
 
 ## Patch 500
 
-Of the 102 items, 68 concern PDP-11 hardware and tapes, f77, efl, ingres,
+Of the 102 items, 67 concern PDP-11 hardware and tapes, f77, efl, ingres,
 sendmail, uucp, networking, programs absent here, or manuals. The rest:
 
-**Present (18).** `touch -r/-t` (`usr.bin/touch/touch.c:268`, `4328e80e`),
+**Present (17).** `touch -r/-t` (`usr.bin/touch/touch.c:268`, `4328e80e`),
 `vm.nswap` (ledger), `gets` removal (`a8d2e6da`), `/root` as root's home
 (`etc/passwd:1`, `distrib/rp2040/mi.rp2040:51`), `fcntl.h` prototypes, `err.h`,
 `stdlib.h` prototypes, `strftime %b`, the `usleep(long)` prototype, the
 `void (*)(int)` `sig_t`, one `signal.h` (`include/signal.h` links to
-`sys/signal.h`), battlestar's stringizing `PATH(x)`, phantasia's two-argument
-`signal`, no `timevalfix` macro, no gcos code in make, and, by the probe below,
+`sys/signal.h`), battlestar's stringizing `PATH(x)`, no `timevalfix` macro, no gcos code in make, and, by the probe below,
 `%.0f` of zero and `snprintf` truncation, and the `hostid` crash (500.99):
 `usr.bin/hostid/hostid.c:36` compiles the `gethostbyname` branch only under
 `HAVE_NET`, which no Makefile or header defines, so the program parses its
@@ -149,12 +148,15 @@ operand numerically and the crash path is absent. `hostid` is in
 (the fork's `bin/ps/ps.c:294` already uses `getopt`), and `xargs` (the fork
 reports through `fatal()`, `usr.bin/xargs/xargs.c:52`).
 
-**Applicable (13).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
+**Applicable (14).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
 descend repair (500.11), `iso646.h` and `locale.h` (500.13), `chown
 owner:group` (500.17), the find-database last entry (500.30), `w` with no
 utmp (500.51), short panic tags (500.76), `rm` and `mv` through `getopt`
 (500.80), `cfree` removal (500.83), `man` section names (500.86), the
-`sleep(3)` range (500.92, below) and the `who am i` separator (500.97).
+`sleep(3)` range (500.92, below), the unused phantasia test files (500.74: `phant_run.c`
+and `test.c` remain, cosmetic, on a game outside `games/Makefile`'s `SUBDIR`; its
+setuid-root install and three-argument `signal` calls are absent) and the
+`who am i` separator (500.97).
 
 **Live defect, 500.92 `sleep(3)`.** Part (b) of the item, an unsigned parameter
 used as signed, is absent: `seconds` is a `u_int` with no signed comparison.

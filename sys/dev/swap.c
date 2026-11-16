@@ -64,8 +64,10 @@ extern void	swap(size_t blkno, size_t coreaddr, int count, int rdflg);
  * write from a process: openi() classifies its block major as a disk
  * (isdisk() in the port's conf.c), which refuses a write open only at
  * level 2, and a descriptor opened at level 0 survives the rise, so both
- * swopen() and every transfer in swstrategy() ask. The kernel's own image
- * traffic reaches swapdev's strategy routine directly and never comes here.
+ * swopen() and every transfer in swstrategy() ask. The block name of the
+ * same blocks (fl1 on a flash kernel) is refused a write open at level 1 by
+ * openi() (kern/sys_inode.c). The kernel's own image traffic reaches
+ * swapdev's strategy routine directly and never comes here.
  */
 static int
 swap_live_write_refused(int unit, int writing)

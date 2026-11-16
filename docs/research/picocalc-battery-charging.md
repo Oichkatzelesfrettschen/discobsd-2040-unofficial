@@ -9,7 +9,7 @@ passes exactly two facts across to the Pico, a battery percentage and a
 charging bit, both of which the kernel already exposes. Every other
 quantity (cell voltage, charger input, charger phase, faults, rail
 voltages) needs a firmware change, a board rework or a voltmeter. This note
-traces the path, maps the registers, records two semantic defects of the
+traces the path, maps the registers, records three semantic defects of the
 two facts that do cross, and decomposes the remaining work.
 
 Evidence classes: schematic (S, the 300 dpi render of
@@ -47,7 +47,7 @@ at these events:
 | --- | --- | --- |
 | Boot | `sync_bat()`: percent, bit 7 if `isCharging()` | SRC-FW `:285-297`, `:597` |
 | Every 20 s | percent, bit 7 if `isCharging()`; runs `low_bat()` | SRC-FW `:310-323` |
-| Cell inserted | percent | SRC-FW `:371-379` |
+| Cell inserted | percent, bit 7 set whenever the percentage is not negative, without a call to `isCharging()` | SRC-FW `:371-379` |
 | Cell removed | 0 | SRC-FW `:381-383` |
 | Charge started | percent with bit 7 | SRC-FW `:439-447` |
 | Charge done | percent with bit 7 | SRC-FW `:428-436` |
@@ -69,7 +69,13 @@ The kernel reads the byte through the shared keyboard poller in about
 `usr.bin/picotop/picotop.c:423-429`). The driver work for what crosses is
 complete; its board check is open (`sys/arch/rp2040/doc/PICOCALC.md:1015-1024`).
 
-Two semantic defects follow from the firmware source:
+Three semantic defects follow from the firmware source:
+- **Charging reported at cell insertion.** The cell-insert interrupt sets
+  bit 7 whenever `getBatteryPercent()` is not negative (SRC-FW `:371-379`),
+  without asking whether the cell charges, so inserting a cell with no
+  charger input reads "charging" until the next 20 s refresh replaces the
+  byte through `isCharging()`. The inserted-cell value is therefore the
+  percentage with bit 7 set, not the percentage alone.
 - **Charging after the charge ends.** The charge-done interrupt stores the
   percentage with bit 7 set (SRC-FW `:428-436`), so `charging` reads 1 after
   the charge completes until the next 20 s refresh clears it through
@@ -159,7 +165,7 @@ against comparable code: `picokbd_reg` is 144 B and `kbdreq_battery_percent`
 
 | Slice | Work | Files | Kernel text, RAM | Host-testable model | Board measurement |
 | --- | --- | --- | --- | --- | --- |
-| P1 | A register model of 0x0B: the firmware's six update events, the 20 s refresh, the charge-done bit and the 80 s shutdown rule, driven against `kbdreq_battery_percent` and `kbdreq_battery_charging`; known-bad mutants that decode bit 6 or keep bit 7 | the `check-picocalc-host` test sources, `dev/picokbd_req.c` unchanged | 0 | the model itself | none |
+| P1 | A register model of 0x0B: the firmware's six update events (the cell-insert and charge-done events both set bit 7 unconditionally), the 20 s refresh, and the 80 s shutdown rule, driven against `kbdreq_battery_percent` and `kbdreq_battery_charging`; known-bad mutants that decode bit 6 or keep bit 7 | the `check-picocalc-host` test sources, `dev/picokbd_req.c` unchanged | 0 | the model itself | none |
 | P2 | A `battery` command: percent, charging, and "no cell" when 0 persists past the shutdown window; a low-battery line to the console at 5 % | a new program under `usr.bin` | 0 | the P1 model behind a stubbed `sysctl` | the command against `printPMU()` read through J702 or the switched CH340 over one charge and one discharge |
 | P3 | Board record of the existing nodes and of the ALDO rails | `sys/arch/rp2040/doc/PICOCALC.md` evidence rows | 0 | none | the `PICOCALC.md:1015-1024` checks; voltmeter on C112-C115 |
 | P4 (needs a D123 revision) | Firmware registers 0x10-0x1A: STATUS1, STATUS2, cell, input and system millivolts, latched interrupt status, ALDO1-ALDO3 codes; kernel nodes `vbat_mv`, `vbus_mv`, `vsys_mv`, `charger`, `faults` | a fork of `picocalc_keyboard`; `dev/picokbd.c`, `include/picocalcvar.h` | +150 to +250 B text, 0 RAM | extend the P1 model and the Renode keyboard model (`docs/research/picocalc-renode-keyboard-registers.md`) | the new nodes against `printPMU()` and the voltmeter |
@@ -186,11 +192,12 @@ part of D123 that keeps the vendor firmware.
      no kernel text.
    - In the kernel, a callout that reads 0x0B every 30 s and prints at 5 %:
      about +150 B text and 4 B of RAM, and it runs without a user process.
-3. **The charge-done bit.**
-   - Document the 20 s window and leave the decode as it is (recommended
-     under D123).
+3. **The unconditional bit 7 at cell insertion and charge done.**
+   - Document the 20 s window for both events and leave the decode as it is
+     (recommended under D123).
    - Clear `charging` in the kernel when the percentage reads 100: masks the
-     window but misreads a cell that charges at 100 %.
+     charge-done window but misreads a cell that charges at 100 % and does
+     nothing for the cell-insert window.
 
 ## Unverified sources and gaps
 

@@ -57,7 +57,9 @@ repeated), and the data and bss of every OMAGIC a.out the build installs,
 281 segments, 1,269,704 B compressing to 72,809 B. The reference refuses
 none of the 281 segments: the build's initial data segments all compress
 well. The corpus therefore measures false refusals only; misses come from
-the synthetic inputs alone, a denominator of three.
+the synthetic inputs alone, a denominator of two: only the random 4 KB input
+and the 16-symbol 4 KB input are refused by the reference; both head and tail
+mixtures and the repeated pattern are admitted by it.
 
 Calibration: `selftest.sh` passes the unmodified build against the committed
 `sizes.tsv`, `run-output.tsv` and `corpus.tsv`, and requires a build with
@@ -98,11 +100,11 @@ mechanisms rest on the files, not on history.
 
 ## The rules on this encoder
 
-| Rule | Mechanism here | Added text (GCC 14.2.1, -Os) | RAM | Refused random 4 KB | Admitted shell, extra | False refusals: corpus; synthetic | Misses (of 3) |
+| Rule | Mechanism here | Added text (GCC 14.2.1, -Os) | RAM | Refused random 4 KB | Admitted shell, extra | False refusals: corpus; synthetic | Misses (of 2) |
 | --- | --- | ---: | ---: | --- | --- | --- | --- |
 | Full count, today | `enc()`, the counting pass of `sr_encode()` | 116 B (baseline) | 0 | 402.23 ms | 0 | not applicable | not applicable |
 | E0 free-run pre-check | refuse before encoding when the largest run is below the u area's worst case plus a minimal segment | +8 to +16 B (I): a call to the existing `swapram_pool_largest()` (28 B in `rules.c`) and a compare | 0 | the whole pass, when the pool is that full | 217 cycles for 17 runs | exact | exact |
-| E1 budget | exit once output passes the largest run less the u area's worst case | +12 B | 0 | 100.96 ms at a 1 KB budget; nothing at 4 KB, where the image fits | 378 cycles at a 4 KB budget | exact against fit; 15 and 1 corpus segments exceed 1 KB and 4 KB budgets | exact |
+| E1 budget | exit once output passes the largest run less the u area's worst case | +12 B | 0 | 100.96 ms at a 1 KB budget; nothing at 4 KB: the random input does not fit (4,608 B), but the budget fires only after the encoder has drained its whole output, so the refusal (-2) arrives with the full 402.23 ms spent | 378 cycles at a 4 KB budget | exact against fit; 15 and 1 corpus segments exceed 1 KB and 4 KB budgets | exact |
 | R running ratio | exit once the consumed input reaches N and the output exceeds 15/16 of it | +44 B (+56 B with E1) | 0 | N=256: 25.23 ms; N=512: 50.46 ms; N=1024: 100.96 ms | 828 cycles at every N | N=256: 3 of 281, 1 synthetic; N=512: 0, 1 synthetic; N=1024: 0, 0 | 0 |
 | P prefix probe | a separate pass over the first N bytes, judged on its own | +38 B and a second call | 0 | N=256: 24.97 ms; N=512: 50.15 ms | N=256: 6.58 ms; N=512: 17.52 ms | N=64: 19; N=128: 7; N=256: 3; N=512 and up: 0; synthetic 1 to 3 | 0 |
 | H byte entropy | order-0 entropy of the first N bytes, refuse at 6.4 or 7.0 bits | +156 B (104, a 36 B log helper, a 16 B table) | 512 B of counts: the codec workspace before the encoder starts, or the stack | 0.08 ms (N=256), 0.21 ms (N=1024) | 0.07 to 0.15 ms | 0 of 281; synthetic 1 or 2 | 1: the 16-symbol input |
@@ -154,9 +156,15 @@ to D of `d2ffbd83:docs/research/memory-devices.md`):
 R turns about 0.85 s of encoding into about 0.2 s of encoding and flash
 programming, and leaves 5 KB of pool for images that compress, at the price
 of three erases each time such a process swaps out. With the card swap of
-#615 the device write is a few milliseconds and the trade is better; on a
-PicoCalc with the PSRAM the pool takes no images (D116) and the rule does
-not run.
+#615 the device write is a few milliseconds and the trade is better. A
+PicoCalc kernel with the PSRAM does not bypass the pool today:
+`PICOCALC_PSRAM` enables SWAPRAM, `sr_admit` starts at 1
+(`rp2040/swapram.c:129`), `swap_image_reserve()` calls `swapram_reserve()`
+before it allocates device backing (`sys/kern/vm_swap.c:266-277`), and
+`psramprobe()` only sets `swapdev` (`dev/psram.c:124`). The D116 policy that
+the pool takes no images on those kernels is a separate change the tree
+lacks, and rule R's prerequisite there: until it lands, the rule runs on
+PSRAM kernels and sends the images it refuses to the PSRAM.
 
 ## Recommendation
 
@@ -201,7 +209,7 @@ board measurement of the pool time.
   measured.
 - The kernel integration of each rule (where the u-area worst case and the
   largest run enter `sr_encode()`) is sized from standalone functions.
-- Misses rest on three synthetic incompressible inputs.
+- Misses rest on two synthetic incompressible inputs, the random and the 16-symbol 4 KB.
 
 ## Sources
 

@@ -48,8 +48,10 @@ CH340C and the SD card carry no timer the RP2040 can read.
 
 Two consequences. First, every clock the RP2040 reads runs from the same
 12 MHz crystal, so the TIMER, SysTick and the PLL-derived counters share
-one drift of at most about 35 ppm in the first year, about 3 s a day (I,
-DS figures summed). The USB host's frame clock is the only independent
+one drift of at most 65 ppm over temperature in the first year (30 ppm
+initial tolerance, 30 ppm stability over the operating range, 5 ppm aging),
+about 5.6 s a day; at 25 C alone the bound is 35 ppm, about 3 s a day (I,
+source-control-drawing figures summed). The USB host's frame clock is the only independent
 reference on the board, available whenever the console is on USB. Second,
 nothing keeps time across a power-off: `sys/kern/init_main.c:133` sets the
 clock from the root file system's last write, as
@@ -225,7 +227,7 @@ steps and the two clocks differ by up to a tick.
 | Cross | `check-time-binding` with the two new names | a unit that calls `clock_gettime` at `_TIME_BITS=32` |
 | qemu-user | the wrapper's instruction sequence; qemu-user reaches a Linux system-call seam and runs no DiscoBSD kernel code (`docs/research/qemu-thumb1-test-tier.md:51-52`) | as the host wrapper test |
 | Renode | a PICO_UART boot that reads `CLOCK_MONOTONIC` 10,000 times, sleeps one second between two reads, asks `clock_getres` and passes clock id 99 | a transcript with a decreasing pair, and one where id 99 succeeds |
-| Board | drift of `CLOCK_MONOTONIC` against the host over 600 s | none needed: a measurement against the crystal's +-35 ppm bound (21 ms in 600 s) |
+| Board | drift of `CLOCK_MONOTONIC` against the host over 600 s | none needed: a measurement against the crystal's +-65 ppm bound over temperature (39 ms in 600 s; 21 ms at 25 C with a +-35 ppm bound) |
 
 ### How the reference trees first did it
 
@@ -259,7 +261,7 @@ kernel already keeps one.
 | T3 | TIMER alarm in place of the 1 kHz SysTick when idle (tickless idle) | `clock.c`, `systick.c`, `sys/kern/kern_clock.c` | +200 to +400 B, +8 B | Renode's TIMER model with alarm IRQs; a host model of the tick accounting | idle current, before and after | power on battery |
 | T4 | Hardware watchdog armed, reloaded from `hardclock` | `machdep.c`, `include/watchdog.h` | +40 to +80 B, 0 | none: Renode does not model the counter's rate; `WATCHDOG_MEASURE` first (`machdep.c:608-673`) | a deliberate masked spin resets with `REASON` TIMER; a 400 ms flash erase does not | recovery from a hung kernel without the host |
 | T5 | RP2040 RTC set and read | a new `rp2040/rtc.c` | +150 to +250 B, 0 | Renode RTC model | none useful | low: the block keeps no time across power-off, and the kernel already keeps the calendar in `time` |
-| T6 | Crystal drift against USB SOF | `dev/usb.c`, a sysctl node | +40 to +60 B, +8 B | none | the ppm the node reports against a host log | measures the 35 ppm bound on each board |
+| T6 | Crystal drift against USB SOF | `dev/usb.c`, a sysctl node | +40 to +60 B, +8 B | none | the ppm the node reports against a host log | measures the 65 ppm bound (35 ppm at 25 C) on each board |
 | T7 | STM32 tick or RTC register | a fork of `picocalc_keyboard` | +40 B kernel | none | not recommended: D123 keeps the vendor firmware, and the RTC domain shares the PMU's switched rail |  |
 | T8 | AXP2101 watchdog or charger timers | the same fork | not reachable from the RP2040 | | | |
 

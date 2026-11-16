@@ -2,8 +2,10 @@
 
 The owner asked how a swap device as large as the PicoCalc's 8 MB PSRAM
 affects the program window (decision D116). The short answer: large swap
-raises how many processes can exist at once and makes each context switch
-two orders of magnitude cheaper than flash swap; it leaves the largest
+raises how many processes can exist at once and makes the swap payload of
+each context switch two orders of magnitude cheaper than flash swap, once the
+SwapRAM pool is bypassed (a switch also restores the incoming text from its
+executable, which no swap device changes); it leaves the largest
 runnable program exactly where it is. The 192 KB window at 0x20000000 is
 the bound, because the RP2040 has no address translation and the kernel
 keeps one process image resident at a time. This note derives both halves
@@ -123,7 +125,17 @@ What large swap changes, plainly:
 - swap wear: none on the PSRAM;
 - switch latency: from about a quarter second for an sh-to-sh switch on
   `fl1` or the pool (256 or 257 ms to write the outgoing image, about 2 ms
-  to read or decode the incoming one) to about 3 ms on the PSRAM (M);
+  to read or decode the incoming one) to about 3 ms of PSRAM payload
+  transfer (M). That figure is a payload-only estimate for the data and
+  stack images, and it holds only if the pool is bypassed: the PICOCALC
+  kernels enable SWAPRAM, `sr_admit` starts at 1, and `swap_image_reserve()`
+  calls `swapram_reserve()` before it allocates device backing
+  (`sys/kern/vm_swap.c:228`, `:271`; `swapram.c:129`), so a pool bypass is a
+  separate change that D116 asks for and the tree lacks. A complete
+  shell-to-shell switch also restores the incoming text through the
+  filesystem and, for a packed executable, decompresses it (`swapin()` at
+  `sys/kern/vm_swap.c:346-357`, `exec_text_restore()` at
+  `sys/kern/exec_aout.c:89-112`), a cost the tier does not change;
 - a program's address space: unchanged.
 
 ## Designs that would raise the program bound

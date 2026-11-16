@@ -1,0 +1,148 @@
+"""Document-derived oracles (README.md, "Oracles").
+
+Each expected value is read from the document that states it, and the code
+or the model is compared with it. A disagreement between a document and the
+code is a finding: the test reports it through pytest.xfail with both
+statements, and neither file is edited to match.
+"""
+
+import re
+from pathlib import Path
+
+import pytest
+
+from swap_tier_model import model, variants
+
+TOP = Path(__file__).resolve().parents[3]
+DOC = TOP / "sys" / "arch" / "rp2040" / "doc"
+TRAFFIC = DOC / "research" / "flash-traffic-per-workload.md"
+ZSWAP = DOC / "research" / "zswap.md"
+STORAGE = DOC / "STORAGE.md"
+
+
+def text(path):
+    return path.read_text(encoding="utf-8")
+
+
+def find(path, pattern):
+    """The first match of pattern in path, whitespace-normalized."""
+    body = re.sub(r"\s+", " ", text(path))
+    match = re.search(pattern, body)
+    if match is None:
+        raise AssertionError(f"{path.name}: no match for {pattern!r}")
+    return match
+
+
+def define(path, name):
+    match = re.search(rf"#define\s+{name}\s+\(?(\d+)", text(path))
+    if match is None:
+        raise AssertionError(f"{path.name}: no #define {name}")
+    return int(match.group(1))
+
+
+def test_endurance_and_erase_time():
+    found = find(TRAFFIC, r"minimum ([\d,]+) program-erase cycles per sector")
+    assert int(found.group(1).replace(",", "")) == variants.ENDURANCE
+    erase = find(TRAFFIC, r"4 KB sector erase (\d+) ms typical")
+    header = find(TOP / "sys" / "arch" / "rp2040" / "include" / "swapram.h",
+                  r"a (\d+) ms sector erase")
+    assert erase.group(1) == header.group(1)
+
+
+def test_pool_size():
+    doc = find(ZSWAP, r"`compile/PICO/Config` enables a (\d+) KiB pool")
+    config = find(TOP / "sys" / "arch" / "rp2040" / "compile" / "PICO" /
+                  "Config", r'"SWAPRAM_KB=(\d+)"')
+    traffic = find(TRAFFIC, r"The pool \(`SWAPRAM_KB=(\d+)`\)")
+    assert int(doc.group(1)) == int(config.group(1)) == \
+        int(traffic.group(1)) == model.Config().pool_kb
+
+
+def test_codec_window_and_lookahead():
+    doc = find(ZSWAP, r"Window (\d+) and lookahead (\d+) come out of the sweep")
+    cfg = TOP / "sys" / "arch" / "rp2040" / "heatshrink" / \
+        "heatshrink_config.h"
+    assert int(doc.group(1)) == define(cfg, "HEATSHRINK_STATIC_WINDOW_BITS")
+    assert int(doc.group(2)) == define(cfg, "HEATSHRINK_STATIC_LOOKAHEAD_BITS")
+
+
+def test_u_area_reservation():
+    doc = find(TRAFFIC, r"`SR_WORST\(USIZE\)`, ([\d,]+) bytes held")
+    usize = define(TOP / "sys" / "arch" / "rp2040" / "include" /
+                   "machparam.h", "USIZE")
+    assert int(doc.group(1).replace(",", "")) == model.sr_worst(usize)
+
+
+def test_flash_layout():
+    rows = {m.group(1): (int(m.group(2), 16), int(m.group(3)))
+            for m in re.finditer(r"\| ([^|]+?) \| (0x[0-9a-f]+) \| (\d+) KB \|",
+                                 text(STORAGE))}
+    kernel = rows["boot2 and kernel"]
+    root = rows["root, Dhara journal"]
+    swap = rows["swap, raw"]
+    flash_h = TOP / "sys" / "arch" / "rp2040" / "dev" / "flash.h"
+    assert kernel[1] * 1024 == define(flash_h, "FLASH_FS_OFFSET") * 1024
+    assert root[0] == 0x10000000 + kernel[1] * 1024
+    assert swap[0] == root[0] + root[1] * 1024
+    assert swap[1] == define(flash_h, "FLASH_SWAP_BYTES")
+    assert swap[1] == model.Config().flash_kb
+    assert swap[0] - 0x10000000 == model.FLASH_SWAP_OFFSET
+    assert kernel[1] + root[1] + swap[1] == 2048
+
+
+AFTER_BSS = (r"after ordinary data and BSS", r"follows ordinary kernel data and bss")
+KNOWN_WRONG = "at the start of the kernel RAM region, directly above the " \
+    "ordinary user window"
+
+
+def output_sections(script):
+    """Output section names of a linker script in the order they appear,
+    with comments removed so a comment cannot stand in for a statement."""
+    body = re.sub(r"/\*.*?\*/", " ", script, flags=re.S)
+    return re.findall(r"^\s*(\.[A-Za-z_][\w.]*)\s*(?:\([A-Z]+\))?\s*:",
+                      body, flags=re.M)
+
+
+def placement_verdict(script, doc):
+    """'agrees' when the script places .swapram_pool directly after .bss
+    and doc says so, 'known' for zswap.md's recorded wrong phrase; anything
+    else raises."""
+    sections = output_sections(script)
+    if ".bss" not in sections or ".swapram_pool" not in sections or \
+            sections.index(".swapram_pool") != sections.index(".bss") + 1:
+        raise AssertionError(f"pool not directly after .bss: {sections}")
+    flat = re.sub(r"\s+", " ", doc)
+    if any(re.search(p, flat, flags=re.I) for p in AFTER_BSS):
+        return "agrees"
+    if KNOWN_WRONG in flat:
+        return "known"
+    raise AssertionError("document states no pool placement the script "
+                         "supports")
+
+
+SCRIPT = TOP / "sys" / "arch" / "rp2040" / "conf" / "kern.ldscript"
+
+
+def test_placement_verdict_calibration():
+    good = ".bss : { *(.bss*) } > RAM\n.swapram_pool (NOLOAD) : { } > RAM\n"
+    before = ".swapram_pool (NOLOAD) : { } > RAM\n.bss : { } > RAM\n"
+    commented = "/* .bss : */\n.swapram_pool (NOLOAD) : { } > RAM\n"
+    assert placement_verdict(good, "after ordinary data and BSS") == "agrees"
+    for script in (before, commented):
+        with pytest.raises(AssertionError):
+            placement_verdict(script, "after ordinary data and BSS")
+    with pytest.raises(AssertionError):
+        placement_verdict(good, "The pool lives somewhere in RAM.")
+
+
+def test_storage_states_the_linked_placement():
+    assert placement_verdict(text(SCRIPT), text(STORAGE)) == "agrees"
+
+
+def test_pool_placement():
+    """zswap.md places the pool at the start of kernel RAM, above the user
+    window; kern.ldscript links .swapram_pool directly after .bss."""
+    if placement_verdict(text(SCRIPT), text(ZSWAP)) == "known":
+        pytest.xfail("finding: zswap.md puts the pool " + KNOWN_WRONG +
+                     "; kern.ldscript links .swapram_pool directly after "
+                     ".bss, as STORAGE.md states")

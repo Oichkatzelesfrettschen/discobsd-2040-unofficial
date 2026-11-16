@@ -29,11 +29,14 @@
 The driver boots the PICO_UART kernel on tools/renode/machine.resc, the
 machine check-renode boots, and advances virtual time in short slices so the
 console lines of /etc/rc carry a virtual timestamp to within one slice. It
-then logs in, becomes root, and ends each trial with "reboot -n", which
-skips sync(2), the buffer flush and the shutdown checkpoint: the next boot
-sees the flash root as a processor reset at that instant would leave it.
-The flash model is the same memory object across the watchdog reset, so the
-written root survives into the next boot.
+then logs in, becomes root, and ends each trial with a monitor "machine
+Reset", the call the watchdog model makes when the chip resets itself. No
+userland runs after the last command: reboot(8) would sleep, signal and
+kill every process first, which closes an open-unlinked file and lets the
+kernel reclaim its inode before the cut, and it flushes nothing the cut
+should keep. The flash model is the same memory object across the reset,
+so the written root survives into the next boot exactly as the last
+command left it.
 
 Slices are 0.25 virtual s outside the measured spans and 0.02 s from the
 kernel banner to fsck's outcome, so each span is known to within 0.02 s.
@@ -57,11 +60,13 @@ Every boot's fsck span (from the rc banner to the summary line), its output
 and its outcome (clean, repaired-and-rebooted, failed) go to a TSV row.
 
 Usage: renode_fsck_timing.py RENODE TOOLS_RENODE UNIX_BIN FLASH_BIN OUTDIR
-Exit status: 0 measured, 1 a stage never arrived, 2 the emulator stopped.
+Exit status: 0 measured, 1 a stage never arrived, a control failed or any
+boot of any trial ended critical, failed or unknown, 2 the emulator stopped.
 The controls decide whether a row counts: the first boot and the synced
 trial must check clean and the unlinked trial must be repaired; a run where
 any of them fails is reported as uncalibrated (exit 1) and its rows are not
-evidence.
+evidence. A boot that stops after fsck (critical errors, a failed check, an
+unknown exit) is a failed measurement whatever trial it ends.
 """
 
 import importlib.util
@@ -144,6 +149,10 @@ class Clock:
             self.advance()
             spent += self.slice
 
+    def reset(self):
+        """Reset the machine as the watchdog does; the flash keeps its bytes."""
+        self.renode.command("machine Reset")
+
     def type_line(self, line):
         for byte in (line + "\r").encode():
             self.renode.command(f"sysbus.uart0 WriteChar {byte:#04x}")
@@ -215,7 +224,7 @@ def trial(clock, name, commands, writer):
     root_shell(clock)
     for index, command in enumerate(commands):
         clock.run(command, f"o12-{name}-{index}")
-    clock.type_line("reboot -n")
+    clock.reset()
     for number, row in enumerate(boot(clock)):
         writer(name, number, row)
 
@@ -238,9 +247,12 @@ def main(argv):
     table.write("trial\tboot\tbanner_s\trc_s\tsummary_s\tend_s\tfsck_span_s\t"
                 "outcome\tfiles\tused\tfree\toutput\n")
     outcomes = {}
+    failed_boots = []
 
     def writer(name, number, row):
         outcomes.setdefault(name, []).append(row["outcome"])
+        if row["outcome"] in ("critical", "failed", "unknown"):
+            failed_boots.append(f"{name} boot {number}: {row['outcome']}: {row['output']}")
         table.write(f"{name}\t{number}\t{row['banner']:.2f}\t{row['rc']:.2f}\t"
                     f"{row['summary']:.2f}\t{row['end']:.2f}\t{row['fsck_span']:.2f}\t"
                     f"{row['outcome']}\t{row['files']}\t{row['used']}\t{row['free']}\t"
@@ -296,6 +308,10 @@ def main(argv):
             outcomes.get("unlinked", [None])[0] != "repaired":
         print("o12: UNCALIBRATED: a control boot did not give its expected outcome",
               file=sys.stderr)
+        status = status or 1
+    for failure in failed_boots:
+        print(f"o12: BOOT FAILED {failure}", file=sys.stderr)
+    if failed_boots:
         status = status or 1
     print(f"o12: RESULT status={status}", flush=True)
     return status

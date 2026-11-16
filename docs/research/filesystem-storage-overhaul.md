@@ -35,17 +35,19 @@ under Renode (R, three runs, 0.02 s resolution; Renode counts one
 instruction per cycle at 125 MIPS and models no flash latency), and its
 host-measured I/O is 92 KiB of reads (H). A clean flag can remove at most
 that span, about 0.10 to 0.15 s on the board once the Cortex-M0+'s cycles
-per instruction are counted (I). It would add a whole reboot, 4.3-4.4 virtual s, after every unclean stop
+per instruction are counted (I). It would add a whole reboot, 4.3 virtual s, after every unclean stop
 that left the root consistent, because fsck's write of the clean bit on a mounted root counts
 as a modification and `/etc/rc` answers exit 4 with `reboot -n`. On an SD
 filesystem the check grows with the inode table and the free-list chain:
 the host count of fsck's reads gives 0.4-0.6 s of SPI read time for an
 empty 32 MiB filesystem (the size of the SD root of pull request #558),
-1.7-2.9 s half full, and 55-92 s for a half-full 1 GiB filesystem, before
-CPU time and scratch writes (M). Above
+1.7-2.9 s with 28% of its blocks used, and 55-92 s for a 1 GiB filesystem with 27%
+used, before CPU time and scratch writes (M). The staged rows stop at 80% of
+the inodes, which the content reaches at 24 to 28% of the blocks; a
+half-full filesystem was not measured. Above
 about 58 MiB fsck's maps no longer fit its 16 in-core buffers and spill to
 `/dev/temp0`, which the kernel carves from the swap device; on the raw flash
-swap every scratch rewrite erases two 4 KiB sectors, so checking a half-full
+swap every scratch rewrite erases two 4 KiB sectors, so checking a 27%-full
 1 GiB filesystem costs about 1,150 sector erases of `fl1`, and a filesystem
 over about 1 GiB cannot be checked at boot at all on a board whose swap is
 the 384 KiB flash region (H, M). The SD root of #558 is itself a mounted
@@ -72,16 +74,16 @@ shipped image would boot as dirty once.
 `sys/arch/rp2040/doc/STORAGE.md` ("Checkpoint cost") has directories made
 seconds before a forced reset lost or salvaged and `fsck -p` repairing the
 root (B). The Renode trials of this note agree (R): a metadata workload
-cut by `reboot -n`, at once or two seconds later, left the superblock's free
+cut by a machine reset, at once or two seconds later, left the superblock's free
 list behind the inodes, and fsck reported "ALLOCATED INODE(S) IN IFREE
-LIST", "34 DUP BLKS IN FREE LIST" and "BAD FREE LIST (SALVAGED)", then
+LIST", "34 DUP BLKS IN FREE LIST" (35 for the cut at once) and "BAD FREE LIST (SALVAGED)", then
 rebooted; the same workload followed by `sync` checked clean, and an
 in-place `dd conv=notrunc` rewrite cut the same way checked clean. The free
 list and the free-inode cache live in the in-core superblock and reach the
 medium only at a superblock write, so an allocation whose inode or data
 blocks reach flash before the next superblock write leaves fsck work,
 whatever the translation layer below does. The extra reboot costs
-4.3-4.4 virtual seconds from banner to banner (R), so on the root the donor
+4.3 virtual seconds from banner to banner (R), so on the root the donor
 semantics break even at about one consistent unclean stop per 45-55 clean
 boots.
 
@@ -219,9 +221,13 @@ Older images stay readable; one direction keeps a window:
 `docs/research/filesystem-storage-overhaul/renode_fsck_timing.py` boots the
 PICO_UART kernel on the `check-renode` machine with the built
 `distrib/rp2040/flash.bin`, advances virtual time in 0.02 s slices inside
-the measured spans, and ends each trial with `reboot -n`, which skips
-`sync()`, the buffer flush and the shutdown checkpoint, so the next boot
-sees the root as a processor reset at that instant leaves it. Two controls
+the measured spans, and ends each trial with a monitor `machine Reset`, the call the Renode
+watchdog model makes when the chip resets itself, with no userland running
+after the last command. (`reboot -n` was the first cut: it still sleeps,
+signals and kills every process before it calls `reboot(2)`
+(`sbin/reboot/reboot.c:112-155`), which closes the open-unlinked file and
+lets the kernel reclaim its inode before the reset.) The next boot sees the
+root as a processor reset at that instant leaves it. Two controls
 decide whether its rows count: the synced trial must check clean and the
 open-unlinked trial must be repaired.
 
@@ -229,21 +235,24 @@ open-unlinked trial must be repaired.
 | --- | ---: | ---: | --- | --- | --- |
 | first boot of the image | 0 | 0.08 (0.08-0.10 over three runs) | clean | summary only | 102, 756 |
 | `fsck -p` on a missing node at the root shell | - | 0.36 | floor | "Can't stat", "CAN'T CHECK FILE SYSTEM" | - |
-| `sync; fsck -p /dev/fl0a` at the root shell | - | 0.48 | refused | "Can't open /dev/fl0a" | - |
+| `sync; fsck -p /dev/fl0a` at the root shell | - | 0.50 | refused | "Can't open /dev/fl0a" | - |
 | workload, `sync`, cut (negative control) | 0 | 0.08 | clean | summary only | 106, 793 |
-| open file removed, `sync`, cut (positive control) | 0 | 0.08 | repaired | BLK(S) MISSING (SALVAGED) | 106, 793 |
-| | 1 | 0.06 | clean | summary only | 106, 793 |
-| workload, cut at once | 0 | 0.08 | repaired | ALLOCATED INODE(S) IN IFREE LIST (FIXED); 34 DUP BLKS IN FREE LIST; BAD FREE LIST (SALVAGED) | 110, 829 |
-| | 1 | 0.06 | clean | summary only | 110, 829 |
-| workload, two seconds, cut | 0 | 0.12 | repaired | as above | 114, 865 |
-| | 1 | 0.08 | clean | summary only | 114, 865 |
-| synced file rewritten in place, cut | 0 | 0.08 | clean | summary only | 115, 866 |
+| open file removed, `sync`, cut (positive control) | 0 | 0.08 | repaired | UNREF FILE I=122 (CLEARED); BLK(S) MISSING (SALVAGED) | 106, 793 |
+| | 1 | 0.08 | clean | summary only | 106, 793 |
+| workload, cut at once | 0 | 0.08 | repaired | ALLOCATED INODE(S) IN IFREE LIST (FIXED); 35 DUP BLKS IN FREE LIST; BAD FREE LIST (SALVAGED) | 111, 830 |
+| | 1 | 0.08 | clean | summary only | 111, 830 |
+| workload, two seconds, cut | 0 | 0.10 | repaired | UNREF FILE I=113, size 0 (CLEARED); ALLOCATED INODE(S) IN IFREE LIST (FIXED); 34 DUP BLKS IN FREE LIST; BAD FREE LIST (SALVAGED) | 115, 866 |
+| | 1 | 0.08 | clean | summary only | 115, 866 |
+| synced file rewritten in place, cut | 0 | 0.08 | clean | summary only | 116, 867 |
 
 Both controls held, so the rows count (`renode-fsck-timing.tsv`). The
 workload is `mkdir` of two directories, `cp /etc/rc` and `cp /bin/sh`
 into them, `echo` into a new file, `ln` and `rm`, one command a line. Every
-workload's files survived the cut; only the free list and the free-inode
-cache disagreed.
+cut left the free list and the free-inode cache behind the inodes; the
+two-second cut also left one allocated inode of size zero that no directory
+entry reached, which fsck cleared. The positive control now exercises the
+claimed orphan directly: the removed file is still open at the reset, and
+fsck reports it as an unreferenced file (I=122).
 
 The shell row is a second floor, not a check: at securelevel 1 `openi()`
 refuses every open of a mounted block device, reads included
@@ -264,7 +273,8 @@ check; the boot span is the cleaner figure.
 `tests/fsck_inode_range` build), runs it under `fsck_io_shim.c`, which
 counts reads on the image and appends and rewrites on the scratch device and
 sends `/dev/temp0` to a file, and builds images with `tools/fsutil` (one
-inode per 16 KiB), empty or half filled with copies of `usr.bin` (H). Its
+inode per 16 KiB), empty or staged with copies of `usr.bin` until 80% of its inodes are used,
+which fills 24 to 28% of its blocks, not half (H). Its
 calibration passed: the shim's byte count equals strace's on the same run
 and lies between the geometric floor (superblock, inode blocks, free-list
 chain) and that floor plus 8 KiB; a lowered free count draws "FREE BLK COUNT
@@ -275,18 +285,22 @@ The shipped roots, read from `distrib/rp2040/sdcard.img` and
 | Size | Fill | Inodes | Used blocks | fsck reads (KiB) | Scratch appends | Scratch rewrites | SPI read time, 1.2-2.0 ms/KiB (s) | Scratch on raw flash, typical (s) | `fl1` sector erases |
 | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | 988 KiB root | shipped | 128 | 755 | 92 | 0 | 0 | 0.1-0.2 | 0 | 0 |
-| 8 MiB | half | 512 | 2,184 | 311 | 0 | 0 | 0.4-0.6 | 0 | 0 |
+| 8 MiB | staged, 26% | 512 | 2,184 | 311 | 0 | 0 | 0.4-0.6 | 0 | 0 |
 | 32 MiB | empty | 2,048 | 2 | 299 | 0 | 0 | 0.4-0.6 | 0 | 0 |
-| 32 MiB | half | 2,048 | 9,240 | 1,458 | 0 | 0 | 1.7-2.9 | 0 | 0 |
-| 56 MiB | half | 3,584 | 15,851 | 2,541 | 0 | 0 | 3.0-5.1 | 0 | 0 |
-| 60 MiB | half | 3,840 | 17,204 | 2,705 | 18 | 2 | 3.2-5.4 | 0.4 | 9 |
-| 128 MiB | half | 8,192 | 36,593 | 5,708 | 38 | 52 | 6.8-11.4 | 5.8 | 114 |
-| 256 MiB | half | 16,384 | 72,497 | 11,504 | 74 | 126 | 13.8-23.0 | 13.9 | 271 |
+| 32 MiB | staged, 28% | 2,048 | 9,240 | 1,458 | 0 | 0 | 1.7-2.9 | 0 | 0 |
+| 56 MiB | staged, 27% | 3,584 | 15,851 | 2,541 | 0 | 0 | 3.0-5.1 | 0 | 0 |
+| 60 MiB | staged, 28% | 3,840 | 17,204 | 2,705 | 18 | 2 | 3.2-5.4 | 0.4 | 9 |
+| 128 MiB | staged, 28% | 8,192 | 36,593 | 5,708 | 38 | 52 | 6.8-11.4 | 5.8 | 114 |
+| 256 MiB | staged, 27% | 16,384 | 72,497 | 11,504 | 74 | 126 | 13.8-23.0 | 13.9 | 271 |
 | 1 GiB | empty | 65,536 | 2 | 9,326 | 290 | 276 | 11.2-18.7 | 32.1 | 625 |
-| 1 GiB | half | 65,536 | 290,869 | 46,051 | 290 | 538 | 55.3-92.1 | 59.0 | 1,149 |
+| 1 GiB | staged, 27% | 65,536 | 290,869 | 46,051 | 290 | 538 | 55.3-92.1 | 59.0 | 1,149 |
 
-`fsck-io.tsv` beside this note holds every row with the x86 instruction
-counts. The SPI figure is a model: per 512-byte sector `sdspi_read_span()`
+`fsck-io.tsv` beside this note holds every row with the occupancy and the
+x86 instruction counts. "Staged" is the fill the model builds: copies of
+`usr.bin` until 80% of the inodes are used. That budget binds before half the
+blocks, so a half-full filesystem would read more directory and map data on
+top of the same inode and free-list reads; these rows bound its read time
+from below (I). The SPI figure is a model: per 512-byte sector `sdspi_read_span()`
 makes about 530 one-byte exchanges (command, response, start token, 512 data
 bytes with a CRC16 fold each, two CRC bytes, deselect byte), and `sd_xfer()`
 waits for each received byte before sending the next (`dev/sd.c:126-134`),
@@ -294,7 +308,7 @@ so a byte costs its 0.64 us on the wire at 12.5 MHz plus about 0.3 us of
 loop, about 0.5 ms per sector, plus the card's read access time, taken as
 0.1 to 0.5 ms (I; the SD Physical Layer allows up to 100 ms). CPU time comes
 on top: scaled from the Renode root span by the ratio of host instruction
-counts it is at most 1.2 s for 32 MiB half full and 60 s for 1 GiB half full, a
+counts it is at most 1.2 s for 32 MiB staged (28% full) and 60 s for 1 GiB staged (27% full), a
 crude upper bound, since it counts the exec and fork inside the root span as
 checking work (I). Scratch time uses the W25Q16JV typical figures, 45 ms per
 sector erase and 0.4 ms per page program; each rewrite through
@@ -316,16 +330,16 @@ Three thresholds follow from fsck's sources (`sbin/fsck/main.c:73, 324-325`,
   swap).
   On PicoCalc kernels whose swap is the PSRAM the scratch costs no erase.
 - Each scratch rewrite erases the one spare sector at
-  `FLASH_SWAP_SCRATCH_OFFSET`, so one check of a half-full 1 GiB
+  `FLASH_SWAP_SCRATCH_OFFSET`, so one check of a 27%-full 1 GiB
   filesystem spends 538 of that sector's 100,000 rated cycles.
 
 ### Falsifiers and verdicts
 
 | Claim | Falsifier | Evidence | Verdict |
 | --- | --- | --- | --- |
-| "A clean flag saves boot time on the flash root" | the boot fsck span is small beside the boot, and the reboots added after unclean stops outweigh it | 0.08-0.10 virtual s against a login prompt at 3.85-3.99 virtual s (R); one added reboot costs 4.3-4.4 virtual s (R) | falsified for the root as a time saving; the root's check costs one exec and 92 KiB of XIP reads |
+| "A clean flag saves boot time on the flash root" | the boot fsck span is small beside the boot, and the reboots added after unclean stops outweigh it | 0.08-0.10 virtual s against a login prompt at 3.85-3.99 virtual s (R); one added reboot costs 4.3 virtual s (R) | falsified for the root as a time saving; the root's check costs one exec and 92 KiB of XIP reads |
 | "Dhara's journal leaves fsck nothing to do after an unclean stop" | fsck repairs after a cut | board: directories made seconds before a forced reset lost or salvaged and repaired by `fsck -p` (B, `STORAGE.md`); Renode: both allocating cuts repaired, the in-place rewrite clean (R) | falsified: the free list and free-inode cache live in the in-core superblock, so an allocation whose blocks reach flash before the next superblock write leaves fsck work above any translation layer |
-| "A clean flag saves boot time on an SD filesystem" | the SD check is short beside the boot | 0.4-0.6 s for the empty 32 MiB SD root of #558 and 1.7-2.9 s half full; 55-92 s for 1 GiB half full plus about a minute of scratch rewrites on `fl1` (M) | holds above a few MiB for a filesystem that is not the mounted root; on the SD root the exit-4 reboot offsets it unless fsck hands the result to the kernel; settled by a board timing of `fsck -p /dev/sd0a` |
+| "A clean flag saves boot time on an SD filesystem" | the SD check is short beside the boot | 0.4-0.6 s for the empty 32 MiB SD root of #558 and 1.7-2.9 s staged at 28% full; 55-92 s for 1 GiB staged at 27% full plus about a minute of scratch rewrites on `fl1` (M) | holds above a few MiB for a filesystem that is not the mounted root; on the SD root the exit-4 reboot offsets it unless fsck hands the result to the kernel; settled by a board timing of `fsck -p /dev/sd0a` |
 | "fsck can check any card the driver accepts" | a card filesystem whose maps exceed the scratch device | about 1 to 1.3 GiB on the 380 KiB raw swap (H, M) | falsified; the PSRAM swap or larger in-core maps lift it |
 
 The board measurements that settle the remaining numbers: on a bare Pico,
@@ -486,7 +500,7 @@ slice reports both, with the compiler named.
      0.4-0.6 s of SPI time, and card filesystems their full check; costs a
      small kernel hook beyond the donor.
    - The donor's semantics, root included: the least new code, but each
-     unclean stop of a root that needed no repair costs a reboot of 4.3-4.4
+     unclean stop of a root that needed no repair costs a reboot of 4.3
      virtual s, so the flash root loses time and the SD root breaks even at
      one such stop per 7-11 clean boots.
    - Every filesystem but the mounted root, which fsck always checks in

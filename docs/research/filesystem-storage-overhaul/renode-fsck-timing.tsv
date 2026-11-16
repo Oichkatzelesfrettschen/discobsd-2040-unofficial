@@ -1,12 +1,12 @@
 trial	boot	banner_s	rc_s	summary_s	end_s	fsck_span_s	outcome	files	used	free	output
 clean	0	0.25	1.17	1.25	3.85	0.08	clean	102	756	223	/dev/fl0a: 102 files, 756 used, 223 free | Mon Nov 16 04:17:38 PST 2026 |  |  | 2.11 BSD UNIX (pico) (console) |  |  |  | login:
 floor	0	-	-	-	-	0.36	floor	-	-	-	fsck -p on a missing node
-shell	0	-	-	-	-	0.48	shell	-	-	-	sync; fsck -p /dev/fl0a at the root shell
-synced	0	14.69	15.79	15.87	18.47	0.08	clean	106	793	186	/dev/fl0a: 106 files, 793 used, 186 free | Mon Nov 16 04:17:49 PST 2026 |  |  | 2.11 BSD UNIX (pico) (console) |  |  |  | login:
-unlinked	0	23.72	24.80	24.88	24.90	0.08	repaired	106	793	186	/dev/fl0a: BLK(S) MISSING (SALVAGED) | /dev/fl0a: 106 files, 793 used, 186 free | --- Errors repaired, rebooting
-unlinked	1	28.15	29.21	29.27	31.87	0.06	clean	106	793	186	/dev/fl0a: 106 files, 793 used, 186 free | Mon Nov 16 04:17:54 PST 2026 |  |  | 2.11 BSD UNIX (pico) (console) |  |  |  | login:
-cut-now	0	38.62	39.70	39.78	39.78	0.08	repaired	110	829	150	/dev/fl0a: ALLOCATED INODE(S) IN IFREE LIST (FIXED) | /dev/fl0a: 34 DUP BLKS IN FREE LIST | /dev/fl0a: BAD FREE LIST (SALVAGED) | /dev/fl0a: 110 files, 829 used, 150 free | --- Errors repaired, rebooting
-cut-now	1	43.03	44.09	44.15	46.73	0.06	clean	110	829	150	/dev/fl0a: 110 files, 829 used, 150 free | Mon Nov 16 04:17:59 PST 2026 |  |  | 2.11 BSD UNIX (pico) (console) |  |  |  | login:
-cut-late	0	56.48	57.42	57.54	57.56	0.12	repaired	114	865	114	/dev/fl0a: ALLOCATED INODE(S) IN IFREE LIST (FIXED) | /dev/fl0a: 34 DUP BLKS IN FREE LIST | /dev/fl0a: BAD FREE LIST (SALVAGED) | /dev/fl0a: 114 files, 865 used, 114 free | --- Errors repaired, rebooting
-cut-late	1	60.81	61.89	61.97	64.59	0.08	clean	114	865	114	/dev/fl0a: 114 files, 865 used, 114 free | Mon Nov 16 04:18:04 PST 2026 |  |  | 2.11 BSD UNIX (pico) (console) |  |  |  | login:
-overwrite	0	69.84	70.94	71.02	73.64	0.08	clean	115	866	113	/dev/fl0a: 115 files, 866 used, 113 free | Mon Nov 16 04:18:08 PST 2026 |  |  | 2.11 BSD UNIX (pico) (console) |  |  |  | login:
+shell	0	-	-	-	-	0.50	shell	-	-	-	sync; fsck -p /dev/fl0a at the root shell
+synced	0	11.71	12.63	12.71	15.27	0.08	clean	106	793	186	/dev/fl0a: 106 files, 793 used, 186 free | Mon Nov 16 04:17:49 PST 2026 |  |  | 2.11 BSD UNIX (pico) (console) |  |  |  | login:
+unlinked	0	17.52	18.44	18.52	18.54	0.08	repaired	106	793	186	/dev/fl0a: UNREF FILE I=122  OWNER=root MODE=100640 | /dev/fl0a: SIZE=1007 MTIME=Nov 16 04:17 2026  (CLEARED) | /dev/fl0a: BLK(S) MISSING (SALVAGED) | /dev/fl0a: 106 files, 793 used, 186 free | --- Errors repaired, rebooting
+unlinked	1	21.79	22.83	22.91	25.49	0.08	clean	106	793	186	/dev/fl0a: 106 files, 793 used, 186 free | Mon Nov 16 04:17:54 PST 2026 |  |  | 2.11 BSD UNIX (pico) (console) |  |  |  | login:
+cut-now	0	29.24	30.16	30.24	30.26	0.08	repaired	111	830	149	/dev/fl0a: ALLOCATED INODE(S) IN IFREE LIST (FIXED) | /dev/fl0a: 35 DUP BLKS IN FREE LIST | /dev/fl0a: BAD FREE LIST (SALVAGED) | /dev/fl0a: 111 files, 830 used, 149 free | --- Errors repaired, rebooting
+cut-now	1	33.51	34.55	34.63	37.21	0.08	clean	111	830	149	/dev/fl0a: 111 files, 830 used, 149 free | Mon Nov 16 04:17:59 PST 2026 |  |  | 2.11 BSD UNIX (pico) (console) |  |  |  | login:
+cut-late	0	43.71	44.65	44.75	44.77	0.10	repaired	115	866	113	/dev/fl0a: UNREF FILE I=113  OWNER=root MODE=100640 | /dev/fl0a: SIZE=0 MTIME=Nov 16 04:18 2026  (CLEARED) | /dev/fl0a: ALLOCATED INODE(S) IN IFREE LIST (FIXED) | /dev/fl0a: 34 DUP BLKS IN FREE LIST | /dev/fl0a: BAD FREE LIST (SALVAGED) | /dev/fl0a: 115 files, 866 used, 113 free | --- Errors repaired, rebooting
+cut-late	1	48.02	49.08	49.16	51.76	0.08	clean	115	866	113	/dev/fl0a: 115 files, 866 used, 113 free | Mon Nov 16 04:18:04 PST 2026 |  |  | 2.11 BSD UNIX (pico) (console) |  |  |  | login:
+overwrite	0	54.01	54.95	55.03	57.63	0.08	clean	116	867	112	/dev/fl0a: 116 files, 867 used, 112 free | Mon Nov 16 04:18:08 PST 2026 |  |  | 2.11 BSD UNIX (pico) (console) |  |  |  | login:

@@ -27,13 +27,16 @@
 """Count the I/O of sbin/fsck -p over UFS images of the sizes a card holds.
 
 Builds each image with tools/fsutil (one inode per 16 KiB by default), empty
-or filled to about half its blocks with copies of a content directory, runs
+or staged with copies of a content directory until 80% of its inodes are used
+or half its blocks, whichever comes first (the inode budget comes first, so a
+staged image holds 24 to 28% of its blocks; the occupancy_pct column records
+the figure fsck reports), runs
 the host-built fsck of tests/fsck_inode_range under fsck_io_shim.so and
 records, per image: the superblock geometry fsck reports, its read calls and
 bytes on the image, its scratch-device reads, appends and rewrites (the
 maps that do not fit fsck's 16 in-core buffers go to /dev/temp0, which the
 shim sends to a file), and the user-mode x86 instruction count from perf
-when perf is present ("not run" otherwise).
+when perf is present and permitted to count them ("not run" otherwise).
 
 Calibration runs first and decides whether the rows count:
   known good  on an empty image the shim's read bytes equal the bytes strace
@@ -48,9 +51,11 @@ Calibration runs first and decides whether the rows count:
 
 Usage: fsck_io_model.py FSUTIL FSCK_HOST SHIM_SO CONTENT_DIR WORKDIR OUT_TSV
 WORKDIR must be empty or absent; the caller removes it afterwards.
-Exit status: 0 measured and calibrated, 1 calibration failed, 2 usage.
+Exit status: 0 measured and calibrated, 1 calibration failed, a measured fsck
+exited nonzero, or the content directory held no stageable file, 2 usage.
 """
 
+import functools
 import os
 import re
 import shutil
@@ -64,6 +69,10 @@ NICFREE = 200
 INODES_PER_BLOCK = 16
 MAXPATH = 60  # fsutil truncates a path past 63 bytes and then cannot find it
 SUMMARY = re.compile(r"(\d+) files, (\d+) used, (\d+) free")
+
+
+class MeasureError(Exception):
+    """The harness could not measure: bad input or a run that left no report."""
 
 
 def superblock(image):
@@ -98,6 +107,7 @@ def stage(content, target, budget_bytes, budget_files):
     used = files = 0
     replica = 0
     while True:
+        before = files
         for root, _dirs, names in os.walk(content):
             for name in sorted(names):
                 source = os.path.join(root, name)
@@ -115,19 +125,44 @@ def stage(content, target, budget_bytes, budget_files):
                 shutil.copyfile(source, os.path.join(directory, name))
                 used += blocks * BLOCK
                 files += 1
+        if files == before:
+            raise MeasureError(
+                f"content directory {content} has no file to stage (missing, "
+                f"empty, only links, or every path over {MAXPATH} bytes)")
         replica += 1
+
+
+@functools.cache
+def perf_binary():
+    """Return perf when it can count user instructions here, else None."""
+    perf = shutil.which("perf")
+    if perf is None:
+        return None
+    probe = subprocess.run([perf, "stat", "-x,", "-e", "instructions:u", "--", "true"],
+                           capture_output=True, text=True, timeout=60)
+    for line in (probe.stdout + probe.stderr).splitlines():
+        fields = line.split(",")
+        if probe.returncode == 0 and len(fields) > 2 and fields[0].isdigit() \
+                and fields[2].startswith("instructions"):
+            return perf
+    print("fsck_io_model: instruction counts not run (perf cannot count "
+          "instructions:u here)")
+    return None
 
 
 def run_fsck(fsck, shim, image, temp, report):
     """Run fsck -p on image under the shim; return (status, output, counts, insns)."""
     open(temp, "wb").close()
     env = dict(os.environ, FSCK_IMAGE=image, FSCK_TEMP=temp, FSCK_IO_REPORT=report)
-    perf = shutil.which("perf")
+    perf = perf_binary()
     command = ["env", f"LD_PRELOAD={shim}", fsck, "-p", image]
     stat_file = report + ".perf"
     if perf:
         command = [perf, "stat", "-x,", "-e", "instructions:u", "-o", stat_file] + command
     done = subprocess.run(command, env=env, capture_output=True, text=True, timeout=600)
+    if not os.path.exists(report):
+        raise MeasureError(f"fsck left no shim report for {image} (status "
+                           f"{done.returncode}): {(done.stdout + done.stderr).strip()}")
     with open(report, encoding="ascii") as handle:
         counts = [int(field) for field in handle.read().split()]
     instructions = "not run"
@@ -219,6 +254,14 @@ def main(argv):
         return 2
     fsutil, fsck, shim, content, work, out = (os.path.abspath(a) for a in argv)
     os.makedirs(work, exist_ok=False)
+    try:
+        return measure(fsutil, fsck, shim, content, work, out)
+    except MeasureError as error:
+        print(f"fsck_io_model: MEASUREMENT FAIL {error}", file=sys.stderr)
+        return 1
+
+
+def measure(fsutil, fsck, shim, content, work, out):
     failures = calibrate(fsutil, fsck, shim, work)
     for failure in failures:
         print(f"fsck_io_model: CALIBRATION FAIL {failure}", file=sys.stderr)
@@ -227,13 +270,15 @@ def main(argv):
     print("fsck_io_model: calibration passed (known good and both known bad)")
     with open(out, "w", encoding="utf-8") as table:
         table.write("size_kb\tfill\tisize\tfsize\tinodes\tfiles\tused\tfree\t"
-                    "chain_blocks\timage_reads\timage_read_kb\ttemp_reads\t"
-                    "temp_appends\ttemp_rewrites\tx86_instructions\tstatus\n")
+                    "occupancy_pct\tchain_blocks\timage_reads\timage_read_kb\t"
+                    "temp_reads\ttemp_appends\ttemp_rewrites\tx86_instructions\t"
+                    "status\n")
+        bad_runs = []
         for size_kb in SIZES_KB:
-            for fill in ("empty", "half"):
+            for fill in ("empty", "staged"):
                 image = os.path.join(work, f"fs-{size_kb}-{fill}.img")
                 directory = None
-                if fill == "half":
+                if fill == "staged":
                     directory = os.path.join(work, f"stage-{size_kb}")
                     os.makedirs(directory)
                     stage(content, directory, size_kb * BLOCK // 2,
@@ -244,15 +289,22 @@ def main(argv):
                     fsck, shim, image, image + ".tmp", image + ".rep")
                 match = SUMMARY.search(output)
                 files, used, free = match.groups() if match else ("?", "?", "?")
+                occupancy = (int(used) * 100 // (int(used) + int(free))
+                             if match else "?")
                 row = (size_kb, fill, isize, fsize, (isize - 1) * INODES_PER_BLOCK,
-                       files, used, free, chain_blocks(image, nfree), counts[0],
-                       counts[1] // BLOCK, counts[3], counts[4], counts[5], insns,
-                       status)
+                       files, used, free, occupancy, chain_blocks(image, nfree),
+                       counts[0], counts[1] // BLOCK, counts[3], counts[4],
+                       counts[5], insns, status)
+                if status != 0:
+                    bad_runs.append(f"{size_kb} KiB {fill}: fsck exited {status}: "
+                                    f"{output.strip()}")
                 table.write("\t".join(str(field) for field in row) + "\n")
                 table.flush()
                 print("fsck_io_model: " + " ".join(str(field) for field in row),
                       flush=True)
-    return 0
+    for run in bad_runs:
+        print(f"fsck_io_model: MEASUREMENT FAIL {run}", file=sys.stderr)
+    return 1 if bad_runs else 0
 
 
 if __name__ == "__main__":

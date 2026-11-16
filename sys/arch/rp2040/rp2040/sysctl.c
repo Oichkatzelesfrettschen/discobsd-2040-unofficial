@@ -242,6 +242,24 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 #else
 		return EOPNOTSUPP;
 #endif
+#ifdef STORAGE_STATS
+	/* Without STORAGE_STATS the names fall to the default, EOPNOTSUPP. */
+	case CPU_FLASH_RESET_PROGRAM:
+	case CPU_FLASH_RESET_ERASE:
+		if (namelen != 1)
+			return ENOTDIR;
+		/* A write needs root: __sysctl() refuses any other writer. */
+		i = (int)flash_reset_hook_count(name[0] ==
+		    CPU_FLASH_RESET_ERASE);
+		error = sysctl_int(oldp, oldlenp, newp, newlen, &i);
+		if (error != 0 || newp == NULL)
+			return error;
+		if (i < 0)
+			return EINVAL;
+		flash_reset_hook_arm(name[0] == CPU_FLASH_RESET_ERASE,
+		    (u_int)i);
+		return 0;
+#endif
 	case CPU_MPU:
 		return mpu_sysctl(name + 1, namelen - 1, oldp, oldlenp, newp,
 		    newlen);

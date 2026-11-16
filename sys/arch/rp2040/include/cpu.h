@@ -130,7 +130,16 @@
  */
 #define	CPU_ADC_TEMP		43	/* int: die temperature, m degrees C */
 #define	CPU_ADC_VSYS		44	/* int: VSYS, millivolts */
-#define	CPU_MAXID		45	/* number of valid machdep ids */
+/*
+ * The flash reset hook, arch/rp2040/dev/flash.c, STORAGE_STATS kernels only
+ * (EOPNOTSUPP otherwise). Writing N, root only, arms a reset after the Nth
+ * chip program (erase) command issued from then on; 0 disarms; reading gives
+ * the commands counted since arming. The reset leaves WD_SITE_RESET_AT_*
+ * in watchdog_site for the next boot.
+ */
+#define	CPU_FLASH_RESET_PROGRAM	45	/* int: reset after Nth program cmd */
+#define	CPU_FLASH_RESET_ERASE	46	/* int: reset after Nth erase cmd */
+#define	CPU_MAXID		47	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -179,5 +188,7 @@
 	{ "image_crc_stored", CTLTYPE_INT }, \
 	{ "adc_temp_mc", CTLTYPE_INT }, \
 	{ "adc_vsys_mv", CTLTYPE_INT }, \
+	{ "flash_reset_program", CTLTYPE_INT }, \
+	{ "flash_reset_erase", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

@@ -207,6 +207,10 @@ int	flash_xip_cache(int request);
 int	flash_identity(const unsigned char **jedec,
 	    const unsigned char **unique);
 void	flash_limit_init(void);
+#ifdef STORAGE_STATS
+u_int	flash_reset_hook_count(u_int erase);
+void	flash_reset_hook_arm(u_int erase, u_int n);
+#endif
 
 int	flopen(dev_t dev, int flags, int mode);
 int	flclose(dev_t dev, int flag, int mode);

@@ -49,12 +49,34 @@ case $1 in
 kern.version) echo "DiscoBSD 0.0 (PICOCALC) #1" ;;
 kern.hostname) echo testboard ;;
 machdep.cpu_khz) echo 125000 ;;
+# both halves have the top bit set, so the kernel's int reads negative
+machdep.flash_unique_hi) echo -559038737 ;;	# 0xdeadbeef
+machdep.flash_unique_lo) echo -2147483647 ;;	# 0x80000001
 *) echo "val-$1" ;;
 esac
 EOF
 cat > "$stubs/mount" <<'EOF'
 #!/bin/sh
 echo "/dev/rd0 on / (rw)"
+EOF
+# The target's printf reads an operand with strtoul on a 32-bit long. The
+# stub is a function sourced ahead of the script (a shell's builtin printf
+# would shadow a stub on PATH) that wraps a negative operand the same way, so
+# the host's 64-bit long does not widen it.
+cat > "$stubs/prelude.sh" <<'EOF'
+printf() {
+	_fmt=$1
+	shift
+	_args=
+	for _a in "$@"; do
+		case $_a in
+		-*) _a=$((_a + 4294967296)) ;;
+		esac
+		_args="$_args $_a"
+	done
+	# shellcheck disable=SC2086
+	/usr/bin/printf "$_fmt" $_args
+}
 EOF
 chmod +x "$stubs/sysctl" "$stubs/mount"
 
@@ -67,7 +89,7 @@ check() {
 }
 
 run() {	# run SCRIPT OUT MISSING
-	BOARDINFO_PATH=$stubs STUB_MISSING="$3" sh "$1" > "$2"
+	BOARDINFO_PATH=$stubs STUB_MISSING="$3" sh -c '. "$1"; . "$2"' sh "$stubs/prelude.sh" "$1" > "$2"
 }
 
 run "$script" "$work/bi-full.out" ""
@@ -76,12 +98,13 @@ check "$work/bi-full.out" "kern.hostname: testboard"
 check "$work/bi-full.out" "machdep.cpu_khz: 125000"
 check "$work/bi-full.out" "machdep.image_crc: val-machdep.image_crc"
 check "$work/bi-full.out" "board: PicoCalc registers answer"
-check "$work/bi-full.out" "flash unique id: not exported"
+check "$work/bi-full.out" "machdep.flash_unique: deadbeef80000001"
 check "$work/bi-full.out" "/dev/rd0 on / (rw)"
 
-run "$script" "$work/bi-pico.out" "machdep.picocalc.battery machdep.image_crc"
+run "$script" "$work/bi-pico.out" "machdep.picocalc.battery machdep.image_crc machdep.flash_unique_lo"
 check "$work/bi-pico.out" "board: no PicoCalc registers"
 check "$work/bi-pico.out" "machdep.image_crc: unavailable"
+check "$work/bi-pico.out" "machdep.flash_unique: unavailable"
 check "$work/bi-pico.out" "kern.hostname: testboard"
 
 # Calibration: a misspelled name must be caught by the same checks.
@@ -90,10 +113,30 @@ if cmp -s "$script" "$work/bi-mutant.sh"; then
 	echo "boardinfo_test: mutant did not change the script" >&2
 	exit 1
 fi
-STUB_MISSING="kern.versio" BOARDINFO_PATH=$stubs sh "$work/bi-mutant.sh" > "$work/bi-mutant.out"
+run "$work/bi-mutant.sh" "$work/bi-mutant.out" "kern.versio"
 if grep -Fq "kern.version: DiscoBSD" "$work/bi-mutant.out"; then
 	echo "boardinfo_test: mutant output passed the check" >&2
 	fail=1
 fi
+# Unique-ID calibration: each broken script must lose the full-run check.
+# The halves are signed and have the top bit set, the case a decimal format
+# or a swapped pair gets wrong.
+n=0
+idmutant() {	# idmutant NAME SED-EXPR
+	n=$((n + 1))
+	sed "$2" "$script" > "$work/bi-id$n.sh"
+	if cmp -s "$script" "$work/bi-id$n.sh"; then
+		echo "boardinfo_test: $1 did not change the script" >&2
+		exit 1
+	fi
+	run "$work/bi-id$n.sh" "$work/bi-id$n.out" ""
+	if grep -Fq "machdep.flash_unique: deadbeef80000001" "$work/bi-id$n.out"; then
+		echo "boardinfo_test: $1 output passed the check" >&2
+		fail=1
+	fi
+}
+idmutant signed-format 's/%08x%08x/%08d%08d/'
+idmutant swapped-halves 's/\$hi \$lo/$lo $hi/'
+idmutant hi-name-misspelled 's/flash_unique_hi/flash_unique_h/'
 [ "$fail" -eq 0 ] || exit 1
 echo "boardinfo_test: all checks passed"

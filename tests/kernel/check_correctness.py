@@ -47,6 +47,7 @@ def build(work, suite, changes):
         "synch": ["kern_synch.c", "vm_sched.c"],
         "itimer": ["kern_clock.c", "kern_time.c", "kern_fork.c"],
         "itimer-ilp32": ["kern_clock.c", "kern_time.c", "kern_fork.c"],
+        "resource": ["kern_proc.c", "kern_resource.c"],
     }[suite]
     if suite == "itimer-ilp32":
         common += ILP32_FLAGS + ["-DHK_WALL_ILP32"]
@@ -143,6 +144,7 @@ def build(work, suite, changes):
             "synch": "synch_meter_test.c",
             "itimer": "itimer_test.c",
             "itimer-ilp32": "itimer_test.c",
+            "resource": "resource_test.c",
         }[suite]
     )
     run(
@@ -182,6 +184,24 @@ def main():
         ("baseline-synch", "synch", {}, False),
         ("baseline-itimer", "itimer", {}, False),
         ("baseline-itimer-ilp32", "itimer-ilp32", {}, False),
+        ("baseline-resource", "resource", {}, False),
+        (
+            "resource-drops-counter",
+            "resource",
+            {"kern_resource.c": ("ru->ru_msgsnd += ru2->ru_msgsnd;", "ru->ru_msgsnd += 0;")},
+            True,
+        ),
+        (
+            "resource-leaks-result",
+            "resource",
+            {
+                "kern_resource.c": (
+                    "bzero((caddr_t)rup, sizeof(*rup));",
+                    "/* result left uncleared */",
+                )
+            },
+            True,
+        ),
         (
             "wall-clock-signed-increment",
             "itimer-ilp32",

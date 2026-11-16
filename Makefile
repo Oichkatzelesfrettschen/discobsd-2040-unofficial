@@ -1590,6 +1590,43 @@ check-core1-emulation: check-python
 
 .PHONY: check-core1 check-core1-image check-core1-emulation
 
+# check-unicorn-kernel calls single functions of a built kernel's unix.elf
+# (KERNEL_CONFIGURATION, PICO by default) on an emulated Cortex-M0, compares
+# them with Python references under Hypothesis, then requires each property
+# to reject mutated copies of its function's machine code
+# (tools/unicorn/check_kernel_functions.py). CI installs no Hypothesis, so
+# the target stays on demand, outside "check" and every aggregate.
+check-unicorn-kernel: check-python
+		@# Calibration: a filter naming an unknown property must exit 2
+		@# and must not run the remaining ones.
+		@set -e; kernel=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf; \
+		for only in "--only nosuch" "--only bzero --only nosuch"; do \
+			status=0; \
+			${PYTHON} tools/unicorn/check_kernel_functions.py \
+			    --kernel "$$kernel" --no-mutants $$only \
+			    >/dev/null 2>&1 || status=$$?; \
+			if [ "$$status" -ne 2 ]; then \
+				echo "check_kernel_functions.py exit $$status, expected 2, for $$only" >&2; exit 1; \
+			fi; \
+		done
+		@# Calibration: a property's call sequence, which drives the varied
+		@# caller-saved registers, must not depend on the properties run
+		@# before it. bcmp after bzero and bcmp alone must print one digest.
+		@set -e; kernel=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf; \
+		digest() { \
+			${PYTHON} tools/unicorn/check_kernel_functions.py \
+			    --kernel "$$kernel" --no-mutants "$$@" | \
+			    sed -n 's/^PASS unicorn-kernel bcmp: .* trace \([0-9a-f]*\),.*/\1/p'; \
+		}; \
+		full=$$(digest --only bzero --only bcmp); alone=$$(digest --only bcmp); \
+		if [ -z "$$full" ] || [ "$$full" != "$$alone" ]; then \
+			echo "bcmp call trace after bzero '$$full', alone '$$alone'" >&2; exit 1; \
+		fi
+		${PYTHON} tools/unicorn/check_kernel_functions.py \
+		    --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf
+
+.PHONY: check-unicorn-kernel
+
 # The swap-codec cycle model of docs/research/picocalc-device-first. Its
 # committed run-output.tsv is a fixed oracle for one compiler version: oracle.sh
 # compares the synthetic rows and the compiler options with a fresh model run

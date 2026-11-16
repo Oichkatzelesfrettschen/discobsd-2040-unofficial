@@ -308,6 +308,48 @@ c17_wide_test_san: ${C17_WIDE_INPUTS} .PHONY
 
 .PHONY: check-c17-wide
 
+# NetBSD's libc and libm as a second oracle: NETBSD_SRC names a src-netbsd
+# checkout, whose sources netbsd_oracle.py compiles against their own headers
+# for each target. The target stands outside every aggregate, because no
+# checkout of it travels with this tree, and an unset NETBSD_SRC fails
+# rather than skipping. Each run prints the NetBSD revision it used.
+NETBSD_FAMILIES=	math wide strtof
+check-c17-netbsd:
+	@if [ -z "${NETBSD_SRC}" ]; then \
+		echo "check-c17-netbsd requires NETBSD_SRC, a src-netbsd checkout" >&2; \
+		exit 2; \
+	fi
+.for family in ${NETBSD_FAMILIES}
+	${PYTHON} ${.CURDIR}/c17_family.py ${family} ${TOPSRC} ${HOSTCC:Q} \
+	    --netbsd ${NETBSD_SRC:Q}
+.endfor
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${HOSTCC:Q} \
+	    --netbsd ${NETBSD_SRC:Q}
+.if ${ILP32_OK} == "yes"
+.for family in ${NETBSD_FAMILIES}
+	${PYTHON} ${.CURDIR}/c17_family.py ${family} ${TOPSRC} ${HOSTCC:Q}\ -m32 \
+	    --netbsd ${NETBSD_SRC:Q}
+.endfor
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${HOSTCC:Q}\ -m32 \
+	    --netbsd ${NETBSD_SRC:Q}
+.else
+	@echo "SKIP check-c17-netbsd ilp32: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)
+	@echo "check-c17-netbsd: qemu-arm unavailable and REQUIRE_QEMU is set" >&2; exit 1
+.elif empty(QEMU_ARM)
+	@echo "SKIP check-c17-netbsd qemu: qemu-arm unavailable; no ARM execution occurred"
+.else
+.for family in ${NETBSD_FAMILIES}
+	${PYTHON} ${.CURDIR}/c17_family.py ${family} ${TOPSRC} ${QEMU_ARM_CC:Q} --arm \
+	    --netbsd ${NETBSD_SRC:Q}
+.endfor
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm \
+	    --netbsd ${NETBSD_SRC:Q}
+.endif
+
+.PHONY: check-c17-netbsd
+
 BYTE_SEARCH_INPUTS= byte_search.py byte_search_test.c \
 	${STRING_DIR}/memmem.c ${TOPSRC}/lib/libc/compat/memchr.c
 

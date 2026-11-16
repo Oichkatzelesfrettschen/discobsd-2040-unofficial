@@ -38,6 +38,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import netbsd_oracle
+
 # A distribution compiler may enable _FORTIFY_SOURCE by default; its checks
 # would abort a faulty provider before the fixture names the failure.
 BASE = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror", "-fno-builtin", "-O2"]
@@ -120,27 +122,51 @@ FAMILIES = {
         ),
     ),
     "strtof": (
-        ("lib/libc/stdlib/strtof.c", "lib/libc/stdlib/strtod.c"),
-        ("strtof", "strtod"),
+        ("lib/libc/stdlib/strtof.c", "lib/libc/stdlib/strtofp.c"),
+        ("strtof",),
         "c17_strtof_test.c",
-        "c17 strtof: 21 checks passed\n",
+        "c17 strtof: 200045 checks passed\n",
         ("-lm",),
         (
             (
                 "lib/libc/stdlib/strtof.c",
-                "(wide != 0.0 && narrow == 0.0f))",
-                "0)",
-                1,
-                "strtof",
-                "strtof reports no underflow",
-            ),
-            (
-                "lib/libc/stdlib/strtof.c",
-                "(wide > FLT_MAX && wide <= DBL_MAX) ||",
+                "\tif (range)\n\t\terrno = ERANGE;\n",
                 "",
                 1,
                 "strtof",
-                "strtof reports no positive overflow",
+                "strtof reports no range error",
+            ),
+            (
+                "lib/libc/stdlib/strtofp.c",
+                "\t\t\tif (c > 0 || (c == 0 && (bits & 1) != 0)) {",
+                "\t\t\tif (c > 0) {",
+                1,
+                "strtof",
+                "strtof rounds a decimal tie down",
+            ),
+            (
+                "lib/libc/stdlib/strtofp.c",
+                "\tif (sticky) {\n\t\tbig_muladd(&digits, 10, 1);",
+                "\tif (sticky && 0) {\n\t\tbig_muladd(&digits, 10, 1);",
+                1,
+                "strtof",
+                "strtof drops digits beyond those it keeps",
+            ),
+            (
+                "lib/libc/stdlib/strtofp.c",
+                "(rest == half && (sticky || (bits & 1) != 0))",
+                "rest == half",
+                1,
+                "strtof",
+                "strtof rounds a hexadecimal tie up",
+            ),
+            (
+                "lib/libc/stdlib/strtofp.c",
+                "\t\tif ((n = word(in, i, \"inity\")) != 0)\n\t\t\ti += n;\n",
+                "",
+                1,
+                "strtof",
+                "strtof stops inside INFINITY",
             ),
         ),
     ),
@@ -188,7 +214,7 @@ MATH_MEMBERS = (
     "acosf acosh acoshf asinf asinh asinhf atan2f atanf "
     "atanh atanhf cbrt cbrtf ceilf copysign copysignf cosf "
     "coshf erfcf erff exp2 exp2f expf expm1 expm1f "
-    "fabsf fdim fdimf floorf fma fmaf fmax fmaxf "
+    "fabs fabsf fdim fdimf floorf fma fmaf fmax fmaxf "
     "fmin fminf fmodf frexpf hypotf ilogb ilogbf ldexpf "
     "lgamma lgammaf llrint llrintf llround llroundf log10f log1p "
     "log1pf log2 log2f logb logbf logf lrint lrintf "
@@ -198,14 +224,14 @@ MATH_MEMBERS = (
     "sqrtf tanf tanhf tgamma tgammaf trunc truncf"
 ).split()
 MATH_LEGACY_SYMBOLS = (
-    "acos asin atan atan2 exp erf erfc fabs floor ceil fmod hypot log log10 pow sin cos "
+    "acos asin atan atan2 exp erf erfc floor ceil fmod hypot log log10 pow sin cos "
     "sinh cosh sqrt tan tanh frexp ldexp modf"
 ).split()
 FAMILIES["math"] = (
     tuple("lib/libm/%s.c" % name for name in MATH_MEMBERS),
     tuple(MATH_MEMBERS + MATH_LEGACY_SYMBOLS),
     "c17_math_test.c",
-    "c17 math: 3332048 checks passed\n",
+    "c17 math: 4972090 checks passed\n",
     ("-lm",),
     (
         (
@@ -231,6 +257,14 @@ FAMILIES["math"] = (
             1,
             "trunc",
             "trunc keeps fractions below one",
+        ),
+        (
+            "lib/libm/fabs.c",
+            "return fp_double(fp_bits(x) & ~FP_SIGN_BIT);",
+            "return x < 0.0 ? -x : x;",
+            1,
+            "fabs",
+            "fabs keeps the sign of a negative zero",
         ),
         (
             "lib/libm/nextafter.c",
@@ -332,7 +366,7 @@ FAMILIES["math"] = (
 )
 SUPPORT["math"] = tuple(
     "lib/libm/%s.c" % name
-    for name in "asin atan exp erf fabs floor fmod hypot log pow sin sinh sqrt tan tanh".split()
+    for name in "asin atan exp erf floor fmod hypot log pow sin sinh sqrt tan tanh".split()
 ) + ("lib/libc/gen/frexp.c", "lib/libc/gen/ldexp.c", "lib/libc/gen/modf.c")
 # Error bounds in units of the last place, each above the worst error the
 # fixture measures on the hosting system. The log-based members inherit
@@ -341,10 +375,20 @@ EXTRA["math"] = ["-DLIMIT_CBRT=4", "-DLIMIT_EXP=32", "-DLIMIT_LOG=32", "-DLIMIT_
 EXTRA["math"] += ["-DLIMIT_GAMMA=32", "-DLIMIT_LGAMMA=16", "-DLIMIT_EDGE=32"]
 # The fixture defines an oracle wrapper per member and calls most of them.
 EXTRA["math"] += ["-Wno-unused-function"]
-# newlib's fma() and tgamma() are not accurate enough to be oracles, so the
-# qemu-user variant is held to the result digests in c17_math_digests.h,
-# which the glibc-checked runs also reproduce; see fused() in the fixture.
-UNTRUSTED_FMA = ["-DC17_MATH_UNTRUSTED_ORACLE"]
+# newlib's fma(), fmaf() and tgamma() are not accurate enough to be oracles,
+# so the qemu-user variant is held to the result digests in
+# c17_math_digests.h for those groups, which the glibc-checked runs also
+# reproduce; see fused() in the fixture. With the NetBSD oracle fma and
+# fmaf stay withdrawn there: NetBSD's fma is withheld as defective and its
+# fmaf needs a rounding mode soft-float lacks (netbsd_oracle.py).
+UNTRUSTED_NEWLIB = ["-DC17_MATH_UNTRUSTED_FMA", "-DC17_MATH_UNTRUSTED_FMAF"]
+UNTRUSTED_NEWLIB += ["-DC17_MATH_UNTRUSTED_APPROX"]
+UNTRUSTED_NETBSD_ARM = ["-DC17_MATH_UNTRUSTED_FMA", "-DC17_MATH_UNTRUSTED_FMAF"]
+# The NetBSD groups each family's oracle calls reach; see netbsd_oracle.py.
+# locale has none: NetBSD's setlocale and collation run on its citrus locale
+# database, and its wide conversions and classification read rune tables,
+# which a host or newlib program cannot load. time reaches system calls.
+NETBSD_GROUPS = {"math": ["libm"], "wide": ["wide"], "strtof": ["strtof", "libm"]}
 WIDE_MEMBERS = (
     "btowc c16rtomb c32rtomb iswalnum iswalpha iswblank iswcntrl iswctype "
     "iswdigit iswgraph iswlower iswprint iswpunct iswspace iswupper iswxdigit "
@@ -357,7 +401,11 @@ WIDE_MEMBERS = (
 ).split()
 FAMILIES["wide"] = (
     tuple("lib/libc/wchar/%s.c" % name for name in WIDE_MEMBERS)
-    + ("lib/libc/stdlib/wcstoimax.c", "lib/libc/stdlib/wcstoumax.c"),
+    + (
+        "lib/libc/stdlib/wcstoimax.c",
+        "lib/libc/stdlib/wcstoumax.c",
+        "lib/libc/stdlib/strtofp.c",
+    ),
     tuple(WIDE_MEMBERS + ["wcstoimax", "wcstoumax", "__discobsd_wcstou64"]),
     "c17_wide_test.c",
     "c17 wide: 585969 checks passed\n",
@@ -462,6 +510,7 @@ FAMILIES["wide"] = (
     ),
 )
 OBJECT_RENAME.add("wide")
+EXTRA["strtof"] = ["-DSTRTOF_DIGEST=0xd62dc4a95811dd63ULL"]
 # Families whose members reach system calls newlib's support does not serve.
 HOST_ONLY = {"time"}
 
@@ -479,7 +528,7 @@ def command(arguments):
     )
 
 
-def build(root, compiler, work, arm, family, replacement=None):
+def build(root, compiler, work, arm, family, replacement=None, oracle=None):
     sources, symbols, fixture, _, libraries, _ = FAMILIES[family]
     machine = ARM if arm else []
     if arm:
@@ -500,10 +549,17 @@ def build(root, compiler, work, arm, family, replacement=None):
     objcopy = "arm-none-eabi-objcopy" if arm else "objcopy"
     flags = BASE + EXTRA.get(family, []) + renames + machine
     if arm and family == "math":
-        flags = flags + UNTRUSTED_FMA
+        flags = flags + (UNTRUSTED_NETBSD_ARM if oracle else UNTRUSTED_NEWLIB)
+    if arm and family == "strtof" and not oracle:
+        # newlib's strtof rounds through double; see differential() there.
+        flags = flags + ["-DC17_STRTOF_UNTRUSTED_ORACLE"]
     objects = []
     for index, name in enumerate(sources):
         source = replacement[1] if replacement and replacement[0] == name else root / name
+        if source.suffix == ".o":
+            # A foreign member, already compiled and renamed.
+            objects.append(str(source))
+            continue
         obj = work / ("member%d.o" % index)
         # A mutant lives in the work directory; its private headers do not.
         include = ["-I", str((root / name).parent)]
@@ -533,7 +589,10 @@ def build(root, compiler, work, arm, family, replacement=None):
         objects.append(str(support))
         link = ["-nostartfiles", "-Wl,-Ttext=0x20000"] + link + ["-lc", "-lgcc"]
     program = work / "program"
-    command(compiler + machine + objects + link + ["-o", str(program)])
+    # NetBSD's archive comes ahead of every hosting library, so the oracle's
+    # plain names resolve to it wherever NetBSD defines them.
+    archive = [str(oracle)] if oracle else []
+    command(compiler + machine + objects + archive + link + ["-o", str(program)])
     return program
 
 
@@ -544,6 +603,51 @@ def execute(program, arm):
     )
 
 
+# For each withheld NetBSD member: the fixture section's exit status and the
+# tree members whose failure may report it. The tree's float members are
+# their double members narrowed, so NetBSD's rint is caught through rintf
+# when the float loop reaches a short fraction first.
+FOREIGN_STATUS = {
+    "rint": (1, ("rint", "rintf", "nearbyint", "nearbyintf")),
+    "rintf": (1, ("rintf",)),
+    "logb": (3, ("logb", "logbf")),
+    "logbf": (3, ("logbf",)),
+    "fma": (5, ("fma",)),
+}
+
+
+def foreign(root, compiler, work, args, oracle):
+    """Substitute each withheld NetBSD member for the tree's own member.
+
+    netbsd_oracle.DEFECTS records NetBSD members that are wrong. Each one
+    whose tree counterpart belongs to this family replaces it, and the
+    fixture must reject it under the member's name, as it would a mutant.
+    """
+    sources, symbols = FAMILIES[args.family][0], FAMILIES[args.family][1]
+    for source, (symbol, _, _) in netbsd_oracle.DEFECTS.items():
+        member = next((name for name in sources if Path(name).stem == symbol), None)
+        if member is None:
+            continue
+        obj = work / ("foreign-%s.o" % symbol)
+        try:
+            netbsd_oracle.compile_member(args.netbsd, compiler, args.arm, work, source, obj)
+        except netbsd_oracle.OracleError as error:
+            raise SystemExit(str(error)) from error
+        redefine = work / "foreign-redefine"
+        redefine.write_text("".join("%s tree_%s\n" % (name, name) for name in symbols))
+        objcopy = "arm-none-eabi-objcopy" if args.arm else "objcopy"
+        command([objcopy, "--redefine-syms", str(redefine), str(obj)])
+        program = build(root, compiler, work, args.arm, args.family, (member, obj), oracle=oracle)
+        result = execute(program, args.arm)
+        status, names = FOREIGN_STATUS[symbol]
+        require(
+            result.returncode == status
+            and any(result.stdout.startswith("FAIL " + name + ":") for name in names),
+            "NetBSD's defective %s passes the fixture: " % source + result.stdout + result.stderr,
+        )
+        print("c17 %s rejects NetBSD's %s: %s" % (args.family, source, result.stdout.strip()))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("family", choices=sorted(FAMILIES))
@@ -551,7 +655,16 @@ def main():
     parser.add_argument("compiler")
     parser.add_argument("output", type=Path, nargs="?")
     parser.add_argument("--arm", action="store_true")
+    parser.add_argument(
+        "--netbsd",
+        type=Path,
+        help="src-netbsd checkout whose libc and libm become the oracle",
+    )
     args = parser.parse_args()
+    require(
+        args.netbsd is None or args.family in NETBSD_GROUPS,
+        "c17 %s has no NetBSD oracle" % args.family,
+    )
     require(
         not (args.arm and args.family in HOST_ONLY),
         args.family + " has no qemu-user variant",
@@ -561,7 +674,16 @@ def main():
     expected = FAMILIES[args.family][3]
     with tempfile.TemporaryDirectory(prefix="c17-family-") as temporary:
         work = Path(temporary)
-        program = build(root, compiler, work, args.arm, args.family)
+        oracle = None
+        if args.netbsd is not None:
+            try:
+                oracle, report = netbsd_oracle.build(
+                    args.netbsd, compiler, args.arm, work, NETBSD_GROUPS[args.family]
+                )
+            except netbsd_oracle.OracleError as error:
+                raise SystemExit(str(error)) from error
+            print(report)
+        program = build(root, compiler, work, args.arm, args.family, oracle=oracle)
         result = execute(program, args.arm)
         require(
             result.returncode == 0 and not result.stderr and result.stdout == expected,
@@ -575,7 +697,9 @@ def main():
             require(original.count(anchor) == 1, "mutation anchor differs: " + description)
             source = work / "mutant.c"
             source.write_text(original.replace(anchor, change))
-            program = build(root, compiler, work, args.arm, args.family, (name, source))
+            program = build(
+                root, compiler, work, args.arm, args.family, (name, source), oracle=oracle
+            )
             result = execute(program, args.arm)
             require(
                 result.returncode == status and result.stdout.startswith("FAIL " + member + ":"),
@@ -584,6 +708,8 @@ def main():
                 + result.stderr,
             )
             print("c17 %s mutant rejected: %s" % (args.family, description))
+        if oracle is not None:
+            foreign(root, compiler, work, args, oracle)
         if args.output:
             shutil.copy2(accepted, args.output)
 

@@ -129,6 +129,62 @@ units at -24.9. Those members are held there to per-member result digests
 pinned from the glibc run (`tests/libc_contracts/c17_math_digests.h`); the
 digests agree bit for bit across LP64, ILP32 and Thumb-1.
 
+## Correctly rounded conversion
+
+`strtof`, `wcstof` and `wcstod` share `lib/libc/stdlib/strtofp.c`. It parses
+the whole C17 subject sequence (decimal, hexadecimal, `inf`/`infinity`,
+`nan` with an optional character sequence) through a character accessor, so
+the wide functions read in place with exact end positions. Hexadecimal input
+is exact binary and is rounded once. For decimal input `D * 10**k`, a
+candidate from double arithmetic is corrected by exact comparison with the
+neighboring midpoints, `D * 5**k * 2**(k - e)` against `A`, in 16-bit limbs
+because ARMv6-M has no 32 x 32 -> 64-bit multiply. Only 800 significant
+digits enter `D`; a nonzero digit beyond them appends a final 1, which keeps
+every comparison's sign because no binary64 midpoint has more than 767
+significant digits. The member is 2,930 bytes of text with no data; its
+deepest frame is about 1.45 KB.
+
+The first `strtof`, which narrowed the inherited `strtod`, rounded
+`"2.426210865987558043e+37"` one unit wrong; random strings had not come
+near enough to a midpoint to show it, so the gate now also converts decimal
+expansions of float midpoints cut to 9 to 25 digits. newlib's own `strtof`
+gets that input wrong in the same way.
+
+## Checked against NetBSD
+
+`check-libc-c17-netbsd` (`NETBSD_SRC` naming a src-netbsd checkout) compiles
+NetBSD's own libm, wide-string, gdtoa `strtof` and division members against
+NetBSD's headers, for x86-64, i386 and Cortex-M0+, and links them ahead of the
+hosting libraries as the oracle (`tests/libc_contracts/netbsd_oracle.py`). On
+the qemu-user variant that replaces newlib, whose `fma`, `fmaf`, `strtof` and
+`tgamma` are not accurate enough to be one. NetBSD's division members run the
+tree's own fixture in place of the tree's and pass it, which, the result being
+unique, means they agree on every input it draws. NetBSD's locale,
+collation, multibyte conversion and classification functions read its
+citrus locale database and rune tables, which a host or newlib program
+cannot load, so those families have no NetBSD oracle.
+
+At revision `894c17be5467`, NetBSD's members disagree with C17 in five
+places. The tree's members are right in each, glibc agrees with the tree,
+and the cases below were checked against exact arithmetic where stated:
+
+| NetBSD member | Defect | Extent |
+| --- | --- | --- |
+| `s_rintf.c` | fdlibm's guard bit `0x100000 >> 21` is 0 at exponent 21, so `.75` rounds as a tie | exactly 2,097,152 of all 2**32 floats; `rintf(3659852.75f)` gives 3659852 |
+| `s_rint.c` | the same at exponent 18 (`0x20000 >> 18`), for doubles whose low word is zero | exactly 262,144 doubles, `n + 0.75` with `n` even; `rint(-490468.75)` gives -490468 |
+| `s_logb.c`, `s_logbf.c` | every subnormal returns -1022 or -126, the IEEE 754-1985 function, where C17 7.12.6.11p2 normalizes it | all 2**53 - 2 subnormal doubles and 2**24 - 2 floats; `logb(0x1p-1074)` gives -1022 |
+| `s_fma.c` | a result just below a power of two can round up to the power | 408,909 of 2,000,000 such draws and none of 2,000,000 general ones; `fma(-2.5, 0.1, 0x1p52)` gives 0x1p52, 2**-56 from the midpoint on the other side |
+
+The oracle withholds those members, with a witness each that fails the build
+once NetBSD's defect stops reproducing, and the gate substitutes each one for
+the tree's own member and requires the fixture to reject it by name. That
+calibrates the fixture against real defects of the class it exists to catch.
+The `rint` one also showed the fixture's blind spot: uniformly drawn
+encodings almost never have a zero low word, so it now draws short dyadic
+values as well. And the `logb` substitution found a defect in the tree:
+`lib/libm/fabs.c`, inherited and newly built into `libm.a` by this work,
+returned `-0.0` for `-0.0`; it now clears the sign bit and is a tested member.
+
 ## Not provided
 
 - **Wide streams and `wcsftime`.** `fwprintf`, `fgetwc` and the rest of 7.29.2
@@ -140,8 +196,15 @@ digests agree bit for bit across LP64, ILP32 and Thumb-1.
   `__STDC_NO_THREADS__` or `__STDC_NO_ATOMICS__` for this target, and the tree
   has no mechanism under `-nostdinc` to define them, so the absence is not yet
   announced the way the standard requires.
-- **Correctly rounded `strtof`.** It narrows `strtod`'s double, which rounds
-  twice and can differ in the last place near a float rounding boundary.
+- **A correctly rounded `strtod`.** The inherited `strtod` accepts no
+  infinity, NaN or hexadecimal form, which C17 7.22.1.3 requires, and over
+  2,000,000 random decimal strings of at most 17 digits it differs from the
+  correctly rounded result for 344,874 (17%), where 7.22.1.3p9 recommends
+  correct rounding up to `DECIMAL_DIG` digits. `strtofp.c` converts both
+  formats correctly; moving `strtod` onto it replaces 692 bytes of text with
+  2,966 and adds up to 1.45 KB of stack in its two shipped consumers, `trek`
+  and `primes`, and in the native archives, which awaits the owner's resource
+  decision.
 - **Locales beyond "C".** No other locale exists, and `setlocale` says so.
 
 ## Replay

@@ -27,26 +27,31 @@
  */
 
 #include <errno.h>
-#include <float.h>
+#include <stdint.h>
 #include <stdlib.h>
 
+#include "strtofp.h"
+
 /*
- * C17 7.22.1.3: strtod()'s conversion with a float result.  The value is
- * converted to double and then narrowed, which rounds twice; the result
- * can differ from the correctly rounded float in the last place when the
- * double lands on a float rounding boundary.  A finite double outside the
- * float range is a range error, as is a nonzero double that narrows to
- * zero.
+ * C17 7.22.1.3: the subject sequence of strtod(), infinities, NaNs and
+ * hexadecimal included, rounded once to float by strtofp.c.  A result
+ * that overflows, or that is a zero or subnormal and inexact, sets ERANGE.
  */
 float
 strtof(const char *restrict string, char **restrict end)
 {
-	double wide = strtod(string, end);
-	float narrow = (float)wide;
+	union {
+		float		value;
+		uint32_t	bits;
+	} result;
+	char *stop;
+	int range;
 
-	if ((wide > FLT_MAX && wide <= DBL_MAX) ||
-	    (wide < -FLT_MAX && wide >= -DBL_MAX) ||
-	    (wide != 0.0 && narrow == 0.0f))
+	result.bits = (uint32_t)__discobsd_strtofp(string, &stop,
+	    STRTOFP_BINARY32, &range);
+	if (range)
 		errno = ERANGE;
-	return narrow;
+	if (end != NULL)
+		*end = stop;
+	return result.value;
 }

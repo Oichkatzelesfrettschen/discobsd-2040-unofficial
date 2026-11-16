@@ -49,7 +49,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define D1(F)	F(trunc) F(round) F(rint) F(nearbyint) F(logb) F(cbrt) \
+#define D1(F)	F(fabs) F(trunc) F(round) F(rint) F(nearbyint) F(logb) F(cbrt) \
 		F(exp2) F(expm1) F(log1p) F(log2) F(asinh) F(acosh) F(atanh) \
 		F(lgamma) F(tgamma)
 #define D2(F)	F(fmax) F(fmin) F(fdim) F(copysign) F(nextafter) F(remainder)
@@ -302,6 +302,47 @@ nearf(int low, int high)
 	}								\
 } while (0)
 
+/*
+ * Short dyadic values: an integer of random width plus a fraction of at
+ * most three bits, so the low mantissa bits are zero.  Uniform encodings
+ * almost never produce them, and they are where a rounding routine that
+ * mishandles its guard bit fails (NetBSD's rint() at exponent 18 and its
+ * rintf() at exponent 21; see netbsd_oracle.py).  They come from their own
+ * xorshift stream, so the draws of every other section, and the digests
+ * pinned from them, stay as they were.
+ */
+static uint64_t short_state = 0x2545f4914f6cdd1dULL;
+
+static uint64_t
+next_short(void)
+{
+	short_state ^= short_state << 13;
+	short_state ^= short_state >> 7;
+	short_state ^= short_state << 17;
+	return short_state;
+}
+
+static double
+short_double(int width)
+{
+	int bits = (int)(next_short() % (uint64_t)(width + 1));
+	uint64_t whole = bits == 0 ? 0 : next_short() >> (64 - bits);
+	double x = (double)whole + (double)(next_short() % 8) / 8.0;
+
+	return next_short() & 1 ? -x : x;
+}
+
+/* A uniformly drawn quiet encoding from the short stream. */
+static double
+short_encoding(void)
+{
+	uint64_t bits = next_short();
+
+	if ((bits >> 52 & 0x7ff) == 0x7ff)
+		bits |= 0x0008000000000000ULL;
+	return double_of(bits);
+}
+
 static int
 rounding(void)
 {
@@ -318,6 +359,7 @@ rounding(void)
 	EXACT1F(ceilf, 1, i & 1 ? any_float() : nearf(-3, 26));
 	EXACT1F(floorf, 1, i & 1 ? any_float() : nearf(-3, 26));
 	EXACT1F(fabsf, 1, any_float());
+	EXACT1(fabs, 1, i & 1 ? short_encoding() : short_double(53));
 	/* Halfway cases at every scale: k + 0.5 for small integers k. */
 	for (i = 0; i < 4096; i++) {
 		double x = (double)i - 2048.0 + 0.5;
@@ -327,6 +369,30 @@ rounding(void)
 			FAIL1("rint", 1, x, tree_p_rint(x), host_rint(x));
 		if (!same(tree_p_round(x), host_round(x)))
 			FAIL1("round", 1, x, tree_p_round(x), host_round(x));
+	}
+	for (i = 0; i < 200000; i++) {
+		double x = short_double(53);
+		float f = (float)short_double(24);
+
+		checks += 8;
+		if (!same(tree_p_rint(x), host_rint(x)))
+			FAIL1("rint", 1, x, tree_p_rint(x), host_rint(x));
+		if (!same(tree_p_round(x), host_round(x)))
+			FAIL1("round", 1, x, tree_p_round(x), host_round(x));
+		if (!same(tree_p_trunc(x), host_trunc(x)))
+			FAIL1("trunc", 1, x, tree_p_trunc(x), host_trunc(x));
+		if (!same(tree_p_nearbyint(x), host_nearbyint(x)))
+			FAIL1("nearbyint", 1, x, tree_p_nearbyint(x),
+			    host_nearbyint(x));
+		if (!samef(tree_p_rintf(f), host_rintf(f)))
+			FAIL1("rintf", 1, f, tree_p_rintf(f), host_rintf(f));
+		if (!samef(tree_p_roundf(f), host_roundf(f)))
+			FAIL1("roundf", 1, f, tree_p_roundf(f), host_roundf(f));
+		if (!samef(tree_p_truncf(f), host_truncf(f)))
+			FAIL1("truncf", 1, f, tree_p_truncf(f), host_truncf(f));
+		if (fabs(x) < 4503599627370496.0 &&
+		    tree_p_llrint(x) != host_llrint(x))
+			FAIL1("llrint", 1, x, tree_p_llrint(x), host_llrint(x));
 	}
 	for (i = 0; i < 40000; i++) {
 		double x = near(-3, 29);
@@ -538,10 +604,12 @@ remainders(void)
 }
 
 /*
- * A hosting library is the oracle for fma() and the approximate members
- * only where it is accurate itself; newlib, which hosts the qemu-user
- * variant (built with C17_MATH_UNTRUSTED_ORACLE), rounds fma() twice and
- * its tgamma() is off by tens of units.  So every result of those members
+ * The oracle library is trusted for fma(), fmaf() and the approximate
+ * members only where it is accurate itself.  newlib, which hosts the
+ * qemu-user variant, rounds fma() and fmaf() twice and misses tgamma() by
+ * tens of units; NetBSD's fmaf() needs a round-toward-zero mode that the
+ * soft-float target lacks.  C17_MATH_UNTRUSTED_FMA, _FMAF and _APPROX
+ * withdraw the oracle for those groups.  Every result of those members
  * also enters an FNV-1a digest per member, and c17_math_digests.h pins the
  * digests of a run whose results met a correctly rounded oracle (glibc).
  * A run without a trustworthy oracle must reproduce every bit of that run,
@@ -582,7 +650,17 @@ mix(uint64_t value)
 	mix_into(&digest, value);
 }
 
-#ifdef C17_MATH_UNTRUSTED_ORACLE
+#ifdef C17_MATH_UNTRUSTED_FMA
+#define TRUSTED_FMA	0
+#else
+#define TRUSTED_FMA	1
+#endif
+#ifdef C17_MATH_UNTRUSTED_FMAF
+#define TRUSTED_FMAF	0
+#else
+#define TRUSTED_FMAF	1
+#endif
+#ifdef C17_MATH_UNTRUSTED_APPROX
 #define TRUSTED		0
 #else
 #define TRUSTED		1
@@ -657,7 +735,7 @@ fused(void)
 			}
 		}
 		got = tree_p_fma(x, y, z);
-		want = TRUSTED ? host_fma(x, y, z) : got;
+		want = TRUSTED_FMA ? host_fma(x, y, z) : got;
 		checks++;
 		mix(bits_of(got));
 		if (!same(got, want)) {
@@ -684,7 +762,7 @@ fused(void)
 			fz = i % 6 == 0 ? any_float() : nearf(-40, 40);
 		}
 		fgot = tree_p_fmaf(fx, fy, fz);
-		fwant = TRUSTED ? host_fmaf(fx, fy, fz) : fgot;
+		fwant = TRUSTED_FMAF ? host_fmaf(fx, fy, fz) : fgot;
 		checks++;
 		mix_into(&single, bits_of(fgot));
 		if (!samef(fgot, fwant)) {
@@ -709,7 +787,7 @@ fused(void)
 
 		for (k = 0; k < 4; k++) {
 			float fgot = tree_p_fmaf(fx, fy, tiny[k]);
-			float fwant = TRUSTED ? host_fmaf(fx, fy, tiny[k]) :
+			float fwant = TRUSTED_FMAF ? host_fmaf(fx, fy, tiny[k]) :
 			    fgot;
 
 			checks++;

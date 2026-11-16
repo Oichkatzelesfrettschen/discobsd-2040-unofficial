@@ -27,22 +27,30 @@
  */
 
 #include <errno.h>
-#include <float.h>
+#include <stdint.h>
 #include <wchar.h>
 
+#include "../stdlib/strtofp.h"
+
 /*
- * C17 7.29.4.1.1 for float: wcstod() narrowed, with strtof()'s range
- * errors.
+ * C17 7.29.4.1.1 for float: rounded once to float by strtofp.c, not
+ * through double, so no input rounds twice.
  */
 float
 wcstof(const wchar_t *restrict s, wchar_t **restrict end)
 {
-	double wide = wcstod(s, end);
-	float narrow = (float)wide;
+	union {
+		float		value;
+		uint32_t	bits;
+	} result;
+	wchar_t *stop;
+	int range;
 
-	if ((wide > FLT_MAX && wide <= DBL_MAX) ||
-	    (wide < -FLT_MAX && wide >= -DBL_MAX) ||
-	    (wide != 0.0 && narrow == 0.0f))
+	result.bits = (uint32_t)__discobsd_wcstofp(s, &stop, STRTOFP_BINARY32,
+	    &range);
+	if (range)
 		errno = ERANGE;
-	return narrow;
+	if (end != NULL)
+		*end = stop;
+	return result.value;
 }

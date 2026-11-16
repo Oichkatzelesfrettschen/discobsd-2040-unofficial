@@ -26,42 +26,31 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdlib.h>
+#include <errno.h>
+#include <stdint.h>
 #include <wchar.h>
-#include <wctype.h>
+
+#include "../stdlib/strtofp.h"
 
 /*
- * C17 7.29.4.1.1: strtod() for a wide string.  The subject sequence is
- * made of characters that each have a one-byte form, so the candidate
- * prefix is copied to a byte buffer and converted there, and the end
- * pointer is carried back by offset.  The copy stops at the first wide
- * character strtod() could not use, and at the buffer's capacity: digits
- * beyond 62 characters cannot change a double but would end the
- * conversion early, which callers see only as a shorter consumed length.
+ * C17 7.29.4.1.1: strtod()'s subject sequence read from a wide string and
+ * rounded once to double by strtofp.c, which reads the wide characters in
+ * place: the whole sequence counts, and the end pointer is exact.
  */
-#define WCSTOD_CAPACITY	64
-
 double
 wcstod(const wchar_t *restrict s, wchar_t **restrict end)
 {
-	char buffer[WCSTOD_CAPACITY];
-	const wchar_t *start = s;
-	char *stop;
-	double value;
-	size_t i;
+	union {
+		double		value;
+		uint64_t	bits;
+	} result;
+	wchar_t *stop;
+	int range;
 
-	while (iswspace(*s))
-		s++;
-	for (i = 0; i < sizeof(buffer) - 1; i++) {
-		wchar_t c = s[i];
-
-		if (!(iswalnum(c) || c == L'+' || c == L'-' || c == L'.'))
-			break;
-		buffer[i] = (char)c;
-	}
-	buffer[i] = '\0';
-	value = strtod(buffer, &stop);
+	result.bits = __discobsd_wcstofp(s, &stop, STRTOFP_BINARY64, &range);
+	if (range)
+		errno = ERANGE;
 	if (end != NULL)
-		*end = (wchar_t *)(stop == buffer ? start : s + (stop - buffer));
-	return value;
+		*end = stop;
+	return result.value;
 }

@@ -37,6 +37,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import netbsd_oracle
+
 NAMES = ("div", "ldiv", "lldiv", "llabs", "imaxdiv")
 FLAGS = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror",
          "-fno-builtin", "-O2"] + ["-D%s=tree_%s" % (name, name)
@@ -75,10 +77,10 @@ def command(arguments):
             result.stderr)
 
 
-def build(root, compiler, work, arm, replacement=None):
+def build(root, compiler, work, arm, replacement=None, foreign=None):
     machine = ARM if arm else []
-    objects = []
-    for name in NAMES:
+    objects = list(foreign or [])
+    for name in NAMES if foreign is None else ():
         source = (replacement[1] if replacement and replacement[0] == name
                   else root / "lib/libc/stdlib" / (name + ".c"))
         obj = work / (name + ".o")
@@ -109,12 +111,45 @@ def execute(program, arm):
                           text=True, timeout=90, check=False)
 
 
+def netbsd(root, compiler, work, args):
+    """Run the fixture over NetBSD's five members in place of the tree's.
+
+    The fixture's conditions single out truncating division, so NetBSD's
+    members pass exactly when they return the tree's results on every
+    input the fixture draws.
+    """
+    try:
+        _, report = netbsd_oracle.build(args.netbsd, compiler, args.arm, work, ["division"])
+        objects = []
+        for name in NAMES:
+            obj = work / ("netbsd-%s.o" % name)
+            netbsd_oracle.compile_member(args.netbsd, compiler, args.arm, work,
+                                         "lib/libc/stdlib/%s.c" % name, obj)
+            objects.append(obj)
+    except netbsd_oracle.OracleError as error:
+        raise SystemExit(str(error)) from error
+    redefine = work / "netbsd-redefine"
+    redefine.write_text("".join("%s tree_%s\n" % (name, name) for name in NAMES))
+    objcopy = "arm-none-eabi-objcopy" if args.arm else "objcopy"
+    for obj in objects:
+        command([objcopy, "--redefine-syms", str(redefine), str(obj)])
+    program = build(root, compiler, work, args.arm, foreign=[str(o) for o in objects])
+    result = execute(program, args.arm)
+    require(result.returncode == 0 and not result.stderr and result.stdout == PASS,
+            "NetBSD's division members fail the contract: " + result.stdout + result.stderr)
+    print(report)
+    print("integer division: NetBSD's div, ldiv, lldiv, llabs and imaxdiv "
+          "pass the same contract")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
     parser.add_argument("compiler")
     parser.add_argument("output", type=Path, nargs="?")
     parser.add_argument("--arm", action="store_true")
+    parser.add_argument("--netbsd", type=Path,
+                        help="src-netbsd checkout whose members must also pass")
     args = parser.parse_args()
     root = args.root.resolve()
     compiler = shlex.split(args.compiler)
@@ -143,6 +178,8 @@ def main():
                     name + " mutant lacks its named rejection: " +
                     result.stdout + result.stderr)
             print("integer-division mutant rejected: " + description)
+        if args.netbsd is not None:
+            netbsd(root, compiler, work, args)
         if args.output:
             shutil.copy2(accepted, args.output)
 

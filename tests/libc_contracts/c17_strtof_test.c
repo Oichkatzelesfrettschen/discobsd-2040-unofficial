@@ -38,7 +38,9 @@
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 static float (*volatile convert)(const char *restrict, char **restrict) =
     strtof;
@@ -49,6 +51,183 @@ struct exact {
 	float value;
 	int consumed;
 };
+
+/*
+ * The oracle's strtof: the driver renames the tree's to tree_strtof, and
+ * the plain name reaches the hosting library or, with --netbsd, NetBSD's
+ * gdtoa strtof, both correctly rounded.
+ */
+#undef strtof
+float strtof(const char *restrict, char **restrict);
+
+static uint64_t state = 0x853c49e6748fea9bULL;
+
+static uint64_t
+next(void)
+{
+	state ^= state << 13;
+	state ^= state >> 7;
+	state ^= state << 17;
+	return state;
+}
+
+/*
+ * Random decimal strings, and decimal expansions of float rounding
+ * midpoints cut to 9 to 25 significant digits: those land within a few
+ * units of the 17th digit of a midpoint, where a conversion that rounds
+ * to double first and then to float can round the wrong way.  The tree's
+ * value and end pointer must equal the oracle's.
+ *
+ * newlib's strtof(), which hosts the qemu-user variant, rounds through
+ * double itself, so that build (C17_STRTOF_UNTRUSTED_ORACLE) compares
+ * nothing with it.  Every result also enters an FNV-1a digest, which
+ * STRTOF_DIGEST pins from a run checked against glibc; every run must
+ * reproduce it.  C17_STRTOF_PRINT_DIGEST prints the digest instead.
+ */
+#ifdef C17_STRTOF_UNTRUSTED_ORACLE
+#define TRUSTED	0
+#else
+#define TRUSTED	1
+#endif
+static int
+differential(unsigned *count)
+{
+	char text[64];
+	unsigned long i;
+	uint64_t digest = 0xcbf29ce484222325ULL;
+
+	for (i = 0; i < 200000; i++) {
+		char *tree_end, *oracle_end;
+		float tree_value, oracle_value;
+
+		if (i & 1) {
+			int digits = 1 + (int)(next() % 20), k;
+			char *p = text;
+
+			if (next() & 1)
+				*p++ = '-';
+			for (k = 0; k < digits; k++) {
+				*p++ = (char)('0' + next() % 10);
+				if (k == 0)
+					*p++ = '.';
+			}
+			sprintf(p, "e%d", (int)(next() % 90) - 45);
+		} else {
+			uint32_t bits = (uint32_t)(next() % 0x7f7fffffU);
+			float low, high;
+			double middle;
+
+			memcpy(&low, &bits, sizeof(low));
+			bits++;
+			memcpy(&high, &bits, sizeof(high));
+			middle = ((double)low + (double)high) / 2.0;
+			sprintf(text, "%.*e", 8 + (int)(next() % 17), middle);
+		}
+		tree_value = convert(text, &tree_end);
+		if (TRUSTED) {
+			oracle_value = strtof(text, &oracle_end);
+		} else {
+			oracle_value = tree_value;
+			oracle_end = tree_end;
+		}
+		{
+			uint32_t bits;
+			unsigned k;
+
+			memcpy(&bits, &tree_value, sizeof(bits));
+			bits ^= (uint32_t)(tree_end - text) << 24;
+			for (k = 0; k < 4; k++) {
+				digest ^= (bits >> (8 * k)) & 0xff;
+				digest *= 0x100000001b3ULL;
+			}
+		}
+		(*count)++;
+		if (memcmp(&tree_value, &oracle_value, sizeof(float)) != 0 ||
+		    tree_end != oracle_end) {
+			printf("FAIL strtof: \"%s\" gives %.9g, oracle %.9g\n",
+			    text, (double)tree_value, (double)oracle_value);
+			return 1;
+		}
+	}
+#ifdef C17_STRTOF_PRINT_DIGEST
+	printf("digest %016llx\n", (unsigned long long)digest);
+#else
+	(*count)++;
+	if (digest != STRTOF_DIGEST) {
+		printf("FAIL strtof: result digest %016llx, want %016llx\n",
+		    (unsigned long long)digest, (unsigned long long)STRTOF_DIGEST);
+		return 1;
+	}
+#endif
+	return 0;
+}
+
+struct stated {
+	const char *text;
+	uint32_t bits;		/* the float encoding */
+	int consumed;
+};
+
+/*
+ * Inputs whose correct conversion is known from their binary value:
+ * C17's non-decimal forms, hexadecimal ties, and a decimal midpoint with a
+ * nonzero digit far beyond the 800 the converter keeps.
+ */
+static int
+stated(unsigned *count)
+{
+	static char beyond[900], exact[900];
+	static const struct stated table[] = {
+		{ "inf", 0x7f800000U, 3 }, { "-INFINITY", 0xff800000U, 9 },
+		{ "Infinit", 0x7f800000U, 3 }, { "nan", 0x7fc00000U, 3 },
+		{ "-nan", 0xffc00000U, 4 }, { "nan(x_1)", 0x7fc00000U, 8 },
+		{ "nan(", 0x7fc00000U, 3 }, { "0x1.8p1", 0x40400000U, 7 },
+		{ "0X10", 0x41800000U, 4 }, { "0x.8", 0x3f000000U, 4 },
+		{ "0x", 0x00000000U, 1 }, { "0x1p-149", 0x00000001U, 8 },
+		{ "0x1p-150", 0x00000000U, 8 }, { "0x1.8p-150", 0x00000001U, 10 },
+		{ "0x1.000001p0", 0x3f800000U, 12 },
+		{ "0x1.000003p0", 0x3f800002U, 12 },
+		{ "0x1.0000011p0", 0x3f800001U, 13 },
+		{ "1.000000059604644775390625", 0x3f800000U, 26 },
+		{ "1.0000001788139343261718750", 0x3f800002U, 27 },
+		{ "3.4028235677973366e38", 0x7f7fffffU, 21 },
+		{ "3.4028235677973367e38", 0x7f800000U, 21 }
+	};
+	struct stated run[2];
+	unsigned i;
+	size_t n;
+
+	/* The tie 1 + 2**-24 rounds to even; any digit past it rounds up. */
+	strcpy(exact, "1.000000059604644775390625");
+	n = strlen(exact);
+	memset(exact + n, '0', 820);
+	exact[n + 820] = '\0';
+	strcpy(beyond, exact);
+	beyond[n + 819] = '1';
+	run[0] = (struct stated){ exact, 0x3f800000U, (int)(n + 820) };
+	run[1] = (struct stated){ beyond, 0x3f800001U, (int)(n + 820) };
+	for (i = 0; i < sizeof(table) / sizeof(table[0]) + 2; i++) {
+		const struct stated *t = i < 2 ? &run[i] : &table[i - 2];
+		char *end;
+		float value = convert(t->text, &end);
+		uint32_t bits;
+
+		memcpy(&bits, &value, sizeof(bits));
+		(*count)++;
+		/* Any quiet NaN of the right sign meets a NaN row. */
+		if ((t->bits & 0x7fc00000U) == 0x7fc00000U &&
+		    (bits & 0xffc00000U) == t->bits)
+			bits = t->bits;
+		if (bits != t->bits || end != t->text + t->consumed) {
+			printf("FAIL strtof: \"%.40s\" gives %08lx after %d bytes, "
+			    "want %08lx after %d\n", t->text, (unsigned long)bits,
+			    (int)(end - t->text), (unsigned long)t->bits,
+			    t->consumed);
+			return 1;
+		}
+	}
+	return 0;
+}
 
 int
 main(void)
@@ -113,6 +292,8 @@ main(void)
 			return 1;
 		}
 	}
+	if (stated(&checks) != 0 || differential(&checks) != 0)
+		return 1;
 	printf("c17 strtof: %u checks passed\n", checks);
 	return 0;
 }

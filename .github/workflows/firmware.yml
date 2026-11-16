@@ -929,9 +929,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Select the interpreter
+        run: echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
       - name: Install research dependencies
         timeout-minutes: 5
-        run: python -m pip install -r tools/graph-layout-example/requirements.txt ruff==0.17.4
+        run: |
+          "$PYTHON" -m pip install -r tools/graph-layout-example/requirements.txt ruff==0.17.4
       - name: Check research sources
         timeout-minutes: 2
         run: |
@@ -943,9 +946,9 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
           PYTHONWARNINGS: error
         run: |
-          python tools/graph_layout_test.py
-          python tools/graph_layout_trace_test.py
-          python tools/performance_lab_test.py
+          "$PYTHON" tools/graph_layout_test.py
+          "$PYTHON" tools/graph_layout_trace_test.py
+          "$PYTHON" tools/performance_lab_test.py
 
   graph-layout-arm:
     name: Graph layout compiled ARM traces under Unicorn
@@ -957,9 +960,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Select the interpreter
+        run: echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
       - name: Install extended research dependencies
         timeout-minutes: 5
-        run: python -m pip install -r tools/graph-layout-example/requirements-extended.txt ruff==0.17.4
+        run: |
+          "$PYTHON" -m pip install -r tools/graph-layout-example/requirements-extended.txt ruff==0.17.4
       - name: Lint the layout extensions
         timeout-minutes: 2
         run: ruff check tools/layout_*.py tools/arm_trace_experiment.py
@@ -967,12 +973,14 @@ jobs:
         timeout-minutes: 5
         env:
           PYTHONDONTWRITEBYTECODE: '1'
-        run: python tools/layout_solver_extensions_test.py
+        run: |
+          "$PYTHON" tools/layout_solver_extensions_test.py
       - name: Compile the HSX decoder and trace it under Unicorn
         timeout-minutes: 5
         env:
           PYTHONDONTWRITEBYTECODE: '1'
-        run: python tools/arm_trace_experiment.py --output "${RUNNER_TEMP}/arm-trace"
+        run: |
+          "$PYTHON" tools/arm_trace_experiment.py --output "${RUNNER_TEMP}/arm-trace"
       - name: Retain the emulated ARM traces
         if: always()
         uses: actions/upload-artifact@v4

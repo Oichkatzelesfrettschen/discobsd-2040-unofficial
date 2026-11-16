@@ -193,19 +193,26 @@ cleanflash:
 # ${FSIMG}, a bare filesystem of SDROOT_KBYTES with no partition table, and
 # an /etc/fstab naming /dev/sd0${SDROOT_PART}, the MBR slot of the card's
 # first type-b7 partition. Write it at that partition's first sector.
+# The image and its manifest carry the board's and the profile's suffixes,
+# and the manifest is composed here from the selection's ${MI_MANIFEST},
+# so a picocalc-lean root and a picocalc root sit side by side and neither
+# reads the _manifest another board's image rule wrote last.
 SDROOT_KBYTES?=	32768
 SDROOT_PART?=	c
-SDROOTIMG=	${TOPSRC}/distrib/${MACHINE}/sdroot${BOARD_OUT_SUFFIX}.img
+SDROOTIMG=	${TOPSRC}/distrib/${MACHINE}/sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.img
+SDROOT_MANIFEST=	distrib/${MACHINE}/_manifest.sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}
 
 sdroot:		${SDROOTIMG}
 
-${SDROOTIMG}:	${FSIMG} ${TOPSRC}/tools/picocalc/mksdroot.sh
+${SDROOTIMG}:	${FSIMG} ${MI_MANIFEST} distrib/${MACHINE}/md.${MACHINE} \
+		${TOPSRC}/tools/picocalc/mksdroot.sh
+		cat ${MI_MANIFEST} distrib/${MACHINE}/md.${MACHINE} > ${SDROOT_MANIFEST}
 		sh ${TOPSRC}/tools/picocalc/mksdroot.sh ${TOOLBINDIR}/fsutil \
-		    ${DESTDIR} distrib/${MACHINE}/_manifest ${SDROOT_KBYTES} \
+		    ${DESTDIR} ${SDROOT_MANIFEST} ${SDROOT_KBYTES} \
 		    ${SDROOT_PART} $@
 
 cleansdroot:
-		rm -f ${SDROOTIMG}
+		rm -f ${SDROOTIMG} ${SDROOT_MANIFEST}
 
 .PHONY:		sdroot cleansdroot
 

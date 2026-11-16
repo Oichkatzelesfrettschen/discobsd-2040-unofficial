@@ -1692,7 +1692,8 @@ uart-mutant-busy-empty:
 	${UART_MUT} uart.c \
 	    's/^    if (tp->t_outq.c_cc != 0) {$$/    if (1) {/' uart.h
 
-# TS_BUSY clears with bytes still in the FIFO, as before the drain phase.
+# uartstart() clears TS_BUSY on an empty queue while the FIFO or shift
+# register still holds bytes, so ttywait() returns before the last one leaves.
 uart-mutant-busy-early:
 	${UART_MUT} uart.c \
 	    's/^    } else if (!uart_tx_drained(uip->base)) {$$/    } else if (0) {/' \

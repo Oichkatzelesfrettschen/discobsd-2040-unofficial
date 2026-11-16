@@ -314,14 +314,16 @@ def usage_problem(argv):
     rest = [a for a in argv[4:] if a != "--allow-omitted"]
     if argv[0] == "replay" and "--sets" in rest:
         at = rest.index("--sets")
-        if at + 1 >= len(rest) or not rest[at + 1].isdigit():
-            return "--sets takes a count"
+        if at + 1 >= len(rest) or not rest[at + 1].isdigit() or int(rest[at + 1]) == 0:
+            return "--sets takes a positive count"
         rest = rest[:at] + rest[at + 2:]
     if not rest:
         return ("replay needs at least one LAYOUT.map" if argv[0] == "replay"
                 else "pad needs at least one OBJECT:TEXT_BYTES:RODATA_BYTES")
     if argv[0] == "pad" and not all(re.fullmatch(r"[^:]+:\d+:\d+", s) for s in rest):
         return "each pad is OBJECT:TEXT_BYTES:RODATA_BYTES"
+    if argv[0] == "pad" and any(s.endswith(":0:0") for s in rest):
+        return "a pad of 0 text and 0 read-only bytes inserts nothing"
     return None
 
 
@@ -387,13 +389,24 @@ def self_test():
         tracefile = os.path.join(scratch, "trace.gz")
         with gzip.open(tracefile, "wt") as handle:
             handle.write("0x10000100: 0x2000\n0x10000102: 0x4770\n" * 3)
+        emptyfile = os.path.join(scratch, "empty.gz")
+        with gzip.open(emptyfile, "wt") as handle:
+            handle.write("")
         with contextlib.redirect_stdout(io.StringIO()), \
                 contextlib.redirect_stderr(io.StringIO()):
             entered = main(["replay", tracefile, mapfile, "a", mapfile])
             missed = main(["replay", tracefile, mapfile, "b", mapfile])
+            listed = main(["sections", tracefile, mapfile])
+            unlisted = main(["sections", emptyfile, mapfile])
+            zero_sets = main(["replay", tracefile, mapfile, "a", mapfile, "--sets", "0"])
+            zero_pad = main(["pad", tracefile, mapfile, "a", "a.o:0:0"])
         cases += [
             ("a trace that enters the marker replays", entered, 0),
             ("a trace that never enters the marker is refused", missed, 1),
+            ("sections lists a trace inside the map", listed, 0),
+            ("sections refuses an empty trace", unlisted, 1),
+            ("--sets 0 is a usage error", zero_sets, 2),
+            ("a 0:0 pad is a usage error", zero_pad, 2),
         ]
     status = 0
     for what, got, want in cases:
@@ -426,6 +439,10 @@ def main(argv):
             total += base[i][1]
             print(f"{count:9d} {base[i][1]:6d} {base[i][2][0]} {base[i][2][1]}")
         print(f"sections {len(counts)} bytes {total}")
+        if not counts:
+            print("xipsim: no traced XIP event falls in an input section of the base map; "
+                  "the trace is empty or belongs to another kernel", file=sys.stderr)
+            return 1
         return 0
     total = sum(1 for _k, address, _s in events if XIP_LO <= address < XIP_HI)
     marker = section_start(base, ".text." + argv[3])

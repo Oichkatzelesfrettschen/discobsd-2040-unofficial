@@ -126,10 +126,19 @@ def still_running(console, when):
         raise cb.StageFailed(when)
 
 
+def positive(text):
+    """True when text is a number of seconds greater than zero."""
+    try:
+        return float(text) > 0
+    except ValueError:
+        return False
+
+
 def main(argv):
     if argv == ["--self-test"]:
         return self_test()
-    if len(argv) != 7 or not RENODE_DIR:
+    if len(argv) != 7 or not RENODE_DIR or not all(positive(v) for v in argv[5:7]) \
+            or not argv[4].strip():
         print(__doc__, file=sys.stderr)
         return 2
     load_check_boot()

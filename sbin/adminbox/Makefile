@@ -52,6 +52,10 @@ HSAOUT=		${TOOLBINDIR}/hsaout
 # retained margins and rejected standalone form are recorded in
 # docs/research/timeout-process-control-growth-exception.md.
 MAX_PACKED_ROOT_BLOCKS= 25
+# Packed bytes that must stay free under that budget; a build that leaves less
+# fails, so growth reaches review before it reaches the block boundary on a
+# compiler that packs a little worse (tools/check_packed_margin.sh).
+MIN_PACKED_MARGIN= 128
 
 CFLAGS+=	-Wall -Wextra -Werror -Wformat=2
 
@@ -97,12 +101,9 @@ ${PROG}:	adminbox.o ${OBJS} ${BUILTIN_OBJS} verify-builtin-bss \
 	${SIZE} $@.elf
 	${ELF2AOUT} $@.elf $@ && rm $@.elf
 .if ${MACHINE} == "rp2040"
-	@packed_blocks=`${HSAOUT} -s $@ | awk 'NR == 2 { print $$5 }'`; \
-	if [ -z "$$packed_blocks" ] || \
-	    [ "$$packed_blocks" -gt ${MAX_PACKED_ROOT_BLOCKS} ]; then \
-		echo "adminbox: packed root image exceeds ${MAX_PACKED_ROOT_BLOCKS} blocks" >&2; \
-		exit 1; \
-	fi
+	@packed_bytes=`${HSAOUT} -s $@ | awk 'NR == 2 { print $$3 }'`; \
+	sh ${TOPSRC}/tools/check_packed_margin.sh adminbox "$$packed_bytes" \
+	    ${MAX_PACKED_ROOT_BLOCKS} ${MIN_PACKED_MARGIN}
 .endif
 
 install:	all

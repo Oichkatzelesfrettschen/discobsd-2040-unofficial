@@ -234,6 +234,7 @@ Grouped by what they investigate.
 | `211bsd-semantic-ledger.md` | selected per-fix dispositions, donor roles, pinned JSON ledger and execution receipts, resource consequences and explicit residuals |
 | `211bsd-fwalk-report.md` | a defect in patch 499's `_fwalk`, drafted for the 2.11BSD maintainer and unsent |
 | `211bsd-fwalk.patch` | the `_fwalk` fix for 2.11BSD patch 499 as a standalone `patch -p0` file with its message, the companion to the report |
+| `upstream-patch-survey.md` | upstream DiscoBSD commits outside the fork and 2.11BSD patches 432 to 500, each classified present, superseded, applicable or not applicable, with a cost-ranked import list; `upstream-patch-survey.tsv` holds one row per commit, patch and patch-500 item |
 | `stdio-torek-evaluation.md` | the patch-499 stream core built and measured on this target: a median +534 bytes per program and a breached packed-root budget, so declined, with two small mechanisms queued |
 | `renode-login-regression.md` | the Renode login timeout was `panic: wakeup` behind a reboot prompt: three locores stored p_addr at a literal 60 after #129 moved it to 64; sys/proc_asm.h and a _Static_assert in kern_proc.c pin the offset, and boot.robot logs the UART transcript on failure |
 | `stdio-unbuffered-ownership.md` | descriptor-independent input storage in the existing FILE byte, calibrated pushback and allocation-failure tests, and linked resource accounting |

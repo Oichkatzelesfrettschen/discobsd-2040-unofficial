@@ -276,6 +276,28 @@ def pad_layout(base, obj, text_bytes, rodata_bytes):
             for a, s, k in base]
 
 
+def usage_problem(argv):
+    """Return why argv names no complete workload, or None when it does."""
+    if not argv or argv[0] not in ("replay", "sections", "pad"):
+        return "the first argument must be self-test, replay, sections or pad"
+    if argv[0] == "sections":
+        return None if len(argv) == 3 else "sections takes TRACE and BASE.map"
+    if len(argv) < 4:
+        return f"{argv[0]} needs TRACE, BASE.map and MARKER"
+    rest = [a for a in argv[4:] if a != "--allow-omitted"]
+    if argv[0] == "replay" and "--sets" in rest:
+        at = rest.index("--sets")
+        if at + 1 >= len(rest) or not rest[at + 1].isdigit():
+            return "--sets takes a count"
+        rest = rest[:at] + rest[at + 2:]
+    if not rest:
+        return ("replay needs at least one LAYOUT.map" if argv[0] == "replay"
+                else "pad needs at least one OBJECT:TEXT_BYTES:RODATA_BYTES")
+    if argv[0] == "pad" and not all(re.fullmatch(r"[^:]+:\d+:\d+", s) for s in rest):
+        return "each pad is OBJECT:TEXT_BYTES:RODATA_BYTES"
+    return None
+
+
 def self_test():
     """Check the fetch model and the omission rules on synthetic events."""
     base = [(0x10000100, 0x20, (".text.a", "a.o", 1)), (0x10000200, 0x10, (".text.b", "b.o", 1))]
@@ -311,6 +333,19 @@ def self_test():
          [a for a, _s, _k in pad_layout(layout, "a.o", 8, 0)],
          [0x10000100, 0x10000118, 0x10000208, 0x10000210]),
     ]
+    cases += [
+        ("replay without a layout map is a usage error",
+         usage_problem(["replay", "t.gz", "b.map", "writep"]) is not None, True),
+        ("replay with only options is a usage error",
+         usage_problem(["replay", "t.gz", "b.map", "writep", "--sets", "2",
+                        "--allow-omitted"]) is not None, True),
+        ("pad without a specification is a usage error",
+         usage_problem(["pad", "t.gz", "b.map", "writep"]) is not None, True),
+        ("replay with a layout map is accepted",
+         usage_problem(["replay", "t.gz", "b.map", "writep", "l.map"]) is None, True),
+        ("pad with a specification is accepted",
+         usage_problem(["pad", "t.gz", "b.map", "writep", "vm_swap.o:4:0"]) is None, True),
+    ]
     status = 0
     for what, got, want in cases:
         ok = got == want
@@ -323,8 +358,10 @@ def self_test():
 def main(argv):
     if argv == ["self-test"]:
         return self_test()
-    if len(argv) < 3:
-        raise SystemExit(__doc__)
+    problem = usage_problem(argv)
+    if problem:
+        print(f"xipsim: {problem}\n{__doc__}", file=sys.stderr)
+        return 2
     mode, trace, basemap = argv[0], argv[1], argv[2]
     base = parse_map(basemap)
     events = read_trace(trace)

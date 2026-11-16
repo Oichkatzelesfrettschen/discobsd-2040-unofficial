@@ -215,11 +215,21 @@ def cmd_up(args) -> int:
     token = os.environ.get("DISCOBSD_WEB_TOKEN") or values.get("DISCOBSD_WEB_TOKEN")
     if not token:
         token = secrets.token_hex(12)
-    ip = args.host_ip or os.environ.get("DISCOBSD_HOST_IP") or values.get("DISCOBSD_HOST_IP")
-    if bind.is_loopback:
+    # An explicit --host-ip or DISCOBSD_HOST_IP always wins. Otherwise a
+    # loopback bind advertises its own address, and any other bind reuses the
+    # address web.env kept from an earlier run unless that address is
+    # loopback, which would send LAN clients to their own host; then the LAN
+    # address is recomputed.
+    ip = args.host_ip or os.environ.get("DISCOBSD_HOST_IP")
+    if not ip and bind.is_loopback:
         ip = str(bind)
-    elif not ip:
-        ip = lan_ip()
+    if not ip:
+        stored = values.get("DISCOBSD_HOST_IP")
+        try:
+            stored_loopback = bool(stored) and ipaddress.ip_address(stored).is_loopback
+        except ValueError:
+            stored_loopback = False
+        ip = stored if stored and not stored_loopback else lan_ip()
     env_values = {
         "DISCOBSD_WEB_TOKEN": token,
         "DISCOBSD_HOST_IP": ip,

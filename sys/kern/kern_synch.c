@@ -388,7 +388,7 @@ setpri (register struct proc *pp)
  * spl() in.
  */
 void
-swtch()
+swtch(void)
 {
     register struct proc *p, *q;
     register int n;

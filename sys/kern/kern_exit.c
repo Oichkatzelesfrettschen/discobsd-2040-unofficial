@@ -26,7 +26,7 @@ extern void lcdcons_procexit(const struct proc *p);
  * must be locked in core so it will be in core when the parent runs.
  */
 void
-endvfork()
+endvfork(void)
 {
     register struct proc *rip, *rpp;
 
@@ -154,7 +154,7 @@ again:
  * exit system call: pass back caller's arg
  */
 void
-rexit()
+rexit(void)
 {
     register struct a {
         int rval;
@@ -266,7 +266,7 @@ loop:
 }
 
 void
-wait4()
+wait4(void)
 {
     int retval[2];
     register struct args *uap = (struct args*) u.u_arg;
@@ -278,7 +278,7 @@ wait4()
 }
 
 void
-reboot()
+reboot(void)
 {
     struct a {
         int opt;

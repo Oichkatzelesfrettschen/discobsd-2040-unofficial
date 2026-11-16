@@ -87,3 +87,29 @@ def test_waiting_driver_removed():
     w = replace(calibrate.FIXED, driver_swaps=False)
     got = run(model.Config(), trace.generate(w)).delta()[0]
     assert got.get("swapram_flash_span_06", 0) == 0
+
+
+def test_zero_elision_skips_the_named_sector():
+    """An all-zero sector in the middle of an image is neither erased nor
+    programmed; the sectors around it are, and the NOR writer agrees with
+    the count sector by sector."""
+    image = {"op": "out", "pid": 5, "name": "x", "fork": True,
+             "incoming": None, "data": 18 * 1024, "stack": 1024,
+             "u": 3072, "cdata": 900, "cstack": 100, "cu": 900,
+             "zero_sectors": [1]}
+    records = [{"op": "meta", "schema": trace.SCHEMA},
+               {"op": "mark", "what": "snapshot"}, image,
+               {"op": "mark", "what": "snapshot"}]
+    for i, r in enumerate(records):
+        r.update(seq=i, phase="prefix" if i < 2 else "measure",
+                 compile=None)
+    trace.validate(records)
+    m = model.Model(model.Config(pool_kb=0, zero_elision=True), 0,
+                    nor=True).replay(records)
+    counters, erases = m.delta()
+    # The image spans blocks 4..25: sectors 1 to 6, of which sector 2 is
+    # the image's sector 1.
+    assert counters["swap_erase_sectors"] == 5
+    assert [s for s, n in enumerate(erases) if n] == [1, 3, 4, 5, 6]
+    assert m.nor.erases == m.erases
+    assert not m.nor.violations

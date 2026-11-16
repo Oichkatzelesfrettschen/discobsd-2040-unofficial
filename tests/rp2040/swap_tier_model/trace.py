@@ -18,7 +18,8 @@ Record fields:
   data, stack, u      raw bytes of the data past clean text, the stack and
                       the u area (USIZE)
   cdata, cstack, cu   heatshrink output bytes for each of the three
-  zero_sectors        4 KiB sectors of the raw flash image that are all zero
+  zero_sectors        indices, from 0 at the image's first sector, of the
+                      4 KiB sectors of the raw flash image that are all zero
   fork, incoming
   -- "in": the process comes back into an empty window
   -- "exit": a swapped-out process exits and releases its image
@@ -39,7 +40,7 @@ from dataclasses import asdict, dataclass, field, replace
 USIZE = 3072
 SCHEMA = 1
 
-OUT_FIELDS = ("data", "stack", "u", "cdata", "cstack", "cu", "zero_sectors")
+OUT_FIELDS = ("data", "stack", "u", "cdata", "cstack", "cu")
 
 
 @dataclass(frozen=True)
@@ -50,7 +51,7 @@ class Image:
     cdata: int
     cstack: int
     cu: int
-    zero_sectors: int = 0
+    zero_sectors: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -115,7 +116,7 @@ class _Emitter:
         return {"data": image.data, "stack": image.stack, "u": USIZE,
                 "cdata": max(0, image.cdata + self.offsets[key]),
                 "cstack": image.cstack, "cu": image.cu,
-                "zero_sectors": image.zero_sectors}
+                "zero_sectors": list(image.zero_sectors)}
 
     def emit(self, op, **fields):
         record = {"op": op, "seq": len(self.events), "phase": self.phase,
@@ -233,6 +234,13 @@ def validate(records):
             for name in OUT_FIELDS + ("pid",):
                 if not isinstance(r.get(name), int) or r[name] < 0:
                     raise ValueError(f"record {i}: {name}")
+            blocks = sum((r[n] + 1023) // 1024 for n in ("data", "stack",
+                                                          "u"))
+            zeros = r.get("zero_sectors")
+            if not isinstance(zeros, list) or len(set(zeros)) != len(zeros) \
+                    or not all(isinstance(z, int) and
+                               0 <= z < (blocks + 3) // 4 for z in zeros):
+                raise ValueError(f"record {i}: zero_sectors")
             if r["u"] != USIZE:
                 raise ValueError(f"record {i}: u is USIZE")
             if r["fork"] and r.get("incoming") is not None:

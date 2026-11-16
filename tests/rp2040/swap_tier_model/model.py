@@ -107,32 +107,51 @@ class Model:
             block -= self.nswap - ALIGN_BLOCKS
         return block
 
-    def _write(self, base, shape):
+    def _write(self, base, shape, elide):
         """Append each nonempty segment at its block, folding at the ring
-        end the way swap_with_buf_result() folds a block past nswap."""
-        block = base
-        for blocks in shape:
-            left, at = blocks, block
-            while left:
-                at = self._fold(at)
-                n = min(left, self.nswap - at)
-                payload = bytes([0x5a]) * (n * BLOCK)
-                if self.driver.append(FLASH_SWAP_OFFSET + at * BLOCK,
-                                      payload) != 0:
-                    raise RuntimeError(f"flash_swap_append refused: "
-                                       f"{self.nor.violations[-1:]}")
-                at += n
-                left -= n
-            block += blocks
+        end the way swap_with_buf_result() folds a block past nswap, and
+        skipping the blocks of the image sectors named in elide, which are
+        neither erased nor programmed."""
+        run_start, run_len = None, 0
 
-    def _erase(self, base, blocks, skip=0, shape=None):
-        if self.driver is not None and shape is not None:
-            self._write(base, shape)
-        sectors = (blocks + ALIGN_BLOCKS - 1) // ALIGN_BLOCKS
-        for i in range(sectors - skip):
+        def flush():
+            if run_len and self.driver.append(
+                    FLASH_SWAP_OFFSET + run_start * BLOCK,
+                    bytes([0x5a]) * (run_len * BLOCK)) != 0:
+                raise RuntimeError(f"flash_swap_append refused: "
+                                   f"{self.nor.violations[-1:]}")
+
+        image_block = 0
+        for blocks in shape:
+            for _ in range(blocks):
+                at = self._fold(base + image_block)
+                if image_block // ALIGN_BLOCKS in elide or \
+                        (run_start is not None and
+                         at != run_start + run_len):
+                    flush()
+                    run_start, run_len = None, 0
+                if image_block // ALIGN_BLOCKS not in elide:
+                    if run_start is None:
+                        run_start = at
+                    run_len += 1
+                image_block += 1
+            flush()
+            run_start, run_len = None, 0
+
+    def _erase(self, base, shape, elide=frozenset()):
+        """Count the erases of an image of shape blocks at base: every
+        sector its bytes reach except the image sectors in elide."""
+        if self.driver is not None:
+            self._write(base, shape, elide)
+        sectors = (sum(shape) + ALIGN_BLOCKS - 1) // ALIGN_BLOCKS
+        erased = 0
+        for i in range(sectors):
+            if i in elide:
+                continue
             sector = self._fold(base + i * ALIGN_BLOCKS) // ALIGN_BLOCKS
             self.erases[sector] += 1
-        self.note("swap_erase_sectors", sectors - skip)
+            erased += 1
+        self.note("swap_erase_sectors", erased)
 
     def _in_use(self):
         used = self.nswap - ALIGN_BLOCKS - self.map.free_blocks()
@@ -150,7 +169,8 @@ class Model:
     def _flash_out(self, r):
         shape = self._flash_shape(r)
         span = self._span(shape)
-        skip = r["zero_sectors"] if self.config.zero_elision else 0
+        elide = frozenset(r["zero_sectors"]) if self.config.zero_elision \
+            and not self.config.flash_compressed else frozenset()
         if not self.config.flash:
             self.where[r["pid"]] = ("offchip",)
             self.note("swapram_flash_swapouts")
@@ -160,7 +180,7 @@ class Model:
                 self.where.get(incoming, (None,))[0] == "flash":
             _kind, base, in_span = self.where[incoming]
             if self.map.take_tail(base, in_span, span):
-                self._erase(base, sum(shape), skip, shape)
+                self._erase(base, shape, elide)
                 if in_span > span:
                     self.map.free(in_span - span, base + span)
                 self.where[incoming] = ("exchanged",)
@@ -180,7 +200,7 @@ class Model:
             self.refused = r
             raise Refused(r)
         base, span = got
-        self._erase(base, sum(shape), skip, shape)
+        self._erase(base, shape, elide)
         self.where[r["pid"]] = ("flash", base, span)
         self.note("swapram_flash_swapouts")
         self.note("swap_write_bytes", r["data"] + r["stack"] + r["u"])

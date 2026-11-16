@@ -434,8 +434,7 @@ other_limits(void)
 
 /*
  * Usage accounting keeps ticks and reports a timeval, and folds a child's
- * totals into its parent's as one loop over the shared prefix of the two
- * structures.
+ * totals into its parent's counters, without crossing C object bounds.
  */
 static void
 usage_accounting(void)
@@ -498,6 +497,58 @@ usage_accounting(void)
 	HK_CHECK(u.u_cru.ru_nivcsw == 10);
 }
 
+static void
+accounting_fields(void)
+{
+    struct k_rusage a, b;
+
+    a.ru_utime = 1; b.ru_utime = 1;
+    a.ru_stime = 2; b.ru_stime = 3;
+    a.ru_nswap = 3; b.ru_nswap = 5;
+    a.ru_inblock = 4; b.ru_inblock = 7;
+    a.ru_oublock = 5; b.ru_oublock = 9;
+    a.ru_msgsnd = 6; b.ru_msgsnd = 11;
+    a.ru_msgrcv = 7; b.ru_msgrcv = 13;
+    a.ru_nsignals = 8; b.ru_nsignals = 15;
+    a.ru_nvcsw = 9; b.ru_nvcsw = 17;
+    a.ru_nivcsw = 10; b.ru_nivcsw = 19;
+    ruadd(&a, &b);
+    HK_CHECK(a.ru_utime == 2);
+    HK_CHECK(a.ru_stime == 5);
+    HK_CHECK(a.ru_nswap == 8);
+    HK_CHECK(a.ru_inblock == 11);
+    HK_CHECK(a.ru_oublock == 14);
+    HK_CHECK(a.ru_msgsnd == 17);
+    HK_CHECK(a.ru_msgrcv == 20);
+    HK_CHECK(a.ru_nsignals == 23);
+    HK_CHECK(a.ru_nvcsw == 26);
+    HK_CHECK(a.ru_nivcsw == 29);
+    {
+        struct rusage actual, expected;
+        unsigned char *bytes = (unsigned char *)&actual;
+        unsigned j;
+
+        bzero(&a, sizeof a);
+        a.ru_utime = hz - 1;
+        a.ru_stime = hz + 1;
+        a.ru_nswap = 11;
+        bzero(&expected, sizeof expected);
+        expected.ru_utime.tv_usec = (hz - 1) * usechz;
+        expected.ru_stime.tv_sec = 1;
+        expected.ru_stime.tv_usec = usechz;
+        expected.ru_nswap = 11;
+        for (j = 0; j < sizeof actual; j++)
+            bytes[j] = 0xa5;
+        rucvt(&actual, &a);
+        for (j = 0; j < sizeof actual; j++)
+            HK_CHECK(bytes[j] == ((unsigned char *)&expected)[j]);
+        a.ru_utime = RLIM_INFINITY;
+        rucvt(&actual, &a);
+        HK_CHECK(actual.ru_utime.tv_sec == RLIM_INFINITY / hz);
+        HK_CHECK(actual.ru_utime.tv_usec == (RLIM_INFINITY % hz) * usechz);
+    }
+}
+
 int
 main(void)
 {
@@ -506,5 +557,6 @@ main(void)
 	cpu_limit_round_trip();
 	other_limits();
 	usage_accounting();
+	accounting_fields();
 	return hk_verdict("kern_resource");
 }

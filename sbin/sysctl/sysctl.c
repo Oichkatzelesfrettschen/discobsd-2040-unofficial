@@ -411,7 +411,7 @@ parse(char *string, int flags)
 			break;
 
 		case CTLTYPE_LONG:
-			sscanf(newval, "%ld", &longval);
+			longval = strtol(newval, NULL, 10);
 			newval = (void *)&longval;
 			newsize = sizeof longval;
 			break;
@@ -575,27 +575,18 @@ parse(char *string, int flags)
     }
 #endif
 #ifdef CPU_PCM
-	if (mib[0] == CTL_MACHDEP && (mib[1] == CPU_FLASH_ID || mib[1] == CPU_PCM)) {
-		const struct cpu_flash_id *id = (const struct cpu_flash_id *)buf;
+	if (mib[0] == CTL_MACHDEP && mib[1] == CPU_PCM) {
 		const struct cpu_pcm_info *pcm = (const struct cpu_pcm_info *)buf;
-		unsigned i;
 
-		if (size != (mib[1] == CPU_PCM ? sizeof(*pcm) : sizeof(*id))) {
+		if (size != sizeof(*pcm)) {
 			fprintf(stderr, "%s: unsupported ABI\n", string);
 			return (1);
 		}
 		if (!nflag)
 			fprintf(stdout, "%s%s", string, equ);
-		if (mib[1] == CPU_PCM) {
-			fprintf(stdout, "rate %u channels %u bits %u ring %u "
-			    "queued %u open %u\n", pcm->rate, pcm->channels,
-			    pcm->bits, pcm->ring, pcm->queued, pcm->open);
-			return (0);
-		}
-		for (i = 0; i < sizeof(id->id); i++)
-			fprintf(stdout, "%s%02x", i == 3 ? " " : "",
-			    (unsigned)id->id[i]);
-		fprintf(stdout, "\n");
+		fprintf(stdout, "rate %u channels %u bits %u ring %u "
+		    "queued %u open %u\n", pcm->rate, pcm->channels,
+		    pcm->bits, pcm->ring, pcm->queued, pcm->open);
 		return (0);
 	}
 #endif /* CPU_PCM */

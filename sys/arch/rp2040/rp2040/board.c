@@ -26,15 +26,17 @@
 #define CRC32_FIN(value)	((value) ^ 0xffffffffU)
 
 /*
- * The retained PICO_UART and PICOCALC configurations need their compiled
- * console while all four kernels remain build targets. PICO and the
- * PICOCALC_PSRAM union kernel carry the format's bare-Pico USB default.
+ * PICO_UART compiles its UART0 console. Every kernel with the picocalc
+ * device (PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG) compiles the
+ * PicoCalc descriptor, so its unix.uf2 as built drives the panel console;
+ * distrib/rp2040/mkboarduf2.py rewrites that descriptor for a bare Pico.
+ * PICO and PICO_DIAG carry the format's bare-Pico USB default.
  */
 #if defined(PICO_UART)
 #define BOARD_DEFAULT_ID	BOARD_ID_PICO
 #define BOARD_DEFAULT_MAJOR	6
 #define BOARD_DEFAULT_CRC	0xafef1f85U
-#elif defined(PICOCALC)
+#elif defined(PICOCALC_ENABLED)
 #define BOARD_DEFAULT_ID	BOARD_ID_PICOCALC
 #define BOARD_DEFAULT_MAJOR	10
 #define BOARD_DEFAULT_CRC	0xb440490fU

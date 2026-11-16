@@ -64,8 +64,8 @@ struct hwi_table {
 };
 
 /*
- * machdep.flash_id: valid is 0 when the kernel served the node and the chip
- * had returned no plausible identity at boot.
+ * machdep.flash_jedec and flash_unique_hi/lo: valid is 0 when the kernel
+ * served the nodes and the chip had returned no plausible identity at boot.
  */
 struct hwi_flash_id {
 	int		state;		/* enum rd_state */

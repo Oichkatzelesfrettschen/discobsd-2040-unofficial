@@ -2,7 +2,7 @@
  * Fixture readings for the host builds of picofetch and picotop. The
  * scenario comes from PICO_FIXTURE:
  *
- *   picocalc  (default) a PICOCALC_PSRAM kernel: board nodes present, no
+ *   picocalc  (default) a PICOCALC_LEAN kernel: board nodes present, no
  *             core 1 observer, no ADC, no storage counters, no USB console
  *   pico      a PICO kernel: core 1 observer, storage counters and USB
  *             present, the PicoCalc nodes absent
@@ -10,7 +10,7 @@
  *   failed    picocalc with the battery read failing
  *   full      every reading present, levels near their limits
  *   unread    picocalc whose flash chip returned no identity at boot
- *   oldkernel picocalc on a kernel without machdep.flash_id
+ *   oldkernel picocalc on a kernel without machdep.flash_jedec
  *   busdiff   picocalc whose peripheral clock is half the core clock
  *   longrun   picocalc after a long uptime: the tick counters start two
  *             thousand million ticks up, where a 32-bit product with 1000
@@ -90,7 +90,7 @@ hw_collect(struct hwinfo *hw, int groups)
 	if (groups & HWI_STATIC) {
 		strcpy(hw->ostype, "DiscoBSD");
 		strcpy(hw->osrelease, "2.7");
-		strcpy(hw->osversion, pico ? "PICO#812" : "PICOCALC_PSRAM#812");
+		strcpy(hw->osversion, pico ? "PICO#812" : "PICOCALC_LEAN#812");
 		strcpy(hw->hostname, "pico");
 		strcpy(hw->machine, "rp2040");
 		strcpy(hw->model, pico ? "Raspberry Pi Pico" :
@@ -247,7 +247,7 @@ hw_collect(struct hwinfo *hw, int groups)
 
 		hw->procs_state = RD_OK;
 		hw->nproc = 0;
-		proc(hw, 0, 0, 0, 1, 1, 30 * s, 0, "swapper");
+		proc(hw, 0, 0, 0, 1, 1, 30 * s, 0, "");
 		proc(hw, 1, 0, 0, 1, 0, 2, 20480, "init");
 		proc(hw, 12, 1, 0, 1, 0, 40, 30720, "sh");
 		proc(hw, 31, 12, 100, 1, 0, 300 + 10 * s +

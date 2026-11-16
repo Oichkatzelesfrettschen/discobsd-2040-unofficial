@@ -131,14 +131,12 @@
 #define	CPU_ADC_TEMP		43	/* int: die temperature, m degrees C */
 #define	CPU_ADC_VSYS		44	/* int: VSYS, millivolts */
 /*
- * flash_id, read-only: the QSPI flash chip's identity as flash_identity()
- * (dev/flash.c) holds it. jedec is the manufacturer, memory type and
- * capacity bytes in the order the chip returns them, id[0] to id[2]; id[3]
- * to id[10] are the 64-bit unique ID, most significant byte first. valid is
- * 0, with every other byte zero, when the chip returned no plausible answer
- * at boot.
+ * The flash chip's JEDEC identity, read only: manufacturer, memory type and
+ * capacity bytes in the order the chip returns them, packed as 0xMMTTCC.
+ * It completes the identity the two unique-ID halves above start. EIO when
+ * the chip's identity did not read (flash_identity() in dev/flash.c).
  */
-#define	CPU_FLASH_ID		45	/* struct cpu_flash_id */
+#define	CPU_FLASH_JEDEC		45	/* int: JEDEC ID, 0xMMTTCC */
 /*
  * pcm, read-only: the /dev/audio device (dev/picopcm.c). rate is samples per
  * second; channels and bits describe the sample stream a writer supplies,
@@ -148,12 +146,27 @@
  * or one running on a board without the amplifier, answers EOPNOTSUPP.
  */
 #define	CPU_PCM			46	/* struct cpu_pcm_info */
-#define	CPU_MAXID		47	/* number of valid machdep ids */
-
-struct cpu_flash_id {
-	unsigned char	valid;
-	unsigned char	id[11];
-};
+/*
+ * The USB transmit ring's boot-lifetime accounting, read only. The peak is
+ * the greatest byte count the ring held, so a ring size can be set from what
+ * a console actually queued before the host drained it. The dropped count is
+ * the bytes usb_tx_put discarded because the ring was full with nobody
+ * draining it, saturating at INT_MAX, the largest value a CTLTYPE_INT
+ * reports without a sign change.
+ */
+#define	CPU_USB_TX_PEAK		47	/* int: greatest ring occupancy, bytes */
+#define	CPU_USB_TX_DROPPED	48	/* int: bytes discarded, saturating */
+/*
+ * The flash chip's 64-bit unique ID as two read-only ints: the first four
+ * bytes the chip returns (the first eight hex digits of the USB serial
+ * string), most significant byte first, and the last four. sysctl(8) prints
+ * an int signed, so a half with its top bit set reads negative; boardinfo
+ * formats both with printf %08x. EIO when the chip's identity did not read
+ * (flash_identity() in dev/flash.c).
+ */
+#define	CPU_FLASH_UNIQUE_HI	49	/* int: unique ID bytes 0-3 */
+#define	CPU_FLASH_UNIQUE_LO	50	/* int: unique ID bytes 4-7 */
+#define	CPU_MAXID		51	/* number of valid machdep ids */
 
 struct cpu_pcm_info {
 	unsigned int	rate;
@@ -211,7 +224,11 @@ struct cpu_pcm_info {
 	{ "image_crc_stored", CTLTYPE_INT }, \
 	{ "adc_temp_mc", CTLTYPE_INT }, \
 	{ "adc_vsys_mv", CTLTYPE_INT }, \
-	{ "flash_id", CTLTYPE_STRUCT }, \
+	{ "flash_jedec", CTLTYPE_INT }, \
 	{ "pcm", CTLTYPE_STRUCT }, \
+	{ "usb_tx_peak", CTLTYPE_INT }, \
+	{ "usb_tx_dropped", CTLTYPE_INT }, \
+	{ "flash_unique_hi", CTLTYPE_INT }, \
+	{ "flash_unique_lo", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

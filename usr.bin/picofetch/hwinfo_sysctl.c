@@ -84,15 +84,34 @@ set(struct rd_int *r, long v)
 static void
 collect_flash_id(struct hwinfo *hw)
 {
-	static const int mib[2] = { CTL_MACHDEP, CPU_FLASH_ID };
-	struct cpu_flash_id id;
-	int error;
+	static const int jedec_mib[2] = { CTL_MACHDEP, CPU_FLASH_JEDEC };
+	static const int unique_mib[2][2] = {
+		{ CTL_MACHDEP, CPU_FLASH_UNIQUE_HI },
+		{ CTL_MACHDEP, CPU_FLASH_UNIQUE_LO },
+	};
+	unsigned int word[3];
+	int error, i, j;
 
-	memset(&id, 0, sizeof id);
-	error = rd(mib, 2, &id, sizeof id);
+	memset(&hw->flash_id, 0, sizeof hw->flash_id);
+	memset(word, 0, sizeof word);
+	error = rd(jedec_mib, 2, &word[0], sizeof word[0]);
+	if (error == EIO) {
+		/* The kernel serves the nodes; the chip returned no identity. */
+		hw->flash_id.state = RD_OK;
+		return;
+	}
+	for (i = 0; error == 0 && i < 2; i++)
+		error = rd(unique_mib[i], 2, &word[i + 1], sizeof word[0]);
 	hw->flash_id.state = error == 0 ? RD_OK : state_of(error);
-	hw->flash_id.valid = id.valid != 0;
-	memcpy(hw->flash_id.id, id.id, sizeof hw->flash_id.id);
+	if (error != 0)
+		return;
+	hw->flash_id.valid = 1;
+	for (i = 0; i < 3; i++)
+		hw->flash_id.id[i] = (unsigned char)(word[0] >> (16 - 8 * i));
+	for (i = 0; i < 2; i++)
+		for (j = 0; j < 4; j++)
+			hw->flash_id.id[3 + 4 * i + j] =
+			    (unsigned char)(word[i + 1] >> (24 - 8 * j));
 }
 
 static void

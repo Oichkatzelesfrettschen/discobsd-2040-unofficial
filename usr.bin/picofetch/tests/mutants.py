@@ -129,6 +129,8 @@ MUTANTS = [
      "else if (c == '+' && interval < 60)", "else if (c == '+')"),
     ("interval-bound-unchecked", "../picotop/picotop.c",
      "if (interval < 1 || interval > 60)", "if (interval < 0)"),
+    ("pid-zero-row-without-a-name", "../picotop/picotop.c",
+     "return p->pid == 0 && p->comm[0] == '\\0' ? \"swapper\" : p->comm;", "return p->comm;"),
     ("battery-colored-as-a-load-in-picotop", "../picotop/picotop.c",
      'level("Bat", hw.battery.v, 100, 1, cells);', 'level("Bat", hw.battery.v, 100, 0, cells);'),
 ]

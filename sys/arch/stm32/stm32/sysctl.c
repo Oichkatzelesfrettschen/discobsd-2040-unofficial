@@ -99,6 +99,14 @@ ucall(void)
 
 	if (!suser())
 		return;
+	/*
+	 * The routine runs at kernel privilege, which no write guard of the
+	 * level covers; a raised level refuses the call.
+	 */
+	if (securelevel > 0) {
+		u.u_error = EPERM;
+		return;
+	}
 	switch (uap->priority) {
 	case 0:
 		s = spl0();

@@ -39,6 +39,8 @@ def build(path, output):
             *renames,
             str(path),
             str(root / "lib/libc/gen/ctype_.c"),
+            str(root / "lib/libc/stdlib/strtol.c"),
+            str(root / "lib/libc/gen/atol.c"),
             str(out / "fixture.o"),
             str(out / "shim.o"),
             "-o",
@@ -59,8 +61,8 @@ def verify(binary):
         (["net"], "", False),
         (["kern.proc"], "", False),
         (["machdep.mpu"], "", True),
-        (["machdep.flash_id"], "", True),
-        (["machdep.flash_id"], "unread", True),
+        (["machdep.flash_jedec"], "", True),
+        (["machdep.flash_jedec"], "unread", False),
         (["machdep.pcm"], "", True),
         (["machdep.mpu.unknown"], "", False),
         (["vm.loadavg"], "load-failure", False),
@@ -71,13 +73,10 @@ def verify(binary):
     for node in ("kern.capacity", "machdep.storage_stats"):
         for scenario in ("unavailable", "version", "record-size", "length"):
             cases.append(([node], scenario, False))
-    for node in ("machdep.flash_id", "machdep.pcm"):
-        for scenario in ("unavailable", "length"):
-            cases.append(([node], scenario, False))
+    for scenario in ("unavailable", "length"):
+        cases.append((["machdep.pcm"], scenario, False))
     outputs = (
-        (["machdep.flash_id"], "", "machdep.flash_id=ef4015 0123456789abcdef\n"),
-        (["-n", "machdep.flash_id"], "", "ef4015 0123456789abcdef\n"),
-        (["machdep.flash_id"], "unread", "machdep.flash_id=000000 0000000000000000\n"),
+        (["machdep.flash_jedec"], "", "machdep.flash_jedec=15679509\n"),
         (["machdep.pcm"], "", "machdep.pcm=rate 8000 channels 1 bits 8 ring 255 queued 7 open 1\n"),
         (["-n", "machdep.pcm"], "", "rate 8000 channels 1 bits 8 ring 255 queued 7 open 1\n"),
     )
@@ -104,7 +103,31 @@ def verify(binary):
             assert len(visits) == 2 and visits[0] != visits[1], (operands, visits)
         if "unknown" in operands:
             assert len(visits) == 1, (operands, visits)
-    return len(cases)
+    # A CTLTYPE_LONG operand is converted as sscanf("%ld") did: leading
+    # white space, a sign, decimal digits to the first other byte, saturation
+    # at the long range (32 bits here), and 0 when no digit is present.
+    long_cases = [
+        ("42", 42),
+        ("  -7xyz", -7),
+        ("2147483647", 2147483647),
+        ("2147483648", 2147483647),
+        ("-2147483648", -2147483648),
+        ("-2147483649", -2147483648),
+        ("9" * 40, 2147483647),
+        ("-" + "9" * 40, -2147483648),
+        ("abc", 0),
+    ]
+    for text, want in long_cases:
+        result = subprocess.run(
+            [str(binary), "-w", "kern.hostid=" + text],
+            text=True,
+            capture_output=True,
+            env=dict(os.environ, SCENARIO=""),
+        )
+        lines = [x for x in result.stderr.splitlines() if x.startswith("hostid-set ")]
+        if result.returncode != 0 or lines != [f"hostid-set {want}"]:
+            raise AssertionError(("kern.hostid", text, want, lines, result.stderr))
+    return len(cases) + len(long_cases)
 
 
 binary = out / "sysctl"
@@ -112,11 +135,10 @@ build(source, binary)
 count = verify(binary)
 text = source.read_text()
 for name, anchor, replacement in (
+    ("long-atol", "longval = strtol(newval, NULL, 10);", "longval = atol(newval);"),
     ("status", "return (exit_status);", "(void)exit_status; return (0);"),
     ("operand", "parse(*argv++, 1)", "parse(*argv, 1)"),
-    ("flash-digits", '"%s%02x", i == 3 ? " " : ""', '"%s%02d", i == 3 ? " " : ""'),
-    ("flash-split-misplaced", 'i == 3 ? " " : ""', 'i == 2 ? " " : ""'),
-    ("node-size-unchecked", "if (size != (mib[1] == CPU_PCM ? sizeof(*pcm) : sizeof(*id))) {", "if (0) {"),
+    ("pcm-size-unchecked", "if (size != sizeof(*pcm)) {", "if (0) {"),
     ("pcm-queued-for-open", "pcm->queued, pcm->open);", "pcm->open, pcm->queued);"),
 ):
     assert text.count(anchor) == 1, (name, "mutation anchor")
@@ -129,4 +151,4 @@ for name, anchor, replacement in (
     except AssertionError:
         continue
     raise AssertionError((name, "mutant escapes"))
-print(f"sysctl: {count} behavior cases pass; status, operand and node-output mutants fail")
+print(f"sysctl: {count} behavior cases pass; long, status, operand and node-output mutants fail")

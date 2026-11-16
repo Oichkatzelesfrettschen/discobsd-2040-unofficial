@@ -1,0 +1,70 @@
+#!/bin/sh
+# Copyright (c) 2026 GizmoBSD
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# boardinfo: what the running kernel reports about its board. Read only; it
+# needs no privilege and changes nothing. A name the kernel does not export
+# (the PICO kernels carry no PicoCalc registers) prints "unavailable".
+# BOARDINFO_PATH replaces the command search path for the host test.
+PATH=${BOARDINFO_PATH-/sbin:/bin:/usr/sbin:/usr/bin}
+export PATH
+
+for name in kern.ostype kern.osrelease kern.version kern.hostname \
+    hw.machine hw.model machdep.cpu_khz machdep.image_length \
+    machdep.image_crc machdep.image_crc_stored machdep.watchdog_reason
+do
+	v=`sysctl -n $name 2>/dev/null`
+	case "$v" in
+	"")	v=unavailable ;;
+	esac
+	echo "$name: $v"
+done
+
+# The PicoCalc registers exist only in a PICOCALC kernel, and answer only
+# with the keyboard controller attached.
+if sysctl -n machdep.picocalc.battery >/dev/null 2>&1
+then
+	echo "board: PicoCalc registers answer"
+else
+	echo "board: no PicoCalc registers (PICO kernel, or no controller)"
+fi
+
+# The flash chip's unique ID: two ints, which sysctl prints signed. The
+# shell's printf reads an operand with strtoul, so a negative half converts
+# to its 32-bit pattern.
+id=unavailable
+hi=`sysctl -n machdep.flash_unique_hi 2>/dev/null`
+lo=`sysctl -n machdep.flash_unique_lo 2>/dev/null`
+if test -n "$hi"
+then
+	if test -n "$lo"
+	then
+		id=`printf %08x%08x $hi $lo`
+	fi
+fi
+echo "machdep.flash_unique: $id"
+echo "mounts:"
+mount

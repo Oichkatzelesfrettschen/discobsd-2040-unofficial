@@ -11,15 +11,25 @@
  * and, past TTYHOG, answered with a bell there, so the run measures whether
  * the pool holds the output queue the assertion budgets plus what input
  * adds to it. It then reads kern.capacity, restarts output (TIOCSTART),
- * reaps the writer, and prints:
+ * reaps the writer, discards the typed input the terminal still holds
+ * (TIOCFLUSH of FREAD), and prints:
  *
  *   INFO clist ...           the clist row while output was stopped
  *   CLISTBOUND OK            no clist refusal across the run
  *   CLISTBOUND REFUSED n     n clist refusals across the run
  *
  * The driver checks that every numbered line arrived once and in order.
+ *
+ * The discard keeps the TTYHOG bytes of typed input away from the shell.
+ * Left in the raw queue, they reach the shell's line editor, which reads
+ * one byte per redraw of its whole line; at 115200 baud the queue empties
+ * over seconds, and a command the driver types meanwhile finds the queue
+ * nearly full. ttyinput() (sys/kern/tty.c) answers each byte past TTYHOG
+ * in CBREAK mode with a bell and drops it, the command's carriage return
+ * among them, and the shell waits for a line that never ends.
  */
 #include <sys/types.h>
+#include <sys/fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <errno.h>
@@ -55,6 +65,8 @@ main(void)
     unsigned long refused;
     pid_t writer;
     int status = 0;
+    int discard = FREAD;
+    int flushed;
 
     if (cap_snapshot(&before) < 0) {
         cap_say("FAIL kern.capacity: %s", strerror(errno));
@@ -81,6 +93,9 @@ main(void)
     if (waitpid(writer, &status, 0) != writer)
         status = -1;
     sleep(1);
+    flushed = ioctl(STDIN_FILENO, TIOCFLUSH, &discard) == 0;
+    cap_check(flushed, "typed input discarded (%s)",
+        flushed ? "TIOCFLUSH" : strerror(errno));
     if (cap_snapshot(&after) < 0) {
         cap_say("FAIL kern.capacity: %s", strerror(errno));
         return 1;

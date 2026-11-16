@@ -29,7 +29,6 @@ BOARD_FIELDS = {
     "PICO": (1, 7, 0),
     "PICO_UART": (1, 6, 0),
     "PICOCALC": (2, 10, 0),
-    "PICOCALC_PSRAM": (2, 10, 0),
 }
 
 

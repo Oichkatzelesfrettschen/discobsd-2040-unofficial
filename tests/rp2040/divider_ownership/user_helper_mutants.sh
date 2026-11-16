@@ -21,6 +21,7 @@ assemble "$source_file" user_helper_real.o
 test ! -s user_helper_real.stderr
 grep -F 'user_helper_entries=2 sio_accesses=8 min_wait_cycles=8 user_helper_findings=0' \
     user_helper_real.stdout
+"$PYTHON" ./helper_extent_mutants.py "$verifier" user_helper_real.o
 
 # mutant NAME AWK-PROGRAM EXPECTED-FINDING
 mutant() {
@@ -63,5 +64,5 @@ mutant breakpoint_inside '/str\tr1, \[r3, #0x64\]/ { print; print "\tbkpt\t#0"; 
     'inside the divider window'
 mutant wrong_base '/movs\tr3, #0xd0/ { sub(/0xd0/, "0xd1") } 1' \
     'not the SIO base'
-mutant missing_helper '/__aeabi_idivmod:/ { next } /\.globl\t__aeabi_idivmod/ { next } /\.type\t__aeabi_idivmod/ { next } 1' \
+mutant missing_helper '/__aeabi_idivmod:/ { next } /\.globl\t__aeabi_idivmod/ { next } /\.type\t__aeabi_idivmod/ { next } /\.size\t__aeabi_idivmod/ { next } 1' \
     'missing helper __aeabi_idivmod'

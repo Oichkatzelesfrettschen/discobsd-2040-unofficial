@@ -501,8 +501,8 @@ callbacks and a truncated ELF. The cross gate inspects all four configured
 kernels. The source, object and linked-literal checks do not execute an open
 or prove that a runtime terminal invokes its callback.
 
-`check-rp2040-callout-roots` checks configured scheduler, terminal and
-PicoCalc callout callback relocations and linked literals against named
+`check-rp2040-callout-roots` checks configured scheduler, terminal, UART
+transmit-drain and PicoCalc callout callback relocations and linked literals against named
 functions. The PICOCALC_PSRAM fixture checks source timeout references and
 rejects changed literals, cleared Thumb bits, alternate same-signature
 callbacks and truncated ELF input. The cross gate checks four configured

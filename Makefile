@@ -1731,18 +1731,37 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-psram-pio \
-		check-loader-stamp check-picocalc-kbd-bootloader
+		check-loader-stamp check-picocalc-kbd-bootloader check-host-split
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-fstat-host check-sh-editor \
 		check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
+
+# The macOS firmware job runs the host tier as two steps, check-host-a and
+# check-host-b, so that each carries its own deadline. HOST_TIER_B_GATES names
+# the gates of the second step; HOST_TIER_A_GATES is every other host gate, so
+# the two steps partition check-host by construction. The second step holds the
+# gates that dominate the macOS wall time (calculator, ridge and FAT/v7 core
+# suites) and the largest remaining Linux CPU cost; check-host-split rejects a
+# name that is not a host gate. check-host itself stays whole for Linux and
+# local runs.
+HOST_TIER_B_GATES=	check-calc-host check-libcalc check-libbn check-ridge-host \
+		check-v7fs-core check-fat32-tail check-storage-recovery check-picocalc-host \
+		check-msdosfs-core check-psram-pio check-lex-tables check-coil-host \
+		check-tar-host check-storage-correctness check-dcbc
+HOST_TIER_A_GATES=
+.for gate in ${HOST_GATES} ${HOST_PROGRAM_GATES}
+.if empty(HOST_TIER_B_GATES:M${gate})
+HOST_TIER_A_GATES+=	${gate}
+.endif
+.endfor
 CROSS_CONTRACT_GATES=	check-signal-sets-cross check-fd-set-cross check-public-time-types check-warning-policy-cross check-debug-paths check-time-binding check-icode-relocation check-rp2040-load-span check-rp2040-target-flags check-compiler-object-attribution check-passwd-header-contracts check-string-header-contracts check-record-header-contracts check-character-io-headers check-public-header-inclusion check-network-header-contracts \
 		check-control-char-contracts \
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
-		check-c17-headers-cross check-libc-shared-closure check-libc-declaration-census check-libc-pic-replay \
+		check-c17-headers-cross check-libc-pic-replay \
 		check-libc-alarm-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-libc-getgrent-cross \
@@ -1795,6 +1814,12 @@ check-libc-pic-replay: check-python
 check-libc-export-namespace:
 		sh tools/verify_libc_export_namespace.sh --selftest ${TOPSRC:Q}
 		sh tools/verify_libc_export_namespace.sh ${TOPSRC:Q}
+
+# The shared-closure and declaration-census gates hash each lib/*.a before and
+# after reading it and fail when it changes. Contract gates such as
+# check-libcalc-cross and check-libbn-cross run make in lib/ and can rewrite
+# an archive, so these readers run in their own stage after the contract group.
+CROSS_ARCHIVE_READERS=	check-libc-shared-closure check-libc-declaration-census
 
 # Composition gates clean and relink shared program directories, so the cross
 # graph runs them after the parallel read-only contract group.
@@ -1937,6 +1962,21 @@ check-fs-profiles:	check-python .WAIT
 check-host:	check-python .WAIT symlinks .WAIT \
 		${HOST_GATES} ${HOST_PROGRAM_GATES}
 
+check-host-a:	check-python .WAIT symlinks .WAIT \
+		${HOST_TIER_A_GATES}
+
+check-host-b:	check-python .WAIT symlinks .WAIT \
+		${HOST_TIER_B_GATES}
+
+# The partition of check-host into check-host-a and check-host-b: tier A and
+# tier B together cover each host gate once. --selftest first rejects a gate in
+# neither tier, in both, an unknown name, an empty tier and a duplicate.
+check-host-split:	check-python
+		${PYTHON} tools/check_host_tier_split.py --selftest
+		${PYTHON} tools/check_host_tier_split.py \
+		    --all "${HOST_GATES} ${HOST_PROGRAM_GATES}" \
+		    --a "${HOST_TIER_A_GATES}" --b "${HOST_TIER_B_GATES}"
+
 # The kernel formatter and neighboring contracts use target-width integer and
 # pointer assumptions. The gate runs them in a 32-bit userspace binary. A host
 # that cannot build 32-bit says so and skips.
@@ -2034,6 +2074,7 @@ check-cross-assembler:
 		${MAKE} -C tests/rp2040/divider_ownership check
 
 check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
+		${CROSS_ARCHIVE_READERS} .WAIT \
 		check-libc-export-namespace .WAIT ${CROSS_COMPOSITION_GATES} .WAIT \
 		check-cross-kernel .WAIT \
 		check-cross-assembler
@@ -2361,7 +2402,7 @@ installfs:
 		check-puzzlebox-host check-calc-host check-picofetch-host check-fstat-host check-sh-editor check-tar-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
-		check-lint check-host \
+		check-lint check-host check-host-a check-host-b check-host-split \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump check-renode-union \

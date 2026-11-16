@@ -96,6 +96,7 @@ Grouped by what they investigate.
 | `bootsel-button.md` | BOOTSEL and USB re-entry on bare metal, with no debug probe |
 | `firmware-updates.md` | what firmware an original Pico (silicon B2) carries and what an owner can update |
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
+| `swapram-uart-echo-stall.md` | why the Renode capacity gate saw a console echo stall on SwapRAM kernels: `clistbound`'s typed residue overflowing `TTYHOG` under the line-paced PL011 model, the discriminating runs, the state at the stall, the board prediction and the fix with its calibration |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
 | `picocalc-calculator-and-gui.md` | the calculator and tile-graphics plan for the PicoCalc: sources and licenses mined from this tree, the other BSDs and the vendor firmware, size estimates and a staged import order |
 | `hardware-reference-coverage.md` | which Pico, Pico W, RP2040 and PicoCalc parts, licensed blocks and bus specifications have a reference document on the build host, the state of the Pico SDK and the tools, the PicoCalc schematic's designator-to-part map, and the USB-C CC pull-downs the schematic shows |
@@ -154,6 +155,7 @@ Grouped by what they investigate.
 | `unimplemented-storage-work.md` | storage mechanisms built, measured and left out of `main` (trim at free, the inode-before-free order, the deferred free-list sweep and their tests), each with its deciding measurement, the condition that reopens it and the archive branch that holds the code |
 | `rp2040-flash-trim-ordering.md` | when a freed block may be discarded: the inode-before-free rule across the BSD lineages, where Linux and embedded file systems issue discards, why Dhara reduces the rule to call order, the FIFO cleaning-cost knee at a live share of 0.8, and the outcome (safe, not merged for wear) |
 | `trim-survey/` | the survey reports and bare Pico console captures behind the discard-ordering note, the trim cost model and the flash wear table, with the scripts that recompute the per-compile figures |
+| `dhara-audit.md` | the root's Dhara journal against alternative designs for this NOR part: the checkpoint page layout and its tear windows measured byte by byte, PR 636's tree walk beside an upstream fallback, a minimum-gap heal, an additive CRC-32, a commit marker and the LittleFS, SPIFFS, JFFS2, CHFS, UBI, YAFFS2 and HAMMER2 mechanisms with their text and RAM cost, how many roots the old kernel could have damaged and which migration keeps their data, and why a failed resume should refuse to mount |
 | `libc-size-audit.md` | where the C library's bytes go, across the shipped programs |
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 192 KB process window |
@@ -232,6 +234,7 @@ Grouped by what they investigate.
 | `211bsd-semantic-ledger.md` | selected per-fix dispositions, donor roles, pinned JSON ledger and execution receipts, resource consequences and explicit residuals |
 | `211bsd-fwalk-report.md` | a defect in patch 499's `_fwalk`, drafted for the 2.11BSD maintainer and unsent |
 | `211bsd-fwalk.patch` | the `_fwalk` fix for 2.11BSD patch 499 as a standalone `patch -p0` file with its message, the companion to the report |
+| `upstream-patch-survey.md` | upstream DiscoBSD commits outside the fork and 2.11BSD patches 432 to 500, each classified present, superseded, applicable or not applicable, with a cost-ranked import list; `upstream-patch-survey.tsv` holds one row per commit, patch and patch-500 item |
 | `stdio-torek-evaluation.md` | the patch-499 stream core built and measured on this target: a median +534 bytes per program and a breached packed-root budget, so declined, with two small mechanisms queued |
 | `renode-login-regression.md` | the Renode login timeout was `panic: wakeup` behind a reboot prompt: three locores stored p_addr at a literal 60 after #129 moved it to 64; sys/proc_asm.h and a _Static_assert in kern_proc.c pin the offset, and boot.robot logs the UART transcript on failure |
 | `stdio-unbuffered-ownership.md` | descriptor-independent input storage in the existing FILE byte, calibrated pushback and allocation-failure tests, and linked resource accounting |

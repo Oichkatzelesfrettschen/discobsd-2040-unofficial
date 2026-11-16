@@ -557,3 +557,13 @@ def test_web_names_the_address_it_serves(monkeypatch, capsys, bind, shown):
     monkeypatch.setenv("DISCOBSD_WEB_TOKEN", "tok")
     assert web.main(["--bind", bind, "--port", "7681", "/dev/null"]) == 0
     assert shown in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("stored", ["localhost", "pico-host.local", "127.0.0.1"])
+def test_up_wildcard_bind_recomputes_a_stored_name_or_loopback(monkeypatch, tmp_path, stored):
+    # A stored name or loopback address would send LAN clients to their own
+    # host; a wildcard bind recomputes the LAN address instead.
+    conf = tmp_path / "discobsd"
+    conf.mkdir(parents=True)
+    console.write_env(conf / "web.env", {"DISCOBSD_HOST_IP": stored})
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == "10.0.0.9"

@@ -279,12 +279,15 @@ def cmd_up(args) -> int:
     if not ip and not bind.is_unspecified:
         ip = str(bind)
     if not ip:
+        # A stored name (for example "localhost" from an earlier --host-ip)
+        # cannot be classified without resolving it, so only a stored
+        # non-loopback IP literal is reused; anything else is recomputed.
         stored = values.get("DISCOBSD_HOST_IP")
         try:
-            stored_loopback = bool(stored) and ipaddress.ip_address(stored).is_loopback
+            reusable = bool(stored) and not ipaddress.ip_address(stored).is_loopback
         except ValueError:
-            stored_loopback = False
-        ip = stored if stored and not stored_loopback else lan_ip()
+            reusable = False
+        ip = stored if reusable else lan_ip()
     if ":" in ip:
         sys.stderr.write(
             "discobsd-console: the advertised address %r is IPv6; the systemd "

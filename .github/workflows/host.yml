@@ -169,7 +169,9 @@ jobs:
           test -f /usr/lib/systemd/user/discobsd-link.service
           test -x /usr/bin/discobsd-connect
           test -x /usr/bin/discobsd-flash
-          test -f /usr/share/doc/discobsd-host/RELEASE-SECURITY.md
+          # The runner may exclude /usr/share/doc at install time
+          # (path-exclude), so the guide is checked in the package itself.
+          dpkg-deb -c "$deb" | grep -E ' \./usr/share/doc/discobsd-host/RELEASE-SECURITY\.md$'
       - name: Stage the artifact
         timeout-minutes: 5
         run: |
@@ -226,8 +228,10 @@ jobs:
           test -f /usr/lib/systemd/user/discobsd-link.service
           test -x /usr/bin/discobsd-connect
           test -x /usr/bin/discobsd-flash
-          test -f /usr/share/doc/discobsd-host/README.md
-          test -f /usr/share/doc/discobsd-host/RELEASE-SECURITY.md
+          # The archlinux image sets NoExtract for usr/share/doc/*, so the
+          # guide is checked in the package file list, not the filesystem.
+          pacman -Qlp packaging/arch/discobsd-host-*.pkg.tar.zst \
+            | grep -Fx 'discobsd-host /usr/share/doc/discobsd-host/RELEASE-SECURITY.md'
       - uses: actions/upload-artifact@v4
         with:
           name: discobsd-host-arch

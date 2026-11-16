@@ -735,6 +735,10 @@ def self_test() -> int:
     if not any("colors" in m for m in logo_failures(width, pixels, 0)):
         print("self-test: a one-color logo was not rejected", file=sys.stderr)
         return 1
+    bound = picocalc_dump.message_bound_self_test()
+    if bound:
+        print(f"self-test: the dump message bound misjudged {bound}", file=sys.stderr)
+        return 1
     # The fallback line wrapped at the panel's 53 cells, as the console
     # draws it, must pass; an attach, a missing line and a fallback printed
     # by another driver must not.
@@ -754,7 +758,8 @@ def self_test() -> int:
             return 1
     print("check-picocalc self-test: ok (good line, sleeping panel and four other mutants, "
           "good and unbounded FIFO, three good readbacks and five mutants, "
-          "good, shifted and one-color logo, psram0 fallback and three mutants)")
+          "good, shifted and one-color logo, psram0 fallback and three mutants, "
+          "12-, 255- and 256-byte dump messages)")
     return 0
 
 

@@ -210,15 +210,21 @@ SECTIONS {
 	         ORIGIN(RAM) + LENGTH(RAM)) : 1,
 	    "the swap pool must follow bss, be eight-byte aligned, and stay inside kernel RAM")
 	/*
-	 * The in-place swap exchange of docs/research/swap-exhaustion/plan.md
-	 * stages one 4,096-byte flash sector through kernel RAM, so every
-	 * configuration keeps that many bytes free after its last data, bss
-	 * and pool byte.
+	 * The in-place swap exchange stages its 4,096-byte flash sector in
+	 * swap_exchange_sector[], a static array in .bss (sys/kern/vm_swap.c),
+	 * so the sector lies below __kernel_ram_used_end. No linked object
+	 * occupies the gap [__kernel_ram_used_end, __kernel_data_end): reset
+	 * zeroes it with the rest of kernel RAM, /dev/mem and /dev/kmem reach
+	 * it, and the Renode dump stage writes its panic message at
+	 * __kernel_ram_used_end + 256 and refuses a message that would pass
+	 * __kernel_dump_reserve_end (tools/renode/picocalc_dump.py). The u
+	 * areas and scratch SRAM lie beyond the gap, in their own regions.
 	 */
 	__kernel_ram_used_end = DEFINED(swapram_pool_mem) ?
 	    swapram_pool_mem + SIZEOF(.swapram_pool) : _ebss;
-	ASSERT(__kernel_ram_used_end + 4096 <= ORIGIN(RAM) + LENGTH(RAM),
-	    "kernel RAM must keep 4,096 bytes free for the swap exchange sector")
+	__kernel_dump_reserve_end = __kernel_ram_used_end + 512;
+	ASSERT(__kernel_dump_reserve_end <= ORIGIN(RAM) + LENGTH(RAM),
+	    "kernel RAM must keep 512 bytes free past __kernel_ram_used_end for the Renode dump stage")
 	ASSERT(ORIGIN(RAM) + LENGTH(RAM) == ORIGIN(U0AREA),
 	    "RAM and U0AREA do not meet")
 	ASSERT(ORIGIN(U0AREA) + LENGTH(U0AREA) == ORIGIN(UAREA),

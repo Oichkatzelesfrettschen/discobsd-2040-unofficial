@@ -72,8 +72,9 @@ linked kernel. Each row names the claim it replaces.
 | PICOCALC | 111,088 | 111,208 | 19,608 | 29,200 | 16,384 | 13,824 |
 
 Flash image and headroom are the `check_kernel_headroom.py` span. Of PICO's
-25,896 free bytes the linker reserves 4,096 for the swap-exchange sector
-(`kern.ldscript`), which leaves 21,800 without an owner; PICOCALC keeps 9,728 by the same
+25,896 free bytes the linker reserved 4,096 at that revision for the swap-exchange sector
+(`kern.ldscript`; the sector has since been the static `swap_exchange_sector[]` in
+`sys/kern/vm_swap.c`, and the reserve past the kernel's RAM end is 512 bytes), which leaves 21,800 without an owner; PICOCALC keeps 9,728 by the same
 subtraction and is the configuration where kernel RAM is scarce. The PICO fixed
 tables at that revision are `proc` 2,600 (25 slots of 104), `inode` 2,016 (24
 of 84), `file` 576 (24 of 24), `bufdata` 4,096, `mount` 1,036, `cfree` 1,024,

@@ -16,7 +16,9 @@ after kernel bss) with the 192 KiB user window of `swap-exhaustion/review-04.md`
 The kernel flash budget is `FLASH` in `conf/RP2040.ld`, 128 KiB less the
 256-byte boot2, 130,816 bytes. Kernel RAM under the 192 KiB window is
 `0x20030000..0x2003e800`, 59,392 bytes; the 4,096-byte exchange bounce of
-`swap-exhaustion/plan.md` is reserved in it.
+`swap-exhaustion/plan.md` was reserved in it at that revision (it has since
+been the static `swap_exchange_sector[]` in `sys/kern/vm_swap.c`, counted in
+`.bss`).
 
 | Kernel | `.text` | `.data` | `.bss` | pool | kernel RAM used with bounce | RAM margin |
 |---|---|---|---|---|---|---|

@@ -10,7 +10,7 @@ TOPSRC!=cd ../../..; pwd
 HOSTCC?=	cc
 
 check:
-		HOSTCC=${HOSTCC} ${PYTHON} -I -u proc_comm_gate.py ${TOPSRC}
+		HOSTCC=${HOSTCC:Q} ${PYTHON} -I -u proc_comm_gate.py ${TOPSRC}
 
 clean:
 		rm -rf __pycache__

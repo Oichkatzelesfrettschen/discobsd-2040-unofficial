@@ -9,12 +9,14 @@
 
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-CC = os.environ.get("HOSTCC", "cc")
+# HOSTCC may carry arguments ("cc -O1"), as a make variable does.
+CC = shlex.split(os.environ.get("HOSTCC", "cc"))
 FLAGS = ["-std=c17", "-pedantic-errors", "-D_DEFAULT_SOURCE", "-Wall", "-Wextra", "-Werror"]
 HEAD = "static const char *\nproc_comm("
 END = "\n}\n"
@@ -41,7 +43,7 @@ def build_and_run(work, name, body, test):
     source = work / (name + ".c")
     source.write_text(body)
     exe = work / name
-    built = subprocess.run([CC, *FLAGS, f'-DPROC_COMM_SRC="{source}"', "-o", str(exe),
+    built = subprocess.run([*CC, *FLAGS, f'-DPROC_COMM_SRC="{source}"', "-o", str(exe),
                             str(test)], capture_output=True, text=True)
     if built.returncode != 0:
         sys.exit(f"proc_comm gate: {name} did not build\n{built.stderr}")

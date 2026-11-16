@@ -174,6 +174,15 @@ Calibration of the omission report: the union stock map replays with no
 omission (exit 0); the same map with `.text.rwip` one word longer omits
 exactly rwip's 360,256 events, 14.7% (exit 1).
 
+The fetch model refetches at every non-sequential instruction (a branch target
+or an exception entry or return), even inside the word fetched last, and counts
+an XIP event outside every input section of the base map as omitted;
+`xipsim.py self-test` checks both on synthetic events, and the previous model
+fails the loop and the unmapped-event cases. Every replay cited here gives the
+same figures and the same conflicting sets under these rules: the pipe trace
+holds 310,485 non-sequential instructions, none of which re-enters the word
+fetched last, and no union replay omits an event.
+
 Evidence classes: the cause, the pad experiment, the repair and every
 before/after figure rest on board measurements (rates and XIP counters). The
 replay supplies only the identity of the conflicting sets and lines and the

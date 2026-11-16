@@ -27,7 +27,8 @@
 
 """Replay a Renode execution trace through a model of the RP2040 XIP cache.
 
-Usage: xipsim.py replay TRACE BASE.map MARKER LAYOUT.map... [--sets N] [--allow-omitted]
+Usage: xipsim.py self-test
+       xipsim.py replay TRACE BASE.map MARKER LAYOUT.map... [--sets N] [--allow-omitted]
        xipsim.py sections TRACE BASE.map
        xipsim.py pad TRACE BASE.map MARKER OBJECT:TEXT_BYTES:RODATA_BYTES...
 
@@ -51,9 +52,12 @@ text section of OBJECT, moving every later section, and RODATA_BYTES more
 moving every later read-only section.
 
 The fetch model issues one access per aligned 32-bit word the instruction
-stream enters, as the Cortex-M0+ fetches words, and one per data read in the
-XIP window. It omits interrupts the emulator does not model (USB) and the
-board's timing, so it ranks layouts rather than predicting cycle counts.
+stream enters, as the Cortex-M0+ fetches words, a fresh access at every
+non-sequential instruction (branch target, exception entry or return), and
+one per data read in the XIP window. An XIP event outside every input section
+of the base map counts as omitted, like one in a section the layout resizes.
+It omits interrupts the emulator does not model (USB) and the board's timing,
+so it ranks layouts rather than predicting cycle counts.
 """
 
 from __future__ import annotations
@@ -110,6 +114,12 @@ def section_start(layout, name):
     raise SystemExit(f"xipsim: no input section {name} in the base map")
 
 
+# The key under which replay counts XIP events that no input section of the
+# base map holds (linker stubs, the second stage, a section the map parser does
+# not recognize): their place in another layout is unknown.
+UNMAPPED = ("(outside every input section of the base map)", "-", 0)
+
+
 def relocator(base, target):
     """Return reloc(address) -> (new address, None) or (None, key of the section
     that has no same-size counterpart in target)."""
@@ -119,7 +129,7 @@ def relocator(base, target):
     def reloc(address):
         i = bisect_right(starts, address) - 1
         if i < 0 or address >= base[i][0] + base[i][1]:
-            return address, None
+            return None, UNMAPPED
         start, size, key = base[i]
         found = where.get(key)
         if found is None or found[1] != size:
@@ -146,11 +156,22 @@ def read_trace(path):
 
 def accesses(events, reloc):
     """Return the relocated XIP access stream and, per input section that the
-    target resizes or lacks, the number of traced events omitted from it."""
+    target resizes or lacks, the number of traced events omitted from it.
+
+    An instruction that follows the previous one in address order is fetched
+    only when it enters a new aligned word, since the word already fetched
+    holds it. Any other instruction (a branch target, an exception entry or
+    return) starts a new fetch even inside the word just fetched, because the
+    core discards its fetched words when control flow changes. An XIP data read
+    adds its own access and leaves the fetched instruction word in place."""
     out = []
     omitted = {}
     last = None
+    next_pc = None
     for kind, address, size in events:
+        sequential = kind == 0 and address == next_pc
+        if kind == 0:
+            next_pc = address + size
         if not XIP_LO <= address < XIP_HI:
             if kind == 0:
                 last = None
@@ -158,9 +179,12 @@ def accesses(events, reloc):
         moved, lost = reloc(address)
         if moved is None:
             omitted[lost] = omitted.get(lost, 0) + 1
-            last = None
+            if kind == 0:
+                last = None
             continue
         if kind == 0:
+            if not sequential:
+                last = None
             for word in range(moved >> 2, ((moved + size - 1) >> 2) + 1):
                 if word != last:
                     out.append(word << 2)
@@ -236,7 +260,41 @@ def report(label, stream, marks, target, show_sets, omitted, total):
     return lost
 
 
+def self_test():
+    """Check the fetch model and the omission rules on synthetic events."""
+    base = [(0x10000100, 0x20, (".text.a", "a.o", 1)), (0x10000200, 0x10, (".text.b", "b.o", 1))]
+    moved = [(0x10000300, 0x20, (".text.a", "a.o", 1)), (0x10000400, 0x10, (".text.b", "b.o", 1))]
+    loop = [(0, 0x10000100, 2), (0, 0x10000102, 2)] * 3
+    cases = [
+        ("a two-instruction loop inside one word fetches once per pass",
+         accesses(loop, relocator(base, base)), ([0x10000100] * 3, {})),
+        ("straight-line code fetches each word once",
+         accesses([(0, 0x10000100 + 2 * k, 2) for k in range(4)], relocator(base, base)),
+         ([0x10000100, 0x10000104], {})),
+        ("an XIP data read keeps the fetched word",
+         accesses([(0, 0x10000100, 2), (1, 0x10000204, 4), (0, 0x10000102, 2)],
+                  relocator(base, base)), ([0x10000100, 0x10000204], {})),
+        ("events relocate with their section",
+         accesses([(0, 0x10000110, 2), (1, 0x10000208, 4)], relocator(base, moved)),
+         ([0x10000310, 0x10000408], {})),
+        ("an event outside every base section is omitted",
+         accesses([(0, 0x10000180, 2)], relocator(base, base)), ([], {UNMAPPED: 1})),
+        ("an event in a resized section is omitted",
+         accesses([(0, 0x10000202, 2)], relocator(base, [base[0], (0x10000200, 0x14, base[1][2])])),
+         ([], {base[1][2]: 1})),
+    ]
+    status = 0
+    for what, got, want in cases:
+        ok = got == want
+        print(f"self-test: {what}: {'ok' if ok else f'WRONG {got} != {want}'}")
+        status |= not ok
+    print("xipsim self-test: " + ("pass" if status == 0 else "FAIL"))
+    return status
+
+
 def main(argv):
+    if argv == ["self-test"]:
+        return self_test()
     if len(argv) < 3:
         raise SystemExit(__doc__)
     mode, trace, basemap = argv[0], argv[1], argv[2]

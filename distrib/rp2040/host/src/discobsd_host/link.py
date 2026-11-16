@@ -10,7 +10,6 @@ private as the network it listens on.
 from __future__ import annotations
 
 import argparse
-import socket
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -21,9 +20,6 @@ class RedirectServer(HTTPServer):
     allow_reuse_address = True
 
     def __init__(self, address, target: str):
-        # HTTPServer defaults to AF_INET, which cannot bind an IPv6 literal.
-        if ":" in address[0]:
-            self.address_family = socket.AF_INET6
         super().__init__(address, RedirectHandler)
         self.target = target
 
@@ -92,8 +88,7 @@ def main(argv=None) -> int:
         sys.stderr.write("discobsd-link: --to or --host is required\n")
         return 1
     httpd = RedirectServer((args.bind, args.port), target)
-    host = "[%s]" % args.bind if ":" in args.bind else args.bind
-    print("discobsd-link: http://%s:%d/ -> %s" % (host, args.port, target), flush=True)
+    print("discobsd-link: http://%s:%d/ -> %s" % (args.bind, args.port, target), flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

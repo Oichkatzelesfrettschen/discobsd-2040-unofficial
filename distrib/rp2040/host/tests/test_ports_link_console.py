@@ -414,34 +414,6 @@ def test_up_refuses_a_bind_that_is_not_an_ip_literal(monkeypatch, tmp_path, caps
     assert lookups == []
 
 
-def test_url_host_brackets_an_ipv6_literal():
-    assert console.url_host("10.0.0.5") == "10.0.0.5"
-    assert console.url_host("::1") == "[::1]"
-    assert console.urls("::1", "tok", 7681, 42069)["short"] == "http://[::1]:42069/"
-    assert console.urls("::1", "tok", 7681, 42069)["full"] == "http://[::1]:7681/?token=tok"
-
-
-def _bind_or_skip(make):
-    try:
-        return make()
-    except OSError as exc:
-        pytest.skip("no IPv6 loopback on this host: %s" % exc)
-
-
-def test_servers_bind_an_ipv6_literal():
-    httpd = _bind_or_skip(lambda: link.RedirectServer(("::1", 0), "http://x/"))
-    try:
-        assert httpd.server_address[0] == "::1"
-    finally:
-        httpd.server_close()
-    httpd = _bind_or_skip(lambda: web.ConsoleServer(("::1", 0), None, "tok"))
-    try:
-        assert httpd.server_address[0] == "::1"
-        assert httpd.is_loopback
-    finally:
-        httpd.server_close()
-
-
 @pytest.mark.parametrize(
     "variable, value",
     [
@@ -489,9 +461,9 @@ def test_write_env_accepts_every_value_the_console_writes(tmp_path):
     assert console.read_env(path) == values
     console.write_env(path, {"DISCOBSD_HOST_IP": "pico-host.local"})
     assert console.read_env(path) == {"DISCOBSD_HOST_IP": "pico-host.local"}
-    # A base64 token set by the user keeps working.
-    console.write_env(path, {"DISCOBSD_WEB_TOKEN": "q+8/Zw=="})
-    assert console.read_env(path) == {"DISCOBSD_WEB_TOKEN": "q+8/Zw=="}
+    # "+" would read as a space in the URL query that carries the token.
+    with pytest.raises(ValueError):
+        console.write_env(path, {"DISCOBSD_WEB_TOKEN": "q+8/Zw=="})
 
 
 def test_up_concrete_bind_advertises_itself(monkeypatch, tmp_path):
@@ -533,7 +505,6 @@ def test_up_refuses_an_ipv6_advertised_address(monkeypatch, tmp_path, capsys):
     "bind, shown",
     [
         ("10.0.0.7", "http://10.0.0.7:7681/"),
-        ("fd00::7", "http://[fd00::7]:7681/"),
         ("0.0.0.0", "http://10.0.0.9:7681/"),
     ],
 )

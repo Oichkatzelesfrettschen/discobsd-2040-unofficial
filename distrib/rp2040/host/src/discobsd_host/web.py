@@ -444,10 +444,6 @@ class ConsoleServer(ThreadingHTTPServer):
     def __init__(
         self, address, device, token, open_serial=ports.open_serial, usb_port=None
     ):
-        # ThreadingHTTPServer defaults to AF_INET, which cannot bind an IPv6
-        # literal.
-        if ":" in address[0]:
-            self.address_family = socket.AF_INET6
         super().__init__(address, Handler)
         # A device path names the board itself and is opened as given. With
         # none, every session resolves the board again from `usb_port` (the
@@ -536,19 +532,14 @@ def main(argv=None) -> int:
     q = ("?token=" + token) if token else ""
     sys.stderr.write(f"DiscoBSD web console for {device}\n")
     if httpd.is_loopback:
-        # The message names the address the server bound; an IPv6 literal
-        # takes brackets in a URL.
-        host = "[%s]" % args.bind if ":" in args.bind else args.bind
         sys.stderr.write(
-            "  open http://%s:%d/%s (loopback only; pass --bind 0.0.0.0 "
-            "--token SECRET for the LAN) -- Ctrl-C to stop\n" % (host, args.port, q)
+            "  open http://127.0.0.1:%d/%s (loopback only; pass --bind 0.0.0.0 "
+            "--token SECRET for the LAN) -- Ctrl-C to stop\n" % (args.port, q)
         )
     else:
-        # A concrete bind is the only address the server answers on; a
+        # A concrete bind is the only address the server answers on; the
         # wildcard bind is advertised through the host's LAN address.
-        host = args.bind if args.bind not in ("0.0.0.0", "::") else lan_ip()
-        if ":" in host:
-            host = "[%s]" % host
+        host = args.bind if args.bind != "0.0.0.0" else lan_ip()
         sys.stderr.write(
             "  open http://%s:%d/%s from the LAN (token required) -- Ctrl-C to stop\n"
             % (host, args.port, q)

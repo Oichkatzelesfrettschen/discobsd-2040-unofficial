@@ -68,10 +68,11 @@ def read_env(path: Path) -> dict[str, str]:
 
 # web.env is a systemd EnvironmentFile: a newline adds an assignment, and a
 # space, quote, backslash or dollar sign changes how a line parses or
-# expands. Every value the console writes (a hex or base64 token, an IP
-# literal or host name, a USB port path) is drawn from this set; "+", "/" and
-# "=" carry no meaning inside an EnvironmentFile value.
-ENV_VALUE_RE = re.compile(r"[A-Za-z0-9._~:+/=-]+")
+# expands. The token also travels unencoded in a URL query, where "+" reads
+# as a space. Every value is drawn from the URL-unreserved characters plus
+# ":" (a hex token, an IPv4 literal or host name, a USB port path), which
+# are inert in both places.
+ENV_VALUE_RE = re.compile(r"[A-Za-z0-9._~:-]+")
 
 
 def write_env(path: Path, values: dict[str, str]) -> None:
@@ -80,7 +81,7 @@ def write_env(path: Path, values: dict[str, str]) -> None:
     for key, value in values.items():
         if not ENV_VALUE_RE.fullmatch(value):
             raise ValueError(
-                "%s=%r: web.env values are limited to letters, digits and . _ ~ : + / = -"
+                "%s=%r: web.env values are limited to letters, digits and . _ ~ : -"
                 % (key, value)
             )
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -104,15 +105,9 @@ def lan_ip() -> str:
         return "127.0.0.1"
 
 
-def url_host(ip: str) -> str:
-    """The address as a URL host: an IPv6 literal takes brackets."""
-    return "[%s]" % ip if ":" in ip else ip
-
-
 def urls(ip: str, token: str, web_port: int, link_port: int, mdns: bool = True) -> dict[str, str]:
-    host = url_host(ip)
-    full = "http://%s:%d/?token=%s" % (host, web_port, token)
-    out = {"short": "http://%s:%d/" % (host, link_port), "full": full}
+    full = "http://%s:%d/?token=%s" % (ip, web_port, token)
+    out = {"short": "http://%s:%d/" % (ip, link_port), "full": full}
     name = socket.gethostname().split(".")[0].lower()
     if mdns and name:
         out["mdns"] = "http://%s.local:%d/" % (name, link_port)
@@ -326,7 +321,7 @@ def cmd_up(args) -> int:
         ]
         link = _tool("discobsd-link") + [
             "--host",
-            "http://%s:%d/" % (url_host(ip), args.port),
+            "http://%s:%d/" % (ip, args.port),
             "--port",
             str(args.link_port),
             "--bind",
@@ -375,7 +370,7 @@ def cmd_status(args) -> int:
     conf = config_dir()
     values = read_env(conf / "web.env")
     ip = values.get("DISCOBSD_HOST_IP") or lan_ip()
-    short = "http://%s:%d/" % (url_host(ip), args.link_port)
+    short = "http://%s:%d/" % (ip, args.link_port)
     if systemd_units_installed() and not args.detached:
         rc = subprocess.call(["systemctl", "--user", "is-active", "--quiet", UNITS[0]])
         running = rc == 0

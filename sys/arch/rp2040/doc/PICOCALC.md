@@ -22,8 +22,9 @@ PicoCalc mainboard V2.0. Its console is the board's own 320x320 panel and
 keyboard. Root and swap stay on the Pico's QSPI flash, the same layout as
 the PICO board (`STORAGE.md`). The PICOCALC_PSRAM configuration
 (`sys/arch/rp2040/compile/PICOCALC_PSRAM/Config`) is the same kernel with the
-board's PSRAM driver linked in; swap moves to the PSRAM when it identifies
-itself at boot (below). This document is the authority for the pin
+board's PSRAM driver linked in; swap moves to 2 MB of the PSRAM when it
+identifies itself at boot, and the other 6 MB is a block device for a
+`/tmp` RAM disk (below). This document is the authority for the pin
 map in `sys/arch/rp2040/dev/picocalc.h`, the console drivers' timing
 choices, and the evidence each driver has.
 
@@ -971,8 +972,15 @@ evidence. `psramprobe()` runs from `config()`, before `init_main()` opens
 and the 48-bit EID, printed as `psram0: read id 0d/5d eid` and twelve hex
 digits), requires manufacturer 0x0D and a passing known-good die, enters
 quad mode and writes and reads back a pattern. A part that passes becomes
-block device major 3 and replaces `fl1` as `swapdev`, so swap is 8 MB
-behind the SWAPRAM tier and the 384 KB flash swap region goes unused; a
+block device major 3 and replaces `fl1` as `swapdev`. The part holds two
+regions (`PSRAM_SWAP_BYTES` in `psram_xfer.h`): minor 0, the swap device,
+is the first 2 MB (2,048 blocks, behind the SWAPRAM tier, with the 384 KB
+flash swap region unused), and minor 1 is the remaining 6 MB, a RAM disk
+for `/tmp` whose contents every reset loses. `psram_region_offset()` bounds
+each request by its own minor's region before adding the region's base, so
+no swap transfer reaches `/tmp` and no `/tmp` transfer reaches swap, and
+`psramsize()` reports 2,048 and 6,144 blocks; the swap counters of
+`machdep.storage_stats` count minor 0 alone. A
 part that does not pass prints a second `psram0:` line and leaves
 `swapdev` on `fl1`. The EID tells the ESP-PSRAM64H, LY68L6400 and APS6404L
 apart only against reads of reference parts: the APS6404L sheet alone

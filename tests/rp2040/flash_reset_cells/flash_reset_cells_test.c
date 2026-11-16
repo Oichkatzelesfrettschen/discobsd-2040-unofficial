@@ -310,6 +310,26 @@ workload_block(unsigned index)
 	return (index * 7U) % UNIVERSE_LOW;
 }
 
+/*
+ * The block payload of a write. fill() repeats with the seed modulo 256 and
+ * the workload revisits a block every 24 writes, so two writes 768 apart
+ * would carry equal data; the first eight bytes carry the whole seed and the
+ * block, which makes every write's payload distinct.
+ */
+static void
+payload(u_char *data, daddr_t blk, unsigned seed)
+{
+	fill(data, blk, seed);
+	data[0] = (u_char)seed;
+	data[1] = (u_char)(seed >> 8);
+	data[2] = (u_char)(seed >> 16);
+	data[3] = (u_char)(seed >> 24);
+	data[4] = (u_char)blk;
+	data[5] = (u_char)((unsigned long)blk >> 8);
+	data[6] = (u_char)((unsigned long)blk >> 16);
+	data[7] = (u_char)((unsigned long)blk >> 24);
+}
+
 /* kind: 0 workload block, 1 fsck repair block, 2 cold block never rewritten. */
 static void
 step_write(int kind)
@@ -336,7 +356,7 @@ step_write(int kind)
 		w->seed = 1 + run.started;
 	}
 	run.started++;
-	fill(data, w->blk, w->seed);
+	payload(data, w->blk, w->seed);
 	status = transfer(ROOT_DEV, 0, w->blk, data);
 	if (status != 0)
 		step_error = 1;
@@ -515,7 +535,7 @@ run_steps(const char *steps)
 #define	SWAP_REWRITE_SECTOR	5U
 #define	SWAP_REWRITE_OFFSET	512U
 #define	SWAP_REWRITE_BYTES	1024U
-#define	SWAP_FILL_SECTORS	8U
+#define	SWAP_FILL_SECTORS	((unsigned)(FLASH_SWAP_BYTES / FLASH_SECTOR_BYTES))
 #define	SWAP_SPARE		((unsigned)FLASH_SWAP_SCRATCH_OFFSET)
 
 static unsigned char
@@ -760,7 +780,7 @@ block_seed(daddr_t blk)
 	for (i = run.started; i-- > 0;) {
 		if (run.w[i].blk != blk)
 			continue;
-		fill(want, blk, run.w[i].seed);
+		payload(want, blk, run.w[i].seed);
 		if (memcmp(got, want, sizeof(got)) == 0)
 			return (long)run.w[i].seed;
 	}
@@ -984,7 +1004,7 @@ judge(const struct cell *c, struct tally *t, unsigned event, unsigned prefix,
 	unsigned long faults;
 	char what[200];
 	int bad = 0, map_bad = 0, content_bad = 0, predict_bad = 0;
-	u_char data[DEV_BSIZE];
+	u_char data[DEV_BSIZE], got[DEV_BSIZE];
 	unsigned n;
 
 	if (!has(c->tear, "ckpt"))
@@ -1056,7 +1076,7 @@ judge(const struct cell *c, struct tally *t, unsigned event, unsigned prefix,
 		for (n = 0; n < 2; n++) {
 			u_int blk = 200 + n;
 
-			fill(data, (daddr_t)blk, 777 + n);
+			payload(data, (daddr_t)blk, 777 + n);
 			if (transfer(ROOT_DEV, 0, (daddr_t)blk, data) != 0)
 				map_bad = 1;
 		}
@@ -1066,8 +1086,9 @@ judge(const struct cell *c, struct tally *t, unsigned event, unsigned prefix,
 		for (n = 0; n < 2; n++) {
 			u_int blk = 200 + n;
 
-			fill(data, (daddr_t)blk, 777 + n);
-			if (!block_is((daddr_t)blk, 777 + n))
+			payload(data, (daddr_t)blk, 777 + n);
+			if (transfer(ROOT_DEV, B_READ, (daddr_t)blk, got) != 0 ||
+			    memcmp(got, data, sizeof(got)) != 0)
 				map_bad = 1;
 		}
 		if (map_bad)
@@ -1257,6 +1278,26 @@ run_cell(struct cell *c)
 	}
 }
 
+/*
+ * Known-bad input for the content verdict: a state rolled back by 768 writes
+ * carries fill() data equal to the current one, so only payload() tells them
+ * apart.
+ */
+static void
+calibrate_payload(void)
+{
+	u_char old_data[DEV_BSIZE], new_data[DEV_BSIZE];
+
+	fill(old_data, 5, 1);
+	fill(new_data, 5, 1 + 768);
+	expect(memcmp(old_data, new_data, sizeof(old_data)) == 0, "payload",
+	    "calibration premise: fill() repeats after 768 writes");
+	payload(old_data, 5, 1);
+	payload(new_data, 5, 1 + 768);
+	expect(memcmp(old_data, new_data, sizeof(old_data)) != 0, "payload",
+	    "payload() separates writes 768 apart");
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1267,6 +1308,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "usage: flash_reset_cells cells.tsv [id]\n");
 		return 2;
 	}
+	calibrate_payload();
 	atomic_ckpt = getenv("FLASH_RESET_CELLS_ATOMIC_CKPT") != NULL;
 	load_cells(argv[1]);
 	for (i = 0; i < ncells; i++) {

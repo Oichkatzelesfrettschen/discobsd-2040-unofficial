@@ -94,12 +94,13 @@ group). The `may` token `prefix` allows any prefix up to the writes started;
 
 Calibration. With every checkpoint page programmed as one command
 (`FLASH_RESET_CELLS_ATOMIC_CKPT`) every row passes, including the defect rows.
-Five mutations each fail the rows named in `check.sh`: a checkpoint that never
+Six mutations each fail the rows named in `check.sh` (a sanitizer abort is given exit status 70 and a calibration case shows it cannot pass for a rejection; block payloads carry the whole write version, so a state rolled back by 768 writes is not mistaken for a recent one; the swap isolation check covers all 96 swap sectors): a checkpoint that never
 reaches Dhara (`E-H2`, `P-H2`, `Kf-H2`), a checkpoint that reports success
 without programming its page (`E-H2`, `Kf-H2`), a block erase over one sector
 (`Ed-H1`, which needs a block holding a previous lap's pages, so the script
-wraps the journal), a page copy one chip page short (`Gk-H1`), and a swap
-rewrite that skips the spare copy (`T-H1`).
+wraps the journal), a page copy one chip page short (`Gk-H1`), a swap
+rewrite that skips the spare copy (`T-H1`), and a swap append that erases a sector
+20 sectors into the extent (`S-H1`).
 
 ## Cell table
 

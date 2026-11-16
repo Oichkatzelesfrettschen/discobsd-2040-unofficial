@@ -40,11 +40,12 @@ cat >"$work/shim/sys/ioctl.h" <<'IOCTL'
 			    ((g) << 8) | (n))
 IOCTL
 
-# build FLASH JOURNAL SWAP BINARY: the oracle over the driver text extracted
+# build FLASH JOURNAL SWAP BINARY [TEST]: the oracle over the driver text extracted
 # from FLASH, the Dhara journal source JOURNAL and the swap source SWAP, as
 # strict C17 under the address and undefined-behavior sanitizers.
 build()
 {
+	test_source=${5:-$here/flash_reset_cells_test.c}
 	"$PYTHON" "$model/extract.py" --source "$1" --output "$4.driver.c" ||
 		fail "extraction from $1"
 	${CC:-cc} -std=c17 -O1 -g -Wall -Wextra -Werror -Wpedantic \
@@ -53,7 +54,7 @@ build()
 	    -DFLASH_CHECKPOINT_DRIVER="\"$4.driver.c\"" \
 	    -I"$work/shim" -iquote "$model" -iquote "$topsrc/sys/sys" \
 	    -iquote "$dhara" -I"$topsrc/sys/arch" \
-	    -o "$4" "$here/flash_reset_cells_test.c" \
+	    -o "$4" "$test_source" \
 	    "$dhara/error.c" "$2" "$dhara/map.c" "$3" ||
 		fail "strict C17 sanitizer build of $4"
 }
@@ -93,7 +94,7 @@ rejects()
 }
 
 ASAN_OPTIONS=abort_on_error=1:detect_leaks=0
-UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1:exitcode=70
 export ASAN_OPTIONS UBSAN_OPTIONS
 
 build "$flash" "$dhara/journal.c" "$swap" "$work/oracle"
@@ -144,6 +145,25 @@ mutate "$flash" "$work/flash-half-erase.c" \
 build "$work/flash-half-erase.c" "$dhara/journal.c" "$swap" "$work/m-half-erase"
 rejects "$work/m-half-erase" Ed-H1
 
+# A sanitizer failure is not a verdict: UBSan exits 70 and ASan aborts, so
+# neither can pass for the assertion status 1. The oracle below adds signed
+# overflow after its verdicts, and the mutation check must refuse it.
+mutate "$here/flash_reset_cells_test.c" "$work/test-ub.c" \
+	'	if (failures != 0) {
+		printf("flash_reset_cells: %d expectations failed\n", failures);' \
+	'	{
+		volatile int top = 2147483647;
+
+		failures += top + failures;
+	}
+	if (failures != 0) {
+		printf("flash_reset_cells: %d expectations failed\n", failures);'
+build "$work/flash-no-sync.c" "$dhara/journal.c" "$swap" "$work/m-ub" \
+	"$work/test-ub.c"
+if (rejects "$work/m-ub" E-H2) >/dev/null 2>&1; then
+	fail "a sanitizer abort after FAIL lines passes for a rejection"
+fi
+
 # A page copy that stops one chip page short moves a torn page; only the
 # rows whose copies reach a checkpoint (Gk) read the moved page back.
 
@@ -168,7 +188,27 @@ mutate "$swap" "$work/swap-no-spare.c" \
 build "$flash" "$dhara/journal.c" "$work/swap-no-spare.c" "$work/m-no-spare"
 rejects "$work/m-no-spare" T-H1
 
+# A swap append that erases a sector far outside its own run; only the
+# whole-extent isolation check sees sector 20 of the 96.
+mutate "$swap" "$work/swap-stray.c" \
+	'	}
+	return 0;
+}
+
+/*
+ * Rewrite an arbitrary' \
+	'	}
+	return ops->erase(FLASH_SWAP_OFFSET + 20 * FLASH_SECTOR_BYTES,
+	    FLASH_SECTOR_BYTES);
+}
+
+/*
+ * Rewrite an arbitrary'
+build "$flash" "$dhara/journal.c" "$work/swap-stray.c" "$work/m-stray"
+rejects "$work/m-stray" S-H1
+
 echo "flash_reset_cells: PASS (the shipped driver meets every host row and" \
 	"reproduces the recorded checkpoint-tear defect; atomic checkpoint" \
 	"programs meet every row; no-sync, unprogrammed-checkpoint," \
-	"half-erase, short-copy and no-spare-copy mutations rejected)"
+	"half-erase, short-copy, no-spare-copy and stray-swap-erase mutations" \
+	"rejected; a sanitizer abort is not a rejection)"

@@ -84,6 +84,35 @@ counters collect evidence for a later
 capacity decision; they do not change `NPROC`, `NINODE`, `NFILE`, `NCLIST`,
 `NBUF`, `USIZE`, or the 8 KiB USB transmit ring.
 
+The two options cost each kernel 2,540 bytes of text (2,532 in
+PICOCALC_PSRAM) and 2,560 bytes of flash image, and 96 bytes of bss where the
+alignment of later objects does not absorb them. The table compares
+`origin/main` 6af35afa with the commit that split PICO into PICO and
+PICO_DIAG, each kernel built from a clean tree by arm-none-eabi-gcc 14.2.1
+20241119 at the production flags. Text, data and bss are `arm-none-eabi-size
+unix.elf`; free RAM is `__kernel_data_end` minus `__kernel_ram_used_end`
+in `unix.map`; flash headroom is `tools/check_kernel_headroom.py` against
+the 130,816-byte FLASH region.
+
+| kernel | options | text | data | bss | free RAM | flash headroom |
+| --- | --- | --- | --- | --- | --- | --- |
+| PICO before | with both | 102,451 | 272 | 42,928 | 23,120 | 28,192 |
+| PICO | without | 99,911 | 272 | 42,928 | 23,120 | 30,752 |
+| PICO_DIAG | with both | 102,461 | 272 | 42,928 | 23,120 | 28,192 |
+| PICO_UART, before and after | `CAPACITY_STATS` only | 91,913 | 216 | 18,208 | 39,648 | 38,744 |
+| PICOCALC before | with both | 122,795 | 392 | 55,904 | 10,624 | 7,640 |
+| PICOCALC | without | 120,255 | 392 | 55,808 | 10,720 | 10,200 |
+| PICOCALC_PSRAM before | with both | 125,315 | 448 | 56,064 | 10,048 | 5,168 |
+| PICOCALC_PSRAM | without | 122,783 | 448 | 55,968 | 10,144 | 7,728 |
+| PICOCALC_DIAG | with both | 125,313 | 448 | 56,064 | 10,048 | 5,168 |
+
+PICO's bss and free RAM do not move: `capacity_state` (100 bytes),
+`systrace` and `systrace_pid` leave `.bss`, and the fill before
+`.bss.core1`, the 256-byte block of `core1.o` that `.bss` aligns to 256
+bytes, grows from 24 to 132 bytes in their place. The PicoCalc kernels link
+no `core1.o`. PICO_DIAG carries ten more bytes of text than the PICO it
+replaces, its longer configuration name, within the same flash image size.
+
 `sys/sys/capacity.h` defines ABI version 1. A consumer accepts the structure
 only when the returned length, `version`, and `size` match its compiled
 definition. `sbin/sysctl` prints the structure with:

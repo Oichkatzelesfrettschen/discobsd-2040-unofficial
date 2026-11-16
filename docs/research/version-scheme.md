@@ -22,7 +22,7 @@ Source reading at origin/main 32927ed0 (merge of #620); the text is a research r
 | Make-level release | `OSMAJOR=2`, `OSMINOR=7`, `OSREV=${OSMAJOR}.${OSMINOR}`, `share/mk/sys.mk:4-8`; `VERSION=${RELEASE}-${BUILD}`, `sys.mk:15` | man-page footer `-Ios="DiscoBSD ${OSREV}"` (`sys.mk:208`); archive names `DiscoBSD_${OSRev}_${MACHINE}` (`etc/Makefile:165-166`); the three-field case has no Make variable |
 | Root-image stamp | `git describe --always --dirty --tags`, `Makefile:2236` | `/etc/release` |
 | Banner and motd text | `etc/motd:1`, `README.md:19,49,68`, `distrib/notes/ANNOUNCEMENT.md:1-17` | people |
-| Literal "DiscoBSD 2.7" in checks | 48 tracked files contain the string (`git grep -lI "DiscoBSD 2\.7"`), 34 under `docs/` and 14 elsewhere: 7 gate and fixture files (the five Renode files below, `tests/build_failure/check.py`, `usr.bin/picofetch/tests/render.py`), 3 shipped text files (`README.md`, `distrib/notes/ANNOUNCEMENT.md`, `etc/motd`), 3 documents (`sys/arch/rp2040/doc/TESTING.md`, `sys/arch/rp2040/doc/research/emulation.md`, `legacy/pdp11-v6/docs/research/v6-emulator-on-discobsd.md`) and the `param.h` comment; `hwinfo_fixture.c` holds the number alone; Renode stages `tools/renode/check-boot.py:570,582`, `check-capacity.py:217`, `check-identity.py:142`, `check-picocalc.py:54,572,770`, `picocalc_fb.py:199`; `tests/build_failure/check.py:530`; the picofetch fixture `usr.bin/picofetch/tests/hwinfo_fixture.c:86` and `render.py:242`; `sys/arch/rp2040/doc/TESTING.md:2875` | substring match on the boot banner and `uname -sr` output; nothing parses the number into fields (a `git grep` for `osrelease`, `kern.version` and `OSRELEASE` over `tools tests usr.bin sbin bin lib/libc/gen distrib` finds display code in `usr.bin/picofetch`, the library call `lib/libc/gen/uname.c:69`, a gate stub `tests/kernel/sysctl_test.c:130` and a comment at `tests/rp2040/swap_tier_model/trace.py:184`) |
+| Literal "DiscoBSD 2.7" in checks | 48 tracked files contain the string (`git grep -lI "DiscoBSD 2\.7"`), 34 under `docs/` and 14 elsewhere: 7 gate and fixture files (the five Renode files below, `tests/build_failure/check.py`, `usr.bin/picofetch/tests/render.py`), 3 shipped text files (`README.md`, `distrib/notes/ANNOUNCEMENT.md`, `etc/motd`), 3 documents (`sys/arch/rp2040/doc/TESTING.md`, `sys/arch/rp2040/doc/research/emulation.md`, `legacy/pdp11-v6/docs/research/v6-emulator-on-discobsd.md`) and the `param.h` comment; `hwinfo_fixture.c` holds the type and the number as separate strings (lines 85-86) and is not among the 14, so the rename inventory is these files plus that fixture; Renode stages `tools/renode/check-boot.py:570,582`, `check-capacity.py:217`, `check-identity.py:142`, `check-picocalc.py:54,572,770`, `picocalc_fb.py:199`; `tests/build_failure/check.py:530`; the picofetch fixture `usr.bin/picofetch/tests/hwinfo_fixture.c:86` and `render.py:242`; `sys/arch/rp2040/doc/TESTING.md:2875` | substring match on the boot banner and `uname -sr` output; nothing parses the number into fields (a `git grep` for `osrelease`, `kern.version` and `OSRELEASE` over `tools tests usr.bin sbin bin lib/libc/gen distrib` finds display code in `usr.bin/picofetch`, the library call `lib/libc/gen/uname.c:69`, a gate stub `tests/kernel/sysctl_test.c:130` and a comment at `tests/rp2040/swap_tier_model/trace.py:184`) |
 | Host package | `version = "1.0.9"` (`distrib/rp2040/host/pyproject.toml:7`), `__version__ = "1.0.9"` (`src/discobsd_host/__init__.py:11`), `discobsd-host (1.0.9)` (`packaging/debian/changelog:1`), `pkgver=1.0.9` (`packaging/arch/PKGBUILD:14`); release workflow fires on tags `host-v*` (`.github/workflows/host-release.yml`) | pip, dpkg, pacman; the last tag is `host-v1.0.7` (`git tag -l "host-v*"`, 2026-09-16), so 1.0.8 and 1.0.9 carry no tag |
 | Planned | host package `gizmobsd-host 2.0.0` with `discobsd-*` aliases for one release (DECISIONS.md D38, fixed); OS version open (D51); `param.h` macro follows D51 (D52); plan D3 proposes "GizmoBSD 0.1" with "derived from DiscoBSD 2.7" in `etc/COPYRIGHT` and motd, and D4 a `GizmoBSD 202611` value for `KERN_OSREV` (RENAME-PLAN.md, "Plan decisions still open") | |
 
@@ -129,7 +129,7 @@ The S3 representation as specified, `Rev A` in `version[]` and `RevA` in `osrele
 - param.h. `GizmoBSD 202611` unchanged in role, returned by `KERN_OSREV` (plan D4); `GizmoBSD_0_1 1` joins `DiscoBSD_2_7`, which plan D4 keeps. The integer is monotone across the rename (202611 above 202608), which the string ordering "0.1.0" below "2.7" is not.
 - Host package. Independent SemVer. `gizmobsd-host 2.0.0` (D38) stays; its README names the OS contract range it speaks ("GizmoBSD 0.1.x console and link wire"). OS releases tag as `gizmobsd-v<version>` and the root-image stamp calls `git describe --match 'gizmobsd-v*'`; `host-v*` keeps its meaning.
 - Answers to the critiques. Hickey and Hynek: the number claims one thing, that the contract list changed, and 0.y.z states in the specification that anything may change. Hyrum: only the listed observables are promised. ZeroVer: the 1.0.0 criterion is written down. Go and Cargo read 0.y.z as y breaking, the same reading the list gives.
-- Tree changes. `newvers.sh` (OST, OSR, cycle comment, and the awk step so `$S` reaches `osrelease` if pre-release builds must differ under `uname -r`); `sys.mk` (an `OSPATCH` variable, with `OSREV`, `OSRev` and `OSrev` built from three fields); `param.h`; `Makefile:2236` (--match); the literal banner in 7 gate and fixture files, 3 shipped text files and 3 documents (listed in the tree table); package metadata maps the label with each format's own syntax. The banner edits occur in the rename in any case, because the name changes.
+- Tree changes. `newvers.sh` (OST, OSR, cycle comment, and the awk step so `$S` reaches `osrelease` if pre-release builds must differ under `uname -r`); `sys.mk` (an `OSPATCH` variable, with `OSREV`, `OSRev` and `OSrev` built from three fields); `param.h`; `Makefile:2236` (--match); the literal banner in 7 gate and fixture files, 3 shipped text files and 3 documents (listed in the tree table); the picofetch fixture `usr.bin/picofetch/tests/hwinfo_fixture.c:85-86`, which holds the type and release as separate strings, so `render.py:242` and the fixture move together; package metadata maps the label with each format's own syntax. The banner edits occur in the rename in any case, because the name changes.
 - Cost. +4 bytes flash `.rodata` and 0 bytes RAM for the unlabeled release string; a label in the version string adds 6 bytes of flash (`-alpha`), and a label also in `osrelease` adds 6 more.
 
 ### S2: CalVer, YYYY.MM
@@ -184,7 +184,7 @@ Not run: kernel build and linked-kernel text size (remote build host), Renode st
 1. Adopt S1, S2 or S3 as the OS version scheme (D51), and whether a pre-release label belongs inside `osrelease` (+6 bytes of flash over the version-string-only form) or only in the `version` string as today.
 2. Approve the contract list as the rule for incrementing y, and its 1.0.0 criterion.
 3. Approve a separate OS tag namespace (`gizmobsd-v*`) and the `--match` change at `Makefile:2236`, so the firmware stamp stops naming the host tag.
-4. Decide whether the literal banner in the 7 gate and fixture files reads the release from `newvers.sh` (a calibrated follow-on gate change), so a later bump edits one file.
+4. Decide whether the literal banner in the 7 gate and fixture files and `usr.bin/picofetch/tests/hwinfo_fixture.c` read the release from `newvers.sh` (a calibrated follow-on gate change), so a later bump edits one file.
 5. Decide the `KERN_OSREV` value: the year-and-month integer (S1, S2; plan D4) or the revision index (S3).
 
 ## Appendix A: replay of the size measurement
@@ -219,21 +219,36 @@ cat "$SP/rev-space/PICO/vers.c"
 
 ### A.2: replay of the S3 representation measurement
 
-The `Rev A` display with `RevA` in `osrelease` needs two values, so `newvers.sh` gains a display value (`OSD`, empty by default and falling back to `OSR`). The variant that keeps `Rev A` in both strings splits the awk input on `|` instead of whitespace. Both are scratch copies; no tree file changes. Run from the repository root with the `git` stub of A.1 on `PATH`.
+The `Rev A` display with `RevA` in `osrelease` needs two values, so `newvers.sh` gains a display value (`OSD`, empty by default and falling back to `OSR`). The variant that keeps `Rev A` in both strings splits the awk input on `|` instead of whitespace. Both are generated by a small awk script that matches whole lines by position, so the replay depends on no `sed` dialect; they are scratch copies and no tree file changes. Run from the repository root with the `git` stub of A.1 on `PATH`.
 
 ```sh
 set -eu
 ROOT=$(git rev-parse --show-toplevel)
 SP=$(mktemp -d); mkdir -p "$SP/bin"
 printf '#!/bin/sh\nprintf "2999\\n"\n' > "$SP/bin/git"; chmod +x "$SP/bin/git"
-sed -e 's|^OSR="2.7"|OSR="2.7"\nOSD=""|' \
-    -e 's|^awk -v date="\$NOW" |awk -v date="$NOW" -v osd="$OSD" |' \
-    -e 's|^    printf "const char version\[\] = \\"%s %s%s (%s) #%d %s: %s\\\\n\\";\\n", \\|    if (osd == "") osd = osr;\n&|' \
-    -e 's|^        ost, osr, status, id, cv, gitrev, date;|        ost, osd, status, id, cv, gitrev, date;|' \
-    "$ROOT/sys/conf/newvers.sh" > "$SP/newvers-split.sh"
-sed -e 's#^echo \$GITREV \$CV \$OST \$OSR \$ID \$S| \\#echo "$GITREV|$CV|$OST|$OSR|$ID|$S" | \\#' \
-    -e "s#^awk -v date=\"\$NOW\" '{#awk -F'|' -v date=\"\$NOW\" '{#" \
-    "$ROOT/sys/conf/newvers.sh" > "$SP/newvers-delim.sh"
+cat > "$SP/mk.awk" <<'EOF'
+# mode=split: a display value OSD that version[] prints; mode=delim: fields
+# split on "|" so a space inside OSR survives.
+BEGIN { dq = "\"" }
+mode == "split" && index($0, "OSR=") == 1 { print; print "OSD=" dq dq; next }
+mode == "delim" && index($0, "echo $GITREV $CV") == 1 {
+    print "echo " dq "$GITREV|$CV|$OST|$OSR|$ID|$S" dq " | \\"; next
+}
+index($0, "awk -v date=") == 1 {
+    if (mode == "split")
+        print "awk -v date=" dq "$NOW" dq " -v osd=" dq "$OSD" dq " '{"
+    else
+        print "awk -F'|' -v date=" dq "$NOW" dq " '{"
+    next
+}
+mode == "split" && index($0, "printf " dq "const char version") {
+    print "    if (osd == " dq dq ") osd = osr;"
+}
+mode == "split" && index($0, "ost, osr, status") { sub("osr", "osd") }
+{ print }
+EOF
+awk -v mode=split -f "$SP/mk.awk" "$ROOT/sys/conf/newvers.sh" > "$SP/newvers-split.sh"
+awk -v mode=delim -f "$SP/mk.awk" "$ROOT/sys/conf/newvers.sh" > "$SP/newvers-delim.sh"
 run() { # name ost osr osd script
   d=$SP/$1/PICO; mkdir -p "$d"; cd "$d"
   sed -e "s/^OST=.*/OST=\"$2\"/" -e "s/^OSR=.*/OSR=\"$3\"/" -e "s/^OSD=.*/OSD=\"$4\"/" "$5" > newvers.sh

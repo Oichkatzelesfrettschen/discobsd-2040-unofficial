@@ -24,8 +24,10 @@
 # POSSIBILITY OF SUCH DAMAGE.
 import hashlib
 import os
+import signal
 import struct
 import subprocess
+import sys
 import time
 
 import pytest
@@ -256,3 +258,26 @@ def test_delegate_failure_status_raises(tmp_path):
     assert caught.value.returncode == 3
     script.write_text("#!/bin/sh\nexit 0\n")
     r.run_delegate([str(script)], 5)
+
+
+@pytest.mark.skipif(not os.path.isdir("/proc"), reason="needs /proc to read process state")
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGHUP])
+def test_signal_to_the_parent_ends_the_delegate_group(tmp_path, sig):
+    pidfile = tmp_path / "child.pid"
+    script = tmp_path / "flash"
+    script.write_text(f'#!/bin/sh\nsleep 300 &\necho $! > "{pidfile}"\nwait\n')
+    script.chmod(0o755)
+    code = "import sys; from discobsd_host import release; release.run_delegate([sys.argv[1]], 60)"
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(sys.path))
+    parent = subprocess.Popen([sys.executable, "-c", code, str(script)], env=env)
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not (pidfile.exists() and pidfile.read_text().strip()):
+        time.sleep(0.05)
+    child = int(pidfile.read_text())
+    assert _alive(child)
+    parent.send_signal(sig)
+    assert parent.wait(timeout=20) == 128 + sig
+    deadline = time.monotonic() + 5
+    while _alive(child) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not _alive(child)

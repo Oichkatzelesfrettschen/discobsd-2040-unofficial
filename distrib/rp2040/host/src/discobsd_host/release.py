@@ -251,9 +251,22 @@ def run_delegate(command, timeout):
     discobsd-flash is a script that starts picotool, so killing only the
     script on a timeout would leave picotool using the board while the caller
     released the rollback lock. The delegate leads a new process group; on
-    timeout or interrupt the group receives SIGTERM, then SIGKILL, before the
-    exception propagates. POSIX only, like the flash command.
+    timeout, interrupt, SIGTERM or SIGHUP the group receives SIGTERM, then
+    SIGKILL, before the exception propagates. POSIX only, like the flash command.
     """
+
+    def terminated(signum, frame):
+        raise SystemExit(128 + signum)
+
+    # The delegate runs in its own session, so a SIGTERM or SIGHUP aimed at
+    # this process alone would end the parent and orphan the group; the
+    # handlers turn them into an exception that takes the cleanup path below.
+    previous = {}
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        try:
+            previous[sig] = signal.signal(sig, terminated)
+        except ValueError:  # not the main thread: no handler can be installed
+            break
     proc = subprocess.Popen(command, start_new_session=True)
     try:
         status = proc.wait(timeout=timeout)
@@ -269,6 +282,9 @@ def run_delegate(command, timeout):
                 continue
         proc.wait()
         raise
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
     if status:
         raise subprocess.CalledProcessError(status, command)
 

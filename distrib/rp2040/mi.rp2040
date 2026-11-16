@@ -313,6 +313,7 @@ pack /usr/bin/ld
 file /usr/bin/cc
 #endclosure cc
 file /usr/bin/mputest
+file /usr/bin/boardinfo
 
 #
 # Archivers. /bin/tar writes POSIX ustar by default and reads the v7

@@ -285,3 +285,64 @@ def test_signal_to_the_parent_ends_the_delegate_group(tmp_path, name):
     while _alive(child) and time.monotonic() < deadline:
         time.sleep(0.05)
     assert not _alive(child)
+
+
+def _pid_script(tmp_path):
+    pidfile = tmp_path / "child.pid"
+    script = tmp_path / "flash"
+    script.write_text(f'#!/bin/sh\nsleep 300 &\necho $! > "{pidfile}"\nwait\n')
+    script.chmod(0o755)
+    return pidfile, script
+
+
+def _wait_for_pid(pidfile):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not (pidfile.exists() and pidfile.read_text().strip()):
+        time.sleep(0.05)
+    return int(pidfile.read_text())
+
+
+@pytest.mark.skipif(not os.path.isdir("/proc"), reason="needs /proc to read process state")
+@pytest.mark.parametrize("name", ["SIGTERM", "SIGHUP", "SIGINT"])
+def test_signal_between_spawn_and_handle_assignment_ends_the_group(tmp_path, monkeypatch, name):
+    # The signal arrives after the delegate exists and before Popen returns to
+    # run_delegate, the window in which the child handle is not yet assigned.
+    # The group must still end, because the caller releases the rollback lock
+    # as the exception propagates.
+    import threading
+
+    sig = getattr(signal, name)
+    pidfile, script = _pid_script(tmp_path)
+    real_popen = subprocess.Popen
+    child = []
+
+    def popen_then_signal(*args, **kwargs):
+        proc = real_popen(*args, **kwargs)
+        child.append(_wait_for_pid(pidfile))
+        signal.pthread_kill(threading.get_ident(), sig)
+        return proc
+
+    monkeypatch.setattr(r.subprocess, "Popen", popen_then_signal)
+    try:
+        with pytest.raises((SystemExit, KeyboardInterrupt)):
+            r.run_delegate([str(script)], 60)
+        deadline = time.monotonic() + 5
+        while _alive(child[0]) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not _alive(child[0])
+    finally:
+        if child and _alive(child[0]):
+            os.kill(child[0], signal.SIGKILL)
+
+
+@pytest.mark.skipif(not os.path.isdir("/proc"), reason="needs /proc to read process state")
+def test_delegate_starts_with_no_signal_blocked(tmp_path):
+    # run_delegate blocks the handled signals around the launch; the child
+    # restores the mask before exec, or the delegate would ignore the SIGTERM
+    # that ends its group.
+    out = tmp_path / "mask"
+    script = tmp_path / "flash"
+    script.write_text(f'#!/bin/sh\ngrep SigBlk /proc/self/status > "{out}"\n')
+    script.chmod(0o755)
+    r.run_delegate([str(script)], 10)
+    assert out.read_text().split()[1] == "0000000000000000"

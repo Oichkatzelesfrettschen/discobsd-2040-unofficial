@@ -262,28 +262,55 @@ def run_delegate(command, timeout):
     # this process alone would end the parent and orphan the group; the
     # handlers turn them into an exception that takes the cleanup path below.
     previous = {}
-    for name in ("SIGTERM", "SIGHUP"):
-        sig = getattr(signal, name, None)
-        if sig is None:  # no SIGHUP on Windows, which has no discobsd-flash
-            continue
-        try:
-            previous[sig] = signal.signal(sig, terminated)
-        except ValueError:  # not the main thread: no handler can be installed
-            break
-    proc = subprocess.Popen(command, start_new_session=True)
+    proc = None
+    # A signal that lands after the child exists but before the assignment to
+    # proc completes would raise outside the cleanup below and leave the
+    # group running while the caller releases the rollback lock. Where
+    # pthread_sigmask exists, the handled signals stay blocked until proc is
+    # assigned; the unblock inside the try delivers any pending one to the
+    # cleanup path. The child restores the mask before exec, so the delegate
+    # starts with these signals unblocked.
+    guarded = {
+        getattr(signal, name)
+        for name in ("SIGTERM", "SIGHUP", "SIGINT")
+        if hasattr(signal, name) and hasattr(signal, "pthread_sigmask")
+    }
     try:
+        for name in ("SIGTERM", "SIGHUP"):
+            sig = getattr(signal, name, None)
+            if sig is None:  # no SIGHUP on Windows, which has no discobsd-flash
+                continue
+            try:
+                previous[sig] = signal.signal(sig, terminated)
+            except ValueError:  # not the main thread: no handler can be installed
+                break
+        old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, guarded) if guarded else None
+        try:
+            proc = subprocess.Popen(
+                command,
+                start_new_session=True,
+                preexec_fn=(
+                    (lambda: signal.pthread_sigmask(signal.SIG_SETMASK, old_mask))
+                    if guarded
+                    else None
+                ),
+            )
+        finally:
+            if guarded:
+                signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
         status = proc.wait(timeout=timeout)
     except BaseException:
-        for sig in (signal.SIGTERM, signal.SIGKILL):
-            try:
-                os.killpg(proc.pid, sig)
-            except ProcessLookupError:
-                break
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                continue
-        proc.wait()
+        if proc is not None:
+            for sig in (signal.SIGTERM, signal.SIGKILL):
+                try:
+                    os.killpg(proc.pid, sig)
+                except ProcessLookupError:
+                    break
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    continue
+            proc.wait()
         raise
     finally:
         for sig, handler in previous.items():

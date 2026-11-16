@@ -20,9 +20,9 @@ The PICOCALC configuration (`sys/arch/rp2040/compile/PICOCALC/Config`)
 runs DiscoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
 PicoCalc mainboard V2.0. Its console is the board's own 320x320 panel and
 keyboard. Root stays on the Pico's QSPI flash, the same layout as the PICO
-board (`STORAGE.md`); swap moves to the board's PSRAM when the part
-identifies itself at boot and stays on the flash otherwise (PSRAM as swap,
-below). PICOCALC is the full PicoCalc kernel: the PSRAM driver, every
+board (`STORAGE.md`); swap moves to the first 2 MB of the board's PSRAM when the
+part identifies itself at boot and stays on the flash otherwise, and the other
+6 MB is a block device for a `/tmp` RAM disk (PSRAM as swap, below). PICOCALC is the full PicoCalc kernel: the PSRAM driver, every
 per-driver device option below, the keyboard controller's
 `machdep.picocalc` nodes, the SD card with the crash-dump writer, and the
 diagnostic options `SYSTRACE` and `CAPACITY_STATS` (`kern.systrace`,
@@ -124,6 +124,10 @@ name a file there, with a page for a PDF.
 | The Renode RP2040 model runs the PSRAM program | Renode | not run: the pinned model has PIO but no input synchronizer latency, the tree has no PSRAM peripheral, and `renode-test` cannot run on the build host (`docs/research/picocalc-psram.md`) |
 | The part answers Read ID 0x0D with a passing die, enters quad mode and returns what was written at 31.25 MHz | board | not run |
 | The kernel swaps to PSRAM and falls back to `fl1` when the part is absent | board | not run |
+| `mkfs -i 4096` over a 6144 KB file lays out 1,536 inodes in a 97-block list and a file system that `fsutil --check` accepts, with 6,045 free blocks and 1,533 free inodes | host | observed once, outside any gate: the a.out `sbin/mkfs/mkfs` run under `qemu-arm` user mode through `tests/qemu_aout/aoutrun`, which serves the file calls from Linux; this exercises the layout code at the sizes `/etc/rc.rp2040` passes and not the kernel's block-device path |
+| `mkfs`, the `/dev/psram1` node and the mount at `/tmp` run on the PSRAM's minor 1 | board | not run |
+| The NMOUNT=3 PICOCALC kernels boot a root that carries `/dev/psram1`, `/sbin/mkfs` and the `dd`-guarded `/etc/rc.rp2040` to a login, and the guard falls through with `/tmp` on the root | Renode | observed at the branch head before it was merged with the PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG split of `main`, by `check-renode-union` (PICOCALC_PSRAM; the descriptor suppressed the `psram0:` probe, so the driver stayed down and swap stayed on `fl1`) and `check-renode-picocalc` (PICOCALC, which then had no major 3 driver); not run on the merged tree, whose `check-renode-picocalc` reaches the same guard through a probe that fails (`psram_up` stays 0 and `psramopen()` returns `ENXIO`, read from `sys/arch/rp2040/dev/psram.c`); neither model has a PSRAM, so neither runs `mkfs` on the node or the mount, and neither shows the root flash writes |
+| Every PICOCALC kernel with `NMOUNT=3` grows bss by one mount record | build | observed on the merged tree, arm-none-eabi-gcc 16.2.0 at `-Os`, against `origin/main` at d81b1788: PICOCALC text 123,095 to 123,163, bss 56,072 to 57,296; PICOCALC_LEAN text 117,101 to 117,169, bss 51,472 to 52,696; PICOCALC_LEAN_DIAG text 119,635 to 119,703, bss 51,568 to 52,792 (data 448 in all three, +1,224 bss from the `mount` symbol growing from 0x990 to 0xe58 bytes, +68 text from the `psram.c` and `psram_xfer.c` region code); free kernel RAM below `0x2003e800` goes from 10,040 to 8,816 (PICOCALC), 14,640 to 13,416 (PICOCALC_LEAN) and 14,544 to 13,320 (PICOCALC_LEAN_DIAG); PICO, PICO_DIAG and PICO_UART are unchanged |
 | With no part on the PSRAM pins, `psramprobe()` prints one refusal line, leaves swap on `fl1` and the PICOCALC kernel boots to a login on the panel | Renode | observed by `check-renode-picocalc` (Renode 1.17.0+20260907gitf1dd1b4af, RP2040 models at 205a5e4b, PICOCALC built by arm-none-eabi-gcc 14.2.1): `psram0: not usable (error -1), swap stays on fl1` (`PSRAM_E_TIMEOUT`: the PIO model moves no frame, so the first bounded wait expires), `swap dev  = (0,8)` and `swap size = 380 kbytes`, then the login, shell, picofetch and picotop stages; the model's FDEBUG write is a classified warning (`tools/renode/picocalc-warning-classes.txt`). The identity, size and pattern refusals run on the host in `check-psram-pio`; a board without a working part is not run |
 
 ## Pin map
@@ -781,8 +785,10 @@ the debounce of that card's own insertion does not expire against it. The
 driver does not interpret the polarity; the first insertion on a board
 settles which level means present.
 
-`NMOUNT` is 2 and `SINGLE_UFS_ROOT` is unset in the PicoCalc kernels
-(the two Configs differ in the board line and `device psram` alone), because
+`NMOUNT` is 3 in the PicoCalc kernels, whose third slot holds the `/tmp` RAM
+disk beside the flash root and one SD partition, and `SINGLE_UFS_ROOT` is unset
+(the three Configs differ in the board line and the options PICOCALC_LEAN and
+PICOCALC_LEAN_DIAG drop or add, not in the mount count), because
 `sys/mount.h` requires `NMOUNT=1` with that option. Without it the kernel keeps
 `i_dev` and `i_fs` in each of the 24 inodes and the mount names, and the
 generic mount code replaces the single-root shortcuts; that, with the
@@ -805,9 +811,10 @@ behind those majors.
 
 ### Putting a filesystem on a card
 
-The tree ships `sbin/mkfs` and `sbin/fdisk` as source but neither is in any
-root image, and adding them would spend flash blocks and inodes on tools
-no board run has exercised against the driver. The documented route is a
+The tree ships `sbin/mkfs` and `sbin/fdisk` as source. `mkfs` is in the
+`picocalc` root image through the `psramtmp` closure (below); `fdisk` is in no
+root image, and adding it would spend flash blocks and inodes on a tool no
+board run has exercised against the driver. The documented route is a
 host-side image with `tools/bin/rp2040/fsutil` (built with the tools),
 written to the card from the host. The partition layout is fsutil's: the
 table in sector 0, the first partition at sector 2.
@@ -1005,7 +1012,8 @@ let `umount` succeed without write-back and mount again after reinsertion
 `DISCOBSD_BOARD_SD_DETACH` is exactly `run`); and the largest raw read rate at 12.5 MHz,
 which decides whether the clock can rise toward 25 MHz. Not built: a
 multi-block transfer (CMD18 and CMD25), which would cut the per-sector
-command overhead, and an on-board `mkfs`/`fdisk` closure.
+command overhead, and an on-board `fdisk` closure (`mkfs` ships for the PSRAM's
+`/tmp`, not for the card).
 
 ### PSRAM as swap
 
@@ -1018,14 +1026,46 @@ evidence. `psramprobe()` runs from `config()`, before `init_main()` opens
 and the 48-bit EID, printed as `psram0: read id 0d/5d eid` and twelve hex
 digits), requires manufacturer 0x0D and a passing known-good die, enters
 quad mode and writes and reads back a pattern. A part that passes becomes
-block device major 3 and replaces `fl1` as `swapdev`, so swap is 8 MB
-behind the SWAPRAM tier and the 384 KB flash swap region goes unused; a
+block device major 3 and replaces `fl1` as `swapdev`. The part holds two
+regions (`PSRAM_SWAP_BYTES` in `psram_xfer.h`): minor 0, the swap device,
+is the first 2 MB (2,048 blocks, behind the SWAPRAM tier, with the 384 KB
+flash swap region unused), and minor 1 is the remaining 6 MB, a RAM disk
+for `/tmp` whose contents every reset loses. `psram_region_offset()` bounds
+each request by its own minor's region before adding the region's base, so
+no swap transfer reaches `/tmp` and no `/tmp` transfer reaches swap, and
+`psramsize()` reports 2,048 and 6,144 blocks; the swap counters of
+`machdep.storage_stats` count minor 0 alone. A
 part that does not pass prints a second `psram0:` line and leaves
 `swapdev` on `fl1`. The EID tells the ESP-PSRAM64H, LY68L6400 and APS6404L
 apart only against reads of reference parts: the APS6404L sheet alone
 defines a field, EID[47:45] = 010 for 64 Mbit. SCK runs at 31.25 MHz
 (`PSRAM_CLKDIV` in `psram_pio.h`), a frame holds CS low for under 5 us
 against the 8 us tCEM, and interrupts are masked for that long per frame.
+
+Minor 1 becomes `/tmp` through userland. The `psramtmp` closure of the
+`picocalc` and `picocalc-lean` profiles (every PicoCalc kernel boots either root) ship `/dev/psram1`
+(block major 3, minor 1, mode 600) and `/sbin/mkfs`, and `/etc/rc.rp2040`, after
+`mount -a`, runs `mkfs -i 4096 /dev/psram1 6144`, mounts the device at `/tmp`
+with `async,noaccesstime,nosuid` and sets the new root's mode to 1777; a step
+that fails leaves `/tmp` as the root's own directory. A PICO kernel has no
+driver behind major 3, and a PICOCALC kernel whose part failed its probe
+leaves the driver down, so the open fails with `ENXIO` and the chain
+stops at a `dd` read of block 0, which runs ahead of `mkfs` because `mkfs`
+creates its device with `creat()`: the truncate runs before the driver can
+refuse the open, finds the node's size already zero and rewrites its inode on
+the root flash (`itrunc()`, `updret` in `ufs_inode.c`, `vn_open_at()` in
+`vfs_vnops.c`; read from the source, not measured), a flash write every boot
+that the read avoids. One inode per 4,096 bytes is the density `mkfs(8)` documents
+(the source's own default is 16,384): 1,536 inodes in a 97-block inode list,
+which leaves 6,045 free blocks and 1,533 free inodes (`fsutil --check` of the
+layout `mkfs` wrote, below), where the source default gives 384 inodes in
+25 blocks. Each boot makes a fresh file system, because a reset empties the
+disk, and `/etc/fstab` does not list it, so `fsck -p` never checks it. The
+closure costs the root 9 blocks and 2 inodes (`PROFILES.md`), and the third
+mount slot costs each PICOCALC kernel 1,224 bytes of bss (one 0x4c8-byte
+mount record). The alternative, a kernel that lays the empty file system down when
+the part attaches, would drop `mkfs` and its blocks from the root and spend
+kernel text and RAM instead, and no board has run either route.
 
 Open for the board run: the read sampling margin depends on pad delays no
 datasheet gives and on whether the output and input register stages run on

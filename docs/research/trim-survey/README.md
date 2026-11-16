@@ -71,10 +71,12 @@ reached the console before the board reset. The result is in
 `board/swap/spread/`: three runs of the 24 compiles on the union kernel
 (`fcd49239`, `STORAGE_STATS=yes`) with `swap-who-wear-probe.patch`, each
 from a freshly flashed root: the erase count of all 96 swap sectors and
-the swap-outs of each command by tier and span, printed on the console at
-each `sysctl machdep.storage_stats`. Escape sequences and line-editor
+the swap-outs of each command by path (pool, copy-out, in-place exchange)
+with exact sector sums and the smallest and largest span, printed on the
+console at each `sysctl machdep.storage_stats`. Escape sequences and line-editor
 redraws are removed. `summarize.py runN.txt...` prints the per-run
-differences the record cites.
+differences the record cites and rejects a capture whose tables are
+incomplete or disagree with the kernel counters.
 
 `board/swap/admission/`: `sysctl machdep.storage_stats` before and after 24
 compiles on a `STORAGE_STATS=yes` kernel that counts SwapRAM refusal

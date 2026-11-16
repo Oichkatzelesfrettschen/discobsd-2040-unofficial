@@ -33,13 +33,13 @@ $ sysctl machdep.storage_stats; echo __DO''NE__
 
 swapwear
 
-swapwear 0 0 0 0 0 0 0 0 0 0 0 0 0 2 2 2
+swapwear 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+swapwear 0 0 0 0 0 0 0 0 0 0 2 2 2 1 1 1
 
 swapwear 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
 
-swapwear 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 0
-
-swapwear 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+swapwear 1 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0
 
 swapwear 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 
@@ -47,17 +47,17 @@ swapwear 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 
 swapwear end
 
-swapwho ? ram 1 flash 0 0 0 0 0 0 0 0 0 0 0 0
+swapwho ? ram 1 1 1 1 copy 0 0 0 0 exch 0 0 0 0
 
-swapwho init ram 5 flash 0 0 0 0 0 0 0 0 0 0 0 0
+swapwho init ram 5 13 2 3 copy 0 0 0 0 exch 0 0 0 0
 
-swapwho /bin/sh ram 12 flash 0 0 0 0 0 0 0 0 0 0 0 0
+swapwho /bin/sh ram 12 60 5 5 copy 0 0 0 0 exch 0 0 0 0
 
-swapwho mount ram 0 flash 0 0 2 0 0 0 0 0 0 0 0 0
+swapwho mount ram 0 0 0 0 copy 1 3 3 3 exch 1 3 3 3
 
-swapwho /update ram 1 flash 0 0 0 0 0 0 0 0 0 0 0 0
+swapwho /update ram 1 2 2 2 copy 0 0 0 0 exch 0 0 0 0
 
-swapwho -sh ram 6 flash 0 0 0 0 6 0 0 0 0 0 0 0
+swapwho -sh ram 6 30 5 5 copy 6 30 5 5 exch 0 0 0 0
 
 swapwho end
 
@@ -93,9 +93,9 @@ swapram_refused_codec 0
 swapram_refused_encode 0
 swapram_refused_nospace 0
 swapram_refused_fragment 8
-swapram_refused_want_bytes 52101
-swapram_refused_free_bytes 69072
-swapram_refused_largest_bytes 37504
+swapram_refused_want_bytes 52106
+swapram_refused_free_bytes 68764
+swapram_refused_largest_bytes 37600
 swapram_refused_data_fits 8
 swapram_short_1k 2
 swapram_short_2k 1
@@ -105,15 +105,15 @@ swapram_short_5k 0
 swapram_short_6k 0
 swapram_short_7k 0
 swapram_short_more 0
-swapram_admitted_data_bytes 65953
-swapram_admitted_u_bytes 24800
+swapram_admitted_data_bytes 65746
+swapram_admitted_u_bytes 25062
 swapram_flash_swapouts 7
 swapram_exchange_swapouts 1
 swapram_sched_refusals 0
 swapram_admit_scan_bytes 274364
-swapram_admit_zero_bytes 213060
+swapram_admit_zero_bytes 213218
 swapram_refuse_scan_bytes 98736
-swapram_refuse_zero_bytes 75931
+swapram_refuse_zero_bytes 75933
 swapram_refuse_data_chunks 14
 swapram_refuse_zero_chunks 0
 swapram_ram_span_01 1
@@ -194,100 +194,102 @@ $ sysctl machdep.storage_stats; echo __DO''NE__
 
 swapwear
 
-swapwear 0 14 14 15 14 13 13 14 15 15 15 15 15 17 17 17
+swapwear 0 14 14 15 15 14 13 14 16 16 16 15 14 14 14 15
 
-swapwear 17 17 17 16 16 16 16 16 16 16 16 16 16 17 17 16
+swapwear 16 16 16 15 15 16 17 17 17 16 18 17 17 17 17 17
 
-swapwear 15 15 16 15 15 16 15 15 14 15 16 16 16 15 15 16
+swapwear 15 15 15 16 16 17 17 16 15 15 17 17 17 16 15 15
 
-swapwear 14 14 14 15 15 15 15 16 16 16 16 15 15 14 15 15
+swapwear 15 16 17 17 17 16 16 15 16 16 16 15 14 13 13 13
 
-swapwear 15 14 13 13 14 15 14 14 14 14 14 14 15 15 15 14
+swapwear 14 14 13 13 13 14 14 15 15 14 13 14 15 15 15 15
 
-swapwear 13 13 14 15 15 16 16 16 15 15 16 16 15 14 14 14
+swapwear 14 14 15 15 15 15 15 15 14 14 14 14 14 12 12 13
 
 swapwear end
 
-swapwho ? ram 1 flash 0 0 0 0 0 0 0 0 0 0 0 0
+swapwho ? ram 1 1 1 1 copy 0 0 0 0 exch 0 0 0 0
 
-swapwho init ram 5 flash 0 0 0 0 0 0 0 0 0 0 0 0
+swapwho init ram 5 13 2 3 copy 0 0 0 0 exch 0 0 0 0
 
-swapwho /bin/sh ram 12 flash 0 0 0 0 0 0 0 0 0 0 0 0
+swapwho /bin/sh ram 12 60 5 5 copy 0 0 0 0 exch 0 0 0 0
 
-swapwho mount ram 0 flash 0 0 2 0 0 0 0 0 0 0 0 0
+swapwho mount ram 0 0 0 0 copy 1 3 3 3 exch 1 3 3 3
 
-swapwho /update ram 12 flash 0 0 0 0 0 0 0 0 0 0 0 0
+swapwho /update ram 12 24 2 2 copy 0 0 0 0 exch 0 0 0 0
 
-swapwho -sh ram 57 flash 0 0 0 0 55 0 0 0 0 0 0 0
+swapwho -sh ram 58 290 5 5 copy 55 275 5 5 exch 0 0 0 0
 
-swapwho sh ram 0 flash 0 0 0 0 0 192 0 0 0 0 0 0
+swapwho sh ram 0 0 0 0 copy 101 606 6 6 exch 91 546 6 6
+
+swapwho /usr/li ram 1 9 9 9 copy 0 0 0 0 exch 0 0 0 0
 
 swapwho end
 
 machdep.storage_stats=version 2 saturated 0 dirty 0 peak 4
-root_reads 26936
-root_read_bytes 27582464
-root_writes 1087
-root_write_bytes 1113088
-swap_reads 1019
-swap_read_bytes 5329884
-swap_writes 1138
+root_reads 27010
+root_read_bytes 27658240
+root_writes 1090
+root_write_bytes 1116160
+swap_reads 1021
+swap_read_bytes 5331056
+swap_writes 1140
 swap_write_bytes 5052548
-map_writes 1087
+map_writes 1090
 checkpoint_attempts 38
 checkpoint_successes 38
 checkpoint_errors 0
-root_program_pages 15712
-root_program_bytes 4022272
-root_erase_sectors 982
-root_erase_bytes 4022272
+root_program_pages 15680
+root_program_bytes 4014080
+root_erase_sectors 980
+root_erase_bytes 4014080
 swap_program_pages 19901
 swap_program_bytes 5094656
 swap_erase_sectors 1433
 swap_erase_bytes 5869568
-dirty_transitions 742
+dirty_transitions 743
 dirty_rewrites 390
-eviction_writes 565
+eviction_writes 564
 buffer_waits 0
-swapram_attempts 336
-swapram_admissions 87
+swapram_attempts 338
+swapram_admissions 89
 swapram_refused_closed 0
 swapram_refused_codec 0
 swapram_refused_encode 0
-swapram_refused_nospace 18
-swapram_refused_fragment 231
-swapram_refused_want_bytes 2286250
-swapram_refused_free_bytes 2796512
-swapram_refused_largest_bytes 1902504
-swapram_refused_data_fits 196
-swapram_short_1k 180
+swapram_refused_nospace 33
+swapram_refused_fragment 216
+swapram_refused_want_bytes 2286839
+swapram_refused_free_bytes 2734036
+swapram_refused_largest_bytes 1835216
+swapram_refused_data_fits 184
+swapram_short_1k 168
 swapram_short_2k 9
 swapram_short_3k 7
 swapram_short_4k 47
 swapram_short_5k 0
-swapram_short_6k 6
+swapram_short_6k 18
 swapram_short_7k 0
 swapram_short_more 0
-swapram_admitted_data_bytes 270434
-swapram_admitted_u_bytes 86716
-swapram_flash_swapouts 158
-swapram_exchange_swapouts 91
+swapram_admitted_data_bytes 275761
+swapram_admitted_u_bytes 89360
+swapram_flash_swapouts 157
+swapram_exchange_swapouts 92
 swapram_sched_refusals 0
-swapram_admit_scan_bytes 1004256
-swapram_admit_zero_bytes 744098
+swapram_admit_scan_bytes 1047840
+swapram_admit_zero_bytes 782886
 swapram_refuse_scan_bytes 4287620
-swapram_refuse_zero_bytes 2963739
+swapram_refuse_zero_bytes 2963354
 swapram_refuse_data_chunks 784
 swapram_refuse_zero_chunks 0
 swapram_ram_span_01 1
 swapram_ram_span_02 14
 swapram_ram_span_03 3
 swapram_ram_span_04 0
-swapram_ram_span_05 69
+swapram_ram_span_05 70
 swapram_ram_span_06 0
 swapram_ram_span_07 0
 swapram_ram_span_08 0
-swapram_ram_span_09 0
+swapram_ram_span_09 1
 swapram_ram_span_10 0
 swapram_ram_span_11 0
 swapram_ram_span_12 0
@@ -305,4 +307,4 @@ swapram_flash_span_11 0
 swapram_flash_span_12 0
 
 $ ./d; echo __DO''NE__
-Sun Nov 15 14:50:45 2026
+Sun Nov 15 14:50:46 2026

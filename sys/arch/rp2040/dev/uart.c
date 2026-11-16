@@ -432,11 +432,12 @@ uartdrain(caddr_t arg)
  * uart_txflags). spltty() is PRIMASK on this port (machine/intr.h), so
  * this routine, uartputc() and uartdrain() never interleave with one
  * another. uartintr() runs at the UART's priority without PRIMASK, and
- * SysTick, which runs softclock() and so uartdrain(), preempts it. The
- * preemption is harmless: uartintr() clears TS_BUSY only when UART_TX_DRAIN
- * is clear, and uartdrain() with UART_TX_DRAIN clear changes only the
- * callout flags. A start routine that preempts uartintr() returns early,
- * since TS_BUSY is set and the drain phase is not.
+ * SysTick, which runs softclock() and so uartdrain(), preempts it. The two
+ * leave each other's state alone: uartintr() clears TS_BUSY only when
+ * UART_TX_DRAIN is clear, and uartdrain() with UART_TX_DRAIN clear changes
+ * only the callout flags. A callout that reaches this routine through
+ * ttstart() while uartintr() is preempted is not argued here; no code in
+ * this tree sets TS_TIMEOUT, the state that arms such a callout.
  */
 void
 uartstart(struct tty *tp)

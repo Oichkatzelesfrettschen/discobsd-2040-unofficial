@@ -25,7 +25,7 @@ belongs to this note.
 | Link | Nets as wired | Evidence |
 | --- | --- | --- |
 | RP2040 to keyboard controller | GP6 SDA, GP7 SCL (I2C1) to U201 PB9, PB8 (`M_I2C1`), pulled up through 4.7 kOhm; the firmware's I2C target at 0x1F, about 96 kHz | S; `sys/arch/rp2040/dev/picocalc.h:38-45`; SRC-FW `conf_app.h:6` |
-| Keyboard controller to PMU | U201 PB10 SCL, PB11 SDA (`M_I2C2`) to U101 SCK pin 40 and SDA pin 39 (`AXP_SCK`, `AXP_SDA`), pulled up through R105 and R106, 2.2 kOhm, to `MCU_3V3`; PMU IRQ pin 38 (`AXP_IRQ`) to U201 PC9 (`PMU_IRQ`) through R107, 4.7 kOhm | S; SRC-FW `conf_app.h:13-23` |
+| Keyboard controller to PMU | U201 PB10 SCL, PB11 SDA (`M_I2C2`) to U101 SCK pin 40 and SDA pin 39 (`AXP_SCK`, `AXP_SDA`), pulled up through R105 and R106, 2.2 kOhm, to `MCU_3V3`; PMU IRQ pin 38 (`AXP_IRQ`) to U201 PC9 (`PMU_IRQ`), pulled up through R107, 4.7 kOhm | S; SRC-FW `conf_app.h:13-23` |
 | PMU address | 7-bit 0x34 (the data sheet's 0x68/0x69 are the 8-bit write and read forms) | DS 6.3 p. 18; SRC-LIB `AXP2101Constants.h:3` |
 | A second Pico channel | Pico UART1 TX GP8 to U201 PC11 (`M_UART3_RX`), UART1 RX GP9 to PC10 (`M_UART3_TX`) | S; the vendor firmware opens only `Serial1` on PA9/PA10 (SRC-FW `picocalc_keyboard.ino:36`), so USART3 is wired and idle |
 | PMU-to-Pico power switch | U102 WAS4603 load switch: input `IPS`, output `PICO_VSYS`, enable `PICO_EN` from U201 PA13 | S; SRC-FW `picocalc_keyboard.ino:471-472`, `:546` |
@@ -87,9 +87,15 @@ Two semantic defects follow from the firmware source:
 The firmware reads more than it passes on. On a short press of the power key
 it prints charge state, cell voltage, charger-input voltage and system
 voltage on its debug UART (`printPMU()`, SRC-FW `:236-283`, `:387-402`),
-which leaves the board through the CH340 on the USB-C port, not through the
-Pico. That print is the oracle a board session can hold the kernel's
-reading against without changing anything.
+which never reaches the Pico. Two routes carry it off the board (S): U703, a
+WAS7227 switch whose select is `SEL1` from switch 1 of SW701, connects the
+CH340C either to the Pico's UART0 or to U201's USART1, and header J702 brings
+`M_UART1_RX` and `M_UART1_TX` out on pins 4 and 5. As drawn, switch 1's net
+also carries U201's `BOOT0`, which the controller samples only at reset, so
+the switch must not move across a controller reset during a measurement. A
+3.3 V serial adapter on J702 leaves the CH340 with the Pico. Either route
+makes `printPMU()` the oracle a board session can hold the kernel's reading
+against without changing the firmware.
 
 The register map a richer driver would read, all through U201:
 
@@ -154,7 +160,7 @@ against comparable code: `picokbd_reg` is 144 B and `kbdreq_battery_percent`
 | Slice | Work | Files | Kernel text, RAM | Host-testable model | Board measurement |
 | --- | --- | --- | --- | --- | --- |
 | P1 | A register model of 0x0B: the firmware's six update events, the 20 s refresh, the charge-done bit and the 80 s shutdown rule, driven against `kbdreq_battery_percent` and `kbdreq_battery_charging`; known-bad mutants that decode bit 6 or keep bit 7 | the `check-picocalc-host` test sources, `dev/picokbd_req.c` unchanged | 0 | the model itself | none |
-| P2 | A `battery` command: percent, charging, and "no cell" when 0 persists past the shutdown window; a low-battery line to the console at 5 % | a new program under `usr.bin` | 0 | the P1 model behind a stubbed `sysctl` | the command against `printPMU()` on the CH340 port over one charge and one discharge |
+| P2 | A `battery` command: percent, charging, and "no cell" when 0 persists past the shutdown window; a low-battery line to the console at 5 % | a new program under `usr.bin` | 0 | the P1 model behind a stubbed `sysctl` | the command against `printPMU()` read through J702 or the switched CH340 over one charge and one discharge |
 | P3 | Board record of the existing nodes and of the ALDO rails | `sys/arch/rp2040/doc/PICOCALC.md` evidence rows | 0 | none | the `PICOCALC.md:1015-1024` checks; voltmeter on C112-C115 |
 | P4 (needs a D123 revision) | Firmware registers 0x10-0x1A: STATUS1, STATUS2, cell, input and system millivolts, latched interrupt status, ALDO1-ALDO3 codes; kernel nodes `vbat_mv`, `vbus_mv`, `vsys_mv`, `charger`, `faults` | a fork of `picocalc_keyboard`; `dev/picokbd.c`, `include/picocalcvar.h` | +150 to +250 B text, 0 RAM | extend the P1 model and the Renode keyboard model (`docs/research/picocalc-renode-keyboard-registers.md`) | the new nodes against `printPMU()` and the voltmeter |
 | P5 (needs a D123 revision) | PMU telemetry over the idle UART1-to-USART3 pair instead of new I2C registers | the firmware fork; a UART1 instance of `dev/uart.c` | +300 to +600 B text and a receive ring (I) | a framing model with a corrupt-frame mutant | frame loss over a day |

@@ -44,6 +44,11 @@ discobsd-sramdump = "discobsd_host.sramdump:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# The README links the release-security guide beside itself; the wheel
+# installs it under share/doc so the link has a target in every format.
+[tool.setuptools.data-files]
+"share/doc/discobsd-host" = ["RELEASE-SECURITY.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # The tests import the checkout's package, not whichever discobsd-host the

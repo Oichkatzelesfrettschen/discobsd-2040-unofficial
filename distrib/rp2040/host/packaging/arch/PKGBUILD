@@ -60,4 +60,5 @@ package() {
 	install -Dm644 discobsd-host.sysusers \
 	    "$pkgdir/usr/lib/sysusers.d/discobsd-host.conf"
 	install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+	install -Dm644 RELEASE-SECURITY.md "$pkgdir/usr/share/doc/$pkgname/RELEASE-SECURITY.md"
 }

@@ -35,11 +35,6 @@ include ${TOPSRC}/share/mk/sys.mk
 HOSTCC?=	cc
 HOST_CFLAGS=	-std=gnu11 -D_GNU_SOURCE -Wall -Wextra -Werror \
 		-Wno-unused-parameter -Wno-deprecated-non-prototype -I${.CURDIR}/shim
-REBOOT_RENAMES=	-Dmain=discobsd_reboot_main -Dreboot=test_reboot \
-		-Dkill=test_kill -Dsync=test_sync -Dsleep=test_sleep \
-		-Dgeteuid=test_geteuid -Dopen=test_open \
-		-Dopenlog=test_openlog -Dsyslog=test_syslog \
-		-Dgetlogin=test_getlogin
 
 check: reboot_contract_test
 	./reboot_contract_test
@@ -48,20 +43,21 @@ check: reboot_contract_test
 reboot_contract_test: reboot_contract_test.c reboot_source.o
 	${HOSTCC} ${HOST_CFLAGS} -o $@ reboot_contract_test.c reboot_source.o
 
-reboot_source.o: ${TOPSRC}/sbin/reboot/reboot.c
-	${HOSTCC} ${HOST_CFLAGS} ${REBOOT_RENAMES} -c -o $@ \
-	    ${TOPSRC}/sbin/reboot/reboot.c
+reboot_source.o: reboot_unit.c ${TOPSRC}/sbin/reboot/reboot.c
+	${HOSTCC} ${HOST_CFLAGS} -DREBOOT_SOURCE='"${TOPSRC}/sbin/reboot/reboot.c"' \
+	    -c -o $@ reboot_unit.c
 
 # The shim directory shadows only sys/reboot.h and utmp.h, and its two
 # fallbacks (_PATH_WTMP, kill) are calibrated by removing each.
 sdk-gap:
-	sh ${.CURDIR}/sdk_gap.sh "${HOSTCC}" "${HOST_CFLAGS}" ${.CURDIR}
+	sh ${.CURDIR}/sdk_gap.sh "${HOSTCC}" "${HOST_CFLAGS}" ${.CURDIR} \
+	    ${TOPSRC}/sbin/reboot/reboot.c
 
 # Each mutant must fail the harness: no root check, no confirmation check,
 # confirmation always set, and a lost -y or -B option.
 mutants: sdk-gap
 	sh ${.CURDIR}/mutants.sh "${HOSTCC}" "${HOST_CFLAGS}" \
-	    "${REBOOT_RENAMES}" ${TOPSRC}/sbin/reboot/reboot.c ${.CURDIR}
+	    ${TOPSRC}/sbin/reboot/reboot.c ${.CURDIR}
 
 clean:
 	rm -f reboot_contract_test reboot_source.o mutant_* bi-*.out bi-mutant.sh bi-mutant2.sh bi-id*

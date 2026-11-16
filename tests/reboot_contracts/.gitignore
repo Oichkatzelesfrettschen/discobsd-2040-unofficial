@@ -9,3 +9,5 @@ mutant_*
 sdk_gap.o
 sdk_gap.out
 sdk_gap.tmp
+sdk_gap.src
+sdk_gap.bin

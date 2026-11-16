@@ -26,6 +26,10 @@
 # available" and picofetch and pstat read as an absent record. The board name
 # is this directory's name, so PARAM defines -DPICOCALC_LEAN.
 #
+# This is the kernel where further device options may be dropped, by owner
+# decision; each drop is one directive removed here and one entry added to
+# the removals of PICOCALC_LEAN in tools/config/check_generated_sync.py.
+#
 # To build the kernel, use:
 #   cd sys/arch/rp2040/compile/PICOCALC_LEAN
 #   tools/bin/config Config

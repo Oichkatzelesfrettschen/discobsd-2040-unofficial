@@ -9,57 +9,79 @@ whose effect runs through that pool state carries that uncertainty too.
 
 Reproduce: `$PYTHON tests/rp2040/swap_tier_model/variants.py --sessions 200`.
 
-Columns: admissions and erases per compile come from one session per fit.
-"Hottest sector" sums each sector's erases over 200 sessions, each booted
-with the swap cursor at a uniformly drawn sector as `swap_cursor_init()`
-draws it, and divides the largest sum by 200 x 24 compiles: the long-run
-wear of the part, not one session's spread (the board's single sessions
-spread to 27 percent above the mean, flash-traffic-per-workload.md). Life
-is 100,000 rated cycles over the hottest figure. The baseline's 159,000
-compiles is that long-run figure at 59 erases a compile; the board note's
-104,000 is the hottest observed sector of single sessions at 69 to 75
-erases a compile on an older tree, and the two do not compare directly.
+Columns: admissions and erases per compile come from the compile interval
+of one session per fit. Wear counts whole sessions: boot and login, the
+24 compiles and the closing sysctl. "Hottest sector" sums each sector's
+erases over 200 sessions and divides the largest sum by 200 x 24
+compiles, so it carries each session's boot share; life is 100,000 rated
+cycles over that figure, computed for each fit and given as the range
+over the four fits.
+
+Session starts follow `swap_cursor_init()`: a cold boot takes the first of
+up to eight 7-bit samples below the sector count, else sector 0 (uniform
+samples stand in for the ring oscillator's bits); after a software reset
+the cursor the previous session published is restored. The variant table
+and the "Life, cold boots" column start every session cold; "Life,
+resets" chains one cold boot and 199 resets.
+
+The model's boot and login erase 50 sectors in the fit `FITS[1]` and 80 in
+the other three, against 36 measured on the board, whose 24 compiles
+erased 1,397 (model 1,417); its single sessions put the hottest sector at
+17 to 18 erases against a mean of 14.7 (three runs, union kernel,
+`fcd49239`). The modeled boot share is 1.4 to 2.2 times the board's, up to
+about 5 percent of a session's erases, so the modeled lives err short by
+up to a few percent; they are long-run figures over many sessions, not
+one session's spread.
+
 Peak blocks is the largest number of raw-swap blocks in use at once.
 Sessions refused is the share of sessions in which the swap map could not
 hold an image. The kernel then refuses the fork (`newproc()` returns -1)
 or keeps the outgoing process resident and defers the swap-in (`sched()`),
 so the traced workload does not complete: the replay stops at that record
 and a row with any refused session carries no erase or wear figure; its
-peak blocks are those reached before the refusal.
+peak blocks are those reached before the refusal. Extra RAM is exact for
+a buffer size; text is an estimate whose basis `variants.TEXT_BASIS`
+states.
 
-Changed from the first published table: the refusal column was a count
-summed over every session and fit, so it scaled with `--sessions`; it is
-now the share of sessions. The 96 KB and 64 KB rows replayed on past a
-refused image as if the transition had succeeded and reported 58.4 and
-57.7 to 57.9 erases a compile with lives of 39,240 and 25,540 compiles;
-they now refuse the workload in every session and report no wear figure.
-No other row changed. Extra RAM is exact for a
-buffer size; text is an estimate whose basis `variants.TEXT_BASIS` states.
+Changes from the first published tables:
+
+- The refusal column was a count summed over every session and fit, so it
+  scaled with `--sessions`; it is now the share of sessions.
+- The 96 KB and 64 KB rows replayed on past a refused image as if the
+  transition had succeeded and reported 58.4 and 57.7 to 57.9 erases a
+  compile with lives of 39,240 and 25,540 compiles; they now refuse the
+  workload in every session.
+- Every hottest, mean, hottest/mean and life figure changed: wear now
+  includes the boot prefix, sessions start as `swap_cursor_init()` places
+  them instead of uniformly, and life is a per-fit range instead of the
+  reciprocal of the fits' average hottest rate. The raw-swap table gains
+  the reset-chain column. Admissions, erases per compile, peak blocks and
+  erases saved are unchanged.
 
 ## Variants
 
-| Variant | Admitted | Erases/compile | Hottest sector erases/compile | Life (compiles) | Peak blocks | Sessions refused | Extra RAM | Text (est.) | Erases saved/compile | Saved per KB RAM | Saved per KB text |
+| Variant | Admitted | Erases/compile | Hottest sector erases/compile | Life (compiles), per fit | Peak blocks | Sessions refused | Extra RAM | Text (est.) | Erases saved/compile | Saved per KB RAM | Saved per KB text |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| baseline (PICO kernel) | 62 to 63 | 59.0 | 0.627 to 0.629 | 159,217 | 104 | 0% | 0 | 0 | 0.0 | -- | -- |
-| 1 u area reserved at compressed size + 64 | 159 to 160 | 34.8 | 0.369 | 271,186 | 104 | 0% | 0 | 120 | 24.2 | -- | 206.6 |
-| 2 compaction on refusal | 154 to 159 | 35.2 to 36.4 | 0.374 to 0.387 | 264,718 | 104 | 0% | 0 | 200 | 23.5 | -- | 120.5 |
-| 3a pool 24 KB | 110 to 113 | 48.6 to 49.2 | 0.517 to 0.527 | 191,121 | 84 | 0% | 8192 | 0 | 10.0 | 1.25 | -- |
-| 3b pool 32 KB | 210 to 298 | 2.2 to 24.0 | 0.026 to 0.255 | 1,175,750 | 60 | 0% | 16384 | 0 | 51.2 | 3.20 | -- |
-| 4 refused images compressed on flash | 62 to 63 | 20.3 | 0.219 to 0.221 | 454,438 | 32 | 0% | 0 | 600 | 38.7 | -- | 66.1 |
-| 5 zero-sector elision on flash | 62 to 63 | 59.0 | 0.627 to 0.629 | 159,217 | 104 | 0% | 32 | 80 | 0.0 | 0.00 | 0.0 |
-| 6 cc driver shell never swaps out (upper bound) | 54 to 56 | 11.5 to 11.7 | 0.125 to 0.127 | 797,011 | 80 | 0% | 0 | 0 | 47.5 | -- | -- |
-| 1+2 | 116 to 209 | 24.6 to 47.9 | 0.261 to 0.509 | 309,528 | 84 | 0% | 0 | 320 | 28.6 | -- | 91.5 |
-| 1+2+4 | 116 to 209 | 8.1 to 15.9 | 0.088 to 0.172 | 916,905 | 24 | 0% | 0 | 920 | 49.0 | -- | 54.5 |
+| baseline (PICO kernel) | 62 to 63 | 59.0 | 0.652 to 0.666 | 150,188 to 153,453 | 104 | 0% | 0 | 0 | 0.0 | -- | -- |
+| 1 u area reserved at compressed size + 64 | 159 to 160 | 34.8 | 0.380 to 0.393 | 254,372 to 263,158 | 104 | 0% | 0 | 120 | 24.2 | -- | 206.6 |
+| 2 compaction on refusal | 154 to 159 | 35.2 to 36.4 | 0.384 to 0.410 | 243,779 to 260,304 | 104 | 0% | 0 | 200 | 23.5 | -- | 120.5 |
+| 3a pool 24 KB | 110 to 113 | 48.6 to 49.2 | 0.517 to 0.527 | 189,573 to 193,237 | 84 | 0% | 8192 | 0 | 10.0 | 1.25 | -- |
+| 3b pool 32 KB | 210 to 298 | 2.2 to 24.0 | 0.026 to 0.255 | 392,157 to 3,902,439 | 60 | 0% | 16384 | 0 | 51.2 | 3.20 | -- |
+| 4 refused images compressed on flash | 62 to 63 | 20.3 | 0.228 to 0.234 | 426,667 to 438,356 | 32 | 0% | 0 | 600 | 38.7 | -- | 66.1 |
+| 5 zero-sector elision on flash | 62 to 63 | 59.0 | 0.652 to 0.666 | 150,188 to 153,453 | 104 | 0% | 32 | 80 | 0.0 | 0.00 | 0.0 |
+| 6 cc driver shell never swaps out (upper bound) | 54 to 56 | 11.5 to 11.7 | 0.145 to 0.162 | 617,761 to 688,666 | 80 | 0% | 0 | 0 | 47.5 | -- | -- |
+| 1+2 | 116 to 209 | 24.6 to 47.9 | 0.261 to 0.509 | 196,399 to 383,081 | 84 | 0% | 0 | 320 | 28.6 | -- | 91.5 |
+| 1+2+4 | 116 to 209 | 8.1 to 15.9 | 0.088 to 0.172 | 581,818 to 1,134,752 | 24 | 0% | 0 | 920 | 49.0 | -- | 54.5 |
 | 8 swap off NOR (PSRAM or SD) | 62 to 63 | 0.0 | 0.000 | unbounded | 0 | 0% | 0 | 0 | 59.0 | -- | -- |
 
-| Raw swap | Sectors | Erases/compile | Mean sector erases/compile | Hottest | Hottest/mean | Life (compiles) | Peak blocks | Sessions refused |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 384 KB | 95 | 59.0 | 0.621 | 0.628 | 1.01 | 159,217 | 104 | 0% |
-| 256 KB | 63 | 59.0 | 0.937 | 0.991 | 1.06 | 100,920 | 104 | 0% |
-| 192 KB | 47 | 59.0 | 1.256 | 1.273 | 1.01 | 78,566 | 104 | 0% |
-| 128 KB | 31 | 59.0 | 1.905 | 1.940 | 1.02 | 51,538 | 104 | 0% |
-| 96 KB | 23 | refuses the workload | -- | -- | -- | -- | 68 | 100% |
-| 64 KB | 15 | refuses the workload | -- | -- | -- | -- | 44 | 100% |
+| Raw swap | Sectors | Erases/compile | Mean sector erases/compile | Hottest | Hottest/mean | Life, cold boots | Life, resets | Peak blocks | Sessions refused |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 384 KB | 95 | 59.0 | 0.643 to 0.657 | 0.652 to 0.666 | 1.01 | 150,188 to 153,453 | 151,611 to 154,989 | 104 | 0% |
+| 256 KB | 63 | 59.0 | 0.970 to 0.990 | 0.991 to 1.016 | 1.02 to 1.03 | 98,381 to 100,862 | 97,462 to 102,586 | 104 | 0% |
+| 192 KB | 47 | 59.0 | 1.301 to 1.327 | 1.333 to 1.355 | 1.02 to 1.03 | 73,801 to 75,000 | 75,271 to 76,702 | 104 | 0% |
+| 128 KB | 31 | 59.0 | 1.972 to 2.012 | 1.999 to 2.038 | 1.01 | 49,065 to 50,031 | 49,444 to 50,644 | 104 | 0% |
+| 96 KB | 23 | refuses the workload | -- | -- | -- | -- | -- | 68 | 100% |
+| 64 KB | 15 | refuses the workload | -- | -- | -- | -- | -- | 44 | 100% |
 
 Variant 5 saves nothing in the model because the traces carry no all-zero
 sector; the board bounds it instead. `swapram_refuse_zero_chunks` counted
@@ -138,4 +160,5 @@ a KB of text saves more than 15 times what a KB of pool RAM saves.
    this workload in three of the four fits.
 
 Leave the raw swap at 384 KB unless root capacity is worth the life: 256 KB
-cuts the modeled life from about 159,000 to 101,000 compiles.
+cuts the modeled life from 150,000 to 153,000 compiles to 98,000 to
+101,000.

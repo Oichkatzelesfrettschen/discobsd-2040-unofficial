@@ -49,7 +49,8 @@ property tests and the swapram.c cross-check) and `pytest` (the runner).
 One JSON object per line (`trace.py` states every field): `op` is `meta`,
 `out`, `in`, `exit` or `mark`; an `out` record carries `pid`, `name`,
 `fork`, `incoming`, the raw `data`, `stack` and `u` bytes, the compressed
-`cdata`, `cstack` and `cu` bytes and `zero_sectors`. A `mark` with `what`
+`cdata`, `cstack` and `cu` bytes and `zero_sectors`, the image-relative
+indices of its all-zero 4 KiB sectors. A `mark` with `what`
 `snapshot` separates the boot prefix from the measured compiles. A board
 capture with these fields replaces a generated trace unchanged:
 `trace.load()` validates it and `model.run()` replays it.

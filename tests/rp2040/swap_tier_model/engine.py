@@ -125,6 +125,11 @@ class SwapMap:
         if self.lib.glue_map_free(span, base) != 0:
             raise RuntimeError(self._panic())
 
+    def cursor(self):
+        """swapnext, the next-fit cursor in blocks."""
+        self._live()
+        return self.lib.glue_map_cursor()
+
     def runs(self):
         self._live()
         addr = self.ffi.new("size_t[64]")

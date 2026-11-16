@@ -113,3 +113,34 @@ def test_zero_elision_skips_the_named_sector():
     assert [s for s, n in enumerate(erases) if n] == [1, 3, 4, 5, 6]
     assert m.nor.erases == m.erases
     assert not m.nor.violations
+
+
+class _High:
+    """A ring oscillator that never yields a sample below the sector count."""
+
+    def getrandbits(self, bits):
+        return (1 << bits) - 1
+
+
+def test_cold_boot_cursor_follows_swap_cursor_init():
+    assert variants.cold_cursor(31, _High()) == 0
+    rng = __import__("random").Random(3)
+    draws = [variants.cold_cursor(95, rng) for _ in range(2000)]
+    assert max(draws) < 95 and min(draws) == 0
+    assert variants.published_index(384, 384) == 0
+    assert variants.published_index(24, 384) == 5
+    assert variants.published_index(25, 384) == 0
+
+
+def test_wear_counts_the_boot_prefix():
+    """Sector wear sums whole sessions, boot and login included, so the
+    mean sector rate exceeds the compile-interval erases alone."""
+    row = variants.measure(model.Config(), sessions=1)[0]
+    assert row["boot_erases"] > 0
+    sectors = (model.Config().flash_kb - 4) // 4
+    assert row["mean"] * sectors > row["erases"]
+
+
+def test_life_is_a_range_over_fits():
+    rows = [{"life": 100_000.0}, {"life": 50_000.0}]
+    assert variants.life_range(rows) == "50,000 to 100,000"

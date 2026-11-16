@@ -10,11 +10,20 @@ refused session reports no erase or wear figure. RAM is exact
 where the change is a buffer size; text is an estimate, and TEXT_BASIS says
 what each estimate rests on.
 
-The hottest-sector figure sums every sector's erases over SESSIONS boots,
-each with the swap cursor at a uniformly drawn sector (swap_cursor_init()
-in sys/arch/rp2040/rp2040/machdep.c), and divides the largest sum by
-SESSIONS x 24 compiles. Life in compiles is the rated 100,000 erases per
-sector over that figure.
+Wear counts whole sessions: boot and login, the 24 compiles and the
+closing sysctl, every sector's erases summed over SESSIONS sessions. The
+hottest figure is the largest sum over SESSIONS x 24 compiles, so it
+carries each session's boot share; life in compiles is the rated 100,000
+erases per sector over that figure, for one fit at a time, and the table
+gives its range over the fits.
+
+Session starts follow swap_cursor_init() in
+sys/arch/rp2040/rp2040/machdep.c. A cold boot draws up to eight 7-bit
+samples and takes the first below the sector count, else sector 0; the
+samples here are uniform, which the ring oscillator's bits only
+approximate. After a software reset the cursor the last session published
+(swap_cursor_publish()) is restored. BOOTS chooses cold boots for every
+session or one cold boot followed by resets.
 
 usage: $PYTHON variants.py [--sessions N]   print the table as Markdown
 """
@@ -78,7 +87,26 @@ def ensemble():
     return list(calibrate.ENSEMBLE)
 
 
-def measure(config, transform=None, sessions=SESSIONS, seed=7):
+def cold_cursor(sectors, rng):
+    """swap_cursor_init() on a cold boot: the first of up to eight 7-bit
+    samples below sectors, else sector 0."""
+    for _ in range(8):
+        sample = rng.getrandbits(7)
+        if sample < sectors:
+            return sample
+    return 0
+
+
+def published_index(next_block, nswap):
+    """The sector index swap_cursor_publish() stores for swapnext."""
+    if next_block < 4 or next_block > nswap or next_block % 4 or \
+            next_block == nswap:
+        return 0
+    return (next_block - 4) // 4
+
+
+def measure(config, transform=None, sessions=SESSIONS, seed=7,
+            boots="cold"):
     rows = []
     for workload in ensemble():
         if transform is not None:
@@ -86,33 +114,54 @@ def measure(config, transform=None, sessions=SESSIONS, seed=7):
         nsectors = (config.flash_kb - 4) // 4
         rng = random.Random(seed)
         total = None
-        peak = refused = 0
+        peak = refused = boot_erases = 0
         first = None
+        cursor = None
         for _ in range(sessions):
-            cursor = rng.randrange(nsectors)
-            m = Model(config, cursor).replay(trace.generate(workload))
+            if boots == "reset" and cursor is not None and \
+                    cursor < nsectors:
+                start = cursor
+            else:
+                start = cold_cursor(nsectors, rng)
+            m = Model(config, start).replay(trace.generate(workload))
             peak = max(peak, m.peak_blocks)
             if m.refused is not None:
                 refused += 1
+                cursor = None
                 continue
-            counters, erases = m.delta()
+            cursor = published_index(m.map.cursor(), m.nswap)
+            counters, _measured = m.delta()
             if first is None:
                 first = counters
-            total = erases if total is None else \
-                [a + b for a, b in zip(total, erases)]
+                boot_erases = m.snapshots[0][0].get("swap_erase_sectors",
+                                                    0)
+            total = list(m.erases) if total is None else \
+                [a + b for a, b in zip(total, m.erases)]
         compiles = workload.compiles
         row = {"peak_blocks": peak, "refusing": refused / sessions,
                "admitted": None, "erases": None, "hottest": None,
-               "mean": None}
+               "mean": None, "life": None, "boot_erases": None}
         if not refused:
+            hottest = max(total[1:]) / sessions / compiles
             row.update({
                 "admitted": first.get("swapram_admissions", 0),
                 "erases": first.get("swap_erase_sectors", 0) / compiles,
-                "hottest": max(total[1:]) / sessions / compiles,
+                "hottest": hottest,
                 "mean": sum(total[1:]) / max(1, len(total) - 1) /
-                sessions / compiles})
+                sessions / compiles,
+                "life": ENDURANCE / hottest if hottest else None,
+                "boot_erases": boot_erases})
         rows.append(row)
     return rows
+
+
+def life_range(rows):
+    """Life in compiles per fit, as a range over the fits."""
+    lives = [r["life"] for r in rows]
+    if any(life is None for life in lives):
+        return "unbounded" if all(life is None for life in lives) else \
+            "unbounded to " + f"{max(x for x in lives if x):,.0f}"
+    return span(lives, "{:,.0f}")
 
 
 def refusing(rows):
@@ -132,7 +181,7 @@ def table(sessions=SESSIONS):
     base_erases = sum(r["erases"] for r in base) / len(base)
     base_hot = sum(r["hottest"] for r in base) / len(base)
     out.append("| Variant | Admitted | Erases/compile | Hottest sector "
-               "erases/compile | Life (compiles) | Peak blocks | Sessions "
+               "erases/compile | Life (compiles), per fit | Peak blocks | Sessions "
                "refused | Extra RAM | Text (est.) | Erases saved/compile "
                "| Saved per KB RAM | Saved per KB text |")
     out.append("|" + " --- |" * 12)
@@ -148,7 +197,7 @@ def table(sessions=SESSIONS):
         saved = base_erases - erases
         per_ram = f"{saved / (ram / 1024):.2f}" if ram else "--"
         per_text = f"{saved / (text / 1024):.1f}" if text else "--"
-        life = f"{ENDURANCE / hot:,.0f}" if hot else "unbounded"
+        life = life_range(rows)
         results[name] = (saved, ram, text, hot)
         out.append(
             f"| {name} | {span([r['admitted'] for r in rows], '{}')} | "
@@ -159,24 +208,27 @@ def table(sessions=SESSIONS):
             f"{saved:.1f} | {per_ram} | {per_text} |")
     out.append("")
     out.append("| Raw swap | Sectors | Erases/compile | Mean sector "
-               "erases/compile | Hottest | Hottest/mean | Life (compiles) "
-               "| Peak blocks | Sessions refused |")
-    out.append("|" + " --- |" * 9)
+               "erases/compile | Hottest | Hottest/mean | Life, cold boots "
+               "| Life, resets | Peak blocks | Sessions refused |")
+    out.append("|" + " --- |" * 10)
     for kb in FLASH_SIZES:
         rows = measure(Config(flash_kb=kb), sessions=sessions)
+        reset = measure(Config(flash_kb=kb), sessions=sessions,
+                        boots="reset")
         peak = max(r["peak_blocks"] for r in rows)
         if any(r["refusing"] for r in rows):
             out.append(f"| {kb} KB | {(kb - 4) // 4} | refuses the "
-                       f"workload | -- | -- | -- | -- | {peak} | "
+                       f"workload | -- | -- | -- | -- | -- | {peak} | "
                        f"{refusing(rows)} |")
             continue
-        hot = sum(r["hottest"] for r in rows) / len(rows)
-        mean = sum(r["mean"] for r in rows) / len(rows)
         out.append(
             f"| {kb} KB | {(kb - 4) // 4} | "
-            f"{span([r['erases'] for r in rows], '{:.1f}')} | {mean:.3f} | "
-            f"{hot:.3f} | {hot / mean:.2f} | {ENDURANCE / hot:,.0f} | "
-            f"{peak} | {refusing(rows)} |")
+            f"{span([r['erases'] for r in rows], '{:.1f}')} | "
+            f"{span([r['mean'] for r in rows], '{:.3f}')} | "
+            f"{span([r['hottest'] for r in rows], '{:.3f}')} | "
+            f"{span([r['hottest'] / r['mean'] for r in rows], '{:.2f}')} | "
+            f"{life_range(rows)} | "
+            f"{life_range(reset)} | {peak} | {refusing(rows)} |")
     return "\n".join(out), results, base_hot
 
 

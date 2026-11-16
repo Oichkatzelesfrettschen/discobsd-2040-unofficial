@@ -2577,6 +2577,28 @@ test_overlap_flash(void)
 	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FREAD | FWRITE) == EPERM);
 	securelevel = 0;
 	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FWRITE) == 0);
+	/*
+	 * A descriptor opened for writing at level 0 is asked again at each
+	 * transfer: refused while the level is raised, accepted again at 0, and
+	 * a descriptor of another unit is not affected.
+	 */
+	{
+		struct node held, root;
+
+		HK_CHECK(open_node(&held, IFBLK | 0600, FL_SWAP, FREAD | FWRITE) == 0);
+		HK_CHECK(write_cooked_block_flags(&held, 0) == 0);
+		securelevel = 1;
+		HK_CHECK(write_cooked_block_flags(&held, 0) == EPERM);
+		securelevel = 2;
+		HK_CHECK(write_cooked_block_flags(&held, 0) == EPERM);
+		securelevel = 0;
+		HK_CHECK(write_cooked_block_flags(&held, 0) == 0);
+		close_node(&held);
+		HK_CHECK(open_node(&root, IFBLK | 0600, FL_ROOT, FREAD | FWRITE) == 0);
+		securelevel = 1;
+		HK_CHECK(write_cooked_block_flags(&root, 0) == 0);
+		close_node(&root);
+	}
 	securelevel = 2;
 	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FWRITE) == EPERM);
 	securelevel = 1;

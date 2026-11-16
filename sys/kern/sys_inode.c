@@ -188,8 +188,16 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
             if ((INODE_FILESYSTEM(ip)->fs_flags & MNT_ASYNC) == 0)
                 ioflag |= IO_SYNC;
             break;
-        case IFLNK:
         case IFBLK:
+            /*
+             * A descriptor opened for writing at level 0 outlives the rise
+             * of the level, so the swap blocks are asked again at every
+             * transfer, as swstrategy() asks for the sw alias.
+             */
+            if (securelevel > 0 && blkoverlap(swapdev, dev))
+                return (EPERM);
+            break;
+        case IFLNK:
         case IFCHR:
             break;
         default:

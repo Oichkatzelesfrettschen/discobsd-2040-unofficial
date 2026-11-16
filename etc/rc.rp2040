@@ -45,6 +45,18 @@ esac
 hostname pico
 umount -a
 mount -a
+
+#
+# The PicoCalc's PSRAM, when the kernel found one, holds a 6144 KB RAM disk
+# in minor 1 that every reset empties, so each boot makes a fresh file system
+# (one inode per 4096 bytes, 1536 inodes) and mounts it over /tmp. A kernel
+# without the driver, or a part that failed its probe, fails the open with
+# ENXIO; /tmp then stays a directory of the root.
+#
+if test -b /dev/psram1 && mkfs -i 4096 /dev/psram1 6144 >/dev/null 2>&1 &&
+    mount -o async,noaccesstime,nosuid /dev/psram1 /tmp; then
+    chmod 1777 /tmp
+fi
 rm -f /etc/nologin
 
 date

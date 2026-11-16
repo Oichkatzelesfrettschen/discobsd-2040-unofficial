@@ -129,6 +129,16 @@ closure sdcard needs path /mnt /dev/sd0 /dev/sd0a /dev/sd0b /dev/rsd0 /dev/rsd0a
 closure lcdgfx needs path /dev/lcdgfx
 
 #
+# The PicoCalc's PSRAM is block major 3 of the PICOCALC_PSRAM kernel, whose
+# minor 1 is a 6144 KB RAM disk. /etc/rc.rp2040 runs mkfs over it and
+# mounts it at /tmp, so the closure carries the node and /sbin/mkfs. The
+# PICOCALC kernel has no driver behind major 3, the open fails with ENXIO
+# and /etc/rc.rp2040 leaves /tmp on the root, so both PicoCalc boards share
+# the picocalc profile, which names the closure.
+#
+closure psramtmp needs path /dev/psram1 /sbin/mkfs
+
+#
 # games/ridge is a gamebox member that draws through /dev/lcdgfx (the tile
 # atlas and the raw key session of the PICOCALC kernels), so it is outside
 # the games group, whose closures the PICO board's image keeps, and it needs
@@ -188,15 +198,15 @@ cost lightup 23 2
 # picocalc   full plus the ClockworkPi PicoCalc's own closures: the
 #            arbitrary-precision calculator, the scientific calculator, the
 #            SD card's device nodes, the pixel device node, the platformer
-#            that draws on it, and picofetch and picotop; the PICOCALC
-#            board's default
+#            that draws on it, picofetch and picotop, and the PSRAM's /tmp
+#            node with mkfs; the default of both PICOCALC boards
 #
 profile base
 profile benchmark coremark
 profile developer toolchain toolchainlib
 profile games games puzzles
 profile full coremark toolchain toolchainlib games puzzles
-profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge picofetch picotop
+profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge picofetch picotop psramtmp
 
 # Opt-in desktop; the MATE artwork is supplied on external storage.
 closure matezinho needs closure lcdgfx sdcard

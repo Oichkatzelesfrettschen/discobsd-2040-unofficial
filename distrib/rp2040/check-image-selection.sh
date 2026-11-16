@@ -81,6 +81,8 @@ refuse "closure gamebox is selected with none of its members" \
 accept IMAGE_WITHOUT="toolchain toolchainlib"
 accept BOARD=PICOCALC IMAGE_WITHOUT="calc-bignum calc"
 accept BOARD=PICOCALC IMAGE_WITHOUT=sdcard
+accept BOARD=PICOCALC IMAGE_WITHOUT=psramtmp
+accept PROFILE=base IMAGE_WITH=psramtmp
 accept PROFILE=base IMAGE_WITH=sdcard
 accept PROFILE=base IMAGE_WITH="gamesdir puzzlebox lightup"
 accept BOARD=PICOCALC IMAGE_WITHOUT="ridge lcdgfx"

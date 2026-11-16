@@ -99,6 +99,19 @@ major 11
 minor 2
 #endclosure sdcard
 
+#closure psramtmp
+#
+# The PicoCalc's ESP-PSRAM64H is block major 3. Minor 0 is swap, which the
+# kernel opens itself; minor 1 is the 6144 KB RAM disk that /etc/rc.rp2040
+# makes a file system on and mounts at /tmp (sys/arch/rp2040/dev/psram.c).
+# Mode 0600: the node reads every user's /tmp files whatever their modes.
+#
+bdev /dev/psram1
+major 3
+minor 1
+mode 0600
+#endclosure psramtmp
+
 #
 # Character devices.
 #
@@ -267,6 +280,9 @@ pack /sbin/adminbox
 #closure sdcard
 pack /sbin/savecore
 #endclosure sdcard
+#closure psramtmp
+pack /sbin/mkfs
+#endclosure psramtmp
 
 pack /usr/bin/awk
 #closure coremark

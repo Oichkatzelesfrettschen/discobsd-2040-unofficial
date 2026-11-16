@@ -245,6 +245,13 @@ for renamed libc members; an incremental `ar cr` update preserves omitted ones.
 
 ## Remaining ABI work
 
+The [root-header declaration census](../../libc-declaration-census.md) expands
+discovery to tracked and installed root headers across four feature modes and
+both time widths. It preserves standalone/macro differences, resolves compiled
+providers by linker name and exposes overlapping libc/Tcl environment providers.
+Every API selection remains unreviewed; a provider match supplies no automatic
+export eligibility or shared-state ownership.
+
 The [declaration frontier](../../shared-libc-declaration-frontier.md) compares
 eight public-header roots with the compiled libc and libm providers. It records
 unprovided declarations and an executable signed-zero counterexample in the
@@ -264,6 +271,14 @@ established prior art. The checker claims neither a new algorithm nor a
 complete shared-libc implementation.
 
 ## Full-archive PIC compilation
+
+[The captured replay envelope](pic-replay-envelope.md) binds a reusable
+24-test compiler instrument to a clean latest-main-based implementation.
+All 449 members compile with their actual captured source and generated inputs.
+The 647-root experimental link occupies 62,604 flash bytes and 5,648 state
+bytes, exceeding the fixed reservation by 13,452 bytes before slots. A smaller
+omission image loses memmem and fails its original root contract. Public ABI
+selection, implementation reductions and runtime admission remain open.
 
 [The PIC input-section experiment](pic-input-sections.md) maps every shipped
 ARM libc member to captured inputs, recompiles 441 members, and identifies

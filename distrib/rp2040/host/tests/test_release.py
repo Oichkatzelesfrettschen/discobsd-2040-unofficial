@@ -26,6 +26,7 @@ import hashlib
 import os
 import struct
 import subprocess
+import time
 
 import pytest
 
@@ -170,21 +171,19 @@ def test_verified_staging_and_failed_flash_preserve_state(bundle, tmp_path, monk
         "--target",
         "PICO.uf2",
     ]
-    original_run = subprocess.run
     captured = []
 
-    def run(command, **kwargs):
-        if command[0] == "discobsd-flash":
-            from pathlib import Path
+    def run(command, timeout):
+        from pathlib import Path
 
-            assert [Path(p).name for p in command[1:]] == ["root.uf2", "PICO.uf2"]
-            assert Path(command[1]).parent != folder
-            assert Path(command[2]).read_bytes() == (folder / "PICO.uf2").read_bytes()
-            captured.append(command)
-            raise subprocess.CalledProcessError(1, command)
-        return original_run(command, **kwargs)
+        assert command[0] == "discobsd-flash"
+        assert [Path(p).name for p in command[1:]] == ["root.uf2", "PICO.uf2"]
+        assert Path(command[1]).parent != folder
+        assert Path(command[2]).read_bytes() == (folder / "PICO.uf2").read_bytes()
+        captured.append(command)
+        raise subprocess.CalledProcessError(1, command)
 
-    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(r, "run_delegate", run)
     with pytest.raises(SystemExit):
         r.main(argv)
     assert captured and not (tmp_path / "state").exists()
@@ -192,14 +191,11 @@ def test_verified_staging_and_failed_flash_preserve_state(bundle, tmp_path, monk
 
 def test_successful_delegate_advances_state(bundle, tmp_path, monkeypatch):
     folder, manifest, keys = bundle
-    original_run = subprocess.run
 
-    def run(command, **kwargs):
-        if command[0] == "discobsd-flash":
-            return subprocess.CompletedProcess(command, 0)
-        return original_run(command, **kwargs)
+    def run(command, timeout):
+        assert command[0] == "discobsd-flash"
 
-    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(r, "run_delegate", run)
     assert (
         r.main(
             [
@@ -223,3 +219,40 @@ def test_successful_delegate_advances_state(bundle, tmp_path, monkeypatch):
         == 0
     )
     assert struct.unpack("<Q", (tmp_path / "state").read_bytes())[0] == 7
+
+
+def _alive(pid):
+    try:
+        stat = open(f"/proc/{pid}/stat").read()
+    except OSError:
+        return False
+    return stat.rsplit(")", 1)[1].split()[0] != "Z"
+
+
+@pytest.mark.skipif(not os.path.isdir("/proc"), reason="needs /proc to read process state")
+def test_delegate_timeout_ends_the_whole_process_group(tmp_path):
+    # The script stands in for discobsd-flash and starts a long child the way
+    # it starts picotool; a timeout must end the child too, because the caller
+    # drops the rollback lock as the exception propagates.
+    pidfile = tmp_path / "child.pid"
+    script = tmp_path / "flash"
+    script.write_text(f'#!/bin/sh\nsleep 300 &\necho $! > "{pidfile}"\nwait\n')
+    script.chmod(0o755)
+    with pytest.raises(subprocess.TimeoutExpired):
+        r.run_delegate([str(script)], 1)
+    child = int(pidfile.read_text())
+    deadline = time.monotonic() + 5
+    while _alive(child) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not _alive(child)
+
+
+def test_delegate_failure_status_raises(tmp_path):
+    script = tmp_path / "flash"
+    script.write_text("#!/bin/sh\nexit 3\n")
+    script.chmod(0o755)
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        r.run_delegate([str(script)], 5)
+    assert caught.value.returncode == 3
+    script.write_text("#!/bin/sh\nexit 0\n")
+    r.run_delegate([str(script)], 5)

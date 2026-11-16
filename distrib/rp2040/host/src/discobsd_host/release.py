@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import signal
 import struct
 import subprocess
 import tempfile
@@ -46,6 +47,7 @@ DER = {
     "mldsa65": (bytes.fromhex("308207b2300b0609608648016503040312038207a100"), 1952),
 }
 SIGNATURE_BYTES = {"ed25519": 64, "mldsa65": 3309}
+FLASH_TIMEOUT = 120
 
 
 def require(condition, message):
@@ -243,6 +245,34 @@ def commit_sequence(path, sequence):
             os.unlink(temporary)
 
 
+def run_delegate(command, timeout):
+    """Run a flashing delegate in its own session and end the whole group.
+
+    discobsd-flash is a script that starts picotool, so killing only the
+    script on a timeout would leave picotool using the board while the caller
+    released the rollback lock. The delegate leads a new process group; on
+    timeout or interrupt the group receives SIGTERM, then SIGKILL, before the
+    exception propagates. POSIX only, like the flash command.
+    """
+    proc = subprocess.Popen(command, start_new_session=True)
+    try:
+        status = proc.wait(timeout=timeout)
+    except BaseException:
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(proc.pid, sig)
+            except ProcessLookupError:
+                break
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                continue
+        proc.wait()
+        raise
+    if status:
+        raise subprocess.CalledProcessError(status, command)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("manifest", "sign", "verify", "flash"))
@@ -301,7 +331,7 @@ def main(argv=None):
                             file.write_bytes(images[name])
                             staged.append(str(file))
                         # Delegate recovery/unmount only for private verified copies.
-                        subprocess.run(["discobsd-flash", *staged], check=True, timeout=120)
+                        run_delegate(["discobsd-flash", *staged], FLASH_TIMEOUT)
                     commit_sequence(args.state, sequence)
                 print(f"verified hybrid release sequence {sequence}")
         return 0

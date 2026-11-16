@@ -65,6 +65,10 @@ discobsd-release verify --directory artifacts --manifest release.bin --epoch 1 \
   --state private-state/sequence
 ```
 
+The command ships in the Python wheel (pipx install). The frozen Windows and
+macOS bundles carry only the four console tools and no discobsd-flash or
+OpenSSL 3.5, so they omit it by design.
+
 `verify` does not advance rollback state. On POSIX with the installed
 discobsd-flash/picotool tools, replace `verify` with `flash` and add
 `--target PICO.uf2` to perform a verified operation. Private copies are

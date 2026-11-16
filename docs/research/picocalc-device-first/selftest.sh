@@ -207,14 +207,32 @@ chmod 755 "$T/bmake-fresh"
 printf '#!/bin/sh\nexit 0\n' >"$T/bmake-empty"
 printf '#!/bin/sh\nexec "%s" "$@" | sed "s/ -fshort-enums//"\n' "$T/bmake-fresh" >"$T/bmake-nofl"
 chmod 755 "$T/bmake-empty" "$T/bmake-nofl"
-# The stripping helper must run and still print a compile command, or the
-# case below would test an unrunnable helper instead of the missing flag.
-if ! (cd "$ROOT/sys/arch/rp2040/compile/PICO" &&
-    "$T/bmake-nofl" MACHINE=rp2040 -n -f Makefile \
-    -f "$T/base/force-heatshrink_encoder.mk" heatshrink_encoder.o) >"$T/helper.out" 2>&1 ||
-    ! grep -- ' -c ' "$T/helper.out" | grep -q -- '-fno-strict-aliasing' ||
-    grep -- ' -c ' "$T/helper.out" | grep -q -- '-fshort-enums'; then
+# The built-tree condition: a kernel build leaves current objects, and an
+# unforced dry run then prints only "up to date". bmake-fresh reproduces it, so
+# the unforced call below must print no compile line, and the forced call the
+# stripping helper makes must print one without -fshort-enums. A helper or
+# check that depended on the condition would otherwise pass only on trees whose
+# objects are stale, as hosted CI's built tree showed.
+picodir=$ROOT/sys/arch/rp2040/compile/PICO
+(cd "$picodir" && "$T/bmake-nofl" MACHINE=rp2040 -n heatshrink_encoder.o) \
+    >"$T/unforced.out" 2>&1 || true
+(cd "$picodir" && "$T/bmake-nofl" MACHINE=rp2040 -n -f Makefile \
+    -f "$T/base/force-heatshrink_encoder.mk" heatshrink_encoder.o) \
+    >"$T/helper.out" 2>&1 || true
+grep -- ' -c ' "$T/unforced.out" >"$T/unforced.cc" || true
+grep -- ' -c ' "$T/helper.out" >"$T/helper.cc" || true
+if [ -s "$T/unforced.cc" ]; then
+    echo "selftest: the unforced dry run printed a compile line, so the current-objects shim does not reproduce a built tree:" >&2
+    cut -c1-200 "$T/unforced.out" >&2
+    fail=1
+fi
+if [ ! -s "$T/helper.cc" ] ||
+    ! grep -q -- '-fno-strict-aliasing' "$T/helper.cc" ||
+    grep -q -- '-fshort-enums' "$T/helper.cc"; then
     echo "selftest: the stripping helper does not run as intended" >&2
+    echo "  expected: one compile line holding -fno-strict-aliasing and no -fshort-enums" >&2
+    echo "  actual output (first 6 lines, 200 columns):" >&2
+    head -n 6 "$T/helper.out" | cut -c1-200 >&2
     fail=1
 fi
 expect_diag "no usable compile command" "no compile command from bmake" \

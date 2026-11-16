@@ -62,10 +62,14 @@ so it ranks layouts rather than predicting cycle counts.
 
 from __future__ import annotations
 
+import contextlib
 import gzip
+import io
+import os
 import random
 import re
 import sys
+import tempfile
 from bisect import bisect_right
 
 XIP_LO, XIP_HI = 0x10000000, 0x14000000
@@ -346,6 +350,22 @@ def self_test():
         ("pad with a specification is accepted",
          usage_problem(["pad", "t.gz", "b.map", "writep", "vm_swap.o:4:0"]) is None, True),
     ]
+    with tempfile.TemporaryDirectory() as scratch:
+        mapfile = os.path.join(scratch, "base.map")
+        with open(mapfile, "w", encoding="ascii") as handle:
+            handle.write(" .text.a        0x10000100       0x20 a.o\n"
+                         " .text.b        0x10000200       0x10 b.o\n")
+        tracefile = os.path.join(scratch, "trace.gz")
+        with gzip.open(tracefile, "wt") as handle:
+            handle.write("0x10000100: 0x2000\n0x10000102: 0x4770\n" * 3)
+        with contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
+            entered = main(["replay", tracefile, mapfile, "a", mapfile])
+            missed = main(["replay", tracefile, mapfile, "b", mapfile])
+        cases += [
+            ("a trace that enters the marker replays", entered, 0),
+            ("a trace that never enters the marker is refused", missed, 1),
+        ]
     status = 0
     for what, got, want in cases:
         ok = got == want
@@ -382,6 +402,10 @@ def main(argv):
     marker = section_start(base, ".text." + argv[3])
     marks = sum(1 for kind, address, _ in events if kind == 0 and address == marker)
     print(f"trace events {len(events)}, {argv[3]} entries {marks}")
+    if marks == 0:
+        print(f"xipsim: the trace never enters .text.{argv[3]}, so it holds no iteration "
+              "to divide by; the workload ran something else or ended", file=sys.stderr)
+        return 1
     if mode == "replay":
         show = 0
         args = argv[4:]

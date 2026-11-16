@@ -22,7 +22,12 @@ export PYTHON
 unset MAKEFLAGS MFLAGS
 status=0
 tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+# The EXIT trap cleans; a signal handler that returned would resume the gate
+# against the removed directory, so each signal exits with its status.
+trap 'rm -rf "$tmp"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail() {
 	echo "check-image-selection: $*" >&2

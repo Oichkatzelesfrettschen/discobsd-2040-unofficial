@@ -119,7 +119,10 @@ fi
 STAGE=$(mktemp -d "$OUTPUT/stage.XXXXXX")
 trap 'rm -f "$STAGE/tmp/filetab" "$STAGE/tmp/inotab" "$STAGE/tmp/proctab" "$STAGE/tmp/clistbound"
 rm -f "$STAGE/tmp/vmstat" "$STAGE/tmp/iostat" "$STAGE/tmp/pstat"
-rmdir "$STAGE/tmp" "$STAGE" 2>/dev/null || :' EXIT HUP INT TERM
+rmdir "$STAGE/tmp" "$STAGE" 2>/dev/null || :' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir "$STAGE/tmp"
 for program in filetab inotab proctab clistbound; do
 	cp "$FIXTURES/$program" "$STAGE/tmp/$program"

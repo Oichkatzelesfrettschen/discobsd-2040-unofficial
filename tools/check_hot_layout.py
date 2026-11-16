@@ -57,6 +57,8 @@ whose machine is not ARM exits 2 even when its symbols would pass.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import re
 import struct
 import sys
@@ -423,6 +425,18 @@ def self_test() -> int:
             print(f"self-test: {what} with passing symbols: exit {got}, expected 2: "
                   + ("ok" if got == 2 else "WRONG"))
             status = status or (got != 2)
+        for what, options in (("a zero cache way", ["--way-bytes", "0"]),
+                              ("a zero cache line", ["--line-bytes", "0"])):
+            elf = Path(scratch) / "unix.elf"
+            elf.write_bytes(synthetic_elf(base))
+            try:
+                with contextlib.redirect_stderr(io.StringIO()):
+                    got = main(options + ["--linker-script", str(script), str(elf)])
+            except SystemExit as stop:
+                got = stop.code
+            print(f"self-test: {what}: exit {got}, expected 2: "
+                  + ("ok" if got == 2 else "WRONG"))
+            status = status or (got != 2)
         junk = Path(scratch) / "junk.elf"
         junk.write_bytes(b"not an image")
         got = run([str(junk)], script, WAY_BYTES, LINE_BYTES)
@@ -445,8 +459,8 @@ def main(argv: list[str]) -> int:
         return self_test()
     if not args.elf:
         parser.error("name at least one kernel ELF")
-    if args.line_bytes <= 0 or args.way_bytes % args.line_bytes:
-        parser.error("--way-bytes must be a multiple of a positive --line-bytes")
+    if args.line_bytes <= 0 or args.way_bytes <= 0 or args.way_bytes % args.line_bytes:
+        parser.error("--way-bytes must be a positive multiple of a positive --line-bytes")
     return run(args.elf, args.linker_script, args.way_bytes, args.line_bytes)
 
 

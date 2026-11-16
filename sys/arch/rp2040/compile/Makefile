@@ -45,6 +45,8 @@ check-divider:
 		fi
 		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
 		"${PYTHON}" "${DIVIDER_OWNERSHIP_VERIFIER}" \
+		    --admit-function divider_save \
+		    --admit-function divider_restore \
 		    --elf PICO/unix.elf --dependency-directory PICO/.deps \
 		    --elf PICO_UART/unix.elf --dependency-directory PICO_UART/.deps \
 		    --elf PICOCALC/unix.elf --dependency-directory PICOCALC/.deps \

@@ -306,7 +306,8 @@ SIGRETURN_HEADER_DEPS=	${TOPSRC}/sys/arch/rp2040/include/frame.h \
 			${TOPSRC}/sys/arch/rp2040/include/signal.h \
 			${TOPSRC}/sys/arch/rp2040/include/user_context.h
 SIGRETURN_MUTANTS=	direct-user reread-user pc-admission sp-alignment \
-			frame-width padding-width psr-policy early-publication
+			frame-width padding-width psr-policy early-publication \
+			tail-omitted
 EXEC_ELF_SRC=		${TOPSRC}/sys/kern/exec_elf.c
 KERN_EXEC_SRC=		${TOPSRC}/sys/kern/kern_exec.c
 EXEC_SUBR_SRC=		${TOPSRC}/sys/kern/exec_subr.c
@@ -3044,6 +3045,7 @@ check-sigreturn-mutants: \
 		padding-width) expected='missing alignment padding reports EINVAL' ;; \
 		psr-policy) expected='missing Thumb bit reports EINVAL' ;; \
 		early-publication) expected='rejection preserves signal mask' ;; \
+		tail-omitted) expected='sigreturn restores r12 from the frame tail' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \

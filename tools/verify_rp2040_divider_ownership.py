@@ -1,5 +1,6 @@
-"""Reject linked RP2040 kernel accesses to the per-core SIO divider and hold
-the userland division helpers to one atomic hardware-divider sequence."""
+"""Reject linked RP2040 kernel accesses to the per-core SIO divider outside the
+functions --admit-function names, and hold the userland division helpers to
+one atomic hardware-divider sequence."""
 
 from __future__ import annotations
 
@@ -1194,14 +1195,39 @@ def strip_comments(source_text: str, assembly: bool) -> str:
     return "\n".join(stripped_lines)
 
 
-def scan_sources(source_paths: Iterable[Path]) -> list[str]:
+def admitted_lines(source_lines: Sequence[str], admitted: frozenset[str]) -> set[int]:
+    """Return the 1-based lines of the admitted functions' definitions.
+
+    A definition runs from the line that starts with the function's name and
+    an opening parenthesis, the KNF form with the return type on the line
+    above, through the next line that is a lone closing brace.
+    """
+    lines: set[int] = set()
+    inside = False
+    for line_number, source_line in enumerate(source_lines, 1):
+        if not inside and any(source_line.startswith(f"{name}(") for name in admitted):
+            inside = True
+        if inside:
+            lines.add(line_number)
+            if source_line.rstrip() == "}":
+                inside = False
+    return lines
+
+
+def scan_sources(
+    source_paths: Iterable[Path], admitted: frozenset[str] = frozenset()
+) -> list[str]:
     findings = []
     for source_path in sorted(set(source_paths)):
         source_text = strip_comments(
             source_path.read_text(encoding="utf-8", errors="replace"),
             source_path.suffix in ASSEMBLY_SUFFIXES,
         )
-        for line_number, source_line in enumerate(source_text.splitlines(), 1):
+        source_lines = source_text.splitlines()
+        exempt = admitted_lines(source_lines, admitted) if admitted else set()
+        for line_number, source_line in enumerate(source_lines, 1):
+            if line_number in exempt:
+                continue
             matched_patterns = []
             if DIVIDER_SYMBOL_PATTERN.search(source_line):
                 matched_patterns.append("divider symbol")
@@ -1234,6 +1260,17 @@ def parse_arguments() -> argparse.Namespace:
         help="relocatable object holding the userland division helpers",
     )
     parser.add_argument(
+        "--admit-function",
+        action="append",
+        default=[],
+        help=(
+            "function allowed to access the divider: the kernel's save and "
+            "restore of a process's divider state; each named function must "
+            "access the divider in every --elf image, and the source scan "
+            "skips its definition"
+        ),
+    )
+    parser.add_argument(
         "--dependency-directory",
         action="append",
         type=Path,
@@ -1254,7 +1291,7 @@ def main() -> int:
     source_paths = set()
     for dependency_directory in arguments.dependency_directory:
         source_paths.update(dependency_sources(dependency_directory.resolve()))
-    source_findings = scan_sources(source_paths)
+    source_findings = scan_sources(source_paths, frozenset(arguments.admit_function))
     image_results = []
     for image_path in arguments.elf:
         analyzer = ImageAnalyzer(image_path.resolve())
@@ -1262,6 +1299,34 @@ def main() -> int:
             image_results.append(analyzer.analyze())
         finally:
             analyzer.close()
+
+    admitted = frozenset(arguments.admit_function)
+    admission_findings: list[str] = []
+    for index, image_result in enumerate(image_results):
+        found = {finding.function for finding in image_result.findings}
+        for name in sorted(admitted - found):
+            admission_findings.append(
+                f"{image_result.image}: admitted function {name} makes no "
+                "divider access"
+            )
+        for finding in image_result.findings:
+            if finding.function in admitted:
+                print(
+                    f"{finding.image}:0x{finding.address:08x}: admitted: "
+                    f"{finding.function}: {finding.instruction}"
+                )
+        image_results[index] = ImageResult(
+            image_result.image,
+            image_result.image_bytes,
+            image_result.code_bytes,
+            image_result.literal_bytes,
+            image_result.instructions,
+            image_result.memory_operations,
+            image_result.sio_access_addresses,
+            tuple(
+                finding for finding in image_result.findings if finding.function not in admitted
+            ),
+        )
 
     for image_result in image_results:
         print(
@@ -1298,9 +1363,12 @@ def main() -> int:
         helper_findings.extend(findings)
     for helper_finding in helper_findings:
         print(helper_finding, file=sys.stderr)
+    for admission_finding in admission_findings:
+        print(admission_finding, file=sys.stderr)
     if (
         source_findings
         or helper_findings
+        or admission_findings
         or any(result.findings for result in image_results)
     ):
         return 1

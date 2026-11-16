@@ -25,6 +25,16 @@
 #include <machine/scb.h>
 
 /*
+ * Nonzero from SVC_Handler to the PendSV_Handler it pends: the pending
+ * PendSV carries a system call. systick() also pends PendSV, for an
+ * asynchronous system trap, and a SysTick taken while an SVC's PendSV is
+ * pending interrupted thread mode too, so only this flag tells the two
+ * apart. SVC_Handler and the cpsid at the top of PendSV_Handler order every
+ * access: SVC runs at a higher priority than PendSV and preempts no SVC.
+ */
+static volatile u_char svc_pending;
+
+/*
  * SVC_Handler(frame)
  *	struct trapframe *frame;
  *
@@ -42,6 +52,7 @@ SVC_Handler(void)
 	 * PENDSTCLR, which are write-one-to-clear in the same word, and would
 	 * add a load from the private peripheral bus to the syscall path.
 	 */
+	svc_pending = 1;
 	SCB_REG32(SCB_ICSR) = SCB_ICSR_PENDSVSET;
 
 	arm_dsb();
@@ -55,21 +66,27 @@ SVC_Handler(void)
  * PendSV_Handler(frame)
  *	struct trapframe *frame;
  *
- * System call handler (via SVC_Handler pending a PendSV exception).
+ * System call handler (via SVC_Handler pending a PendSV exception) and
+ * asynchronous system trap (via systick() pending one).
  * Save the processor state in a trap frame and pass it to syscall().
  * Restore processor state from returned trap frame on return from syscall().
  *
  * The body is the exception entry sequence itself, so the function carries
  * no AAPCS boundary: it takes no argument, returns no value, and the
  * compiler emits neither prologue nor epilogue. The sequence owns the whole
- * register file. It reaches MSP and PSP through MRS and MSR, pushes r4-r11
- * onto MSP so that the eight words the hardware stacked on PSP and the eight
- * it pushes here form one struct trapframe (machine/frame.h) in MSP order,
- * and hands MSP to syscall() as that frame. On the way out it writes the
- * frame back to PSP, restores r4-r11, and loads EXC_RETURN 0xfffffffd into
- * lr. The closing BX LR is the exception return (ARMv6-M ARM B1.5.8), which
- * without the naked attribute was supplied by the compiler epilogue and is
- * written out here instead.
+ * register file. It reaches MSP and PSP through MRS and MSR, reserves the
+ * six words of struct userframe above the trapframe, copies the stacked r12
+ * into uf_r12, pushes r4-r11 onto MSP so that the eight words the hardware
+ * stacked on PSP and the eight it pushes here form one struct trapframe
+ * (machine/frame.h) in MSP order, and hands MSP to syscall() as that frame.
+ * On the way out it writes the frame back to PSP with uf_r12 in the r12
+ * slot, restores r4-r11, releases the six words and loads EXC_RETURN
+ * 0xfffffffd into lr. tf_sp occupies the trapframe word the hardware frame
+ * gives r12, so r12 travels in uf_r12: an SVC leaves it scratch, but an
+ * asynchronous trap interrupts code that may hold a live value there. The
+ * closing BX LR is the exception return (ARMv6-M ARM B1.5.8), which without
+ * the naked attribute was supplied by the compiler epilogue and is written
+ * out here instead.
  */
 __attribute__((naked)) void
 PendSV_Handler(void)
@@ -85,9 +102,11 @@ __asm volatile (
 	 * ARMv7-M hardware already pushed r0-r3, ip, lr, pc, psr on PSP,
 	 * and then switched to MSP and is currently in Handler Mode.
 	 */
+"	sub	sp, #(6 * 4)	\n\t"	/* uf_r12 and uf_div. */
 "	push	{r4-r11}	\n\t"	/* Push v1-v8 registers onto MSP. */
 "	mrs	r1, PSP		\n\t"	/* Get pointer to trap frame. */
 "	ldmfd	r1, {r2-r9}	\n\t"	/* Copy trap frame from PSP. */
+"	str	r6, [sp, #(8 * 4)] \n\t"	/* Stacked r12 into uf_r12. */
 "	mov	r6, r1		\n\t"	/* Set trap frame sp as PSP. */
 "	push	{r2-r9}		\n\t"	/* Push that trap frame onto MSP. */
 
@@ -96,9 +115,11 @@ __asm volatile (
 
 "	pop	{r2-r9}		\n\t"	/* Pop off trap frame from MSP. */
 "	mov	r1, r6		\n\t"	/* PSP will be trap frame sp. */
+"	ldr	r6, [sp, #(8 * 4)] \n\t"	/* uf_r12 into the r12 slot. */
 "	stmia	r1, {r2-r9}	\n\t"	/* Hardware pops off PSP on return. */
 "	msr	PSP, r1		\n\t"	/* Set PSP as trap frame sp. */
 "	pop	{r4-r11}	\n\t"	/* Pop from MSP into v1-v8 regs. */
+"	add	sp, #(6 * 4)	\n\t"	/* Release uf_r12 and uf_div. */
 
 	/*
 	 * On return, ARMv7-M hardware sets PSP as stack pointer,
@@ -112,6 +133,7 @@ __asm volatile (
 	 * ARMv6-M hardware already pushed r0-r3, ip, lr, pc, psr on PSP,
 	 * and then switched to MSP and is currently in Handler Mode.
 	 */
+"	sub	sp, #(6 * 4)	\n\t"	/* uf_r12 and uf_div. */
 "	mov	r0, r8		\n\t"	/* Bring high register v5 to low. */
 "	mov	r1, r9		\n\t"	/* Bring high register v6 to low. */
 "	mov	r2, r10		\n\t"	/* Bring high register v7 to low. */
@@ -123,6 +145,7 @@ __asm volatile (
 "	mov	r2, r1		\n\t"	/* Pointer to use for top half. */
 "	adds	r2, #(4 * 4)	\n\t"	/* Index to top half of trap frame. */
 "	ldmfd	r2!, {r4-r7}	\n\t"	/* Copy frame top half from PSP. */
+"	str	r4, [sp, #(8 * 4)] \n\t"	/* Stacked r12 into uf_r12. */
 "	mov	r4, r1		\n\t"	/* Set trap frame sp as PSP. */
 "	push	{r4-r7}		\n\t"	/* Push frame top half onto MSP. */
 "	ldmfd	r1!, {r4-r7}	\n\t"	/* Copy frame low half from PSP. */
@@ -134,7 +157,7 @@ __asm volatile (
 "	pop	{r0-r7}		\n\t"	/* Pop off trap frame from MSP. */
 "	msr	PSP, r4		\n\t"	/* Set PSP as trap frame sp. */
 "	stmia	r4!, {r0-r3}	\n\t"	/* Copy trap frame low half to PSP. */
-"	mrs	r1, PSP		\n\t"	/* Get PSP again as trap frame sp. */
+"	ldr	r1, [sp, #(8 * 4)] \n\t"	/* uf_r12 into the r12 slot. */
 "	stmia	r4!, {r1,r5-r7}	\n\t"	/* Copy trap frame top half to PSP. */
 
 "	pop	{r4-r7}		\n\t"	/* Pop from MSP into v1-v4 regs. */
@@ -143,6 +166,7 @@ __asm volatile (
 "	mov	r10, r2		\n\t"	/* Move low register to high v7. */
 "	mov	r9, r1		\n\t"	/* Move low register to high v6. */
 "	mov	r8, r0		\n\t"	/* Move low register to high v5. */
+"	add	sp, #(6 * 4)	\n\t"	/* Release uf_r12 and uf_div. */
 
 	/*
 	 * On return, ARMv6-M hardware sets PSP as stack pointer,
@@ -156,20 +180,131 @@ __asm volatile (
 );
 }
 
+/*
+ * The SIO divider (RP2040 datasheet 2.3.1.5) is per-core state that only
+ * user code uses: the kernel's interrupts, callouts and system calls never
+ * reach it (tools/verify_rp2040_divider_ownership.py, which admits these
+ * two functions alone). A process interrupted between its divisor write and
+ * its quotient read leaves DIV_CSR.DIRTY set, and its results must outlive
+ * whatever runs before it resumes: another process after a switch, or its
+ * own signal handler. divider_save() copies the registers into the
+ * userframe when DIRTY is set; READY is awaited first, though the exception
+ * entry alone outlasts the eight-cycle calculation. divider_restore()
+ * writes them back the way the Pico SDK's hw_divider_restore_state()
+ * does: the operand writes start a calculation, and the result writes that
+ * follow replace its results and leave DIRTY set again. Reading
+ * DIV_QUOTIENT clears DIRTY, so the saved csr word, not the register,
+ * records that a restore is owed.
+ */
+#define	CSR_READY		0x1U
+
+/*
+ * div addresses the divider's word registers from 0xd0000060 on, indexed
+ * by word: 0 the unsigned dividend, 1 the unsigned divisor, 4 the
+ * quotient, 5 the remainder, 6 DIV_CSR. The empty asm keeps that base in a
+ * register, so the five accesses share one literal instead of pooling an
+ * address for each. check-divider admits these two functions by name
+ * (--admit-function), in the linked kernels and in the source scan, which
+ * still rejects a divider reference anywhere else.
+ */
+__attribute__((noinline)) void
+divider_save(struct divider_state *ds)
+{
+	volatile u_int *div;
+
+	__asm volatile ("" : "=l" (div) : "0" (0xd0000060UL));
+	ds->ds_csr = div[6];
+	if ((ds->ds_csr & DS_CSR_DIRTY) == 0)
+		return;
+	while ((div[6] & CSR_READY) == 0)
+		continue;
+	ds->ds_dividend = div[0];
+	ds->ds_divisor = div[1];
+	ds->ds_remainder = div[5];
+	ds->ds_quotient = div[4];
+}
+
+__attribute__((noinline)) void
+divider_restore(const struct divider_state *ds)
+{
+	volatile u_int *div;
+
+	__asm volatile ("" : "=l" (div) : "0" (0xd0000060UL));
+	if ((ds->ds_csr & DS_CSR_DIRTY) == 0)
+		return;
+	div[0] = ds->ds_dividend;
+	div[1] = ds->ds_divisor;
+	div[5] = ds->ds_remainder;
+	div[4] = ds->ds_quotient;
+}
+
+/*
+ * Check the kernel stack and record the user stack an entry from the
+ * process found. swapout() copies p_ssize bytes below USER_TOP, so a stack
+ * deeper than the deepest entry recorded so far must be recorded before
+ * anything can switch the process out. Returns nonzero when sp has run into
+ * the data segment.
+ */
+static int
+user_entry(const struct trapframe *frame)
+{
+	struct proc *p = u.u_procp;
+	u_int sp = frame->tf_sp;
+
+	if ((u_int)frame < (u_int)&u + sizeof(u)) {
+		panic("stack overflow");
+		/* NOTREACHED */
+	}
+	if (sp < p->p_daddr + u.u_dsize)
+		return 1;
+	if (p->p_ssize < USER_TOP(p) - sp) {
+		p->p_ssize = USER_TOP(p) - sp;
+		p->p_saddr = sp;
+		u.u_ssize = p->p_ssize;
+	}
+	return 0;
+}
+
+/*
+ * The asynchronous system trap: systick() pends PendSV when the tick
+ * interrupted the process with a signal pending or runrun set, and
+ * PendSV_Handler, which runs only when no other exception is active, enters
+ * here instead of the system call. userret() delivers the signals and
+ * switches processes as it does after a system call, so a process that
+ * makes no system call still receives SIGALRM or SIGINT and yields the
+ * processor once a second (schedcpu) or to a process a wakeup made better.
+ * u.u_code keeps the last system call's value for sendsig().
+ */
+static void
+ast(struct trapframe *frame)
+{
+	struct userframe *uf = USERFRAME(frame);
+	time_t syst = u.u_ru.ru_stime;
+
+	divider_save(&uf->uf_div);
+	(void)arm_intr_enable();
+	u.u_frame = frame;
+	if (user_entry(frame))
+		psignal(u.u_procp, SIGSEGV);
+	userret(frame->tf_pc, syst);
+	divider_restore(&uf->uf_div);
+}
+
 void
 syscall(struct trapframe *frame)
 {
 	int psig;
 	time_t syst;
 	int code;
-	u_int sp;
+
+	if (!svc_pending) {
+		ast(frame);
+		return;
+	}
+	svc_pending = 0;
+	divider_save(&USERFRAME(frame)->uf_div);
 
 	syst = u.u_ru.ru_stime;
-
-	if ((u_int)frame < (u_int)&u + sizeof(u)) {
-		panic("stack overflow");
-		/* NOTREACHED */
-	}
 
 #ifdef UCB_METER
 	cnt.v_trap++;
@@ -186,18 +321,11 @@ syscall(struct trapframe *frame)
 	led_control(LED_KERNEL, 1);
 
 	/* Check stack. */
-	sp = u.u_frame->tf_sp;
-	if (sp < u.u_procp->p_daddr + u.u_dsize) {
+	if (user_entry(frame)) {
 		/* Process has trashed its stack; give it an illegal
 		 * instruction violation to halt it in its tracks. */
 		psig = SIGSEGV;
 		goto bad;
-	}
-	if (u.u_procp->p_ssize < USER_TOP(u.u_procp) - sp) {
-		/* Expand stack. */
-		u.u_procp->p_ssize = USER_TOP(u.u_procp) - sp;
-		u.u_procp->p_saddr = sp;
-		u.u_ssize = u.u_procp->p_ssize;
 	}
 
 	code = *(const unsigned char *)u.u_code;		/* Bottom 8 bits are index. */
@@ -288,6 +416,7 @@ bad:
 
 out:
 	userret(u.u_frame->tf_pc, syst);
+	divider_restore(&USERFRAME(frame)->uf_div);
 
 	led_control(LED_KERNEL, 0);
 }

@@ -99,3 +99,82 @@ cycles. With a miss costing 50-70 cycles at SCK = 62.5 MHz:
 - P3: with `machdep.xip_cache=0`, the swap-path/stock pipe ratio lies
   within 0.98 to 1.02.
 - P4: syscall (-0.7%) shows a miss rise of at most 1 per call.
+
+## Board run 1: XIP counters on the benchmark union kernels (2026-11-16, 17:40Z-17:50Z)
+
+Bare Pico on USB port 1-3, hostname pico, root fs-benchsuite (4b3eaf6c), images
+unix-U-stock.uf2 and unix-U-sel.uf2 of the benchmark session, two alternated
+passes. Each counter row clears `machdep.xip_acc` and `machdep.xip_hit`, runs
+the program and reads both; per-iteration values subtract the 1-second run from
+the 11-second run, which cancels exec and exit.
+
+| Kernel | pipe/s (11 s) | misses per pipe iteration | XIP accesses per iteration | syscall/s | misses per syscall iteration |
+|---|---|---|---|---|---|
+| union stock | 23,590 / 24,157 / 23,568 / 24,423 | 0.51 / 0.41 / 0.51 / 0.41 | 1,917 / 1,898 / 1,919 / 1,861 | 44,175 / 44,176 | 0.017 / 0.016 |
+| union swap-path -O2 | 21,013 / 21,378 / 20,945 / 21,376 | 14.30 / 14.20 / 14.30 / 14.22 | 1,888 / 1,875 / 1,900 / 1,879 | 43,155 / 43,141 | 0.448 / 0.451 |
+
+- P1 holds: misses rise by 13.8 per iteration (predicted 9 to 14). The time
+  difference, 125e6/21,013 - 125e6/23,590 = 650 cycles, gives 47 cycles per
+  miss, one QSPI transaction at SCK = 62.5 MHz.
+- P2 holds within 1.6%: accesses per iteration overlap between the kernels.
+- P4 holds: syscall gains 0.43 misses per call, 20 cycles of 2,830, the
+  measured -0.7%.
+- P3 is falsified, in the other direction: with `machdep.xip_cache=0`, ub-pipe 4
+  ran 312 and 332 loops on the stock kernel and 4,859 on the swap-path -O2
+  kernel. The stock figure implies about 830 cycles per XIP access, against
+  54 for the -O2 kernel and about 50 for one QSPI transaction, so the stock
+  kernel spends most of the uncached window outside the pipe loop. This
+  anomaly is separate from the cached loss (whose sign it opposes) and stays
+  open: hypotheses are swap work during the window, which -O2 speeds up
+  (falsified if the hot-region kernels split by layout rather than by swap
+  flags), and a layout-dependent uncached cost (falsified if they split by swap
+  flags).
+
+## Instruction traces and the cache model
+
+`trace_run.py` (beside this note) boots the union kernel with a UART0
+descriptor under Renode 1.17.0 from the real boot ROM, logs in, starts
+`/usr/bin/ub-pipe 60` from the benchsuite root, and after 4 virtual seconds
+records 0.02 virtual seconds of program counters and memory accesses: 866
+pipe iterations, 2.48 million events. `ub-syscall 60` gives a second trace of
+1,776 iterations. `xipsim.py` replays the instruction fetches (one 32-bit word
+per new aligned word) and the XIP data reads through a 1,024-set, two-way,
+8-byte-line cache, relocating each address input section by input section
+through the link map of another layout, under LRU, FIFO and random
+replacement.
+
+| Layout (union) | misses per pipe iteration, LRU / FIFO / random | board |
+|---|---|---|
+| stock | 0.56 / 0.56 / 0.53 | 0.41-0.51 |
+| swap path -O2 | 10.09 / 10.17 / 7.91 | 14.2-14.3 |
+| all -Os, 4-byte pad after vm_swap.o | 0.57 / 0.57 / 0.54 | |
+| all -Os, 1,000-byte pad | 3.91 / 3.96 / 2.95 | |
+| all -Os, 1,004-byte pad | 7.09 / 7.18 / 5.92 | pending |
+| all -Os, 1,008-byte pad | 4.03 / 4.10 / 3.82 | |
+| pads after the last text object (rodata shift only) | 0.56 | |
+
+The pipe path executes 37 input sections, 6,043 bytes; the syscall
+benchmark adds 8 sections. In the swap-path -O2 layout the conflicts sit in
+two sets: set 484 holds rwip+0x178, the line after dumpsys (the start of the
+baduaddr helpers in machdep.o) and the `nsysent` word of init_sysent.o;
+set 486 holds rwip+0x188, baduaddr_span+0xc and `syscall_handlers`+0xc. Each
+system call touches all three lines of each set, so two-way LRU misses three
+times per set per call: 6 and 3 misses per iteration. The PICO configuration,
+replayed through the same trace (rwip, writep and pipe_rw differ in size there
+and drop out), gives 6.62 misses for stock and 0.53 for swap path -O2, the
+sign of its +12%.
+
+H2 is refuted as a separate cause: a 4-byte shift changes nothing, while
+shifts that move whole lines between sets reproduce the loss. H1 is the cause:
+three hot lines one way apart in one two-way set.
+
+## Predictions before board run 2 (recorded before the hot-region passes)
+
+- The hot-region kernels miss at most 0.6 times per pipe iteration in both
+  configurations, with and without swap-path -O2 (model 0.48 union, 0.34
+  PICO), and run pipe at or above the faster of stock and swap path -O2.
+- The all -Os pad kernel (1,004 bytes after vm_swap.o, every hot text address
+  equal to the swap-path -O2 kernel's) misses about 10 times per iteration
+  (model 7.1 scaled by the measured 14.3/10.1) and runs pipe near 21,700/s.
+- Context switch and spawn move with swap-path -O2 (+48% to +50%) and not
+  with the hot region; syscall stays within 1% of stock.

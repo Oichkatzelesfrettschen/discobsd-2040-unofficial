@@ -544,9 +544,14 @@ def main(argv=None) -> int:
             "--token SECRET for the LAN) -- Ctrl-C to stop\n" % (host, args.port, q)
         )
     else:
+        # A concrete bind is the only address the server answers on; a
+        # wildcard bind is advertised through the host's LAN address.
+        host = args.bind if args.bind not in ("0.0.0.0", "::") else lan_ip()
+        if ":" in host:
+            host = "[%s]" % host
         sys.stderr.write(
             "  open http://%s:%d/%s from the LAN (token required) -- Ctrl-C to stop\n"
-            % (lan_ip(), args.port, q)
+            % (host, args.port, q)
         )
     try:
         httpd.serve_forever()

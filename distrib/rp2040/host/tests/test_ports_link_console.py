@@ -527,3 +527,30 @@ def test_up_refuses_an_ipv6_advertised_address(monkeypatch, tmp_path, capsys):
     assert console.cmd_up(args) == 1
     assert "IPv6" in capsys.readouterr().err
     assert not (conf / "web.env").exists()
+
+
+@pytest.mark.parametrize(
+    "bind, shown",
+    [("10.0.0.7", "http://10.0.0.7:7681/"), ("fd00::7", "http://[fd00::7]:7681/"),
+     ("0.0.0.0", "http://10.0.0.9:7681/")],
+)
+def test_web_names_the_address_it_serves(monkeypatch, capsys, bind, shown):
+    # The startup line names the bound address for a concrete bind and the
+    # LAN address only for a wildcard bind.
+    class Fake:
+        is_loopback = False
+
+        def __init__(self, *a, **k):
+            pass
+
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr(web, "ConsoleServer", Fake)
+    monkeypatch.setattr(web, "lan_ip", lambda: "10.0.0.9")
+    monkeypatch.setenv("DISCOBSD_WEB_TOKEN", "tok")
+    assert web.main(["--bind", bind, "--port", "7681", "/dev/null"]) == 0
+    assert shown in capsys.readouterr().err

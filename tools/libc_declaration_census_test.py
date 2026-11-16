@@ -262,6 +262,25 @@ class CompilerTests(unittest.TestCase):
             census.compile_headers(self.root, self.work, self.compiler, [],
                                    ["../probe.h"], "probe")
 
+    def test_symlinked_root_spelling_is_accepted(self):
+        link = Path(self.work) / "root-link"
+        link.symlink_to(self.root, target_is_directory=True)
+        (self.root / "include" / "probe.h").write_text("extern int public(int);\n")
+        observed, witness = census.compile_headers(link, self.work, self.compiler, [],
+                                                   ["probe.h"], "probe")
+        self.assertEqual(set(observed), {"public"})
+        self.assertEqual(set(witness["dependencies"]), {"include/probe.h"})
+
+    def test_header_symlink_to_external_file_fails(self):
+        temporary = tempfile.TemporaryDirectory(prefix="declaration-census-external-")
+        self.addCleanup(temporary.cleanup)
+        outside = Path(temporary.name) / "outside.h"
+        outside.write_text("extern int external(void);\n")
+        (self.root / "include" / "probe.h").symlink_to(outside)
+        with self.assertRaisesRegex(ValueError, "dependency leaves repository"):
+            census.compile_headers(self.root, self.work, self.compiler, [],
+                                   ["probe.h"], "probe")
+
     def test_external_dependency_fails_after_compilation(self):
         temporary = tempfile.TemporaryDirectory(prefix="declaration-census-external-")
         self.addCleanup(temporary.cleanup)

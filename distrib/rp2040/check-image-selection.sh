@@ -24,7 +24,15 @@ status=0
 tmp=$(mktemp -d)
 # The EXIT trap cleans; a signal handler that returned would resume the gate
 # against the removed directory, so each signal exits with its status.
-trap 'rm -rf "$tmp"' EXIT
+# The scratch directory holds only the flat manifest files the checks below
+# write, so cleanup removes those files and then the directory.
+cleanup() {
+	for file in "$tmp"/*; do
+		if [ -f "$file" ]; then rm -f "$file"; fi
+	done
+	rmdir "$tmp" 2>/dev/null || :
+}
+trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM

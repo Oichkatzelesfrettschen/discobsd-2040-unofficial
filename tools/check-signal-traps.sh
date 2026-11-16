@@ -163,20 +163,21 @@ scan() {
 }
 
 # fixture KIND PATH: a script that creates a work directory, installs its
-# traps, announces readiness and then idles five seconds before writing a
-# completion marker beside the work directory.
+# traps, announces readiness and then idles (its third argument counts 0.2
+# second steps) before writing a completion marker beside the work
+# directory. Its cleanup removes the one file it made and then the directory.
 fixture() {
 	{
-		printf '%s\n' '#!/bin/sh' 'set -eu' 'work=$1' 'marker=$2' 'mkdir "$work"'
+		printf '%s\n' '#!/bin/sh' 'set -eu' 'work=$1' 'marker=$2' 'steps=$3' 'mkdir "$work"'
 		if [ "$1" = good ]; then
-			printf '%s\n' 'cleanup() { rm -rf "$work"; }' \
+			printf '%s\n' 'cleanup() { rm -f "$work/ready"; rmdir "$work" 2>/dev/null || :; }' \
 				'trap cleanup EXIT' "trap 'exit 129' HUP" \
 				"trap 'exit 130' INT" "trap 'exit 143' TERM"
 		else
-			printf '%s\n' "trap 'rm -rf \"\$work\"' EXIT HUP INT TERM"
+			printf '%s\n' "trap 'rm -f \"\$work/ready\"; rmdir \"\$work\" 2>/dev/null || :' EXIT HUP INT TERM"
 		fi
 		printf '%s\n' ': >"$work/ready"' 'i=0' \
-			'while [ "$i" -lt 25 ]; do sleep 0.2; i=$((i + 1)); done' \
+			'while [ "$i" -lt "$steps" ]; do sleep 0.2; i=$((i + 1)); done' \
 			': >"$marker"'
 	} >"$2"
 }
@@ -185,7 +186,7 @@ fixture() {
 # print its exit status.
 run_term() {
 	fixture "$1" "$2/$1.sh"
-	sh "$2/$1.sh" "$2/$1.work" "$2/$1.marker" &
+	sh "$2/$1.sh" "$2/$1.work" "$2/$1.marker" 25 &
 	pid=$!
 	waited=0
 	while [ ! -f "$2/$1.work/ready" ] && [ "$waited" -lt 50 ]; do
@@ -197,6 +198,22 @@ run_term() {
 	status=0
 	wait "$pid" || status=$?
 	echo "$status"
+}
+
+# run_normal KIND DIR: run the fixture to completion with no signal and
+# print its exit status.
+run_normal() {
+	fixture "$1" "$2/$1.sh"
+	status=0
+	sh "$2/$1.sh" "$2/$1.work" "$2/$1.marker" 1 || status=$?
+	echo "$status"
+}
+
+# remove_directory DIR: delete the files and links under DIR, then its
+# directories from the deepest up; the removal names no recursive delete.
+remove_directory() {
+	find "$1" -depth \( -type f -o -type l \) -exec rm -f {} + 2>/dev/null || :
+	find "$1" -depth -type d -exec rmdir {} + 2>/dev/null || :
 }
 
 # expect_scan VERDICT LABEL TEXT: write TEXT to a file and require the scan
@@ -214,9 +231,16 @@ expect_scan() {
 	fi
 }
 
-selftest() {
-	dir=$(mktemp -d)
-	trap 'rm -rf "$dir"' EXIT
+# selftest_body: every case, in a private directory under TMPDIR.
+selftest_body() {
+	temporary_parent=${TMPDIR:-/tmp}
+	dir=$(mktemp -d "$temporary_parent/check-signal-traps.XXXXXX")
+	cleanup() {
+		case $dir in
+		"$temporary_parent"/check-signal-traps.*) remove_directory "$dir" ;;
+		esac
+	}
+	trap cleanup EXIT
 	trap 'exit 129' HUP
 	trap 'exit 130' INT
 	trap 'exit 143' TERM
@@ -293,13 +317,44 @@ trap 'exit 143' TERM"
 	expect_scan good "commented trap" "# trap cleanup EXIT TERM"
 	expect_scan good "trap in a quoted string" "printf '%s\n' 'trap cleanup EXIT TERM'"
 	expect_scan good "trap listing" "trap -p"
+	normal_status=$(run_normal good "$dir")
+	[ "$normal_status" -eq 0 ] || { echo "selftest: conforming fixture exited $normal_status after a normal run" >&2; exit 1; }
+	[ ! -e "$dir/good.work" ] || { echo "selftest: conforming fixture left its work directory after a normal exit" >&2; exit 1; }
+	[ -e "$dir/good.marker" ] || { echo "selftest: conforming fixture did not finish a normal run" >&2; exit 1; }
+	rm -f "$dir/good.marker"
 	good_status=$(run_term good "$dir")
 	bad_status=$(run_term bad "$dir")
 	[ "$good_status" -eq 143 ] || { echo "selftest: conforming fixture exited $good_status, not 143" >&2; exit 1; }
 	[ ! -e "$dir/good.work" ] || { echo "selftest: conforming fixture left its work directory" >&2; exit 1; }
 	[ ! -e "$dir/good.marker" ] || { echo "selftest: conforming fixture ran past SIGTERM" >&2; exit 1; }
 	[ -e "$dir/bad.marker" ] || { echo "selftest: combined fixture did not resume after SIGTERM (status $bad_status)" >&2; exit 1; }
-	echo "check-signal-traps: selftest ok (combined trap rejected and resumes after SIGTERM, conforming exits 143)"
+}
+
+# selftest: run selftest_body in a fresh TMPDIR and require that directory to
+# be empty afterward, after a normal exit and again after SIGTERM, so the
+# body's own cleanup is held to the idiom it checks.
+selftest() {
+	trap 'exit 129' HUP
+	trap 'exit 130' INT
+	trap 'exit 143' TERM
+	parent=$(mktemp -d "${TMPDIR:-/tmp}/check-signal-traps-parent.XXXXXX")
+	TMPDIR=$parent sh "$0" --selftest-body
+	rmdir "$parent" 2>/dev/null || { echo "selftest: the selftest left its work directory after a normal exit" >&2; exit 1; }
+	parent=$(mktemp -d "${TMPDIR:-/tmp}/check-signal-traps-parent.XXXXXX")
+	TMPDIR=$parent sh "$0" --selftest-body &
+	pid=$!
+	waited=0
+	while [ -z "$(ls "$parent")" ] && [ "$waited" -lt 50 ]; do
+		sleep 0.1
+		waited=$((waited + 1))
+	done
+	sleep 0.5
+	kill -TERM "$pid"
+	status=0
+	wait "$pid" || status=$?
+	[ "$status" -eq 143 ] || { echo "selftest: the selftest exited $status after SIGTERM, not 143" >&2; exit 1; }
+	rmdir "$parent" 2>/dev/null || { echo "selftest: the selftest left its work directory after SIGTERM" >&2; exit 1; }
+	echo "check-signal-traps: selftest ok (combined trap rejected and resumes after SIGTERM, conforming exits 143, work directories removed after a normal exit and after SIGTERM)"
 }
 
 if [ "$#" -eq 0 ]; then
@@ -308,6 +363,10 @@ if [ "$#" -eq 0 ]; then
 fi
 if [ "$1" = --selftest ]; then
 	selftest
+	exit 0
+fi
+if [ "$1" = --selftest-body ]; then
+	selftest_body
 	exit 0
 fi
 status=0

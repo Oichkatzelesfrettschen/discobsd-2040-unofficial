@@ -439,7 +439,7 @@ its short form. The parts and their licenses:
 
 | part | holder | license |
 | --- | --- | --- |
-| the system, the rp2040 port, the host tools | DiscoBSD, RetroBSD | BSD 3-Clause (`LICENSE`); port files marked 2026 DiscoBSD are ISC |
+| the system, the rp2040 port, the host tools | DiscoBSD, RetroBSD, GizmoBSD | BSD 3-Clause (`LICENSE`); port files marked GizmoBSD are BSD 3-Clause; port files marked 2026 DiscoBSD are ISC |
 | kernel, libc, most of /bin and /usr/bin | The Regents of the University of California | Berkeley licenses of 1980-1993; the advertising clause was withdrawn by the University in 1999 |
 | the AT&T-descended programs (sh, ed, sed, awk, find, cpio, dd, look, deroff) and the optional V6 pack | Caldera International, Inc. | Caldera ancient-UNIX license, 2002: BSD-style with an acknowledgement in advertising |
 | second-stage boot code | Raspberry Pi (Trading) Ltd. | BSD 3-Clause |

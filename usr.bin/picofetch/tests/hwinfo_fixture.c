@@ -215,7 +215,7 @@ hw_collect(struct hwinfo *hw, int groups)
 
 		hw->procs_state = RD_OK;
 		hw->nproc = 0;
-		proc(hw, 0, 0, 0, 1, 1, 30 * s, 0, "swapper");
+		proc(hw, 0, 0, 0, 1, 1, 30 * s, 0, "");
 		proc(hw, 1, 0, 0, 1, 0, 2, 20480, "init");
 		proc(hw, 12, 1, 0, 1, 0, 40, 30720, "sh");
 		proc(hw, 31, 12, 100, 1, 0, 300 + 10 * s +

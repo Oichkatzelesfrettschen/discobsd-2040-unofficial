@@ -44,6 +44,7 @@ typedef int     ssize_t;
 #endif
 #endif
 #include <sys/_time_t.h>
+#include <sys/_suseconds_t.h>
 typedef int     dev_t;
 #ifndef _OFF_T
 #define _OFF_T

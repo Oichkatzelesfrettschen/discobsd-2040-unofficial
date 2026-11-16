@@ -399,7 +399,7 @@ untimeout (void (*fun)(caddr_t), caddr_t arg)
 }
 
 void
-profil()
+profil(void)
 {
     register struct a {
         unsigned *bufbase;
@@ -459,7 +459,7 @@ hzto(register struct timeval *tv)
  * Initialize callouts.
  */
 void
-coutinit()
+coutinit(void)
 {
     int i;
 

@@ -32,7 +32,9 @@
 #include <machine/board.h>
 #include <machine/mpuvar.h>
 #include <machine/watchdog.h>
+#ifdef DEV_ADC
 #include <rp2040/dev/adc.h>
+#endif
 #include <rp2040/dev/flash.h>
 #ifdef CORE1
 #include <rp2040/rp2040/core1.h>
@@ -162,6 +164,14 @@ ucall(void)
 
 	if (!suser())
 		return;
+	/*
+	 * The routine runs at kernel privilege, which no write guard of the
+	 * level covers; a raised level refuses the call.
+	 */
+	if (securelevel > 0) {
+		u.u_error = EPERM;
+		return;
+	}
 	switch (uap->priority) {
 	case 0:
 		s = spl0();
@@ -274,6 +284,24 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		i = (int)watchdog_last_arg2;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
 
+	case CPU_FLASH_UNIQUE_HI:
+	case CPU_FLASH_UNIQUE_LO:
+		{
+			const u_char *jedec, *unique;
+
+			if (namelen != 1)
+				return ENOTDIR;
+			if (flash_identity(&jedec, &unique) != 0)
+				return EIO;
+			if (name[0] == CPU_FLASH_UNIQUE_LO)
+				unique += 4;
+			i = (int)((u_int)unique[0] << 24 |
+			    (u_int)unique[1] << 16 | (u_int)unique[2] << 8 |
+			    unique[3]);
+			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
+			    sizeof i);
+		}
+
 	case CPU_IMAGE_LENGTH:
 	case CPU_IMAGE_CRC:
 	case CPU_IMAGE_CRC_STORED:
@@ -282,6 +310,7 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		i = (int)(name[0] == CPU_IMAGE_LENGTH ? image_length :
 		    name[0] == CPU_IMAGE_CRC ? image_crc : image_crc_stored);
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+#ifdef DEV_ADC
 	case CPU_ADC_TEMP:
 	case CPU_ADC_VSYS:
 		{
@@ -298,6 +327,7 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
 			    sizeof i);
 		}
+#endif
 #ifdef CORE1
 	case CPU_CORE1:
 	case CPU_CORE1_RESTARTS:
@@ -418,6 +448,15 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		if (namelen != 1)
 			return ENOTDIR;
 		count = usb_tx_recovered;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
+		    sizeof count);
+
+	case CPU_USB_TX_PEAK:
+	case CPU_USB_TX_DROPPED:
+		if (namelen != 1)
+			return ENOTDIR;
+		count = name[0] == CPU_USB_TX_PEAK ? usb_tx_peak :
+		    usb_tx_dropped;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
 		    sizeof count);
 #endif	/* UARTUSB_ENABLED */

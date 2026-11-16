@@ -130,7 +130,30 @@
  */
 #define	CPU_ADC_TEMP		43	/* int: die temperature, m degrees C */
 #define	CPU_ADC_VSYS		44	/* int: VSYS, millivolts */
-#define	CPU_MAXID		45	/* number of valid machdep ids */
+/*
+ * Ids 45 and 46 stay unassigned; machdep and sysctl(8) treat an unnamed id
+ * as absent.
+ *
+ * The USB transmit ring's boot-lifetime accounting, read only. The peak is
+ * the greatest byte count the ring held, so a ring size can be set from what
+ * a console actually queued before the host drained it. The dropped count is
+ * the bytes usb_tx_put discarded because the ring was full with nobody
+ * draining it, saturating at INT_MAX, the largest value a CTLTYPE_INT
+ * reports without a sign change.
+ */
+#define	CPU_USB_TX_PEAK		47	/* int: greatest ring occupancy, bytes */
+#define	CPU_USB_TX_DROPPED	48	/* int: bytes discarded, saturating */
+/*
+ * The flash chip's 64-bit unique ID as two read-only ints: the first four
+ * bytes the chip returns (the first eight hex digits of the USB serial
+ * string), most significant byte first, and the last four. sysctl(8) prints
+ * an int signed, so a half with its top bit set reads negative; boardinfo
+ * formats both with printf %08x. EIO when the chip's identity did not read
+ * (flash_identity() in dev/flash.c).
+ */
+#define	CPU_FLASH_UNIQUE_HI	49	/* int: unique ID bytes 0-3 */
+#define	CPU_FLASH_UNIQUE_LO	50	/* int: unique ID bytes 4-7 */
+#define	CPU_MAXID		51	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -179,5 +202,11 @@
 	{ "image_crc_stored", CTLTYPE_INT }, \
 	{ "adc_temp_mc", CTLTYPE_INT }, \
 	{ "adc_vsys_mv", CTLTYPE_INT }, \
+	{ 0, 0 }, \
+	{ 0, 0 }, \
+	{ "usb_tx_peak", CTLTYPE_INT }, \
+	{ "usb_tx_dropped", CTLTYPE_INT }, \
+	{ "flash_unique_hi", CTLTYPE_INT }, \
+	{ "flash_unique_lo", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

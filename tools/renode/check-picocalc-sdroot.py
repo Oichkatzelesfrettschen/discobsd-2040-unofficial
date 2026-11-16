@@ -44,7 +44,7 @@ one fails.
 Usage: check-picocalc-sdroot.py RENODE KERNEL SDROOT_IMG OUTPUT_DIR
        check-picocalc-sdroot.py --self-test
 KERNEL is a flat unix.bin or a kernel UF2 such as the board image
-distrib/rp2040/unix-PICOCALC_PSRAM.uf2 that goes on the card.
+distrib/rp2040/unix-PICOCALC.uf2 that goes on the card.
 Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 """
 
@@ -88,7 +88,7 @@ UF2_MAGIC = (0x0A324655, 0x9E5D5157, 0x0AB16F30)
 # identification, then sector reads of the table and the superblock.
 SD_BUDGET_SECONDS = 60.0
 
-# Both PicoCalc kernels; the board name in parentheses differs.
+# Every PicoCalc kernel; the configuration name in parentheses differs.
 BANNER = "DiscoBSD 2.7 (PICOCALC"
 ROOT_LINES = ["root: started by the PicoCalc loader, root on sd0", "root: sd0c"]
 NO_B7_LINE = "panic: root: no partition of type b7 on sd0"

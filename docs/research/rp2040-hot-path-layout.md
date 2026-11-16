@@ -183,6 +183,10 @@ same figures and the same conflicting sets under these rules: the pipe trace
 holds 310,485 non-sequential instructions, none of which re-enters the word
 fetched last, and no union replay omits an event.
 
+The pad model inserts RODATA_BYTES after the padded object's last read-only
+section, so only later read-only sections move (`self-test` checks it); every
+pad replay cited here uses zero read-only bytes and gives the same figures.
+
 Evidence classes: the cause, the pad experiment, the repair and every
 before/after figure rest on board measurements (rates and XIP counters). The
 replay supplies only the identity of the conflicting sets and lines and the

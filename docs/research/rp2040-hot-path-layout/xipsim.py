@@ -48,8 +48,8 @@ accepts the truncated stream; --sets lists the sets that miss most under LRU
 with the input sections their lines belong to. sections
 lists the input sections the trace executes or reads, with access counts and
 sizes. pad models an all -Os kernel with TEXT_BYTES inserted after the last
-text section of OBJECT, moving every later section, and RODATA_BYTES more
-moving every later read-only section.
+text section of OBJECT, moving every later section, and RODATA_BYTES inserted
+after the last read-only section of OBJECT, moving every section after it.
 
 The fetch model issues one access per aligned 32-bit word the instruction
 stream enters, as the Cortex-M0+ fetches words, a fresh access at every
@@ -260,6 +260,22 @@ def report(label, stream, marks, target, show_sets, omitted, total):
     return lost
 
 
+def pad_layout(base, obj, text_bytes, rodata_bytes):
+    """Model inserting text_bytes after the last text section of obj and
+    rodata_bytes after its last read-only section: each section at or past an
+    insertion point moves by that insertion, and none before it moves."""
+    def end_of(prefix):
+        ends = [a + s for a, s, k in base if k[1] == obj and k[0].startswith(prefix)]
+        return max(ends) if ends else None
+    text_end = end_of(".text")
+    rodata_end = end_of(".rodata")
+    if text_end is None or (rodata_bytes and rodata_end is None):
+        raise SystemExit(f"xipsim: {obj} has no section to pad after")
+    return [(a + (text_bytes if a >= text_end else 0)
+             + (rodata_bytes if rodata_end is not None and a >= rodata_end else 0), s, k)
+            for a, s, k in base]
+
+
 def self_test():
     """Check the fetch model and the omission rules on synthetic events."""
     base = [(0x10000100, 0x20, (".text.a", "a.o", 1)), (0x10000200, 0x10, (".text.b", "b.o", 1))]
@@ -282,6 +298,18 @@ def self_test():
         ("an event in a resized section is omitted",
          accesses([(0, 0x10000202, 2)], relocator(base, [base[0], (0x10000200, 0x14, base[1][2])])),
          ([], {base[1][2]: 1})),
+    ]
+    layout = [(0x10000100, 0x10, (".text.a", "a.o", 1)),
+              (0x10000110, 0x10, (".text.b", "b.o", 1)),
+              (0x10000200, 0x8, (".rodata.a", "a.o", 1)),
+              (0x10000208, 0x8, (".rodata.b", "b.o", 1))]
+    cases += [
+        ("a rodata pad moves only the read-only sections after the object's own",
+         [a for a, _s, _k in pad_layout(layout, "a.o", 0, 16)],
+         [0x10000100, 0x10000110, 0x10000200, 0x10000218]),
+        ("a text pad moves every later section",
+         [a for a, _s, _k in pad_layout(layout, "a.o", 8, 0)],
+         [0x10000100, 0x10000118, 0x10000208, 0x10000210]),
     ]
     status = 0
     for what, got, want in cases:
@@ -339,10 +367,7 @@ def main(argv):
     if mode == "pad":
         for spec in argv[4:]:
             obj, text_bytes, rodata_bytes = spec.split(":")
-            end = max(a + s for a, s, k in base if k[1] == obj and k[0].startswith(".text"))
-            target = [(a + (int(text_bytes) + (int(rodata_bytes) if k[0].startswith(".rodata")
-                                                else 0) if a >= end else 0), s, k)
-                      for a, s, k in base]
+            target = pad_layout(base, obj, int(text_bytes), int(rodata_bytes))
             stream, omitted = accesses(events, relocator(base, target))
             if report(f"pad {spec}", stream, marks, target, 0, omitted, total):
                 return 1

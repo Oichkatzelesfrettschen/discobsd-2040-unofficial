@@ -23,7 +23,7 @@ The S1 analysis, its recommendation, its falsifiers and its measurements stay be
 2. Owner decision D51 asks for a choice among "0.a", "Rev A" and a SemVer-style number. Plan decision D3 proposes "GizmoBSD 0.1". The string "0.1" is not a valid SemVer 2.0.0 version, which requires three numeric fields (item 2). "0.a" is invalid under SemVer and sorts in opposite directions across package-version algorithms (measured below). "Rev A" breaks the field split in `sys/conf/newvers.sh` (measured below).
 3. The inherited release cycle (`sys/conf/newvers.sh:18-20`) keeps the release number after a release and appends "-current". Under SemVer precedence (item 11) "0.1.0-current" sorts below "0.1.0", opposite to its chronology. A SemVer adoption changes that cycle.
 4. Firmware identity reads the host-tool tag. `git describe --tags origin/main` prints `host-v1.0.7-2660-g32927ed0`, and `Makefile:2236` writes that string into `/etc/release`.
-5. The string-length cost of every candidate is at most 16 bytes of flash `.rodata` and 0 bytes of RAM in `vers.o` (arm-none-eabi-gcc 16.2.0; linked kernel not run).
+5. The string-length cost of every first-analysis candidate is at most 16 bytes of flash `.rodata` and 0 bytes of RAM in `vers.o` (arm-none-eabi-gcc 16.2.0; linked kernel not run); the composite candidates cost up to +34 bytes (finding 11).
 6. The first analysis recommended S1 (SemVer 2.0.0, 0.y.z). The owner chose S3 (D87), so S1 is recorded analysis and is not adopted.
 7. The compatibility letter L, the fix F, the stage P and the build month D are four facts. (L, F, P) in lexicographic order is a total order and the minimal key; D is not a key, because a maintenance release built after the next revision breaks date order. Measured on 11 release-state pairs: the packed (L, F, P) integer orders 11, a year-and-month integer 8.
 8. No raw string form is ordered correctly by every algorithm. The hyphen label sorts after its release in plain lexical tools (`sort -V`, git version sort, strcmp: 5 of 11 pairs for the core form), git with `versionsort.suffix` orders 10 of 11, and the one pair every raw form fails is the letter boundary (Y to AA). Mapped forms order 11 of 11 in dpkg, pacman, RPM, PEP 440 and SemVer.
@@ -45,7 +45,7 @@ The S1 analysis, its recommendation, its falsifiers and its measurements stay be
 | Banner and motd text | `etc/motd:1`, `README.md:19,49,68`, `distrib/notes/ANNOUNCEMENT.md:1-17` | people |
 | Literal "DiscoBSD 2.7" in checks | 48 tracked files contain the string (`git grep -lI "DiscoBSD 2\.7"`), 34 under `docs/` and 14 elsewhere: 7 gate and fixture files (the five Renode files below, `tests/build_failure/check.py`, `usr.bin/picofetch/tests/render.py`), 3 shipped text files (`README.md`, `distrib/notes/ANNOUNCEMENT.md`, `etc/motd`), 3 documents (`sys/arch/rp2040/doc/TESTING.md`, `sys/arch/rp2040/doc/research/emulation.md`, `legacy/pdp11-v6/docs/research/v6-emulator-on-discobsd.md`) and the `param.h` comment; `hwinfo_fixture.c` holds the type and the number as separate strings (lines 85-86) and is not among the 14, so the rename inventory is these files plus that fixture; Renode stages `tools/renode/check-boot.py:570,582`, `check-capacity.py:217`, `check-identity.py:142`, `check-picocalc.py:54,572,770`, `picocalc_fb.py:199`; `tests/build_failure/check.py:530`; the picofetch fixture `usr.bin/picofetch/tests/hwinfo_fixture.c:86` and `render.py:242`; `sys/arch/rp2040/doc/TESTING.md:2875` | substring match on the boot banner and `uname -sr` output; nothing parses the number into fields (a `git grep` for `osrelease`, `kern.version` and `OSRELEASE` over `tools tests usr.bin sbin bin lib/libc/gen distrib` finds display code in `usr.bin/picofetch`, the library call `lib/libc/gen/uname.c:69`, a gate stub `tests/kernel/sysctl_test.c:130` and a comment at `tests/rp2040/swap_tier_model/trace.py:184`) |
 | Host package | `version = "1.0.9"` (`distrib/rp2040/host/pyproject.toml:7`), `__version__ = "1.0.9"` (`distrib/rp2040/host/src/discobsd_host/__init__.py:11`), `discobsd-host (1.0.9)` (`distrib/rp2040/host/packaging/debian/changelog:1`), `pkgver=1.0.9` (`distrib/rp2040/host/packaging/arch/PKGBUILD:14`); release workflow fires on tags `host-v*` (`.github/workflows/host-release.yml`) | pip, dpkg, pacman; the last tag is `host-v1.0.7` (`git tag -l "host-v*"`, 2026-09-16), so 1.0.8 and 1.0.9 carry no tag |
-| Planned | host package `gizmobsd-host 2.0.0` with `discobsd-*` aliases for one release (owner decision D38, fixed); OS version open (D51); `param.h` macro follows D51 (D52); plan D3 proposes "GizmoBSD 0.1" with "derived from DiscoBSD 2.7" in `etc/COPYRIGHT` and motd, and D4 a `GizmoBSD 202611` value for `KERN_OSREV` (the rename plan's open proposals) | |
+| Planned | host package `gizmobsd-host 2.0.0` with `discobsd-*` aliases for one release (owner decision D38, fixed); OS version: S3 "Rev A" (D87), label `RevA-alpha` (D91), composite identifier of the section below (D92); `param.h` macro carries the `KERN_OSREV` value (D52, D93); plan D3 proposes "GizmoBSD 0.1" with "derived from DiscoBSD 2.7" in `etc/COPYRIGHT` and motd, and D4 a `GizmoBSD 202611` value for `KERN_OSREV` (the rename plan's open proposals) | |
 
 Upstream release history (`git tag`, tag commit dates): DISCOBSD_2_0 2022-12-31, 2_1 2023-08-31, 2_2 2024-02-29, 2_3 2024-08-11, 2_4 2025-02-11, 2_5 2025-08-11, 2_6 2026-02-11, 2_7 2026-08-11. The `OSR` history (`git log -G"^OSR="`) shows `2.2-beta` through `2.7-beta` commits between 1 and 31 days before each release tag, then upstream `2.7-current` on 2026-09-15 (upstream/master d143605c). The upstream rule is one counter step in tenths per half-year release: the number increments when the beta starts, the release keeps it, and -current keeps it after the release (`newvers.sh:18-20`).
 
@@ -169,7 +169,7 @@ Status: not adopted (D87); recorded analysis.
 
 ### S3: Revision letter, hardware style, "Rev A"
 
-Status: adopted by D87. The display-value representation below (`Rev A` in `version[]`, `RevA` in `osrelease[]`) is superseded by D91, which spells `RevA-alpha` in both strings with no `newvers.sh` change; the measurements stay.
+Status: adopted by D87. The display-value representation below (`Rev A` in `version[]`, `RevA` in `osrelease[]`) is superseded by D91, which spells `RevA-alpha` in both strings with no `newvers.sh` change. The fix identity by build counter `#N`, the revision-index `KERN_OSREV` (`GizmoBSD_REV`) and the 26-letter bound below are superseded by D92 and the composite section (a fix integer, a packed integer, 20 letters with continuation); the measurements stay.
 
 - Rules. One uppercase letter names a change-controlled configuration. The letter advances when the contract list of S1 changes incompatibly; fixes inside a letter are identified by the build identity (`#N`, commit count). 26 letters bound the series; a continuation (AA) is a rule to add.
 - First value. `Rev A` in the `version` string, written `RevA` in `osrelease`.
@@ -207,10 +207,10 @@ Owner decision D92 asks for one string that carries a revision letter, a fix num
 | A person reading the boot banner or `uname -sr` | `version[]` and `ostype` plus `osrelease` | the compatibility letter and whether the tree is pre-release; the build date already follows the build counter in `version[]` | core form |
 | `uname -r` and `kern.osrelease` (`KERN_OSRELEASE`) | a string up to 255 bytes (`SYS_NMLN` is 256 in `sys/sys/utsname.h`) | stability across rebuilds of one release, so the exact-match gates in 7 gate and fixture files keep matching; no whitespace, because `newvers.sh` splits fields with awk | core form (a date in the string changes it monthly) |
 | `KERN_OSREV` | a signed 32-bit `long` (`sysctl_rdlong` with `(long)DiscoBSD`, `sys/kern/kern_sysctl.c:231`; `long` is 32 bits on ARMv6-M) | one integer comparison, "is this kernel at least release X" | packed integer |
-| Host tools' compatibility check | no such check exists in `distrib/rp2040/host/src` (a search for `osrelease`, `kern.version` and `uname` there matches nothing) | equality on the letter and a minimum on the fix, parsed from `uname -r` or read as the integer | core form, and the integer |
+| Host tools' identity checks | `discobsd-sramdump` compares the ELF's `version` symbol bytes with the saved flash (`sramdump.py:130` lists `version` in `REQUIRED_SYMBOLS`; the check is at lines 323-335); `link.py` and the other tools carry a `--version` flag for the host package only, and a search of `distrib/rp2040/host/src` for `osrelease`, `kern.version` and `uname` matches nothing | today a byte-identical `version[]` between the ELF and the flash, which any form of the string satisfies; a compatibility check, if added, needs equality on the letter and a minimum on the fix, parsed from `uname -r` or read as the integer | core form, and the integer |
 | `git describe --match 'gizmobsd-v*'` | tag names; output gains `-<n>-g<hash>` | a legal ref name, matchable by glob, parsable from the right | core form, verbatim |
 | Package-version algorithms (dpkg, pacman `vercmp`, RPM, PEP 440, SemVer, `sort -V`) | the raw string, or a mapped form | an order equal to release order | mapped forms (below) |
-| File names (image stamp) | any file system, FAT included | none of `<>:"/\|?*` or control characters, at most 255 bytes, no variant of the title that differs only in case | full form |
+| File names (image stamp) | any file system | none of `<>:"/\|?*` or control characters (the Windows reserved set), at most 255 bytes; on FAT the name is a long file name: the 8.3 article at https://en.wikipedia.org/wiki/8.3_filename lists `+` among the characters disallowed in 8.3 names and says "Other characters such as + are changed to the underscore _" when the short alias is generated | full form |
 
 ### Information content
 
@@ -258,7 +258,7 @@ Empirical studies, abstracts retrieved from the arXiv API and the Semantic Schol
 | Lam, Dietrich and Pearce, arXiv 2008.07069 (2020) | "it is questionable whether a version number can adequately characterize version compatibility in general" | the letter claims one bit |
 | Chen, Bi, Wang and Thongtanunam, arXiv 2605.24397 (2026), a review of 97 primary studies | names "the failure of semantic versioning as a trust mechanism" as an open challenge | as above |
 
-No empirical study of calendar versioning or of hybrid identifiers surfaced. The arXiv query `all:"version numbering" OR all:"calendar versioning" OR all:"release naming"` returned no entries, and the Semantic Scholar search endpoint answered HTTP 429, so the claim is bounded by the arXiv search of the semantic-versioning literature (query `all:"semantic versioning"`, 40 newest entries read) and the citation chains above (I).
+No empirical study of calendar versioning or of hybrid identifiers surfaced. arXiv API queries (https://export.arxiv.org/api/query, retrieved with redirects followed): `all:"calendar versioning"` and `all:"semantic versioning" AND all:"calendar"` and `all:"software versioning scheme"` each returned totalResults 0; `all:"version numbering"` (39), `all:"release naming"` (6) and `all:"CalVer"` (6) returned entries from mathematics, astronomy and unrelated fields, none on software versioning schemes (titles read). The Semantic Scholar search endpoint answered HTTP 429, so that index was not searched. The claim is bounded by these arXiv queries, the arXiv search `all:"semantic versioning"` (40 newest entries read) and the citation chains above (I).
 
 ### Candidate grammars
 
@@ -329,7 +329,7 @@ Mapping, G1 (letter index becomes the epoch, or the SemVer major; stage becomes 
 | PEP 440 | `2!3b0+202712` | epoch 2, beta, local label |
 | SemVer | `2.3.0-beta+202712` | letter index as major, fix as minor; build metadata ignored |
 
-git describe, measured in a scratch repository: tag `gizmobsd-vRevA.1-alpha` followed by one commit prints `gizmobsd-vRevA.1-alpha-1-g9a8ecb5`, and the pattern `^(.+)-([0-9]+)-g([0-9a-f]+)$` recovers the tag, the count and the hash.
+git describe, measured in a scratch repository with the options `Makefile:2236` passes (`--dirty --tags`) plus `--match 'gizmobsd-v*'`: at the tag commit it prints `gizmobsd-vRevA.1-alpha`; one commit later it prints `gizmobsd-vRevA.1-alpha-1-g<hash>` (the hash varies with the scratch repository's commit time), and with a modified file `-dirty` follows. The pattern `^(.+)-([0-9]+)-g([0-9a-f]+)(-dirty)?$` recovers the tag, the count, the hash and the dirty marker.
 
 Size (Appendix A.3, `arm-none-eabi-gcc 16.2.0`, `vers.o` `.rodata`; `.data` and `.bss` are 0 in every row; flash only):
 
@@ -362,7 +362,7 @@ The encoding packs the three ordering fields into decimal digits: `KERN_OSREV = 
 | `RevB-alpha` | 2000001 |
 | `RevB` | 2000009 |
 
-The harness orders 11 of 11 pairs with it (year-and-month: 8 of 11). The first value, 1000001, exceeds the inherited 202608, so a comparison against the old value stays monotone across the rename. Overflow: `long` is signed 32 bits on this target, maximum 2147483647. With F up to 99999 and S up to 9 the low six digits stay below 1000000, so the limit is the letter index: 2146 at most (2146999999 fits, 2147999999 does not). Single and double letters of the 20-letter alphabet reach index 420 (420999999), so overflow needs three-letter revisions, which ASME Y14.35M's two-character limit excludes. The integer never needs the date: the build month is already in `version[]` and in the file name.
+The harness orders 11 of 11 pairs with it (year-and-month: 8 of 11). The first value, 1000001, exceeds the inherited 202608, so a comparison against the old value stays monotone across the rename. Overflow: `long` is signed 32 bits on this target, maximum 2147483647. With F up to 99999 and S up to 9 the low six digits stay below 1000000, so the limit is the letter index: 2146 at most (2146999999 fits, 2147999999 does not). Single and double letters of the 20-letter alphabet reach index 420 (420999999), so overflow needs a third letter, which the grammar (`letters = rl [ rl ]`) does not admit; ASME's own limit is two characters in the 2008 presentation and three in the 2014 draft (retrieval caveats). The integer never needs the date: the build month is already in `version[]` and in the file name.
 
 D93 reads "Year-month probably but really you are working on an interesting string". The measured reason against year-month: the integer orders by build date, and build date breaks under maintenance and cannot separate two fixes in one month. The year-and-month value of the BSD lineage (`BSD 199506` in the NetBSD and FreeBSD sources quoted above, `OpenBSD 202610`) remains the build month in the string.
 
@@ -392,7 +392,7 @@ Rules:
 
 - The fix is the number of the release within its letter; it resets to zero (omitted) at a letter change; a finished release takes the next fix when anything it ships changes.
 - The date is the UTC month of `SOURCE_DATE_EPOCH` (the committer date of HEAD when unset), so the string is a function of the commit.
-- The host tools' check reads `^Rev([A-HJ-NPRT-WY]{1,2})(\.[1-9][0-9]*)?(-(alpha|beta))?$` from `uname -r` and requires an equal letter and a fix at or above its minimum; the date never takes part.
+- A host-tool compatibility check (none exists today; the `sramdump` identity check compares `version[]` bytes) reads `^Rev([A-HJ-NPRT-WY]{1,2})(\.[1-9][0-9]*)?(-(alpha|beta))?$` from `uname -r` and requires an equal letter and a fix at or above its minimum; the date never takes part.
 - The letter alphabet follows ASME Y14.35M with continuation AA, AB, ... after Y. Lexical tools misorder the continuation (measured); the packed integer and the package mappings order it.
 
 Falsifiers, each stated as an observation that refutes a part of the recommendation:
@@ -596,7 +596,7 @@ cat "$SP/split/PICO/vers.c"
 
 ## Appendix B: replay of the ordering measurements
 
-Tools: python 3.14.9 with packaging 26.3 (PEP 440), pacman 7.1.0 `vercmp`, rpm 6.0.1 (`rpm --eval` with the Lua `rpm.vercmp`), GNU coreutils 9.12 `sort -V`, git 2.56.0 (`git tag --sort=version:refname`, `git check-ref-format`, `git describe`), and Python ports of dpkg's `verrevcmp` and of SemVer 2.0.0 item 11. The dpkg port splits the epoch at the first colon and the revision at the last hyphen, as dpkg's `t-version.c` parse vectors require. Each algorithm is calibrated before a verdict: known-good pairs from its documentation or test suite and a known-bad control that must be refuted (a calibration failure prints and exits non-zero). The block runs as `python3 -I` from any directory, extracted from this note; absent tools (packaging, vercmp, rpm, sort, git) are reported and their rows are not run. The first-analysis pairs (0.a, the pre-release labels) are rows of the same run, so the pacman, RPM and `sort -V` columns are scripted.
+Tools: python 3.14.9 with packaging 26.3 (PEP 440), pacman 7.1.0 `vercmp`, rpm 6.0.1 (`rpm --eval` with the Lua `rpm.vercmp`), GNU coreutils 9.12 `sort -V`, git 2.56.0 (`git tag --sort=version:refname`, `git check-ref-format`, `git describe`), and Python ports of dpkg's `verrevcmp` and of SemVer 2.0.0 item 11. The dpkg port splits the epoch at the first colon and the revision at the last hyphen, as dpkg's `t-version.c` parse vectors require. Each algorithm is calibrated before a verdict: known-good pairs from its documentation or test suite and a known-bad control that must be refuted (a calibration failure prints and exits non-zero; two scratch mutants, a reversed tilde order in the dpkg port and a reversed strcmp, each exit 1). The block runs as `python3 -I` from any directory, extracted from this note; absent tools (packaging, vercmp, rpm, sort, git) are reported and their rows are not run. The first-analysis pairs (0.a, the pre-release labels) are rows of the same run, so the pacman, RPM and `sort -V` columns are scripted.
 
 ```python
 # python3 -I; the optional tools (packaging, vercmp, rpm, sort, git) are reported when absent.
@@ -1154,18 +1154,28 @@ def main():
     top = (2**31 - 1 - 999999) // 10**6
     print("  int32 limit: letter index up to", top, "with fix up to 99999; double letters reach",
           len(LETTERS) * (len(LETTERS) + 1), "->", len(LETTERS) * (len(LETTERS) + 1) * 10**6)
-    # git describe over a gizmobsd-v tag with a pre-release label
+    # git describe over a gizmobsd-v tag, as Makefile builds /etc/release (--dirty --tags)
     if have("git"):
         with tempfile.TemporaryDirectory() as d:
             for c in (["init", "-q"], ["commit", "-q", "--allow-empty", "-m", "a"],
-                      ["tag", "gizmobsd-vRevA.1-alpha"],
-                      ["commit", "-q", "--allow-empty", "-m", "b"]):
+                      ["tag", "gizmobsd-vRevA.1-alpha"]):
                 run(["git", "-C", d] + c, env=GIT_ENV)
-            out = run(["git", "-C", d, "describe", "--match", "gizmobsd-v*", "--tags"],
-                      env=GIT_ENV).stdout.strip()
-            m = re.fullmatch(r"(.+)-(\d+)-g([0-9a-f]+)", out)
-            print("\ngit describe:", out, "->", m.groups() if m else "no match")
-
+            with open(os.path.join(d, "f"), "w") as fh:
+                fh.write("1\n")
+            for c in (["add", "f"], ["commit", "-q", "-m", "b"]):
+                run(["git", "-C", d] + c, env=GIT_ENV)
+            args = ["describe", "--match", "gizmobsd-v*", "--tags", "--dirty"]
+            at_tag = run(["git", "-C", d, "describe", "--match", "gizmobsd-v*", "--tags", "HEAD~1"],
+                         env=GIT_ENV).stdout.strip()
+            clean = run(["git", "-C", d] + args, env=GIT_ENV).stdout.strip()
+            with open(os.path.join(d, "f"), "w") as fh:
+                fh.write("2\n")
+            dirty = run(["git", "-C", d] + args, env=GIT_ENV).stdout.strip()
+            pat = re.compile(r"(.+)-([0-9]+)-g([0-9a-f]+)(-dirty)?")
+            print("\ngit describe at the tag:", at_tag)
+            for out in (clean, dirty):
+                m = pat.fullmatch(out)
+                print("git describe:", out, "->", m.groups() if m else "no match")
 
 main()
 ```

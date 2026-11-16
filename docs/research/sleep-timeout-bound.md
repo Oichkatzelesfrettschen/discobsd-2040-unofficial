@@ -8,7 +8,7 @@ Scope: `sleep(3)` in `lib/libc/gen/sleep.c`, the kernel path its `select()` take
 2. The bound does not protect the arithmetic beneath it. At HZ 1000 the tick count saturates at 0x7fffffff, 2,147,483.647 s (24.9 days), and `select()` returns 0 at that point without re-reading the clock (source reading, not executed). A request between 2,147,484 and 100,000,000 s accepted by `itimerfix()` wakes about 24.9 days early, with no signal.
 3. At the target's width (`_TIME_BITS=32`, `tv_sec` a signed 32-bit `long`) a request above LONG_MAX arrives negative, which is refused the same way. The ranges 100,000,001 to LONG_MAX and LONG_MAX + 1 to UINT_MAX fail by two routes and with one result.
 4. The 100,000,000 constant is inherited: the earliest trees available (the 2.11BSD patch 431 import and 4.4BSD-Lite2) carry it, the four modern trees surveyed dropped it, and nothing in this kernel's tick arithmetic needs it.
-5. The repair is a chunked loop in `sleep()`: at most 1,000,000 s per `select()`, repeated until the clock shows the request elapsed, ended by any nonzero `select()` result. It adds 16 to 40 bytes to each program that links `sleep()` and nothing to the kernel.
+5. The repair is a chunked loop in `sleep()`: at most 1,000,000 s per `select()`, repeated until the clock shows the request elapsed, ended by any nonzero `select()` result. It adds about 20 bytes to each program that links `sleep()` before the stall guard of the review round (measured at that stage: 16 to 24 bytes per a.out) and about 28 more with it (object delta, not a program build), and nothing to the kernel.
 
 ## 1. Record before editing
 
@@ -27,7 +27,7 @@ Order of events. This record was written after the first run of the extended tes
 
 Expected movement against the unchanged `sleep.c`: the eight replay cases pass. Of the fifteen kernel-model cases five pass (requests 1, 1,000,000 and 2,147,483; the signal after one chunk; the failure on the first call) and ten fail: requests 2,147,484 and 100,000,000 (the tick count saturates), requests 100,000,001, LONG_MAX, LONG_MAX + 1 and UINT_MAX (refused), the clock wrap over 3,000,000 s (saturates), the two signal cases whose request is past the bound, and the failure on the second call (the old function makes one call). Expected against the repaired `sleep.c`: all pass at native and ILP32 width, and the single-select negative control fails.
 
-Observed against the unchanged function: eight of eight replay cases pass and eleven of fifteen kernel cases fail at both widths, the expected ten plus "signal after one chunk". The extra failure comes from an assertion added after the first run (no timeout may exceed the saturated tick count): the old function asked for 3,000,000 s in that case although its signal return was correct. The assertion states the bound the repair must respect, so it stays. Against the repaired function all cases pass at both widths, and the single-select control fails the same eleven.
+Observed against the unchanged function: eight of eight replay cases pass and eleven of the fifteen kernel cases of that first list failed at both widths, the expected ten plus "signal after one chunk". The extra failure comes from an assertion added after the first run (no timeout may exceed the saturated tick count): the old function asked for 3,000,000 s in that case although its signal return was correct. The assertion states the bound the repair must respect, so it stays. Against the repaired function all cases pass at both widths, and the single-select control fails the same eleven.
 
 ## 2. How the reference trees handle it
 
@@ -72,10 +72,10 @@ Where to repair. Three places were measured or reasoned.
 
 | Repair | Kernel text | Libc | Fixes | Leaves |
 |---|---|---|---|---|
-| Libc chunk loop (chosen) | 0 | +16 to +40 B per program linking `sleep()` | `sleep()` for every unsigned request; `/bin/sleep` | a `select()` caller with a timeout above 100,000,000 still gets `EINVAL`; none exists |
+| Libc chunk loop with the stall guard (chosen) | 0 | +52 B in `sleep.o` (object delta, GCC 16.2.0; +16 to +24 B per program was measured for the loop alone) | `sleep()` for every unsigned request; `/bin/sleep` | a `select()` caller with a timeout above 100,000,000 still gets `EINVAL`; none exists |
 | Kernel: drop the 100,000,000 test from `select1()` | 0 B (measured, four kernels) | the loop is still required at the 32-bit view | `select()` accepts any timeout | the early return past 2,147,483 s |
 | Kernel: drop the test and re-read the clock after `EWOULDBLOCK` | +16 B (PICO and PICOCALC, +16 on all four) | the loop is still required for requests above LONG_MAX | `select()` is correct for every duration the field holds | |
-| Both | +16 B | +16 to +40 B per program | | |
+| Both | +16 B | as the loop | | |
 
 The kernel variants were built in a scratch clone on the WSL build host (`arm-none-eabi-gcc` 14.2.1 20241119) and compared on PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM against baselines of 100819, 90201, 121163 and 123691 bytes of text: `select-nobound` 0, 0, 0, 0; with the re-read 16, 16, 16, 16. `bss` and free RAM did not move. Kernel text and RAM are both tight budgets, the libc loop is needed in every variant, and no caller needs the kernel change, so the repair is libc-only.
 
@@ -93,17 +93,28 @@ Behavior changes: requests above 100,000,000 s sleep instead of returning at onc
 
 ### Calibration
 
-`tests/libc_contracts/sleep_contract_test.c` keeps its eight replay cases (the interrupted ones now return -1 from the stub, as the kernel does) and adds fifteen cases against a model of the kernel's limits: a clock that moves only while `select()` sleeps, `EINVAL` above 100,000,000 s or below zero, saturation at 2,147,483 s, a signal at a chosen second and a failure at a chosen call. Each case checks that no refusal reached the model, that no timeout passed the saturated count, that the unslept return equals the request minus the time slept, and the outcome-specific condition (full sleep, signal, failure). A call counter of 20,000 stops a spinning loop.
+`tests/libc_contracts/sleep_contract_test.c` keeps its eight replay cases (the interrupted ones now return -1 from the stub, as the kernel does) and adds seventeen cases against a model of the kernel's limits: a clock that moves only while `select()` sleeps, `EINVAL` above 100,000,000 s or below zero, saturation at 2,147,483 s, a signal at a chosen second and a failure at a chosen call. Each case checks that no refusal reached the model, that no timeout passed the saturated count, that the unslept return equals the request minus the time slept, and the outcome-specific condition (full sleep, signal, failure). A call counter of 20,000 stops a spinning loop.
 
 | Subject | Result |
 |---|---|
-| `sleep.c` on main, native and `-m32` | 11 of 15 kernel cases fail, 8 of 8 replay cases pass |
+| `sleep.c` on main, native and `-m32` | 10 of 17 kernel cases fail (the rollover cases pass on main: it returns after one call), 8 of 8 replay cases pass |
 | repaired `sleep.c`, native and `-m32` | all pass |
-| `sleep_unchunked_bad.c` (the single-select function), native | fails the same 11 cases: variant `libc.sleep.unchunked-negative`, expected exit 1 |
+| `sleep_unchunked_bad.c` (the single-select function), native | fails the same 10 cases: variant `libc.sleep.unchunked-negative`, expected exit 1 |
 | `sleep_signed_bad.c` (signed clock compare, chunked), `-m32` | fails the 2038 and UINT_MAX-across-2^31 cases: variant `libc.sleep.negative` |
 | mutant: chunk 100,000,000 | fails the saturated-count assertion |
 | mutant: loop ignores the select result | fails `interrupted sleep` |
+| mutant: stall detection removed, native and `-m32` | the model's call counter stops the spin: "select() was called without bound" |
 | mutant: the modulo-2^32 mask removed, native | fails the wrap cases (at `-m32` the mask is the identity and the mutant passes: the native run owns that mutant) |
+
+### Review round: the 2106 rollover and signal atomicity
+
+A review found two defects in the first form of the loop; both held against the source.
+
+Rollover. `select1()` forms the deadline with `timevaladd()`, whose seconds are `wall_advance()` (modulo 2^32), and compares it with `wall_reached()`, an unsigned compare (`sys/kern/sys_generic.c`, `sys/kern/kern_time.c:419-424`, `sys/sys/time.h:100-112`). A deadline that wraps below the clock reads as already due, so within one timeout of the count's last value (7 February 2106) `select()` returns 0 without sleeping; `hzto()` agrees, since `wall_interval()` reads the wrapped deadline as far in the past. The first form of the loop would then call `select()` until the clock itself wrapped. The kernel model now applies the same rule (a deadline above 0xffffffff returns 0 with the clock unmoved), and the loop stops when two consecutive `select()` calls return 0 without the second count moving: a legitimate `select()` of one second or more cannot leave the count unmoved twice. The rollover cases return the unslept part after two calls, as the single `select()` of earlier versions returned it after one. The model also made the earlier "clock wraps across chunks" success case impossible, which is the kernel's behavior: no sleep can cross the rollover. The kernel's deadline comparison is not repaired here (a signed 31-bit window would limit requests the saturating `wall_interval()` now carries); it is a defect for 2106, listed below.
+
+Signals. Between one `select()` returning 0 and the next entering the kernel a handler can run without producing `EINTR`; the sleep then continues to the end of the next chunk, at most 1,000,000 s after the signal. The single `select()` of earlier versions has the same window once, between its first `gettimeofday()` and the `select()`, bounded by the whole request. Both the kernel and libc have the pieces for a race-free form: `pselect` is syscall 65 (`sys/kern/syscalls.master:67`, `select1()` with a mask) and the libc wrapper is `lib/libc/gen/time64_pselect.c`; a form would block all signals with `sigprocmask()`, wait with `pselect()` and the saved mask, and restore the mask on exit. It was prototyped for size only. Its cost does not fit a tight budget for a window of a few instructions, so the shipped function keeps the window, and the code comment and this note state it and its bound. A boundary-signal regression case cannot pass without the race-free form, so none is added.
+
+Object size of `sleep.o` (text bytes, `arm-none-eabi-gcc` 16.2.0, `-Os -mcpu=cortex-m0plus`, relative numbers): main 72; chunk loop 96 (+24); chunk loop with stall detection 124 (+52); chunk loop with stall detection, `sigprocmask()` and `pselect()` 168 (+96, before the two library members it pulls in for programs that do not already link them).
 
 ### Size
 
@@ -129,6 +140,8 @@ Exit codes read directly from the command, logs retained in the working session'
 Not run: a board run, which this task leaves untouched; `sleep 100000001` and a 24.9-day sleep on silicon; `check-ucall-qemu` and the other gates that do not read `sleep.c`. The branch is based on `origin/main` 4b3eaf6c; `check-libc-sleep` and the denominator gates need a rerun after a rebase that moves `tools/c17/source-denominator.json`.
 
 ## 5. Residual decisions
+
+0. **Repair the kernel deadline compare at the 2106 rollover?** Options: (a) leave it, 0 bytes, the libc loop stops cleanly and every select() deadline within one timeout of the rollover returns at once, a defect 80 years out; (b) make `select1()` compare a signed 31-bit distance, a few bytes of text, and a change to what `wall_reached()` promises. Recommended: (a) now and a ledger row.
 
 1. **Also repair `select1()` in the kernel?** Options: (a) no, 0 bytes, the early return past 2,147,483 s stays reachable only by `select()` callers other than `sleep()` (none known); (b) drop the bound and re-read the clock after `EWOULDBLOCK`, +16 bytes of text, `select()` is correct for every duration. Recommended: (a); the kernel budget is tight and no caller needs it.
 2. **Repair `alarm()` and `setitimer(ITIMER_REAL)` above 100,000,000 s?** Options: (a) document the bound in `alarm.3` and `setitimer.2`, 0 bytes; (b) clamp in `itimerfix()`, a few bytes of text and an ABI behavior change (a timer that cannot reach its date); (c) refuse and keep. Recommended: (a) now, (b) when a caller appears.

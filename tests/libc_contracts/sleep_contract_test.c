@@ -18,7 +18,11 @@
  * timeout over 100,000,000 s, or one whose tv_sec is negative, fails with
  * EINVAL after sleeping nothing, and a timeout over 0x7fffffff / 1000 s
  * (the tick count of a 1000 Hz clock saturates at 0x7fffffff) expires
- * after that many seconds with a return of 0. Against that model sleep()
+ * after that many seconds with a return of 0. A timeout whose deadline, the
+ * clock plus the timeout modulo 2^32, wraps below the clock is due at once:
+ * select1() compares the two unsigned (wall_reached(), sys/sys/time.h), so
+ * within one timeout of the rollover in February 2106 it returns 0 with the
+ * clock unmoved. Against that model sleep()
  * must sleep the whole request, in chunks, for every unsigned request;
  * a signal must return the part not yet slept; a select() failure must
  * stop the loop and return the part not yet slept.
@@ -99,6 +103,10 @@ test_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 	if (model_fail_call != 0 && select_count == model_fail_call) {
 		return (-1);
 	}
+	if (timeout->tv_sec >= 0 && timeout->tv_sec <= KERNEL_SELECT_BOUND &&
+	    (unsigned long long)model_clock + (unsigned long long)timeout->tv_sec
+	    > 0xffffffffULL)
+		return (0);
 	if (timeout->tv_sec < 0 || timeout->tv_sec > KERNEL_SELECT_BOUND) {
 		model_refused++;
 		return (-1);
@@ -142,28 +150,35 @@ struct model_case {
 	unsigned long	start, request;
 	unsigned long	signal_at;	/* seconds slept when a signal lands */
 	int		fail_call;	/* select() call that fails */
+	int		stalls;		/* the deadline wraps; select() is due at once */
 };
 
 static const struct model_case models[] = {
-	{ "request 1", 1000UL, 1UL, 0, 0 },
-	{ "request 1,000,000", 1000UL, 1000000UL, 0, 0 },
+	{ "request 1", 1000UL, 1UL, 0, 0, 0 },
+	{ "request 1,000,000", 1000UL, 1000000UL, 0, 0, 0 },
 	{ "request 2,147,483 (last exact tick count)", 1000UL, 2147483UL,
-	    0, 0 },
+	    0, 0, 0 },
 	{ "request 2,147,484 (first saturated tick count)", 1000UL,
-	    2147484UL, 0, 0 },
+	    2147484UL, 0, 0, 0 },
 	{ "request 100,000,000 (the select bound)", 1000UL, 100000000UL,
-	    0, 0 },
-	{ "request 100,000,001 (first refused)", 1000UL, 100000001UL, 0, 0 },
-	{ "request LONG_MAX", 1000UL, 2147483647UL, 0, 0 },
-	{ "request LONG_MAX + 1", 1000UL, 2147483648UL, 0, 0 },
-	{ "request UINT_MAX", 1000UL, 4294967295UL, 0, 0 },
-	{ "clock wraps 2^32 across chunks", 0xfffff000UL, 3000000UL, 0, 0 },
+	    0, 0, 0 },
+	{ "request 100,000,001 (first refused)", 1000UL, 100000001UL, 0, 0, 0 },
+	{ "request LONG_MAX", 1000UL, 2147483647UL, 0, 0, 0 },
+	{ "request LONG_MAX + 1", 1000UL, 2147483648UL, 0, 0, 0 },
+	{ "request UINT_MAX (clock at the count's zero)", 0UL, 4294967295UL,
+	    0, 0, 0 },
+	{ "deadline lands on the last count before the 2106 rollover",
+	    0xfff0bdbfUL, 1000000UL, 0, 0, 0 },
+	{ "deadline wraps at the 2106 rollover", 0xfffff000UL, 3000000UL,
+	    0, 0, 1 },
+	{ "deadline wraps one second past the last count", 0xfff0bdc0UL,
+	    1000000UL, 0, 0, 1 },
 	{ "signal in the first chunk of a long request", 1000UL,
-	    200000000UL, 10UL, 0 },
-	{ "signal after one chunk", 1000UL, 3000000UL, 1500000UL, 0 },
-	{ "signal late in UINT_MAX", 1000UL, 4294967295UL, 4000000000UL, 0 },
-	{ "select fails on the first call", 1000UL, 5000000UL, 0, 1 },
-	{ "select fails on the second call", 1000UL, 5000000UL, 0, 2 },
+	    200000000UL, 10UL, 0, 0 },
+	{ "signal after one chunk", 1000UL, 3000000UL, 1500000UL, 0, 0 },
+	{ "signal late in UINT_MAX", 0UL, 4294967295UL, 4000000000UL, 0, 0 },
+	{ "select fails on the first call", 1000UL, 5000000UL, 0, 1, 0 },
+	{ "select fails on the second call", 1000UL, 5000000UL, 0, 2, 0 },
 };
 
 static int failure_count;
@@ -201,7 +216,12 @@ run_model(const struct model_case *c)
 		fail(c->name, "a timeout past the saturated tick count");
 	if ((unsigned long)left != c->request - model_slept)
 		fail(c->name, "unslept time differs from the time not slept");
-	if (c->signal_at != 0) {
+	if (c->stalls != 0) {
+		if (select_count > 3)
+			fail(c->name, "a stalled select() was repeated");
+		if (left != c->request - model_slept || left == 0)
+			fail(c->name, "a stalled sleep reported a full sleep");
+	} else if (c->signal_at != 0) {
 		if (model_slept != c->signal_at)
 			fail(c->name, "the signal did not end the sleep");
 	} else if (c->fail_call != 0) {

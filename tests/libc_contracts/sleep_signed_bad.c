@@ -17,14 +17,16 @@ unsigned int
 db_sleep(unsigned int seconds)
 {
 	struct timeval f, s;
-	unsigned long chunk, elapsed_seconds;
-	int interrupted;
+	unsigned long chunk, elapsed_seconds, previous_seconds;
+	int interrupted, idle;
 
 	if (seconds == 0)
 		return 0;
 	test_gettimeofday(&f, NULL);
 	elapsed_seconds = 0;
+	idle = 0;
 	do {
+		previous_seconds = elapsed_seconds;
 		chunk = seconds - elapsed_seconds;
 		if (chunk > 1000000UL)
 			chunk = 1000000UL;
@@ -38,6 +40,7 @@ db_sleep(unsigned int seconds)
 		    (unsigned long)f.tv_sec;
 		if (elapsed_seconds >= seconds)
 			return 0;
-	} while (!interrupted);
+		idle = elapsed_seconds == previous_seconds ? idle + 1 : 0;
+	} while (!interrupted && idle < 2);
 	return seconds - (unsigned int)elapsed_seconds;
 }

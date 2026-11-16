@@ -1,0 +1,173 @@
+id	source	subject	class	shipped	kernel_text_bytes	kernel_ram_bytes	user_cost	gate	evidence
+upstream:d143605c	DiscoBSD upstream/master	DiscoBSD: DiscoBSD 2.7-current.	not-applicable	-	0	0	0	-	sys/conf/newvers.sh:23-27 keeps the release form S="" (b71a32ae); the version string belongs to the GizmoBSD rename decision
+upstream:2c841439	DiscoBSD upstream/master	stm32: Import pic32 uartusb driver to stm32, verbatim.	not-applicable	-	0	0	0	-	stm32 usb_uart.c is byte-identical to upstream pic32 usb_uart.c (sha256 prefix fa60f08deb0bb966), not hooked into the build; the fork carries the same file at legacy/non-arm/mips-pic32/sys/arch/pic32/dev/usb_uart.c (same hash); RP2040 CDC-ACM is the fork's own driver
+2.11BSD:432	donor 267082b	Y2K troff fix, 4.3compat remnant removed, misc cleanup (#432)	not-applicable	-	0	0	0	-	resolver files lib/libc/net are outside the libc build (lib/libc/Makefile:54 ALL list); troff absent; kern_prot2 _setuid helper already absent from sys/kern/kern_prot2.c
+2.11BSD:433	donor ef270ef	cpuid, standalone mkfs, libc makedep, inode allocation bugs (#433)	present	-	0	0	0	-	inode allocation rescan: ledger inode-rescan-distinct-cache; cpuid and standalone mkfs are PDP-11
+2.11BSD:434	donor 55a36eb	standalone programs should not use FP (#434)	not-applicable	-	0	0	0	-	PDP-11 standalone floating point
+2.11BSD:435	donor 306b50f	Y2K bug in FTPD (#435)	not-applicable	-	0	0	0	-	ftpd absent (no network stack)
+2.11BSD:436	donor 6617235	ftpd security fix, setenv documentation error	not-applicable	-	0	0	0	-	ftpd absent; setenv manual text only
+2.11BSD:437	donor (none)	placeholder: Place Holder (#437)	not-applicable	-	0	0	0	-	upstream placeholder, no content
+2.11BSD:438	donor 194c1b6	RL driver disklabel problem (#438)	not-applicable	-	0	0	0	-	RL disk driver (PDP-11)
+2.11BSD:439	donor 178c297	#elif in cpp, disklabels in HK(4), more (#439)	applicable	kernel	+20 (measured, object)	0	0	none	brk and stack growth ignore RLIMIT_DATA and RLIMIT_STACK; sys/kern/kern_mman.c:24 checks only MAXMEM and the stack bottom (u_rlimit at sys/sys/user.h:94); no shipped program sets a data limit (passwd.c:90-91, timeout.c:448 set CPU, FSIZE, CORE); cpp #elif and HK hunks are PDP-11
+2.11BSD:440	donor 569e136	m11 & l11 illegal syscall use (#440)	not-applicable	-	0	0	0	-	m11/l11 PDP-11 assembler and linker
+2.11BSD:441	donor e011359	libvmf,cpp,rauboot,mkstr(1) fixes, ld feature (#441)	applicable	built, unshipped (usr.bin/med)	0	0	~0 B	none	libvmf segment lookup rejects negative segno and stops the locked-segment walk at the list head; lib/libvmf/vmf.c:101,118 still carry the pre-patch loop; only usr.bin/med links libvmf
+2.11BSD:442	donor c27e677	ANSI C reserved words used as variables, stdint.h missing (#442)	superseded	-	0	0	0	check-c17-headers	C17 stdint.h and reserved-word cleanup carried by the fork header campaign
+2.11BSD:443	donor 3a401fd	man/man1/Makefile bug (#443)	not-applicable	-	0	0	0	-	man1 Makefile
+2.11BSD:444	donor 3c22d69	ftp client long passwords, getty forcing even parity (#444)	present	-	0	0	0	check-getty-contracts	getty putchr parity: libexec/getty/main.c:435 applies parity only under EP or OP (1f040555); ftp absent
+2.11BSD:445	donor 5d27421	kernel floating point simulation crash, postscript printer Makefile update	not-applicable	-	0	0	0	-	PDP-11 FP simulator; PostScript printer
+2.11BSD:446	donor 400a5ae	fixes for libkern, autoconfig, umount, tar; add rkboot.s (#446)	present	-	0	0	0	check-tar-host	umount status, tar hard-link path: ledger umount-operand-exit-status, tar-sized-hardlink-path, tar-path-allocation-cleanup
+2.11BSD:447	donor 1a1be23	fixes for tcsh, ps, apropos, vmstat (#447)	applicable	built, unshipped	0	0	~+4 B	none	apropos allocates argc bytes for an int array (usr.bin/man/apropos.c:71); ps and vmstat hunks are superseded by fork rewrites
+2.11BSD:448	donor 9046d34	2BSD patches...	not-applicable	-	0	0	0	-	PDP-11 console parity and /boot
+2.11BSD:449	donor 5941983	Revert /boot breakage, update VERSION	not-applicable	-	0	0	0	-	/boot revert
+2.11BSD:450	donor d4fed99	/boot	not-applicable	-	0	0	0	-	/boot
+2.11BSD:451	donor 930227f	sysctl securelevel -1	applicable	kernel	+4 (measured, object)	0	0	check-libc-sysctl	securelevel at or below 0 may be lowered by any root process; sys/kern/kern_sysctl.c:262 refuses (policy decision)
+2.11BSD:452	donor f11187e	srandom(3) and initstate(3) incorrect input argument	superseded	-	0	0	0	check-libc-random	fork random(3) C17 rewrite keeps the 32-bit seed (211bsd-patch-scope.md, random state contract)
+2.11BSD:453	donor 8f14494	fp simulator kernel crash, tcsh here doc crash, welcome y2k bug	not-applicable	-	0	0	0	-	FP simulator, tcsh, welcome
+2.11BSD:454	donor 043475c	kernel timezone struct deprecated	superseded	-	0	0	0	-	kernel timezone retained by fork gettimeofday (sys/kern/kern_time.c:86); date rewritten; time representation tracked separately
+2.11BSD:455	donor 2645afd	timezone file dump utility not installed	not-applicable	-	0	0	0	-	zoneinfo is not in distrib/rp2040/mi.rp2040
+2.11BSD:456	donor e4dc5d6	filesystem clean	applicable	kernel and fsck (pack)	~+80 (I)	0 to +4 (I)	fsck ~+100 B (I)	check-fsck-inode-range, check-v7-format	filesystem clean flag across mount, unmount and fsck: ledger ufs-clean-state-transition unresolved
+2.11BSD:457	donor 830017b	tcsh, csh, pascal, timezone, rwhod, mkstr fixes and cleanup	not-applicable	-	0	0	0	-	tcsh here-document crash; csh rscan refactor is behavior-neutral; zoneinfo unshipped
+2.11BSD:458	donor 43746ac	superblock modified time set to 0 on boot	applicable	kernel	~+8 (I)	0	0	none	superblock time ordering at mount: ledger ufs-superblock-clock-order unresolved; boot seeds the clock from fs_time (sys/kern/init_main.c:133)
+2.11BSD:459	donor 3c38818	unmaintained/obsolete/unnecessary file cleanup + new include file	superseded	-	0	0	0	check-c17-headers	obsolete-file cleanup and stdarg.h; fork carries C17 stdarg.h
+2.11BSD:460	donor 81df012	2.11BSD completely lacks ANSI C capability	present	-	0	0	0	check-control-char-contracts	ANSI groundwork audited at 81df012; control-character repair landed (211bsd-patch-scope.md)
+2.11BSD:461	donor 47b8ef2	buffer flush incomplete at reboot / raising vi max editable filesize	present	-	0	0	0	check-rp2040-shutdown	shutdown flush and drain report: sys/arch/rp2040/rp2040/shutdown_sync.c (79f465d9, cdfe77be) implements the drain report ledger row shutdown-busy-drain-report names missing; shutdown-pre-reset-flush stays open for physical persistence evidence
+2.11BSD:462	donor 0b3a842	f77: build error, stop statement error, error message bug, Makefile bug	not-applicable	-	0	0	0	-	f77
+2.11BSD:463	donor de64824	sysctl(3) returns invalid VM_COREMAP and VM_SWAPMAP data, sendbug(1) uses obsolete addresse	present	-	0	0	0	check-libc-sysctl	sysctl swapmap and VM_NSWAP: ledger sysctl-swapmap-entry-export, sysctl-swap-block-count
+2.11BSD:464	donor 2362449	sysctl coremap/swapmap retrieval error	present	-	0	0	0	check-libc-sysctl	sysctl swapmap retrieval: ledger sysctl-swapmap-entry-export
+2.11BSD:465	donor bf8ab8d	C compiler prototype redefines static variable, new top(1) program	not-applicable	-	0	0	0	-	PDP-11 cc; top (fork ships picotop)
+2.11BSD:466	donor 349da1e	size(1) incorrect error message, df(1) output format, top(1) enhancements	applicable	built, unshipped	0	0	~+8 B	none	size(1) reports strerror for a missing file (usr.bin/size/size.c:38 prints not found); df -h is optional
+2.11BSD:467	donor e9c65a1	pdpstand/prf.c compile error, top(1) swap space calculation, tn3270 comile error	not-applicable	-	0	0	0	-	pdpstand, top, tn3270
+2.11BSD:468	donor 5c33b3a	nroff/troff 4.4BSD mdoc manpage format	not-applicable	-	0	0	0	-	nroff mdoc; no roff on the target
+2.11BSD:469	donor 8b99336	North America timezone files outdated	not-applicable	-	0	0	0	-	North America zone data; zoneinfo unshipped
+2.11BSD:470	donor afa0e3e	nroff updates require updated makewhatis.sed	not-applicable	-	0	0	0	-	makewhatis.sed for nroff output
+2.11BSD:471	donor b91c3d2	if_qe+if_qt crash, more(1) bold bug, top(1) cleanup, new program netcat(1)	not-applicable	-	0	0	0	-	if_qe/if_qt, netcat; fork more(1) has no WOULDBOLD macro
+2.11BSD:472	donor 102b489	at(1) Y2K and leap year bugs	not-applicable	-	0	0	0	-	at(1) absent
+2.11BSD:473	donor 05fac22	compiler bugs, missing prototypes, hex format strings fixed	not-applicable	-	0	0	0	-	PDP-11 cc, uucp prototypes
+2.11BSD:474	donor 8464550	J11 hack 29th anniversary patch (#474)	not-applicable	-	0	0	0	-	J11 anniversary hack
+2.11BSD:475	donor 58f8483	sysctl(2) string handling error (#475)	present	-	0	0	0	check-libc-sysctl	sysctl string bounds: ledger sysctl-bounded-old-value, sysctl-dispatch-length-error-order, sysctl-exact-structure-input
+2.11BSD:476	donor fb02a4d	RP07 boot support / MASSBUS bootblock consolidation (#476)	not-applicable	-	0	0	0	-	RP07 MASSBUS boot
+2.11BSD:477	donor 069570a	cleanup compilation warnings (#477)	superseded	-	0	0	0	check-c17-source-denominator	warning cleanup carried by the fork -Werror campaign
+2.11BSD:478	donor 27b636a	cleanup - remove warning errors and Makefile cruft (#478)	superseded	-	0	0	0	check-c17-source-denominator	warning cleanup carried by the fork -Werror campaign
+2.11BSD:479	donor d9878e0	Y2K bug in ftp(1)	not-applicable	-	0	0	0	-	ftp absent
+2.11BSD:480	donor 8a1e7f0	DZ driver missing 8bit support, getty missing NoParity option, login loses 8bit flag(s) fro	present	-	0	0	0	check-getty-contracts	getty NoParity and PASS8, login local modes: merged #157
+2.11BSD:481	donor b53de8a	telnetd missing gettytab support, minor warp Makefile cleanup	not-applicable	-	0	0	0	-	telnetd absent
+2.11BSD:482	donor 19292d8	/vmunix removal, disktab errors, bad144 fails, dump exit status wrong, cc escaped char omis	not-applicable	-	0	0	0	-	/vmunix, disktab, bad144, dump; fstat and pstat rewritten in the fork
+2.11BSD:483	donor c27beb4	misc cleanup, unistd.h bug, telnetd pty speed, hk&xp badsector partition	not-applicable	-	0	0	0	-	telnetd, hk/xp drivers, sendbug, MAKEDEV
+2.11BSD:484	donor 05a1fb7	8bit clean tty driver, ethernet card attach info, xterm-color, telnetd window size change,	present	-	0	0	0	check-getty-contracts	8-bit tty and getty TIOCLSET: merged #157; sys/kern/tty.c implements PASS8
+2.11BSD:485	donor 17b0d9c	vi display/file corruption and/or crash when window is resized.	not-applicable	-	0	0	0	-	vi absent
+2.11BSD:486	donor ca51282	adb incorrect prints function arguments, local variables and external symbols	not-applicable	-	0	0	0	-	adb absent
+2.11BSD:487	donor 3bec6c1	login & telnetd editing/message ignore gettytab, ftp lacks PASV, chflags(1) source and chfl	present	-	0	0	0	check-getty-contracts	getty ec entry: merged #157; ftp, telnetd and rcmd absent
+2.11BSD:488	donor 646f751	adb single step bug, login disconnect, cc missing __TIME__/__DATE__, cpp bug, longjmp numbe	not-applicable	-	0	0	0	-	adb, PDP-11 cc and cpp; login and more hunks superseded by fork versions
+2.11BSD:489	donor e680203	bin/sort symlink, rcmd&ruserpass.c unused variables, telnet window changes, top malloc erro	not-applicable	-	0	0	0	-	sort symlink, rcmd, telnet, top, warp manifest
+2.11BSD:490	donor abdf952	C Compiler bug with right shift of unsigned long	not-applicable	-	0	0	0	-	PDP-11 cc shift
+2.11BSD:491	donor 6e8b1d7	cpp(1) lacks cpp.0, adb tutorial can't be made,	not-applicable	-	0	0	0	-	cpp manual, adb
+2.11BSD:492	donor 332d464	dd(1) improvements, as(1) NULL dereference, adb(1) no memory message, printf(3) return valu	superseded	-	0	0	0	check-libc-printf	fork dd rewritten with scale() and bounded number() (bin/dd/dd.c:230,263); printf return value kept by _doprnt
+2.11BSD:493	donor f775e19	dhu.c should support the DHQ11 with 8 lines in DHU11 mode (#493)	present	-	0	0	0	check-getty-contracts	gettytab.h revision: merged #157
+2.11BSD:494	donor 5e1db53	DZ driver syntax error, top(1) long usernames bug (#494)	not-applicable	-	0	0	0	-	DZ driver, top
+2.11BSD:495	donor dd1eb9f	__DATE__, __TIME__ Macros defined in wrong place, dd bug (#495)	superseded	-	0	0	0	-	dd unsigned number(): fork dd rewritten (bin/dd/dd.c:230); PDP-11 cc and cpp
+2.11BSD:496	donor a89e138	C compiler bugs, cpp runs out of memory, yacc  (#496)	not-applicable	-	0	0	0	-	PDP-11 cc and cpp; yacc MEDIUM MEMSIZE (usr.bin/yacc/Makefile defines no MEDIUM)
+2.11BSD:497	donor 0bd957b	efl (Extended Fortran Language) manpage installed but no executable (#497)	not-applicable	-	0	0	0	-	efl
+2.11BSD:498	donor 4200bce	remove trailer support, fix savecore(8) bug, delete obsolete files/directories (#498)	superseded	-	0	0	0	-	savecore rewritten for the RP2040 dump header (sbin/savecore/savecore.c:313); trailers absent
+2.11BSD:499	donor ab5dc1d	massive cleanup, restor pipe input, ANSI compliant stdio,  inconsistent LDFLAGS/CFLAGS use,	superseded	-	0	0	0	check-libc-scanf, check-libc-rwmode, check-libc-printf	Torek stdio prototyped and declined (stdio-torek-evaluation.md); pushback #150, r+ discipline #151, _doprnt C17 #154 carried; remaining hunks reviewed only by text distance
+2.11BSD:500.1	2bsd.com/2.11BSD/500	"ls -l" shows different date/time information depending on the age of the file. Files over 6 months 	applicable	box	0	0	~+60 B box text (I)	none	ls -T full time; bin/ls/ls.c:95 option string lacks T (1f040555)
+2.11BSD:500.2	2bsd.com/2.11BSD/500	touch(1) does not support "-r" to use timestamp from an existing file or "-t" to use a user specifie	present	link /usr/bin/touch	0	0	0	none	touch -r/-t at usr.bin/touch/touch.c:268 (4328e80e)
+2.11BSD:500.3	2bsd.com/2.11BSD/500	"sysctl vm.nswap" does not display the amount of swap space available	present	sysctl	0	0	0	check-libc-sysctl	vm.nswap: ledger sysctl-swap-block-count
+2.11BSD:500.4	2bsd.com/2.11BSD/500	src/usr.bin/xinstall/xinstall.c has needless __STDC__ conditionals	superseded	-	0	0	0	-	xinstall __STDC__ blocks; fork C17 campaign owns prototype cleanup
+2.11BSD:500.5	2bsd.com/2.11BSD/500	src/ucb/pascal/pxp/Makefile and src/usr.bin/neqn/Makefile.old have incomplete clean: targets. "make 	not-applicable	-	0	0	0	-	pxp and neqn absent
+2.11BSD:500.6	2bsd.com/2.11BSD/500	tftp, tn3270, lpc, learn, banner, warp, mille, sail, nstest, timedc and btlgammon use gets() which i	present	-	0	0	0	check-libc-contracts	gets(3) removed from libc and callers bounded (a8d2e6da)
+2.11BSD:500.7	2bsd.com/2.11BSD/500	During patch #499 cruft was not removed from usr/src/libexec/tcpd	not-applicable	-	0	0	0	-	tcpd absent
+2.11BSD:500.8	2bsd.com/2.11BSD/500	pstat(8) manpage references information not present in 2.11BSD	superseded	-	0	0	0	-	fork pstat rewritten; XPAGI absent from sys/sys and usr.sbin/pstat
+2.11BSD:500.9	2bsd.com/2.11BSD/500	mkdir does not support the -m option to set the directory mode.	applicable	box	0	0	+100 B mkdir object measured; +1228 B setmode.o text if symbolic modes (no sbin/box/*.tool.o references setmode)	none	mkdir -m; bin/mkdir/mkdir.c:55 accepts only -p
+2.11BSD:500.10	2bsd.com/2.11BSD/500	src/usr.bin/refer has two unused .c files and the Makefile contains targets for programs which are n	not-applicable	-	0	0	0	-	refer absent
+2.11BSD:500.11	2bsd.com/2.11BSD/500	find(1) has several errors: 1) inaccessible directory in / causes find to give errors for all furthe	applicable	pack /usr/bin/find	0	0	~+10 B (I)	check-find-contracts (no chdir-failure case)	descend() returns 0 on chdir failure and the caller then chdir()s to an emptied Pathname: usr.bin/find/find.c:730,748; latent on the image (default dirmode 0775, distrib/rp2040/mi.rp2040:21)
+2.11BSD:500.12	2bsd.com/2.11BSD/500	The user root does not have a private home directory but instead uses the system's top level directo	present	dir /root	0	0	0	-	root home /root: etc/passwd:1, distrib/rp2040/mi.rp2040:51
+2.11BSD:500.13	2bsd.com/2.11BSD/500	ctype(3) not ANSI-C compliant. C99 required headers float.h, inttypes.h, iso646.h and locale.h are m	applicable	-	0	0	iso646.h 0 B; setlocale/localeconv ~150 B per linking program (I)	check-c17-headers	ctype functions (6b76f490), inttypes and imax* (a3175b82), float.h present; include/iso646.h and include/locale.h absent; C compiler items are PDP-11 cc
+2.11BSD:500.14	2bsd.com/2.11BSD/500	shar can fail to open a directory when arguments to shar are relative pathnames. shar generates a sh	not-applicable	-	0	0	0	-	shar absent
+2.11BSD:500.15	2bsd.com/2.11BSD/500	/usr/include/OLD contained two .h files. Each .h file was not meant for public use and was used by o	not-applicable	-	0	0	0	-	/usr/include/OLD absent
+2.11BSD:500.16	2bsd.com/2.11BSD/500	ifconfig (and its manpage) indicate support for trailers/-trailers	not-applicable	-	0	0	0	-	ifconfig absent
+2.11BSD:500.17	2bsd.com/2.11BSD/500	chown does not recognize the user:group syntax used by other systems	applicable	box	0	0	+12 B chown object measured	none	owner:group separator; sbin/chown/chown.c:164 splits only at a period
+2.11BSD:500.18	2bsd.com/2.11BSD/500	The OLD and NEW directories in /sys/pdpstand haven't been used in almost 40 years. NEW/* wouldn't bu	not-applicable	-	0	0	0	-	pdpstand
+2.11BSD:500.19	2bsd.com/2.11BSD/500	corrupt uucico is installed. acucntrl.8 is present but acucntrl.0 is not created and installed.	not-applicable	-	0	0	0	-	uucico and acucntrl unshipped; uucp is a dial-up stack
+2.11BSD:500.20	2bsd.com/2.11BSD/500	manpage for symdump(1) is missing	not-applicable	-	0	0	0	-	symdump manual
+2.11BSD:500.21	2bsd.com/2.11BSD/500	device interrupts are not counted per device but vmstat(1) has the -i option to report the counts. v	not-applicable	-	0	0	0	-	fork vmstat has no _intrcnt or _phz lookup
+2.11BSD:500.22	2bsd.com/2.11BSD/500	printf(3) formatting: if a float (i.e. %f) spec is used with a fraction field width of zero and if t	present	libc	0	0	0	check-libc-printf-float (no %.0f zero vector)	probe: %.0f of 0.0 prints 0, %5.0f prints four spaces and 0
+2.11BSD:500.23	2bsd.com/2.11BSD/500	the kernel source directory 'src/sys/pdpmba' has nothing in it except a 'tags' symlink.	not-applicable	-	0	0	0	-	pdpmba
+2.11BSD:500.24	2bsd.com/2.11BSD/500	usr/src/sys/bootrom contains the SI9500 boot rom code which is not needed. System has the SI9500 boo	not-applicable	-	0	0	0	-	SI9500 boot ROM
+2.11BSD:500.25	2bsd.com/2.11BSD/500	creating a distribution tape in /sys/pdpstand leaves the compiled objects, libraries and standalone 	not-applicable	-	0	0	0	-	pdpstand tape
+2.11BSD:500.26	2bsd.com/2.11BSD/500	The mtools programs use gets() which is unsafe and causes a warning message to be printed.	not-applicable	-	0	0	0	-	mtools absent
+2.11BSD:500.27	2bsd.com/2.11BSD/500	symcompact is used to compact the kernel symbol table (but may be used on any non-stripped executabl	not-applicable	-	0	0	0	-	symcompact and strcompact absent
+2.11BSD:500.28	2bsd.com/2.11BSD/500	Patch #499 resolved the problem of two versions of grep being present in the system by removing the 	not-applicable	-	0	0	0	-	fork ships grepbox; no /bin versus /usr/ucb split
+2.11BSD:500.29	2bsd.com/2.11BSD/500	"dmesg -" gives an error creating the obsolete/outdated file /usr/adm/msgbuf	not-applicable	-	0	0	0	-	dmesg absent
+2.11BSD:500.30	2bsd.com/2.11BSD/500	The find database (/var/db/find.codes) is missing the last file in /	applicable	built, unshipped (bigram, code, updatedb.sh not packed)	0	0	~+20 B script (I)	none	find database drops its last entry; usr.bin/find/updatedb.sh carries the pre-patch pipeline (I: defect located in the decoder by the upstream text, not reproduced here)
+2.11BSD:500.31	2bsd.com/2.11BSD/500	src/sendmail and src/sendmail.MX both have much cruft that should have been removed eons ago. sendma	not-applicable	-	0	0	0	-	sendmail absent
+2.11BSD:500.32	2bsd.com/2.11BSD/500	MANY source files do not properly ifdef sccsid strings resulting in wasted D space in the compiled p	not-applicable	-	0	0	0	-	GCC drops unreferenced static sccsid arrays: 0 @(#) strings in five built binaries
+2.11BSD:500.33	2bsd.com/2.11BSD/500	manpages refer to <sys/file.h> rather than <unistd.h>	not-applicable	-	0	0	0	-	manual text
+2.11BSD:500.34	2bsd.com/2.11BSD/500	fcntl.h missing prototypes for open(), fcntl(), creat() and flock()	present	-	0	0	0	check-c17-headers	open, creat, fcntl at include/fcntl.h:49-53 (1f040555); flock at sys/sys/file.h:97
+2.11BSD:500.35	2bsd.com/2.11BSD/500	While the manpage for the game 'rogue' is installed the program itself is not built or installed.	not-applicable	-	0	0	0	-	rogue terminal handling differs; rogue unshipped
+2.11BSD:500.36	2bsd.com/2.11BSD/500	/usr/local/trace has no documentation, no usage message, does not display all the tracebuf[] entries	not-applicable	-	0	0	0	-	tracebuf
+2.11BSD:500.37	2bsd.com/2.11BSD/500	bk.4 manpage for the Berknet protocol exists but the kernel has no support at all (never implemented	not-applicable	-	0	0	0	-	Berknet
+2.11BSD:500.38	2bsd.com/2.11BSD/500	Hyperchannel ("hy") is listed as a network device in the kernel configuration file but there are no 	not-applicable	-	0	0	0	-	Hyperchannel
+2.11BSD:500.39	2bsd.com/2.11BSD/500	Compiling a kernel with no MSCP ('ra) controllers produces a warning message	not-applicable	-	0	0	0	-	MSCP config
+2.11BSD:500.40	2bsd.com/2.11BSD/500	'checksys' does not include the bounce buffer allocated when the kernel option SOFUB_MAP is enabled.	not-applicable	-	0	0	0	-	PDP-11 bounce buffer; mechanism note in the survey
+2.11BSD:500.41	2bsd.com/2.11BSD/500	The Ingres database system (/usr/ingres) fails to compile. There is also cruft that should be remove	not-applicable	-	0	0	0	-	ingres
+2.11BSD:500.42	2bsd.com/2.11BSD/500	a) Only the front end of sccs is present in /usr/ucb/sccs, NONE of the background programs (get, adm	not-applicable	-	0	0	0	-	sccs
+2.11BSD:500.43	2bsd.com/2.11BSD/500	'nm' accepts "-a", sets but does not use 'aflg'. The manpage makes no mention of a -a option.	not-applicable	-	0	0	0	-	fork nm has no -a flag handling of this kind
+2.11BSD:500.44	2bsd.com/2.11BSD/500	mkproto(8) hasn't been used, that anyone can recall, since it was created in 1985. mkproto(8) can't 	not-applicable	-	0	0	0	-	mkproto
+2.11BSD:500.45	2bsd.com/2.11BSD/500	Files in the /usr are owned by a non existent userid (10)	not-applicable	-	0	0	0	-	file ownership on a PDP-11 distribution
+2.11BSD:500.46	2bsd.com/2.11BSD/500	The default disk in quot(1) is incorrect.	not-applicable	-	0	0	0	-	quot absent
+2.11BSD:500.47	2bsd.com/2.11BSD/500	No manpage exists for strdup(3)	not-applicable	-	0	0	0	-	manual page
+2.11BSD:500.48	2bsd.com/2.11BSD/500	setpassent(3) is missing a manpage	not-applicable	-	0	0	0	-	manual page
+2.11BSD:500.49	2bsd.com/2.11BSD/500	/dev/swap must be manually created/linked in /dev rather than programs using the swap device configu	not-applicable	-	0	0	0	-	swap is a fixed flash region (sys/arch/rp2040/doc/STORAGE.md); no swap device selection
+2.11BSD:500.50	2bsd.com/2.11BSD/500	devname(3) lacks an interface to free the resources used to access the /var/run/dev DBM database.	not-applicable	-	0	0	0	-	fork devname scans /dev with readdir (lib/libc/gen/devname.c:66); no DBM handle to close
+2.11BSD:500.51	2bsd.com/2.11BSD/500	if /var/run/utmp does not exist w(1) coredumps	applicable	built, unshipped	0	0	~+12 B (I)	none	w reads utmp through an unchecked fopen: usr.bin/w/w.c:129,164
+2.11BSD:500.52	2bsd.com/2.11BSD/500	programs should use the system installed include files for pathnames: utmp.h for _PATH_UTMP, paths.h	not-applicable	-	0	0	0	-	local pathnames.h cleanup, cosmetic
+2.11BSD:500.53	2bsd.com/2.11BSD/500	tcsh should use the system provided setenv(3) function. tcsh leaked the memory allocated for the hos	not-applicable	-	0	0	0	-	tcsh absent
+2.11BSD:500.54	2bsd.com/2.11BSD/500	snprintf(3) coredumps if the output buffer length is less than the amount of input data.	present	libc	0	0	0	check-libc-printf (printf_contract_test.c:122-125,151)	probe: snprintf(b, 9, "%s%s", "/dev/", "swap") returns 9 with /dev/swa; lib/libc/stdio/snprintf.c:37 (19903610)
+2.11BSD:500.55	2bsd.com/2.11BSD/500	strftime(3) does not process '%b' correctly. This causes syslog(3) to create incorrect date strings.	present	libc	0	0	0	none	strftime %b and %h share a case: lib/libc/gen/strftime.c:102-103 (1f040555)
+2.11BSD:500.56	2bsd.com/2.11BSD/500	syslogd(8) is logging cron(8) messages in two files rather than only one file.	not-applicable	-	0	0	0	-	no syslogd in the tree; etc/syslog.conf is inert
+2.11BSD:500.57	2bsd.com/2.11BSD/500	ps(1) a) uses a static array for tty devices, b) has incorrect default for crashdump memory image, c	superseded	link /bin/ps (box)	0	0	0	-	fork ps uses getopt (bin/ps/ps.c:294) and a 24-entry tty table (ps.c:512)
+2.11BSD:500.58	2bsd.com/2.11BSD/500	ntp has a Y2K bug that appears when PSTI support is enabled.	not-applicable	-	0	0	0	-	ntp absent
+2.11BSD:500.59	2bsd.com/2.11BSD/500	The change in ps(1)'s database (psdatabase) caused top(1) (which had a private copy of the structure	not-applicable	-	0	0	0	-	top absent; fork ships picotop
+2.11BSD:500.60	2bsd.com/2.11BSD/500	The program crc in the zmodem source distribution is not compiled or installed.	not-applicable	-	0	0	0	-	zmodem crc.c present but unbuilt; cksum(1) covers the function
+2.11BSD:500.61	2bsd.com/2.11BSD/500	w(1), top(1), ps(1), fstat(8), identd(8) have the string "/dev/swap" wired in. See (49) above.	not-applicable	-	0	0	0	-	see 500.49
+2.11BSD:500.62	2bsd.com/2.11BSD/500	When a TCP uucp client with a very long domain name connects to uucpd, uucpd crashes before the UUCP	not-applicable	-	0	0	0	-	uucpd needs a network stack
+2.11BSD:500.63	2bsd.com/2.11BSD/500	patch(1) has code to look for and attempt to check out SCCS files. Since SCCS has never existed (and	not-applicable	-	0	0	0	-	patch absent
+2.11BSD:500.64	2bsd.com/2.11BSD/500	acctd.8 misspelled the word 'receipt'.	not-applicable	-	0	0	0	-	manual text
+2.11BSD:500.65	2bsd.com/2.11BSD/500	Outdated 'tags' files are present in several source directories.	not-applicable	-	0	0	0	-	tags files
+2.11BSD:500.66	2bsd.com/2.11BSD/500	f77 generates invalid intermediate code which causes c1 (code generator) to exit with a "No code tab	not-applicable	-	0	0	0	-	f77
+2.11BSD:500.67	2bsd.com/2.11BSD/500	The f77 Makefile runs the optimizer twice for each .c file. The libc function mktemp() is defined lo	not-applicable	-	0	0	0	-	f77
+2.11BSD:500.68	2bsd.com/2.11BSD/500	mkstr(1) does not handle the alarm or vertical tab characters. '\a' and '\v' should be converted int	not-applicable	-	0	0	0	-	mkstr exists only as games/battlestar/mkstr.c
+2.11BSD:500.69	2bsd.com/2.11BSD/500	err(1), errx(1), etc are not prototyped.	present	-	0	0	0	check-c17-headers	include/err.h (afa088e5)
+2.11BSD:500.70	2bsd.com/2.11BSD/500	Many unsupported protocol and address families (with the corresponding name strings in CTL_NET_NAMES	not-applicable	-	0	0	0	-	no network stack; sys/sys/socket.h absent
+2.11BSD:500.71	2bsd.com/2.11BSD/500	Network memory resources are exhausted by too many sockets stuck in FIN_WAIT_2 state resulting in th	not-applicable	-	0	0	0	-	no TCP
+2.11BSD:500.72	2bsd.com/2.11BSD/500	monop(6) dumps core immediately upon launch.	not-applicable	-	0	0	0	-	PDP-11 split I/D xstr ed script
+2.11BSD:500.73	2bsd.com/2.11BSD/500	upon startup battlestar(6) prints nothing, no descriptions of rooms, objects and attempts to save th	present	-	0	0	0	check-battlestar-generation	PATH(x) stringizes: games/battlestar/externs.h:15 (4052ede2)
+2.11BSD:500.74	2bsd.com/2.11BSD/500	phantasia(6) runs setuid to root rather than daemon (as other setuid games). The Makefile copies the	present	-	0	0	0	-	two-argument signal calls: games/phantasia/func2.c:772
+2.11BSD:500.75	2bsd.com/2.11BSD/500	efl is resource starved. Including support for gcos, crayos and unusable metering (meter()) code is 	not-applicable	-	0	0	0	-	efl
+2.11BSD:500.76	2bsd.com/2.11BSD/500	The network image /netnix contains a surprising amount of wasted D space.	applicable	kernel	<= -1603 B (upper bound, single-line panic literals)	0	0	check-kernel-headroom	(a) shared MGET/MFREE panic strings: moot under GCC literal merging; (b) short unique panic tags: 79 panic literals totaling 1603 bytes in a local PICO unix.elf
+2.11BSD:500.77	2bsd.com/2.11BSD/500	The stdio function fgetln() was inadvertenly omitted in the ANSI stdio portion of patch #499.	not-applicable	-	0	0	0	-	V7 stdio retained; getline and getdelim present (lib/libc/stdio/getline.c)
+2.11BSD:500.78	2bsd.com/2.11BSD/500	With the removal of lint (in patch #499) the source directories /usr/src/lib/mip and /usr/src/lib/pc	not-applicable	-	0	0	0	-	mip and pcc
+2.11BSD:500.79	2bsd.com/2.11BSD/500	F77 programs can into an endless loop requiring a kill -9 to end the process.	not-applicable	-	0	0	0	-	libI77
+2.11BSD:500.80	2bsd.com/2.11BSD/500	rm(1) and mv(1) do not use getopt() to parse args.	applicable	box	0	0	~+40 B per applet; getopt already linked in box (I)	none	rm and mv parse options by hand: a lone - ends options (bin/rm/rm.c:41, bin/mv/mv.c:64) and -- reaches default, prints usage and exits 1 (rm.c:59-61, mv.c:76)
+2.11BSD:500.81	2bsd.com/2.11BSD/500	The F77 I/O runtime libary libI77 is completely broken for files opened with ACCESS=DIRECT	not-applicable	-	0	0	0	-	libI77
+2.11BSD:500.82	2bsd.com/2.11BSD/500	adb(1)'s script directory (src/share/adb) contains 4BSD scripts (PORT) that can't be used (wrong str	not-applicable	-	0	0	0	-	adb scripts
+2.11BSD:500.83	2bsd.com/2.11BSD/500	memory allocated by calloc() should be released by calling free() rather than the undocumented funct	applicable	box	0	0	~-20 B (I)	none	ls calls cfree: bin/ls/ls.c:81,205; lib/libc/gen/calloc.c:36
+2.11BSD:500.84	2bsd.com/2.11BSD/500	umount can hang, at uninterruptible priority, when unmounting the last open partition on a drive sup	not-applicable	-	0	0	0	-	xp(4) driver; mechanism note in the survey
+2.11BSD:500.85	2bsd.com/2.11BSD/500	mkstr(1) processes message strings only for the function "error("	not-applicable	-	0	0	0	-	mkstr rewrite; mechanism note in the survey
+2.11BSD:500.86	2bsd.com/2.11BSD/500	man(1) accepts 'old' and 'o' as a section number.	applicable	built, unshipped	0	0	~-30 B (I)	none	man accepts old and o as sections: usr.bin/man/man.c:279-280
+2.11BSD:500.87	2bsd.com/2.11BSD/500	make(1) includes support for gcos in the form of ifdef'd out code and an unused source file.	present	-	0	0	0	-	no gcos code in usr.bin/make
+2.11BSD:500.88	2bsd.com/2.11BSD/500	catman(8) does nothing except run /usr/sbin/makewhatis to recreate the whatis database. No manpages 	not-applicable	-	0	0	0	-	catman absent
+2.11BSD:500.89	2bsd.com/2.11BSD/500	stdlib.h does not prototype the function declarations.	present	-	0	0	0	check-c17-headers	include/stdlib.h carries prototypes (atoi at :84, malloc at :91)
+2.11BSD:500.90	2bsd.com/2.11BSD/500	kern_time.c used the macro "#define timevalfix tvfix" needlessly.	present	-	0	0	0	-	no timevalfix macro under sys/
+2.11BSD:500.91	2bsd.com/2.11BSD/500	usleep(3) sleeps for ~9 minutes in the US (13 minutes in countries using a 50Hz clock) no matter wha	present	-	0	0	0	none	usleep(long) prototype at include/unistd.h:126 (2f05c54a) matches lib/libc/gen/usleep.c
+2.11BSD:500.92	2bsd.com/2.11BSD/500	two bugs in sleep(3). a) sleep(3) is limited by the maximum time select(2) can sleep (9 or 13 minute	present	-	0	0	0	none	select accepts up to 1e8 s (sys/kern/kern_time.c:348) and hzto computes long ticks, so sleep(3) needs no loop (I)
+2.11BSD:500.93	2bsd.com/2.11BSD/500	Duplicate signal.h files are present in the system.	present	-	0	0	0	-	include/signal.h is a symbolic link to sys/signal.h
+2.11BSD:500.94	2bsd.com/2.11BSD/500	Most of the manpages in section 2 (syscalls) and 3 (library routines) do not specify the header file	not-applicable	-	0	0	0	-	manual text
+2.11BSD:500.95	2bsd.com/2.11BSD/500	The signal handler passed to signal(3) or used with sigaction(2) was typedef'd as "int (*sig_t)();" 	present	-	0	0	0	check-c17-headers	sig_t is void (*)(int): sys/sys/signal.h:46
+2.11BSD:500.96	2bsd.com/2.11BSD/500	xargs err() routine conflicted with the system provided err(3) functions.	superseded	link /usr/bin/xargs	0	0	0	-	fork xargs reports through fatal() (usr.bin/xargs/xargs.c:52); no err() collision
+2.11BSD:500.97	2bsd.com/2.11BSD/500	who(1) using the uucp notation for the output of "who am i".	applicable	built, unshipped	0	0	0	none	who am i prints host!user: usr.bin/who/who.c:61 (cosmetic)
+2.11BSD:500.98	2bsd.com/2.11BSD/500	Configuring a new kernel from a copy of the GENERIC kernel config file is tedious and very error pro	not-applicable	-	0	0	0	-	kernel configuration file
+2.11BSD:500.99	2bsd.com/2.11BSD/500	hostid(1) crashes when run on a non-networking (e.g. GENERIC) kernel.	not-applicable	-	0	0	0	-	libc builds no gethostbyname (lib/libc/Makefile:54 omits net); hostid unshipped
+2.11BSD:500.100	2bsd.com/2.11BSD/500	The system clock frequency is fixed at kernel config time to the parameter LINEHZ (50Hz or 60Hz). If	not-applicable	-	0	0	0	-	SysTick derives from the crystal (sys/arch/rp2040/rp2040/clock.c:60)
+2.11BSD:500.101	2bsd.com/2.11BSD/500	Two bugs were uncovered by the DHU-11 communications multiplexor. The first bug is in SimH's PDP-11 	not-applicable	-	0	0	0	-	DHU-11 and SimH
+2.11BSD:500.102	2bsd.com/2.11BSD/500	Setup documentation in /usr/doc/2.10/setup.2.11 is out of date poorly organized, after 499 patches c	not-applicable	-	0	0	0	-	PDP-11 setup documentation

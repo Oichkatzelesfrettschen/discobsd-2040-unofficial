@@ -114,8 +114,9 @@ check: check-python ${FIXTURE_ELFS} ${DEPENDENCY_FILE} \
 	else \
 		status=$$?; test $$status -eq 1; \
 	fi
-	grep -F 'source_files=1 source_divider_findings=1' source_admitted.stdout
-	grep -F 'source_admitted.c:33: divider symbol' source_admitted.stderr
+	grep -F 'source_files=1 source_divider_findings=2' source_admitted.stdout
+	grep -F 'source_admitted.c:36: divider symbol' source_admitted.stderr
+	grep -F 'source_admitted.c:41: divider symbol' source_admitted.stderr
 	@if "${PYTHON}" "${VERIFIER}" --elf divider_admitted.elf \
 	    --dependency-directory .deps-admitted \
 	    > source_unadmitted.stdout 2> source_unadmitted.stderr; then \
@@ -124,7 +125,7 @@ check: check-python ${FIXTURE_ELFS} ${DEPENDENCY_FILE} \
 	else \
 		status=$$?; test $$status -eq 1; \
 	fi
-	grep -F 'source_files=1 source_divider_findings=2' source_unadmitted.stdout
+	grep -F 'source_files=1 source_divider_findings=4' source_unadmitted.stdout
 	@if "${PYTHON}" "${VERIFIER}" --elf divider_safe.elf \
 	    --dependency-directory missing-dependencies \
 	    > missing_dependencies.stdout 2> missing_dependencies.stderr; then \

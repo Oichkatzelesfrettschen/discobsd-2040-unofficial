@@ -1198,19 +1198,44 @@ def strip_comments(source_text: str, assembly: bool) -> str:
 def admitted_lines(source_lines: Sequence[str], admitted: frozenset[str]) -> set[int]:
     """Return the 1-based lines of the admitted functions' definitions.
 
-    A definition runs from the line that starts with the function's name and
-    an opening parenthesis, the KNF form with the return type on the line
-    above, through the next line that is a lone closing brace.
+    A candidate starts on a line that begins with an admitted name and an
+    opening parenthesis, the KNF form with the return type on the line
+    above. It is a definition only when a `{` follows before any `;`; a
+    prototype, split over two lines or not, ends at its `;` and admits
+    nothing. The definition runs through the brace that closes its body,
+    matched by depth, so a nested block's brace on its own line ends nothing.
     """
     lines: set[int] = set()
-    inside = False
-    for line_number, source_line in enumerate(source_lines, 1):
-        if not inside and any(source_line.startswith(f"{name}(") for name in admitted):
-            inside = True
-        if inside:
-            lines.add(line_number)
-            if source_line.rstrip() == "}":
-                inside = False
+    line_count = len(source_lines)
+    index = 0
+    while index < line_count:
+        if not any(source_lines[index].startswith(f"{name}(") for name in admitted):
+            index += 1
+            continue
+        start = index
+        depth = 0
+        opened = False
+        end = None
+        scan = index
+        while scan < line_count and end is None:
+            for character in source_lines[scan]:
+                if not opened and character == ";":
+                    end = -1
+                    break
+                if character == "{":
+                    opened = True
+                    depth += 1
+                elif character == "}" and opened:
+                    depth -= 1
+                    if depth == 0:
+                        end = scan
+                        break
+            scan += 1
+        if end is not None and end >= 0:
+            lines.update(range(start + 1, end + 2))
+            index = end + 1
+        else:
+            index = start + 1
     return lines
 
 

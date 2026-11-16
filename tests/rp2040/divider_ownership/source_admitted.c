@@ -27,15 +27,24 @@
  */
 
 /*
- * Source fixture for --admit-function: the divider reference inside the
- * admitted definition is skipped, the one at file scope is still found.
+ * Source fixture for --admit-function. Only the body of the admitted
+ * definition is skipped: the file-scope #define, and the line after a
+ * prototype split over two lines in KNF form, are still found, and the
+ * nested block's brace in column 0 ends nothing, so the access after it
+ * stays admitted.
  */
 #define DIV_CSR_OFFSET 0x78
 
-void divider_save(void);
+void
+divider_save(void);
+
+static unsigned prototype_span = DIV_CSR_OFFSET;
 
 void
 divider_save(void)
 {
-	(void)*(volatile unsigned *)0xd0000060UL;
+	if (prototype_span) {
+		(void)*(volatile unsigned *)0xd0000060UL;
+}
+	(void)*(volatile unsigned *)0xd0000064UL;
 }

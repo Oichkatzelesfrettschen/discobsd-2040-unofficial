@@ -58,6 +58,10 @@ expect 1 24607 25 0	# over the budget with no margin demanded
 expect 0 24576 25 0	# exact fit with margin 0 is allowed
 expect 2 abc 25 128
 expect 2 22872 5 128
+expect 0 266240 261 0	# 261 blocks: 260 data + 1 indirect
+expect 1 266241 261 0
+expect 2 267000 262 0	# outside the single-indirect range: fail closed
+expect 2 22872 1000 128
 expect 2 22872 25
 
 out=$(sh "$tool" adminbox 22872 25 128)

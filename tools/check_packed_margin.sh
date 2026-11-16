@@ -30,7 +30,8 @@
 #
 # hsaout_blocks (tools/hsaout/libhsaout.c) counts ceil(bytes / 1024) data
 # blocks plus one indirect block once the file passes four, so a budget of
-# N blocks (N above 5) holds at most (N - 1) * 1024 packed bytes. The margin
+# N blocks (N from 6 to 261, the single-indirect range) holds at most
+# (N - 1) * 1024 packed bytes. The margin
 # is that cap less the packed size: the growth a compiler or a patch may add
 # before the image needs another block.
 #
@@ -49,6 +50,9 @@ for v in "$packed" "$max_blocks" "$min_margin"; do
 	esac
 done
 [ "$max_blocks" -gt 5 ] || { echo "$name: block budget must exceed 5" >&2; exit 2; }
+# Beyond 261 blocks hsaout_blocks adds a second metadata block per 256-block
+# range, so the single-indirect formula below overstates the cap; refuse.
+[ "$max_blocks" -le 261 ] || { echo "$name: block budget above 261 is outside the single-indirect range" >&2; exit 2; }
 
 cap=$(( (max_blocks - 1) * 1024 ))
 margin=$(( cap - packed ))

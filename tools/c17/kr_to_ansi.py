@@ -40,13 +40,20 @@ A definition converts when
     array declarator, and no typedef name outside WIDE_OK, because the tool
     cannot read the width of u_char, u_short or a narrow uid_t;
   - no parameter is a function or a function pointer, and no comment, string
-    or directive sits between the identifier list and the opening brace.
+    or directive sits anywhere between the function name and the opening
+    brace, the identifier list included;
+  - the name is neither defined as a macro in the file nor written in capital
+    letters, since a macro invocation that looks like a definition (a header's
+    HEADER(name) { ... }) must stay as written.
 
 An empty identifier list becomes "(void)". The tool scans the whole text of a
 file and never evaluates a preprocessor directive, so a definition in each
-conditional arm converts on its own merits and a definition a macro generates
-stays as written. The output replaces only the identifier list and the
-declaration list; the text before and after is byte-identical.
+conditional arm converts on its own merits, including arms that share one
+body. Brace depth is tracked per conditional arm; when the arms of one
+conditional leave different depths the tool cannot tell which definitions are
+top level, converts nothing after that point and says so. The output replaces
+only the identifier list and the declaration list; the text before and after
+is byte-identical.
 
 Usage: kr_to_ansi.py [--check] FILE...  rewrites each FILE in place, or with
 --check reports the definitions that would convert and exits 1 when any would.
@@ -103,8 +110,11 @@ IDENT = re.compile(r"[A-Za-z_]\w*\Z")
 LINE_LIMIT = 79
 
 
-def mask(text):
-    """Blank comments, literals and directives with spaces, keeping offsets."""
+def mask(text, directives=None):
+    """Blank comments, literals and directives with spaces, keeping offsets.
+
+    When a list is passed, each directive appends (offset of its "#", text).
+    """
     out = list(text)
     i, n = 0, len(text)
     line_start = True
@@ -114,6 +124,7 @@ def mask(text):
             i += 1
             continue
         if line_start and c == "#":
+            directive_start = i
             while i < n and text[i] != "\n":
                 if text[i] == "\\" and i + 1 < n and text[i + 1] == "\n":
                     out[i] = " "
@@ -129,6 +140,8 @@ def mask(text):
                     continue
                 out[i] = " "
                 i += 1
+            if directives is not None:
+                directives.append((directive_start, text[directive_start:i]))
             continue
         if text.startswith("/*", i) or text.startswith("//", i):
             if text.startswith("/*", i):
@@ -159,17 +172,49 @@ def mask(text):
     return "".join(out)
 
 
-def depth_zero(masked):
-    """Return a list: True where the offset lies outside every brace pair."""
+IF_WORDS = {"if", "ifdef", "ifndef"}
+
+
+def depth_zero(masked, directives):
+    """Return (flags, poison): flags[i] is True where offset i lies outside every brace pair.
+
+    Brace depth restarts at each conditional alternative, so arms that each open
+    a function and share one body count once. When the arms of a conditional end
+    at different depths the depth is unknowable without evaluating the
+    condition: poison is the offset of its #endif and the flags after it are
+    False. Otherwise poison is None.
+    """
+    events = {}
+    for start, raw in directives:
+        found = re.match(r"#\s*(\w+)", raw)
+        if found:
+            events[start] = found.group(1)
     flags = []
     depth = 0
-    for ch in masked:
+    stack = []  # per open conditional: [depth at the #if, depths ending each arm, has #else]
+    for i, ch in enumerate(masked):
+        word = events.get(i)
+        if word in IF_WORDS:
+            stack.append([depth, [], False])
+        elif word in ("else", "elif") and stack:
+            stack[-1][1].append(depth)
+            stack[-1][2] = stack[-1][2] or word == "else"
+            depth = stack[-1][0]
+        elif word == "endif" and stack:
+            entry = stack.pop()
+            ends = entry[1] + [depth]
+            if not entry[2]:
+                ends.append(entry[0])
+            if len(set(ends)) != 1:
+                flags.extend([False] * (len(masked) - len(flags)))
+                return flags, i
+            depth = ends[0]
         if ch == "}":
             depth -= 1
         flags.append(depth == 0)
         if ch == "{":
             depth += 1
-    return flags
+    return flags, None
 
 
 def split_top(text, sep):
@@ -191,7 +236,8 @@ def split_top(text, sep):
 def parse_declaration(piece_list, names):
     """Return (base, {name: declarator}) for one declaration, or a refusal."""
     first = piece_list[0]
-    tokens = re.findall(r"[A-Za-z_]\w*|\*|\(|\)|\[|\]|\S", first)
+    found = [(m.group(), m.start()) for m in re.finditer(r"[A-Za-z_]\w*|\*|\(|\)|\[|\]|\S", first)]
+    tokens = [tok for tok, _ in found]
     start = None
     for k, tok in enumerate(tokens):
         if tok == "*" or (
@@ -202,7 +248,8 @@ def parse_declaration(piece_list, names):
     if start is None or start == 0:
         return "no declarator or no type"
     base = " ".join(tokens[:start])
-    pieces = [" ".join(tokens[start:])] + [p.strip() for p in piece_list[1:]]
+    # The declarator keeps its original text: re-joining tokens would split "16" into "1 6".
+    pieces = [first[found[start][1] :]] + [p.strip() for p in piece_list[1:]]
     result = {}
     for piece in pieces:
         m = re.search(r"\b([A-Za-z_]\w*)\b", piece)
@@ -251,8 +298,14 @@ CANDIDATE = re.compile(r"\b([A-Za-z_]\w*)\s*\(([^()]*)\)")
 
 
 def convert(text):
-    masked = mask(text)
-    flags = depth_zero(masked)
+    directives = []
+    masked = mask(text, directives)
+    flags, poison = depth_zero(masked, directives)
+    macros = set()
+    for _, raw in directives:
+        defined = re.match(r"#\s*define\s+([A-Za-z_]\w*)", raw)
+        if defined:
+            macros.add(defined.group(1))
     edits = []
     findings = []
     for m in CANDIDATE.finditer(masked):
@@ -286,11 +339,13 @@ def convert(text):
         if not between.strip() and masked[after:brace].strip():
             continue
         line = text.count("\n", 0, m.start(1)) + 1
-        original_between = text[after:brace]
-        if re.search(r"/\*|//|#|\"|'", original_between):
-            findings.append(
-                (line, name, "refused: comment, literal or directive in the declaration list")
-            )
+        if name in macros or re.fullmatch(r"[A-Z][A-Z0-9_]+", name):
+            findings.append((line, name, "refused: macro invocation or capitalized name"))
+            continue
+        # The edit replaces everything from the name to the brace, so a comment,
+        # literal or directive anywhere in that span would be deleted.
+        if re.search(r"/\*|//|#|\"|'", text[m.start(1) : brace]):
+            findings.append((line, name, "refused: comment, literal or directive in the header"))
             continue
         if "va_dcl" in between:
             findings.append((line, name, "refused: va_dcl"))
@@ -331,6 +386,15 @@ def convert(text):
             header = f"{name}(" + ",\n\t".join(new_params) + ")"
         edits.append((m.start(1), brace, header + "\n"))
         findings.append((line, name, "converted"))
+    if poison is not None:
+        findings.append(
+            (
+                text.count("\n", 0, poison) + 1,
+                "-",
+                "refused: conditional arms leave unequal brace depth; "
+                "later definitions not examined",
+            )
+        )
     out = []
     pos = 0
     for start, end, replacement in edits:

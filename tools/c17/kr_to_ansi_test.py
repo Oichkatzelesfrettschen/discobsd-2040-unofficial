@@ -24,25 +24,34 @@
 # POSSIBILITY OF SUCH DAMAGE.
 """Calibrate kr_to_ansi.py on a known-good file and a known-bad file.
 
-The known-good fixture holds five definitions the converter must rewrite
-(identifier lists, a register parameter, an array parameter, an empty list and
-an implicit-int parameter). Its output must equal the expected text exactly,
-a second run must change nothing, the host compiler must accept the output
-under -Werror=old-style-definition and -Werror=strict-prototypes, and the
+The known-good fixture holds nine definitions the converter must rewrite
+(identifier lists, a register parameter, an array parameter, an empty list, an
+implicit-int parameter, a sized array parameter whose declarator has digits, and
+conditional arms that open two headers on one shared body). Its output must
+equal the expected text exactly, a second run must change nothing, the host
+compiler must accept the output under -Werror=old-style-definition and
+-Werror=strict-prototypes, and the
 .text section of the output must equal the .text section of the input
 compiled as K&R, which shows the rewrite preserves the object code.
 
-The known-bad fixture holds five definitions the converter must leave
+The known-bad fixture holds definitions the converter must leave
 byte-identical and report as refused: a typedef of unknown width (u_char), a
-char parameter, a float parameter, a function-pointer parameter and a comment
-inside the declaration list. A
+char parameter, a float parameter, a function-pointer parameter, a comment
+inside the declaration list, a comment inside the identifier list, a header
+macro that looks like a definition, and definitions after conditional arms of
+unequal brace depth. Two more shapes the host compiler cannot take as written
+(a macro from a header, a directive inside the identifier list) are checked on
+the converter output alone. A
 mutant converter that ignores promotion must change the float definition's
 object code, which shows the refusal protects the program, and every mutant
 below must fail at least one check:
 
   - a converter without the promotion refusal;
   - a converter that emits parameters in reverse order;
-  - a converter that leaves the declaration list in place.
+  - a converter that leaves the declaration list in place;
+  - a converter that re-joins declarator tokens, a converter that checks only
+    the declaration list for comments, one that does not refuse macros and one
+    that ignores conditional arms when it tracks brace depth.
 
 Run: python3 tools/c17/kr_to_ansi_test.py
 """
@@ -94,6 +103,36 @@ first(argc, argv)
 {
 	return argc + (argv != 0);
 }
+
+void
+digest_copy(digest, n)
+	unsigned char digest[16];
+	int n;
+{
+	digest[0] = (unsigned char)n;
+}
+
+#ifdef ALT
+int
+pick(a)
+	int a;
+{
+#else
+int
+pick(a, b)
+	int a;
+	int b;
+{
+#endif
+	return a + b;
+}
+
+int
+after(x)
+	int x;
+{
+	return x;
+}
 """
 
 GOOD_EXPECTED = """\
@@ -125,6 +164,30 @@ int
 first(int argc, char **argv)
 {
 	return argc + (argv != 0);
+}
+
+void
+digest_copy(unsigned char digest[16], int n)
+{
+	digest[0] = (unsigned char)n;
+}
+
+#ifdef ALT
+int
+pick(int a)
+{
+#else
+int
+pick(int a, int b)
+{
+#endif
+	return a + b;
+}
+
+int
+after(int x)
+{
+	return x;
 }
 """
 
@@ -165,7 +228,35 @@ annotated(a)
 {
 	return a;
 }
+
+#define HEADER(n) int n(void)
+HEADER(mac) { return 1; }
+
+int
+listed(a, /* second */ b)
+	int a;
+	int b;
+{
+	return a + b;
+}
+
+#ifdef OPEN
+static int guarded;
+{
+#endif
+int
+later(c)
+	int c;
+{
+	return c;
+}
 """
+
+# Shapes the host compiler cannot take as written, checked on the text alone.
+MACRO_FROM_HEADER = "EXPORT(foo) { return 1; }\n"
+DIRECTIVE_IN_LIST = (
+    "int\nlisted(a,\n#ifdef WIDE\n    b,\n#endif\n    c)\n\tint a, b, c;\n{\n\treturn a;\n}\n"
+)
 
 BAD_REASONS = [
     "tiny: refused: promoted type",
@@ -173,6 +264,9 @@ BAD_REASONS = [
     "widen: refused: promoted type",
     "call: refused: function or function-pointer parameter",
     "annotated: refused: comment, literal or directive",
+    "HEADER: refused: macro invocation",
+    "listed: refused: comment, literal or directive",
+    "-: refused: conditional arms leave unequal brace depth",
 ]
 
 BASE = ["-O1", "-w", "-fpermissive", "-c"]
@@ -230,7 +324,7 @@ def checks(module, work):
     good_out, good_findings = module["convert"](GOOD)
     if good_out != GOOD_EXPECTED:
         failed.append("good output text")
-    if [s for _, _, s in good_findings] != ["converted"] * 5:
+    if [s for _, _, s in good_findings] != ["converted"] * 9:
         failed.append("good findings")
     if module["convert"](good_out)[0] != good_out:
         failed.append("good idempotence")
@@ -246,7 +340,27 @@ def checks(module, work):
     report = [f"{n}: {s}" for _, n, s in bad_findings]
     if not all(any(r.startswith(want) for r in report) for want in BAD_REASONS):
         failed.append("bad reasons")
+    for label, source, want in (
+        ("macro from a header", MACRO_FROM_HEADER, "EXPORT: refused: macro invocation"),
+        (
+            "directive in the identifier list",
+            DIRECTIVE_IN_LIST,
+            "listed: refused: comment, literal or directive",
+        ),
+    ):
+        out, found = module["convert"](source)
+        if out != source or not any(f"{n}: {s}".startswith(want) for _, n, s in found):
+            failed.append(label)
     return failed
+
+
+def object_differs(work, before_source, after_source):
+    """Return True when both sources compile and their .text differs, None when one fails."""
+    before = text_section(work, "diff_before", before_source, "gnu17")
+    after = text_section(work, "diff_after", after_source, "c17")
+    if before is None or after is None:
+        return None
+    return before != after
 
 
 def main():
@@ -273,6 +387,19 @@ def main():
             "declaration list kept": SOURCE.replace(
                 "edits.append((m.start(1), brace, header", "edits.append((m.start(1), after, header"
             ),
+            "array declarator re-tokenized": SOURCE.replace(
+                "pieces = [first[found[start][1] :]]", 'pieces = [" ".join(tokens[start:])]'
+            ),
+            "header span not checked": SOURCE.replace(
+                "text[m.start(1) : brace]", "text[after:brace]"
+            ),
+            "no macro refusal": SOURCE.replace(
+                'if name in macros or re.fullmatch(r"[A-Z][A-Z0-9_]+", name):', "if False:"
+            ),
+            "flat brace depth": SOURCE.replace(
+                "flags, poison = depth_zero(masked, directives)",
+                "flags, poison = depth_zero(masked, [])",
+            ),
         }
         for label, mutated in mutants.items():
             if mutated == SOURCE:
@@ -286,11 +413,22 @@ def main():
         if out == BAD:
             print("kr_to_ansi_test: FAIL: the forced rewrite changed nothing", file=sys.stderr)
             return 1
-        bad_before = text_section(work, "bad_before", BAD, "gnu17")
-        if bad_before is None or bad_before == text_section(work, "bad_after", out, "c17"):
+        # Both compilations must succeed before their text sections mean anything: an
+        # uncompilable rewrite is a failure, never evidence that promotion changed code.
+        if object_differs(work, BAD, "int broken(;\n") is not None:
+            print(
+                "kr_to_ansi_test: FAIL: an uncompilable rewrite counted as a difference",
+                file=sys.stderr,
+            )
+            return 1
+        differs = object_differs(work, BAD, out)
+        if differs is None:
+            print("kr_to_ansi_test: FAIL: a promotion fixture did not compile", file=sys.stderr)
+            return 1
+        if not differs:
             print("kr_to_ansi_test: FAIL: promotion rewrite kept the object code", file=sys.stderr)
             return 1
-    print("kr_to_ansi_test: ok: 1 known-good, 1 known-bad, 3 mutants killed")
+    print(f"kr_to_ansi_test: ok: 1 known-good, 1 known-bad, {len(mutants)} mutants killed")
     return 0
 
 

@@ -109,9 +109,7 @@ def url_host(ip: str) -> str:
     return "[%s]" % ip if ":" in ip else ip
 
 
-def urls(
-    ip: str, token: str, web_port: int, link_port: int, mdns: bool = True
-) -> dict[str, str]:
+def urls(ip: str, token: str, web_port: int, link_port: int, mdns: bool = True) -> dict[str, str]:
     host = url_host(ip)
     full = "http://%s:%d/?token=%s" % (host, web_port, token)
     out = {"short": "http://%s:%d/" % (host, link_port), "full": full}

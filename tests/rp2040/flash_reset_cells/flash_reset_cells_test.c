@@ -853,6 +853,13 @@ remount_after_reset(void)
 	remount(&v);
 	expect(v.resume == 0 && v.m >= 0, cell_name,
 	    "a scripted reset leaves an unrecoverable root");
+	/*
+	 * Only the unacknowledged suffix may go: the history is rebased on
+	 * the recovered prefix below, so a loss admitted here would hide
+	 * from every later cut of the cell.
+	 */
+	expect(v.m < 0 || (unsigned)v.m >= run.acked, cell_name,
+	    "a scripted reset loses an acknowledged write");
 	if (v.m >= 0) {
 		run.started = run.completed = run.acked = run.d_done =
 		    run.last_cover = (unsigned)v.m;

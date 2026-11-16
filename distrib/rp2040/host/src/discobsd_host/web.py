@@ -444,6 +444,10 @@ class ConsoleServer(ThreadingHTTPServer):
     def __init__(
         self, address, device, token, open_serial=ports.open_serial, usb_port=None
     ):
+        # ThreadingHTTPServer defaults to AF_INET, which cannot bind an IPv6
+        # literal.
+        if ":" in address[0]:
+            self.address_family = socket.AF_INET6
         super().__init__(address, Handler)
         # A device path names the board itself and is opened as given. With
         # none, every session resolves the board again from `usb_port` (the

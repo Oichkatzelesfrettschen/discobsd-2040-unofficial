@@ -5,7 +5,7 @@ import urllib.request
 
 import pytest
 
-from discobsd_host import console, link, ports, term
+from discobsd_host import console, link, ports, term, web
 
 
 def info(device, vid=None, pid=None, serial_number=None, product=None):
@@ -294,7 +294,7 @@ def test_up_refuses_a_malformed_usb_port_before_writing(monkeypatch, tmp_path, v
     assert "DISCOBSD_USB_PORT" in capsys.readouterr().err
 
 
-def _up_bind(monkeypatch, tmp_path, bind, host_ip=None, keep_env_ip=False):
+def _up_bind(monkeypatch, tmp_path, bind, host_ip=None, keep_env_ip=False, systemd=True):
     import types
 
     monkeypatch.setattr(console, "config_dir", lambda *a, **k: tmp_path / "discobsd")
@@ -302,7 +302,7 @@ def _up_bind(monkeypatch, tmp_path, bind, host_ip=None, keep_env_ip=False):
     if not keep_env_ip:
         monkeypatch.delenv("DISCOBSD_HOST_IP", raising=False)
     monkeypatch.delenv("DISCOBSD_USB_PORT", raising=False)
-    monkeypatch.setattr(console, "systemd_units_installed", lambda home=None: True)
+    monkeypatch.setattr(console, "systemd_units_installed", lambda home=None: systemd)
     monkeypatch.setattr(console.subprocess, "call", lambda argv: 0)
     monkeypatch.setattr(console.time, "sleep", lambda s: None)
     monkeypatch.setattr(console, "_http_answers", lambda url, timeout=3.0: True)
@@ -336,3 +336,107 @@ def test_up_loopback_bind_keeps_an_explicit_host_ip(monkeypatch, tmp_path):
     monkeypatch.setenv("DISCOBSD_HOST_IP", "203.0.113.5")
     values = _up_bind(monkeypatch, tmp_path, "127.0.0.1", keep_env_ip=True)
     assert values["DISCOBSD_HOST_IP"] == "203.0.113.5"
+
+
+def _fail_on_resolve(monkeypatch):
+    """Record every name lookup; a host name bind must never reach one."""
+    lookups = []
+
+    def lookup(host, *a, **kw):
+        lookups.append(host)
+        return [(2, 1, 6, "", ("127.0.0.1", 0))]
+
+    monkeypatch.setattr(console.socket, "getaddrinfo", lookup)
+    monkeypatch.setattr(console.socket, "gethostbyname", lambda host: lookups.append(host))
+    return lookups
+
+
+@pytest.mark.parametrize(
+    ("bind", "written"),
+    [
+        ("127.0.0.1", "127.0.0.1"),
+        ("::1", "::1"),
+        ("0:0:0:0:0:0:0:1", "::1"),
+        ("0.0.0.0", "0.0.0.0"),
+    ],
+)
+@pytest.mark.parametrize("systemd", [False, True])
+def test_up_passes_the_parsed_ip_literal_to_every_consumer(
+    monkeypatch, tmp_path, bind, written, systemd
+):
+    lookups = _fail_on_resolve(monkeypatch)
+    spawned = []
+    monkeypatch.setattr(console, "_stop_pidfile", lambda *a: False)
+    monkeypatch.setattr(console, "_tool", lambda name: [name])
+    monkeypatch.setattr(
+        console, "_spawn_detached", lambda command, *a: spawned.append(command) or 1
+    )
+    values = _up_bind(monkeypatch, tmp_path, bind, systemd=systemd)
+    assert values["DISCOBSD_WEB_BIND"] == written
+    for command in spawned:
+        assert command[command.index("--bind") + 1] == written
+    assert len(spawned) == (0 if systemd else 2)
+    assert lookups == []
+
+
+@pytest.mark.parametrize(
+    "bind",
+    [
+        "localhost",
+        "board.example",
+        "no-such-host.invalid",
+        "bad\nDISCOBSD_WEB_TOKEN=x",
+        "a b",
+        "",
+        "fe80::1%eth0",
+        "127.1",
+    ],
+)
+def test_up_refuses_a_bind_that_is_not_an_ip_literal(monkeypatch, tmp_path, capsys, bind):
+    import types
+
+    # Every name resolves to loopback here: code that resolves a host name
+    # would accept it and write it to web.env, so the verdict needs the
+    # refusal, the empty lookup log and the untouched web.env together.
+    lookups = _fail_on_resolve(monkeypatch)
+    conf = tmp_path / "discobsd"
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: conf)
+    monkeypatch.delenv("DISCOBSD_USB_PORT", raising=False)
+    args = types.SimpleNamespace(
+        host_ip=None, port=7681, link_port=42069, bind=bind, detached=False
+    )
+    assert console.cmd_up(args) == 1
+    err = capsys.readouterr().err
+    assert "--bind" in err
+    if "%" not in bind:
+        assert "127.0.0.1" in err and "0.0.0.0" in err
+    assert not (conf / "web.env").exists()
+    assert lookups == []
+
+
+def test_url_host_brackets_an_ipv6_literal():
+    assert console.url_host("10.0.0.5") == "10.0.0.5"
+    assert console.url_host("::1") == "[::1]"
+    assert console.urls("::1", "tok", 7681, 42069)["short"] == "http://[::1]:42069/"
+    assert console.urls("::1", "tok", 7681, 42069)["full"] == "http://[::1]:7681/?token=tok"
+
+
+def _bind_or_skip(make):
+    try:
+        return make()
+    except OSError as exc:
+        pytest.skip("no IPv6 loopback on this host: %s" % exc)
+
+
+def test_servers_bind_an_ipv6_literal():
+    httpd = _bind_or_skip(lambda: link.RedirectServer(("::1", 0), "http://x/"))
+    try:
+        assert httpd.server_address[0] == "::1"
+    finally:
+        httpd.server_close()
+    httpd = _bind_or_skip(lambda: web.ConsoleServer(("::1", 0), None, "tok"))
+    try:
+        assert httpd.server_address[0] == "::1"
+        assert httpd.is_loopback
+    finally:
+        httpd.server_close()

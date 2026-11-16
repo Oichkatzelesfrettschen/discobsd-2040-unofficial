@@ -87,9 +87,15 @@ def lan_ip() -> str:
         return "127.0.0.1"
 
 
+def url_host(ip: str) -> str:
+    """The address as a URL host: an IPv6 literal takes brackets."""
+    return "[%s]" % ip if ":" in ip else ip
+
+
 def urls(ip: str, token: str, web_port: int, link_port: int) -> dict[str, str]:
-    full = "http://%s:%d/?token=%s" % (ip, web_port, token)
-    out = {"short": "http://%s:%d/" % (ip, link_port), "full": full}
+    host = url_host(ip)
+    full = "http://%s:%d/?token=%s" % (host, web_port, token)
+    out = {"short": "http://%s:%d/" % (host, link_port), "full": full}
     name = socket.gethostname().split(".")[0].lower()
     if name:
         out["mdns"] = "http://%s.local:%d/" % (name, link_port)
@@ -198,8 +204,34 @@ def _http_answers(url: str, timeout: float = 3.0) -> bool:
         return False
 
 
+def parse_bind(text: str):
+    """Return the address object for a --bind value, which must be an IP literal.
+
+    A host name would be resolved here for the loopback classification and
+    again by every server that binds it, and the two answers can differ. The
+    parsed address, as text, is the only value web.env and the child
+    processes receive. A scoped IPv6 literal is refused because the scope
+    separator is a specifier character in a systemd unit.
+    """
+    try:
+        address = ipaddress.ip_address(text)
+    except ValueError:
+        raise ValueError(
+            "%r is not an IP address; give an IP literal such as 127.0.0.1 "
+            "for loopback or 0.0.0.0 for every interface" % text
+        ) from None
+    if getattr(address, "scope_id", None):
+        raise ValueError("%r carries a scope id; give the address without it" % text)
+    return address
+
+
 def cmd_up(args) -> int:
-    bind = ipaddress.ip_address(args.bind)
+    try:
+        bind = parse_bind(args.bind)
+    except ValueError as exc:
+        sys.stderr.write("discobsd-console: --bind: %s\n" % exc)
+        return 1
+    bind_text = str(bind)
     # The board selector reaches a systemd user unit only through web.env, an
     # EnvironmentFile; a value that is not a USB port path could add lines to
     # it, so it is checked before anything is written.
@@ -233,7 +265,7 @@ def cmd_up(args) -> int:
     env_values = {
         "DISCOBSD_WEB_TOKEN": token,
         "DISCOBSD_HOST_IP": ip,
-        "DISCOBSD_WEB_BIND": str(bind),
+        "DISCOBSD_WEB_BIND": bind_text,
     }
     if usb_port:
         env_values["DISCOBSD_USB_PORT"] = usb_port
@@ -251,17 +283,17 @@ def cmd_up(args) -> int:
             _stop_pidfile(conf / (name + ".pid"))
         web = _tool("discobsd-web") + [
             "--bind",
-            args.bind,
+            bind_text,
             "--port",
             str(args.port),
         ]
         link = _tool("discobsd-link") + [
             "--host",
-            "http://%s:%d/" % (ip, args.port),
+            "http://%s:%d/" % (url_host(ip), args.port),
             "--port",
             str(args.link_port),
             "--bind",
-            args.bind,
+            bind_text,
         ]
         # The token goes to each child's environment, not its argv: passing
         # --token/--to here would put it back in ps for these two processes,
@@ -306,7 +338,7 @@ def cmd_status(args) -> int:
     conf = config_dir()
     values = read_env(conf / "web.env")
     ip = values.get("DISCOBSD_HOST_IP") or lan_ip()
-    short = "http://%s:%d/" % (ip, args.link_port)
+    short = "http://%s:%d/" % (url_host(ip), args.link_port)
     if systemd_units_installed() and not args.detached:
         rc = subprocess.call(["systemctl", "--user", "is-active", "--quiet", UNITS[0]])
         running = rc == 0

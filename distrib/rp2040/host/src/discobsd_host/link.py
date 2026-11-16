@@ -10,6 +10,7 @@ private as the network it listens on.
 from __future__ import annotations
 
 import argparse
+import socket
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -20,6 +21,9 @@ class RedirectServer(HTTPServer):
     allow_reuse_address = True
 
     def __init__(self, address, target: str):
+        # HTTPServer defaults to AF_INET, which cannot bind an IPv6 literal.
+        if ":" in address[0]:
+            self.address_family = socket.AF_INET6
         super().__init__(address, RedirectHandler)
         self.target = target
 

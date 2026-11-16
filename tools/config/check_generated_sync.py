@@ -124,6 +124,12 @@ def check_variant_delta(root):
     """
     for variant, base, additions, replacements in VARIANTS:
         replaced = dict(replacements)
+        base_lines = option_lines(root / COMPILE / base / "Config")
+        for old in replaced:
+            if old not in base_lines:
+                raise SyncError(
+                    f"{variant}: {base} Config lacks the directive {old} that "
+                    f"the variant replaces with {replaced[old]}")
         expected = [
             f'board "{variant}"' if line == f'board "{base}"'
             else replaced.get(line, line)

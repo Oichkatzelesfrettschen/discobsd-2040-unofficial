@@ -122,7 +122,9 @@ class GeneratedSyncTest(unittest.TestCase):
 
     def test_base_config_carrying_the_variant_mount_count_is_rejected(self):
         self.mutate(sync.COMPILE / "PICOCALC/Config", '"NMOUNT=2"', '"NMOUNT=3"')
-        with self.assertRaisesRegex(sync.SyncError, "PICOCALC: generated Makefile differs"):
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC Config lacks the directive"):
+            sync.check_variant_delta(self.root)
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC Config lacks the directive"):
             sync.check(self.root)
 
     def test_production_identity_is_preserved(self):

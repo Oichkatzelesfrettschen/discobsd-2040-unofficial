@@ -124,6 +124,21 @@ checkpoint is removed from each `label_t`, which restores 48 bytes of stack
 headroom per resident u-area and removes the save/restore work from every
 kernel `setjmp` and `longjmp`.
 
+Correction (docs/research/rp2040-systick-ast.md): "healthy user
+instructions do not switch processes" held only because no exception
+return to a process ran `userret` except the system-call and fault
+paths, which also left a process that makes no system call without its
+signals and without preemption. The clock tick now pends an asynchronous
+system trap through PendSV, so a process can be switched out or enter a
+handler between any two instructions, including inside a divider sequence
+or a ROM float divide. The divider therefore travels with the process
+again, at lower cost than the `label_t` checkpoint: every entry from a
+process saves it into its kernel-stack `struct userframe` only when
+DIV_CSR.DIRTY is set and restores it last, a signal frame keeps it across
+a handler, and `check-divider` admits exactly `divider_save` and
+`divider_restore`. The audit-findings scheduling boundary ("SysTick_Handler
+calls hardclock and returns") describes the tree it captured.
+
 ### etc distribution refreshes the account database for every image (user flag)
 
 `${FSIMG}` stages files from `${DESTDIR}` through the manifest, but
@@ -278,6 +293,11 @@ NSTATIC=8 is gated by tests/rp2040/streamtest, which passes on the board.
   attended hardware gate for the no-divider-owner invariant. A future
   kernel, IRQ, NMI, callout, preemptive switch, or second core divider
   consumer invalidates direct ROM division.
+  The preemptive switch now exists (the clock-tick trap); the divider save
+  and restore of every entry from a process keeps ROM division valid
+  across it, as the Divider ownership correction above records, and
+  `check-renode-preempt` forces the collisions in the emulator. The board
+  oracle stays open for the silicon divider's eight-cycle window.
 - The panic branch of tsleep (ranked #8) has a source argument, not a
   hardware run.
 - The duplicate-BSS-clear (ranked #12), the `resume` exchange loop (#13),

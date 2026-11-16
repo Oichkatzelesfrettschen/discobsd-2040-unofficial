@@ -2757,7 +2757,7 @@ the shell in the slice after the exit. Input left in the terminal reaches
 the shell's line editor, which redraws its whole line per byte, about
 38 KB and 3.3 seconds of 115200-baud output for `TTYHOG` bytes; a command
 typed meanwhile overflows `TTYHOG`, and `ttyinput()` drops the excess,
-carriage return included.
+carriage return included (`docs/research/swapram-uart-echo-stall.md`).
 The clist and buffer rows of the final
 `kern.capacity` must show their failure counters unchanged across the run,
 so no clist refusal and no `getblk()` wait for a buffer under the heaviest

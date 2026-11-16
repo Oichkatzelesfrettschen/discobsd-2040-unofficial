@@ -503,16 +503,17 @@ retry:
         u.u_procp->p_sigmask = sigmsk;
     }
     error = tsleep ((caddr_t) &selwait, PSOCK | PCATCH, timo);
-    if (uap->maskp) {
+    /*
+     * A wait that a signal ended leaves the temporary mask installed: the
+     * signal is dispatched under it, which is the mask the caller asked to
+     * wait with, and postsig() makes u_oldmask the mask the handler returns
+     * to (SAS_OLDMASK). Any other return puts the caller's mask back here and
+     * clears the flag, which a later signal would otherwise take for its
+     * own frame over any mask the caller set meanwhile.
+     */
+    if (uap->maskp && error != EINTR && error != ERESTART) {
         u.u_procp->p_sigmask = u.u_oldmask;
-        /*
-         * Only a wait that a signal ended leaves the mask for postsig() to
-         * restore after the handler; a timeout or a wakeup has restored it
-         * here, and the flag left set would put this old mask into the
-         * frame of a later signal, over any mask the caller set meanwhile.
-         */
-        if (error != EINTR && error != ERESTART)
-            u.u_psflags &= ~SAS_OLDMASK;
+        u.u_psflags &= ~SAS_OLDMASK;
     }
     splx(s);
     /*

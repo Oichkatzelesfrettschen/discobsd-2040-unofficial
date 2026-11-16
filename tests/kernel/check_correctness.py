@@ -342,9 +342,22 @@ def main():
             "itimer",
             {
                 "sys_generic.c": (
-                    "        if (error != EINTR && error != ERESTART)\n"
-                    "            u.u_psflags &= ~SAS_OLDMASK;\n",
-                    "",
+                    "    if (uap->maskp && error != EINTR && error != ERESTART) {\n"
+                    "        u.u_procp->p_sigmask = u.u_oldmask;\n"
+                    "        u.u_psflags &= ~SAS_OLDMASK;\n"
+                    "    }",
+                    "    if (uap->maskp)\n        u.u_procp->p_sigmask = u.u_oldmask;",
+                )
+            },
+            True,
+        ),
+        (
+            "pselect-restores-the-mask-before-the-signal",
+            "itimer",
+            {
+                "sys_generic.c": (
+                    "    if (uap->maskp && error != EINTR && error != ERESTART) {",
+                    "    if (uap->maskp) {",
                 )
             },
             True,

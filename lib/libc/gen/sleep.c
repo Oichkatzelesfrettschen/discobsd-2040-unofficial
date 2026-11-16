@@ -62,10 +62,17 @@ int	pselect(int, fd_set *, fd_set *, fd_set *, const struct timespec *,
  * waits in pselect() with the saved mask, which unblocks the signals only
  * for the wait itself. A handler therefore runs inside a pselect() and ends
  * it with EINTR, and a signal that arrives between two chunks waits blocked
- * and ends the next pselect() at once; none is lost. (A handler that leaves
- * by _longjmp() instead of returning leaves the all-blocked mask in force, as
- * it would after sigsuspend().) pselect() has no declaration in the narrow
- * view of time; its entry point takes the kernel's 32-bit timespec.
+ * and ends the next pselect() at once; none is lost. The kernel dispatches
+ * the signal that ends a pselect() under the mask the wait was given, so the
+ * handler runs with the caller's mask (plus its own sa_mask and the signal),
+ * never with all signals blocked; when it returns the mask is the all-blocked
+ * one for as long as it takes sleep() to reach the sigprocmask() that puts
+ * the caller's mask back, and no other code of the caller runs in between. A
+ * handler that leaves by _longjmp() or siglongjmp(env, 0) does not return, so
+ * the caller's mask, the handler's sa_mask and the signal stay blocked, as
+ * after sigsuspend(); longjmp() restores the mask its setjmp() saved.
+ * pselect() has no declaration in the narrow view of time; its entry point
+ * takes the kernel's 32-bit timespec.
  *
  * SLEEP_SELECT_MAX stays 1,000,000 s although a kernel that waits out a
  * saturated tick count (select1(), sys/kern/sys_generic.c) and accepts a

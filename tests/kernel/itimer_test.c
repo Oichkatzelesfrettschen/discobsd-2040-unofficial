@@ -863,10 +863,11 @@ frame_return_mask(void)
 }
 
 /*
- * A pselect() that times out leaves the saved-mask flag clear, so a signal
- * caught after the caller changed its mask returns to the new mask; one that
- * a signal ended leaves the flag set for postsig(), with the mask from before
- * the wait.
+ * A pselect() that times out leaves the saved-mask flag clear and the
+ * caller's mask in place, so a signal caught after the caller changed its
+ * mask returns to the new mask; one that a signal ended leaves the temporary
+ * mask installed and the flag set for postsig(), with the mask from before
+ * the wait as the mask the handler returns to.
  */
 static void
 pselect_mask_state(void)
@@ -877,12 +878,31 @@ pselect_mask_state(void)
     u.u_procp->p_sigmask = 0x00f8UL;	/* the caller blocks another signal */
     HK_CHECK(frame_return_mask() == 0x00f8UL);
 
+    /*
+     * A signal that ends the wait is dispatched while the temporary mask is
+     * in force, and the handler returns to the caller's mask from before
+     * the call, not to the temporary one.
+     */
     tsleep_interrupt_at = 1;
     HK_CHECK(timed_pselect(0x00f0UL, 0x0600UL, 5) == EINTR);
     tsleep_interrupt_at = 0;
-    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x00f0UL);
+    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x0600UL);
+    HK_CHECK((u.u_psflags & SAS_OLDMASK) != 0);
+    HK_CHECK((unsigned long)u.u_oldmask == 0x00f0UL);
+    HK_CHECK(frame_return_mask() == 0x00f0UL);
+
+    /* The same when the signal ends the second wait of a retried deadline. */
+    tsleep_interrupt_at = 2;
+    HK_CHECK(timed_pselect(0x00f0UL, 0x0600UL, 3000000) == EINTR);
+    tsleep_interrupt_at = 0;
+    HK_CHECK(tsleep_calls == 2);
+    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x0600UL);
     HK_CHECK((u.u_psflags & SAS_OLDMASK) != 0);
     HK_CHECK(frame_return_mask() == 0x00f0UL);
+
+    /* The wait that the signal ended began from the caller's mask. */
+    HK_CHECK(timed_pselect(0x0000UL, 0x0600UL, 3000000) == 0);
+    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x0000UL);
 
     /* A timeout after a retry, past a saturated tick count, is a timeout too. */
     HK_CHECK(timed_pselect(0x00f0UL, 0x0600UL, 3000000) == 0);

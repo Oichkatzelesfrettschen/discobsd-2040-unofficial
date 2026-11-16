@@ -89,7 +89,8 @@ check() {
 }
 
 run() {	# run SCRIPT OUT MISSING
-	BOARDINFO_PATH=$stubs STUB_MISSING="$3" sh -c '. "$1"; . "$2"' sh "$stubs/prelude.sh" "$1" > "$2"
+	# id is exported so a script that trusts an inherited value prints it
+	id=inherited BOARDINFO_PATH=$stubs STUB_MISSING="$3" sh -c '. "$1"; . "$2"' sh "$stubs/prelude.sh" "$1" > "$2"
 }
 
 run "$script" "$work/bi-full.out" ""

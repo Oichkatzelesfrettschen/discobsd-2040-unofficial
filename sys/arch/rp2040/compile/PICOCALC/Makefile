@@ -1,10 +1,15 @@
 PARAM = -DPICOCALC
 PARAM += -DRP2040
 PARAM += -DPICOCALC_ENABLED
+PARAM += -DPSRAM_ENABLED
 PARAM += -DSD_ENABLED
 PARAM += -DSDROOT_ENABLED
 PARAM += -DUART_ENABLED
 PARAM += -DUARTUSB_ENABLED
+PARAM += -DDEV_PCM
+PARAM += -DDEV_LCDGFX
+PARAM += -DDEV_GPIO
+PARAM += -DDEV_ADC
 PARAM += -DEXEC_HSAOUT
 PARAM += -DSWAPRAM_KB=16
 PARAM += -DSWAPRAM
@@ -164,9 +169,9 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	adc.o gpio.o uart.o usb.o lcdcons.o lcdgfx.o lcdrender.o \
 	lcdterm.o lcdfont.o st7365p.o picokbd.o picokbd_map.o \
 	picokbd_evq.o picokbd_req.o picoaudio.o picopcm.o sd.o sdspi.o \
-	dump.o subr_crc32.o flash.o flash_swap.o error.o journal.o map.o \
-	swapram.o swapram_pool.o heatshrink_encoder.o hsx_decoder.o \
-	exec_hsaout.o hsx_stream.o
+	dump.o subr_crc32.o psram.o psram_xfer.o flash.o flash_swap.o \
+	error.o journal.o map.o swapram.o swapram_pool.o \
+	heatshrink_encoder.o hsx_decoder.o exec_hsaout.o hsx_stream.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/errlist.c \
@@ -201,7 +206,8 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/rp2040/dev/picokbd_req.c $S/arch/rp2040/dev/picoaudio.c \
 	$S/arch/rp2040/dev/picopcm.c $S/arch/rp2040/dev/sd.c \
 	$S/arch/rp2040/dev/sdspi.c $S/arch/rp2040/rp2040/dump.c \
-	$S/kern/subr_crc32.c $S/arch/rp2040/dev/flash.c \
+	$S/kern/subr_crc32.c $S/arch/rp2040/dev/psram.c \
+	$S/arch/rp2040/dev/psram_xfer.c $S/arch/rp2040/dev/flash.c \
 	$S/arch/rp2040/dev/flash_swap.c $S/arch/rp2040/dhara/error.c \
 	$S/arch/rp2040/dhara/journal.c $S/arch/rp2040/dhara/map.c \
 	$S/arch/rp2040/rp2040/swapram.c \
@@ -589,6 +595,12 @@ dump.o: $S/arch/rp2040/rp2040/dump.c
 
 subr_crc32.o: $S/kern/subr_crc32.c
 	${COMPILE_C}
+
+psram.o: $S/arch/rp2040/dev/psram.c
+	${COMPILE_C}
+
+psram_xfer.o: $S/arch/rp2040/dev/psram_xfer.c
+	${COMPILE_CYCLE_C}
 
 flash.o: $S/arch/rp2040/dev/flash.c
 	${COMPILE_C}

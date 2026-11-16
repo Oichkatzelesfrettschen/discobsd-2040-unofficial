@@ -12,17 +12,13 @@ U_KBYTES=	0
 # below, so BOARD chooses only which kernel pairs with flash.uf2 and which
 # root profile an unset PROFILE builds: the PICO board's default is full,
 # the PicoCalc's is picocalc, which adds the closures that board carries.
-# PICOCALC_PSRAM is the PicoCalc kernel with the ESP-PSRAM64H swap driver
-# linked in: the same board and profile, selected only by naming it. The
-# default BOARD=PICOCALC kernel carries no PSRAM driver.
 BOARD?=		PICO
-BOARDS=		PICO PICOCALC PICOCALC_PSRAM
+BOARDS=		PICO PICOCALC
 .if empty(BOARDS:M${BOARD})
 .error BOARD must be one of ${BOARDS}, not ${BOARD}
 .endif
 BOARD_PROFILE.PICO=	full
 BOARD_PROFILE.PICOCALC=	picocalc
-BOARD_PROFILE.PICOCALC_PSRAM=	picocalc
 
 # Output paths. The PICO board keeps the bare names distrib/rp2040/sdcard.img,
 # flash.bin and flash.uf2 that the documentation, CI and discobsd-flash
@@ -35,10 +31,37 @@ BOARD_OUT_SUFFIX=
 .else
 BOARD_OUT_SUFFIX=	-${BOARD}
 .endif
-FSIMG=		${TOPSRC}/distrib/${MACHINE}/sdcard${BOARD_OUT_SUFFIX}.img
+FSIMG=		${TOPSRC}/distrib/${MACHINE}/sdcard${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.img
 MKBOARDUF2=	${TOPSRC}/distrib/rp2040/mkboarduf2.py
-UNION_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2
-BOARD_KERNEL_UF2=	${TOPSRC}/distrib/${MACHINE}/unix${BOARD_OUT_SUFFIX}.uf2
+# UNION_KERNEL names the compile directory whose unix.uf2 gets BOARD's
+# descriptor. PICOCALC, the default, carries every PicoCalc driver, the
+# per-driver device options and the diagnostic options; PICOCALC_LEAN omits
+# the device and diagnostic options, and PICOCALC_LEAN_DIAG is PICOCALC_LEAN
+# with the diagnostic options. Their outputs carry -LEAN and -LEAN-DIAG
+# suffixes so each UF2 sits beside the default's.
+UNION_KERNEL?=	PICOCALC
+UNION_KERNELS=	PICOCALC PICOCALC_LEAN PICOCALC_LEAN_DIAG
+.if empty(UNION_KERNELS:M${UNION_KERNEL})
+.error UNION_KERNEL must be one of ${UNION_KERNELS}, not ${UNION_KERNEL}
+.endif
+.if ${UNION_KERNEL} == "PICOCALC_LEAN"
+KERNEL_OUT_SUFFIX=	-LEAN
+.elif ${UNION_KERNEL} == "PICOCALC_LEAN_DIAG"
+KERNEL_OUT_SUFFIX=	-LEAN-DIAG
+.else
+KERNEL_OUT_SUFFIX=
+.endif
+# The lean kernels omit DEV_LCDGFX (and DEV_ADC, DEV_GPIO, DEV_PCM), so the
+# PicoCalc root that pairs with them is the picocalc-lean profile, which
+# leaves out /dev/lcdgfx and the platformer that draws through it. Its image,
+# flash image and UF2 carry a -LEAN suffix after the board's, so they sit
+# beside the full PicoCalc root rather than replacing it. An explicit PROFILE
+# overrides the pairing, and the suffix follows the profile that was built.
+.if ${BOARD} == "PICOCALC" && (${UNION_KERNEL} == "PICOCALC_LEAN" || ${UNION_KERNEL} == "PICOCALC_LEAN_DIAG")
+BOARD_PROFILE.PICOCALC=	picocalc-lean
+.endif
+UNION_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/${UNION_KERNEL}/unix.uf2
+BOARD_KERNEL_UF2=	${TOPSRC}/distrib/${MACHINE}/unix${BOARD_OUT_SUFFIX}${KERNEL_OUT_SUFFIX}.uf2
 
 ${BOARD_KERNEL_UF2}:	${UNION_KERNEL_UF2} ${MKBOARDUF2}
 		${PYTHON} ${MKBOARDUF2} --board=${BOARD} ${UNION_KERNEL_UF2} $@
@@ -50,6 +73,11 @@ ${BOARD_KERNEL_UF2}:	${UNION_KERNEL_UF2} ${MKBOARDUF2}
 # image rule reads; the markers are comments, which tools/fsutil/manifest.c
 # skips whole. sys/arch/rp2040/doc/PROFILES.md is the authority.
 PROFILE?=	${BOARD_PROFILE.${BOARD}}
+.if ${PROFILE} == "picocalc-lean"
+IMAGE_OUT_SUFFIX=	-LEAN
+.else
+IMAGE_OUT_SUFFIX=
+.endif
 FS_PROFILES=	distrib/rp2040/profiles
 FS_CLOSURES=	distrib/rp2040/mi.rp2040
 FS_PROFILE_ARGS=	--profiles=distrib/rp2040/profiles
@@ -141,8 +169,8 @@ INSTALL=	${TOOLBINDIR}/binstall -U
 # sector of the disk image except the free UFS blocks that do not chain the
 # free list (sys/arch/rp2040/doc/STORAGE.md, "Checkpoint cost").
 FLASHIMG=	${TOOLBINDIR}/flashimg
-FLASHBIN=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}.bin
-FLASHUF2=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}.uf2
+FLASHBIN=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.bin
+FLASHUF2=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.uf2
 # Where the region starts: FLASH_XIP_BASE + FLASH_FS_OFFSET in
 # sys/arch/rp2040/dev/flash.h, which flashimg also prints.
 FLASH_FS_ADDR=	0x10020000

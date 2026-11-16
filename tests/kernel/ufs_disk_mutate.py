@@ -95,6 +95,27 @@ MUTATIONS = {
         "        if (error == 0 && securelevel >= 1 && (mode & FWRITE))\n"
         "            error = 0;",
     ),
+    "device-swapdev-write-admitted": (
+        "sys_inode.c",
+        "        if (error == 0 && securelevel > 0 && (mode & FWRITE) &&\n"
+        "            blkoverlap(swapdev, dev))",
+        "        if (error == 0 && securelevel > 0 && (mode & FWRITE) &&\n"
+        "            blkoverlap(swapdev, dev) && 0)",
+    ),
+    "device-swapdev-level-one-ignored": (
+        "sys_inode.c",
+        "        if (error == 0 && securelevel > 0 && (mode & FWRITE) &&\n"
+        "            blkoverlap(swapdev, dev))",
+        "        if (error == 0 && securelevel > 1 && (mode & FWRITE) &&\n"
+        "            blkoverlap(swapdev, dev))",
+    ),
+    "device-swapdev-held-descriptor-writes": (
+        "sys_inode.c",
+        "            if (securelevel > 0 && blkoverlap(swapdev, dev))\n"
+        "                return (EPERM);\n"
+        "            break;\n        case IFLNK:",
+        "            break;\n        case IFLNK:",
+    ),
     "device-block-policy-raise-ignored": (
         "sys_inode.c",
         "        error = securelevel >= 2 && (mode & FWRITE) && isdisk(dev, IFBLK) ? EPERM : 0;",

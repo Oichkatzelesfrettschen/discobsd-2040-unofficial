@@ -81,6 +81,7 @@ memset
 open
 perror
 printf
+pselect
 putchar
 puts
 qsort

@@ -250,6 +250,36 @@ check-kernel-headroom: check-python
 
 .PHONY: check-kernel-headroom-validator check-kernel-headroom
 
+# The hot path that conf/kern.ldscript lists between __hot_start and __hot_end
+# must fit one 8 KB way of the XIP cache, hold every listed symbol the kernel
+# links and leave no cache set with two of its lines. check-hot-layout-validator
+# calibrates the checker on synthetic images; check-hot-layout applies it to
+# each built kernel and then requires a 4,096-byte way to fail the PICO kernel
+# with exit 1, so a checker that accepts every kernel is reported.
+check-hot-layout-validator: check-python
+		${PYTHON} tools/check_hot_layout.py --self-test
+
+check-hot-layout: check-python
+.if ${MACHINE} == "rp2040"
+		@set -e; elfs=; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
+			elfs="$$elfs sys/arch/rp2040/compile/$$configuration/unix.elf"; \
+		done; \
+		${PYTHON} tools/check_hot_layout.py $$elfs; \
+		rc=0; \
+		${PYTHON} tools/check_hot_layout.py --way-bytes 4096 \
+		    sys/arch/rp2040/compile/PICO/unix.elf >/dev/null 2>&1 || rc=$$?; \
+		if [ "$$rc" -ne 1 ]; then \
+			echo "check-hot-layout: control way of 4096 bytes gave exit $$rc, expected 1" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS hot-layout control: a span longer than a 4096-byte way is rejected"
+.else
+		@echo "check-hot-layout requires MACHINE=rp2040" >&2
+		@exit 2
+.endif
+
+.PHONY: check-hot-layout-validator check-hot-layout
+
 # The SD crash-dump writer (sys/arch/rp2040/include/dump.h) is linked into the
 # PICOCALC kernels and into no other: tools/check_dump_writer_link.py reads
 # each unix.elf's symbol table, and a control with the roles swapped must
@@ -1711,7 +1741,7 @@ check-elf2aout:	tools
 # include.
 HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed-exec-pair-summary check-rp2040-storage-delta \
 		check-agent-instructions check-uf2-validator check-nightly-report check-mutant-pool \
-		check-kernel-headroom-validator \
+		check-kernel-headroom-validator check-hot-layout-validator \
 		check-run-logging check-compiler-matrix-harness check-callgraph-capture check-battlestar-generation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
 		check-dpucp-donor-ledger check-dpucp-board-acceptance \
@@ -2089,7 +2119,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-rp2040-fileops .WAIT check-rp2040-ioconf .WAIT check-rp2040-tty-roots .WAIT \
 		check-rp2040-callout-roots .WAIT check-rp2040-nlist .WAIT \
 		check-board-descriptor .WAIT check-core1-image .WAIT \
-		check-kernel-headroom
+		check-kernel-headroom .WAIT check-hot-layout
 
 # Divider fixtures calibrate instruction windows and ELF alias extents.
 check-cross-assembler:

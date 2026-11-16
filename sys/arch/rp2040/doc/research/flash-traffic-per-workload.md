@@ -269,16 +269,29 @@ equal `swapram_flash_swapouts`, `swapram_exchange_swapouts` and
 `swapram_admissions`. `summarize.py` refuses a capture where any of the
 five disagrees or a table is incomplete.
 
-`sh` is the shell that runs the `cc` driver script (`distrib/rp2040/cc`);
-`-sh` is the login shell. The driver's shell is swapped out eight times in
-every compile, each time as a 6-sector image that SwapRAM refuses, and
-never reaches the pool: 1,152 erases a run, 82 percent of the total. The
-login shell is admitted about half the time and costs 245 erases, 18
-percent. `init`, `update` and the short-lived programs go to the pool
-only. The inference above from image size, that the dominant class is the
-driver's shell, holds, and two processes account for every swap erase of
-the compiles. The pool is held by processes that sleep for the whole run
-while the image that moves eight times a compile is refused each time.
+`sh` is the name of the shell that runs the `cc` driver script
+(`distrib/rp2040/cc`); `-sh` is the login shell. A name covers more than
+one process: `newproc()` creates a child by swapping out a copy of the
+parent that still carries the parent's u area and name
+(`sys/kern/kern_fork.c`, the `swapout (child, ...)` call), and the child
+keeps that name until it execs. The 192 `sh` swap-outs of a run are
+therefore the driver's shell and its not yet exec'd children together,
+and the table does not separate them. The count fits the driver's four
+forks a compile (compiler, assembler, linker, `rm`) at two swap-outs a
+fork: the child's copy, written by copy-out, and the shell itself leaving
+by exchange when the child is brought in; 100 or 101 copy-outs and 91 or
+92 exchanges against 96 forks. That reading is an inference from the
+counts and the source, not a per-pid record.
+
+Every one of those images is 6 sectors, SwapRAM refuses each, and none
+reaches the pool: 1,152 erases a run, 82 percent of the total. The login
+shell and its children are admitted about half the time and cost 245
+erases, 18 percent. `init`, `update` and the short-lived programs go to
+the pool only. The inference above from image size, that the dominant
+class is the driver's shell, holds, and images named for the two shells
+account for every swap erase of the compiles. The pool is held by
+processes that sleep for the whole run while the images that move eight
+times a compile are refused each time.
 
 Every sector but the first is erased, and the hottest takes 17 or 18
 erases in 24 compiles, 16 to 22 percent above its run's mean. At the
@@ -288,13 +301,15 @@ for a board that only compiles; each boot and login adds 36 erases spread
 by the same cursor. This replaces the bound of 104,000 above for the tree
 with the shell fix, with all sectors observed.
 
-Consequences the counts support directly: a change that admits the
-driver's shell, or a compile driver that is not a shell of this size,
-acts on four fifths of the swap erases; a change that only admits the
-login shell more often acts on one sixth; placement cannot gain more than
-the 16 to 22 percent between the hottest sector and the mean. Which
-change admits the driver's shell is not measured here: its compressed
-size against the pool's free run is the deciding number.
+Consequences the counts support directly: what a fork of the driver's
+shell costs decides four fifths of the swap erases, so a change that
+admits its 6-sector image, a compile driver that is not a shell of this
+size, or a way of starting a pass that does not copy the shell first each
+act on that share; a change that only admits the login shell more often
+acts on one sixth; placement cannot gain more than the 16 to 22 percent
+between the hottest sector and the mean. Which change admits the image is
+not measured here: its compressed size against the pool's free run is the
+deciding number.
 
 A first set of three runs used a probe that read the name after the
 transfer and clamped spans above twelve sectors; it is not retained. Its

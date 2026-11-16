@@ -76,6 +76,8 @@ Effect: a root process at level 0 may now set -1 at run time, which keeps `init`
 
 Assets and actors. The device is a handheld or bare board with a flash root (the kernel and 1536 KB Dhara root in internal QSPI flash) and a removable SD card. The console is USB CDC-ACM or UART0. The image holds a root account, an operator account and system accounts (`etc/passwd.rp2040`); the console line is marked `insecure` and root logs in through operator and `su` (`etc/ttys`). The generated PICO Makefile carries no network option. Someone holding the device can press BOOTSEL and reflash any firmware (RP2040 datasheet 2.8): physical access defeats every software boundary and securelevel does not try to resist it. The MPU separates user code from kernel memory (`sys/arch/rp2040/doc/MPU.md`); every process image shares one 192 KB window.
 
+The memory devices ship mode 0640 owned by root and group kmem (`etc/MAKEDEV:24-25`), so the securelevel write refusals bind root and kmem-group members; an ordinary user cannot open them for writing at any level.
+
 Two adversaries remain: a faulty or hostile program run as root, and a mistake of the operator. On a single-user device the second dominates, and the checks act as accident guards.
 
 | Check | What it protects here | Verdict |

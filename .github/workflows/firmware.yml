@@ -807,15 +807,29 @@ jobs:
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-lint
       # The host tier owns PTY completion, terminal nohup, libc quick-exit and ndbm constructor witnesses.
-      - name: Run the host tier
-        timeout-minutes: 27
+      # It runs as two steps over one partition of check-host
+      # (HOST_TIER_B_GATES in the Makefile; check-host-split proves it exact).
+      # Whole, the tier took 633 to 1354 s (median 1286 s) on the four runs
+      # that finished and passed 1500 s on a fifth; each step's hard limit is
+      # 1.5 times half that median.
+      - name: Run the host tier, first part
+        timeout-minutes: 18
         run: |
           "$PYTHON" tools/run_logged_gate.py \
-            --label macos-host \
-            --log .build-logs/macos-host.log \
-            --status .build-logs/macos-host.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1500 \
-            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
+            --label macos-host-a \
+            --log .build-logs/macos-host-a.log \
+            --status .build-logs/macos-host-a.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 960 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a
+      - name: Run the host tier, second part
+        timeout-minutes: 18
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label macos-host-b \
+            --log .build-logs/macos-host-b.log \
+            --status .build-logs/macos-host-b.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 960 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-b
       - name: Run the cross tier
         timeout-minutes: 20
         run: |

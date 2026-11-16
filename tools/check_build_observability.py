@@ -33,7 +33,8 @@ EXPECTED_LABELS = {
     "macos-build",
     "macos-cross",
     "macos-flash",
-    "macos-host",
+    "macos-host-a",
+    "macos-host-b",
     "macos-kernel-headroom",
     "macos-lint",
     "macos-smaller-c",
@@ -83,7 +84,8 @@ EXPECTED_COMMANDS = {
     "macos-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build',
     "macos-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
     "macos-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',
-    "macos-host": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host',
+    "macos-host-a": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a',
+    "macos-host-b": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-b',
     "macos-kernel-headroom": (
         "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link"
     ),

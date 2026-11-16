@@ -244,6 +244,21 @@ def test_decode_reports_state_names_and_wait_channels(kern, kernel_path, tmp_pat
     assert "identity unchecked" in r.stderr
 
 
+def test_decode_reads_no_live_fields_of_a_zombie(kern, kernel_path, tmp_path):
+    s = healthy(kern, tmp_path)
+    # Slot 4 is a zombie whose union bytes would decode as a wait channel
+    # inside usbttys and a priority of 28 if they were read as live fields.
+    s.proc(4, 31, 5, 0x0000, kern.syms["usbttys"][0], 28)
+    r = decode(kernel_path, s.write(tmp_path / "z.bin"))
+    assert r.returncode == 0, r.stderr
+    line = [x for x in r.stdout.splitlines() if "pid  31" in x]
+    assert len(line) == 1
+    assert "stat SZOMB" in line[0]
+    assert "unavailable (zombie)" in line[0]
+    assert "usbttys" not in line[0]
+    assert "pri 28" not in line[0]
+
+
 def test_decode_flags_tty_busy_with_idle_driver(kern, kernel_path, tmp_path):
     flagged = healthy(kern, tmp_path, tty_state=0x234, tx_busy=0).write(tmp_path / "a.bin")
     r = decode(kernel_path, flagged)

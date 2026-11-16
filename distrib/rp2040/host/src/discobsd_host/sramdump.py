@@ -61,6 +61,7 @@ PICOTOOL_TIMEOUT = 120
 
 # sys/sys/proc.h, "stat codes" and "flag codes"; tests/test_sramdump.py
 # compares both tables with the header.
+SZOMB = 5
 PROC_STAT = {
     1: "SSLEEP",
     2: "SWAIT",
@@ -397,21 +398,24 @@ def decode_report(kern: Kernel, sram: Image) -> list[str]:
         if stat == 0:
             continue
         flag = get("p_flag")
+        head = "  slot %2d pid %3d stat %-6s flag 0x%04x %s" % (
+            i,
+            get("p_pid"),
+            PROC_STAT.get(stat, str(stat)),
+            flag,
+            flag_names(flag, PROC_FLAGS),
+        )
+        if stat == SZOMB:
+            # exit() overwrites the live half of p_un with the exit status and
+            # resource usage (sys/kern/kern_exit.c), so a zombie has no
+            # priority or wait channel to read.
+            out.append(head + " wchan and pri unavailable (zombie)")
+            continue
         wchan = get("P_wchan")
         pri = get("P_pri") & 0xFF
         pri = pri - 256 if pri > 127 else pri
         out.append(
-            "  slot %2d pid %3d stat %-6s flag 0x%04x %s wchan 0x%08x %s pri %d"
-            % (
-                i,
-                get("p_pid"),
-                PROC_STAT.get(stat, str(stat)),
-                flag,
-                flag_names(flag, PROC_FLAGS),
-                wchan,
-                kern.nearest(wchan) if wchan else "-",
-                pri,
-            )
+            head + " wchan 0x%08x %s pri %d" % (wchan, kern.nearest(wchan) if wchan else "-", pri)
         )
     return out
 

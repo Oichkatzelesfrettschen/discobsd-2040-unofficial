@@ -1159,6 +1159,17 @@ record_events(const struct cell *c)
 	run_steps(c->opsteps);
 	note_boundary();
 	recording = 0;
+	/*
+	 * command_start() stores only the first MAX_EVENTS events but counts
+	 * every one, and the callers index evlog[] up to the count, so an
+	 * operation with more chip commands than the log holds is a harness
+	 * error, not a cell result.
+	 */
+	if (nev > MAX_EVENTS) {
+		fprintf(stderr, "event log overflow: %s issues %u chip commands, "
+		    "MAX_EVENTS is %d\n", c->id, nev, MAX_EVENTS);
+		exit(2);
+	}
 	return nev;
 }
 

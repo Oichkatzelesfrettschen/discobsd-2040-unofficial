@@ -306,6 +306,7 @@ Grouped by what they investigate.
 | `downloads-survey.md` | the downloads folder surveyed for usable material |
 | `flash-id-build-routes.md` | the Pico SDK, CMake and the port's bmake measured against each other on the same probe |
 | `endian-cdefs-headers.md` | the byte-order and cdefs header audit: which gaps the tree bore out, which risk claims it refuted, the v7fs shim as the requirements list, and the `<sys/endian.h>`, `<sys/cdefs.h>` and `-Wundef` remediation |
+| `version-scheme.md` | version numbering for GizmoBSD: what the tree encodes in five places, the published critiques of SemVer and of 0.x numbering with their counter-arguments, the schemes real systems use, the measured ordering of a letter in a version string and the `Rev A` field-split failure in `newvers.sh`, three schemes costed in `.rodata` bytes, a recommendation with countable falsifiers and the owner decisions it leaves |
 | `warning-census.md` | what -Wall -Wextra costs the tree, as instances and as sites, where the warnings are, what the census records, and five ways of measuring it that lied |
 
 ### Audit ledgers and handbacks

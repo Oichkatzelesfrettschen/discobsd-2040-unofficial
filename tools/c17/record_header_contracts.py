@@ -1,4 +1,4 @@
-"""Calibrate group, device and login-record header inclusion and target ABI."""
+"""Calibrate group, device, login and accounting-record header inclusion and ABI."""
 
 import argparse
 import json
@@ -14,7 +14,28 @@ from pathlib import Path
 from passwd_header_contracts import compile_case, file_digest, require, tool_identity
 from string_header_contracts import command_case
 
-HEADERS = ("grp.h", "kmem.h", "lastlog.h")
+HEADERS = ("grp.h", "kmem.h", "lastlog.h", "utmp.h", "mtab.h", "ttyent.h", "tzfile.h")
+# Accounting-file records whose target layout the gate pins: header, struct tag,
+# size, alignment, (field, offset, pointer-to-field type) and function
+# signatures. utmp.h pulls its own time type, so it needs no sys/types.h.
+ACCOUNTING = {
+    "utmp.h": ("utmp", 44, 4,
+               (("ut_line", 0, "char (*)[8]"), ("ut_name", 8, "char (*)[15]"),
+                ("ut_host", 23, "char (*)[16]"), ("ut_time", 40, "unsigned long *")), {}),
+    "mtab.h": ("mtab", 68, 1,
+               (("m_path", 0, "char (*)[32]"), ("m_dname", 32, "char (*)[32]"),
+                ("m_type", 64, "char (*)[4]")), {}),
+    "ttyent.h": ("ttyent", 24, 4,
+                 (("ty_name", 0, "char **"), ("ty_getty", 4, "char **"),
+                  ("ty_type", 8, "char **"), ("ty_status", 12, "int *"),
+                  ("ty_window", 16, "char **"), ("ty_comment", 20, "char **")),
+                 {"getttyent": "struct ttyent *(*)(void)",
+                  "getttynam": "struct ttyent *(*)(const char *)",
+                  "setttyent": "void (*)(void)", "endttyent": "void (*)(void)"}),
+    "tzfile.h": ("tzhead", 44, 1,
+                 (("tzh_reserved", 0, "char (*)[32]"), ("tzh_timecnt", 32, "char (*)[4]"),
+                  ("tzh_typecnt", 36, "char (*)[4]"), ("tzh_charcnt", 40, "char (*)[4]")), {}),
+}
 FORMS = ("standalone", "repeated", "types-before", "types-after")
 MODES = {"default": [], "iso": ["-D_ANSI_SOURCE=1"],
          "issue7": ["-D_POSIX_C_SOURCE=200809L"],
@@ -31,6 +52,9 @@ def fixture(header, form, wide, smaller=False):
             lines.append("typedef char group_width[sizeof(struct group) == 16 ? 1 : -1];")
         elif header == "lastlog.h":
             lines.append("typedef char lastlog_width[sizeof(struct lastlog) == 28 ? 1 : -1];")
+        elif header in ACCOUNTING:
+            tag, size = ACCOUNTING[header][:2]
+            lines.append(f"typedef char {tag}_width[sizeof(struct {tag}) == {size} ? 1 : -1];")
         else:
             lines.append("dev_t (*device_function)(void) = kmemdev;")
     else:
@@ -68,6 +92,14 @@ def fixture(header, form, wide, smaller=False):
                                "lastlog line width": "sizeof(((struct lastlog *)0)->ll_line) == 8",
                                "lastlog host width":
                                "sizeof(((struct lastlog *)0)->ll_host) == 16"})
+        elif header in ACCOUNTING:
+            tag, size, alignment, fields, signatures = ACCOUNTING[header]
+            conditions[f"{tag} size"] = f"sizeof(struct {tag}) == {size}"
+            conditions[f"{tag} alignment"] = f"_Alignof(struct {tag}) == {alignment}"
+            for name, offset, typename in fields:
+                conditions[f"{tag} {name} offset"] = f"offsetof(struct {tag}, {name}) == {offset}"
+                conditions[f"{tag} {name} type"] = (
+                    f"_Generic(&((struct {tag} *)0)->{name}, {typename}: 1, default: 0)")
         else:
             signatures = {"kmemdev": "dev_t (*)(void)"}
         for name, signature in signatures.items():
@@ -95,6 +127,18 @@ def mutations(root):
          "standalone", False, r"static assertion failed.*group gr_gid type"),
         ("lastlog-width", "lastlog.h", "utime32_t ll_time;", "time_t ll_time;",
          "standalone", True, r"static assertion failed.*lastlog"),
+        ("utmp-guard", "utmp.h", "#ifndef _UTMP_H_", "#if 1", "repeated", False,
+         r"redefinition.*utmp"),
+        ("utmp-types", "utmp.h", "#include <sys/_time_t.h>", "", "standalone", False,
+         r"unknown type name"),
+        ("utmp-width", "utmp.h", "utime32_t ut_time;", "time_t ut_time;",
+         "standalone", True, r"static assertion failed.*utmp"),
+        ("mtab-width", "mtab.h", "m_type[4]", "m_type[8]", "standalone", False,
+         r"static assertion failed.*mtab"),
+        ("ttyent-status", "ttyent.h", "int     ty_status;", "unsigned ty_status;",
+         "standalone", False, r"static assertion failed.*ttyent ty_status type"),
+        ("tzhead-count", "tzfile.h", "tzh_charcnt[4]", "tzh_charcnt[8]", "standalone",
+         False, r"static assertion failed.*tzhead"),
         ("device-prototype", "kmem.h", "kmemdev(void)", "kmemdev()",
          "standalone", False, r"(?:strict-prototypes|without a prototype|isn't a prototype)"),
     ]
@@ -167,7 +211,7 @@ def native_cases(root, workspace, host, cross):
             "assembler": tool_identity(assembler),
             "sources": {name: file_digest(root / "usr.bin/smlrc" / name)
                         for name in ("smlrc.c", "cgthumb.c")},
-            "scope": "24 cross-preprocessed inputs compile and assemble; native runtime unrun"}
+            "scope": "56 cross-preprocessed inputs compile and assemble; native runtime unrun"}
 
 
 def run(root, host_cc):
@@ -218,7 +262,7 @@ def run(root, host_cc):
             cases.append(compile_case(arguments, source, profile + ".extra-argument",
                                       r"too many arguments"))
         smaller = native_cases(root, workspace, host, production[0])
-    require(len(cases) == 315, "record-header compiler denominator differs")
+    require(len(cases) == 717, "record-header compiler denominator differs")
     return {"schema_version": 1, "evidence_class": "compiler-acceptance",
             "sources": {name: file_digest(root / "include" / name) for name in HEADERS},
             "verifier_sha256": file_digest(Path(__file__)), "profiles": profiles,
@@ -237,8 +281,8 @@ def main():
         receipt = run(args.root.resolve(), args.host_cc)
         if args.output:
             args.output.write_text(json.dumps(receipt, indent=2) + "\n")
-        print("PASS record header contracts: 288 valid compiler cases, 27 rejections; "
-              "24 Smaller C inputs compile and assemble")
+        print("PASS record header contracts: 672 valid compiler cases, 45 rejections; "
+              "56 Smaller C inputs compile and assemble")
         return 0
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print("FAIL record header contracts: " + str(error), file=sys.stderr)

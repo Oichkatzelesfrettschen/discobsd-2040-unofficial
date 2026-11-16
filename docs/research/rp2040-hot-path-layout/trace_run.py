@@ -43,19 +43,69 @@ must reach the console, and the end marker must not reach it before tracing
 starts or before it stops, so a command that is missing or exits early fails
 with status 1 and leaves no trace.
 Exit status: 0 traced while the command ran, 1 the command never started or
-ended before the trace finished, 2 Renode stopped answering.
+ended before the trace finished, or the trace file is missing, empty or holds
+no instruction, 2 Renode stopped answering or the arguments are incomplete.
+`trace_run.py --self-test` checks the trace-file verdict without Renode.
 """
 import importlib.util
 import os
+import re
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RENODE_DIR = os.environ["RENODE_TOOLS"]
-sys.path.insert(0, RENODE_DIR)
-spec = importlib.util.spec_from_file_location(
-    "check_boot", os.path.join(RENODE_DIR, "check-boot.py"))
-cb = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(cb)
+RENODE_DIR = os.environ.get("RENODE_TOOLS", "")
+cb = None
+
+# The first line of a PCAndOpcode trace: an address, a colon and an opcode.
+TRACE_LINE = re.compile(rb"^0x[0-9A-F]+: 0x[0-9A-F]+\r?$", re.M)
+
+
+def load_check_boot():
+    """Import tools/renode/check-boot.py, whose Renode and Console this reuses."""
+    global cb
+    sys.path.insert(0, RENODE_DIR)
+    spec = importlib.util.spec_from_file_location(
+        "check_boot", os.path.join(RENODE_DIR, "check-boot.py"))
+    cb = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cb)
+
+
+def trace_problem(path):
+    """Return why path holds no recorded instruction, or None when it holds one.
+
+    Renode answers a rejected monitor command with text rather than a failure,
+    so a tracer that never started leaves no file or an empty one."""
+    if not os.path.exists(path):
+        return "no trace file was written"
+    with open(path, "rb") as handle:
+        head = handle.read(4096)
+    if not head:
+        return "the trace file is empty"
+    if not TRACE_LINE.search(head):
+        return "the trace file holds no instruction line"
+    return None
+
+
+def self_test():
+    with tempfile.TemporaryDirectory() as scratch:
+        path = os.path.join(scratch, "trace.txt")
+        cases = [("a missing trace", None, False), ("an empty trace", b"", False),
+                 ("a monitor error text", b"There was an error executing command\n", False),
+                 ("a recorded instruction", b"0x10010C12: 0x601D\n", True)]
+        status = 0
+        for what, content, want in cases:
+            if os.path.exists(path):
+                os.remove(path)
+            if content is not None:
+                with open(path, "wb") as handle:
+                    handle.write(content)
+            got = trace_problem(path) is None
+            print(f"self-test: {what}: {'accepted' if got else 'refused'}, "
+                  f"{'ok' if got == want else 'WRONG'}")
+            status |= got != want
+    print("trace_run self-test: " + ("pass" if status == 0 else "FAIL"))
+    return status
 
 
 # Shell output that brackets COMMAND on the console. Each is typed with an
@@ -77,6 +127,12 @@ def still_running(console, when):
 
 
 def main(argv):
+    if argv == ["--self-test"]:
+        return self_test()
+    if len(argv) != 7 or not RENODE_DIR:
+        print(__doc__, file=sys.stderr)
+        return 2
+    load_check_boot()
     renode_path, unix_bin, flash_bin, outdir, command, warm, span = argv
     os.makedirs(outdir, exist_ok=True)
     transcript = os.path.join(outdir, "uart0.txt")
@@ -121,8 +177,11 @@ def main(argv):
         renode.close()
         return 2
     renode.close()
-    size = os.path.getsize(trace) if os.path.exists(trace) else -1
-    print(f"trace_run: virtual {console.virtual:.1f} s, trace {size} bytes")
+    problem = trace_problem(trace)
+    if problem:
+        print(f"trace_run: {problem}", file=sys.stderr)
+        return 1
+    print(f"trace_run: virtual {console.virtual:.1f} s, trace {os.path.getsize(trace)} bytes")
     return 0
 
 

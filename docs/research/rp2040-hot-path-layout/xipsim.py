@@ -266,8 +266,19 @@ def report(label, stream, marks, target, show_sets, omitted, total):
 
 def pad_layout(base, obj, text_bytes, rodata_bytes):
     """Model inserting text_bytes after the last text section of obj and
-    rodata_bytes after its last read-only section: each section at or past an
-    insertion point moves by that insertion, and none before it moves."""
+    rodata_bytes after its last read-only section, as kern.ldscript lays them
+    out: text sections past the text insertion move by text_bytes; the
+    read-only block that follows all text starts at the next 8-byte boundary
+    after the moved text (its ALIGN(8)), so it moves by the change in that
+    boundary; and sections past the read-only insertion move by rodata_bytes
+    more. Both pads must be multiples of 8: the map records no section's
+    alignment, and a pad that is 4 modulo 8 lets an 8-aligned section (the
+    linker's veneer stubs, the read-only block) absorb 4 bytes, so its layout
+    comes only from a relinked kernel's map (replay that map instead)."""
+    if text_bytes % 8 or rodata_bytes % 8:
+        raise SystemExit("xipsim: TEXT_BYTES and RODATA_BYTES must be multiples of 8; "
+                         "replay a relinked map for any other pad")
+
     def end_of(prefix):
         ends = [a + s for a, s, k in base if k[1] == obj and k[0].startswith(prefix)]
         return max(ends) if ends else None
@@ -275,9 +286,21 @@ def pad_layout(base, obj, text_bytes, rodata_bytes):
     rodata_end = end_of(".rodata")
     if text_end is None or (rodata_bytes and rodata_end is None):
         raise SystemExit(f"xipsim: {obj} has no section to pad after")
-    return [(a + (text_bytes if a >= text_end else 0)
-             + (rodata_bytes if rodata_end is not None and a >= rodata_end else 0), s, k)
-            for a, s, k in base]
+    all_text_end = max(a + s for a, s, k in base if k[0].startswith(".text"))
+
+    def align8(value):
+        return (value + 7) & ~7
+    block_shift = align8(all_text_end + text_bytes) - align8(all_text_end)
+    out = []
+    for a, s, k in base:
+        if k[0].startswith(".rodata") and a >= all_text_end:
+            moved = a + block_shift
+        else:
+            moved = a + (text_bytes if a >= text_end else 0)
+        if rodata_end is not None and a >= rodata_end:
+            moved += rodata_bytes
+        out.append((moved, s, k))
+    return out
 
 
 def usage_problem(argv):
@@ -337,6 +360,12 @@ def self_test():
          [a for a, _s, _k in pad_layout(layout, "a.o", 8, 0)],
          [0x10000100, 0x10000118, 0x10000208, 0x10000210]),
     ]
+    try:
+        pad_layout(layout, "a.o", 4, 0)
+        refused = False
+    except SystemExit:
+        refused = True
+    cases.append(("a pad that is 4 modulo 8 is refused", refused, True))
     cases += [
         ("replay without a layout map is a usage error",
          usage_problem(["replay", "t.gz", "b.map", "writep"]) is not None, True),

@@ -510,6 +510,7 @@ jobs:
                 sys/arch/rp2040/compile/PICO_UART/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2 \
+                sys/arch/rp2040/compile/PICOCALC_LEAN/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC_DIAG/unix.uf2 \
                 distrib/rp2040/flash.uf2
 
@@ -530,6 +531,7 @@ jobs:
             sys/arch/rp2040/compile/PICO_UART/unix.uf2
             sys/arch/rp2040/compile/PICOCALC/unix.uf2
             sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2
+            sys/arch/rp2040/compile/PICOCALC_LEAN/unix.uf2
             sys/arch/rp2040/compile/PICOCALC_DIAG/unix.uf2
             distrib/rp2040/flash.uf2
           if-no-files-found: error
@@ -843,6 +845,7 @@ jobs:
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2 \
+                sys/arch/rp2040/compile/PICOCALC_LEAN/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC_DIAG/unix.uf2 \
                 distrib/rp2040/flash.uf2
       - name: Retain build and gate logs

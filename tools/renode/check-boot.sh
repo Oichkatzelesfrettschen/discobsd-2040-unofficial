@@ -25,8 +25,10 @@
 # kernel: its unix.bin carries the bare-Pico USB console descriptor, which
 # Renode cannot serve, so the gate boots a copy whose descriptor
 # distrib/rp2040/mkboarduf2.py rewrote to a bare Pico with the UART0 console.
-# PICOCALC_DIAG is that kernel with SYSTRACE and CAPACITY_STATS; the gate
-# reads its kern.capacity record, where PICOCALC_PSRAM must refuse the node.
+# PICOCALC_LEAN is that kernel without SYSTRACE and CAPACITY_STATS, and
+# PICOCALC_DIAG adds its diagnostic options; the gate reads the kern.capacity
+# record of PICOCALC_PSRAM and PICOCALC_DIAG, where PICOCALC_LEAN must refuse
+# the node.
 
 set -eu
 
@@ -56,13 +58,18 @@ PICOCALC_PSRAM)
 	KERNEL="$OUTPUT/unix-uart.bin"
 	BOARD_CLASSES="$SCRIPT_DIR/union-warning-classes.txt"
 	;;
+PICOCALC_LEAN)
+	OUTPUT="$SCRIPT_DIR/vendor/results/boot-union-lean"
+	KERNEL="$OUTPUT/unix-uart.bin"
+	BOARD_CLASSES="$SCRIPT_DIR/union-warning-classes.txt"
+	;;
 PICOCALC_DIAG)
 	OUTPUT="$SCRIPT_DIR/vendor/results/boot-union-diag"
 	KERNEL="$OUTPUT/unix-uart.bin"
 	BOARD_CLASSES="$SCRIPT_DIR/union-warning-classes.txt"
 	;;
 *)
-	echo "check-renode: CONFIG must be PICO_UART, PICOCALC_PSRAM or PICOCALC_DIAG, not $CONFIG" >&2
+	echo "check-renode: CONFIG must be PICO_UART, PICOCALC_PSRAM, PICOCALC_LEAN or PICOCALC_DIAG, not $CONFIG" >&2
 	exit 2
 	;;
 esac

@@ -399,9 +399,8 @@ def check_monitors(run: Run) -> None:
     """Run picofetch and picotop when the image carries them.
 
     picofetch must print its readings from this kernel's sysctl nodes beside
-    the logo drawn from the glyph bank, and name the capacity rows (Tables,
-    Kstack) as absent because PICOCALC omits CAPACITY_STATS; picotop must
-    draw two frames and exit. An image without the programs (any profile but picocalc) skips
+    the logo drawn from the glyph bank; picotop must draw two frames and
+    exit. An image without the programs (any profile but picocalc) skips
     the stage and says so.
     """
     # The keyboard model's FIFO holds 31 events, so a command longer than
@@ -421,8 +420,7 @@ def check_monitors(run: Run) -> None:
     run.snapshot("picofetch")
     for text in ("OS       DiscoBSD 2.7", "Kernel   PICOCALC", "CPU      125.000 MHz, ",
                  "SRAM     264K, process window 192K", "MPU      on, ",
-                 "Display  318x320 px, 53x32 cells",
-                 "Tables   not in this kernel", "Kstack   not in this kernel"):
+                 "Display  318x320 px, 53x32 cells", "Tables   proc "):
         run.expect(run.has(text), f"picofetch: no {text!r} on the panel")
     for label in ("Memory  ", "Swap    ", "Root    ", "Battery ", "Flash    image "):
         run.expect(run.has(label), f"picofetch: no {label!r} line on the panel")

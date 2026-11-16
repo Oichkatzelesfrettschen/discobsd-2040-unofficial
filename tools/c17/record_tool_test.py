@@ -76,7 +76,8 @@ class ToolCaptureTest(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         environment = dict(os.environ, PYTHON=sys.executable,
                            C17_CAPTURE_DIR=str(self.records))
-        for board in ["PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM", "PICOCALC_DIAG"]:
+        for board in ["PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM",
+                      "PICOCALC_LEAN", "PICOCALC_DIAG"]:
             arguments = shlex.split(subprocess.check_output(
                 ["bmake", "-C", str(root / "sys/arch/rp2040/compile" / board),
                  "MACHINE=rp2040", "-V", "${SYSTEM_LD_TAIL}"],

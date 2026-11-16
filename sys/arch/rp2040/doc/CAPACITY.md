@@ -70,17 +70,16 @@ before and after the complete change.
 
 The RP2040 kernels expose `kern.capacity` when `CAPACITY_STATS` is enabled.
 The read-only, versioned structure records fixed-table occupancy, allocation
-failures, and overwritten kernel-stack bytes. The PICO, PICO_UART and
-PICOCALC_DIAG configurations enable the option. PICOCALC and PICOCALC_PSRAM
-omit it and the `SYSTRACE` hooks, so those kernels, and every image
-`distrib/rp2040` pairs with the PICOCALC_PSRAM union kernel, answer
-`EOPNOTSUPP` for `kern.capacity`, `kern.systrace` and `kern.systracepid`,
-which `sysctl` reports as "value is not available". `sbin/sysctl`,
-`usr.bin/picofetch` and `usr.sbin/pstat` treat that refusal as an absent
-record. `bmake MACHINE=rp2040 UNION_KERNEL=PICOCALC_DIAG flash` pairs the
-diagnostic union kernel with a board's descriptor and writes
-`unix[-BOARD]-DIAG.uf2` beside the lean `unix[-BOARD].uf2`. The counters
-collect evidence for a later
+failures, and overwritten kernel-stack bytes. Every configuration enables
+the option except PICOCALC_LEAN, which also omits the `SYSTRACE` hooks and
+answers `EOPNOTSUPP` for `kern.capacity`, `kern.systrace` and
+`kern.systracepid`; `sysctl` reports that refusal as "value is not
+available", and `sbin/sysctl`, `usr.bin/picofetch` and `usr.sbin/pstat` treat
+it as an absent record. PICOCALC_LEAN is the PICOCALC_PSRAM union kernel for
+a build where flash or RAM headroom matters (measured saving: 2,540 bytes of
+text and 96 bytes of bss). `bmake MACHINE=rp2040 UNION_KERNEL=PICOCALC_LEAN
+flash` pairs it with a board's descriptor and writes `unix[-BOARD]-LEAN.uf2`
+beside the default `unix[-BOARD].uf2`. The counters collect evidence for a later
 capacity decision; they do not change `NPROC`, `NINODE`, `NFILE`, `NCLIST`,
 `NBUF`, `USIZE`, or the 8 KiB USB transmit ring.
 

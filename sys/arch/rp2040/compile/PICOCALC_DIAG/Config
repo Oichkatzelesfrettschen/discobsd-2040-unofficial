@@ -16,14 +16,14 @@
 # ClockworkPi PicoCalc (mainboard V2.0) with a Raspberry Pi Pico, diagnostics
 # ===========================================================================
 #
-# The PICOCALC_PSRAM union kernel plus the syscall and signal trace
-# (kern.systrace) and the fixed-table and u-area accounting (kern.capacity).
-# The two Config files differ in the board line and those two options only;
-# the generated sync gate (tools/config/check_generated_sync.py) holds them
-# to that. Without these options a kernel omits both sysctl nodes and the
-# system call name table, so PICOCALC, PICOCALC_PSRAM and every image
-# distrib/rp2040 builds from them answer EOPNOTSUPP for the nodes. The board
-# name is this directory's name, so PARAM defines -DPICOCALC_DIAG.
+# The PICOCALC_PSRAM union kernel plus the options that gather diagnostic
+# evidence. It carries the same options as PICOCALC_PSRAM today; the panel
+# register test (LCD_PANELTEST, branch rp2040-picocalc-panel-register-test)
+# and later diagnostic options are added here and nowhere else. This Config
+# and PICOCALC_PSRAM's differ in the board line and those additions only; the
+# generated sync gate (tools/config/check_generated_sync.py) holds them to
+# that. The board name is this directory's name, so PARAM defines
+# -DPICOCALC_DIAG.
 #
 # To build the kernel, use:
 #   cd sys/arch/rp2040/compile/PICOCALC_DIAG

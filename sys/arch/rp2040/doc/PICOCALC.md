@@ -23,10 +23,17 @@ keyboard. Root and swap stay on the Pico's QSPI flash, the same layout as
 the PICO board (`STORAGE.md`). The PICOCALC_PSRAM configuration
 (`sys/arch/rp2040/compile/PICOCALC_PSRAM/Config`) is the same kernel with the
 board's PSRAM driver linked in; swap moves to the PSRAM when it identifies
-itself at boot (below). The PICOCALC_DIAG configuration
-(`sys/arch/rp2040/compile/PICOCALC_DIAG/Config`) is PICOCALC_PSRAM plus
-`SYSTRACE` and `CAPACITY_STATS`; PICOCALC and PICOCALC_PSRAM omit
-`kern.systrace` and `kern.capacity`. This document is the authority for the pin
+itself at boot (below). Two more union kernels ship beside it and share its
+sources and options. PICOCALC_LEAN
+(`sys/arch/rp2040/compile/PICOCALC_LEAN/Config`) omits `SYSTRACE` and
+`CAPACITY_STATS` for builds where flash or RAM headroom matters, so it
+answers `EOPNOTSUPP` for `kern.systrace` and `kern.capacity`.
+PICOCALC_DIAG (`sys/arch/rp2040/compile/PICOCALC_DIAG/Config`) is
+PICOCALC_PSRAM plus the diagnostic options, none yet; the panel register test
+(`LCD_PANELTEST`) and later diagnostic options are added there. The kernels
+reach an image through `UNION_KERNEL` (`PICOCALC_PSRAM`, `PICOCALC_LEAN` or
+`PICOCALC_DIAG`; `unix[-BOARD].uf2`, `unix[-BOARD]-LEAN.uf2`,
+`unix[-BOARD]-DIAG.uf2`). This document is the authority for the pin
 map in `sys/arch/rp2040/dev/picocalc.h`, the console drivers' timing
 choices, and the evidence each driver has.
 
@@ -836,7 +843,7 @@ before the level rises.
 
     : "${PYTHON:?set PYTHON to the intended interpreter}"
     export PYTHON
-    bmake MACHINE=rp2040 kernel        # PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM, PICOCALC_DIAG
+    bmake MACHINE=rp2040 kernel        # PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM, PICOCALC_LEAN, PICOCALC_DIAG
 
 `sys/arch/rp2040/compile/PICOCALC/unix.uf2` holds the kernel; the root
 image is any board's `flash*.uf2`, since every kernel boots every root.
@@ -942,9 +949,8 @@ init; a version line of "not answering" implicates I2C speed or pull-ups.
 Then measure: characters per second for `cat` of a large file, and
 cell-draw time by toggling a spare GPIO, to decide on RGB565. After a
 workload of `vi` region scrolling, held-key typing and a deliberate
-`mputest` fault, read `sysctl kern.capacity` on a PICOCALC_DIAG kernel
-(`UNION_KERNEL=PICOCALC_DIAG`; the other PicoCalc kernels omit the node)
-(`stack_minimum_free` for the u-area stack) and halt to read the render stack's unused depth; a
+`mputest` fault, read `sysctl kern.capacity` (`stack_minimum_free` for
+the u-area stack) and halt to read the render stack's unused depth; a
 u-area figure below the 220 bytes `CAPACITY.md` records for PICO, or a
 render-stack figure near zero, means the stack budget needs work before
 the console ships.

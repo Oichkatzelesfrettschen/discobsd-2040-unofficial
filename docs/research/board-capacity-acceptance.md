@@ -77,11 +77,9 @@ output into the test staging `/usr/bin`, with executable mode; append a `file /u
 by `mode 0755`, `owner 0`, and `group 0` to the test manifest. `filemode`
 belongs only inside a `default` section; per-file modes avoid changing the
 existing defaults.
-The capacity counters need `CAPACITY_STATS`. The kernels `PICO`, `PICO_UART`
-and `PICOCALC_DIAG` carry it; `PICOCALC` and `PICOCALC_PSRAM`, which the
-`flash` target pairs with every board's descriptor, refuse `kern.capacity`.
-Load `compile/PICO/unix.uf2`, or build the union flavor with
-`UNION_KERNEL=PICOCALC_DIAG` and load `unix-DIAG.uf2`.
+The capacity counters need `CAPACITY_STATS`. Every kernel carries it except
+`PICOCALC_LEAN`, which refuses `kern.capacity`; do not load
+`unix[-BOARD]-LEAN.uf2` for these tests.
 Retain the exact test manifest, build `bmake MACHINE=rp2040 flash`, and restore
 the tracked manifest before committing. Retain the image bytes separately
 before another image build overwrites them.

@@ -21,6 +21,8 @@ export PYTHON
 # child runs on its own: MAKEFLAGS is dropped and MACHINE named explicitly.
 unset MAKEFLAGS MFLAGS
 status=0
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 fail() {
 	echo "check-image-selection: $*" >&2
@@ -106,5 +108,90 @@ members GAMEBOX_TOOLS "ridge" PROFILE=base IMAGE_WITH="gamesdir gamebox ridge lc
 members PUZZLEBOX_TOOLS "flood samegame unruly lightup"
 members PUZZLEBOX_TOOLS "lightup" PROFILE=base IMAGE_WITH="gamesdir puzzlebox lightup"
 members GAMEBOX_TOOLS "" PROFILE=base
+
+# The lean PicoCalc root pairs with the lean kernels. PROFILE and the image
+# names follow UNION_KERNEL on the PICOCALC board only; an explicit PROFILE
+# wins, and the suffix follows the profile that was built.
+members PROFILE "full"
+members PROFILE "picocalc" BOARD=PICOCALC
+members PROFILE "picocalc" BOARD=PICOCALC UNION_KERNEL=PICOCALC
+members PROFILE "picocalc-lean" BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN
+members PROFILE "picocalc-lean" BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN_DIAG
+members PROFILE "full" UNION_KERNEL=PICOCALC_LEAN
+members PROFILE "picocalc" BOARD=PICOCALC PROFILE=picocalc UNION_KERNEL=PICOCALC_LEAN
+members FSIMG "$(pwd)/distrib/rp2040/sdcard-PICOCALC.img" BOARD=PICOCALC
+members FSIMG "$(pwd)/distrib/rp2040/sdcard-PICOCALC-LEAN.img" BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN
+members FSIMG "$(pwd)/distrib/rp2040/sdcard-PICOCALC-LEAN.img" BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN_DIAG
+members FLASHBIN "$(pwd)/distrib/rp2040/flash-PICOCALC-LEAN.bin" BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN
+members FLASHUF2 "$(pwd)/distrib/rp2040/flash-PICOCALC-LEAN.uf2" BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN
+members FLASHBIN "$(pwd)/distrib/rp2040/flash-PICOCALC.bin" BOARD=PICOCALC
+members GAMEBOX_TOOLS "fifteen keen bubble fourfall coil" BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN
+accept BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN
+accept BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN_DIAG
+refuse "closure ridge needs closure lcdgfx, which this profile does not select" \
+	BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN IMAGE_WITH=ridge
+
+# A root reaches a kernel whose driver it needs only if the kernel has the
+# driver.
+#
+# composed PROFILE [mkmanifest option ...]: the manifest the profile composes,
+# on stdout.
+composed() {
+	profile=$1
+	shift
+	"$PYTHON" distrib/rp2040/mkmanifest.py --profile="$profile" "$@" \
+	    --manifest=distrib/rp2040/mi.rp2040 \
+	    --profiles=distrib/rp2040/profiles \
+	    --append=distrib/rp2040/md.rp2040 --output="$tmp/manifest" >/dev/null
+	cat "$tmp/manifest"
+}
+
+# kernel_has KERNEL OPTION: the kernel's Config enables OPTION.
+kernel_has() {
+	grep -Eq "^options[[:space:]]+$2([[:space:]]|\$)" \
+	    "sys/arch/rp2040/compile/$1/Config"
+}
+
+# lacks MANIFESTFILE PATH...: no line of the composed manifest installs PATH
+# (the path is the second word of a dir, node, link or pack line).
+lacks() {
+	file=$1
+	shift
+	for p in "$@"; do
+		if awk -v p="$p" '$2 == p { found = 1 } END { exit !found }' "$file"; then
+			return 1
+		fi
+	done
+	return 0
+}
+
+# A root that ships the pixel device node and its platformer needs
+# DEV_LCDGFX. Calibration first: the full PicoCalc kernel has the option and
+# its root has both paths, the lean kernels have no such option, so a lean
+# root that carried a path would be reported.
+composed picocalc >"$tmp/picocalc"
+composed picocalc-lean >"$tmp/lean"
+if ! kernel_has PICOCALC DEV_LCDGFX; then
+	fail "calibration: PICOCALC Config does not enable DEV_LCDGFX"
+fi
+if lacks "$tmp/picocalc" /dev/lcdgfx /usr/games/ridge; then
+	fail "calibration: the picocalc root lacks the pixel device paths"
+fi
+for kernel in PICOCALC_LEAN PICOCALC_LEAN_DIAG; do
+	if kernel_has "$kernel" DEV_LCDGFX; then
+		fail "$kernel enables DEV_LCDGFX, so it pairs with picocalc, not picocalc-lean"
+	fi
+done
+if lacks "$tmp/lean" /dev/lcdgfx /usr/games/ridge; then
+	echo "check-image-selection: picocalc-lean installs no /dev/lcdgfx and no platformer"
+else
+	fail "picocalc-lean installs a path that needs DEV_LCDGFX"
+fi
+composed picocalc-lean --with=lcdgfx --with=ridge >"$tmp/lean-bad"
+if lacks "$tmp/lean-bad" /dev/lcdgfx /usr/games/ridge; then
+	fail "calibration: a lean root with the pixel closures added still passes the path check"
+else
+	echo "check-image-selection: calibration: the path check reports a lean root with the pixel closures"
+fi
 
 exit "$status"

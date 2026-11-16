@@ -8,7 +8,8 @@
 # parent directories or declared dependencies do not resolve. The Makefile
 # variable PROFILE selects one; when it is unset, BOARD picks the default
 # (distrib/rp2040/Makefile.inc): full for the PICO board, picocalc for the
-# PicoCalc, which names every closure. The Make variables IMAGE_WITH and
+# PicoCalc, which names every closure, and picocalc-lean for the PicoCalc
+# when UNION_KERNEL is a lean kernel. The Make variables IMAGE_WITH and
 # IMAGE_WITHOUT add and remove closures or groups for one build on top of
 # the selected profile.
 # sys/arch/rp2040/doc/PROFILES.md is the authority for the scheme and
@@ -190,6 +191,11 @@ cost lightup 23 2
 #            SD card's device nodes, the pixel device node, the platformer
 #            that draws on it, and picofetch and picotop; the PICOCALC
 #            board's default
+# picocalc-lean
+#            picocalc without the closures that need a driver the
+#            PICOCALC_LEAN kernels omit (DEV_LCDGFX): the pixel device node
+#            and the platformer. The PICOCALC board's default root when
+#            UNION_KERNEL names PICOCALC_LEAN or PICOCALC_LEAN_DIAG
 #
 profile base
 profile benchmark coremark
@@ -197,6 +203,7 @@ profile developer toolchain toolchainlib
 profile games games puzzles
 profile full coremark toolchain toolchainlib games puzzles
 profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge picofetch picotop
+profile picocalc-lean coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard picofetch picotop
 
 # Opt-in desktop; the MATE artwork is supplied on external storage.
 closure matezinho needs closure lcdgfx sdcard

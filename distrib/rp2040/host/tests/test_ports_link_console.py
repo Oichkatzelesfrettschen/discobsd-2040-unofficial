@@ -531,8 +531,11 @@ def test_up_refuses_an_ipv6_advertised_address(monkeypatch, tmp_path, capsys):
 
 @pytest.mark.parametrize(
     "bind, shown",
-    [("10.0.0.7", "http://10.0.0.7:7681/"), ("fd00::7", "http://[fd00::7]:7681/"),
-     ("0.0.0.0", "http://10.0.0.9:7681/")],
+    [
+        ("10.0.0.7", "http://10.0.0.7:7681/"),
+        ("fd00::7", "http://[fd00::7]:7681/"),
+        ("0.0.0.0", "http://10.0.0.9:7681/"),
+    ],
 )
 def test_web_names_the_address_it_serves(monkeypatch, capsys, bind, shown):
     # The startup line names the bound address for a concrete bind and the

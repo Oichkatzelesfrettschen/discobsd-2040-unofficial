@@ -18,6 +18,7 @@ arch=('any')
 url="https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial"
 license=('BSD-3-Clause')
 depends=('python' 'python-pyserial')
+optdepends=('python-pyelftools: discobsd-sramdump decode' 'picotool: discobsd-sramdump capture and discobsd-flash')
 makedepends=('python-build' 'python-installer' 'python-wheel' 'python-setuptools')
 checkdepends=('python-pytest')
 source=()

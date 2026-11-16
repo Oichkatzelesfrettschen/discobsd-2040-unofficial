@@ -2722,7 +2722,11 @@ The model also checks itself: a token list Hypothesis draws, serialized
 and decoded, equals the bytes the tokens stand for. Hypothesis runs with a
 fixed seed (`--seed`, 20261115 by default), no example database and no
 deadline; a failure prints the seed and the `--only` command that repeats
-it.
+it. Every `--only` name must match a property name in the table; an
+unknown name exits 2 before the kernel is read, so a filter never selects
+zero properties and passes. `check-unicorn-kernel` first runs two filters
+(one unknown name, one valid name beside an unknown one) and requires exit
+2 from each.
 
 Calibration follows each property. Every conditional branch of the
 function under test is inverted, and every other instruction except push,

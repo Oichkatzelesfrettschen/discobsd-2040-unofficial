@@ -737,6 +737,15 @@ def main() -> int:
     parser.add_argument("--no-mutants", action="store_true")
     parser.add_argument("--only", action="append", default=[])
     args = parser.parse_args()
+    known = [p[0] for p in PROPERTIES]
+    unknown = [name for name in args.only if name not in known]
+    if unknown:
+        # A filter that selects nothing would report success over zero
+        # properties; every requested name must name a property.
+        parser.error(
+            f"--only names no property: {', '.join(repr(n) for n in unknown)}; "
+            f"known: {', '.join(repr(n) for n in known)}"
+        )
     sys.stdout.reconfigure(line_buffering=True)
     # Hypothesis keeps a constants cache under its home directory; a
     # private temporary one keeps the checkout clean.

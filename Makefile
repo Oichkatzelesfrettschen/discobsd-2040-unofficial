@@ -1568,6 +1568,18 @@ check-core1-emulation: check-python
 # (tools/unicorn/check_kernel_functions.py). CI installs no Hypothesis, so
 # the target stays on demand, outside "check" and every aggregate.
 check-unicorn-kernel: check-python
+		@# Calibration: a filter naming an unknown property must exit 2
+		@# and must not run the remaining ones.
+		@set -e; kernel=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf; \
+		for only in "--only nosuch" "--only bzero --only nosuch"; do \
+			status=0; \
+			${PYTHON} tools/unicorn/check_kernel_functions.py \
+			    --kernel "$$kernel" --no-mutants $$only \
+			    >/dev/null 2>&1 || status=$$?; \
+			if [ "$$status" -ne 2 ]; then \
+				echo "check_kernel_functions.py exit $$status, expected 2, for $$only" >&2; exit 1; \
+			fi; \
+		done
 		${PYTHON} tools/unicorn/check_kernel_functions.py \
 		    --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf
 

@@ -309,7 +309,7 @@ applets, packed blocks in the root.
 The rest are unshipped or cosmetic: 500.51 `w` dereferences a failed `fopen` of
 utmp (`usr.bin/w/w.c:129,164`); 447 `apropos` under-allocation; 441 libvmf walk;
 500.1 `ls -T`; 500.68 `mkstr` `\a` and `\v` in the battlestar build tool; 500.83 `cfree` in `ls`; 500.86 `man` section names; 500.97 `who`
-separator; 500.74 phantasia `phant_run.c` and `test.c`, which patch 500 deletes from an unbuilt game; 466 `size` message; 500.30 find-database last entry (I). The two
+separator; 500.74 phantasia `phant_run.c` and `test.c`, which patch 500 deletes from an unbuilt game; 466 `size` message; 500.30 find-database last entry, whose decoder `fastfind()` sits under the disabled `AMES` option (`usr.bin/find/find.c:77`) and is absent from the shipped `find`. The two
 formatter vectors from the probe are gate work with no target cost.
 
 ## Mechanisms worth adapting
@@ -328,7 +328,11 @@ formatter vectors from the probe are gate work with no target cost.
 - **Count every buffer the size checker must see (500.40).** `_sofub_size` becomes
   initialized data so `checksys` includes the bounce buffer. The fork already
   places its run-time pools in named sections (`.swapram_pool` 16384 B and
-  `.scratch` 8192 B in `arm-none-eabi-size -A`), which the headroom gate reads.
+  `.scratch` 8192 B in `arm-none-eabi-size -A`), so their sizes are visible to a
+  section listing. `check-kernel-headroom` does not account for them: it
+  measures only the loaded segments inside the XIP flash window
+  (`tools/check_kernel_headroom.py:128-137`), so a RAM-pool budget check is a
+  separate gate that the tree lacks.
 - **Completion must wake a closer (500.84).** The xp(4) interrupt drains the
   controller queue without waking `umount`, which slept in `xpclose` before the
   last transfer completed. The pattern to audit here is any RP2040 close path

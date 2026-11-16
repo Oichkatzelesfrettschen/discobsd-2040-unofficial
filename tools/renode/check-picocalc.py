@@ -231,6 +231,8 @@ def read_failures(state: str, values: dict[int, int],
 
     READ_STATE_MASKS adds the bits a register leaves unspecified in one state.
     """
+    if state not in (STATE_RESET, STATE_INIT, STATE_SWRESET):
+        raise ValueError(f"unknown readback state {state!r}")
     failures = []
     for cmd, (name, _, _) in READ_COMMANDS.items():
         mask = READ_MASKS.get(cmd, 0xFFFFFFFF)
@@ -292,9 +294,9 @@ def check_panel_readback(run: Run) -> None:
     renode.command(f"{LCD} Reset")
     unknown0 = panel_counter(renode, r"(\d+) unknown commands")
     stages = (
-        ("after reset", [], READ_AFTER_RESET),
-        ("after the driver's init", expected_init_trace() + INIT_TAIL, READ_AFTER_INIT),
-        ("after SWRESET", ["c01"], READ_AFTER_SWRESET),
+        (STATE_RESET, [], READ_AFTER_RESET),
+        (STATE_INIT, expected_init_trace() + INIT_TAIL, READ_AFTER_INIT),
+        (STATE_SWRESET, ["c01"], READ_AFTER_SWRESET),
     )
     for state, tokens, want in stages:
         if tokens:
@@ -342,7 +344,10 @@ READ_MASKS = {0x09: 0xFFFF7FFF, 0x0D: 0x7F}
 # (functionality detection) no polarity for a passed diagnostic, so after the
 # driver's init sequence the check masks them; D5 to D1 stay 0 and D0 is the
 # checksum comparison.
-READ_STATE_MASKS = {"init": {0x0F: 0x3F}}
+STATE_RESET = "after reset"
+STATE_INIT = "after the driver's init"
+STATE_SWRESET = "after SWRESET"
+READ_STATE_MASKS = {STATE_INIT: {0x0F: 0x3F}}
 READ_AFTER_RESET = {
     0x04: 0xFFFFFF, 0x09: 0x00610000, 0x0A: 0x08, 0x0B: 0x00, 0x0C: 0x06,
     0x0D: 0x00, 0x0E: 0x00, 0x0F: 0x00, 0xDA: 0xFF, 0xDB: 0xFF, 0xDC: 0xFF,
@@ -640,8 +645,8 @@ def self_test() -> int:
     if len(spi_fifo_failures(levels, accepted, dropped, sent)) < 3:
         print("self-test: the unbounded FIFO observation was not rejected", file=sys.stderr)
         return 1
-    for state, want in (("reset", READ_AFTER_RESET), ("init", READ_AFTER_INIT),
-                        ("SWRESET", READ_AFTER_SWRESET)):
+    for state, want in ((STATE_RESET, READ_AFTER_RESET), (STATE_INIT, READ_AFTER_INIT),
+                        (STATE_SWRESET, READ_AFTER_SWRESET)):
         good = {cmd: decode_read(cmd, read_stream(cmd, value))
                 for cmd, value in want.items()}
         if read_failures(state, good, want):
@@ -659,20 +664,27 @@ def self_test() -> int:
         "a diagnostic result with a reserved bit set": {**good, 0x0F: 0x20},
     }
     for name, values in read_mutants.items():
-        if not read_failures("init", values, READ_AFTER_INIT):
+        if not read_failures(STATE_INIT, values, READ_AFTER_INIT):
             print(f"self-test: {name} was not rejected by the readback check",
                   file=sys.stderr)
             return 1
     diagnosed = {**good, 0x0F: 0xC0}
-    if read_failures("init", diagnosed, READ_AFTER_INIT):
+    if read_failures(STATE_INIT, diagnosed, READ_AFTER_INIT):
         print("self-test: a diagnostic result with D7 and D6 set was rejected after SLPOUT",
               file=sys.stderr)
         return 1
     undone = {cmd: decode_read(cmd, read_stream(cmd, value))
               for cmd, value in READ_AFTER_RESET.items()}
-    if not read_failures("reset", {**undone, 0x0F: 0xC0}, READ_AFTER_RESET):
+    if not read_failures(STATE_RESET, {**undone, 0x0F: 0xC0}, READ_AFTER_RESET):
         print("self-test: a diagnostic result with D7 and D6 set was accepted after a reset",
               file=sys.stderr)
+        return 1
+    try:
+        read_failures("init", good, READ_AFTER_INIT)
+    except ValueError:
+        pass
+    else:
+        print("self-test: a readback state no stage uses was not refused", file=sys.stderr)
         return 1
     width, pixels = logo_frame()
     if logo_failures(width, pixels, 0):

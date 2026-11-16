@@ -107,9 +107,11 @@ token-revealing short link:
 
     discobsd-console up --bind 0.0.0.0
 
-`--bind` takes an IP address literal, IPv4 or IPv6, and nothing else. A host
-name is refused, because the check and each server would resolve it
-separately; use `127.0.0.1` for loopback or `0.0.0.0` for every interface.
+`--bind` takes an IPv4 address literal and nothing else. A host name is
+refused, because the check and each server would resolve it separately, and
+an IPv6 literal is refused, because the systemd units build the short link's
+target without the brackets an IPv6 host needs; use `127.0.0.1` for loopback
+or `0.0.0.0` for every interface.
 
 A web.env written before the loopback default keeps its LAN address and has
 no bind setting, so the packaged units now listen on loopback while the short

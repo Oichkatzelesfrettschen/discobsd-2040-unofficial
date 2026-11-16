@@ -502,6 +502,18 @@ jobs:
             --status .build-logs/linux-renode-union.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-union
+      # The full PicoCalc kernel serves kern.capacity; PICOCALC_LEAN omits
+      # CAPACITY_STATS, so its tier asserts the refusal.
+      - name: Run the Renode lean union kernel tier
+        if: env.FULL_GATES == 'true'
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-union-lean \
+            --log .build-logs/linux-renode-union-lean.log \
+            --status .build-logs/linux-renode-union-lean.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-renode-union-lean
       - name: Retain the Renode logs and transcripts
         if: always()
         uses: actions/upload-artifact@v4
@@ -517,8 +529,8 @@ jobs:
                 sys/arch/rp2040/compile/PICO_DIAG/unix.uf2 \
                 sys/arch/rp2040/compile/PICO_UART/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
-                sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2 \
-                sys/arch/rp2040/compile/PICOCALC_DIAG/unix.uf2 \
+                sys/arch/rp2040/compile/PICOCALC_LEAN/unix.uf2 \
+                sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/unix.uf2 \
                 distrib/rp2040/flash.uf2
 
       - name: Retain build and gate logs
@@ -538,8 +550,8 @@ jobs:
             sys/arch/rp2040/compile/PICO_DIAG/unix.uf2
             sys/arch/rp2040/compile/PICO_UART/unix.uf2
             sys/arch/rp2040/compile/PICOCALC/unix.uf2
-            sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2
-            sys/arch/rp2040/compile/PICOCALC_DIAG/unix.uf2
+            sys/arch/rp2040/compile/PICOCALC_LEAN/unix.uf2
+            sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/unix.uf2
             distrib/rp2040/flash.uf2
           if-no-files-found: error
 
@@ -852,8 +864,8 @@ jobs:
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
                 sys/arch/rp2040/compile/PICO_DIAG/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
-                sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2 \
-                sys/arch/rp2040/compile/PICOCALC_DIAG/unix.uf2 \
+                sys/arch/rp2040/compile/PICOCALC_LEAN/unix.uf2 \
+                sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/unix.uf2 \
                 distrib/rp2040/flash.uf2
       - name: Retain build and gate logs
         if: always()

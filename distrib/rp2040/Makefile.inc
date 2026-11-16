@@ -12,17 +12,13 @@ U_KBYTES=	0
 # below, so BOARD chooses only which kernel pairs with flash.uf2 and which
 # root profile an unset PROFILE builds: the PICO board's default is full,
 # the PicoCalc's is picocalc, which adds the closures that board carries.
-# PICOCALC_PSRAM is the PicoCalc kernel with the ESP-PSRAM64H swap driver
-# linked in: the same board and profile, selected only by naming it. The
-# default BOARD=PICOCALC kernel carries no PSRAM driver.
 BOARD?=		PICO
-BOARDS=		PICO PICOCALC PICOCALC_PSRAM
+BOARDS=		PICO PICOCALC
 .if empty(BOARDS:M${BOARD})
 .error BOARD must be one of ${BOARDS}, not ${BOARD}
 .endif
 BOARD_PROFILE.PICO=	full
 BOARD_PROFILE.PICOCALC=	picocalc
-BOARD_PROFILE.PICOCALC_PSRAM=	picocalc
 
 # Output paths. The PICO board keeps the bare names distrib/rp2040/sdcard.img,
 # flash.bin and flash.uf2 that the documentation, CI and discobsd-flash
@@ -38,16 +34,20 @@ BOARD_OUT_SUFFIX=	-${BOARD}
 FSIMG=		${TOPSRC}/distrib/${MACHINE}/sdcard${BOARD_OUT_SUFFIX}.img
 MKBOARDUF2=	${TOPSRC}/distrib/rp2040/mkboarduf2.py
 # UNION_KERNEL names the compile directory whose unix.uf2 gets BOARD's
-# descriptor. PICOCALC_PSRAM, the default, omits kern.systrace and
-# kern.capacity; PICOCALC_DIAG adds them and any later diagnostic option. Its
-# output carries a -DIAG suffix so its UF2 sits beside the default's.
-UNION_KERNEL?=	PICOCALC_PSRAM
-UNION_KERNELS=	PICOCALC_PSRAM PICOCALC_DIAG
+# descriptor. PICOCALC, the default, carries every PicoCalc driver, the
+# per-driver device options and the diagnostic options; PICOCALC_LEAN omits
+# the device and diagnostic options, and PICOCALC_LEAN_DIAG is PICOCALC_LEAN
+# with the diagnostic options. Their outputs carry -LEAN and -LEAN-DIAG
+# suffixes so each UF2 sits beside the default's.
+UNION_KERNEL?=	PICOCALC
+UNION_KERNELS=	PICOCALC PICOCALC_LEAN PICOCALC_LEAN_DIAG
 .if empty(UNION_KERNELS:M${UNION_KERNEL})
 .error UNION_KERNEL must be one of ${UNION_KERNELS}, not ${UNION_KERNEL}
 .endif
-.if ${UNION_KERNEL} == "PICOCALC_DIAG"
-KERNEL_OUT_SUFFIX=	-DIAG
+.if ${UNION_KERNEL} == "PICOCALC_LEAN"
+KERNEL_OUT_SUFFIX=	-LEAN
+.elif ${UNION_KERNEL} == "PICOCALC_LEAN_DIAG"
+KERNEL_OUT_SUFFIX=	-LEAN-DIAG
 .else
 KERNEL_OUT_SUFFIX=
 .endif

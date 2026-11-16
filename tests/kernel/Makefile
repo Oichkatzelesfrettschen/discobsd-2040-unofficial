@@ -408,7 +408,7 @@ FIONREAD_IOCTL_FUNCTION=	fionread_ioctl_function.c
 FIONREAD_INODE_FUNCTION=	fionread_inode_function.c
 FIONREAD_CFLAGS=	-ffunction-sections -fdata-sections
 # sys_generic.c classifies LCDIOC_SETGLYPH only where PICOCALC_ENABLED is
-# defined, as in the PICOCALC and PICOCALC_PSRAM kernels; the PICO kernels
+# defined, as in the PICOCALC kernels; the PICO kernels
 # forward the command to the provider like any unknown one.
 FIONREAD_DEFS=	-DPICOCALC_ENABLED
 FIONREAD_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 ${FIONREAD_DEFS} \

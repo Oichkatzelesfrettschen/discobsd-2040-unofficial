@@ -258,8 +258,8 @@ check-dump-writer-link: check-python
 .if ${MACHINE} == "rp2040"
 		@set -e; c=sys/arch/rp2040/compile; \
 		${PYTHON} tools/check_dump_writer_link.py \
-		    --with $$c/PICOCALC/unix.elf --with $$c/PICOCALC_PSRAM/unix.elf \
-		    --with $$c/PICOCALC_DIAG/unix.elf \
+		    --with $$c/PICOCALC/unix.elf --with $$c/PICOCALC_LEAN/unix.elf \
+		    --with $$c/PICOCALC_LEAN_DIAG/unix.elf \
 		    --without $$c/PICO/unix.elf --without $$c/PICO_DIAG/unix.elf \
 		    --without $$c/PICO_UART/unix.elf; \
 		rc=0; \
@@ -486,7 +486,7 @@ check-rp2040-syscalls: check-python
 .PHONY: check-rp2040-syscalls
 
 check-rp2040-devsw: check-python
-.for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM
+.for KERNEL_CONFIGURATION in PICO PICOCALC
 		${PYTHON} tests/rp2040_devsw/check.py --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/conf.o
 .endfor
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
@@ -504,7 +504,7 @@ check-rp2040-fileops: check-python
 .PHONY: check-rp2040-fileops
 
 check-rp2040-ioconf: check-python
-.for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM
+.for KERNEL_CONFIGURATION in PICO PICOCALC
 		${PYTHON} tests/rp2040_ioconf/check.py --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/ioconf.o
 .endfor
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
@@ -514,7 +514,7 @@ check-rp2040-ioconf: check-python
 .PHONY: check-rp2040-ioconf
 
 check-rp2040-tty-roots: check-python
-		${PYTHON} tests/rp2040_tty_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC_PSRAM
+		${PYTHON} tests/rp2040_tty_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
 		${PYTHON} tools/check_rp2040_tty_roots.py --build-dir sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}
 .endfor
@@ -522,7 +522,7 @@ check-rp2040-tty-roots: check-python
 .PHONY: check-rp2040-tty-roots
 
 check-rp2040-callout-roots: check-python
-		${PYTHON} tests/rp2040_callout_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC_PSRAM
+		${PYTHON} tests/rp2040_callout_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
 		${PYTHON} tools/check_rp2040_callout_roots.py --build-dir sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}
 .endfor
@@ -596,7 +596,7 @@ check-swapram-link-verifier:
 
 # Literal formats passed to the kernel's printf(), uprintf(), tprintf() and
 # log() in the sources of the PICO, PICO_DIAG, PICO_UART, PICOCALC,
-# PICOCALC_PSRAM and PICOCALC_DIAG kernels use only conversions where prf()
+# PICOCALC_LEAN and PICOCALC_LEAN_DIAG kernels use only conversions where prf()
 # and GCC's format(printf) checking agree; the fixture calibrates the checker.
 check-kernel-printf-formats:	check-python
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
@@ -609,8 +609,8 @@ check-kernel-printf-formats:	check-python
 		    --build sys/arch/rp2040/compile/PICO_DIAG \
 		    --build sys/arch/rp2040/compile/PICO_UART \
 		    --build sys/arch/rp2040/compile/PICOCALC \
-		    --build sys/arch/rp2040/compile/PICOCALC_PSRAM \
-		    --build sys/arch/rp2040/compile/PICOCALC_DIAG
+		    --build sys/arch/rp2040/compile/PICOCALC_LEAN \
+		    --build sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG
 
 check-aout:
 		${MAKE} -C tests/aout_header check
@@ -2122,22 +2122,27 @@ check-qemu:	check-python .WAIT symlinks
 check-renode:
 		sh tools/renode/check-boot.sh ${FLASHBIN}
 
-# The union kernel (PICOCALC_PSRAM) under the same machine, booted from a
+# The full PicoCalc kernel (PICOCALC) under the same machine, booted from a
 # copy whose board descriptor distrib/rp2040/mkboarduf2.py rewrote to a bare
 # Pico with the UART0 console: the console the descriptor names carries the
 # boot, the USB attach returns on a machine with no controller model, and no
-# PicoCalc device probes. The kernel omits CAPACITY_STATS, so the gate
-# asserts that it refuses kern.capacity. Outside "check" for the reason
+# PicoCalc device probes. The kernel carries CAPACITY_STATS, so the gate
+# asserts its kern.capacity record. Outside "check" for the reason
 # check-renode is.
 check-renode-union:
-		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_PSRAM
+		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC
 
-# The diagnostic union kernel (PICOCALC_DIAG) under the same machine and
-# descriptor: it carries PICOCALC_PSRAM's options plus SYSTRACE and
-# CAPACITY_STATS, so it serves the kern.capacity record. Outside "check" for the reason
-# check-renode is.
+# The lean PicoCalc kernel (PICOCALC_LEAN) under the same machine and
+# descriptor: it omits CAPACITY_STATS, so the gate asserts that it refuses
+# kern.capacity. Outside "check" for the reason check-renode is.
+check-renode-union-lean:
+		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_LEAN
+
+# PICOCALC_LEAN plus SYSTRACE and CAPACITY_STATS (PICOCALC_LEAN_DIAG) under
+# the same machine and descriptor: it serves the kern.capacity record.
+# Outside "check" for the reason check-renode is.
 check-renode-union-diag:
-		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_DIAG
+		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_LEAN_DIAG
 
 # The PICOCALC kernel under Renode with the ST7365P panel and the keyboard
 # controller modeled: the boot banner, the panel's registers, a login and a
@@ -2364,7 +2369,7 @@ installfs:
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump check-renode-union \
-		check-renode-union-diag \
+		check-renode-union-lean check-renode-union-diag \
 		check-host-package check-board-build check symlinks etc-distribution \
 		multicall-staging \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \

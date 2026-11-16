@@ -12,17 +12,22 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BOARDS = ("PICO", "PICO_DIAG", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM",
-          "PICOCALC_DIAG")
+BOARDS = ("PICO", "PICO_DIAG", "PICO_UART", "PICOCALC", "PICOCALC_LEAN",
+          "PICOCALC_LEAN_DIAG")
 # The diagnostic options a _DIAG kernel adds to its lean base; a further
 # diagnostic option joins this tuple.
 DIAGNOSTIC_OPTIONS = ("options SYSTRACE", "options CAPACITY_STATS")
+# The per-driver device options the full PICOCALC kernel carries and
+# PICOCALC_LEAN omits.
+OPTIONAL_DEVICE_OPTIONS = ("options DEV_ADC", "options DEV_GPIO",
+                           "options DEV_LCDGFX", "options DEV_PCM")
 # (variant, base, directives the variant adds to the base Config, directives
 # it removes from it).
 VARIANTS = (
     ("PICO_DIAG", "PICO", DIAGNOSTIC_OPTIONS, ()),
-    ("PICOCALC_PSRAM", "PICOCALC", ("device psram",), ()),
-    ("PICOCALC_DIAG", "PICOCALC_PSRAM", DIAGNOSTIC_OPTIONS, ()),
+    ("PICOCALC_LEAN", "PICOCALC", (),
+     OPTIONAL_DEVICE_OPTIONS + DIAGNOSTIC_OPTIONS),
+    ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN", DIAGNOSTIC_OPTIONS, ()),
 )
 COMPILE = Path("sys/arch/rp2040/compile")
 CONF = Path("sys/arch/rp2040/conf")

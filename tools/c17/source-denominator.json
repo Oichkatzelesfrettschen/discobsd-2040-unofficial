@@ -55655,7 +55655,7 @@
       }
     },
     {
-      "path": "sys/arch/rp2040/compile/PICOCALC_DIAG/ioconf.c",
+      "path": "sys/arch/rp2040/compile/PICOCALC_LEAN/ioconf.c",
       "class": "unreviewed",
       "scope": "unreviewed",
       "owner": "sys",
@@ -55686,7 +55686,7 @@
       }
     },
     {
-      "path": "sys/arch/rp2040/compile/PICOCALC_DIAG/swapunix.c",
+      "path": "sys/arch/rp2040/compile/PICOCALC_LEAN/swapunix.c",
       "class": "unreviewed",
       "scope": "unreviewed",
       "owner": "sys",
@@ -55717,7 +55717,7 @@
       }
     },
     {
-      "path": "sys/arch/rp2040/compile/PICOCALC_PSRAM/ioconf.c",
+      "path": "sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/ioconf.c",
       "class": "unreviewed",
       "scope": "unreviewed",
       "owner": "sys",
@@ -55748,7 +55748,7 @@
       }
     },
     {
-      "path": "sys/arch/rp2040/compile/PICOCALC_PSRAM/swapunix.c",
+      "path": "sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/swapunix.c",
       "class": "unreviewed",
       "scope": "unreviewed",
       "owner": "sys",

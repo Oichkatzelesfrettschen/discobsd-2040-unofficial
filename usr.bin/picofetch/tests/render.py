@@ -240,7 +240,7 @@ def test_fetch_plain(fetch):
     want = [
         "root@pico",
         "OS       DiscoBSD 2.7 arm",
-        "Kernel   PICOCALC_PSRAM#812",
+        "Kernel   PICOCALC_LEAN#812",
         "Board    ClockworkPi PicoCalc",
         "Uptime   1d 02:03:06",
         "CPU      125.000 MHz, 100 Hz tick",

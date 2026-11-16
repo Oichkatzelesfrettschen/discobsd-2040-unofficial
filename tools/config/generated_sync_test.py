@@ -98,40 +98,48 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "missing required input.*config.y"):
             sync.check(self.root)
 
+    SYSTRACE_LINE = "options         SYSTRACE                    # kern.systrace console trace\n"
+    CAPACITY_LINE = "options         CAPACITY_STATS              # fixed-table and u-area peaks\n"
+    PCM_LINE = "options         DEV_PCM                     # /dev/audio sample output, cdevsw 13\n"
+    PSRAM_LINE = "device          psram\n"
+
     def test_variant_config_drift_is_rejected(self):
         self.mutate(sync.COMPILE / "PICOCALC/Config", 'options         "NFL=2"',
                     'options         "NFL=3"')
-        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN: Config must equal"):
             sync.check(self.root)
 
-    def test_variant_without_its_device_is_rejected(self):
-        self.mutate(sync.COMPILE / "PICOCALC_PSRAM/Config", "device          psram\n", "")
-        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
+    def test_lean_variant_without_a_kept_device_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_LEAN/Config", self.PSRAM_LINE, "")
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN: Config must equal"):
             sync.check(self.root)
 
-    def test_base_config_carrying_the_variant_device_is_rejected(self):
-        self.mutate(sync.COMPILE / "PICOCALC/Config", "device          picocalc\n",
-                    "device          picocalc\ndevice          psram\n")
-        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
+    def test_lean_variant_carrying_a_device_option_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_LEAN/Config", self.PSRAM_LINE,
+                    self.PSRAM_LINE + self.PCM_LINE)
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN: Config must equal"):
             sync.check(self.root)
 
-    SYSTRACE_LINE = "options         SYSTRACE                    # kern.systrace console trace\n"
-    CAPACITY_LINE = "options         CAPACITY_STATS              # fixed-table and u-area peaks\n"
-
-    def test_lean_union_kernel_carrying_systrace_is_rejected(self):
-        self.mutate(sync.COMPILE / "PICOCALC_PSRAM/Config", "device          psram\n",
-                    "device          psram\n" + self.SYSTRACE_LINE)
-        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
+    def test_lean_variant_carrying_systrace_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_LEAN/Config", self.PSRAM_LINE,
+                    self.PSRAM_LINE + self.SYSTRACE_LINE)
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN: Config must equal"):
             sync.check(self.root)
 
-    def test_diagnostic_option_in_both_lean_kernels_is_rejected(self):
-        # PICOCALC_PSRAM still equals PICOCALC plus psram, so the duplicate
-        # reaches PICOCALC_DIAG, whose base must lack every option it adds.
-        self.mutate(sync.COMPILE / "PICOCALC/Config", "device          picocalc\n",
-                    "device          picocalc\n" + self.CAPACITY_LINE)
-        self.mutate(sync.COMPILE / "PICOCALC_PSRAM/Config", "device          psram\n",
-                    "device          psram\n" + self.CAPACITY_LINE)
-        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_DIAG: Config must equal"):
+    def test_full_kernel_without_a_device_option_is_rejected(self):
+        # The lean kernel's removal list names DEV_PCM, so a PICOCALC that
+        # loses it no longer differs from PICOCALC_LEAN by that cut.
+        self.mutate(sync.COMPILE / "PICOCALC/Config", self.PCM_LINE, "")
+        with self.assertRaisesRegex(
+                sync.SyncError,
+                "PICOCALC_LEAN: PICOCALC Config lacks the directive options DEV_PCM"):
+            sync.check(self.root)
+
+    def test_full_kernel_without_capacity_stats_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC/Config", self.CAPACITY_LINE, "")
+        with self.assertRaisesRegex(
+                sync.SyncError,
+                "PICOCALC_LEAN: PICOCALC Config lacks the directive options CAPACITY_STATS"):
             sync.check(self.root)
 
     def test_lean_pico_carrying_capacity_stats_is_rejected(self):
@@ -151,14 +159,20 @@ class GeneratedSyncTest(unittest.TestCase):
             sync.check(self.root)
 
     def test_diagnostic_variant_with_an_unlisted_option_is_rejected(self):
-        self.mutate(sync.COMPILE / "PICOCALC_DIAG/Config", "device          psram\n",
-                    "device          psram\noptions         LCD_PANELTEST\n")
-        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_DIAG: Config must equal"):
+        self.mutate(sync.COMPILE / "PICOCALC_LEAN_DIAG/Config", self.PSRAM_LINE,
+                    self.PSRAM_LINE + "options         LCD_PANELTEST\n")
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN_DIAG: Config must equal"):
             sync.check(self.root)
 
     def test_diagnostic_variant_without_an_inherited_option_is_rejected(self):
-        self.mutate(sync.COMPILE / "PICOCALC_DIAG/Config", self.SYSTRACE_LINE, "")
-        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_DIAG: Config must equal"):
+        self.mutate(sync.COMPILE / "PICOCALC_LEAN_DIAG/Config", self.SYSTRACE_LINE, "")
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN_DIAG: Config must equal"):
+            sync.check(self.root)
+
+    def test_diagnostic_variant_with_a_device_option_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_LEAN_DIAG/Config", self.PSRAM_LINE,
+                    self.PSRAM_LINE + self.PCM_LINE)
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN_DIAG: Config must equal"):
             sync.check(self.root)
 
     def test_removal_variant_equals_its_base_without_the_removed_lines(self):
@@ -223,10 +237,11 @@ class GeneratedSyncTest(unittest.TestCase):
             self.assertIn(cycle, generated)
 
     def test_psram_transfer_uses_cycle_counted_compile_rule(self):
-        generated = (self.root / sync.COMPILE / "PICOCALC_PSRAM/Makefile").read_text()
         rule = ("psram_xfer.o: $S/arch/rp2040/dev/psram_xfer.c\n"
                 "\t${COMPILE_CYCLE_C}\n")
-        self.assertIn(rule, generated)
+        for board in ("PICOCALC", "PICOCALC_LEAN", "PICOCALC_LEAN_DIAG"):
+            generated = (self.root / sync.COMPILE / board / "Makefile").read_text()
+            self.assertIn(rule, generated)
 
     def test_board_file_list_is_a_real_input(self):
         path = self.root / sync.COMPILE / "PICO_UART/files.PICO_UART"

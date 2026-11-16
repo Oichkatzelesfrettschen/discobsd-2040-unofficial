@@ -97,7 +97,7 @@ def failures(console):
     text = "\n".join(console.run("sysctl kern.capacity", 30))
     if "value is not available" in text:
         print("kern.capacity is absent: flash a CAPACITY_STATS kernel "
-              "(PICO_DIAG, PICO_UART or UNION_KERNEL=PICOCALC_DIAG)")
+              "(PICO_DIAG, PICO_UART, PICOCALC or PICOCALC_LEAN_DIAG)")
     rows = {found.group(1): int(found.group(3)) for found in ROW.finditer(text)}
     return rows if len(rows) == 5 else None
 

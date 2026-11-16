@@ -285,6 +285,8 @@ jobs:
       # QEMU tier replays strings, quick exit, context sorting and absolute values
       # as Thumb-1. Native archive omission controls cover callable abs/labs.
       # Callable div/ldiv/lldiv/llabs run native, ILP32, sanitized and as Thumb-1.
+      # The C17 locale, strtof, time, math and wide families run the same way; time
+      # has no Thumb-1 variant and math holds Thumb-1 to glibc-checked digests.
       # This job installs cffi, hypothesis and pytest, so the swap tier
       # model gate fails rather than skips when one is missing.
       - name: Run the host tier

@@ -888,6 +888,23 @@ check-libc-integer-division:
 
 .PHONY: check-libc-integer-division
 
+check-libc-c17-locale:
+		${MAKE} -C tests/libc_contracts check-c17-locale
+
+check-libc-c17-strtof:
+		${MAKE} -C tests/libc_contracts check-c17-strtof
+
+check-libc-c17-time:
+		${MAKE} -C tests/libc_contracts check-c17-time
+
+check-libc-c17-math:
+		${MAKE} -C tests/libc_contracts check-c17-math
+
+check-libc-c17-wide:
+		${MAKE} -C tests/libc_contracts check-c17-wide
+
+.PHONY: check-libc-c17-locale check-libc-c17-strtof check-libc-c17-time check-libc-c17-math check-libc-c17-wide
+
 check-libc-qsort-context:
 		${MAKE} -C tests/libc_contracts check-qsort-context
 

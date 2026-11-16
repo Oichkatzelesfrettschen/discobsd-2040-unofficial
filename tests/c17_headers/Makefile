@@ -21,7 +21,7 @@ MUTATE=		${PYTHON} ${.CURDIR}/mutate.py
 HEADER_CONTRACTS=	stddef_contract stdalign_contract stdnoreturn_contract \
 			limits_contract stdint_contract inttypes_contract \
 			ctype_contract stdlib_wide_contract errno_contract \
-			iso646_contract stdlib_div_contract
+			iso646_contract stdlib_div_contract c17_library_contract
 HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
 			stdnoreturn_empty limits_llong_min_short \
 			stdint_unsigned_max stdint_narrow_intmax \
@@ -31,7 +31,8 @@ HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
 			stdlib_no_mbtowc inttypes_no_wcstoimax \
 			errno_no_eilseq limits_ulong_uint \
 			iso646_xor_or iso646_no_compl stdlib_no_lldiv \
-			stdlib_ldiv_int
+			stdlib_ldiv_int tgmath_integer_float math_float_t_double \
+			wchar_no_wcstok locale_no_setlocale time_no_clocks
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -157,6 +158,40 @@ stdlib_ldiv_int.mutant:
 	    "	long	quot;" "	int	quot;"
 stdlib_ldiv_int.contract= stdlib_div_contract
 
+# A <tgmath.h> that selects on the raw argument sum makes pow(float, int)
+# float, which 7.25p3 forbids; the rest must each lose a declaration or
+# change a type the contract pins.  A parameter's restrict qualifier does
+# not take part in type compatibility, so the wcstok mutant drops the const
+# from the delimiter's pointee instead.
+tgmath_integer_float.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/tgmath.h $@/tgmath.h \
+	    "long double: (x), default: (double)(x))" \
+	    "long double: (x), default: (x))"
+tgmath_integer_float.contract= c17_library_contract
+math_float_t_double.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/math.h $@/math.h \
+	    "typedef float	float_t;" "typedef double	float_t;"
+math_float_t_double.contract= c17_library_contract
+wchar_no_wcstok.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/wchar.h $@/wchar.h \
+	    "wchar_t	*wcstok(wchar_t *_DISCOBSD_RESTRICT, const wchar_t *_DISCOBSD_RESTRICT," \
+	    "wchar_t	*wcstok(wchar_t *_DISCOBSD_RESTRICT, wchar_t *_DISCOBSD_RESTRICT,"
+wchar_no_wcstok.contract= c17_library_contract
+locale_no_setlocale.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/locale.h $@/locale.h \
+	    "char		*setlocale(int, const char *);" ""
+locale_no_setlocale.contract= c17_library_contract
+time_no_clocks.mutant:
+	@rm -rf $@ && mkdir $@
+	${MUTATE} ${TOPSRC}/include/time.h $@/time.h \
+	    "#define CLOCKS_PER_SEC	((clock_t)1000000)" \
+	    "#define CLOCKS_PER_SEC	1000000"
+time_no_clocks.contract= c17_library_contract
+
 # <errno.h> is a link to sys/sys/errno.h, which the mutant reads.
 errno_no_eilseq.mutant:
 	@rm -rf $@ && mkdir $@
@@ -211,7 +246,47 @@ check-null-contract: ${NULL_MUTANTS:S/$/.mutant/}
 	@echo "c17 headers: NULL is a pointer constant in ${NULL_HEADERS}; ${NULL_MUTANTS} rejected"
 
 check-cross: check-header-contracts check-header-mutants check-imports \
-    check-null-contract
+    check-null-contract check-library-providers
+
+# c17_library_contract.o names every function it pins, so its undefined
+# symbols are the interfaces a program reaches through the new headers.
+# Each must have a definition in the built libc.a or libm.a, and the folded
+# <float.h> comparison must leave no c17_float_mismatch reference. A
+# header whose DBL_TRUE_MIN is ten times too large calibrates the second
+# check, and the same imports against libc.a alone, which must leave fma
+# unprovided, calibrate the first.
+PROVIDER_ARCHIVES=	${TOPSRC}/lib/libc.a ${TOPSRC}/lib/libm.a
+check-library-providers: float_true_min_wrong.mutant
+	${TARGET_CC} ${TARGET_FLAGS} -c -o c17_library_contract.o \
+	    c17_library_contract.c
+	@${GCCPREFIX}-nm -u c17_library_contract.o | awk '{ print $$NF }' | \
+	    sort -u >c17_library_imports.txt
+	@if grep -qx c17_float_mismatch c17_library_imports.txt; then \
+		echo "c17 headers: <float.h> disagrees with the compiler" >&2; \
+		exit 1; \
+	fi
+	@${GCCPREFIX}-nm --defined-only ${PROVIDER_ARCHIVES} | \
+	    awk 'NF == 3 { print $$3 }' | sort -u >c17_library_defined.txt
+	@missing=$$(comm -23 c17_library_imports.txt c17_library_defined.txt); \
+	if [ -n "$$missing" ]; then \
+		echo "c17 headers: no provider for: $$missing" >&2; exit 1; \
+	fi
+	@${GCCPREFIX}-nm --defined-only ${TOPSRC}/lib/libc.a | \
+	    awk 'NF == 3 { print $$3 }' | sort -u >c17_library_libc_only.txt
+	@comm -23 c17_library_imports.txt c17_library_libc_only.txt | \
+	    grep -qx fma || \
+	    { echo "c17 headers: provider check missed libm's fma" >&2; exit 1; }
+	${TARGET_CC} -Ifloat_true_min_wrong.mutant ${TARGET_FLAGS} -c \
+	    -o float_true_min_wrong.o c17_library_contract.c
+	@${GCCPREFIX}-nm -u float_true_min_wrong.o | \
+	    grep -q ' c17_float_mismatch$$' || \
+	    { echo "c17 headers: wrong DBL_TRUE_MIN went unseen" >&2; exit 1; }
+	@echo "c17 headers: $$(wc -l <c17_library_imports.txt) library imports have providers; libc.a alone and a wrong DBL_TRUE_MIN rejected"
+
+float_true_min_wrong.mutant:
+	@rm -rf $@ && mkdir -p $@/machine
+	${MUTATE} ${TOPSRC}/include/machine/_float.h $@/machine/_float.h \
+	    "4.9406564584124654E-324" "4.9406564584124654E-323"
 
 check-header-contracts:
 .for contract in ${HEADER_CONTRACTS}
@@ -644,5 +719,6 @@ clean:
 	    ${HOST_TESTS} ${HOST_TESTS:S/$/_arm/} exit_probe
 
 .PHONY: check-cross check-header-contracts check-header-mutants \
-	check-imports check-null-contract check-host check-qemu clean \
+	check-imports check-null-contract check-library-providers \
+	check-host check-qemu clean float_true_min_wrong.mutant \
 	${HEADER_MUTANTS:S/$/.mutant/} ${NULL_MUTANTS:S/$/.mutant/}

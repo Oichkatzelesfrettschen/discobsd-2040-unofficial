@@ -7,6 +7,9 @@
  */
 #include <math.h>
 
+/* <math.h> also defines the C17 type-generic macro isnan(). */
+#undef isnan
+
 /*
  * isnan(x) returns 1 is x is nan, else 0;
  * no branching!

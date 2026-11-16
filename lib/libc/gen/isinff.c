@@ -7,6 +7,9 @@
  */
 #include <math.h>
 
+/* <math.h> also defines the C17 type-generic macro isinf(). */
+#undef isinf
+
 /*
  * isinff(x) returns 1 is x is inf, -1 if x is -inf, else 0;
  * no branching!

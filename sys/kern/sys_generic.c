@@ -503,8 +503,17 @@ retry:
         u.u_procp->p_sigmask = sigmsk;
     }
     error = tsleep ((caddr_t) &selwait, PSOCK | PCATCH, timo);
-    if (uap->maskp)
+    if (uap->maskp) {
         u.u_procp->p_sigmask = u.u_oldmask;
+        /*
+         * Only a wait that a signal ended leaves the mask for postsig() to
+         * restore after the handler; a timeout or a wakeup has restored it
+         * here, and the flag left set would put this old mask into the
+         * frame of a later signal, over any mask the caller set meanwhile.
+         */
+        if (error != EINTR && error != ERESTART)
+            u.u_psflags &= ~SAS_OLDMASK;
+    }
     splx(s);
     /*
      * The tick count saturates in hzto(), so a timeout can expire before the

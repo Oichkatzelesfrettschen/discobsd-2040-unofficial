@@ -338,6 +338,18 @@ def main():
             True,
         ),
         (
+            "pselect-leaves-the-saved-mask-flag",
+            "itimer",
+            {
+                "sys_generic.c": (
+                    "        if (error != EINTR && error != ERESTART)\n"
+                    "            u.u_psflags &= ~SAS_OLDMASK;\n",
+                    "",
+                )
+            },
+            True,
+        ),
+        (
             "select-deadline-wraps-past-the-last-count",
             "itimer-ilp32",
             {

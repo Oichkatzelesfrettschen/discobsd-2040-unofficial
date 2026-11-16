@@ -20,6 +20,7 @@
 #include <sys/vm.h>
 #include <sys/file.h>
 #include <sys/uio.h>
+#include <sys/signalvar.h>
 
 struct user u;
 int hz = 1000, usechz = 1000;
@@ -140,6 +141,8 @@ int ffs(u_long i)
 
 static unsigned tsleep_calls;
 static unsigned tsleep_interrupt_at;	/* call that a signal ends; 0 never */
+static int tsleep_check_mask;		/* tsleep() runs under tsleep_expect_mask */
+static unsigned long tsleep_expect_mask;
 #define TSLEEP_RUNAWAY	20000U
 
 int
@@ -155,6 +158,8 @@ tsleep(caddr_t ident, int priority, u_int timo)
         HK_CHECK(0);
         return EINTR;
     }
+    if (tsleep_check_mask)
+        HK_CHECK((u.u_procp->p_sigmask & 0xffffUL) == tsleep_expect_mask);
     if (tsleep_interrupt_at != 0 && tsleep_calls == tsleep_interrupt_at)
         return EINTR;
     total = (unsigned long long)lbolt + timo;
@@ -804,6 +809,88 @@ timed_select(unsigned long clock, unsigned long tv_sec, long tv_usec)
     return u.u_error;
 }
 
+/* The pselect() system call: what u.u_arg holds for it. */
+struct pselect_call {
+    int nd;
+    fd_set *in, *ou, *ex;
+    struct timespec *ts;
+    sigset_t *maskp;
+};
+
+/*
+ * A pselect() of sec seconds from a process whose mask is before, waiting
+ * under wait_mask. Returns u_error. The wait runs under the temporary mask
+ * and the caller's mask is back when pselect() returns.
+ */
+static int
+timed_pselect(unsigned long before, unsigned long wait_mask, long sec)
+{
+    struct timespec ts;
+    sigset_t mask = wait_mask;
+    struct pselect_call *args;
+
+    reset();
+    time.tv_sec = 1000;
+    time.tv_usec = 0;
+    lbolt = 0;
+    tsleep_calls = 0;
+    u.u_procp->p_sigmask = before;
+    tsleep_check_mask = 1;
+    tsleep_expect_mask = wait_mask;
+    ts.tv_sec = sec;
+    ts.tv_nsec = 0;
+    args = (struct pselect_call *)u.u_arg;
+    args->nd = 0;
+    args->in = args->ou = args->ex = NULL;
+    args->ts = &ts;
+    args->maskp = &mask;
+    pselect();
+    tsleep_check_mask = 0;
+    return u.u_error;
+}
+
+/*
+ * The mask a caught signal's frame restores: the expression of postsig()
+ * (sys/kern/kern_sig.c), which prefers the mask saved before a sigsuspend()
+ * or pselect() wait while SAS_OLDMASK is set.
+ */
+static unsigned long
+frame_return_mask(void)
+{
+    if (u.u_psflags & SAS_OLDMASK)
+        return (unsigned long)u.u_oldmask;
+    return (unsigned long)u.u_procp->p_sigmask;
+}
+
+/*
+ * A pselect() that times out leaves the saved-mask flag clear, so a signal
+ * caught after the caller changed its mask returns to the new mask; one that
+ * a signal ended leaves the flag set for postsig(), with the mask from before
+ * the wait.
+ */
+static void
+pselect_mask_state(void)
+{
+    HK_CHECK(timed_pselect(0x00f0UL, 0x0600UL, 5) == 0);
+    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x00f0UL);
+    HK_CHECK((u.u_psflags & SAS_OLDMASK) == 0);
+    u.u_procp->p_sigmask = 0x00f8UL;	/* the caller blocks another signal */
+    HK_CHECK(frame_return_mask() == 0x00f8UL);
+
+    tsleep_interrupt_at = 1;
+    HK_CHECK(timed_pselect(0x00f0UL, 0x0600UL, 5) == EINTR);
+    tsleep_interrupt_at = 0;
+    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x00f0UL);
+    HK_CHECK((u.u_psflags & SAS_OLDMASK) != 0);
+    HK_CHECK(frame_return_mask() == 0x00f0UL);
+
+    /* A timeout after a retry, past a saturated tick count, is a timeout too. */
+    HK_CHECK(timed_pselect(0x00f0UL, 0x0600UL, 3000000) == 0);
+    HK_CHECK(tsleep_calls == 2);
+    HK_CHECK((u.u_psflags & SAS_OLDMASK) == 0);
+    HK_CHECK((unsigned long)u.u_procp->p_sigmask == 0x00f0UL);
+}
+
 /*
  * select() waits the whole timeout, however long: a tick count that
  * saturates in hzto() ends one tsleep(), and the wall clock decides whether
@@ -1049,5 +1136,6 @@ main(void)
     virtual_prof();
     wall_clock_carry();
     select_waits();
+    pselect_mask_state();
     return hk_verdict("itimer");
 }

@@ -826,6 +826,13 @@ check-libc-assert: check-python
 		HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q}' -DDISCOBSD_ASSERT_TEST=1' \
 		    ${PYTHON} tests/libc_contracts/assert_check.py
 
+# The err family (lib/libc/gen/err.c) against its owning header, with
+# calibrating mutants; check-libc-host-contracts runs it through check-host.
+check-libc-err: check-python
+		${MAKE} -C tests/libc_contracts check-err HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q}
+
+.PHONY: check-libc-err
+
 check-libc-host-contracts:
 		${MAKE} -C tests/libc_contracts check-host
 
@@ -1443,6 +1450,14 @@ check-flash-checkpoint: check-python
 check-dhara-gc-trigger: check-python
 		${MAKE} -C tests/rp2040/dhara_trigger check PYTHON=${PYTHON:Q}
 
+# The shipped SwapRAM pool, swapram.c, flash_swap.c and the swap-map ring
+# driven from Python by a swap trace calibrated to the board's admission
+# counters; tests/rp2040/swap_tier_model/check.sh states the properties,
+# the calibration and its mutants. A host without cffi, hypothesis or
+# pytest prints a SKIP.
+check-swap-tier-model: check-python
+		${MAKE} -C tests/rp2040/swap_tier_model check PYTHON=${PYTHON:Q}
+
 # NetBSD files imported verbatim match tools/netbsd-imports.manifest; the
 # selftest first shows verify rejects an altered byte, a missing file, an
 # unlisted file and a missing revision.
@@ -1695,6 +1710,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-portable-utilities \
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger \
+		check-swap-tier-model \
 		check-flash-checkpoint \
 		check-netbsd-imports check-v7fs-core check-storage-recovery \
 		check-storage-recovery-models check-msdosfs-core check-fat32-tail check-fsutil-clock \
@@ -2296,7 +2312,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-flash-checkpoint check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

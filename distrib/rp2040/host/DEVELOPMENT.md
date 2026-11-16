@@ -189,7 +189,13 @@ swap, every device option, `kern.systrace` and `kern.capacity`) writes
 `unix[-BOARD].uf2`, `PICOCALC_LEAN` (without the device and diagnostic
 options) writes `unix[-BOARD]-LEAN.uf2` and `PICOCALC_LEAN_DIAG`
 (`PICOCALC_LEAN` plus the diagnostic options) writes
-`unix[-BOARD]-LEAN-DIAG.uf2`, so the three UF2s sit side by side.
+`unix[-BOARD]-LEAN-DIAG.uf2`, so the three UF2s sit side by side. With
+`BOARD=PICOCALC` a lean `UNION_KERNEL` also selects the `picocalc-lean`
+root, which leaves out `/dev/lcdgfx` and the `ridge` platformer that
+need the `DEV_LCDGFX` driver the lean kernels omit, and writes
+`sdcard-PICOCALC-LEAN.img`, `flash-PICOCALC-LEAN.bin` and
+`flash-PICOCALC-LEAN.uf2` beside the full PicoCalc root; an explicit
+`PROFILE` overrides the pairing.
     discobsd-flash --bootsel      # for a copy by hand; then --eject
 
 `IMAGE_WITH` and `IMAGE_WITHOUT` add and remove closures for one build, for

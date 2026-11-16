@@ -882,7 +882,17 @@ kernel (PICOCALC unless named) with the PicoCalc descriptor;
 `distrib/rp2040/flash.uf2` is the PICO board's.
 
     bmake MACHINE=rp2040 BOARD=PICOCALC distribution                          # full kernel
-    bmake MACHINE=rp2040 BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN flash      # unix-PICOCALC-LEAN.uf2
+    bmake MACHINE=rp2040 BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN flash      # unix-PICOCALC-LEAN.uf2, flash-PICOCALC-LEAN.uf2
+
+A lean `UNION_KERNEL` on `BOARD=PICOCALC` builds the `picocalc-lean` root
+(`sdcard-PICOCALC-LEAN.img`, `flash-PICOCALC-LEAN.{bin,uf2}`): the
+`picocalc` profile without `/dev/lcdgfx` and `/usr/games/ridge`, the two
+paths whose driver (`DEV_LCDGFX`) the lean kernels omit
+(`sys/arch/rp2040/doc/PROFILES.md`). `picofetch` and `picotop` stay: both
+read the ADC through `sysctl` and report the reading as absent
+(`sysctl` answers EOPNOTSUPP) when `DEV_ADC` is missing. The nodes `/dev/porta`, `/dev/portb` and
+`/dev/audio` belong to the base manifest and stay on every profile; without
+`DEV_GPIO` and `DEV_PCM` an open of one fails.
 
 Each board writes its own `sdcard-${BOARD}.img`, `flash-${BOARD}.bin` and
 `flash-${BOARD}.uf2` under `distrib/rp2040` (the bare `sdcard.img`,

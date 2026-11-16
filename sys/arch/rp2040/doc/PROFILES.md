@@ -49,8 +49,8 @@ kernels have no driver behind those majors. Its `needs path` line holds the
 mount point and all six nodes, so a manifest block that loses one stops the
 build. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
 console's character major 10, mode 666) that the PICOCALC kernels serve; the
-`picocalc` profile names it and no other does. The `ridge` closure carries the
-hard link `/usr/games/ridge` to `gamebox`, a member that draws through the tile
+`picocalc` profile names it, and so does the opt-in `matezinho` profile. The
+`ridge` closure carries the hard link `/usr/games/ridge` to `gamebox`, a member that draws through the tile
 atlas and the raw key session of the PICOCALC kernels. It sits outside the
 `games` group, which `full` keeps, and declares `closure ridge needs closure
 lcdgfx`, so a selection that keeps `ridge` without the device node, and the
@@ -205,6 +205,7 @@ the pack's unused blocks occupy no flash.
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's, including `puzzles` | 241 | 32 |
 | `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch` and `picotop`, so also `puzzles` | 140 before the last two (90 and 14 with them, below) | 20 |
+| `picocalc-lean` | `picocalc` without `lcdgfx` and `ridge`: `full` plus `calc-bignum`, `calc`, `sdcard`, `picofetch` and `picotop` | 96 | 12 |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
@@ -218,6 +219,15 @@ inodes before `time` joined `utilbox` (446 afterwards), 447 and 42 with
 holds 148 free blocks and 20 free inodes when built with
 `IMAGE_WITHOUT=ridge`; the row reads 140 and 20 as shipped: `ridge` takes
 eight blocks and no inode, because its entry point is a hard link.
+
+The `picocalc-lean` row was measured on the tree that added the profile, with the
+`picocalc` image beside it: 96 free blocks and 12 free inodes against 87 and 11
+for `picocalc` (`fsutil --verbose --partition=1` on `sdcard-PICOCALC-LEAN.img`
+and `sdcard-PICOCALC.img`). The 9 blocks and 1 inode are the `ridge` link and
+its entry in the `gamebox` build (8 blocks, no inode, `ridge` row above) and the
+`/dev/lcdgfx` node (no block, 1 inode); the split between the 8 and the ninth
+block is inferred, not traced. The `picocalc` row above predates this tree; its
+figures stand as measured then.
 
 `picofetch` and `picotop` joined the `picocalc` profile on a later tree, on
 which `base` measured 440 free blocks and 40 free inodes: 426 and 39 with
@@ -405,6 +415,7 @@ back the member lists the games Makefiles receive.
 | `full` without the five gamebox members | reject | closure gamebox is selected with none of its members |
 | `full` with `ridge` | reject | closure ridge needs closure lcdgfx, which this profile does not select |
 | `picocalc` without `lcdgfx` | reject | closure ridge needs closure lcdgfx, which this profile does not select |
+| `picocalc-lean` with `ridge` | reject | closure ridge needs closure lcdgfx, which this profile does not select |
 | `picocalc` without `keen`, with a part that needs `/usr/games/keen` | reject | closure calc needs /usr/games/keen, which this profile does not install |
 | `full` without `toolchain` and `toolchainlib` | accept | composes |
 | `full` without `keen` | accept | composes; gamebox keeps `fifteen bubble fourfall coil`, puzzlebox keeps all four |
@@ -414,6 +425,7 @@ back the member lists the games Makefiles receive.
 | `picocalc` without `sdcard` | accept | composes |
 | `picocalc` | accept | composes; gamebox keeps `fifteen keen bubble fourfall coil ridge` |
 | `picocalc` without `ridge` and `lcdgfx` | accept | composes; gamebox keeps `fifteen keen bubble fourfall coil` |
+| `picocalc-lean` | accept | composes; gamebox keeps `fifteen keen bubble fourfall coil` |
 
 The declaration checks have their own cases, each fed as extra profile text:
 a group declared twice, a group that contains itself, a group named like a

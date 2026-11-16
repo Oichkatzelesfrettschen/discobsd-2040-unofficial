@@ -97,6 +97,14 @@ BOARD_LINES = {
     ],
 }
 BOARD_LINES["PICOCALC_DIAG"] = BOARD_LINES["PICOCALC_PSRAM"]
+# PICO and PICO_DIAG attach uartusb before uart0 (the order of their Config),
+# and tools/renode/check-capacity.sh boots them under the UART0 descriptor
+# the union kernel gets here.
+BOARD_LINES["PICO_DIAG"] = [
+    "uartusb: CDC-ACM on the USB device controller, interrupt 5",
+    "uart0: pins tx=GP0/rx=GP1, console",
+]
+BOARD_LINES["PICO"] = BOARD_LINES["PICO_DIAG"]
 
 # Device lines a bare-Pico descriptor must suppress, matched at the start of
 # a console line: lcdcons.c prints lcd0 and kbd0, psram.c psram0 and sd.c sd0
@@ -141,7 +149,7 @@ UAREA_ROW = re.compile(r"^uarea bytes \d+ user \d+ stack \d+ peak (\d+) "
 # The configurations whose Config carries CAPACITY_STATS. Any other kernel
 # omits KERN_CAPACITY, so kern_sysctl() answers EOPNOTSUPP and sysctl prints
 # ABSENT_CAPACITY_LINE.
-CAPACITY_CONFIGS = ("PICO_UART", "PICOCALC_DIAG")
+CAPACITY_CONFIGS = ("PICO_DIAG", "PICO_UART", "PICOCALC_DIAG")
 ABSENT_CAPACITY_LINE = "kern.capacity: value is not available"
 
 CAPACITY_LINES = [

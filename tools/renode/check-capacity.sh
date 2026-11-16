@@ -3,18 +3,27 @@
 #
 # The gate adds tests/rp2040/capacity_exhaustion/filetab, inotab and proctab
 # to a copy of the root disk image under /tmp, wraps the copy as a flash
-# region image the way the flash target does, boots the UART0-console kernel
+# region image the way the flash target does, boots a UART0-console kernel
 # on it under Renode and runs the three programs from a root shell
 # (check-capacity.py).
 # The shipped images are read and never written: the programs are regression
 # tools outside the root manifest, and the composed image lives under
 # tools/renode/vendor/results/capacity, which git ignores.
 #
-# Usage: sh tools/renode/check-capacity.sh [DISK_IMAGE]
+# Usage: sh tools/renode/check-capacity.sh [DISK_IMAGE [CONFIG]]
 #
 # DISK_IMAGE is the partitioned root disk image whose first partition is the
 # root file system. It defaults to distrib/rp2040/sdcard.img; the root
 # Makefile passes ${FSIMG}, the selected board's image.
+#
+# CONFIG names the kernel configuration and defaults to PICO_DIAG, the lean
+# PICO kernel plus CAPACITY_STATS and SYSTRACE. Its unix.bin carries the
+# bare-Pico USB console descriptor, which Renode cannot serve, so the gate
+# boots a copy whose descriptor distrib/rp2040/mkboarduf2.py rewrote to the
+# UART0 console, as check-boot.sh does for the union kernel. PICO takes the
+# same patch; it omits CAPACITY_STATS, so the gate must fail on it at the
+# first kern.capacity read, which calibrates the gate. PICO_UART boots as
+# built.
 
 set -eu
 
@@ -28,13 +37,31 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 TOP=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 VENDOR="$SCRIPT_DIR/vendor/Renode_RP2040"
-KERNEL="$TOP/sys/arch/rp2040/compile/PICO_UART/unix.bin"
 DISK=${1:-$TOP/distrib/rp2040/sdcard.img}
+CONFIG=${2:-PICO_DIAG}
+BUILT_KERNEL="$TOP/sys/arch/rp2040/compile/$CONFIG/unix.bin"
 MODELS="$VENDOR/emulation/bin/Release/net8.0/Peripherals.dll"
 FIXTURES="$TOP/tests/rp2040/capacity_exhaustion"
 FSUTIL="$TOP/tools/bin/rp2040/fsutil"
 FLASHIMG="$TOP/tools/bin/rp2040/flashimg"
-OUTPUT="$SCRIPT_DIR/vendor/results/capacity"
+case "$CONFIG" in
+PICO_DIAG)
+	OUTPUT="$SCRIPT_DIR/vendor/results/capacity"
+	KERNEL="$OUTPUT/unix-uart.bin"
+	;;
+PICO)
+	OUTPUT="$SCRIPT_DIR/vendor/results/capacity-pico"
+	KERNEL="$OUTPUT/unix-uart.bin"
+	;;
+PICO_UART)
+	OUTPUT="$SCRIPT_DIR/vendor/results/capacity-pico-uart"
+	KERNEL=$BUILT_KERNEL
+	;;
+*)
+	echo "check-capacity: CONFIG must be PICO_DIAG, PICO or PICO_UART, not $CONFIG" >&2
+	exit 2
+	;;
+esac
 
 missing() {
 	echo "check-capacity: $1" >&2
@@ -45,8 +72,8 @@ command -v renode >/dev/null 2>&1 ||
 	missing "no renode in PATH; install Renode 1.17 or later"
 [ -r "$MODELS" ] ||
 	missing "no $MODELS; run sh tools/renode/fetch-renode-rp2040.sh"
-[ -r "$KERNEL" ] ||
-	missing "no $KERNEL; run bmake MACHINE=rp2040 kernel"
+[ -r "$BUILT_KERNEL" ] ||
+	missing "no $BUILT_KERNEL; run bmake MACHINE=rp2040 kernel"
 [ -r "$DISK" ] ||
 	missing "no $DISK; run bmake MACHINE=rp2040 fs"
 [ -x "$FSUTIL" ] && [ -x "$FLASHIMG" ] ||
@@ -69,6 +96,12 @@ echo "check-capacity: Renode ${RUNNING_RENODE:-unknown}"
 # The staging tree mirrors the target paths because fsutil --add stores each
 # file under the name it is given, relative to the working directory.
 mkdir -p "$OUTPUT"
+# The patcher refuses an image without exactly one descriptor block, so a
+# kernel that lost its .board section stops here by name.
+if [ "$KERNEL" != "$BUILT_KERNEL" ]; then
+	"$PYTHON" -I "$TOP/distrib/rp2040/mkboarduf2.py" --flat --board=PICO_UART \
+		"$BUILT_KERNEL" "$KERNEL"
+fi
 STAGE=$(mktemp -d "$OUTPUT/stage.XXXXXX")
 trap 'rm -f "$STAGE/tmp/filetab" "$STAGE/tmp/inotab" "$STAGE/tmp/proctab" "$STAGE/tmp/clistbound"
 rm -f "$STAGE/tmp/vmstat" "$STAGE/tmp/iostat" "$STAGE/tmp/pstat"
@@ -93,4 +126,5 @@ cp "$DISK" "$OUTPUT/disk.img"
 # -u: tools/run_logged_gate.py ends a run that prints nothing for its idle
 # limit, and Python block-buffers a piped stdout until exit, so every
 # stage line must reach the log as it is printed.
-"$PYTHON" -I -u "$SCRIPT_DIR/check-capacity.py" renode "$KERNEL" "$OUTPUT/flash.bin" "$OUTPUT"
+"$PYTHON" -I -u "$SCRIPT_DIR/check-capacity.py" renode "$KERNEL" "$OUTPUT/flash.bin" "$OUTPUT" \
+	"$CONFIG"

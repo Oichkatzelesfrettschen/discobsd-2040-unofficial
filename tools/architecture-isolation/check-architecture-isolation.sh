@@ -247,7 +247,7 @@ expect_equal "STM32 architecture flags" \
     "-mcpu=cortex-m4 -mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft" \
     "$(normalize_words "$("$make_command" -C "$source_root" MACHINE=stm32 -V MACHINE_ARCH_FLAGS)")"
 expect_equal "RP2040 kernel configurations" \
-    "PICO PICO_UART PICOCALC PICOCALC_PSRAM PICOCALC_DIAG" \
+    "PICO PICO_DIAG PICO_UART PICOCALC PICOCALC_PSRAM PICOCALC_DIAG" \
     "$(normalize_words "$("$make_command" -C "$source_root" MACHINE=rp2040 -V MACHINE_KERNEL_CONFIGS)")"
 expect_equal "STM32 kernel configurations" \
     "F405WEACTCORE F411RENUCLEO F412GDISCO F412WEACTCORE F413HDISCO F446RENUCLEO F446WEACTCORE F469IDISCO F4DISCOVERY F4VEDEVEBOX" \

@@ -260,7 +260,8 @@ check-dump-writer-link: check-python
 		${PYTHON} tools/check_dump_writer_link.py \
 		    --with $$c/PICOCALC/unix.elf --with $$c/PICOCALC_PSRAM/unix.elf \
 		    --with $$c/PICOCALC_DIAG/unix.elf \
-		    --without $$c/PICO/unix.elf --without $$c/PICO_UART/unix.elf; \
+		    --without $$c/PICO/unix.elf --without $$c/PICO_DIAG/unix.elf \
+		    --without $$c/PICO_UART/unix.elf; \
 		rc=0; \
 		${PYTHON} tools/check_dump_writer_link.py \
 		    --with $$c/PICO/unix.elf --without $$c/PICOCALC/unix.elf \
@@ -594,9 +595,9 @@ check-swapram-link-verifier:
 		sh tools/verify_rp2040_swapram_link_test.sh
 
 # Literal formats passed to the kernel's printf(), uprintf(), tprintf() and
-# log() in the sources of the PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM and
-# PICOCALC_DIAG kernels use only conversions where prf() and GCC's
-# format(printf) checking agree; the fixture calibrates the checker.
+# log() in the sources of the PICO, PICO_DIAG, PICO_UART, PICOCALC,
+# PICOCALC_PSRAM and PICOCALC_DIAG kernels use only conversions where prf()
+# and GCC's format(printf) checking agree; the fixture calibrates the checker.
 check-kernel-printf-formats:	check-python
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-kernel-printf-formats requires MACHINE=rp2040" >&2; \
@@ -605,6 +606,7 @@ check-kernel-printf-formats:	check-python
 		${PYTHON} tools/c17/kernel_format_check_test.py
 		${PYTHON} tools/c17/kernel_format_check.py --make "${MAKE}" \
 		    --build sys/arch/rp2040/compile/PICO \
+		    --build sys/arch/rp2040/compile/PICO_DIAG \
 		    --build sys/arch/rp2040/compile/PICO_UART \
 		    --build sys/arch/rp2040/compile/PICOCALC \
 		    --build sys/arch/rp2040/compile/PICOCALC_PSRAM \
@@ -2155,8 +2157,10 @@ check-renode-picocalc-dump:
 		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
-# The process, in-core inode and system file tables filled on the emulated PICO_UART
-# kernel: tools/renode/check-capacity.sh adds the three programs of
+# The process, in-core inode and system file tables filled on the emulated
+# PICO_DIAG kernel, the lean PICO plus CAPACITY_STATS and SYSTRACE, booted
+# from a copy whose board descriptor names the UART0 console:
+# tools/renode/check-capacity.sh adds the three programs of
 # tests/rp2040/capacity_exhaustion to a copy of ${FSIMG}, boots it and
 # requires each refusal on its own counter and a recovery after release.
 # Outside "check" for the reason check-renode is; the Renode class of the

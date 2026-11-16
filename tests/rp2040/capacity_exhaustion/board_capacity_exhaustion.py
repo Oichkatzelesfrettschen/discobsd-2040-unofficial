@@ -92,7 +92,7 @@ def process_row(console):
     text = "\n".join(console.run("sysctl kern.capacity", 30))
     if "value is not available" in text:
         print("kern.capacity is absent: flash a CAPACITY_STATS kernel "
-              "(PICO, PICO_UART or UNION_KERNEL=PICOCALC_DIAG)")
+              "(PICO_DIAG, PICO_UART or UNION_KERNEL=PICOCALC_DIAG)")
     found = PROC_LINE.search(text)
     return tuple(int(value) for value in found.groups()) if found else None
 

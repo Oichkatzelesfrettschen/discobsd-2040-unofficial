@@ -12,12 +12,14 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BOARDS = ("PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM", "PICOCALC_DIAG")
+BOARDS = ("PICO", "PICO_DIAG", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM",
+          "PICOCALC_DIAG")
 # The diagnostic options a _DIAG kernel adds to its lean base; a further
 # diagnostic option joins this tuple.
 DIAGNOSTIC_OPTIONS = ("options SYSTRACE", "options CAPACITY_STATS")
 # (variant, base, directives the variant adds to the base Config).
 VARIANTS = (
+    ("PICO_DIAG", "PICO", DIAGNOSTIC_OPTIONS),
     ("PICOCALC_PSRAM", "PICOCALC", ("device psram",)),
     ("PICOCALC_DIAG", "PICOCALC_PSRAM", DIAGNOSTIC_OPTIONS),
 )

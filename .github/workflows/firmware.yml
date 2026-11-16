@@ -514,6 +514,7 @@ jobs:
       - name: Confirm the images exist
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
+                sys/arch/rp2040/compile/PICO_DIAG/unix.uf2 \
                 sys/arch/rp2040/compile/PICO_UART/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2 \
@@ -534,6 +535,7 @@ jobs:
           name: discobsd-rp2040-firmware
           path: |
             sys/arch/rp2040/compile/PICO/unix.uf2
+            sys/arch/rp2040/compile/PICO_DIAG/unix.uf2
             sys/arch/rp2040/compile/PICO_UART/unix.uf2
             sys/arch/rp2040/compile/PICOCALC/unix.uf2
             sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2
@@ -848,6 +850,7 @@ jobs:
       - name: Confirm the images exist
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
+                sys/arch/rp2040/compile/PICO_DIAG/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2 \
                 sys/arch/rp2040/compile/PICOCALC_DIAG/unix.uf2 \

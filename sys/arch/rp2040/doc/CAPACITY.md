@@ -70,12 +70,13 @@ before and after the complete change.
 
 The RP2040 kernels expose `kern.capacity` when `CAPACITY_STATS` is enabled.
 The read-only, versioned structure records fixed-table occupancy, allocation
-failures, and overwritten kernel-stack bytes. PICO, PICO_UART and
-PICOCALC_DIAG enable the option. PICOCALC and the PICOCALC_PSRAM union kernel
-omit it and the `SYSTRACE` hooks, and answer `EOPNOTSUPP` for
+failures, and overwritten kernel-stack bytes. PICO_DIAG, PICO_UART and
+PICOCALC_DIAG enable the option. PICO, PICOCALC and the PICOCALC_PSRAM union
+kernel omit it and the `SYSTRACE` hooks, and answer `EOPNOTSUPP` for
 `kern.capacity`, `kern.systrace` and `kern.systracepid`; `sysctl` reports
 that refusal as "value is not available", and `sbin/sysctl`,
 `usr.bin/picofetch` and `usr.sbin/pstat` treat it as an absent record.
+PICO_DIAG is PICO plus the two options (`compile/PICO_DIAG/unix.uf2`), and
 PICOCALC_DIAG is PICOCALC_PSRAM plus the two options; `bmake MACHINE=rp2040
 UNION_KERNEL=PICOCALC_DIAG flash` pairs it with a board's descriptor and
 writes `unix[-BOARD]-DIAG.uf2` beside the default `unix[-BOARD].uf2`. The

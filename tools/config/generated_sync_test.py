@@ -134,6 +134,22 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_DIAG: Config must equal"):
             sync.check(self.root)
 
+    def test_lean_pico_carrying_capacity_stats_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICO/Config", 'options         "CORE1"',
+                    self.CAPACITY_LINE + 'options         "CORE1"')
+        with self.assertRaisesRegex(sync.SyncError, "PICO_DIAG: Config must equal"):
+            sync.check(self.root)
+
+    def test_pico_diagnostic_kernel_without_systrace_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICO_DIAG/Config", self.SYSTRACE_LINE, "")
+        with self.assertRaisesRegex(sync.SyncError, "PICO_DIAG: Config must equal"):
+            sync.check(self.root)
+
+    def test_pico_diagnostic_kernel_drifting_from_pico_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICO_DIAG/Config", '"SWAPRAM_KB=16"', '"SWAPRAM_KB=32"')
+        with self.assertRaisesRegex(sync.SyncError, "PICO_DIAG: Config must equal"):
+            sync.check(self.root)
+
     def test_diagnostic_variant_with_an_unlisted_option_is_rejected(self):
         self.mutate(sync.COMPILE / "PICOCALC_DIAG/Config", "device          psram\n",
                     "device          psram\noptions         LCD_PANELTEST\n")
@@ -208,8 +224,11 @@ class GeneratedSyncTest(unittest.TestCase):
         sync.check(self.root)
 
     def test_generator_failure_is_rejected(self):
-        self.mutate(sync.COMPILE / "PICO/Config", 'architecture    "rp2040"',
-                    'architecture    "invalid"')
+        # PICO_DIAG repeats PICO's directives, so both carry the mutation and
+        # the variant check passes; the generator must then fail on PICO.
+        for board in ("PICO", "PICO_DIAG"):
+            self.mutate(sync.COMPILE / board / "Config", 'architecture    "rp2040"',
+                        'architecture    "invalid"')
         with self.assertRaisesRegex(sync.SyncError, "PICO: config generator: exit"):
             sync.check(self.root)
 

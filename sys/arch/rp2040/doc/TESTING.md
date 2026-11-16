@@ -487,13 +487,18 @@ operations or prove runtime file-type selection.
 `check-rp2040-ioconf` compares generated device initialization words and
 driver-pointer relocations with the matching linked image, checks each named
 driver descriptor's name and probe pointer, and checks the empty controller
-and service arrays against the startup BSS range. PICO and PICOCALC
-fixtures compare generated driver order and source descriptor initializers,
-then mutate each source probe, every device word, descriptor probes and names,
-a driver relocation, BSS boundaries and truncated ELF input. The cross gate checks
-the four shipped configurations; nonempty controller or service arrays need
-a separate contract. Object/source identity and runtime startup remain
-separate evidence.
+array against the startup BSS range. The service array is either empty and
+checked the same way, or holds one Thumb function pointer per Config
+`service` line, each relocated in the object to a function the checker's
+`SERVICES` list names (`sdrootattach`), followed by a zero terminator. PICO
+and PICOCALC fixtures compare generated driver and service order and source
+descriptor initializers, then mutate each source probe, every device word,
+descriptor probes and names, a driver relocation, BSS boundaries and truncated
+ELF input; the PICOCALC fixture also mutates every service word, each service
+pointer's Thumb bit, the object terminator and addend, and the service
+relocation's target. The cross gate checks every RP2040 kernel configuration;
+a nonempty controller array needs a separate contract. Object/source identity
+and runtime startup remain separate evidence.
 
 `check-rp2040-tty-roots` checks each configured UART, USB and PicoCalc open
 routine's object relocation and linked literal against the named terminal

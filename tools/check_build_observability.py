@@ -26,6 +26,7 @@ EXPECTED_LABELS = {
     "linux-renode-picocalc",
     "linux-renode-picocalc-dump",
     "linux-renode-union",
+    "linux-renode-union-diag",
     "linux-renode-union-lean",
     "linux-stm32-build",
     "linux-storage-prefix",
@@ -76,6 +77,7 @@ EXPECTED_COMMANDS = {
     "linux-renode-picocalc": "bmake MACHINE=rp2040 check-renode-picocalc",
     "linux-renode-picocalc-dump": "bmake MACHINE=rp2040 check-renode-picocalc-dump",
     "linux-renode-union": "bmake MACHINE=rp2040 check-renode-union",
+    "linux-renode-union-diag": "bmake MACHINE=rp2040 check-renode-union-diag",
     "linux-renode-union-lean": "bmake MACHINE=rp2040 check-renode-union-lean",
     "linux-stm32-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=stm32 build',
     "linux-storage-prefix": (

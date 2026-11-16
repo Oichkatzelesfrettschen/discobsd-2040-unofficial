@@ -54,7 +54,11 @@ jobs:
   rp2040:
     name: rp2040 kernel, flash image and gates
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # The last nightly measured 58.8 minutes. The lean and diagnostic union
+    # tiers (4.8 minutes each, from the union tier's measured time) and the
+    # PICO refusal boot of the capacity tier (about 0.5) bring the predicted
+    # run to about 69 minutes.
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
         with:
@@ -514,6 +518,18 @@ jobs:
             --status .build-logs/linux-renode-union-lean.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-union-lean
+      # PICOCALC_LEAN_DIAG adds SYSTRACE and CAPACITY_STATS to the lean
+      # kernel and serves the kern.capacity record again.
+      - name: Run the Renode diagnostic lean union kernel tier
+        if: env.FULL_GATES == 'true'
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-union-diag \
+            --log .build-logs/linux-renode-union-diag.log \
+            --status .build-logs/linux-renode-union-diag.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-renode-union-diag
       - name: Retain the Renode logs and transcripts
         if: always()
         uses: actions/upload-artifact@v4

@@ -1126,6 +1126,9 @@ check-rmdir-contracts-cross:
 
 # reboot(8)'s arming rules for the boot ROM loader and boardinfo(1)'s output,
 # each with calibration mutants.
+check-packed-margin:
+		sh tests/packed_margin/check.sh
+
 check-reboot-contracts:
 		${MAKE} -C tests/reboot_contracts check mutants
 
@@ -1729,7 +1732,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts check-init-daemons \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
-		check-rmdir-contracts check-reboot-contracts check-tee-contracts check-time-contracts \
+		check-rmdir-contracts check-reboot-contracts check-packed-margin check-tee-contracts check-time-contracts \
 		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
 		check-aout check-native-linker check-as-ld-scratch check-native-nm check-kernel check-fs-stress check-fsck-inode-range \

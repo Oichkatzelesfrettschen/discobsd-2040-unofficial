@@ -103,7 +103,7 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 
 | Closure or group | Blocks | Inodes | Installs |
 | --- | --- | --- | --- |
-| `coremark` | 16 | 1 | `/usr/bin/coremark` |
+| `coremark` | 15 | 1 | `/usr/bin/coremark` |
 | `as` | 25 | 1 | `/usr/bin/as` |
 | `ld` | 18 | 1 | `/usr/bin/ld` |
 | `smlrc` | 42 | 1 | `/usr/libexec/smlrc` |
@@ -200,7 +200,7 @@ the pack's unused blocks occupy no flash.
 | Profile | Closures | Free blocks | Free inodes |
 | --- | --- | --- | --- |
 | `base` | none | 446 | 43 |
-| `benchmark` | `coremark` | 432 | 42 |
+| `benchmark` | `coremark` | 431 | 42 |
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's, including `puzzles` | 241 | 32 |

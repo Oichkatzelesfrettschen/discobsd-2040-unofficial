@@ -2687,16 +2687,23 @@ map. Each call starts with fresh values in r1-r3 beyond its arguments,
 r12 and the NZCV flags, so code cannot borrow a previous call's register.
 A call fails on a fault, an instruction budget overrun, a stop away
 from the trap, a changed stack pointer or r4-r11, an unaligned halfword
-or word access (ARMv6-M faults one; Unicorn performs it), or any data
+or word access (ARMv6-M faults one; Unicorn performs it) or any data
 access outside the
 byte-exact spans its property allows (the input, the structure fields,
-the bytes already produced, the output span, the stack and flash reads);
+the bytes already produced, the output span, the stack and flash reads),
+both checked only in a call that installs a policy: the helper that builds
+a test input (the heatshrink encoder run) runs with no access hook;
 every scratch buffer also sits between unmapped guard pages. Unicorn
 2.1.4 executes Thumb-2 instructions (RBIT, MLA, ADD.W, UDIV) under its
 `UC_CPU_ARM_CORTEX_M0` model, so the model alone does not confine
 execution to ARMv6-M: a block hook disassembles each translated block
 through capstone and fails the call on a 32-bit encoding outside BL, MSR,
-MRS, DMB, DSB and ISB, and the gate first shows that hook refusing RBIT.
+MRS, DMB, DSB and ISB, on an MRS or MSR naming a special register ARMv6-M
+lacks (only APSR, IAPSR, EAPSR, XPSR, IPSR, EPSR, IEPSR, MSP, PSP, PRIMASK
+and CONTROL pass; BASEPRI, BASEPRI_MAX, FAULTMASK and the DSP APSR masks
+fail), and on the 16-bit ARMv7-M encodings CBZ, CBNZ and IT. The gate first
+shows that hook refusing RBIT, then sorts a probe of eight accepted and
+seven refused encodings.
 A function pointer argument names a `bx lr` stub whose code hook runs a
 Python model of the callback.
 
@@ -2705,7 +2712,7 @@ Python model of the callback.
 | differential | `hsx_dec_run` | tools/unicorn/heatshrink_model.py, written from the stream layout in `machine/hsx_decoder.h`; lookahead 1 to 8, input in chunks, linear and ring output, a second call after a stall producing nothing |
 | memory | `hsx_dec_run` | arbitrary bytes under the same calls; only the access policy, the fault and budget checks and `n <= room` apply |
 | round trip | `hsx_dec_run` | the linked `heatshrink_encoder_*` stream decodes to its input through the model and the kernel |
-| contract | `hsx_expand` | `machine/hsx_decoder.h`: 0 exactly when the stream yields `rlen` bytes, `*crc` equal to `zlib.crc32`, `fill()` asked only for `[off, off + clen)` into the stage |
+| contract | `hsx_expand` | `machine/hsx_decoder.h`: 0 exactly when the stream yields `rlen` bytes, `*crc` equal to `zlib.crc32`, `fill()` asked only for `[off, off + clen)` into the stage, -1 when `fill()` fails; the work buffer is read only where the kernel or `fill()` defined it (the structure fields, the window slots written so far, the current chunk of the stage, none of an earlier chunk) |
 | CRC-32 | `crc32_update`, `board_crc32_run` | `zlib.crc32` from any start value, and the check value 0xcbf43926 of "123456789" |
 | bstring | `bzero`, `bcopy`, `bcmp` | `share/man/man3/bstring.3`; `bcopy` on disjoint spans, as the machdep.c comment limits it |
 
@@ -2719,28 +2726,59 @@ Calibration follows each property. Every conditional branch of the
 function under test is inverted, and every other instruction except push,
 pop and the return replaced by NOP, one mutant kernel at a time; for the
 CRC properties the `crc32_nibble` copy each function's literal pool names
-is corrupted too. A property that kills no mutant fails, the memory
-property must kill one through an access violation or fault, and each CRC
-property must be killed by its own table copy and not by the other.
+is corrupted too. A property calibrates only when it kills a mutant in the
+failure class of its obligation: a wrong result for the differential, round
+trip, CRC and bstring properties, an access violation, fault or misaligned
+access for the memory property, and both a wrong result and an access or
+contract breach for `hsx_expand`. A kill by an instruction budget, a
+callee-saved register or an exception of another class does not count toward
+those, and the run prints each property's kills by class. Each CRC property
+must also be killed by its own table copy and not by the other.
 With 300 examples per property and 150 per mutant, the PICO and
-PICOCALC_PSRAM kernels took about thirteen minutes each, almost all of it
-in calibration, and killed the same mutants. Kills per property (killed
-of generated; in parentheses those through an access violation,
-alignment refusal or fault): `hsx_dec_run` differential 143/145 (62),
-memory 91/145 (73), round trip 119/145 (47); `hsx_expand` 102/109 (34);
-`crc32_update` and `board_crc32_run` 20/21 (9 and 9 on PICO, 9 and 8 on
+PICOCALC_PSRAM kernels took about ten minutes each (run together on a host
+under load, GCC 14.2.1), almost all of it in calibration, and killed the
+same mutants. Kills per property (killed of generated, then by class: a
+wrong result, an access violation, alignment refusal or fault, and the
+rest): `hsx_dec_run` differential 143/145 (79, 62, 2 budget); memory 93/145
+(17, 73, 3 budget); round trip 123/145 (75, 47, 1 budget); `hsx_expand` 103/109
+(42, 37, 24 contract); `crc32_update` 20/21 (10, 9, 1 budget) and
+`board_crc32_run` 20/21 (10, 9, 1 budget on PICO; 10, 8, 2 budget on
 PICOCALC_PSRAM), the survivor a `mov r8, r8` padding instruction; `bzero`
-51/55 (27); `bcopy` 54/56 (33); `bcmp` 23/28 (11). The memory property
-kills only through the access policy, so a mutant that changes values
-alone survives it by design. Inference from the disassembly, not a run:
+51/55 (19, 27, 4 budget, 1 flaky); `bcopy` 54/56 (18, 33, 1 budget, 2 flaky);
+`bcmp` 23/28 (10, 11, 2 flaky). A flaky kill is a mutant whose result
+differs between Hypothesis replays; it counts toward no class. The memory
+property kills 17 mutants by its own result checks (`n <= room` and `d->pos`)
+besides the 73 through the access policy, so a mutant that changes values
+alone can still survive it. Inference from the disassembly, not a run:
 the two differential survivors are equivalent mutants, since without
 `cmp r7, #0` the entry takes the copy path with a zero count, and without
 `cmp r2, #6` the refill runs early, which the `sh >= 0` bound keeps exact.
 The run prints every survivor by function offset and instruction. The
-inputs are bounded: streams of up to 500 bytes (1500 for `hsx_expand`),
-a linear destination of up to 3000 bytes, at most 48 calls per stream,
-in-contract parameters only. Within those bounds no drawn stream made
-`hsx_dec_run` or `hsx_expand` touch a byte outside its contract.
+inputs are bounded: streams of up to 500 bytes (1500 for `hsx_expand`), a
+linear destination of up to 3000 bytes, in-contract parameters only. The
+room of the first 48 calls on a stream is drawn; every later call asks for
+all the space left, so each stream runs to its stall or a full destination,
+and a decode past 1000 calls fails. Before that change a stream still
+running after 48 calls ended the example with no further check; the default
+seed reached that path in none of the 710 decodes of the two properties
+that draw them (one run, Hypothesis 6.170.12 on the build host). Within the bounds no drawn stream made `hsx_dec_run` or
+`hsx_expand` read or write a byte outside its contract, with one by-design
+exception that the byte-exact work-buffer policy of `hsx_expand` makes
+visible: once `dst` holds `rlen` bytes the loop decodes on through the
+window to find a token past the promised length, and that decode reads
+window slots no output has filled; any byte it produces fails the stream,
+so the value read cannot reach a result, and the policy allows undefined
+window reads only in that phase. Not drawn: `hsx_check()`
+(sys/sys/exec_hsaout.h) admits any non-wrapping stream whose packed length
+matches the file, so a hostile image can carry streams up to the 192 KiB
+user window and a decoded length up to the window limit; the generator
+stops near four stages, so stage counts past five, decoded lengths near the
+window limit and 32-bit sums near wrap are covered by reading `hsx_check()`
+(it refuses wrapping stream-length sums with `HSX_SIZEWRAP`; the cap on the
+decoded length is not re-read here), not by a run. A
+`fill()` failure is drawn (the first to fourth call, expecting -1).
+`bcopy` is tested on disjoint spans only, since machdep.c leaves the
+behavior on overlap undefined.
 
 This is emulation of the linked instructions with no peripheral: it
 establishes the functions' results and memory footprint for the drawn

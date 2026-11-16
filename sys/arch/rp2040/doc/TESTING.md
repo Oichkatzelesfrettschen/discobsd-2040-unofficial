@@ -535,6 +535,7 @@ upload and hidden-file inclusion.
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
 | renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | yes: the `firmware/rp2040` job installs the pinned Renode release, then fetches and builds the models | no |
 | renode table exhaustion | `check-renode-capacity` | Renode, the fetched RP2040 models, a built PICO_UART kernel, the selected board's disk image (`${FSIMG}`), `fsutil` and `flashimg`, `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
+| renode asynchronous system trap | `check-renode-preempt` | Renode, the fetched RP2040 models, a built PICO_UART kernel, the selected board's disk image (`${FSIMG}`), `fsutil` and `flashimg`, `${PYTHON}` | yes: the `firmware/rp2040` job, after the table exhaustion step | no |
 | renode image identity | `check-renode-identity` | Renode, the fetched RP2040 models, a built PICO_UART kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the table exhaustion step | no |
 | core 1 emulation | `check-core1-emulation` | Unicorn and pyelftools under `${PYTHON}`, the arm-none-eabi toolchain, a built PICO_UART kernel | yes: the `firmware/rp2040` job installs `python3-unicorn` | no |
 | renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0009, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
@@ -2788,6 +2789,29 @@ kernel whose `iget()` drops the inode failure note fails it on the inode
 counter. The
 composed image, the UART0 transcript and the Renode log stay under
 tools/renode/vendor/results/capacity.
+
+## Renode asynchronous system trap tier
+
+`check-renode-preempt` builds tests/rp2040/preempt and runs
+tools/renode/check-preempt.sh, which adds `preempt` under /tmp to a copy of
+the root disk image, checks and wraps it as `check-renode-capacity` does,
+and boots the PICO_UART kernel once per case through tools/renode/check-preempt.py.
+Every case runs a loop that makes no system call, so only the return to the
+process through `userret` from the clock tick, the asynchronous system trap
+of sys/arch/rp2040/rp2040/systick.c and syscall.c, can deliver its signal or
+switch it out; a kernel without that path runs one loop forever, which is
+why each case has its own machine. The cases and their pass conditions:
+`alarm` ends on SIGALRM with status 142; `share` wakes a parent from
+`sleep(3)` while two children loop and finds a nonzero count in each;
+`intr` ends a loop with the interrupt character typed into UART0 (status
+130); `regs` keeps sentinels in r1-r12 and lr intact across 200 handlers
+that overwrite r8-r12, at sp 0 and 4 modulo 8 in two processes; `divide`
+compares every SIO divider result of two dividing processes and their
+handlers with a software division while a third process forces switches
+every 2 ms. origin/main at 4b3eaf6c fails all five (docs/research/rp2040-systick-ast.md
+holds the calibration). The claim is the emulated kernel's trap path;
+Renode's divider answers in zero cycles, so the eight-cycle window of the
+silicon divider is a board receipt, a separate evidence class.
 
 ## Renode PicoCalc tier
 

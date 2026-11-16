@@ -449,6 +449,16 @@ jobs:
             --status .build-logs/linux-renode-capacity.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-capacity
+      - name: Run the Renode asynchronous system trap tier
+        if: env.FULL_GATES == 'true'
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-preempt \
+            --log .build-logs/linux-renode-preempt.log \
+            --status .build-logs/linux-renode-preempt.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-renode-preempt
       - name: Run the Renode image identity tier
         if: env.FULL_GATES == 'true'
         timeout-minutes: 15

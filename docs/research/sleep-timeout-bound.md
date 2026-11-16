@@ -8,7 +8,7 @@ Scope: `sleep(3)` in `lib/libc/gen/sleep.c`, the kernel path its `select()` take
 2. The bound does not protect the arithmetic beneath it. At HZ 1000 the tick count saturates at 0x7fffffff, 2,147,483.647 s (24.9 days), and `select()` returns 0 at that point without re-reading the clock (source reading, not executed). A request between 2,147,484 and 100,000,000 s accepted by `itimerfix()` wakes about 24.9 days early, with no signal.
 3. At the target's width (`_TIME_BITS=32`, `tv_sec` a signed 32-bit `long`) a request above LONG_MAX arrives negative, which is refused the same way. The ranges 100,000,001 to LONG_MAX and LONG_MAX + 1 to UINT_MAX fail by two routes and with one result.
 4. The 100,000,000 constant is inherited: the earliest trees available (the 2.11BSD patch 431 import and 4.4BSD-Lite2) carry it, the four modern trees surveyed dropped it, and nothing in this kernel's tick arithmetic needs it.
-5. The repair is a chunked loop in `sleep()`: at most 1,000,000 s per `select()`, repeated until the clock shows the request elapsed, ended by any nonzero `select()` result. It adds about 20 bytes to each program that links `sleep()` before the stall guard of the review round (measured at that stage: 16 to 24 bytes per a.out) and about 28 more with it (object delta, not a program build), and nothing to the kernel.
+5. The repair is a chunked loop in `sleep()`: at most 1,000,000 s per `select()`, repeated until the clock shows the request elapsed, ended by any nonzero `select()` result. It adds 48 to 52 bytes to each a.out program that links `sleep()` (the loop alone measured 16 to 24) and nothing to the kernel.
 
 ## 1. Record before editing
 
@@ -72,7 +72,7 @@ Where to repair. Three places were measured or reasoned.
 
 | Repair | Kernel text | Libc | Fixes | Leaves |
 |---|---|---|---|---|
-| Libc chunk loop with the stall guard (chosen) | 0 | +52 B in `sleep.o` (object delta, GCC 16.2.0; +16 to +24 B per program was measured for the loop alone) | `sleep()` for every unsigned request; `/bin/sleep` | a `select()` caller with a timeout above 100,000,000 still gets `EINVAL`; none exists |
+| Libc chunk loop with the stall guard (chosen) | 0 | +48 to +52 B per a.out program (measured; +52 B in `sleep.o` by object delta) | `sleep()` for every unsigned request; `/bin/sleep` | a `select()` caller with a timeout above 100,000,000 still gets `EINVAL`; none exists |
 | Kernel: drop the 100,000,000 test from `select1()` | 0 B (measured, four kernels) | the loop is still required at the 32-bit view | `select()` accepts any timeout | the early return past 2,147,483 s |
 | Kernel: drop the test and re-read the clock after `EWOULDBLOCK` | +16 B (PICO and PICOCALC, +16 on all four) | the loop is still required for requests above LONG_MAX | `select()` is correct for every duration the field holds | |
 | Both | +16 B | as the loop | | |
@@ -118,7 +118,7 @@ Object size of `sleep.o` (text bytes, `arm-none-eabi-gcc` 16.2.0, `-Os -mcpu=cor
 
 ### Size
 
-Per program, from clean builds of main and of the repair on the build host (`arm-none-eabi-gcc` 14.2.1 20241119, `bmake MACHINE=rp2040 build`, bytes of the built file): 65 of 314 built files differ. The 57 a.out programs gain 16 to 24 bytes: 20 in 49 of them (`bin/sleep/sleep` 1768 to 1788, `sbin/init/init` 17656 to 17676, `sbin/fsck/fsck` 27496 to 27516), 24 in 7 (`find`, `more`, `shutdown`, `backgammon`, `battlestar`, `box`, `re`) and 16 in `games/trek`; the 8 ELF intermediates gain 32 to 40. The kernel is unchanged: the four PICO and PICOCALC kernels link at 100819, 90201, 121163 and 123691 bytes of text before and after, and RAM is untouched.
+Per program, from clean builds of main and of the final repair on the build host (`arm-none-eabi-gcc` 14.2.1 20241119, `bmake MACHINE=rp2040 build`, bytes of the built file): 65 of 314 built files differ. 52 gain 48 bytes and 5 gain 52 (the a.out programs, for example `bin/sleep/sleep`); 8 gain 64 (the ELF intermediates). The loop without the stall guard measured 16 to 24 bytes per a.out program; the guard adds the rest. The kernel is unchanged: the four PICO and PICOCALC kernels link at 100819, 90201, 121163 and 123691 bytes of text before and after, and RAM is untouched.
 
 ### Gates
 
@@ -133,7 +133,8 @@ Exit codes read directly from the command, logs retained in the working session'
 | `check-changed-text`, `check-changed-comments`, range `4b3eaf6c..HEAD` | build host | 0, 0 (three advisories for comment length) |
 | `bmake MACHINE=rp2040 build`, main and repair | WSL build host | 0 and 0 |
 | `check-c17-compile-profiles` | WSL build host | 0 |
-| `logged-distribution`, `logged-flash`, `check-renode` on the repair | WSL build host | 0, 0, 0 |
+| `logged-distribution`, `logged-flash`, `check-renode` on the first form of the repair | WSL build host | 0, 0, 0 (not rerun for the stall guard) |
+| `bmake MACHINE=rp2040 build` and `check-c17-compile-profiles` on the final form | WSL build host | 0, 0 |
 
 `check-renode` boots the PICO_UART kernel of the distribution on Renode's third-party peripheral models to the login prompt; it shows that the linked programs (`init`, `getty`, `login` and the others that call `sleep()`) start with the new function. It did not trace a `sleep()` call, so it is boot evidence, not a behavior test of the loop. The loop's behavior is established by the kernel-model gate above, which runs on the host with stand-in system calls.
 

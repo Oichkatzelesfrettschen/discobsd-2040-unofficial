@@ -103,6 +103,13 @@ build "$flash" "$dhara/journal.c" "$swap" "$work/oracle"
 	fail "the shipped driver breaks a cell the table permits"
 }
 cat "$work/oracle.log"
+# A targeted run names one cell; an id the table lacks must fail rather than
+# run nothing and pass.
+if "$work/oracle" "$cells" NO-SUCH-CELL >"$work/unknown-id.log" 2>&1 ||
+    ! grep -q "no cell named 'NO-SUCH-CELL'" "$work/unknown-id.log"; then
+	cat "$work/unknown-id.log" >&2
+	fail "an unknown cell id passes"
+fi
 
 # Known-good calibration: with a checkpoint page programmed as one command,
 # every row, including the recorded defects, holds. The defect rows fail only

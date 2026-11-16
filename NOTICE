@@ -14,7 +14,7 @@ Exception, version 3.1, which permits distributing the combined binaries
 under these terms.
 
 ------------------------------------------------------------------------
-1. DiscoBSD and RetroBSD (the system, the rp2040 port, the host tools)
+1. DiscoBSD, RetroBSD and GizmoBSD (the system, the rp2040 port, the host tools)
    License: BSD 3-Clause (see LICENSE)
 
 Copyright (c) 2020-2026 DiscoBSD
@@ -52,9 +52,9 @@ permission to use, copy, modify, and/or distribute this software for
 any purpose with or without fee is hereby granted, provided that the
 above copyright notice and this permission notice appear in all copies.
 
-Files written for this port and marked "Copyright (c) 2026 GizmoBSD"
-are under the BSD 3-Clause terms above, with GizmoBSD as the copyright
-holder.
+Files written for this port that carry a GizmoBSD copyright line, of
+any year, are under the BSD 3-Clause terms above, with GizmoBSD as the
+copyright holder.
 
 ------------------------------------------------------------------------
 2. The Regents of the University of California (2.11BSD: the kernel,

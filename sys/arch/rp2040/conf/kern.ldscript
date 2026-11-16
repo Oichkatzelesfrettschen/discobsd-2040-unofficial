@@ -49,6 +49,72 @@ SECTIONS {
 	.text : {
 		KEEP(*(.isr_vector))
 		. = ALIGN(8);
+		/*
+		 * The hot path: every input section the system call, pipe and
+		 * clock-tick paths execute on each iteration of UnixBench pipe and
+		 * syscall, taken from instruction traces of the union kernel
+		 * (docs/research/rp2040-hot-path-layout.md), followed by the
+		 * read-only tables those paths load. The XIP cache is 16 KB of two
+		 * ways with 8-byte lines (RP2040 datasheet 2.6.3.1-2.6.3.2), so a
+		 * contiguous span of at most 8 KB maps each of its lines to a
+		 * different set and no two hot lines can evict each other. Placed
+		 * first, the span keeps its addresses whatever the size of the rest
+		 * of the kernel; laid out by input order, a size change in any
+		 * earlier object would move part of this path onto sets that other
+		 * hot lines already fill twice. Each statement places its sections
+		 * in the order written, and a name a configuration does not link
+		 * places nothing. tools/check_hot_layout.py reads this list between
+		 * __hot_start and __hot_end and fails a kernel whose span exceeds
+		 * one cache way or whose listed symbols lie outside it.
+		 */
+		__hot_start = .;
+		*(.text.SVC_Handler)
+		*(.text.PendSV_Handler)
+		*(.text.syscall)
+		*(.text.userret)
+		*(.text.setpri)
+		*(.text.led_control)
+		*locore.o(.text)
+		*libgcc.a:_thumb1_case_uqi.o(.text)
+		*(.text.read)
+		*(.text.write)
+		*(.text.rwuio)
+		*(.text.pipe_rw)
+		*(.text.readp)
+		*(.text.writep)
+		*(.text.rwip)
+		*(.text.bmap)
+		*(.text.bread)
+		*(.text.getblk)
+		*(.text.bdwrite)
+		*(.text.brelse)
+		*(.text.arm_intr_disable)
+		*(.text.uiomove)
+		*(.text.bcopy)
+		*(.text.baduaddr_span)
+		*(.text.baduaddr_rspan)
+		*(.text.capacity_refresh)
+		*(.text.capacity_note)
+		*(.text.dup)
+		*(.text.dupit)
+		*(.text.ufalloc)
+		*(.text.close)
+		*(.text.closef)
+		*(.text.getpid)
+		*(.text.getuid)
+		*(.text.umask)
+		*(.text.SysTick_Handler)
+		*(.text.systick)
+		*(.text.clock_tick_stamp)
+		*(.text.hardclock)
+		*(.text.gatherstats)
+		*(.rodata.nsysent)
+		*(.rodata.syscall_nargs)
+		*(.rodata.syscall_handlers)
+		*(.rodata.Fops)
+		*(.rodata.pipeops)
+		__hot_end = .;
+		. = ALIGN(8);
 		*(.text*)
 		. = ALIGN(8);
 		*(.rodata*)

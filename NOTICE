@@ -14,11 +14,12 @@ Exception, version 3.1, which permits distributing the combined binaries
 under these terms.
 
 ------------------------------------------------------------------------
-1. DiscoBSD and RetroBSD (the system, the rp2040 port, the host tools)
+1. DiscoBSD, RetroBSD and GizmoBSD (the system, the rp2040 port, the host tools)
    License: BSD 3-Clause (see LICENSE)
 
 Copyright (c) 2020-2026 DiscoBSD
 Copyright (c) 2014, RetroBSD
+Copyright (c) 2026 GizmoBSD
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -50,6 +51,10 @@ notice), and the games keen, fifteen and bubble, are ISC licensed:
 permission to use, copy, modify, and/or distribute this software for
 any purpose with or without fee is hereby granted, provided that the
 above copyright notice and this permission notice appear in all copies.
+
+Files written for this port that carry a GizmoBSD copyright line are
+under the BSD 3-Clause terms above, with GizmoBSD as the copyright
+holder; the GizmoBSD line above spans every year such a file names.
 
 ------------------------------------------------------------------------
 2. The Regents of the University of California (2.11BSD: the kernel,
@@ -397,6 +402,35 @@ BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
 ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+------------------------------------------------------------------------
+18. Rich Felker and contributors (tableless byte-sequence search in libc)
+    License: MIT
+
+lib/libc/string/memmem.c adapts the Two-Way mechanism from FreeBSD's
+musl-derived provider. The inherited OpenBSD wrapper notice remains in the
+source. The search mechanism carries this notice:
+
+Copyright (c) 2005-2014 Rich Felker, et al.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------
 Appendix. Build and test dependencies, which no image contains

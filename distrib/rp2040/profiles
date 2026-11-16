@@ -8,7 +8,8 @@
 # parent directories or declared dependencies do not resolve. The Makefile
 # variable PROFILE selects one; when it is unset, BOARD picks the default
 # (distrib/rp2040/Makefile.inc): full for the PICO board, picocalc for the
-# PicoCalc, which names every closure. The Make variables IMAGE_WITH and
+# PicoCalc, which names every closure, and picocalc-lean for the PicoCalc
+# when UNION_KERNEL is a lean kernel. The Make variables IMAGE_WITH and
 # IMAGE_WITHOUT add and remove closures or groups for one build on top of
 # the selected profile.
 # sys/arch/rp2040/doc/PROFILES.md is the authority for the scheme and
@@ -101,6 +102,16 @@ closure dc needs path /usr/bin/dc
 #
 closure calc needs path /usr/bin/calc
 
+# usr.bin/picofetch prints one screen of system and hardware readings beside
+# a logo, and usr.bin/picotop is the full-screen monitor of the same
+# readings. Both draw through the glyph bank of the PicoCalc console and fall
+# back to ASCII on any other terminal, so they run on every kernel; the
+# picocalc profile names them and any other image takes them through
+# IMAGE_WITH.
+#
+closure picofetch needs path /usr/bin/picofetch
+closure picotop needs path /usr/bin/picotop
+
 #
 # The PicoCalc's SD card is block major 5 and raw major 11 of the PICOCALC
 # kernels (sys/arch/rp2040/rp2040/conf.c). The sdcard closure carries the
@@ -136,7 +147,7 @@ closure ridge needs closure lcdgfx
 # sys/arch/rp2040/doc/PROFILES.md holds the method, the marginal cost of
 # each multicall member inside the full set, and the profile totals.
 #
-cost coremark 16 1
+cost coremark 15 1
 cost as 25 1
 cost ld 18 1
 cost smlrc 42 1
@@ -147,6 +158,8 @@ cost bc 40 2
 cost dc 21 1
 cost calc-bignum 60 3
 cost calc 33 1
+cost picofetch 14 1
+cost picotop 15 1
 cost sdcard 11 8
 cost lcdgfx 0 1
 cost gamesdir 1 1
@@ -175,15 +188,22 @@ cost lightup 23 2
 #            PICO board builds by default
 # picocalc   full plus the ClockworkPi PicoCalc's own closures: the
 #            arbitrary-precision calculator, the scientific calculator, the
-#            SD card's device nodes, the pixel device node and the platformer
-#            that draws on it; the PICOCALC board's default
+#            SD card's device nodes, the pixel device node, the platformer
+#            that draws on it, and picofetch and picotop; the PICOCALC
+#            board's default
+# picocalc-lean
+#            picocalc without the closures that need a driver the
+#            PICOCALC_LEAN kernels omit (DEV_LCDGFX): the pixel device node
+#            and the platformer. The PICOCALC board's default root when
+#            UNION_KERNEL names PICOCALC_LEAN or PICOCALC_LEAN_DIAG
 #
 profile base
 profile benchmark coremark
 profile developer toolchain toolchainlib
 profile games games puzzles
 profile full coremark toolchain toolchainlib games puzzles
-profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge
+profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge picofetch picotop
+profile picocalc-lean coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard picofetch picotop
 
 # Opt-in desktop; the MATE artwork is supplied on external storage.
 closure matezinho needs closure lcdgfx sdcard

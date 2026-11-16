@@ -50,7 +50,12 @@ calling device drivers \&...
 .SH ERRORS
 .TP 15
 [EPERM]
-The caller is not the super-user.
+The caller is not the super-user, or the kernel security level is above 0
+(see
+.IR sysctl (3),
+KERN_SECURELVL):
+the function runs at kernel privilege, which the level exists to keep from
+a process.
 .SH BUGS
 No address validations are attempted.
 .PP

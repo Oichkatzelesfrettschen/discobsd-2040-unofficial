@@ -11,7 +11,7 @@ reboot \- stopping and restarting the system
 .SH SYNOPSIS
 .B /sbin/reboot
 [
-.B \-lqnhdarsfRD
+.B \-lqnhdarsfRDBy
 ]
 .br
 .B /sbin/halt
@@ -26,7 +26,7 @@ reboot \- stopping and restarting the system
 .br
 .B /sbin/bootloader
 [
-.B \-lqn
+.B \-lqny
 ]
 .SH DESCRIPTION
 2.11BSD is started by placing it in memory at location zero and transferring to
@@ -98,6 +98,20 @@ flag in conjunction with the
 .B \-h
 (halt) flag.
 .TP
+.B \-B
+Hand the processor to the firmware's loader, as
+.I bootloader
+does.
+.TP
+.B \-y
+Confirm a request for the loader.  Without it,
+.B \-B
+and
+.I bootloader
+refuse and exit with status 64; a caller other than the super-user
+exits with status 77.  Both refusals precede every log entry, sync and
+signal.  The option has no effect on the other modes.
+.TP
 .B \-R
 Tells the kernel to use the compiled in root device.  Normally the system
 uses the device from which it was booted as the root/swap/pipe/dump device.
@@ -123,6 +137,8 @@ and
 are synonymous with ``\fBreboot \-h\fP'' and ``\fBreboot \-f\fP'', respectively.
 .PP
 .I Bootloader
+(root only, and only with
+.BR \-y )
 syncs the disks, then hands the processor to the firmware's loader
 instead of restarting the system.  On the Raspberry Pi Pico this is the
 boot ROM's USB loader: the board reappears on the host as the RPI-RP2

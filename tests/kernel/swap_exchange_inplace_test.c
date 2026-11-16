@@ -260,8 +260,9 @@ void setrq(struct proc *process) { (void)process; }
 void psignal(struct proc *process, int signal) { (void)process; (void)signal; }
 void wakeup(caddr_t channel) { (void)channel; }
 void swap_cursor_publish(size_t cursor) { (void)cursor; }
+static uint32_t storage_counts[STORAGE_METRIC_COUNT];
 void storage_note(enum storage_metric metric, uint32_t amount)
-{ (void)metric; (void)amount; }
+{ storage_counts[metric] += amount; }
 /* The executable yields the clean text the swap image leaves out. */
 int
 exec_text_restore(struct proc *process, caddr_t target, size_t length)
@@ -373,7 +374,14 @@ successful_case(size_t outgoing_data, size_t outgoing_stack,
     if (outgoing_data == incoming_data && outgoing_stack == incoming_stack &&
         outgoing_text == incoming_text)
         HK_CHECK(panic_reservation.span == panic_reservation.exchange_span);
+    bzero(storage_counts, sizeof(storage_counts));
     run_exchange();
+    /* A finished exchange is one attempt and one completed flash swap-out. */
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_ATTEMPTS] == 1);
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS] == 1);
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_FLASH_SPAN_01 +
+        (outgoing_span / SWAP_IMAGE_ALIGN > 12 ? 12 :
+        outgoing_span / SWAP_IMAGE_ALIGN) - 1] == 1);
     HK_CHECK(text_restores == (incoming_text != 0 ? 1u : 0u));
     HK_CHECK(same_bytes((unsigned char *)__user_data_start,
         expected_in_data, incoming_data));

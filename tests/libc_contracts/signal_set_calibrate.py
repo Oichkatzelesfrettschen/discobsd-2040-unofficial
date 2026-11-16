@@ -70,10 +70,24 @@ def main():
         (work / (name + ".build.log")).write_bytes(build.stdout + build.stderr)
         if build.returncode or build.stderr:
             raise RuntimeError("control fails warning-clean compilation: " + name)
-        result = subprocess.run([str(binary)], capture_output=True, timeout=30, check=False)
+        # The sanitizer runtime ends a rejected control by exit status on
+        # Linux and by abort() on Darwin unless told otherwise, and an
+        # inherited UBSAN_OPTIONS could change either; the control's
+        # environment fixes the exit so one expected status holds on both.
+        result = subprocess.run(
+            [str(binary)],
+            capture_output=True,
+            timeout=30,
+            check=False,
+            env={**os.environ, "UBSAN_OPTIONS": "abort_on_error=0:exitcode=1"},
+        )
         (work / (name + ".run.log")).write_bytes(result.stdout + result.stderr)
-        if result.returncode != (1 if marker else 0):
-            raise RuntimeError("control exit differs: " + name)
+        expected = 1 if marker else 0
+        if result.returncode != expected:
+            raise RuntimeError(
+                "control exit differs: %s: expected %d, got %d"
+                % (name, expected, result.returncode)
+            )
         if marker and marker.encode() not in result.stderr:
             raise RuntimeError("control misses its named rejection: " + name)
         if not marker and (result.stderr or b"31981/31981 pass" not in result.stdout):

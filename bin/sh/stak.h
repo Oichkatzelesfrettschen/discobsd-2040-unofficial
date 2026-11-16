@@ -14,8 +14,11 @@
 #define relstak()	(staktop-stakbot)
 #define absstak(x)	(stakbot+Rcheat(x))
 #define setstak(x)	(staktop=absstak(x))
-#define pushstak(c)	(*staktop++=(c))
-#define zerostak()	(*staktop=0)
+/* Grow the break before a store at p reaches it; see brkroom() in stak.c. */
+#define stakroom(p)	((p) >= brkend ? brkroom((p) + 1) : (void)0)
+#define stakput(p, c)	(stakroom(p), *(p)++ = (c))
+#define pushstak(c)	stakput(staktop, c)
+#define zerostak()	(stakroom(staktop), *staktop = 0)
 
 /* Used to address an item left on the top of
  * the stack (very temporary)
@@ -47,6 +50,9 @@ extern char * endstak(char *argp);
  * allocate the space.
  */
 extern char * cpystak(char *x);
+
+/* Grow the break to cover every byte below the given address */
+extern void brkroom(char *top);
 
 /* Allocate given ammount of stack space */
 extern char * getstak(int asize);

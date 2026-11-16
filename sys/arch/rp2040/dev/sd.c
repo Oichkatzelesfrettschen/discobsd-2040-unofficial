@@ -163,7 +163,7 @@ static const struct sdspi_ops sd_ops = {
 	sd_xfer, sd_select, sd_speed, sd_micros
 };
 
-static struct sdspi sdcard = { &sd_ops, SD_NONE, 0 };
+static struct sdspi sdcard = { &sd_ops, SD_NONE, 0, 0 };
 static struct diskpart sdpt[MAXPARTITIONS + 1];	/* [0] is the whole card. */
 
 /*
@@ -235,6 +235,23 @@ sd_replaced(void)
 }
 
 /*
+ * The four 16-byte MBR entries at byte 446 of sector 0 are copied into
+ * struct diskpart as they lie, so the layout of the structure and the byte
+ * order of the target must match the on-disk entry: type at byte 4, start
+ * at byte 8 and length at byte 12, both little-endian 32-bit sector
+ * counts. A 16-byte structure of one status byte, three bytes, one type
+ * byte, three bytes and two 32-bit counts has no padding, so its size fixes
+ * those offsets. A byte-by-byte decode costs 64 bytes more flash on the
+ * PSRAM PicoCalc kernel (measured), so the assertions below hold the
+ * assumption at build time instead.
+ */
+#if !defined(__BYTE_ORDER__) || __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+#error "sd_partitions() copies little-endian MBR entries"
+#endif
+_Static_assert(sizeof(u_int) == 4 && sizeof(struct diskpart) == 16,
+    "struct diskpart is the 16-byte MBR partition entry");
+
+/*
  * Read the partition table from sector 0, keeping entries inside the card.
  * The table is built in a local copy and replaces sdpt only when the read
  * succeeds, so a failed DIOCREINIT leaves the mappings of open partitions
@@ -244,7 +261,7 @@ static int
 sd_partitions(void)
 {
 	struct buf *bp = geteblk();
-	u_short *w = (u_short *)bp->b_addr;
+	const u_char *b = (const u_char *)bp->b_addr;
 	struct diskpart pt[MAXPARTITIONS + 1];
 	int i, error = EIO;
 
@@ -252,8 +269,8 @@ sd_partitions(void)
 	pt[0].dp_nsectors = sdcard.nsectors;
 	if (sdspi_read(&sdcard, 0, (u_char *)bp->b_addr) == SDE_OK) {
 		error = 0;
-		if (w[255] == MBR_MAGIC)
-			bcopy(&w[223], &pt[1], 64);
+		if ((b[510] | (u_int)b[511] << 8) == MBR_MAGIC)
+			bcopy(b + 446, &pt[1], 64);
 		for (i = 1; i <= MAXPARTITIONS; i++) {
 			if (pt[i].dp_offset > sdcard.nsectors ||
 			    pt[i].dp_nsectors >
@@ -285,6 +302,35 @@ sd_setup(void)
 	return sd_partitions();
 }
 
+/*
+ * The partition sdrootattach() selected and the card it sat on. sdrootattach()
+ * closes the card, so the root open brings it up again; the card-detect
+ * state restarts there and cannot say whether the medium changed in
+ * between. sdopen() therefore requires the slot's type and extent and the
+ * card's type and capacity to read as they did at selection. A pulled and
+ * replaced card with the same layout and capacity is not distinguishable
+ * by these fields. The first successful open of the slot consumes the
+ * record (sdroot.slot returns to 0, the whole card, which is never a root).
+ */
+static struct {
+	int	slot;		/* MBR slot chosen; 0 when none is pending. */
+	u_int	type;		/* The slot's dp_type, dp_offset, dp_nsectors. */
+	u_int	offset;
+	u_int	nsectors;
+	u_int	cardtype;	/* sdcard.type and sdcard.nsectors. */
+	u_int	cardsectors;
+} sdroot;
+
+static int
+sd_root_bound(int part)
+{
+	return sdpt[part].dp_type == sdroot.type &&
+	    sdpt[part].dp_offset == sdroot.offset &&
+	    sdpt[part].dp_nsectors == sdroot.nsectors &&
+	    sdcard.type == sdroot.cardtype &&
+	    sdcard.nsectors == sdroot.cardsectors;
+}
+
 int
 sdopen(dev_t dev, int flag __unused, int mode)
 {
@@ -301,6 +347,14 @@ sdopen(dev_t dev, int flag __unused, int mode)
 		return EIO;
 	if (sdpt[part].dp_nsectors == 0)
 		return ENXIO;
+	if (sdroot.slot != 0 && part == sdroot.slot) {
+		if (!sd_root_bound(part)) {
+			if (sd_openpart == 0)
+				sdcard.type = SD_NONE;
+			return EIO;
+		}
+		sdroot.slot = 0;
+	}
 	sd_open[sd_kind(mode)] |= 1U << part;
 	return 0;
 }
@@ -521,7 +575,7 @@ int
 sddump(dev_t dev, const struct dump_span *span, u_int nspan,
     u_int image, u_int when)
 {
-	struct sd_dumpdev dd = { { &sd_ops, SD_NONE, 0 }, 0 };
+	struct sd_dumpdev dd = { { &sd_ops, SD_NONE, 0, 0 }, 0 };
 	u_char tab[MAXPARTITIONS * 16 + 2];
 	struct diskpart dp;
 	int i, error;
@@ -598,7 +652,8 @@ struct driver sddriver = {
  * when there is none rather than open fl0. main() copied rootdev into
  * pipedev before services attach, so pipedev moves with it. The card state
  * returns to closed afterwards; the root mount opens it again through
- * sdopen(). A kernel started any other way keeps the configured root.
+ * sdopen(), which refuses a slot or card that no longer matches the record
+ * kept in sdroot. A kernel started any other way keeps the configured root.
  */
 void
 sdrootattach(void)
@@ -608,6 +663,7 @@ sdrootattach(void)
 	if (!flash_loader_started())
 		return;
 	printf("root: started by the PicoCalc loader, root on sd0\n");
+	bzero(&sdroot, sizeof(sdroot));
 	if (board_id() == BOARD_ID_PICOCALC && (error = sd_setup()) == 0) {
 		for (i = 1; i <= MAXPARTITIONS; i++) {
 			if (sdpt[i].dp_nsectors != 0 &&
@@ -615,6 +671,12 @@ sdrootattach(void)
 				break;
 		}
 		if (i <= MAXPARTITIONS) {
+			sdroot.type = sdpt[i].dp_type;
+			sdroot.offset = sdpt[i].dp_offset;
+			sdroot.nsectors = sdpt[i].dp_nsectors;
+			sdroot.cardtype = sdcard.type;
+			sdroot.cardsectors = sdcard.nsectors;
+			sdroot.slot = i;
 			rootdev = pipedev = makedev(SD_BMAJOR, i);
 			printf("root: sd0%c\n", 'a' + i - 1);
 		} else

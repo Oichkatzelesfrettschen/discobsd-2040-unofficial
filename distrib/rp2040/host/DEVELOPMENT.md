@@ -118,6 +118,57 @@ picotool's own wait after a forced reboot is shorter than macOS takes to
 enumerate the boot ROM, which is why `picotool info -f` fails there and
 the two-step form does not.
 
+### Two boards on one host
+
+A bare Pico and a PicoCalc both enumerate as 2e8a:000a with the serial
+string `rp2040`; the `/dev/serial/by-id` link names whichever enumerated
+last, and a picotool call without `--bus` and `--address` may act on either
+board. `discobsd-flash` and `discobsd-connect` therefore stop before any
+reset, load or terminal launch when more than one 2e8a device (kernel or
+BOOTSEL) is attached and no board is named, and print each candidate's USB
+port, product id, bus and address. Name the board by USB port, the path
+under `/sys/bus/usb/devices` (`1-3`, or `1-2.4` behind a hub):
+
+    discobsd-flash --usb-port 1-3 sys/arch/rp2040/compile/PICO/unix.uf2
+    DISCOBSD_USB_PORT=1-3 discobsd-connect
+
+With a port, every picotool call carries the `--bus` and `--address` that the
+port's sysfs node holds at that moment, because the address changes at each
+re-enumeration (kernel, BOOTSEL, kernel). BOOTSEL is recognized from the
+port's product id (0003), the volume unmounted is the one behind that port,
+and the run stops before the next step if a device on another port changes
+address or product. `discobsd-connect` opens the tty of the port's
+interface 0, by its `/dev/serial/by-path` name when udev made one, because
+`/dev/ttyACMn` is renumbered at each re-enumeration. A device path argument to `discobsd-connect` names the board
+itself and skips the check. An empty `--usb-port` operand is an error; an empty
+`DISCOBSD_USB_PORT` counts as unset. Both tools repeat the one-board check
+before each picotool call, before any unmount and before the terminal launch,
+so a board that appears mid-run stops the run. `tests/test_board_select.py` gates both tools with
+a stub picotool and a fake sysfs (`DISCOBSD_SYSFS_USB`, `DISCOBSD_DEVFS`);
+the per-port unmount runs only on a real board, because a fake sysfs has no
+block nodes. Limit: the selector and the refusal read Linux sysfs. On macOS and
+in `discobsd-flash.ps1` the tools address picotool's one device as before and
+cannot tell a second board apart; flash with one board attached there.
+`discobsd-term` and `discobsd-web` apply the same rule through
+`ports.find_board()`: `--usb-port PORT` or `DISCOBSD_USB_PORT` names the
+board, the flag wins over the variable, and with more than one 2e8a device and
+none named they exit 2 with the candidate ports before opening a serial line.
+A named port that holds no 2e8a device, or a malformed port, exits 1;
+`discobsd-term` waits when the named port exists but its console has not
+re-enumerated yet. `DISCOBSD_PORT` (a device path) and a device path argument
+to `discobsd-web` name the board itself and skip the check, and `discobsd-web`
+refuses a device path together with `--usb-port`. Both tools resolve the selector again at every
+serial open (`discobsd-web` per browser session, `discobsd-term` per
+reattach), because `/dev/ttyACMn` is renumbered when the boards re-enumerate;
+only a device path is used as given. `discobsd-term --list` still
+prints every board. `discobsd-link` only redirects to a URL and opens no board,
+so it takes no selector; `discobsd-console up` carries `DISCOBSD_USB_PORT` from its own
+environment to `discobsd-web`: a detached web inherits it, and with the
+systemd user units it is written to `web.env` (the unit's EnvironmentFile)
+and removed from that file when the variable is unset; a value that is not a
+USB port path makes `up` exit 1 before it writes anything.
+`tests/test_tool_usb_port.py` gates both tools against the same fake sysfs.
+
     discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2       # kernel only
     discobsd-flash distrib/rp2040/flash.uf2                   # root only
     discobsd-flash sys/arch/rp2040/compile/PICO/unix.uf2 distrib/rp2040/flash.uf2
@@ -132,14 +183,75 @@ calculator to `full` (`sys/arch/rp2040/doc/PROFILES.md`):
 
 `BOARD=PICO` writes `distrib/rp2040/flash.uf2`; any other board writes
 `distrib/rp2040/flash-${BOARD}.uf2` (and `sdcard-${BOARD}.img`), so the
-images of different boards coexist. `BOARD=PICOCALC_PSRAM` pairs the same
-root profile with the PicoCalc kernel that carries the PSRAM swap driver and
-writes `flash-PICOCALC_PSRAM.uf2`.
+images of different boards coexist. `UNION_KERNEL` selects the PicoCalc
+kernel that receives a board's descriptor: `PICOCALC` (the default: PSRAM
+swap, every device option, `kern.systrace` and `kern.capacity`) writes
+`unix[-BOARD].uf2`, `PICOCALC_LEAN` (without the device and diagnostic
+options) writes `unix[-BOARD]-LEAN.uf2` and `PICOCALC_LEAN_DIAG`
+(`PICOCALC_LEAN` plus the diagnostic options) writes
+`unix[-BOARD]-LEAN-DIAG.uf2`, so the three UF2s sit side by side. With
+`BOARD=PICOCALC` a lean `UNION_KERNEL` also selects the `picocalc-lean`
+root, which leaves out `/dev/lcdgfx` and the `ridge` platformer that
+need the `DEV_LCDGFX` driver the lean kernels omit, and writes
+`sdcard-PICOCALC-LEAN.img`, `flash-PICOCALC-LEAN.bin` and
+`flash-PICOCALC-LEAN.uf2` beside the full PicoCalc root; an explicit
+`PROFILE` overrides the pairing.
     discobsd-flash --bootsel      # for a copy by hand; then --eject
 
 `IMAGE_WITH` and `IMAGE_WITHOUT` add and remove closures for one build, for
 example `IMAGE_WITHOUT="toolchain toolchainlib"`; `bmake MACHINE=rp2040
 list-closures` prints the names and their measured cost.
+
+### Reading a silent board's kernel state: discobsd-sramdump
+
+A forced reset into the boot ROM leaves the kernel's RAM intact (measured on
+a bare Pico: after `picotool reboot -u -f`, a saved SRAM image decoded to the
+hostname, clock, USB driver state and process table that `ps` had shown
+before the reset). `discobsd-sramdump` turns that into two steps:
+
+    discobsd-sramdump capture --usb-port 1-3 --force-reset --out silent-1
+    discobsd-sramdump decode sys/arch/rp2040/compile/PICO/unix.elf \
+        silent-1/sram.bin --flash silent-1/flash.bin
+
+`capture` ends the running session, so it takes more than the other tools:
+`--usb-port` (or `DISCOBSD_USB_PORT`) is mandatory even with one board
+attached, and `--force-reset` must be present. Without `--force-reset` it
+prints the exact picotool calls it would make on which port and sends nothing.
+It reads the bus and address of the named port from sysfs before every
+picotool call (`reboot -u -f`, then `save -r 0x20000000 0x20042000 sram.bin`
+and `save -r 0x10000000 0x10020000 flash.bin` after the port shows product
+0003), stops before the next call if a 2e8a device on another port changes
+address or product, and leaves the board in the boot ROM unless `--resume`
+restarts it with `picotool reboot`, after unmounting the named port's RPI-RP2
+volume (only block devices under that port's sysfs node; a failed unmount
+stops the run); a restart discards the RAM state. A boot ROM that never
+shows product 0003 stops the run with advice to keep the board powered and
+not replug it, since a power cycle destroys the SRAM. An
+output file that exists, or a picotool save of the wrong length, stops the
+run. Linux only, like `--usb-port` elsewhere.
+
+`decode` needs no board. It reads variable and structure layouts from the
+DWARF of the kernel ELF that ran (build with `-g`; `pip install
+"discobsd-host[sramdump]"` or the distribution's pyelftools), so a wrong ELF
+decodes to plausible garbage. With `--flash` it first compares the `version`
+string bytes in the saved flash with the ELF's own and exits 1 without
+decoding on a mismatch; without `--flash` it warns that identity is
+unchecked. The version string names the board, build number and build time,
+so two builds that share all three pass the same check. It prints the hostname,
+clock, `runin`/`runout`, the console tty's `t_state` bits by name, the
+`usbd` driver fields, the `machdep.usb_*` counters, and for each process
+`p_stat`, `p_flag` by name, and the wait channel as the nearest symbol at or
+below it. It also prints a `FLAG:` line when `TS_BUSY` is set in
+`usbttys[0].t_state` while `usbd.tx_busy` is 0, the tty counting output in
+flight that the driver does not hold. An image whose length is not 270,336
+bytes is rejected, because an unread tail would otherwise decode as zeros.
+
+`tests/test_sramdump.py` gates both subcommands: decode against a synthesized
+SRAM image over a real kernel ELF (the first `sys/arch/rp2040/compile/*/unix.elf`
+with the USB console symbols, or `DISCOBSD_TEST_KERNEL_ELF`; the decode cases
+skip when none exists), capture against a fake sysfs and a stub picotool, and a
+mutant for each rule. The capture path has run only against that stub; the
+exact `save` argument order on a board is not yet observed.
 
 ### Under WSL: keeping the board attached across resets
 

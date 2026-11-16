@@ -96,6 +96,7 @@ sched()
             splx (s);
 #ifdef SWAPRAM
             storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
+            storage_note (STORAGE_SWAPRAM_SCHED_REFUSALS, 1);
 #endif
             if (refusals == 0)
                 bzero (refused, sizeof (refused));

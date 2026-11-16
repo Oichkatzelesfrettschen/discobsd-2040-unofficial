@@ -188,8 +188,16 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
             if ((INODE_FILESYSTEM(ip)->fs_flags & MNT_ASYNC) == 0)
                 ioflag |= IO_SYNC;
             break;
-        case IFLNK:
         case IFBLK:
+            /*
+             * A descriptor opened for writing at level 0 outlives the rise
+             * of the level, so the swap blocks are asked again at every
+             * transfer, as swstrategy() asks for the sw alias.
+             */
+            if (securelevel > 0 && blkoverlap(swapdev, dev))
+                return (EPERM);
+            break;
+        case IFLNK:
         case IFCHR:
             break;
         default:
@@ -344,6 +352,18 @@ complete:
             }
         }
     }
+    /*
+     * A synchronous write returns after the device has made it durable.
+     * The block above covers files and directories through ufs_sync(); a
+     * block device node has no filesystem to sync, so its writes, which
+     * bwrite() has completed in the driver, take the device's own
+     * checkpoint (bdev_checkpoint(), DIOCCHECKPOINT) before the return. A
+     * driver without the command answers 0, and a checkpoint failure is the
+     * write's error.
+     */
+    if (!error && uio->uio_rw == UIO_WRITE && (ioflag & IO_SYNC) &&
+        type == IFBLK)
+        error = bdev_checkpoint(dev);
     return (error);
 }
 
@@ -655,6 +675,14 @@ openi(register struct inode *ip, int mode)
         error = securelevel >= 2 && (mode & FWRITE) && isdisk(dev, IFBLK) ? EPERM : 0;
         if (error == 0 && securelevel > 0)
             error = ufs_mountedon(dev);
+        /*
+         * The swap blocks are as closed to a process write as the sw alias
+         * of swap.c: a node of swapdev's unit, fl1 on a flash kernel, is
+         * not mounted and isdisk() refuses it only at level 2.
+         */
+        if (error == 0 && securelevel > 0 && (mode & FWRITE) &&
+            blkoverlap(swapdev, dev))
+            error = EPERM;
         if (error) {
             bdevunlock(ip);
             return error;

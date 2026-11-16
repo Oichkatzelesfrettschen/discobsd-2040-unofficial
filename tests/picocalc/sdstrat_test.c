@@ -76,14 +76,16 @@ static unsigned char ebuf_data[DEV_BSIZE];
 static int failures;
 
 static int init_fail;		/* sdspi_init() finds no card. */
+static unsigned init_type = SD_HC;		/* The card type it reports. */
+static unsigned init_sectors = CARD_SECTORS;	/* Its capacity; reads past CARD_SECTORS fail. */
 
 int
 sdspi_init(struct sdspi *sd)
 {
 	if (init_fail)
 		return SDE_NOCARD;
-	sd->type = SD_HC;
-	sd->nsectors = CARD_SECTORS;
+	sd->type = (unsigned char)init_type;
+	sd->nsectors = init_sectors;
 	return SDE_OK;
 }
 
@@ -1122,6 +1124,173 @@ root_attach(const char *name)
 	return panicked;
 }
 
+/*
+ * The owner's card layout: a FAT32 entry, a Linux entry, then the b7 entry
+ * in slot 3 at sector 50 for 10 sectors.
+ */
+static void
+owner_layout(void)
+{
+	fill_card();
+	set_type(1, 0x0c);
+	set_type(2, 0x83);
+	set_type(3, PTYPE_BSDFFS);
+	memcpy(&card[0][446 + 32 + 8], &(unsigned){ 50 }, 4);
+	memcpy(&card[0][446 + 32 + 12], &(unsigned){ 10 }, 4);
+}
+
+/*
+ * The root open must find the partition and the card sdrootattach() chose.
+ * Each case changes one thing between the selection and the open, as a card
+ * swapped or rewritten in that interval would, and the open refuses with EIO
+ * and leaves the card closed; the unchanged card then opens, because the
+ * refusal keeps the record.
+ */
+static void
+root_binding_case(const char *name, void (*change)(void), void (*undo)(void))
+{
+	char what[96];
+
+	owner_layout();
+	snprintf(what, sizeof(what), "%s: attach", name);
+	check(what, root_attach(name), 0);
+	change();
+	snprintf(what, sizeof(what), "%s: root open refused", name);
+	check(what, sdopen(rootdev, 0, S_IFBLK), EIO);
+	snprintf(what, sizeof(what), "%s: card closed after refusal", name);
+	check(what, (long)sdsize(makedev(SD_BMAJOR, 0)), 0);
+	undo();
+	snprintf(what, sizeof(what), "%s: unchanged card opens", name);
+	check(what, sdopen(rootdev, 0, S_IFBLK), 0);
+	sdclose(rootdev, 0, S_IFBLK);
+}
+
+static void
+change_type(void)
+{
+	set_type(3, 0x83);
+}
+
+static void
+undo_type(void)
+{
+	set_type(3, PTYPE_BSDFFS);
+}
+
+static void
+change_offset(void)
+{
+	memcpy(&card[0][446 + 32 + 8], &(unsigned){ 51 }, 4);
+}
+
+static void
+undo_offset(void)
+{
+	memcpy(&card[0][446 + 32 + 8], &(unsigned){ 50 }, 4);
+}
+
+static void
+change_length(void)
+{
+	memcpy(&card[0][446 + 32 + 12], &(unsigned){ 11 }, 4);
+}
+
+static void
+undo_length(void)
+{
+	memcpy(&card[0][446 + 32 + 12], &(unsigned){ 10 }, 4);
+}
+
+static void
+change_capacity(void)
+{
+	init_sectors = 2 * CARD_SECTORS;
+}
+
+static void
+undo_capacity(void)
+{
+	init_sectors = CARD_SECTORS;
+}
+
+static void
+change_card_type(void)
+{
+	init_type = SD_V2;
+}
+
+static void
+undo_card_type(void)
+{
+	init_type = SD_HC;
+}
+
+static void
+root_binding_cases(void)
+{
+	root_binding_case("bind type", change_type, undo_type);
+	root_binding_case("bind start", change_offset, undo_offset);
+	root_binding_case("bind length", change_length, undo_length);
+	root_binding_case("bind capacity", change_capacity, undo_capacity);
+	root_binding_case("bind card type", change_card_type, undo_card_type);
+
+	/* The open that matched consumed the record: the slot opens freely. */
+	owner_layout();
+	check("bind consumed: attach", root_attach("bind consumed"), 0);
+	check("bind consumed: root opens", sdopen(rootdev, 0, S_IFBLK), 0);
+	sdclose(rootdev, 0, S_IFBLK);
+	change_type();
+	check("bind consumed: later open", sdopen(rootdev, 0, S_IFBLK), 0);
+	sdclose(rootdev, 0, S_IFBLK);
+
+	/* The whole card and the other slots are not bound to the record. */
+	owner_layout();
+	check("bind others: attach", root_attach("bind others"), 0);
+	change_type();
+	check("bind others: whole card", sdopen(makedev(SD_BMAJOR, 0), 0, S_IFBLK), 0);
+	sdclose(makedev(SD_BMAJOR, 0), 0, S_IFBLK);
+	check("bind others: slot 1 opens", sdopen(makedev(SD_BMAJOR, 1), 0, S_IFBLK), 0);
+	sdclose(makedev(SD_BMAJOR, 1), 0, S_IFBLK);
+	undo_type();
+	check("bind others: root opens", sdopen(rootdev, 0, S_IFBLK), 0);
+	sdclose(rootdev, 0, S_IFBLK);
+}
+
+/*
+ * Every byte of an MBR entry's status, type, start and length reaches the
+ * table: the card reports a capacity large enough to hold an extent whose
+ * four bytes all differ, so a decode that drops or moves one byte shows in
+ * DIOCGETPART.
+ */
+static void
+mbr_byte_cases(void)
+{
+	static const unsigned char entry[16] = {
+		0x80, 0, 0, 0, 0x83, 0, 0, 0,
+		0x01, 0x02, 0x03, 0x04, 0x04, 0x03, 0x02, 0x01
+	};
+	struct diskpart dp;
+
+	fill_card();
+	memcpy(&card[0][446 + 48], entry, sizeof(entry));
+	init_sectors = 0x10000000;
+	check("mbr bytes: slot 4 opens", sdopen(4, 0, S_IFBLK), 0);
+	check("mbr bytes: getpart", sdioctl(4, DIOCGETPART, (caddr_t)&dp, 0), 0);
+	check("mbr bytes: status", dp.dp_status, 0x80);
+	check("mbr bytes: type", dp.dp_type, 0x83);
+	check("mbr bytes: start", (long)dp.dp_offset, 0x04030201L);
+	check("mbr bytes: length", (long)dp.dp_nsectors, 0x01020304L);
+	sdclose(4, 0, S_IFBLK);
+	init_sectors = CARD_SECTORS;
+
+	/* Without the 0x55 0xaa signature the table is empty. */
+	fill_card();
+	card[0][511] = 0;
+	check("mbr signature: slot 1 absent", sdopen(1, 0, S_IFBLK), ENXIO);
+	check("mbr signature: whole card opens", sdopen(0, 0, S_IFBLK), 0);
+	sdclose(0, 0, S_IFBLK);
+}
+
 static void
 root_cases(void)
 {
@@ -1137,18 +1306,15 @@ root_cases(void)
 	 * then the b7 entry in slot 3.
 	 */
 	test_loader = 1;
-	fill_card();
-	set_type(1, 0x0c);
-	set_type(2, 0x83);
-	set_type(3, PTYPE_BSDFFS);
-	memcpy(&card[0][446 + 32 + 8], &(unsigned){ 50 }, 4);
-	memcpy(&card[0][446 + 32 + 12], &(unsigned){ 10 }, 4);
+	owner_layout();
 	check("slot 3: no panic", root_attach("slot 3"), 0);
 	check("slot 3: rootdev", (long)rootdev, (long)makedev(SD_BMAJOR, 3));
 	check("slot 3: pipedev", (long)pipedev, (long)makedev(SD_BMAJOR, 3));
 	check("slot 3: root opens", sdopen(rootdev, 0, S_IFBLK), 0);
 	check("slot 3: root size", (long)sdsize(rootdev), 5);
 	sdclose(rootdev, 0, S_IFBLK);
+
+	root_binding_cases();
 
 	/* The first b7 entry wins when two are present. */
 	fill_card();
@@ -1162,6 +1328,10 @@ root_cases(void)
 	check("no b7: panic", root_attach("no b7"), 1);
 	check("no b7: message", panic_message != NULL &&
 	    strcmp(panic_message, "root: no partition of type b7 on sd0") == 0, 1);
+	/* The record of the earlier selection does not outlive the failure. */
+	check("no b7: stale record cleared",
+	    sdopen(makedev(SD_BMAJOR, 1), 0, S_IFBLK), 0);
+	sdclose(makedev(SD_BMAJOR, 1), 0, S_IFBLK);
 
 	/* No card in the socket. */
 	fill_card();
@@ -1195,6 +1365,7 @@ main(void)
 	test_board = BOARD_ID_PICOCALC;
 	check("probe on a PicoCalc", sddriver.probe(NULL), 1);
 
+	mbr_byte_cases();
 	root_cases();
 
 	fill_card();

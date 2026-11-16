@@ -58,7 +58,7 @@ setthetime (register struct timeval *tv)
  * the time-of-day.
  */
 void
-gettimeofday()
+gettimeofday(void)
 {
     register struct a {
         struct  timeval *tp;
@@ -89,7 +89,7 @@ gettimeofday()
 }
 
 void
-settimeofday()
+settimeofday(void)
 {
     register struct a {
         struct  timeval *tv;
@@ -116,7 +116,7 @@ settimeofday()
 }
 
 void
-adjtime()
+adjtime(void)
 {
     register struct a {
         struct timeval *delta;
@@ -208,7 +208,7 @@ tvticks(struct timeval *tv, int *ticks)
 }
 
 void
-getitimer()
+getitimer(void)
 {
     register struct a {
         u_int   which;
@@ -258,7 +258,7 @@ getitimer()
 }
 
 void
-setitimer()
+setitimer(void)
 {
     register struct a {
         u_int   which;
@@ -289,15 +289,25 @@ setitimer()
         sizeof (struct itimerval));
     if (u.u_error)
         return;
-    tick_limit = LONG_MAX;
+    /*
+     * A value or interval the timer cannot hold is clamped, not refused.
+     * ITIMER_REAL adds the deadline to monosec, so its limit leaves room
+     * for 34 years of uptime below LONG_MAX; the other timers count ticks
+     * in a long.
+     */
+    tick_limit = LONG_MAX / 2;
     if (uap->which != ITIMER_REAL)
-        tick_limit /= hz;
+        tick_limit = LONG_MAX / hz;
     tv = &aitv.it_interval;
     n = 2;
     do {
-        if (itimerfix(tv) || tv->tv_sec > tick_limit ||
-            (tv->tv_usec && tv->tv_sec == tick_limit))
+        if (itimerfix(tv))
             goto bad;
+        if (tv->tv_sec > tick_limit ||
+            (tv->tv_usec && tv->tv_sec == tick_limit)) {
+            tv->tv_sec = tick_limit;
+            tv->tv_usec = 0;
+        }
         tv = &aitv.it_value;
     } while (--n);
     vsec = tvticks(&aitv.it_value, &vticks);
@@ -341,11 +351,15 @@ bad:
  * Check that a proposed value to load into the .it_value or
  * .it_interval part of an interval timer is acceptable.  A caller that
  * counts ticks rounds a nonzero value up to one tick (see tvticks()).
+ * The seconds are the unsigned count of the kernel's layout, which holds a
+ * negative userland value as 2^31 or more, so the bound is the largest
+ * tv_sec that layout carries; a caller clamps a value above what it can
+ * hold (setitimer(), select1()).
  */
 int
 itimerfix(struct timeval *tv)
 {
-    if (tv->tv_sec < 0 || tv->tv_sec > 100000000L ||
+    if (tv->tv_sec < 0 || (unsigned long)tv->tv_sec > 0x7fffffffUL ||
         tv->tv_usec < 0 || tv->tv_usec >= 1000000L)
         return (EINVAL);
     return (0);

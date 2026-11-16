@@ -274,10 +274,21 @@ UFS_DISK_EXTRA_MUTANTS+= device-inheritance-unmasked sys_inode \
 	device-block-policy-raise-ignored sys_inode \
 	device-raw-policy-raise-ignored sys_inode \
 	device-reuse-state-kept ufs_inode
+UFS_DISK_EXTRA_MUTANTS+= device-swapdev-write-admitted sys_inode \
+	device-swapdev-level-one-ignored sys_inode \
+	device-swapdev-held-descriptor-writes sys_inode
+UFS_DISK_EXTRA_MUTANTS+= device-checkpoint-omitted ufs_syscalls2 \
+	device-checkpoint-error-hidden ufs_syscalls2 \
+	device-checkpoint-unsupported-fatal ufs_syscalls2 \
+	device-checkpoint-skipped-on-error ufs_syscalls2 \
+	device-fsync-represented-checkpoint-omitted ufs_syscalls2 \
+	device-sync-write-checkpoint-omitted sys_inode \
+	device-sync-write-checkpoint-error-hidden sys_inode \
+	device-async-write-checkpoints sys_inode
 UFS_DISK_CONF_MUTANTS=	ignore-unit ignore-major touching start-only \
 			whole-device-disjoint failed-query-disjoint device-unit-guard-exact-only
 UFS_DISK_FLASH_MUTANTS=	reinit-unguarded reinit-counts-whole-device \
-			reinit-first-partition-only
+			reinit-first-partition-only checkpoint-ioctl-omitted
 .if ${_HOST_OSNAME} == "Darwin"
 FUTIMES_LDFLAGS=	-Wl,-dead_strip
 .else
@@ -400,7 +411,7 @@ FIONREAD_IOCTL_FUNCTION=	fionread_ioctl_function.c
 FIONREAD_INODE_FUNCTION=	fionread_inode_function.c
 FIONREAD_CFLAGS=	-ffunction-sections -fdata-sections
 # sys_generic.c classifies LCDIOC_SETGLYPH only where PICOCALC_ENABLED is
-# defined, as in the PICOCALC and PICOCALC_PSRAM kernels; the PICO kernels
+# defined, as in the PICOCALC kernels; the PICO kernels
 # forward the command to the provider like any unknown one.
 FIONREAD_DEFS=	-DPICOCALC_ENABLED
 FIONREAD_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 ${FIONREAD_DEFS} \
@@ -438,6 +449,8 @@ FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/stdint.h ${TOPSRC}/sys/sys/syscall_dispatch.h \
 	${TOPSRC}/sys/sys/syslimits.h ${TOPSRC}/sys/sys/systm.h \
 	${TOPSRC}/sys/sys/time.h ${TOPSRC}/sys/sys/tty.h \
+	${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+	${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h \
 	${TOPSRC}/sys/sys/ttychars.h ${TOPSRC}/sys/sys/ttydev.h \
 	${TOPSRC}/sys/sys/types.h ${TOPSRC}/sys/sys/uio.h \
 	${PORT_INCLUDE}/elf_machdep.h ${PORT_INCLUDE}/intr.h \
@@ -537,7 +550,8 @@ SHUTDOWN_CHECKS=	check-shutdown-mutants check-shutdown-order
 .endif
 
 SHUTDOWN_MUTANTS=	unconditional_success missing_recount ignored_errors \
-		cleared_latch bypassed_guards
+		cleared_latch bypassed_guards checkpoint_omitted \
+		checkpoint_before_sync checkpoint_error_dropped
 
 # The read, write, readv and writev entry points. rwuio() calls the port's
 # setjmp on u_qsave and sleep() longjmps back to it, so rwuio_setjmp.h maps
@@ -2745,6 +2759,100 @@ buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
 	    buffer_busy_test.c buffer_busy_kernel.o buffer_busy_capacity.o \
 	    buffer_busy_uarea.o hostkern_kern.c hostkern32.o
 
+# The USB console's transmit state across bus events. usb_console_extract.py
+# routes the production driver's register macros to the gate's controller
+# model; tty.c and tty_subr.c compile unchanged at the target's width, since
+# the clist pool's static assertion holds for a 32-bit block pointer only.
+# Modeled processes sleep on their own ucontext stacks (usb_console_sched.c).
+# Each mutant restores one lost wakeup -- a path that clears tx_busy and leaves
+# TS_BUSY set, or the low-water test ahead of the drain in usbstart() -- or one
+# lost halt-wait key (usbgetc polling an open tty), and must fail the fixed
+# sequence that names it. Four more break the transmit ring's accounting (peak,
+# drop count, drop saturation, occupancy across the unsigned index wrap) and
+# must fail the ring check that names each.
+USB_CONSOLE_SRC=	${TOPSRC}/sys/arch/rp2040/dev/usb.c
+USB_CONSOLE_DRIVER=	usb_console_driver.c
+# The target's char is unsigned; tty.c compares chars with 0377 and clang
+# rejects that comparison as tautological for a signed host char.
+USB_CONSOLE_KERN=	${KERN_CFLAGS} ${ILP32} -funsigned-char
+USB_CONSOLE_CFLAGS=	${USB_CONSOLE_KERN} -nostdinc -DUARTUSB_ENABLED \
+			-I${TOPSRC}/sys/arch/rp2040/dhara/compat
+USB_CONSOLE_OBJS=	usb_console_tty.o usb_console_clist.o \
+			usb_console_sched.o usb_console_hk_kern.o hostkern32.o
+USB_CONSOLE_MUTANTS=	recover-kick configure-kick setif-kick skip-controller-reset \
+			owake-before-drain halt-wait-open halt-wait-sticks \
+			pollc-late tx-peak-missing tx-drop-missing tx-drop-wraps tx-peak-wraps
+
+${USB_CONSOLE_DRIVER}: usb_console_extract.py ${USB_CONSOLE_SRC}
+	${PYTHON} usb_console_extract.py --source ${USB_CONSOLE_SRC} --output $@
+
+usb_console_tty.o: ${TTY_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${USB_CONSOLE_KERN} -c -o $@ ${TTY_SRC}
+
+usb_console_clist.o: ${CLIST_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${USB_CONSOLE_KERN} -c -o $@ ${CLIST_SRC}
+
+usb_console_hk_kern.o: hostkern_kern.c hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${USB_CONSOLE_KERN} -c -o $@ hostkern_kern.c
+
+usb_console_sched.o: usb_console_sched.c usb_console_sched.h
+	${HOST_CC} ${HARNESS_CFLAGS} ${ILP32} -c -o $@ usb_console_sched.c
+
+usb_console_test: usb_console_test.c usb_console_sched.h hostkern.h \
+    ${USB_CONSOLE_DRIVER} ${USB_CONSOLE_OBJS}
+	${HOST_CC} ${USB_CONSOLE_CFLAGS} -c -o usb_console_test.o \
+	    usb_console_test.c
+	${HOST_CC} ${ILP32} -o $@ usb_console_test.o ${USB_CONSOLE_OBJS}
+
+.for mutation in ${USB_CONSOLE_MUTANTS}
+usb_console_${mutation}.mutant.c: usb_console_mutate.py ${USB_CONSOLE_DRIVER}
+	${PYTHON} usb_console_mutate.py --source ${USB_CONSOLE_DRIVER} \
+	    --output $@ --mutation ${mutation}
+
+usb_console_${mutation}.mutant.test: usb_console_test.c \
+    usb_console_${mutation}.mutant.c ${USB_CONSOLE_OBJS}
+	${HOST_CC} ${USB_CONSOLE_CFLAGS} \
+	    -DUSB_CONSOLE_DRIVER='"usb_console_${mutation}.mutant.c"' \
+	    -c -o usb_console_${mutation}.mutant.o usb_console_test.c
+	${HOST_CC} ${ILP32} -o $@ usb_console_${mutation}.mutant.o \
+	    ${USB_CONSOLE_OBJS}
+.endfor
+
+check-usb-console:
+.if ${ILP32_OK} == "yes"
+check-usb-console: usb_console_test \
+    ${USB_CONSOLE_MUTANTS:@mutation@usb_console_${mutation}.mutant.test@}
+	./usb_console_test
+	@set -eu; for mutation in ${USB_CONSOLE_MUTANTS}; do \
+		if ./usb_console_$$mutation.mutant.test \
+		    >usb_console_$$mutation.mutant.out 2>&1; then status=0; \
+		else status=$$?; fi; \
+		case $$mutation in \
+		recover-kick) expected='FAIL echo, then its bulk IN returns with no completion' ;; \
+		configure-kick) expected='FAIL echo, then SET_CONFIGURATION' ;; \
+		setif-kick) expected='FAIL echo, then SET_INTERFACE' ;; \
+		skip-controller-reset) expected='FAIL controller reset' ;; \
+		owake-before-drain) expected='FAIL writer above the high-water mark across a bus reset' ;; \
+		halt-wait-open) expected='FAIL halt wait with the tty open' ;; \
+		pollc-late) expected='FAIL halt wait with a key typed during the halt message' ;; \
+		halt-wait-sticks) expected='FAIL key after the halt wait reaches the tty' ;; \
+		tx-peak-missing) expected='FAIL ring filled to its size' ;; \
+		tx-drop-missing) expected='FAIL ring overrun by two bytes' ;; \
+		tx-drop-wraps) expected='FAIL drop count at the signed limit' ;; \
+		tx-peak-wraps) expected='FAIL ring indexes across the unsigned wrap' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" usb_console_$$mutation.mutant.out >/dev/null; then \
+			cat usb_console_$$mutation.mutant.out >&2; \
+			echo "FAIL usb console $$mutation mutation rejection (exit $$status, expected 1 with '$$expected')" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS usb console $$mutation mutation rejected"; \
+	done
+.else
+	@echo "SKIP check-usb-console: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
+
 # Each mutant replaces ufs_bio.c for one build of the gate and must fail the
 # check that states the property the defect breaks.
 check-buffer-busy-mutants:
@@ -3327,7 +3435,7 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
     check-swap-ioctl-sanitizer check-tty-local-mode-mutants \
     check-tty-local-mode-sanitizer check-mem-span-mutants \
     check-mem-span-sanitizer check-ptrace-mutants check-ptrace-sanitizer \
-    check-sigreturn-sanitizer
+    check-sigreturn-sanitizer check-usb-console
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
@@ -3349,6 +3457,8 @@ clean:
 	    swap_exchange_inplace_*.mutant.out
 	rm -f ${PROGS} hostkern.o rmap_ring_*.mutant.* swap_ring_io_test \
 	    swap_ring_io*.mutant.*
+	rm -f ${USB_CONSOLE_DRIVER} usb_console_test usb_console_*.o \
+	    usb_console_*.mutant.*
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
 	rm -f ${SWAP_IOCTL_FUNCTION} swap_ioctl_function.o swap_ioctl_rmap.o
 	rm -f swap_ioctl_test32 swap_ioctl_function32.o swap_ioctl_rmap32.o
@@ -3524,7 +3634,8 @@ FORK_SWAP_MUTANTS= ignore-reservation-refusal publish-allproc-early \
     refusal-result-child write-empty-data-segment write-empty-stack-segment \
     accept-unreserved-state sched-drop-sload-restore sched-drop-requeue \
     sched-swapin-after-refusal sched-unreserved-swapout \
-    sched-sleep-after-refusal sched-reselect-refused sched-keep-refused-marks
+    sched-sleep-after-refusal sched-reselect-refused sched-keep-refused-marks \
+    early-exchange-count swap-pool-reasons misbin-shortfall-boundary
 # The unaligned fixture drops SwapRAM and SWAP_IMAGE_ALIGN so the three-extent
 # malloc3() arms of vm_swap.c execute; its mutants live in those arms.
 FORK_SWAP_UNALIGNED_MUTANTS= omit-release-segment-free omit-cancel-segment-free
@@ -3734,6 +3845,9 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		sched-sleep-after-refusal) expected='no_sleep_before_exchange' ;; \
 		sched-reselect-refused) expected='reached_next_candidate' ;; \
 		sched-keep-refused-marks) expected='refusal_accounted' ;; \
+		early-exchange-count) expected='STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS' ;; \
+		swap-pool-reasons) expected='storage_counts[reasons[index]] == expected' ;; \
+		misbin-shortfall-boundary) expected='storage_counts[STORAGE_SWAPRAM_SHORT_1K + index]' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \

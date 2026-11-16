@@ -144,6 +144,15 @@ namespace Antmicro.Renode.Peripherals.SPI
             case 16:
                 response.Enqueue((byte)(r1 | (arg == 512 ? 0 : 0x40)));
                 break;
+            case 59:
+                // CRC_ON_OFF: the model sends a true CRC16 either way.
+                response.Enqueue(r1);
+                break;
+            case 13:
+                // SEND_STATUS: R2 with no error bit.
+                response.Enqueue(r1);
+                response.Enqueue(0);
+                break;
             case 9:
                 response.Enqueue(r1);
                 if(!idle) SendData(Csd());
@@ -205,8 +214,17 @@ namespace Antmicro.Renode.Peripherals.SPI
         private void SendData(byte[] data)
         {
             response.Enqueue(0xfe);
-            foreach(var b in data) response.Enqueue(b);
-            response.Enqueue(0xff); response.Enqueue(0xff);
+            var crc = 0;
+            foreach(var b in data)
+            {
+                response.Enqueue(b);
+                // CRC16, generator x^16 + x^12 + x^5 + 1, start value 0.
+                crc ^= b << 8;
+                for(var i = 0; i < 8; i++)
+                    crc = (crc & 0x8000) != 0 ? (crc << 1) ^ 0x1021 : crc << 1;
+                crc &= 0xffff;
+            }
+            response.Enqueue((byte)(crc >> 8)); response.Enqueue((byte)crc);
         }
 
         private FileStream image;

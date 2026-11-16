@@ -34,7 +34,7 @@ SRCS=	adb.1 addbib.1 apply.1 apropos.1 as.1 at.1 atq.1 atrm.1 \
 	lxref.1 m4.1 mail.1 make.1 man.1 mesg.1 mkdep.1 mkdir.1 mkstr.1 \
 	more.1 mset.1 msgs.1 mt.1 mv.1 netstat.1 newaliases.1 nice.1 nm.1
 SRCS1=	nroff.1 nslookup.1 od.1 pagesize.1 pdx.1 pi.1 pix.1 \
-	plot.1 pmerge.1 pr.1 printenv.1 prof.1 ps.1 ptx.1 pwd.1 px.1 pxp.1 \
+	plot.1 pmerge.1 pr.1 printenv.1 prof.1 picofetch.1 picotop.1 ps.1 ptx.1 pwd.1 px.1 pxp.1 \
 	pxref.1 quota.1 ratfor.1 rcp.1 rdist.1 refer.1 rev.1 \
 	rlogin.1 rm.1 rmail.1 rmdir.1 roffbib.1 rsh.1 ruptime.1 rwho.1 \
 	sccs.1 script.1 sed.1 sendbug.1 sh.1 size.1 sleep.1 soelim.1 \
@@ -62,7 +62,7 @@ OBJS1=	adb.0 addbib.0 apply.0 apropos.0 as.0 at.0 atq.0 atrm.0 \
 	lxref.0 m4.0 mail.0 make.0 man.0 mesg.0 mkdep.0 mkdir.0 mkstr.0 \
 	more.0 mset.0 msgs.0 mt.0 mv.0 netstat.0 newaliases.0 nice.0 nm.0
 OBJS2=	nroff.0 nslookup.0 od.0 pagesize.0 pdx.0 pi.0 pix.0 \
-	plot.0 pmerge.0 pr.0 printenv.0 prof.0 ps.0 ptx.0 pwd.0 px.0 pxp.0 \
+	plot.0 pmerge.0 pr.0 printenv.0 prof.0 picofetch.0 picotop.0 ps.0 ptx.0 pwd.0 px.0 pxp.0 \
 	pxref.0 quota.0 ratfor.0 rcp.0 rdist.0 refer.0 rev.0 \
 	rlogin.0 rm.0 rmail.0 rmdir.0 roffbib.0 rsh.0 ruptime.0 rwho.0 \
 	sccs.0 script.0 sed.0 sendbug.0 sh.0 size.0 sleep.0 soelim.0 \

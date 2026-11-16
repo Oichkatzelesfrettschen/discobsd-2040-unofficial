@@ -11,6 +11,7 @@
 #endif
 
 #include <sys/_time_t.h>
+#include <sys/_timespec.h>
 
 #ifndef _SIZE_T
 #define _SIZE_T

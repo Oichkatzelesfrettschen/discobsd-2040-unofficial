@@ -1,0 +1,262 @@
+{
+  "schema": 1,
+  "runs": [
+    {
+      "source_commit": "5a74d74a91bffd29607ceba6bf47d39d73f43077",
+      "source_state": "clean and frozen during qualification",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 3118.892,
+      "stages": {
+        "build": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 67.02,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "81a1c2dc75f40d028219d770932bce324fcdd1a77fe23ad803b7d876fd975e0f"
+        },
+        "check": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 3051.87,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "eb85105db95f6fd3c7c43996dbe75c44ba0f6ebe9397f06a8acc877abe48d95c"
+        }
+      },
+      "scope": "Original312-byte/40-frame tableless provider; common-case instruction finding requires separate guarded-prefix qualification. Configured skips remain in immutable logs. Physical execution remains unauthorized."
+    },
+    {
+      "source_commit": "db0ea8e770d4eda738e51e69e73f050e6beb93f1",
+      "source_state": "clean and frozen during qualification",
+      "state": "failed",
+      "exit_code": 2,
+      "elapsed_seconds": 1139.57,
+      "invocation": "bmake -j12 MACHINE=rp2040 logged-check",
+      "stages": {
+        "build": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 78.79,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "ce3921579f2243fe608280bb0239f9898800fc79f372e15e5d8433ef7b79e37a"
+        },
+        "check": {
+          "state": "failed",
+          "exit_code": 2,
+          "elapsed_seconds": 1060.777,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "afb6515da865a8994eaa0425fa2e7fbe47ebc4240606fceca4b49be841f58fa8"
+        }
+      },
+      "scope": "Guarded-prefix provider; parallel aggregate fails because the existing sorting-caller query rejects inherited closed-jobserver diagnostics. Shell SIGABRT case and SHTEST OK complete after a host core-collector delay. Remaining cross jobs abort after the first error; QEMU, host package and board-build tiers do not run in this attempt."
+    },
+    {
+      "source_commit": "db0ea8e770d4eda738e51e69e73f050e6beb93f1",
+      "source_state": "clean and frozen during qualification",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 3563.426,
+      "invocation": "bmake MACHINE=rp2040 logged-check",
+      "stages": {
+        "build": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 86.602,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "23cc51e656baf6f8a3e1bbb7796a7ac1df58ee4ff24deb6775a85bca55cfae5f"
+        },
+        "check": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 3476.822,
+          "terminal_queue_dropped_bytes": 0,
+          "log_sha256": "3fc776a39a0145c47dcfe54778383ec6d53b7bd757c7429c1e7ed1dd746fc0c5"
+        }
+      },
+      "configured_skips": [
+        "SKIP tar stored time: i386-time32: tar tv prints through a four-byte time_t, which holds no date after January 2038",
+        "SKIP tar stored time: i386-time32: a four-byte time_t holds no time beyond the stored range",
+        "SKIP stored-times archive: i386-time32: ar tv prints through a four-byte time_t, which holds no date after January 2038"
+      ],
+      "expected_failures": [
+        {
+          "case": "tilde_home",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "cmdsub_dollar_paren",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "cmdsub_dollar_paren_nested",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_simple",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_leading_paren",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_vs_subshell_group",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "redir_readwrite",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "redir_clobber_override",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "status_negation",
+          "class": "existing shell conformance gap"
+        }
+      ],
+      "scope": "Guarded-prefix production sources; build, lint, host, POSIX shell, cross, QEMU, host package and board-build tiers complete. Configured skips and shell XFAILs retain their narrower claims. Host-only query repair on 768be134 receives separate clean focused and complete parallel-cross qualification. Physical execution remains unauthorized.",
+      "variant_limits": [
+        {
+          "family": "libc export namespace",
+          "state": "partial",
+          "checked_programs": 39,
+          "unreviewed_programs": [
+            "coremark"
+          ],
+          "reason": "The source-directory lookup omits the benchmarks family; it emits an unbuilt-closure skip. Shared-XIP namespace acceptance still requires this owner to close.",
+          "deciding_experiment": "Resolve the executed manifest entry to benchmarks/coremark, inspect its complete target object globals, and calibrate omission of that required source directory."
+        },
+        {
+          "family": "host complex reference grid",
+          "state": "not_run",
+          "reason": "The host C library lacks the required Annex G branch cuts."
+        },
+        {
+          "family": "printf exact-tie host comparisons",
+          "state": "reference_cases_omitted",
+          "cases": 30,
+          "reason": "The gate retains its documented exact-tie reference boundary."
+        },
+        {
+          "family": "ARM time-binding object census",
+          "state": "scope_filter",
+          "non_arm_objects_excluded": 76,
+          "reason": "These inputs are not ARM relocatable objects."
+        },
+        {
+          "family": "optional calc namespace",
+          "state": "scope_filter",
+          "host_objects_excluded": 16,
+          "reason": "Host-format objects do not participate in the target namespace scan."
+        }
+      ]
+    },
+    {
+      "source_commit": "74bd2df9ceb3e6ac3bc793d1a0e0714ef7df4b49",
+      "source_state": "clean and frozen during qualification",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 975.529,
+      "invocation": "bmake -j12 MACHINE=rp2040 logged-check",
+      "stages": {
+        "build": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 40.518,
+          "terminal_queue_dropped_bytes": 0,
+          "receipt_sha256": "f07b133a6d26881fd5f5415a17bee91f132f4f33e0395785623280ab6478b94a",
+          "log_sha256": "3c44e020c03daaa935240fecb2d4461ff51ae4a0bcf8763e38c61a058e7693d8"
+        },
+        "check": {
+          "state": "completed",
+          "exit_code": 0,
+          "elapsed_seconds": 935.009,
+          "terminal_queue_dropped_bytes": 0,
+          "receipt_sha256": "5b15fb70c2425314a5120043af733bc4e06e22ae5ace196eec34567da1ee84fe",
+          "log_sha256": "f326251553fda74a9e5612d02da3da21253fd4df47c46c43e5f57877eb9839a7"
+        }
+      },
+      "configured_skips": [
+        "SKIP tar stored time: i386-time32: tar tv prints through a four-byte time_t, which holds no date after January 2038",
+        "SKIP tar stored time: i386-time32: a four-byte time_t holds no time beyond the stored range",
+        "SKIP stored-times archive: i386-time32: ar tv prints through a four-byte time_t, which holds no date after January 2038"
+      ],
+      "expected_failures": [
+        {
+          "case": "tilde_home",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "cmdsub_dollar_paren",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "cmdsub_dollar_paren_nested",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_simple",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_leading_paren",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "arith_vs_subshell_group",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "redir_readwrite",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "redir_clobber_override",
+          "class": "existing shell conformance gap"
+        },
+        {
+          "case": "status_negation",
+          "class": "existing shell conformance gap"
+        }
+      ],
+      "variant_limits": [
+        {
+          "family": "libc export namespace",
+          "state": "partial",
+          "checked_programs": 39,
+          "unreviewed_programs": [
+            "coremark"
+          ],
+          "reason": "The source-directory lookup omits the benchmarks family; it emits an unbuilt-closure skip. Shared-XIP namespace acceptance still requires this owner to close.",
+          "deciding_experiment": "Resolve the executed manifest entry to benchmarks/coremark, inspect its complete target object globals, and calibrate omission of that required source directory."
+        },
+        {
+          "family": "host complex reference grid",
+          "state": "not_run",
+          "reason": "The host C library lacks the required Annex G branch cuts."
+        },
+        {
+          "family": "printf exact-tie host comparisons",
+          "state": "reference_cases_omitted",
+          "cases": 30,
+          "reason": "The gate retains its documented exact-tie reference boundary."
+        },
+        {
+          "family": "ARM time-binding object census",
+          "state": "scope_filter",
+          "non_arm_objects_excluded": 76,
+          "reason": "These inputs are not ARM relocatable objects."
+        },
+        {
+          "family": "optional calc namespace",
+          "state": "scope_filter",
+          "host_objects_excluded": 16,
+          "reason": "Host-format objects do not participate in the target namespace scan."
+        }
+      ],
+      "scope": "Guarded-prefix provider and detached-query repair with current main checkpoint policy; all configured non-hardware tiers complete under parallel make. Prior reference and namespace limits remain explicit. Physical execution remains unauthorized."
+    }
+  ]
+}

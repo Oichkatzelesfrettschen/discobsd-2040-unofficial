@@ -179,12 +179,13 @@ by the
 .I select
 call.
 .PP
-In 2BSD the timeout is implemented in the kernel using the \fIcallout\fP
-table.  Since a \fIcallout\fP structure only has a signed short to 
-store the number of ticks till expiration the maximum value of a kernel
-timeout is 32767 ticks.  In the US (60hz power) this gives a maximum
-timeout of approximately 9 minutes.  In countries using 50hz power 
-the maximum timeout is about 13 minutes.
+The largest time limit is 2147483647 seconds, the largest seconds count of the
+kernel's 32-bit layout; a larger one reads as negative and fails with
+[EINVAL].  The kernel counts the wait in ticks of the \fIcallout\fP
+table, which hold at most 2147483647 ticks (2147483.647 seconds at 1000 Hz),
+and waits again until the deadline on the wall clock has passed, so the
+limit holds for any length.  A deadline that would pass the last second the
+32-bit clock can count (February 2106) ends at that second.
 .PP
 .I struct timespec
 on a PDP\-11 is silly since the hardware has nowhere near microsecond

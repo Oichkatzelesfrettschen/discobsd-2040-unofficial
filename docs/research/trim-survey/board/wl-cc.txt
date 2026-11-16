@@ -1,0 +1,113 @@
+### cd /tmp
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### echo 'char *ctime(long *); long time(long *); int printf(char *, ...);' >d.c
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### echo 'int main(void) { long t = time(0); printf("%s", ctime(&t)); return 0; }' >>d.c
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sync
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 3
+root_reads 1613
+root_read_bytes 1651712
+root_writes 26
+root_write_bytes 26624
+swap_reads 12
+swap_read_bytes 56752
+swap_writes 17
+swap_write_bytes 72012
+map_writes 26
+checkpoint_attempts 26
+checkpoint_successes 26
+checkpoint_errors 0
+root_program_pages 832
+root_program_bytes 212992
+root_erase_sectors 52
+root_erase_bytes 212992
+swap_program_pages 287
+swap_program_bytes 73472
+swap_erase_sectors 21
+swap_erase_bytes 86016
+dirty_transitions 19
+dirty_rewrites 6
+eviction_writes 14
+buffer_waits 0
+swapram_attempts 27
+swapram_admissions 22
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 3
+root_reads 1723
+root_read_bytes 1764352
+root_writes 26
+root_write_bytes 26624
+swap_reads 15
+swap_read_bytes 73668
+swap_writes 20
+swap_write_bytes 88928
+map_writes 26
+checkpoint_attempts 26
+checkpoint_successes 26
+checkpoint_errors 0
+root_program_pages 832
+root_program_bytes 212992
+root_erase_sectors 52
+root_erase_bytes 212992
+swap_program_pages 354
+swap_program_bytes 90624
+swap_erase_sectors 26
+swap_erase_bytes 106496
+dirty_transitions 19
+dirty_rewrites 6
+eviction_writes 14
+buffer_waits 0
+swapram_attempts 29
+swapram_admissions 23
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### time cc -o d d.c
+25.14 real         0.03 user         2.48 sys
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### sysctl machdep.storage_stats
+machdep.storage_stats=version 1 saturated 0 dirty 0 peak 4
+root_reads 3074
+root_read_bytes 3147776
+root_writes 190
+root_write_bytes 194560
+swap_reads 65
+swap_read_bytes 353184
+swap_writes 76
+swap_write_bytes 349952
+map_writes 190
+checkpoint_attempts 190
+checkpoint_successes 190
+checkpoint_errors 0
+root_program_pages 6080
+root_program_bytes 1556480
+root_erase_sectors 380
+root_erase_bytes 1556480
+swap_program_pages 1382
+swap_program_bytes 353792
+swap_erase_sectors 100
+swap_erase_bytes 409600
+dirty_transitions 113
+dirty_rewrites 276
+eviction_writes 82
+buffer_waits 0
+swapram_attempts 45
+swapram_admissions 27
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### ./d
+Sat Nov 14 14:18:29 2026
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### cc -S d.c; cc -c d.s; cc -o e d.o; ./e; ls d.s d.o e
+Sat Nov 14 14:18:58 2026
+d.o  d.s  [1;32me[0m
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### cc; cc -o x -c d.c d.s; cc d.x; echo rc=$?
+cc: no input files
+cc: -o with -c or -S takes exactly one input file
+cc: d.x: unknown file type
+rc=1
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K
+### rm -f d d.c d.s d.o e
+[1;32moperator@pico[0m:[1;34m/tmp[0m$ [K

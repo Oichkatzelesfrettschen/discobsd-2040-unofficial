@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "8386c8a1283dceaf626a2766a8911f0878403b67c1f62b982c28fcdf3922633a"
+    "ordered_row_sha256": "e304cc867916f9b50b181e1060fa51c980f0418fd24a4af8863ce3297088860b"
   },
   "state_counts": {
     "applicability": {
@@ -51,18 +51,18 @@
       "environment-constrained": 0
     },
     "implementation": {
-      "unreviewed": 1446,
+      "unreviewed": 1433,
       "present": 3,
-      "partial": 69,
+      "partial": 82,
       "absent": 0,
       "divergent": 0
     },
     "evidence": {
-      "none": 1446,
-      "static": 39,
-      "host": 28,
-      "cross": 0,
-      "qemu-user": 5,
+      "none": 1433,
+      "static": 37,
+      "host": 34,
+      "cross": 5,
+      "qemu-user": 9,
       "renode": 0,
       "board": 0
     },
@@ -192,6 +192,24 @@
       "evidence": "host",
       "known_good": "tests/libc_contracts/qsort_bounds_test.c",
       "known_bad": "tests/libc_contracts/qsort_context.py"
+    },
+    "character-io-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-character-io",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/character_io_test.c",
+      "known_bad": "tests/libc_contracts/character_io.py"
+    },
+    "descriptor-set-qemu-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-fd-set-qemu",
+      "evidence": "qemu-user",
+      "known_good": "tests/libc_contracts/fd_set_test.c",
+      "known_bad": "tools/c17/fd_set_contracts.py"
+    },
+    "public-time-type-cross-contract": {
+      "command": ": \"${PYTHON:?select the interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-public-time-types",
+      "evidence": "cross",
+      "known_good": "tools/c17/public_time_types.py",
+      "known_bad": "tools/c17/public_time_types.py"
     }
   },
   "growth_policy": {

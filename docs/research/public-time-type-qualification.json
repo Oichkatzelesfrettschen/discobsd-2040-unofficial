@@ -1,0 +1,2326 @@
+{
+  "schema_version": 1,
+  "source_commit": "43e6d7ee7a3f74ce2bf169eb9f29e77e8f761492",
+  "base_commit": "a706c0b851daaa25b019639e8217dda5ac17095d",
+  "qualified_tracked_source_clean": true,
+  "claim": "Bounded public type/layout/linkage qualification; complete header and syscall conformance remain open.",
+  "focused": {
+    "receipt_sha256": "7ef70bc014eeb27408bc84f35cc9269ed2096fc01e2b54f2386b63b07dfb5550",
+    "verifier_sha256": "3783890267798ed14671c93a6d64b364a352a932c7d4d48f9d853a599b6c4411",
+    "source_headers": {
+      "time.h": "293adc1d65b8b2a3919b1c7b05ca0ff576fcbcc8a9418de0ed81d20a01eb5f7d",
+      "sys/time.h": "5b7e9f8faf83c335d6b9394d5cc85e8fd2ee34d56143227af91c8bbbcc13ad6c",
+      "sys/select.h": "ab85e8ceb08d8b876df3178b9764d6060c8faf6d1e4be85c941bb665cafb86ed",
+      "signal.h": "b18a0f45b9eff478a2d8247b376ee6b206d7b8cdaae1809a757fdef6896607e9",
+      "sys/types.h": "1f48060a4e9e00af690556596f4e05a7294e40f05e9531bc11eb7018db9a6a9b",
+      "sys/_timespec.h": "810d2a651565fce69e65d70ee1d3ca11044baf57078c5e08caf9cce57cb69c28",
+      "sys/_timeval.h": "4842e34d8a25c29e26468a24cf5929d8606908ed559e48634560bf015a1c8fe4",
+      "sys/_sigset_t.h": "675c5513240e1429f08a524f7cd8480afd5026730bd0f7adb7c2df1474d7c9c3",
+      "sys/_suseconds_t.h": "a7ca40b09001cba755b10ec55c438e2d428206d49d008a0a2f0a0c867fa0d252"
+    },
+    "tracked_input_state_sha256": "8bdd3cb7f79d0ed5f3a46fa602deeba6e9a810209c8d9fbd4cf09915caf8e34f",
+    "valid_syntax_cases": 816,
+    "alias_objects": 24,
+    "kernel_cases": 6,
+    "compiler_rejections": 33,
+    "smaller_inputs": 272,
+    "smaller_invalid_rejected": true,
+    "smaller_bad_width_rejected": true,
+    "diagnostic_control_counts": {
+      "diagnostic_controls": 4,
+      "smaller_syntax_controls": 4,
+      "smaller_width_controls": 6
+    },
+    "tools": {
+      "arm": {
+        "sha256": "405ed9aa343f480802e34387cf1e2f5515d4dbfb72340fdbf84a720911ec07b9",
+        "version": "arm-none-eabi-gcc (Arch Repository) 16.2.0"
+      },
+      "clang": {
+        "sha256": "3e9abb628a5e7ecb195c7c85ae13c44f3059a7fff093915682ebde3b30d2036d",
+        "version": "clang version 23.1.4"
+      },
+      "host": {
+        "sha256": "b0b49531b313e70aee0254fb5e69b050a781506184e16ebee6ebe68eee94a145",
+        "version": "cc (GCC) 16.2.1 20260810"
+      },
+      "nm": {
+        "sha256": "88faf7dc929d9994df748f7efb451e5f4d87795c0a87e1117bcb0d0572de991e",
+        "version": "GNU nm (GNU Binutils) 2.47.20260726"
+      }
+    },
+    "aliases": [
+      {
+        "label": "gnu17.default.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "b0bd4647f4a424378434b665a8554c8d9aa6046334c1a04a49c6b62fa6e7acfa"
+      },
+      {
+        "label": "gnu17.default.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "e56aefc4f854b4482eabc8119f0d0bf1ed7b436a8048cd276f6e487ad0470062"
+      },
+      {
+        "label": "gnu17.iso.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "b0bd4647f4a424378434b665a8554c8d9aa6046334c1a04a49c6b62fa6e7acfa"
+      },
+      {
+        "label": "gnu17.iso.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "e56aefc4f854b4482eabc8119f0d0bf1ed7b436a8048cd276f6e487ad0470062"
+      },
+      {
+        "label": "gnu17.issue7.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "b0bd4647f4a424378434b665a8554c8d9aa6046334c1a04a49c6b62fa6e7acfa"
+      },
+      {
+        "label": "gnu17.issue7.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "e56aefc4f854b4482eabc8119f0d0bf1ed7b436a8048cd276f6e487ad0470062"
+      },
+      {
+        "label": "gnu17.issue8.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "b0bd4647f4a424378434b665a8554c8d9aa6046334c1a04a49c6b62fa6e7acfa"
+      },
+      {
+        "label": "gnu17.issue8.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "e56aefc4f854b4482eabc8119f0d0bf1ed7b436a8048cd276f6e487ad0470062"
+      },
+      {
+        "label": "c17.default.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "b0bd4647f4a424378434b665a8554c8d9aa6046334c1a04a49c6b62fa6e7acfa"
+      },
+      {
+        "label": "c17.default.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "e56aefc4f854b4482eabc8119f0d0bf1ed7b436a8048cd276f6e487ad0470062"
+      },
+      {
+        "label": "c17.iso.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "b0bd4647f4a424378434b665a8554c8d9aa6046334c1a04a49c6b62fa6e7acfa"
+      },
+      {
+        "label": "c17.iso.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "e56aefc4f854b4482eabc8119f0d0bf1ed7b436a8048cd276f6e487ad0470062"
+      },
+      {
+        "label": "c17.issue7.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "b0bd4647f4a424378434b665a8554c8d9aa6046334c1a04a49c6b62fa6e7acfa"
+      },
+      {
+        "label": "c17.issue7.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "e56aefc4f854b4482eabc8119f0d0bf1ed7b436a8048cd276f6e487ad0470062"
+      },
+      {
+        "label": "c17.issue8.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "b0bd4647f4a424378434b665a8554c8d9aa6046334c1a04a49c6b62fa6e7acfa"
+      },
+      {
+        "label": "c17.issue8.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "e56aefc4f854b4482eabc8119f0d0bf1ed7b436a8048cd276f6e487ad0470062"
+      },
+      {
+        "label": "clang.c17.default.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "4a37a23387c59fdca00cdd829c1e28760b0dee185a87578a8202e3b781acd394"
+      },
+      {
+        "label": "clang.c17.default.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "8d2bdaecbd3c8a806f0e405fa9a6be0f7f990086e846e45667a53a16fefc96bc"
+      },
+      {
+        "label": "clang.c17.iso.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "4a37a23387c59fdca00cdd829c1e28760b0dee185a87578a8202e3b781acd394"
+      },
+      {
+        "label": "clang.c17.iso.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "8d2bdaecbd3c8a806f0e405fa9a6be0f7f990086e846e45667a53a16fefc96bc"
+      },
+      {
+        "label": "clang.c17.issue7.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "4a37a23387c59fdca00cdd829c1e28760b0dee185a87578a8202e3b781acd394"
+      },
+      {
+        "label": "clang.c17.issue7.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "8d2bdaecbd3c8a806f0e405fa9a6be0f7f990086e846e45667a53a16fefc96bc"
+      },
+      {
+        "label": "clang.c17.issue8.32.aliases",
+        "undefined_symbols": [
+          "select",
+          "time"
+        ],
+        "object_sha256": "4a37a23387c59fdca00cdd829c1e28760b0dee185a87578a8202e3b781acd394"
+      },
+      {
+        "label": "clang.c17.issue8.64.aliases",
+        "undefined_symbols": [
+          "__select64",
+          "__time64"
+        ],
+        "object_sha256": "8d2bdaecbd3c8a806f0e405fa9a6be0f7f990086e846e45667a53a16fefc96bc"
+      }
+    ]
+  },
+  "installed_staging": {
+    "receipt_sha256": "f2d61afa2f1d7574504ab0a2f8a2b2d9d8db024148e20708809985f5c03acddb",
+    "cases": 32,
+    "headers": {
+      "time.h": "293adc1d65b8b2a3919b1c7b05ca0ff576fcbcc8a9418de0ed81d20a01eb5f7d",
+      "sys/time.h": "5b7e9f8faf83c335d6b9394d5cc85e8fd2ee34d56143227af91c8bbbcc13ad6c",
+      "sys/select.h": "ab85e8ceb08d8b876df3178b9764d6060c8faf6d1e4be85c941bb665cafb86ed",
+      "signal.h": "b18a0f45b9eff478a2d8247b376ee6b206d7b8cdaae1809a757fdef6896607e9",
+      "sys/types.h": "1f48060a4e9e00af690556596f4e05a7294e40f05e9531bc11eb7018db9a6a9b",
+      "sys/_time_t.h": "6d2436823d64e4b7e8c798be84fa09bfe1fe114283bf86d75b1c216937fdb6c5",
+      "sys/_timespec.h": "810d2a651565fce69e65d70ee1d3ca11044baf57078c5e08caf9cce57cb69c28",
+      "sys/_timeval.h": "4842e34d8a25c29e26468a24cf5929d8606908ed559e48634560bf015a1c8fe4",
+      "sys/_sigset_t.h": "675c5513240e1429f08a524f7cd8480afd5026730bd0f7adb7c2df1474d7c9c3",
+      "sys/_suseconds_t.h": "a7ca40b09001cba755b10ec55c438e2d428206d49d008a0a2f0a0c867fa0d252"
+    },
+    "scope": "Staged SDK only; selected root contains no headers."
+  },
+  "gates": [
+    {
+      "evidence_class": "build",
+      "label": "rp2040-build-local",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 39.07,
+      "status_path": ".build-logs/rp2040-build-local-20261115T123052Z-48-b1d48f9f/status.json",
+      "receipt_sha256": "c9817131aaedc6fa5cfc90c36773e4f96cdb668a8b653a90fb8391148c89f0e5",
+      "log_sha256": "3b8e68b94845205d78d64832f5ae91e1b9c8bd78382577d2246fb6c73b032d2f",
+      "terminal_queue_dropped_bytes": 0
+    },
+    {
+      "evidence_class": "image-build",
+      "label": "rp2040-flash-local",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 2.374,
+      "status_path": ".build-logs/rp2040-flash-local-20261115T123453Z-3527565-ea7bb0c7/status.json",
+      "receipt_sha256": "7217d8b9a888a21cc66c6029427793ab5b4b0e7c0b2e5d0f44a58fd1a0314389",
+      "log_sha256": "8ea38745f056ab6e12e9749377304453762f7502fdc08c1a5d1c5d4c17b59b5a",
+      "terminal_queue_dropped_bytes": 0
+    },
+    {
+      "evidence_class": "aggregate",
+      "label": "rp2040-check-local",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 720.78,
+      "status_path": ".build-logs/rp2040-check-local-20261115T122851Z-3154844-24d85eaa/status.json",
+      "receipt_sha256": "84ab19f878d8ee98df8ae291eabe0a5c8884a7d409c06e5292549cab25e77afb",
+      "stages": {
+        "build": {
+          "state": "completed",
+          "exit_code": 0,
+          "receipt_sha256": "659d7b26e817b03acedaf4d79b9bd6a653725bdfc8a7f05e183f43925dc17711",
+          "log_sha256": "a9baf72e29c0adc66330ea32d9764aa1814e4f9617bc0002baff83a05160abfa",
+          "terminal_queue_dropped_bytes": 0
+        },
+        "check": {
+          "state": "completed",
+          "exit_code": 0,
+          "receipt_sha256": "ee3ab46fcc49e9c3dd9aa30578674e30bb326dc88b9fd896aaf18b79d5e3a3f5",
+          "log_sha256": "23408d066ad9fbde338e3454ea8e535f802e011b99df24dbe8d2bf49e780ab87",
+          "terminal_queue_dropped_bytes": 0
+        }
+      }
+    },
+    {
+      "evidence_class": "required-inventory",
+      "label": "rp2040-ilp32-local",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 641.949,
+      "status_path": ".build-logs/rp2040-ilp32-local-20261115T122942Z-3279149-a51d17ee/status.json",
+      "receipt_sha256": "49fb1e9076a32c4e2f5c9b187413cce6afb3ec9f3b0090e028592fbee60f42a6",
+      "log_sha256": "b7501b398b5e6aa04f8010791ad944d5593b47a1ba9aef707097033018799e41",
+      "terminal_queue_dropped_bytes": 0
+    },
+    {
+      "evidence_class": "renode-uart",
+      "label": "public-time-renode",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 380.543,
+      "status_path": ".build-logs/public-time-renode-20261115T123455Z-3529150-6d27e15d/status.json",
+      "receipt_sha256": "04435d539e352deabae2533abdd6d8c26090c314a6f4d2523954323137f2c49c",
+      "log_sha256": "0c44a5a114aafbbffd3e59f0c3e1eec3faf88522f323bc4d444f6004bcd4aafa",
+      "terminal_queue_dropped_bytes": 0
+    },
+    {
+      "evidence_class": "renode-union",
+      "label": "public-time-renode-union",
+      "state": "completed",
+      "exit_code": 0,
+      "elapsed_seconds": 302.436,
+      "status_path": ".build-logs/public-time-renode-union-20261115T124251Z-3642201-7c73e5c5/status.json",
+      "receipt_sha256": "979da3d9313837051318d6b4aa44d65c6588786f9b0b8b190e9384fa8bc6e269",
+      "log_sha256": "033835dac7d69ba050733a4c3671cbf166536b2c899505782b2cf184d76a1469",
+      "terminal_queue_dropped_bytes": 0
+    }
+  ],
+  "required_inventory": {
+    "report_sha256": "64f9568e12d751b8f639925fa84372337e3e85032baacc33f010b17b8d894d57",
+    "inventory_sha256": "b0432eba13ef98aa15081951c37242fcb6111786ff423bd35081da838c05c654",
+    "verdict": "216/216 PASS",
+    "variants": [
+      {
+        "variant": "cpio.archive.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "cpio.cleanup.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "tar.hardlink-identity.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "tar.regular-publication.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "tar.stored-time.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "archive.stored-times.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.base.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.reallocarray.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.memmem.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.line-reading.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.reallocarray.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.memmem.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.line-reading.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.reallocarray.sanitized-ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.memmem.sanitized-ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.line-reading.sanitized-ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.syslog.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.zone.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.zone-fixed.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.mktime.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.ctime.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.asctime.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.alarm.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.waitpid.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.runtime-limits.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.difftime.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.sleep.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.string-security.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.vis.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.getgrent.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.printf-float.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.printf-g.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.huge-val.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.printf.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "utility.printf.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "utility.printf.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "utility.recovery.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "utility.recovery.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "utility.timeout.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.scanf.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.rwmode.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.strtox.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.malloc.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.qsort.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.random.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.random-metadata.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.ansi.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.ansi.shared-byte-negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libc.zone.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.mktime.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.mktime.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.mktime.sanitized-ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.calendar64.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.calendar64.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.calendar64.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.calendar64.sanitized-ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.ctime.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.runtime-limits.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.difftime.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.sleep.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.printf.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "utility.printf.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.scanf.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.rwmode.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.strtox.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.malloc.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.qsort.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.random.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.ansi.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.ansi.sanitized-ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.zone.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.scanf.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.scanf-llong.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.scanf-llong.absent.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.scanf-llong.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.scanf-llong.absent.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.scanf-llong.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.random.ubsan",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.asctime.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libc.runtime-limits.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libc.random-metadata.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libc.difftime.negative",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libc.sleep.negative",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "kernel.credentials.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.rwuio.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.file-owner.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.fionread.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.swap-ioctl.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.tty-local-mode.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.mem-span.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.ptrace.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.sigreturn-context.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.file-owner.ubsan-mutant",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.printf.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.printf-log.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.readlink.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.signal-auth.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.rwuio.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.pipe-rw.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.pipe-rw-single.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.file-owner.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.fionread.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.swap-ioctl.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.tty-local-mode.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.mem-span.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.ptrace.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.tty-local-mode.signed-shift-negative",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.v7-format.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.usercopy-span.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.syscall-arguments.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.sigreturn-context.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.elf-admission.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.elf-surrounding-contract.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.sysctl-compact.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.sysctl-wide.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.inode.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.inode-pico.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.inode-diagnostic.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.block.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.block-pico.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.explicit-time.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.explicit-time-negative.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "kernel.explicit-time-signed-negative.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "kernel.futimes.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.openat-namei.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.openat-namei-multifs.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.openat.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.unlinkat-beneath.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.publishat-beneath.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.publishat-beneath-namei.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.linkat-beneath.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.dirremove.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.ufs-namespace.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.ufs-topology.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.ufs-disk.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.capacity.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "kernel.buffer-busy.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "dd.contract.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "dd.tables.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "fsck.inode-range.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "umount.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "backgammon.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc-sysctl.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc-sysctl.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "dd.filesystem.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "shell.posix.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "textbox.getline.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.contracts.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.command-separator.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.regexp-result.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.regsub-empty.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.regsub-nocase-tail.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.regsub-bol.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.var-extent.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.append-extent.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.parse-extent.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.expr-extent.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.list-end.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.upvar-count.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.pattern-cache.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.regexp-substitute.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.regexp-backtrack.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libtcl.regexp-program.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 1,
+        "returncode": 1,
+        "termination": null
+      },
+      {
+        "variant": "libc.scandir.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.scandir.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.scandir.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.scandir.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.dirent.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.dirent.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.dirent.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.dirent.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.closedir.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.getwd.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.getwd.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.getwd.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.getwd.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.casefold.signed.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.casefold.signed.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.casefold.signed.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.casefold.unsigned.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.casefold.unsigned.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.casefold.unsigned.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.casefold.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.output.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.output.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.output.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.output.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.output.arithmetic",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "sysctl.status.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libbn.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libbn.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libbn.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libbn.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libcalc.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libcalc.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libcalc.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libcalc.treelibm",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libcalc.negative",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.bounded-string.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.bounded-string.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.bounded-string.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.exit.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.exit.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.quick-exit.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.quick-exit.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.qsort-context.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.qsort-context.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.qsort-context.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.dbm-open.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.dbm-open.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.absolute-value.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.absolute-value.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.absolute-value.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.byte-search.native",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.byte-search.ilp32",
+        "owner": "firmware/posix-sh",
+        "width": "ilp32",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      },
+      {
+        "variant": "libc.byte-search.sanitized",
+        "owner": "firmware/posix-sh",
+        "width": "native",
+        "outcome": "PASS",
+        "expected_exit": 0,
+        "returncode": 0,
+        "termination": null
+      }
+    ]
+  },
+  "hosted_ci": {
+    "run_id": 43714369946,
+    "head_sha": "43e6d7ee7a3f74ce2bf169eb9f29e77e8f761492",
+    "conclusion": "success"
+  },
+  "renode_inputs": {
+    "sys/arch/rp2040/compile/PICO_UART/unix.bin": "3942beaf0f64ef1ede3a0b6022df53fa531932b629faa76c4020d97ec89d8db4",
+    "sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.bin": "30f39f5b1324723be69d8e2715010b0b943df75ca6ab116347674343a935f6b9",
+    "distrib/rp2040/flash.bin": "ed645ed62f93a230b38954eb4eec27a69ced9202480422aaebfc9c3a707f5a77",
+    "tools/renode/vendor/results/boot-union/unix-uart.bin": "e7bab2dc10048e370206a9cd508c36b80f1414d8721e0d927c923d202699de76"
+  },
+  "resource_files": {
+    "public-time-type-built-resources.json": "e6a8d91a4cb2948f6bccafbeda6dd617d91d3c01f3b1945324712060c89fd863",
+    "public-time-type-native-archive.json": "6676d0702019803c2701e9d22cd6a4cd9c1fe2fdc25bf189be62c7dbbd7223e6",
+    "public-time-type-resources-candidate.json": "e1fa4fb3e2b5c74bad212d984088342c861e5b8d8201c26d9f4f5985ea15c23c",
+    "public-time-type-resources-comparison.json": "bb284b52c027317cf1fa5b79cd4cef103294192919f986767ead1ff0879ceb8f",
+    "public-time-type-resources-parent.json": "70cbb52e7e79d59070c5dabd9818088fb1e9475085c6eeb8d9b87968c664aef1"
+  },
+  "calibration": {
+    "donor_rejections": 42,
+    "inventory_rejections": 16,
+    "source_denominator_rejections": 21,
+    "resource_comparator_tests": 36,
+    "native_archive_identity_rejections": 3
+  },
+  "growth_approval": "not required: all 162 shipped deltas and all 278 built-program size/block deltas are zero",
+  "source_review": "pending",
+  "physical_hardware": "unrun",
+  "collector_sha256": "da85ed04d9ccabd5a26aeb48e83c50d2962acdc0fe16c578adc466170906f5e6"
+}

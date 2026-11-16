@@ -96,6 +96,10 @@ ${member}64.o: ${member}.c
 syslog.o: syslog.c
 		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o $@ ${.CURDIR}/syslog.c
 
+# err.c is prototyped against <err.h>; the extra diagnostics keep it that way.
+err.o: err.c
+		${CC} ${CFLAGS} -Wstrict-prototypes -Wold-style-definition -c -o $@ ${.CURDIR}/err.c
+
 tags:
 		cwd=`pwd`; \
 		for i in ${SRCS}; do \

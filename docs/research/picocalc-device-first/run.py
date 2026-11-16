@@ -172,12 +172,15 @@ def main():
         "decode_cycles\tencode_cycles_per_byte\tdecode_cycles_per_byte\t"
         "encode_ms\tdecode_ms\tround_trip"
     )
+    failed = []
     for name, raw in inputs:
         n, c_count, _ = call(img, syms, "enc", raw, (SRC, len(raw), 0, 0))
         m, c_write, mu = call(img, syms, "enc", raw, (SRC, len(raw), DST, n))
         packed = bytes(mu.mem_read(DST, m)) if m > 0 else b""
         d, c_dec, mu2 = call(img, syms, "dec", packed, (SRC, len(packed), OUT, len(raw)))
         ok = n == m and d == len(raw) and bytes(mu2.mem_read(OUT, len(raw))) == raw
+        if not ok:
+            failed.append(name)
         enc = c_count + c_write
         print(
             f"{name}\t{len(raw)}\t{m}\t{c_count}\t{c_write}\t{c_dec}\t"
@@ -185,6 +188,9 @@ def main():
             f"{enc / CLOCK_HZ * 1e3:.2f}\t{c_dec / CLOCK_HZ * 1e3:.2f}\t"
             f"{'ok' if ok else 'FAIL'}"
         )
+    if failed:
+        print("run.py: round trip failed for " + ", ".join(failed), file=sys.stderr)
+        return 1
     return 0
 
 

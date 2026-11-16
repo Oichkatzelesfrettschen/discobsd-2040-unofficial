@@ -32,7 +32,7 @@
  * sys/arch/rp2040/rp2040/swapram.c, counting pass with dst NULL, writing
  * pass with dst set) and swap decode (dec follows sr_expand with a
  * destination), on the vendored heatshrink encoder and the port's hsx
- * decoder. The copy routines are byte loops; run.py attributes their share.
+ * decoder. bzero and bcopy are the kernel's own routines.
  */
 #include "heatshrink_encoder.h"
 #include <machine/hsx_decoder.h>
@@ -90,19 +90,115 @@ dec(const uint8_t *src, unsigned clen, uint8_t *dst, unsigned rlen)
 {
 	hsx_dec_init(&hdec, HEATSHRINK_STATIC_LOOKAHEAD_BITS);
 	hsx_dec_input(&hdec, src, clen);
+#ifdef BENCH_MUTANT_SHORT_DECODE
+	/* Known-bad input for selftest.sh: one byte short, so run.py must fail. */
+	rlen--;
+#endif
 	return (int)hsx_dec_run(&hdec, dst, ~0U, rlen);
 }
 
 
-void bzero(void *p, unsigned n)
-{ unsigned char *q = p; while (n--) *q++ = 0; }
-void bcopy(const void *s, void *d, unsigned n)
-{ unsigned char *a = d; const unsigned char *b = s;
-  if (a < b) { while (n--) *a++ = *b++; } else { a += n; b += n; while (n--) *--a = *--b; } }
+/*
+ * bzero and bcopy are the kernel's routines, copied verbatim from
+ * sys/arch/rp2040/rp2040/machdep.c: the encoder's memset (through
+ * dhara/compat/string.h) reaches bzero, and memcpy and the ascending memmove
+ * case reach bcopy, so the cycle counts need the production word loops.
+ * build.sh compares both function bodies and the UNALIGNED macro with
+ * machdep.c and fails on any difference.
+ */
+#define UNALIGNED(p, sz)	((u_int)(p) & ((sz) - 1))
+
+void
+bcopy(const void *src0, void *dst0, size_t nbytes)
+{
+	u_char		*dst = dst0;
+	const u_char	*src = src0;
+	u_int		*aligned_dst;
+	const u_int	*aligned_src;
+
+	/* printf("bcopy (%08x, %08x, %d)\n", src0, dst0, nbytes); */
+	/* If the size is small, or either SRC or DST is unaligned,
+	 * then punt into the byte copy loop.  This should be rare. */
+	if (nbytes >= 4 * sizeof(u_int) &&
+	    !UNALIGNED(src, sizeof(u_int)) &&
+	    !UNALIGNED(dst, sizeof(u_int))) {
+		aligned_dst = (u_int *)dst;
+		aligned_src = (const u_int *)src;
+
+		/* Copy 4X unsigned words at a time if possible. */
+		while (nbytes >= 4 * sizeof(u_int)) {
+			*aligned_dst++ = *aligned_src++;
+			*aligned_dst++ = *aligned_src++;
+			*aligned_dst++ = *aligned_src++;
+			*aligned_dst++ = *aligned_src++;
+			nbytes -= 4 * sizeof(u_int);
+		}
+
+		/* Copy one unsigned word at a time if possible. */
+		while (nbytes >= sizeof(u_int)) {
+			*aligned_dst++ = *aligned_src++;
+			nbytes -= sizeof(u_int);
+		}
+
+		/* Pick up any residual with a byte copier. */
+		dst = (u_char *)aligned_dst;
+		src = (const u_char *)aligned_src;
+	}
+
+	while (nbytes--)
+		*dst++ = *src++;
+}
+
+void
+bzero(void *dst0, size_t nbytes)
+{
+	u_char *dst;
+	u_int *aligned_dst;
+
+	dst = (u_char *)dst0;
+	/*
+	 * Return before the alignment prefix at length zero. Otherwise an
+	 * unaligned dst writes one byte, then --nbytes wraps 0 to SIZE_MAX and
+	 * the word loops below scribble the whole address space.
+	 */
+	if (nbytes == 0)
+		return;
+	while (UNALIGNED(dst, sizeof(u_int))) {
+		*dst++ = 0;
+		if (--nbytes == 0)
+			return;
+	}
+
+	if (nbytes >= sizeof(u_int)) {
+		/*
+		 * If we get this far, we know that nbytes is large
+		 * and dst is word-aligned.
+		 */
+		aligned_dst = (u_int *)dst;
+
+		while (nbytes >= 4 * sizeof(u_int)) {
+			*aligned_dst++ = 0;
+			*aligned_dst++ = 0;
+			*aligned_dst++ = 0;
+			*aligned_dst++ = 0;
+			nbytes -= 4 * sizeof(u_int);
+		}
+		while (nbytes >= sizeof(u_int)) {
+			*aligned_dst++ = 0;
+			nbytes -= sizeof(u_int);
+		}
+		dst = (u_char *)aligned_dst;
+	}
+
+	/* Pick up the remainder with a bytewise loop. */
+	while (nbytes--)
+		*dst++ = 0;
+}
+
 void *memset(void *p, int c, size_t n)
 { unsigned char *q = p; while (n--) *q++ = (unsigned char)c; return p; }
 void *memcpy(void *d, const void *s, size_t n)
-{ unsigned char *a = d; const unsigned char *b = s; while (n--) *a++ = *b++; return d; }
+{ bcopy(s, d, n); return d; }
 void *memmove(void *d, const void *s, size_t n)
 { unsigned char *a = d; const unsigned char *b = s;
   if (a < b) { while (n--) *a++ = *b++; } else { a += n; b += n; while (n--) *--a = *--b; }

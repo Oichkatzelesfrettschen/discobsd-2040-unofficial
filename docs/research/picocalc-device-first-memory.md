@@ -152,15 +152,39 @@ text 33,852, data 2,432, bss 7,176) and `usr.bin/awk/awk` (fb9e44f2955ffbb0,
 3 KB u area of `sys/arch/rp2040/test/swapram/swapram_test.c:391-398`; 4 KB of
 zeros; 4 KB of random bytes. The model charges one cycle per instruction
 fetch, so a board running the encoder from the XIP cache can only be
-slower (I). A per-function run of the same model attributes
-95.5 percent of the sh counting pass to `heatshrink_encoder_poll()` and 1.4
-percent to the byte-loop copy stubs; `run.py` keeps totals only.
-`picocalc-device-first/run-output.tsv` holds the rows.
+slower (I). The harness links the kernel's own `bzero()` and `bcopy()`
+(`machdep.c`, copied verbatim into `bench.c`; `build.sh` fails when either
+body or `UNALIGNED` differs from `machdep.c`), because the encoder's
+`memset()` and `memcpy()` reach them through `dhara/compat/string.h`. A
+per-function run of the same model attributes 95.5 percent of the sh counting
+pass to `heatshrink_encoder_poll()` and 1.4 percent to those two routines;
+`run.py` keeps totals only. `picocalc-device-first/run-output.tsv` holds the
+rows, and `selftest.sh` shows the gate failing on an aliased output
+directory, a drifted `bzero()` and a failed round trip.
+
+Correction: an earlier harness supplied byte-loop `bzero()` and `bcopy()`
+where the kernel runs four words per iteration. `heatshrink_encoder_reset()`
+clears its 1,024-byte buffer once per encode pass, so the byte loop cost
+about 7,000 extra cycles (0.06 ms) per pass, and the kernel's `bcopy()` took
+the same cycle count to within 0.2 percent. Counting plus writing passes, in
+cycles (before, after):
+
+| Segment | Before | After |
+| --- | ---: | ---: |
+| sh data+bss | 26,678,632 | 26,664,840 |
+| awk data+bss | 6,248,264 | 6,234,568 |
+| 4 KB random | 96,390,533 | 96,376,453 |
+
+Decode cycles did not move, since the decoder calls neither routine. The
+derived times move by 0.3 ms or less: sh pool swapout 256.2 to 255.9 ms,
+refusal 114.5 to 114.4 ms, awk swapout 92.7 to 92.4 ms and refusal 32.8 to
+32.6 ms; the 4 KB incompressible rows (771 and 386 ms) and the 3.1 ms sh
+swapin do not change at the printed precision.
 
 | Image (raw bytes) | Pool swapout | Pool refusal | Pool swapin | PSRAM each way | `fl1` swapout |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| sh (16,776 B, 2,001 compressed) | 256.2 ms | 114.5 ms | 3.13 ms | 1.4 ms (I) | 257 ms typical, 2.2 s maximum |
-| awk (20,236 B, 680 compressed) | 92.7 ms | 32.8 ms | 3.40 ms | 1.6 ms (I) | 257 ms typical, 2.2 s maximum |
+| sh (16,776 B, 2,001 compressed) | 255.9 ms | 114.4 ms | 3.13 ms | 1.4 ms (I) | 257 ms typical, 2.2 s maximum |
+| awk (20,236 B, 680 compressed) | 92.4 ms | 32.6 ms | 3.40 ms | 1.6 ms (I) | 257 ms typical, 2.2 s maximum |
 | 4 KB incompressible | 771 ms | 386 ms | 1.15 ms | 0.3 ms (I) | 51 ms typical |
 
 Pool swapout sums the data and stack counting and writing passes and one
@@ -184,7 +208,7 @@ note's 77 to 155 KB/s band for its worst segment, so the per-byte estimate
 for data holds. Three things the estimate left out make the difference:
 the kernel encodes data and stack twice (count, then write); this build's
 sh data segment is 9,608 bytes against that note's 5,248, from a different
-build of sh; and the u area runs at 113 KB/s and the stack at 528 KB/s per
+build of sh; and the u area runs at 113 KB/s and the stack at 532 KB/s per
 pass, well under the 0.8 to 1.6 MB/s that note took as typical. Scaled to
 the 5,248-byte segment, the model gives about 160 ms (I). The encoder
 spends its time in the unindexed match search, which keeps the codec at
@@ -260,7 +284,7 @@ benefit is a hypothesis: fewer root and SD reads per compile, which the
 One change helps every pooled state: the counting pass runs to its end
 even when its running length already exceeds the pool's largest free run
 (`swapram.c:478-487`). Passing that run as a cap ends a doomed count early;
-the sh refusal would fall from 114.5 ms toward the fraction of the image
+the sh refusal would fall from 114.4 ms toward the fraction of the image
 encoded before the cap (I), for an estimated +20 to +40 bytes of text.
 
 ## Prior decisions against this design

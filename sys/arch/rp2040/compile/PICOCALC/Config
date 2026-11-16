@@ -76,6 +76,7 @@ options         "UART_BAUD=115200"          # default speed
 # The Pico's own micro-USB port as a CDC-ACM device, /dev/ttyUSB0; it also
 # carries the reset interface picotool reboot -u uses.
 device          uartusb
+options         "USB_TXRING=4096"           # half the scratch banks; the tile atlas takes the rest
 
 # Compressed RAM tier in front of the flash swap and packed executables,
 # as on the PICO board.

@@ -73,7 +73,15 @@ static unsigned win_fmt, win_fg, win_bg;
 static int win_w, win_col;
 
 /* The tile atlas and the two streams that fill it and draw from it. */
-static unsigned char atlas[LCDG_ATLAS_N * LCDG_TILE_BYTES];
+/*
+ * The atlas lives in the SRAM4/SRAM5 scratch banks beside a 4 KB USB
+ * transmit ring (kern.ldscript, .scratch), not in the striped kernel RAM.
+ * Those banks are not cleared at reset; lcdgfxopen() zeroes the atlas
+ * before any stream can read it, and nothing reads it while the device is
+ * closed.
+ */
+static unsigned char atlas[LCDG_ATLAS_N * LCDG_TILE_BYTES]
+	__attribute__((section(".scratch.lcdgfx_atlas"), aligned(4)));
 static unsigned tset_pos, tset_left;	/* LCDG_TILESET: next byte, bytes wanted. */
 static unsigned char tw_row[LCDG_GRID];	/* LCDG_TILEWIN: numbers of one row. */
 static unsigned tw_fill, tw_left;	/* Numbers in tw_row, numbers wanted. */

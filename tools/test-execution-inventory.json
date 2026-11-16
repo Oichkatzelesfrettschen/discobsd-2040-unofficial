@@ -2394,6 +2394,26 @@
       ]
     },
     {
+      "id": "libc.sleep.unmasked-negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-sleep",
+      "root_target": "check-libc-host-contracts",
+      "program": "sleep_unmasked_bad_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "sleep_unmasked_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.sleep.unmasked-negative -- ./sleep_unmasked_bad_test",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libc-sleep"
+      ]
+    },
+    {
       "id": "kernel.credentials.sanitized",
       "owner": "firmware/posix-sh",
       "width": "native",

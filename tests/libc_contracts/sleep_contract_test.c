@@ -32,9 +32,12 @@
 #include <string.h>
 #include <sys/time.h>
 #include <sys/select.h>
+#include <signal.h>
 #include <unistd.h>
 
 unsigned int	db_sleep(unsigned int);
+int		test_pselect(int, fd_set *, fd_set *, fd_set *,
+		    const struct timespec *, const sigset_t *);
 
 #define KERNEL_SELECT_BOUND	100000000L	/* itimerfix() */
 #define KERNEL_TICK_CLAMP	2147483UL	/* 0x7fffffff / HZ 1000, hzto() */
@@ -80,40 +83,69 @@ model_advance(unsigned long seconds)
 	return (seconds);
 }
 
+/*
+ * The wait shared by select() and pselect(). unblocks is nonzero for a
+ * pselect() with a mask, which lets a signal pending on the caller's blocked
+ * mask end the wait; a plain select() leaves the mask alone. A signal that
+ * arrives between two waits (just before call model_boundary_call) is held
+ * if the process has every signal blocked and delivered inside the next
+ * unblocking wait, where it ends the wait at once with EINTR; if the
+ * process does not hold them blocked, its handler runs and the signal is
+ * lost to the sleep.
+ */
+static sigset_t		model_mask;
+static int		model_boundary_call;
+static int		model_lost;
+
 int
-test_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-    struct timeval *timeout)
+test_sigprocmask(int how, const sigset_t *set, sigset_t *old)
+{
+	if (old != 0)
+		*old = model_mask;
+	if (set != 0) {
+		if (how == SIG_BLOCK)
+			model_mask |= *set;
+		else if (how == SIG_SETMASK)
+			model_mask = *set;
+		else
+			model_mask &= ~*set;
+	}
+	return (0);
+}
+
+static int
+model_wait(long tv_sec, int have_timeout, int unblocks)
 {
 	unsigned long want;
 
-	(void)nfds;
-	(void)readfds;
-	(void)writefds;
-	(void)exceptfds;
 	select_count++;
-	select_seconds = timeout != 0 ? timeout->tv_sec : -1;
+	select_seconds = have_timeout ? tv_sec : -1;
 	if (select_count > RUNAWAY_CALLS) {
 		fail("select", "select() was called without bound");
 		_exit(1);
 	}
 	if (!model_active)
 		return (select_result);
-	if (timeout == 0)
+	if (!have_timeout)
 		return (-1);
-	if (model_fail_call != 0 && select_count == model_fail_call) {
-		return (-1);
+	if (model_boundary_call != 0 && select_count == model_boundary_call) {
+		if (model_mask != 0 && unblocks)
+			return (-1);
+		model_lost++;
 	}
-	if (timeout->tv_sec >= 0 && timeout->tv_sec <= KERNEL_SELECT_BOUND &&
-	    (unsigned long long)model_clock + (unsigned long long)timeout->tv_sec
+	if (model_fail_call != 0 && select_count == model_fail_call)
+		return (-1);
+	if (tv_sec >= 0 && tv_sec <= KERNEL_SELECT_BOUND &&
+	    (unsigned long long)model_clock + (unsigned long long)tv_sec
 	    > 0xffffffffULL)
 		return (0);
-	if (timeout->tv_sec < 0 || timeout->tv_sec > KERNEL_SELECT_BOUND) {
+	if (tv_sec < 0 || tv_sec > KERNEL_SELECT_BOUND) {
 		model_refused++;
 		return (-1);
 	}
-	if (timeout->tv_sec > model_longest)
-		model_longest = timeout->tv_sec;
-	want = (unsigned long)timeout->tv_sec;
+	if (tv_sec > model_longest)
+		model_longest = tv_sec;
+	want = (unsigned long)tv_sec;
 	if (want > KERNEL_TICK_CLAMP)
 		want = KERNEL_TICK_CLAMP;
 	if (model_signal_at != 0 && model_slept + want > model_signal_at) {
@@ -122,6 +154,29 @@ test_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 	}
 	(void)model_advance(want);
 	return (0);
+}
+
+int
+test_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+    struct timeval *timeout)
+{
+	(void)nfds;
+	(void)readfds;
+	(void)writefds;
+	(void)exceptfds;
+	return (model_wait(timeout != 0 ? timeout->tv_sec : 0, timeout != 0, 0));
+}
+
+int
+test_pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+    const struct timespec *timeout, const sigset_t *mask)
+{
+	(void)nfds;
+	(void)readfds;
+	(void)writefds;
+	(void)exceptfds;
+	return (model_wait(timeout != 0 ? (long)timeout->tv_sec : 0,
+	    timeout != 0, mask != 0));
 }
 
 struct sleep_case {
@@ -151,34 +206,40 @@ struct model_case {
 	unsigned long	signal_at;	/* seconds slept when a signal lands */
 	int		fail_call;	/* select() call that fails */
 	int		stalls;		/* the deadline wraps; select() is due at once */
+	int		boundary;	/* wait before which a signal arrives */
 };
 
 static const struct model_case models[] = {
-	{ "request 1", 1000UL, 1UL, 0, 0, 0 },
-	{ "request 1,000,000", 1000UL, 1000000UL, 0, 0, 0 },
+	{ "request 1", 1000UL, 1UL, 0, 0, 0, 0 },
+	{ "request 1,000,000", 1000UL, 1000000UL, 0, 0, 0, 0 },
 	{ "request 2,147,483 (last exact tick count)", 1000UL, 2147483UL,
-	    0, 0, 0 },
+	    0, 0, 0, 0 },
 	{ "request 2,147,484 (first saturated tick count)", 1000UL,
-	    2147484UL, 0, 0, 0 },
+	    2147484UL, 0, 0, 0, 0 },
 	{ "request 100,000,000 (the select bound)", 1000UL, 100000000UL,
-	    0, 0, 0 },
-	{ "request 100,000,001 (first refused)", 1000UL, 100000001UL, 0, 0, 0 },
-	{ "request LONG_MAX", 1000UL, 2147483647UL, 0, 0, 0 },
-	{ "request LONG_MAX + 1", 1000UL, 2147483648UL, 0, 0, 0 },
+	    0, 0, 0, 0 },
+	{ "request 100,000,001 (first refused)", 1000UL, 100000001UL, 0, 0, 0, 0 },
+	{ "request LONG_MAX", 1000UL, 2147483647UL, 0, 0, 0, 0 },
+	{ "request LONG_MAX + 1", 1000UL, 2147483648UL, 0, 0, 0, 0 },
 	{ "request UINT_MAX (clock at the count's zero)", 0UL, 4294967295UL,
-	    0, 0, 0 },
+	    0, 0, 0, 0 },
 	{ "deadline lands on the last count before the 2106 rollover",
-	    0xfff0bdbfUL, 1000000UL, 0, 0, 0 },
+	    0xfff0bdbfUL, 1000000UL, 0, 0, 0, 0 },
 	{ "deadline wraps at the 2106 rollover", 0xfffff000UL, 3000000UL,
-	    0, 0, 1 },
+	    0, 0, 1, 0 },
 	{ "deadline wraps one second past the last count", 0xfff0bdc0UL,
-	    1000000UL, 0, 0, 1 },
+	    1000000UL, 0, 0, 1, 0 },
 	{ "signal in the first chunk of a long request", 1000UL,
-	    200000000UL, 10UL, 0, 0 },
-	{ "signal after one chunk", 1000UL, 3000000UL, 1500000UL, 0, 0 },
-	{ "signal late in UINT_MAX", 0UL, 4294967295UL, 4000000000UL, 0, 0 },
-	{ "select fails on the first call", 1000UL, 5000000UL, 0, 1, 0 },
-	{ "select fails on the second call", 1000UL, 5000000UL, 0, 2, 0 },
+	    200000000UL, 10UL, 0, 0, 0 },
+	{ "signal after one chunk", 1000UL, 3000000UL, 1500000UL, 0, 0, 0 },
+	{ "signal late in UINT_MAX", 0UL, 4294967295UL, 4000000000UL, 0, 0, 0 },
+	{ "select fails on the first call", 1000UL, 5000000UL, 0, 1, 0, 0 },
+	{ "select fails on the second call", 1000UL, 5000000UL, 0, 2, 0, 0 },
+	{ "signal before the first wait", 1000UL, 10UL, 0, 0, 0, 1 },
+	{ "signal between the first and second chunk", 1000UL, 3000000UL, 0, 0,
+	    0, 2 },
+	{ "signal between chunks late in UINT_MAX", 0UL, 4294967295UL, 0, 0, 0,
+	    4000 },
 };
 
 static int failure_count;
@@ -206,6 +267,9 @@ run_model(const struct model_case *c)
 	model_refused = 0;
 	model_signal_at = c->signal_at;
 	model_fail_call = c->fail_call;
+	model_boundary_call = c->boundary;
+	model_lost = 0;
+	model_mask = 0;
 	select_count = 0;
 	left = db_sleep((unsigned int)c->request);
 	model_active = 0;
@@ -216,7 +280,16 @@ run_model(const struct model_case *c)
 		fail(c->name, "a timeout past the saturated tick count");
 	if ((unsigned long)left != c->request - model_slept)
 		fail(c->name, "unslept time differs from the time not slept");
-	if (c->stalls != 0) {
+	if (model_lost != 0)
+		fail(c->name, "a signal between two waits was lost");
+	if (model_mask != 0)
+		fail(c->name, "the caller's signal mask was not restored");
+	if (c->boundary != 0) {
+		if (select_count != c->boundary)
+			fail(c->name, "the signal did not end the sleep");
+		if (left == 0 || left != c->request - model_slept)
+			fail(c->name, "the unslept part is wrong");
+	} else if (c->stalls != 0) {
 		if (select_count > 3)
 			fail(c->name, "a stalled select() was repeated");
 		if (left != c->request - model_slept || left == 0)

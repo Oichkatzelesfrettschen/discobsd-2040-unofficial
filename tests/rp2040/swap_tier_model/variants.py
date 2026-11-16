@@ -64,6 +64,23 @@ VARIANTS = [
     ("8 swap off NOR (PSRAM or SD)", Config(flash=False), None, 0, 0),
 ]
 
+# A smaller pool on every board, the bare Pico included: the RAM column is
+# what the kernel gets back. Each size runs as shipped, with variant 1 and
+# with 1+2, since those change which images a small pool can take.
+SMALL_POOLS = [12, 8, 4]
+for _kb in SMALL_POOLS:
+    _ram = (_kb - 16) * 1024
+    VARIANTS += [
+        (f"9 pool {_kb} KB", Config(pool_kb=_kb), None, _ram, 0),
+        (f"9 pool {_kb} KB + 1",
+         Config(pool_kb=_kb, u_compressed=True, u_slack=64), None, _ram,
+         120),
+        (f"9 pool {_kb} KB + 1+2",
+         Config(pool_kb=_kb, u_compressed=True, u_slack=64,
+                compaction=True), None, _ram, 320),
+    ]
+VARIANTS.append(("9 no pool", Config(pool_kb=0), None, -16384, 0))
+
 FLASH_SIZES = [384, 256, 192, 128, 96, 64]
 
 TEXT_BASIS = {
@@ -195,7 +212,7 @@ def table(sessions=SESSIONS):
         erases = sum(r["erases"] for r in rows) / len(rows)
         hot = sum(r["hottest"] for r in rows) / len(rows)
         saved = base_erases - erases
-        per_ram = f"{saved / (ram / 1024):.2f}" if ram else "--"
+        per_ram = f"{saved / (ram / 1024):.2f}" if ram > 0 else "--"
         per_text = f"{saved / (text / 1024):.1f}" if text else "--"
         life = life_range(rows)
         results[name] = (saved, ram, text, hot)

@@ -330,7 +330,10 @@ payload(u_char *data, daddr_t blk, unsigned seed)
 	data[7] = (u_char)((unsigned long)blk >> 24);
 }
 
-/* kind: 0 workload block, 1 fsck repair block, 2 cold block never rewritten. */
+/*
+ * kind: 0 workload block, 1 fsck repair block, 2 cold block never rewritten,
+ * 3 the block of the first workload write again.
+ */
 static void
 step_write(int kind)
 {
@@ -351,6 +354,9 @@ step_write(int kind)
 		w->blk = (daddr_t)(COLD_FIRST + run.cold_next % COLD_BLOCKS);
 		w->seed = 1 + run.started;
 		run.cold_next++;
+	} else if (kind == 3) {
+		w->blk = (daddr_t)workload_block(0);
+		w->seed = 1 + run.started;
 	} else {
 		w->blk = (daddr_t)workload_block(run.started);
 		w->seed = 1 + run.started;
@@ -448,6 +454,25 @@ step_until_wrap(void)
 	}
 }
 
+/*
+ * Write until the journal head has wrapped to page 0. The next write erases
+ * block 0, so the checkpoint that closes its group lies in block 0 at the
+ * next epoch, and the checkpoint before it in the last block at the epoch
+ * before: a cut inside it exercises the recovery search across the wrap.
+ */
+static void
+step_until_head_zero(void)
+{
+	unsigned prev = flmap.journal.head;
+
+	while (!step_error) {
+		step_write(0);
+		if (flmap.journal.head == 0 && prev != 0)
+			return;
+		prev = flmap.journal.head;
+	}
+}
+
 static void step_swap(char kind);
 static void remount_after_reset(void);
 
@@ -457,7 +482,9 @@ static void remount_after_reset(void);
  * leaves a live page at the journal tail for Dhara to copy), A ack
  * (DIOCCHECKPOINT), O open for writing, X close, Z write until the next write
  * collects, Q the same for a write that also closes a checkpoint group, R
- * reset without a cut, N write until the journal has wrapped, U fill the swap
+ * reset without a cut, V write the first workload block again, N write
+ * until the journal has wrapped, M write until
+ * the journal head has wrapped to page 0, U fill the swap
  * sectors, S raw swap image append, T raw swap rewrite through the spare
  * sector. "W*6" repeats a step.
  */
@@ -493,6 +520,9 @@ run_steps(const char *steps)
 			case 'Y':
 				step_write(2);
 				break;
+			case 'V':
+				step_write(3);
+				break;
 			case 'A':
 				step_ack();
 				break;
@@ -510,6 +540,9 @@ run_steps(const char *steps)
 				break;
 			case 'N':
 				step_until_wrap();
+				break;
+			case 'M':
+				step_until_head_zero();
 				break;
 			case 'U':
 			case 'S':
@@ -939,7 +972,15 @@ load_cells(const char *path)
  */
 static int atomic_ckpt;
 
-static const unsigned prefixes[] = { 0, 1, 3, 4, 7, 8, 16, 20, 64, 128, 255 };
+/*
+ * Byte prefixes of a chip command kept by a cut. 46 ends inside the 32-bit
+ * sector id of the group's root metadata in the last chip page of a
+ * checkpoint (bytes 812 to 815 of the 1 KiB page: header 16, cookie 4, six
+ * 132-byte metadata slots before it), the field the K1 rows tear.
+ */
+static const unsigned prefixes[] = {
+	0, 1, 3, 4, 7, 8, 16, 20, 46, 64, 128, 255
+};
 #define	NPREFIX	(sizeof(prefixes) / sizeof(prefixes[0]))
 
 struct tally {

@@ -21,6 +21,11 @@ half of W03 is not modeled.
 
 ## Finding
 
+The finding below holds for `journal.c` before the change in
+`dhara-torn-checkpoint.md`, which makes `find_root()` accept a checkpoint
+page only when the sector tree it roots is whole; every row now passes and
+the gate fails the unchanged journal on the 18 tear rows and the wrap row.
+
 A reset between the four chip commands of one Dhara checkpoint page program
 leaves a page that `dhara_journal_resume()` accepts, because `find_root()`
 tests the magic and the epoch in the page's first four bytes and nothing
@@ -35,8 +40,9 @@ Smallest history that shows it (row `Kf-min`): write block 0, checkpoint,
 write block 7, checkpoint, and reset after the first of the four chip commands
 of the second checkpoint page. The first checkpoint's write is lost.
 
-Of the 44 cuts the oracle places in a checkpoint page program (four commands
-by eleven byte prefixes), 40 leave the permitted set. All three cuts that fall
+Of the 44 cuts the oracle placed in a checkpoint page program (four commands
+by eleven byte prefixes; a twelfth, 46, now also cuts inside the root's
+sector id), 40 left the permitted set. All three cuts that fall
 between commands fail (after one, two or three of the four commands); of the
 cuts inside a command, a prefix of at most three bytes passes because the
 epoch byte is still erased, and a prefix of 255 bytes of the last command
@@ -72,8 +78,9 @@ program or erase takes effect. For each row the script runs to the operation, a
 snapshot of the chip and the driver's RAM is taken, and the operation runs
 once to record its chip commands. The operation then runs again for every cut: a cut stops it
 before chip command c, with 0 bytes of that command programmed, and for a page
-program command also after a prefix of 1, 3, 4, 7, 8, 16, 20, 64, 128 or 255
-bytes of its page. Commands before c apply fully, as the part finishes them. After the cut the oracle remounts through
+program command also after a prefix of 1, 3, 4, 7, 8, 16, 20, 46, 64, 128 or
+255 bytes of its page (46 ends inside the root's sector id in the last chip
+page of a checkpoint). Commands before c apply fully, as the part finishes them. After the cut the oracle remounts through
 `fl_setup()` and Dhara recovery and gives two verdicts.
 
 - Map: `dhara_map_resume()` succeeds, and the resumed map accepts two writes
@@ -93,14 +100,17 @@ group). The `may` token `prefix` allows any prefix up to the writes started;
 `none` allows only the floor.
 
 Calibration. With every checkpoint page programmed as one command
-(`FLASH_RESET_CELLS_ATOMIC_CKPT`) every row passes, including the defect rows.
-Six mutations each fail the rows named in `check.sh` (a sanitizer abort is given exit status 70 and a calibration case shows it cannot pass for a rejection; block payloads carry the whole write version, so a state rolled back by 768 writes is not mistaken for a recent one; the swap isolation check covers all 96 swap sectors): a checkpoint that never
+(`FLASH_RESET_CELLS_ATOMIC_CKPT`) every row passes, including the tear rows.
+Nine mutations each fail the rows named in `check.sh` (a sanitizer abort is given exit status 70 and a calibration case shows it cannot pass for a rejection; block payloads carry the whole write version, so a state rolled back by 768 writes is not mistaken for a recent one; the swap isolation check covers all 96 swap sectors): a checkpoint that never
 reaches Dhara (`E-H2`, `P-H2`, `Kf-H2`), a checkpoint that reports success
 without programming its page (`E-H2`, `Kf-H2`), a block erase over one sector
 (`Ed-H1`, which needs a block holding a previous lap's pages, so the script
 wraps the journal), a page copy one chip page short (`Gk-H1`), a swap
-rewrite that skips the spare copy (`T-H1`), and a swap append that erases a sector
-20 sectors into the extent (`S-H1`).
+rewrite that skips the spare copy (`T-H1`), a swap append that erases a sector
+20 sectors into the extent (`S-H1`), a journal that skips the sector-tree test
+(`Kf-min`, `Kf-H2`, `Kg-H2`, `Gk-H2`, `F-H2`, `Kw-H2`), one that takes a page
+with an erased tail for a checkpoint (`Kw-H2`), and one whose sector id bound
+admits an erased high byte (`K1-H2`).
 
 ## Cell table
 
@@ -113,19 +123,20 @@ device trace (`DIOCCHECKPOINT` returned) and differ in who acknowledges it: a
 acknowledges nothing for that mount, so their `must` terms hold only when the
 checkpoint ran, which the checkpoint counter of `STORAGE_STATS` shows.
 
-Result of the shipped driver per cell: `pass`, `defect` (reproduced as
-recorded), `n/a` (no such cell by construction).
+Result of the shipped driver per cell: `pass`, `n/a` (no such cell by
+construction). The four tear operations (`Kf`, `Kg`, `Gk`, `F`) were
+`defect` before the change in `dhara-torn-checkpoint.md`.
 
 | Operation in flight | H0 | H1 | H2 | H3 | H4 | Recovered state permitted |
 | --- | --- | --- | --- | --- | --- | --- |
 | `P` page program inside an open group | n/a | pass | pass | pass | pass | the last finished checkpoint's state; nothing the cut write held |
 | `E` first write of a block: two sector erases, then the page program | pass | pass | pass | pass | pass | the same |
 | `Ed` the same over a wrapped journal | n/a | pass | pass | pass | pass | the same |
-| `Kf` forced checkpoint: padding copies, then the checkpoint page | pass (no commands) | defect | defect | defect | defect | the previous checkpoint's state or the new one |
-| `Kg` seventh write: data page, then the group's checkpoint page | n/a | defect | defect | defect | defect | the same |
+| `Kf` forced checkpoint: padding copies, then the checkpoint page | pass (no commands) | pass | pass | pass | pass | the previous checkpoint's state or the new one |
+| `Kg` seventh write: data page, then the group's checkpoint page | n/a | pass | pass | pass | pass | the same |
 | `G` write whose collection copies pages | n/a | pass | pass | pass | pass | the last finished checkpoint's state |
-| `Gk` such a write whose copies close a group | n/a | defect | defect | defect | defect | the previous checkpoint's state or the new one |
-| `F` hot-root repair writes, then `sync()` (sbin/fsck/main.c), on the boot after a reset | defect | defect | defect | defect | defect | prefixes of the repair as in `Kf`, the rerun converging |
+| `Gk` such a write whose copies close a group | n/a | pass | pass | pass | pass | the previous checkpoint's state or the new one |
+| `F` hot-root repair writes, then `sync()` (sbin/fsck/main.c), on the boot after a reset | pass | pass | pass | pass | pass | prefixes of the repair as in `Kf`, the rerun converging |
 | `S` raw swap image append | pass | pass | pass | pass | pass | root bytes unchanged; no other swap sector touched |
 | `T` raw swap rewrite through the spare | pass | pass | pass | pass | pass | the same, and each page the request leaves alone intact in the destination or the spare |
 
@@ -143,6 +154,12 @@ A hot-root repair ends in `sync()` and `exit(4)` (`sbin/fsck/main.c`), and
 `etc/rc.rp2040` then runs `reboot -n`; the mount holds the node open, so the
 repair's own close is not the last close and the acknowledgment is the sync's
 checkpoint. The `F` rows run the three repair writes and the checkpoint.
+
+Two rows beyond the table, both `Kf` under H2 and both passing: `Kw-H2`
+writes until the journal head wraps to page 0, so the checkpoint in flight
+lies in block 0 at the next epoch and the one before it in the last block;
+`K1-H2` rewrites the one sector of a one-sector map, so a cut inside the
+root's sector id leaves a tree of one node either way.
 
 ### Rows the documents do not fix
 
@@ -220,15 +237,9 @@ cuts stay hardware. The hook is not written.
 
 ## Open questions for the owner
 
-- The fix needs a choice the tree leaves open: a format change (a checksum or
-  a commit marker in the checkpoint header, which `tools/flashimg` and every
-  stored root must follow) or programming order inside the page (header last,
-  which a torn first chip page still defeats, because the magic, epoch, tail
-  and counters share the first 256 bytes) or a second program of the header
-  bytes alone over their erased cells (which the NOR model counts as a program
-  over unerased flash; the datasheet revision read permits a partial page
-  program but does not state whether one page takes a second). The
-  rows stay recorded as defects until one lands.
+- The fix reads the existing format: `dhara-torn-checkpoint.md` gives the
+  rule, why it is sound, and the format-change, ordering and second-program
+  alternatives it was weighed against.
 - Whether `fl_setup()` should refuse a root whose resume reports an error
   while a checkpoint exists, instead of mounting an empty map.
 - Whether to build the reset hook.

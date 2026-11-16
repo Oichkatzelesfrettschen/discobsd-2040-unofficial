@@ -105,8 +105,8 @@ build "$flash" "$dhara/journal.c" "$swap" "$work/oracle"
 cat "$work/oracle.log"
 
 # Known-good calibration: with a checkpoint page programmed as one command,
-# every row, including the recorded defects, holds. The defect rows fail only
-# through the cuts inside a checkpoint page program.
+# every row holds, a row the table records as a defect included, since such a
+# row may fail only through the cuts inside a checkpoint page program.
 FLASH_RESET_CELLS_ATOMIC_CKPT=1 "$work/oracle" "$cells" \
     >"$work/atomic.log" 2>&1 || {
 	cat "$work/atomic.log" >&2
@@ -164,6 +164,37 @@ if (rejects "$work/m-ub" E-H2) >/dev/null 2>&1; then
 	fail "a sanitizer abort after FAIL lines passes for a rejection"
 fi
 
+# A torn checkpoint page accepted on its magic and epoch alone: every cut
+# that leaves the root's metadata partly erased recovers a map missing
+# sectors, in a group closed by a forced checkpoint (Kf), by a write (Kg),
+# by collection copies (Gk), by the fsck repair (F) and across the journal
+# wrap (Kw).
+mutate "$dhara/journal.c" "$work/journal-torn-tree.c" \
+	'		    cp_tree_whole(j, p - 1)) {' \
+	'		    (cp_tree_whole(j, p - 1) || 1)) {'
+build "$flash" "$work/journal-torn-tree.c" "$swap" "$work/m-torn-tree"
+rejects "$work/m-torn-tree" Kf-min Kf-H2 Kg-H2 Gk-H2 F-H2 Kw-H2
+
+# A torn first program that stops after the magic leaves the epoch erased;
+# taken for a checkpoint in block 0 after the wrap, it gives the journal the
+# epoch 0xff and no checkpoint of the lap matches it.
+mutate "$dhara/journal.c" "$work/journal-torn-epoch.c" \
+	'	return hdr_has_magic(buf) &&
+	       hdr_get_tail(buf) <
+		((dhara_page_t)j->nand->num_blocks << j->nand->log2_ppb);' \
+	'	return hdr_has_magic(buf) &&
+	       j->nand != NULL;'
+build "$flash" "$work/journal-torn-epoch.c" "$swap" "$work/m-torn-epoch"
+rejects "$work/m-torn-epoch" Kw-H2
+
+# With one live sector the torn root id still counts one node; only the
+# test of the id's high byte rejects an id whose high bytes are erased.
+mutate "$dhara/journal.c" "$work/journal-torn-id.c" \
+	'			if (meta_field(j, next, 0, &v) < 0 || (v >> 24) == 0xff ||' \
+	'			if (meta_field(j, next, 0, &v) < 0 || v == 0xffffffff ||'
+build "$flash" "$work/journal-torn-id.c" "$swap" "$work/m-torn-id"
+rejects "$work/m-torn-id" K1-H2
+
 # A page copy that stops one chip page short moves a torn page; only the
 # rows whose copies reach a checkpoint (Gk) read the moved page back.
 
@@ -207,8 +238,8 @@ mutate "$swap" "$work/swap-stray.c" \
 build "$flash" "$dhara/journal.c" "$work/swap-stray.c" "$work/m-stray"
 rejects "$work/m-stray" S-H1
 
-echo "flash_reset_cells: PASS (the shipped driver meets every host row and" \
-	"reproduces the recorded checkpoint-tear defect; atomic checkpoint" \
-	"programs meet every row; no-sync, unprogrammed-checkpoint," \
-	"half-erase, short-copy, no-spare-copy and stray-swap-erase mutations" \
-	"rejected; a sanitizer abort is not a rejection)"
+echo "flash_reset_cells: PASS (the shipped driver meets every host row," \
+	"the checkpoint-tear rows included; atomic checkpoint programs meet" \
+	"every row; no-sync, unprogrammed-checkpoint, half-erase, short-copy," \
+	"no-spare-copy, stray-swap-erase, torn-tree, torn-epoch and torn-id" \
+	"mutations rejected; a sanitizer abort is not a rejection)"

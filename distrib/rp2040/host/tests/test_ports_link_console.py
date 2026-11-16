@@ -231,7 +231,10 @@ def test_escape_arms_across_reads():
 def _up(monkeypatch, tmp_path, usb_port):
     import types
 
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    # config_dir() reads XDG_CONFIG_HOME on Linux alone; macOS and Windows
+    # resolve the user's real Library or AppData directory, so the helper
+    # pins it to tmp_path on every platform.
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: tmp_path / "discobsd")
     monkeypatch.delenv("DISCOBSD_WEB_TOKEN", raising=False)
     monkeypatch.delenv("DISCOBSD_HOST_IP", raising=False)
     if usb_port is None:

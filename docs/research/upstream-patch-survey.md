@@ -23,7 +23,7 @@ Across 172 rows (2 upstream commits, 68 numbered patches 432 to 499, and the
 | --- | ---: | ---: | ---: | ---: |
 | upstream DiscoBSD | 0 | 0 | 0 | 2 |
 | 2.11BSD 432 to 499 | 12 | 9 | 8 | 39 |
-| 2.11BSD 500 items | 17 | 3 | 15 | 67 |
+| 2.11BSD 500 items | 17 | 3 | 16 | 66 |
 
 The applicable set is small and cheap. Five kernel items cost between -1603 and
 +80 bytes of kernel text and at most 4 bytes of kernel RAM; the shipped userland
@@ -129,7 +129,7 @@ mode, sysctl, tar, umount and inode-rescan work. The survey adds these:
 
 ## Patch 500
 
-Of the 102 items, 67 concern PDP-11 hardware and tapes, f77, efl, ingres,
+Of the 102 items, 66 concern PDP-11 hardware and tapes, f77, efl, ingres,
 sendmail, uucp, networking, programs absent here, or manuals. The rest:
 
 **Present (17).** `touch -r/-t` (`usr.bin/touch/touch.c:268`, `4328e80e`),
@@ -149,12 +149,14 @@ operand numerically and the crash path is absent. `hostid` is in
 500.57 (`ps` through `getopt`, `bin/ps/ps.c:294`) is present, but part (a) is
 live, so that item is applicable.
 
-**Applicable (15).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
+**Applicable (16).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
 descend repair (500.11), `iso646.h` and `locale.h` (500.13), `chown
 owner:group` (500.17), the find-database last entry (500.30), `w` with no
 utmp (500.51), short panic tags (500.76), `rm` and `mv` through `getopt`
 (500.80), `cfree` removal (500.83), `man` section names (500.86), the
-`sleep(3)` range (500.92, below), the `ps` static tty table (500.57, ranked 13), the unused phantasia test files (500.74: `phant_run.c`
+`sleep(3)` range (500.92, below), the `ps` static tty table (500.57, ranked 13), the `mkstr` `\a` and `\v`
+escapes (500.68: `games/battlestar/mkstr.c:142-166` has no such cases, and
+battlestar is built through it), the unused phantasia test files (500.74: `phant_run.c`
 and `test.c` remain, cosmetic, on a game outside `games/Makefile`'s `SUBDIR`; its
 setuid-root install and three-argument `signal` calls are absent) and the
 `who am i` separator (500.97).
@@ -286,7 +288,7 @@ applets, packed blocks in the root.
 
 The rest are unshipped or cosmetic: 500.51 `w` dereferences a failed `fopen` of
 utmp (`usr.bin/w/w.c:129,164`); 447 `apropos` under-allocation; 441 libvmf walk;
-500.1 `ls -T`; 500.83 `cfree` in `ls`; 500.86 `man` section names; 500.97 `who`
+500.1 `ls -T`; 500.68 `mkstr` `\a` and `\v` in the battlestar build tool; 500.83 `cfree` in `ls`; 500.86 `man` section names; 500.97 `who`
 separator; 500.74 phantasia `phant_run.c` and `test.c`, which patch 500 deletes from an unbuilt game; 466 `size` message; 500.30 find-database last entry (I). The two
 formatter vectors from the probe are gate work with no target cost.
 

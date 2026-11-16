@@ -47,8 +47,19 @@ cc=$1
 cflags=$2
 dir=$3
 reboot_c=$4
-out=$dir/sdk_gap.o
 fail=0
+work=$(mktemp -d "${TMPDIR:-/tmp}/sdk_gap.XXXXXX")
+out=$work/o
+
+# Remove the work directory by file and by directory, never recursively.
+cleanup() {
+	find "$work" -depth \( -type f -o -type l \) -exec rm -f {} + 2>/dev/null || :
+	find "$work" -depth -type d -exec rmdir {} + 2>/dev/null || :
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 shim_allowlist() {	# shim_allowlist SHIMDIR: print offenders, status 1 if any
 	bad=0
@@ -61,16 +72,15 @@ shim_allowlist() {	# shim_allowlist SHIMDIR: print offenders, status 1 if any
 	return $bad
 }
 
-if shim_allowlist "$dir/shim" > "$dir/sdk_gap.out"; then
+if shim_allowlist "$dir/shim" > "$work/out"; then
 	echo "sdk_gap: shim directory exposes only sys/reboot.h and utmp.h"
 else
 	echo "sdk_gap: shim directory exposes extra headers:" >&2
-	cat "$dir/sdk_gap.out" >&2
+	cat "$work/out" >&2
 	fail=1
 fi
 
-tmp=$dir/sdk_gap.tmp
-rm -rf "$tmp"
+tmp=$work/shimcopy
 mkdir -p "$tmp/sys"
 cp "$dir/shim/utmp.h" "$tmp/utmp.h"
 cp "$dir/shim/sys/reboot.h" "$tmp/sys/reboot.h"
@@ -81,7 +91,6 @@ if shim_allowlist "$tmp" > /dev/null; then
 else
 	echo "sdk_gap: a shim copy holding sys/signal.h is rejected"
 fi
-rm -rf "$tmp"
 
 try() {	# try NAME WANT(0|1) SOURCE EXTRA...
 	name=$1
@@ -90,12 +99,12 @@ try() {	# try NAME WANT(0|1) SOURCE EXTRA...
 	shift 3
 	set +e
 	# shellcheck disable=SC2086
-	"$cc" $cflags "$@" -c -o "$out" "$dir/$probe" > "$dir/sdk_gap.out" 2>&1
+	"$cc" $cflags "$@" -c -o "$out" "$dir/$probe" > "$work/out" 2>&1
 	got=$?
 	set -e
 	if [ "$want" -eq 0 ] && [ "$got" -ne 0 ]; then
 		echo "sdk_gap: $name failed to compile" >&2
-		cat "$dir/sdk_gap.out" >&2
+		cat "$work/out" >&2
 		fail=1
 	elif [ "$want" -ne 0 ] && [ "$got" -eq 0 ]; then
 		echo "sdk_gap: $name compiled but must not" >&2
@@ -113,20 +122,20 @@ try no-signal-fallback 1 probe_kill.c -DREBOOT_SHIM_NO_SIGNAL_H
 # 3a. every include of reboot.c appears in reboot_unit.c
 grep '^#include <' "$reboot_c" | while read -r line; do
 	grep -Fxq "$line" "$dir/reboot_unit.c" || { echo "$line"; }
-done > "$dir/sdk_gap.out"
-if [ -s "$dir/sdk_gap.out" ]; then
+done > "$work/out"
+if [ -s "$work/out" ]; then
 	echo "sdk_gap: reboot_unit.c lacks includes of reboot.c:" >&2
-	cat "$dir/sdk_gap.out" >&2
+	cat "$work/out" >&2
 	fail=1
 else
 	echo "sdk_gap: reboot_unit.c covers every include of reboot.c"
 fi
 # calibration: a reboot.c with one more include must be reported
-{ cat "$reboot_c"; echo '#include <math.h>'; } > "$dir/sdk_gap.src"
-grep '^#include <' "$dir/sdk_gap.src" | while read -r line; do
+{ cat "$reboot_c"; echo '#include <math.h>'; } > "$work/src"
+grep '^#include <' "$work/src" | while read -r line; do
 	grep -Fxq "$line" "$dir/reboot_unit.c" || { echo "$line"; }
-done > "$dir/sdk_gap.out"
-if [ -s "$dir/sdk_gap.out" ]; then
+done > "$work/out"
+if [ -s "$work/out" ]; then
 	echo "sdk_gap: an include missing from reboot_unit.c is reported"
 else
 	echo "sdk_gap: an include missing from reboot_unit.c was not reported" >&2
@@ -140,12 +149,12 @@ alias_link() {	# alias_link NAME WANT(0|1) EXTRA...
 	shift 2
 	set +e
 	# shellcheck disable=SC2086
-	"$cc" $cflags "$@" -o "$dir/sdk_gap.bin" "$dir/alias_probe.c" "$dir/alias_main.c" > "$dir/sdk_gap.out" 2>&1
+	"$cc" $cflags "$@" -o "$work/bin" "$dir/alias_probe.c" "$dir/alias_main.c" > "$work/out" 2>&1
 	got=$?
 	set -e
 	if [ "$want" -eq 0 ] && [ "$got" -ne 0 ]; then
 		echo "sdk_gap: $name failed to link" >&2
-		cat "$dir/sdk_gap.out" >&2
+		cat "$work/out" >&2
 		fail=1
 	elif [ "$want" -ne 0 ] && [ "$got" -eq 0 ]; then
 		echo "sdk_gap: $name linked but must not" >&2
@@ -156,5 +165,4 @@ alias_link() {	# alias_link NAME WANT(0|1) EXTRA...
 }
 alias_link rename-after-includes 0
 alias_link rename-before-includes 1 -DPROBE_RENAME_FIRST -Dsyslog=test_syslog
-rm -f "$out" "$dir/sdk_gap.out" "$dir/sdk_gap.src" "$dir/sdk_gap.bin"
 [ "$fail" -eq 0 ] || exit 1

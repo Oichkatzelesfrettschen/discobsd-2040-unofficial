@@ -65,4 +65,4 @@ clean:
 
 all: check mutants
 
-.PHONY: all check mutants clean
+.PHONY: all check sdk-gap mutants clean

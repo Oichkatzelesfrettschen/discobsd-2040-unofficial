@@ -2016,7 +2016,8 @@ check-host-split:	check-python
 # on a conforming and a combined fixture and under SIGTERM.
 SIGNAL_TRAP_SCRIPTS=	distrib/rp2040/check-image-selection.sh \
 		tests/fat32tail/check.sh tools/renode/check-capacity.sh \
-		tools/architecture-isolation/check-architecture-isolation.sh
+		tools/architecture-isolation/check-architecture-isolation.sh \
+		tests/reboot_contracts/sdk_gap.sh
 check-signal-traps:
 		sh tools/check-signal-traps.sh --selftest
 		sh tools/check-signal-traps.sh ${SIGNAL_TRAP_SCRIPTS}

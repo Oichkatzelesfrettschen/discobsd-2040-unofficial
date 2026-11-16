@@ -585,7 +585,8 @@ class LoggedGateTest(unittest.TestCase):
     def test_concurrent_runner_cannot_truncate_active_log(self):
         # The first runner's program holds the log until the test publishes
         # the release file, so the second runner always meets a live owner
-        # however long a loaded host takes to start it.
+        # however long a loaded host takes to start it. Its 75 s fallback
+        # outlasts the 30 s start wait plus the 30 s contender limit.
         release = self.directory / "release-first-owner"
         first_command = [
             sys.executable,
@@ -594,15 +595,15 @@ class LoggedGateTest(unittest.TestCase):
             "--log", str(self.log),
             "--status", str(self.status),
             "--heartbeat-seconds", "0.05",
-            "--idle-timeout-seconds", "60",
-            "--timeout-seconds", "90",
+            "--idle-timeout-seconds", "100",
+            "--timeout-seconds", "120",
             "--",
             sys.executable,
             "-c",
             "import pathlib, sys, time\n"
             "print('FIRST-START', flush=True)\n"
             "release = pathlib.Path(sys.argv[1])\n"
-            "deadline = time.monotonic() + 45\n"
+            "deadline = time.monotonic() + 75\n"
             "while not release.exists() and time.monotonic() < deadline:\n"
             "    time.sleep(0.01)\n"
             "print('FIRST-END', flush=True)\n",

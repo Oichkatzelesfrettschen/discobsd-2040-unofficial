@@ -124,8 +124,12 @@ struct user {
 _Static_assert(__builtin_offsetof(struct user, u_procp) == 0,
     "u_procp must be the first word of the user area");
 
-#if defined(__thumb__) && !defined(__thumb2__)
+#if defined(__ARM_ARCH_6M__)
 /*
+ * Keyed on the compiler's ARMv6-M macro, not __thumb__: host tests define
+ * __thumb__ to select target code paths while compiling with 64-bit
+ * pointers, where these offsets do not hold.
+ *
  * A Thumb-1 (ARMv6-M) "ldr rd, [rn, #imm]" encodes a five-bit word index,
  * so it reaches offsets 0 to 124 from its base register. A field of u in
  * that window loads from the one literal that holds &u; a field beyond it

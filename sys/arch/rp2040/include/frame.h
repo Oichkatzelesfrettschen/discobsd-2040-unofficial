@@ -83,6 +83,24 @@ struct	userframe {
 
 #define	USERFRAME(tf)	((struct userframe *)(void *)(tf))
 
+/*
+ * exec_clear() (sys/kern/exec_subr.c) zeroes the trapframe for the new
+ * image; this clears the rest of the userframe with it. r12 starts at zero,
+ * and the divider state becomes zero operands and results marked DIRTY, so
+ * the exit from the exec call writes zeros over whatever the old image left
+ * in the divider instead of restoring or keeping it.
+ */
+#define	MD_EXEC_CLEAR_FRAME(tf) do {					\
+	struct userframe *md_uf = USERFRAME(tf);			\
+									\
+	md_uf->uf_r12 = 0;						\
+	md_uf->uf_div.ds_dividend = 0;					\
+	md_uf->uf_div.ds_divisor = 0;					\
+	md_uf->uf_div.ds_remainder = 0;					\
+	md_uf->uf_div.ds_quotient = 0;					\
+	md_uf->uf_div.ds_csr = DS_CSR_DIRTY;				\
+} while (0)
+
 #ifdef KERNEL
 void	divider_save(struct divider_state *);
 void	divider_restore(const struct divider_state *);

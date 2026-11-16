@@ -1,0 +1,13 @@
+# compiler arm-none-eabi-gcc (15:14.2.rel1-1) 14.2.1 20241119
+object	function	text_bytes
+rules.o	enc	116
+rules.o	enc_stop	172
+rules.o	enc_prefix	38
+rules.o	entropy_q4	104
+rules.o	log2_q4	36
+rules.o	log2frac	16
+rules.o	same_filled	44
+rules.o	largest_run	28
+rules-budget.o	enc_stop	128
+rules-ratio.o	enc_stop	160
+rules-none.o	enc_stop	116

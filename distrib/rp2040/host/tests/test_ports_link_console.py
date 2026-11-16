@@ -5,7 +5,7 @@ import urllib.request
 
 import pytest
 
-from discobsd_host import console, link, ports, term
+from discobsd_host import console, link, ports, term, web
 
 
 def info(device, vid=None, pid=None, serial_number=None, product=None):
@@ -209,6 +209,29 @@ def test_console_cli_requires_a_command():
         console.main([])
 
 
+@pytest.mark.parametrize("systemd", [False, True])
+def test_console_default_loopback_applies_to_every_launch_path(tmp_path, monkeypatch, systemd):
+    monkeypatch.setattr(console, "config_dir", lambda: tmp_path)
+    monkeypatch.setattr(console, "systemd_units_installed", lambda: systemd)
+    monkeypatch.setattr(console, "_http_answers", lambda *a: True)
+    monkeypatch.setattr(console, "_stop_pidfile", lambda *a: False)
+    monkeypatch.setattr(console, "_tool", lambda name: [name])
+    monkeypatch.setattr(console.subprocess, "call", lambda *a: 0)
+    spawned = []
+
+    def spawn(command, *args):
+        spawned.append(command)
+        return 123
+
+    monkeypatch.setattr(console, "_spawn_detached", spawn)
+    assert console.main(["up"]) == 0
+    values = console.read_env(tmp_path / "web.env")
+    assert values["DISCOBSD_WEB_BIND"] == "127.0.0.1"
+    assert values["DISCOBSD_HOST_IP"] == "127.0.0.1"
+    for command in spawned:
+        assert command[command.index("--bind") + 1] == "127.0.0.1"
+
+
 def test_escape_menu_quits_sends_and_helps():
     e = term.Escape()
     assert e.feed(b"ls\r") == (b"ls\r", None)
@@ -231,7 +254,10 @@ def test_escape_arms_across_reads():
 def _up(monkeypatch, tmp_path, usb_port):
     import types
 
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    # config_dir() reads XDG_CONFIG_HOME on Linux alone; macOS and Windows
+    # resolve the user's real Library or AppData directory, so the helper
+    # pins it to tmp_path on every platform.
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: tmp_path / "discobsd")
     monkeypatch.delenv("DISCOBSD_WEB_TOKEN", raising=False)
     monkeypatch.delenv("DISCOBSD_HOST_IP", raising=False)
     if usb_port is None:
@@ -266,3 +292,263 @@ def test_up_refuses_a_malformed_usb_port_before_writing(monkeypatch, tmp_path, v
     assert rc == 1
     assert not env_path.exists()
     assert "DISCOBSD_USB_PORT" in capsys.readouterr().err
+
+
+def _up_bind(monkeypatch, tmp_path, bind, host_ip=None, keep_env_ip=False, systemd=True):
+    import types
+
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: tmp_path / "discobsd")
+    monkeypatch.delenv("DISCOBSD_WEB_TOKEN", raising=False)
+    if not keep_env_ip:
+        monkeypatch.delenv("DISCOBSD_HOST_IP", raising=False)
+    monkeypatch.delenv("DISCOBSD_USB_PORT", raising=False)
+    monkeypatch.setattr(console, "systemd_units_installed", lambda home=None: systemd)
+    monkeypatch.setattr(console.subprocess, "call", lambda argv: 0)
+    monkeypatch.setattr(console.time, "sleep", lambda s: None)
+    monkeypatch.setattr(console, "_http_answers", lambda url, timeout=3.0: True)
+    monkeypatch.setattr(console, "lan_ip", lambda: "10.0.0.9")
+    args = types.SimpleNamespace(
+        host_ip=host_ip, port=7681, link_port=42069, bind=bind, detached=False
+    )
+    assert console.cmd_up(args) == 0
+    return console.read_env(tmp_path / "discobsd" / "web.env")
+
+
+def test_up_lan_after_loopback_advertises_the_lan_address(monkeypatch, tmp_path):
+    # A loopback run stores 127.0.0.1; a later LAN bind must not hand that
+    # address to LAN clients, which would reach their own host.
+    assert _up_bind(monkeypatch, tmp_path, "127.0.0.1")["DISCOBSD_HOST_IP"] == "127.0.0.1"
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == "10.0.0.9"
+    # A stored LAN address is kept for the next LAN run, and --host-ip wins.
+    monkeypatch.setattr(console, "lan_ip", lambda: "10.0.0.77")
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == "10.0.0.9"
+    assert (
+        _up_bind(monkeypatch, tmp_path, "0.0.0.0", host_ip="10.0.0.5")["DISCOBSD_HOST_IP"]
+        == "10.0.0.5"
+    )
+
+
+def test_up_loopback_bind_keeps_an_explicit_host_ip(monkeypatch, tmp_path):
+    # A loopback bind behind a tunnel or proxy still advertises the address
+    # the operator named, from --host-ip or from DISCOBSD_HOST_IP.
+    values = _up_bind(monkeypatch, tmp_path, "127.0.0.1", host_ip="203.0.113.4")
+    assert values["DISCOBSD_HOST_IP"] == "203.0.113.4"
+    monkeypatch.setenv("DISCOBSD_HOST_IP", "203.0.113.5")
+    values = _up_bind(monkeypatch, tmp_path, "127.0.0.1", keep_env_ip=True)
+    assert values["DISCOBSD_HOST_IP"] == "203.0.113.5"
+
+
+def _fail_on_resolve(monkeypatch):
+    """Record every name lookup; a host name bind must never reach one."""
+    lookups = []
+
+    def lookup(host, *a, **kw):
+        lookups.append(host)
+        return [(2, 1, 6, "", ("127.0.0.1", 0))]
+
+    monkeypatch.setattr(console.socket, "getaddrinfo", lookup)
+    monkeypatch.setattr(console.socket, "gethostbyname", lambda host: lookups.append(host))
+    return lookups
+
+
+@pytest.mark.parametrize(
+    ("bind", "written"),
+    [
+        ("127.0.0.1", "127.0.0.1"),
+        ("10.0.0.7", "10.0.0.7"),
+        ("0.0.0.0", "0.0.0.0"),
+    ],
+)
+@pytest.mark.parametrize("systemd", [False, True])
+def test_up_passes_the_parsed_ip_literal_to_every_consumer(
+    monkeypatch, tmp_path, bind, written, systemd
+):
+    lookups = _fail_on_resolve(monkeypatch)
+    spawned = []
+    monkeypatch.setattr(console, "_stop_pidfile", lambda *a: False)
+    monkeypatch.setattr(console, "_tool", lambda name: [name])
+    monkeypatch.setattr(
+        console, "_spawn_detached", lambda command, *a: spawned.append(command) or 1
+    )
+    values = _up_bind(monkeypatch, tmp_path, bind, systemd=systemd)
+    assert values["DISCOBSD_WEB_BIND"] == written
+    for command in spawned:
+        assert command[command.index("--bind") + 1] == written
+    assert len(spawned) == (0 if systemd else 2)
+    assert lookups == []
+
+
+@pytest.mark.parametrize(
+    "bind",
+    [
+        "localhost",
+        "board.example",
+        "no-such-host.invalid",
+        "bad\nDISCOBSD_WEB_TOKEN=x",
+        "a b",
+        "",
+        "fe80::1%eth0",
+        "127.1",
+        "::1",
+        "0:0:0:0:0:0:0:1",
+    ],
+)
+def test_up_refuses_a_bind_that_is_not_an_ip_literal(monkeypatch, tmp_path, capsys, bind):
+    import types
+
+    # Every name resolves to loopback here: code that resolves a host name
+    # would accept it and write it to web.env, so the verdict needs the
+    # refusal, the empty lookup log and the untouched web.env together.
+    lookups = _fail_on_resolve(monkeypatch)
+    conf = tmp_path / "discobsd"
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: conf)
+    monkeypatch.delenv("DISCOBSD_USB_PORT", raising=False)
+    args = types.SimpleNamespace(
+        host_ip=None, port=7681, link_port=42069, bind=bind, detached=False
+    )
+    assert console.cmd_up(args) == 1
+    err = capsys.readouterr().err
+    assert "--bind" in err
+    assert "127.0.0.1" in err and "0.0.0.0" in err
+    assert not (conf / "web.env").exists()
+    assert lookups == []
+
+
+@pytest.mark.parametrize(
+    "variable, value",
+    [
+        ("host_ip", "10.0.0.5\nDISCOBSD_WEB_BIND=0.0.0.0"),
+        ("host_ip", "10.0.0.5 extra"),
+        ("host_ip", 'a"b'),
+        ("DISCOBSD_HOST_IP", "10.0.0.5\rx"),
+        ("DISCOBSD_WEB_TOKEN", "abc\nDISCOBSD_WEB_BIND=0.0.0.0"),
+    ],
+)
+def test_up_refuses_an_environment_file_value_outside_the_allow_list(
+    monkeypatch, tmp_path, capsys, variable, value
+):
+    import types
+
+    # web.env is a systemd EnvironmentFile: a newline adds an assignment, and
+    # a space, quote or backslash changes how the line parses. Every value is
+    # checked against the allow-list before the file is written.
+    conf = tmp_path / "discobsd"
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: conf)
+    for name in ("DISCOBSD_WEB_TOKEN", "DISCOBSD_HOST_IP", "DISCOBSD_USB_PORT"):
+        monkeypatch.delenv(name, raising=False)
+    host_ip = None
+    if variable == "host_ip":
+        host_ip = value
+    else:
+        monkeypatch.setenv(variable, value)
+    args = types.SimpleNamespace(
+        host_ip=host_ip, port=7681, link_port=42069, bind="127.0.0.1", detached=False
+    )
+    assert console.cmd_up(args) == 1
+    err = capsys.readouterr().err
+    assert "web.env" in err
+    # The refused value may be the token; it never reaches stderr.
+    assert value not in err
+    assert not (conf / "web.env").exists()
+
+
+def test_write_env_accepts_every_value_the_console_writes(tmp_path):
+    path = tmp_path / "web.env"
+    values = {
+        "DISCOBSD_WEB_TOKEN": "0123456789abcdef01234567",
+        "DISCOBSD_HOST_IP": "fd00::5",
+        "DISCOBSD_WEB_BIND": "0.0.0.0",
+        "DISCOBSD_USB_PORT": "1-3.2",
+    }
+    console.write_env(path, values)
+    assert console.read_env(path) == values
+    console.write_env(path, {"DISCOBSD_HOST_IP": "pico-host.local"})
+    assert console.read_env(path) == {"DISCOBSD_HOST_IP": "pico-host.local"}
+    # "+" would read as a space in the URL query that carries the token.
+    with pytest.raises(ValueError):
+        console.write_env(path, {"DISCOBSD_WEB_TOKEN": "q+8/Zw=="})
+
+
+def test_up_concrete_bind_advertises_itself(monkeypatch, tmp_path):
+    # The servers listen only on the bound interface, so a stored or
+    # autodetected address elsewhere would advertise a dead endpoint.
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == "10.0.0.9"
+    assert _up_bind(monkeypatch, tmp_path, "10.0.0.7")["DISCOBSD_HOST_IP"] == "10.0.0.7"
+
+
+def test_urls_offer_mdns_only_when_asked():
+    assert "mdns" not in console.urls("127.0.0.1", "tok", 7681, 42069, mdns=False)
+
+
+@pytest.mark.parametrize("bind, mdns", [("127.0.0.1", False), ("0.0.0.0", True)])
+def test_up_prints_the_mdns_link_only_for_a_wildcard_bind(
+    monkeypatch, tmp_path, capsys, bind, mdns
+):
+    monkeypatch.setattr(console.socket, "gethostname", lambda: "pico-host")
+    _up_bind(monkeypatch, tmp_path, bind)
+    assert ("pico-host.local" in capsys.readouterr().out) == mdns
+
+
+def test_up_refuses_an_ipv6_advertised_address(monkeypatch, tmp_path, capsys):
+    import types
+
+    conf = tmp_path / "discobsd"
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: conf)
+    for name in ("DISCOBSD_WEB_TOKEN", "DISCOBSD_HOST_IP", "DISCOBSD_USB_PORT"):
+        monkeypatch.delenv(name, raising=False)
+    args = types.SimpleNamespace(
+        host_ip="fd00::5", port=7681, link_port=42069, bind="0.0.0.0", detached=False
+    )
+    assert console.cmd_up(args) == 1
+    assert "IPv6" in capsys.readouterr().err
+    assert not (conf / "web.env").exists()
+
+
+@pytest.mark.parametrize(
+    "bind, shown",
+    [
+        ("10.0.0.7", "http://10.0.0.7:7681/"),
+        ("0.0.0.0", "http://10.0.0.9:7681/"),
+    ],
+)
+def test_web_names_the_address_it_serves(monkeypatch, capsys, bind, shown):
+    # The startup line names the bound address for a concrete bind and the
+    # LAN address only for a wildcard bind.
+    class Fake:
+        is_loopback = False
+
+        def __init__(self, *a, **k):
+            pass
+
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr(web, "ConsoleServer", Fake)
+    monkeypatch.setattr(web, "lan_ip", lambda: "10.0.0.9")
+    monkeypatch.setenv("DISCOBSD_WEB_TOKEN", "tok")
+    assert web.main(["--bind", bind, "--port", "7681", "/dev/null"]) == 0
+    assert shown in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "stored, advertised",
+    [
+        ("localhost", "10.0.0.9"),
+        ("app.localhost", "10.0.0.9"),
+        ("127.0.0.1", "10.0.0.9"),
+        ("pico-host.local", "pico-host.local"),
+        ("10.0.0.20", "10.0.0.20"),
+    ],
+)
+def test_up_wildcard_bind_keeps_a_stored_lan_name_and_drops_loopback(
+    monkeypatch, tmp_path, stored, advertised
+):
+    # A stored loopback literal or localhost name would send LAN clients to
+    # their own host and is recomputed; a stored LAN name or address is kept.
+    conf = tmp_path / "discobsd"
+    conf.mkdir(parents=True)
+    console.write_env(conf / "web.env", {"DISCOBSD_HOST_IP": stored})
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == advertised

@@ -499,6 +499,18 @@ draw_board(void)
 	end();
 }
 
+/*
+ * The command a row shows. The kernel copies u_comm into the record, and
+ * only exec sets u_comm, so process 0 (the swapper) carries an empty name.
+ * ps(1) shows "swapper" for that row too; a name the kernel does report
+ * is shown as it is.
+ */
+static const char *
+comm_of(const struct hwi_proc *p)
+{
+	return p->pid == 0 && p->comm[0] == '\0' ? "swapper" : p->comm;
+}
+
 static void
 draw_procs(int last)
 {
@@ -538,7 +550,7 @@ draw_procs(int last)
 		    states[p->stat >= 0 && p->stat <= 6 ? p->stat : 0],
 		    p->incore ? '+' : ' ', proc_share[order[i]] / 10,
 		    proc_share[order[i]] % 10, secs / 60, secs % 60, w,
-		    p->comm);
+		    comm_of(p));
 		end();
 	}
 	while (term.tier != PC_PLAIN && row < last) {

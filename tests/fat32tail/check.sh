@@ -43,7 +43,7 @@
 # Set TMPDIR to a directory with 0.9 GB free (a tmpfs is fine); the work
 # directory holds the volumes and is emptied on exit. FAT32TAIL_KERNEL_UF2
 # names a kernel UF2 for the real-kernel case; the default is the
-# PICOCALC_PSRAM image of this tree, and the case is skipped, saying so,
+# PICOCALC image of this tree, and the case is skipped, saying so,
 # when the file is absent.
 #
 # Exit status: 0 when every case holds and every mutant fails, 1 otherwise.
@@ -77,7 +77,10 @@ cleanup()
 	done
 	rmdir "$work" 2>/dev/null || true
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir "$work/obj" "$work/mut"
 
 fail()
@@ -200,7 +203,8 @@ echo "fat32tail: builder and locator share the head alignment $header_align"
 "$work/fsutil" -n -s 512 "$work/root512.img" >/dev/null || fail "fsutil 512"
 "$work/fsutil" -n -s 1024 "$work/root1024.img" >/dev/null || fail "fsutil 1024"
 "$work/fsutil" -n -s 16384 "$work/root16m.img" >/dev/null || fail "fsutil 16384"
-# A kernel of 471 blocks (the PICOCALC_PSRAM image's size): 471 * 512 is not
+# A kernel of 471 blocks (the PicoCalc PSRAM image's size when the case was
+# written): 471 * 512 is not
 # a multiple of 32768, so the head's roundup moves the tail.
 fixtures uf2 471 "$work/k471.uf2"
 printf 'decoy\n' >"$work/decoy.txt"
@@ -551,7 +555,7 @@ fi
 
 # A real kernel image, when one is built: the builder accepts it and the
 # locator finds the tail.
-kernel_uf2=${FAT32TAIL_KERNEL_UF2:-$topsrc/sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2}
+kernel_uf2=${FAT32TAIL_KERNEL_UF2:-$topsrc/sys/arch/rp2040/compile/PICOCALC/unix.uf2}
 if [ -f "$kernel_uf2" ]; then
 	builder -o "$work/discobsd.uf2" "$kernel_uf2" "$work/root512.img" ||
 	    fail "builder rejects $kernel_uf2"

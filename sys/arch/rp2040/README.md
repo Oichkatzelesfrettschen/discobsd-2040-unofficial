@@ -215,8 +215,8 @@ GUID, so Windows binds its inbox WinUSB driver to it at plug-in and
 picotool works there with no Zadig and no INF, the way it does with an
 SDK program. The CDC interfaces are not named in the set and keep usbser.
 
-From the board itself, `bootloader` (reboot's RB_BOOTLOADER, a name
-adminbox answers to) syncs the disks and calls the same ROM entry, so the
+From the board itself, as root, `bootloader -y` (reboot's RB_BOOTLOADER, a name
+adminbox answers to; without `-y` it refuses) syncs the disks and calls the same ROM entry, so the
 board reappears as the RPI-RP2 drive and takes a UF2 by file copy on any
 host with no tool at all.
 

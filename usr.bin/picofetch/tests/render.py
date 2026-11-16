@@ -240,7 +240,7 @@ def test_fetch_plain(fetch):
     want = [
         "root@pico",
         "OS       DiscoBSD 2.7 arm",
-        "Kernel   PICOCALC_PSRAM#812",
+        "Kernel   PICOCALC_LEAN#812",
         "Board    ClockworkPi PicoCalc",
         "Uptime   1d 02:03:06",
         "CPU      125.000 MHz, 100 Hz tick",
@@ -254,8 +254,9 @@ def test_fetch_plain(fetch):
         "Flash    image 113880 B crc 1234abcd ok",
         "XIP      cache on, hit 98.2%",
         "MPU      on, 4 of 8 regions",
-        "Battery  ######.. 75% charging",
-        "Light    panel 128, keys 16 of 240",
+        "Battery  ######.. 75% charging, panel 128 keys 16",
+        "Chip     JEDEC ef4015, id 0123456789abcdef",
+        "Audio    8000 Hz, 1 ch, 8 bit, idle, queue 0/255",
         "Sensors  not in this kernel",
         "Load     1.12 0.45 0.07 run 1",
         "Tables   proc 7/20 ino 12/24 file 9/20 buf 4/4",
@@ -275,18 +276,27 @@ def test_fetch_states(fetch):
 
     pico = lines("pico")
     check("Battery  not in this kernel" in pico, "an unserved node says so")
-    check("Light    not in this kernel" in pico, "an unserved node says so")
+    check("Audio    not in this kernel" in pico, "a kernel without the device says so")
     check("Cores    1 kernel; core1 observer r0 s3 f0" in pico, "core 1 counters")
     check("I/O      root w 612K swap w 12.0M er 47" in pico, "storage counters")
     check("USB      cdc in 5120, recovered 0" in pico, "USB counters")
     check("Disks    fl0 fl1" in pico, "two drives")
     check(not any(x.startswith("/mnt") for x in pico), "no card mount on the Pico")
-    check("Battery  read failed" in lines("failed"), "a failed read is not 'absent'")
+    failed = lines("failed")
+    check("Battery  read failed" in failed, "a failed read is not 'absent'")
+    check("Chip     read failed" in failed, "a failed flash identity read is not 'absent'")
+    check("Audio    read failed" in failed, "a failed pcm read is not 'absent'")
+    check("Chip     identity unread" in lines("unread"), "an unread chip is a served state")
+    check("Chip     not in this kernel" in lines("oldkernel"), "a kernel without the node says so")
+    check("CPU      125.000 MHz, 100 Hz tick, bus 62.500 MHz" in lines("busdiff"),
+          "a split peripheral clock shows")
     check("Sensors  31.4 C, VSYS 4.98 V" in lines("sensors"), "ADC readings")
     full = lines("full")
     check("Flash    image 113880 B crc 1234abcd MISMATCH" in full, "CRC mismatch shown")
     check("Reset    watchdog timeout" in full, "watchdog reason decoded")
-    check("Battery  #....... 9%" in full, "9 percent rounds to the first cell")
+    check("Battery  #....... 9%, panel 128 keys 16" in full, "9 percent rounds to the first cell")
+    check("Audio    8000 Hz, 1 ch, 8 bit, in use, queue 200/255" in full,
+          "an open device with a queue")
     check("Memory   ######## 190K core, 301K all" in full, "a nearly full window")
 
 
@@ -298,6 +308,8 @@ def test_fetch_bank(fetch, dumpdir):
     for r in range(2, 10):
         check(s.cell[r][16][0] != 32 and s.cell[r][15][0] == 32,
               f"row {r} holds a reading beside the logo")
+    check("Load     1.12 0.45 0.07 run 1" in s.text(9),
+          "the last row beside the logo is the 25-column load line")
     check(s.text(10).startswith("Cores    1 kernel; core1 not in this kernel"),
           "rows below the logo use the whole width")
     check(b"\n" not in out.replace(b"\r\n", b""), "the bank tier ends each row with CR LF")
@@ -405,6 +417,8 @@ def test_top_plain(top):
     at = next(i for i, x in enumerate(pid) if "COMMAND" in x)
     pids = [int(x.split()[0]) for x in pid[at + 1:]]
     check(pids == sorted(pids) and len(pids) == 7, "-s pid orders by process id")
+    check(pid[at + 1].split()[0] == "0" and pid[at + 1].split()[-1] == "swapper",
+          "pid 0 has no kernel command name and shows swapper")
     row = next(x for x in pid if x.split()[-1] == "cc")
     check(row.split()[4] == "147K" and row.split()[-2] == "0:03", "size and time columns")
     two = frames(run(top, args=["-c", "2", "-d", "1"], fixture="pico")[0])[1]
@@ -457,10 +471,29 @@ def test_top_bank(top, dumpdir):
           "a 20-row terminal has no graph")
 
 
+def tty_modes(fd):
+    """The attributes of a tty as POSIX defines them.
+
+    4.4BSD-derived kernels (macOS, FreeBSD) set the non-POSIX lflag bit
+    PENDIN when tcsetattr turns ICANON back on, and clear it only when the
+    queued input is next processed (xnu bsd/kern/tty.c, TIOCSETA and
+    ttypend). A tcgetattr after a restore therefore reads PENDIN with no
+    reader in between. Linux never sets it, so its comparison stays exact.
+    """
+    attrs = termios.tcgetattr(fd)
+    if sys.platform != "linux":
+        attrs[3] &= ~getattr(termios, "PENDIN", 0)
+    return attrs
+
+
+def same_modes(after, before, what):
+    check(after == before, f"{what}: before={before!r} after={after!r}")
+
+
 def test_top_keys(top):
     """On a pty: keys change the order and the interval, q restores the tty."""
     master, slave = pty.openpty()
-    before = termios.tcgetattr(slave)
+    before = tty_modes(slave)
     env = {"PATH": os.environ.get("PATH", ""), "PICO_FIXTURE": "picocalc", "TERM": "xterm"}
     p = subprocess.Popen([top, "-d", "60"], stdin=slave, stdout=slave, stderr=slave, env=env)
     seen = b""
@@ -487,13 +520,13 @@ def test_top_keys(top):
         expect(b" 59s", "- shortens the interval")
         os.write(master, b"q")
         check(p.wait(timeout=10) == 0, "q exits 0")
-        check(termios.tcgetattr(slave) == before, "the tty modes are restored")
+        same_modes(tty_modes(slave), before, "the tty modes are restored")
         p2 = subprocess.Popen([top, "-d", "60"], stdin=slave, stdout=slave, stderr=slave,
                               env=env)
         expect(b">CPU%", "second run")
         p2.terminate()
         check(p2.wait(timeout=10) == 128 + 15, "SIGTERM exits 143")
-        check(termios.tcgetattr(slave) == before, "a signal restores the tty modes")
+        same_modes(tty_modes(slave), before, "a signal restores the tty modes")
     finally:
         if p.poll() is None:
             p.kill()

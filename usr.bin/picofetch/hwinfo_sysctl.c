@@ -82,6 +82,57 @@ set(struct rd_int *r, long v)
 }
 
 static void
+collect_flash_id(struct hwinfo *hw)
+{
+	static const int jedec_mib[2] = { CTL_MACHDEP, CPU_FLASH_JEDEC };
+	static const int unique_mib[2][2] = {
+		{ CTL_MACHDEP, CPU_FLASH_UNIQUE_HI },
+		{ CTL_MACHDEP, CPU_FLASH_UNIQUE_LO },
+	};
+	unsigned int word[3];
+	int error, i, j;
+
+	memset(&hw->flash_id, 0, sizeof hw->flash_id);
+	memset(word, 0, sizeof word);
+	error = rd(jedec_mib, 2, &word[0], sizeof word[0]);
+	if (error == EIO) {
+		/* The kernel serves the nodes; the chip returned no identity. */
+		hw->flash_id.state = RD_OK;
+		return;
+	}
+	for (i = 0; error == 0 && i < 2; i++)
+		error = rd(unique_mib[i], 2, &word[i + 1], sizeof word[0]);
+	hw->flash_id.state = error == 0 ? RD_OK : state_of(error);
+	if (error != 0)
+		return;
+	hw->flash_id.valid = 1;
+	for (i = 0; i < 3; i++)
+		hw->flash_id.id[i] = (unsigned char)(word[0] >> (16 - 8 * i));
+	for (i = 0; i < 2; i++)
+		for (j = 0; j < 4; j++)
+			hw->flash_id.id[3 + 4 * i + j] =
+			    (unsigned char)(word[i + 1] >> (24 - 8 * j));
+}
+
+static void
+collect_pcm(struct hwinfo *hw)
+{
+	static const int mib[2] = { CTL_MACHDEP, CPU_PCM };
+	struct cpu_pcm_info p;
+	int error;
+
+	memset(&p, 0, sizeof p);
+	error = rd(mib, 2, &p, sizeof p);
+	hw->pcm.state = error == 0 ? RD_OK : state_of(error);
+	hw->pcm.rate = (long)p.rate;
+	hw->pcm.channels = (long)p.channels;
+	hw->pcm.bits = (long)p.bits;
+	hw->pcm.ring = (long)p.ring;
+	hw->pcm.queued = (long)p.queued;
+	hw->pcm.open = p.open != 0;
+}
+
+static void
 collect_static(struct hwinfo *hw)
 {
 	int mib[2];
@@ -123,6 +174,7 @@ collect_static(struct hwinfo *hw)
 	geti(&hw->image_crc, CTL_MACHDEP, CPU_IMAGE_CRC, -1);
 	geti(&hw->image_crc_stored, CTL_MACHDEP, CPU_IMAGE_CRC_STORED, -1);
 	geti(&hw->watchdog_reason, CTL_MACHDEP, CPU_WATCHDOG_REASON, -1);
+	collect_flash_id(hw);
 
 	mib[0] = CTL_MACHDEP;
 	mib[1] = CPU_CONSDEV;
@@ -303,6 +355,7 @@ collect_live(struct hwinfo *hw)
 	geti(&hw->vsys_mv, CTL_MACHDEP, CPU_ADC_VSYS, -1);
 	geti(&hw->usb_bulkin_arms, CTL_MACHDEP, CPU_USB_BULKIN_ARMS, -1);
 	geti(&hw->usb_tx_recovered, CTL_MACHDEP, CPU_USB_TX_RECOVERED, -1);
+	collect_pcm(hw);
 	collect_storage(hw);
 	collect_capacity(hw);
 

@@ -131,15 +131,60 @@
 #define	CPU_ADC_TEMP		43	/* int: die temperature, m degrees C */
 #define	CPU_ADC_VSYS		44	/* int: VSYS, millivolts */
 /*
+ * The flash chip's JEDEC identity, read only: manufacturer, memory type and
+ * capacity bytes in the order the chip returns them, packed as 0xMMTTCC.
+ * It completes the identity the two unique-ID halves above start. EIO when
+ * the chip's identity did not read (flash_identity() in dev/flash.c).
+ */
+#define	CPU_FLASH_JEDEC		45	/* int: JEDEC ID, 0xMMTTCC */
+/*
+ * pcm, read-only: the /dev/audio device (dev/picopcm.c). rate is samples per
+ * second; channels and bits describe the sample stream a writer supplies,
+ * which the driver plays on both amplifier pins. ring is the most samples
+ * the queue holds, queued the samples waiting for the sample interrupt, and
+ * open is 1 while a process holds the device. A kernel without the device,
+ * or one running on a board without the amplifier, answers EOPNOTSUPP.
+ */
+#define	CPU_PCM			46	/* struct cpu_pcm_info */
+/*
+ * The USB transmit ring's boot-lifetime accounting, read only. The peak is
+ * the greatest byte count the ring held, so a ring size can be set from what
+ * a console actually queued before the host drained it. The dropped count is
+ * the bytes usb_tx_put discarded because the ring was full with nobody
+ * draining it, saturating at INT_MAX, the largest value a CTLTYPE_INT
+ * reports without a sign change.
+ */
+#define	CPU_USB_TX_PEAK		47	/* int: greatest ring occupancy, bytes */
+#define	CPU_USB_TX_DROPPED	48	/* int: bytes discarded, saturating */
+/*
+ * The flash chip's 64-bit unique ID as two read-only ints: the first four
+ * bytes the chip returns (the first eight hex digits of the USB serial
+ * string), most significant byte first, and the last four. sysctl(8) prints
+ * an int signed, so a half with its top bit set reads negative; boardinfo
+ * formats both with printf %08x. EIO when the chip's identity did not read
+ * (flash_identity() in dev/flash.c).
+ */
+#define	CPU_FLASH_UNIQUE_HI	49	/* int: unique ID bytes 0-3 */
+#define	CPU_FLASH_UNIQUE_LO	50	/* int: unique ID bytes 4-7 */
+/*
  * The flash reset hook, arch/rp2040/dev/flash.c, STORAGE_STATS kernels only
  * (EOPNOTSUPP otherwise). Writing N, root only, arms a reset after the Nth
  * chip program (erase) command issued from then on; 0 disarms; reading gives
  * the commands counted since arming. The reset leaves WD_SITE_RESET_AT_*
  * in watchdog_site for the next boot.
  */
-#define	CPU_FLASH_RESET_PROGRAM	45	/* int: reset after Nth program cmd */
-#define	CPU_FLASH_RESET_ERASE	46	/* int: reset after Nth erase cmd */
-#define	CPU_MAXID		47	/* number of valid machdep ids */
+#define	CPU_FLASH_RESET_PROGRAM	51	/* int: reset after Nth program cmd */
+#define	CPU_FLASH_RESET_ERASE	52	/* int: reset after Nth erase cmd */
+#define	CPU_MAXID		53	/* number of valid machdep ids */
+
+struct cpu_pcm_info {
+	unsigned int	rate;
+	unsigned int	channels;
+	unsigned int	bits;
+	unsigned int	ring;
+	unsigned int	queued;
+	unsigned int	open;
+};
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -188,6 +233,12 @@
 	{ "image_crc_stored", CTLTYPE_INT }, \
 	{ "adc_temp_mc", CTLTYPE_INT }, \
 	{ "adc_vsys_mv", CTLTYPE_INT }, \
+	{ "flash_jedec", CTLTYPE_INT }, \
+	{ "pcm", CTLTYPE_STRUCT }, \
+	{ "usb_tx_peak", CTLTYPE_INT }, \
+	{ "usb_tx_dropped", CTLTYPE_INT }, \
+	{ "flash_unique_hi", CTLTYPE_INT }, \
+	{ "flash_unique_lo", CTLTYPE_INT }, \
 	{ "flash_reset_program", CTLTYPE_INT }, \
 	{ "flash_reset_erase", CTLTYPE_INT }, \
 }

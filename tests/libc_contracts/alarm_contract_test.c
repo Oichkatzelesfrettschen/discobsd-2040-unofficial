@@ -76,8 +76,21 @@ main(void)
 	remaining = db_alarm(UINT_MAX);
 	check(remaining == 8,
 	    "rounds the largest valid prior microsecond upward");
-	check((unsigned long)requested_timer.it_value.tv_sec == UINT_MAX,
-	    "preserves the unsigned request through time_t");
+	check((unsigned long)requested_timer.it_value.tv_sec == 2147483647UL,
+	    "clamps a request above the kernel's 32-bit tv_sec");
+
+	prepare(0, 0, 0);
+	remaining = db_alarm(2147483648U);
+	check(requested_timer.it_value.tv_sec == 2147483647L,
+	    "clamps the first request that the layout holds as negative");
+	prepare(0, 0, 0);
+	remaining = db_alarm(2147483647U);
+	check(requested_timer.it_value.tv_sec == 2147483647L && remaining == 0,
+	    "passes the largest request unchanged");
+	prepare(0, 0, 0);
+	remaining = db_alarm(100000001U);
+	check(requested_timer.it_value.tv_sec == 100000001L,
+	    "passes a request above the old kernel bound unchanged");
 
 	prepare(5, 500000, -1);
 	alarm_test_errno = 0;

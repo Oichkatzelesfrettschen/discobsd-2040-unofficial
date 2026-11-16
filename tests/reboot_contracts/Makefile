@@ -59,7 +59,7 @@ mutants:
 	    "${REBOOT_RENAMES}" ${TOPSRC}/sbin/reboot/reboot.c ${.CURDIR}
 
 clean:
-	rm -f reboot_contract_test reboot_source.o mutant_* bi-*.out bi-mutant.sh
+	rm -f reboot_contract_test reboot_source.o mutant_* bi-*.out bi-mutant.sh bi-mutant2.sh bi-id*
 	rm -rf boardinfo-stubs
 
 all: check mutants

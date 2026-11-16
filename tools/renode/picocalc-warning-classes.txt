@@ -40,3 +40,12 @@
 # unreachable. A boot that needed USB would fail instead of warning.
 40      ^sysbus: WriteDoubleWord of value 0xN to an unimplemented register USBCTRL_REGS:
 4       ^sysbus: WriteDoubleWord to non existing peripheral at 0x5011204C,
+
+# psram_xfer.c clears its state machine's receive-stall flag by writing 1 to
+# FDEBUG (PIO offset 0x008, datasheet 3.7) before a frame; the PIO model
+# leaves FDEBUG unimplemented. The machine models no part on the PSRAM pins,
+# so the first frame's bounded wait expires and psramprobe() prints
+# "psram0: not usable (error -1), swap stays on fl1", which check-picocalc.py
+# asserts. A timeout is not retried, so a boot writes FDEBUG once; the
+# crash-dump tier boots twice (its reboot -d stage).
+4       ^piocpu[01]: unhandled write at: 0xN, value: 0xN

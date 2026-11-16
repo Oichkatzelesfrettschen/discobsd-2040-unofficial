@@ -284,6 +284,24 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		i = (int)watchdog_last_arg2;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
 
+	case CPU_FLASH_UNIQUE_HI:
+	case CPU_FLASH_UNIQUE_LO:
+		{
+			const u_char *jedec, *unique;
+
+			if (namelen != 1)
+				return ENOTDIR;
+			if (flash_identity(&jedec, &unique) != 0)
+				return EIO;
+			if (name[0] == CPU_FLASH_UNIQUE_LO)
+				unique += 4;
+			i = (int)((u_int)unique[0] << 24 |
+			    (u_int)unique[1] << 16 | (u_int)unique[2] << 8 |
+			    unique[3]);
+			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
+			    sizeof i);
+		}
+
 	case CPU_IMAGE_LENGTH:
 	case CPU_IMAGE_CRC:
 	case CPU_IMAGE_CRC_STORED:

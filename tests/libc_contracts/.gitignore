@@ -234,6 +234,8 @@ calendar32_vectors.h
 sleep_contract_test
 sleep_contract_test32
 sleep_bad_test32
+sleep_unchunked_bad_test
+sleep_unmasked_bad_test
 byte_search_test
 byte_search_test32
 byte_search_test_san

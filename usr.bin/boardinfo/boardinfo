@@ -52,8 +52,19 @@ else
 	echo "board: no PicoCalc registers (PICO kernel, or no controller)"
 fi
 
-# The flash chip's unique ID is the USB serial string the host sees; no
-# sysctl carries it.
-echo "flash unique id: not exported to user mode (host side: USB serial)"
+# The flash chip's unique ID: two ints, which sysctl prints signed. The
+# shell's printf reads an operand with strtoul, so a negative half converts
+# to its 32-bit pattern.
+id=unavailable
+hi=`sysctl -n machdep.flash_unique_hi 2>/dev/null`
+lo=`sysctl -n machdep.flash_unique_lo 2>/dev/null`
+if test -n "$hi"
+then
+	if test -n "$lo"
+	then
+		id=`printf %08x%08x $hi $lo`
+	fi
+fi
+echo "machdep.flash_unique: $id"
 echo "mounts:"
 mount

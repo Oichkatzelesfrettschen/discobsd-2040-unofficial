@@ -135,9 +135,13 @@ leave the flash as it is), `shutdown`, and, on a PicoCalc kernel,
 
 `boardinfo` prints the kernel, release, host name, CPU clock, image length
 and CRCs, the previous reset's watchdog reason, whether the PicoCalc
-registers answer, and the mounts. The flash chip's unique ID reaches only
-the USB serial string, so a host reads it from the by-id path above; no
-sysctl carries it, and `boardinfo` says so rather than guessing. There is no
+registers answer, and the mounts. The flash chip's unique ID is
+`machdep.flash_unique_hi` and `machdep.flash_unique_lo` (the first and last
+four bytes, read only, signed ints as `sysctl` prints them, EIO when the
+chip's identity did not read), which it joins with `printf %08x%08x` into
+16 hex digits, the value the USB serial string carries before its
+`-rp2040` suffix; `boardinfo` prints it as `unavailable` on a kernel without
+the node. There is no
 command to start the PicoCalc loader's menu: that loader's stage is entered
 at power-on from the keyboard (PICOCALC.md, Coexisting with the PicoCalc UF2
 loader), and no source read here shows a reboot request it honors.

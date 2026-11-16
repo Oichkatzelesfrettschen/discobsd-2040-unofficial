@@ -65,20 +65,60 @@ scan() {
 	function end_token() {
 		if (intok) { toks[++ntok] = tok; tok = ""; intok = 0 }
 	}
-	function end_command(   i, j, k, s, has_exit, has_sig) {
+	# unquote(t): the word as the shell resolves it before trap sees it --
+	# single quotes literal, double quotes with the backslash escapes of
+	# POSIX, a backslash outside quotes dropped.
+	function unquote(t,   r, i, c, m, n, x) {
+		r = ""; m = 0; n = length(t)
+		for (i = 1; i <= n; i++) {
+			c = substr(t, i, 1)
+			if (m == 1) { if (c == SQ) m = 0; else r = r c; continue }
+			if (m == 2) {
+				if (c == DQ) { m = 0; continue }
+				if (c == BS && i < n) {
+					x = substr(t, i + 1, 1)
+					if (x == "$" || x == "\140" || x == DQ || x == BS) { r = r x; i++; continue }
+					if (x == "\n") { i++; continue }
+				}
+				r = r c; continue
+			}
+			if (c == SQ) { m = 1; continue }
+			if (c == DQ) { m = 2; continue }
+			if (c == BS && i < n) { r = r substr(t, i + 1, 1); i++; continue }
+			r = r c
+		}
+		return r
+	}
+	# condition(t): "E" for EXIT, "S" for a signal, "" for anything else
+	# (ERR, DEBUG, RETURN, an unexpanded variable). A condition is the
+	# unquoted word in any case, with or without the SIG prefix, or a number
+	# (0 is EXIT, any other number a signal).
+	function condition(t,   s) {
+		s = toupper(unquote(t))
+		sub(/^SIG/, "", s)
+		if (s == "EXIT" || s ~ /^0+$/) return "E"
+		if (s ~ /^[0-9]+$/) return "S"
+		if (s ~ /^(RTMIN|RTMAX)([+-][0-9]+)?$/) return "S"
+		if (s ~ /^(HUP|INT|QUIT|ILL|TRAP|ABRT|IOT|EMT|FPE|KILL|BUS|SEGV|SYS|PIPE|ALRM|TERM|URG|STOP|TSTP|CONT|CHLD|CLD|TTIN|TTOU|IO|POLL|XCPU|XFSZ|VTALRM|PROF|WINCH|INFO|USR1|USR2|PWR|STKFLT|LOST|THR)$/) return "S"
+		return ""
+	}
+	function end_command(   i, j, k, a, has_exit, has_sig, c) {
 		end_token()
 		i = 1
 		while (i <= ntok && (toks[i] == "{" || toks[i] == "!" || toks[i] == "then" || toks[i] == "do" || toks[i] == "else")) i++
-		if (i <= ntok && toks[i] == "trap") {
+		if (i <= ntok && unquote(toks[i]) == "trap") {
 			j = i + 1
-			if (toks[j] == "--") j++
-			if (j <= ntok && toks[j] != "-" && toks[j] !~ /^-[a-zA-Z]/) {
+			a = unquote(toks[j])
+			if (a == "--") { j++; a = unquote(toks[j]) }
+			# A first operand that is an unsigned integer makes every
+			# operand a condition to reset, and "-" or an option is a
+			# reset or a listing; neither installs an action.
+			if (j <= ntok && a != "-" && a !~ /^-[a-zA-Z]/ && a !~ /^[0-9]+$/) {
 				has_exit = 0; has_sig = 0
 				for (k = j + 1; k <= ntok; k++) {
-					s = toks[k]
-					sub(/^SIG/, "", s)
-					if (s == "EXIT" || s == "0") has_exit = 1
-					else if (s ~ /^(HUP|INT|TERM|QUIT|1|2|3|15)$/) has_sig = 1
+					c = condition(toks[k])
+					if (c == "E") has_exit = 1
+					else if (c == "S") has_sig = 1
 				}
 				if (has_exit && has_sig) {
 					printf "%s:%d: %s\n", FILENAME, cmdline, cmdtext
@@ -206,6 +246,31 @@ selftest() {
 rm -f b' EXIT HUP"
 	expect_scan bad "continued line" "trap cleanup EXIT \\
     TERM"
+	# The spellings POSIX sh accepts for a trap condition (XCU trap): EXIT or
+	# 0, a signal name without or with the SIG prefix, a signal number; each
+	# word after quote removal and, as shells accept, in any case.
+	expect_scan bad "single-quoted conditions" "trap cleanup 'EXIT' 'TERM'"
+	expect_scan bad "double-quoted conditions" 'trap cleanup "EXIT" "TERM"'
+	expect_scan bad "backslash-quoted condition" 'trap cleanup EX\IT TERM'
+	expect_scan bad "partly quoted conditions" "trap cleanup E'XI'T T\"ER\"M"
+	expect_scan bad "lowercase conditions" "trap cleanup exit term"
+	expect_scan bad "mixed-case conditions" "trap cleanup Exit TeRm"
+	expect_scan bad "lowercase SIG prefix" "trap cleanup exit sigterm"
+	expect_scan bad "quoted SIG prefix" "trap cleanup EXIT 'SIGINT'"
+	expect_scan bad "EXIT as 0 and TERM as 15" "trap cleanup 0 15"
+	expect_scan bad "quoted numbers" "trap cleanup '0' \"15\""
+	expect_scan bad "leading-zero exit number" "trap cleanup 00 TERM"
+	expect_scan bad "HUP as 1" "trap cleanup EXIT 1"
+	expect_scan bad "INT as 2" "trap cleanup EXIT 2"
+	expect_scan bad "QUIT" "trap cleanup EXIT QUIT"
+	expect_scan bad "a signal other than HUP INT TERM" "trap cleanup EXIT USR1"
+	expect_scan bad "lowercase other signal" "trap cleanup exit pipe"
+	expect_scan bad "SIG-prefixed other signal" "trap cleanup EXIT SIGPIPE"
+	expect_scan bad "other signal number" "trap cleanup EXIT 10"
+	expect_scan bad "real-time signal" "trap cleanup EXIT RTMIN+1"
+	expect_scan bad "quoted command name" "'trap' cleanup EXIT TERM"
+	expect_scan bad "empty action" "trap '' EXIT TERM"
+	expect_scan bad "quoted conditions after --" "trap -- cleanup 'exit' term"
 	# Known-good: one signal class per command, or no trap command at all.
 	expect_scan good "reset" "trap - EXIT HUP INT TERM"
 	expect_scan good "split traps" "trap 'rm -f x' EXIT
@@ -217,6 +282,14 @@ trap 'exit 143' TERM"
 	expect_scan good "quoted # then comment" "trap 'echo # x' EXIT # TERM"
 	expect_scan good "signal-only trap with comment" "trap 'exit 143' TERM # EXIT"
 	expect_scan good "action word that names a signal" "trap INT EXIT"
+	expect_scan good "unsigned integer first operand resets" "trap 0 2"
+	expect_scan good "integer first operand resets EXIT too" "trap 0 EXIT 2"
+	expect_scan good "single integer reset" "trap 2"
+	expect_scan good "pseudo-condition with EXIT" "trap cleanup ERR EXIT"
+	expect_scan good "quoted EXIT alone" "trap cleanup 'EXIT'"
+	expect_scan good "0 alone" "trap cleanup 0"
+	expect_scan good "ignore a signal" "trap '' TERM"
+	expect_scan good "quoted reset" "trap '-' EXIT TERM"
 	expect_scan good "commented trap" "# trap cleanup EXIT TERM"
 	expect_scan good "trap in a quoted string" "printf '%s\n' 'trap cleanup EXIT TERM'"
 	expect_scan good "trap listing" "trap -p"

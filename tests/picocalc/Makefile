@@ -66,9 +66,11 @@
 # board identity, and writes crash dumps through sddump() and the kernel's
 # dump stream (rp2040/dump.c) onto the card's dump partition, mounted,
 # beside a mount, undersized, failing and replaced, runs sdrootattach()
-# with and without the PicoCalc loader's stamp, and runs sdswapattach() over
-# the cards and boards that decide the swap device and reads the size
-# sdsize() gives it; seventy-eight mutants of sd.c and dump.c must fail it.
+# with and without the PicoCalc loader's stamp, then opens the selected root
+# slot after each change of its type, extent or card that a swap between the
+# two would make, and runs sdswapattach() over the cards and boards that
+# decide the swap device and reads the size sdsize() gives it; ninety
+# mutants of sd.c and dump.c must fail it.
 #
 # dump_test writes a dump with the kernel's dump stream into a partition
 # image and runs savecore(8) on it from the host: a saved dump, a damaged
@@ -1332,6 +1334,18 @@ sdstrat-mutants: \
 	sdstrat-mutant-root-pipedev-kept \
 	sdstrat-mutant-root-board-ungated \
 	sdstrat-mutant-root-missing-tolerated \
+	sdstrat-mutant-root-bind-dropped \
+	sdstrat-mutant-root-bind-type-ignored \
+	sdstrat-mutant-root-bind-start-ignored \
+	sdstrat-mutant-root-bind-length-ignored \
+	sdstrat-mutant-root-bind-capacity-ignored \
+	sdstrat-mutant-root-bind-card-type-ignored \
+	sdstrat-mutant-root-bind-not-consumed \
+	sdstrat-mutant-root-bind-stale \
+	sdstrat-mutant-root-bind-whole-card \
+	sdstrat-mutant-mbr-offset-shifted \
+	sdstrat-mutant-mbr-copy-short \
+	sdstrat-mutant-mbr-signature-unchecked \
 	sdstrat-mutant-swap-board-ungated \
 	sdstrat-mutant-swap-psram-overridden \
 	sdstrat-mutant-swap-type-ignored \
@@ -1370,6 +1384,57 @@ sdstrat-mutant-root-board-ungated:
 sdstrat-mutant-root-missing-tolerated:
 	${SDSTRAT_MUT} sd.c \
 	    's/panic("root: no partition of type b7 on sd0");/(void)0;/' ${SDSTRAT_SRC}
+
+# sdopen(): the root open must find the partition and card sdrootattach()
+# chose.
+sdstrat-mutant-root-bind-dropped:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (!sd_root_bound(part)) {/if (!sd_root_bound(part) \&\& 0) {/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-bind-type-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/sdpt\[part\].dp_type == sdroot.type \&\&/1 \&\&/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-bind-start-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/sdpt\[part\].dp_offset == sdroot.offset \&\&/1 \&\&/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-bind-length-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/sdpt\[part\].dp_nsectors == sdroot.nsectors \&\&/1 \&\&/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-bind-capacity-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/sdcard.nsectors == sdroot.cardsectors;/1;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-bind-card-type-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/sdcard.type == sdroot.cardtype \&\&/1 \&\&/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-bind-not-consumed:
+	${SDSTRAT_MUT} sd.c \
+	    's/sdroot.slot = 0;/(void)0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-bind-stale:
+	${SDSTRAT_MUT} sd.c \
+	    's/bzero(\&sdroot, sizeof(sdroot));/(void)0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-root-bind-whole-card:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (sdroot.slot != 0 \&\& part == sdroot.slot) {/if (part == sdroot.slot) {/' ${SDSTRAT_SRC}
+
+# sd_partitions(): the copy of the MBR entries.
+sdstrat-mutant-mbr-offset-shifted:
+	${SDSTRAT_MUT} sd.c \
+	    's/bcopy(b + 446, \&pt\[1\], 64);/bcopy(b + 447, \&pt[1], 64);/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-mbr-copy-short:
+	${SDSTRAT_MUT} sd.c \
+	    's/bcopy(b + 446, \&pt\[1\], 64);/bcopy(b + 446, \&pt[1], 48);/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-mbr-signature-unchecked:
+	${SDSTRAT_MUT} sd.c \
+	    's/if ((b\[510\] | (u_int)b\[511\] << 8) == MBR_MAGIC)/if (1)/' ${SDSTRAT_SRC}
 
 # sdswapattach() and the swap partition's size: the device that holds swap.
 sdstrat-mutant-swap-board-ungated:

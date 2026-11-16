@@ -2118,10 +2118,10 @@ check-renode-picocalc-dump:
 		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
-# The board's kernel UF2, the file the PicoCalc UF2 loader programs, as the
-# loader leaves it (the stamp in vector entries 4 to 10, foreign bytes over
-# the flash root) with Renode's SD card model holding ${SDROOTIMG} in MBR
-# slot 3, type b7: root lines, login and mount on the panel, a login on
+# The board's kernel UF2, the file the PicoCalc UF2 loader programs, stamped
+# (vector entries 4 to 10, foreign bytes over the flash root; the kernel's own
+# second stage stays in flash bytes 0-255) with Renode's SD card model
+# holding ${SDROOTIMG} in MBR slot 3, type b7: root lines, login and mount on the panel, a login on
 # tty0, the flash root untouched, and a panic when the card has no b7 entry
 # (tools/renode/check-picocalc-sdroot.py). BOARD is PICOCALC or
 # PICOCALC_PSRAM.

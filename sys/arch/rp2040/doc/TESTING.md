@@ -2705,10 +2705,22 @@ tools/renode/vendor/results/capacity.
 
 `check-renode-picocalc-sdroot` runs tools/renode/check-picocalc-sdroot.py
 on the selected board's kernel UF2 (`distrib/rp2040/unix-${BOARD}.uf2`,
-the file the PicoCalc UF2 loader programs), flattened and placed as the
-loader leaves it: vector entries 4 to 10 carry the loader's stamp
-(0xe98cc638, 0x101fc000, `/pico1-apps/discobsd`), and the 1536 KiB at
-0x10020000 hold the byte 0xa5 in place of a Dhara journal. Renode's
+the file the PicoCalc UF2 loader programs), flattened and stamped: vector
+entries 4 to 10 carry the loader's stamp (0xe98cc638, 0x101fc000,
+`/pico1-apps/discobsd`), and the 1536 KiB at 0x10020000 hold the byte 0xa5
+in place of a Dhara journal. The gate is a stamped-kernel SD-root test, not
+a loader-state test: flash bytes 0-255 stay the kernel's own second stage,
+where the loader installs its own, so the loader's second stage, the XIP
+exit and re-entry through it and `flash_ssi_restore()` after it are `not
+run`. A fixture with the loader's bytes needs a capture of them from a
+unit: the retained flash backup of a PicoCalc predates the loader
+(its top 16 KiB are erased and bytes 0-255 equal the kernel's second
+stage), and block 0 of the loader's release `bootloader_pico.uf2` (SHA-256
+`e46bb44174f4f97b6b76ab932bb88881fbae807b1adb87744331d06a85a14a34`, release
+number not recorded) differs from the kernel's second stage in six bytes,
+the exit address word (0x101fc000 for 0x10000100) and the checksum word,
+with the same SSI divider, so it is not shown to be what the 2.4.1 unit
+carries. Renode's
 `SD.SDCard` model holds a card laid out as the PicoCalc's card is: a type
 0x0c entry from sector 2048, the selected board's SD root (`sdroot`) in
 slot 3 as type b7, and a type 0x83 entry after it, 40 MiB in all. The
@@ -2720,7 +2732,12 @@ across the flash root region must still read 0xa5a5a5a5, and UART0, the
 USB-C port's serial line, must carry the tty0 login prompt the SD root's
 `/etc/ttys` enables. A second emulator boots the same card with the b7
 entry retyped 0x83 and must show `panic: root: no partition of type b7 on
-sd0` and no login prompt. The kernel started without the stamp is
+sd0` and no login prompt. The root observations (root device, the mount
+source of `/` and the flash samples) are judged by `root_verdict()`, whose
+`self_test()` runs before Renode starts (`--self-test` runs it alone): it
+must pass the good observations and reject a root device of another minor
+or major, another mount source, an unread value and each altered or missing
+flash sample. The kernel started without the stamp is
 `check-renode-picocalc`'s boot. Renode's card model answers CMD58 without
 CCS at every capacity and block size (an 8 GiB card, with and without
 `blockSize: BlockLength.Block512`, reads `SD 2.0` under Renode
@@ -2729,7 +2746,11 @@ its command argument there and no high-capacity card runs in this tier;
 the block addressing a 32 GB card takes is `sdspi_test`'s `sdhc` scenario
 in `check-picocalc-host`, and `sdstrat_test` runs `sdrootattach()` itself
 with and without the stamp, on the slot-3 layout, with two b7 entries,
-none, no card and a bare Pico. It runs `sdswapattach()` the same way: a
+none, no card and a bare Pico, and opens the selected root slot after a
+change of the slot's type, start or length or of the card's capacity or type
+between the selection and the open, which must be refused with `EIO`. A
+replacement card with the same layout and capacity is not distinguishable
+by those fields and is outside the check. It runs `sdswapattach()` over the same cards: a
 bare Pico, swap already on the PSRAM, no card, an unreadable table, entries
 of type b7 and b9 only, a b8 entry one block under and exactly at 396
 blocks, a short entry before a usable one, two usable entries, and the

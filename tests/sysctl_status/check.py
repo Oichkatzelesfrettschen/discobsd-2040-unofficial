@@ -39,6 +39,8 @@ def build(path, output):
             *renames,
             str(path),
             str(root / "lib/libc/gen/ctype_.c"),
+            str(root / "lib/libc/stdlib/strtol.c"),
+            str(root / "lib/libc/gen/atol.c"),
             str(out / "fixture.o"),
             str(out / "shim.o"),
             "-o",
@@ -82,7 +84,31 @@ def verify(binary):
             assert len(visits) == 2 and visits[0] != visits[1], (operands, visits)
         if "unknown" in operands:
             assert len(visits) == 1, (operands, visits)
-    return len(cases)
+    # A CTLTYPE_LONG operand is converted as sscanf("%ld") did: leading
+    # white space, a sign, decimal digits to the first other byte, saturation
+    # at the long range (32 bits here), and 0 when no digit is present.
+    long_cases = [
+        ("42", 42),
+        ("  -7xyz", -7),
+        ("2147483647", 2147483647),
+        ("2147483648", 2147483647),
+        ("-2147483648", -2147483648),
+        ("-2147483649", -2147483648),
+        ("9" * 40, 2147483647),
+        ("-" + "9" * 40, -2147483648),
+        ("abc", 0),
+    ]
+    for text, want in long_cases:
+        result = subprocess.run(
+            [str(binary), "-w", "kern.hostid=" + text],
+            text=True,
+            capture_output=True,
+            env=dict(os.environ, SCENARIO=""),
+        )
+        lines = [x for x in result.stderr.splitlines() if x.startswith("hostid-set ")]
+        if result.returncode != 0 or lines != [f"hostid-set {want}"]:
+            raise AssertionError(("kern.hostid", text, want, lines, result.stderr))
+    return len(cases) + len(long_cases)
 
 
 binary = out / "sysctl"
@@ -90,6 +116,7 @@ build(source, binary)
 count = verify(binary)
 text = source.read_text()
 for name, anchor, replacement in (
+    ("long-atol", "longval = strtol(newval, NULL, 10);", "longval = atol(newval);"),
     ("status", "return (exit_status);", "(void)exit_status; return (0);"),
     ("operand", "parse(*argv++, 1)", "parse(*argv, 1)"),
 ):
@@ -103,4 +130,4 @@ for name, anchor, replacement in (
     except AssertionError:
         continue
     raise AssertionError((name, "mutant escapes"))
-print(f"sysctl: {count} behavior cases pass; status and operand mutants fail")
+print(f"sysctl: {count} behavior cases pass; long, status and operand mutants fail")

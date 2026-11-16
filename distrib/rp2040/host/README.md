@@ -99,12 +99,33 @@ keeps its state under `~/Library/Application Support/discobsd`.
 `discobsd-connect` finds `cu` on every Mac and `tio` or `picocom` from
 Homebrew.
 
-## Web console on the LAN
+## Web console
 
-    discobsd-console up
+The default binds loopback only. Reach it remotely through SSH forwarding
+or a trusted tunnel. LAN access is an explicit opt-in that exposes the
+token-revealing short link:
 
-prints a short URL such as `http://10.0.0.5:42069/` that redirects to the
-tokenized console at `http://10.0.0.5:7681/?token=...`. The token and the
+    discobsd-console up --bind 0.0.0.0
+
+`DISCOBSD_WEB_TOKEN`, `--host-ip` and every other web.env value are limited to
+letters, digits and `. _ ~ : -`: web.env is a systemd EnvironmentFile and the
+token travels unencoded in a URL query, where those characters are inert. A
+token with other characters (for example base64 `+ / =`) is refused; generate
+one with `discobsd-console up`, which writes a hex token.
+
+`--bind` takes an IPv4 address literal and nothing else. A host name is
+refused, because the check and each server would resolve it separately, and
+an IPv6 literal is refused, because the systemd units build the short link's
+target without the brackets an IPv6 host needs; use `127.0.0.1` for loopback
+or `0.0.0.0` for every interface.
+
+A web.env written before the loopback default keeps its LAN address and has
+no bind setting, so the packaged units now listen on loopback while the short
+link still redirects to that address. Run `discobsd-console up` (loopback) or
+`discobsd-console up --bind 0.0.0.0` once after upgrading to rewrite both.
+
+That command prints a short URL such as `http://10.0.0.5:42069/` that
+redirects to the tokenized console at `http://10.0.0.5:7681/?token=...`. The token and the
 advertised address live in `web.env` under the per-user configuration
 directory (`~/.config/discobsd` on Linux, `~/Library/Application Support/
 discobsd` on macOS, `%APPDATA%\discobsd` on Windows), created with

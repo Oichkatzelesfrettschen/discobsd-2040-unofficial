@@ -10,8 +10,8 @@ it rests on, its cost, and the evidence class behind each claim.
 is excluded and the ranking that puts the observer first.
 
 The PICO and PICO_UART kernels carry the option. The PICO kernel passed
-the board procedure below on a Raspberry Pi Pico. The PICOCALC and
-PICOCALC_PSRAM kernels do not carry it: no PicoCalc has run it, and the
+the board procedure below on a Raspberry Pi Pico. The PicoCalc kernels
+(PICOCALC, PICOCALC_LEAN, PICOCALC_LEAN_DIAG) do not carry it: no PicoCalc has run it, and the
 panel renderer's effect on the tick record there is unmeasured.
 
 ## What it is not

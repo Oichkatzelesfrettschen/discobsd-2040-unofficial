@@ -59,6 +59,8 @@ struct namecache namecache[NNAMECACHE];
 struct file file[1];
 int lbolt;
 int securelevel;
+dev_t swapdev;
+int blkoverlap(dev_t a, dev_t b) { return a == b; }
 int hk_ipl;
 unsigned hk_ipl_raises;
 const struct bdevsw bdevsw[1];

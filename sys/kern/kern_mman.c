@@ -10,7 +10,7 @@
 #include <sys/systm.h>
 
 void
-brk()
+brk(void)
 {
     struct a {
         int naddr;

@@ -33,6 +33,11 @@ is in core.
 A reading the running kernel does not serve prints
 .BR "not in this kernel" .
 .PP
+The kernel records no command name for process 0, the swapper, so its row
+shows
+.BR swapper ,
+the name ps(1) gives it.
+.PP
 One process is in core at a time on this system, so each refresh that
 finds another process running makes the kernel exchange the two with swap.
 A longer interval lowers that cost.

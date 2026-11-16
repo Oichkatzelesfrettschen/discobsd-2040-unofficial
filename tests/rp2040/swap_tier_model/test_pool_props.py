@@ -143,6 +143,32 @@ class PoolMachine(RuleBasedStateMachine):
 TestPool = PoolMachine.TestCase
 
 
+def test_alloc_takes_a_run_of_exactly_its_size():
+    """A request equal to a free run's size takes that run, in a hole and in
+    a pool that is one run.
+
+    The stateful search reaches an exact fit only when a random request
+    equals a free run's size, which depends on the hypothesis version's
+    example stream; these cases hold the boundary of the ``s_size < want``
+    test in swapram_pool_alloc() without it."""
+    pool = Pool(64, 17)
+    first = pool.alloc(16)
+    hole = pool.alloc(8)
+    last = pool.alloc(16)
+    assert (first, hole, last) == (0, 16, 24), (first, hole, last)
+    assert pool.free(hole, 8)
+    assert pool.segments() == [(16, 8), (40, 24)], pool.segments()
+    assert pool.alloc(8) == 16, "a hole of exactly 8 bytes holds an 8 byte request"
+    assert pool.segments() == [(40, 24)], pool.segments()
+    assert pool.alloc(24) == 40, "the last run holds a request of its size"
+    assert pool.segments() == [] and pool.avail() == 0
+
+    whole = Pool(64, 17)
+    assert whole.alloc(64) == 0, "an empty pool holds one request of its size"
+    assert whole.segments() == [] and whole.avail() == 0
+    assert whole.alloc(1) is None
+
+
 class CompactionMachine(RuleBasedStateMachine):
     """Pool compaction (a model, not shipped code) keeps every live
     allocation's bytes and address order and leaves one free run."""

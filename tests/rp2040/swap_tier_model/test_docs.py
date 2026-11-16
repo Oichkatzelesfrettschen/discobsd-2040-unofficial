@@ -90,19 +90,59 @@ def test_flash_layout():
     assert kernel[1] + root[1] + swap[1] == 2048
 
 
+AFTER_BSS = (r"after ordinary data and BSS", r"follows ordinary kernel data and bss")
+KNOWN_WRONG = "at the start of the kernel RAM region, directly above the " \
+    "ordinary user window"
+
+
+def output_sections(script):
+    """Output section names of a linker script in the order they appear,
+    with comments removed so a comment cannot stand in for a statement."""
+    body = re.sub(r"/\*.*?\*/", " ", script, flags=re.S)
+    return re.findall(r"^\s*(\.[A-Za-z_][\w.]*)\s*(?:\([A-Z]+\))?\s*:",
+                      body, flags=re.M)
+
+
+def placement_verdict(script, doc):
+    """'agrees' when the script places .swapram_pool directly after .bss
+    and doc says so, 'known' for zswap.md's recorded wrong phrase; anything
+    else raises."""
+    sections = output_sections(script)
+    if ".bss" not in sections or ".swapram_pool" not in sections or \
+            sections.index(".swapram_pool") != sections.index(".bss") + 1:
+        raise AssertionError(f"pool not directly after .bss: {sections}")
+    flat = re.sub(r"\s+", " ", doc)
+    if any(re.search(p, flat, flags=re.I) for p in AFTER_BSS):
+        return "agrees"
+    if KNOWN_WRONG in flat:
+        return "known"
+    raise AssertionError("document states no pool placement the script "
+                         "supports")
+
+
+SCRIPT = TOP / "sys" / "arch" / "rp2040" / "conf" / "kern.ldscript"
+
+
+def test_placement_verdict_calibration():
+    good = ".bss : { *(.bss*) } > RAM\n.swapram_pool (NOLOAD) : { } > RAM\n"
+    before = ".swapram_pool (NOLOAD) : { } > RAM\n.bss : { } > RAM\n"
+    commented = "/* .bss : */\n.swapram_pool (NOLOAD) : { } > RAM\n"
+    assert placement_verdict(good, "after ordinary data and BSS") == "agrees"
+    for script in (before, commented):
+        with pytest.raises(AssertionError):
+            placement_verdict(script, "after ordinary data and BSS")
+    with pytest.raises(AssertionError):
+        placement_verdict(good, "The pool lives somewhere in RAM.")
+
+
+def test_storage_states_the_linked_placement():
+    assert placement_verdict(text(SCRIPT), text(STORAGE)) == "agrees"
+
+
 def test_pool_placement():
     """zswap.md places the pool at the start of kernel RAM, above the user
-    window; kern.ldscript places it after ordinary bss, as STORAGE.md and
-    swapram.c say."""
-    zswap = find(ZSWAP, r"places the pool in the NOLOAD `\.swapram_pool` "
-                        r"section at ([^.]+)\.")
-    script = find(TOP / "sys" / "arch" / "rp2040" / "conf" /
-                  "kern.ldscript", r"The compressed swap pool follows "
-                                   r"ordinary kernel data and bss")
-    storage = find(STORAGE, r"pool is kernel memory after ordinary data "
-                            r"and BSS")
-    assert script and storage
-    if "start of the kernel RAM region" in zswap.group(1):
-        pytest.xfail("finding: zswap.md puts the pool at " +
-                     repr(zswap.group(1)) + "; kern.ldscript and "
-                     "STORAGE.md put it after ordinary data and bss")
+    window; kern.ldscript links .swapram_pool directly after .bss."""
+    if placement_verdict(text(SCRIPT), text(ZSWAP)) == "known":
+        pytest.xfail("finding: zswap.md puts the pool " + KNOWN_WRONG +
+                     "; kern.ldscript links .swapram_pool directly after "
+                     ".bss, as STORAGE.md states")

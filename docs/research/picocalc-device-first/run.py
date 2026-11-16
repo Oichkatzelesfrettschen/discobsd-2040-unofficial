@@ -57,19 +57,22 @@ from unicorn.arm_const import (
 SRC, DST, OUT = 0x30000000, 0x30400000, 0x30800000
 SENTINEL = 0x20F00000
 CLOCK_HZ = 125e6
+# build.sh passes the binutils that match its compiler prefix.
+NM = os.environ.get("NM_ARM", "arm-none-eabi-nm")
+OBJCOPY = os.environ.get("OBJCOPY_ARM", "arm-none-eabi-objcopy")
 
 
 def load(elf):
     """Return the image bytes and the Thumb text symbols of elf."""
     syms = {}
-    nm = subprocess.check_output(["arm-none-eabi-nm", "-n", elf], text=True)
+    nm = subprocess.check_output([NM, "-n", elf], text=True)
     for line in nm.splitlines():
         parts = line.split()
         if len(parts) == 3 and parts[1] in "tT":
             syms[parts[2]] = int(parts[0], 16)
     fd, tmp = tempfile.mkstemp()
     os.close(fd)
-    subprocess.check_call(["arm-none-eabi-objcopy", "-O", "binary", elf, tmp])
+    subprocess.check_call([OBJCOPY, "-O", "binary", elf, tmp])
     with open(tmp, "rb") as handle:
         img = handle.read()
     os.unlink(tmp)

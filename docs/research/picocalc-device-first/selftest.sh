@@ -152,8 +152,33 @@ if [ "$got" -eq 0 ]; then
     fail=1
 fi
 
-# Known-good: the unmodified harness matches its golden file.
-expect_status 0 "known-good run" sh "$T/h/build.sh" "$T/good"
+# Known-bad: CC_ARM names a compiler whose prefix has no matching nm or objcopy.
+mkdir "$T/tc-bad"
+printf '#!/bin/sh\nexec arm-none-eabi-gcc "$@"\n' >"$T/tc-bad/zz-gcc"
+chmod 755 "$T/tc-bad/zz-gcc"
+expect_diag "binutils tool not found" "CC_ARM prefix without matching binutils" \
+    env CC_ARM="$T/tc-bad/zz-gcc" sh "$T/h/build.sh" "$T/tcbad"
+
+# Known-good: a compiler under another prefix and directory, with matching
+# binutils that record their calls; run.py must use them, not the PATH tools.
+mkdir "$T/tc"
+: >"$T/tc.log"
+for tool in gcc nm objcopy; do
+    printf '#!/bin/sh\necho %s >>"%s"\nexec arm-none-eabi-%s "$@"\n' \
+        "$tool" "$T/tc.log" "$tool" >"$T/tc/zz-$tool"
+    chmod 755 "$T/tc/zz-$tool"
+done
+expect_status 0 "known-good run with a prefixed toolchain" \
+    env CC_ARM="$T/tc/zz-gcc" sh "$T/h/build.sh" "$T/good"
+for tool in nm objcopy; do
+    if ! grep -qx "$tool" "$T/tc.log"; then
+        echo "selftest: run.py did not call the prefixed $tool" >&2
+        fail=1
+    fi
+done
+
+# Known-good: the default toolchain matches the golden file.
+expect_status 0 "known-good run" sh "$T/h/build.sh" "$T/good-default"
 
 if [ "$fail" -ne 0 ]; then
     echo "selftest: FAILED" >&2

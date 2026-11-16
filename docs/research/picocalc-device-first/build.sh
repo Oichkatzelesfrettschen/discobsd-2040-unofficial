@@ -45,7 +45,8 @@
 # would truncate the oracle and the comparison would read it against itself.
 # It also exits nonzero when bench.c's bzero, bcopy or UNALIGNED differ from
 # sys/arch/rp2040/rp2040/machdep.c, or when run.py reports a failed round
-# trip. BENCH_CFLAGS adds compiler flags (selftest.sh uses it for a mutant).
+# trip. NM_ARM and OBJCOPY_ARM default to CC_ARM with "gcc" replaced by "nm" and
+# "objcopy". BENCH_CFLAGS adds compiler flags (selftest.sh uses it for a mutant).
 # Needs arm-none-eabi-gcc, bmake (BMAKE names another), Unicorn and Capstone.
 set -eu
 
@@ -54,6 +55,21 @@ OUT=${1:?usage: build.sh OUTDIR}
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=${DISCOBSD_ROOT:-$(cd "$HERE/../../.." && pwd)}
 CC_ARM=${CC_ARM:-arm-none-eabi-gcc}
+# run.py reads the ELF through binutils of the compiler's prefix, so a CC_ARM
+# with another prefix or directory takes its nm and objcopy; NM_ARM and
+# OBJCOPY_ARM override that when CC_ARM does not end in "gcc".
+case "$CC_ARM" in
+*gcc) : "${NM_ARM:=${CC_ARM%gcc}nm}" "${OBJCOPY_ARM:=${CC_ARM%gcc}objcopy}" ;;
+esac
+: "${NM_ARM:?CC_ARM does not end in gcc; set NM_ARM}"
+: "${OBJCOPY_ARM:?CC_ARM does not end in gcc; set OBJCOPY_ARM}"
+export NM_ARM OBJCOPY_ARM
+for tool in "$CC_ARM" "$NM_ARM" "$OBJCOPY_ARM"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "build.sh: binutils tool not found: $tool" >&2
+        exit 2
+    fi
+done
 SH_AOUT=${SH_AOUT:-$ROOT/bin/sh/sh}
 AWK_AOUT=${AWK_AOUT:-$ROOT/usr.bin/awk/awk}
 HS=$ROOT/sys/arch/rp2040/heatshrink

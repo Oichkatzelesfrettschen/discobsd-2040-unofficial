@@ -201,6 +201,47 @@ class GeneratedSyncTest(unittest.TestCase):
                     "PICO: PICO_DIAG Config lacks the directive options SYSTRACE"):
                 sync.check_variant_delta(self.root)
 
+    # A mount-table size that differs between the full kernel and the lean
+    # kernel, with the diagnostic lean kernel following the full one, is a
+    # variant that removes the base's value and adds its own: PICOCALC_LEAN
+    # drops PICOCALC's NMOUNT=3 for NMOUNT=2, and PICOCALC_LEAN_DIAG drops
+    # that NMOUNT=2 for NMOUNT=3 beside the diagnostic options.
+    MOUNT_TABLE = (
+        ("PICO_DIAG", "PICO", sync.DIAGNOSTIC_OPTIONS, ()),
+        ("PICOCALC_LEAN", "PICOCALC", ('options "NMOUNT=2"',),
+         sync.OPTIONAL_DEVICE_OPTIONS + sync.DIAGNOSTIC_OPTIONS
+         + ('options "NMOUNT=3"',)),
+        ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN",
+         sync.DIAGNOSTIC_OPTIONS + ('options "NMOUNT=3"',),
+         ('options "NMOUNT=2"',)),
+    )
+
+    def raise_mount_table(self, *boards):
+        for board in boards:
+            self.mutate(sync.COMPILE / board / "Config",
+                        'options         "NMOUNT=2"', 'options         "NMOUNT=3"')
+
+    def test_lean_variant_keeping_the_two_mount_table_is_expressible(self):
+        self.raise_mount_table("PICOCALC", "PICOCALC_LEAN_DIAG")
+        with patch.object(sync, "VARIANTS", self.MOUNT_TABLE):
+            sync.check_variant_delta(self.root)
+
+    def test_lean_variant_following_the_full_mount_table_is_rejected(self):
+        self.raise_mount_table("PICOCALC", "PICOCALC_LEAN", "PICOCALC_LEAN_DIAG")
+        with patch.object(sync, "VARIANTS", self.MOUNT_TABLE):
+            with self.assertRaisesRegex(sync.SyncError,
+                                        "PICOCALC_LEAN: Config must equal PICOCALC Config"):
+                sync.check_variant_delta(self.root)
+
+    def test_current_variant_rows_reject_a_raised_full_mount_table(self):
+        # The current rows cannot describe a full kernel at NMOUNT=3 over a
+        # lean kernel at NMOUNT=2; the check that trips is the one the new
+        # rows must replace.
+        self.raise_mount_table("PICOCALC", "PICOCALC_LEAN_DIAG")
+        with self.assertRaisesRegex(sync.SyncError,
+                                    "PICOCALC_LEAN: Config must equal PICOCALC Config"):
+            sync.check_variant_delta(self.root)
+
     def test_production_identity_is_preserved(self):
         self.mutate(sync.COMPILE / "PICO/Config", 'board           "PICO"',
                     'board           "SYNTHETIC"')

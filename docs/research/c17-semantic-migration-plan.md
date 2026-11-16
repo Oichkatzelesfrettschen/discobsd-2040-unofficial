@@ -81,6 +81,21 @@ closure and missing runtime functions open.
 
 ### Ordered modernization queue
 
+The public time-type unit separates private scalar and aggregate owners so
+that time.h and sys/select.h supply their required complete types without
+importing syscall declarations through the ISO header. Its
+[`public-time-type-ownership.md`](public-time-type-ownership.md) record binds
+the observed failures, target ABI table, donor mechanisms, compiler/native
+matrix, and remaining narrow-layout and clock-interface obligations. This
+header unit advances type completeness while preserving the independent
+descriptor-set repair and shared ABI review queue.
+Its `43e6d7ee` implementation passes the clean aggregate, all 216 required
+inventory variants, hosted CI, both Renode kernels, and calibrated type/alias
+controls. All 162 shipped resource deltas are zero; all 278 built-program
+size/block comparisons remain unchanged. The resource record keeps archive
+date metadata separate from unchanged native member payloads. Source review
+remains open, and the header families retain partial standards claims.
+
 The installed-subdirectory header audit identifies a dependency in `FD_ZERO`
 and an uninitialized getty autobaud descriptor set. The bounded repair and its
 donor invariants, red/green predictions, compiler/native-input witnesses,
@@ -118,6 +133,14 @@ next independent row starts.
 | 13 | Utility and shell closure | Delivered libc mechanisms and typed shell input | Selected utility behavior, archive identity, eval/source/trap/nesting/failure contracts and multicall lifetime/resource receipts |
 | 14 | Remaining maintained system | Finite standards/source denominators and shipped closure | Per-family feasibility and deciding experiments for filesystems, terminals, signals, networking, realtime, threads, native C, optional languages, host tools and hardware/persistence ownership |
 
+The [declaration census](libc-declaration-census.md) supplies the shared-ABI
+selection frontier across all tracked root headers, the installed root subset,
+four feature modes and both time widths. Public C names and linker identities
+remain separate. Standalone/macro differences, uninstalled termios declarations,
+legacy regex signatures and libc/Tcl environment overlaps retain deciding
+actions. The census preserves every API row as unreviewed; final export
+selection and runtime ownership remain implementation requirements.
+
 Each row expands through requirement facets, caller closure, donor comparison,
 calibrated behavior tests, complete implementation, clean rebuild, matched
 resource comparison, documentation and reviewed integration. Configuration-keyed
@@ -149,6 +172,14 @@ aliases and canonical pointers. Its four compiler/link variants exercise
 independent process state, weak aliases, SRAM application imports and callbacks.
 The calibrated experiment precedes authoritative ABI generation and leaves
 complete API ownership, flash fit and production shared-exec admission open.
+
+The [divider extent contract](xip-shared-libc/divider-function-extents.md)
+closes the four zero-sized global function definitions in the measured static
+libc archive. Six metadata controls complement the existing instruction-window
+and arithmetic witnesses. Matched native assembly and selected-archive builds
+show zero size growth. The change supplies ELF ownership metadata; arithmetic
+semantics, shared ABI generation and physical-divider qualification retain
+their separate requirements.
 
 The [tableless search experiment](search-bound-experiment/README.md) retains
 the next search-bound comparison and its replay driver. The finite host and

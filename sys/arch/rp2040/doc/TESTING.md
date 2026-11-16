@@ -1,5 +1,28 @@
 # Tests and gates
 
+`check-public-time-types` belongs to `check-cross`. It checks 816 valid
+standalone/repeated/order compiler cases across four feature selectors, both
+cross time views, and GNU17, GNU strict C17, and Clang strict C17. Twenty-four
+compiled objects retain the expected select/time linker names, six kernel
+cases preserve narrow records under either requested time selector, and 33
+negative compiler cases reject missing type owners, public-header namespace
+expansion, changed field widths/signedness, a removed structure guard, and
+invalid syntax. All 24 orders of time.h, sys/time.h, sys/select.h, and signal.h
+receive witnesses; sys/types.h also receives standalone/repeated witnesses.
+272 cross-preprocessed Smaller C inputs compile and assemble with the actual
+32-bit native time policy under both requested selectors. Invalid syntax and
+an incorrect width must reject. Four compiler-diagnostic controls, four native
+syntax controls, and six native-width diagnostic controls reject unrelated
+failures, signal exits, false success, and missing or extra diagnostics.
+The driver requires explicit `PYTHON`, ARM GCC/binutils, Clang, and a host C
+compiler. It writes source, tool, case, and object identities to
+`.build-logs/public-time-types.json`. Replay through the named Make target or
+its driver's `--root`, `--host-cc`, and `--output` options. Firmware CI owns
+the gate through check-cross. Compiler/object acceptance remains separate from
+the time64 wrapper execution gate, native runtime, kernel time semantics,
+Renode, and physical hardware. Narrow timeval seconds retain signed long;
+that legacy layout supplies no new POSIX time_t member claim.
+
 `check-fd-set-cross` belongs to `check-cross`. It checks `FD_ZERO` use through
 standalone, repeated, and reordered `<sys/select.h>` inclusion with types,
 time, signal, and string headers. GNU17, GNU strict C17, and Clang strict C17
@@ -1961,13 +1984,43 @@ establishes coverage of that baseline; later changes require delta review.
 
 ## Cross tier
 
+`check-libc-declaration-census` calibrates declaration discovery with Clang's
+ARM C17 AST and an independently compiled object's undefined alias symbol.
+Its fixtures reject invalid C, escaped dependencies, header traversal, missing
+header/declaration/profile/archive witnesses, hidden provider gaps and an
+automatic promotion of an unreviewed ABI row. It then scans every tracked
+root-level header in `include/` separately and together, in default BSD, ISO,
+Issue 7 and Issue 8 selector modes with each of the 32-bit and 64-bit time views.
+The installed root-header set comes from the expanded include Makefile
+selection and also receives its own combined-header parse. The union of those
+observations preserves macro-dependent and source-only exposure differences.
+Public C names and compiler linkage names remain separate; archive lookup uses
+the latter. These selector labels establish the requested compiler inputs,
+rather than namespace or standards conformance.
+
+The ten ARM ELF archives owned by `lib/Makefile` supply the provider corpus.
+The owner query excludes startup and native a.out libraries explicitly and
+fails when the declared owner set changes. Matching providers, multiple
+archive providers, kind mismatches and unprovided names retain distinct states
+and next actions. Provider records retain symbol size, binding and mutable
+storage observations; these properties establish no complete object layout.
+Every shared ABI selection remains unreviewed. The gate
+binds compiler/tool/header/dependency/archive hashes and retains compressed
+ASTs and a JSON receipt under a unique `.build-logs` directory. Existing
+receipts remain intact. Archive source provenance requires its separate clean
+build receipt. Macro contracts, subdirectory headers, exact signatures and
+layouts, Smaller C, export selection, PIC size and runtime admission remain
+separate obligations. Clang, bmake, ARM GNU binutils and caller-selected Python
+with pyelftools are required. Linux and macOS `firmware.yml` cross tiers own
+execution; the test-only `DECLARATION_CENSUS_NM` selects the symbol reader.
+
 `check-libc-pic-replay` calibrates `tools/libc_pic_replay.py` with real
 ARM compiler captures, a writable-state GOT relocation, and generated assembly
-supplied through retained standard input. Twenty-four tests reject stale source,
+supplied through retained standard input. Twenty-five tests reject stale source,
 missing/ambiguous/failed captures, wrong compiler/dependency/snapshot identities,
 response operands, escaped source/dependency/output paths, changed retained input,
 unknown capture versions, unreviewed options, compiler failure and
-capture/snapshot/archive changes during
+capture/snapshot/archive/source/dependency changes during
 replay. A failed replay publishes no success receipt. Repeated `-c` options keep
 their compiler meaning; one captured output owns each replayed object.
 The caller selects `PYTHON`; ARM GCC/binutils, Git and pyelftools are required.
@@ -2097,7 +2150,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | `check-tty-layout-cross` | Arm GCC compiles the target `struct tty` layout assertions under strict C17 for Cortex-M0+. The object pins the 100-byte structure, four-byte alignment, the `t_flags`, `t_pgrp` and `t_ospeed` widths, plus the `t_flags`, `t_state`, `t_pgrp`, `t_ospeed` and `t_chars` offsets. A generated dependency file makes every consumed header part of incremental freshness. A 121-byte expected-size control must fail at the named structure-size assertion. The gate establishes target compilation and layout; tty runtime behavior and physical-board execution remain separate. |
 | `check-console-c17-cross` | Arm GCC compiles `sys/arch/rp2040/dev/picokbd.c` and `lcdcons.c` as strict C17 (`-std=c17 -pedantic-errors`, `-Wall -Wextra -Werror`, `-O`) under the PICOCALC kernel's `PARAM` definitions and through a forwarding `machine/` directory (`tests/kernel/c17-machine`) that reaches the port's own headers, so `spltty()`, `splhigh()` and `splx()` are the PRIMASK operations of `sys/arch/rp2040/include/intr.h` and not the host tier's `hostintr.h` shims; a preprocessor probe asserts that definition and a second probe through the host tier's include setup must report the shim. The gate also compiles `tests/kernel/exec_layout_contract.c`, which pins the 284-byte `struct exec_params`, its four-byte alignment and sixteen member offsets, as strict C17. A 283-byte expected-size control must fail at the named size assertion, and an empty-struct fixture must fail with the compiler's `struct has no members` diagnostic. The gate establishes target compilation under the pedantic profile and the layout; it executes nothing, and the production objects keep the GNU17 profile. |
 | usr.bin/as/tests `test` | the a.out assembler, archiver and linker: Thumb encodings against GNU as, archive names and rewrites, a linked program |
-| tests/rp2040/divider_ownership | the divider verifier's positive and negative fixtures, and the `--user-helper` check of `lib/libc/arm/gen/aeabi_div.S` assembled for Cortex-M0+: each of the two helper bodies must store the dividend (SIO offset 0x60) and then the divisor (0x64), spend at least eight modeled Cortex-M0+ cycles in ALU instructions or taken branches to the next instruction, load the remainder (0x74) and then the quotient (0x70), and contain no other divider or memory access, system call, call, breakpoint, push or pop in that window. Nine mutants of the real source (one branch removed from the wait, result loads swapped, a CSR poll in place of a wait slot, `svc`, `bl`, `push` and `bkpt` inside the window, a wrong base constant, a helper symbol removed) must each exit 1 with the finding named for it. The cycle table is a model of the Cortex-M0+ Technical Reference Manual, so the check establishes the window's structure, not the divider's timing on silicon |
+| tests/rp2040/divider_ownership | the divider verifier's positive and negative fixtures, and the `--user-helper` check of `lib/libc/arm/gen/aeabi_div.S` assembled for Cortex-M0+: each of the two helper bodies must store the dividend (SIO offset 0x60) and then the divisor (0x64), spend at least eight modeled Cortex-M0+ cycles in ALU instructions or taken branches to the next instruction, load the remainder (0x74) and then the quotient (0x70), and contain no other divider or memory access, system call, call, breakpoint, push or pop in that window. Nine mutants of the real source (one branch removed from the wait, result loads swapped, a CSR poll in place of a wait slot, `svc`, `bl`, `push` and `bkpt` inside the window, a wrong base constant, a helper symbol removed) must each exit 1 with the finding named for it. The four Thumb function symbols also require exact positive extents derived from distinct entries and the text boundary, with common ownership inside each alias pair. Six symbol-table-only controls reject a missing size, a short size, overlap, escape past text, a redirected alias and a cleared Thumb bit. The production fixture excludes literal pools; the separate arithmetic model keeps its literal pools outside each declared function extent. The cycle table is a model of the Cortex-M0+ Technical Reference Manual, so the check establishes the window's structure, not the divider's timing on silicon |
 
 ## qemu tier
 

@@ -700,7 +700,9 @@ CAL64_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-Derrno=calendar64_errno
 CAL64_ZONE=	-Dgetenv=calendar_getenv -Dgettimeofday=calendar_zone_gettimeofday
 CAL64_HEADERS=	${TARGET_DIR}/offtime.h ${TARGET_DIR}/tzstate.h \
-	${TOPSRC}/include/time.h ${TOPSRC}/sys/sys/_time_t.h
+	${TOPSRC}/include/time.h ${TOPSRC}/sys/sys/_time_t.h \
+	${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+	${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h
 CAL64_PROG.native=	calendar64_test
 CAL64_PROG.ilp32=	calendar64_test32
 CAL64_PROG.san=		calendar64_test_san
@@ -1676,6 +1678,8 @@ ctermid.o: ${TARGET_DIR}/ctermid.c
 header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
     ${TOPSRC}/include/stdlib.h ${TOPSRC}/include/string.h \
     ${TOPSRC}/include/strings.h ${TOPSRC}/include/time.h \
+    ${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+    ${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h \
     ${TOPSRC}/include/vis.h ${TOPSRC}/include/_featuretest.h
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -ffreestanding -nostdinc \
 	    -isystem ${TOPSRC}/include -c -o $@ header_contract.c

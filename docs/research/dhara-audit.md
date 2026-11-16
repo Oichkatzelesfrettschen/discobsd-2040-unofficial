@@ -18,7 +18,7 @@ from the datasheet).
 
 Revisions and paths:
 
-- `origin/main` f4066c03; a bare `journal.c`, `map.c` or `journal.h` is under `sys/arch/rp2040/dhara/`; `flash.c` and `flash.h` are under `sys/arch/rp2040/dev/`; `STORAGE.md` is under `sys/arch/rp2040/doc/`; `init_main.c` is `sys/kern/init_main.c`.
+- The reviewed `main` snapshot f4066c03; a bare `journal.c`, `map.c` or `journal.h` is under `sys/arch/rp2040/dhara/`; `flash.c` and `flash.h` are under `sys/arch/rp2040/dev/`; `STORAGE.md` is under `sys/arch/rp2040/doc/`; `init_main.c` is `sys/kern/init_main.c`.
 - PR 636 branch `rp2040/dhara-torn-checkpoint` c439e459. "636:" plus a line is its `journal.c`; `dhara-torn-checkpoint.md` is on that branch.
 - PR 620 branch `tests/flash-reset-cells` 6d59d4cc. `flash-reset-recovery-cells.md` and the oracle `check-flash-reset-cells` are on that branch (PR 636 carries both).
 - Compilers. The host harness uses GCC 16.2.1. Object sizes come from arm-none-eabi-gcc 16.2.0 with the PICO kernel's compile flags (`-Os -mcpu=cortex-m0plus -mthumb`, taken from `bmake -n` in `sys/arch/rp2040/compile/PICO`). PR 636's own figures were taken with arm-none-eabi-gcc 14.2.1, and no delta below crosses the two compilers.
@@ -31,7 +31,7 @@ Revisions and paths:
    - With fewer, it steps back to the checkpoint before the tear. The lost sectors return, but every write the old kernel acknowledged since is dropped without a message.
    - When the old kernel could not checkpoint again (a torn pointer on the sync path), it recovers the pre-tear state in full.
 
-   A `flash.uf2` reflash rewrites the whole region (M, picotool 2.3.1), and no USB-requested reset can land in the window (C). The damage therefore needs a power cut on a root that was never reflashed afterwards.
+   A `flash.uf2` reflash rewrites the whole region (M, picotool 2.3.1), and no USB-requested reset can land in the window (C). The damage therefore needs a power cut or an externally forced reset (the RUN pin or a debugger) that lands in the final chip program, on a root that was never reflashed afterwards.
 3. **The upstream fallback is rejected.** PR 636 offers it as owner option 1. It mounts such a root, and it brings issue 619 back for that root: after the fallback, 936 of 1,025 cuts of every later checkpoint leave a state outside the permitted set (M).
 4. **A failed resume today is silent and destructive.** It mounts an empty map, and the kernel panics with "No root filesystem found!" (`init_main.c:126-128`), with no record of why. Any write into the empty map starts the journal again at block 0 and erases old blocks. The next resume still fails, so the new writes are lost as well (M).
 5. **A host metadata scan salvages damaged roots.** Run over a `picotool save` dump, it recovers every damaged root measured here, including sectors the old kernel itself could not read. That holds only until collection laps the unreachable pages: past a wrap, the scan reproduces the old kernel's view and nothing more (M). It needs no kernel text.
@@ -128,7 +128,7 @@ The mechanisms are described in this note's own words. Costs are for this kernel
 | Upstream Dhara (`main`) | newest page with magic and epoch is the root | as above | journal.o 2,418 B (M) | unsafe: cuts 4-943 (M) | unsafe: 1,200 of 1,200 seeds, 1,000 at 1/2 and 200 at 31/32 (M) | dynamic, journal ring | none |
 | PR 636 tree walk | accept a page only if its tree is whole and its node count equals the cookie; step back up to 8 blocks (636:108, 636:401-464, 636:477-512) | unchanged | +396 B (M; +416 with 14.2.1 per PR 636); resume stack 80 to 248 B (M) | sound (M) | recovered the previous checkpoint for all 3,000 seeds (M) | unchanged | D26 roots resume blank or roll back (M) |
 | PR 636 + upstream fallback | when no whole checkpoint lies in the window, accept the newest page with magic, tail and epoch | unchanged | +92 B over PR 636 (M; PR 636 estimated about 30) | sound on healthy roots (M); on a damaged root, 936 of 1,025 cuts of every later checkpoint are accepted wrongly (M) | as upstream on damaged roots (I) | unchanged | mounts what the old kernel mounted, the defect included |
-| PR 636 + minimum-gap heal | in that case, accept the newest structurally sound page with the smallest count-minus-nodes gap, and rewrite the cookie to the node count | unchanged | +88 B over PR 636 (M); stack 264 B (M) | sound on healthy roots and after the first whole healed checkpoint (M); a tear in that first checkpoint is taken for the root when it loses no more sectors than the old gap (M: cuts 932, 936, 940 lose 7, 3 and 1 sectors) | not run | unchanged | heals the erased-pointer class; the torn-pointer class still resumes blank (M) |
+| PR 636 + minimum-gap heal | in that case, accept the newest structurally sound page with the smallest count-minus-nodes gap, and rewrite the cookie to the node count | unchanged | +88 B over PR 636 (I; unreproduced); stack 264 B (I; unreproduced) | sound on healthy roots and after the first whole healed checkpoint (I; unreproduced); a tear in that first checkpoint is taken for the root when it loses no more sectors than the old gap (I; unreproduced: cuts 932, 936, 940 lose 7, 3 and 1 sectors) | not run | unchanged | heals the erased-pointer class; the torn-pointer class still resumes blank (I; unreproduced) |
 | Additive CRC-32 in the padding | CRC over bytes 0-943 stored at 944; a valid CRC accepts, an erased CRC field falls back to the tree walk, any other value rejects | additive; older kernels ignore the padding (M), and `tools/flashimg` writes it through the same `journal.c` (`dhara/README.md`) | +106 B over PR 636 (M; `subr_crc32.o` is in all four kernels' `compile/*/Makefile`); about two table lookups per byte over 944 B per checkpoint and per candidate (I) | sound (M: cuts 0-943 and 945-947 prev, 944 and 948-1024 new) | recovered the previous checkpoint for all 2,000 seeds, at 1/2 and 31/32 (M) | unchanged | none required |
 | Commit marker in the last chip page (magic moved to bytes 1021-1023) | a prefix tear never shows the magic | breaking: old kernels see no checkpoint | about +10 B (I) | sound for prefix tears (I) | the marker shares a chip program with the root slot (I) | unchanged | reflash every root, or recognize both layouts |
 | Marker byte in a second program | program the page, then one marker byte | additive | needs a RAM-resident single-byte page program, because the boot ROM programs 256-byte multiples and a second 256-byte program clocks 0xff over programmed bytes outside the W25Q16JV Page Program contract (C, `dhara-torn-checkpoint.md` "Alternatives"; datasheet "Page Program (02h)"); RAM-resident text of order 100-200 B (I) | sound (I) | the marker can be partly programmed (I) | +1 command per checkpoint | as CRC |
@@ -157,7 +157,7 @@ For each class, the harness:
 2. Resumes and continues under it: rewrites sectors 0 to 199, adds sectors 700 to 749, and syncs three times (about 38 blocks).
 3. Resumes under each candidate rule.
 
-| Cut | Old kernel at first boot | Old kernel continuing | PR 636 | Upstream fallback | Minimum-gap heal | Host scan |
+| Cut | Old kernel at first boot | Old kernel continuing | PR 636 | Upstream fallback | Minimum-gap heal (I; unreproduced) | Host scan |
 | --- | --- | --- | --- | --- | --- | --- |
 | 932 (pointer erased) | 7 sectors blank | works; count 757, nodes 750 | blank | old view, count 757 | old view, count 750 | all 750 at their latest version |
 | 936 | 3 blank | count 753, nodes 750 | blank | old view | healed | all 750 |
@@ -168,11 +168,11 @@ For each class, the harness:
 Further runs (M):
 
 - **The gap is permanent.** Rewriting a lost sector goes through `trace_path()`, which does not find it, so the count rises again (`map.c:354-366`). Collection skips unreachable pages as garbage (`map.c:226-238`).
-- **Healing sticks.** After the heal and one more checkpoint, PR 636 alone resumes the root with the count equal to the nodes.
+- **Healing sticks (I; unreproduced).** After the heal and one more checkpoint, PR 636 alone resumes the root with the count equal to the nodes.
 - **Short continuation.** After cut 932 the old kernel wrote and checkpointed only three blocks (sectors 300-309 and 700-704). PR 636 then resumed the checkpoint before the tear. The 7 lost sectors came back, and the 15 acknowledged writes were dropped, with no message.
 - **Wrap.** After cut 932 the old kernel rewrote sectors 100 to 199 twenty-five times until the ring wrapped (epochs 3 and 4 on the chip). The scan then matched the old kernel's view exactly, and the 7 lost sectors were gone from the chip.
 
-The classes above are prefix-shaped. A power cut, the only cause that reaches the window on a board, may leave other shapes. In the bit model PR 636 rejected every one, but the model is assumed, not measured on silicon.
+The classes above are prefix-shaped, the shape of a forced reset. A power cut may leave other shapes. In the bit model PR 636 rejected every one, but the model is assumed, not measured on silicon.
 
 ### How many roots (I)
 
@@ -193,7 +193,7 @@ The recorded board history holds seven USB warm resets and later forced-reset tr
 | Option | Result on D26 roots | Cost | Risk |
 | --- | --- | --- | --- |
 | Upstream fallback | mounts the old view (all classes) | +92 B | issue 619 returns for that root at every later checkpoint (M) |
-| Minimum-gap heal | erased-pointer class healed; torn-pointer class blank; short continuation still rolls back | +88 B | the first checkpoint after the heal is exposed (M, 3 of 1,025 cuts) |
+| Minimum-gap heal | erased-pointer class healed; torn-pointer class blank; short continuation still rolls back | +88 B | the first checkpoint after the heal is exposed (I; unreproduced, 3 of 1,025 cuts) |
 | Refuse with a message | the root does not mount and the region stays untouched; the short-continuation rollback is not caught, so mount also reports the number of newer checkpoints it rejected | shared with D28: +92 B for the sketch, a lower bound; the report tens of bytes (I) | none to data; owner action needed |
 | Host scan (salvage) | every measured class recovered until collection laps the lost pages (M) | 0 B kernel; a host tool | the prototype orders pages by (epoch, block), which mis-orders the split journal of section 4; a real tool follows the journal's own epoch search, and checks a torn newest page with the tree walk before trusting its ids |
 | Reflash | data lost unless salvaged first | none | none |
@@ -203,7 +203,7 @@ Recommended, in order:
 1. Refusal with a message (section 4) and a mount report of rejected newer checkpoints.
 2. The host scan as the salvage route, then a reflash of the rebuilt image (`tools/flashimg` turns a sector image into a region).
 
-The heal is not recommended. It is unsound for its first checkpoint, does not cover the torn-pointer class, and changes nothing for the short continuation. It stays an option.
+The heal is not recommended. It is unsound for its first checkpoint, does not cover the torn-pointer class, and changes nothing for the short continuation. It stays an option. Its verdict rests on source reasoning, because the appendix does not carry the heal source (I).
 
 ## 4. D28: a failed resume
 
@@ -269,11 +269,11 @@ The harness links `error.c`, `map.c` and one `journal.c` over a
 
 Setup. Run from the root of a fresh checkout of this branch, in a POSIX
 shell, with a C compiler as `cc`. The old journal is the vendored
-`journal.c` (identical to `origin/main` f4066c03 at the time of writing).
+`journal.c` (identical to the reviewed `main` snapshot f4066c03; checked with `git show f4066c03:$D/journal.c`).
 PR 636's journal comes from its pull-request ref, pinned by commit. The
 harness and the sweep script are extracted from the two headed code blocks
-below, and the CRC variant is the diff in its own section below, applied to
-PR 636's file:
+below, and the CRC and fallback variants are the diffs in their own sections
+below, applied to PR 636's file:
 
     T=$(mktemp -d)
     D=sys/arch/rp2040/dhara
@@ -286,6 +286,9 @@ PR 636's file:
     extract crc.diff > "$T/crc.diff"
     cp "$T/journal636.c" "$T/journalcrc.c"
     patch -l "$T/journalcrc.c" < "$T/crc.diff"
+    extract fallback.diff > "$T/fallback.diff"
+    cp "$T/journal636.c" "$T/journalfb.c"
+    patch -l "$T/journalfb.c" < "$T/fallback.diff"
     sed '/^#include/d' sys/kern/subr_crc32.c > "$T/crc32.c"
     cc -std=c17 -O1 -Wall -Wextra -Werror -iquote $D -o "$T/h_old" "$T/harness.c" \
         $D/error.c $D/journal.c $D/map.c
@@ -293,6 +296,8 @@ PR 636's file:
         $D/error.c "$T/journal636.c" $D/map.c
     cc -std=c17 -O1 -Wall -Wextra -Werror -iquote $D -o "$T/h_crc" "$T/harness.c" \
         $D/error.c "$T/journalcrc.c" $D/map.c "$T/crc32.c"
+    cc -std=c17 -O1 -Wall -Wextra -Werror -DAUDIT_FALLBACK=1 -iquote $D -o "$T/h_fb" \
+        "$T/harness.c" $D/error.c "$T/journalfb.c" $D/map.c
 
 Cut sweeps (K runs from 0 to 1024 inside `sweep.sh`; the two numbers are the
 first and last sector rewritten at version 2 before the cut checkpoint). The
@@ -326,6 +331,28 @@ The verdict is the class count in the printed line, so the sweep reports a
 deviation as a nonzero `new`, `damaged` or `no-resume` count for PR 636 or
 the CRC variant, or as a nonzero `prev` count for the old journal.
 
+Damaged-root sweeps. The damaged root is the old journal's image after a tear
+at cut 932 and about 38 blocks of continued use (rewrites of sectors 0 to 199,
+sectors 700 to 749 added, three syncs; 750 sectors). `BASE` starts each run from a copy of that image
+and `NSEC` reads 750 sectors. The sweep rewrites sectors 300 to 309 and cuts
+the next checkpoint at every byte. The last line of each byte-cut sweep counts
+the cuts outside the permitted set (prev and new). The fallback runs on the
+damaged root and, as its known-good input, on a fresh root:
+
+    "$T/h_old" img="$T/d26.img" fresh resume w:0-699:1 sync w:0-9:2 tear:932 sync   # exits 3
+    "$T/h_old" img="$T/d26.img" load resume w:0-99:3 sync w:100-199:3 sync w:700-749:1 sync save
+    "$T/h_fb" img="$T/d26.img" load resume check:750 | tail -n 1
+    echo "== fallback on the damaged root"
+    BASE="$T/d26.img" NSEC=750 sh "$T/sweep.sh" "$T/h_fb" "$T" 300 309
+    echo "== fallback on a fresh root"
+    sh "$T/sweep.sh" "$T/h_fb" "$T" 0 9
+
+Expected (M): the fallback mounts the damaged root (`nodes 750 count 757`) and then
+accepts 936 of 1,025 cuts of the next checkpoint wrongly (cuts 8 to 943), and 0 on
+the fresh root. The old journal gives 940 of 1,025 (cuts 4 to 943), and PR 636
+and the CRC variant 0, on the rewrite of sectors 0 to 9. The 936 is therefore the
+measured exposure of a root that PR 636 would otherwise refuse.
+
 One cut by hand, and a read of the result (K is a number, here 932):
 
     "$T/h_old" img="$T/t.img" fresh resume w:0-699:1 sync w:0-9:2 tear:932 sync   # exits 3
@@ -351,55 +378,67 @@ the loop above, in a fresh worktree, with the extracted files:
     816-931 damaged sector0=lost bad=15..699
     932-943 damaged sector0=readable bad=1..7
     944-1024 new bad=0..0
+    cuts outside prev and new: 940 of 1025
     == old rewrite 600 609
     0-3 prev bad=0..0
     4-815 damaged sector0=lost, all 700 sectors bad bad=700..700
     816-939 damaged sector0=lost bad=3..699
     940-943 damaged sector0=readable bad=1..1
     944-1024 new bad=0..0
+    cuts outside prev and new: 940 of 1025
     == old rewrite 1 6
     0-3 prev bad=0..0
     4-815 damaged sector0=lost, all 700 sectors bad bad=700..700
     816-943 damaged sector0=readable bad=1..699
     944-1024 new bad=0..0
+    cuts outside prev and new: 940 of 1025
     == old rewrite 0 599
     0-3 prev bad=0..0
     4-815 damaged sector0=lost, all 700 sectors bad bad=700..700
     816-907 damaged sector0=lost bad=699..699
     908-943 damaged sector0=readable bad=1..187
     944-1024 new bad=0..0
+    cuts outside prev and new: 940 of 1025
     == 636 rewrite 0 9
     0-943 prev bad=0..0
     944-1024 new bad=0..0
+    cuts outside prev and new: 0 of 1025
     == 636 rewrite 600 609
     0-943 prev bad=0..0
     944-1024 new bad=0..0
+    cuts outside prev and new: 0 of 1025
     == 636 rewrite 1 6
     0-943 prev bad=0..0
     944-1024 new bad=0..0
+    cuts outside prev and new: 0 of 1025
     == 636 rewrite 0 599
     0-943 prev bad=0..0
     944-1024 new bad=0..0
+    cuts outside prev and new: 0 of 1025
     == crc rewrite 0 9
     0-943 prev bad=0..0
     944-944 new bad=0..0
     945-947 prev bad=0..0
     948-1024 new bad=0..0
+    cuts outside prev and new: 0 of 1025
     == crc rewrite 600 609
     0-943 prev bad=0..0
     944-944 new bad=0..0
     945-947 prev bad=0..0
     948-1024 new bad=0..0
+    cuts outside prev and new: 0 of 1025
     == crc rewrite 1 6
     0-943 prev bad=0..0
     944-944 new bad=0..0
     945-947 prev bad=0..0
     948-1024 new bad=0..0
+    cuts outside prev and new: 0 of 1025
     == crc rewrite 0 599
     0-943 prev bad=0..0
     944-944 new bad=0..0
     945-947 prev bad=0..0
     948-1024 new bad=0..0
+    cuts outside prev and new: 0 of 1025
     == old seeds 0 999
     seeds 0-999 (1/2 of the zero bits): prev=0 new=0 damaged=1000 no-resume=0
     == old seeds 200000 200199
@@ -414,6 +453,17 @@ the loop above, in a fresh worktree, with the extracted files:
     seeds 0-999 (1/2 of the zero bits): prev=1000 new=0 damaged=0 no-resume=0
     == crc seeds 200000 200999
     seeds 200000-200999 (31/32 of the zero bits): prev=1000 new=0 damaged=0 no-resume=0
+    # damaged root (old journal, cut 932, continued): the fallback build resumes it with nodes 750 count 757
+    == fallback on the damaged root
+    0-7 prev bad=0..0
+    8-815 damaged sector0=lost, all 750 sectors bad bad=750..750
+    816-943 damaged sector0=lost bad=1..749
+    944-1024 new bad=0..0
+    cuts outside prev and new: 936 of 1025
+    == fallback on a fresh root
+    0-943 prev bad=0..0
+    944-1024 new bad=0..0
+    cuts outside prev and new: 0 of 1025
     # by hand, cut 932: torn page 815 at 932; resume rc 0 err 0 count 700 root 814
     # check:700 -> sectors 0-7 read 2, sectors 8-12, 14 and 15 read 0, the rest 1; nodes 693 count 700
     # D26 continuation: PR 636 prints resume rc -1 err 3 count 0; check:750 reads 0 everywhere, nodes 0 count 0
@@ -423,14 +473,16 @@ Oracles, with `PYTHON=python3`, all exit 0:
 - `tests/rp2040/flash_reset_cells/check.sh` and `tests/rp2040/flash_checkpoint/check.sh` on the PR 636 tree.
 - The same two on that tree with the two D28 edits below.
 
-Reproducibility of the variants. The old journal, PR 636 and CRC rows of the
-cut tables reproduce from the commands above. The minimum-gap heal diff and
-the D28 diff are sketches. The heal diff elides hunks, and the D28 diff edits
-`flash.c`, which the host harness does not link. The heal figures (+88 B, stack
-264 B, the cut 932, 936 and 940 losses) and the D28 figures (flash.o +92 B, error 6
-against 3) therefore come from builds that this note does not carry (open:
-publish the heal and D28 variants as branches before an owner decision rests
-on them).
+Reproducibility of the variants. The old journal, PR 636, CRC and upstream
+fallback rows of the cut tables and the damaged-root exposure reproduce from
+the commands above. The minimum-gap heal and D28 diffs are sketches. The heal
+diff elides hunks, and the D28 diff edits `flash.c`, which the host harness
+does not link. Every heal figure (+88 B, stack 264 B, the cut 932, 936 and 940
+losses, the 3 of 1,025 exposed cuts, the torn-pointer verdict) is therefore
+unreproduced here, and its verdict rests on source reasoning (I). The D28
+figures (flash.o +92 B, error 6 against 3) and every object size also come
+from builds that this note does not carry (open: publish the heal and D28
+variants as branches before an owner decision rests on them).
 
 Object sizes: the PICO compile lines from `bmake -n journal.o flash.o`,
 with `machine/` pointed at `sys/arch/rp2040/include`, then
@@ -647,13 +699,13 @@ int main(int argc, char **argv)
 }
 ```
 
-Two defects of this sketch bind the salvage tool (owner decision D47) and each needs an oracle row before the tool counts. Two writes of one sector inside one checkpoint group share the key `(epoch, block)`, and the strict `key > best_key` comparison keeps the first, stale slot; the order must include the slot position, newest last. The key is numeric, so after the 8-bit epoch wraps from 255 to 0 the stale epoch-255 pages outrank the current ones; `newest_epoch` is computed but unused, and the order must be the modular distance from the newest accepted checkpoint (I, from the code above; no oracle row yet). The CRC sketch below also keeps `cp_tree_whole()` for every page, since the CRC covers only the checkpoint page and not the metadata pages its pointers reach.
+Two defects of this sketch bind the salvage tool (owner decision 4, the host salvage tool) and each needs an oracle row before the tool counts. Two writes of one sector inside one checkpoint group share the key `(epoch, block)`, and the strict `key > best_key` comparison keeps the first, stale slot; the order must include the slot position, newest last. The key is numeric, so after the 8-bit epoch wraps from 255 to 0 the stale epoch-255 pages outrank the current ones; `newest_epoch` is computed but unused, and the order must be the modular distance from the newest accepted checkpoint (I, from the code above; no oracle row yet). The CRC sketch below also keeps `cp_tree_whole()` for every page, since the CRC covers only the checkpoint page and not the metadata pages its pointers reach.
 
 ### sweep.sh
 
 ```sh
 #!/bin/sh
-# usage: sweep.sh HARNESS WORKDIR LO HI [FIRST LAST]
+# usage: [BASE=IMAGE NSEC=N] sweep.sh HARNESS WORKDIR LO HI [FIRST LAST]
 # Rewrites sectors LO..HI at version 2 and tears the checkpoint page that
 # follows, then resumes and reads sectors 0-699.
 #   Without FIRST and LAST: one cut per byte K from 0 to 1024 (tear:K); prints
@@ -666,18 +718,27 @@ Two defects of this sketch bind the salvage tool (owner decision D47) and each n
 # checkpoint), new (that of a tear:1024 run, the whole page), damaged (any
 # other vector) and no-resume (the journal found no checkpoint). A partial-bit
 # tear passes when its class is prev or new.
+# With BASE set to a saved image, each run starts from a copy of that image
+# (load, resume, rewrite LO..HI, tear) instead of a fresh chip, and the
+# byte-cut mode ends with the number of cuts that are neither prev nor new
+# (the permitted set of a sound journal is prev and new).
 set -eu
 h=$1 w=$2 lo=$3 hi=$4
 first=${5:-} last=${6:-}
 : > "$w/raw.txt"
 row() {	# row LABEL TEAR-COMMAND
 	rc=0
-	"$h" img="$w/t.img" fresh resume w:0-699:1 sync "w:$lo-$hi:2" "$2" sync >/dev/null || rc=$?
+	if [ -n "${BASE:-}" ]; then
+		cp "$BASE" "$w/t.img"
+		"$h" img="$w/t.img" load resume "w:$lo-$hi:2" "$2" sync >/dev/null || rc=$?
+	else
+		"$h" img="$w/t.img" fresh resume w:0-699:1 sync "w:$lo-$hi:2" "$2" sync >/dev/null || rc=$?
+	fi
 	if [ "$rc" -ne 3 ]; then
 		echo "$2: harness exit $rc, expected 3" >&2
 		exit 1
 	fi
-	echo "$1 $("$h" img="$w/t.img" load resume check:700 | tr '\n' ' ')" >> "$w/raw.txt"
+	echo "$1 $("$h" img="$w/t.img" load resume check:${NSEC:-700} | tr '\n' ' ')" >> "$w/raw.txt"
 }
 if [ -n "$first" ]; then
 	row ref-prev tear:0
@@ -694,7 +755,7 @@ else
 		k=$((k + 1))
 	done
 fi
-awk -v seeds="$first" -v lastseed="$last" '
+awk -v seeds="$first" -v lastseed="$last" -v nsec="${NSEC:-700}" '
 function flush() {
 	if (first >= 0)
 		printf "%d-%d %s\n", first, last, label (bmin >= 0 ? sprintf(" bad=%d..%d", bmin, bmax) : "")
@@ -704,7 +765,7 @@ function flush() {
 	vec = ""
 	if ($0 ~ / resume rc 0 /) {
 		for (i = 1; i <= NF; i++) if ($i == "check") break
-		for (s = 0; s < 700; s++) vec = vec " " $(i + 1 + s)
+		for (s = 0; s < nsec; s++) vec = vec " " $(i + 1 + s)
 	}
 	v[NR] = vec
 	key[NR] = $1
@@ -719,12 +780,14 @@ END {
 		if (v[n] == "") cls = "no-resume"
 		else {
 			bad = 0
-			for (s = 1; s <= 700; s++) if (x[s] == 0 || x[s] == -9 || x[s] == -1) bad++
+			for (s = 1; s <= nsec; s++) if (x[s] == 0 || x[s] == -9 || x[s] == -1) bad++
 			if (v[n] == prevv) cls = "prev"
 			else if (v[n] == newv) cls = "new"
-			else cls = "damaged sector0=" ((x[1] == 1 || x[1] == 2) ? "readable" : "lost") (bad == 700 ? ", all 700 sectors bad" : "")
+			else cls = "damaged sector0=" ((x[1] == 1 || x[1] == 2) ? "readable" : "lost") (bad == nsec ? ", all " nsec " sectors bad" : "")
 		}
 		if (seeds != "") { count[cls ~ /^damaged/ ? "damaged" : cls]++; continue }
+		total++
+		if (cls != "prev" && cls != "new") outside++
 		if (cls != label) { flush(); first = key[n]; label = cls; bmin = -1; bmax = -1 }
 		last = key[n]
 		if (bad >= 0) { if (bmin < 0 || bad < bmin) bmin = bad; if (bad > bmax) bmax = bad }
@@ -733,8 +796,10 @@ END {
 		printf "seeds %s-%s (%s of the zero bits): prev=%d new=%d damaged=%d no-resume=%d\n", seeds, lastseed,
 		    seeds + 0 >= 200000 ? "31/32" : seeds + 0 >= 100000 ? "7/8" : "1/2",
 		    count["prev"], count["new"], count["damaged"], count["no-resume"]
-	else
+	else {
 		flush()
+		printf "cuts outside prev and new: %d of %d\n", outside, total
+	}
 }
 ' "$w/raw.txt"
 ```
@@ -876,6 +941,43 @@ END {
 +
         dhara_set_error(err, DHARA_E_TOO_BAD);
         return -1;
+ }
+```
+
+### fallback.diff
+
+The upstream fallback over PR 636 (c439e459), written with spaces for the source's tabs; apply it with `patch -l` and build with `-DAUDIT_FALLBACK=1`. When no checkpoint of the last block passes the tree walk, it accepts the newest page that carries the magic and the journal's epoch.
+
+```diff
+--- a/sys/arch/rp2040/dhara/journal.c
++++ b/sys/arch/rp2040/dhara/journal.c
+@@ -507,6 +507,27 @@
+                 }
+         }
+
++#if AUDIT_FALLBACK
++        {
++                const dhara_block_t b0 = start >> j->nand->log2_ppb;
++                int k = (start & ((1 << j->nand->log2_ppb) - 1)) >> j->log2_ppc;
++
++                for (; k >= 0; k--) {
++                        const dhara_page_t p = (b0 << j->nand->log2_ppb) +
++                                ((k + 1) << j->log2_ppc) - 1;
++
++                        if (!dhara_nand_read(j->nand, p, 0,
++                                             1 << j->nand->log2_page_size,
++                                             j->page_buf, err) &&
++                            hdr_is_checkpoint(j, j->page_buf) &&
++                            hdr_get_epoch(j->page_buf) == j->epoch) {
++                                j->root = p - 1;
++                                return 0;
++                        }
++                }
++        }
++#endif
++
+         dhara_set_error(err, DHARA_E_TOO_BAD);
+         return -1;
  }
 ```
 

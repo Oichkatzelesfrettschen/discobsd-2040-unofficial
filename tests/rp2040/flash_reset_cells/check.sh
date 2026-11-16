@@ -317,10 +317,11 @@ build "$flash" "$work/journal-torn-epoch.c" "$swap" "$work/m-torn-epoch"
 rejects "$work/m-torn-epoch" Kw-H2
 
 # With one live sector the torn root id still counts one node; only the
-# test of the id's high byte rejects an id whose high bytes are erased.
+# test of a one-sector root's high byte rejects an id whose high bytes are
+# erased.
 mutate "$dhara/journal.c" "$work/journal-torn-id.c" \
-	'			if (meta_field(j, next, 0, &v) < 0 || (v >> 24) == 0xff ||' \
-	'			if (meta_field(j, next, 0, &v) < 0 || v == 0xffffffff ||'
+	'	return seen == count && (count != 1 || (root_id >> 24) != 0xff);' \
+	'	return (void)root_id, seen == count;'
 build "$flash" "$work/journal-torn-id.c" "$swap" "$work/m-torn-id"
 rejects "$work/m-torn-id" K1-H2
 

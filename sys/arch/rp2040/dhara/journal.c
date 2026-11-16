@@ -379,15 +379,28 @@ static dhara_page_t find_last_group(struct dhara_journal *j,
  * sector id followed by CP_RADIX_DEPTH alt pointers. Every live sector is
  * one node, reached from the root through alt pointers of strictly
  * increasing depth. cp_tree_whole() walks that tree and accepts the page
- * when every id has its high byte programmed, every alt pointer is erased
- * or names a user page, and the nodes number exactly the cookie, which is
- * at most the page count. A torn field turns an alt pointer erased (a
- * subtree and its sectors missing) or out of range, the root id's high
- * byte erased, or the count out of range, and each of those fails the
- * test. No live sector id reaches 0xff000000: flstrategy() forms ids from
+ * when no id reads as erased (0xffffffff, the one value map.h reserves),
+ * every alt pointer is erased or names a user page, and the nodes number
+ * exactly the cookie, which is at most the page count. A reset inside the
+ * root's slot, the last one in the page, leaves the id or the alt pointers
+ * partly erased. With two or more live sectors the root has an alt pointer
+ * that leads to the rest of the tree, so any such tear erases that pointer,
+ * a subtree and its sectors go missing, and the node count falls short of
+ * the cookie: every id from 0 to 0xfffffffe passes the test, those with a
+ * high byte of 0xff included. A reset inside an earlier slot leaves the
+ * root slot erased, which fails as an erased root id. A root whose id is
+ * erased is the empty map and holds only with a zero count.
+ *
+ * One live sector is the case the page cannot decide. Its root has no alt
+ * pointer, so a reset inside the id leaves the low bytes written and the
+ * high bytes erased, and the page is byte for byte the complete page of
+ * another id with those high bytes at 0xff. The test refuses a single-sector
+ * root whose id reads 0xff in the high byte, the form such a tear produces,
+ * and so also refuses a genuine map of one sector at an id of 0xff000000 or
+ * above; the previous checkpoint then answers. flstrategy() forms ids from
  * 32-bit block offsets, and only a partition entry reaching about 4 TiB
- * yields one. A root
- * whose id is erased is the empty map and holds only with a zero count.
+ * yields one, so the kernel does not reach the refused ids. Accepting them
+ * needs a commit marker in the page, a format change.
  *
  * The walk holds one frame per depth, CP_RADIX_DEPTH + 1 at most, and reads
  * the chip directly: during resume j->head is not yet known, so
@@ -423,6 +436,7 @@ static int cp_tree_whole(const struct dhara_journal *j, dhara_page_t root)
 	dhara_page_t next = root;
 	uint8_t next_level = 0;
 	uint32_t seen = 0;
+	uint32_t root_id;
 	uint32_t v;
 	int top = -1;
 
@@ -432,10 +446,11 @@ static int cp_tree_whole(const struct dhara_journal *j, dhara_page_t root)
 		return count == 0;
 	if (count > pages)
 		return 0;
+	root_id = v;
 
 	for (;;) {
 		if (next != DHARA_PAGE_NONE) {
-			if (meta_field(j, next, 0, &v) < 0 || (v >> 24) == 0xff ||
+			if (meta_field(j, next, 0, &v) < 0 || v == CP_ID_ERASED ||
 			    ++seen > count)
 				return 0;
 			top++;
@@ -461,7 +476,7 @@ static int cp_tree_whole(const struct dhara_journal *j, dhara_page_t root)
 		next_level++;
 	}
 
-	return seen == count;
+	return seen == count && (count != 1 || (root_id >> 24) != 0xff);
 }
 
 /* DiscoBSD local change: the search steps back past a checkpoint that

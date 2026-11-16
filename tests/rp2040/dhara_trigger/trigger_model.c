@@ -32,6 +32,13 @@
  *	("FAIL margin"). With RESETS set, a checkpoint and then a reset with
  *	resume follow every write, and every sector is checked against its
  *	last checkpointed contents ("FAIL sector", "FAIL resume").
+ *   trigger_model high ROUNDS
+ *	24 sectors, 0 to 7 and eight to 0xfffffffe from 0xfe000000 up, written
+ *	in a rotated order, then ROUNDS rewrites of rotating sectors (the
+ *	checkpoint's root is a high id for some and a low id for others),
+ *	each followed by a checkpoint and a reset with resume. Every sector and the live count must survive
+ *	("FAIL resume", "FAIL sector"): the checkpoint-tear test in
+ *	journal.c accepts every id when two or more sectors are live.
  *
  * The program exits 1 on any FAIL.
  */
@@ -344,6 +351,77 @@ run_adversary(unsigned long writes, int resets)
 	return failures != 0;
 }
 
+static const unsigned long high_ids[] = {
+	0, 1, 2, 3, 4, 5, 6, 7,
+	0xff000000UL, 0xff000001UL, 0xff000002UL, 0xff0000ffUL,
+	0xff00ff00UL, 0xffff0000UL, 0xffff0001UL, 0xffffff00UL,
+	0xfffffffeUL, 0xfffffffdUL, 0xfffffffcUL, 0xfffffe00UL,
+	0xfffe0000UL, 0xfe000000UL, 0xff800000UL, 0xffffff80UL,
+};
+#define NHIGH (sizeof(high_ids) / sizeof(high_ids[0]))
+
+static int
+verify_high(const unsigned long *ver, unsigned long n)
+{
+	uint8_t want[FLASH_UNIT_BYTES], got[FLASH_UNIT_BYTES];
+	dhara_error_t err;
+	unsigned i;
+
+	if (dhara_map_size(&map) != NHIGH) {
+		printf("FAIL resume: %lu sectors held at %lu, want %lu\n",
+		    (unsigned long)dhara_map_size(&map), n,
+		    (unsigned long)NHIGH);
+		failures++;
+		return -1;
+	}
+	for (i = 0; i < NHIGH; i++) {
+		err = DHARA_E_NONE;
+		if (dhara_map_read(&map, (dhara_sector_t)high_ids[i], got,
+		    &err) < 0) {
+			fail("read after resume", n, err);
+			return -1;
+		}
+		fill(want, high_ids[i], ver[i]);
+		if (memcmp(want, got, sizeof(want)) != 0) {
+			printf("FAIL sector: %lx lost after reset at %lu\n",
+			    high_ids[i], n);
+			failures++;
+			return -1;
+		}
+	}
+	return 0;
+}
+
+static int
+run_high(unsigned long rounds)
+{
+	unsigned long ver[NHIGH], n;
+	unsigned i;
+
+	memset(ver, 0, sizeof(ver));
+	/* The last write of the first order is a high id, of the second a low one. */
+	for (i = 0; i < NHIGH; i++)
+		if (put(high_ids[(i + NHIGH / 2) % NHIGH], 0, i) < 0)
+			return 1;
+	if (checkpoint(0) < 0)
+		return 1;
+	resume();
+	if (verify_high(ver, 0) < 0)
+		return 1;
+	for (n = 1; n <= rounds; n++) {
+		i = (unsigned)(n * 5 % NHIGH);
+		if (put(high_ids[i], n, n) < 0 || checkpoint(n) < 0)
+			return 1;
+		ver[i] = n;
+		resume();
+		if (verify_high(ver, n) < 0)
+			return 1;
+	}
+	printf("high rounds=%lu sectors=%lu failures=%d\n", rounds,
+	    (unsigned long)NHIGH, failures);
+	return failures != 0;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -356,7 +434,11 @@ main(int argc, char **argv)
 		start();
 		return run_adversary(strtoul(argv[2], NULL, 10), atoi(argv[3]));
 	}
+	if (argc == 3 && strcmp(argv[1], "high") == 0) {
+		start();
+		return run_high(strtoul(argv[2], NULL, 10));
+	}
 	fprintf(stderr, "usage: trigger_model random LIVE WRITES CEILING | "
-	    "adversary WRITES RESETS\n");
+	    "adversary WRITES RESETS | high ROUNDS\n");
 	return 2;
 }

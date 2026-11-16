@@ -43,11 +43,13 @@ Three parts of one local change in `journal.c`, listed as one row of
    `find_checkblock()` and `find_root()`.
 2. `cp_tree_whole()`: starting at the group's last user page, walk the
    radix tree through the alt pointers, reading each 32-bit field from the
-   chip. Accept when every id has its high byte programmed (below
-   0xff000000), every alt pointer is erased or a user page
+   chip. Accept when no id is erased (0xffffffff, the value
+   `map.h` reserves), every alt pointer is erased or a user page
    (`metadata_page_valid()`), and the nodes number exactly the sector count
    in the cookie, which must not exceed the page count. A root whose id is
-   erased is the empty map and is accepted only with count 0.
+   erased is the empty map and is accepted only with count 0. A map of one
+   live sector whose id reads 0xff in the high byte is refused (see the
+   one-sector case below).
 3. `find_root()` tries candidates newest first with both tests, and when a
    block holds no acceptable checkpoint it steps to the previous block, up
    to `DHARA_MAX_RETRIES` blocks, decrementing the expected epoch when it
@@ -71,8 +73,10 @@ come from `flstrategy()`, which adds the block number to the partition
 offset of the MBR entry (`fl_setup()` copies the entries from sector 0
 without clamping them to `flblocks`), and from `tools/flashimg`, which stops
 at the capacity. So ids are not bounded by the page count, and the rule
-does not assume they are: it rejects only an id whose high byte is 0xff,
-which needs a block offset of about 4 TiB.
+does not assume they are: with two or more live sectors it accepts every id
+from 0 to 0xfffffffe, and it refuses a one-sector map at an id of 0xff000000
+or above, which needs a block offset of about 4 TiB (the one-sector case
+below).
 
 Rejected states. In a page torn at k, each 32-bit field (stored little
 endian, `bytes.h`) is either intact, entirely erased, or has its high byte
@@ -80,10 +84,23 @@ erased; a high byte of 0xff exceeds the page count (below 2^24). So a torn
 field turns an alt pointer into NONE (its subtree, at least one sector, is
 no longer reached: count mismatch) or out of range (rejected), the root id
 into NONE (empty tree against a nonzero count, which is intact because it
-precedes the root slot) or a value whose high byte is 0xff (rejected), and
-the count or tail into out-of-range values (rejected). With one live sector
-a torn root id still counts one node, so only the high-byte test rejects it
-(row `K1-H2`). A
+precedes the root slot) or a value whose high bytes are erased, and the count
+or tail into out-of-range values (rejected). The root's slot is the last in
+the page, so a cut inside its id also leaves every alt pointer erased; with
+two or more live sectors the root has an alt pointer to the rest of the tree,
+the walk reaches one node, and the count test rejects the page whatever the id
+reads. That is why the rule needs no test of the id's value there, and
+accepts ids with a high byte of 0xff (the `high` scenario of
+`tests/rp2040/dhara_trigger`).
+
+One-sector case. With one live sector the root has no alt pointer, so a cut
+inside the id leaves a page that equals the complete page of the id with
+those high bytes at 0xff: the page does not tell a torn id from a genuine
+one, and no rule over the page can. The walk refuses a one-sector root whose
+id reads 0xff in the high byte (row `K1-H2`), the form every such cut
+produces, and the previous checkpoint answers; a genuine one-sector map at an
+id of 0xff000000 or above is refused with it. Accepting it takes a commit
+marker in the page, a format change (`dhara-audit.md`). A
 page torn so that every erased field was already erased in the intended
 page equals the intended page and is accepted, which the tear column
 permits.

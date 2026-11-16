@@ -109,8 +109,8 @@ wraps the journal), a page copy one chip page short (`Gk-H1`), a swap
 rewrite that skips the spare copy (`T-H1`), a swap append that erases a sector
 20 sectors into the extent (`S-H1`), a journal that skips the sector-tree test
 (`Kf-min`, `Kf-H2`, `Kg-H2`, `Gk-H2`, `F-H2`, `Kw-H2`), one that takes a page
-with an erased tail for a checkpoint (`Kw-H2`), and one whose sector id bound
-admits an erased high byte (`K1-H2`).
+with an erased tail for a checkpoint (`Kw-H2`), and one that accepts a one-sector root whose
+id has erased high bytes (`K1-H2`).
 
 ## Cell table
 

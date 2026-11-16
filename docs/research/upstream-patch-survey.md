@@ -22,13 +22,13 @@ Across 172 rows (2 upstream commits, 68 numbered patches 432 to 499, and the
 | Source | Present | Superseded | Applicable | Not applicable |
 | --- | ---: | ---: | ---: | ---: |
 | upstream DiscoBSD | 0 | 0 | 0 | 2 |
-| 2.11BSD 432 to 499 | 12 | 10 | 7 | 39 |
+| 2.11BSD 432 to 499 | 12 | 9 | 8 | 39 |
 | 2.11BSD 500 items | 18 | 4 | 13 | 67 |
 
 The applicable set is small and cheap. Five kernel items cost between -1603 and
 +80 bytes of kernel text and at most 4 bytes of kernel RAM; the shipped userland
-items live in `/bin/box` or a packed program and cost between 10 and 1328 bytes
-of program text, none of it kernel text or kernel RAM. The two highest-value
+items live in `/bin/box` or a packed program and cost between -20 and 1328 bytes
+of program text (the lower bound is 500.83 `ls` without `cfree`, ~-20 B (I)), none of it kernel text or kernel RAM. The two highest-value
 items are POSIX conformance fixes in shipped box applets: `chown owner:group`
 and option parsing in `rm` and `mv`.
 
@@ -105,6 +105,13 @@ mode, sysctl, tar, umount and inode-rescan work. The survey adds these:
 - **Patch 451** lets any root process lower `kern.securelevel` while it is at or
   below 0; `sys/kern/kern_sysctl.c:262` refuses unless the caller is init. This is
   a policy change and an owner decision.
+- **Patch 454** removes the kernel timezone from `date` and libc. The fork still
+  builds the old mechanism: `bin/date2/date.c:304-380` (shipped as `/bin/date`)
+  declares `struct timezone`, parses `-d` and `-t` into `tz_dsttime` and
+  `tz_minuteswest` and adds `tz_minuteswest` to the typed time;
+  `lib/libc/gen/tzset.c:195,247` keeps `tzsetkernel`. The patch moves `date` to
+  `localtime` and `tm_gmtoff` and drops both options, so it is a policy
+  decision, not a bug fix; an earlier draft called it superseded.
 - **Patch 466** makes `size` report `strerror`; `usr.bin/size/size.c:38` still
   prints "not found".
 - **Patches 456 and 458** remain open in the ledger
@@ -195,6 +202,20 @@ correctly. `printf_contract_test.c:122-125` and `:151` already check truncation;
 no printf contract file holds a `%.0f` vector, so a zero-precision zero case is a
 cheap addition to `check-libc-printf-float`.
 
+**Lone dash under `getopt`.** A review of the `rm` and `mv` recommendation claimed that
+`lib/libc/stdlib/getopt.c:63-88` scans an empty option for the argument `-` and
+reads one byte past the option string. The claim does not reproduce. The file was
+compiled for the host with AddressSanitizer and UBSan, with the option string and
+every argument in exact-size heap blocks, and driven over six option strings
+(`dfiPRrW`, `ab:`, `:a`, empty, `-`, `a:`) and every argument vector of length 0
+to 3 drawn from `-`, `--`, `-a`, `-ab`, `x`, the empty string and `-:`: 2,193
+option returns and no report. `-` with `dfiPRrW` returns `EOF` at `optind` 1, so
+the dash stays an operand. The guard `place[1] &&` at `getopt.c:67` skips the
+empty-option scan. A mutant without that guard reads one byte past the option
+string and ASan reports a heap-buffer-overflow, so the harness detects the
+failure the review described. The recommendation therefore needs no `getopt`
+repair; it needs a lone-`-` case in the new gate. Host x86-64 run, not the target.
+
 **Sleep range.** `tests/libc_contracts/sleep_contract_test.c`'s harness
 (`-Dselect=test_select -Dgettimeofday=test_gettimeofday`) was rebuilt with a
 `select` stub that returns -1 above 100,000,000 seconds, as `itimerfix()` does,
@@ -247,7 +268,7 @@ applets, packed blocks in the root.
 | Rank | Item | Shipped | Kernel text | Kernel RAM | Userland cost | Risk | Gate |
 | ---: | --- | --- | ---: | ---: | --- | --- | --- |
 | 1 | 500.17 `chown owner:group`, keeping `owner.group` (`sbin/chown/chown.c:164`) | `/bin/box` | 0 | 0 | +12 B measured | low; a user name containing `:` becomes unreachable, as in 4.4BSD | none; a host contract on the parser is the new gate |
-| 2 | 500.80 `rm` and `mv` through `getopt`. Today a lone `-` ends options (`bin/rm/rm.c:41`, `bin/mv/mv.c:64`) and `--` reaches the `default` case, prints usage and exits 1 (`rm.c:59-61`, `mv.c:76`), so the POSIX `rm -- -x` fails | `/bin/box` | 0 | 0 | ~+40 B per applet, `getopt` already in box (I) | low | `check-rmdir-contracts` is the pattern; no rm or mv gate exists |
+| 2 | 500.80 `rm` and `mv` through `getopt`. Today a lone `-` ends options (`bin/rm/rm.c:41`, `bin/mv/mv.c:64`) and `--` reaches the `default` case, prints usage and exits 1 (`rm.c:59-61`, `mv.c:76`), so the POSIX `rm -- -x` fails. The tree's `getopt` keeps a lone `-` as an operand (probe below) | `/bin/box` | 0 | 0 | ~+40 B per applet, `getopt` already in box (I) | low | `check-rmdir-contracts` is the pattern; no rm or mv gate exists, and the new one needs a lone-`-` case so a future `getopt` change cannot regress it |
 | 3 | 500.76 short unique panic tags | kernel | down to -1603 (bound) | 0 | 0 | readability of panics | `check-kernel-headroom` |
 | 4 | 500.11 `find`: return 1 when `chdir` fails and restore `/` rather than an empty `Pathname` (`usr.bin/find/find.c:730,748`). Latent on the shipped image: the default directory mode is 0775 (`distrib/rp2040/mi.rp2040:21`), so it fires only on a directory a non-root user cannot search (I) | packed `/usr/bin/find` | 0 | 0 | ~+10 B (I) | low | `check-find-contracts`, with a new unreadable-directory case |
 | 5 | 456 clean-state flag across mount, unmount and fsck (ledger open) | kernel, fsck | ~+80 (I: donor kernel hunks add 34 lines to `ufs_subr.c`, 14 to `ufs_mount.c`, 4 to `mount.h`) | 0 to +4 (I) | fsck ~+100 B (I: 35 lines in `fsck/main.c`) | medium; touches the on-disk superblock | `check-v7-format`, `check-fsck-inode-range` |
@@ -257,6 +278,7 @@ applets, packed blocks in the root.
 | 9 | 451 securelevel at or below 0 may be lowered | kernel | +4 measured | 0 | 0 | policy | none; `sysctl_test` (`check-kernel-ilp32`) links `kern_sysctl.c` and declares `securelevel` (`sysctl_test.c:118`) but holds no `KERN_SECURELVL` case, and `check-libc-sysctl` links only `uname.c`, `gethostname.c` and `knlist.c` against a userland shim, so the new gate is a `KERN_SECURELVL` case in `sysctl_test.c` |
 | 10 | 439 `RLIMIT_DATA` in `brk` (`sys/kern/kern_mman.c:24`). `setrlimit` is a system call (`sys/kern/init_sysent.c:466`), but the shipped callers set only `RLIMIT_CPU`, `RLIMIT_FSIZE` and `RLIMIT_CORE` (`usr.bin/passwd/passwd.c:90-91`, `usr.bin/timeout/timeout.c:448`); csh's `limit` builtin is unshipped, so nothing on the image sets a data limit today | kernel | +20 measured | 0 | 0 | low; `RLIM_INFINITY` is the initial limit (`sys/kern/init_main.c:88`) | none; `check-kernel-headroom` for size |
 | 11 | 500.92 `sleep(3)` above 100,000,000 s returns the whole request unslept at once, and above 2,147,483 s sleeps short (I); a chunked `select` loop, or a documented bound | libc, every program linking `sleep.o` | 0 | 0 | +22 B in `sleep.o` for the unrun sketch, GCC 16.2.0 `-Os` | low; the loop must keep the interrupted-sleep remainder and the 2038 clock arithmetic of `sleep.c:44-51` | `check-sleep`, with requests above the bound (no such case today) |
+| 12 | 454 `date` and libc without the kernel timezone (`bin/date2/date.c:304-380`, `lib/libc/gen/tzset.c:195`); drops `date -d` and `-t` | `/bin/date`, libc | 0 | 0 | shrinks `date` and `tzset.o` (I, unmeasured) | medium; two user options disappear and the fork stores the zone in the kernel today | none; a `date` contract on `-t` and `-d` is the new gate |
 
 The rest are unshipped or cosmetic: 500.51 `w` dereferences a failed `fopen` of
 utmp (`usr.bin/w/w.c:129,164`); 447 `apropos` under-allocation; 441 libvmf walk;
@@ -318,6 +340,7 @@ formatter vectors from the probe are gate work with no target cost.
    `PATCHES.md` row and patch-text hash, so the mapper and the donor witness
    reach it.
 2. Kernel `securelevel` policy: keep init-only lowering, or adopt patch 451.
+   Kernel timezone: keep `date -d` and `-t` and `tzsetkernel`, or adopt patch 454.
 3. Kernel panic text: readable strings, or short unique tags for up to 1.6 KB of
    flash.
 4. `mkdir -m`: octal only (+~60 B, I), or symbolic through `setmode` (+1328 B in

@@ -245,7 +245,7 @@ checkfilesys(filesys)
     bzero(zlnlist, sizeof zlnlist);
     bzero(duplist, sizeof duplist);
     if (dfile.mod) {
-        (void)time(&sblock.fs_time);
+        sblock.fs_time = time((time_t *)0);
         sbdirty();
     }
     ckfini();

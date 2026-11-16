@@ -50,7 +50,8 @@ static void scan_spool_directory(char *, char *, int, int, int);
 
 main()
 {	register int i, j, nlen = 0;
-	time_t	curtime, t;
+	time_t	curtime;
+	long	t;		/* seconds from now to the retry */
 
 	setbuf(stdout, SYSBUF);
 	scan_spool_directory(CMDSDIR, "C.", CMDSLEN, 0, CMDTYPE);
@@ -62,7 +63,7 @@ main()
 		if((j = strlen(sys[i].name)) > nlen)
 			nlen = j;
 	for(i=0; i<sndx; ++i) {
-		t = (sys[i].st_lastime +sys[i].st_retry) - curtime;
+		t = (long)((sys[i].st_lastime +sys[i].st_retry) - curtime);
 
 		/* decide if STST text is worth printing */
 		if (-t < ONEDAY*2 && sys[i].st_type == SS_WRONGTIME) {
@@ -101,7 +102,7 @@ main()
 			printf("\n");
 			continue;
 		}
-		t = (sys[i].st_lastime +sys[i].st_retry) - curtime;
+		t = (long)((sys[i].st_lastime +sys[i].st_retry) - curtime);
 		if (-t < ONEDAY*2 && sys[i].st_type != SS_FAIL)
 			t = 0;
 
@@ -280,7 +281,8 @@ char *sdir;
 		tp = index(tp+1, ' ');
 		sys[csys].st_count = atoi(tp+1);
 		tp = index(tp+1, ' ');
-		sys[csys].st_lastime = atol(tp+1);
+		/* The kernel's 32-bit count, as systat() writes it. */
+		sys[csys].st_lastime = (time_t)strtoul(tp+1, (char **)0, 10);
 		tp = index(tp+1, ' ');
 		sys[csys].st_retry = atol(tp+1);
 	}

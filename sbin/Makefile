@@ -6,7 +6,15 @@
 TOPSRC!=cd ..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-SUBDIR=		chown fdisk fsck init mkfs mknod mount reboot shutdown sysctl umount box sysbox textbox utilbox adminbox grepbox
+# savecore reads the RP2040 crash-dump format (sys/arch/rp2040/include/dump.h);
+# STM32 kernels write no dump.
+MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
+		echo "savecore" ; \
+	else \
+		echo "" ; \
+	fi
+
+SUBDIR=		chown fdisk fsck init mkfs mknod mount reboot ${MDSUBDIR} shutdown sysctl umount box sysbox textbox utilbox adminbox grepbox
 
 all:	${SUBDIR}
 

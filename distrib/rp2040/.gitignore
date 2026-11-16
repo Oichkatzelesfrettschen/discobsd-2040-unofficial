@@ -4,5 +4,7 @@ flash.uf2
 sdcard-*.img
 flash-*.bin
 flash-*.uf2
+unix.uf2
+unix-*.uf2
 _manifest
 _manifest.*

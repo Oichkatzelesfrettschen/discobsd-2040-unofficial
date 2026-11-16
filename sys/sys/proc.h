@@ -7,6 +7,7 @@
 #define _SYS_PROC_H_
 
 #include <machine/limits.h>
+#include <sys/stdint.h>
 
 /* Zero retains the historical detached-group meaning. */
 #define PGRP_VALID(value) ((value) >= 0 && (value) <= SHRT_MAX)
@@ -23,12 +24,16 @@ struct  proc {
     struct  proc *p_nxt;            /* linked list of allocated proc slots */
     struct  proc **p_prev;          /* also zombies, and free proc's */
     struct  proc *p_pptr;           /* pointer to process structure of parent */
-    short   p_flag;
+    /*
+     * The fixed prefix runs from the widest member to the narrowest, which
+     * leaves one pad byte before the union's four-byte alignment.
+     */
     uid_t   p_uid;                  /* effective uid, at uid_t width: cansignal() compares it with u_ruid */
+    long    p_sig;                  /* signals pending to this process */
+    short   p_flag;
     short   p_pid;                  /* unique process id */
     short   p_ppid;                 /* process id of parent */
-    long    p_sig;                  /* signals pending to this process */
-    int     p_stat;
+    uint8_t p_stat;                 /* SIDL..SSTOP, see below */
 
     /*
      * Union to overwrite information no longer needed by ZOMBIED
@@ -219,6 +224,8 @@ void exit (int rv);
 struct buf;
 void swap (size_t blkno, size_t coreaddr, int count, int rdflg);
 void swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr,
+    int count, int rdflg);
+int swap_with_buf_result (struct buf *bp, size_t blkno, size_t coreaddr,
     int count, int rdflg);
 
 /*

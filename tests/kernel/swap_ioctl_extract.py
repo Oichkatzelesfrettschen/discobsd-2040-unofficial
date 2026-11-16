@@ -1,4 +1,5 @@
-"""Extract the production temporary-swap ioctl provider for host gates."""
+"""Extract the production swap-device provider for host gates: the
+temporary-swap ioctl, the live-device write rule, open and strategy."""
 
 import argparse
 import hashlib
@@ -10,6 +11,12 @@ SWSIZE_SIGNATURE = "daddr_t\nswsize(dev_t dev)"
 SWCIOCTL_SIGNATURE = (
     "int\nswcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)"
 )
+WRITE_FLAGS_SIGNATURE = (
+    "static int\nswtemp_write_flags(struct swtemp *temp, u_int block, u_int blocks)"
+)
+REFUSED_SIGNATURE = "static int\nswap_live_write_refused(int unit, int writing)"
+SWOPEN_SIGNATURE = "int\nswopen(dev_t dev, int mode, int flag)"
+SWSTRATEGY_SIGNATURE = "void\nswstrategy(struct buf *bp)"
 INCLUDES = """#include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/buf.h>
@@ -23,6 +30,10 @@ INCLUDES = """#include <sys/param.h>
 #ifndef NTMP
 #define NTMP 3
 #endif
+"""
+DEVICE_DECLARATIONS = """extern int securelevel;
+extern void swap(size_t blkno, size_t coreaddr, int count, int rdflg);
+
 """
 TEST_HOOKS = """
 void
@@ -90,6 +101,15 @@ def main() -> None:
     state = source[state_start:state_end]
     swsize = extract_function(source, SWSIZE_SIGNATURE, "swsize")
     swcioctl = extract_function(source, SWCIOCTL_SIGNATURE, "swcioctl")
+    device = "\n\n".join(
+        extract_function(source, signature, label)
+        for signature, label in (
+            (WRITE_FLAGS_SIGNATURE, "swtemp_write_flags"),
+            (REFUSED_SIGNATURE, "swap_live_write_refused"),
+            (SWOPEN_SIGNATURE, "swopen"),
+            (SWSTRATEGY_SIGNATURE, "swstrategy"),
+        )
+    )
     source_hash = hashlib.sha256(source_bytes).hexdigest()
 
     arguments.output.write_text(
@@ -104,6 +124,9 @@ def main() -> None:
         + swsize
         + "\n\n"
         + swcioctl
+        + "\n\n"
+        + DEVICE_DECLARATIONS
+        + device
         + "\n"
         + TEST_HOOKS
     )

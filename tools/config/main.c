@@ -95,7 +95,7 @@ usage:  fputs("usage: config [-gp] sysname\n", stderr);
     dtab = NULL;
     confp = &conf_list;
     compp = &comp_list;
-    if (yyparse())
+    if (yyparse() || yyerrors != 0)
         exit(3);
 
     switch (arch) {

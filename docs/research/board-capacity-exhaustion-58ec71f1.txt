@@ -1,5 +1,4 @@
 discobsd-flash: rebooting the kernel into BOOTSEL
-discobsd-flash: unmounting /run/media/eirikr/RPI-RP2
 discobsd-flash: loading sys/arch/rp2040/compile/PICO/unix.uf2
 discobsd-flash: loading distrib/rp2040/flash.uf2
 discobsd-flash: rebooting into the kernel

@@ -1,0 +1,254 @@
+{
+  "schema_version": 1,
+  "tools": {
+    "as": "e15178bdd2c1f167f928c741dda205085b2bba0209f6277870f793b5ae62f755",
+    "ar": "c11ccef0374d4cc4b9819782ca74025fce6650b292e7e6ae3cb2e5446536752b",
+    "ranlib": "730eb33fd42c5937b2f6bf3f6f04b35b2ad79e16975d687159323e5247087265",
+    "ld": "020ee2d66197cb72bf038ace65dc2222d13e239bd133f42ae7829cd87765e5a5",
+    "hsaout": "e25557bf3f3c2f389c8d6b3957236b0f250c7f68b931fcd75be6e1a36cf28c35"
+  },
+  "startup_sha256": "539cfea70f2ed2cc1030a7ae4ee49c9b07d63295b1a32093792e57dd509a1892",
+  "verifier_sha256": "07088e3e94436bf7565c3870e4841050dd20d63653d25d6cc65f99a797d5b2cc",
+  "baseline": {
+    "commit": "a706c0b851daaa25b019639e8217dda5ac17095d",
+    "tracked_files_sha256": "78ae9c61d7cdb58ecddb84854e955923e3a2cb7ae7d812ca86e6d6b9ca589a54"
+  },
+  "candidate": {
+    "commit": "51dcf8e1b5995a64c5d586d6c04e25bb69697f78",
+    "tracked_files_sha256": "26d56de6d6e35132f972a5fa62feeecc92d6bbf804d3d217f371828492ff837a"
+  },
+  "baseline_member_replay": "two exact retained SHA-256 matches",
+  "cases": [
+    {
+      "case": "input",
+      "values": {
+        "baseline": {
+          "text": 2128,
+          "data": 208,
+          "bss": 44,
+          "loaded": 2380,
+          "raw": 3184,
+          "packed": 2069,
+          "raw_blocks": 4,
+          "packed_blocks": 3,
+          "sha256": "ccd0c2099d5a7053291a4c1c7307b770a879252ff26e76a8702bdd027e9c4707",
+          "selected_members": [
+            "_brk.o",
+            "_exit.o",
+            "bzero.o",
+            "calloc.o",
+            "close.o",
+            "exit.o",
+            "fgetc.o",
+            "filbuf.o",
+            "findiop.o",
+            "flsbuf.o",
+            "fstat.o",
+            "getdtablesize.o",
+            "ioctl.o",
+            "isatty.o",
+            "malloc.o",
+            "read.o",
+            "sbrk.o",
+            "write.o"
+          ]
+        },
+        "candidate": {
+          "text": 2144,
+          "data": 208,
+          "bss": 44,
+          "loaded": 2396,
+          "raw": 3212,
+          "packed": 2078,
+          "raw_blocks": 4,
+          "packed_blocks": 3,
+          "sha256": "1fb714c9be53f9116af64838f874297447568c411d44c7f0735a6f4afa8cff38",
+          "selected_members": [
+            "_brk.o",
+            "_exit.o",
+            "bzero.o",
+            "calloc.o",
+            "close.o",
+            "exit.o",
+            "fgetc.o",
+            "filbuf.o",
+            "findiop.o",
+            "flsbuf.o",
+            "fstat.o",
+            "getdtablesize.o",
+            "ioctl.o",
+            "isatty.o",
+            "malloc.o",
+            "read.o",
+            "sbrk.o",
+            "write.o"
+          ]
+        }
+      },
+      "deltas": {
+        "text": 16,
+        "data": 0,
+        "bss": 0,
+        "loaded": 16,
+        "raw": 28,
+        "packed": 9,
+        "raw_blocks": 0,
+        "packed_blocks": 0
+      }
+    },
+    {
+      "case": "output",
+      "values": {
+        "baseline": {
+          "text": 1872,
+          "data": 208,
+          "bss": 44,
+          "loaded": 2124,
+          "raw": 2884,
+          "packed": 1858,
+          "raw_blocks": 3,
+          "packed_blocks": 2,
+          "sha256": "0ce5a49d23422f0c0d10cac851877e7dc985435fbf5ecd3f426b6e4b002d0338",
+          "selected_members": [
+            "_brk.o",
+            "_exit.o",
+            "bzero.o",
+            "calloc.o",
+            "close.o",
+            "exit.o",
+            "findiop.o",
+            "flsbuf.o",
+            "fputc.o",
+            "fstat.o",
+            "getdtablesize.o",
+            "ioctl.o",
+            "isatty.o",
+            "malloc.o",
+            "sbrk.o",
+            "write.o"
+          ]
+        },
+        "candidate": {
+          "text": 1888,
+          "data": 208,
+          "bss": 44,
+          "loaded": 2140,
+          "raw": 2908,
+          "packed": 1867,
+          "raw_blocks": 3,
+          "packed_blocks": 2,
+          "sha256": "3c4034eb2c33ddd3634b3208a4c5c5f7f59b81eaf4a2d892e720c57ef64183f1",
+          "selected_members": [
+            "_brk.o",
+            "_exit.o",
+            "bzero.o",
+            "calloc.o",
+            "close.o",
+            "exit.o",
+            "findiop.o",
+            "flsbuf.o",
+            "fputc.o",
+            "fstat.o",
+            "getdtablesize.o",
+            "ioctl.o",
+            "isatty.o",
+            "malloc.o",
+            "sbrk.o",
+            "write.o"
+          ]
+        }
+      },
+      "deltas": {
+        "text": 16,
+        "data": 0,
+        "bss": 0,
+        "loaded": 16,
+        "raw": 24,
+        "packed": 9,
+        "raw_blocks": 0,
+        "packed_blocks": 0
+      }
+    },
+    {
+      "case": "both",
+      "values": {
+        "baseline": {
+          "text": 2208,
+          "data": 212,
+          "bss": 44,
+          "loaded": 2464,
+          "raw": 3304,
+          "packed": 2150,
+          "raw_blocks": 4,
+          "packed_blocks": 3,
+          "sha256": "4b1fe72244d1c2ac9fc1179499bbcf3785f8f216ac61b5896fadd2077f94513e",
+          "selected_members": [
+            "_brk.o",
+            "_exit.o",
+            "bzero.o",
+            "calloc.o",
+            "close.o",
+            "exit.o",
+            "fgetc.o",
+            "filbuf.o",
+            "findiop.o",
+            "flsbuf.o",
+            "fputc.o",
+            "fstat.o",
+            "getdtablesize.o",
+            "ioctl.o",
+            "isatty.o",
+            "malloc.o",
+            "read.o",
+            "sbrk.o",
+            "write.o"
+          ]
+        },
+        "candidate": {
+          "text": 2224,
+          "data": 212,
+          "bss": 44,
+          "loaded": 2480,
+          "raw": 3340,
+          "packed": 2162,
+          "raw_blocks": 4,
+          "packed_blocks": 3,
+          "sha256": "b7f0a66bcd326fa5acce8fac467bc7b4e1a5452cc39c4a46cc234227438d42a1",
+          "selected_members": [
+            "_brk.o",
+            "_exit.o",
+            "bzero.o",
+            "calloc.o",
+            "close.o",
+            "exit.o",
+            "fgetc.o",
+            "filbuf.o",
+            "findiop.o",
+            "flsbuf.o",
+            "fputc.o",
+            "fstat.o",
+            "getdtablesize.o",
+            "ioctl.o",
+            "isatty.o",
+            "malloc.o",
+            "read.o",
+            "sbrk.o",
+            "write.o"
+          ]
+        }
+      },
+      "deltas": {
+        "text": 16,
+        "data": 0,
+        "bss": 0,
+        "loaded": 16,
+        "raw": 36,
+        "packed": 12,
+        "raw_blocks": 0,
+        "packed_blocks": 0
+      }
+    }
+  ],
+  "runtime": "unrun",
+  "physical_hardware": "unrun"
+}

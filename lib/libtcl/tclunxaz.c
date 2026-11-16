@@ -526,7 +526,11 @@ Tcl_FileCmd(dummy, interp, argc, argv)
 	if (stat(fileName, &statBuf) == -1) {
 	    goto badStat;
 	}
-	sprintf(interp->result, "%ld", statBuf.st_atime);
+	/*
+	 * A file time is the kernel's 32-bit count read unsigned, which
+	 * stat() widens, so it prints exactly as an unsigned long.
+	 */
+	sprintf(interp->result, "%lu", (unsigned long) statBuf.st_atime);
 	return TCL_OK;
     } else if ((c == 'i') && (strncmp(argv[1], "isdirectory", length) == 0)
 	    && (length >= 3)) {
@@ -563,7 +567,7 @@ Tcl_FileCmd(dummy, interp, argc, argv)
 	if (stat(fileName, &statBuf) == -1) {
 	    goto badStat;
 	}
-	sprintf(interp->result, "%ld", statBuf.st_mtime);
+	sprintf(interp->result, "%lu", (unsigned long) statBuf.st_mtime);
 	return TCL_OK;
     } else if ((c == 'o') && (strncmp(argv[1], "owned", length) == 0)) {
 	if (argc != 3) {
@@ -732,17 +736,18 @@ StoreStatData(interp, varName, statPtr)
 	    == NULL) {
 	return TCL_ERROR;
     }
-    sprintf(string, "%ld", statPtr->st_atime);
+    /* The file times print unsigned, as in the atime option above. */
+    sprintf(string, "%lu", (unsigned long) statPtr->st_atime);
     if (Tcl_SetVar2(interp, varName, "atime", string, TCL_LEAVE_ERR_MSG)
 	    == NULL) {
 	return TCL_ERROR;
     }
-    sprintf(string, "%ld", statPtr->st_mtime);
+    sprintf(string, "%lu", (unsigned long) statPtr->st_mtime);
     if (Tcl_SetVar2(interp, varName, "mtime", string, TCL_LEAVE_ERR_MSG)
 	    == NULL) {
 	return TCL_ERROR;
     }
-    sprintf(string, "%ld", statPtr->st_ctime);
+    sprintf(string, "%lu", (unsigned long) statPtr->st_ctime);
     if (Tcl_SetVar2(interp, varName, "ctime", string, TCL_LEAVE_ERR_MSG)
 	    == NULL) {
 	return TCL_ERROR;

@@ -223,10 +223,9 @@ two-argument `%b`, and `tests/kernel/prf_test.c` turns format checking off
 for the one function that exercises it. GCC accepts conversions
 `prf()` lacks or reads differently (`%i`, floating, `hh`, `h`, `ll`, `j`,
 `z`, `t`, `%n`), so `check-kernel-printf-formats` restricts the literal
-formats of those four functions to the set both readers share. `prf()`
-itself still walks its arguments as `&fmt + 1` with a private `va_arg`
-macro instead of `<stdarg.h>`; that dependence on the ABI's argument layout
-is the next varargs migration unit in `sys/kern`.
+formats of those four functions to the set both readers share. The kernel
+formatter now obtains variadic arguments through `<stdarg.h>` and copies a
+`va_list` when the log path also writes to the console.
 
 Add `-Wconversion`, `-Wsign-conversion`, `-Wshadow`, `-Wcast-align` and
 `-Wvla` only after a known-good/known-bad calibration for the migration family.

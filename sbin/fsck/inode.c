@@ -193,6 +193,7 @@ pinode(ino)
 {
     register DINODE *dp;
     register char *p;
+    time_t modified;
     struct passwd *pw;
 
     printf(" I=%u ", ino);
@@ -208,7 +209,8 @@ pinode(ino)
     if (preen)
         printf("%s: ", devnam);
     printf("SIZE=%ld ", dp->di_size);
-    p = ctime(&dp->di_mtime);
+    modified = dp->di_mtime;
+    p = ctime(&modified);
     printf("MTIME=%12.12s %4.4s ", p+4, p+20);
 }
 
@@ -279,7 +281,7 @@ allocino(request, type)
         return (0);
     }
     dp->di_mode = type;
-    time(&dp->di_atime);
+    dp->di_atime = time((time_t *)0);
     dp->di_mtime = dp->di_ctime = dp->di_atime;
     dp->di_size = DEV_BSIZE;
     n_files++;

@@ -20,6 +20,7 @@ all:		${PROG} ${MAN}
 
 check:		${PROG}
 		sh ./mkmakefile_test.sh ${.CURDIR}/${PROG} ${TOPSRC}
+		sh ./dumps_test.sh ${.CURDIR}/${PROG} ${TOPSRC}
 		rm -f y.tab.h
 		${MAKE} y.tab.h
 		test -f y.tab.c && test -f y.tab.h

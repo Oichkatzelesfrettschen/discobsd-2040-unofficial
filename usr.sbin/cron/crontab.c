@@ -227,7 +227,7 @@ list_cmd() {
 	int	ch;
 
 	log_it(RealUser, Pid, "LIST", User);
-	(void) sprintf(n, CRON_TAB(User));
+	(void) snprintf(n, sizeof n, CRON_TAB(User));
 	if (!(f = fopen(n, "r"))) {
 		if (errno == ENOENT)
 			fprintf(stderr, "no crontab for %s\n", User);
@@ -250,7 +250,7 @@ delete_cmd() {
 	char	n[MAX_FNAME];
 
 	log_it(RealUser, Pid, "DELETE", User);
-	(void) sprintf(n, CRON_TAB(User));
+	(void) snprintf(n, sizeof n, CRON_TAB(User));
 	if (unlink(n)) {
 		if (errno == ENOENT)
 			fprintf(stderr, "no crontab for %s\n", User);
@@ -283,7 +283,7 @@ edit_cmd() {
 	PID_T		pid, xpid;
 
 	log_it(RealUser, Pid, "BEGIN EDIT", User);
-	(void) sprintf(n, CRON_TAB(User));
+	(void) snprintf(n, sizeof n, CRON_TAB(User));
 	if (!(f = fopen(n, "r"))) {
 		if (errno != ENOENT) {
 			perror(n);
@@ -382,12 +382,12 @@ edit_cmd() {
 			perror("chdir(/tmp)");
 			exit(ERROR_EXIT);
 		}
-		if (strlen(editor) + strlen(Filename) + 2 >= MAX_TEMPSTR) {
+		if (snprintf(q, sizeof q, "%s %s", editor, Filename) + 1 >=
+		    (int)sizeof q) {
 			fprintf(stderr, "%s: editor or filename too long\n",
 				ProgramName);
 			exit(ERROR_EXIT);
 		}
-		sprintf(q, "%s %s", editor, Filename);
 		execlp(_PATH_BSHELL, _PATH_BSHELL, "-c", q, NULL);
 		perror(editor);
 		exit(ERROR_EXIT);
@@ -451,7 +451,8 @@ edit_cmd() {
 			ProgramName, Filename);
 		goto done;
 	default:
-		fprintf(stderr, "%s: panic: bad switch() in replace_cmd()\n");
+		fprintf(stderr, "%s: panic: bad switch() in replace_cmd()\n",
+				ProgramName);
 		goto fatal;
 	}
  remove:
@@ -467,7 +468,8 @@ edit_cmd() {
  */
 static int
 replace_cmd() {
-	char	n[MAX_FNAME], envstr[MAX_ENVSTR], tn[MAX_FNAME];
+	char	n[MAX_FNAME], envstr[MAX_ENVSTR],
+		tn[sizeof SPOOL_DIR + MAX_FNAME];
 	register FILE	*tmp;
 	register int	ch;
 	int	eof;
@@ -476,7 +478,7 @@ replace_cmd() {
 	char	**envp = env_init();
 
 	(void) sprintf(n, "tmp.%d", Pid);
-	(void) sprintf(tn, CRON_TAB(n));
+	(void) snprintf(tn, sizeof tn, CRON_TAB(n));
 	if (!(tmp = fopen(tn, "w+"))) {
 		perror(tn);
 		return (-2);
@@ -556,7 +558,7 @@ replace_cmd() {
 		return (-2);
 	}
 
-	(void) sprintf(n, CRON_TAB(User));
+	(void) snprintf(n, sizeof n, CRON_TAB(User));
 	if (rename(tn, n)) {
 		fprintf(stderr, "%s: error renaming %s to %s\n",
 			ProgramName, tn, n);

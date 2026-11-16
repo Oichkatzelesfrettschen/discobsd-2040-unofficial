@@ -12,8 +12,7 @@
 #include <machine/limits.h>
 
 static void
-setthetime (tv)
-    register struct timeval *tv;
+setthetime (register struct timeval *tv)
 {
     int s;
 
@@ -37,7 +36,9 @@ setthetime (tv)
     }
 #endif
 /* WHAT DO WE DO ABOUT PENDING REAL-TIME TIMEOUTS??? */
-    boottime.tv_sec += tv->tv_sec - time.tv_sec;
+    /* The boot time moves by the step itself, taken modulo 2^32. */
+    boottime.tv_sec = wall_advance(boottime.tv_sec,
+        (long)((unsigned long)tv->tv_sec - (unsigned long)time.tv_sec));
     s = splhigh();
     time = *tv;
     lbolt = time.tv_usec / usechz;
@@ -152,7 +153,7 @@ adjtime()
     /* Large tick corrections step the clock; smaller corrections slew. */
     if (!slew) {
         s = splclock();
-        seconds += time.tv_sec;
+        seconds += (utime32_t)time.tv_sec;
         ticks += lbolt;
         if (ticks < 0) {
             ticks += hz;
@@ -161,12 +162,13 @@ adjtime()
             ticks -= hz;
             seconds++;
         }
-        if (seconds < LONG_MIN || seconds > LONG_MAX) {
+        /* The stepped clock stays inside the unsigned count, 1970..2106. */
+        if (seconds < 0 || seconds > 0xffffffffLL) {
             splx(s);
             u.u_error = EINVAL;
             return;
         }
-        time.tv_sec = seconds;
+        time.tv_sec = (long)(utime32_t)seconds;
         lbolt = ticks;
         time.tv_usec = ticks * usechz;
         adjdelta = 0;
@@ -341,8 +343,7 @@ bad:
  * counts ticks rounds a nonzero value up to one tick (see tvticks()).
  */
 int
-itimerfix(tv)
-    struct timeval *tv;
+itimerfix(struct timeval *tv)
 {
     if (tv->tv_sec < 0 || tv->tv_sec > 100000000L ||
         tv->tv_usec < 0 || tv->tv_usec >= 1000000L)
@@ -395,15 +396,14 @@ expire:
 #endif /* NOT_CURRENTLY_IN_USE */
 
 static void
-tvfix(t1)
-    struct timeval *t1;
+tvfix(struct timeval *t1)
 {
     if (t1->tv_usec < 0) {
-        t1->tv_sec--;
+        t1->tv_sec = wall_advance(t1->tv_sec, -1);
         t1->tv_usec += 1000000L;
     }
     if (t1->tv_usec >= 1000000L) {
-        t1->tv_sec++;
+        t1->tv_sec = wall_advance(t1->tv_sec, 1);
         t1->tv_usec -= 1000000L;
     }
 }
@@ -416,10 +416,9 @@ tvfix(t1)
  * Caveat emptor.
  */
 void
-timevaladd(t1, t2)
-    struct timeval *t1, *t2;
+timevaladd(struct timeval *t1, struct timeval *t2)
 {
-    t1->tv_sec += t2->tv_sec;
+    t1->tv_sec = wall_advance(t1->tv_sec, t2->tv_sec);
     t1->tv_usec += t2->tv_usec;
     tvfix(t1);
 }

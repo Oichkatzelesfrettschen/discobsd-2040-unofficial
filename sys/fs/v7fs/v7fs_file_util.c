@@ -69,7 +69,8 @@ int
 v7fs_file_link(struct v7fs_self *fs, struct v7fs_inode *parent_dir,
     struct v7fs_inode *p, const char *name, size_t namelen)
 {
-	int error = 0;
+	struct v7fs_inode original_inode = *p;
+	int error, cleanup_error;
 
 	DPRINTF("%d %d %.*s\n", parent_dir->inode_number, p->inode_number,
 	    (int)namelen, name);
@@ -79,9 +80,17 @@ v7fs_file_link(struct v7fs_self *fs, struct v7fs_inode *parent_dir,
 		return error;
 	}
 	p->nlink++;
-	v7fs_inode_writeback(fs, p);
+	error = v7fs_inode_writeback(fs, p);
+	if (error == 0)
+		return 0;
 
-	return 0;
+	/* Remove the new reference before restoring its inode link count. */
+	cleanup_error = v7fs_directory_remove_entry(fs, parent_dir, name, namelen);
+	if (cleanup_error != 0)
+		return cleanup_error;
+	*p = original_inode;
+	cleanup_error = v7fs_inode_writeback(fs, p);
+	return cleanup_error != 0 ? cleanup_error : error;
 }
 
 int
@@ -112,9 +121,19 @@ v7fs_file_symlink(struct v7fs_self *fs, struct v7fs_inode *p,
 		return EIO;
 	}
 	scratch_free(fs, buf);
-	v7fs_inode_writeback(fs, p);
+	return v7fs_inode_writeback(fs, p);
+}
 
-	return 0;
+static int
+restore_rename_target(struct v7fs_self *fs, struct v7fs_inode *parent,
+    struct v7fs_inode *target, const char *name, size_t namelen)
+{
+	int error;
+
+	if ((error = v7fs_inode_writeback(fs, target)) != 0)
+		return error;
+	return v7fs_directory_add_entry(fs, parent, target->inode_number, name,
+	    namelen);
 }
 
 int
@@ -123,9 +142,9 @@ v7fs_file_rename(struct v7fs_self *fs, struct v7fs_inode *parent_from,
     const char *to, size_t tolen)
 {
 	v7fs_ino_t from_ino, to_ino;
-	struct v7fs_inode inode;
-	int error;
-	bool dir_move;
+	struct v7fs_inode inode, target_inode;
+	int error, restore_error;
+	bool dir_move, target_removed = false;
 
 	/* Check source file */
 	if ((error = v7fs_file_lookup_by_name(fs, parent_from, from, fromlen, 
@@ -136,20 +155,6 @@ v7fs_file_rename(struct v7fs_self *fs, struct v7fs_inode *parent_from,
 	if ((error = v7fs_inode_load(fs, &inode, from_ino)) != 0)
 		return error;
 	dir_move = v7fs_inode_isdir(&inode);
-
-	/* Check target file */
-	error = v7fs_file_lookup_by_name(fs, parent_to, to, tolen, &to_ino);
-	if (error == 0) {	/* found */
-		DPRINTF("%.*s already exists\n", (int)tolen, to);
-		if ((error = v7fs_file_deallocate(fs, parent_to, to, tolen))) {
-			DPRINTF("%.*s can't remove %d\n", (int)tolen,
-			    to, error);
-			return error;
-		}
-	} else if (error != ENOENT) {
-		DPRINTF("error=%d\n", error);
-		return error;
-	}
 	/* Check directory hierarchy. t_vnops rename_dir(5) */
 	if (dir_move && (error = can_dirmove(fs, from_ino,
 	    parent_to->inode_number))) {
@@ -158,16 +163,45 @@ v7fs_file_rename(struct v7fs_self *fs, struct v7fs_inode *parent_from,
 		return error;
 	}
 
+	/* Check target file */
+	error = v7fs_file_lookup_by_name(fs, parent_to, to, tolen, &to_ino);
+	if (error == 0) {	/* found */
+		if (to_ino == from_ino)
+			return 0;
+		DPRINTF("%.*s already exists\n", (int)tolen, to);
+		if ((error = v7fs_inode_load(fs, &target_inode, to_ino)) != 0)
+			return error;
+		if ((error = v7fs_file_deallocate(fs, parent_to, to, tolen))) {
+			DPRINTF("%.*s can't remove %d\n", (int)tolen,
+			    to, error);
+			return error;
+		}
+		target_removed = true;
+	} else if (error != ENOENT) {
+		DPRINTF("error=%d\n", error);
+		return error;
+	}
 	if ((error = v7fs_directory_add_entry(fs, parent_to, from_ino, to,
 	    tolen))) {
 		DPRINTF("can't add entry");
+		if (target_removed) {
+			restore_error = restore_rename_target(fs, parent_to,
+			    &target_inode, to, tolen);
+			return restore_error != 0 ? restore_error : error;
+		}
 		return error;
 	}
 
 	if ((error = v7fs_directory_remove_entry(fs, parent_from, from,
 	    fromlen))) {
 		DPRINTF("can't remove entry");
-		return error;
+		restore_error = v7fs_directory_remove_entry(fs, parent_to, to,
+		    tolen);
+		if (restore_error != 0 || !target_removed)
+			return restore_error != 0 ? restore_error : error;
+		restore_error = restore_rename_target(fs, parent_to, &target_inode,
+		    to, tolen);
+		return restore_error != 0 ? restore_error : error;
 	}
 
 	if (dir_move && (parent_from != parent_to)) {
@@ -175,10 +209,22 @@ v7fs_file_rename(struct v7fs_self *fs, struct v7fs_inode *parent_from,
 		if ((error = v7fs_directory_replace_entry(fs, &inode, "..",
 			    parent_to->inode_number))) {
 			DPRINTF("can't replace parent dir");
-			return error;
+			restore_error = v7fs_directory_replace_entry(fs, &inode, "..",
+			    parent_from->inode_number);
+			if (restore_error != 0)
+				return restore_error;
+			restore_error = v7fs_directory_add_entry(fs, parent_from,
+			    from_ino, from, fromlen);
+			if (restore_error != 0)
+				return restore_error;
+			restore_error = v7fs_directory_remove_entry(fs, parent_to,
+			    to, tolen);
+			if (restore_error != 0 || !target_removed)
+				return restore_error != 0 ? restore_error : error;
+			restore_error = restore_rename_target(fs, parent_to,
+			    &target_inode, to, tolen);
+			return restore_error != 0 ? restore_error : error;
 		}
-		if ((error = v7fs_inode_writeback(fs, &inode)) != 0)
-			return error;
 	}
 
 	return 0;

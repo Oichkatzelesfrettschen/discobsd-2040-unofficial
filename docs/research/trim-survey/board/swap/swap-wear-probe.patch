@@ -1,0 +1,60 @@
+diff --git a/sys/arch/rp2040/dev/flash.c b/sys/arch/rp2040/dev/flash.c
+index fdeb5060..d53f74af 100644
+--- a/sys/arch/rp2040/dev/flash.c
++++ b/sys/arch/rp2040/dev/flash.c
+@@ -65,6 +65,8 @@
+ #include <rp2040/dhara/map.h>
+ #include <rp2040/rp2040/clock_catchup.h>
+ 
++u_short swap_wear_probe[FLASH_SWAP_BYTES / FLASH_SECTOR_BYTES];
++
+ #ifdef STORAGE_STATS
+ static struct storage_stats flstats = {
+     .version = STORAGE_STATS_VERSION,
+@@ -442,6 +444,13 @@ flash_erase(u_int offset, u_int len)
+ 	if (!flash_write_admitted(offset, len, flash_write_end))
+ 		return -1;
+ 	s = splhigh();
++	if (offset >= FLASH_SWAP_OFFSET) {
++		u_int probe_i;
++
++		for (probe_i = 0; probe_i < len / FLASH_SECTOR_BYTES; probe_i++)
++			swap_wear_probe[(offset - FLASH_SWAP_OFFSET) /
++			    FLASH_SECTOR_BYTES + probe_i]++;
++	}
+ 	storage_note(offset >= FLASH_SWAP_OFFSET ?
+ 	    STORAGE_SWAP_ERASE_SECTORS : STORAGE_ROOT_ERASE_SECTORS,
+ 	    len / FLASH_SECTOR_BYTES);
+diff --git a/sys/arch/rp2040/rp2040/machdep.c b/sys/arch/rp2040/rp2040/machdep.c
+index a2aa1340..d483bf05 100644
+--- a/sys/arch/rp2040/rp2040/machdep.c
++++ b/sys/arch/rp2040/rp2040/machdep.c
+@@ -868,12 +868,28 @@ idle(void)
+ 	splx(x);
+ }
+ 
++/* First of the 64 swap sectors boot() prints: 0 or 32. */
++#ifndef SWAP_WEAR_FIRST
++#define SWAP_WEAR_FIRST 32
++#endif
++
+ void
+ boot(dev_t dev __unused, int howto)
+ {
+ 	if ((howto & RB_NOSYNC) == 0 && waittime < 0 &&
+ 	    bfreelist[0].av_forw != NULL)
+ 		rp2040_shutdown_sync(howto);
++	{
++		extern u_short swap_wear_probe[96];
++		int probe_i;
++
++		printf("\nswapwear:");
++		for (probe_i = SWAP_WEAR_FIRST; probe_i < SWAP_WEAR_FIRST + 64;
++		    probe_i++)
++			printf("%s%u", (probe_i - SWAP_WEAR_FIRST) % 16 ? " " :
++			    "\nswapwear ", swap_wear_probe[probe_i]);
++		printf("\nswapwear end\n");
++	}
+ 	(void)splhigh();
+ #ifdef CORE1
+ 	/*

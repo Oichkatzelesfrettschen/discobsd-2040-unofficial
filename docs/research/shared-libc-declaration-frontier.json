@@ -1,0 +1,2019 @@
+{
+  "schema": 1,
+  "source_commit": "6c08eaab4f14eb02ccdddc2cdc4c13ad50aec2bf",
+  "visibility": "default BSD compatibility namespace; no feature selector is defined",
+  "compiler": "clang version 23.1.4",
+  "command": [
+    "clang",
+    "--target=arm-none-eabi",
+    "-mcpu=cortex-m0plus",
+    "-mthumb",
+    "-mfloat-abi=soft",
+    "-std=c17",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fno-builtin",
+    "-nostdinc",
+    "-Iinclude",
+    "-Xclang",
+    "-ast-dump=json",
+    "-fsyntax-only",
+    ".build-logs/shared-public-declarations/headers.c"
+  ],
+  "direct_headers": {
+    "stdlib.h": "690b97d134808add3809372ea7a1462e4a6fd8f848d92c0cc60a0891eaa6684e",
+    "string.h": "dc8cda08de0a65b4804719d55a6e40536d82a20d5cb27449a462a36557f9ae4b",
+    "stdio.h": "e28357b9345359dac88aa5230cd4a7463a59572c067df04cfb55b2afda956384",
+    "unistd.h": "b396032362fc756f1acbb76ff4d143783a9a07fe472134ced73f03e33a3fd8d3",
+    "time.h": "154012cde2fa21c3b11ecec3fc4788909038e7afb88f531056670e83cd2423da",
+    "signal.h": "b8cfa049b90eaf776ddaec360ac6c873710b6ed2439eaa695a5d0e2da301dcec",
+    "setjmp.h": "78095b170c3bcf69384ea1768c2cabfd77352bfe8a621cf71139ec9b868e0e16",
+    "math.h": "2f2d3dd79e023d06a0a8ebe60a6116173410617e850a49a51308ff1528e87abf"
+  },
+  "libc_archive_sha256": "57c915c791b7d78e12babdda48455d8fb2cc284a43cdad196ca117d86be9f694",
+  "libm_archive_sha256": "69713c4f4f1e5bbeb312f18ac80244478889b3417de6af225388efdc5f694736",
+  "declarations": [
+    {
+      "symbol": "_Exit",
+      "kind": "function",
+      "type": "void (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "__progname",
+      "kind": "object",
+      "type": "const char *",
+      "provider_class": "startup"
+    },
+    {
+      "symbol": "_brk",
+      "kind": "function",
+      "type": "int (const void *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_cleanup",
+      "kind": "function",
+      "type": "void (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_doprnt",
+      "kind": "function",
+      "type": "int (const char *, __builtin_va_list, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_doscan",
+      "kind": "function",
+      "type": "int (struct _iobuf *, const char *, __builtin_va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_exit",
+      "kind": "function",
+      "type": "void (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_filbuf",
+      "kind": "function",
+      "type": "int (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_findenv",
+      "kind": "function",
+      "type": "char *(const char *, int *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_findiop",
+      "kind": "function",
+      "type": "struct _iobuf *(void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_flsbuf",
+      "kind": "function",
+      "type": "int (unsigned char, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_fwalk",
+      "kind": "function",
+      "type": "int (int (*)(struct _iobuf *))",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_iob",
+      "kind": "object",
+      "type": "struct _iobuf[]",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_longjmp",
+      "kind": "function",
+      "type": "void (int *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_setjmp",
+      "kind": "function",
+      "type": "int (int *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "_sflags",
+      "kind": "function",
+      "type": "int (const char *, int *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "abort",
+      "kind": "function",
+      "type": "void (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "abs",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "access",
+      "kind": "function",
+      "type": "int (const char *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "acos",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "alarm",
+      "kind": "function",
+      "type": "unsigned int (unsigned int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "aligned_alloc",
+      "kind": "function",
+      "type": "void *(size_t, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "alloca",
+      "kind": "function",
+      "type": "void *(size_t)",
+      "provider_class": "compiler-expansion-or-unresolved-call"
+    },
+    {
+      "symbol": "asctime",
+      "kind": "function",
+      "type": "char *(const struct tm *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "asin",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "at_quick_exit",
+      "kind": "function",
+      "type": "int (void (*)(void))",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "atan",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "atan2",
+      "kind": "function",
+      "type": "double (double, double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "atexit",
+      "kind": "function",
+      "type": "int (void (*)(void))",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "atof",
+      "kind": "function",
+      "type": "double (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "atoi",
+      "kind": "function",
+      "type": "int (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "atol",
+      "kind": "function",
+      "type": "long (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "atoll",
+      "kind": "function",
+      "type": "long long (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "brk",
+      "kind": "function",
+      "type": "void *(const void *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "bsearch",
+      "kind": "function",
+      "type": "void *(const void *, const void *, size_t, size_t, int (*)(const void *, const void *))",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "calloc",
+      "kind": "function",
+      "type": "void *(size_t, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ceil",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "chdir",
+      "kind": "function",
+      "type": "int (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "chflags",
+      "kind": "function",
+      "type": "int (const char *, u_long)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "chown",
+      "kind": "function",
+      "type": "int (const char *, uid_t, gid_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "chroot",
+      "kind": "function",
+      "type": "int (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "clearerr",
+      "kind": "function",
+      "type": "void (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "close",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "confstr",
+      "kind": "function",
+      "type": "size_t (int, char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "cos",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "cosh",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "crypt",
+      "kind": "function",
+      "type": "char *(char *, char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ctermid",
+      "kind": "function",
+      "type": "char *(char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ctime",
+      "kind": "function",
+      "type": "char *(const time_t *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "daemon",
+      "kind": "function",
+      "type": "int (int, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "devname",
+      "kind": "function",
+      "type": "char *(int, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "difftime",
+      "kind": "function",
+      "type": "double (time_t, time_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "dup",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "dup2",
+      "kind": "function",
+      "type": "int (int, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ecvt",
+      "kind": "function",
+      "type": "char *(double, int, int *, int *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "endusershell",
+      "kind": "function",
+      "type": "void (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "environ",
+      "kind": "object",
+      "type": "char **",
+      "provider_class": "startup"
+    },
+    {
+      "symbol": "err",
+      "kind": "function",
+      "type": "void (int, const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "errx",
+      "kind": "function",
+      "type": "void (int, const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "execl",
+      "kind": "function",
+      "type": "int (const char *, const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "execle",
+      "kind": "function",
+      "type": "int (const char *, const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "execlp",
+      "kind": "function",
+      "type": "int (const char *, const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "execv",
+      "kind": "function",
+      "type": "int (const char *, char *const *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "execve",
+      "kind": "function",
+      "type": "int (const char *, char *const *, char *const *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "execvp",
+      "kind": "function",
+      "type": "int (const char *, char *const *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "exit",
+      "kind": "function",
+      "type": "void (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "exp",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "explicit_bzero",
+      "kind": "function",
+      "type": "void (void *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fabs",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "unprovided-declaration"
+    },
+    {
+      "symbol": "fchdir",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fchflags",
+      "kind": "function",
+      "type": "int (int, u_long)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fchown",
+      "kind": "function",
+      "type": "int (int, uid_t, gid_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fclose",
+      "kind": "function",
+      "type": "int (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fcvt",
+      "kind": "function",
+      "type": "char *(double, int, int *, int *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fdopen",
+      "kind": "function",
+      "type": "struct _iobuf *(int, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "feof",
+      "kind": "function",
+      "type": "int (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ferror",
+      "kind": "function",
+      "type": "int (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fflush",
+      "kind": "function",
+      "type": "int (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fgetc",
+      "kind": "function",
+      "type": "int (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fgetpos",
+      "kind": "function",
+      "type": "int (struct _iobuf *, fpos_t *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fgets",
+      "kind": "function",
+      "type": "char *(char *, int, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fileno",
+      "kind": "function",
+      "type": "int (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "floor",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "fmod",
+      "kind": "function",
+      "type": "double (double, double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "fopen",
+      "kind": "function",
+      "type": "struct _iobuf *(const char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fork",
+      "kind": "function",
+      "type": "pid_t (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fprintf",
+      "kind": "function",
+      "type": "int (struct _iobuf *, const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fputc",
+      "kind": "function",
+      "type": "int (int, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fputs",
+      "kind": "function",
+      "type": "int (const char *, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fread",
+      "kind": "function",
+      "type": "size_t (void *, size_t, size_t, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "free",
+      "kind": "function",
+      "type": "void (void *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "freopen",
+      "kind": "function",
+      "type": "struct _iobuf *(const char *, const char *, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "frexp",
+      "kind": "function",
+      "type": "double (double, int *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "frexpf",
+      "kind": "function",
+      "type": "float (float, int *)",
+      "provider_class": "unprovided-declaration"
+    },
+    {
+      "symbol": "fscanf",
+      "kind": "function",
+      "type": "int (struct _iobuf *, const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fseek",
+      "kind": "function",
+      "type": "int (struct _iobuf *, long, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fsetpos",
+      "kind": "function",
+      "type": "int (struct _iobuf *, const fpos_t *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fstat",
+      "kind": "function",
+      "type": "int (int, struct stat *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fsync",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ftell",
+      "kind": "function",
+      "type": "long (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ftruncate",
+      "kind": "function",
+      "type": "int (int, off_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "fwrite",
+      "kind": "function",
+      "type": "size_t (const void *, size_t, size_t, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "gcvt",
+      "kind": "function",
+      "type": "char *(double, int, char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getcwd",
+      "kind": "function",
+      "type": "char *(char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getdelim",
+      "kind": "function",
+      "type": "ssize_t (char **, size_t *, int, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getdtablesize",
+      "kind": "function",
+      "type": "int (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getegid",
+      "kind": "function",
+      "type": "gid_t (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getenv",
+      "kind": "function",
+      "type": "char *(const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "geteuid",
+      "kind": "function",
+      "type": "uid_t (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getgid",
+      "kind": "function",
+      "type": "gid_t (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getgrouplist",
+      "kind": "function",
+      "type": "int (char *, gid_t, gid_t *, int *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getgroups",
+      "kind": "function",
+      "type": "int (int, gid_t *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "gethostid",
+      "kind": "function",
+      "type": "u_long (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "gethostname",
+      "kind": "function",
+      "type": "int (char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getline",
+      "kind": "function",
+      "type": "ssize_t (char **, size_t *, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getloadavg",
+      "kind": "function",
+      "type": "int (unsigned int *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getlogin",
+      "kind": "function",
+      "type": "char *(void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getmode",
+      "kind": "function",
+      "type": "mode_t (void *, mode_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getopt",
+      "kind": "function",
+      "type": "int (int, char *const *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getpagesize",
+      "kind": "function",
+      "type": "int (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getpass",
+      "kind": "function",
+      "type": "char *(char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getpgrp",
+      "kind": "function",
+      "type": "pid_t (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getpid",
+      "kind": "function",
+      "type": "pid_t (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getppid",
+      "kind": "function",
+      "type": "pid_t (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getsubopt",
+      "kind": "function",
+      "type": "int (char **, char **, char **)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getuid",
+      "kind": "function",
+      "type": "uid_t (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getusershell",
+      "kind": "function",
+      "type": "char *(void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getw",
+      "kind": "function",
+      "type": "int (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "getwd",
+      "kind": "function",
+      "type": "char *(char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "gmtime",
+      "kind": "function",
+      "type": "struct tm *(const time_t *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "heapsort",
+      "kind": "function",
+      "type": "int (void *, size_t, size_t, int (*)(const void *, const void *))",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "hypot",
+      "kind": "function",
+      "type": "double (double, double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "initgroups",
+      "kind": "function",
+      "type": "int (const char *, gid_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "initstate",
+      "kind": "function",
+      "type": "char *(unsigned int, char *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "isatty",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "isinf",
+      "kind": "function",
+      "type": "int (double)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "isinff",
+      "kind": "function",
+      "type": "int (float)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "isnan",
+      "kind": "function",
+      "type": "int (double)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "isnanf",
+      "kind": "function",
+      "type": "int (float)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "j0",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "j1",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "jn",
+      "kind": "function",
+      "type": "double (int, double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "kill",
+      "kind": "function",
+      "type": "int (pid_t, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "labs",
+      "kind": "function",
+      "type": "long (long)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ldexp",
+      "kind": "function",
+      "type": "double (double, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ldexpf",
+      "kind": "function",
+      "type": "float (float, int)",
+      "provider_class": "unprovided-declaration"
+    },
+    {
+      "symbol": "link",
+      "kind": "function",
+      "type": "int (const char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "linkat_beneath",
+      "kind": "function",
+      "type": "int (int, const char *, int, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "localtime",
+      "kind": "function",
+      "type": "struct tm *(const time_t *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "log",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "log10",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "longjmp",
+      "kind": "function",
+      "type": "void (int *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "lseek",
+      "kind": "function",
+      "type": "off_t (int, off_t, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "lstat",
+      "kind": "function",
+      "type": "int (const char *, struct stat *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "malloc",
+      "kind": "function",
+      "type": "void *(size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "mblen",
+      "kind": "function",
+      "type": "int (const char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "mbstowcs",
+      "kind": "function",
+      "type": "size_t (wchar_t *, const char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "mbtowc",
+      "kind": "function",
+      "type": "int (wchar_t *, const char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "memccpy",
+      "kind": "function",
+      "type": "void *(void *, const void *, int, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "memchr",
+      "kind": "function",
+      "type": "void *(const void *, int, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "memcmp",
+      "kind": "function",
+      "type": "int (const void *, const void *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "memcpy",
+      "kind": "function",
+      "type": "void *(void *, const void *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "memmem",
+      "kind": "function",
+      "type": "void *(const void *, size_t, const void *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "memmove",
+      "kind": "function",
+      "type": "void *(void *, const void *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "memset",
+      "kind": "function",
+      "type": "void *(void *, int, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "mkdirat_beneath",
+      "kind": "function",
+      "type": "int (int, const char *, mode_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "mkstemp",
+      "kind": "function",
+      "type": "int (char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "mktemp",
+      "kind": "function",
+      "type": "char *(char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "mktime",
+      "kind": "function",
+      "type": "time_t (struct tm *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "modf",
+      "kind": "function",
+      "type": "double (double, double *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "modff",
+      "kind": "function",
+      "type": "float (float, float *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "nice",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "optarg",
+      "kind": "object",
+      "type": "char *",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "opterr",
+      "kind": "object",
+      "type": "int",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "optind",
+      "kind": "object",
+      "type": "int",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "optopt",
+      "kind": "object",
+      "type": "int",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "pause",
+      "kind": "function",
+      "type": "int (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "pclose",
+      "kind": "function",
+      "type": "int (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "perror",
+      "kind": "function",
+      "type": "void (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "pipe",
+      "kind": "function",
+      "type": "int (int *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "popen",
+      "kind": "function",
+      "type": "struct _iobuf *(const char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "pow",
+      "kind": "function",
+      "type": "double (double, double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "printf",
+      "kind": "function",
+      "type": "int (const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "psignal",
+      "kind": "function",
+      "type": "void (unsigned int, char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "publishat_beneath",
+      "kind": "function",
+      "type": "int (int, const char *, int, const char *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "putenv",
+      "kind": "function",
+      "type": "int (char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "puts",
+      "kind": "function",
+      "type": "int (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "putw",
+      "kind": "function",
+      "type": "int (int, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "qsort",
+      "kind": "function",
+      "type": "void (void *, size_t, size_t, int (*)(const void *, const void *))",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "qsort_r",
+      "kind": "function",
+      "type": "void (void *, size_t, size_t, int (*)(const void *, const void *, void *), void *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "quick_exit",
+      "kind": "function",
+      "type": "void (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "raise",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "rand",
+      "kind": "function",
+      "type": "int (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "random",
+      "kind": "function",
+      "type": "long (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "re_comp",
+      "kind": "function",
+      "type": "char *(char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "read",
+      "kind": "function",
+      "type": "ssize_t (int, void *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "readlink",
+      "kind": "function",
+      "type": "ssize_t (const char *, char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "realloc",
+      "kind": "function",
+      "type": "void *(void *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "reallocarray",
+      "kind": "function",
+      "type": "void *(void *, size_t, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "realpath",
+      "kind": "function",
+      "type": "char *(const char *, char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "reboot",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "remove",
+      "kind": "function",
+      "type": "int (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "rename",
+      "kind": "function",
+      "type": "int (const char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "rewind",
+      "kind": "function",
+      "type": "void (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "rmdir",
+      "kind": "function",
+      "type": "int (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sbrk",
+      "kind": "function",
+      "type": "void *(int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "scanf",
+      "kind": "function",
+      "type": "int (const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "select",
+      "kind": "function",
+      "type": "int (int, fd_set *, fd_set *, fd_set *, struct timeval *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setbuf",
+      "kind": "function",
+      "type": "void (struct _iobuf *, char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setbuffer",
+      "kind": "function",
+      "type": "void (struct _iobuf *, char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setegid",
+      "kind": "function",
+      "type": "int (gid_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setenv",
+      "kind": "function",
+      "type": "int (const char *, const char *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "seteuid",
+      "kind": "function",
+      "type": "int (uid_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setgid",
+      "kind": "function",
+      "type": "int (gid_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sethostid",
+      "kind": "function",
+      "type": "u_long (u_long)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sethostname",
+      "kind": "function",
+      "type": "int (char *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setjmp",
+      "kind": "function",
+      "type": "int (int *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setlinebuf",
+      "kind": "function",
+      "type": "void (struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setlogin",
+      "kind": "function",
+      "type": "int (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setmode",
+      "kind": "function",
+      "type": "void *(char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setpgid",
+      "kind": "function",
+      "type": "int (pid_t, pid_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setpgrp",
+      "kind": "function",
+      "type": "int (pid_t, pid_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setregid",
+      "kind": "function",
+      "type": "int (gid_t, gid_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setreuid",
+      "kind": "function",
+      "type": "int (uid_t, uid_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setstate",
+      "kind": "function",
+      "type": "char *(char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setuid",
+      "kind": "function",
+      "type": "int (uid_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setusershell",
+      "kind": "function",
+      "type": "void (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "setvbuf",
+      "kind": "function",
+      "type": "int (struct _iobuf *, char *, int, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sigaction",
+      "kind": "function",
+      "type": "int (int, const struct sigaction *, struct sigaction *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sigblock",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "siginterrupt",
+      "kind": "function",
+      "type": "int (int, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "siglongjmp",
+      "kind": "function",
+      "type": "void (int *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "signal",
+      "kind": "function",
+      "type": "sig_t (int, sig_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sigpause",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sigprocmask",
+      "kind": "function",
+      "type": "int (int, const sigset_t *, sigset_t *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sigsetjmp",
+      "kind": "function",
+      "type": "int (int *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sigsetmask",
+      "kind": "function",
+      "type": "int (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sigsuspend",
+      "kind": "function",
+      "type": "int (const sigset_t *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sigvec",
+      "kind": "function",
+      "type": "int (int, struct sigvec *, struct sigvec *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sin",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "sinh",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "sleep",
+      "kind": "function",
+      "type": "unsigned int (unsigned int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "snprintf",
+      "kind": "function",
+      "type": "int (char *, size_t, const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sprintf",
+      "kind": "function",
+      "type": "int (char *, const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sqrt",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "srand",
+      "kind": "function",
+      "type": "void (unsigned int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "srandom",
+      "kind": "function",
+      "type": "void (unsigned int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sscanf",
+      "kind": "function",
+      "type": "int (const char *, const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "stat",
+      "kind": "function",
+      "type": "int (const char *, struct stat *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "stpcpy",
+      "kind": "function",
+      "type": "char *(char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "stpncpy",
+      "kind": "function",
+      "type": "char *(char *, const char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strcat",
+      "kind": "function",
+      "type": "char *(char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strchr",
+      "kind": "function",
+      "type": "char *(const char *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strcmp",
+      "kind": "function",
+      "type": "int (const char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strcpy",
+      "kind": "function",
+      "type": "char *(char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strcspn",
+      "kind": "function",
+      "type": "size_t (const char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strdup",
+      "kind": "function",
+      "type": "char *(const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strerror",
+      "kind": "function",
+      "type": "char *(int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strftime",
+      "kind": "function",
+      "type": "size_t (char *, size_t, const char *, const struct tm *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strlcat",
+      "kind": "function",
+      "type": "size_t (char *, const char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strlcpy",
+      "kind": "function",
+      "type": "size_t (char *, const char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strlen",
+      "kind": "function",
+      "type": "size_t (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strncat",
+      "kind": "function",
+      "type": "char *(char *, const char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strncmp",
+      "kind": "function",
+      "type": "int (const char *, const char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strncpy",
+      "kind": "function",
+      "type": "char *(char *, const char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strndup",
+      "kind": "function",
+      "type": "char *(const char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strnlen",
+      "kind": "function",
+      "type": "size_t (const char *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strpbrk",
+      "kind": "function",
+      "type": "char *(const char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strrchr",
+      "kind": "function",
+      "type": "char *(const char *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strsep",
+      "kind": "function",
+      "type": "char *(char **, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strspn",
+      "kind": "function",
+      "type": "size_t (const char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strstr",
+      "kind": "function",
+      "type": "char *(const char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strtod",
+      "kind": "function",
+      "type": "double (const char *, char **)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strtok",
+      "kind": "function",
+      "type": "char *(char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strtok_r",
+      "kind": "function",
+      "type": "char *(char *, const char *, char **)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strtol",
+      "kind": "function",
+      "type": "long (const char *, char **, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strtoll",
+      "kind": "function",
+      "type": "long long (const char *, char **, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strtoul",
+      "kind": "function",
+      "type": "unsigned long (const char *, char **, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "strtoull",
+      "kind": "function",
+      "type": "unsigned long long (const char *, char **, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "suboptarg",
+      "kind": "object",
+      "type": "char *",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "symlink",
+      "kind": "function",
+      "type": "int (const char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sync",
+      "kind": "function",
+      "type": "void (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sys_siglist",
+      "kind": "object",
+      "type": "char *[]",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "sysconf",
+      "kind": "function",
+      "type": "long (int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "syserrlst",
+      "kind": "function",
+      "type": "const char *(int)",
+      "provider_class": "unprovided-declaration"
+    },
+    {
+      "symbol": "system",
+      "kind": "function",
+      "type": "int (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "tan",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "tanh",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "tempnam",
+      "kind": "function",
+      "type": "char *(const char *, const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "time",
+      "kind": "function",
+      "type": "time_t (time_t *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "timegm",
+      "kind": "function",
+      "type": "time_t (struct tm *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "timezone",
+      "kind": "function",
+      "type": "char *(int, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "timingsafe_bcmp",
+      "kind": "function",
+      "type": "int (const void *, const void *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "tmpfile",
+      "kind": "function",
+      "type": "struct _iobuf *(void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "tmpnam",
+      "kind": "function",
+      "type": "char *(char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "truncate",
+      "kind": "function",
+      "type": "int (const char *, off_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ttyname",
+      "kind": "function",
+      "type": "char *(int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ttyslot",
+      "kind": "function",
+      "type": "int (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "tzset",
+      "kind": "function",
+      "type": "void (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ualarm",
+      "kind": "function",
+      "type": "unsigned int (unsigned int, unsigned int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "ungetc",
+      "kind": "function",
+      "type": "int (int, struct _iobuf *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "unlink",
+      "kind": "function",
+      "type": "int (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "unlinkat_beneath",
+      "kind": "function",
+      "type": "int (int, const char *, int)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "unsetenv",
+      "kind": "function",
+      "type": "int (const char *)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "usleep",
+      "kind": "function",
+      "type": "void (long)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "verr",
+      "kind": "function",
+      "type": "void (int, const char *, va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "verrx",
+      "kind": "function",
+      "type": "void (int, const char *, va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "vfork",
+      "kind": "function",
+      "type": "pid_t (void)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "vfprintf",
+      "kind": "function",
+      "type": "int (struct _iobuf *, const char *, __builtin_va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "vfscanf",
+      "kind": "function",
+      "type": "int (struct _iobuf *, const char *, __builtin_va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "vprintf",
+      "kind": "function",
+      "type": "int (const char *, __builtin_va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "vscanf",
+      "kind": "function",
+      "type": "int (const char *, __builtin_va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "vsnprintf",
+      "kind": "function",
+      "type": "int (char *, size_t, const char *, __builtin_va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "vsprintf",
+      "kind": "function",
+      "type": "int (char *, const char *, __builtin_va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "vsscanf",
+      "kind": "function",
+      "type": "int (const char *, const char *, __builtin_va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "vwarn",
+      "kind": "function",
+      "type": "void (const char *, va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "vwarnx",
+      "kind": "function",
+      "type": "void (const char *, va_list)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "warn",
+      "kind": "function",
+      "type": "void (const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "warnx",
+      "kind": "function",
+      "type": "void (const char *, ...)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "wcstombs",
+      "kind": "function",
+      "type": "size_t (char *, const wchar_t *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "wctomb",
+      "kind": "function",
+      "type": "int (char *, wchar_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "write",
+      "kind": "function",
+      "type": "ssize_t (int, const void *, size_t)",
+      "provider_class": "libc-archive"
+    },
+    {
+      "symbol": "y0",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "y1",
+      "kind": "function",
+      "type": "double (double)",
+      "provider_class": "libm-archive"
+    },
+    {
+      "symbol": "yn",
+      "kind": "function",
+      "type": "double (int, double)",
+      "provider_class": "libm-archive"
+    }
+  ],
+  "address_link_results": [
+    {
+      "symbol": "strlen",
+      "link_exit": 0
+    },
+    {
+      "symbol": "fabs",
+      "link_exit": 1
+    },
+    {
+      "symbol": "frexpf",
+      "link_exit": 1
+    },
+    {
+      "symbol": "ldexpf",
+      "link_exit": 1
+    }
+  ],
+  "limits": [
+    "Eight included public headers and transitive declarations only.",
+    "Declaration type text is not a complete ABI signature or visibility audit.",
+    "Provider presence establishes neither semantics nor selected shared export policy."
+  ],
+  "legacy_fabs_source_sha256": "0cbf156ef2c133ee29cde356be5c49b954d4ff452ec2f0a9c97f6fbb596f2b32",
+  "legacy_fabs_negative_zero_bits": "8000000000000000",
+  "fabs_return_value_requirement": {
+    "url": "https://pubs.opengroup.org/onlinepubs/9799919799/functions/fabs.html#tag_17_134_04",
+    "option_mark": "MX",
+    "source_sha256": "97de9c8c3be1afdec16ca02bf58ad3dd5899628d88a8ac12420758aa811842c5",
+    "signed_zero_result": "positive zero for either signed-zero input"
+  }
+}

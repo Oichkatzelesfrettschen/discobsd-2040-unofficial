@@ -31,6 +31,7 @@
  * SD_ENABLED because that board can boot without one.
  */
 #include <rp2040/dev/flash.h>
+#include <machine/gpio.h>
 
 #ifdef PTY_ENABLED
 #include <sys/pty.h>
@@ -38,6 +39,7 @@
 
 #ifdef PICOCALC_ENABLED
 #include <rp2040/dev/picocalc.h>
+#include <rp2040/dev/picopcm.h>
 #endif
 
 #ifdef SD_ENABLED
@@ -270,6 +272,22 @@ const struct cdevsw cdevsw[] = {
 		sdstrategy,	0,		0,
 	},
 #endif
+#if defined(PICOCALC_ENABLED) && defined(SD_ENABLED)
+	/*
+	 * The majors past 11 exist where 10 and 11 do, which fixes their
+	 * numbers: the union kernel every board runs.
+	 */
+	{	/* 12 - general-purpose pins, porta and portb */
+		gpioopen,	nullclose,	gpiorw,		gpiorw,
+		gpioioctl,	nullstop,	0,		seltrue,
+		nostrategy,	0,		0,
+	},
+	{	/* 13 - PicoCalc sample audio */
+		pcmopen,	pcmclose,	pcmread,	pcmwrite,
+		noioctl,	nullstop,	0,		seltrue,
+		nostrategy,	0,		0,
+	},
+#endif
 	/*
 	 * End the list with a blank entry.
 	 */
@@ -333,6 +351,25 @@ chrtoblk(dev_t dev __unused)
 		return makedev(SD_BMAJOR, minor(dev));
 #endif
 	return NODEV;
+}
+
+/* Partition setup and open masks belong to a unit before extents are known. */
+int
+blkdev_same_unit(dev_t a, dev_t b)
+{
+	if (a == b)
+		return 1;
+	if (major(a) != major(b) || (minor(a) >> 3) != (minor(b) >> 3))
+		return 0;
+	switch (major(a)) {
+	case 0:
+#ifdef SD_ENABLED
+	case SD_BMAJOR:
+#endif
+		return 1;
+	default:
+		return 0;
+	}
 }
 
 /*

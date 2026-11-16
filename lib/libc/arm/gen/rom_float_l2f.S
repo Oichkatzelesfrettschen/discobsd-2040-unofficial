@@ -9,7 +9,7 @@ ROM_FLOAT_FUNCTION(__aeabi_l2f)
 	ldr	r2, =__aeabi_i2f
 	bx	r2
 Ll2f_wide:
-	ldr	r2, =ROM_FLOAT_CELL_NAME(l2f)
+	ROM_FLOAT_CELL_ADDRESS(l2f, r2, r3)
 	ldr	r3, [r2]
 	bx	r3
 ROM_FLOAT_FUNCTION_END(__aeabi_l2f)

@@ -364,7 +364,7 @@ struct inode *adddirectory(struct filesystem *f, struct inode *in, char *name)
     rem = DEV_BSIZE;
     while ((d - buf) < DEV_BSIZE) {
         dp = (struct direct *)d;
-        printf("inode %d (%d %d)\n", (int)dp->d_ino, (int)dp->d_reclen, sizeof(struct direct));
+        printf("inode %d (%d %d)\n", (int)dp->d_ino, (int)dp->d_reclen, (int)sizeof(struct direct));
         if (dp->d_reclen != DIRSIZ(dp)) {
             if (dp->d_ino != 0) {
                 dp->d_reclen = DIRSIZ(dp);

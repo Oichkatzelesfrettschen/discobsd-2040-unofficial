@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "base": "9561fd1cf05d823d1b93b9236448a65ff1c99abc",
+  "head": "66ce7c5b57a691fed604f26d14449996f0887743",
+  "model": "gpt-6.1-sol",
+  "effort": "medium",
+  "service_tier": "default",
+  "destination": "OpenAI Codex service",
+  "sandbox": "read-only",
+  "approval": "explicit user approval for branch diff and relevant source/tests/docs",
+  "log_sha256": "df028200811bc2dae966cf8bd915704fe52b5b17b2cce95cb66712319bf56128",
+  "brief_sha256": "d7005ba136738d1c7352a3dc491234f4ce47cf409b660ee89208719e1cd807f6",
+  "result": "no actionable correctness defects reported",
+  "tests_run_by_reviewer": false,
+  "limitations": [
+    "read-only source inspection",
+    "resource approval remains pending",
+    "production shared-mode integration remains incomplete"
+  ]
+}

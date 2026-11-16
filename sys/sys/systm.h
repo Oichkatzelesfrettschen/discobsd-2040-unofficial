@@ -162,6 +162,7 @@ void remque (void *element);
 void startup (void);                /* machine-dependent startup code */
 int chrtoblk (dev_t dev);           /* convert from character to block device number */
 int isdisk (dev_t dev, int type);   /* determine if a device is a disk */
+int blkdev_same_unit(dev_t a, dev_t b); /* shared driver setup and open state */
 int blkoverlap (dev_t a, dev_t b);  /* do two block devices share storage */
 int iskmemdev (dev_t dev);          /* identify /dev/mem and /dev/kmem */
 __dead void boot (dev_t dev, int howto);
@@ -222,6 +223,9 @@ int cnselect (dev_t dev, int rw);
 #ifdef TS_ISOPEN
 extern struct tty cnttys[];
 #endif
+
+struct tty;
+struct tty *cntty(void);	/* the console's terminal, sys/dev/cons.c */
 
 int mmrw (dev_t dev, struct uio *uio, int flag);
 int seltrue (dev_t dev, int rw);

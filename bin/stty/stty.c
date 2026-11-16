@@ -364,7 +364,7 @@ prmodes(all)
 	else
 #endif
 	if (ldisc!=NTTYDISC)
-		fprintf(stderr, "discipline %d, ");
+		fprintf(stderr, "discipline %d, ", ldisc);
 
 	if(mode.sg_ispeed != mode.sg_ospeed) {
 		fprintf(stderr,"input speed %u baud", speeds[mode.sg_ispeed].baud);

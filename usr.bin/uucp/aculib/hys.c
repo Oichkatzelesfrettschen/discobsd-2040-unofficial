@@ -145,7 +145,7 @@ int toneflag;
 		logent(dcname, "CAN'T OPEN");
 		return dh;
 	}
-	DEBUG(4, "hayes ok\n", CNULL);
+	DEBUG(4, "hayes ok\n");
 	return dh;
 }
 

@@ -46,6 +46,7 @@ DEFAULT_MARGIN = 1024
 
 # The XIP window maps the QSPI flash from 0x10000000 to 0x11000000
 # (RP2040 datasheet 2.6.3); anything loaded there is flash content.
+XIP_START = 0x10000000
 XIP_END = 0x11000000
 
 ELF_MAGIC = b"\x7fELF"
@@ -122,22 +123,44 @@ def flash_image_end(data: bytes, origin: int) -> int:
         raise InputError("program header table is absent or has an odd entry size")
     if phoff + phnum * phentsize > len(data):
         raise InputError("program header table is truncated")
-    ends: list[int] = []
+    spans: list[tuple[int, int]] = []
     for index in range(phnum):
-        (kind, offset, _vaddr, paddr, filesz, _memsz, _flags,
+        (kind, offset, _vaddr, paddr, filesz, memsz, _flags,
          _align) = PHDR.unpack_from(data, phoff + index * phentsize)
+        if kind == PT_LOAD and filesz > memsz:
+            raise InputError(f"segment {index} file size exceeds memory size")
         if kind == PT_LOAD and filesz != 0 and offset + filesz > len(data):
             raise InputError(f"segment {index} payload is truncated")
-        if kind == PT_LOAD and filesz != 0 and origin <= paddr < XIP_END:
-            ends.append(paddr + filesz)
-    if not ends:
+        if kind == PT_LOAD and filesz != 0 and XIP_START <= paddr < XIP_END:
+            if paddr + filesz > XIP_END:
+                raise InputError(f"segment {index} crosses the XIP window end")
+            spans.append((paddr, paddr + filesz))
+    if not any(end > origin for _start, end in spans):
         raise InputError("no loadable segment lies in flash")
-    return max(ends)
+    spans.sort()
+    for previous, current in zip(spans, spans[1:]):
+        if current[0] < previous[1]:
+            raise InputError("overlapping flash load segments")
+    return spans[-1][1]
 
 
 def within_margin(room: int, margin: int) -> bool:
     """A kernel passes when its headroom is at least the margin."""
     return room >= margin
+
+
+def failed_map_end(text: str) -> int:
+    """Read the declared .ramfunc load end from one GNU ld map, for analysis."""
+    rows = re.findall(
+        r"^\.ramfunc\s+0x[0-9a-fA-F]+\s+0x([0-9a-fA-F]+)"
+        r"\s+load address\s+0x([0-9a-fA-F]+)\s*$", text, re.MULTILINE,
+    )
+    if len(rows) != 1:
+        raise InputError(f"expected one .ramfunc load row, found {len(rows)}")
+    size, address = (int(value, 16) for value in rows[0])
+    if not 0x10000000 <= address < XIP_END or address + size > XIP_END:
+        raise InputError(".ramfunc load interval lies outside the XIP window")
+    return address + size
 
 
 def measure(path: Path, origin: int, length: int) -> tuple[int, int]:
@@ -235,6 +258,36 @@ def self_test() -> None:
            "a segment loaded past the region end is overflow")
     expect(headroom([text, (PT_LOAD, XIP_END, 16)]) == length - 100000,
            "a load address beyond the flash window is not flash")
+    expect(flash_image_end(synthetic_elf([text]) + bytes(1024 * 1024), origin) ==
+           origin + 100000, "unloaded trailing debug data adds no flash bytes")
+    nobits = bytearray(synthetic_elf([text]))
+    header = list(PHDR.unpack_from(nobits, EHDR.size))
+    header[5] += 4096
+    PHDR.pack_into(nobits, EHDR.size, *header)
+    expect(flash_image_end(nobits, origin) == origin + 100000,
+           "memory-only segment tail adds no flash bytes")
+    rejects(lambda: headroom([text, (PT_LOAD, origin + 99999, 2)]),
+            "overlapping flash payloads")
+    rejects(lambda: headroom([(PT_LOAD, origin - 4, 8), (PT_LOAD, origin, 8)]),
+            "a segment crossing into FLASH overlaps the next segment")
+    rejects(lambda: headroom([(PT_LOAD, origin - 256, 8),
+                              (PT_LOAD, origin - 252, 8), text]),
+            "overlapping boot-stage payloads")
+    rejects(lambda: headroom([(PT_LOAD, XIP_END - 4, 8)]),
+            "flash payload crossing the XIP window end")
+    expect(headroom([(PT_LOAD, origin - 4, 8)]) == length - 4,
+           "a load crossing into FLASH contributes its final bytes")
+    bad_segment = bytearray(synthetic_elf([text]))
+    header = list(PHDR.unpack_from(bad_segment, EHDR.size))
+    header[5] = header[4] - 1
+    PHDR.pack_into(bad_segment, EHDR.size, *header)
+    rejects(lambda: flash_image_end(bad_segment, origin),
+            "file bytes exceeding segment memory size")
+    map_line = ".ramfunc 0x20030100 0x1a0 load address 0x1002556c\n"
+    expect(failed_map_end(map_line) == 0x1002570c, "failed map final ramfunc end")
+    rejects(lambda: failed_map_end(map_line + map_line), "duplicate ramfunc map row")
+    rejects(lambda: failed_map_end(".ramfunc 0x20030100 0x10\n"),
+            "missing ramfunc load address")
 
     for label, blob in (
         ("empty file", b""),
@@ -265,19 +318,35 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--region", default=DEFAULT_REGION)
     parser.add_argument("--margin", type=int, default=DEFAULT_MARGIN,
                         help="minimum headroom in bytes (default %(default)s)")
+    parser.add_argument("--failed-map", type=Path,
+                        help="analyze a failed GNU ld map without admitting an image")
+    parser.add_argument("--snapshot", help="source identity label for failed-map analysis")
     parser.add_argument("elf", nargs="*", type=Path)
     args = parser.parse_args(argv)
     try:
         if args.self_test:
             self_test()
             return 0
-        if not args.elf:
+        if args.failed_map and (not args.snapshot or args.elf):
+            parser.error("--failed-map requires --snapshot and excludes ELF inputs")
+        if args.snapshot and not args.failed_map:
+            parser.error("--snapshot requires --failed-map")
+        if not args.elf and not args.failed_map:
             parser.error("name at least one kernel ELF file")
         try:
             script = args.linker_script.read_text()
         except OSError as error:
             raise InputError(f"{args.linker_script}: {error.strerror}") from error
         origin, length = region_bounds(script, args.region)
+        if args.failed_map:
+            try:
+                map_text = args.failed_map.read_text(encoding="utf-8")
+            except OSError as error:
+                raise InputError(f"{args.failed_map}: {error.strerror}") from error
+            end = failed_map_end(map_text)
+            print(f"ANALYSIS failed-map snapshot={args.snapshot} end=0x{end:x} "
+                  f"headroom={origin + length - end} bytes; ELF admission not performed")
+            return 0
         failed = False
         for path in args.elf:
             used, room = measure(path, origin, length)

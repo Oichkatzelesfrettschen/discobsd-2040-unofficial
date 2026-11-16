@@ -441,7 +441,7 @@ char *argv[];
 		    if(clreol) cleareol();
 		    printf("%s\n", fnames[fnum]);
 		    if(clreol) cleareol();
-		    printf("::::::::::::::\n", fnames[fnum]);
+		    printf("::::::::::::::\n");
 		    if (left > Lpp - 4)
 			left = Lpp - 4;
 		}

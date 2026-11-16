@@ -61,7 +61,7 @@ __KERNEL_RCSID(0, "$NetBSD: v7fs_inode.c,v 1.3 2024/09/25 20:10:36 andvar Exp $"
 #define	DPRINTF(fmt, args...)	((void)0)
 #endif
 
-static void v7fs_inode_setup_disk_image(const struct v7fs_self *,
+static int v7fs_inode_setup_disk_image(const struct v7fs_self *,
     struct v7fs_inode *, struct v7fs_inode_diskimage *);
 static int v7fs_inode_inquire_disk_location(const struct v7fs_self *,
     v7fs_ino_t, v7fs_daddr_t *, v7fs_daddr_t *);
@@ -200,12 +200,17 @@ v7fs_inode_setup_memory_image(const struct v7fs_self *fs __unused,
 #undef conv32
 }
 
-static void
+static int
 v7fs_inode_setup_disk_image(const struct v7fs_self *fs __unused,
     struct v7fs_inode *mem, struct v7fs_inode_diskimage *disk)
 {
 #define	conv16(m)	(disk->m = V7FS_VAL16(fs, (mem->m)))
 #define	conv32(m)	(disk->m = V7FS_VAL32(fs, (mem->m)))
+	int i;
+
+	for (i = 0; i < V7FS_NADDR; i++)
+		if (mem->addr[i] > V7FS_DADDR_MAX)
+			return EFBIG;
 
 	conv16(mode);
 	conv16(nlink);
@@ -216,13 +221,13 @@ v7fs_inode_setup_disk_image(const struct v7fs_self *fs __unused,
 	conv32(mtime);
 	conv32(ctime);
 
-	int i;
 	for (i = 0; i < V7FS_NADDR; i++) {
 		int j = i * 3; /* 3 byte each. */
 		V7FS_VAL24_WRITE(fs, mem->addr[i], disk->addr + j);
 	}
 #undef conv16
 #undef conv32
+	return 0;
 }
 
 /* Load inode from disk. */
@@ -267,7 +272,8 @@ v7fs_inode_writeback(struct v7fs_self *fs, struct v7fs_inode *mem)
 	if (v7fs_inode_inquire_disk_location(fs, ino, &blk, &ofs) != 0)
 		return ENOENT;
 
-	v7fs_inode_setup_disk_image(fs, mem, &disk);
+	if ((error = v7fs_inode_setup_disk_image(fs, mem, &disk)) != 0)
+		return error;
 
 	ILIST_LOCK(fs);
 	if (!(buf = scratch_read(fs, blk))) {

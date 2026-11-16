@@ -585,7 +585,7 @@ void dumpwork(void)
 void fatal(char *s)
 {
     int	i;
-    fprintf(stderr, s);
+    fputs(s, stderr);
     fflush(stderr);
     perror("Reason?");
     fflush(stderr);

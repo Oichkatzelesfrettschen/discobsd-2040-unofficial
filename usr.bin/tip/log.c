@@ -17,7 +17,7 @@ void logent(group, num, acu, message)
 {
     char *user, *timestamp;
     struct passwd *pwd;
-    long t;
+    time_t t;
 
     if (flog == NULL)
         return;

@@ -1,0 +1,167 @@
+Board run of the file-table, in-core inode table and process-table exhaustion tests
+
+source revision: 1e986446 (git rev-parse resolves the full name)
+command: DISCOBSD_BOARD_CAPACITY_EXHAUSTION=run $PYTHON tests/rp2040/capacity_exhaustion/board_capacity_exhaustion.py LOG unix.uf2,flash.uf2
+board: Raspberry Pi Pico (RP2040), PICO kernel, USB CDC-ACM console
+kernel: sys/arch/rp2040/compile/PICO/unix.uf2 sha256 44fd04ed6197a2860d57f300550008c841a60d976172e4245704022334b82be4
+root: distrib/rp2040/flash.uf2 sha256 e0549f60135866aeb2826c7e89a52414ae77f1c4236b6712d1dd8e60b1b984e3
+inotab: tests/rp2040/capacity_exhaustion/inotab sha256 3ac2ff9c28e2907c38c3e61f1bed1f74b8d634e3c63490d8826f94e6b7f59981
+limits: NPROC 16, NINODE 24, NFILE 18, NCLIST 32, NBUF 4, USIZE 3072
+date: 2026-11-12
+evidence class: board; the driver's output follows, with the flasher's progress and unmount lines removed
+
+discobsd-flash: rebooting the kernel into BOOTSEL
+discobsd-flash: loading sys/arch/rp2040/compile/PICO/unix.uf2
+discobsd-flash: loading distrib/rp2040/flash.uf2
+discobsd-flash: rebooting into the kernel
+PASS a root shell answers
+stage filetab    10056 bytes cksum match
+PASS staged filetab
+stage inotab     10540 bytes cksum match
+PASS staged inotab
+stage proctab    10120 bytes cksum match
+PASS staged proctab
+PASS kern.capacity reports the process row
+process row before: limit 16 current 6 peak 6 min-free 10 failures 0
+NOFILE 30, kern.maxfiles 18, 3 descriptors open, 3 file slots in use
+snapshot before
+proc   limit 16 current 6 peak 6 min-free 10 failures 0
+inode  limit 24 current 10 peak 12 min-free 12 failures 0
+file   limit 18 current 3 peak 7 min-free 11 failures 0
+clist  limit 32 current 0 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+PASS dup to the per-process limit refuses with EMFILE (errno 24) at 30 descriptors of 30
+PASS EMFILE leaves the file table and its failure counter unchanged
+15 file slots free: 2 holders of 6 files leave 3 for the parent
+PASS at least two holder processes are needed to fill the table (2)
+PASS holders hold 12 slots (table shows 12, early exits 0, first status 0)
+file: table full
+file: table full
+snapshot full
+proc   limit 16 current 8 peak 8 min-free 8 failures 0
+inode  limit 24 current 10 peak 12 min-free 12 failures 0
+file   limit 18 current 18 peak 18 min-free 0 failures 2
+clist  limit 32 current 0 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+PASS a full file table refuses open with ENFILE twice, not EMFILE (errno 23 then 23)
+PASS the parent opened the 3 spare slots (opened 3)
+PASS the parent holds 6 of 30 descriptors, so the per-process limit did not refuse
+PASS file counter reports a full table (current 18 of 18, peak 18, min-free 0)
+PASS file failure counter rose by the two refusals (rose by 2)
+PASS no other table counted a failure
+PASS every holder exits 0 and is reaped (clean 2, other 0, live 0)
+snapshot after release
+proc   limit 16 current 6 peak 8 min-free 8 failures 0
+inode  limit 24 current 10 peak 12 min-free 12 failures 0
+file   limit 18 current 3 peak 18 min-free 0 failures 2
+clist  limit 32 current 0 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+PASS occupancy returns to 3 file slots (now 3)
+PASS the peak and the failures stay latched across the release
+PASS an open after the release succeeds (errno 0)
+snapshot after recovery
+proc   limit 16 current 6 peak 8 min-free 8 failures 0
+inode  limit 24 current 10 peak 12 min-free 12 failures 0
+file   limit 18 current 3 peak 18 min-free 0 failures 2
+clist  limit 32 current 0 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+PASS recovery leaves occupancy at 3 and adds no failure
+FILETABTEST OK
+rc=0
+PASS filetab: file table exhaustion and recovery
+PASS shell answers after filetab
+snapshot before
+proc   limit 16 current 6 peak 8 min-free 8 failures 0
+inode  limit 24 current 10 peak 12 min-free 12 failures 0
+file   limit 18 current 3 peak 18 min-free 0 failures 2
+clist  limit 32 current 0 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+kern.maxinodes 24, 11 referenced: 6 holders of 2 references leave 1 for the parent; 15 file and 10 process slots free
+PASS 6 directories and 3 files created (errno 0)
+PASS creating the files leaves 11 inodes referenced (now 11)
+PASS holders reference 12 inodes (table shows 12 more, early exits 0, first status 0)
+inode: table full
+PASS the parent opened the 1 spare slots (opened 1, errno 0)
+inode: table full
+snapshot full
+proc   limit 16 current 12 peak 12 min-free 4 failures 0
+inode  limit 24 current 24 peak 24 min-free 0 failures 2
+file   limit 18 current 10 peak 18 min-free 0 failures 2
+clist  limit 32 current 0 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+PASS a full inode table refuses open and stat of new identities with ENFILE (errno 23 then 23)
+PASS inode counter reports a full table (current 24 of 24, peak 24, min-free 0)
+PASS inode failure counter rose by the two refusals (rose by 2)
+PASS no other table counted a failure
+PASS the file table holds 10 of 18 slots, so it did not refuse
+PASS every holder exits 0 and is reaped (clean 6, other 0, live 0)
+snapshot after release
+proc   limit 16 current 6 peak 12 min-free 4 failures 0
+inode  limit 24 current 11 peak 24 min-free 0 failures 2
+file   limit 18 current 3 peak 18 min-free 0 failures 2
+clist  limit 32 current 0 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+PASS occupancy returns to 11 referenced inodes (now 11)
+PASS the peak and the failures stay latched across the release
+PASS the refused stat succeeds after the release (errno 0)
+PASS the refused open succeeds after the release (errno 0)
+snapshot after recovery
+proc   limit 16 current 6 peak 12 min-free 4 failures 0
+inode  limit 24 current 11 peak 24 min-free 0 failures 2
+file   limit 18 current 3 peak 18 min-free 0 failures 2
+clist  limit 32 current 5 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+PASS recovery leaves occupancy at 11 and adds no failure
+INOTABTEST OK
+rc=0
+PASS inotab: in-core inode table exhaustion and recovery
+PASS shell answers after inotab
+image dsize 11108 tsize 9888 ssize 2240: 8 swap blocks before alignment
+kern.maxproc 16, 6 slots in use, 10 free
+swap map: 340 free blocks in 3 runs; a child needs 8 blocks, so flash alone holds 41 children
+snapshot before
+proc   limit 16 current 6 peak 12 min-free 4 failures 0
+inode  limit 24 current 10 peak 24 min-free 0 failures 2
+file   limit 18 current 3 peak 18 min-free 0 failures 2
+clist  limit 32 current 0 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+proc: table full
+fork refused after 10 children with errno 11 (No more processes)
+proc: table full
+PASS a full process table refuses fork with EAGAIN, not ENOMEM
+PASS children created (10) equal the slots free at the start (10)
+PASS a repeated fork refuses with EAGAIN (errno 11)
+snapshot full
+proc   limit 16 current 16 peak 16 min-free 0 failures 2
+inode  limit 24 current 10 peak 24 min-free 0 failures 2
+file   limit 18 current 3 peak 18 min-free 0 failures 2
+clist  limit 32 current 7 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+PASS process counter reports a full table (current, peak 16 of 16, min-free 0)
+PASS process failure counter rose by the 2 refusals (rose by 2)
+PASS no other table counted a failure
+PASS every child exits 0 and is reaped (clean 10, other 0, live 0)
+snapshot after release
+proc   limit 16 current 6 peak 16 min-free 0 failures 2
+inode  limit 24 current 10 peak 24 min-free 0 failures 2
+file   limit 18 current 3 peak 18 min-free 0 failures 2
+clist  limit 32 current 0 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+PASS occupancy returns to the starting 6 slots (now 6)
+PASS the peak and the failures stay latched across the release
+PASS a fork after the reap succeeds (errno 0)
+PASS the recovery child exits 0 and is reaped
+snapshot after recovery
+proc   limit 16 current 6 peak 16 min-free 0 failures 2
+inode  limit 24 current 10 peak 24 min-free 0 failures 2
+file   limit 18 current 3 peak 18 min-free 0 failures 2
+clist  limit 32 current 0 peak 14 min-free 18 failures 0
+buffer limit 4 current 0 peak 3 min-free 1 failures 0
+PASS recovery leaves occupancy at 6 and adds no failure
+PROCTABTEST OK
+rc=0
+PASS proctab: process table exhaustion and recovery
+PASS shell answers after proctab
+PASS no process outlives its program (occupancy 6 then 6)
+process row after: limit 16 current 6 peak 16 min-free 0 failures 2
+12 of 12 checks passed

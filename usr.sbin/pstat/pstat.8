@@ -10,39 +10,35 @@
 pstat \- print system facts
 .SH SYNOPSIS
 .B /usr/sbin/pstat
-.B \-aixptufT
-[
-.B suboptions
-] [
-.B system
-] [
-.B corefile
-]
+.B \-iptfsT
 .SH DESCRIPTION
 .I Pstat
-interprets the contents of certain system tables.
-If
-.I corefile
-is given, the tables are sought there, otherwise
-in
-.I /dev/kmem.
-The required namelist is taken from
-.I /vmunix
-unless 
-.I system
-is specified.
+prints the contents of certain system tables.
+It reads the kernel's records through
+.IR sysctl (3)
+and never opens
+.I /dev/kmem
+or a core file, so it prints no kernel address.
+The inode table, the open file table and the terminal record
+are returned to the super-user alone:
+.BR \-i ,
+.B \-f
+and
+.B \-t
+fail with ``Operation not permitted'' for any other user,
+and
+.B \-T
+fails the same way if the kernel withholds its capacity record.
+The process table, the swap map and the table limits
+need no privilege.
+With no option,
+.B \-f
+is assumed.
 Options are
 .TP \w'WCHAN\ 'u
-.B \-a
-Under
-.BR \-p ,
-describe all process slots rather than just active ones.
-.TP
 .B \-i
-Print the inode table with the these headings:
-.IP LOC
-The core location of this table entry.
-.PD 0
+Print the inode table, one line for each inode with a reference,
+with these headings:
 .IP FLAGS
 Miscellaneous state variables encoded thus:
 .RS
@@ -68,10 +64,19 @@ shared lock applied
 exclusive lock applied
 .IP Z
 someone waiting for a lock
+.IP P
+pipe
+.IP m
+modified
+.IP r
+being renamed
+.IP x
+text, but impure
 .RE
+.PD 0
 .IP CNT
 Number of open file table entries for this inode.
-.IP DEV
+.IP DEVICE
 Major and minor device number of file system in which
 this inode resides.
 .IP RDC
@@ -88,67 +93,17 @@ Mode bits, see
 Number of links to this inode.
 .IP UID
 User ID of owner.
-.IP SIZ/DEV
+.IP SIZE/DEV
 Number of bytes in an ordinary file, or
 major and minor device of special file.
-.IP FS
-File system struct of the inode.
-.PD
-.TP
-.B \-x
-Print the text table with these headings:
-.IP LOC
-The core location of this table entry.
-.PD 0
-.IP FLAGS
-Miscellaneous state variables encoded thus:
-.RS
-.IP T
-.IR ptrace (2)
-in effect
-.IP W
-text not yet written on swap device
-.IP L
-loading in progress
-.IP K
-locked
-.IP w
-wanted (L flag is on)
-.IP P
-resulted from demand-page-from-inode exec format (see
-.IR execve (2))
-.RE
-.PD
-.IP DADDR
-Disk address in swap, measured in multiples of 512 bytes.
-.IP CADDR
-Head of a linked list of loaded processes using this text segment.
-.IP RSS
-Size of resident text, measured in multiples of 512 bytes.
-.IP SIZE
-Size of text segment, measured in multiples of 512 bytes.
-.IP IPTR
-Core location of corresponding inode.
-.IP CNT
-Number of processes using this text segment.
-.IP CCNT
-Number of processes in core using this text segment.
-.IP FORW
-Forward link in free list.
-.IP BACK
-Backward link in free list.
 .PD
 .TP
 .B \-p
-Print process table for active processes with these headings:
-.IP LOC
-The core location of this table entry.
-.PD 0
+Print the process table, one line for each live process,
+with these headings:
 .IP S
 Run state encoded thus:
 .RS
-.IP 0
-no process
 .IP 1
 waiting for some event
 .IP 3
@@ -160,6 +115,7 @@ being terminated
 .IP 6
 stopped (by signal or  under trace)
 .RE
+.PD 0
 .IP F
 Miscellaneous state variables, or'ed together (hexadecimal):
 .RS
@@ -194,14 +150,8 @@ selecting; wakeup/waiting danger
 .IP PRI
 Scheduling priority, see
 .IR setpriority (2).
-.IP SIG
-Signals received (signals 1-32 coded in bits 0-31),
 .IP UID
-Real user ID.
-.IP SLP
-Amount of time process has been blocked.
-.IP TIM
-Time resident in seconds; times over 127 coded as 127.
+Effective user ID.
 .IP CPU
 Weighted integral of CPU time, for scheduler.
 .IP NI
@@ -214,28 +164,12 @@ Process number of root of process group.
 The process ID number.
 .IP PPID
 The process ID of parent process.
-.IP ADDR
-If in core, the page frame number of the first page of the `u-area' of
-the process.
-If swapped out, the position in the swap area
-measured in multiples of 512 bytes.
-.IP RSS
-Resident set size \- the number of physical page frames allocated
-to this process.
-.IP SRSS
-RSS at last swap (0 if never swapped).
 .IP SIZE
-Virtual size of process image (data+stack) in multiples of 512 bytes.
-.IP WCHAN
-Wait channel number of a waiting process.
-.IP LINK
-Link pointer in list of runnable processes.
-.IP TEXTP
-If text is pure, pointer to location of text table entry.
+Size of the process image (data plus stack) in bytes, hexadecimal.
 .PD
 .TP
 .B \-t
-Print table for terminals
+Print the console terminal
 with these headings:
 .IP RAW
 Number of characters in raw input queue.
@@ -243,12 +177,10 @@ Number of characters in raw input queue.
 .IP CAN
 Number of characters in canonicalized input queue.
 .IP OUT
-Number of characters in putput queue.
+Number of characters in output queue.
 .IP MODE
 See
 .IR tty (4).
-.IP ADDR
-Physical device address.
 .IP DEL
 Number of delimiters (newlines) in canonicalized input queue.
 .IP COL
@@ -276,31 +208,25 @@ open for exclusive use
 output stopped
 .IP H
 hangup on close
+.IP b
+tandem queue blocked
+.IP r
+collision in read select
+.IP w
+collision in write select
+.IP a
+asynchronous i/o mode
 .RE
 .IP PGRP
-Process group for which this is controlling terminal.
-.IP DISC
-Line discipline; blank is old tty OTTYDISC or ``new tty'' for NTTYDISC
-or ``net'' for NETLDISC (see
-.IR bk (4)).
+Foreground process group of the terminal.
 .PD
 .TP
-.B \-u
-print information about a user process;
-the next argument is its address as given
-by
-.IR ps (1).
-The process must be in main memory, or the file used can
-be a core image and the address 0.
-Only the fields located in the first page cluster can be located
-succesfully if the process is in main memory.
-.TP
 .B \-f
-Print the open file table with these headings:
-.IP LOC
-The core location of this table entry.
+Print the open file table, one line for each open entry,
+with these headings:
 .IP TYPE
-The type of object the file table entry points to.
+The type of object the file table entry points to;
+a number stands for an unnamed type.
 .PD 0
 .IP FLG
 Miscellaneous state variables encoded thus:
@@ -317,37 +243,54 @@ shared lock present
 exclusive lock present
 .IP I
 signal pgrp when data ready
+.IP n
+non-blocking
+.IP m
+marked by the collector
+.IP d
+deferred to the next collector pass
 .RE
 .IP CNT
 Number of processes that know this open file.
 .IP MSG
 Number of messages outstanding for this file.
-.IP DATA
-The location of the inode table entry or socket structure for this file.
+.IP INO
+The inode number of the inode or pipe for this file,
+or
+.B \-
+for any other type of object.
 .IP OFFSET
 The file offset (see
 .IR lseek (2)).
 .PD
 .PP
 .B \-s
-print information about swap space usage: the number of (1k byte) pages used
-and free is given as well as the number of used pages which belong
-to text images.
+print information about swap space usage: the number of free runs
+in the swap map and the size of the map,
+and the number of kilobytes of swap used and free.
 .PP
 .B \-T
-prints the number of used and free slots in the several system tables
+prints the number of used slots and the limit of the file, inode
+and process tables from the kernel's capacity record
 and is useful for checking to see how full system tables have become if the
-system is under heavy load.
-.SH FILES
-.ta \w'/dev/kmem  'u
-/vmunix	namelist
-.br
-/dev/kmem	default source of tables
+system is under heavy load;
+it ends with the swap usage of
+.BR \-s .
+.SH DIAGNOSTICS
+.B pstat
+exits with status 1 and prints
+.RI `` "pstat: view: reason" ''
+when a
+.IR sysctl (3)
+call fails, as in
+.RB `` "pstat: files: Operation not permitted" ''
+for a caller other than the super-user.
 .SH SEE ALSO
 iostat(1),
 ps(1),
 systat(1),
 vmstat(1),
+sysctl(3),
 stat(2),
 fs(5),
 .br

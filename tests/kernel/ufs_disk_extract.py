@@ -5,7 +5,7 @@ boot ROM, so neither links into a host binary whole. The gate takes the text
 of the routines it tests from the owning file, the way swap_ioctl_extract.py
 takes the temporary-swap provider:
 
-  conf   isdisk, chrtoblk, iskmemdev and blkoverlap from
+  conf   isdisk, chrtoblk, iskmemdev, blkdev_same_unit and blkoverlap from
          sys/arch/rp2040/rp2040/conf.c
   flash  the partition state (NPARTITIONS through fldrives), flopen, flclose
          and flioctl from sys/arch/rp2040/dev/flash.c
@@ -31,6 +31,7 @@ CONF_FUNCTIONS = (
     ("iskmemdev", "int\niskmemdev(dev_t dev)"),
     ("isdisk", "int\nisdisk(dev_t dev, int type)"),
     ("chrtoblk", "int\nchrtoblk(dev_t dev __unused)"),
+    ("blkdev_same_unit", "int\nblkdev_same_unit(dev_t a, dev_t b)"),
     ("blkoverlap", "int\nblkoverlap(dev_t a, dev_t b)"),
 )
 
@@ -46,11 +47,11 @@ FLASH_STATE_START = "#define\tNPARTITIONS\tFLASH_PARTITION_COUNT\n"
 FLASH_STATE_END = "static struct fldisk fldrives[NFL];\n"
 
 FLASH_FUNCTIONS = (
-    ("flopen", "int\nflopen(dev_t dev, int flags __unused, int mode __unused)"),
-    ("flclose", "int\nflclose(dev_t dev, int mode __unused, int flag __unused)"),
+    ("flopen", "int\nflopen(dev_t dev, int flags, int mode __unused)"),
+    ("flclose", "int\nflclose(dev_t dev, int flag __unused, int mode __unused)"),
     (
         "flioctl",
-        "int\nflioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)",
+        "int\nflioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)",
     ),
 )
 
@@ -122,13 +123,18 @@ def extract_flash(source_path: Path, header_path: Path) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("kind", choices=("conf", "flash"))
+    parser.add_argument("kind", choices=("conf", "flash", "unit"))
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--header", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
     if arguments.kind == "conf":
         text = extract_conf(arguments.source)
+    elif arguments.kind == "unit":
+        data = arguments.source.read_bytes()
+        text = banner(arguments.source, data) + extract_function(
+            data.decode(), "int\nblkdev_same_unit(dev_t a, dev_t b)", "blkdev_same_unit"
+        ) + "\n"
     else:
         if arguments.header is None:
             raise SystemExit("flash extraction needs --header")

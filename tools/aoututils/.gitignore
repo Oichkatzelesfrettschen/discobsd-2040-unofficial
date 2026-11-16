@@ -1,0 +1,2 @@
+# Dependency files the compiler writes beside each object.
+*.d

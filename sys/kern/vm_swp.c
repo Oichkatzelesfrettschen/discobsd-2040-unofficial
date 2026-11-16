@@ -11,9 +11,10 @@
 #include <sys/systm.h>
 #include <sys/vm.h>
 #include <sys/uio.h>
+#include <sys/map.h>
 
-void
-swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr, int count,
+int
+swap_with_buf_result (struct buf *bp, size_t blkno, size_t coreaddr, int count,
     int rdflg)
 {
     int s, transfer_count;
@@ -28,6 +29,17 @@ swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr, int count,
 #endif
     while (count) {
         transfer_count = count;
+        /*
+         * An image extent on a ring swap map may pass the last block and
+         * continue at the first one (struct map, sys/map.h).  The transfer
+         * ends at the last block and resumes at the folded address.
+         */
+        if (swapmap->m_ring_end != 0) {
+            if (blkno >= swapmap->m_ring_end)
+                blkno -= swapmap->m_ring_end - swapmap->m_ring_first;
+            if ((size_t) btod (transfer_count) > swapmap->m_ring_end - blkno)
+                transfer_count = (swapmap->m_ring_end - blkno) << DEV_BSHIFT;
+        }
         bp->b_flags = B_BUSY | B_PHYS | B_INVAL | rdflg;
         bp->b_dev = swapdev;
         bp->b_bcount = transfer_count;
@@ -39,11 +51,20 @@ swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr, int count,
             sleep ((caddr_t)bp, PSWP);
         splx (s);
         if ((bp->b_flags & B_ERROR) || bp->b_resid)
-            panic ("hard err: swap");
+            return -1;
         count -= transfer_count;
         coreaddr += transfer_count;
         blkno += btod (transfer_count);
     }
+    return 0;
+}
+
+void
+swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr, int count,
+    int rdflg)
+{
+    if (swap_with_buf_result (bp, blkno, coreaddr, count, rdflg) != 0)
+        panic ("hard err: swap");
 }
 
 /*
@@ -94,12 +115,8 @@ swap (size_t blkno, size_t coreaddr, int count, int rdflg)
  * months with it ifdef'd out.  9/91-sms
  */
 int
-physio(strat, bp, dev, rw, uio)
-    void (*strat) (struct buf*);
-    register struct buf *bp;
-    dev_t dev;
-    int rw;
-    register struct uio *uio;
+physio(void (*strat)(struct buf *), register struct buf *bp, dev_t dev,
+    int rw, register struct uio *uio)
 {
     int error = 0, s, c, allocbuf = 0;
     register struct iovec *iov;
@@ -171,10 +188,7 @@ physio(strat, bp, dev, rw, uio)
 }
 
 int
-rawrw (dev, uio, flag)
-    dev_t dev;
-    register struct uio *uio;
-    int flag __unused;
+rawrw (dev_t dev, register struct uio *uio, int flag __unused)
 {
     return (physio(cdevsw[major(dev)].d_strategy, (struct buf *)NULL, dev,
         uio->uio_rw == UIO_READ ? B_READ : B_WRITE, uio));

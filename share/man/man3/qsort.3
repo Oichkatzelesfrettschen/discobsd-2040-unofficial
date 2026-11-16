@@ -4,19 +4,23 @@
 .\"
 .\"	@(#)qsort.3	6.1 (Berkeley) 5/15/85
 .\"
-.TH QSORT 3  "May 15, 1985"
+.TH QSORT 3 "November 12, 2026"
 .UC 4
 .SH NAME
-qsort \- quicker sort
+qsort, qsort_r \- sort an array of records
 .SH SYNOPSIS
 .nf
-.B qsort(base, nel, width, compar)
-.B char *base;
-.B int (*compar)();
+.B #include <stdlib.h>
+.PP
+.B void qsort(void *base, size_t nel, size_t width,
+.B "    int (*compar)(const void *, const void *));"
+.PP
+.B void qsort_r(void *base, size_t nel, size_t width,
+.B "    int (*compar)(const void *, const void *, void *), void *arg);"
 .fi
 .SH DESCRIPTION
 .I Qsort
-is an implementation of the quicker-sort algorithm.
+sorts an array in place.
 The first argument is a pointer to the base of the data;
 the second is the number of elements;
 the third is the width of an element in bytes;
@@ -26,5 +30,30 @@ to the elements being compared.
 The routine must return an integer less than, equal to, or greater than 0
 according as the first argument is to be considered
 less than, equal to, or greater than the second.
+.PP
+.I Qsort_r
+passes
+.I arg
+unchanged as the third argument to each comparison.
+Its declaration is available by default and when
+.B _POSIX_C_SOURCE
+is at least 202405L or
+.B _XOPEN_SOURCE
+is at least 800.
+.PP
+The comparison routine defines a consistent ordering and leaves record
+contents unchanged.
+The sort preserves every record's bytes and multiplicity.
+The relative order of records that compare equal is unspecified.
+An array with zero elements causes neither comparisons nor rearrangement.
+Comparison routines can sort separate arrays recursively; each call retains
+its own comparator, element width and context.
+.SH "RETURN VALUE"
+These functions return no value.
+.SH STANDARDS
+.I Qsort
+implements the ISO C17 sorting interface.
+.I Qsort_r
+uses the POSIX.1-2024 context-last signature.
 .SH "SEE ALSO"
 sort(1)

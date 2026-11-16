@@ -6,8 +6,8 @@ include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS          += -Wall
 
-SRCS		= init.c
-OBJS		= init.o
+SRCS		= init.c daemons.c
+OBJS		= init.o daemons.o
 MAN		= init.0
 MANSRC		= init.8
 

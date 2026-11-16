@@ -43,6 +43,6 @@ sdio_probe(struct conf_ctlr *config)
     return (1);
 }
 
-struct driver sdiodriver = {
+struct controller_driver sdiodriver = {
     "sdio", sdio_probe,
 };

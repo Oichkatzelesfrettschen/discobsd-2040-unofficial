@@ -391,7 +391,7 @@ copylet(n, f, type)
         break;
 
     case FORWARD:
-        fprintf(f, forwmsg);
+        fputs(forwmsg, f);
         break;
 
     case ORDINARY:
@@ -429,6 +429,7 @@ bulkmail(argc, argv)
 int argc;
 char **argv;
 {
+    time_t now;
     char *truename;
     int first;
     register char *cp;
@@ -501,8 +502,8 @@ char **argv;
         usage();
     if (truename == 0)
         truename = my_name;
-    time(&iop);
-    fprintf(tmpf, "%s%s %s", from, truename, ctime(&iop));
+    now = time((time_t *)0);
+    fprintf(tmpf, "%s%s %s", from, truename, ctime(&now));
     iop = ftell(tmpf);
     flgf = first = 1;
     for (;;) {
@@ -552,7 +553,7 @@ char *name;
 {
     FILE *rmf, *popen();
     register char *p;
-    char rsys[64], cmd[64];
+    char rsys[64], cmd[256];
     register int pid;
     int sts;
 
@@ -578,9 +579,9 @@ skip:
     }
     setuid(getuid());
     if (any('!', name+1))
-        (void)sprintf(cmd, "uux - %s!rmail \\(%s\\)", rsys, name+1);
+        (void)snprintf(cmd, sizeof cmd, "uux - %s!rmail \\(%s\\)", rsys, name+1);
     else
-        (void)sprintf(cmd, "uux - %s!rmail %s", rsys, name+1);
+        (void)snprintf(cmd, sizeof cmd, "uux - %s!rmail %s", rsys, name+1);
     if ((rmf=popen(cmd, "w")) == NULL)
         exit(1);
     copylet(n, rmf, REMOTE);

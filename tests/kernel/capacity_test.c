@@ -87,6 +87,25 @@ check_initial(const struct kernel_capacity_stats *stats)
 }
 
 static void
+exercise_invalid_kinds(void)
+{
+	struct kernel_capacity_stats before;
+	const struct kernel_capacity_stats *after;
+	const unsigned char *expected;
+	const unsigned char *observed;
+	unsigned index;
+
+	before = *capacity_snapshot();
+	capacity_note(CAPACITY_KIND_COUNT, 1);
+	capacity_note((enum capacity_kind)-1, 1);
+	after = capacity_snapshot();
+	expected = (const unsigned char *)&before;
+	observed = (const unsigned char *)after;
+	for (index = 0; index < sizeof(before); index++)
+		HK_CHECK(observed[index] == expected[index]);
+}
+
+static void
 exercise_tables(void)
 {
 	const struct kernel_capacity_stats *stats;
@@ -183,6 +202,7 @@ main(void)
 	capacity_init();
 	stats = capacity_snapshot();
 	check_initial(stats);
+	exercise_invalid_kinds();
 	exercise_tables();
 	exercise_stack();
 	hk_note("  limits: proc=%d inode=%d file=%d clist=%d buffer=%d usize=%d",

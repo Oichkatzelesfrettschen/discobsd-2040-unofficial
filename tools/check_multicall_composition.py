@@ -16,7 +16,14 @@ class CompositionError(ValueError):
 
 
 ARCHIVE_MEMBER_PATTERN = re.compile(r"(?:^|[\s/])libc\.a\(([^()\s]+)\)")
-NON_MULTICALL_LINK_TARGETS = {"/usr/bin/compress", "/usr/bin/stevie"}
+# A link target here names one program under a second path: compress and
+# stevie answer to their aliases, and /usr/sbin/update keeps a hard link
+# inside the /var/update chroot that init execs it from (sbin/init/init.8).
+NON_MULTICALL_LINK_TARGETS = {
+    "/usr/bin/compress",
+    "/usr/bin/stevie",
+    "/usr/sbin/update",
+}
 
 
 def load_json(path):

@@ -1,0 +1,16 @@
+PASS narrow gettimeofday returns 0
+PASS narrow struct timeval is 8 bytes
+PASS narrow call wrote 8 bytes only
+PASS narrow seconds have bit 31 set
+PASS narrow seconds read as after 2038
+PASS narrow microseconds
+PASS narrow time() returns the seconds
+PASS narrow time() stores the seconds
+PASS wide struct timeval is 16 bytes
+PASS wide time_t is 8 bytes
+PASS wide gettimeofday returns 0
+PASS wide seconds equal the narrow seconds zero-extended
+PASS wide seconds are positive
+PASS wide microseconds equal the narrow ones
+PASS wide call wrote 16 bytes only
+PASS wide time() returns and stores the same count

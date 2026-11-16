@@ -203,6 +203,14 @@ blkatoff(struct inode *ip, off_t offset, char **res)
     daddr_t bn;
     char *junk;
 
+#ifdef V7FS
+    if (FS_ISV7(INODE_FILESYSTEM(ip))) {
+        bp = v7_dirread(ip, lbn);
+        if (bp && res)
+            *res = (caddr_t) bp->b_addr + (u_int)blkoff(offset);
+        return (bp);
+    }
+#endif
     bn = bmap(ip, lbn, B_READ, 0);
     if (u.u_error)
         return (0);
@@ -348,6 +356,9 @@ namei_at(register struct nameidata *ndp, int dirfd)
     int isdotdot;               /* != 0 if current name is ".." */
     int flag;                   /* op ie, LOOKUP, CREATE, or DELETE */
     off_t enduseful;            /* pointer past last used dir slot */
+#ifdef V7FS
+    daddr_t linkbn;             /* first block of a symbolic link */
+#endif
     char    path[MAXPATHLEN];   /* current path */
 
     lockparent = ndp->ni_nameiop & LOCKPARENT;
@@ -613,6 +624,14 @@ dirloop2:
      * case it doesn't already exist.
      */
     slotstatus = FOUND;
+#ifdef V7FS
+    /* A V7 entry holds 14 name bytes; V7 itself truncated in silence. */
+    if (flag == CREATE && *cp == 0 && FS_ISV7(INODE_FILESYSTEM(dp)) &&
+        ndp->ni_dent.d_namlen > 14) {
+        u.u_error = ENAMETOOLONG;
+        goto bad;
+    }
+#endif
     if (flag == CREATE && *cp == 0) {
         slotstatus = NONE;
         slotfreespace = 0;
@@ -700,7 +719,7 @@ searchloop:
             int size = ep->d_reclen;
 
             if (ep->d_ino != 0)
-                size -= DIRSIZ(ep);
+                size -= DIRFOOT(dp, ep);
             if (size > 0) {
                 if (size >= slotneeded) {
                     slotstatus = FOUND;
@@ -1050,7 +1069,13 @@ haveino:
             goto bad2;
         }
 
+#ifdef V7FS
+        linkbn = bmap(dp, (daddr_t)0, B_READ, 0);
+        bp = bread(INODE_DEVICE(dp),
+            FSBTODB(INODE_FILESYSTEM(dp), linkbn));
+#else
         bp = bread(INODE_DEVICE(dp), bmap(dp, (daddr_t)0, B_READ, 0));
+#endif
         if (bp->b_flags & B_ERROR) {
             brelse(bp);
             bp = NULL;
@@ -1061,7 +1086,7 @@ haveino:
          * copy link path into the first part of the buffer.
          */
         bcopy(cp, path + (u_int)dp->i_size, pathlen);
-        bcopy(bp->b_addr, path, (u_int)dp->i_size);
+        bcopy(NAMEI_LINKADDR(dp, bp, linkbn), path, (u_int)dp->i_size);
         brelse(bp);
         bp = NULL;
         cp = path;
@@ -1225,7 +1250,7 @@ direnter(struct inode *ip, register struct nameidata *ndp)
         ep = (struct direct *)((char *)ep + dsize);
     }
     bcopy((caddr_t)&ndp->ni_dent, (caddr_t)ep, (u_int)newentrysize);
-    error = bwrite(bp);
+    error = DIRBWRITE(dp, bp, ndp->ni_offset);
     if (error == 0) {
         dp->i_flag |= IUPD|ICHG;
         if (ndp->ni_endoff && ndp->ni_endoff < dp->i_size)
@@ -1271,7 +1296,7 @@ dirremove(register struct nameidata *ndp)
         if (bp == 0)
             return (0);
         ep->d_reclen += ndp->ni_dent.d_reclen;
-        error = bwrite(bp);
+        error = DIRBWRITE(dp, bp, ndp->ni_offset - ndp->ni_count);
     }
     if (error) {
         u.u_error = error;

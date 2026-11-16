@@ -53,10 +53,10 @@
       "id": "incore-inode-exhaustion",
       "resources": ["NINODE"],
       "obligations": ["exhaustion", "recovery"],
-      "fixture": "sys/kern/ufs_inode.c",
+      "fixture": "tests/rp2040/capacity_exhaustion/inotab.c",
       "execution_class": "board",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/board-capacity-exhaustion-1e986446.txt",
       "dependencies": ["stream-file-pressure"],
       "expected": "Distinct live in-core inode identities fill the table and increment only the inode failure counter.",
       "recovery": "Released identities permit a subsequent iget allocation."
@@ -89,9 +89,9 @@
       "id": "buffer-all-busy",
       "resources": ["NBUF"],
       "obligations": ["exhaustion", "recovery", "writeback"],
-      "fixture": "sys/kern/ufs_bio.c",
+      "fixture": "tests/kernel/buffer_busy_test.c",
       "execution_class": "host",
-      "receipt_state": "open",
+      "receipt_state": "executable",
       "receipt": null,
       "dependencies": ["capacity-counter-exact-source"],
       "expected": "A deterministic seam distinguishes B_BUSY occupancy from delayed writes and increments pressure when all buffers are busy.",
@@ -115,8 +115,8 @@
       "obligations": ["signal", "context-switch", "recovery"],
       "fixture": "tests/rp2040/sigtest/sigtest.c",
       "execution_class": "board",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/board-capacity-cases-a9970f3d.txt",
       "dependencies": ["stdio-board-workload"],
       "expected": "The signal fixture reports its success marker, zero status, aligned frame and preserved registers.",
       "recovery": "The interrupted path returns and a subsequent capacity snapshot succeeds."
@@ -139,8 +139,8 @@
       "obligations": ["swapram", "context-switch", "recovery"],
       "fixture": "tests/rp2040/swapram_evacuate/evactest.c",
       "execution_class": "board",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/board-capacity-cases-a9970f3d.txt",
       "dependencies": ["exec-spool-fallback"],
       "expected": "Patterned data, stack and u-area bytes survive SwapRAM evacuation to raw swap.",
       "recovery": "Every child returns with its pattern intact and the pool accepts later work."
@@ -161,10 +161,10 @@
       "id": "buffer-cache-board-pressure",
       "resources": ["NBUF", "NINODE", "NFILE", "NPROC", "USIZE"],
       "obligations": ["normal", "writeback", "context-switch", "recovery"],
-      "fixture": "tests/rp2040/cache_footprint/README.md",
+      "fixture": "tests/rp2040/capacity_cases/board_capacity_cases.py",
       "execution_class": "board",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/board-capacity-cases-a9970f3d.txt",
       "dependencies": ["buffer-all-busy", "exec-spool-fallback", "signal-frame-recovery"],
       "expected": "Parallel find, du and tar complete with checksums, synchronized storage and zero unexpected capacity failures.",
       "recovery": "Reboot, fsck, free-block accounting and a final shell command succeed."
@@ -223,8 +223,8 @@
       "obligations": ["normal", "exhaustion", "recovery"],
       "fixture": "tests/rp2040/capacity_exhaustion/proctab.c",
       "execution_class": "renode",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/renode-capacity-exhaustion-d76edd1a.txt",
       "dependencies": ["capacity-counter-exact-source"],
       "expected": "A bounded cooperating workload fills the emulated process table and increments only the process failure counter.",
       "recovery": "Every child exits and is reaped before a subsequent creation succeeds."
@@ -233,10 +233,10 @@
       "id": "incore-inode-renode-exhaustion",
       "resources": ["NINODE"],
       "obligations": ["normal", "exhaustion", "recovery"],
-      "fixture": "sys/kern/ufs_inode.c",
+      "fixture": "tests/rp2040/capacity_exhaustion/inotab.c",
       "execution_class": "renode",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/renode-capacity-exhaustion-083b35c3.txt",
       "dependencies": ["capacity-counter-exact-source"],
       "expected": "Distinct emulated in-core inode identities fill the table and increment only the inode failure counter.",
       "recovery": "Released identities permit a subsequent iget allocation."
@@ -247,35 +247,35 @@
       "obligations": ["normal", "exhaustion", "recovery"],
       "fixture": "tests/rp2040/capacity_exhaustion/filetab.c",
       "execution_class": "renode",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/renode-capacity-exhaustion-d76edd1a.txt",
       "dependencies": ["capacity-counter-exact-source"],
       "expected": "Cooperating holders fill the emulated system file table and increment only the file failure counter.",
       "recovery": "Closing holders permits a subsequent falloc allocation."
     },
     {
-      "id": "clist-pool-renode-exhaustion",
+      "id": "clist-pool-renode-bound",
       "resources": ["NCLIST"],
-      "obligations": ["normal", "exhaustion", "recovery"],
-      "fixture": "tests/kernel/clist_test.c",
+      "obligations": ["normal", "bound", "recovery"],
+      "fixture": "tests/rp2040/capacity_exhaustion/clistbound.c",
       "execution_class": "renode",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/renode-capacity-bounds-9809ec65.txt",
       "dependencies": ["capacity-counter-exact-source"],
-      "expected": "Emulated terminal traffic fills the clist pool and attributes refusal to the clist counter.",
-      "recovery": "Draining the queue preserves byte order and permits a subsequent terminal write."
+      "expected": "With output stopped and a writer blocked at the high-water mark, input typed past TTYHOG is echoed and answered with bells on the stopped queue; the pool records its peak and refuses no block, the bound sys/kern/tty.c asserts for the one live terminal the emulated image has.",
+      "recovery": "Restarting output delivers every writer line once and in order, and the clist failure counter is unchanged."
     },
     {
-      "id": "buffer-cache-renode-exhaustion",
+      "id": "buffer-cache-renode-bound",
       "resources": ["NBUF"],
-      "obligations": ["normal", "exhaustion", "writeback", "recovery"],
-      "fixture": "sys/kern/ufs_bio.c",
+      "obligations": ["normal", "bound", "recovery"],
+      "fixture": "tools/renode/check-capacity.py",
       "execution_class": "renode",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/renode-capacity-bounds-9809ec65.txt",
       "dependencies": ["capacity-counter-exact-source"],
-      "expected": "An emulated workload holds every buffer busy, attributes the wait and preserves delayed-write data.",
-      "recovery": "Releasing one buffer wakes the waiter, completes writeback and permits a subsequent allocation."
+      "expected": "The table-exhaustion programs and clistbound drive file-system and swap traffic; every buffer is busy at once, a peak equal to NBUF, and no getblk() waits.",
+      "recovery": "The buffer failure counter is unchanged across the run, and every program exits 0."
     },
     {
       "id": "uarea-renode-paths",
@@ -283,8 +283,8 @@
       "obligations": ["normal", "signal", "deliberate-fault", "swapram", "context-switch", "geometry", "recovery"],
       "fixture": "tools/renode/check-boot.py",
       "execution_class": "renode",
-      "receipt_state": "open",
-      "receipt": null,
+      "receipt_state": "retained",
+      "receipt": "docs/research/renode-uarea-paths-9809ec65.txt",
       "dependencies": ["mpu-deliberate-fault", "uarea-exchange-geometry"],
       "expected": "The bounded emulator workload drives signal, fault, SwapRAM and context-switch paths while sampling the complete u-area geometry.",
       "recovery": "Every injected path returns to an answering shell with an unsaturated final capacity snapshot."
@@ -293,9 +293,9 @@
   "decisions": [
     {
       "resource": "NPROC",
-      "active_value": 25,
+      "active_value": 16,
       "state": "retain",
-      "greatest_observed_peak": 8,
+      "greatest_observed_peak": 10,
       "reserve_rule": "Require the full corpus, attributed process exhaustion, successful reap and subsequent creation, plus Renode and board receipts before any decrement.",
       "deciding_cases": ["capacity-counter-exact-source", "stdio-board-workload", "process-table-exhaustion", "swapram-evacuation", "process-table-renode-exhaustion"]
     },
@@ -309,7 +309,7 @@
     },
     {
       "resource": "NFILE",
-      "active_value": 24,
+      "active_value": 18,
       "state": "retain",
       "greatest_observed_peak": 15,
       "reserve_rule": "Require system-table attribution distinct from a per-process descriptor refusal, close/reopen recovery and a positive reserve.",
@@ -321,7 +321,7 @@
       "state": "retain",
       "greatest_observed_peak": 22,
       "reserve_rule": "Require putc and b_to_q exhaustion, byte-order recovery, bounded physical terminal traffic and a positive measured reserve.",
-      "deciding_cases": ["capacity-counter-exact-source", "stdio-board-workload", "clist-pool-exhaustion", "clist-pool-board-exhaustion", "clist-pool-renode-exhaustion"]
+      "deciding_cases": ["capacity-counter-exact-source", "stdio-board-workload", "clist-pool-exhaustion", "clist-pool-board-exhaustion", "clist-pool-renode-bound"]
     },
     {
       "resource": "NBUF",
@@ -329,7 +329,7 @@
       "state": "retain",
       "greatest_observed_peak": 3,
       "reserve_rule": "Preserve exec-spool and packed-decoder lifetimes; require all-busy attribution, delayed-write recovery and zero unexpected waits in Renode and board runs.",
-      "deciding_cases": ["capacity-counter-exact-source", "buffer-all-busy", "exec-spool-fallback", "buffer-cache-board-pressure", "buffer-cache-board-exhaustion", "buffer-cache-renode-exhaustion"]
+      "deciding_cases": ["capacity-counter-exact-source", "buffer-all-busy", "exec-spool-fallback", "buffer-cache-board-pressure", "buffer-cache-board-exhaustion", "buffer-cache-renode-bound"]
     },
     {
       "resource": "USIZE",

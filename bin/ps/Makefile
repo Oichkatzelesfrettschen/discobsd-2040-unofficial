@@ -1,13 +1,11 @@
 TOPSRC!=cd ../..; pwd
-# -Wall -Wextra raises 18 distinct sites in this directory, so the fatal set
-# stays at the groups CFLAGS names until they are repaired.
-WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
-# Must run set-group-id kmem.
+# ps reads the kernel's process records through sysctl(3) and needs no
+# privilege.
 
 BINDIR=		/bin
-BINMODE=	2751
+BINMODE=	755
 
 PROG=		ps
 

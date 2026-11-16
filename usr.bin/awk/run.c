@@ -607,7 +607,7 @@ obj split(a,nnn) node **a;
 	obj x;
 	cell *ap;
 	register char *s, *p;
-	char *t, temp, num[5];
+	char *t, temp, num[12];
 	register int sep;
 	int n, flag;
 

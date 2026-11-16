@@ -1,7 +1,7 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS		+= -Wall -Wno-format -I. -I../ar
+CFLAGS		+= -Wall -I. -I../ar
 
 SRCS            = ../ar/archive.c ranlib.c
 OBJS            = archive.o ranlib.o

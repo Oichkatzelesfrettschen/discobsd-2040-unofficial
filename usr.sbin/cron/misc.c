@@ -247,14 +247,14 @@ acquire_daemonlock(closeflag)
 
 	if (!fp) {
 		char	pidfile[MAX_FNAME];
-		char	buf[MAX_TEMPSTR];
+		char	buf[MAX_TEMPSTR + MAX_FNAME];
 		int	fd, otherpid;
 
 		(void) sprintf(pidfile, PIDFILE, PIDDIR);
 		if ((-1 == (fd = open(pidfile, O_RDWR|O_CREAT, 0644)))
 		    || (NULL == (fp = fdopen(fd, "r+")))
 		    ) {
-			sprintf(buf, "can't open or create %s: %s",
+			snprintf(buf, sizeof buf, "can't open or create %s: %s",
 				pidfile, strerror(errno));
 			fprintf(stderr, "%s: %s\n", ProgramName, buf);
 			log_it("CRON", getpid(), "DEATH", buf);
@@ -265,7 +265,7 @@ acquire_daemonlock(closeflag)
 			int save_errno = errno;
 
 			fscanf(fp, "%d", &otherpid);
-			sprintf(buf, "can't lock %s, otherpid may be %d: %s",
+			snprintf(buf, sizeof buf, "can't lock %s, otherpid may be %d: %s",
 				pidfile, otherpid, strerror(save_errno));
 			fprintf(stderr, "%s: %s\n", ProgramName, buf);
 			log_it("CRON", getpid(), "DEATH", buf);

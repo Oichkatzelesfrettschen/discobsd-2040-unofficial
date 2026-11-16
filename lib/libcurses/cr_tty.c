@@ -9,7 +9,7 @@
 #include <term.h>
 #include <string.h>
 
-static bool	*sflags[] = {
+static int	*sflags[] = {
 			&AM, &BS, &DA, &DB, &EO, &HC, &HZ, &IN, &MI,
 			&MS, &NC, &NS, &OS, &UL, &XB, &XN, &XT, &XS,
 			&XX
@@ -69,7 +69,7 @@ static void
 zap()
 {
 	register char	*namp;
-	register bool	**fp;
+	register int	**fp;
 	register char	***sp;
 #ifdef	DEBUG
 	register char	*cp;

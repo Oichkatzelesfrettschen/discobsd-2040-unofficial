@@ -15,10 +15,7 @@
 #include <machine/frame.h>
 
 int
-readp (fp, uio, flag)
-    register struct file *fp;
-    register struct uio *uio;
-    int flag;
+readp (register struct file *fp, register struct uio *uio, int flag)
 {
     register struct inode *ip;
     int error;
@@ -70,10 +67,7 @@ loop:
 }
 
 int
-writep (fp, uio, flag)
-    struct file *fp;
-    register struct uio *uio;
-    int flag;
+writep (struct file *fp, register struct uio *uio, int flag)
 {
     register struct inode *ip;
     register int c;
@@ -139,20 +133,22 @@ done:       IUNLOCK(ip);
 }
 
 int
-pipe_rw (fp, uio, flag)
-    register struct file *fp;
-    register struct uio *uio;
-    int flag;
+pipe_rw (register struct file *fp, register struct uio *uio)
 {
+    int flag = fp->f_flag & FNONBLOCK ? IO_NDELAY : 0;
+
     if (uio->uio_rw == UIO_READ)
         return (readp(fp, uio, flag));
+    /* Pipes manage their own offsets; append is not an inode I/O flag here. */
+    if ((fp->f_flag & FFSYNC) ||
+        (INODE_FILESYSTEM((struct inode *)fp->f_data)->fs_flags &
+        MNT_SYNCHRONOUS))
+        flag |= IO_SYNC;
     return (writep(fp, uio, flag));
 }
 
 int
-pipe_select (fp, which)
-    struct file *fp;
-    int which;
+pipe_select (struct file *fp, int which)
 {
     register struct inode *ip = (struct inode *)fp->f_data;
     register struct proc *p;
@@ -201,8 +197,7 @@ pipe_select (fp, which)
  * to the select wakeup processing.
  */
 int
-pipe_close(fp)
-    struct  file *fp;
+pipe_close(struct file *fp)
 {
     register struct inode *ip = (struct inode *)fp->f_data;
 

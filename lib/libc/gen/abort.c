@@ -44,7 +44,8 @@ abort()
 	 * don't block SIGABRT to give any handler a chance; we ignore
 	 * any errors -- X311J doesn't allow abort to return anyway.
 	 */
-	(void)sigdelset(&mask, SIGABRT);
+	_Static_assert(SIGABRT > 0 && SIGABRT < NSIG, "SIGABRT domain");
+	mask &= ~((sigset_t)1 << (SIGABRT - 1));
 	(void)sigprocmask(SIG_SETMASK, &mask, (sigset_t *)NULL);
 	(void)kill(getpid(), SIGABRT);
 

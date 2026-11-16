@@ -100,9 +100,13 @@ minor 2
 bdev /dev/mr0
 major 3             # Volatile disk - MRAM on SPI port (mrams)
 minor 0
+# /dev/swap, /dev/mem and /dev/kmem belong to group 2 (kmem) with mode
+# 0640; ps reads process records through sysctl(3), not these devices.
 bdev /dev/swap
 major 4             # Virtual swap device, mapped to real swap partition
 minor 64
+mode 0640
+group 2
 bdev /dev/swap0
 major 4
 minor 0
@@ -125,9 +129,13 @@ minor 0
 cdev /dev/mem
 major 1
 minor 0
+mode 0640
+group 2
 cdev /dev/kmem
 major 1
 minor 1
+mode 0640
+group 2
 cdev /dev/null
 major 1
 minor 2
@@ -478,7 +486,6 @@ file /usr/bin/find
 file /usr/bin/fold
 file /usr/bin/forth
 file /usr/bin/fstat
-mode 02755
 file /usr/bin/grep
 file /usr/bin/groups
 file /usr/bin/head
@@ -487,7 +494,6 @@ file /bin/hostname
 file /usr/bin/id
 file /usr/bin/install
 file /usr/sbin/iostat
-mode 02755
 file /usr/bin/join
 file /bin/kill
 file /usr/bin/la
@@ -522,7 +528,6 @@ file /usr/bin/pr
 file /usr/bin/printenv
 file /usr/bin/printf
 file /bin/ps
-mode 02755
 file /bin/pwd
 file /usr/bin/ranlib
 file /usr/bin/re
@@ -581,7 +586,6 @@ file /usr/bin/uux
 file /usr/bin/uuxqt
 file /usr/bin/vi
 file /usr/bin/vmstat
-mode 02755
 file /usr/bin/w
 file /usr/bin/wall
 mode 02755
@@ -639,7 +643,6 @@ file /sbin/mknod
 file /usr/sbin/mkpasswd
 file /sbin/mount
 file /usr/sbin/pstat
-mode 02755
 file /sbin/reboot
 file /sbin/shutdown
 mode 04750
@@ -794,7 +797,6 @@ file /usr/include/mtab.h
 file /usr/include/ndbm.h
 file /usr/include/nlist.h
 file /usr/include/paths.h
-file /usr/include/psout.h
 file /usr/include/pwd.h
 file /usr/include/ranlib.h
 file /usr/include/readline/history.h
@@ -856,6 +858,7 @@ file /usr/include/sys/syslimits.h
 file /usr/include/sys/syslog.h
 file /usr/include/sys/systm.h
 file /usr/include/sys/time.h
+file /usr/include/sys/timeb.h
 file /usr/include/sys/times.h
 file /usr/include/sys/ttychars.h
 file /usr/include/sys/ttydev.h
@@ -875,6 +878,7 @@ file /usr/include/time.h
 file /usr/include/ttyent.h
 file /usr/include/tzfile.h
 file /usr/include/unistd.h
+file /usr/include/utime.h
 file /usr/include/utmp.h
 file /usr/include/vmf.h
 

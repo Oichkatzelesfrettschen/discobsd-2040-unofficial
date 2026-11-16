@@ -1111,7 +1111,7 @@ fatal:      if (block_map)
     printf ("%d files %d blocks %d free\n",
         total_files, used_blocks, free_blocks);
     if (fs->modified) {
-        time (&fs->utime);
+        fs->utime = fs_clock ();
         fs->dirty = 1;
     }
     buf_flush (fs);

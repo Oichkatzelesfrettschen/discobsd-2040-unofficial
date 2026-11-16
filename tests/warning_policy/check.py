@@ -26,6 +26,15 @@ PROBES = {
         "unused-variable",
     ),
     "extra": ("int warning_probe(int unused_arg) { return 0; }\n", "unused-parameter"),
+    "shadow": (
+        "int marker; int warning_probe(int marker) { return marker; }\n",
+        "shadow",
+    ),
+    "format-nonliteral": (
+        'extern int warning_printf(const char *, ...) __attribute__((format(printf, 1, 2)));\n'
+        'int warning_probe(char *format) { return warning_printf(format, 1); }\n',
+        "format-nonliteral",
+    ),
     # An undefined identifier in #if is 0 (C17 6.10.1), so an unshimmed
     # BYTE_ORDER == BIG_ENDIAN is true on a little-endian target. -Wundef
     # is the diagnostic that names it; GCC and clang share this wording.
@@ -225,7 +234,23 @@ def main():
             if generated is None or generated.group().split() != expected.group().split():
                 raise RuntimeError(f"{directory}: warning policy differs from config template")
         for directory in KERNEL_ROUTES:
-            check_route(args.root, make, directory, [], ("fatal", "wall", "extra", "undef"))
+            check_route(args.root, make, directory, [],
+                        ("fatal", "wall", "extra", "shadow", "undef", "format-nonliteral"))
+        extra_flags = {"shadow": "-Wshadow", "undef": "-Wundef",
+                       "format-nonliteral": "-Wformat=2"}
+        for kind, omitted in extra_flags.items():
+            flags = ["-Wall", "-Wextra", "-Werror"] + [
+                flag for flag in extra_flags.values() if flag != omitted
+            ]
+            try:
+                check_route(args.root, make, KERNEL_ROUTES[0],
+                            ["CWARNFLAGS=" + " ".join(flags)], (kind,))
+            except RuntimeError as error:
+                if f"{kind} probe was not rejected" not in str(error):
+                    raise
+            else:
+                raise RuntimeError(f"missing {omitted} mutant unexpectedly passed")
+            print(f"PASS missing {omitted} mutant rejected")
     return 0
 
 

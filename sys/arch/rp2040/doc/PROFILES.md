@@ -113,7 +113,9 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 | `dc` | 21 | 1 | OpenBSD `dc` (18,644 bytes packed); PicoCalc only |
 | `calc-bignum` (`bc` + `dc`) | 60 | 3 | the three files above |
 | `calc` | 33 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
-| `sdcard` | 1 | 7 | `/mnt` and the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`; PicoCalc only |
+| `picofetch` | 14 | 1 | `/usr/bin/picofetch` (15,644 bytes before packing); PicoCalc profile |
+| `picotop` | 15 | 1 | `/usr/bin/picotop` (15,944 bytes before packing); PicoCalc profile |
+| `sdcard` | 11 | 8 | `/mnt`, the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`, and `/sbin/savecore` (9,141 bytes packed); PicoCalc only |
 | `lcdgfx` | 0 | 1 | the device node `/dev/lcdgfx` (character major 10, minor 1, mode 666); PicoCalc only |
 | `gamesdir` | 1 | 1 | `/usr/games` |
 | `games` group | 24 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall`, `coil` |
@@ -133,12 +135,23 @@ linked into itself and needs no `/usr/bin/dc`. The 60 blocks of the two
 together are one fewer than the sum of the rows (40 + 21), because entries
 that two closures add can share a directory block (inferred from the
 allocation unit, not traced block by block). The `sdcard` closure needs no
-other closure: its seven inodes are `/mnt` and six device nodes, and its one
-block is the `/mnt` directory. The closure rows (`coremark` 16, the toolchain
-with its library 133, `games` 24, `puzzles` beyond `games` 36, `calc-bignum`
-60, `calc` 33, `sdcard` 1) sum to 303, and the 8 blocks `ridge` adds inside
-the full set bring them to 311, four blocks more than the 307 of the image
-that holds every closure, for the same reason.
+other closure: its eight inodes are `/mnt`, six device nodes and
+`savecore`, and its eleven blocks are the `/mnt` directory and ten for
+`savecore`, whose 9,141 bytes fill nine (the tenth inferred to be a
+directory block, not traced). The base image measured 426 free blocks and
+40 free inodes alone and 415 and 32 with the closure on the tree that added
+`savecore`; the other closure rows were not measured again on that tree.
+Its profile images measured `base` 426 free blocks and 40 free inodes,
+`benchmark` 412 and 39, `games` 365 and 37, `developer` 292 and 33, `full`
+217 and 29, and `picocalc` 106 and 16, below the profile table, which
+predates them: `savecore` accounts for 10 blocks and 1 inode of the
+`picocalc` difference, and the rest comes from changes after the table was
+recorded, not attributed here. Before `savecore`, the closure rows
+(`coremark` 16, the toolchain with its library 133, `games` 24, `puzzles`
+beyond `games` 36, `calc-bignum` 60, `calc` 33, `sdcard` 1) summed to 303,
+and the 8 blocks `ridge` adds inside the full set brought them to 311, four
+blocks more than the 307 of the image that held every closure, for the same
+reason.
 
 The multicall members cost far less inside the full set than alone, because
 the binary, its directory and the libc linkage they share are paid once. The
@@ -191,7 +204,7 @@ the pack's unused blocks occupy no flash.
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's, including `puzzles` | 241 | 32 |
-| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx` and `ridge`, so also `puzzles` | 140 | 20 |
+| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch` and `picotop`, so also `puzzles` | 140 before the last two (90 and 14 with them, below) | 20 |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
@@ -205,6 +218,15 @@ inodes before `time` joined `utilbox` (446 afterwards), 447 and 42 with
 holds 148 free blocks and 20 free inodes when built with
 `IMAGE_WITHOUT=ridge`; the row reads 140 and 20 as shipped: `ridge` takes
 eight blocks and no inode, because its entry point is a hard link.
+
+`picofetch` and `picotop` joined the `picocalc` profile on a later tree, on
+which `base` measured 440 free blocks and 40 free inodes: 426 and 39 with
+`picofetch`, 425 and 39 with `picotop`, 411 and 38 with both. The `picocalc`
+image measured 119 free blocks and 16 free inodes with
+`IMAGE_WITHOUT="picofetch picotop"` and 90 and 14 as shipped, and `full`
+227 and 29. The profile table above predates that tree. Both programs run on
+every kernel, so `IMAGE_WITH="picofetch picotop"` adds them to another
+profile.
 
 `/usr/bin/time` is a hard link to `/usr/bin/utilbox`, a member of the base
 system. `utilbox` grows from 44,716 to 45,052 packed bytes (54,989 to 55,389

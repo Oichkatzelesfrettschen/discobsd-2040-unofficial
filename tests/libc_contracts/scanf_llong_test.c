@@ -53,6 +53,50 @@ check(int condition, const char *message)
 }
 
 /*
+ * The verdict line is built by hand: snprintf from the ARM C library pulls
+ * in that library's fflush, which collides with the stub above.
+ */
+static char *
+put_text(char *out, const char *text)
+{
+	while (*text != '\0')
+		*out++ = *text++;
+	return out;
+}
+
+static char *
+put_count(char *out, unsigned long value)
+{
+	char digits[24];
+	int count = 0;
+
+	do {
+		digits[count++] = (char)('0' + value % 10);
+		value /= 10;
+	} while (value != 0);
+	while (count > 0)
+		*out++ = digits[--count];
+	return out;
+}
+
+/* One verdict line per suite: the counts show the checks ran. */
+static int
+report(const char *suite)
+{
+	char line[96];
+	char *end = line;
+
+	end = put_text(end, suite);
+	end = put_text(end, failures == 0 ? ": pass, " : ": fail, ");
+	end = put_count(end, checks);
+	end = put_text(end, " checks, ");
+	end = put_count(end, (unsigned long)failures);
+	end = put_text(end, " failures\n");
+	(void)write(failures == 0 ? 1 : 2, line, (size_t)(end - line));
+	return failures != 0;
+}
+
+/*
  * A 64-bit destination between two words the scanner must not touch. A
  * store narrower than the destination leaves part of FILL in value, and
  * a store misplaced by a word changes a guard.
@@ -117,12 +161,7 @@ main(void)
 	check(r == 1 && iv == 42 && slot.value == FILL && intact(&slot),
 	    "%lln stores without its member");
 
-	if (failures == 0) {
-		(void)write(1, "scanf llong absent: pass\n", 25);
-		return 0;
-	}
-	(void)write(2, "scanf llong absent: fail\n", 25);
-	return 1;
+	return report("scanf llong absent");
 }
 
 #else /* !SCANF_LLONG_ABSENT */
@@ -412,12 +451,7 @@ main(void)
 	r = db_sscanf("ffffffffffffffff", "%" SCNxMAX, &ujv);
 	check(r == 1 && ujv == UINTMAX_MAX, "SCNxMAX does not scan a uintmax_t");
 
-	if (failures == 0) {
-		(void)write(1, "scanf llong contracts: pass\n", 28);
-		return 0;
-	}
-	(void)write(2, "scanf llong contracts: fail\n", 28);
-	return 1;
+	return report("scanf llong contracts");
 }
 
 #endif /* !SCANF_LLONG_ABSENT */

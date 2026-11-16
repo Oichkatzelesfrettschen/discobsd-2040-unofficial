@@ -109,7 +109,28 @@
  * for measuring what the cache saves, not a way to run.
  */
 #define	CPU_XIP_CACHE		39	/* int: XIP cache enabled */
-#define	CPU_MAXID		40	/* number of valid machdep ids */
+
+/*
+ * The flash image's identity, read-only. image_length and image_crc_stored
+ * are the words tools/kernsum stamped into vector entries 12 and 13;
+ * image_crc is the CRC32 the kernel computed over its own flash at boot,
+ * with the second stage, the PicoCalc UF2 loader's stamp span, the CRC
+ * word and the board descriptor read as zero. The two sums differ when a
+ * covered byte of the flash, any byte outside those spans, is not the
+ * byte the link produced; a change confined to the spans moves neither.
+ * image_length is zero for a kernel without the words.
+ */
+#define	CPU_IMAGE_LENGTH	40	/* int: flash image bytes */
+#define	CPU_IMAGE_CRC		41	/* int: CRC32 computed at boot */
+#define	CPU_IMAGE_CRC_STORED	42	/* int: CRC32 stamped at the link */
+/*
+ * The ADC readings of arch/rp2040/dev/adc.c, each one conversion per read:
+ * the die temperature in thousandths of a degree C from the typical sensor
+ * curve, and the Pico's VSYS in millivolts from GPIO29.
+ */
+#define	CPU_ADC_TEMP		43	/* int: die temperature, m degrees C */
+#define	CPU_ADC_VSYS		44	/* int: VSYS, millivolts */
+#define	CPU_MAXID		45	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -153,5 +174,10 @@
 	{ "bus_perfsel2", CTLTYPE_INT }, \
 	{ "bus_perfsel3", CTLTYPE_INT }, \
 	{ "xip_cache", CTLTYPE_INT }, \
+	{ "image_length", CTLTYPE_INT }, \
+	{ "image_crc", CTLTYPE_INT }, \
+	{ "image_crc_stored", CTLTYPE_INT }, \
+	{ "adc_temp_mc", CTLTYPE_INT }, \
+	{ "adc_vsys_mv", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

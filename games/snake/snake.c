@@ -437,7 +437,7 @@ logit(msg)
 char *msg;
 {
 	FILE *logfile;
-	long t;
+	time_t t;
 
 	if ((logfile=fopen(LOGFILE, "a")) != NULL) {
 		time(&t);
@@ -908,7 +908,7 @@ char **argv;
 	getcap();
 	ccnt -= 2; lcnt -= 2;	/* compensate for border */
 	busy();
-	time(&tv);
+	tv = time((time_t *)0);
 
 	for (i=1; i<argc; i++) {
 		switch(argv[i][1]) {

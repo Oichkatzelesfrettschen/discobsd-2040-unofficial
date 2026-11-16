@@ -4,6 +4,9 @@
  * Caveat:  this is V8 regexp(3) [actually, a reimplementation thereof],
  * not the System V one.
  */
+#ifndef _REGEXP_H_
+#define _REGEXP_H_
+
 #define NSUBEXP  10
 
 typedef struct regexp {
@@ -20,3 +23,5 @@ extern regexp *regcomp();
 extern int regexec();
 extern void regsub();
 extern void regerror();
+
+#endif

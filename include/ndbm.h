@@ -9,6 +9,11 @@
 /*
  * Hashed key data base library.
  */
+#ifndef _NDBM_H_
+#define _NDBM_H_
+
+#include <sys/types.h>
+
 #define PBLKSIZ             1024
 #define DBLKSIZ             1024
 
@@ -52,11 +57,13 @@ typedef struct {
 #define DBM_INSERT  0
 #define DBM_REPLACE 1
 
-DBM     *dbm_open();
-void    dbm_close();
-datum   dbm_fetch();
-datum   dbm_firstkey();
-datum   dbm_nextkey();
-long    dbm_forder();
-int     dbm_delete();
-int     dbm_store();
+DBM     *dbm_open(const char *, int, mode_t);
+void    dbm_close(DBM *);
+datum   dbm_fetch(DBM *, datum);
+datum   dbm_firstkey(DBM *);
+datum   dbm_nextkey(DBM *);
+long    dbm_forder(DBM *, datum);
+int     dbm_delete(DBM *, datum);
+int     dbm_store(DBM *, datum, datum, int);
+
+#endif /* _NDBM_H_ */

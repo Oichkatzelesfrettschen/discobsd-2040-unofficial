@@ -25,10 +25,9 @@ TREE=	-I. -I${.CURDIR} -I${GAMESRC} -I${TOPSRC}/include
 
 WARN=	-Wall -Wextra -Werror
 # -nostdinc keeps the checking side on the tree's declarations alone, the way
-# the cross compile reaches them, and leaves the builtin knowledge of exit()
-# in place so that _Noreturn on getout() is checked rather than disbelieved:
-# include/stdlib.h declares exit() without _Noreturn, and -fno-builtin would
-# make every path through getout() read as a return.
+# the cross compile reaches them.  include/stdlib.h declares exit() __dead,
+# so _Noreturn on getout() is checked against the declaration the cross
+# compile sees as well as against the builtin knowledge of exit().
 CFLAGS=	-std=gnu17 ${WARN} -nostdinc ${ILP32}
 
 # subs.c carries K&R definitions throughout. clang names that class

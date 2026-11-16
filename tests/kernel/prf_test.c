@@ -3,20 +3,9 @@
  *
  * Every console line and every panic message goes through this formatter,
  * which makes a defect here expensive twice over: a bad conversion in a
- * panic path faults while already faulting. It is also the one file in
- * sys/kern that cannot be tested at the host's natural width. prf() carries
- * its own argument walk,
- *
- *     #define va_arg(ap,type) *(type*) (void*) (ap++)
- *
- * over a u_int *, so it reads one four-byte slot per argument and advances by
- * one. printf() feeds it "&fmt + 1", the address just past its first
- * parameter. Both hold exactly where a pointer, a long and an int are four
- * bytes and arguments sit on the stack, which is the target and which is also
- * what "cc -m32" produces on an x86-64 host. At the host's own width a %s
- * would read four bytes of an eight-byte pointer and the walk would
- * desynchronise from there, so this gate builds through check-kernel-ilp32
- * rather than check-kernel.
+ * panic path faults while already faulting. The gate uses ILP32 so the
+ * formatted integer and pointer widths match the target. The compiler's
+ * variadic argument interface supplies each argument to prf().
  *
  * Nothing here is a virtual machine or a container. The binary is an
  * ordinary 32-bit userspace program running on the same kernel as the rest
@@ -49,6 +38,39 @@ static unsigned console_len;
 static char terminal[CAPTURE];
 static unsigned terminal_len;
 
+#ifdef LOG_ENABLED
+static void capture(char *buffer, unsigned *length, int character);
+static char log_buffer[CAPTURE];
+static unsigned log_length;
+static int log_open;
+static unsigned log_wakeups;
+
+int
+logwrt(char *buffer, int length, int unit)
+{
+	int index;
+
+	HK_CHECK(unit == 0);
+	for (index = 0; index < length; index++)
+		capture(log_buffer, &log_length, buffer[index]);
+	return length;
+}
+
+int
+logisopen(int unit)
+{
+	HK_CHECK(unit == 0);
+	return log_open;
+}
+
+void
+logwakeup(int unit)
+{
+	HK_CHECK(unit == 0);
+	log_wakeups++;
+}
+#endif
+
 /* What boot() was asked to do, since panic() ends there. */
 static int boot_calls;
 static dev_t boot_dev;
@@ -72,12 +94,22 @@ cnputc(char c)
 }
 
 /* The terminal path, which uprintf and tprintf reach instead. */
+static struct tty *terminal_tp;	/* the terminal ttyoutput() last wrote */
+static struct tty *console_tty;	/* what cntty() answers */
+
 int
 ttyoutput(int c, struct tty *tp)
 {
-	(void)tp;
+	terminal_tp = tp;
 	capture(terminal, &terminal_len, c);
 	return 0;
+}
+
+/* The terminal the console redirector forwards to (sys/dev/cons.c). */
+struct tty *
+cntty(void)
+{
+	return (console_tty);
 }
 
 void
@@ -114,10 +146,18 @@ reset(void)
 {
 	bzero((caddr_t)&u, sizeof u);
 	bzero((caddr_t)cnttys, sizeof cnttys);
+	terminal_tp = NULL;
+	console_tty = NULL;
 	console[0] = '\0';
 	console_len = 0;
 	terminal[0] = '\0';
 	terminal_len = 0;
+#ifdef LOG_ENABLED
+	log_buffer[0] = '\0';
+	log_length = 0;
+	log_open = 0;
+	log_wakeups = 0;
+#endif
 	boot_calls = 0;
 	boot_dev = 0;
 	boot_howto = 0;
@@ -140,8 +180,7 @@ expect(const char *file, int line, const char *want, const char *what)
 #define EXPECT(want, what)	expect(__FILE__, __LINE__, want, what)
 
 /*
- * The widths this formatter is asked for. A four-byte slot per argument is
- * the contract, so an int, a pointer and a long all have to come back whole.
+ * The formatter must preserve the value of each argument at target widths.
  */
 static void
 integer_conversions(void)
@@ -153,6 +192,10 @@ integer_conversions(void)
 	reset();
 	printf("%d %d %d", 0, 42, -42);
 	EXPECT("0 42 -42", "signed decimal");
+
+	reset();
+	printf("%d %s %u %x %ld", -7, "mixed", 19U, 42U, 123456L);
+	EXPECT("-7 mixed 19 2a 123456", "mixed variadic arguments");
 
 	reset();
 	printf("%u", (u_int)4294967295U);
@@ -168,7 +211,7 @@ integer_conversions(void)
 
 	reset();
 	printf("[%s]", "text");
-	EXPECT("[text]", "a string, which is a pointer through a four-byte slot");
+	EXPECT("[text]", "a string argument");
 
 	reset();
 	printf("%d%%", 50);
@@ -281,6 +324,54 @@ output_routing(void)
 	uprintf("to the user");
 	HK_CHECK(hk_streq(terminal, "to the user"));
 	HK_CHECK(console_len == 0);
+
+	reset();
+	cnttys[0].t_state = TS_CARR_ON | TS_ISOPEN;
+	u.u_ttyp = &cnttys[0];
+	uprintf("%d %s", 42, "terminal");
+	HK_CHECK(hk_streq(terminal, "42 terminal"));
+
+	reset();
+	cnttys[0].t_state = TS_CARR_ON | TS_ISOPEN;
+	tprintf(&cnttys[0], "%u %s", 23U, "message");
+	HK_CHECK(hk_streq(terminal, "23 message"));
+	HK_CHECK(console_len == 0);
+
+	/*
+	 * With no terminal named, tprintf writes to the one the console
+	 * forwards to, never to the redirector's idle cnttys slot; with no
+	 * such terminal the message reaches no terminal at all.
+	 */
+	{
+		static struct tty live;
+
+		reset();
+		bzero((caddr_t)&live, sizeof live);
+		live.t_state = TS_CARR_ON | TS_ISOPEN;
+		console_tty = &live;
+		tprintf(NULL, "%s", "to the console");
+		HK_CHECK(hk_streq(terminal, "to the console"));
+		HK_CHECK(terminal_tp == &live);
+
+		reset();
+		tprintf(NULL, "%s", "nowhere");
+		HK_CHECK(terminal_len == 0 && terminal_tp == NULL);
+	}
+
+	reset();
+	log(LOG_INFO, "%d %s", 7, "event");
+	HK_CHECK(hk_streq(console, "7 event"));
+#ifdef LOG_ENABLED
+	HK_CHECK(hk_streq(log_buffer, "<6>7 event"));
+	HK_CHECK(log_wakeups == 1);
+
+	reset();
+	log_open = 1;
+	log(LOG_INFO, "%d %s", 8, "reader");
+	HK_CHECK(hk_streq(log_buffer, "<6>8 reader"));
+	HK_CHECK(console_len == 0);
+	HK_CHECK(log_wakeups == 1);
+#endif
 
 	/* A newline reaches a terminal as a carriage return and a newline,
 	   because the line discipline is not in the path here. */

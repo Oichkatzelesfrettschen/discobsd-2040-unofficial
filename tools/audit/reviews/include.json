@@ -1,0 +1,531 @@
+{
+  "baseline": "1e9864463c57f11c3a45db37d393652023843171",
+  "paths": [
+    "include/.gitignore",
+    "include/Makefile",
+    "include/a.out.h",
+    "include/alloca.h",
+    "include/ar.h",
+    "include/assert.h",
+    "include/ctype.h",
+    "include/curses.h",
+    "include/err.h",
+    "include/errno.h",
+    "include/fcntl.h",
+    "include/float.h",
+    "include/fnmatch.h",
+    "include/fstab.h",
+    "include/grp.h",
+    "include/inttypes.h",
+    "include/kmem.h",
+    "include/lastlog.h",
+    "include/libgen.h",
+    "include/limits.h",
+    "include/math.h",
+    "include/mtab.h",
+    "include/ndbm.h",
+    "include/nlist.h",
+    "include/paths.h",
+    "include/psout.h",
+    "include/pwd.h",
+    "include/ranlib.h",
+    "include/regexp.h",
+    "include/rp2040",
+    "include/setjmp.h",
+    "include/sgtty.h",
+    "include/signal.h",
+    "include/stdalign.h",
+    "include/stdarg.h",
+    "include/stdbool.h",
+    "include/stddef.h",
+    "include/stdint.h",
+    "include/stdio.h",
+    "include/stdlib.h",
+    "include/stdnoreturn.h",
+    "include/stm32",
+    "include/string.h",
+    "include/strings.h",
+    "include/struct.h",
+    "include/sys",
+    "include/syscall.h",
+    "include/sysexits.h",
+    "include/syslog.h",
+    "include/term.h",
+    "include/termios-todo.h",
+    "include/time.h",
+    "include/ttyent.h",
+    "include/tzfile.h",
+    "include/unistd.h",
+    "include/utmp.h",
+    "include/vis.h",
+    "include/vmf.h"
+  ],
+  "method": "Read immutable Git objects and compare width, prototype, operand grouping/evaluation, include prerequisite, ownership-declaration and serialization boundaries. Follow only named support headers; retain excluded implementation dependencies as open review actions.",
+  "failure_classes": [
+    "type/ABI mismatch",
+    "macro grouping and repeated evaluation",
+    "missing include prerequisite or reinclusion guard",
+    "serialized/native layout confusion",
+    "installation error suppression"
+  ],
+  "source_evidence": [
+    "include/.gitignore",
+    "include/Makefile",
+    "include/a.out.h",
+    "include/alloca.h",
+    "include/ar.h",
+    "include/assert.h",
+    "include/ctype.h",
+    "include/curses.h",
+    "include/err.h",
+    "include/errno.h",
+    "include/fcntl.h",
+    "include/float.h",
+    "include/fnmatch.h",
+    "include/fstab.h",
+    "include/grp.h",
+    "include/inttypes.h",
+    "include/kmem.h",
+    "include/lastlog.h",
+    "include/libgen.h",
+    "include/limits.h",
+    "include/math.h",
+    "include/mtab.h",
+    "include/ndbm.h",
+    "include/nlist.h",
+    "include/paths.h",
+    "include/psout.h",
+    "include/pwd.h",
+    "include/ranlib.h",
+    "include/regexp.h",
+    "include/rp2040",
+    "include/setjmp.h",
+    "include/sgtty.h",
+    "include/signal.h",
+    "include/stdalign.h",
+    "include/stdarg.h",
+    "include/stdbool.h",
+    "include/stddef.h",
+    "include/stdint.h",
+    "include/stdio.h",
+    "include/stdlib.h",
+    "include/stdnoreturn.h",
+    "include/stm32",
+    "include/string.h",
+    "include/strings.h",
+    "include/struct.h",
+    "include/sys",
+    "include/syscall.h",
+    "include/sysexits.h",
+    "include/syslog.h",
+    "include/term.h",
+    "include/termios-todo.h",
+    "include/time.h",
+    "include/ttyent.h",
+    "include/tzfile.h",
+    "include/unistd.h",
+    "include/utmp.h",
+    "include/vis.h",
+    "include/vmf.h"
+  ],
+  "tests": [],
+  "findings": [
+    {
+      "id": "curses-reinclusion",
+      "state": "open",
+      "severity": "P2",
+      "evidence": "include/curses.h:6 tests CURSES_H without defining it; repeated inclusion repeats struct _win_st.",
+      "next_action": "Compile isolated double inclusion, repair guard, and calibrate guard-removal control."
+    },
+    {
+      "id": "curses-pointer-operands",
+      "state": "open",
+      "severity": "P2",
+      "evidence": "include/curses.h:132-137 inserts win without grouping; clearok(&window, TRUE) binds member access before address-of.",
+      "next_action": "Exercise pointer expressions and getyx control-flow contexts, then repair grouping and add controls."
+    },
+    {
+      "id": "stdio-addressable-character-io",
+      "state": "open",
+      "severity": "P2",
+      "evidence": "include/stdio.h:179-190 defines getc/putc/getchar/putchar macros without corresponding function declarations.",
+      "next_action": "Probe parenthesized calls and function pointers; inspect actual archive symbols before completing declaration and definition repair."
+    },
+    {
+      "id": "vmf-operand-grouping",
+      "state": "open",
+      "severity": "P2",
+      "evidence": "include/vmf.h:61-63 misgroups VMMODIFY(&segment), VSEG(a & b), and VOFF(1024 + 1).",
+      "next_action": "Compare compound inputs with independent arithmetic and field updates; repair grouping with calibrated controls."
+    },
+    {
+      "id": "header-install-errors",
+      "state": "open",
+      "severity": "P3",
+      "evidence": "include/Makefile:50,54,64 suppresses recipe failures and loops can succeed after an earlier install failure.",
+      "next_action": "Inject a named installer failure in an isolated destination and verify exit status and output inventory."
+    },
+    {
+      "id": "header-prerequisites-and-reinclusion",
+      "state": "open",
+      "severity": "P3",
+      "evidence": "grp.h, lastlog.h, kmem.h and psout.h require undeclared prerequisite types/constants; structure headers have missing guards.",
+      "next_action": "Establish each installed interface contract, compare consumers and run standalone/double-inclusion probes."
+    }
+  ],
+  "limitations": [
+    "Source inspection only; execution, actual callers and unlisted symlink targets were excluded.",
+    "Per-path residuals require implementation or interface evidence before behavioral closure.",
+    "A header declaration does not establish implementation correctness, hardware behavior or supported whole-standard conformance."
+  ],
+  "path_dispositions": [
+    {
+      "path": "include/.gitignore",
+      "blob": "01dee70615e699bc60f81a78829c34a90db9b19e",
+      "mode": "100644",
+      "disposition": "Generated machine-link exclusion reviewed; include-search behavior belongs to build review."
+    },
+    {
+      "path": "include/Makefile",
+      "blob": "f4bd2205968551b74f77151eee82bb1e97f83976",
+      "mode": "100644",
+      "disposition": "Installation lists reviewed; ignored recipe failures and non-fail-fast loops require failure injection."
+    },
+    {
+      "path": "include/a.out.h",
+      "blob": "b2a8e313198ac49752068a0855ab24299b227de5",
+      "mode": "100644",
+      "disposition": "ARM relocation flags and native unsigned fields reviewed; loader and disk serialization remain dependent reviews."
+    },
+    {
+      "path": "include/alloca.h",
+      "blob": "b73c5434d792cc87e634031479767c95da67d406",
+      "mode": "100644",
+      "disposition": "Builtin operand appears once; compiler ABI and stack limits require separate evidence."
+    },
+    {
+      "path": "include/ar.h",
+      "blob": "cc9af941f83c64765f85f59c41ea29981b000500",
+      "mode": "100644",
+      "disposition": "Character fields total 60 bytes; parser and odd-byte archive padding remain dependent reviews."
+    },
+    {
+      "path": "include/assert.h",
+      "blob": "18a7894489fb1ed594653312df3052a35abf8af5",
+      "mode": "100644",
+      "disposition": "Expression/evaluation suppression, reinclusion and static assertion alias reviewed; assertion gate owns execution."
+    },
+    {
+      "path": "include/ctype.h",
+      "blob": "a7200b215b61e499b294f04f30f5b399d2f1c150",
+      "mode": "100644",
+      "disposition": "Single operand occurrences and EOF/unsigned-char argument domain reviewed; actual table equivalence remains a dependency."
+    },
+    {
+      "path": "include/curses.h",
+      "blob": "c9640ec67373a5cb46f4b4df02b1cdf4c6ab4cba",
+      "mode": "100644",
+      "disposition": "Open guard definition and pointer-expression grouping defects; implementation ownership/types require follow-up."
+    },
+    {
+      "path": "include/err.h",
+      "blob": "11e4a0eef76a3cb8849df3304bb1b89d3b8fd503",
+      "mode": "100644",
+      "disposition": "Fatal and returning variadic declarations reviewed; definitions and cdefs dependency require follow-up."
+    },
+    {
+      "path": "include/errno.h",
+      "blob": "728006334d3ced4b3636749a32c3e4f1f0f3d0c3",
+      "mode": "120000",
+      "disposition": "Literal symlink target sys/errno.h reviewed; target declarations and errno storage belong to system-header review."
+    },
+    {
+      "path": "include/fcntl.h",
+      "blob": "429de56898452bf5f94ff8b32e407a766e54ca00",
+      "mode": "100644",
+      "disposition": "Mode prerequisite and vararg declarations reviewed; sys/file.h and kernel ABI remain dependencies."
+    },
+    {
+      "path": "include/float.h",
+      "blob": "2e60fff6ce00af6d5085e18aa1286d011ed9d01c",
+      "mode": "100644",
+      "disposition": "Machine-limit forwarding wrapper reviewed; machine floating representation remains a dependency."
+    },
+    {
+      "path": "include/fnmatch.h",
+      "blob": "adb9966c8e5d07267057093ace6e68ec117bba3b",
+      "mode": "100644",
+      "disposition": "Distinct flags and const prototypes reviewed; matching semantics and recursion bounds require implementation review."
+    },
+    {
+      "path": "include/fstab.h",
+      "blob": "8b19e1c227e6c7d4d55dae347f2acc8abf3c401e",
+      "mode": "100644",
+      "disposition": "Unspecified parameter lists at lines 66-70 require definition comparison; returned storage ownership remains open."
+    },
+    {
+      "path": "include/grp.h",
+      "blob": "c6499e326530f376a8ae8fabdc3dc6f7baad2d39",
+      "mode": "100644",
+      "disposition": "Missing guard/type prerequisites and signed gid field require include probes and implementation comparison."
+    },
+    {
+      "path": "include/inttypes.h",
+      "blob": "0a47fcda734e62c1e044c3bc6ff710ebe977c358",
+      "mode": "100644",
+      "disposition": "Format modifier families and declarations reviewed; integer typedefs and formatter/scanner behavior remain dependencies."
+    },
+    {
+      "path": "include/kmem.h",
+      "blob": "bf3e5ead0137594f159899169359e39cbf70be0e",
+      "mode": "100644",
+      "disposition": "dev_t prerequisite and unspecified parameter list require translation and definition comparison."
+    },
+    {
+      "path": "include/lastlog.h",
+      "blob": "9d732ee869d1a1afa27aa35a8188b84051b49421",
+      "mode": "100644",
+      "disposition": "Time prerequisite, guard, native record padding and string termination require consumer comparison."
+    },
+    {
+      "path": "include/libgen.h",
+      "blob": "d23e0c89c542c943fd2997be24ee57df7f979168",
+      "mode": "100644",
+      "disposition": "Mutable pathname signatures reviewed; storage ownership and path edge cases require implementation review."
+    },
+    {
+      "path": "include/limits.h",
+      "blob": "a7ae64c32320af26820f774034fd1eb9c6ef9dc3",
+      "mode": "100644",
+      "disposition": "Byte-locale bound and machine forwarding reviewed; machine ULONG_MAX type is a separate finding repaired by 15ed85c2."
+    },
+    {
+      "path": "include/math.h",
+      "blob": "10fe7efdddf55563caa890772664edb323dbc778",
+      "mode": "100644",
+      "disposition": "Builtin result types and double/float declarations reviewed; non-GNU diagnostics and interface completeness remain open."
+    },
+    {
+      "path": "include/mtab.h",
+      "blob": "ff091a30f022665fa6981041dd06049ee649e768",
+      "mode": "100644",
+      "disposition": "68-byte character representation reviewed; reinclusion and consumer termination require probes."
+    },
+    {
+      "path": "include/ndbm.h",
+      "blob": "67084449a3d1aa7a19e6b9f104bbae9db7f8a22b",
+      "mode": "100644",
+      "disposition": "Native layout declarations reviewed; guard, unspecified prototypes, datum bounds and storage ownership require implementation review."
+    },
+    {
+      "path": "include/nlist.h",
+      "blob": "579a1480e77f2d533cb0e7f0393fe0050b527bb9",
+      "mode": "100644",
+      "disposition": "Pointer/string-offset union reviewed; serializer, loader and ARM layout require comparison."
+    },
+    {
+      "path": "include/paths.h",
+      "blob": "f44e38accebb406993f9ddc4fb09ee2c67083a09",
+      "mode": "100644",
+      "disposition": "String constants reviewed; installed filesystem availability requires image evidence."
+    },
+    {
+      "path": "include/psout.h",
+      "blob": "b6d877389812710b511c2415eaeaf387ebcfcd47",
+      "mode": "100644",
+      "disposition": "UT_NAMESIZE/MAXCOMLEN prerequisites, native layout and narrow pid/address fields require consumer comparison."
+    },
+    {
+      "path": "include/pwd.h",
+      "blob": "a560e9409904ac2bdfa3637b0ba3e222413b3fc5",
+      "mode": "100644",
+      "disposition": "Borrowed storage contract reviewed; signed uid/gid fields require definition and caller comparison."
+    },
+    {
+      "path": "include/ranlib.h",
+      "blob": "4df42a46bd86a11f119c287b54b9da6277cc3577",
+      "mode": "100644",
+      "disposition": "Integer field described as one byte requires serializer comparison before classifying a disk mismatch."
+    },
+    {
+      "path": "include/regexp.h",
+      "blob": "773c0d42a951224e92aae5c898a917b33371acf3",
+      "mode": "100644",
+      "disposition": "Missing guard, trailing program[1] allocation and unspecified prototypes require implementation bounds review."
+    },
+    {
+      "path": "include/rp2040",
+      "blob": "9240c8d7c26aa181e8df9e2edeb8677ce6ec2122",
+      "mode": "120000",
+      "disposition": "Literal symlink target ../sys/arch/rp2040/include reviewed; target traversal limited to named support headers."
+    },
+    {
+      "path": "include/setjmp.h",
+      "blob": "825f579c2b799965bcb503ec90c1fb6be399672b",
+      "mode": "100644",
+      "disposition": "Public buffer and noreturn declarations reviewed; machine buffer and assembly/mask behavior remain dependencies."
+    },
+    {
+      "path": "include/sgtty.h",
+      "blob": "e1186ca2a7888b4e26f28a8fef1f731e93e170f1",
+      "mode": "100644",
+      "disposition": "Forwarding wrapper reviewed; sys/ioctl.h owns layout/constants."
+    },
+    {
+      "path": "include/signal.h",
+      "blob": "df1896d6f26c639864ef9d6bde01917b38626df5",
+      "mode": "120000",
+      "disposition": "Literal target sys/signal.h reviewed; handler/mask/atomic declarations belong to system-header review."
+    },
+    {
+      "path": "include/stdalign.h",
+      "blob": "5d36c7da0e945ced39121575b895191689392aa7",
+      "mode": "100644",
+      "disposition": "Direct keyword aliases, feature constants and C++ exclusion reviewed; translation and ABI probes are separate."
+    },
+    {
+      "path": "include/stdarg.h",
+      "blob": "2eefe65de7ee03e4ac494ac210a862c5ddc24bf0",
+      "mode": "100644",
+      "disposition": "GNU/PCC builtin route reviewed; manual stack branch needs alignment, pointer and variadic ABI evidence."
+    },
+    {
+      "path": "include/stdbool.h",
+      "blob": "af759a242d7c271567819583fcba5fa2942094f7",
+      "mode": "120000",
+      "disposition": "Literal target sys/stdbool.h reviewed; target macros belong to system-header review."
+    },
+    {
+      "path": "include/stddef.h",
+      "blob": "3f1e6b11e5ccaaf3a2c8ec8b0456ea72aea18d33",
+      "mode": "100644",
+      "disposition": "ILP32 size/difference types, wchar selection, offsetof and maximum-alignment union reviewed; compiler/ABI probes remain separate."
+    },
+    {
+      "path": "include/stdint.h",
+      "blob": "a7a8003fe092eba6a748393957b0507baa6d4422",
+      "mode": "120000",
+      "disposition": "Literal target sys/stdint.h reviewed; typedefs and limits belong to system-header review."
+    },
+    {
+      "path": "include/stdio.h",
+      "blob": "af206e17f81e69706d67ad9ae891033068f8f143",
+      "mode": "100644",
+      "disposition": "Addressable getc/putc/getchar/putchar declarations absent; stream ownership, formatting and linked ABI require implementation review."
+    },
+    {
+      "path": "include/stdlib.h",
+      "blob": "0cbf6a0cba608b56f7ee820f2338e2407bf49c0c",
+      "mode": "100644",
+      "disposition": "Declarations and shared size/wchar types reviewed; allocation, conversions and environment ownership require implementations."
+    },
+    {
+      "path": "include/stdnoreturn.h",
+      "blob": "4e97e1edd31ca3ada2a4c5e151987c37852d49d0",
+      "mode": "100644",
+      "disposition": "Direct C keyword alias and C++ exclusion reviewed; translation probes are separate."
+    },
+    {
+      "path": "include/stm32",
+      "blob": "1ee4017a1e75b275ecc0f7fa9b6b9d6adce695e9",
+      "mode": "120000",
+      "disposition": "Literal target ../sys/arch/stm32/include reviewed; target declarations excluded."
+    },
+    {
+      "path": "include/string.h",
+      "blob": "9a64b08a9b9902fe09325704577e0b1e7dc64380",
+      "mode": "100644",
+      "disposition": "Prototype constness and size type reviewed; overlap, bounds and ownership require implementation review."
+    },
+    {
+      "path": "include/strings.h",
+      "blob": "4898325e70d1f18e1d7a9d70f74918c4625498a2",
+      "mode": "100644",
+      "disposition": "Shared size type and duplicate signatures reviewed; routines and combined inclusion require separate checks."
+    },
+    {
+      "path": "include/struct.h",
+      "blob": "b5874d1a143fce13dfc9a6da101ec5b107dfa8b5",
+      "mode": "100644",
+      "disposition": "Pointer/int-width-dependent offset recovery reviewed; constant-expression validity, pointer provenance and callers remain open."
+    },
+    {
+      "path": "include/sys",
+      "blob": "7498cdab01dc7b853a0f1e2bec4c8c7b2842ce2b",
+      "mode": "120000",
+      "disposition": "Literal target ../sys/sys reviewed; support traversal limited to named types header."
+    },
+    {
+      "path": "include/syscall.h",
+      "blob": "120d656f0a7f0213544aea977896d51b6501981b",
+      "mode": "100644",
+      "disposition": "Numbers, fork/vfork alias and maximum reviewed; generator/master/dispatch consistency requires system review."
+    },
+    {
+      "path": "include/sysexits.h",
+      "blob": "7d18a3b73368d28cbe4f9c1f4dd43d6ccdf2a64a",
+      "mode": "100644",
+      "disposition": "Int-sized status constants 0 and 64-78 reviewed; caller propagation remains a dependency."
+    },
+    {
+      "path": "include/syslog.h",
+      "blob": "11b106a179737f3fe512a7d78881966e0236dd22",
+      "mode": "120000",
+      "disposition": "Literal target sys/syslog.h reviewed; declarations belong to system-header review."
+    },
+    {
+      "path": "include/term.h",
+      "blob": "bc1865e5018ac2860f496981230736c835e33a09",
+      "mode": "100644",
+      "disposition": "tputs callback int (*)() lacks an argument contract; compare implementation and callbacks."
+    },
+    {
+      "path": "include/termios-todo.h",
+      "blob": "23ff4a83d27694c2329072100f496c13c764960e",
+      "mode": "100644",
+      "disposition": "Request-number/direction aliases require ioctl implementation comparison; header is absent from examined installation lists."
+    },
+    {
+      "path": "include/time.h",
+      "blob": "0b12510c52f798b73649fd6bbc3ab78d19a82e8c",
+      "mode": "100644",
+      "disposition": "Time/tm declarations reviewed; overflow, returned storage lifetime and C17 interface completeness require implementation review."
+    },
+    {
+      "path": "include/ttyent.h",
+      "blob": "de59cd170278eb63e64a9ae97e38ba5b96c26aac",
+      "mode": "100644",
+      "disposition": "Explicit prototypes reviewed; guard and returned-string ownership remain open."
+    },
+    {
+      "path": "include/tzfile.h",
+      "blob": "7ef8b3bff984a1e095049cd02b4c6b7762951dd5",
+      "mode": "100644",
+      "disposition": "Character-array disk header and limits reviewed; isleap repeated evaluation, decoder bounds and byte order require implementation review."
+    },
+    {
+      "path": "include/unistd.h",
+      "blob": "7665503927eff99eb2dbac2d1b6a7d7569f6f88f",
+      "mode": "100644",
+      "disposition": "Size/ssize I/O declarations and system types reviewed; syscall extensions, ownership and brk conventions require implementation review."
+    },
+    {
+      "path": "include/utmp.h",
+      "blob": "a7d36f4c83335f167f3259587a023c9c7985bd1e",
+      "mode": "100644",
+      "disposition": "Guard, native padding/time width, producers/consumers and array termination remain dependent checks."
+    },
+    {
+      "path": "include/vis.h",
+      "blob": "431e7c51f02dd9a66f9adacdb92bc3cf0f9321b9",
+      "mode": "100644",
+      "disposition": "Sized API capacities and constants reviewed; expansion, overflow and returned bounds require implementation review."
+    },
+    {
+      "path": "include/vmf.h",
+      "blob": "01ea5aa1ab5563f0322785c2d65d8908c0a10d02",
+      "mode": "100644",
+      "disposition": "VMMODIFY, VSEG and VOFF misgroup compound operands; implementation address domain and ownership require follow-up."
+    }
+  ]
+}

@@ -69,6 +69,11 @@ Don't reboot, simply halt the processor.
 .B \-d
 Dump memory onto the dump device, usually part of swap, before rebooting.
 The dump is done in the same way as after a panic.
+On the RP2040 the dump device is never the flash swap: a PICOCALC kernel
+on a PicoCalc writes the dump to the SD card's partition of type 0xb9,
+where
+.IR savecore (8)
+finds it, and every other kernel takes no dump.
 .TP
 .B \-a
 Have the system booter ask for the name of the system to be booted, rather
@@ -136,6 +141,7 @@ performed, and unless this fails, the system will resume multi-user
 operations.
 .SH "SEE ALSO"
 sync(2),
+savecore(8),
 utmp(8),
 shutdown(8),
 syslogd(8)

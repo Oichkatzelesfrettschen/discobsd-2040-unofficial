@@ -2,7 +2,7 @@ TOPSRC!=cd ..; pwd
 include ${TOPSRC}/share/mk/architecture.mk
 
 .if ${MACHINE} == "rp2040"
-SUBDIR=	binstall aoututils elf2aout hsaout fsutil config boot2sum flashimg
+SUBDIR=	binstall aoututils elf2aout hsaout fsutil config boot2sum flashimg kernsum
 .else
 SUBDIR=	binstall aoututils elf2aout hsaout fsutil config
 .endif

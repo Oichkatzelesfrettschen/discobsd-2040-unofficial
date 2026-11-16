@@ -1,0 +1,114 @@
+{
+  "baseline": {
+    "hsaout_sha256": "e25557bf3f3c2f389c8d6b3957236b0f250c7f68b931fcd75be6e1a36cf28c35",
+    "programs": {
+      "usr.bin/diff/diff": {
+        "bss": 2732,
+        "data": 424,
+        "loaded_bytes": 23764,
+        "packed_blocks": 19,
+        "packed_bytes": 18208,
+        "raw_blocks": 22,
+        "raw_bytes": 21064,
+        "sha256": "aec7ae2b7c6a22ff26c3e521189ae0d51f448f15f1e62c68b885a0ba61200e5f",
+        "text": 20608
+      },
+      "usr.bin/nm/nm": {
+        "bss": 260,
+        "data": 204,
+        "loaded_bytes": 11660,
+        "packed_blocks": 11,
+        "packed_bytes": 9863,
+        "raw_blocks": 13,
+        "raw_bytes": 11432,
+        "sha256": "e4e3ab415ee7ca450a0a4d276fc63d395119b95c7cf06acbd4fa2bc8fe554b69",
+        "text": 11196
+      },
+      "usr.bin/uucp/uuq": {
+        "bss": 3324,
+        "data": 476,
+        "loaded_bytes": 20284,
+        "packed_blocks": 16,
+        "packed_bytes": 14829,
+        "raw_blocks": 18,
+        "raw_bytes": 16992,
+        "sha256": "abf94ed3d2a5ca1344560ae3559ed1ca546fddc8f235fe01c087b65b60024c5f",
+        "text": 16484
+      }
+    },
+    "source_commit": "a849d47ace2d8a6a9c264bf9ee43d6dc8db9786e"
+  },
+  "candidate": {
+    "hsaout_sha256": "e25557bf3f3c2f389c8d6b3957236b0f250c7f68b931fcd75be6e1a36cf28c35",
+    "programs": {
+      "usr.bin/diff/diff": {
+        "bss": 2732,
+        "data": 424,
+        "loaded_bytes": 24084,
+        "packed_blocks": 20,
+        "packed_bytes": 18480,
+        "raw_blocks": 22,
+        "raw_bytes": 21384,
+        "sha256": "906f0899a938c0622d5292cebd380616ee408edb281961c1bf5c92a7b881c434",
+        "text": 20928
+      },
+      "usr.bin/nm/nm": {
+        "bss": 260,
+        "data": 204,
+        "loaded_bytes": 11980,
+        "packed_blocks": 11,
+        "packed_bytes": 10122,
+        "raw_blocks": 13,
+        "raw_bytes": 11752,
+        "sha256": "722c5514802b7f7f6d7f6432a79d7abd109db40238565f6df09e6cf44d576140",
+        "text": 11516
+      },
+      "usr.bin/uucp/uuq": {
+        "bss": 3324,
+        "data": 476,
+        "loaded_bytes": 20604,
+        "packed_blocks": 16,
+        "packed_bytes": 15083,
+        "raw_blocks": 18,
+        "raw_bytes": 17312,
+        "sha256": "932905bf3572133115f8582d490b4522eeae4086f74fb5d3d4fe9891f2b99a3d",
+        "text": 16804
+      }
+    },
+    "source_commit": "0aa86d7d95a26b00e7d8bf21c68c58d0fd333ef3"
+  },
+  "deltas": {
+    "usr.bin/diff/diff": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 1,
+      "packed_bytes": 272,
+      "raw_blocks": 0,
+      "raw_bytes": 320,
+      "text": 320
+    },
+    "usr.bin/nm/nm": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 0,
+      "packed_bytes": 259,
+      "raw_blocks": 0,
+      "raw_bytes": 320,
+      "text": 320
+    },
+    "usr.bin/uucp/uuq": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 0,
+      "packed_bytes": 254,
+      "raw_blocks": 0,
+      "raw_bytes": 320,
+      "text": 320
+    }
+  },
+  "evidence_class": "static-unshipped-program-resources",
+  "runtime": "unmeasured"
+}

@@ -27,6 +27,7 @@ test:
 		@AS=${AOUT_AS} CC="${CC}" TOPSRC=${TOPSRC} \
 		    CPU=${MACHINE_CPU} PYTHON="${PYTHON}" WORK=. \
 		    sh ./thumb-compile.sh
+		@AS=${AOUT_AS} CC="${CC}" WORK=. sh ./thumb-options.sh
 		@TOPSRC=${TOPSRC} MACHINE=${MACHINE} TOOLBINDIR=${TOOLBINDIR} \
 		    CC="${CC}" CPU=${MACHINE_CPU} MAKE=${MAKE} PYTHON="${PYTHON}" WORK=. \
 		    sh ./thumb-link.sh
@@ -34,7 +35,7 @@ test:
 clean:
 		rm -f *.o *.dis *.gcc-dis *.aout *.aout.sec _diff.txt
 		rm -f cat.s echo.s wc.s
-		rm -rf thumb-toolroot thumb-saved thumb-wrap
+		rm -rf thumb-toolroot thumb-saved thumb-wrap thumb-options
 		rm -rf archive-extended-name-padding
 		rm -rf archive-transactional-rewrite
 		rm -rf archive-extract-all

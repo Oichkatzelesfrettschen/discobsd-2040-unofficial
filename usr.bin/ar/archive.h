@@ -94,10 +94,17 @@ typedef struct {
 	unsigned flags;			/* pad flags */
 } CF;
 
+/*
+ * The date field of a header holds a time as the kernel and the file system
+ * store it: an unsigned count of seconds since 1970 through AR_DATE_MAX
+ * (February 2106).  The field is 12 digits wide, so every stored time fits.
+ */
+#define	AR_DATE_MAX	4294967295UL
+
 /* Header structure internal format. */
 typedef struct {
 	off_t size;			/* size of the object in bytes */
-	time_t date;			/* date */
+	unsigned long date;		/* date, seconds since 1970 */
 	int lname;			/* size of the long name in bytes */
 	int gid;			/* group */
 	int uid;			/* owner */
@@ -118,11 +125,11 @@ extern char *tname;
 #endif
 
 /* Header format strings. */
-#define	HDR1	"%s%-13d%-12ld%-6u%-6u%-8o%-10ld%2s"
-#define	HDR2	"%-16.16s%-12ld%-6u%-6u%-8o%-10ld%2s"
+#define	HDR1	"%s%-13d%-12lu%-6u%-6u%-8o%-10ld%2s"
+#define	HDR2	"%-16.16s%-12lu%-6u%-6u%-8o%-10ld%2s"
 
 #define	OLDARMAXNAME	15
-#define	HDR3	"%-16.15s%-12ld%-6u%-6u%-8o%-10ld%2s"
+#define	HDR3	"%-16.15s%-12lu%-6u%-6u%-8o%-10ld%2s"
 
 struct	stat;
 

@@ -1,0 +1,32 @@
+# Warning classes the union kernel adds to the Renode boot.
+#
+# check-boot.sh passes this file after warning-classes.txt when CONFIG is
+# PICOCALC_PSRAM, the union kernel under a bare-Pico UART0 descriptor. That
+# kernel links the USB device driver, and usbinit() (dev/usb.c) programs the
+# controller on a bare Pico whichever console the descriptor names. The
+# models carry no USB device controller: USBCTRL_REGS is decoded from the
+# SVD with no behavior, and the atomic SET alias at USBCTRL_REGS+0x2000
+# reaches nothing.
+#
+# usbinit() reads none of these registers back. Its one wait is on
+# RESETS:RESET_DONE, which reads all-ones from the SVD tag
+# (warning-classes.txt), so the attach returns. No bus
+# reset or setup request interrupt ever arrives, so the CDC-ACM function
+# stays unconfigured, the state of a board with no host on the cable. USB
+# enumeration is board evidence (sys/arch/rp2040/doc/TESTING.md), outside
+# this gate.
+#
+# Each register is written once per boot; the ceiling of two follows the
+# rule in warning-classes.txt. A count above it means the driver started
+# re-initializing the controller.
+#
+# Format: as warning-classes.txt.
+2       ^sysbus: WriteDoubleWord .*USBCTRL_REGS:USB_MUXING
+2       ^sysbus: WriteDoubleWord .*USBCTRL_REGS:USB_PWR
+2       ^sysbus: WriteDoubleWord .*USBCTRL_REGS:MAIN_CTRL
+2       ^sysbus: WriteDoubleWord .*USBCTRL_REGS:SIE_CTRL
+2       ^sysbus: WriteDoubleWord .*USBCTRL_REGS:INTE
+
+# SIE_CTRL's SET alias, the write that raises the D+ pull-up
+# (USB_SIE_CTRL_PULLUP_EN) once the endpoints are enabled.
+2       ^sysbus: WriteDoubleWord to non existing peripheral at 0x5011204C,

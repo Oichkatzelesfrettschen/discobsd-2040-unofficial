@@ -29,8 +29,10 @@
 #endif
 
 #include <machine/cpu.h>
+#include <machine/board.h>
 #include <machine/mpuvar.h>
 #include <machine/watchdog.h>
+#include <rp2040/dev/adc.h>
 #include <rp2040/dev/flash.h>
 #ifdef CORE1
 #include <rp2040/rp2040/core1.h>
@@ -48,10 +50,7 @@
 /*
  * Kernel symbol name list.
  */
-static const struct {
-	const char *name;
-	int addr;
-} nlist[] = {
+static const struct sysctl_symbol nlist[] = {
 	{ "_boottime",	(int)&boottime	},	/* vmstat */
 	{ "_cnttys",	(int)&cnttys	},	/* pstat */
 	{ "_cp_time",	(int)&cp_time	},	/* iostat	vmstat */
@@ -154,7 +153,7 @@ ucall(void)
 {
 	struct a {
 		int priority;
-		int (*routine)();
+		int (*routine)(int, int);
 		int arg1;
 		int arg2;
 	} *uap = (struct a *)u.u_arg;
@@ -209,6 +208,7 @@ sc_msec(void)
 	/* XXX Not implemented */
 	u.u_rval = 0;
 }
+
 
 /*
  * This was moved here when the TMSCP portion was added.  At that time it
@@ -273,6 +273,31 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return ENOTDIR;
 		i = (int)watchdog_last_arg2;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+
+	case CPU_IMAGE_LENGTH:
+	case CPU_IMAGE_CRC:
+	case CPU_IMAGE_CRC_STORED:
+		if (namelen != 1)
+			return ENOTDIR;
+		i = (int)(name[0] == CPU_IMAGE_LENGTH ? image_length :
+		    name[0] == CPU_IMAGE_CRC ? image_crc : image_crc_stored);
+		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+	case CPU_ADC_TEMP:
+	case CPU_ADC_VSYS:
+		{
+			u_int raw;
+
+			if (namelen != 1)
+				return ENOTDIR;
+			if (adc_read(name[0] == CPU_ADC_TEMP ? ADC_INPUT_TEMP :
+			    ADC_INPUT_VSYS, &raw) != 0)
+				return EIO;
+			i = name[0] == CPU_ADC_TEMP ?
+			    adc_temp_millicelsius(raw) :
+			    (int)adc_vsys_millivolts(raw);
+			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
+			    sizeof i);
+		}
 #ifdef CORE1
 	case CPU_CORE1:
 	case CPU_CORE1_RESTARTS:
@@ -289,10 +314,15 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 #endif
 
 	case CPU_CONSDEV:
+		{
+			int console_major, console_minor;
+
 		if (namelen != 1)
 			return ENOTDIR;
-		dev = makedev(CONS_MAJOR, CONS_MINOR);
+		board_console(&console_major, &console_minor);
+		dev = makedev(console_major, console_minor);
 		return sysctl_rdstruct(oldp, oldlenp, newp, &dev, sizeof dev);
+		}
 #if defined(NTMSCP) && NTMSCP > 0
 	case CPU_TMSCP:
 		if (namelen != 2)
@@ -317,30 +347,8 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		return sysctl_string(oldp, oldlenp, 0, 0, message, length);
 
 	case CPU_NLIST:
-		for (i = 0; nlist[i].name; i++) {
-			if (strncmp(newp, nlist[i].name, newlen) == 0) {
-				int addr = nlist[i].addr;
-				int error = 0;
-
-				/*
-				 * The node answers with an address and takes
-				 * the symbol name as its new value, so it
-				 * carries the length contract of the helpers
-				 * in sys/kern/kern_sysctl.c rather than
-				 * calling one: the prefix that fits is
-				 * copied, the length the address needs is
-				 * reported whether or not a buffer was
-				 * offered, and __sysctl() decides ENOMEM.
-				 */
-				if (oldp)
-					error = copyout((caddr_t)&addr,
-					    (caddr_t)oldp,
-					    MIN(sizeof(int), *oldlenp));
-				*oldlenp = sizeof(int);
-				return error;
-			}
-		}
-		return EOPNOTSUPP;
+		return sysctl_nlist(nlist, name + 1, namelen - 1, oldp,
+		    oldlenp, newp);
 
 	case CPU_XIP_ACC:
 	case CPU_XIP_HIT:

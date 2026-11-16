@@ -1,0 +1,35 @@
+by
+
+2.11 BSD UNIX (pico) (console)
+
+login: operator
+DiscoBSD 2.7 -- Raspberry Pi Pico (RP2040)
+
+You are operator, in /home/operator, which starts empty; the system is
+under /bin, /usr/bin and /usr/games. "menu" lists every program, "ls"
+colors directories blue, and "vi FILE" edits
+UNIX, "su" makes you root. Type "sync" before "exit" or unplugging.
+operator@pico:~$ echo ready; echo __DO''NE__
+ready
+__DONE__
+operator@pico:~$ su
+root@pico:/home/operator# cd /home/operator; ls -a | tr '\\n' ' '; cat t3; echo __DO''NE__
+.
+..
+.profile
+d4
+t3
+synced-ab
+__DONE__
+root@pico:/home/operator# ls -la /lost+found | tail -3; df / | tail -1; echo __DO''NE__
+total 2
+drwxrwxrwx  2 root         1024 Nov 14 17:03 .
+drwxrwxrwx 12 root         1024 Nov 14 17:03 ..
+root              979      752      227    76%    /
+__DONE__
+root@pico:/home/operator# cd /tmp; echo 'int printf(char *, ...); int main(void) { printf("alive\\n"); return 0; }' >a.c; cc -o a a.c && ./a; rm -f a a.
+alive
+root@pico:/tmp# rm -rf /home/operator/d4 /home/operator/t3 /lost+found/#*; sync; df / | tail -1; echo __DO''NE__
+root              979      751      228    76%    /
+__DONE__
+root@pico:/tmp#

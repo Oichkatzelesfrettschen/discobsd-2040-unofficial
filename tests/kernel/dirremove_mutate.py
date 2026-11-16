@@ -35,10 +35,10 @@ def mutate(source: str, mutation: str) -> str:
         return replace_once(
             source,
             """        ep->d_reclen += ndp->ni_dent.d_reclen;
-        error = bwrite(bp);
+        error = DIRBWRITE(dp, bp, ndp->ni_offset - ndp->ni_count);
 """,
             """        ep->d_reclen += ndp->ni_dent.d_reclen;
-        (void) bwrite(bp);
+        (void) DIRBWRITE(dp, bp, ndp->ni_offset - ndp->ni_count);
         error = 0;
 """,
             mutation,
@@ -46,10 +46,10 @@ def mutate(source: str, mutation: str) -> str:
     if mutation == "discard-enter-write-error":
         return replace_once(
             source,
-            """    error = bwrite(bp);
+            """    error = DIRBWRITE(dp, bp, ndp->ni_offset);
     if (error == 0) {
 """,
-            """    (void) bwrite(bp);
+            """    (void) DIRBWRITE(dp, bp, ndp->ni_offset);
     error = 0;
     if (error == 0) {
 """,

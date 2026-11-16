@@ -1,0 +1,352 @@
+Renode process-table and file-table exhaustion at NPROC 16 and NFILE 18, PICO_UART kernel
+
+source revision: kernel and root at 65d7244c; gate driver at 4849bacb, which differs from it only in
+  tools/renode/check-capacity.py
+command: bmake MACHINE=rp2040 check-renode-capacity (sh tools/renode/check-capacity.sh)
+emulator: Renode 1.17.0+20260907gitf1dd1b4af, models matgla/Renode_RP2040 205a5e4b25440582008a4292074bb07f80a72328
+kernel: sys/arch/rp2040/compile/PICO_UART/unix.bin sha256 915940ff378e3576e9df6c5428777ab7d6634e35acf09a01156a6029fd4bdc4b
+root: distrib/rp2040/sdcard.img with /tmp/filetab and /tmp/proctab added
+  filetab sha256 936221552007d82bf50576ca39fd1f3080ef60a9a0c3622084271a98117bf8c0
+  proctab sha256 83675b0e99d11283de98eb0cac0abaf26d5da9bcf7d99aee42aac482f92b4f26
+date: 2026-11-11
+editing: the line editor's redraws are folded and escape sequences removed
+evidence class: Renode with third-party peripheral models; not a board run
+
+---- driver output ----
+check-capacity: Renode 1.17.0+20260907gitf1dd1b4af
+renode_monitor self-test: ok (command() and close() against an exited Renode)
+check-renode: device probe after 0.5 virtual seconds
+check-renode: file system check and daemons after 2.0 virtual seconds
+check-renode: login prompt after 4.0 virtual seconds
+check-renode: shell prompt after 4.5 virtual seconds
+check-renode: root shell after 5.0 virtual seconds
+check-capacity: filetab: PASS dup to the per-process limit refuses with EMFILE (errno 24) at 30 descriptors of 30
+check-capacity: filetab: PASS EMFILE leaves the file table and its failure counter unchanged
+check-capacity: filetab: PASS at least two holder processes are needed to fill the table (2)
+check-capacity: filetab: PASS holders hold 12 slots (table shows 12, early exits 0, first status 0)
+check-capacity: filetab: PASS a full file table refuses open with ENFILE twice, not EMFILE (errno 23 then 23)
+check-capacity: filetab: PASS the parent opened the 3 spare slots (opened 3)
+check-capacity: filetab: PASS the parent holds 6 of 30 descriptors, so the per-process limit did not refuse
+check-capacity: filetab: PASS file counter reports a full table (current 18 of 18, peak 18, min-free 0)
+check-capacity: filetab: PASS file failure counter rose by the two refusals (rose by 2)
+check-capacity: filetab: PASS no other table counted a failure
+check-capacity: filetab: PASS every holder exits 0 and is reaped (clean 2, other 0, live 0)
+check-capacity: filetab: PASS occupancy returns to 3 file slots (now 3)
+check-capacity: filetab: PASS the peak and the failures stay latched across the release
+check-capacity: filetab: PASS an open after the release succeeds (errno 0)
+check-capacity: filetab: PASS recovery leaves occupancy at 3 and adds no failure
+check-capacity: filetab: FILETABTEST OK
+check-capacity: proctab: fork refused after 10 children with errno 11 (No more processes)
+check-capacity: proctab: PASS a full process table refuses fork with EAGAIN, not ENOMEM
+check-capacity: proctab: PASS children created (10) equal the slots free at the start (10)
+check-capacity: proctab: PASS a repeated fork refuses with EAGAIN (errno 11)
+check-capacity: proctab: PASS process counter reports a full table (current, peak 16 of 16, min-free 0)
+check-capacity: proctab: PASS process failure counter rose by the 2 refusals (rose by 2)
+check-capacity: proctab: PASS no other table counted a failure
+check-capacity: proctab: PASS every child exits 0 and is reaped (clean 10, other 0, live 0)
+check-capacity: proctab: PASS occupancy returns to the starting 6 slots (now 6)
+check-capacity: proctab: PASS the peak and the failures stay latched across the release
+check-capacity: proctab: PASS a fork after the reap succeeds (errno 0)
+check-capacity: proctab: PASS the recovery child exits 0 and is reaped
+check-capacity: proctab: PASS recovery leaves occupancy at 6 and adds no failure
+check-capacity: proctab: PROCTABTEST OK
+check-capacity: proc limit 16 current 6 peak 16 min-free 0 failures 2
+check-capacity: file limit 18 current 3 peak 18 min-free 0 failures 2
+check-capacity: pass
+
+---- UART0 transcript ----
+DiscoBSD 2.7 (PICO_UART) #1 2772: Wed Nov 11 04:42:28 PM PST 2026
+
+cpu: RP0000 rev 0, manufacturer 0x000
+
+cpu: Cortex-M0+, ARMv6-M, no MMU
+
+cpu: 125 MHz core, 125 MHz peripheral
+
+mpu: 8 regions, 4 programmed, MPU_CTRL 0x5: rom 16K r-x, user 192K rwx, sio div rw
+
+watchdog: reason 0, last masked site 0 arg 0
+
+uart0: pins tx=GP0/rx=GP1, console
+
+fl0: 989 kbytes on QSPI flash, 1536 kbytes raw
+
+fl0a: partition type b7, sector 2, size 988 kbytes
+
+fl1: 384 kbytes raw QSPI flash for swap
+
+phys mem  = 264 kbytes
+
+user mem  = 192 kbytes
+
+root dev  = (0,1)
+
+swap dev  = (0,8)
+
+root size = 988 kbytes
+
+swap size = 380 kbytes
+
+Automatic boot in progress: starting file system checks.
+/dev/fl0a: 98 files, 767 used, 212 free
+Starting daemons:  update
+Wed Nov 11 17:09:20 PST 2026
+
+2.11 BSD UNIX (pico) (console)
+
+login: operator
+DiscoBSD 2.7 -- Raspberry Pi Pico (RP2040)
+
+You are operator, in /home/operator, which starts empty; the system is
+under /bin, /usr/bin and /usr/games. "menu" lists every program, "ls"
+colors directories blue, and "vi FILE" edits
+UNIX, "su" makes you root. Type "sync" before "exit" or unplugging.
+
+operator@pico:~$
+operator@pico:~$ s
+operator@pico:~$ su
+
+root@pico:/home/operator#
+root@pico:/home/operator# s
+root@pico:/home/operator# sy
+root@pico:/home/operator# sys
+root@pico:/home/operator# sysc
+root@pico:/home/operator# sysct
+root@pico:/home/operator# sysctl
+root@pico:/home/operator# sysctl
+root@pico:/home/operator# sysctl k
+root@pico:/home/operator# sysctl ke
+root@pico:/home/operator# sysctl ker
+root@pico:/home/operator# sysctl kern
+root@pico:/home/operator# sysctl kern.
+root@pico:/home/operator# sysctl kern.c
+root@pico:/home/operator# sysctl kern.ca
+root@pico:/home/operator# sysctl kern.cap
+root@pico:/home/operator# sysctl kern.capa
+root@pico:/home/operator# sysctl kern.capac
+root@pico:/home/operator# sysctl kern.capaci
+root@pico:/home/operator# sysctl kern.capacit
+root@pico:/home/operator# sysctl kern.capacity
+root@pico:/home/operator# sysctl kern.capacity;
+root@pico:/home/operator# sysctl kern.capacity;
+root@pico:/home/operator# sysctl kern.capacity; e
+root@pico:/home/operator# sysctl kern.capacity; ec
+root@pico:/home/operator# sysctl kern.capacity; ech
+root@pico:/home/operator# sysctl kern.capacity; echo
+root@pico:/home/operator# sysctl kern.capacity; echo
+root@pico:/home/operator# sysctl kern.capacity; echo c
+root@pico:/home/operator# sysctl kern.capacity; echo ca
+root@pico:/home/operator# sysctl kern.capacity; echo cap
+root@pico:/home/operator# sysctl kern.capacity; echo capa
+root@pico:/home/operator# sysctl kern.capacity; echo capac
+root@pico:/home/operator# sysctl kern.capacity; echo capaci
+root@pico:/home/operator# sysctl kern.capacity; echo capacit
+root@pico:/home/operator# sysctl kern.capacity; echo capacity
+root@pico:/home/operator# sysctl kern.capacity; echo capacity-
+root@pico:/home/operator# sysctl kern.capacity; echo capacity-e
+root@pico:/home/operator# sysctl kern.capacity; echo capacity-en
+root@pico:/home/operator# sysctl kern.capacity; echo capacity-end
+kern.capacity=version 1 size 100
+proc limit 16 current 6 peak 6 min-free 10 failures 0 slot-bytes 104
+inode limit 24 current 9 peak 11 min-free 13 failures 0 slot-bytes 84
+file limit 18 current 3 peak 7 min-free 11 failures 0 slot-bytes 24
+clist limit 32 current 0 peak 4 min-free 28 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 4 min-free 0 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1736 min-free 312 saturated 0
+capacity-end
+
+root@pico:/home/operator#
+root@pico:/home/operator# /
+root@pico:/home/operator# /t
+root@pico:/home/operator# /tm
+root@pico:/home/operator# /tmp
+root@pico:/home/operator# /tmp/
+root@pico:/home/operator# /tmp/f
+root@pico:/home/operator# /tmp/fi
+root@pico:/home/operator# /tmp/fil
+root@pico:/home/operator# /tmp/file
+root@pico:/home/operator# /tmp/filet
+root@pico:/home/operator# /tmp/fileta
+root@pico:/home/operator# /tmp/filetab
+root@pico:/home/operator# /tmp/filetab;
+root@pico:/home/operator# /tmp/filetab;
+root@pico:/home/operator# /tmp/filetab; e
+root@pico:/home/operator# /tmp/filetab; ec
+root@pico:/home/operator# /tmp/filetab; ech
+root@pico:/home/operator# /tmp/filetab; echo
+root@pico:/home/operator# /tmp/filetab; echo
+root@pico:/home/operator# /tmp/filetab; echo r
+root@pico:/home/operator# /tmp/filetab; echo rc
+root@pico:/home/operator# /tmp/filetab; echo rc=
+root@pico:/home/operator# /tmp/filetab; echo rc=$
+root@pico:/home/operator# /tmp/filetab; echo rc=$?
+NOFILE 30, kern.maxfiles 18, 3 descriptors open, 3 file slots in use
+snapshot before
+  proc   limit 16 current 6 peak 6 min-free 10 failures 0
+  inode  limit 24 current 9 peak 11 min-free 13 failures 0
+  file   limit 18 current 3 peak 7 min-free 11 failures 0
+  clist  limit 32 current 0 peak 4 min-free 28 failures 0
+  buffer limit 4 current 0 peak 4 min-free 0 failures 0
+PASS dup to the per-process limit refuses with EMFILE (errno 24) at 30 descriptors of 30
+PASS EMFILE leaves the file table and its failure counter unchanged
+15 file slots free: 2 holders of 6 files leave 3 for the parent
+PASS at least two holder processes are needed to fill the table (2)
+PASS holders hold 12 slots (table shows 12, early exits 0, first status 0)
+file: table full
+
+file: table full
+
+snapshot full
+  proc   limit 16 current 8 peak 8 min-free 8 failures 0
+  inode  limit 24 current 9 peak 11 min-free 13 failures 0
+  file   limit 18 current 18 peak 18 min-free 0 failures 2
+  clist  limit 32 current 0 peak 4 min-free 28 failures 0
+  buffer limit 4 current 0 peak 4 min-free 0 failures 0
+PASS a full file table refuses open with ENFILE twice, not EMFILE (errno 23 then 23)
+PASS the parent opened the 3 spare slots (opened 3)
+PASS the parent holds 6 of 30 descriptors, so the per-process limit did not refuse
+PASS file counter reports a full table (current 18 of 18, peak 18, min-free 0)
+PASS file failure counter rose by the two refusals (rose by 2)
+PASS no other table counted a failure
+PASS every holder exits 0 and is reaped (clean 2, other 0, live 0)
+snapshot after release
+  proc   limit 16 current 6 peak 8 min-free 8 failures 0
+  inode  limit 24 current 9 peak 11 min-free 13 failures 0
+  file   limit 18 current 3 peak 18 min-free 0 failures 2
+  clist  limit 32 current 0 peak 4 min-free 28 failures 0
+  buffer limit 4 current 0 peak 4 min-free 0 failures 0
+PASS occupancy returns to 3 file slots (now 3)
+PASS the peak and the failures stay latched across the release
+PASS an open after the release succeeds (errno 0)
+snapshot after recovery
+  proc   limit 16 current 6 peak 8 min-free 8 failures 0
+  inode  limit 24 current 9 peak 11 min-free 13 failures 0
+  file   limit 18 current 3 peak 18 min-free 0 failures 2
+  clist  limit 32 current 0 peak 4 min-free 28 failures 0
+  buffer limit 4 current 0 peak 4 min-free 0 failures 0
+PASS recovery leaves occupancy at 3 and adds no failure
+FILETABTEST OK
+rc=0
+
+root@pico:/home/operator#
+root@pico:/home/operator# /
+root@pico:/home/operator# /t
+root@pico:/home/operator# /tm
+root@pico:/home/operator# /tmp
+root@pico:/home/operator# /tmp/
+root@pico:/home/operator# /tmp/p
+root@pico:/home/operator# /tmp/pr
+root@pico:/home/operator# /tmp/pro
+root@pico:/home/operator# /tmp/proc
+root@pico:/home/operator# /tmp/proct
+root@pico:/home/operator# /tmp/procta
+root@pico:/home/operator# /tmp/proctab
+root@pico:/home/operator# /tmp/proctab;
+root@pico:/home/operator# /tmp/proctab;
+root@pico:/home/operator# /tmp/proctab; e
+root@pico:/home/operator# /tmp/proctab; ec
+root@pico:/home/operator# /tmp/proctab; ech
+root@pico:/home/operator# /tmp/proctab; echo
+root@pico:/home/operator# /tmp/proctab; echo
+root@pico:/home/operator# /tmp/proctab; echo r
+root@pico:/home/operator# /tmp/proctab; echo rc
+root@pico:/home/operator# /tmp/proctab; echo rc=
+root@pico:/home/operator# /tmp/proctab; echo rc=$
+root@pico:/home/operator# /tmp/proctab; echo rc=$?
+image dsize 11116 tsize 9892 ssize 2240: 8 swap blocks before alignment
+kern.maxproc 16, 6 slots in use, 10 free
+swap map: 320 free blocks in 5 runs; a child needs 8 blocks, so flash alone holds 39 children
+snapshot before
+  proc   limit 16 current 6 peak 8 min-free 8 failures 0
+  inode  limit 24 current 9 peak 11 min-free 13 failures 0
+  file   limit 18 current 3 peak 18 min-free 0 failures 2
+  clist  limit 32 current 0 peak 4 min-free 28 failures 0
+  buffer limit 4 current 0 peak 4 min-free 0 failures 0
+proc: table full
+
+fork refused after 10 children with errno 11 (No more processes)
+PASS a full process table refuses fork with EAGAIN, not ENOMEM
+PASS children created (10) equal the slots free at the start (10)
+proc: table full
+
+PASS a repeated fork refuses with EAGAIN (errno 11)
+snapshot full
+  proc   limit 16 current 16 peak 16 min-free 0 failures 2
+  inode  limit 24 current 9 peak 11 min-free 13 failures 0
+  file   limit 18 current 3 peak 18 min-free 0 failures 2
+  clist  limit 32 current 0 peak 4 min-free 28 failures 0
+  buffer limit 4 current 0 peak 4 min-free 0 failures 0
+PASS process counter reports a full table (current, peak 16 of 16, min-free 0)
+PASS process failure counter rose by the 2 refusals (rose by 2)
+PASS no other table counted a failure
+PASS every child exits 0 and is reaped (clean 10, other 0, live 0)
+snapshot after release
+  proc   limit 16 current 6 peak 16 min-free 0 failures 2
+  inode  limit 24 current 9 peak 11 min-free 13 failures 0
+  file   limit 18 current 3 peak 18 min-free 0 failures 2
+  clist  limit 32 current 0 peak 4 min-free 28 failures 0
+  buffer limit 4 current 0 peak 4 min-free 0 failures 0
+PASS occupancy returns to the starting 6 slots (now 6)
+PASS the peak and the failures stay latched across the release
+PASS a fork after the reap succeeds (errno 0)
+PASS the recovery child exits 0 and is reaped
+snapshot after recovery
+  proc   limit 16 current 6 peak 16 min-free 0 failures 2
+  inode  limit 24 current 9 peak 11 min-free 13 failures 0
+  file   limit 18 current 3 peak 18 min-free 0 failures 2
+  clist  limit 32 current 0 peak 4 min-free 28 failures 0
+  buffer limit 4 current 0 peak 4 min-free 0 failures 0
+PASS recovery leaves occupancy at 6 and adds no failure
+PROCTABTEST OK
+rc=0
+
+root@pico:/home/operator#
+root@pico:/home/operator# s
+root@pico:/home/operator# sy
+root@pico:/home/operator# sys
+root@pico:/home/operator# sysc
+root@pico:/home/operator# sysct
+root@pico:/home/operator# sysctl
+root@pico:/home/operator# sysctl
+root@pico:/home/operator# sysctl k
+root@pico:/home/operator# sysctl ke
+root@pico:/home/operator# sysctl ker
+root@pico:/home/operator# sysctl kern
+root@pico:/home/operator# sysctl kern.
+root@pico:/home/operator# sysctl kern.c
+root@pico:/home/operator# sysctl kern.ca
+root@pico:/home/operator# sysctl kern.cap
+root@pico:/home/operator# sysctl kern.capa
+root@pico:/home/operator# sysctl kern.capac
+root@pico:/home/operator# sysctl kern.capaci
+root@pico:/home/operator# sysctl kern.capacit
+root@pico:/home/operator# sysctl kern.capacity
+root@pico:/home/operator# sysctl kern.capacity;
+root@pico:/home/operator# sysctl kern.capacity;
+root@pico:/home/operator# sysctl kern.capacity; e
+root@pico:/home/operator# sysctl kern.capacity; ec
+root@pico:/home/operator# sysctl kern.capacity; ech
+root@pico:/home/operator# sysctl kern.capacity; echo
+root@pico:/home/operator# sysctl kern.capacity; echo
+root@pico:/home/operator# sysctl kern.capacity; echo c
+root@pico:/home/operator# sysctl kern.capacity; echo ca
+root@pico:/home/operator# sysctl kern.capacity; echo cap
+root@pico:/home/operator# sysctl kern.capacity; echo capa
+root@pico:/home/operator# sysctl kern.capacity; echo capac
+root@pico:/home/operator# sysctl kern.capacity; echo capaci
+root@pico:/home/operator# sysctl kern.capacity; echo capacit
+root@pico:/home/operator# sysctl kern.capacity; echo capacity
+root@pico:/home/operator# sysctl kern.capacity; echo capacity-
+root@pico:/home/operator# sysctl kern.capacity; echo capacity-e
+root@pico:/home/operator# sysctl kern.capacity; echo capacity-en
+root@pico:/home/operator# sysctl kern.capacity; echo capacity-end
+kern.capacity=version 1 size 100
+proc limit 16 current 6 peak 16 min-free 0 failures 2 slot-bytes 104
+inode limit 24 current 9 peak 11 min-free 13 failures 0 slot-bytes 84
+file limit 18 current 3 peak 18 min-free 0 failures 2 slot-bytes 24
+clist limit 32 current 0 peak 4 min-free 28 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 4 min-free 0 failures 0 slot-bytes 1060
+uarea bytes 3072 user 972 stack 2048 peak 1736 min-free 312 saturated 0
+capacity-end
+
+root@pico:/home/operator#

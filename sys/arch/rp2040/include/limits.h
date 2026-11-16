@@ -60,7 +60,7 @@
 #define INT_MAX         2147483647      /* max value for an int */
 #define INT_MIN         (-2147483647-1) /* min value for an int */
 
-#define ULONG_MAX       0xffffffff      /* max value for an unsigned long */
+#define ULONG_MAX       0xffffffffUL    /* max value for an unsigned long */
 #define LONG_MAX        2147483647L     /* max value for a long */
 #define LONG_MIN        (-2147483647L-1L)       /* min value for a long */
 

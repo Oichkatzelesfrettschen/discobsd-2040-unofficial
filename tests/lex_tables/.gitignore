@@ -1,0 +1,6 @@
+lex_host
+lex_san
+lex_host.y.c
+lex_san.y.c
+*.dSYM
+work

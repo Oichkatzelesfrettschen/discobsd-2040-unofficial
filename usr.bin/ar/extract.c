@@ -90,7 +90,7 @@ extract(char **argv)
 		}
 
 		if (options & AR_U && !stat(file, &sb) &&
-		    sb.st_mtime > chdr.date)
+		    stored_date(sb.st_mtime) > chdr.date)
 			continue;
 
 		if ((tfd = open(file, O_WRONLY|O_CREAT|O_TRUNC, 0200)) < 0) {
@@ -112,8 +112,18 @@ extract(char **argv)
 			    file, strerror(errno));
 		}
 		if (options & AR_O) {
-			tv[0].tv_sec = tv[1].tv_sec = chdr.date;
-			if (utimes(file, tv)) {
+			/*
+			 * The kernel reads the count 4294967295 as "leave this
+			 * time alone" and reports success, while the 64-bit
+			 * view of time refuses it, so ar reports it and does
+			 * not call, as it reports a failed utimes.
+			 */
+			tv[0].tv_sec = tv[1].tv_sec = (time_t)chdr.date;
+			if (chdr.date == AR_DATE_MAX) {
+				(void)fprintf(stderr,
+				    "ar: %s: utimes: time %lu cannot be stored\n",
+				    file, chdr.date);
+			} else if (utimes(file, tv)) {
 				(void)fprintf(stderr, "ar: %s: utimes: %s\n",
 				    file, strerror(errno));
 			}

@@ -16,7 +16,7 @@ Li2f_magnitude:
 	cmp	r0, #0
 	beq	Li2f_zero
 	push	{r0, r1, r4, lr}
-	ldr	r3, =ROM_FLOAT_CELL_NAME(clz)
+	ROM_FLOAT_CELL_ADDRESS(clz, r3, r2)
 	ldr	r3, [r3]
 	blx	r3
 	pop	{r1, r2}
@@ -45,5 +45,6 @@ Li2f_zero:
 	mov	r0, r1
 	bx	lr
 	.pool
+	ROM_FLOAT_GOT_LITERAL(clz)
 ROM_FLOAT_FUNCTION_END(__aeabi_i2f)
 ROM_FLOAT_ALIAS(__floatsisf, __aeabi_i2f)

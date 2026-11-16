@@ -1,5 +1,5 @@
 /*
- * lib/libc/stdlib/_Exit.c under the name db_Exit.  The process registers a
+ * lib/libc/stdlib/iso_exit.c under the name db_Exit.  The process registers a
  * handler that exits with another status and leaves bytes in a fully
  * buffered stream, so status 7 with empty output shows that no handler ran
  * and no stream was flushed.

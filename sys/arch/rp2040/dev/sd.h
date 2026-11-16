@@ -38,4 +38,13 @@ int		sdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag);
 /* Sample the card-detect pin; called from the keyboard poll callout. */
 void		sd_detect_poll(void);
 
+/*
+ * Write a crash dump (machine/dump.h) of the spans to the card's dump
+ * partition; dumpsys() in machdep.c calls it from boot(). Returns 0 or an
+ * errno.
+ */
+struct dump_span;
+int		sddump(dev_t dev, const struct dump_span *span, u_int nspan,
+		    u_int image_crc, u_int time);
+
 #endif /* !_RP2040_DEV_SD_H_ */

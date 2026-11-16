@@ -11,3 +11,9 @@
 
 # Unified patch context must retain the imported source's exact whitespace.
 /tools/netbsd-patches/*.patch -whitespace
+
+# The NetBSD msdosfs imports stay byte for byte as NetBSD wrote them,
+# trailing blanks included (tools/netbsd-imports.manifest pins them).
+/sys/fs/msdosfs/* -whitespace
+/sbin/newfs_msdos/* -whitespace
+/usr.sbin/makefs/** -whitespace

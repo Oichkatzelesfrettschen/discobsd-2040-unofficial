@@ -48,6 +48,8 @@ struct mntopt {
 #define MOPT_RDONLY		{ "rdonly",	0, MNT_RDONLY }
 #define MOPT_SYNC		{ "sync",	0, MNT_SYNCHRONOUS }
 #define	MOPT_QUOTAS		{ "quotas",	0, 0 }
+/* The volume is in Seventh Edition format, which has no magic number. */
+#define MOPT_V7			{ "v7",		0, MNT_V7 }
 
 /* Control flags. */
 #define MOPT_FORCE		{ "force",	1, MNT_FORCE }

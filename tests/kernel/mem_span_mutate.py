@@ -7,6 +7,7 @@ MUTATIONS = (
     "endpoint-admission",
     "user-rejected",
     "kernel-rejected",
+    "write-unbound",
     "kernel-first-byte",
 )
 
@@ -41,6 +42,13 @@ def main() -> None:
             source,
             complete,
             "if (badkaddr_span(addr, iov->iov_len)) {",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "write-unbound":
+        source = replace_unique(
+            source,
+            "if (uio->uio_rw == UIO_WRITE && securelevel > 0)",
+            "if (uio->uio_rw == UIO_WRITE && securelevel > 99)",
             arguments.mutation,
         )
     elif arguments.mutation == "kernel-rejected":

@@ -677,11 +677,21 @@ sed -n '2p' "$cleanup_failure_directory/stderr" |
 	grep -Fq 'Input/output error' ||
 	fail "staged-cleanup failure omitted its secondary diagnostic"
 
+# compress keeps an inherited SIG_IGN for SIGINT, and a shell cannot restore
+# the default action for a signal it inherited as ignored, which is the
+# state of every asynchronous command of a shell without job control.  The
+# stage-signal cases therefore start the binary through an exec that sets
+# SIG_DFL, so the raised SIGINT reaches the handler under test.
+default_sigint_exec='import os, signal, sys
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+os.execv(sys.argv[1], sys.argv[1:])'
+
 stage_signal_directory=$work_directory/signal-stage-open
 mkdir "$stage_signal_directory"
 cp "$input_file" "$stage_signal_directory/input"
 if COMPRESS_TEST_SIGNAL_STAGE_OPEN=1 \
 	ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
+	"$PYTHON" -c "$default_sigint_exec" \
 	"$interposed_binary" -f "$stage_signal_directory/input" \
 	> "$stage_signal_directory/stdout" \
 	2> "$stage_signal_directory/stderr"; then
@@ -744,6 +754,7 @@ mkdir "$unmasked_directory"
 cp "$input_file" "$unmasked_directory/input"
 if COMPRESS_TEST_SIGNAL_STAGE_OPEN=1 \
 	ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 \
+	"$PYTHON" -c "$default_sigint_exec" \
 	"$work_directory/compress-unmasked-stage" -f \
 	"$unmasked_directory/input" > "$unmasked_directory/stdout" \
 	2> "$unmasked_directory/stderr"; then

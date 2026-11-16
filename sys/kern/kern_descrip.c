@@ -20,6 +20,17 @@
 #include <sys/capacity.h>
 
 /*
+ * The ILP32 layout of every port is 16 bytes; a host gate that compiles this
+ * file at LP64 widens the pointer and offset and is not that layout.  The
+ * reference count must also hold every descriptor of every process.
+ */
+#if __SIZEOF_POINTER__ == 4
+_Static_assert(sizeof(struct file) == 16, "struct file must stay 16 bytes");
+#endif
+_Static_assert((unsigned long)NPROC * NOFILE <= 0xffffUL,
+    "f_count must hold every descriptor of every process");
+
+/*
  * Descriptor management.
  */
 
@@ -27,8 +38,7 @@
  * Allocate a user file descriptor.
  */
 static int
-ufalloc(i)
-    register int i;
+ufalloc(register int i)
 {
     for (; i < NOFILE; i++)
         if (u.u_ofile[i] == NULL) {
@@ -52,10 +62,7 @@ getdtablesize()
 }
 
 static void
-dupit(fd, fp, flags)
-    register int fd;
-    register struct file *fp;
-    int flags;
+dupit(register int fd, register struct file *fp, int flags)
 {
     u.u_ofile[fd] = fp;
     u.u_pofile[fd] = flags;
@@ -355,8 +362,7 @@ slot:
  * consideration.
  */
 struct file *
-getf(f)
-    register int f;
+getf(register int f)
 {
     register struct file *fp;
 
@@ -372,8 +378,7 @@ getf(f)
  * Decrement reference count on file structure.
  */
 int
-closef(fp)
-    register struct file *fp;
+closef(register struct file *fp)
 {
     int error;
 
@@ -447,9 +452,7 @@ flock()
  */
 /* ARGSUSED */
 int
-fdopen(dev, mode, type)
-    dev_t dev;
-    int mode __unused, type __unused;
+fdopen(dev_t dev, int mode __unused, int type __unused)
 {
     /*
      * XXX Kludge: set u.u_dupfd to contain the value of the
@@ -467,10 +470,7 @@ fdopen(dev, mode, type)
  * Duplicate the specified descriptor to a free descriptor.
  */
 int
-dupfdopen (indx, dfd, mode, error)
-    register int indx, dfd;
-    int mode;
-    int error;
+dupfdopen (register int indx, register int dfd, int mode, int error)
 {
     register struct file *wfp;
     struct file *fp;

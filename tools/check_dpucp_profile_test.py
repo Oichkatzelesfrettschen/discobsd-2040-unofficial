@@ -1,7 +1,10 @@
 """Mutation controls for the DPUCP-2024 requirement profile."""
 
 import copy
+import json
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import check_dpucp_profile as dpucp
@@ -116,8 +119,8 @@ def main():
     if dpucp.FIRST_HARDWARE_RELEASE_BINDINGS != expected_first_hardware_release_bindings:
         raise AssertionError("first hardware release bindings differ")
 
-    if profile["schema_version"] != 2:
-        raise AssertionError("later compatibility contracts require schema 2")
+    if profile["schema_version"] != 3:
+        raise AssertionError("review accounting and physical limits require schema 3")
     expected_family_fields = {
         "id",
         "title",
@@ -270,7 +273,7 @@ def main():
             "unselected-standard-option",
             "environment-constrained",
         ],
-        "implementation": ["present", "partial", "absent", "divergent"],
+        "implementation": ["unreviewed", "present", "partial", "absent", "divergent"],
         "evidence": ["none", "static", "host", "cross", "qemu-user", "renode", "board"],
         "residual": ["closed", "open", "blocked"],
     }
@@ -297,6 +300,52 @@ def main():
             raise AssertionError(f"refresh discarded reviewed {column}")
 
     cases = []
+    for field in dpucp.physical_limits_from_linker(
+        (root / dpucp.LINKER_SCRIPT).read_text()
+    ):
+        changed_profile = copy.deepcopy(profile)
+        changed_profile["hardware_limits"][field] += 1
+        expect_failure(
+            field, root, corpus, entities, changed_profile, rows,
+            f"hardware limit differs from linker: {field}",
+        )
+        cases.append((f"physical limit {field}", changed_profile, rows))
+
+    changed_profile = copy.deepcopy(profile)
+    changed_profile["hardware_limits"]["process_window_bytes"] = True
+    cases.append(("Boolean hardware limit", changed_profile, rows))
+
+    for state, evidence, residual, expected in (
+        ("unreviewed", "static", "open", "unreviewed row claims evidence"),
+        ("unreviewed", "none", "closed", "unreviewed row claims closure"),
+        ("absent", "none", "open", "absence claim lacks audit witness"),
+    ):
+        changed_rows = copy.deepcopy(rows)
+        changed_rows[0].update(implementation=state, evidence=evidence, residual=residual)
+        expect_failure(expected, root, corpus, entities, profile, changed_rows, expected)
+        cases.append((expected, profile, changed_rows))
+
+    default = dpucp.default_requirement(entities[0], {})
+    if default["implementation"] != "unreviewed" or default["evidence"] != "none":
+        raise AssertionError("unmapped source implies an implementation verdict")
+
+    audited_profile = copy.deepcopy(profile)
+    audited_rows = copy.deepcopy(rows)
+    audited_rows[0].update(
+        implementation="absent", evidence="static", witness="fixture-absence-audit"
+    )
+    audited_profile["witnesses"]["fixture-absence-audit"] = {
+        "command": "synthetic audited-absence acceptance fixture",
+        "evidence": "static",
+        "known_good": "tools/check_dpucp_profile_test.py",
+        "known_bad": "tools/check_dpucp_profile.py",
+    }
+    audited_profile["requirements"]["ordered_row_sha256"] = dpucp.ordered_sha256(audited_rows)
+    audited_profile["state_counts"] = dpucp.count_states(audited_rows)
+    dpucp.validate_documents(root, corpus, entities, audited_profile, audited_rows)
+    if dpucp.derive_requirements(corpus, entities, audited_rows) != audited_rows:
+        raise AssertionError("refresh discards audited absence")
+
     changed_rows = copy.deepcopy(rows)
     changed_rows.pop()
     cases.append(("missing Issue 8 row", profile, changed_rows))
@@ -544,11 +593,92 @@ def main():
     for name, mutated_profile, mutated_rows in cases:
         expect_failure(name, root, corpus, entities, mutated_profile, mutated_rows)
 
+    physical_controls = check_physical_sources(root, profile)
+    check_failed_capacity_refresh(root, profile, rows)
     print(
         "PASS DPUCP-2024 calibration: "
-        f"{len(cases) + len(first_release_cases) + 2} mutations rejected"
+        f"{len(cases) + len(first_release_cases) + 2 + physical_controls} mutations rejected; "
+        "audited absence accepted and failed-capacity refresh preserves its inputs"
     )
     return 0
+
+
+def check_physical_sources(root, profile):
+    script = (root / dpucp.LINKER_SCRIPT).read_text()
+    expected = profile["hardware_limits"]
+    regions = dpucp.physical_limits_from_linker(script)
+    if any(expected[field] != value for field, value in regions.items()):
+        raise AssertionError("valid physical layout rejected")
+    region_line = next(line for line in script.splitlines() if "USERRAM (rwx)" in line)
+    mutations = (
+        script.replace(region_line, ""),
+        script + "\n" + region_line + "\n",
+        script.replace("LENGTH = 192K", "LENGTH = 193K"),
+        script.replace("LENGTH = 192K", "LENGTH = 191K"),
+        script.replace("LENGTH = 192K", "LENGTH = unknown"),
+        script.replace("LENGTH = 192K", "LENGTH = 0"),
+    )
+    for mutated in mutations:
+        if mutated == script:
+            raise AssertionError("physical source mutation did not change input")
+        try:
+            dpucp.physical_limits_from_linker(mutated)
+        except dpucp.ProfileError:
+            pass
+        else:
+            raise AssertionError("invalid physical source accepted")
+
+    # Shift the user/kernel boundary together to distinguish source derivation
+    # from a checker that embeds a second copy of the production window size.
+    alternate = script.replace("LENGTH = 192K", "LENGTH = 191K").replace(
+        "ORIGIN = 0x20030000, LENGTH = 58K", "ORIGIN = 0x2002FC00, LENGTH = 59K"
+    )
+    alternate_limits = dpucp.physical_limits_from_linker(alternate)
+    if alternate_limits["process_window_bytes"] != 191 * 1024:
+        raise AssertionError("physical limits do not follow the source")
+    if alternate_limits["sram_bytes"] != expected["sram_bytes"]:
+        raise AssertionError("contiguous SRAM budget changed")
+
+    report = "flashimg: region 1536 kbytes, capacity 989 sectors of 1024 bytes, 989 kbytes\n"
+    dpucp.validate_capacity_report(profile, report)
+    capacity_mutations = (
+        report.replace("1536", "1535"),
+        report.replace("989 sectors", "988 sectors"),
+        report.replace("1024 bytes", "512 bytes"),
+        report.replace("989", "988"),
+        report + report,
+        "",
+    )
+    for mutated in capacity_mutations:
+        try:
+            dpucp.validate_capacity_report(profile, mutated)
+        except dpucp.ProfileError:
+            pass
+        else:
+            raise AssertionError("invalid capacity report accepted")
+    return len(mutations) + len(capacity_mutations)
+
+
+def check_failed_capacity_refresh(root, profile, rows):
+    with tempfile.TemporaryDirectory(prefix="discobsd-profile-refresh-") as directory:
+        fixture = Path(directory)
+        profile_path = fixture / "profile.json"
+        rows_path = fixture / "requirements.tsv"
+        # Compact valid JSON makes even an otherwise identical refresh observable.
+        before_profile = json.dumps(profile).encode()
+        before_rows = dpucp.render_requirements(rows).encode()
+        profile_path.write_bytes(before_profile)
+        rows_path.write_bytes(before_rows)
+        result = subprocess.run(
+            [sys.executable, str(root / "tools/check_dpucp_profile.py"),
+             "--root", str(root), "--profile", str(profile_path),
+             "--requirements", str(rows_path), "--refresh", "--flashimg", sys.executable],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0 or "flashimg capacity probe failed" not in result.stderr:
+            raise AssertionError("failed capacity command was accepted or failed elsewhere")
+        if profile_path.read_bytes() != before_profile or rows_path.read_bytes() != before_rows:
+            raise AssertionError("failed capacity refresh modified its inputs")
 
 
 if __name__ == "__main__":

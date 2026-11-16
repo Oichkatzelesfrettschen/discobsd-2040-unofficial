@@ -35,7 +35,7 @@ register int fn;
 	int foundsync = FAIL;
 	char c;
 
-	DEBUG(5, "imsg looking for SYNC<", CNULL);
+	DEBUG(5, "imsg looking for SYNC<");
 	for (;;) {
 		if (read(fn, &c, 1) != 1)
 			return FAIL;
@@ -46,7 +46,7 @@ register int fn;
 			DEBUG(5, (isprint(c) || isspace(c)) ? "%c" : "\\%o",
 				c & 0377);
 		if (c == Msync[0]) {
-			DEBUG(5, ">\nimsg input<", CNULL);
+			DEBUG(5, ">\nimsg input<");
 			msg = amsg;
 			foundsync = SUCCESS;
 			continue;

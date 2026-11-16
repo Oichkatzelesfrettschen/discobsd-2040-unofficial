@@ -30,6 +30,9 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
     struct buf *nbp;
     int j, sh, error;
     daddr_t nb, *bap, ra;
+#ifdef V7FS
+    daddr_t pb;                 /* the indirect block bp holds */
+#endif
     int async = (INODE_FILESYSTEM(ip)->fs_flags & MNT_ASYNC) &&
         (flags & B_SYNC) == 0;
 
@@ -42,13 +45,17 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
     /*
      * blocks 0..NADDR-4 are direct blocks
      */
-    if (bn < NADDR-3) {
+    if (bn < FS_NADDR(INODE_FILESYSTEM(ip))-3) {
         i = bn;
-        nb = ip->i_addr[i];
+        nb = IADDR(ip, i);
+        if (nb != 0 && FS_BADADDR(INODE_FILESYSTEM(ip), nb)) {
+            u.u_error = EIO;
+            return((daddr_t)-1);
+        }
         if (nb == 0) {
             if (rwflg == B_READ || (bp = balloc(ip, flags)) == NULL)
                 return((daddr_t)-1);
-            nb = dbtofsb(bp->b_blkno);
+            nb = FS_ALLOCBN(INODE_FILESYSTEM(ip), bp);
             /* Initialize synchronous allocations before publishing the pointer. */
             if (flags & B_SYNC) {
                 error = bwrite(bp);
@@ -56,11 +63,14 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
                     goto write_failed;
             } else
                 bdwrite(bp);
-            ip->i_addr[i] = nb;
+            if (IADDR_STORE(ip, i, nb)) {
+                error = EIO;
+                goto write_failed;
+            }
             ip->i_flag |= IUPD|ICHG;
         }
-        if (i < NADDR-4)
-            rablock = ip->i_addr[i+1];
+        if (i < FS_NADDR(INODE_FILESYSTEM(ip))-4)
+            rablock = IADDR(ip, i+1);
         return(nb);
     }
 
@@ -72,10 +82,10 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
      */
     sh = 0;
     nb = 1;
-    bn -= NADDR-3;
+    bn -= FS_NADDR(INODE_FILESYSTEM(ip))-3;
     for (j = 3;j > 0;j--) {
-        sh += NSHIFT;
-        nb <<= NSHIFT;
+        sh += FS_NSHIFT(INODE_FILESYSTEM(ip));
+        nb <<= FS_NSHIFT(INODE_FILESYSTEM(ip));
         if (bn < nb)
             break;
         bn -= nb;
@@ -88,11 +98,15 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
     /*
      * fetch the first indirect block
      */
-    nb = ip->i_addr[NADDR-j];
+    nb = IADDR(ip, FS_NADDR(INODE_FILESYSTEM(ip))-j);
+    if (nb != 0 && FS_BADADDR(INODE_FILESYSTEM(ip), nb)) {
+        u.u_error = EIO;
+        return((daddr_t)-1);
+    }
     if (nb == 0) {
         if (rwflg == B_READ || (bp = balloc(ip, flags | B_CLRBUF)) == NULL)
             return((daddr_t) -1);
-        nb = dbtofsb(bp->b_blkno);
+        nb = FS_ALLOCBN(INODE_FILESYSTEM(ip), bp);
         /*
          * Write synchronously if requested so that indirect blocks
          * never point at garbage.
@@ -104,7 +118,10 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
             if (error)
                 goto write_failed;
         }
-        ip->i_addr[NADDR-j] = nb;
+        if (IADDR_STORE(ip, FS_NADDR(INODE_FILESYSTEM(ip))-j, nb)) {
+            error = EIO;
+            goto write_failed;
+        }
         ip->i_flag |= IUPD|ICHG;
     }
 
@@ -112,36 +129,73 @@ bmap(register struct inode *ip, daddr_t bn, int rwflg, int flags)
      * fetch through the indirect blocks
      */
     for(;j <= 3;j++) {
-        bp = bread(INODE_DEVICE(ip), nb);
-        if ((bp->b_flags & B_ERROR) || bp->b_resid) {
+        bp = bread(INODE_DEVICE(ip), FSBTODB(INODE_FILESYSTEM(ip), nb));
+        if ((bp->b_flags & B_ERROR) ||
+            FSRESID(INODE_FILESYSTEM(ip), bp, nb)) {
             brelse(bp);
+#ifdef V7FS
+            /* Block 0 is no hole here: on a V7 volume it is the boot block. */
+            u.u_error = EIO;
+            return((daddr_t)-1);
+#else
             return((daddr_t)0);
+#endif
         }
-        bap = (daddr_t*) bp->b_addr;
-        sh -= NSHIFT;
-        i = (bn>>sh) & NMASK;
+        bap = (daddr_t*) FSBADDR(INODE_FILESYSTEM(ip), bp, nb);
+#ifdef V7FS
+        pb = nb;
+#endif
+        sh -= FS_NSHIFT(INODE_FILESYSTEM(ip));
+        i = (bn>>sh) & FS_NMASK(INODE_FILESYSTEM(ip));
         nb = bap[i];
+        if (nb != 0 && FS_BADADDR(INODE_FILESYSTEM(ip), nb)) {
+            brelse(bp);
+            u.u_error = EIO;
+            return((daddr_t)-1);
+        }
         /*
          * calculate read-ahead
          */
-        if ((u_int)i < NINDIR-1)
+        if ((u_int)i < FS_NINDIR(INODE_FILESYSTEM(ip))-1)
             ra = bap[i+1];
         if (nb == 0) {
-            if (rwflg == B_READ || (nbp = balloc(ip, flags | B_CLRBUF)) == NULL) {
+#ifdef V7FS
+            /*
+             * The block balloc() returns, or a free-chain block it
+             * reads, may be another part of the buffer held here.
+             */
+            if (FS_DBSHIFT(INODE_FILESYSTEM(ip))) {
                 brelse(bp);
+                bp = NULL;
+            }
+#endif
+            if (rwflg == B_READ || (nbp = balloc(ip, flags | B_CLRBUF)) == NULL) {
+                FS_BRELSE_HELD(bp);
                 return((daddr_t) -1);
             }
-            nb = dbtofsb(nbp->b_blkno);
+            nb = FS_ALLOCBN(INODE_FILESYSTEM(ip), nbp);
             /* Metadata and explicitly synchronous data must precede the parent. */
             if (!async && (j < 3 || (flags & B_SYNC))) {
                 error = bwrite(nbp);
                 if (error) {
-                    brelse(bp);
+                    FS_BRELSE_HELD(bp);
                     goto write_failed;
                 }
             } else
                 bdwrite(nbp);
-            bap = (daddr_t*) bp->b_addr;
+#ifdef V7FS
+            if (bp == NULL) {
+                bp = bread(INODE_DEVICE(ip),
+                    FSBTODB(INODE_FILESYSTEM(ip), pb));
+                if (bp->b_flags & B_ERROR) {
+                    brelse(bp);
+                    error = EIO;
+                    goto write_failed;
+                }
+                bap = (daddr_t*) FSBADDR(INODE_FILESYSTEM(ip), bp, pb);
+            }
+#endif
+            FS_REMAP(bap, bp);
             bap[i] = nb;
             bdwrite(bp);
         } else

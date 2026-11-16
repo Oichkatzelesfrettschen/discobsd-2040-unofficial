@@ -161,6 +161,9 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
     int error = 0;
     int flags;
     struct mount *mp;
+#ifdef V7FS
+    caddr_t base;               /* the block's bytes inside bp */
+#endif
 
     //if (uio->uio_offset < 0)
         //return (EINVAL);
@@ -205,6 +208,12 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
         }
         return (error);
     }
+#ifdef V7FS
+    if (type == IFDIR && FS_ISV7(INODE_FILESYSTEM(ip))) {
+        error = v7_dirrw(ip, uio);
+        goto complete;
+    }
+#endif
     if (uio->uio_resid == 0)
         return (0);
     if (uio->uio_rw == UIO_WRITE && type == IFREG &&
@@ -221,9 +230,9 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
     flags = ioflag & IO_SYNC ? B_SYNC : 0;
 
     do {
-        lbn = lblkno(uio->uio_offset);
-        on = blkoff(uio->uio_offset);
-        n = MIN((u_int)(DEV_BSIZE - on), uio->uio_resid);
+        lbn = IN_LBLKNO(ip, uio->uio_offset);
+        on = IN_BLKOFF(ip, uio->uio_offset);
+        n = MIN((u_int)(IN_BSIZE(ip) - on), uio->uio_resid);
         if (type != IFBLK) {
             if (uio->uio_rw == UIO_READ) {
                 off_t diff = ip->i_size - uio->uio_offset;
@@ -234,7 +243,7 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
                 bn = bmap(ip, lbn, B_READ, flags);
             } else
                 bn = bmap(ip,lbn,B_WRITE,
-                       n == DEV_BSIZE ? flags : flags|B_CLRBUF);
+                       n == IN_BSIZE(ip) ? flags : flags|B_CLRBUF);
             if (u.u_error || (uio->uio_rw == UIO_WRITE && (long)bn < 0))
                 return (u.u_error);
             if (uio->uio_rw == UIO_WRITE && uio->uio_offset + n > ip->i_size &&
@@ -248,16 +257,21 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
             if ((long)bn < 0) {
                 bp = geteblk();
                 bzero (bp->b_addr, MAXBSIZE);
-            } else if (ip->i_lastr + 1 == lbn)
-                bp = breada (dev, bn, rablock);
+                IN_SETBASE(base, bp->b_addr);
+            } else {
+            if (ip->i_lastr + 1 == lbn)
+                bp = breada (dev, IN_BTODB(ip, bn), IN_BTODB(ip, rablock));
             else
-                bp = bread (dev, bn);
+                bp = bread (dev, IN_BTODB(ip, bn));
+            IN_SETBASE(base, IN_BADDR(ip, bp, bn));
+            }
             ip->i_lastr = lbn;
         } else {
-            if (n == DEV_BSIZE)
-                bp = getblk (dev, bn);
+            if (n == IN_BSIZE(ip))
+                bp = IN_GETBLK (ip, dev, bn);
             else
-                bp = bread (dev, bn);
+                bp = bread (dev, IN_BTODB(ip, bn));
+            IN_SETBASE(base, IN_BADDR(ip, bp, bn));
             /*
              * 4.3 didn't do this, but 2.10 did.  not sure why.
              * something about tape drivers don't clear buffers on end-of-tape
@@ -268,15 +282,15 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
                 bzero (bp->b_addr, MAXBSIZE);
             }
         }
-        n = MIN((u_int)n, DEV_BSIZE - bp->b_resid);
+        n = MIN((u_int)n, IN_AVAIL(ip, bp, bn));
         if (bp->b_flags & B_ERROR) {
             error = EIO;
             brelse(bp);
             break;
         }
-        u.u_error = uiomove (bp->b_addr + on, n, uio);
+        u.u_error = uiomove (IN_BASE(base, bp) + on, n, uio);
         if (uio->uio_rw == UIO_READ) {
-            if (n + on == DEV_BSIZE || uio->uio_offset == ip->i_size) {
+            if (n + on == IN_BSIZE(ip) || uio->uio_offset == ip->i_size) {
                 bp->b_flags |= B_AGE;
                 if (ip->i_flag & IPIPE)
                     bp->b_flags &= ~B_DELWRI;
@@ -292,7 +306,7 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
              * called (and I/O initiated)  constantly.  Not sure what to do about this yet
              * but this comment is being placed here as a reminder.
              */
-            else if (n + on == DEV_BSIZE && !(ip->i_flag & IPIPE)) {
+            else if (n + on == IN_BSIZE(ip) && !(ip->i_flag & IPIPE)) {
                 bp->b_flags |= B_AGE;
                 bawrite(bp);
             } else
@@ -316,6 +330,9 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
          * bit for their writes anyways.
          */
     }
+#ifdef V7FS
+complete:
+#endif
     if (!error && uio->uio_rw == UIO_WRITE && (ioflag & IO_SYNC) &&
         type != IFBLK) {
         error = syncip(ip);
@@ -327,6 +344,18 @@ rwip(register struct inode *ip, register struct uio *uio, int ioflag)
             }
         }
     }
+    /*
+     * A synchronous write returns after the device has made it durable.
+     * The block above covers files and directories through ufs_sync(); a
+     * block device node has no filesystem to sync, so its writes, which
+     * bwrite() has completed in the driver, take the device's own
+     * checkpoint (bdev_checkpoint(), DIOCCHECKPOINT) before the return. A
+     * driver without the command answers 0, and a checkpoint failure is the
+     * write's error.
+     */
+    if (!error && uio->uio_rw == UIO_WRITE && (ioflag & IO_SYNC) &&
+        type == IFBLK)
+        error = bdev_checkpoint(dev);
     return (error);
 }
 
@@ -381,7 +410,9 @@ closei(register struct inode *ip, int flag)
 {
     register struct mount *mp;
     register struct file *fp;
+    struct inode *alias;
     int mode, error;
+    int flush_error = 0, raw_locked = 0;
     dev_t   dev;
 
     mode = ip->i_mode & IFMT;
@@ -389,15 +420,30 @@ closei(register struct inode *ip, int flag)
 
     switch (mode) {
     case IFCHR:
+        if (chrtoblk(dev) != NODEV) {
+            bdevlock(ip);
+            raw_locked = 1;
+        }
         break;
     case IFBLK:
+        bdevlock(ip);
+        if ((ip->i_bdev_state & IBDEV_REFS) == 0) {
+            bdevunlock(ip);
+            return EBADF;
+        }
         /*
          * We don't want to really close the device if it is mounted
          */
         /* MOUNT TABLE SHOULD HOLD INODE */
         for (mp = mount; mp < &mount[NMOUNT]; mp++)
-            if (mp->m_inodp != NULL && mp->m_dev == dev)
-                return(0);
+            if (mp->m_inodp != NULL && mp->m_dev == dev) {
+                error = bdev_write_error(dev);
+                goto release_block;
+            }
+        if (bdev_other_open(ip)) {
+            error = bdev_write_error(dev);
+            goto release_block;
+        }
         break;
     default:
         return(0);
@@ -407,12 +453,14 @@ closei(register struct inode *ip, int flag)
      * This is because the same device can be referenced by two
      * different inodes.
      */
-    for (fp = file; fp < file+NFILE; fp++) {
+    for (fp = file; mode == IFCHR && fp < file+NFILE; fp++) {
         if (fp->f_type != DTYPE_INODE)
             continue;
-        if (fp->f_count && (ip = (struct inode *)fp->f_data) &&
-            ip->i_rdev == dev && (ip->i_mode&IFMT) == mode)
-            return(0);
+        if (fp->f_count && (alias = (struct inode *)fp->f_data) &&
+            alias->i_rdev == dev && (alias->i_mode&IFMT) == mode) {
+            error = 0;
+            goto release_block;
+        }
     }
     if (mode == IFBLK) {
         /*
@@ -420,28 +468,19 @@ closei(register struct inode *ip, int flag)
          * we must invalidate any in core blocks, so that
          * we can, for instance, change floppy disks.
          */
-        bflush(dev);
+        flush_error = bdevsync(dev);
         binval(dev);
     }
-    /*
-     * NOTE:  none of the device drivers appear to either set u_error OR return
-     *    anything meaningful from their close routines.  It's a good thing
-     *    programs don't bother checking the error status on close() calls.
-     *    Apparently the only time "errno" is meaningful after a "close" is
-     *    when the process is interrupted.
-     */
-    int (*const cfunc)(dev_t, int, int) = mode == IFCHR ?
-        cdevsw[major(dev)].d_close : bdevsw[major(dev)].d_close;
-    if (setjmp (&u.u_qsave)) {
-        /*
-         * If device close routine is interrupted,
-         * must return so closef can clean up.
-         */
-        if ((error = u.u_error) == 0)
-            error = EINTR;
-    } else
-        error = (*cfunc)(dev, flag, mode);
-    return (error);
+    error = dev_driver_close(dev, flag, mode);
+    if (mode == IFBLK)
+        bdev_clear_write_error(dev);
+release_block:
+    if (mode == IFBLK) {
+        ip->i_bdev_state--;
+        bdevunlock(ip);
+    } else if (raw_locked)
+        bdevunlock(ip);
+    return flush_error != 0 ? flush_error : error;
 }
 
 /*
@@ -561,7 +600,7 @@ openi(register struct inode *ip, int mode)
     register dev_t dev = ip->i_rdev;
     register int maj = major(dev);
     dev_t bdev;
-    int error;
+    int error, priority;
 
     switch (ip->i_mode&IFMT) {
 
@@ -591,7 +630,17 @@ openi(register struct inode *ip, int mode)
                     return(EPERM);
             }
         }
-        return ((*cdevsw[maj].d_open)(dev, mode, S_IFCHR));
+        bdev = chrtoblk(dev);
+        if (bdev == NODEV)
+            return ((*cdevsw[maj].d_open)(dev, mode, S_IFCHR));
+        bdevlock(ip);
+        error = securelevel >= 2 && (mode & FWRITE) && isdisk(dev, IFCHR) ? EPERM : 0;
+        if (error == 0 && securelevel >= 1 && (mode & FWRITE))
+            error = ufs_mountedon(bdev);
+        if (error == 0)
+            error = cdev_driver_open(dev, mode);
+        bdevunlock(ip);
+        return error;
 
     case IFBLK:
         if (INODE_FILESYSTEM(ip)->fs_flags & MNT_NODEV)
@@ -614,9 +663,26 @@ openi(register struct inode *ip, int mode)
          * above restriction is fully effective.  On the otherhand
          * fsck should 1) use the raw device, 2) not do sync calls...
          */
-        if (securelevel > 0 && (error = ufs_mountedon(dev)))
-            return(error);
-        return ((*bdevsw[maj].d_open)(dev, mode, S_IFBLK));
+        bdevlock(ip);
+        error = securelevel >= 2 && (mode & FWRITE) && isdisk(dev, IFBLK) ? EPERM : 0;
+        if (error == 0 && securelevel > 0)
+            error = ufs_mountedon(dev);
+        if (error) {
+            bdevunlock(ip);
+            return error;
+        }
+        if ((ip->i_bdev_state & IBDEV_REFS) == IBDEV_REFS) {
+            bdevunlock(ip);
+            return ENFILE;
+        }
+        priority = splbio();
+        ip->i_bdev_error = bdev_write_error(dev);
+        splx(priority);
+        error = bdev_driver_open(dev, mode);
+        if (error == 0)
+            ip->i_bdev_state++;
+        bdevunlock(ip);
+        return error;
     }
     return (0);
 }

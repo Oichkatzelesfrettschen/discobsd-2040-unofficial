@@ -19,6 +19,7 @@ sed \
 	-e 's/board[[:space:]]*"PICO"/board           "CONFIG_MAKEFILE"/' \
 	-e 's/config[[:space:]]*unix[[:space:]]*root on fl0a/config          unix/' \
 	-e 's/swap on fl1/swap on generic/' \
+	-e '/dumps on none/d' \
 	"$compile_root/PICO/Config" >"$test_directory/Config"
 printf 'aaaaaaaaaaa.c standard\n' >"$test_directory/files.CONFIG_MAKEFILE"
 

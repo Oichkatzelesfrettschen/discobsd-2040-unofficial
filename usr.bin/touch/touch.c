@@ -86,25 +86,28 @@
 
 /*
  * The bounds are derived from time_t rather than written down, so the same
- * source is exact at the target's four bytes and at the host width the
+ * source is exact at the target's eight bytes and at the host width the
  * contract gate builds it for. The logic assumes only that the type is
- * signed, which is what the assertion pins.
+ * signed, which is what the assertion pins. A year has at most four digits
+ * in every form this program reads, so a day count fits a long; seconds
+ * are counted in time_t.
  */
 _Static_assert((time_t)-1 < 0, "time_t is signed");
-_Static_assert(sizeof(time_t) <= sizeof(long), "time_t fits the long below");
+_Static_assert(sizeof(time_t) <= sizeof(unsigned long long),
+    "time_t fits the unsigned long long below");
 
 /*
  * The largest value a signed time_t holds, reached by shifting an all-ones
- * unsigned long down to time_t's width less its sign bit. The shift count is
- * a constant, so this folds.
+ * unsigned long long down to time_t's width less its sign bit. The shift
+ * count is a constant, so this folds.
  */
-#define TIME_MAX	((time_t)(~0UL >> \
-			    (8 * sizeof(unsigned long) - 8 * sizeof(time_t) + 1)))
+#define TIME_MAX	((time_t)(~0ULL >> \
+			    (8 * sizeof(unsigned long long) - 8 * sizeof(time_t) + 1)))
 #define TIME_MIN	((time_t)(-TIME_MAX - 1))
 #define SECS_PER_DAY	86400L
 
 /* The largest day count whose product with SECS_PER_DAY still fits. */
-#define DAY_LIMIT	((long)(TIME_MAX / SECS_PER_DAY))
+#define DAY_LIMIT	((time_t)(TIME_MAX / SECS_PER_DAY))
 
 #define ISDIGIT(c)	((c) >= '0' && (c) <= '9')
 
@@ -193,7 +196,8 @@ epoch_from_local(const struct caldate *c, time_t *out)
 	static const unsigned char mon_len[12] = {
 		31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
 	};
-	long days, secs, tod, west;
+	time_t secs;
+	long days, tod, west;
 	int len, leap;
 
 	if (c->mon < 1 || c->mon > 12 || c->mday < 1 ||
@@ -208,9 +212,11 @@ epoch_from_local(const struct caldate *c, time_t *out)
 		return (false);
 
 	days = days_from_civil(c->year, c->mon, c->mday);
-	if (days > DAY_LIMIT || days < -DAY_LIMIT)
+	/* Compared as a time_t, the width DAY_LIMIT is derived for. */
+	secs = days;
+	if (secs > DAY_LIMIT || secs < -DAY_LIMIT)
 		return (false);
-	secs = days * SECS_PER_DAY;
+	secs *= SECS_PER_DAY;
 	tod = c->hour * 3600L + c->min * 60L + c->sec;
 	west = zone_west();
 
@@ -224,14 +230,22 @@ epoch_from_local(const struct caldate *c, time_t *out)
 	return (true);
 }
 
-/* The instant back to local fields, which is where -t starts from. */
+/*
+ * The instant back to local fields, which is where -t starts from. The
+ * instant is a clock reading, the kernel's 32-bit count that
+ * gettimeofday() widens unsigned, so the day and the second of the day
+ * come from a division of an unsigned long, and the zone then moves the
+ * second of the day across midnight where it must.
+ */
 static void
 local_from_epoch(time_t t, struct caldate *c)
 {
-	long secs = (long)t - zone_west();
-	long days = secs / SECS_PER_DAY;
-	long rem = secs % SECS_PER_DAY;
+	unsigned long count = (unsigned long)t;
+	long days = (long)(count / SECS_PER_DAY);
+	long rem = (long)(count % SECS_PER_DAY) - zone_west();
 
+	days += rem / SECS_PER_DAY;
+	rem %= SECS_PER_DAY;
 	if (rem < 0) {
 		rem += SECS_PER_DAY;
 		days--;

@@ -3,6 +3,8 @@
 This directory holds the documents the port's code, Makefiles and root
 manifest cite as the authority for a shipped mechanism:
 
+- string-header-visibility.md -- feature selectors, declaration visibility and
+  compiler/native-input evidence for the public string header.
 - audit-findings.md and audit-response.md -- the read-only audit ledger and
   the response that records how each ranked item was resolved or deferred.
 - float-libs.md and board-libc.md -- the Boot ROM float provider contract and
@@ -12,6 +14,15 @@ manifest cite as the authority for a shipped mechanism:
   rockbox-ui.md -- what each multicall binary in distrib/rp2040/mi.rp2040
   carries and why.
 - zswap.md and emulation.md -- the RAM-tier swap design and the Renode flow.
+- dhara-gc-trigger.md -- where the vendored Dhara's collector starts
+  (`gc_trigger()` in sys/arch/rp2040/dhara/map.c): the peak-journal bound,
+  the adversarial runs, and the host-model and board costs.
+- flash-traffic-per-workload.md -- storage counters on the measured Pico and
+  Renode flash-command counts for the stages of a compile on the board,
+  against the flash part's rated erase cycles (distrib/rp2040/cc).
+- v7-format-descriptor.md -- the per-mount parameter set sys/sys/fsgeom.h
+  reads to mount Seventh Edition volumes through the native inode layer, the
+  checks a foreign volume gets and the measured cost of the V7FS option.
 - sh-posix-audit.md -- the bin/sh POSIX ledger whose rows bin/sh/tests/posix-sh.sh
   tests and whose xfail cases pin the open items.
 
@@ -28,3 +39,6 @@ Every other note written during the port (option surveys, backport and size
 audits, tuning reports, handback notes, USB and storage investigations)
 lives in docs/research at the top of this tree. docs/INDEX.md maps both
 directories.
+
+MATEZINHO.md in the parent directory owns the desktop asset format, emulator
+profiles, RAM boundary, optional distribution closure and reproduction commands.

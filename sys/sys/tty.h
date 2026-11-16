@@ -60,16 +60,26 @@ struct tty {
     void    (*t_oproc) (struct tty*);
     struct  proc    *t_rsel;            /* tty */
     struct  proc    *t_wsel;
-    caddr_t         T_LINEP;            /* ### */
     caddr_t         t_addr;             /* ??? */
     dev_t           t_dev;              /* device */
     uint32_t        t_flags;            /* some of both */
     long            t_state;            /* some of both */
-    int             t_pgrp;             /* tty */
-    int             t_delct;            /* tty */
-    int             t_col;              /* tty */
-    int             t_ispeed, t_ospeed; /* device */
-    int             t_rocount, t_rocol; /* tty */
+    /*
+     * The narrow fields follow the word-sized ones in decreasing size so the
+     * structure has no interior padding.  t_pgrp holds a process group id in
+     * 0..SHRT_MAX (PGRP_VALID in sys/proc.h).  t_rocount is signed because
+     * ttyrub() decrements it without a floor and ttyrub()'s tab case compares
+     * it with the raw queue length.  t_ispeed and t_ospeed hold B* indices,
+     * all below NSPEEDS.  t_col wraps at 16 bits, which keeps its tab-stop
+     * residue (t_col & 7) intact.
+     */
+    int16_t         t_pgrp;             /* tty */
+    uint16_t        t_delct;            /* tty */
+    uint16_t        t_col;              /* tty */
+    int16_t         t_rocount;          /* tty */
+    uint16_t        t_rocol;            /* tty */
+    uint8_t         t_ispeed;           /* device */
+    uint8_t         t_ospeed;           /* device */
     struct  ttychars t_chars;           /* tty */
     struct  winsize t_winsize;          /* window size */
 /* be careful of tchars & co. */

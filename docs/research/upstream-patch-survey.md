@@ -23,7 +23,7 @@ Across 172 rows (2 upstream commits, 68 numbered patches 432 to 499, and the
 | --- | ---: | ---: | ---: | ---: |
 | upstream DiscoBSD | 0 | 0 | 0 | 2 |
 | 2.11BSD 432 to 499 | 12 | 9 | 8 | 39 |
-| 2.11BSD 500 items | 17 | 3 | 15 | 67 |
+| 2.11BSD 500 items | 17 | 3 | 20 | 62 |
 
 The applicable set is small and cheap. Four kernel items (439, 451, 456 and 458)
 cost between +4 and +80 bytes of kernel text, with 439's stack half unmeasured,
@@ -76,6 +76,13 @@ applicable.
   this class (`211bsd-patch-scope.md`).
 - **not applicable**: PDP-11 hardware, a program or subsystem absent from this
   tree, the network stack, or documentation for those.
+
+A documentation hunk follows the same rule as a code hunk and is read against the
+fork, never excluded as a kind. It is applicable when the page or alias it edits,
+creates or deletes is stale, missing or present here for an interface this tree
+has (or, for a deletion, for a page that ships here), and not applicable when its
+interface or program is absent. Each of the 24 documentation-related patch-500
+items was read this way, and 500.33, 500.37, 500.47, 500.48 and 500.94 are live.
 
 The appendix `upstream-patch-survey.tsv` carries one row per upstream commit,
 per numbered patch 432 to 499 and per patch-500 item, with the shipped route,
@@ -133,7 +140,7 @@ mode, sysctl, tar, umount and inode-rescan work. The survey adds these:
 
 ## Patch 500
 
-Of the 102 items, 67 concern PDP-11 hardware and tapes, f77, efl, ingres,
+Of the 102 items, 62 concern PDP-11 hardware and tapes, f77, efl, ingres,
 sendmail, uucp, networking, programs absent here, or manuals. The rest:
 
 **Present (17).** `touch -r/-t` (`usr.bin/touch/touch.c:268`, `4328e80e`),
@@ -153,7 +160,7 @@ operand numerically and the crash path is absent. `hostid` is in
 500.57 (`ps` through `getopt`, `bin/ps/ps.c:294`) is present, but part (a) is
 live, so that item is applicable.
 
-**Applicable (15).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
+**Applicable (20).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
 descend repair (500.11), `iso646.h` and `locale.h` (500.13), `chown
 owner:group` (500.17), the find-database last entry (500.30), `w` with no
 utmp (500.51), `rm` and `mv` through `getopt`
@@ -162,8 +169,12 @@ utmp (500.51), `rm` and `mv` through `getopt`
 escapes (500.68: `games/battlestar/mkstr.c:142-166` has no such cases, and
 battlestar is built through it), the unused phantasia test files (500.74: `phant_run.c`
 and `test.c` remain, cosmetic, on a game outside `games/Makefile`'s `SUBDIR`; its
-setuid-root install and three-argument `signal` calls are absent) and the
-`who am i` separator (500.97).
+setuid-root install and three-argument `signal` calls are absent) the
+`who am i` separator (500.97), and five manual-page hunks (500.33, 500.37,
+500.47, 500.48, 500.94, ranked 13): `access.2` and `lseek.2` name `<sys/file.h>`
+for functions declared in `<unistd.h>`, `bk.4` documents a line discipline the
+kernel lacks, `strdup.3` is missing, `getpwent.0` has no `setpassent.0` link, and
+42 of 99 section-2 and 48 of 134 section-3 pages carry no `#include` line.
 
 **Live defect, 500.92 `sleep(3)`.** Part (b) of the item, an unsigned parameter
 used as signed, is absent: `seconds` is a `u_int` with no signed comparison.
@@ -288,6 +299,7 @@ applets, packed blocks in the root.
 | 10 | 500.92 `sleep(3)` above 100,000,000 s returns the whole request unslept at once, and above 2,147,483 s sleeps short (I); a chunked `select` loop, or a documented bound | libc, every program linking `sleep.o` | 0 | 0 | +22 B in `sleep.o` for the unrun sketch, GCC 16.2.0 `-Os` | low; the loop must keep the interrupted-sleep remainder and the 2038 clock arithmetic of `sleep.c:44-51` | `check-sleep`, with requests above the bound (no such case today) |
 | 11 | 454 `date` and libc without the kernel timezone (`bin/date2/date.c:304-380`, `lib/libc/gen/tzset.c:195`); drops `date -d` and `-t` | `/bin/date`, libc | 0 | 0 | shrinks `date` and `tzset.o` (I, unmeasured) | medium; two user options disappear and the fork stores the zone in the kernel today | none; a `date` contract on `-t` and `-d` is the new gate |
 | 12 | 500.57 `ps` keeps a static 24-entry tty table (`bin/ps/ps.c:509-513`) where the patch looks names up with `devname(3)`; part (c), `getopt`, is present. Prerequisite: `lib/libc/gen/devname.c:65-67` returns `entry->d_name` after `closedir(dir)` has freed the `DIR` that holds the entry, so the pointer dangles; a stable-buffer `devname()` comes first | packed `/bin/ps` | 0 | 0 | removes the table from `ps` data (I, unmeasured; see the adaptation below); the `devname()` repair adds libc text, unmeasured | medium until `devname()` is repaired: a corrupted or crashing terminal name; low after | none; a `devname()` runtime case that reads the name after another allocation is the new gate |
+| 13 | 500.33, 500.37, 500.47, 500.48 and 500.94 manual pages: `access.2` and `lseek.2` name `<sys/file.h>` (`include/unistd.h:84,95` declares the functions), delete `bk.4`, add `strdup.3`, link `setpassent.0` to `getpwent.0` (`share/man/man3/Makefile:338-349`), and add `#include` lines to the section-2 and section-3 pages that lack them | none: man pages are not in `distrib/rp2040/mi.rp2040` | 0 | 0 | 0 | none | none; `makewhatis` and a link check over `share/man` are the natural gate |
 
 The rest are unshipped or cosmetic: 500.51 `w` dereferences a failed `fopen` of
 utmp (`usr.bin/w/w.c:129,164`); 447 `apropos` under-allocation; 441 libvmf walk;

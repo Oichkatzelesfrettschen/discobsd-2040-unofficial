@@ -352,6 +352,22 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-core1-emulation
 
+      # The swap-codec cycle model (docs/research/picocalc-device-first) runs
+      # its self-test: aliased output, drifted zero-fill, incomplete compile
+      # command, mismatched binutils, failed round trip and a perturbed
+      # golden file must each fail; python3-unicorn and python3-capstone above
+      # are its dependencies beyond the cross tier.
+      - name: Run the cycle-model harness self-test
+        if: env.FULL_GATES == 'true'
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-cycle-model \
+            --log .build-logs/linux-cycle-model.log \
+            --status .build-logs/linux-cycle-model.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-picocalc-cycle-model
+
       - name: Run the qemu tier
         if: env.FULL_GATES == 'true'
         # Includes the executable-tail libc object ABI experiment with real

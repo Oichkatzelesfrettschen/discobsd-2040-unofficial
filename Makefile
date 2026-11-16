@@ -1572,6 +1572,24 @@ check-core1-emulation: check-python
 
 .PHONY: check-core1 check-core1-image check-core1-emulation
 
+# The swap-codec cycle model of docs/research/picocalc-device-first. Its
+# committed run-output.tsv is a fixed oracle for one compiler version: oracle.sh
+# compares the synthetic rows and the compiler options with a fresh model run
+# and exits 3, reported here as SKIP with its reason, when the compiler differs.
+# selftest.sh then calibrates the comparison and the harness on known-bad input
+# (a perturbed oracle, aliased output, a drifted bzero, an incomplete compile
+# command, a mismatched binutils prefix, a failed round trip). Both run the
+# Unicorn model against the built tree's sh and awk, so the target stands
+# outside check-cross.
+check-picocalc-cycle-model: check-python
+		@rc=0; PYTHON=${PYTHON:Q} sh docs/research/picocalc-device-first/oracle.sh || rc=$$?; \
+		if [ $$rc -eq 3 ]; then echo "check-picocalc-cycle-model: oracle comparison skipped"; \
+		elif [ $$rc -ne 0 ]; then exit $$rc; fi
+		PYTHON=${PYTHON:Q} BMAKE=${MAKE:Q} \
+		    sh docs/research/picocalc-device-first/selftest.sh
+
+.PHONY: check-picocalc-cycle-model
+
 # The rump-kernel size measurement behind docs/research/tiny-rump-components.md.
 # It needs a NetBSD checkout, which CI lacks, so it stays outside check:
 # NETBSD_SRC defaults to BSD_Workspace/netbsd-src beside the primary checkout,
